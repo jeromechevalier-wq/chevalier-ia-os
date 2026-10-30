@@ -158,6 +158,15 @@ button[data-lecture="verrou"][aria-disabled="true"], select[data-lecture="verrou
 .champ-grand { min-height: calc(var(--h-ctrl) + var(--esp-3)); }
 .champ-intelligent.champ-grand { min-height: 0; }
 .champ-intelligent.champ-grand .champ-intelligent-saisie { min-height: calc(var(--h-ctrl) + var(--esp-3)); }
+/* « Pour qui est ce devis ? » : la question « l'organisation / elle seule » et la liste « à l'attention de » sous le champ ; la ligne Affaire est plus petite que le champ unique. */
+.zone-client-devis:empty { display: none; }
+.zone-client-devis { display: flex; flex-direction: column; gap: var(--esp-2); margin-top: var(--esp-2); }
+.question-client { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-1); min-width: 0; }
+.choix-pour-qui { display: flex; align-items: flex-start; gap: var(--esp-2); cursor: pointer; }
+@media (max-width: 700px) { .choix-pour-qui { min-height: 44px; align-items: center; } }
+/* Finaliser sans affaire : le champ Affaire est bien rouge, même avec le focus. */
+.champ-intelligent .champ.invalide, .champ-intelligent .champ.invalide:focus { border-color: var(--retard); box-shadow: 0 0 0 1px var(--retard); outline: none; }
+.attention-devis { display: flex; flex-direction: column; gap: var(--esp-1); }
 
 /* Recherche dans le Bordereau (ouverte par « + Fourniture », « + Main d'œuvre », « + Ouvrage »…). */
 .recherche-bordereau { display: flex; flex-direction: column; gap: var(--esp-3); padding: var(--esp-5); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau2); }

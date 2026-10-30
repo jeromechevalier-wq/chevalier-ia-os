@@ -1,14 +1,14 @@
 // Nouveau devis : rien ne doit empêcher un artisan de commencer (30/10/2026). Un brouillon existe sans client ni affaire ; le client et l'affaire se retrouvent en tapant quelques lettres ;
-// à la finalisation sans affaire, l'écran crée l'affaire (nom du devis ou du client, étape du réglage « Étape des affaires créées depuis un devis »).
+// finaliser sans affaire donne un message et le champ Affaire en rouge ; « + Créer l'affaire » (dans la liste du champ) la crée (nom tapé, du devis ou du client ; étape du réglage « Étape des affaires créées depuis un devis »).
 // Un test par point (le nom commence par son numéro) ; UNE capture par point : tests/e2e/captures/devis-nouveau-sans-blocage/ (ordinateur ET téléphone).
 //  1 scénario (a) : un client « personne » sans organisation, pas d'affaire
-//  2 scénario (b) : un client avec organisation ; ses affaires d'abord, « Voir toutes les affaires » sinon
-//  3 scénario (c) : l'affaire se retrouve en tapant deux lettres ; elle ne remplace pas un client déjà choisi
+//  2 scénario (b) : un client avec organisation ; seulement ses affaires, un message permanent s'il n'en a pas (jamais d'affaire d'un autre client)
+//  3 scénario (c) : l'affaire se retrouve en tapant deux lettres et pose son client ; un client déjà choisi ne reçoit que SES affaires
 //  4 l'entrée « Devis » du menu « + » crée un brouillon sans rien demander
-//  5 finaliser sans affaire, étape réglée : l'affaire est créée au nom du client, à l'étape réglée, puis « Finaliser ce devis ? »
-//  6 étape non réglée : liste sans présélection, jamais de création sans étape choisie
-//  7 aucune étape active : message clair, rien n'est créé
-//  8 « Choisir une affaire existante » ferme la fenêtre et met le focus sur le champ Affaire ; le nom du devis passe avant le client
+//  5 finaliser sans affaire : message + champ rouge ; « + Créer l'affaire » (liste du champ) crée à l'étape réglée, puis « Finaliser ce devis ? »
+//  6 étape non réglée : second pas « Dans quelle étape ? » dans la même liste, jamais de création sans étape choisie
+//  7 aucune étape active : message clair dans la liste, rien n'est créé
+//  8 sans nom ni client : pas de ligne de création sans nom tapé ; une affaire existante lève l'erreur
 import { fileURLToPath } from 'node:url';
 import {
   test, expect, connecter, attendreCalme, listerDocuments, lireDocument, ecrireDocument, creerOrganisation, creerPersonne, creerAffaire, estTelephone, choisirDansChampDevis, JEROME,
@@ -85,7 +85,7 @@ test('1 scénario (a) : un client « personne » sans organisation se choisit sa
   expect(d.affaireId ?? null).toBeNull();
   await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('julie@exemple.test'); // le client n'a pas besoin d'affaire pour fournir son e-mail
   await expect(champAffaire(page)).toHaveValue('');
-  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif tant que le devis est un brouillon');
+  await expect(champAffaire(page)).toHaveAttribute('placeholder', 'Choisis ou crée une affaire'); // le client a une affaire : la ligne Affaire propose, sans rien imposer
   await capturer(page, info, '1-client-personne');
   // Cas d'erreur : une seule lettre ne propose rien (seuil de 2 lettres pour toute l'application) ; la croix « Effacer » retire le client.
   await champClient(page).fill('J');
@@ -97,38 +97,39 @@ test('1 scénario (a) : un client « personne » sans organisation se choisit sa
   expect((await lireDocument(`devis_devis/${id}`)).personneId ?? null).toBeNull();
 });
 
-test('2 scénario (b) : un client avec organisation restreint les affaires proposées à les siennes ; sans affaire pour ce client, « Voir toutes les affaires » les montre toutes', async ({ page }, info) => {
+test('2 scénario (b) : un client avec organisation restreint les affaires proposées à les siennes ; sans affaire pour ce client, un message permanent et jamais l’affaire d’un autre client', async ({ page }, info) => {
   await semer();
   const id = await nouveauDevis(page);
   await choisirDansChampDevis(page, 'client', 'Société', 'Société Exemple');
   await enregistre(page);
   expect((await lireDocument(`devis_devis/${id}`)).organisationId).toBe('o1');
   await champAffaire(page).click();
-  await expect(suggestions(page)).toHaveText([/Extension garage/, /Rénovation cuisine/]); // ordre alphabétique; // seulement les affaires de l'organisation (pas Salle de bains Rubio ni Toiture)
+  await expect(suggestions(page)).toHaveText([/Extension garage/, /Rénovation cuisine/, /\+ Créer l’affaire « Société Exemple »/]); // ordre alphabétique, puis la création ; seulement les affaires de l'organisation (pas Salle de bains Rubio ni Toiture)
   await capturer(page, info, '2-affaires-du-client');
   await page.keyboard.press('Escape');
   // Cas vide : un client sans aucune affaire.
   await champClient(page).fill('Atelier');
   await page.locator('.entete-droite .suggestion', { hasText: 'Atelier Vide' }).first().click();
   await champAffaire(page).click();
-  await expect(page.locator('.entete-droite .suggestion-vide')).toContainText('Aucune affaire pour ce client');
-  await champAffaire(page).press('Enter'); // au clavier : Entrée = « Voir toutes les affaires » (le bouton n'est pas atteignable par Tab)
-  await expect(suggestions(page)).toHaveCount(4);
-  await suggestions(page).filter({ hasText: 'Toiture des voisins' }).click();
+  await expect(suggestions(page)).toHaveText([/\+ Créer l’affaire « Atelier Vide »/]); // aucune affaire à ce client : la liste propose seulement de la créer
+  await expect(page.locator('[data-erreur="affaire"]')).toHaveText('Pas d’affaire pour ce client : crée-la avec « + Créer l’affaire » dans cette liste.'); // le message reste affiché quand la liste se ferme
+  await expect(page.locator('[data-action="toutes-les-affaires"]')).toHaveCount(0); // plus de « Voir toutes les affaires »
+  await champAffaire(page).press('Enter');
+  await champAffaire(page).fill('Toit'); // « Toiture des voisins » existe, mais n'est pas à ce client : jamais proposée (seule la création l'est)
+  await expect(suggestions(page)).toHaveText([/\+ Créer l’affaire « Toit »/]);
   await enregistre(page);
   const d = await lireDocument(`devis_devis/${id}`);
-  expect(d.affaireId).toBe('a4');
-  expect(d.organisationId).toBe('o2'); // le client reste celui qu'on a choisi : l'affaire ne le remplace pas
+  expect(d.affaireId ?? null).toBeNull();
+  expect(d.organisationId).toBe('o2');
 });
 
-test('3 scénario (c) : on connaît l’affaire, on tape deux lettres et on la retrouve ; le client en est repris seulement s’il était vide', async ({ page }, info) => {
+test('3 scénario (c) : on connaît l’affaire, on tape deux lettres et on la retrouve ; son client est posé avec elle, et un client déjà choisi ne reçoit que ses affaires', async ({ page }, info) => {
   await semer();
   const id = await nouveauDevis(page);
   await champAffaire(page).fill('R');
-  await expect(suggestions(page)).toHaveCount(0); // une lettre : rien
-  await expect(page.locator('.entete-droite .suggestion-vide')).toContainText('au moins 2 lettres');
+  await expect(suggestions(page)).toHaveText([/\+ Créer l’affaire « R »/]); // une lettre : aucune affaire à retrouver, seulement la création au nom tapé
   await champAffaire(page).fill('Ru'); // le client se tape aussi : « Rubio » est dans le nom du client de l'affaire a3
-  await expect(suggestions(page)).toHaveText([/Salle de bains Rubio · Julie Rubio/]);
+  await expect(suggestions(page)).toHaveText([/Salle de bains Rubio · Julie Rubio/, /\+ Créer l’affaire « Ru »/]);
   await suggestions(page).first().click();
   await enregistre(page);
   let d = await lireDocument(`devis_devis/${id}`);
@@ -136,14 +137,15 @@ test('3 scénario (c) : on connaît l’affaire, on tape deux lettres et on la r
   expect(d.personneId).toBe('p1'); // client vide : il vient de l'affaire
   await expect(champClient(page)).toHaveValue('Julie Rubio');
   await capturer(page, info, '3-affaire-retrouvee');
-  // Une autre affaire ensuite : le client déjà choisi n'est pas remplacé.
+  // Une autre affaire ensuite : le client déjà choisi n'a que SES affaires (la ligne ne propose jamais celle d'un autre client).
   await champAffaire(page).fill('Exten');
-  await expect(page.locator('.entete-droite .suggestion-vide')).toContainText('Aucune affaire pour ce client'); // le client choisi restreint la liste à ses affaires
-  await page.locator('[data-action="toutes-les-affaires"]').click();
-  await suggestions(page).filter({ hasText: 'Extension garage' }).click();
+  await expect(suggestions(page)).toHaveText([/\+ Créer l’affaire « Exten »/]); // aucune affaire de ce client ne correspond : jamais celle d'un autre
+  await expect(page.locator('[data-action="toutes-les-affaires"]')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await champClient(page).click();
   await enregistre(page);
   d = await lireDocument(`devis_devis/${id}`);
-  expect(d.affaireId).toBe('a2');
+  expect(d.affaireId).toBe('a3');
   expect(d.personneId).toBe('p1');
   expect(d.organisationId ?? null).toBeNull();
   await expect(champClient(page)).toHaveValue('Julie Rubio');
@@ -166,94 +168,110 @@ test('4 l’entrée « Devis » du menu « + » crée un brouillon sans client n
   await capturer(page, info, '4-menu-plus');
 });
 
-test('5 finaliser sans affaire, étape réglée : l’affaire est créée au nom du client, à l’étape réglée, rattachée au devis AVANT l’appel du serveur, puis « Finaliser ce devis ? » s’ouvre', async ({ page }, info) => {
+const LIGNE_CREER = (nom) => suggestions0().filter({ hasText: `+ Créer l’affaire « ${nom} »` });
+function suggestions0() { return pageCourante.locator('.entete-droite .suggestions:not([hidden]) .suggestion'); }
+let pageCourante = null;
+const MESSAGE_FINALISER = 'Choisis ou crée une affaire pour finaliser ce devis.';
+
+test('5 finaliser sans affaire : pas de fenêtre, le message et le champ Affaire en rouge avec le focus ; « + Créer l’affaire » dans sa liste crée l’affaire au nom du client, à l’étape réglée, la lie au devis, puis « Finaliser ce devis ? » s’ouvre', async ({ page }, info) => {
+  pageCourante = page;
   await semer();
   await reglerEtape('proposition_envoyee');
   const id = await brouillonPret(page, { organisationId: 'o1' });
   const appels = await surveillerFinalisation(page, id);
   const avant = (await listerDocuments('crm_affaires')).length;
   await finaliser(page);
-  await expect(dialogue(page)).toContainText('Ce devis n’a pas encore d’affaire');
-  await expect(dialogue(page).locator('[data-champ="nom-affaire-creee"]')).toHaveValue('Société Exemple');
-  await expect(dialogue(page).locator('[data-valeur="etape-retenue"]')).toContainText('Proposition envoyée'); // le réglage est valide : la fenêtre n'interroge pas
-  await expect(dialogue(page).locator('[data-champ="etape-affaire-creee"]')).toHaveCount(0);
-  expect(await listerDocuments('crm_affaires')).toHaveLength(avant); // rien n'est créé tant qu'on n'a pas cliqué
-  await capturer(page, info, '5-creer-affaire');
-  await dialogue(page).getByRole('button', { name: 'Créer l’affaire' }).click();
-  await expect(dialogue(page)).toContainText('Finaliser ce devis ?'); // la fenêtre habituelle, après la création
-  const affaires = await listerDocuments('crm_affaires');
-  expect(affaires).toHaveLength(avant + 1);
-  const nouvelle = affaires.find((a) => a.titre === 'Société Exemple');
-  expect(nouvelle).toMatchObject({ etape: 'proposition_envoyee', organisationId: 'o1' });
+  await expect(dialogue(page)).toHaveCount(0); // plus de fenêtre « Ce devis n'a pas encore d'affaire »
+  await expect(page.locator('[data-erreur="affaire"]')).toHaveText(MESSAGE_FINALISER);
+  await expect(champAffaire(page)).toHaveClass(/invalide/);
+  await expect(champAffaire(page)).toBeFocused();
+  await capturer(page, info, '5-champ-rouge');
+  await champAffaire(page).click(); // la liste s'ouvre au clic
+  await expect(LIGNE_CREER('Société Exemple')).toHaveCount(1); // la liste du champ propose de créer l'affaire (nom = le client, faute de nom de devis)
   expect(appels).toHaveLength(0);
+  expect(await listerDocuments('crm_affaires')).toHaveLength(avant); // rien n'est créé sans clic
+  await capturer(page, info, '5-ligne-creer');
+  await LIGNE_CREER('Société Exemple').click();
+  await expect.poll(async () => (await listerDocuments('crm_affaires')).length).toBe(avant + 1);
+  const nouvelle = (await listerDocuments('crm_affaires')).find((a) => a.titre === 'Société Exemple');
+  expect(nouvelle).toMatchObject({ etape: 'proposition_envoyee', organisationId: 'o1' }); // étape du réglage : aucune question
+  await enregistre(page);
+  expect((await lireDocument(`devis_devis/${id}`)).affaireId).toBe(nouvelle.id);
+  await expect(champAffaire(page)).toHaveValue(/Société Exemple/);
+  await expect(champAffaire(page)).not.toHaveClass(/invalide/);
+  await expect(page.locator('[data-erreur="affaire"]')).toBeHidden();
+  await finaliser(page);
+  await expect(dialogue(page)).toContainText('Finaliser ce devis ?');
   await dialogue(page).getByRole('button', { name: 'Finaliser' }).click();
   await expect.poll(() => appels.length).toBe(1);
   expect(appels[0].affaireId).toBe(nouvelle.id); // le devis portait déjà l'affaire quand le serveur a été appelé
-  expect((await lireDocument(`devis_devis/${id}`)).affaireId).toBeTruthy();
+  expect(await listerDocuments('crm_affaires')).toHaveLength(avant + 1); // une seule affaire créée
 });
 
-test('6 étape non réglée : la fenêtre propose les étapes actives sans présélection ; sans choix, rien n’est créé ; le nom du devis passe avant le client', async ({ page }, info) => {
+test('6 étape non réglée : « + Créer l’affaire » ouvre, dans la même liste, « Dans quelle étape ? » (sans fenêtre) ; rien n’est créé tant qu’une étape n’est pas cliquée ; le nom du devis passe avant le client', async ({ page }, info) => {
+  pageCourante = page;
   await semer();
   const id = await brouillonPret(page, { personneId: 'p1', nom: 'Variante économique' });
-  const appels = await surveillerFinalisation(page, id);
   const avant = (await listerDocuments('crm_affaires')).length;
-  await finaliser(page);
-  await expect(dialogue(page).locator('[data-champ="nom-affaire-creee"]')).toHaveValue('Variante économique');
-  const liste = dialogue(page).locator('[data-champ="etape-affaire-creee"]');
-  await expect(liste).toHaveValue(''); // pas de présélection : choix obligatoire
-  await expect(dialogue(page)).toContainText('Tu peux la fixer une fois pour toutes dans Réglages > Devis');
-  expect(await liste.locator('option').allTextContents()).toEqual(['Choisis une étape', 'Premier contact', 'Rendez vous fixé', 'Proposition envoyée', 'Gagné']);
-  await capturer(page, info, '6-etape-a-choisir');
-  await dialogue(page).getByRole('button', { name: 'Créer l’affaire' }).click();
-  await expect(dialogue(page).locator('[data-erreur="creation-affaire"]')).toHaveText('Choisis l’étape de la nouvelle affaire.');
+  await champAffaire(page).click();
+  await expect(LIGNE_CREER('Variante économique')).toHaveCount(1);
+  await LIGNE_CREER('Variante économique').click();
+  await expect(page.locator('.entete-droite .suggestions:not([hidden]) .suggestion-groupe')).toHaveText(['Dans quelle étape ?']);
+  expect(await suggestions(page).allTextContents()).toEqual(['Premier contact', 'Rendez vous fixé', 'Proposition envoyée', 'Gagné']);
+  await expect(dialogue(page)).toHaveCount(0);
   expect(await listerDocuments('crm_affaires')).toHaveLength(avant); // jamais de création sans étape active choisie
-  await liste.selectOption('rdv_fixe');
-  await dialogue(page).getByRole('button', { name: 'Créer l’affaire' }).click();
-  await expect(dialogue(page)).toContainText('Finaliser ce devis ?');
+  await capturer(page, info, '6-dans-quelle-etape');
+  await page.keyboard.press('Escape');
+  expect(await listerDocuments('crm_affaires')).toHaveLength(avant);
+  await champAffaire(page).click();
+  await LIGNE_CREER('Variante économique').click(); // on recommence : le second pas revient
+  await suggestions(page).filter({ hasText: 'Rendez vous fixé' }).click();
+  await expect.poll(async () => (await listerDocuments('crm_affaires')).length).toBe(avant + 1);
   const creee = (await listerDocuments('crm_affaires')).find((a) => a.titre === 'Variante économique');
   expect(creee).toMatchObject({ etape: 'rdv_fixe', personneId: 'p1' });
-  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
-  expect(appels).toHaveLength(0);
-  expect((await lireDocument(`devis_devis/${id}`)).affaireId).toBeTruthy(); // le devis garde son affaire même sans finaliser
+  await expect.poll(async () => (await lireDocument(`devis_devis/${id}`)).affaireId).toBe(creee.id); // l'enregistrement automatique suit (l'indicateur « Enregistré » peut encore dater d'avant)
   await expect(champAffaire(page)).toHaveValue(/Variante économique/);
 });
 
-test('7 aucune étape active : la fenêtre le dit clairement, le bouton « Créer l’affaire » est grisé et rien n’est créé', async ({ page }, info) => {
+test('7 aucune étape active : la liste le dit clairement (même liste, sans fenêtre) et rien n’est créé', async ({ page }, info) => {
+  pageCourante = page;
   await semer();
   const ETAPES = ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne', 'etape_5', 'etape_6'];
   await ecrireDocument('crm_parametres/etapes', { roleGagnee: 'gagne', items: ETAPES.map((e) => ({ id: e, libelle: e, description: '', couleur: '#888888', actif: false, action: null })) });
   const id = await brouillonPret(page, { personneId: 'p1' });
   const avant = (await listerDocuments('crm_affaires')).length;
-  await finaliser(page);
-  await expect(dialogue(page).locator('[data-erreur="aucune-etape"]')).toContainText('Crée d’abord une étape dans le pipeline');
-  await expect(dialogue(page).getByRole('button', { name: 'Créer l’affaire' })).toBeDisabled();
+  await champAffaire(page).click();
+  await LIGNE_CREER('Julie Rubio').click();
+  await expect(page.locator('.entete-droite .suggestion-vide')).toContainText('Crée d’abord une étape dans le pipeline');
   await capturer(page, info, '7-aucune-etape');
-  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
   expect(await listerDocuments('crm_affaires')).toHaveLength(avant);
   expect((await lireDocument(`devis_devis/${id}`)).affaireId ?? null).toBeNull();
 });
 
-test('8 « Choisir une affaire existante » ferme la fenêtre et met le focus sur le champ Affaire (pas de deuxième liste) ; sans nom ni client, le nom de l’affaire est obligatoire', async ({ page }, info) => {
+test('8 sans nom ni client, la liste ne propose de créer qu’un nom tapé ; finaliser donne le message et le champ rouge ; choisir une affaire existante (« Toit ») lève l’erreur et permet de finaliser', async ({ page }, info) => {
+  pageCourante = page;
   await semer();
   await reglerEtape('premier_contact');
   const id = await brouillonPret(page);
   const appels = await surveillerFinalisation(page, id);
   const avant = (await listerDocuments('crm_affaires')).length;
   await finaliser(page);
-  // Ni nom de devis ni client : le champ est vide, il faut un nom.
-  await expect(dialogue(page).locator('[data-champ="nom-affaire-creee"]')).toHaveValue('');
-  await dialogue(page).getByRole('button', { name: 'Créer l’affaire' }).click();
-  await expect(dialogue(page).locator('[data-erreur="creation-affaire"]')).toHaveText('Donne un nom à l’affaire.');
-  expect(await listerDocuments('crm_affaires')).toHaveLength(avant);
-  await capturer(page, info, '8-nom-obligatoire');
-  await dialogue(page).getByRole('button', { name: 'Choisir une affaire existante' }).click();
   await expect(dialogue(page)).toHaveCount(0);
+  await expect(page.locator('[data-erreur="affaire"]')).toHaveText(MESSAGE_FINALISER);
   await expect(champAffaire(page)).toBeFocused();
+  await champAffaire(page).click();
+  await expect(suggestions(page)).toHaveCount(0); // ni nom de devis ni client : pas de ligne « Créer l'affaire » sans nom
+  await expect(page.locator('.entete-droite .suggestion-vide')).toContainText('Tape un nom pour créer une affaire');
+  await capturer(page, info, '8-sans-nom');
+  await champAffaire(page).fill('Chantier Nouveau');
+  await expect(LIGNE_CREER('Chantier Nouveau')).toHaveCount(1); // le nom tapé
+  expect(await listerDocuments('crm_affaires')).toHaveLength(avant);
   await champAffaire(page).fill('Toit');
-  await suggestions(page).first().click();
+  await suggestions(page).filter({ hasText: 'Toiture des voisins' }).click();
   await enregistre(page);
+  await expect(champAffaire(page)).not.toHaveClass(/invalide/);
   await finaliser(page);
-  await expect(dialogue(page)).toContainText('Finaliser ce devis ?'); // une affaire choisie : plus de fenêtre de création
+  await expect(dialogue(page)).toContainText('Finaliser ce devis ?'); // une affaire choisie : on finalise
   await dialogue(page).getByRole('button', { name: 'Finaliser' }).click();
   await expect.poll(() => appels.length).toBe(1);
   expect(await listerDocuments('crm_affaires')).toHaveLength(avant);
