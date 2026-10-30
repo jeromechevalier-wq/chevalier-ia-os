@@ -564,7 +564,7 @@ describe('E écran Vocabulaire : plans, filtres, tri, CSV', async () => {
     assert.equal(autre.existante.id, idLong);
   });
   test('E11 jamais de suppression, jamais de compteur : les plans n’écrivent que statut, articleId, articleLibelle, note, conflit et la validation humaine (+ marques de modification), jamais `suggestion`', () => {
-    assert.deepEqual([...P.CHAMPS_MODIFIABLES], ['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe']);
+    assert.deepEqual([...P.CHAMPS_MODIFIABLES], ['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe', 'cibles']);
     assert.ok(!P.CHAMPS_MODIFIABLES.includes('suggestion'));
     const plans = [
       P.planChangerStatut('tableau', 'active', { regles: mots, articles: CATALOGUE }), P.planChangerStatut('prise_double', 'desactivee', { regles: mots, articles: CATALOGUE }),
