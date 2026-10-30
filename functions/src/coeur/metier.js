@@ -1195,6 +1195,70 @@ export async function modifierLignesDevis(c, args) {
   };
 }
 
+// ---------------------------------------------------------------- Devis : creer_devis_depuis_modele (30/10/2026, cadrage-devis-fluide.md PR 15)
+// Un NOUVEAU brouillon à partir d'un devis existant (le modèle n'est jamais écrit : pas de transaction sur lui, une simple création comme creer_devis_brouillon).
+// Ordre : copie des sections (identifiants de lignes renouvelés) -> prix du jour (repriserSections) -> ajustements résolus avec les numéros DU MODÈLE -> lignes disparues retirées -> ajustements appliqués.
+
+const MOTIFS_A_REVISER = {
+  article_retire: "l'article n'existe plus ou est désactivé : la ligne n'a pas été copiée",
+  ligne_libre: "ligne libre (sans article du bordereau) : elle n'a pas été copiée",
+  texte: "ligne de texte copiée telle quelle : elle peut citer l'ancien client ou l'ancien chantier, à relire",
+};
+
+/** Nouveau brouillon copié d'un devis existant, aux prix du catalogue d'aujourd'hui ; `ajustements` = opérations de modifier_lignes_devis, numéros du modèle. */
+export async function creerDevisDepuisModele(c, args) {
+  const { modeleId, affaireId, organisationId, personneId, ajustements = [], proprietaire } = args;
+  if (organisationId && personneId) refuser('saisie_invalide', 'Un devis a un seul client : donner organisationId OU personneId, pas les deux.');
+  if (ajustements.length > DL.MAX_OPERATIONS) refuser('saisie_invalide', `Trop d'ajustements dans un appel (${ajustements.length}, ${DL.MAX_OPERATIONS} au plus). Rien n'a été écrit.`);
+  const modele = await lire(c, C.devis, modeleId, 'Devis modèle');
+  const affaire = await lireSiDonne(c, C.affaires, affaireId, 'Affaire');
+  const organisation = await lireSiDonne(c, C.organisations, organisationId ?? (personneId ? null : affaire?.organisationId), 'Organisation');
+  const personne = await lireSiDonne(c, C.personnes, personneId ?? (organisation ? null : affaire?.personneId), 'Personne');
+  const client = organisation ? { type: 'organisation', fiche: organisation } : personne ? { type: 'personne', fiche: personne } : null;
+  const valeurs = { ...E.valeursDeCreation(affaire, client ? { ...client, adresse: adresseDuClient(client.fiche) } : null) };
+  const ctx = await contexte(c, proprietaire);
+  const plan = B.planCreerBrouillon(valeurs, { nouvelId: ctx.nouvelId, maintenant: ctx.maintenant, auteur: ctx.auteur, proprietaire: ctx.proprietaire }, await reglagesDuDevis(c)); // marge, mode de marge et TVA : réglages du jour
+  verifierMessages(plan.erreurs);
+  verifierMarge(plan.devis);
+  const articles = await c.donnees.liste(C.devisArticles);
+  // (a) la copie renouvelle les identifiants ; on n'en garde QUE les sections (ni adresses, ni destinataires, ni chantier, ni acomptes, ni remise).
+  const copie = E.copieDeDevis(modele, () => c.donnees.nouvelId(C.devis)).sections ?? [];
+  const numeros = new Map(elementsNumeres(copie)); // numéros DU MODÈLE (même structure)
+  // (c) les ajustements se résolvent sur la copie telle que le modèle la montre (libellés lus par l'utilisateur), avant le prix du jour et avant le retrait des disparues.
+  const resolues = resoudreOperations(copie, ajustements);
+  // (b) prix du catalogue d'aujourd'hui pour les lignes dont l'article est actif.
+  const reprise = E.repriserSections(copie, articles, { marge: plan.devis.marge, modeMarge: plan.devis.modeMarge });
+  // (d) lignes non copiées : article retiré ou désactivé, ligne libre.
+  const retirees = new Map(reprise.disparues.map((x) => [x.ligneId, x]));
+  const aReviser = [];
+  const motifs = new Map();
+  const travail = reprise.sections.map((s) => ({ ...s, lignes: (s.lignes ?? []).filter((l) => !retirees.has(l.id)) }));
+  for (const s of reprise.sections) for (const l of s.lignes ?? []) {
+    const motif = retirees.has(l.id) ? (l.articleId ? 'article_retire' : 'ligne_libre') : l.type === DA.TYPE_TEXTE ? 'texte' : null;
+    if (!motif) continue;
+    motifs.set(l.id, motif);
+    aReviser.push({ numero: numeros.get(l.id) ?? null, libelle: l.libelle ?? '', motif });
+  }
+  resolues.forEach((op, i) => {
+    const visee = [op.cible, op.apresCible].find((x) => x && retirees.has(x.id));
+    if (visee) refuser('saisie_invalide', `Ajustement ${i + 1} (${op.action}) : la ligne ${visee.numero} n'est pas copiée dans le nouveau devis (${MOTIFS_A_REVISER[motifs.get(visee.id)]}). Rien n'a été écrit.`);
+  });
+  // (e) ajustements appliqués, tout ou rien.
+  const ancres = new Map();
+  resolues.forEach((op, i) => {
+    try { appliquerOperation(c, { ...plan.devis, sections: travail }, travail, op, articles, ancres); } catch (e) {
+      if (e instanceof ErreurMetier) refuser(e.code, `Ajustement ${i + 1} (${op.action}) : ${e.message} Rien n'a été écrit.`);
+      throw e;
+    }
+  });
+  plan.ecritures[0].donnees = { ...plan.ecritures[0].donnees, objet: '', sections: travail };
+  const t = D.totauxDevis({ ...plan.devis, sections: travail });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), {
+    id: plan.id, statut: 'brouillon', numero: null, modeleId, lignes: nombreDeLignes(travail), sections: structureCourte(travail), totalHT: t.totalHt, totalTTC: t.ttc, phraseTotaux: phraseTotaux(t.totalHt, t.ttc),
+    aReviser, ...(aReviser.length ? { consigne: `À dire à l'utilisateur : ${aReviser.length} ligne(s) du modèle sont à revoir (aReviser, numéros du MODÈLE). Les lignes non copiées sont à ajouter avec modifier_lignes_devis si besoin.` } : {}),
+  });
+}
+
 /**
  * Annule la DERNIÈRE modification d'un brouillon, un seul niveau : même logique que restaurer_depuis_audit (sans forcer), nom propre dans le journal.
  * L'annulation s'écrit elle-même au journal (action « restaurer ») et ne se défait pas toute seule : l'appeler deux fois de suite répond « déjà annulé ».

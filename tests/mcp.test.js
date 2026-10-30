@@ -191,7 +191,7 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
     'obtenir_pdf_officiel_devis']; // + le PDF officiel d'un devis finalisé, seul PDF à utiliser (garantie « aucun e-mail ne part tout seul », 29/10/2026)
   const ECRITURE = ['refuser_proposition', 'valider_proposition', 'abandonner_facture', 'ajouter_facture', 'ajouter_note', 'ajouter_livrable_projet', 'archiver_projet', 'changer_etape', 'changer_phase_projet', 'creer_activite', 'creer_affaire', 'creer_organisation', 'creer_personne', 'creer_projet', 'creer_projet_depuis_affaire', 'joindre_lien', 'marquer_facture_payee', 'marquer_perdue', 'modifier_affaire', 'modifier_note', 'modifier_organisation', 'modifier_personne', 'modifier_projet', 'retirer_document', 'rouvrir_affaire', 'rouvrir_projet', 'terminer_activite', 'terminer_projet', 'terminer_livrable_projet',
     'creer_article', 'modifier_article', 'desactiver_article',
-    'creer_devis_brouillon', 'modifier_devis_brouillon', 'modifier_lignes_devis', 'annuler_derniere_modification_devis', // + 3 outils d'écriture du bordereau, + 2 de brouillons de devis (module Devis, 24/10/2026)
+    'creer_devis_brouillon', 'modifier_devis_brouillon', 'modifier_lignes_devis', 'annuler_derniere_modification_devis', 'creer_devis_depuis_modele', // + 3 outils d'écriture du bordereau, + 2 de brouillons de devis (module Devis, 24/10/2026)
     'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', // + 3 transitions de devis annulables par le journal (25/10/2026)
     'enregistrer_reponse_vocabulaire', // + l'apprentissage du dictionnaire (28/10/2026)
     'modifier_destinataires_devis', // + destinataire d'un devis finalisé (29/10/2026)
