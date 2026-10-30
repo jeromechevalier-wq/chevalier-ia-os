@@ -35,6 +35,19 @@ describe('Accès Firestore (émulateur)', { skip: emulateur ? false : 'émulateu
     assert.equal(await donnees.document('crm_personnes', 'inconnu'), null);
   });
 
+  test('borne de date seule : mêmes documents que la mémoire (Timestamp Firestore), borne incluse, champ absent exclu', async () => {
+    const memoire = creerAccesMemoire(collections);
+    const cle = (liste) => liste.map((d) => d.id).sort();
+    const depuis = collections.crm_affaires.find((a) => a.creeLe instanceof Date).creeLe;
+    const borne = { champ: 'creeLe', depuis };
+    const attendu = cle(await memoire.liste('crm_affaires', null, borne));
+    assert.ok(attendu.length > 0);
+    assert.deepEqual(cle(await donnees.liste('crm_affaires', null, borne)), attendu);
+    assert.deepEqual(cle(await donnees.transaction((tx) => tx.liste('crm_affaires', null, borne))), attendu);
+    assert.deepEqual(await donnees.liste('crm_affaires', null, { champ: 'creeLe', depuis: new Date('2100-01-01T00:00:00Z') }), []);
+    assert.deepEqual(await donnees.liste('crm_affaires', null, { champ: 'champInexistant', depuis }), []);
+  });
+
   test('les outils de lecture donnent les mêmes réponses qu’avec la mémoire (Timestamp Firestore -> texte ISO compris)', async () => {
     const memoire = creerAccesMemoire(collections);
     const scenarios = [
