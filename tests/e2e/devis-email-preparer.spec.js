@@ -115,6 +115,8 @@ test('2 branché : « Préparer l’e-mail » est active et seule dans le menu �
   await entree(page).click();
   await expect(boite(page).getByRole('heading', { name: 'Préparer l’e-mail' })).toBeVisible();
   await expect(boite(page).locator('[data-valeur="confirmation-preparer-email"]')).toHaveText(MESSAGE_CONFIRMATION);
+  await expect(boite(page).locator('[data-valeur="adresses-preparer-email"]')).toHaveText('Adressé à : marie@exemple.fr'); // à qui, avant de créer le brouillon
+  await expect(boite(page).locator('[data-action="changer-adresse-preparer-email"]')).toBeVisible();
   if (estTelephone(page)) for (const b of await boite(page).locator('.dialogue-pied .bouton').all()) await expect.poll(async () => (await b.boundingBox()).height, { message: 'boutons assez grands au doigt (la fenêtre finit son animation d’ouverture)' }).toBeGreaterThanOrEqual(43.9);
   await capturer(page, info, '2-confirmation');
   await boite(page).locator('[data-action="annuler-preparer-email"]').click();
@@ -185,6 +187,7 @@ test('5 cas particuliers : un brouillon propose « Finaliser d’abord » ; un d
   await ouvrirMenuEnvoyer(page);
   await entree(page).click();
   await expect(page.locator('.dialogue [data-valeur="sans-destinataire"]')).toContainText('n’a pas de destinataire');
+  await expect(page.locator('.dialogue [data-valeur="confirmation-preparer-email"]')).toHaveText(MESSAGE_CONFIRMATION); // la garantie « rien n’est envoyé » est dite aussi dans la fenêtre unique
   await capturer(page, info, '5-sans-destinataire');
   expect(serveur.appels).toEqual([]);
 });
