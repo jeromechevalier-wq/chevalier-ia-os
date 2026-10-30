@@ -18,14 +18,14 @@ test.beforeEach(async ({ page }) => {
 const centreY = (b) => b.y + b.height / 2;
 const intersecte = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
-async function verifierAlignement(page, info, texteMontant) {
+async function verifierAlignement(page, info, texteMontant, largeurMin = 30) {
   await expect(texteMontant).toBeVisible();
   const montant = await texteMontant.boundingBox();
   const boutons = page.locator('.fiche-actions > *');
   const premier = await boutons.nth(0).boundingBox();
   const second = await boutons.nth(1).boundingBox();
   const titre = await page.locator('.fiche-titre').boundingBox();
-  expect(montant.width, 'le montant reste lisible (non écrasé)').toBeGreaterThan(30);
+  expect(montant.width, 'le montant reste lisible (non écrasé)').toBeGreaterThan(largeurMin);
   expect(intersecte(montant, premier), 'le montant ne chevauche pas le premier bouton').toBe(false);
   expect(intersecte(montant, titre), 'le montant ne chevauche pas le titre').toBe(false);
   const surLaMemeLigne = Math.abs(centreY(montant) - centreY(premier)) < premier.height;
@@ -44,14 +44,14 @@ async function verifierAlignement(page, info, texteMontant) {
   expect(montant.x + montant.width).toBeLessThanOrEqual(fenetre.width);
 }
 
-test('J2 le montant fantôme « 999 € » est sur l’axe des boutons de droite, à la même distance du premier bouton que les boutons entre eux', async ({ page }, info) => {
+test('J2 le montant estimé vide (tiret « — ») est sur l’axe des boutons de droite, à la même distance du premier bouton que les boutons entre eux', async ({ page }, info) => {
   await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'proposition_envoyee' });
   await connecter(page);
   await ouvrir(page, '#/crm/affaires/a1');
   const fantome = page.locator('.fiche-montant .prop-fantome');
-  await expect(fantome).toHaveText(/999\s€/);
-  await verifierAlignement(page, info, fantome);
-  await capturer(page, info, 'J2-montant-fantome');
+  await expect(fantome).toHaveText('—');
+  await verifierAlignement(page, info, fantome, 12); // un tiret est étroit : on vérifie seulement qu'il n'est pas écrasé
+  await capturer(page, info, 'J2-montant-tiret');
 });
 
 test('J2 (montant réel) un montant enregistré suit les mêmes règles d’alignement et d’espacement', async ({ page }, info) => {
@@ -76,7 +76,7 @@ test('J2 (montant réel) un montant enregistré suit les mêmes règles d’alig
   const apres = await texte.boundingBox();
   expect(Math.abs(apres.x - avant.x)).toBeLessThanOrEqual(1);
   await crayon.click();
-  await expect(page.getByLabel('Montant', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Montant estimé', { exact: true })).toBeVisible();
 });
 
 test('J9 l’en-tête d’une affaire ouverte montre « Perdue » et « … », plus de « Gagnée » ni de « En pause » ; la liste « Étape » gagne l’affaire et propose le projet', async ({ page }, info) => {

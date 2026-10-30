@@ -2,7 +2,7 @@
 // Critères (un test chacun, le nom commence par son numéro ; une capture par état dans tests/e2e/captures/devis-ecran-unique/, ordinateur ET téléphone) :
 //  1 les deux onglets sont présents quel que soit le statut ;
 //  2 « Voir le devis » (liste) ouvre l'onglet Prévisualisation, « Éditer le devis » l'onglet Édition ; un finalisé s'ouvre par défaut sur la Prévisualisation ; un brouillon reste modifiable même ouvert par « Voir » ;
-//  3 devis finalisé, onglet Édition : MÊME feuille qu'un brouillon, champs lisibles et copiables mais non modifiables, boutons grisés (jamais retirés), « Définir un ajustement » s'ouvre (réglages visibles, rien ne bouge),
+//  3 devis finalisé, onglet Édition : MÊME feuille qu'un brouillon, champs lisibles et copiables mais non modifiables, boutons grisés (jamais retirés), « Marge et ajustement » s'ouvre (réglages visibles, rien ne bouge),
 //    message « Ce devis est … : il ne se modifie plus » avec « Créer une nouvelle version » au moindre essai ; le bandeau « Tu regardes ce brouillon… » n'existe plus ;
 //  4 Catalogue grisé avec infobulle, Options consultable, Historique inchangé ;
 //  5 les anciens liens (devis/voir, devis/fiche) arrivent sur l'écran unique, onglet Prévisualisation ;
@@ -181,7 +181,7 @@ test('3 devis finalisé, onglet Édition : la MÊME feuille qu’un brouillon, c
   await capturer(page, info, '3-finalise-edition-lecture-seule');
 });
 
-test('3 « Définir un ajustement » s’ouvre en lecture seule : les réglages sont visibles, rien ne se modifie, un essai affiche le message ; le mot suit le statut (envoyé, signé…)', async ({ page }, info) => {
+test('3 « Marge et ajustement » s’ouvre en lecture seule : les réglages sont visibles, rien ne se modifie, un essai affiche le message ; le mot suit le statut (envoyé, signé…)', async ({ page }, info) => {
   await donnees();
   await ouvrir(page, 'devis/editeur/dEnvoye');
   const feuille = racine(page).locator('[data-panneau="edition"]');
@@ -324,9 +324,8 @@ test('Historique : passer d’une version à l’autre reste dans l’écran uni
   }
 });
 
-test('9 lecture seule : choisir une autre affaire ou un autre client (clavier Alt+↓ puis choix, ou choix forcé) ne change ni le titre, ni le client, ni l’adresse, ni l’e-mail, et le message de refus s’affiche', async ({ page }, info) => {
+test('9 lecture seule : le client et l’affaire sont du texte copiable (jamais une liste qui s’ouvre) ; taper ou cliquer dedans ne change ni le titre, ni le client, ni l’adresse, ni l’e-mail, et le message de refus s’affiche', async ({ page }, info) => {
   await donnees();
-  // Une deuxième affaire avec un autre client (adresse et e-mail) et une personne sur la première affaire : un vrai choix changerait tout.
   await creerOrganisation('o2', { nom: 'Société Autre', adresse: '5 avenue Test, 75001 Paris', emails: ['autre@exemple.fr'] });
   await creerPersonne('p2', { nom: 'Julie Témoin', emails: [{ valeur: 'julie@exemple.fr', type: 'travail' }], adresse: '8 place Neuve, 44000 Nantes' });
   await creerAffaire('a1', { titre: 'Rénovation cuisine', organisationId: 'o1', personneId: 'p2' });
@@ -335,8 +334,10 @@ test('9 lecture seule : choisir une autre affaire ou un autre client (clavier Al
   const feuille = racine(page).locator('[data-panneau="edition"]');
   const affaire = feuille.locator('[data-champ="affaire"]');
   const client = feuille.locator('[data-champ="client"]');
-  await expect(affaire.locator('option[value="a2"]')).toHaveCount(1);
-  await expect(client.locator('option[value="personne:p2"]')).toHaveCount(1);
+  // Pas de champ intelligent en lecture seule : ni liste, ni croix « Effacer ».
+  await expect(feuille.locator('.entete-droite .champ-intelligent')).toHaveCount(0);
+  await expect(affaire).toHaveValue('Rénovation cuisine · M. Paul Exemple');
+  await expect(client).toHaveValue('M. Paul Exemple');
   const etat = () => page.evaluate(() => ({
     titre: document.querySelector('.titre-barre-devis')?.textContent,
     lienClient: document.querySelector('[data-valeur="lien-client"]')?.getAttribute('href'),
@@ -348,32 +349,18 @@ test('9 lecture seule : choisir une autre affaire ou un autre client (clavier Al
     email: document.querySelector('[data-champ="destinataire"]').value,
   }));
   const avant = await etat();
-  expect(avant.affaire).toBe('a1');
-  expect(avant.client).toBe('organisation:o1');
-  // Clavier : Alt+↓ (qui ouvre une liste), puis ↓ et Entrée pour choisir.
-  for (const liste of [affaire, client]) {
-    await liste.focus();
-    await page.keyboard.press('Alt+ArrowDown');
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('Enter');
+  for (const champ of [affaire, client]) {
+    await champ.focus();
+    await page.keyboard.type('Ex');
+    await expect(page.locator('.toast').last()).toContainText(MESSAGE_REFUS);
+    await expect(page.locator('.suggestions:not([hidden])')).toHaveCount(0);
+    expect(await etat()).toEqual(avant);
+    await page.waitForTimeout(1700);
+    await champ.click();
     await expect(page.locator('.toast').last()).toContainText(MESSAGE_REFUS);
     expect(await etat()).toEqual(avant);
     await page.waitForTimeout(1700);
   }
-  // Choix fait sans clavier ni souris (le sélecteur natif d'un téléphone, un outil d'accessibilité) : ce que fait le navigateur, nouvelle valeur puis « input » et « change ».
-  // (selectOption de Playwright refuse une liste aria-disabled, même avec force : on reproduit donc le choix natif.)
-  const choisirNatif = (liste, valeur) => liste.evaluate((el, v) => {
-    el.value = v;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  }, valeur);
-  await choisirNatif(affaire, 'a2');
-  await expect(page.locator('.toast').last()).toContainText(MESSAGE_REFUS);
-  expect(await etat()).toEqual(avant);
-  await page.waitForTimeout(1700);
-  await choisirNatif(client, 'personne:p2');
-  await expect(page.locator('.toast').last()).toContainText(MESSAGE_REFUS);
-  expect(await etat()).toEqual(avant);
   await capturer(page, info, '9-listes-lecture-seule-refus');
   // Rien n'a été écrit dans le devis.
   await page.waitForTimeout(1200);
@@ -467,7 +454,8 @@ test('12 lecture seule : les dates (« En date du », « Valable jusqu’au », 
   }
   const vide = feuille.locator('.lien-definir', { hasText: 'définir' }).first();
   await expect(vide).toBeVisible(); // une date vide reste là, grisée
-  for (const champ of ['affaire', 'client', 'remise-type']) await expect(feuille.locator(`[data-champ="${champ}"]`), champ).toHaveCSS('opacity', '0.45');
+  await expect(feuille.locator('[data-champ="remise-type"]')).toHaveCSS('opacity', '0.45');
+  for (const champ of ['affaire', 'client']) await expect(feuille.locator(`[data-champ="${champ}"]`), champ).toHaveCSS('opacity', '1'); // en texte net, lisibles et copiables (plus de liste)
   await expect(feuille.locator('[data-champ="chantier-adresse"]')).toHaveCSS('opacity', '1'); // un champ texte reste net (lisible, copiable)
   await vide.click({ force: true });
   await expect(page.locator('.toast').last()).toContainText(MESSAGE_REFUS);

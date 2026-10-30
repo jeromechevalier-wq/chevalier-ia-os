@@ -3,8 +3,8 @@
 // Une phrase du client (« mets 3 prises doubles à 25 € ») devient une clé (« prise double »), une quantité, un prix de vente, des candidats classés et une décision :
 // `utiliser` (ligne ajoutée sans question), `proposer` (une question avec 1 à 3 choix) ou `demander` (question ouverte).
 // L'écran (prévisualisation d'une règle) et le serveur (outils de l'assistant) exécutent ce même code. Jamais de prix d'achat ni de marge dans la sortie.
-import { normaliser } from '../crm/logique.js';
-import { prixVenteArticle, calculerOuvrage, articlesParId, TYPE_OUVRAGE } from './ouvrages.js';
+import { normaliser, ajouterMois } from '../crm/logique.js';
+import { prixVenteArticle, calculerOuvrage, articlesParId, TYPE_OUVRAGE, motOuvrage } from './ouvrages.js';
 
 // ---------------------------------------------------------------- constantes (TOUS les seuils sont ici, et seulement ici)
 export const SEUILS = Object.freeze({
@@ -32,6 +32,10 @@ export const SEUILS = Object.freeze({
   longueurMotTropCourt: 3, // une clé d'un seul mot de cette longueur ou moins est « trop générale »
   maxArticlesParCle: 5, // une clé qui correspond à plus d'articles (étape 4) est « trop générale »
   longueurIdMax: 100,
+  /** Validation humaine (cadrage devis fluide, garde-fous 1 à 3). */
+  contradictionsPourSuggerer: 2, // un mot validé n'est jamais modifié : à la 2e réponse « autre » il reçoit une suggestion
+  confirmationsPourRetirerSuggestion: 3, // 3 jours distincts de confirmation de l'article d'origine retirent la suggestion
+  moisAvantRevision: 6,
 });
 
 /** Mots retirés d'une phrase et d'un libellé (déjà sans accents ni majuscules ; « à » devient « a »). Les restes d'apostrophe (l', qu', n'…) y sont aussi. */
@@ -177,6 +181,24 @@ function prixVenteHT(article, parId, reglages) {
   return prixVenteArticle(article, r);
 }
 
+// ---------------------------------------------------------------- validation humaine : suggestion écrite par le serveur
+const JOUR_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
+/** Valeurs permises de `validePar` (la règle Firestore `vocabulaireRevise` refuse tout autre texte sur le document entier : le serveur n'en écrit jamais d'autre). */
+export const VALIDE_PAR = Object.freeze(['humain', 'reponses']);
+
+/**
+ * La suggestion d'une règle `{ articleId, articleLibelle, contradictions, le }`, ou null si elle est absente, mal formée (non-objet, sans `le` valide ou sans article)
+ * ou déjà traitée (`suggestionTraiteeLe` >= `le`, comparaison de jours « AAAA-MM-JJ »). Le navigateur ne peut pas supprimer `suggestion` : il marque `suggestionTraiteeLe`.
+ */
+export function suggestionEnAttente(regle) {
+  const s = regle?.suggestion;
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return null;
+  if (typeof s.le !== 'string' || !JOUR_FORMAT.test(s.le) || typeof s.articleId !== 'string' || !s.articleId) return null;
+  const traitee = regle.suggestionTraiteeLe;
+  if (typeof traitee === 'string' && JOUR_FORMAT.test(traitee) && traitee >= s.le) return null;
+  return s;
+}
+
 // ---------------------------------------------------------------- étapes 3 et 4
 const comparateur = (a, b) => (b.score - a.score)
   || normaliser(a.libelle).localeCompare(normaliser(b.libelle), 'fr')
@@ -184,19 +206,30 @@ const comparateur = (a, b) => (b.score - a.score)
 
 function chercherCandidats(cle, mots, { regles, articles }) {
   const parArticle = new Map();
+  const plafonnes = new Set(); // articles d'un mot validé avec suggestion en attente : jamais au-dessus de 0,50, même si leur libellé colle à la phrase
   const garder = (article, score, pourquoi, regleId = null) => {
     const ancien = parArticle.get(article.id);
+    if (plafonnes.has(article.id)) { parArticle.set(article.id, { articleId: article.id, article, libelle: article.libelle ?? '', score: SEUILS.regleEnConflit, pourquoi: 'suggestion_en_attente', regleId: ancien?.regleId ?? regleId }); return; }
     if (!ancien || score > ancien.score) parArticle.set(article.id, { articleId: article.id, article, libelle: article.libelle ?? '', score, pourquoi, regleId });
   };
   const actifs = (articles ?? []).filter(actif);
   const parId = new Map(actifs.map((a) => [a.id, a]));
   for (const regle of regles ?? []) {
     const article = parId.get(regle?.articleId);
-    if (!article || !regle.cle || regle.statut === 'desactivee') continue;
+    if (!regle?.cle || regle.statut === 'desactivee') continue;
     const regleId = regle.id ?? identifiantDeRegle(regle.cle);
-    const enConflit = regle.conflit === true;
+    const suggestion = suggestionEnAttente(regle);
+    const enConflit = regle.conflit === true || suggestion !== null;
+    if (suggestion && regle.cle === cle) {
+      // L'article suggéré est proposé à côté de l'article validé : la question offre les deux (le mot validé reste intact, il n'est jamais appliqué seul).
+      const suggere = parId.get(suggestion.articleId);
+      if (suggere) { plafonnes.add(suggere.id); garder(suggere, SEUILS.regleEnConflit, 'suggestion_en_attente', regleId); }
+      if (article) plafonnes.add(article.id);
+    }
+    if (!article) continue;
     if (regle.cle === cle) {
-      if (enConflit) garder(article, SEUILS.regleEnConflit, 'regle_en_conflit', regleId);
+      if (suggestion) garder(article, SEUILS.regleEnConflit, 'suggestion_en_attente', regleId);
+      else if (enConflit) garder(article, SEUILS.regleEnConflit, 'regle_en_conflit', regleId);
       else if (regle.statut === 'a_confirmer') garder(article, SEUILS.regleAConfirmer, 'regle_a_confirmer', regleId);
       else garder(article, SEUILS.regleActive, 'regle_active', regleId);
     } else if (regle.statut === 'active' && !enConflit && mots.length) {
@@ -212,6 +245,30 @@ function chercherCandidats(cle, mots, { regles, articles }) {
     if (s) garder(article, s.score, s.proche ? 'proche' : 'libelle_complet');
   }
   return [...parArticle.values()].sort(comparateur);
+}
+
+/**
+ * Le mot du métier (réglage « motOuvrage ») est un synonyme du type « ouvrage » : « ensemble salle de bain » cherche d'abord parmi les OUVRAGES « salle de bain ».
+ * Les candidats de la phrase entière restent là (un article dont le libellé commence par « Ensemble » reste trouvé) ; ceux des ouvrages s'y ajoutent, au meilleur score.
+ * Aucune règle du dictionnaire n'est créée pour ce mot. Sans mot dans la phrase, ou sans reste après lui : rien ne change.
+ */
+function chercherAvecSynonyme(cle, mots, { regles, articles, reglages }) {
+  const classes = chercherCandidats(cle, mots, { regles, articles });
+  if (!mots.length) return classes; // `reglages` absent (document pas encore écrit) : le mot par défaut s'applique, comme à l'écran
+  const m = motOuvrage(reglages);
+  for (const forme of [m.singulier, m.pluriel]) {
+    const motsForme = motsDe(forme);
+    if (!motsForme.length || motsForme.length >= mots.length) continue;
+    for (let i = 0; i + motsForme.length <= mots.length; i += 1) {
+      if (!motsForme.every((x, k) => mots[i + k] === x)) continue;
+      const reste = [...mots.slice(0, i), ...mots.slice(i + motsForme.length)];
+      const ouvrages = chercherCandidats(reste.join(' '), reste, { regles: [], articles: (articles ?? []).filter((a) => a?.type === TYPE_OUVRAGE) });
+      const parId = new Map(classes.map((c) => [c.articleId, c]));
+      for (const c of ouvrages) if (!parId.has(c.articleId) || parId.get(c.articleId).score < c.score) parId.set(c.articleId, c);
+      return [...parId.values()].sort(comparateur);
+    }
+  }
+  return classes;
 }
 
 const guillemets = (candidats) => candidats.map((c) => `« ${c.libelle} »`);
@@ -241,19 +298,21 @@ export function interpreter(phrase, { regles = [], articles = [], reglages } = {
   const { mots } = analyse;
   let { cle, quantite } = analyse;
   const { prixVente } = analyse;
-  let classes = chercherCandidats(cle, mots, { regles, articles });
+  let classes = chercherAvecSynonyme(cle, mots, { regles, articles, reglages });
   const prixIncertain = analyse.prixSansDevise;
   let quantiteIncertaine = false;
   if (analyse.quantiteEnFin) {
     // Le nombre de fin (« disjoncteur 32 », « prise double 16 ») est peut-être un mot du libellé : on le remet dans la clé si cela donne un candidat (quantité 1).
     const motsAvecNombre = [...mots, analyse.nombreFin];
-    const avecNombre = chercherCandidats(motsAvecNombre.join(' '), motsAvecNombre, { regles, articles });
+    const avecNombre = chercherAvecSynonyme(motsAvecNombre.join(' '), motsAvecNombre, { regles, articles, reglages });
     if (avecNombre[0]?.score >= SEUILS.proposer) { classes = avecNombre; cle = motsAvecNombre.join(' '); quantite = 1; } else quantiteIncertaine = true;
   }
   const [premier, second] = classes;
   let decision = 'demander';
   if (premier && premier.score >= SEUILS.proposer) {
-    const net = !quantiteIncertaine && !prixIncertain && premier.score >= SEUILS.utiliser && (!second || premier.score - second.score >= SEUILS.ecartUtiliser - 1e-9);
+    // Un mot validé avec une suggestion en attente sur cette clé n'est jamais appliqué sans question, même si un troisième article colle au libellé.
+    const suggestionSurCle = (regles ?? []).some((x) => x?.cle === cle && x.statut !== 'desactivee' && suggestionEnAttente(x) !== null);
+    const net = !suggestionSurCle && !quantiteIncertaine && !prixIncertain && premier.score >= SEUILS.utiliser && (!second || premier.score - second.score >= SEUILS.ecartUtiliser - 1e-9);
     decision = net ? 'utiliser' : 'proposer';
   }
   const parId = articlesParId(articles);
@@ -279,10 +338,13 @@ export function cleTropGenerale(cle, articles) {
 const JOUR = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Nouvelle version de la règle après une réponse du client. `evenement` : { type: 'confirme' } (le client confirme l'article de la règle) ou { type: 'autre' } (il en choisit un autre).
- * `maintenant` : le jour « AAAA-MM-JJ » (jamais lu ici). Renvoie la RÈGLE mise à jour { …règle, statut, confirmations, contradictions, conflit, derniereConfirmationLe } ; l'entrée n'est pas modifiée.
+ * Nouvelle version de la règle après une réponse du client. `evenement` : { type: 'confirme' } (le client confirme l'article de la règle) ou { type: 'autre', articleId, articleLibelle, immediat? }
+ * (il en choisit un autre ; `immediat` : suggestion tout de suite, sans attendre la 2e contradiction). `maintenant` : le jour « AAAA-MM-JJ » (jamais lu ici).
+ * Renvoie la RÈGLE mise à jour { …règle, statut, confirmations, contradictions, conflit, derniereConfirmationLe } ; l'entrée n'est pas modifiée.
  * Une confirmation ne compte que si son jour diffère de `derniereConfirmationLe` (deux « oui » le même jour = un seul). Activation : `a_confirmer` -> `active` à 2 confirmations,
- * 0 contradiction, sans conflit, et si la clé n'est pas trop générale (`articles` : le catalogue). Une règle désactivée ne change pas. Une règle active contredite passe en conflit.
+ * 0 contradiction, sans conflit, et si la clé n'est pas trop générale (`articles` : le catalogue) ; elle pose `valideLe`, `validePar: 'reponses'` et `revoirLe` (+6 mois). Une règle désactivée ne change pas.
+ * Garde-fou 1 : un mot validé (`active`, validé par un humain ou par les réponses) n'est JAMAIS modifié par l'apprentissage : une réponse « autre » ne change que les compteurs, et à la 2e
+ * contradiction (ou tout de suite si `immediat`) une `suggestion` est posée ; `conflit` n'est plus écrit. La suggestion disparaît (`null`) après 3 jours distincts de confirmation de l'article d'origine.
  */
 export function decisionApprentissage(regle, evenement, maintenant, { articles = [] } = {}) {
   if (!JOUR.test(String(maintenant ?? ''))) throw new TypeError('decisionApprentissage : `maintenant` doit être un jour « AAAA-MM-JJ ».');
@@ -296,15 +358,37 @@ export function decisionApprentissage(regle, evenement, maintenant, { articles =
   };
   if (r.statut === 'desactivee') return r;
   if (evenement?.type === 'autre') {
+    // Une suggestion déjà traitée par l'humain (ou retirée) clôt le cycle : le compteur repart de zéro, sinon une seule contradiction suivante la recréerait.
+    if (r.suggestion && typeof r.suggestion === 'object' && suggestionEnAttente(r) === null) { r.contradictions = 0; r.suggestion = null; }
     r.contradictions += 1;
-    if (r.statut === 'active') r.conflit = true;
+    if (r.statut === 'active' && (evenement.immediat === true || r.contradictions >= SEUILS.contradictionsPourSuggerer) && evenement.articleId) {
+      const ancienne = r.suggestion;
+      const memeArticle = ancienne?.articleId === evenement.articleId && suggestionEnAttente(r) !== null;
+      r.suggestion = {
+        articleId: evenement.articleId,
+        articleLibelle: String(evenement.articleLibelle ?? ''),
+        contradictions: r.contradictions,
+        le: memeArticle ? ancienne.le : maintenant,
+        ...(memeArticle && ancienne.confirmationsDepuis ? { confirmationsDepuis: ancienne.confirmationsDepuis } : {}),
+      };
+    }
     return r;
   }
   if (evenement?.type !== 'confirme') return r;
-  if (r.derniereConfirmationLe !== maintenant) {
+  const jourNouveau = r.derniereConfirmationLe !== maintenant;
+  if (jourNouveau) {
     r.confirmations += 1;
     r.derniereConfirmationLe = maintenant;
+    if (r.statut === 'active' && suggestionEnAttente(r)) {
+      const depuis = (Number(r.suggestion.confirmationsDepuis) || 0) + 1;
+      if (depuis >= SEUILS.confirmationsPourRetirerSuggestion) { r.suggestion = null; r.contradictions = 0; } else r.suggestion = { ...r.suggestion, confirmationsDepuis: depuis };
+    }
   }
-  if (r.statut === 'a_confirmer' && r.confirmations >= SEUILS.confirmationsPourActiver && r.contradictions === 0 && !r.conflit && !cleTropGenerale(r.cle, articles)) r.statut = 'active';
+  if (r.statut === 'a_confirmer' && r.confirmations >= SEUILS.confirmationsPourActiver && r.contradictions === 0 && !r.conflit && !cleTropGenerale(r.cle, articles)) {
+    r.statut = 'active';
+    r.valideLe = maintenant;
+    r.validePar = 'reponses';
+    r.revoirLe = ajouterMois(maintenant, SEUILS.moisAvantRevision);
+  }
   return r;
 }

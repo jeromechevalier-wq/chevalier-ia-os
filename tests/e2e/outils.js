@@ -262,6 +262,17 @@ export async function valeurObjectif(page, id) {
 
 // ---------------------------------------------------------------- fixture : SDK local, console, émulateurs propres
 
+/**
+ * Éditeur de devis : tape quelques lettres dans le champ « Affaire » ou « Client » et clique la suggestion dont le texte contient `texte` (par défaut la saisie).
+ * (Ces champs ne sont plus des listes : on retrouve la valeur en tapant, comme dans la recherche.)
+ */
+export async function choisirDansChampDevis(page, champ, saisie, texte = saisie) {
+  const entree = page.locator(`[data-champ="${champ}"]`);
+  await entree.click();
+  await entree.fill(saisie);
+  await page.locator('.entete-droite .suggestions:not([hidden]) .suggestion', { hasText: texte }).first().click();
+}
+
 export const test = base.extend({
   erreursConsole: [async ({ page, context }, use, testInfo) => {
     // Avant le chargement de l'appli : projet et ports de ce worker (lus par js/os/firebase.js en mode test).

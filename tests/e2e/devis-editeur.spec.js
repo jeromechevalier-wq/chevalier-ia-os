@@ -2,7 +2,7 @@
 // Les fonctions du serveur (devisFinaliser, devisNouvelleVersion) n'existent pas dans l'émulateur du navigateur : elles sont SIMULÉES par page.route, comme dans devis-liste.spec.js.
 import { fileURLToPath } from 'node:url';
 import {
-  test, expect, connecter, attendreCalme, allerA, ecrireDocument, lireDocument, listerDocuments, creerOrganisation, creerAffaire, JEROME, FIRESTORE, PROJET,
+  test, expect, connecter, attendreCalme, allerA, ecrireDocument, lireDocument, listerDocuments, creerOrganisation, creerAffaire, JEROME, FIRESTORE, PROJET, choisirDansChampDevis,
 } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-editeur/', import.meta.url));
@@ -41,7 +41,7 @@ async function nouveauBrouillon(page) {
   await ouvrirListe(page);
   await page.locator('[data-action="nouveau-devis-vide"]').click(); // le brouillon est créé tout de suite, sans affaire : on la choisit dans l'éditeur
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
-  await page.locator('[data-champ="affaire"]').selectOption('a1');
+  await choisirDansChampDevis(page, 'affaire', 'Réno', 'Rénovation cuisine');
   await attendreCalme(page);
   await expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré');
   return page.url().split('/').pop();
@@ -270,7 +270,7 @@ test('COP8 choisir un client dont l’e-mail est déjà en copie : l’e-mail n�
   const destinataire = page.locator('[data-champ="destinataire"]');
   await expect(destinataire).toHaveValue('contact@exemple.fr'); // l'e-mail du premier client
   await ajouterCopie(page.locator('[data-zone="copie"]'), 'Compta@Exemple.fr');
-  await page.locator('[data-champ="affaire"]').selectOption('a2'); // son client a pour e-mail compta@exemple.fr, déjà en copie
+  await choisirDansChampDevis(page, 'client', 'Autre', 'Autre Société'); // son e-mail est compta@exemple.fr, déjà en copie
   await expect(destinataire).toHaveValue('');
   await expect(page.locator('[data-erreur="destinataire"]')).toHaveText('Cette adresse est déjà en copie du devis : choisis-en une autre.');
   await capturer(page, info, 'COP8-client-deja-en-copie');
@@ -278,7 +278,7 @@ test('COP8 choisir un client dont l’e-mail est déjà en copie : l’e-mail n�
   const doc = await lireDocument(`devis_devis/${id}`);
   expect(doc.destinataires).toEqual([]);
   expect(doc.copie).toEqual(['Compta@Exemple.fr']);
-  await page.locator('[data-champ="affaire"]').selectOption('a1'); // retour à un client dont l'e-mail n'est pas en copie : il est repris, le message part
+  await choisirDansChampDevis(page, 'client', 'Société Ex', 'Société Exemple'); // retour à un client dont l'e-mail n'est pas en copie : il est repris, le message part
   await expect(destinataire).toHaveValue('contact@exemple.fr');
   await expect(page.locator('[data-erreur="destinataire"]')).toBeHidden();
 });
@@ -293,7 +293,7 @@ test('COP10 le message « déjà en copie » du destinataire suit la copie : il 
   const message = page.locator('[data-erreur="destinataire"]');
   // cas du client : son e-mail est déjà en copie -> destinataire vide + message ; la croix fait disparaître le message
   await ajouterCopie(bloc, 'compta@exemple.fr');
-  await page.locator('[data-champ="affaire"]').selectOption('a2');
+  await choisirDansChampDevis(page, 'client', 'Autre', 'Autre Société');
   await expect(destinataire).toHaveValue('');
   await expect(message).toBeVisible();
   await expect(destinataire).toHaveAttribute('aria-invalid', 'true');
@@ -361,7 +361,7 @@ test('C6 la visualisation d’un devis finalisé n’a plus de boutons « Créer
   expect(boite.height).toBeGreaterThanOrEqual(44);
   await plus.click();
   await expect(page.getByRole('menuitem', { name: 'Créer une nouvelle version' })).toBeEnabled();
-  await expect(page.getByRole('menuitem', { name: 'Dupliquer' })).toBeEnabled();
+  await expect(page.getByRole('menuitem', { name: 'Dupliquer', exact: true })).toBeEnabled();
   await capturer(page, info, 'C6-menu-autres-actions');
   await page.keyboard.press('Escape');
 });
@@ -372,8 +372,8 @@ test('ED1 créer un devis pour une affaire, ajouter deux articles du Bordereau, 
   // Cas vide : aucune ligne, invitation claire ; le numéro n'est pas encore attribué ; le client et son adresse viennent de l'affaire.
   await expect(page.locator('[data-vide="lignes"]')).toContainText('Clique sur un des boutons ci-dessous pour ajouter un élément à ton devis.');
   await expect(page.locator('[data-valeur="numero-devis"]')).toContainText('Brouillon'); // le numéro DEV-… n'est attribué qu'à la finalisation
-  await expect(page.locator('[data-champ="affaire"]')).toHaveValue('a1');
-  await expect(page.locator('[data-champ="client"]')).toHaveValue('organisation:o1');
+  await expect(page.locator('[data-champ="affaire"]')).toHaveValue('Rénovation cuisine · Société Exemple');
+  await expect(page.locator('[data-champ="client"]')).toHaveValue('Société Exemple');
   await expect(page.locator('[data-champ="chantier-adresse"]')).toHaveValue('12 rue des Lilas\n75000 Paris');
   await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('contact@exemple.fr');
   await expect(page.locator('[data-avertissement="aucuneLigne"]')).toContainText('aucune ligne');
@@ -464,7 +464,7 @@ test('ED2 l’aperçu montre le devis comme le client le verra ; ordre des ligne
   await page.getByRole('menuitem', { name: 'Texte', exact: true }).click();
   await expect(lignes(page)).toHaveCount(4);
   await lignes(page).nth(3).locator('[data-action="menu-ligne"]').click();
-  await page.getByRole('menuitem', { name: 'Dupliquer' }).click();
+  await page.getByRole('menuitem', { name: 'Dupliquer', exact: true }).click();
   await expect(lignes(page)).toHaveCount(5);
   expect(await textes(page)).toEqual(['Pose du carrelage', '', 'Carrelage 60 x 60', 'Divers', 'Divers']);
   // Supprimer la ligne vide : confirmation, puis « Annuler » dans les 8 secondes la remet.
@@ -615,7 +615,7 @@ test('ED6 depuis la liste : Nouveau devis, Modifier ouvre l’éditeur, Duplique
   await ouvrirListe(page);
   await page.locator('[data-action="nouveau-devis-vide"]').click();
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
-  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Choisis l’affaire');
+  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif tant que le devis est un brouillon');
   await expect(page.locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/); // une invitation, pas une erreur
   await capturer(page, info, 'ED6-sans-affaire');
   await semer();
@@ -644,7 +644,7 @@ test('ED6 depuis la liste : Nouveau devis, Modifier ouvre l’éditeur, Duplique
   await page.goBack();
   await expect(page.locator('.page-liste-devis')).toBeVisible();
   await menu('b1');
-  await page.getByRole('menuitem', { name: 'Dupliquer' }).click();
+  await page.getByRole('menuitem', { name: 'Dupliquer', exact: true }).click();
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
   const copie = page.url().split('/').pop();
   expect(copie).not.toBe('b1');

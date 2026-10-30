@@ -727,7 +727,7 @@ test('C19 export : JSON complet de toutes les collections, contacts .vcf ; le ra
   expect(telechargement.suggestedFilename()).toMatch(/^chevalier-ia-os-\d{4}-\d{2}-\d{2}\.json$/);
   const json = JSON.parse(await readFile(await telechargement.path(), 'utf8'));
   expect(json.version).toBe('2.0.0');
-  expect(Object.keys(json.collections).sort()).toEqual(['crm_activites', 'crm_affaires', 'crm_evenements', 'crm_notes', 'crm_organisations', 'crm_parametres', 'crm_personnes', 'devis_articles', 'devis_devis', 'devis_parametres', 'devis_vocabulaire', 'projets_modeles', 'projets_projets', 'projets_taches', 'veille_contenus', 'veille_pages', 'veille_resumes', 'veille_sources']);
+  expect(Object.keys(json.collections).sort()).toEqual(['crm_activites', 'crm_affaires', 'crm_evenements', 'crm_notes', 'crm_organisations', 'crm_parametres', 'crm_personnes', 'devis_articles', 'devis_devis', 'devis_parametres', 'devis_vocabulaire', 'documents_stockes', 'projets_modeles', 'projets_projets', 'projets_taches', 'veille_contenus', 'veille_pages', 'veille_resumes', 'veille_sources']);
   expect(json.collections.crm_personnes.map((p) => p.id).sort()).toEqual(['p1', 'p2']);
   expect(json.collections.crm_notes).toHaveLength(1);
   expect(json.collections.crm_affaires[0].id).toBe('a1');
@@ -916,8 +916,8 @@ test('C21 fiche affaire : barre des étapes, Gagné par la liste Étape, montant
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Proposition envoyée');
   await expect(page.locator('.fiche-montant')).toContainText('900');
   await page.locator('.fiche-montant .prop-modifier').click();
-  await page.getByLabel('Montant', { exact: true }).fill('1500.5');
-  await page.getByLabel('Montant', { exact: true }).press('Enter');
+  await page.getByLabel('Montant estimé', { exact: true }).fill('1500.5');
+  await page.getByLabel('Montant estimé', { exact: true }).press('Enter');
   await champDoc('crm_affaires', 'a1', 'montant', 1500.5);
   // Gagnée
   await page.locator('[data-action="choisir-etape"]').selectOption({ label: 'Gagné' }); // J9 : plus de bouton « Gagnée », on passe par la liste « Étape »

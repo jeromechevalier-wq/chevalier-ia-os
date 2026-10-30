@@ -169,15 +169,15 @@ describe('B6 le titre de l’écran suit le nom de bordereau des réglages', () 
 describe('B7 les réglages s’enregistrent et se relisent', () => {
   test('B7 logique : valeurs par défaut', () => {
     assert.deepEqual(A.reglagesDevis(null), {
-      nomBordereau: 'Catalogue', modeMarge: 'majoration', marge: 20, margeDevis: 20, regimeTva: 'assujetti', tauxProposes: [20, 10, 5.5], tauxTvaDefaut: 20,
-      dureeValiditeJours: 90, etapeDevis: '', etapeAFaire: '', etapeEnvoye: '', mentionEmetteur: '', entreprise: {},
+      nomBordereau: 'Catalogue', motOuvrage: 'ouvrage', motOuvrageAutre: {}, modeMarge: 'majoration', marge: 20, margeDevis: 20, regimeTva: 'assujetti', tauxProposes: [20, 10, 5.5], tauxTvaDefaut: 20,
+      dureeValiditeJours: 90, etapeDevis: '', etapeAFaire: '', etapeEnvoye: '', etapeAffaireCreee: '', mentionEmetteur: '', entreprise: {},
     });
     assert.deepEqual(A.reglagesDevis({}), A.reglagesDevis(undefined));
   });
   test('B7 logique : une saisie valide se relit à l’identique (aller-retour par reglagesDevis), virgule française acceptée', () => {
-    const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: '  Ma mention  ' });
+    const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', mentionEmetteur: '  Ma mention  ' });
     assert.deepEqual(r.erreurs, {});
-    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: 25.5, margeDevis: 20, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: 'Ma mention', entreprise: {} });
+    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', motOuvrage: 'ouvrage', motOuvrageAutre: {}, modeMarge: 'marge_vente', marge: 25.5, margeDevis: 20, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', mentionEmetteur: 'Ma mention', entreprise: {} });
     assert.deepEqual(A.reglagesDevis(r.reglages), r.reglages);
   });
   test('13a logique : la marge globale du devis vaut 20 par défaut (document absent ou ancien sans le champ), se relit en virgule française, et reste distincte de la marge des articles', () => {
@@ -264,6 +264,15 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
     assert.deepEqual([anciens.etapeDevis, anciens.etapeAFaire, anciens.etapeEnvoye], ['c', 'a', 'b']);
     assert.equal(A.reglagesDevis({ etapeAFaire: 'a', etapeEnvoye: 'b' }).etapeDevis, '', 'plus de reprise de « à faire »');
     assert.equal(A.reglagesDevis({ etapeDevis: 'c', etapeAFaire: 'a' }).etapeDevis, 'c');
+    // B7 étape des affaires créées depuis un devis : jamais d'erreur (le pipeline n'est pas visible ici), même pour une étape inconnue ; non-texte = non réglée
+    assert.deepEqual(e({ etapeAffaireCreee: 'inconnue' }), {});
+    assert.equal(A.reglagesDevis({ etapeAffaireCreee: 'inconnue' }).etapeAffaireCreee, 'inconnue');
+    assert.equal(A.reglagesDevis({ etapeAffaireCreee: 5 }).etapeAffaireCreee, '');
+    assert.equal(A.reglagesDevis({}).etapeAffaireCreee, '', 'document sans la clé = non réglée');
+    const avecEtape = A.validerReglagesDevis({ marge: 25 }, { actuels: { etapeAffaireCreee: 'rdv_fixe' } }).reglages;
+    assert.equal(avecEtape.etapeAffaireCreee, 'rdv_fixe', 'enregistrer un autre réglage ne perd pas l’étape');
+    const apresEtape = A.validerReglagesDevis({ etapeAffaireCreee: 'gagne' }, { actuels: { ...avecEtape, marge: 33 } }).reglages;
+    assert.deepEqual([apresEtape.etapeAffaireCreee, apresEtape.marge], ['gagne', 33], 'enregistrer l’étape ne perd pas les autres réglages');
     assert.match(e({ nomBordereau: 'Liste' }).nomBordereau, /Choisis un nom/);
     assert.match(e({ mentionEmetteur: 'x'.repeat(501) }).mentionEmetteur, /trop longue/);
   });
@@ -279,7 +288,7 @@ describe('B8 règles Firestore : déclaration (les parcours sont dans regles-pla
   test('B8 les règles de la plateforme clients nomment devis_articles, interdisent la suppression et sortent la collection de la règle générale d\'écriture', () => {
     const r2 = lire('firestore.plateforme.rules');
     assert.match(r2, /match \/clients\/\{client\}\/devis_articles\/\{id\} \{[^}]*allow delete: if false;/);
-    assert.match(r2, /function collectionSansSuppression\(collection\) \{\s+return collection in \['devis_articles'\];/);
+    assert.match(r2, /function collectionSansSuppression\(collection\) \{\s+return collection in \['devis_articles', 'devis_vocabulaire'\];/);
     assert.match(r2, /!collectionSansSuppression\(collection\) && (?:!collectionDesDevis\(collection\) && )?roleDe\(client\) == 'editeur'/);
     // Les règles des devis eux-mêmes (devis_devis, devis_compteurs) sont arrivées avec la couche de données : elles sont testées dans devis-regles.test.js (C1).
     assert.match(r2, /match \/clients\/\{client\}\/devis_devis\/\{id\}/);
@@ -298,7 +307,7 @@ describe('B8 règles Firestore : déclaration (les parcours sont dans regles-pla
 
 describe('B9 assistant : outils déclarés', () => {
   test('B9 le registre déclare les cinq outils du bordereau', () => {
-    assert.deepEqual(moduleDeclare('devis').outilsMcp, ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire']);
+    assert.deepEqual(moduleDeclare('devis').outilsMcp, ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'obtenir_pdf_officiel_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'modifier_lignes_devis', 'annuler_derniere_modification_devis', 'creer_devis_depuis_modele', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'preparer_email', 'modifier_destinataires_devis', 'recalculer_montants_affaires', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire']);
   });
 });
 

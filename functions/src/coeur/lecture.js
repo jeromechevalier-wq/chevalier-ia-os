@@ -8,7 +8,9 @@ import * as DV from '../../partage/devis-vocabulaire.js';
 import * as D from '../../partage/devis.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { serialiser } from './serialisation.js';
+import { ditHorsTaxes, ditPourAssistant, sansModeMarge } from './voix.js';
 import { lireConfig } from './config.js';
+import { structureCourte, phraseTotaux } from './recapitulatif.js';
 
 export const MAX_LIGNES = 200;
 const borne = (liste, limite = MAX_LIGNES) => ({ total: liste.length, tronque: liste.length > limite, elements: liste.slice(0, limite) });
@@ -105,7 +107,8 @@ const sansDescription = ({ description: _ancienChamp, ...fiche }) => fiche;
 export async function lireAffaire(donnees, { id, avecFil }) {
   const brute = await donnees.document(C.affaires, id);
   if (!brute) introuvable('Affaire');
-  const affaire = { ...sansDescription(brute), statut: L.statutAffiche(brute) };
+  // `montant` = le montant estimé saisi ; `montantDevisHt` = le montant calculé d'après les devis, avec `montantDevisNature` (accepte | propose) et `montantDevisDetail` (écrits par le serveur) ; `montantAffiche` = celui que montre l'écran (le calcul d'abord).
+  const affaire = { ...sansDescription(brute), statut: L.statutAffiche(brute), montantAffiche: L.montantAffaire(brute) };
   const [personne, organisation, activites] = await Promise.all([
     affaire.personneId ? donnees.document(C.personnes, affaire.personneId) : null,
     affaire.organisationId ? donnees.document(C.organisations, affaire.organisationId) : null,
@@ -136,7 +139,7 @@ export async function listerAffaires(donnees, { etape, statut, archive, personne
     sansAction: !!sansAction,
   };
   const gardees = L.filtrerAffaires(affaires, criteres, { activites, personnes, organisations, aujourdhui });
-  const lignes = gardees.map((a) => ({ ...sansDescription(a), statut: L.statutAffiche(a), personne: nomDe(personnes, a.personneId), organisation: nomDe(organisations, a.organisationId) }));
+  const lignes = gardees.map((a) => ({ ...sansDescription(a), statut: L.statutAffiche(a), montantAffiche: L.montantAffaire(a), personne: nomDe(personnes, a.personneId), organisation: nomDe(organisations, a.organisationId) }));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
   return serialiser({ total, tronque, affaires: elements });
 }
@@ -163,7 +166,14 @@ export async function listerDocuments(donnees, { affaireId, projetId }) {
     ...affaires.flatMap((a) => (a.documents || []).map((d, index) => ({ affaireId: a.id, titreAffaire: a.titre, ...ligne(d, index) }))),
     ...projets.flatMap((p) => (p.documents || []).map((d, index) => ({ projetId: p.id, titreProjet: p.titre, ...ligne(d, index) }))),
   ];
-  return serialiser({ total: documents.length, documents });
+  // Fichiers déposés chez nous (onglet « Documents ») : id, nom, taille, date, qui. Le chemin du stockage n'est jamais donné. Le plus récent d'abord.
+  const cible = affaireId ? { champ: 'cibleId', valeur: affaireId } : projetId ? { champ: 'cibleId', valeur: projetId } : undefined;
+  const ms = (d) => (typeof d?.toMillis === 'function' ? d.toMillis() : d instanceof Date ? d.getTime() : typeof d?.seconds === 'number' ? d.seconds * 1000 : 0);
+  const fichiers = (await donnees.liste(C.documentsStockes, cible))
+    .filter((f) => ['affaire', 'projet'].includes(f.cibleType) && !f.supprimeLe && (affaireId ? f.cibleType === 'affaire' : projetId ? f.cibleType === 'projet' : true))
+    .sort((a, b) => ms(b.creeLe) - ms(a.creeLe))
+    .map((f) => ({ id: f.id, [f.cibleType === 'affaire' ? 'affaireId' : 'projetId']: f.cibleId, nom: f.nom, taille: f.taille ?? null, typeMime: f.typeMime ?? null, creeLe: f.creeLe ?? null, creePar: f.creePar ?? null }));
+  return serialiser({ total: documents.length, documents, totalFichiers: fichiers.length, fichiers });
 }
 
 // ---------------------------------------------------------------- projets (2.1) et factures (2.2)
@@ -264,17 +274,22 @@ export async function lireAudit(donnees, { acteur, docId, operationId, depuis, i
   if (incompletes) lignes = lignes.filter((l) => l.statut === 'en_cours');
   lignes.sort((a, b) => (L.versDate(b.date)?.getTime() ?? 0) - (L.versDate(a.date)?.getTime() ?? 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
-  return serialiser({ total, tronque, lignes: elements, aVerifier: lignes.filter((l) => l.statut === 'en_cours').length });
+  return serialiser({ total, tronque, lignes: sansModeMarge(elements), aVerifier: lignes.filter((l) => l.statut === 'en_cours').length });
 }
 
 // ---------------------------------------------------------------- Devis : bordereau
+
+/** Le mot du métier déjà prêt (« ensemble ») pour un article de type ouvrage ; l'identifiant technique `type: 'ouvrage'` reste inchangé. */
+const avecTypeAffiche = (article, mot) => (article?.type === 'ouvrage' ? { ...article, typeAffiche: mot.singulier } : article);
 
 /** Les articles du bordereau, comme l'écran : actifs par défaut (statut : 'actifs' | 'desactives' | 'tous'), triés par libellé. */
 export async function listerArticles(donnees, { statut, limite }) {
   const toutes = await donnees.liste(C.devisArticles);
   const lignes = DA.filtrerArticles(toutes, { statut: statut ?? 'actifs' });
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
-  return serialiser({ total, tronque, articles: DA.avecCalculOuvrage(elements, toutes, await reglagesDevis(donnees)) });
+  const reglages = await reglagesDevis(donnees);
+  const mot = DA.motOuvrage(reglages);
+  return serialiser({ total, tronque, articles: DA.avecCalculOuvrage(elements, toutes, reglages).map((a) => avecTypeAffiche(a, mot)) });
 }
 
 /** Réglages du module Devis (marge, mode) : valeurs par défaut si le document n'existe pas encore. */
@@ -288,7 +303,9 @@ export async function chercherArticle(donnees, { texte, limite }) {
   const toutes = await donnees.liste(C.devisArticles);
   const lignes = DA.filtrerArticles(toutes, { recherche: texte, statut: 'actifs' });
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? 20, MAX_LIGNES));
-  return serialiser({ total, tronque, articles: DA.avecCalculOuvrage(elements, toutes, await reglagesDevis(donnees)) });
+  const reglages = await reglagesDevis(donnees);
+  const mot = DA.motOuvrage(reglages);
+  return serialiser({ total, tronque, articles: DA.avecCalculOuvrage(elements, toutes, reglages).map((a) => avecTypeAffiche(a, mot)) });
 }
 
 /**
@@ -301,14 +318,21 @@ export async function rechercherArticleParPhrase(donnees, { phrase, limite }) {
   const r = DV.interpreter(phrase, { regles, articles, reglages });
   // Jamais moins de candidats que d'articles cités par la question (sinon l'assistant lirait un article absent de la liste).
   const cites = r.decision === 'proposer' ? Math.min(DV.SEUILS.maxChoixQuestion, r.candidats.filter((c) => c.score >= DV.SEUILS.proposer).length) : 0;
-  return serialiser({ ...r, candidats: r.candidats.slice(0, Math.max(limite ?? 3, cites)) });
+  const mot = DA.motOuvrage(reglages);
+  const typeDe = new Map(articles.map((a) => [a.id, a.type]));
+  const candidats = r.candidats.slice(0, Math.max(limite ?? 3, cites)).map((c) => (typeDe.get(c.articleId) === 'ouvrage' ? { ...c, typeAffiche: mot.singulier } : c));
+  return serialiser({ ...r, candidats });
 }
 
 /** Réglages du module Devis (marge, mode, TVA, durée de validité, étapes, « Mon entreprise ») et familles d'articles, comme les écrans « Réglages des devis » et « Familles d'articles ». Lecture seule. */
 export async function lireReglagesDevis(donnees) {
   const lire = async (id) => { try { return await donnees.document(C.devisParametres, id); } catch { return null; } };
   const [reglages, familles] = await Promise.all([lire(DA.ID_REGLAGES), lire(DF.ID_DOCUMENT_FAMILLES)]);
-  return serialiser({ reglages: DA.reglagesDevis(reglages), familles: DF.famillesDe(familles) });
+  // Le mode de calcul de la marge (artisan / comptable) n'est jamais montré à l'assistant : il s'applique sans être dit ni demandé (décision du 30/10/2026).
+  const { modeMarge: _mode, ...visibles } = DA.reglagesDevis(reglages);
+  // Le mot affiché à l'utilisateur pour le type « ouvrage » (l'identifiant technique reste `ouvrage`) : les réponses des outils le portent aussi (`typeAffiche`).
+  const { singulier, pluriel, genre } = DA.motOuvrage(reglages);
+  return serialiser({ reglages: visibles, vocabulaire: { ouvrage: { singulier, pluriel, genre } }, familles: DF.famillesDe(familles) });
 }
 
 // ---------------------------------------------------------------- Devis (24/10/2026)
@@ -376,7 +400,7 @@ export async function listerDevis(donnees, { statut, affaireId, texte, archives,
  * Acomptes : `acomptes` est la liste normalisée ({ type: pourcentage | montantHt | montantTtc, valeur, moment, texteMoment? }), même pour un ancien devis à acompte unique (`acompte`, gardé tel quel) ;
  * `totaux.acomptesTTC` donne le montant TTC de chaque acompte retenu, `totaux.acompteTTC` leur somme.
  */
-export async function lireDevis(donnees, { id }, maintenant = new Date()) {
+export async function lireDevis(donnees, { id, format, avecPrix }, maintenant = new Date()) {
   const devis = await donnees.document(C.devis, id);
   if (!devis) introuvable('Devis');
   const [organisations, personnes] = await Promise.all([C.organisations, C.personnes].map((nom) => donnees.liste(nom)));
@@ -384,7 +408,22 @@ export async function lireDevis(donnees, { id }, maintenant = new Date()) {
   const t = totauxDe(devis);
   const parLigne = new Map(t.lignes.map((l) => [l.id, l]));
   const affaire = devis.affaireId ? await donnees.document(C.affaires, devis.affaireId) : null;
-  const { sections, totaux: _figes, ...reste } = devis;
+  const { sections, totaux: _figes, modeMarge: _mode, ...reste } = devis; // le mode de calcul de la marge n'est jamais montré à l'assistant
+  // Récapitulatif court (pour redire le devis à voix haute) : numéro, intitulé et quantité, jamais de prix d'achat ni de marge ; les prix de vente seulement si avecPrix.
+  if (format === 'recapitulatif') {
+    const resume = resumeDevis(devis, { organisations, personnes, aujourdhui });
+    const motRecap = DA.motOuvrage(await reglagesDevis(donnees));
+    const ouvrages = new Set((sections ?? []).flatMap((x) => (x.lignes ?? []).filter((l) => l?.ouvrage).map((l) => l.id)));
+    const structure = structureCourte(sections, { prixParLigne: avecPrix === true ? parLigne : undefined })
+      .map((x) => ({ ...x, lignes: x.lignes.map((l) => (ouvrages.has(l.id) ? { ...l, typeAffiche: motRecap.singulier } : l)) }));
+    return serialiser({
+      id: devis.id, numero: resume.numero ?? null, version: devis.version ?? 1, statut: resume.statut, objet: devis.objet ?? '', client: resume.client,
+      sections: structure, totalHT: t.totalHt, totalTTC: t.ttc, phraseTotaux: phraseTotaux(t.totalHt, t.ttc),
+      ...(structure.some((s) => s.lignes.length) ? {} : { message: "Ce devis n'a encore aucune ligne." }),
+    });
+  }
+  const numeros = D.numerosDevis(sections ?? []);
+  const mot = DA.motOuvrage(await reglagesDevis(donnees));
   return serialiser({
     ...reste,
     ...resumeDevis(devis, { organisations, personnes, aujourdhui }),
@@ -392,13 +431,14 @@ export async function lireDevis(donnees, { id }, maintenant = new Date()) {
     // E-mails en copie et historique des envois par e-mail ({ date, destinataires, copie }, du plus ancien au plus récent) : envoyeLe est la date du PREMIER envoi.
     copie: Array.isArray(devis.copie) ? devis.copie : [],
     envois: (Array.isArray(devis.envois) ? devis.envois : []).map((e) => ({ date: e?.date ?? null, destinataires: e?.destinataires ?? [], copie: e?.copie ?? [] })),
-    sections: (sections ?? []).map((s) => ({
+    sections: (sections ?? []).map((s, i) => ({
       ...s,
+      numero: numeros[i].numero,
       sousTotalHT: t.sections.find((x) => x.id === s.id)?.sousTotalHT ?? 0,
-      lignes: (s.lignes ?? []).map((l) => ({ ...l, prixVenteUnitaire: parLigne.get(l.id)?.prixVenteUnitaire ?? null, totalHT: parLigne.get(l.id)?.totalHT ?? 0, venduAPerte: parLigne.get(l.id)?.venduAPerte ?? false })),
+      lignes: (s.lignes ?? []).map((l, j) => ({ ...l, ...(l?.ouvrage ? { typeAffiche: mot.singulier } : {}), ...(numeros[i].lignes[j] ? { numero: numeros[i].lignes[j] } : {}), prixVenteUnitaire: parLigne.get(l.id)?.prixVenteUnitaire ?? null, totalHT: parLigne.get(l.id)?.totalHT ?? 0, venduAPerte: parLigne.get(l.id)?.venduAPerte ?? false })),
     })),
     acomptes: D.listeAcomptes(devis),
-    totaux: { totalBrutHT: t.totalBrutHt, remiseHT: t.remiseHt, totalHT: t.totalHt, tvaParTaux: t.tvaParTaux, tva: t.tva, totalTTC: t.ttc, acompteTTC: t.acompteTtc, acomptesTTC: t.acomptesTtc ?? (t.acompteTtc == null ? [] : [t.acompteTtc]), resteAFacturerTTC: t.resteAFacturerTtc, netAPayer: t.netAPayer, mentions: t.mentions },
-    ...(devis.statut === 'brouillon' ? { erreursFinalisation: D.erreursFinalisation(devis) } : {}),
+    totaux: { totalBrutHT: t.totalBrutHt, remiseHT: t.remiseHt, totalHT: t.totalHt, tvaParTaux: t.tvaParTaux, tva: t.tva, totalTTC: t.ttc, acompteTTC: t.acompteTtc, acomptesTTC: t.acomptesTtc ?? (t.acompteTtc == null ? [] : [t.acompteTtc]), resteAFacturerTTC: t.resteAFacturerTtc, netAPayer: t.netAPayer, mentions: (t.mentions ?? []).map(ditHorsTaxes) },
+    ...(devis.statut === 'brouillon' ? { erreursFinalisation: D.erreursFinalisation(devis).map(ditPourAssistant) } : {}),
   });
 }

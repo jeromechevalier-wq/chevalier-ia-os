@@ -83,7 +83,7 @@ test('2 l’en-tête de la visualisation est celui des fiches : « < Devis », t
   await expect(tete.locator('[data-action="fermer"]')).toContainText('Retour');
   await expect(tete.getByRole('heading', { level: 1 })).toHaveText('Devis DEV-2026-10-03-002 · v2');
   const pastille = tete.locator('.fiche-sous .pastille-statut');
-  await expect(pastille).toHaveText('Signé'); // les mêmes mots que la liste des devis
+  await expect(pastille).toHaveText('Devis signé'); // les mêmes mots que la liste des devis
   await expect(pastille).toHaveAttribute('data-statut', 'accepte');
   await expect(tete.locator('[data-valeur="lien-client"]')).toContainText('M. Paul Exemple');
   await expect(tete.locator('[data-valeur="lien-affaire"]')).toContainText('Rénovation cuisine');

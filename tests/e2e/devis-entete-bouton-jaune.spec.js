@@ -130,14 +130,14 @@ test('3 envoyé : « Devis signé » (jaune) et « Devis refusé » (visible) fo
   await expect(menu.getByRole('menuitem', { name: 'Préparer l’e-mail' })).toBeDisabled(); // le faux serveur répond « pas branché » (outils.js) : grisée, avec la raison
   await expect(menu.getByRole('menuitem', { name: 'Préparer l’e-mail' })).toHaveAttribute('title', /pas encore branchée/);
   await expect(menu.getByRole('menuitem', { name: 'Imprimer' })).toBeEnabled();
-  await expect(menu.getByRole('menuitem', { name: /Passer à « (Signé|Refusé) »/ })).toHaveCount(0); // les deux boutons REMPLACENT ces entrées : pas de doublon
+  await expect(menu.getByRole('menuitem', { name: /Passer à « Devis (signé|refusé) »/ })).toHaveCount(0); // les deux boutons REMPLACENT ces entrées : pas de doublon
   await page.keyboard.press('Escape');
   await jaunes(page).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Marquer signé' }).click(); // fenêtre de confirmation (27/10/2026)
-  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Signé »' })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Devis signé »' })).toBeVisible();
   await racine(page).locator('[data-action="marquer-refuse"]').click();
   await page.getByRole('dialog').getByRole('button', { name: 'Marquer refusé' }).click();
-  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Refusé »' })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Devis refusé »' })).toBeVisible();
   expect(appels).toEqual([{ devisId: 'dEnvoye', action: 'accepter' }, { devisId: 'dEnvoye', action: 'refuser' }]);
 });
 
@@ -197,10 +197,11 @@ test('6 cas vide : un devis introuvable ne montre aucun bouton ; cas d’erreur 
   await ouvrir(page, 'devis/editeur/dSansAffaire');
   await jaunes(page).click();
   await page.getByRole('dialog').waitFor();
-  await expect(page.getByRole('dialog')).toContainText('Ce devis ne peut pas encore être finalisé');
-  await expect(page.getByRole('dialog').locator('li')).toContainText(['Choisis l\'affaire de ce devis.']);
+  // Seule l'affaire manque : l'écran propose de la créer ou d'en choisir une (au lieu de la liste d'erreurs) ; « Annuler » ne change rien.
+  await expect(page.getByRole('dialog')).toContainText('Ce devis n’a pas encore d’affaire');
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Choisir une affaire existante' })).toBeVisible();
   await capturer(page, info, '6-erreur-finalisation', true);
-  await page.getByRole('dialog').getByRole('button', { name: 'Compris' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
   await expect(jaunes(page)).toHaveText('Finaliser');
   await expect(racine(page).locator('[data-action="envoyer"]')).toHaveAttribute('aria-disabled', 'true');
   // Devis introuvable : aucun bouton d'étape, le message habituel.

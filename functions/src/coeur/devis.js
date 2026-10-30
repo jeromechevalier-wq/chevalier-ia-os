@@ -12,6 +12,9 @@
 //   simultanées ne reçoivent jamais le même numéro (Firestore relance la perdante). Un devis invalide ne consomme AUCUN numéro.
 // - Accepter une version passe aussi les autres versions vivantes (finalisée ou envoyée) de la même racine à « Remplacé » (cadrage §5).
 // - Le journal n'enregistre pas le compteur lui-même (bruit) ; le numéro attribué est dans la copie du devis.
+// - Montant de l'affaire (29/10/2026, règle D17, expliquée dans docs/montant-affaire.md) : le montant calculé d'après les devis (somme HT des acceptés, sinon le HT du devis proposé le plus récent)
+//   est écrit dans `montantDevisHt` et `montantDevisNature` de l'affaire, DANS la transaction de chaque transition qui peut le changer (finaliser, changer de statut, archiver ; ni « nouvelle version » ni « supprimer » : un brouillon ne compte jamais). Un brouillon ne compte
+//   jamais : il est écrit par le navigateur, hors de ces transactions. Le montant saisi à la main (`montant`) n'est jamais touché. Aucune migration : une affaire n'est recalculée que lorsqu'un de ses devis change.
 import * as D from '../../partage/devis.js';
 import * as A from '../../partage/devis-articles.js';
 import * as L from '../../partage/logique.js';
@@ -89,6 +92,50 @@ export function modifier(devis, patch, collection = C.devis) {
 }
 
 /**
+ * Modification d'un brouillon décidée à partir du devis lu DANS la transaction (aucune fenêtre de course avec l'écran) : `calculer(tx, devis)` rend `{ patch, reponse }`
+ * (ou refuse en levant : rien n'est alors écrit) ; le devis et UNE ligne de journal (un seul operationId) sont écrits ensemble. Utilisée par modifier_lignes_devis.
+ */
+export async function modifierEnTransaction({ donnees, ctx, devisId, outil, parametres, calculer }) {
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    const { patch, reponse } = await calculer(tx, devis);
+    const changements = [modifier(devis, patch)];
+    const j = journal({ donnees, ctx, outil, parametres, changements });
+    tx.ecrire([...changements.map((x) => x.ecriture), ...j.ecritures]);
+    return { operationId: j.operationId, reponse: { ...reponse, operationId: j.operationId } };
+  });
+}
+
+/**
+ * Écriture du montant calculé d'après les devis dans l'affaire du devis (`montantDevisHt` + `montantDevisNature` + `montantDevisDetail`), ou null s'il n'y a rien à changer (pas d'affaire, affaire supprimée, mêmes valeurs).
+ * `retouches` : { idDevis: champs | null } = ce que la transaction en cours change sur ses devis (null : le devis disparaît), appliqué en mémoire avant le calcul (les écritures ne partent qu'à la fin).
+ * À appeler AVANT `tx.ecrire` (Firestore veut toutes les lectures d'abord). Ne crée jamais l'affaire. Règle : `montantDesDevis` (partage/devis.js).
+ */
+/** Même détail ? Comparé ligne par ligne, champ par champ : Firestore range les champs d'une map par nom, un JSON.stringify verrait une différence à chaque fois. */
+const memeDetail = (a, b) => {
+  const x = Array.isArray(a) ? a : null;
+  const y = Array.isArray(b) ? b : null;
+  if (!x || !y) return x === y;
+  return x.length === y.length && x.every((l, i) => l?.numero === y[i].numero && l?.version === y[i].version && l?.ht === y[i].ht && l?.compte === y[i].compte);
+};
+
+async function montantDeLAffaire(tx, devis, retouches) {
+  const affaireId = devis.affaireId;
+  if (typeof affaireId !== 'string' || !affaireId || affaireId.includes('/')) return null;
+  const affaire = await tx.document(C.affaires, affaireId);
+  if (!affaire) return null;
+  const liste = (await tx.liste(C.devis, { champ: 'affaireId', valeur: affaireId })).map(enDates);
+  if (devis.id && !liste.some((d) => d.id === devis.id) && retouches[devis.id] !== null) liste.push(devis);
+  const calcule = D.montantDesDevis(liste.filter((d) => retouches[d.id] !== null).map((d) => ({ ...d, ...(retouches[d.id] ?? {}) })));
+  const patch = { montantDevisHt: calcule?.montant ?? null, montantDevisNature: calcule?.nature ?? null, montantDevisDetail: calcule?.detail ?? null };
+  const meme = (typeof affaire.montantDevisHt === 'number' ? affaire.montantDevisHt : null) === patch.montantDevisHt && (affaire.montantDevisNature ?? null) === patch.montantDevisNature
+    && memeDetail(affaire.montantDevisDetail, patch.montantDevisDetail);
+  return meme ? null : modifier(affaire, patch, C.affaires);
+}
+/** Les retouches d'une transaction : le patch de chaque changement de devis (les lignes d'une autre collection n'en font pas partie). */
+const retouchesDe = (changements) => Object.fromEntries(changements.filter((c) => c.collection === C.devis).map((c) => [c.id, c.ecriture.donnees]));
+
+/**
  * Fige un brouillon : attribue le numéro, fige prix, TVA et totaux, passe à « Finalisé » (`en_attente_envoi`) et met la version précédente de la même
  * racine à « Remplacé ». Un devis invalide ne change RIEN : on rend `{ ok: false, erreurs }`.
  * Renvoie `{ ok: true, devis, numero, nouveauNumero, remplaces }`.
@@ -128,6 +175,9 @@ export async function finaliser({ donnees, ctx, devisId }) {
     // Les versions plus anciennes encore vivantes (finalisée ou envoyée) sont remplacées par celle-ci, dans la même transaction.
     const remplaces = versions.filter((v) => v.id !== devis.id && (v.version ?? 1) < (devis.version ?? 1) && D.transitionPossible(v.statut, 'remplacer'));
     for (const v of remplaces) changements.push(modifier(v, { statut: D.statutApres(v.statut, 'remplacer'), remplaceLe: ctx.maintenant }));
+    // Le devis finalisé devient « proposé » : le montant de l'affaire le suit (règle D17), dans la même transaction.
+    const montant = await montantDeLAffaire(tx, devis, retouchesDe(changements));
+    if (montant) changements.push(montant);
 
     const j = journal({ donnees, ctx, outil: 'devisFinaliser', parametres: { devisId }, changements });
     tx.ecrire([...ecritures, ...changements.map((c) => c.ecriture), ...j.ecritures]);
@@ -141,6 +191,8 @@ export async function changerStatut({ donnees, ctx, devisId, action }) {
   if (!champDate) throw new ErreurDevis('demande_invalide', 'Action inconnue : marquer_envoye, accepter ou refuser.');
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
+    // Un devis archivé ne change plus de statut (un finalisé archivé, passé à Signé, serait ignoré par le montant de l'affaire) : on le sort des archives d'abord.
+    if (devis.archive === true) throw new ErreurDevis('transition_interdite', 'Ce devis est archivé : sors-le des archives avant de changer son statut.');
     if (!D.transitionPossible(devis.statut, action)) {
       throw new ErreurDevis('transition_interdite', `Cette action n'est pas possible pour un devis « ${D.STATUTS_DEVIS.find((s) => s.id === devis.statut)?.libelle ?? devis.statut} ».`);
     }
@@ -153,6 +205,9 @@ export async function changerStatut({ donnees, ctx, devisId, action }) {
       remplaces = versions.filter((v) => v.id !== devis.id && D.transitionPossible(v.statut, 'remplacer'));
       for (const v of remplaces) changements.push(modifier(v, { statut: D.statutApres(v.statut, 'remplacer'), remplaceLe: ctx.maintenant }));
     }
+    // Envoyé, signé ou refusé : le montant de l'affaire suit (règle D17), dans la même transaction.
+    const montant = await montantDeLAffaire(tx, devis, retouchesDe(changements));
+    if (montant) changements.push(montant);
     const j = journal({ donnees, ctx, outil: 'devisChangerStatut', parametres: { devisId, action }, changements });
     tx.ecrire([...changements.map((c) => c.ecriture), ...j.ecritures]);
     return { ok: true, devis: { ...devis, statut, [champDate]: ctx.maintenant }, remplaces: remplaces.map((v) => v.id), operationId: j.operationId };
@@ -168,6 +223,7 @@ export async function nouvelleVersion({ donnees, ctx, devisId }) {
         ? 'Ce devis est encore un brouillon : modifie-le directement.'
         : 'On ne crée pas de nouvelle version à partir de ce devis.');
     }
+    // Le nouveau brouillon ne compte jamais dans le montant de l'affaire (règle D17) et la source ne change pas de statut : rien à recalculer ici.
     const versions = await lireVersions(tx, source);
     if (versions.some((v) => v.statut === 'brouillon')) {
       throw new ErreurDevis('brouillon_existant', 'Une version en brouillon existe déjà pour ce devis : termine-la ou supprime-la d\'abord.');
@@ -194,19 +250,22 @@ export async function nouvelleVersion({ donnees, ctx, devisId }) {
   });
 }
 
-/** Pose (`archive: true`) ou retire (`archive: false`) le drapeau d'archive. Poser : seulement sur un devis Signé ou Refusé. */
+/** Pose (`archive: true`) ou retire (`archive: false`) le drapeau d'archive. Poser : seulement sur un devis Finalisé (jamais envoyé), Signé ou Refusé. */
 export async function archiver({ donnees, ctx, devisId, archive }) {
   if (typeof archive !== 'boolean') throw new ErreurDevis('demande_invalide', 'Précise si le devis doit être archivé ou non.');
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
     if (archive && !D.peutArchiver(devis)) {
-      throw new ErreurDevis('transition_interdite', devis.archive === true ? 'Ce devis est déjà archivé.' : 'Seul un devis signé ou refusé peut être archivé.');
+      throw new ErreurDevis('transition_interdite', devis.archive === true ? 'Ce devis est déjà archivé.' : 'Seul un devis finalisé, signé ou refusé peut être archivé.');
     }
     if (!archive && devis.archive !== true) throw new ErreurDevis('transition_interdite', 'Ce devis n\'est pas archivé.');
     const patch = { archive, archiveLe: archive ? ctx.maintenant : null };
     const changement = modifier(devis, patch);
-    const j = journal({ donnees, ctx, outil: 'devisArchiver', parametres: { devisId, archive }, changements: [changement] });
-    tx.ecrire([changement.ecriture, ...j.ecritures]);
+    // Un devis accepté archivé ne compte plus dans le montant de l'affaire ; désarchivé, il compte de nouveau (règle D17).
+    const montant = await montantDeLAffaire(tx, devis, { [devis.id]: patch });
+    const changements = montant ? [changement, montant] : [changement];
+    const j = journal({ donnees, ctx, outil: 'devisArchiver', parametres: { devisId, archive }, changements });
+    tx.ecrire([...changements.map((c) => c.ecriture), ...j.ecritures]);
     return { ok: true, devis: { ...devis, ...patch }, operationId: j.operationId };
   });
 }
@@ -219,8 +278,9 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
 export async function supprimer({ donnees, ctx, devisId }) {
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
-    if (devis.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; tu peux l’archiver s’il est signé ou refusé.');
+    if (devis.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; tu peux l’archiver s’il est finalisé (jamais envoyé), signé ou refusé.');
     const changement = { id: devis.id, collection: C.devis, action: 'supprimer', avant: devis, apres: null, champs: [], ecriture: { type: 'delete', collection: C.devis, id: devis.id } };
+    // Un brouillon ne compte jamais dans le montant de l'affaire (règle D17) : supprimer ne touche pas à l'affaire, et l'opération reste restaurable par le journal.
     const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements: [changement] });
     tx.ecrire([changement.ecriture, ...j.ecritures]);
     return { ok: true, devis, operationId: j.operationId };
@@ -233,6 +293,8 @@ export async function supprimer({ donnees, ctx, devisId }) {
 // Un renvoi garde donc les deux dates. Le navigateur n'écrit jamais `envois` (les règles Firestore ne lui laissent que le brouillon) : tout passe ici, journal compris.
 export const MAX_ENVOIS = 100;
 export const MAX_ADRESSES_ENVOI = 10;
+/** D'où est parti l'e-mail enregistré (29/10/2026, sans migration : les anciennes lignes n'ont pas ce champ). Le logiciel ne fait que PRÉPARER un brouillon ; l'envoi est toujours fait par la personne. */
+export const ORIGINES_ENVOI = Object.freeze(['brouillon_logiciel', 'hors_logiciel']);
 
 /** Liste d'adresses nettoyée (espaces ôtés, doublons ignorés sans tenir compte de la casse). Une adresse invalide refuse toute la demande. */
 function adressesDeEnvoi(valeur, { nom, minimum }) {
@@ -255,7 +317,8 @@ function adressesDeEnvoi(valeur, { nom, minimum }) {
 }
 
 /** Ajoute un envoi à l'historique d'un devis « Envoyé ». Le statut ne change pas (c'est `changerStatut` qui le pose) et `envoyeLe` garde la date du premier envoi. */
-export async function enregistrerEnvoi({ donnees, ctx, devisId, destinataires, copie }) {
+export async function enregistrerEnvoi({ donnees, ctx, devisId, destinataires, copie, origine }) {
+  if (origine !== undefined && origine !== null && !ORIGINES_ENVOI.includes(origine)) throw new ErreurDevis('demande_invalide', `Origine de l'envoi : « ${ORIGINES_ENVOI.join(' » ou « ')} » attendu.`);
   const a = adressesDeEnvoi(destinataires, { nom: 'Destinataires', minimum: 1 });
   const cc = adressesDeEnvoi(copie, { nom: 'Copie', minimum: 0 }).filter((x) => !a.some((y) => y.toLowerCase() === x.toLowerCase()));
   return donnees.transaction(async (tx) => {
@@ -263,11 +326,32 @@ export async function enregistrerEnvoi({ donnees, ctx, devisId, destinataires, c
     if (devis.statut !== 'envoye') throw new ErreurDevis('transition_interdite', 'Marque d\'abord le devis comme envoyé : l\'historique des envois ne se tient que pour un devis envoyé.');
     const avant = Array.isArray(devis.envois) ? devis.envois : [];
     if (avant.length >= MAX_ENVOIS) throw new ErreurDevis('transition_interdite', `L'historique des envois est plein (${MAX_ENVOIS} envois).`);
-    const envois = [...avant, { date: ctx.maintenant, destinataires: a, copie: cc }];
+    const envois = [...avant, { date: ctx.maintenant, destinataires: a, copie: cc, ...(origine ? { origine } : {}) }];
     const changement = modifier(devis, { envois });
-    const j = journal({ donnees, ctx, outil: 'devisEnregistrerEnvoi', parametres: { devisId, destinataires: a, copie: cc }, changements: [changement] });
+    const j = journal({ donnees, ctx, outil: 'devisEnregistrerEnvoi', parametres: { devisId, destinataires: a, copie: cc, ...(origine ? { origine } : {}) }, changements: [changement] });
     tx.ecrire([changement.ecriture, ...j.ecritures]);
     return { ok: true, devis: { ...devis, envois }, operationId: j.operationId };
+  });
+}
+
+/**
+ * Change le destinataire et la copie d'un devis FINALISÉ ou ENVOYÉ (décision de Jérôme, 29/10/2026, option A) : ces deux champs ne sont pas imprimés sur le PDF et ne changent
+ * pas le contenu du devis, mais sans eux « Préparer l'e-mail » est impossible et un devis finalisé ne se modifie plus. N'écrit QUE `destinataires` et `copie` ; le journal garde l'avant et l'après.
+ */
+export async function modifierDestinataires({ donnees, ctx, devisId, destinataires, copie }) {
+  const a = adressesDeEnvoi(destinataires, { nom: 'Destinataires', minimum: 1 });
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    if (!['en_attente_envoi', 'envoye'].includes(devis.statut)) throw new ErreurDevis('transition_interdite', devis.statut === 'brouillon'
+      ? 'Ce devis est encore un brouillon : change son destinataire directement dans le devis.'
+      : 'Le destinataire ne se change que sur un devis finalisé ou envoyé.');
+    // Copie non donnée : celle du devis reste TELLE QUELLE (non revalidée : la finalisation l'a déjà acceptée), sans l'adresse devenue destinataire. Donnée : validée, elle remplace l'ancienne.
+    const existante = (Array.isArray(devis.copie) ? devis.copie : []).map((x) => String(typeof x === 'string' ? x : x?.email ?? '').trim()).filter(Boolean);
+    const cc = (copie === undefined ? existante : adressesDeEnvoi(copie, { nom: 'Copie', minimum: 0 })).filter((x) => !a.some((y) => y.toLowerCase() === x.toLowerCase()));
+    const changement = modifier(devis, { destinataires: a, copie: cc });
+    const j = journal({ donnees, ctx, outil: 'devisModifierDestinataires', parametres: { devisId, destinataires: a, copie: cc }, changements: [changement] });
+    tx.ecrire([changement.ecriture, ...j.ecritures]);
+    return { ok: true, devis: { ...devis, destinataires: a, copie: cc }, operationId: j.operationId };
   });
 }
 
@@ -339,6 +423,51 @@ export async function echouerPdf({ donnees, ctx, devisId, message }) {
   });
 }
 
+/** Nombre maximum d'affaires corrigées par appel (au-delà : un nouvel aperçu, un nouveau code). */
+export const MAX_RECALCUL = 50;
+const montantLu = (a) => ({ ht: typeof a.montantDevisHt === 'number' ? a.montantDevisHt : null, nature: a.montantDevisNature ?? null });
+
+/**
+ * Recalcul général du montant des affaires d'après leurs devis (règle D17, docs/montant-affaire.md) pour celles que le serveur n'a pas encore calculées
+ * (devis envoyé avant la règle) ou dont le calcul est périmé. N'écrit QUE `montantDevisHt`, `montantDevisNature` et `montantDevisDetail` ; le montant saisi n'est jamais touché.
+ * Idempotent : une affaire déjà à jour n'est ni écrite ni journalisée. `appliquer: false` : aperçu, rien n'est écrit. Une transaction et une ligne de journal par affaire.
+ * Rend `{ total, lignes: [{ affaireId, avant, apres, nature }], operations }` (`lignes` : les MAX_RECALCUL premières, par identifiant).
+ */
+export async function recalculerMontantsAffaires({ donnees, ctx, appliquer = false, affaireIds = null }) {
+  const aCorriger = new Map();
+  if (Array.isArray(affaireIds)) {
+    // Écriture d'après un aperçu fait dans le même appel : on ne reprend que ces affaires (chacune est relue dans sa transaction, et rien n'est écrit si elle est déjà à jour).
+    for (const affaireId of affaireIds) aCorriger.set(affaireId, { affaireId });
+  } else {
+    const ids = new Set();
+    for (const d of await donnees.liste(C.devis)) if (typeof d.affaireId === 'string' && d.affaireId && !d.affaireId.includes('/')) ids.add(d.affaireId);
+    for (const a of await donnees.liste(C.affaires)) if (a.montantDevisNature != null || a.montantDevisHt != null) ids.add(a.id); // un calcul périmé (plus aucun devis) se remet à zéro aussi
+    for (const affaireId of [...ids].sort()) {
+      await donnees.transaction(async (tx) => {
+        const changement = await montantDeLAffaire(tx, { id: null, affaireId }, {});
+        if (changement) aCorriger.set(affaireId, { affaireId, avant: montantLu(changement.avant), apres: { ht: changement.apres.montantDevisHt, nature: changement.apres.montantDevisNature } });
+      });
+    }
+  }
+  const total = aCorriger.size;
+  const lignes = [...aCorriger.values()].slice(0, MAX_RECALCUL);
+  const operations = [];
+  if (appliquer) {
+    for (const { affaireId } of lignes) {
+      // L'identifiant d'opération est RENDU par la transaction (Firestore la rejoue en cas de contention : un effet de bord dans la fonction compterait des opérations jamais écrites).
+      const operationId = await donnees.transaction(async (tx) => {
+        const changement = await montantDeLAffaire(tx, { id: null, affaireId }, {});
+        if (!changement) return null;
+        const j = journal({ donnees, ctx, outil: 'devisRecalculMontant', parametres: { affaireId }, changements: [changement] });
+        tx.ecrire([changement.ecriture, ...j.ecritures]);
+        return j.operationId;
+      });
+      if (operationId) operations.push(operationId);
+    }
+  }
+  return { total, lignes, operations };
+}
+
 // ---------------------------------------------------------------- pour les fonctions appelables (les deux projets)
 /** Quelle transition, avec quels arguments tirés de la demande. `base` : { donnees, ctx }. */
 export const OPERATIONS = Object.freeze({
@@ -347,7 +476,8 @@ export const OPERATIONS = Object.freeze({
   nouvelleVersion: (base, d) => nouvelleVersion({ ...base, devisId: d.devisId }),
   archiver: (base, d) => archiver({ ...base, devisId: d.devisId, archive: d.archive }),
   supprimer: (base, d) => supprimer({ ...base, devisId: d.devisId }),
-  enregistrerEnvoi: (base, d) => enregistrerEnvoi({ ...base, devisId: d.devisId, destinataires: d.destinataires, copie: d.copie }),
+  enregistrerEnvoi: (base, d) => enregistrerEnvoi({ ...base, devisId: d.devisId, destinataires: d.destinataires, copie: d.copie, origine: d.origine }),
+  modifierDestinataires: (base, d) => modifierDestinataires({ ...base, devisId: d.devisId, destinataires: d.destinataires, copie: d.copie }),
 });
 
 /** Ce que l'appelant reçoit : jamais le devis entier (son navigateur le lit déjà). Un devis refusé rend les messages à corriger, rien n'a été écrit. */

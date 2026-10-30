@@ -51,7 +51,7 @@ describe('Marge', () => {
     for (const m of [100, 150]) {
       const r = D.coefficientDeMarge(m, 'marge_vente');
       assert.equal(r.coefficient, null);
-      assert.equal(r.erreur, 'La marge sur le prix de vente doit être inférieure à 100 %.');
+      assert.equal(r.erreur, 'En calcul comptable, la marge doit rester inférieure à 100 %.');
     }
     assert.equal(D.prixVenteUnitaire(100, 100, 'marge_vente'), null);
   });
@@ -179,8 +179,8 @@ describe('Numéro, expiration, statuts', () => {
   });
   test('D16 table des transitions : aucune transition libre', () => {
     const attendu = {
-      finaliser: ['brouillon'], marquer_envoye: ['en_attente_envoi'], accepter: ['envoye'], refuser: ['envoye'],
-      nouvelle_version: ['en_attente_envoi', 'envoye', 'refuse'], remplacer: ['en_attente_envoi', 'envoye'], archiver: ['accepte', 'refuse'],
+      finaliser: ['brouillon'], marquer_envoye: ['en_attente_envoi'], accepter: ['envoye'], refuser: ['en_attente_envoi', 'envoye'],
+      nouvelle_version: ['en_attente_envoi', 'envoye', 'refuse'], remplacer: ['en_attente_envoi', 'envoye'], archiver: ['en_attente_envoi', 'accepte', 'refuse'],
     };
     for (const [action, permis] of Object.entries(attendu)) {
       for (const { id } of D.STATUTS_DEVIS) assert.equal(D.transitionPossible(id, action), permis.includes(id), `${action} depuis ${id}`);
@@ -190,9 +190,10 @@ describe('Numéro, expiration, statuts', () => {
     assert.equal(D.statutApres('envoye', 'accepter'), 'accepte');
     assert.equal(D.statutApres('brouillon', 'accepter'), null);
   });
-  test('D21 archiver est un drapeau, permis seulement pour accepté ou refusé', () => {
+  test('D21 archiver est un drapeau, permis pour finalisé, accepté ou refusé', () => {
     assert.equal(D.peutArchiver({ statut: 'accepte', archive: false }), true);
     assert.equal(D.peutArchiver({ statut: 'refuse' }), true);
+    assert.equal(D.peutArchiver({ statut: 'en_attente_envoi' }), true, 'un devis finalisé jamais envoyé a une sortie');
     assert.equal(D.peutArchiver({ statut: 'accepte', archive: true }), false);
     assert.equal(D.peutArchiver({ statut: 'envoye' }), false);
     assert.equal(D.peutArchiver({ statut: 'brouillon' }), false);
@@ -310,12 +311,13 @@ describe('Nouvelle version et montant d\'affaire', () => {
     v2.sections[0].lignes[0].libelle = 'changé';
     assert.notEqual(fige.sections[0].lignes[0].libelle, 'changé'); // copie profonde
   });
-  test('D17 montant d\'affaire : somme HT des acceptés (archivés compris), sinon la saisie reste', () => {
+  test('D17 montant d\'affaire : devis acceptés non archivés, sinon devis proposé le plus récent, sinon la saisie reste (détail : devis-montant-affaire.test.js)', () => {
     const fige = D.figerPourFinalisation(devisType(), { numero: 'N', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } }).devis;
-    assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'envoye' }, { ...fige, statut: 'refuse' }], 5000), 5000);
+    assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'refuse' }, { ...fige, statut: 'brouillon' }], 5000), 5000);
     assert.equal(D.montantAffaireDepuisDevis([], 0), 0);
+    assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'envoye' }], 5000), 1014.71);
     assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'accepte' }], 5000), 1014.71);
-    assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'accepte' }, { ...fige, statut: 'accepte', archive: true }, { ...fige, statut: 'envoye' }], 5000), 2029.42);
+    assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'accepte' }, { ...fige, statut: 'accepte', archive: true }, { ...fige, statut: 'envoye' }], 5000), 1014.71);
   });
 });
 
@@ -345,15 +347,15 @@ describe('Corrections de relecture', () => {
 });
 
 describe('C8 libellés des statuts', () => {
-  test('C8 les libellés affichés sont Brouillon, Finalisé, Envoyé, Signé, Refusé, Expiré, Remplacé (les identifiants stockés ne changent pas)', () => {
-    assert.deepEqual(D.STATUTS_DEVIS.map((s) => s.libelle), ['Brouillon', 'Finalisé', 'Envoyé', 'Signé', 'Refusé', 'Expiré', 'Remplacé']);
+  test('C8 les libellés affichés sont Brouillon, Finalisé, Envoyé, Devis signé, Devis refusé, Expiré, Devis remplacé (les identifiants stockés ne changent pas)', () => {
+    assert.deepEqual(D.STATUTS_DEVIS.map((s) => s.libelle), ['Brouillon', 'Finalisé', 'Envoyé', 'Devis signé', 'Devis refusé', 'Expiré', 'Devis remplacé']);
     const id = (libelle) => D.STATUTS_DEVIS.find((s) => s.libelle === libelle).id;
     assert.equal(id('Finalisé'), 'en_attente_envoi');
-    assert.equal(id('Signé'), 'accepte');
+    assert.equal(id('Devis signé'), 'accepte');
     assert.equal(id('Brouillon'), 'brouillon');
     assert.equal(id('Envoyé'), 'envoye');
-    assert.equal(id('Refusé'), 'refuse');
-    assert.equal(id('Remplacé'), 'remplace');
+    assert.equal(id('Devis refusé'), 'refuse');
+    assert.equal(id('Devis remplacé'), 'remplace');
     // Expiré se calcule à l'affichage : aucune action ne mène à lui.
     assert.equal(Object.values(D.TRANSITIONS).some((t) => t.vers === 'expire'), false);
     assert.equal(D.STATUTS_DEVIS.some((s) => /attente|Accepté/i.test(s.libelle)), false);

@@ -21,19 +21,20 @@ import { aujourdhuiParis, ajouterJours } from '../crm/logique.js';
 
 // ---------------------------------------------------------------- constantes
 export const MODES_MARGE = [
-  { id: 'majoration', libelle: 'Majoration sur le prix d\'achat' },
-  { id: 'marge_vente', libelle: 'Marge sur le prix de vente' },
+  // Noms de Jérôme (30/10/2026) : « Calcul artisan » (défaut) et « Calcul comptable ». Les identifiants stockés ne changent pas.
+  { id: 'majoration', libelle: 'Calcul artisan', explication: 'majoration sur le prix d’achat', exemple: 'achat 100 €, 25 % → vente 125 €' },
+  { id: 'marge_vente', libelle: 'Calcul comptable', explication: 'marge sur le prix de vente', exemple: 'achat 100 €, 25 % → vente 133,33 €' },
 ];
-// Noms affichés (24/10/2026) : Finalisé = `en_attente_envoi`, Signé = `accepte`. Les identifiants stockés ne changent pas.
+// Noms affichés (24/10/2026, 30/10/2026) : Finalisé = `en_attente_envoi`, « Devis signé » = `accepte`, « Devis refusé » = `refuse` (Jérôme : « Signé » tout seul n'est pas clair). Les identifiants stockés ne changent pas.
 // « Expiré » n'est jamais stocké : il se calcule à l'affichage (estExpire), il est listé ici pour avoir un libellé.
 export const STATUTS_DEVIS = [
   { id: 'brouillon', libelle: 'Brouillon' },
   { id: 'en_attente_envoi', libelle: 'Finalisé' },
   { id: 'envoye', libelle: 'Envoyé' },
-  { id: 'accepte', libelle: 'Signé' },
-  { id: 'refuse', libelle: 'Refusé' },
+  { id: 'accepte', libelle: 'Devis signé' },
+  { id: 'refuse', libelle: 'Devis refusé' },
   { id: 'expire', libelle: 'Expiré' },
-  { id: 'remplace', libelle: 'Remplacé' },
+  { id: 'remplace', libelle: 'Devis remplacé' },
 ];
 export const TAUX_TVA_DEFAUT = [20, 10, 5.5];
 export const REGIMES_TVA = [
@@ -46,7 +47,7 @@ export const MENTION_SIGNATURE = 'Reçu avant l\'exécution des travaux, bon pou
 // Attestation de TVA réduite (texte écrit pour ce module, dans l'esprit de l'article 257 du CGI ; voir aussi document.js).
 // À faire valider par l'expert-comptable du client avant mise en production.
 export const ATTESTATION_TVA_REDUITE = 'Attestation du client (preneur de la prestation) : je certifie que les travaux décrits dans ce devis concernent un local à usage d\'habitation achevé depuis plus de deux ans, qu\'ils n\'ont pas pour effet d\'accroître la surface de plancher de plus de 10 %, et que ce local est affecté à l\'habitation à l\'issue des travaux. Je m\'engage à régler la différence de TVA si ces conditions ne sont pas respectées.';
-export const ERREUR_MARGE_100 = 'La marge sur le prix de vente doit être inférieure à 100 %.';
+export const ERREUR_MARGE_100 = 'En calcul comptable, la marge doit rester inférieure à 100 %.';
 export const DUREE_VALIDITE_DEFAUT = 90;
 /** Types de remise (visible du client, contrairement à la marge) : `devis.remise = { type, valeur }` ou null. */
 export const TYPES_REMISE = ['pourcentage', 'montant'];
@@ -110,7 +111,7 @@ export function coefficientDeMarge(marge, mode) {
     if (marge >= 100) return { coefficient: null, erreur: ERREUR_MARGE_100 };
     return { coefficient: 1 / (1 - marge / 100), erreur: null };
   }
-  return { coefficient: null, erreur: 'Le mode de marge est inconnu.' };
+  return { coefficient: null, erreur: 'Le calcul de la marge est inconnu.' };
 }
 
 /** Prix de vente unitaire = prix d'achat × coefficient, arrondi au centime. Null si la marge est invalide. */
@@ -518,12 +519,12 @@ export const TRANSITIONS = {
   finaliser: { de: ['brouillon'], vers: 'en_attente_envoi' },
   marquer_envoye: { de: ['en_attente_envoi'], vers: 'envoye' },
   accepter: { de: ['envoye'], vers: 'accepte' },
-  refuser: { de: ['envoye'], vers: 'refuse' },
+  refuser: { de: ['en_attente_envoi', 'envoye'], vers: 'refuse' }, // aussi depuis « Finalisé » : un devis finalisé jamais envoyé a une sortie (décision de Jérôme, 29/10/2026)
   remplacer: { de: ['en_attente_envoi', 'envoye'], vers: 'remplace' },
   // Crée un nouveau brouillon ; la version de départ ne change pas de statut ici.
   nouvelle_version: { de: ['en_attente_envoi', 'envoye', 'refuse'], vers: null },
   // L'archive n'est pas un statut : c'est le drapeau `archive`.
-  archiver: { de: ['accepte', 'refuse'], vers: null },
+  archiver: { de: ['en_attente_envoi', 'accepte', 'refuse'], vers: null },
 };
 
 export function transitionPossible(statut, action) {
@@ -534,9 +535,45 @@ export function transitionPossible(statut, action) {
 export function statutApres(statut, action) {
   return transitionPossible(statut, action) ? TRANSITIONS[action].vers : null;
 }
-/** Un devis accepté ou refusé, pas déjà archivé, peut être archivé. */
+/** Un devis finalisé, accepté ou refusé, pas déjà archivé, peut être archivé. */
 export function peutArchiver(devis) {
   return devis?.archive !== true && transitionPossible(devis?.statut, 'archiver');
+}
+
+/**
+ * Le montant qu'un module Devis donne à une affaire (règle D17, décisions de Jérôme des 29/10/2026). Tout est expliqué dans docs/montant-affaire.md.
+ *  1. S'il y a des devis ACCEPTÉS (non archivés) : leur somme HT, nature « accepte ».
+ *  2. Sinon, s'il y a des devis PROPOSÉS (finalisés ou envoyés, pas encore acceptés ni refusés ni remplacés) : le HT du plus récent seul, nature « propose »
+ *     (deux offres concurrentes ne s'additionnent jamais).
+ *  3. Sinon `null` : l'affaire garde son montant saisi à la main, qui n'est jamais effacé.
+ * Un brouillon ne compte jamais (il change à chaque frappe, hors du serveur). Un devis dont le total HT figé n'est pas un nombre est ignoré.
+ * Le serveur écrit le résultat dans `montantDevisHt` et `montantDevisNature` de l'affaire (functions/src/coeur/devis.js) ; les écrans le lisent avec `montantAffaire` (crm/logique.js).
+ */
+export const STATUTS_PROPOSES = Object.freeze(['en_attente_envoi', 'envoye']);
+const htFige = (d) => (typeof d?.totaux?.ht === 'number' && Number.isFinite(d.totaux.ht) && d.totaux.ht >= 0 ? d.totaux.ht : null); // négatif ou illisible : ignoré
+const enMillisecondes = (v) => (v instanceof Date ? v.getTime() : typeof v?.toMillis === 'function' ? v.toMillis() : Date.parse(v) || 0);
+export function montantAccepteHt(devisDeLAffaire) {
+  let centimes = 0;
+  let nombre = 0;
+  for (const d of devisDeLAffaire ?? []) {
+    if (d?.statut !== 'accepte' || d.archive === true || htFige(d) === null) continue;
+    centimes += versCentimes(htFige(d));
+    nombre += 1;
+  }
+  return nombre ? versEuros(centimes) : null;
+}
+/** Une ligne de détail (affichée dans l'infobulle de l'écran) : le devis, son HT, et s'il entre dans le montant. */
+const ligneDetail = (d, compte) => ({ numero: typeof d.numero === 'string' ? d.numero : '', version: d.version ?? 1, ht: versEuros(versCentimes(htFige(d))), compte });
+const PLUS_RECENT = (a, b) => enMillisecondes(b.finaliseLe) - enMillisecondes(a.finaliseLe) || (b.version ?? 1) - (a.version ?? 1) || String(b.id).localeCompare(String(a.id));
+export const MAX_LIGNES_DETAIL = 20;
+/** Rend `{ montant, nature: 'accepte' | 'propose', detail: [{ numero, version, ht, compte }] }` ou null. `detail` est écrit avec le montant : l'écran explique SES chiffres sans recharger les devis. */
+export function montantDesDevis(devisDeLAffaire) {
+  const valides = (devisDeLAffaire ?? []).filter((d) => d && d.archive !== true && htFige(d) !== null);
+  const acceptes = valides.filter((d) => d.statut === 'accepte').sort(PLUS_RECENT);
+  if (acceptes.length) return { montant: montantAccepteHt(acceptes), nature: 'accepte', detail: acceptes.slice(0, MAX_LIGNES_DETAIL).map((d) => ligneDetail(d, true)) };
+  const proposes = valides.filter((d) => STATUTS_PROPOSES.includes(d.statut)).sort(PLUS_RECENT);
+  if (!proposes.length) return null;
+  return { montant: versEuros(versCentimes(htFige(proposes[0]))), nature: 'propose', detail: proposes.slice(0, MAX_LIGNES_DETAIL).map((d, i) => ligneDetail(d, i === 0)) };
 }
 
 // ---------------------------------------------------------------- validation de finalisation
@@ -699,7 +736,7 @@ export function erreursFinalisation(devis) {
   if (!devis) return ['Le devis est introuvable.'];
   if (devis.statut !== 'brouillon') erreurs.push('Ce devis est déjà finalisé : pour le corriger, crée la version suivante.');
   if (!devis.affaireId) erreurs.push(MESSAGE_AFFAIRE_MANQUANTE); // un brouillon peut vivre sans affaire, un devis finalisé non
-  if (!idsModes.includes(devis.modeMarge)) erreurs.push('Choisis le mode de marge du devis.');
+  if (!idsModes.includes(devis.modeMarge)) erreurs.push('Choisis le calcul de la marge du devis.');
   if (!absent(devis.marge) && !estNombre(devis.marge)) erreurs.push('La marge du devis doit être un nombre.');
   const destinataires = (devis.destinataires ?? []).map(emailDe);
   // Pas d'adresse e-mail obligatoire : on peut imprimer le devis et le remettre en main propre ; l'adresse ne sert qu'à l'envoi par e-mail (à venir).
@@ -767,7 +804,7 @@ export function nouveauDevis(valeurs = {}, ctx = {}, reglages = {}) {
     tauxTvaDefaut: taux,
     regimeTva: regime,
     autoliquidation: false,
-    affichage: { afficherMarges: false }, // un devis neuf cache le calcul des marges ; un ancien devis sans `affichage` le montre
+    affichage: { afficherMarges: true }, // un devis neuf montre le calcul des marges (30/10/2026) ; un devis déjà enregistré garde son choix, et un ancien devis sans `affichage` le montre
     sections: [],
     archive: false,
     creePar: ctx.auteur ?? '',
@@ -1045,7 +1082,7 @@ export function texteVueClient(devis) {
 export function texteVueInterne(devis) {
   const t = totauxDevis(devis);
   const pos = parPosition(devis, t);
-  const l = [...enTete(devis), `Mode de marge : ${MODES_MARGE.find((m) => m.id === devis.modeMarge)?.libelle ?? 'inconnu'}`];
+  const l = [...enTete(devis), `Calcul de la marge : ${MODES_MARGE.find((m) => m.id === devis.modeMarge)?.libelle ?? 'inconnu'}`];
   let achatC = 0;
   for (const [i, s] of (devis.sections ?? []).entries()) {
     l.push('', s.titre ? `${s.titre}` : 'Prestations');
@@ -1065,13 +1102,5 @@ export function texteVueInterne(devis) {
 }
 
 // ---------------------------------------------------------------- montant d'affaire
-/**
- * Montant de l'affaire : somme HT des devis acceptés (archivés compris) s'il y en a au moins un ;
- * sinon le montant saisi à la main, inchangé (on n'écrase jamais une saisie).
- */
-export function montantAffaireDepuisDevis(devisListe, montantSaisi) {
-  const acceptes = (devisListe ?? []).filter((d) => d?.statut === 'accepte');
-  if (acceptes.length === 0) return montantSaisi;
-  const sommeC = acceptes.reduce((s, d) => s + versCentimes(estNombre(d.totaux?.ht) ? d.totaux.ht : totauxDevis(d).ht), 0);
-  return versEuros(sommeC);
-}
+/** Montant de l'affaire d'après ses devis (`montantDesDevis`), sinon le montant saisi à la main, inchangé (on n'écrase jamais une saisie). */
+export const montantAffaireDepuisDevis = (devisListe, montantSaisi) => montantDesDevis(devisListe)?.montant ?? montantSaisi;

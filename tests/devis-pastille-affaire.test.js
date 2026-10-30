@@ -29,8 +29,8 @@ test('3 un brouillon, un devis finalisé, signé et expiré utilisent les libell
   assert.equal(pastilleDevisDeAffaire(devis, 'a2', opts).texte, 'Devis : Brouillon');
   const un = (statut, extra = {}) => pastilleDevisDeAffaire([{ id: 'x', affaireId: 'z', statut, creeLe: new Date(MAINT), ...extra }], 'z', opts).texte;
   assert.equal(un('en_attente_envoi'), 'Devis : Finalisé');
-  assert.equal(un('accepte'), 'Devis : Signé');
-  assert.equal(un('refuse'), 'Devis : Refusé');
+  assert.equal(un('accepte'), 'Devis signé');
+  assert.equal(un('refuse'), 'Devis refusé');
   assert.equal(un('envoye', { expireLe: '2026-10-01', envoyeLe: new Date(MAINT) }), 'Devis : Expiré');
 });
 

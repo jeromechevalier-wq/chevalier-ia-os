@@ -9,19 +9,30 @@ import * as DV from '../../partage/devis-vocabulaire.js';
 import * as D from '../../partage/devis.js';
 import * as E from '../../partage/devis-editeur.js';
 import * as B from '../../partage/devis-brouillon.js';
-import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, ErreurDevis } from './devis.js';
+import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, recalculerMontantsAffaires as recalculerMontantsServeur, modifierEnTransaction as modifierEnTransactionServeur, ErreurDevis } from './devis.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
 import { canonique, sansId } from './canonique.js';
+import * as DOC from './documents.js';
+import { structureCourte, phraseTotaux } from './recapitulatif.js';
+import * as DL from './devis-lignes.js';
+import { derniereLigneDuJournal, refusDeLaDerniereLigne, phraseAnnulation, resumeDuDevis } from './devis-annulation.js';
+import { resoudreNumero, ErreurNumero } from '../../partage/devis-numeros.js';
+import { preparerBrouillonEmail } from './brouillon-email.js';
+import { MESSAGE_NON_BRANCHE, ESPACE_JEROME } from './n8n-sortie.js';
+import { ditHorsTaxes, ditPourAssistant, MARGE_IMPOSSIBLE } from './voix.js';
+import { cheminAppartientALEspace, DUREE_LIEN_MINUTES } from '../devis/stockage.js';
 
 /** Propriétaire des fiches créées par un jeton « cia_… » (sans e-mail) sur le serveur de Jérôme, sauf si l'appel en donne un autre (plan-mcp.md, écart 11, réglé en 2.16.1 pour les connexions Google et les clients). */
 export const PROPRIETAIRE_PAR_DEFAUT = 'jerome.chevalier@gmail.com';
 
+export { ditHorsTaxes };
+
 /** Saisie refusée : l'appelant doit corriger et recommencer (code : saisie_invalide | introuvable | doublon | confirmation | integrite). */
 export class ErreurMetier extends Error {
   constructor(code, message, details = {}) {
-    super(message);
+    super(ditPourAssistant(message)); // l'assistant parle à voix haute : « hors taxes » en toutes lettres (les écrans gardent « HT »)
     this.name = 'ErreurMetier';
     this.code = code;
     this.details = details;
@@ -520,8 +531,9 @@ async function decrireSuppression(c, plan, cible) {
 /**
  * Double confirmation des suppressions : sans `codeConfirmation`, rien n'est supprimé : on rend l'aperçu et un code à usage unique (5 minutes) ;
  * avec le code, la suppression a lieu (le code est consommé avant d'écrire). `cible` : { collection, id } de la fiche visée ; `parametres` : ce que l'audit garde.
+ * `operations` et `suppressions` (facultatifs) : ce qui est réellement écrit et compté au plafond du jour, quand ce n'est pas le plan montré dans l'aperçu (fichier mis en corbeille : une modification).
  */
-async function supprimerAvecCode(c, outil, args, cible, plan, parametres) {
+async function supprimerAvecCode(c, outil, args, cible, plan, parametres, { operations = null, suppressions } = {}) {
   const d = await decrireSuppression(c, plan, cible);
   const jeton = c.jeton ?? c.acteur;
   const { empreinte, ...apercu } = d;
@@ -550,7 +562,7 @@ async function supprimerAvecCode(c, outil, args, cible, plan, parametres) {
     }[verdict];
     refuser('confirmation', `Suppression non confirmée : ${raison}. Rien n'a été supprimé. Rappeler ${outil} SANS codeConfirmation pour obtenir un nouvel aperçu et un nouveau code.`);
   }
-  const r = await c.ecrire({ operations: plan.ecritures, parametres });
+  const r = await c.ecrire({ operations: operations ?? plan.ecritures, parametres, ...(suppressions !== undefined ? { suppressions } : {}) });
   return sortie(r, {
     supprime: true, ...apercu, restaurable: 'restaurer_depuis_audit',
     detail: `Détail complet de l'opération : lire_audit avec operationId ${r.operationId}.`,
@@ -618,6 +630,42 @@ export async function supprimerNote(c, args) {
 export async function supprimerActivite(c, args) {
   await lire(c, C.activites, args.id, 'Activité');
   return supprimerAvecCode(c, 'supprimer_activite', args, { collection: C.activites, id: args.id }, L.planSupprimerActivite(args.id), parametresDe(args));
+}
+
+// ---------------------------------------------------------------- fichiers de l'onglet « Documents » (28/10/2026)
+// Un assistant ne peut PAS envoyer un fichier du chat (aucun outil MCP n'accepte des octets, et il ne peut pas les écrire à la main) : il dépose du TEXTE (txt, md, csv, 64 Ko au plus).
+// Les PDF, images et autres fichiers se déposent à l'écran, dans l'onglet « Documents » de l'affaire ou du projet. Le code du dépôt, des contrôles et de la suppression est celui des fonctions de l'écran (documents.js).
+
+/** Erreur du service des fichiers -> refus métier lisible par l'assistant. */
+function refusDocument(e) {
+  if (!(e instanceof DOC.ErreurDocument)) throw e;
+  const code = { refuse: 'saisie_invalide', demande_invalide: 'saisie_invalide', introuvable: 'introuvable' }[e.code] ?? 'stockage_indisponible';
+  refuser(code, e.message);
+}
+
+export async function deposerDocumentTexte(c, args) {
+  try {
+    const { cibleType, cibleId } = DOC.lireCible(args);
+    const octets = DOC.octetsDeTexte(args.nom, args.contenuTexte);
+    const r = await DOC.deposerDocument({
+      donnees: c.donnees, stockage: c.stockage?.() ?? null, espace: c.espace ?? '', ctx: { acteur: c.acteur, maintenant: c.maintenant },
+      ecrire: (operations, parametres) => c.ecrire({ operations, parametres }), cibleType, cibleId, nom: args.nom, octets,
+    });
+    return { operationId: r.operationId, id: r.id, nom: r.nom, taille: r.taille, [cibleType === 'affaire' ? 'affaireId' : 'projetId']: cibleId, restaurable: 'restaurer_depuis_audit' };
+  } catch (e) { return refusDocument(e); }
+}
+
+export async function supprimerDocumentStocke(c, args) {
+  let fiche;
+  try {
+    fiche = await c.donnees.document(C.documentsStockes, args.id);
+    if (!fiche || fiche.supprimeLe) refuser('introuvable', `Fichier introuvable : ${args.id} (lister_documents donne les identifiants).`);
+  } catch (e) { return refusDocument(e); }
+  // Aperçu montré : la fiche. Écriture réelle : la fiche reçoit supprimeLe (corbeille logique : le fichier ne bouge pas), comptée comme une suppression.
+  const plan = { ecritures: [{ type: 'supprimer', collection: C.documentsStockes, id: fiche.id }] };
+  const reelles = [{ type: 'modifier', collection: C.documentsStockes, id: fiche.id, patch: { supprimeLe: c.maintenant, supprimePar: c.acteur } }];
+  const r = await supprimerAvecCode(c, 'supprimer_document_stocke', args, { collection: C.documentsStockes, id: fiche.id }, plan, parametresDe(args), { operations: reelles, suppressions: 1 });
+  return r.supprime ? { ...r, remarque: 'Le fichier est mis à la corbeille : il disparaît des listes mais reste conservé ; restaurer_depuis_audit le remet.' } : r;
 }
 
 // ---------------------------------------------------------------- Devis : bordereau (articles)
@@ -689,28 +737,36 @@ export async function enregistrerReponseVocabulaire(c, args) {
   if (article.actif === false || article.type === DA.TYPE_TEXTE) refuser('saisie_invalide', `« ${article.libelle} » est désactivé ou n’est pas un article vendable : choisir un autre article.`);
   const propose = r.candidats.some((x) => x.articleId === articleId);
   if (reponse === 'confirme' && !propose) refuser('saisie_invalide', `« ${article.libelle} » n’aurait pas été proposé pour cette phrase : une confirmation n’est acceptée que pour un article proposé. Si l’utilisateur a choisi un autre article, utiliser la réponse « autre ».`);
-  if (reponse === 'autre' && r.decision === 'utiliser') refuser('saisie_invalide', 'Aucune question n’a dû être posée pour cette phrase (l’article était connu) : rien n’est enregistré. Une règle à corriger se corrige à la revue du vocabulaire.');
-  if (reponse === 'autre' && propose) refuser('saisie_invalide', `« ${article.libelle} » faisait partie des articles proposés : utiliser la réponse « confirme ».`);
-
   const existante = regles.find((x) => x.id === regleId) ?? null;
+  // Une règle dont l'article n'existe plus ou est désactivé n'est plus un candidat : la réponse la réoriente vers le nouvel article.
+  const cible = articles.find((a) => a.id === existante?.articleId);
+  const morte = Boolean(existante) && !(cible && cible.actif !== false);
+  // Décision prise seul : un mot validé par un humain dont l'article est mort n'est PAS réorienté (garde-fou 1) : il reste intact et reçoit tout de suite une suggestion.
+  // Un mot sans `validePar` ou validé par les réponses est réorienté vers le nouvel article, comme avant.
+  const humainMort = morte && existante.statut === 'active' && existante.validePar === 'humain';
+  // Un mot actif (vivant, ou validé par un humain) peut être contredit même si aucune question n'a dû être posée : « autre » est alors accepté, même pour un article du classement.
+  const contredisable = existante?.statut === 'active' && (!morte || humainMort);
+  // « autre » alors que l'article était connu : refusé, SAUF si une règle active existe pour la clé (l'utilisateur la contredit : compteur, puis suggestion, jamais de modification du mot).
+  if (reponse === 'autre' && r.decision === 'utiliser' && !contredisable) refuser('saisie_invalide', 'Aucune question n’a dû être posée pour cette phrase (l’article était connu) : rien n’est enregistré. Une règle à corriger se corrige à la revue du vocabulaire.');
+  if (reponse === 'autre' && propose && !(contredisable && existante.articleId !== articleId)) refuser('saisie_invalide', `« ${article.libelle} » faisait partie des articles proposés : utiliser la réponse « confirme ».`);
+
   if (existante?.statut === 'desactivee') return { operationId: null, rien: true, regleId, message: 'Cette règle est désactivée (à la revue) : elle n’est pas modifiée.' };
   const jour = L.aujourdhuiParis(c.maintenant);
   const actives = regles.filter((x) => x.statut === 'active').length;
   const aConfirmer = regles.filter((x) => x.statut === 'a_confirmer').length;
-  // Une règle dont l'article n'existe plus ou est désactivé n'est plus un candidat : la réponse la réoriente vers le nouvel article.
-  const cible = articles.find((a) => a.id === existante?.articleId);
-  const morte = Boolean(existante) && !(cible && cible.actif !== false);
-  const autreArticle = Boolean(existante) && !morte && existante.articleId !== articleId;
+  const autreArticle = Boolean(existante) && (!morte || humainMort) && (humainMort || existante.articleId !== articleId);
 
   let apres;
-  if (!existante || morte) {
+  if (humainMort) {
+    apres = DV.decisionApprentissage(existante, { type: 'autre', articleId, articleLibelle: article.libelle, immediat: true }, jour, { articles });
+  } else if (!existante || morte) {
     if (!existante && aConfirmer >= MAX_REGLES_A_CONFIRMER) refuser('saisie_invalide', PLEIN);
     const neuve = { cle: r.cle, expression: r.cle.slice(0, 120), articleId, articleLibelle: article.libelle, origine: reponse === 'autre' ? 'apprise_correction' : 'apprise_question', exemples: [] };
-    const depart = existante ? { ...existante, ...neuve, statut: 'a_confirmer', confirmations: 0, contradictions: 0, conflit: false, derniereConfirmationLe: null } : neuve;
+    const depart = existante ? { ...existante, ...neuve, statut: 'a_confirmer', confirmations: 0, contradictions: 0, conflit: false, derniereConfirmationLe: null, ...Object.fromEntries(['suggestion', 'valideLe', 'revoirLe'].filter((k) => existante[k] != null).map((k) => [k, null])) } : neuve;
     apres = DV.decisionApprentissage(depart, { type: 'confirme' }, jour, { articles });
   } else {
-    // Même article : une confirmation. Autre article (confirmé ou corrigé) : une contradiction, la règle garde son article et passe en conflit si elle était active.
-    apres = DV.decisionApprentissage(existante, { type: autreArticle ? 'autre' : 'confirme' }, jour, { articles });
+    // Même article : une confirmation. Autre article (confirmé ou corrigé) : une contradiction ; un mot actif reste intact (compteurs, puis suggestion à la 2e contradiction).
+    apres = DV.decisionApprentissage(existante, autreArticle ? { type: 'autre', articleId, articleLibelle: article.libelle } : { type: 'confirme' }, jour, { articles });
   }
   if (apres.statut === 'active' && existante?.statut !== 'active' && actives >= MAX_REGLES_ACTIVES) refuser('saisie_invalide', PLEIN);
   const complet = { ...apres, exemples: autreArticle ? (apres.exemples ?? []) : avecExemple(apres.exemples, phrase), derniereUtilisationLe: jour };
@@ -720,7 +776,7 @@ export async function enregistrerReponseVocabulaire(c, args) {
     operations = [L.ecritureCreer(C.devisVocabulaire, regleId, complet, L.MARQUES_CREATION)];
   } else {
     const patch = {};
-    for (const champ of ['articleId', 'articleLibelle', 'origine', 'statut', 'confirmations', 'contradictions', 'conflit', 'derniereConfirmationLe', 'exemples', 'derniereUtilisationLe']) {
+    for (const champ of ['articleId', 'articleLibelle', 'origine', 'statut', 'confirmations', 'contradictions', 'conflit', 'derniereConfirmationLe', 'exemples', 'derniereUtilisationLe', 'valideLe', 'validePar', 'revoirLe', 'suggestion']) {
       if (complet[champ] !== undefined && JSON.stringify(complet[champ]) !== JSON.stringify(existante[champ])) patch[champ] = complet[champ];
     }
     // `exigerStatut` : si la règle a changé de statut entre la lecture et l'écriture, l'écriture est refusée (conflit), sans relance.
@@ -729,7 +785,9 @@ export async function enregistrerReponseVocabulaire(c, args) {
   if (!operations.length) return { operationId: null, rien: true, regleId, statut: complet.statut, confirmations: complet.confirmations, message: 'Rien à changer : cette confirmation est déjà comptée aujourd’hui.' };
   const ecrit = await c.ecrire({ operations, parametres: args });
   const message = autreArticle
-    ? `Noté : « ${r.cle} » pointait vers un autre article ; la règle est marquée ${complet.conflit ? 'en conflit' : 'contredite'} et sera à trancher à la revue du vocabulaire.`
+    ? (existante.statut === 'active'
+      ? `Noté : « ${r.cle} » pointait vers un autre article ; le mot validé reste inchangé${DV.suggestionEnAttente(complet) ? ' et une suggestion attend ta décision à la revue du vocabulaire' : ' (la contradiction est comptée)'}.`
+      : `Noté : « ${r.cle} » pointait vers un autre article ; la règle est contredite et sera à trancher à la revue du vocabulaire.`)
     : complet.statut === 'active'
       ? `Noté : « ${r.cle} » → « ${article.libelle} » est maintenant une règle active (confirmée ${complet.confirmations} fois).`
       : `Noté : « ${r.cle} » → « ${article.libelle} » (à confirmer : encore une confirmation un autre jour pour qu’elle serve sans question).`;
@@ -776,7 +834,7 @@ function avecPrixVenteDit(ligne, article, prixVente, devis) {
   const nom = `« ${article.libelle} »`;
   if (article.type === DA.TYPE_TEXTE) refuser('saisie_invalide', `${nom} est une ligne de texte : elle n'a pas de prix de vente.`);
   if (!(typeof ligne.prixAchat === 'number' && ligne.prixAchat > 0)) refuser('saisie_invalide', `${nom} n'a pas de prix d'achat : un prix de vente ne peut pas y être réglé sans fausser la marge. Compléter l'article (modifier_article) puis réessayer.`);
-  if (!E.prixVenteReglable(ligne, prixVente, devis.modeMarge)) refuser('saisie_invalide', `Le prix de vente ${prixVente} € est impossible pour ${nom} avec le mode de marge du devis.`);
+  if (!E.prixVenteReglable(ligne, prixVente, devis.modeMarge)) refuser('saisie_invalide', `Le prix de vente ${prixVente} € est impossible pour ${nom} : il ne donne pas une marge valable.`);
   const reglee = E.avecPrixVente(ligne, prixVente, devis.modeMarge);
   return ligne.ouvrage ? { ...reglee, description: E.descriptionDeLigne(reglee) } : reglee;
 }
@@ -811,13 +869,14 @@ function verifierRemise(remise, devis) {
   if (remise.type === 'pourcentage' && (remise.valeur < 0 || remise.valeur >= 100)) refuser('saisie_invalide', 'La remise en pourcentage doit être comprise entre 0 et 100 % (100 % exclu).');
   if (remise.type === 'montant') {
     if (remise.valeur < 0) refuser('saisie_invalide', 'Le montant de la remise ne peut pas être négatif.');
-    if (D.versCentimes(remise.valeur) > D.versCentimes(D.totauxDevis({ ...devis, remise: null }).totalBrutHt)) refuser('saisie_invalide', 'Le montant de la remise ne peut pas dépasser le total HT du devis.');
+    if (D.versCentimes(remise.valeur) > D.versCentimes(D.totauxDevis({ ...devis, remise: null }).totalBrutHt)) refuser('saisie_invalide', 'Le montant de la remise ne peut pas dépasser le total hors taxes du devis.');
   }
 }
 
 function verifierMarge(devis) {
   const { erreur } = D.coefficientDeMarge(devis.marge, devis.modeMarge);
-  if (erreur) refuser('saisie_invalide', erreur);
+  // Le mode de calcul n'est jamais dit à l'assistant : message neutre.
+  if (erreur) refuser('saisie_invalide', MARGE_IMPOSSIBLE);
 }
 
 function verifierDestinataires(liste) {
@@ -851,7 +910,7 @@ const nombreDeLignes = (sections) => (sections ?? []).reduce((n, s) => n + (s.li
 
 /** Crée un brouillon de devis (version 1, sans numéro). Le client et le destinataire viennent de l'affaire si on ne les donne pas. */
 export async function creerDevisBrouillon(c, args) {
-  const { affaireId, objet, nom, personneId, organisationId, destinataires, copie, sections, lignes, remise, marge, modeMarge, tauxTvaDefaut, proprietaire } = args;
+  const { affaireId, objet, nom, personneId, organisationId, destinataires, copie, sections, lignes, remise, marge, tauxTvaDefaut, proprietaire } = args;
   if (organisationId && personneId) refuser('saisie_invalide', 'Un devis a un seul client : donner organisationId OU personneId, pas les deux.');
   const affaire = await lireSiDonne(c, C.affaires, affaireId, 'Affaire'); // facultative : un brouillon vit sans affaire, mais finaliser_devis l'exige
   const organisation = await lireSiDonne(c, C.organisations, organisationId ?? (personneId ? null : affaire?.organisationId), 'Organisation');
@@ -861,7 +920,7 @@ export async function creerDevisBrouillon(c, args) {
   const valeurs = { ...E.valeursDeCreation(affaire, client ? { ...client, adresse } : null) };
   if (destinataires !== undefined) { verifierDestinataires(destinataires); valeurs.destinataires = destinataires; }
   if (copie !== undefined) valeurs.copie = verifierCopie(copie, valeurs.destinataires);
-  for (const [k, v] of Object.entries({ marge, modeMarge, tauxTvaDefaut })) if (v !== undefined) valeurs[k] = v;
+  for (const [k, v] of Object.entries({ marge, tauxTvaDefaut })) if (v !== undefined) valeurs[k] = v;
   const ctx = await contexte(c, proprietaire);
   const plan = B.planCreerBrouillon(valeurs, { nouvelId: ctx.nouvelId, maintenant: ctx.maintenant, auteur: ctx.auteur, proprietaire: ctx.proprietaire }, await reglagesDuDevis(c));
   verifierMessages(plan.erreurs);
@@ -871,7 +930,7 @@ export async function creerDevisBrouillon(c, args) {
   if (remise !== undefined) { verifierRemise(remise, { ...plan.devis, ...extra }); extra.remise = remise; }
   plan.ecritures[0].donnees = { ...plan.ecritures[0].donnees, ...extra };
   const t = D.totauxDevis({ ...plan.devis, ...extra });
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, statut: 'brouillon', numero: null, lignes: nombreDeLignes(extra.sections), totalHT: t.totalHt, totalTTC: t.ttc });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, statut: 'brouillon', numero: null, lignes: nombreDeLignes(extra.sections), sections: structureCourte(extra.sections), totalHT: t.totalHt, totalTTC: t.ttc });
 }
 
 /** Adresse (texte) de la fiche du client : l'adresse par défaut, sinon la première. */
@@ -916,7 +975,7 @@ export async function modifierDevisBrouillon(c, args) {
       if (affaire.organisationId) patch.organisationId = affaire.organisationId; else if (affaire.personneId) patch.personneId = affaire.personneId;
     }
   }
-  for (const k of ['objet', 'nom', 'personneId', 'organisationId', 'destinataires', 'copie', 'marge', 'modeMarge', 'tauxTvaDefaut']) if (champs[k] !== undefined) patch[k] = champs[k];
+  for (const k of ['objet', 'nom', 'personneId', 'organisationId', 'destinataires', 'copie', 'marge', 'tauxTvaDefaut']) if (champs[k] !== undefined) patch[k] = champs[k];
   if (patch.objet !== undefined) patch.objet = texte(patch.objet);
   if (patch.nom !== undefined) patch.nom = D.nettoyerNomDevis(patch.nom); // nom interne, jamais imprimé ; chaîne vide pour l'effacer
   if (patch.destinataires !== undefined) verifierDestinataires(patch.destinataires);
@@ -928,7 +987,6 @@ export async function modifierDevisBrouillon(c, args) {
     const nettoyee = verifierCopie(patch.copie ?? devis.copie, patch.destinataires ?? devis.destinataires);
     if (patch.copie !== undefined) patch.copie = nettoyee;
   }
-  if (patch.modeMarge !== undefined && !D.MODES_MARGE.some((m) => m.id === patch.modeMarge)) refuser('saisie_invalide', `Mode de marge inconnu : ${D.MODES_MARGE.map((m) => m.id).join(' ou ')}.`);
   let travail = { ...devis, ...patch };
   verifierMarge(travail);
   if (sections !== undefined || lignes !== undefined || ajouterLignes !== undefined) {
@@ -949,9 +1007,309 @@ export async function modifierDevisBrouillon(c, args) {
   const plan = B.planModifierBrouillon(devis, patch);
   verifierMessages(plan.erreurs);
   for (const e of plan.ecritures) e.exigerStatut = 'brouillon'; // refusé par le moteur si le devis a été finalisé entre-temps
-  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (objet, nom, affaireId, personneId, organisationId, destinataires, copie, sections, lignes, ajouterLignes, remise, marge, modeMarge, tauxTvaDefaut).');
+  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (objet, nom, affaireId, personneId, organisationId, destinataires, copie, sections, lignes, ajouterLignes, remise, marge, tauxTvaDefaut).');
   const t = D.totauxDevis(travail);
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch), totalHT: t.totalHt, totalTTC: t.ttc });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch), sections: structureCourte(travail.sections), totalHT: t.totalHt, totalTTC: t.ttc });
+}
+
+// ---------------------------------------------------------------- Devis : modifier_lignes_devis (30/10/2026)
+// Plusieurs opérations sur les lignes et sections d'un brouillon, TOUT OU RIEN, en UNE transaction : le devis est lu dans la transaction, les numéros sont résolus
+// sur ce devis (celui d'avant l'appel), les sections sont recalculées, puis le devis et UNE seule ligne de journal (un seul operationId) sont écrits ensemble.
+// Pas de fenêtre de course : si l'écran a touché au devis entre la lecture et l'écriture, Firestore relance la transaction sur le devis à jour.
+
+const CHAMPS_OPERATION = {
+  modifier: ['ligne', 'attendu', 'quantite', 'prixVente', 'remplacerPar'],
+  supprimer: ['ligne', 'attendu'],
+  ajouter: ['section', 'articleId', 'reference', 'quantite', 'prixVente', 'apres'],
+  ajouterSection: ['titre', 'apres'],
+  renommerSection: ['section', 'titre', 'attendu'],
+  supprimerSection: ['section', 'attendu'],
+};
+
+/** Un refus du résolveur de numéros (module pur) devient un refus d'outil ; rien n'a été écrit. */
+function resoudreOuRefuser(sections, reference, options, genre) {
+  let r;
+  try {
+    r = resoudreNumero(sections, reference, { ...options, attendu: undefined, attenduObligatoire: false }); // d'abord sans garde, pour savoir ce qu'il y a à ce numéro
+    // Une section ou une ligne SANS texte (la section de tête d'un devis fait de lignes à plat) n'a rien à recopier : la garde porte alors sur le numéro seul.
+    if (String(r.texte ?? '').trim()) r = resoudreNumero(sections, reference, options);
+  } catch (e) { if (e instanceof ErreurNumero) refuser('saisie_invalide', e.message); throw e; }
+  if (r.genre !== genre) {
+    refuser('saisie_invalide', `« ${reference} » désigne ${r.genre === 'section' ? 'une section' : 'une ligne'} (${r.numero}) : ici il faut ${genre === 'section' ? 'une section (1 pour la première)' : 'une ligne (1.2 pour la ligne 2 de la section 1)'}.`);
+  }
+  return r;
+}
+
+/** Résout toutes les opérations dans les sections d'AVANT l'appel (jamais l'une après l'autre) ; ne touche à rien. */
+function resoudreOperations(sections, operations) {
+  const sectionDe = (ligneId) => DL.placeDeLigne(sections, ligneId);
+  return operations.map((op, i) => {
+    const prefixe = `Opération ${i + 1} (${op.action}) : `;
+    try {
+      const permis = CHAMPS_OPERATION[op.action];
+      if (!permis) refuser('saisie_invalide', `action inconnue « ${op.action} » (${DL.ACTIONS.join(', ')}).`);
+      const en_trop = Object.keys(op).filter((k) => k !== 'action' && op[k] !== undefined && !permis.includes(k));
+      if (en_trop.length) refuser('saisie_invalide', `${en_trop.join(', ')} ne sert pas à cette action (champs possibles : ${permis.join(', ')}).`);
+      const r = { ...op };
+      if (op.action === 'modifier' || op.action === 'supprimer') {
+        r.cible = resoudreOuRefuser(sections, op.ligne, { attendu: op.attendu, attenduObligatoire: true }, 'ligne');
+        if (op.action === 'modifier' && op.quantite === undefined && op.prixVente === undefined && op.remplacerPar === undefined) refuser('saisie_invalide', 'rien à modifier (donner quantite, prixVente ou remplacerPar).');
+      } else if (op.action === 'ajouter') {
+        r.cible = resoudreOuRefuser(sections, op.section, {}, 'section');
+        if (op.apres !== undefined) {
+          r.apresCible = resoudreOuRefuser(sections, op.apres, {}, 'ligne');
+          if (sectionDe(r.apresCible.id)?.i !== sections.findIndex((s) => s.id === r.cible.id)) refuser('saisie_invalide', `la ligne ${r.apresCible.numero} n'est pas dans la section ${r.cible.numero} : apres doit être une ligne de cette section.`);
+        }
+      } else if (op.action === 'ajouterSection') {
+        if (op.apres !== undefined) r.apresCible = resoudreOuRefuser(sections, op.apres, {}, 'section');
+      } else {
+        r.cible = resoudreOuRefuser(sections, op.section, { attendu: op.attendu, attenduObligatoire: op.action === 'supprimerSection' }, 'section'); // renommerSection : attendu facultatif, mais vérifié s'il est donné
+      }
+      if ((op.action === 'ajouterSection' || op.action === 'renommerSection') && !texte(op.titre ?? '')) refuser('saisie_invalide', 'le titre de la section est vide.');
+      return r;
+    } catch (e) {
+      if (e instanceof ErreurMetier) refuser(e.code, `${prefixe}${e.message} Rien n'a été écrit.`);
+      throw e;
+    }
+  });
+}
+
+const etatDeLigne = (devis, ligne) => {
+  const pv = D.totauxDevis(devis).lignes.find((x) => x.id === ligne.id)?.prixVenteUnitaire ?? null;
+  return { libelle: ligne.libelle ?? '', quantite: ligne.type === DA.TYPE_TEXTE ? null : ligne.quantite ?? null, prixVente: ligne.type === DA.TYPE_TEXTE ? null : pv };
+};
+
+/** Applique une opération (déjà résolue) à `travail` (les sections, modifiées en place) et rend { genre, id, libelle, numeroAvant, avant, apres, lignesSupprimees? }. */
+function appliquerOperation(c, devis, travail, op, articles, ancres) {
+  const avecSections = () => ({ ...devis, sections: travail });
+  const sansCible = (quoi, numero) => refuser('saisie_invalide', `${quoi} ${numero} n'existe plus à ce stade de l'appel (une opération précédente l'a retirée).`);
+  const sectionEn = (cible) => {
+    const i = DL.indexDeSection(travail, cible.id);
+    if (i === -1) sansCible('La section', cible.numero);
+    return i;
+  };
+  if (op.action === 'modifier') {
+    const place = DL.placeDeLigne(travail, op.cible.id);
+    if (!place) sansCible('La ligne', op.cible.numero);
+    const ancienne = travail[place.i].lignes[place.j];
+    const avant = etatDeLigne(avecSections(), ancienne);
+    let ligne = ancienne;
+    if (op.remplacerPar !== undefined) {
+      const quantite = op.quantite ?? ancienne.quantite;
+      const [neuve] = lignesDepuisArticles(c, [{ ...op.remplacerPar, quantite, ...(op.prixVente !== undefined ? { prixVente: op.prixVente } : {}) }], articles, devis);
+      ligne = { ...neuve, id: ancienne.id }; // la ligne garde son identifiant
+    } else {
+      if (op.quantite !== undefined) {
+        if (!(typeof op.quantite === 'number' && Number.isFinite(op.quantite) && op.quantite > 0)) refuser('saisie_invalide', `La quantité de « ${ligne.libelle} » doit être un nombre supérieur à zéro.`);
+        if (ligne.type === DA.TYPE_TEXTE) refuser('saisie_invalide', `« ${ligne.libelle} » est une ligne de texte : elle n'a pas de quantité.`);
+        ligne = { ...ligne, quantite: op.quantite };
+        if (ligne.ouvrage) ligne.description = E.descriptionDeLigne(ligne);
+      }
+      if (op.prixVente !== undefined) ligne = avecPrixVenteDit(ligne, { libelle: ligne.libelle, type: ligne.type }, op.prixVente, devis);
+    }
+    travail[place.i].lignes[place.j] = ligne;
+    return { genre: 'ligne', id: ligne.id, libelle: ligne.libelle ?? '', numeroAvant: op.cible.numero, avant, apres: etatDeLigne(avecSections(), ligne) };
+  }
+  if (op.action === 'supprimer') {
+    const place = DL.placeDeLigne(travail, op.cible.id);
+    if (!place) sansCible('La ligne', op.cible.numero);
+    const avant = etatDeLigne(avecSections(), travail[place.i].lignes[place.j]);
+    const [retiree] = travail[place.i].lignes.splice(place.j, 1);
+    return { genre: 'ligne', id: retiree.id, libelle: retiree.libelle ?? '', numeroAvant: op.cible.numero, avant, apres: null };
+  }
+  if (op.action === 'ajouter') {
+    const i = sectionEn(op.cible);
+    const spec = { quantite: op.quantite, ...(op.articleId !== undefined ? { articleId: op.articleId } : {}), ...(op.reference !== undefined ? { reference: op.reference } : {}), ...(op.prixVente !== undefined ? { prixVente: op.prixVente } : {}) };
+    const [ligne] = lignesDepuisArticles(c, [spec], articles, devis);
+    const lignes = travail[i].lignes ?? (travail[i].lignes = []);
+    let rang = lignes.length; // à la fin des lignes PROPRES de la section : avant sa première sous-section (les sous-sections sont les sections qui suivent)
+    if (op.apresCible) {
+      const ancre = ancres.get(op.apresCible.id) ?? op.apresCible.id; // plusieurs ajouts « après 1.1 » dans un appel se suivent dans l'ordre donné
+      const j = lignes.findIndex((l) => l.id === ancre);
+      if (j === -1) sansCible('La ligne', op.apresCible.numero);
+      rang = j + 1;
+    }
+    lignes.splice(rang, 0, ligne);
+    if (op.apresCible) ancres.set(op.apresCible.id, ligne.id);
+    return { genre: 'ligne', id: ligne.id, libelle: ligne.libelle ?? '', numeroAvant: null, avant: null, apres: etatDeLigne(avecSections(), ligne) };
+  }
+  if (op.action === 'ajouterSection') {
+    let rang = travail.length;
+    if (op.apresCible) {
+      const i = sectionEn(op.apresCible);
+      if (DL.coupeLesSousSections(travail, i)) refuser('saisie_invalide', `La section ${op.apresCible.numero} est suivie de sous-sections : une nouvelle section entre les deux changerait leur rattachement. Fais-le à l'écran, ou ajoute la section à la fin.`);
+      rang = i + 1;
+    }
+    const section = { id: c.donnees.nouvelId(C.devis), titre: texte(op.titre), lignes: [] }; // niveau 1 : pas de champ `niveau`
+    travail.splice(rang, 0, section);
+    return { genre: 'section', id: section.id, libelle: section.titre, numeroAvant: null, avant: null, apres: { libelle: section.titre } };
+  }
+  const i = sectionEn(op.cible);
+  if (op.action === 'renommerSection') { // autorisé aussi pour une sous-section : seul le titre change
+    const avant = { libelle: travail[i].titre ?? '' };
+    travail[i] = { ...travail[i], titre: texte(op.titre) };
+    return { genre: 'section', id: travail[i].id, libelle: travail[i].titre, numeroAvant: op.cible.numero, avant, apres: { libelle: travail[i].titre } };
+  }
+  // supprimerSection
+  if (DL.aDesSousSections(travail, i)) refuser('saisie_invalide', `La section ${op.cible.numero} a des sous-sections : les retirer d'ici changerait leur rattachement. Fais-le à l'écran.`);
+  const [retiree] = travail.splice(i, 1);
+  const lignesSupprimees = (retiree.lignes ?? []).filter((l) => !D.estSaut(l)).length;
+  return { genre: 'section', id: retiree.id, libelle: retiree.titre ?? '', numeroAvant: op.cible.numero, avant: { libelle: retiree.titre ?? '' }, apres: null, lignesSupprimees };
+}
+
+/** Plusieurs opérations sur les lignes et sections d'un brouillon : tout ou rien, une seule ligne de journal (un seul operationId). */
+export async function modifierLignesDevis(c, args) {
+  const { id, operations } = args;
+  if (!operations.length) refuser('saisie_invalide', 'Aucune opération : rien à faire.');
+  if (operations.length > DL.MAX_OPERATIONS) refuser('saisie_invalide', `Trop d'opérations dans un appel (${operations.length}, ${DL.MAX_OPERATIONS} au plus). Rien n'a été écrit : fais-le en plusieurs appels.`);
+  const r = await appelerCoeurDevis(c, () => modifierEnTransactionServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: id, outil: 'modifier_lignes_devis', parametres: { id, operations }, calculer: async (tx, devis) => {
+    if (devis.statut !== 'brouillon') refuser('saisie_invalide', B.MESSAGE_PAS_BROUILLON);
+    verifierMarge(devis);
+    const articles = await tx.liste(C.devisArticles);
+    const resolues = resoudreOperations(devis.sections ?? [], operations);
+    const travail = structuredClone(devis.sections ?? []);
+    const ancres = new Map();
+    const faites = resolues.map((op, i) => {
+      try {
+        const f = appliquerOperation(c, devis, travail, op, articles, ancres);
+        return { action: op.action, ...f, changementImportant: DL.importanceOperation(op.action, f.avant, f.apres) };
+      } catch (e) {
+        if (e instanceof ErreurMetier) refuser(e.code, `Opération ${i + 1} (${op.action}) : ${e.message} Rien n'a été écrit.`);
+        throw e;
+      }
+    });
+    const apresDevis = { ...devis, sections: travail };
+    if (devis.remise) verifierRemise(devis.remise, apresDevis); // un montant de remise ne doit pas dépasser le nouveau total
+    const avantTotaux = D.totauxDevis(devis);
+    const apresTotaux = D.totauxDevis(apresDevis);
+    const numeros = new Map(elementsNumeres(travail));
+    const totalChangementImportant = DL.totalImportant(avantTotaux.totalHt, apresTotaux.totalHt);
+    return {
+      patch: { sections: travail, modifieLe: c.maintenant, modifiePar: c.acteur },
+      reponse: {
+        id,
+        operations: faites.map(({ genre, id: cibleId, libelle, numeroAvant, ...reste }) => ({
+          action: reste.action, genre, ligne: { id: cibleId, numeroAvant, numeroApres: numeros.get(cibleId) ?? null, libelle },
+          avant: reste.avant, apres: reste.apres, ...(reste.lignesSupprimees !== undefined ? { lignesSupprimees: reste.lignesSupprimees } : {}), changementImportant: reste.changementImportant,
+        })),
+        changementImportant: totalChangementImportant || faites.some((f) => f.changementImportant), totalChangementImportant,
+        sections: structureCourte(travail), totalHT: apresTotaux.totalHt, totalTTC: apresTotaux.ttc, phraseTotaux: phraseTotaux(apresTotaux.totalHt, apresTotaux.ttc),
+      },
+    };
+  } }));
+  const { reponse } = r;
+  return {
+    ...reponse,
+    ...(reponse.changementImportant ? { consigne: "Changement important : redis à l'utilisateur, en une phrase, ce qui a été fait (lignes marquées changementImportant et total du devis)." } : {}),
+    detail: `Se défait avec restaurer_depuis_audit (operationId ${reponse.operationId}) tant que le devis est un brouillon.`,
+  };
+}
+
+// ---------------------------------------------------------------- Devis : creer_devis_depuis_modele (30/10/2026, cadrage-devis-fluide.md PR 15)
+// Un NOUVEAU brouillon à partir d'un devis existant (le modèle n'est jamais écrit : pas de transaction sur lui, une simple création comme creer_devis_brouillon).
+// Ordre : copie des sections (identifiants de lignes renouvelés) -> prix du jour (repriserSections) -> ajustements résolus avec les numéros DU MODÈLE -> lignes disparues retirées -> ajustements appliqués.
+
+const MOTIFS_A_REVISER = {
+  article_retire: "l'article n'existe plus ou est désactivé : la ligne n'a pas été copiée",
+  ligne_libre: "ligne libre (sans article du bordereau) : elle n'a pas été copiée",
+  texte: "ligne de texte copiée telle quelle : elle peut citer l'ancien client ou l'ancien chantier, à relire",
+};
+
+/** Nouveau brouillon copié d'un devis existant, aux prix du catalogue d'aujourd'hui ; `ajustements` = opérations de modifier_lignes_devis, numéros du modèle. */
+export async function creerDevisDepuisModele(c, args) {
+  const { modeleId, affaireId, organisationId, personneId, ajustements = [], proprietaire } = args;
+  if (organisationId && personneId) refuser('saisie_invalide', 'Un devis a un seul client : donner organisationId OU personneId, pas les deux.');
+  if (ajustements.length > DL.MAX_OPERATIONS) refuser('saisie_invalide', `Trop d'ajustements dans un appel (${ajustements.length}, ${DL.MAX_OPERATIONS} au plus). Rien n'a été écrit.`);
+  const modele = await lire(c, C.devis, modeleId, 'Devis modèle');
+  const affaire = await lireSiDonne(c, C.affaires, affaireId, 'Affaire');
+  const organisation = await lireSiDonne(c, C.organisations, organisationId ?? (personneId ? null : affaire?.organisationId), 'Organisation');
+  const personne = await lireSiDonne(c, C.personnes, personneId ?? (organisation ? null : affaire?.personneId), 'Personne');
+  const client = organisation ? { type: 'organisation', fiche: organisation } : personne ? { type: 'personne', fiche: personne } : null;
+  const valeurs = { ...E.valeursDeCreation(affaire, client ? { ...client, adresse: adresseDuClient(client.fiche) } : null) };
+  const ctx = await contexte(c, proprietaire);
+  const plan = B.planCreerBrouillon(valeurs, { nouvelId: ctx.nouvelId, maintenant: ctx.maintenant, auteur: ctx.auteur, proprietaire: ctx.proprietaire }, await reglagesDuDevis(c)); // marge, mode de marge et TVA : réglages du jour
+  verifierMessages(plan.erreurs);
+  verifierMarge(plan.devis);
+  const articles = await c.donnees.liste(C.devisArticles);
+  // (a) la copie renouvelle les identifiants ; on n'en garde QUE les sections (ni adresses, ni destinataires, ni chantier, ni acomptes, ni remise).
+  const copie = E.copieDeDevis(modele, () => c.donnees.nouvelId(C.devis)).sections ?? [];
+  const numeros = new Map(elementsNumeres(copie)); // numéros DU MODÈLE (même structure)
+  // (c) les ajustements se résolvent sur la copie telle que le modèle la montre (libellés lus par l'utilisateur), avant le prix du jour et avant le retrait des disparues.
+  const resolues = resoudreOperations(copie, ajustements);
+  // (b) prix du catalogue d'aujourd'hui pour les lignes dont l'article est actif.
+  const reprise = E.repriserSections(copie, articles, { marge: plan.devis.marge, modeMarge: plan.devis.modeMarge });
+  // (d) lignes non copiées : article retiré ou désactivé, ligne libre.
+  const retirees = new Map(reprise.disparues.map((x) => [x.ligneId, x]));
+  const aReviser = [];
+  const motifs = new Map();
+  const travail = reprise.sections.map(({ marge: _margeDuModele, ...s }) => ({ ...s, lignes: (s.lignes ?? []).filter((l) => !retirees.has(l.id)) })); // la marge d'une section du modèle ne suit pas : marge des réglages du jour
+  for (const s of reprise.sections) for (const l of s.lignes ?? []) {
+    const motif = retirees.has(l.id) ? (l.articleId ? 'article_retire' : 'ligne_libre') : l.type === DA.TYPE_TEXTE ? 'texte' : null;
+    if (!motif) continue;
+    motifs.set(l.id, motif);
+    aReviser.push({ numero: numeros.get(l.id) ?? null, libelle: l.libelle ?? '', motif });
+  }
+  resolues.forEach((op, i) => {
+    const visee = [op.cible, op.apresCible].find((x) => x && retirees.has(x.id));
+    if (visee) refuser('saisie_invalide', `Ajustement ${i + 1} (${op.action}) : la ligne ${visee.numero} n'est pas copiée dans le nouveau devis (${MOTIFS_A_REVISER[motifs.get(visee.id)]}). Rien n'a été écrit.`);
+  });
+  // (e) ajustements appliqués, tout ou rien.
+  const ancres = new Map();
+  resolues.forEach((op, i) => {
+    try { appliquerOperation(c, { ...plan.devis, sections: travail }, travail, op, articles, ancres); } catch (e) {
+      if (e instanceof ErreurMetier) refuser(e.code, `Ajustement ${i + 1} (${op.action}) : ${e.message} Rien n'a été écrit.`);
+      throw e;
+    }
+  });
+  plan.ecritures[0].donnees = { ...plan.ecritures[0].donnees, objet: '', sections: travail };
+  const t = D.totauxDevis({ ...plan.devis, sections: travail });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), {
+    id: plan.id, statut: 'brouillon', numero: null, modeleId, lignes: nombreDeLignes(travail), sections: structureCourte(travail), totalHT: t.totalHt, totalTTC: t.ttc, phraseTotaux: phraseTotaux(t.totalHt, t.ttc),
+    aReviser, ...(aReviser.length ? { consigne: `À dire à l'utilisateur : ${aReviser.length} ligne(s) du modèle sont à revoir (aReviser, numéros du MODÈLE). Les lignes non copiées sont à ajouter avec modifier_lignes_devis si besoin.` } : {}),
+  });
+}
+
+/**
+ * Annule la DERNIÈRE modification d'un brouillon, un seul niveau : même logique que restaurer_depuis_audit (sans forcer), nom propre dans le journal.
+ * L'annulation s'écrit elle-même au journal (action « restaurer ») et ne se défait pas toute seule : l'appeler deux fois de suite répond « déjà annulé ».
+ */
+export async function annulerDerniereModificationDevis(c, args) {
+  const { id } = args;
+  const devis = await lire(c, C.devis, id, 'Devis');
+  if (devis.statut !== 'brouillon') refuser('saisie_invalide', B.MESSAGE_PAS_BROUILLON);
+  const derniere = derniereLigneDuJournal(await c.donnees.liste(C.audit, { champ: 'docId', valeur: id }));
+  if (!derniere) refuser('saisie_invalide', 'Rien à annuler : le journal n’a aucune modification de ce devis.');
+  const refus = refusDeLaDerniereLigne(derniere);
+  if (refus) refuser('saisie_invalide', refus);
+  const COUVERT = 'Le devis a changé depuis cette modification (par exemple à l’écran) : je ne l’annule pas, pour ne pas effacer ce qui a été fait depuis. Rien n’a été écrit.';
+  // Premier appel : aperçu (rien n'est écrit), pour refuser avec une phrase claire plutôt qu'avec le message général qui propose forcer.
+  const apercu = await c.restaurer({ operationId: derniere.operationId, apercu: true, forcer: false, outil: 'annuler_derniere_modification_devis' });
+  // L'opération doit ne toucher que ce devis : sinon la phrase ne dirait pas tout ce qui serait remis (filet pour un futur outil qui écrirait aussi un autre document).
+  if (apercu.lignes.some((l) => l.collection !== C.devis || l.docId !== id)) refuser('saisie_invalide', 'La dernière opération a aussi touché un autre document que ce devis : je ne l’annule pas d’ici. Utilise restaurer_depuis_audit (Claude Code) après avoir relu l’aperçu.');
+  if (apercu.conflits) refuser('conflit', COUVERT);
+  if (!apercu.aDefaire) refuser('saisie_invalide', 'Rien à annuler : le devis est déjà tel qu’il était avant la dernière modification.');
+  const copie = await c.donnees.document(C.auditAvant, derniere.id);
+  let r;
+  try {
+    r = await c.restaurer({ operationId: derniere.operationId, apercu: false, forcer: false, outil: 'annuler_derniere_modification_devis' });
+  } catch (e) {
+    if (/ont changé depuis/.test(e?.message ?? '')) refuser('conflit', COUVERT); // le devis a bougé entre l'aperçu et l'écriture
+    throw e;
+  }
+  const remis = { ...(copie?.avant ?? devis), id };
+  return {
+    annule: true, id, operationAnnulee: derniere.operationId, operationId: r.operationRestauration ?? null,
+    phrase: phraseAnnulation(remis, copie?.apres ?? devis),
+    ...resumeDuDevis(remis),
+    consigne: 'Redis à l’utilisateur, en une phrase, ce qui a été remis (champ phrase). Un seul niveau d’annulation : un deuxième appel répond « déjà annulé ».',
+    detail: `Annulation écrite au journal (operationId ${r.operationRestauration ?? 'aucun'}). Elle ne se défait pas toute seule : pour refaire la modification, la redemander.`,
+  };
+}
+
+/** [id, numéro] de chaque section et ligne (le numéro est calculé par numerosDevis, jamais stocké). */
+function elementsNumeres(sections) {
+  const numeros = D.numerosDevis(sections);
+  return sections.flatMap((s, i) => [[s.id, numeros[i].numero], ...(s.lignes ?? []).flatMap((l, j) => (numeros[i].lignes[j] ? [[l.id, numeros[i].lignes[j]]] : []))]);
 }
 
 const listeErreurs = (erreurs) => erreurs.map((e, i) => `(${i + 1}) ${e}`).join(' ');
@@ -1086,12 +1444,12 @@ export async function changerStatutDevis(c, args) {
 export async function nouvelleVersionDevis(c, args) {
   const r = await appelerCoeurDevis(c, () => nouvelleVersionServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id }));
   return {
-    id: r.devis.id, sourceId: args.id, numero: r.devis.numero ?? null, version: r.devis.version, statut: r.devis.statut, operationId: r.operationId,
+    id: r.devis.id, sourceId: args.id, numero: r.devis.numero ?? null, version: r.devis.version, statut: r.devis.statut, operationId: r.operationId, sections: structureCourte(r.devis.sections),
     detail: 'Un brouillon est créé : le modifier avec modifier_devis_brouillon, puis le finaliser avec finaliser_devis. La version précédente ne change pas de statut avant la finalisation. Récupérable avec restaurer_depuis_audit (supprime ce brouillon).',
   };
 }
 
-/** Archive (archive: true : devis signé ou refusé seulement) ou désarchive un devis. Restaurable. */
+/** Archive (archive: true : devis finalisé, signé ou refusé seulement) ou désarchive un devis. Restaurable. */
 export async function archiverDevis(c, args) {
   const r = await appelerCoeurDevis(c, () => archiverServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, archive: args.archive }));
   return { id: args.id, archive: args.archive, statut: r.devis.statut, operationId: r.operationId };
@@ -1099,9 +1457,91 @@ export async function archiverDevis(c, args) {
 
 /** Ajoute un envoi (destinataires, copie) à l'historique d'un devis « Envoyé » ; `envoyeLe` garde la date du premier envoi, un renvoi ajoute une ligne. Restaurable. */
 export async function enregistrerEnvoiDevis(c, args) {
-  const r = await appelerCoeurDevis(c, () => enregistrerEnvoiServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, destinataires: args.destinataires, copie: args.copie }));
+  const r = await appelerCoeurDevis(c, () => enregistrerEnvoiServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, destinataires: args.destinataires, copie: args.copie, origine: args.origine }));
   const dernier = r.devis.envois[r.devis.envois.length - 1];
-  return { id: args.id, nombreEnvois: r.devis.envois.length, dernierEnvoi: { destinataires: dernier.destinataires, copie: dernier.copie }, operationId: r.operationId };
+  return { id: args.id, nombreEnvois: r.devis.envois.length, dernierEnvoi: { destinataires: dernier.destinataires, copie: dernier.copie, ...(dernier.origine ? { origine: dernier.origine } : {}) }, operationId: r.operationId };
+}
+
+/** Destinataire (et copie) d'un devis FINALISÉ ou ENVOYÉ : seuls ces deux champs changent (option A de Jérôme, 29/10/2026). La copie reste si elle n'est pas donnée. */
+export async function modifierDestinatairesDevis(c, args) {
+  const r = await appelerCoeurDevis(c, () => modifierDestinatairesServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, destinataires: args.destinataires, copie: args.copie }));
+  return { id: args.id, destinataires: r.devis.destinataires, copie: r.devis.copie, operationId: r.operationId };
+}
+
+/**
+ * Recalcul général du montant des affaires d'après leurs devis (docs/montant-affaire.md). Aperçu (la liste, avant et après) puis code ; n'écrit que les champs calculés `montantDevisHt`, `montantDevisNature`
+ * et `montantDevisDetail`, jamais le montant saisi. Idempotent. Se relance tant qu'il en reste (50 affaires par appel).
+ * Décision : une opération groupée compte pour UNE écriture dans le plafond du jeton (elle est bornée à 50 affaires et confirmée par un code).
+ */
+export async function recalculerMontantsAffairesDevis(c, args) {
+  const prevu = await recalculerMontantsServeur({ donnees: c.donnees, ctx: ctxDevis(c), appliquer: false });
+  const lignes = prevu.lignes.map((l) => ({ affaireId: l.affaireId, avant: l.avant, apres: l.apres }));
+  const apercu = await confirmerDevis(c, args, {
+    outil: 'recalculer_montants_affaires', cibleId: 'toutes', verbe: 'recalculé',
+    empreinte: empreinteApercu([JSON.stringify({ total: prevu.total, lignes })]),
+    apercu: { change: false, aCorriger: prevu.total, affaires: lignes, ...(prevu.total > lignes.length ? { reste: prevu.total - lignes.length } : {}) },
+    suite: "Seuls les champs calculés (montantDevisHt, montantDevisNature, montantDevisDetail) changent ; le montant saisi de chaque affaire reste intact. Chaque affaire a sa ligne de journal ; l'outil est sans danger à relancer.",
+  });
+  if (apercu) return apercu;
+  const r = await recalculerMontantsServeur({ donnees: c.donnees, ctx: ctxDevis(c), appliquer: true, affaireIds: lignes.map((l) => l.affaireId) }); // seulement les affaires de l'aperçu confirmé (pas un second balayage de toute la base)
+  for (const operationId of r.operations) c.noterOperation?.(operationId);
+  return {
+    change: true, corrigees: r.operations.length, restantes: Math.max(0, prevu.total - r.operations.length), operationIds: r.operations,
+    detail: prevu.total > r.operations.length ? 'Il en reste : rappeler recalculer_montants_affaires SANS codeConfirmation pour un nouvel aperçu.' : 'Tout est à jour.',
+  };
+}
+
+// ---------------------------------------------------------------- Garantie « aucun e-mail ne part tout seul » (29/10/2026)
+// Le logiciel NE FAIT QUE préparer un brouillon d'e-mail que la personne relit et envoie elle-même. Ces deux outils donnent à l'assistant les seules voies permises :
+// le PDF officiel (jamais refait par l'assistant) et la demande de brouillon (créé par n8n dans le Gmail de la personne). Aucune portée d'envoi Gmail nulle part dans le code (test).
+
+/**
+ * Le PDF OFFICIEL d'un devis finalisé, déjà fabriqué par le serveur : lien signé court (DUREE_LIEN_MINUTES) pour le télécharger, plus le lien du devis dans l'application.
+ * Ne fabrique rien : jamais de PDF d'un brouillon, jamais de PDF « de démonstration ». À n'appeler que si l'utilisateur DEMANDE le PDF (décision de Jérôme, 29/10/2026, option A).
+ * Le lien signé n'est donné que si le compte du serveur peut LIRE le fichier (sinon il s'ouvrirait en « accès refusé ») : sinon on rend seulement le lien de l'application, avec la raison.
+ * Si le PDF n'est pas prêt, l'outil refuse et dit à l'assistant de s'arrêter.
+ */
+export async function pdfOfficielDevis(c, args) {
+  const devis = await c.donnees.document(C.devis, args.id);
+  if (!devis) refuser('introuvable', `Devis introuvable : ${args.id} (lister_devis donne les identifiants).`);
+  if (devis.statut === 'brouillon') refuser('saisie_invalide', 'Ce devis est un brouillon : il n’a pas de PDF officiel. ARRÊTE-TOI : ne fabrique aucun PDF toi-même ; dis à l’utilisateur qu’il faut d’abord finaliser le devis.');
+  const arret = ' ARRÊTE-TOI : ne refais pas de PDF toi-même et n’envoie rien ; dis-le à l’utilisateur (il peut réessayer depuis l’écran du devis).';
+  if (devis.pdf?.statut === 'en_cours') refuser('saisie_invalide', `Le PDF officiel est en cours de fabrication.${arret} Tu peux seulement rappeler cet outil dans quelques instants.`);
+  if (devis.pdf?.statut !== 'ok' || typeof devis.pdf?.chemin !== 'string') refuser('saisie_invalide', `Le PDF officiel de ce devis n’est pas disponible${devis.pdf?.statut === 'echec' ? ' (sa fabrication a échoué)' : ''}.${arret}`);
+  if (!cheminAppartientALEspace(devis.pdf.chemin, c.espace ?? '')) refuser('stockage_indisponible', `Le PDF officiel n’a pas été retrouvé au bon endroit du stockage.${arret}`);
+  const base = String(c.baseLien ?? '').replace(/\/+$/, '');
+  const prefixe = c.espaceN8n && c.espaceN8n !== ESPACE_JEROME ? `espace/${c.espaceN8n}/` : '';
+  const stockage = c.stockage?.() ?? null;
+  let lien = null;
+  if (stockage && await stockage.existe(devis.pdf.chemin)) {
+    try { lien = await stockage.lienSigne(devis.pdf.chemin, { minutes: DUREE_LIEN_MINUTES, nomAffiche: devis.pdf.nom || 'devis.pdf' }); } catch (e) { lien = null; process.stderr.write(`${JSON.stringify({ severity: 'WARNING', message: 'obtenir_pdf_officiel_devis : lien non signé', cause: String(e?.cause?.message ?? e?.message ?? '').slice(0, 120) })}\n`); }
+  }
+  const avertissements = [];
+  if (!lien) avertissements.push('Le lien direct du PDF n’est pas disponible pour le moment : donne seulement lienApplication (le PDF s’ouvre depuis le menu « … » du devis). Ne refais pas de PDF.');
+  if (!(['en_attente_envoi', 'envoye', 'accepte'].includes(devis.statut) && !devis.archive)) avertissements.push(`Ce devis est « ${devis.statut} »${devis.archive ? ' et archivé' : ''} : ce n’est peut-être plus la version en cours ; ne le présente pas comme le devis actuel sans l’avoir vérifié (lire_devis).`);
+  return {
+    id: devis.id, numero: devis.numero ?? null, version: devis.version ?? 1, statut: devis.statut, nom: devis.pdf.nom ?? null,
+    ...(lien ? { lien, valableMinutes: DUREE_LIEN_MINUTES } : {}),
+    lienApplication: `${base}/#/${prefixe}devis/voir/${encodeURIComponent(devis.id)}`,
+    ...(avertissements.length ? { avertissement: avertissements.join(' ') } : {}),
+    consigne: 'Ce devis a un PDF officiel, le seul à utiliser. Donne le lien à l’utilisateur qui l’a demandé. Ne transmets ni le PDF ni le lien à quelqu’un d’autre (client, collègue…) sans lui avoir montré le destinataire et obtenu un « oui » clair, et n’envoie rien toi-même : pour préparer l’e-mail avec ce PDF joint, utilise preparer_email.',
+  };
+}
+
+/**
+ * Demande à n8n de créer un BROUILLON d'e-mail dans la messagerie de l'utilisateur pour un objet du logiciel (un devis finalisé aujourd'hui, PDF officiel joint) : même fonction que le bouton
+ * « Préparer l'e-mail » de l'écran. Jamais d'envoi : la personne relit et envoie elle-même. Ni destinataire, ni texte, ni pièce jointe ne viennent de l'assistant.
+ */
+export async function preparerEmail(c, args) {
+  const sortie = c.sortieEmail?.() ?? null;
+  if (!sortie) refuser('non_branche', `${MESSAGE_NON_BRANCHE} Ne l’envoie pas toi-même par un autre moyen : dis-le à l’utilisateur.`);
+  // Pas branché (aucune adresse ni secret pour cet espace) : on s'arrête AVANT de réserver une écriture et avec le bon code.
+  if (!(await sortie.branche(c.espaceN8n))) refuser('non_branche', `${MESSAGE_NON_BRANCHE} Ne l’envoie pas toi-même par un autre moyen : dis-le à l’utilisateur.`);
+  const r = await appelerCoeurDevis(c, () => preparerBrouillonEmail({ donnees: c.donnees, ctx: ctxDevis(c), source: { type: args.type, id: args.id }, espace: c.espaceN8n, sortie }));
+  return {
+    type: args.type, id: args.id, demandeId: r.demandeId, statut: 'demandee', envoye: false,
+    aSavoir: 'Un BROUILLON est en cours de création dans la messagerie de l’utilisateur (quelques secondes). Rien n’a été envoyé et rien ne sera envoyé tout seul. Dis à l’utilisateur d’ouvrir son brouillon, de le relire et de l’envoyer LUI-MÊME ; ne l’envoie pas à sa place.',
+  };
 }
 
 /**
@@ -1110,7 +1550,7 @@ export async function enregistrerEnvoiDevis(c, args) {
  */
 export async function supprimerDevis(c, args) {
   const devis = await lire(c, C.devis, args.id, 'Devis');
-  if (devis.statut !== 'brouillon') refuser('saisie_invalide', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; il peut être archivé (archiver_devis) s’il est signé ou refusé.');
+  if (devis.statut !== 'brouillon') refuser('saisie_invalide', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; il peut être archivé (archiver_devis) s’il est finalisé (jamais envoyé), signé ou refusé.');
   const t = D.totauxDevis(devis);
   if (!args.codeConfirmation) {
     const restantes = c.suppressionsRestantes ? await c.suppressionsRestantes() : Infinity;

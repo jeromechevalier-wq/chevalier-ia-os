@@ -17,7 +17,8 @@ import {
 import {
   MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, DUREE_VALIDITE_DEFAUT, coefficientDeMarge, emailValide,
 } from './logique.js';
-import { TYPE_OUVRAGE, erreursOuvrage, articlesParId, calculerOuvrage } from './ouvrages.js';
+import { TYPE_OUVRAGE, erreursOuvrage, articlesParId, calculerOuvrage, lireMotOuvrage, validerMotAutre, MOTS_OUVRAGE, MOT_OUVRAGE_AUTRE } from './ouvrages.js';
+export { motOuvrage, MOTS_OUVRAGE } from './ouvrages.js';
 import {
   FAMILLES_PAR_DEFAUT, erreurFamilleArticle, typeDeFamille, cheminFamille, familleEffective, idsAvecSousFamilles,
 } from './familles.js';
@@ -400,9 +401,11 @@ export function filtrerArticles(articles, { recherche = '', statut = 'actifs', t
 // ---------------------------------------------------------------- réglages du module
 export const REGLAGES_DEVIS_DEFAUT = Object.freeze({
   nomBordereau: NOM_BORDEREAU_DEFAUT,
+  motOuvrage: 'ouvrage', // le mot affiché pour le type « ouvrage » (liste fermée + « autre ») ; l'identifiant technique ne change jamais
+  motOuvrageAutre: Object.freeze({}), // { singulier, pluriel, genre } quand le choix est « autre »
   modeMarge: 'majoration',
   marge: MARGE_DEFAUT,
-  margeDevis: MARGE_DEVIS_DEFAUT, // marge globale appliquée d'office à chaque NOUVEAU devis (distincte de `marge`, celle des articles)
+  margeDevis: MARGE_DEVIS_DEFAUT, // marge par défaut des nouveaux devis (distincte de `marge`, la « marge de revente » des articles)
   regimeTva: 'assujetti',
   tauxProposes: [...TAUX_TVA_DEFAUT],
   tauxTvaDefaut: TAUX_TVA_DEFAUT_REGLAGE,
@@ -410,6 +413,7 @@ export const REGLAGES_DEVIS_DEFAUT = Object.freeze({
   etapeDevis: '', // anciens réglages (étape des devis retirée le 28/10/2026, un devis vit à toutes les étapes) : gardés tels quels dans la base, plus modifiables
   etapeAFaire: '', // idem (25/10/2026)
   etapeEnvoye: '',
+  etapeAffaireCreee: '', // étape de départ de l'affaire créée à la finalisation d'un devis sans affaire ('' = non réglée : on demande à chaque fois) ; jamais contrôlée ici (le pipeline n'est pas visible), la validité se résout à l'usage
   mentionEmetteur: '',
   entreprise: Object.freeze({}),
 });
@@ -423,6 +427,7 @@ export function reglagesDevis(brut) {
   const proposes = taux.length ? TAUX_TVA_DEFAUT.filter((t) => taux.includes(t)) : [...d.tauxProposes];
   return {
     nomBordereau: NOMS_BORDEREAU.includes(b.nomBordereau) ? b.nomBordereau : d.nomBordereau,
+    ...lireMotOuvrage(b),
     modeMarge: MODES_MARGE.some((m) => m.id === b.modeMarge) ? b.modeMarge : d.modeMarge,
     marge: estNombre(b.marge) && !(b.modeMarge === 'marge_vente' && b.marge >= 100) ? b.marge : d.marge,
     margeDevis: estNombre(b.margeDevis) && b.margeDevis >= 0 && b.margeDevis <= MARGE_DEVIS_MAX && !(b.modeMarge === 'marge_vente' && b.margeDevis >= 100) ? b.margeDevis : d.margeDevis,
@@ -433,6 +438,7 @@ export function reglagesDevis(brut) {
     etapeDevis: typeof b.etapeDevis === 'string' ? b.etapeDevis : '',
     etapeAFaire: typeof b.etapeAFaire === 'string' ? b.etapeAFaire : '',
     etapeEnvoye: typeof b.etapeEnvoye === 'string' ? b.etapeEnvoye : '',
+    etapeAffaireCreee: typeof b.etapeAffaireCreee === 'string' ? b.etapeAffaireCreee : '',
     mentionEmetteur: typeof b.mentionEmetteur === 'string' ? b.mentionEmetteur : '',
     entreprise: lireEntreprise(b.entreprise),
   };
@@ -451,7 +457,7 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT }
   const erreurs = {};
   const s = { ...reglagesDevis(actuels), ...(saisie ?? {}) };
   if (!NOMS_BORDEREAU.includes(s.nomBordereau)) erreurs.nomBordereau = `Choisis un nom parmi : ${NOMS_BORDEREAU.join(', ')}.`;
-  if (!MODES_MARGE.some((m) => m.id === s.modeMarge)) erreurs.modeMarge = 'Choisis le mode de marge.';
+  if (!MODES_MARGE.some((m) => m.id === s.modeMarge)) erreurs.modeMarge = 'Choisis le calcul de la marge.';
   const marge = lireNombre(s.marge);
   if (marge === null) erreurs.marge = 'La marge doit être un nombre en pourcentage (exemple : 20).';
   else if (!erreurs.modeMarge) {
@@ -473,12 +479,18 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT }
   if (jours === null || !Number.isInteger(jours) || jours < 1 || jours > LIMITES.jours) erreurs.dureeValiditeJours = `La durée de validité est un nombre entier de jours, entre 1 et ${LIMITES.jours} (exemple : 90).`;
   const mention = typeof s.mentionEmetteur === 'string' ? s.mentionEmetteur.trim() : '';
   if (mention.length > LIMITES.mention) erreurs.mentionEmetteur = `La mention est trop longue (${LIMITES.mention} caractères au plus).`;
+  const motChoisi = MOTS_OUVRAGE.some((m) => m.id === s.motOuvrage) || s.motOuvrage === MOT_OUVRAGE_AUTRE;
+  if (!motChoisi) erreurs.motOuvrage = `Choisis un mot parmi : ${[...MOTS_OUVRAGE.map((m) => m.singulier), 'autre'].join(', ')}.`;
+  const mot = validerMotAutre(s.motOuvrageAutre);
+  if (s.motOuvrage === MOT_OUVRAGE_AUTRE && !mot.autre) Object.assign(erreurs, Object.fromEntries(Object.entries(mot.erreurs).map(([k, v]) => [`motOuvrageAutre.${k}`, v])));
   const ent = validerEntreprise(s.entreprise);
   Object.assign(erreurs, ent.erreurs);
   if (Object.keys(erreurs).length) return { reglages: null, erreurs };
   return {
     reglages: {
       nomBordereau: s.nomBordereau,
+      motOuvrage: s.motOuvrage, // recopié : l'enregistrement est un setDoc sans fusion, il effacerait le mot choisi
+      motOuvrageAutre: mot.autre ?? {},
       modeMarge: s.modeMarge,
       marge,
       margeDevis,
@@ -489,6 +501,7 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT }
       etapeDevis: s.etapeDevis || '', // anciens réglages : recopiés tels quels (rien n'est effacé de la base)
       etapeAFaire: s.etapeAFaire || '',
       etapeEnvoye: s.etapeEnvoye || '',
+      etapeAffaireCreee: typeof s.etapeAffaireCreee === 'string' ? s.etapeAffaireCreee : '', // recopiée telle quelle (setDoc sans fusion) ; l'étape n'est pas contrôlée ici
       mentionEmetteur: mention,
       entreprise: ent.entreprise,
     },

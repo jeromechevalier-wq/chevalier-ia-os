@@ -42,6 +42,10 @@ const devisVocabulaire = readFileSync(join(racine, 'js', 'modules', 'devis', 'vo
 if (!devisVocabulaire.includes(IMPORT_CRM)) throw new Error('js/modules/devis/vocabulaire.js : import du CRM introuvable');
 writeFileSync(join(destination, 'devis-vocabulaire.js'), devisVocabulaire.replaceAll("from './logique.js'", "from './devis.js'").replaceAll("from './ouvrages.js'", "from './devis-ouvrages.js'").replaceAll(IMPORT_CRM, "from './logique.js'"));
 console.log('functions/partage/devis-vocabulaire.js mis à jour (copie de js/modules/devis/vocabulaire.js, imports réécrits)');
+// Résolveur de numéros du devis (numeros-lignes.js, fichier pur) : « 1.2 » -> la ligne visée, avec la garde « attendu » (moteur du dictionnaire). Imports : ./logique.js -> ./devis.js, ./vocabulaire.js -> ./devis-vocabulaire.js.
+const devisNumeros = readFileSync(join(racine, 'js', 'modules', 'devis', 'numeros-lignes.js'), 'utf8');
+writeFileSync(join(destination, 'devis-numeros.js'), devisNumeros.replaceAll("from './logique.js'", "from './devis.js'").replaceAll("from './vocabulaire.js'", "from './devis-vocabulaire.js'"));
+console.log('functions/partage/devis-numeros.js mis à jour (copie de js/modules/devis/numeros-lignes.js, imports réécrits)');
 
 // Message et objet par défaut de l'e-mail d'un devis (email-brouillon.js, fichier pur) : le serveur (action de porte `devis.lireEmail`) calcule le MÊME texte que l'écran.
 // Son seul import est celui des calculs du Devis (./logique.js -> ./devis.js).
@@ -75,6 +79,9 @@ console.log(`functions/partage/porte/ mis à jour (${FICHIERS_PORTE.length} fich
 // Le lien YouTube collé à la main (reconnaissance d'un épisode ou d'une chaîne, lecture du flux) : écrit une seule fois pour l'écran et pour le serveur.
 copyFileSync(join(racine, 'js', 'modules', 'veille', 'lien.js'), join(destination, 'veille-lien.js'));
 console.log('functions/partage/veille-lien.js mis à jour (copie exacte de js/modules/veille/lien.js)');
+// Règles des fichiers de l'onglet « Documents » (types acceptés, taille, nom) : fichier pur, le même pour l'écran (contrôle immédiat) et pour le serveur (le contrôle qui compte).
+copyFileSync(join(racine, 'js', 'modules', 'crm', 'fichiers-regles.js'), join(destination, 'fichiers-regles.js'));
+console.log('functions/partage/fichiers-regles.js mis à jour (copie exacte de js/modules/crm/fichiers-regles.js)');
 // Le MCP des clients (functions/src/clients/) lit le registre des modules (modules actifs d'un client, outils de chaque module), les règles de la fiche de marque
 // (couleurs de l'écran d'autorisation) et les rôles des membres : mêmes fichiers que l'appli, copiés à plat dans functions/partage/ (aucun n'importe autre chose que ses voisins).
 for (const f of ['registre.js', 'marque.js', 'chemins.js', 'membres.js']) copyFileSync(join(racine, 'js', 'os', f), join(destination, f));
@@ -94,7 +101,7 @@ mkdirSync(join(destinationServeur, 'src', 'devis'), { recursive: true });
 for (const f of ['pdf-service.js', 'pdf-declencheur.js', 'chromium.js', 'stockage.js']) copyFileSync(join(racine, 'functions', 'src', 'devis', f), join(destinationServeur, 'src', 'devis', f));
 copyFileSync(join(racine, 'functions', 'src', 'version.js'), join(destinationServeur, 'src', 'version.js'));
 copyFileSync(join(racine, 'functions', 'package.json'), join(destinationServeur, 'package.json')); // version.js lit la version du serveur ici
-for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'devis-document.js', 'devis-vocabulaire.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'propositions.js']) {
+for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'devis-document.js', 'devis-numeros.js', 'devis-vocabulaire.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'fichiers-regles.js', 'propositions.js']) {
   mkdirSync(join(destinationServeur, 'partage'), { recursive: true });
   copyFileSync(join(destination, f), join(destinationServeur, 'partage', f));
 }

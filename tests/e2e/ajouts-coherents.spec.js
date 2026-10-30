@@ -15,26 +15,27 @@ test.beforeEach(async ({ page }) => {
   await page.route('https://apis.google.com/js/api.js', (route) => route.fulfill({ status: 200, contentType: 'application/javascript', body: '' }));
 });
 
-test('I17 Montant de l’affaire : « 999 € » fantôme gris quand il est vide (jamais enregistré), saisie au clic, euros une fois rempli', async ({ page }, info) => {
+test('I17 Montant estimé de l’affaire : un tiret « — » gris quand il est vide (jamais de chiffre inventé, rien d’enregistré), saisie au clic, euros une fois rempli', async ({ page }, info) => {
   await creerAffaire('a1', { titre: 'Audit des Lilas' });
   await connecter(page);
   await ouvrir(page, '#/crm/affaires/a1');
   const zone = page.locator('.fiche-tete .fiche-montant');
   const fantome = zone.locator('.prop-fantome');
-  await expect(fantome).toHaveText(/999\s€/);
+  await expect(fantome).toHaveText('—');
+  await expect(zone.locator('[data-role="libelle-montant"]')).toHaveText('Montant estimé');
   const gris = await fantome.evaluate((el) => getComputedStyle(el).color);
   const jaune = await page.locator('.prop-vide:not(.prop-fantome)').first().evaluate((el) => getComputedStyle(el).color);
   expect(gris).not.toBe(jaune);
   expect((await lireDocument('crm_affaires/a1')).montant ?? null).toBeNull(); // le fantôme n'est jamais une valeur
-  await capturer(page, info, 'I17-montant-fantome');
+  await capturer(page, info, 'I17-montant-tiret');
   // clic puis Échap : rien n'est enregistré et le fantôme reste là
   await fantome.click();
-  await page.getByLabel('Montant', { exact: true }).press('Escape');
+  await page.getByLabel('Montant estimé', { exact: true }).press('Escape');
   await expect(zone.locator('.prop-fantome')).toBeVisible();
   expect((await lireDocument('crm_affaires/a1')).montant ?? null).toBeNull();
   await fantome.click();
-  await page.getByLabel('Montant', { exact: true }).fill('1500');
-  await page.getByLabel('Montant', { exact: true }).press('Enter');
+  await page.getByLabel('Montant estimé', { exact: true }).fill('1500');
+  await page.getByLabel('Montant estimé', { exact: true }).press('Enter');
   await expect.poll(async () => (await lireDocument('crm_affaires/a1')).montant).toBe(1500);
   await expect(zone).toContainText(/1\s?500\s€/);
   await expect(zone.locator('.prop-fantome')).toHaveCount(0);

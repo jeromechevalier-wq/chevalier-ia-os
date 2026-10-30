@@ -114,7 +114,7 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
     assert.equal(p.engines.node, '22');
     for (const v of Object.values(p.dependencies)) assert.match(v, /^\d+\.\d+\.\d+$/);
     assert.deepEqual(Object.keys(p.dependencies).sort(), ['@google-cloud/secret-manager', '@modelcontextprotocol/sdk', '@sparticuz/chromium', 'firebase-admin', 'firebase-functions', 'puppeteer-core', 'zod']); // + Chromium pour le PDF des devis (puppeteer-core, @sparticuz/chromium : mêmes versions que chez Jérôme) ; + le MCP des clients (mcpclients) ; secret-manager : l'adresse et le secret du webhook « Préparer l'e-mail », lus à l'exécution
-    assert.equal((code('index.js').match(/region:\s*REGION/g) || []).length, 9); // trois du PDF des devis (devisPdf, devisPdfLien, devisPdfAuto) + trois du journal + mcpclients + espaceReglages + les options communes des quatre fonctions de devis
+    assert.equal((code('index.js').match(/region:\s*REGION/g) || []).length, 11); // + deux jeux d'options de l'onglet « Documents » (dépôt, lien et suppression) ; trois du PDF des devis (devisPdf, devisPdfLien, devisPdfAuto) + trois du journal + mcpclients + espaceReglages + les options communes des quatre fonctions de devis
     assert.match(code('index.js'), /REGION = 'europe-west9'/);
     assert.match(code('index.js'), /schedule: '0 \* \* \* \*'/);
   });
@@ -127,10 +127,10 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
 });
 
 describe('Les fonctions se chargent comme Firebase les chargera', () => {
-  test('dix-huit fonctions (dont les trois du PDF des devis, les six opérations de devis, les deux de « Préparer l\'e-mail » et la vérification du déploiement), région de Paris, planifiée toutes les heures, clé n8n liée par secret sur les deux qui lisent n8n, aucun secret pour « renommer »', async () => {
+  test('vingt-deux fonctions (dont les trois des fichiers de l\'onglet « Documents »,  les trois du PDF des devis, les sept opérations de devis, les deux de « Préparer l\'e-mail » et la vérification du déploiement), région de Paris, planifiée toutes les heures, clé n8n liée par secret sur les deux qui lisent n8n, aucun secret pour « renommer »', async () => {
     process.env.GCLOUD_PROJECT ??= 'demo-chevalier-ia-os';
     const m = await import('../functions-plateforme/src/index.js');
-    assert.deepEqual(Object.keys(m).sort(), ['automatisationsCopieHoraire', 'automatisationsDecider', 'automatisationsRafraichir', 'automatisationsRenommer', 'deploiementVerifier', 'devisArchiver', 'devisChangerStatut', 'devisEnregistrerEnvoi', 'devisFinaliser', 'devisNouvelleVersion', 'devisPdf', 'devisPdfAuto', 'devisPdfLien', 'devisPreparerEmail', 'devisPreparerEmailEtat', 'devisSupprimer', 'espaceReglages', 'mcpclients']);
+    assert.deepEqual(Object.keys(m).sort(), ['automatisationsCopieHoraire', 'automatisationsDecider', 'automatisationsRafraichir', 'automatisationsRenommer', 'deploiementVerifier', 'devisArchiver', 'devisChangerStatut', 'devisEnregistrerEnvoi', 'devisFinaliser', 'devisModifierDestinataires', 'devisNouvelleVersion', 'devisPdf', 'devisPdfAuto', 'devisPdfLien', 'devisPreparerEmail', 'devisPreparerEmailEtat', 'devisSupprimer', 'documentDeposer', 'documentLien', 'documentSupprimer', 'espaceReglages', 'mcpclients']);
     for (const f of Object.values(m)) assert.deepEqual(f.__endpoint.region, ['europe-west9']);
     assert.equal(m.automatisationsCopieHoraire.__endpoint.scheduleTrigger.schedule, '0 * * * *');
     assert.deepEqual(m.automatisationsCopieHoraire.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
@@ -143,7 +143,7 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
     assert.equal(e.secretEnvironmentVariables, undefined);
     assert.ok(e.callableTrigger, 'fonction appelable');
     // Devis (24/10/2026) : fonctions appelables, aucun secret LIÉ au déploiement (« Préparer l'e-mail » lit les siens à l'exécution dans Secret Manager ; le POST vers n8n est dans serveur/, hors de ce dossier), aucun compte de service nouveau (le compte par défaut suffit)
-    for (const nom of ['automatisationsDecider', 'devisFinaliser', 'devisChangerStatut', 'devisNouvelleVersion', 'devisArchiver', 'devisSupprimer', 'devisEnregistrerEnvoi', 'devisPreparerEmail', 'devisPreparerEmailEtat']) {
+    for (const nom of ['automatisationsDecider', 'devisFinaliser', 'devisChangerStatut', 'devisNouvelleVersion', 'devisArchiver', 'devisSupprimer', 'devisEnregistrerEnvoi', 'devisModifierDestinataires', 'devisPreparerEmail', 'devisPreparerEmailEtat']) {
       const d = m[nom].__endpoint;
       assert.ok(d.callableTrigger, `${nom} : fonction appelable`);
       assert.equal(d.secretEnvironmentVariables, undefined, `${nom} : aucun secret`);
@@ -157,6 +157,16 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
       assert.equal(d.secretEnvironmentVariables, undefined, `${nom} : aucun secret`);
     }
     assert.ok(m.devisPdf.__endpoint.callableTrigger && m.devisPdfLien.__endpoint.callableTrigger, 'devisPdf et devisPdfLien : fonctions appelables');
+    // Onglet « Documents » (28/10/2026) : même compte que les PDF, aucun secret ; le dépôt (fichier en base64) a plus de mémoire et de temps, 2 instances au plus.
+    for (const nom of ['documentDeposer', 'documentLien', 'documentSupprimer']) {
+      const d = m[nom].__endpoint;
+      assert.ok(d.callableTrigger, `${nom} : fonction appelable`);
+      assert.equal(d.serviceAccountEmail, 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com', nom);
+      assert.equal(d.secretEnvironmentVariables, undefined, `${nom} : aucun secret`);
+    }
+    assert.equal(m.documentDeposer.__endpoint.availableMemoryMb, 1024);
+    assert.equal(m.documentDeposer.__endpoint.timeoutSeconds, 300);
+    assert.equal(m.documentDeposer.__endpoint.maxInstances, 2);
     assert.equal(m.devisPdfAuto.__endpoint.eventTrigger.eventFilterPathPatterns.document, 'clients/{client}/devis_devis/{devisId}');
     assert.equal(m.devisPdfAuto.__endpoint.maxInstances, 2);
     // Déploiement (25/10/2026) : fonction appelable, AUCUN secret déclaré (un secret absent ferait échouer le déploiement de toutes les fonctions), compte par défaut.

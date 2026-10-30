@@ -28,12 +28,17 @@ const RAISONS = {
 };
 
 /** `reserver(operations)` : appelé juste avant d'écrire (plafonds du jeton) ; une restauration qui supprime compte comme suppression. */
-export async function restaurerOperation({ donnees, ctx, operationId, apercu = true, forcer = false, reserver = null }) {
+/** `outil` : le nom écrit dans le journal (restaurer_depuis_audit par défaut ; annuler_derniere_modification_devis pour l'annulation d'un brouillon). */
+export async function restaurerOperation({ donnees, ctx, operationId, apercu = true, forcer = false, reserver = null, outil = 'restaurer_depuis_audit' }) {
   const lignesAudit = (await donnees.liste(C.audit, { champ: 'operationId', valeur: operationId }))
     .filter((l) => l.statut !== 'echec')
     .sort((a, b) => (b.ordre ?? 0) - (a.ordre ?? 0));
   if (!lignesAudit.length) {
     throw new ErreurEcriture('introuvable', 'Aucune écriture réussie pour cette opération (identifiant inconnu, ou toutes ont échoué).');
+  }
+  // Une transition de devis réécrit aussi le montant de l'affaire (`montantDevis*`) : défaire cette ligne avec une copie entière de l'affaire effacerait ce qui a changé depuis (titre, étape, documents).
+  if (lignesAudit.some((l) => /^devis/.test(l.outil ?? '') && l.collection === C.affaires)) {
+    throw new ErreurEcriture('restauration_refusee', 'Cette opération a changé un devis et recalculé le montant de l’affaire : elle ne se défait pas avec le journal. Refais le geste inverse sur le devis (archiver_devis avec archive: false par exemple) : le montant est recalculé.');
   }
   // Une finalisation (numéro consommé, prix figés) ou un changement de statut d'un devis ne se défait pas d'après le journal : créer la version suivante (nouvelle_version_devis).
   if (lignesAudit.some((l) => OUTILS_DEVIS_FIGES.includes(l.outil))) {
@@ -80,6 +85,6 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
     .map((l) => ({ type: 'remplacer', collection: l.collection, id: l.id, donnees: l.avant }));
   if (!operations.length) return { operationId, restauree: true, rienAFaire: true, ecritures: [] };
   await reserver?.(operations);
-  const resultat = await executerEcritures({ donnees, ctx, outil: 'restaurer_depuis_audit', parametres: { operationId, forcer }, operations });
+  const resultat = await executerEcritures({ donnees, ctx, outil, parametres: { operationId, forcer }, operations });
   return { operationId, restauree: true, operationRestauration: resultat.operationId, ecritures: resultat.ecritures, ...(resultat.auditIncomplet ? { auditIncomplet: true, avertissement: resultat.avertissement } : {}) };
 }

@@ -398,13 +398,15 @@ test('E11 Activer force un mot à confirmer, « Garder cet article » tranche un
   await menuDe(page, 'gaine').click();
   await entreeMenu(page, 'Activer').click();
   await expect(ligne(page, 'gaine').locator('[data-role="statut"]')).toHaveText('Actif');
+  // L'écran affiche « Actif » avant que l'écriture arrive à la base : on attend le document, on ne le lit pas une fois.
+  await expect.poll(async () => (await lireDocument('devis_vocabulaire/gaine')).statut).toBe('active');
   const gaine = await lireDocument('devis_vocabulaire/gaine');
   expect([gaine.statut, gaine.confirmations, gaine.contradictions, gaine.origine]).toEqual(['active', 1, 0, 'apprise_question']);
   // trancher
   await menuDe(page, 'tableau').click();
   await entreeMenu(page, 'Garder cet article').click();
   await expect(ligne(page, 'tableau').locator('[data-role="a-trancher"]')).toHaveCount(0);
-  expect((await lireDocument('devis_vocabulaire/tableau')).conflit).toBe(false);
+  await expect.poll(async () => (await lireDocument('devis_vocabulaire/tableau')).conflit).toBe(false);
   await expect(page.locator('[data-role="phrase-etat"]')).toHaveText('3 mots appris actifs');
   // note
   await menuDe(page, 'tableau').click();

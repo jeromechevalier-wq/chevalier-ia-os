@@ -1,4 +1,4 @@
-// Module Devis sur la plateforme clients : les transitions d'un devis (devisFinaliser, devisChangerStatut, devisNouvelleVersion, devisArchiver, devisSupprimer, devisEnregistrerEnvoi)
+// Module Devis sur la plateforme clients : les transitions d'un devis (devisFinaliser, devisChangerStatut, devisNouvelleVersion, devisArchiver, devisSupprimer, devisEnregistrerEnvoi, devisModifierDestinataires)
 // et « Préparer l'e-mail » (devisPreparerEmail, devisPreparerEmailEtat).
 // Séparé de index.js pour pouvoir l'essayer sans Cloud Functions (comme espace.js) : `db` est injecté. Le travail est dans serveur/src/coeur/devis.js
 // (copie de functions/src/coeur/devis.js, le MÊME code que chez Jérôme).
@@ -18,7 +18,7 @@ export const MODULE_DEVIS = 'devis';
 const REFUS_NEUTRE = () => new Refus('permission-denied', 'Action non autorisée.');
 
 /** Identité de l'appelant : e-mail vérifié obligatoire, en minuscules. */
-function emailDe(auth) {
+export function emailDe(auth) {
   const jeton = auth?.token;
   if (!auth?.uid || !jeton || jeton.email_verified !== true || typeof jeton.email !== 'string') throw new Refus('unauthenticated', 'Connexion requise.');
   return jeton.email.toLowerCase();

@@ -469,10 +469,53 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Fiches des fichiers déposés dans l'onglet « Documents » (28/10/2026) : les comptes autorisés LISENT ; l'écriture est réservée au SERVEUR (fonctions documentDeposer,
+    // documentSupprimer, outils MCP), jamais au navigateur : sinon on pourrait y inscrire un chemin quelconque du stockage, que documentLien signerait ensuite.
+    match /documents_stockes/{id} {
+      allow read: if compteAutorise();
+      allow write: if false;
+    }
+
+    // « Ensembles qui reviennent » du module Devis (cadrage devis fluide, 4.4 ; 30/10/2026) : un document par ensemble, calculé de nuit par le SERVEUR (écriture par le moteur d'audit).
+    // Les comptes autorisés LISENT (écran de revue) ; aucune écriture depuis un navigateur : une seule porte, le serveur. Même motif que documents_stockes.
+    match /devis_habitudes/{id} {
+      allow read: if compteAutorise();
+      allow write: if false;
+    }
+
+    // Dictionnaire de vocabulaire du module Devis (28/10/2026) : une règle « expression du client -> article ». Le SERVEUR apprend (compteurs, origine « apprise_* », exemples,
+    // dates de confirmation) et contourne les règles ; le NAVIGATEUR ne peut que créer une règle MANUELLE (compteurs à zéro, sans conflit) puis la réviser (statut, article, note, conflit, validation humaine : valideLe, validePar, revoirLe, suggestionTraiteeLe).
+    // Jamais de suppression : une règle se désactive. Passer « a_confirmer » à « active » est permis (c'est le but de la revue). Le serveur pose « via » à la création ; l'écran ne le modifie pas
+    // (gardé dans la liste des clés permises).
+    function vocabulaireManuelNeuf() {
+      let d = request.resource.data;
+      return d.get('statut', '') in ['active', 'desactivee'] && d.get('origine', '') == 'manuelle'
+        && d.get('confirmations', 0) == 0 && d.get('contradictions', 0) == 0 && d.get('conflit', false) == false
+        && d.get('exemples', []).size() == 0 && !d.keys().hasAny(['derniereConfirmationLe', 'derniereUtilisationLe', 'suggestion', 'suggestionTraiteeLe'])
+        && d.get('validePar', 'humain') == 'humain'
+        && (!d.keys().hasAny(['valideLe']) || (d.valideLe is string && d.valideLe.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
+        && (!d.keys().hasAny(['revoirLe']) || (d.revoirLe is string && d.revoirLe.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')));
+    }
+    function vocabulaireRevise() {
+      let d = request.resource.data;
+      let touche = d.diff(resource.data).affectedKeys();
+      return touche.hasOnly(['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'modifieLe', 'modifiePar', 'via', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe'])
+        && d.get('validePar', 'humain') in ['humain', 'reponses']
+        && (!touche.hasAny(['valideLe']) || (d.valideLe is string && d.valideLe.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
+        && (!touche.hasAny(['revoirLe']) || (d.revoirLe is string && d.revoirLe.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
+        && (!touche.hasAny(['suggestionTraiteeLe']) || (d.suggestionTraiteeLe is string && d.suggestionTraiteeLe.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')));
+    }
+    match /devis_vocabulaire/{id} {
+      allow read: if compteAutorise();
+      allow create: if compteAutorise() && vocabulaireManuelNeuf();
+      allow update: if compteAutorise() && vocabulaireRevise();
+      allow delete: if false;
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements']);
+        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes']);
     }
   }
 }

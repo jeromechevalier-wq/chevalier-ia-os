@@ -96,7 +96,7 @@ test('1 le Tableau a exactement quatre colonnes : Brouillon, Envoyé, Signé, Re
   await tableau4();
   await versTableau(page);
   await expect(page.locator('.colonne')).toHaveCount(4);
-  await expect(page.locator('.colonne h2')).toHaveText(['Brouillon', 'Envoyé', 'Signé', 'Refusé']);
+  await expect(page.locator('.colonne h2')).toHaveText(['Brouillon', 'Envoyé', 'Devis signé', 'Devis refusé']);
   await capturer(page, info, '1-quatre-colonnes');
 });
 
@@ -116,7 +116,7 @@ test('3 un devis remplacé (ou expiré) n’est plus dans le Tableau mais il est
   await expect(page.locator('.carte-devis[data-id="d6"], .carte-devis[data-id="d4"]')).toHaveCount(0);
   await page.locator('[data-vue="archives"]').click();
   await expect(lignes(page)).toHaveCount(2);
-  await expect(page.locator('tr.ligne-devis[data-id="d6"] [data-colonne="statut"]')).toContainText('Remplacé');
+  await expect(page.locator('tr.ligne-devis[data-id="d6"] [data-colonne="statut"]')).toContainText('Devis remplacé');
   await expect(page.locator('tr.ligne-devis[data-id="d4"] [data-colonne="statut"]')).toContainText('Expiré');
   await capturer(page, info, '3-remplace-dans-archives');
 });
@@ -181,25 +181,25 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
   // Devis envoyé : Signé et Refusé proposés, rien d'autre en statut ; Préparer l’e-mail est permis, Facturer n'existe plus (pas de facturation prévue) ; Dupliquer et la nouvelle version sont actifs (l'éditeur existe).
   await ouvrirMenuDe(page, 'd1');
   const menu = page.locator('.menu-pop');
-  await expect(menu.getByRole('menuitem', { name: /Passer à « Signé »/ })).toBeEnabled();
-  await expect(menu.getByRole('menuitem', { name: /Passer à « Refusé »/ })).toBeEnabled();
+  await expect(menu.getByRole('menuitem', { name: /Passer à « Devis signé »/ })).toBeEnabled();
+  await expect(menu.getByRole('menuitem', { name: /Passer à « Devis refusé »/ })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Passer à « Envoyé »/ })).toHaveCount(0);
   await expect(menu.getByRole('menuitem', { name: /Facturer/ })).toHaveCount(0);
   await expect(menu.getByRole('menuitem', { name: /Préparer l’e-mail/ })).toBeDisabled(); // faux serveur « pas branché » : entrée grisée dès la première ouverture, avec sa phrase
   await expect(menu).toContainText('pas encore branchée');
-  for (const nom of [/Dupliquer/, /Créer une nouvelle version/, /Voir le devis/]) await expect(menu.getByRole('menuitem', { name: nom })).toBeEnabled();
+  for (const nom of [/^Dupliquer$/, /Créer une nouvelle version/, /Voir le devis/]) await expect(menu.getByRole('menuitem', { name: nom })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Éditer le devis/ })).toBeEnabled(); // un devis finalisé s'ouvre sur l'Édition, en lecture seule
   await expect(menu.getByRole('menuitem', { name: /Supprimer/ })).toHaveCount(0); // seulement un brouillon
   await capturer(page, info, 'E3-menu-devis-envoye');
   // Signé : la demande part au serveur (jamais une écriture directe).
-  await menu.getByRole('menuitem', { name: /Passer à « Signé »/ }).click();
+  await menu.getByRole('menuitem', { name: /Passer à « Devis signé »/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Marquer signé' }).click(); // fenêtre de confirmation (27/10/2026)
-  await expect(page.locator('.toast')).toContainText('Devis passé à « Signé »');
+  await expect(page.locator('.toast')).toContainText('Devis passé à « Devis signé »');
   expect(appels).toEqual([{ devisId: 'd1', action: 'accepter' }]);
   // Le serveur refuse : son message s'affiche en clair.
   refuser = true;
   await ouvrirMenuDe(page, 'd1');
-  await page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Refusé »/ }).click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Devis refusé »/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Marquer refusé' }).click();
   await expect(page.locator('.toast').last()).toContainText('Ce devis ne peut plus changer de statut.');
   // Brouillon : Supprimer actif, Éditer le devis actif, Finalisé proposé.
@@ -276,7 +276,7 @@ test('O4 un devis envoyé s’ouvre en visualisation (lecture seule) : les actio
   await expect(page.locator('[data-action="marquer-signe"]')).toBeVisible(); // devis envoyé : l'étape suivante est « Devis signé » (26/10/2026)
   await page.locator('[data-action="plus-actions"]').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Créer une nouvelle version' })).toBeEnabled();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Dupliquer' })).toBeEnabled();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Dupliquer', exact: true })).toBeEnabled();
   await page.keyboard.press('Escape');
   await capturer(page, info, 'O4-lecture-seule');
 });
@@ -321,11 +321,11 @@ test('E6 le filtre Statut : « Expiré » et « Remplacé » absents en vue Tabl
   await ouvrir(page);
   await page.getByRole('button', { name: /Filtres/ }).click();
   await expect(page.getByRole('checkbox', { name: 'Expiré' })).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: 'Remplacé' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Devis remplacé' })).toBeVisible();
   await page.keyboard.press('Escape');
   await page.locator('[data-vue="tableau"]').click();
   await page.getByRole('button', { name: /Filtres/ }).click();
   await expect(page.getByRole('checkbox', { name: 'Brouillon' })).toBeVisible();
   await expect(page.getByRole('checkbox', { name: 'Expiré' })).toHaveCount(0);
-  await expect(page.getByRole('checkbox', { name: 'Remplacé' })).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: 'Devis remplacé' })).toHaveCount(0);
 });

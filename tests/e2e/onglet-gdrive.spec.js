@@ -21,13 +21,14 @@ for (const f of FICHES) {
     await expect(page.locator('[data-role="aucun-document"]')).toBeVisible(); // cas vide
     await page.screenshot({ path: `e2e/captures/gdrive/8${f.lettre}-gdrive-${f.nom}-${info.project.name}.png` });
   });
-  test(`8c sur ${f.nom}, plus aucun onglet « Documents » visible`, async ({ page, context }) => {
+  test(`8c sur ${f.nom}, l'onglet « G-Drive » garde l'identifiant « documents » ; « Documents » est l'onglet des fichiers chez nous (identifiant « fichiers »), pas l'ancien`, async ({ page, context }) => {
     await f.creer();
     await brancherGoogle(context); // le navigateur de test n'atteint pas apis.google.com : Google est simulé
     await connecter(page);
     await aller(page, f.hash);
-    await expect(page.locator('.compositeur [role="tab"]', { hasText: 'Documents' })).toHaveCount(0);
-    await expect(page.locator('.compositeur [role="tabpanel"][aria-label="Documents"]')).toHaveCount(0);
+    await expect(page.locator('.compositeur [data-onglet="documents"]')).toContainText('G-Drive');
+    await expect(page.locator('.compositeur [role="tab"]', { hasText: 'Documents' })).toHaveCount(1);
+    await expect(page.locator('.compositeur [data-onglet="fichiers"]')).toContainText('Documents');
     await ouvrirDocuments(page); // l'aide de test vise bien le nouveau nom
   });
   test(`8d sur ${f.nom}, la barre d'onglets ne déborde pas à l'horizontale (téléphone compris)`, async ({ page, context }, info) => {

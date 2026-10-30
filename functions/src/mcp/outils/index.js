@@ -5,28 +5,32 @@ import { qui_suis_je } from './identite.js';
 import { OUTILS_LECTURE } from './lecture.js';
 import { OUTILS_ECRITURE } from './ecriture.js';
 import { OUTILS_SUPPRESSION } from './suppression.js';
+import { avecGarantie } from './garantie.js';
 import { OUTILS_PROPOSITIONS_LECTURE, OUTILS_PROPOSITIONS_ECRITURE } from './propositions.js';
 
-export const OUTILS = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE, ...OUTILS_ECRITURE, ...OUTILS_PROPOSITIONS_ECRITURE, ...OUTILS_SUPPRESSION];
+export const OUTILS = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE, ...OUTILS_ECRITURE, ...OUTILS_PROPOSITIONS_ECRITURE, ...OUTILS_SUPPRESSION].map(avecGarantie); // la règle « aucun e-mail ne part tout seul » est ajoutée aux outils des devis
 
 /** Écritures qui ne sont pas annulables par restaurer_depuis_audit. */
 export const OUTILS_NON_ANNULABLES = Object.freeze(['valider_proposition', 'refuser_proposition']);
+
+/** Outils destructifs qui ne s'appellent pas supprimer_* : la restauration, annuler_derniere_modification_devis (même logique) et modifier_lignes_devis (peut retirer des lignes et des sections). */
+const OUTILS_DESTRUCTIFS = Object.freeze(['restaurer_depuis_audit', 'modifier_lignes_devis', 'annuler_derniere_modification_devis']);
 
 export const outilsAutorises = (profil, outils = OUTILS) => outils.filter((o) => o.profils.includes(profil));
 
 /**
  * Annotations MCP (Claude et ChatGPT les lisent pour classer les outils sans les bloquer par défaut) :
  *  - lecture (ouverte au profil lecteur) : readOnlyHint ;
- *  - supprimer_* et restaurer_depuis_audit : destructiveHint ;
+ *  - supprimer_*, restaurer_depuis_audit, annuler_derniere_modification_devis (même logique) et modifier_lignes_devis (il peut retirer des lignes) : destructiveHint ;
  *  - autres écritures : ni lecture seule ni destructrices, jamais idempotentes ;
  *    sauf valider_proposition et refuser_proposition, les décisions de la file « À valider » : elles NE passent PAS par le journal d'audit
  *    (décision atomique dans coeur/propositions.js), donc restaurer_depuis_audit ne les annule pas (OUTILS_NON_ANNULABLES) ; rappelées, elles refusent
  *    (déjà décidée), d'où idempotentHint faux, et elles ne détruisent rien (la proposition reste lisible), d'où destructiveHint faux.
- *    Toutes les autres écritures sont annulables par restaurer_depuis_audit.
+ *    Toutes les autres écritures sont annulables par restaurer_depuis_audit, sauf preparer_email (opération devisPreparerEmail : refusée par restaurer.js pour un devis finalisé, et le brouillon d'e-mail créé resterait).
  * Aucun outil ne sort du CRM : openWorldHint toujours faux.
  */
 export function annotationsDe(outil) {
   const lecture = outil.profils.includes('lecteur');
-  const destructif = /^supprimer_/.test(outil.nom) || outil.nom === 'restaurer_depuis_audit';
+  const destructif = /^supprimer_/.test(outil.nom) || OUTILS_DESTRUCTIFS.includes(outil.nom);
   return { readOnlyHint: lecture, destructiveHint: !lecture && destructif, idempotentHint: lecture, openWorldHint: false };
 }

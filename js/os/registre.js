@@ -78,16 +78,17 @@ export const MODULES_DECLARES = geler([
         { id: 'reglages-filtres', libelle: 'Filtres enregistrés' },
         { id: 'reglages-debut', libelle: 'Début d’activité' },
         { id: 'reglages-projets', libelle: 'Google Drive : dossiers de projets' },
+        { id: 'reglages-fichiers', libelle: 'Documents : taille des fichiers' },
         { id: 'reglages-export', libelle: 'Sauvegarde' },
       ],
     },
-    collections: ['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres'],
+    collections: ['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres', 'documents_stockes'],
     outilsMcp: [
       'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_activites', 'lister_documents', 'lire_reglages', 'lire_audit',
       'creer_personne', 'creer_organisation', 'creer_affaire', 'creer_activite', 'ajouter_note', 'joindre_lien',
       'modifier_personne', 'modifier_organisation', 'modifier_affaire', 'modifier_note', 'changer_etape', 'terminer_activite',
-      'marquer_perdue', 'rouvrir_affaire', 'retirer_document',
-      'supprimer_personne', 'supprimer_organisation', 'supprimer_affaire', 'supprimer_activite', 'supprimer_note', 'restaurer_depuis_audit',
+      'marquer_perdue', 'rouvrir_affaire', 'retirer_document', 'deposer_document',
+      'supprimer_personne', 'supprimer_organisation', 'supprimer_affaire', 'supprimer_activite', 'supprimer_note', 'supprimer_document_stocke', 'restaurer_depuis_audit',
     ],
     dependances: [],
   },
@@ -129,7 +130,7 @@ export const MODULES_DECLARES = geler([
       { route: 'devis/vocabulaire', libelle: 'Vocabulaire', icone: 'book-open' },
     ],
     collections: ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire'],
-    outilsMcp: ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire'],
+    outilsMcp: ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'obtenir_pdf_officiel_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'modifier_lignes_devis', 'annuler_derniere_modification_devis', 'creer_devis_depuis_modele', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'preparer_email', 'modifier_destinataires_devis', 'recalculer_montants_affaires', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire'],
     dependances: ['affaires'],
   },
   {
@@ -235,7 +236,7 @@ export const GROUPES_MENU = geler([
     sectionsMenu: [['crm/accueil'], ['crm/personnes', 'crm/organisations'], ['crm/affaires', 'projets/projets']],
     ordreReglages: [
       'reglages-etapes', 'reglages-phases', 'reglages-options', 'reglages-modeles-affaire', 'reglages-modeles-projets', 'reglages-objectifs',
-      'reglages-offres', 'reglages-secteurs', 'reglages-sources', 'reglages-etiquettes', 'reglages-filtres', 'reglages-debut', 'reglages-projets', 'reglages-export-projets', 'reglages-export',
+      'reglages-offres', 'reglages-secteurs', 'reglages-sources', 'reglages-etiquettes', 'reglages-filtres', 'reglages-debut', 'reglages-projets', 'reglages-fichiers', 'reglages-export-projets', 'reglages-export',
     ],
   },
 ]);

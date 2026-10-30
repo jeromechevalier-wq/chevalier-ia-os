@@ -24,6 +24,7 @@ import { creerAppelDevis, ligneDeJournalDevis } from './devis-appel.js';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { creerAppelDevisPdf, creerAppelDevisPdfLien, ligneDeJournalDevisPdf } from './devis/pdf-appel.js';
 import { creerDeclencheurPdf } from './devis/pdf-declencheur.js';
+import { creerAppelDocument, ligneDeJournalDocuments } from './documents/appel.js';
 import { stockageDuProjet, bucketDuProjet } from './devis/stockage-projet.js';
 import { creerSortieN8n } from './coeur/n8n-sortie.js';
 import { creerAppelPreparerEmail, creerAppelEtatPreparerEmail } from './devis-email-appel.js';
@@ -39,6 +40,9 @@ const donnees = creerAccesFirestore();
 const limiteur = creerLimiteur({ donnees });
 const oauth = creerRouteurOauth({ donnees, verifierIdToken: creerVerificateurIdentite() });
 
+// Sortie vers n8n (adresse et secret lus dans Secret Manager à l'appel, jamais liés au déploiement) : l'écran ET l'assistant (MCP) ne font que demander un BROUILLON d'e-mail.
+const sortieN8nDevis = creerSortieN8n({ lireSecret: creerLecteurSecrets() });
+
 export const mcp = onRequest(
   {
     region: 'europe-west9',
@@ -47,10 +51,10 @@ export const mcp = onRequest(
     timeoutSeconds: 120,
     invoker: 'public',
     cors: false,
-    // Compte dédié : seulement « Utilisateur Cloud Datastore » (Firestore) et « Accesseur de secrets » sur MCP_JETONS.
+    // Compte dédié : « Utilisateur Cloud Datastore » (Firestore), « Accesseur de secrets » sur MCP_JETONS et sur les deux secrets du brouillon d'e-mail (N8N_DEVIS_EMAIL_*), « Créateur d'objets Storage » (dépôt de texte) ; « Lecteur des objets Storage » et « Créateur de jetons du compte de service » sur lui-même sont À DONNER pour le lien signé du PDF officiel (docs/securite-et-pannes.md, section 12), sans quoi l'outil rend seulement le lien du devis.
     serviceAccount: 'mcp-serveur@chevalier-ia-os.iam.gserviceaccount.com',
   },
-  creerGestionnaire({ magasin, donnees, limiteur, oauth }),
+  creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet, sortieEmail: sortieN8nDevis }),
 );
 
 export const porte = onRequest(
@@ -127,12 +131,12 @@ export const devisNouvelleVersion = appelDevis('nouvelleVersion');
 export const devisArchiver = appelDevis('archiver');
 export const devisSupprimer = appelDevis('supprimer');
 export const devisEnregistrerEnvoi = appelDevis('enregistrerEnvoi'); // historique des envois par e-mail (le brouillon Gmail est créé par le navigateur, avec le Google de l'utilisateur)
+export const devisModifierDestinataires = appelDevis('modifierDestinataires'); // destinataire et copie d'un devis finalisé ou envoyé (rien d'autre ne change)
 
 // « Préparer l'e-mail » (25/10/2026) : la fonction demande à un workflow n8n de créer un BROUILLON dans le Gmail du compte (PDF joint) ; ni l'appli ni n8n n'envoient jamais l'e-mail.
 // L'adresse du webhook et son secret sont lus dans Secret Manager au moment de l'appel (N8N_DEVIS_EMAIL_URL, N8N_DEVIS_EMAIL_SECRET), jamais liés au déploiement : s'ils manquent,
 // la fonction répond « pas encore branchée » et l'écran masque le bouton (devisPreparerEmailEtat). Le compte de service doit avoir « Accesseur de secrets » sur ces deux secrets (docs/ajouter-un-bouton-workflow.md).
 // Le seul fichier qui fait le POST vers n8n est coeur/n8n-sortie.js (un test le borne). Le résultat revient par la porte (devis.lireEmail, devis.noterEmailPrepare).
-const sortieN8nDevis = creerSortieN8n({ lireSecret: creerLecteurSecrets() });
 export const devisPreparerEmail = onCall(OPTIONS_DEVIS, (requete) => {
   if (!getApps().length) initializeApp();
   return creerAppelPreparerEmail({ donnees: () => creerAccesFirestore(), sortie: sortieN8nDevis, journal: (e) => process.stdout.write(`${ligneDeJournalDevis(e)}\n`) })(requete);
@@ -172,6 +176,19 @@ export const devisPdfAuto = onDocumentUpdated(
     })(evenement);
   },
 );
+
+// Onglet « Documents » (28/10/2026) : fichiers déposés dans une affaire ou un projet, rangés dans Cloud Storage du projet (documents/<affaire|projet>/<id>/…, jamais publics) avec une fiche
+// `documents_stockes` écrite par le serveur seulement. Aucune règle Storage ne change (le navigateur n'y accède jamais : le dépôt et la lecture passent par ces fonctions, la lecture par un lien
+// signé de 5 minutes). Même compte de service que les PDF. Le dépôt reçoit le fichier en base64 (corps d'appel ~32 Mo au plus : 20 Mo de fichier) : il lui faut plus de mémoire et de temps que les devis.
+const OPTIONS_DOCUMENT_DEPOT = { ...OPTIONS_DEVIS, memory: '1GiB', timeoutSeconds: 300, concurrency: 2, maxInstances: 2 };
+const journalDocuments = (e) => process.stdout.write(`${ligneDeJournalDocuments(e)}\n`);
+const appelDocument = (operation, options) => onCall(options, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelDocument(operation, { donnees: () => creerAccesFirestore(), stockage: stockageDevis, journal: journalDocuments })(requete);
+});
+export const documentDeposer = appelDocument('deposer', OPTIONS_DOCUMENT_DEPOT);
+export const documentLien = appelDocument('lien', OPTIONS_DEVIS);
+export const documentSupprimer = appelDocument('supprimer', OPTIONS_DEVIS);
 
 // `deploiementVerifier` (25/10/2026) : contrôles du serveur pour la page Réglages > Déploiement (« les fonctions répondent », « les personnes autorisées »).
 // Mêmes comptes que les devis ; même région, limites et compte de service ; AUCUN secret déclaré (un secret absent ferait échouer tout le déploiement), rien n'est écrit.

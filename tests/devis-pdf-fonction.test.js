@@ -5,7 +5,8 @@ import { test, describe } from 'node:test';
 import { creerAccesMemoire, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';
 import * as S from '../functions/src/coeur/devis.js';
 import { creerAppelDevisPdf, MESSAGE_PDF_NON_CONFIGURE } from '../functions/src/devis/pdf-appel.js';
-import { nomFichierDevis } from '../functions/src/devis/stockage.js';
+import { nomFichierDevis, creerStockage } from '../functions/src/devis/stockage.js';
+import { creerAppelDocument } from '../functions/src/documents/appel.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
 import { devisHtml } from '../functions/partage/devis-document.js';
 import { fragmentDePage } from '../js/modules/devis/document.js';
@@ -264,5 +265,153 @@ describe('7 devisPdf : pied de page du PDF brouillon (date et heure de générat
     const { piedParDefaut, dateHeureParis } = await import('../functions/src/devis/chromium.js');
     assert.ok(!piedParDefaut('DEV-1').includes('généré'));
     assert.equal(dateHeureParis('pas une date'), '');
+  });
+});
+
+// ---------------------------------------------------------------- R : fichiers de l'onglet « Documents » (documentDeposer, documentLien, documentSupprimer) chez Jérôme
+describe('R fichiers déposés : dépôt, lien, suppression (faux Cloud Storage, aucune règle Storage touchée)', () => {
+  const PDF = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\n%%EOF');
+  const b64 = (b) => Buffer.from(b).toString('base64');
+  function mondeDocs(reglages = {}) {
+    const collections = {
+      [C.affaires]: [{ id: 'aff1', titre: 'A' }], [C.projets]: [{ id: 'pr1', titre: 'P' }], [C.documentsStockes]: [], [C.audit]: [], [C.auditAvant]: [],
+      [C.parametres]: [{ id: 'reglages', ...reglages }],
+    };
+    const donnees = creerAccesMemoire(collections);
+    const objets = new Map();
+    const signes = [];
+    const stockage = {
+      deposer: async (chemin, octets, type) => { objets.set(chemin, { octets, type }); },
+      supprimer: async (chemin) => { objets.delete(chemin); },
+      lienSigne: async (chemin, o) => { signes.push({ chemin, ...o }); return `https://stockage.exemple.test/signe?o=${encodeURIComponent(chemin)}`; },
+    };
+    const a = (op, extra = {}) => creerAppelDocument(op, { donnees: () => donnees, stockage, maintenant: () => MAINTENANT.getTime(), ...extra });
+    return { collections, donnees, objets, signes, stockage, a };
+  }
+  const depot = (m, data, email = ACTEUR) => m.a('deposer')(requete({ affaireId: 'aff1', nom: 'Plan.pdf', contenuBase64: b64(PDF), typeMime: 'application/pdf', ...data }, email));
+
+  test('R1 un compte autorisé dépose un PDF : fichier sous documents/affaire/<id>/, fiche, journal ; les autres sont refusés', async () => {
+    const m = mondeDocs();
+    await assert.rejects(() => m.a('deposer')({ data: {} }), (e) => e.code === 'unauthenticated');
+    await assert.rejects(() => depot(m, {}, 'intrus@exemple.test'), (e) => e.code === 'permission-denied');
+    const r = await depot(m, { nom: '../Plan é.pdf' });
+    assert.equal(r.nom, 'Plan é.pdf');
+    const fiche = m.collections[C.documentsStockes][0];
+    assert.match(fiche.chemin, /^documents\/affaire\/aff1\/[0-9a-f-]{36}-Plan é\.pdf$/);
+    assert.equal(m.objets.get(fiche.chemin).type, 'application/pdf');
+    assert.equal(fiche.creePar, ACTEUR);
+    assert.equal(fiche.taille, PDF.length);
+    assert.ok(m.collections[C.audit].some((l) => l.outil === 'documentDeposer' && l.via === 'ecran' && l.action === 'creer'));
+    const projet = await depot(m, { affaireId: undefined, projetId: 'pr1', nom: 'Note.txt', contenuBase64: b64('bonjour'), typeMime: 'text/plain' });
+    assert.match(m.collections[C.documentsStockes].find((f) => f.id === projet.id).chemin, /^documents\/projet\/pr1\//);
+  });
+
+  test('R2 refus : exe, html, svg, double extension, type mensonger, contenu qui ne correspond pas, inconnu, ni affaire ni projet ; rien n’est écrit', async () => {
+    const m = mondeDocs();
+    const faux = (data) => assert.rejects(() => depot(m, data), (e) => e.code === 'invalid-argument' || e.code === 'not-found');
+    await faux({ nom: 'virus.exe', contenuBase64: b64('MZ'), typeMime: 'application/x-msdownload' });
+    await faux({ nom: 'page.html', contenuBase64: b64('<script>'), typeMime: 'text/html' });
+    await faux({ nom: 'image.svg', contenuBase64: b64('<svg onload=x>'), typeMime: 'image/svg+xml' });
+    await faux({ nom: 'facture.pdf.exe' });
+    await faux({ nom: 'facture.exe.pdf' });
+    await faux({ nom: 'x.pdf', typeMime: 'text/html' }); // type annoncé mensonger
+    await faux({ nom: 'x.pdf', contenuBase64: b64('MZ pas un pdf'), typeMime: 'application/pdf' }); // contenu mensonger
+    await faux({ nom: 'x.inconnu', contenuBase64: b64('x'), typeMime: '' });
+    await faux({ nom: '..', contenuBase64: b64('x') });
+    await faux({ affaireId: undefined });
+    await faux({ affaireId: 'aff1', projetId: 'pr1' });
+    await faux({ affaireId: 'inconnue' });
+    await faux({ contenuBase64: '***pas du base64***' });
+    assert.equal(m.objets.size, 0);
+    assert.equal(m.collections[C.documentsStockes].length, 0);
+  });
+
+  test('R3 taille : le réglage de l’espace, le plafond de 20 Mo, un réglage absurde ramené à 20 Mo, doublon de nom suffixé', async () => {
+    const m = mondeDocs({ tailleMaxFichierMo: 1 });
+    const grand = Buffer.concat([PDF, Buffer.alloc(1.5 * 1024 * 1024)]);
+    await assert.rejects(() => depot(m, { contenuBase64: b64(grand) }), (e) => /taille maximale de l'espace est de 1 Mo/.test(e.message));
+    const m2 = mondeDocs({ tailleMaxFichierMo: 9999 });
+    const trop = Buffer.concat([PDF, Buffer.alloc(21 * 1024 * 1024)]);
+    await assert.rejects(() => depot(m2, { contenuBase64: b64(trop) }), (e) => /envoi direct n'est pas encore disponible/.test(e.message));
+    await depot(m2, {});
+    const r = await depot(m2, {});
+    assert.equal(r.nom, 'Plan (2).pdf');
+    assert.equal(m2.objets.size, 2);
+  });
+
+  test('R4 lien : 5 minutes, type servi = celui de l’extension ; chemin hors de l’espace ou de la cible : rien n’est signé', async () => {
+    const m = mondeDocs();
+    const r = await depot(m, {});
+    const lien = await m.a('lien')(requete({ documentId: r.id }));
+    assert.equal(lien.expireDans, 300);
+    assert.equal(m.signes[0].minutes, 5);
+    assert.equal(m.signes[0].typeMime, 'application/pdf');
+    assert.equal(m.signes[0].telecharger, false);
+    const img = await depot(m, { nom: 'Photo.png', contenuBase64: b64(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1])), typeMime: 'image/png' });
+    await m.a('lien')(requete({ documentId: img.id }));
+    assert.equal(m.signes[1].typeMime, 'image/png');
+    const piege = (id, chemin) => m.collections[C.documentsStockes].push({ id, cibleType: 'affaire', cibleId: 'aff1', nom: 'x.pdf', chemin, supprimeLe: null });
+    piege('piege', 'devis/aff1/d1/secret.pdf');
+    piege('piege2', 'documents/affaire/autre/0-x.pdf');
+    piege('piege3', 'documents/affaire/aff1/../autre/x.pdf');
+    for (const id of ['piege', 'piege2', 'piege3']) await assert.rejects(() => m.a('lien')(requete({ documentId: id })), (e) => e.code === 'invalid-argument');
+    await assert.rejects(() => m.a('lien')(requete({ documentId: 'inconnu' })), (e) => e.code === 'not-found');
+    await assert.rejects(() => m.a('lien')(requete({})), (e) => e.code === 'invalid-argument');
+    assert.equal(m.signes.length, 2);
+    // la vraie fabrication du lien : le type demandé est transmis (une image ne s'ouvre pas en PDF) ; sans type, PDF comme avant
+    const recus = [];
+    const bucket = { file: () => ({ getSignedUrl: async (o) => { recus.push(o); return ['https://x.test/u']; } }) };
+    await creerStockage({ bucket }).lienSigne('documents/affaire/a/1-x.png', { nomAffiche: 'é.png', typeMime: 'image/png' });
+    await creerStockage({ bucket }).lienSigne('devis/a/d/x.pdf', { nomAffiche: 'Devis.pdf' });
+    assert.equal(recus[0].responseType, 'image/png');
+    assert.equal(recus[1].responseType, 'application/pdf');
+  });
+
+  test('R5 suppression : corbeille logique (le fichier ne bouge pas), journal, plus de lien ; restaurer remet la fiche', async () => {
+    const m = mondeDocs();
+    const r = await depot(m, {});
+    const sup = await m.a('supprimer')(requete({ documentId: r.id }));
+    assert.equal(sup.nom, 'Plan.pdf');
+    const fiche = m.collections[C.documentsStockes][0];
+    assert.ok(fiche.supprimeLe);
+    assert.equal(fiche.supprimePar, ACTEUR);
+    assert.equal(m.objets.size, 1, 'le fichier reste en réserve');
+    const ligne = m.collections[C.audit].find((l) => l.outil === 'documentSupprimer');
+    assert.equal(ligne.action, 'modifier');
+    assert.deepEqual([...ligne.champsModifies].sort(), ['supprimeLe', 'supprimePar']);
+    await assert.rejects(() => m.a('lien')(requete({ documentId: r.id })), (e) => e.code === 'not-found');
+    await assert.rejects(() => m.a('supprimer')(requete({ documentId: r.id })), (e) => e.code === 'not-found');
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    await restaurerOperation({ donnees: m.donnees, ctx: { acteur: ACTEUR, via: 'mcp', maintenant: MAINTENANT }, operationId: ligne.operationId, apercu: false });
+    assert.equal(m.collections[C.documentsStockes][0].supprimeLe, null);
+    await m.a('lien')(requete({ documentId: r.id }));
+  });
+
+  test('R6 stockage introuvable ou sans droit : message clair, rien n’est écrit', async () => {
+    const m = mondeDocs();
+    const sans = m.a('deposer', { stockage: null });
+    await assert.rejects(() => sans(requete({ affaireId: 'aff1', nom: 'a.pdf', contenuBase64: b64(PDF) })), (e) => e.code === 'failed-precondition' && /stockage/.test(e.message));
+    const droit = m.a('deposer', { stockage: { deposer: async () => { throw new Error('Stockage : x', { cause: { code: 403 } }); }, supprimer: async () => {} } });
+    await assert.rejects(() => droit(requete({ affaireId: 'aff1', nom: 'a.pdf', contenuBase64: b64(PDF) })), (e) => e.code === 'failed-precondition' && /droit/.test(e.message));
+    assert.equal(m.collections[C.documentsStockes].length, 0);
+  });
+
+  test('R7 quota par espace : refusé au plafond de 2 Go, accepté en dessous, fiches supprimées non comptées ; texte Latin-1 (CSV Excel) accepté, octet nul refusé ; nom trop long dit trop long', async () => {
+    const m = mondeDocs();
+    const QUOTA = 2 * 1024 * 1024 * 1024;
+    const fiche = (id, taille, supprimeLe = null) => m.collections[C.documentsStockes].push({ id, cibleType: 'affaire', cibleId: 'autre', nom: `${id}.pdf`, taille, supprimeLe });
+    fiche('gros', QUOTA - 10); // 10 octets de marge : un PDF de plus de 10 octets ne passe pas
+    await assert.rejects(() => depot(m, {}), (e) => e.code === 'invalid-argument' && /limite de stockage de documents/.test(e.message));
+    assert.equal(m.objets.size, 0);
+    m.collections[C.documentsStockes][0].supprimeLe = new Date(); // en corbeille : ne compte plus
+    await depot(m, {});
+    fiche('presque', QUOTA - 2 * PDF.length - 5);
+    await depot(m, { nom: 'Autre.pdf' }); // juste en dessous du plafond (total = QUOTA - 5)
+    await assert.rejects(() => depot(m, { nom: 'Trop.pdf' }), (e) => /limite de stockage/.test(e.message));
+    const latin1 = Buffer.from('nom;prénom\nDupont;Hélène\n', 'latin1');
+    const m2 = mondeDocs();
+    await depot(m2, { nom: 'excel.csv', contenuBase64: b64(latin1), typeMime: 'text/csv' });
+    await assert.rejects(() => depot(m2, { nom: 'nul.txt', contenuBase64: b64(Buffer.from([0x61, 0, 0x62])), typeMime: 'text/plain' }), (e) => e.code === 'invalid-argument');
+    await assert.rejects(() => depot(m2, { nom: `${'a'.repeat(401)}.pdf` }), (e) => /trop long/.test(e.message));
   });
 });

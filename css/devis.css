@@ -156,6 +156,8 @@ button[data-lecture="verrou"][aria-disabled="true"], select[data-lecture="verrou
 .lien-description { display: inline-flex; align-items: center; gap: var(--esp-2); margin-top: var(--esp-4); align-self: flex-start; }
 .entete-gauche textarea.champ { margin-top: var(--esp-3); }
 .champ-grand { min-height: calc(var(--h-ctrl) + var(--esp-3)); }
+.champ-intelligent.champ-grand { min-height: 0; }
+.champ-intelligent.champ-grand .champ-intelligent-saisie { min-height: calc(var(--h-ctrl) + var(--esp-3)); }
 
 /* Recherche dans le Bordereau (ouverte par « + Fourniture », « + Main d'œuvre », « + Ouvrage »…). */
 .recherche-bordereau { display: flex; flex-direction: column; gap: var(--esp-3); padding: var(--esp-5); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau2); }
@@ -346,6 +348,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 /* Ajustement global : trois champs liés. */
 .ajust-zone { display: flex; flex-direction: column; gap: var(--esp-4); padding: var(--esp-3) var(--esp-4) var(--esp-4); }
 .ajust-zone + .ajust-zone { border-top: 1px solid var(--bordure); }
+.ajust-zone > .bouton { align-self: flex-start; }
 .ajust-titre { margin: 0; font-size: var(--fs-section); font-weight: var(--poids-moyen); }
 .ajust-fenetre { display: flex; flex-direction: column; min-width: min(320px, 100%); }
 .ajust-champ-remise { grid-template-columns: 1fr auto; }

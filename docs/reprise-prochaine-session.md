@@ -1,5 +1,57 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin : nuit du 30 au 31/10/2026 (« GO NUIT », suite du devis fluide)
+
+Après les libellés « Devis signé » et « Devis refusé » (PR 420, demande de Jérôme), la nuit a avancé quatre sujets du devis fluide, chacun dans sa session de code, brief relu par Fable contre le code avant l'envoi, PR relue par Fable avant fusion.
+
+| Sujet | PR | État |
+|---|---|---|
+| Libellés « Devis signé » / « Devis refusé » partout (pastilles comprises) | 420 | fusionnée, déployée (Jérôme, clients `hosting` et `mcp`) |
+| N3 : requête bornée par date (`donnees.liste`, prérequis des devis proches) | 421 | fusionnée, aucun appelant encore ; index composite écrit en texte dans la PR, rien de créé |
+| N2 : mot du métier, réglage et serveur (`motOuvrage`, `typeAffiche`, synonyme du dictionnaire), sans écran | 422 | fusionnée, déployée ; aucun écran ne change tant que la PR 9 n'existe pas |
+| N1 : outil `creer_devis_depuis_modele` (80 outils, 25 dans `OUTILS_DEVIS`) | 423 | fusionnée, déployée (Jérôme, clients `hosting` puis `mcp`) |
+| Correction d'un test cassé par la PR 420 (`donnees-demo-pdf`, « Devis signé » en deux mots) | 425 | fusionnée |
+| N4 : règles de la revue (champs de validation du dictionnaire, collection `devis_habitudes`), deux fichiers de règles | 424 | **à fusionner par Jérôme** (liste d'arrêt : règles Firestore), verte, étiquette `a-fusionner-par-jerome`, aucune règle publiée |
+| Écrans : mot du métier (PR 9), écran « Ce que l'IA a appris » (PR 11), ensembles de nuit (PR 10), devis proches (PR 14), revue historique (PR 12) | aucune | non lancés : dépendent des règles de la PR 424 ou de la mesure de lenteur |
+
+- **État de la nuit GitHub** : « Tests de nuit » lancé à la main sur `main` (9a10969) après la dernière fusion : vert. `main` avait un test rouge (`donnees-demo-pdf`) depuis la PR 420, vu seulement par le palier complet d'une PR de règles ; corrigé par la PR 425. Leçon : après une PR qui change des libellés, lancer « Tests de nuit » tout de suite.
+- **Déploiements chez les clients** (accord de Jérôme pour la nuit) : `hosting` puis `mcp`, deux fois (après la PR 420, après la PR 423) ; chaque run lu et vert avant le suivant.
+- **Décisions prises seul** : brief N1 : objet du devis laissé vide dans le nouveau devis, lignes de texte copiées et listées dans `aReviser`, sauts de page gardés, section vidée gardée ; N2 : fonction `motOuvrage` dans `ouvrages.js` (réexportée par `articles.js`), une règle « à confirmer » sur « ensemble X » peut être devancée par l'ouvrage « X » exact ; N3 : borne en 3e argument `{ champ, depuis: Date }`, un champ texte n'est jamais dans la borne ; N4 : `devis_habitudes` en `write: false` partout, `validePar` accepte « humain » ou « reponses » à la mise à jour.
+- **Pas pu être vérifié** : un vrai ChatGPT ou claude.ai qui enchaîne `creer_devis_depuis_modele` ; les numéros dits à la voix (annexe B du cadrage) ; les parcours navigateur dans le bac à sable des sessions de code (la coche GitHub et les tests de nuit font foi).
+- **Actions pour Jérôme, dans l'ordre** :
+  1. Relire et fusionner la PR 424 (règles) ; Claude publie ensuite les règles chez lui (« Publier les règles (CRM de Jérôme) ») et, sur son feu vert, chez les clients (« Déploiement plateforme clients » > regles).
+  2. Répondre : reprendre l'objet du modèle dans `creer_devis_depuis_modele` ? Nom et étape de départ de l'affaire créée à la finalisation (chantier « Nouveau devis sans blocage ») ? Brouillon sans client ?
+  3. L'essai à la voix (annexe B), puis dire quand lancer les écrans du devis fluide.
+  4. Vérifier à l'écran : Devis > Tableau (colonnes « Devis signé » et « Devis refusé »), carte d'affaire (« Devis signé » sans « Devis : » doublé).
+  5. Ce qui reste à toi depuis la garantie e-mail : workflow n8n, deux secrets par client, boucle `gcloud`, droit Storage.
+
+## Rapport du matin : nuit du 30/10/2026 (« GO NUIT », orchestration des déploiements)
+
+Jérôme a confié à la session principale l'orchestration de trois travaux (Marge, Montant de l'affaire, devis fluide bloc A) et **les déploiements chez les clients** (accord pour cette nuit seulement : workflow « Déploiement plateforme clients », un seul à la fois).
+
+| Sujet | PR | État |
+|---|---|---|
+| Cadrage « conversation fluide pour créer un devis » (15 questions tranchées) | 405 | fusionnée |
+| Devis : « Refuser » et « Archiver » depuis « Finalisé » | 410 | fusionnée, déployée (Jérôme et clients) |
+| Marge : un seul vocabulaire, Calcul artisan / comptable, mode caché à l'assistant, « hors taxes » à voix haute | 411 | fusionnée, déployée (Jérôme, clients `hosting` et `mcp`) |
+| Outil `recalculer_montants_affaires` (aperçu d'abord, Claude Code seulement) | 412 | fusionnée, déployée ; **aucune donnée écrite** |
+| Devis fluide A1 : numéros partout, récapitulatif court, résolveur de numéros | 413 | fusionnée, déployée |
+| Devis fluide A2 : outil `modifier_lignes_devis` (tout ou rien, un seul `operationId`) | 414 | fusionnée, déployée |
+| Devis fluide A5 : « Dupliquer aux prix du jour » (liste et éditeur) | 415 | fusionnée, déployée (Jérôme, clients `hosting`) |
+| Devis fluide A3 : outil `annuler_derniere_modification_devis` (un seul niveau) | 416 | fusionnée, déployée (Jérôme, clients `mcp`) |
+| Blocs B (revue visible, règles Firestore), C (mot du métier), D (devis proches) | aucune | non lancés : attendent l'essai des numéros à la voix par Jérôme |
+
+- **État de la nuit GitHub** : « Tests de nuit » lancé à la main sur `main` (00cf353) après la dernière fusion : les 15 jobs sont verts (6 parties ordinateur, 6 téléphone, sans navigateur). Les paliers complets sont sautés sur les PR ; ce lancement les a couverts.
+- **Déploiements clients** : `hosting` puis `mcp` après chaque fusion ; chaque run a été lu et était vert avant le suivant. `fonctions` (n8n) n'a pas été lancé : aucune de ces PR ne touche ce code.
+- **Décisions prises seul** : regroupement des PR 1 et 2 du cadrage (A1) ; A5 lancée en parallèle d'A2 (écran contre serveur, aucun fichier commun sauf `tests/package.json`) ; pas de ligne d'historique dédiée pour « Dupliquer aux prix du jour » (le journal de l'écran n'a pas de texte libre) ; « Appliquer à toutes les lignes » retire la marge propre des lignes au lieu de recopier le chiffre (Marge) ; `remplacerPar` n'est pas un « changement important » en soi (A2) ; annulation refusée pour un devis juste créé (renvoi vers `supprimer_devis`).
+- **Pas pu être vérifié** : un vrai ChatGPT ou claude.ai qui enchaîne ces outils, et surtout **les numéros dits à la voix** (annexe B du cadrage) ; les parcours navigateur dans le bac à sable des sessions de code (la coche GitHub et les tests de nuit font foi).
+- **Actions pour Jérôme, dans l'ordre** :
+  1. Dans ChatGPT : « Actualiser les outils » (chez toi et chez chaque client), puis l'essai à la voix : « modifie le un point deux », « supprime le deux point un », « annule la dernière modification ».
+  2. Répondre à : le bouton « Appliquer à toutes les lignes » doit-il recopier le chiffre au lieu de retirer la marge propre ? Veux-tu un fil d'événements par devis (rien n'est écrit dans l'historique pour « Dupliquer aux prix du jour ») ? `remplacerPar` doit-il compter comme changement important ?
+  3. Avec Claude : lancer l'aperçu de `recalculer_montants_affaires` (rien n'est écrit sans ton accord) pour tes autres affaires.
+  4. Ce qui reste à toi depuis la garantie e-mail : workflow n8n, deux secrets par client, boucle `gcloud`, droit Storage.
+  5. Dire quand lancer les blocs B, C, D du devis fluide, la session « Minutes GitHub » (en dernier), « Lenteur MCP » et le PDF lent.
+
 ## Rapport du matin : 3e nuit du 28 au 29/10/2026 (version 2.34.0)
 
 | Sujet | PR | État |
@@ -19,7 +71,7 @@
 | Tests de la barre globale et de l'essai du devis adaptés à « Devis sans affaire » | 393 | fusionnée seule |
 | Dictionnaire, PR 5 : écran « Vocabulaire » (mots appris, revue, essai, export CSV) | 394 | fusionnée seule |
 | Dictionnaire, PR 4 : règles Firestore de `devis_vocabulaire` (non publiées) | 391 | **à fusionner par Jérôme**, puis Claude publie les règles |
-| Montant de l'affaire (Montant estimé / Montant du devis / Total des devis) | 388 | **à valider par Jérôme** (libellés, règle HT/TTC/acceptés) |
+| Montant de l'affaire (calcul d'après les devis : acceptés, sinon proposé le plus récent ; voir `docs/montant-affaire.md` ; remplace la PR 388) | PR « Montant de l'affaire » | **à valider par Jérôme** (libellés, « HT » sur les cartes, migration de ses affaires actuelles) |
 | Onglet « Documents » : fichiers stockés chez nous | 369 | **à fusionner par Jérôme** (règles Storage du projet de Jérôme, droits IAM, sauvegarde serveur de `crm_audit*` et `devis_compteurs`) |
 | Dictionnaire, PR 6 : confirmation à la finalisation | aucune | sautée : valeur modeste pour un risque sur le chemin de finalisation (brief corrigé par Fable conservé hors dépôt) |
 | `lienStablePdf` | aucune | abandonné : aucun consommateur côté navigateur, les anciens liens `#/devis/pdf/<id>` sont déjà redirigés |
@@ -31,7 +83,7 @@
 - **Décisions prises seul** : valeurs par défaut de Q1 à Q10 (prix de vente seulement, 2 confirmations sur 2 jours, `prixVente` oui, HT, onglet du module Devis, plafonds 500/300, export CSV oui, nom `rechercher_article_par_phrase`, ordre 1 à 6) ; PR 6 sautée ; `lienStablePdf` abandonné.
 - **Actions pour Jérôme, dans l'ordre** :
   1. Fusionner la PR 391 (règles du dictionnaire) : Claude publie ensuite les règles (workflows « Publier les règles (CRM de Jérôme) » puis « Déploiement plateforme clients » > regles, ce dernier lancé par toi).
-  2. Valider la PR 388 (montant de l'affaire) : libellés et règle HT/TTC/acceptés.
+  2. Valider la PR « Montant de l'affaire » (remplace la 388) : libellés, infobulle, recalcul de ses affaires actuelles.
   3. Traiter la PR 369 (Documents) : règles Storage du projet de Jérôme, droits IAM, sauvegarde serveur de `crm_audit*` et `devis_compteurs`, puis fusion.
   4. Répondre à Q1 à Q10 du dictionnaire (surtout : prix d'achat visibles ou non par l'assistant) et décider si d'autres champs que l'affaire deviennent obligatoires à la finalisation (dates des travaux, durée).
   5. Avec Claude : déploiements `hosting`, `fonctions`, `mcp`, `regles` chez les clients et `functions/` chez toi ; chez le client, module Devis actif, puis « Actualiser les outils » dans ChatGPT ; enfin l'essai de bout en bout avec un vrai ChatGPT.
@@ -72,7 +124,7 @@
 | Méthodes de paiement (Réglages > Mon entreprise, éditeur, PDF) et bug serveur : le vrai PDF ne reprenait pas « Mon entreprise » (n°15) | 361 | fusionnée seule |
 | Confirmation « Devis signé » / « Devis refusé » et flèche « Retour » vers l'origine (n°5, n°4) | 363 | fusionnée seule |
 | Nom interne du devis (n°3) | 365 | fusionnée seule |
-| Lot R : onglet « Documents » avec fichiers stockés chez nous (n°9) | PR à ouvrir | **à fusionner par Jérôme** (règles Firestore, nouvelle collection, droits IAM : liste d'arrêt) ; le MCP ne dépose que du texte, un PDF du chat reste impossible |
+| Lot R : onglet « Documents » avec fichiers stockés chez nous (n°9) | 369 (étiquette `a-fusionner-par-jerome`) | **à fusionner par Jérôme** (règles Firestore, nouvelle collection, droits IAM : liste d'arrêt) ; le MCP ne dépose que du texte, un PDF du chat reste impossible |
 | Accessibilité des onglets Édition / Prévisualisation (M3) | aucune | pas fait (manque de temps) |
 | « Génération du PDF trop lente » (mesure puis progression) | aucune | pas fait |
 | Audit des écarts `functions/` vs `functions-plateforme/` | aucune | pas fait (à faire avant la prochaine démonstration) |

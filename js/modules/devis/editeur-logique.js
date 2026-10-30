@@ -17,7 +17,7 @@
 //   ne change jamais de section de niveau 1 en se déplaçant (elle reste entre ses sœurs). Un devis sans `niveau` se comporte exactement comme avant.
 import {
   coefficientDeMarge, prixVenteUnitaire, prixVenteDeLigne, totauxDevis, versCentimes, erreursChantier, numerosDevis,
-  coefficientDepuisPourcentage, coefficientDepuisMontant, coefficientDepuisSaisie, emailValide, MAX_COPIE,
+  margeEffective, coefficientDepuisPourcentage, coefficientDepuisMontant, coefficientDepuisSaisie, emailValide, MAX_COPIE,
 } from './logique.js';
 import { TYPE_SAUT, estSaut, listeAcomptes } from './logique.js';
 import { descriptionOuvrage, figerOuvragePourLigne, articlesParId, TYPE_OUVRAGE } from './ouvrages.js';
@@ -389,11 +389,12 @@ export function avertissements(devis) {
   return sortie;
 }
 
-/** Champs à remplir (sert au compteur, ne bloque pas l'enregistrement d'un brouillon) : clé `affaire`, obligatoire pour FINALISER (erreursFinalisation, logique.js). */
-export function champsManquants(devis) {
-  const m = [];
-  if (!devis?.affaireId) m.push('affaire');
-  return m;
+/**
+ * Champs à remplir pour COMMENCER un devis : aucun (30/10/2026, « rien ne doit empêcher un artisan de commencer »). Ni l'affaire ni le client ne sont obligatoires pour un brouillon ;
+ * l'affaire est exigée pour FINALISER (erreursFinalisation, logique.js) et l'écran la crée alors si elle manque (affaire-depuis-devis.js).
+ */
+export function champsManquants() {
+  return [];
 }
 
 /** Messages de saisie du bloc chantier (dates, durée, code postal) : ceux de logique.js. */
@@ -406,6 +407,38 @@ export function champsAEnregistrer(devis) {
     if (devis?.[cle] !== undefined) sortie[cle] = copie(devis[cle]);
   }
   return sortie;
+}
+
+// ---------------------------------------------------------------- marges propres aux lignes (30/10/2026)
+// Une marge propre (ligne : article du catalogue, prix de vente modifié, ouvrage ; ou section) l'emporte sur la marge du devis : « 25 % pour ce devis » ne la touche pas.
+const sansPrix = (l) => !l || l.type === TYPE_SAUT || l.type === 'texte' || !estNombre(l.prixAchat);
+const margeDuDevis = (devis) => (estNombre(devis?.marge) ? devis.marge : 0);
+
+/** Nombre de lignes dont la marge appliquée n'est PAS celle du devis (marge propre à la ligne ou à sa section, différente de celle du devis). Sauts de page et textes ne comptent pas. */
+export function nombreLignesAvecMargePropre(devis) {
+  let n = 0;
+  for (const section of devis?.sections ?? []) for (const ligne of section.lignes ?? []) {
+    if (!sansPrix(ligne) && margeEffective({ devis, section, ligne }) !== margeDuDevis(devis)) n += 1;
+  }
+  return n;
+}
+
+/**
+ * Les sections après « Appliquer à toutes les lignes » : la marge propre des lignes et des sections qui diffèrent de celle du devis est retirée (`marge: null`),
+ * elles suivent alors la marge du devis. Les prix d'achat, les quantités et les lignes elles-mêmes ne changent pas. Rend `{ sections, nombre }`.
+ */
+export function appliquerMargeDuDevisAuxLignes(devis) {
+  const cible = margeDuDevis(devis);
+  const nombre = nombreLignesAvecMargePropre(devis);
+  const sections = (devis?.sections ?? []).map((section) => {
+    const sectionDiffere = estNombre(section.marge) && section.marge !== cible;
+    return {
+      ...section,
+      ...(sectionDiffere ? { marge: null } : {}),
+      lignes: (section.lignes ?? []).map((ligne) => (!sansPrix(ligne) && estNombre(ligne.marge) && ligne.marge !== cible ? { ...ligne, marge: null } : ligne)),
+    };
+  });
+  return { sections, nombre };
 }
 
 /** Y a-t-il des changements entre ce qui est enregistré et ce qui est à l'écran ? (comparaison des seuls champs enregistrés) */
@@ -477,6 +510,39 @@ export function copieDeDevis(source, nouvelId) {
   delete patch.expireLe;
   delete patch.dateEmission;
   return patch;
+}
+
+/**
+ * « Dupliquer aux prix du jour » : refait chaque ligne venue d'un article ACTIF depuis l'article d'aujourd'hui (prix d'achat, marge, TVA, libellé, composition d'un ouvrage),
+ * en gardant son identifiant et sa quantité. `devis` : { marge, modeMarge } du devis d'origine. Rend { sections, disparues }.
+ * Disparue (gardée telle quelle, avec son ancien prix) : article désactivé ou supprimé du catalogue, ou ligne libre sans article. Sauts de page et lignes de texte (même venues d'un article Texte, leur libellé du jour n'est pas repris) : gardés, jamais comptés.
+ */
+export function repriserSections(sections, articles, devis = {}) {
+  const parId = new Map((articles ?? []).map((a) => [a.id, a]));
+  const disparues = [];
+  const refaites = (sections ?? []).map((s) => ({
+    ...s,
+    lignes: (s.lignes ?? []).map((l) => {
+      if (estSaut(l) || l.type === TYPE_TEXTE) return l;
+      const article = l.articleId ? parId.get(l.articleId) : null;
+      if (!article || article.actif === false) { disparues.push({ sectionId: s.id, ligneId: l.id, libelle: l.libelle ?? '' }); return l; }
+      const { genre: _g, ...neuve } = ligneDepuisArticle(article, { id: l.id, articles, devis });
+      const quantite = estNombre(l.quantite) ? l.quantite : neuve.quantite;
+      const avecQuantite = { ...neuve, quantite };
+      return neuve.ouvrage ? { ...avecQuantite, description: descriptionDeLigne(avecQuantite) } : avecQuantite;
+    }),
+  }));
+  return { sections: refaites, disparues };
+}
+
+/** Phrase affichée après « Dupliquer aux prix du jour » : ce qui est repris du catalogue, et les lignes qui n'en viennent pas ou plus (avec leur numéro dans le nouveau brouillon). */
+export function messagePrixDuJour(sections, disparues) {
+  const n = numerotation(sections);
+  const liste = disparues.map((x) => `${n[x.ligneId] ?? ''} ${x.libelle}`.trim()).join(', ');
+  const base = 'Brouillon créé aux prix du jour : un prix de vente, un libellé, une unité, une TVA ou une description retouchés à la main sur la ligne d’origine ne sont pas repris.';
+  if (!disparues.length) return base;
+  const un = disparues.length === 1;
+  return `${base} ${un ? '1 ligne n’existe plus dans le catalogue' : `${disparues.length} lignes n’existent plus dans le catalogue`} : ${liste} ; ${un ? 'elle garde son' : 'elles gardent leur'} ancien prix, à vérifier.`;
 }
 
 /** Lecture seule : tout devis qui n'est pas un brouillon. */

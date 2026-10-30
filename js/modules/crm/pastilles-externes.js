@@ -22,7 +22,7 @@ export function pastillesDeAffaire(affaireId) {
 // Un fournisseur est `(affaireId) => null | { id, libelle, icone, element, compteur }` : `id` mot court unique, `icone` un nom du jeu d'icônes,
 // `element` le contenu déjà construit, `compteur` un nombre (pastille) ou null/undefined (pas de pastille). Le module appelle `signaler()` pour redessiner.
 const fournisseursOnglets = new Set();
-const IDS_ONGLETS_RESERVES = ['activite', 'notes', 'documents'];
+const IDS_ONGLETS_RESERVES = ['activite', 'notes', 'documents', 'fichiers']; // « fichiers » : l'onglet « Documents » (fichiers rangés chez nous), ajouté par la fiche elle-même
 
 export function inscrireOngletAffaire(fournisseur) {
   fournisseursOnglets.add(fournisseur);

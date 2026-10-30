@@ -189,8 +189,8 @@ describe('E7 avertissements non bloquants', () => {
 });
 
 describe('E8 affaire, client et copie', () => {
-  test('E8 l’affaire est le seul champ obligatoire', () => {
-    assert.deepEqual(Ed.champsManquants({}), ['affaire']);
+  test('E8 aucun champ n’est obligatoire pour commencer : l’affaire se règle à la finalisation', () => {
+    assert.deepEqual(Ed.champsManquants({}), []);
     assert.deepEqual(Ed.champsManquants({ affaireId: 'a1' }), []);
   });
   test('E8 valeurs d’un nouveau brouillon : client organisation ou personne, adresse reprise partout, premier e-mail en destinataire', () => {

@@ -16,6 +16,7 @@ import { reglerEspace } from './espace.js';
 import { deciderClient } from './propositions.js';
 import { transitionDevis, preparerEmailDevis, etatPreparerEmail } from './devis.js';
 import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient } from './devis-pdf.js';
+import { appelDocument } from './documents.js';
 import { verifierDeploiementClient } from './deploiement.js';
 import { VERSION_SERVEUR } from '../serveur/src/version.js';
 import { creerSortieN8n } from '../serveur/src/coeur/n8n-sortie.js';
@@ -63,7 +64,7 @@ export const automatisationsRenommer = onCall(
 // MCP des clients : un lien par client (https://chevalier-ia-app.web.app/mcp/<client>), comptes lus dans les membres, profil déduit du rôle.
 // Invocation publique côté Google (comme le MCP de Jérôme) : la vraie porte est la connexion Google + la fiche de membre, revérifiées à chaque appel.
 // Le nom « mcpclients » est celui du service Cloud Run visé par les réécritures de firebase.plateforme.json. Code : functions/src/clients/ (copié dans serveur/ au déploiement).
-// Compte dédié : seulement « Utilisateur Cloud Datastore » (Firestore). À créer AVANT le déploiement (docs/mcp-clients.md), sinon le déploiement échoue.
+// Compte dédié `mcp-clients@` : Firestore, « Créateur d'objets Storage » (dépôt de texte), secrets du brouillon d'e-mail, et (à donner, docs/securite-et-pannes.md section 12) la lecture du stockage + la signature de ses liens.
 export const mcpclients = onRequest(
   { region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false, serviceAccount: 'mcp-clients@chevalier-ia-app.iam.gserviceaccount.com' },
   creerMcpClients(),
@@ -92,6 +93,7 @@ export const devisNouvelleVersion = appelDevis('nouvelleVersion');
 export const devisArchiver = appelDevis('archiver');
 export const devisSupprimer = appelDevis('supprimer');
 export const devisEnregistrerEnvoi = appelDevis('enregistrerEnvoi'); // historique des envois par e-mail
+export const devisModifierDestinataires = appelDevis('modifierDestinataires'); // destinataire et copie d'un devis finalisé ou envoyé (rien d'autre ne change)
 
 // `automatisationsDecider` chez les clients (28/10/2026) : écran « À valider » du module Automatisations (valider, refuser, relancer une proposition), même code métier que chez Jérôme
 // (serveur/src/coeur/propositions.js). Le client est une cible vérifiée (éditeur du client, module « automatisations » actif), jamais une confiance ; tout s'écrit sous clients/<client>/.
@@ -143,6 +145,22 @@ export const devisPdf = onCall(OPTIONS_PDF, async (requete) => {
 export const devisPdfLien = onCall({ region: REGION, memory: '256MiB', timeoutSeconds: 60, maxInstances: 5, serviceAccount: COMPTE_PDF }, async (requete) => {
   try { return await lienPdfClient({ db: db(), auth: requete.auth, donnees: requete.data, stockage: stockagePdf, journal: journalPdf }); } catch (e) { throw enHttps(e); }
 });
+// Onglet « Documents » (28/10/2026) : fichiers déposés dans une affaire ou un projet, rangés sous clients/<client>/documents/… (jamais publics) avec une fiche `documents_stockes` écrite par le serveur seulement.
+// Aucune règle Storage ne change. MÊME compte de service que les PDF (devis-pdf, « Administrateur des objets » sur clients/) : rien de nouveau à créer. Déposer et supprimer : éditeurs ; lire : éditeurs et lecteurs.
+// Le dépôt reçoit le fichier en base64 (corps d'appel ~32 Mo au plus : 20 Mo de fichier) : mémoire et délai augmentés. Déployées seulement par le workflow MANUEL de la plateforme, avec Jérôme.
+const OPTIONS_DOCUMENT_DEPOT = { region: REGION, memory: '1GiB', timeoutSeconds: 300, concurrency: 2, maxInstances: 2, serviceAccount: COMPTE_PDF };
+const OPTIONS_DOCUMENT = { region: REGION, memory: '256MiB', timeoutSeconds: 60, maxInstances: 5, serviceAccount: COMPTE_PDF };
+const journalDocuments = (e) => {
+  const ligne = { action: e.action, statut: e.statut, code: e.code, dureeMs: e.dureeMs };
+  if (e.statut === 'erreur') logger.error('documents', ligne); else logger.info('documents', ligne);
+};
+const appelDoc = (operation, options) => onCall(options, async (requete) => {
+  try { return await appelDocument({ operation, db: db(), auth: requete.auth, donnees: requete.data, stockage: stockagePdf, journal: journalDocuments }); } catch (e) { throw enHttps(e); }
+});
+export const documentDeposer = appelDoc('deposer', OPTIONS_DOCUMENT_DEPOT);
+export const documentLien = appelDoc('lien', OPTIONS_DOCUMENT);
+export const documentSupprimer = appelDoc('supprimer', OPTIONS_DOCUMENT);
+
 // Déclencheur : ne réagit qu'au passage brouillon -> finalisé (l'écriture de `pdf` ne le relance donc jamais), ne fabrique que si le module « devis » est actif chez ce client, ne lève jamais d'erreur.
 export const devisPdfAuto = onDocumentUpdated(
   { document: 'clients/{client}/devis_devis/{devisId}', region: REGION, memory: '2GiB', timeoutSeconds: 540, concurrency: 1, maxInstances: 2, retry: false, serviceAccount: COMPTE_PDF },

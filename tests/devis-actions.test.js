@@ -21,9 +21,9 @@ describe('1 menu d’un brouillon', () => {
     for (const interdit of ['Voir la fiche', 'Modifier : version actuelle', 'Modifier : nouvelle variante']) assert.ok(!tout.includes(interdit), interdit);
     assert.ok(!libelles(l).includes('Voir'));
   });
-  test('1 le reste du menu : Passer à, Dupliquer, Préparer l’e-mail, Archiver (grisé avec sa phrase), Supprimer (danger)', () => {
+  test('1 le reste du menu : Passer à, Dupliquer, Dupliquer aux prix du jour, Préparer l’e-mail, Archiver (grisé avec sa phrase), Supprimer (danger)', () => {
     const l = Li.entreesActionsDevis(d('brouillon'));
-    assert.deepEqual(cles(l), ['statut:finaliser', 'editer', 'voir', 'dupliquer', 'preparer_email', 'archiver', 'supprimer']);
+    assert.deepEqual(cles(l), ['statut:finaliser', 'editer', 'voir', 'dupliquer', 'dupliquer_prix_du_jour', 'preparer_email', 'archiver', 'supprimer']);
     assert.equal(entree(l, 'statut:finaliser').libelle, 'Passer à « Finalisé »');
     assert.equal(entree(l, 'archiver').actif, false);
     assert.ok(l.some((e) => e.texte === Li.MESSAGE_ARCHIVE_IMPOSSIBLE), 'la phrase d’explication suit « Archiver »');
@@ -87,7 +87,7 @@ describe('5 panneau « Historique »', () => {
   test('5 les versions du devis sont rangées de la plus ancienne à la plus récente, la courante est marquée', () => {
     const v = H.versionsHistorique(v2, [v2, v1, d('brouillon', { id: 'autre', racineId: 'autre' })]);
     assert.deepEqual(v.map((x) => [x.id, x.version, x.courante]), [['v1', 1, false], ['v2', 2, true]]);
-    assert.equal(v[0].libelleStatut, 'Remplacé');
+    assert.equal(v[0].libelleStatut, 'Devis remplacé');
   });
   test('5 un devis seul a une seule version : lui-même', () => {
     assert.deepEqual(H.versionsHistorique(d('brouillon'), []).map((x) => [x.id, x.courante]), [['x', true]]);
@@ -120,13 +120,14 @@ describe('5 panneau « Historique »', () => {
 });
 
 describe('Archivage (menu « … »)', () => {
-  test('Archiver (signé ou refusé), Désarchiver (archivé), sinon grisé avec la raison du serveur', () => {
+  test('Archiver (finalisé, signé ou refusé), Désarchiver (archivé), sinon grisé avec la raison du serveur', () => {
     const a = Li.archivageDevis(d('accepte'));
     assert.deepEqual([a.libelle, a.action, a.actif], ['Archiver', 'archiver', true]);
     assert.equal(Li.archivageDevis(d('refuse')).action, 'archiver');
+    assert.equal(Li.archivageDevis(d('en_attente_envoi')).action, 'archiver');
     const r = Li.archivageDevis(d('accepte', { archive: true }));
     assert.deepEqual([r.libelle, r.action, r.icone, r.actif], ['Désarchiver', 'desarchiver', 'archive-restore', true]);
     const g = Li.archivageDevis(d('envoye'));
-    assert.deepEqual([g.actif, g.raison], [false, 'Seul un devis signé ou refusé peut être archivé.']);
+    assert.deepEqual([g.actif, g.raison], [false, 'Seul un devis finalisé, signé ou refusé peut être archivé.']);
   });
 });

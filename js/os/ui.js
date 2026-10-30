@@ -83,7 +83,9 @@ export const ICONES = {
   "folder-kanban": '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/> <path d="M8 10v4"/> <path d="M12 10v2"/> <path d="M16 10v6"/>',
   "activity": '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
   "upload": '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/> <polyline points="17 8 12 3 7 8"/> <line x1="12" x2="12" y1="3" y2="15"/>',
-  "inbox": '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/> <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  "image": '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/> <circle cx="9" cy="9" r="2"/> <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  "file-archive": '<path d="M10 12v-1"/> <path d="M10 18v-2"/> <path d="M10 7V6"/> <path d="M14 2v4a2 2 0 0 0 2 2h4"/> <path d="M15.5 22H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v16a2 2 0 0 0 .274 1.01"/> <circle cx="10" cy="20" r="2"/>',
+  "inbox":'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/> <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
   "git-branch": '<line x1="6" x2="6" y1="3" y2="15"/> <circle cx="18" cy="6" r="3"/> <circle cx="6" cy="18" r="3"/> <path d="M18 9a9 9 0 0 1-9 9"/>',
 };
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -577,11 +579,13 @@ export function champIntelligent({
  * Petite icône « i » qui explique une étape ou une phase (le texte écrit dans les Réglages, ou l'explication d'un indicateur : `roleTexte` change le `data-role` de la bulle) : au survol sur ordinateur, au toucher sur téléphone
  * (un clic affiche le texte). Rien si l'explication est vide.
  */
-export function iconeInfo(texte, nom = '', { roleTexte = null } = {}) {
+export function iconeInfo(texte, nom = '', { roleTexte = null, garderLignes = false } = {}) {
   const t = String(texte ?? '').replace(/\s+/g, ' ').trim();
   if (!t) return null;
+  // `garderLignes` : un retour à la ligne du texte reste un retour à la ligne dans la bulle (une phrase par ligne, ex. le détail du montant de l'affaire) ; la bulle lue à voix haute reste sur une ligne.
+  const affiche = garderLignes ? String(texte).split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n') : t;
   // Même comportement partout : la bulle s'affiche au survol (souris), au focus (clavier) et au toucher (téléphone) ; Échap ou un clic ailleurs la ferme.
-  const bulle = h('span', { class: 'bulle-info', role: 'tooltip', dataset: { role: roleTexte || 'bulle-info' } }, t);
+  const bulle = h('span', { class: 'bulle-info', role: 'tooltip', dataset: { role: roleTexte || 'bulle-info' }, ...(garderLignes ? { style: { whiteSpace: 'pre-line' } } : {}) }, affiche);
   const bouton = h('button', { type: 'button', class: 'bouton-info', 'aria-label': `Explication${nom ? ` : ${nom}` : ''} : ${t}`, 'data-role': 'info' }, icone('info', { taille: 14 }), bulle);
   const placer = () => { // la bulle reste dans l'écran (téléphone : l'icône peut être près d'un bord)
     const r = bouton.getBoundingClientRect();
@@ -589,10 +593,12 @@ export function iconeInfo(texte, nom = '', { roleTexte = null } = {}) {
     bulle.style.width = `${largeur}px`;
     bulle.style.left = `${Math.max(12, Math.min(r.left + r.width / 2 - largeur / 2, window.innerWidth - largeur - 12))}px`;
     bulle.style.top = `${r.bottom + 8}px`;
+    const haut = bulle.offsetHeight; // mesurée une fois la bulle affichée : trop longue pour le dessous, elle s'ouvre au-dessus de l'icône quand il y a plus de place
+    if (r.bottom + 8 + haut > window.innerHeight - 12 && r.top > window.innerHeight - r.bottom) bulle.style.top = `${Math.max(12, r.top - 8 - haut)}px`;
   };
   // Au toucher, un appui ailleurs ferme la bulle (le « blur » n'arrive pas toujours sur un téléphone).
   const fermerSiAilleurs = (e) => { if (!bouton.contains(e.target)) fermer(); };
-  const ouvrir = () => { placer(); bouton.classList.add('ouvert'); document.addEventListener('pointerdown', fermerSiAilleurs, true); };
+  const ouvrir = () => { bouton.classList.add('ouvert'); placer(); document.addEventListener('pointerdown', fermerSiAilleurs, true); };
   function fermer() { bouton.classList.remove('ouvert'); document.removeEventListener('pointerdown', fermerSiAilleurs, true); }
   bouton.addEventListener('mouseenter', ouvrir);
   bouton.addEventListener('mouseleave', () => { if (document.activeElement !== bouton) fermer(); });

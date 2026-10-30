@@ -81,14 +81,14 @@ test('5a « Devis signé » demande une confirmation : Annuler ne change rien, �
   await racine(page).locator('[data-action="marquer-signe"]').click();
   await expect(fenetre(page)).toBeVisible();
   await expect(fenetre(page)).toContainText('Marquer ce devis signé ?');
-  await expect(fenetre(page)).toContainText('Le devis passe à Signé. Il ne pourra plus être modifié ni versionné ; les autres versions du même numéro encore en attente ou envoyées passent à Remplacé.');
+  await expect(fenetre(page)).toContainText('Le devis passe à « Devis signé ». Tu ne pourras plus créer de nouvelle version. Les autres versions du même numéro, encore en attente ou envoyées, passent à « Devis remplacé ».');
   await capturer(page, info, '5a-confirmation-signe');
   await fenetre(page).getByRole('button', { name: 'Annuler' }).click();
   await expect(fenetre(page)).toHaveCount(0);
   expect(appels).toEqual([]);
   await racine(page).locator('[data-action="marquer-signe"]').click();
   await fenetre(page).getByRole('button', { name: 'Marquer signé' }).click();
-  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Signé »' })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Devis signé »' })).toBeVisible();
   expect(appels).toEqual([{ devisId: 'dEnvoye', action: 'accepter' }]);
 });
 
@@ -99,14 +99,14 @@ test('5b « Devis refusé » demande une confirmation : Annuler ne change rien, 
   await ouvrir(page, 'devis/voir/dEnvoye');
   await racine(page).locator('[data-action="marquer-refuse"]').click();
   await expect(fenetre(page)).toContainText('Marquer ce devis refusé ?');
-  await expect(fenetre(page)).toContainText('Le devis passe à Refusé. Tu pourras encore créer une nouvelle version.');
+  await expect(fenetre(page)).toContainText('Le devis passe à « Devis refusé ». Tu pourras encore créer une nouvelle version.');
   await expect(fenetre(page).getByRole('button', { name: 'Marquer refusé' })).toHaveClass(/danger/);
   await capturer(page, info, '5b-confirmation-refuse');
   await fenetre(page).getByRole('button', { name: 'Annuler' }).click();
   expect(appels).toEqual([]);
   await racine(page).locator('[data-action="marquer-refuse"]').click();
   await fenetre(page).getByRole('button', { name: 'Marquer refusé' }).click();
-  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Refusé »' })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Devis refusé »' })).toBeVisible();
   expect(appels).toEqual([{ devisId: 'dEnvoye', action: 'refuser' }]);
 });
 
@@ -117,7 +117,7 @@ test('5c le menu « … » de la liste demande la même confirmation (Passer à 
   await connecter(page, undefined, { route: 'devis/liste' });
   await attendreCalme(page);
   await page.locator('.ligne-devis[data-id="dEnvoye"] [aria-haspopup="menu"], .ligne-devis[data-id="dEnvoye"] [data-action="menu-devis"]').first().click();
-  await page.getByRole('menuitem', { name: /Signé/ }).click();
+  await page.getByRole('menuitem', { name: /Devis signé/ }).click();
   await expect(fenetre(page)).toContainText('Marquer ce devis signé ?');
   await fenetre(page).getByRole('button', { name: 'Annuler' }).click();
   expect(appels).toEqual([]);

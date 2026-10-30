@@ -8,6 +8,7 @@ import {
 } from './composants.js';
 import { surChangementPastilles, ongletsDeAffaire, actionDeAffaire } from './pastilles-externes.js';
 import { panneauActivite } from './activites.js';
+import { creerOngletFichiers } from './fichiers-onglet.js';
 import { creerLanceurs } from './lanceurs.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { sectionLiensEtDocuments } from './liens-documents.js';
@@ -47,6 +48,8 @@ export function rendreFicheAffaire(conteneur, id) {
   let majLiens = null; // redessine seulement les liens personne / organisation de l'en-tête
   const racine = h('div', { class: 'fiche-conteneur' });
   conteneur.append(racine);
+  // Onglet « Documents » (fichiers rangés chez nous) : créé une fois pour la fiche, placé après les onglets des autres modules (Devis).
+  const fichiers = creerOngletFichiers({ cibleType: 'affaire', cibleId: id, surChangement: () => panneau?.majOngletsExternes() });
 
   function introuvable() {
     remplir(racine, h('div', { class: 'page' }, lienRetour('#/crm/affaires', 'Affaires'),
@@ -69,7 +72,18 @@ export function rendreFicheAffaire(conteneur, id) {
     majLiens = liens.maj;
     const vivante = L.estVivante(a);
     const titre = titreEditable({ valeur: a.titre, libelle: 'Titre', surEnregistrer: (v) => D.majAffaire(a.id, { titre: v }) });
-    const montant = champPropriete({ libelle: 'Montant', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: L.formatEuros(999), surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
+    // Le montant vient de l'affaire elle-même (pas des devis chargés à part) : rien ne clignote au chargement (docs/montant-affaire.md).
+    // Avec des devis finalisés, le chiffre est CALCULÉ par le serveur (devis acceptés, sinon devis proposé le plus récent) : il n'est pas modifiable, et son infobulle détaille les vrais devis et additions.
+    // Sans devis (module absent ou aucun devis finalisé), c'est le montant saisi à la main (un tiret gris s'il est vide, jamais un chiffre inventé) ; il n'est jamais effacé et revient si les devis disparaissent.
+    const champEstime = champPropriete({ libelle: 'Montant estimé', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: '—', surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
+    const nature = L.natureMontant(a);
+    const depuisDevis = nature !== 'estime';
+    const libelleMontant = L.LIBELLES_MONTANT[nature];
+    const blocMontant = depuisDevis
+      ? h('div', { class: 'fiche-montant-devis', role: 'group', 'aria-label': libelleMontant, dataset: { montant: 'devis', nature } },
+        h('span', { class: 'fiche-montant-valeur' }, L.formatEuros(a.montantDevisHt), h('small', { class: 'fiche-montant-suffixe' }, ' HT')),
+        iconeInfo(L.detailMontant(a), libelleMontant, { garderLignes: true }))
+      : champEstime.element;
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         ...(a.statut === 'perdue' ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) }] : []),
@@ -97,7 +111,7 @@ export function rendreFicheAffaire(conteneur, id) {
             liens.element)),
         // Le montant et les boutons forment une seule zone : même axe vertical, même espace entre voisins.
         h('div', { class: 'fiche-tete-droite' },
-          h('div', { class: 'fiche-montant' }, montant.element),
+          h('div', { class: 'fiche-montant' }, h('span', { class: 'fiche-montant-libelle', dataset: { role: 'libelle-montant' } }, libelleMontant), blocMontant),
           h('div', { class: 'fiche-actions' }, actionsStatut, menu))),
       (barreEtapes = barreDesEtapes(a)));
 
@@ -170,7 +184,7 @@ export function rendreFicheAffaire(conteneur, id) {
     const documents = sectionLiensEtDocuments({ id: 'affaire-documents', typeFiche: 'affaire', entite: a, courant: () => D.affaire(a.id) || a, enregistrer: (patch) => D.majAffaire(a.id, patch),
       avant: [h('div', { class: 'proprietes' }, lanceurs.dossier)] });
 
-    if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a), avecDocuments: true, ongletsExternes: () => ongletsDeAffaire(a.id) });
+    if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a), avecDocuments: true, ongletsExternes: () => [...ongletsDeAffaire(a.id), fichiers.onglet()] });
     panneau.majDocuments(documents);
     panneau.majOngletsExternes();
     remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionProjet?.element, details.element].filter(Boolean), droite: panneau.element }));
@@ -197,6 +211,6 @@ export function rendreFicheAffaire(conteneur, id) {
   });
   reconstruire();
   const arrets = [D.surChangement(rafraichir), PD.surChangement(rafraichir), surChangementPastilles(rafraichir)];
-  return () => { arrets.forEach((f) => f()); panneau?.arreter(); };
+  return () => { arrets.forEach((f) => f()); panneau?.arreter(); fichiers.arreter(); };
 }
 

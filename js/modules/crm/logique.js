@@ -523,6 +523,15 @@ export function ajouterJours(jour, n) {
   return d.toISOString().slice(0, 10);
 }
 
+/** Ajoute n mois à un jour civil "AAAA-MM-JJ" ; le jour est ramené à la fin du mois si besoin (2026-08-31 + 6 mois = 2027-02-28). */
+export function ajouterMois(jour, n) {
+  const [a, m, j] = jour.split('-').map(Number);
+  const mois = decalerMois(`${a}-${String(m).padStart(2, '0')}`, n);
+  const [a2, m2] = mois.split('-').map(Number);
+  const dernier = new Date(Date.UTC(a2, m2, 0)).getUTCDate();
+  return `${mois}-${String(Math.min(j, dernier)).padStart(2, '0')}`;
+}
+
 /** Écart en jours entre deux jours civils (b - a). */
 export function ecartJours(a, b) {
   const t = (s) => { const [x, y, z] = s.split('-').map(Number); return Date.UTC(x, y - 1, z); };
@@ -581,6 +590,56 @@ export function formatDateHeure(v) {
   if (!d) return '';
   const p = partiesParis(d);
   return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
+}
+
+/**
+ * LE montant d'une affaire, pour tous les écrans (fiche, Kanban, liste, cartes, total de colonne, chiffre d'affaires du mois) et pour l'assistant.
+ * Avec le module Devis, le serveur écrit dans l'affaire le montant calculé d'après les devis (`montantDevisHt`, avec sa nature `montantDevisNature` « accepte » ou « propose »
+ * et son détail `montantDevisDetail`) : il passe avant tout. Sinon (module absent, ou aucun devis finalisé), c'est le montant saisi à la main (`montant`), jamais effacé.
+ * Règles complètes : docs/montant-affaire.md.
+ */
+export function montantAffaire(a) {
+  if (montantVientDesDevis(a)) return a.montantDevisHt;
+  return a?.montant === null || a?.montant === undefined || a.montant === '' ? null : Number(a.montant);
+}
+
+/** Vrai si le montant affiché est calculé d'après les devis (et non saisi à la main). */
+export const montantVientDesDevis = (a) => typeof a?.montantDevisHt === 'number' && Number.isFinite(a.montantDevisHt) && a.montantDevisHt >= 0;
+
+/** D'où vient le chiffre affiché : « accepte » (devis acceptés), « propose » (devis proposé le plus récent) ou « estime » (saisi à la main). */
+export const natureMontant = (a) => (!montantVientDesDevis(a) ? 'estime' : a.montantDevisNature === 'propose' ? 'propose' : 'accepte');
+
+/** Les mots de l'écran pour chaque nature : libellé de la fiche, suffixe des cartes. */
+export const LIBELLES_MONTANT = Object.freeze({ accepte: 'Montant accepté HT', propose: 'Montant proposé HT', estime: 'Montant estimé' });
+
+/**
+ * Le texte de l'infobulle du montant : les VRAIS chiffres de ce qui est affiché (devis, numéros, additions), jamais une explication générale.
+ * Exemples : « Devis acceptés : DEV-2026-10-27-011 : 2 148,80 € HT + DEV-… : 600 € HT = 2 748,80 € HT. » ;
+ * « Devis proposé le plus récent : DEV-… v2 : 1 200 € HT. Non compté (devis plus ancien) : DEV-… v1 : 900 € HT. »
+ * Retourne '' pour un montant saisi à la main (rien à détailler).
+ */
+export function detailMontant(a) {
+  if (!montantVientDesDevis(a)) return '';
+  const lignes = Array.isArray(a.montantDevisDetail) ? a.montantDevisDetail.filter((l) => l && Number.isFinite(l.ht)) : [];
+  const nom = (l) => `${l.numero || 'Devis'}${(l.version ?? 1) > 1 ? ` v${l.version}` : ''}`;
+  const compte = lignes.filter((l) => l.compte);
+  const ignore = lignes.filter((l) => !l.compte);
+  const estimeSaisi = a.montant === null || a.montant === undefined || a.montant === '' ? null : Number(a.montant);
+  const phrases = [];
+  const somme = compte.reduce((s, l) => s + Math.round(l.ht * 100), 0) / 100;
+  if (!compte.length) {
+    phrases.push(`Montant calculé d’après les devis : ${formatEuros(a.montantDevisHt)} HT (le détail n’est pas disponible).`);
+  } else if (natureMontant(a) === 'accepte') {
+    // Le total affiché est celui du serveur ; si le détail ne l'explique pas entièrement (plus de 20 devis, donnée modifiée à la main), on le dit au lieu d'afficher une addition fausse.
+    const complet = Math.abs(somme - a.montantDevisHt) < 0.005;
+    phrases.push(`Devis acceptés : ${compte.map((l) => `${nom(l)} : ${formatEuros(l.ht)} HT`).join(' + ')}${complet ? (compte.length > 1 ? ` = ${formatEuros(a.montantDevisHt)} HT` : '') : ` (détail incomplet) ; total : ${formatEuros(a.montantDevisHt)} HT`}.`);
+  } else {
+    phrases.push(`Devis proposé le plus récent : ${compte.map((l) => `${nom(l)} : ${formatEuros(l.ht)} HT`).join('')}.`);
+    if (ignore.length) phrases.push(`Non compté (devis proposé plus ancien) : ${ignore.map((l) => `${nom(l)} : ${formatEuros(l.ht)} HT`).join(' ; ')}.`);
+    phrases.push('Aucun devis n’est encore accepté.');
+  }
+  if (estimeSaisi !== null) phrases.push(`Ton montant estimé (${formatEuros(estimeSaisi)}) est gardé : il revient si plus aucun devis ne compte.`);
+  return phrases.join('\n'); // une phrase par ligne (la bulle de l'en-tête garde les retours à la ligne)
 }
 
 export function formatEuros(n) {
@@ -1602,7 +1661,7 @@ export const CALCULS = {
     calculer: ({ affaires = [], config }, mois) => {
       if (avantDebut(mois, config)) return 0;
       const gagnee = configDe(config).roleGagnee;
-      return affaires.filter((a) => a.etape === gagnee && a.statut === 'gagnee' && dansLeMois(a.datesEtapes?.[gagnee], mois)).reduce((t, a) => t + euros(a.montant), 0);
+      return affaires.filter((a) => a.etape === gagnee && a.statut === 'gagnee' && dansLeMois(a.datesEtapes?.[gagnee], mois)).reduce((t, a) => t + euros(montantAffaire(a)), 0);
     },
   },
   ca_facture: {
@@ -1746,7 +1805,7 @@ export function caParMois(affaires, moisListe, projets = []) { // chiffre d'affa
 }
 
 export function totauxColonne(affaires) {
-  return { nombre: affaires.length, montant: affaires.reduce((s, a) => s + (Number(a.montant) || 0), 0) };
+  return { nombre: affaires.length, montant: affaires.reduce((s, a) => s + (montantAffaire(a) || 0), 0) };
 }
 
 // ---------------------------------------------------------------- filtres

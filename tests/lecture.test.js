@@ -110,6 +110,43 @@ describe('Fiches', () => {
   });
 });
 
+describe('Listes : borne de date', () => {
+  const crees = (docs) => docs.map((d) => d.id).sort();
+  const base = { fenetre: [
+    { id: 'd1', statut: 'signe', finaliseLe: new Date('2026-01-01T00:00:00Z') },
+    { id: 'd2', statut: 'signe', finaliseLe: new Date('2026-06-01T00:00:00Z') },
+    { id: 'd3', statut: 'envoye', finaliseLe: new Date('2026-09-01T00:00:00Z') },
+    { id: 'd4', statut: 'brouillon' },
+    { id: 'd5', statut: 'signe', finaliseLe: null },
+    { id: 'd6', statut: 'signe', finaliseLe: '2026-09-01T00:00:00.000Z' },
+  ] };
+  const juin = { champ: 'finaliseLe', depuis: new Date('2026-06-01T00:00:00Z') };
+  test('borne seule : incluse, anciens exclus, champ absent ou vide exclu', async () => {
+    const m = creerAccesMemoire(base);
+    assert.deepEqual(crees(await m.liste('fenetre', null, juin)), ['d2', 'd3']); // d6 (texte) exclu, comme sur Firestore
+    assert.deepEqual(crees(await m.liste('fenetre', null, { ...juin, depuis: new Date('2026-06-01T00:00:00.001Z') })), ['d3']);
+  });
+  test('cas vide : aucun document dans la fenêtre', async () => {
+    const m = creerAccesMemoire(base);
+    assert.deepEqual(await m.liste('fenetre', null, { champ: 'finaliseLe', depuis: new Date('2027-01-01T00:00:00Z') }), []);
+    assert.deepEqual(await creerAccesMemoire({}).liste('fenetre', null, juin), []);
+  });
+  test('borne + égalité, dans liste, tx.liste et avecBase', async () => {
+    const m = creerAccesMemoire({ 'clients/c1/fenetre': base.fenetre });
+    assert.deepEqual(crees(await m.liste('clients/c1/fenetre', { champ: 'statut', valeur: 'signe' }, juin)), ['d2']);
+    assert.deepEqual(crees(await m.transaction((tx) => tx.liste('clients/c1/fenetre', { champ: 'statut', valeur: 'signe' }, juin))), ['d2']);
+    const b = avecBase(m, 'clients/c1');
+    assert.deepEqual(crees(await b.liste('fenetre', { champ: 'statut', valeur: 'signe' }, juin)), ['d2']);
+    assert.deepEqual(crees(await b.transaction((tx) => tx.liste('fenetre', null, juin))), ['d2', 'd3']);
+  });
+  test('sans borne : comportement inchangé ; borne invalide refusée', async () => {
+    const m = creerAccesMemoire(base);
+    assert.equal((await m.liste('fenetre')).length, 6);
+    assert.equal((await m.liste('fenetre', { champ: 'statut', valeur: 'signe' }, null)).length, 4);
+    await assert.rejects(() => m.liste('fenetre', null, { champ: 'finaliseLe', depuis: '2026-06-01' }), /Borne de date invalide/);
+  });
+});
+
 describe('Listes', () => {
   test('lister_affaires : par défaut les non archivées ; archive=true les archivées', async () => {
     assert.deepEqual(ids((await lecture.listerAffaires(donnees, {}, MAINTENANT)).affaires).sort(), ['a1', 'a2', 'a3']);
@@ -252,7 +289,7 @@ describe('Lecture seule (garantie)', () => {
   test('tous les outils de lecture sont ouverts aux trois profils, et ne sont pas les seuls outils enregistrés', () => {
     const lecteurs = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE];
     const noms = lecteurs.map((o) => o.nom).sort();
-    assert.deepEqual(noms, ['chercher', 'chercher_article', 'diagnostiquer_fichiers', 'lire_affaire', 'lire_audit', 'lire_devis', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_proposition', 'lire_reglages', 'lire_reglages_devis', 'lister_activites', 'lister_affaires', 'lister_articles', 'lister_automatisations', 'lister_devis', 'lister_documents', 'lister_modeles_projet', 'lister_projets', 'lister_propositions', 'qui_suis_je', 'rechercher_article_par_phrase']);
+    assert.deepEqual(noms, ['chercher', 'chercher_article', 'diagnostiquer_fichiers', 'lire_affaire', 'lire_audit', 'lire_devis', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_proposition', 'lire_reglages', 'lire_reglages_devis', 'lister_activites', 'lister_affaires', 'lister_articles', 'lister_automatisations', 'lister_devis', 'lister_documents', 'lister_modeles_projet', 'lister_projets', 'lister_propositions', 'obtenir_pdf_officiel_devis', 'qui_suis_je', 'rechercher_article_par_phrase']);
     for (const o of lecteurs) assert.deepEqual(o.profils, ['lecteur', 'bibliothecaire', 'claude-code'], o.nom);
     for (const o of OUTILS.filter((x) => !noms.includes(x.nom))) assert.ok(!o.profils.includes('lecteur'), `${o.nom} : le lecteur n’a aucun droit d’écriture`);
   });
