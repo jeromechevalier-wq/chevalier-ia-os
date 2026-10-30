@@ -585,3 +585,17 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 /* Les liens de la liste (phrases d'exemple, « Changer l'article ») ne sont pas des actions principales : texte normal souligné, jamais jaune. */
 .tableau-vocabulaire .bouton-lien { padding: 0; color: var(--texte); text-decoration: underline; text-decoration-color: var(--bordure-forte, var(--texte2)); }
 .tableau-vocabulaire .bouton-lien:hover, .tableau-vocabulaire .bouton-lien:focus-visible { text-decoration-color: var(--texte); }
+
+/* Sélecteur du catalogue (écran Vocabulaire) : l'arbre famille › sous-famille › articles sous le champ de recherche. */
+.arbre-catalogue { max-height: 260px; overflow-y: auto; border: 1px solid var(--bordure); border-radius: var(--rayon-petit); }
+.arbre-catalogue ul { list-style: none; margin: 0; padding: 0; }
+.arbre-catalogue .arbre-contenu { padding-left: var(--esp-6); }
+.arbre-catalogue p { margin: 0; padding: var(--esp-3) var(--esp-6); }
+.arbre-catalogue .arbre-vide { padding: var(--esp-3) var(--esp-6); }
+.arbre-entete, .arbre-article { display: flex; align-items: center; gap: var(--esp-3); width: 100%; min-height: var(--h-ctrl-petit); padding: 0 var(--esp-6); border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.arbre-article { justify-content: space-between; }
+.arbre-entete:hover, .arbre-entete:focus-visible, .arbre-article:hover, .arbre-article:focus-visible { background: var(--survol); }
+.arbre-article.choisi { font-weight: var(--poids-moyen); box-shadow: inset 3px 0 0 var(--accent-trait); }
+.arbre-nom { flex: 1; }
+.selecteur-catalogue .discret { color: var(--texte2); }
+@media (max-width: 767px), (pointer: coarse) { .arbre-entete, .arbre-article { min-height: 44px; } }
