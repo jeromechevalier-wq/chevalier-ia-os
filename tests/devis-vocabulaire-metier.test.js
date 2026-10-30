@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as A from '../js/modules/devis/articles.js';
-import { motOuvrage, MOTS_OUVRAGE } from '../js/modules/devis/ouvrages.js';
+import { motOuvrage, MOTS_OUVRAGE, majuscule, deMot, duMot } from '../js/modules/devis/ouvrages.js';
 import { interpreter } from '../js/modules/devis/vocabulaire.js';
 
 const lire = (f) => readFileSync(fileURLToPath(new URL(`../${f}`, import.meta.url)), 'utf8');
@@ -91,5 +91,25 @@ describe('V4 le moteur reconnaît le mot choisi comme synonyme du type ouvrage',
     const avant = interpreter('salle de bain', { regles: [], articles });
     assert.deepEqual(interpreter('salle de bain', { regles: [], articles, reglages: { motOuvrage: 'ensemble' } }), avant);
     assert.deepEqual(interpreter('ensemble', { regles: [], articles, reglages: { motOuvrage: 'ensemble' } }), interpreter('ensemble', { regles: [], articles }));
+  });
+});
+
+describe('V5 helpers d’écran : majuscule, « de / d’ », « du / de la / de l’ »', () => {
+  test('V5 majuscule : première lettre seulement ; mot vide ou absent sans erreur', () => {
+    assert.equal(majuscule('ensemble'), 'Ensemble');
+    assert.equal(majuscule('élément'), 'Élément');
+    assert.equal(majuscule(''), '');
+    assert.equal(majuscule(undefined), '');
+  });
+  test('V5 deMot et duMot suivent le mot choisi (élision, genre)', () => {
+    const forme = (id) => { const m = motOuvrage({ motOuvrage: id }); return `${deMot(m)}${m.singulier} | ${duMot(m)}`; };
+    assert.equal(forme('ouvrage'), 'd’ouvrage | de l’ouvrage');
+    assert.equal(forme('ensemble'), 'd’ensemble | de l’ensemble');
+    assert.equal(forme('forfait'), 'de forfait | du forfait');
+    assert.equal(forme('prestation'), 'de prestation | de la prestation');
+    assert.equal(forme('lot'), 'de lot | du lot');
+  });
+  test('V5 motOuvrage rend toujours le singulier en minuscules (les écrans mettent la majuscule eux-mêmes)', () => {
+    for (const m of MOTS_OUVRAGE) assert.equal(motOuvrage({ motOuvrage: m.id }).singulier, m.singulier);
   });
 });

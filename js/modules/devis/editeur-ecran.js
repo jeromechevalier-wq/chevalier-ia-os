@@ -162,7 +162,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   // ------------------------------------------------ chargement
   function charger() {
     const d = devisCourant();
-    if (!D.estPretDevis() || !CRM.estPret()) { remplir(racine, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }))); return; }
+    // Les réglages en font partie : le mot du métier s'écrit dans les boutons dès le premier affichage.
+    if (!D.estPretDevis() || !D.etat.reglagesPrets || !CRM.estPret()) { remplir(racine, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }))); return; }
     if (!d) {
       if (D.etat.erreurLectureDevis) { remplir(racine, h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'lecture' } }, ERREUR_LECTURE)); return; }
       if (Date.now() - moment < DELAI_INTROUVABLE_MS) {
@@ -590,6 +591,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       const taux = [...new Set([...D.etat.reglages.tauxProposes, ...TAUX_TVA_DEFAUT, travail.tauxTvaDefaut])].sort((a, b) => b - a);
       const tva = h('select', { class: 'champ', id: 'devis-tva', dataset: { champ: 'tva-defaut' }, 'aria-label': 'Changer la TVA par défaut', onchange: (e) => { changer({ tauxTvaDefaut: Number(e.target.value) }); majTotaux(); } },
         taux.map((t) => h('option', { value: String(t), selected: travail.tauxTvaDefaut === t }, `${saisieNombre(t)} %`)));
+      const motMenu = O.motOuvrage(D.etat.reglages);
       return contenuMenu([
         { titre: 'Édition' },
         { noeud: c('Afficher le calcul des marges', 'afficherMarges') },
@@ -604,8 +606,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         { noeud: c('Cacher les totaux des sections', 'cacherTotauxSections') },
         { noeud: c('Cacher les colonnes quantité et unité', 'cacherQuantiteUnite') },
         { noeud: c('Cacher la colonne TVA', 'cacherTva') },
-        { noeud: c('Cacher les éléments d’ouvrage', 'cacherElementsOuvrage') },
-        { noeud: c('Afficher les prix des éléments d’ouvrage', 'afficherPrixElementsOuvrage') },
+        { noeud: c(`Cacher les éléments ${O.deMot(motMenu)}${motMenu.singulier}`, 'cacherElementsOuvrage') },
+        { noeud: c(`Afficher les prix des éléments ${O.deMot(motMenu)}${motMenu.singulier}`, 'afficherPrixElementsOuvrage') },
         { noeud: bientot('Cacher l’annexe photos') }, { noeud: c('Cacher le reste à facturer', 'cacherResteAFacturer') },
         { separateur: true }, { titre: 'Clients' },
         { noeud: c('Afficher le téléphone', 'afficherTelephone') }, { noeud: c('Afficher l’e-mail', 'afficherEmail') },
@@ -1196,7 +1198,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const type = (libelle, familleId) => bouton([icone('plus', { taille: 14 }), libelle], `ajouter-${familleId}`, () => ouvrirRecherche(familleId));
     const barre = h('div', { class: 'barre-ajouts', dataset: { zone: 'ajouts' } },
       h('div', { class: 'ajouts-types' },
-        type('Fourniture', 'famille-1'), type('Main d’œuvre', 'famille-2'), type('Ouvrage', 'famille-3'),
+        type('Fourniture', 'famille-1'), type('Main d’œuvre', 'famille-2'), type(O.majuscule(O.motOuvrage(D.etat.reglages).singulier), 'famille-3'),
         h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'autres-ajouts' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres types de lignes', onclick: (ev) => ouvrirMenu(ev.currentTarget, [
           { libelle: 'Sous-traitance', action: () => ouvrirRecherche('famille-4') },
           { libelle: 'Matériel', action: () => ouvrirRecherche('famille-5') },
@@ -1362,7 +1364,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     return [
       { libelle: 'Fourniture', cle: `inserer-${ou}-fourniture`, action: chercher('famille-1') },
       { libelle: 'Main d’œuvre', cle: `inserer-${ou}-main-oeuvre`, action: chercher('famille-2') },
-      { libelle: 'Ouvrage', cle: `inserer-${ou}-ouvrage`, action: chercher('famille-3') },
+      { libelle: O.majuscule(O.motOuvrage(D.etat.reglages).singulier), cle: `inserer-${ou}-ouvrage`, action: chercher('famille-3') },
       { libelle: 'Sous-traitance', cle: `inserer-${ou}-sous-traitance`, action: chercher('famille-4') },
       { libelle: 'Matériel', cle: `inserer-${ou}-materiel`, action: chercher('famille-5') },
       { libelle: 'Divers', cle: `inserer-${ou}-divers`, action: chercher('famille-7') },
@@ -1401,7 +1403,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (!trouve?.ligne?.ouvrage) return;
     const editeur = editeurOuvrage({ composants: trouve.ligne.ouvrage.composants.map((c) => ({ articleId: c.articleId, quantite: c.quantite })) });
     const ok = await dialogue({
-      titre: 'Éléments de l’ouvrage', contenu: editeur.element,
+      titre: `Éléments ${O.duMot(O.motOuvrage(D.etat.reglages))}`, contenu: editeur.element,
       boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Appliquer', valeur: true, style: 'principal' }],
     });
     if (ok !== true) return;
@@ -1507,7 +1509,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       h('option', { value: '' }, `Défaut (${saisieNombre(travail.tauxTvaDefaut)} %)`), taux.map((t) => h('option', { value: String(t), selected: l.tauxTva === t }, `${saisieNombre(t)} %`)));
     const aff = affichage();
     // L'ouvrage se reconfigure depuis sa désignation (le bouton apparaît quand on y écrit) ; le calcul des marges et la référence sont de petites lignes sous la désignation.
-    const configurer = l.ouvrage ? h('button', { type: 'button', class: 'bouton-lien bouton-configurer-ouvrage', dataset: { action: 'configurer-ouvrage' }, onclick: () => configurerOuvrage(l.id) }, 'Configurer les éléments de l’ouvrage') : null;
+    const configurer = l.ouvrage ? h('button', { type: 'button', class: 'bouton-lien bouton-configurer-ouvrage', dataset: { action: 'configurer-ouvrage' }, onclick: () => configurerOuvrage(l.id) }, `Configurer les éléments ${O.duMot(O.motOuvrage(D.etat.reglages))}`) : null;
     const calculMarge = h('div', { class: 'calcul-marge', dataset: { calculMarge: l.id } });
     const reference = aff.afficherReferences && (l.reference || l.code) ? h('div', { class: 'reference-ligne texte-discret', dataset: { valeur: 'reference' } }, `Réf. : ${l.reference || l.code}`) : null;
     const prixAjuste = ajustementActif(travail) ? h('div', { class: 'prix-ajuste', dataset: { prixAjuste: l.id } }) : null;

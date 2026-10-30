@@ -7,6 +7,7 @@ import * as D from './donnees.js';
 import * as A from './articles.js';
 import { reglagesFamilles } from './reglages-familles.js';
 import { reglagesExportDevis } from './export.js';
+import { majuscule } from './ouvrages.js';
 import { MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, erreursEmetteur } from './logique.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, ou demande à un éditeur de l’espace.';
@@ -15,6 +16,7 @@ const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, 
 const brouillonDe = (r) => ({
   nomBordereau: r.nomBordereau, modeMarge: r.modeMarge, marge: String(r.marge).replace('.', ','), margeDevis: String(r.margeDevis).replace('.', ','), regimeTva: r.regimeTva, tauxProposes: [...r.tauxProposes],
   tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), mentionEmetteur: r.mentionEmetteur, etapeAffaireCreee: r.etapeAffaireCreee,
+  motOuvrage: r.motOuvrage, motOuvrageAutre: { singulier: r.motOuvrageAutre?.singulier ?? '', pluriel: r.motOuvrageAutre?.pluriel ?? '', genre: r.motOuvrageAutre?.genre ?? '' }, // recopiés : l'enregistrement est un setDoc sans fusion
   entreprise: entrepriseBrouillon(r.entreprise),
 });
 
@@ -36,7 +38,7 @@ const entrepriseBrouillon = (e = {}) => ({
 export function reglages(page) {
   const sec = h('section', { class: 'carte-section', id: 'reglages-devis' },
     h('h2', {}, icone('file-text', { taille: 18 }), 'Général'),
-    h('p', { class: 'aide' }, 'Le nom de ton catalogue de prix, la marge, la TVA, la durée de validité et les informations de ton entreprise (pastille « Mon entreprise » en haut de la page). « Enregistrer » s’allume dès que tu changes quelque chose.'));
+    h('p', { class: 'aide' }, 'Le nom de ton catalogue de prix, la marge, la TVA, le mot de ton métier pour les articles composés, la durée de validité et les informations de ton entreprise (pastille « Mon entreprise » en haut de la page). « Enregistrer » s’allume dès que tu changes quelque chose.'));
   const zone = h('div', { class: 'pile reglages-devis' });
   const erreurGenerale = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
   let brouillon = brouillonDe(D.etat.reglages);
@@ -149,9 +151,20 @@ export function reglages(page) {
     const taux = h('div', { class: 'cases', dataset: { champ: 'tauxProposes' } }, TAUX_TVA_DEFAUT.map((t) => h('label', { class: 'case' },
       h('input', { type: 'checkbox', checked: brouillon.tauxProposes.includes(t), dataset: { taux: String(t) }, 'aria-label': `Proposer le taux ${A.formaterTaux(t)}`,
         onchange: (e) => { changer({ tauxProposes: TAUX_TVA_DEFAUT.filter((x) => (x === t ? e.target.checked : brouillon.tauxProposes.includes(x))) }); } }), A.formaterTaux(t))));
+    const ecrireAutre = (champ, valeur) => { brouillon.motOuvrageAutre[champ] = valeur; majBoutons(); };
+    const champAutre = (champ, libelle) => bloc(`motOuvrageAutre.${champ}`, libelle, h('input', { type: 'text', class: 'champ', id: `devis-motOuvrageAutre.${champ}`, value: brouillon.motOuvrageAutre[champ], autocomplete: 'off', maxlength: '30',
+      dataset: { champ: `motOuvrageAutre.${champ}` }, oninput: (e) => ecrireAutre(champ, e.target.value) }));
+    const zoneAutre = h('div', { class: 'pile', dataset: { zone: 'mot-autre' }, hidden: brouillon.motOuvrage !== 'autre' },
+      h('div', { class: 'ligne-champs' }, champAutre('singulier', 'Au singulier'), champAutre('pluriel', 'Au pluriel')),
+      bloc('motOuvrageAutre.genre', 'Genre', liste('motOuvrageAutre.genre', [{ valeur: '', libelle: 'Choisis…' }, { valeur: 'masculin', libelle: 'Masculin (un, le)' }, { valeur: 'feminin', libelle: 'Féminin (une, la)' }], brouillon.motOuvrageAutre.genre, (v) => ecrireAutre('genre', v))));
     remplir(zone,
-      bloc('nomBordereau', 'Nom du catalogue de prix', liste('nomBordereau', A.NOMS_BORDEREAU.map((n) => ({ valeur: n, libelle: n })), brouillon.nomBordereau, (v) => changer({ nomBordereau: v })),
-        'C’est le titre de l’écran où tu ranges tes articles et leurs prix d’achat.'),
+      h('div', { class: 'ligne-champs' },
+        bloc('nomBordereau', 'Nom du catalogue de prix', liste('nomBordereau', A.NOMS_BORDEREAU.map((n) => ({ valeur: n, libelle: n })), brouillon.nomBordereau, (v) => changer({ nomBordereau: v })),
+          'C’est le titre de l’écran où tu ranges tes articles et leurs prix d’achat.'),
+        bloc('motOuvrage', 'Mot du métier', liste('motOuvrage', [...A.MOTS_OUVRAGE.map((m) => ({ valeur: m.id, libelle: majuscule(m.singulier) })), { valeur: 'autre', libelle: 'Autre' }], brouillon.motOuvrage,
+          (v) => { changer({ motOuvrage: v }); zoneAutre.hidden = v !== 'autre'; }),
+          'Le mot que tu utilises pour un article composé d’autres articles (par exemple « ensemble » ou « prestation »). Il remplace « ouvrage » dans les textes de l’écran. L’écran d’un devis déjà ouvert se met à jour à sa réouverture.')),
+      zoneAutre,
       h('div', { class: 'ligne-champs' },
         bloc('modeMarge', 'Mode de calcul de la marge', liste('modeMarge', MODES_MARGE.map((m) => ({ valeur: m.id, libelle: `${m.libelle} : ${m.explication} (${m.exemple})` })), brouillon.modeMarge, (v) => changer({ modeMarge: v })),
           AIDE_MODE_MARGE, { garderLignes: true }),
