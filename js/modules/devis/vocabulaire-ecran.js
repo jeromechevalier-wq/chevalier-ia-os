@@ -10,6 +10,7 @@ import { nomFichierExport } from '../crm/logique.js';
 import * as D from './donnees.js';
 import * as A from './articles.js';
 import * as V from './vocabulaire-plans.js';
+import { motOuvrage } from './ouvrages.js';
 import { cleDeExpression, identifiantDeRegle, interpreter } from './vocabulaire.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant, ou demande à un éditeur de l’espace.';
@@ -273,6 +274,10 @@ export function rendreVocabulaire(conteneur) {
     h('div', { class: 'ligne-etiquette-info' }, h('label', { class: 'etiquette', for: 'vocabulaire-essai' }, 'Essayer une phrase'), iconeInfo('Montre ce que ton assistant comprendrait. Rien n’est enregistré.', 'Essayer une phrase')),
     champEssai, resultat);
 
+  const noteMotMetier = h('p', { class: 'aide', dataset: { zone: 'mot-metier' } });
+  const rendreNoteMotMetier = () => remplir(noteMotMetier, 'Le mot « ', motOuvrage(D.etat.reglages).singulier, ' » (le nom de tes articles composés) se choisit dans ',
+    h('a', { href: lien('reglages/devis/reglages-devis') }, 'Réglages > Devis'), '.'); // refait à chaque changement : les réglages arrivent après l'écran
+
   const aucunFiltre = () => !recherche.trim() && V.nombreFiltres(criteres) === 0;
   function toutEffacer() { recherche = ''; champRecherche.value = ''; criteres = { ...V.CRITERES_VOCABULAIRE_VIDES }; rendre(); }
 
@@ -361,6 +366,7 @@ export function rendreVocabulaire(conteneur) {
   }
 
   function rendre() {
+    rendreNoteMotMetier();
     const tous = D.etat.vocabulaire;
     filtres.majCompte(V.nombreFiltres(criteres));
     choixTri.maj(V.CRITERES_TRI, tri.critere, tri.sens);
@@ -386,7 +392,7 @@ export function rendreVocabulaire(conteneur) {
   conteneur.append(h('div', { class: 'page page-liste page-devis page-vocabulaire' },
     h('header', { class: 'page-tete' }, h('div', {}, boutonRetour, titre, compteur), h('div', { class: 'page-actions' }, boutonMenu)),
     h('div', { class: 'barre-affaires' }, champRecherche, filtres.element, choixTri.element),
-    ajout, blocEssai, avis, zone));
+    ajout, blocEssai, noteMotMetier, avis, zone));
 
   remplir(resultat, ...resultatEssai(essai));
   const rafraichir = planifier(() => { rendre(); remplir(resultat, ...resultatEssai(essai)); });
