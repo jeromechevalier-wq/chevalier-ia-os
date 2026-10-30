@@ -110,7 +110,7 @@ async function montantDeLAffaire(tx, devis, retouches) {
   const affaire = await tx.document(C.affaires, affaireId);
   if (!affaire) return null;
   const liste = (await tx.liste(C.devis, { champ: 'affaireId', valeur: affaireId })).map(enDates);
-  if (!liste.some((d) => d.id === devis.id) && retouches[devis.id] !== null) liste.push(devis);
+  if (devis.id && !liste.some((d) => d.id === devis.id) && retouches[devis.id] !== null) liste.push(devis);
   const calcule = D.montantDesDevis(liste.filter((d) => retouches[d.id] !== null).map((d) => ({ ...d, ...(retouches[d.id] ?? {}) })));
   const patch = { montantDevisHt: calcule?.montant ?? null, montantDevisNature: calcule?.nature ?? null, montantDevisDetail: calcule?.detail ?? null };
   const meme = (typeof affaire.montantDevisHt === 'number' ? affaire.montantDevisHt : null) === patch.montantDevisHt && (affaire.montantDevisNature ?? null) === patch.montantDevisNature
@@ -406,6 +406,44 @@ export async function echouerPdf({ donnees, ctx, devisId, message }) {
     tx.ecrire([changement.ecriture, ...j.ecritures]);
     return { ok: true, deja: false, devis: { ...devis, pdf }, operationId: j.operationId };
   });
+}
+
+/** Nombre maximum d'affaires corrigées par appel (au-delà : un nouvel aperçu, un nouveau code). */
+export const MAX_RECALCUL = 50;
+const montantLu = (a) => ({ ht: typeof a.montantDevisHt === 'number' ? a.montantDevisHt : null, nature: a.montantDevisNature ?? null });
+
+/**
+ * Recalcul général du montant des affaires d'après leurs devis (règle D17, docs/montant-affaire.md) pour celles que le serveur n'a pas encore calculées
+ * (devis envoyé avant la règle) ou dont le calcul est périmé. N'écrit QUE `montantDevisHt`, `montantDevisNature` et `montantDevisDetail` ; le montant saisi n'est jamais touché.
+ * Idempotent : une affaire déjà à jour n'est ni écrite ni journalisée. `appliquer: false` : aperçu, rien n'est écrit. Une transaction et une ligne de journal par affaire.
+ * Rend `{ total, lignes: [{ affaireId, avant, apres, nature }], operations }` (`lignes` : les MAX_RECALCUL premières, par identifiant).
+ */
+export async function recalculerMontantsAffaires({ donnees, ctx, appliquer = false }) {
+  const ids = new Set();
+  for (const d of await donnees.liste(C.devis)) if (typeof d.affaireId === 'string' && d.affaireId && !d.affaireId.includes('/')) ids.add(d.affaireId);
+  for (const a of await donnees.liste(C.affaires)) if (a.montantDevisNature != null || a.montantDevisHt != null) ids.add(a.id); // un calcul périmé (plus aucun devis) se remet à zéro aussi
+  const aCorriger = new Map();
+  for (const affaireId of [...ids].sort()) {
+    await donnees.transaction(async (tx) => {
+      const changement = await montantDeLAffaire(tx, { id: null, affaireId }, {});
+      if (changement) aCorriger.set(affaireId, { affaireId, avant: montantLu(changement.avant), apres: { ht: changement.apres.montantDevisHt, nature: changement.apres.montantDevisNature } });
+    });
+  }
+  const total = aCorriger.size;
+  const lignes = [...aCorriger.values()].slice(0, MAX_RECALCUL);
+  const operations = [];
+  if (appliquer) {
+    for (const { affaireId } of lignes) {
+      await donnees.transaction(async (tx) => {
+        const changement = await montantDeLAffaire(tx, { id: null, affaireId }, {});
+        if (!changement) return;
+        const j = journal({ donnees, ctx, outil: 'devisRecalculMontant', parametres: { affaireId }, changements: [changement] });
+        tx.ecrire([changement.ecriture, ...j.ecritures]);
+        operations.push(j.operationId);
+      });
+    }
+  }
+  return { total, lignes, operations };
 }
 
 // ---------------------------------------------------------------- pour les fonctions appelables (les deux projets)

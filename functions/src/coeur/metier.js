@@ -9,7 +9,7 @@ import * as DV from '../../partage/devis-vocabulaire.js';
 import * as D from '../../partage/devis.js';
 import * as E from '../../partage/devis-editeur.js';
 import * as B from '../../partage/devis-brouillon.js';
-import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, ErreurDevis } from './devis.js';
+import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, recalculerMontantsAffaires as recalculerMontantsServeur, ErreurDevis } from './devis.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
@@ -1149,6 +1149,28 @@ export async function enregistrerEnvoiDevis(c, args) {
 export async function modifierDestinatairesDevis(c, args) {
   const r = await appelerCoeurDevis(c, () => modifierDestinatairesServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, destinataires: args.destinataires, copie: args.copie }));
   return { id: args.id, destinataires: r.devis.destinataires, copie: r.devis.copie, operationId: r.operationId };
+}
+
+/**
+ * Recalcul général du montant des affaires d'après leurs devis (docs/montant-affaire.md). Aperçu (la liste, avant et après) puis code ; n'écrit que les champs calculés `montantDevisHt`, `montantDevisNature`
+ * et `montantDevisDetail`, jamais le montant saisi. Idempotent. Se relance tant qu'il en reste (50 affaires par appel).
+ */
+export async function recalculerMontantsAffairesDevis(c, args) {
+  const prevu = await recalculerMontantsServeur({ donnees: c.donnees, ctx: ctxDevis(c), appliquer: false });
+  const lignes = prevu.lignes.map((l) => ({ affaireId: l.affaireId, avant: l.avant, apres: l.apres }));
+  const apercu = await confirmerDevis(c, args, {
+    outil: 'recalculer_montants_affaires', cibleId: 'toutes', verbe: 'recalculé',
+    empreinte: empreinteApercu([JSON.stringify({ total: prevu.total, lignes })]),
+    apercu: { change: false, aCorriger: prevu.total, affaires: lignes, ...(prevu.total > lignes.length ? { reste: prevu.total - lignes.length } : {}) },
+    suite: "Seuls les champs calculés (montantDevisHt, montantDevisNature, montantDevisDetail) changent ; le montant saisi de chaque affaire reste intact. Chaque affaire a sa ligne de journal ; l'outil est sans danger à relancer.",
+  });
+  if (apercu) return apercu;
+  const r = await recalculerMontantsServeur({ donnees: c.donnees, ctx: ctxDevis(c), appliquer: true });
+  for (const operationId of r.operations) c.noterOperation?.(operationId);
+  return {
+    change: true, corrigees: r.operations.length, restantes: Math.max(0, r.total - r.operations.length), operationIds: r.operations,
+    detail: r.total > r.operations.length ? 'Il en reste : rappeler recalculer_montants_affaires SANS codeConfirmation pour un nouvel aperçu.' : 'Tout est à jour.',
+  };
 }
 
 // ---------------------------------------------------------------- Garantie « aucun e-mail ne part tout seul » (29/10/2026)
