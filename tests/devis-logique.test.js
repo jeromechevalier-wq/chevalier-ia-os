@@ -51,7 +51,7 @@ describe('Marge', () => {
     for (const m of [100, 150]) {
       const r = D.coefficientDeMarge(m, 'marge_vente');
       assert.equal(r.coefficient, null);
-      assert.equal(r.erreur, 'La marge sur le prix de vente doit être inférieure à 100 %.');
+      assert.equal(r.erreur, 'En calcul comptable, la marge doit rester inférieure à 100 %.');
     }
     assert.equal(D.prixVenteUnitaire(100, 100, 'marge_vente'), null);
   });

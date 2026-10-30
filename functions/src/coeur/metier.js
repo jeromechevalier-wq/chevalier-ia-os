@@ -9,7 +9,7 @@ import * as DV from '../../partage/devis-vocabulaire.js';
 import * as D from '../../partage/devis.js';
 import * as E from '../../partage/devis-editeur.js';
 import * as B from '../../partage/devis-brouillon.js';
-import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, ErreurDevis } from './devis.js';
+import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, recalculerMontantsAffaires as recalculerMontantsServeur, ErreurDevis } from './devis.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
@@ -18,15 +18,18 @@ import * as DOC from './documents.js';
 import { structureCourte } from './recapitulatif.js';
 import { preparerBrouillonEmail } from './brouillon-email.js';
 import { MESSAGE_NON_BRANCHE, ESPACE_JEROME } from './n8n-sortie.js';
+import { ditHorsTaxes, ditPourAssistant, MARGE_IMPOSSIBLE } from './voix.js';
 import { cheminAppartientALEspace, DUREE_LIEN_MINUTES } from '../devis/stockage.js';
 
 /** Propriétaire des fiches créées par un jeton « cia_… » (sans e-mail) sur le serveur de Jérôme, sauf si l'appel en donne un autre (plan-mcp.md, écart 11, réglé en 2.16.1 pour les connexions Google et les clients). */
 export const PROPRIETAIRE_PAR_DEFAUT = 'jerome.chevalier@gmail.com';
 
+export { ditHorsTaxes };
+
 /** Saisie refusée : l'appelant doit corriger et recommencer (code : saisie_invalide | introuvable | doublon | confirmation | integrite). */
 export class ErreurMetier extends Error {
   constructor(code, message, details = {}) {
-    super(message);
+    super(ditPourAssistant(message)); // l'assistant parle à voix haute : « hors taxes » en toutes lettres (les écrans gardent « HT »)
     this.name = 'ErreurMetier';
     this.code = code;
     this.details = details;
@@ -818,7 +821,7 @@ function avecPrixVenteDit(ligne, article, prixVente, devis) {
   const nom = `« ${article.libelle} »`;
   if (article.type === DA.TYPE_TEXTE) refuser('saisie_invalide', `${nom} est une ligne de texte : elle n'a pas de prix de vente.`);
   if (!(typeof ligne.prixAchat === 'number' && ligne.prixAchat > 0)) refuser('saisie_invalide', `${nom} n'a pas de prix d'achat : un prix de vente ne peut pas y être réglé sans fausser la marge. Compléter l'article (modifier_article) puis réessayer.`);
-  if (!E.prixVenteReglable(ligne, prixVente, devis.modeMarge)) refuser('saisie_invalide', `Le prix de vente ${prixVente} € est impossible pour ${nom} avec le mode de marge du devis.`);
+  if (!E.prixVenteReglable(ligne, prixVente, devis.modeMarge)) refuser('saisie_invalide', `Le prix de vente ${prixVente} € est impossible pour ${nom} : il ne donne pas une marge valable.`);
   const reglee = E.avecPrixVente(ligne, prixVente, devis.modeMarge);
   return ligne.ouvrage ? { ...reglee, description: E.descriptionDeLigne(reglee) } : reglee;
 }
@@ -853,13 +856,14 @@ function verifierRemise(remise, devis) {
   if (remise.type === 'pourcentage' && (remise.valeur < 0 || remise.valeur >= 100)) refuser('saisie_invalide', 'La remise en pourcentage doit être comprise entre 0 et 100 % (100 % exclu).');
   if (remise.type === 'montant') {
     if (remise.valeur < 0) refuser('saisie_invalide', 'Le montant de la remise ne peut pas être négatif.');
-    if (D.versCentimes(remise.valeur) > D.versCentimes(D.totauxDevis({ ...devis, remise: null }).totalBrutHt)) refuser('saisie_invalide', 'Le montant de la remise ne peut pas dépasser le total HT du devis.');
+    if (D.versCentimes(remise.valeur) > D.versCentimes(D.totauxDevis({ ...devis, remise: null }).totalBrutHt)) refuser('saisie_invalide', 'Le montant de la remise ne peut pas dépasser le total hors taxes du devis.');
   }
 }
 
 function verifierMarge(devis) {
   const { erreur } = D.coefficientDeMarge(devis.marge, devis.modeMarge);
-  if (erreur) refuser('saisie_invalide', erreur);
+  // Le mode de calcul n'est jamais dit à l'assistant : message neutre.
+  if (erreur) refuser('saisie_invalide', MARGE_IMPOSSIBLE);
 }
 
 function verifierDestinataires(liste) {
@@ -893,7 +897,7 @@ const nombreDeLignes = (sections) => (sections ?? []).reduce((n, s) => n + (s.li
 
 /** Crée un brouillon de devis (version 1, sans numéro). Le client et le destinataire viennent de l'affaire si on ne les donne pas. */
 export async function creerDevisBrouillon(c, args) {
-  const { affaireId, objet, nom, personneId, organisationId, destinataires, copie, sections, lignes, remise, marge, modeMarge, tauxTvaDefaut, proprietaire } = args;
+  const { affaireId, objet, nom, personneId, organisationId, destinataires, copie, sections, lignes, remise, marge, tauxTvaDefaut, proprietaire } = args;
   if (organisationId && personneId) refuser('saisie_invalide', 'Un devis a un seul client : donner organisationId OU personneId, pas les deux.');
   const affaire = await lireSiDonne(c, C.affaires, affaireId, 'Affaire'); // facultative : un brouillon vit sans affaire, mais finaliser_devis l'exige
   const organisation = await lireSiDonne(c, C.organisations, organisationId ?? (personneId ? null : affaire?.organisationId), 'Organisation');
@@ -903,7 +907,7 @@ export async function creerDevisBrouillon(c, args) {
   const valeurs = { ...E.valeursDeCreation(affaire, client ? { ...client, adresse } : null) };
   if (destinataires !== undefined) { verifierDestinataires(destinataires); valeurs.destinataires = destinataires; }
   if (copie !== undefined) valeurs.copie = verifierCopie(copie, valeurs.destinataires);
-  for (const [k, v] of Object.entries({ marge, modeMarge, tauxTvaDefaut })) if (v !== undefined) valeurs[k] = v;
+  for (const [k, v] of Object.entries({ marge, tauxTvaDefaut })) if (v !== undefined) valeurs[k] = v;
   const ctx = await contexte(c, proprietaire);
   const plan = B.planCreerBrouillon(valeurs, { nouvelId: ctx.nouvelId, maintenant: ctx.maintenant, auteur: ctx.auteur, proprietaire: ctx.proprietaire }, await reglagesDuDevis(c));
   verifierMessages(plan.erreurs);
@@ -958,7 +962,7 @@ export async function modifierDevisBrouillon(c, args) {
       if (affaire.organisationId) patch.organisationId = affaire.organisationId; else if (affaire.personneId) patch.personneId = affaire.personneId;
     }
   }
-  for (const k of ['objet', 'nom', 'personneId', 'organisationId', 'destinataires', 'copie', 'marge', 'modeMarge', 'tauxTvaDefaut']) if (champs[k] !== undefined) patch[k] = champs[k];
+  for (const k of ['objet', 'nom', 'personneId', 'organisationId', 'destinataires', 'copie', 'marge', 'tauxTvaDefaut']) if (champs[k] !== undefined) patch[k] = champs[k];
   if (patch.objet !== undefined) patch.objet = texte(patch.objet);
   if (patch.nom !== undefined) patch.nom = D.nettoyerNomDevis(patch.nom); // nom interne, jamais imprimé ; chaîne vide pour l'effacer
   if (patch.destinataires !== undefined) verifierDestinataires(patch.destinataires);
@@ -970,7 +974,6 @@ export async function modifierDevisBrouillon(c, args) {
     const nettoyee = verifierCopie(patch.copie ?? devis.copie, patch.destinataires ?? devis.destinataires);
     if (patch.copie !== undefined) patch.copie = nettoyee;
   }
-  if (patch.modeMarge !== undefined && !D.MODES_MARGE.some((m) => m.id === patch.modeMarge)) refuser('saisie_invalide', `Mode de marge inconnu : ${D.MODES_MARGE.map((m) => m.id).join(' ou ')}.`);
   let travail = { ...devis, ...patch };
   verifierMarge(travail);
   if (sections !== undefined || lignes !== undefined || ajouterLignes !== undefined) {
@@ -991,7 +994,7 @@ export async function modifierDevisBrouillon(c, args) {
   const plan = B.planModifierBrouillon(devis, patch);
   verifierMessages(plan.erreurs);
   for (const e of plan.ecritures) e.exigerStatut = 'brouillon'; // refusé par le moteur si le devis a été finalisé entre-temps
-  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (objet, nom, affaireId, personneId, organisationId, destinataires, copie, sections, lignes, ajouterLignes, remise, marge, modeMarge, tauxTvaDefaut).');
+  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (objet, nom, affaireId, personneId, organisationId, destinataires, copie, sections, lignes, ajouterLignes, remise, marge, tauxTvaDefaut).');
   const t = D.totauxDevis(travail);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch), sections: structureCourte(travail.sections), totalHT: t.totalHt, totalTTC: t.ttc });
 }
@@ -1150,6 +1153,29 @@ export async function enregistrerEnvoiDevis(c, args) {
 export async function modifierDestinatairesDevis(c, args) {
   const r = await appelerCoeurDevis(c, () => modifierDestinatairesServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, destinataires: args.destinataires, copie: args.copie }));
   return { id: args.id, destinataires: r.devis.destinataires, copie: r.devis.copie, operationId: r.operationId };
+}
+
+/**
+ * Recalcul général du montant des affaires d'après leurs devis (docs/montant-affaire.md). Aperçu (la liste, avant et après) puis code ; n'écrit que les champs calculés `montantDevisHt`, `montantDevisNature`
+ * et `montantDevisDetail`, jamais le montant saisi. Idempotent. Se relance tant qu'il en reste (50 affaires par appel).
+ * Décision : une opération groupée compte pour UNE écriture dans le plafond du jeton (elle est bornée à 50 affaires et confirmée par un code).
+ */
+export async function recalculerMontantsAffairesDevis(c, args) {
+  const prevu = await recalculerMontantsServeur({ donnees: c.donnees, ctx: ctxDevis(c), appliquer: false });
+  const lignes = prevu.lignes.map((l) => ({ affaireId: l.affaireId, avant: l.avant, apres: l.apres }));
+  const apercu = await confirmerDevis(c, args, {
+    outil: 'recalculer_montants_affaires', cibleId: 'toutes', verbe: 'recalculé',
+    empreinte: empreinteApercu([JSON.stringify({ total: prevu.total, lignes })]),
+    apercu: { change: false, aCorriger: prevu.total, affaires: lignes, ...(prevu.total > lignes.length ? { reste: prevu.total - lignes.length } : {}) },
+    suite: "Seuls les champs calculés (montantDevisHt, montantDevisNature, montantDevisDetail) changent ; le montant saisi de chaque affaire reste intact. Chaque affaire a sa ligne de journal ; l'outil est sans danger à relancer.",
+  });
+  if (apercu) return apercu;
+  const r = await recalculerMontantsServeur({ donnees: c.donnees, ctx: ctxDevis(c), appliquer: true, affaireIds: lignes.map((l) => l.affaireId) }); // seulement les affaires de l'aperçu confirmé (pas un second balayage de toute la base)
+  for (const operationId of r.operations) c.noterOperation?.(operationId);
+  return {
+    change: true, corrigees: r.operations.length, restantes: Math.max(0, prevu.total - r.operations.length), operationIds: r.operations,
+    detail: prevu.total > r.operations.length ? 'Il en reste : rappeler recalculer_montants_affaires SANS codeConfirmation pour un nouvel aperçu.' : 'Tout est à jour.',
+  };
 }
 
 // ---------------------------------------------------------------- Garantie « aucun e-mail ne part tout seul » (29/10/2026)

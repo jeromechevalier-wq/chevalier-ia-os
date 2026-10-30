@@ -402,7 +402,7 @@ export const REGLAGES_DEVIS_DEFAUT = Object.freeze({
   nomBordereau: NOM_BORDEREAU_DEFAUT,
   modeMarge: 'majoration',
   marge: MARGE_DEFAUT,
-  margeDevis: MARGE_DEVIS_DEFAUT, // marge globale appliquée d'office à chaque NOUVEAU devis (distincte de `marge`, celle des articles)
+  margeDevis: MARGE_DEVIS_DEFAUT, // marge par défaut des nouveaux devis (distincte de `marge`, la « marge de revente » des articles)
   regimeTva: 'assujetti',
   tauxProposes: [...TAUX_TVA_DEFAUT],
   tauxTvaDefaut: TAUX_TVA_DEFAUT_REGLAGE,
@@ -451,7 +451,7 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT }
   const erreurs = {};
   const s = { ...reglagesDevis(actuels), ...(saisie ?? {}) };
   if (!NOMS_BORDEREAU.includes(s.nomBordereau)) erreurs.nomBordereau = `Choisis un nom parmi : ${NOMS_BORDEREAU.join(', ')}.`;
-  if (!MODES_MARGE.some((m) => m.id === s.modeMarge)) erreurs.modeMarge = 'Choisis le mode de marge.';
+  if (!MODES_MARGE.some((m) => m.id === s.modeMarge)) erreurs.modeMarge = 'Choisis le calcul de la marge.';
   const marge = lireNombre(s.marge);
   if (marge === null) erreurs.marge = 'La marge doit être un nombre en pourcentage (exemple : 20).';
   else if (!erreurs.modeMarge) {

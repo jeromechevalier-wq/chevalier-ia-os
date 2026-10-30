@@ -503,10 +503,10 @@ test('5 la flèche « ‹ Devis » en haut à gauche ferme le devis (retour à l
   await expect(page).toHaveURL(/#\/devis\/liste/);
 });
 
-test('4 la marge affichée sous une ligne est arrondie à l’unité : 19,99626935273269 % s’écrit « Marge 20 % »', async ({ page }) => {
+test('4 la marge affichée sous une ligne est arrondie à l’unité : 19,99626935273269 % s’écrit « Marge de ce produit 20 % »', async ({ page }) => {
   await semer();
   await ouvrir(page, await devis('d4c', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Ouvrage', 1, 53.61, { marge: 19.99626935273269 })] }]));
-  await expect(page.locator('tr[data-id="l1"] [data-calcul-marge]')).toContainText('Marge 20 %');
+  await expect(page.locator('tr[data-id="l1"] [data-calcul-marge]')).toContainText('Marge de ce produit 20 %');
   await expect(page.locator('tr[data-id="l1"] [data-calcul-marge]')).not.toContainText('19,9');
 });
 
@@ -550,7 +550,7 @@ test('7 la prévisualisation se met à jour toute seule quand on ajoute un artic
   await capturer(page, info, '7-apercu-mis-a-jour');
 });
 
-test('8 « Définir un ajustement » : trois blocs titrés visibles sans clic (Ajustement global, Marge du devis, Remise client), les champs agissent sur les totaux, plus de « Compte prorata » ni de « Poste libre HT »', async ({ page }, info) => {
+test('8 « Marge et ajustement » : trois blocs titrés visibles sans clic (Ajustement global, Marge du devis, Remise client), les champs agissent sur les totaux, plus de « Compte prorata » ni de « Poste libre HT »', async ({ page }, info) => {
   await semer();
   await ouvrir(page, await devis('d8', [{ id: 's1', titre: 'Travaux', lignes: [ligne('l1', 'Carrelage', 10, 60), ligne('l2', 'Pose', 5, 36), ligne('l3', 'Forfait', 1, 100)] }]));
   await page.locator('[data-action="definir-ajustement"]').click();
@@ -583,7 +583,7 @@ test('8 « Définir un ajustement » : trois blocs titrés visibles sans clic (A
   await expect(fenetre).toHaveCount(0);
 });
 
-test('8 (d) « Définir un ajustement » sur un devis finalisé : les trois blocs restent visibles mais en lecture seule', async ({ page }) => {
+test('8 (d) « Marge et ajustement » sur un devis finalisé : les trois blocs restent visibles mais en lecture seule', async ({ page }) => {
   await semer();
   await ouvrir(page, await devis('d8f', [{ id: 's1', titre: 'Travaux', lignes: [ligne('l1', 'Carrelage', 10, 60)] }], { statut: 'envoye', numero: 'DEV-2026-0008', marge: 5, remise: { type: 'pourcentage', valeur: 5 } }));
   const fenetre = page.locator('.menu-devis-ajustement');

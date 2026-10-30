@@ -219,7 +219,7 @@ test('B7 les réglages (mode de marge, régime de TVA, durée) s\'enregistrent e
   await page.locator('#devis-marge').fill('100');
   await expect(enregistrer).toBeEnabled();
   await enregistrer.click();
-  await expect(page.locator('[data-erreur="marge"]')).toContainText('La marge sur le prix de vente doit être inférieure à 100 %.');
+  await expect(page.locator('[data-erreur="marge"]')).toContainText('En calcul comptable, la marge doit rester inférieure à 100 %.');
   expect(await lireDocument('devis_parametres/reglages')).toBeNull();
   await capturer(page, info, 'B7-marge-100-refusee');
   await page.locator('#devis-marge').fill('25,5');

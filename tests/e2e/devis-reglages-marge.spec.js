@@ -1,4 +1,4 @@
-// Réglages > Devis : champs jumeaux alignés (point 14) et « Marge globale du devis » (point 13). Un test par point (le nom commence par le numéro).
+// Réglages > Devis : champs jumeaux alignés (point 14) et « Marge par défaut des nouveaux devis » (point 13). Un test par point (le nom commence par le numéro).
 // Captures dans tests/e2e/captures/devis-reglages-marge/ (ordinateur ET téléphone). Données fictives.
 import { fileURLToPath } from 'node:url';
 import { mkdir } from 'node:fs/promises';
@@ -64,9 +64,9 @@ for (const [section, minimum] of [['Devis', 2], ['Affaires et projets', 0], ['Mo
 const champ = (page) => page.locator('#devis-margeDevis');
 const enregistrer = (page) => page.locator('[data-action="enregistrer-reglages-devis"]');
 
-test('13a le champ « Marge globale du devis (%) » existe, vaut 20 sans réglage enregistré, s\'enregistre et se relit', async ({ page }, info) => {
+test('13a le champ « Marge par défaut des nouveaux devis (%) » existe, vaut 20 sans réglage enregistré, s\'enregistre et se relit', async ({ page }, info) => {
   await ouvrirSection(page, 'Devis');
-  await expect(page.getByText('Marge par défaut des articles (%)')).toBeVisible();
+  await expect(page.getByText('Marge de revente (%)')).toBeVisible();
   await expect(champ(page)).toHaveValue('20'); // cas vide : réglage jamais enregistré
   expect(await lireDocument('devis_parametres/reglages')).toBeNull(); // rien n'a été écrit pour autant
   await champ(page).fill('12,5');

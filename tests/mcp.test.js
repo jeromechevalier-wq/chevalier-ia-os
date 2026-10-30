@@ -197,7 +197,7 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
     'modifier_destinataires_devis', // + destinataire d'un devis finalisé (29/10/2026)
     'preparer_email', // + brouillon d'e-mail d'un devis, jamais d'envoi (garantie « aucun e-mail ne part tout seul », 29/10/2026)
     'deposer_document']; // + dépôt d'un fichier texte dans l'onglet « Documents » (28/10/2026)
-  const FINALISATION = ['finaliser_devis', 'changer_statut_devis']; // écritures sensibles (figent le devis, ne se défont pas avec le journal, confirmation par code) : Claude Code seulement
+  const FINALISATION = ['finaliser_devis', 'changer_statut_devis', 'recalculer_montants_affaires']; // écritures sensibles (figent le devis, ne se défont pas avec le journal, confirmation par code) : Claude Code seulement
   const SUPPRESSION = ['restaurer_depuis_audit', 'supprimer_activite', 'supprimer_devis', 'supprimer_affaire', 'supprimer_note', 'supprimer_organisation', 'supprimer_personne', 'supprimer_projet', 'supprimer_document_stocke'];
   const attendu = {
     lecteur: [...LECTURE].sort(),
