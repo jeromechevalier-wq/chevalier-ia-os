@@ -104,6 +104,19 @@ describe('D1 déclencheur : fabrique chez un client dont le module devis est act
     assert.match(g.vus.html[0], /Entreprise b/); // repli sur l'ancien nom `emetteur`
     assert.match(g.vus.html[0], /<li>Chèque<\/li>/);
   });
+  test('Q10.5 chez un client : organisation + personne imprime « À l\'attention de » ; organisation seule, non', async () => {
+    const m = await monde({ finaliser: [] });
+    m.collections['clients/a/crm_personnes'].push({ id: 'p1', nom: 'Hélène d\'Estaing' });
+    Object.assign(m.devis('a'), { personneId: 'p1' }); // organisation org1 déjà posée
+    const f = faux();
+    await S.finaliser({ donnees: m.creerDonnees('a'), ctx: { acteur: ALICE, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd-a' });
+    await declencheur(m, f)(evenement('a', 'd-a', { statut: 'brouillon' }, FINALISE));
+    assert.match(f.vus.html[0].replace(/ /g, ' '), /<div class="nom">Société Cliente Essai<\/div><div>À l’attention de Hélène d&#39;Estaing<\/div>/);
+    const g = faux();
+    await S.finaliser({ donnees: m.creerDonnees('b'), ctx: { acteur: BOB, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd-b' });
+    await declencheur(m, g)(evenement('b', 'd-b', { statut: 'brouillon' }, FINALISE));
+    assert.doesNotMatch(g.vus.html[0], /attention de/);
+  });
   test('D1 un client sans le module devis est ignoré : rien fabriqué, rien écrit', async () => {
     const m = await monde({ finaliser: [] });
     const f = faux();

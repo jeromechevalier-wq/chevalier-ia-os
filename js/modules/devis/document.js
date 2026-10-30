@@ -141,7 +141,9 @@ function blocDestinataire(vue, aff = {}) {
     aff.afficherNumeroTva && c.numeroTva ? `<div>${texte(`TVA ${c.numeroTva}`)}</div>` : '',
     aff.afficherSiren && c.siren ? `<div>${texte(`SIREN ${c.siren}`)}</div>` : '',
   ].join('');
-  return `<div class="destinataire"><div class="etiquette">Destinataire</div>${nom ? `<div class="nom">${texte(nom)}</div>` : ''}${adr ? `<div>${texte(adr)}</div>` : ''}${coordonnees}</div>`;
+  // « À l'attention de » : seulement si la vue en porte un (organisation ET personne sur le devis) ; même libellé que l'écran.
+  const attention = nom && c.attention ? `<div>${texte(`À l’attention de ${c.attention}`)}</div>` : '';
+  return `<div class="destinataire"><div class="etiquette">Destinataire</div>${nom ? `<div class="nom">${texte(nom)}</div>` : ''}${attention}${adr ? `<div>${texte(adr)}</div>` : ''}${coordonnees}</div>`;
 }
 
 /** Description d'une ligne : celle de la vue, ou (cases du menu Options) masquée / détaillée avec les prix des éléments d'un ouvrage. */

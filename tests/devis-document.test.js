@@ -137,3 +137,15 @@ describe('Document HTML du devis', () => {
     assert.deepEqual(D.vueClient(devisFige({ modesPaiement: undefined, objet: undefined })).modesPaiement, []);
   });
 });
+
+describe('H-attention vueClient : « attentionNom » est facultatif', () => {
+  test('H-attention sans l\'option, la vue et le rendu sont inchangés ; avec elle, la ligne suit le nom du client', () => {
+    const sans = vueDe();
+    assert.equal('attention' in sans.client, false);
+    assert.doesNotMatch(devisHtml(sans), /attention de/);
+    const avec = vueDe({}, reglages, { clientNom: 'Société Dupont', attentionNom: ' Marie Dupont ' });
+    assert.equal(avec.client.attention, 'Marie Dupont');
+    assert.match(devisHtml(avec), /<div class="nom">Société Dupont<\/div><div>À l’attention de Marie Dupont<\/div>/);
+    assert.doesNotMatch(devisHtml(vueDe({}, reglages, { clientNom: 'Société Dupont', attentionNom: '   ' })), /attention de/);
+  });
+});
