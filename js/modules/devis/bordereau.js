@@ -233,11 +233,14 @@ async function ouvrirComposition(a, { devenirOuvrage = false, familleId = null }
         return false;
       }
       const modifs = await controlerPrixComposants(editeur, a.id);
-      if (!modifs) return false;
+      if (!modifs || !editeur.element.isConnected) return false; // refus de confirmer, ou fenêtre déjà fermée (Annuler au clavier pendant la confirmation) : rien n'est écrit
       // Un seul lot : les prix et l'ouvrage s'écrivent ensemble ou pas du tout.
       const r = await D.majArticles([...modifs.map((m) => ({ id: m.articleId, patch: { prixAchat: m.saisie } })), { id: a.id, patch }]);
       if (Object.keys(r.erreurs).length) {
-        if (!editeur.montrerErreurs(r.erreurs[a.id] ? { composants: r.erreurs[a.id] } : {})) general.textContent = Object.values(r.erreurs)[0];
+        const prixRefuses = Object.fromEntries(modifs.map((m) => [m.articleId, Object.values(r.erreurs[m.articleId] ?? {})[0]]).filter(([, v]) => v));
+        editeur.montrerErreursPrix(prixRefuses);
+        // Chaque message sous son champ ; la ligne générale seulement si aucun champ n'en a pris un.
+        if (!editeur.montrerErreurs(r.erreurs[a.id] ?? {}) && !Object.keys(prixRefuses).length) general.textContent = Object.values(Object.values(r.erreurs)[0])[0];
         return false;
       }
       fait = true;
