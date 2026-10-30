@@ -648,7 +648,7 @@ describe('N4 nouvelle_version_devis', () => {
 
 describe('N5 archiver_devis', () => {
   test('N5 archive un devis signé, le désarchive, refuse le reste ; la restauration défait l’archivage même sur un devis finalisé', async () => {
-    const s = await demarrer({ devis: [finalise('s1', 'accepte'), finalise('e1', 'envoye'), devisEnregistre('b1')] });
+    const s = await demarrer({ devis: [finalise('s1', 'accepte'), finalise('e1', 'envoye'), finalise('f1', 'en_attente_envoi'), devisEnregistre('b1')] });
     refuse(await s.appeler('biblio', 'archiver_devis', { id: 'e1', archive: true }), /signé ou refusé/);
     refuse(await s.appeler('biblio', 'archiver_devis', { id: 'b1', archive: true }), /signé ou refusé/);
     refuse(await s.appeler('biblio', 'archiver_devis', { id: 's1', archive: false }), /pas archivé/);
@@ -670,6 +670,7 @@ describe('N5 archiver_devis', () => {
     const des = ok(await s.appeler('biblio', 'archiver_devis', { id: 's1', archive: false }));
     assert.equal(s.doc('devis_devis', 's1').archive, false);
     assert.notEqual(d.operationId, des.operationId);
+    assert.equal(ok(await s.appeler('biblio', 'archiver_devis', { id: 'f1', archive: true })).archive, true, 'un devis finalisé jamais envoyé s’archive');
   });
 
   test('N5 une restauration de force ne remet pas un ancien statut si le devis a changé de statut depuis', async () => {

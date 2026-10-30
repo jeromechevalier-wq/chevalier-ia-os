@@ -74,7 +74,7 @@ Les cartes du Kanban, la liste et les mini-cartes affichent le même chiffre, su
 - Le **module Devis retiré** chez un client : les champs `montantDevis*` déjà écrits restent dans les affaires et continuent de s'afficher (le serveur n'écrit plus rien). Cas rare ; une remise à zéro serait une opération de données.
 - Un **devis expiré** (date de validité dépassée) reste « Envoyé » dans la base : il compte comme proposé.
 - Le passage de l'affaire à « Gagnée » à l'acceptation d'un devis (D17, 1re moitié) n'est **pas** branché.
-- **Un devis « Finalisé » jamais envoyé n'a pas de sortie propre** : on ne peut ni le refuser (il faut qu'il soit « Envoyé ») ni l'archiver (il faut qu'il soit signé ou refusé). Tant qu'il existe, il compte comme proposé. Aujourd'hui la seule issue est de le marquer envoyé puis refusé, ou de créer une version suivante. **À décider avec Jérôme** (`.github/A-FAIRE.md`) : autoriser « Refuser » ou « Archiver » depuis « Finalisé ».
+- **Un devis « Finalisé » jamais envoyé a maintenant une sortie** (décision de Jérôme, 29/10/2026) : on peut le marquer « Refusé » ou l'archiver depuis le menu « … ». Refusé ou archivé, il ne compte plus (l'archivé est ignoré, le refusé n'est plus « proposé »), et le montant de l'affaire se recalcule dans la même opération.
 - Si le détail enregistré ne suffit pas à expliquer le total (plus de 20 devis acceptés, ou donnée modifiée à la main), l'infobulle écrit « détail incomplet » et donne le total, jamais une addition fausse.
 - Il n'y a pas de bouton pour forcer un chiffre à la main quand des devis comptent : le chiffre calculé est la vérité ; pour changer le montant, on change les devis.
 

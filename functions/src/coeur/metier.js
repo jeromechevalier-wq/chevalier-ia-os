@@ -1132,7 +1132,7 @@ export async function nouvelleVersionDevis(c, args) {
   };
 }
 
-/** Archive (archive: true : devis signé ou refusé seulement) ou désarchive un devis. Restaurable. */
+/** Archive (archive: true : devis finalisé, signé ou refusé seulement) ou désarchive un devis. Restaurable. */
 export async function archiverDevis(c, args) {
   const r = await appelerCoeurDevis(c, () => archiverServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, archive: args.archive }));
   return { id: args.id, archive: args.archive, statut: r.devis.statut, operationId: r.operationId };
@@ -1210,7 +1210,7 @@ export async function preparerEmail(c, args) {
  */
 export async function supprimerDevis(c, args) {
   const devis = await lire(c, C.devis, args.id, 'Devis');
-  if (devis.statut !== 'brouillon') refuser('saisie_invalide', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; il peut être archivé (archiver_devis) s’il est signé ou refusé.');
+  if (devis.statut !== 'brouillon') refuser('saisie_invalide', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; il peut être archivé (archiver_devis) s’il est finalisé (jamais envoyé), signé ou refusé.');
   const t = D.totauxDevis(devis);
   if (!args.codeConfirmation) {
     const restantes = c.suppressionsRestantes ? await c.suppressionsRestantes() : Infinity;

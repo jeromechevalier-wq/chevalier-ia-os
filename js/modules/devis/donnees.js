@@ -300,7 +300,7 @@ export const finaliser = async (devisId) => {
 export const changerStatut = (devisId, action) => appeler('changerStatut', { devisId, action });
 /** Crée le brouillon suivant d'un devis finalisé, envoyé ou refusé. */
 export const nouvelleVersion = (devisId) => appeler('nouvelleVersion', { devisId });
-/** Archive (true) ou désarchive (false) un devis signé ou refusé. */
+/** Archive (true) ou désarchive (false) un devis finalisé, signé ou refusé. */
 export const archiver = (devisId, archive) => appeler('archiver', { devisId, archive });
 /** Supprime un brouillon (le serveur refuse tout autre statut ; la copie reste dans le journal). */
 export const supprimer = (devisId) => appeler('supprimer', { devisId });
