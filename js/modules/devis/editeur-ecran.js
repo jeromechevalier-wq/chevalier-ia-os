@@ -22,7 +22,7 @@ import * as CD from './client-devis.js';
 import { ouvrirCreationPersonne } from '../crm/personnes.js';
 import { ouvrirCreationOrganisation } from '../crm/organisations.js';
 import {
-  TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, estExpire, UNITES_DUREE, MOMENTS_ACOMPTE, TYPES_ACOMPTE, detailAcomptes, erreursAcomptes, listeAcomptes, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
+  TYPE_SAUT, totauxDevis, erreursFinalisation, decisionChampFinalisation, erreursChantier, estExpire, UNITES_DUREE, MOMENTS_ACOMPTE, TYPES_ACOMPTE, detailAcomptes, erreursAcomptes, listeAcomptes, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
   affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, MAX_DESTINATAIRES, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis, MESSAGE_AFFAIRE_MANQUANTE, emetteurImprime, estErreurEntreprise, ROUTE_MON_ENTREPRISE,
 } from './logique.js';
 import { formaterMontant } from './document.js';
@@ -91,7 +91,7 @@ export function infosClientDuDevis(d) {
   return { telephone, email: Ed.emailsDeFiche(fiche)[0] ?? '', numeroTva: fiche.numeroTva ?? fiche.tva ?? '', siren: fiche.siren ?? '' };
 }
 /** Document complet du devis, pour l'aperçu de l'éditeur. */
-export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d), emetteur: emetteurImprime(D.etat.reglages.entreprise, D.etat.reglages.mentionEmetteur, D.etat.reglages.mentionTvaReduite) });
+export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d), attentionNom: d.organisationId && d.personneId ? CRM.personne(d.personneId)?.nom ?? null : null, emetteur: emetteurImprime(D.etat.reglages.entreprise, D.etat.reglages.mentionEmetteur, D.etat.reglages.mentionTvaReduite) });
 const affaires = () => CRM.etat.affaires.filter((a) => !a.archive).sort((a, b) => String(a.titre).localeCompare(String(b.titre), 'fr'));
 const libelleAffaire = (a) => {
   const c = clientsDeAffaire(a)[0]?.nom;
@@ -219,6 +219,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (!conflit && !verrou) minuteur = setTimeout(() => { sauver(); }, DELAI_ENREGISTREMENT_MS);
     majEntete();
     majTotaux();
+    majMarquesManquantes();
     planifierApercu();
   }
 
@@ -1531,6 +1532,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     placerPanneauRecherche();
     majTotaux();
     verrouiller(ref.corpsLignes);
+    if (marquesActives.size) poserMarques(); // les lignes viennent d'être redessinées : les marques des lignes sont reposées
   }
 
   const nomDe = (e, numero) => (e.genre === 'section' ? `la section ${numero}` : e.type === TYPE_SAUT ? 'le saut de page' : `la ligne ${numero}`);
@@ -2202,6 +2204,95 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (choix === 'entreprise') naviguer(ROUTE_MON_ENTREPRISE); // finaliser() a déjà enregistré ; sinon la garde de sortie du routeur propose Rester / Quitter / Enregistrer et quitter
   }
 
+
+  // ---- champs manquants marqués après « Compris » (contour + icône + aide, jamais la couleur seule). Voir decisionChampFinalisation (logique.js) : le champ se déduit de la phrase.
+  const marquesActives = new Map(); // clé « champ|ligne » -> message
+  const nettoyerMarques = () => racine.querySelectorAll('[data-manquant], [data-manquant-icone], [data-manquant-aide]').forEach((el) => {
+    if (el.hasAttribute('data-manquant-icone') || el.hasAttribute('data-manquant-aide')) { el.remove(); return; }
+    el.classList.remove('invalide'); el.removeAttribute('data-manquant'); el.removeAttribute('aria-describedby');
+    // aria-invalid : « false » sur un champ de saisie, retiré ailleurs (ligne, tableau, groupe) ; le champ qui gère lui-même sa marque (quantité, prix) la remet à son idée.
+    if (el.matches('input, textarea, select, button')) el.setAttribute('aria-invalid', 'false'); else el.removeAttribute('aria-invalid');
+    el.querySelectorAll?.('[aria-invalid="true"]').forEach((x) => x.setAttribute('aria-invalid', 'false'));
+  });
+  /** Où se pose la marque d'un champ de la table : { el (contour), ancre (icône après), apres/avant (aide), focus }. Null si le champ n'est pas à l'écran. */
+  function cibleDuChamp({ champ, ligneId }) {
+    const q = (sel) => racine.querySelector(sel);
+    const tableau = ref.corpsLignes?.closest('table') ?? ref.corpsLignes ?? null;
+    const ligne = ligneId ? ref.corpsLignes?.querySelector(`tr[data-id="${CSS.escape(ligneId)}"]`) : null;
+    const duTableau = tableau ? { el: tableau, ancre: null, apres: tableau, focus: tableau.querySelector('input, textarea, button') } : null;
+    switch (champ) {
+      case 'client': return ref.champClient?.entree ? { el: ref.champClient.entree, ancre: null, avant: ref.zoneClient, focus: ref.champClient.entree } : null;
+      case 'debutTravaux': case 'duree': case 'expireLe': case 'finChantierAu': {
+        const lien = q(`[data-definir="${champ}"]`);
+        return lien ? { el: lien, ancre: lien, apres: lien.closest('p.ligne-entete') ?? lien, focus: lien } : null;
+      }
+      case 'chantier-adresse': { const el = q('[data-champ="chantier-adresse"]'); return el ? { el, ancre: el, apres: el, focus: el } : null; }
+      case 'lignes': return duTableau;
+      case 'quantite': case 'tva': {
+        const el = ligne?.querySelector(`[data-champ="${champ === 'tva' ? 'tva' : 'quantite'}"]`);
+        return el ? { el, ancre: el, apres: tableau ?? el, focus: el } : duTableau;
+      }
+      case 'prixAchat': case 'prixVente': case 'margeLigne': {
+        const el = (champ === 'prixVente' ? ligne?.querySelector('[data-champ="prix-vente"]') : null) ?? ligne; // pas de champ prix d'achat ni marge sur la ligne : la ligne entière est marquée
+        return el ? { el, ancre: el, apres: tableau ?? el, focus: el.matches?.('tr') ? el.querySelector('input, textarea') : el } : duTableau;
+      }
+      case 'destinataires': case 'copie': { const el = q(`[data-zone="${champ}"]`); return el ? { el, ancre: null, apres: el, focus: el.querySelector('button, input') } : null; }
+      case 'remise': { const el = q('[data-champ="remise-valeur"]'); return el ? { el, ancre: el, apres: el, focus: el } : null; }
+      case 'marge': { const el = q('[data-champ="marge-menu"]'); return el ? { el, ancre: el, apres: el, focus: el } : null; }
+      case 'acompte': { const el = q('[data-zone="acomptes"]'); return el ? { el, ancre: null, apres: el, focus: null } : null; }
+      case 'dechets': { const el = q('[data-zone="dechets-formulaire"]'); return el ? { el, ancre: null, apres: el, focus: null } : null; }
+      default: return null; // primes, affaire (déjà géré par montrerAffaireManquante) : pas de marque
+    }
+  }
+  function poserMarques({ defiler = false } = {}) {
+    nettoyerMarques();
+    let premier = null;
+    for (const [cle, message] of marquesActives) {
+      const [champ, ligneId] = cle.split('|');
+      const cible = cibleDuChamp({ champ, ligneId: ligneId || null });
+      if (!cible) continue;
+      cible.el.classList.add('invalide');
+      cible.el.dataset.manquant = '1';
+      const saisie = cible.el.matches?.('input, textarea, select, button') ? cible.el : (cible.focus?.matches?.('input, textarea, select') ? cible.focus : null); // aria-invalid sert aux champs, pas à une ligne ou un groupe
+      saisie?.setAttribute('aria-invalid', 'true');
+      const sigle = h('span', { class: 'marque-manquant', dataset: { manquantIcone: '' }, 'aria-hidden': 'true' }, icone('triangle-alert', { taille: 14 }));
+      if (cible.el.matches?.('tr')) cible.el.firstElementChild?.append(sigle); else if (cible.ancre) cible.ancre.after(sigle);
+      if (!premier) {
+        premier = cible;
+        const aide = h('p', { class: 'erreur aide-manquant', role: 'alert', id: 'devis-marque-aide', dataset: { manquantAide: '' } }, icone('triangle-alert', { taille: 14 }), ' ', message);
+        if (cible.avant) cible.avant.before(aide); else cible.apres.after(aide);
+        saisie?.setAttribute('aria-describedby', 'devis-marque-aide');
+      }
+    }
+    if (defiler && premier) {
+      premier.el.scrollIntoView?.({ block: 'center' });
+      premier.focus?.focus?.({ preventScroll: true });
+    }
+  }
+  /** Après « Compris » (refus local ou du serveur) : marque sur l'écran chaque champ à remplir, défile et met le focus sur le premier. */
+  function marquerChampsManquants(erreurs) {
+    if (lecture) return;
+    marquesActives.clear();
+    for (const message of erreurs ?? []) {
+      let d = null;
+      try { d = decisionChampFinalisation(message, travail); } catch (e) { console.warn(e); }
+      if (!d || d.champ === 'affaire') continue;
+      const cle = `${d.champ}|${d.ligneId ?? ''}`;
+      if (!marquesActives.has(cle)) marquesActives.set(cle, message);
+    }
+    if (!marquesActives.size) { nettoyerMarques(); return; }
+    if (onglet !== 'edition') choisirOnglet('edition');
+    poserMarques({ defiler: true });
+  }
+  /** À chaque modification : une marque disparaît dès que sa phrase n'est plus dans les erreurs de finalisation (les autres restent). */
+  function majMarquesManquantes() {
+    if (!marquesActives.size) return;
+    const encore = new Set(erreursFinalisation(travail, { emetteur: D.etat.reglages.entreprise, aujourdhui: CRM.ctx().aujourdhui }));
+    let change = false;
+    for (const [cle, message] of [...marquesActives]) if (!encore.has(message)) { marquesActives.delete(cle); change = true; }
+    if (change) poserMarques();
+  }
+
   async function finaliser() {
     clearTimeout(minuteur);
     if (!(await sauver())) { toast(messageEnreg || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 }); return; }
@@ -2210,7 +2301,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const sansAffaire = locales.includes(MESSAGE_AFFAIRE_MANQUANTE);
     if (sansAffaire) montrerAffaireManquante();
     if (locales.length === 1 && sansAffaire) return;
-    if (locales.length) { await listeErreurs('Ce devis ne peut pas encore être finalisé', locales); if (sansAffaire) { ref.champAffaire?.focus?.(); ref.champAffaire?.fermer?.(); } return; }
+    if (locales.length) { await listeErreurs('Ce devis ne peut pas encore être finalisé', locales); marquerChampsManquants(locales); if (sansAffaire) { ref.champAffaire?.focus?.(); ref.champAffaire?.fermer?.(); } return; }
     const avis = Ed.avertissements(travail);
     const ok = await dialogue({
       titre: 'Finaliser ce devis ?',
@@ -2225,7 +2316,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     try {
       const r = await D.finaliser(id);
       if (r?.ok === false) {
-        verrou = false; await listeErreurs('Ce devis ne peut pas encore être finalisé', r.erreurs ?? []); return; }
+        verrou = false; await listeErreurs('Ce devis ne peut pas encore être finalisé', r.erreurs ?? []); marquerChampsManquants(r.erreurs ?? []); return; }
       toast(`Devis finalisé${r?.numero ? ` : ${r.numero}` : ''}`);
       clearTimeout(minuteur);
       lecture = true; // plus rien à enregistrer ni à confirmer en quittant

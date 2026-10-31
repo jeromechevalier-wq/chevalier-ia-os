@@ -638,3 +638,10 @@ label.arbre-article, label.resultat-composant { display: flex; align-items: cent
 
 /* Devis vide avec la boîte « Ajouter une ligne » ouverte : le tableau la contient, sans sa ligne de titres. */
 .zone-lignes-devis.sans-ligne thead { display: none; }
+
+/* Champs manquants marqués après « Compris » : contour de 2 px + icône + aide (jamais la couleur seule). La marque disparaît dès que le champ est rempli. */
+[data-manquant] { outline: 2px solid var(--retard); outline-offset: 2px; border-radius: var(--rayon-petit); }
+tr[data-manquant] { outline-offset: -2px; }
+.marque-manquant { display: inline-flex; align-items: center; vertical-align: middle; margin-inline-start: var(--esp-2); color: var(--retard); }
+.aide-manquant { display: flex; align-items: center; gap: var(--esp-2); margin: var(--esp-2) 0; }
+@media (max-width: 700px) { .lien-definir[data-manquant] { min-height: 44px; display: inline-flex; align-items: center; } }
