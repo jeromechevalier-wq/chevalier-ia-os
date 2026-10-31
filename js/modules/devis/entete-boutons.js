@@ -26,12 +26,13 @@ export function boutonJaune({ statut, archive = false } = {}) {
  * Règle de Jérôme (26/10/2026) : le menu « … » ne répète jamais un bouton visible du haut de page.
  * Pour chaque bouton visible (`cle` rendue par boutonsEntete), les clés des entrées du menu « … » qui font la même chose :
  *  - clés `statut:<action>`, `preparer_email` : celles de entreesActionsDevis (liste.js) ;
- *  - `preparer-email` : l'entrée e-mail propre à l'éditeur et à la visualisation.
+ *  - `preparer-email` : l'entrée e-mail propre à l'éditeur et à la visualisation ;
+ *  - `telecharger`, `imprimer` : le PDF, rangé dans le menu d'un « Envoyer » actif (31/10/2026).
  * « Envoyer » GRISÉ (brouillon) n'ouvre aucun menu : il ne masque rien (ni « Préparer l'e-mail », qui dit de finaliser d'abord). Seul un « Envoyer » actif, dont le menu les propose, les masque.
  */
 const MENU_PAR_BOUTON = {
   finaliser: ['statut:finaliser'],
-  envoyer: ['preparer_email', 'preparer-email'],
+  envoyer: ['preparer_email', 'preparer-email', 'telecharger', 'imprimer'],
   'passer-envoye': ['statut:marquer_envoye'],
   signer: ['statut:accepter'],
   refuser: ['statut:refuser'],

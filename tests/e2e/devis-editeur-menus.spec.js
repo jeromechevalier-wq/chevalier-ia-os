@@ -369,7 +369,7 @@ test('5 l’aperçu montre le devis (numéro et total) sans bouton d’impressio
   await capturer(page, info, '5-apercu-sans-impression');
 });
 
-test('5 un devis finalisé (lecture seule) : « Ouvrir le PDF » et « Imprimer » du menu « … » ouvrent son PDF dans un nouvel onglet, sans quitter le devis (plus de page « PDF »)', { tag: '@sans-telephone' }, async ({ page }) => {
+test('5 un devis finalisé (lecture seule) : « Imprimer » du menu « Envoyer » ouvre son PDF dans un nouvel onglet, sans quitter le devis (plus de page « PDF »)', { tag: '@sans-telephone' }, async ({ page }) => {
   await semer();
   const id = await devis('d5l', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Pose', 2, 100, { prixVente: 100, tauxTva: 20 })] }], { statut: 'en_attente_envoi', numero: 'DEV-2026-10-24-004', finaliseLe: new Date(), pdf: { statut: 'ok', chemin: 'devis/a1/d.pdf', nom: 'Devis.pdf', tentatives: 1 } });
   await page.context().route('https://stockage.exemple.test/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>PDF d’essai</p>' }));
@@ -380,15 +380,15 @@ test('5 un devis finalisé (lecture seule) : « Ouvrir le PDF » et « Imprimer 
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { url: 'https://stockage.exemple.test/devis-essai.pdf', expireDans: 300, nom: 'Devis.pdf' } }) });
   });
   await ouvrir(page, id);
-  for (const nom of ['Ouvrir le PDF', 'Imprimer']) {
-    await page.locator('[data-action="plus-actions"]').click();
+  for (const nom of ['Imprimer']) {
+    await page.locator('[data-action="envoyer"]').click();
     const ouverture = page.waitForEvent('popup');
     await page.locator('.menu-pop').getByRole('menuitem', { name: nom }).click();
     await (await ouverture).close();
     await expect(page).toHaveURL(new RegExp(`#/devis/editeur/${id}$`));
     await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
   }
-  expect(liens).toEqual([{ devisId: id }, { devisId: id }]);
+  expect(liens).toEqual([{ devisId: id }]);
 });
 
 test('5 brouillon : le bouton jaune est « Finaliser » ; « Imprimer » (menu « … ») ouvre le PDF brouillon SANS fenêtre « Finaliser » ; « Finaliser » ouvre la fenêtre et finalise', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' } }, async ({ page }, info) => {
@@ -439,11 +439,11 @@ test('5 brouillon : le bouton jaune est « Finaliser » ; « Imprimer » (menu �
   await expect(page.locator('.toast').filter({ hasText: 'Devis finalisé' })).toBeVisible();
   expect(appelsFinaliser).toEqual([{ devisId: id }]);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('DEV-2026-10-24-005');
-  // Finalisé : le jaune devient « Envoyer » et son menu ne propose que l'e-mail.
+  // Finalisé : le jaune devient « Envoyer » et son menu propose l'e-mail, le PDF et l'impression.
   await expect(page.locator('[data-action="finaliser"]')).toHaveCount(0);
   await expect(page.locator('[data-action="envoyer"]')).toHaveClass(/bouton-principal/);
   await page.locator('[data-action="envoyer"]').click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText([/Préparer l’e-mail/]);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText([/Préparer l’e-mail/, /Télécharger le PDF/, /Imprimer/]);
   await page.keyboard.press('Escape');
 });
 

@@ -71,6 +71,8 @@ async function ouvrirEditeur(page, id) {
 }
 const ouvrirMenuPlus = (page) => page.locator('[data-action="plus-actions"]').click();
 const entree = (page, nom) => page.locator('.menu-pop').getByRole('menuitem', { name: nom });
+/** Menu qui porte le PDF d'un devis finalisé : celui d'« Envoyer » (31/10/2026). « Ouvrir le PDF » n'existe plus dans l'éditeur : « Imprimer » ouvre le même PDF. */
+const ouvrirMenuEnvoyer = (page) => page.locator('[data-action="envoyer"]').click();
 const pastille = (page) => page.locator('[data-zone="pdf-attente"]');
 
 test('1 « Télécharger le PDF » : pendant l’attente, une pastille « Fabrication du PDF… » (annoncée, indicateur animé) apparaît et le bouton « … » est occupé ; à la fin elle disparaît', async ({ page }, info) => {
@@ -102,7 +104,7 @@ test('1 « Imprimer » (brouillon) : même pastille pendant l’attente', async 
   await expect(page).toHaveURL(/#\/devis\/editeur\/dBrouillon$/);
 });
 
-test('2 pendant l’attente, « Télécharger le PDF », « Ouvrir le PDF » et « Imprimer » sont grisés dans le menu : un second clic ne lance pas une deuxième génération', async ({ page }, info) => {
+test('2 pendant l’attente, « Télécharger le PDF » et « Imprimer » sont grisés dans le menu (« Ouvrir le PDF » n’existe plus) : un second clic ne lance pas une deuxième génération', async ({ page }, info) => {
   await donnees();
   const appels = [];
   await simulerServeur(page, appels, { delaiPdf: 3000 });
@@ -113,7 +115,7 @@ test('2 pendant l’attente, « Télécharger le PDF », « Ouvrir le PDF » et 
   await ouvrirMenuPlus(page);
   await expect(entree(page, 'Fabrication du PDF…')).toBeDisabled();
   await expect(entree(page, 'Imprimer')).toBeDisabled();
-  await expect(entree(page, 'Ouvrir le PDF')).toBeDisabled();
+  await expect(entree(page, 'Ouvrir le PDF')).toHaveCount(0);
   await capturer(page, info, '2-menu-grise');
   await entree(page, 'Fabrication du PDF…').click({ force: true });
   await expect(pastille(page)).toHaveCount(0, { timeout: 15000 });
@@ -142,7 +144,7 @@ test('3 erreur du serveur : message clair, la pastille disparaît, le bouton « 
   await expect.poll(() => appels.filter((a) => a[0] === 'devisPdf').length).toBe(2);
 });
 
-test('4 devis finalisé dont le PDF est à refaire : « Ouvrir le PDF » montre « Fabrication du PDF… » (aria-busy), un second clic ne relance rien, puis le PDF s’ouvre ; erreur = message avec « Réessayer »', async ({ page }, info) => {
+test('4 devis finalisé dont le PDF est à refaire : « Imprimer » (menu « Envoyer ») montre « Fabrication du PDF… » (aria-busy), un second clic ne relance rien, puis le PDF s’ouvre ; erreur = message avec « Réessayer »', async ({ page }, info) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur répond une erreur 500 : le navigateur la note dans sa console' });
   await donnees();
   const appels = [];
@@ -153,15 +155,15 @@ test('4 devis finalisé dont le PDF est à refaire : « Ouvrir le PDF » montre 
     return { statut: 200, corps: { result: { statut: 'ok', lien: 'x', nom: 'Devis' } } };
   } });
   await ouvrirEditeur(page, 'dEchec');
-  await ouvrirMenuPlus(page);
+  await ouvrirMenuEnvoyer(page);
   const ouverture = page.waitForEvent('popup');
-  await entree(page, 'Ouvrir le PDF').click();
+  await entree(page, 'Imprimer').click();
   await expect(pastille(page)).toContainText('Fabrication du PDF…');
-  await expect(page.locator('[data-action="plus-actions"]')).toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('[data-action="envoyer"]')).toHaveAttribute('aria-busy', 'true');
   await expect(pastille(page).locator('.rond-chargement')).toBeVisible();
   await capturer(page, info, '4-ouvrir-pdf-attente');
-  await ouvrirMenuPlus(page);
-  await entree(page, 'Ouvrir le PDF').click(); // second clic : ignoré
+  await ouvrirMenuEnvoyer(page);
+  await entree(page, 'Imprimer').click({ force: true }); // second clic : ignoré
   const popup = await ouverture;
   await popup.close();
   await expect(pastille(page)).toHaveCount(0);
@@ -172,8 +174,8 @@ test('4 devis finalisé dont le PDF est à refaire : « Ouvrir le PDF » montre 
   await page.goto('/?emulateurs=1#/devis/editeur/dSansPdf');
   await expect(page.locator('.page-editeur-devis[data-devis="dSansPdf"]')).toBeVisible();
   await attendreCalme(page);
-  await ouvrirMenuPlus(page);
-  await entree(page, 'Ouvrir le PDF').click();
+  await ouvrirMenuEnvoyer(page);
+  await entree(page, 'Imprimer').click();
   await expect(page.locator('.toast-erreur [data-action="toast-action"]')).toHaveText('Réessayer', { timeout: 15000 });
   await expect(page.locator('[data-action="plus-actions"]')).not.toHaveAttribute('aria-busy', 'true');
   await expect(page).toHaveURL(/#\/devis\/editeur\/dSansPdf$/);

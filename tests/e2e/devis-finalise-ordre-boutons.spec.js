@@ -133,7 +133,8 @@ test('3 finalisé : le « … » ne propose ni « Passer à « Envoyé » » ni 
   await ouvrir(page, 'devis/voir/dFinalise');
   const l = await entreesMenu(page);
   expect(l.filter((t) => PASSAGES.test(t) || /^Envoyer/.test(t) || t === 'Devis envoyé')).toEqual(['Passer à « Devis signé »', 'Passer à « Devis refusé »']); // un devis finalisé jamais envoyé peut être signé ou refusé (décisions de Jérôme, 29/10 et 30/10/2026)
-  for (const nom of ['Télécharger le PDF', 'Imprimer', 'Créer une nouvelle version', 'Dupliquer', 'Archiver']) expect(l).toContain(nom);
+  for (const nom of ['Créer une nouvelle version', 'Dupliquer', 'Archiver']) expect(l).toContain(nom);
+  for (const nom of ['Télécharger le PDF', 'Imprimer', 'Ouvrir le PDF']) expect(l).not.toContain(nom); // 31/10/2026 : ils sont dans le menu du bouton « Envoyer »
   await capturer(page, info, '3-menu-finalise');
   await page.keyboard.press('Escape');
 });

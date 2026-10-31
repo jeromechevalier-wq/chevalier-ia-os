@@ -506,9 +506,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     // Ce qui ne dépend pas de l'étape : PDF, impression, e-mail (voir entete-boutons.js). Ce qu'un bouton actif du haut de page fait déjà n'est pas répété ; le reste (dont « Préparer l'e-mail » au brouillon, tant que « Envoyer » est grisé) est ici.
     const { menu } = regleEntete();
     // Pendant la fabrication, le menu le dit et ignore un second clic (pas de double génération).
-    entrees.push({ libelle: 'Ouvrir le PDF', icone: 'external-link', cle: 'ouvrir-pdf', desactive: pdfEnCours, action: () => ouvrirPdf(ancre) },
-      { libelle: pdfEnCours ? LIBELLE_PDF_FABRICATION : 'Télécharger le PDF', icone: 'download', cle: 'telecharger', desactive: pdfEnCours, action: () => telechargerPdf(ancre) },
-      { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', desactive: pdfEnCours, action: () => imprimer(ancre) });
+    // « Ouvrir le PDF » n'existe plus ici. « Télécharger le PDF » et « Imprimer » sont dans le menu du bouton « Envoyer » quand il est actif ; sinon (brouillon, envoyé, signé, refusé…) ils restent ici.
+    if (!menu.dejaVisibles.includes('telecharger')) entrees.push(...entreesPdf(ancre));
     // Le « … » ne répète jamais un bouton visible (entete-boutons.js, clesMenuDejaVisibles).
     if (!menu.dejaVisibles.includes('preparer-email')) entrees.push(...entreePreparerEmail());
     entrees.push({ separateur: true });
@@ -662,10 +661,16 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       action: () => lancerPreparationEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: finaliserDAbord }) };
     return nonBranche ? [entree, { texte: MESSAGE_NON_BRANCHE }] : [entree]; // la phrase est AFFICHÉE sous l'entrée grisée (comme dans le menu de la liste), pas seulement en infobulle
   };
-  /** Menu du bouton « Envoyer » (devis finalisé) : seulement l'e-mail. Le PDF et l'impression sont dans « … » (ils ne dépendent pas de l'envoi). */
+  /** « Télécharger le PDF » et « Imprimer » (pendant la fabrication : grisés, le libellé le dit, pas de double génération). Rangés dans le menu « Envoyer » quand il est actif, sinon dans « … ». */
+  const entreesPdf = (ancre) => [
+    { libelle: pdfEnCours ? LIBELLE_PDF_FABRICATION : 'Télécharger le PDF', icone: 'download', cle: 'telecharger', desactive: pdfEnCours, action: () => telechargerPdf(ancre) },
+    { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', desactive: pdfEnCours, action: () => imprimer(ancre) },
+  ];
+  /** Menu du bouton « Envoyer » (devis finalisé) : « Préparer l'e-mail », « Télécharger le PDF », « Imprimer ». */
   function ouvrirMenuEnvoyer(ancre) {
     ouvrirFenetreMenu(ancre, (fermer) => contenuMenu([
       ...entreePreparerEmail(),
+      ...entreesPdf(ancre),
     ], fermer), { nom: 'Envoyer' });
   }
   /** Imprimer : ouvre le PDF (un brouillon donne son PDF « BROUILLON » filigrané, jamais de fenêtre « Finaliser » ; un devis finalisé son PDF officiel) : on l'imprime depuis la visionneuse du navigateur. */
