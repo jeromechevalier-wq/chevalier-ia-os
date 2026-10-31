@@ -8,6 +8,7 @@ import * as S from '../functions/src/coeur/devis.js';
 import { creerAppelDevisPdf, creerAppelDevisPdfLien } from '../functions/src/devis/pdf-appel.js';
 import { creerDeclencheurPdf, estFinalisation } from '../functions/src/devis/pdf-declencheur.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
+import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
 const ACTEUR = 'jerome.chevalier@gmail.com';
 const MAINTENANT = new Date('2026-10-25T10:00:00Z');
@@ -16,12 +17,12 @@ const requete = (data, email = ACTEUR) => ({ auth: { token: { email, email_verif
 
 async function monde({ finaliser = false, affaire = true, urlDossier = 'https://drive.google.com/drive/folders/DOSSIER_ESSAI' } = {}) {
   const collections = {
-    [C.devis]: [], [C.devisCompteurs]: [], [C.devisParametres]: [{ id: 'reglages', regimeTva: 'assujetti', emetteur: { nom: 'Entreprise Essai' } }],
+    [C.devis]: [], [C.devisCompteurs]: [], [C.devisParametres]: [{ id: 'reglages', regimeTva: 'assujetti', entreprise: { ...EMETTEUR_ESSAI, nom: 'Entreprise Essai' } }],
     [C.audit]: [], [C.auditAvant]: [], [C.evenements]: [], [C.organisations]: [{ id: 'org1', nom: 'Société Cliente Essai' }], [C.personnes]: [],
     [C.affaires]: affaire ? [{ id: 'aff1', titre: 'Rénovation Essai', ...(urlDossier === null ? {} : { urlDossier }), documents: [{ libelle: 'Plan', url: 'https://exemple.test/plan' }] }] : [],
   };
   const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1', organisationId: 'org1', objet: 'Cuisine' }, { id: 'd1', maintenant: MAINTENANT, auteur: ACTEUR }, { marge: 20, margeDevis: 20 });
-  collections[C.devis].push({ ...d, objet: 'Cuisine', sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'l1', libelle: 'Pose', unite: 'u', quantite: 2, prixAchat: 100 }] }] });
+  collections[C.devis].push(completerPourFinaliser({ ...d, objet: 'Cuisine', sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'l1', libelle: 'Pose', unite: 'u', quantite: 2, prixAchat: 100 }] }] }));
   const donnees = creerAccesMemoire(collections);
   if (finaliser) await finaliserDevis(donnees); // finaliser exige l'affaire : « sans affaire » = un devis finalisé avant cette règle, l'affaire lui est retirée après
   if (!affaire) collections[C.devis][0].affaireId = null;

@@ -6,6 +6,7 @@ import { test, describe } from 'node:test';
 import { creerAccesMemoire, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';
 import * as S from '../functions/src/coeur/devis.js';
 import { nouveauDevis, montantAccepteHt, montantDesDevis } from '../functions/partage/devis.js';
+import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 import * as L from '../functions/partage/logique.js';
 import * as LEcran from '../js/modules/crm/logique.js';
 
@@ -14,7 +15,7 @@ const MAINTENANT = new Date('2026-10-29T10:00:00Z');
 const ctx = () => ({ acteur: ACTEUR, via: 'ecran', maintenant: MAINTENANT });
 
 function monde({ affaire = { id: 'aff1', titre: 'Rénovation', montant: 1500 }, devis = [] } = {}) {
-  const collections = { [C.devis]: devis, [C.affaires]: affaire ? [affaire] : [], [C.devisCompteurs]: [], [C.devisParametres]: [{ id: 'reglages', regimeTva: 'assujetti' }], [C.audit]: [], [C.auditAvant]: [] };
+  const collections = { [C.devis]: devis, [C.affaires]: affaire ? [affaire] : [], [C.devisCompteurs]: [], [C.devisParametres]: [{ id: 'reglages', regimeTva: 'assujetti', entreprise: EMETTEUR_ESSAI }], [C.personnes]: [{ id: 'p1', nom: 'Client Essai' }], [C.audit]: [], [C.auditAvant]: [] };
   return { collections, donnees: creerAccesMemoire(collections) };
 }
 const leDevis = (m, id) => m.collections[C.devis].find((d) => d.id === id);
@@ -22,7 +23,7 @@ const affaireDe = (m, id = 'aff1') => m.collections[C.affaires].find((a) => a.id
 /** Brouillon dont le HT final est `quantite` x 12 € (prix d'achat 10 €, marge 20 %). */
 function brouillon(id, quantite, extra = {}) {
   const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1' }, { id, maintenant: MAINTENANT, auteur: ACTEUR }, { marge: 20, margeDevis: 20 });
-  return { ...d, sections: [{ id: `s-${id}`, titre: 'Travaux', lignes: [{ id: `l-${id}`, libelle: 'Article', unite: 'u', quantite, prixAchat: 10 }] }], ...extra };
+  return completerPourFinaliser({ ...d, sections: [{ id: `s-${id}`, titre: 'Travaux', lignes: [{ id: `l-${id}`, libelle: 'Article', unite: 'u', quantite, prixAchat: 10 }] }], ...extra });
 }
 const statut = (m, devisId, action) => S.changerStatut({ donnees: m.donnees, ctx: ctx(), devisId, action });
 /** Finalise puis marque envoyé : le devis est prêt à être accepté. */

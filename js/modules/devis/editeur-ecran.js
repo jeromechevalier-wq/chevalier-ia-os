@@ -2143,7 +2143,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       if (el) el.textContent = euros(s.sousTotalHT);
     }
     // Message de saisie de la remise lu dans les règles de finalisation : jamais refait ici (celui des acomptes est sous le formulaire de l'acompte).
-    const messages = erreursFinalisation(travail);
+    const messages = erreursFinalisation(travail, { emetteur: D.etat.reglages.entreprise, aujourdhui: CRM.ctx().aujourdhui });
     const montrer = (el, motif) => { if (!el) return; const m = messages.filter((x) => motif.test(x)); el.hidden = !m.length; el.textContent = m.join(' '); };
     montrer(ref.erreurRemise, /remise/i);
     // Avertissements non bloquants.
@@ -2161,7 +2161,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   async function finaliser() {
     clearTimeout(minuteur);
     if (!(await sauver())) { toast(messageEnreg || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 }); return; }
-    const locales = erreursFinalisation(travail); // l'affaire manquante y est (même phrase que la fonction du serveur et l'assistant)
+    const locales = erreursFinalisation(travail, { emetteur: D.etat.reglages.entreprise, aujourdhui: CRM.ctx().aujourdhui }); // l'affaire manquante y est (même phrase que la fonction du serveur et l'assistant)
     // L'affaire manque : comme tout champ obligatoire, le champ s'affiche en rouge avec son message et reçoit le focus (créer l'affaire se fait dans sa liste). Seule l'affaire manque : pas de fenêtre.
     const sansAffaire = locales.includes(MESSAGE_AFFAIRE_MANQUANTE);
     if (sansAffaire) montrerAffaireManquante();

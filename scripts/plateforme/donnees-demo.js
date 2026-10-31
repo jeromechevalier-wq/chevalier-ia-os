@@ -300,7 +300,7 @@ export function construirePlan({ config, articles, familles = null, reglages, au
       const finaliseLe = jourAvant(maintenant, debut - 4, 11);
       compteur += 1;
       const numero = D.numeroDevis(L.aujourdhuiParis(finaliseLe), compteur);
-      const fige = D.figerPourFinalisation({ ...devis, id }, { numero, finaliseLe, reglages });
+      const fige = D.figerPourFinalisation({ ...devis, id }, { numero, finaliseLe, reglages, emetteur: ENTREPRISE_DEMO }); // « Mon entreprise » de démonstration (valeurs fictives) passe les règles de finalisation
       if (fige.erreurs.length) throw new Error(`Devis de démonstration invalide (${brouillon.objet}) : ${fige.erreurs.join(' ')}`);
       const { id: _i, ...f } = fige.devis;
       devis = { ...f, finalisation: { n8n: 'en_attente' }, archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null, pdf: null, envois: null, emailPrepare: null };

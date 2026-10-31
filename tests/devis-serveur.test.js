@@ -7,6 +7,8 @@ import { creerAccesMemoire, avecBase, COLLECTIONS as C } from '../functions/src/
 import * as S from '../functions/src/coeur/devis.js';
 import { creerAppelDevis } from '../functions/src/devis-appel.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
+import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
+import * as D from '../functions/partage/devis.js';
 
 const ACTEUR = 'jerome.chevalier@gmail.com';
 const MAINTENANT = new Date('2026-10-24T10:00:00Z'); // 12 h à Paris, le 24/10/2026
@@ -14,14 +16,14 @@ const ctx = (extra = {}) => ({ acteur: ACTEUR, via: 'ecran', maintenant: MAINTEN
 
 /** Un monde en mémoire : devis, compteur, réglages du module, journal. */
 function monde(devis = []) {
-  const collections = { [C.devis]: devis, [C.devisCompteurs]: [], [C.devisParametres]: [{ id: 'reglages', regimeTva: 'assujetti' }], [C.audit]: [], [C.auditAvant]: [] };
+  const collections = { [C.devis]: devis, [C.devisCompteurs]: [], [C.devisParametres]: [{ id: 'reglages', regimeTva: 'assujetti', entreprise: EMETTEUR_ESSAI }], [C.personnes]: [{ id: 'p1', nom: 'Client Essai' }], [C.audit]: [], [C.auditAvant]: [] };
   return { collections, donnees: creerAccesMemoire(collections) };
 }
 const ligne = (id) => ({ id, libelle: `Article ${id}`, unite: 'u', quantite: 2, prixAchat: 10 });
 /** Un brouillon complet (un destinataire, une ligne), prêt à finaliser. */
 function brouillon(id, extra = {}) {
   const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1' }, { id, maintenant: MAINTENANT, auteur: ACTEUR }, { marge: 20, margeDevis: 20 });
-  return { ...d, sections: [{ id: `s-${id}`, titre: 'Travaux', lignes: [ligne(`l-${id}`)] }], ...extra };
+  return completerPourFinaliser({ ...d, sections: [{ id: `s-${id}`, titre: 'Travaux', lignes: [ligne(`l-${id}`)] }], ...extra });
 }
 const photo = (m) => JSON.stringify(m.collections);
 const leDevis = (m, id) => m.collections[C.devis].find((d) => d.id === id);
@@ -451,7 +453,7 @@ describe('C7 qui peut appeler (porte de Jérôme)', () => {
     assert.doesNotMatch(texte, /d1|jerome|@/);
   });
   test('C7 un client ne peut appeler que dans SON espace : la base cadrée sur clients/<client> ne voit pas le devis d’un autre', async () => {
-    const collections = { 'clients/a/devis_devis': [brouillon('da')], 'clients/b/devis_devis': [brouillon('db')], 'clients/a/devis_compteurs': [], 'clients/b/devis_compteurs': [], 'clients/a/crm_audit': [], 'clients/a/crm_audit_avant': [] };
+    const collections = { 'clients/a/devis_devis': [brouillon('da')], 'clients/b/devis_devis': [brouillon('db')], 'clients/a/devis_compteurs': [], 'clients/b/devis_compteurs': [], 'clients/a/crm_audit': [], 'clients/a/crm_audit_avant': [], 'clients/a/devis_parametres': [{ id: 'reglages', regimeTva: 'assujetti', entreprise: EMETTEUR_ESSAI }], 'clients/a/crm_personnes': [{ id: 'p1', nom: 'Client Essai' }] };
     const brut = creerAccesMemoire(collections);
     const dansA = avecBase(brut, 'clients/a');
     await assert.rejects(() => S.finaliser({ donnees: dansA, ctx: ctx(), devisId: 'db' }), (e) => e.code === 'introuvable');
@@ -459,6 +461,38 @@ describe('C7 qui peut appeler (porte de Jérôme)', () => {
     assert.equal(r.ok, true);
     assert.equal(collections['clients/b/devis_devis'][0].statut, 'brouillon');
     assert.equal(collections['clients/b/devis_compteurs'].length, 0);
+  });
+});
+
+describe('B mentions légales (31/10/2026) : la fonction devisFinaliser applique les mêmes règles que l’écran', () => {
+  test('B1 B2 B3 B4 B5 un devis incomplet est refusé avec les phrases de l’écran, sans rien écrire (ni numéro ni compteur)', async () => {
+    const m = monde([brouillon('d1')]);
+    Object.assign(leDevis(m, 'd1'), { personneId: null, organisationId: null, chantier: undefined, expireLe: '2026-10-01' }); // le jeu d'essai est complet : on retire ce que la loi exige
+    m.collections[C.devisParametres][0].entreprise = { nom: 'Atelier' };
+    const avant = photo(m);
+    const r = await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    assert.equal(r.ok, false);
+    assert.deepEqual(r.erreurs, [
+      D.MESSAGES_ENTREPRISE_MANQUANTE.siret, D.MESSAGES_ENTREPRISE_MANQUANTE.adresse, D.MESSAGE_ASSURANCE_CROCHETS, D.MESSAGE_CLIENT_MANQUANT,
+      D.MESSAGE_DEBUT_TRAVAUX_MANQUANT, D.MESSAGE_DUREE_TRAVAUX_MANQUANTE, D.MESSAGE_VALIDITE_DEPASSEE,
+    ]);
+    assert.equal(photo(m), avant);
+  });
+  test('B3 le nom du client est lu dans sa fiche pendant la finalisation et figé : renommer la fiche ensuite ne change pas le devis', async () => {
+    const m = monde([brouillon('d1')]);
+    const r = await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    assert.equal(r.ok, true);
+    assert.equal(leDevis(m, 'd1').clientNomFige, 'Client Essai');
+    assert.equal(r.devis.clientNomFige, 'Client Essai');
+    m.collections[C.personnes][0].nom = 'Client Renommé';
+    assert.equal(D.vueClient(leDevis(m, 'd1'), { clientNom: 'Client Renommé' }).client.nom, 'Client Essai');
+  });
+  test('B3 une fiche sans nom (ou disparue) : le devis se finalise sans nom figé, rien d’indéfini n’est écrit', async () => {
+    const m = monde([brouillon('d1')]);
+    m.collections[C.personnes].length = 0;
+    const r = await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    assert.equal(r.ok, true);
+    assert.equal('clientNomFige' in leDevis(m, 'd1'), false);
   });
 });
 

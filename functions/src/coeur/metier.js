@@ -993,6 +993,15 @@ export async function modifierDevisBrouillon(c, args) {
     }
   }
   for (const k of ['objet', 'nom', 'personneId', 'organisationId', 'destinataires', 'copie', 'marge', 'tauxTvaDefaut']) if (champs[k] !== undefined) patch[k] = champs[k];
+  // Début et durée des travaux, validité : exigés à la finalisation (mêmes règles que l'écran, `erreursChantier`). Les autres champs du chantier (adresse, fin) ne sont pas touchés.
+  if (champs.chantier !== undefined) {
+    const chantier = { ...(devis.chantier && typeof devis.chantier === 'object' ? devis.chantier : {}) };
+    if (champs.chantier.debutTravaux !== undefined) chantier.debutTravaux = champs.chantier.debutTravaux;
+    if (champs.chantier.dureeEstimee !== undefined) chantier.dureeEstimee = champs.chantier.dureeEstimee;
+    verifierMessages(D.erreursChantier(chantier));
+    patch.chantier = chantier;
+  }
+  if (champs.expireLe !== undefined) patch.expireLe = champs.expireLe;
   if (patch.objet !== undefined) patch.objet = texte(patch.objet);
   if (patch.nom !== undefined) patch.nom = D.nettoyerNomDevis(patch.nom); // nom interne, jamais imprimé ; chaîne vide pour l'effacer
   if (patch.destinataires !== undefined) verifierDestinataires(patch.destinataires);
@@ -1024,7 +1033,7 @@ export async function modifierDevisBrouillon(c, args) {
   const plan = B.planModifierBrouillon(devis, patch);
   verifierMessages(plan.erreurs);
   for (const e of plan.ecritures) e.exigerStatut = 'brouillon'; // refusé par le moteur si le devis a été finalisé entre-temps
-  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (objet, nom, affaireId, personneId, organisationId, destinataires, copie, sections, lignes, ajouterLignes, remise, marge, tauxTvaDefaut).');
+  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (objet, nom, affaireId, personneId, organisationId, destinataires, copie, chantier, expireLe, sections, lignes, ajouterLignes, remise, marge, tauxTvaDefaut).');
   const t = D.totauxDevis(travail);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch), sections: structureCourte(travail.sections), totalHT: t.totalHt, totalTTC: t.ttc });
 }
@@ -1338,11 +1347,11 @@ const listeErreurs = (erreurs) => erreurs.map((e, i) => `(${i + 1}) ${e}`).join(
 export async function finaliserDevis(c, args) {
   const devis = await lire(c, C.devis, args.id, 'Devis');
   if (devis.statut !== 'brouillon') refuser('saisie_invalide', 'Ce devis est déjà finalisé : pour le corriger, créer la version suivante avec nouvelle_version_devis.');
-  const erreurs = D.erreursFinalisation(devis);
+  const reglages = await reglagesDuDevis(c); // lus avant le contrôle : « Mon entreprise » fait partie des règles de finalisation
+  const erreurs = D.erreursFinalisation(devis, { emetteur: reglages.entreprise, aujourdhui: L.aujourdhuiParis(c.maintenant) });
   if (erreurs.length) refuser('saisie_invalide', `Ce devis ne peut pas être finalisé, rien n'a été écrit. À corriger : ${listeErreurs(erreurs)}`, { erreurs });
   const jeton = c.jeton ?? c.acteur;
   // L'empreinte couvre le devis (forme canonique, sans l'id : l'ordre des clés ne compte pas) et les réglages qui jouent sur le figeage (régime de TVA, marge et mode par défaut).
-  const reglages = await reglagesDuDevis(c);
   const empreinte = empreinteApercu([JSON.stringify({ devis: canonique(sansId(devis)), reglages: { regimeTva: reglages.regimeTva, marge: reglages.marge, modeMarge: reglages.modeMarge, tauxTvaDefaut: reglages.tauxTvaDefaut } })]);
   if (!args.codeConfirmation) {
     const t = D.totauxDevis(devis);

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import * as Ed from '../js/modules/devis/editeur-logique.js';
 import { totauxDevis, prixVenteDeLigne, erreursFinalisation } from '../js/modules/devis/logique.js';
+import { OPTIONS_FINALISATION, EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
 const L = (id, extra = {}) => ({ id, libelle: `Ligne ${id}`, quantite: 1, unite: 'u', prixAchat: 10, ...extra });
 const devisDe = (sections, extra = {}) => ({ id: 'd1', statut: 'brouillon', affaireId: 'a1', modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', sections, ...extra });
@@ -180,11 +181,11 @@ describe('E7 avertissements non bloquants', () => {
     assert.deepEqual(Ed.avertissements(texte), []);
   });
   test('E7 un devis correct n’a aucun avertissement et se finalise (hors destinataire)', () => {
-    const ok = devisDe([{ id: 's', lignes: [L('a', { quantite: 2 })] }], { destinataires: ['client@example.fr'] });
+    const ok = completerPourFinaliser(devisDe([{ id: 's', lignes: [L('a', { quantite: 2 })] }], { destinataires: ['client@example.fr'] }));
     assert.deepEqual(Ed.avertissements(ok), []);
-    assert.deepEqual(erreursFinalisation(ok), []);
-    const avecTexte = devisDe([{ id: 's', lignes: [L('a'), Ed.ligneTexte('t')] }], { destinataires: ['client@example.fr'] });
-    assert.deepEqual(erreursFinalisation(avecTexte), []); // une ligne de texte ne bloque pas la finalisation
+    assert.deepEqual(erreursFinalisation(ok, OPTIONS_FINALISATION), []);
+    const avecTexte = completerPourFinaliser(devisDe([{ id: 's', lignes: [L('a'), Ed.ligneTexte('t')] }], { destinataires: ['client@example.fr'] }));
+    assert.deepEqual(erreursFinalisation(avecTexte, OPTIONS_FINALISATION), []); // une ligne de texte ne bloque pas la finalisation
   });
 });
 

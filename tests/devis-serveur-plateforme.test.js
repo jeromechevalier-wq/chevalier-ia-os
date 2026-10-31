@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { creerAccesMemoire, avecBase } from '../functions/src/coeur/donnees.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
+import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
 process.env.GCLOUD_PROJECT = 'demo-chevalier-ia-os';
 const { transitionDevis } = await import('../functions-plateforme/src/devis.js');
@@ -30,11 +31,11 @@ const auth = (email, verifie = true) => ({ uid: `uid-${email}`, token: { email, 
 
 function brouillon(id) {
   const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1' }, { id, maintenant: new Date(MAINTENANT), auteur: ALICE }, { marge: 20, margeDevis: 20 });
-  return { ...d, sections: [{ id: 's', titre: 'T', lignes: [{ id: 'l', libelle: 'Article', unite: 'u', quantite: 1, prixAchat: 10 }] }] };
+  return completerPourFinaliser({ ...d, sections: [{ id: 's', titre: 'T', lignes: [{ id: 'l', libelle: 'Article', unite: 'u', quantite: 1, prixAchat: 10 }] }] });
 }
 function monde() {
   const collections = {};
-  for (const c of ['a', 'b', 'c']) Object.assign(collections, { [`clients/${c}/devis_devis`]: [], [`clients/${c}/devis_compteurs`]: [], [`clients/${c}/crm_audit`]: [], [`clients/${c}/crm_audit_avant`]: [], [`clients/${c}/devis_parametres`]: [] });
+  for (const c of ['a', 'b', 'c']) Object.assign(collections, { [`clients/${c}/devis_devis`]: [], [`clients/${c}/devis_compteurs`]: [], [`clients/${c}/crm_audit`]: [], [`clients/${c}/crm_audit_avant`]: [], [`clients/${c}/devis_parametres`]: [{ id: 'reglages', regimeTva: 'assujetti', entreprise: EMETTEUR_ESSAI }], [`clients/${c}/crm_personnes`]: [{ id: 'p1', nom: 'Client Essai' }] });
   collections['clients/a/devis_devis'].push(brouillon('da'));
   collections['clients/b/devis_devis'].push(brouillon('db'));
   const brut = creerAccesMemoire(collections);

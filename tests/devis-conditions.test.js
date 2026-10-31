@@ -4,18 +4,19 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import * as D from '../js/modules/devis/logique.js';
 import { devisHtml, formaterMontant } from '../js/modules/devis/document.js';
+import { OPTIONS_FINALISATION, EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
 const ctx = { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'moi@exemple.test', nouvelId: (n) => `${n}_1` };
 const reglages = { modeMarge: 'majoration', marge: 0, margeDevis: 0, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
 const ligne = (id, prixAchat, quantite, extra = {}) => ({ id, libelle: `Article ${id}`, unite: 'u', quantite, prixAchat, ...extra });
 /** Devis de référence : HT 3 265,81 + TVA 653,16 = TTC 3 918,97. */
 const devis = (extra = {}) => ({
-  ...D.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'client@exemple.test' }] }, ctx, reglages),
+  ...completerPourFinaliser(D.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'client@exemple.test' }] }, ctx, reglages)),
   sections: [{ id: 's1', titre: 'Travaux', lignes: [ligne('a', 3265.81, 1)] }],
   ...extra,
 });
 const figer = (d, reg = reglages) => {
-  const r = D.figerPourFinalisation(d, { numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages: reg });
+  const r = D.figerPourFinalisation(d, { emetteur: EMETTEUR_ESSAI, numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages: reg });
   assert.deepEqual(r.erreurs, []);
   return r.devis;
 };
@@ -96,7 +97,7 @@ describe('Conditions de paiement', () => {
   });
 
   test('C6 validations : un message en français par cas', () => {
-    const e = (extra) => D.erreursFinalisation(devis(extra));
+    const e = (extra) => D.erreursFinalisation(devis(extra), OPTIONS_FINALISATION);
     const un = (extra, motif) => { const r = e(extra); assert.equal(r.length, 1, JSON.stringify(extra) + JSON.stringify(r)); assert.match(r[0], motif); };
     assert.deepEqual(e({ acompte: acompte30, primes: [prime], retenueGarantie: retenue5 }), []);
     // Acompte
@@ -133,7 +134,7 @@ describe('Conditions de paiement', () => {
     // Une valeur invalide compte pour 0 dans les totaux.
     const t = D.totauxDevis(devis({ acompte: { ...acompte30, valeur: 'x' }, primes: [{ id: 'p', libelle: '', montant: 10 }], retenueGarantie: { pourcentage: 150, echeance: 'x' } }));
     assert.deepEqual([t.acompteTtc, t.totalPrimes, t.retenueGarantieMontant, t.netAPayer], [null, 0, 0, 3918.97]);
-    assert.equal(D.figerPourFinalisation(devis({ acompte: { ...acompte30, type: 'cadeau' } }), { numero: 'N', finaliseLe: '2026-10-24T10:00:00Z', reglages }).devis, null);
+    assert.equal(D.figerPourFinalisation(devis({ acompte: { ...acompte30, type: 'cadeau' } }), { emetteur: EMETTEUR_ESSAI, numero: 'N', finaliseLe: '2026-10-24T10:00:00Z', reglages }).devis, null);
   });
 
   test('C7 vue client sans fuite : aucune clé de marge, prix d\'achat ou coefficient, libellés prêts à imprimer', () => {
@@ -220,7 +221,7 @@ describe('Conditions de paiement', () => {
     assert.equal(t.netAPayer, 946);
     const h = html(d);
     assert.ok(h.includes('Remise (10 %)') && h.indexOf('Remise (10 %)') < h.indexOf('<td>Aide</td>') && h.indexOf('<td>Aide</td>') < h.indexOf('Net à payer'));
-    assert.deepEqual(D.erreursFinalisation(d), []);
+    assert.deepEqual(D.erreursFinalisation(d, OPTIONS_FINALISATION), []);
   });
 });
 
@@ -235,9 +236,9 @@ describe('C11 relecture : texte lisible, pourcentages, retenue sans date', () =>
   });
   test('C11 retenue à 0 % sans date acceptée ; avec un pourcentage, la date reste obligatoire', () => {
     const base = { ...devis(), statut: 'brouillon' };
-    const ok = D.erreursFinalisation({ ...base, retenueGarantie: { pourcentage: 0 } }, reglages);
+    const ok = D.erreursFinalisation({ ...base, retenueGarantie: { pourcentage: 0 } }, OPTIONS_FINALISATION);
     assert.ok(!ok.some((m) => /retenue/i.test(m)));
-    const ko = D.erreursFinalisation({ ...base, retenueGarantie: { pourcentage: 5 } }, reglages);
+    const ko = D.erreursFinalisation({ ...base, retenueGarantie: { pourcentage: 5 } }, OPTIONS_FINALISATION);
     assert.ok(ko.some((m) => /retenue/i.test(m)));
   });
   test('C11 une prime de 0,004 € n\'est pas listée', () => {
@@ -375,11 +376,11 @@ describe('C12 plusieurs acomptes (devis.acomptes) : liste, centimes exacts, refu
 
   test('C12 la finalisation refuse des acomptes au-dessus du TTC et nomme l\'acompte (« Acompte n° 2 : … »)', () => {
     const base = { ...devis(), statut: 'brouillon' };
-    const ko = D.erreursFinalisation({ ...base, acomptes: [{ type: 'montantTtc', valeur: 3000, moment: 'signature' }, { type: 'montantTtc', valeur: 1000, moment: 'signature' }] }, reglages);
+    const ko = D.erreursFinalisation({ ...base, acomptes: [{ type: 'montantTtc', valeur: 3000, moment: 'signature' }, { type: 'montantTtc', valeur: 1000, moment: 'signature' }] }, OPTIONS_FINALISATION);
     assert.ok(ko.some((m) => m.startsWith('Acompte n° 2 : ') && /dépasse le total TTC/.test(m)), ko.join(' | '));
-    assert.equal(D.figerPourFinalisation({ ...base, acomptes: [{ type: 'pourcentage', valeur: 70, moment: 'signature' }, { type: 'pourcentage', valeur: 70, moment: 'signature' }] }, { numero: 'N', finaliseLe: '2026-10-24T10:00:00Z', reglages }).devis, null);
-    assert.deepEqual(D.erreursFinalisation({ ...base, acomptes: [{ type: 'pourcentage', valeur: 30, moment: 'signature' }, { type: 'montantHt', valeur: 500, moment: 'mi_travaux' }] }, reglages), []);
-    assert.ok(D.erreursFinalisation({ ...base, acomptes: 'x' }, reglages).some((m) => /doivent former une liste/.test(m)));
+    assert.equal(D.figerPourFinalisation({ ...base, acomptes: [{ type: 'pourcentage', valeur: 70, moment: 'signature' }, { type: 'pourcentage', valeur: 70, moment: 'signature' }] }, { emetteur: EMETTEUR_ESSAI, numero: 'N', finaliseLe: '2026-10-24T10:00:00Z', reglages }).devis, null);
+    assert.deepEqual(D.erreursFinalisation({ ...base, acomptes: [{ type: 'pourcentage', valeur: 30, moment: 'signature' }, { type: 'montantHt', valeur: 500, moment: 'mi_travaux' }] }, OPTIONS_FINALISATION), []);
+    assert.ok(D.erreursFinalisation({ ...base, acomptes: 'x' }, OPTIONS_FINALISATION).some((m) => /doivent former une liste/.test(m)));
   });
 
   test('C12 detailAcomptes : un montant TTC par acompte, dans l\'ordre ; null pour un acompte illisible', () => {

@@ -22,7 +22,10 @@ const base = {
     { id: 's3', titre: 'Zinguerie', lignes: [ligne('l6', 'Gouttière zinc', 32, 24, { unite: 'ml' }), ligne('l7', 'Descentes d\'eau', 28, 4, { unite: 'ml' }), ligne('l8', 'Nettoyage du chantier', 150, 1, { tauxTva: 20 })] },
   ],
 };
-const r = D.figerPourFinalisation(base, { numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages });
+// La finalisation exige l'entreprise, un client, début et durée des travaux (31/10/2026) : le jeu d'essai est complété, le document imprimé reste celui d'avant.
+const emetteur = { nom: 'Atelier Exemple', adresse: '3 rue de l\'Atelier\n75000 Ville', telephone: '01 23 45 67 89', siret: '123 456 789 00012', assuranceTexte: 'Assurance décennale : Assureur Exemple, contrat numéro : 123, territorialité : France métropolitaine.' };
+const r = D.figerPourFinalisation({ ...base, personneId: 'p1', chantier: { debutTravaux: '2026-11-15', dureeEstimee: { valeur: 3, unite: 'semaine' } } }, { numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages, emetteur });
+r.devis && delete r.devis.chantier; // ce document n'a pas de bloc Chantier
 if (r.erreurs.length) throw new Error(r.erreurs.join(' / '));
-const vue = D.vueClient(r.devis, { clientNom: 'Mme Exemple', emetteur: { nom: 'Atelier Exemple', adresse: '3 rue de l\'Atelier\n75000 Ville', telephone: '01 23 45 67 89', siret: '123 456 789 00012' } });
+const vue = D.vueClient(r.devis, { clientNom: 'Mme Exemple', emetteur });
 process.stdout.write(JSON.stringify({ html: devisHtml(vue), lignes: vue.sections.flatMap((s) => s.lignes).length }));

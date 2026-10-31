@@ -12,6 +12,7 @@ import { creerLimiteur } from '../functions/src/securite/limites.js';
 import { empreinteApercu } from '../functions/src/securite/codes.js';
 import { canonique, sansId } from '../functions/src/coeur/canonique.js';
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
+import { EMETTEUR_ESSAI } from './jeu-finalisation.js';
 
 const JETONS = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, code: `cia_${'C'.repeat(43)}` };
 const entree = (jeton, nom, profil, extra = {}) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif: true, ...extra });
@@ -20,16 +21,19 @@ const EMAIL = ['client@exemple.test'];
 const arrets = [];
 afterEach(async () => { while (arrets.length) await arrets.pop()(); });
 
+/** Début et durée des travaux posés directement sur le brouillon (sans passer par un outil : aucune ligne de journal en plus). La finalisation les exige (B4). */
+const avecChantier = (s, id) => { Object.assign(s.doc('devis_devis', id), { chantier: { debutTravaux: '2026-11-15', dureeEstimee: { valeur: 3, unite: 'semaine' } } }); return id; };
+
 /** Un devis déjà enregistré (pour les tests de liste), avec un prix d'achat et une marge qui ne doivent jamais sortir de lister_devis. */
 const devisEnregistre = (id, extra = {}) => ({
   id, racineId: id, version: 1, numero: null, statut: 'brouillon', affaireId: 'a1', organisationId: 'org1', personneId: null, objet: `Objet ${id}`, destinataires: EMAIL,
-  modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', archive: false, creeLe: new Date('2026-10-01T08:00:00Z'), expireLe: '2026-12-30',
+  modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', archive: false, creeLe: new Date('2026-10-01T08:00:00Z'), expireLe: '2026-12-30', chantier: { debutTravaux: '2026-11-15', dureeEstimee: { valeur: 3, unite: 'semaine' } },
   sections: [{ id: `s-${id}`, titre: '', lignes: [{ id: `l-${id}`, libelle: 'Peinture', unite: 'm²', quantite: 10, prixAchat: 8 }] }], ...extra,
 });
 
 async function demarrer({ devis = [], jetonsExtra = {} } = {}) {
   const collections = structuredClone(base);
-  Object.assign(collections, { devis_articles: [], devis_devis: devis.map((d) => structuredClone(d)), devis_compteurs: [], devis_parametres: [{ id: 'reglages', regimeTva: 'assujetti', marge: 20, modeMarge: 'majoration' }] });
+  Object.assign(collections, { devis_articles: [], devis_devis: devis.map((d) => structuredClone(d)), devis_compteurs: [], devis_parametres: [{ id: 'reglages', regimeTva: 'assujetti', marge: 20, modeMarge: 'majoration', entreprise: EMETTEUR_ESSAI }] });
   const donnees = creerAccesMemoire(collections);
   const horloge = { t: MAINTENANT.getTime() };
   const secret = JSON.stringify([entree(JETONS.lecteur, 'lecteur-essai', 'lecteur'), entree(JETONS.biblio, 'hermes-bibliothecaire', 'bibliothecaire'), entree(JETONS.code, 'claude-code-jerome', 'claude-code', jetonsExtra.code)]);
@@ -182,6 +186,7 @@ describe('M3 creer_devis_brouillon : lignes tirées des articles, totaux justes,
     const s = await demarrer();
     const ids = await articlesDeBase(s);
     const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', objet: ' Pose  de carrelage ', destinataires: EMAIL, lignes: lignesDeBase(ids), remise: { type: 'pourcentage', valeur: 10 } }));
+    avecChantier(s, r.id);
     assert.equal(r.statut, 'brouillon');
     assert.equal(r.numero, null);
     assert.equal(r.lignes, 3);
@@ -276,7 +281,10 @@ describe('M4 modifier_devis_brouillon : seulement un brouillon', () => {
 describe('M5 finaliser_devis : aperçu sans écriture, puis écriture avec le bon code', () => {
   async function brouillonPret(s) {
     const ids = await articlesDeBase(s);
-    return ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', objet: 'Carrelage', destinataires: EMAIL, lignes: lignesDeBase(ids), remise: { type: 'pourcentage', valeur: 10 } }));
+    const cree = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', objet: 'Carrelage', destinataires: EMAIL, lignes: lignesDeBase(ids), remise: { type: 'pourcentage', valeur: 10 } }));
+    // La finalisation exige le début et la durée des travaux : l'assistant les donne avec modifier_devis_brouillon (B4).
+    ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: cree.id, chantier: { debutTravaux: '2026-11-15', dureeEstimee: { valeur: 3, unite: 'semaine' } } }));
+    return cree;
   }
 
   test('M5 le premier appel ne finalise rien (aperçu et code) ; le second, avec le code, attribue le numéro et fige les totaux', async () => {
@@ -316,6 +324,7 @@ describe('M5 finaliser_devis : aperçu sans écriture, puis écriture avec le bo
     const s = await demarrer();
     const ids = await articlesDeBase(s);
     const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', lignes: [{ articleId: ids.a, quantite: 1 }] })); // organisation sans e-mail : aucun destinataire
+    avecChantier(s, r.id);
     const avant = JSON.stringify(s.collections.devis_devis);
     const rep = await s.appeler('code', 'finaliser_devis', { id: r.id });
     ok(rep); // sans adresse e-mail le devis peut être finalisé : l'aperçu est montré (c'est la finalisation qui exigera l'accord)
@@ -332,6 +341,39 @@ describe('M5 finaliser_devis : aperçu sans écriture, puis écriture avec le bo
     ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id, objet: 'Changé après l’aperçu' }));
     refuse(await s.appeler('code', 'finaliser_devis', { id, codeConfirmation: apercu.code }), /a changé depuis l’aperçu|a changé depuis l'aperçu/);
     assert.equal(s.doc('devis_devis', id).statut, 'brouillon');
+  });
+});
+
+describe('B mentions légales (31/10/2026) : l’assistant', () => {
+  test('B4 B5 modifier_devis_brouillon accepte le début et la durée des travaux et la date de validité ; l’adresse du chantier n’est pas touchée ; un format faux est refusé', async () => {
+    const s = await demarrer({ devis: [devisEnregistre('d1', { chantier: { adresse: { ligne1: '2 rue du Chantier', codePostal: '75011', ville: 'Paris' } } })] });
+    const m = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', chantier: { debutTravaux: '2026-12-01', dureeEstimee: { valeur: 2.5, unite: 'semaine' } }, expireLe: '2027-02-01' }));
+    assert.deepEqual(m.champsModifies.sort(), ['chantier', 'expireLe']);
+    const d = s.doc('devis_devis', 'd1');
+    assert.deepEqual(d.chantier, { adresse: { ligne1: '2 rue du Chantier', codePostal: '75011', ville: 'Paris' }, debutTravaux: '2026-12-01', dureeEstimee: { valeur: 2.5, unite: 'semaine' } });
+    assert.equal(d.expireLe, '2027-02-01');
+    // Un seul des deux : l'autre reste.
+    ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', chantier: { debutTravaux: '2026-12-15' } }));
+    assert.deepEqual(s.doc('devis_devis', 'd1').chantier.dureeEstimee, { valeur: 2.5, unite: 'semaine' });
+    refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', chantier: { debutTravaux: '15/12/2026' } }));
+    refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', chantier: { dureeEstimee: { valeur: 0, unite: 'jour' } } }));
+    refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', chantier: { dureeEstimee: { valeur: 2, unite: 'siècle' } } }));
+    refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', expireLe: 'bientôt' }));
+    refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', chantier: { adresse: 'x' } }));
+    assert.equal(s.doc('devis_devis', 'd1').expireLe, '2027-02-01', 'un refus n’écrit rien');
+  });
+  test('B1 B2 B3 B4 B5 finaliser_devis refuse avec les mêmes phrases que l’écran ; lire_devis les annonce avant ; rien n’est écrit', async () => {
+    const s = await demarrer({ devis: [devisEnregistre('d1', { organisationId: null, personneId: null, chantier: undefined, expireLe: '2026-09-01', sections: [{ id: 's', titre: '', lignes: [{ id: 'l', libelle: 'Peinture', unite: 'm²', quantite: 10, prixAchat: 8 }] }] })] });
+    s.doc('devis_parametres', 'reglages').entreprise = { nom: 'Atelier' };
+    const phrases = ['Complète le numéro SIRET dans Mon entreprise.', 'Complète l\'adresse de l\'entreprise dans Mon entreprise.', 'Complète l\'assurance dans Mon entreprise : il reste des crochets.',
+      'Choisis le client de ce devis.', 'Indique la date de début des travaux.', 'Indique la durée estimée des travaux.', 'est déjà dépassée'];
+    const lu = ok(await s.appeler('lecteur', 'lire_devis', { id: 'd1' }));
+    for (const p of phrases) assert.ok(lu.erreursFinalisation.some((e) => e.includes(p)), `lire_devis : ${p}`);
+    const avant = JSON.stringify(s.collections);
+    const r = await s.appeler('code', 'finaliser_devis', { id: 'd1' });
+    for (const p of phrases) refuse(r, new RegExp(p.replace(/[.()]/g, '\\$&')));
+    assert.equal(JSON.stringify(s.collections.devis_devis), JSON.stringify(JSON.parse(avant).devis_devis), 'rien n’a été écrit');
+    assert.equal(s.collections.devis_compteurs.length, 0, 'aucun numéro consommé');
   });
 });
 
@@ -355,7 +397,7 @@ describe('M7 trace d’audit', () => {
     const s = await demarrer();
     const ids = await articlesDeBase(s);
     const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [{ articleId: ids.a, quantite: 1 }] }));
-    ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, objet: 'Suivi' }));
+    ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, objet: 'Suivi', chantier: { debutTravaux: '2026-11-15', dureeEstimee: { valeur: 3, unite: 'semaine' } } })); // le chantier voyage dans la même modification : une seule ligne de journal
     const apercu = ok(await s.appeler('code', 'finaliser_devis', { id: r.id }));
     const f = ok(await s.appeler('code', 'finaliser_devis', { id: r.id, codeConfirmation: apercu.code }));
     const lignes = s.collections.crm_audit.filter((l) => l.collection === 'devis_devis' && l.docId === r.id);
@@ -378,7 +420,9 @@ describe('M7 trace d’audit', () => {
 describe('Relecture : garde-fous supplémentaires', () => {
   const prets = async (s) => {
     const ids = await articlesDeBase(s);
-    return ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', objet: 'X', destinataires: EMAIL, lignes: [{ articleId: ids.a, quantite: 1 }] }));
+    const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', objet: 'X', destinataires: EMAIL, lignes: [{ articleId: ids.a, quantite: 1 }] }));
+    avecChantier(s, r.id);
+    return r;
   };
 
   test('R1 un devis finalisé à l’écran après sa création ne se restaure pas, même avec forcer', async () => {
@@ -429,6 +473,7 @@ describe('Relecture : garde-fous supplémentaires', () => {
     const s = await demarrer({ jetonsExtra: { code: { limites: { ecrituresParHeure: 1 } } } });
     const r1 = await prets(s);
     const r2 = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [{ reference: 'car', quantite: 2 }] }));
+    avecChantier(s, r2.id);
     const a1 = ok(await s.appeler('code', 'finaliser_devis', { id: r1.id }));
     refuse(await s.appeler('code', 'finaliser_devis', { id: r1.id, codeConfirmation: 'FAUX-CODE' }), /code incorrect/);
     const a1b = ok(await s.appeler('code', 'finaliser_devis', { id: r1.id }));
@@ -1123,6 +1168,7 @@ describe('SA devis sans affaire (28/10/2026) : un brouillon vit sans affaire, la
     const s = await demarrer();
     const ids = await articlesDeBase(s);
     const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { destinataires: EMAIL, lignes: [{ articleId: ids.a, quantite: 1 }] }));
+    avecChantier(s, r.id);
     const avant = JSON.stringify(s.collections.devis_devis);
     refuse(await s.appeler('code', 'finaliser_devis', { id: r.id }), /Choisis l'affaire de ce devis\./);
     assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'rien n’a été écrit');
