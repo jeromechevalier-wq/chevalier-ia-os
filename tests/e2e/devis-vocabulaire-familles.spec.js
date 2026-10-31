@@ -227,3 +227,15 @@ test('C6b.8 cas vide et cas d’erreur : un catalogue sans article garde les fam
   await expect(ligne(page, 'prise').locator('[data-role="famille-vide"]')).toHaveText('Famille vide');
   await champMot('prise', (d) => d.cibles?.map((c) => c.id)).toEqual(['f-vide']);
 });
+
+test('C6b.9 un mot « famille désactivée + un article » : la fenêtre s’ouvre avec la seule puce vivante et « Enregistrer » est ACTIF (il retire la famille morte), jamais une impasse grisée', async ({ page }) => {
+  await catalogue();
+  await mot('prise', { articleId: '', articleLibelle: '', cibles: [{ genre: 'famille', id: 'f-off', libelle: '' }, { genre: 'article', id: 'p1', libelle: '' }] });
+  await ouvrir(page);
+  await menuMot(page, 'prise').click();
+  await entreeMenu(page, 'Changer ce que le mot désigne').click();
+  await expect(puces(page)).toHaveText(['Prise simple 16 A']);
+  await expect(enregistrer(page)).toHaveAttribute('aria-disabled', 'false');
+  await enregistrer(page).click();
+  await champMot('prise', (d) => [d.articleId, d.cibles?.map((c) => c.id)]).toEqual(['p1', []]);
+});

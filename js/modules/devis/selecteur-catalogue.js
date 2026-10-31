@@ -29,7 +29,7 @@ export function selecteurCatalogue({ source, mode = 'article', initial = null, s
   const genreDe = (x) => x?.genre ?? 'article'; // les articles du mode `articles` sont des articles du catalogue, sans `genre`
   /** En mode `mixte`, un article choisi devient `{ genre: 'article', id, libelle }` (comme une famille) : la liste ne garde pas l'objet du catalogue. */
   const choixArticle = (a) => (mixte ? { genre: 'article', id: a.id, libelle: a.libelle ?? '' } : a);
-  const choixFamille = (f) => ({ genre: 'famille', id: f.id, libelle: f.chemin ?? cheminFamille(source.familles(), f.id) ?? f.nom ?? '' });
+  const choixFamille = (f) => ({ genre: 'famille', id: f.id, libelle: f.chemin || cheminFamille(source.familles(), f.id) || f.nom || '' });
   let choisi = plusieurs ? null : initial;
   let liste = plusieurs ? [...(Array.isArray(initial) ? initial : initial ? [initial] : [])].slice(0, MAX_CHOIX) : [];
   const estChoisi = (id, genre = 'article') => (plusieurs ? liste.some((x) => x.id === id && genreDe(x) === genre) : choisi?.id === id);
@@ -127,7 +127,7 @@ export function selecteurCatalogue({ source, mode = 'article', initial = null, s
       onclick: () => { if (ouverts.has(f.id)) ouverts.delete(f.id); else ouverts.add(f.id); dessinerArbre(); } },
     icone(ouvert ? 'chevron-down' : 'chevron-right', { taille: 16 }), h('span', { class: 'arbre-nom' }, f.nom), h('span', { class: 'discret arbre-nombre' }, String(f.nombre)));
     const choisirCette = reelle ? h('button', { type: 'button', class: `bouton bouton-secondaire bouton-petit arbre-choisir-famille${coche ? ' choisi' : ''}`, 'aria-pressed': String(coche), 'aria-disabled': String(complet() && !coche),
-      'aria-label': `${coche ? 'Retirer' : 'Choisir'} la famille ${f.nom}`, dataset: { choisirFamille: f.id }, onclick: () => choisirFamille({ id: f.id, nom: f.nom }) }, coche ? 'Famille choisie' : 'Choisir cette famille') : null;
+      'aria-label': `${coche ? 'Famille choisie' : 'Choisir cette famille'} : ${f.nom}`, dataset: { choisirFamille: f.id }, onclick: () => choisirFamille({ id: f.id, nom: f.nom }) }, coche ? 'Famille choisie' : 'Choisir cette famille') : null;
     return h('li', { class: `arbre-famille niveau-${f.niveau}` },
       reelle ? h('div', { class: 'arbre-ligne-famille' }, entete, choisirCette) : entete,
       ouvert ? h('ul', { class: 'arbre-contenu' },

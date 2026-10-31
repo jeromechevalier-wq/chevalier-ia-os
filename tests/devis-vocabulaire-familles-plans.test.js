@@ -130,6 +130,10 @@ describe('C6b.4 « Essayer une phrase » : la portée dite avec une famille', ()
     const portee = { marqueurs: ['prise'], cibles: [famille('f-prises', ''), famille('fantome', 'Ancien nom')], nombreArticles: 3, reste: [] };
     assert.equal(P.phrasePortee(portee, FAMILLES), 'Je comprends : « prise » désigne les familles Fournitures › Prises et Ancien nom.');
   });
+  test('C6b.4 phrasePortee : un article désactivé ne compte pas (catalogue donné) ; la même famille visée deux fois est dite une fois', () => {
+    const portee = { marqueurs: ['prise', 'x'], cibles: [famille('f-prises', 'Prises'), article('off'), article('p1'), famille('f-prises', 'Prises')], nombreArticles: 3, reste: [] };
+    assert.equal(P.phrasePortee(portee, FAMILLES, CATALOGUE), 'Je comprends : « prise » + « x » désigne la famille Fournitures › Prises et 1 article.');
+  });
   test('C6b.4 phrasePortee suit le moteur : la portée rendue par `interpreter` pour un mot-famille donne la phrase attendue', () => {
     const regles = [mot([famille('f-prises', 'Fournitures › Prises')])];
     const r = interpreter('une prise étanche', { regles, articles: CATALOGUE, reglages: { marge: 20, modeMarge: 'majoration' }, familles: FAMILLES });

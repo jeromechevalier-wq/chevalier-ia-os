@@ -177,7 +177,7 @@ async function ouvrirChangerArticle(regle) {
 async function ouvrirChangerCibles(regle) {
   const actuels = choixVivants(regle);
   const cleDe = (c) => `${c.genre}:${c.id}`;
-  const avant = actuels.map(cleDe).join('|'); // les articles et familles désactivés ne sont pas dans la fenêtre : « Enregistrer » reste grisé tant que rien n'a changé
+  const avant = designeDe(regle).cibles.map(cleDe).join('|'); // TOUTES les cibles, mortes comprises : les désactivées ne sont pas dans la fenêtre, donc enregistrer les retire ; « Enregistrer » reste grisé tant que rien n'a changé
   const general = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
   let bouton = null;
   const choix = selecteurArticle({ mode: 'mixte', initial: actuels, surChoix: () => { general.textContent = ''; if (bouton) griserSelon(bouton, pret); } });
@@ -238,7 +238,7 @@ function resultatEssai(phrase) {
   const nombreFr = (n) => String(n).replace('.', ',');
   const lignes = [];
   if (r.cle) lignes.push(h('p', { dataset: { role: 'essai-cle' } }, 'Mot cherché : ', h('strong', {}, `« ${r.cle} »`), ` · quantité ${nombreFr(r.quantite)}`, r.prixVente != null ? ` · prix dit ${nombreFr(r.prixVente)} €` : ''));
-  if (r.portee) lignes.push(h('p', { dataset: { role: 'essai-portee' } }, V.phrasePortee(r.portee, D.etat.familles)));
+  if (r.portee) lignes.push(h('p', { dataset: { role: 'essai-portee' } }, V.phrasePortee(r.portee, D.etat.familles, D.etat.articles)));
   if (r.decision === 'utiliser') {
     const prix = r.prixVente ?? premier?.prixVenteHT;
     lignes.push(h('p', { dataset: { role: 'essai-decision' } }, 'Ton assistant l’ajouterait tout de suite : ', h('strong', {}, `${nombreFr(r.quantite)} × « ${premier.libelle} »`), typeof prix === 'number' ? ` à ${A.formaterPrix(prix)} HT l’unité` : '', '.'));
@@ -368,7 +368,7 @@ export function rendreVocabulaire(conteneur) {
     const ouvert = ciblesOuvertes.has(r.id);
     const resume = V.resumeDesigne(d);
     const nomCible = (c) => (c.genre === 'famille'
-      ? (c.vivant ? h('span', {}, `Famille ${c.libelle} (${c.nombreArticles ? `${c.nombreArticles} ${c.nombreArticles > 1 ? 'articles' : 'article'}` : 'vide'})`) : h('span', { class: 'discret' }, `Famille ${c.libelle || '—'} (supprimée ou désactivée)`))
+      ? (c.vivant ? h('span', {}, `Famille ${c.libelle} (${c.nombreArticles ? `${c.nombreArticles} ${c.nombreArticles > 1 ? 'articles' : 'article'}` : 'vide'})`) : h('span', { class: 'discret' }, `Famille ${c.libelle || '—'} (désactivée)`))
       : (c.vivant ? h('a', { class: 'lien-article', href: lien('devis/bordereau') }, c.libelle) : h('span', { class: 'discret' }, `${c.libelle || '—'} (désactivé)`)));
     remplir(cellule,
       h('button', { type: 'button', class: 'bouton-lien', 'aria-expanded': String(ouvert), dataset: { action: 'cibles' }, 'aria-label': `${resume} : ${r.expression ?? r.cle}`, onclick: () => {

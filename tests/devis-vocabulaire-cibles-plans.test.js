@@ -44,7 +44,7 @@ describe('C5b.1 créer un mot : un article ou plusieurs au choix', () => {
     const neuf = Array.from({ length: 9 }, (_, i) => art(`n${i}`, `Article ${i}`));
     const trop = P.planCreerMot({ expression: 'prise', articleIds: neuf.map((a) => a.id) }, CTX, { articles: neuf });
     assert.equal(trop.erreurs.articleId, P.MESSAGE_TROP_DE_CIBLES);
-    assert.match(P.MESSAGE_TROP_DE_CIBLES, /8 articles au plus/);
+    assert.match(P.MESSAGE_TROP_DE_CIBLES, /8 choix au plus/);
     assert.equal(P.planCreerMot({ expression: 'prise', articleIds: neuf.slice(0, 8).map((a) => a.id) }, CTX, { articles: neuf }).erreurs.articleId, undefined, '8 articles : permis');
   });
 });

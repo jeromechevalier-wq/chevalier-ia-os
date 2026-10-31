@@ -37,8 +37,8 @@ export const MESSAGE_MOT_INTROUVABLE = 'Ce mot est introuvable : recharge la pag
 export const articleChoisissable = (a) => Boolean(a) && a.actif !== false && a.type !== 'texte';
 
 export const MAX_CIBLES = SEUILS.maxCibles;
-export const MESSAGE_TROP_DE_CIBLES = `Un mot désigne ${MAX_CIBLES} articles au plus : retires-en un d’abord.`;
-export const MESSAGE_CIBLES_INDISPONIBLES = 'Aucun des articles de ce mot n’est disponible : change d’abord ce qu’il désigne.';
+export const MESSAGE_TROP_DE_CIBLES = `Un mot désigne ${MAX_CIBLES} choix au plus (articles ou familles) : retires-en un d’abord.`;
+export const MESSAGE_CIBLES_INDISPONIBLES = 'Rien de ce que désigne ce mot n’est disponible : change d’abord ce qu’il désigne.';
 
 export const MESSAGE_FAMILLE_INTROUVABLE = 'Cette famille n’existe plus ou est désactivée : choisis une famille du catalogue.';
 
@@ -90,15 +90,16 @@ export function resumeDesigne(d) {
 
 /**
  * La phrase de « Essayer une phrase » pour la portée comprise par le moteur : `portee` = `{ marqueurs, cibles, nombreArticles, reste }`. Sans famille : « « prise » désigne 3 articles au choix et je cherche « etanche » parmi eux. » ;
- * avec une famille : « « prise » désigne la famille Prises et je cherche « etanche » dedans. ». `lesFamilles` (facultatif) : la liste des familles, pour dire leur nom d'aujourd'hui. Même texte pour l'écran et les tests.
+ * avec une famille : « « prise » désigne la famille Prises et je cherche « etanche » dedans. ». `lesFamilles` (facultatif) : la liste des familles, pour dire leur nom d'aujourd'hui ; `catalogue` (facultatif) : les articles, pour ne pas compter ceux qui sont désactivés. Même texte pour l'écran et les tests.
  */
-export function phrasePortee(portee, lesFamilles = null) {
+export function phrasePortee(portee, lesFamilles = null, catalogue = null) {
   // Le nom d'une famille est celui d'AUJOURD'HUI (chemin dans la liste des familles) : un mot écrit avant un renommage, ou sans libellé, se lit quand même.
   if (lesFamilles) portee = { ...portee, cibles: (portee.cibles ?? []).map((c) => (c.genre === 'famille' ? { ...c, libelle: cheminFamille(lesFamilles, c.id) || c.libelle || c.id } : c)) };
   const marqueurs = (portee.marqueurs ?? []).map((k) => `« ${k} »`).join(' + ');
   const cibles = Array.isArray(portee.cibles) ? portee.cibles : [];
-  const familles = cibles.filter((c) => c.genre === 'famille');
-  const articles = cibles.filter((c) => c.genre === 'article');
+  const vus = new Set();
+  const familles = cibles.filter((c) => c.genre === 'famille' && !vus.has(c.id) && vus.add(c.id)); // deux marqueurs sur la même famille : une seule fois
+  const articles = cibles.filter((c) => c.genre === 'article' && (!catalogue || articleChoisissable(catalogue.find((a) => a.id === c.id)))); // `catalogue` (facultatif) : un article désactivé ne compte pas
   const reste = (portee.reste ?? []).length ? portee.reste.join(' ') : '';
   if (!familles.length) {
     return `Je comprends : ${marqueurs} désigne ${portee.nombreArticles} ${portee.nombreArticles > 1 ? 'articles au choix' : 'article'}${reste ? ` et je cherche « ${reste} » parmi eux.` : '.'}`;
