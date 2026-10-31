@@ -27,7 +27,7 @@ describe('1 devisATvaReduite', () => {
     assert.equal(L.devisATvaReduite(devis([lg('a', { tauxTva: 20 }), lg('z', { tauxTva: 10, prixAchat: 0, prixVente: 0, quantite: 1 })])), false);
   });
   test('1 franchise de TVA et autoliquidation : faux, même avec des lignes à 10 %', () => {
-    assert.equal(L.devisATvaReduite(un(10, {}) && { ...un(10), regimeTva: 'franchise' }), false);
+    assert.equal(L.devisATvaReduite({ ...un(10), regimeTva: 'franchise' }), false);
     assert.equal(L.devisATvaReduite({ ...un(10), autoliquidation: true }), false);
   });
   test('1 comparaison tolérante aux flottants (5,5 écrit 5.5000000001)', () => assert.equal(L.devisATvaReduite(un(5.5000000001)), true));
