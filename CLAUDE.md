@@ -113,6 +113,14 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 - **PR de docs : une seule** par session (voir plus haut).
 - **La porte de n8n n'existe pas chez les clients** (`functions-plateforme/`) : toute idée qui fait rappeler le serveur par n8n chez un client commence par la porte (liste d'arrêt). Voir `docs/cadrage-logiciel-facturation.md`.
 
+### Leçons de la journée et nuit du 31/10/2026
+- **« Tests de nuit » (`tests-nuit.yml`) teste TOUJOURS `main`** (checkout `ref: main` en dur) : le lancer « sur une branche » ne teste PAS la branche. Pour valider une PR AVANT fusion : poser l'étiquette `tests-complets` (palier complet de `tests.yml`) puis lire la coche « Tests » ; poser l'étiquette AVANT de mettre la branche à jour (un seul lancement). Après chaque fusion d'écran ou de serveur : lancer « Tests de nuit » sur `main` et lire le résultat (la PR 466 a laissé 4 tests de menus rouges sur `main`, corrigés par la PR 476).
+- Une PR en conflit (`mergeable_state: dirty`) ne lance AUCUN test : résoudre d'abord (fusionner `main`, garder toutes les lignes des listes de `tests/package.json`).
+- Une session de code peut rester inactive avec un travail non poussé (la session des champs manquants : 50 minutes) : polling toutes les 15 minutes (`send_later` enchaîné + filet horaire), lire l'état de chaque session, relancer ou remplacer.
+- Un brief se vérifie contre le code par un agent Fable avant l'envoi (confirmé encore cette nuit : « 10 messages » étaient 13 et touchaient le serveur ; « réglage de modèle d'e-mail » n'existait pas ; adresses de la fiche : déjà fait à 80 %).
+- Voie « Docs » (PR 470) : une PR qui ne touche que `docs/`, `wiki/`, `README.md`, `CLAUDE.md`, `PROMPT-CONSTRUCTION.md`, `.github/A-FAIRE.md` lance le job `Docs` (≈ 1-2 min) ; une fusion de docs seules ne redéploie plus le site.
+- La facturation n'utilise plus n8n (décision du 31/10) : la porte n8n chez les clients (PR 463) reste utile pour « Préparer l'e-mail », les propositions et la veille.
+
 ## Au démarrage d'une session
 
 1. Lis `docs/roadmap.md` (état et décisions).

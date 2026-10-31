@@ -6,7 +6,7 @@
 
 ## Depuis l'appli (18/10/2026)
 
-Dans Chevalier IA OS, **menu utilisateur (clic sur ton nom, en bas à gauche) > Connecter mon assistant** : la page donne l'adresse du serveur (`<adresse de l'appli>/mcp`) et rappelle les trois gestes (coller le lien dans les connecteurs de Claude, se connecter avec Google, cliquer sur « Autoriser »). Elle ne contient ni jeton ni secret et ne lit rien dans la base.
+Dans Chevalier IA OS, **menu utilisateur (clic sur ton nom, en bas à gauche) > Connecter mon IA** : la page donne l'adresse du serveur (`<adresse de l'appli>/mcp`) et rappelle les trois gestes (coller le lien dans les connecteurs de Claude, se connecter avec Google, cliquer sur « Autoriser »). Elle ne contient ni jeton ni secret et ne lit rien dans la base.
 
 ## En deux phrases
 

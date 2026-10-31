@@ -72,3 +72,8 @@ Voir `docs/acceleration-tests-mesures.md`, section « Instabilités ». Sur GitH
 - En bac à sable, `apis.google.com` est injoignable : les parcours qui chargent le sélecteur de fichiers Google échouent sur l'erreur console `ERR_TUNNEL_CONNECTION_FAILED`. Ce n'est pas un défaut du code ; la coche GitHub fait foi.
 - Deux suites de tests en même temps sur la même machine font échouer au hasard (veille-filtres, tableaudebord, porte) : relancer seul.
 - La suite de nuit peut être relancée à la main (GitHub, Actions, « Tests de nuit », « Run workflow ») pour vérifier un correctif sans attendre la nuit.
+
+## Voie « Docs » et étiquette `tests-complets` (31/10/2026)
+- **Voie « Docs »** (PR 470) : une PR qui ne touche que `docs/`, `wiki/`, `README.md`, `CLAUDE.md`, `PROMPT-CONSTRUCTION.md` ou `.github/A-FAIRE.md` lance le job `Docs` (environ 1 à 2 minutes). Sa fusion ne redéploie plus le site. `wiki/` doit être régénéré (test W6).
+- **« Tests de nuit » teste toujours `main`** (`ref: main` écrit en dur) : le lancer « sur une branche » ne teste pas la branche. Pour valider une PR avant la fusion : poser l'étiquette `tests-complets`, puis lire la coche « Tests ». Poser l'étiquette **avant** de mettre la branche à jour (un seul lancement).
+- **Une PR en conflit** (`mergeable_state: dirty`) ne lance aucun test : résoudre d'abord.
