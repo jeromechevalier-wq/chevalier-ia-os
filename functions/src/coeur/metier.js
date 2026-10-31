@@ -727,8 +727,8 @@ function avecExemple(exemples, phrase) {
 export async function enregistrerReponseVocabulaire(c, args) {
   const { reponse, articleId } = args;
   const phrase = String(args.phrase ?? '');
-  const [articles, regles, reglages, usages] = await Promise.all([c.donnees.liste(C.devisArticles), c.donnees.liste(C.devisVocabulaire), reglagesDuDevis(c), lireUsages(c.donnees)]);
-  const r = DV.interpreter(phrase, { regles, articles, reglages, usages });
+  const [articles, regles, reglages, usages, familles] = await Promise.all([c.donnees.liste(C.devisArticles), c.donnees.liste(C.devisVocabulaire), reglagesDuDevis(c), lireUsages(c.donnees), famillesDevis(c)]);
+  const r = DV.interpreter(phrase, { regles, articles, reglages, usages, familles });
   const regleId = DV.identifiantDeRegle(r.cle);
   if (!regleId) refuser('saisie_invalide', 'Aucun mot à retenir dans cette phrase (elle ne contient que des mots vides ou des nombres).');
   // Un mot qui désigne PLUSIEURS articles (ou aucun article unique) ne s'apprend pas : une réponse légitime parmi ses articles ne doit ni compter une contradiction ni poser une suggestion.
@@ -743,7 +743,7 @@ export async function enregistrerReponseVocabulaire(c, args) {
   if (!article) refuser('introuvable', `Article introuvable : ${articleId}`);
   if (article.actif === false || article.type === DA.TYPE_TEXTE) refuser('saisie_invalide', `« ${article.libelle} » est désactivé ou n’est pas un article vendable : choisir un autre article.`);
   // Une question de précision ne cite aucun article : ni `autre` ni `confirme` ne s'enregistrent (sinon la règle courte « prise » -> un article serait créée). La phrase COMPLÉTÉE s'apprend par le chemin habituel.
-  if (r.etape === 'precision' && reponse !== 'aucun') refuser('saisie_invalide', 'La question posée était une question de précision (plusieurs articles proches) : rien n’est enregistré. Rappeler rechercher_article_par_phrase avec le mot choisi ajouté à la phrase, puis répondre à cette nouvelle question.');
+  if ((r.etape === 'precision' || r.etape === 'famille') && reponse !== 'aucun') refuser('saisie_invalide', 'La question posée était une question de précision ou de famille (aucun article n’a été cité) : rien n’est enregistré. Rappeler rechercher_article_par_phrase avec le mot choisi ajouté à la phrase, puis répondre à cette nouvelle question.');
   const propose = r.candidats.some((x) => x.articleId === articleId);
   if (reponse === 'confirme' && !propose) refuser('saisie_invalide', `« ${article.libelle} » n’aurait pas été proposé pour cette phrase : une confirmation n’est acceptée que pour un article proposé. Si l’utilisateur a choisi un autre article, utiliser la réponse « autre ».`);
   const existante = regles.find((x) => x.id === regleId) ?? null;

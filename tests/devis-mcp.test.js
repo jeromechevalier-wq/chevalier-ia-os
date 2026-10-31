@@ -819,13 +819,37 @@ describe('K9 K10 K11 un mot qui désigne plusieurs articles : la réponse ne l�
     const { OUTILS_ECRITURE } = await import('../functions/src/mcp/outils/ecriture.js');
     const recherche = OUTILS_LECTURE.find((o) => o.nom === 'rechercher_article_par_phrase').description;
     assert.match(recherche, /`portee` dit de quoi on parle/);
-    assert.match(recherche, /`etape` vaut `precision`.*pose exactement `question`.*rappelle cet outil avec la phrase complétée/s);
+    assert.match(recherche, /`etape` vaut `precision` ou `famille`.*pose exactement `question`.*rappelle cet outil avec la phrase complétée/s);
     assert.match(recherche, /ne liste jamais les articles/);
     assert.match(recherche, /Le mot affiché à l'utilisateur est donné par lire_reglages_devis\.$/);
     const reponse = OUTILS_ECRITURE.find((o) => o.nom === 'enregistrer_reponse_vocabulaire').description;
     assert.match(reponse, /plusieurs articles ne s'apprend pas : la réponse n'écrit rien/);
     assert.match(reponse, /n'appelle pas cet outil \(confirme et autre sont refusés\) : rappelle rechercher_article_par_phrase/);
     assert.doesNotMatch(`${recherche} ${reponse}`, /instructions personnalisées/i);
+  });
+
+  test('K2f une FAMILLE dans l’espace (document `devis_parametres/familles`) : « prise étanche » la trouve ; « tableau » (deux familles) pose UNE question de famille sans lister d’article ; aucune réponse n’écrit rien', async () => {
+    const s = await demarrer();
+    s.collections.devis_parametres.push({ id: 'familles', liste: [{ id: 'f-prises', nom: 'Prises', actif: true, parentId: 'famille-1' }, { id: 'f-tab-elec', nom: 'Tableaux électriques', actif: true, parentId: 'famille-1' }, { id: 'f-tab-com', nom: 'Tableaux de communication', actif: true, parentId: 'famille-1' }] });
+    const creer = async (libelle, familleId) => ok(await s.appeler('biblio', 'creer_article', { libelle, prixAchat: 5, unite: 'u', familleId })).id;
+    const ids = { simple: await creer('Prise simple 16 A', 'f-prises'), etanche: await creer('Prise étanche 16 A', 'f-prises'), te: await creer('Tableau électrique 2 rangées', 'f-tab-elec'), tc: await creer('Tableau de communication 6 prises', 'f-tab-com') };
+    const famille = (cle, liste) => ({ ...regleVocabulaire(cle, '', { validePar: 'humain' }), cibles: liste.map((id) => ({ genre: 'famille', id, libelle: '' })) });
+    s.collections.devis_vocabulaire = [famille('prise', ['f-prises']), famille('tableau', ['f-tab-elec', 'f-tab-com'])];
+    const prise = ok(await chercherPhrase(s, 'prise étanche'));
+    assert.deepEqual(prise.candidats.map((c) => c.articleId), [ids.etanche]);
+    assert.equal(prise.question, 'C’est bien « Prise étanche 16 A » ?');
+    const tableau = ok(await chercherPhrase(s, 'un tableau'));
+    assert.deepEqual([tableau.decision, tableau.etape, tableau.candidats], ['demander', 'famille', []], 'aucun article cité');
+    assert.deepEqual(tableau.choixFamilles.map((f) => f.id), ['f-tab-elec', 'f-tab-com']);
+    assert.match(tableau.question, /^Tu parles de « .*Tableaux électriques » ou de « .*Tableaux de communication » \?$/);
+    const avant = JSON.stringify(s.collections.devis_vocabulaire);
+    // La phrase de la question de famille a la clé du mot : la garde « plusieurs articles au choix » répond d'abord (rien n'est écrit, pas une erreur).
+    for (const reponse of ['confirme', 'autre', 'aucun']) assert.match(ok(await repondre(s, 'un tableau', reponse, reponse === 'aucun' ? undefined : ids.te)).message, /plusieurs articles au choix|aucune règle apprise/);
+    assert.equal(JSON.stringify(s.collections.devis_vocabulaire), avant, 'rien n’est écrit');
+    const suite = ok(await chercherPhrase(s, 'tableau électrique'));
+    assert.equal(suite.etape, 'article');
+    assert.equal(suite.candidats[0].articleId, ids.te);
+    assert.doesNotMatch(JSON.stringify(tableau), /prixAchat|marge/i);
   });
 
   test('K22c après une question de précision, ni « autre » ni « confirme » ne s’enregistrent (aucun article n’a été cité : la règle courte « prise » ne se crée pas) ; « aucun » reste permis ; la phrase complétée s’apprend', async () => {

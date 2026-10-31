@@ -230,7 +230,7 @@ const pastille = (libelle, couleur, attrs = {}) => h('span', { class: 'pastille-
 /** Ce que ton assistant comprendrait d'une phrase : calcul local avec le moteur (même code que le serveur), rien n'est enregistré. */
 function resultatEssai(phrase) {
   if (!phrase.trim()) return [];
-  const r = interpreter(phrase, { regles: D.etat.vocabulaire, articles: D.etat.articles, reglages: D.etat.reglages, usages: D.etat.usages }); // le même moteur que le serveur, usage compris
+  const r = interpreter(phrase, { regles: D.etat.vocabulaire, articles: D.etat.articles, reglages: D.etat.reglages, usages: D.etat.usages, familles: D.etat.familles }); // le même moteur que le serveur, usage et familles compris
   const premier = r.candidats[0];
   const nombreFr = (n) => String(n).replace('.', ',');
   const lignes = [];
