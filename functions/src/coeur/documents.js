@@ -11,7 +11,7 @@ import { COLLECTIONS as C } from './donnees.js';
 import { executerEcritures } from './ecriture.js';
 import { cheminDocument, cheminDocumentAppartientALEspace, DUREE_LIEN_MINUTES } from '../devis/stockage.js';
 import {
-  controlerFichier, messageTropGros, signatureCoherente, nomSansDoublon, limiteEffectiveMo, enOctets, TYPES, TEXTE_MCP_MAX_OCTETS, TYPES_ACCEPTES_TEXTE,
+  controlerFichier, messageTropGros, signatureCoherente, nomSansDoublon, limiteEffectiveMo, enOctets, TYPES, TEXTE_MCP_MAX_OCTETS, TYPES_ACCEPTES_TEXTE, encodageTexte,
 } from '../../partage/fichiers-regles.js';
 
 /** code : demande_invalide | introuvable | refuse (type, taille, nom) | non_configure | stockage_droit | stockage_erreur */
@@ -78,15 +78,16 @@ export async function deposerDocument({ donnees, stockage, espace = '', ctx, ecr
   const existants = (await donnees.liste(C.documentsStockes, { champ: 'cibleId', valeur: cibleId })).filter((f) => f.cibleType === cibleType && !f.supprimeLe);
   const nomFinal = nomSansDoublon(controle.nom, existants.map((f) => f.nom));
   const chemin = cheminDocument({ espace, cibleType, cibleId, uuid, nom: nomFinal });
+  const encodage = controle.famille === 'texte' ? encodageTexte(octets) : null; // texte : on annonce le charset (sinon accents illisibles à l'ouverture)
   try {
-    await stockage.deposer(chemin, octets, controle.typeMime);
+    await stockage.deposer(chemin, octets, encodage ? `${controle.typeMime}; charset=${encodage}` : controle.typeMime);
   } catch (e) {
     throw manqueDroit(e) ? new ErreurDocument('stockage_droit', MESSAGE_DROIT_STOCKAGE) : new ErreurDocument('stockage_erreur', 'Le fichier n\'a pas pu être enregistré. Réessayez.');
   }
   const id = randomUUID(); // identifiant de la fiche (pas tiré par la base : seul le moteur d'écriture et metier.js le font)
   try {
     const r = await ecrire(
-      [{ type: 'creer', collection: C.documentsStockes, id, donnees: { cibleType, cibleId, nom: nomFinal, typeMime: controle.typeMime, taille: octets.length, chemin, creeLe: ctx.maintenant, creePar: ctx.acteur, supprimeLe: null } }],
+      [{ type: 'creer', collection: C.documentsStockes, id, donnees: { cibleType, cibleId, nom: nomFinal, typeMime: controle.typeMime, ...(encodage ? { encodage } : {}), taille: octets.length, chemin, creeLe: ctx.maintenant, creePar: ctx.acteur, supprimeLe: null } }],
       { cibleType, cibleId, nom: nomFinal, taille: octets.length },
     );
     return { id, nom: nomFinal, taille: octets.length, typeMime: controle.typeMime, operationId: r?.operationId ?? null };
@@ -120,7 +121,7 @@ export async function lienDocument({ donnees, stockage, espace = '', documentId,
   const extension = /\.([A-Za-z0-9]{1,10})$/.exec(String(fiche.nom))?.[1]?.toLowerCase();
   const regle = TYPES[extension];
   if (!regle) throw new ErreurDocument('refuse', 'Ce fichier n\'est pas accessible.');
-  const url = await stockage.lienSigne(fiche.chemin, { minutes: DUREE_LIEN_MINUTES, nomAffiche: fiche.nom, telecharger: telecharger || !AFFICHABLES.has(regle.famille), typeMime: regle.type });
+  const url = await stockage.lienSigne(fiche.chemin, { minutes: DUREE_LIEN_MINUTES, nomAffiche: fiche.nom, telecharger: telecharger || !AFFICHABLES.has(regle.famille), typeMime: regle.famille === 'texte' ? `${regle.type}; charset=${fiche.encodage || 'utf-8'}` : regle.type });
   return { url, expireDans: DUREE_LIEN_MINUTES * 60, nom: fiche.nom };
 }
 
