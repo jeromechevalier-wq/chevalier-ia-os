@@ -301,7 +301,7 @@ function formulerQuestion(decision, cle, choix, devine = {}) {
 /**
  * `interpreter(phrase, { regles, articles, reglages, usages })` (`usages` facultatif : Map articleId -> { nombre }, départage seulement deux scores égaux) -> `{ cle, quantite, prixVente, quantiteIncertaine, prixIncertain, candidats, decision, question }`.
  * `regles` : règles du dictionnaire ({ id?, cle, articleId, statut, conflit }) ; `articles` : le catalogue (un article désactivé n'est jamais candidat) ; `reglages` : { marge, modeMarge }.
- * Un candidat : { articleId, libelle, unite, prixVenteHT, score, pourquoi, regleId }. Au plus 5. Départage stable : score, libellé, identifiant.
+ * Un candidat : { articleId, libelle, unite, prixVenteHT, score, pourquoi, regleId }. Au plus 5. Départage stable : score, usage (si fourni), libellé, identifiant.
  */
 export function interpreter(phrase, { regles = [], articles = [], reglages, usages } = {}) {
   const analyse = analyserPhrase(phrase);

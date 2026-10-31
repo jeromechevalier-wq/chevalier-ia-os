@@ -96,7 +96,7 @@ export function usageDepuisLesDevis(devis) {
 export async function lireUsages(donnees) {
   try {
     const docs = await donnees.liste(C.devisUsageArticles);
-    return new Map(docs.map((u) => [u.id, { nombre: Number.isInteger(u.nombre) && u.nombre > 0 ? u.nombre : 0, derniereUtilisationLe: u.derniereUtilisationLe ?? null }]));
+    return new Map(docs.map((u) => [u.articleId ?? u.id, { nombre: Number.isInteger(u.nombre) && u.nombre > 0 ? u.nombre : 0, derniereUtilisationLe: u.derniereUtilisationLe ?? null }]));
   } catch {
     return new Map();
   }

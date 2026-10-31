@@ -726,7 +726,7 @@ describe('K21b rechercher_article_par_phrase : le compteur d’usage départage 
     const apres = ok(await chercherPhrase(s, 'le tableau'));
     assert.deepEqual(apres.candidats.map((c) => c.articleId), [ids.t4, ids.t2], 'le plus utilisé d’abord');
     assert.equal(apres.decision, avant.decision);
-    assert.deepEqual(apres.candidats.map((c) => c.score).sort(), avant.candidats.map((c) => c.score).sort());
+    assert.deepEqual(apres.candidats.map((c) => c.score).sort((a, b) => a - b), avant.candidats.map((c) => c.score).sort((a, b) => a - b));
     assert.match(apres.question, /^Tu veux « Tableau électrique 4 rangées »/, 'la question cite le plus utilisé en premier');
   });
 });

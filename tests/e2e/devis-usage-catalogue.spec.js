@@ -40,7 +40,7 @@ test('C4.1 la colonne « Utilisation » dit « Utilisé 12 fois », « Utilisé 
   await catalogue();
   await ouvrir(page);
   expect(await libelles(page)).toEqual(['Alpha prise', 'Bravo interrupteur', 'Charlie gaine', 'Delta câble']);
-  expect((await usages(page)).map((t) => t.trim())).toEqual(['Jamais utilisé', 'Utilisé 3 fois', 'Utilisé 1 fois', 'Utilisé 12 fois']);
+  await expect(page.locator('.ligne-article td[data-colonne="usage"]')).toHaveText(['Jamais utilisé', 'Utilisé 3 fois', 'Utilisé 1 fois', 'Utilisé 12 fois']);
   await expect(page.locator('.ligne-article[data-id="a1"] .usage-vide')).toHaveText('Jamais utilisé');
   await capturer(page, info, 'C4-1-colonne-utilisation');
 });
@@ -72,13 +72,14 @@ test('C4.3 sur ordinateur, un clic sur l’en-tête « Utilisation » trie (le p
   expect(await libelles(page)).toEqual(['Charlie gaine', 'Bravo interrupteur', 'Delta câble', 'Alpha prise']);
 });
 
-test('C4.4 cas vide : un catalogue sans aucun compteur dit « Jamais utilisé » partout et le tri par utilisation garde l’ordre alphabétique ; un catalogue vide garde son message', async ({ page }) => {
+test('C4.4 cas vide : un catalogue sans aucun compteur dit « Jamais utilisé » partout et le tri par utilisation garde l’ordre alphabétique', async ({ page }, info) => {
   await article('a1', 'Alpha prise');
   await article('a2', 'Bravo interrupteur');
   await ouvrir(page, 2);
-  expect((await usages(page)).map((t) => t.trim())).toEqual(['Jamais utilisé', 'Jamais utilisé']);
+  await expect(page.locator('.ligne-article td[data-colonne="usage"]')).toHaveText(['Jamais utilisé', 'Jamais utilisé']);
   await page.getByLabel('Trier par').selectOption('usage');
   expect(await libelles(page)).toEqual(['Alpha prise', 'Bravo interrupteur']);
+  await capturer(page, info, 'C4-4-cas-vide');
 });
 
 test('C4.5 cas d’erreur : si le compteur ne peut pas être lu, les lignes montrent un tiret, le catalogue reste utilisable (recherche, tri) et aucune erreur bloquante n’apparaît', async ({ page }, info) => {

@@ -403,7 +403,9 @@ export async function ouvrirCreationArticle() {
 /** « Utilisé 3 fois », ou « Jamais utilisé » en gris ; un tiret gris si le compteur n'a pas pu être lu (le catalogue reste utilisable). */
 function celluleUsage(a) {
   const cellule = h('td', { dataset: { colonne: 'usage', libelle: 'Utilisation' } });
-  if (D.etat.erreurLectureUsages) return (remplir(cellule, h('span', { class: 'usage-vide', title: 'Le compteur d’utilisation n’a pas pu être lu pour l’instant.' }, '—')), cellule);
+  // Compteur pas encore arrivé, ou illisible : un tiret gris (jamais un faux « Jamais utilisé » qui bascule une fraction de seconde plus tard).
+  if (D.etat.erreurLectureUsages) return (remplir(cellule, h('span', { class: 'usage-vide', 'aria-label': 'Compteur d’utilisation illisible', title: 'Le compteur d’utilisation n’a pas pu être lu pour l’instant.' }, '—')), cellule);
+  if (!D.etat.usagesPrets) return (remplir(cellule, h('span', { class: 'usage-vide', 'aria-label': 'Compteur d’utilisation en cours de lecture' }, '—')), cellule);
   const n = U.nombreUsage(D.etat.usages, a.id);
   remplir(cellule, h('span', { class: n ? 'usage-nombre' : 'usage-vide', dataset: { usage: String(n) } }, U.texteUsage(n)));
   return cellule;
@@ -453,7 +455,7 @@ export function rendreBordereau(conteneur) {
     // Un ouvrage porte son calcul ; plusieurs familles cochées = l'une ou l'autre, et une famille de premier niveau inclut ses sous-familles.
     const avecCalcul = A.avecCalculOuvrage(D.etat.articles, D.etat.articles, D.etat.reglages);
     const idsCoches = famillesFiltrees.flatMap((id) => (id === 'sans_famille' ? [''] : idsAvecSousFamilles(D.etat.familles, id)));
-    const lignes = U.trierArticles(A.filtrerArticles(avecCalcul, { recherche, statut }).filter((a) => !famillesFiltrees.length || idsCoches.includes(familleEffective(a))), D.etat.usages, tri);
+    const lignes = U.trierArticles(A.filtrerArticles(avecCalcul, { recherche, statut }).filter((a) => !famillesFiltrees.length || idsCoches.includes(familleEffective(a))), D.etat.usages, D.etat.usagesPrets && !D.etat.erreurLectureUsages ? tri : U.TRI_PAR_DEFAUT); // pas de tri par usage tant que le compteur n'est pas lu (les lignes ne se réordonnent pas sous les yeux)
     const actifs = D.etat.articles.filter((a) => a.actif !== false).length;
     if (desactivesSeulement) remplir(compteur, `${lignes.length} ${lignes.length > 1 ? 'articles désactivés' : 'article désactivé'}`);
     else remplir(compteur, `${actifs} ${actifs > 1 ? 'articles actifs' : 'article actif'}`, lignes.length !== actifs ? ` · ${lignes.length} affiché${lignes.length > 1 ? 's' : ''}` : '');
@@ -469,7 +471,7 @@ export function rendreBordereau(conteneur) {
     const colonnes = COLONNES.filter((c) => !c.rare || champsRares);
     const entete = h('tr', {}, colonnes.map((c) => (c.triable
       ? h('th', { scope: 'col', 'aria-sort': tri.critere === c.id ? (tri.sens === 'asc' ? 'ascending' : 'descending') : 'none' },
-        h('button', { type: 'button', class: 'tri', dataset: { action: 'trier-usage' }, onclick: () => changerTri(tri.critere === c.id ? { critere: c.id, sens: tri.sens === 'asc' ? 'desc' : 'asc' } : { critere: c.id, sens: 'desc' }) },
+        h('button', { type: 'button', class: 'tri', dataset: { action: `trier-${c.id}` }, onclick: () => changerTri(tri.critere === c.id ? { critere: c.id, sens: tri.sens === 'asc' ? 'desc' : 'asc' } : { critere: c.id, sens: 'desc' }) },
           c.libelle, tri.critere === c.id ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))
       : h('th', { scope: 'col' }, h('span', { class: 'tri titre-colonne' }, c.libelle)))), h('th', { class: 'col-actions', 'aria-label': 'Actions' }));
     const corps = lignes.map((a) => h('tr', { class: `ligne-liste ligne-article${a.actif === false ? ' article-desactive' : ''}`, dataset: { id: a.id } },
@@ -487,7 +489,10 @@ export function rendreBordereau(conteneur) {
         : null, a.actif === false
         ? h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', dataset: { action: 'reactiver' }, 'aria-label': `Réactiver : ${a.libelle}`, onclick: () => reactiver(a) }, icone('rotate-ccw', { taille: 14 }), 'Réactiver')
         : h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', dataset: { action: 'desactiver' }, 'aria-label': `Désactiver : ${a.libelle}`, onclick: () => desactiver(a) }, 'Désactiver'))));
+    const avaitLeFocus = document.activeElement?.dataset?.action?.startsWith('trier-') ?? false; // le bouton d'en-tête est reconstruit : le focus clavier y revient
+    const actionFocus = avaitLeFocus ? document.activeElement.dataset.action : null;
     remplir(zoneTableau, h('table', { class: 'tableau tableau-articles' }, h('thead', {}, entete), h('tbody', {}, corps)));
+    if (actionFocus) zoneTableau.querySelector(`[data-action="${actionFocus}"]`)?.focus();
   }
 
   conteneur.append(h('div', { class: 'page page-liste page-devis' },
