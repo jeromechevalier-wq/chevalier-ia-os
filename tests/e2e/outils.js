@@ -234,9 +234,9 @@ export async function basculerThemeParMenu(page) {
   await page.keyboard.press('Escape');
 }
 
-const ENTREES_MENU_UTILISATEUR = { 'Réglages': 'Réglages', 'Journal des modifications': 'Voir le journal des modifications', 'Connecter mon assistant': 'Connecter mon assistant' };
+const ENTREES_MENU_UTILISATEUR = { 'Réglages': 'Réglages', 'Journal des modifications': 'Voir le journal des modifications', 'Connecter mon IA': 'Connecter mon IA' };
 
-/** Ouvre le menu sur téléphone si nécessaire, puis clique sur une entrée. Réglages, Journal et « Connecter mon assistant » sont dans le menu utilisateur (PR B, 18/10/2026). */
+/** Ouvre le menu sur téléphone si nécessaire, puis clique sur une entrée. Réglages, Journal et « Connecter mon IA » sont dans le menu utilisateur (PR B, 18/10/2026). */
 export async function allerA(page, libelle) {
   if (ENTREES_MENU_UTILISATEUR[libelle]) { await choisirDansMenuUtilisateur(page, ENTREES_MENU_UTILISATEUR[libelle]); return; }
   await ouvrirMenuTelephone(page);

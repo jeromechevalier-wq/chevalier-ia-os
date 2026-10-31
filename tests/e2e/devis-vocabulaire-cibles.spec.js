@@ -96,12 +96,13 @@ test('C5b.3 8 articles au plus : le neuvième est refusé avec « 8 au plus : re
   await expect(puces(page)).toHaveCount(8);
   await champ(page).fill('vis modèle 9');
   const neuvieme = dialogue(page).locator('.resultat-composant[data-article-id="n9"]');
-  await expect(neuvieme).toHaveAttribute('aria-disabled', 'true');
-  await expect(neuvieme).toHaveJSProperty('disabled', false); // aria-disabled, jamais `disabled` : atteignable au clavier
-  await neuvieme.click({ force: true }); // un clic réel sur un bouton aria-disabled : le message s'affiche
+  const caseNeuf = neuvieme.locator('input');
+  await expect(caseNeuf).toHaveAttribute('aria-disabled', 'true');
+  await expect(caseNeuf).toHaveJSProperty('disabled', false); // aria-disabled, jamais `disabled` : atteignable au clavier
+  await caseNeuf.click({ force: true }); // un clic réel sur une case aria-disabled : le message s'affiche
   await expect(dialogue(page).locator('[data-role="maximum"]')).toContainText('8 au plus : retire-en un d’abord.');
   await expect(puces(page)).toHaveCount(8);
-  await expect(neuvieme).toHaveAttribute('aria-pressed', 'false'); // le clic sur le neuvième n'a rien choisi
+  await expect(caseNeuf).not.toBeChecked(); // le clic sur le neuvième n'a rien choisi
   await capturer(page, info, 'C5b-3-huit-au-plus');
   await dialogue(page).locator('[data-action="retirer-article"][data-article-id="n1"]').click();
   await expect(puces(page)).toHaveCount(7);
@@ -178,7 +179,7 @@ test('C5b.7 un article désactivé parmi d’autres reste dans la liste déplié
   await expect(ligne(page, 'prise').locator('[data-role="cibles"] li').nth(1)).toContainText('Prise double 16 A (désactivé)');
 });
 
-test('C5b.8 « Essayer une phrase » : « prise étanche » dit ce que l’assistant comprend (« prise » désigne 3 articles au choix, je cherche « etanche » parmi eux) et pose UNE question à un seul choix ; l’usage départage deux articles à égalité', async ({ page }, info) => {
+test('C5b.8 « Essayer une phrase » : « prise étanche » dit ce que l’IA comprend (« prise » désigne 3 articles au choix, je cherche « etanche » parmi eux) et pose UNE question à un seul choix ; l’usage départage deux articles à égalité', async ({ page }, info) => {
   await catalogue();
   await motMultiple();
   await ouvrir(page);
@@ -208,7 +209,7 @@ test('C5b.10 l’export CSV met les articles d’un mot à plusieurs articles da
   await motMultiple();
   await ouvrir(page);
   await page.locator('[data-action="menu-vocabulaire"]').click();
-  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter le vocabulaire (CSV)').click()]);
+  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter ce que l’IA a appris (CSV)').click()]);
   const texte = (await readFile(await telechargement.path())).toString('utf8');
   expect(texte).toContain('prise,Prise simple 16 A / Prise double 16 A / Prise étanche 16 A,,Actif,Ajouté ici'); // colonne « Famille » (C6b) vide ici
 });

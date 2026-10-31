@@ -58,14 +58,14 @@ async function ouvrirEditeur(page, id) {
   await attendreCalme(page);
 }
 
-test('1 plus de Gmail dans le navigateur : le menu « Envoyer » ne propose que « Préparer l’e-mail », aucune fenêtre « Envoyer le devis par e-mail », aucune requête vers Gmail ni autorisation Google', async ({ page }, info) => {
+test('1 plus de Gmail dans le navigateur : le menu « Envoyer » propose « Préparer l’e-mail », « Télécharger le PDF » et « Imprimer » (aucun envoi Gmail), aucune fenêtre « Envoyer le devis par e-mail », aucune requête vers Gmail ni autorisation Google', async ({ page }, info) => {
   const google = surveillerGoogle(page);
   await semer('dEmail');
   await simulerServeur(page, 'dEmail');
   await ouvrirEditeur(page, 'dEmail');
   await page.locator('[data-action="envoyer"]:visible').first().click();
   const noms = (await page.locator('.menu-pop [role="menuitem"]').allTextContents()).map((n) => n.trim());
-  expect(noms).toEqual(['Préparer l’e-mail']);
+  expect(noms).toEqual(['Préparer l’e-mail', 'Télécharger le PDF', 'Imprimer']);
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Envoyer par e-mail|Envoyer à nouveau|brouillon Gmail/ })).toHaveCount(0);
   await expect(page.locator('.dialogue-email-devis')).toHaveCount(0);
   await capturer(page, info, '1-menu-envoyer-sans-gmail');

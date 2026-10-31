@@ -146,7 +146,7 @@ export const lire_audit = {
 export const lister_articles = {
   nom: 'lister_articles',
   profils: TOUS,
-  description: "Liste les articles du bordereau de prix du module Devis (code, libellé, unité, prix d'achat hors taxes en euros, taux de TVA propre s'il y en a un, type, marge propre, actif). Un article de type ouvrage porte ses composants, son prixVenteForce éventuel et son calcul (prixVenteHT, deboursSecHT, margeBruteHT, tauxMarge). Par défaut les articles actifs ; statut: 'desactives' ou 'tous' pour les autres. Triés par libellé. Le mot affiché à l'utilisateur est donné par lire_reglages_devis.",
+  description: "Liste les articles du bordereau de prix du module Devis (code, libellé, unité, prix d'achat hors taxes en euros, taux de TVA propre s'il y en a un, type, marge propre, actif). Un article composé (type ouvrage) porte ses composants, son prixVenteForce éventuel et son calcul (prixVenteHT, deboursSecHT, margeBruteHT, tauxMarge). Par défaut les articles actifs ; statut: 'desactives' ou 'tous' pour les autres. Triés par libellé. Le mot affiché à l'utilisateur est donné par lire_reglages_devis.",
   schema: {
     statut: z.enum(['actifs', 'desactives', 'tous']).optional().describe("Défaut : actifs."),
     limite,
@@ -157,7 +157,7 @@ export const lister_articles = {
 export const chercher_article = {
   nom: 'chercher_article',
   profils: TOUS,
-  description: "Cherche un article ACTIF du bordereau par son code ou son libellé (accents et casse ignorés, 2 lettres au moins ; tous les mots doivent y être). Renvoie l'identifiant, le code, le libellé, l'unité, le prix d'achat en euros, le type (et, pour un ouvrage, ses composants et son calcul). À utiliser avant d'ajouter un article pour ne pas créer de doublon. Le mot affiché à l'utilisateur est donné par lire_reglages_devis.",
+  description: "Cherche un article ACTIF du bordereau par son code ou son libellé (accents et casse ignorés, 2 lettres au moins ; tous les mots doivent y être). Renvoie l'identifiant, le code, le libellé, l'unité, le prix d'achat en euros, le type (et, pour un article composé, ses composants et son calcul). À utiliser avant d'ajouter un article pour ne pas créer de doublon. Le mot affiché à l'utilisateur est donné par lire_reglages_devis.",
   schema: {
     texte: z.string().min(1).max(200).describe('Mots cherchés dans le code ou le libellé.'),
     limite: z.number().int().min(1).max(50).optional().describe('Résultats au plus (défaut 20).'),
@@ -179,7 +179,7 @@ export const rechercher_article_par_phrase = {
 export const lire_reglages_devis = {
   nom: 'lire_reglages_devis',
   profils: TOUS,
-  description: "Lit les réglages du module Devis (nom du bordereau, marge de revente des articles et marge par défaut des nouveaux devis, régime et taux de TVA proposés, durée de validité, texte « Attestation et mentions » (`mentionEmetteur`, imprimé sur tous les devis), « Mon entreprise » dont le texte d'assurance `assuranceTexte` et les `coordonneesBancaires`) et les familles d'articles du bordereau (id, nom, actif, parentId). Lecture seule : ces réglages se changent depuis l'écran. Donne aussi `vocabulaire` : le mot affiché à l'utilisateur pour le type ouvrage.",
+  description: "Lit les réglages du module Devis (nom du bordereau, marge de revente des articles et marge par défaut des nouveaux devis, régime et taux de TVA proposés, durée de validité, texte « Attestation et mentions » (`mentionEmetteur`, imprimé sur tous les devis), texte « Mention de TVA réduite » (`mentionTvaReduite`, imprimé seulement sur les devis qui ont une ligne à 5,5 % ou 10 % ; vide = texte standard), « Mon entreprise » dont le texte d'assurance `assuranceTexte` et les `coordonneesBancaires`) et les familles d'articles du bordereau (id, nom, actif, parentId). Lecture seule : ces réglages se changent depuis l'écran. Donne aussi `vocabulaire` : le mot affiché à l'utilisateur pour le type ouvrage.",
   schema: {},
   executer: ({ donnees }) => lecture.lireReglagesDevis(donnees),
 };

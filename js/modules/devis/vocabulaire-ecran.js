@@ -16,8 +16,8 @@ import { cleDeExpression, identifiantDeRegle, interpreter, suggestionEnAttente }
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant, ou demande à un éditeur de l’espace.';
 const ERREUR_LECTURE = 'La liste des mots appris n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis appuie sur « Réessayer ».';
-const MESSAGE_DESACTIVER = 'Ce mot ne sera plus proposé à ton assistant.';
-const MESSAGE_VIDE = 'Aucun mot appris pour l’instant. Les mots apparaissent quand ton assistant te pose une question, ou ajoute-en un ici.';
+const MESSAGE_DESACTIVER = 'Ce mot ne sera plus proposé à ton IA.';
+const MESSAGE_VIDE = 'Aucun mot appris pour l’instant. Les mots apparaissent quand ton IA te pose une question, ou ajoute-en un ici.';
 
 // Recherche, filtres et tri conservés pendant la session (jusqu'au rechargement de la page, comme les autres listes).
 let recherche = '';
@@ -89,7 +89,7 @@ async function ouvrirCreation() {
     remplir(zoneExistant);
     if (!texte) remplir(apercu);
     else if (!cle) remplir(apercu, V.MESSAGE_NON_ENREGISTRABLE);
-    else remplir(apercu, 'Ton assistant le reconnaîtra comme : ', h('strong', {}, `« ${cle} »`));
+    else remplir(apercu, 'Ton IA le reconnaîtra comme : ', h('strong', {}, `« ${cle} »`));
     if (existant) {
       erreurExpression.textContent = `Ce mot existe déjà (« ${existant.expression ?? existant.cle} »). Modifie-le plutôt que de le doubler.`;
       remplir(zoneExistant, h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', dataset: { action: 'modifier-existant' }, onclick: () => fermerFenetre('modifier') }, 'Modifier ce mot'));
@@ -125,7 +125,7 @@ async function ouvrirCreation() {
     general);
   const r = await dialogue({
     titre: 'Ajouter un mot appris',
-    classe: 'dialogue-formulaire',
+    classe: 'dialogue-formulaire dialogue-vocabulaire',
     contenu: corps,
     boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: tenter }],
     auMontage: ({ boite, boutons, fermer }) => {
@@ -194,8 +194,8 @@ async function ouvrirChangerCibles(regle) {
   }
   const r = await dialogue({
     titre: 'Changer ce que le mot désigne',
-    classe: 'dialogue-formulaire',
-    contenu: h('div', { class: 'pile' }, h('p', {}, 'Mot : ', h('strong', {}, `« ${regle.expression ?? regle.cle} »`)), h('p', { class: 'discret' }, 'Plusieurs articles, ou une famille : ton assistant demande lequel, seulement parmi eux.'), choix.element, general),
+    classe: 'dialogue-formulaire dialogue-vocabulaire',
+    contenu: h('div', { class: 'pile' }, h('p', {}, 'Mot : ', h('strong', {}, `« ${regle.expression ?? regle.cle} »`)), h('p', { class: 'discret' }, 'Plusieurs articles, ou une famille : ton IA demande lequel, seulement parmi eux.'), choix.element, general),
     boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: tenter }],
     auMontage: ({ boutons }) => { bouton = boutons.at(-1); griserSelon(bouton, pret); },
   });
@@ -241,15 +241,15 @@ function resultatEssai(phrase) {
   if (r.portee) lignes.push(h('p', { dataset: { role: 'essai-portee' } }, V.phrasePortee(r.portee, D.etat.familles, D.etat.articles)));
   if (r.decision === 'utiliser') {
     const prix = r.prixVente ?? premier?.prixVenteHT;
-    lignes.push(h('p', { dataset: { role: 'essai-decision' } }, 'Ton assistant l’ajouterait tout de suite : ', h('strong', {}, `${nombreFr(r.quantite)} × « ${premier.libelle} »`), typeof prix === 'number' ? ` à ${A.formaterPrix(prix)} HT l’unité` : '', '.'));
+    lignes.push(h('p', { dataset: { role: 'essai-decision' } }, 'Ton IA l’ajouterait tout de suite : ', h('strong', {}, `${nombreFr(r.quantite)} × « ${premier.libelle} »`), typeof prix === 'number' ? ` à ${A.formaterPrix(prix)} HT l’unité` : '', '.'));
   } else {
-    lignes.push(h('p', { dataset: { role: 'essai-decision' } }, r.decision === 'proposer' ? 'Ton assistant poserait la question : ' : 'Ton assistant demanderait : ', h('strong', {}, r.question)));
+    lignes.push(h('p', { dataset: { role: 'essai-decision' } }, r.decision === 'proposer' ? 'Ton IA poserait la question : ' : 'Ton IA demanderait : ', h('strong', {}, r.question)));
   }
   return lignes;
 }
 
 export function rendreVocabulaire(conteneur) {
-  const titre = h('h1', {}, 'Vocabulaire');
+  const titre = h('h1', {}, 'Ce que l’IA a appris');
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite', dataset: { role: 'phrase-etat' } });
   const zone = h('div', { class: 'zone-liste-vocabulaire' });
   const avis = h('div', { class: 'avis-lecture', hidden: true });
@@ -275,7 +275,7 @@ export function rendreVocabulaire(conteneur) {
   const boutonMenu = h('button', {
     type: 'button', class: 'bouton-icone', 'aria-label': 'Autres actions', 'aria-haspopup': 'menu', dataset: { action: 'menu-vocabulaire' },
     onclick: (e) => ouvrirMenu(e.currentTarget, [{
-      libelle: 'Exporter le vocabulaire (CSV)', icone: 'download', desactive: !D.etat.vocabulaire.length, titreInfo: D.etat.vocabulaire.length ? null : 'Aucun mot à exporter pour l’instant.',
+      libelle: 'Exporter ce que l’IA a appris (CSV)', icone: 'download', desactive: !D.etat.vocabulaire.length, titreInfo: D.etat.vocabulaire.length ? null : 'Aucun mot à exporter pour l’instant.',
       action: () => { telecharger(nomFichierExport(new Date(), 'vocabulaire'), V.construireCsv(D.etat.vocabulaire.map(motPourExport)), 'text/csv;charset=utf-8'); toast('Fichier téléchargé'); },
     }]),
   }, icone('ellipsis', { taille: 20 }));
@@ -291,7 +291,7 @@ export function rendreVocabulaire(conteneur) {
     oninput: (e) => { essai = e.target.value; remplir(resultat, ...resultatEssai(essai)); },
   });
   const blocEssai = h('div', { class: 'bloc-essai' },
-    h('div', { class: 'ligne-etiquette-info' }, h('label', { class: 'etiquette', for: 'vocabulaire-essai' }, 'Essayer une phrase'), iconeInfo('Montre ce que ton assistant comprendrait. Rien n’est enregistré.', 'Essayer une phrase')),
+    h('div', { class: 'ligne-etiquette-info' }, h('label', { class: 'etiquette', for: 'vocabulaire-essai' }, 'Essayer une phrase'), iconeInfo('Montre ce que ton IA comprendrait. Rien n’est enregistré.', 'Essayer une phrase')),
     champEssai, resultat);
 
   const noteMotMetier = h('p', { class: 'aide', dataset: { zone: 'mot-metier' } });
@@ -348,7 +348,7 @@ export function rendreVocabulaire(conteneur) {
     return h('td', { dataset: { colonne: 'mot', libelle: 'Mot' } },
       h('strong', { class: 'mot-expression' }, r.expression ?? r.cle),
       r.note ? h('p', { class: 'mot-note discret', dataset: { role: 'note' } }, r.note) : null,
-      suggestion ? h('p', { class: 'mot-suggestion discret', dataset: { role: 'suggestion' } }, `L’assistant propose : ${suggestion.articleLibelle || 'un autre article'}${suggestion.contradictions ? ` (${suggestion.contradictions} ${suggestion.contradictions > 1 ? 'contradictions' : 'contradiction'})` : ''}`) : null,
+      suggestion ? h('p', { class: 'mot-suggestion discret', dataset: { role: 'suggestion' } }, `L’IA propose : ${suggestion.articleLibelle || 'un autre article'}${suggestion.contradictions ? ` (${suggestion.contradictions} ${suggestion.contradictions > 1 ? 'contradictions' : 'contradiction'})` : ''}`) : null,
       tropGeneral ? h('p', { class: 'mot-general' }, pastille('Mot trop général', '#8d8993', { dataset: { role: 'trop-general' } })) : null,
       message ? h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'ligne' } }, message) : null);
   }

@@ -10,7 +10,7 @@ import { journaliser } from '../securite/journaux.js';
 import { avecBase } from '../coeur/donnees.js';
 import { lireConfig } from '../coeur/config.js';
 import { OUTILS } from '../mcp/outils/index.js';
-import { descriptionAppel, refuser, servirMcp } from '../mcp/gestionnaire.js';
+import { descriptionAppel, creerSuiviDemarrage, refuser, servirMcp } from '../mcp/gestionnaire.js';
 import { FORMAT_CLIENT, ORIGINES_PLATEFORME, adressesClient } from './config.js';
 import { MODULES_DECLARES, OUTILS_COMMUNS } from '../../partage/registre.js';
 import { cheminBaseClient } from '../../partage/chemins.js';
@@ -39,9 +39,11 @@ export function outilsSelonOptions(outils, options) {
 
 /** `oauth` : creerRouteurOauthClients(). `limiteur` : plafonds par jeton (securite/limites.js, sur la base brute : clé « <client>__<acteur> »). */
 export function creerGestionnaireClients({ donnees, oauth, limiteur = null, stockage = null, sortieEmail = null, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
+  const noterDemarrage = creerSuiviDemarrage();
   return async function gestionnaire(req, res) {
     const debut = maintenant();
     const infos = {};
+    noterDemarrage(infos);
     res.on('finish', () => journal({ ...infos, dureeMs: maintenant() - debut, statut: res.statusCode }));
 
     const origine = req.headers.origin;
@@ -77,6 +79,7 @@ export function creerGestionnaireClients({ donnees, oauth, limiteur = null, stoc
     }
     const proposes = outilsSelonOptions(outilsDesModules(jeton.actifs ?? [], outils), options);
     Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil, role: jeton.role }, descriptionAppel(req.body, proposes));
+    infos.dureeAuthMs = maintenant() - debut;
     return servirMcp({ req, res, infos, jeton, outils: proposes, donnees: donneesClient, limiteur, maintenant, nomServeur: NOM_SERVEUR_CLIENT, stockage, sortieEmail, baseLien: BASE_LIEN_PLATEFORME });
   };
 }

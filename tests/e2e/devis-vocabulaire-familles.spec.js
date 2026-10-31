@@ -59,23 +59,24 @@ async function deplier(page, id) {
   const entete = enteteFamille(page, id);
   if ((await entete.getAttribute('aria-expanded')) === 'false') await entete.click();
 }
-const choisirFamilleArbre = (page, id) => dialogue(page).locator(`[data-choisir-famille="${id}"]`);
+const choisirFamilleArbre = (page, id) => dialogue(page).locator(`[data-case-famille="${id}"]`);
 async function ouvrirCreation(page, expression) {
   await page.locator('[data-action="ajouter-mot"]').click();
   await dialogue(page).getByRole('textbox', { name: 'Expression' }).fill(expression);
 }
 const enregistrer = (page) => dialogue(page).getByRole('button', { name: 'Enregistrer' });
 
-test('C6b.1 « Ajouter un mot appris » : « Choisir cette famille » dans l’arbre met une puce « Famille Fournitures › Prises » ; le mot dit « Famille … (3 articles) » et rien n’est écrit comme article', async ({ page }, info) => {
+test('C6b.1 « Ajouter un mot appris » : la case de la famille dans l’arbre met une puce « Famille Fournitures › Prises » ; le mot dit « Famille … (3 articles) » et rien n’est écrit comme article', async ({ page }, info) => {
   await catalogue();
   await ouvrir(page);
   await ouvrirCreation(page, 'prise');
   await deplier(page, 'famille-1');
-  await expect(choisirFamilleArbre(page, 'f-prises')).toHaveText('Choisir cette famille');
-  await choisirFamilleArbre(page, 'f-prises').click();
+  await expect(choisirFamilleArbre(page, 'f-prises')).not.toBeChecked();
+  await expect(dialogue(page).getByText('Choisir cette famille')).toHaveCount(0); // plus de bouton : la case suffit
+  await choisirFamilleArbre(page, 'f-prises').check();
   await expect(puces(page)).toHaveText(['Famille Fournitures › Prises']);
   await expect(dialogue(page).locator('[data-role="article-choisi"]')).toContainText('Famille choisie : Fournitures › Prises');
-  await expect(choisirFamilleArbre(page, 'f-prises')).toHaveText('Famille choisie');
+  await expect(choisirFamilleArbre(page, 'f-prises')).toBeChecked();
   await capturer(page, info, 'C6b-1-choisir-une-famille');
   await enregistrer(page).click();
   await expect(ligne(page, 'prise')).toBeVisible();
@@ -86,7 +87,7 @@ test('C6b.1 « Ajouter un mot appris » : « Choisir cette famille » dans l’a
   await champMot('prise', (d) => [d.articleId, d.articleLibelle, d.cibles]).toEqual(['', '', [{ genre: 'famille', id: 'f-prises', libelle: 'Fournitures › Prises' }]]);
 });
 
-test('C6b.2 la recherche a deux groupes « Familles » et « Articles » ; un clic sur la famille la choisit, un article s’y ajoute : « Famille … + 1 article »', async ({ page }, info) => {
+test('C6b.2 la recherche a deux groupes « Familles » et « Articles » ; cocher la famille la choisit ; cocher un article ensuite décoche la famille (un mot désigne des articles OU une famille)', async ({ page }, info) => {
   await catalogue();
   await ouvrir(page);
   await ouvrirCreation(page, 'prise');
@@ -99,14 +100,15 @@ test('C6b.2 la recherche a deux groupes « Familles » et « Articles » ; un cl
   await dialogue(page).locator('.resultat-famille[data-famille-id="f-prises"]').click();
   await champ(page).fill('interrupteur');
   await dialogue(page).locator('.resultat-composant[data-article-id="i1"]').click();
-  await expect(puces(page)).toHaveText(['Famille Fournitures › Prises', 'Interrupteur étanche']);
-  await expect(dialogue(page).locator('[data-role="article-choisi"]')).toContainText('1 famille + 1 article');
+  await expect(puces(page)).toHaveCount(1);
+  await expect(puces(page).first()).toContainText('Interrupteur étanche');
+  await expect(dialogue(page).locator('[data-role="regle"]')).toHaveText('Tu as choisi un article : la famille cochée a été décochée.');
   await enregistrer(page).click();
-  await expect(ligne(page, 'prise').locator('[data-action="cibles"]')).toHaveText('Famille Fournitures › Prises + 1 article');
-  await champMot('prise', (d) => d.cibles?.map((c) => `${c.genre}:${c.id}`)).toEqual(['famille:f-prises', 'article:i1']);
+  await expect(ligne(page, 'prise')).toContainText('Interrupteur étanche');
+  await champMot('prise', (d) => [d.articleId, d.cibles ?? null]).toEqual(['i1', null]);
 });
 
-test('C6b.3 8 choix au plus, familles comprises : la famille est grisée (aria-disabled, jamais disabled) avec « 8 au plus : retire-en un d’abord. » ; la croix d’une puce famille libère la place', async ({ page }, info) => {
+test('C6b.3 avec 8 articles cochés, la case de la famille reste active : la cocher remplace les articles (message), la croix de sa puce la retire', async ({ page }, info) => {
   await catalogue();
   for (let i = 1; i <= 8; i += 1) await article(`n${i}`, `Vis modèle ${i}`);
   await ouvrir(page);
@@ -119,17 +121,15 @@ test('C6b.3 8 choix au plus, familles comprises : la famille est grisée (aria-d
   await champ(page).fill('');
   await deplier(page, 'famille-1');
   const prises = choisirFamilleArbre(page, 'f-prises');
-  await expect(prises).toHaveAttribute('aria-disabled', 'true');
-  await expect(prises).toHaveJSProperty('disabled', false);
-  await prises.click({ force: true });
-  await expect(dialogue(page).locator('[data-role="maximum"]')).toContainText('8 au plus : retire-en un d’abord.');
-  await expect(puces(page)).toHaveCount(8);
-  await capturer(page, info, 'C6b-3-huit-choix-au-plus');
-  await dialogue(page).locator('[data-action="retirer-article"][data-article-id="n1"]').click();
-  await choisirFamilleArbre(page, 'f-prises').click();
-  await expect(puces(page)).toHaveCount(8);
+  await expect(prises).not.toHaveAttribute('aria-disabled', 'true'); // le maximum de 8 articles ne concerne pas une famille
+  await capturer(page, info, 'C6b-3-huit-articles-puis-famille');
+  await prises.check();
+  await expect(puces(page)).toHaveCount(1);
+  await expect(dialogue(page).locator('[data-role="regle"]')).toContainText('les articles cochés ont été décochés');
+  await expect(dialogue(page).locator('[data-role="maximum"]')).toBeHidden();
   await dialogue(page).locator('[data-action="retirer-famille"][data-famille-id="f-prises"]').click();
-  await expect(puces(page)).toHaveCount(7);
+  await expect(puces(page)).toHaveCount(0);
+  await expect(prises).not.toBeChecked();
 });
 
 test('C6b.4 pastilles : une famille VIDE = « Famille vide » (le mot reste activable, elle se remplira) ; une famille désactivée = « Aucun article disponible » + « Changer ce que le mot désigne »', async ({ page }, info) => {
@@ -166,14 +166,16 @@ test('C6b.5 « Changer ce que le mot désigne » : un mot à une famille s’ouv
   await dialogue(page).locator('.resultat-composant[data-article-id="i1"]').click();
   await expect(enregistrer(page)).toHaveAttribute('aria-disabled', 'false');
   await capturer(page, info, 'C6b-5-changer-ce-que-le-mot-designe');
+  await expect(dialogue(page).locator('[data-role="regle"]')).toContainText('la famille cochée a été décochée'); // la règle : un article remplace la famille
   await enregistrer(page).click();
-  await expect(ligne(page, 'prise').locator('[data-action="cibles"]')).toHaveText('Famille Fournitures › Prises + 1 article');
+  await expect(ligne(page, 'prise')).toContainText('Interrupteur étanche');
   await menuMot(page, 'interrupteur').click();
   await entreeMenu(page, 'Désigner une famille ou plusieurs articles').click();
-  await expect(puces(page)).toHaveText(['Interrupteur étanche']);
+  await expect(puces(page)).toHaveCount(1);
+  await expect(puces(page).first()).toContainText('Interrupteur étanche');
   await dialogue(page).locator('[data-action="retirer-article"][data-article-id="i1"]').click();
   await deplier(page, 'famille-1');
-  await choisirFamilleArbre(page, 'f-prises').click();
+  await choisirFamilleArbre(page, 'f-prises').check();
   await enregistrer(page).click();
   await expect(ligne(page, 'interrupteur').locator('[data-action="cibles"]')).toHaveText('Famille Fournitures › Prises (3 articles)');
   await champMot('interrupteur', (d) => [d.articleId, d.cibles?.map((c) => c.id)]).toEqual(['', ['f-prises']]);
@@ -189,7 +191,7 @@ test('C6b.6 « Essayer une phrase » dit la famille comprise (« je cherche « e
   await capturer(page, info, 'C6b-6-essayer-une-phrase-famille');
   await page.locator('[data-champ="essai"]').fill('prise');
   await expect(page.locator('[data-role="essai-portee"]')).toHaveText('Je comprends : « prise » désigne la famille Fournitures › Prises.');
-  await expect(page.locator('[data-role="essai-decision"]')).not.toContainText('Ton assistant l’ajouterait tout de suite');
+  await expect(page.locator('[data-role="essai-decision"]')).not.toContainText('Ton IA l’ajouterait tout de suite');
 });
 
 test('C6b.7 l’export CSV a la colonne « Famille » (le chemin) à côté de « Article »', async ({ page }) => {
@@ -198,7 +200,7 @@ test('C6b.7 l’export CSV a la colonne « Famille » (le chemin) à côté de �
   await mot('interrupteur', { articleId: 'i1', articleLibelle: 'Interrupteur étanche' });
   await ouvrir(page);
   await page.locator('[data-action="menu-vocabulaire"]').click();
-  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter le vocabulaire (CSV)').click()]);
+  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter ce que l’IA a appris (CSV)').click()]);
   const lignes = (await readFile(await telechargement.path())).toString('utf8').replace('﻿', '').trim().split('\r\n');
   expect(lignes[0]).toBe('Expression,Article,Famille,Statut,Origine,Confirmations,Dernière utilisation');
   expect(lignes[1]).toContain('interrupteur,Interrupteur étanche,,Actif,Ajouté ici');
@@ -222,7 +224,7 @@ test('C6b.8 cas vide et cas d’erreur : un catalogue sans article garde les fam
   await expect(dialogue(page)).toContainText('Aucun article ni famille ne correspond.');
   await expect(dialogue(page).locator('[data-role="arbre-catalogue"]')).toBeHidden(); // l'arbre est caché pendant la recherche
   await champ(page).fill('');
-  await choisirFamilleArbre(page, 'f-vide').click();
+  await choisirFamilleArbre(page, 'f-vide').check();
   await enregistrer(page).click();
   await expect(ligne(page, 'prise').locator('[data-role="famille-vide"]')).toHaveText('Famille vide');
   await champMot('prise', (d) => d.cibles?.map((c) => c.id)).toEqual(['f-vide']);
@@ -234,7 +236,8 @@ test('C6b.9 un mot « famille désactivée + un article » : la fenêtre s’ouv
   await ouvrir(page);
   await menuMot(page, 'prise').click();
   await entreeMenu(page, 'Changer ce que le mot désigne').click();
-  await expect(puces(page)).toHaveText(['Prise simple 16 A']);
+  await expect(puces(page)).toHaveCount(1);
+  await expect(puces(page).first()).toContainText('Prise simple 16 A');
   await expect(enregistrer(page)).toHaveAttribute('aria-disabled', 'false');
   await enregistrer(page).click();
   await champMot('prise', (d) => [d.articleId, d.cibles?.map((c) => c.id)]).toEqual(['p1', []]);

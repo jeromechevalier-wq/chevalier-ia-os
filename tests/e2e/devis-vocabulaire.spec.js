@@ -1,4 +1,4 @@
-// Module Devis, écran « Vocabulaire » (docs/proposition-dictionnaire-vocabulaire.md, section 8) : les mots appris par l'assistant, chez Jérôme (racine).
+// Module Devis, écran « Ce que l’IA a appris » (docs/proposition-dictionnaire-vocabulaire.md, section 8) : les mots appris par l'IA, chez Jérôme (racine).
 // Un test par point (le nom commence par E1 à E11), une capture par état clé dans tests/e2e/captures/devis-vocabulaire/ (ordinateur ; téléphone en plus quand la mise en page change).
 // Mots, articles et phrases INVENTÉS. Les écritures refusées (E10) sont simulées en envoyant les écritures vers une collection que les règles interdisent (devis_compteurs) : aucun code de l'appli n'est changé.
 import { fileURLToPath } from 'node:url';
@@ -54,12 +54,12 @@ async function ouvrir(page, route = 'devis/vocabulaire') {
 const ordre = (page) => page.locator('tr.ligne-mot').evaluateAll((trs) => trs.map((t) => t.dataset.id));
 const entreeMenu = (page, nom) => page.getByRole('menuitem', { name: nom, exact: true });
 
-test('E1 la liste des devis a un bouton « Vocabulaire » ; il ouvre l’écran (même barre du haut, entrée Devis allumée) et la flèche « ‹ Devis » ramène à la liste', { tag: '@smoke' }, async ({ page }, info) => {
+test('E1 la liste des devis a un bouton « Ce que l’IA a appris » ; il ouvre l’écran (même barre du haut, entrée Devis allumée) et la flèche « ‹ Devis » ramène à la liste', { tag: '@smoke' }, async ({ page }, info) => {
   await connecter(page, undefined, { route: 'devis/liste' });
   await expect(page.getByRole('heading', { name: 'Devis', level: 1 })).toBeVisible();
   await page.locator('[data-action="ouvrir-vocabulaire"]').click();
   await expect(page).toHaveURL(/#\/devis\/vocabulaire$/);
-  await expect(page.getByRole('heading', { name: 'Vocabulaire', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ce que l’IA a appris', level: 1 })).toBeVisible();
   await expect(page.locator('.page-vocabulaire')).toBeVisible();
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   await expect(page.locator('.menu .menu-entree[aria-current="page"]')).toHaveText('Devis');
@@ -68,7 +68,7 @@ test('E1 la liste des devis a un bouton « Vocabulaire » ; il ouvre l’écran 
   await page.locator('[data-action="retour-devis"]').click();
   await expect(page).toHaveURL(/#\/devis\/liste$/);
   await page.goBack();
-  await expect(page.getByRole('heading', { name: 'Vocabulaire', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ce que l’IA a appris', level: 1 })).toBeVisible();
   await page.goto('/?emulateurs=1#/devis/bordereau'); // le Catalogue reste là, rien n'a changé pour lui
   await expect(page.getByRole('heading', { name: 'Catalogue', level: 1 })).toBeVisible();
 });
@@ -148,14 +148,14 @@ test('E3 chaque mot montre son expression, son article (lien vers le catalogue),
   await expect(l.locator('[data-role="exemples"]')).toHaveCount(0);
 });
 
-test('E4 Désactiver demande confirmation (« Ce mot ne sera plus proposé à ton assistant. »), laisse « Retiré · Annuler » 8 secondes, et Annuler remet le statut d’avant', async ({ page }, info) => {
+test('E4 Désactiver demande confirmation (« Ce mot ne sera plus proposé à ton IA. »), laisse « Retiré · Annuler » 8 secondes, et Annuler remet le statut d’avant', async ({ page }, info) => {
   await jeuDEssai();
   await ouvrir(page);
   await menuDe(page, 'gaine').click();
   await expect(entreeMenu(page, 'Désactiver')).toBeVisible();
   await entreeMenu(page, 'Désactiver').click();
   await expect(dialogue(page)).toContainText('Désactiver ce mot ?');
-  await expect(dialogue(page)).toContainText('Ce mot ne sera plus proposé à ton assistant.');
+  await expect(dialogue(page)).toContainText('Ce mot ne sera plus proposé à ton IA.');
   await expect(dialogue(page).getByRole('button', { name: 'Annuler' })).toBeVisible();
   await capturer(page, info, 'E4-confirmation');
   await dialogue(page).getByRole('button', { name: 'Désactiver' }).click();
@@ -242,10 +242,10 @@ test('E6 « Mot appris  + Ajouter » : Enregistrer reste grisé tant que l’exp
   await capturerTelephone(page, info, 'E6-liste-apres-ajout');
 });
 
-test('E7 « Essayer une phrase » montre la décision de l’assistant avec le vrai moteur et n’écrit rien', async ({ page }, info) => {
+test('E7 « Essayer une phrase » montre la décision de l’IA avec le vrai moteur et n’écrit rien', async ({ page }, info) => {
   await jeuDEssai();
   await ouvrir(page);
-  await expect(page.locator('.bloc-essai [data-role="info"]')).toHaveAttribute('aria-label', /Montre ce que ton assistant comprendrait/);
+  await expect(page.locator('.bloc-essai [data-role="info"]')).toHaveAttribute('aria-label', /Montre ce que ton IA comprendrait/);
   const champ = page.getByRole('textbox', { name: 'Essayer une phrase' });
   await champ.fill('mets 3 prises doubles');
   await expect(page.locator('[data-role="essai-cle"]')).toContainText('« prise double »');
@@ -263,14 +263,14 @@ test('E7 « Essayer une phrase » montre la décision de l’assistant avec le v
   expect((await lireDocument('devis_vocabulaire/gaine')).confirmations).toBe(1);
 });
 
-test('E8 « Exporter le vocabulaire (CSV) » télécharge un fichier lisible par un tableur (virgules, guillemets, accents, retours à la ligne)', async ({ page }, info) => {
+test('E8 « Exporter ce que l’IA a appris (CSV) » télécharge un fichier lisible par un tableur (virgules, guillemets, accents, retours à la ligne)', async ({ page }, info) => {
   await article('a02', { libelle: 'Prise double, 16 A' });
   await mot('prise_double', { expression: 'prise "double"', articleLibelle: 'Prise double, 16 A', confirmations: 3, derniereUtilisationLe: '2026-10-20' });
   await mot('cable', { expression: '=cable\nrigide', origine: 'manuelle', confirmations: 0 });
   await ouvrir(page);
   await page.locator('[data-action="menu-vocabulaire"]').click();
   await capturer(page, info, 'E8-menu-export');
-  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter le vocabulaire (CSV)').click()]);
+  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter ce que l’IA a appris (CSV)').click()]);
   expect(telechargement.suggestedFilename()).toMatch(/^chevalier-ia-vocabulaire-\d{4}-\d{2}-\d{2}\.csv$/);
   const octets = await readFile(await telechargement.path());
   expect([...octets.subarray(0, 3)]).toEqual([0xEF, 0xBB, 0xBF]); // BOM UTF-8
@@ -282,11 +282,11 @@ test('E8 « Exporter le vocabulaire (CSV) » télécharge un fichier lisible par
 
 test('E9 cas vide : la phrase qui explique et « + Ajouter » ; filtre sans résultat : « Tout effacer » ; l’export est grisé sans mot', async ({ page }, info) => {
   await ouvrir(page);
-  await expect(page.locator('.etat-vide')).toHaveText('Aucun mot appris pour l’instant. Les mots apparaissent quand ton assistant te pose une question, ou ajoute-en un ici.');
+  await expect(page.locator('.etat-vide')).toHaveText('Aucun mot appris pour l’instant. Les mots apparaissent quand ton IA te pose une question, ou ajoute-en un ici.');
   await expect(page.locator('[data-action="ajouter-mot"]')).toBeVisible();
   await expect(page.locator('[data-role="phrase-etat"]')).toHaveText('0 mot appris actif');
   await page.locator('[data-action="menu-vocabulaire"]').click();
-  await expect(entreeMenu(page, 'Exporter le vocabulaire (CSV)')).toBeDisabled();
+  await expect(entreeMenu(page, 'Exporter ce que l’IA a appris (CSV)')).toBeDisabled();
   await page.keyboard.press('Escape');
   await capturer(page, info, 'E9-vide');
   await capturerTelephone(page, info, 'E9-vide');
@@ -442,7 +442,7 @@ test('7b-1 un mot validé à la main avec une suggestion du serveur est « À tr
   await ouvrir(page);
   await expect(ligne(page, 'tableau_s').locator('[data-role="a-trancher"]')).toBeVisible();
   await expect(ligne(page, 'tableau_s').locator('[data-role="validation"]')).toHaveText('Validé par toi');
-  await expect(ligne(page, 'tableau_s').locator('[data-role="suggestion"]')).toHaveText('L’assistant propose : Tableau électrique 4 rangées (3 contradictions)');
+  await expect(ligne(page, 'tableau_s').locator('[data-role="suggestion"]')).toHaveText('L’IA propose : Tableau électrique 4 rangées (3 contradictions)');
   await capturerValidation(page, info, '7b-1-a-trancher');
   await menuDe(page, 'tableau_s').click();
   await entreeMenu(page, 'Garder cet article').click();

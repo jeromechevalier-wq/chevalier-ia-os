@@ -169,7 +169,7 @@ describe('Journaux sans secret', () => {
     for (const secret of Object.values(JETON)) assert.equal(tout.includes(secret), false, 'jeton en clair');
     for (const interdit of ['Bearer', 'secret@exemple.test', 'OUTIL_INVENTE_PAR_LE_CLIENT', 'détail interne', 'arguments']) assert.equal(tout.includes(interdit), false, interdit);
     const champs = new Set(lignesJournal.flatMap((l) => Object.keys(l)));
-    for (const c of champs) assert.ok(['jeton', 'acteur', 'profil', 'methodeMcp', 'outil', 'operationId', 'dureeMs', 'statut', 'code'].includes(c), `champ hors liste blanche : ${c}`);
+    for (const c of champs) assert.ok(['jeton', 'acteur', 'profil', 'methodeMcp', 'outil', 'operationId', 'dureeMs', 'statut', 'code', 'froid', 'demarrageMs', 'dureeAuthMs', 'dureeOutilMs', 'lectures'].includes(c), `champ hors liste blanche : ${c}`);
   });
   test('la ligne écrite pour Cloud Logging est du JSON avec une sévérité', async () => {
     const { journaliser } = await import('../functions/src/securite/journaux.js');

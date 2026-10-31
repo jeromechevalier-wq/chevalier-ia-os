@@ -48,6 +48,8 @@ function controles(liste) {
 /**
  * Fenêtre « Filtres » COMMUNE (Personnes, Organisations, Affaires, Projets, historique des fiches) : cases à cocher par groupe, « Tout effacer », « Appliquer ».
  * controles : [{ cle, libelle, type: 'cases' (options [{ valeur, libelle }]) | 'oui' | 'choix' | 'organisations' }] ;
+ * Un groupe 'cases' peut être un arbre (`arbre: true`) : chaque option porte alors `niveau` (0 = ligne principale, 1 = retrait) et peut porter `note` (petite mention grise sous le libellé) ;
+ * la liste défile dans la fenêtre, l'en-tête « Filtres » et les boutons restent visibles. Les autres groupes ne changent pas.
  * criteres : les critères complets (chaque clé 'cases' est un tableau de valeurs cochées) ; effacer() : critères après « Tout effacer ».
  * Renvoie les nouveaux critères, ou null si on ferme sans choisir.
  */
@@ -62,9 +64,10 @@ export async function fenetreFiltres({ controles: ctls, criteres, effacer }) {
     if (ctl.type === 'cases') {
       if (!ctl.options.length) continue;
       corps.append(h('fieldset', { class: 'groupe-cases' }, h('legend', { class: 'etiquette' }, ctl.libelle),
-        h('div', { class: 'cases' }, ctl.options.map((o) => h('label', { class: 'case' },
+        h('div', { class: ctl.arbre ? 'cases cases-arbre' : 'cases' }, ctl.options.map((o) => h('label', { class: ctl.arbre ? `case case-arbre case-niveau-${o.niveau ? 1 : 0}` : 'case', dataset: ctl.arbre ? { niveau: String(o.niveau ? 1 : 0) } : {} },
           h('input', { type: 'checkbox', checked: c[ctl.cle].includes(o.valeur), dataset: { cle: ctl.cle, valeur: o.valeur },
-            onchange: (e) => { c[ctl.cle] = e.target.checked ? [...c[ctl.cle], o.valeur] : c[ctl.cle].filter((v) => v !== o.valeur); } }), o.libelle)))));
+            onchange: (e) => { c[ctl.cle] = e.target.checked ? [...c[ctl.cle], o.valeur] : c[ctl.cle].filter((v) => v !== o.valeur); } }),
+          o.note ? h('span', { class: 'case-texte' }, h('span', {}, o.libelle), h('span', { class: 'case-note' }, o.note)) : o.libelle)))));
     } else if (ctl.type === 'oui') {
       corps.append(h('label', { class: 'case case-seule' }, h('input', { type: 'checkbox', checked: !!c[ctl.cle], dataset: { cle: ctl.cle }, onchange: (e) => { c[ctl.cle] = e.target.checked; } }), ctl.libelle));
     } else if (ctl.type === 'choix') {
@@ -83,7 +86,7 @@ export async function fenetreFiltres({ controles: ctls, criteres, effacer }) {
   }
   const r = await dialogue({
     titre: 'Filtres',
-    classe: 'dialogue-formulaire dialogue-filtres',
+    classe: `dialogue-formulaire dialogue-filtres${ctls.some((ctl) => ctl.arbre && ctl.options?.length) ? ' dialogue-filtres-defile' : ''}`,
     contenu: corps,
     boutons: [
       { libelle: 'Tout effacer', valeur: 'effacer' },

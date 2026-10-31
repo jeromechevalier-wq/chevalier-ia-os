@@ -100,6 +100,15 @@ export function arbreFamilles(familles) {
   return liste.filter(estPremierNiveau).map((famille) => ({ famille, enfants: liste.filter((f) => f.parentId === famille.id) }));
 }
 
+/** Options du filtre « Famille » en arbre : une ligne par famille de premier niveau (mention « inclut ses sous-familles » si elle en a), ses sous-familles en retrait sous leur nom court, « Sans famille » à la fin. Familles illisibles ou vides : « Sans famille » seul. */
+export function optionsFamillesArbre(familles) {
+  const options = arbreFamilles(familles).flatMap(({ famille: f, enfants }) => [
+    { valeur: f.id, libelle: f.nom ?? f.id, niveau: 0, ...(enfants.length ? { note: 'inclut ses sous-familles' } : {}) },
+    ...enfants.map((e) => ({ valeur: e.id, libelle: e.nom ?? e.id, niveau: 1 })),
+  ]);
+  return [...options, { valeur: 'sans_famille', libelle: 'Sans famille', niveau: 0 }];
+}
+
 /** La famille et ses sous-familles (identifiants) : un filtre sur « Fournitures » inclut « Carrelage ». */
 export const idsAvecSousFamilles = (familles, id) => [id, ...(familles ?? []).filter((f) => f.parentId === id).map((f) => f.id)];
 

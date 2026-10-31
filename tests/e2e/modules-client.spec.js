@@ -68,7 +68,7 @@ test('R1 un client avec « affaires » seul : menu et écrans du CRM, aucun écr
   await ouvrirMenu(page);
   for (const lib of ['Accueil', 'Personnes', 'Organisations', 'Affaires']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(1);
   for (const lib of ['Projets', 'Archives', 'Modèles', 'Journal des modifications', 'Réglages']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(0);
-  // la page Réglages existe aussi chez un client (2.6.0) : elle s'ouvre depuis le menu utilisateur (PR B), comme le Journal et « Connecter mon assistant » s'ils sont allumés
+  // la page Réglages existe aussi chez un client (2.6.0) : elle s'ouvre depuis le menu utilisateur (PR B), comme le Journal et « Connecter mon IA » s'ils sont allumés
   await ouvrirMenuUtilisateur(page);
   await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Réglages', 'Voir le journal des modifications', /Thème/, 'Se déconnecter']);
   await page.keyboard.press('Escape');
@@ -195,7 +195,7 @@ test('R10 Réglages chez un éditeur : l\'espace d\'abord (Mon espace, Membres, 
     await page.locator('.reglages-menu-bouton').click();
   }
   const liens = page.locator('.reglages-menu-lien');
-  await expect(liens).toHaveText(['Mon espace', 'Membres et rôles', 'Modules actifs', 'Déploiement', 'Affaires et projets', 'Veille', 'Automatisations', 'Connecter mon assistant']);
+  await expect(liens).toHaveText(['Mon espace', 'Membres et rôles', 'Modules actifs', 'Déploiement', 'Affaires et projets', 'Veille', 'Automatisations', 'Connecter mon IA']);
   await expect(page.locator('.reglages-menu-titre')).toHaveText(['Espace', 'Modules']);
   // Mon espace (modifiable par un éditeur depuis la 2.8.0 : tests/e2e/mon-espace.spec.js) : le nom et la couleur lus dans la fiche de marque, le thème de l'appareil
   await expect(page.locator('[data-champ="nom"]')).toHaveValue('Maison Pleine');
@@ -231,7 +231,7 @@ test('R10 Réglages chez un éditeur : l\'espace d\'abord (Mon espace, Membres, 
   await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
   await ouvrirSectionReglages(page, 'Automatisations');
   await expect(page.locator('#reglages-export-automatisations')).toBeVisible(); // seul réglage : la sauvegarde de ses données
-  await ouvrirSectionReglages(page, 'Connecter mon assistant');
+  await ouvrirSectionReglages(page, 'Connecter mon IA');
   await page.getByRole('link', { name: 'Ouvrir la page Connexion' }).click();
   await expect(page).toHaveURL(/#\/espace\/plein\/mcp\/infos$/);
 });
@@ -240,7 +240,7 @@ test('R11 Réglages chez un lecteur : pas de sections d\'espace réservées aux 
   await ouvrir(page, 'plein', LEA);
   await expect(page.locator('.coquille')).toBeVisible();
   await page.evaluate(() => { location.hash = '#/espace/plein/reglages'; });
-  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Affaires et projets', 'Veille', 'Automatisations', 'Connecter mon assistant']);
+  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Affaires et projets', 'Veille', 'Automatisations', 'Connecter mon IA']);
   await page.evaluate(() => { location.hash = '#/espace/plein/reglages/membres'; }); // réservé aux éditeurs : retour à la page d'arrivée
   await expect(page).toHaveURL(/#\/espace\/plein\/reglages$/);
   await page.evaluate(() => { location.hash = '#/espace/plein/reglages/modules'; });

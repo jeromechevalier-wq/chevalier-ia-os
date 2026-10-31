@@ -7,6 +7,14 @@ on:
   push:
     branches:
       - main
+    # (31/10/2026) Une fusion qui ne change que de la documentation ne redéploie rien : ces chemins sont tous dans hosting.ignore de firebase.json (non servis) ou hors de tout déploiement. Un push qui mêle docs et code déploie quand même. tests/** n'est PAS ignoré.
+    paths-ignore:
+      - 'docs/**'
+      - 'wiki/**'
+      - 'README.md'
+      - 'CLAUDE.md'
+      - 'PROMPT-CONSTRUCTION.md'
+      - '.github/A-FAIRE.md'
 # Un seul déploiement à la fois : sans ça, un run plus ancien qui finit en dernier republie l'ancien arbre par-dessus un plus récent (30/10/2026).
 # GitHub ne garde qu'UN run en attente (le plus récent) ; false = on ne coupe jamais un déploiement en cours (fonctions).
 concurrency:
@@ -46,3 +54,22 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS }}
           channelId: live
           projectId: chevalier-ia-os
+      # Mesure du temps d'attente (31/10/2026) : durée de chaque job de ce lancement, dans le résumé. Ne fait jamais échouer le déploiement.
+      - name: Mesurer la durée du déploiement (résumé du lancement)
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "### Durée du déploiement"
+            if timeout 60 gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" > "$RUNNER_TEMP/jobs.json"; then
+              echo
+              echo "| job | durée |"
+              echo "|---|---|"
+              jq -r '[.jobs[] | select(.started_at != null) | {n: .name, s: ((if .completed_at then (.completed_at | fromdateiso8601) else now end) - (.started_at | fromdateiso8601))}] | (.[] | "| \(.n) | \(.s / 60 | floor) min \(.s % 60) s |")' "$RUNNER_TEMP/jobs.json"
+            else
+              echo "Mesure impossible (l'API des jobs n'a pas répondu) : sans effet sur le déploiement."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY" || echo "Mesure impossible : sans effet sur le déploiement."

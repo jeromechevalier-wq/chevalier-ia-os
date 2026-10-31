@@ -482,6 +482,27 @@ const parPosition = (devis, t) => {
   return (devis.sections ?? []).map((s) => (s.lignes ?? []).map(() => t.lignes[k++]));
 };
 
+// ---------------------------------------------------------------- TVA réduite (rénovation)
+/** Taux réduits qui obligent la mention de TVA réduite sur le devis (CGI 278-0 bis A et 279-0 bis). */
+export const TAUX_REDUITS_RENOVATION = Object.freeze([5.5, 10]);
+export const LIMITE_MENTION_TVA_REDUITE = 600;
+/** Texte imprimé quand le réglage « Mention de TVA réduite » est vide. Formulation de clicfacture (pas le texte officiel) : à faire valider par l'expert-comptable. */
+export const MENTION_TVA_REDUITE_DEFAUT = 'Application du taux réduit de TVA conformément aux articles 278-0 bis A et 279-0 bis du Code général des impôts : travaux réalisés dans un logement à usage d\'habitation achevé depuis plus de deux ans, hors construction, reconstruction ou agrandissement. Le client certifie que ces conditions sont remplies.';
+/**
+ * Vrai si au moins une ligne chiffrée (total HT > 0) est à 5,5 % ou 10 %. Faux en franchise de TVA et en autoliquidation (aucune TVA facturée),
+ * pour les lignes texte, les sections et les lignes à 0 €. Comparaison tolérante aux flottants.
+ */
+export function devisATvaReduite(devis) {
+  if (!devis || typeof devis !== 'object' || devis.regimeTva === 'franchise' || devis.autoliquidation === true) return false;
+  const t = totauxDevis(devis);
+  const pos = parPosition(devis, t);
+  return (devis.sections ?? []).some((s, i) => (s.lignes ?? []).some((l, j) => {
+    if (estSaut(l) || !(pos[i][j]?.totalHT > 0)) return false;
+    const taux = tauxDeLigne(devis, l);
+    return TAUX_REDUITS_RENOVATION.some((r) => Math.abs(taux - r) < 1e-6);
+  }));
+}
+
 // ---------------------------------------------------------------- dates, numéro, expiration
 /** Jour calendaire AAAA-MM-JJ d'une date (Date ou texte ISO). Null si illisible. */
 function jourDe(v) {
@@ -726,8 +747,8 @@ export function coordonneesBancairesDe(e) {
   const iban = e?.paiement?.iban;
   return typeof iban === 'string' ? iban.trim() : '';
 }
-/** L'émetteur tel qu'il s'imprime : « Mon entreprise » et le texte « Attestation et mentions » des réglages (lus en direct à chaque impression). Même fonction à l'écran et sur le serveur. */
-export const emetteurImprime = (entreprise, mentionEmetteur) => ({ ...(entreprise && typeof entreprise === 'object' && !Array.isArray(entreprise) ? entreprise : {}), mentionEmetteur: nettoyerTexteLibre(mentionEmetteur) });
+/** L'émetteur tel qu'il s'imprime : « Mon entreprise », le texte « Attestation et mentions » et la « Mention de TVA réduite » des réglages (lus en direct à chaque impression). Même fonction à l'écran et sur le serveur. */
+export const emetteurImprime = (entreprise, mentionEmetteur, mentionTvaReduite) => ({ ...(entreprise && typeof entreprise === 'object' && !Array.isArray(entreprise) ? entreprise : {}), mentionEmetteur: nettoyerTexteLibre(mentionEmetteur), mentionTvaReduite: nettoyerTexteLibre(mentionTvaReduite) });
 
 /**
  * Mentions manquantes dans les réglages de l'entreprise (`emetteur`), pour un bandeau « mentions manquantes » et des champs en rouge.
@@ -835,6 +856,78 @@ export function erreursFinalisation(devis, { emetteur, aujourdhui } = {}) {
   erreurs.push(...erreursMentionsLegales(devis, { emetteur, aujourdhui }));
   return erreurs;
 }
+
+/**
+ * Décision « quel champ de l'écran porte ce refus de finaliser ? », dérivée de la PHRASE (jamais une structure d'erreur partagée : les phrases sont copiées chez les clients et dans les outils MCP).
+ * Rend `{ champ, ligneId?, ligneLibelle? }` pour une erreur qui se règle dans un champ, `null` pour une erreur sans champ (entreprise, assurance, devis déjà finalisé…),
+ * `undefined` pour une phrase inconnue (le test `devis-finalisation-marques` échoue : toute phrase nouvelle doit recevoir une décision ici).
+ * `devis` (facultatif) sert à retrouver l'identifiant de la ligne citée par son libellé.
+ */
+export function decisionChampFinalisation(message, devis = null) {
+  const m = String(message ?? '');
+  const fixes = new Map([
+    [MESSAGE_AFFAIRE_MANQUANTE, { champ: 'affaire' }],
+    [MESSAGE_CLIENT_MANQUANT, { champ: 'client' }],
+    [MESSAGE_DEBUT_TRAVAUX_MANQUANT, { champ: 'debutTravaux' }],
+    [MESSAGE_DUREE_TRAVAUX_MANQUANTE, { champ: 'duree' }],
+    [MESSAGE_VALIDITE_MANQUANTE, { champ: 'expireLe' }],
+    [MESSAGE_VALIDITE_DEPASSEE, { champ: 'expireLe' }],
+    [MESSAGE_ASSURANCE_CROCHETS, null],
+    ...Object.values(MESSAGES_ENTREPRISE_MANQUANTE).map((v) => [v, null]),
+    ['Choisis le calcul de la marge du devis.', { champ: 'marge' }],
+    ['La marge du devis doit être un nombre.', { champ: 'marge' }],
+    ['Ajoute au moins une ligne au devis avant de le finaliser.', { champ: 'lignes' }],
+    ['Le devis est introuvable.', null],
+    ['Ce devis est déjà finalisé : pour le corriger, crée la version suivante.', null],
+    ['Une ligne du devis n\'a pas d\'identifiant unique : recharge le devis ou recrée cette ligne.', null],
+    ['Une adresse e-mail de destinataire n\'est pas valide : corrige-la.', { champ: 'destinataires' }],
+    ['Une adresse e-mail en copie n\'est pas valide : corrige-la.', { champ: 'copie' }],
+    ['Le code postal du chantier doit avoir 5 chiffres.', { champ: 'chantier-adresse' }],
+    ['La date de début des travaux est illisible : indique une date valide.', { champ: 'debutTravaux' }],
+    ['La date de fin de chantier est illisible : indique une date valide.', { champ: 'finChantierAu' }],
+    ['La fin de chantier ne peut pas être avant le début des travaux.', { champ: 'finChantierAu' }],
+    ['La durée estimée du chantier doit être un nombre supérieur à zéro.', { champ: 'duree' }],
+    ['La durée estimée du chantier ne peut pas avoir plus de deux décimales.', { champ: 'duree' }],
+    ['L\'unité de la durée du chantier est inconnue (heure, jour, semaine, mois ou année).', { champ: 'duree' }],
+    ['La date de fin de la retenue de garantie est illisible : indique une date valide.', { champ: 'acompte' }],
+    ['Les primes et la retenue de garantie dépassent le total TTC : le net à payer serait négatif.', { champ: 'primes' }],
+  ]);
+  if (fixes.has(m)) { const d = fixes.get(m); return d ? { ...d } : null; }
+  // Listes ou blocs mal formés (jamais produits par l'écran) : aucun champ à marquer.
+  if (/^(Les acomptes|Les primes|Les informations (du chantier|sur les déchets)|L'adresse du chantier|Deux primes|Le texte libre|Les méthodes de paiement|Les notes de bas de page)/.test(m)) return null;
+  if (/^(La remise|La valeur de la remise|Le montant de la remise)/.test(m)) return { champ: 'remise' };
+  if (/^La retenue de garantie /.test(m)) return { champ: 'acompte' };
+  if (/^Acompte n° \d+ : /.test(m)) return { champ: 'acompte' };
+  if (/^(Une prime n'a pas|Prime « )/.test(m)) return { champ: 'primes' };
+  if (/^(Un type de déchets|Le point de collecte|Le volume (minimum|maximum)|Le coût des déchets|L'unité du volume)/.test(m)) return { champ: 'dechets' };
+  const dest = /^L'adresse « .* » est (deux fois destinataire|déjà destinataire)/.exec(m);
+  if (dest) return { champ: dest[1] === 'deux fois destinataire' ? 'destinataires' : 'copie' };
+  if (/^Il y a trop de destinataires/.test(m)) return { champ: 'destinataires' };
+  if (/^Il y a trop d'adresses e-mail en copie/.test(m)) return { champ: 'copie' };
+  if (m.startsWith('Ligne « ')) {
+    const suite = (reste) => {
+      if (/^indique une quantité/.test(reste)) return 'quantite';
+      if (/prix d'achat/.test(reste)) return 'prixAchat';
+      if (/prix de vente/.test(reste)) return 'prixVente';
+      if (/taux de TVA/.test(reste)) return 'tva';
+      return 'margeLigne'; // « la marge doit être un nombre », 100 % ou plus, calcul inconnu
+    };
+    for (const s of devis?.sections ?? []) {
+      for (const l of s.lignes ?? []) {
+        if (estSaut(l)) continue;
+        const nom = `« ${l.libelle || 'sans libellé'} »${s.titre ? ` (section « ${s.titre} »)` : ''}`;
+        const debut = `Ligne ${nom} : `;
+        if (m.startsWith(debut)) return { champ: suite(m.slice(debut.length)), ligneId: l.id, ligneLibelle: l.libelle || '' };
+      }
+    }
+    const brut = /^Ligne « .* » (?:\(section « .* »\) )?: (.*)$/.exec(m);
+    return { champ: suite(brut ? brut[1] : m), ligneId: null };
+  }
+  return undefined;
+}
+
+/** Champ de l'écran qui porte ce refus de finaliser, ou null (erreur sans champ, ou phrase inconnue). Voir `decisionChampFinalisation`. */
+export const champDeErreurFinalisation = (message, devis = null) => decisionChampFinalisation(message, devis) ?? null;
 
 /**
  * Ce que la loi demande sur un devis de travaux (economie.gouv.fr, « devis obligatoire ») et que la finalisation exige :
@@ -1093,6 +1186,7 @@ export function vueClient(devis, contexte = {}) {
     regimeTva: devis.regimeTva ?? 'assujetti',
     autoliquidation: devis.autoliquidation === true,
     mentions: t.mentions,
+    tvaReduite: devisATvaReduite(devis), // vrai = le document imprime la mention de TVA réduite ; le texte, lui, vient des réglages (pas dans la vue)
     ...(t.remiseHt > 0 ? { remise: { libelle: devis.remise.type === 'pourcentage' ? `Remise ${nombre(devis.remise.valeur)} %` : 'Remise', montantHt: t.remiseHt } } : {}),
     ...conditionsDeVue(devis, t, devis.regimeTva === 'franchise'),
     conditions: {

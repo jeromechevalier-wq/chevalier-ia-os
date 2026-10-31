@@ -25,7 +25,7 @@ export const ETAPES_DEPLOIEMENT_DEVIS = geler([
   { id: 'devis-essai', groupe: 'pendant', module: 'devis', type: 'manuel', libelle: 'Essai de bout en bout d’un devis (PDF, e-mail, Envoyé)',
     reparation: 'Sur une affaire de test : crée un devis, finalise-le, ouvre son PDF depuis l’onglet Devis de l’affaire, prépare l’e-mail, passe-le à Envoyé, puis archive l’essai.', lien: `${DOCS}deploiement-client.md` },
   { id: 'devis-mcp', groupe: 'pendant', module: 'devis', type: 'manuel', libelle: 'Assistant : « liste mes devis » vérifié',
-    reparation: 'Demande à ton assistant « liste mes devis », puis « lis le devis X » : il ne montre jamais les prix d’achat.', lien: `${DOCS}deploiement-client.md` },
+    reparation: 'Demande à ton IA « liste mes devis », puis « lis le devis X » : il ne montre jamais les prix d’achat.', lien: `${DOCS}deploiement-client.md` },
 ]);
 
 const sur = (calcul) => { try { return calcul(); } catch { return 'inconnu'; } };
