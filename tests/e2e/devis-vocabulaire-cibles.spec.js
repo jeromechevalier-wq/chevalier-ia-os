@@ -153,19 +153,19 @@ test('C5b.5 un mot à UN article propose « Changer l’article » (on remplace)
   await champMot('prise', (d) => [d.articleId, d.cibles?.map((c) => c.id)]).toEqual(['', ['p1', 'p2']]);
 });
 
-test('C5b.6 cible indisponible : tous les articles du mot désactivés = pastille grise « Cible indisponible » + « Changer ce que le mot désigne » ; « Activer » est grisé avec une phrase qui dit quoi faire', async ({ page }, info) => {
+test('C5b.6 aucun article disponible : tous les articles du mot désactivés = pastille grise « Aucun article disponible » + « Changer ce que le mot désigne » ; « Activer » est grisé avec une phrase qui dit quoi faire', async ({ page }, info) => {
   await article('p1', 'Prise simple 16 A', { actif: false });
   await article('p2', 'Prise double 16 A', { actif: false });
   await motMultiple({ cibles: cibles('p1', 'p2'), statut: 'desactivee' });
   await ouvrir(page);
-  await expect(ligne(page, 'prise').locator('[data-role="cible-indisponible"]')).toHaveText('Cible indisponible');
+  await expect(ligne(page, 'prise').locator('[data-role="aucun-article-disponible"]')).toHaveText('Aucun article disponible');
   await expect(ligne(page, 'prise').locator('[data-action="changer-article"]')).toHaveText('Changer ce que le mot désigne');
   await entreeMenuOuvrir(page, 'prise').click();
   await expect(entreeMenu(page, 'Activer')).toBeDisabled();
   await expect(entreeMenu(page, 'Activer')).toHaveAttribute('title', /change d’abord ce qu’il désigne/);
   await expect(entreeMenu(page, 'Changer ce que le mot désigne')).toHaveCount(0); // le bouton visible fait la même chose : pas de doublon
   await page.keyboard.press('Escape');
-  await capturer(page, info, 'C5b-6-cible-indisponible');
+  await capturer(page, info, 'C5b-6-aucun-article-disponible');
 });
 
 test('C5b.7 un article désactivé parmi d’autres reste dans la liste dépliée, grisé « (désactivé) » ; le mot reste actif tant qu’un article est vivant', async ({ page }) => {
@@ -173,7 +173,7 @@ test('C5b.7 un article désactivé parmi d’autres reste dans la liste déplié
   await article('p2', 'Prise double 16 A', { actif: false });
   await motMultiple();
   await ouvrir(page);
-  await expect(ligne(page, 'prise').locator('[data-role="cible-indisponible"]')).toHaveCount(0);
+  await expect(ligne(page, 'prise').locator('[data-role="aucun-article-disponible"]')).toHaveCount(0);
   await ligne(page, 'prise').locator('[data-action="cibles"]').click();
   await expect(ligne(page, 'prise').locator('[data-role="cibles"] li').nth(1)).toContainText('Prise double 16 A (désactivé)');
 });

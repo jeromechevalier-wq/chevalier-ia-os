@@ -363,7 +363,7 @@ export function rendreVocabulaire(conteneur) {
           h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'changer-article' }, 'aria-label': `Changer l’article : ${r.expression ?? r.cle}`, onclick: () => ouvrirChangerArticle(r).then(() => rendre()) }, 'Changer l’article')) : null);
       return cellule;
     }
-    // Plusieurs articles au choix : « 3 articles au choix » se déplie en liste ; aucun article vivant = « Cible indisponible ».
+    // Plusieurs articles au choix : « 3 articles au choix » se déplie en liste ; aucun article vivant = « Aucun article disponible ».
     const ouvert = ciblesOuvertes.has(r.id);
     remplir(cellule,
       h('button', { type: 'button', class: 'bouton-lien', 'aria-expanded': String(ouvert), dataset: { action: 'cibles' }, 'aria-label': `${d.nombre} articles au choix : ${r.expression ?? r.cle}`, onclick: () => {
@@ -373,7 +373,7 @@ export function rendreVocabulaire(conteneur) {
       } }, `${d.nombre} articles au choix`),
       ouvert ? h('ul', { class: 'liste-cibles', dataset: { role: 'cibles' } }, d.articles.map((c) => h('li', { dataset: { articleId: c.id } },
         c.vivant ? h('a', { class: 'lien-article', href: lien('devis/bordereau') }, c.libelle) : h('span', { class: 'discret' }, `${c.libelle || '—'} (désactivé)`)))) : null,
-      d.mort ? h('div', { class: 'article-mort' }, pastille('Cible indisponible', '#8d8993', { dataset: { role: 'cible-indisponible' } }),
+      d.mort ? h('div', { class: 'article-mort' }, pastille('Aucun article disponible', '#8d8993', { dataset: { role: 'aucun-article-disponible' } }),
         h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'changer-article' }, 'aria-label': `Changer ce que le mot désigne : ${r.expression ?? r.cle}`, onclick: () => ouvrirChangerCibles(r).then(() => rendre()) }, 'Changer ce que le mot désigne')) : null);
     return cellule;
   }
