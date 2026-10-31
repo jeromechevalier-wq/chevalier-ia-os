@@ -98,6 +98,8 @@ async function verifierSource(c, valeur) {
 const verifierMessages = (erreurs) => {
   if (Object.keys(erreurs || {}).length) refuser('saisie_invalide', Object.values(erreurs).join(' '), { erreurs });
 };
+/** Un jour AAAA-MM-JJ qui existe vraiment (le 31 février est refusé, comme à l'écran). */
+const jourExistant = (jour) => typeof jour === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(jour) && new Date(`${jour}T00:00:00Z`).toISOString().slice(0, 10) === jour;
 const jourValide = (jour) => /^\d{4}-\d{2}-\d{2}$/.test(jour) && !Number.isNaN(Date.parse(`${jour}T12:00:00Z`));
 const texte = (v) => L.nettoyerEspaces(v);
 
@@ -993,15 +995,10 @@ export async function modifierDevisBrouillon(c, args) {
     }
   }
   for (const k of ['objet', 'nom', 'personneId', 'organisationId', 'destinataires', 'copie', 'marge', 'tauxTvaDefaut']) if (champs[k] !== undefined) patch[k] = champs[k];
-  // Début et durée des travaux, validité : exigés à la finalisation (mêmes règles que l'écran, `erreursChantier`). Les autres champs du chantier (adresse, fin) ne sont pas touchés.
-  if (champs.chantier !== undefined) {
-    const chantier = { ...(devis.chantier && typeof devis.chantier === 'object' ? devis.chantier : {}) };
-    if (champs.chantier.debutTravaux !== undefined) chantier.debutTravaux = champs.chantier.debutTravaux;
-    if (champs.chantier.dureeEstimee !== undefined) chantier.dureeEstimee = champs.chantier.dureeEstimee;
-    verifierMessages(D.erreursChantier(chantier));
-    patch.chantier = chantier;
+  if (champs.expireLe !== undefined) { // validité : exigée à la finalisation ; une date qui n'existe pas (31 février) est refusée comme à l'écran
+    if (!jourExistant(champs.expireLe)) refuser('saisie_invalide', 'La date de validité du devis est illisible : donne un jour valide (AAAA-MM-JJ).');
+    patch.expireLe = champs.expireLe;
   }
-  if (champs.expireLe !== undefined) patch.expireLe = champs.expireLe;
   if (patch.objet !== undefined) patch.objet = texte(patch.objet);
   if (patch.nom !== undefined) patch.nom = D.nettoyerNomDevis(patch.nom); // nom interne, jamais imprimé ; chaîne vide pour l'effacer
   if (patch.destinataires !== undefined) verifierDestinataires(patch.destinataires);
@@ -1009,6 +1006,16 @@ export async function modifierDevisBrouillon(c, args) {
   if (patch.organisationId) patch.personneId = null;
   else if (patch.personneId) patch.organisationId = null;
   if (patch.organisationId !== undefined || patch.personneId !== undefined) await appliquerClientAuBrouillon(c, devis, patch);
+  // Début et durée des travaux : exigés à la finalisation (mêmes règles que l'écran, `erreursChantier`). Posés APRÈS le client : changer le client peut refaire le chantier (adresse), les dates ne doivent pas se perdre.
+  // Les autres champs du chantier (adresse, fin) ne sont pas touchés.
+  if (champs.chantier !== undefined) {
+    const actuel = patch.chantier ?? devis.chantier;
+    const chantier = { ...(actuel && typeof actuel === 'object' ? actuel : {}) };
+    if (champs.chantier.debutTravaux !== undefined) chantier.debutTravaux = champs.chantier.debutTravaux;
+    if (champs.chantier.dureeEstimee !== undefined) chantier.dureeEstimee = champs.chantier.dureeEstimee;
+    verifierMessages(D.erreursChantier(chantier));
+    patch.chantier = chantier;
+  }
   if (patch.copie !== undefined || patch.destinataires !== undefined) {
     const nettoyee = verifierCopie(patch.copie ?? devis.copie, patch.destinataires ?? devis.destinataires);
     if (patch.copie !== undefined) patch.copie = nettoyee;

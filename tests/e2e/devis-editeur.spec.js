@@ -2,8 +2,7 @@
 // Les fonctions du serveur (devisFinaliser, devisNouvelleVersion) n'existent pas dans l'émulateur du navigateur : elles sont SIMULÉES par page.route, comme dans devis-liste.spec.js.
 import { fileURLToPath } from 'node:url';
 import {
-  test, expect, connecter, attendreCalme, allerA, ecrireDocument, lireDocument, listerDocuments, creerOrganisation, creerAffaire, JEROME, FIRESTORE, PROJET, choisirDansChampDevis,
-} from './outils.js';
+  test, expect, connecter, attendreCalme, allerA, ecrireDocument, lireDocument, listerDocuments, creerOrganisation, creerAffaire, JEROME, FIRESTORE, PROJET, choisirDansChampDevis, ecrireEntrepriseComplete, poserDebutEtDuree } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-editeur/', import.meta.url));
 async function capturer(page, info, nom, { visible = null } = {}) {
@@ -30,6 +29,7 @@ async function semer() {
   await creerAffaire('a1', { titre: 'Rénovation cuisine', organisationId: 'o1' });
   await article('a1', { libelle: 'Carrelage 60 x 60', unite: 'm²', prixAchat: 50, type: 'fourniture', code: 'CAR60' }); // vendu 60,00 €
   await article('a2', { libelle: 'Pose du carrelage', unite: 'h', prixAchat: 30, tauxTva: 10, type: 'main_oeuvre' }); // vendu 36,00 €, TVA 10 %
+  await ecrireEntrepriseComplete(); // « Mon entreprise » complète : exigée pour finaliser
 }
 async function ouvrirListe(page) {
   await connecter(page, undefined, { route: 'devis/liste' });
@@ -545,12 +545,13 @@ test('ED3 finaliser : les erreurs de finalisation sont listées dans une fenêtr
   await blocA(page).locator('[data-action="retirer-destinataire"]').click(); // plus aucun destinataire
   await page.locator('[data-action="finaliser"]').click(); // le bouton jaune d'un brouillon (26/10/2026) : « Imprimer » ne finalise plus
   await expect(dialogue(page)).toContainText('Ce devis ne peut pas encore être finalisé');
-  await expect(dialogue(page).locator('li')).toHaveText(['Ajoute au moins une ligne au devis avant de le finaliser.']);
+  await expect(dialogue(page).locator('li')).toHaveText(['Ajoute au moins une ligne au devis avant de le finaliser.', 'Indique la date de début des travaux.', 'Indique la durée estimée des travaux.']); // le client vient de l'affaire, l'entreprise est complète
   await capturer(page, info, 'ED3-erreurs-finalisation');
   await dialogue(page).getByRole('button', { name: 'Compris' }).click();
   expect(appels).toEqual([]);
   // On corrige : destinataire, une ligne ; un avertissement non bloquant (quantité vide) est dit dans la fenêtre de confirmation.
   await ajouterDestinataire(page, 'contact@exemple.fr');
+  await poserDebutEtDuree(page); // début et durée des travaux : exigés pour finaliser
   await ajouterLibre(page);
   await lignes(page).last().locator('[data-champ="libelle"]').fill('Forfait');
   await lignes(page).last().locator('[data-champ="prix-vente"]').fill('250');

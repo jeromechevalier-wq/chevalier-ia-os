@@ -4,7 +4,7 @@
 // Critères 7 (pied de page du PDF brouillon) et 8 (la règle est une fonction pure) : tests sans navigateur, tests/devis-pdf-fonction.test.js et tests/devis-entete-boutons.test.js.
 // Les fonctions du serveur (devisChangerStatut, devisPdf, devisPdfLien, devisFinaliser) n'existent pas dans l'émulateur du navigateur : elles sont SIMULÉES par page.route.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, ecrireDocument, creerOrganisation, creerAffaire, estTelephone, JEROME } from './outils.js';
+import { test, expect, connecter, attendreCalme, ecrireDocument, creerOrganisation, creerAffaire, estTelephone, JEROME, CHANTIER_ESSAI, ecrireEntrepriseComplete } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-entete-bouton-jaune/', import.meta.url));
 /** `aussiTelephone` : les critères 1, 4 et 6 sont aussi photographiés au format téléphone (la mise en page change) ; les autres seulement sur ordinateur. */
@@ -22,13 +22,14 @@ async function devis(id, valeurs = {}) {
   await ecrireDocument(`devis_devis/${id}`, {
     racineId: id, version: 1, numero: null, statut: 'brouillon', affaireId: 'a1', personneId: null, organisationId: 'o1', modeMarge: 'majoration', marge: 25, tauxTvaDefaut: 20,
     regimeTva: 'assujetti', autoliquidation: false, archive: false, dureeValiditeJours: 90, expireLe: '2099-12-31', objet: 'Rénovation restaurant', destinataires: ['contact@exemple.fr'],
-    sections: [{ id: 's1', titre: 'Cuisine', lignes: LIGNES }],
+    sections: [{ id: 's1', titre: 'Cuisine', lignes: LIGNES }], chantier: CHANTIER_ESSAI, // début et durée des travaux : exigés pour finaliser
     creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, ...valeurs,
   });
 }
 async function donnees() {
   await creerOrganisation('o1', { nom: 'M. Paul Exemple' });
   await creerAffaire('a1', { titre: 'Rénovation cuisine', organisationId: 'o1' });
+  await ecrireEntrepriseComplete(); // « Mon entreprise » complète : exigée pour finaliser
   await devis('dBrouillon');
   await devis('dFinalise', FINALISE);
   await devis('dEnvoye', { ...FINALISE, numero: 'DEV-2026-10-02-002', statut: 'envoye', envoyeLe: new Date() });
@@ -193,7 +194,7 @@ test('5 « Imprimer » un brouillon : aucune fenêtre « Finaliser », le devis 
 
 test('6 cas vide : un devis introuvable ne montre aucun bouton ; cas d’erreur : si « Finaliser » échoue (affaire manquante), la liste des erreurs s’affiche comme avant et le bouton reste « Finaliser »', async ({ page }, info) => {
   await donnees();
-  await devis('dSansAffaire', { affaireId: null, organisationId: null });
+  await devis('dSansAffaire', { affaireId: null }); // le client et le reste sont complets : seule l'affaire manque
   await ouvrir(page, 'devis/editeur/dSansAffaire');
   await jaunes(page).click();
   // Seule l'affaire manque : pas de fenêtre, le champ Affaire s'affiche en rouge avec son message et le focus (comme un champ obligatoire).

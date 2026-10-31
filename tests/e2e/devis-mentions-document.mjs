@@ -10,7 +10,10 @@ const base = {
   affaireId: 'a1', objet: 'Rénovation de la toiture',
   sections: [{ id: 's1', titre: 'Toiture', lignes: [{ id: 'l1', libelle: 'Tuiles', unite: 'm²', quantite: 20, prixAchat: 40, tauxTva: 10 }] }],
 };
-const r = D.figerPourFinalisation(base, { numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages });
+// La finalisation exige l'entreprise, un client, début et durée des travaux : le jeu d'essai est complété, puis le bloc Chantier est retiré (ce document n'en montre pas).
+const entreprise = { nom: 'Atelier Exemple', siret: '123 456 789 00012', adresse: { ligne1: '3 rue de l’Atelier', codePostal: '75001', ville: 'Paris' }, assuranceTexte: 'Assurance décennale : Assureur Exemple, contrat numéro : 123.' };
+const r = D.figerPourFinalisation({ ...base, personneId: 'p1', chantier: { debutTravaux: '2026-11-15', dureeEstimee: { valeur: 3, unite: 'semaine' } } }, { numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages, emetteur: entreprise });
+if (r.devis) delete r.devis.chantier;
 if (r.erreurs.length) throw new Error(r.erreurs.join(' / '));
 const emetteur = sans ? { nom: 'Atelier Exemple' } : {
   nom: 'Atelier Exemple', coordonneesBancaires: 'Banque Exemple\nFR76 0000 0000 0000\nBIC EXEMPLEXXX',

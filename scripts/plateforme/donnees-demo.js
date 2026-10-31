@@ -291,6 +291,7 @@ export function construirePlan({ config, articles, familles = null, reglages, au
     if (iDevis % 6 === 5) brouillon.remise = { type: 'pourcentage', valeur: 5 };
     const debutTravaux = L.ajouterJours(L.aujourdhuiParis(creeLe), 30);
     brouillon.chantier = { adresse: { ligne1: `${12 + i} avenue des Chantiers`, codePostal: '69000', ville: personne.ville }, debutTravaux, dureeEstimee: { valeur: td.entier(1, 4), unite: 'semaine' } };
+    if (statut === 'brouillon') brouillon.expireLe = L.ajouterJours(L.aujourdhuiParis(maintenant), 30); // un brouillon de démonstration reste finalisable, quelle que soit la durée de validité réglée chez le client
     brouillon.texteLibre = 'Travaux réalisés dans les règles de l’art, selon les normes en vigueur. Protection des sols et nettoyage du chantier compris.';
     brouillon.notesBasDePage = `Devis établi après visite du chantier. Prix valables ${brouillon.dureeValiditeJours} jours. Toute modification fera l’objet d’un avenant.`;
     brouillon.dechets = { types: ['inertes', 'non_dangereux'], pointCollecte: `Déchèterie professionnelle de ${personne.ville}`, volumeMin: 1, volumeMax: 3, unite: 'm3', coutTtcParM3: 45 };

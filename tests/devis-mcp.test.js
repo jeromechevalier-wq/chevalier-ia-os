@@ -359,8 +359,18 @@ describe('B mentions légales (31/10/2026) : l’assistant', () => {
     refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', chantier: { dureeEstimee: { valeur: 0, unite: 'jour' } } }));
     refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', chantier: { dureeEstimee: { valeur: 2, unite: 'siècle' } } }));
     refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', expireLe: 'bientôt' }));
+    refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', expireLe: '2027-02-31' }), /illisible/); // un jour qui n'existe pas
     refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', chantier: { adresse: 'x' } }));
     assert.equal(s.doc('devis_devis', 'd1').expireLe, '2027-02-01', 'un refus n’écrit rien');
+  });
+  test('B4 changer le client ET donner le chantier dans le même appel : le début et la durée ne se perdent pas', async () => {
+    const s = await demarrer({ devis: [devisEnregistre('d1', { chantier: undefined, personneId: null, organisationId: 'org1' })] });
+    const m = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', personneId: 'p1', chantier: { debutTravaux: '2026-11-15', dureeEstimee: { valeur: 3, unite: 'semaine' } } }));
+    assert.ok(m.champsModifies.includes('chantier'));
+    const d = s.doc('devis_devis', 'd1');
+    assert.equal(d.personneId, 'p1');
+    assert.equal(d.chantier.debutTravaux, '2026-11-15');
+    assert.deepEqual(d.chantier.dureeEstimee, { valeur: 3, unite: 'semaine' });
   });
   test('B1 B2 B3 B4 B5 finaliser_devis refuse avec les mêmes phrases que l’écran ; lire_devis les annonce avant ; rien n’est écrit', async () => {
     const s = await demarrer({ devis: [devisEnregistre('d1', { organisationId: null, personneId: null, chantier: undefined, expireLe: '2026-09-01', sections: [{ id: 's', titre: '', lignes: [{ id: 'l', libelle: 'Peinture', unite: 'm²', quantite: 10, prixAchat: 8 }] }] })] });
