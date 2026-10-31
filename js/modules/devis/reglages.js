@@ -154,7 +154,7 @@ export function reglages(page) {
       h('h4', {}, 'Assurance'),
       zoneEnt(['assuranceTexte'], 'Texte d’assurance', { lignes: 3, max: LIMITE_ASSURANCE_TEXTE, placeholder: ASSURANCE_DEFAUT, modele: ASSURANCE_DEFAUT,
         aide: 'Écris ton assurance telle qu’elle doit apparaître en bas du devis.',
-        texteSous: `Exemple à recopier et à compléter : « ${ASSURANCE_DEFAUT} » Remplace tout ce qui est entre crochets avec les informations de ton attestation d’assurance. Tant qu’il reste des crochets, le devis ne peut pas être finalisé.` }),
+        texteSous: `Exemple à recopier et à compléter : « ${ASSURANCE_DEFAUT} ». Remplace tout ce qui est entre crochets par les informations de ton attestation d’assurance. Tant qu’il reste des crochets, le devis ne peut pas être finalisé.` }),
       h('h4', {}, 'Médiateur de la consommation'),
       champEnt(['mediateur', 'nom'], 'Nom du médiateur'),
       h('div', { class: 'ligne-champs' }, champEnt(['mediateur', 'email'], 'E-mail du médiateur'), champEnt(['mediateur', 'site'], 'Site du médiateur')),
