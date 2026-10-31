@@ -901,3 +901,26 @@ describe('K21 usage : départage seulement', () => {
     assert.equal(r.candidats[0].articleId, 'x1'); // libellé exact (0,95) devant un libellé partiel, même très utilisé
   });
 });
+
+// ---------------------------------------------------------------- K7 non-régression des mots à plusieurs articles (PR C5a)
+describe('K7 non-régression : le jeu d’essai V1 à V9 rend les mêmes décisions, candidats et questions qu’avant les cibles', () => {
+  test('K7 instantané figé AVANT la PR (tests/devis-vocabulaire-k7.json, 65 phrases, avec et sans les 10 mots) : rien ne change, aucune question de précision, aucune portée', () => {
+    const instantane = JSON.parse(lire('tests/devis-vocabulaire-k7.json'));
+    let n = 0;
+    for (const [nom, regles] of [['sans', []], ['avec', REGLES]]) {
+      for (const p of PHRASES) {
+        const attendu = instantane[nom][p.phrase];
+        const r = V.interpreter(p.phrase, { regles, articles: CATALOGUE, reglages: REGLAGES });
+        assert.equal(r.decision, attendu.decision, `${nom} « ${p.phrase} » : décision`);
+        assert.equal(r.cle, attendu.cle, `${nom} « ${p.phrase} » : clé`);
+        assert.equal(r.quantite, attendu.quantite, `${nom} « ${p.phrase} » : quantité`);
+        assert.deepEqual(r.candidats.map((c) => [c.articleId, c.score, c.pourquoi]), attendu.candidats, `${nom} « ${p.phrase} » : candidats`);
+        assert.equal(r.question, attendu.question, `${nom} « ${p.phrase} » : question`);
+        assert.equal(r.etape, 'article');
+        assert.equal(r.portee, null);
+        n += 1;
+      }
+    }
+    assert.equal(n, 130);
+  });
+});
