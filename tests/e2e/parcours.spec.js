@@ -255,12 +255,12 @@ test('C7 « + Affaire » depuis la fiche d’une personne : titre prérempli, en
   await aller(page, '#/crm/personnes/p1');
   await page.locator('.fiche-tete [data-action="nouvelle-affaire"]').click();
   await expect(dialogue(page)).toContainText('Ajouter une affaire');
-  await expect(dialogue(page).getByLabel('Titre', { exact: true })).toHaveAttribute('placeholder', 'Fleurs de Provence');
+  await expect(dialogue(page).getByLabel('Titre', { exact: true })).toHaveAttribute('placeholder', 'Affaire Fleurs de Provence');
   await enregistrer(page);
-  const a = await attendre(page, 'crm_affaires', (d) => d.titre === 'Fleurs de Provence');
+  const a = await attendre(page, 'crm_affaires', (d) => d.titre === 'Affaire Fleurs de Provence');
   expect(a).toMatchObject({ personneId: 'p1', organisationId: 'o1', etape: 'premier_contact', statut: 'ouverte', priorite: 'tiede', archive: false });
   expect('encaissements' in a, 'plus de champ encaissements (restes de la 2.2 supprimés)').toBe(false);
-  await expect(page.locator('.section[data-section="personne-affaires"] .carte-affaire-mini')).toContainText('Fleurs de Provence');
+  await expect(page.locator('.section[data-section="personne-affaires"] .carte-affaire-mini')).toContainText('Affaire Fleurs de Provence');
   await allerA(page, 'Affaires');
   await expect(page.locator(`.colonne[data-colonne="premier_contact"] .carte-affaire[data-affaire="${a.id}"]`)).toBeVisible();
 });
