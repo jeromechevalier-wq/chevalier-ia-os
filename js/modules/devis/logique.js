@@ -831,7 +831,7 @@ export function erreursFinalisation(devis, { emetteur, aujourdhui } = {}) {
 }
 
 /**
- * Ce que la loi demande sur un devis de travaux (https://www.economie.gouv.fr/.../devis-obligatoire-comment-ca-marche) et que la finalisation exige :
+ * Ce que la loi demande sur un devis de travaux (economie.gouv.fr, « devis obligatoire ») et que la finalisation exige :
  * entreprise (nom, adresse, SIRET) et assurance sans crochet, client, début et durée des travaux, date de validité à venir.
  */
 export function erreursMentionsLegales(devis, { emetteur, aujourdhui } = {}) {

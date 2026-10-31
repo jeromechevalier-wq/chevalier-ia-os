@@ -11,6 +11,7 @@ import { modifierLignesDevis, annulerDerniereModificationDevis, creerDevisDepuis
 import { restaurerOperation } from '../functions/src/coeur/restaurer.js';
 import { executerEcritures } from '../functions/src/coeur/ecriture.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
+import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
 const emulateur = process.env.FIRESTORE_EMULATOR_HOST;
 // Projet propre à ce fichier : les fichiers de test tournent en parallèle sur le même émulateur et ne doivent pas se vider l'un l'autre.
@@ -22,7 +23,7 @@ const ctx = () => ({ acteur: ACTEUR, via: 'ecran', maintenant: MAINTENANT });
 /** Un brouillon complet, avec des dates en Timestamp comme Firestore les rend (et non en Date). */
 function brouillon(id, extra = {}) {
   const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1' }, { id, maintenant: MAINTENANT, auteur: ACTEUR }, { marge: 20, margeDevis: 20 });
-  return { ...d, creeLe: Timestamp.fromDate(MAINTENANT), sections: [{ id: `s-${id}`, titre: 'Travaux', lignes: [{ id: `l-${id}`, libelle: 'Article', unite: 'u', quantite: 2, prixAchat: 10 }] }], ...extra };
+  return completerPourFinaliser({ ...d, creeLe: Timestamp.fromDate(MAINTENANT), sections: [{ id: `s-${id}`, titre: 'Travaux', lignes: [{ id: `l-${id}`, libelle: 'Article', unite: 'u', quantite: 2, prixAchat: 10 }] }, ], ...extra });
 }
 
 describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ? false : 'émulateur Firestore non démarré (lancer npm run test:module devis)' }, () => {
@@ -40,8 +41,13 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
   });
   after(async () => { await deleteApp(app); });
   beforeEach(async () => {
-    for (const nom of [C.devis, C.devisUsageArticles, C.devisCompteurs, C.devisParametres, C.audit, C.auditAvant, C.affaires, 'clients/a/crm_affaires', 'clients/a/devis_devis', 'clients/a/devis_compteurs', 'clients/a/crm_audit', 'clients/a/crm_audit_avant']) {
+    for (const nom of [C.devis, C.devisUsageArticles, C.devisCompteurs, C.devisParametres, C.audit, C.auditAvant, C.affaires, 'clients/a/crm_affaires', 'clients/a/devis_devis', 'clients/a/devis_compteurs', 'clients/a/crm_audit', 'clients/a/crm_audit_avant', C.personnes, 'clients/a/crm_personnes', 'clients/a/devis_parametres']) {
       for (const d of (await db.collection(nom).get()).docs) await d.ref.delete();
+    }
+    // « Mon entreprise » complète et un client : la finalisation les exige (31/10/2026).
+    for (const base of ['', 'clients/a/']) {
+      await db.collection(`${base}${C.devisParametres}`).doc('reglages').set({ regimeTva: 'assujetti', entreprise: EMETTEUR_ESSAI });
+      await db.collection(`${base}${C.personnes}`).doc('p1').set({ nom: 'Client Essai' });
     }
   });
 
