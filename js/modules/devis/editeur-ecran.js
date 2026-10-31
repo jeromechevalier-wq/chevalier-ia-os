@@ -23,7 +23,7 @@ import { ouvrirCreationPersonne } from '../crm/personnes.js';
 import { ouvrirCreationOrganisation } from '../crm/organisations.js';
 import {
   TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, estExpire, UNITES_DUREE, MOMENTS_ACOMPTE, TYPES_ACOMPTE, detailAcomptes, erreursAcomptes, listeAcomptes, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
-  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, MAX_DESTINATAIRES, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis, MESSAGE_AFFAIRE_MANQUANTE,
+  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, MAX_DESTINATAIRES, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis, MESSAGE_AFFAIRE_MANQUANTE, emetteurImprime,
 } from './logique.js';
 import { formaterMontant } from './document.js';
 import { menuUnite } from './menu-unite.js';
@@ -91,7 +91,7 @@ export function infosClientDuDevis(d) {
   return { telephone, email: Ed.emailsDeFiche(fiche)[0] ?? '', numeroTva: fiche.numeroTva ?? fiche.tva ?? '', siren: fiche.siren ?? '' };
 }
 /** Document complet du devis, pour l'aperçu de l'éditeur. */
-export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d), emetteur: D.etat.reglages.entreprise });
+export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d), emetteur: emetteurImprime(D.etat.reglages.entreprise, D.etat.reglages.mentionEmetteur) });
 const affaires = () => CRM.etat.affaires.filter((a) => !a.archive).sort((a, b) => String(a.titre).localeCompare(String(b.titre), 'fr'));
 const libelleAffaire = (a) => {
   const c = clientsDeAffaire(a)[0]?.nom;
@@ -599,7 +599,6 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         { titre: 'Édition' },
         { noeud: c('Afficher le calcul des marges', 'afficherMarges') },
         { noeud: c('Afficher les références', 'afficherReferences') },
-        { noeud: caseMenu({ libelle: 'Attestation TVA', cle: 'attestationTva', coche: true, desactive: true, info: 'automatique' }) },
         { noeud: caseMenu({ libelle: 'Autoliquidation', cle: 'autoliquidation', coche: travail.autoliquidation === true, surChangement: (v) => { changer({ autoliquidation: v }); majTotaux(); } }) },
         { noeud: h('label', { class: 'menu-devis-champ' }, h('span', { class: 'menu-devis-libelle' }, 'Changer la TVA par défaut'), tva) },
         { noeud: c('Cacher la gestion des déchets', 'cacherDechets') },
@@ -1696,12 +1695,10 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   // ------------------------------------------------ bas de page : conditions à gauche, totaux à droite, puis les notes
   function basDePage() {
     const d = travail;
-    ref.attestation = h('p', { class: 'attestation-tva', dataset: { valeur: 'attestation-tva' }, hidden: true });
     const texteLibre = h('textarea', { class: 'champ', id: 'devis-texte-libre', rows: 3, value: d.texteLibre ?? '', 'aria-label': 'Texte libre', hidden: !(d.texteLibre ?? '').trim(), dataset: { champ: 'texte-libre' }, oninput: (e) => changer({ texteLibre: e.target.value }) });
     const lienTexte = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'ajouter-texte-libre' }, hidden: !texteLibre.hidden, onclick: () => { texteLibre.hidden = false; lienTexte.hidden = true; texteLibre.focus(); } }, icone('plus', { taille: 14 }), 'Ajouter texte libre');
     const gauche = h('div', { class: 'bas-gauche' },
       (ref.blocPaiement = h('div', { class: 'bloc-paiement', dataset: { zone: 'paiement' } })),
-      ref.attestation,
       (ref.blocMethodes = h('div', { class: 'bloc-methodes', dataset: { zone: 'methodes' } })),
       texteLibre, lienTexte,
       (ref.blocDechets = h('div', { class: 'bloc-dechets', dataset: { zone: 'dechets' } })));
@@ -2127,13 +2124,6 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     mettre('net', euros(t.netAPayer));
     remplir(ref.tva, t.tvaParTaux.map((x) => h('tr', { dataset: { ligne: `tva-${x.taux}` } }, h('td', {}, `${saisieNombre(x.taux)} %`), h('td', { class: 'd' }, euros(x.baseHT)), h('td', { class: 'd', dataset: { total: `tva-${x.taux}` } }, euros(x.montant)))));
     if (t.mentions.length && !t.tvaParTaux.length) remplir(ref.tva, h('tr', {}, h('td', { colspan: 3, class: 'texte-discret' }, t.mentions.join(' · '))));
-    // Attestation de TVA réduite : le texte du devis imprimé, montré ici quand elle s'applique.
-    if (ref.attestation) {
-      let attestation = null;
-      try { attestation = vueClient(travail, {}).attestationTvaReduite ?? null; } catch { attestation = null; }
-      ref.attestation.hidden = !attestation;
-      ref.attestation.textContent = attestation ?? '';
-    }
     // Totaux de chaque ligne et de chaque section.
     for (const l of t.lignes) {
       const el = racine.querySelector(`[data-total="${CSS.escape(l.id)}"]`);

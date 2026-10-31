@@ -12,7 +12,7 @@ import { ETAPES_DEPLOIEMENT_DEVIS, controlerDeploiementDevis, etatEntreprise, et
 
 const TOUTES = [...ETAPES_COQUE, ...ETAPES_DEPLOIEMENT_AFFAIRES, ...ETAPES_DEPLOIEMENT_DEVIS];
 const lire = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
-const ENTREPRISE_COMPLETE = { nom: 'Entreprise Essai', siret: '12345678900011', adresse: { ligne1: '1 rue de l’Essai', codePostal: '75001', ville: 'Paris' }, telephone: '0100000000', assurance: { garantie: 'Décennale', assureur: 'Assureur Essai' }, mediateur: { nom: 'Médiateur Essai', site: 'https://mediateur.exemple' } };
+const ENTREPRISE_COMPLETE = { nom: 'Entreprise Essai', siret: '12345678900011', adresse: { ligne1: '1 rue de l’Essai', codePostal: '75001', ville: 'Paris' }, telephone: '0100000000', assuranceTexte: 'Assurance décennale : Assureur Essai, contrat numéro : 123, territorialité : France métropolitaine.', mediateur: { nom: 'Médiateur Essai', site: 'https://mediateur.exemple' } };
 
 describe('Déploiement : définition des étapes (écrite dans le code)', () => {
   test('1 chaque étape (coque, Affaires, Devis) a un identifiant unique, un moment connu, un type, un libellé, une phrase de réparation et un lien https ou une route de l’appli', () => {

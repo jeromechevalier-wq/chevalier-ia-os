@@ -1054,6 +1054,15 @@ describe('N9 lire_reglages_devis et journal du bordereau', () => {
     assert.equal(typeof defaut.reglages.marge, 'number', 'document absent : valeurs par défaut');
   });
 
+  test('A5 lire_reglages_devis renvoie le texte d’assurance, les coordonnées bancaires et « Attestation et mentions »', async () => {
+    const s = await demarrer();
+    Object.assign(s.doc('devis_parametres', 'reglages'), { mentionEmetteur: 'Attestation de TVA réduite', entreprise: { nom: 'Atelier', assuranceTexte: 'Décennale chez X', coordonneesBancaires: 'Banque\nIBAN' } });
+    const r = ok(await s.appeler('lecteur', 'lire_reglages_devis', {}));
+    assert.equal(r.reglages.mentionEmetteur, 'Attestation de TVA réduite');
+    assert.equal(r.reglages.entreprise.assuranceTexte, 'Décennale chez X');
+    assert.equal(r.reglages.entreprise.coordonneesBancaires, 'Banque\nIBAN');
+  });
+
   test('N9 un article créé par l’assistant a sa ligne de journal (devis_articles) et se restaure', async () => {
     const s = await demarrer();
     const a = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Peinture', prixAchat: 12, unite: 'm²', code: 'PEI' }));

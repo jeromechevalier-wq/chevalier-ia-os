@@ -74,7 +74,8 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefix
     const personne = devis.organisationId && devis.personneId ? await donnees.document(C.personnes, devis.personneId).catch(() => null) : null; // ligne facultative : une lecture qui échoue ne bloque pas le PDF
     // « Mon entreprise » est enregistrée par l'écran sous `entreprise` (donnees.js) ; `emetteur` n'est lu qu'en repli (ancien nom).
     const brutEmetteur = [reglages?.entreprise, reglages?.emetteur].find((x) => x && typeof x === 'object' && !Array.isArray(x) && Object.keys(x).length);
-    const emetteur = emetteurSansLogoExterne(brutEmetteur ? enDates(brutEmetteur) : {});
+    // Lu en direct à chaque impression (rien n'est figé) : « Mon entreprise » et le texte « Attestation et mentions » des réglages, comme à l'écran.
+    const emetteur = D.emetteurImprime(emetteurSansLogoExterne(brutEmetteur ? enDates(brutEmetteur) : {}), reglages?.mentionEmetteur);
 
     // Vue client : jamais de prix d'achat, de marge ni de coefficient (garanti par vueClient, vérifié par les tests).
     const vue = D.vueClient(devis, { clientNom: fiche?.nom ?? null, attentionNom: personne?.nom ?? null });

@@ -402,7 +402,7 @@ const nettoyer = (v) => {
 const ENTREPRISE_DEMO = Object.freeze({
   nom: 'Rénovation Démo', forme: 'SARL', siret: '000 000 000 00000', tva: 'FR00000000000',
   adresse: { ligne1: '1 rue de l’Exemple', codePostal: '69000', ville: 'Lyon' }, email: 'contact@exemple.test', telephone: '04 00 00 00 00',
-  assurance: { garantie: 'Responsabilité civile décennale (exemple)', assureur: 'Assurances Fictives', zone: 'France métropolitaine' },
+  assuranceTexte: 'Assurance décennale : Assurances Fictives (exemple), contrat numéro : 000000, territorialité : France métropolitaine.',
   mediateur: { nom: 'Médiateur de la consommation (exemple)', site: 'https://mediateur.exemple.test' },
 });
 

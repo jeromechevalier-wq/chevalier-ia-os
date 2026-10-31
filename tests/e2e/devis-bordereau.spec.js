@@ -225,14 +225,14 @@ test('B7 les réglages (mode de marge, régime de TVA, durée) s\'enregistrent e
   await page.locator('#devis-marge').fill('25,5');
   await page.locator('#devis-regimeTva').selectOption('franchise');
   await page.locator('#devis-dureeValiditeJours').fill('60');
-  await page.locator('#devis-mentionEmetteur').fill('Une mention');
+  await page.locator('#devis-mentionEmetteur').fill('Attestation de TVA réduite\nQualification RGE');
   await page.locator('[data-champ="tauxProposes"] input[data-taux="5.5"]').uncheck();
   await enregistrer.click();
   await expect(page.locator('.toast', { hasText: 'Réglages des devis enregistrés' })).toBeVisible();
   await expect(page.locator('[data-erreur="marge"]')).toHaveText('');
   await expect(enregistrer).toBeDisabled();
   const r = await lireDocument('devis_parametres/reglages');
-  expect(r).toMatchObject({ modeMarge: 'marge_vente', marge: 25.5, regimeTva: 'franchise', dureeValiditeJours: 60, mentionEmetteur: 'Une mention', tauxProposes: [20, 10], tauxTvaDefaut: 20 });
+  expect(r).toMatchObject({ modeMarge: 'marge_vente', marge: 25.5, regimeTva: 'franchise', dureeValiditeJours: 60, mentionEmetteur: 'Attestation de TVA réduite\nQualification RGE', tauxProposes: [20, 10], tauxTvaDefaut: 20 });
   await page.reload();
   await attendreCalme(page);
   await expect(page.locator('#reglages-devis')).toBeVisible();
@@ -240,7 +240,7 @@ test('B7 les réglages (mode de marge, régime de TVA, durée) s\'enregistrent e
   await expect(page.locator('#devis-marge')).toHaveValue('25,5');
   await expect(page.locator('#devis-regimeTva')).toHaveValue('franchise');
   await expect(page.locator('#devis-dureeValiditeJours')).toHaveValue('60');
-  await expect(page.locator('#devis-mentionEmetteur')).toHaveValue('Une mention');
+  await expect(page.locator('#devis-mentionEmetteur')).toHaveValue('Attestation de TVA réduite\nQualification RGE');
   await capturer(page, info, 'B7-reglages-relus');
   // 7 plus de liste « Étape où vivent les devis » (retirée le 28/10/2026) : aucun champ d'étape à l'écran
   await expect(page.locator('#devis-etapeDevis, #devis-etapeAFaire, #devis-etapeEnvoye, [data-erreur="etapeDevis"]')).toHaveCount(0);
@@ -309,8 +309,8 @@ test('B11 « Mon entreprise » : les champs s\'enregistrent et se relisent ; les
   await page.locator('[data-champ="entreprise.adresse.codePostal"]').fill('75001');
   await page.locator('[data-champ="entreprise.adresse.ville"]').fill('Paris');
   await page.locator('[data-champ="entreprise.email"]').fill('contact@exemple.fr');
-  await page.locator('[data-champ="entreprise.assurance.garantie"]').fill('Garantie décennale');
-  await page.locator('[data-champ="entreprise.assurance.assureur"]').fill('Assureur Exemple');
+  await page.locator('[data-champ="entreprise.assuranceTexte"]').fill('Assurance décennale : Assureur Exemple, contrat numéro : 123.');
+  await page.locator('[data-champ="entreprise.coordonneesBancaires"]').fill('Banque Exemple\nFR76 0000\nBIC EXEMPLE');
   await page.locator('[data-champ="entreprise.mediateur.nom"]').fill('Médiateur Exemple');
   await page.locator('[data-champ="entreprise.mediateur.site"]').fill('https://mediateur.exemple.fr');
   await page.locator('[data-champ="entreprise.couleur"]').fill('#1f6feb');
@@ -320,7 +320,7 @@ test('B11 « Mon entreprise » : les champs s\'enregistrent et se relisent ; les
   await expect(page.locator('[data-erreur="entreprise.email"]')).toHaveText('');
   await expect.poll(async () => (await lireDocument('devis_parametres/reglages'))?.entreprise).toEqual({
     nom: 'Atelier Exemple', forme: 'SARL', siret: '123 456 789 00012', adresse: { ligne1: '1 rue des Lilas', codePostal: '75001', ville: 'Paris' }, email: 'contact@exemple.fr', couleur: '#1f6feb',
-    assurance: { garantie: 'Garantie décennale', assureur: 'Assureur Exemple' }, mediateur: { nom: 'Médiateur Exemple', site: 'https://mediateur.exemple.fr' },
+    assuranceTexte: 'Assurance décennale : Assureur Exemple, contrat numéro : 123.', coordonneesBancaires: 'Banque Exemple\nFR76 0000\nBIC EXEMPLE', mediateur: { nom: 'Médiateur Exemple', site: 'https://mediateur.exemple.fr' },
   });
   await page.reload();
   await attendreCalme(page);

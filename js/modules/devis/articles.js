@@ -16,6 +16,7 @@ import {
 } from '../crm/logique.js';
 import {
   MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, DUREE_VALIDITE_DEFAUT, coefficientDeMarge, emailValide,
+  LIMITE_ASSURANCE_TEXTE, LIMITE_COORDONNEES_BANCAIRES, LIMITE_MENTION_EMETTEUR, nettoyerTexteLibre,
 } from './logique.js';
 import { TYPE_OUVRAGE, erreursOuvrage, articlesParId, calculerOuvrage, lireMotOuvrage, validerMotAutre, MOTS_OUVRAGE, MOT_OUVRAGE_AUTRE } from './ouvrages.js';
 export { motOuvrage, MOTS_OUVRAGE } from './ouvrages.js';
@@ -37,11 +38,12 @@ export const MARGE_DEFAUT = 20;
 export const MARGE_DEVIS_DEFAUT = 20;
 const MARGE_DEVIS_MAX = 1000;
 export const TAUX_TVA_DEFAUT_REGLAGE = TAUX_TVA_DEFAUT[0];
-export const LIMITES = { libelle: 200, code: 40, unite: 20, prixMax: 10_000_000, mention: 500, jours: 3650, reference: 120, marque: 120 };
+export const LIMITES = { libelle: 200, code: 40, unite: 20, prixMax: 10_000_000, mention: LIMITE_MENTION_EMETTEUR, jours: 3650, reference: 120, marque: 120 };
 
 // ---------------------------------------------------------------- « Mon entreprise » (l'émetteur du document)
 // Les clés sont EXACTEMENT celles que document.js lit dans `emetteur` : nom, forme, siret, tva, adresse { ligne1, codePostal, ville }, email, telephone, site,
-// registreMetiers, couleur, assurance { garantie, assureur, adresse, zone }, mediateur { nom, email, site }. Un champ vide n'est pas enregistré ; sans rien : `{}`.
+// registreMetiers, couleur, assuranceTexte (texte libre, 500), coordonneesBancaires (texte libre, 300), mediateur { nom, email, site }. Un champ vide n'est pas enregistré ; sans rien : `{}`.
+// Les anciens champs `assurance { garantie, assureur, adresse, zone }` sont gardés tels quels tant qu'`assuranceTexte` est absent (ils se lisent comme un texte, sans écriture en base) ; l'écran les remplace par `assuranceTexte`.
 // `paiement { modes }` : les méthodes de paiement acceptées (liste de textes, imprimée sur le devis). `iban` et `delaiJours` (lus par document.js) ne sont pas saisis ici mais jamais perdus s'ils existent.
 // Pas de logo ni de CGV ici : ils viendront avec leurs propres écrans.
 const TEXTES_ENTREPRISE = [['nom', 'Le nom', 120], ['forme', 'La forme juridique', 60], ['siret', 'Le SIRET', 30], ['tva', 'Le numéro de TVA', 30], ['telephone', 'Le téléphone', 30],
@@ -104,9 +106,16 @@ export function validerEntreprise(brut) {
   const adr = lireGroupe(texteAdr !== null ? { ligne1: texteAdr } : s.adresse, TEXTES_ADRESSE, 'entreprise.adresse');
   Object.assign(erreurs, adr.erreurs);
   if (Object.keys(adr.valeurs).length) sortie.adresse = adr.valeurs;
-  const ass = lireGroupe(s.assurance, TEXTES_ASSURANCE, 'entreprise.assurance');
-  Object.assign(erreurs, ass.erreurs);
-  if (Object.keys(ass.valeurs).length) sortie.assurance = ass.valeurs;
+  // Assurance et coordonnées bancaires : un texte libre multiligne chacun (retours à la ligne gardés). Vide = non enregistré.
+  for (const [cle, trop, max] of [['assuranceTexte', 'Le texte d’assurance est trop long', LIMITE_ASSURANCE_TEXTE], ['coordonneesBancaires', 'Les coordonnées bancaires sont trop longues', LIMITE_COORDONNEES_BANCAIRES]]) {
+    const t = nettoyerTexteLibre(s[cle]);
+    if (t.length > max) erreurs[`entreprise.${cle}`] = `${trop} (${max} caractères au plus) : raccourcis le texte.`;
+    else if (t) sortie[cle] = t;
+  }
+  if (s.assuranceTexte === undefined || s.assuranceTexte === null) { // ancien format : quatre champs, jamais perdus à la lecture
+    const ass = lireGroupe(s.assurance, TEXTES_ASSURANCE, 'entreprise.assurance');
+    if (Object.keys(ass.valeurs).length) sortie.assurance = ass.valeurs;
+  }
   const med = lireGroupe(s.mediateur, TEXTES_MEDIATEUR, 'entreprise.mediateur');
   Object.assign(erreurs, med.erreurs);
   if (Object.keys(med.valeurs).length) sortie.mediateur = med.valeurs;
@@ -439,7 +448,7 @@ export function reglagesDevis(brut) {
     etapeAFaire: typeof b.etapeAFaire === 'string' ? b.etapeAFaire : '',
     etapeEnvoye: typeof b.etapeEnvoye === 'string' ? b.etapeEnvoye : '',
     etapeAffaireCreee: typeof b.etapeAffaireCreee === 'string' ? b.etapeAffaireCreee : '',
-    mentionEmetteur: typeof b.mentionEmetteur === 'string' ? b.mentionEmetteur : '',
+    mentionEmetteur: typeof b.mentionEmetteur === 'string' ? nettoyerTexteLibre(b.mentionEmetteur) : '',
     entreprise: lireEntreprise(b.entreprise),
   };
 }
@@ -477,8 +486,8 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT }
   if (proposes.length && !proposes.includes(tauxDefaut)) erreurs.tauxTvaDefaut = 'Le taux par défaut doit être l’un des taux proposés.';
   const jours = lireNombre(s.dureeValiditeJours);
   if (jours === null || !Number.isInteger(jours) || jours < 1 || jours > LIMITES.jours) erreurs.dureeValiditeJours = `La durée de validité est un nombre entier de jours, entre 1 et ${LIMITES.jours} (exemple : 90).`;
-  const mention = typeof s.mentionEmetteur === 'string' ? s.mentionEmetteur.trim() : '';
-  if (mention.length > LIMITES.mention) erreurs.mentionEmetteur = `La mention est trop longue (${LIMITES.mention} caractères au plus).`;
+  const mention = nettoyerTexteLibre(s.mentionEmetteur);
+  if (mention.length > LIMITES.mention) erreurs.mentionEmetteur = `Le texte « Attestation et mentions » est trop long (${LIMITES.mention} caractères au plus).`;
   const motChoisi = MOTS_OUVRAGE.some((m) => m.id === s.motOuvrage) || s.motOuvrage === MOT_OUVRAGE_AUTRE;
   if (!motChoisi) erreurs.motOuvrage = `Choisis un mot parmi : ${[...MOTS_OUVRAGE.map((m) => m.singulier), 'autre'].join(', ')}.`;
   const mot = validerMotAutre(s.motOuvrageAutre);

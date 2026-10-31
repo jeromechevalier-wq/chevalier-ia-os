@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import * as D from '../js/modules/devis/logique.js';
-import { devisHtml, formaterMontant, ATTESTATION_TVA_REDUITE } from '../js/modules/devis/document.js';
+import { devisHtml, formaterMontant } from '../js/modules/devis/document.js';
 
 const ctx = { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'moi@exemple.test', nouvelId: (n) => `${n}_1` };
 const reglages = { modeMarge: 'majoration', marge: 20, margeDevis: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
@@ -77,14 +77,30 @@ describe('Document HTML du devis', () => {
     assert.ok(a.includes(`TVA</td><td class="d">${formaterMontant(0)}`));
   });
 
-  test('H4 l\'attestation n\'apparaît qu\'avec une ligne à 10 % ou 5,5 % en régime assujetti', () => {
-    assert.ok(devisHtml(vueDe({})).includes(ATTESTATION_TVA_REDUITE.slice(0, 60)));
-    const a20 = { sections: [{ id: 's', titre: 'X', lignes: [ligne('a', 10, 1)] }] };
-    assert.ok(!devisHtml(vueDe(a20)).includes('Attestation'));
+  test('H4 plus d\'attestation codée en dur : elle ne vient que du texte « Attestation et mentions » des réglages, imprimé sur tous les devis juste avant « Bon pour accord »', () => {
     const a55 = { sections: [{ id: 's', titre: 'X', lignes: [ligne('a', 10, 1, { tauxTva: 5.5 })] }] };
-    assert.ok(devisHtml(vueDe(a55)).includes('Attestation'));
-    assert.ok(!devisHtml(vueDe({}, { ...reglages, regimeTva: 'franchise' })).includes('Attestation'));
-    assert.ok(!devisHtml(vueDe({ autoliquidation: true })).includes('Attestation'));
+    for (const extra of [{}, a55, { autoliquidation: true }]) assert.ok(!devisHtml(vueDe(extra)).includes('Attestation du client'), 'rien n\'est imprimé sans le texte des réglages');
+    assert.equal(D.vueClient(devisFige()).attestationTvaReduite, undefined);
+    const mention = 'Attestation de TVA réduite\nQualification RGE n° <1>';
+    for (const extra of [{}, a55, { autoliquidation: true }]) {
+      const h = devisHtml(vueDe(extra), { emetteur: { mentionEmetteur: mention } });
+      assert.ok(h.includes('Attestation de TVA réduite<br>Qualification RGE n° &lt;1&gt;'), 'lignes gardées, texte échappé');
+      assert.ok(h.indexOf('Qualification RGE') < h.indexOf('bon pour accord'), 'avant « Bon pour accord »');
+    }
+    assert.ok(devisHtml(vueDe({}, { ...reglages, regimeTva: 'franchise' }), { emetteur: { mentionEmetteur: mention } }).includes('Qualification RGE'));
+  });
+
+  test('H4b assurance : texte libre imprimé toujours (texte par défaut si vide), anciens champs relus ; coordonnées bancaires sous leur titre, lignes gardées', () => {
+    const h0 = devisHtml(vueDe({}), { emetteur: {} });
+    assert.ok(h0.includes('Assurance décennale : [Assureur], contrat numéro : [numéro], territorialité : France métropolitaine.'));
+    assert.ok(!h0.includes('Coordonnées bancaires'));
+    const h1 = devisHtml(vueDe({}), { emetteur: { assuranceTexte: 'Décennale <b>SA</b>\nContrat 12', coordonneesBancaires: 'Banque X\nFR76 0000\nBIC <1>' } });
+    assert.ok(h1.includes('Décennale &lt;b&gt;SA&lt;/b&gt;<br>Contrat 12') && !h1.includes('[Assureur]'));
+    assert.ok(h1.includes('Coordonnées bancaires\u00a0:<br>Banque X<br>FR76 0000<br>BIC &lt;1&gt;'));
+    const h2 = devisHtml(vueDe({}), { emetteur: { assurance: { garantie: 'Décennale', assureur: 'Assureur SA', zone: 'France' }, paiement: { iban: 'FR76 1111' } } });
+    assert.ok(h2.includes('Assurance professionnelle : Décennale, souscrite auprès de Assureur SA, couverture géographique : France.'));
+    assert.ok(h2.includes('Coordonnées bancaires\u00a0:<br>FR76 1111'), 'ancien IBAN relu quand le texte est vide');
+    assert.ok(devisHtml(vueDe({}), { emetteur: { coordonneesBancaires: 'Nouveau', paiement: { iban: 'FR76 1111' } } }).includes('Nouveau') && !devisHtml(vueDe({}), { emetteur: { coordonneesBancaires: 'Nouveau', paiement: { iban: 'FR76 1111' } } }).includes('FR76 1111'));
   });
 
   test('H5 aucun prix d\'achat, marge ni coefficient dans le HTML', () => {
@@ -131,8 +147,6 @@ describe('Document HTML du devis', () => {
     assert.equal(v.conditionsPaiement, '30 % à la commande, solde à la réception');
     assert.equal(v.mentionSignature, D.MENTION_SIGNATURE);
     assert.match(v.mentionSignature, /bon pour accord/);
-    assert.equal(v.attestationTvaReduite, ATTESTATION_TVA_REDUITE);
-    assert.equal(D.vueClient(devisFige({ autoliquidation: true })).attestationTvaReduite, null);
     for (const k of cles(v)) assert.ok(!/marge|coefficient|prixachat/i.test(k), `clé interdite : ${k}`);
     assert.deepEqual(D.vueClient(devisFige({ modesPaiement: undefined, objet: undefined })).modesPaiement, []);
   });

@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as A from '../js/modules/devis/articles.js';
 import { MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, ERREUR_MARGE_100 } from '../js/modules/devis/logique.js';
+import * as D from '../js/modules/devis/logique.js';
 import { MODULES_DECLARES, moduleDeclare, modulesActifsDuClient, blocsDuMenu, verifierActivation, reglagesDesModules } from '../js/os/registre.js';
 
 const lire = (f) => readFileSync(fileURLToPath(new URL(`../${f}`, import.meta.url)), 'utf8');
@@ -175,9 +176,9 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
     assert.deepEqual(A.reglagesDevis({}), A.reglagesDevis(undefined));
   });
   test('B7 logique : une saisie valide se relit à l’identique (aller-retour par reglagesDevis), virgule française acceptée', () => {
-    const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', mentionEmetteur: '  Ma mention  ' });
+    const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', mentionEmetteur: '  Ma mention  \n\n  Qualification RGE  ' });
     assert.deepEqual(r.erreurs, {});
-    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', motOuvrage: 'ouvrage', motOuvrageAutre: {}, modeMarge: 'marge_vente', marge: 25.5, margeDevis: 20, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', mentionEmetteur: 'Ma mention', entreprise: {} });
+    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', motOuvrage: 'ouvrage', motOuvrageAutre: {}, modeMarge: 'marge_vente', marge: 25.5, margeDevis: 20, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', mentionEmetteur: 'Ma mention\n\nQualification RGE', entreprise: {} });
     assert.deepEqual(A.reglagesDevis(r.reglages), r.reglages);
   });
   test('13a logique : la marge globale du devis vaut 20 par défaut (document absent ou ancien sans le champ), se relit en virgule française, et reste distincte de la marge des articles', () => {
@@ -201,10 +202,10 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
   test('E1 logique : « Mon entreprise » vide par défaut ; un champ vide n’est pas enregistré ; les clés sont celles que le document lit', () => {
     assert.deepEqual(A.reglagesDevis(null).entreprise, {});
     const r = A.validerReglagesDevis({ entreprise: { nom: '  Mon   Entreprise ', forme: '', siret: '123 456 789 00012', adresse: { ligne1: '1 rue des Lilas', codePostal: '75001', ville: 'Paris' }, email: 'contact@exemple.fr', couleur: '#1F6FEB',
-      assurance: { garantie: 'Décennale', assureur: 'Assureur SA', adresse: '', zone: 'France' }, mediateur: { nom: 'Médiateur', email: '', site: 'https://exemple.fr' } } });
+      assuranceTexte: '  Décennale   chez Assureur SA\r\nContrat 12  ', coordonneesBancaires: 'Banque X\nFR76 0000\nBIC123', mediateur: { nom: 'Médiateur', email: '', site: 'https://exemple.fr' } } });
     assert.deepEqual(r.erreurs, {});
     assert.deepEqual(r.reglages.entreprise, { nom: 'Mon Entreprise', siret: '123 456 789 00012', adresse: { ligne1: '1 rue des Lilas', codePostal: '75001', ville: 'Paris' }, email: 'contact@exemple.fr', couleur: '#1f6feb',
-      assurance: { garantie: 'Décennale', assureur: 'Assureur SA', zone: 'France' }, mediateur: { nom: 'Médiateur', site: 'https://exemple.fr' } });
+      assuranceTexte: 'Décennale chez Assureur SA\nContrat 12', coordonneesBancaires: 'Banque X\nFR76 0000\nBIC123', mediateur: { nom: 'Médiateur', site: 'https://exemple.fr' } });
     assert.deepEqual(A.reglagesDevis(r.reglages), r.reglages);
     assert.deepEqual(A.validerReglagesDevis({ entreprise: {} }).reglages.entreprise, {});
   });
@@ -274,7 +275,8 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
     const apresEtape = A.validerReglagesDevis({ etapeAffaireCreee: 'gagne' }, { actuels: { ...avecEtape, marge: 33 } }).reglages;
     assert.deepEqual([apresEtape.etapeAffaireCreee, apresEtape.marge], ['gagne', 33], 'enregistrer l’étape ne perd pas les autres réglages');
     assert.match(e({ nomBordereau: 'Liste' }).nomBordereau, /Choisis un nom/);
-    assert.match(e({ mentionEmetteur: 'x'.repeat(501) }).mentionEmetteur, /trop longue/);
+    assert.equal(e({ mentionEmetteur: 'x'.repeat(2000) }).mentionEmetteur, undefined); // la limite est de 2000 depuis le 31/10/2026
+    assert.match(e({ mentionEmetteur: 'x'.repeat(2001) }).mentionEmetteur, /Attestation et mentions.*trop long/);
   });
   test('B7 logique : les constantes viennent de logique.js (modes, régimes, taux)', () => {
     assert.deepEqual(MODES_MARGE.map((m) => m.id), ['majoration', 'marge_vente']);
@@ -327,3 +329,45 @@ describe('B10 cas vide et cas d’erreur du bordereau (décrits dans l’écran)
     }
   });
 });
+
+describe('Mentions légales du devis, PR A (31/10/2026)', () => {
+  test('A1 assurance : un texte libre (500 caractères au plus) remplace les quatre champs ; absent + anciens champs = texte reconstruit sans écriture', () => {
+    const e = A.validerEntreprise({ assuranceTexte: '  Décennale  chez X\r\n\r\n Contrat 1 ' });
+    assert.deepEqual(e.entreprise, { assuranceTexte: 'Décennale chez X\n\nContrat 1' });
+    assert.deepEqual(A.validerEntreprise({ assuranceTexte: '   ' }).entreprise, {}, 'vide : non enregistré (le devis imprime le texte par défaut)');
+    assert.equal(A.validerEntreprise({ assuranceTexte: 'x'.repeat(500) }).erreurs['entreprise.assuranceTexte'], undefined);
+    assert.match(A.validerEntreprise({ assuranceTexte: 'x'.repeat(501) }).erreurs['entreprise.assuranceTexte'], /trop long.*500/);
+    const ancien = { assurance: { garantie: 'Décennale', assureur: 'Assureur SA', zone: 'France' } };
+    const lu = A.reglagesDevis({ entreprise: ancien }).entreprise;
+    assert.deepEqual(lu, ancien, 'les anciens champs ne sont jamais perdus à la lecture');
+    assert.equal(D.assuranceTexteDe(lu), 'Assurance professionnelle : Décennale, souscrite auprès de Assureur SA, couverture géographique : France.');
+    assert.equal(D.assuranceTexteDe({ assuranceTexte: 'Mon texte', ...ancien }), 'Mon texte', 'le nouveau texte gagne');
+    assert.equal(D.assuranceTexteDe({}), D.ASSURANCE_DEFAUT);
+    assert.match(D.ASSURANCE_DEFAUT, /^Assurance décennale : \[Assureur\], contrat numéro : \[numéro\], territorialité : France métropolitaine\.$/);
+    // Une fois le nouveau texte enregistré (même vide), les anciens champs ne ressuscitent pas.
+    assert.deepEqual(A.validerEntreprise({ assuranceTexte: '', ...ancien }).entreprise, {});
+  });
+  test('A2 coordonnées bancaires : texte libre multiligne (300 au plus), ancien IBAN relu seulement si le texte est vide', () => {
+    assert.deepEqual(A.validerEntreprise({ coordonneesBancaires: ' Banque X \nFR76 0000\nBIC 1 ' }).entreprise, { coordonneesBancaires: 'Banque X\nFR76 0000\nBIC 1' });
+    assert.match(A.validerEntreprise({ coordonneesBancaires: 'x'.repeat(301) }).erreurs['entreprise.coordonneesBancaires'], /trop longues.*300/);
+    assert.equal(D.coordonneesBancairesDe({ paiement: { iban: ' FR76 1 ' } }), 'FR76 1');
+    assert.equal(D.coordonneesBancairesDe({ coordonneesBancaires: 'Neuf', paiement: { iban: 'FR76 1' } }), 'Neuf');
+    assert.equal(D.coordonneesBancairesDe({}), '');
+  });
+  test('A3 attestation et mentions : le texte libre existant (mentionEmetteur) passe à 2000 caractères et garde ses retours à la ligne ; aucun doublon de réglage', () => {
+    assert.equal(A.LIMITES.mention, 2000);
+    const r = A.validerReglagesDevis({ mentionEmetteur: ' Attestation TVA \n\n Qualification RGE ' }).reglages;
+    assert.equal(r.mentionEmetteur, 'Attestation TVA\n\nQualification RGE');
+    assert.deepEqual(A.CLES_REGLAGES_DEVIS.filter((k) => /mention|attestation/i.test(k)), ['mentionEmetteur']);
+    assert.equal(A.validerReglagesDevis({ marge: 30 }, { actuels: { mentionEmetteur: 'Gardée' } }).reglages.mentionEmetteur, 'Gardée', 'setDoc sans fusion : l’ancienne valeur est recopiée, jamais effacée');
+    assert.equal(D.emetteurImprime({ nom: 'X' }, '  Texte  ').mentionEmetteur, 'Texte');
+  });
+  test('A5 les champs voyagent : enregistrement, relecture et réglages complets', () => {
+    const saisie = { assuranceTexte: 'Assurance A', coordonneesBancaires: 'Banque\nIBAN', nom: 'Entreprise' };
+    const r = A.validerReglagesDevis({ mentionEmetteur: 'M', entreprise: saisie });
+    assert.deepEqual(r.reglages.entreprise, saisie);
+    assert.deepEqual(A.reglagesDevis(r.reglages).entreprise, saisie);
+    assert.equal(A.reglagesDevis(r.reglages).mentionEmetteur, 'M');
+  });
+});
+

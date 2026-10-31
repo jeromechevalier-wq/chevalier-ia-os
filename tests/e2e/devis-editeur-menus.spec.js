@@ -221,7 +221,7 @@ test('4 le menu Options : trois groupes de cases (Édition, Document, Clients), 
   await ouvrirOptions(page);
   const menu = page.locator('[data-zone="options"]');
   await expect(menu.locator('.menu-devis-titre')).toHaveText(['Édition', 'Document', 'Clients', 'Import / Export']);
-  for (const cle of ['afficherMarges', 'afficherReferences', 'attestationTva', 'autoliquidation', 'cacherDechets', 'cacherTotauxSections', 'cacherQuantiteUnite', 'cacherTva', 'cacherElementsOuvrage', 'afficherPrixElementsOuvrage', 'cacherResteAFacturer',
+  for (const cle of ['afficherMarges', 'afficherReferences', 'autoliquidation', 'cacherDechets', 'cacherTotauxSections', 'cacherQuantiteUnite', 'cacherTva', 'cacherElementsOuvrage', 'afficherPrixElementsOuvrage', 'cacherResteAFacturer',
     'afficherTelephone', 'afficherEmail', 'afficherNumeroTva', 'afficherSiren']) await expect(menu.locator(`[data-option="${cle}"]`)).toBeVisible();
   await expect(menu.locator('[data-champ="tva-defaut"]')).toBeVisible();
   // Les choix pas encore prêts : grisés, avec l'information.

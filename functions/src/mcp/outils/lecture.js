@@ -179,7 +179,7 @@ export const rechercher_article_par_phrase = {
 export const lire_reglages_devis = {
   nom: 'lire_reglages_devis',
   profils: TOUS,
-  description: "Lit les réglages du module Devis (nom du bordereau, marge de revente des articles et marge par défaut des nouveaux devis, régime et taux de TVA proposés, durée de validité, mention de l'émetteur, « Mon entreprise ») et les familles d'articles du bordereau (id, nom, actif, parentId). Lecture seule : ces réglages se changent depuis l'écran. Donne aussi `vocabulaire` : le mot affiché à l'utilisateur pour le type ouvrage.",
+  description: "Lit les réglages du module Devis (nom du bordereau, marge de revente des articles et marge par défaut des nouveaux devis, régime et taux de TVA proposés, durée de validité, texte « Attestation et mentions » (`mentionEmetteur`, imprimé sur tous les devis), « Mon entreprise » dont le texte d'assurance `assuranceTexte` et les `coordonneesBancaires`) et les familles d'articles du bordereau (id, nom, actif, parentId). Lecture seule : ces réglages se changent depuis l'écran. Donne aussi `vocabulaire` : le mot affiché à l'utilisateur pour le type ouvrage.",
   schema: {},
   executer: ({ donnees }) => lecture.lireReglagesDevis(donnees),
 };

@@ -12,7 +12,7 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 const OK = { ok: true, version: '2.4.1', controles: { fonctions: 'ok', membres: 'ok', 'pdf-stockage': 'ok', 'pdf-fonctions': 'ok' } };
 const ENTREPRISE = {
   nom: 'Entreprise Essai', siret: '12345678900011', adresse: { ligne1: '1 rue de l’Essai', codePostal: '75001', ville: 'Paris' }, telephone: '0100000000',
-  assurance: { garantie: 'Décennale', assureur: 'Assureur Essai' }, mediateur: { nom: 'Médiateur Essai', site: 'https://mediateur.exemple' },
+  assuranceTexte: 'Assurance décennale : Assureur Essai, contrat numéro : 123, territorialité : France métropolitaine.', mediateur: { nom: 'Médiateur Essai', site: 'https://mediateur.exemple' },
 };
 
 /** Faux serveur : `reponses` = réponses successives de deploiementVerifier (la dernière se répète) ; `null` = panne (réseau coupé). */
