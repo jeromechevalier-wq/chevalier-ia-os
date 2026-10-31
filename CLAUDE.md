@@ -104,6 +104,15 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 - **Bac à sable de Claude** : `apis.google.com` est injoignable, donc certains parcours de fiche d'affaire n'y finissent pas ; le dire dans la PR, la coche GitHub fait foi.
 - **Valeurs par défaut prises seul** : écrire « Décision prise seul : … » dans la PR et dans le tableau, avec la question restante pour Jérôme, pour qu'il corrige sans chercher.
 
+### Leçons de la nuit du 30 au 31/10/2026
+- **Ne jamais compter sur une notification** pour savoir qu'une session ou un lancement a fini : armer un rappel programmé et relire le résultat soi-même. Avant de dire « j'attends », relire le dernier résultat.
+- **Une session de code bloquée note la PR qui la bloque** (dans son message à la session principale).
+- **Un brief et une conception se vérifient contre le code** : cette nuit, un brief À/CC avait des noms inexistants et touchait le serveur à tort ; la relecture de la conception du logiciel de facturation a montré que le choix « n8n ne reçoit que des identifiants » était verrouillé par un test (`tests/devis-email-sortie.test.js`).
+- **Ne jamais mêler, dans une discussion de conception, les nouvelles des autres sessions** (demande de Jérôme).
+- **Économiser Fable** : relecture seulement pour le serveur, les données, les règles, et les briefs ou conceptions qui touchent le code.
+- **PR de docs : une seule** par session (voir plus haut).
+- **La porte de n8n n'existe pas chez les clients** (`functions-plateforme/`) : toute idée qui fait rappeler le serveur par n8n chez un client commence par la porte (liste d'arrêt). Voir `docs/cadrage-logiciel-facturation.md`.
+
 ## Au démarrage d'une session
 
 1. Lis `docs/roadmap.md` (état et décisions).

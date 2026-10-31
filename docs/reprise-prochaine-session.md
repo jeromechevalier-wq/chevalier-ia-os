@@ -1,5 +1,40 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin : nuit du 30 au 31/10/2026 (fin de nuit, 11 PR : 449 à 459)
+
+Tableau complet : `.github/A-FAIRE.md`. Conception du logiciel de facturation : `docs/cadrage-logiciel-facturation.md`.
+
+| Sujet | PR | État |
+|---|---|---|
+| Sélecteur d'arbre : défilement, article actuel visible (C1.7) | 449 | fusionnée |
+| Catalogue : colonne « Utilisation » (C4) | 450 | fusionnée, déployée chez les clients |
+| Nom d'affaire par défaut « Affaire <nom> » | 451 | fusionnée |
+| C5a : un mot désigne plusieurs articles (moteur et serveur) | 452 | fusionnée, déployée chez les clients |
+| Envoi de devis : plusieurs destinataires À et plusieurs CC | 453 | fusionnée, déployée ; **le lien et les clics pour vérifier le workflow n8n sont à donner à Jérôme** |
+| C5b : écran « plusieurs articles » | 454 | fusionnée, déployée |
+| C6a : famille (moteur et serveur) | 455 | fusionnée, déployée |
+| Kanban : la pastille « Devis : … » ne déborde plus | 456 | fusionnée |
+| Mentions légales A : trois textes libres (assurance, coordonnées bancaires, « Attestation et mentions ») | 457 | fusionnée, déployée ; **à tester par Jérôme** |
+| C6b : écran famille | 458 | fusionnée, déployée |
+| Mentions légales B : blocages à la finalisation | 459 | fusionnée, déployée ; **à tester par Jérôme** |
+| Recalcul de l'historique d'usage des articles | (outil MCP) | fait avec l'accord écrit de Jérôme (25 compteurs) |
+| Déploiements chez les clients, un à la fois | fonctions 79, 80, 82, 85, 87, 90 ; mcp 81, 83, 86, 88, 91 ; hosting 78, 84, 89, 92 | tous verts |
+| Cadrage du logiciel de facturation | cette PR de docs | **décidé, relu par Fable, rien de codé** |
+
+- **Série vocabulaire C1 à C6 : terminée côté code.** Restent **C7** (docs, version, wiki : ce rapport) et la **PR 11** (renommer l'écran « Vocabulaire » en « Ce que l'IA a appris »), **non faite**.
+- **Mentions légales (PR 457 et 459)**, règles de finalisation : **B1** entreprise (nom, adresse, SIRET) ; **B2** assurance renseignée, sans crochet ; **B3** client avec nom figé ; **B4** début et durée des travaux ; **B5** validité à venir. `modifier_devis_brouillon` accepte `chantier` et `expireLe`. L'attestation de TVA n'est plus codée en dur : elle est remplacée par le texte libre « Attestation et mentions » (l'ancien `mentionEmetteur`).
+- **État de la nuit GitHub** : « Tests de nuit » verts sur `main` (runs 45 et 52) ; un nouveau lancement a été fait après la PR 459 (résultat à relire à la reprise, ne pas le supposer vert).
+- **Non vérifié** : le PDF réel (Chromium) d'un devis finalisé avec ces règles ; le clic réel d'un utilisateur sur « Finaliser » chez un client ; l'envoi d'e-mail par n8n (adresses À jointes par virgules, CC dans le champ « Cc » du brouillon Gmail).
+- **Décisions prises seules par les sessions de code (à valider ou corriger par Jérôme)** :
+  - C5a : `confirme` est refusé après une question de précision.
+  - C6a : scores 0,80 / 0,65 / 0,70 / 0,60 ; question de famille forcée quand un mot désigne deux familles.
+  - C5b : libellé « Aucun article disponible » (jamais « cible » à l'écran) ; texte d'événement « Affaire créée : Affaire X » conservé.
+  - Un brouillon MCP avec une adresse en double n'est plus finalisable.
+  - C6b : menu « Désigner une famille ou plusieurs articles », pastille « Famille vide ». Question restante : « Choisir cette famille » sur « Sans famille » (non pour l'instant).
+  - Mentions : l'assurance, les coordonnées et les mentions suivent les réglages à l'impression (pas figés) ; un nom de client absent de la fiche ne bloque pas.
+- **Question « vague 3 »** : à décider par Jérôme.
+- **Actions pour Jérôme** : tester le champ « Pour qui est ce devis ? » et les mentions légales ; trancher les questions de `docs/cadrage-logiciel-facturation.md` §6 ; dire quand faire la porte des clients (PR 0, liste d'arrêt).
+
 ## Rapport du soir : 30/10/2026 (journée de PR 418 à 437)
 
 Le tableau complet est dans `.github/A-FAIRE.md` (sections « État au 30/10/2026 soir » et « Priorité haute »).
@@ -24,7 +59,7 @@ Le tableau complet est dans `.github/A-FAIRE.md` (sections « État au 30/10/202
 - **Actions pour Jérôme, dans l'ordre** :
   1. Tester l'aspect du champ « Pour qui est ce devis ? » quand la PR sera prête.
   2. Dire si le message de la composition reste « Composition enregistrée » ou devient « Prestation enregistrée ».
-  3. Avec l'expert-comptable : valider la liste des mentions obligatoires (arrêté du 17/03/2015, article 7).
+  3. Avec l'expert-comptable : valider la liste des mentions obligatoires (source : la page de l'administration indiquée dans `.github/A-FAIRE.md`, priorité 3 ; la référence « arrêté du 17/03/2015 » était fausse).
   4. Répondre : l'objet du modèle est-il repris dans `creer_devis_depuis_modele` ? Les décisions de la PR 437 prises seul te vont-elles ?
   5. Donner le « go » pour les déploiements chez les clients (`hosting` puis `mcp`, un à la fois) après la PR « Pour qui ? », et pour les prochaines règles Firestore chez les clients (celles de la PR 424 sont déjà publiées).
 
@@ -299,7 +334,7 @@ Recette ensuite : finaliser un devis, appeler la fonction, trouver le PDF dans `
 ## À faire pour Jérôme
 - **Clics console du PDF** : les 6 étapes ci-dessus.
 - **Faire relire les CGV par un juriste** : les points à trancher sont listés en tête de `js/modules/devis/cgv.js` ; tant que ce n'est pas fait, `CGV_RELUES_PAR_JURISTE` reste faux et l'écran avertit.
-- **Expert-comptable** : faire valider l'attestation de TVA, l'autoliquidation et les mentions obligatoires.
+- **Expert-comptable** : faire valider l'autoliquidation et les mentions obligatoires. (L'attestation de TVA n'est plus codée en dur depuis la PR 457 : elle est remplacée par le texte libre « Attestation et mentions », à faire valider.)
 - **Questions pour le client pilote** : prime et retenue de garantie en détail ; la marge réelle qu'il veut ; ses ouvrages.
 - **Rendez-vous de lundi** : son adresse Gmail ; l'export de son catalogue et de ses anciens devis ; ce que son logiciel actuel sait exporter.
 - **Nettoyer les restes d'essai** : le workflow n8n `interne-devis-essai` (id 45QyeDyOgPtwoXtt), le dossier Drive `_devis-essai`, le brouillon Gmail dans la boîte d'essai.
