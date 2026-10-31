@@ -4,7 +4,7 @@
 // Les règles Firestore imposent la même liste (bloc `devis_vocabulaire`, PR 4 puis PR 424) : la validation humaine (valideLe, validePar, revoirLe, suggestionTraiteeLe) s'y ajoute ;
 // `suggestion` n'y est JAMAIS : seul le serveur l'écrit, le navigateur la marque « traitée » avec `suggestionTraiteeLe` (test E11).
 import { ecritureCreer, ecritureModifier, MARQUES_CREATION, MARQUES_MODIFICATION, normaliser, nettoyerEspaces, ajouterMois } from '../crm/logique.js';
-import { cleDeExpression, identifiantDeRegle, cleTropGenerale, suggestionEnAttente } from './vocabulaire.js';
+import { cleDeExpression, identifiantDeRegle, cleTropGenerale, suggestionEnAttente, ciblesDe, SEUILS } from './vocabulaire.js';
 
 export const COLLECTION_VOCABULAIRE = 'devis_vocabulaire';
 /** Nom de l'action dans le Journal des modifications. */
@@ -34,6 +34,22 @@ export const MESSAGE_MOT_INTROUVABLE = 'Ce mot est introuvable : recharge la pag
 
 /** Un article qu'on peut viser : actif, et pas une ligne de texte libre. */
 export const articleChoisissable = (a) => Boolean(a) && a.actif !== false && a.type !== 'texte';
+
+export const MAX_CIBLES = SEUILS.maxCibles;
+export const MESSAGE_TROP_DE_CIBLES = `Un mot désigne ${MAX_CIBLES} articles au plus : retires-en un d’abord.`;
+export const MESSAGE_CIBLES_INDISPONIBLES = 'Aucun des articles de ce mot n’est disponible : change d’abord ce qu’il désigne.';
+
+/**
+ * Ce que désigne un mot : `{ articles: [{ id, libelle, vivant }], nombre, multiple, mort }`. `articles` : le catalogue. Un mot sans `cibles` désigne son `articleId` (le cas d'avant) ;
+ * `vivant` = l'article existe, est actif et n'est pas un texte libre ; `mort` = AUCUN article vivant (les familles viendront plus tard : ignorées ici).
+ */
+export function designation(regle, articles = []) {
+  const liste = ciblesDe(regle).filter((c) => c.genre === 'article').map((c) => {
+    const a = (articles ?? []).find((x) => x.id === c.id);
+    return { id: c.id, libelle: a?.libelle ?? c.libelle ?? '', vivant: articleChoisissable(a) };
+  });
+  return { articles: liste, nombre: liste.length, multiple: liste.length > 1, mort: !liste.some((c) => c.vivant) };
+}
 
 const nombre = (n) => (Number.isFinite(n) ? n : 0);
 /** Un mot en attente d'une décision de Jérôme : deux articles pour la même expression, ou une suggestion du serveur pas encore traitée (jamais pour un mot désactivé). */
@@ -81,18 +97,27 @@ export function planCreerMot(saisie, ctx, { regles = [], articles = [] } = {}) {
   const id = identifiantDeRegle(cle);
   const erreurs = {};
   if (!expression || !id) erreurs.expression = MESSAGE_NON_ENREGISTRABLE;
-  const article = (articles ?? []).find((a) => a.id === saisie?.articleId);
-  if (!articleChoisissable(article)) erreurs.articleId = MESSAGE_ARTICLE_INTROUVABLE;
+  // Un article (`articleId`, comme avant) ou plusieurs au choix (`articleIds`, 8 au plus) : un seul = `articleId` ; plusieurs = `cibles`, SANS article (les règles Firestore le garantissent).
+  const demandes = [...new Set(Array.isArray(saisie?.articleIds) ? saisie.articleIds : (saisie?.articleId ? [saisie.articleId] : []))];
+  const choisis = demandes.map((x) => (articles ?? []).find((a) => a.id === x));
+  if (demandes.length > MAX_CIBLES) erreurs.articleId = MESSAGE_TROP_DE_CIBLES;
+  else if (!choisis.length || !choisis.every(articleChoisissable)) erreurs.articleId = MESSAGE_ARTICLE_INTROUVABLE;
   const existante = id ? ((regles ?? []).find((r) => (r.id ?? identifiantDeRegle(r.cle)) === id) ?? null) : null;
   if (existante && !erreurs.expression) erreurs.expression = 'Ce mot existe déjà : modifie-le plutôt que de le doubler.';
   if (Object.keys(erreurs).length) return { erreurs, id, cle, existante, ecritures: [] };
   const donnees = {
-    cle, expression, articleId: article.id, articleLibelle: article.libelle ?? '', statut: 'active', origine: 'manuelle',
+    cle, expression, ...designe(choisis), statut: 'active', origine: 'manuelle',
     confirmations: 0, contradictions: 0, conflit: false, exemples: [],
   };
   // Un mot ajouté à la main est validé tout de suite par Jérôme ; à revoir dans 6 mois. Sans jour du contexte, aucun champ de validation (jamais de `new Date` ici).
   if (ctx?.aujourdhui) Object.assign(donnees, { valideLe: ctx.aujourdhui, validePar: 'humain', revoirLe: ajouterMois(ctx.aujourdhui, 6) });
   return { erreurs: {}, id, cle, existante: null, ecritures: [ecritureCreer(COLLECTION_VOCABULAIRE, id, donnees, MARQUES_CREATION)] };
+}
+
+/** Les champs qui disent ce que désigne un mot : un article = `articleId` (sans `cibles`) ; plusieurs = `cibles` et AUCUN article. Libellés copiés (120 caractères au plus, comme les règles). */
+function designe(articles) {
+  if (articles.length === 1) return { articleId: articles[0].id, articleLibelle: articles[0].libelle ?? '' };
+  return { articleId: '', articleLibelle: '', cibles: articles.map((a) => ({ genre: 'article', id: a.id, libelle: String(a.libelle ?? '').slice(0, 120) })) };
 }
 
 const mot = (id, regles) => (regles ?? []).find((r) => r.id === id) ?? null;
@@ -111,8 +136,9 @@ export function planChangerStatut(id, statut, { regles = [], articles = [], rest
   const courant = mot(id, regles);
   if (!courant) return sansEcriture({ general: MESSAGE_MOT_INTROUVABLE });
   if (statut !== 'active' && statut !== 'desactivee' && !(restaurer && statut === 'a_confirmer')) return sansEcriture({ general: 'Statut inconnu.' });
-  if (statut === 'active' && !restaurer && !articleChoisissable((articles ?? []).find((a) => a.id === courant.articleId))) {
-    return sansEcriture({ general: 'L’article de ce mot est désactivé : change d’abord l’article.' });
+  if (statut === 'active' && !restaurer) {
+    const d = designation(courant, articles);
+    if (d.mort) return sansEcriture({ general: d.multiple ? MESSAGE_CIBLES_INDISPONIBLES : 'L’article de ce mot est désactivé : change d’abord l’article.' });
   }
   const patch = {};
   if (courant.statut !== statut) patch.statut = statut;
@@ -125,19 +151,30 @@ export function planChangerStatut(id, statut, { regles = [], articles = [], rest
   return planPatch(id, patch);
 }
 
-/** Changer l'article d'un mot : `{ erreurs, patch, ecritures }`. Choisir l'article d'un mot en conflit le tranche (le conflit est levé). Le même article ne change rien. */
-export function planChangerArticle(id, articleId, { regles = [], articles = [], aujourdhui = '' } = {}) {
+/**
+ * Changer ce que désigne un mot : `{ erreurs, patch, ecritures }`. `articleIds` : 1 à 8 articles. Un seul = `articleId` (et `cibles` vidée si le mot en avait : jamais un mot à double sens) ;
+ * plusieurs = `cibles` et `articleId` vide. Choisir ce que désigne un mot en conflit le tranche (conflit levé). Les mêmes articles ne changent rien (sauf un libellé renommé depuis).
+ */
+export function planChangerCibles(id, articleIds, { regles = [], articles = [], aujourdhui = '' } = {}) {
   const courant = mot(id, regles);
   if (!courant) return sansEcriture({ general: MESSAGE_MOT_INTROUVABLE });
-  const article = (articles ?? []).find((a) => a.id === articleId);
-  if (!articleChoisissable(article)) return sansEcriture({ articleId: MESSAGE_ARTICLE_INTROUVABLE });
+  const demandes = [...new Set(articleIds ?? [])];
+  if (demandes.length > MAX_CIBLES) return sansEcriture({ articleId: MESSAGE_TROP_DE_CIBLES });
+  const choisis = demandes.map((x) => (articles ?? []).find((a) => a.id === x));
+  if (!choisis.length || !choisis.every(articleChoisissable)) return sansEcriture({ articleId: MESSAGE_ARTICLE_INTROUVABLE });
   const patch = {};
-  if (courant.articleId !== article.id) { patch.articleId = article.id; patch.articleLibelle = article.libelle ?? ''; }
-  else if (courant.articleLibelle !== (article.libelle ?? '')) patch.articleLibelle = article.libelle ?? ''; // libellé de l'article renommé depuis : la copie suit
+  const voulu = designe(choisis);
+  const avaitDesCibles = Array.isArray(courant.cibles) && courant.cibles.length > 0;
+  if ((courant.articleId ?? '') !== voulu.articleId) patch.articleId = voulu.articleId;
+  if ((courant.articleLibelle ?? '') !== voulu.articleLibelle) patch.articleLibelle = voulu.articleLibelle; // le libellé d'un article renommé depuis : la copie suit
+  if (voulu.cibles) { if (JSON.stringify(courant.cibles ?? []) !== JSON.stringify(voulu.cibles)) patch.cibles = voulu.cibles; } else if (avaitDesCibles) patch.cibles = [];
   if (courant.conflit === true) patch.conflit = false;
   Object.assign(patch, validerParHumain(courant, aujourdhui), courant.statut === 'desactivee' ? {} : traiterSuggestion(courant, aujourdhui));
   return planPatch(id, patch);
 }
+
+/** Changer l'article d'un mot (un seul) : `{ erreurs, patch, ecritures }`. Même plan que `planChangerCibles` avec un seul article. */
+export const planChangerArticle = (id, articleId, options) => planChangerCibles(id, [articleId], options);
 
 /** La note d'un mot (≤ 300 caractères, vide = effacée) : `{ erreurs, patch, ecritures }`. */
 export function planNote(id, note, { regles = [] } = {}) {
@@ -193,7 +230,7 @@ export function filtrerMots(regles, criteres = {}, recherche = '', tropGeneral =
     if (criteres.aTrancher && !estATrancher(r)) return false;
     if (criteres.tropGeneral && !tropGeneral(r)) return false;
     if (!mots.length) return true;
-    const cible = normaliser([r.expression, r.cle, r.articleLibelle, r.note, ...(r.exemples ?? [])].join(' '));
+    const cible = normaliser([r.expression, r.cle, r.articleLibelle, ...ciblesDe(r).map((c) => c.libelle), r.note, ...(r.exemples ?? [])].join(' '));
     return mots.every((m) => cible.includes(m));
   });
 }
@@ -257,10 +294,16 @@ export function cellule(valeur) {
   return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 }
 
+/** « Prise simple / Prise double » : les articles désignés (un mot à plusieurs articles), sinon le libellé copié de son article. */
+const libelleDesigne = (r) => {
+  const liste = ciblesDe(r).filter((c) => c.genre === 'article').map((c) => c.libelle).filter(Boolean);
+  return liste.length ? liste.join(' / ') : (r.articleLibelle ?? '');
+};
+
 /** Le fichier CSV complet : séparateur virgule, fins de ligne \r\n, BOM UTF-8 en tête (Excel et Numbers lisent alors les accents). */
 export function construireCsv(regles) {
   const lignes = [ENTETE_CSV, ...trierMots(regles, { critere: 'expression', sens: 'asc' }).map((r) => [
-    r.expression ?? r.cle ?? '', r.articleLibelle ?? '', libelleStatut(r.statut), libelleOrigine(r.origine), nombre(r.confirmations), jour(r),
+    r.expression ?? r.cle ?? '', libelleDesigne(r), libelleStatut(r.statut), libelleOrigine(r.origine), nombre(r.confirmations), jour(r),
   ])];
   return `\uFEFF${lignes.map((l) => l.map(cellule).join(',')).join('\r\n')}\r\n`;
 }

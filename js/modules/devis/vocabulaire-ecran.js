@@ -12,7 +12,7 @@ import * as A from './articles.js';
 import * as V from './vocabulaire-plans.js';
 import { motOuvrage } from './ouvrages.js';
 import { selecteurCatalogue } from './selecteur-catalogue.js';
-import { cleDeExpression, identifiantDeRegle, interpreter, suggestionEnAttente } from './vocabulaire.js';
+import { cleDeExpression, identifiantDeRegle, interpreter, suggestionEnAttente, ciblesDe } from './vocabulaire.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant, ou demande à un éditeur de l’espace.';
 const ERREUR_LECTURE = 'La liste des mots appris n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis appuie sur « Réessayer ».';
@@ -34,15 +34,20 @@ function tropGeneralPour(articles) {
   return memoireTropGeneral.fonction;
 }
 
+const ciblesOuvertes = new Set(); // mots à plusieurs articles dont la liste est dépliée
 const articleDuMot = (r) => D.article(r.articleId);
-const articleMort = (r) => !V.articleChoisissable(articleDuMot(r));
-const libelleArticle = (r) => articleDuMot(r)?.libelle ?? r.articleLibelle ?? '';
+/** Ce que désigne le mot (un ou plusieurs articles, vivants ou non) et « mort » = aucun article vivant. */
+const designeDe = (r) => V.designation(r, D.etat.articles);
+const articleMort = (r) => designeDe(r).mort;
+const libelleArticle = (r) => (designeDe(r).multiple ? designeDe(r).articles.map((c) => c.libelle).join(' / ') : (articleDuMot(r)?.libelle ?? r.articleLibelle ?? ''));
+/** Le mot tel que l'export CSV le lit : les libellés des articles sont ceux du catalogue d'aujourd'hui (un article renommé depuis n'y reste pas sous son ancien nom). */
+const motPourExport = (r) => ({ ...r, articleLibelle: designeDe(r).multiple ? '' : libelleArticle(r), cibles: designeDe(r).multiple ? designeDe(r).articles.map((c) => ({ genre: 'article', id: c.id, libelle: c.libelle })) : r.cibles });
 
 // ---------------------------------------------------------------- choisir un article du catalogue (champ de recherche + arbre des familles : selecteur-catalogue.js)
 
-/** `valeur()` : l'article choisi ou null. `surChoix(article)` est appelé à chaque choix. */
-const selecteurArticle = ({ initial = null, surChoix = () => {} } = {}) => selecteurCatalogue({
-  mode: 'article', initial, surChoix,
+/** `valeur()` : l'article choisi ou null (mode `articles` : la liste des articles choisis, 8 au plus). `surChoix(article)` est appelé à chaque choix (mode `articles` : avec la liste). */
+const selecteurArticle = ({ initial = null, surChoix = () => {}, mode = 'article' } = {}) => selecteurCatalogue({
+  mode, initial, surChoix,
   source: { articles: () => D.etat.articles, familles: () => D.etat.familles, estChoisissable: V.articleChoisissable, enErreur: () => D.etat.erreurLecture, pret: () => D.etat.pret, surChangement: D.surChangement },
 });
 
@@ -66,7 +71,7 @@ async function ouvrirCreation() {
   const zoneExistant = h('div', { dataset: { role: 'existant' } });
   const erreurArticle = h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: 'articleId' } });
   const general = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
-  const choix = selecteurArticle({ surChoix: () => { erreurArticle.textContent = ''; } });
+  const choix = selecteurArticle({ mode: 'articles', surChoix: () => { erreurArticle.textContent = ''; } }); // un article, ou plusieurs au choix (8 au plus)
   let existant = null;
   let fermerFenetre = () => {};
   let bouton = null;
@@ -98,10 +103,10 @@ async function ouvrirCreation() {
     if (!pret()) { majExpression(); if (!expression.value.trim()) erreurExpression.textContent = 'Écris le mot ou l’expression que tu veux faire reconnaître.'; return false; }
     enCours = true;
     try {
-      const r = await D.creerMotVocabulaire({ expression: expression.value, articleId: choix.valeur()?.id });
+      const r = await D.creerMotVocabulaire({ expression: expression.value, articleIds: choix.valeur().map((a) => a.id) });
       if (Object.keys(r.erreurs).length) {
         if (r.erreurs.expression) erreurExpression.textContent = r.erreurs.expression;
-        if (r.erreurs.articleId) erreurArticle.textContent = choix.valeur() ? r.erreurs.articleId : 'Choisis l’article du catalogue que ce mot désigne.';
+        if (r.erreurs.articleId) erreurArticle.textContent = choix.valeur().length ? r.erreurs.articleId : 'Choisis l’article du catalogue que ce mot désigne.';
         const autre = Object.entries(r.erreurs).find(([k]) => k !== 'expression' && k !== 'articleId');
         if (autre) general.textContent = autre[1];
         return false;
@@ -115,7 +120,7 @@ async function ouvrirCreation() {
   }
   const corps = h('div', { class: 'pile formulaire-creation' },
     h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'mot-expression' }, 'Mot ou expression'), expression, apercu, erreurExpression, zoneExistant),
-    h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Article du catalogue'), choix.element, erreurArticle),
+    h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Article du catalogue (un ou plusieurs au choix)'), choix.element, erreurArticle),
     general);
   const r = await dialogue({
     titre: 'Ajouter un mot appris',
@@ -167,6 +172,36 @@ async function ouvrirChangerArticle(regle) {
   return r === true;
 }
 
+/** Changer ce que désigne un mot : plusieurs articles au choix (8 au plus). Un seul article choisi = le mot désigne cet article, comme avant. */
+async function ouvrirChangerCibles(regle) {
+  const actuels = designeDe(regle).articles.filter((c) => c.vivant).map((c) => D.article(c.id)).filter(Boolean);
+  const avant = designeDe(regle).articles.map((c) => c.id).join('|');
+  const general = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
+  let bouton = null;
+  const choix = selecteurArticle({ mode: 'articles', initial: actuels, surChoix: () => { general.textContent = ''; if (bouton) griserSelon(bouton, pret); } });
+  const pret = () => choix.valeur().length > 0 && choix.valeur().map((a) => a.id).join('|') !== avant;
+  async function tenter() {
+    general.textContent = '';
+    if (!pret()) { general.textContent = choix.valeur().length ? 'Choisis d’autres articles : ceux-ci sont déjà ceux du mot.' : 'Choisis au moins un article du catalogue.'; return false; }
+    try {
+      const r = await D.changerCiblesMot(regle.id, choix.valeur().map((a) => a.id));
+      const message = Object.values(r.erreurs)[0];
+      if (message) { general.textContent = message; return false; }
+      return true;
+    } catch (e) { console.warn(e); general.textContent = ERREUR_ECRITURE; return false; }
+  }
+  const r = await dialogue({
+    titre: 'Changer ce que le mot désigne',
+    classe: 'dialogue-formulaire',
+    contenu: h('div', { class: 'pile' }, h('p', {}, 'Mot : ', h('strong', {}, `« ${regle.expression ?? regle.cle} »`)), h('p', { class: 'discret' }, 'Plusieurs articles = ton assistant demande lequel, seulement parmi eux.'), choix.element, general),
+    boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: tenter }],
+    auMontage: ({ boutons }) => { bouton = boutons.at(-1); griserSelon(bouton, pret); },
+  });
+  choix.arreter();
+  if (r === true) toast('Ce que le mot désigne a changé');
+  return r === true;
+}
+
 /** La note d'un mot (remarque pour la revue). */
 async function ouvrirNote(regle) {
   const champ = h('textarea', { class: 'champ', rows: 4, maxlength: V.MAX_NOTE, 'aria-label': 'Note', placeholder: 'Exemple : le client dit « tableau » pour le 2 rangées, jamais le 4 rangées.', dataset: { champ: 'note' } });
@@ -196,11 +231,15 @@ const pastille = (libelle, couleur, attrs = {}) => h('span', { class: 'pastille-
 /** Ce que ton assistant comprendrait d'une phrase : calcul local avec le moteur (même code que le serveur), rien n'est enregistré. */
 function resultatEssai(phrase) {
   if (!phrase.trim()) return [];
-  const r = interpreter(phrase, { regles: D.etat.vocabulaire, articles: D.etat.articles, reglages: D.etat.reglages });
+  const r = interpreter(phrase, { regles: D.etat.vocabulaire, articles: D.etat.articles, reglages: D.etat.reglages, usages: D.etat.usages }); // le même moteur que le serveur, usage compris
   const premier = r.candidats[0];
   const nombreFr = (n) => String(n).replace('.', ',');
   const lignes = [];
   if (r.cle) lignes.push(h('p', { dataset: { role: 'essai-cle' } }, 'Mot cherché : ', h('strong', {}, `« ${r.cle} »`), ` · quantité ${nombreFr(r.quantite)}`, r.prixVente != null ? ` · prix dit ${nombreFr(r.prixVente)} €` : ''));
+  if (r.portee) {
+    lignes.push(h('p', { dataset: { role: 'essai-portee' } }, 'Je comprends : ', h('strong', {}, r.portee.marqueurs.map((k) => `« ${k} »`).join(' + ')), ` désigne ${r.portee.nombreArticles} ${r.portee.nombreArticles > 1 ? 'articles au choix' : 'article'}`,
+      r.portee.reste.length ? ` et je cherche « ${r.portee.reste.join(' ')} » parmi eux.` : '.'));
+  }
   if (r.decision === 'utiliser') {
     const prix = r.prixVente ?? premier?.prixVenteHT;
     lignes.push(h('p', { dataset: { role: 'essai-decision' } }, 'Ton assistant l’ajouterait tout de suite : ', h('strong', {}, `${nombreFr(r.quantite)} × « ${premier.libelle} »`), typeof prix === 'number' ? ` à ${A.formaterPrix(prix)} HT l’unité` : '', '.'));
@@ -238,7 +277,7 @@ export function rendreVocabulaire(conteneur) {
     type: 'button', class: 'bouton-icone', 'aria-label': 'Autres actions', 'aria-haspopup': 'menu', dataset: { action: 'menu-vocabulaire' },
     onclick: (e) => ouvrirMenu(e.currentTarget, [{
       libelle: 'Exporter le vocabulaire (CSV)', icone: 'download', desactive: !D.etat.vocabulaire.length, titreInfo: D.etat.vocabulaire.length ? null : 'Aucun mot à exporter pour l’instant.',
-      action: () => { telecharger(nomFichierExport(new Date(), 'vocabulaire'), V.construireCsv(D.etat.vocabulaire.map((r) => ({ ...r, articleLibelle: libelleArticle(r) }))), 'text/csv;charset=utf-8'); toast('Fichier téléchargé'); },
+      action: () => { telecharger(nomFichierExport(new Date(), 'vocabulaire'), V.construireCsv(D.etat.vocabulaire.map(motPourExport)), 'text/csv;charset=utf-8'); toast('Fichier téléchargé'); },
     }]),
   }, icone('ellipsis', { taille: 20 }));
   const ajout = ligneAjouter({ libelle: 'Mot appris', libelleAria: 'Ajouter un mot appris', action: 'ajouter-mot', surClic: async () => {
@@ -291,11 +330,15 @@ export function rendreVocabulaire(conteneur) {
     });
   }
   const menuMot = (r) => {
-    const mort = articleMort(r);
+    const d = designeDe(r);
+    const mort = d.mort;
     return [
-      ...(V.estATrancher(r) || r.statut !== 'active' ? [{ libelle: V.estATrancher(r) ? 'Garder cet article' : 'Activer', icone: 'check', desactive: mort, titreInfo: mort ? 'L’article de ce mot est désactivé : change d’abord l’article.' : null, action: () => activer(r) }] : []),
+      ...(V.estATrancher(r) || r.statut !== 'active' ? [{ libelle: V.estATrancher(r) ? 'Garder cet article' : 'Activer', icone: 'check', desactive: mort, titreInfo: mort ? (d.multiple ? V.MESSAGE_CIBLES_INDISPONIBLES : 'L’article de ce mot est désactivé : change d’abord l’article.') : null, action: () => activer(r) }] : []),
       ...(r.statut !== 'desactivee' ? [{ libelle: 'Désactiver', icone: 'archive', action: () => desactiver(r) }] : []),
-      ...(mort ? [] : [{ libelle: 'Changer l’article', icone: 'pencil', action: () => ouvrirChangerArticle(r).then(() => rendre()) }]),
+      ...(mort ? [] : d.multiple
+        ? [{ libelle: 'Changer ce que le mot désigne', icone: 'pencil', action: () => ouvrirChangerCibles(r).then(() => rendre()) }]
+        : [{ libelle: 'Changer l’article', icone: 'pencil', action: () => ouvrirChangerArticle(r).then(() => rendre()) },
+          { libelle: 'Désigner plusieurs articles', icone: 'plus', action: () => ouvrirChangerCibles(r).then(() => rendre()) }]),
       { libelle: r.note ? 'Modifier la note' : 'Ajouter une note', icone: 'sticky-note', action: () => ouvrirNote(r) },
     ];
   };
@@ -311,11 +354,29 @@ export function rendreVocabulaire(conteneur) {
       message ? h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'ligne' } }, message) : null);
   }
   function celluleArticle(r) {
-    const mort = articleMort(r);
-    return h('td', { dataset: { colonne: 'article', libelle: 'Article' } },
-      h('a', { class: 'lien-article', href: lien('devis/bordereau') }, libelleArticle(r) || '—'),
-      mort ? h('div', { class: 'article-mort' }, pastille('Article désactivé', '#8d8993', { dataset: { role: 'article-desactive' } }),
-        h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'changer-article' }, 'aria-label': `Changer l’article : ${r.expression ?? r.cle}`, onclick: () => ouvrirChangerArticle(r).then(() => rendre()) }, 'Changer l’article')) : null);
+    const d = designeDe(r);
+    const cellule = h('td', { dataset: { colonne: 'article', libelle: 'Désigne' } });
+    if (!d.multiple) {
+      const mort = d.mort;
+      remplir(cellule,
+        h('a', { class: 'lien-article', href: lien('devis/bordereau') }, libelleArticle(r) || '—'),
+        mort ? h('div', { class: 'article-mort' }, pastille('Article désactivé', '#8d8993', { dataset: { role: 'article-desactive' } }),
+          h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'changer-article' }, 'aria-label': `Changer l’article : ${r.expression ?? r.cle}`, onclick: () => ouvrirChangerArticle(r).then(() => rendre()) }, 'Changer l’article')) : null);
+      return cellule;
+    }
+    // Plusieurs articles au choix : « 3 articles au choix » se déplie en liste ; aucun article vivant = « Cible indisponible ».
+    const ouvert = ciblesOuvertes.has(r.id);
+    remplir(cellule,
+      h('button', { type: 'button', class: 'bouton-lien', 'aria-expanded': String(ouvert), dataset: { action: 'cibles' }, 'aria-label': `${d.nombre} articles au choix : ${r.expression ?? r.cle}`, onclick: () => {
+        if (ciblesOuvertes.has(r.id)) ciblesOuvertes.delete(r.id); else ciblesOuvertes.add(r.id);
+        rendre();
+        document.querySelector(`tr[data-id="${CSS.escape(r.id)}"] [data-action="cibles"]`)?.focus();
+      } }, `${d.nombre} articles au choix`),
+      ouvert ? h('ul', { class: 'liste-cibles', dataset: { role: 'cibles' } }, d.articles.map((c) => h('li', { dataset: { articleId: c.id } },
+        c.vivant ? h('a', { class: 'lien-article', href: lien('devis/bordereau') }, c.libelle) : h('span', { class: 'discret' }, `${c.libelle || '—'} (désactivé)`)))) : null,
+      d.mort ? h('div', { class: 'article-mort' }, pastille('Cible indisponible', '#8d8993', { dataset: { role: 'cible-indisponible' } }),
+        h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'changer-article' }, 'aria-label': `Changer ce que le mot désigne : ${r.expression ?? r.cle}`, onclick: () => ouvrirChangerCibles(r).then(() => rendre()) }, 'Changer ce que le mot désigne')) : null);
+    return cellule;
   }
   function celluleExemples(r) {
     const liste = r.exemples ?? [];
@@ -369,7 +430,7 @@ export function rendreVocabulaire(conteneur) {
       remplir(zone, etatVide('Aucun mot ne correspond à ces filtres.', { action: h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'tout-effacer' }, onclick: toutEffacer }, 'Tout effacer') }));
       return;
     }
-    const colonnes = ['Mot', 'Article', 'Origine', 'Confirmations', 'Dernière utilisation', 'Exemples', 'Statut'];
+    const colonnes = ['Mot', 'Désigne', 'Origine', 'Confirmations', 'Dernière utilisation', 'Exemples', 'Statut'];
     const entete = h('tr', {}, colonnes.map((c) => h('th', { scope: 'col' }, h('span', { class: 'tri titre-colonne' }, c))), h('th', { class: 'col-actions', 'aria-label': 'Actions' }));
     remplir(zone, h('div', { class: 'zone-tableau' }, h('table', { class: 'tableau tableau-vocabulaire' }, h('thead', {}, entete),
       h('tbody', {}, lignes.map((r) => ligneMot(r, r.statut === 'a_confirmer' && tropGeneral(r)))))));

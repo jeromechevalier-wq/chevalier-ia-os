@@ -254,6 +254,13 @@ export async function changerArticleMot(id, articleId) {
   await CRM.executer(plan.ecritures, V.OUTIL_VOCABULAIRE);
   return { erreurs: {} };
 }
+/** Change ce que désigne un mot (1 à 8 articles au choix) : `{ erreurs }`. Un seul article = `articleId` ; plusieurs = `cibles`, sans article (voir vocabulaire-plans.js). */
+export async function changerCiblesMot(id, articleIds) {
+  const plan = V.planChangerCibles(id, articleIds, { regles: etat.vocabulaire, articles: etat.articles, aujourdhui: CRM.ctx().aujourdhui });
+  if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs };
+  await CRM.executer(plan.ecritures, V.OUTIL_VOCABULAIRE);
+  return { erreurs: {} };
+}
 /** Écrit la note d'un mot : `{ erreurs }`. */
 export async function noterMot(id, note) {
   const plan = V.planNote(id, note, { regles: etat.vocabulaire });
