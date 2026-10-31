@@ -232,6 +232,11 @@ test('4 sous le tableau : « + Fourniture », « + Main d’œuvre », « + Ouvr
   await expect(page.locator('[data-action="ajouter-article"]')).toHaveCount(1);
   await expect(page.locator('[data-zone="resultats"]')).toContainText('Carrelage 60 x 60');
   await expect(page.locator('[data-zone="resultats"]')).not.toContainText('Pose du carrelage');
+  // La boîte est une ligne du tableau, juste après la DERNIÈRE ligne du devis (plus sous la barre de boutons), le curseur dans son champ.
+  const boite = page.locator('tr[data-zone="recherche-en-ligne"]');
+  await expect(boite).toBeVisible();
+  expect(await boite.evaluate((e) => e.nextElementSibling === null && e.previousElementSibling === [...e.parentElement.querySelectorAll('tr[data-id]')].at(-1))).toBe(true);
+  expect(await page.evaluate(() => document.activeElement?.dataset?.champ)).toBe('recherche-bordereau');
   await page.locator('[data-champ="recherche-bordereau"]').scrollIntoViewIfNeeded();
   await capturer(page, info, '4-boutons-ajout', { pleine: false });
   await page.locator('[data-action="ajouter-famille-2"]').click();
@@ -306,6 +311,11 @@ test('6 sur téléphone : une carte par ligne (désignation en haut, puis Qté /
   await expect(page.locator('.barre-devis [data-action="enregistrer"]')).toHaveCount(0); // l'enregistrement est automatique
   await expect(page.locator('[data-action="options"]')).toBeHidden();
   await expect(page.locator('[data-action="plus-actions"]')).toBeVisible();
+  // Même avec la boîte « Ajouter une ligne » ouverte dans le tableau, rien ne déborde.
+  await page.locator('[data-action="ajouter-famille-1"]').click();
+  await expect(page.locator('tr[data-zone="recherche-en-ligne"]')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await page.locator('[data-zone="recherche"] [data-action="fermer-recherche"]').click();
   // Rien ne déborde de la largeur de l'écran.
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await capturer(page, info, '6-telephone');

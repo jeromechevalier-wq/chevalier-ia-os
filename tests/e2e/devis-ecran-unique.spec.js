@@ -154,6 +154,10 @@ test('3 devis finalisé, onglet Édition : la MÊME feuille qu’un brouillon, c
   expect(await feuille.locator('.bouton-poignee').evaluateAll((l) => l.every((b) => b.disabled || b.getAttribute('aria-disabled') === 'true'))).toBe(true);
   await expect(racine(page).locator('[data-action="bibliotheque"]')).toHaveAttribute('aria-disabled', 'true');
   await expect(feuille.locator('[data-action="ajouter-section"]')).toHaveCSS('opacity', '0.45');
+  // Point 8 : en lecture seule, un clic sur « + Fourniture » n'ouvre pas la boîte « Ajouter une ligne ».
+  await feuille.locator('[data-action="ajouter-famille-1"]').click({ force: true });
+  await expect(feuille.locator('[data-zone="recherche"]')).toBeHidden();
+  await expect(feuille.locator('tr[data-zone="recherche-en-ligne"]')).toHaveCount(0);
   // Essai de saisie : rien ne change, un message dit pourquoi.
   await adresse.click();
   await expect(page.locator('.toast')).toContainText(MESSAGE_REFUS);
