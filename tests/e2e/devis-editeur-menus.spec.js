@@ -439,11 +439,11 @@ test('5 brouillon : le bouton jaune est « Finaliser » ; « Imprimer » (menu �
   await expect(page.locator('.toast').filter({ hasText: 'Devis finalisé' })).toBeVisible();
   expect(appelsFinaliser).toEqual([{ devisId: id }]);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('DEV-2026-10-24-005');
-  // Finalisé : le jaune devient « Envoyer » et son menu ne propose que l'e-mail.
+  // Finalisé : le jaune devient « Envoyer » et son menu propose l'e-mail, le PDF et l'impression.
   await expect(page.locator('[data-action="finaliser"]')).toHaveCount(0);
   await expect(page.locator('[data-action="envoyer"]')).toHaveClass(/bouton-principal/);
   await page.locator('[data-action="envoyer"]').click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText([/Préparer l’e-mail/]);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText([/Préparer l’e-mail/, /Télécharger le PDF/, /Imprimer/]);
   await page.keyboard.press('Escape');
 });
 
