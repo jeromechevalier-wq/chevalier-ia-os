@@ -67,13 +67,12 @@ test('3 la pastille « Mon entreprise » a un point d\'alerte tant que des menti
   await capturer(page, info, '3-alerte-entreprise-vide');
   const champs = {
     'entreprise.nom': 'Atelier Exemple', 'entreprise.forme': 'SARL', 'entreprise.siret': '123 456 789 00012', 'entreprise.adresse.ligne1': '1 rue des Lilas',
-    'entreprise.adresse.codePostal': '75001', 'entreprise.adresse.ville': 'Paris', 'entreprise.email': 'contact@exemple.fr', 'entreprise.assurance.garantie': 'Garantie décennale',
-    'entreprise.assurance.assureur': 'Assureur Exemple', 'entreprise.mediateur.nom': 'Médiateur Exemple', 'entreprise.mediateur.site': 'https://mediateur.exemple.fr',
+    'entreprise.adresse.codePostal': '75001', 'entreprise.adresse.ville': 'Paris', 'entreprise.email': 'contact@exemple.fr', 'entreprise.assuranceTexte': 'Assurance décennale : Assureur Exemple, contrat numéro : 123, territorialité : France métropolitaine.', 'entreprise.mediateur.nom': 'Médiateur Exemple', 'entreprise.mediateur.site': 'https://mediateur.exemple.fr',
   };
   for (const [cle, valeur] of Object.entries(champs)) await page.locator(`[data-champ="${cle}"]`).fill(valeur);
   await expect(page.locator('[data-zone="mentions-manquantes"]')).toBeHidden();
   await expect(alerte).toHaveCount(0); // même liste que « Mentions manquantes » : plus rien ne manque
-  await page.locator('[data-champ="entreprise.assurance.garantie"]').fill(''); // assurance incomplète
+  await page.locator('[data-champ="entreprise.assuranceTexte"]').fill(''); // vide = texte par défaut, avec des crochets : assurance incomplète
   await expect(page.locator('[data-zone="mentions-manquantes"]')).toBeVisible();
   await expect(alerte).toBeVisible();
   await capturer(page, info, '3-alerte-assurance-incomplete');

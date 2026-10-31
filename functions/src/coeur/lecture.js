@@ -340,6 +340,9 @@ export async function lireReglagesDevis(donnees) {
   const [reglages, familles] = await Promise.all([lire(DA.ID_REGLAGES), lire(DF.ID_DOCUMENT_FAMILLES)]);
   // Le mode de calcul de la marge (artisan / comptable) n'est jamais montré à l'assistant : il s'applique sans être dit ni demandé (décision du 30/10/2026).
   const { modeMarge: _mode, ...visibles } = DA.reglagesDevis(reglages);
+  // Un espace qui a encore les quatre anciens champs d'assurance : l'assistant lit le texte reconstruit, celui que le devis imprime (lecture seule, rien n'est écrit).
+  const assuranceSaisie = D.assuranceSaisie(visibles.entreprise);
+  if (assuranceSaisie && !visibles.entreprise.assuranceTexte) visibles.entreprise = { ...visibles.entreprise, assuranceTexte: assuranceSaisie };
   // Le mot affiché à l'utilisateur pour le type « ouvrage » (l'identifiant technique reste `ouvrage`) : les réponses des outils le portent aussi (`typeAffiche`).
   const { singulier, pluriel, genre } = DA.motOuvrage(reglages);
   return serialiser({ reglages: visibles, vocabulaire: { ouvrage: { singulier, pluriel, genre } }, familles: DF.famillesDe(familles) });

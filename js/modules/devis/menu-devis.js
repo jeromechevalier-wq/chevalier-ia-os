@@ -86,13 +86,13 @@ function elementsDe(e, fermer) {
 }
 
 /**
- * Une case à cocher du menu Options. `bientot` : grisée avec « bientôt disponible ». `info` : petite explication à droite (ex. « automatique »).
+ * Une case à cocher du menu Options. `bientot` : grisée avec « bientôt disponible ».
  * `surChangement(coche)` est appelée à chaque clic ; le menu reste ouvert.
  */
-export function caseMenu({ libelle, cle, coche = false, bientot = false, desactive = false, info = null, surChangement = () => {} }) {
-  const grise = bientot || desactive;
+export function caseMenu({ libelle, cle, coche = false, bientot = false, surChangement = () => {} }) {
+  const grise = bientot;
   const boite = h('input', { type: 'checkbox', checked: coche, disabled: grise, dataset: donnees({ option: cle }),
     onchange: (ev) => surChangement(ev.target.checked) });
   return h('label', { class: `menu-devis-case${grise ? ' grisee' : ''}`, title: bientot ? `Ce choix est ${BIENTOT}.` : null, dataset: donnees({ bientot: bientot ? 'oui' : null }) },
-    boite, h('span', { class: 'menu-devis-libelle' }, libelle), bientot ? h('span', { class: 'menu-devis-bientot' }, BIENTOT) : (info ? h('span', { class: 'menu-devis-bientot' }, info) : null));
+    boite, h('span', { class: 'menu-devis-libelle' }, libelle), bientot ? h('span', { class: 'menu-devis-bientot' }, BIENTOT) : null);
 }

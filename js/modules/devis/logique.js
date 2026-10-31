@@ -44,9 +44,6 @@ export const REGIMES_TVA = [
 export const MENTION_FRANCHISE = 'TVA non applicable, article 293 B du CGI';
 export const MENTION_AUTOLIQUIDATION = 'Autoliquidation de la TVA (article 283-2 nonies du CGI)';
 export const MENTION_SIGNATURE = 'Reçu avant l\'exécution des travaux, bon pour accord. Date et signature du client :';
-// Attestation de TVA réduite (texte écrit pour ce module, dans l'esprit de l'article 257 du CGI ; voir aussi document.js).
-// À faire valider par l'expert-comptable du client avant mise en production.
-export const ATTESTATION_TVA_REDUITE = 'Attestation du client (preneur de la prestation) : je certifie que les travaux décrits dans ce devis concernent un local à usage d\'habitation achevé depuis plus de deux ans, qu\'ils n\'ont pas pour effet d\'accroître la surface de plancher de plus de 10 %, et que ce local est affecté à l\'habitation à l\'issue des travaux. Je m\'engage à régler la différence de TVA si ces conditions ne sont pas respectées.';
 export const ERREUR_MARGE_100 = 'En calcul comptable, la marge doit rester inférieure à 100 %.';
 export const DUREE_VALIDITE_DEFAUT = 90;
 /** Types de remise (visible du client, contrairement à la marge) : `devis.remise = { type, valeur }` ou null. */
@@ -693,6 +690,43 @@ export function chantierDeVue(chantier) {
   return { adresse: adresse || null, debutTravaux: debut || null, dureeEstimee: duree, finChantierAu: fin || null, lignes };
 }
 
+/** Assurance imprimée par défaut quand le champ est vide : les crochets disent à l'artisan ce qu'il doit remplir. */
+export const ASSURANCE_DEFAUT = 'Assurance décennale : [Assureur], contrat numéro : [numéro], territorialité : France métropolitaine.';
+/** Alerte (Réglages > Mon entreprise) tant que le texte d'assurance garde un crochet ; la même phrase servira au refus de finaliser (écran, serveur, assistant). */
+export const MESSAGE_ASSURANCE_CROCHETS = 'Complète l\'assurance dans Mon entreprise : il reste des crochets.';
+export const LIMITE_ASSURANCE_TEXTE = 500;
+export const LIMITE_COORDONNEES_BANCAIRES = 300;
+export const LIMITE_MENTION_EMETTEUR = 2000;
+
+/** Texte libre multiligne : retours à la ligne gardés, espaces nettoyés ligne par ligne, lignes vides du début et de la fin retirées. */
+export function nettoyerTexteLibre(v) {
+  if (typeof v !== 'string') return '';
+  return v.replace(/\r\n?/g, '\n').split('\n').map((l) => l.replace(/[ \t\u00a0]+/g, ' ').trim()).join('\n').replace(/^\n+|\n+$/g, '');
+}
+
+/** Ancienne saisie de l'assurance (quatre champs) remise en une phrase, pour qu'un espace existant garde son texte sans écriture en base. Vide si rien n'était saisi. */
+export function assuranceDepuisAnciensChamps(a) {
+  const o = a && typeof a === 'object' && !Array.isArray(a) ? a : {};
+  const t = (v) => (typeof v === 'string' ? v.trim() : '');
+  if (!t(o.garantie) && !t(o.assureur)) return '';
+  const morceaux = [t(o.garantie), t(o.assureur) ? `souscrite auprès de ${t(o.assureur)}` : '', t(o.adresse), t(o.zone) ? `couverture géographique : ${t(o.zone)}` : ''].filter(Boolean);
+  return `Assurance professionnelle : ${morceaux.join(', ')}.`;
+}
+
+/** Le texte saisi (ou reconstruit depuis les anciens champs), sans texte par défaut : '' si l'artisan n'a rien écrit. */
+export const assuranceSaisie = (e) => nettoyerTexteLibre(e?.assuranceTexte) || assuranceDepuisAnciensChamps(e?.assurance);
+/** Le texte d'assurance imprimé en pied de page : celui de l'artisan, sinon le texte par défaut (jamais vide). */
+export const assuranceTexteDe = (e) => assuranceSaisie(e) || ASSURANCE_DEFAUT;
+/** Coordonnées bancaires imprimées : le texte libre, sinon l'ancien `paiement.iban` ('' si rien). */
+export function coordonneesBancairesDe(e) {
+  const t = nettoyerTexteLibre(e?.coordonneesBancaires);
+  if (t) return t;
+  const iban = e?.paiement?.iban;
+  return typeof iban === 'string' ? iban.trim() : '';
+}
+/** L'émetteur tel qu'il s'imprime : « Mon entreprise » et le texte « Attestation et mentions » des réglages (lus en direct à chaque impression). Même fonction à l'écran et sur le serveur. */
+export const emetteurImprime = (entreprise, mentionEmetteur) => ({ ...(entreprise && typeof entreprise === 'object' && !Array.isArray(entreprise) ? entreprise : {}), mentionEmetteur: nettoyerTexteLibre(mentionEmetteur) });
+
 /**
  * Mentions manquantes dans les réglages de l'entreprise (`emetteur`), pour un bandeau « mentions manquantes » et des champs en rouge.
  * Retourne `{ mentions, champs, nombre }` : `mentions` = messages en français, `champs` = clés en erreur
@@ -713,8 +747,7 @@ export function erreursEmetteur(emetteur, { metierBatiment } = {}) {
     mentions.push('Indique au moins un e-mail ou un numéro de téléphone pour joindre l\'entreprise.');
   }
   const bati = metierBatiment ?? e.metierBatiment ?? true;
-  const a = objet(e.assurance) ? e.assurance : {};
-  if (bati && !(plein(a.garantie) && plein(a.assureur))) manque('assurance', 'L\'assurance professionnelle est incomplète : indique la garantie et l\'assureur.');
+  if (bati && /[\[\]]/.test(assuranceTexteDe(e))) manque('assurance', MESSAGE_ASSURANCE_CROCHETS);
   const m = objet(e.mediateur) ? e.mediateur : {};
   if (!plein(m.nom) || !(plein(m.email) || plein(m.site))) manque('mediateur', 'Le médiateur de la consommation est incomplet : indique son nom et son e-mail ou son site.');
   return { mentions, champs, nombre: mentions.length };
@@ -878,12 +911,6 @@ function sansCles(valeur) {
   return valeur;
 }
 
-/** L'attestation de TVA réduite ne s'applique qu'en régime assujetti, hors autoliquidation, avec au moins une ligne à 10 % ou 5,5 %. */
-function attestationNecessaire(devis) {
-  if (devis.regimeTva === 'franchise' || devis.autoliquidation === true) return false;
-  return (devis.sections ?? []).some((s) => (s.lignes ?? []).some((l) => !estSaut(l) && [10, 5.5].includes(tauxDeLigne(devis, l))));
-}
-
 /**
  * Phrases d'acompte prêtes à imprimer, une par acompte retenu dont le moment est lisible : [{ libelle, montantTtc, type, valeur, moment }].
  * Un seul ancien acompte s'imprime exactement comme avant. € HT : « Acompte de 500,00 € HT au début des travaux soit 600,00 € TTC » (en franchise, sans HT ni TTC).
@@ -1032,7 +1059,6 @@ export function vueClient(devis, contexte = {}) {
     conditionsPaiement: devis.conditionsPaiement ?? null,
     modesPaiement: (Array.isArray(devis.modesPaiement) ? devis.modesPaiement : []).filter((m) => typeof m === 'string' && m.trim()),
     mentionSignature: MENTION_SIGNATURE,
-    attestationTvaReduite: attestationNecessaire(devis) ? ATTESTATION_TVA_REDUITE : null,
     dossierDriveId: contexte.dossierDriveId ?? null,
     cleIdempotence: `${devis.id}:${devis.version}`,
   };

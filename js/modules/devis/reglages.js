@@ -1,4 +1,4 @@
-// Réglages du module Devis : nom du bordereau, marge, TVA, durée de validité, mention d'émetteur, et « Mon entreprise » (le bloc en haut à gauche du devis).
+// Réglages du module Devis : nom du bordereau, marge, TVA, durée de validité, attestation et mentions, et « Mon entreprise » (le bloc en haut à gauche du devis).
 // Aucune règle ici : le contrôle (validerReglagesDevis) est dans articles.js, l'écriture dans donnees.js. On modifie un brouillon ; « Enregistrer » contrôle tout, puis écrit.
 import { h, icone, remplir, toast, iconeInfo } from '../../os/ui.js';
 import { ajouterGardeSortie } from '../../os/router.js';
@@ -8,7 +8,7 @@ import * as A from './articles.js';
 import { reglagesFamilles } from './reglages-familles.js';
 import { reglagesExportDevis } from './export.js';
 import { majuscule } from './ouvrages.js';
-import { MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, erreursEmetteur } from './logique.js';
+import { MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, erreursEmetteur, assuranceDepuisAnciensChamps, ASSURANCE_DEFAUT, LIMITE_ASSURANCE_TEXTE, LIMITE_COORDONNEES_BANCAIRES, LIMITE_MENTION_EMETTEUR } from './logique.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, ou demande à un éditeur de l’espace.';
 
@@ -25,7 +25,9 @@ const entrepriseBrouillon = (e = {}) => ({
   nom: e.nom ?? '', forme: e.forme ?? '', siret: e.siret ?? '', tva: e.tva ?? '', telephone: e.telephone ?? '', email: e.email ?? '', site: e.site ?? '', registreMetiers: e.registreMetiers ?? '',
   couleur: e.couleur ?? '',
   adresse: { ligne1: e.adresse?.ligne1 ?? '', codePostal: e.adresse?.codePostal ?? '', ville: e.adresse?.ville ?? '' },
-  assurance: { garantie: e.assurance?.garantie ?? '', assureur: e.assurance?.assureur ?? '', adresse: e.assurance?.adresse ?? '', zone: e.assurance?.zone ?? '' },
+  // Un seul texte libre : un espace qui avait les quatre anciens champs voit leur texte reconstruit (rien n'est écrit tant qu'on n'enregistre pas).
+  assuranceTexte: e.assuranceTexte ?? assuranceDepuisAnciensChamps(e.assurance),
+  coordonneesBancaires: e.coordonneesBancaires ?? '',
   mediateur: { nom: e.mediateur?.nom ?? '', email: e.mediateur?.email ?? '', site: e.mediateur?.site ?? '' },
   // Les méthodes proposées par l'écran sont cochées ; les autres (ancienne donnée ou texte libre) vont ensemble dans « Autre ». `iban` et `delaiJours` ne sont pas saisis ici mais voyagent pour ne pas être perdus.
   paiement: {
@@ -66,7 +68,7 @@ export function reglages(page) {
     options.map((o) => h('option', { value: String(o.valeur), selected: String(o.valeur) === String(valeur) }, o.libelle)));
   const texte = (cle, valeur, attrs = {}) => h('input', { type: 'text', class: 'champ', id: `devis-${cle}`, value: valeur, autocomplete: 'off', dataset: { champ: cle }, oninput: (e) => changer({ [cle]: e.target.value }), ...attrs });
 
-  // « Mon entreprise » : `chemin` = ['assurance', 'garantie'] ou ['nom']. Le champ s'écrit dans le brouillon sans redessiner l'écran (le curseur reste en place).
+  // « Mon entreprise » : `chemin` = ['mediateur', 'nom'] ou ['nom']. Le champ s'écrit dans le brouillon sans redessiner l'écran (le curseur reste en place).
   const lireEnt = (chemin) => chemin.reduce((o, k) => o[k], brouillon.entreprise);
   const ecrireEnt = (chemin, valeur) => { chemin.slice(0, -1).reduce((o, k) => o[k], brouillon.entreprise)[chemin.at(-1)] = valeur; majMentions(); majBoutons(); };
   const cleEnt = (chemin) => `entreprise.${chemin.join('.')}`;
@@ -75,6 +77,14 @@ export function reglages(page) {
     return h('div', { class: 'bloc-champ', dataset: { reglage: cle } },
       h('label', { class: 'etiquette', for: `devis-${cle}` }, libelle, aide ? iconeInfo(aide, libelle) : null),
       h('input', { type: 'text', class: 'champ', id: `devis-${cle}`, value: lireEnt(chemin), autocomplete: 'off', dataset: { champ: cle }, oninput: (e) => ecrireEnt(chemin, e.target.value), ...attrs }),
+      h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: cle } }));
+  };
+  /** Texte libre sur plusieurs lignes de « Mon entreprise » (assurance, coordonnées bancaires). */
+  const zoneEnt = (chemin, libelle, { aide = null, lignes = 3, max, placeholder = '' } = {}) => {
+    const cle = cleEnt(chemin);
+    return h('div', { class: 'bloc-champ', dataset: { reglage: cle } },
+      h('label', { class: 'etiquette', for: `devis-${cle}` }, libelle, aide ? iconeInfo(aide, libelle) : null),
+      h('textarea', { class: 'champ', id: `devis-${cle}`, rows: lignes, maxlength: String(max), placeholder, autocomplete: 'off', dataset: { champ: cle }, value: lireEnt(chemin), oninput: (e) => ecrireEnt(chemin, e.target.value) }),
       h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: cle } }));
   };
   const listeMentions = h('ul', { class: 'aide', dataset: { zone: 'mentions-manquantes' } });
@@ -128,10 +138,11 @@ export function reglages(page) {
       champEnt(['registreMetiers'], 'Registre des métiers', { aide: 'Par exemple : RM 123 456 789 Paris. Écris la mention telle que tu veux la voir sur le devis.' }),
       blocCouleur(),
       blocPaiement(),
-      h('h4', {}, 'Assurance professionnelle'),
-      champEnt(['assurance', 'garantie'], 'Garantie', { aide: 'Par exemple : garantie décennale n° 123456.' }),
-      h('div', { class: 'ligne-champs' }, champEnt(['assurance', 'assureur'], 'Assureur'), champEnt(['assurance', 'adresse'], 'Adresse de l’assureur')),
-      champEnt(['assurance', 'zone'], 'Zone de couverture', { aide: 'Par exemple : France entière.' }),
+      zoneEnt(['coordonneesBancaires'], 'Coordonnées bancaires', { lignes: 3, max: LIMITE_COORDONNEES_BANCAIRES, placeholder: 'Banque\nIBAN\nBIC',
+        aide: 'Trois lignes : le nom de la banque, l’IBAN, le BIC. Ce texte s’imprime sur le devis sous « Coordonnées bancaires ». Si ce texte est vide, seul un ancien IBAN déjà enregistré s’imprime.' }),
+      h('h4', {}, 'Assurance'),
+      zoneEnt(['assuranceTexte'], 'Texte d’assurance', { lignes: 3, max: LIMITE_ASSURANCE_TEXTE, placeholder: ASSURANCE_DEFAUT,
+        aide: `Écris ton assurance telle qu’elle doit apparaître en bas du devis. Laissé vide, le devis imprime : « ${ASSURANCE_DEFAUT} ». Remplace les crochets par tes informations : tant qu’il en reste, une alerte « Mentions manquantes » reste affichée ici.` }),
       h('h4', {}, 'Médiateur de la consommation'),
       champEnt(['mediateur', 'nom'], 'Nom du médiateur'),
       h('div', { class: 'ligne-champs' }, champEnt(['mediateur', 'email'], 'E-mail du médiateur'), champEnt(['mediateur', 'site'], 'Site du médiateur')),
@@ -182,8 +193,8 @@ export function reglages(page) {
         bloc('etapeAffaireCreee', 'Étape des affaires créées depuis un devis', liste('etapeAffaireCreee', optionsEtapes, brouillon.etapeAffaireCreee, (v) => changer({ etapeAffaireCreee: v })),
           'Quand tu crées une affaire depuis un devis (« + Créer l’affaire » dans la ligne Affaire), elle arrive dans cette étape. Sans réglage, la liste te demande l’étape.'),
         etapes.length ? null : h('p', { class: 'aide', dataset: { zone: 'etape-affaire-creee-vide' } }, 'Aucune étape dans le pipeline')),
-      bloc('mentionEmetteur', 'Mention d’émetteur (facultatif)', h('textarea', { class: 'champ', id: 'devis-mentionEmetteur', rows: 3, maxlength: '500', dataset: { champ: 'mentionEmetteur' }, value: brouillon.mentionEmetteur,
-        oninput: (e) => changer({ mentionEmetteur: e.target.value }) }), 'Un texte libre qui accompagne tes devis (par exemple une mention légale). Il n’est pas encore envoyé nulle part.'),
+      bloc('mentionEmetteur', 'Attestation et mentions (facultatif)', h('textarea', { class: 'champ', id: 'devis-mentionEmetteur', rows: 5, maxlength: String(LIMITE_MENTION_EMETTEUR), dataset: { champ: 'mentionEmetteur' }, value: brouillon.mentionEmetteur,
+        oninput: (e) => changer({ mentionEmetteur: e.target.value }) }), 'Un texte libre imprimé sur tous tes devis, juste avant « Bon pour accord ». Par exemple : l’attestation de TVA réduite du client, ta qualification RGE. Les retours à la ligne sont gardés. Vide, rien ne s’imprime.'),
       sectionEntreprise());
     majMentions();
     majBoutons();

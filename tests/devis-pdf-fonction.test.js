@@ -108,6 +108,20 @@ describe('Q4 devisPdf : chemin heureux', () => {
     await appel(m2, f2)(requete({ devisId: 'd1' }));
     assert.ok(f2.vus.html[0].includes('Ancien Emetteur'));
   });
+  test('A4 le PDF lit l\'assurance, les coordonnées bancaires et « Attestation et mentions » en direct dans les réglages (rien n\'est figé) ; sans rien : texte d\'assurance par défaut', async () => {
+    const m = await monde();
+    const f0 = faux();
+    await appel(m, f0)(requete({ devisId: 'd1' }));
+    assert.ok(f0.vus.html[0].includes('[Assureur]') && !f0.vus.html[0].includes('Coordonnées bancaires'));
+    const m1 = await monde(); // le PDF du premier est déjà rangé : un second appel ne le refabrique pas
+    m1.collections[C.devisParametres][0] = { id: 'reglages', regimeTva: 'assujetti', mentionEmetteur: 'Attestation de TVA réduite\nQualification RGE', entreprise: { nom: 'Entreprise Ecran', assuranceTexte: 'Décennale chez Assureur SA', coordonneesBancaires: 'Banque X\nFR76 0000' } };
+    const f = faux();
+    await appel(m1, f)(requete({ devisId: 'd1' }));
+    const h = f.vus.html[0];
+    assert.ok(h.includes('Décennale chez Assureur SA') && !h.includes('[Assureur]'));
+    assert.ok(h.includes('Banque X<br>FR76 0000'));
+    assert.ok(h.includes('Attestation de TVA réduite<br>Qualification RGE'));
+  });
   test('Q4 le champ pdf est écrit (statut ok, chemin, sha256, genereLe), la réponse porte l\'adresse stable, le PDF est rangé sous le dossier de l\'affaire, le journal est écrit', async () => {
     const m = await monde();
     const f = faux();

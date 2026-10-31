@@ -1,21 +1,18 @@
 // Pagination : Chromium ignore les boîtes de marge @page ; le numéro « Page n / N » viendra des gabarits d'en-tête/pied du convertisseur serveur.
-// Clés de l'émetteur lues ici (options.emetteur ou vue.emetteur) : nom, forme, siret, tva, adresse, email, telephone, site, registreMetiers, assurance, mediateur, logo (https ou data:image), couleur, paiement, cgv. Les alias formeJuridique et tvaIntracommunautaire restent lus.
+// Clés de l'émetteur lues ici (options.emetteur ou vue.emetteur) : nom, forme, siret, tva, adresse, email, telephone, site, registreMetiers, assuranceTexte (ou les anciens champs assurance), coordonneesBancaires, mentionEmetteur (« Attestation et mentions »), mediateur, logo (https ou data:image), couleur, paiement, cgv. Les alias formeJuridique et tvaIntracommunautaire restent lus.
 // L'acompte, les primes, la retenue de garantie, les déchets, le texte libre et les notes viennent de la vue client (libellés déjà prêts, échappés ici).
 // Document « Devis » en HTML imprimable (A4). Module pur : aucun DOM, aucun réseau, aucun JavaScript dans la page produite.
 // Il reçoit la « vue client » (vueClient de logique.js, donc jamais de prix d'achat, de marge ni de coefficient) et rend une chaîne HTML
 // complète. Usage : aperçu et impression dans le navigateur (« Imprimer » puis « Enregistrer au format PDF ») ; plus tard, un
 // convertisseur HTML vers PDF côté serveur en tirera le PDF officiel.
 //
-// Texte de l'attestation de TVA réduite (ATTESTATION_TVA_REDUITE) : à faire valider par l'expert-comptable du client
-// avant mise en production.
+// Plus d'attestation de TVA codée en dur (31/10/2026) : l'attestation et les autres mentions sont le texte libre « Attestation et mentions » des réglages (emetteur.mentionEmetteur).
 //
 // Décisions prises seul :
 // - Les données viennent toutes de `vue` ; le nom du destinataire est `vue.client.nom` (fourni par l'appelant dans le contexte de vueClient).
 // - Franchise : lignes sans colonne de TVA chiffrée (« - »), pas de tableau de TVA, pas de ligne TVA/TTC. Autoliquidation : TVA à 0.
 // - L'en-tête et le pied répétés sur chaque page passent par thead/tfoot d'une table de mise en page (repli simple qui marche partout).
-import { ATTESTATION_TVA_REDUITE, montantFr, adresseEnTexte } from './logique.js';
-
-export { ATTESTATION_TVA_REDUITE };
+import { montantFr, adresseEnTexte, assuranceTexteDe, coordonneesBancairesDe, nettoyerTexteLibre } from './logique.js';
 
 const NBSP = ' ';
 
@@ -258,7 +255,8 @@ export function devisHtml(vue, options = {}) {
   if (!v.conditionsPaiement && Number.isFinite(pe.delaiJours) && pe.delaiJours >= 0) paiement.push(pe.delaiJours === 0 ? '<p>Paiement à réception.</p>' : `<p>Paiement à ${texte(pe.delaiJours)} jour${pe.delaiJours >= 2 ? 's' : ''}.</p>`);
   const modes = (v.modesPaiement ?? []).length ? v.modesPaiement : (Array.isArray(pe.modes) ? pe.modes.filter((m) => typeof m === 'string' && m.trim()) : []);
   if (modes.length) paiement.push(`<ul>${modes.map((m) => `<li>${texte(m)}</li>`).join('')}</ul>`);
-  if (pe.iban) paiement.push(`<p>IBAN${NBSP}: ${texte(pe.iban)}</p>`);
+  const banque = coordonneesBancairesDe(emetteur);
+  if (banque) paiement.push(`<p>Coordonnées bancaires${NBSP}:<br>${texte(banque)}</p>`);
   const c = v.conditions ?? {};
   const details = [];
   if (c.debutTravaux && !v.chantier?.debutTravaux) details.push(`Début des travaux${NBSP}: ${texte(c.debutTravaux)}`);
@@ -274,14 +272,11 @@ export function devisHtml(vue, options = {}) {
   const notes = v.notesBasDePage ? `<div class="notes"><h2>Notes de bas de page</h2>${texte(v.notesBasDePage)}</div>` : '';
 
   const mentions = [...(v.mentions ?? [])];
-  if (v.attestationTvaReduite && !sansTva) mentions.push(v.attestationTvaReduite);
+  const mentionLibre = nettoyerTexteLibre(emetteur.mentionEmetteur); // « Attestation et mentions » des réglages : sur tous les devis, juste avant « Bon pour accord »
+  if (mentionLibre) mentions.push(mentionLibre);
 
-  const ass = emetteur.assurance ?? {};
   const med = emetteur.mediateur ?? {};
-  const lAss = [];
-  if (ass.garantie || ass.assureur) {
-    lAss.push(`Assurance professionnelle${NBSP}: ${[ass.garantie, ass.assureur ? `souscrite auprès de ${ass.assureur}` : '', ass.adresse, ass.zone ? `couverture géographique${NBSP}: ${ass.zone}` : ''].filter(Boolean).map(texte).join(', ')}.`);
-  }
+  const lAss = [texte(assuranceTexteDe(emetteur))]; // l'assurance s'imprime toujours (texte par défaut avec crochets si l'artisan n'a rien écrit)
   if (med.nom) lAss.push(`Médiateur de la consommation${NBSP}: ${[med.nom, med.email, med.site].filter(Boolean).map(texte).join(', ')}.`);
   const pied = lAss.length ? `<div class="assurance-mediation">${lAss.map((x) => `<div>${x}</div>`).join('')}</div>` : '';
   const cgv = emetteur.cgv?.afficher === true && typeof emetteur.cgv.texte === 'string' && emetteur.cgv.texte.trim()

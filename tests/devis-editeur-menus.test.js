@@ -174,9 +174,9 @@ describe('4 Options : affichage du devis et du document', () => {
     { numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages }).devis;
   const contexteVue = { clientNom: 'Mme Dupont', emetteur: { nom: 'Atelier Test', adresse: '3 rue', siret: '123' } };
 
-  test('4 sans options, le document est identique octet pour octet à celui d’avant la refonte (empreinte mise à jour le 25/10/2026 : seule la feuille de style a changé : interligne du bloc Chantier, page A4 centrée et bande de saut de page à l’écran)', () => {
+  test('4 sans options, le document est identique octet pour octet à celui d’avant la refonte (empreinte mise à jour le 25/10/2026 : seule la feuille de style a changé : interligne du bloc Chantier, page A4 centrée et bande de saut de page à l’écran ; mise à jour le 31/10/2026 : l’attestation de TVA codée en dur disparaît et l’assurance par défaut s’imprime toujours)', () => {
     const html = devisHtml(L.vueClient(figer(), contexteVue));
-    assert.equal(crypto.createHash('sha256').update(html).digest('hex'), '87d9e64d35653ca98d0a22813468eec2c993a74404dd2a78e1d4a0acaeb681bc');
+    assert.equal(crypto.createHash('sha256').update(html).digest('hex'), '5362a869288038724a79badec7a579cfcaa156bf3c18e237f1aa893c7c3ab8f4');
     assert.equal(devisHtml(L.vueClient(figer(), contexteVue), { affichage: {} }), html);
     assert.equal(devisHtml(L.vueClient(figer(), contexteVue), { affichage: L.AFFICHAGE_DEFAUT }), html);
   });

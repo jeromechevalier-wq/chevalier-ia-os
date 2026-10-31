@@ -26,7 +26,7 @@ const fige = (extra = {}) => {
 const emetteurComplet = {
   nom: 'Atelier Test', forme: 'SARL', siret: '123 456 789 00012', tva: 'FR00123456789', email: 'contact@atelier.test', telephone: '01 23 45 67 89',
   adresse: { ligne1: '3 rue de l\'Atelier', codePostal: '69001', ville: 'Lyon' },
-  assurance: { garantie: 'Décennale', assureur: 'Assureur Test', zone: 'France', adresse: '1 rue de l\'Assurance' },
+  assuranceTexte: 'Assurance décennale : Assureur Test, contrat numéro : 123, territorialité : France métropolitaine.',
   mediateur: { nom: 'Médiateur Test', email: 'mediation@exemple.test', site: 'mediation.exemple.test' },
   couleur: '#1a73e8', paiement: { delaiJours: 30, modes: ['Virement'], iban: 'FR76 0000 0000 0000' }, cgv: { texte: 'Article 1\nArticle 2', afficher: false },
 };
@@ -104,8 +104,13 @@ describe('Chantier et émetteur du devis', () => {
     assert.equal(D.erreursEmetteur({ ...emetteurComplet, email: '' }).nombre, 0);
     assert.deepEqual(D.erreursEmetteur({ ...emetteurComplet, email: '', telephone: '' }).champs, ['email', 'telephone']);
     // Assurance seulement pour un métier du bâtiment.
-    const sansAss = { ...emetteurComplet, assurance: undefined };
+    const sansAss = { ...emetteurComplet, assuranceTexte: undefined }; // texte par défaut : il garde des crochets, donc incomplet
     assert.deepEqual(D.erreursEmetteur(sansAss).champs, ['assurance']);
+    assert.deepEqual(D.erreursEmetteur(sansAss).mentions, [D.MESSAGE_ASSURANCE_CROCHETS]);
+    assert.deepEqual(D.erreursEmetteur({ ...emetteurComplet, assuranceTexte: 'Décennale chez [Assureur]' }).champs, ['assurance']); // un crochet reste
+    assert.deepEqual(D.erreursEmetteur({ ...emetteurComplet, assuranceTexte: '   ' }).champs, ['assurance']); // vide = texte par défaut, donc des crochets
+    // Anciens champs (sans assuranceTexte) : le texte est reconstruit, sans crochet, donc complet.
+    assert.deepEqual(D.erreursEmetteur({ ...sansAss, assurance: { garantie: 'Décennale', assureur: 'Assureur SA' } }).champs, []);
     assert.deepEqual(D.erreursEmetteur(sansAss, { metierBatiment: false }).champs, []);
     assert.deepEqual(D.erreursEmetteur({ ...sansAss, metierBatiment: false }).champs, []);
     assert.deepEqual(D.erreursEmetteur({ ...emetteurComplet, mediateur: { nom: 'X' } }).champs, ['mediateur']);
@@ -116,7 +121,7 @@ describe('Chantier et émetteur du devis', () => {
     const s = '<script>alert(1)</script>';
     const emetteur = {
       ...emetteurComplet, nom: s, forme: s, siret: s, tva: s, email: s, telephone: s, site: s, registreMetiers: s, adresse: { ligne1: s, codePostal: s, ville: s },
-      assurance: { garantie: s, assureur: s, zone: s, adresse: s }, mediateur: { nom: s, email: s, site: s },
+      assuranceTexte: s, coordonneesBancaires: s, mentionEmetteur: s, mediateur: { nom: s, email: s, site: s },
       paiement: { delaiJours: 30, modes: [s], iban: s }, cgv: { texte: s, afficher: true },
     };
     const devis = fige({ objet: s, chantier: { adresse: { ligne1: s, codePostal: '75011', ville: s }, debutTravaux: '2026-11-03' } });
