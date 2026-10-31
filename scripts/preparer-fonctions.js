@@ -106,6 +106,9 @@ for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'd
   mkdirSync(join(destinationServeur, 'partage'), { recursive: true });
   copyFileSync(join(destination, f), join(destinationServeur, 'partage', f));
 }
+// La porte des workflows n8n chez les clients (functions-plateforme/src/porte.js) : la même logique que chez Jérôme (clés, contrôles, actions), copiée telle quelle à côté du serveur.
+cpSync(join(destination, 'porte'), join(destinationServeur, 'partage', 'porte'), { recursive: true });
+console.log('functions-plateforme/serveur/partage/porte/ mis à jour (copie de functions/partage/porte/)');
 console.log('functions-plateforme/serveur/ mis à jour (copie du serveur MCP pour la plateforme clients)');
 
 // Module Automatisations vu par le projet du CRM (chevalier-ia-os) : la copie des workflows de Jérôme et la vue administrateur réutilisent le MÊME code que la plateforme clients

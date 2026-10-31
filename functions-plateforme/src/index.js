@@ -19,6 +19,7 @@ import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient } from './
 import { appelDocument } from './documents.js';
 import { verifierDeploiementClient } from './deploiement.js';
 import { VERSION_SERVEUR } from '../serveur/src/version.js';
+import { creerGestionnairePortePlateforme } from './porte.js';
 import { creerSortieN8n } from '../serveur/src/coeur/n8n-sortie.js';
 import { creerLecteurSecrets } from '../serveur/src/securite/secrets.js';
 import { creerStockage } from '../serveur/src/devis/stockage.js';
@@ -165,4 +166,14 @@ export const documentSupprimer = appelDoc('supprimer', OPTIONS_DOCUMENT);
 export const devisPdfAuto = onDocumentUpdated(
   { document: 'clients/{client}/devis_devis/{devisId}', region: REGION, memory: '2GiB', timeoutSeconds: 540, concurrency: 1, maxInstances: 2, retry: false, serviceAccount: COMPTE_PDF },
   (evenement) => creerDeclencheurPdfClient({ db: db(), convertir: (html, options) => convertirHtmlEnPdf(html, options), stockage: stockagePdf, journal: journalPdf })(evenement),
+);
+
+// La porte des workflows n8n des clients (31/10/2026) : les workflows d'un client (ex. « préparer l'e-mail d'un devis ») rappellent le serveur par HTTPS avec une clé PAR CLIENT
+// (cle-n8n.<client>.…, retrouvée par son empreinte dans `plateforme_cles`). Atteinte par la réécriture Hosting `/porte` (firebase.plateforme.json). L'invocation est publique côté Google
+// (invoker 'public') : la vraie porte est la clé + le contrôle d'intégrité du workflow (étiquette et nom « client-<client> », lu dans n8n avec N8N_API_KEY) ; le client vient de la clé, jamais de la requête.
+// Tourne avec le compte existant des PDF (devis-pdf@ : Firestore, lecture de clients/ dans le bucket, jeton pour signer le lien du PDF). Aucune règle Firestore : le serveur seul lit `plateforme_cles`.
+// Déployée seulement par le workflow MANUEL de la plateforme (choix « porte »), avec Jérôme ; la réécriture est publiée ensuite par le choix « hosting ».
+export const porte = onRequest(
+  { region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, invoker: 'public', cors: false, secrets: [CLE_N8N], serviceAccount: COMPTE_PDF },
+  creerGestionnairePortePlateforme({ lireSecret: async () => CLE_N8N.value() }),
 );
