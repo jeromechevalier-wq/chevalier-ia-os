@@ -189,7 +189,7 @@ async function controlerPrixComposants(editeur, ouvrageId) {
   const modifs = editeur.prixModifies();
   const erreurs = {};
   for (const m of modifs) {
-    const plan = A.planMajArticle(m.articleId, { prixAchat: m.saisie }, { articles: D.etat.articles, familles: D.etat.familles });
+    const plan = A.planMajArticle(m.articleId, { prixAchat: m.saisie }, { articles: D.etat.articles, familles: D.etat.familles, reglages: D.etat.reglages });
     const message = Object.values(plan.erreurs)[0];
     if (message) erreurs[m.articleId] = message;
   }
@@ -230,7 +230,7 @@ async function ouvrirComposition(a, { devenirOuvrage = false, familleId = null }
       const v = editeur.valeurs();
       const patch = { ...(devenirOuvrage ? { type: 'ouvrage', ...(familleId ? { familleId } : {}) } : {}), composants: v.composants, prixVenteForce: v.prixVenteForce === '' ? null : v.prixVenteForce };
       // Tout se contrôle avant la première écriture : une erreur (composition ou prix) n'écrit rien.
-      const essai = A.planMajArticle(a.id, patch, { articles: D.etat.articles, familles: D.etat.familles });
+      const essai = A.planMajArticle(a.id, patch, { articles: D.etat.articles, familles: D.etat.familles, reglages: D.etat.reglages });
       if (Object.keys(essai.erreurs).length) {
         if (!editeur.montrerErreurs(essai.erreurs)) general.textContent = Object.values(essai.erreurs)[0];
         return false;
@@ -256,7 +256,7 @@ async function ouvrirComposition(a, { devenirOuvrage = false, familleId = null }
     contenu: h('div', { class: 'pile' }, editeur.element, general),
     boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: tenter }],
   });
-  if (fait) toast('Composition enregistrée'); // même phrase dans les deux cas : aucun participe à accorder avec le mot du métier
+  if (fait) { const mot = O.motOuvrage(D.etat.reglages); toast(`${O.majuscule(mot.singulier)} enregistré${mot.genre === 'feminin' ? 'e' : ''}`); } // le participe s'accorde avec le mot du métier
 }
 
 /** Désactiver : fenêtre de confirmation (le texte du cadrage), puis « Article désactivé · Annuler » pendant 8 secondes. */

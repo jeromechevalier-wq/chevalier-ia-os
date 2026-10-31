@@ -168,3 +168,53 @@ describe('O11 relecture : arrondi des quantités, composant d\'un ouvrage désac
     assert.ok(plan.erreurs.type, 'refusé : il compose un ouvrage, même désactivé');
   });
 });
+
+// B2 (31/10/2026) : les messages de validation disent le mot du métier réglé (« prestation », « lot »…) ; sans réglage, les phrases d'avant ne changent pas (O1 à O8 les lisent).
+describe('B2 le mot du métier dans les messages de validation', () => {
+  const PRESTATION = { motOuvrage: 'prestation' };
+  const articles = () => ({
+    ...base(),
+    ouv: { id: 'ouv', type: 'ouvrage', libelle: 'Salle de bain', composants: [{ articleId: 'ba13', quantite: 1 }], actif: true },
+    txt: { id: 'txt', type: 'texte', libelle: 'Note', actif: true },
+    off: { id: 'off', libelle: 'Ancien', unite: 'u', prixAchat: 1, actif: false },
+  });
+  const tous = (reglages) => [
+    ...O.erreursOuvrage({ composants: [] }, articles(), reglages),
+    ...O.erreursOuvrage({ id: 'x', composants: Array.from({ length: O.MAX_COMPOSANTS + 1 }, () => ({ articleId: 'ba13', quantite: 1 })) }, articles(), reglages),
+    ...O.erreursOuvrage({ id: 'x', composants: [{ articleId: 'x', quantite: 1 }, { articleId: 'ba13', quantite: 1 }, { articleId: 'ba13', quantite: 1 }, { articleId: 'ouv', quantite: 1 }, { articleId: 'txt', quantite: 1 }, { articleId: 'off', quantite: 1 }] }, articles(), reglages),
+    ...O.calculerOuvrage({ composants: [{ articleId: 'ouv', quantite: 1 }] }, articles(), reglages).erreurs,
+    ...Object.values(A.validerArticle({ libelle: 'Y', type: 'ouvrage', prixAchat: 5, composants: [] }, { articles: Object.values(articles()), reglages }).erreurs),
+    ...Object.values(A.validerArticle({ libelle: 'Y', unite: 'u', prixAchat: 5, type: 'fourniture', composants: [{ articleId: 'ba13', quantite: 1 }], prixVenteForce: 9 }, { articles: Object.values(articles()), reglages }).erreurs),
+    ...Object.values(A.planMajArticle('ba13', { type: 'ouvrage' }, { articles: Object.values(articles()), reglages }).erreurs),
+    ...Object.values(A.planMajArticle('ouv', { type: 'divers' }, { articles: Object.values(articles()), reglages }).erreurs),
+  ];
+
+  test('B2.1 avec le mot « prestation », aucun message de validation ne contient « ouvrage »', () => {
+    const messages = tous(PRESTATION);
+    assert.ok(messages.length >= 15, `messages attendus : ${messages.length}`);
+    for (const m of messages) assert.doesNotMatch(m, /ouvrage/i, m);
+  });
+
+  test('B2.2 l’accord : « une prestation ne peut pas en contenir une autre » (féminin) et « un lot… un autre » (masculin)', () => {
+    assert.match(O.erreursOuvrage({ composants: [{ articleId: 'ouv', quantite: 1 }] }, articles(), PRESTATION).join(' '), /c’est déjà une prestation, et une prestation ne peut pas en contenir une autre\./);
+    assert.match(O.erreursOuvrage({ composants: [{ articleId: 'ouv', quantite: 1 }] }, articles(), { motOuvrage: 'lot' }).join(' '), /c’est déjà un lot, et un lot ne peut pas en contenir un autre\./);
+    assert.match(O.erreursOuvrage({ composants: [] }, articles(), PRESTATION)[0], /^Une prestation a besoin d’au moins un composant/);
+    assert.match(O.erreursOuvrage({ composants: [{ articleId: 'ba13', quantite: 1 }, { articleId: 'ba13', quantite: 1 }] }, articles(), { motOuvrage: 'ensemble' }).join(' '), /déjà dans l’ensemble\./);
+    assert.match(O.calculerOuvrage({ composants: [{ articleId: 'ouv', quantite: 1 }] }, articles(), PRESTATION).erreurs[0], /une prestation ne peut pas contenir une autre prestation/);
+    assert.equal(A.validerArticle({ libelle: 'Y', unite: 'u', prixAchat: 5, type: 'fourniture', prixVenteForce: 9 }, { reglages: PRESTATION }).erreurs.prixVenteForce, 'Seule une prestation peut avoir un prix de vente forcé.');
+    assert.match(A.validerArticle({ libelle: 'Y', unite: 'u', type: 'ouvrage', prixAchat: 5, composants: [{ articleId: 'ba13', quantite: 1 }] }, { articles: Object.values(articles()), reglages: PRESTATION }).erreurs.prixAchat, /^Une prestation n’a pas de prix d’achat : elle se calcule/);
+    assert.equal(A.libelleType('ouvrage', PRESTATION), 'Prestation');
+  });
+
+  test('B2.3 sans réglage (ou avec un mot invalide), les phrases sont celles d’avant et le libellé du type reste « Ouvrage »', () => {
+    for (const r of [undefined, {}, { motOuvrage: 'ouvrage' }, { motOuvrage: 'nimportequoi' }, { motOuvrage: 'autre', motOuvrageAutre: {} }]) {
+      assert.deepEqual(tous(r), tous({}));
+    }
+    const m = tous(undefined).join('\n');
+    assert.match(m, /Un ouvrage a besoin d’au moins un composant : ajoute un article\./);
+    assert.match(m, /c’est déjà un ouvrage, et un ouvrage ne peut pas en contenir un autre\./);
+    assert.match(m, /un ouvrage ne peut pas contenir un autre ouvrage/);
+    assert.equal(A.libelleType('ouvrage'), 'Ouvrage');
+    assert.equal(A.libelleType('fourniture', PRESTATION), 'Fourniture');
+  });
+});
