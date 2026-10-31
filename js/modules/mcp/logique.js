@@ -27,14 +27,14 @@ export const LIBELLES_ROLE = Object.freeze({
 export const MODE_EMPLOI = Object.freeze([
   { titre: 'Colle le lien', texte: 'Dans Claude : Paramètres, Connecteurs, « Ajouter un connecteur personnalisé ». Dans ChatGPT : Paramètres, Applications, mode développeur, « Créer ». Colle le lien ci-dessus.' },
   { titre: 'Connecte-toi avec Google', texte: 'Une fenêtre de Google s\'ouvre : choisis l\'adresse e-mail qui figure dans la liste des membres ci-dessous. Un autre compte est refusé.' },
-  { titre: 'Autorise', texte: 'L\'écran « Autoriser … à accéder à … » s\'affiche aux couleurs de ton espace : clique sur « Autoriser ». L\'assistant peut alors consulter tes fiches (lecteur), et les modifier (éditeur). Il ne supprime jamais rien.' },
+  { titre: 'Autorise', texte: 'L\'écran « Autoriser … à accéder à … » s\'affiche aux couleurs de ton espace : clique sur « Autoriser ». Ton IA peut alors consulter tes fiches (lecteur), et les modifier (éditeur). Il ne supprime jamais rien.' },
 ]);
 
 /** Mode d'emploi à la racine (espace de Jérôme) : connexion par compte Google, trois lignes (docs/mcp-oauth.md). Ni jeton ni secret. */
 export const MODE_EMPLOI_RACINE = Object.freeze([
   { titre: 'Colle le lien', texte: 'Dans Claude : Paramètres, Connecteurs, « Ajouter un connecteur personnalisé ». Colle le lien ci-dessus.' },
   { titre: 'Connecte-toi avec Google', texte: 'Une fenêtre de Google s\'ouvre : choisis ton compte Google autorisé. Un autre compte est refusé.' },
-  { titre: 'Autorise', texte: 'Clique sur « Autoriser » : l\'assistant peut alors consulter et modifier tes fiches. Retirer le connecteur dans Claude ne coupe pas l\'autorisation côté serveur : demande à Jérôme de la couper.' },
+  { titre: 'Autorise', texte: 'Clique sur « Autoriser » : ton IA peut alors consulter et modifier tes fiches. Retirer le connecteur dans Claude ne coupe pas l\'autorisation côté serveur : demande à Jérôme de la couper.' },
 ]);
 
 export const PHRASE_COMPTES_RACINE = 'Les comptes autorisés sont fixés par Jérôme.';

@@ -61,7 +61,7 @@ export function ouvrirBibliotheque(racine, source, { surFermeture = () => {}, re
         const case_ = h('input', { type: 'checkbox', checked: coches.has(a.id), 'aria-label': `Choisir ${a.libelle}`, dataset: { articleId: a.id },
           onchange: (e) => { if (e.target.checked) coches.add(a.id); else coches.delete(a.id); majBouton(); } });
         return h('li', { class: 'bibliotheque-article' }, h('label', { class: 'bibliotheque-ligne' }, case_,
-          h('span', { class: 'bibliotheque-nom' }, a.libelle, a.code ? h('span', { class: 'texte-discret' }, ` · ${a.code}`) : null, a.type ? h('span', { class: 'texte-discret' }, ` · ${A.libelleType(a.type)}`) : null),
+          h('span', { class: 'bibliotheque-nom' }, a.libelle, a.code ? h('span', { class: 'texte-discret' }, ` · ${a.code}`) : null, a.type ? h('span', { class: 'texte-discret' }, ` · ${A.libelleType(a.type, source.reglages?.())}`) : null),
           h('span', { class: 'bibliotheque-prix' }, source.prixAffiche(a))));
       }));
       message.textContent = 'Fin des résultats';

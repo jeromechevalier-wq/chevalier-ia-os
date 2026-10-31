@@ -171,7 +171,7 @@ test('M4 Mot par défaut : « Ouvrage » partout, comme avant (aucun réglage po
   await capturer(page, info, 'M4-defaut-ouvrage');
 });
 
-test('M5 Vocabulaire : la phrase « Le mot « … » se choisit dans Réglages > Devis » suit le mot réglé et le lien ouvre les réglages', async ({ page }, info) => {
+test('M5 Ce que l’IA a appris : la phrase « Le mot « … » se choisit dans Réglages > Devis » suit le mot réglé et le lien ouvre les réglages', async ({ page }, info) => {
   await poserMot('lot');
   await connecter(page, undefined, { route: 'devis/vocabulaire' });
   const note = page.locator('[data-zone="mot-metier"]');
@@ -179,4 +179,35 @@ test('M5 Vocabulaire : la phrase « Le mot « … » se choisit dans Réglages >
   await capturer(page, info, 'M5-vocabulaire');
   await note.getByRole('link', { name: 'Réglages > Devis' }).click();
   await expect(page.locator('#reglages-devis')).toBeVisible();
+});
+
+// B1 (31/10/2026) : le message après « Enregistrer » dans la fenêtre Composition suit le mot du métier ; le titre « Composition » et le bouton restent.
+async function enregistrerUneComposition(page, info, mot, motAutre, attendu, capture) {
+  await poserMot(mot, motAutre);
+  await article('a1', { libelle: 'BA13', unite: 'm²', prixAchat: 5, type: 'fourniture' });
+  await article('o1', { libelle: 'Cloisons', type: 'ouvrage', prixAchat: null, composants: [{ articleId: 'a1', quantite: 1 }] });
+  await ouvrirBordereau(page);
+  await page.locator('.ligne-article[data-id="o1"] [data-action="composer"]').click();
+  await expect(dialogue(page)).toBeVisible();
+  await expect(dialogue(page)).toContainText('Composition : Cloisons');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(dialogue(page)).toBeHidden();
+  await expect(page.locator('.toast').last()).toHaveText(attendu);
+  await capturer(page, info, capture);
+}
+
+test('B1.1 mot « prestation » : le message dit « Prestation enregistrée »', async ({ page }, info) => {
+  await enregistrerUneComposition(page, info, 'prestation', {}, 'Prestation enregistrée', 'B1-prestation');
+});
+
+test('B1.2 mot « ensemble » : le message dit « Ensemble enregistré »', async ({ page }, info) => {
+  await enregistrerUneComposition(page, info, 'ensemble', {}, 'Ensemble enregistré', 'B1-ensemble');
+});
+
+test('B1.3 mot par défaut (réglage « ouvrage ») : le message dit « Ouvrage enregistré »', async ({ page }, info) => {
+  await enregistrerUneComposition(page, info, 'ouvrage', {}, 'Ouvrage enregistré', 'B1-ouvrage');
+});
+
+test('B1.4 mot « Autre » féminin (« réalisation ») : le message dit « Réalisation enregistrée »', async ({ page }, info) => {
+  await enregistrerUneComposition(page, info, 'autre', { singulier: 'réalisation', pluriel: 'réalisations', genre: 'feminin' }, 'Réalisation enregistrée', 'B1-realisation');
 });

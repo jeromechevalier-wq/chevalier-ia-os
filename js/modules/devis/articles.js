@@ -18,7 +18,7 @@ import {
   MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, DUREE_VALIDITE_DEFAUT, coefficientDeMarge, emailValide,
   LIMITE_ASSURANCE_TEXTE, LIMITE_COORDONNEES_BANCAIRES, LIMITE_MENTION_EMETTEUR, LIMITE_MENTION_TVA_REDUITE, nettoyerTexteLibre, assuranceDepuisAnciensChamps,
 } from './logique.js';
-import { TYPE_OUVRAGE, erreursOuvrage, articlesParId, calculerOuvrage, lireMotOuvrage, validerMotAutre, MOTS_OUVRAGE, MOT_OUVRAGE_AUTRE } from './ouvrages.js';
+import { TYPE_OUVRAGE, motOuvrage, majuscule, duMot, erreursOuvrage, articlesParId, calculerOuvrage, lireMotOuvrage, validerMotAutre, MOTS_OUVRAGE, MOT_OUVRAGE_AUTRE } from './ouvrages.js';
 export { motOuvrage, MOTS_OUVRAGE } from './ouvrages.js';
 import {
   FAMILLES_PAR_DEFAUT, erreurFamilleArticle, typeDeFamille, cheminFamille, familleEffective, idsAvecSousFamilles,
@@ -148,7 +148,8 @@ export const TYPES_ARTICLE = [
   { id: 'divers', libelle: 'Divers' },
   { id: TYPE_TEXTE, libelle: 'Texte' },
 ];
-export const libelleType = (type) => TYPES_ARTICLE.find((t) => t.id === type)?.libelle ?? '';
+/** Le libellé d'un type ; celui des ouvrages suit le mot du métier réglé (`reglages` absents : « Ouvrage »). */
+export const libelleType = (type, reglages) => (type === TYPE_OUVRAGE ? majuscule(motOuvrage(reglages).singulier) : (TYPES_ARTICLE.find((t) => t.id === type)?.libelle ?? ''));
 export const FILTRES_ACTIF = [
   { id: 'actifs', libelle: 'Actifs' },
   { id: 'desactives', libelle: 'Désactivés' },
@@ -200,8 +201,9 @@ export function articleDuCode(articles, code, sauf = null) {
 }
 
 /** Valeurs d'un article, nettoyées : `{ valeurs, erreurs }` (erreurs : clé du champ -> message qui dit quoi faire). `courant` : l'article modifié (ses champs complètent la saisie). */
-export function validerArticle(saisie, { articles = [], courant = null, familles = FAMILLES_PAR_DEFAUT } = {}) {
+export function validerArticle(saisie, { articles = [], courant = null, familles = FAMILLES_PAR_DEFAUT, reglages = {} } = {}) {
   const erreurs = {};
+  const mot = motOuvrage(reglages); // le mot du métier (réglages absents : « ouvrage »)
   const base = { ...(courant ?? {}), ...saisie };
   const libelle = texte(base.libelle);
   if (!libelle) erreurs.libelle = 'Le libellé est obligatoire : écris le nom de l’article (exemple : Carrelage 60 x 60).';
@@ -214,13 +216,13 @@ export function validerArticle(saisie, { articles = [], courant = null, familles
   let typeBrut = base.type;
   if (aType(saisie.type)) {
     if (typeFamille && saisie.type !== typeFamille) {
-      erreurs.type = `Le type « ${libelleType(saisie.type) || String(saisie.type)} » ne va pas avec la famille « ${cheminFamille(familles, familleVisee)} » (type « ${libelleType(typeFamille)} »). Change la famille : le type s’en déduit.`;
+      erreurs.type = `Le type « ${libelleType(saisie.type, reglages) || String(saisie.type)} » ne va pas avec la famille « ${cheminFamille(familles, familleVisee)} » (type « ${libelleType(typeFamille, reglages)} »). Change la famille : le type s’en déduit.`;
     }
   } else if (familleDonnee && typeFamille) typeBrut = typeFamille; // famille choisie : le type suit
   let type = null;
   if (aType(typeBrut)) {
     if (TYPES_ARTICLE.some((t) => t.id === typeBrut)) type = typeBrut;
-    else erreurs.type = `Le type « ${String(typeBrut)} » n’existe pas. Choisis parmi : ${TYPES_ARTICLE.map((t) => t.libelle).join(', ')}.`;
+    else erreurs.type = `Le type « ${String(typeBrut)} » n’existe pas. Choisis parmi : ${TYPES_ARTICLE.map((t) => libelleType(t.id, reglages)).join(', ')}.`;
   }
   const unite = texte(base.unite) || (courant || type === TYPE_TEXTE ? '' : UNITE_DEFAUT);
   if (!unite && type === TYPE_TEXTE) { /* une ligne de texte n'a pas d'unité */ } else if (!unite) erreurs.unite = 'Choisis une unité (exemple : m², h, forfait).';
@@ -232,7 +234,7 @@ export function validerArticle(saisie, { articles = [], courant = null, familles
   const prixVide = brutPrix === undefined || brutPrix === null || (typeof brutPrix === 'string' && !brutPrix.trim());
   if (estOuvrage) {
     // Un ouvrage n'a pas de prix d'achat propre : il se calcule à partir de ses composants.
-    if (!prixVide && 'prixAchat' in saisie) erreurs.prixAchat = 'Un ouvrage n’a pas de prix d’achat : il se calcule à partir de ses composants.';
+    if (!prixVide && 'prixAchat' in saisie) erreurs.prixAchat = `${majuscule(mot.un)} ${mot.singulier} n’a pas de prix d’achat : ${mot.le === 'la' ? 'elle se calcule' : 'il se calcule'} à partir de ses composants.`;
   } else if (estTexte && prixVide) { /* une ligne de texte n'a pas de prix */ } else if (prixVide) erreurs.prixAchat = 'Indique le prix d’achat en euros (exemple : 12,50).';
   else {
     const r = lirePrixAchat(brutPrix);
@@ -253,12 +255,12 @@ export function validerArticle(saisie, { articles = [], courant = null, familles
       else if (Math.abs(Math.round(f * 100) - f * 100) > 1e-6) erreurs.prixVenteForce = 'Le prix de vente forcé s’écrit avec 2 décimales au plus (exemple : 12,50).';
       else prixVenteForce = Math.round(f * 100) / 100;
     }
-    const problemes = erreursOuvrage({ id: courant?.id, composants: base.composants, prixVenteForce: prixVenteForce ?? undefined }, articlesParId(articles));
+    const problemes = erreursOuvrage({ id: courant?.id, composants: base.composants, prixVenteForce: prixVenteForce ?? undefined }, articlesParId(articles), reglages);
     if (problemes.length) erreurs.composants = problemes.join(' ');
     else composants = base.composants.map((c) => ({ articleId: c.articleId, quantite: c.quantite }));
   } else {
-    if (aDesComposants) erreurs.composants = 'Seul un article de type « Ouvrage » peut avoir des composants.';
-    if (aUnForce) erreurs.prixVenteForce = 'Seul un ouvrage peut avoir un prix de vente forcé.';
+    if (aDesComposants) erreurs.composants = `Seul un article de type « ${majuscule(mot.singulier)} » peut avoir des composants.`;
+    if (aUnForce) erreurs.prixVenteForce = `Seul${mot.le === 'la' ? 'e' : ''} ${mot.un} ${mot.singulier} peut avoir un prix de vente forcé.`;
   }
   // Marge propre à l'article (facultative, en %, dans le mode de marge des réglages) : sinon la marge des réglages s'applique.
   let marge = null;
@@ -312,8 +314,8 @@ export function nouvelArticle(valeurs, ctx = {}) {
 }
 
 /** Création : `{ erreurs, id, ecritures }`. `articles` : le bordereau actuel (pour l'unicité du code). */
-export function planCreerArticle(saisie, ctx, { articles = [], familles } = {}) {
-  const { valeurs, erreurs } = validerArticle(saisie, { articles, familles });
+export function planCreerArticle(saisie, ctx, { articles = [], familles, reglages = {} } = {}) {
+  const { valeurs, erreurs } = validerArticle(saisie, { articles, familles, reglages });
   if (Object.keys(erreurs).length) return { erreurs, id: null, ecritures: [] };
   const id = ctx.nouvelId(COLLECTION_ARTICLES);
   return { erreurs: {}, id, libelle: valeurs.libelle, ecritures: [ecritureCreer(COLLECTION_ARTICLES, id, nouvelArticle(valeurs, ctx), MARQUES_CREATION)] };
@@ -323,7 +325,8 @@ export function planCreerArticle(saisie, ctx, { articles = [], familles } = {}) 
 export const CHAMPS_MODIFIABLES = ['libelle', 'unite', 'prixAchat', 'code', 'tauxTva', 'type', 'composants', 'prixVenteForce', 'marge', 'reference', 'marque', 'familleId'];
 
 /** Modification de champs (seuls les champs donnés changent) : `{ erreurs, patch, ecritures }`. */
-export function planMajArticle(id, patch, { articles = [], familles } = {}) {
+export function planMajArticle(id, patch, { articles = [], familles, reglages = {} } = {}) {
+  const mot = motOuvrage(reglages);
   const courant = (articles ?? []).find((a) => a.id === id);
   if (!courant) return { erreurs: { general: 'Article introuvable : recharge la page.' }, patch: {}, ecritures: [] };
   const donnes = Object.fromEntries(Object.entries(patch ?? {}).filter(([k]) => CHAMPS_MODIFIABLES.includes(k)));
@@ -340,7 +343,7 @@ export function planMajArticle(id, patch, { articles = [], familles } = {}) {
   const touchType = typeVise !== undefined;
   const quitteOuvrage = touchType && typeVise !== TYPE_OUVRAGE;
   const { composants: _c, prixVenteForce: _f, ...sansOuvrage } = courant;
-  const { valeurs, erreurs } = validerArticle(donnes, { articles, familles, courant: { ...(quitteOuvrage ? sansOuvrage : courant), id } });
+  const { valeurs, erreurs } = validerArticle(donnes, { articles, familles, reglages, courant: { ...(quitteOuvrage ? sansOuvrage : courant), id } });
   // Seules les erreurs des champs touchés bloquent (un ancien article sans prix ne bloque pas la correction de son libellé).
   const bloquantes = Object.fromEntries(Object.entries(erreurs).filter(([k]) => k in donnes || (touchType && (k === 'composants' || k === 'prixVenteForce'))));
   if (Object.keys(bloquantes).length) return { erreurs: bloquantes, patch: {}, ecritures: [] };
@@ -353,13 +356,13 @@ export function planMajArticle(id, patch, { articles = [], familles } = {}) {
   if (touchType) {
     if (valeurs.type === TYPE_OUVRAGE) {
       const dansUnOuvrage = (articles ?? []).find((a) => a.type === TYPE_OUVRAGE && (a.composants ?? []).some((c) => c.articleId === id));
-      if (dansUnOuvrage) return { erreurs: { type: `Cet article est un composant de l’ouvrage « ${dansUnOuvrage.libelle} » : un ouvrage ne peut pas en contenir un autre. Retire-le d’abord de cet ouvrage.` }, patch: {}, ecritures: [] };
+      if (dansUnOuvrage) return { erreurs: { type: `Cet article est un composant ${duMot(mot)} « ${dansUnOuvrage.libelle} » : ${mot.un} ${mot.singulier} ne peut pas en contenir ${mot.un === 'une' ? 'une autre' : 'un autre'}. Retire-le d’abord de ${mot.cet} ${mot.singulier}.` }, patch: {}, ecritures: [] };
       if (courant.prixAchat !== null && courant.prixAchat !== undefined) net.prixAchat = null;
     } else {
       if (courant.composants) net.composants = null;
       if (courant.prixVenteForce !== null && courant.prixVenteForce !== undefined) net.prixVenteForce = null;
       if (courant.type === TYPE_OUVRAGE && valeurs.type !== TYPE_TEXTE && !('prixAchat' in donnes)) {
-        return { erreurs: { prixAchat: 'Indique le prix d’achat en euros (exemple : 12,50) : cet article n’est plus un ouvrage.' }, patch: {}, ecritures: [] };
+        return { erreurs: { prixAchat: `Indique le prix d’achat en euros (exemple : 12,50) : cet article n’est plus ${mot.un} ${mot.singulier}.` }, patch: {}, ecritures: [] };
       }
     }
   }
@@ -385,7 +388,7 @@ export const articleUtilise = () => false;
 export function avecCalculOuvrage(articles, toutes, reglages) {
   const parId = articlesParId(toutes ?? articles);
   const r = reglagesDevis(reglages);
-  return (articles ?? []).map((a) => (a.type === TYPE_OUVRAGE ? { ...a, calcul: calculerOuvrage(a, parId, { marge: r.marge, modeMarge: r.modeMarge }) } : a));
+  return (articles ?? []).map((a) => (a.type === TYPE_OUVRAGE ? { ...a, calcul: calculerOuvrage(a, parId, { marge: r.marge, modeMarge: r.modeMarge, motOuvrage: reglages?.motOuvrage, motOuvrageAutre: reglages?.motOuvrageAutre }) } : a));
 }
 
 // ---------------------------------------------------------------- recherche, filtre, tri

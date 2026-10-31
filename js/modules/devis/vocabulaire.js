@@ -201,7 +201,7 @@ function scoreLibelle(motsCle, motsLibelle) {
 
 /** Prix de vente HT unitaire d'un article (réglages : { marge, modeMarge }) ; null si impossible. Jamais d'achat ni de marge dans la sortie. */
 function prixVenteHT(article, parId, reglages) {
-  const r = { marge: reglages?.marge, modeMarge: reglages?.modeMarge };
+  const r = { marge: reglages?.marge, modeMarge: reglages?.modeMarge, motOuvrage: reglages?.motOuvrage, motOuvrageAutre: reglages?.motOuvrageAutre };
   if (article.type === TYPE_OUVRAGE) return calculerOuvrage(article, parId, r).prixVenteHT;
   return prixVenteArticle(article, r);
 }

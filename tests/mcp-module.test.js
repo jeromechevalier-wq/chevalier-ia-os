@@ -22,7 +22,7 @@ describe('registre : le module « mcp »', () => {
     assert.ok(mcp);
     assert.equal(mcp.reserveAuxClients, undefined, 'plus réservé aux clients (18/10/2026)');
     assert.equal(mcp.horsMenu, true);
-    assert.equal(mcp.libelleMenu, 'Connecter mon assistant');
+    assert.equal(mcp.libelleMenu, 'Connecter mon IA');
     assert.deepEqual(mcp.ecrans.map((e) => e.route), ['mcp/infos']);
     assert.deepEqual([mcp.collections, mcp.outilsMcp, mcp.dependances], [[], [], []]);
     assert.ok(IDS_MODULES.includes('mcp'));
@@ -151,6 +151,23 @@ describe('plateforme : fonction, adresses, configuration, règles', () => {
     for (const f of ['gestionnaire.js', 'routeur-oauth.js', 'espaces.js', 'page.js']) {
       const t = lire(`functions/src/clients/${f}`).replace(/\/\/.*$/gm, '');
       assert.doesNotMatch(t, /req\.body\??\.(client|clientId|base)|searchParams\.get\(['"]client['"]\)|headers\[['"]x-client/i, f);
+    }
+  });
+});
+
+describe('B3 + C (31/10/2026) : « Ce que l’IA a appris » et « Connecter ton IA », sans « Vocabulaire » ni « assistant » à l’écran', () => {
+  // Texte visible seulement : on retire les commentaires de ligne et de bloc.
+  const sansCommentaires = (f) => lire(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  test('B3.1 B3.4 l’écran est déclaré « Ce que l’IA a appris » ; plus de « Vocabulaire » visible dans registre, liste des devis et écran', () => {
+    assert.match(lire('js/os/registre.js'), /route: 'devis\/vocabulaire', libelle: 'Ce que l’IA a appris'/);
+    for (const f of ['js/os/registre.js', 'js/modules/devis/liste-ecran.js', 'js/modules/devis/vocabulaire-ecran.js']) {
+      assert.doesNotMatch(sansCommentaires(f), /'Vocabulaire'|« Vocabulaire »|Exporter le vocabulaire/, f);
+    }
+  });
+  test('B3.5 C5 aucun « assistant » visible dans l’écran des mots appris, le module mcp, le shell, le registre et le déploiement (hors Charles)', () => {
+    for (const f of ['js/modules/devis/vocabulaire-ecran.js', 'js/modules/mcp/ecran.js', 'js/modules/mcp/index.js', 'js/os/registre.js', 'js/os/deploiement.js', 'js/os/shell.js']) {
+      const texte = sansCommentaires(f).replace('Charles, l’assistant IA, te salue', '');
+      assert.doesNotMatch(texte, /assistant/i, f);
     }
   });
 });

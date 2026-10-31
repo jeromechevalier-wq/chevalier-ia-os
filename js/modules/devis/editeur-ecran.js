@@ -856,6 +856,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     bibliotheque = ouvrirBibliotheque(racine, {
       articles: () => D.etat.articles,
       familles: () => D.etat.familles,
+      reglages: () => D.etat.reglages,
       prixAffiche: (a) => {
         if (a.type === A.TYPE_TEXTE) return '';
         const pv = Ed.prixVenteAffiche(travail, {}, Ed.ligneDepuisArticle(a, { id: 'essai', articles: D.etat.articles, devis: travail }));
@@ -1496,7 +1497,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       const ligne = Ed.ligneDepuisArticle(a, { id: 'essai', articles: D.etat.articles, devis: travail });
       const pv = a.type === A.TYPE_TEXTE ? null : Ed.prixVenteAffiche(travail, {}, ligne);
       return h('li', {}, h('button', { type: 'button', class: 'resultat-bordereau', dataset: { action: 'ajouter-article', articleId: a.id }, onclick: () => ajouterArticle(a) },
-        h('span', { class: 'resultat-nom' }, a.libelle, a.code ? h('span', { class: 'texte-discret' }, ` · ${a.code}`) : null, a.type ? h('span', { class: 'texte-discret' }, ` · ${A.libelleType(a.type)}`) : null),
+        h('span', { class: 'resultat-nom' }, a.libelle, a.code ? h('span', { class: 'texte-discret' }, ` · ${a.code}`) : null, a.type ? h('span', { class: 'texte-discret' }, ` · ${A.libelleType(a.type, D.etat.reglages)}`) : null),
         h('span', { class: 'resultat-prix' }, pv === null ? '' : `${euros(pv)} / ${a.unite || 'u'}`)));
     }));
     verrouiller(ref.resultats); // lecture seule : les résultats redessinés sont grisés aussi, un clic affiche le message
@@ -1619,7 +1620,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (ok !== true) return;
     const valeurs = editeur.valeurs();
     const ouvrage = { composants: valeurs.composants.map((c) => ({ articleId: c.articleId, quantite: c.quantite ?? 0 })), prixVenteForce: A.lireNombre(valeurs.prixVenteForce) ?? undefined };
-    const erreurs = O.erreursOuvrage(ouvrage, O.articlesParId(D.etat.articles));
+    const erreurs = O.erreursOuvrage(ouvrage, O.articlesParId(D.etat.articles), D.etat.reglages);
     if (erreurs.length) { toast(erreurs[0], { type: 'erreur', duree: 8000 }); return; }
     const nouvelle = Ed.ligneAvecComposants(trouve.ligne, ouvrage, { articles: D.etat.articles, devis: travail });
     appliquer(Ed.majElement(travail.sections, idLigne, { ouvrage: nouvelle.ouvrage, prixAchat: nouvelle.prixAchat, marge: nouvelle.marge, description: nouvelle.description }));
