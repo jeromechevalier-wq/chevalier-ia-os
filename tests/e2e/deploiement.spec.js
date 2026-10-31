@@ -104,10 +104,10 @@ test('3 une case rouge dit comment réparer, avec le lien exact (réglage de l�
   }
   await expect(ligne(page, 'dossier-drive').locator('[data-role="lien-reparation"]')).toHaveAttribute('href', /#\/reglages\/crm\/reglages-options$/);
   await expect(ligne(page, 'devis-entreprise').locator('[data-role="lien-reparation"]')).toHaveAttribute('href', /#\/reglages\/devis\/reglages-entreprise$/);
-  // 27/10/2026 : plus de ligne « API Gmail » ni « utilisateurs test de Gmail » (le navigateur ne parle plus à Gmail) ; « Préparer l'e-mail » dit qu'il est absent chez les clients.
+  // 27/10/2026 : plus de ligne « API Gmail » ni « utilisateurs test de Gmail » (le navigateur ne parle plus à Gmail) ; « Préparer l'e-mail » dit que l'administrateur publie la porte des workflows (31/10/2026).
   await expect(ligne(page, 'devis-gmail-api')).toHaveCount(0);
   await expect(ligne(page, 'devis-gmail-test')).toHaveCount(0);
-  await expect(ligne(page, 'devis-preparer-email').locator('[data-role="reparation"]')).toContainText('Absent chez les clients');
+  await expect(ligne(page, 'devis-preparer-email').locator('[data-role="reparation"]')).toContainText('publie la porte des workflows');
   await expect(resume(page)).toHaveAttribute('data-global', 'rouge');
   await ligne(page, 'devis-catalogue').scrollIntoViewIfNeeded();
   await capturer(page, info, '3-racine-rouge');

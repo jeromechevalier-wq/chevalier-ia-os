@@ -357,7 +357,8 @@ describe('D6 adresse stable du PDF par client', () => {
 describe('D7 branchement (lecture du code) : comptes, options, copie, secrets', () => {
   const lireFichier = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
   const index = lireFichier('functions-plateforme/src/index.js');
-  const section = index.slice(index.indexOf('PDF des devis chez les clients'));
+  // Jusqu'à la porte des workflows (qui, elle, déclare le secret n8n et est vérifiée dans porte-plateforme.test.js).
+  const section = index.slice(index.indexOf('PDF des devis chez les clients'), index.indexOf('La porte des workflows n8n des clients'));
   test('D7 index.js exporte devisPdf, devisPdfLien et devisPdfAuto, avec le compte dédié et les options attendues', () => {
     for (const nom of ['devisPdf', 'devisPdfLien', 'devisPdfAuto']) assert.match(index, new RegExp(`export const ${nom} = `));
     assert.match(section, /const COMPTE_PDF = 'devis-pdf@chevalier-ia-app\.iam\.gserviceaccount\.com'/);

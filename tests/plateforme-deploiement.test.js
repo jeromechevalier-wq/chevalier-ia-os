@@ -196,8 +196,10 @@ describe('firebase.plateforme.json : ce qui est publié sur chevalier-ia-app', (
     assert.ok(!json('firebase.json').functions.some((f) => f.source === 'functions-plateforme'), 'le CRM ne déploie jamais les fonctions de la plateforme');
     assert.ok(json('firebase.json').hosting.ignore.includes('functions-plateforme/**'), 'le site du CRM ne publie pas ce dossier');
     // Le MCP des clients (module « mcp ») : cinq réécritures, toutes vers le service « mcpclients » de Paris et vers aucun autre.
-    assert.deepEqual(fb.hosting.rewrites.map((r) => r.source), ['/espace/**', '/mcp/**', '/.well-known/oauth-protected-resource/mcp/**', '/.well-known/oauth-authorization-server/mcp/**', '/oauth/**']);
-    for (const r of fb.hosting.rewrites.slice(1)) assert.deepEqual(r.run, { serviceId: 'mcpclients', region: 'europe-west9' }, r.source);
+    assert.deepEqual(fb.hosting.rewrites.map((r) => r.source), ['/espace/**', '/mcp/**', '/.well-known/oauth-protected-resource/mcp/**', '/.well-known/oauth-authorization-server/mcp/**', '/oauth/**', '/porte']);
+    for (const r of fb.hosting.rewrites.slice(1).filter((x) => x.source !== '/porte')) assert.deepEqual(r.run, { serviceId: 'mcpclients', region: 'europe-west9' }, r.source);
+    // P6 : la porte des workflows n8n (fonction « porte », Paris), seule réécriture hors MCP.
+    assert.deepEqual(fb.hosting.rewrites.find((r) => r.source === '/porte').run, { serviceId: 'porte', region: 'europe-west9' });
     assert.ok(!JSON.stringify(fb.hosting.rewrites[0]).includes('"run"'));
     assert.deepEqual(fb.hosting.rewrites[0], json('firebase.json').hosting.rewrites.find((r) => r.source === '/espace/**'));
   });
@@ -227,7 +229,8 @@ describe('Workflow « Déploiement plateforme clients »', () => {
     assert.match(actif, /fonctions\) cible="functions:plateforme"/);
     assert.match(actif, /espace\)\s+cible="functions:plateforme:espaceReglages"/); // « Mon espace modifiable » seul : ni secret n8n ni Cloud Scheduler
     assert.match(actif, /mcp\)\s+cible="functions:plateforme:mcpclients"/); // le MCP des clients seul : aucun secret n'est nécessaire
-    assert.ok(!/functions(?!:plateforme|-plateforme)/.test(actif.replace(/inputs\.elements == '(fonctions|mcp|espace)'/g, '')), 'aucune autre mention de functions');
+    assert.match(actif, /porte\)\s+cible="functions:plateforme:porte"/); // P7 : la porte des workflows seule
+    assert.ok(!/functions(?!:plateforme|-plateforme)/.test(actif.replace(/inputs\.elements == '(fonctions|mcp|espace|porte)'/g, '')), 'aucune autre mention de functions');
     assert.ok(!/tout\)[^\n]*functions/.test(actif));
   });
   test('construit le paquet avant de publier ; choix « hosting » par défaut ; droits minimaux ; pas d\'injection', () => {
@@ -235,7 +238,7 @@ describe('Workflow « Déploiement plateforme clients »', () => {
     assert.ok(actif.indexOf('plateforme-deploiement.test.js') < actif.indexOf('firebase-tools'));
     assert.match(actif, /default: hosting/);
     assert.match(actif, /permissions:\s*\n\s+contents: read/);
-    assert.ok(!/\$\{\{\s*inputs\./.test(actif.replace(/ELEMENTS: \$\{\{ inputs\.elements \}\}/, '').replace(/if: \$\{\{ inputs\.elements == 'fonctions' \|\| inputs\.elements == 'mcp' \|\| inputs\.elements == 'espace' \}\}/, '')), 'le choix passe par une variable d\'environnement (seul un « if » de comparaison fait exception)');
+    assert.ok(!/\$\{\{\s*inputs\./.test(actif.replace(/ELEMENTS: \$\{\{ inputs\.elements \}\}/, '').replace(/if: \$\{\{ inputs\.elements == 'fonctions' \|\| inputs\.elements == 'mcp' \|\| inputs\.elements == 'espace' \|\| inputs\.elements == 'porte' \}\}/, '')), 'le choix passe par une variable d\'environnement (seul un « if » de comparaison fait exception)');
   });
   test('le secret n\'est écrit que dans un fichier temporaire protégé, supprimé à la fin, et jamais affiché', () => {
     assert.match(actif, /umask 077/);

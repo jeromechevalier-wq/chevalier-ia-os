@@ -56,6 +56,13 @@
           "serviceId": "mcpclients",
           "region": "europe-west9"
         }
+      },
+      {
+        "source": "/porte",
+        "run": {
+          "serviceId": "porte",
+          "region": "europe-west9"
+        }
       }
     ],
     "headers": [
