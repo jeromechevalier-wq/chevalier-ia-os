@@ -432,7 +432,7 @@ describe('V8 déterminisme et pureté', () => {
     const source = lire('js/modules/devis/vocabulaire.js');
     assert.ok(!/new Date|Date\.now|Math\.random|fetch\(|firebase|process\.|window\.|document\./.test(source));
     const imports = [...source.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
-    assert.deepEqual(imports.sort(), ['../crm/logique.js', './ouvrages.js']);
+    assert.deepEqual(imports.sort(), ['../crm/logique.js', './familles.js', './ouvrages.js']); // familles.js : le contexte d'une famille (PR C6a) ; il n'importe rien lui-même
   });
   test('V8 tous les seuils sont dans une seule constante SEUILS (aucun 0,85 ni 0,15 ailleurs)', () => {
     const source = lire('js/modules/devis/vocabulaire.js').split('\n').filter((l) => !/^\s*\/\/|^\s*\/\*\*|^\s*\*/.test(l) && !/^\s+[a-zA-Z]+: [\d.]+,/.test(l)).join('\n');
@@ -504,12 +504,13 @@ describe('V10 copie vers le serveur et chez les clients', () => {
     assert.ok(script.includes("join(destination, 'devis-vocabulaire.js')"), 'la copie functions/partage/devis-vocabulaire.js est écrite');
     assert.ok(/'devis-vocabulaire\.js', 'registre\.js'/.test(script), 'la copie est dans la liste de la plateforme clients (avant propositions.js)');
     assert.ok(script.includes(`.replaceAll("from './ouvrages.js'", "from './devis-ouvrages.js'")`));
+    assert.ok(script.includes(`.replaceAll("from './familles.js'", "from './devis-familles.js'")`), 'l’import des familles est réécrit (sinon le serveur des clients ne charge plus)');
     assert.ok(/'propositions\.js'\]/.test(script), 'propositions.js reste le dernier de la liste');
   });
   test('V10 si la copie existe (après `npm run preparer`), elle est la source avec les imports réécrits', () => {
     const copie = fileURLToPath(new URL('../functions/partage/devis-vocabulaire.js', import.meta.url));
     if (!existsSync(copie)) return; // test:logique ne lance pas `npm run preparer`
-    const attendu = lire('js/modules/devis/vocabulaire.js').replaceAll("from './ouvrages.js'", "from './devis-ouvrages.js'").replaceAll("from '../crm/logique.js'", "from './logique.js'");
+    const attendu = lire('js/modules/devis/vocabulaire.js').replaceAll("from './ouvrages.js'", "from './devis-ouvrages.js'").replaceAll("from './familles.js'", "from './devis-familles.js'").replaceAll("from '../crm/logique.js'", "from './logique.js'");
     assert.equal(readFileSync(copie, 'utf8'), attendu);
     const plateforme = fileURLToPath(new URL('../functions-plateforme/serveur/partage/devis-vocabulaire.js', import.meta.url));
     if (existsSync(plateforme)) assert.equal(readFileSync(plateforme, 'utf8'), attendu);

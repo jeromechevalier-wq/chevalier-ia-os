@@ -37,10 +37,11 @@ writeFileSync(join(destination, 'devis-articles.js'), devisArticles.replaceAll("
 // Le document imprimable du devis (document.js) n'importe que les calculs du Devis : copie devis-document.js, utilisée par la fonction devisPdf.
 writeFileSync(join(destination, 'devis-document.js'), readFileSync(join(racine, 'js', 'modules', 'devis', 'document.js'), 'utf8').replaceAll("from './logique.js'", "from './devis.js'"));
 console.log('functions/partage/devis.js, devis-ouvrages.js et devis-articles.js mis à jour (copies de js/modules/devis/, imports réécrits)');
-// Dictionnaire de vocabulaire (vocabulaire.js, fichier pur) : le moteur qui relie les mots du client à ses articles. Il importe seulement ouvrages.js et le CRM (même réécriture que articles.js).
+// Dictionnaire de vocabulaire (vocabulaire.js, fichier pur) : le moteur qui relie les mots du client à ses articles. Il importe seulement ouvrages.js, familles.js (copié sous devis-familles.js) et le CRM (même réécriture que articles.js).
+// SANS la réécriture de './familles.js', l'import casserait au chargement du serveur chez les clients et tous les outils tomberaient : le test K13 charge la copie préparée.
 const devisVocabulaire = readFileSync(join(racine, 'js', 'modules', 'devis', 'vocabulaire.js'), 'utf8');
 if (!devisVocabulaire.includes(IMPORT_CRM)) throw new Error('js/modules/devis/vocabulaire.js : import du CRM introuvable');
-writeFileSync(join(destination, 'devis-vocabulaire.js'), devisVocabulaire.replaceAll("from './logique.js'", "from './devis.js'").replaceAll("from './ouvrages.js'", "from './devis-ouvrages.js'").replaceAll(IMPORT_CRM, "from './logique.js'"));
+writeFileSync(join(destination, 'devis-vocabulaire.js'), devisVocabulaire.replaceAll("from './logique.js'", "from './devis.js'").replaceAll("from './ouvrages.js'", "from './devis-ouvrages.js'").replaceAll("from './familles.js'", "from './devis-familles.js'").replaceAll(IMPORT_CRM, "from './logique.js'"));
 console.log('functions/partage/devis-vocabulaire.js mis à jour (copie de js/modules/devis/vocabulaire.js, imports réécrits)');
 // Résolveur de numéros du devis (numeros-lignes.js, fichier pur) : « 1.2 » -> la ligne visée, avec la garde « attendu » (moteur du dictionnaire). Imports : ./logique.js -> ./devis.js, ./vocabulaire.js -> ./devis-vocabulaire.js.
 const devisNumeros = readFileSync(join(racine, 'js', 'modules', 'devis', 'numeros-lignes.js'), 'utf8');

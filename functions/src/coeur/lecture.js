@@ -309,17 +309,24 @@ export async function chercherArticle(donnees, { texte, limite }) {
   return serialiser({ total, tronque, articles: DA.avecCalculOuvrage(elements, toutes, reglages).map((a) => avecTypeAffiche(a, mot)) });
 }
 
+/** Les familles de l'espace pour le dictionnaire (document absent ou illisible = les familles de départ) : un document de plus, lu en parallèle des autres. */
+export async function famillesLues(donnees) {
+  let brut = null;
+  try { brut = await donnees.document(C.devisParametres, DF.ID_DOCUMENT_FAMILLES); } catch { brut = null; }
+  return DF.famillesDe(brut);
+}
+
 /**
  * Les mots de l'utilisateur -> l'article du bordereau (moteur partagé `interpreter`, le même chez Jérôme et chez les clients).
  * Règles lues dans `devis_vocabulaire` de l'espace (absente ou vide = décisions fondées sur le catalogue seul). Jamais de prix d'achat ni de marge dans la sortie.
  * `limite` tronque les candidats APRÈS la décision (sinon la décision changerait avec `limite`), sans descendre sous les articles cités par la question.
  */
 export async function rechercherArticleParPhrase(donnees, { phrase, limite }) {
-  const [articles, regles, reglages, usages] = await Promise.all([donnees.liste(C.devisArticles), donnees.liste(C.devisVocabulaire), reglagesDevis(donnees), lireUsages(donnees)]);
-  const r = DV.interpreter(phrase, { regles, articles, reglages, usages }); // l'usage ne sert qu'à départager deux candidats de même score
+  const [articles, regles, reglages, usages, familles] = await Promise.all([donnees.liste(C.devisArticles), donnees.liste(C.devisVocabulaire), reglagesDevis(donnees), lireUsages(donnees), famillesLues(donnees)]);
+  const r = DV.interpreter(phrase, { regles, articles, reglages, usages, familles }); // l'usage ne sert qu'à départager deux candidats de même score
   // Jamais moins de candidats que d'articles cités par la question (sinon l'assistant lirait un article absent de la liste).
   // Une question de précision ne cite aucun article : le serveur ne renvoie que la question (l'assistant rappelle l'outil avec le mot choisi). `candidats` du moteur garde les 5 premiers : `enregistrer_reponse_vocabulaire` recalcule et s'en sert.
-  const precision = r.etape === 'precision';
+  const precision = r.etape === 'precision' || r.etape === 'famille'; // une question de famille ne cite pas d'article non plus : elle nomme les familles
   const cites = r.decision === 'proposer' && !precision ? Math.min(DV.SEUILS.maxChoixQuestion, r.candidats.filter((c) => c.score >= DV.SEUILS.proposer).length) : 0;
   const mot = DA.motOuvrage(reglages);
   const typeDe = new Map(articles.map((a) => [a.id, a.type]));

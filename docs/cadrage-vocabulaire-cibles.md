@@ -63,7 +63,7 @@ cibles: [ { genre: 'article' | 'famille', id: '<articleId ou familleId>', libell
 
 ### 2.3 Le moteur (`vocabulaire.js`, toujours pur, sans IA, testé avec `node --test`)
 
-**Entrées** : `interpreter(phrase, { regles, articles, reglages, familles })` ; `familles` est nouveau et facultatif : **absent (`undefined` ou `null`) = `famillesDe(null)`, les familles de départ** ; l'appelant ne passe jamais `[]` (une liste vide rendrait toute famille « introuvable » et les mots à famille seraient sautés). Le moteur importe `./familles.js` (pur, sans import) : le test V8 sur la liste des imports change **exprès**, et le script `preparer-fonctions.js` réécrit cet import (`from './familles.js'` vers `'./devis-familles.js'`, ligne 43) dans la même PR.
+**Entrées** : `interpreter(phrase, { regles, articles, reglages, familles })` ; `familles` est nouveau et facultatif : **absent (`undefined` ou `null`) = `famillesDe(null)`, les familles de départ** ; l'appelant ne passe jamais `[]` (une liste vide rendrait toute famille « introuvable » et les mots à famille seraient sautés ; le moteur traite d'ailleurs `[]` comme les familles de départ). Le moteur importe `./familles.js` (pur, sans import) : le test V8 sur la liste des imports change **exprès**, et le script `preparer-fonctions.js` réécrit cet import (`from './familles.js'` vers `'./devis-familles.js'`, ligne 43) dans la même PR.
 
 **Ce qui ne change pas.** `analyserPhrase` (quantité, prix, mots vides, pluriels), les mots à **une seule cible article** (leur chemin dans `chercherCandidats` est celui d'aujourd'hui, mot pour mot), les seuils de `utiliser` / `proposer`, la règle « un libellé seul plafonne à 0,80 ». Un test de non-régression rejoue le jeu d'essai V1 à V9 à l'identique.
 
@@ -105,7 +105,7 @@ cibles: [ { genre: 'article' | 'famille', id: '<articleId ou familleId>', libell
 
 Cette règle s'applique **aussi hors contexte** (aujourd'hui la question cite 3 articles pris par ordre alphabétique parmi un nombre quelconque). Les phrases dont la réponse change sont celles qui ont 5 candidats ou plus dans le groupe ; la PR liste celles du jeu d'essai. **Le test V6** (`tests/devis-vocabulaire.test.js` 348-353 : huit « Vis modèle 0..7 », phrase « vis », la question cite 3 articles) **change exprès** : c'est le cas des nombres, la question deviendrait « 0, 1 ou 2 ? ».
 
-**Scores et ordre.** Départage : score, puis **usage** (nombre d'utilisations en devis finalisé, section 2.9, si le compteur est fourni au moteur), puis libellé, puis identifiant. Le compteur ne change **jamais un score ni une décision**, seulement l'ordre de deux candidats ex æquo (`comparateur`, ligne 203).
+**Scores et ordre.** Départage : score, puis **le contexte** (ce que l'humain a désigné passe avant un simple libellé), puis **usage** (nombre d'utilisations en devis finalisé, section 2.9, si le compteur est fourni au moteur), puis libellé, puis identifiant. Le compteur ne change **jamais un score ni une décision**, seulement l'ordre de deux candidats ex æquo (`comparateur`, ligne 203).
 
 **Ambiguïté résiduelle (les trois sorties possibles).**
 - *Un seul candidat net* → une question à un choix (oui/non).

@@ -5,6 +5,7 @@
 // L'écran (prévisualisation d'une règle) et le serveur (outils de l'assistant) exécutent ce même code. Jamais de prix d'achat ni de marge dans la sortie.
 import { normaliser, ajouterMois } from '../crm/logique.js';
 import { prixVenteArticle, calculerOuvrage, articlesParId, TYPE_OUVRAGE, motOuvrage } from './ouvrages.js';
+import { familleEffective, idsAvecSousFamilles, famillesDe, cheminFamille } from './familles.js';
 
 // ---------------------------------------------------------------- constantes (TOUS les seuils sont ici, et seulement ici)
 export const SEUILS = Object.freeze({
@@ -22,6 +23,7 @@ export const SEUILS = Object.freeze({
   contexteUnique: 0.80, // le seul article de la portée qui contient le reste de la phrase
   contextePlusieurs: 0.65, // plusieurs articles de la portée contiennent le reste
   cibleAuChoix: 0.70, // le reste est vide : un des articles choisis par l'humain
+  familleSansReste: 0.60, // le reste est vide et l'article vient d'une FAMILLE (« prise » = les prises) : proposé, jamais utilisé
   libelleBase: 0.80, // × (mots de la clé ÷ mots du libellé)
   libellePlancher: 0.60,
   proche: 0.90, // facteur appliqué quand un mot n'est présent qu'à une faute de frappe près
@@ -223,6 +225,8 @@ export function suggestionEnAttente(regle) {
 }
 
 // ---------------------------------------------------------------- étapes 3 et 4
+const POURQUOI_CONTEXTE = new Set(['contexte_unique', 'contexte_plusieurs', 'cible_au_choix', 'contexte_famille']);
+
 /** Nombre d'utilisations d'un article (devis finalisés) d'après `usages` (Map articleId -> { nombre } côté serveur, ou articleId -> nombre côté écran) ; absent ou illisible = 0. */
 const usageDe = (usages, articleId) => {
   const v = usages instanceof Map ? usages.get(articleId) : undefined;
@@ -230,26 +234,52 @@ const usageDe = (usages, articleId) => {
   return Number.isInteger(n) && n > 0 ? n : 0;
 };
 /**
- * Ordre des candidats : score, puis USAGE (le plus utilisé d'abord, seulement pour départager deux scores égaux : jamais un score ni une décision), puis libellé, puis identifiant.
+ * Ordre des candidats : score, puis CONTEXTE (ce que l'humain a désigné passe avant un simple libellé qui contient le mot), puis USAGE (le plus utilisé d'abord, seulement pour départager deux scores égaux : jamais un score ni une décision), puis libellé, puis identifiant.
  * Sans `usages`, l'ordre est exactement celui d'avant le compteur.
  */
 const comparateurPar = (usages) => (a, b) => (b.score - a.score)
+  || (Number(POURQUOI_CONTEXTE.has(b.pourquoi)) - Number(POURQUOI_CONTEXTE.has(a.pourquoi))) // à score égal, ce que l'humain a désigné passe avant un simple libellé qui contient le mot
   || (usageDe(usages, b.articleId) - usageDe(usages, a.articleId))
   || normaliser(a.libelle).localeCompare(normaliser(b.libelle), 'fr')
   || String(a.articleId).localeCompare(String(b.articleId));
 
 const articlesActifsParId = (articles) => new Map((articles ?? []).filter(actif).map((a) => [a.id, a]));
-const POURQUOI_CONTEXTE = new Set(['contexte_unique', 'contexte_plusieurs', 'cible_au_choix']);
 
-/** Un MARQUEUR est un mot actif, sans conflit ni suggestion en attente, qui désigne au moins DEUX articles (jamais un mot à un seul article : il garde son rôle d'avant). */
-const estMarqueur = (regle) => regle?.cle && regle.statut === 'active' && regle.conflit !== true && suggestionEnAttente(regle) === null && articlesDesignes(regle).length >= 2;
+/** Un MARQUEUR est un mot actif, sans conflit ni suggestion en attente, qui désigne au moins DEUX articles ou une FAMILLE (jamais un mot à un seul article : il garde son rôle d'avant). */
+const estMarqueur = (regle) => regle?.cle && regle.statut === 'active' && regle.conflit !== true && suggestionEnAttente(regle) === null
+  && (articlesDesignes(regle).length >= 2 || ciblesDe(regle).some((c) => c.genre === 'famille'));
+
+/**
+ * Ce qu'un marqueur désigne, vivant : `{ ids, directs, familles }`. Un article choisi compte s'il est actif ; une FAMILLE est une cible vivante : elle se résout À L'INSTANT de la recherche en tous les articles
+ * actifs dont `familleEffective(article)` est la famille ou une de ses sous-familles (un article ajouté demain y est inclus ; un article déplacé ou désactivé en sort). Famille désactivée ou
+ * introuvable = cible morte, ignorée ; famille sans article = cible vivante sans article, ignorée aussi. `directs` : les articles choisis un à un ; `familles` : les familles vivantes qui ont au moins un article.
+ */
+function designeVivant(regle, parId, lesFamilles) {
+  const ids = new Set();
+  const directs = new Set();
+  const familles = [];
+  for (const c of ciblesDe(regle)) {
+    if (c.genre === 'article') {
+      if (parId.has(c.id)) { ids.add(c.id); directs.add(c.id); }
+      continue;
+    }
+    const f = lesFamilles.find((x) => x.id === c.id);
+    if (!f || f.actif === false) continue;
+    const dans = new Set(idsAvecSousFamilles(lesFamilles, f.id));
+    const articlesDe = [...parId.values()].filter((a) => dans.has(familleEffective(a)));
+    articlesDe.forEach((a) => ids.add(a.id));
+    if (articlesDe.length) familles.push(f);
+  }
+  return { ids, directs, familles };
+}
 
 /**
  * Le contexte d'une phrase : les marqueurs qu'elle contient (suite de mots contiguë et dans l'ordre de la clé ; les plus longs d'abord, puis le plus à gauche, sans chevauchement),
- * la PORTÉE (articles actifs désignés : l'union pour un marqueur, l'intersection pour plusieurs ; intersection vide = pas de contexte) et le RESTE (les mots hors marqueurs, dans n'importe quel ordre).
- * `{ marqueurs: [clé], portee: [articleId], reste: [mot], regleId, cibles }` ou null. `parId` : les articles ACTIFS par identifiant.
+ * la PORTÉE (articles actifs désignés, familles comprises : l'union pour un marqueur, l'intersection pour plusieurs ; vide = pas de contexte) et le RESTE (les mots hors marqueurs, dans n'importe quel ordre).
+ * `{ marqueurs: [clé], portee: [articleId], directs: [articleId], reste: [mot], regleId, cibles, famillesAChoisir }` ou null. `parId` : les articles ACTIFS par identifiant ; `lesFamilles` : la liste des familles.
+ * `famillesAChoisir` : pour UN seul marqueur qui désigne deux familles (sans lien de parenté) ou plus, AUCUN article choisi un à un et un reste vide, les familles entre lesquelles il faut choisir (avec un article choisi à côté, la question habituelle propose l'article et les articles des familles).
  */
-function contexteDe(mots, regles, parId) {
+function contexteDe(mots, regles, parId, lesFamilles) {
   if (!mots?.length) return null;
   const trouves = [];
   for (const regle of (regles ?? []).filter(estMarqueur)) {
@@ -265,23 +295,33 @@ function contexteDe(mots, regles, parId) {
     const place = Array.from({ length: t.n }, (_, j) => t.i + j);
     if (place.some((j) => pris.has(j))) continue;
     place.forEach((j) => pris.add(j));
-    gardes.push(t);
+    gardes.push({ ...t, place });
   }
+  // Un marqueur MORT (famille vide, désactivée ou supprimée, articles désactivés) est sauté comme avant : il ne vide pas l'intersection des autres, et ses mots retournent au reste.
+  const vivantsBruts = gardes.map((t) => designeVivant(t.regle, parId, lesFamilles));
+  const gardesVivantes = gardes.filter((_, i) => vivantsBruts[i].ids.size > 0);
+  const vivants = vivantsBruts.filter((v) => v.ids.size > 0);
+  if (gardesVivantes.length !== gardes.length) { pris.clear(); gardesVivantes.forEach((t) => t.place.forEach((j) => pris.add(j))); }
+  gardes.length = 0; gardes.push(...gardesVivantes);
   if (!gardes.length) return null;
-  const portees = gardes.map((t) => new Set(articlesDesignes(t.regle).filter((id) => parId.has(id))));
-  const commun = [...portees[0]].filter((id) => portees.every((p) => p.has(id)));
+  const commun = [...vivants[0].ids].filter((id) => vivants.every((v) => v.ids.has(id)));
   if (!commun.length) return null; // aucun article vivant en commun : on retombe sur le moteur d'avant
   const premier = gardes[0].regle;
+  const reste = mots.filter((_, j) => !pris.has(j));
+  // Deux familles ou plus (la même famille avec sa sous-famille compte pour une) pour UN marqueur et rien d'autre à chercher : c'est à l'utilisateur de dire laquelle.
+  const racines = vivants[0].familles.filter((f) => !vivants[0].familles.some((g) => g !== f && f.parentId === g.id));
   return {
     marqueurs: gardes.map((t) => t.regle.cle),
     portee: commun.sort(),
-    reste: mots.filter((_, j) => !pris.has(j)),
+    directs: [...new Set(vivants.flatMap((v) => [...v.directs]))],
+    reste,
     regleId: premier.id ?? identifiantDeRegle(premier.cle),
     cibles: gardes.flatMap((t) => ciblesDe(t.regle)),
+    famillesAChoisir: gardes.length === 1 && !reste.length && racines.length >= 2 && !vivants[0].directs.size ? racines.map((f) => ({ id: f.id, nom: f.nom, chemin: cheminFamille(lesFamilles, f.id) || f.nom })) : [],
   };
 }
 
-function chercherCandidats(cle, mots, { regles, articles, usages }) {
+function chercherCandidats(cle, mots, { regles, articles, usages, familles }) {
   const parArticle = new Map();
   const plafonnes = new Set(); // articles d'un mot validé avec suggestion en attente : jamais au-dessus de 0,50, même si leur libellé colle à la phrase
   const garder = (article, score, pourquoi, regleId = null) => {
@@ -317,11 +357,12 @@ function chercherCandidats(cle, mots, { regles, articles, usages }) {
     }
   }
   // Contexte (mots à plusieurs articles) : « prise » désigne trois prises, « étanche » est cherché SEULEMENT parmi elles. Aucun score ici n'atteint `utiliser`.
-  const contexte = contexteDe(mots, regles, parId);
+  const contexte = contexteDe(mots, regles, parId, familles);
   if (contexte) {
     const portee = contexte.portee.map((id) => parId.get(id));
     if (!contexte.reste.length) {
-      for (const a of portee) garder(a, SEUILS.cibleAuChoix, 'cible_au_choix', contexte.regleId);
+      // Un article choisi un à un : 0,70 ; un article qui ne vient que d'une famille : 0,60.
+      for (const a of portee) garder(a, contexte.directs.includes(a.id) ? SEUILS.cibleAuChoix : SEUILS.familleSansReste, contexte.directs.includes(a.id) ? 'cible_au_choix' : 'contexte_famille', contexte.regleId);
     } else {
       const trouves = portee.map((a) => [a, scoreLibelle(contexte.reste, motsDe(a.libelle ?? ''))]).filter(([, s]) => s);
       for (const [a] of trouves) garder(a, trouves.length === 1 ? SEUILS.contexteUnique : SEUILS.contextePlusieurs, trouves.length === 1 ? 'contexte_unique' : 'contexte_plusieurs', contexte.regleId);
@@ -342,8 +383,8 @@ function chercherCandidats(cle, mots, { regles, articles, usages }) {
  * Les candidats de la phrase entière restent là (un article dont le libellé commence par « Ensemble » reste trouvé) ; ceux des ouvrages s'y ajoutent, au meilleur score.
  * Aucune règle du dictionnaire n'est créée pour ce mot. Sans mot dans la phrase, ou sans reste après lui : rien ne change.
  */
-function chercherAvecSynonyme(cle, mots, { regles, articles, reglages, usages }) {
-  const classes = chercherCandidats(cle, mots, { regles, articles, usages });
+function chercherAvecSynonyme(cle, mots, { regles, articles, reglages, usages, familles }) {
+  const classes = chercherCandidats(cle, mots, { regles, articles, usages, familles });
   if (!mots.length) return classes; // `reglages` absent (document pas encore écrit) : le mot par défaut s'applique, comme à l'écran
   const m = motOuvrage(reglages);
   for (const forme of [m.singulier, m.pluriel]) {
@@ -440,27 +481,40 @@ function questionPrecision(groupe, { motsPhrase = [], usages } = {}) {
 }
 
 /**
- * `interpreter(phrase, { regles, articles, reglages, usages })` (`usages` facultatif : Map articleId -> { nombre }, départage seulement deux scores égaux) -> `{ cle, quantite, prixVente, quantiteIncertaine, prixIncertain, candidats, decision, question }`.
+ * `interpreter(phrase, { regles, articles, reglages, usages, familles })` (`familles` : la liste des familles ; absente = les familles de départ) (`usages` facultatif : Map articleId -> { nombre }, départage seulement deux scores égaux) -> `{ cle, quantite, prixVente, quantiteIncertaine, prixIncertain, candidats, decision, question }`.
  * `regles` : règles du dictionnaire ({ id?, cle, articleId, statut, conflit }) ; `articles` : le catalogue (un article désactivé n'est jamais candidat) ; `reglages` : { marge, modeMarge }.
- * Un candidat : { articleId, libelle, unite, prixVenteHT, score, pourquoi, regleId }. Au plus 5. Départage stable : score, usage (si fourni), libellé, identifiant.
+ * Un candidat : { articleId, libelle, unite, prixVenteHT, score, pourquoi, regleId }. Au plus 5. Départage stable : score, contexte (ce que l'humain a désigné) avant un simple libellé, usage (si fourni), libellé, identifiant.
  */
-export function interpreter(phrase, { regles = [], articles = [], reglages, usages } = {}) {
+export function interpreter(phrase, { regles = [], articles = [], reglages, usages, familles } = {}) {
+  // `familles` absent (ou liste vide) = les familles de départ : une liste vide rendrait toute famille « introuvable ».
+  const lesFamilles = Array.isArray(familles) && familles.length ? familles : famillesDe(null);
   const analyse = analyserPhrase(phrase);
   const { mots } = analyse;
   let { cle, quantite } = analyse;
   const { prixVente } = analyse;
-  let classes = chercherAvecSynonyme(cle, mots, { regles, articles, reglages, usages });
+  let classes = chercherAvecSynonyme(cle, mots, { regles, articles, reglages, usages, familles: lesFamilles });
   const prixIncertain = analyse.prixSansDevise;
   let quantiteIncertaine = false;
   if (analyse.quantiteEnFin) {
     // Le nombre de fin (« disjoncteur 32 », « prise double 16 ») est peut-être un mot du libellé : on le remet dans la clé si cela donne un candidat (quantité 1).
     const motsAvecNombre = [...mots, analyse.nombreFin];
-    const avecNombre = chercherAvecSynonyme(motsAvecNombre.join(' '), motsAvecNombre, { regles, articles, reglages, usages });
+    const avecNombre = chercherAvecSynonyme(motsAvecNombre.join(' '), motsAvecNombre, { regles, articles, reglages, usages, familles: lesFamilles });
     if (avecNombre[0]?.score >= SEUILS.proposer) { classes = avecNombre; cle = motsAvecNombre.join(' '); quantite = 1; } else quantiteIncertaine = true;
   }
   const motsFinaux = cle === analyse.cle ? mots : [...mots, analyse.nombreFin]; // la clé finale peut avoir repris le nombre de fin
-  const contexteFinal = contexteDe(motsFinaux, regles, articlesActifsParId(articles));
+  const contexteFinal = contexteDe(motsFinaux, regles, articlesActifsParId(articles), lesFamilles);
   const [premier, second] = classes;
+  const porteeDe = (c) => ({ marqueurs: c.marqueurs, cibles: c.cibles, nombreArticles: c.portee.length, reste: c.reste });
+  // Un mot qui désigne DEUX familles ou plus (« tableau » = tableaux électriques et tableaux de communication), sans rien d'autre à chercher : la décision est FORCÉE avant le calcul habituel
+  // (qui rendrait `proposer` dès qu'un score atteint 0,50). La question nomme les FAMILLES, pas leurs articles ; l'assistant rappelle l'outil avec la phrase complétée. Un libellé ou un code exact l'emporte.
+  if (contexteFinal?.famillesAChoisir.length && (!premier || POURQUOI_CONTEXTE.has(premier.pourquoi))) {
+    const noms = contexteFinal.famillesAChoisir.map((f) => `« ${f.chemin} »`);
+    return {
+      cle, quantite, prixVente, quantiteIncertaine, prixIncertain, candidats: [], decision: 'demander', etape: 'famille', autres: 0, portee: porteeDe(contexteFinal), precision: null,
+      choixFamilles: contexteFinal.famillesAChoisir.map(({ id, chemin }) => ({ id, chemin })),
+      question: `Tu parles de ${noms.slice(0, -1).join(', de ')} ou de ${noms[noms.length - 1]} ?`,
+    };
+  }
   let decision = 'demander';
   if (premier && premier.score >= SEUILS.proposer) {
     // Un mot validé avec une suggestion en attente sur cette clé n'est jamais appliqué sans question, même si un troisième article colle au libellé.
@@ -485,11 +539,9 @@ export function interpreter(phrase, { regles = [], articles = [], reglages, usag
   const autres = decision === 'proposer' && !precision ? Math.max(0, (duContexte ? groupe : classes.filter((c) => c.score >= SEUILS.proposer)).length - choix.length) : 0;
   const devine = { quantite: quantiteIncertaine ? quantite : null, prix: prixIncertain ? prixVente : null };
   // `portee` n'est rendue que si un candidat vient du contexte (un libellé exact qui l'emporte ailleurs : pas de portée).
-  const portee = contexteFinal && classes.some((c) => POURQUOI_CONTEXTE.has(c.pourquoi))
-    ? { marqueurs: contexteFinal.marqueurs, cibles: contexteFinal.cibles, nombreArticles: contexteFinal.portee.length, reste: contexteFinal.reste }
-    : null;
+  const portee = contexteFinal && classes.some((c) => POURQUOI_CONTEXTE.has(c.pourquoi)) ? porteeDe(contexteFinal) : null;
   return {
-    cle, quantite, prixVente, quantiteIncertaine, prixIncertain, candidats, decision, etape, autres, portee,
+    cle, quantite, prixVente, quantiteIncertaine, prixIncertain, candidats, decision, etape, autres, portee, choixFamilles: [],
     precision: precision ? { mots: precision.mots, nombreArticles: precision.nombreArticles, autreChose: precision.autreChose } : null,
     question: precision ? precision.question : formulerQuestion(decision, cle, choix, devine, autres),
   };

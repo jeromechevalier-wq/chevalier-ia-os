@@ -231,3 +231,21 @@ test('C5b.12 « Ajouter un mot appris » avec un mot qui existe déjà et désig
   await expect(dialogue(page)).toContainText('Changer ce que le mot désigne');
   await expect(puces(page)).toHaveCount(3);
 });
+
+test('C6a.1 « Essayer une phrase » comprend un mot qui désigne une FAMILLE (même moteur que le serveur) : « prise étanche » trouve la prise étanche dans la famille « Prises », et « tableau » (deux familles) demande de quelle famille on parle', async ({ page }, info) => {
+  await ecrireDocument('devis_parametres/familles', { liste: [{ id: 'f-prises', nom: 'Prises', actif: true, parentId: 'famille-1' }, { id: 'f-tab-elec', nom: 'Tableaux électriques', actif: true, parentId: 'famille-1' }, { id: 'f-tab-com', nom: 'Tableaux de communication', actif: true, parentId: 'famille-1' }] });
+  await article('p1', 'Prise simple 16 A', { familleId: 'f-prises' });
+  await article('p3', 'Prise étanche 16 A', { familleId: 'f-prises' });
+  await article('t1', 'Tableau électrique 2 rangées', { familleId: 'f-tab-elec' });
+  await article('c1', 'Tableau de communication 6 prises', { familleId: 'f-tab-com' });
+  const famille = (id, liste) => mot(id, { articleId: '', articleLibelle: '', cibles: liste.map((f) => ({ genre: 'famille', id: f, libelle: '' })) });
+  await famille('prise', ['f-prises']);
+  await famille('tableau', ['f-tab-elec', 'f-tab-com']);
+  await ouvrir(page);
+  await page.locator('[data-champ="essai"]').fill('une prise étanche');
+  await expect(page.locator('[data-role="essai-portee"]')).toContainText('« prise » désigne 2 articles au choix et je cherche « etanche » parmi eux.');
+  await expect(page.locator('[data-role="essai-decision"]')).toContainText('C’est bien « Prise étanche 16 A » ?');
+  await page.locator('[data-champ="essai"]').fill('un tableau');
+  await expect(page.locator('[data-role="essai-decision"]')).toContainText('Tu parles de « Fournitures › Tableaux électriques » ou de « Fournitures › Tableaux de communication » ?');
+  await capturer(page, info, 'C6a-1-question-de-famille');
+});
