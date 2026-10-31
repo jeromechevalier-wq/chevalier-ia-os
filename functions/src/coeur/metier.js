@@ -731,11 +731,18 @@ export async function enregistrerReponseVocabulaire(c, args) {
   const r = DV.interpreter(phrase, { regles, articles, reglages, usages });
   const regleId = DV.identifiantDeRegle(r.cle);
   if (!regleId) refuser('saisie_invalide', 'Aucun mot à retenir dans cette phrase (elle ne contient que des mots vides ou des nombres).');
+  // Un mot qui désigne PLUSIEURS articles (ou aucun article unique) ne s'apprend pas : une réponse légitime parmi ses articles ne doit ni compter une contradiction ni poser une suggestion.
+  // Cette garde passe AVANT le refus « n'aurait pas été proposé » (un mot à 6 à 8 articles au choix dépasse les 5 candidats) : le message serait faux.
+  const motACibles = regles.find((x) => x.id === regleId);
+  if (motACibles && (DV.ciblesDe(motACibles).length !== 1 || DV.ciblesDe(motACibles)[0].genre !== 'article')) {
+    return { operationId: null, rien: true, regleId, message: 'Ce mot a plusieurs articles au choix : rien n’est appris (il se règle à l’écran, jamais par une réponse).' };
+  }
   if (reponse === 'aucun') return { operationId: null, rien: true, message: 'Noté : aucune règle apprise (rien ne convenait). Rien n’a été écrit.' };
   if (!articleId) refuser('saisie_invalide', `articleId est obligatoire pour la réponse « ${reponse} ».`);
   const article = articles.find((a) => a.id === articleId);
   if (!article) refuser('introuvable', `Article introuvable : ${articleId}`);
   if (article.actif === false || article.type === DA.TYPE_TEXTE) refuser('saisie_invalide', `« ${article.libelle} » est désactivé ou n’est pas un article vendable : choisir un autre article.`);
+  if (reponse === 'autre' && r.etape === 'precision') refuser('saisie_invalide', 'La question posée était une question de précision (plusieurs articles proches) : rien n’est enregistré. Rappeler rechercher_article_par_phrase avec le mot choisi ajouté à la phrase.');
   const propose = r.candidats.some((x) => x.articleId === articleId);
   if (reponse === 'confirme' && !propose) refuser('saisie_invalide', `« ${article.libelle} » n’aurait pas été proposé pour cette phrase : une confirmation n’est acceptée que pour un article proposé. Si l’utilisateur a choisi un autre article, utiliser la réponse « autre ».`);
   const existante = regles.find((x) => x.id === regleId) ?? null;
