@@ -253,7 +253,7 @@ test('2 déplacer une ligne avec les flèches ne renvoie pas en haut du devis : 
   await expect(page.locator('tr[data-id="m22"]')).toBeInViewport();
 });
 
-test('2 « Insérer en dessous > Fourniture » ouvre la recherche d’article juste sous la ligne choisie ; l’article ajouté vient dessous, le suivant aussi ; « Fermer » ferme et la recherche retourne en bas ; supprimer une ligne ne fait pas défiler la page', async ({ page }, info) => {
+test('2 « Insérer en dessous > Fourniture » ouvre la recherche d’article juste sous la ligne choisie ; l’article ajouté vient dessous, le suivant aussi ; « Fermer » est la seule façon de la fermer (elle garde son texte) ; supprimer une ligne ne fait pas défiler la page', async ({ page }, info) => {
   await semer();
   const maintenant = new Date();
   await ecrireDocument('devis_articles/ar1', { code: 'CAR60', libelle: 'Carrelage 60 x 60', unite: 'm²', prixAchat: 50, tauxTva: null, actif: true, type: 'fourniture', proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME });
@@ -299,7 +299,7 @@ test('2 « Insérer en dessous > Fourniture » ouvre la recherche d’article ju
   expect(Math.abs(voisine.y - avant.y)).toBeLessThan(80); // la ligne d'après a pris la place, la page n'a pas bougé
 });
 
-test('5 la boîte de recherche propose Section, Sous-section, Texte et Saut de page : posés sous la ligne choisie, puis toute la boîte se ferme ; les sous-familles sont décalées avec un signe', async ({ page }, info) => {
+test('5 la boîte de recherche propose Section, Sous-section, Texte et Saut de page : posés sous la ligne choisie, la boîte reste ouverte et suit le nouvel élément ; les sous-familles sont décalées avec un signe', async ({ page }, info) => {
   await semer();
   const lignes = Array.from({ length: 4 }, (_, i) => ligne(`m${i + 1}`, `Ligne ${i + 1}`, 1, 10));
   await ouvrir(page, await devis('d8', [{ id: 's1', titre: 'Cuisine', lignes }]));
@@ -315,14 +315,20 @@ test('5 la boîte de recherche propose Section, Sous-section, Texte et Saut de p
   expect(options.some((t) => t.includes('›'))).toBe(false);
   await capturer(page, info, '5-recherche-boutons-sous-familles');
   await enLigne.locator('[data-action="recherche-ajouter-saut"]').click();
-  await expect(page.locator('tr[data-zone="recherche-en-ligne"]')).toHaveCount(0);
-  await expect(page.locator('[data-zone="recherche"]')).toBeHidden();
+  // La boîte reste ouverte : ordre « Ligne 2, saut, boîte, Ligne 3 ».
+  await expect(page.locator('[data-zone="recherche"]')).toBeVisible();
+  const ligneBoite = page.locator('tr[data-zone="recherche-en-ligne"]');
+  expect(await ligneBoite.evaluate((e) => e.previousElementSibling.dataset.genre)).toBe('saut');
+  expect(await ligneBoite.evaluate((e) => e.nextElementSibling.dataset.id)).toBe('m3');
   const apres = await page.locator('tr[data-id]').evaluateAll((l) => l.map((x) => x.dataset.id));
   expect(apres.indexOf('m2') + 2).toBe(apres.indexOf('m3')); // un saut est entre « Ligne 2 » et « Ligne 3 »
   await expect(page.locator('tr[data-genre="saut"]')).toHaveCount(1);
-  // Texte, depuis la recherche du bas : à la fin du devis.
+  // Un texte, depuis la boîte (un clic sur « + Fourniture » la ramène en fin de devis) : posé à la fin, la boîte reste dessous.
   await page.locator('[data-action="ajouter-famille-1"]').click();
   await page.locator('[data-action="recherche-ajouter-texte"]').click();
-  await expect(page.locator('[data-zone="recherche"]')).toBeHidden();
+  await expect(page.locator('[data-zone="recherche"]')).toBeVisible();
   await expect(page.locator('tr[data-genre="texte"]')).toHaveCount(1);
+  expect(await page.locator('tr[data-zone="recherche-en-ligne"]').evaluate((e) => e.previousElementSibling.dataset.genre)).toBe('texte');
+  expect(await page.locator('tr[data-zone="recherche-en-ligne"]').evaluate((e) => e.nextElementSibling === null)).toBe(true);
+  await capturer(page, info, '5-boite-reste-ouverte');
 });
