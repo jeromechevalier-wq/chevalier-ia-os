@@ -1059,9 +1059,10 @@ export function marquerOpposition(coche, ctx) {
 
 // ---------------------------------------------------------------- affaires : création, statut, étapes
 
-/** Titre proposé quand on n'en tape pas : organisation, sinon personne. */
+/** Titre proposé quand on n'en tape pas : « Affaire » + nom de l'organisation, sinon de la personne (31/10/2026 : pour ne pas confondre affaire et organisation). Vide si ni l'une ni l'autre. Les affaires existantes ne sont pas renommées. */
 export function titreParDefaut({ organisation, personne } = {}) {
-  return nettoyerEspaces(organisation?.nom) || nettoyerEspaces(personne?.nom) || '';
+  const nom = nettoyerEspaces(organisation?.nom) || nettoyerEspaces(personne?.nom);
+  return nom ? `Affaire ${nom}` : '';
 }
 
 export function validerAffaire(v) {

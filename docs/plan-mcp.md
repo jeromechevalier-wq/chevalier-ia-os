@@ -144,7 +144,7 @@ Profils : **L** lecteur · **B** bibliothécaire (L + écriture + pièces jointe
 | `lire_audit` | `acteur`, `docId`, `operationId`, `depuis`, `incompletes` | lignes d'audit (sans les copies) | non | L B C |
 | `creer_personne`, `modifier_personne` | champs de la fiche | `nouvellePersonne`/patchs + détection de doublons (refus si doublon, `forcer`) + événement | oui | B C |
 | `creer_organisation`, `modifier_organisation` | idem | idem | oui | B C |
-| `creer_affaire`, `modifier_affaire` | champs, `proprietaire?` | `nouvelleAffaire`, titre par défaut, organisation héritée, événement ; depuis le 22/10/2026 : plus de paramètre `description` documenté, `creer_*` rend `noteEpingleeId` (la note épinglée de départ, à remplir avec `modifier_note`) | oui | B C |
+| `creer_affaire`, `modifier_affaire` | champs, `proprietaire?` | `nouvelleAffaire`, titre par défaut (« Affaire » + nom de l'organisation, sinon de la personne, depuis le 31/10/2026), organisation héritée, événement ; depuis le 22/10/2026 : plus de paramètre `description` documenté, `creer_*` rend `noteEpingleeId` (la note épinglée de départ, à remplir avec `modifier_note`) | oui | B C |
 | `changer_etape` | `id`, `etape`, `montantEncaisse?` | `changementEtape` (événements, statut) | oui | B C |
 | `marquer_perdue`, `rouvrir_affaire` | `id`, raison (`mettre_en_pause` supprimé le 22/10/2026) | règles de l'écran | oui | B C |
 | `ajouter_encaissement` | `id`, `montant`, `date?` | `ajouterEncaissement` | oui | B C |

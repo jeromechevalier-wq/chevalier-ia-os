@@ -163,8 +163,8 @@ describe('B4 Statut dérivé de l’étape', () => {
     assert.ok(a.datesEtapes.premier_contact);
   });
   test('B4 le titre est prérempli : organisation, sinon personne', () => {
-    assert.equal(L.titreParDefaut({ organisation: { nom: 'Fleurs' }, personne: { nom: 'Marie' } }), 'Fleurs');
-    assert.equal(L.titreParDefaut({ personne: { nom: 'Marie' } }), 'Marie');
+    assert.equal(L.titreParDefaut({ organisation: { nom: 'Fleurs' }, personne: { nom: 'Marie' } }), 'Affaire Fleurs');
+    assert.equal(L.titreParDefaut({ personne: { nom: 'Marie' } }), 'Affaire Marie');
     assert.equal(L.titreParDefaut({}), '');
   });
   test('B4 changement d’étape : statut dérivé, dates d’étapes conservées', () => {
@@ -900,13 +900,13 @@ describe('B17 Plans d’écriture : créations', () => {
     const organisations = [organisation({ id: 'o1', nom: 'Atelier des Lilas' })];
     const plan = L.planCreerAffaire({ personneId: 'p1', montant: '1500' }, { personnes, organisations }, ctxPlan());
     const [a, ev] = plan.ecritures;
-    assert.equal(plan.titre, 'Atelier des Lilas');
-    assert.equal(a.donnees.titre, 'Atelier des Lilas');
+    assert.equal(plan.titre, 'Affaire Atelier des Lilas');
+    assert.equal(a.donnees.titre, 'Affaire Atelier des Lilas');
     assert.equal(a.donnees.organisationId, 'o1');
     assert.equal(a.donnees.montant, 1500);
     assert.equal(a.donnees.etape, 'premier_contact');
     assert.deepEqual(ev.donnees.affaireId, plan.id);
-    assert.equal(ev.donnees.texte, 'Affaire créée : Atelier des Lilas');
+    assert.equal(ev.donnees.texte, 'Affaire créée : Affaire Atelier des Lilas');
   });
   test('B17 affaire : une personne que l’appelant ne connaît pas encore (créée à l’instant) ne bloque pas, comme avant', () => {
     const plan = L.planCreerAffaire({ titre: 'Nouvelle', personneId: 'tout-neuf' }, { personnes: [], organisations: [] }, ctxPlan());

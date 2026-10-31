@@ -72,7 +72,7 @@ export function aideAffaire({ client, affaireId, nbAffaires }) {
   return nbAffaires ? '' : MESSAGE_SANS_AFFAIRE_CLIENT;
 }
 
-/** Nom de l'affaire créée depuis la liste : ce qui est tapé, sinon le nom du devis, sinon le client (organisation, sinon personne) ; vide si rien de tout cela. */
+/** Nom de l'affaire créée depuis la liste : ce qui est tapé, sinon le nom du devis, sinon « Affaire » + le client (organisation, sinon personne) ; vide si rien de tout cela. */
 export function nomAffaireCreee(saisie, devis, { organisation = null, personne = null } = {}) {
   return String(saisie ?? '').replace(/\s+/g, ' ').trim() || nomAffaireProposee(devis, { organisation, personne });
 }
