@@ -60,7 +60,9 @@ async function ouvrirDescription(page) {
   if (await page.locator('[data-champ="objet"]').isHidden()) await page.locator('[data-action="description"]').click();
 }
 async function chercherEtAjouter(page, mot, quantite) {
-  if (await page.locator('[data-zone="recherche"]').isHidden()) { await page.locator('[data-action="ajouter-famille-1"]').click(); await page.locator('[data-champ="filtre-famille"]').selectOption(''); }
+  // La boîte reste ouverte entre deux ajouts : on ouvre si besoin, puis on règle toujours le filtre explicitement.
+  if (await page.locator('[data-zone="recherche"]').isHidden()) await page.locator('[data-action="ajouter-famille-1"]').click();
+  await page.locator('[data-champ="filtre-famille"]').selectOption('');
   await page.getByRole('searchbox', { name: 'Rechercher dans le catalogue' }).fill(mot);
   await page.locator('[data-action="ajouter-article"]').first().click();
   await page.locator('tr.ligne-devis-edition').last().locator('[data-champ="quantite"]').fill(quantite);
