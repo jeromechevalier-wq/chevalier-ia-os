@@ -1,6 +1,57 @@
 # À faire au début de la prochaine session
 
-## Rapport du matin : nuit du 30 au 31/10/2026 (fin de nuit, 11 PR : 449 à 459)
+## Rapport du matin : nuit du 30 au 31/10/2026 et journée du 31/10 (PR 449 à 479)
+
+Tableau des choses à faire : `.github/A-FAIRE.md`. Facturation : `docs/cadrage-logiciel-facturation.md` (révisé : plus de n8n). Version 2.35.0.
+
+| Sujet | PR | État |
+|---|---|---|
+| Sélecteur d'arbre du catalogue : l'article actuel reste visible (C1.7) | 449 | fusionnée |
+| Catalogue : colonne « Utilisation », tri (C4) | 450 | fusionnée, déployée |
+| Titre d'affaire par défaut « Affaire <nom> » | 451 | fusionnée |
+| Un mot lié à plusieurs articles (C5a, moteur et serveur) | 452 | fusionnée, déployée |
+| Devis : plusieurs destinataires (À) et plusieurs CC | 453 | fusionnée, déployée |
+| Vocabulaire : plusieurs articles au choix, écran (C5b) | 454 | fusionnée, déployée |
+| Un mot qui désigne une famille (C6a, moteur et serveur) | 455 | fusionnée, déployée |
+| Kanban : la pastille « Devis : … » passe à la ligne | 456 | fusionnée |
+| Mentions légales A : trois textes libres | 457 | fusionnée, déployée |
+| Vocabulaire : famille, écran (C6b) | 458 | fusionnée, déployée |
+| Mentions légales B : blocages à la finalisation | 459 | fusionnée, déployée ; **tests OK de Jérôme** |
+| Docs : rapport du matin, cadrage facturation (version 2.34.1) | 460 | fusionnée |
+| Boîte « Ajouter une ligne » : reste dans le devis, se ferme avec « Fermer » | 461 | fusionnée |
+| « Mon entreprise » trouvable, bouton « Insérer le texte modèle » (assurance) | 462 | fusionnée |
+| Catalogue : fenêtre « Filtres » en arbre | 464 | fusionnée |
+| Vocabulaire : « Ajouter un mot appris » en cases à cocher, fenêtre plus large | 465 | fusionnée |
+| Devis : menus « Envoyer » et « … » simplifiés | 466 | fusionnée (a laissé 4 tests rouges sur `main`, corrigés par la 476) |
+| Devis : mention de TVA réduite automatique (5,5 % ou 10 %) | 467 | fusionnée |
+| Cadrages : démos par métier, anonymisation, consignes stockées, revue mensuelle, adresses | 468 | fusionnée (docs) |
+| Documents texte : accents lisibles (charset annoncé) | 469 | fusionnée |
+| Actions : voie « Docs » rapide, plus de déploiement pour des docs seules, mesure des durées | 470 | fusionnée |
+| Mesure de la lenteur du MCP (journal seulement) | 471 | fusionnée |
+| Renommages « Ce que l'IA a appris » et « Connecter ton IA » | 472 | fusionnée |
+| Tests : menus « Envoyer » et « … » alignés sur la PR 466 | 476 | fusionnée |
+| Le mot du métier dans les messages d'article, « Prestation enregistrée » | 477 | fusionnée |
+| Devis : champs manquants marqués après « Compris » ; « À l'attention de » dans l'aperçu | 479 | fusionnée |
+| **Porte des workflows n8n chez les clients** | 463 | **ouverte pour Jérôme** (étiquette `a-fusionner-par-jerome` : elle touche `firebase.plateforme.json` et un workflow). Conditions : le compte `devis-pdf@` doit avoir « Accesseur de secrets » sur `N8N_API_KEY` ; déployer « porte » AVANT « hosting ». Depuis le 31/10 elle ne sert plus à la facturation, seulement à « Préparer l'e-mail », aux propositions et à la veille |
+
+- **Déploiements chez les clients** : tout est déployé jusqu'à la PR 477 (site, fonctions, assistant) ; PR 472 et 479 : site seulement (écran).
+- **Pas pu être vérifié** : le PDF réel (Chromium), un vrai clic de finalisation chez un client, un vrai appel n8n, le rendu réel des accents (Cloud Storage), la mesure du jour de la lenteur (droit de lecture des journaux manquant).
+- **Décisions de Jérôme à consigner** : la « vague 3 » de CORRECTIONS (PDF identique à l'aperçu, SIRET à 14 chiffres, libellé de ligne obligatoire, validité, tests sans client, nom de client vide qui bloque la finalisation) est **RETIRÉE** de la nuit et des suivantes : sujet à discuter. Le message « Composition enregistrée » suit le mot du métier : fait (PR 477). Facturation : plus de n8n, voir le cadrage.
+- **Docs non alignées (demandent une décision de Jérôme ou trop de contexte)** : `docs/porte-cles.md`, `docs/audit-ecarts-fonctions.md`, `docs/ajouter-un-bouton-workflow.md`, `docs/deploiement-plateforme.md`, `docs/pdf-clients.md` (liées à la PR 463, à faire à sa fusion) ; les autres fichiers cités par la PR 472 pour « Vocabulaire » (cadrages anciens, `roadmap`, `vocabulaire*`) gardent l'ancien nom dans leur historique.
+
+**Questions pour Jérôme** :
+1. Figer ou non le texte de la mention de TVA sur un devis finalisé ?
+2. Un ancien CSV Excel Latin-1 déposé avant le correctif s'affichera avec des « � » : le redéposer ou migrer les fiches ?
+3. Veux-tu un réglage de modèle d'e-mail (objet et message) dans Réglages > Devis ? Aucun n'existe aujourd'hui.
+4. Un bouton manuel de déploiement limité à `main` ?
+5. Sous-familles grisées quand leur famille est cochée dans le filtre du Catalogue (plutôt que la mention « inclut ses sous-familles ») ?
+6. Compte dédié pour la porte plus tard ?
+7. Les 5 cadrages de la PR 468 (démos par métier, anonymisation, consignes stockées, revue mensuelle, adresses) : à lire et à trancher.
+8. Fusionner la PR 463 ?
+
+---
+
+## Rapport précédent (nuit du 30 au 31/10/2026, fin de nuit)
 
 Tableau complet : `.github/A-FAIRE.md`. Conception du logiciel de facturation : `docs/cadrage-logiciel-facturation.md`.
 

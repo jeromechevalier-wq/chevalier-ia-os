@@ -31,7 +31,7 @@ Une fiche créée par l'assistant sans `proprietaire` reçoit l'e-mail de la per
 
 ## Menu, poignée et look compact (18-19/10/2026, versions 2.13.0 à 2.15.1)
 
-**Fait et en ligne chez Jérôme et chez les clients** : menu sans titres de groupes, menu utilisateur en bas à gauche (Réglages, Journal des modifications, Connecter mon assistant, thème, Se déconnecter), bouton de repli et Cmd/Ctrl+B (PR 133, 2.13.0) ; poignée de redimensionnement mémorisée, bornes 200-420 px (PR 136, 2.14.0) ; look compact façon Claude et ChatGPT, polices inchangées (PR 139, 2.15.0) ; numéro de téléphone sur une ligne (PR 140, 2.15.1). Plateforme déployée en 2.15.1 le 19/10/2026.
+**Fait et en ligne chez Jérôme et chez les clients** : menu sans titres de groupes, menu utilisateur en bas à gauche (Réglages, Journal des modifications, Connecter mon IA, thème, Se déconnecter), bouton de repli et Cmd/Ctrl+B (PR 133, 2.13.0) ; poignée de redimensionnement mémorisée, bornes 200-420 px (PR 136, 2.14.0) ; look compact façon Claude et ChatGPT, polices inchangées (PR 139, 2.15.0) ; numéro de téléphone sur une ligne (PR 140, 2.15.1). Plateforme déployée en 2.15.1 le 19/10/2026.
 
 **Idées mises en pause (décision de Jérôme, 19/10/2026)** : choix automatique des ports de test et « guichet » (une seule suite d'écran à la fois). Les sessions ne lancent plus que de petits tests en développement et les gros tests tournent sur GitHub ; à reconsidérer seulement si les collisions reviennent (signes dans la fiche « Sessions en parallèle et tests » du second cerveau).
 
@@ -51,7 +51,7 @@ Une fiche créée par l'assistant sans `proprietaire` reçoit l'e-mail de la per
 
 ## Nouvelle coque du menu (18/10/2026, PR B, version 2.13.0, fusionnée)
 
-**Décidé (18/10/2026)** : menu de gauche sans titres de groupes (fines lignes : Accueil | Personnes, Organisations | Affaires, Projets | Veille | Automatisations | Tableau de bord) ; Réglages, Journal des modifications et « Connecter mon assistant » dans le **menu utilisateur** (en bas à gauche, s'ouvre vers le haut, avec l'adresse e-mail, le thème et « Se déconnecter ») ; bouton de repli à droite du nom de l'espace (Cmd/Ctrl+B) ; « Connecter mon assistant » existe chez Jérôme aussi (plus de module réservé aux clients) ; même en-tête chez Jérôme et chez un client (avatar = initiale, commit séparé : on peut rendre sa photo à Jérôme en annulant ce commit). La route `#/crm/journal` reste servie (signets). Ne change pas : « Membres et rôles » (clients seulement), « Objectifs du mois », « Modules actifs ». **Audit complet des différences Jérôme / clients : plus tard.**
+**Décidé (18/10/2026)** : menu de gauche sans titres de groupes (fines lignes : Accueil | Personnes, Organisations | Affaires, Projets | Veille | Automatisations | Tableau de bord) ; Réglages, Journal des modifications et « Connecter mon IA » dans le **menu utilisateur** (en bas à gauche, s'ouvre vers le haut, avec l'adresse e-mail, le thème et « Se déconnecter ») ; bouton de repli à droite du nom de l'espace (Cmd/Ctrl+B) ; « Connecter mon IA » existe chez Jérôme aussi (plus de module réservé aux clients) ; même en-tête chez Jérôme et chez un client (avatar = initiale, commit séparé : on peut rendre sa photo à Jérôme en annulant ce commit). La route `#/crm/journal` reste servie (signets). Ne change pas : « Membres et rôles » (clients seulement), « Objectifs du mois », « Modules actifs ». **Audit complet des différences Jérôme / clients : plus tard.**
 
 ## Options par défaut des nouveaux espaces (18/10/2026, PR 122, version 2.11.x)
 

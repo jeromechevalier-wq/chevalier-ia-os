@@ -78,3 +78,7 @@ Pousser sur `main`, déployer la plateforme clients (workflow manuel, que Jérô
 | Où reprendre la prochaine session | `docs/reprise-prochaine-session.md` |
 | Ajouter un bouton qui appelle un workflow | `docs/ajouter-un-bouton-workflow.md` |
 | Déployer chez un nouveau client | `docs/deploiement-client.md` |
+
+## Voie « Docs » et validation avant fusion (31/10/2026)
+- Une PR de docs seules passe par la voie rapide « Docs » (environ 1 à 2 minutes) et ne redéploie pas le site.
+- Pour valider une PR d'écran ou de serveur avant fusion : étiquette `tests-complets` posée avant la mise à jour de la branche. Après chaque fusion d'écran ou de serveur, lancer « Tests de nuit » sur `main` et lire le résultat. Détails : `docs/tests.md`.
