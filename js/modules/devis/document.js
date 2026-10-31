@@ -1,18 +1,18 @@
 // Pagination : Chromium ignore les boîtes de marge @page ; le numéro « Page n / N » viendra des gabarits d'en-tête/pied du convertisseur serveur.
-// Clés de l'émetteur lues ici (options.emetteur ou vue.emetteur) : nom, forme, siret, tva, adresse, email, telephone, site, registreMetiers, assuranceTexte (ou les anciens champs assurance), coordonneesBancaires, mentionEmetteur (« Attestation et mentions »), mediateur, logo (https ou data:image), couleur, paiement, cgv. Les alias formeJuridique et tvaIntracommunautaire restent lus.
+// Clés de l'émetteur lues ici (options.emetteur ou vue.emetteur) : nom, forme, siret, tva, adresse, email, telephone, site, registreMetiers, assuranceTexte (ou les anciens champs assurance), coordonneesBancaires, mentionEmetteur (« Attestation et mentions »), mentionTvaReduite (texte imprimé quand vue.tvaReduite, vide = texte standard), mediateur, logo (https ou data:image), couleur, paiement, cgv. Les alias formeJuridique et tvaIntracommunautaire restent lus.
 // L'acompte, les primes, la retenue de garantie, les déchets, le texte libre et les notes viennent de la vue client (libellés déjà prêts, échappés ici).
 // Document « Devis » en HTML imprimable (A4). Module pur : aucun DOM, aucun réseau, aucun JavaScript dans la page produite.
 // Il reçoit la « vue client » (vueClient de logique.js, donc jamais de prix d'achat, de marge ni de coefficient) et rend une chaîne HTML
 // complète. Usage : aperçu et impression dans le navigateur (« Imprimer » puis « Enregistrer au format PDF ») ; plus tard, un
 // convertisseur HTML vers PDF côté serveur en tirera le PDF officiel.
 //
-// Plus d'attestation de TVA codée en dur (31/10/2026) : l'attestation et les autres mentions sont le texte libre « Attestation et mentions » des réglages (emetteur.mentionEmetteur).
+// Plus d'attestation de TVA codée en dur (31/10/2026) : la mention de TVA réduite s'imprime toute seule (vue.tvaReduite, réglage emetteur.mentionTvaReduite), les autres mentions sont le texte libre « Attestation et mentions » des réglages (emetteur.mentionEmetteur).
 //
 // Décisions prises seul :
 // - Les données viennent toutes de `vue` ; le nom du destinataire est `vue.client.nom` (fourni par l'appelant dans le contexte de vueClient).
 // - Franchise : lignes sans colonne de TVA chiffrée (« - »), pas de tableau de TVA, pas de ligne TVA/TTC. Autoliquidation : TVA à 0.
 // - L'en-tête et le pied répétés sur chaque page passent par thead/tfoot d'une table de mise en page (repli simple qui marche partout).
-import { montantFr, adresseEnTexte, assuranceTexteDe, coordonneesBancairesDe, nettoyerTexteLibre } from './logique.js';
+import { montantFr, adresseEnTexte, assuranceTexteDe, coordonneesBancairesDe, nettoyerTexteLibre, MENTION_TVA_REDUITE_DEFAUT } from './logique.js';
 
 const NBSP = ' ';
 
@@ -272,6 +272,8 @@ export function devisHtml(vue, options = {}) {
   const notes = v.notesBasDePage ? `<div class="notes"><h2>Notes de bas de page</h2>${texte(v.notesBasDePage)}</div>` : '';
 
   const mentions = [...(v.mentions ?? [])];
+  // Mention de TVA réduite : imprimée dès qu'une ligne est à 5,5 % ou 10 % (`vue.tvaReduite`), texte des réglages, sinon texte standard ; avant « Attestation et mentions ».
+  if (v.tvaReduite === true) mentions.push(nettoyerTexteLibre(emetteur.mentionTvaReduite) || MENTION_TVA_REDUITE_DEFAUT);
   const mentionLibre = nettoyerTexteLibre(emetteur.mentionEmetteur); // « Attestation et mentions » des réglages : sur tous les devis, juste avant « Bon pour accord »
   if (mentionLibre) mentions.push(mentionLibre);
 

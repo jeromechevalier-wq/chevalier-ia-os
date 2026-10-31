@@ -198,7 +198,7 @@ export function arreter() {
 
 /** Crée un article. Renvoie `{ erreurs, id }` : des erreurs de saisie (messages à montrer) ne lèvent pas d'exception ; une écriture refusée lève. */
 export async function creerArticle(valeurs) {
-  const plan = A.planCreerArticle(valeurs, CRM.ctx(), { articles: etat.articles, familles: etat.familles });
+  const plan = A.planCreerArticle(valeurs, CRM.ctx(), { articles: etat.articles, familles: etat.familles, reglages: etat.reglages });
   if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs, id: null };
   await CRM.executer(plan.ecritures, 'creerArticle');
   return { erreurs: {}, id: plan.id };
@@ -206,7 +206,7 @@ export async function creerArticle(valeurs) {
 
 /** Modifie des champs d'un article : `{ erreurs, patch }`. */
 export async function majArticle(id, patch) {
-  const plan = A.planMajArticle(id, patch, { articles: etat.articles, familles: etat.familles });
+  const plan = A.planMajArticle(id, patch, { articles: etat.articles, familles: etat.familles, reglages: etat.reglages });
   if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs, patch: {} };
   await CRM.executer(plan.ecritures, 'majArticle');
   return { erreurs: {}, patch: plan.patch };
@@ -214,7 +214,7 @@ export async function majArticle(id, patch) {
 
 /** Modifie plusieurs articles en UN lot (une seule opération dans le journal) : `lots` = [{ id, patch }] ; rien n'est écrit si un plan a une erreur. `{ erreurs }` (clé = identifiant de l'article, valeur = les erreurs de son plan par champ). */
 export async function majArticles(lots) {
-  const plans = lots.map(({ id, patch }) => ({ id, plan: A.planMajArticle(id, patch, { articles: etat.articles, familles: etat.familles }) }));
+  const plans = lots.map(({ id, patch }) => ({ id, plan: A.planMajArticle(id, patch, { articles: etat.articles, familles: etat.familles, reglages: etat.reglages }) }));
   const erreurs = {};
   for (const { id, plan } of plans) { if (Object.keys(plan.erreurs).length) erreurs[id] = plan.erreurs; }
   if (Object.keys(erreurs).length) return { erreurs };

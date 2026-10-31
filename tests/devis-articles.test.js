@@ -171,14 +171,14 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
   test('B7 logique : valeurs par défaut', () => {
     assert.deepEqual(A.reglagesDevis(null), {
       nomBordereau: 'Catalogue', motOuvrage: 'ouvrage', motOuvrageAutre: {}, modeMarge: 'majoration', marge: 20, margeDevis: 20, regimeTva: 'assujetti', tauxProposes: [20, 10, 5.5], tauxTvaDefaut: 20,
-      dureeValiditeJours: 90, etapeDevis: '', etapeAFaire: '', etapeEnvoye: '', etapeAffaireCreee: '', mentionEmetteur: '', entreprise: {},
+      dureeValiditeJours: 90, etapeDevis: '', etapeAFaire: '', etapeEnvoye: '', etapeAffaireCreee: '', mentionEmetteur: '', mentionTvaReduite: '', entreprise: {},
     });
     assert.deepEqual(A.reglagesDevis({}), A.reglagesDevis(undefined));
   });
   test('B7 logique : une saisie valide se relit à l’identique (aller-retour par reglagesDevis), virgule française acceptée', () => {
-    const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', mentionEmetteur: '  Ma mention  \n\n  Qualification RGE  ' });
+    const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', mentionEmetteur: '  Ma mention  \n\n  Qualification RGE  ', mentionTvaReduite: '  Taux réduit \n appliqué  ' });
     assert.deepEqual(r.erreurs, {});
-    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', motOuvrage: 'ouvrage', motOuvrageAutre: {}, modeMarge: 'marge_vente', marge: 25.5, margeDevis: 20, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', mentionEmetteur: 'Ma mention\n\nQualification RGE', entreprise: {} });
+    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', motOuvrage: 'ouvrage', motOuvrageAutre: {}, modeMarge: 'marge_vente', marge: 25.5, margeDevis: 20, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', mentionEmetteur: 'Ma mention\n\nQualification RGE', mentionTvaReduite: 'Taux réduit\nappliqué', entreprise: {} });
     assert.deepEqual(A.reglagesDevis(r.reglages), r.reglages);
   });
   test('13a logique : la marge globale du devis vaut 20 par défaut (document absent ou ancien sans le champ), se relit en virgule française, et reste distincte de la marge des articles', () => {
@@ -360,7 +360,7 @@ describe('Mentions légales du devis, PR A (31/10/2026)', () => {
     assert.equal(A.LIMITES.mention, 2000);
     const r = A.validerReglagesDevis({ mentionEmetteur: ' Attestation TVA \n\n Qualification RGE ' }).reglages;
     assert.equal(r.mentionEmetteur, 'Attestation TVA\n\nQualification RGE');
-    assert.deepEqual(A.CLES_REGLAGES_DEVIS.filter((k) => /mention|attestation/i.test(k)), ['mentionEmetteur']);
+    assert.deepEqual(A.CLES_REGLAGES_DEVIS.filter((k) => /mention|attestation/i.test(k)), ['mentionEmetteur', 'mentionTvaReduite']);
     assert.equal(A.validerReglagesDevis({ marge: 30 }, { actuels: { mentionEmetteur: 'Gardée' } }).reglages.mentionEmetteur, 'Gardée', 'setDoc sans fusion : l’ancienne valeur est recopiée, jamais effacée');
     assert.equal(D.emetteurImprime({ nom: 'X' }, '  Texte  ').mentionEmetteur, 'Texte');
   });

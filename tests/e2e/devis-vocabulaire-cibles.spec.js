@@ -179,7 +179,7 @@ test('C5b.7 un article désactivé parmi d’autres reste dans la liste déplié
   await expect(ligne(page, 'prise').locator('[data-role="cibles"] li').nth(1)).toContainText('Prise double 16 A (désactivé)');
 });
 
-test('C5b.8 « Essayer une phrase » : « prise étanche » dit ce que l’assistant comprend (« prise » désigne 3 articles au choix, je cherche « etanche » parmi eux) et pose UNE question à un seul choix ; l’usage départage deux articles à égalité', async ({ page }, info) => {
+test('C5b.8 « Essayer une phrase » : « prise étanche » dit ce que l’IA comprend (« prise » désigne 3 articles au choix, je cherche « etanche » parmi eux) et pose UNE question à un seul choix ; l’usage départage deux articles à égalité', async ({ page }, info) => {
   await catalogue();
   await motMultiple();
   await ouvrir(page);
@@ -209,7 +209,7 @@ test('C5b.10 l’export CSV met les articles d’un mot à plusieurs articles da
   await motMultiple();
   await ouvrir(page);
   await page.locator('[data-action="menu-vocabulaire"]').click();
-  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter le vocabulaire (CSV)').click()]);
+  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter ce que l’IA a appris (CSV)').click()]);
   const texte = (await readFile(await telechargement.path())).toString('utf8');
   expect(texte).toContain('prise,Prise simple 16 A / Prise double 16 A / Prise étanche 16 A,,Actif,Ajouté ici'); // colonne « Famille » (C6b) vide ici
 });

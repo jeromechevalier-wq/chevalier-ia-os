@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { extraireBearer, trouverJeton } from '../securite/jetons.js';
 import { journaliser } from '../securite/journaux.js';
+import { compterLectures } from '../securite/mesure.js';
 import { ErreurLimite, limitesDuJeton } from '../securite/limites.js';
 import { executerEcritures, ErreurEcriture } from '../coeur/ecriture.js';
 import { restaurerOperation } from '../coeur/restaurer.js';
@@ -31,6 +32,22 @@ export function descriptionAppel(corps, outils) {
   return { methodeMcp, outil };
 }
 
+// Une instance Cloud Run = un processus : la première requête qu'il reçoit a payé le démarrage à froid. Cas « chaud » = champ absent.
+/** Un suivi par gestionnaire : `noter(infos)` ajoute `froid` et `demarrageMs` (âge du processus) à la première requête seulement. Ne casse jamais l'appel. */
+export function creerSuiviDemarrage() {
+  let premiere = true;
+  return (infos) => {
+    if (!premiere) return;
+    premiere = false;
+    try { infos.froid = true; infos.demarrageMs = Math.round(process.uptime() * 1000); } catch { /* mesure seulement */ }
+  };
+}
+
+/** Durée propre de l'outil et lectures, notées seulement pour un appel d'outil (tools/call). */
+function noterOutil(infos, compteur, duree) {
+  try { infos.dureeOutilMs = Math.round(duree); infos.lectures = compteur.lectures; } catch { /* mesure seulement */ }
+}
+
 /** Nom du serveur affiché par Claude et ChatGPT : celui de Jérôme ; les espaces clients en reçoivent un neutre (clients/gestionnaire.js). */
 export const NOM_SERVEUR_CRM = 'chevalier-ia-os';
 
@@ -51,9 +68,11 @@ function messageEcriture(e) {
  * `sortieEmail` : la sortie vers n8n (coeur/n8n-sortie.js, ou fonction qui la rend) pour préparer un BROUILLON d'e-mail ; sans elle, l'outil répond « pas branché ». Rien n'envoie jamais l'e-mail.
  */
 export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = null, stockage = null, sortieEmail = null, baseLien = BASE_LIEN_JEROME, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
+  const noterDemarrage = creerSuiviDemarrage();
   return async function gestionnaire(req, res) {
     const debut = maintenant();
     const infos = {};
+    noterDemarrage(infos);
     res.on('finish', () => journal({ ...infos, dureeMs: maintenant() - debut, statut: res.statusCode }));
 
     const origine = req.headers.origin;
@@ -81,6 +100,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
     // 401 : même réponse pour tout refus ; l'en-tête dit à claude.ai où se connecter (RFC 9728).
     if (!jeton) { infos.code = 'jeton'; return refuser(res, 401, 'non_autorise', { 'WWW-Authenticate': oauth ? `Bearer resource_metadata="${URL_METADONNEES_RESSOURCE}"` : 'Bearer' }); }
     Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil }, descriptionAppel(req.body, outils));
+    infos.dureeAuthMs = maintenant() - debut;
 
     return servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, stockage, sortieEmail, baseLien });
   };
@@ -93,6 +113,10 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
  */
 export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM, stockage = null, sortieEmail = null, baseLien = BASE_LIEN_JEROME }) {
   const limites = limitesDuJeton(jeton);
+  // Mesure : lectures de base faites par CETTE requête (hors authentification et plafonds). Aucune erreur de mesure ne casse l'appel.
+  const compteur = { lectures: 0 };
+  let donneesComptees = donnees;
+  try { donneesComptees = compterLectures(donnees, compteur); } catch { /* mesure seulement */ }
   try {
     limiteur?.requete(jeton.jeton, limites);
   } catch (e) {
@@ -109,7 +133,7 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
   const ecrire = async ({ operations, parametres, outil, suppressions }) => {
     await limiteur?.reserver(jeton.jeton, limites, { suppressions: suppressions ?? compterSuppressions(operations) });
     try {
-      const r = await executerEcritures({ donnees, ctx: ctxEcriture, outil, parametres, operations });
+      const r = await executerEcritures({ donnees: donneesComptees, ctx: ctxEcriture, outil, parametres, operations });
       if (r.operationId) infos.operationId = r.operationId;
       return r;
     } catch (e) {
@@ -124,7 +148,7 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
   const restaurer = async ({ operationId, apercu, forcer, outil }) => {
     try {
       const r = await restaurerOperation({
-        donnees, ctx: ctxEcriture, operationId, apercu, forcer, outil,
+        donnees: donneesComptees, ctx: ctxEcriture, operationId, apercu, forcer, outil,
         reserver: (operations) => limiteur?.reserver(jeton.jeton, limites, { suppressions: compterSuppressions(operations) }),
       });
       if (r.operationRestauration) infos.operationId = r.operationRestauration;
@@ -137,7 +161,7 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
   for (const outil of permis) {
     serveur.registerTool(outil.nom, { description: outil.description, annotations: annotationsDe(outil), ...(outil.meta ? { _meta: outil.meta } : {}), ...(outil.schema ? { inputSchema: outil.schema } : {}) }, async (args) => {
       const contexte = {
-        acteur: jeton.acteur, email: jeton.email, profil: jeton.profil, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), nomServeur, args, donnees, maintenant: ctxEcriture.maintenant,
+        acteur: jeton.acteur, email: jeton.email, profil: jeton.profil, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), nomServeur, args, donnees: donneesComptees, maintenant: ctxEcriture.maintenant,
         ecrire: (demande) => ecrire({ ...demande, outil: outil.nom }),
         restaurer,
         // Stockage des fichiers (onglet « Documents ») : fonction qui rend le stockage, ou null s'il est introuvable. `espace` : '' chez Jérôme, 'clients/<client>/' chez un client.
@@ -152,9 +176,12 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
         suppressionsRestantes: () => (limiteur ? limiteur.suppressionsRestantes(jeton.jeton, limites) : Infinity),
       };
       let resultat;
+      const debutOutil = maintenant();
       try {
         resultat = await outil.executer(contexte);
+        noterOutil(infos, compteur, maintenant() - debutOutil);
       } catch (e) {
+        noterOutil(infos, compteur, maintenant() - debutOutil);
         if (e instanceof ErreurLimite) infos.code = e.limite;
         else if (e?.name === 'ErreurMetier') infos.code = e.code;
         throw e;

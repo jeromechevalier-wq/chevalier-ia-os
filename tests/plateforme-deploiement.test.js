@@ -66,7 +66,7 @@ describe('Le CRM garde exactement sa configuration', () => {
     assert.ok(fb.hosting.ignore.includes('dist/**'));
     assert.equal(json('.firebaserc').projects.default, 'chevalier-ia-os');
   });
-  test('workflow du CRM : toujours à chaque fusion dans main, vers chevalier-ia-os, avec son secret et ses fonctions', () => {
+  test('workflow du CRM : à chaque fusion dans main qui touche autre chose que la documentation, vers chevalier-ia-os, avec son secret et ses fonctions', () => {
     const yml = lire('.github/workflows/firebase-hosting.yml');
     assert.match(yml, /branches:\s*\n\s*- main/);
     assert.match(yml, /projectId: chevalier-ia-os/);

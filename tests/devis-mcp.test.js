@@ -1111,9 +1111,10 @@ describe('N9 lire_reglages_devis et journal du bordereau', () => {
 
   test('A5 lire_reglages_devis renvoie le texte d’assurance, les coordonnées bancaires et « Attestation et mentions »', async () => {
     const s = await demarrer();
-    Object.assign(s.doc('devis_parametres', 'reglages'), { mentionEmetteur: 'Attestation de TVA réduite', entreprise: { nom: 'Atelier', assuranceTexte: 'Décennale chez X', coordonneesBancaires: 'Banque\nIBAN' } });
+    Object.assign(s.doc('devis_parametres', 'reglages'), { mentionEmetteur: 'Attestation de TVA réduite', mentionTvaReduite: 'Taux réduit appliqué', entreprise: { nom: 'Atelier', assuranceTexte: 'Décennale chez X', coordonneesBancaires: 'Banque\nIBAN' } });
     const r = ok(await s.appeler('lecteur', 'lire_reglages_devis', {}));
     assert.equal(r.reglages.mentionEmetteur, 'Attestation de TVA réduite');
+    assert.equal(r.reglages.mentionTvaReduite, 'Taux réduit appliqué');
     assert.equal(r.reglages.entreprise.assuranceTexte, 'Décennale chez X');
     assert.equal(r.reglages.entreprise.coordonneesBancaires, 'Banque\nIBAN');
   });
@@ -1829,5 +1830,25 @@ describe('V3 le mot du métier : les réponses de l’assistant portent typeAffi
       assert.match(o.description, /Le mot affiché à l'utilisateur est donné par lire_reglages_devis\.$/, nom);
     }
     assert.match(OUTILS_LECTURE.find((x) => x.nom === 'lister_articles').description, /ouvrage/);
+  });
+});
+
+describe('B2 le mot du métier dans les refus des outils d’articles', () => {
+  test('B2.4 creer_article sur un espace au mot « lot » refuse avec la phrase au mot « lot » ; sans réglage, « ouvrage »', async () => {
+    const s = await demarrer();
+    const refus = (r) => { assert.equal(r.isError, true, r.texte); return r.texte; };
+    const ouvrageVide = { libelle: 'Salle de bain', type: 'ouvrage', composants: [] };
+    assert.match(refus(await s.appeler('biblio', 'creer_article', ouvrageVide)), /Un ouvrage a besoin d’au moins un composant/); // cas vide : pas de réglage de mot
+    Object.assign(s.doc('devis_parametres', 'reglages'), { motOuvrage: 'lot' });
+    const texte = refus(await s.appeler('biblio', 'creer_article', ouvrageVide));
+    assert.match(texte, /Un lot a besoin d’au moins un composant/);
+    assert.doesNotMatch(texte, /ouvrage/i);
+    // Un lot ne peut pas en contenir un autre : le second refus cite aussi le mot « lot ».
+    Object.assign(s.doc('devis_parametres', 'reglages'), { motOuvrage: 'prestation' });
+    const a = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Carrelage', prixAchat: 50, unite: 'm²' }));
+    const p = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Pose', type: 'ouvrage', composants: [{ articleId: a.id, quantite: 1 }] }));
+    const t = refus(await s.appeler('biblio', 'modifier_article', { id: a.id, type: 'ouvrage', composants: [{ articleId: p.id, quantite: 1 }] }));
+    assert.match(t, /c’est déjà une prestation, et une prestation ne peut pas en contenir une autre/);
+    assert.doesNotMatch(t, /ouvrage/i);
   });
 });

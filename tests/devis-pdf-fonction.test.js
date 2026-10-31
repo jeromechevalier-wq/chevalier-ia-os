@@ -124,6 +124,24 @@ describe('Q4 devisPdf : chemin heureux', () => {
     assert.ok(h.includes('Banque X<br>FR76 0000'));
     assert.ok(h.includes('Attestation de TVA réduite<br>Qualification RGE'));
   });
+  test('2 le PDF imprime la mention de TVA réduite seulement si une ligne est à 10 % ou 5,5 % : texte des réglages, sinon texte standard (champ absent compris)', async () => {
+    const f20 = faux();
+    await appel(await monde(), f20)(requete({ devisId: 'd1' }));
+    assert.ok(!f20.vus.html[0].includes('278-0 bis A'), 'ligne à 20 % : pas de mention');
+    const a10 = async (reglage) => {
+      const m = await monde({ finaliser: false });
+      m.collections[C.devis][0].sections[0].lignes[0].tauxTva = 10;
+      if (reglage !== undefined) m.collections[C.devisParametres][0].mentionTvaReduite = reglage;
+      await S.finaliser({ donnees: m.donnees, ctx: { acteur: ACTEUR, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd1' });
+      const f = faux();
+      await appel(m, f)(requete({ devisId: 'd1' }));
+      return f.vus.html[0];
+    };
+    assert.ok((await a10()).includes('278-0 bis A'), 'ligne à 10 % : texte standard (aucun réglage)');
+    assert.ok((await a10('')).includes('278-0 bis A'), 'réglage vide : texte standard');
+    const perso = await a10('Texte réduit de l’artisan');
+    assert.ok(perso.includes('Texte réduit de l’artisan') && !perso.includes('278-0 bis A'));
+  });
   test('Q4 le champ pdf est écrit (statut ok, chemin, sha256, genereLe), la réponse porte l\'adresse stable, le PDF est rangé sous le dossier de l\'affaire, le journal est écrit', async () => {
     const m = await monde();
     const f = faux();
@@ -381,6 +399,36 @@ describe('R fichiers déposés : dépôt, lien, suppression (faux Cloud Storage,
     await creerStockage({ bucket }).lienSigne('devis/a/d/x.pdf', { nomAffiche: 'Devis.pdf' });
     assert.equal(recus[0].responseType, 'image/png');
     assert.equal(recus[1].responseType, 'application/pdf');
+  });
+
+  test('R9 accents : 1 .txt UTF-8 -> encodage utf-8 et text/plain; charset=utf-8 ; 2 .csv Windows-1252 -> windows-1252 ; 3 lien avec charset de la fiche (sans champ : utf-8) ; 4 PDF inchangé ; 6 encodageTexte', async () => {
+    const m = mondeDocs();
+    const txt = await depot(m, { nom: 'note.txt', contenuBase64: b64(Buffer.from('dépôt é\n', 'utf8')), typeMime: 'text/plain' });
+    const f1 = m.collections[C.documentsStockes].find((f) => f.id === txt.id);
+    assert.equal(f1.encodage, 'utf-8');
+    assert.equal(m.objets.get(f1.chemin).type, 'text/plain; charset=utf-8');
+    const csv = await depot(m, { nom: 'excel.csv', contenuBase64: b64(Buffer.from('nom;prénom\n', 'latin1')), typeMime: 'text/csv' });
+    const f2 = m.collections[C.documentsStockes].find((f) => f.id === csv.id);
+    assert.equal(f2.encodage, 'windows-1252');
+    assert.equal(m.objets.get(f2.chemin).type, 'text/csv; charset=windows-1252');
+    await m.a('lien')(requete({ documentId: csv.id }));
+    assert.equal(m.signes.at(-1).typeMime, 'text/csv; charset=windows-1252');
+    await m.a('lien')(requete({ documentId: txt.id }));
+    assert.equal(m.signes.at(-1).typeMime, 'text/plain; charset=utf-8');
+    delete f1.encodage; // fiche ancienne
+    await m.a('lien')(requete({ documentId: txt.id }));
+    assert.equal(m.signes.at(-1).typeMime, 'text/plain; charset=utf-8');
+    const pdf = await depot(m, {});
+    const fp = m.collections[C.documentsStockes].find((f) => f.id === pdf.id);
+    assert.equal(fp.encodage, undefined);
+    assert.equal(m.objets.get(fp.chemin).type, 'application/pdf');
+    await m.a('lien')(requete({ documentId: pdf.id }));
+    assert.equal(m.signes.at(-1).typeMime, 'application/pdf');
+    const { encodageTexte } = await import('../js/modules/crm/fichiers-regles.js');
+    assert.equal(encodageTexte(Buffer.from('é', 'utf8')), 'utf-8');
+    assert.equal(encodageTexte(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('é')])), 'utf-8');
+    assert.equal(encodageTexte(Buffer.from('abc')), 'utf-8');
+    assert.equal(encodageTexte(Buffer.from([0xe9])), 'windows-1252');
   });
 
   test('R5 suppression : corbeille logique (le fichier ne bouge pas), journal, plus de lien ; restaurer remet la fiche', async () => {
