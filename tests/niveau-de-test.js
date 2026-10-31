@@ -33,8 +33,9 @@ export function decider({ evenement, completDemande, etiquettes = '', fichiers =
 
 function git(...args) {
   try {
-    return execFileSync('git', args, { encoding: 'utf8' }).split('\n').filter(Boolean);
-  } catch {
+    return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).split('\n').filter(Boolean);
+  } catch (e) {
+    console.error('git a échoué :', e.message);
     return [];
   }
 }
@@ -48,6 +49,11 @@ function main() {
   const sortie = { complet: String(r.complet), plateforme: r.plateforme, specs: r.specs, docs: String(r.docs) };
   const niveau = r.complet ? 'complet' : r.docs ? 'docs' : 'rapide';
   console.log(`Niveau : ${niveau} (${fichiers.length} fichier(s) changé(s)). Parcours de la PR : ${r.specs.trim() || 'aucun'}.`);
+  if (r.complet) {
+    if (`,${ETIQUETTES},`.includes(',tests-complets,')) console.log('Étiquette tests-complets : palier complet.');
+    const sensibles = fichiers.filter((f) => SENSIBLES.test(f));
+    if (sensibles.length) console.log(`Fichiers sensibles touchés : palier complet.\n${sensibles.join('\n')}`);
+  }
   const lignes = Object.entries(sortie).map(([k, v]) => `${k}=${v}`).join('\n') + '\n';
   if (GITHUB_OUTPUT) appendFileSync(GITHUB_OUTPUT, lignes); else process.stdout.write(lignes);
 }

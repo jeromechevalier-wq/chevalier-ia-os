@@ -361,13 +361,14 @@ jobs:
       - name: Mesurer le temps d'attente (résumé du lancement)
         if: always()
         continue-on-error: true
+        timeout-minutes: 2
         env:
           GH_TOKEN: ${{ github.token }}
           NIVEAU_TEXTE: ${{ needs.niveau.outputs.complet == 'true' && 'complet' || (needs.niveau.outputs.docs == 'true' && 'docs' || 'rapide') }}
         run: |
           {
             echo "### Temps d'attente — niveau : $NIVEAU_TEXTE"
-            if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" > "$RUNNER_TEMP/jobs.json"; then
+            if timeout 60 gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" > "$RUNNER_TEMP/jobs.json"; then
               echo
               echo "| job | durée |"
               echo "|---|---|"

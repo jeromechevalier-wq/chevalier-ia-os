@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { decider } from './niveau-de-test.js';
+import { decider, DOCS } from './niveau-de-test.js';
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const lire = (f) => readFileSync(join(RACINE, f), 'utf8');
@@ -12,7 +12,9 @@ const PR = { evenement: 'pull_request' };
 
 describe('1 déploiement Hosting : paths-ignore sûr', () => {
   const yml = lire('.github/workflows/firebase-hosting.yml');
-  const ignores = [...yml.match(/paths-ignore:\n((?:\s+- '[^']+'\n)+)/)[1].matchAll(/- '([^']+)'/g)].map((m) => m[1]);
+  const bloc = yml.match(/paths-ignore:\n((?:\s+- '[^']+'\n)+)/);
+  assert.ok(bloc, 'paths-ignore absent ou chemins sans guillemets simples');
+  const ignores = [...bloc[1].matchAll(/- '([^']+)'/g)].map((m) => m[1]);
   const hosting = JSON.parse(lire('firebase.json')).hosting.ignore;
   test('1 paths-ignore présent, branches en liste « - main » conservées', () => {
     assert.ok(ignores.length >= 6, ignores.join(','));
@@ -21,6 +23,9 @@ describe('1 déploiement Hosting : paths-ignore sûr', () => {
   });
   test('1 chaque chemin ignoré est non servi (hosting.ignore) ou hors déploiement (.github/)', () => {
     for (const x of ignores) assert.ok(hosting.includes(x) || x.startsWith('.github/'), x);
+  });
+  test('1 la liste paths-ignore et la regex de la voie docs disent la même chose', () => {
+    for (const x of ignores) assert.ok(DOCS.test(x.replace(/\/\*\*$/, '/x')), x);
   });
 });
 
