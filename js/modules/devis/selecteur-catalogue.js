@@ -58,7 +58,7 @@ export function selecteurCatalogue({ source, mode = 'article', initial = null, s
     type: 'search', class: 'champ', autocomplete: 'off', 'aria-label': 'Chercher un article du catalogue', placeholder: mixte ? 'Chercher un article ou une famille' : 'Chercher un article du catalogue', dataset: { champ: 'recherche-article' },
     oninput: () => { dessinerResultats(); dessinerArbre(); },
   });
-  const resultats = h('ul', { class: 'resultats-composants', role: 'listbox', 'aria-label': mixte ? 'Familles et articles trouvés' : 'Articles trouvés', hidden: true });
+  const resultats = h('ul', { class: 'resultats-composants', role: plusieurs ? 'group' : 'listbox', 'aria-label': mixte ? 'Familles et articles trouvés' : 'Articles trouvés', hidden: true });
   const resume = h('p', { class: 'article-choisi', 'aria-live': 'polite', dataset: { role: 'article-choisi' } });
   const puces = h('ul', { class: 'puces-choix', 'aria-label': mixte ? 'Choix faits' : 'Articles choisis', hidden: true, dataset: { role: 'puces' } });
   const regle = h('p', { class: 'discret', role: 'status', hidden: true, dataset: { role: 'regle' } });
@@ -76,8 +76,8 @@ export function selecteurCatalogue({ source, mode = 'article', initial = null, s
     const familles = liste.filter((x) => genreDe(x) === 'famille');
     const articles = liste.length - familles.length;
     let message = '';
-    if (genre === 'famille' && articles) message = MESSAGE_FAMILLE_REMPLACE_ARTICLES;
-    else if (genre === 'famille' && familles.length) message = MESSAGE_UNE_FAMILLE;
+    if (genre === 'famille' && articles && !familles.length) message = MESSAGE_FAMILLE_REMPLACE_ARTICLES;
+    else if (genre === 'famille' && (familles.length || articles)) message = familles.length ? MESSAGE_UNE_FAMILLE : MESSAGE_FAMILLE_REMPLACE_ARTICLES;
     else if (genre === 'article' && familles.length) message = MESSAGE_ARTICLE_REMPLACE_FAMILLE;
     if (message) liste = genre === 'famille' ? [] : liste.filter((x) => genreDe(x) !== 'famille');
     else if (complet()) { limite.hidden = false; return false; } // 8 au plus : le message dit quoi faire, rien ne change
@@ -125,10 +125,10 @@ export function selecteurCatalogue({ source, mode = 'article', initial = null, s
       entree, h('span', { class: 'ligne-case-texte' }, h('span', { class: 'ligne-case-titre' }, titre), chemin ? h('span', { class: 'discret ligne-case-chemin', dataset: { role: 'chemin' } }, chemin) : null), droite ? h('span', { class: 'discret' }, droite) : null);
   }
   const boutonResultatArticle = (a) => (plusieurs
-    ? h('li', { role: 'option' }, ligneCase({ classe: 'resultat-composant', coche: estChoisi(a.id), desactive: complet() && !estChoisi(a.id), data: { articleId: a.id }, dataCase: { caseArticle: a.id }, nom: `Choisir l’article « ${a.libelle} »`, titre: a.libelle, droite: a.unite ?? '', chemin: cheminArticle(a), surBascule: () => { if (!basculer('article', a.id, () => choixArticle(a))) return false; apresChoix(); return true; } }))
+    ? h('li', plusieurs ? {} : { role: 'option' }, ligneCase({ classe: 'resultat-composant', coche: estChoisi(a.id), desactive: complet() && !estChoisi(a.id), data: { articleId: a.id }, dataCase: { caseArticle: a.id }, nom: `Choisir l’article « ${a.libelle} »`, titre: a.libelle, droite: a.unite ?? '', chemin: cheminArticle(a), surBascule: () => { if (!basculer('article', a.id, () => choixArticle(a))) return false; apresChoix(); return true; } }))
     : h('li', { role: 'option' }, h('button', { type: 'button', class: 'resultat-composant', dataset: { articleId: a.id }, onclick: () => choisir(a) },
       h('span', {}, a.libelle), h('span', { class: 'discret' }, a.unite ?? ''))));
-  const boutonResultatFamille = (f) => h('li', { role: 'option' }, ligneCase({ classe: 'resultat-composant resultat-famille', coche: estChoisi(f.id, 'famille'), desactive: false, data: { familleId: f.id }, dataCase: { caseFamille: f.id }, nom: `Choisir la famille « ${f.chemin} »`, titre: f.chemin, droite: 'Famille', surBascule: () => { if (!basculer('famille', f.id, () => choixFamille(f))) return false; apresChoix(); return true; } }));
+  const boutonResultatFamille = (f) => h('li', plusieurs ? {} : { role: 'option' }, ligneCase({ classe: 'resultat-composant resultat-famille', coche: estChoisi(f.id, 'famille'), desactive: false, data: { familleId: f.id }, dataCase: { caseFamille: f.id }, nom: `Choisir la famille « ${f.chemin} »`, titre: f.chemin, droite: 'Famille', surBascule: () => { if (!basculer('famille', f.id, () => choixFamille(f))) return false; apresChoix(); return true; } }));
   function dessinerResultats() {
     const texte = champ.value.trim();
     if (!texte) { remplir(resultats); resultats.hidden = true; return; }
@@ -196,7 +196,7 @@ export function selecteurCatalogue({ source, mode = 'article', initial = null, s
   const arreterAbonnement = source.surChangement?.(() => {
     const aOuvrir = Boolean(dernier()) && !cheminOuvert();
     if (aOuvrir) ouvrirChemin();
-    dessinerResultats(); dessinerArbre();
+    dessinerResultats(); dessinerChoix(); dessinerArbre(); // les puces aussi : leur chemin dépend du catalogue
     if (dernier() && (aOuvrir || !touche)) requestAnimationFrame(montrerChoisi); // le catalogue arrivé tard peut pousser l'article hors du cadre
   });
   const arreter = () => arreterAbonnement?.();
