@@ -344,6 +344,8 @@ describe('Mentions légales du devis, PR A (31/10/2026)', () => {
     assert.equal(D.assuranceTexteDe({ assuranceTexte: 'Mon texte', ...ancien }), 'Mon texte', 'le nouveau texte gagne');
     assert.equal(D.assuranceTexteDe({}), D.ASSURANCE_DEFAUT);
     assert.match(D.ASSURANCE_DEFAUT, /^Assurance décennale : \[Assureur\], contrat numéro : \[numéro\], territorialité : France métropolitaine\.$/);
+    // Un ancien groupe sans rien d'imprimable (adresse ou zone seules) n'est jamais perdu, même quand l'écran envoie un texte vide.
+    assert.deepEqual(A.validerEntreprise({ assuranceTexte: '', assurance: { zone: 'France' } }).entreprise, { assurance: { zone: 'France' } });
     // Une fois le nouveau texte enregistré (même vide), les anciens champs ne ressuscitent pas.
     assert.deepEqual(A.validerEntreprise({ assuranceTexte: '', ...ancien }).entreprise, {});
   });

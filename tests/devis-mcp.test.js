@@ -1063,6 +1063,14 @@ describe('N9 lire_reglages_devis et journal du bordereau', () => {
     assert.equal(r.reglages.entreprise.coordonneesBancaires, 'Banque\nIBAN');
   });
 
+  test('A5 un espace aux quatre anciens champs d’assurance : l’assistant lit le texte reconstruit (assuranceTexte), sans rien écrire', async () => {
+    const s = await demarrer();
+    Object.assign(s.doc('devis_parametres', 'reglages'), { entreprise: { nom: 'Atelier', assurance: { garantie: 'Décennale', assureur: 'Assureur SA' } } });
+    const r = ok(await s.appeler('lecteur', 'lire_reglages_devis', {}));
+    assert.equal(r.reglages.entreprise.assuranceTexte, 'Assurance professionnelle : Décennale, souscrite auprès de Assureur SA.');
+    assert.equal(s.doc('devis_parametres', 'reglages').entreprise.assuranceTexte, undefined, 'rien n’est écrit en base');
+  });
+
   test('N9 un article créé par l’assistant a sa ligne de journal (devis_articles) et se restaure', async () => {
     const s = await demarrer();
     const a = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Peinture', prixAchat: 12, unite: 'm²', code: 'PEI' }));

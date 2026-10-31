@@ -692,7 +692,7 @@ export function chantierDeVue(chantier) {
 
 /** Assurance imprimée par défaut quand le champ est vide : les crochets disent à l'artisan ce qu'il doit remplir. */
 export const ASSURANCE_DEFAUT = 'Assurance décennale : [Assureur], contrat numéro : [numéro], territorialité : France métropolitaine.';
-/** Refus (finalisation) et alerte (réglages) tant que le texte d'assurance garde un crochet : le même mot à l'écran, dans la fonction du serveur et dans l'assistant. */
+/** Alerte (Réglages > Mon entreprise) tant que le texte d'assurance garde un crochet ; la même phrase servira au refus de finaliser (écran, serveur, assistant). */
 export const MESSAGE_ASSURANCE_CROCHETS = 'Complète l\'assurance dans Mon entreprise : il reste des crochets.';
 export const LIMITE_ASSURANCE_TEXTE = 500;
 export const LIMITE_COORDONNEES_BANCAIRES = 300;

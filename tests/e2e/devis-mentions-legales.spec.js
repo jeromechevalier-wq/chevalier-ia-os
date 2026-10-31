@@ -2,6 +2,7 @@
 // Un test par point (le nom commence par son numéro). Captures : tests/e2e/captures/devis-mentions-legales/ (ordinateur ET téléphone). Données fictives.
 import { fileURLToPath } from 'node:url';
 import { mkdir } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 import { test, expect, connecter, allerA, ouvrirSectionReglages, attendreCalme, lireDocument, ecrireDocument } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-mentions-legales/', import.meta.url));
@@ -99,4 +100,27 @@ test('A3 « Attestation et mentions » remplace « Mention d\'émetteur » : mê
   expect((await base()).nom).toBe('Entreprise Exemple'); // enregistrer ne perd rien d'autre
   await zone.scrollIntoViewIfNeeded();
   await capturer(page, info, 'A3-attestation-et-mentions', page.locator('[data-reglage="mentionEmetteur"]'));
+});
+
+// Le document imprimé (le même HTML que le PDF) : page statique chargée directement, pas d'application ni d'émulateur.
+const ESSAI = fileURLToPath(new URL('./devis-mentions-document.mjs', import.meta.url));
+const fabriquer = (...args) => JSON.parse(execFileSync(process.execPath, [ESSAI, ...args], { encoding: 'utf8', maxBuffer: 10_000_000 })).html;
+
+test('A4 le document imprimé : coordonnées bancaires sous leur titre, mention avant « Bon pour accord », assurance en pied ; cas vide : assurance par défaut avec crochets, rien d\'autre', async ({ page }, info) => {
+  await mkdir(DOSSIER, { recursive: true });
+  await page.setViewportSize({ width: 794, height: 1123 });
+  await page.setContent(fabriquer(), { waitUntil: 'load' });
+  const texte = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
+  expect(texte).toContain('Coordonnées bancaires : Banque Exemple FR76 0000 0000 0000 BIC EXEMPLEXXX');
+  expect(texte.indexOf('Qualification RGE')).toBeGreaterThan(-1);
+  expect(texte.indexOf('Qualification RGE')).toBeLessThan(texte.indexOf('bon pour accord'));
+  expect(texte).toContain('Assurance décennale : [Assureur], contrat numéro : [numéro], territorialité : France métropolitaine.');
+  expect(texte).not.toContain('Attestation du client (preneur de la prestation)'); // plus de texte codé en dur
+  await page.screenshot({ path: `${DOSSIER}A4-document-imprime-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
+  await page.setContent(fabriquer('sans'), { waitUntil: 'load' });
+  const vide = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
+  expect(vide).not.toContain('Coordonnées bancaires');
+  expect(vide).not.toContain('Qualification RGE');
+  expect(vide).toContain('[Assureur]');
+  await page.screenshot({ path: `${DOSSIER}A4-document-imprime-vide-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
 });

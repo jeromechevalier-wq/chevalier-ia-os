@@ -16,7 +16,7 @@ import {
 } from '../crm/logique.js';
 import {
   MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, DUREE_VALIDITE_DEFAUT, coefficientDeMarge, emailValide,
-  LIMITE_ASSURANCE_TEXTE, LIMITE_COORDONNEES_BANCAIRES, LIMITE_MENTION_EMETTEUR, nettoyerTexteLibre,
+  LIMITE_ASSURANCE_TEXTE, LIMITE_COORDONNEES_BANCAIRES, LIMITE_MENTION_EMETTEUR, nettoyerTexteLibre, assuranceDepuisAnciensChamps,
 } from './logique.js';
 import { TYPE_OUVRAGE, erreursOuvrage, articlesParId, calculerOuvrage, lireMotOuvrage, validerMotAutre, MOTS_OUVRAGE, MOT_OUVRAGE_AUTRE } from './ouvrages.js';
 export { motOuvrage, MOTS_OUVRAGE } from './ouvrages.js';
@@ -112,7 +112,8 @@ export function validerEntreprise(brut) {
     if (t.length > max) erreurs[`entreprise.${cle}`] = `${trop} (${max} caractères au plus) : raccourcis le texte.`;
     else if (t) sortie[cle] = t;
   }
-  if (s.assuranceTexte === undefined || s.assuranceTexte === null) { // ancien format : quatre champs, jamais perdus à la lecture
+  // Ancien format (quatre champs), jamais perdu : gardé tant que le nouveau texte est absent, et aussi quand l'ancien groupe n'a rien d'imprimable (adresse ou zone seules : le texte reconstruit serait vide).
+  if (s.assuranceTexte === undefined || s.assuranceTexte === null || assuranceDepuisAnciensChamps(s.assurance) === '') {
     const ass = lireGroupe(s.assurance, TEXTES_ASSURANCE, 'entreprise.assurance');
     if (Object.keys(ass.valeurs).length) sortie.assurance = ass.valeurs;
   }
