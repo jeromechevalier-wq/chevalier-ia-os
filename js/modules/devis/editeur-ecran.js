@@ -733,6 +733,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     let abandonnerSaisie = () => {};
     function dessiner() {
       abandonnerSaisie(); abandonnerSaisie = () => {}; // l'ancien champ disparaît : son « blur » éventuel ne doit plus rien valider
+      ref.signatures = { ...(ref.signatures ?? {}), [cle]: signatureBloc(cle) };
       const liste = adresses();
       const parties = [h('span', { class: 'etiquette', id: `devis-${cle}-titre` }, cfg.titre)];
       if (liste.length) {
@@ -741,11 +742,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
           h('button', { type: 'button', class: 'bouton-icone', 'aria-label': cfg.retirer(a), dataset: { action: `retirer-${cfg.mot}` },
             // Pendant la saisie d'une autre adresse, un appui sur la croix ne doit pas faire perdre le focus au champ : sinon « blur » redessine la ligne avant le clic et la croix disparaît.
             onpointerdown: (e) => e.preventDefault(), onmousedown: (e) => e.preventDefault(),
-            onclick: () => { changer({ [cle]: adresses().filter((_, k) => k !== i) }); majBlocs(); }, }, icone('x', { taille: 14 }))))));
+            onclick: () => { changer({ [cle]: adresses().filter((_, k) => k !== i) }); majBlocs(); if (!saisie) rendreFocus(); }, }, icone('x', { taille: 14 }))))));
       } else {
         parties.push(h('p', { class: cfg.classes.vide, dataset: { valeur: `${cfg.mot}-vide` } }, cfg.vide));
         // Le mail du client est déjà en copie : il n'est pas repris comme destinataire, et le bloc le dit (jamais la même adresse dans les deux listes).
-        if (cle === 'destinataires' && ref.emailAuto && adresseDans('copie', ref.emailAuto)) parties.push(h('p', { class: 'erreur', id: 'devis-destinataire-erreur', role: 'alert', dataset: { erreur: 'destinataire' } }, Ed.MESSAGE_DESTINATAIRE_DEJA_COPIE));
+        if (cle === 'destinataires' && ref.emailAuto && adresseDans('copie', ref.emailAuto)) parties.push(h('p', { class: 'erreur', id: 'devis-destinataire-erreur', role: 'alert', dataset: { erreur: 'destinataire-auto' } }, Ed.MESSAGE_DESTINATAIRE_DEJA_COPIE));
       }
       if (saisie) {
         const erreur = h('p', { class: 'erreur', id: `devis-${cle}-erreur`, role: 'alert', hidden: true, dataset: { erreur: cfg.mot } });
@@ -779,7 +780,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         champSaisie.focus();
         return;
       }
-      if (liste.length < cfg.max) parties.push(h('button', { type: 'button', class: 'prop-vide', dataset: { action: `ajouter-${cfg.mot}` }, onclick: () => { saisie = true; enCours = ''; refusEnCours = ''; dessiner(); } }, icone('plus', { taille: 14 }), cfg.bouton));
+      if (liste.length < cfg.max) parties.push(h('button', { type: 'button', class: 'prop-vide', dataset: { action: `ajouter-${cfg.mot}` }, onpointerdown: (e) => e.preventDefault(), onmousedown: (e) => e.preventDefault(), onclick: () => { saisie = true; enCours = ''; refusEnCours = ''; dessiner(); } }, icone('plus', { taille: 14 }), cfg.bouton));
       else parties.push(h('p', { class: cfg.classes.vide, dataset: { valeur: `${cfg.mot}-plafond` } }, cfg.plafond)); // au plafond : une phrase grisée à la place du bouton
       zone.replaceChildren(...parties);
     }
@@ -788,7 +789,12 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     return zone;
   }
   /** Redessine les blocs d'adresses (sauf `sauf`, qui se redessine seul) : après un changement d'une liste, l'autre en dépend (message « déjà en copie », mail du client repris ou non). */
-  function majBlocs(sauf = null) { for (const [cle, dessiner] of Object.entries(ref.blocs ?? {})) if (cle !== sauf) dessiner(); }
+  function majBlocs(sauf = null) {
+    // Un bloc n'est redessiné que si ce qu'il montre a changé : redessiner le bloc voisin pendant qu'on clique sur son « + » remplacerait le bouton avant la fin du clic (clic avalé).
+    for (const [cle, dessiner] of Object.entries(ref.blocs ?? {})) if (cle !== sauf && (ref.signatures?.[cle] !== signatureBloc(cle))) dessiner();
+  }
+  /** Ce qu'un bloc d'adresses montre : sa liste, et pour les destinataires le message « déjà en copie » du mail du client. */
+  const signatureBloc = (cle) => JSON.stringify([Ed.adressesDeListe(travail[cle]), cle === 'destinataires' && Boolean(ref.emailAuto) && adresseDans('copie', ref.emailAuto)]);
   /** Vrai si `v` est déjà dans la liste `cle` du devis (même règle que l'ajout : Ed.memeAdresse). */
   function adresseDans(cle, v) { return Ed.adressesDeListe(travail[cle]).some((a) => Ed.memeAdresse(a, v)); }
 

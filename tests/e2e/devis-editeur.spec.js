@@ -285,7 +285,7 @@ test('COP8 choisir un client dont l’e-mail est déjà en copie : l’e-mail n�
   await choisirDansChampDevis(page, 'client', 'Autre', 'Autre Société'); // son e-mail est compta@exemple.fr, déjà en copie
   await expect(adressesA(page)).toHaveCount(0);
   await expect(blocA(page).locator('[data-valeur="destinataire-vide"]')).toHaveText('Aucun destinataire');
-  await expect(blocA(page).locator('[data-erreur="destinataire"]')).toHaveText('Cette adresse est déjà en copie du devis : choisis-en une autre.');
+  await expect(blocA(page).locator('[data-erreur="destinataire-auto"]')).toHaveText('Cette adresse est déjà en copie du devis : choisis-en une autre.');
   await capturer(page, info, 'COP8-client-deja-en-copie');
   await enregistre(page);
   const doc = await lireDocument(`devis_devis/${id}`);
@@ -293,7 +293,7 @@ test('COP8 choisir un client dont l’e-mail est déjà en copie : l’e-mail n�
   expect(doc.copie).toEqual(['Compta@Exemple.fr']);
   await choisirDansChampDevis(page, 'client', 'Société Ex', 'Société Exemple'); // retour à un client dont l'e-mail n'est pas en copie : il est repris, le message part
   await expect(adressesA(page)).toHaveText(['contact@exemple.fr']);
-  await expect(blocA(page).locator('[data-erreur="destinataire"]')).toHaveCount(0);
+  await expect(blocA(page).locator('[data-erreur="destinataire-auto"]')).toHaveCount(0);
 });
 
 
@@ -303,7 +303,7 @@ test('COP10 le message « déjà en copie » du bloc destinataire suit la copie 
   await creerAffaire('a2', { titre: 'Salle de bains', organisationId: 'o2' });
   const id = await nouveauBrouillon(page);
   const bloc = page.locator('[data-zone="copie"]');
-  const message = blocA(page).locator('[data-erreur="destinataire"]');
+  const message = blocA(page).locator('[data-erreur="destinataire-auto"]');
   // cas du client : son e-mail est déjà en copie -> destinataire vide + message ; la croix fait disparaître le message
   await ajouterCopie(bloc, 'compta@exemple.fr');
   await choisirDansChampDevis(page, 'client', 'Autre', 'Autre Société');
@@ -351,6 +351,7 @@ test('PLUSIEURS-A plusieurs destinataires ET plusieurs adresses en copie : ajout
   await expect(adressesA(page)).toHaveText(['contact@exemple.fr', 'second@exemple.fr', 'troisieme@exemple.fr']);
   await blocA(page).locator('[data-action="retirer-destinataire"]').first().click(); // la croix retire l'adresse choisie, pas les autres
   await expect(adressesA(page)).toHaveText(['second@exemple.fr', 'troisieme@exemple.fr']);
+  await expect(blocA(page).locator('[data-action="ajouter-destinataire"]')).toBeFocused(); // après la croix, le focus revient dans le bloc
   // Plafond : 10 destinataires au plus, une phrase à la place du bouton.
   for (let i = 0; i < 8; i++) await ajouterDestinataire(page, `d${i}@exemple.fr`);
   await expect(adressesA(page)).toHaveCount(10);
@@ -772,4 +773,19 @@ test('ED9 « Mon entreprise » : l’aperçu du devis affiche le bloc entreprise
   const html = await page.evaluate(() => document.querySelector('iframe[data-zone="apercu"]').srcdoc);
   expect(html).toContain('Atelier Exemple');
   expect(html).toContain('--accent: #1f6feb');
+});
+
+test('CLIC-AUTRE-BLOC une adresse tapée puis un CLIC (sans Entrée) sur le « + » de l’autre bloc : l’adresse est ajoutée et l’autre champ s’ouvre, dans les deux sens', async ({ page }) => {
+  await semer();
+  await nouveauBrouillon(page);
+  const copie = page.locator('[data-zone="copie"]');
+  await copie.locator('[data-action="ajouter-copie"]').click();
+  await copie.locator('[data-champ="copie"]').fill('cc@exemple.fr');
+  await blocA(page).locator('[data-action="ajouter-destinataire"]').click(); // un vrai clic : le champ en cours de saisie perd le focus
+  await expect(copie.locator('.ligne-copie')).toHaveText(['cc@exemple.fr']);
+  await expect(blocA(page).locator('[data-champ="destinataire"]')).toBeVisible();
+  await blocA(page).locator('[data-champ="destinataire"]').fill('second@exemple.fr');
+  await copie.locator('[data-action="ajouter-copie"]').click();
+  await expect(adressesA(page)).toHaveText(['contact@exemple.fr', 'second@exemple.fr']);
+  await expect(copie.locator('[data-champ="copie"]')).toBeVisible();
 });
