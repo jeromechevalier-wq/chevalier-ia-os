@@ -121,7 +121,7 @@ export async function lienDocument({ donnees, stockage, espace = '', documentId,
   const extension = /\.([A-Za-z0-9]{1,10})$/.exec(String(fiche.nom))?.[1]?.toLowerCase();
   const regle = TYPES[extension];
   if (!regle) throw new ErreurDocument('refuse', 'Ce fichier n\'est pas accessible.');
-  const url = await stockage.lienSigne(fiche.chemin, { minutes: DUREE_LIEN_MINUTES, nomAffiche: fiche.nom, telecharger: telecharger || !AFFICHABLES.has(regle.famille), typeMime: regle.famille === 'texte' ? `${regle.type}; charset=${fiche.encodage || 'utf-8'}` : regle.type });
+  const url = await stockage.lienSigne(fiche.chemin, { minutes: DUREE_LIEN_MINUTES, nomAffiche: fiche.nom, telecharger: telecharger || !AFFICHABLES.has(regle.famille), typeMime: regle.famille === 'texte' ? `${regle.type}; charset=${['utf-8', 'windows-1252'].includes(fiche.encodage) ? fiche.encodage : 'utf-8'}` : regle.type });
   return { url, expireDans: DUREE_LIEN_MINUTES * 60, nom: fiche.nom };
 }
 
