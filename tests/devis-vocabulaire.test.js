@@ -711,8 +711,8 @@ describe('E écran Vocabulaire : plans, filtres, tri, CSV', async () => {
     const csv = P.construireCsv([{ id: 'x', cle: 'x', expression: 'prise, "double"', articleLibelle: 'Prise double 16 A', statut: 'a_confirmer', origine: 'apprise_question', confirmations: 1, derniereUtilisationLe: '2026-10-20' },
       { id: 'y', cle: 'y', expression: 'accent é', articleLibelle: 'Gaine', statut: 'active', origine: 'manuelle', confirmations: 0 }]);
     assert.equal(csv.charCodeAt(0), 0xFEFF);
-    assert.equal(csv, '﻿Expression,Article,Statut,Origine,Confirmations,Dernière utilisation\r\naccent é,Gaine,Actif,Ajouté ici,0,\r\n"prise, ""double""",Prise double 16 A,À confirmer,Appris (question),1,2026-10-20\r\n');
-    assert.equal(P.construireCsv([]), '﻿Expression,Article,Statut,Origine,Confirmations,Dernière utilisation\r\n');
+    assert.equal(csv, '﻿Expression,Article,Famille,Statut,Origine,Confirmations,Dernière utilisation\r\naccent é,Gaine,,Actif,Ajouté ici,0,\r\n"prise, ""double""",Prise double 16 A,,À confirmer,Appris (question),1,2026-10-20\r\n');
+    assert.equal(P.construireCsv([]), '﻿Expression,Article,Famille,Statut,Origine,Confirmations,Dernière utilisation\r\n');
   });
   test('E8 le nom du fichier CSV suit la règle des exports (date de Paris) ; le Journal nomme le mot appris', () => {
     assert.equal(CRM.nomFichierExport(new Date('2026-10-29T10:00:00Z'), 'vocabulaire'), 'chevalier-ia-vocabulaire-2026-10-29.csv');

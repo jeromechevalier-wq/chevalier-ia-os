@@ -44,7 +44,7 @@ describe('C5b.1 créer un mot : un article ou plusieurs au choix', () => {
     const neuf = Array.from({ length: 9 }, (_, i) => art(`n${i}`, `Article ${i}`));
     const trop = P.planCreerMot({ expression: 'prise', articleIds: neuf.map((a) => a.id) }, CTX, { articles: neuf });
     assert.equal(trop.erreurs.articleId, P.MESSAGE_TROP_DE_CIBLES);
-    assert.match(P.MESSAGE_TROP_DE_CIBLES, /8 articles au plus/);
+    assert.match(P.MESSAGE_TROP_DE_CIBLES, /8 choix au plus/);
     assert.equal(P.planCreerMot({ expression: 'prise', articleIds: neuf.slice(0, 8).map((a) => a.id) }, CTX, { articles: neuf }).erreurs.articleId, undefined, '8 articles : permis');
   });
 });
@@ -94,7 +94,9 @@ describe('C5b.3 activer, désigner, filtrer, exporter', () => {
     assert.deepEqual(P.planChangerStatut('prise', 'active', { regles: [tousMorts], articles: CATALOGUE, restaurer: true }).erreurs, {}, 'Annuler une désactivation remet l’état d’avant sans revérifier');
   });
   test('C5b.3 designation : un article, plusieurs, vivants ou non ; « mort » = aucun article vivant ; un mot sans article ni cibles est mort', () => {
-    assert.deepEqual(P.designation(unique(), CATALOGUE), { articles: [{ id: 'p1', libelle: 'Prise simple 16 A', vivant: true }], nombre: 1, multiple: false, mort: false });
+    // C6b : la forme s'est enrichie (cibles, familles, disponibles, vide) sans rien changer aux champs d'avant ; changé exprès.
+    const u = P.designation(unique(), CATALOGUE);
+    assert.deepEqual([u.articles, u.nombre, u.multiple, u.mort, u.vide, u.familles, u.disponibles], [[{ id: 'p1', libelle: 'Prise simple 16 A', vivant: true }], 1, false, false, false, [], 1]);
     const d = P.designation(multiple(['p1', 'off', 'fantome']), CATALOGUE);
     assert.deepEqual([d.nombre, d.multiple, d.mort, d.articles.map((a) => a.vivant)], [3, true, false, [true, false, false]]);
     assert.equal(P.designation(multiple(['off', 'txt']), CATALOGUE).mort, true);
@@ -111,8 +113,8 @@ describe('C5b.3 activer, désigner, filtrer, exporter', () => {
     const csv = P.construireCsv([multiple(['p1', 'p3'], { expression: 'prise' }), unique({ id: 'gaine', cle: 'gaine', expression: 'gaine', articleId: 'g', articleLibelle: 'Gaine ICTA 20 mm' })]);
     const lignes = csv.replace('﻿', '').trim().split('\r\n');
     assert.equal(lignes[0], P.ENTETE_CSV.join(','));
-    assert.equal(lignes[1], 'gaine,Gaine ICTA 20 mm,Actif,Ajouté ici,0,');
-    assert.equal(lignes[2], 'prise,Prise simple 16 A / Prise étanche 16 A,Actif,Ajouté ici,0,');
+    assert.equal(lignes[1], 'gaine,Gaine ICTA 20 mm,,Actif,Ajouté ici,0,'); // colonne « Famille » (C6b) vide pour un mot sans famille
+    assert.equal(lignes[2], 'prise,Prise simple 16 A / Prise étanche 16 A,,Actif,Ajouté ici,0,');
   });
   test('C5b.3 E11 : `cibles` est le seul champ ajouté à ceux qu’un navigateur change ; jamais `suggestion`, jamais un compteur', () => {
     assert.ok(P.CHAMPS_MODIFIABLES.includes('cibles'));

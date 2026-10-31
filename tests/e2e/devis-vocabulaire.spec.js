@@ -274,9 +274,9 @@ test('E8 « Exporter le vocabulaire (CSV) » télécharge un fichier lisible par
   expect(telechargement.suggestedFilename()).toMatch(/^chevalier-ia-vocabulaire-\d{4}-\d{2}-\d{2}\.csv$/);
   const octets = await readFile(await telechargement.path());
   expect([...octets.subarray(0, 3)]).toEqual([0xEF, 0xBB, 0xBF]); // BOM UTF-8
-  expect(octets.toString('utf8')).toBe('﻿Expression,Article,Statut,Origine,Confirmations,Dernière utilisation\r\n'
-    + '"\'=cable\nrigide","Prise double, 16 A",Actif,Ajouté ici,0,\r\n'
-    + '"prise ""double""","Prise double, 16 A",Actif,Appris (question),3,2026-10-20\r\n');
+  expect(octets.toString('utf8')).toBe('﻿Expression,Article,Famille,Statut,Origine,Confirmations,Dernière utilisation\r\n'
+    + '"\'=cable\nrigide","Prise double, 16 A",,Actif,Ajouté ici,0,\r\n'
+    + '"prise ""double""","Prise double, 16 A",,Actif,Appris (question),3,2026-10-20\r\n');
   await expect(page.locator('.toast')).toContainText('Fichier téléchargé');
 });
 
