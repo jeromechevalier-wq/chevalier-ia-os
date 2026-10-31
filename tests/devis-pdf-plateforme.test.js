@@ -436,6 +436,10 @@ describe('R plateforme : fichiers déposés, rôles et cloisonnement entre clien
     await assert.rejects(() => m.appel('lien', BOB, { client: 'b', documentId: 'piege' }), (e) => e.code === 'invalid-argument');
     await assert.rejects(() => m.appel('lien', BOB, { client: 'b', documentId: r.id }), (e) => e.code === 'not-found');
     assert.equal(m.signes.length, 2);
+    // 7 parité : un texte est signé avec son charset
+    const t = await m.appel('deposer', ALICE, { ...depot, nom: 'n.txt', typeMime: 'text/plain', contenuBase64: Buffer.from('dépôt', 'utf8').toString('base64') });
+    await m.appel('lien', ALICE, { client: 'a', documentId: t.id });
+    assert.equal(m.signes.at(-1).typeMime, 'text/plain; charset=utf-8');
   });
 
   test('R9 suppression : éditeurs seulement (un lecteur est refusé), corbeille logique, journal', async () => {

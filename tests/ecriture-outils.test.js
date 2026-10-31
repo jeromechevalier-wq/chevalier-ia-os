@@ -1252,7 +1252,9 @@ describe('R. deposer_document, supprimer_document_stocke, lister_documents (fich
     const fiche = s.doc('documents_stockes', r.id);
     assert.equal(fiche.cibleId, 'a1');
     assert.match(fiche.chemin, /^documents\/affaire\/a1\/[0-9a-f-]{36}-compte-rendu é\.md$/);
-    assert.equal(st.objets.get(fiche.chemin).type, 'text/markdown');
+    assert.equal(st.objets.get(fiche.chemin).type, 'text/markdown; charset=utf-8'); // 5
+    assert.equal(fiche.encodage, 'utf-8');
+    assert.ok(!JSON.stringify(ok(await s.appeler('biblio', 'lister_documents', { affaireId: 'a1' }))).includes('encodage'));
     assert.ok(s.collections.crm_audit.some((l) => l.outil === 'deposer_document' && l.docId === r.id));
     const liste = ok(await s.appeler('biblio', 'lister_documents', { affaireId: 'a1' }));
     assert.equal(liste.fichiers.length, 1);
