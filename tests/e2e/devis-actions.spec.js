@@ -153,7 +153,8 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
   const dansEntete = (t) => t === 'Préparer l’e-mail' || BOUTON_PAR_ETAT[idCourant]?.test(t) === true;
   const sansEnvoyer = (l) => l.filter((t) => !dansEntete(t));
   const sansOnglets = (t) => t !== 'Voir le devis' && t !== 'Éditer le devis'; // 26/10/2026 : les onglets Prévisualisation et Édition, toujours visibles, font la même chose
-  const groupe = (id) => ['Ouvrir le PDF', 'Télécharger le PDF', 'Imprimer', ...(id === 'dBrouillon' ? ['Préparer l’e-mail'] : id === 'dFinalise' ? [] : ['Préparer l’e-mail'])];
+  // 31/10/2026 : « Ouvrir le PDF » n'existe plus dans l'éditeur ; finalisé : PDF, impression et e-mail sont dans le menu du bouton « Envoyer », donc rien en tête du « … ».
+  const groupe = (id) => id === 'dFinalise' ? [] : ['Télécharger le PDF', 'Imprimer', 'Préparer l’e-mail'];
   for (const id of ['dBrouillon', 'dFinalise', 'dEnvoye', 'dSigne']) {
     await page.evaluate((h) => { location.hash = h; }, '#/devis/liste');
     await expect(page.locator('.page-liste-devis')).toBeVisible();
