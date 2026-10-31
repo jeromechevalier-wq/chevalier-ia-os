@@ -164,10 +164,11 @@ describe('P4 isolation entre clients', () => {
   const lireEmail = { devisId: 'dv1', demandeId: 'dem_inconnue' };
   test('P4 clé audrey + workflow client-audrey : la demande inconnue répond 404 demande_inconnue', async () => {
     const m = monde();
-    const { porte } = creer({ depart: m.depart });
-    const r = await appeler(porte, m.audrey.cle, 'devis', 'devis.lireEmail', lireEmail);
+    const c = creer({ depart: m.depart });
+    const r = await appeler(c.porte, m.audrey.cle, 'devis', 'devis.lireEmail', lireEmail);
     assert.equal(r.statut, 404, JSON.stringify(r.corps));
     assert.equal(r.corps.erreur, 'demande_inconnue');
+    assert.ok(c.db.lectures.includes('clients/audrey/crm_actions_lancements/dem_inconnue'), 'la demande est lue sous clients/audrey/');
   });
   test('P4 le même workflow avec la clé de martin : 403 workflow_refuse', async () => {
     const m = monde();
