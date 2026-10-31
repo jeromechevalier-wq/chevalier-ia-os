@@ -223,9 +223,10 @@ export function suggestionEnAttente(regle) {
 }
 
 // ---------------------------------------------------------------- étapes 3 et 4
-/** Nombre d'utilisations d'un article (devis finalisés) d'après `usages` (Map articleId -> { nombre }) ; absent ou illisible = 0. */
+/** Nombre d'utilisations d'un article (devis finalisés) d'après `usages` (Map articleId -> { nombre } côté serveur, ou articleId -> nombre côté écran) ; absent ou illisible = 0. */
 const usageDe = (usages, articleId) => {
-  const n = usages instanceof Map ? usages.get(articleId)?.nombre : undefined;
+  const v = usages instanceof Map ? usages.get(articleId) : undefined;
+  const n = typeof v === 'number' ? v : v?.nombre;
   return Number.isInteger(n) && n > 0 ? n : 0;
 };
 /**

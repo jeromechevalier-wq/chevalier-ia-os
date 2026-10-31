@@ -167,7 +167,8 @@ export function planChangerCibles(id, articleIds, { regles = [], articles = [], 
   const avaitDesCibles = Array.isArray(courant.cibles) && courant.cibles.length > 0;
   if ((courant.articleId ?? '') !== voulu.articleId) patch.articleId = voulu.articleId;
   if ((courant.articleLibelle ?? '') !== voulu.articleLibelle) patch.articleLibelle = voulu.articleLibelle; // le libellé d'un article renommé depuis : la copie suit
-  if (voulu.cibles) { if (JSON.stringify(courant.cibles ?? []) !== JSON.stringify(voulu.cibles)) patch.cibles = voulu.cibles; } else if (avaitDesCibles) patch.cibles = [];
+  const memesCibles = (a, b) => a.length === b.length && a.every((c, i) => c?.genre === b[i].genre && c?.id === b[i].id && c?.libelle === b[i].libelle);
+  if (voulu.cibles) { if (!memesCibles(Array.isArray(courant.cibles) ? courant.cibles : [], voulu.cibles)) patch.cibles = voulu.cibles; } else if (avaitDesCibles) patch.cibles = [];
   if (courant.conflit === true) patch.conflit = false;
   Object.assign(patch, validerParHumain(courant, aujourdhui), courant.statut === 'desactivee' ? {} : traiterSuggestion(courant, aujourdhui));
   return planPatch(id, patch);

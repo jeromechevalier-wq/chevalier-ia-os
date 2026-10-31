@@ -2,7 +2,10 @@
 // Un test par point, le nom commence par C5b.x. Catalogue, mots et phrases INVENTÉS. Les familles viennent avec la PR suivante (C6b).
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import * as P from '../js/modules/devis/vocabulaire-plans.js';
+import { SEUILS } from '../js/modules/devis/vocabulaire.js';
 
 const art = (id, libelle, extra = {}) => ({ id, libelle, prixAchat: 10, unite: 'u', actif: true, ...extra });
 const CATALOGUE = [art('p1', 'Prise simple 16 A'), art('p2', 'Prise double 16 A'), art('p3', 'Prise étanche 16 A'), art('i1', 'Interrupteur étanche'), art('off', 'Prise ancienne', { actif: false }), art('txt', 'Texte libre', { type: 'texte' })];
@@ -114,5 +117,16 @@ describe('C5b.3 activer, désigner, filtrer, exporter', () => {
   test('C5b.3 E11 : `cibles` est le seul champ ajouté à ceux qu’un navigateur change ; jamais `suggestion`, jamais un compteur', () => {
     assert.ok(P.CHAMPS_MODIFIABLES.includes('cibles'));
     assert.ok(!P.CHAMPS_MODIFIABLES.includes('suggestion') && !P.CHAMPS_MODIFIABLES.includes('confirmations'));
+  });
+});
+
+describe('C5b.4 une seule limite de 8 articles', () => {
+  test('C5b.4 la limite du sélecteur (MAX_CHOIX), celle des plans (MAX_CIBLES), celle du moteur (SEUILS.maxCibles) et celle des règles Firestore valent toutes 8', () => {
+    const lire = (f) => readFileSync(fileURLToPath(new URL(`../${f}`, import.meta.url)), 'utf8');
+    assert.equal(SEUILS.maxCibles, 8);
+    assert.equal(P.MAX_CIBLES, SEUILS.maxCibles);
+    assert.match(lire('js/modules/devis/selecteur-catalogue.js'), /export const MAX_CHOIX = 8;/);
+    assert.match(lire('js/modules/devis/selecteur-catalogue.js'), /MESSAGE_MAXIMUM = '8 au plus/);
+    for (const f of ['firestore.rules', 'firestore.plateforme.rules']) assert.match(lire(f), /l\.size\(\) <= 8/);
   });
 });

@@ -12,7 +12,7 @@ import * as A from './articles.js';
 import * as V from './vocabulaire-plans.js';
 import { motOuvrage } from './ouvrages.js';
 import { selecteurCatalogue } from './selecteur-catalogue.js';
-import { cleDeExpression, identifiantDeRegle, interpreter, suggestionEnAttente, ciblesDe } from './vocabulaire.js';
+import { cleDeExpression, identifiantDeRegle, interpreter, suggestionEnAttente } from './vocabulaire.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant, ou demande à un éditeur de l’espace.';
 const ERREUR_LECTURE = 'La liste des mots appris n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis appuie sur « Réessayer ».';
@@ -35,10 +35,9 @@ function tropGeneralPour(articles) {
 }
 
 const ciblesOuvertes = new Set(); // mots à plusieurs articles dont la liste est dépliée
-const articleDuMot = (r) => D.article(r.articleId);
+const articleDuMot = (r) => D.article(designeDe(r).articles[0]?.id ?? r.articleId); // `articleId`, ou l'unique cible d'un mot à une seule cible
 /** Ce que désigne le mot (un ou plusieurs articles, vivants ou non) et « mort » = aucun article vivant. */
 const designeDe = (r) => V.designation(r, D.etat.articles);
-const articleMort = (r) => designeDe(r).mort;
 const libelleArticle = (r) => (designeDe(r).multiple ? designeDe(r).articles.map((c) => c.libelle).join(' / ') : (articleDuMot(r)?.libelle ?? r.articleLibelle ?? ''));
 /** Le mot tel que l'export CSV le lit : les libellés des articles sont ceux du catalogue d'aujourd'hui (un article renommé depuis n'y reste pas sous son ancien nom). */
 const motPourExport = (r) => ({ ...r, articleLibelle: designeDe(r).multiple ? '' : libelleArticle(r), cibles: designeDe(r).multiple ? designeDe(r).articles.map((c) => ({ genre: 'article', id: c.id, libelle: c.libelle })) : r.cibles });
@@ -175,7 +174,7 @@ async function ouvrirChangerArticle(regle) {
 /** Changer ce que désigne un mot : plusieurs articles au choix (8 au plus). Un seul article choisi = le mot désigne cet article, comme avant. */
 async function ouvrirChangerCibles(regle) {
   const actuels = designeDe(regle).articles.filter((c) => c.vivant).map((c) => D.article(c.id)).filter(Boolean);
-  const avant = designeDe(regle).articles.map((c) => c.id).join('|');
+  const avant = designeDe(regle).articles.filter((c) => c.vivant).map((c) => c.id).join('|'); // les articles désactivés ne sont pas dans la fenêtre : « Enregistrer » reste grisé tant que rien n'a changé
   const general = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
   let bouton = null;
   const choix = selecteurArticle({ mode: 'articles', initial: actuels, surChoix: () => { general.textContent = ''; if (bouton) griserSelon(bouton, pret); } });
@@ -282,7 +281,7 @@ export function rendreVocabulaire(conteneur) {
   }, icone('ellipsis', { taille: 20 }));
   const ajout = ligneAjouter({ libelle: 'Mot appris', libelleAria: 'Ajouter un mot appris', action: 'ajouter-mot', surClic: async () => {
     const r = await ouvrirCreation();
-    if (r?.modifier) await ouvrirChangerArticle(r.modifier);
+    if (r?.modifier) await (designeDe(r.modifier).multiple ? ouvrirChangerCibles : ouvrirChangerArticle)(r.modifier); // un mot à plusieurs articles s'ouvre avec ses puces, jamais remplacé en silence par un seul article
   } });
 
   // Essayer une phrase : calcul local, rien n'est enregistré.

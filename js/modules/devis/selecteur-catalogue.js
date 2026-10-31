@@ -48,7 +48,9 @@ export function selecteurCatalogue({ source, mode = 'article', initial = null, s
       if (estChoisi(a.id)) liste = liste.filter((x) => x.id !== a.id);
       else if (complet()) { limite.hidden = false; return; } // 8 au plus : le message dit quoi faire, rien ne change
       else liste = [...liste, a];
+      const aLeFocus = resultats.contains(document.activeElement);
       champ.value = ''; dessinerResultats(); dessinerChoix(); dessinerArbre(); surChoix([...liste]);
+      if (aLeFocus) champ.focus(); // on enchaîne 3 à 8 choix : le focus clavier revient dans la recherche
       return;
     }
     choisi = a; champ.value = ''; dessinerResultats(); dessinerChoix(); dessinerArbre(); surChoix(a);
@@ -73,14 +75,14 @@ export function selecteurCatalogue({ source, mode = 'article', initial = null, s
     const trouves = A.filtrerArticles(source.articles(), { recherche: texte, statut: 'actifs' }).filter(source.estChoisissable).slice(0, MAX_RESULTATS);
     resultats.hidden = false;
     remplir(resultats, ...(trouves.length
-      ? trouves.map((a) => h('li', { role: 'option' }, h('button', { type: 'button', class: `resultat-composant${plusieurs && estChoisi(a.id) ? ' choisi' : ''}`, 'aria-disabled': String(complet() && !estChoisi(a.id)), 'aria-pressed': plusieurs ? String(estChoisi(a.id)) : undefined, dataset: { articleId: a.id }, onclick: () => choisir(a) },
+      ? trouves.map((a) => h('li', { role: 'option' }, h('button', { type: 'button', class: `resultat-composant${plusieurs && estChoisi(a.id) ? ' choisi' : ''}`, 'aria-disabled': plusieurs ? String(complet() && !estChoisi(a.id)) : undefined, 'aria-pressed': plusieurs ? String(estChoisi(a.id)) : undefined, dataset: { articleId: a.id }, onclick: () => choisir(a) },
         h('span', {}, a.libelle), h('span', { class: 'discret' }, a.unite ?? ''))))
       : [h('li', { class: 'discret', role: 'option', 'aria-disabled': 'true' }, MESSAGE_AUCUN_RESULTAT)]));
   }
 
   function ligneArticle(a) {
     const coche = estChoisi(a.id);
-    return h('li', {}, h('button', { type: 'button', class: `arbre-article${coche ? ' choisi' : ''}`, 'aria-pressed': String(coche), 'aria-disabled': String(complet() && !coche), dataset: { arbreArticle: a.id }, onclick: () => choisir(a) },
+    return h('li', {}, h('button', { type: 'button', class: `arbre-article${coche ? ' choisi' : ''}`, 'aria-pressed': String(coche), 'aria-disabled': plusieurs ? String(complet() && !coche) : undefined, dataset: { arbreArticle: a.id }, onclick: () => choisir(a) },
       h('span', {}, a.libelle), h('span', { class: 'discret' }, a.unite ?? '')));
   }
   function ligneFamille(f) {
