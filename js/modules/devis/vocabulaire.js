@@ -200,11 +200,21 @@ export function suggestionEnAttente(regle) {
 }
 
 // ---------------------------------------------------------------- étapes 3 et 4
-const comparateur = (a, b) => (b.score - a.score)
+/** Nombre d'utilisations d'un article (devis finalisés) d'après `usages` (Map articleId -> { nombre }) ; absent ou illisible = 0. */
+const usageDe = (usages, articleId) => {
+  const n = usages instanceof Map ? usages.get(articleId)?.nombre : undefined;
+  return Number.isInteger(n) && n > 0 ? n : 0;
+};
+/**
+ * Ordre des candidats : score, puis USAGE (le plus utilisé d'abord, seulement pour départager deux scores égaux : jamais un score ni une décision), puis libellé, puis identifiant.
+ * Sans `usages`, l'ordre est exactement celui d'avant le compteur.
+ */
+const comparateurPar = (usages) => (a, b) => (b.score - a.score)
+  || (usageDe(usages, b.articleId) - usageDe(usages, a.articleId))
   || normaliser(a.libelle).localeCompare(normaliser(b.libelle), 'fr')
   || String(a.articleId).localeCompare(String(b.articleId));
 
-function chercherCandidats(cle, mots, { regles, articles }) {
+function chercherCandidats(cle, mots, { regles, articles, usages }) {
   const parArticle = new Map();
   const plafonnes = new Set(); // articles d'un mot validé avec suggestion en attente : jamais au-dessus de 0,50, même si leur libellé colle à la phrase
   const garder = (article, score, pourquoi, regleId = null) => {
@@ -244,7 +254,7 @@ function chercherCandidats(cle, mots, { regles, articles }) {
     const s = scoreLibelle(mots, motsDe(article.libelle ?? ''));
     if (s) garder(article, s.score, s.proche ? 'proche' : 'libelle_complet');
   }
-  return [...parArticle.values()].sort(comparateur);
+  return [...parArticle.values()].sort(comparateurPar(usages));
 }
 
 /**
@@ -252,8 +262,8 @@ function chercherCandidats(cle, mots, { regles, articles }) {
  * Les candidats de la phrase entière restent là (un article dont le libellé commence par « Ensemble » reste trouvé) ; ceux des ouvrages s'y ajoutent, au meilleur score.
  * Aucune règle du dictionnaire n'est créée pour ce mot. Sans mot dans la phrase, ou sans reste après lui : rien ne change.
  */
-function chercherAvecSynonyme(cle, mots, { regles, articles, reglages }) {
-  const classes = chercherCandidats(cle, mots, { regles, articles });
+function chercherAvecSynonyme(cle, mots, { regles, articles, reglages, usages }) {
+  const classes = chercherCandidats(cle, mots, { regles, articles, usages });
   if (!mots.length) return classes; // `reglages` absent (document pas encore écrit) : le mot par défaut s'applique, comme à l'écran
   const m = motOuvrage(reglages);
   for (const forme of [m.singulier, m.pluriel]) {
@@ -262,10 +272,10 @@ function chercherAvecSynonyme(cle, mots, { regles, articles, reglages }) {
     for (let i = 0; i + motsForme.length <= mots.length; i += 1) {
       if (!motsForme.every((x, k) => mots[i + k] === x)) continue;
       const reste = [...mots.slice(0, i), ...mots.slice(i + motsForme.length)];
-      const ouvrages = chercherCandidats(reste.join(' '), reste, { regles: [], articles: (articles ?? []).filter((a) => a?.type === TYPE_OUVRAGE) });
+      const ouvrages = chercherCandidats(reste.join(' '), reste, { regles: [], articles: (articles ?? []).filter((a) => a?.type === TYPE_OUVRAGE), usages });
       const parId = new Map(classes.map((c) => [c.articleId, c]));
       for (const c of ouvrages) if (!parId.has(c.articleId) || parId.get(c.articleId).score < c.score) parId.set(c.articleId, c);
-      return [...parId.values()].sort(comparateur);
+      return [...parId.values()].sort(comparateurPar(usages));
     }
   }
   return classes;
@@ -289,22 +299,22 @@ function formulerQuestion(decision, cle, choix, devine = {}) {
 }
 
 /**
- * `interpreter(phrase, { regles, articles, reglages })` -> `{ cle, quantite, prixVente, quantiteIncertaine, prixIncertain, candidats, decision, question }`.
+ * `interpreter(phrase, { regles, articles, reglages, usages })` (`usages` facultatif : Map articleId -> { nombre }, départage seulement deux scores égaux) -> `{ cle, quantite, prixVente, quantiteIncertaine, prixIncertain, candidats, decision, question }`.
  * `regles` : règles du dictionnaire ({ id?, cle, articleId, statut, conflit }) ; `articles` : le catalogue (un article désactivé n'est jamais candidat) ; `reglages` : { marge, modeMarge }.
  * Un candidat : { articleId, libelle, unite, prixVenteHT, score, pourquoi, regleId }. Au plus 5. Départage stable : score, libellé, identifiant.
  */
-export function interpreter(phrase, { regles = [], articles = [], reglages } = {}) {
+export function interpreter(phrase, { regles = [], articles = [], reglages, usages } = {}) {
   const analyse = analyserPhrase(phrase);
   const { mots } = analyse;
   let { cle, quantite } = analyse;
   const { prixVente } = analyse;
-  let classes = chercherAvecSynonyme(cle, mots, { regles, articles, reglages });
+  let classes = chercherAvecSynonyme(cle, mots, { regles, articles, reglages, usages });
   const prixIncertain = analyse.prixSansDevise;
   let quantiteIncertaine = false;
   if (analyse.quantiteEnFin) {
     // Le nombre de fin (« disjoncteur 32 », « prise double 16 ») est peut-être un mot du libellé : on le remet dans la clé si cela donne un candidat (quantité 1).
     const motsAvecNombre = [...mots, analyse.nombreFin];
-    const avecNombre = chercherAvecSynonyme(motsAvecNombre.join(' '), motsAvecNombre, { regles, articles, reglages });
+    const avecNombre = chercherAvecSynonyme(motsAvecNombre.join(' '), motsAvecNombre, { regles, articles, reglages, usages });
     if (avecNombre[0]?.score >= SEUILS.proposer) { classes = avecNombre; cle = motsAvecNombre.join(' '); quantite = 1; } else quantiteIncertaine = true;
   }
   const [premier, second] = classes;

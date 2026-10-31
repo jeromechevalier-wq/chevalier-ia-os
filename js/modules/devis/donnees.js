@@ -12,11 +12,13 @@ import * as A from './articles.js';
 import * as B from './brouillon.js';
 import * as F from './familles.js';
 import * as V from './vocabulaire-plans.js';
+import * as U from './usage.js';
 
 export const etat = {
   articles: [], familles: F.famillesDe(null), reglages: A.reglagesDevis(null), pret: false, reglagesPrets: false, erreurLecture: false,
   devis: [], devisPrets: false, erreurLectureDevis: false,
   vocabulaire: [], vocabulairePret: false, erreurLectureVocabulaire: false,
+  usages: new Map(), usagesPrets: false, erreurLectureUsages: false, // compteur d'usage des articles (C4) : lu seulement, écrit par le serveur
 };
 
 let desabonnements = [];
@@ -26,6 +28,8 @@ let signatureFamilles = '';
 let signatureDevis = '';
 let signatureVocabulaire = '';
 let arretVocabulaire = null;
+let arretUsages = null;
+let signatureUsages = '';
 const abonnes = new Set();
 
 const chemin = CRM.chemin;
@@ -64,6 +68,29 @@ function ecouterVocabulaire() {
     console.warn('devis_vocabulaire indisponible', e.code);
     etat.erreurLectureVocabulaire = true;
     etat.vocabulairePret = true;
+    notifier();
+  });
+}
+
+/**
+ * Écouteur du compteur d'usage (`devis_usage_articles`). À part des autres et TOLÉRANT : si la lecture est refusée ou coupée, le catalogue reste utilisable
+ * (la colonne « Utilisation » montre un tiret) ; jamais d'erreur bloquante ni de déconnexion.
+ */
+function ecouterUsages() {
+  arretUsages?.();
+  arretUsages = onSnapshot(collection(db, chemin(U.COLLECTION_USAGE)), (snap) => {
+    const docs = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
+    const sig = JSON.stringify(docs.map((d) => [d.id, d.nombre]));
+    const inchange = etat.usagesPrets && sig === signatureUsages && !etat.erreurLectureUsages;
+    etat.usages = U.usageParArticle(docs);
+    signatureUsages = sig;
+    etat.usagesPrets = true;
+    etat.erreurLectureUsages = false;
+    if (!inchange) notifier();
+  }, (e) => {
+    console.warn('devis_usage_articles indisponible', e.code);
+    etat.erreurLectureUsages = true;
+    etat.usagesPrets = true;
     notifier();
   });
 }
@@ -112,6 +139,7 @@ export function demarrer(base = '') {
     notifier();
   }));
   ecouterVocabulaire();
+  ecouterUsages();
   desabonnements.push(onSnapshot(doc(db, chemin(A.COLLECTION_PARAMETRES), A.ID_REGLAGES), (snap) => {
     const brut = snap.exists() ? snap.data({ serverTimestamps: 'estimate' }) : null;
     const sig = JSON.stringify(brut);
@@ -141,6 +169,12 @@ export function arreter() {
   desabonnements = [];
   arretVocabulaire?.();
   arretVocabulaire = null;
+  arretUsages?.();
+  arretUsages = null;
+  etat.usages = new Map();
+  etat.usagesPrets = false;
+  etat.erreurLectureUsages = false;
+  signatureUsages = '';
   etat.vocabulaire = [];
   etat.vocabulairePret = false;
   etat.erreurLectureVocabulaire = false;
