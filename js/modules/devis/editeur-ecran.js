@@ -1531,6 +1531,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     placerPanneauRecherche();
     majTotaux();
     verrouiller(ref.corpsLignes);
+    if (marquesActives.size) poserMarques(); // les lignes viennent d'être redessinées : les marques des lignes sont reposées
   }
 
   const nomDe = (e, numero) => (e.genre === 'section' ? `la section ${numero}` : e.type === TYPE_SAUT ? 'le saut de page' : `la ligne ${numero}`);
@@ -2205,9 +2206,12 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
 
   // ---- champs manquants marqués après « Compris » (contour + icône + aide, jamais la couleur seule). Voir decisionChampFinalisation (logique.js) : le champ se déduit de la phrase.
   const marquesActives = new Map(); // clé « champ|ligne » -> message
-  const nettoyerMarques = () => racine.querySelectorAll('.invalide[data-marque], [data-marque-icone], [data-marque-aide]').forEach((el) => {
-    if (el.hasAttribute('data-marque-icone') || el.hasAttribute('data-marque-aide')) { el.remove(); return; }
-    el.classList.remove('invalide'); el.removeAttribute('data-marque'); el.setAttribute('aria-invalid', 'false'); el.removeAttribute('aria-describedby');
+  const nettoyerMarques = () => racine.querySelectorAll('[data-manquant], [data-manquant-icone], [data-manquant-aide]').forEach((el) => {
+    if (el.hasAttribute('data-manquant-icone') || el.hasAttribute('data-manquant-aide')) { el.remove(); return; }
+    el.classList.remove('invalide'); el.removeAttribute('data-manquant'); el.removeAttribute('aria-describedby');
+    // aria-invalid : « false » sur un champ de saisie, retiré ailleurs (ligne, tableau, groupe) ; le champ qui gère lui-même sa marque (quantité, prix) la remet à son idée.
+    if (el.matches('input, textarea, select, button')) el.setAttribute('aria-invalid', 'false'); else el.removeAttribute('aria-invalid');
+    el.querySelectorAll?.('[aria-invalid="true"]').forEach((x) => x.setAttribute('aria-invalid', 'false'));
   });
   /** Où se pose la marque d'un champ de la table : { el (contour), ancre (icône après), apres/avant (aide), focus }. Null si le champ n'est pas à l'écran. */
   function cibleDuChamp({ champ, ligneId }) {
@@ -2225,15 +2229,15 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       case 'lignes': return duTableau;
       case 'quantite': case 'tva': {
         const el = ligne?.querySelector(`[data-champ="${champ === 'tva' ? 'tva' : 'quantite'}"]`);
-        return el ? { el, ancre: el, apres: ligne ?? el, focus: el } : duTableau;
+        return el ? { el, ancre: el, apres: tableau ?? el, focus: el } : duTableau;
       }
       case 'prixAchat': case 'prixVente': case 'margeLigne': {
-        const el = ligne?.querySelector(`[data-champ="${champ === 'prixVente' ? 'prix-vente' : champ === 'prixAchat' ? 'prix-achat' : 'marge'}"]`) ?? ligne;
-        return el ? { el, ancre: el, apres: ligne, focus: el.matches?.('tr') ? el.querySelector('input, textarea') : el } : duTableau;
+        const el = (champ === 'prixVente' ? ligne?.querySelector('[data-champ="prix-vente"]') : null) ?? ligne; // pas de champ prix d'achat ni marge sur la ligne : la ligne entière est marquée
+        return el ? { el, ancre: el, apres: tableau ?? el, focus: el.matches?.('tr') ? el.querySelector('input, textarea') : el } : duTableau;
       }
       case 'destinataires': case 'copie': { const el = q(`[data-zone="${champ}"]`); return el ? { el, ancre: null, apres: el, focus: el.querySelector('button, input') } : null; }
       case 'remise': { const el = q('[data-champ="remise-valeur"]'); return el ? { el, ancre: el, apres: el, focus: el } : null; }
-      case 'marge': { const el = q('[data-champ="marge"]') ?? q('[data-champ="marge-menu"]'); return el ? { el, ancre: el, apres: el, focus: el } : null; }
+      case 'marge': { const el = q('[data-champ="marge-menu"]'); return el ? { el, ancre: el, apres: el, focus: el } : null; }
       case 'acompte': { const el = q('[data-zone="acomptes"]'); return el ? { el, ancre: null, apres: el, focus: null } : null; }
       case 'dechets': { const el = q('[data-zone="dechets-formulaire"]'); return el ? { el, ancre: null, apres: el, focus: null } : null; }
       default: return null; // primes, affaire (déjà géré par montrerAffaireManquante) : pas de marque
@@ -2247,15 +2251,16 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       const cible = cibleDuChamp({ champ, ligneId: ligneId || null });
       if (!cible) continue;
       cible.el.classList.add('invalide');
-      cible.el.dataset.marque = '1';
-      cible.el.setAttribute('aria-invalid', 'true');
-      const sigle = h('span', { class: 'marque-manquant', dataset: { marqueIcone: '' }, 'aria-hidden': 'true' }, icone('triangle-alert', { taille: 14 }));
+      cible.el.dataset.manquant = '1';
+      const saisie = cible.el.matches?.('input, textarea, select, button') ? cible.el : (cible.focus?.matches?.('input, textarea, select') ? cible.focus : null); // aria-invalid sert aux champs, pas à une ligne ou un groupe
+      saisie?.setAttribute('aria-invalid', 'true');
+      const sigle = h('span', { class: 'marque-manquant', dataset: { manquantIcone: '' }, 'aria-hidden': 'true' }, icone('triangle-alert', { taille: 14 }));
       if (cible.el.matches?.('tr')) cible.el.firstElementChild?.append(sigle); else if (cible.ancre) cible.ancre.after(sigle);
       if (!premier) {
         premier = cible;
-        const aide = h('p', { class: 'erreur aide-manquant', role: 'alert', id: 'devis-marque-aide', dataset: { marqueAide: '' } }, icone('triangle-alert', { taille: 14 }), ' ', message);
+        const aide = h('p', { class: 'erreur aide-manquant', role: 'alert', id: 'devis-marque-aide', dataset: { manquantAide: '' } }, icone('triangle-alert', { taille: 14 }), ' ', message);
         if (cible.avant) cible.avant.before(aide); else cible.apres.after(aide);
-        cible.el.setAttribute('aria-describedby', 'devis-marque-aide');
+        saisie?.setAttribute('aria-describedby', 'devis-marque-aide');
       }
     }
     if (defiler && premier) {
@@ -2295,7 +2300,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const sansAffaire = locales.includes(MESSAGE_AFFAIRE_MANQUANTE);
     if (sansAffaire) montrerAffaireManquante();
     if (locales.length === 1 && sansAffaire) return;
-    if (locales.length) { await listeErreurs('Ce devis ne peut pas encore être finalisé', locales); if (sansAffaire) { ref.champAffaire?.focus?.(); ref.champAffaire?.fermer?.(); } else marquerChampsManquants(locales); return; }
+    if (locales.length) { await listeErreurs('Ce devis ne peut pas encore être finalisé', locales); marquerChampsManquants(locales); if (sansAffaire) { ref.champAffaire?.focus?.(); ref.champAffaire?.fermer?.(); } return; }
     const avis = Ed.avertissements(travail);
     const ok = await dialogue({
       titre: 'Finaliser ce devis ?',

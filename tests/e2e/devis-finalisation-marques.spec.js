@@ -45,13 +45,13 @@ test('A1 devis sans client, dates ni durée : après « Compris », les liens «
   for (const nom of ['debutTravaux', 'duree']) {
     await expect(lien(page, nom)).toHaveClass(/invalide/);
     await expect(lien(page, nom)).toHaveAttribute('aria-invalid', 'true');
-    await expect(lien(page, nom).locator('xpath=following-sibling::span[@data-marque-icone]')).toHaveCount(1);
+    await expect(lien(page, nom).locator('xpath=following-sibling::span[@data-manquant-icone]')).toHaveCount(1);
   }
   await expect(client(page)).toHaveClass(/invalide/);
   await expect(client(page)).toHaveAttribute('aria-invalid', 'true');
-  await expect(page.locator('[data-marque-aide]')).toHaveCount(1);
-  await expect(page.locator('[data-marque-aide]')).toBeVisible();
-  await expect(page.locator('[data-marque-icone]')).toHaveCount(2); // les deux liens ; le champ client a son icône dans l’aide
+  await expect(page.locator('[data-manquant-aide]')).toHaveCount(1);
+  await expect(page.locator('[data-manquant-aide]')).toBeVisible();
+  await expect(page.locator('[data-manquant-icone]')).toHaveCount(2); // les deux liens ; le champ client a son icône dans l’aide
   await expect(page.locator('[data-erreur="affaire"]')).not.toHaveClass(/erreur/); // l'affaire est en règle
   await capturer(page, info, 'A1-champs-marques');
 });
@@ -77,10 +77,27 @@ test('A3 remplir un champ retire sa marque tout de suite (classe, aria, icône, 
   await page.locator('[data-champ="debutTravaux"]').fill('2099-03-01');
   await expect(lien(page, 'debutTravaux')).not.toHaveClass(/invalide/);
   await expect(lien(page, 'debutTravaux')).toHaveAttribute('aria-invalid', 'false');
-  await expect(page.locator('[data-marque-icone]')).toHaveCount(1);
+  await expect(page.locator('[data-manquant-icone]')).toHaveCount(1);
   await expect(lien(page, 'duree')).toHaveClass(/invalide/);
   await expect(client(page)).toHaveClass(/invalide/);
-  await expect(page.locator('[data-marque-aide]')).toHaveCount(1);
+  await expect(page.locator('[data-manquant-aide]')).toHaveCount(1);
+});
+
+test('A9 quantité à 0 : la ligne est marquée (aide sous le tableau), elle le reste après un redessin des lignes ; taper 5 retire toute la marque', async ({ page }, info) => {
+  await ecrireEntrepriseComplete();
+  await brouillon({ organisationId: 'o1', chantier: { debutTravaux: '2099-01-01', dureeEstimee: { valeur: 2, unite: 'jour' } }, sections: [{ id: 's1', titre: 'Cuisine', lignes: [{ ...LIGNES[0], quantite: 0 }] }] });
+  await ouvrir(page);
+  await finaliserPuisCompris(page);
+  const quantite = page.locator('tr[data-id="l1"] [data-champ="quantite"]');
+  await expect(quantite).toHaveAttribute('data-manquant', '1');
+  await expect(quantite).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('[data-manquant-aide]')).toContainText('Ligne « Carrelage »');
+  await expect(page.locator('tbody > p')).toHaveCount(0); // jamais un paragraphe dans le tbody
+  await page.locator('[data-action="ajouter-section"], [data-action="section"]').first().click({ trial: true }).catch(() => {});
+  await quantite.fill('5');
+  await expect(page.locator('[data-manquant], [data-manquant-icone], [data-manquant-aide]')).toHaveCount(0);
+  await expect(quantite).not.toHaveAttribute('aria-invalid', 'true');
+  await capturer(page, info, 'A9-ligne');
 });
 
 test('A4 erreurs sans champ (entreprise, assurance) : aucune marque ; le bouton « Ouvrir Mon entreprise » reste dans la fenêtre', async ({ page }) => {
@@ -89,7 +106,7 @@ test('A4 erreurs sans champ (entreprise, assurance) : aucune marque ; le bouton 
   await page.locator('[data-action="finaliser"]').click();
   await expect(dialogue(page).getByRole('button', { name: 'Ouvrir Mon entreprise' })).toBeVisible();
   await dialogue(page).getByRole('button', { name: 'Compris' }).click();
-  await expect(page.locator('[data-marque], [data-marque-icone], [data-marque-aide]')).toHaveCount(0);
+  await expect(page.locator('[data-manquant], [data-manquant-icone], [data-manquant-aide]')).toHaveCount(0);
 });
 
 test('A5 refus du serveur : « Indique la date de début des travaux. » marque le même lien', async ({ page }, info) => {
@@ -106,7 +123,7 @@ test('A5 refus du serveur : « Indique la date de début des travaux. » marque 
   await expect(dialogue(page)).toContainText('Ce devis ne peut pas encore être finalisé');
   await dialogue(page).getByRole('button', { name: 'Compris' }).click();
   await expect(lien(page, 'debutTravaux')).toHaveClass(/invalide/);
-  await expect(page.locator('[data-marque-aide]')).toContainText('Indique la date de début des travaux.');
+  await expect(page.locator('[data-manquant-aide]')).toContainText('Indique la date de début des travaux.');
   await capturer(page, info, 'A5-refus-serveur');
 });
 
