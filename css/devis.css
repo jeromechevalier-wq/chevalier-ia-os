@@ -622,15 +622,19 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .selecteur-catalogue [aria-disabled="true"].arbre-article, .selecteur-catalogue [aria-disabled="true"].resultat-composant { opacity: .55; }
 .liste-cibles { list-style: none; margin: var(--esp-2) 0 0; padding: 0; display: grid; gap: var(--esp-1); font-size: var(--fs-petit); }
 @media (max-width: 767px), (pointer: coarse) { .puce-retirer, .puce-choix { min-height: 44px; } .puce-retirer { min-width: 44px; } }
-/* Une famille dans le sélecteur (PR C6b) : l'en-tête qui déplie et, à droite, « Choisir cette famille » ; chaque groupe de résultats a son titre. */
-.arbre-ligne-famille { display: flex; align-items: center; gap: var(--esp-3); padding-right: var(--esp-3); }
-.arbre-ligne-famille .arbre-entete { flex: 1; width: auto; }
-.arbre-choisir-famille { flex: none; min-width: 11em; text-align: center; justify-content: center; }
-.arbre-choisir-famille.choisi { font-weight: var(--poids-moyen); }
-.selecteur-catalogue [aria-disabled="true"].arbre-choisir-famille, .selecteur-catalogue [aria-disabled="true"].resultat-famille { opacity: .55; }
+/* Cases à cocher du sélecteur (modes plusieurs) : la case est à gauche de chaque article et de chaque famille, le chemin de familles en petit texte gris. */
+.dialogue-formulaire.dialogue-vocabulaire { width: min(720px, 100%); }
+.arbre-ligne-famille { display: flex; align-items: center; gap: var(--esp-3); padding-left: var(--esp-6); }
+.arbre-ligne-famille .arbre-entete { flex: 1; width: auto; padding-left: 0; }
+label.arbre-article, label.resultat-composant { display: flex; align-items: center; gap: var(--esp-3); cursor: pointer; }
+.arbre-case-famille, label.arbre-article input, label.resultat-composant input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--accent-trait); }
+.ligne-case-texte { flex: 1; min-width: 0; display: grid; gap: 2px; overflow-wrap: anywhere; }
+.ligne-case-chemin { font-size: var(--fs-petit); }
+.puce-chemin { font-size: var(--fs-petit); }
+.selecteur-catalogue [aria-disabled="true"].arbre-case-famille, .selecteur-catalogue label:has([aria-disabled="true"]) { opacity: .55; }
 .resultats-composants li.groupe-resultats { padding: var(--esp-3) var(--esp-5) 0; border-top: 0; color: var(--texte2); font-size: var(--fs-petit); list-style: none; }
 .puce-famille { border-style: dashed; }
-@media (max-width: 767px), (pointer: coarse) { .arbre-choisir-famille { min-height: 44px; } }
+@media (max-width: 767px), (pointer: coarse) { label.arbre-article, label.resultat-composant { min-height: 44px; } .arbre-case-famille, label.arbre-article input, label.resultat-composant input { width: 22px; height: 22px; } .puce-choix { max-width: 100%; } }
 
 /* Devis vide avec la boîte « Ajouter une ligne » ouverte : le tableau la contient, sans sa ligne de titres. */
 .zone-lignes-devis.sans-ligne thead { display: none; }

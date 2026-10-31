@@ -49,7 +49,7 @@ test('C1.1 l’arbre montre les familles ; déplier « Fournitures » puis « É
   await capturer(page, info, 'C1.1-arbre-deplie');
   await dialogue(page).locator('[data-arbre-article="a02"]').click();
   await expect(dialogue(page).locator('[data-role="article-choisi"]')).toContainText('Prise double 16 A');
-  await expect(dialogue(page).locator('[data-arbre-article="a02"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(dialogue(page).locator('[data-arbre-article="a02"] input')).toBeChecked();
   await dialogue(page).getByRole('textbox', { name: 'Expression' }).fill('prises doubles');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(dialogue(page)).toHaveCount(0);
@@ -124,10 +124,8 @@ test('C1.6 le catalogue arrive après l’ouverture : l’arbre se met à jour s
   await expect(famille(page, 'famille-1')).toBeFocused();
   await famille(page, ELECTRICITE).focus();
   await page.keyboard.press('Enter');
-  await page.keyboard.press('Tab'); // C6b : « Choisir cette famille » vient juste après l'en-tête de la famille (fenêtre de création en mode mixte)
-  await expect(dialogue(page).locator('[data-choisir-famille="famille-1-8"]')).toBeFocused();
-  await page.keyboard.press('Tab');
-  await page.keyboard.press('Enter'); // choisit le premier article (Interrupteur simple)
+  await page.keyboard.press('Tab'); // la case de la famille est AVANT son en-tête : après l'en-tête vient la case du premier article (Interrupteur simple)
+  await page.keyboard.press('Space'); // Espace coche
   await expect(dialogue(page).locator('[data-role="article-choisi"]')).toContainText('Interrupteur simple');
   await article('a09', { libelle: 'Prise étanche', type: 'fourniture', familleId: ELECTRICITE }); // un autre article arrive : l'arbre reste déplié, la saisie reste
   await expect(dialogue(page).locator('[data-arbre-article="a09"]')).toBeVisible();
