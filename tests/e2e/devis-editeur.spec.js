@@ -22,14 +22,14 @@ async function article(id, valeurs = {}) {
   });
 }
 /** Une organisation avec adresse et e-mail, une affaire à son nom, et deux articles du Bordereau (marge des réglages : 20 % en majoration). */
-async function semer() {
+async function semer({ entreprise = true } = {}) {
   await creerOrganisation('o1', {
     nom: 'Société Exemple', adresses: [{ id: 'p1', libelle: 'Principale', adresse: '12 rue des Lilas\n75000 Paris', parDefaut: true }], emails: [{ valeur: 'contact@exemple.fr', type: 'travail' }],
   });
   await creerAffaire('a1', { titre: 'Rénovation cuisine', organisationId: 'o1' });
   await article('a1', { libelle: 'Carrelage 60 x 60', unite: 'm²', prixAchat: 50, type: 'fourniture', code: 'CAR60' }); // vendu 60,00 €
   await article('a2', { libelle: 'Pose du carrelage', unite: 'h', prixAchat: 30, tauxTva: 10, type: 'main_oeuvre' }); // vendu 36,00 €, TVA 10 %
-  await ecrireEntrepriseComplete(); // « Mon entreprise » complète : exigée pour finaliser
+  if (entreprise) await ecrireEntrepriseComplete(); // « Mon entreprise » complète : exigée pour finaliser (ED9 la veut absente : cas vide)
 }
 async function ouvrirListe(page) {
   await connecter(page, undefined, { route: 'devis/liste' });
@@ -751,7 +751,7 @@ test('ED8 quitter l’éditeur par le menu de gauche (« Affaires ») avec un ch
 });
 
 test('ED9 « Mon entreprise » : l’aperçu du devis affiche le bloc entreprise des réglages ; sans réglage, le bloc est absent (cas vide) ; le réglage modifié ailleurs met l’aperçu à jour', async ({ page }, info) => {
-  await semer();
+  await semer({ entreprise: false });
   await nouveauBrouillon(page);
   await chercherEtAjouter(page, 'Carrelage', '2');
   // Cas vide : aucun réglage « Mon entreprise », l'aperçu n'a pas de bloc entreprise.
