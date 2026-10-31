@@ -65,12 +65,12 @@ describe('P2 l’Historique : « E-mail préparé dans Gmail le … »', () => {
 
 describe('P3 le câblage : menu « Envoyer », confirmation, textes, serveur', () => {
   const ecran = lire('js/modules/devis/editeur-ecran.js');
-  test('P3 « Préparer l’e-mail » est LA SEULE entrée e-mail du menu « Envoyer » ; pas branché (serveur : false), elle reste là, grisée, avec la raison', () => {
+  test('P3 « Préparer l’e-mail » est LA SEULE entrée e-mail du menu « Envoyer » (suivie du PDF et de l’impression) ; pas branché (serveur : false), elle reste là, grisée, avec la raison', () => {
     assert.doesNotMatch(ecran, /Envoyer par e-mail|cle: 'envoyer-email'|lancerEnvoiEmail/);
     assert.match(ecran, /const nonBranche = D\.emailPreparable\(\) === false;/);
     assert.match(ecran, /libelle: LIBELLE_PREPARER_EMAIL, icone: 'mail-check', cle: 'preparer-email', \.\.\.\(nonBranche \? \{ desactive: true, titreInfo: MESSAGE_NON_BRANCHE \} : grisEmail\(\)\)/);
-    // Le menu « Envoyer » ne contient que cette entrée (26/10/2026 : « Télécharger le PDF » et « Imprimer » sont dans « … »).
-    assert.match(ecran, /contenuMenu\(\[\n      \.\.\.entreePreparerEmail\(\),\n    \], fermer\), \{ nom: 'Envoyer' \}\)/);
+    // Le menu « Envoyer » : « Préparer l'e-mail », puis « Télécharger le PDF » et « Imprimer » (31/10/2026).
+    assert.match(ecran, /contenuMenu\(\[\n      \.\.\.entreePreparerEmail\(\),\n      \.\.\.entreesPdf\(ancre\),\n    \], fermer\), \{ nom: 'Envoyer' \}\)/);
     assert.match(ecran, /lancerPreparationEmail\(\{ devisId: id,/);
     assert.match(P.MESSAGE_NON_BRANCHE, /pas encore branchée/);
   });

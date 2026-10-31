@@ -114,7 +114,12 @@ describe('N5 ancien devis sans sous-section : rien ne change', () => {
   // Empreinte du HTML produit AVANT cette évolution par le même devis (calculée avec le code de `main` du 24/10/2026 ; mise à jour le 31/10/2026 : plus d'attestation de TVA codée en dur, l'assurance par défaut s'imprime toujours ; seule cette différence a été vérifiée).
   const EMPREINTE_AVANT = 'a9f28feaeb17132eb8f0ff0eaaa8ae77f2d7ebdfd86d3e5b8a58ff63b95d7e7d';
   test('N5 le document d’un devis sans sous-section est identique, octet pour octet, à celui d’avant', () => {
-    assert.equal(createHash('sha256').update(html()).digest('hex'), EMPREINTE_AVANT);
+    // 31/10/2026 : la ligne à 10 % de ce devis imprime désormais la mention de TVA réduite (drapeau de vue) ; sans elle le document reste identique à celui d'avant.
+    const { chantier: _chantier, ...sansChantier } = devisAncien();
+    const vue = D.vueClient(sansChantier, { clientNom: 'Mme Dupont' });
+    assert.equal(vue.tvaReduite, true);
+    assert.match(devisHtml(vue, { brouillon: false }), /taux réduit de TVA/);
+    assert.equal(createHash('sha256').update(devisHtml({ ...vue, tvaReduite: false }, { brouillon: false })).digest('hex'), EMPREINTE_AVANT);
   });
   test('N5 la vue client d’un devis sans sous-section n’a aucune trace de niveau', () => {
     const v = D.vueClient(devisAncien(), {});

@@ -105,6 +105,22 @@ describe('D1 déclencheur : fabrique chez un client dont le module devis est act
     assert.match(g.vus.html[0], /Entreprise b/); // repli sur l'ancien nom `emetteur`
     assert.match(g.vus.html[0], /<li>Chèque<\/li>/);
   });
+  test('2 chez un client, le PDF imprime la mention de TVA réduite seulement avec une ligne à 10 % ou 5,5 % (texte des réglages, sinon standard)', async () => {
+    const fabrique = async (taux, reglage) => {
+      const m = await monde({ finaliser: [] });
+      if (taux !== undefined) m.devis('a').sections[0].lignes[0].tauxTva = taux;
+      if (reglage !== undefined) m.collections['clients/a/devis_parametres'][0].mentionTvaReduite = reglage;
+      const f = faux();
+      await S.finaliser({ donnees: m.creerDonnees('a'), ctx: { acteur: ALICE, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd-a' });
+      await declencheur(m, f)(evenement('a', 'd-a', { statut: 'brouillon' }, FINALISE));
+      return f.vus.html[0];
+    };
+    assert.ok(!(await fabrique(20)).includes('278-0 bis A'), 'ligne à 20 % : pas de mention');
+    assert.ok((await fabrique(10)).includes('278-0 bis A'), 'ligne à 10 % : texte standard');
+    assert.ok((await fabrique(5.5, '')).includes('278-0 bis A'), 'réglage vide : texte standard');
+    const perso = await fabrique(10, 'Texte réduit de l’artisan');
+    assert.ok(perso.includes('Texte réduit de l’artisan') && !perso.includes('278-0 bis A'));
+  });
   test('Q10.5 chez un client : organisation + personne imprime « À l\'attention de » ; organisation seule, non', async () => {
     const m = await monde({ finaliser: [] });
     m.collections['clients/a/crm_personnes'].push({ id: 'p1', nom: 'Hélène d\'Estaing' });
@@ -420,6 +436,10 @@ describe('R plateforme : fichiers déposés, rôles et cloisonnement entre clien
     await assert.rejects(() => m.appel('lien', BOB, { client: 'b', documentId: 'piege' }), (e) => e.code === 'invalid-argument');
     await assert.rejects(() => m.appel('lien', BOB, { client: 'b', documentId: r.id }), (e) => e.code === 'not-found');
     assert.equal(m.signes.length, 2);
+    // 7 parité : un texte est signé avec son charset
+    const t = await m.appel('deposer', ALICE, { ...depot, nom: 'n.txt', typeMime: 'text/plain', contenuBase64: Buffer.from('dépôt', 'utf8').toString('base64') });
+    await m.appel('lien', ALICE, { client: 'a', documentId: t.id });
+    assert.equal(m.signes.at(-1).typeMime, 'text/plain; charset=utf-8');
   });
 
   test('R9 suppression : éditeurs seulement (un lecteur est refusé), corbeille logique, journal', async () => {

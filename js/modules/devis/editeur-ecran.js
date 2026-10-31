@@ -91,7 +91,7 @@ export function infosClientDuDevis(d) {
   return { telephone, email: Ed.emailsDeFiche(fiche)[0] ?? '', numeroTva: fiche.numeroTva ?? fiche.tva ?? '', siren: fiche.siren ?? '' };
 }
 /** Document complet du devis, pour l'aperçu de l'éditeur. */
-export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d), emetteur: emetteurImprime(D.etat.reglages.entreprise, D.etat.reglages.mentionEmetteur) });
+export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d), emetteur: emetteurImprime(D.etat.reglages.entreprise, D.etat.reglages.mentionEmetteur, D.etat.reglages.mentionTvaReduite) });
 const affaires = () => CRM.etat.affaires.filter((a) => !a.archive).sort((a, b) => String(a.titre).localeCompare(String(b.titre), 'fr'));
 const libelleAffaire = (a) => {
   const c = clientsDeAffaire(a)[0]?.nom;
@@ -506,9 +506,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     // Ce qui ne dépend pas de l'étape : PDF, impression, e-mail (voir entete-boutons.js). Ce qu'un bouton actif du haut de page fait déjà n'est pas répété ; le reste (dont « Préparer l'e-mail » au brouillon, tant que « Envoyer » est grisé) est ici.
     const { menu } = regleEntete();
     // Pendant la fabrication, le menu le dit et ignore un second clic (pas de double génération).
-    entrees.push({ libelle: 'Ouvrir le PDF', icone: 'external-link', cle: 'ouvrir-pdf', desactive: pdfEnCours, action: () => ouvrirPdf(ancre) },
-      { libelle: pdfEnCours ? LIBELLE_PDF_FABRICATION : 'Télécharger le PDF', icone: 'download', cle: 'telecharger', desactive: pdfEnCours, action: () => telechargerPdf(ancre) },
-      { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', desactive: pdfEnCours, action: () => imprimer(ancre) });
+    // « Ouvrir le PDF » n'existe plus ici. « Télécharger le PDF » et « Imprimer » sont dans le menu du bouton « Envoyer » quand il est actif ; sinon (brouillon, envoyé, signé, refusé…) ils restent ici.
+    if (!menu.dejaVisibles.includes('telecharger')) entrees.push(...entreesPdf(ancre));
     // Le « … » ne répète jamais un bouton visible (entete-boutons.js, clesMenuDejaVisibles).
     if (!menu.dejaVisibles.includes('preparer-email')) entrees.push(...entreePreparerEmail());
     entrees.push({ separateur: true });
@@ -662,10 +661,16 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       action: () => lancerPreparationEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: finaliserDAbord }) };
     return nonBranche ? [entree, { texte: MESSAGE_NON_BRANCHE }] : [entree]; // la phrase est AFFICHÉE sous l'entrée grisée (comme dans le menu de la liste), pas seulement en infobulle
   };
-  /** Menu du bouton « Envoyer » (devis finalisé) : seulement l'e-mail. Le PDF et l'impression sont dans « … » (ils ne dépendent pas de l'envoi). */
+  /** « Télécharger le PDF » et « Imprimer » (pendant la fabrication : grisés, le libellé le dit, pas de double génération). Rangés dans le menu « Envoyer » quand il est actif, sinon dans « … ». */
+  const entreesPdf = (ancre) => [
+    { libelle: pdfEnCours ? LIBELLE_PDF_FABRICATION : 'Télécharger le PDF', icone: 'download', cle: 'telecharger', desactive: pdfEnCours, action: () => telechargerPdf(ancre) },
+    { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', desactive: pdfEnCours, action: () => imprimer(ancre) },
+  ];
+  /** Menu du bouton « Envoyer » (devis finalisé) : « Préparer l'e-mail », « Télécharger le PDF », « Imprimer ». */
   function ouvrirMenuEnvoyer(ancre) {
     ouvrirFenetreMenu(ancre, (fermer) => contenuMenu([
       ...entreePreparerEmail(),
+      ...entreesPdf(ancre),
     ], fermer), { nom: 'Envoyer' });
   }
   /** Imprimer : ouvre le PDF (un brouillon donne son PDF « BROUILLON » filigrané, jamais de fenêtre « Finaliser » ; un devis finalisé son PDF officiel) : on l'imprime depuis la visionneuse du navigateur. */
@@ -850,6 +855,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     bibliotheque = ouvrirBibliotheque(racine, {
       articles: () => D.etat.articles,
       familles: () => D.etat.familles,
+      reglages: () => D.etat.reglages,
       prixAffiche: (a) => {
         if (a.type === A.TYPE_TEXTE) return '';
         const pv = Ed.prixVenteAffiche(travail, {}, Ed.ligneDepuisArticle(a, { id: 'essai', articles: D.etat.articles, devis: travail }));
@@ -1490,7 +1496,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       const ligne = Ed.ligneDepuisArticle(a, { id: 'essai', articles: D.etat.articles, devis: travail });
       const pv = a.type === A.TYPE_TEXTE ? null : Ed.prixVenteAffiche(travail, {}, ligne);
       return h('li', {}, h('button', { type: 'button', class: 'resultat-bordereau', dataset: { action: 'ajouter-article', articleId: a.id }, onclick: () => ajouterArticle(a) },
-        h('span', { class: 'resultat-nom' }, a.libelle, a.code ? h('span', { class: 'texte-discret' }, ` · ${a.code}`) : null, a.type ? h('span', { class: 'texte-discret' }, ` · ${A.libelleType(a.type)}`) : null),
+        h('span', { class: 'resultat-nom' }, a.libelle, a.code ? h('span', { class: 'texte-discret' }, ` · ${a.code}`) : null, a.type ? h('span', { class: 'texte-discret' }, ` · ${A.libelleType(a.type, D.etat.reglages)}`) : null),
         h('span', { class: 'resultat-prix' }, pv === null ? '' : `${euros(pv)} / ${a.unite || 'u'}`)));
     }));
     verrouiller(ref.resultats); // lecture seule : les résultats redessinés sont grisés aussi, un clic affiche le message
@@ -1612,7 +1618,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (ok !== true) return;
     const valeurs = editeur.valeurs();
     const ouvrage = { composants: valeurs.composants.map((c) => ({ articleId: c.articleId, quantite: c.quantite ?? 0 })), prixVenteForce: A.lireNombre(valeurs.prixVenteForce) ?? undefined };
-    const erreurs = O.erreursOuvrage(ouvrage, O.articlesParId(D.etat.articles));
+    const erreurs = O.erreursOuvrage(ouvrage, O.articlesParId(D.etat.articles), D.etat.reglages);
     if (erreurs.length) { toast(erreurs[0], { type: 'erreur', duree: 8000 }); return; }
     const nouvelle = Ed.ligneAvecComposants(trouve.ligne, ouvrage, { articles: D.etat.articles, devis: travail });
     appliquer(Ed.majElement(travail.sections, idLigne, { ouvrage: nouvelle.ouvrage, prixAchat: nouvelle.prixAchat, marge: nouvelle.marge, description: nouvelle.description }));

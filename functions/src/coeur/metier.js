@@ -683,7 +683,7 @@ async function famillesDevis(c) {
 
 export async function creerArticle(c, args) {
   const { proprietaire, ...valeurs } = args;
-  const plan = DA.planCreerArticle(valeurs, await contexte(c, proprietaire), { articles: await c.donnees.liste(C.devisArticles), familles: await famillesDevis(c) });
+  const plan = DA.planCreerArticle(valeurs, await contexte(c, proprietaire), { articles: await c.donnees.liste(C.devisArticles), familles: await famillesDevis(c), reglages: await reglagesDuDevis(c) });
   verifierMessages(plan.erreurs);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, libelle: plan.libelle });
 }
@@ -691,7 +691,7 @@ export async function creerArticle(c, args) {
 export async function modifierArticle(c, args) {
   const { id, ...champs } = args;
   await lire(c, C.devisArticles, id, 'Article');
-  const plan = DA.planMajArticle(id, champs, { articles: await c.donnees.liste(C.devisArticles), familles: await famillesDevis(c) });
+  const plan = DA.planMajArticle(id, champs, { articles: await c.donnees.liste(C.devisArticles), familles: await famillesDevis(c), reglages: await reglagesDuDevis(c) });
   verifierMessages(plan.erreurs);
   if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (libelle, unite, prixAchat, code, tauxTva, type, composants, prixVenteForce, marge, reference, marque, familleId). Pour désactiver ou réactiver un article, utiliser desactiver_article.');
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch) });

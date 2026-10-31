@@ -43,6 +43,19 @@ export const TYPES = Object.freeze({
   zip: { type: 'application/zip', accepte: ZIP, famille: 'archive', signature: 'zip' },
 });
 
+/**
+ * Encodage d'un fichier texte : 'utf-8' si les octets sont de l'UTF-8 valide (BOM compris), sinon 'windows-1252' (CSV d'Excel).
+ * Sert à annoncer le charset au navigateur, sinon « dépôt » s'affiche « dÃ©pÃ´t ». Fonction pure, jamais d'exception.
+ */
+export function encodageTexte(octets) {
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(octets);
+    return 'utf-8';
+  } catch {
+    return 'windows-1252';
+  }
+}
+
 /** Types annoncés qui ne disent rien (certains navigateurs n'en donnent pas pour .md ou .heic) : l'extension et les premiers octets décident alors. */
 const TYPES_NEUTRES = ['', 'application/octet-stream', 'binary/octet-stream'];
 

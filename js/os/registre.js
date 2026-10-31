@@ -127,7 +127,7 @@ export const MODULES_DECLARES = geler([
     ecrans: [
       { route: 'devis/liste', libelle: 'Devis', icone: 'file-text' },
       { route: 'devis/bordereau', libelle: 'Catalogue', icone: 'list' },
-      { route: 'devis/vocabulaire', libelle: 'Vocabulaire', icone: 'book-open' },
+      { route: 'devis/vocabulaire', libelle: 'Ce que l’IA a appris', icone: 'book-open' },
     ],
     collections: ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire', 'devis_usage_articles'],
     outilsMcp: ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'obtenir_pdf_officiel_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'modifier_lignes_devis', 'annuler_derniere_modification_devis', 'creer_devis_depuis_modele', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'preparer_email', 'modifier_destinataires_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire'],
@@ -200,11 +200,11 @@ export const MODULES_DECLARES = geler([
     // Elle s'ouvre depuis le menu utilisateur (« Connecter mon assistant »), pas depuis le menu principal.
     id: 'mcp',
     nom: 'Accès MCP',
-    libelleMenu: 'Connecter mon assistant',
+    libelleMenu: 'Connecter mon IA',
     iconeMenu: 'link',
     prefixe: 'mcp',
     horsMenu: true,
-    reglages: { sections: [{ id: 'reglages-mcp', libelle: 'Connexion de l’assistant' }] },
+    reglages: { sections: [{ id: 'reglages-mcp', libelle: 'Connexion de l’IA' }] },
     ecrans: [
       { route: 'mcp/infos', libelle: 'Connexion', icone: 'link' },
     ],

@@ -186,7 +186,7 @@ export function rendreJournal(conteneur) {
     h('div', { class: 'page-actions' }, boutonActualiser));
   conteneur.append(h('div', { class: 'page page-liste page-journal' }, entete,
     h('p', { class: 'aide' }, estChezClient()
-      ? 'Chaque création, modification ou suppression faite dans l’appli ou par un assistant IA laisse une ligne ici, avec une copie du document avant et après (gardée sans limite de durée).'
+      ? 'Chaque création, modification ou suppression faite dans l’appli ou par une IA laisse une ligne ici, avec une copie du document avant et après (gardée sans limite de durée).'
       : 'Chaque création, modification ou suppression faite dans l’appli ou par Claude Code laisse une ligne ici, avec une copie du document avant et après (gardée sans limite de durée). Pour défaire une opération, demande-le à Claude Code (restaurer_depuis_audit).'),
     barre, zone, pied));
   rendre();

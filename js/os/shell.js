@@ -184,7 +184,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
       ...(compte.email && compte.email.toLowerCase() !== String(compte.nom || '').toLowerCase() ? [{ texte: compte.email }] : []),
       { libelle: 'Réglages', icone: 'settings', action: allerDepuisMenu('reglages') },
       ...(idsModules.includes('affaires') ? [{ libelle: 'Voir le journal des modifications', icone: 'history', action: allerDepuisMenu('crm/journal') }] : []),
-      ...(idsModules.includes('mcp') ? [{ libelle: 'Connecter mon assistant', icone: 'link', action: allerDepuisMenu('mcp/infos') }] : []),
+      ...(idsModules.includes('mcp') ? [{ libelle: 'Connecter mon IA', icone: 'link', action: allerDepuisMenu('mcp/infos') }] : []),
       { noeud: boutonTheme('menu-pop-entree') },
       { separateur: true },
       { libelle: 'Se déconnecter', icone: 'log-out', action: surDeconnexion },

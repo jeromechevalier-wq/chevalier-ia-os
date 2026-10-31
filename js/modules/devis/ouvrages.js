@@ -110,6 +110,7 @@ export function prixVenteArticle(article, reglages) {
  * Un composant inconnu, désactivé ou qui est lui-même un ouvrage est signalé dans `erreurs` et compté 0.
  */
 export function calculerOuvrage(ouvrage, articles, reglages) {
+  const mot = motOuvrage(reglages); // le mot du métier (réglages absents : « ouvrage »)
   const erreurs = [];
   const composants = [];
   let venteC = 0;
@@ -121,7 +122,7 @@ export function calculerOuvrage(ouvrage, articles, reglages) {
     let probleme = null;
     if (!article) probleme = 'article introuvable';
     else if (article.actif === false) probleme = 'article désactivé';
-    else if (article.type === TYPE_OUVRAGE) probleme = 'un ouvrage ne peut pas contenir un autre ouvrage';
+    else if (article.type === TYPE_OUVRAGE) probleme = `${mot.un} ${mot.singulier} ne peut pas contenir ${mot.un === 'une' ? 'une autre' : 'un autre'} ${mot.singulier}`;
     const pv = article && !probleme ? prixVenteArticle(article, reglages) : null;
     if (!probleme && (pv === null || !estNombre(article.prixAchat))) probleme = 'prix d’achat ou marge invalide';
     if (probleme) {
@@ -184,26 +185,29 @@ export function figerOuvragePourLigne(ouvrage, articles, reglages) {
  * Erreurs (messages français) d'un ouvrage : `ouvrage` = { id?, composants, prixVenteForce? }. Liste vide = valide.
  * `articles` sert à vérifier que chaque composant existe, est actif et n'est pas un ouvrage (profondeur 1).
  */
-export function erreursOuvrage(ouvrage, articles) {
+export function erreursOuvrage(ouvrage, articles, reglages = {}) {
+  const mot = motOuvrage(reglages); // le mot du métier (réglages absents : « ouvrage »)
+  const M = mot.singulier;
+  const autre = mot.un === 'une' ? 'une autre' : 'un autre';
   const erreurs = [];
   const liste = ouvrage?.composants;
-  if (!Array.isArray(liste) || liste.length === 0) return ['Un ouvrage a besoin d’au moins un composant : ajoute un article.'];
-  if (liste.length > MAX_COMPOSANTS) erreurs.push(`Un ouvrage a ${MAX_COMPOSANTS} composants au plus (${liste.length} donnés) : regroupe-en certains dans un autre article.`);
+  if (!Array.isArray(liste) || liste.length === 0) return [`${majuscule(mot.un)} ${M} a besoin d’au moins un composant : ajoute un article.`];
+  if (liste.length > MAX_COMPOSANTS) erreurs.push(`${majuscule(mot.un)} ${M} a ${MAX_COMPOSANTS} composants au plus (${liste.length} donnés) : regroupe-en certains dans un autre article.`);
   const vus = new Set();
   liste.forEach((c, i) => {
     const rang = `Composant ${i + 1}`;
     if (!c || typeof c.articleId !== 'string' || !c.articleId) { erreurs.push(`${rang} : choisis un article.`); return; }
     const article = trouver(articles, c.articleId);
     const nom = article?.libelle ? `« ${article.libelle} »` : rang;
-    if (ouvrage.id && c.articleId === ouvrage.id) { erreurs.push(`${nom} : un ouvrage ne peut pas se contenir lui-même.`); return; }
-    if (vus.has(c.articleId)) erreurs.push(`${nom} : cet article est déjà dans l’ouvrage. Augmente sa quantité au lieu de l’ajouter deux fois.`);
+    if (ouvrage.id && c.articleId === ouvrage.id) { erreurs.push(`${nom} : ${mot.un} ${M} ne peut pas se contenir ${mot.le === 'la' ? 'elle-même' : 'lui-même'}.`); return; }
+    if (vus.has(c.articleId)) erreurs.push(`${nom} : cet article est déjà dans ${mot.leMot}. Augmente sa quantité au lieu de l’ajouter deux fois.`);
     vus.add(c.articleId);
     if (!estNombre(c.quantite) || c.quantite <= 0) erreurs.push(`${nom} : la quantité doit être un nombre plus grand que 0 (exemple : 2,5).`);
     else if (!troisDecimales(c.quantite)) erreurs.push(`${nom} : la quantité s’écrit avec 3 décimales au plus.`);
     if (!article) erreurs.push(`${rang} : cet article n’existe pas dans le catalogue.`);
-    else if (article.type === TYPE_OUVRAGE) erreurs.push(`${nom} : c’est déjà un ouvrage, et un ouvrage ne peut pas en contenir un autre.`);
-    else if (article.type === 'texte') erreurs.push(`${nom} : c’est une ligne de texte, sans prix : elle ne peut pas composer un ouvrage.`);
-    else if (article.actif === false) erreurs.push(`${nom} : cet article est désactivé. Réactive-le ou retire-le de l’ouvrage.`);
+    else if (article.type === TYPE_OUVRAGE) erreurs.push(`${nom} : c’est déjà ${mot.un} ${M}, et ${mot.un} ${M} ne peut pas en contenir ${autre}.`);
+    else if (article.type === 'texte') erreurs.push(`${nom} : c’est une ligne de texte, sans prix : elle ne peut pas composer ${mot.un} ${M}.`);
+    else if (article.actif === false) erreurs.push(`${nom} : cet article est désactivé. Réactive-le ou retire-le ${duMot(mot)}.`);
   });
   const f = ouvrage.prixVenteForce;
   if (f !== undefined && f !== null) {

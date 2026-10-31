@@ -274,17 +274,21 @@ describe('Lecture seule (garantie)', () => {
     // oauth/magasin.js : seulement sa propre collection fermée `mcp_oauth` (jetons OAuth) ; un test statique (D8) vérifie qu'il ne touche à aucune donnée du CRM.
     // coeur/devis.js : les quatre transitions des devis (finaliser, changer de statut, nouvelle version, archiver), UNE transaction chacune (numéro, devis, version remplacée et journal
     // ensemble) ; il tire des identifiants mais n'utilise ni appliquer ni mettreAJour, et seul lui (avec donnees.js) appelle `.transaction(`.
-    const autorises = ['coeur/donnees.js', 'coeur/ecriture.js', 'coeur/restaurer.js', 'securite/limites.js', 'securite/codes.js', 'oauth/magasin.js', 'coeur/propositions.js', 'coeur/devis.js'];
+    const autorises = ['coeur/donnees.js', 'coeur/ecriture.js', 'coeur/restaurer.js', 'securite/limites.js', 'securite/codes.js', 'oauth/magasin.js', 'coeur/propositions.js', 'coeur/devis.js', 'securite/mesure.js'];
+    // securite/mesure.js : passe-plat de la mesure (compte les lectures d'une requête), aucune écriture propre ; un contrôle plus bas vérifie qu'il n'a ni .set( ni batch(.
     // coeur/propositions.js : la décision d'une proposition (file « À valider »), une seule lecture-modification-écriture atomique, sans le moteur d'audit (voir functions/src/mcp/outils/propositions.js).
     for (const f of parcourir(dossier).filter((x) => /\.appliquer\(|\.mettreAJour\(/.test(readFileSync(x, 'utf8')))) {
       assert.ok(autorises.some((a) => f.endsWith(a)), `écriture hors du moteur : ${f}`);
     }
     for (const f of parcourir(dossier).filter((x) => /\.transaction\(/.test(readFileSync(x, 'utf8')))) {
-      assert.ok(['coeur/donnees.js', 'coeur/devis.js', 'coeur/devis-email.js'].some((a) => f.endsWith(a)), `transaction hors de coeur/devis.js : ${f}`); // devis-email.js : « Préparer l'e-mail » (la demande, la lecture et la note du résultat : une transaction chacune, journal compris)
+      assert.ok(['coeur/donnees.js', 'coeur/devis.js', 'coeur/devis-email.js', 'securite/mesure.js'].some((a) => f.endsWith(a)), `transaction hors de coeur/devis.js : ${f}`); // devis-email.js : « Préparer l'e-mail » (la demande, la lecture et la note du résultat : une transaction chacune, journal compris)
     }
     for (const f of parcourir(dossier).filter((x) => /\.nouvelId\(/.test(readFileSync(x, 'utf8')))) {
       assert.ok([...autorises, 'coeur/metier.js'].some((a) => f.endsWith(a)), `identifiants tirés hors du moteur et de metier.js : ${f}`);
     }
+  });
+  test('la mesure (securite/mesure.js) est un simple passe-plat : ni .set( ni batch( ni .delete(', () => {
+    assert.doesNotMatch(readFileSync(join(RACINE, 'functions/src/securite/mesure.js'), 'utf8'), /\.set\(|\bbatch\(|\.delete\(/);
   });
   test('tous les outils de lecture sont ouverts aux trois profils, et ne sont pas les seuls outils enregistrés', () => {
     const lecteurs = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE];

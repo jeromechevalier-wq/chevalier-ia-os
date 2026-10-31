@@ -191,7 +191,7 @@ test('C6b.6 « Essayer une phrase » dit la famille comprise (« je cherche « e
   await capturer(page, info, 'C6b-6-essayer-une-phrase-famille');
   await page.locator('[data-champ="essai"]').fill('prise');
   await expect(page.locator('[data-role="essai-portee"]')).toHaveText('Je comprends : « prise » désigne la famille Fournitures › Prises.');
-  await expect(page.locator('[data-role="essai-decision"]')).not.toContainText('Ton assistant l’ajouterait tout de suite');
+  await expect(page.locator('[data-role="essai-decision"]')).not.toContainText('Ton IA l’ajouterait tout de suite');
 });
 
 test('C6b.7 l’export CSV a la colonne « Famille » (le chemin) à côté de « Article »', async ({ page }) => {
@@ -200,7 +200,7 @@ test('C6b.7 l’export CSV a la colonne « Famille » (le chemin) à côté de �
   await mot('interrupteur', { articleId: 'i1', articleLibelle: 'Interrupteur étanche' });
   await ouvrir(page);
   await page.locator('[data-action="menu-vocabulaire"]').click();
-  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter le vocabulaire (CSV)').click()]);
+  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter ce que l’IA a appris (CSV)').click()]);
   const lignes = (await readFile(await telechargement.path())).toString('utf8').replace('﻿', '').trim().split('\r\n');
   expect(lignes[0]).toBe('Expression,Article,Famille,Statut,Origine,Confirmations,Dernière utilisation');
   expect(lignes[1]).toContain('interrupteur,Interrupteur étanche,,Actif,Ajouté ici');

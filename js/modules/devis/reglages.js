@@ -8,14 +8,14 @@ import * as A from './articles.js';
 import { reglagesFamilles } from './reglages-familles.js';
 import { reglagesExportDevis } from './export.js';
 import { majuscule } from './ouvrages.js';
-import { MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, erreursEmetteur, assuranceDepuisAnciensChamps, ASSURANCE_DEFAUT, LIMITE_ASSURANCE_TEXTE, LIMITE_COORDONNEES_BANCAIRES, LIMITE_MENTION_EMETTEUR } from './logique.js';
+import { MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, erreursEmetteur, assuranceDepuisAnciensChamps, ASSURANCE_DEFAUT, LIMITE_ASSURANCE_TEXTE, LIMITE_COORDONNEES_BANCAIRES, LIMITE_MENTION_EMETTEUR, LIMITE_MENTION_TVA_REDUITE, MENTION_TVA_REDUITE_DEFAUT } from './logique.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, ou demande à un éditeur de l’espace.';
 
 /** Le brouillon part des réglages enregistrés ; les nombres restent du texte tant qu'on tape. */
 const brouillonDe = (r) => ({
   nomBordereau: r.nomBordereau, modeMarge: r.modeMarge, marge: String(r.marge).replace('.', ','), margeDevis: String(r.margeDevis).replace('.', ','), regimeTva: r.regimeTva, tauxProposes: [...r.tauxProposes],
-  tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), mentionEmetteur: r.mentionEmetteur, etapeAffaireCreee: r.etapeAffaireCreee,
+  tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), mentionEmetteur: r.mentionEmetteur, mentionTvaReduite: r.mentionTvaReduite, etapeAffaireCreee: r.etapeAffaireCreee,
   motOuvrage: r.motOuvrage, motOuvrageAutre: { singulier: r.motOuvrageAutre?.singulier ?? '', pluriel: r.motOuvrageAutre?.pluriel ?? '', genre: r.motOuvrageAutre?.genre ?? '' }, // recopiés : l'enregistrement est un setDoc sans fusion
   entreprise: entrepriseBrouillon(r.entreprise),
 });
@@ -205,8 +205,11 @@ export function reglages(page) {
         bloc('etapeAffaireCreee', 'Étape des affaires créées depuis un devis', liste('etapeAffaireCreee', optionsEtapes, brouillon.etapeAffaireCreee, (v) => changer({ etapeAffaireCreee: v })),
           'Quand tu crées une affaire depuis un devis (« + Créer l’affaire » dans la ligne Affaire), elle arrive dans cette étape. Sans réglage, la liste te demande l’étape.'),
         etapes.length ? null : h('p', { class: 'aide', dataset: { zone: 'etape-affaire-creee-vide' } }, 'Aucune étape dans le pipeline')),
+      bloc('mentionTvaReduite', 'Mention de TVA réduite (facultatif)', h('div', { class: 'pile' },
+        h('textarea', { class: 'champ', id: 'devis-mentionTvaReduite', rows: 4, maxlength: String(LIMITE_MENTION_TVA_REDUITE), dataset: { champ: 'mentionTvaReduite' }, value: brouillon.mentionTvaReduite, placeholder: MENTION_TVA_REDUITE_DEFAUT,
+          oninput: (e) => changer({ mentionTvaReduite: e.target.value }) })), 'Imprimée automatiquement sur les devis qui ont une ligne à 5,5 % ou 10 %. Laissé vide, le texte standard s’imprime.'),
       bloc('mentionEmetteur', 'Attestation et mentions (facultatif)', h('textarea', { class: 'champ', id: 'devis-mentionEmetteur', rows: 5, maxlength: String(LIMITE_MENTION_EMETTEUR), dataset: { champ: 'mentionEmetteur' }, value: brouillon.mentionEmetteur,
-        oninput: (e) => changer({ mentionEmetteur: e.target.value }) }), 'Un texte libre imprimé sur tous tes devis, juste avant « Bon pour accord ». Par exemple : l’attestation de TVA réduite du client, ta qualification RGE. Les retours à la ligne sont gardés. Vide, rien ne s’imprime.'),
+        oninput: (e) => changer({ mentionEmetteur: e.target.value }) }), 'Un texte libre imprimé sur tous tes devis, juste avant « Bon pour accord ». Par exemple : ta qualification RGE. La mention de TVA réduite se règle juste au-dessus : elle est imprimée toute seule. Les retours à la ligne sont gardés. Vide, rien ne s’imprime.'),
       sectionEntreprise());
     majMentions();
     majBoutons();

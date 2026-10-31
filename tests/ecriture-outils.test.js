@@ -573,7 +573,7 @@ describe('Journaux sans contenu (test 14)', () => {
     assert.ok(ecritures.some((l) => l.operationId), 'l’opération est notée pour retrouver la trace');
     assert.ok(s.lignesJournal.some((l) => l.code === 'doublon'), 'le code du refus est noté');
     const champs = new Set(s.lignesJournal.flatMap((l) => Object.keys(l)));
-    for (const c of champs) assert.ok(['jeton', 'acteur', 'profil', 'methodeMcp', 'outil', 'operationId', 'dureeMs', 'statut', 'code'].includes(c), c);
+    for (const c of champs) assert.ok(['jeton', 'acteur', 'profil', 'methodeMcp', 'outil', 'operationId', 'dureeMs', 'statut', 'code', 'froid', 'demarrageMs', 'dureeAuthMs', 'dureeOutilMs', 'lectures'].includes(c), c);
   });
 
   test('l’audit « sans contenu » : crm_audit ne garde aucune valeur de fiche, même après plusieurs écritures ; les valeurs sont dans les copies à durée limitée', async () => {
@@ -1252,7 +1252,9 @@ describe('R. deposer_document, supprimer_document_stocke, lister_documents (fich
     const fiche = s.doc('documents_stockes', r.id);
     assert.equal(fiche.cibleId, 'a1');
     assert.match(fiche.chemin, /^documents\/affaire\/a1\/[0-9a-f-]{36}-compte-rendu é\.md$/);
-    assert.equal(st.objets.get(fiche.chemin).type, 'text/markdown');
+    assert.equal(st.objets.get(fiche.chemin).type, 'text/markdown; charset=utf-8'); // 5
+    assert.equal(fiche.encodage, 'utf-8');
+    assert.ok(!JSON.stringify(ok(await s.appeler('biblio', 'lister_documents', { affaireId: 'a1' }))).includes('encodage'));
     assert.ok(s.collections.crm_audit.some((l) => l.outil === 'deposer_document' && l.docId === r.id));
     const liste = ok(await s.appeler('biblio', 'lister_documents', { affaireId: 'a1' }));
     assert.equal(liste.fichiers.length, 1);
