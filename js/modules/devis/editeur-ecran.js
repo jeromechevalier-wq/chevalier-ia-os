@@ -1354,7 +1354,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       // Les éléments sans article du Bordereau : ils se posent au même endroit que l'article qu'on chercherait ; la boîte reste ouverte (seul « Fermer » la ferme).
       h('div', { class: 'recherche-autres-ajouts', dataset: { zone: 'recherche-autres' } },
         [['Section', 'section'], ['Sous-section', 'sous-section'], ['Texte', 'texte'], ['Saut de page', 'saut']].map(([libelle, cle]) => {
-          const b = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: `recherche-ajouter-${cle}` }, onclick: () => ajouterSansArticle(cle) }, libelle);
+          const b = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: `recherche-ajouter-${cle}` }, onclick: (ev) => ajouterSansArticle(cle, ev.currentTarget) }, libelle);
           if (cle === 'saut') ref.boutonSautRecherche = b;
           return b;
         })));
@@ -1380,9 +1380,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
           { libelle: 'Ligne libre', icone: 'plus', action: () => ajouterLigne(Ed.ligneLibre(nouvelId()), { suite: rechercheEnLigne && !ref.panneauRecherche.hidden }) },
         ]); } }, '…')),
       h('div', { class: 'ajouts-structure' },
-        bouton('Section', 'ajouter-section', () => ajouterEnFinEtOuvrir(Ed.sectionNeuve(nouvelId()))),
-        bouton('Sous-section', 'ajouter-sous-section', () => ajouterEnFinEtOuvrir(Ed.sousSectionNeuve(nouvelId()))),
-        bouton('Texte', 'ajouter-texte', () => ajouterEnFinEtOuvrir(Ed.ligneTexte(nouvelId()))),
+        bouton('Section', 'ajouter-section', (ev) => ajouterEnFinEtOuvrir(Ed.sectionNeuve(nouvelId()), ev.currentTarget)),
+        bouton('Sous-section', 'ajouter-sous-section', (ev) => ajouterEnFinEtOuvrir(Ed.sousSectionNeuve(nouvelId()), ev.currentTarget)),
+        bouton('Texte', 'ajouter-texte', (ev) => ajouterEnFinEtOuvrir(Ed.ligneTexte(nouvelId()), ev.currentTarget)),
         (ref.boutonSaut = bouton('Saut de page', 'ajouter-saut', ajouterSautEnFin))));
     return [ref.vide, ref.zoneTableau, barre, ref.hoteRecherche];
   }
@@ -1397,9 +1397,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   }
 
   /** Section, Sous-section, Texte du bas : l'élément se pose TOUJOURS à la fin du devis, le curseur va dans son titre, et la boîte s'ouvre dessous (sans lui voler le focus) et reste ouverte. */
-  function ajouterEnFinEtOuvrir(element) {
+  function ajouterEnFinEtOuvrir(element, ouvreur) {
     if (lecture) return;
-    ouvrirBoiteEnFin(document.activeElement);
+    ouvrirBoiteEnFin(ouvreur);
     ajouterLigne(element, { champ: 'libelle' });
   }
 
@@ -1409,10 +1409,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   }
 
   /** Boutons Section, Sous-section, Texte, Saut de page de la boîte : l'élément se pose à l'endroit de la boîte (fin du devis, ou sous / sur la ligne choisie) ; la boîte reste ouverte et suit le nouvel élément, comme pour un article. */
-  function ajouterSansArticle(cle) {
+  function ajouterSansArticle(cle, bouton) {
     if (lecture) return;
     const creer = { section: () => Ed.sectionNeuve(nouvelId()), 'sous-section': () => Ed.sousSectionNeuve(nouvelId()), texte: () => Ed.ligneTexte(nouvelId()), saut: () => Ed.ligneSaut(nouvelId()) }[cle];
     ajouterLigne(creer(), { champ: 'libelle', suite: rechercheEnLigne && !ref.panneauRecherche.hidden });
+    if (document.activeElement === document.body && bouton?.isConnected) bouton.focus({ preventScroll: true }); // un saut n'a pas de champ : le focus reste sur le bouton de la boîte
   }
 
   /** « Fermer » : seule façon de fermer la boîte. Le texte et le filtre restent ; le focus va au bouton qui l'avait ouverte (sinon à la ligne de la boîte, sinon à la dernière ligne). */

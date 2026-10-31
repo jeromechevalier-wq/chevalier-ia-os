@@ -160,6 +160,7 @@ test('5 cas du saut dans la boîte : posé à la fin du devis (pas à la fin de 
   expect(await page.locator('tr[data-genre="saut"]').evaluate((e) => e.previousElementSibling.dataset.id)).toBe('m5');
   expect((await suite(page)).at(-1)).toBe('boite');
   await expect(boite(page)).toBeVisible();
+  expect(await page.evaluate(() => document.activeElement?.dataset?.action)).toBe('recherche-ajouter-saut'); // le focus reste sur le bouton de la boîte
 });
 
 test('6 devis vide : la boîte ouverte est dans le tableau, le message d’aide reste jusqu’à la première ligne, la boîte reste ouverte ; le saut de la boîte est grisé', async ({ page }, info) => {
