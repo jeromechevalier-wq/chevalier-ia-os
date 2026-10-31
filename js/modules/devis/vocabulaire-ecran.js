@@ -125,7 +125,7 @@ async function ouvrirCreation() {
     general);
   const r = await dialogue({
     titre: 'Ajouter un mot appris',
-    classe: 'dialogue-formulaire',
+    classe: 'dialogue-formulaire dialogue-vocabulaire',
     contenu: corps,
     boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: tenter }],
     auMontage: ({ boite, boutons, fermer }) => {
@@ -194,7 +194,7 @@ async function ouvrirChangerCibles(regle) {
   }
   const r = await dialogue({
     titre: 'Changer ce que le mot désigne',
-    classe: 'dialogue-formulaire',
+    classe: 'dialogue-formulaire dialogue-vocabulaire',
     contenu: h('div', { class: 'pile' }, h('p', {}, 'Mot : ', h('strong', {}, `« ${regle.expression ?? regle.cle} »`)), h('p', { class: 'discret' }, 'Plusieurs articles, ou une famille : ton assistant demande lequel, seulement parmi eux.'), choix.element, general),
     boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: tenter }],
     auMontage: ({ boutons }) => { bouton = boutons.at(-1); griserSelon(bouton, pret); },

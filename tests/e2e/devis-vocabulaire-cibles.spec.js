@@ -96,12 +96,13 @@ test('C5b.3 8 articles au plus : le neuvième est refusé avec « 8 au plus : re
   await expect(puces(page)).toHaveCount(8);
   await champ(page).fill('vis modèle 9');
   const neuvieme = dialogue(page).locator('.resultat-composant[data-article-id="n9"]');
-  await expect(neuvieme).toHaveAttribute('aria-disabled', 'true');
-  await expect(neuvieme).toHaveJSProperty('disabled', false); // aria-disabled, jamais `disabled` : atteignable au clavier
-  await neuvieme.click({ force: true }); // un clic réel sur un bouton aria-disabled : le message s'affiche
+  const caseNeuf = neuvieme.locator('input');
+  await expect(caseNeuf).toHaveAttribute('aria-disabled', 'true');
+  await expect(caseNeuf).toHaveJSProperty('disabled', false); // aria-disabled, jamais `disabled` : atteignable au clavier
+  await caseNeuf.click({ force: true }); // un clic réel sur une case aria-disabled : le message s'affiche
   await expect(dialogue(page).locator('[data-role="maximum"]')).toContainText('8 au plus : retire-en un d’abord.');
   await expect(puces(page)).toHaveCount(8);
-  await expect(neuvieme).toHaveAttribute('aria-pressed', 'false'); // le clic sur le neuvième n'a rien choisi
+  await expect(caseNeuf).not.toBeChecked(); // le clic sur le neuvième n'a rien choisi
   await capturer(page, info, 'C5b-3-huit-au-plus');
   await dialogue(page).locator('[data-action="retirer-article"][data-article-id="n1"]').click();
   await expect(puces(page)).toHaveCount(7);
