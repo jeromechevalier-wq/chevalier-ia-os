@@ -868,3 +868,36 @@ describe('R1 R2 validation humaine du dictionnaire (moteur)', () => {
     assert.equal(r.candidats.find((c) => c.articleId === 'a12').regleId, 'lumiere');
   });
 });
+
+// ---------------------------------------------------------------- C4 : le compteur d'usage départage deux articles à score égal (cadrage vocabulaire-cibles, 2.9)
+describe('K21 usage : départage seulement', () => {
+  const deux = [art('p1', 'Prise alpha', 2), art('p2', 'Prise bravo', 2), art('p3', 'Prise charlie', 2)];
+  const ordre = (r) => r.candidats.map((c) => c.articleId);
+  test('K21 à score égal, l’article le plus utilisé passe devant ; sans `usages` (ou vide), l’ordre est celui d’avant : alphabétique', () => {
+    const sans = V.interpreter('prise', { articles: deux, reglages: REGLAGES });
+    assert.deepEqual(ordre(sans), ['p1', 'p2', 'p3']);
+    assert.deepEqual(ordre(V.interpreter('prise', { articles: deux, reglages: REGLAGES, usages: new Map() })), ['p1', 'p2', 'p3']);
+    const avec = V.interpreter('prise', { articles: deux, reglages: REGLAGES, usages: new Map([['p3', { nombre: 7 }], ['p2', { nombre: 2 }]]) });
+    assert.deepEqual(ordre(avec), ['p3', 'p2', 'p1']);
+  });
+  test('K21 à usage égal, le libellé puis l’identifiant décident ; un compteur absent, nul ou illisible compte 0', () => {
+    const usages = new Map([['p2', { nombre: 3 }], ['p3', { nombre: 3 }], ['p1', { nombre: 'beaucoup' }]]);
+    assert.deepEqual(ordre(V.interpreter('prise', { articles: deux, reglages: REGLAGES, usages })), ['p2', 'p3', 'p1']);
+    assert.deepEqual(ordre(V.interpreter('prise', { articles: deux, reglages: REGLAGES, usages: { p3: 9 } })), ['p1', 'p2', 'p3']); // pas une Map : ignoré
+  });
+  test('K21 l’usage ne change ni un score, ni la décision : seulement l’ordre (la question cite alors les plus utilisés d’abord)', () => {
+    const usages = new Map([['p3', { nombre: 50 }]]);
+    for (const phrase of ['prise', 'prise alpha', '2 prises bravo', 'disjoncteur 20 A', 'interrupteur', 'cloison 12 m²', 'xyzzy']) {
+      const a = V.interpreter(phrase, { articles: CATALOGUE.concat(deux), reglages: REGLAGES });
+      const b = V.interpreter(phrase, { articles: CATALOGUE.concat(deux), reglages: REGLAGES, usages });
+      assert.equal(b.decision, a.decision, phrase);
+      assert.equal(b.candidats.length, a.candidats.length, phrase);
+      assert.deepEqual(b.candidats.map((c) => [c.articleId, c.score]).sort(), a.candidats.map((c) => [c.articleId, c.score]).sort(), phrase);
+    }
+  });
+  test('K21 un score plus haut l’emporte toujours sur l’usage', () => {
+    const catalogue = [art('x1', 'Prise', 2), art('x2', 'Prise étanche renforcée', 2)];
+    const r = V.interpreter('prise', { articles: catalogue, reglages: REGLAGES, usages: new Map([['x2', { nombre: 99 }]]) });
+    assert.equal(r.candidats[0].articleId, 'x1'); // libellé exact (0,95) devant un libellé partiel, même très utilisé
+  });
+});

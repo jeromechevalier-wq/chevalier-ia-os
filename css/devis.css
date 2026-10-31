@@ -9,6 +9,8 @@
 .valeur-editable.valeur-vide { color: var(--texte2); }
 .tableau-articles .titre-colonne, .tableau-articles .titre-colonne:hover { cursor: default; color: var(--texte2); } /* en-têtes sans tri : même style que les autres tableaux, sans l'effet de clic */
 .tableau-articles .ligne-liste { cursor: default; }
+.tableau-articles td[data-colonne="usage"] { white-space: nowrap; }
+.tableau-articles .usage-vide { color: var(--texte2); } /* « Jamais utilisé » ou compteur illisible : discret, jamais en jaune */
 .tableau-articles .ligne-liste:hover { background: transparent; }
 .article-desactive td { color: var(--texte2); }
 .erreur-cellule { margin: var(--esp-2) 0 0; font-size: var(--fs-petit); }
@@ -58,7 +60,7 @@ fieldset.cases { border: 0; padding: 0; margin: 0; min-width: 0; } /* groupe de 
 }
 
 @media (max-width: 767px) {
-  .tableau-articles thead { display: none; } /* pas de tri sur ce tableau : chaque carte porte déjà ses libellés, les pastilles d'en-tête ne serviraient à rien */
+  .tableau-articles thead { display: none; } /* chaque carte porte déjà ses libellés ; le tri se fait par le menu « Trier par » (l’en-tête cliquable n’existe que sur ordinateur) */
   .valeur-editable { min-height: 44px; display: inline-flex; align-items: center; }
   .tableau-articles td.col-actions .bouton { min-height: 44px; }
 }

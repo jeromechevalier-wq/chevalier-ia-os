@@ -88,3 +88,16 @@ export function usageDepuisLesDevis(devis) {
   }
   return usage;
 }
+
+/**
+ * Le compteur lu en entier pour le dictionnaire de vocabulaire : `Map articleId -> { nombre, derniereUtilisationLe }` (au plus un document par article, l'ordre de grandeur du catalogue déjà lu en entier).
+ * L'usage ne sert qu'à départager : une lecture impossible ou une collection absente donne une Map vide, jamais une erreur.
+ */
+export async function lireUsages(donnees) {
+  try {
+    const docs = await donnees.liste(C.devisUsageArticles);
+    return new Map(docs.map((u) => [u.articleId ?? u.id, { nombre: Number.isInteger(u.nombre) && u.nombre > 0 ? u.nombre : 0, derniereUtilisationLe: u.derniereUtilisationLe ?? null }]));
+  } catch {
+    return new Map();
+  }
+}

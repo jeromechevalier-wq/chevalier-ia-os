@@ -7,6 +7,7 @@ import * as DF from '../../partage/devis-familles.js';
 import * as DV from '../../partage/devis-vocabulaire.js';
 import * as D from '../../partage/devis.js';
 import { COLLECTIONS as C } from './donnees.js';
+import { lireUsages } from './usage-articles.js';
 import { serialiser } from './serialisation.js';
 import { ditHorsTaxes, ditPourAssistant, sansModeMarge } from './voix.js';
 import { lireConfig } from './config.js';
@@ -314,8 +315,8 @@ export async function chercherArticle(donnees, { texte, limite }) {
  * `limite` tronque les candidats APRÈS la décision (sinon la décision changerait avec `limite`), sans descendre sous les articles cités par la question.
  */
 export async function rechercherArticleParPhrase(donnees, { phrase, limite }) {
-  const [articles, regles, reglages] = await Promise.all([donnees.liste(C.devisArticles), donnees.liste(C.devisVocabulaire), reglagesDevis(donnees)]);
-  const r = DV.interpreter(phrase, { regles, articles, reglages });
+  const [articles, regles, reglages, usages] = await Promise.all([donnees.liste(C.devisArticles), donnees.liste(C.devisVocabulaire), reglagesDevis(donnees), lireUsages(donnees)]);
+  const r = DV.interpreter(phrase, { regles, articles, reglages, usages }); // l'usage ne sert qu'à départager deux candidats de même score
   // Jamais moins de candidats que d'articles cités par la question (sinon l'assistant lirait un article absent de la liste).
   const cites = r.decision === 'proposer' ? Math.min(DV.SEUILS.maxChoixQuestion, r.candidats.filter((c) => c.score >= DV.SEUILS.proposer).length) : 0;
   const mot = DA.motOuvrage(reglages);

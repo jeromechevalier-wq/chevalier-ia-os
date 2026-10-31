@@ -11,6 +11,7 @@ import * as E from '../../partage/devis-editeur.js';
 import * as B from '../../partage/devis-brouillon.js';
 import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, recalculerMontantsAffaires as recalculerMontantsServeur, recalculerUsageArticles as recalculerUsageServeur, modifierEnTransaction as modifierEnTransactionServeur, ErreurDevis } from './devis.js';
 import { COLLECTIONS as C } from './donnees.js';
+import { lireUsages } from './usage-articles.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
 import { canonique, sansId } from './canonique.js';
@@ -726,8 +727,8 @@ function avecExemple(exemples, phrase) {
 export async function enregistrerReponseVocabulaire(c, args) {
   const { reponse, articleId } = args;
   const phrase = String(args.phrase ?? '');
-  const [articles, regles, reglages] = await Promise.all([c.donnees.liste(C.devisArticles), c.donnees.liste(C.devisVocabulaire), reglagesDuDevis(c)]);
-  const r = DV.interpreter(phrase, { regles, articles, reglages });
+  const [articles, regles, reglages, usages] = await Promise.all([c.donnees.liste(C.devisArticles), c.donnees.liste(C.devisVocabulaire), reglagesDuDevis(c), lireUsages(c.donnees)]);
+  const r = DV.interpreter(phrase, { regles, articles, reglages, usages });
   const regleId = DV.identifiantDeRegle(r.cle);
   if (!regleId) refuser('saisie_invalide', 'Aucun mot à retenir dans cette phrase (elle ne contient que des mots vides ou des nombres).');
   if (reponse === 'aucun') return { operationId: null, rien: true, message: 'Noté : aucune règle apprise (rien ne convenait). Rien n’a été écrit.' };

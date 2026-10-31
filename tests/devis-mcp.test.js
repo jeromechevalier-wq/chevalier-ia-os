@@ -716,6 +716,21 @@ describe('K20b recalculer_usage_articles (outil)', () => {
   });
 });
 
+describe('K21b rechercher_article_par_phrase : le compteur d’usage départage deux articles à score égal', () => {
+  test('K21b « le tableau » : à égalité, le plus utilisé passe devant ; la décision et les scores ne changent pas ; un compteur illisible ne casse rien', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const avant = ok(await chercherPhrase(s, 'le tableau'));
+    assert.deepEqual(avant.candidats.map((c) => c.articleId), [ids.t2, ids.t4], 'sans compteur : ordre alphabétique');
+    s.collections.devis_usage_articles = [{ id: ids.t4, articleId: ids.t4, nombre: 5, derniereUtilisationLe: new Date('2026-10-30T10:00:00Z') }, { id: 'sans-nombre', articleId: 'sans-nombre' }];
+    const apres = ok(await chercherPhrase(s, 'le tableau'));
+    assert.deepEqual(apres.candidats.map((c) => c.articleId), [ids.t4, ids.t2], 'le plus utilisé d’abord');
+    assert.equal(apres.decision, avant.decision);
+    assert.deepEqual(apres.candidats.map((c) => c.score).sort((a, b) => a - b), avant.candidats.map((c) => c.score).sort((a, b) => a - b));
+    assert.match(apres.question, /^Tu veux « Tableau électrique 4 rangées »/, 'la question cite le plus utilisé en premier');
+  });
+});
+
 describe('N5 archiver_devis', () => {
   test('N5 archive un devis signé, le désarchive, refuse le reste ; la restauration défait l’archivage même sur un devis finalisé', async () => {
     const s = await demarrer({ devis: [finalise('s1', 'accepte'), finalise('e1', 'envoye'), finalise('f1', 'en_attente_envoi'), devisEnregistre('b1')] });
