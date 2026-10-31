@@ -8,6 +8,7 @@ import { creerAccesMemoire, avecBase } from '../functions/src/coeur/donnees.js';
 import * as S from '../functions/src/coeur/devis.js';
 import { lienStablePdf } from '../functions/src/devis/pdf-service.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
+import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
 process.env.GCLOUD_PROJECT = 'demo-chevalier-ia-os';
 const { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient, BASE_LIEN_PLATEFORME } = await import('../functions-plateforme/src/devis-pdf.js');
@@ -42,12 +43,12 @@ async function monde({ finaliser = ['a', 'b'] } = {}) {
   for (const c of ['a', 'b', 'c']) {
     Object.assign(collections, {
       [`clients/${c}/devis_devis`]: [], [`clients/${c}/devis_compteurs`]: [], [`clients/${c}/crm_audit`]: [], [`clients/${c}/crm_audit_avant`]: [],
-      [`clients/${c}/devis_parametres`]: [{ id: 'reglages', regimeTva: 'assujetti', emetteur: { nom: `Entreprise ${c}` } }],
+      [`clients/${c}/devis_parametres`]: [{ id: 'reglages', regimeTva: 'assujetti', entreprise: { ...EMETTEUR_ESSAI, nom: `Entreprise ${c}` } }],
       [`clients/${c}/crm_organisations`]: [{ id: 'org1', nom: 'Société Cliente Essai' }], [`clients/${c}/crm_personnes`]: [], [`clients/${c}/crm_affaires`]: [{ id: 'aff1', titre: 'Rénovation Essai', urlDossier: 'https://drive.google.com/drive/folders/DOSSIER_ESSAI', documents: [] }],
       [`clients/${c}/crm_evenements`]: [],
     });
     const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1', organisationId: 'org1', objet: 'Cuisine' }, { id: `d-${c}`, maintenant: MAINTENANT, auteur: ALICE }, { marge: 20, margeDevis: 20 });
-    collections[`clients/${c}/devis_devis`].push({ ...d, objet: 'Cuisine', sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'l1', libelle: 'Pose', unite: 'u', quantite: 2, prixAchat: PRIX_ACHAT }] }] });
+    collections[`clients/${c}/devis_devis`].push(completerPourFinaliser({ ...d, objet: 'Cuisine', sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'l1', libelle: 'Pose', unite: 'u', quantite: 2, prixAchat: PRIX_ACHAT }] }] }));
   }
   const brut = creerAccesMemoire(collections);
   const creerDonnees = (client) => avecBase(brut, `clients/${client}`);
@@ -89,7 +90,7 @@ describe('D1 déclencheur : fabrique chez un client dont le module devis est act
   });
   test('15 le PDF fabriqué par le serveur imprime « Mon entreprise » enregistrée par l\'écran (reglages.entreprise) avec ses méthodes de paiement ; `emetteur` reste lu en repli', async () => {
     const m = await monde({ finaliser: [] });
-    m.collections['clients/a/devis_parametres'][0] = { id: 'reglages', regimeTva: 'assujetti', entreprise: { nom: 'Entreprise Ecran', paiement: { modes: ['Carte bancaire', 'Virement'] } } };
+    m.collections['clients/a/devis_parametres'][0] = { id: 'reglages', regimeTva: 'assujetti', entreprise: { ...EMETTEUR_ESSAI, nom: 'Entreprise Ecran', paiement: { modes: ['Carte bancaire', 'Virement'] } } };
     const f = faux();
     await S.finaliser({ donnees: m.creerDonnees('a'), ctx: { acteur: ALICE, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd-a' });
     await declencheur(m, f)(evenement('a', 'd-a', { statut: 'brouillon' }, FINALISE));

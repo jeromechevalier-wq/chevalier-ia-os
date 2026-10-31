@@ -765,8 +765,24 @@ export const nettoyerNomDevis = (v) => String(v ?? '').replace(/\s+/g, ' ').trim
 /** Refus de finaliser un devis sans affaire : le même mot à l'écran, dans la fonction du serveur et dans l'assistant. */
 export const MESSAGE_AFFAIRE_MANQUANTE = 'Choisis l\'affaire de ce devis.';
 
-/** Liste de messages (en français, qui disent quoi faire). Vide = on peut finaliser. Aucun accès réseau ni base. */
-export function erreursFinalisation(devis) {
+/** Refus de finaliser un devis sans client (personne ou organisation) : le même mot à l'écran, dans la fonction du serveur et dans l'assistant. */
+export const MESSAGE_CLIENT_MANQUANT = 'Choisis le client de ce devis.';
+export const MESSAGE_DEBUT_TRAVAUX_MANQUANT = 'Indique la date de début des travaux.';
+export const MESSAGE_DUREE_TRAVAUX_MANQUANTE = 'Indique la durée estimée des travaux.';
+export const MESSAGE_VALIDITE_MANQUANTE = 'Indique la date jusqu\'à laquelle le devis est valable.';
+export const MESSAGE_VALIDITE_DEPASSEE = 'La date de validité du devis est déjà dépassée : choisis une date à venir.';
+export const MESSAGES_ENTREPRISE_MANQUANTE = Object.freeze({
+  nom: 'Complète le nom de l\'entreprise dans Mon entreprise.',
+  siret: 'Complète le numéro SIRET dans Mon entreprise.',
+  adresse: 'Complète l\'adresse de l\'entreprise dans Mon entreprise.',
+});
+
+/**
+ * Liste de messages (en français, qui disent quoi faire). Vide = on peut finaliser. Aucun accès réseau ni base.
+ * `emetteur` : « Mon entreprise » (nom, SIRET, adresse, texte d'assurance) ; `aujourdhui` : le jour AAAA-MM-JJ (fuseau de Paris) pour la date de validité.
+ * Sans `emetteur`, l'entreprise est vue comme vide : il faut le passer (écran, fonction du serveur et assistant le font tous avec la même règle).
+ */
+export function erreursFinalisation(devis, { emetteur, aujourdhui } = {}) {
   const erreurs = [];
   if (!devis) return ['Le devis est introuvable.'];
   if (devis.statut !== 'brouillon') erreurs.push('Ce devis est déjà finalisé : pour le corriger, crée la version suivante.');
@@ -810,7 +826,28 @@ export function erreursFinalisation(devis) {
   if (erreurDeRemise) erreurs.push(erreurDeRemise);
   erreurs.push(...erreursConditions(devis, totauxDevis(devis)));
   erreurs.push(...erreursChantier(devis.chantier));
+  erreurs.push(...erreursMentionsLegales(devis, { emetteur, aujourdhui }));
   return erreurs;
+}
+
+/**
+ * Ce que la loi demande sur un devis de travaux (economie.gouv.fr, « devis obligatoire ») et que la finalisation exige :
+ * entreprise (nom, adresse, SIRET) et assurance sans crochet, client, début et durée des travaux, date de validité à venir.
+ */
+export function erreursMentionsLegales(devis, { emetteur, aujourdhui } = {}) {
+  const e = [];
+  const em = objet(emetteur) ? emetteur : {};
+  if (!texteNonVide(String(em.nom ?? ''))) e.push(MESSAGES_ENTREPRISE_MANQUANTE.nom);
+  if (!texteNonVide(String(em.siret ?? ''))) e.push(MESSAGES_ENTREPRISE_MANQUANTE.siret);
+  if (!texteNonVide(adresseEnTexte(em.adresse))) e.push(MESSAGES_ENTREPRISE_MANQUANTE.adresse);
+  if ((em.metierBatiment ?? true) && /[\[\]]/.test(assuranceTexteDe(em))) e.push(MESSAGE_ASSURANCE_CROCHETS);
+  if (!devis?.personneId && !devis?.organisationId) e.push(MESSAGE_CLIENT_MANQUANT);
+  const ch = objet(devis?.chantier) ? devis.chantier : {};
+  if (!(estJour(ch.debutTravaux) || texteNonVide(devis?.debutTravaux))) e.push(MESSAGE_DEBUT_TRAVAUX_MANQUANT);
+  if (!(objet(ch.dureeEstimee) || texteNonVide(devis?.dureeEstimee))) e.push(MESSAGE_DUREE_TRAVAUX_MANQUANTE);
+  if (!estJour(devis?.expireLe)) e.push(MESSAGE_VALIDITE_MANQUANTE);
+  else if (estJour(aujourdhui) && devis.expireLe < aujourdhui) e.push(MESSAGE_VALIDITE_DEPASSEE); // pas estExpire : il est faux pour un brouillon
+  return e;
 }
 
 // ---------------------------------------------------------------- création, figeage, nouvelle version
@@ -857,8 +894,9 @@ export function nouveauDevis(valeurs = {}, ctx = {}, reglages = {}) {
  * Fige un brouillon pour la finalisation : copie avec statut, numéro, régime de TVA, prix de vente et taux de chaque ligne, totaux.
  * Retourne `{ devis, erreurs }` : si le devis est invalide, `devis` est null et `erreurs` dit quoi corriger. L'original n'est pas modifié.
  */
-export function figerPourFinalisation(devis, { numero, finaliseLe, reglages = {} } = {}) {
-  const erreurs = erreursFinalisation(devis);
+export function figerPourFinalisation(devis, { numero, finaliseLe, reglages = {}, clientNom = null, emetteur, aujourdhui } = {}) {
+  // L'émetteur est « Mon entreprise » des réglages ; le jour est celui de la finalisation (fuseau de Paris) sauf indication contraire.
+  const erreurs = erreursFinalisation(devis, { emetteur: emetteur ?? reglages.entreprise, aujourdhui: aujourdhui ?? aujourdhuiParis(finaliseLe) });
   if (!numero) erreurs.push('Le numéro du devis est manquant.');
   if (!REGIMES_TVA.some((r) => r.id === reglages.regimeTva)) erreurs.push('Choisis le régime de TVA dans les réglages du module.');
   if (erreurs.length) return { devis: null, erreurs };
@@ -878,13 +916,14 @@ export function figerPourFinalisation(devis, { numero, finaliseLe, reglages = {}
   copie.finaliseLe = finaliseLe;
   copie.totaux = totauxDevis(copie);
   copie.finalisation = { n8n: 'en_cours' };
+  if (texteNonVide(String(clientNom ?? ''))) copie.clientNomFige = String(clientNom).trim(); // le nom du client à la finalisation : renommer la fiche ensuite ne change pas ce devis
   return { devis: copie, erreurs: [] };
 }
 
 /** Nouveau brouillon copié d'un devis (même racine, version + 1, même numéro). L'original n'est pas modifié. */
 export function nouvelleVersion(devis, { id, creeLe, joursValidite = devis?.dureeValiditeJours ?? DUREE_VALIDITE_DEFAUT } = {}) {
   const copie = structuredClone(devis);
-  for (const cle of ['finaliseLe', 'envoyeLe', 'accepteLe', 'refuseLe', 'totaux', 'finalisation', 'envoiN8nCopie', 'raisonRefus', 'dateEmission', 'pdf', 'envois', 'emailPrepare']) delete copie[cle]; // `envois` : l'historique des envois par e-mail reste sur la version envoyée ; `emailPrepare` : le brouillon Gmail préparé était celui de l'ancienne version
+  for (const cle of ['finaliseLe', 'envoyeLe', 'accepteLe', 'refuseLe', 'totaux', 'finalisation', 'envoiN8nCopie', 'raisonRefus', 'dateEmission', 'pdf', 'envois', 'emailPrepare', 'clientNomFige']) delete copie[cle]; // `envois` : l'historique des envois par e-mail reste sur la version envoyée ; `emailPrepare` : le brouillon Gmail préparé était celui de l'ancienne version
   for (const section of copie.sections ?? []) for (const ligne of section.lignes ?? []) { delete ligne.prixVente; delete ligne.prixVenteAjuste; } // recalculés tant que brouillon
   return {
     ...copie,
@@ -1018,7 +1057,7 @@ export function vueClient(devis, contexte = {}) {
     },
     objet: devis.objet ?? null,
     ...(chantierDeVue(devis.chantier) ? { chantier: chantierDeVue(devis.chantier) } : {}),
-    client: { nom: contexte.clientNom ?? null, ...(texteNonVide(contexte.attentionNom) ? { attention: String(contexte.attentionNom).trim() } : {}), ...coordonneesClient(contexte.client) },
+    client: { nom: devis.clientNomFige ?? contexte.clientNom ?? null, ...(texteNonVide(contexte.attentionNom) ? { attention: String(contexte.attentionNom).trim() } : {}), ...coordonneesClient(contexte.client) },
     sections: (devis.sections ?? []).map((s, i) => ({
       id: s.id,
       ...(s.sautDePageAvant === true ? { sautDePageAvant: true } : {}),

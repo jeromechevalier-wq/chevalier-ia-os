@@ -4,19 +4,20 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import * as D from '../js/modules/devis/logique.js';
 import { devisHtml, formaterMontant } from '../js/modules/devis/document.js';
+import { OPTIONS_FINALISATION, EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
 const ctx = { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'moi@exemple.test', nouvelId: (n) => `${n}_1` };
 const reglages = { modeMarge: 'majoration', marge: 0, margeDevis: 0, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
 const ligne = (id, prixAchat, quantite, extra = {}) => ({ id, libelle: `Article ${id}`, unite: 'u', quantite, prixAchat, ...extra });
 const devis = (lignes, extra = {}) => ({
-  ...D.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'client@exemple.test' }] }, ctx, reglages),
+  ...completerPourFinaliser(D.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'client@exemple.test' }] }, ctx, reglages)),
   sections: [{ id: 's1', titre: 'Travaux', lignes }],
   ...extra,
 });
 /** Total HT brut de 1200 € à 20 %. */
 const simple = (extra = {}) => devis([ligne('a', 600, 2)], extra);
 const figer = (d, reg = reglages) => {
-  const r = D.figerPourFinalisation(d, { numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages: reg });
+  const r = D.figerPourFinalisation(d, { emetteur: EMETTEUR_ESSAI, numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages: reg });
   assert.deepEqual(r.erreurs, []);
   return r.devis;
 };
@@ -79,7 +80,7 @@ describe('Remise', () => {
   });
 
   test('R6 validations : pourcentage hors [0 ; 100[, montant négatif ou trop grand, type inconnu, valeur non numérique', () => {
-    const erreurs = (remise) => D.erreursFinalisation(simple({ remise }));
+    const erreurs = (remise) => D.erreursFinalisation(simple({ remise }), OPTIONS_FINALISATION);
     for (const r of [{ type: 'pourcentage', valeur: -1 }, { type: 'pourcentage', valeur: 100 }, { type: 'pourcentage', valeur: 150 },
       { type: 'montant', valeur: -5 }, { type: 'montant', valeur: 1200.01 }, { type: 'cadeau', valeur: 5 }, { type: 'montant', valeur: '10' }, 'dix']) {
       assert.equal(erreurs(r).length, 1, JSON.stringify(r));
@@ -87,7 +88,7 @@ describe('Remise', () => {
     for (const r of [null, undefined, { type: 'pourcentage', valeur: 0 }, { type: 'pourcentage', valeur: 99.99 }, { type: 'montant', valeur: 1200 }]) {
       assert.deepEqual(erreurs(r), [], JSON.stringify(r));
     }
-    assert.equal(D.figerPourFinalisation(simple({ remise: { type: 'montant', valeur: 5000 } }), { numero: 'N', finaliseLe: '2026-10-24T10:00:00Z', reglages }).devis, null);
+    assert.equal(D.figerPourFinalisation(simple({ remise: { type: 'montant', valeur: 5000 } }), { emetteur: EMETTEUR_ESSAI, numero: 'N', finaliseLe: '2026-10-24T10:00:00Z', reglages }).devis, null);
   });
 
   test('R7 vueClient expose la remise sans fuite (prix d\'achat, marge, coefficient)', () => {

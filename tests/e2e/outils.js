@@ -329,4 +329,30 @@ export async function filtrerHistorique(page, ...ids) {
   await dialogue.getByRole('button', { name: 'Appliquer' }).click();
 }
 
+/**
+ * Finaliser un devis exige (31/10/2026) « Mon entreprise » complète (nom, adresse, SIRET, assurance sans crochet) et, sur le devis, un client, le début et la durée des travaux.
+ * `ecrireEntrepriseComplete` pose l'entreprise (fictive) dans les réglages du module Devis ; `CHANTIER_ESSAI` se range dans le devis d'essai (`chantier`).
+ */
+export const CHANTIER_ESSAI = { debutTravaux: '2026-11-15', dureeEstimee: { valeur: 3, unite: 'semaine' } };
+export async function ecrireEntrepriseComplete(extra = {}) {
+  await ecrireDocument('devis_parametres/reglages', {
+    regimeTva: 'assujetti',
+    entreprise: { nom: 'Atelier Exemple', siret: '123 456 789 00012', adresse: { ligne1: '3 rue de l’Atelier', codePostal: '75001', ville: 'Paris' }, assuranceTexte: 'Assurance décennale : Assureur Exemple, contrat numéro : 123, territorialité : France métropolitaine.' },
+    ...extra,
+  });
+}
+
+/** Dans l'éditeur de devis : saisit le début (2 novembre 2026) et la durée (3 semaines) des travaux sur place, comme un utilisateur (« définir », puis on quitte le champ). */
+export async function poserDebutEtDuree(page) {
+  await page.locator('[data-definir="debutTravaux"]').click();
+  await page.locator('[data-champ="debutTravaux"]').fill('2026-11-02');
+  await page.locator('.titre-document').click(); // on quitte le champ : la date remplace le mot « définir »
+  await expect(page.locator('[data-definir="debutTravaux"]')).toHaveText('02/11/2026');
+  await page.locator('[data-definir="duree"]').click();
+  await page.locator('[data-champ="duree"]').fill('3');
+  await page.locator('[data-champ="duree-unite"]').selectOption('semaine');
+  await page.locator('[data-champ="duree-unite"]').press('Enter'); // Entrée referme la saisie
+  await expect(page.locator('[data-definir="duree"]')).toHaveText('3 semaines');
+}
+
 export { expect };

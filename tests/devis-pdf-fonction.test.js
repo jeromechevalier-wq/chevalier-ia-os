@@ -10,6 +10,7 @@ import { creerAppelDocument } from '../functions/src/documents/appel.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
 import { devisHtml } from '../functions/partage/devis-document.js';
 import { fragmentDePage } from '../js/modules/devis/document.js';
+import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 import { devisHtml as devisHtmlNavigateur } from '../js/modules/devis/document.js';
 
 const ACTEUR = 'jerome.chevalier@gmail.com';
@@ -21,11 +22,11 @@ const requete = (data, email = ACTEUR, extra = {}) => ({ auth: { token: { email,
 /** Un monde en mémoire avec un devis FINALISÉ (par la vraie finalisation), son affaire, son client et l'identité de l'entreprise. */
 async function monde({ finaliser = true, urlDossier = 'https://drive.google.com/drive/folders/DOSSIER_AFFAIRE_ESSAI' } = {}) {
   const collections = {
-    [C.devis]: [], [C.devisCompteurs]: [], [C.devisParametres]: [{ id: 'reglages', regimeTva: 'assujetti', emetteur: { nom: 'Entreprise Essai', siret: '123 456 789 00010' } }],
+    [C.devis]: [], [C.devisCompteurs]: [], [C.devisParametres]: [{ id: 'reglages', regimeTva: 'assujetti', entreprise: { ...EMETTEUR_ESSAI, nom: 'Entreprise Essai', siret: '123 456 789 00010' } }],
     [C.audit]: [], [C.auditAvant]: [], [C.affaires]: [{ id: 'aff1', nom: 'Rénovation Essai', urlDossier }], [C.organisations]: [{ id: 'org1', nom: 'Société Cliente Essai' }], [C.personnes]: [],
   };
   const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1', organisationId: 'org1', objet: 'Cuisine' }, { id: 'd1', maintenant: MAINTENANT, auteur: ACTEUR }, { marge: 20, margeDevis: 20 });
-  collections[C.devis].push({ ...d, objet: 'Cuisine', sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'l1', libelle: 'Pose', unite: 'u', quantite: 2, prixAchat: PRIX_ACHAT }] }] });
+  collections[C.devis].push(completerPourFinaliser({ ...d, objet: 'Cuisine', sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'l1', libelle: 'Pose', unite: 'u', quantite: 2, prixAchat: PRIX_ACHAT }] }] }));
   const donnees = creerAccesMemoire(collections);
   if (finaliser) await S.finaliser({ donnees, ctx: { acteur: ACTEUR, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd1' });
   return { collections, donnees };
@@ -110,6 +111,7 @@ describe('Q4 devisPdf : chemin heureux', () => {
   });
   test('A4 le PDF lit l\'assurance, les coordonnées bancaires et « Attestation et mentions » en direct dans les réglages (rien n\'est figé) ; sans rien : texte d\'assurance par défaut', async () => {
     const m = await monde();
+    delete m.collections[C.devisParametres][0].entreprise.assuranceTexte; // finalisé avec une assurance complète ; l'impression suit les réglages du moment
     const f0 = faux();
     await appel(m, f0)(requete({ devisId: 'd1' }));
     assert.ok(f0.vus.html[0].includes('[Assureur]') && !f0.vus.html[0].includes('Coordonnées bancaires'));
@@ -195,12 +197,12 @@ describe('Q7 devisPdf : le nom du fichier suit nomFichierDevis', () => {
 describe('Q8 devisPdf : le logo externe est retiré', () => {
   test('Q8 un logo https disparaît du HTML envoyé, une image data:image est conservée', async () => {
     const m = await monde();
-    m.collections[C.devisParametres][0].emetteur.logo = 'https://interne.exemple.test/logo.png';
+    m.collections[C.devisParametres][0].entreprise.logo = 'https://interne.exemple.test/logo.png';
     const f = faux();
     await appel(m, f)(requete({ devisId: 'd1' }));
     assert.ok(!f.vus.html[0].includes('interne.exemple.test') && !f.vus.html[0].includes('<img'));
     const m2 = await monde();
-    m2.collections[C.devisParametres][0].emetteur.logo = 'data:image/png;base64,iVBORw0KGgo=';
+    m2.collections[C.devisParametres][0].entreprise.logo = 'data:image/png;base64,iVBORw0KGgo=';
     const f2 = faux();
     await appel(m2, f2)(requete({ devisId: 'd1' }));
     assert.ok(f2.vus.html[0].includes('<img src="data:image/png;base64,iVBORw0KGgo='));

@@ -3,6 +3,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import * as D from '../js/modules/devis/logique.js';
+import { OPTIONS_FINALISATION, EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
 const ctx = () => ({ maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'moi@exemple.test', nouvelId: (n) => `${n}_1` });
 const reglages = { modeMarge: 'majoration', marge: 20, margeDevis: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
@@ -10,7 +11,7 @@ const ligne = (id, prixAchat, quantite, extra = {}) => ({ id, libelle: `Article 
 
 /** Devis de test : achats distinctifs (123,45 et 67,89), marge 20 %, quantités sans rapport avec les prix. */
 const devisType = (extra = {}) => ({
-  ...D.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'client@exemple.test' }], copie: [{ email: 'copie@exemple.test' }] }, ctx(), reglages),
+  ...completerPourFinaliser(D.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'client@exemple.test' }], copie: [{ email: 'copie@exemple.test' }] }, ctx(), reglages)),
   adresses: { commanditaire: { id: 'ad1', texte: '1 rue du Test' }, facturation: null, chantier: { id: 'ad2', texte: '2 rue du Chantier' } },
   sections: [
     { id: 's1', titre: 'Toiture', lignes: [ligne('l1', 123.45, 3), ligne('l2', 67.89, 7, { tauxTva: 10 })] },
@@ -70,7 +71,7 @@ describe('Marge', () => {
     assert.equal(D.estVendueAPerte({ prixAchat: 10, prixVente: 10 }), false);
     const d = devisType({ marge: -10, destinataires: [{ email: 'a@b.fr' }] });
     assert.equal(D.totauxDevis(d).lignes[0].venduAPerte, true);
-    assert.deepEqual(D.erreursFinalisation(d), []);
+    assert.deepEqual(D.erreursFinalisation(d, OPTIONS_FINALISATION), []);
   });
 });
 
@@ -109,7 +110,7 @@ describe('Totaux et TVA', () => {
   });
   test('D8 un devis figé ne bouge plus : changer le prix d\'achat ou les réglages ne change pas les totaux', () => {
     const brouillon = devisType();
-    const r = D.figerPourFinalisation(brouillon, { numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } });
+    const r = D.figerPourFinalisation(brouillon, { emetteur: EMETTEUR_ESSAI, numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } });
     assert.deepEqual(r.erreurs, []);
     const fige = r.devis;
     assert.equal(fige.statut, 'en_attente_envoi');
@@ -130,10 +131,10 @@ describe('Totaux et TVA', () => {
     assert.deepEqual(D.totauxDevis(autreTaux), avant);
   });
   test('D8 le régime de TVA est figé à la finalisation, refus d\'un devis invalide', () => {
-    const r = D.figerPourFinalisation(devisType(), { numero: 'N', finaliseLe: '2026-10-24', reglages: { regimeTva: 'franchise' } });
+    const r = D.figerPourFinalisation(devisType(), { emetteur: EMETTEUR_ESSAI, numero: 'N', finaliseLe: '2026-10-24', reglages: { regimeTva: 'franchise' } });
     assert.equal(r.devis.regimeTva, 'franchise');
     assert.equal(r.devis.totaux.tva, 0);
-    const refus = D.figerPourFinalisation(devisType({ sections: [] }), { numero: 'N', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } });
+    const refus = D.figerPourFinalisation(devisType({ sections: [] }), { emetteur: EMETTEUR_ESSAI, numero: 'N', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } });
     assert.equal(refus.devis, null);
     assert.ok(refus.erreurs.length > 0);
   });
@@ -203,46 +204,46 @@ describe('Numéro, expiration, statuts', () => {
 
 describe('Validation de finalisation', () => {
   test('D9b une adresse e-mail en copie invalide empêche de finaliser ; une adresse valide est acceptée', () => {
-    assert.deepEqual(D.erreursFinalisation(devisType({ copie: ['contact@exemple.fr'] })), []);
-    assert.ok(D.erreursFinalisation(devisType({ copie: ['pas-un-email'] })).some((e) => /en copie n'est pas valide/.test(e)));
+    assert.deepEqual(D.erreursFinalisation(devisType({ copie: ['contact@exemple.fr'] }), OPTIONS_FINALISATION), []);
+    assert.ok(D.erreursFinalisation(devisType({ copie: ['pas-un-email'] }), OPTIONS_FINALISATION).some((e) => /en copie n'est pas valide/.test(e)));
   });
   test('D9c plus de 10 adresses en copie : le serveur refuse de finaliser (10 passent)', () => {
     const adresses = (n) => Array.from({ length: n }, (_, i) => `copie${i}@exemple.fr`);
-    assert.deepEqual(D.erreursFinalisation(devisType({ copie: adresses(D.MAX_COPIE) })), []);
-    assert.ok(D.erreursFinalisation(devisType({ copie: adresses(D.MAX_COPIE + 1) })).some((e) => /trop d'adresses e-mail en copie/.test(e)));
+    assert.deepEqual(D.erreursFinalisation(devisType({ copie: adresses(D.MAX_COPIE) }), OPTIONS_FINALISATION), []);
+    assert.ok(D.erreursFinalisation(devisType({ copie: adresses(D.MAX_COPIE + 1) }), OPTIONS_FINALISATION).some((e) => /trop d'adresses e-mail en copie/.test(e)));
   });
   test('D9c2 plus de 10 destinataires (À) : refusé (10 passent) ; la même adresse deux fois en destinataire aussi', () => {
     const adresses = (n) => Array.from({ length: n }, (_, i) => `a${i}@exemple.fr`);
-    assert.deepEqual(D.erreursFinalisation(devisType({ destinataires: adresses(D.MAX_DESTINATAIRES) })), []);
-    assert.ok(D.erreursFinalisation(devisType({ destinataires: adresses(D.MAX_DESTINATAIRES + 1) })).some((e) => /trop de destinataires/.test(e)));
-    assert.ok(D.erreursFinalisation(devisType({ destinataires: ['a@exemple.fr', { email: ' A@Exemple.fr ' }] })).some((e) => /est deux fois destinataire/.test(e)));
+    assert.deepEqual(D.erreursFinalisation(devisType({ destinataires: adresses(D.MAX_DESTINATAIRES) }), OPTIONS_FINALISATION), []);
+    assert.ok(D.erreursFinalisation(devisType({ destinataires: adresses(D.MAX_DESTINATAIRES + 1) }), OPTIONS_FINALISATION).some((e) => /trop de destinataires/.test(e)));
+    assert.ok(D.erreursFinalisation(devisType({ destinataires: ['a@exemple.fr', { email: ' A@Exemple.fr ' }] }), OPTIONS_FINALISATION).some((e) => /est deux fois destinataire/.test(e)));
   });
   test('D9d une adresse à la fois destinataire et en copie empêche de finaliser (mêmes mots que le serveur MCP, sans tenir compte des majuscules)', () => {
-    const erreurs = D.erreursFinalisation(devisType({ destinataires: [{ email: 'client@exemple.test' }], copie: ['autre@exemple.test', ' Client@Exemple.test '] }));
+    const erreurs = D.erreursFinalisation(devisType({ destinataires: [{ email: 'client@exemple.test' }], copie: ['autre@exemple.test', ' Client@Exemple.test '] }), OPTIONS_FINALISATION);
     assert.ok(erreurs.includes('L\'adresse « Client@Exemple.test » est déjà destinataire : elle ne peut pas être aussi en copie.'), erreurs.join(' | '));
-    assert.deepEqual(D.erreursFinalisation(devisType({ destinataires: [{ email: 'client@exemple.test' }], copie: ['autre@exemple.test'] })), []);
-    assert.deepEqual(D.erreursFinalisation(devisType({ destinataires: [], copie: ['client@exemple.test'] })), []);
+    assert.deepEqual(D.erreursFinalisation(devisType({ destinataires: [{ email: 'client@exemple.test' }], copie: ['autre@exemple.test'] }), OPTIONS_FINALISATION), []);
+    assert.deepEqual(D.erreursFinalisation(devisType({ destinataires: [], copie: ['client@exemple.test'] }), OPTIONS_FINALISATION), []);
   });
-  test('D9 un devis complet est valide', () => assert.deepEqual(D.erreursFinalisation(devisType()), []));
+  test('D9 un devis complet est valide', () => assert.deepEqual(D.erreursFinalisation(devisType(), OPTIONS_FINALISATION), []));
   test('D9 sans ligne ; le destinataire est facultatif (impression, remise en main propre) mais une adresse écrite doit être valide', () => {
-    assert.ok(D.erreursFinalisation(devisType({ sections: [] })).some((e) => /au moins une ligne/.test(e)));
-    assert.ok(!D.erreursFinalisation(devisType({ destinataires: [] })).some((e) => /destinataire/.test(e)));
-    assert.ok(!D.erreursFinalisation(devisType({ destinataires: [], copie: [{ email: 'copie@exemple.test' }] })).some((e) => /destinataire/.test(e)));
-    assert.ok(D.erreursFinalisation(devisType({ destinataires: [{ email: 'pas-un-email' }] })).some((e) => /pas valide/.test(e)));
+    assert.ok(D.erreursFinalisation(devisType({ sections: [] }), OPTIONS_FINALISATION).some((e) => /au moins une ligne/.test(e)));
+    assert.ok(!D.erreursFinalisation(devisType({ destinataires: [] }), OPTIONS_FINALISATION).some((e) => /destinataire/.test(e)));
+    assert.ok(!D.erreursFinalisation(devisType({ destinataires: [], copie: [{ email: 'copie@exemple.test' }] }), OPTIONS_FINALISATION).some((e) => /destinataire/.test(e)));
+    assert.ok(D.erreursFinalisation(devisType({ destinataires: [{ email: 'pas-un-email' }] }), OPTIONS_FINALISATION).some((e) => /pas valide/.test(e)));
   });
   test('D9 quantité, prix d\'achat et marge invalides sont signalés ligne par ligne', () => {
     const base = (l, extra = {}) => devisType({ sections: [{ id: 's', titre: 'T', lignes: [l] }], ...extra });
-    assert.ok(D.erreursFinalisation(base(ligne('a', 10, 0))).some((e) => /quantité/.test(e)));
-    assert.ok(D.erreursFinalisation(base(ligne('a', 10, -2))).some((e) => /quantité/.test(e)));
-    assert.ok(D.erreursFinalisation(base(ligne('a', 10, undefined))).some((e) => /quantité/.test(e)));
-    assert.ok(D.erreursFinalisation(base(ligne('a', 'abc', 1))).some((e) => /prix d'achat/.test(e)));
-    assert.ok(D.erreursFinalisation(base(ligne('a', undefined, 1))).some((e) => /prix d'achat/.test(e)));
-    assert.ok(D.erreursFinalisation(base(ligne('a', 10, 1), { modeMarge: 'marge_vente', marge: 100 })).some((e) => /inférieure à 100/.test(e)));
-    assert.ok(D.erreursFinalisation(base(ligne('a', 10, 1, { marge: 100 }), { modeMarge: 'marge_vente', marge: 10 })).some((e) => /inférieure à 100/.test(e)));
-    assert.deepEqual(D.erreursFinalisation(base(ligne('a', 10, 1, { marge: 100 }))), []); // 100 % accepté en majoration
+    assert.ok(D.erreursFinalisation(base(ligne('a', 10, 0)), OPTIONS_FINALISATION).some((e) => /quantité/.test(e)));
+    assert.ok(D.erreursFinalisation(base(ligne('a', 10, -2)), OPTIONS_FINALISATION).some((e) => /quantité/.test(e)));
+    assert.ok(D.erreursFinalisation(base(ligne('a', 10, undefined)), OPTIONS_FINALISATION).some((e) => /quantité/.test(e)));
+    assert.ok(D.erreursFinalisation(base(ligne('a', 'abc', 1)), OPTIONS_FINALISATION).some((e) => /prix d'achat/.test(e)));
+    assert.ok(D.erreursFinalisation(base(ligne('a', undefined, 1)), OPTIONS_FINALISATION).some((e) => /prix d'achat/.test(e)));
+    assert.ok(D.erreursFinalisation(base(ligne('a', 10, 1), { modeMarge: 'marge_vente', marge: 100 }), OPTIONS_FINALISATION).some((e) => /inférieure à 100/.test(e)));
+    assert.ok(D.erreursFinalisation(base(ligne('a', 10, 1, { marge: 100 }), { modeMarge: 'marge_vente', marge: 10 }), OPTIONS_FINALISATION).some((e) => /inférieure à 100/.test(e)));
+    assert.deepEqual(D.erreursFinalisation(base(ligne('a', 10, 1, { marge: 100 })), OPTIONS_FINALISATION), []); // 100 % accepté en majoration
   });
   test('D38 une version déjà finalisée ne se finalise plus', () => {
-    assert.ok(D.erreursFinalisation(devisType({ statut: 'envoye' })).some((e) => /version suivante/.test(e)));
+    assert.ok(D.erreursFinalisation(devisType({ statut: 'envoye' }), OPTIONS_FINALISATION).some((e) => /version suivante/.test(e)));
   });
 });
 
@@ -253,7 +254,7 @@ describe('Vue client et textes', () => {
     else if (o && typeof o === 'object') for (const [k, v] of Object.entries(o)) { acc.push(k); cles(v, acc); }
     return acc;
   };
-  const fige = () => D.figerPourFinalisation(devisType({ marge: 20 }), { numero: 'DEV-2026-10-24-007', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } }).devis;
+  const fige = () => D.figerPourFinalisation(devisType({ marge: 20 }), { emetteur: EMETTEUR_ESSAI, numero: 'DEV-2026-10-24-007', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } }).devis;
 
   test('D13 la vue client n\'a aucune clé interdite, à aucun niveau, ni aucun prix d\'achat dans son JSON', () => {
     const d = fige();
@@ -304,7 +305,7 @@ describe('Vue client et textes', () => {
 
 describe('Nouvelle version et montant d\'affaire', () => {
   test('D18 une nouvelle version est un brouillon copié, sans modifier l\'original', () => {
-    const fige = D.figerPourFinalisation(devisType(), { numero: 'DEV-2026-10-24-003', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } }).devis;
+    const fige = D.figerPourFinalisation(devisType(), { emetteur: EMETTEUR_ESSAI, numero: 'DEV-2026-10-24-003', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } }).devis;
     const copieAvant = structuredClone(fige);
     const v2 = D.nouvelleVersion(fige, { id: 'devis_2', creeLe: new Date('2026-11-02T09:00:00Z') });
     assert.deepEqual(fige, copieAvant);
@@ -319,7 +320,7 @@ describe('Nouvelle version et montant d\'affaire', () => {
     assert.notEqual(fige.sections[0].lignes[0].libelle, 'changé'); // copie profonde
   });
   test('D17 montant d\'affaire : devis acceptés non archivés, sinon devis proposé le plus récent, sinon la saisie reste (détail : devis-montant-affaire.test.js)', () => {
-    const fige = D.figerPourFinalisation(devisType(), { numero: 'N', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } }).devis;
+    const fige = D.figerPourFinalisation(devisType(), { emetteur: EMETTEUR_ESSAI, numero: 'N', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } }).devis;
     assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'refuse' }, { ...fige, statut: 'brouillon' }], 5000), 5000);
     assert.equal(D.montantAffaireDepuisDevis([], 0), 0);
     assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'envoye' }], 5000), 1014.71);
@@ -336,11 +337,11 @@ describe('Corrections de relecture', () => {
   test('D13 deux lignes sans identifiant ne se confondent pas, et la validation les refuse', () => {
     const d = devisType({ regimeTva: 'franchise', sections: [{ id: 's', lignes: [ligne(undefined, 10, 1, { marge: 0 }), ligne(undefined, 90, 1, { marge: 0 })] }] });
     assert.deepEqual(D.vueClient(d).sections[0].lignes.map((l) => l.totalHT), [10, 90]);
-    assert.ok(D.erreursFinalisation(d).some((e) => /identifiant/.test(e)));
+    assert.ok(D.erreursFinalisation(d, OPTIONS_FINALISATION).some((e) => /identifiant/.test(e)));
   });
   test('D9 une marge qui rendrait le prix négatif est refusée à la finalisation', () => {
     const d = devisType({ modeMarge: 'majoration', marge: -150 });
-    assert.ok(D.erreursFinalisation(d).some((e) => /négatif/.test(e)));
+    assert.ok(D.erreursFinalisation(d, OPTIONS_FINALISATION).some((e) => /négatif/.test(e)));
   });
   test('D39 une date ISO avec heure et une Date donnent le même jour', () => {
     assert.equal(D.dateExpiration('2026-10-24T23:30:00Z', 0), D.dateExpiration(new Date('2026-10-24T23:30:00Z'), 0));
@@ -410,8 +411,8 @@ describe('SA devis sans affaire (28/10/2026) : le brouillon se crée sans affair
   test('SA3 nouveauDevis accepte l’absence d’affaire ; erreursFinalisation nomme l’affaire manquante (même phrase pour l’écran, la fonction et l’assistant)', () => {
     const d = devisType({ affaireId: null, destinataires: [{ email: 'a@b.fr' }] });
     assert.equal(D.nouveauDevis({}, { id: 'x' }).affaireId, null);
-    assert.ok(D.erreursFinalisation(d).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
+    assert.ok(D.erreursFinalisation(d, OPTIONS_FINALISATION).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
     assert.equal(D.MESSAGE_AFFAIRE_MANQUANTE, 'Choisis l\'affaire de ce devis.');
-    assert.ok(!D.erreursFinalisation({ ...d, affaireId: 'a1' }).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
+    assert.ok(!D.erreursFinalisation({ ...d, affaireId: 'a1' }, OPTIONS_FINALISATION).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
   });
 });

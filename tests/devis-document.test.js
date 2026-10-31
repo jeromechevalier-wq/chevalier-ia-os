@@ -1,6 +1,7 @@
 // Tests H (module Devis, document HTML imprimable) : js/modules/devis/document.js et la vue client complétée. node --test, sans navigateur.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 import * as D from '../js/modules/devis/logique.js';
 import { devisHtml, formaterMontant } from '../js/modules/devis/document.js';
 
@@ -22,9 +23,10 @@ function devisFige(extra = {}, reg = reglages) {
     ],
     ...extra,
   };
-  const r = D.figerPourFinalisation(base, { numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages: reg });
+  const r = D.figerPourFinalisation(completerPourFinaliser({ ...base, chantier: undefined }), { emetteur: EMETTEUR_ESSAI, numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages: reg });
   assert.deepEqual(r.erreurs, []);
-  return r.devis;
+  const { chantier: _chantier, ...sans } = r.devis; // le jeu d'essai de finalisation ajoute un chantier : le document d'essai n'en a pas, sauf si le test en donne un
+  return base.chantier === undefined ? sans : { ...sans, chantier: base.chantier };
 }
 const vueDe = (extra, reg, contexte = { clientNom: 'Mme Dupont', emetteur: { nom: 'Atelier Test', adresse: '3 rue de l\'Atelier', siret: '123 456 789 00012' } }) => D.vueClient(devisFige(extra, reg), contexte);
 const cles = (o) => (Array.isArray(o) ? o.flatMap(cles) : o && typeof o === 'object' ? Object.entries(o).flatMap(([k, v]) => [k, ...cles(v)]) : []);

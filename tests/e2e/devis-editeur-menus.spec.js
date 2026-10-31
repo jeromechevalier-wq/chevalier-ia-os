@@ -3,8 +3,7 @@
 // Les fonctions du serveur (devisFinaliser) n'existent pas dans l'émulateur du navigateur : elles sont SIMULÉES par page.route, comme dans devis-editeur.spec.js.
 import { fileURLToPath } from 'node:url';
 import {
-  test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, listerDocuments, creerOrganisation, creerAffaire, estTelephone, JEROME,
-} from './outils.js';
+  test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, listerDocuments, creerOrganisation, creerAffaire, estTelephone, JEROME, CHANTIER_ESSAI, ecrireEntrepriseComplete } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-editeur-menus/', import.meta.url));
 /** `pleine` : toute la page ; sinon ce qu'on voit à l'écran (pour montrer un menu ouvert ou un panneau). */
@@ -394,7 +393,8 @@ test('5 un devis finalisé (lecture seule) : « Ouvrir le PDF » et « Imprimer 
 
 test('5 brouillon : le bouton jaune est « Finaliser » ; « Imprimer » (menu « … ») ouvre le PDF brouillon SANS fenêtre « Finaliser » ; « Finaliser » ouvre la fenêtre et finalise', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' } }, async ({ page }, info) => {
   await semer();
-  const id = await devis('d5c', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Pose', 2, 100)] }]);
+  await ecrireEntrepriseComplete(); // « Mon entreprise » complète : exigée pour finaliser
+  const id = await devis('d5c', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Pose', 2, 100)] }], { chantier: CHANTIER_ESSAI, expireLe: '2099-12-31' }); // début, durée et validité à venir : exigés pour finaliser
   const appelsFinaliser = [];
   const appelsPdf = [];
   await page.route('**/devisFinaliser', async (route) => {

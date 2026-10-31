@@ -7,7 +7,7 @@ import { nouveauDevis } from './logique.js';
 
 export const COLLECTION_DEVIS = 'devis_devis';
 /** Champs que le navigateur ne change jamais (le serveur seul les écrit ; les règles Firestore refusent numero, racineId, version, statut et finaliseLe). */
-export const CHAMPS_PROTEGES = Object.freeze(['id', 'numero', 'racineId', 'version', 'statut', 'finaliseLe', 'finalisation', 'totaux', 'archive', 'archiveLe', 'creeLe', 'creePar']);
+export const CHAMPS_PROTEGES = Object.freeze(['id', 'numero', 'racineId', 'version', 'statut', 'finaliseLe', 'finalisation', 'totaux', 'archive', 'archiveLe', 'creeLe', 'creePar', 'clientNomFige']);
 export const MESSAGE_PAS_BROUILLON = 'Ce devis n’est plus un brouillon : pour le corriger, crée la version suivante.';
 export const MESSAGE_INTROUVABLE = 'Devis introuvable : recharge la page.';
 

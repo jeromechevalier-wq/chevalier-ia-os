@@ -12,8 +12,7 @@
 // 10 lecture seule : deux champs texte + « à l'attention de »
 import { fileURLToPath } from 'node:url';
 import {
-  test, expect, connecter, attendreCalme, listerDocuments, lireDocument, ecrireDocument, creerOrganisation, creerPersonne, creerAffaire, JEROME,
-} from './outils.js';
+  test, expect, connecter, attendreCalme, listerDocuments, lireDocument, ecrireDocument, creerOrganisation, creerPersonne, creerAffaire, JEROME, CHANTIER_ESSAI, ecrireEntrepriseComplete } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-choix-client/', import.meta.url));
 async function capturer(page, info, nom) {
@@ -32,6 +31,7 @@ async function semer() {
   await creerAffaire('a4', { titre: 'Toiture voisins', organisationId: 'o2' });
   await creerAffaire('a5', { titre: 'Salle de bains Julie', personneId: 'p1' });
   await creerAffaire('a6', { titre: 'Ancienne cuisine', organisationId: 'o1', personneId: 'p1', archive: true });
+  await ecrireEntrepriseComplete(); // « Mon entreprise » complète : exigée pour finaliser
 }
 const LIGNES = [{ id: 'l1', libelle: 'Carrelage', familleId: 'famille-1', type: 'fourniture', quantite: 10, unite: 'm²', prixAchat: 40, prixVente: 60, tauxTva: 20 }];
 async function brouillon(page, valeurs = {}) {
@@ -39,7 +39,7 @@ async function brouillon(page, valeurs = {}) {
   await ecrireDocument('devis_devis/dTest', {
     racineId: 'dTest', version: 1, numero: null, statut: 'brouillon', affaireId: null, personneId: null, organisationId: null, modeMarge: 'majoration', marge: 25, tauxTvaDefaut: 20,
     regimeTva: 'assujetti', autoliquidation: false, archive: false, dureeValiditeJours: 90, expireLe: '2099-12-31', objet: 'Rénovation', destinataires: [],
-    sections: [{ id: 's1', titre: 'Cuisine', lignes: LIGNES }], creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, ...valeurs,
+    sections: [{ id: 's1', titre: 'Cuisine', lignes: LIGNES }], chantier: CHANTIER_ESSAI, creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, ...valeurs,
   });
   await connecter(page, undefined, { route: 'devis/editeur/dTest' });
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();

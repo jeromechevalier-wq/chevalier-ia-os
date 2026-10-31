@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import * as D from '../js/modules/devis/logique.js';
 import * as Ed from '../js/modules/devis/editeur-logique.js';
 import { devisHtml } from '../js/modules/devis/document.js';
+import { OPTIONS_FINALISATION, EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
 const L = (id, extra = {}) => ({ id, libelle: `Ligne ${id}`, quantite: 1, unite: 'u', prixAchat: 10, marge: 0, ...extra });
 const devisDe = (sections, extra = {}) => ({ id: 'd1', statut: 'brouillon', modeMarge: 'majoration', marge: 0, tauxTvaDefaut: 20, regimeTva: 'assujetti', sections, ...extra });
@@ -92,7 +93,7 @@ describe('N5 ancien devis sans sous-section : rien ne change', () => {
   const ligne = (id, prixAchat, quantite, extra = {}) => ({ id, libelle: `Article ${id}`, unite: 'u', quantite, prixAchat, ...extra });
   function devisAncien() {
     const base = {
-      ...D.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'client@exemple.test' }] }, ctx, reglages),
+      ...completerPourFinaliser(D.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'client@exemple.test' }] }, ctx, reglages)),
       objet: 'Rénovation de la toiture',
       adresses: { commanditaire: { id: 'a', texte: '1 rue du Test\n75000 Ville' }, facturation: null, chantier: { id: 'b', texte: '2 rue du Chantier' } },
       conditionsPaiement: '30 % à la commande, solde à la réception',
@@ -105,11 +106,11 @@ describe('N5 ancien devis sans sous-section : rien ne change', () => {
         { id: 's2', titre: 'Zinguerie', sautDePageAvant: true, lignes: [ligne('l3', 10, 2), ligne('l4', 20, 1), ligne('l5', 30, 1)] },
       ],
     };
-    const r = D.figerPourFinalisation(base, { numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages });
+    const r = D.figerPourFinalisation(base, { emetteur: EMETTEUR_ESSAI, numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages });
     assert.deepEqual(r.erreurs, []);
     return r.devis;
   }
-  const html = () => devisHtml(D.vueClient(devisAncien(), { clientNom: 'Mme Dupont' }), { brouillon: false });
+  const html = () => { const { chantier: _chantier, ...sansChantier } = devisAncien(); return devisHtml(D.vueClient(sansChantier, { clientNom: 'Mme Dupont' }), { brouillon: false }); }; // sans bloc Chantier : l'empreinte est celle du devis d'avant, le jeu d'essai de finalisation en ajoute un
   // Empreinte du HTML produit AVANT cette évolution par le même devis (calculée avec le code de `main` du 24/10/2026 ; mise à jour le 31/10/2026 : plus d'attestation de TVA codée en dur, l'assurance par défaut s'imprime toujours ; seule cette différence a été vérifiée).
   const EMPREINTE_AVANT = 'a9f28feaeb17132eb8f0ff0eaaa8ae77f2d7ebdfd86d3e5b8a58ff63b95d7e7d';
   test('N5 le document d’un devis sans sous-section est identique, octet pour octet, à celui d’avant', () => {
@@ -136,9 +137,9 @@ describe('N6 document avec sous-sections', () => {
 
 describe('N7 notes de bas de page', () => {
   test('N7 les notes de plus de 2 000 caractères sont refusées à la finalisation', () => {
-    const erreurs = D.erreursFinalisation(devisDe([{ id: 's', titre: '', lignes: [L('a')] }], { notesBasDePage: 'x'.repeat(2001), destinataires: ['a@b.fr'] }));
+    const erreurs = D.erreursFinalisation(devisDe([{ id: 's', titre: '', lignes: [L('a')] }], { notesBasDePage: 'x'.repeat(2001), destinataires: ['a@b.fr'] }), OPTIONS_FINALISATION);
     assert.ok(erreurs.some((e) => /notes de bas de page sont trop longues/.test(e)));
-    const ok = D.erreursFinalisation(devisDe([{ id: 's', titre: '', lignes: [L('a')] }], { notesBasDePage: 'x'.repeat(2000), destinataires: ['a@b.fr'] }));
+    const ok = D.erreursFinalisation(devisDe([{ id: 's', titre: '', lignes: [L('a')] }], { notesBasDePage: 'x'.repeat(2000), destinataires: ['a@b.fr'] }), OPTIONS_FINALISATION);
     assert.ok(!ok.some((e) => /notes de bas de page/.test(e)));
   });
 });

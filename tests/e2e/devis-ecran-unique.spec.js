@@ -40,7 +40,7 @@ async function devis(id, valeurs = {}) {
   await ecrireDocument(`devis_devis/${id}`, {
     racineId: id, version: 1, numero: null, statut: 'brouillon', affaireId: 'a1', personneId: null, organisationId: 'o1', modeMarge: 'majoration', marge: 25, tauxTvaDefaut: 20,
     regimeTva: 'assujetti', autoliquidation: false, archive: false, dureeValiditeJours: 90, expireLe: '2099-12-31', objet: 'Rénovation restaurant', destinataires: ['contact@exemple.fr'],
-    chantier: { adresse: { texte: '12 rue des Lilas, 49000 Angers' } }, remise: { type: 'pourcentage', valeur: 5 },
+    chantier: { adresse: { texte: '12 rue des Lilas, 49000 Angers' }, debutTravaux: '2026-11-15', dureeEstimee: { valeur: 3, unite: 'semaine' } }, remise: { type: 'pourcentage', valeur: 5 },
     sections: [{ id: 's1', titre: 'Cuisine', lignes: LIGNES }], notesBasDePage: 'Merci de votre confiance',
     creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, finaliseLe: valeurs.statut ? new Date(Date.now() - 86400000) : undefined, ...valeurs,
   });
@@ -48,6 +48,8 @@ async function devis(id, valeurs = {}) {
 async function donnees() {
   await creerOrganisation('o1', { nom: 'M. Paul Exemple' });
   await creerAffaire('a1', { titre: 'Rénovation cuisine', organisationId: 'o1' });
+  // « Mon entreprise » complète : la finalisation exige le nom, l'adresse, le SIRET et une assurance sans crochet (31/10/2026).
+  await ecrireDocument('devis_parametres/reglages', { regimeTva: 'assujetti', entreprise: { nom: 'Atelier Exemple', siret: '123 456 789 00012', adresse: { ligne1: '3 rue de l’Atelier', codePostal: '75001', ville: 'Paris' }, assuranceTexte: 'Assurance décennale : Assureur Exemple, contrat numéro : 123, territorialité : France métropolitaine.' } });
   for (const [id, v] of Object.entries(STATUTS)) await devis(id, v);
 }
 const connectees = new WeakSet(); // une page déjà connectée change d'écran par l'adresse (un second « connecter » ne retrouverait pas le bouton de connexion)

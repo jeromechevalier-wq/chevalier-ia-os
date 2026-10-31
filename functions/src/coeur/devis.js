@@ -32,7 +32,7 @@ export const ACTIONS_STATUT = Object.freeze({
   refuser: 'refuseLe',
 });
 
-const CHAMPS_FIGES = ['regimeTva', 'sections', 'statut', 'numero', 'finaliseLe', 'totaux', 'finalisation'];
+const CHAMPS_FIGES = ['regimeTva', 'sections', 'statut', 'numero', 'finaliseLe', 'totaux', 'finalisation', 'clientNomFige'];
 
 /** code : introuvable | transition_interdite | brouillon_existant | demande_invalide */
 export class ErreurDevis extends Error {
@@ -147,9 +147,11 @@ export async function finaliser({ donnees, ctx, devisId }) {
     if (!D.transitionPossible(devis.statut, 'finaliser')) {
       throw new ErreurDevis('transition_interdite', 'Ce devis est déjà finalisé : pour le corriger, crée la version suivante.');
     }
-    const erreurs = D.erreursFinalisation(devis);
-    if (erreurs.length) return { ok: false, erreurs };
+    // Les lectures d'abord (réglages, fiche du client) : l'entreprise et le jour servent aux règles de finalisation, la fiche donne le nom du client à figer.
     const reglages = A.reglagesDevis(await tx.document(C.devisParametres, ID_REGLAGES));
+    const fiche = devis.organisationId ? await tx.document(C.organisations, devis.organisationId) : devis.personneId ? await tx.document(C.personnes, devis.personneId) : null;
+    const erreurs = D.erreursFinalisation(devis, { emetteur: reglages.entreprise, aujourdhui: L.aujourdhuiParis(ctx.maintenant) });
+    if (erreurs.length) return { ok: false, erreurs };
     const versions = await lireVersions(tx, devis);
 
     // Une version 2 ou plus garde le numéro de sa racine (jamais un nouveau numéro).
@@ -163,7 +165,7 @@ export async function finaliser({ donnees, ctx, devisId }) {
       ecritures.push({ type: 'set', collection: C.devisCompteurs, id: ID_COMPTEUR, donnees: { valeur: suivant, modifieLe: ctx.maintenant } });
     }
 
-    const fige = D.figerPourFinalisation(devis, { numero, finaliseLe: ctx.maintenant, reglages });
+    const fige = D.figerPourFinalisation(devis, { numero, finaliseLe: ctx.maintenant, reglages, clientNom: fiche?.nom ?? null });
     if (fige.erreurs.length) return { ok: false, erreurs: fige.erreurs };
     const apres = fige.devis;
     // brancher n8n ici (PR suivante) : l'appel sortant se fera APRÈS cette transaction, avec la vue client (D.vueClient) ; en attendant, rien n'est envoyé.
@@ -172,7 +174,8 @@ export async function finaliser({ donnees, ctx, devisId }) {
     // Seuls les champs que la finalisation change sont écrits (les autres, dates comprises, ne sont pas retouchés).
     // Un client Firestore direct a pu poser archive ou des dates sur le brouillon : on les remet à zéro à la finalisation.
     const remisesAZero = { archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null, pdf: null, envois: null, emailPrepare: null };
-    const changements = [modifier(devis, { ...Object.fromEntries(CHAMPS_FIGES.map((k) => [k, apres[k]])), ...remisesAZero })];
+    const changements = [modifier(devis, { ...Object.fromEntries(CHAMPS_FIGES.filter((k) => apres[k] !== undefined).map((k) => [k, apres[k]])), // clientNomFige n'existe que si la fiche a un nom (Firestore refuse undefined)
+      ...remisesAZero })];
     // Les versions plus anciennes encore vivantes (finalisée ou envoyée) sont remplacées par celle-ci, dans la même transaction.
     const remplaces = versions.filter((v) => v.id !== devis.id && (v.version ?? 1) < (devis.version ?? 1) && D.transitionPossible(v.statut, 'remplacer'));
     for (const v of remplaces) changements.push(modifier(v, { statut: D.statutApres(v.statut, 'remplacer'), remplaceLe: ctx.maintenant }));

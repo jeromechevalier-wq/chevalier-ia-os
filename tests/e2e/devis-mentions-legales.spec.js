@@ -98,6 +98,8 @@ test('A3 « Attestation et mentions » remplace « Mention d\'émetteur » : mê
   await enregistrer(page).click();
   await expect.poll(async () => (await lireDocument('devis_parametres/reglages'))?.mentionEmetteur).toBe('Attestation de TVA réduite\nQualification RGE n° 123');
   expect((await base()).nom).toBe('Entreprise Exemple'); // enregistrer ne perd rien d'autre
+  await attendreCalme(page); // l'enregistrement redessine l'écran : on attend avant de faire défiler (sinon « element is not stable »)
+  await expect(zone).toHaveValue('Attestation de TVA réduite\nQualification RGE n° 123');
   await zone.scrollIntoViewIfNeeded();
   await capturer(page, info, 'A3-attestation-et-mentions', page.locator('[data-reglage="mentionEmetteur"]'));
 });

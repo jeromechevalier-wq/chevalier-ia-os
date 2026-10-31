@@ -101,6 +101,7 @@ test('4. --ecrire : tout est marqué, les devis sont valides, numéros et dates 
   }
 
   const devis = await tous(CLIENT, 'devis_devis');
+  const emetteurDemo = (await db.doc(`clients/${CLIENT}/devis_parametres/reglages`).get()).data().entreprise; // « Mon entreprise » de démonstration : fictive, mais complète pour finaliser
   const parStatut = {};
   for (const d of devis) parStatut[d.statut] = (parStatut[d.statut] ?? 0) + 1;
   for (const s of ['brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse']) assert.ok(parStatut[s] >= 2 && parStatut[s] <= 3, `${s} : ${parStatut[s]}`);
@@ -117,7 +118,7 @@ test('4. --ecrire : tout est marqué, les devis sont valides, numéros et dates 
     assert.ok(d.sections.length >= 2 && d.sections.length <= 4, `${d.objet} : ${d.sections.length} sections`);
     assert.ok(lignes.length >= 4 && lignes.length <= 12, `${d.objet} : ${lignes.length} lignes`);
     if (d.statut === 'brouillon') {
-      assert.deepEqual(D.erreursFinalisation(d), []);
+      assert.deepEqual(D.erreursFinalisation(d, { emetteur: emetteurDemo, aujourdhui: L.aujourdhuiParis(MAINTENANT) }), []);
       assert.equal(d.numero, null);
       continue;
     }
@@ -126,7 +127,7 @@ test('4. --ecrire : tout est marqué, les devis sont valides, numéros et dates 
     assert.equal(d.numero.slice(4, 14), L.aujourdhuiParis(d.finaliseLe));
     assert.ok(!numeros.has(d.numero));
     numeros.add(d.numero);
-    assert.deepEqual(D.erreursFinalisation({ ...d, statut: 'brouillon' }), []);
+    assert.deepEqual(D.erreursFinalisation({ ...d, statut: 'brouillon' }, { emetteur: emetteurDemo, aujourdhui: L.aujourdhuiParis(d.finaliseLe) }), []); // le jour est celui de la finalisation
     assert.deepEqual(d.totaux, D.totauxDevis(d));
     assert.ok(d.totaux.ttc > 300 && d.totaux.ttc < 20000, `total TTC ${d.totaux.ttc}`);
     assert.ok(d.creeLe < d.finaliseLe);

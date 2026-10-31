@@ -11,8 +11,7 @@
 //  8 sans nom ni client : pas de ligne de création sans nom tapé ; une affaire existante lève l'erreur
 import { fileURLToPath } from 'node:url';
 import {
-  test, expect, connecter, attendreCalme, listerDocuments, lireDocument, ecrireDocument, creerOrganisation, creerPersonne, creerAffaire, estTelephone, choisirDansChampDevis, JEROME,
-} from './outils.js';
+  test, expect, connecter, attendreCalme, listerDocuments, lireDocument, ecrireDocument, creerOrganisation, creerPersonne, creerAffaire, estTelephone, choisirDansChampDevis, JEROME, CHANTIER_ESSAI, ecrireEntrepriseComplete } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-nouveau-sans-blocage/', import.meta.url));
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
@@ -27,6 +26,7 @@ async function semer() {
   await creerAffaire('a2', { titre: 'Extension garage', organisationId: 'o1' });
   await creerAffaire('a3', { titre: 'Salle de bains Rubio', personneId: 'p1' });
   await creerAffaire('a4', { titre: 'Toiture des voisins' });
+  await ecrireEntrepriseComplete(); // « Mon entreprise » complète : exigée pour finaliser
 }
 async function nouveauDevis(page) {
   await connecter(page, undefined, { route: 'devis/liste' });
@@ -65,7 +65,7 @@ async function brouillonPret(page, valeurs = {}) {
   await ecrireDocument('devis_devis/dPret', {
     racineId: 'dPret', version: 1, numero: null, statut: 'brouillon', affaireId: null, personneId: null, organisationId: null, modeMarge: 'majoration', marge: 25, tauxTvaDefaut: 20,
     regimeTva: 'assujetti', autoliquidation: false, archive: false, dureeValiditeJours: 90, expireLe: '2099-12-31', objet: 'Rénovation', destinataires: ['contact@exemple.fr'],
-    sections: [{ id: 's1', titre: 'Cuisine', lignes: LIGNES }], creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, ...valeurs,
+    sections: [{ id: 's1', titre: 'Cuisine', lignes: LIGNES }], chantier: CHANTIER_ESSAI, creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, ...valeurs,
   });
   await connecter(page, undefined, { route: 'devis/editeur/dPret' });
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
@@ -249,7 +249,7 @@ test('7 aucune étape active : la liste le dit clairement (même liste, sans fen
   expect((await lireDocument(`devis_devis/${id}`)).affaireId ?? null).toBeNull();
 });
 
-test('8 sans nom ni client, la liste ne propose de créer qu’un nom tapé ; finaliser donne le message et le champ rouge ; choisir une affaire existante (« Toit ») lève l’erreur et permet de finaliser', async ({ page }, info) => {
+test('8 sans nom ni client, la liste ne propose de créer qu’un nom tapé ; finaliser liste l’affaire et le client manquants et met le champ rouge ; choisir une affaire existante qui a un client (« Salle ») lève l’erreur et permet de finaliser', async ({ page }, info) => {
   pageCourante = page;
   await semer();
   await reglerEtape('premier_contact');
@@ -257,7 +257,9 @@ test('8 sans nom ni client, la liste ne propose de créer qu’un nom tapé ; fi
   const appels = await surveillerFinalisation(page, id);
   const avant = (await listerDocuments('crm_affaires')).length;
   await finaliser(page);
-  await expect(dialogue(page)).toHaveCount(0);
+  // Sans affaire ET sans client : deux choses manquent, la fenêtre les liste (une seule chose manquante, l'affaire : pas de fenêtre, voir les tests 5 et 6).
+  await expect(dialogue(page).locator('li')).toHaveText(['Choisis l\'affaire de ce devis.', 'Choisis le client de ce devis.']);
+  await dialogue(page).getByRole('button', { name: 'Compris' }).click();
   await expect(page.locator('[data-erreur="affaire"]')).toHaveText(MESSAGE_FINALISER);
   await expect(champAffaire(page)).toBeFocused();
   await champAffaire(page).click();
@@ -267,8 +269,8 @@ test('8 sans nom ni client, la liste ne propose de créer qu’un nom tapé ; fi
   await champAffaire(page).fill('Chantier Nouveau');
   await expect(LIGNE_CREER('Chantier Nouveau')).toHaveCount(1); // le nom tapé
   expect(await listerDocuments('crm_affaires')).toHaveLength(avant);
-  await champAffaire(page).fill('Toit');
-  await suggestions(page).filter({ hasText: 'Toiture des voisins' }).click();
+  await champAffaire(page).fill('Salle');
+  await suggestions(page).filter({ hasText: 'Salle de bains Rubio' }).click(); // une affaire qui a un client : il est repris, le devis a enfin un client
   await enregistre(page);
   await expect(champAffaire(page)).not.toHaveClass(/invalide/);
   await finaliser(page);

@@ -7,6 +7,7 @@ import * as Ed from '../js/modules/devis/editeur-logique.js';
 import * as L from '../js/modules/devis/logique.js';
 import { devisHtml } from '../js/modules/devis/document.js';
 import { htmlDuDevis } from '../js/modules/devis/html-devis.js';
+import { OPTIONS_FINALISATION, EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
 const ligne = (id, prixAchat, quantite, extra = {}) => ({ id, libelle: `Article ${id}`, unite: 'u', quantite, prixAchat, marge: 0, ...extra });
 const devisDe = (sections, extra = {}) => ({ id: 'd1', statut: 'brouillon', affaireId: 'a1', modeMarge: 'majoration', marge: 0, tauxTvaDefaut: 20, regimeTva: 'assujetti', sections, ...extra });
@@ -115,29 +116,29 @@ describe('3 ajustement global', () => {
     assert.ok(Ed.CHAMPS_ENREGISTRES.includes('acomptes'));
   });
   test('3 la finalisation fige le prix ajusté : changer le coefficient ensuite ne change plus les totaux', () => {
-    const base = { ...L.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'c@exemple.test' }] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x@exemple.test', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' }), ...trio(), ajustement: { coefficient: 1.1 },
+    const base = { ...completerPourFinaliser(L.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'c@exemple.test' }] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x@exemple.test', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' })), ...trio(), ajustement: { coefficient: 1.1 },
       adresses: { commanditaire: { texte: '1 rue' }, facturation: null, chantier: { texte: '2 rue' } }, conditionsPaiement: '30 %' };
-    const r = L.figerPourFinalisation(base, { numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages: { regimeTva: 'assujetti' } });
+    const r = L.figerPourFinalisation(base, { emetteur: EMETTEUR_ESSAI, numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages: { regimeTva: 'assujetti' } });
     assert.deepEqual(r.erreurs, []);
     assert.deepEqual(r.devis.sections[0].lignes.map((l) => l.prixVenteAjuste), [66, 39.6, 110]);
     assert.equal(r.devis.totaux.totalBrutHt, 968);
     assert.equal(L.totauxDevis({ ...r.devis, ajustement: { coefficient: 2 } }).totalBrutHt, 968);
-    const sans = L.figerPourFinalisation({ ...base, ajustement: undefined }, { numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages: { regimeTva: 'assujetti' } });
+    const sans = L.figerPourFinalisation({ ...base, ajustement: undefined }, { emetteur: EMETTEUR_ESSAI, numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages: { regimeTva: 'assujetti' } });
     assert.equal(sans.devis.sections[0].lignes[0].prixVenteAjuste, undefined);
   });
   test('3 un prix ajusté périmé (copie d’un devis ajusté, ajustement retiré) ne survit pas à la finalisation', () => {
-    const base = { ...L.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'c@exemple.test' }] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x@exemple.test', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' }), ...trio(),
+    const base = { ...completerPourFinaliser(L.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'c@exemple.test' }] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x@exemple.test', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' })), ...trio(),
       adresses: { commanditaire: { texte: '1 rue' }, facturation: null, chantier: { texte: '2 rue' } }, conditionsPaiement: '30 %' };
     base.sections[0].lignes[0].prixVenteAjuste = 999; // reste d'une ancienne copie
-    const r = L.figerPourFinalisation(base, { numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages: { regimeTva: 'assujetti' } });
+    const r = L.figerPourFinalisation(base, { emetteur: EMETTEUR_ESSAI, numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages: { regimeTva: 'assujetti' } });
     assert.equal(r.devis.sections[0].lignes[0].prixVenteAjuste, undefined);
     const copie = Ed.copieDeDevis({ ...base, ajustement: { coefficient: 1.1 } }, () => 'n');
     assert.equal(copie.sections[0].lignes[0].prixVenteAjuste, undefined);
   });
   test('3 la valeur « avant » reste calculable sur un devis finalisé (le montant de l’ajustement ne retombe pas à 0)', () => {
-    const base = { ...L.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'c@exemple.test' }] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x@exemple.test', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' }), ...trio(), ajustement: { coefficient: 1.1 },
+    const base = { ...completerPourFinaliser(L.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'c@exemple.test' }] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x@exemple.test', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' })), ...trio(), ajustement: { coefficient: 1.1 },
       adresses: { commanditaire: { texte: '1 rue' }, facturation: null, chantier: { texte: '2 rue' } }, conditionsPaiement: '30 %' };
-    const fige = L.figerPourFinalisation(base, { numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages: { regimeTva: 'assujetti' } }).devis;
+    const fige = L.figerPourFinalisation(base, { emetteur: EMETTEUR_ESSAI, numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages: { regimeTva: 'assujetti' } }).devis;
     assert.equal(L.valeursAjustement(fige).montant, 88);
   });
   test('3 la vue client montre les prix ajustés et jamais le coefficient, l’ajustement ni la marge', () => {
@@ -170,15 +171,16 @@ describe('4 Options : affichage du devis et du document', () => {
     objet: 'Rénovation', adresses: { commanditaire: { id: 'a', texte: '1 rue du Test' }, facturation: null, chantier: { id: 'b', texte: '2 rue' } }, conditionsPaiement: '30 %',
     remise: { type: 'pourcentage', valeur: 10 }, acompte: { type: 'pourcentage', valeur: 30, moment: 'signature' }, sections,
   };
-  const figer = () => L.figerPourFinalisation({ ...L.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'client@exemple.test' }] }, ctx, reglages), ...extra },
-    { numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages }).devis;
+  const figer = () => L.figerPourFinalisation({ ...completerPourFinaliser(L.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'client@exemple.test' }] }, ctx, reglages)), ...extra },
+    { emetteur: EMETTEUR_ESSAI, numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages }).devis;
   const contexteVue = { clientNom: 'Mme Dupont', emetteur: { nom: 'Atelier Test', adresse: '3 rue', siret: '123' } };
 
   test('4 sans options, le document est identique octet pour octet à celui d’avant la refonte (empreinte mise à jour le 25/10/2026 : seule la feuille de style a changé : interligne du bloc Chantier, page A4 centrée et bande de saut de page à l’écran ; mise à jour le 31/10/2026 : l’attestation de TVA codée en dur disparaît et l’assurance par défaut s’imprime toujours)', () => {
-    const html = devisHtml(L.vueClient(figer(), contexteVue));
+    const { chantier: _chantier, ...sansChantier } = figer(); // l'empreinte est celle d'un devis sans bloc Chantier (le jeu d'essai de finalisation en ajoute un)
+    const html = devisHtml(L.vueClient(sansChantier, contexteVue));
     assert.equal(crypto.createHash('sha256').update(html).digest('hex'), '5362a869288038724a79badec7a579cfcaa156bf3c18e237f1aa893c7c3ab8f4');
-    assert.equal(devisHtml(L.vueClient(figer(), contexteVue), { affichage: {} }), html);
-    assert.equal(devisHtml(L.vueClient(figer(), contexteVue), { affichage: L.AFFICHAGE_DEFAUT }), html);
+    assert.equal(devisHtml(L.vueClient(sansChantier, contexteVue), { affichage: {} }), html);
+    assert.equal(devisHtml(L.vueClient(sansChantier, contexteVue), { affichage: L.AFFICHAGE_DEFAUT }), html);
   });
   test('4 « Cacher le reste à facturer » retire cette phrase du document ; l’acompte demandé reste', () => {
     const vue = L.vueClient(figer(), contexteVue);
@@ -259,7 +261,7 @@ describe('4 Options : affichage du devis et du document', () => {
 
 describe('5 le document du devis (aperçu : le PDF vient du serveur)', () => {
   test('5 le document imprimé porte le numéro et le total du devis, avec la feuille d’impression A4', () => {
-    const d = { ...L.nouveauDevis({ affaireId: 'a1' }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' }), numero: 'DEV-2026-10-24-007', statut: 'en_attente_envoi',
+    const d = { ...completerPourFinaliser(L.nouveauDevis({ affaireId: 'a1' }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' })), numero: 'DEV-2026-10-24-007', statut: 'en_attente_envoi',
       sections: [{ id: 's', titre: 'T', lignes: [{ id: 'l', libelle: 'Pose', unite: 'u', quantite: 2, prixAchat: 100, marge: 0, prixVente: 100, tauxTva: 20 }] }] };
     const html = htmlDuDevis(d, { clientNom: 'Mme Dupont' });
     assert.match(html, /DEV-2026-10-24-007/);
@@ -336,11 +338,11 @@ describe('3 saut de page : hors totaux, sans numéro, fidèle à l’ancien rég
     assert.equal(Ed.numerotation(avec(1)).p1, null);
   });
   test('3 un saut ne déclenche aucune erreur de finalisation ni aucun avertissement', () => {
-    const d = devisDe(avec(2), { destinataires: ['a@b.fr'] });
-    assert.deepEqual(L.erreursFinalisation(d).filter((e) => /saut|quantité|prix|libellé/i.test(e)), []);
+    const d = completerPourFinaliser(devisDe(avec(2), { destinataires: ['a@b.fr'] }));
+    assert.deepEqual(L.erreursFinalisation(d, OPTIONS_FINALISATION).filter((e) => /saut|quantité|prix|libellé/i.test(e)), []);
     assert.deepEqual(Ed.avertissements(d).map((a) => a.code), []);
     assert.deepEqual(Ed.avertissements(devisDe([{ id: 's', titre: 'A', lignes: [saut('p')] }])).map((a) => a.code), ['aucuneLigne']);
-    const fige = L.figerPourFinalisation(d, { numero: 'DEV-1', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } });
+    const fige = L.figerPourFinalisation(d, { emetteur: EMETTEUR_ESSAI, numero: 'DEV-1', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } });
     assert.deepEqual(fige.erreurs, []);
     assert.deepEqual(fige.devis.sections[0].lignes[1], { id: 'p1', type: 'saut' });
   });
@@ -398,9 +400,9 @@ describe('3 saut de page : hors totaux, sans numéro, fidèle à l’ancien rég
 
 describe('5 finalisation sans adresse e-mail', () => {
   test('5 un devis sans destinataire peut être finalisé ; une adresse écrite mais invalide reste refusée', () => {
-    const base = { ...L.nouveauDevis({ affaireId: 'a1', destinataires: [] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x@exemple.test', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' }), sections: [{ id: 's1', titre: '', lignes: [ligne('a', 10, 1)] }] };
-    assert.ok(!L.erreursFinalisation(base).some((e) => /destinataire|e-mail/.test(e)));
-    const mauvais = L.erreursFinalisation({ ...base, destinataires: ['pas-une-adresse'] });
+    const base = { ...completerPourFinaliser(L.nouveauDevis({ affaireId: 'a1', destinataires: [] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x@exemple.test', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' })), sections: [{ id: 's1', titre: '', lignes: [ligne('a', 10, 1)] }] };
+    assert.ok(!L.erreursFinalisation(base, OPTIONS_FINALISATION).some((e) => /destinataire|e-mail/.test(e)));
+    const mauvais = L.erreursFinalisation({ ...base, destinataires: ['pas-une-adresse'] }, OPTIONS_FINALISATION);
     assert.ok(mauvais.some((e) => /pas valide/.test(e)));
   });
 });

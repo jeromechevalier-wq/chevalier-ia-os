@@ -1,6 +1,7 @@
 // Tests H (module Devis, chantier et émetteur) : bloc « Chantier », durée, validations, mentions de l'émetteur, gabarit. node --test, sans navigateur.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { OPTIONS_FINALISATION, EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 import * as D from '../js/modules/devis/logique.js';
 import { devisHtml } from '../js/modules/devis/document.js';
 
@@ -18,10 +19,13 @@ const brouillon = (extra = {}) => ({
   sections: [{ id: 's1', titre: 'Travaux', lignes: [ligne('l1', 100, 2)] }],
   ...extra,
 });
+// Depuis le 31/10/2026 la finalisation exige l'entreprise, un client, le début et la durée des travaux : le jeu d'essai est complété pour figer, puis le chantier
+// est remis tel que le test le décrit (absent, partiel…) pour vérifier ce que le DOCUMENT imprime. Les règles de finalisation ont leurs propres tests (devis-finalisation-mentions.test.js).
 const fige = (extra = {}) => {
-  const r = D.figerPourFinalisation(brouillon(extra), { numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages });
+  const r = D.figerPourFinalisation(completerPourFinaliser(brouillon({ ...extra, chantier: undefined })), { emetteur: EMETTEUR_ESSAI, numero: 'DEV-2026-10-24-001', finaliseLe: '2026-10-24T10:00:00Z', reglages });
   assert.deepEqual(r.erreurs, []);
-  return r.devis;
+  const { chantier: _chantier, ...sans } = r.devis;
+  return extra.chantier === undefined ? sans : { ...sans, chantier: extra.chantier };
 };
 const emetteurComplet = {
   nom: 'Atelier Test', forme: 'SARL', siret: '123 456 789 00012', tva: 'FR00123456789', email: 'contact@atelier.test', telephone: '01 23 45 67 89',
@@ -77,9 +81,10 @@ describe('Chantier et émetteur du devis', () => {
   });
 
   test('H3 chaque erreur de chantier donne un message, et un chantier correct ou absent n\'en donne aucun', () => {
-    const msgs = (c) => D.erreursFinalisation(brouillon({ chantier: c }));
+    const msgs = (c) => D.erreursChantier(c); // le format du chantier ; sa présence (début, durée) est exigée par erreursFinalisation (B4)
     assert.deepEqual(msgs(undefined), []);
     assert.deepEqual(msgs(chantierComplet), []);
+    assert.deepEqual(D.erreursFinalisation(completerPourFinaliser(brouillon({ chantier: chantierComplet })), OPTIONS_FINALISATION), []);
     const un = (c, motif) => { const m = msgs(c); assert.equal(m.length, 1, JSON.stringify(m)); assert.match(m[0], motif); };
     un({ debutTravaux: '03/11/2026' }, /début des travaux est illisible/);
     un({ debutTravaux: '2026-02-30' }, /début des travaux est illisible/);

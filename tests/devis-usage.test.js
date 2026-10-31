@@ -6,6 +6,7 @@ import { creerAccesMemoire, COLLECTIONS as C } from '../functions/src/coeur/donn
 import * as S from '../functions/src/coeur/devis.js';
 import * as U from '../functions/src/coeur/usage-articles.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
+import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
 const ACTEUR = 'jerome.chevalier@gmail.com';
 const T1 = new Date('2026-10-29T10:00:00Z');
@@ -13,14 +14,14 @@ const T2 = new Date('2026-10-30T10:00:00Z');
 const ctx = (maintenant = T1) => ({ acteur: ACTEUR, via: 'ecran', maintenant });
 
 function monde(devis = []) {
-  const collections = { [C.devis]: devis, [C.affaires]: [{ id: 'aff1', titre: 'Rénovation' }], [C.devisCompteurs]: [], [C.devisUsageArticles]: [], [C.devisParametres]: [{ id: 'reglages', regimeTva: 'assujetti' }], [C.audit]: [], [C.auditAvant]: [] };
+  const collections = { [C.devis]: devis, [C.affaires]: [{ id: 'aff1', titre: 'Rénovation' }], [C.devisCompteurs]: [], [C.devisUsageArticles]: [], [C.devisParametres]: [{ id: 'reglages', regimeTva: 'assujetti', entreprise: EMETTEUR_ESSAI }], [C.personnes]: [{ id: 'p1', nom: 'Client Essai' }], [C.audit]: [], [C.auditAvant]: [] };
   return { collections, donnees: creerAccesMemoire(collections) };
 }
 const ligne = (id, articleId, extra = {}) => ({ genre: 'ligne', id, articleId, libelle: `Article ${articleId}`, unite: 'u', quantite: 1, prixAchat: 10, ...extra });
 /** Brouillon dont les lignes pointent vers `articles` (une ligne par identifiant donné, doublons compris). */
 function brouillon(id, articles, extra = {}) {
   const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1' }, { id, maintenant: T1, auteur: ACTEUR }, { marge: 20, margeDevis: 20 });
-  return { ...d, sections: [{ id: `s-${id}`, titre: 'Travaux', lignes: articles.map((a, i) => ligne(`${id}-l${i}`, a)) }], ...extra };
+  return completerPourFinaliser({ ...d, sections: [{ id: `s-${id}`, titre: 'Travaux', lignes: articles.map((a, i) => ligne(`${id}-l${i}`, a)) }], ...extra });
 }
 const usage = (m) => Object.fromEntries(m.collections[C.devisUsageArticles].map((u) => [u.id, u.nombre]));
 const usageDoc = (m, id) => m.collections[C.devisUsageArticles].find((u) => u.id === id);
