@@ -1595,7 +1595,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   async function configurerOuvrage(idLigne) {
     const trouve = Ed.trouverLigne(travail.sections, idLigne);
     if (!trouve?.ligne?.ouvrage) return;
-    const editeur = editeurOuvrage({ composants: trouve.ligne.ouvrage.composants.map((c) => ({ articleId: c.articleId, quantite: c.quantite })) });
+    const editeur = editeurOuvrage({ composants: trouve.ligne.ouvrage.composants.map((c) => ({ articleId: c.articleId, quantite: c.quantite })), prixModifiable: false });
     const ok = await dialogue({
       titre: `Éléments ${O.duMot(O.motOuvrage(D.etat.reglages))}`, contenu: editeur.element,
       boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Appliquer', valeur: true, style: 'principal' }],

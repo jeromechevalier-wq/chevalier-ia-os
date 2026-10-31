@@ -31,15 +31,28 @@ fieldset.cases { border: 0; padding: 0; margin: 0; min-width: 0; } /* groupe de 
 .resultat-composant { display: flex; justify-content: space-between; gap: var(--esp-6); width: 100%; min-height: var(--h-ctrl-petit); padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .resultat-composant:hover, .resultat-composant:focus-visible { background: var(--survol); }
 .composants { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-3); }
-.composant { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: var(--esp-6); padding: var(--esp-3) 0; border-bottom: 1px solid var(--bordure); }
+.composant { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--esp-3) var(--esp-6); padding: var(--esp-3) 0; border-bottom: 1px solid var(--bordure); }
+.composant-saisie { grid-column: 1 / -1; flex-wrap: wrap; }
+.composant-saisie .total-composant { margin-left: auto; }
+.dialogue.dialogue-ouvrage { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow: auto; }
 .composant-saisie, .composant-actions { display: flex; align-items: center; gap: var(--esp-3); }
 .champ-quantite { width: 80px; min-width: 0; text-align: right; }
 .total-composant { min-width: 70px; text-align: right; font-variant-numeric: tabular-nums; }
+.composant-nom { min-width: 0; overflow-wrap: anywhere; }
+.composant-reference { display: block; }
+.composant-prix { display: inline-flex; align-items: center; gap: var(--esp-2); }
+.champ-prix-composant { width: 84px; min-width: 0; text-align: right; }
+.composant .erreur-champ { grid-column: 1 / -1; margin: 0; }
+.note-prix-composant { margin: 0; }
+/* Fenêtre « Ajouter un article » (pas de champ de prix) : la ligne reste sur une seule rangée, comme avant, pour que « Enregistrer » tienne à l'écran. */
+.formulaire-creation .composant { grid-template-columns: 1fr auto auto; }
+.formulaire-creation .composant-saisie { grid-column: auto; order: 2; margin: 0; }
+.formulaire-creation .composant-actions { order: 3; }
 .resume-ouvrage { display: grid; grid-template-columns: auto 1fr; gap: var(--esp-2) var(--esp-7); margin: 0; padding: var(--esp-5) var(--esp-6); background: var(--panneau2); border-radius: var(--rayon-petit); }
 .resume-ouvrage dt { color: var(--texte2); }
 .resume-ouvrage dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 767px) {
-  .composant { grid-template-columns: 1fr; }
+  .dialogue.dialogue-ouvrage { max-height: none; }
   .composant-saisie, .composant-actions { justify-content: space-between; }
   .composant-actions .bouton-icone, .resultat-composant { min-height: 44px; min-width: 44px; }
 }

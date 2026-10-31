@@ -177,19 +177,70 @@ function cellulePrixVente(a) {
   return cellule;
 }
 
-/** Fenêtre « Composition » d'un ouvrage (ou de l'article qui le devient). Enregistre type, composants et prix forcé ensemble. */
+/**
+ * Prix d'achat changés dans une composition : contrôle (même validation qu'une modification d'article du catalogue, sans rien écrire), puis
+ * confirmation légère si d'autres compositions utilisent le même article. Renvoie la liste à écrire, ou null (erreur montrée, ou refus de confirmer).
+ * `ouvrageId` : l'ouvrage en cours de composition (ses propres composants ne comptent pas comme « d'autres compositions »).
+ */
+async function controlerPrixComposants(editeur, ouvrageId) {
+  const modifs = editeur.prixModifies();
+  const erreurs = {};
+  for (const m of modifs) {
+    const plan = A.planMajArticle(m.articleId, { prixAchat: m.saisie }, { articles: D.etat.articles, familles: D.etat.familles });
+    const message = Object.values(plan.erreurs)[0];
+    if (message) erreurs[m.articleId] = message;
+  }
+  editeur.montrerErreursPrix(erreurs);
+  if (Object.keys(erreurs).length) return null;
+  const ailleurs = (id) => D.etat.articles.filter((x) => x.type === 'ouvrage' && x.actif !== false && x.id !== ouvrageId && (x.composants ?? []).some((c) => c.articleId === id));
+  const concernes = modifs.map((m) => ({ m, ouvrages: ailleurs(m.articleId) })).filter((x) => x.ouvrages.length);
+  if (concernes.length) {
+    const nom = (id) => D.etat.articles.find((x) => x.id === id)?.libelle ?? id;
+    const ok = await dialogue({
+      titre: 'Changer le prix partout ?',
+      classe: 'dialogue-formulaire',
+      contenu: h('div', { class: 'pile' },
+        ...concernes.map(({ m, ouvrages }) => h('p', {}, `« ${nom(m.articleId)} » est aussi utilisé dans ${ouvrages.length > 1 ? `${ouvrages.length} autres compositions` : '1 autre composition'} : ${ouvrages.map((o) => `« ${o.libelle} »`).join(', ')}. Son nouveau prix s’y applique aussi.`)),
+        h('p', { class: 'discret' }, 'Les devis déjà finalisés gardent leurs prix.')),
+      boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Changer le prix', valeur: true, style: 'principal' }],
+    });
+    if (!ok) return null;
+  }
+  return modifs;
+}
+
+/** Fenêtre « Composition » d'un ouvrage (ou de l'article qui le devient). Enregistre type, composants et prix forcé ensemble, plus les prix d'achat changés ici (rien n'est écrit avant « Enregistrer »). */
 async function ouvrirComposition(a, { devenirOuvrage = false, familleId = null } = {}) {
   const editeur = editeurOuvrage({ composants: a.composants ?? [], prixVenteForce: a.prixVenteForce ?? null, id: a.id });
   const general = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
   let fait = false;
+  let enCours = false; // deux clics rapides n'écrivent pas deux fois
   async function tenter() {
+    if (enCours) return false;
+    enCours = true;
+    try { return await tenterEcriture(); } finally { enCours = false; }
+  }
+  async function tenterEcriture() {
     general.textContent = '';
     editeur.montrerErreurs({});
     try {
       const v = editeur.valeurs();
-      const r = await D.majArticle(a.id, { ...(devenirOuvrage ? { type: 'ouvrage', ...(familleId ? { familleId } : {}) } : {}), composants: v.composants, prixVenteForce: v.prixVenteForce === '' ? null : v.prixVenteForce });
+      const patch = { ...(devenirOuvrage ? { type: 'ouvrage', ...(familleId ? { familleId } : {}) } : {}), composants: v.composants, prixVenteForce: v.prixVenteForce === '' ? null : v.prixVenteForce };
+      // Tout se contrôle avant la première écriture : une erreur (composition ou prix) n'écrit rien.
+      const essai = A.planMajArticle(a.id, patch, { articles: D.etat.articles, familles: D.etat.familles });
+      if (Object.keys(essai.erreurs).length) {
+        if (!editeur.montrerErreurs(essai.erreurs)) general.textContent = Object.values(essai.erreurs)[0];
+        return false;
+      }
+      const modifs = await controlerPrixComposants(editeur, a.id);
+      if (!modifs || !editeur.element.isConnected) return false; // refus de confirmer, ou fenêtre déjà fermée (Annuler au clavier pendant la confirmation) : rien n'est écrit
+      // Un seul lot : les prix et l'ouvrage s'écrivent ensemble ou pas du tout.
+      const r = await D.majArticles([...modifs.map((m) => ({ id: m.articleId, patch: { prixAchat: m.saisie } })), { id: a.id, patch }]);
       if (Object.keys(r.erreurs).length) {
-        if (!editeur.montrerErreurs(r.erreurs)) general.textContent = Object.values(r.erreurs)[0];
+        const prixRefuses = Object.fromEntries(modifs.map((m) => [m.articleId, Object.values(r.erreurs[m.articleId] ?? {})[0]]).filter(([, v]) => v));
+        editeur.montrerErreursPrix(prixRefuses);
+        // Chaque message sous son champ ; la ligne générale seulement si aucun champ n'en a pris un.
+        if (!editeur.montrerErreurs(r.erreurs[a.id] ?? {}) && !Object.keys(prixRefuses).length) general.textContent = Object.values(Object.values(r.erreurs)[0])[0];
         return false;
       }
       fait = true;
@@ -273,7 +324,7 @@ export async function ouvrirCreationArticle() {
   const tvaMenu = menuTaux({ valeur: null, tauxDevis: reglages.tauxTvaDefaut, id: 'article-tauxTva', libelle: 'TVA de cet article (facultatif)' });
   const tva = { input: tvaMenu, bloc: h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'article-tauxTva' }, 'TVA de cet article (facultatif)'), tvaMenu, h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: 'tauxTva' } })) };
   const general = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
-  const editeur = editeurOuvrage({});
+  const editeur = editeurOuvrage({ prixModifiable: false });
   editeur.element.hidden = true;
   // Le type vient de la famille : « Ouvrages » remplace le prix d'achat par l'éditeur de composants, « Textes » n'a ni prix ni unité.
   const typeChoisi = () => typeDeFamille(D.etat.familles, familleId);

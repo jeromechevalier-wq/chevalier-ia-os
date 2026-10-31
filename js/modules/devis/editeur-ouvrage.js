@@ -10,13 +10,31 @@ const eur = (n) => (typeof n === 'number' ? A.formaterPrix(n) : '—');
 const quantiteAffichee = (q) => (typeof q === 'number' ? String(q).replace('.', ',') : String(q ?? ''));
 
 /**
+ * `prixModifiable` : false = pas de champ de prix ni de phrase (écrans qui n'écrivent pas dans le catalogue : création d'un ouvrage, éléments d'une ligne de devis).
  * `composants` : [{ articleId, quantite }] de départ ; `prixVenteForce` : nombre ou null ; `id` : l'ouvrage modifié (null pour un nouvel ouvrage).
  * Renvoie `{ element, valeurs(), montrerErreurs(erreurs) }` ; `valeurs()` donne `{ composants, prixVenteForce }` tels que saisis (à valider par les plans d'articles.js).
  */
-export function editeurOuvrage({ composants = [], prixVenteForce = null, id = null } = {}) {
+export function editeurOuvrage({ composants = [], prixVenteForce = null, id = null, prixModifiable = true } = {}) {
   const mot = O.motOuvrage(D.etat.reglages);
   let liste = composants.map((c) => ({ articleId: c.articleId, saisie: quantiteAffichee(c.quantite) }));
-  const parId = () => O.articlesParId(D.etat.articles);
+  // Prix d'achat tapés ici, pas encore écrits : { articleId: saisie }. Rien ne part avant « Enregistrer » (l'appelant écrit par le chemin d'un article du catalogue).
+  const prixSaisis = {};
+  const prixDe = (article) => A.prixPourSaisie(article?.prixAchat);
+  // Modifié = le nombre lu diffère du prix de l'article (« 5.75 » ou « 5,750 » ne sont pas des modifications) ; une saisie illisible compte, pour que l'erreur s'affiche.
+  const modifie = (articleId) => {
+    if (!(articleId in prixSaisis)) return false;
+    const lu = A.lirePrixAchat(prixSaisis[articleId]);
+    return lu.erreur ? true : lu.prix !== O.articlesParId(D.etat.articles)[articleId]?.prixAchat;
+  };
+  // Les articles tels que la composition les voit : le prix en cours de saisie (s'il est lisible) remplace celui du catalogue, pour que le résumé bouge en direct.
+  const parId = () => {
+    const base = O.articlesParId(D.etat.articles);
+    for (const [articleId, saisie] of Object.entries(prixSaisis)) {
+      const n = A.lireNombre(saisie);
+      if (base[articleId] && typeof n === 'number' && n >= 0) base[articleId] = { ...base[articleId], prixAchat: n };
+    }
+    return base;
+  };
 
   const champRecherche = h('input', {
     type: 'search', class: 'champ', autocomplete: 'off', 'aria-label': 'Ajouter un composant', placeholder: 'Chercher un article à ajouter', dataset: { champ: 'recherche-composant' },
@@ -86,14 +104,26 @@ export function editeurOuvrage({ composants = [], prixVenteForce = null, id = nu
       const total = h('span', { class: 'total-composant' });
       const majTotal = () => { const d = O.calculerOuvrage({ composants: [{ articleId: c.articleId, quantite: A.lireNombre(c.saisie) ?? 0 }] }, parId(), D.etat.reglages).composants[0]; total.textContent = eur(d.totalVenteHT); };
       majTotal();
+      // Le prix d'achat unitaire de l'ARTICLE (le même que dans le catalogue). Pas de champ pour un article désactivé, introuvable ou sans prix.
+      const modifiable = prixModifiable && !!article && !probleme && typeof article.prixAchat === 'number';
+      const messagePrix = h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreurPrix: c.articleId } });
+      const prix = modifiable ? h('input', {
+        type: 'text', class: 'champ champ-prix-composant', inputmode: 'decimal', autocomplete: 'off', value: prixSaisis[c.articleId] ?? prixDe(article),
+        'aria-label': `Prix d’achat HT : ${article.libelle}`, dataset: { champ: 'prix-composant' },
+        oninput: (e) => { prixSaisis[c.articleId] = e.target.value; messagePrix.textContent = ''; e.target.classList.remove('invalide'); dessinerResume(); majTotal(); },
+      }) : null;
+      const reference = String(article?.reference ?? '').trim() || String(article?.code ?? '').trim();
       return h('li', { class: 'composant', dataset: { articleId: c.articleId } },
-        h('div', { class: 'composant-nom' }, h('span', {}, article?.libelle ?? '(article supprimé)'), probleme ? h('span', { class: 'erreur' }, ` (${probleme})`) : null),
-        h('div', { class: 'composant-saisie' }, quantite, h('span', { class: 'discret' }, article?.unite ?? ''), total),
+        h('div', { class: 'composant-nom' }, h('span', {}, article?.libelle ?? '(article supprimé)'), probleme ? h('span', { class: 'erreur' }, ` (${probleme})`) : null,
+          reference ? h('span', { class: 'composant-reference discret', dataset: { reference: c.articleId } }, `Réf. ${reference}`) : null),
         h('div', { class: 'composant-actions' },
           h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Monter : ${article?.libelle ?? ''}`, disabled: i === 0, onclick: () => deplacer(i, -1) }, icone('arrow-up', { taille: 16 })),
           h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Descendre : ${article?.libelle ?? ''}`, disabled: i === liste.length - 1, onclick: () => deplacer(i, 1) }, icone('arrow-down', { taille: 16 })),
           h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${O.duMot(mot)} : ${article?.libelle ?? ''}`, dataset: { action: 'retirer-composant' },
-            onclick: () => { liste = liste.filter((x) => x !== c); dessiner(); } }, icone('x', { taille: 16 }))));
+            onclick: () => { liste = liste.filter((x) => x !== c); delete prixSaisis[c.articleId]; dessiner(); } }, icone('x', { taille: 16 }))),
+        h('div', { class: 'composant-saisie' }, quantite, h('span', { class: 'discret' }, article?.unite ?? ''),
+          prix ? h('span', { class: 'composant-prix' }, h('span', { class: 'discret' }, '×'), prix, h('span', { class: 'discret' }, '€ HT')) : null, total),
+        messagePrix);
     });
     remplir(zoneListe, liste.length
       ? h('ul', { class: 'composants' }, lignes)
@@ -104,7 +134,9 @@ export function editeurOuvrage({ composants = [], prixVenteForce = null, id = nu
 
   const element = h('div', { class: 'editeur-ouvrage pile' },
     h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette' }, `Composants ${O.duMot(mot)}`), champRecherche, resultats),
-    zoneListe, erreurResume, resume,
+    zoneListe, prixModifiable ? h('p', { class: 'discret note-prix-composant', dataset: { note: 'prix-composant' } },
+      'Le prix d’un composant est celui de son article : le changer ici le change partout dans ton catalogue. Exemple : une plaque passe de 80 € à 100 €, toutes les compositions qui la contiennent sont recalculées. Les devis déjà finalisés gardent leurs prix.') : null,
+    erreurResume, resume,
     h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'article-prixVenteForce' }, 'Prix de vente forcé HT (facultatif)'), champForce, erreurForce));
   dessiner();
 
@@ -120,6 +152,14 @@ export function editeurOuvrage({ composants = [], prixVenteForce = null, id = nu
       erreurForce.textContent = erreurs.prixVenteForce ?? '';
       champForce.classList.toggle('invalide', !!erreurs.prixVenteForce);
       return !!(erreurs.composants || erreurs.prixVenteForce);
+    },
+    /** Les prix d'achat changés ici et pas encore écrits : [{ articleId, saisie }] (seulement les composants encore dans la liste). */
+    prixModifies: () => liste.filter((c) => modifie(c.articleId)).map((c) => ({ articleId: c.articleId, saisie: prixSaisis[c.articleId] })),
+    /** Affiche un message sous chaque prix refusé : `erreurs` = { articleId: message }. */
+    montrerErreursPrix(erreurs) {
+      for (const p of element.querySelectorAll('[data-erreur-prix]')) p.textContent = erreurs[p.dataset.erreurPrix] ?? '';
+      for (const champ of element.querySelectorAll('[data-champ="prix-composant"]')) champ.classList.toggle('invalide', !!erreurs[champ.closest('.composant')?.dataset.articleId]);
+      element.querySelector('[data-champ="prix-composant"].invalide')?.focus();
     },
     mettreAJour: dessiner,
   };
