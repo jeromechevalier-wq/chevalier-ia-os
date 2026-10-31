@@ -1,0 +1,1729 @@
+{
+ "sans": {
+  "Prise 16 A blanche": {
+   "decision": "utiliser",
+   "cle": "prise 16 blanche",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a01",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "prise 16 a blanche": {
+   "decision": "utiliser",
+   "cle": "prise 16 blanche",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a01",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "3 prises 16 A blanches": {
+   "decision": "utiliser",
+   "cle": "prise 16 blanche",
+   "quantite": 3,
+   "question": "",
+   "candidats": [
+    [
+     "a01",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "PR-16A-BLC": {
+   "decision": "utiliser",
+   "cle": "pr16 blc",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a01",
+     0.95,
+     "code_exact"
+    ]
+   ]
+  },
+  "mets 2 Prise double 16 A": {
+   "decision": "utiliser",
+   "cle": "prise double 16",
+   "quantite": 2,
+   "question": "",
+   "candidats": [
+    [
+     "a02",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Tableau électrique 2 rangées": {
+   "decision": "utiliser",
+   "cle": "tableau electrique 2 rangee",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a04",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "le tableau electrique 2 rangees": {
+   "decision": "utiliser",
+   "cle": "tableau electrique 2 rangee",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a04",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "ajoute un Tableau électrique 4 rangées": {
+   "decision": "utiliser",
+   "cle": "tableau electrique 4 rangee",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a05",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "tableaux électriques 4 rangées": {
+   "decision": "utiliser",
+   "cle": "tableau electrique 4 rangee",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a05",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "interrupteur va-et-vient": {
+   "decision": "utiliser",
+   "cle": "interrupteur va vient",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a06",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "des interrupteurs va et vient": {
+   "decision": "utiliser",
+   "cle": "interrupteur va vient",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a06",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Interrupteur simple allumage": {
+   "decision": "utiliser",
+   "cle": "interrupteur simple allumage",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a07",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "4 interrupteurs simple allumage": {
+   "decision": "utiliser",
+   "cle": "interrupteur simple allumage",
+   "quantite": 4,
+   "question": "",
+   "candidats": [
+    [
+     "a07",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "gaine ICTA 20 mm": {
+   "decision": "utiliser",
+   "cle": "gaine icta 20 mm",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a08",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "50 gaines ICTA 20 mm": {
+   "decision": "utiliser",
+   "cle": "gaine icta 20 mm",
+   "quantite": 50,
+   "question": "",
+   "candidats": [
+    [
+     "a08",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Câble rigide 2,5 mm²": {
+   "decision": "utiliser",
+   "cle": "cable rigide 2_5 mm",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a09",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "100 câbles rigides 2,5 mm²": {
+   "decision": "utiliser",
+   "cle": "cable rigide 2_5 mm",
+   "quantite": 100,
+   "question": "",
+   "candidats": [
+    [
+     "a09",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Disjoncteur 20 A": {
+   "decision": "utiliser",
+   "cle": "disjoncteur 20",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a10",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "DJ-20": {
+   "decision": "utiliser",
+   "cle": "dj20",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a10",
+     0.95,
+     "code_exact"
+    ]
+   ]
+  },
+  "Disjoncteur différentiel 40 A": {
+   "decision": "utiliser",
+   "cle": "disjoncteur differentiel 40",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a11",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "2 disjoncteurs différentiels 40 A": {
+   "decision": "utiliser",
+   "cle": "disjoncteur differentiel 40",
+   "quantite": 2,
+   "question": "",
+   "candidats": [
+    [
+     "a11",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Spot encastré LED": {
+   "decision": "utiliser",
+   "cle": "spot encastre led",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a12",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "10 spots encastrés LED": {
+   "decision": "utiliser",
+   "cle": "spot encastre led",
+   "quantite": 10,
+   "question": "",
+   "candidats": [
+    [
+     "a12",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Détecteur de fumée": {
+   "decision": "utiliser",
+   "cle": "detecteur fumee",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a13",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Plaque de plâtre BA13": {
+   "decision": "utiliser",
+   "cle": "plaque platre ba13",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a14",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "plaques de plâtre BA13 à 8 euros": {
+   "decision": "utiliser",
+   "cle": "plaque platre ba13",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a14",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Rail métallique 48 mm": {
+   "decision": "utiliser",
+   "cle": "rail metallique 48 mm",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a15",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "20 rails métalliques 48 mm": {
+   "decision": "utiliser",
+   "cle": "rail metallique 48 mm",
+   "quantite": 20,
+   "question": "",
+   "candidats": [
+    [
+     "a15",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Peinture blanche mate 10 L": {
+   "decision": "utiliser",
+   "cle": "peinture blanche mate 10",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a16",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Enduit de lissage": {
+   "decision": "utiliser",
+   "cle": "enduit lissage",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a17",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Main d’œuvre électricien": {
+   "decision": "utiliser",
+   "cle": "main oeuvre electricien",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a18",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "8 Main d'oeuvre électricien": {
+   "decision": "utiliser",
+   "cle": "main oeuvre electricien",
+   "quantite": 8,
+   "question": "",
+   "candidats": [
+    [
+     "a18",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Déplacement forfait": {
+   "decision": "utiliser",
+   "cle": "deplacement forfait",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a19",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Boîte d’encastrement": {
+   "decision": "utiliser",
+   "cle": "boite encastrement",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a20",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Volet roulant électrique": {
+   "decision": "utiliser",
+   "cle": "volet roulant electrique",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a21",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Cloison de séparation": {
+   "decision": "utiliser",
+   "cle": "cloison separation",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a25",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "CLOI-01": {
+   "decision": "utiliser",
+   "cle": "cloi01",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a25",
+     0.95,
+     "code_exact"
+    ]
+   ]
+  },
+  "3 prises doubles": {
+   "decision": "proposer",
+   "cle": "prise double",
+   "quantite": 3,
+   "question": "C’est bien « Prise double 16 A » ?",
+   "candidats": [
+    [
+     "a02",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "le tableau": {
+   "decision": "proposer",
+   "cle": "tableau",
+   "quantite": 1,
+   "question": "Tu veux « Tableau électrique 2 rangées » ou « Tableau électrique 4 rangées » ?",
+   "candidats": [
+    [
+     "a04",
+     0.6,
+     "libelle_complet"
+    ],
+    [
+     "a05",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "tableaux": {
+   "decision": "proposer",
+   "cle": "tableau",
+   "quantite": 1,
+   "question": "Tu veux « Tableau électrique 2 rangées » ou « Tableau électrique 4 rangées » ?",
+   "candidats": [
+    [
+     "a04",
+     0.6,
+     "libelle_complet"
+    ],
+    [
+     "a05",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "un va-et-vient": {
+   "decision": "proposer",
+   "cle": "va vient",
+   "quantite": 1,
+   "question": "C’est bien « Interrupteur va-et-vient » ?",
+   "candidats": [
+    [
+     "a06",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "disjoncteur": {
+   "decision": "proposer",
+   "cle": "disjoncteur",
+   "quantite": 1,
+   "question": "Tu veux « Disjoncteur 20 A » ou « Disjoncteur différentiel 40 A » ?",
+   "candidats": [
+    [
+     "a10",
+     0.6,
+     "libelle_complet"
+    ],
+    [
+     "a11",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "6 disjoncteurs à 12,50 €": {
+   "decision": "proposer",
+   "cle": "disjoncteur",
+   "quantite": 6,
+   "question": "Tu veux « Disjoncteur 20 A » ou « Disjoncteur différentiel 40 A » ?",
+   "candidats": [
+    [
+     "a10",
+     0.6,
+     "libelle_complet"
+    ],
+    [
+     "a11",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "lumière": {
+   "decision": "demander",
+   "cle": "lumiere",
+   "quantite": 1,
+   "question": "Je ne trouve pas « lumiere » dans ton catalogue : quel article veux-tu, ou faut-il en créer un ?",
+   "candidats": []
+  },
+  "Lumières": {
+   "decision": "demander",
+   "cle": "lumiere",
+   "quantite": 1,
+   "question": "Je ne trouve pas « lumiere » dans ton catalogue : quel article veux-tu, ou faut-il en créer un ?",
+   "candidats": []
+  },
+  "câble": {
+   "decision": "proposer",
+   "cle": "cable",
+   "quantite": 1,
+   "question": "C’est bien « Câble rigide 2,5 mm² » ?",
+   "candidats": [
+    [
+     "a09",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "30 câbles": {
+   "decision": "proposer",
+   "cle": "cable",
+   "quantite": 30,
+   "question": "C’est bien « Câble rigide 2,5 mm² » ?",
+   "candidats": [
+    [
+     "a09",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "électricien": {
+   "decision": "proposer",
+   "cle": "electricien",
+   "quantite": 1,
+   "question": "C’est bien « Main d’œuvre électricien » ?",
+   "candidats": [
+    [
+     "a18",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "gros tableau": {
+   "decision": "demander",
+   "cle": "gros tableau",
+   "quantite": 1,
+   "question": "Je ne trouve pas « gros tableau » dans ton catalogue : quel article veux-tu, ou faut-il en créer un ?",
+   "candidats": []
+  },
+  "le gros tableau": {
+   "decision": "demander",
+   "cle": "gros tableau",
+   "quantite": 1,
+   "question": "Je ne trouve pas « gros tableau » dans ton catalogue : quel article veux-tu, ou faut-il en créer un ?",
+   "candidats": []
+  },
+  "prise double": {
+   "decision": "proposer",
+   "cle": "prise double",
+   "quantite": 1,
+   "question": "C’est bien « Prise double 16 A » ?",
+   "candidats": [
+    [
+     "a02",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "une prise": {
+   "decision": "proposer",
+   "cle": "prise",
+   "quantite": 1,
+   "question": "Tu veux « Prise 16 A blanche », « Prise double 16 A » ou « Prise RJ45 » ?",
+   "candidats": [
+    [
+     "a01",
+     0.6,
+     "libelle_complet"
+    ],
+    [
+     "a02",
+     0.6,
+     "libelle_complet"
+    ],
+    [
+     "a03",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "peinture": {
+   "decision": "proposer",
+   "cle": "peinture",
+   "quantite": 1,
+   "question": "C’est bien « Peinture blanche mate 10 L » ?",
+   "candidats": [
+    [
+     "a16",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "interupteur": {
+   "decision": "proposer",
+   "cle": "interupteur",
+   "quantite": 1,
+   "question": "Tu veux « Interrupteur simple allumage » ou « Interrupteur va-et-vient » ?",
+   "candidats": [
+    [
+     "a07",
+     0.54,
+     "proche"
+    ],
+    [
+     "a06",
+     0.54,
+     "proche"
+    ]
+   ]
+  },
+  "une prime": {
+   "decision": "proposer",
+   "cle": "prime",
+   "quantite": 1,
+   "question": "Tu veux « Prise 16 A blanche », « Prise double 16 A » ou « Prise RJ45 » ?",
+   "candidats": [
+    [
+     "a01",
+     0.54,
+     "proche"
+    ],
+    [
+     "a02",
+     0.54,
+     "proche"
+    ],
+    [
+     "a03",
+     0.54,
+     "proche"
+    ]
+   ]
+  },
+  "double": {
+   "decision": "proposer",
+   "cle": "double",
+   "quantite": 1,
+   "question": "C’est bien « Prise double 16 A » ?",
+   "candidats": [
+    [
+     "a02",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "disjoncteur 32": {
+   "decision": "proposer",
+   "cle": "disjoncteur",
+   "quantite": 32,
+   "question": "Tu veux « Disjoncteur 20 A » ou « Disjoncteur différentiel 40 A » (quantité 32) ?",
+   "candidats": [
+    [
+     "a10",
+     0.6,
+     "libelle_complet"
+    ],
+    [
+     "a11",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "prise double 16": {
+   "decision": "utiliser",
+   "cle": "prise double 16",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a02",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "tableau 4": {
+   "decision": "proposer",
+   "cle": "tableau 4",
+   "quantite": 1,
+   "question": "C’est bien « Tableau électrique 4 rangées » ?",
+   "candidats": [
+    [
+     "a05",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "câble 1,5": {
+   "decision": "proposer",
+   "cle": "cable",
+   "quantite": 1.5,
+   "question": "C’est bien 1,5 × « Câble rigide 2,5 mm² » ?",
+   "candidats": [
+    [
+     "a09",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "câble à 25": {
+   "decision": "proposer",
+   "cle": "cable",
+   "quantite": 1,
+   "question": "C’est bien « Câble rigide 2,5 mm² » à 25 € l’unité ?",
+   "candidats": [
+    [
+     "a09",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "gaine annelée 25": {
+   "decision": "demander",
+   "cle": "gaine annelee",
+   "quantite": 25,
+   "question": "Je ne trouve pas « gaine annelee » dans ton catalogue : quel article veux-tu, ou faut-il en créer un ?",
+   "candidats": []
+  },
+  "carrelage": {
+   "decision": "demander",
+   "cle": "carrelage",
+   "quantite": 1,
+   "question": "Je ne trouve pas « carrelage » dans ton catalogue : quel article veux-tu, ou faut-il en créer un ?",
+   "candidats": []
+  },
+  "fenêtre de toit": {
+   "decision": "demander",
+   "cle": "fenetre toit",
+   "quantite": 1,
+   "question": "Je ne trouve pas « fenetre toit » dans ton catalogue : quel article veux-tu, ou faut-il en créer un ?",
+   "candidats": []
+  },
+  "3 marteaux": {
+   "decision": "demander",
+   "cle": "marteau",
+   "quantite": 3,
+   "question": "Je ne trouve pas « marteau » dans ton catalogue : quel article veux-tu, ou faut-il en créer un ?",
+   "candidats": []
+  }
+ },
+ "avec": {
+  "Prise 16 A blanche": {
+   "decision": "utiliser",
+   "cle": "prise 16 blanche",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a01",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "prise 16 a blanche": {
+   "decision": "utiliser",
+   "cle": "prise 16 blanche",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a01",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "3 prises 16 A blanches": {
+   "decision": "utiliser",
+   "cle": "prise 16 blanche",
+   "quantite": 3,
+   "question": "",
+   "candidats": [
+    [
+     "a01",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "PR-16A-BLC": {
+   "decision": "utiliser",
+   "cle": "pr16 blc",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a01",
+     0.95,
+     "code_exact"
+    ]
+   ]
+  },
+  "mets 2 Prise double 16 A": {
+   "decision": "utiliser",
+   "cle": "prise double 16",
+   "quantite": 2,
+   "question": "",
+   "candidats": [
+    [
+     "a02",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Tableau électrique 2 rangées": {
+   "decision": "utiliser",
+   "cle": "tableau electrique 2 rangee",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a04",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "le tableau electrique 2 rangees": {
+   "decision": "utiliser",
+   "cle": "tableau electrique 2 rangee",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a04",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "ajoute un Tableau électrique 4 rangées": {
+   "decision": "utiliser",
+   "cle": "tableau electrique 4 rangee",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a05",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "tableaux électriques 4 rangées": {
+   "decision": "utiliser",
+   "cle": "tableau electrique 4 rangee",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a05",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "interrupteur va-et-vient": {
+   "decision": "utiliser",
+   "cle": "interrupteur va vient",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a06",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "des interrupteurs va et vient": {
+   "decision": "utiliser",
+   "cle": "interrupteur va vient",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a06",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Interrupteur simple allumage": {
+   "decision": "utiliser",
+   "cle": "interrupteur simple allumage",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a07",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "4 interrupteurs simple allumage": {
+   "decision": "utiliser",
+   "cle": "interrupteur simple allumage",
+   "quantite": 4,
+   "question": "",
+   "candidats": [
+    [
+     "a07",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "gaine ICTA 20 mm": {
+   "decision": "utiliser",
+   "cle": "gaine icta 20 mm",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a08",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "50 gaines ICTA 20 mm": {
+   "decision": "utiliser",
+   "cle": "gaine icta 20 mm",
+   "quantite": 50,
+   "question": "",
+   "candidats": [
+    [
+     "a08",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Câble rigide 2,5 mm²": {
+   "decision": "utiliser",
+   "cle": "cable rigide 2_5 mm",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a09",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "100 câbles rigides 2,5 mm²": {
+   "decision": "utiliser",
+   "cle": "cable rigide 2_5 mm",
+   "quantite": 100,
+   "question": "",
+   "candidats": [
+    [
+     "a09",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Disjoncteur 20 A": {
+   "decision": "utiliser",
+   "cle": "disjoncteur 20",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a10",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "DJ-20": {
+   "decision": "utiliser",
+   "cle": "dj20",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a10",
+     0.95,
+     "code_exact"
+    ]
+   ]
+  },
+  "Disjoncteur différentiel 40 A": {
+   "decision": "utiliser",
+   "cle": "disjoncteur differentiel 40",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a11",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "2 disjoncteurs différentiels 40 A": {
+   "decision": "utiliser",
+   "cle": "disjoncteur differentiel 40",
+   "quantite": 2,
+   "question": "",
+   "candidats": [
+    [
+     "a11",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Spot encastré LED": {
+   "decision": "utiliser",
+   "cle": "spot encastre led",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a12",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "10 spots encastrés LED": {
+   "decision": "utiliser",
+   "cle": "spot encastre led",
+   "quantite": 10,
+   "question": "",
+   "candidats": [
+    [
+     "a12",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Détecteur de fumée": {
+   "decision": "utiliser",
+   "cle": "detecteur fumee",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a13",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Plaque de plâtre BA13": {
+   "decision": "utiliser",
+   "cle": "plaque platre ba13",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a14",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "plaques de plâtre BA13 à 8 euros": {
+   "decision": "utiliser",
+   "cle": "plaque platre ba13",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a14",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Rail métallique 48 mm": {
+   "decision": "utiliser",
+   "cle": "rail metallique 48 mm",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a15",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "20 rails métalliques 48 mm": {
+   "decision": "utiliser",
+   "cle": "rail metallique 48 mm",
+   "quantite": 20,
+   "question": "",
+   "candidats": [
+    [
+     "a15",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Peinture blanche mate 10 L": {
+   "decision": "utiliser",
+   "cle": "peinture blanche mate 10",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a16",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Enduit de lissage": {
+   "decision": "utiliser",
+   "cle": "enduit lissage",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a17",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Main d’œuvre électricien": {
+   "decision": "utiliser",
+   "cle": "main oeuvre electricien",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a18",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "8 Main d'oeuvre électricien": {
+   "decision": "utiliser",
+   "cle": "main oeuvre electricien",
+   "quantite": 8,
+   "question": "",
+   "candidats": [
+    [
+     "a18",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Déplacement forfait": {
+   "decision": "utiliser",
+   "cle": "deplacement forfait",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a19",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Boîte d’encastrement": {
+   "decision": "utiliser",
+   "cle": "boite encastrement",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a20",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Volet roulant électrique": {
+   "decision": "utiliser",
+   "cle": "volet roulant electrique",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a21",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "Cloison de séparation": {
+   "decision": "utiliser",
+   "cle": "cloison separation",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a25",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "CLOI-01": {
+   "decision": "utiliser",
+   "cle": "cloi01",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a25",
+     0.95,
+     "code_exact"
+    ]
+   ]
+  },
+  "3 prises doubles": {
+   "decision": "utiliser",
+   "cle": "prise double",
+   "quantite": 3,
+   "question": "",
+   "candidats": [
+    [
+     "a02",
+     1,
+     "regle_active"
+    ]
+   ]
+  },
+  "le tableau": {
+   "decision": "utiliser",
+   "cle": "tableau",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a04",
+     1,
+     "regle_active"
+    ],
+    [
+     "a05",
+     0.65,
+     "regle_partielle"
+    ]
+   ]
+  },
+  "tableaux": {
+   "decision": "utiliser",
+   "cle": "tableau",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a04",
+     1,
+     "regle_active"
+    ],
+    [
+     "a05",
+     0.65,
+     "regle_partielle"
+    ]
+   ]
+  },
+  "un va-et-vient": {
+   "decision": "utiliser",
+   "cle": "va vient",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a06",
+     1,
+     "regle_active"
+    ]
+   ]
+  },
+  "disjoncteur": {
+   "decision": "utiliser",
+   "cle": "disjoncteur",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a10",
+     1,
+     "regle_active"
+    ],
+    [
+     "a11",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "6 disjoncteurs à 12,50 €": {
+   "decision": "utiliser",
+   "cle": "disjoncteur",
+   "quantite": 6,
+   "question": "",
+   "candidats": [
+    [
+     "a10",
+     1,
+     "regle_active"
+    ],
+    [
+     "a11",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "lumière": {
+   "decision": "utiliser",
+   "cle": "lumiere",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a12",
+     1,
+     "regle_active"
+    ]
+   ]
+  },
+  "Lumières": {
+   "decision": "utiliser",
+   "cle": "lumiere",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a12",
+     1,
+     "regle_active"
+    ]
+   ]
+  },
+  "câble": {
+   "decision": "utiliser",
+   "cle": "cable",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a09",
+     1,
+     "regle_active"
+    ]
+   ]
+  },
+  "30 câbles": {
+   "decision": "utiliser",
+   "cle": "cable",
+   "quantite": 30,
+   "question": "",
+   "candidats": [
+    [
+     "a09",
+     1,
+     "regle_active"
+    ]
+   ]
+  },
+  "électricien": {
+   "decision": "utiliser",
+   "cle": "electricien",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a18",
+     1,
+     "regle_active"
+    ]
+   ]
+  },
+  "gros tableau": {
+   "decision": "utiliser",
+   "cle": "gros tableau",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a05",
+     1,
+     "regle_active"
+    ]
+   ]
+  },
+  "le gros tableau": {
+   "decision": "utiliser",
+   "cle": "gros tableau",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a05",
+     1,
+     "regle_active"
+    ]
+   ]
+  },
+  "prise double": {
+   "decision": "utiliser",
+   "cle": "prise double",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a02",
+     1,
+     "regle_active"
+    ]
+   ]
+  },
+  "une prise": {
+   "decision": "proposer",
+   "cle": "prise",
+   "quantite": 1,
+   "question": "Tu veux « Prise 16 A blanche », « Prise double 16 A » ou « Prise RJ45 » ?",
+   "candidats": [
+    [
+     "a01",
+     0.7,
+     "regle_a_confirmer"
+    ],
+    [
+     "a02",
+     0.65,
+     "regle_partielle"
+    ],
+    [
+     "a03",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "peinture": {
+   "decision": "proposer",
+   "cle": "peinture",
+   "quantite": 1,
+   "question": "Tu veux « Peinture blanche mate 10 L » ou « Enduit de lissage » ?",
+   "candidats": [
+    [
+     "a16",
+     0.6,
+     "libelle_complet"
+    ],
+    [
+     "a17",
+     0.5,
+     "regle_en_conflit"
+    ]
+   ]
+  },
+  "interupteur": {
+   "decision": "proposer",
+   "cle": "interupteur",
+   "quantite": 1,
+   "question": "Tu veux « Interrupteur simple allumage » ou « Interrupteur va-et-vient » ?",
+   "candidats": [
+    [
+     "a07",
+     0.54,
+     "proche"
+    ],
+    [
+     "a06",
+     0.54,
+     "proche"
+    ]
+   ]
+  },
+  "une prime": {
+   "decision": "proposer",
+   "cle": "prime",
+   "quantite": 1,
+   "question": "Tu veux « Prise 16 A blanche », « Prise double 16 A » ou « Prise RJ45 » ?",
+   "candidats": [
+    [
+     "a01",
+     0.54,
+     "proche"
+    ],
+    [
+     "a02",
+     0.54,
+     "proche"
+    ],
+    [
+     "a03",
+     0.54,
+     "proche"
+    ]
+   ]
+  },
+  "double": {
+   "decision": "proposer",
+   "cle": "double",
+   "quantite": 1,
+   "question": "C’est bien « Prise double 16 A » ?",
+   "candidats": [
+    [
+     "a02",
+     0.65,
+     "regle_partielle"
+    ]
+   ]
+  },
+  "disjoncteur 32": {
+   "decision": "proposer",
+   "cle": "disjoncteur",
+   "quantite": 32,
+   "question": "Tu veux « Disjoncteur 20 A » ou « Disjoncteur différentiel 40 A » (quantité 32) ?",
+   "candidats": [
+    [
+     "a10",
+     1,
+     "regle_active"
+    ],
+    [
+     "a11",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "prise double 16": {
+   "decision": "utiliser",
+   "cle": "prise double 16",
+   "quantite": 1,
+   "question": "",
+   "candidats": [
+    [
+     "a02",
+     0.95,
+     "libelle_exact"
+    ]
+   ]
+  },
+  "tableau 4": {
+   "decision": "proposer",
+   "cle": "tableau 4",
+   "quantite": 1,
+   "question": "C’est bien « Tableau électrique 4 rangées » ?",
+   "candidats": [
+    [
+     "a05",
+     0.6,
+     "libelle_complet"
+    ]
+   ]
+  },
+  "câble 1,5": {
+   "decision": "proposer",
+   "cle": "cable",
+   "quantite": 1.5,
+   "question": "C’est bien 1,5 × « Câble rigide 2,5 mm² » ?",
+   "candidats": [
+    [
+     "a09",
+     1,
+     "regle_active"
+    ]
+   ]
+  },
+  "câble à 25": {
+   "decision": "proposer",
+   "cle": "cable",
+   "quantite": 1,
+   "question": "C’est bien « Câble rigide 2,5 mm² » à 25 € l’unité ?",
+   "candidats": [
+    [
+     "a09",
+     1,
+     "regle_active"
+    ]
+   ]
+  },
+  "gaine annelée 25": {
+   "decision": "demander",
+   "cle": "gaine annelee",
+   "quantite": 25,
+   "question": "Je ne trouve pas « gaine annelee » dans ton catalogue : quel article veux-tu, ou faut-il en créer un ?",
+   "candidats": []
+  },
+  "carrelage": {
+   "decision": "demander",
+   "cle": "carrelage",
+   "quantite": 1,
+   "question": "Je ne trouve pas « carrelage » dans ton catalogue : quel article veux-tu, ou faut-il en créer un ?",
+   "candidats": []
+  },
+  "fenêtre de toit": {
+   "decision": "demander",
+   "cle": "fenetre toit",
+   "quantite": 1,
+   "question": "Je ne trouve pas « fenetre toit » dans ton catalogue : quel article veux-tu, ou faut-il en créer un ?",
+   "candidats": []
+  },
+  "3 marteaux": {
+   "decision": "demander",
+   "cle": "marteau",
+   "quantite": 3,
+   "question": "Je ne trouve pas « marteau » dans ton catalogue : quel article veux-tu, ou faut-il en créer un ?",
+   "candidats": []
+  }
+ }
+}

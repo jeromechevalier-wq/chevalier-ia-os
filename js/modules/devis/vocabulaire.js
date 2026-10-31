@@ -18,6 +18,10 @@ export const SEUILS = Object.freeze({
   regleEnConflit: 0.50,
   regleVisee: 0.65, // règle active dont la clé CONTIENT tous les mots de la phrase
   libelleExact: 0.95,
+  /** Mots à plusieurs articles (cadrage vocabulaire-cibles, 2.3) : AUCUN de ces scores n'atteint `utiliser` (0,85) : un mot à plusieurs cibles ne donne jamais une ligne ajoutée sans question. */
+  contexteUnique: 0.80, // le seul article de la portée qui contient le reste de la phrase
+  contextePlusieurs: 0.65, // plusieurs articles de la portée contiennent le reste
+  cibleAuChoix: 0.70, // le reste est vide : un des articles choisis par l'humain
   libelleBase: 0.80, // × (mots de la clé ÷ mots du libellé)
   libellePlancher: 0.60,
   proche: 0.90, // facteur appliqué quand un mot n'est présent qu'à une faute de frappe près
@@ -27,6 +31,9 @@ export const SEUILS = Object.freeze({
   longueurFaute2: 8,
   maxCandidats: 5,
   maxChoixQuestion: 3,
+  maxCibles: 8, // cibles par mot (même limite que les règles Firestore)
+  separationAPartir: 5, // un groupe de candidats de cette taille ou plus : UNE question de précision au lieu de citer des articles
+  motsPrecision: 3, // mots proposés dans une question de précision
   /** Apprentissage (section 7). */
   confirmationsPourActiver: 2,
   longueurMotTropCourt: 3, // une clé d'un seul mot de cette longueur ou moins est « trop générale »
@@ -134,6 +141,22 @@ export function identifiantDeRegle(cle) {
   return id && !/^__.*__$/.test(id) ? id : null; // « __x__ » est réservé par Firestore
 }
 
+/**
+ * Ce que désigne un mot du dictionnaire : `[{ genre: 'article' | 'famille', id, libelle }]`, 8 au plus. `cibles` absent, vide ou mal formé = l'article `articleId` (aucune migration :
+ * un mot d'aujourd'hui garde son `articleId` unique). Une cible mal formée est ignorée, jamais d'exception ; plus de 8 cibles valables : les 8 premières.
+ */
+export function ciblesDe(regle) {
+  const valables = (Array.isArray(regle?.cibles) ? regle.cibles : [])
+    .filter((c) => c && typeof c === 'object' && (c.genre === 'article' || c.genre === 'famille') && typeof c.id === 'string' && c.id)
+    .slice(0, SEUILS.maxCibles)
+    .map((c) => ({ genre: c.genre, id: c.id, libelle: typeof c.libelle === 'string' ? c.libelle : '' }));
+  if (valables.length) return valables;
+  return typeof regle?.articleId === 'string' && regle.articleId ? [{ genre: 'article', id: regle.articleId, libelle: String(regle.articleLibelle ?? '') }] : [];
+}
+
+/** Les identifiants d'articles DISTINCTS que désigne un mot (les cibles « famille » viendront avec le contexte de famille : elles sont ignorées ici). */
+const articlesDesignes = (regle) => [...new Set(ciblesDe(regle).filter((c) => c.genre === 'article').map((c) => c.id))];
+
 // ---------------------------------------------------------------- mots proches (fautes de frappe)
 /** Distance de Damerau-Levenshtein (permutation de deux lettres voisines = 1). */
 function distance(a, b) {
@@ -200,11 +223,64 @@ export function suggestionEnAttente(regle) {
 }
 
 // ---------------------------------------------------------------- étapes 3 et 4
-const comparateur = (a, b) => (b.score - a.score)
+/** Nombre d'utilisations d'un article (devis finalisés) d'après `usages` (Map articleId -> { nombre }) ; absent ou illisible = 0. */
+const usageDe = (usages, articleId) => {
+  const n = usages instanceof Map ? usages.get(articleId)?.nombre : undefined;
+  return Number.isInteger(n) && n > 0 ? n : 0;
+};
+/**
+ * Ordre des candidats : score, puis USAGE (le plus utilisé d'abord, seulement pour départager deux scores égaux : jamais un score ni une décision), puis libellé, puis identifiant.
+ * Sans `usages`, l'ordre est exactement celui d'avant le compteur.
+ */
+const comparateurPar = (usages) => (a, b) => (b.score - a.score)
+  || (usageDe(usages, b.articleId) - usageDe(usages, a.articleId))
   || normaliser(a.libelle).localeCompare(normaliser(b.libelle), 'fr')
   || String(a.articleId).localeCompare(String(b.articleId));
 
-function chercherCandidats(cle, mots, { regles, articles }) {
+const articlesActifsParId = (articles) => new Map((articles ?? []).filter(actif).map((a) => [a.id, a]));
+const POURQUOI_CONTEXTE = new Set(['contexte_unique', 'contexte_plusieurs', 'cible_au_choix']);
+
+/** Un MARQUEUR est un mot actif, sans conflit ni suggestion en attente, qui désigne au moins DEUX articles (jamais un mot à un seul article : il garde son rôle d'avant). */
+const estMarqueur = (regle) => regle?.cle && regle.statut === 'active' && regle.conflit !== true && suggestionEnAttente(regle) === null && articlesDesignes(regle).length >= 2;
+
+/**
+ * Le contexte d'une phrase : les marqueurs qu'elle contient (suite de mots contiguë et dans l'ordre de la clé ; les plus longs d'abord, puis le plus à gauche, sans chevauchement),
+ * la PORTÉE (articles actifs désignés : l'union pour un marqueur, l'intersection pour plusieurs ; intersection vide = pas de contexte) et le RESTE (les mots hors marqueurs, dans n'importe quel ordre).
+ * `{ marqueurs: [clé], portee: [articleId], reste: [mot], regleId, cibles }` ou null. `parId` : les articles ACTIFS par identifiant.
+ */
+function contexteDe(mots, regles, parId) {
+  if (!mots?.length) return null;
+  const trouves = [];
+  for (const regle of (regles ?? []).filter(estMarqueur)) {
+    const k = regle.cle.split(' ');
+    for (let i = 0; i + k.length <= mots.length; i += 1) {
+      if (k.every((x, j) => mots[i + j] === x)) { trouves.push({ regle, i, n: k.length }); break; }
+    }
+  }
+  trouves.sort((a, b) => b.n - a.n || a.i - b.i || String(a.regle.cle).localeCompare(String(b.regle.cle)));
+  const pris = new Set();
+  const gardes = [];
+  for (const t of trouves) {
+    const place = Array.from({ length: t.n }, (_, j) => t.i + j);
+    if (place.some((j) => pris.has(j))) continue;
+    place.forEach((j) => pris.add(j));
+    gardes.push(t);
+  }
+  if (!gardes.length) return null;
+  const portees = gardes.map((t) => new Set(articlesDesignes(t.regle).filter((id) => parId.has(id))));
+  const commun = [...portees[0]].filter((id) => portees.every((p) => p.has(id)));
+  if (!commun.length) return null; // aucun article vivant en commun : on retombe sur le moteur d'avant
+  const premier = gardes[0].regle;
+  return {
+    marqueurs: gardes.map((t) => t.regle.cle),
+    portee: commun.sort(),
+    reste: mots.filter((_, j) => !pris.has(j)),
+    regleId: premier.id ?? identifiantDeRegle(premier.cle),
+    cibles: gardes.flatMap((t) => ciblesDe(t.regle)),
+  };
+}
+
+function chercherCandidats(cle, mots, { regles, articles, usages }) {
   const parArticle = new Map();
   const plafonnes = new Set(); // articles d'un mot validé avec suggestion en attente : jamais au-dessus de 0,50, même si leur libellé colle à la phrase
   const garder = (article, score, pourquoi, regleId = null) => {
@@ -215,7 +291,9 @@ function chercherCandidats(cle, mots, { regles, articles }) {
   const actifs = (articles ?? []).filter(actif);
   const parId = new Map(actifs.map((a) => [a.id, a]));
   for (const regle of regles ?? []) {
-    const article = parId.get(regle?.articleId);
+    // Un mot qui désigne UN article (le cas d'avant, `articleId`) se comporte comme avant ; un mot à plusieurs articles n'a pas d'article unique : il sert de marqueur (contexteDe), jamais seul.
+    const cibles = ciblesDe(regle);
+    const article = parId.get(cibles.length === 1 && cibles[0].genre === 'article' ? cibles[0].id : undefined);
     if (!regle?.cle || regle.statut === 'desactivee') continue;
     const regleId = regle.id ?? identifiantDeRegle(regle.cle);
     const suggestion = suggestionEnAttente(regle);
@@ -237,6 +315,17 @@ function chercherCandidats(cle, mots, { regles, articles }) {
       if (mots.every((m) => motsRegle.includes(m))) garder(article, SEUILS.regleVisee, 'regle_partielle', regleId);
     }
   }
+  // Contexte (mots à plusieurs articles) : « prise » désigne trois prises, « étanche » est cherché SEULEMENT parmi elles. Aucun score ici n'atteint `utiliser`.
+  const contexte = contexteDe(mots, regles, parId);
+  if (contexte) {
+    const portee = contexte.portee.map((id) => parId.get(id));
+    if (!contexte.reste.length) {
+      for (const a of portee) garder(a, SEUILS.cibleAuChoix, 'cible_au_choix', contexte.regleId);
+    } else {
+      const trouves = portee.map((a) => [a, scoreLibelle(contexte.reste, motsDe(a.libelle ?? ''))]).filter(([, s]) => s);
+      for (const [a] of trouves) garder(a, trouves.length === 1 ? SEUILS.contexteUnique : SEUILS.contextePlusieurs, trouves.length === 1 ? 'contexte_unique' : 'contexte_plusieurs', contexte.regleId);
+    }
+  }
   for (const article of actifs) {
     if (!cle) break;
     const identifiants = [article.libelle, article.code, article.reference].map((t) => (t ? motsDe(t).join(' ') : ''));
@@ -244,7 +333,7 @@ function chercherCandidats(cle, mots, { regles, articles }) {
     const s = scoreLibelle(mots, motsDe(article.libelle ?? ''));
     if (s) garder(article, s.score, s.proche ? 'proche' : 'libelle_complet');
   }
-  return [...parArticle.values()].sort(comparateur);
+  return [...parArticle.values()].sort(comparateurPar(usages));
 }
 
 /**
@@ -252,8 +341,8 @@ function chercherCandidats(cle, mots, { regles, articles }) {
  * Les candidats de la phrase entière restent là (un article dont le libellé commence par « Ensemble » reste trouvé) ; ceux des ouvrages s'y ajoutent, au meilleur score.
  * Aucune règle du dictionnaire n'est créée pour ce mot. Sans mot dans la phrase, ou sans reste après lui : rien ne change.
  */
-function chercherAvecSynonyme(cle, mots, { regles, articles, reglages }) {
-  const classes = chercherCandidats(cle, mots, { regles, articles });
+function chercherAvecSynonyme(cle, mots, { regles, articles, reglages, usages }) {
+  const classes = chercherCandidats(cle, mots, { regles, articles, usages });
   if (!mots.length) return classes; // `reglages` absent (document pas encore écrit) : le mot par défaut s'applique, comme à l'écran
   const m = motOuvrage(reglages);
   for (const forme of [m.singulier, m.pluriel]) {
@@ -262,10 +351,10 @@ function chercherAvecSynonyme(cle, mots, { regles, articles, reglages }) {
     for (let i = 0; i + motsForme.length <= mots.length; i += 1) {
       if (!motsForme.every((x, k) => mots[i + k] === x)) continue;
       const reste = [...mots.slice(0, i), ...mots.slice(i + motsForme.length)];
-      const ouvrages = chercherCandidats(reste.join(' '), reste, { regles: [], articles: (articles ?? []).filter((a) => a?.type === TYPE_OUVRAGE) });
+      const ouvrages = chercherCandidats(reste.join(' '), reste, { regles: [], articles: (articles ?? []).filter((a) => a?.type === TYPE_OUVRAGE), usages });
       const parId = new Map(classes.map((c) => [c.articleId, c]));
       for (const c of ouvrages) if (!parId.has(c.articleId) || parId.get(c.articleId).score < c.score) parId.set(c.articleId, c);
-      return [...parId.values()].sort(comparateur);
+      return [...parId.values()].sort(comparateurPar(usages));
     }
   }
   return classes;
@@ -274,39 +363,102 @@ function chercherAvecSynonyme(cle, mots, { regles, articles, reglages }) {
 const guillemets = (candidats) => candidats.map((c) => `« ${c.libelle} »`);
 const nombreFr = (n) => String(n).replace('.', ',');
 /** `devine` : { quantite, prix } à citer dans la question quand ils sont incertains (jamais ajoutés au devis sans que l'utilisateur les ait vus). */
-function formulerQuestion(decision, cle, choix, devine = {}) {
+function formulerQuestion(decision, cle, choix, devine = {}, autres = 0) {
   if (decision === 'utiliser') return '';
   if (decision === 'proposer') {
     const l = guillemets(choix);
     const prix = devine.prix != null ? ` à ${nombreFr(devine.prix)} € l’unité` : '';
     if (l.length === 1) return `C’est bien ${devine.quantite != null ? `${nombreFr(devine.quantite)} × ` : ''}${l[0]}${prix} ?`;
     const details = [devine.quantite != null ? `quantité ${nombreFr(devine.quantite)}` : '', prix ? prix.trim() : ''].filter(Boolean).join(', ');
-    return `Tu veux ${l.slice(0, -1).join(', ')} ou ${l[l.length - 1]}${details ? ` (${details})` : ''} ?`;
+    const reste = autres > 0 ? `, ou ${autres > 1 ? `l’un des ${autres} autres` : 'un autre'}` : ''; // jamais la liste entière : seulement combien il y en a
+    return `Tu veux ${l.slice(0, -1).join(', ')} ou ${l[l.length - 1]}${reste}${details ? ` (${details})` : ''} ?`;
   }
   return cle
     ? `Je ne trouve pas « ${cle} » dans ton catalogue : quel article veux-tu, ou faut-il en créer un ?`
     : 'Je n’ai pas compris quel article ajouter : peux-tu préciser ?';
 }
 
+// ---------------------------------------------------------------- question de précision : UNE question qui sépare un groupe de 5 candidats ou plus (sans IA)
+const JETON_AFFICHE = /[\p{L}\p{N}]+(?:[.,]\p{N}+)?/gu;
+const estNombreAffiche = (j) => /^\d+(?:[.,]\d+)?$/.test(j);
+const melangeChiffresLettres = (j) => /\p{N}/u.test(j) && /\p{L}/u.test(j) && !estNombreAffiche(j);
+/** Un mot affiché tel que le libellé l'écrit (« étanche »), en minuscules sauf un sigle (« LED »). */
+const motAffiche = (j) => (j.length > 1 && j === j.toLocaleUpperCase('fr') && /\p{L}/u.test(j) ? j : j.toLocaleLowerCase('fr'));
+const joindre = (l, dernier = 'ou') => (l.length <= 1 ? (l[0] ?? '') : `${l.slice(0, -1).join(', ')} ${dernier} ${l[l.length - 1]}`);
+
 /**
- * `interpreter(phrase, { regles, articles, reglages })` -> `{ cle, quantite, prixVente, quantiteIncertaine, prixIncertain, candidats, decision, question }`.
- * `regles` : règles du dictionnaire ({ id?, cle, articleId, statut, conflit }) ; `articles` : le catalogue (un article désactivé n'est jamais candidat) ; `reglages` : { marge, modeMarge }.
- * Un candidat : { articleId, libelle, unite, prixVenteHT, score, pourquoi, regleId }. Au plus 5. Départage stable : score, libellé, identifiant.
+ * La question qui SÉPARE le groupe : les libellés du groupe, sans les mots communs à tous, ni ceux de la phrase du client, ni ceux du marqueur ; chaque mot restant est classé par
+ * `min(couverture, n - couverture)` (plus c'est proche de la moitié du groupe, mieux il sépare). On garde les `motsPrecision` meilleurs (départagés par l'usage, puis l'ordre alphabétique),
+ * à condition qu'ensemble ils couvrent au moins la moitié du groupe ; sinon null (on revient à « 3 cités + autres »). Un mot est repris tel qu'écrit dans le libellé ; les nombres gardent leur
+ * virgule et se disent avec l'unité lue dans le libellé (« 16, 20 ou 32 A ») ; les jetons qui mêlent chiffres et lettres (« 2p », « dj20 ») sont exclus. Un article qui n'a plus aucun mot
+ * restant est injoignable par les mots : la question ajoute « ou autre chose ».
+ * `{ mots, nombreArticles, autreChose, question }` ou null.
  */
-export function interpreter(phrase, { regles = [], articles = [], reglages } = {}) {
+function questionPrecision(groupe, { motsPhrase = [], usages } = {}) {
+  const n = groupe.length;
+  const exclus = new Set(motsPhrase);
+  const parMot = new Map(); // mot normalisé -> { affiche, articles: Set, unite, numerique }
+  const sansMotRestant = [];
+  const restantsParArticle = groupe.map((c) => {
+    const bruts = String(c.libelle ?? '').match(JETON_AFFICHE) ?? [];
+    const restants = new Set();
+    bruts.forEach((brut, i) => {
+      if (melangeChiffresLettres(brut)) return;
+      const norme = motsDe(brut)[0];
+      if (!norme || exclus.has(norme)) return;
+      restants.add(norme);
+      if (!parMot.has(norme)) {
+        const suivant = bruts[i + 1];
+        const unite = estNombreAffiche(brut) && suivant && /^\p{L}{1,3}²?$/u.test(suivant) && (UNITES_LETTRES.has(suivant.toLowerCase()) || !MOTS_VIDES.has(normaliser(suivant))) ? suivant : ''; // « A » et « L » sont des unités, « de » n'en est pas une
+        parMot.set(norme, { affiche: estNombreAffiche(brut) ? brut : motAffiche(brut), articles: new Set(), unite, numerique: estNombreAffiche(brut), valeur: estNombreAffiche(brut) ? Number(brut.replace(',', '.')) : null });
+      }
+      parMot.get(norme).articles.add(c.articleId);
+    });
+    return restants;
+  });
+  // Un article n'a « aucun mot restant » une fois les mots communs à tous retirés (« Prise 16 A » à côté de « Prise double 16 A » : plus rien à dire).
+  const communs = new Set([...parMot.entries()].filter(([, m]) => m.articles.size === n).map(([k]) => k));
+  restantsParArticle.forEach((r, i) => { if ([...r].every((k) => communs.has(k))) sansMotRestant.push(groupe[i].articleId); });
+  const usageDeMot = (m) => [...m.articles].reduce((s, id) => s + usageDe(usages, id), 0);
+  const candidatsMots = [...parMot.entries()]
+    .filter(([, m]) => m.articles.size < n)
+    .sort(([ka, a], [kb, b]) => (Math.min(b.articles.size, n - b.articles.size) - Math.min(a.articles.size, n - a.articles.size)) || (usageDeMot(b) - usageDeMot(a)) || (Number(a.numerique) - Number(b.numerique)) /* les mots avant les nombres */ || (a.numerique && b.numerique ? a.valeur - b.valeur : a.affiche.localeCompare(b.affiche, 'fr')) || ka.localeCompare(kb));
+  const choisis = candidatsMots.slice(0, SEUILS.motsPrecision).map(([, m]) => m);
+  if (!choisis.length) return null;
+  const couverts = new Set(choisis.flatMap((m) => [...m.articles]));
+  if (couverts.size * 2 < n) return null;
+  const nombres = choisis.every((m) => m.numerique);
+  const ordre = nombres ? [...choisis].sort((a, b) => a.valeur - b.valeur) : choisis;
+  const mots = ordre.map((m) => m.affiche);
+  const unites = new Set(ordre.map((m) => m.unite));
+  const unite = nombres && unites.size === 1 ? [...unites][0] : '';
+  // « ou autre chose » dès qu'un article n'est joignable par aucun des mots proposés (aucun mot restant, ou mot non retenu).
+  const autreChose = sansMotRestant.length > 0 || couverts.size < n;
+  const liste = unite ? `${joindre(mots)} ${unite}${autreChose ? ', ou autre chose' : ''}` : (autreChose ? joindre([...mots, 'autre chose']) : joindre(mots));
+  return { mots, nombreArticles: n, autreChose, question: `Il y a ${n} articles qui correspondent : ${liste} ?` };
+}
+
+/**
+ * `interpreter(phrase, { regles, articles, reglages, usages })` (`usages` facultatif : Map articleId -> { nombre }, départage seulement deux scores égaux) -> `{ cle, quantite, prixVente, quantiteIncertaine, prixIncertain, candidats, decision, question }`.
+ * `regles` : règles du dictionnaire ({ id?, cle, articleId, statut, conflit }) ; `articles` : le catalogue (un article désactivé n'est jamais candidat) ; `reglages` : { marge, modeMarge }.
+ * Un candidat : { articleId, libelle, unite, prixVenteHT, score, pourquoi, regleId }. Au plus 5. Départage stable : score, usage (si fourni), libellé, identifiant.
+ */
+export function interpreter(phrase, { regles = [], articles = [], reglages, usages } = {}) {
   const analyse = analyserPhrase(phrase);
   const { mots } = analyse;
   let { cle, quantite } = analyse;
   const { prixVente } = analyse;
-  let classes = chercherAvecSynonyme(cle, mots, { regles, articles, reglages });
+  let classes = chercherAvecSynonyme(cle, mots, { regles, articles, reglages, usages });
   const prixIncertain = analyse.prixSansDevise;
   let quantiteIncertaine = false;
   if (analyse.quantiteEnFin) {
     // Le nombre de fin (« disjoncteur 32 », « prise double 16 ») est peut-être un mot du libellé : on le remet dans la clé si cela donne un candidat (quantité 1).
     const motsAvecNombre = [...mots, analyse.nombreFin];
-    const avecNombre = chercherAvecSynonyme(motsAvecNombre.join(' '), motsAvecNombre, { regles, articles, reglages });
+    const avecNombre = chercherAvecSynonyme(motsAvecNombre.join(' '), motsAvecNombre, { regles, articles, reglages, usages });
     if (avecNombre[0]?.score >= SEUILS.proposer) { classes = avecNombre; cle = motsAvecNombre.join(' '); quantite = 1; } else quantiteIncertaine = true;
   }
+  const motsFinaux = cle === analyse.cle ? mots : [...mots, analyse.nombreFin]; // la clé finale peut avoir repris le nombre de fin
+  const contexteFinal = contexteDe(motsFinaux, regles, articlesActifsParId(articles));
   const [premier, second] = classes;
   let decision = 'demander';
   if (premier && premier.score >= SEUILS.proposer) {
@@ -319,9 +471,27 @@ export function interpreter(phrase, { regles = [], articles = [], reglages } = {
   const candidats = classes.slice(0, SEUILS.maxCandidats).map((c) => ({
     articleId: c.articleId, libelle: c.libelle, unite: c.article.unite ?? '', prixVenteHT: prixVenteHT(c.article, parId, reglages), score: c.score, pourquoi: c.pourquoi, regleId: c.regleId,
   }));
-  const choix = candidats.filter((c) => c.score >= SEUILS.proposer).slice(0, SEUILS.maxChoixQuestion);
+  // Le GROUPE : les candidats au plus à `ecartUtiliser` du premier (calculé après la décision `utiliser` : un candidat net n'est jamais noyé par des candidats lointains).
+  // Quand le premier vient du CONTEXTE (mot à plusieurs articles), le groupe ne compte que les articles de la portée : un article que l'humain n'a pas choisi ne dilue jamais son choix.
+  const duContexte = POURQUOI_CONTEXTE.has(premier?.pourquoi);
+  const groupe = decision === 'proposer' ? classes.filter((c) => (!duContexte || POURQUOI_CONTEXTE.has(c.pourquoi)) && c.score >= premier.score - SEUILS.ecartUtiliser - 1e-9 && c.score >= SEUILS.proposer) : [];
+  const precision = groupe.length >= SEUILS.separationAPartir ? questionPrecision(groupe, { motsPhrase: [...motsFinaux, ...(contexteFinal?.marqueurs ?? []).flatMap((k) => k.split(' '))], usages }) : null;
+  const etape = precision ? 'precision' : 'article';
+  // Les articles CITÉS sont ceux d'avant (les trois premiers au moins à `proposer`) ; `autres` dit combien d'autres candidats auraient aussi pu convenir. Une question de précision ne cite aucun article.
+  // Quand le premier vient du CONTEXTE, seul le groupe est cité : « prise étanche » reste un oui/non malgré des libellés à 0,60 plus loin.
+  const citables = duContexte ? groupe : candidats.filter((c) => c.score >= SEUILS.proposer);
+  const choix = precision ? [] : citables.slice(0, SEUILS.maxChoixQuestion);
+  const autres = decision === 'proposer' && !precision ? Math.max(0, (duContexte ? groupe : classes.filter((c) => c.score >= SEUILS.proposer)).length - choix.length) : 0;
   const devine = { quantite: quantiteIncertaine ? quantite : null, prix: prixIncertain ? prixVente : null };
-  return { cle, quantite, prixVente, quantiteIncertaine, prixIncertain, candidats, decision, question: formulerQuestion(decision, cle, choix, devine) };
+  // `portee` n'est rendue que si un candidat vient du contexte (un libellé exact qui l'emporte ailleurs : pas de portée).
+  const portee = contexteFinal && classes.some((c) => POURQUOI_CONTEXTE.has(c.pourquoi))
+    ? { marqueurs: contexteFinal.marqueurs, cibles: contexteFinal.cibles, nombreArticles: contexteFinal.portee.length, reste: contexteFinal.reste }
+    : null;
+  return {
+    cle, quantite, prixVente, quantiteIncertaine, prixIncertain, candidats, decision, etape, autres, portee,
+    precision: precision ? { mots: precision.mots, nombreArticles: precision.nombreArticles, autreChose: precision.autreChose } : null,
+    question: precision ? precision.question : formulerQuestion(decision, cle, choix, devine, autres),
+  };
 }
 
 // ---------------------------------------------------------------- apprentissage (section 7)

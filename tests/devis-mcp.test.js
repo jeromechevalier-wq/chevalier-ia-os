@@ -716,6 +716,134 @@ describe('K20b recalculer_usage_articles (outil)', () => {
   });
 });
 
+describe('K21b rechercher_article_par_phrase : le compteur d’usage départage deux articles à score égal', () => {
+  test('K21b « le tableau » : à égalité, le plus utilisé passe devant ; la décision et les scores ne changent pas ; un compteur illisible ne casse rien', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const avant = ok(await chercherPhrase(s, 'le tableau'));
+    assert.deepEqual(avant.candidats.map((c) => c.articleId), [ids.t2, ids.t4], 'sans compteur : ordre alphabétique');
+    s.collections.devis_usage_articles = [{ id: ids.t4, articleId: ids.t4, nombre: 5, derniereUtilisationLe: new Date('2026-10-30T10:00:00Z') }, { id: 'sans-nombre', articleId: 'sans-nombre' }];
+    const apres = ok(await chercherPhrase(s, 'le tableau'));
+    assert.deepEqual(apres.candidats.map((c) => c.articleId), [ids.t4, ids.t2], 'le plus utilisé d’abord');
+    assert.equal(apres.decision, avant.decision);
+    assert.deepEqual(apres.candidats.map((c) => c.score).sort((a, b) => a - b), avant.candidats.map((c) => c.score).sort((a, b) => a - b));
+    assert.match(apres.question, /^Tu veux « Tableau électrique 4 rangées »/, 'la question cite le plus utilisé en premier');
+  });
+});
+
+describe('K22b rechercher_article_par_phrase : une question de précision ne liste aucun article', () => {
+  test('K22b 5 articles proches : etape « precision », candidats vides, une seule question qui sépare le groupe ; la phrase complétée redonne les candidats', async () => {
+    const s = await demarrer();
+    for (const t of ['simple', 'double', 'étanche', 'triple', 'murale']) ok(await s.appeler('biblio', 'creer_article', { libelle: `Prise ${t} 16 A`, prixAchat: 5, unite: 'u' }));
+    const r = ok(await chercherPhrase(s, 'prise'));
+    assert.equal(r.decision, 'proposer');
+    assert.equal(r.etape, 'precision');
+    assert.deepEqual(r.candidats, [], 'le serveur ne renvoie que la question');
+    assert.equal(r.precision.nombreArticles, 5);
+    assert.equal(r.precision.mots.length, 3);
+    assert.match(r.question, /^Il y a 5 articles qui correspondent : /);
+    assert.doesNotMatch(r.question, /«/);
+    const suite = ok(await chercherPhrase(s, 'prise étanche'));
+    assert.equal(suite.etape, 'article');
+    assert.equal(suite.candidats[0].libelle, 'Prise étanche 16 A');
+    assert.equal(suite.candidats[0].prixVenteHT, 6);
+  });
+});
+
+describe('K9 K10 K11 un mot qui désigne plusieurs articles : la réponse ne l’apprend pas, mais apprend la phrase entière', () => {
+  /** Quatre prises, une interrupteur : « prise » désigne les prises (mot validé à l'écran, `cibles`, sans article). */
+  async function monde() {
+    const s = await demarrer();
+    const creer = async (libelle) => ok(await s.appeler('biblio', 'creer_article', { libelle, prixAchat: 5, unite: 'u' })).id;
+    const ids = { simple: await creer('Prise simple 16 A'), double: await creer('Prise double 16 A'), etanche: await creer('Prise étanche 16 A'), inter: await creer('Interrupteur étanche') };
+    s.collections.devis_vocabulaire = [{ ...regleVocabulaire('prise', '', { origine: 'manuelle', validePar: 'humain', valideLe: '2026-10-30' }), articleId: '', cibles: ['simple', 'double', 'etanche'].map((k) => ({ genre: 'article', id: ids[k], libelle: '' })) }];
+    return { s, ids };
+  }
+  const instantane = (s) => JSON.stringify([s.collections.devis_vocabulaire, s.collections.crm_audit ?? []]);
+
+  test('K9 « prise » : l’utilisateur choisit l’un des articles du mot (confirme ou autre) : rien n’est écrit, aucune contradiction, aucune suggestion', async () => {
+    const { s, ids } = await monde();
+    const avant = instantane(s);
+    for (const reponse of ['confirme', 'autre']) {
+      const r = ok(await repondre(s, 'prise', reponse, ids.double));
+      assert.equal(r.rien, true);
+      assert.match(r.message, /plusieurs articles au choix/);
+    }
+    assert.equal(ok(await repondre(s, 'prise', 'aucun')).rien, true);
+    assert.equal(instantane(s), avant, 'ni compteur, ni suggestion, ni ligne de journal');
+    assert.equal(s.doc('devis_vocabulaire', 'prise').suggestion, undefined);
+  });
+
+  test('K9b un mot à 8 articles (au-delà des 5 candidats) : une confirmation pour un article non cité n’est pas refusée avec le mauvais message, elle n’écrit rien', async () => {
+    const s = await demarrer();
+    const ids = [];
+    for (let i = 1; i <= 8; i += 1) ids.push(ok(await s.appeler('biblio', 'creer_article', { libelle: `Fixation modèle ${i}`, prixAchat: 1, unite: 'u' })).id);
+    s.collections.devis_vocabulaire = [{ ...regleVocabulaire('fixation', '', { validePar: 'humain' }), cibles: ids.map((id) => ({ genre: 'article', id, libelle: '' })) }];
+    const avant = instantane(s);
+    const r = ok(await repondre(s, 'fixation', 'confirme', ids[7]));
+    assert.equal(r.rien, true);
+    assert.match(r.message, /plusieurs articles au choix/);
+    assert.equal(instantane(s), avant);
+    // un mot sans article ET sans cibles (état entre deux écrans) n'est pas réorienté non plus
+    s.collections.devis_vocabulaire.push({ ...regleVocabulaire('cheville', ''), articleId: '' });
+    assert.equal(ok(await repondre(s, 'cheville', 'confirme', ids[0])).rien, true);
+    assert.equal(s.doc('devis_vocabulaire', 'cheville').articleId, '');
+  });
+
+  test('K10 confirmer l’article proposé pour « prise étanche » crée le mot « prise etanche » (UN article, à confirmer) ; le mot « prise » n’est pas modifié', async () => {
+    const { s, ids } = await monde();
+    const marqueur = JSON.stringify(s.doc('devis_vocabulaire', 'prise'));
+    const r = ok(await chercherPhrase(s, 'prise étanche'));
+    assert.equal(r.decision, 'proposer');
+    assert.deepEqual(r.candidats.map((c) => c.articleId), [ids.etanche]);
+    assert.deepEqual(r.portee.marqueurs, ['prise']);
+    ok(await repondre(s, 'prise étanche', 'confirme', ids.etanche));
+    const neuf = s.doc('devis_vocabulaire', 'prise_etanche');
+    assert.deepEqual([neuf.articleId, neuf.statut, neuf.confirmations, neuf.origine], [ids.etanche, 'a_confirmer', 1, 'apprise_question']);
+    assert.equal(JSON.stringify(s.doc('devis_vocabulaire', 'prise')), marqueur);
+  });
+
+  test('K11 la sortie ne contient jamais de prix d’achat ni de marge ; un ouvrage de la portée porte typeAffiche', async () => {
+    const { s, ids } = await monde();
+    const ouvrage = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Prise sous plan', type: 'ouvrage', composants: [{ articleId: ids.simple, quantite: 2 }] })).id;
+    s.collections.devis_vocabulaire[0].cibles.push({ genre: 'article', id: ouvrage, libelle: '' });
+    const r = ok(await chercherPhrase(s, 'prise'));
+    assert.doesNotMatch(JSON.stringify(r), /prixAchat|marge/i);
+    const vue = ok(await chercherPhrase(s, 'prise sous plan'));
+    assert.equal(vue.candidats[0].articleId, ouvrage);
+    assert.equal(vue.candidats[0].typeAffiche, 'ouvrage'); // le mot du métier par défaut (V3 couvre un autre mot)
+  });
+
+  test('K16 les descriptions des deux outils disent la portée, la question de précision et qu’un mot à plusieurs articles ne s’apprend pas ; jamais de texte à coller chez l’assistant', async () => {
+    const { OUTILS_LECTURE } = await import('../functions/src/mcp/outils/lecture.js');
+    const { OUTILS_ECRITURE } = await import('../functions/src/mcp/outils/ecriture.js');
+    const recherche = OUTILS_LECTURE.find((o) => o.nom === 'rechercher_article_par_phrase').description;
+    assert.match(recherche, /`portee` dit de quoi on parle/);
+    assert.match(recherche, /`etape` vaut `precision`.*pose exactement `question`.*rappelle cet outil avec la phrase complétée/s);
+    assert.match(recherche, /ne liste jamais les articles/);
+    assert.match(recherche, /Le mot affiché à l'utilisateur est donné par lire_reglages_devis\.$/);
+    const reponse = OUTILS_ECRITURE.find((o) => o.nom === 'enregistrer_reponse_vocabulaire').description;
+    assert.match(reponse, /plusieurs articles ne s'apprend pas : la réponse n'écrit rien/);
+    assert.match(reponse, /n'appelle pas cet outil \(confirme et autre sont refusés\) : rappelle rechercher_article_par_phrase/);
+    assert.doesNotMatch(`${recherche} ${reponse}`, /instructions personnalisées/i);
+  });
+
+  test('K22c après une question de précision, ni « autre » ni « confirme » ne s’enregistrent (aucun article n’a été cité : la règle courte « prise » ne se crée pas) ; « aucun » reste permis ; la phrase complétée s’apprend', async () => {
+    const s = await demarrer();
+    const ids = [];
+    for (const t of ['simple', 'double', 'étanche', 'triple', 'murale']) ids.push(ok(await s.appeler('biblio', 'creer_article', { libelle: `Prise ${t} 16 A`, prixAchat: 5, unite: 'u' })).id);
+    assert.equal(ok(await chercherPhrase(s, 'prise')).etape, 'precision');
+    refuse(await repondre(s, 'prise', 'autre', ids[2]), /question de précision/);
+    refuse(await repondre(s, 'prise', 'confirme', ids[2]), /question de précision/);
+    assert.equal(s.collections.devis_vocabulaire, undefined, 'rien n’est écrit');
+    assert.equal(ok(await repondre(s, 'prise', 'aucun')).rien, true);
+    assert.equal(ok(await chercherPhrase(s, 'prise étanche')).etape, 'article');
+    ok(await repondre(s, 'prise étanche', 'confirme', ids[2]));
+    assert.equal(s.doc('devis_vocabulaire', 'prise_etanche').articleId, ids[2]);
+    assert.equal(s.doc('devis_vocabulaire', 'prise'), undefined);
+  });
+});
+
 describe('N5 archiver_devis', () => {
   test('N5 archive un devis signé, le désarchive, refuse le reste ; la restauration défait l’archivage même sur un devis finalisé', async () => {
     const s = await demarrer({ devis: [finalise('s1', 'accepte'), finalise('e1', 'envoye'), finalise('f1', 'en_attente_envoi'), devisEnregistre('b1')] });
@@ -1061,7 +1189,8 @@ describe('V1 rechercher_article_par_phrase : décision, candidats, prix de vente
 
   test('V1e limite : 3 candidats par défaut, 1 à 5, tronqués APRÈS la décision (elle ne change pas), jamais sous les articles cités par la question ; 0, 6 et une phrase de 301 caractères sont refusés', async () => {
     const s = await demarrer();
-    for (let i = 1; i <= 5; i += 1) ok(await s.appeler('biblio', 'creer_article', { libelle: `Câble gris ${i}`, prixAchat: i, unite: 'm' }));
+    // Libellés qui ne se séparent pas par un mot (« 1a » mêle chiffre et lettre) : pas de question de précision, la limite s'applique (voir K22b pour le cas des 5 articles proches).
+    for (let i = 1; i <= 5; i += 1) ok(await s.appeler('biblio', 'creer_article', { libelle: `Câble gris ${i}a`, prixAchat: i, unite: 'm' }));
     const defaut = ok(await chercherPhrase(s, 'câble'));
     assert.equal(defaut.candidats.length, 3);
     assert.equal(defaut.decision, 'proposer');

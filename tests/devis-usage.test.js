@@ -204,3 +204,11 @@ describe('K20 recalcul du compteur', () => {
     assert.equal(r.lignes.length, S.MAX_APERCU);
   });
 });
+
+describe('K21c lireUsages : tolérant (le compteur ne sert qu’à départager)', () => {
+  test('K21c une lecture qui échoue donne une Map vide, jamais une erreur ; un document sans `nombre` valable compte 0 ; la clé est articleId, sinon id', async () => {
+    assert.deepEqual([...await U.lireUsages({ liste: async () => { throw new Error('permission-denied'); } })], []);
+    const m = await U.lireUsages({ liste: async () => [{ id: 'x1', articleId: 'a1', nombre: 4, derniereUtilisationLe: T1 }, { id: 'a2', nombre: 'beaucoup' }, { id: 'a3', nombre: 2 }] });
+    assert.deepEqual([...m].map(([k, v]) => [k, v.nombre]), [['a1', 4], ['a2', 0], ['a3', 2]]);
+  });
+});

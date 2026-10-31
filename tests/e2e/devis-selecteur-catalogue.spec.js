@@ -132,3 +132,20 @@ test('C1.6 le catalogue arrive après l’ouverture : l’arbre se met à jour s
   await expect(dialogue(page).getByRole('textbox', { name: 'Expression' })).toHaveValue('prises');
   await capturer(page, info, 'C1.6-arrivee-tardive');
 });
+
+test('C1.7 « Changer l’article » : quand le catalogue s’agrandit après l’ouverture, l’article actuel reste visible dans le cadre', async ({ page }, info) => {
+  await article('m01', { libelle: 'Exemple – Aide de chantier (taux horaire)', type: 'main_oeuvre', unite: 'h', familleId: 'famille-2-9' });
+  await ecrireDocument('devis_vocabulaire/arpete', {
+    cle: 'arpete', expression: 'arpète', articleId: 'm01', articleLibelle: 'Exemple – Aide de chantier (taux horaire)', statut: 'active', origine: 'manuelle', confirmations: 0, contradictions: 0, conflit: false, exemples: [], creeLe: maintenant, modifieLe: maintenant,
+  });
+  await connecter(page, undefined, { route: 'devis/vocabulaire' });
+  await expect(page.locator('.page-vocabulaire')).toBeVisible();
+  await attendreCalme(page);
+  await page.locator('tr[data-id="arpete"] [data-action="menu-mot"]').click();
+  await page.getByRole('menuitem', { name: 'Changer l’article', exact: true }).click();
+  await expect(dialogue(page).locator('[data-arbre-article="m01"]')).toBeInViewport();
+  for (let i = 1; i <= 12; i += 1) await article(`a-${i}`, { libelle: `Aide ${String(i).padStart(2, '0')}`, type: 'main_oeuvre', unite: 'h', familleId: 'famille-2-9' }); // arrivent après l'ouverture, rangés avant « Exemple »
+  await expect(dialogue(page).locator('[data-arbre-article="a-12"]')).toBeAttached();
+  await expect(dialogue(page).locator('[data-arbre-article="m01"]')).toBeInViewport();
+  await capturer(page, info, 'C1.7-catalogue-agrandi');
+});

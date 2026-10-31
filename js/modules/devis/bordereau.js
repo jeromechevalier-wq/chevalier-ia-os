@@ -4,10 +4,11 @@
 import { h, icone, remplir, dialogue, toast, boutonSelonTexte } from '../../os/ui.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
-import { etatVide, planifier, saisieEnCours } from '../crm/composants.js';
+import { etatVide, planifier, saisieEnCours, selecteurTri } from '../crm/composants.js';
 import * as D from './donnees.js';
 import * as A from './articles.js';
 import * as O from './ouvrages.js';
+import * as U from './usage.js';
 import { editeurOuvrage } from './editeur-ouvrage.js';
 import { champFamille } from './champ-famille.js';
 import { naviguer } from '../../os/router.js';
@@ -23,6 +24,7 @@ const ERREUR_LECTURE = 'La liste n’a pas pu être mise à jour. La dernière v
 let recherche = '';
 let desactivesSeulement = false;
 let famillesFiltrees = []; // familles cochées dans « Filtres » (vide = toutes ; une famille de premier niveau inclut ses sous-familles) ; « sans_famille » = articles sans famille
+let tri = { ...U.TRI_PAR_DEFAUT }; // tri du catalogue (menu « Trier par », flèche de sens, clic sur l'en-tête « Utilisation »), gardé jusqu'au rechargement de la page
 let champsRares = false; // « Plus… » montre les colonnes Référence et Marque
 
 /** Les colonnes : `editable` = champ modifiable sur place ; `libelle` = en-tête (et libellé de la carte sur téléphone). */
@@ -36,6 +38,7 @@ const COLONNES = [
   { id: 'prixAchat', libelle: 'Prix d’achat HT', editable: true },
   { id: 'prixVente', libelle: 'Prix de vente HT', editable: false },
   { id: 'tauxTva', libelle: 'TVA', editable: true },
+  { id: 'usage', libelle: 'Utilisation', editable: false, triable: true },
   { id: 'etat', libelle: 'État', editable: false },
 ];
 
@@ -395,6 +398,19 @@ export async function ouvrirCreationArticle() {
   return null;
 }
 
+// ---------------------------------------------------------------- colonne « Utilisation » (compteur d'usage, lu seulement)
+
+/** « Utilisé 3 fois », ou « Jamais utilisé » en gris ; un tiret gris si le compteur n'a pas pu être lu (le catalogue reste utilisable). */
+function celluleUsage(a) {
+  const cellule = h('td', { dataset: { colonne: 'usage', libelle: 'Utilisation' } });
+  // Compteur pas encore arrivé, ou illisible : un tiret gris (jamais un faux « Jamais utilisé » qui bascule une fraction de seconde plus tard).
+  if (D.etat.erreurLectureUsages) return (remplir(cellule, h('span', { class: 'usage-vide', 'aria-label': 'Compteur d’utilisation illisible', title: 'Le compteur d’utilisation n’a pas pu être lu pour l’instant.' }, '—')), cellule);
+  if (!D.etat.usagesPrets) return (remplir(cellule, h('span', { class: 'usage-vide', 'aria-label': 'Compteur d’utilisation en cours de lecture' }, '—')), cellule);
+  const n = U.nombreUsage(D.etat.usages, a.id);
+  remplir(cellule, h('span', { class: n ? 'usage-nombre' : 'usage-vide', dataset: { usage: String(n) } }, U.texteUsage(n)));
+  return cellule;
+}
+
 // ---------------------------------------------------------------- écran
 
 export function rendreBordereau(conteneur) {
@@ -417,6 +433,8 @@ export function rendreBordereau(conteneur) {
     });
     if (r) { desactivesSeulement = !!r.desactives; famillesFiltrees = r.familles ?? []; rendre(); }
   } });
+  const choixTri = selecteurTri({ options: U.CRITERES_TRI, valeur: tri.critere, sens: tri.sens, surChangement: (t) => { tri = { critere: t.critere, sens: t.sens }; choixTri.maj(U.CRITERES_TRI, tri.critere, tri.sens); rendre(); } }); // maj : la flèche suit le sens du critère choisi
+  function changerTri(nouveau) { tri = { critere: nouveau.critere, sens: nouveau.sens }; choixTri.maj(U.CRITERES_TRI, tri.critere, tri.sens); rendre(); }
   const boutonPlus = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'colonnes-rares' }, 'aria-pressed': 'false', onclick: () => { champsRares = !champsRares; rendre(); } }, 'Plus…');
   const boutonAjout = h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'nouvel-article' }, onclick: () => ouvrirCreationArticle() }, icone('plus', { taille: 16 }), 'Article');
 
@@ -437,7 +455,7 @@ export function rendreBordereau(conteneur) {
     // Un ouvrage porte son calcul ; plusieurs familles cochées = l'une ou l'autre, et une famille de premier niveau inclut ses sous-familles.
     const avecCalcul = A.avecCalculOuvrage(D.etat.articles, D.etat.articles, D.etat.reglages);
     const idsCoches = famillesFiltrees.flatMap((id) => (id === 'sans_famille' ? [''] : idsAvecSousFamilles(D.etat.familles, id)));
-    const lignes = A.filtrerArticles(avecCalcul, { recherche, statut }).filter((a) => !famillesFiltrees.length || idsCoches.includes(familleEffective(a)));
+    const lignes = U.trierArticles(A.filtrerArticles(avecCalcul, { recherche, statut }).filter((a) => !famillesFiltrees.length || idsCoches.includes(familleEffective(a))), D.etat.usages, D.etat.usagesPrets && !D.etat.erreurLectureUsages ? tri : U.TRI_PAR_DEFAUT); // pas de tri par usage tant que le compteur n'est pas lu (les lignes ne se réordonnent pas sous les yeux)
     const actifs = D.etat.articles.filter((a) => a.actif !== false).length;
     if (desactivesSeulement) remplir(compteur, `${lignes.length} ${lignes.length > 1 ? 'articles désactivés' : 'article désactivé'}`);
     else remplir(compteur, `${actifs} ${actifs > 1 ? 'articles actifs' : 'article actif'}`, lignes.length !== actifs ? ` · ${lignes.length} affiché${lignes.length > 1 ? 's' : ''}` : '');
@@ -451,13 +469,18 @@ export function rendreBordereau(conteneur) {
       return;
     }
     const colonnes = COLONNES.filter((c) => !c.rare || champsRares);
-    const entete = h('tr', {}, colonnes.map((c) => h('th', { scope: 'col' }, h('span', { class: 'tri titre-colonne' }, c.libelle))), h('th', { class: 'col-actions', 'aria-label': 'Actions' }));
+    const entete = h('tr', {}, colonnes.map((c) => (c.triable
+      ? h('th', { scope: 'col', 'aria-sort': tri.critere === c.id ? (tri.sens === 'asc' ? 'ascending' : 'descending') : 'none' },
+        h('button', { type: 'button', class: 'tri', dataset: { action: `trier-${c.id}` }, onclick: () => changerTri(tri.critere === c.id ? { critere: c.id, sens: tri.sens === 'asc' ? 'desc' : 'asc' } : { critere: c.id, sens: 'desc' }) },
+          c.libelle, tri.critere === c.id ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))
+      : h('th', { scope: 'col' }, h('span', { class: 'tri titre-colonne' }, c.libelle)))), h('th', { class: 'col-actions', 'aria-label': 'Actions' }));
     const corps = lignes.map((a) => h('tr', { class: `ligne-liste ligne-article${a.actif === false ? ' article-desactive' : ''}`, dataset: { id: a.id } },
       colonnes.map((c) => {
         if (c.id === 'famille') return celluleFamille(a, rendre);
         if ((c.id === 'prixVente' || c.id === 'prixAchat') && a.type === 'texte') return celluleSansPrix(c);
         if (c.id === 'prixVente') return cellulePrixVente(a);
         if (c.id === 'prixAchat' && a.type === 'ouvrage') return cellulePrixAchatOuvrage(a);
+        if (c.id === 'usage') return celluleUsage(a);
         if (c.editable) return celluleEditable(a, c, rendre);
         return h('td', { dataset: { colonne: c.id, libelle: c.libelle } }, a.actif === false ? h('span', { class: 'pastille-statut', style: { '--couleur': '#8d8993' } }, 'Désactivé') : h('span', { class: 'pastille-statut', style: { '--couleur': '#6ddba0' } }, 'Actif'));
       }),
@@ -466,14 +489,17 @@ export function rendreBordereau(conteneur) {
         : null, a.actif === false
         ? h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', dataset: { action: 'reactiver' }, 'aria-label': `Réactiver : ${a.libelle}`, onclick: () => reactiver(a) }, icone('rotate-ccw', { taille: 14 }), 'Réactiver')
         : h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', dataset: { action: 'desactiver' }, 'aria-label': `Désactiver : ${a.libelle}`, onclick: () => desactiver(a) }, 'Désactiver'))));
+    const avaitLeFocus = document.activeElement?.dataset?.action?.startsWith('trier-') ?? false; // le bouton d'en-tête est reconstruit : le focus clavier y revient
+    const actionFocus = avaitLeFocus ? document.activeElement.dataset.action : null;
     remplir(zoneTableau, h('table', { class: 'tableau tableau-articles' }, h('thead', {}, entete), h('tbody', {}, corps)));
+    if (actionFocus) zoneTableau.querySelector(`[data-action="${actionFocus}"]`)?.focus();
   }
 
   conteneur.append(h('div', { class: 'page page-liste page-devis' },
     h('header', { class: 'page-tete' },
       h('div', {}, boutonRetour, titre, compteur),
       h('div', { class: 'page-actions' }, boutonReprise, boutonAjout)),
-    h('div', { class: 'barre-affaires' }, champRecherche, filtres.element, boutonPlus),
+    h('div', { class: 'barre-affaires' }, champRecherche, filtres.element, choixTri.element, boutonPlus),
     avis, zoneTableau));
 
   // Pendant la frappe dans une cellule, on ne reconstruit pas (la saisie serait perdue) ; la liste se met à jour à la fin de la saisie.

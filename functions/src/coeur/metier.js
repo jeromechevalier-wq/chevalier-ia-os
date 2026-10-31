@@ -11,6 +11,7 @@ import * as E from '../../partage/devis-editeur.js';
 import * as B from '../../partage/devis-brouillon.js';
 import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, recalculerMontantsAffaires as recalculerMontantsServeur, recalculerUsageArticles as recalculerUsageServeur, modifierEnTransaction as modifierEnTransactionServeur, ErreurDevis } from './devis.js';
 import { COLLECTIONS as C } from './donnees.js';
+import { lireUsages } from './usage-articles.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
 import { canonique, sansId } from './canonique.js';
@@ -726,20 +727,28 @@ function avecExemple(exemples, phrase) {
 export async function enregistrerReponseVocabulaire(c, args) {
   const { reponse, articleId } = args;
   const phrase = String(args.phrase ?? '');
-  const [articles, regles, reglages] = await Promise.all([c.donnees.liste(C.devisArticles), c.donnees.liste(C.devisVocabulaire), reglagesDuDevis(c)]);
-  const r = DV.interpreter(phrase, { regles, articles, reglages });
+  const [articles, regles, reglages, usages] = await Promise.all([c.donnees.liste(C.devisArticles), c.donnees.liste(C.devisVocabulaire), reglagesDuDevis(c), lireUsages(c.donnees)]);
+  const r = DV.interpreter(phrase, { regles, articles, reglages, usages });
   const regleId = DV.identifiantDeRegle(r.cle);
   if (!regleId) refuser('saisie_invalide', 'Aucun mot à retenir dans cette phrase (elle ne contient que des mots vides ou des nombres).');
+  // Un mot qui désigne PLUSIEURS articles (ou aucun article unique) ne s'apprend pas : une réponse légitime parmi ses articles ne doit ni compter une contradiction ni poser une suggestion.
+  // Cette garde passe AVANT le refus « n'aurait pas été proposé » (un mot à 6 à 8 articles au choix dépasse les 5 candidats) : le message serait faux.
+  const motACibles = regles.find((x) => x.id === regleId);
+  if (motACibles && (DV.ciblesDe(motACibles).length !== 1 || DV.ciblesDe(motACibles)[0].genre !== 'article')) {
+    return { operationId: null, rien: true, regleId, message: 'Ce mot a plusieurs articles au choix : rien n’est appris (il se règle à l’écran, jamais par une réponse).' };
+  }
   if (reponse === 'aucun') return { operationId: null, rien: true, message: 'Noté : aucune règle apprise (rien ne convenait). Rien n’a été écrit.' };
   if (!articleId) refuser('saisie_invalide', `articleId est obligatoire pour la réponse « ${reponse} ».`);
   const article = articles.find((a) => a.id === articleId);
   if (!article) refuser('introuvable', `Article introuvable : ${articleId}`);
   if (article.actif === false || article.type === DA.TYPE_TEXTE) refuser('saisie_invalide', `« ${article.libelle} » est désactivé ou n’est pas un article vendable : choisir un autre article.`);
+  // Une question de précision ne cite aucun article : ni `autre` ni `confirme` ne s'enregistrent (sinon la règle courte « prise » -> un article serait créée). La phrase COMPLÉTÉE s'apprend par le chemin habituel.
+  if (r.etape === 'precision' && reponse !== 'aucun') refuser('saisie_invalide', 'La question posée était une question de précision (plusieurs articles proches) : rien n’est enregistré. Rappeler rechercher_article_par_phrase avec le mot choisi ajouté à la phrase, puis répondre à cette nouvelle question.');
   const propose = r.candidats.some((x) => x.articleId === articleId);
   if (reponse === 'confirme' && !propose) refuser('saisie_invalide', `« ${article.libelle} » n’aurait pas été proposé pour cette phrase : une confirmation n’est acceptée que pour un article proposé. Si l’utilisateur a choisi un autre article, utiliser la réponse « autre ».`);
   const existante = regles.find((x) => x.id === regleId) ?? null;
   // Une règle dont l'article n'existe plus ou est désactivé n'est plus un candidat : la réponse la réoriente vers le nouvel article.
-  const cible = articles.find((a) => a.id === existante?.articleId);
+  const cible = articles.find((a) => a.id === (existante ? DV.ciblesDe(existante)[0]?.id : undefined)); // `articleId`, ou l'unique cible d'un mot à une seule cible
   const morte = Boolean(existante) && !(cible && cible.actif !== false);
   // Décision prise seul : un mot validé par un humain dont l'article est mort n'est PAS réorienté (garde-fou 1) : il reste intact et reçoit tout de suite une suggestion.
   // Un mot sans `validePar` ou validé par les réponses est réorienté vers le nouvel article, comme avant.
@@ -779,6 +788,7 @@ export async function enregistrerReponseVocabulaire(c, args) {
     for (const champ of ['articleId', 'articleLibelle', 'origine', 'statut', 'confirmations', 'contradictions', 'conflit', 'derniereConfirmationLe', 'exemples', 'derniereUtilisationLe', 'valideLe', 'validePar', 'revoirLe', 'suggestion']) {
       if (complet[champ] !== undefined && JSON.stringify(complet[champ]) !== JSON.stringify(existante[champ])) patch[champ] = complet[champ];
     }
+    if (patch.articleId !== undefined && Array.isArray(existante.cibles) && existante.cibles.length) patch.cibles = []; // jamais un mot à double sens : l'article qui change vide les cibles
     // `exigerStatut` : si la règle a changé de statut entre la lecture et l'écriture, l'écriture est refusée (conflit), sans relance.
     operations = L.modifierSiPatch(C.devisVocabulaire, regleId, patch, L.MARQUES_MODIFICATION).map((op) => ({ ...op, exigerStatut: existante.statut }));
   }
