@@ -15,9 +15,9 @@
 | Sujet | Où | Constat |
 |---|---|---|
 | Deux projets Firebase | `.firebaserc` (`default` et `plateforme`) | l'identifiant d'un projet **ne peut pas être changé** une fois créé ; seul le nom affiché peut l'être |
-| Adresses `.web.app` | environ 140 occurrences (hébergement du CRM de Jérôme et de la plateforme des clients) | un site d'hébergement a aussi un identifiant fixe ; on peut en créer un nouveau dans le projet, pas renommer l'ancien |
-| Comptes de service | `…iam.gserviceaccount.com`, 38 occurrences | ils portent l'identifiant du projet ; non renommables |
-| Secrets de CI | `.github/workflows/*.yml` : `FIREBASE_SERVICE_ACCOUNT_…` (deux secrets, 7 usages) | les secrets sont **propres à un dépôt** : un nouveau dépôt les perd |
+| Adresses `.web.app` | plus de 200 lignes dans une centaine de fichiers (ordre de grandeur, à recompter par le script de la PR 1 ; hébergement du CRM de Jérôme et de la plateforme des clients) | un site d'hébergement a aussi un identifiant fixe ; on peut en créer un nouveau dans le projet, pas renommer l'ancien |
+| Comptes de service | `…iam.gserviceaccount.com`, une centaine de lignes (ordre de grandeur) | ils portent l'identifiant du projet ; non renommables |
+| Secrets de CI | `.github/workflows/*.yml` : `FIREBASE_SERVICE_ACCOUNT_…` (deux secrets, une dizaine d'usages dans les trois workflows) | les secrets sont **propres à un dépôt** : un nouveau dépôt les perd |
 | Domaines personnalisés | environ 50 occurrences (site, n8n) | adresses publiques de Jérôme, déjà utilisées par des outils |
 | Compte GitHub | `js/os/deploiement.js:12`, `js/modules/crm/logique.js:158`, `PROMPT-CONSTRUCTION.md`, des tests | le nom du compte est écrit en dur dans des liens et dans une constante |
 | Nom du produit | `README.md`, `CLAUDE.md`, `package.json`, `wiki/` | le nom du produit contient celui de l'entreprise, comme le nom du dépôt |
@@ -95,6 +95,8 @@ Remettre le dépôt en privé (les minutes d'Actions gratuites sont épuisées e
 | Perdre de l'historique utile | `docs/` reste la mémoire ; l'ancien dépôt archivé en privé |
 | Croire que c'est caché alors que ça ne l'est pas | la section 3 est recopiée dans la PR et dans le rapport |
 | Un secret oublié dans l'historique d'un fork | le balayage du 20/10/2026 est refait avant la bascule, sur tout l'historique, avec la recherche de secrets de GitHub |
+| Renommer le compte GitHub : l'ancien nom redevient libre (fin de la redirection), quelqu'un peut le reprendre | garder le nom réservé (compte de repli) ou ne pas renommer ; non résolu par un renommage |
+| Renommer des secrets = modifier `.github/workflows/*.yml` | liste d'arrêt (workflows) : Jérôme fusionne |
 | Casser les connecteurs des clients (changement d'adresse) | aucune adresse déjà déployée ne change dans ce chantier |
 | Le travail ralentit les autres chantiers | une seule PR « nettoyage » à la fois, fusionnée dans la journée |
 
@@ -104,8 +106,9 @@ Remettre le dépôt en privé (les minutes d'Actions gratuites sont épuisées e
 |---|---|---|---|---|
 | 1 | Inventaire fermé | un script en lecture seule qui compte les occurrences par catégorie ; un tableau dans `docs/` (sans écrire les noms) | non requise | non |
 | 2 | Textes : README, docs, `CLAUDE.md`, wiki | remplacer le nom dans les phrases ; régénérer `wiki/` ; ne pas toucher aux identifiants techniques | Oui si `CLAUDE.md` ou un brief d'agent change | non |
-| 3 | Constantes : compte GitHub et liens | `deploiement.js:12`, `logique.js:158`, tests : une seule constante lue partout | Oui (liens et adresses : règle de Jérôme du 26/10/2026) | non |
-| 4 | Adresses e-mail dans le code et les tests | les remplacer par des adresses de test `exemple.test` | Oui | non |
+| 3 | Constantes : compte GitHub et liens (**avant** la PR 4, jamais en parallèle : `js/modules/crm/logique.js:158` et `:159` sont voisines) | `deploiement.js:12`, `logique.js:158`, tests : une seule constante lue partout | Oui (liens et adresses : règle de Jérôme du 26/10/2026) | non |
+| 4 | Adresses e-mail dans les **tests et les textes affichés** seulement | les remplacer par des adresses de test `exemple.test` ; `tests/mcp-clients.test.js:963` utilise l'adresse réelle comme garde-fou négatif : à remplacer par un motif. **Pas les adresses fonctionnelles** : plusieurs sont des contrôles de sécurité (liste des comptes autorisés du MCP et de la veille, administrateurs, propriétaire par défaut, configuration du navigateur) ; les remplacer casserait la connexion MCP et les droits d'administration, et l'accès de secours par l'identité Google de Jérôme (décision du 02/10/2026) | Oui | non |
+| 4 bis | Identités fonctionnelles hors du dépôt | document Firestore de configuration ou secret de déploiement, à la place des adresses écrites dans le code ; PR « sécurité » à part | Oui | **Oui** (secret, sécurité) |
 | 5 | Nouveau dépôt et CI | création par Jérôme, secrets recréés, workflows rejoués | Oui (workflows) | **Oui** : secrets, workflows, déploiements |
 | 6 | Archivage de l'ancien dépôt | par Jérôme, en privé | non | **Oui** |
 

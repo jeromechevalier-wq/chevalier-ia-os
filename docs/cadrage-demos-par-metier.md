@@ -16,15 +16,15 @@
 |---|---|---|
 | Outil de démo | `scripts/donnees-demo.js` lance `scripts/plateforme/donnees-demo.js` (602 lignes) | remplit un client de la plateforme : 15 organisations, 20 personnes, 19 affaires, 15 devis (3 par statut), 2 projets par phase ; mode d'emploi : `docs/donnees-demo.md` |
 | Catalogue fictif | `CATALOGUE_EXEMPLE`, `donnees-demo.js:71` (15 articles `demo-f01`…, prix inventés) | utilisé par `--catalogue-exemple` et par les tests |
-| Catalogue réel | option `--catalogue-depuis chevalier-ia-os` (`donnees-demo.js:373` `ouvrirSource`, lecture seule) | copie le catalogue de Jérôme chez le client démo |
+| Catalogue réel | option `--catalogue-depuis <projet de Jérôme>` (`donnees-demo.js:373` `ouvrirSource`, lecture seule) | copie le catalogue de Jérôme chez le client démo |
 | Marqueur | `MARQUEUR = 'donneesDemo'` (`donnees-demo.js:33`) | chaque document créé le porte ; `--retirer` ne supprime que ceux-là |
 | Collections écrites | `COLLECTIONS_DEMO` (`donnees-demo.js:36`) : `crm_*` (organisations, personnes, affaires, activités, notes, événements), `projets_projets`, `projets_taches`, `devis_articles`, `devis_parametres`, `devis_devis` | **`devis_vocabulaire` n'y est pas** : la démo ne crée aucun mot appris, et `--retirer` n'en retirerait aucun |
-| Garde-fous | `PROJETS_INTERDITS = ['chevalier-ia-os']` (`commun.js:14`), refus si le client a déjà des données (`COLLECTIONS_PLEINES`, `donnees-demo.js:41`), simulation par défaut | la démo ne peut viser que le projet des clients, jamais la base de Jérôme |
-| Familles de départ | `js/modules/devis/familles.js:10-18` | la famille « Main d'œuvre » a déjà les sous-familles Maçon, Carreleur, Étancheur, Plaquiste, Peintre, Menuisier, Plombier, Électricien ; « Matériels » et « Fournitures » ont leurs sous-familles de plomberie et d'électricité |
+| Garde-fous | `PROJETS_INTERDITS` (`commun.js:14`, la base de Jérôme), refus si le client a déjà des données (`COLLECTIONS_PLEINES`, `donnees-demo.js:41`), simulation par défaut | la démo ne peut viser que le projet des clients, jamais la base de Jérôme |
+| Familles de départ | `js/modules/devis/familles.js:15-23` | la famille « Main d'œuvre » a déjà les sous-familles Maçon, Carreleur, Étancheur, Plaquiste, Peintre, Menuisier, Plombier, Électricien ; « Fournitures », « Ouvrages » et « Sous-traitance » ont leurs sous-familles Plomberie et Électricité |
 | Mot du métier | `MOTS_OUVRAGE`, `js/modules/devis/ouvrages.js:21` : ouvrage, ensemble, forfait, prestation, lot, plus « Autre » ; stocké dans `devis_parametres/reglages` (`motOuvrage`, `motOuvrageAutre`) | réglage livré (PR 422 et 432) |
 | Vocabulaire | collection `devis_vocabulaire` ; états `a_confirmer`, `active`, `desactivee`, champs `valideLe`, `validePar`, `revoirLe` (`vocabulaire-plans.js:14`) | écran « Vocabulaire » livré ; un mot est actif après 2 confirmations sur 2 jours séparés |
 | Tests | `tests/donnees-demo.test.js` (émulateur, catalogue fictif seulement) | `npm run test:module donnees-demo` |
-| Client démo | `https://chevalier-ia-app.web.app/espace/clientdemo` (Réglages > Déploiement) | un seul client démo existe ; l'outil travaille sur **un client à la fois** |
+| Client démo | l'adresse du client démo est affichée dans Réglages > Déploiement (non recopiée ici : dépôt public) | un seul client démo existe ; l'outil travaille sur **un client à la fois** |
 
 **Ce qui n'existe pas** : aucun catalogue par métier, aucun choix de métier dans l'outil, aucune démo du vocabulaire, aucun réglage du mot du métier posé par la démo, aucun drapeau « client de démonstration » sur la fiche d'un client (rien n'empêche techniquement de lancer l'outil sur un vrai client vide ; le garde-fou actuel est « le client doit être vide »).
 
@@ -46,8 +46,8 @@ Pour que le prospect se dise « c'est mon métier » sans que ce soit trop long 
 
 | Élément | Minimum | Exemple (plombier, chiffres ronds à 100 €) |
 |---|---|---|
-| Articles | 25, dans 4 familles (fournitures, main d'œuvre, ouvrages, divers) | « Receveur de douche 90 x 90 » acheté 100 € ; « Bonde de douche » ; « Joint silicone » ; « Heure plombier » |
-| Ouvrages (le mot du métier) | 3, avec leur composition | « Remplacement de receveur » = receveur + bonde + joint + évacuation des déchets, vendu 100 € les trois pour l'exemple chiffré du cadrage |
+| Articles | 25, dans 4 familles (fournitures, main d'œuvre, ouvrages, divers) | « Receveur de douche 90 x 90 » ; « Bonde de douche » ; « Joint silicone » ; « Heure plombier » |
+| Ouvrages (le mot du métier) | 3, avec leur composition | « Remplacement de receveur » = receveur + bonde + joint + évacuation des déchets, vendu 100 € hors taxes les quatre (exemple chiffré ; aucun prix d'achat écrit) |
 | Devis | 3 « vedettes » écrits à la main (un brouillon, un envoyé, un signé), les autres produits par le tirage existant | « Salle de bain complète » avec 3 sections |
 | Mots appris | 6 : 4 validés, 1 à confirmer, 1 désactivé | « receveur » → l'article receveur, validé ; « joint » → deux articles au choix, à confirmer |
 | Mot du métier | 1 réglage | plombier : « ensemble » ; électricien : « forfait » ; maçon : « lot » (**Décision prise seule**, à corriger) |
@@ -60,7 +60,7 @@ Règles de rédaction : aucune marque réelle, aucun fournisseur réel, aucun pr
 
 1. **Même outil, une option de plus** : `--metier plombier` à la place de `--catalogue-exemple` (les trois options s'excluent). Le reste est inchangé : simulation d'abord, `--ecrire` ensuite.
 2. **Un client démo, un métier à la fois** : pour changer de métier, `--retirer --ecrire` puis un nouveau chargement. L'outil travaille déjà sur un seul client à la fois. Alternative écartée pour l'instant : un client par métier (3 clients à créer, à déployer, à garder à jour).
-3. **Nouveau garde-fou recommandé** : une marque `demo: true` sur la fiche `clients/<identifiant>`, posée par `nouveau-client.js` (option `--demo`), et l'outil refuse tout client qui ne la porte pas. Aujourd'hui seul le « client vide » protège un vrai client ; un client réel créé mais pas encore rempli pourrait recevoir la démo par erreur.
+3. **Nouveau garde-fou recommandé** : une marque `demo: true` sur la fiche `clients/<identifiant>`, posée par `nouveau-client.js` (option `--demo`), et l'outil refuse tout client qui ne la porte pas. Aujourd'hui seul le « client vide » protège un vrai client, et l'option `--completer` (`donnees-demo.js:41`) saute même ce garde-fou : la marque `demo: true` serait donc la **seule vraie protection**. Elle se pose avec `nouveau-client.js --demo` sur le client existant (simulation, puis `--ecrire`), jamais à la main dans la console.
 4. **Le vocabulaire** : `devis_vocabulaire` entre dans `COLLECTIONS_DEMO`, chaque mot porte `donneesDemo: true`, avec `valideLe`, `validePar: 'humain'`, `revoirLe` (jeu de mots validés) et un mot `a_confirmer`. Écrit par le script (compte de service) : **aucune règle Firestore à changer** (`devis_vocabulaire` interdit la suppression au navigateur, `firestore.rules:157`, ce qui n'arrête pas l'outil d'administration).
 5. **Le mot du métier** : posé dans `devis_parametres/reglages` seulement si le client n'a pas de réglages (même règle que « Mon entreprise » aujourd'hui, `docs/donnees-demo.md`, « Limites à connaître »). Il porte le marqueur : `--retirer` le supprime, le client retrouve « ouvrage ».
 6. **Effacement** : celui d'aujourd'hui (marqueur `donneesDemo`, rien d'autre), étendu au vocabulaire. Les journaux d'audit écrits par le serveur ne sont jamais effacés (règle de Jérôme), même ici.
@@ -82,7 +82,7 @@ Règles de rédaction : aucune marque réelle, aucun fournisseur réel, aucun pr
 |---|---|---|---|---|---|
 | 1 | Jeu « plombier » et option `--metier` | un fichier de données, lecture par l'outil, tests sur l'émulateur | M | Oui (écrit des données, même fictives) | non |
 | 2 | Vocabulaire et mot du métier dans la démo | `devis_vocabulaire` dans `COLLECTIONS_DEMO`, mots avec marqueur, retrait ; tests de retrait | M | Oui | non (aucune règle changée) |
-| 3 | Garde-fou `demo: true` | `nouveau-client.js --demo`, refus de l'outil sur un client sans la marque ; **ne modifie aucune donnée existante** (les clients actuels n'ont pas la marque : Jérôme la pose sur le client démo à la main, commande donnée en détail) | S | Oui | non, mais une action de Jérôme sur le client démo |
+| 3 | Garde-fou `demo: true` | `nouveau-client.js --demo`, refus de l'outil sur un client sans la marque ; la PR ne modifie aucune donnée ; ensuite **une écriture par Jérôme sur la fiche du client démo**, hors dépôt (commande donnée en détail, simulation d'abord) | S | Oui | non, mais une action de Jérôme sur le client démo |
 | 4 | Jeux « électricien » et « maçon » | deux fichiers, mêmes tests | M | Oui | non |
 | 5 | Docs | `docs/donnees-demo.md` et captures du client démo : **dans la PR de code du même sujet**, pas à part | — | non requise | non |
 

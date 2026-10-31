@@ -17,13 +17,13 @@
 | Morceau | Où | État |
 |---|---|---|
 | Écran « Vocabulaire » et ses états (À confirmer, Actif, Désactivé) | `js/modules/devis/vocabulaire-ecran.js` | livré |
-| Validation humaine des mots : `valideLe`, `validePar` (`humain` ou `reponses`), `revoirLe` (6 mois) | moteur `vocabulaire.js:565-614` (PR 427) ; plans `vocabulaire-plans.js:14, 132-135` ; mention « Validé par toi » / « Validé par tes réponses » à l'écran `vocabulaire-ecran.js:404-415` (PR 430) | livré |
-| Suggestion de dérive d'un mot validé : à la 2e contradiction, le serveur écrit `suggestion` ; le mot validé ne bouge pas ; `suggestionTraiteeLe` écrit par le navigateur ; 3 jours de confirmation retirent la suggestion | `vocabulaire.js:45-46, 209-222, 584-607` ; `estATrancher` (`vocabulaire-plans.js:114`) ; ligne « L'assistant propose : … » `vocabulaire-ecran.js:347-351` | livré |
+| Validation humaine des mots : `valideLe`, `validePar` (`humain` ou `reponses`), `revoirLe` (6 mois) | moteur `js/modules/devis/vocabulaire.js:565-614` (copié vers le serveur par `scripts/preparer-fonctions.js`) (PR 427) ; plans `vocabulaire-plans.js:14, 132-135` ; mention « Validé par toi » / « Validé par tes réponses » à l'écran `vocabulaire-ecran.js:404-415` (PR 430) | livré |
+| Suggestion de dérive d'un mot validé : à la 2e contradiction, le serveur écrit `suggestion` ; le mot validé ne bouge pas ; `suggestionTraiteeLe` écrit par le navigateur ; 3 jours de confirmation retirent la suggestion | `js/modules/devis/vocabulaire.js:45-46, 209-222, 584-607` ; `estATrancher` (`vocabulaire-plans.js:114`) ; ligne « L'assistant propose : … » `vocabulaire-ecran.js:347-351` | livré |
 | Règles Firestore : champs de validation, `suggestion` interdite au navigateur, collection `devis_habitudes` en **lecture seule** pour les membres, écriture serveur seulement | `firestore.rules:109` et suivantes, `firestore.plateforme.rules` (PR 424) ; test `devis-vocabulaire-regles.test.js` (V4l) | livré (**la collection est vide**) |
 | Requête bornée par date (prérequis du calcul des 12 mois) | `functions/src/coeur/donnees.js`, commentaire d'en-tête (PR 421) | livré |
 | Mot du métier (réglage et écrans) | `ouvrages.js:21` (PR 422, 432) | livré |
 | Compteur d'usage des articles | `coeur/usage-articles.js`, `devis_usage_articles` (lecture seule) | livré |
-| Outils de modification sûre : par numéro, annulation, devis copié aux prix du jour | `modifier_lignes_devis`, `annuler_derniere_modification_devis`, `creer_devis_depuis_modele` (déclarés dans `mcp/outils/index.js`) | livrés (à confirmer ligne à ligne dans `docs/reprise-prochaine-session.md`) |
+| Outils de modification sûre : par numéro, annulation, devis copié aux prix du jour | `modifier_lignes_devis`, `annuler_derniere_modification_devis`, `creer_devis_depuis_modele` (déclarés dans `functions/src/mcp/outils/ecriture.js` ; `index.js` ne fait que les lister comme destructifs) | livrés (à confirmer ligne à ligne dans `docs/reprise-prochaine-session.md`) |
 | Dictionnaire à plusieurs articles et à familles | PR 452, 454, 455, 458 | livré |
 
 ## 2. Ce qu'il reste (rien de ceci n'existe dans le code)
@@ -73,7 +73,7 @@ Le plus cohérent (déjà décidé) : l'écran « Vocabulaire » devient l'écra
 
 ### 3.4 Historique et retour en arrière
 
-Un nouveau bouton « Revenir à cette version » : il écrit un **nouveau patch** des seuls champs de la liste blanche (statut, nom, article d'un mot, validation) tiré de la copie « avant » du journal (`crm_audit_avant`), journalisé comme toute écriture d'écran. Rien n'est effacé (les journaux ne s'effacent jamais). Première version : filtrage en mémoire des pages du journal ; un index Firestore seulement si c'est trop lent (aucun fichier d'index n'existe aujourd'hui).
+Un nouveau bouton « Revenir à cette version » : il écrit un **nouveau patch** des seuls champs de la liste blanche (statut, nom, article d'un mot, validation) tiré de la copie « avant » du journal (`crm_audit_avant`), journalisé comme toute écriture d'écran. Rien n'est effacé (les journaux ne s'effacent jamais). **À vérifier en R2/R5** : `firestore.plateforme.rules` n'a aucun bloc `crm_audit_avant` (le joker des clients s'applique) ; la lecture de la copie « avant » par un éditeur chez les clients doit être confirmée par un test. Première version : filtrage en mémoire des pages du journal ; un index Firestore seulement si c'est trop lent (aucun fichier d'index n'existe aujourd'hui).
 
 ### 3.5 L'assistant le dit
 
@@ -93,7 +93,7 @@ Un nouveau bouton « Revenir à cette version » : il écrit un **nouveau patch*
 | Un apprentissage change un motif validé | aucune écriture serveur sur les champs humains ; test de non-régression sur `validePar: 'humain'` |
 | Le client ne fait jamais la revue | la phrase en tête reste ; l'assistant ne se sert d'un motif Proposé qu'en demandant ; rien ne s'applique seul |
 | Trop de nouveautés d'un coup | plafond de 30 ensembles (cadrage d'origine), tri par nombre de devis |
-| Calcul de nuit lent ou coûteux | un parcours de la fenêtre de 12 mois, par client, écriture des seuls changements ; mesure sur le client démo |
+| Calcul de nuit lent ou coûteux | un parcours de la fenêtre de 12 mois, par client, écriture des seuls changements ; mesure sur le client démo. L'en-tête de `functions/src/coeur/donnees.js` dit qu'égalité + borne de date exige un index composite : aucun `firestore.indexes.json` n'existe ; le créer touche `firebase.json` (**liste d'arrêt**), à ajouter à R3 si la mesure l'exige |
 | Chez les clients, la fonction planifiée manque | PR « chez Jérôme ET chez les clients » ; droit « Cloud Scheduler » à donner (liste d'arrêt) |
 | Des données de client dans les docs | exemples inventés uniquement |
 | L'écran de revue devient trop gros | un seul écran, blocs repliables, pas de sous-onglets (`docs/consignes-ui.md`) |
@@ -106,11 +106,11 @@ Déjà fusionnées : 6 (règles, 424), 7 (validation humaine, 427 et 430), 8 et 
 |---|---|---|---|---|---|
 | R1 | Revue des **mots** | écran : phrase en tête, « À revoir » + « Toujours bon » (écrit `revoirLe`), « Revue terminée » (`derniereRevueLe`), export ; e2e ordinateur et téléphone, captures | M | Oui (écran qui change de structure) | non |
 | R2 | Règles de `devis_habitudes` | liste blanche des champs humains, création/suppression interdites au navigateur ; adapter V4l exprès | S | Oui | **Oui** (règles, deux fichiers) |
-| R3 | Calcul de nuit | fonction planifiée, `devis_habitudes`, moteur d'audit, canal `nuit`, branché chez Jérôme **et** chez les clients | L | Oui | **Oui** (déploiement `fonctions`, Cloud Scheduler) |
+| R3 | Calcul de nuit (index éventuel : `firebase*.json`) | fonction planifiée, `devis_habitudes`, moteur d'audit, **nouveau** canal `nuit` à ajouter au moteur d'audit et au libellé du Journal (les canaux existants sont `mcp`, `porte`, `ecran`), branché chez Jérôme **et** chez les clients | L | Oui | **Oui** (déploiement `fonctions`, Cloud Scheduler) |
 | R4 | Blocs « Ensembles » dans l'écran | lecture, valider/renommer/désactiver/réactiver, dérive affichée, « Exclure de l'apprentissage » | L | Oui | non |
 | R5 | Historique et retour | « Revenir à cette version », par élément | M | Oui | non |
 | R6 | Devis proches | `trouver_devis_proches` + `suggestions` + `phrasePourquoi`, après R4 et après la mesure de la ligne « Lenteur » | M | Oui | non |
-| R7 | Consigne « dis-le » | livrée par le chantier « Consignes stockées » (pas en dur) | S | non requise (texte) | non |
+| R7 | Consigne « dis-le » | livrée par le chantier « Consignes stockées » (pas en dur) ; c'est du texte du dépôt servi par le serveur : dépend de la PR 2 des consignes | S | **Oui** (serveur) | non |
 | R8 | Docs, version, wiki | une seule PR de fin de session | S | non requise | non |
 
 Ordre : **R1 d'abord** (Jérôme la voit tout de suite, sans serveur), puis R2, R3, R4, R5, R6.
