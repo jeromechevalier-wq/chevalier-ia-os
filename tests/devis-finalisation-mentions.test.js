@@ -49,7 +49,7 @@ describe('B1 entreprise : nom, adresse et SIRET', () => {
 
 describe('B2 assurance sans crochet', () => {
   test('B2 vide (texte par défaut), crochet ouvrant, crochet fermant : refusé avec « il reste des crochets » ; un texte propre passe', () => {
-    const phrase = 'Complète l\'assurance dans Mon entreprise : il reste des crochets.';
+    const phrase = 'Complète l\'assurance dans Réglages > Devis > Mon entreprise : il reste des crochets.';
     assert.equal(D.MESSAGE_ASSURANCE_CROCHETS, phrase);
     const avec = (assuranceTexte) => erreurs(complet(), { ...OPTIONS_FINALISATION, emetteur: { ...EMETTEUR_ESSAI, assuranceTexte } });
     assert.deepEqual(avec(undefined), [phrase], 'vide : le texte par défaut a des crochets');

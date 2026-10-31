@@ -43,8 +43,8 @@ test('B1 B2 B4 B5 entreprise vide, devis sans dates et validité dépassée : la
   await finaliser(page);
   await expect(dialogue(page)).toContainText('Ce devis ne peut pas encore être finalisé');
   await expect(dialogue(page).locator('li')).toHaveText([
-    'Complète le nom de l\'entreprise dans Mon entreprise.', 'Complète le numéro SIRET dans Mon entreprise.', 'Complète l\'adresse de l\'entreprise dans Mon entreprise.',
-    'Complète l\'assurance dans Mon entreprise : il reste des crochets.', 'Indique la date de début des travaux.', 'Indique la durée estimée des travaux.',
+    'Complète le nom de l\'entreprise dans Réglages > Devis > Mon entreprise.', 'Complète le numéro SIRET dans Réglages > Devis > Mon entreprise.', 'Complète l\'adresse de l\'entreprise dans Réglages > Devis > Mon entreprise.',
+    'Complète l\'assurance dans Réglages > Devis > Mon entreprise : il reste des crochets.', 'Indique la date de début des travaux.', 'Indique la durée estimée des travaux.',
     'La date de validité du devis est déjà dépassée : choisis une date à venir.',
   ]);
   await capturer(page, info, 'B1-B5-liste');

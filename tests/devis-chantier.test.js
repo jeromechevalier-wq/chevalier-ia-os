@@ -111,7 +111,7 @@ describe('Chantier et émetteur du devis', () => {
     // Assurance seulement pour un métier du bâtiment.
     const sansAss = { ...emetteurComplet, assuranceTexte: undefined }; // texte par défaut : il garde des crochets, donc incomplet
     assert.deepEqual(D.erreursEmetteur(sansAss).champs, ['assurance']);
-    assert.deepEqual(D.erreursEmetteur(sansAss).mentions, [D.MESSAGE_ASSURANCE_CROCHETS]);
+    assert.deepEqual(D.erreursEmetteur(sansAss).mentions, [D.MESSAGE_ASSURANCE_CROCHETS_REGLAGES]);
     assert.deepEqual(D.erreursEmetteur({ ...emetteurComplet, assuranceTexte: 'Décennale chez [Assureur]' }).champs, ['assurance']); // un crochet reste
     assert.deepEqual(D.erreursEmetteur({ ...emetteurComplet, assuranceTexte: '   ' }).champs, ['assurance']); // vide = texte par défaut, donc des crochets
     // Anciens champs (sans assuranceTexte) : le texte est reconstruit, sans crochet, donc complet.
