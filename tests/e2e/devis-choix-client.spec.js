@@ -87,7 +87,7 @@ test('2 personne seule : elle devient le client, avec son adresse et son e-mail,
   expect(d.personneId).toBe('p3');
   expect(d.organisationId ?? null).toBeNull();
   await expect(champClient(page)).toHaveValue('Alain Dupont');
-  await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('alain@exemple.test');
+  await expect(page.locator('[data-zone=\"destinataires\"] .ligne-destinataire')).toHaveText(['alain@exemple.test']);
   await expect(page.locator('[data-zone="question-client"]')).toHaveCount(0);
   await capturer(page, info, '2-personne-seule');
 });
@@ -105,11 +105,11 @@ test('3 personne d’une organisation : la question « Ce devis est pour » (org
   let d = await lire();
   expect(d).toMatchObject({ organisationId: 'o1', personneId: 'p1' });
   await expect(champClient(page)).toHaveValue('Dupont Bâtiment');
-  await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('julie@dupont.test'); // l'e-mail de la personne « à l'attention de » l'emporte
+  await expect(page.locator('[data-zone=\"destinataires\"] .ligne-destinataire')).toHaveText(['julie@dupont.test']); // l'e-mail de la personne « à l'attention de » l'emporte
   await capturer(page, info, '3-question-organisation');
   await question.locator('[data-choix="personne"]').check();
   await enregistre(page);
-  await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('julie@dupont.test'); // « seule » : l'e-mail de la personne
+  await expect(page.locator('[data-zone=\"destinataires\"] .ligne-destinataire')).toHaveText(['julie@dupont.test']); // « seule » : l'e-mail de la personne
   d = await lire();
   expect(d.organisationId ?? null).toBeNull();
   expect(d.personneId).toBe('p1');
@@ -127,7 +127,7 @@ test('4 organisation : adresse de la fiche, affaires de l’organisation ET de s
   expect(await lire()).toMatchObject({ organisationId: 'o1' });
   expect((await lire()).personneId ?? null).toBeNull();
   await expect(page.locator('[data-champ="chantier-adresse"]')).toHaveValue(/12 rue des Lilas/);
-  await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('contact@dupont.test');
+  await expect(page.locator('[data-zone=\"destinataires\"] .ligne-destinataire')).toHaveText(['contact@dupont.test']);
   await champAffaire(page).click(); // sans lettre : les affaires du client
   await expect(suggestions(page)).toHaveText([/Cuisine Dupont/, /Garage/, /Salle de bains Julie/, /\+ Créer l’affaire « Dupont Bâtiment »/]); // celle de la personne Julie (de l'organisation) en fait partie, pas Toiture ni Terrasse
   await capturer(page, info, '4-affaires-organisation');
@@ -137,13 +137,13 @@ test('4 organisation : adresse de la fiche, affaires de l’organisation ET de s
   await attention.selectOption('p2'); // Paul n'a pas d'e-mail : le destinataire reste celui de l'organisation
   await enregistre(page);
   expect(await lire()).toMatchObject({ organisationId: 'o1', personneId: 'p2' });
-  await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('contact@dupont.test');
+  await expect(page.locator('[data-zone=\"destinataires\"] .ligne-destinataire')).toHaveText(['contact@dupont.test']);
   await attention.selectOption('p1');
-  await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('julie@dupont.test');
+  await expect(page.locator('[data-zone=\"destinataires\"] .ligne-destinataire')).toHaveText(['julie@dupont.test']);
   await attention.selectOption('');
   await enregistre(page);
   expect((await lire()).personneId ?? null).toBeNull();
-  await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('contact@dupont.test');
+  await expect(page.locator('[data-zone=\"destinataires\"] .ligne-destinataire')).toHaveText(['contact@dupont.test']);
 });
 
 test('5 affaire : l’affaire et le client se remplissent ensemble, la personne de l’affaire est « à l’attention de »', async ({ page }, info) => {
@@ -185,7 +185,7 @@ test('6 client sans affaire : message permanent, jamais l’affaire d’un autre
   await expect(page.locator('[data-erreur="affaire"]')).toHaveText('Choisis ou crée une affaire pour finaliser ce devis.');
   await expect(champAffaire(page)).toHaveClass(/invalide/);
   await expect(champAffaire(page)).toBeFocused();
-  await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('contact@exemple.fr'); // l'e-mail écrit à la main n'est pas écrasé par le choix du client
+  await expect(page.locator('[data-zone=\"destinataires\"] .ligne-destinataire')).toHaveText(['contact@exemple.fr']); // l'e-mail écrit à la main n'est pas écrasé par le choix du client
   await capturer(page, info, '6-champ-rouge');
   await champAffaire(page).click();
   await capturer(page, info, '6-ligne-creer');
