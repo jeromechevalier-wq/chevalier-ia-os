@@ -7,6 +7,7 @@ import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as Li from './liste.js';
 import * as Ed from './editeur-logique.js';
+import { estErreurEntreprise, ROUTE_MON_ENTREPRISE } from './logique.js';
 import { lancerPreparationEmail } from './email-preparer-ecran.js';
 import { MESSAGE_NON_BRANCHE } from './email-preparer.js';
 import { adressesDuDevis } from './email-brouillon.js';
@@ -41,7 +42,10 @@ export async function changerStatut(d, action, libelle) {
       if (!ok) return;
       const r = await D.finaliser(d.id);
       if (r?.ok === false) {
-        await dialogue({ titre: 'Ce devis ne peut pas encore être finalisé', contenu: h('ul', { class: 'liste-erreurs-devis' }, (r.erreurs ?? []).map((e) => h('li', {}, e))), boutons: [{ libelle: 'Compris', valeur: true, style: 'principal' }] });
+        const erreurs = r.erreurs ?? [];
+        const versEntreprise = erreurs.some(estErreurEntreprise) ? [{ libelle: 'Ouvrir Mon entreprise', valeur: 'entreprise' }] : []; // le bouton n'existe que pour une erreur qui se règle là
+        const choix = await dialogue({ titre: 'Ce devis ne peut pas encore être finalisé', contenu: h('ul', { class: 'liste-erreurs-devis' }, erreurs.map((e) => h('li', {}, e))), boutons: [...versEntreprise, { libelle: 'Compris', valeur: true, style: 'principal' }] });
+        if (choix === 'entreprise') naviguer(ROUTE_MON_ENTREPRISE);
         return;
       }
       toast('Devis finalisé');

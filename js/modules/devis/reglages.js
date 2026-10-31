@@ -80,11 +80,22 @@ export function reglages(page) {
       h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: cle } }));
   };
   /** Texte libre sur plusieurs lignes de « Mon entreprise » (assurance, coordonnées bancaires). */
-  const zoneEnt = (chemin, libelle, { aide = null, lignes = 3, max, placeholder = '' } = {}) => {
+  const zoneEnt = (chemin, libelle, { aide = null, lignes = 3, max, placeholder = '', texteSous = null, modele = null } = {}) => {
     const cle = cleEnt(chemin);
+    // `modele` : bouton « Insérer le texte modèle », visible seulement tant que le champ est vide ; il écrit par le même chemin que la saisie.
+    const bouton = modele ? h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'inserer-modele' }, hidden: !!lireEnt(chemin),
+      onclick: () => {
+        ecrireEnt(chemin, modele); champ.value = modele; majBouton();
+        const debut = modele.indexOf('[Assureur]'); // le curseur arrive dans le champ, sur le premier trou à remplir
+        champ.focus(); if (debut >= 0) champ.setSelectionRange(debut, debut + '[Assureur]'.length);
+      } }, 'Insérer le texte modèle') : null;
+    const majBouton = () => { if (bouton) bouton.hidden = !!champ.value; };
+    const champ = h('textarea', { class: 'champ', id: `devis-${cle}`, rows: lignes, maxlength: String(max), placeholder, autocomplete: 'off', dataset: { champ: cle }, value: lireEnt(chemin), oninput: (e) => { ecrireEnt(chemin, e.target.value); majBouton(); } });
     return h('div', { class: 'bloc-champ', dataset: { reglage: cle } },
       h('label', { class: 'etiquette', for: `devis-${cle}` }, libelle, aide ? iconeInfo(aide, libelle) : null),
-      h('textarea', { class: 'champ', id: `devis-${cle}`, rows: lignes, maxlength: String(max), placeholder, autocomplete: 'off', dataset: { champ: cle }, value: lireEnt(chemin), oninput: (e) => ecrireEnt(chemin, e.target.value) }),
+      champ,
+      texteSous ? h('p', { class: 'aide', dataset: { zone: `aide-${cle}` } }, texteSous) : null,
+      bouton,
       h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: cle } }));
   };
   const listeMentions = h('ul', { class: 'aide', dataset: { zone: 'mentions-manquantes' } });
@@ -141,8 +152,9 @@ export function reglages(page) {
       zoneEnt(['coordonneesBancaires'], 'Coordonnées bancaires', { lignes: 3, max: LIMITE_COORDONNEES_BANCAIRES, placeholder: 'Banque\nIBAN\nBIC',
         aide: 'Trois lignes : le nom de la banque, l’IBAN, le BIC. Ce texte s’imprime sur le devis sous « Coordonnées bancaires ». Si ce texte est vide, seul un ancien IBAN déjà enregistré s’imprime.' }),
       h('h4', {}, 'Assurance'),
-      zoneEnt(['assuranceTexte'], 'Texte d’assurance', { lignes: 3, max: LIMITE_ASSURANCE_TEXTE, placeholder: ASSURANCE_DEFAUT,
-        aide: `Écris ton assurance telle qu’elle doit apparaître en bas du devis. Laissé vide, le devis imprime : « ${ASSURANCE_DEFAUT} ». Remplace les crochets par tes informations : tant qu’il en reste, une alerte « Mentions manquantes » reste affichée ici.` }),
+      zoneEnt(['assuranceTexte'], 'Texte d’assurance', { lignes: 3, max: LIMITE_ASSURANCE_TEXTE, placeholder: ASSURANCE_DEFAUT, modele: ASSURANCE_DEFAUT,
+        aide: 'Écris ton assurance telle qu’elle doit apparaître en bas du devis.',
+        texteSous: `Exemple à recopier et à compléter : « ${ASSURANCE_DEFAUT} » Remplace tout ce qui est entre crochets avec les informations de ton attestation d’assurance. Tant qu’il reste des crochets, le devis ne peut pas être finalisé.` }),
       h('h4', {}, 'Médiateur de la consommation'),
       champEnt(['mediateur', 'nom'], 'Nom du médiateur'),
       h('div', { class: 'ligne-champs' }, champEnt(['mediateur', 'email'], 'E-mail du médiateur'), champEnt(['mediateur', 'site'], 'Site du médiateur')),
