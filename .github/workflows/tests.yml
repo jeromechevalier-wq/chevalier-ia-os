@@ -7,6 +7,8 @@
 # En plus du rapide et du smoke, la PR rejoue SES propres parcours navigateur : les fichiers tests/e2e/*.spec.js qu'elle ajoute ou modifie (format ordinateur). Les fichiers de test unitaires modifiés tournent déjà dans le niveau rapide.
 # Le test complet (ordinateur + téléphone) rejoue tout chaque nuit : voir tests-nuit.yml (alerte par issue GitHub si la nuit est rouge).
 # (25/10/2026) Le palier complet est découpé en 7 jobs parallèles (6 parties des parcours navigateur + les séries sans navigateur) au lieu d'un seul job de 25 à 30 minutes ; le job final « Tests » les réunit. Le chemin rapide est inchangé (un seul job, mêmes étapes).
+# (31/10/2026) Voie « Docs » : une PR qui ne change QUE de la documentation (docs/, wiki/, README.md, CLAUDE.md, PROMPT-CONSTRUCTION.md, .github/A-FAIRE.md) ne lance plus le niveau rapide (navigateur, émulateurs) mais seulement les 7 fichiers de test qui lisent docs/ (npm run test:docs, environ 1 à 2 minutes). La décision est dans tests/niveau-de-test.js (testée hors réseau).
+# Le job final « Tests » écrit aussi, dans le résumé du lancement, la durée de chaque job et le total (mesure du temps d'attente).
 # Le résultat est la coche GitHub « Tests » (le dernier job, qui réunit les autres) : on fusionne quand elle est verte. Aucun secret : émulateurs Firebase, projet demo-chevalier-ia-os.
 name: Tests
 on:
@@ -35,6 +37,7 @@ jobs:
       complet: ${{ steps.niveau.outputs.complet }}
       plateforme: ${{ steps.niveau.outputs.plateforme }}
       specs: ${{ steps.niveau.outputs.specs }}
+      docs: ${{ steps.niveau.outputs.docs }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,41 +49,14 @@ jobs:
           COMPLET_DEMANDE: ${{ inputs.complet }}
           ETIQUETTES: ${{ join(github.event.pull_request.labels.*.name, ',') }}
           BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          complet=false
-          if [ "$EVENEMENT" = "workflow_dispatch" ]; then
-            [ "$COMPLET_DEMANDE" = "true" ] && complet=true
-            echo "Lancement à la main : complet=$complet"
-          else
-            case ",$ETIQUETTES," in *,tests-complets,*) complet=true; echo "Étiquette tests-complets : palier complet." ;; esac
-            # Fichiers sensibles : fonctions de la plateforme, règles de sécurité, configuration Firebase, workflows GitHub, outillage des tests (pas les fichiers de test eux-mêmes, ni la liste de tests de tests/package.json : ajouter un test à une liste ne doit pas déclencher les 10 minutes du palier complet).
-            sensibles=$(git diff --name-only "$BASE" HEAD | grep -E '^(firestore\.rules$|storage\.rules$|firebase[^/]*\.json$|\.github/workflows/|tests/(lancer-tout\.js|ports\.js|playwright\.config\.js|package-lock\.json|e2e/outils\.js|e2e/serveur\.js)$)' || true)
-            if [ -n "$sensibles" ]; then
-              complet=true
-              echo "Fichiers sensibles touchés : palier complet."
-              echo "$sensibles"
-            fi
-          fi
-          echo "complet=$complet" >> "$GITHUB_OUTPUT"
-          # Plateforme clients : une PR qui touche functions-plateforme/ rejoue en plus les séries de la plateforme et les 2 parcours qui l'utilisent (environ 6 minutes), au lieu du palier complet (plus de 25 minutes).
-          plateforme=""
-          if [ "$EVENEMENT" = "pull_request" ] && [ "$complet" != "true" ]; then
-            git diff --name-only "$BASE" HEAD | grep -qE '^functions-plateforme/' && plateforme=true || true
-          fi
-          echo "plateforme=$plateforme" >> "$GITHUB_OUTPUT"
-          # Parcours navigateur ajoutés ou modifiés par la PR (chemins relatifs au dossier tests/, séparés par des espaces).
-          specs=""
-          if [ "$EVENEMENT" = "pull_request" ]; then
-            specs=$(git diff --name-only --diff-filter=AM "$BASE" HEAD | grep -E '^tests/e2e/[A-Za-z0-9._-]+\.spec\.js$' | sed 's#^tests/##' | tr '\n' ' ' || true)
-          fi
-          echo "specs=$specs" >> "$GITHUB_OUTPUT"
-          echo "Parcours de la PR : ${specs:-aucun}"
+        # Règles (fichiers sensibles, étiquette « tests-complets », plateforme, parcours de la PR, docs seules) : tests/niveau-de-test.js.
+        run: node tests/niveau-de-test.js
 
   # Chemin rapide (PR ordinaires) : un seul job, mêmes étapes qu'avant.
   rapide:
     name: Rapide
     needs: niveau
-    if: needs.niveau.outputs.complet != 'true'
+    if: needs.niveau.outputs.complet != 'true' && needs.niveau.outputs.docs != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -159,6 +135,39 @@ jobs:
           retention-days: 7
           include-hidden-files: true
           if-no-files-found: ignore
+
+  # Voie « Docs » : PR qui ne change que de la documentation. Pas de navigateur, pas d'émulateur, pas de Java : seulement les tests qui lisent docs/ (environ 1 à 2 minutes).
+  docs:
+    name: Docs
+    needs: niveau
+    if: needs.niveau.outputs.docs == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      TZ: Europe/Paris
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            tests/package-lock.json
+            functions/package-lock.json
+            functions-plateforme/package-lock.json
+            scripts/plateforme/package-lock.json
+      - name: Installer les dépendances (versions figées par package-lock.json)
+        run: |
+          npm ci --prefix tests
+          npm ci --prefix functions
+          npm ci --prefix functions-plateforme
+      # Si wiki/ n'est pas régénéré après un changement de docs/, ce job est rouge (message du test W6 : node scripts/wiki/construire.js).
+      - name: Tests qui lisent docs/ (statique, wiki, automatisations, devis par e-mail, menu, déploiement plateforme)
+        run: npm run test:docs
+        working-directory: tests
 
   # Palier complet, partie navigateur : les parcours format ordinateur, en 6 parties (Playwright --shard). Chaque partie a ses émulateurs et ses ports sur sa propre machine ; TESTS_DECALAGE sert à les distinguer (jamais 2 ni 7).
   complet-navigateur:
@@ -315,29 +324,56 @@ jobs:
 
   # La coche obligatoire de la protection de branche. Elle tourne toujours (always) et vérifie le résultat de chaque job :
   # - le niveau doit avoir réussi ;
-  # - niveau « rapide » : le job Rapide doit avoir réussi, et les jobs du complet doivent avoir été sautés ;
-  # - niveau « complet » : les 6 parties navigateur ET le job sans navigateur doivent avoir réussi, et Rapide doit avoir été sauté.
+  # - niveau « docs » : le job Docs doit avoir réussi, et Rapide et les jobs du complet doivent avoir été sautés ;
+  # - niveau « rapide » : le job Rapide doit avoir réussi, et Docs et les jobs du complet doivent avoir été sautés ;
+  # - niveau « complet » : les 6 parties navigateur ET le job sans navigateur doivent avoir réussi, et Rapide et Docs doivent avoir été sautés.
   # Un job échoué, annulé ou sauté à tort => échec. Ne jamais renommer ce job (le nom « Tests » est celui que GitHub exige).
   final:
     name: Tests
-    needs: [niveau, rapide, complet-navigateur, complet-sans-navigateur]
+    needs: [niveau, rapide, docs, complet-navigateur, complet-sans-navigateur]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      actions: read
     steps:
       - name: Réunir les résultats
         env:
           NIVEAU: ${{ needs.niveau.result }}
           COMPLET: ${{ needs.niveau.outputs.complet }}
+          DOCS_NIVEAU: ${{ needs.niveau.outputs.docs }}
           RAPIDE: ${{ needs.rapide.result }}
+          DOCS: ${{ needs.docs.result }}
           NAVIGATEUR: ${{ needs.complet-navigateur.result }}
           SANS_NAVIGATEUR: ${{ needs.complet-sans-navigateur.result }}
         run: |
-          echo "niveau=$NIVEAU complet=$COMPLET | rapide=$RAPIDE navigateur=$NAVIGATEUR sans-navigateur=$SANS_NAVIGATEUR"
+          echo "niveau=$NIVEAU complet=$COMPLET docs=$DOCS_NIVEAU | rapide=$RAPIDE docs=$DOCS navigateur=$NAVIGATEUR sans-navigateur=$SANS_NAVIGATEUR"
           if [ "$NIVEAU" != "success" ]; then echo "Le choix du niveau n'a pas réussi : ÉCHEC."; exit 1; fi
           if [ "$COMPLET" = "true" ]; then
-            [ "$NAVIGATEUR" = "success" ] && [ "$SANS_NAVIGATEUR" = "success" ] && [ "$RAPIDE" = "skipped" ] || { echo "Palier complet : une partie a échoué, a été annulée ou n'a pas tourné : ÉCHEC."; exit 1; }
+            [ "$NAVIGATEUR" = "success" ] && [ "$SANS_NAVIGATEUR" = "success" ] && [ "$RAPIDE" = "skipped" ] && [ "$DOCS" = "skipped" ] || { echo "Palier complet : une partie a échoué, a été annulée ou n'a pas tourné : ÉCHEC."; exit 1; }
+          elif [ "$DOCS_NIVEAU" = "true" ]; then
+            [ "$DOCS" = "success" ] && [ "$RAPIDE" = "skipped" ] && [ "$NAVIGATEUR" = "skipped" ] && [ "$SANS_NAVIGATEUR" = "skipped" ] || { echo "Niveau docs : le job Docs a échoué, a été annulé ou n'a pas tourné : ÉCHEC."; exit 1; }
           else
-            [ "$RAPIDE" = "success" ] && [ "$NAVIGATEUR" = "skipped" ] && [ "$SANS_NAVIGATEUR" = "skipped" ] || { echo "Niveau rapide : le job Rapide a échoué, a été annulé ou n'a pas tourné : ÉCHEC."; exit 1; }
+            [ "$RAPIDE" = "success" ] && [ "$DOCS" = "skipped" ] && [ "$NAVIGATEUR" = "skipped" ] && [ "$SANS_NAVIGATEUR" = "skipped" ] || { echo "Niveau rapide : le job Rapide a échoué, a été annulé ou n'a pas tourné : ÉCHEC."; exit 1; }
           fi
           echo "Tout est vert."
+      # Mesure du temps d'attente : durée de chaque job du lancement. Ne fait jamais échouer « Tests » (si l'API ne répond pas, un message suffit).
+      - name: Mesurer le temps d'attente (résumé du lancement)
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NIVEAU_TEXTE: ${{ needs.niveau.outputs.complet == 'true' && 'complet' || (needs.niveau.outputs.docs == 'true' && 'docs' || 'rapide') }}
+        run: |
+          {
+            echo "### Temps d'attente — niveau : $NIVEAU_TEXTE"
+            if timeout 60 gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100" > "$RUNNER_TEMP/jobs.json"; then
+              echo
+              echo "| job | durée |"
+              echo "|---|---|"
+              jq -r '[.jobs[] | select(.conclusion != "skipped" and .started_at != null and .completed_at != null) | {n: .name, s: (((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601)))}] | (.[] | "| \(.n) | \(.s / 60 | floor) min \(.s % 60) s |"), "| **Total des jobs (temps machine)** | **\(([.[].s] | add // 0) / 60 | floor) min \(([.[].s] | add // 0) % 60) s** |"' "$RUNNER_TEMP/jobs.json"
+            else
+              echo "Mesure impossible (l'API des jobs n'a pas répondu) : sans effet sur la coche."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY" || echo "Mesure impossible : sans effet sur la coche."
