@@ -209,7 +209,7 @@ test('C5b.10 l’export CSV met les articles d’un mot à plusieurs articles da
   await motMultiple();
   await ouvrir(page);
   await page.locator('[data-action="menu-vocabulaire"]').click();
-  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter le vocabulaire (CSV)').click()]);
+  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter ce que l’IA a appris (CSV)').click()]);
   const texte = (await readFile(await telechargement.path())).toString('utf8');
   expect(texte).toContain('prise,Prise simple 16 A / Prise double 16 A / Prise étanche 16 A,,Actif,Ajouté ici'); // colonne « Famille » (C6b) vide ici
 });
