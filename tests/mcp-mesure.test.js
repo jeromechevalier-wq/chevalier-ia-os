@@ -85,6 +85,14 @@ describe('3 et 4 : durées et lectures d\'un appel d\'outil', () => {
     assert.ok(liste && !('dureeOutilMs' in liste) && !('lectures' in liste));
     assert.ok(Number.isInteger(liste.dureeAuthMs));
   });
+  test('3 bis une erreur d\'outil garde dureeOutilMs et lectures', async () => {
+    const c = await connecter();
+    lignes.length = 0;
+    await c.callTool({ name: 'lire_personne', arguments: { id: 'inexistant' } }).catch(() => {});
+    await c.close();
+    const appel = lignes.find((l) => l.outil === 'lire_personne');
+    assert.ok(Number.isInteger(appel.dureeOutilMs) && Number.isInteger(appel.lectures));
+  });
   test('4 lectures compte exactement les lectures de base de lire_personne (mesuré par un espion indépendant)', async () => {
     const c = await connecter();
     lignes.length = 0;
@@ -116,19 +124,25 @@ describe('5 à 7 : liste blanche, résumeur, champs numériques', () => {
     journaliser({ outil: 'x', froid: true, demarrageMs: 12, dureeAuthMs: 3, dureeOutilMs: 4, lectures: 2, dureeMs: 9, statut: 200, email: 'secret@exemple.test', arguments: { a: 1 } }, (l) => sorties.push(JSON.parse(l)));
     assert.deepEqual(Object.keys(sorties[0]).sort(), ['dureeAuthMs', 'dureeMs', 'dureeOutilMs', 'demarrageMs', 'froid', 'lectures', 'message', 'outil', 'severity', 'statut'].sort());
   });
+  test('5 bis un champ de mesure qui n\'est pas un nombre ou un booléen est écarté, jamais écrit', () => {
+    const sorties = [];
+    journaliser({ outil: 'x', lectures: 'texte-fuite', froid: 'oui', dureeOutilMs: NaN, dureeAuthMs: 3 }, (l) => sorties.push(JSON.parse(l)));
+    assert.deepEqual(Object.keys(sorties[0]).sort(), ['dureeAuthMs', 'message', 'outil', 'severity']);
+  });
   test('6 résumer : n, médiane, p90, lectures moyennes et part de froid justes ; vide sans erreur ; ligne sans outil ignorée', () => {
     const r = resumer([
       { outil: 'a', dureeMs: 100, dureeOutilMs: 40, lectures: 2, dureeAuthMs: 10, froid: true },
       { outil: 'a', dureeMs: 200, dureeOutilMs: 60, lectures: 4, dureeAuthMs: 20 },
       { jsonPayload: { outil: 'b', dureeMs: 50, dureeOutilMs: 5, lectures: 1, dureeAuthMs: 30 } },
-      { methodeMcp: 'tools/list', dureeMs: 7 },
+      { methodeMcp: 'tools/list', dureeMs: 700, froid: true, demarrageMs: 900 },
     ]);
     const a = r.parOutil.find((o) => o.outil === 'a');
     assert.deepEqual([a.n, a.medianeMs, a.p90Ms, a.medianeOutilMs, a.lecturesMoyennes, a.partFroid], [2, 100, 200, 40, 3, 0.5]);
     assert.equal(r.parOutil.length, 2);
     assert.equal(r.medianeAuthMs, 20);
+    assert.deepEqual(r.froid, { n: 2, medianeDemarrageMs: 900, medianeDureeMs: 100 }, 'le froid se compte sur toutes les lignes, même sans outil');
     assert.match(formater(r), /^outil\s+n\s+med total/);
-    assert.deepEqual(resumer([]), { parOutil: [], medianeAuthMs: null });
+    assert.deepEqual(resumer([]), { parOutil: [], medianeAuthMs: null, froid: { n: 0, medianeDemarrageMs: null, medianeDureeMs: null } });
     assert.doesNotThrow(() => formater(resumer([])));
   });
   test('7 les champs ajoutés à la liste blanche sont tous numériques ou booléens (jamais une chaîne)', () => {

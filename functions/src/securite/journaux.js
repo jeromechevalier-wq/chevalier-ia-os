@@ -9,6 +9,7 @@ export function journaliser(entree, sortie = (ligne) => process.stdout.write(`${
   for (const c of CHAMPS) {
     const v = entree[c];
     if (v === undefined || v === null) continue;
+    if (c in CHAMPS_MESURE && (typeof v !== CHAMPS_MESURE[c] || (typeof v === 'number' && !Number.isFinite(v)))) continue; // mesure : jamais une chaîne
     ligne[c] = typeof v === 'string' ? v.slice(0, 80) : v;
   }
   sortie(JSON.stringify(ligne));
