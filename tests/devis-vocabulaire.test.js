@@ -895,6 +895,10 @@ describe('K21 usage : départage seulement', () => {
       assert.deepEqual(b.candidats.map((c) => [c.articleId, c.score]).sort(), a.candidats.map((c) => [c.articleId, c.score]).sort(), phrase);
     }
   });
+  test('K21 `usages` accepte aussi une Map articleId -> nombre (la forme que garde l’écran du catalogue)', () => {
+    const r = V.interpreter('prise', { articles: deux, reglages: REGLAGES, usages: new Map([['p3', 7], ['p2', 2]]) });
+    assert.deepEqual(r.candidats.map((c) => c.articleId), ['p3', 'p2', 'p1']);
+  });
   test('K21 un score plus haut l’emporte toujours sur l’usage', () => {
     const catalogue = [art('x1', 'Prise', 2), art('x2', 'Prise étanche renforcée', 2)];
     const r = V.interpreter('prise', { articles: catalogue, reglages: REGLAGES, usages: new Map([['x2', { nombre: 99 }]]) });
