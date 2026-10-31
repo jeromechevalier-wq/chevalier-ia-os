@@ -82,7 +82,7 @@ async function ouvrirHistorique(page) {
   await expect(historique(page)).toBeVisible();
 }
 
-test('1 pas branché : le menu « Envoyer » garde « Préparer l’e-mail », grisée et avec la raison « pas encore branchée » (aussi quand la fonction n’existe pas encore) ; aucune autre entrée e-mail', async ({ page }, info) => {
+test('1 pas branché : le menu « Envoyer » garde « Préparer l’e-mail » en tête, grisée et avec la raison « pas encore branchée » (aussi quand la fonction n’existe pas encore) ; aucune autre entrée e-mail', async ({ page }, info) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'la fonction peut répondre « introuvable » quand rien n’est déployé' });
   for (const branche of [false, 'absente']) {
     await semer('dPas');
@@ -90,7 +90,7 @@ test('1 pas branché : le menu « Envoyer » garde « Préparer l’e-mail », g
     await ouvrirEditeur(page, 'dPas');
     await ouvrirMenuEnvoyer(page);
     await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer par e-mail' })).toHaveCount(0);
-    await expect(page.locator('.menu-pop [role="menuitem"]')).toHaveCount(1);
+    await expect(page.locator('.menu-pop [role="menuitem"]')).toHaveText([/Préparer l’e-mail/, /Télécharger le PDF/, /Imprimer/]);
     await expect.poll(async () => entree(page).isDisabled(), { message: 'grisée dès que le serveur a répondu « pas branché »' }).toBe(true);
     await expect(entree(page)).toHaveAttribute('title', /pas encore branchée/);
     await expect(page.locator('.menu-pop [data-zone="menu-texte"]')).toBeVisible(); // la phrase est AFFICHÉE sous l'entrée (téléphone compris : pas d'infobulle au doigt)
@@ -102,13 +102,13 @@ test('1 pas branché : le menu « Envoyer » garde « Préparer l’e-mail », g
   }
 });
 
-test('2 branché : « Préparer l’e-mail » est active et seule dans le menu « Envoyer » (PDF et impression sont dans « … ») ; un clic ouvre la confirmation courte ; « Annuler » ne demande rien', async ({ page }, info) => {
+test('2 branché : « Préparer l’e-mail » est active et en tête du menu « Envoyer » (suivie de « Télécharger le PDF » et « Imprimer ») ; un clic ouvre la confirmation courte ; « Annuler » ne demande rien', async ({ page }, info) => {
   await semer('dOui');
   const serveur = await simulerServeur(page, { branche: true });
   await ouvrirEditeur(page, 'dOui');
   await ouvrirMenuEnvoyer(page);
   const noms = await page.locator('.menu-pop [role="menuitem"]').allTextContents();
-  expect(noms.map((n) => n.trim()), 'le menu Envoyer ne propose que « Préparer l’e-mail »').toEqual(['Préparer l’e-mail']);
+  expect(noms.map((n) => n.trim()), 'le menu Envoyer : « Préparer l’e-mail » en tête, puis PDF et impression').toEqual(['Préparer l’e-mail', 'Télécharger le PDF', 'Imprimer']);
   await expect(entree(page)).toBeEnabled();
   if (estTelephone(page)) expect((await entree(page).boundingBox()).height).toBeGreaterThanOrEqual(44);
   await capturer(page, info, '2-menu');

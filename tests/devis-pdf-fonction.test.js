@@ -401,6 +401,36 @@ describe('R fichiers déposés : dépôt, lien, suppression (faux Cloud Storage,
     assert.equal(recus[1].responseType, 'application/pdf');
   });
 
+  test('R9 accents : 1 .txt UTF-8 -> encodage utf-8 et text/plain; charset=utf-8 ; 2 .csv Windows-1252 -> windows-1252 ; 3 lien avec charset de la fiche (sans champ : utf-8) ; 4 PDF inchangé ; 6 encodageTexte', async () => {
+    const m = mondeDocs();
+    const txt = await depot(m, { nom: 'note.txt', contenuBase64: b64(Buffer.from('dépôt é\n', 'utf8')), typeMime: 'text/plain' });
+    const f1 = m.collections[C.documentsStockes].find((f) => f.id === txt.id);
+    assert.equal(f1.encodage, 'utf-8');
+    assert.equal(m.objets.get(f1.chemin).type, 'text/plain; charset=utf-8');
+    const csv = await depot(m, { nom: 'excel.csv', contenuBase64: b64(Buffer.from('nom;prénom\n', 'latin1')), typeMime: 'text/csv' });
+    const f2 = m.collections[C.documentsStockes].find((f) => f.id === csv.id);
+    assert.equal(f2.encodage, 'windows-1252');
+    assert.equal(m.objets.get(f2.chemin).type, 'text/csv; charset=windows-1252');
+    await m.a('lien')(requete({ documentId: csv.id }));
+    assert.equal(m.signes.at(-1).typeMime, 'text/csv; charset=windows-1252');
+    await m.a('lien')(requete({ documentId: txt.id }));
+    assert.equal(m.signes.at(-1).typeMime, 'text/plain; charset=utf-8');
+    delete f1.encodage; // fiche ancienne
+    await m.a('lien')(requete({ documentId: txt.id }));
+    assert.equal(m.signes.at(-1).typeMime, 'text/plain; charset=utf-8');
+    const pdf = await depot(m, {});
+    const fp = m.collections[C.documentsStockes].find((f) => f.id === pdf.id);
+    assert.equal(fp.encodage, undefined);
+    assert.equal(m.objets.get(fp.chemin).type, 'application/pdf');
+    await m.a('lien')(requete({ documentId: pdf.id }));
+    assert.equal(m.signes.at(-1).typeMime, 'application/pdf');
+    const { encodageTexte } = await import('../js/modules/crm/fichiers-regles.js');
+    assert.equal(encodageTexte(Buffer.from('é', 'utf8')), 'utf-8');
+    assert.equal(encodageTexte(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('é')])), 'utf-8');
+    assert.equal(encodageTexte(Buffer.from('abc')), 'utf-8');
+    assert.equal(encodageTexte(Buffer.from([0xe9])), 'windows-1252');
+  });
+
   test('R5 suppression : corbeille logique (le fichier ne bouge pas), journal, plus de lien ; restaurer remet la fiche', async () => {
     const m = mondeDocs();
     const r = await depot(m, {});
