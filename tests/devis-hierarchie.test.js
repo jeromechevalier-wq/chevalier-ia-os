@@ -110,8 +110,8 @@ describe('N5 ancien devis sans sous-section : rien ne change', () => {
     return r.devis;
   }
   const html = () => devisHtml(D.vueClient(devisAncien(), { clientNom: 'Mme Dupont' }), { brouillon: false });
-  // Empreinte du HTML produit AVANT cette évolution par le même devis (calculée avec le code de `main` du 24/10/2026).
-  const EMPREINTE_AVANT = '1f8bdc7da0af4f61dcb5964f1e9ffc725ce962ee56eded312a82e27e482f4860';
+  // Empreinte du HTML produit AVANT cette évolution par le même devis (calculée avec le code de `main` du 24/10/2026 ; mise à jour le 31/10/2026 : plus d'attestation de TVA codée en dur, l'assurance par défaut s'imprime toujours ; seule cette différence a été vérifiée).
+  const EMPREINTE_AVANT = 'a9f28feaeb17132eb8f0ff0eaaa8ae77f2d7ebdfd86d3e5b8a58ff63b95d7e7d';
   test('N5 le document d’un devis sans sous-section est identique, octet pour octet, à celui d’avant', () => {
     assert.equal(createHash('sha256').update(html()).digest('hex'), EMPREINTE_AVANT);
   });
