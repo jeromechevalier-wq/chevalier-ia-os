@@ -258,7 +258,7 @@ test('8 sans nom ni client, la liste ne propose de créer qu’un nom tapé ; fi
   const avant = (await listerDocuments('crm_affaires')).length;
   await finaliser(page);
   // Sans affaire ET sans client : deux choses manquent, la fenêtre les liste (une seule chose manquante, l'affaire : pas de fenêtre, voir les tests 5 et 6).
-  await expect(dialogue(page).locator('li')).toHaveText(['Choisis l’affaire de ce devis.', 'Choisis le client de ce devis.']);
+  await expect(dialogue(page).locator('li')).toHaveText(['Choisis l\'affaire de ce devis.', 'Choisis le client de ce devis.']);
   await dialogue(page).getByRole('button', { name: 'Compris' }).click();
   await expect(page.locator('[data-erreur="affaire"]')).toHaveText(MESSAGE_FINALISER);
   await expect(champAffaire(page)).toBeFocused();
