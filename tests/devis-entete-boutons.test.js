@@ -105,8 +105,8 @@ describe('3 le menu « … » ne répète jamais un bouton visible', () => {
   };
   test('3 la fonction suit les boutons : chaque bouton visible retire son entrée ; aucun bouton = rien de retiré', () => {
     assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'finaliser' }, autre: { cle: 'envoyer', grise: true } }), ['statut:finaliser']); // « Envoyer » grisé ne masque rien
-    assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'finaliser' }, autre: { cle: 'envoyer', grise: false } }), ['statut:finaliser', 'preparer_email', 'preparer-email']);
-    assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'envoyer' }, autre: { cle: 'passer-envoye' } }), ['preparer_email', 'preparer-email', 'statut:marquer_envoye']);
+    assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'finaliser' }, autre: { cle: 'envoyer', grise: false } }), ['statut:finaliser', 'preparer_email', 'preparer-email', 'telecharger', 'imprimer']);
+    assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'envoyer' }, autre: { cle: 'passer-envoye' } }), ['preparer_email', 'preparer-email', 'telecharger', 'imprimer', 'statut:marquer_envoye']);
     assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'signer' }, autre: { cle: 'refuser' } }), ['statut:accepter', 'statut:refuser']);
     assert.deepEqual(clesMenuDejaVisibles({}), []);
     assert.deepEqual(clesMenuDejaVisibles(), []);
@@ -119,7 +119,7 @@ describe('3 le menu « … » ne répète jamais un bouton visible', () => {
   });
   test('3 finalisé : ni « Devis envoyé » (marquer_envoye) ni « Préparer l’e-mail » (le menu « Envoyer » l’a) ; « Créer une nouvelle version » reste', () => {
     const m = menuEditeur('en_attente_envoi');
-    for (const cle of ['statut:marquer_envoye', 'preparer_email', 'preparer-email']) assert.ok(!m.includes(cle), cle);
+    for (const cle of ['statut:marquer_envoye', 'preparer_email', 'preparer-email', 'telecharger', 'imprimer']) assert.ok(!m.includes(cle), cle);
     for (const cle of ['voir', 'nouvelle_version', 'dupliquer', 'archiver']) assert.ok(m.includes(cle), cle);
   });
   test('3 envoyé : ni « Signé » ni « Refusé » dans « … » ; « Préparer l’e-mail » reste (aucun bouton « Envoyer » visible)', () => {

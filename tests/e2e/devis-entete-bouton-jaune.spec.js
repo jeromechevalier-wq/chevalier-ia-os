@@ -93,7 +93,7 @@ test('1 (brouillon ouvert par « Voir le devis ») la règle est la même : « F
   await expect(racine(page).locator('[data-action="envoyer"]')).toHaveAttribute('aria-disabled', 'true');
 });
 
-test('2 finalisé : pas de bouton « Finaliser » ; « Envoyer » est jaune et ouvre un menu qui ne propose que l’e-mail ; « Télécharger le PDF » et « Imprimer » sont dans « … »', async ({ page }, info) => {
+test('2 finalisé : pas de bouton « Finaliser » ; « Envoyer » est jaune et ouvre un menu à trois entrées (« Préparer l’e-mail », « Télécharger le PDF », « Imprimer ») ; ils ne sont plus dans « … »', async ({ page }, info) => {
   await donnees();
   await ouvrir(page, 'devis/voir/dFinalise');
   await expect(racine(page).locator('[data-action="finaliser"]')).toHaveCount(0);
@@ -101,13 +101,11 @@ test('2 finalisé : pas de bouton « Finaliser » ; « Envoyer » est jaune et o
   await expect(jaunes(page)).toHaveAttribute('data-action', 'envoyer');
   await expect(racine(page).locator('[data-action="passer-envoye"]')).toHaveClass(/bouton-secondaire/); // reste visible, en contour
   await jaunes(page).click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText([/Préparer l’e-mail/]);
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Télécharger le PDF' })).toHaveCount(0);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText([/Préparer l’e-mail/, /Télécharger le PDF/, /Imprimer/]);
   await capturer(page, info, '2-finalise-envoyer-jaune');
   await page.keyboard.press('Escape');
   const menu = await menuPlus(page);
-  await expect(menu.getByRole('menuitem', { name: 'Télécharger le PDF' })).toBeEnabled();
-  await expect(menu.getByRole('menuitem', { name: 'Imprimer' })).toBeEnabled();
+  for (const nom of ['Télécharger le PDF', 'Imprimer', 'Ouvrir le PDF']) await expect(menu.getByRole('menuitem', { name: nom })).toHaveCount(0);
   await expect(menu.getByRole('menuitem', { name: 'Préparer l’e-mail' })).toHaveCount(0); // 26/10/2026 : « Envoyer » (jaune) est visible, le « … » ne le répète pas
   await page.keyboard.press('Escape');
 });
@@ -210,4 +208,41 @@ test('6 cas vide : un devis introuvable ne montre aucun bouton ; cas d’erreur 
   await expect(page.getByText('Ce devis est introuvable')).toBeVisible();
   await expect(page.locator('.page-editeur-devis [data-action="finaliser"], .page-editeur-devis [data-action="envoyer"], .page-editeur-devis .bouton-principal')).toHaveCount(0);
   await capturer(page, info, '6-introuvable', true);
+});
+
+// ---- Menus simplifiés (31/10/2026) : « Envoyer » = Préparer l'e-mail, Télécharger le PDF, Imprimer ; « … » ne les répète plus ; « Ouvrir le PDF » n'existe plus dans l'éditeur.
+test('9 finalisé : le menu « Envoyer » a trois entrées, dans l’ordre « Préparer l’e-mail », « Télécharger le PDF », « Imprimer » (actives)', async ({ page }, info) => {
+  await donnees();
+  await ouvrir(page, 'devis/voir/dFinalise');
+  await racine(page).locator('[data-action="envoyer"]').click();
+  const entrees = page.locator('.menu-pop').getByRole('menuitem');
+  await expect(entrees).toHaveText([/Préparer l’e-mail/, /Télécharger le PDF/, /Imprimer/]);
+  await expect(entrees.nth(1)).toBeEnabled();
+  await expect(entrees.nth(2)).toBeEnabled();
+  await capturer(page, info, '9-menu-envoyer-trois-entrees', true);
+  await page.keyboard.press('Escape');
+});
+
+test('10 finalisé : le menu « … » n’a ni « Ouvrir le PDF », ni « Télécharger le PDF », ni « Imprimer » ; le reste (Dupliquer, Archiver, nouvelle version…) est inchangé', async ({ page }, info) => {
+  await donnees();
+  await ouvrir(page, 'devis/voir/dFinalise');
+  const menu = await menuPlus(page);
+  for (const nom of ['Ouvrir le PDF', 'Télécharger le PDF', 'Imprimer']) await expect(menu.getByRole('menuitem', { name: nom })).toHaveCount(0);
+  for (const nom of ['Créer une nouvelle version', 'Dupliquer', 'Archiver']) await expect(menu.getByRole('menuitem', { name: nom, exact: true })).toBeVisible();
+  await capturer(page, info, '10-menu-plus-sans-pdf', true);
+  await page.keyboard.press('Escape');
+});
+
+test('11 « Envoyer » grisé (brouillon) ou absent (envoyé, signé…) : « Télécharger le PDF » et « Imprimer » restent dans « … », « Ouvrir le PDF » n’existe nulle part', async ({ page }, info) => {
+  await donnees();
+  for (const id of ['dBrouillon', 'dEnvoye', 'dSigne', 'dRefuse', 'dRemplace', 'dArchive']) {
+    if (id === 'dBrouillon') await ouvrir(page, `devis/voir/${id}`);
+    else { await page.evaluate((h) => { location.hash = h; }, `#/devis/voir/${id}`); await expect(page.locator(`.page-editeur-devis[data-devis="${id}"]`)).toBeVisible(); await attendreCalme(page); }
+    const menu = await menuPlus(page);
+    await expect(menu.getByRole('menuitem', { name: 'Télécharger le PDF' }), id).toBeEnabled();
+    await expect(menu.getByRole('menuitem', { name: 'Imprimer' }), id).toBeEnabled();
+    await expect(menu.getByRole('menuitem', { name: 'Ouvrir le PDF' }), id).toHaveCount(0);
+    if (id === 'dBrouillon') await capturer(page, info, '11-menu-plus-brouillon-pdf', true);
+    await page.keyboard.press('Escape');
+  }
 });
