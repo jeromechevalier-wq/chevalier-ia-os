@@ -142,3 +142,20 @@ describe('K6f les familles par défaut et les familles absentes', () => {
     assert.doesNotMatch(r.question, /«/);
   });
 });
+
+describe('K4g K2g marqueur mort parmi d’autres, article choisi à côté d’une famille', () => {
+  test('K4g un marqueur MORT (famille vide) n’efface pas le contexte de l’autre : « prise » (vivante) + « etanche » (famille vide) trouve quand même la prise étanche dans « Prises »', () => {
+    const r = chercher('prise etanche', [PRISE, motFamille('etanche', ['f-vide'])]);
+    assert.deepEqual(r.candidats.filter((c) => c.pourquoi.startsWith('contexte')).map((c) => c.articleId), ['p3']);
+    assert.equal(r.candidats[0].pourquoi, 'contexte_unique');
+    assert.deepEqual(r.portee.marqueurs, ['prise']);
+  });
+  test('K2g un mot qui désigne deux familles ET un article choisi un à un : pas de question de famille (l’article reste proposable) ; la question habituelle propose l’article (0,70) puis les articles des familles (0,60)', () => {
+    const regle = { ...motFamille('tableau', ['f-tab-elec', 'f-tab-com']), cibles: [{ genre: 'famille', id: 'f-tab-elec', libelle: '' }, { genre: 'famille', id: 'f-tab-com', libelle: '' }, { genre: 'article', id: 'p1', libelle: '' }] };
+    const r = chercher('tableau', [regle], [PRISES[0], AUTRES[1], AUTRES[3]]); // 3 articles : un choisi, un par famille
+    assert.equal(r.etape, 'article');
+    assert.equal(r.candidats[0].articleId, 'p1');
+    assert.equal(r.candidats[0].score, 0.7);
+    assert.match(r.question, /Prise simple 16 A/);
+  });
+});

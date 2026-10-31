@@ -767,7 +767,7 @@ describe('K9 K10 K11 un mot qui désigne plusieurs articles : la réponse ne l�
     for (const reponse of ['confirme', 'autre']) {
       const r = ok(await repondre(s, 'prise', reponse, ids.double));
       assert.equal(r.rien, true);
-      assert.match(r.message, /plusieurs articles au choix/);
+      assert.match(r.message, /plusieurs articles ou une famille/);
     }
     assert.equal(ok(await repondre(s, 'prise', 'aucun')).rien, true);
     assert.equal(instantane(s), avant, 'ni compteur, ni suggestion, ni ligne de journal');
@@ -782,7 +782,7 @@ describe('K9 K10 K11 un mot qui désigne plusieurs articles : la réponse ne l�
     const avant = instantane(s);
     const r = ok(await repondre(s, 'fixation', 'confirme', ids[7]));
     assert.equal(r.rien, true);
-    assert.match(r.message, /plusieurs articles au choix/);
+    assert.match(r.message, /plusieurs articles ou une famille/);
     assert.equal(instantane(s), avant);
     // un mot sans article ET sans cibles (état entre deux écrans) n'est pas réorienté non plus
     s.collections.devis_vocabulaire.push({ ...regleVocabulaire('cheville', ''), articleId: '' });
@@ -844,7 +844,7 @@ describe('K9 K10 K11 un mot qui désigne plusieurs articles : la réponse ne l�
     assert.match(tableau.question, /^Tu parles de « .*Tableaux électriques » ou de « .*Tableaux de communication » \?$/);
     const avant = JSON.stringify(s.collections.devis_vocabulaire);
     // La phrase de la question de famille a la clé du mot : la garde « plusieurs articles au choix » répond d'abord (rien n'est écrit, pas une erreur).
-    for (const reponse of ['confirme', 'autre', 'aucun']) assert.match(ok(await repondre(s, 'un tableau', reponse, reponse === 'aucun' ? undefined : ids.te)).message, /plusieurs articles au choix|aucune règle apprise/);
+    for (const reponse of ['confirme', 'autre', 'aucun']) assert.match(ok(await repondre(s, 'un tableau', reponse, reponse === 'aucun' ? undefined : ids.te)).message, /plusieurs articles ou une famille|aucune règle apprise/);
     assert.equal(JSON.stringify(s.collections.devis_vocabulaire), avant, 'rien n’est écrit');
     const suite = ok(await chercherPhrase(s, 'tableau électrique'));
     assert.equal(suite.etape, 'article');

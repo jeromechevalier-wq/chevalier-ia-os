@@ -735,7 +735,7 @@ export async function enregistrerReponseVocabulaire(c, args) {
   // Cette garde passe AVANT le refus « n'aurait pas été proposé » (un mot à 6 à 8 articles au choix dépasse les 5 candidats) : le message serait faux.
   const motACibles = regles.find((x) => x.id === regleId);
   if (motACibles && (DV.ciblesDe(motACibles).length !== 1 || DV.ciblesDe(motACibles)[0].genre !== 'article')) {
-    return { operationId: null, rien: true, regleId, message: 'Ce mot a plusieurs articles au choix : rien n’est appris (il se règle à l’écran, jamais par une réponse).' };
+    return { operationId: null, rien: true, regleId, message: 'Ce mot désigne plusieurs articles ou une famille : rien n’est appris (il se règle à l’écran, jamais par une réponse).' };
   }
   if (reponse === 'aucun') return { operationId: null, rien: true, message: 'Noté : aucune règle apprise (rien ne convenait). Rien n’a été écrit.' };
   if (!articleId) refuser('saisie_invalide', `articleId est obligatoire pour la réponse « ${reponse} ».`);

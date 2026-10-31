@@ -309,11 +309,6 @@ export async function chercherArticle(donnees, { texte, limite }) {
   return serialiser({ total, tronque, articles: DA.avecCalculOuvrage(elements, toutes, reglages).map((a) => avecTypeAffiche(a, mot)) });
 }
 
-/**
- * Les mots de l'utilisateur -> l'article du bordereau (moteur partagé `interpreter`, le même chez Jérôme et chez les clients).
- * Règles lues dans `devis_vocabulaire` de l'espace (absente ou vide = décisions fondées sur le catalogue seul). Jamais de prix d'achat ni de marge dans la sortie.
- * `limite` tronque les candidats APRÈS la décision (sinon la décision changerait avec `limite`), sans descendre sous les articles cités par la question.
- */
 /** Les familles de l'espace pour le dictionnaire (document absent ou illisible = les familles de départ) : un document de plus, lu en parallèle des autres. */
 export async function famillesLues(donnees) {
   let brut = null;
@@ -321,6 +316,11 @@ export async function famillesLues(donnees) {
   return DF.famillesDe(brut);
 }
 
+/**
+ * Les mots de l'utilisateur -> l'article du bordereau (moteur partagé `interpreter`, le même chez Jérôme et chez les clients).
+ * Règles lues dans `devis_vocabulaire` de l'espace (absente ou vide = décisions fondées sur le catalogue seul). Jamais de prix d'achat ni de marge dans la sortie.
+ * `limite` tronque les candidats APRÈS la décision (sinon la décision changerait avec `limite`), sans descendre sous les articles cités par la question.
+ */
 export async function rechercherArticleParPhrase(donnees, { phrase, limite }) {
   const [articles, regles, reglages, usages, familles] = await Promise.all([donnees.liste(C.devisArticles), donnees.liste(C.devisVocabulaire), reglagesDevis(donnees), lireUsages(donnees), famillesLues(donnees)]);
   const r = DV.interpreter(phrase, { regles, articles, reglages, usages, familles }); // l'usage ne sert qu'à départager deux candidats de même score

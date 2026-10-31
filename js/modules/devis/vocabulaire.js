@@ -234,7 +234,7 @@ const usageDe = (usages, articleId) => {
   return Number.isInteger(n) && n > 0 ? n : 0;
 };
 /**
- * Ordre des candidats : score, puis USAGE (le plus utilisé d'abord, seulement pour départager deux scores égaux : jamais un score ni une décision), puis libellé, puis identifiant.
+ * Ordre des candidats : score, puis CONTEXTE (ce que l'humain a désigné passe avant un simple libellé qui contient le mot), puis USAGE (le plus utilisé d'abord, seulement pour départager deux scores égaux : jamais un score ni une décision), puis libellé, puis identifiant.
  * Sans `usages`, l'ordre est exactement celui d'avant le compteur.
  */
 const comparateurPar = (usages) => (a, b) => (b.score - a.score)
@@ -277,7 +277,7 @@ function designeVivant(regle, parId, lesFamilles) {
  * Le contexte d'une phrase : les marqueurs qu'elle contient (suite de mots contiguë et dans l'ordre de la clé ; les plus longs d'abord, puis le plus à gauche, sans chevauchement),
  * la PORTÉE (articles actifs désignés, familles comprises : l'union pour un marqueur, l'intersection pour plusieurs ; vide = pas de contexte) et le RESTE (les mots hors marqueurs, dans n'importe quel ordre).
  * `{ marqueurs: [clé], portee: [articleId], directs: [articleId], reste: [mot], regleId, cibles, famillesAChoisir }` ou null. `parId` : les articles ACTIFS par identifiant ; `lesFamilles` : la liste des familles.
- * `famillesAChoisir` : pour UN seul marqueur qui désigne deux familles (sans lien de parenté) ou plus et un reste vide, les familles entre lesquelles il faut choisir.
+ * `famillesAChoisir` : pour UN seul marqueur qui désigne deux familles (sans lien de parenté) ou plus, AUCUN article choisi un à un et un reste vide, les familles entre lesquelles il faut choisir (avec un article choisi à côté, la question habituelle propose l'article et les articles des familles).
  */
 function contexteDe(mots, regles, parId, lesFamilles) {
   if (!mots?.length) return null;
@@ -295,10 +295,15 @@ function contexteDe(mots, regles, parId, lesFamilles) {
     const place = Array.from({ length: t.n }, (_, j) => t.i + j);
     if (place.some((j) => pris.has(j))) continue;
     place.forEach((j) => pris.add(j));
-    gardes.push(t);
+    gardes.push({ ...t, place });
   }
+  // Un marqueur MORT (famille vide, désactivée ou supprimée, articles désactivés) est sauté comme avant : il ne vide pas l'intersection des autres, et ses mots retournent au reste.
+  const vivantsBruts = gardes.map((t) => designeVivant(t.regle, parId, lesFamilles));
+  const gardesVivantes = gardes.filter((_, i) => vivantsBruts[i].ids.size > 0);
+  const vivants = vivantsBruts.filter((v) => v.ids.size > 0);
+  if (gardesVivantes.length !== gardes.length) { pris.clear(); gardesVivantes.forEach((t) => t.place.forEach((j) => pris.add(j))); }
+  gardes.length = 0; gardes.push(...gardesVivantes);
   if (!gardes.length) return null;
-  const vivants = gardes.map((t) => designeVivant(t.regle, parId, lesFamilles));
   const commun = [...vivants[0].ids].filter((id) => vivants.every((v) => v.ids.has(id)));
   if (!commun.length) return null; // aucun article vivant en commun : on retombe sur le moteur d'avant
   const premier = gardes[0].regle;
@@ -312,7 +317,7 @@ function contexteDe(mots, regles, parId, lesFamilles) {
     reste,
     regleId: premier.id ?? identifiantDeRegle(premier.cle),
     cibles: gardes.flatMap((t) => ciblesDe(t.regle)),
-    famillesAChoisir: gardes.length === 1 && !reste.length && racines.length >= 2 ? racines.map((f) => ({ id: f.id, nom: f.nom, chemin: cheminFamille(lesFamilles, f.id) || f.nom })) : [],
+    famillesAChoisir: gardes.length === 1 && !reste.length && racines.length >= 2 && !vivants[0].directs.size ? racines.map((f) => ({ id: f.id, nom: f.nom, chemin: cheminFamille(lesFamilles, f.id) || f.nom })) : [],
   };
 }
 
@@ -478,7 +483,7 @@ function questionPrecision(groupe, { motsPhrase = [], usages } = {}) {
 /**
  * `interpreter(phrase, { regles, articles, reglages, usages, familles })` (`familles` : la liste des familles ; absente = les familles de départ) (`usages` facultatif : Map articleId -> { nombre }, départage seulement deux scores égaux) -> `{ cle, quantite, prixVente, quantiteIncertaine, prixIncertain, candidats, decision, question }`.
  * `regles` : règles du dictionnaire ({ id?, cle, articleId, statut, conflit }) ; `articles` : le catalogue (un article désactivé n'est jamais candidat) ; `reglages` : { marge, modeMarge }.
- * Un candidat : { articleId, libelle, unite, prixVenteHT, score, pourquoi, regleId }. Au plus 5. Départage stable : score, usage (si fourni), libellé, identifiant.
+ * Un candidat : { articleId, libelle, unite, prixVenteHT, score, pourquoi, regleId }. Au plus 5. Départage stable : score, contexte (ce que l'humain a désigné) avant un simple libellé, usage (si fourni), libellé, identifiant.
  */
 export function interpreter(phrase, { regles = [], articles = [], reglages, usages, familles } = {}) {
   // `familles` absent (ou liste vide) = les familles de départ : une liste vide rendrait toute famille « introuvable ».
