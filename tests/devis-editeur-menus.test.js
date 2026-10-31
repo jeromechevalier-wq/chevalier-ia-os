@@ -177,8 +177,11 @@ describe('4 Options : affichage du devis et du document', () => {
 
   test('4 sans options, le document est identique octet pour octet à celui d’avant la refonte (empreinte mise à jour le 25/10/2026 : seule la feuille de style a changé : interligne du bloc Chantier, page A4 centrée et bande de saut de page à l’écran ; mise à jour le 31/10/2026 : l’attestation de TVA codée en dur disparaît et l’assurance par défaut s’imprime toujours)', () => {
     const { chantier: _chantier, ...sansChantier } = figer(); // l'empreinte est celle d'un devis sans bloc Chantier (le jeu d'essai de finalisation en ajoute un)
+    const vueComplete = L.vueClient(sansChantier, contexteVue);
+    assert.equal(vueComplete.tvaReduite, true, 'le jeu d’essai a une ligne à 10 % : la mention de TVA réduite (31/10/2026) s’imprime');
+    assert.match(devisHtml(vueComplete), /taux réduit de TVA/);
     const html = devisHtml(L.vueClient(sansChantier, contexteVue));
-    assert.equal(crypto.createHash('sha256').update(html).digest('hex'), '5362a869288038724a79badec7a579cfcaa156bf3c18e237f1aa893c7c3ab8f4');
+    assert.equal(crypto.createHash('sha256').update(devisHtml({ ...vueComplete, tvaReduite: false })).digest('hex'), '5362a869288038724a79badec7a579cfcaa156bf3c18e237f1aa893c7c3ab8f4');
     assert.equal(devisHtml(L.vueClient(sansChantier, contexteVue), { affichage: {} }), html);
     assert.equal(devisHtml(L.vueClient(sansChantier, contexteVue), { affichage: L.AFFICHAGE_DEFAUT }), html);
   });

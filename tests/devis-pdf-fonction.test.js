@@ -124,6 +124,24 @@ describe('Q4 devisPdf : chemin heureux', () => {
     assert.ok(h.includes('Banque X<br>FR76 0000'));
     assert.ok(h.includes('Attestation de TVA réduite<br>Qualification RGE'));
   });
+  test('2 le PDF imprime la mention de TVA réduite seulement si une ligne est à 10 % ou 5,5 % : texte des réglages, sinon texte standard (champ absent compris)', async () => {
+    const f20 = faux();
+    await appel(await monde(), f20)(requete({ devisId: 'd1' }));
+    assert.ok(!f20.vus.html[0].includes('278-0 bis A'), 'ligne à 20 % : pas de mention');
+    const a10 = async (reglage) => {
+      const m = await monde({ finaliser: false });
+      m.collections[C.devis][0].sections[0].lignes[0].tauxTva = 10;
+      if (reglage !== undefined) m.collections[C.devisParametres][0].mentionTvaReduite = reglage;
+      await S.finaliser({ donnees: m.donnees, ctx: { acteur: ACTEUR, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd1' });
+      const f = faux();
+      await appel(m, f)(requete({ devisId: 'd1' }));
+      return f.vus.html[0];
+    };
+    assert.ok((await a10()).includes('278-0 bis A'), 'ligne à 10 % : texte standard (aucun réglage)');
+    assert.ok((await a10('')).includes('278-0 bis A'), 'réglage vide : texte standard');
+    const perso = await a10('Texte réduit de l’artisan');
+    assert.ok(perso.includes('Texte réduit de l’artisan') && !perso.includes('278-0 bis A'));
+  });
   test('Q4 le champ pdf est écrit (statut ok, chemin, sha256, genereLe), la réponse porte l\'adresse stable, le PDF est rangé sous le dossier de l\'affaire, le journal est écrit', async () => {
     const m = await monde();
     const f = faux();

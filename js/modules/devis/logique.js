@@ -482,6 +482,27 @@ const parPosition = (devis, t) => {
   return (devis.sections ?? []).map((s) => (s.lignes ?? []).map(() => t.lignes[k++]));
 };
 
+// ---------------------------------------------------------------- TVA réduite (rénovation)
+/** Taux réduits qui obligent la mention de TVA réduite sur le devis (CGI 278-0 bis A et 279-0 bis). */
+export const TAUX_REDUITS_RENOVATION = Object.freeze([5.5, 10]);
+export const LIMITE_MENTION_TVA_REDUITE = 600;
+/** Texte imprimé quand le réglage « Mention de TVA réduite » est vide. Formulation de clicfacture (pas le texte officiel) : à faire valider par l'expert-comptable. */
+export const MENTION_TVA_REDUITE_DEFAUT = 'Application du taux réduit de TVA conformément aux articles 278-0 bis A et 279-0 bis du Code général des impôts : travaux réalisés dans un logement à usage d\'habitation achevé depuis plus de deux ans, hors construction, reconstruction ou agrandissement. Le client certifie que ces conditions sont remplies.';
+/**
+ * Vrai si au moins une ligne chiffrée (total HT > 0) est à 5,5 % ou 10 %. Faux en franchise de TVA et en autoliquidation (aucune TVA facturée),
+ * pour les lignes texte, les sections et les lignes à 0 €. Comparaison tolérante aux flottants.
+ */
+export function devisATvaReduite(devis) {
+  if (!devis || typeof devis !== 'object' || devis.regimeTva === 'franchise' || devis.autoliquidation === true) return false;
+  const t = totauxDevis(devis);
+  const pos = parPosition(devis, t);
+  return (devis.sections ?? []).some((s, i) => (s.lignes ?? []).some((l, j) => {
+    if (estSaut(l) || !(pos[i][j]?.totalHT > 0)) return false;
+    const taux = tauxDeLigne(devis, l);
+    return TAUX_REDUITS_RENOVATION.some((r) => Math.abs(taux - r) < 1e-6);
+  }));
+}
+
 // ---------------------------------------------------------------- dates, numéro, expiration
 /** Jour calendaire AAAA-MM-JJ d'une date (Date ou texte ISO). Null si illisible. */
 function jourDe(v) {
@@ -726,8 +747,8 @@ export function coordonneesBancairesDe(e) {
   const iban = e?.paiement?.iban;
   return typeof iban === 'string' ? iban.trim() : '';
 }
-/** L'émetteur tel qu'il s'imprime : « Mon entreprise » et le texte « Attestation et mentions » des réglages (lus en direct à chaque impression). Même fonction à l'écran et sur le serveur. */
-export const emetteurImprime = (entreprise, mentionEmetteur) => ({ ...(entreprise && typeof entreprise === 'object' && !Array.isArray(entreprise) ? entreprise : {}), mentionEmetteur: nettoyerTexteLibre(mentionEmetteur) });
+/** L'émetteur tel qu'il s'imprime : « Mon entreprise », le texte « Attestation et mentions » et la « Mention de TVA réduite » des réglages (lus en direct à chaque impression). Même fonction à l'écran et sur le serveur. */
+export const emetteurImprime = (entreprise, mentionEmetteur, mentionTvaReduite) => ({ ...(entreprise && typeof entreprise === 'object' && !Array.isArray(entreprise) ? entreprise : {}), mentionEmetteur: nettoyerTexteLibre(mentionEmetteur), mentionTvaReduite: nettoyerTexteLibre(mentionTvaReduite) });
 
 /**
  * Mentions manquantes dans les réglages de l'entreprise (`emetteur`), pour un bandeau « mentions manquantes » et des champs en rouge.
@@ -1093,6 +1114,7 @@ export function vueClient(devis, contexte = {}) {
     regimeTva: devis.regimeTva ?? 'assujetti',
     autoliquidation: devis.autoliquidation === true,
     mentions: t.mentions,
+    tvaReduite: devisATvaReduite(devis), // vrai = le document imprime la mention de TVA réduite ; le texte, lui, vient des réglages (pas dans la vue)
     ...(t.remiseHt > 0 ? { remise: { libelle: devis.remise.type === 'pourcentage' ? `Remise ${nombre(devis.remise.valeur)} %` : 'Remise', montantHt: t.remiseHt } } : {}),
     ...conditionsDeVue(devis, t, devis.regimeTva === 'franchise'),
     conditions: {
