@@ -346,7 +346,7 @@ test('9 lecture seule : le client et l’affaire sont du texte copiable (jamais 
     affaire: document.querySelector('[data-champ="affaire"]').value,
     client: document.querySelector('[data-champ="client"]').value,
     adresse: document.querySelector('[data-champ="chantier-adresse"]').value,
-    email: document.querySelector('[data-champ="destinataire"]').value,
+    email: [...document.querySelectorAll('[data-zone="destinataires"] .ligne-destinataire span')].map((e) => e.textContent).join(','),
   }));
   const avant = await etat();
   for (const champ of [affaire, client]) {

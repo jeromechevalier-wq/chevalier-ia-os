@@ -83,7 +83,7 @@ test('1 scénario (a) : un client « personne » sans organisation se choisit sa
   expect(d.personneId).toBe('p1');
   expect(d.organisationId ?? null).toBeNull();
   expect(d.affaireId ?? null).toBeNull();
-  await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('julie@exemple.test'); // le client n'a pas besoin d'affaire pour fournir son e-mail
+  await expect(page.locator('[data-zone="destinataires"] .ligne-destinataire')).toHaveText(['julie@exemple.test']); // le client n'a pas besoin d'affaire pour fournir son e-mail
   await expect(champAffaire(page)).toHaveValue('');
   await expect(champAffaire(page)).toHaveAttribute('placeholder', 'Choisis ou crée une affaire');
   await expect(page.locator('[data-erreur="affaire"]')).toBeHidden(); // le client a une affaire : rien à dire, la ligne Affaire propose sans rien imposer
