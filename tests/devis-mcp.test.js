@@ -375,7 +375,7 @@ describe('B mentions légales (31/10/2026) : l’assistant', () => {
   test('B1 B2 B3 B4 B5 finaliser_devis refuse avec les mêmes phrases que l’écran ; lire_devis les annonce avant ; rien n’est écrit', async () => {
     const s = await demarrer({ devis: [devisEnregistre('d1', { organisationId: null, personneId: null, chantier: undefined, expireLe: '2026-09-01', sections: [{ id: 's', titre: '', lignes: [{ id: 'l', libelle: 'Peinture', unite: 'm²', quantite: 10, prixAchat: 8 }] }] })] });
     s.doc('devis_parametres', 'reglages').entreprise = { nom: 'Atelier' };
-    const phrases = ['Complète le numéro SIRET dans Mon entreprise.', 'Complète l\'adresse de l\'entreprise dans Mon entreprise.', 'Complète l\'assurance dans Mon entreprise : il reste des crochets.',
+    const phrases = ['Complète le numéro SIRET dans Réglages > Devis > Mon entreprise.', 'Complète l\'adresse de l\'entreprise dans Réglages > Devis > Mon entreprise.', 'Complète l\'assurance dans Réglages > Devis > Mon entreprise : il reste des crochets.',
       'Choisis le client de ce devis.', 'Indique la date de début des travaux.', 'Indique la durée estimée des travaux.', 'est déjà dépassée'];
     const lu = ok(await s.appeler('lecteur', 'lire_devis', { id: 'd1' }));
     for (const p of phrases) assert.ok(lu.erreursFinalisation.some((e) => e.includes(p)), `lire_devis : ${p}`);

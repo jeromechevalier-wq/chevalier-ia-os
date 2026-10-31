@@ -23,7 +23,7 @@ import { ouvrirCreationPersonne } from '../crm/personnes.js';
 import { ouvrirCreationOrganisation } from '../crm/organisations.js';
 import {
   TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, estExpire, UNITES_DUREE, MOMENTS_ACOMPTE, TYPES_ACOMPTE, detailAcomptes, erreursAcomptes, listeAcomptes, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
-  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, MAX_DESTINATAIRES, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis, MESSAGE_AFFAIRE_MANQUANTE, emetteurImprime,
+  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, MAX_DESTINATAIRES, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis, MESSAGE_AFFAIRE_MANQUANTE, emetteurImprime, estErreurEntreprise, ROUTE_MON_ENTREPRISE,
 } from './logique.js';
 import { formaterMontant } from './document.js';
 import { menuUnite } from './menu-unite.js';
@@ -2191,7 +2191,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
 
   // ------------------------------------------------ finaliser
   async function listeErreurs(titre, erreurs) {
-    await dialogue({ titre, contenu: h('ul', { class: 'liste-erreurs-devis', dataset: { zone: 'erreurs-finalisation' } }, erreurs.map((e) => h('li', {}, e))), boutons: [{ libelle: 'Compris', valeur: true, style: 'principal' }] });
+    const versEntreprise = erreurs.some(estErreurEntreprise) ? [{ libelle: 'Ouvrir Mon entreprise', valeur: 'entreprise' }] : []; // le bouton n'existe que pour une erreur qui se règle là
+    const choix = await dialogue({ titre, contenu: h('ul', { class: 'liste-erreurs-devis', dataset: { zone: 'erreurs-finalisation' } }, erreurs.map((e) => h('li', {}, e))), boutons: [...versEntreprise, { libelle: 'Compris', valeur: true, style: 'principal' }] });
+    if (choix === 'entreprise') naviguer(ROUTE_MON_ENTREPRISE); // finaliser() a déjà enregistré ; sinon la garde de sortie du routeur propose Rester / Quitter / Enregistrer et quitter
   }
 
   async function finaliser() {
