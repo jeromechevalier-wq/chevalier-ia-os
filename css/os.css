@@ -617,10 +617,16 @@ a.suggestion { color: inherit; text-decoration: none; }
 .dialogue-formulaire .dialogue-corps { overflow: visible; }
 .dialogue-filtres { width: min(620px, 100%); overflow: auto; }
 .dialogue-filtres .dialogue-corps { overflow: visible; }
+/* Filtres avec une longue liste (arbre des familles) : la liste défile, l'en-tête et les boutons restent visibles. */
+.dialogue-filtres.dialogue-filtres-defile { display: flex; flex-direction: column; overflow: hidden; }
+.dialogue-filtres-defile .dialogue-tete, .dialogue-filtres-defile .dialogue-pied { flex: none; }
+.dialogue-filtres-defile .dialogue-pied { padding-top: var(--esp-5); border-top: 1px solid var(--bordure); }
+.dialogue-filtres.dialogue-filtres-defile .dialogue-corps { flex: 1 1 auto; min-height: 0; overflow: auto; }
 @media (max-width: 767px) {
   .voile-dialogue:has(.dialogue-formulaire) { padding: 0; place-items: stretch; }
   .dialogue-formulaire { width: 100%; max-height: none; height: 100%; border-radius: 0; border: 0; overflow: auto; display: flex; flex-direction: column; }
   .dialogue-formulaire .dialogue-corps { flex: 1; overflow: visible; }
+  .dialogue-formulaire.dialogue-filtres-defile { overflow: hidden; }
   .dialogue-formulaire .dialogue-pied { position: sticky; bottom: 0; padding-top: var(--esp-5); background: var(--panneau); border-top: 1px solid var(--bordure); padding-bottom: max(14px, env(safe-area-inset-bottom)); }
 }
 .toast.avec-lien { pointer-events: auto; }
