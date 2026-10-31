@@ -16,6 +16,7 @@ const MAX_RESULTATS = 8;
 export function selecteurCatalogue({ source, mode = 'article', initial = null, surChoix = () => {} } = {}) {
   let choisi = initial;
   const ouverts = new Set();
+  let touche = false; // dès que l'utilisateur agit dans l'arbre, on ne le fait plus défiler tout seul
   const cheminChoisi = () => (choisi ? cheminDansArbre(arbreCatalogue(source.articles(), source.familles(), source.estChoisissable), choisi.id) : []);
   const cheminOuvert = () => cheminChoisi().every((id) => ouverts.has(id));
   const ouvrirChemin = () => cheminChoisi().forEach((id) => ouverts.add(id));
@@ -26,7 +27,10 @@ export function selecteurCatalogue({ source, mode = 'article', initial = null, s
   });
   const resultats = h('ul', { class: 'resultats-composants', role: 'listbox', 'aria-label': 'Articles trouvés', hidden: true });
   const resume = h('p', { class: 'article-choisi', 'aria-live': 'polite', dataset: { role: 'article-choisi' } });
-  const arbre = h('div', { class: 'arbre-catalogue', 'aria-label': 'Catalogue par famille', dataset: { role: 'arbre-catalogue' } });
+  const arbre = h('div', {
+    class: 'arbre-catalogue', 'aria-label': 'Catalogue par famille', dataset: { role: 'arbre-catalogue' },
+    onpointerdown: () => { touche = true; }, onkeydown: () => { touche = true; }, onwheel: () => { touche = true; },
+  });
   const erreur = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { erreur: 'catalogue' } }, MESSAGE_CATALOGUE_ILLISIBLE);
 
   function choisir(a) {
@@ -87,8 +91,10 @@ export function selecteurCatalogue({ source, mode = 'article', initial = null, s
   dessinerArbre();
   // Le catalogue peut arriver après l'ouverture de la fenêtre : l'arbre et les résultats se redessinent à chaque changement, jusqu'à `arreter()`.
   const arreterAbonnement = source.surChangement?.(() => {
-    if (choisi && !cheminOuvert()) ouvrirChemin();
+    const aOuvrir = Boolean(choisi) && !cheminOuvert();
+    if (aOuvrir) ouvrirChemin();
     dessinerResultats(); dessinerArbre();
+    if (choisi && (aOuvrir || !touche)) requestAnimationFrame(montrerChoisi); // le catalogue arrivé tard peut pousser l'article hors du cadre
   });
   const arreter = () => arreterAbonnement?.();
   requestAnimationFrame(montrerChoisi);
