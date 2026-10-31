@@ -139,13 +139,13 @@ test('C5b.4 « Changer ce que le mot désigne » (menu « … ») : les articles
 });
 const entreeMenuOuvrir = (page, id) => ligne(page, id).locator('[data-action="menu-mot"]');
 
-test('C5b.5 un mot à UN article propose « Changer l’article » (on remplace) et « Désigner plusieurs articles » (on ajoute) ; le second le fait passer à « 2 articles au choix »', async ({ page }) => {
+test('C5b.5 un mot à UN article propose « Changer l’article » (on remplace) et « Désigner une famille ou plusieurs articles » (on ajoute ; libellé élargi par C6b) ; le second le fait passer à « 2 articles au choix »', async ({ page }) => {
   await catalogue();
   await mot('prise');
   await ouvrir(page);
   await entreeMenuOuvrir(page, 'prise').click();
   await expect(entreeMenu(page, 'Changer l’article')).toBeVisible();
-  await entreeMenu(page, 'Désigner plusieurs articles').click();
+  await entreeMenu(page, 'Désigner une famille ou plusieurs articles').click();
   await expect(puces(page)).toHaveCount(1); // l'article actuel est déjà choisi
   await choisir(page, 'prise double', 'p2');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
@@ -210,14 +210,14 @@ test('C5b.10 l’export CSV met les articles d’un mot à plusieurs articles da
   await page.locator('[data-action="menu-vocabulaire"]').click();
   const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter le vocabulaire (CSV)').click()]);
   const texte = (await readFile(await telechargement.path())).toString('utf8');
-  expect(texte).toContain('prise,Prise simple 16 A / Prise double 16 A / Prise étanche 16 A,Actif,Ajouté ici');
+  expect(texte).toContain('prise,Prise simple 16 A / Prise double 16 A / Prise étanche 16 A,,Actif,Ajouté ici'); // colonne « Famille » (C6b) vide ici
 });
 
 test('C5b.11 cas vide : un catalogue vide dans la fenêtre dit « Ton catalogue est vide » avec le lien, et rien ne s’enregistre', async ({ page }) => {
   await ouvrir(page);
   await page.locator('[data-action="ajouter-mot"]').click();
   await expect(dialogue(page).locator('[data-vide="catalogue"]')).toContainText('Ton catalogue est vide');
-  await expect(dialogue(page).locator('[data-role="article-choisi"]')).toContainText('Aucun article choisi.');
+  await expect(dialogue(page).locator('[data-role="article-choisi"]')).toContainText('Rien de choisi.'); // C6b : la fenêtre de création est en mode mixte (articles ET familles)
   await expect(puces(page)).toHaveCount(0);
 });
 
@@ -243,7 +243,7 @@ test('C6a.1 « Essayer une phrase » comprend un mot qui désigne une FAMILLE (m
   await famille('tableau', ['f-tab-elec', 'f-tab-com']);
   await ouvrir(page);
   await page.locator('[data-champ="essai"]').fill('une prise étanche');
-  await expect(page.locator('[data-role="essai-portee"]')).toContainText('« prise » désigne 2 articles au choix et je cherche « etanche » parmi eux.');
+  await expect(page.locator('[data-role="essai-portee"]')).toContainText('« prise » désigne la famille Fournitures › Prises et je cherche « etanche » dedans.'); // C6b : le texte dit « famille » (avant : « 2 articles au choix … parmi eux »)
   await expect(page.locator('[data-role="essai-decision"]')).toContainText('C’est bien « Prise étanche 16 A » ?');
   await page.locator('[data-champ="essai"]').fill('un tableau');
   await expect(page.locator('[data-role="essai-decision"]')).toContainText('Tu parles de « Fournitures › Tableaux électriques » ou de « Fournitures › Tableaux de communication » ?');

@@ -37,14 +37,16 @@ function tropGeneralPour(articles) {
 const ciblesOuvertes = new Set(); // mots à plusieurs articles dont la liste est dépliée
 const articleDuMot = (r) => D.article(designeDe(r).articles[0]?.id ?? r.articleId); // `articleId`, ou l'unique cible d'un mot à une seule cible
 /** Ce que désigne le mot (un ou plusieurs articles, vivants ou non) et « mort » = aucun article vivant. */
-const designeDe = (r) => V.designation(r, D.etat.articles);
+const designeDe = (r) => V.designation(r, D.etat.articles, D.etat.familles);
 const libelleArticle = (r) => (designeDe(r).multiple ? designeDe(r).articles.map((c) => c.libelle).join(' / ') : (articleDuMot(r)?.libelle ?? r.articleLibelle ?? ''));
+/** Ce que le sélecteur sait montrer d'un mot : ses articles et familles encore vivants, `{ genre, id, libelle }` (un article ou une famille supprimé n'est pas dans la fenêtre : il n'y est plus choisissable). */
+const choixVivants = (r) => designeDe(r).cibles.filter((c) => c.vivant).map(({ genre, id, libelle }) => ({ genre, id, libelle }));
 /** Le mot tel que l'export CSV le lit : les libellés des articles sont ceux du catalogue d'aujourd'hui (un article renommé depuis n'y reste pas sous son ancien nom). */
-const motPourExport = (r) => ({ ...r, articleLibelle: designeDe(r).multiple ? '' : libelleArticle(r), cibles: designeDe(r).multiple ? designeDe(r).articles.map((c) => ({ genre: 'article', id: c.id, libelle: c.libelle })) : r.cibles });
+const motPourExport = (r) => ({ ...r, articleLibelle: designeDe(r).multiple ? '' : libelleArticle(r), cibles: designeDe(r).multiple ? designeDe(r).cibles.map((c) => ({ genre: c.genre, id: c.id, libelle: c.libelle })) : r.cibles }); // familles : leur chemin d'aujourd'hui
 
 // ---------------------------------------------------------------- choisir un article du catalogue (champ de recherche + arbre des familles : selecteur-catalogue.js)
 
-/** `valeur()` : l'article choisi ou null (mode `articles` : la liste des articles choisis, 8 au plus). `surChoix(article)` est appelé à chaque choix (mode `articles` : avec la liste). */
+/** `valeur()` : l'article choisi ou null (modes `articles` et `mixte` : la liste des choix, 8 au plus ; `mixte` : des `{ genre, id, libelle }`, articles et familles). `surChoix(article)` est appelé à chaque choix (avec la liste dans ces deux modes). */
 const selecteurArticle = ({ initial = null, surChoix = () => {}, mode = 'article' } = {}) => selecteurCatalogue({
   mode, initial, surChoix,
   source: { articles: () => D.etat.articles, familles: () => D.etat.familles, estChoisissable: V.articleChoisissable, enErreur: () => D.etat.erreurLecture, pret: () => D.etat.pret, surChangement: D.surChangement },
@@ -70,7 +72,7 @@ async function ouvrirCreation() {
   const zoneExistant = h('div', { dataset: { role: 'existant' } });
   const erreurArticle = h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: 'articleId' } });
   const general = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
-  const choix = selecteurArticle({ mode: 'articles', surChoix: () => { erreurArticle.textContent = ''; } }); // un article, ou plusieurs au choix (8 au plus)
+  const choix = selecteurArticle({ mode: 'mixte', surChoix: () => { erreurArticle.textContent = ''; } }); // un article, plusieurs au choix, ou une famille (8 choix au plus)
   let existant = null;
   let fermerFenetre = () => {};
   let bouton = null;
@@ -102,7 +104,7 @@ async function ouvrirCreation() {
     if (!pret()) { majExpression(); if (!expression.value.trim()) erreurExpression.textContent = 'Écris le mot ou l’expression que tu veux faire reconnaître.'; return false; }
     enCours = true;
     try {
-      const r = await D.creerMotVocabulaire({ expression: expression.value, articleIds: choix.valeur().map((a) => a.id) });
+      const r = await D.creerMotVocabulaire({ expression: expression.value, cibles: choix.valeur().map(({ genre, id }) => ({ genre, id })) });
       if (Object.keys(r.erreurs).length) {
         if (r.erreurs.expression) erreurExpression.textContent = r.erreurs.expression;
         if (r.erreurs.articleId) erreurArticle.textContent = choix.valeur().length ? r.erreurs.articleId : 'Choisis l’article du catalogue que ce mot désigne.';
@@ -119,7 +121,7 @@ async function ouvrirCreation() {
   }
   const corps = h('div', { class: 'pile formulaire-creation' },
     h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'mot-expression' }, 'Mot ou expression'), expression, apercu, erreurExpression, zoneExistant),
-    h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Article du catalogue (un ou plusieurs au choix)'), choix.element, erreurArticle),
+    h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Ce que le mot désigne : un article, plusieurs au choix, ou une famille'), choix.element, erreurArticle),
     general);
   const r = await dialogue({
     titre: 'Ajouter un mot appris',
@@ -173,17 +175,18 @@ async function ouvrirChangerArticle(regle) {
 
 /** Changer ce que désigne un mot : plusieurs articles au choix (8 au plus). Un seul article choisi = le mot désigne cet article, comme avant. */
 async function ouvrirChangerCibles(regle) {
-  const actuels = designeDe(regle).articles.filter((c) => c.vivant).map((c) => D.article(c.id)).filter(Boolean);
-  const avant = designeDe(regle).articles.filter((c) => c.vivant).map((c) => c.id).join('|'); // les articles désactivés ne sont pas dans la fenêtre : « Enregistrer » reste grisé tant que rien n'a changé
+  const actuels = choixVivants(regle);
+  const cleDe = (c) => `${c.genre}:${c.id}`;
+  const avant = actuels.map(cleDe).join('|'); // les articles et familles désactivés ne sont pas dans la fenêtre : « Enregistrer » reste grisé tant que rien n'a changé
   const general = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
   let bouton = null;
-  const choix = selecteurArticle({ mode: 'articles', initial: actuels, surChoix: () => { general.textContent = ''; if (bouton) griserSelon(bouton, pret); } });
-  const pret = () => choix.valeur().length > 0 && choix.valeur().map((a) => a.id).join('|') !== avant;
+  const choix = selecteurArticle({ mode: 'mixte', initial: actuels, surChoix: () => { general.textContent = ''; if (bouton) griserSelon(bouton, pret); } });
+  const pret = () => choix.valeur().length > 0 && choix.valeur().map(cleDe).join('|') !== avant;
   async function tenter() {
     general.textContent = '';
-    if (!pret()) { general.textContent = choix.valeur().length ? 'Choisis d’autres articles : ceux-ci sont déjà ceux du mot.' : 'Choisis au moins un article du catalogue.'; return false; }
+    if (!pret()) { general.textContent = choix.valeur().length ? 'Choisis autre chose : c’est déjà ce que désigne le mot.' : 'Choisis au moins un article ou une famille du catalogue.'; return false; }
     try {
-      const r = await D.changerCiblesMot(regle.id, choix.valeur().map((a) => a.id));
+      const r = await D.changerCiblesMot(regle.id, choix.valeur().map(({ genre, id }) => ({ genre, id })));
       const message = Object.values(r.erreurs)[0];
       if (message) { general.textContent = message; return false; }
       return true;
@@ -192,7 +195,7 @@ async function ouvrirChangerCibles(regle) {
   const r = await dialogue({
     titre: 'Changer ce que le mot désigne',
     classe: 'dialogue-formulaire',
-    contenu: h('div', { class: 'pile' }, h('p', {}, 'Mot : ', h('strong', {}, `« ${regle.expression ?? regle.cle} »`)), h('p', { class: 'discret' }, 'Plusieurs articles = ton assistant demande lequel, seulement parmi eux.'), choix.element, general),
+    contenu: h('div', { class: 'pile' }, h('p', {}, 'Mot : ', h('strong', {}, `« ${regle.expression ?? regle.cle} »`)), h('p', { class: 'discret' }, 'Plusieurs articles, ou une famille : ton assistant demande lequel, seulement parmi eux.'), choix.element, general),
     boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: tenter }],
     auMontage: ({ boutons }) => { bouton = boutons.at(-1); griserSelon(bouton, pret); },
   });
@@ -235,10 +238,7 @@ function resultatEssai(phrase) {
   const nombreFr = (n) => String(n).replace('.', ',');
   const lignes = [];
   if (r.cle) lignes.push(h('p', { dataset: { role: 'essai-cle' } }, 'Mot cherché : ', h('strong', {}, `« ${r.cle} »`), ` · quantité ${nombreFr(r.quantite)}`, r.prixVente != null ? ` · prix dit ${nombreFr(r.prixVente)} €` : ''));
-  if (r.portee) {
-    lignes.push(h('p', { dataset: { role: 'essai-portee' } }, 'Je comprends : ', h('strong', {}, r.portee.marqueurs.map((k) => `« ${k} »`).join(' + ')), ` désigne ${r.portee.nombreArticles} ${r.portee.nombreArticles > 1 ? 'articles au choix' : 'article'}`,
-      r.portee.reste.length ? ` et je cherche « ${r.portee.reste.join(' ')} » parmi eux.` : '.'));
-  }
+  if (r.portee) lignes.push(h('p', { dataset: { role: 'essai-portee' } }, V.phrasePortee(r.portee, D.etat.familles)));
   if (r.decision === 'utiliser') {
     const prix = r.prixVente ?? premier?.prixVenteHT;
     lignes.push(h('p', { dataset: { role: 'essai-decision' } }, 'Ton assistant l’ajouterait tout de suite : ', h('strong', {}, `${nombreFr(r.quantite)} × « ${premier.libelle} »`), typeof prix === 'number' ? ` à ${A.formaterPrix(prix)} HT l’unité` : '', '.'));
@@ -337,7 +337,7 @@ export function rendreVocabulaire(conteneur) {
       ...(mort ? [] : d.multiple
         ? [{ libelle: 'Changer ce que le mot désigne', icone: 'pencil', action: () => ouvrirChangerCibles(r).then(() => rendre()) }]
         : [{ libelle: 'Changer l’article', icone: 'pencil', action: () => ouvrirChangerArticle(r).then(() => rendre()) },
-          { libelle: 'Désigner plusieurs articles', icone: 'plus', action: () => ouvrirChangerCibles(r).then(() => rendre()) }]),
+          { libelle: 'Désigner une famille ou plusieurs articles', icone: 'plus', action: () => ouvrirChangerCibles(r).then(() => rendre()) }]),
       { libelle: r.note ? 'Modifier la note' : 'Ajouter une note', icone: 'sticky-note', action: () => ouvrirNote(r) },
     ];
   };
@@ -363,18 +363,23 @@ export function rendreVocabulaire(conteneur) {
           h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'changer-article' }, 'aria-label': `Changer l’article : ${r.expression ?? r.cle}`, onclick: () => ouvrirChangerArticle(r).then(() => rendre()) }, 'Changer l’article')) : null);
       return cellule;
     }
-    // Plusieurs articles au choix : « 3 articles au choix » se déplie en liste ; aucun article vivant = « Aucun article disponible ».
+    // Plusieurs articles au choix, une famille, ou un mélange : « 3 articles au choix », « Famille Prises (12 articles) », « Famille Prises + 2 articles » se déplient en liste.
+    // Aucune cible vivante = « Aucun article disponible » ; des cibles vivantes mais aucun article (une famille vide) = « Famille vide ».
     const ouvert = ciblesOuvertes.has(r.id);
+    const resume = V.resumeDesigne(d);
+    const nomCible = (c) => (c.genre === 'famille'
+      ? (c.vivant ? h('span', {}, `Famille ${c.libelle} (${c.nombreArticles ? `${c.nombreArticles} ${c.nombreArticles > 1 ? 'articles' : 'article'}` : 'vide'})`) : h('span', { class: 'discret' }, `Famille ${c.libelle || '—'} (supprimée ou désactivée)`))
+      : (c.vivant ? h('a', { class: 'lien-article', href: lien('devis/bordereau') }, c.libelle) : h('span', { class: 'discret' }, `${c.libelle || '—'} (désactivé)`)));
     remplir(cellule,
-      h('button', { type: 'button', class: 'bouton-lien', 'aria-expanded': String(ouvert), dataset: { action: 'cibles' }, 'aria-label': `${d.nombre} articles au choix : ${r.expression ?? r.cle}`, onclick: () => {
+      h('button', { type: 'button', class: 'bouton-lien', 'aria-expanded': String(ouvert), dataset: { action: 'cibles' }, 'aria-label': `${resume} : ${r.expression ?? r.cle}`, onclick: () => {
         if (ciblesOuvertes.has(r.id)) ciblesOuvertes.delete(r.id); else ciblesOuvertes.add(r.id);
         rendre();
         document.querySelector(`tr[data-id="${CSS.escape(r.id)}"] [data-action="cibles"]`)?.focus();
-      } }, `${d.nombre} articles au choix`),
-      ouvert ? h('ul', { class: 'liste-cibles', dataset: { role: 'cibles' } }, d.articles.map((c) => h('li', { dataset: { articleId: c.id } },
-        c.vivant ? h('a', { class: 'lien-article', href: lien('devis/bordereau') }, c.libelle) : h('span', { class: 'discret' }, `${c.libelle || '—'} (désactivé)`)))) : null,
+      } }, resume),
+      ouvert ? h('ul', { class: 'liste-cibles', dataset: { role: 'cibles' } }, d.cibles.map((c) => h('li', { dataset: c.genre === 'article' ? { articleId: c.id } : { familleId: c.id } }, nomCible(c)))) : null,
       d.mort ? h('div', { class: 'article-mort' }, pastille('Aucun article disponible', '#8d8993', { dataset: { role: 'aucun-article-disponible' } }),
-        h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'changer-article' }, 'aria-label': `Changer ce que le mot désigne : ${r.expression ?? r.cle}`, onclick: () => ouvrirChangerCibles(r).then(() => rendre()) }, 'Changer ce que le mot désigne')) : null);
+        h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'changer-article' }, 'aria-label': `Changer ce que le mot désigne : ${r.expression ?? r.cle}`, onclick: () => ouvrirChangerCibles(r).then(() => rendre()) }, 'Changer ce que le mot désigne'))
+        : d.vide ? h('div', { class: 'article-mort' }, pastille('Famille vide', '#8d8993', { dataset: { role: 'famille-vide' } })) : null);
     return cellule;
   }
   function celluleExemples(r) {

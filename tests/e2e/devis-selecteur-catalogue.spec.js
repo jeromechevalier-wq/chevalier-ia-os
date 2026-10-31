@@ -37,7 +37,7 @@ const champ = (page) => dialogue(page).getByRole('searchbox', { name: 'Chercher 
 test('C1.1 l’arbre montre les familles ; déplier « Fournitures » puis « Électricité » montre les articles, et en choisir un le met dans « Article choisi »', async ({ page }, info) => {
   await catalogue();
   await ouvrirCreation(page);
-  await expect(dialogue(page).locator('[data-role="article-choisi"]')).toContainText('Aucun article choisi.');
+  await expect(dialogue(page).locator('[data-role="article-choisi"]')).toContainText('Rien de choisi.'); // C6b : la fenêtre de création est en mode mixte (articles ET familles)
   await expect(famille(page, 'famille-1')).toHaveAttribute('aria-expanded', 'false');
   await expect(dialogue(page).locator('[data-arbre-article]')).toHaveCount(0); // rien n'est déployé au départ
   await capturer(page, info, 'C1.1-arbre-ferme');
@@ -108,7 +108,7 @@ test('C1.5 cas vide : une famille sans article le dit ; une recherche sans résu
   await expect(dialogue(page).locator('[data-vide="famille"]')).toContainText('Aucun article dans cette famille.');
   await capturer(page, info, 'C1.5-famille-vide');
   await champ(page).fill('zzzz');
-  await expect(dialogue(page)).toContainText('Aucun article ne correspond.');
+  await expect(dialogue(page)).toContainText('Aucun article ni famille ne correspond.'); // C6b : la fenêtre de création cherche aussi les familles
   await capturer(page, info, 'C1.5-aucun-resultat');
 });
 
@@ -124,6 +124,8 @@ test('C1.6 le catalogue arrive après l’ouverture : l’arbre se met à jour s
   await expect(famille(page, 'famille-1')).toBeFocused();
   await famille(page, ELECTRICITE).focus();
   await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab'); // C6b : « Choisir cette famille » vient juste après l'en-tête de la famille (fenêtre de création en mode mixte)
+  await expect(dialogue(page).locator('[data-choisir-famille="famille-1-8"]')).toBeFocused();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter'); // choisit le premier article (Interrupteur simple)
   await expect(dialogue(page).locator('[data-role="article-choisi"]')).toContainText('Interrupteur simple');

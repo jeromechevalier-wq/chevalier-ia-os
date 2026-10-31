@@ -621,3 +621,12 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .selecteur-catalogue [aria-disabled="true"].arbre-article, .selecteur-catalogue [aria-disabled="true"].resultat-composant { opacity: .55; }
 .liste-cibles { list-style: none; margin: var(--esp-2) 0 0; padding: 0; display: grid; gap: var(--esp-1); font-size: var(--fs-petit); }
 @media (max-width: 767px), (pointer: coarse) { .puce-retirer, .puce-choix { min-height: 44px; } .puce-retirer { min-width: 44px; } }
+/* Une famille dans le sélecteur (PR C6b) : l'en-tête qui déplie et, à droite, « Choisir cette famille » ; chaque groupe de résultats a son titre. */
+.arbre-ligne-famille { display: flex; align-items: center; gap: var(--esp-3); padding-right: var(--esp-3); }
+.arbre-ligne-famille .arbre-entete { flex: 1; width: auto; }
+.arbre-choisir-famille { flex: none; min-width: 11em; text-align: center; justify-content: center; }
+.arbre-choisir-famille.choisi { font-weight: var(--poids-moyen); }
+.selecteur-catalogue [aria-disabled="true"].arbre-choisir-famille, .selecteur-catalogue [aria-disabled="true"].resultat-famille { opacity: .55; }
+.groupe-resultats { padding: var(--esp-3) var(--esp-5) 0; color: var(--texte2); font-size: var(--fs-petit); list-style: none; }
+.puce-famille { border-style: dashed; }
+@media (max-width: 767px), (pointer: coarse) { .arbre-choisir-famille { min-height: 44px; } }

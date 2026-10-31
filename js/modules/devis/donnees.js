@@ -235,28 +235,28 @@ export async function activerArticle(id, actif) {
 export async function creerMotVocabulaire(valeurs) {
   // Liste pas lue ou en erreur : un mot existant resterait invisible et « creer » (un set) l'écraserait en silence.
   if (etat.erreurLectureVocabulaire || !etat.vocabulairePret) return { erreurs: { general: V.MESSAGE_LISTE_INDISPONIBLE }, id: null, existante: null };
-  const plan = V.planCreerMot(valeurs, CRM.ctx(), { regles: etat.vocabulaire, articles: etat.articles });
+  const plan = V.planCreerMot(valeurs, CRM.ctx(), { regles: etat.vocabulaire, articles: etat.articles, familles: etat.familles });
   if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs, id: plan.id, existante: plan.existante };
   await CRM.executer(plan.ecritures, V.OUTIL_VOCABULAIRE);
   return { erreurs: {}, id: plan.id, existante: null };
 }
 /** Active ou désactive un mot : `{ erreurs }`. */
 export async function changerStatutMot(id, statut, { restaurer = false } = {}) {
-  const plan = V.planChangerStatut(id, statut, { regles: etat.vocabulaire, articles: etat.articles, restaurer, aujourdhui: CRM.ctx().aujourdhui });
+  const plan = V.planChangerStatut(id, statut, { regles: etat.vocabulaire, articles: etat.articles, familles: etat.familles, restaurer, aujourdhui: CRM.ctx().aujourdhui });
   if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs };
   await CRM.executer(plan.ecritures, V.OUTIL_VOCABULAIRE);
   return { erreurs: {} };
 }
 /** Change l'article d'un mot : `{ erreurs }`. */
 export async function changerArticleMot(id, articleId) {
-  const plan = V.planChangerArticle(id, articleId, { regles: etat.vocabulaire, articles: etat.articles, aujourdhui: CRM.ctx().aujourdhui });
+  const plan = V.planChangerArticle(id, articleId, { regles: etat.vocabulaire, articles: etat.articles, familles: etat.familles, aujourdhui: CRM.ctx().aujourdhui });
   if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs };
   await CRM.executer(plan.ecritures, V.OUTIL_VOCABULAIRE);
   return { erreurs: {} };
 }
-/** Change ce que désigne un mot (1 à 8 articles au choix) : `{ erreurs }`. Un seul article = `articleId` ; plusieurs = `cibles`, sans article (voir vocabulaire-plans.js). */
+/** Change ce que désigne un mot (1 à 8 choix : articles `{ genre, id }` ou identifiants, familles `{ genre: 'famille', id }`) : `{ erreurs }`. Un seul article = `articleId` ; plusieurs ou une famille = `cibles`, sans article (voir vocabulaire-plans.js). */
 export async function changerCiblesMot(id, articleIds) {
-  const plan = V.planChangerCibles(id, articleIds, { regles: etat.vocabulaire, articles: etat.articles, aujourdhui: CRM.ctx().aujourdhui });
+  const plan = V.planChangerCibles(id, articleIds, { regles: etat.vocabulaire, articles: etat.articles, familles: etat.familles, aujourdhui: CRM.ctx().aujourdhui });
   if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs };
   await CRM.executer(plan.ecritures, V.OUTIL_VOCABULAIRE);
   return { erreurs: {} };
