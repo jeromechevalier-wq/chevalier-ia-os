@@ -105,14 +105,14 @@ test('2 scénario (b) : un client avec organisation restreint les affaires propo
   await enregistre(page);
   expect((await lireDocument(`devis_devis/${id}`)).organisationId).toBe('o1');
   await champAffaire(page).click();
-  await expect(suggestions(page)).toHaveText([/Extension garage/, /Rénovation cuisine/, /\+ Créer l’affaire « Société Exemple »/]); // ordre alphabétique, puis la création ; seulement les affaires de l'organisation (pas Salle de bains Rubio ni Toiture)
+  await expect(suggestions(page)).toHaveText([/Extension garage/, /Rénovation cuisine/, /\+ Créer l’affaire « Affaire Société Exemple »/]); // ordre alphabétique, puis la création ; seulement les affaires de l'organisation (pas Salle de bains Rubio ni Toiture)
   await capturer(page, info, '2-affaires-du-client');
   await page.keyboard.press('Escape');
   // Cas vide : un client sans aucune affaire.
   await champClient(page).fill('Atelier');
   await page.locator('.entete-droite .suggestion', { hasText: 'Atelier Vide' }).first().click();
   await champAffaire(page).click();
-  await expect(suggestions(page)).toHaveText([/\+ Créer l’affaire « Atelier Vide »/]); // aucune affaire à ce client : la liste propose seulement de la créer
+  await expect(suggestions(page)).toHaveText([/\+ Créer l’affaire « Affaire Atelier Vide »/]); // aucune affaire à ce client : la liste propose seulement de la créer
   await expect(page.locator('[data-erreur="affaire"]')).toHaveText('Pas d’affaire pour ce client : crée-la avec « + Créer l’affaire » dans cette liste.'); // le message reste affiché quand la liste se ferme
   await expect(page.locator('[data-action="toutes-les-affaires"]')).toHaveCount(0); // plus de « Voir toutes les affaires »
   await champAffaire(page).press('Enter');
@@ -188,17 +188,17 @@ test('5 finaliser sans affaire : pas de fenêtre, le message et le champ Affaire
   await expect(champAffaire(page)).toBeFocused();
   await capturer(page, info, '5-champ-rouge');
   await champAffaire(page).click(); // la liste s'ouvre au clic
-  await expect(LIGNE_CREER('Société Exemple')).toHaveCount(1); // la liste du champ propose de créer l'affaire (nom = le client, faute de nom de devis)
+  await expect(LIGNE_CREER('Affaire Société Exemple')).toHaveCount(1); // la liste du champ propose de créer l'affaire (nom = le client, faute de nom de devis)
   expect(appels).toHaveLength(0);
   expect(await listerDocuments('crm_affaires')).toHaveLength(avant); // rien n'est créé sans clic
   await capturer(page, info, '5-ligne-creer');
-  await LIGNE_CREER('Société Exemple').click();
+  await LIGNE_CREER('Affaire Société Exemple').click();
   await expect.poll(async () => (await listerDocuments('crm_affaires')).length).toBe(avant + 1);
-  const nouvelle = (await listerDocuments('crm_affaires')).find((a) => a.titre === 'Société Exemple');
+  const nouvelle = (await listerDocuments('crm_affaires')).find((a) => a.titre === 'Affaire Société Exemple');
   expect(nouvelle).toMatchObject({ etape: 'proposition_envoyee', organisationId: 'o1' }); // étape du réglage : aucune question
   await enregistre(page);
   expect((await lireDocument(`devis_devis/${id}`)).affaireId).toBe(nouvelle.id);
-  await expect(champAffaire(page)).toHaveValue(/Société Exemple/);
+  await expect(champAffaire(page)).toHaveValue(/Affaire Société Exemple/);
   await expect(champAffaire(page)).not.toHaveClass(/invalide/);
   await expect(page.locator('[data-erreur="affaire"]')).toBeHidden();
   await finaliser(page);
@@ -242,7 +242,7 @@ test('7 aucune étape active : la liste le dit clairement (même liste, sans fen
   const id = await brouillonPret(page, { personneId: 'p1' });
   const avant = (await listerDocuments('crm_affaires')).length;
   await champAffaire(page).click();
-  await LIGNE_CREER('Julie Rubio').click();
+  await LIGNE_CREER('Affaire Julie Rubio').click();
   await expect(page.locator('.entete-droite .suggestion-vide')).toContainText('Crée d’abord une étape dans le pipeline');
   await capturer(page, info, '7-aucune-etape');
   expect(await listerDocuments('crm_affaires')).toHaveLength(avant);

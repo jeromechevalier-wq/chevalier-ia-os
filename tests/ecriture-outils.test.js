@@ -199,7 +199,7 @@ describe('Création et modification (tests 9 et 11)', () => {
     refuse(await s.appeler('biblio', 'creer_affaire', {}), /titre est obligatoire/);
     const r = ok(await s.appeler('biblio', 'creer_affaire', { personneId: 'p2', montant: 800 }));
     const a = s.doc('crm_affaires', r.id);
-    assert.equal(a.titre, 'Boulangerie Martin');
+    assert.equal(a.titre, 'Affaire Boulangerie Martin');
     assert.equal(a.organisationId, 'org2');
     assert.equal(a.etape, 'premier_contact');
     assert.equal(a.statut, 'ouverte');

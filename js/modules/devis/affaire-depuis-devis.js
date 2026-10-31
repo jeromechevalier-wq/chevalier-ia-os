@@ -3,7 +3,7 @@
 import { titreParDefaut, etapesActives, etapeActive } from '../crm/logique.js';
 import { nettoyerNomDevis } from './logique.js';
 
-/** Nom proposé pour l'affaire créée : le nom (interne) du devis s'il existe, sinon le client (organisation, sinon personne). Vide si ni l'un ni l'autre : la fenêtre exige alors un nom. */
+/** Nom proposé pour l'affaire créée : le nom (interne) du devis s'il existe, sinon « Affaire » + le client (organisation, sinon personne). Vide si ni l'un ni l'autre : la fenêtre exige alors un nom. */
 export function nomAffaireProposee(devis, { organisation = null, personne = null } = {}) {
   return nettoyerNomDevis(devis?.nom) || titreParDefaut({ organisation, personne });
 }

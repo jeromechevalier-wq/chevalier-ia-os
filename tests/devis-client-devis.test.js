@@ -83,8 +83,8 @@ describe('CD choix du client et de l’affaire', () => {
   test('CD12 nom de l’affaire créée : le texte tapé, sinon le nom du devis, sinon le client ; vide sans rien', () => {
     assert.equal(nomAffaireCreee('  Cuisine   neuve ', { nom: 'Variante' }), 'Cuisine neuve');
     assert.equal(nomAffaireCreee('', { nom: 'Variante' }, { organisation: { nom: 'Société' } }), 'Variante');
-    assert.equal(nomAffaireCreee('', {}, { organisation: { nom: 'Société' }, personne: { nom: 'Ana' } }), 'Société');
-    assert.equal(nomAffaireCreee('', {}, { personne: { nom: 'Ana' } }), 'Ana');
+    assert.equal(nomAffaireCreee('', {}, { organisation: { nom: 'Société' }, personne: { nom: 'Ana' } }), 'Affaire Société');
+    assert.equal(nomAffaireCreee('', {}, { personne: { nom: 'Ana' } }), 'Affaire Ana');
     assert.equal(nomAffaireCreee('  ', {}, {}), '');
   });
   test('CD13 une affaire archivée du même client reste « du client » quand on lui passe toutes les affaires', () => {

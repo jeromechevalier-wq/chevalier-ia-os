@@ -129,7 +129,7 @@ test('4 organisation : adresse de la fiche, affaires de l’organisation ET de s
   await expect(page.locator('[data-champ="chantier-adresse"]')).toHaveValue(/12 rue des Lilas/);
   await expect(page.locator('[data-zone=\"destinataires\"] .ligne-destinataire')).toHaveText(['contact@dupont.test']);
   await champAffaire(page).click(); // sans lettre : les affaires du client
-  await expect(suggestions(page)).toHaveText([/Cuisine Dupont/, /Garage/, /Salle de bains Julie/, /\+ Créer l’affaire « Dupont Bâtiment »/]); // celle de la personne Julie (de l'organisation) en fait partie, pas Toiture ni Terrasse
+  await expect(suggestions(page)).toHaveText([/Cuisine Dupont/, /Garage/, /Salle de bains Julie/, /\+ Créer l’affaire « Affaire Dupont Bâtiment »/]); // celle de la personne Julie (de l'organisation) en fait partie, pas Toiture ni Terrasse
   await capturer(page, info, '4-affaires-organisation');
   await page.keyboard.press('Escape');
   const attention = page.locator('[data-champ="attention"]');
@@ -174,7 +174,7 @@ test('6 client sans affaire : message permanent, jamais l’affaire d’un autre
   await expect(page.locator('[data-erreur="affaire"]')).toHaveText('Pas d’affaire pour ce client : crée-la avec « + Créer l’affaire » dans cette liste.');
   await expect(page.locator('[data-action="toutes-les-affaires"]')).toHaveCount(0);
   await champAffaire(page).click();
-  await expect(suggestions(page)).toHaveText([/\+ Créer l’affaire « Nouveau Client »/]); // aucune affaire à proposer, seulement la création
+  await expect(suggestions(page)).toHaveText([/\+ Créer l’affaire « Affaire Nouveau Client »/]); // aucune affaire à proposer, seulement la création
   await champAffaire(page).fill('Garage'); // « Garage » existe, mais chez un autre client : jamais proposée
   await expect(suggestions(page)).toHaveText([/\+ Créer l’affaire « Garage »/]);
   await champAffaire(page).fill('');
@@ -191,10 +191,10 @@ test('6 client sans affaire : message permanent, jamais l’affaire d’un autre
   await capturer(page, info, '6-ligne-creer');
   const avant = (await listerDocuments('crm_affaires')).length;
   await champAffaire(page).fill('');
-  await suggestions(page).filter({ hasText: 'Créer l’affaire « Nouveau Client »' }).click();
+  await suggestions(page).filter({ hasText: 'Créer l’affaire « Affaire Nouveau Client »' }).click();
   await suggestions(page).filter({ hasText: 'Premier contact' }).click(); // l'étape n'est pas réglée : second pas (voir le test 6b)
   await expect.poll(async () => (await listerDocuments('crm_affaires')).length).toBe(avant + 1);
-  const creee = (await listerDocuments('crm_affaires')).find((a) => a.titre === 'Nouveau Client');
+  const creee = (await listerDocuments('crm_affaires')).find((a) => a.titre === 'Affaire Nouveau Client');
   expect(creee).toMatchObject({ organisationId: 'o3' });
   await enregistre(page);
   expect((await lire()).affaireId).toBe(creee.id);
