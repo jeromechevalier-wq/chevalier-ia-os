@@ -176,3 +176,20 @@ describe('F8 assistant (MCP)', () => {
     await assert.rejects(() => metier.creerArticle(c, { libelle: 'Vis2', prixAchat: 1, familleId: 'f-inconnue' }), /famille/i);
   });
 });
+
+describe('Filtre « Famille » en arbre (Catalogue > Filtres)', () => {
+  test('1 une famille par ligne, sous-familles en retrait au nom court, mention seulement si elle a des sous-familles', () => {
+    const o = F.optionsFamillesArbre(F.famillesDe({ liste: [{ id: 'sous-x', nom: 'Carrelage', actif: true, parentId: 'famille-1' }, { id: 'libre', nom: 'Autre', actif: true }] }));
+    assert.equal(o.find((x) => x.valeur === 'libre').note, undefined); // pas de sous-famille : pas de mention
+    const f1 = o.find((x) => x.valeur === 'famille-1');
+    assert.deepEqual([f1.libelle, f1.niveau, f1.note], ['Fournitures', 0, 'inclut ses sous-familles']);
+    const sous = o.find((x) => x.valeur === 'sous-x');
+    assert.deepEqual([sous.libelle, sous.niveau, sous.note], ['Carrelage', 1, undefined]); // jamais « Fournitures › Carrelage »
+    assert.ok(o.indexOf(sous) > o.indexOf(f1) && o.indexOf(sous) < o.findIndex((x) => x.valeur === 'famille-2'));
+    assert.ok(o.every((x) => !x.libelle.includes('›')));
+  });
+  test('3 « Sans famille » est toujours la dernière ligne ; cas vide et cas d’erreur (familles illisibles) : « Sans famille » seul', () => {
+    assert.deepEqual(F.optionsFamillesArbre(F.famillesDe(null)).at(-1), { valeur: 'sans_famille', libelle: 'Sans famille', niveau: 0 });
+    for (const illisible of [[], null, undefined]) assert.deepEqual(F.optionsFamillesArbre(illisible), [{ valeur: 'sans_famille', libelle: 'Sans famille', niveau: 0 }]);
+  });
+});
