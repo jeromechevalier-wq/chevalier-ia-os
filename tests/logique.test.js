@@ -165,6 +165,8 @@ describe('B4 Statut dérivé de l’étape', () => {
   test('B4 le titre est prérempli : organisation, sinon personne', () => {
     assert.equal(L.titreParDefaut({ organisation: { nom: 'Fleurs' }, personne: { nom: 'Marie' } }), 'Affaire Fleurs');
     assert.equal(L.titreParDefaut({ personne: { nom: 'Marie' } }), 'Affaire Marie');
+    assert.equal(L.titreParDefaut({ organisation: { nom: 'affaire  Dupont' } }), 'affaire Dupont', 'B4 pas de double préfixe (insensible à la casse)');
+    assert.equal(L.titreParDefaut({ organisation: { nom: 'Affairement' } }), 'Affaire Affairement', 'B4 « Affairement » n’est pas « Affaire » + espace');
     assert.equal(L.titreParDefaut({}), '');
   });
   test('B4 changement d’étape : statut dérivé, dates d’étapes conservées', () => {

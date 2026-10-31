@@ -1062,7 +1062,8 @@ export function marquerOpposition(coche, ctx) {
 /** Titre proposé quand on n'en tape pas : « Affaire » + nom de l'organisation, sinon de la personne (31/10/2026 : pour ne pas confondre affaire et organisation). Vide si ni l'une ni l'autre. Les affaires existantes ne sont pas renommées. */
 export function titreParDefaut({ organisation, personne } = {}) {
   const nom = nettoyerEspaces(organisation?.nom) || nettoyerEspaces(personne?.nom);
-  return nom ? `Affaire ${nom}` : '';
+  if (!nom) return '';
+  return /^affaire\s/i.test(nom) ? nom : `Affaire ${nom}`; // pas de double préfixe si le nom commence déjà par « Affaire »
 }
 
 export function validerAffaire(v) {
