@@ -346,7 +346,8 @@ describe('7 modifier_destinataires_devis : donner l’adresse d’un devis final
   test('7 l’écran : sans adresse, UNE fenêtre enregistre l’adresse puis prépare le brouillon ; avec une adresse, la confirmation dit à qui, et « Changer l’adresse » passe par le serveur', () => {
     const ecran = readFileSync(join(racine, 'js/modules/devis/email-preparer-ecran.js'), 'utf8');
     assert.match(ecran, /if \(!P\.aUnDestinataire\(d\)\) \{ await saisirEtPreparer\(devisId\); return; \}/);
-    assert.match(ecran, /D\.modifierDestinataires\(devisId, \{ destinataires: \[adresse\] \}\)/);
+    assert.match(ecran, /P\.adressesApresChangement\(\{ destinataires, copie \}, depart, adresse\)/); // les autres destinataires et la copie sont gardés
+    assert.match(ecran, /D\.modifierDestinataires\(devisId, \{ destinataires: suite\.destinataires/);
     assert.match(ecran, /if \(preparer\) await D\.preparerEmailDevis\(devisId\)/);
     assert.match(ecran, /P\.refusDestinataire\(adresse\)/);
     assert.match(ecran, /P\.texteAdresses\(adresses\)/);

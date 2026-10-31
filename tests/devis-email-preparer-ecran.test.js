@@ -94,6 +94,14 @@ describe('P3 le câblage : menu « Envoyer », confirmation, textes, serveur', (
     assert.equal(P.LIBELLE_CHANGER_ADRESSE, 'Changer l’adresse');
     assert.equal(P.LIBELLE_ENREGISTRER_ET_PREPARER, 'Enregistrer et préparer l’e-mail');
   });
+  test('P3 « Changer l’adresse » remplace seulement la première adresse : les autres destinataires et la copie sont gardés', () => {
+    const base = { destinataires: ['a@exemple.fr', 'b@exemple.fr'], copie: ['c@exemple.fr'] };
+    assert.deepEqual(P.adressesApresChangement(base, 'a@exemple.fr', 'n@exemple.fr'), { destinataires: ['n@exemple.fr', 'b@exemple.fr'], copie: ['c@exemple.fr'], copieChangee: false });
+    assert.deepEqual(P.adressesApresChangement(base, 'a@exemple.fr', 'C@exemple.fr'), { destinataires: ['C@exemple.fr', 'b@exemple.fr'], copie: [], copieChangee: true }, 'une adresse qui était en copie en est retirée');
+    assert.deepEqual(P.adressesApresChangement(base, 'a@exemple.fr', 'B@exemple.fr').destinataires, ['B@exemple.fr'], 'jamais la même adresse deux fois');
+    assert.deepEqual(P.adressesApresChangement({ destinataires: [], copie: [] }, '', 'n@exemple.fr'), { destinataires: ['n@exemple.fr'], copie: [], copieChangee: false }, 'devis sans destinataire');
+    assert.match(P.MESSAGE_CHANGER_ADRESSE_ICI, /gardés/);
+  });
   test('P3 l’écran de confirmation grise ses boutons pendant l’appel, garde la fenêtre ouverte sur une erreur avec « Réessayer », et n’appelle qu’une fois', () => {
     const t = lire('js/modules/devis/email-preparer-ecran.js');
     assert.match(t, /peutFermer: \(\) => !occupe/);

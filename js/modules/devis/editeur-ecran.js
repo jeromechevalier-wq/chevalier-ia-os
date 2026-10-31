@@ -23,7 +23,7 @@ import { ouvrirCreationPersonne } from '../crm/personnes.js';
 import { ouvrirCreationOrganisation } from '../crm/organisations.js';
 import {
   TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, estExpire, UNITES_DUREE, MOMENTS_ACOMPTE, TYPES_ACOMPTE, detailAcomptes, erreursAcomptes, listeAcomptes, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
-  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis, MESSAGE_AFFAIRE_MANQUANTE,
+  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, MAX_DESTINATAIRES, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis, MESSAGE_AFFAIRE_MANQUANTE,
 } from './logique.js';
 import { formaterMontant } from './document.js';
 import { menuUnite } from './menu-unite.js';
@@ -698,51 +698,69 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     remplir(ref.panneauApercu, corps);
   }
 
-  // ------------------------------------------------ e-mail(s) en copie (cc) : un champ comme les autres (titre en capitales, valeur dessous)
-  // Plafond MAX_COPIE (logique.js) : le serveur l'applique aussi (erreursFinalisation). Les refus (adresse invalide, déjà en copie, déjà destinataire, plafond) sont dans Ed.refusAjoutCopie.
+  // ------------------------------------------------ e-mail(s) du destinataire (« À ») et en copie (cc) : le même bloc, deux listes (titre en capitales, valeur dessous)
+  // Plafonds MAX_DESTINATAIRES et MAX_COPIE (logique.js) : le serveur les applique aussi (erreursFinalisation). Les refus (adresse invalide, déjà dans la liste, dans l'autre liste, plafond) sont dans Ed.refusAjoutDestinataire / Ed.refusAjoutCopie.
+  const BLOCS_ADRESSES = {
+    destinataires: {
+      titre: 'E-mail(s) du destinataire', bouton: 'E-mail du destinataire', vide: 'Aucun destinataire', zone: 'destinataires', mot: 'destinataire', max: MAX_DESTINATAIRES, autre: 'copie',
+      classes: { zone: 'bloc-destinataires', liste: 'liste-destinataires', ligne: 'ligne-destinataire', vide: 'destinataires-vide' },
+      retirer: (a) => `Retirer ${a} des destinataires`, plafond: `${MAX_DESTINATAIRES} destinataires : c’est le maximum.`,
+      refus: (v, liste, autre) => Ed.refusAjoutDestinataire(v, liste, autre),
+    },
+    copie: {
+      titre: 'E-mail(s) en copie', bouton: 'E-mail en copie', vide: 'Aucune adresse en copie', zone: 'copie', mot: 'copie', max: MAX_COPIE, autre: 'destinataires',
+      classes: { zone: 'bloc-copie', liste: 'liste-copie', ligne: 'ligne-copie', vide: 'copie-vide' },
+      retirer: (a) => `Retirer ${a} de la copie`, plafond: `${MAX_COPIE} adresses en copie : c’est le maximum.`,
+      refus: (v, liste, autre) => Ed.refusAjoutCopie(v, liste, autre),
+    },
+  };
   /**
-   * Titre fixe « E-mail(s) en copie », puis soit « Aucune adresse en copie » (grisé), soit une ligne par adresse avec sa croix ; « + E-mail en copie » ouvre un champ.
+   * Titre fixe, puis soit « Aucun destinataire » / « Aucune adresse en copie » (grisé), soit une ligne par adresse avec sa croix ; « + E-mail du destinataire » / « + E-mail en copie » ouvre un champ.
    * Entrée ou sortie du champ ajoute ; tout refus s'affiche sous le champ, qui reste ouvert avec le texte tapé ; le message disparaît dès que le texte change, ou à Échap.
-   * Après Entrée (ajout réussi) ou Échap, le focus revient sur « + E-mail en copie ». La croix retire sans confirmation (exception à « Destructif », voir docs/consignes-ui.md).
-   * Lecture seule : le bloc existe aussi (écran unique), il est verrouillé par `verrouiller()` : adresses lisibles, croix et « + E-mail en copie » grisés (test C3), sans logique propre ici.
-   * Après tout changement de la liste, l'état du champ destinataire est recalculé (`majErreurDestinataire`).
+   * Après Entrée (ajout réussi) ou Échap, le focus revient sur le bouton « + ». La croix retire sans confirmation (exception à « Destructif », voir docs/consignes-ui.md).
+   * Lecture seule : le bloc existe aussi (écran unique), il est verrouillé par `verrouiller()` : adresses lisibles, croix et « + » grisés (test C3), sans logique propre ici.
+   * Après tout changement d'une liste, l'AUTRE bloc est redessiné (le message « déjà en copie » du destinataire suit la réalité).
    */
-  function blocCopie() {
-    const zone = h('div', { class: 'bloc-champ bloc-copie', dataset: { zone: 'copie' }, role: 'group', 'aria-labelledby': 'devis-copie-titre' });
+  function blocAdresses(cle) {
+    const cfg = BLOCS_ADRESSES[cle];
+    const zone = h('div', { class: `bloc-champ bloc-adresses ${cfg.classes.zone}`, dataset: { zone: cfg.zone }, role: 'group', 'aria-labelledby': `devis-${cle}-titre` });
     let saisie = false;
     let enCours = ''; // texte du champ en cours de saisie : gardé si la ligne est redessinée (retrait d'une autre adresse pendant la saisie)
     let refusEnCours = ''; // motif du dernier refus : gardé lui aussi quand la ligne est redessinée, jusqu'à ce que le texte change
-    /** Après une saisie terminée au clavier : le focus revient sur « + E-mail en copie » (au plafond, sur la dernière croix), jamais sur la page entière. */
-    const rendreFocus = () => (zone.querySelector('[data-action="ajouter-copie"]') ?? [...zone.querySelectorAll('[data-action="retirer-copie"]')].pop())?.focus();
-    const adresses = () => (Array.isArray(travail.copie) ? travail.copie : []);
+    /** Après une saisie terminée au clavier : le focus revient sur « + » (au plafond, sur la dernière croix), jamais sur la page entière. */
+    const rendreFocus = () => (zone.querySelector(`[data-action="ajouter-${cfg.mot}"]`) ?? [...zone.querySelectorAll(`[data-action="retirer-${cfg.mot}"]`)].pop())?.focus();
+    const adresses = (k = cle) => Ed.adressesDeListe(travail[k]);
     let abandonnerSaisie = () => {};
     function dessiner() {
       abandonnerSaisie(); abandonnerSaisie = () => {}; // l'ancien champ disparaît : son « blur » éventuel ne doit plus rien valider
+      ref.signatures = { ...(ref.signatures ?? {}), [cle]: signatureBloc(cle) };
       const liste = adresses();
-      const parties = [h('span', { class: 'etiquette', id: 'devis-copie-titre' }, 'E-mail(s) en copie')];
+      const parties = [h('span', { class: 'etiquette', id: `devis-${cle}-titre` }, cfg.titre)];
       if (liste.length) {
-        parties.push(h('ul', { class: 'liste-copie' }, liste.map((a, i) => h('li', { class: 'ligne-copie', dataset: { copie: a } },
+        parties.push(h('ul', { class: cfg.classes.liste }, liste.map((a, i) => h('li', { class: cfg.classes.ligne, dataset: { [cfg.mot]: a } },
           h('span', {}, a),
-          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${a} de la copie`, dataset: { action: 'retirer-copie' },
+          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': cfg.retirer(a), dataset: { action: `retirer-${cfg.mot}` },
             // Pendant la saisie d'une autre adresse, un appui sur la croix ne doit pas faire perdre le focus au champ : sinon « blur » redessine la ligne avant le clic et la croix disparaît.
             onpointerdown: (e) => e.preventDefault(), onmousedown: (e) => e.preventDefault(),
-            onclick: () => { changer({ copie: adresses().filter((_, k) => k !== i) }); majErreurDestinataire(); dessiner(); } }, icone('x', { taille: 14 }))))));
+            onclick: () => { changer({ [cle]: adresses().filter((_, k) => k !== i) }); majBlocs(); if (!saisie) rendreFocus(); }, }, icone('x', { taille: 14 }))))));
       } else {
-        parties.push(h('p', { class: 'copie-vide', dataset: { valeur: 'copie-vide' } }, 'Aucune adresse en copie'));
+        parties.push(h('p', { class: cfg.classes.vide, dataset: { valeur: `${cfg.mot}-vide` } }, cfg.vide));
+        // Le mail du client est déjà en copie : il n'est pas repris comme destinataire, et le bloc le dit (jamais la même adresse dans les deux listes).
+        if (cle === 'destinataires' && ref.emailAuto && adresseDans('copie', ref.emailAuto)) parties.push(h('p', { class: 'erreur', id: 'devis-destinataire-erreur', role: 'alert', dataset: { erreur: 'destinataire-auto' } }, Ed.MESSAGE_DESTINATAIRE_DEJA_COPIE));
       }
       if (saisie) {
-        const erreur = h('p', { class: 'erreur', id: 'devis-copie-erreur', role: 'alert', hidden: true, dataset: { erreur: 'copie' } });
+        const erreur = h('p', { class: 'erreur', id: `devis-${cle}-erreur`, role: 'alert', hidden: true, dataset: { erreur: cfg.mot } });
         let fini = false;
         abandonnerSaisie = () => { fini = true; };
-        const montrer = (message) => { refusEnCours = message ?? ''; erreur.textContent = refusEnCours; erreur.hidden = !refusEnCours; champSaisie.setAttribute('aria-invalid', refusEnCours ? 'true' : 'false'); if (refusEnCours) champSaisie.setAttribute('aria-describedby', 'devis-copie-erreur'); else champSaisie.removeAttribute('aria-describedby'); };
+        const montrer = (message) => { refusEnCours = message ?? ''; erreur.textContent = refusEnCours; erreur.hidden = !refusEnCours; champSaisie.setAttribute('aria-invalid', refusEnCours ? 'true' : 'false'); if (refusEnCours) champSaisie.setAttribute('aria-describedby', `devis-${cle}-erreur`); else champSaisie.removeAttribute('aria-describedby'); };
         // Renvoie vrai si la saisie est terminée (ajoutée, ou vide) ; sinon le champ reste ouvert avec son texte et le motif du refus.
         const valider = () => {
           const v = champSaisie.value.trim();
           if (!v) return true;
-          const refus = Ed.refusAjoutCopie(v, adresses(), travail.destinataires ?? []);
+          const refus = cfg.refus(v, adresses(), adresses(cfg.autre));
           if (refus) { montrer(refus); return false; }
-          changer({ copie: [...adresses(), v] });
-          majErreurDestinataire();
+          changer({ [cle]: [...adresses(), v] });
+          majBlocs(cle); // l'autre bloc se met à jour ; celui-ci est redessiné par `terminer`
           return true;
         };
         const terminer = (validerAvant, { focus = false } = {}) => {
@@ -752,7 +770,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
           dessiner();
           if (focus) rendreFocus();
         };
-        const champSaisie = h('input', { class: 'champ', type: 'email', inputmode: 'email', autocomplete: 'off', placeholder: 'contact@exemple.fr', 'aria-label': 'E-mail en copie', dataset: { champ: 'copie' }, value: enCours,
+        const champSaisie = h('input', { class: 'champ', type: 'email', inputmode: 'email', autocomplete: 'off', placeholder: 'contact@exemple.fr', 'aria-label': cfg.bouton, dataset: { champ: cfg.mot }, value: enCours,
           oninput: (e) => { enCours = e.target.value; montrer(''); },
           onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); terminer(true, { focus: true }); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); terminer(false, { focus: true }); } },
           onblur: () => terminer(Boolean(champSaisie.value.trim())) });
@@ -762,13 +780,23 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         champSaisie.focus();
         return;
       }
-      if (liste.length < MAX_COPIE) parties.push(h('button', { type: 'button', class: 'prop-vide', dataset: { action: 'ajouter-copie' }, onclick: () => { saisie = true; enCours = ''; refusEnCours = ''; dessiner(); } }, icone('plus', { taille: 14 }), 'E-mail en copie'));
-      else parties.push(h('p', { class: 'copie-vide', dataset: { valeur: 'copie-plafond' } }, `${MAX_COPIE} adresses en copie : c’est le maximum.`)); // au plafond : une phrase grisée à la place du bouton
+      if (liste.length < cfg.max) parties.push(h('button', { type: 'button', class: 'prop-vide', dataset: { action: `ajouter-${cfg.mot}` }, onpointerdown: (e) => e.preventDefault(), onmousedown: (e) => e.preventDefault(), onclick: () => { saisie = true; enCours = ''; refusEnCours = ''; dessiner(); } }, icone('plus', { taille: 14 }), cfg.bouton));
+      else parties.push(h('p', { class: cfg.classes.vide, dataset: { valeur: `${cfg.mot}-plafond` } }, cfg.plafond)); // au plafond : une phrase grisée à la place du bouton
       zone.replaceChildren(...parties);
     }
+    ref.blocs = { ...(ref.blocs ?? {}), [cle]: dessiner };
     dessiner();
     return zone;
   }
+  /** Redessine les blocs d'adresses (sauf `sauf`, qui se redessine seul) : après un changement d'une liste, l'autre en dépend (message « déjà en copie », mail du client repris ou non). */
+  function majBlocs(sauf = null) {
+    // Un bloc n'est redessiné que si ce qu'il montre a changé : redessiner le bloc voisin pendant qu'on clique sur son « + » remplacerait le bouton avant la fin du clic (clic avalé).
+    for (const [cle, dessiner] of Object.entries(ref.blocs ?? {})) if (cle !== sauf && (ref.signatures?.[cle] !== signatureBloc(cle))) dessiner();
+  }
+  /** Ce qu'un bloc d'adresses montre : sa liste, et pour les destinataires le message « déjà en copie » du mail du client. */
+  const signatureBloc = (cle) => JSON.stringify([Ed.adressesDeListe(travail[cle]), cle === 'destinataires' && Boolean(ref.emailAuto) && adresseDans('copie', ref.emailAuto)]);
+  /** Vrai si `v` est déjà dans la liste `cle` du devis (même règle que l'ajout : Ed.memeAdresse). */
+  function adresseDans(cle, v) { return Ed.adressesDeListe(travail[cle]).some((a) => Ed.memeAdresse(a, v)); }
 
   // ------------------------------------------------ barre du haut
   const majTitreCompact = () => { if (ref.titreCompact) ref.titreCompact.textContent = ref.titre?.textContent ?? ''; };
@@ -909,8 +937,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     ref.depart = d.personneId && !d.organisationId ? 'personne' : null; // d'où vient le client : « personne » pose la question « l'organisation / elle seule » ; sinon (organisation, affaire, devis déjà enregistré) la liste « à l'attention de »
     // Un brouillon enregistré avant la règle « l'e-mail suit le client » : on reprend l'e-mail de la fiche tant que rien n'est écrit.
     // Jamais une adresse déjà en copie : le destinataire reste vide et le champ le dit (voir appliquerClient).
-    const emailAutoEnCopie = Boolean(ref.emailAuto) && adresseEnCopie(ref.emailAuto);
-    if (!lecture && ref.emailAuto && !emailAutoEnCopie && !(travail.destinataires ?? []).length) travail.destinataires = [ref.emailAuto];
+    const emailAutoEnCopie = Boolean(ref.emailAuto) && adresseDans('copie', ref.emailAuto);
+    if (!lecture && ref.emailAuto && !emailAutoEnCopie && !Ed.adressesDeListe(travail.destinataires).length) travail.destinataires = [ref.emailAuto];
     const ligne = (avant, zone, apres = '') => h('p', { class: 'ligne-entete' }, avant, zone, apres);
     ref.numeroDocument = h('h2', { class: 'titre-document', dataset: { valeur: 'numero-devis' } }, '');
     // Nom INTERNE du devis (distinct de la description, imprimée) : jamais sur le PDF ni dans l'e-mail. Trop long : tronqué, avec un message.
@@ -957,38 +985,14 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       class: 'champ', id: 'devis-chantier-adresse', rows: 3, dataset: { champ: 'chantier-adresse' }, value: Ed.texteDeAdresse(c.adresse) || Ed.texteDeAdresse(d.adresses?.chantier),
       oninput: (e) => { const t = e.target.value; travail.adresses = { ...(travail.adresses ?? {}), chantier: Ed.adresseTexteSimple(t) }; travail.chantier = Ed.chantierAvecAdresse(travail.chantier, t); marquerModifie(); majErreursChantier(); },
     });
-    // Une adresse ne peut pas être à la fois destinataire et en copie : on le dit tout de suite, et la valeur n'est pas enregistrée tant qu'elle est en double.
-    const erreurDestinataire = h('p', { class: 'erreur', id: 'devis-destinataire-erreur', role: 'alert', hidden: true, dataset: { erreur: 'destinataire' } });
-    ref.erreurDestinataire = erreurDestinataire;
-    const destinataire = h('input', {
-      class: 'champ', id: 'devis-destinataire', type: 'email', inputmode: 'email', autocomplete: 'off', value: Ed.emailsDeFiche({ emails: d.destinataires })[0] ?? '', dataset: { champ: 'destinataire' },
-      oninput: (e) => {
-        const v = e.target.value.trim();
-        const doublon = v !== '' && adresseEnCopie(v);
-        erreurDestinataire.textContent = doublon ? Ed.MESSAGE_DESTINATAIRE_DEJA_COPIE : '';
-        erreurDestinataire.hidden = !doublon;
-        e.target.setAttribute('aria-invalid', doublon ? 'true' : 'false');
-        if (doublon) e.target.setAttribute('aria-describedby', 'devis-destinataire-erreur'); else e.target.removeAttribute('aria-describedby');
-        if (doublon) return;
-        changer({ destinataires: v ? [v] : [] });
-      },
-      onblur: (e) => { // en quittant le champ avec un doublon : on remet l'adresse enregistrée
-        if (e.target.getAttribute('aria-invalid') !== 'true') return;
-        e.target.value = (travail.destinataires ?? [])[0] ?? '';
-        e.target.setAttribute('aria-invalid', 'false');
-        e.target.removeAttribute('aria-describedby');
-        erreurDestinataire.hidden = true;
-      },
-    });
-    if (emailAutoEnCopie && !(travail.destinataires ?? []).length) montrerDestinataireDejaEnCopie();
     if (!lecture) { majZoneClient(); majAideAffaire(); }
     const droite = h('div', { class: 'entete-droite' },
       champ('Pour qui est ce devis ?', lecture ? ref.champClient : ref.champClient.element, { id: 'devis-client', aide: lecture ? null : ref.zoneClient }),
       attentionLecture ? champ('À l’attention de', texteSeul('attention', attentionLecture), { id: 'devis-attention' }) : null,
       champ('Affaire', lecture ? ref.champAffaire : ref.champAffaire.element, { id: 'devis-affaire', aide: lecture ? null : [ref.erreurAffaire, ref.messageAffaireVidee] }),
       champ('Adresse du chantier', ref.champAdresse, { id: 'devis-chantier-adresse' }),
-      champ('E-mail du destinataire', destinataire, { id: 'devis-destinataire', aide: erreurDestinataire }),
-      blocCopie());
+      blocAdresses('destinataires'),
+      blocAdresses('copie'));
     return h('div', { class: 'entete-document' }, gauche, droite);
   }
 
@@ -1278,35 +1282,6 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     majChoix();
   }
 
-  /** Vrai si `v` est déjà dans les e-mails en copie (même règle que l'ajout en copie : Ed.memeAdresse). */
-  function adresseEnCopie(v) { return (Array.isArray(travail.copie) ? travail.copie : []).some((a) => Ed.memeAdresse(a, v)); }
-  function montrerDestinataireDejaEnCopie() {
-    if (!ref.erreurDestinataire) return;
-    ref.erreurDestinataire.textContent = Ed.MESSAGE_DESTINATAIRE_DEJA_COPIE;
-    ref.erreurDestinataire.hidden = false;
-    const champMail = racine.querySelector('[data-champ="destinataire"]');
-    champMail?.setAttribute('aria-invalid', 'true');
-    champMail?.setAttribute('aria-describedby', 'devis-destinataire-erreur');
-  }
-  /** Après un changement des e-mails en copie : le message « déjà en copie » du destinataire suit la réalité (disparaît si l'adresse n'est plus en copie ; l'adresse tapée alors valable est enregistrée). */
-  function majErreurDestinataire() {
-    const champMail = racine.querySelector('[data-champ="destinataire"]');
-    if (!champMail || !ref.erreurDestinataire) return;
-    const v = champMail.value.trim();
-    if (v) {
-      if (adresseEnCopie(v)) { montrerDestinataireDejaEnCopie(); return; }
-      cacherErreurDestinataire();
-      if (((travail.destinataires ?? [])[0] ?? '') !== v) changer({ destinataires: [v] });
-    } else if (!ref.erreurDestinataire.hidden && !(ref.emailAuto && adresseEnCopie(ref.emailAuto))) cacherErreurDestinataire();
-  }
-  function cacherErreurDestinataire() {
-    if (!ref.erreurDestinataire) return;
-    ref.erreurDestinataire.textContent = '';
-    ref.erreurDestinataire.hidden = true;
-    const champMail = racine.querySelector('[data-champ="destinataire"]');
-    champMail?.setAttribute('aria-invalid', 'false');
-    champMail?.removeAttribute('aria-describedby');
-  }
   /** Reprend l'adresse du client et l'e-mail du destinataire (celui de la personne « à l'attention de » s'il existe, sinon le premier e-mail de la fiche), sans écraser une adresse de chantier ou un e-mail que l'utilisateur a écrits à la main. */
   function appliquerClient(c, remplacerEmail, mailPrefere = '') {
     if (lecture) return;
@@ -1324,17 +1299,16 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     }
     // L'e-mail du destinataire suit le client choisi, tant que l'utilisateur ne l'a pas écrit lui-même (même règle que l'adresse du chantier).
     // Si cet e-mail est déjà en copie, il n'est pas repris (pas de doublon destinataire / copie) : le destinataire reste vide et le champ dit pourquoi.
+    // Remplacé seulement si la liste est vide ou ne contient que l'e-mail repris automatiquement : plusieurs destinataires, ou une adresse écrite à la main, ne sont jamais écrasés.
     const mail = CD.emailDestinataire(mailPrefere, c ? Ed.emailsDeFiche(c.fiche)[0] ?? '' : '');
-    const actuel = (travail.destinataires ?? [])[0] ?? '';
-    if (!actuel || actuel === (ref.emailAuto ?? '')) {
-      const enCopie = Boolean(mail) && adresseEnCopie(mail);
+    const actuels = Ed.adressesDeListe(travail.destinataires);
+    if (!actuels.length || (actuels.length === 1 && Ed.memeAdresse(actuels[0], ref.emailAuto ?? ''))) {
+      const enCopie = Boolean(mail) && adresseDans('copie', mail);
       const repris = enCopie ? '' : mail;
       travail.destinataires = repris ? [repris] : [];
-      const champMail = racine.querySelector('[data-champ="destinataire"]');
-      if (champMail) champMail.value = repris;
-      if (enCopie) montrerDestinataireDejaEnCopie(); else cacherErreurDestinataire();
     }
     ref.emailAuto = mail;
+    majBlocs();
     marquerModifie();
   }
 

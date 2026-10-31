@@ -34,7 +34,7 @@ export async function lancerPreparationEmail({ devisId, getDevis, finaliser = nu
  * Une erreur reste affichée dans la fenêtre ; pendant l'appel les boutons sont grisés (ni « Annuler » ni Échap ne ferment une écriture en cours).
  * Si l'adresse est enregistrée mais que le brouillon échoue, la fenêtre le dit et « Réessayer » ne réécrit pas l'adresse.
  */
-function demanderAdresse(devisId, { preparer = false, depart = '' } = {}) {
+function demanderAdresse(devisId, { preparer = false, depart = '', destinataires = [], copie = [] } = {}) {
   let occupe = false;
   let enregistree = null;
   let boutons = [];
@@ -66,7 +66,11 @@ function demanderAdresse(devisId, { preparer = false, depart = '' } = {}) {
           occuper(true);
           let etape = 'adresse';
           try {
-            if (enregistree !== adresse) { await D.modifierDestinataires(devisId, { destinataires: [adresse] }); enregistree = adresse; }
+            if (enregistree !== adresse) {
+              const suite = P.adressesApresChangement({ destinataires, copie }, depart, adresse); // les autres destinataires et la copie sont gardés
+              await D.modifierDestinataires(devisId, { destinataires: suite.destinataires, ...(suite.copieChangee ? { copie: suite.copie } : {}) });
+              enregistree = adresse;
+            }
             etape = 'brouillon';
             if (preparer) await D.preparerEmailDevis(devisId);
           } catch (e) {
@@ -103,8 +107,9 @@ async function saisirEtPreparer(devisId) {
 async function confirmerEtDemander(devisId, adresses) {
   const reponse = await confirmation(devisId, adresses);
   if (reponse !== 'changer') return;
-  const nouvelle = await demanderAdresse(devisId, { depart: adresses.destinataires[0] ?? '' });
-  const suite = nouvelle ? { destinataires: [nouvelle], copie: adresses.copie.filter((c) => c.toLowerCase() !== nouvelle.toLowerCase()) } : adresses;
+  const depart = adresses.destinataires[0] ?? '';
+  const nouvelle = await demanderAdresse(devisId, { depart, destinataires: adresses.destinataires, copie: adresses.copie });
+  const suite = nouvelle ? P.adressesApresChangement(adresses, depart, nouvelle) : adresses;
   await confirmerEtDemander(devisId, suite);
 }
 

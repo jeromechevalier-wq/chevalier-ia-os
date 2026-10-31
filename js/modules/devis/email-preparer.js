@@ -26,7 +26,7 @@ export function aUnDestinataire(devis) {
 export const MESSAGE_SANS_DESTINATAIRE = 'Ce devis n’a pas de destinataire : ajoute une adresse e-mail dans le devis, puis réessaie.';
 /** Sur un devis finalisé (qui ne se modifie plus), on demande l'adresse dans la fenêtre : seul le destinataire est enregistré, le contenu du devis ne change pas. */
 export const MESSAGE_SANS_DESTINATAIRE_ICI = 'Ce devis n’a pas de destinataire. Saisis l’adresse e-mail de ton client : elle est ajoutée au devis (le contenu du devis ne change pas), puis le brouillon est préparé.';
-export const MESSAGE_CHANGER_ADRESSE_ICI = 'Saisis la bonne adresse e-mail de ton client : elle remplace celle du devis (le contenu du devis ne change pas).';
+export const MESSAGE_CHANGER_ADRESSE_ICI = 'Saisis la bonne adresse e-mail de ton client : elle remplace la première adresse du devis. Les autres destinataires et les adresses en copie sont gardés (le contenu du devis ne change pas).';
 export const MESSAGE_DESTINATAIRE_INVALIDE = 'Cette adresse e-mail n’est pas valide.';
 export const LIBELLE_CHANGER_ADRESSE = 'Changer l’adresse';
 export const LIBELLE_ENREGISTRER_ET_PREPARER = 'Enregistrer et préparer l’e-mail';
@@ -38,6 +38,19 @@ export function adressesDuBrouillon(devis) {
   const destinataires = utilisables(devis?.destinataires);
   const copie = utilisables(devis?.copie).filter((c) => !destinataires.some((a) => a.toLowerCase() === c.toLowerCase()));
   return { destinataires, copie };
+}
+/**
+ * Les adresses après « Changer l'adresse » : `nouvelle` remplace seulement `depart` (la première adresse) ; les autres destinataires et la copie sont gardés.
+ * Sans adresse de départ (devis sans destinataire), `nouvelle` devient l'unique destinataire. Jamais de doublon : la nouvelle adresse déjà ailleurs dans les destinataires n'y est qu'une fois,
+ * et si elle était en copie elle en est retirée (`copieChangee` dit alors qu'il faut réécrire la copie).
+ */
+export function adressesApresChangement({ destinataires = [], copie = [] }, depart, nouvelle) {
+  const meme = (a, b) => a.toLowerCase() === b.toLowerCase();
+  const remplaces = depart && destinataires.some((a) => a === depart) ? destinataires.map((a) => (a === depart ? nouvelle : a)) : [nouvelle, ...destinataires];
+  const vues = new Set();
+  const nouveauxDestinataires = remplaces.filter((a) => !vues.has(a.toLowerCase()) && vues.add(a.toLowerCase()));
+  const nouvelleCopie = copie.filter((c) => !nouveauxDestinataires.some((a) => meme(a, c)));
+  return { destinataires: nouveauxDestinataires, copie: nouvelleCopie, copieChangee: nouvelleCopie.length !== copie.length };
 }
 /** Texte montré dans la confirmation : l'adresse du client (et la copie) avant de créer le brouillon. */
 export const texteAdresses = ({ destinataires, copie }) => `Adressé à : ${destinataires.join(', ')}${copie.length ? ` · En copie : ${copie.join(', ')}` : ''}`;

@@ -892,6 +892,13 @@ function verifierMarge(devis) {
 function verifierDestinataires(liste) {
   const mauvaise = (liste ?? []).find((e) => !D.emailValide(e));
   if (mauvaise !== undefined) refuser('saisie_invalide', `Adresse e-mail de destinataire invalide : « ${mauvaise} ».`);
+  if ((liste ?? []).length > D.MAX_DESTINATAIRES) refuser('saisie_invalide', `Il y a trop de destinataires (${D.MAX_DESTINATAIRES} au plus).`); // mêmes règles que l'écran et D.erreursFinalisation
+  const vues = new Set();
+  for (const e of liste ?? []) {
+    const m = String(e).trim().toLowerCase();
+    if (vues.has(m)) refuser('saisie_invalide', `L'adresse « ${String(e).trim().slice(0, 60)} » est deux fois destinataire.`);
+    vues.add(m);
+  }
 }
 
 const courrielDe = (e) => (typeof e === 'string' ? e : e?.email ?? '').trim();
