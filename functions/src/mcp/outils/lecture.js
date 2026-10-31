@@ -146,7 +146,7 @@ export const lire_audit = {
 export const lister_articles = {
   nom: 'lister_articles',
   profils: TOUS,
-  description: "Liste les articles du bordereau de prix du module Devis (code, libellé, unité, prix d'achat hors taxes en euros, taux de TVA propre s'il y en a un, type, marge propre, actif). Un article composé (type ouvrage ; le mot affiché est donné par lire_reglages_devis) porte ses composants, son prixVenteForce éventuel et son calcul (prixVenteHT, deboursSecHT, margeBruteHT, tauxMarge). Par défaut les articles actifs ; statut: 'desactives' ou 'tous' pour les autres. Triés par libellé. Le mot affiché à l'utilisateur est donné par lire_reglages_devis.",
+  description: "Liste les articles du bordereau de prix du module Devis (code, libellé, unité, prix d'achat hors taxes en euros, taux de TVA propre s'il y en a un, type, marge propre, actif). Un article composé (type ouvrage) porte ses composants, son prixVenteForce éventuel et son calcul (prixVenteHT, deboursSecHT, margeBruteHT, tauxMarge). Par défaut les articles actifs ; statut: 'desactives' ou 'tous' pour les autres. Triés par libellé. Le mot affiché à l'utilisateur est donné par lire_reglages_devis.",
   schema: {
     statut: z.enum(['actifs', 'desactives', 'tous']).optional().describe("Défaut : actifs."),
     limite,
