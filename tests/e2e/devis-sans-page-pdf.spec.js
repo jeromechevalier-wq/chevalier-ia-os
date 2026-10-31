@@ -83,10 +83,16 @@ async function ecrirePdf(id, pdf) {
 }
 const ouvrirMenuPlus = (page) => page.locator('[data-action="plus-actions"]').click();
 const entree = (page, nom) => page.locator('.menu-pop').getByRole('menuitem', { name: nom });
-/** Choisit une entrée du menu « … » (ordinateur et téléphone). */
+/** Ouvre le menu qui porte « Télécharger le PDF » et « Imprimer » : celui d'« Envoyer » quand il est actif (devis finalisé), sinon « … » (31/10/2026). */
+async function ouvrirMenuPdf(page) {
+  const envoyer = page.locator('[data-action="envoyer"]');
+  if ((await envoyer.count()) && (await envoyer.getAttribute('aria-disabled')) !== 'true') await envoyer.click();
+  else await ouvrirMenuPlus(page);
+}
+/** Choisit une entrée du menu qui la porte (ordinateur et téléphone). « Ouvrir le PDF » n'existe plus dans l'éditeur : « Imprimer » ouvre le même PDF. */
 async function depuisMenu(page, nom) {
-  await ouvrirMenuPlus(page);
-  await entree(page, nom).click();
+  await ouvrirMenuPdf(page);
+  await entree(page, nom === 'Ouvrir le PDF' ? 'Imprimer' : nom).click();
 }
 /** 10h : à aucun moment une page « PDF » n'est affichée, l'adresse reste celle du devis. */
 async function aucunePageTechnique(page, adresse) {
@@ -106,19 +112,24 @@ const requetesGoogle = (page) => { const l = []; page.on('request', (r) => { if 
 
 // ------------------------------------------------------------------ 10a : le menu « … »
 
-test('10a le menu « … » d’un devis (brouillon et finalisé) propose « Ouvrir le PDF », « Télécharger le PDF » et « Imprimer »', async ({ page }, info) => {
+test('10a le PDF d’un devis : brouillon = « Télécharger le PDF » et « Imprimer » dans « … » ; finalisé = dans le menu « Envoyer » ; « Ouvrir le PDF » n’existe plus', async ({ page }, info) => {
   await donnees();
   await simulerServeur(page, []);
   await ouvrirEditeur(page, 'dBrouillon');
   await ouvrirMenuPlus(page);
-  for (const nom of ['Ouvrir le PDF', 'Télécharger le PDF', 'Imprimer']) await expect(entree(page, nom)).toBeEnabled();
+  for (const nom of ['Télécharger le PDF', 'Imprimer']) await expect(entree(page, nom)).toBeEnabled();
+  await expect(entree(page, 'Ouvrir le PDF')).toHaveCount(0);
   await capturer(page, info, '10a-menu-brouillon');
   await page.keyboard.press('Escape');
   await allerEditeur(page, 'dOk');
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
-  await ouvrirMenuPlus(page);
-  for (const nom of ['Ouvrir le PDF', 'Télécharger le PDF', 'Imprimer']) await expect(entree(page, nom)).toBeEnabled();
+  await page.locator('[data-action="envoyer"]').click();
+  for (const nom of ['Télécharger le PDF', 'Imprimer']) await expect(entree(page, nom)).toBeEnabled();
+  await expect(entree(page, 'Ouvrir le PDF')).toHaveCount(0);
   await capturer(page, info, '10a-menu-finalise');
+  await page.keyboard.press('Escape');
+  await ouvrirMenuPlus(page);
+  for (const nom of ['Télécharger le PDF', 'Imprimer', 'Ouvrir le PDF']) await expect(entree(page, nom)).toHaveCount(0);
 });
 
 // ------------------------------------------------------------------ 10b : PDF prêt

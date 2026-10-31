@@ -16,7 +16,7 @@ import {
 } from '../crm/logique.js';
 import {
   MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, DUREE_VALIDITE_DEFAUT, coefficientDeMarge, emailValide,
-  LIMITE_ASSURANCE_TEXTE, LIMITE_COORDONNEES_BANCAIRES, LIMITE_MENTION_EMETTEUR, nettoyerTexteLibre, assuranceDepuisAnciensChamps,
+  LIMITE_ASSURANCE_TEXTE, LIMITE_COORDONNEES_BANCAIRES, LIMITE_MENTION_EMETTEUR, LIMITE_MENTION_TVA_REDUITE, nettoyerTexteLibre, assuranceDepuisAnciensChamps,
 } from './logique.js';
 import { TYPE_OUVRAGE, erreursOuvrage, articlesParId, calculerOuvrage, lireMotOuvrage, validerMotAutre, MOTS_OUVRAGE, MOT_OUVRAGE_AUTRE } from './ouvrages.js';
 export { motOuvrage, MOTS_OUVRAGE } from './ouvrages.js';
@@ -425,6 +425,7 @@ export const REGLAGES_DEVIS_DEFAUT = Object.freeze({
   etapeEnvoye: '',
   etapeAffaireCreee: '', // étape de départ de l'affaire créée à la finalisation d'un devis sans affaire ('' = non réglée : on demande à chaque fois) ; jamais contrôlée ici (le pipeline n'est pas visible), la validité se résout à l'usage
   mentionEmetteur: '',
+  mentionTvaReduite: '', // vide = texte standard (MENTION_TVA_REDUITE_DEFAUT), imprimé sur les devis à 5,5 % ou 10 %
   entreprise: Object.freeze({}),
 });
 const CLES_REGLAGES = Object.keys(REGLAGES_DEVIS_DEFAUT);
@@ -450,6 +451,7 @@ export function reglagesDevis(brut) {
     etapeEnvoye: typeof b.etapeEnvoye === 'string' ? b.etapeEnvoye : '',
     etapeAffaireCreee: typeof b.etapeAffaireCreee === 'string' ? b.etapeAffaireCreee : '',
     mentionEmetteur: typeof b.mentionEmetteur === 'string' ? nettoyerTexteLibre(b.mentionEmetteur) : '',
+    mentionTvaReduite: typeof b.mentionTvaReduite === 'string' ? nettoyerTexteLibre(b.mentionTvaReduite) : '',
     entreprise: lireEntreprise(b.entreprise),
   };
 }
@@ -489,6 +491,8 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT }
   if (jours === null || !Number.isInteger(jours) || jours < 1 || jours > LIMITES.jours) erreurs.dureeValiditeJours = `La durée de validité est un nombre entier de jours, entre 1 et ${LIMITES.jours} (exemple : 90).`;
   const mention = nettoyerTexteLibre(s.mentionEmetteur);
   if (mention.length > LIMITES.mention) erreurs.mentionEmetteur = `Le texte « Attestation et mentions » est trop long (${LIMITES.mention} caractères au plus).`;
+  const mentionReduite = nettoyerTexteLibre(s.mentionTvaReduite);
+  if (mentionReduite.length > LIMITE_MENTION_TVA_REDUITE) erreurs.mentionTvaReduite = `Le texte « Mention de TVA réduite » est trop long (${LIMITE_MENTION_TVA_REDUITE} caractères au plus).`;
   const motChoisi = MOTS_OUVRAGE.some((m) => m.id === s.motOuvrage) || s.motOuvrage === MOT_OUVRAGE_AUTRE;
   if (!motChoisi) erreurs.motOuvrage = `Choisis un mot parmi : ${[...MOTS_OUVRAGE.map((m) => m.singulier), 'autre'].join(', ')}.`;
   const mot = validerMotAutre(s.motOuvrageAutre);
@@ -513,6 +517,7 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT }
       etapeEnvoye: s.etapeEnvoye || '',
       etapeAffaireCreee: typeof s.etapeAffaireCreee === 'string' ? s.etapeAffaireCreee : '', // recopiée telle quelle (setDoc sans fusion) ; l'étape n'est pas contrôlée ici
       mentionEmetteur: mention,
+      mentionTvaReduite: mentionReduite,
       entreprise: ent.entreprise,
     },
     erreurs: {},

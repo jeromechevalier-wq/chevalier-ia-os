@@ -1111,9 +1111,10 @@ describe('N9 lire_reglages_devis et journal du bordereau', () => {
 
   test('A5 lire_reglages_devis renvoie le texte d’assurance, les coordonnées bancaires et « Attestation et mentions »', async () => {
     const s = await demarrer();
-    Object.assign(s.doc('devis_parametres', 'reglages'), { mentionEmetteur: 'Attestation de TVA réduite', entreprise: { nom: 'Atelier', assuranceTexte: 'Décennale chez X', coordonneesBancaires: 'Banque\nIBAN' } });
+    Object.assign(s.doc('devis_parametres', 'reglages'), { mentionEmetteur: 'Attestation de TVA réduite', mentionTvaReduite: 'Taux réduit appliqué', entreprise: { nom: 'Atelier', assuranceTexte: 'Décennale chez X', coordonneesBancaires: 'Banque\nIBAN' } });
     const r = ok(await s.appeler('lecteur', 'lire_reglages_devis', {}));
     assert.equal(r.reglages.mentionEmetteur, 'Attestation de TVA réduite');
+    assert.equal(r.reglages.mentionTvaReduite, 'Taux réduit appliqué');
     assert.equal(r.reglages.entreprise.assuranceTexte, 'Décennale chez X');
     assert.equal(r.reglages.entreprise.coordonneesBancaires, 'Banque\nIBAN');
   });

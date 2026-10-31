@@ -118,11 +118,14 @@ test('A4 le document imprimé : coordonnées bancaires sous leur titre, mention 
   expect(texte.indexOf('Qualification RGE')).toBeLessThan(texte.indexOf('bon pour accord'));
   expect(texte).toContain('Assurance décennale : [Assureur], contrat numéro : [numéro], territorialité : France métropolitaine.');
   expect(texte).not.toContain('Attestation du client (preneur de la prestation)'); // plus de texte codé en dur
+  expect(texte.indexOf('taux réduit de TVA')).toBeGreaterThan(-1); // la ligne du devis d'essai est à 10 % : la mention de TVA réduite s'imprime toute seule (31/10/2026)
+  expect(texte.indexOf('taux réduit de TVA')).toBeLessThan(texte.indexOf('Qualification RGE')); // et passe avant « Attestation et mentions »
   await page.screenshot({ path: `${DOSSIER}A4-document-imprime-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
   await page.setContent(fabriquer('sans'), { waitUntil: 'load' });
   const vide = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
   expect(vide).not.toContain('Coordonnées bancaires');
   expect(vide).not.toContain('Qualification RGE');
   expect(vide).toContain('[Assureur]');
+  expect(vide).toContain('taux réduit de TVA'); // sans réglage : le texte standard de la mention de TVA réduite (ligne à 10 %)
   await page.screenshot({ path: `${DOSSIER}A4-document-imprime-vide-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
 });

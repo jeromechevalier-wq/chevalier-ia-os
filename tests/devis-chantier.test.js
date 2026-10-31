@@ -126,12 +126,13 @@ describe('Chantier et émetteur du devis', () => {
     const s = '<script>alert(1)</script>';
     const emetteur = {
       ...emetteurComplet, nom: s, forme: s, siret: s, tva: s, email: s, telephone: s, site: s, registreMetiers: s, adresse: { ligne1: s, codePostal: s, ville: s },
-      assuranceTexte: s, coordonneesBancaires: s, mentionEmetteur: s, mediateur: { nom: s, email: s, site: s },
+      assuranceTexte: s, coordonneesBancaires: s, mentionEmetteur: s, mentionTvaReduite: '<script>TVA</script>', mediateur: { nom: s, email: s, site: s },
       paiement: { delaiJours: 30, modes: [s], iban: s }, cgv: { texte: s, afficher: true },
     };
     const devis = fige({ objet: s, chantier: { adresse: { ligne1: s, codePostal: '75011', ville: s }, debutTravaux: '2026-11-03' } });
-    const h = html(devis, emetteur);
+    const h = html({ ...devis, tauxTvaDefaut: 10, sections: devis.sections.map((sec) => ({ ...sec, lignes: sec.lignes.map((l) => ({ ...l, tauxTva: 10 })) })) }, emetteur); // lignes à 10 % : la mention de TVA réduite s'imprime
     assert.ok(!h.includes('<script'));
+    assert.ok(h.includes('&lt;script&gt;TVA&lt;/script&gt;') && !h.includes('<script>TVA'), 'la mention de TVA réduite saisie est imprimée (ligne à 10 % du jeu d’essai) et échappée');
     assert.ok(h.includes('&lt;script&gt;'));
   });
 
