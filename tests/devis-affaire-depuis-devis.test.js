@@ -15,8 +15,8 @@ describe('NA nom de l’affaire créée depuis un devis', () => {
     assert.equal(nomAffaireProposee({ nom: '  Variante   économique ' }, { organisation: { nom: 'Société' } }), 'Variante économique');
   });
   test('NA2 sinon l’organisation, puis la personne', () => {
-    assert.equal(nomAffaireProposee({ nom: '' }, { organisation: { nom: 'Société' }, personne: { nom: 'Ana' } }), 'Société');
-    assert.equal(nomAffaireProposee({}, { personne: { nom: 'Ana Martin' } }), 'Ana Martin');
+    assert.equal(nomAffaireProposee({ nom: '' }, { organisation: { nom: 'Société' }, personne: { nom: 'Ana' } }), 'Affaire Société');
+    assert.equal(nomAffaireProposee({}, { personne: { nom: 'Ana Martin' } }), 'Affaire Ana Martin');
   });
   test('NA3 ni nom ni client : vide (la fenêtre exige alors un nom)', () => {
     assert.equal(nomAffaireProposee({ nom: '   ' }), '');
