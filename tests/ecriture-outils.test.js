@@ -573,7 +573,7 @@ describe('Journaux sans contenu (test 14)', () => {
     assert.ok(ecritures.some((l) => l.operationId), 'l’opération est notée pour retrouver la trace');
     assert.ok(s.lignesJournal.some((l) => l.code === 'doublon'), 'le code du refus est noté');
     const champs = new Set(s.lignesJournal.flatMap((l) => Object.keys(l)));
-    for (const c of champs) assert.ok(['jeton', 'acteur', 'profil', 'methodeMcp', 'outil', 'operationId', 'dureeMs', 'statut', 'code'].includes(c), c);
+    for (const c of champs) assert.ok(['jeton', 'acteur', 'profil', 'methodeMcp', 'outil', 'operationId', 'dureeMs', 'statut', 'code', 'froid', 'demarrageMs', 'dureeAuthMs', 'dureeOutilMs', 'lectures'].includes(c), c);
   });
 
   test('l’audit « sans contenu » : crm_audit ne garde aucune valeur de fiche, même après plusieurs écritures ; les valeurs sont dans les copies à durée limitée', async () => {
