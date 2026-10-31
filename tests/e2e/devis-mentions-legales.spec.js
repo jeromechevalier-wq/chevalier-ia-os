@@ -35,7 +35,7 @@ test('A1 cas vide : sans rien d\'enregistré, un seul texte d\'assurance multili
   await expect(assurance(page)).toHaveValue('');
   await expect(assurance(page)).toHaveAttribute('placeholder', 'Assurance décennale : [Assureur], contrat numéro : [numéro], territorialité : France métropolitaine.');
   for (const ancien of ['garantie', 'assureur', 'adresse', 'zone']) await expect(page.locator(`[data-champ="entreprise.assurance.${ancien}"]`)).toHaveCount(0);
-  await expect(alerte(page)).toContainText('Complète l\'assurance dans Mon entreprise : il reste des crochets.');
+  await expect(alerte(page)).toContainText('Complète le texte d\'assurance : il reste des crochets.');
   await assurance(page).scrollIntoViewIfNeeded();
   await capturer(page, info, 'A1-assurance-vide', page.locator('#reglages-entreprise'));
 });

@@ -13,7 +13,7 @@ import { editeurOuvrage } from './editeur-ouvrage.js';
 import { champFamille } from './champ-famille.js';
 import { naviguer } from '../../os/router.js';
 import { devisOuvert } from './memoire.js';
-import { cheminFamille, familleEffective, typeDeFamille, arbreFamilles, idsAvecSousFamilles } from './familles.js';
+import { cheminFamille, familleEffective, typeDeFamille, idsAvecSousFamilles, optionsFamillesArbre } from './familles.js';
 import { menuUnite } from './menu-unite.js';
 import { menuTaux } from './menu-taux.js';
 
@@ -425,7 +425,7 @@ export function rendreBordereau(conteneur) {
   const filtres = boutonFiltresCommun({ auClic: async () => {
     const r = await fenetreFiltres({
       controles: [
-        { cle: 'familles', libelle: 'Famille', type: 'cases', options: [...arbreFamilles(D.etat.familles).flatMap(({ famille: f, enfants }) => [f, ...enfants]).map((f) => ({ valeur: f.id, libelle: cheminFamille(D.etat.familles, f.id) })), { valeur: 'sans_famille', libelle: 'Sans famille' }] },
+        { cle: 'familles', libelle: 'Famille', type: 'cases', arbre: true, options: optionsFamillesArbre(D.etat.familles) },
         { cle: 'desactives', libelle: 'Désactivés seulement', type: 'oui' },
       ],
       criteres: { desactives: desactivesSeulement, familles: famillesFiltrees },

@@ -692,8 +692,10 @@ export function chantierDeVue(chantier) {
 
 /** Assurance imprimée par défaut quand le champ est vide : les crochets disent à l'artisan ce qu'il doit remplir. */
 export const ASSURANCE_DEFAUT = 'Assurance décennale : [Assureur], contrat numéro : [numéro], territorialité : France métropolitaine.';
-/** Alerte (Réglages > Mon entreprise) tant que le texte d'assurance garde un crochet ; la même phrase servira au refus de finaliser (écran, serveur, assistant). */
-export const MESSAGE_ASSURANCE_CROCHETS = 'Complète l\'assurance dans Mon entreprise : il reste des crochets.';
+/** Refus de finaliser tant que le texte d'assurance garde un crochet (écran, serveur, assistant) : dit où aller. */
+export const MESSAGE_ASSURANCE_CROCHETS = 'Complète l\'assurance dans Réglages > Devis > Mon entreprise : il reste des crochets.';
+/** Alerte « Mentions manquantes » dans Réglages > Devis > Mon entreprise (l'utilisateur y est déjà) : même fond, phrase courte. */
+export const MESSAGE_ASSURANCE_CROCHETS_REGLAGES = 'Complète le texte d\'assurance : il reste des crochets.';
 export const LIMITE_ASSURANCE_TEXTE = 500;
 export const LIMITE_COORDONNEES_BANCAIRES = 300;
 export const LIMITE_MENTION_EMETTEUR = 2000;
@@ -747,7 +749,7 @@ export function erreursEmetteur(emetteur, { metierBatiment } = {}) {
     mentions.push('Indique au moins un e-mail ou un numéro de téléphone pour joindre l\'entreprise.');
   }
   const bati = metierBatiment ?? e.metierBatiment ?? true;
-  if (bati && /[\[\]]/.test(assuranceTexteDe(e))) manque('assurance', MESSAGE_ASSURANCE_CROCHETS);
+  if (bati && /[\[\]]/.test(assuranceTexteDe(e))) manque('assurance', MESSAGE_ASSURANCE_CROCHETS_REGLAGES);
   const m = objet(e.mediateur) ? e.mediateur : {};
   if (!plein(m.nom) || !(plein(m.email) || plein(m.site))) manque('mediateur', 'Le médiateur de la consommation est incomplet : indique son nom et son e-mail ou son site.');
   return { mentions, champs, nombre: mentions.length };
@@ -772,10 +774,14 @@ export const MESSAGE_DUREE_TRAVAUX_MANQUANTE = 'Indique la durée estimée des t
 export const MESSAGE_VALIDITE_MANQUANTE = 'Indique la date jusqu\'à laquelle le devis est valable.';
 export const MESSAGE_VALIDITE_DEPASSEE = 'La date de validité du devis est déjà dépassée : choisis une date à venir.';
 export const MESSAGES_ENTREPRISE_MANQUANTE = Object.freeze({
-  nom: 'Complète le nom de l\'entreprise dans Mon entreprise.',
-  siret: 'Complète le numéro SIRET dans Mon entreprise.',
-  adresse: 'Complète l\'adresse de l\'entreprise dans Mon entreprise.',
+  nom: 'Complète le nom de l\'entreprise dans Réglages > Devis > Mon entreprise.',
+  siret: 'Complète le numéro SIRET dans Réglages > Devis > Mon entreprise.',
+  adresse: 'Complète l\'adresse de l\'entreprise dans Réglages > Devis > Mon entreprise.',
 });
+/** Vrai si ce message de refus de finaliser se règle dans Réglages > Devis > Mon entreprise (nom, SIRET, adresse, assurance) : l'écran propose alors un bouton qui y mène. */
+export const estErreurEntreprise = (message) => message === MESSAGE_ASSURANCE_CROCHETS || Object.values(MESSAGES_ENTREPRISE_MANQUANTE).includes(message);
+/** Adresse de l'écran Réglages > Devis > Mon entreprise. */
+export const ROUTE_MON_ENTREPRISE = 'reglages/devis/reglages-entreprise';
 
 /**
  * Liste de messages (en français, qui disent quoi faire). Vide = on peut finaliser. Aucun accès réseau ni base.
