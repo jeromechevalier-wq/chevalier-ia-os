@@ -70,17 +70,18 @@ describe('K2 sans marqueur, « étanche » seul reste ambigu', () => {
     const r = chercher('étanche', [], [...BASE, art('g1', 'Gaine étanche')]);
     assert.equal(r.etape, 'article');
     assert.equal(r.autres, 1);
-    assert.match(r.question, /, ou l’autre \?$/);
+    assert.match(r.question, /, ou un autre \?$/);
   });
   test('K2 avec 5 candidats ou plus : UNE question de précision (etape « precision »), aucun article cité', () => {
     const r = chercher('étanche', [], [...BASE, art('g1', 'Gaine étanche'), art('c1', 'Câble étanche')]);
     assert.equal(r.decision, 'proposer');
     assert.equal(r.etape, 'precision');
     assert.equal(r.precision.nombreArticles, 5);
-    assert.equal(r.precision.mots.length, 3);
+    assert.deepEqual(r.precision.mots, ['boîte', 'câble', 'gaine']); // des MOTS avant le nombre « 16 » ; chacun sépare un article
+    assert.equal(r.precision.autreChose, true, '2 articles sur 5 ne sont joignables par aucun des trois mots');
     assert.equal(r.autres, 0);
     assert.doesNotMatch(r.question, /«/);
-    assert.match(r.question, /^Il y a 5 articles qui correspondent : /);
+    assert.equal(r.question, 'Il y a 5 articles qui correspondent : boîte, câble, gaine ou autre chose ?');
     assert.equal(r.candidats.length, 5, 'les 5 premiers restent dans candidats (le serveur s’en sert pour vérifier une confirmation)');
   });
 });
@@ -206,7 +207,7 @@ describe('K22 règle d’affichage : jamais réciter une liste', () => {
     assert.equal(r.etape, 'precision');
     assert.equal(r.precision.nombreArticles, 5);
     assert.deepEqual(r.precision.mots, ['16', '20', '32']);
-    assert.equal(r.question, 'Il y a 5 articles qui correspondent : 16, 20 ou 32 A ?'); // les nombres se disent tels quels, avec l’unité lue dans le libellé
+    assert.equal(r.question, 'Il y a 5 articles qui correspondent : 16, 20 ou 32 A, ou autre chose ?'); // les nombres se disent tels quels, avec l’unité lue dans le libellé ; 2 articles ne sont joignables par aucun des trois
     const encore = chercher('prise étanche 32', [], douze);
     assert.equal(encore.etape, 'article');
     assert.equal(encore.candidats[0].libelle, 'Prise étanche 32 A');
@@ -216,7 +217,7 @@ describe('K22 règle d’affichage : jamais réciter une liste', () => {
     const r = chercher('disjoncteur', [], dj);
     assert.equal(r.etape, 'precision');
     assert.deepEqual(r.precision.mots, ['16', '20', '25']);
-    assert.equal(r.question, 'Il y a 6 articles qui correspondent : 16, 20 ou 25 A ?');
+    assert.equal(r.question, 'Il y a 6 articles qui correspondent : 16, 20 ou 25 A, ou autre chose ?');
     assert.ok(!r.precision.mots.some((m) => /2p/i.test(m)));
   });
   test('K22 des mots qui ne couvrent pas la moitié du groupe : repli « 3 cités + autres » (une question qui n’avance pas est pire qu’une courte liste)', () => {
@@ -236,18 +237,38 @@ describe('K22 règle d’affichage : jamais réciter une liste', () => {
     assert.equal(r.question, 'Il y a 5 articles qui correspondent : double, étanche, simple ou autre chose ?');
   });
   test('K22 à égalité de séparation, le plus utilisé passe en premier ; l’usage ne change pas le groupe', () => {
-    const usages = new Map([['x1' + '20', { nombre: 9 }]]); // « Prise double 20 A »… la séparation est la même pour les trois types : l’usage départage
     const sans = chercher('prise', [], douze).precision.mots;
     const avec = chercher('prise', [], douze, { usages: new Map(douze.filter((a) => /étanche/.test(a.libelle)).map((a) => [a.id, { nombre: 5 }])) }).precision.mots;
     assert.deepEqual(sans, ['double', 'étanche', 'simple']);
     assert.deepEqual(new Set(avec), new Set(sans));
     assert.equal(avec[0], 'étanche');
-    assert.ok(usages.size === 1);
   });
   test('K22 avec un marqueur, ses mots ne sont jamais proposés dans la question de précision', () => {
     const r = chercher('prise', [mot('prise', douze.map((a) => a.id))], douze);
     assert.equal(r.etape, 'precision');
     assert.ok(!r.precision.mots.includes('prise'));
     assert.deepEqual(r.portee.marqueurs, ['prise']);
+  });
+});
+
+describe('K1b un article que l’humain n’a pas choisi ne dilue pas son choix', () => {
+  test('K1b « prise » (3 articles choisis) avec 4 autres prises au catalogue : 3 cités, jamais de question de précision, aucun article hors choix cité', () => {
+    const autres = ['bleue', 'rouge', 'verte', 'grise'].map((c, i) => art(`h${i}`, `Prise ${c} 10 A`));
+    const r = chercher('prise', [PRISE], [...BASE, ...autres]);
+    assert.equal(r.etape, 'article');
+    assert.equal(r.autres, 0);
+    assert.deepEqual(r.question.match(/«[^»]*»/g), ['« Prise double 16 A »', '« Prise étanche 16 A »', '« Prise simple 16 A »']);
+    assert.equal(r.precision, null);
+  });
+});
+
+describe('K22d détails de la question de précision', () => {
+  test('K22d les nombres se comparent comme des nombres (16, 20, 100 : pas 100 avant 16) et l’unité n’est jamais un mot vide (« de »)', () => {
+    const dj = [16, 20, 100, 125, 160, 250].map((a) => art(`n${a}`, `Disjoncteur ${a} A`));
+    assert.deepEqual(chercher('disjoncteur', [], dj).precision.mots, ['16', '20', '100']);
+    const vis = [10, 12, 14, 16, 18].map((a) => art(`v${a}`, `Vis ${a} de 50`));
+    const r = chercher('vis', [], vis);
+    assert.equal(r.etape, 'precision');
+    assert.doesNotMatch(r.question, / de \?|de,/);
   });
 });

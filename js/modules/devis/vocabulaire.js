@@ -370,7 +370,7 @@ function formulerQuestion(decision, cle, choix, devine = {}, autres = 0) {
     const prix = devine.prix != null ? ` à ${nombreFr(devine.prix)} € l’unité` : '';
     if (l.length === 1) return `C’est bien ${devine.quantite != null ? `${nombreFr(devine.quantite)} × ` : ''}${l[0]}${prix} ?`;
     const details = [devine.quantite != null ? `quantité ${nombreFr(devine.quantite)}` : '', prix ? prix.trim() : ''].filter(Boolean).join(', ');
-    const reste = autres > 0 ? `, ou ${autres > 1 ? `l’un des ${autres} autres` : 'l’autre'}` : ''; // jamais la liste entière : seulement combien il y en a
+    const reste = autres > 0 ? `, ou ${autres > 1 ? `l’un des ${autres} autres` : 'un autre'}` : ''; // jamais la liste entière : seulement combien il y en a
     return `Tu veux ${l.slice(0, -1).join(', ')} ou ${l[l.length - 1]}${reste}${details ? ` (${details})` : ''} ?`;
   }
   return cle
@@ -409,7 +409,7 @@ function questionPrecision(groupe, { motsPhrase = [], usages } = {}) {
       restants.add(norme);
       if (!parMot.has(norme)) {
         const suivant = bruts[i + 1];
-        const unite = estNombreAffiche(brut) && suivant && /^\p{L}{1,3}²?$/u.test(suivant) ? suivant : '';
+        const unite = estNombreAffiche(brut) && suivant && /^\p{L}{1,3}²?$/u.test(suivant) && (UNITES_LETTRES.has(suivant.toLowerCase()) || !MOTS_VIDES.has(normaliser(suivant))) ? suivant : ''; // « A » et « L » sont des unités, « de » n'en est pas une
         parMot.set(norme, { affiche: estNombreAffiche(brut) ? brut : motAffiche(brut), articles: new Set(), unite, numerique: estNombreAffiche(brut), valeur: estNombreAffiche(brut) ? Number(brut.replace(',', '.')) : null });
       }
       parMot.get(norme).articles.add(c.articleId);
@@ -422,7 +422,7 @@ function questionPrecision(groupe, { motsPhrase = [], usages } = {}) {
   const usageDeMot = (m) => [...m.articles].reduce((s, id) => s + usageDe(usages, id), 0);
   const candidatsMots = [...parMot.entries()]
     .filter(([, m]) => m.articles.size < n)
-    .sort(([ka, a], [kb, b]) => (Math.min(b.articles.size, n - b.articles.size) - Math.min(a.articles.size, n - a.articles.size)) || (usageDeMot(b) - usageDeMot(a)) || a.affiche.localeCompare(b.affiche, 'fr') || ka.localeCompare(kb));
+    .sort(([ka, a], [kb, b]) => (Math.min(b.articles.size, n - b.articles.size) - Math.min(a.articles.size, n - a.articles.size)) || (usageDeMot(b) - usageDeMot(a)) || (Number(a.numerique) - Number(b.numerique)) /* les mots avant les nombres */ || (a.numerique && b.numerique ? a.valeur - b.valeur : a.affiche.localeCompare(b.affiche, 'fr')) || ka.localeCompare(kb));
   const choisis = candidatsMots.slice(0, SEUILS.motsPrecision).map(([, m]) => m);
   if (!choisis.length) return null;
   const couverts = new Set(choisis.flatMap((m) => [...m.articles]));
@@ -432,9 +432,10 @@ function questionPrecision(groupe, { motsPhrase = [], usages } = {}) {
   const mots = ordre.map((m) => m.affiche);
   const unites = new Set(ordre.map((m) => m.unite));
   const unite = nombres && unites.size === 1 ? [...unites][0] : '';
-  const autreChose = sansMotRestant.length > 0;
-  const liste = autreChose ? joindre([...mots, 'autre chose']) : joindre(mots);
-  return { mots, nombreArticles: n, autreChose, question: `Il y a ${n} articles qui correspondent : ${liste}${unite ? ` ${unite}` : ''} ?` };
+  // « ou autre chose » dès qu'un article n'est joignable par aucun des mots proposés (aucun mot restant, ou mot non retenu).
+  const autreChose = sansMotRestant.length > 0 || couverts.size < n;
+  const liste = unite ? `${joindre(mots)} ${unite}${autreChose ? ', ou autre chose' : ''}` : (autreChose ? joindre([...mots, 'autre chose']) : joindre(mots));
+  return { mots, nombreArticles: n, autreChose, question: `Il y a ${n} articles qui correspondent : ${liste} ?` };
 }
 
 /**
@@ -471,16 +472,18 @@ export function interpreter(phrase, { regles = [], articles = [], reglages, usag
     articleId: c.articleId, libelle: c.libelle, unite: c.article.unite ?? '', prixVenteHT: prixVenteHT(c.article, parId, reglages), score: c.score, pourquoi: c.pourquoi, regleId: c.regleId,
   }));
   // Le GROUPE : les candidats au plus à `ecartUtiliser` du premier (calculé après la décision `utiliser` : un candidat net n'est jamais noyé par des candidats lointains).
-  const groupe = decision === 'proposer' ? classes.filter((c) => c.score >= premier.score - SEUILS.ecartUtiliser - 1e-9 && c.score >= SEUILS.proposer) : [];
-  const precision = groupe.length >= SEUILS.separationAPartir ? questionPrecision(groupe, { motsPhrase: [...mots, ...(contexteFinal?.marqueurs ?? []).flatMap((k) => k.split(' '))], usages }) : null;
+  // Quand le premier vient du CONTEXTE (mot à plusieurs articles), le groupe ne compte que les articles de la portée : un article que l'humain n'a pas choisi ne dilue jamais son choix.
+  const duContexte = POURQUOI_CONTEXTE.has(premier?.pourquoi);
+  const groupe = decision === 'proposer' ? classes.filter((c) => (!duContexte || POURQUOI_CONTEXTE.has(c.pourquoi)) && c.score >= premier.score - SEUILS.ecartUtiliser - 1e-9 && c.score >= SEUILS.proposer) : [];
+  const precision = groupe.length >= SEUILS.separationAPartir ? questionPrecision(groupe, { motsPhrase: [...motsFinaux, ...(contexteFinal?.marqueurs ?? []).flatMap((k) => k.split(' '))], usages }) : null;
   const etape = precision ? 'precision' : 'article';
   // Les articles CITÉS sont ceux d'avant (les trois premiers au moins à `proposer`) ; `autres` dit combien d'autres candidats auraient aussi pu convenir. Une question de précision ne cite aucun article.
-  // Quand le premier vient du CONTEXTE (mot à plusieurs articles), seul le groupe est cité : « prise étanche » reste un oui/non malgré des libellés à 0,60 plus loin.
-  const duContexte = POURQUOI_CONTEXTE.has(premier?.pourquoi);
+  // Quand le premier vient du CONTEXTE, seul le groupe est cité : « prise étanche » reste un oui/non malgré des libellés à 0,60 plus loin.
   const citables = duContexte ? groupe : candidats.filter((c) => c.score >= SEUILS.proposer);
   const choix = precision ? [] : citables.slice(0, SEUILS.maxChoixQuestion);
   const autres = decision === 'proposer' && !precision ? Math.max(0, (duContexte ? groupe : classes.filter((c) => c.score >= SEUILS.proposer)).length - choix.length) : 0;
   const devine = { quantite: quantiteIncertaine ? quantite : null, prix: prixIncertain ? prixVente : null };
+  // `portee` n'est rendue que si un candidat vient du contexte (un libellé exact qui l'emporte ailleurs : pas de portée).
   const portee = contexteFinal && classes.some((c) => POURQUOI_CONTEXTE.has(c.pourquoi))
     ? { marqueurs: contexteFinal.marqueurs, cibles: contexteFinal.cibles, nombreArticles: contexteFinal.portee.length, reste: contexteFinal.reste }
     : null;

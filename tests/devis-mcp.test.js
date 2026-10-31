@@ -786,7 +786,7 @@ describe('K9 K10 K11 un mot qui désigne plusieurs articles : la réponse ne l�
     assert.equal(instantane(s), avant);
     // un mot sans article ET sans cibles (état entre deux écrans) n'est pas réorienté non plus
     s.collections.devis_vocabulaire.push({ ...regleVocabulaire('cheville', ''), articleId: '' });
-    ok(await repondre(s, 'cheville', 'confirme', ids[0]).catch(() => ({ rien: true })));
+    assert.equal(ok(await repondre(s, 'cheville', 'confirme', ids[0])).rien, true);
     assert.equal(s.doc('devis_vocabulaire', 'cheville').articleId, '');
   });
 
@@ -819,24 +819,28 @@ describe('K9 K10 K11 un mot qui désigne plusieurs articles : la réponse ne l�
     const { OUTILS_ECRITURE } = await import('../functions/src/mcp/outils/ecriture.js');
     const recherche = OUTILS_LECTURE.find((o) => o.nom === 'rechercher_article_par_phrase').description;
     assert.match(recherche, /`portee` dit de quoi on parle/);
-    assert.match(recherche, /`etape` vaut `precision`.*pose exactement `question`.*rappelle cet outil avec la phrase complétée/);
+    assert.match(recherche, /`etape` vaut `precision`.*pose exactement `question`.*rappelle cet outil avec la phrase complétée/s);
     assert.match(recherche, /ne liste jamais les articles/);
     assert.match(recherche, /Le mot affiché à l'utilisateur est donné par lire_reglages_devis\.$/);
     const reponse = OUTILS_ECRITURE.find((o) => o.nom === 'enregistrer_reponse_vocabulaire').description;
     assert.match(reponse, /plusieurs articles ne s'apprend pas : la réponse n'écrit rien/);
-    assert.match(reponse, /n'appelle pas cet outil : rappelle rechercher_article_par_phrase/);
+    assert.match(reponse, /n'appelle pas cet outil \(confirme et autre sont refusés\) : rappelle rechercher_article_par_phrase/);
     assert.doesNotMatch(`${recherche} ${reponse}`, /instructions personnalisées/i);
   });
 
-  test('K22c la réponse « autre » à une question de précision est refusée (rappeler l’outil de recherche avec le mot choisi) ; « confirme » pour un candidat reste possible', async () => {
+  test('K22c après une question de précision, ni « autre » ni « confirme » ne s’enregistrent (aucun article n’a été cité : la règle courte « prise » ne se crée pas) ; « aucun » reste permis ; la phrase complétée s’apprend', async () => {
     const s = await demarrer();
     const ids = [];
     for (const t of ['simple', 'double', 'étanche', 'triple', 'murale']) ids.push(ok(await s.appeler('biblio', 'creer_article', { libelle: `Prise ${t} 16 A`, prixAchat: 5, unite: 'u' })).id);
     assert.equal(ok(await chercherPhrase(s, 'prise')).etape, 'precision');
     refuse(await repondre(s, 'prise', 'autre', ids[2]), /question de précision/);
+    refuse(await repondre(s, 'prise', 'confirme', ids[2]), /question de précision/);
     assert.equal(s.collections.devis_vocabulaire, undefined, 'rien n’est écrit');
-    ok(await repondre(s, 'prise', 'confirme', ids[2]));
-    assert.equal(s.doc('devis_vocabulaire', 'prise').articleId, ids[2]);
+    assert.equal(ok(await repondre(s, 'prise', 'aucun')).rien, true);
+    assert.equal(ok(await chercherPhrase(s, 'prise étanche')).etape, 'article');
+    ok(await repondre(s, 'prise étanche', 'confirme', ids[2]));
+    assert.equal(s.doc('devis_vocabulaire', 'prise_etanche').articleId, ids[2]);
+    assert.equal(s.doc('devis_vocabulaire', 'prise'), undefined);
   });
 });
 
