@@ -252,6 +252,21 @@ describe('E11 devis modifié ailleurs', () => {
   });
 });
 
+describe('COP9 plusieurs destinataires (À) : mêmes refus que la copie, vus de l’autre côté', () => {
+  test('COP9 chaque cause de refus d’un destinataire a son message (texte exact « déjà en copie » conservé)', () => {
+    assert.equal(Ed.refusAjoutDestinataire('', ['a@x.fr'], []), null);
+    assert.equal(Ed.refusAjoutDestinataire('b@x.fr', ['a@x.fr'], ['c@x.fr']), null); // un deuxième « À » est permis
+    assert.equal(Ed.refusAjoutDestinataire('pas-un-email', [], []), Ed.MESSAGE_COPIE_INVALIDE);
+    assert.equal(Ed.refusAjoutDestinataire(' A@X.fr ', ['a@x.fr'], []), Ed.MESSAGE_DESTINATAIRE_DEJA);
+    assert.equal(Ed.refusAjoutDestinataire('c@x.fr', ['a@x.fr'], ['C@x.fr']), 'Cette adresse est déjà en copie du devis : choisis-en une autre.');
+    assert.equal(Ed.refusAjoutDestinataire('z@x.fr', Array.from({ length: 10 }, (_, i) => `p${i}@x.fr`), []), Ed.MESSAGE_DESTINATAIRE_PLAFOND);
+  });
+  test('COP9 adressesDeListe lit les textes et les anciens objets { email }, sans vides', () => {
+    assert.deepEqual(Ed.adressesDeListe(['a@x.fr', { email: ' b@x.fr ' }, '', null, {}]), ['a@x.fr', 'b@x.fr']);
+    assert.deepEqual(Ed.adressesDeListe(undefined), []);
+  });
+});
+
 describe('COP3 refus d’ajout d’une adresse en copie', () => {
   test('COP3 chaque cause de refus a son message ; un texte vide et une adresse valable ne sont pas refusés', () => {
     assert.equal(Ed.refusAjoutCopie('', ['a@x.fr'], []), null);

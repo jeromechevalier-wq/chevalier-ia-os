@@ -17,7 +17,7 @@
 //   ne change jamais de section de niveau 1 en se déplaçant (elle reste entre ses sœurs). Un devis sans `niveau` se comporte exactement comme avant.
 import {
   coefficientDeMarge, prixVenteUnitaire, prixVenteDeLigne, totauxDevis, versCentimes, erreursChantier, numerosDevis,
-  margeEffective, coefficientDepuisPourcentage, coefficientDepuisMontant, coefficientDepuisSaisie, emailValide, MAX_COPIE,
+  margeEffective, coefficientDepuisPourcentage, coefficientDepuisMontant, coefficientDepuisSaisie, emailValide, MAX_COPIE, MAX_DESTINATAIRES,
 } from './logique.js';
 import { TYPE_SAUT, estSaut, listeAcomptes } from './logique.js';
 import { descriptionOuvrage, figerOuvragePourLigne, articlesParId, TYPE_OUVRAGE } from './ouvrages.js';
@@ -582,3 +582,19 @@ export function refusAjoutCopie(valeur, copieActuelle = [], destinataires = []) 
   if (copieActuelle.length >= MAX_COPIE) return MESSAGE_COPIE_PLAFOND;
   return null;
 }
+
+// ------------------------------------------------ plusieurs destinataires (« À ») : mêmes règles que la copie, vues de l'autre côté
+export const MESSAGE_DESTINATAIRE_DEJA = 'Cette adresse est déjà destinataire du devis.';
+export const MESSAGE_DESTINATAIRE_PLAFOND = `Il y a déjà ${MAX_DESTINATAIRES} destinataires, c’est le maximum : retires-en un pour en ajouter.`;
+/** Pourquoi une adresse ne peut pas être ajoutée aux destinataires : le message à montrer, ou `null`. Une adresse déjà en copie est refusée (jamais dans les deux listes). */
+export function refusAjoutDestinataire(valeur, destinatairesActuels = [], copie = []) {
+  const v = String(valeur ?? '').trim();
+  if (!v) return null;
+  if (!emailValide(v)) return MESSAGE_COPIE_INVALIDE;
+  if (destinatairesActuels.some((a) => memeAdresse(a, v))) return MESSAGE_DESTINATAIRE_DEJA;
+  if (copie.some((a) => memeAdresse(a, v))) return MESSAGE_DESTINATAIRE_DEJA_COPIE;
+  if (destinatairesActuels.length >= MAX_DESTINATAIRES) return MESSAGE_DESTINATAIRE_PLAFOND;
+  return null;
+}
+/** Adresses d'une liste du devis (textes ou objets { email }) en liste de textes non vides : un ancien devis reste lisible. */
+export const adressesDeListe = (liste) => (Array.isArray(liste) ? liste : []).map((x) => (typeof x === 'string' ? x : x?.email ?? '')).map((x) => String(x).trim()).filter(Boolean);

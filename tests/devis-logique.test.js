@@ -211,6 +211,12 @@ describe('Validation de finalisation', () => {
     assert.deepEqual(D.erreursFinalisation(devisType({ copie: adresses(D.MAX_COPIE) })), []);
     assert.ok(D.erreursFinalisation(devisType({ copie: adresses(D.MAX_COPIE + 1) })).some((e) => /trop d'adresses e-mail en copie/.test(e)));
   });
+  test('D9c2 plus de 10 destinataires (À) : refusé (10 passent) ; la même adresse deux fois en destinataire aussi', () => {
+    const adresses = (n) => Array.from({ length: n }, (_, i) => `a${i}@exemple.fr`);
+    assert.deepEqual(D.erreursFinalisation(devisType({ destinataires: adresses(D.MAX_DESTINATAIRES) })), []);
+    assert.ok(D.erreursFinalisation(devisType({ destinataires: adresses(D.MAX_DESTINATAIRES + 1) })).some((e) => /trop de destinataires/.test(e)));
+    assert.ok(D.erreursFinalisation(devisType({ destinataires: ['a@exemple.fr', { email: ' A@Exemple.fr ' }] })).some((e) => /est deux fois destinataire/.test(e)));
+  });
   test('D9d une adresse à la fois destinataire et en copie empêche de finaliser (mêmes mots que le serveur MCP, sans tenir compte des majuscules)', () => {
     const erreurs = D.erreursFinalisation(devisType({ destinataires: [{ email: 'client@exemple.test' }], copie: ['autre@exemple.test', ' Client@Exemple.test '] }));
     assert.ok(erreurs.includes('L\'adresse « Client@Exemple.test » est déjà destinataire : elle ne peut pas être aussi en copie.'), erreurs.join(' | '));

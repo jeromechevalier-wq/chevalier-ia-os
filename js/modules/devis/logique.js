@@ -722,6 +722,8 @@ export function erreursEmetteur(emetteur, { metierBatiment } = {}) {
 
 /** Nombre maximum d'adresses e-mail en copie d'un devis (écran et serveur). */
 export const MAX_COPIE = 10;
+/** Nombre maximum d'adresses e-mail destinataires (« À ») d'un devis (écran et serveur ; même plafond que les outils MCP, MAX_ADRESSES_ENVOI). */
+export const MAX_DESTINATAIRES = 10;
 /** Nom INTERNE d'un devis (écran, listes, recherche) : distinct de `objet`, qui est imprimé sur le PDF ; jamais dans `vueClient`. */
 export const NOM_DEVIS_MAX = 80;
 /** Texte d'un nom de devis : espaces nettoyés, au plus NOM_DEVIS_MAX caractères (accents conservés). */
@@ -741,6 +743,9 @@ export function erreursFinalisation(devis) {
   const destinataires = (devis.destinataires ?? []).map(emailDe);
   // Pas d'adresse e-mail obligatoire : on peut imprimer le devis et le remettre en main propre ; l'adresse ne sert qu'à l'envoi par e-mail (à venir).
   if (destinataires.some((e) => e && !emailValide(e))) erreurs.push('Une adresse e-mail de destinataire n\'est pas valide : corrige-la.');
+  if (destinataires.length > MAX_DESTINATAIRES) erreurs.push(`Il y a trop de destinataires (${MAX_DESTINATAIRES} au plus) : retires-en.`);
+  const doublonDestinataire = destinataires.find((e, i) => e && destinataires.findIndex((x) => x.toLowerCase() === e.toLowerCase()) !== i);
+  if (doublonDestinataire !== undefined) erreurs.push(`L'adresse « ${doublonDestinataire} » est deux fois destinataire : retires-en une.`);
   if ((devis.copie ?? []).map(emailDe).some((e) => e && !emailValide(e))) erreurs.push('Une adresse e-mail en copie n\'est pas valide : corrige-la.');
   if ((devis.copie ?? []).length > MAX_COPIE) erreurs.push(`Il y a trop d'adresses e-mail en copie (${MAX_COPIE} au plus) : retires-en.`);
   // Une adresse ne peut pas être à la fois destinataire et en copie (même règle et mêmes mots que le serveur MCP, coeur/metier.js) : la première trouvée est nommée.
