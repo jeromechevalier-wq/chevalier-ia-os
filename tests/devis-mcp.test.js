@@ -225,6 +225,9 @@ describe('M3 creer_devis_brouillon : lignes tirées des articles, totaux justes,
     assert.equal(s.doc('devis_devis', defaut.id).marge, 20, 'le devis déjà créé ne bouge pas');
     const lu = ok(await s.appeler('lecteur', 'lire_reglages_devis', {}));
     assert.deepEqual([lu.reglages.marge, lu.reglages.margeDevis], [30, 15]);
+    assert.equal(lu.reglages.gestionDechets, true, 'le réglage « Gestion des déchets » est lisible par l’assistant (actif par défaut)');
+    s.collections.devis_parametres[0].gestionDechets = false;
+    assert.equal(ok(await s.appeler('lecteur', 'lire_reglages_devis', {})).reglages.gestionDechets, false);
   });
 
   test('M3 sections, destinataire repris de la fiche, et refus sans écriture : article inconnu ou désactivé, quantité nulle, référence ambiguë, remise trop forte, affaire inconnue', async () => {

@@ -200,6 +200,14 @@ export function affichageDe(devis) {
   return Object.fromEntries(Object.keys(AFFICHAGE_DEFAUT).map((k) => [k, k in brut ? brut[k] === true : AFFICHAGE_DEFAUT[k]]));
 }
 
+/**
+ * Réglage « Gestion des déchets » (Réglages > Devis) : absent ou illisible = actif (jamais `=== true` : les espaces existants gardent le bloc).
+ * Éteint, le bloc disparaît de l'éditeur, de l'aperçu et des PDF de tous les devis ; les données `dechets` des devis ne sont jamais effacées.
+ */
+export const gestionDechetsActive = (reglages) => reglages?.gestionDechets !== false;
+/** Affichage d'un devis une fois le réglage global appliqué : réglage éteint = « Cacher la gestion des déchets » imposé à tous les devis. */
+export const affichageAvecReglages = (affichage, reglages) => (gestionDechetsActive(reglages) ? affichage : { ...affichage, cacherDechets: true });
+
 /** Mention « vendu à perte » (jamais un blocage). Le prix de vente vient de la ligne figée, ou du 2e paramètre. */
 export function estVendueAPerte(ligne, prixVente = ligne?.prixVente) {
   return estNombre(prixVente) && estNombre(ligne?.prixAchat) && prixVente < ligne.prixAchat;

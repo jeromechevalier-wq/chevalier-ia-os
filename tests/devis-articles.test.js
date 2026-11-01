@@ -171,14 +171,14 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
   test('B7 logique : valeurs par défaut', () => {
     assert.deepEqual(A.reglagesDevis(null), {
       nomBordereau: 'Catalogue', motOuvrage: 'ouvrage', motOuvrageAutre: {}, modeMarge: 'majoration', marge: 20, margeDevis: 20, regimeTva: 'assujetti', tauxProposes: [20, 10, 5.5], tauxTvaDefaut: 20,
-      dureeValiditeJours: 90, etapeDevis: '', etapeAFaire: '', etapeEnvoye: '', etapeAffaireCreee: '', mentionEmetteur: '', mentionTvaReduite: '', entreprise: {},
+      dureeValiditeJours: 90, etapeDevis: '', etapeAFaire: '', etapeEnvoye: '', etapeAffaireCreee: '', mentionEmetteur: '', mentionTvaReduite: '', gestionDechets: true, entreprise: {},
     });
     assert.deepEqual(A.reglagesDevis({}), A.reglagesDevis(undefined));
   });
   test('B7 logique : une saisie valide se relit à l’identique (aller-retour par reglagesDevis), virgule française acceptée', () => {
-    const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', mentionEmetteur: '  Ma mention  \n\n  Qualification RGE  ', mentionTvaReduite: '  Taux réduit \n appliqué  ' });
+    const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', gestionDechets: true, mentionEmetteur: '  Ma mention  \n\n  Qualification RGE  ', mentionTvaReduite: '  Taux réduit \n appliqué  ' });
     assert.deepEqual(r.erreurs, {});
-    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', motOuvrage: 'ouvrage', motOuvrageAutre: {}, modeMarge: 'marge_vente', marge: 25.5, margeDevis: 20, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', mentionEmetteur: 'Ma mention\n\nQualification RGE', mentionTvaReduite: 'Taux réduit\nappliqué', entreprise: {} });
+    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', motOuvrage: 'ouvrage', motOuvrageAutre: {}, modeMarge: 'marge_vente', marge: 25.5, margeDevis: 20, regimeTva: 'franchise', gestionDechets: true, tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', etapeAffaireCreee: 'rdv_fixe', mentionEmetteur: 'Ma mention\n\nQualification RGE', mentionTvaReduite: 'Taux réduit\nappliqué', entreprise: {} });
     assert.deepEqual(A.reglagesDevis(r.reglages), r.reglages);
   });
   test('13a logique : la marge globale du devis vaut 20 par défaut (document absent ou ancien sans le champ), se relit en virgule française, et reste distincte de la marge des articles', () => {

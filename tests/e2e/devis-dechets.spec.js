@@ -8,7 +8,7 @@
 //  7 devis finalisé : les phrases restent, les boutons sont grisés et un clic dit pourquoi ; 8 pas de débordement, champs de 16 px, cibles de 44 px sur téléphone.
 import { fileURLToPath } from 'node:url';
 import {
-  test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, creerOrganisation, creerAffaire, estTelephone, JEROME,
+  test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, creerOrganisation, creerAffaire, estTelephone, JEROME, allerA, ouvrirSectionReglages,
 } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-dechets/', import.meta.url));
@@ -223,4 +223,76 @@ test('9 un devis qui a déjà plusieurs types les garde quand on change autre ch
   expect(doc.dechets.types).toEqual(['inertes', 'non_dangereux']);
   expect(doc.dechets.pointCollecte).toBe('Benne devant le chantier');
   expect(doc.dechets.volumeMin).toBe(6);
+});
+
+// ---------------------------------------------------------------- réglage « Gestion des déchets » (Réglages > Devis) et case « Cacher la gestion des déchets » du devis (01/11/2026)
+// 10 réglage actif : le bloc et la case Options sont là ; 11 case du devis cochée : le bloc disparaît de l'éditeur (données gardées) ;
+// 12 réglage éteint : ni bloc ni case Options, pour tous les devis ; 13 l'écran Réglages > Devis enregistre le choix.
+const DOSSIER_REGLAGE = fileURLToPath(new URL('./captures/devis-dechets-reglage/', import.meta.url));
+const capturerReglage = (page, info, nom) => page.screenshot({ path: `${DOSSIER_REGLAGE}${nom}-${info.project.name}.png`, animations: 'disabled' });
+async function ouvrirOptions(page) {
+  if (estTelephone(page)) {
+    await page.locator('[data-action="plus-actions"]').click();
+    await page.getByRole('menuitem', { name: 'Options' }).click();
+  } else {
+    await page.locator('[data-action="options"]').click();
+  }
+  await expect(page.locator('[data-zone="options"]')).toBeVisible();
+}
+
+test('10 réglage actif (cas par défaut) : le bloc « Gestion des déchets » et la case « Cacher la gestion des déchets » sont visibles', async ({ page }, info) => {
+  await ouvrir(page, await devis('d10'));
+  await expect(bloc(page)).toBeVisible();
+  await ouvrirOptions(page);
+  await expect(page.locator('[data-zone="options"] [data-option="cacherDechets"]')).toBeVisible();
+  await capturerReglage(page, info, '10-reglage-actif');
+});
+
+test('11 la case « Cacher la gestion des déchets » du devis cache le bloc dans l’éditeur, les données restent, la décocher le ramène', async ({ page }, info) => {
+  await ouvrir(page, await devis('d11', { dechets: REMPLI }));
+  await expect(bloc(page)).toBeVisible();
+  await ouvrirOptions(page);
+  const casse = page.locator('[data-zone="options"] [data-option="cacherDechets"]');
+  await casse.check();
+  await expect(bloc(page)).toBeHidden();
+  await sauve(page);
+  await capturerReglage(page, info, '11-case-du-devis-cochee');
+  const doc = await lireDocument('devis_devis/d11');
+  expect(doc.dechets.pointCollecte).toBe('Déchèterie de Pantin');
+  expect(doc.affichage.cacherDechets).toBe(true);
+  await casse.uncheck();
+  await expect(bloc(page)).toBeVisible();
+  await expect(bloc(page).locator('[data-valeur="dechets"]')).toContainText('Déchèterie de Pantin');
+});
+
+test('12 réglage éteint : ni bloc ni case dans les Options, pour un devis neuf comme pour un devis qui a des déchets (cas vide du bloc)', async ({ page }, info) => {
+  await ecrireDocument('devis_parametres/reglages', { gestionDechets: false });
+  await ouvrir(page, await devis('d12', { dechets: REMPLI }));
+  await expect(page.locator('[data-zone="dechets"]')).toHaveCount(0);
+  await ouvrirOptions(page);
+  await expect(page.locator('[data-zone="options"] [data-option="cacherDechets"]')).toHaveCount(0);
+  await expect(page.locator('[data-zone="options"] [data-option="afficherMarges"]')).toBeVisible();
+  await capturerReglage(page, info, '12-reglage-eteint');
+  expect((await lireDocument('devis_devis/d12')).dechets.pointCollecte).toBe('Déchèterie de Pantin'); // rien n'est effacé
+});
+
+test('13 Réglages > Devis : « Gestion des déchets » (Oui / Non, aide d’une phrase) s’enregistre et fait disparaître le bloc', async ({ page }, info) => {
+  await connecter(page);
+  await allerA(page, 'Réglages');
+  await ouvrirSectionReglages(page, 'Devis');
+  await expect(page.locator('#reglages-devis')).toBeVisible();
+  const liste = page.locator('#devis-gestionDechets');
+  await expect(liste).toHaveValue('oui');
+  await page.locator('[data-reglage="gestionDechets"] .bouton-info').click();
+  await expect(page.locator('[data-reglage="gestionDechets"] .bulle-info')).toContainText('Pour les métiers sans chantier (agence, conseil…), tu peux la désactiver.');
+  await page.keyboard.press('Escape');
+  await liste.selectOption('non');
+  await capturerReglage(page, info, '13-reglages-non');
+  await page.locator('[data-action="enregistrer-reglages-devis"]').click();
+  await expect(page.locator('.toast')).toContainText('Réglages des devis enregistrés');
+  await expect.poll(async () => (await lireDocument('devis_parametres/reglages'))?.gestionDechets).toBe(false);
+  await liste.selectOption('oui');
+  await page.locator('[data-action="enregistrer-reglages-devis"]').click();
+  await expect.poll(async () => (await lireDocument('devis_parametres/reglages'))?.gestionDechets).toBe(true);
+  await capturerReglage(page, info, '13-reglages-oui');
 });
