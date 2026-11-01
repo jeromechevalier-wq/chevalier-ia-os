@@ -54,6 +54,9 @@ Avec le petit catalogue fictif intégré à la place :
 Retirer les données de démonstration (seulement les documents marqués « ${MARQUEUR} ») :
   node scripts/donnees-demo.js <identifiant-client> --retirer [--ecrire]
 
+Remettre un client de démonstration à zéro (TOUT ce qui est métier, marqué ou non ; demande de taper le nom du client) :
+  node scripts/donnees-demo.js <identifiant-client> --vider [--ecrire] [--confirmer <identifiant-client>]
+
 Fabriquer les PDF des devis fictifs déjà présents (par le déclencheur du serveur ; --ecrire pour le faire vraiment) :
   node scripts/donnees-demo.js <identifiant-client> --pdf [--ecrire]
   (ou --pdf ajouté à une commande de remplissage : le PDF est fait juste après l'écriture)
@@ -68,6 +71,8 @@ Options :
   --auteur adresse       auteur des fiches (par défaut : le premier éditeur du client)
   --pdf                  fabrique les PDF des devis de démonstration (jamais fait sans cette option)
   --retirer              supprime les documents de démonstration
+  --vider                supprime TOUTES les données métier du client de démonstration (marquées ou non) ; seul, sans autre option de chargement
+  --confirmer client     (avec --vider --ecrire) confirmation sans question, pour un script : doit être égal à l'identifiant du client
   --aide                 cette aide`;
 
 // ------------------------------------------------------------------------------------------------ catalogue fictif (tests et --catalogue-exemple)
@@ -614,6 +619,146 @@ async function retirer(id, ctx) {
   return 0;
 }
 
+// ------------------------------------------------------------------------------------------------ --vider
+
+/** Clients qu'on ne vide JAMAIS, par identifiant ou par nom (minuscules). Pour en protéger un autre : l'ajouter ici. */
+export const CLIENTS_PROTEGES = Object.freeze(['audrey']);
+
+/** Liste FERMÉE des collections que --vider supprime (sous-collections comprises), sans filtre sur la marque : COLLECTIONS_DEMO + données calculées des devis, fiches des documents déposés, propositions des automatisations. */
+export const COLLECTIONS_VIDER = Object.freeze([...COLLECTIONS_DEMO, 'devis_usage_articles', 'devis_habitudes', 'documents_stockes', 'automatisations_propositions']);
+/** Dossiers Storage vidés (jamais marques/<client>/). */
+const PREFIXES_STORAGE = (id) => [`clients/${id}/devis/`, `clients/${id}/documents/`];
+
+/** Ce que --vider garde toujours, avec la raison (affiché dans « Conservé »). Toute collection absente de COLLECTIONS_VIDER est gardée, connue ou non. */
+export const COLLECTIONS_CONSERVEES = Object.freeze({
+  membres: 'accès et utilisateurs',
+  crm_audit: 'journal d\'audit, ne s\'efface jamais',
+  crm_audit_avant: 'journal d\'audit, copies « avant », ne s\'efface jamais',
+  crm_actions_lancements: 'journal des actions et contenus d\'e-mails gardés côté serveur, jamais supprimés : effet connu, ils restent même si les devis disparaissent',
+  devis_compteurs: 'compteur des numéros de devis, un numéro ne revient jamais',
+  crm_parametres: 'réglages de l\'espace (étapes, phases)',
+  mcp_limites: 'limites du serveur MCP', mcp_codes: 'codes du serveur MCP',
+  workflows: 'automatisations', executions: 'automatisations', sync: 'synchronisation',
+  projets_modeles: 'modèles de projet (réglages, pas des données)',
+});
+/** Familles de collections gardées par préfixe (par prudence : un client de démonstration n'en a normalement pas). */
+const PREFIXES_CONSERVES = Object.freeze({ veille_: 'veille (sources, contenus, résumés, pages)', tableaudebord_: 'tableau de bord' });
+const raisonConservee = (c) => COLLECTIONS_CONSERVEES[c] ?? Object.entries(PREFIXES_CONSERVES).find(([p]) => c.startsWith(p))?.[1] ?? null;
+
+const CHAMPS_NOM = ['nom', 'titre', 'libelle', 'objet', 'expression', 'numero', 'code'];
+const NOMBRE_APERCU = 4;
+
+/** Toutes les références d'une collection, sous-collections comprises (ordre : parents puis enfants). */
+async function collecterRefs(colRef) {
+  const refs = [];
+  const docs = await colRef.listDocuments();
+  for (const ref of docs) {
+    refs.push(ref);
+    for (const sous of await ref.listCollections()) refs.push(...await collecterRefs(sous));
+  }
+  return refs;
+}
+
+function exigerPasProtege(id, fiche) {
+  const nom = String(fiche?.nom ?? '').trim().toLowerCase();
+  if (CLIENTS_PROTEGES.includes(id) || (nom && CLIENTS_PROTEGES.includes(nom))) {
+    throw new ErreurOutil([`Le client « ${id} » est protégé : --vider ne le vide jamais. Rien n'a été modifié.`, 'Les vrais clients ne sont jamais vidables (liste CLIENTS_PROTEGES dans scripts/plateforme/donnees-demo.js).']);
+  }
+}
+
+/** Lecteur de clavier pour la confirmation (null sans terminal : alors seule l'option --confirmer permet de confirmer). */
+export function lecteurClavier() {
+  if (!process.stdin.isTTY) return null;
+  return async (question) => {
+    const { createInterface } = await import('node:readline/promises');
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try { return await rl.question(question); } finally { rl.close(); }
+  };
+}
+
+async function demanderConfirmation(id, options, ctx) {
+  if (options.confirmer !== undefined) return options.confirmer === id;
+  if (!ctx.lireLigne) return null;
+  return String(await ctx.lireLigne(`Pour VIDER le client de démonstration « ${id} », tapez son identifiant puis Entrée (autre chose = annuler) : `)).trim() === id;
+}
+
+async function vider(id, options, ctx, fiche) {
+  const db = ctx.base.db;
+  const racine = db.doc(`clients/${id}`);
+  const presentes = new Set((await racine.listCollections()).map((c) => c.id));
+  const lots = [];
+  let total = 0;
+  for (const c of COLLECTIONS_VIDER) {
+    if (!presentes.has(c)) continue;
+    const refs = await collecterRefs(racine.collection(c));
+    const premiers = refs.filter((r) => r.parent.id === c);
+    const noms = [];
+    for (const r of premiers) {
+      if (noms.length >= NOMBRE_APERCU) break;
+      const d = (await r.get()).data() ?? {};
+      const champ = CHAMPS_NOM.find((k) => typeof d[k] === 'string' && d[k].trim());
+      noms.push(champ ? d[champ].trim().slice(0, 40) : r.id);
+    }
+    ctx.out(`  ${c} : ${refs.length}${refs.length ? ` (${noms.join(', ')}${premiers.length > noms.length ? ', …' : ''})` : ''}`);
+    total += refs.length;
+    lots.push(...refs);
+  }
+  // Fichiers : TOUT clients/<id>/devis/ et clients/<id>/documents/ (jamais marques/<id>/). Lus AVANT toute suppression.
+  const fichiers = [];
+  try {
+    for (const prefixe of PREFIXES_STORAGE(id)) {
+      const [liste] = await ctx.base.bucket.getFiles({ prefix: prefixe });
+      fichiers.push(...liste.filter((f) => f.name.startsWith(prefixe) && !f.name.includes('..')));
+      ctx.out(`  Storage ${prefixe} : ${liste.length} fichier(s)`);
+    }
+  } catch (e) {
+    throw new ErreurOutil(["Impossible de lire les fichiers du client dans Storage (rien n'a été supprimé).", ...traduireErreur(e)]);
+  }
+  const gardees = [...presentes].filter((c) => !COLLECTIONS_VIDER.includes(c)).sort();
+  ctx.out(`Conservé : ${gardees.length ? gardees.map((c) => `${c} (${raisonConservee(c) ?? 'inconnue, laissée telle quelle'})`).join(' ; ') + ' ; ' : ''}la fiche clients/${id} (marque démo, nom, réglages d'espace) ; marques/${id}.`);
+  ctx.out('Les anciens devis disparaissent mais la numérotation continue : le compteur des numéros (devis_compteurs) est gardé tel quel.');
+  if (!total && !fichiers.length) { ctx.out('Ce client est déjà vide : rien à supprimer.'); return 0; }
+  if (!ctx.ecrire) { ctx.out(`SIMULATION : rien n'a été supprimé (${total} document(s) et ${fichiers.length} fichier(s) le seraient). Relancez avec --ecrire --confirmer ${id}`); return 0; }
+
+  const accord = await demanderConfirmation(id, options, ctx);
+  if (accord === null) throw new ErreurOutil(["Pas de clavier pour confirmer : rien n'a été supprimé.", `Ajoutez --confirmer ${id} à la commande.`]);
+  if (!accord) throw new ErreurOutil([`Confirmation différente de « ${id} » : rien n'a été supprimé.`, `Relancez et tapez exactement ${id}, ou ajoutez --confirmer ${id}.`]);
+
+  await relireMarque(db, id);
+  // Storage d'abord (comme --retirer) : si un fichier échoue, les documents sont encore là et la même commande peut être relancée.
+  let supprimesFichiers = 0;
+  for (const f of fichiers) {
+    if (!PREFIXES_STORAGE(id).some((p) => f.name.startsWith(p))) throw new Error(`Chemin refusé : ${f.name}`);
+    await f.delete({ ignoreNotFound: true });
+    supprimesFichiers += 1;
+    ctx.ecrits = true;
+  }
+  let supprimes = 0;
+  for (let i = 0; i < lots.length; i += 400) {
+    await relireMarque(db, id);
+    const lot = db.batch();
+    for (const r of lots.slice(i, i + 400)) {
+      if (!r.path.startsWith(`clients/${id}/`) || !COLLECTIONS_VIDER.includes(r.path.split('/')[2])) throw new Error(`Chemin refusé : ${r.path}`);
+      lot.delete(r);
+    }
+    try {
+      await lot.commit();
+    } catch (e) {
+      ctx.out(`✖ Erreur après ${supprimes} document(s) supprimé(s) : ${traduireErreur(e)[0]}`);
+      throw new ErreurOutil(["Arrêt : rien de plus n'a été supprimé. Relancez la même commande pour finir."]);
+    }
+    supprimes += Math.min(400, lots.length - i);
+    ctx.ecrits = true;
+  }
+  let restants = 0;
+  for (const c of COLLECTIONS_VIDER) restants += (await collecterRefs(racine.collection(c))).length;
+  const restFichiers = (await Promise.all(PREFIXES_STORAGE(id).map(async (p) => (await ctx.base.bucket.getFiles({ prefix: p }))[0].length))).reduce((a, b) => a + b, 0);
+  ctx.out(`Relecture après suppression : reste ${restants} document(s) et ${restFichiers} fichier(s) dans les collections et dossiers vidés.`);
+  if (restants || restFichiers) throw new ErreurOutil(['Il reste des éléments après la suppression : relancez la même commande pour finir.']);
+  ctx.out(`✔ ${supprimes} documents supprimés${supprimesFichiers ? ` et ${supprimesFichiers} fichier(s)` : ''}. La fiche du client, les accès, les journaux d'audit et le compteur des numéros n'ont pas été touchés.`);
+  return 0;
+}
+
 async function remplir(id, options, ctx, fiche) {
   const db = ctx.base.db;
   const col = cheminsClient(db, id);
@@ -752,18 +897,23 @@ export async function executerDonneesDemo(argv, ctx) {
       return 0;
     }
     const { positionnels, options } = lireArguments(argv, {
-      valeurs: ['catalogue-depuis', 'auteur', 'metier'],
-      drapeaux: ['ecrire', 'pdf', 'retirer', 'completer', 'catalogue-exemple', 'masquer-prix-achat', 'aide', 'metiers'],
+      valeurs: ['catalogue-depuis', 'auteur', 'metier', 'confirmer', 'oui'],
+      drapeaux: ['ecrire', 'pdf', 'retirer', 'vider', 'completer', 'catalogue-exemple', 'masquer-prix-achat', 'aide', 'metiers'],
     });
     if (options.aide || !positionnels.length) { ctx.out(AIDE); return options.aide ? 0 : 1; }
     if (positionnels.length > 1) throw new ErreurOutil(`Argument en trop : « ${positionnels.slice(1).join(' ')} ». Un seul client à la fois ; les options commencent par --.`);
     const id = exigerIdentifiant(positionnels[0]);
+    if (options.oui !== undefined) { if (options.confirmer !== undefined) throw new ErreurOutil('--oui et --confirmer sont la même option : une seule.'); options.confirmer = options.oui; }
+    if (options.vider) {
+      const autres = ['metier', 'catalogue-depuis', 'catalogue-exemple', 'completer', 'pdf', 'masquer-prix-achat', 'retirer', 'auteur'].filter((k) => options[k]);
+      if (autres.length) throw new ErreurOutil(`--vider ne se combine avec aucune autre option de chargement (${autres.map((k) => `--${k}`).join(', ')}) : videz d'abord, puis chargez avec une 2e commande. Seuls --ecrire et --confirmer vont avec.`);
+    } else if (options.confirmer !== undefined) throw new ErreurOutil('--confirmer ne sert qu\'avec --vider.');
     const pdfSeul = options.pdf && !options['catalogue-depuis'] && !options['catalogue-exemple'] && !options.metier;
     if (options.pdf && options.retirer) throw new ErreurOutil('--pdf et --retirer ne se combinent pas.');
     if (pdfSeul && (options.completer || options['masquer-prix-achat'])) throw new ErreurOutil("--pdf seul ne se combine qu'avec --ecrire (les autres options servent au remplissage).");
     if (options.metier && (options['catalogue-depuis'] || options['catalogue-exemple'])) throw new ErreurOutil('--metier ne se combine pas avec --catalogue-depuis ni --catalogue-exemple : le jeu du métier apporte son propre catalogue.');
     if (options.metier && !options.retirer) ctx.jeuMetier = exigerJeu(options.metier);
-    if (!options.retirer && !pdfSeul && !options['catalogue-depuis'] && !options['catalogue-exemple'] && !options.metier) {
+    if (!options.retirer && !options.vider && !pdfSeul && !options['catalogue-depuis'] && !options['catalogue-exemple'] && !options.metier) {
       throw new ErreurOutil(['Indiquez d\'où vient le catalogue des devis :', `  --catalogue-depuis ${PROJET_CATALOGUE}   (copie de votre catalogue, lu en lecture seule)`, '  --catalogue-exemple              (petit catalogue fictif intégré)', '  --metier <nom>                   (jeu complet d\'un métier ; node scripts/donnees-demo.js --metier affiche la liste)']);
     }
     if (options['catalogue-depuis'] && options['catalogue-exemple']) throw new ErreurOutil('Choisissez --catalogue-depuis OU --catalogue-exemple, pas les deux.');
@@ -782,6 +932,7 @@ export async function executerDonneesDemo(argv, ctx) {
     const ficheSnap = await ctx.base.db.doc(`clients/${id}`).get();
     if (!ficheSnap.exists) throw new ErreurOutil(`Le client « ${id} » n'existe pas (pas de fiche clients/${id}). Créez-le d'abord avec scripts/nouveau-client.js.`);
     exigerClientDemo(id, ficheSnap.data());
+    if (options.vider) { ctx.modeVider = true; exigerPasProtege(id, ficheSnap.data()); return await vider(id, options, ctx, ficheSnap.data()); }
     if (options.retirer) return await retirer(id, ctx);
     if (options.pdf) exigerModuleDevis(ficheSnap.data());
     if (pdfSeul) return await fabriquerPdf(id, ctx, ficheSnap.data() ?? {});
@@ -796,6 +947,7 @@ export async function executerDonneesDemo(argv, ctx) {
     const lignes = e instanceof ErreurOutil ? e.messages : traduireErreur(e);
     for (const l of lignes) ctx.out(`✖ ${l}`);
     if (ctx.phasePdf) ctx.out(ctx.ecrits ? 'Des devis ont été touchés par --pdf. Relancez --pdf --ecrire (seul, sans les options de remplissage) : la reprise remet d\'abord les statuts d\'origine.' : "Rien n'a été écrit.");
+    else if (ctx.modeVider) ctx.out(ctx.ecrits ? 'Attention : le vidage est incomplet. Relancez la même commande pour le finir (rien d\'autre n\'a été touché).' : "Rien n'a été supprimé.");
     else ctx.out(ctx.ecrits ? 'Attention : une partie a déjà été écrite. Pour repartir de zéro : --retirer --ecrire, puis relancez.' : "Rien n'a été écrit.");
     return 1;
   }

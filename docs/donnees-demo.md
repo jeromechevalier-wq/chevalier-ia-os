@@ -114,7 +114,9 @@ node scripts/donnees-demo.js clientdemo --catalogue-exemple --ecrire
 | `--completer` | ajoute la démonstration même si le client a déjà des données (les articles déjà présents sont gardés tels quels) |
 | `--auteur adresse@…` | qui signe les fiches (en minuscules). Par défaut : le premier éditeur du client |
 | `--pdf` | fabrique les PDF des devis de démonstration qui n'en ont pas (voir « Les PDF des devis » plus bas) ; seul, il travaille sur un client déjà rempli |
-| `--retirer` | retire les données de démonstration |
+| `--retirer` | retire les données de démonstration (seulement celles qui portent la marque `donneesDemo`) |
+| `--vider` | **remet le client de démonstration à zéro** : supprime toutes ses données métier, marquées ou non (voir « Remettre un client à zéro »). Ne se combine avec aucune autre option de chargement |
+| `--confirmer clientdemo` (ou `--oui clientdemo`, même chose) | (avec `--vider --ecrire`) répond d'avance à la question de confirmation, pour un script ou un test ; doit être égal à l'identifiant du client |
 | `--aide` | affiche l'aide |
 
 ## Ce qui est créé
@@ -174,6 +176,50 @@ Les devis fictifs « finalisé, envoyé, signé, refusé » sont écrits directe
 
 `--retirer --ecrire` cherche, dans chaque collection où le programme écrit, les documents qui portent `donneesDemo: true`, et supprime **ceux-là seulement**. Si des PDF ont été fabriqués, il supprime aussi leurs fichiers dans Storage, **seulement** sous `clients/<client>/devis/<identifiant de l'affaire>/` des affaires de démonstration (jamais un autre dossier). Ce que tu as créé toi-même chez ce client reste, et les autres clients ne sont jamais touchés.
 
+## Remettre un client à zéro (`--vider`)
+
+La commande se lance depuis le dossier du projet sur le Mac de Jérôme : `cd ~/demo-main && node scripts/donnees-demo.js clientdemo --vider …`.
+
+`--retirer` ne supprime que ce qui porte la marque `donneesDemo`. Les essais faits à la main (un article, un mot appris, d'anciens devis, des fiches créées à l'écran) restent. Pour repartir d'un client **propre** avant de charger un jeu de métier :
+
+```bash
+node scripts/donnees-demo.js clientdemo --vider                              # simulation : rien n'est supprimé
+node scripts/donnees-demo.js clientdemo --vider --ecrire                     # pour de vrai : il faut taper clientdemo
+node scripts/donnees-demo.js clientdemo --metier etancheur --ecrire          # puis on recharge un jeu
+```
+
+Exemple de sortie en simulation (chiffres inventés) :
+
+```
+Base visée : chevalier-ia-app (VRAIE base) ; SIMULATION
+  crm_affaires : 4 (Salle de bain Dupont, Essai Test, …)
+  crm_organisations : 3 (SCI Les Tilleuls, Atelier Martin, …)
+  devis_articles : 12 (Lampe Lampar, Interrupteur double, …)
+  devis_devis : 5 (Rénovation cuisine, Essai, …)
+  devis_vocabulaire : 2 (prise, trois interrupteur)
+  Storage clients/clientdemo/devis/ : 3 fichier(s)
+  Storage clients/clientdemo/documents/ : 0 fichier(s)
+Conservé : crm_audit (journal d'audit, ne s'efface jamais) ; devis_compteurs (compteur des numéros de devis, un numéro ne revient jamais) ; membres (accès et utilisateurs) ; … ; la fiche clients/clientdemo (marque démo, nom, réglages d'espace).
+Les anciens devis disparaissent mais la numérotation continue : le compteur des numéros (devis_compteurs) est gardé tel quel.
+SIMULATION : rien n'a été supprimé (29 document(s) et 3 fichier(s) le seraient). Relancez avec --ecrire --confirmer clientdemo
+```
+
+### Ce que `--vider` supprime, et ce qu'il garde
+
+| Supprimé | Gardé, toujours |
+|---|---|
+| `crm_organisations`, `crm_personnes`, `crm_affaires`, `crm_activites`, `crm_notes`, `crm_evenements` | la fiche `clients/<client>` (marque `demo`, nom, réglages d'espace) |
+| `projets_projets`, `projets_taches` | les accès et utilisateurs (`membres`) |
+| `devis_articles`, `devis_parametres` (réglages des devis, familles), `devis_devis`, `devis_vocabulaire`, `devis_habitudes`, `devis_usage_articles`, `documents_stockes` (fiches des documents déposés), `automatisations_propositions` | les journaux d'audit `crm_audit` et `crm_audit_avant` (ne s'effacent jamais) |
+| les sous-collections de ces collections | `crm_actions_lancements` (journal des actions et contenus d'e-mails gardés côté serveur : **jamais supprimés**, c'est un effet connu, ils restent même si les devis disparaissent) |
+| **tous** les fichiers Storage sous `clients/<client>/devis/` et `clients/<client>/documents/` (supprimés **avant** les documents) | `devis_compteurs` : **la numérotation continue**, un numéro de devis ne revient jamais |
+| | `crm_parametres` (étapes, phases) et `projets_modeles` (réglages et modèles, pas des données), `veille_*` (sources, contenus, résumés, pages), `tableaudebord_*` (gardés par prudence : un client de démonstration n'en a normalement pas), `workflows`, `executions`, `sync`, `mcp_limites`, `mcp_codes`, le dossier `marques/<client>` |
+| | toute collection que l'outil ne connaît pas (listée dans la sortie, « inconnue, laissée telle quelle ») ; tout ce qui est hors de l'espace du client |
+
+Attention : les réglages des devis (« Mon entreprise ») et les familles sont supprimés avec `devis_parametres` ; le jeu de métier rechargé ensuite les remet.
+
+Garde-fous, dans cet ordre, **avant toute lecture ou suppression de données** : le client doit porter `demo: true` (relu avant chaque lot de suppression) ; il ne doit pas être protégé (`audrey`, par identifiant ou par nom ; la liste `CLIENTS_PROTEGES`, en plus de la marque `demo`, est en tête de `scripts/plateforme/donnees-demo.js`, il suffit d'y ajouter un nom) ; `--vider` refuse toute autre option de chargement ; avec `--ecrire`, il faut taper l'identifiant du client (ou `--confirmer <client>`). Suppression par lots de 400 au plus ; en cas d'erreur, l'outil s'arrête (rien de plus n'est supprimé) et la même commande peut être relancée pour finir.
+
 ## Limites à connaître
 
 - **Pas de PDF sans l'option `--pdf`** : les devis finalisés n'ont pas de PDF tant qu'on ne lance pas `--pdf --ecrire` (l'écran affiche « PDF non rangé »). Le vrai déclencheur en ligne n'est testé que par Jérôme sur le client de démonstration.
@@ -212,6 +258,11 @@ Dans tous ces cas (sauf les trois lignes `--pdf` signalées plus bas), rien n'es
 | *PDF ÉCHEC* dans le tableau | le serveur a essayé 3 fois et n'a pas réussi | relancer `--pdf --ecrire`, ou « Réessayer » sur le devis |
 | *Impossible de lire les fichiers PDF du client dans Storage* | (`--retirer`) connexion ou droits | rien n'a été supprimé ; `gcloud auth application-default login` puis relancer |
 | *--pdf et --retirer ne se combinent pas* | deux options opposées | une seule à la fois |
+| *--vider ne se combine avec aucune autre option de chargement* | `--vider` écrit avec une autre option (`--metier`, `--catalogue-*`, `--completer`, `--pdf`, `--retirer`…) | vider d'abord, puis charger avec une 2e commande |
+| *Le client « … » est protégé* | (`--vider`) le client est dans la liste `CLIENTS_PROTEGES` (`audrey`) | normal : un vrai client ne se vide jamais |
+| *Confirmation différente de « … »* ou *Pas de clavier pour confirmer* | (`--vider --ecrire`) l'identifiant tapé n'est pas celui du client, ou pas de terminal | relancer et taper exactement le nom, ou ajouter `--confirmer <client>` |
+| *Ce client est déjà vide* | (`--vider`) rien à supprimer | rien à faire |
+| *--confirmer ne sert qu'avec --vider* | `--confirmer` seul | l'enlever |
 
 Si l'écriture est coupée en route (perte d'Internet), le programme le dit. Lance alors `--retirer --ecrire`, puis relance la démonstration.
 

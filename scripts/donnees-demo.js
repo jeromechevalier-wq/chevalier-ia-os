@@ -10,6 +10,6 @@ try {
   }
   throw e;
 }
-const [{ creerSortie }, { executerDonneesDemo }] = outils;
+const [{ creerSortie }, { executerDonneesDemo, lecteurClavier }] = outils;
 const { out } = creerSortie();
-process.exitCode = await executerDonneesDemo(process.argv.slice(2), { out });
+process.exitCode = await executerDonneesDemo(process.argv.slice(2), { out, lireLigne: lecteurClavier() });
