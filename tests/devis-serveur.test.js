@@ -496,6 +496,32 @@ describe('B mentions légales (31/10/2026) : la fonction devisFinaliser applique
   });
 });
 
+describe('6 texte de la mention de TVA réduite figé par la finalisation serveur (01/11/2026)', () => {
+  const reduit = (id) => brouillon(id, { sections: [{ id: `s-${id}`, titre: 'Travaux', lignes: [{ ...ligne(`l-${id}`), tauxTva: 10 }] }] });
+  test('6 la fonction du serveur (celle de l’écran, de l’assistant et des clients) copie le texte des réglages dans le devis ; le réglage change ensuite : le texte du devis non', async () => {
+    const m = monde([reduit('d1')]);
+    m.collections[C.devisParametres][0].mentionTvaReduite = 'Texte du jour';
+    const r = await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    assert.equal(r.ok, true);
+    assert.equal(leDevis(m, 'd1').mentionTvaReduiteFigee, 'Texte du jour');
+    m.collections[C.devisParametres][0].mentionTvaReduite = 'Texte changé après coup';
+    assert.equal(D.vueClient(leDevis(m, 'd1'), {}).mentionTvaReduiteFigee, 'Texte du jour');
+  });
+  test('6 réglage vide : texte standard figé ; devis sans ligne réduite : aucun champ écrit', async () => {
+    const m = monde([reduit('d1'), brouillon('d2')]);
+    await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd2' });
+    assert.equal(leDevis(m, 'd1').mentionTvaReduiteFigee, D.MENTION_TVA_REDUITE_DEFAUT);
+    assert.equal('mentionTvaReduiteFigee' in leDevis(m, 'd2'), false);
+  });
+  test('9 la nouvelle version du serveur ne recopie pas le texte figé', async () => {
+    const m = monde([reduit('d1')]);
+    await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    const r = await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    assert.equal('mentionTvaReduiteFigee' in leDevis(m, r.devis.id), false);
+  });
+});
+
 describe('SA devis sans affaire (28/10/2026) : la fonction devisFinaliser refuse un devis sans affaire', () => {
   test('SA4 finaliser rend « Choisis l\'affaire de ce devis. » et n’écrit rien (ni numéro ni compteur) ; avec une affaire il passe', async () => {
     const m = monde([brouillon('d1', { affaireId: null })]);

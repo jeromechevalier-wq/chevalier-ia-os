@@ -10,7 +10,7 @@ import * as S from '../functions/src/coeur/devis.js';
 import { modifierLignesDevis, annulerDerniereModificationDevis, creerDevisDepuisModele } from '../functions/src/coeur/metier.js';
 import { restaurerOperation } from '../functions/src/coeur/restaurer.js';
 import { executerEcritures } from '../functions/src/coeur/ecriture.js';
-import { nouveauDevis } from '../functions/partage/devis.js';
+import { nouveauDevis, MENTION_TVA_REDUITE_DEFAUT } from '../functions/partage/devis.js';
 import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
 const emulateur = process.env.FIRESTORE_EMULATOR_HOST;
@@ -100,6 +100,16 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
     const v1 = await brut(C.devis, 'v1');
     assert.equal(v1.statut, 'remplace');
     assert.ok(v1.creeLe instanceof Timestamp && v1.envoyeLe instanceof Timestamp && v1.finaliseLe instanceof Timestamp);
+  });
+
+  test('6 un brouillon qui porte un texte figé posé à la main : sans ligne réduite, la finalisation le retire vraiment en base ; avec une ligne réduite, il est remplacé', async () => {
+    const ligneA = (taux) => ({ id: 'l', libelle: 'Article', unite: 'u', quantite: 1, prixAchat: 80, ...(taux ? { tauxTva: taux } : {}) });
+    await poser('n1', { mentionTvaReduiteFigee: 'Texte posé à la main', sections: [{ id: 's', titre: 'T', lignes: [ligneA(20)] }] });
+    await poser('r1', { mentionTvaReduiteFigee: 'Texte posé à la main', sections: [{ id: 's', titre: 'T', lignes: [ligneA(10)] }] });
+    assert.equal((await S.finaliser({ donnees, ctx: ctx(), devisId: 'n1' })).ok, true);
+    assert.equal((await S.finaliser({ donnees, ctx: ctx(), devisId: 'r1' })).ok, true);
+    assert.equal((await brut(C.devis, 'n1')).mentionTvaReduiteFigee ?? null, null);
+    assert.equal((await brut(C.devis, 'r1')).mentionTvaReduiteFigee, MENTION_TVA_REDUITE_DEFAUT);
   });
 
   test('C4 un devis invalide : rien n’est écrit (ni compteur, ni journal)', async () => {

@@ -32,7 +32,7 @@ export const ACTIONS_STATUT = Object.freeze({
   refuser: 'refuseLe',
 });
 
-const CHAMPS_FIGES = ['regimeTva', 'sections', 'statut', 'numero', 'finaliseLe', 'totaux', 'finalisation', 'clientNomFige'];
+const CHAMPS_FIGES = ['regimeTva', 'sections', 'statut', 'numero', 'finaliseLe', 'totaux', 'finalisation', 'clientNomFige', 'mentionTvaReduiteFigee'];
 
 /** code : introuvable | transition_interdite | brouillon_existant | demande_invalide */
 export class ErreurDevis extends Error {
@@ -173,7 +173,8 @@ export async function finaliser({ donnees, ctx, devisId }) {
 
     // Seuls les champs que la finalisation change sont écrits (les autres, dates comprises, ne sont pas retouchés).
     // Un client Firestore direct a pu poser archive ou des dates sur le brouillon : on les remet à zéro à la finalisation.
-    const remisesAZero = { archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null, pdf: null, envois: null, emailPrepare: null };
+    const remisesAZero = { archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null, pdf: null, envois: null, emailPrepare: null,
+      ...(apres.mentionTvaReduiteFigee === undefined && devis.mentionTvaReduiteFigee !== undefined ? { mentionTvaReduiteFigee: null } : {}) }; // pas de ligne réduite : un texte posé sur le brouillon ne survit pas
     const changements = [modifier(devis, { ...Object.fromEntries(CHAMPS_FIGES.filter((k) => apres[k] !== undefined).map((k) => [k, apres[k]])), // clientNomFige n'existe que si la fiche a un nom (Firestore refuse undefined)
       ...remisesAZero })];
     // Les versions plus anciennes encore vivantes (finalisée ou envoyée) sont remplacées par celle-ci, dans la même transaction.
