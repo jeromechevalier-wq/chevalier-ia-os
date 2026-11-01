@@ -191,7 +191,7 @@ test('C6b.6 « Essayer une phrase » dit la famille comprise (« je cherche « e
   await capturer(page, info, 'C6b-6-essayer-une-phrase-famille');
   await page.locator('[data-champ="essai"]').fill('prise');
   await expect(page.locator('[data-role="essai-portee"]')).toHaveText('Je comprends : « prise » désigne la famille Fournitures › Prises.');
-  await expect(page.locator('[data-role="essai-decision"]')).not.toContainText('Ton IA l’ajouterait tout de suite');
+  await expect(page.locator('[data-role="essai-decision"]')).not.toContainText('ChatGPT l’ajouterait tout de suite');
 });
 
 test('C6b.7 l’export CSV a la colonne « Famille » (le chemin) à côté de « Article »', async ({ page }) => {
