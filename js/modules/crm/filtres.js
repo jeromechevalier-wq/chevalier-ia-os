@@ -72,7 +72,7 @@ export async function fenetreFiltres({ controles: ctls, criteres, effacer }) {
         });
       }
       const cases = [];
-      const majSousLignes = () => { for (const { o, entree } of cases) if (o.parent) { const prise = c[ctl.cle].includes(o.parent); entree.disabled = prise; entree.checked = prise || c[ctl.cle].includes(o.valeur); entree.setAttribute('aria-disabled', String(prise)); entree.closest('label').classList.toggle('case-grisee', prise); } };
+      const majSousLignes = () => { for (const { o, entree } of cases) if (o.parent) { const prise = c[ctl.cle].includes(o.parent); entree.disabled = prise; entree.checked = prise || c[ctl.cle].includes(o.valeur); if (prise) entree.setAttribute('aria-disabled', 'true'); else entree.removeAttribute('aria-disabled'); entree.closest('label').classList.toggle('case-grisee', prise); } };
       corps.append(h('fieldset', { class: 'groupe-cases' }, h('legend', { class: 'etiquette' }, ctl.libelle),
         h('div', { class: ctl.arbre ? 'cases cases-arbre' : 'cases' }, ctl.options.map((o) => {
           const entree = h('input', { type: 'checkbox', checked: c[ctl.cle].includes(o.valeur), dataset: { cle: ctl.cle, valeur: o.valeur },
