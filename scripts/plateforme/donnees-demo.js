@@ -504,11 +504,23 @@ export function problemesDuJeu(jeu) {
     const idsDepart = new Set(F.FAMILLES_PAR_DEFAUT.filter((f) => f.parentId).map((f) => f.id));
     if (jeu.famillesMasquees !== undefined && jeu.famillesMasquees !== 'toutes' && !Array.isArray(jeu.famillesMasquees)) p.push('famillesMasquees doit valoir \'toutes\' ou être une liste d\'identifiants');
     for (const id of Array.isArray(jeu.famillesMasquees) ? jeu.famillesMasquees : []) if (!idsDepart.has(id)) p.push(`famille masquée inconnue : « ${id} » (ce n'est pas une sous-famille de départ famille-N-M)`);
+    // Premier niveau : ids connus (famille-N), noms non vides, au moins une famille active, article rangé sous un parent actif.
+    const idsPremier = new Set(F.FAMILLES_PAR_DEFAUT.filter((f) => !f.parentId).map((f) => f.id));
+    if (jeu.famillesPremierNiveau !== undefined && (typeof jeu.famillesPremierNiveau !== 'object' || jeu.famillesPremierNiveau === null || Array.isArray(jeu.famillesPremierNiveau))) p.push('famillesPremierNiveau doit être un objet { \'famille-N\': \'Nom\' }');
+    else for (const [id, nom] of Object.entries(jeu.famillesPremierNiveau ?? {})) {
+      if (!idsPremier.has(id)) p.push(`famille de premier niveau inconnue : « ${id} » (les sept sont famille-1 à famille-7)`);
+      else if (typeof nom !== 'string' || !nom.trim()) p.push(`famille de premier niveau « ${id} » : nom manquant`);
+    }
+    if (jeu.premierNiveauMasque !== undefined && jeu.premierNiveauMasque !== 'autres' && !Array.isArray(jeu.premierNiveauMasque)) p.push('premierNiveauMasque doit valoir \'autres\' ou être une liste d\'identifiants');
+    for (const id of Array.isArray(jeu.premierNiveauMasque) ? jeu.premierNiveauMasque : []) if (!idsPremier.has(id)) p.push(`famille de premier niveau masquée inconnue : « ${id} » (les sept sont famille-1 à famille-7)`);
     const listeFamilles = F.famillesDe(cat.familles);
+    if (!listeFamilles.some((f) => !f.parentId && f.actif !== false)) p.push('aucune famille de premier niveau active (il en faut au moins une)');
     for (const a of cat.articles) {
       const fam = listeFamilles.find((f) => f.id === a.familleId);
+      const parent = fam?.parentId ? listeFamilles.find((f) => f.id === fam.parentId) : null;
       if (!fam) p.push(`article ${a.id} : famille « ${a.familleId} » inconnue`);
       else if (fam.actif === false) p.push(`article ${a.id} : famille « ${fam.nom} » masquée (inactive)`);
+      else if (parent && parent.actif === false) p.push(`article ${a.id} : la famille « ${parent.nom} », parent de « ${fam.nom} », est désactivée`);
       else if (F.typeDeFamille(listeFamilles, a.familleId) !== a.type) p.push(`article ${a.id} : sa famille « ${fam.nom} » ne porte pas le type « ${a.type} »`);
     }
     const vocab = construireVocabulaire(cat.articles, { auteur: 'demo@exemple.test', maintenant: new Date('2026-01-15T10:00:00Z'), mots: jeu.mots ?? [] });

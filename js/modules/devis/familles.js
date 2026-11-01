@@ -116,12 +116,17 @@ export function optionsFamillesArbre(familles) {
 }
 
 /**
- * Familles proposées par le filtre « Famille » du Catalogue : les familles de premier niveau toujours ; une sous-famille active toujours ; une sous-famille INACTIVE seulement si un article y est encore rangé
- * (alors avec la mention « (désactivée) »). Une sous-famille inactive sans aucun article n'est pas proposée (démo d'un métier : plus de familles de maçon chez une agence).
+ * Familles proposées par le filtre « Famille » du Catalogue : une famille active toujours ; une famille INACTIVE (sous-famille ou premier niveau) seulement si un article y est encore rangé
+ * (pour le premier niveau : dans elle ou dans une de ses sous-familles, un ancien article sans famille comptant dans la famille de départ de son type), alors avec la mention « (désactivée) » pour une sous-famille
+ * et « · désactivée » pour le premier niveau (optionsFamillesArbre). Une famille inactive sans aucun article n'est pas proposée (démo d'un métier : plus de familles de maçon ni de Sous-traitance chez une agence).
  */
 export function famillesPourFiltre(familles, articles) {
-  const utilisees = new Set((articles ?? []).map((a) => a?.familleId).filter(Boolean));
-  return (familles ?? []).filter((f) => !f.parentId || f.actif !== false || utilisees.has(f.id)).map((f) => (f.parentId && f.actif === false ? { ...f, nom: `${f.nom ?? f.id} (désactivée)` } : f));
+  const rangees = (articles ?? []).filter(Boolean);
+  const utilisees = new Set(rangees.map((a) => a.familleId).filter(Boolean));
+  const effectives = new Set(rangees.map(familleEffective).filter(Boolean));
+  const liste = familles ?? [];
+  const premierUtilise = (f) => effectives.has(f.id) || liste.some((x) => x.parentId === f.id && effectives.has(x.id));
+  return liste.filter((f) => (f.parentId ? f.actif !== false || utilisees.has(f.id) : f.actif !== false || premierUtilise(f))).map((f) => (f.parentId && f.actif === false ? { ...f, nom: `${f.nom ?? f.id} (désactivée)` } : f));
 }
 
 /** La famille et ses sous-familles (identifiants) : un filtre sur « Fournitures » inclut « Carrelage ». */

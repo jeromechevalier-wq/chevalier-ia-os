@@ -17,10 +17,13 @@ export default Object.freeze({
   // Sous-familles propres au métier (le parent de premier niveau porte le type des articles) ; celles du bâtiment sont toutes masquées (écrites « inactives »).
   familles: [
     ['agence-sites', 'Sites internet', 'famille-2'], ['agence-referencement', 'Référencement moteurs et IA', 'famille-2'], ['agence-google', 'Fiches Google My Business', 'famille-2'],
-    ['agence-communication', 'Communication et contenus', 'famille-2'], ['agence-pose', 'Pose et installation', 'famille-2'], ['agence-affichage', 'Affichage et écrans', 'famille-1'],
-    ['agence-ecrans', 'Écrans en location', 'famille-5'], ['agence-complet', 'Prestations complètes', 'famille-3'],
+    ['agence-communication', 'Communication et contenus', 'famille-2'], ['agence-pose', 'Pose et installation', 'famille-2'], ['agence-affichage', 'Panneaux', 'famille-1'],
+    ['agence-ecrans', 'Téléviseurs et supports', 'famille-5'], ['agence-complet', 'Packs clés en main', 'famille-3'],
   ],
   famillesMasquees: 'toutes',
+  // Familles de premier niveau qui parlent à l'agence ; les autres (Sous-traitance, Textes, Divers…) sont désactivées. L'id, le type et le parent ne changent pas.
+  famillesPremierNiveau: { 'famille-1': 'Panneaux d’affichage', 'famille-2': 'Services numériques', 'famille-3': 'Prestations complètes', 'famille-5': 'Écrans en location' },
+  premierNiveauMasque: 'autres',
   articles: [
     ['ag-s01', 'Création de site vitrine (5 pages)', 'forfait', 3500, 'main_oeuvre', 'agence-sites'],
     ['ag-s02', 'Création de site de vente en ligne', 'forfait', 6500, 'main_oeuvre', 'agence-sites'],

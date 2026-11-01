@@ -197,7 +197,7 @@ describe('Filtre « Famille » en arbre (Catalogue > Filtres)', () => {
     assert.equal(o.find((x) => x.valeur === 'famille-1-1'), undefined, 'inactive sans article : pas proposée');
     assert.equal(o.find((x) => x.valeur === 'famille-1-2').libelle, 'Carrelage et revêtements (désactivée)', 'inactive avec un article : proposée, trouvable');
     assert.ok(o.find((x) => x.valeur === 'agence-x'), 'active : proposée');
-    assert.equal(o.filter((x) => x.niveau === 0 && x.valeur !== 'sans_famille').length, 7, 'les 7 grandes familles restent');
+    assert.equal(o.filter((x) => x.niveau === 0 && x.valeur !== 'sans_famille').length, 7, 'les 7 grandes familles (actives) restent');
     // Toutes les sous-familles du bâtiment masquées et aucun article dedans : aucune sous-famille de départ, plus de mention « inclut ses sous-familles » sur Fournitures.
     const masquees = { liste: F.FAMILLES_PAR_DEFAUT.filter((f) => f.parentId).map((f) => ({ ...f, actif: false })) };
     const agence = F.optionsFamillesArbre(F.famillesPourFiltre(F.famillesDe(masquees), []));
@@ -205,6 +205,17 @@ describe('Filtre « Famille » en arbre (Catalogue > Filtres)', () => {
     assert.equal(agence.find((x) => x.valeur === 'famille-1').note, undefined);
     // Cas vide / erreur.
     for (const rien of [null, undefined, []]) assert.deepEqual(F.famillesPourFiltre(rien, null), []);
+  });
+  test('5 une famille de premier niveau désactivée sans aucun article est cachée du filtre ; avec un article (le sien, une sous-famille ou un ancien article sans famille) elle reste, avec « · désactivée »', () => {
+    const brut = { liste: [{ id: 'famille-4', nom: 'Sous-traitance', actif: false }, { id: 'famille-5', nom: 'Écrans', actif: false }, { id: 'famille-6', nom: 'Textes', actif: false }, { id: 'famille-5-1', nom: 'Locations', actif: true, parentId: 'famille-5' }] };
+    const tous = F.famillesDe(brut);
+    const ids = (arts) => F.optionsFamillesArbre(F.famillesPourFiltre(tous, arts)).filter((o) => o.niveau === 0).map((o) => o.valeur);
+    assert.deepEqual(ids([]), ['famille-1', 'famille-2', 'famille-3', 'famille-7', 'sans_famille'], 'Sous-traitance, Écrans et Textes (désactivées, sans article) cachées');
+    assert.ok(ids([{ familleId: 'famille-5-1' }]).includes('famille-5'), 'article dans une sous-famille');
+    assert.ok(ids([{ type: 'sous_traitance' }]).includes('famille-4'), 'ancien article sans famille : famille de départ de son type');
+    assert.match(F.optionsFamillesArbre(F.famillesPourFiltre(tous, [{ familleId: 'famille-6' }])).find((o) => o.valeur === 'famille-6').note, /désactivée/);
+    assert.ok(!ids([{ familleId: 'famille-6' }]).includes('famille-4'));
+    for (const rien of [null, undefined]) assert.deepEqual(F.famillesPourFiltre(tous, rien).filter((f) => !f.parentId).map((f) => f.id), ['famille-1', 'famille-2', 'famille-3', 'famille-7'], 'cas vide : pas de liste d’articles');
   });
   test('3 « Sans famille » est toujours la dernière ligne ; cas vide et cas d’erreur (familles illisibles) : « Sans famille » seul', () => {
     assert.deepEqual(F.optionsFamillesArbre(F.famillesDe(null)).at(-1), { valeur: 'sans_famille', libelle: 'Sans famille', niveau: 0 });
