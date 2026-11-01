@@ -27,7 +27,9 @@ import * as D from '../../js/modules/devis/logique.js';
 import * as A from '../../js/modules/devis/articles.js';
 import * as F from '../../js/modules/devis/familles.js';
 import { ligneDepuisArticle } from '../../js/modules/devis/editeur-logique.js';
-import { prixVenteArticle } from '../../js/modules/devis/ouvrages.js';
+import { prixVenteArticle, MOTS_OUVRAGE, MOT_OUVRAGE_DEFAUT } from '../../js/modules/devis/ouvrages.js';
+import { cleDeExpression, identifiantDeRegle } from '../../js/modules/devis/vocabulaire.js';
+import { ajouterMois } from '../../js/modules/crm/logique.js';
 import { fabriquerPdf, exigerModuleDevis, fichiersPdfDemo } from './donnees-demo-pdf.js';
 
 export const MARQUEUR = 'donneesDemo';
@@ -35,7 +37,7 @@ export const PROJET_CATALOGUE = 'chevalier-ia-os';
 /** Collections qui reçoivent des données de démonstration (et que --retirer parcourt). */
 export const COLLECTIONS_DEMO = Object.freeze([
   'crm_organisations', 'crm_personnes', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements',
-  'projets_projets', 'projets_taches', 'devis_articles', 'devis_parametres', 'devis_devis',
+  'projets_projets', 'projets_taches', 'devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire',
 ]);
 /** Collections qui, si elles ont déjà des documents, font refuser l'écriture (sauf --completer). */
 const COLLECTIONS_PLEINES = ['crm_organisations', 'crm_personnes', 'crm_affaires', 'projets_projets', 'devis_devis', 'devis_articles'];
@@ -87,6 +89,57 @@ export const CATALOGUE_EXEMPLE = Object.freeze([
     composants: [{ articleId: 'demo-f01', quantite: 2 }, { articleId: 'demo-f02', quantite: 1 }, { articleId: 'demo-m01', quantite: 0.6 }],
   }),
 ]);
+
+/**
+ * Un « jeu » de démonstration : le mot du métier posé dans les réglages des devis (seulement si le client n'a pas de réglages) et les mots appris.
+ * Aujourd'hui un seul jeu (plâtre, carrelage, peinture : le mot reste « ouvrage »). Un futur métier (agence : « prestation ») ajoute un jeu, sans toucher au reste.
+ */
+export const JEU_BATIMENT = Object.freeze({ motOuvrage: MOT_OUVRAGE_DEFAUT });
+
+/**
+ * Mots appris du catalogue FICTIF (identifiants `demo-…`). `cibles` : un seul article = `articleId` ; plusieurs = « au choix » (`cibles`, sans article), comme l'écran Vocabulaire.
+ * `appris` : mot appris par le serveur (réponses de l'utilisateur) ; sinon ajouté à la main. `statut` : active, a_confirmer, desactivee. Aucune marque réelle.
+ */
+export const MOTS_EXEMPLE = Object.freeze([
+  { expression: 'placo', articles: ['demo-f01'], statut: 'active', validation: 'humain' },
+  { expression: 'cloison', articles: ['demo-o01'], statut: 'active', appris: 'apprise_question', validation: 'reponses', exemple: 'une cloison pour la chambre' },
+  { expression: 'carrelage', articles: ['demo-f03', 'demo-m02'], statut: 'active', validation: 'humain' },
+  { expression: 'electricite', articles: ['demo-m04', 'demo-f06', 'demo-f07'], statut: 'active', appris: 'apprise_correction', validation: 'reponses', exemple: 'refaire l’électricité' },
+  { expression: 'gravats', articles: ['demo-d01'], statut: 'active', validation: 'humain' },
+  { expression: 'peinture', articles: ['demo-f05'], statut: 'active', validation: 'humain' },
+  { expression: 'douche', articles: ['demo-f08'], statut: 'a_confirmer', appris: 'apprise_question', exemple: 'une douche thermostatique' },
+  { expression: 'colle', articles: ['demo-f04'], statut: 'desactivee', validation: 'humain' },
+]);
+
+/**
+ * Les documents `devis_vocabulaire` du jeu, pour les articles copiés. Un mot dont un article visé n'est pas dans la copie est sauté (catalogue copié d'ailleurs : les identifiants ne correspondent pas) ;
+ * un mot qui existe déjà chez le client (`existants`, identifiants) est sauté aussi : jamais d'écrasement. Retour : `{ documents: [{ id, donnees }], sautes: { catalogue, existant } }`.
+ */
+export function construireVocabulaire(articles, { auteur, maintenant, existants = new Set(), mots = MOTS_EXEMPLE }) {
+  const parId = new Map(articles.map((a) => [a.id, a]));
+  const jour = L.aujourdhuiParis(maintenant);
+  const documents = [];
+  const sautes = { catalogue: 0, existant: 0 };
+  for (const m of mots) {
+    const cibles = m.articles.map((id) => parId.get(id));
+    if (cibles.some((a) => !a)) { sautes.catalogue += 1; continue; }
+    const cle = cleDeExpression(m.expression);
+    const id = identifiantDeRegle(cle);
+    if (existants.has(id)) { sautes.existant += 1; continue; }
+    const designe = cibles.length === 1
+      ? { articleId: cibles[0].id, articleLibelle: cibles[0].libelle }
+      : { articleId: '', articleLibelle: '', cibles: cibles.map((a) => ({ genre: 'article', id: a.id, libelle: a.libelle })) };
+    const confirmations = m.statut === 'a_confirmer' ? 1 : (m.appris ? 2 : 0);
+    const donnees = {
+      cle, expression: m.expression, ...designe, statut: m.statut, origine: m.appris ?? 'manuelle', confirmations, contradictions: 0, conflit: false,
+      exemples: m.exemple ? [m.exemple] : [], creeLe: maintenant, modifieLe: maintenant, creePar: auteur, modifiePar: auteur, [MARQUEUR]: true,
+    };
+    if (m.appris) Object.assign(donnees, { derniereConfirmationLe: jour, derniereUtilisationLe: jour });
+    if (m.validation) Object.assign(donnees, { valideLe: jour, validePar: m.validation, revoirLe: ajouterMois(jour, 6) });
+    documents.push({ id, donnees });
+  }
+  return { documents, sautes };
+}
 
 // ------------------------------------------------------------------------------------------------ données fictives
 
@@ -513,7 +566,9 @@ async function remplir(id, options, ctx, fiche) {
     col('devis_compteurs').doc('global').get(), col('crm_parametres').doc('etapes').get(), col('crm_parametres').doc('phases').get(), col('crm_parametres').doc('reglages').get(),
   ]);
   const config = L.construireConfig({ etapes: etapesDoc.exists ? etapesDoc.data() : null, phases: phasesDoc.exists ? phasesDoc.data() : null, reglages: reglagesCrm.exists ? reglagesCrm.data() : null }, { racine: false, membres: [] });
-  const reglagesDemo = A.reglagesDevis({ ...A.REGLAGES_DEVIS_DEFAUT, modeMarge: reglagesSource.modeMarge, marge: masquer ? 0 : reglagesSource.marge, margeDevis: masquer ? 0 : reglagesSource.margeDevis, entreprise: ENTREPRISE_DEMO });
+  const jeu = ctx.jeu ?? JEU_BATIMENT;
+  if (!MOTS_OUVRAGE.some((m) => m.id === jeu.motOuvrage)) throw new ErreurOutil(`Le mot du métier du jeu (« ${jeu.motOuvrage} ») n'est pas dans la liste du logiciel.`);
+  const reglagesDemo = A.reglagesDevis({ ...A.REGLAGES_DEVIS_DEFAUT, motOuvrage: jeu.motOuvrage, modeMarge: reglagesSource.modeMarge, marge: masquer ? 0 : reglagesSource.marge, margeDevis: masquer ? 0 : reglagesSource.margeDevis, entreprise: ENTREPRISE_DEMO });
   const reglages = reglagesDoc.exists ? A.reglagesDevis(reglagesDoc.data()) : reglagesDemo;
   const compteurDepart = Number.isInteger(compteurDoc.data()?.valeur) ? compteurDoc.data().valeur : 0;
 
@@ -529,9 +584,15 @@ async function remplir(id, options, ctx, fiche) {
     ecritures.push({ chemin: `${A.COLLECTION_ARTICLES}/${aid}`, donnees: { ...donnees, [MARQUEUR]: true } });
   }
   if (!reglagesDoc.exists) ecritures.push({ chemin: `${A.COLLECTION_PARAMETRES}/${A.ID_REGLAGES}`, donnees: { ...reglagesDemo, [MARQUEUR]: true } });
-  else ctx.out('Réglages des devis : ceux du client sont gardés tels quels (« Mon entreprise » n\'est pas remplacée).');
+  else ctx.out('Réglages des devis : ceux du client sont gardés tels quels (« Mon entreprise » et le mot du métier ne sont pas remplacés).');
   if (catalogue.familles && !famillesDoc.exists) ecritures.push({ chemin: `${A.COLLECTION_PARAMETRES}/${F.ID_DOCUMENT_FAMILLES}`, donnees: { ...catalogue.familles, [MARQUEUR]: true } });
   for (const d of plan.documents) ecritures.push({ chemin: `${d.collection}/${d.id}`, donnees: d.donnees });
+  // Mots appris : seulement ceux dont les articles sont dans la copie, jamais par-dessus un mot que le client a déjà.
+  const motsExistants = new Set((await col('devis_vocabulaire').get()).docs.map((d) => d.id));
+  const vocab = construireVocabulaire(articles, { auteur: ctx.auteur, maintenant: ctx.maintenant ?? new Date(), existants: motsExistants });
+  for (const d of vocab.documents) ecritures.push({ chemin: `devis_vocabulaire/${d.id}`, donnees: d.donnees });
+  ctx.out(vocab.documents.length ? `Mots appris : ${vocab.documents.length} (vocabulaire d'exemple)${vocab.sautes.existant ? `, ${vocab.sautes.existant} déjà présent(s) chez le client, gardé(s) tel(s) quel(s)` : ''}.`
+    : `Mots appris : aucun (${vocab.sautes.catalogue ? 'ce catalogue n\'est pas celui d\'exemple' : 'tous existent déjà chez le client'}).`);
 
   // Résumé lisible
   const nomEtape = (e) => L.libelleEtape(e, config);
