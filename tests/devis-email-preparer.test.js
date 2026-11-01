@@ -264,6 +264,17 @@ describe('E3 la plateforme clients : un éditeur du client, module « devis » a
     assert.equal(mc.collections['clients/a/crm_actions_lancements'].filter((l) => l.action === 'devis.preparerEmail').length, 1);
     assert.equal(mc.collections['clients/b/crm_actions_lancements'].length, 0);
   });
+  test('E3 chez un client aussi (01/11/2026) : destinataires, copie, objet et message de la fenêtre sont gardés côté serveur dans l’espace de ce client, n8n ne reçoit que des identifiants, le devis ne change pas', async () => {
+    const mc = mondeClients();
+    const n8n = fauxN8n({ secrets: secretsClient('a') });
+    const r = await preparerEmailDevis({ db: fauxDb, auth: auth('alice@exemple.test'), donnees: { client: 'a', devisId: 'dv1', destinataires: ['paul@exemple.fr'], objet: 'Mon objet', message: 'Mon texte' }, sortie: n8n.sortie, maintenant: T0.getTime(), creerDonnees: mc.creerDonnees, genererId: ids });
+    assert.equal(r.ok, true);
+    assert.deepEqual(Object.keys(n8n.recus[0].corps).sort(), ['action', 'demandeId', 'devisId', 'espace']);
+    const contenu = mc.collections['clients/a/crm_actions_lancements'].find((l) => l.id === `contenu-${r.demandeId}`);
+    assert.deepEqual([contenu.destinataires, contenu.sujet, contenu.message], [['paul@exemple.fr'], 'Mon objet', 'Mon texte']);
+    assert.deepEqual(mc.collections['clients/a/devis_devis'][0].destinataires, [{ email: 'marie@exemple.fr' }]);
+    await assert.rejects(preparerEmailDevis({ db: fauxDb, auth: auth('alice@exemple.test'), donnees: { client: 'a', devisId: 'dv1', destinataires: ['pas une adresse'] }, sortie: n8n.sortie, maintenant: T0.getTime() + 600_000, creerDonnees: mc.creerDonnees, genererId: ids }), (e) => e instanceof Refus && e.code === 'invalid-argument');
+  });
   test('E3 un lecteur, un éditeur d’un AUTRE client, un espace sans le module, un compte non vérifié et un appel sans connexion sont refusés sans rien écrire ni envoyer', async () => {
     const mc = mondeClients();
     const n8n = fauxN8n({ secrets: { ...secretsClient('a'), ...secretsClient('b'), ...secretsClient('c') } });

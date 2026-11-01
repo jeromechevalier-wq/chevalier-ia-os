@@ -645,3 +645,9 @@ tr[data-manquant] { outline-offset: -2px; }
 .marque-manquant { display: inline-flex; align-items: center; vertical-align: middle; margin-inline-start: var(--esp-2); color: var(--retard); }
 .aide-manquant { display: flex; align-items: center; gap: var(--esp-2); margin: var(--esp-2) 0; }
 @media (max-width: 700px) { .lien-definir[data-manquant] { min-height: 44px; display: inline-flex; align-items: center; } }
+/* Préparer l'e-mail (01/11/2026) : une fenêtre à quatre champs ; plein écran sur téléphone (classe dialogue-formulaire de os.css), 620 px sur ordinateur. */
+.dialogue-formulaire.dialogue-preparer-email { width: min(620px, 100%); }
+.contenu-preparer-email { display: flex; flex-direction: column; gap: var(--esp-5); min-width: 0; }
+.champ-preparer-email { display: flex; flex-direction: column; gap: var(--esp-3); min-width: 0; }
+.champ-preparer-email .puce-choix span { overflow-wrap: anywhere; }
+.dialogue-preparer-email textarea.champ { min-height: 160px; }

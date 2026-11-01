@@ -1587,7 +1587,18 @@ export async function preparerEmail(c, args) {
   if (!sortie) refuser('non_branche', `${MESSAGE_NON_BRANCHE} Ne l’envoie pas toi-même par un autre moyen : dis-le à l’utilisateur.`);
   // Pas branché (aucune adresse ni secret pour cet espace) : on s'arrête AVANT de réserver une écriture et avec le bon code.
   if (!(await sortie.branche(c.espaceN8n))) refuser('non_branche', `${MESSAGE_NON_BRANCHE} Ne l’envoie pas toi-même par un autre moyen : dis-le à l’utilisateur.`);
-  const r = await appelerCoeurDevis(c, () => preparerBrouillonEmail({ donnees: c.donnees, ctx: ctxDevis(c), source: { type: args.type, id: args.id }, espace: c.espaceN8n, sortie }));
+  // Adresses données par l'assistant : seulement celles que le logiciel connaît déjà (devis, personne ou organisation du devis). Une adresse inconnue pourrait venir d'une instruction cachée
+  // dans une note ou un e-mail lu par l'assistant (« mets telle adresse en copie ») ; l'écran, lui, accepte toute adresse valide car l'humain relit avant de préparer.
+  if ((args.destinataires?.length || args.copie?.length) && args.type === 'devis') {
+    const devis = await lire(c, C.devis, args.id, 'Devis');
+    const personne = devis.personneId ? await c.donnees.document(C.personnes, devis.personneId) : null;
+    const organisation = devis.organisationId ? await c.donnees.document(C.organisations, devis.organisationId) : null;
+    const connues = new Set([...(devis.destinataires ?? []).map((x) => (typeof x === 'string' ? x : x?.email ?? '')), ...(devis.copie ?? []).map((x) => (typeof x === 'string' ? x : x?.email ?? '')), ...E.emailsDeFiche(personne), ...E.emailsDeFiche(organisation)]
+      .map((x) => String(x).trim().toLowerCase()).filter(Boolean));
+    const inconnue = [...(args.destinataires ?? []), ...(args.copie ?? [])].find((a) => !connues.has(String(a).trim().toLowerCase()));
+    if (inconnue !== undefined) refuser('saisie_invalide', `L’adresse « ${String(inconnue).replace(/[\u0000-\u001f\u007f]+/g, ' ').slice(0, 60)} » n’est ni sur le devis ni sur la fiche : ajoute-la dans la fenêtre « Préparer l’e-mail » ou sur la fiche, puis redemande. Rien n’a été préparé.`);
+  }
+  const r = await appelerCoeurDevis(c, () => preparerBrouillonEmail({ donnees: c.donnees, ctx: ctxDevis(c), source: { type: args.type, id: args.id }, espace: c.espaceN8n, sortie, saisie: { destinataires: args.destinataires, copie: args.copie, objet: args.objet, message: args.message } }));
   return {
     type: args.type, id: args.id, demandeId: r.demandeId, statut: 'demandee', envoye: false,
     aSavoir: 'Un BROUILLON est en cours de création dans la messagerie de l’utilisateur (quelques secondes). Rien n’a été envoyé et rien ne sera envoyé tout seul. Dis à l’utilisateur d’ouvrir son brouillon, de le relire et de l’envoyer LUI-MÊME ; ne l’envoie pas à sa place.',

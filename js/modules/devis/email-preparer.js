@@ -2,6 +2,7 @@
 // la personne l'envoie elle-même depuis Gmail, puis touche « Devis envoyé ». C'est le SEUL chemin de l'e-mail d'un devis (le navigateur ne parle plus à Gmail, décision du 27/10/2026). Ce fichier est PUR (aucun navigateur, aucun réseau) : les textes, les règles du menu
 // et la ligne de l'Historique. L'écran est dans email-preparer-ecran.js ; la fonction du serveur dans functions/src/coeur/devis-email.js.
 import { enMs } from './liste.js';
+import * as E from './email-brouillon.js';
 import { adresseSure, adressesDuDevis } from './email-brouillon.js';
 
 export const LIBELLE_PREPARER_EMAIL = 'Préparer l’e-mail';
@@ -19,43 +20,64 @@ export const MESSAGE_ERREUR_PAR_DEFAUT = 'La demande n’a pas pu partir. Réess
 const FORMAT_JOUR = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric' });
 const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
-/** Le devis a-t-il un destinataire ? Sans adresse, le brouillon serait inutile : on le dit avant d'appeler le serveur. */
-export function aUnDestinataire(devis) {
-  return (Array.isArray(devis?.destinataires) ? devis.destinataires : []).some((x) => (typeof x === 'string' ? x : x?.email ?? '').trim() !== '');
-}
-export const MESSAGE_SANS_DESTINATAIRE = 'Ce devis n’a pas de destinataire : ajoute une adresse e-mail dans le devis, puis réessaie.';
-/** Sur un devis finalisé (qui ne se modifie plus), on demande l'adresse dans la fenêtre : seul le destinataire est enregistré, le contenu du devis ne change pas. */
-export const MESSAGE_SANS_DESTINATAIRE_ICI = 'Ce devis n’a pas de destinataire. Saisis l’adresse e-mail de ton client : elle est ajoutée au devis (le contenu du devis ne change pas), puis le brouillon est préparé.';
-export const MESSAGE_CHANGER_ADRESSE_ICI = 'Saisis la bonne adresse e-mail de ton client : elle remplace la première adresse du devis. Les autres destinataires et les adresses en copie sont gardés (le contenu du devis ne change pas).';
-export const MESSAGE_DESTINATAIRE_INVALIDE = 'Cette adresse e-mail n’est pas valide.';
-export const LIBELLE_CHANGER_ADRESSE = 'Changer l’adresse';
-export const LIBELLE_ENREGISTRER_ET_PREPARER = 'Enregistrer et préparer l’e-mail';
-export const LIBELLE_ENREGISTRER_ADRESSE = 'Enregistrer l’adresse';
-export const MESSAGE_CHANGER_ADRESSE = 'Ce n’est pas la bonne adresse ? Clique sur « Changer l’adresse » avant de préparer le brouillon.';
-/** À qui le brouillon sera adressé, tel que le serveur le lira dans le devis : { destinataires, copie } (la copie sans l'adresse déjà destinataire). */
+// ---------------------------------------------------------------- la fenêtre (01/11/2026) : destinataires, copie, objet, message
+export const TITRE_FENETRE = 'Préparer l’e-mail';
+export const LIBELLE_PREPARER_BROUILLON = 'Préparer le brouillon Gmail';
+export const MESSAGE_AJOUTER_DESTINATAIRE = E.MESSAGE_AJOUTER_DESTINATAIRE;
+export const MESSAGE_FENETRE_ERREUR = 'Le brouillon n’a pas pu être demandé. Ton texte est gardé : réessaie dans un instant.';
+export const maximumAtteint = (n) => `${n} adresses : c’est le maximum.`;
+
+/** À qui le brouillon sera adressé par défaut, tel que le serveur le lira dans le devis : { destinataires, copie } (adresses valides, sans doublon ; la copie sans l'adresse déjà destinataire). */
 export function adressesDuBrouillon(devis) {
   const utilisables = (liste) => { const vues = new Set(); return adressesDuDevis(liste).filter((a) => adresseSure(a) && !vues.has(a.toLowerCase()) && vues.add(a.toLowerCase())); }; // comme le serveur (adressesUtilisables)
   const destinataires = utilisables(devis?.destinataires);
   const copie = utilisables(devis?.copie).filter((c) => !destinataires.some((a) => a.toLowerCase() === c.toLowerCase()));
   return { destinataires, copie };
 }
-/**
- * Les adresses après « Changer l'adresse » : `nouvelle` remplace seulement `depart` (la première adresse) ; les autres destinataires et la copie sont gardés.
- * Sans adresse de départ (devis sans destinataire), `nouvelle` devient l'unique destinataire. Jamais de doublon : la nouvelle adresse déjà ailleurs dans les destinataires n'y est qu'une fois,
- * et si elle était en copie elle en est retirée (`copieChangee` dit alors qu'il faut réécrire la copie).
- */
-export function adressesApresChangement({ destinataires = [], copie = [] }, depart, nouvelle) {
-  const meme = (a, b) => a.toLowerCase() === b.toLowerCase();
-  const remplaces = depart && destinataires.some((a) => a === depart) ? destinataires.map((a) => (a === depart ? nouvelle : a)) : [nouvelle, ...destinataires];
-  const vues = new Set();
-  const nouveauxDestinataires = remplaces.filter((a) => !vues.has(a.toLowerCase()) && vues.add(a.toLowerCase()));
-  const nouvelleCopie = copie.filter((c) => !nouveauxDestinataires.some((a) => meme(a, c)));
-  return { destinataires: nouveauxDestinataires, copie: nouvelleCopie, copieChangee: nouvelleCopie.length !== copie.length };
+
+/** Les valeurs de départ de la fenêtre : adresses du devis (comme le serveur les lira), objet et message standard remplis. `contact` : nom de la personne du devis (vide si inconnu). */
+export function valeursDeDepart(devis, contact = '') {
+  const { destinataires, copie } = adressesDuBrouillon(devis);
+  const variables = { contact, numero: devis?.numero || '', objet: devis?.objet || '' };
+  // Le nom du contact vient du cache du navigateur, le serveur relit la base : si la personne existe mais que son nom n'est pas connu ici, le message affiché est PARTI SANS nom ;
+  // on l'envoie alors toujours, pour que ce que la personne relit soit exactement ce qui part (`messageAEnvoyer`).
+  return { destinataires, copie, objet: E.objetParDefaut(variables), message: E.messageParDefaut(variables), messageAEnvoyer: Boolean(devis?.personneId) && !String(contact ?? '').trim() };
 }
-/** Texte montré dans la confirmation : l'adresse du client (et la copie) avant de créer le brouillon. */
-export const texteAdresses = ({ destinataires, copie }) => `Adressé à : ${destinataires.join(', ')}${copie.length ? ` · En copie : ${copie.join(', ')}` : ''}`;
-/** Message à afficher si l'adresse saisie ne convient pas, sinon null. */
-export const refusDestinataire = (adresse) => (adresseSure(String(adresse ?? '').trim()) ? null : MESSAGE_DESTINATAIRE_INVALIDE);
+
+const memeAdresse = (a, b) => a.toLowerCase() === b.toLowerCase();
+/**
+ * Ajout d'une adresse dans « destinataires » ou « copie ». `champ` : 'destinataires' | 'copie'. Rend { liste } (nouvelle liste, ou la même si le champ était vide : rien à faire)
+ * ou { erreur } (message court à écrire sous le champ ; le texte tapé reste).
+ */
+export function ajouterAdresse({ destinataires, copie }, champ, saisie) {
+  const texte = String(saisie ?? '').trim();
+  const liste = champ === 'copie' ? copie : destinataires;
+  const autre = champ === 'copie' ? destinataires : copie;
+  if (!texte) return { liste };
+  const refus = E.refusAdresse(texte);
+  if (refus) return { erreur: refus };
+  if (liste.some((a) => memeAdresse(a, texte))) return { erreur: 'Cette adresse est déjà dans la liste.' };
+  if (autre.some((a) => memeAdresse(a, texte))) return { erreur: champ === 'copie' ? 'Cette adresse est déjà destinataire : choisis-en une autre.' : 'Cette adresse est déjà en copie : choisis-en une autre.' };
+  if (liste.length >= E.MAX_ADRESSES_PAR_CHAMP) return { erreur: maximumAtteint(E.MAX_ADRESSES_PAR_CHAMP) };
+  return { liste: [...liste, texte] };
+}
+
+/** Le bouton « Préparer le brouillon Gmail » est grisé sans destinataire (cas vide). */
+export const peutPreparer = (valeurs) => (valeurs?.destinataires?.length ?? 0) > 0;
+
+/**
+ * Ce qu'on envoie au serveur : SEULEMENT les champs que l'utilisateur a changés (un champ absent reprend la valeur du devis ou le texte standard calculé par le serveur).
+ * Rend null si rien n'a changé : l'appel est alors identique à celui d'avant la fenêtre.
+ */
+export function saisieModifiee(depart, courant) {
+  const memeListe = (x, y) => x.length === y.length && x.every((a, i) => a === y[i]);
+  const s = {};
+  if (!memeListe(depart.destinataires, courant.destinataires)) s.destinataires = courant.destinataires;
+  if (!memeListe(depart.copie, courant.copie)) s.copie = courant.copie;
+  if (courant.objet !== depart.objet) s.objet = courant.objet;
+  if (courant.message !== depart.message || depart.messageAEnvoyer === true) s.message = courant.message;
+  return Object.keys(s).length ? s : null;
+}
 
 /**
  * La ligne de l'Historique depuis `emailPrepare` (écrit par le serveur : « demandee » quand l'écran demande, puis « ok » ou « echec » quand n8n a fini) : null s'il n'y en a pas, sinon

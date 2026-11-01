@@ -38,14 +38,14 @@ export async function controlerAppelant({ db, auth, client, roles = ['editeur'] 
 
 /**
  * « Préparer l'e-mail » chez un client : demande au workflow n8n DE CE CLIENT (adresse et secret propres à lui, lus par `sortie`) de créer un brouillon Gmail avec le PDF.
- * Donnée reçue : { client, devisId }. Rend { ok, demandeId }. Mêmes contrôles que les autres fonctions de devis ; rien n'est envoyé, ni par l'appli ni par n8n.
+ * Donnée reçue : { client, devisId, destinataires?, copie?, objet?, message? } (les 4 derniers facultatifs, cet envoi seulement ; le serveur revérifie). Rend { ok, demandeId }. Mêmes contrôles que les autres fonctions de devis ; rien n'est envoyé, ni par l'appli ni par n8n.
  * `sortie` : { branche(espace), demander(espace, …) } (serveur/src/coeur/n8n-sortie.js, le SEUL fichier qui fait un POST vers n8n).
  */
 export async function preparerEmailDevis({ db, auth, donnees, sortie, maintenant = Date.now, creerDonnees = null, genererId }) {
   const { email, client } = await controlerAppelant({ db, auth, client: donnees?.client });
   try {
     const acces = creerDonnees ? creerDonnees(client) : avecBase(creerAccesFirestore({ db }), `clients/${client}`);
-    const r = await demanderPreparation({ donnees: acces, ctx: { acteur: email, via: 'ecran', maintenant: new Date(maintenant) }, devisId: donnees.devisId, espace: client, sortie, ...(genererId ? { genererId } : {}) });
+    const r = await demanderPreparation({ donnees: acces, ctx: { acteur: email, via: 'ecran', maintenant: new Date(maintenant) }, devisId: donnees.devisId, espace: client, sortie, saisie: donnees, ...(genererId ? { genererId } : {}) });
     return { ok: true, demandeId: r.demandeId };
   } catch (e) {
     if (e instanceof ErreurDevis) {
