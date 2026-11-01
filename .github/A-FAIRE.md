@@ -215,6 +215,7 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 - **Accessibilité des onglets Édition / Prévisualisation** (`role=tabpanel`, `aria-controls`, flèches) : **fait, PR 376** (28/10/2026, à tester par Jérôme au clavier : Tab puis flèches).
 
 ## Reste à faire (code, rien d'urgent)
+- **Section « Projet » de la fiche d'affaire par inscription** : aujourd'hui `fiche-affaire.js` teste `PD.estPret()` (01/11/2026) ; variante plus propre, le module Projets s'inscrit via `js/modules/crm/pastilles-externes.js` comme Devis.
 
 ### Remarques de Jérôme du 27/10/2026 (état au matin du 28/10/2026)
 1. **Bug** : onglet Devis d'une affaire, le montant d'un brouillon reste à 0 € au retour (flèche du navigateur) après avoir ajouté des ouvrages ; le bon montant n'apparaît qu'après rafraîchissement. **Fait, PR 354** (28/10/2026, à tester par Jérôme).

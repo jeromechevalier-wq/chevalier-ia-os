@@ -152,8 +152,9 @@ export function rendreFicheAffaire(conteneur, id) {
     });
 
     // ---- Projet (affaire gagnée : créer ou lier ; au plus un projet par affaire)
+    // Pas de module Projets actif (PD.estPret() faux tant qu'il n'est pas démarré) = pas de section : sinon le clic écrirait un projet que l'écran ne peut pas ouvrir.
     const projetLie = P.projetLieAAffaire(PD.etat.projets, a);
-    const sectionProjet = (projetLie || a.statut === 'gagnee') ? sectionRepliable({
+    const sectionProjet = (PD.estPret() && (projetLie || a.statut === 'gagnee')) ? sectionRepliable({
       id: 'affaire-projet', titre: 'Projet',
       contenu: h('div', { class: 'pile' },
         projetLie
