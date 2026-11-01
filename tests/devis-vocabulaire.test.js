@@ -721,7 +721,7 @@ describe('E écran Vocabulaire : plans, filtres, tri, CSV', async () => {
     assert.equal(CRM.libelleDocumentJournal('devis_vocabulaire', true), 'mots appris');
   });
   test('E1 le branchement : écran déclaré au registre, vue du module, barre du haut gardée, bouton d’accès dans la liste des devis, « mot appris » et jamais « règle » à l’écran', () => {
-    assert.match(lire('js/os/registre.js'), /route: 'devis\/vocabulaire', libelle: 'Ce que l’IA a appris'/);
+    assert.match(lire('js/os/registre.js'), /route: 'devis\/vocabulaire', libelle: 'Vocabulaire'/);
     assert.match(lire('js/modules/devis/index.js'), /vocabulaire: \(conteneur\) => rendreVocabulaire\(conteneur\)/);
     assert.match(lire('js/os/shell.js'), /'devis\/vocabulaire'\]/);
     assert.match(lire('js/modules/devis/liste-ecran.js'), /ouvrir-vocabulaire/);

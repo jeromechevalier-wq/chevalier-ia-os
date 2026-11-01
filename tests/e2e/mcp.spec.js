@@ -43,7 +43,7 @@ async function ouvrir(page, client, route, email = ALICE) {
 
 test('MCP1 la page montre le lien du client, le mode d\'emploi en trois lignes, les membres avec leur rôle, et rien d\'un autre client', async ({ page }) => {
   await ouvrir(page, 'cabinet', 'mcp/infos');
-  await expect(page.locator('h1')).toHaveText('Connecter ton IA');
+  await expect(page.locator('h1')).toHaveText('Connecter l’assistant');
   const lien = page.locator('input.mcp-lien');
   await expect(lien).toHaveValue(/\/mcp\/cabinet$/);
   expect(await lien.inputValue()).toBe(`${new URL(page.url()).origin}/mcp/cabinet`);

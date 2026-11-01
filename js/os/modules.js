@@ -28,7 +28,7 @@ const versModule = (d) => ({
 });
 
 // Espace de Jérôme (racine) : tous les modules, comme chez un client (décision du 18/10/2026 : même code chez Jérôme et chez les clients,
-// une fonction existe d'abord chez lui). Le module « automatisations » existe chez Jérôme depuis le 16/10/2026 et « mcp » (Connecter mon assistant) depuis
+// une fonction existe d'abord chez lui). Le module « automatisations » existe chez Jérôme depuis le 16/10/2026 et « mcp » (Connecter l’assistant) depuis
 // le 18/10/2026 : sa page ne lit rien dans la base à la racine.
 export const MODULES = MODULES_DECLARES.map(versModule);
 // Espace d'un client de la plateforme : tous les modules possibles (espace-modules.js ne garde que ses modules actifs).

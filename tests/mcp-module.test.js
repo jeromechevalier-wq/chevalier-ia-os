@@ -22,7 +22,7 @@ describe('registre : le module « mcp »', () => {
     assert.ok(mcp);
     assert.equal(mcp.reserveAuxClients, undefined, 'plus réservé aux clients (18/10/2026)');
     assert.equal(mcp.horsMenu, true);
-    assert.equal(mcp.libelleMenu, 'Connecter mon IA');
+    assert.equal(mcp.libelleMenu, 'Connecter l’assistant');
     assert.deepEqual(mcp.ecrans.map((e) => e.route), ['mcp/infos']);
     assert.deepEqual([mcp.collections, mcp.outilsMcp, mcp.dependances], [[], [], []]);
     assert.ok(IDS_MODULES.includes('mcp'));
@@ -155,19 +155,21 @@ describe('plateforme : fonction, adresses, configuration, règles', () => {
   });
 });
 
-describe('B3 + C (31/10/2026) : « Ce que l’IA a appris » et « Connecter ton IA », sans « Vocabulaire » ni « assistant » à l’écran', () => {
+describe('Retour (01/11/2026) : « Vocabulaire » et « Connecter l’assistant » (annule le renommage de la PR 472)', () => {
   // Texte visible seulement : on retire les commentaires de ligne et de bloc.
   const sansCommentaires = (f) => lire(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  test('B3.1 B3.4 l’écran est déclaré « Ce que l’IA a appris » ; plus de « Vocabulaire » visible dans registre, liste des devis et écran', () => {
-    assert.match(lire('js/os/registre.js'), /route: 'devis\/vocabulaire', libelle: 'Ce que l’IA a appris'/);
+  test('R1 l’écran est déclaré « Vocabulaire » (registre, liste des devis, écran), plus de « Ce que l’IA a appris » visible', () => {
+    assert.match(lire('js/os/registre.js'), /route: 'devis\/vocabulaire', libelle: 'Vocabulaire'/);
     for (const f of ['js/os/registre.js', 'js/modules/devis/liste-ecran.js', 'js/modules/devis/vocabulaire-ecran.js']) {
-      assert.doesNotMatch(sansCommentaires(f), /'Vocabulaire'|« Vocabulaire »|Exporter le vocabulaire/, f);
+      assert.doesNotMatch(sansCommentaires(f), /Ce que l’IA a appris/, f);
     }
+    assert.match(sansCommentaires('js/modules/devis/vocabulaire-ecran.js'), /h\('h1', \{\}, 'Vocabulaire'\)/);
   });
-  test('B3.5 C5 aucun « assistant » visible dans l’écran des mots appris, le module mcp, le shell, le registre et le déploiement (hors Charles)', () => {
-    for (const f of ['js/modules/devis/vocabulaire-ecran.js', 'js/modules/mcp/ecran.js', 'js/modules/mcp/index.js', 'js/os/registre.js', 'js/os/deploiement.js', 'js/os/shell.js']) {
-      const texte = sansCommentaires(f).replace('Charles, l’assistant IA, te salue', '');
-      assert.doesNotMatch(texte, /assistant/i, f);
+  test('R2 la page, le menu et le déploiement disent « Connecter l’assistant » (jamais « Connecter ton IA » ni « Connecter mon IA »)', () => {
+    for (const f of ['js/modules/mcp/ecran.js', 'js/os/registre.js', 'js/os/shell.js', 'js/os/deploiement.js']) {
+      assert.doesNotMatch(sansCommentaires(f), /Connecter (ton|mon) (IA|assistant)/, f);
     }
+    assert.match(sansCommentaires('js/modules/mcp/ecran.js'), /h\('h1', \{\}, 'Connecter l’assistant'\)/);
+    assert.match(sansCommentaires('js/os/shell.js'), /libelle: 'Connecter l’assistant'/);
   });
 });

@@ -171,7 +171,7 @@ test('M4 Mot par défaut : « Ouvrage » partout, comme avant (aucun réglage po
   await capturer(page, info, 'M4-defaut-ouvrage');
 });
 
-test('M5 Ce que l’IA a appris : la phrase « Le mot « … » se choisit dans Réglages > Devis » suit le mot réglé et le lien ouvre les réglages', async ({ page }, info) => {
+test('M5 Vocabulaire : la phrase « Le mot « … » se choisit dans Réglages > Devis » suit le mot réglé et le lien ouvre les réglages', async ({ page }, info) => {
   await poserMot('lot');
   await connecter(page, undefined, { route: 'devis/vocabulaire' });
   const note = page.locator('[data-zone="mot-metier"]');

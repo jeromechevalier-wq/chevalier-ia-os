@@ -93,14 +93,14 @@ test('K5 Réglages à menu latéral chez Jérôme : l\'espace d\'abord, puis les
   await allerA(page, 'Réglages');
   await expect(page).toHaveURL(/#\/reglages$/);
   await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
-  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Modules actifs', 'Déploiement', 'Affaires et projets', 'Devis', 'Veille', 'Automatisations', 'Maintenance', 'Connecter mon IA']); // pas de « Membres et rôles » à la racine (les comptes sont dans les règles)
+  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Modules actifs', 'Déploiement', 'Affaires et projets', 'Devis', 'Veille', 'Automatisations', 'Maintenance', 'Connecter l’assistant']); // pas de « Membres et rôles » à la racine (les comptes sont dans les règles)
   await expect(page.locator('.reglages-menu-lien[aria-current="page"]')).toHaveText('Mon espace');
   await expect(page.locator('[data-info="nom"]')).toContainText('Chevalier IA OS');
   await expect(page.locator('#reglages-theme')).toBeVisible();
   if (!estTelephone(page)) await expect(page.locator('.reglages-menu-bouton')).toBeHidden(); // sur ordinateur le menu reste déplié
   await ouvrirSectionReglages(page, 'Modules actifs');
   await expect(page.locator('[data-interrupteur="crm"]')).toBeChecked();
-  await expect(page.locator('[data-interrupteur="mcp"]')).toBeChecked(); // « Connecter mon IA » existe aussi chez Jérôme (PR B)
+  await expect(page.locator('[data-interrupteur="mcp"]')).toBeChecked(); // « Connecter l’assistant » existe aussi chez Jérôme (PR B)
   await ouvrirSectionReglages(page, 'Affaires et projets');
   await expect(page).toHaveURL(/#\/reglages\/crm$/);
   for (const id of ['etapes', 'phases', 'options', 'modeles-affaire', 'modeles-projets', 'objectifs', 'offres', 'secteurs', 'sources', 'etiquettes', 'filtres', 'debut', 'export']) await expect(page.locator(`#reglages-${id}`), id).toBeVisible();
