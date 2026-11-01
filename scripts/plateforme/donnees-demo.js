@@ -30,6 +30,7 @@ import { ligneDepuisArticle } from '../../js/modules/devis/editeur-logique.js';
 import { prixVenteArticle, MOTS_OUVRAGE, MOT_OUVRAGE_DEFAUT } from '../../js/modules/devis/ouvrages.js';
 import { cleDeExpression, identifiantDeRegle } from '../../js/modules/devis/vocabulaire.js';
 import { ajouterMois } from '../../js/modules/crm/logique.js';
+import { JEUX, MARGE_JEUX, catalogueDuJeu } from './jeux-demo/index.js';
 import { fabriquerPdf, exigerModuleDevis, fichiersPdfDemo } from './donnees-demo-pdf.js';
 
 export const MARQUEUR = 'donneesDemo';
@@ -46,6 +47,8 @@ export const AIDE = `Outil « données de démonstration » : simule par défaut
 
 Remplir un client de démonstration (catalogue copié depuis ton Chevalier IA OS, en lecture seule) :
   node scripts/donnees-demo.js <identifiant-client> --catalogue-depuis ${PROJET_CATALOGUE} [--masquer-prix-achat] [--ecrire]
+Avec le jeu d'un métier (catalogue, mots appris, devis et affaires fictifs ; --metier seul affiche la liste) :
+  node scripts/donnees-demo.js <identifiant-client> --metier <nom> [--ecrire]
 Avec le petit catalogue fictif intégré à la place :
   node scripts/donnees-demo.js <identifiant-client> --catalogue-exemple [--ecrire]
 Retirer les données de démonstration (seulement les documents marqués « ${MARQUEUR} ») :
@@ -59,6 +62,7 @@ Options :
   --ecrire               écrit vraiment (sans elle : simulation, rien n'est écrit)
   --catalogue-depuis P   lit le catalogue (articles + familles) dans le projet P, en lecture seule
   --catalogue-exemple    utilise le petit catalogue fictif intégré
+  --metier nom           utilise le jeu de ce métier (--metier seul, ou --metiers : liste des métiers) ; ne se combine pas avec les deux options de catalogue
   --masquer-prix-achat   la copie du catalogue ne montre pas les prix d'achat ni les marges
   --completer            ajoute la démo même si le client a déjà des données
   --auteur adresse       auteur des fiches (par défaut : le premier éditeur du client)
@@ -134,7 +138,8 @@ export function construireVocabulaire(articles, { auteur, maintenant, existants 
       cle, expression: m.expression, ...designe, statut: m.statut, origine: m.appris ?? 'manuelle', confirmations, contradictions: 0, conflit: false,
       exemples: m.exemple ? [m.exemple] : [], creeLe: maintenant, modifieLe: maintenant, creePar: auteur, modifiePar: auteur, [MARQUEUR]: true,
     };
-    if (m.appris) Object.assign(donnees, { derniereConfirmationLe: jour, derniereUtilisationLe: jour });
+    // Le mot à confirmer garde sa confirmation de la VEILLE : sinon « confirmation déjà comptée aujourd'hui » empêcherait de l'activer devant le prospect.
+    if (m.appris) Object.assign(donnees, { derniereConfirmationLe: m.statut === 'a_confirmer' ? L.ajouterJours(jour, -1) : jour, derniereUtilisationLe: jour });
     if (m.validation) Object.assign(donnees, { valideLe: jour, validePar: m.validation, revoirLe: ajouterMois(jour, 6) });
     documents.push({ id, donnees });
   }
@@ -182,12 +187,37 @@ function quantitePour(article, prixVente, t) {
   return q;
 }
 
+/** « Mon entreprise » fictive du jeu (le nom, et le texte d'assurance), sinon celle du bâtiment. */
+function emetteurDe(jeu) {
+  return jeu?.entreprise ? Object.freeze({ ...ENTREPRISE_DEMO, ...jeu.entreprise }) : ENTREPRISE_DEMO;
+}
+
+/** Sections d'un devis « vedette » écrit à la main : `[{ titre, lignes: [[idArticle, quantité, taux de TVA facultatif]] }]`. Un article inconnu du catalogue est une erreur (le test de complétude la voit avant). */
+function sectionsVedette(vedette, articles, brouillon, habitation) {
+  const parId = new Map(articles.map((a) => [a.id, a]));
+  return vedette.sections.map((sec, s) => ({
+    id: `s${s + 1}`, titre: sec.titre,
+    lignes: sec.lignes.map(([idArticle, quantite, taux], k) => {
+      const article = parId.get(idArticle);
+      if (!article) throw new Error(`Devis vedette « ${vedette.objet} » : article inconnu ${idArticle}`);
+      const { genre: _g, ...ligne } = ligneDepuisArticle(article, { id: `l${s + 1}-${k + 1}`, articles, devis: brouillon });
+      ligne.quantite = quantite;
+      ligne.tauxTva = taux ?? (habitation ? 10 : 20);
+      return ligne;
+    }),
+  }));
+}
+
 /**
  * Plan complet de la démonstration, SANS rien écrire : `{ documents: [{ collection, id, donnees }], compteur, resume }`.
  * entree : { config (construireConfig), articles (catalogue copié, avec id), familles (doc devis_parametres/familles ou null), reglages (réglages des devis),
  *            auteur, maintenant, nouvelId(collection), compteurDepart (valeur actuelle du compteur des numéros) }.
  */
-export function construirePlan({ config, articles, familles = null, reglages, auteur, maintenant, nouvelId, compteurDepart = 0 }) {
+export function construirePlan({ config, articles, familles = null, reglages, auteur, maintenant, nouvelId, compteurDepart = 0, jeu = null }) {
+  const ORGS = jeu?.organisations ?? ORGANISATIONS;
+  const LISTE_TRAVAUX = jeu?.travaux ?? TRAVAUX;
+  const emetteur = emetteurDe(jeu);
+  const vedettes = (jeu?.vedettes ?? []).map((v) => ({ ...v })); // devis écrits à la main : le premier devis tiré avec leur statut les remplace
   const t = tirage(articles.length * 7919 + 17);
   const docs = new Map(); // id -> { collection, id, donnees }
   const ctxA = (date) => ({ maintenant: date, auteur, proprietaire: auteur, config, nouvelId });
@@ -207,7 +237,7 @@ export function construirePlan({ config, articles, familles = null, reglages, au
   const fiche = (collection, id) => ({ ...docs.get(`${collection}/${id}`).donnees, id });
 
   // ---- organisations et personnes
-  const orgs = ORGANISATIONS.map(([nom, ville, secteur], i) => {
+  const orgs = ORGS.map(([nom, ville, secteur], i) => {
     const ctx = ctxA(jourAvant(maintenant, 120 - i));
     const domaine = `${sansAccent(nom).split('.').slice(0, 2).join('-')}.exemple.test`;
     const p = L.planCreerOrganisation({ nom, ville, adresse: `${10 + i} rue de l’Exemple, ${ville}`, secteur, emails: [{ valeur: `contact@${domaine}`, type: 'travail' }], telephones: [{ valeur: `04 00 00 ${String(10 + i).padStart(2, '0')} 00`, type: 'travail' }] }, ctx);
@@ -262,8 +292,13 @@ export function construirePlan({ config, articles, familles = null, reglages, au
   let compteur = compteurDepart;
   let iDevis = 0;
   affairesPrevues.forEach((prevue, i) => {
-    const personne = personnes[(i * 7) % personnes.length];
-    const travaux = TRAVAUX[i % TRAVAUX.length];
+    const statut = pourStatut(prevue);
+    const vedette = statut ? vedettes.find((v) => v.statut === statut && !v.utilisee) : null;
+    if (vedette) vedette.utilisee = true;
+    // Un devis vedette peut demander un client « particulier » (TVA réduite possible) ou « entreprise » ; sinon le tirage habituel.
+    const candidats = vedette?.client ? personnes.filter((x) => (vedette.client === 'particulier') === !x.org) : personnes;
+    const personne = vedette?.client ? candidats[i % candidats.length] : personnes[(i * 7) % personnes.length];
+    const travaux = vedette?.travaux ?? LISTE_TRAVAUX[i % LISTE_TRAVAUX.length];
     const titre = `${travaux} – ${personne.org ? personne.org.nom : personne.nom}`;
     const debut = 95 - i * 4; // jours avant aujourd'hui
     const ctx = ctxA(jourAvant(maintenant, debut));
@@ -304,15 +339,14 @@ export function construirePlan({ config, articles, familles = null, reglages, au
     }
 
     // ---- devis de l'affaire
-    const statut = pourStatut(prevue);
     if (!statut) return;
     const td = tirage(1000 + iDevis * 31 + articles.length);
-    const habitation = !personne.org || i % 4 === 0;
+    const habitation = (jeu?.tvaReduite ?? true) && (vedette?.client ? vedette.client === 'particulier' : (!personne.org || i % 4 === 0));
     const creeLe = jourAvant(maintenant, debut - 2, 9);
     const id = nouvelId('devis_devis');
     const brouillon = D.nouveauDevis({ affaireId: p.id, personneId: personne.id, organisationId: personne.org?.id ?? null, destinataires: [personne.email] },
       { id, maintenant: creeLe, auteur, proprietaire: auteur }, reglages);
-    brouillon.objet = `${travaux} – ${personne.ville}`;
+    brouillon.objet = vedette?.objet ?? `${travaux} – ${personne.ville}`;
     brouillon.tauxTvaDefaut = habitation ? 10 : 20;
     // 2 à 4 sections (une par famille du catalogue), 4 à 12 lignes en tout : on prend les familles à la suite jusqu'à avoir assez de lignes.
     const voulues = Math.min(titresGroupes.length, td.entier(2, 4));
@@ -337,24 +371,25 @@ export function construirePlan({ config, articles, familles = null, reglages, au
       }
       sections.push({ id: `s${s + 1}`, titre: titreS, lignes });
     }
-    brouillon.sections = sections;
+    brouillon.sections = vedette ? sectionsVedette(vedette, articles, brouillon, habitation) : sections;
     if (iDevis % 3 === 0) brouillon.acompte = { type: 'pourcentage', valeur: 30, moment: 'signature' };
     else if (iDevis % 5 === 1) brouillon.acompte = { type: 'pourcentage', valeur: 40, moment: 'debut_travaux' };
     if (iDevis % 4 === 2) brouillon.ajustement = { coefficient: 0.97 };
     if (iDevis % 6 === 5) brouillon.remise = { type: 'pourcentage', valeur: 5 };
+    if (vedette) { delete brouillon.ajustement; delete brouillon.remise; delete brouillon.acompte; if (vedette.acompte) brouillon.acompte = vedette.acompte; } // un devis vedette est écrit à la main : pas d'ajustement ni de remise du tirage
     const debutTravaux = L.ajouterJours(L.aujourdhuiParis(creeLe), 30);
-    brouillon.chantier = { adresse: { ligne1: `${12 + i} avenue des Chantiers`, codePostal: '69000', ville: personne.ville }, debutTravaux, dureeEstimee: { valeur: td.entier(1, 4), unite: 'semaine' } };
+    brouillon.chantier = { adresse: { ligne1: `${12 + i} ${jeu?.voie ?? 'avenue des Chantiers'}`, codePostal: '69000', ville: personne.ville }, debutTravaux, dureeEstimee: { valeur: td.entier(1, 4), unite: 'semaine' } };
     if (statut === 'brouillon') brouillon.expireLe = L.ajouterJours(L.aujourdhuiParis(maintenant), 30); // un brouillon de démonstration reste finalisable, quelle que soit la durée de validité réglée chez le client
-    brouillon.texteLibre = 'Travaux réalisés dans les règles de l’art, selon les normes en vigueur. Protection des sols et nettoyage du chantier compris.';
-    brouillon.notesBasDePage = `Devis établi après visite du chantier. Prix valables ${brouillon.dureeValiditeJours} jours. Toute modification fera l’objet d’un avenant.`;
-    brouillon.dechets = { types: ['inertes', 'non_dangereux'], pointCollecte: `Déchèterie professionnelle de ${personne.ville}`, volumeMin: 1, volumeMax: 3, unite: 'm3', coutTtcParM3: 45 };
+    brouillon.texteLibre = vedette?.texteLibre ?? jeu?.texteLibre ?? 'Travaux réalisés dans les règles de l’art, selon les normes en vigueur. Protection des sols et nettoyage du chantier compris.';
+    brouillon.notesBasDePage = `${jeu?.noteDevis ?? 'Devis établi après visite du chantier.'} Prix valables ${brouillon.dureeValiditeJours} jours. Toute modification fera l’objet d’un avenant.`;
+    if (jeu?.dechets ?? true) brouillon.dechets = { types: ['inertes', 'non_dangereux'], pointCollecte: `Déchèterie professionnelle de ${personne.ville}`, volumeMin: 1, volumeMax: 3, unite: 'm3', coutTtcParM3: 45 };
     const { id: _id, ...base } = brouillon;
     let devis = { ...base, modifieLe: creeLe, modifiePar: auteur, [MARQUEUR]: true };
     if (statut !== 'brouillon') {
       const finaliseLe = jourAvant(maintenant, debut - 4, 11);
       compteur += 1;
       const numero = D.numeroDevis(L.aujourdhuiParis(finaliseLe), compteur);
-      const fige = D.figerPourFinalisation({ ...devis, id }, { numero, finaliseLe, reglages, emetteur: ENTREPRISE_DEMO }); // « Mon entreprise » de démonstration (valeurs fictives) passe les règles de finalisation
+      const fige = D.figerPourFinalisation({ ...devis, id }, { numero, finaliseLe, reglages, emetteur, clientNom: personne.org ? personne.org.nom : personne.nom }); // « Mon entreprise » de démonstration (valeurs fictives) passe les règles de finalisation
       if (fige.erreurs.length) throw new Error(`Devis de démonstration invalide (${brouillon.objet}) : ${fige.erreurs.join(' ')}`);
       const { id: _i, ...f } = fige.devis;
       devis = { ...f, finalisation: { n8n: 'en_attente' }, archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null, pdf: null, envois: null, emailPrepare: null };
@@ -391,7 +426,7 @@ export function construirePlan({ config, articles, familles = null, reglages, au
       if (Object.keys(p.erreurs).length) throw new Error(`Projet de démonstration refusé : ${Object.values(p.erreurs).join(' ')}`);
     } else {
       const personne = personnes[(k * 3 + 1) % personnes.length];
-      const travaux = TRAVAUX[(k * 5 + 2) % TRAVAUX.length];
+      const travaux = LISTE_TRAVAUX[(k * 5 + 2) % LISTE_TRAVAUX.length];
       p = P.planCreerProjet({ titre: `${travaux} – ${personne.org ? personne.org.nom : personne.nom}`, personneId: personne.id, organisationId: personne.org?.id ?? null, phase, dateDebut: L.aujourdhuiParis(ctx.maintenant) }, ctx,
         { texteNote: `Chantier : ${travaux.toLowerCase()} (${personne.ville}).` });
     }
@@ -442,6 +477,60 @@ export async function lireCatalogueSource(projet) {
     familles: familles.exists ? familles.data() : null,
     reglages: reglages.exists ? reglages.data() : null,
   };
+}
+
+// ------------------------------------------------------------------------------------------------ jeux par métier
+
+/**
+ * Contrôle de complétude d'un jeu : liste des problèmes (vide = le jeu est complet et prêt). Un jeu qui échoue n'apparaît pas dans la liste des métiers.
+ * Vérifie les données (catalogue, ensembles, mots appris, vedettes) puis fabrique un plan complet pour compter les devis par statut et les affaires par étape.
+ */
+export function problemesDuJeu(jeu) {
+  const p = [];
+  try {
+    if (!jeu?.id || !jeu?.nom) p.push('identifiant ou nom manquant');
+    if (!MOTS_OUVRAGE.some((m) => m.id === jeu?.motOuvrage)) p.push('mot du métier inconnu');
+    const cat = catalogueDuJeu(jeu);
+    if (cat.articles.length < 20) p.push(`catalogue trop court (${cat.articles.length} articles, 20 au moins)`);
+    if (cat.articles.filter((a) => a.type === 'ouvrage').length < 3) p.push('moins de 3 ensembles');
+    if (new Set(cat.articles.map((a) => a.id)).size !== cat.articles.length) p.push('identifiants d\'article en double');
+    if ((jeu.mots ?? []).length < 6) p.push('moins de 6 mots appris');
+    const vocab = construireVocabulaire(cat.articles, { auteur: 'demo@exemple.test', maintenant: new Date('2026-01-15T10:00:00Z'), mots: jeu.mots ?? [] });
+    if (vocab.sautes.catalogue) p.push('un mot appris vise un article absent du catalogue');
+    if ((jeu.organisations ?? []).length < 12) p.push('moins de 12 organisations');
+    if ((jeu.travaux ?? []).length < 8) p.push('moins de 8 intitulés de travaux');
+    for (const statut of ['brouillon', 'envoye', 'accepte']) if (!(jeu.vedettes ?? []).some((v) => v.statut === statut)) p.push(`pas de devis vedette « ${statut} »`);
+    if (!p.length) {
+      const config = L.construireConfig({ etapes: null, phases: null, reglages: null }, { racine: false, membres: [] });
+      let n = 0;
+      const plan = construirePlan({ config, articles: cat.articles, familles: cat.familles, reglages: A.reglagesDevis({ ...A.REGLAGES_DEVIS_DEFAUT, motOuvrage: jeu.motOuvrage, modeMarge: 'majoration', marge: MARGE_JEUX, margeDevis: MARGE_JEUX, entreprise: emetteurDe(jeu) }), auteur: 'demo@exemple.test', maintenant: new Date('2026-01-15T10:00:00Z'), nouvelId: (c) => `${c}-${(n += 1)}`, jeu });
+      const statuts = new Map();
+      for (const { id } of plan.resume.devis) { const d = plan.documents.find((x) => x.id === id).donnees; statuts.set(d.statut, (statuts.get(d.statut) ?? 0) + 1); }
+      for (const s of ['brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse']) if ((statuts.get(s) ?? 0) < 2) p.push(`moins de 2 devis « ${s} »`);
+      for (const e of L.etapesActives(config)) if (plan.resume.affaires.filter((a) => a.prevue.etape === e.id).length < 2) p.push(`moins de 2 affaires dans l'étape « ${e.libelle ?? e.id} »`);
+    }
+  } catch (e) {
+    p.push(`erreur à la fabrication : ${e.message}`);
+  }
+  return p;
+}
+
+/** Les jeux complets et prêts, par ordre de définition. */
+export const metiersDisponibles = () => Object.values(JEUX).filter((j) => problemesDuJeu(j).length === 0);
+
+/** Texte de la liste des métiers (affichée par --metier seul). */
+export function listeMetiers() {
+  const jeux = metiersDisponibles();
+  return ['Métiers disponibles pour --metier :', ...jeux.map((j) => `  ${j.id.padEnd(12)} ${j.nom} (mot du métier : « ${j.motOuvrage} »)`),
+    'Exemple : node scripts/donnees-demo.js <identifiant-client> --metier ' + (jeux[0]?.id ?? '<nom>')];
+}
+
+/** Le jeu demandé, ou une erreur claire qui rappelle la liste. */
+export function exigerJeu(nom) {
+  const jeux = metiersDisponibles();
+  const jeu = jeux.find((j) => j.id === String(nom).trim().toLowerCase());
+  if (!jeu) throw new ErreurOutil([`Métier inconnu : « ${nom} ».`, ...listeMetiers()]);
+  return jeu;
 }
 
 // ------------------------------------------------------------------------------------------------ commande
@@ -538,8 +627,13 @@ async function remplir(id, options, ctx, fiche) {
   }
 
   // Catalogue
+  const jeuMetier = ctx.jeuMetier ?? null;
   let catalogue;
-  if (options['catalogue-exemple']) {
+  if (jeuMetier) {
+    const cat = catalogueDuJeu(jeuMetier);
+    catalogue = { articles: cat.articles, familles: cat.familles, reglages: { modeMarge: 'majoration', marge: MARGE_JEUX, margeDevis: MARGE_JEUX } };
+    ctx.out(`Jeu « ${jeuMetier.nom} » : ${cat.articles.length} articles (dont ${cat.articles.filter((a) => a.type === 'ouvrage').length} ensembles), prix inventés.`);
+  } else if (options['catalogue-exemple']) {
     catalogue = { articles: CATALOGUE_EXEMPLE.map((a) => ({ ...a })), familles: null, reglages: { modeMarge: 'majoration', marge: 25 } };
     ctx.out('Catalogue : le petit catalogue FICTIF intégré (15 articles).');
   } else {
@@ -566,13 +660,13 @@ async function remplir(id, options, ctx, fiche) {
     col('devis_compteurs').doc('global').get(), col('crm_parametres').doc('etapes').get(), col('crm_parametres').doc('phases').get(), col('crm_parametres').doc('reglages').get(),
   ]);
   const config = L.construireConfig({ etapes: etapesDoc.exists ? etapesDoc.data() : null, phases: phasesDoc.exists ? phasesDoc.data() : null, reglages: reglagesCrm.exists ? reglagesCrm.data() : null }, { racine: false, membres: [] });
-  const jeu = ctx.jeu ?? JEU_BATIMENT;
+  const jeu = ctx.jeu ?? (jeuMetier ? { motOuvrage: jeuMetier.motOuvrage } : JEU_BATIMENT);
   if (!MOTS_OUVRAGE.some((m) => m.id === jeu.motOuvrage)) throw new ErreurOutil(`Le mot du métier du jeu (« ${jeu.motOuvrage} ») n'est pas dans la liste du logiciel.`);
-  const reglagesDemo = A.reglagesDevis({ ...A.REGLAGES_DEVIS_DEFAUT, motOuvrage: jeu.motOuvrage, modeMarge: reglagesSource.modeMarge, marge: masquer ? 0 : reglagesSource.marge, margeDevis: masquer ? 0 : reglagesSource.margeDevis, entreprise: ENTREPRISE_DEMO });
+  const reglagesDemo = A.reglagesDevis({ ...A.REGLAGES_DEVIS_DEFAUT, motOuvrage: jeu.motOuvrage, modeMarge: reglagesSource.modeMarge, marge: masquer ? 0 : reglagesSource.marge, margeDevis: masquer ? 0 : reglagesSource.margeDevis, entreprise: emetteurDe(jeuMetier) });
   const reglages = reglagesDoc.exists ? A.reglagesDevis(reglagesDoc.data()) : reglagesDemo;
   const compteurDepart = Number.isInteger(compteurDoc.data()?.valeur) ? compteurDoc.data().valeur : 0;
 
-  const plan = construirePlan({ config, articles, familles: famillesDoc.exists ? famillesDoc.data() : catalogue.familles, reglages, auteur: ctx.auteur, maintenant: ctx.maintenant ?? new Date(), nouvelId: (c) => col(c).doc().id, compteurDepart });
+  const plan = construirePlan({ config, articles, familles: famillesDoc.exists ? famillesDoc.data() : catalogue.familles, reglages, auteur: ctx.auteur, maintenant: ctx.maintenant ?? new Date(), nouvelId: (c) => col(c).doc().id, compteurDepart, jeu: jeuMetier });
 
   // Liste complète des documents à écrire
   const ecritures = [];
@@ -589,8 +683,8 @@ async function remplir(id, options, ctx, fiche) {
   for (const d of plan.documents) ecritures.push({ chemin: `${d.collection}/${d.id}`, donnees: d.donnees });
   // Mots appris : seulement ceux dont les articles sont dans la copie, jamais par-dessus un mot que le client a déjà.
   const motsExistants = new Set((await col('devis_vocabulaire').get()).docs.map((d) => d.id));
-  const vocab = construireVocabulaire(articles, { auteur: ctx.auteur, maintenant: ctx.maintenant ?? new Date(), existants: motsExistants });
-  for (const d of vocab.documents) ecritures.push({ chemin: `devis_vocabulaire/${d.id}`, donnees: d.donnees });
+  const vocab = construireVocabulaire(articles, { auteur: ctx.auteur, maintenant: ctx.maintenant ?? new Date(), existants: motsExistants, mots: jeuMetier?.mots ?? MOTS_EXEMPLE });
+  for (const d of vocab.documents) ecritures.push({ chemin: `devis_vocabulaire/${d.id}`, donnees: d.donnees, creerSeulement: true });
   ctx.out(vocab.documents.length ? `Mots appris : ${vocab.documents.length} (vocabulaire d'exemple)${vocab.sautes.existant ? `, ${vocab.sautes.existant} déjà présent(s) chez le client, gardé(s) tel(s) quel(s)` : ''}.`
     : `Mots appris : aucun (${vocab.sautes.catalogue ? 'ce catalogue n\'est pas celui d\'exemple' : 'tous existent déjà chez le client'}).`);
 
@@ -622,13 +716,28 @@ async function remplir(id, options, ctx, fiche) {
   if (options.pdf) ctx.out(`Avec --pdf : après l'écriture, le serveur fabriquerait le PDF des ${plan.resume.devis.filter(({ id: did }) => plan.documents.find((x) => x.id === did).donnees.statut !== 'brouillon').length} devis qui ne sont plus des brouillons.`);
   if (!ctx.ecrire) { ctx.out(''); ctx.out('SIMULATION : rien n\'a été écrit. Relisez, puis relancez la même commande avec --ecrire.'); return 0; }
   await relireMarque(db, id);
-  for (let i = 0; i < ecritures.length; i += 400) {
+  const simples = ecritures.filter((e) => !e.creerSeulement);
+  for (let i = 0; i < simples.length; i += 400) {
     const lot = db.batch();
-    for (const e of ecritures.slice(i, i + 400)) lot.set(db.doc(`clients/${id}/${e.chemin}`), nettoyer(e.donnees));
+    for (const e of simples.slice(i, i + 400)) lot.set(db.doc(`clients/${id}/${e.chemin}`), nettoyer(e.donnees));
     await lot.commit();
     ctx.ecrits = true;
   }
+  // Le compteur des numéros avance dès que les devis numérotés sont écrits, AVANT le lot des mots : si ce lot échoue, un numéro déjà donné ne revient jamais.
   if (plan.compteur) await col('devis_compteurs').doc('global').set({ valeur: plan.compteur, modifieLe: ctx.maintenant ?? new Date() }, { merge: true });
+  // Les mots appris sont écrits avec `create` : un mot réel apparu entre la lecture et l'écriture n'est jamais écrasé (l'écriture échoue proprement).
+  const motsACreer = ecritures.filter((e) => e.creerSeulement);
+  if (motsACreer.length) {
+    const lot = db.batch();
+    for (const e of motsACreer) lot.create(db.doc(`clients/${id}/${e.chemin}`), nettoyer(e.donnees));
+    try {
+      await lot.commit();
+    } catch (e) {
+      if (e?.code === 6 || /already exists|ALREADY_EXISTS/i.test(String(e?.message))) throw new ErreurOutil(['Un mot appris est apparu chez le client pendant le chargement : aucun mot n\'a été écrit et aucun mot du client n\'a été touché.', 'Le reste de la démonstration est écrit : relancez --retirer --ecrire, puis le chargement.']);
+      throw e;
+    }
+    ctx.ecrits = true;
+  }
   ctx.out(`✔ ${ecritures.length} document(s) écrits. Pour tout retirer plus tard : node scripts/donnees-demo.js ${id} --retirer --ecrire`);
   if (options.pdf) return await fabriquerPdf(id, ctx, fiche);
   return 0;
@@ -636,21 +745,29 @@ async function remplir(id, options, ctx, fiche) {
 
 export async function executerDonneesDemo(argv, ctx) {
   try {
+    // `--metier` sans nom (ou `--metiers`) : affiche la liste des métiers disponibles et s'arrête, sans base.
+    const iMetier = argv.findIndex((a) => a === '--metier' || a === '--metier=');
+    if (argv.includes('--metiers') || (iMetier >= 0 && (iMetier === argv.length - 1 || String(argv[iMetier + 1]).startsWith('--')))) {
+      for (const l of listeMetiers()) ctx.out(l);
+      return 0;
+    }
     const { positionnels, options } = lireArguments(argv, {
-      valeurs: ['catalogue-depuis', 'auteur'],
-      drapeaux: ['ecrire', 'pdf', 'retirer', 'completer', 'catalogue-exemple', 'masquer-prix-achat', 'aide'],
+      valeurs: ['catalogue-depuis', 'auteur', 'metier'],
+      drapeaux: ['ecrire', 'pdf', 'retirer', 'completer', 'catalogue-exemple', 'masquer-prix-achat', 'aide', 'metiers'],
     });
     if (options.aide || !positionnels.length) { ctx.out(AIDE); return options.aide ? 0 : 1; }
     if (positionnels.length > 1) throw new ErreurOutil(`Argument en trop : « ${positionnels.slice(1).join(' ')} ». Un seul client à la fois ; les options commencent par --.`);
     const id = exigerIdentifiant(positionnels[0]);
-    const pdfSeul = options.pdf && !options['catalogue-depuis'] && !options['catalogue-exemple'];
+    const pdfSeul = options.pdf && !options['catalogue-depuis'] && !options['catalogue-exemple'] && !options.metier;
     if (options.pdf && options.retirer) throw new ErreurOutil('--pdf et --retirer ne se combinent pas.');
     if (pdfSeul && (options.completer || options['masquer-prix-achat'])) throw new ErreurOutil("--pdf seul ne se combine qu'avec --ecrire (les autres options servent au remplissage).");
-    if (!options.retirer && !pdfSeul && !options['catalogue-depuis'] && !options['catalogue-exemple']) {
-      throw new ErreurOutil(['Indiquez d\'où vient le catalogue des devis :', `  --catalogue-depuis ${PROJET_CATALOGUE}   (copie de votre catalogue, lu en lecture seule)`, '  --catalogue-exemple              (petit catalogue fictif intégré)']);
+    if (options.metier && (options['catalogue-depuis'] || options['catalogue-exemple'])) throw new ErreurOutil('--metier ne se combine pas avec --catalogue-depuis ni --catalogue-exemple : le jeu du métier apporte son propre catalogue.');
+    if (options.metier && !options.retirer) ctx.jeuMetier = exigerJeu(options.metier);
+    if (!options.retirer && !pdfSeul && !options['catalogue-depuis'] && !options['catalogue-exemple'] && !options.metier) {
+      throw new ErreurOutil(['Indiquez d\'où vient le catalogue des devis :', `  --catalogue-depuis ${PROJET_CATALOGUE}   (copie de votre catalogue, lu en lecture seule)`, '  --catalogue-exemple              (petit catalogue fictif intégré)', '  --metier <nom>                   (jeu complet d\'un métier ; node scripts/donnees-demo.js --metier affiche la liste)']);
     }
     if (options['catalogue-depuis'] && options['catalogue-exemple']) throw new ErreurOutil('Choisissez --catalogue-depuis OU --catalogue-exemple, pas les deux.');
-    if (options.retirer && (options['catalogue-depuis'] || options['catalogue-exemple'] || options.completer || options['masquer-prix-achat'])) throw new ErreurOutil('--retirer ne se combine qu\'avec --ecrire.');
+    if (options.retirer && (options['catalogue-depuis'] || options['catalogue-exemple'] || options.metier || options.completer || options['masquer-prix-achat'])) throw new ErreurOutil('--retirer ne se combine qu\'avec --ecrire.');
 
     const env = ctx.env || process.env;
     ctx.cible = cible({}, env);
