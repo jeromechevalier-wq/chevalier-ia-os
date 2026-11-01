@@ -9,7 +9,7 @@
 //  - les transitions n'appellent pas n8n. Seule « Préparer l'e-mail » demande à n8n, par `sortie` (serveur/src/coeur/n8n-sortie.js, le SEUL fichier qui fait un POST vers n8n) : le webhook et le secret sont ceux DU client.
 import { logger } from 'firebase-functions';
 import { creerAccesFirestore, avecBase } from '../serveur/src/coeur/donnees.js';
-import { ErreurDevis, OPERATIONS, reponsePublique } from '../serveur/src/coeur/devis.js';
+import { ErreurDevis, OPERATIONS, reponsePublique, detailErreur } from '../serveur/src/coeur/devis.js';
 import { demanderPreparation } from '../serveur/src/coeur/devis-email.js';
 import { Refus } from './appels.js';
 import { MOTIF_IDENTIFIANT_CLIENT } from './etiquettes.js';
@@ -42,16 +42,18 @@ export async function controlerAppelant({ db, auth, client, roles = ['editeur'] 
  * `sortie` : { branche(espace), demander(espace, …) } (serveur/src/coeur/n8n-sortie.js, le SEUL fichier qui fait un POST vers n8n).
  */
 export async function preparerEmailDevis({ db, auth, donnees, sortie, maintenant = Date.now, creerDonnees = null, genererId }) {
+  // `maintenant` : un nombre (millisecondes) ou une fonction qui le rend (défaut Date.now). Le 01/11/2026, `new Date(Date.now)` (la fonction elle-même) donnait une date invalide que Firestore refuse : « Préparer l'e-mail » échouait chez tous les clients.
+  const quand = new Date(typeof maintenant === 'function' ? maintenant() : maintenant);
   const { email, client } = await controlerAppelant({ db, auth, client: donnees?.client });
   try {
     const acces = creerDonnees ? creerDonnees(client) : avecBase(creerAccesFirestore({ db }), `clients/${client}`);
-    const r = await demanderPreparation({ donnees: acces, ctx: { acteur: email, via: 'ecran', maintenant: new Date(maintenant) }, devisId: donnees.devisId, espace: client, sortie, saisie: donnees, ...(genererId ? { genererId } : {}) });
+    const r = await demanderPreparation({ donnees: acces, ctx: { acteur: email, via: 'ecran', maintenant: quand }, devisId: donnees.devisId, espace: client, sortie, saisie: donnees, ...(genererId ? { genererId } : {}) });
     return { ok: true, demandeId: r.demandeId };
   } catch (e) {
     if (e instanceof ErreurDevis) {
       throw new Refus({ demande_invalide: 'invalid-argument', introuvable: 'not-found' }[e.code] ?? 'failed-precondition', e.message);
     }
-    logger.error('Devis : erreur inattendue (préparer l\'e-mail)', { nom: e?.name });
+    logger.error('Devis : erreur inattendue (préparer l\'e-mail)', detailErreur(e));
     throw new Refus('internal', 'Une erreur est survenue.');
   }
 }
@@ -85,7 +87,7 @@ export async function transitionDevis({ db, auth, donnees, operation, maintenant
     if (e instanceof ErreurDevis) {
       throw new Refus({ demande_invalide: 'invalid-argument', introuvable: 'not-found' }[e.code] ?? 'failed-precondition', e.message);
     }
-    logger.error('Devis : erreur inattendue', { operation, nom: e?.name, detail: String(e?.message ?? '').slice(0, 200) });
+    logger.error('Devis : erreur inattendue', { operation, ...detailErreur(e) });
     throw new Refus('internal', 'Une erreur est survenue.');
   }
 }

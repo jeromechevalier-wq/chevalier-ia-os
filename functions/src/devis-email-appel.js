@@ -7,7 +7,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from './veille/appel.js';
 import { exigerCompteAutorise, enErreurAppel } from './devis-appel.js';
 import { demanderPreparation } from './coeur/devis-email.js';
-import { ErreurDevis } from './coeur/devis.js';
+import { ErreurDevis, detailErreur } from './coeur/devis.js';
 import { ESPACE_JEROME } from './coeur/n8n-sortie.js';
 
 export function creerAppelPreparerEmail({ donnees, sortie, comptes = COMPTES_AUTORISES, journal = () => {}, maintenant = Date.now, genererId }) {
@@ -28,7 +28,7 @@ export function creerAppelPreparerEmail({ donnees, sortie, comptes = COMPTES_AUT
         journal({ action: 'preparerEmail', statut: e instanceof ErreurDevis && e.code === 'n8n_indisponible' ? 'erreur' : 'refus', code: e.code, dureeMs: maintenant() - debut });
         throw erreur;
       }
-      journal({ action: 'preparerEmail', statut: 'erreur', code: String(e?.name ?? 'inconnue').slice(0, 30), dureeMs: maintenant() - debut });
+      journal({ action: 'preparerEmail', statut: 'erreur', code: detailErreur(e).code || String(e?.name ?? 'inconnue').slice(0, 30), detail: detailErreur(e).detail, dureeMs: maintenant() - debut });
       throw new HttpsError('internal', 'Une erreur est survenue. Réessaie.');
     }
   };

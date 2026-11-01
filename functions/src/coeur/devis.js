@@ -58,6 +58,16 @@ const enDates = (v) => {
   return v;
 };
 
+/** Texte court et propre pour un journal : pas de retour à la ligne, adresses e-mail masquées, chemins Firestore (projects/…, clients/…, documents/…) masqués, `max` caractères au plus. Une seule règle pour tous les journaux. */
+export function texteJournal(valeur, max = 200) {
+  return String(valeur ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/[^\s@]+@[^\s@]+/g, '[adresse]').replace(/\b(?:projects|clients|documents)\/\S*/g, '[chemin]').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+/** Détail d'une exception INATTENDUE pour le journal Cloud, pour diagnostiquer : { nom, code, detail }. Jamais le contenu : voir texteJournal. */
+export function detailErreur(e) {
+  return { nom: texteJournal(e?.name, 40), code: texteJournal(e?.code, 40), detail: texteJournal(e?.message, 200) };
+}
+
 export async function lireDevis(tx, devisId) {
   const devis = await tx.document(C.devis, exigerId(devisId));
   if (!devis) throw new ErreurDevis('introuvable', `Devis introuvable : ${devisId}`);
