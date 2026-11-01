@@ -287,7 +287,7 @@ export function validerArticle(saisie, { articles = [], courant = null, familles
   const marque = texte(base.marque);
   if (marque.length > LIMITES.marque) erreurs.marque = `La marque est trop longue (${LIMITES.marque} caractères au plus).`;
   const familleId = typeof base.familleId === 'string' ? base.familleId : '';
-  const erreurFamille = erreurFamilleArticle(familleId, familles, courant?.familleId ?? null);
+  const erreurFamille = erreurFamilleArticle(familleId, familles, courant ? (courant.familleId || familleEffective(courant) || null) : null); // l'article « déjà rangé » : sa famille, ou celle de son type s'il n'en a pas
   if (erreurFamille) erreurs.familleId = erreurFamille;
   return { valeurs: { libelle, unite, prixAchat, code, tauxTva, type, composants, prixVenteForce, marge, reference, marque, familleId }, erreurs };
 }

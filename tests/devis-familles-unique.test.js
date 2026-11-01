@@ -99,20 +99,13 @@ describe('F4 deux niveaux au plus', () => {
   });
 });
 
-describe('F5 familles de départ verrouillées', () => {
-  test('F5 les sept familles de départ ne se renomment ni ne se désactivent ; leurs types sont fixes', () => {
+describe('F5 familles de départ : identifiant et type fixes', () => {
+  test('F5 les sept familles de départ se renomment et se désactivent sans changer d’identifiant ni de type (le détail est en 1.x)', () => {
     const l = avecCarrelage();
-    for (let i = 1; i <= 7; i++) {
-      assert.match(F.planRenommerFamille(`famille-${i}`, 'Autre nom', l).erreur, /famille de départ/);
-      assert.match(F.planDesactiverFamille(`famille-${i}`, l).erreur, /famille de départ/);
-    }
-    assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map((i) => F.typeDeFamille(l, `famille-${i}`)), ['fourniture', 'main_oeuvre', 'ouvrage', 'sous_traitance', 'materiel', 'texte', 'divers']);
+    const renommees = [1, 2, 3, 4, 5, 6, 7].reduce((liste, i) => F.planRenommerFamille(`famille-${i}`, `Autre nom ${i}`, liste).familles, l);
+    assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map((i) => F.typeDeFamille(renommees, `famille-${i}`)), ['fourniture', 'main_oeuvre', 'ouvrage', 'sous_traitance', 'materiel', 'texte', 'divers']);
     assert.equal(F.familleDeType('materiel'), 'famille-5');
     assert.equal(F.familleDeType('inconnu'), null);
-    // Une base où une famille de départ a été renommée ou désactivée avant : elle revient à son nom et reste active.
-    const abimee = F.famillesDe({ liste: [{ id: 'famille-7', nom: 'Autres', actif: false }] });
-    assert.deepEqual(abimee.find((f) => f.id === 'famille-7'), { id: 'famille-7', nom: 'Divers', actif: true });
-    assert.equal(abimee.length, F.FAMILLES_PAR_DEFAUT.length);
   });
   test('F5 on peut renommer et désactiver une sous-famille', () => {
     const l = avecCarrelage();

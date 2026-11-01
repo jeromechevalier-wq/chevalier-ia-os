@@ -910,6 +910,30 @@ describe('K9 K10 K11 un mot qui désigne plusieurs articles : la réponse ne l�
     assert.doesNotMatch(JSON.stringify(tableau), /prixAchat|marge/i);
   });
 
+  test('K24 (1.7) familles de départ renommées et désactivées : lire_reglages_devis rend les noms et états choisis ; creer_article refuse une famille désactivée (ou dont le parent l’est), sauf si l’article y est déjà', async () => {
+    const s = await demarrer();
+    const tout = [{ id: 'famille-1', nom: 'Supports', actif: true }, { id: 'famille-5', nom: 'Engins', actif: false }];
+    s.collections.devis_parametres.push({ id: 'familles', liste: tout });
+    const r = ok(await s.appeler('lecteur', 'lire_reglages_devis', {}));
+    assert.deepEqual(r.familles.find((f) => f.id === 'famille-1'), { id: 'famille-1', nom: 'Supports', actif: true });
+    assert.deepEqual(r.familles.find((f) => f.id === 'famille-5'), { id: 'famille-5', nom: 'Engins', actif: false });
+    assert.equal(r.familles.find((f) => f.id === 'famille-2').nom, 'Main d’œuvre', 'les autres gardent leur nom d’origine');
+    const creer = (familleId, libelle = 'Bétonnière') => s.appeler('biblio', 'creer_article', { libelle, prixAchat: 5, unite: 'u', familleId });
+    const dans = ok(await creer('famille-1', 'Vis'));
+    assert.ok(dans.id, 'une famille renommée reste utilisable par son identifiant');
+    for (const refusee of ['famille-5', 'famille-5-1']) {
+      const refus = await creer(refusee);
+      assert.equal(refus.isError ?? refus.erreur ?? true, true, `${refusee} est refusée`);
+      assert.match(JSON.stringify(refus), /désactivée/);
+    }
+    assert.equal(s.collections.devis_articles.some((a) => a.libelle === 'Bétonnière'), false, 'rien n’est écrit');
+    // Un article déjà rangé dans la famille désactivée peut être modifié sans la quitter.
+    s.collections.devis_articles.push({ id: 'ancien', libelle: 'Pelle', type: 'materiel', familleId: 'famille-5', prixAchat: 9, unite: 'u', actif: true });
+    const maj = ok(await s.appeler('biblio', 'modifier_article', { id: 'ancien', libelle: 'Pelle large', familleId: 'famille-5' }));
+    assert.ok(maj);
+    assert.equal(s.collections.devis_articles.find((a) => a.id === 'ancien').libelle, 'Pelle large');
+  });
+
   test('K22c après une question de précision, ni « autre » ni « confirme » ne s’enregistrent (aucun article n’a été cité : la règle courte « prise » ne se crée pas) ; « aucun » reste permis ; la phrase complétée s’apprend', async () => {
     const s = await demarrer();
     const ids = [];

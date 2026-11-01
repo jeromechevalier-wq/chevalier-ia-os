@@ -48,11 +48,11 @@ describe('P1 sous-familles de départ', () => {
     assert.equal(abimee.find((f) => f.id === 'famille-1-3').nom, 'Étanchéité et isolation');
   });
 
-  test('P1 les sept familles de premier niveau restent verrouillées ; un ancien document sans sous-familles les reçoit toutes', () => {
+  test('P1 les sept familles de premier niveau gardent leur identifiant (elles se renomment et se désactivent, voir 1.x) ; un ancien document sans sous-familles les reçoit toutes', () => {
     const l = F.famillesDe(null);
     for (let i = 1; i <= 7; i++) {
-      assert.match(F.planRenommerFamille(`famille-${i}`, 'Autre', l).erreur, /famille de départ/);
-      assert.match(F.planDesactiverFamille(`famille-${i}`, l).erreur, /famille de départ/);
+      assert.equal(F.planRenommerFamille(`famille-${i}`, `Autre ${i}`, l).famille.id, `famille-${i}`);
+      assert.equal(F.planDesactiverFamille(`famille-${i}`, l).erreur, null);
       assert.equal(F.estFamilleDepart(`famille-${i}`), true);
     }
     assert.equal(F.estFamilleDepart('famille-1-1'), false);
