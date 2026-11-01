@@ -173,7 +173,7 @@ Indicateurs : une ligne basse par indicateur, l'explication « Comment c'est cal
 - Seuls les champs changés partent au serveur (`saisieModifiee`) : sans modification l'appel est identique à celui d'avant. L'assistant (`preparer_email`) accepte les mêmes quatre champs, facultatifs, mêmes règles (`contenuDeLEnvoi`, `email-brouillon.js`, partagé avec le serveur).
 
 ## Bloc « Gestion des déchets » du devis (01/11/2026)
-- **Réglage global** : Réglages > Devis > « Gestion des déchets » (Oui / Non, Oui par défaut ; absent ou illisible = Oui, jamais l'inverse). Aide : « Pour les métiers sans chantier (agence, conseil…), tu peux le désactiver. » Même code chez Jérôme et chez les clients.
+- **Réglage global** : Réglages > Devis > « Gestion des déchets » (Oui / Non, Oui par défaut ; absent ou illisible = Oui, jamais l'inverse). Aide : « Pour les métiers sans chantier (agence, conseil…), tu peux la désactiver. » Même code chez Jérôme et chez les clients.
 - **Réglage sur Non** : le bloc disparaît de l'éditeur, la case « Cacher la gestion des déchets » disparaît du menu Options, et le bloc n'est plus imprimé (aperçu, PDF de brouillon, PDF officiel). Les données `dechets` des devis ne sont jamais effacées (la lecture `lire_devis` les renvoie toujours) : remettre Oui les fait revenir.
 - **Case « Cacher la gestion des déchets » d'un devis** : cache AUSSI le bloc dans l'éditeur (plus seulement sur le document imprimé). Décochée, le bloc revient avec ses données.
 - **Cas vide** : devis sans déchets = « Aucune information sur les déchets » + « Définir » (inchangé). **Cas d'erreur** : une écriture refusée de l'enregistrement des réglages affiche le message habituel de l'écran ; rien n'est modifié.

@@ -81,8 +81,8 @@ describe('D4 PDF officiel du serveur', () => {
 describe('D5 serveur et MCP', () => {
   test('D5 aucun outil d’écriture ni la finalisation ne lit `dechets` ou le réglage côté serveur', () => {
     for (const f of ['functions/src/coeur/devis.js', 'functions/src/coeur/ecriture.js', 'functions/src/coeur/metier.js']) {
-      let source = '';
-      try { source = readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'); } catch { continue; }
+      let source;
+      try { source = readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'); } catch { assert.fail(`${f} est introuvable : le test D5 ne vérifierait plus rien (fichier renommé ?)`); }
       assert.ok(!/gestionDechets/.test(source), `${f} ne lit pas le réglage`);
     }
   });

@@ -284,7 +284,7 @@ test('13 Réglages > Devis : « Gestion des déchets » (Oui / Non, aide d’une
   const liste = page.locator('#devis-gestionDechets');
   await expect(liste).toHaveValue('oui');
   await page.locator('[data-reglage="gestionDechets"] .bouton-info').click();
-  await expect(page.locator('[data-reglage="gestionDechets"] .bulle-info')).toContainText('Pour les métiers sans chantier (agence, conseil…), tu peux le désactiver.');
+  await expect(page.locator('[data-reglage="gestionDechets"] .bulle-info')).toContainText('Pour les métiers sans chantier (agence, conseil…), tu peux la désactiver.');
   await page.keyboard.press('Escape');
   await liste.selectOption('non');
   await capturerReglage(page, info, '13-reglages-non');
