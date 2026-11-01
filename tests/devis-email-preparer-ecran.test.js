@@ -13,15 +13,6 @@ const lire = (f) => readFileSync(join(RACINE, f), 'utf8');
 const sansCommentaires = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const finalise = (extra = {}) => ({ id: 'd1', statut: 'en_attente_envoi', numero: 'DEV-2026-10-25-001', destinataires: ['marie@exemple.fr'], pdf: { statut: 'ok' }, ...extra });
 
-describe('P1 destinataire du devis', () => {
-  test('P1 destinataire : au moins une adresse (texte ou objet { email }), sinon un message qui dit quoi faire', () => {
-    assert.equal(P.aUnDestinataire(finalise()), true);
-    assert.equal(P.aUnDestinataire(finalise({ destinataires: [{ email: 'a@b.fr' }] })), true);
-    for (const destinataires of [[], ['  '], [{ email: '' }], undefined, null]) assert.equal(P.aUnDestinataire(finalise({ destinataires })), false);
-    assert.match(P.MESSAGE_SANS_DESTINATAIRE, /ajoute une adresse e-mail/);
-  });
-});
-
 describe('P2 l’Historique : « E-mail préparé dans Gmail le … »', () => {
   const quand = new Date('2026-10-25T08:30:00Z'); // 9 h 30 à Paris (le passage à l'heure d'hiver a lieu ce jour-là, à 3 h)
   test('P2 emailPrepare « ok » : « E-mail préparé dans Gmail le 25/10/2026 (09 h 30) » (la date de Firestore ou un Date)', () => {
@@ -85,31 +76,18 @@ describe('P3 le câblage : menu « Envoyer », confirmation, textes, serveur', (
     assert.equal(P.MESSAGE_DEMANDE_ENVOYEE, 'Demande envoyée : le brouillon apparaît dans ton Gmail dans quelques instants');
     assert.equal(P.LIBELLE_PREPARER_EMAIL, 'Préparer l’e-mail');
   });
-  test('P3 la confirmation dit à qui le brouillon sera adressé (destinataire, puis copie sans doublon) ; sans adresse la fenêtre propose d’enregistrer ET préparer', () => {
+  test('P3 adressesDuBrouillon : les adresses du devis telles que le serveur les lira (destinataire, puis copie sans doublon)', () => {
     assert.deepEqual(P.adressesDuBrouillon({ destinataires: ['a@exemple.fr'], copie: ['A@exemple.fr', 'b@exemple.fr'] }), { destinataires: ['a@exemple.fr'], copie: ['b@exemple.fr'] });
     assert.deepEqual(P.adressesDuBrouillon({ destinataires: [{ email: ' a@exemple.fr ' }], copie: undefined }), { destinataires: ['a@exemple.fr'], copie: [] });
-    assert.deepEqual(P.adressesDuBrouillon({ destinataires: ['a@exemple.fr', 'A@Exemple.fr'], copie: ['x,y@exemple.fr', 'c@exemple.fr', 'C@exemple.fr'] }), { destinataires: ['a@exemple.fr'], copie: ['c@exemple.fr'] }, 'comme le serveur : doublons de casse et adresses non sûres écartés');
-    assert.equal(P.texteAdresses({ destinataires: ['a@exemple.fr'], copie: [] }), 'Adressé à : a@exemple.fr');
-    assert.equal(P.texteAdresses({ destinataires: ['a@exemple.fr', 'c@exemple.fr'], copie: ['b@exemple.fr'] }), 'Adressé à : a@exemple.fr, c@exemple.fr · En copie : b@exemple.fr');
-    assert.equal(P.LIBELLE_CHANGER_ADRESSE, 'Changer l’adresse');
-    assert.equal(P.LIBELLE_ENREGISTRER_ET_PREPARER, 'Enregistrer et préparer l’e-mail');
+    assert.deepEqual(P.adressesDuBrouillon({ destinataires: ['a@exemple.fr', 'A@Exemple.fr'], copie: ['x,y@exemple.fr', 'c@exemple.fr', 'C@exemple.fr'] }), { destinataires: ['a@exemple.fr'], copie: ['c@exemple.fr'] }, 'comme le serveur : doublons de casse et adresses refusées par Gmail écartés');
   });
-  test('P3 « Changer l’adresse » remplace seulement la première adresse : les autres destinataires et la copie sont gardés', () => {
-    const base = { destinataires: ['a@exemple.fr', 'b@exemple.fr'], copie: ['c@exemple.fr'] };
-    assert.deepEqual(P.adressesApresChangement(base, 'a@exemple.fr', 'n@exemple.fr'), { destinataires: ['n@exemple.fr', 'b@exemple.fr'], copie: ['c@exemple.fr'], copieChangee: false });
-    assert.deepEqual(P.adressesApresChangement(base, 'a@exemple.fr', 'C@exemple.fr'), { destinataires: ['C@exemple.fr', 'b@exemple.fr'], copie: [], copieChangee: true }, 'une adresse qui était en copie en est retirée');
-    assert.deepEqual(P.adressesApresChangement(base, 'a@exemple.fr', 'B@exemple.fr').destinataires, ['B@exemple.fr'], 'jamais la même adresse deux fois');
-    assert.deepEqual(P.adressesApresChangement({ destinataires: [], copie: [] }, '', 'n@exemple.fr'), { destinataires: ['n@exemple.fr'], copie: [], copieChangee: false }, 'devis sans destinataire');
-    assert.match(P.MESSAGE_CHANGER_ADRESSE_ICI, /gardés/);
-  });
-  test('P3 l’écran de confirmation grise ses boutons pendant l’appel, garde la fenêtre ouverte sur une erreur avec « Réessayer », et n’appelle qu’une fois', () => {
+  test('P3 l’écran : une seule fenêtre, grise tout pendant l’appel, garde la fenêtre et le texte sur une erreur, et n’appelle qu’une fois ; le devis n’est plus modifié', () => {
     const t = lire('js/modules/devis/email-preparer-ecran.js');
     assert.match(t, /peutFermer: \(\) => !occupe/);
     assert.match(t, /if \(occupe\) return false;/);
     assert.match(t, /boutons\.forEach\(\(b\) => \{ b\.disabled = v; \}\)/);
-    assert.match(t, /boutons\[2\]\.textContent = 'Réessayer'/);
-    assert.match(t, /boutons\[1\]\.textContent = 'Réessayer'/, 'la fenêtre d’adresse aussi, quand seul le brouillon a échoué');
-    assert.equal((t.match(/D\.preparerEmailDevis\(/g) || []).length, 2, 'un seul appel par chemin : la confirmation, ou la fenêtre « Enregistrer et préparer » (jamais les deux : sans adresse, pas de seconde confirmation)');
+    assert.equal((t.match(/D\.preparerEmailDevis\(/g) || []).length, 1);
+    assert.ok(!/modifierDestinataires/.test(sansCommentaires(t)), 'les adresses de la fenêtre valent pour cet envoi : le devis n’est pas écrit');
     assert.match(t, /toast\(P\.MESSAGE_DEMANDE_ENVOYEE/);
   });
   test('P3 le navigateur ne parle jamais à n8n : il appelle seulement les deux fonctions du serveur, par la table fixe de donnees.js', () => {

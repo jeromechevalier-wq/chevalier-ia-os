@@ -89,3 +89,79 @@ export function historiqueEnvois(devis) {
     return { ...e, jour, heure, texte: `Envoyé le ${jour} (${heure})${aQui}${copie}${origine}` };
   });
 }
+
+// ---------------------------------------------------------------- contenu personnalisé d'un envoi (01/11/2026)
+// La fenêtre « Préparer l'e-mail » et l'outil `preparer_email` de l'assistant peuvent donner destinataires, copie, objet et message POUR CET ENVOI SEULEMENT (le devis et le texte standard ne changent pas).
+// Les mêmes règles tournent dans l'écran et sur le serveur (ce fichier est copié sur le serveur) ; le serveur reste le garde-fou : il revalide tout.
+export const MAX_ADRESSES_PAR_CHAMP = 10;
+export const MAX_OBJET = 200;
+export const MAX_MESSAGE = 5000;
+export const MESSAGE_AJOUTER_DESTINATAIRE = 'Ajoute au moins un destinataire';
+const apercuAdresse = (a) => String(a ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 60);
+
+/** Message court si l'adresse ne convient pas (sous le champ), sinon null. */
+export function refusAdresse(adresse) {
+  const a = String(adresse ?? '').trim();
+  return adresseSure(a) ? null : 'Cette adresse e-mail n’est pas valide (exemple : contact@exemple.fr).';
+}
+
+/** Texte libre propre : retours à la ligne normalisés, caractères de contrôle et balises HTML retirés, pas plus de deux lignes vides de suite, espaces de bout retirés. */
+export function nettoyerTexteLibre(t) {
+  return String(t ?? '').replace(/\r\n?/g, '\n').replace(/<\/?[a-zA-Z!][^>]*>/g, '').replace(/\t/g, ' ').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '')
+    .replace(/[ ]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+const nettoyerObjet = (t) => nettoyerTexteLibre(t).replace(/\s*\n\s*/g, ' ');
+
+function listeAdresses(valeur, nom) {
+  if (!Array.isArray(valeur) || valeur.some((a) => typeof a !== 'string')) return { erreur: `${nom} : une liste d’adresses e-mail est attendue.` };
+  const vues = new Set();
+  const liste = [];
+  for (const brute of valeur) {
+    const a = brute.trim();
+    if (!a) continue;
+    if (!adresseSure(a)) return { erreur: `L’adresse « ${apercuAdresse(a)} » (${nom.toLowerCase()}) n’est pas valide.` };
+    if (!vues.has(a.toLowerCase())) { vues.add(a.toLowerCase()); liste.push(a); }
+  }
+  if (liste.length > MAX_ADRESSES_PAR_CHAMP) return { erreur: `${nom} : ${MAX_ADRESSES_PAR_CHAMP} adresses au plus.` };
+  return { liste };
+}
+
+/**
+ * Contenu final d'un envoi. `saisie` : { destinataires?, copie?, objet?, message? } (tout est facultatif ; un champ absent ou vide reprend la valeur par défaut) ;
+ * `defauts` : { destinataires, copie, variables: { contact, numero, objet } } (adresses déjà nettoyées du devis).
+ * Rend { ok: true, destinataires, copie, sujet, message } ou { ok: false, code: 'saisie_invalide' | 'sans_destinataire', erreur }.
+ */
+export function contenuDeLEnvoi(saisie, defauts) {
+  const s = saisie && typeof saisie === 'object' ? saisie : {};
+  let destinataires = defauts.destinataires;
+  if (s.destinataires !== undefined) {
+    const r = listeAdresses(s.destinataires, 'Destinataires');
+    if (r.erreur) return { ok: false, code: 'saisie_invalide', erreur: r.erreur };
+    destinataires = r.liste;
+  }
+  if (!destinataires.length) return { ok: false, code: 'sans_destinataire', erreur: MESSAGE_AJOUTER_DESTINATAIRE };
+  let copie = defauts.copie;
+  if (s.copie !== undefined) {
+    const r = listeAdresses(s.copie, 'Copie');
+    if (r.erreur) return { ok: false, code: 'saisie_invalide', erreur: r.erreur };
+    copie = r.liste;
+  }
+  const dejaDestinataire = copie.find((c) => destinataires.some((a) => a.toLowerCase() === c.toLowerCase()));
+  if (s.copie !== undefined && dejaDestinataire) return { ok: false, code: 'saisie_invalide', erreur: `L’adresse « ${apercuAdresse(dejaDestinataire)} » est déjà destinataire : elle ne peut pas être aussi en copie.` };
+  copie = copie.filter((c) => !destinataires.some((a) => a.toLowerCase() === c.toLowerCase()));
+  let sujet = objetParDefaut(defauts.variables);
+  if (s.objet !== undefined) {
+    if (typeof s.objet !== 'string') return { ok: false, code: 'saisie_invalide', erreur: 'Objet : un texte est attendu.' };
+    const o = nettoyerObjet(s.objet);
+    if (o.length > MAX_OBJET) return { ok: false, code: 'saisie_invalide', erreur: `L’objet est trop long (${MAX_OBJET} caractères au plus).` };
+    if (o) sujet = o;
+  }
+  let message = messageParDefaut(defauts.variables);
+  if (s.message !== undefined) {
+    if (typeof s.message !== 'string') return { ok: false, code: 'saisie_invalide', erreur: 'Message : un texte est attendu.' };
+    const m = nettoyerTexteLibre(s.message);
+    if (m.length > MAX_MESSAGE) return { ok: false, code: 'saisie_invalide', erreur: `Le message est trop long (${MAX_MESSAGE} caractères au plus).` };
+    if (m) message = m;
+  }
+  return { ok: true, destinataires, copie, sujet, message };
+}

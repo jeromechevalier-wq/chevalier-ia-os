@@ -1,5 +1,5 @@
 // « Préparer l'e-mail » d'un devis : l'UNIQUE entrée e-mail du menu « Envoyer » (depuis le 27/10/2026 : plus de brouillon Gmail créé par le navigateur) ; grisée, avec la raison, si le serveur dit « pas branché » ;
-// un clic -> confirmation courte -> la fonction du serveur demande à un workflow n8n de créer un BROUILLON dans le Gmail du compte -> toast ; le résultat se lit dans l'Historique.
+// un clic -> UNE fenêtre à quatre champs préremplis (Destinataires, Copie, Objet, Message ; 01/11/2026) -> la fonction du serveur demande à un workflow n8n de créer un BROUILLON dans le Gmail du compte -> toast ; le résultat se lit dans l'Historique.
 // Le serveur est SIMULÉ (page.route sur devisPreparerEmail et devisPreparerEmailEtat) : on vérifie ce que l'appli demande et ce qu'elle affiche, pas n8n ni Gmail.
 // Un test par critère (le nom commence par le numéro du critère). Captures dans tests/e2e/captures/devis-email-preparer/ (ordinateur ET téléphone).
 // Ces parcours ne sont pas lançables dans le cloud (pas de navigateur) : ils sont écrits pour la suite de la PR sur GitHub.
@@ -13,7 +13,10 @@ const NUMERO = 'DEV-2026-10-25-001';
 const MESSAGE_CONFIRMATION = 'Le brouillon sera créé dans ton Gmail avec le PDF. Rien n’est envoyé.';
 const MESSAGE_TOAST = 'Demande envoyée : le brouillon apparaît dans ton Gmail dans quelques instants';
 const boite = (page) => page.locator('.dialogue-preparer-email');
-const confirmer = (page) => boite(page).locator('[data-action="confirmer-preparer-email"], [data-action="reessayer-preparer-email"]');
+const confirmer = (page) => boite(page).locator('[data-action="confirmer-preparer-email"]');
+const champ = (page, nom) => boite(page).locator(`[data-champ="${nom}-preparer-email"]`);
+const erreurChamp = (page, nom) => boite(page).locator(`[data-zone="erreur-${nom}-preparer-email"]`);
+const OBJET_ATTENDU = `Devis ${NUMERO} – Rénovation restaurant`;
 const historique = (page) => page.locator('[data-zone="historique"]');
 
 const LIGNES = [{ id: 'l1', libelle: 'Carrelage', familleId: 'famille-1', type: 'fourniture', quantite: 10, unite: 'm²', prixAchat: 40, prixVente: 60, tauxTva: 20 }];
@@ -102,7 +105,7 @@ test('1 pas branché : le menu « Envoyer » garde « Préparer l’e-mail » en
   }
 });
 
-test('2 branché : « Préparer l’e-mail » est active et en tête du menu « Envoyer » (suivie de « Télécharger le PDF » et « Imprimer ») ; un clic ouvre la confirmation courte ; « Annuler » ne demande rien', async ({ page }, info) => {
+test('2 branché : « Préparer l’e-mail » est active et en tête du menu « Envoyer » ; un clic ouvre la fenêtre à quatre champs préremplis (adresses du devis, objet et message standard remplis) ; « Annuler » ne demande rien', async ({ page }, info) => {
   await semer('dOui');
   const serveur = await simulerServeur(page, { branche: true });
   await ouvrirEditeur(page, 'dOui');
@@ -115,16 +118,29 @@ test('2 branché : « Préparer l’e-mail » est active et en tête du menu « 
   await entree(page).click();
   await expect(boite(page).getByRole('heading', { name: 'Préparer l’e-mail' })).toBeVisible();
   await expect(boite(page).locator('[data-valeur="confirmation-preparer-email"]')).toHaveText(MESSAGE_CONFIRMATION);
-  await expect(boite(page).locator('[data-valeur="adresses-preparer-email"]')).toHaveText('Adressé à : marie@exemple.fr'); // à qui, avant de créer le brouillon
-  await expect(boite(page).locator('[data-action="changer-adresse-preparer-email"]')).toBeVisible();
-  if (estTelephone(page)) for (const b of await boite(page).locator('.dialogue-pied .bouton').all()) await expect.poll(async () => (await b.boundingBox()).height, { message: 'boutons assez grands au doigt (la fenêtre finit son animation d’ouverture)' }).toBeGreaterThanOrEqual(43.9);
-  await capturer(page, info, '2-confirmation');
+  await expect(boite(page).locator('[data-zone="liste-destinataires"] [data-adresse]')).toHaveText(['marie@exemple.fr']);
+  await expect(boite(page).locator('[data-zone="liste-copie"] [data-adresse]')).toHaveCount(0); // copie vide par défaut
+  await expect(champ(page, 'objet')).toHaveValue(OBJET_ATTENDU);
+  const message = await champ(page, 'message').inputValue();
+  expect(message).toBe(`Bonjour Marie Durand,\n\nVeuillez trouver ci-joint notre devis ${NUMERO} – Rénovation restaurant.\n\nIl reste valable pour la durée indiquée sur le document. N’hésitez pas à me contacter pour toute question ou pour l’adapter.\n\nBien cordialement`);
+  await expect(confirmer(page)).toHaveText('Préparer le brouillon Gmail');
+  await expect(confirmer(page)).toBeEnabled();
+  if (estTelephone(page)) { // plein écran, champs l'un sous l'autre
+    const vue = page.viewportSize();
+    const dlg = await boite(page).boundingBox();
+    expect(dlg.width).toBeGreaterThanOrEqual(vue.width - 2);
+    const y = async (n) => (await champ(page, n).boundingBox()).y;
+    expect(await y('objet')).toBeGreaterThan(await y('destinataires'));
+    expect(await y('message')).toBeGreaterThan(await y('objet'));
+    for (const b of await boite(page).locator('.dialogue-pied .bouton').all()) await expect.poll(async () => (await b.boundingBox()).height, { message: 'boutons assez grands au doigt' }).toBeGreaterThanOrEqual(44);
+  }
+  await capturer(page, info, '2-fenetre');
   await boite(page).locator('[data-action="annuler-preparer-email"]').click();
   await expect(boite(page)).toHaveCount(0);
   expect(serveur.appels).toEqual([]);
 });
 
-test('3 confirmer : UN appel { devisId }, bouton grisé pendant l’appel, puis le toast « Demande envoyée… » ; le devis garde son statut et rien n’est marqué « envoyé »', async ({ page }, info) => {
+test('3 confirmer sans rien changer : UN appel { devisId } seul (comme avant la fenêtre), bouton grisé pendant l’appel, puis le toast « Demande envoyée… » ; le devis garde son statut et rien n’est marqué « envoyé »', async ({ page }, info) => {
   await semer('dAppel');
   const serveur = await simulerServeur(page, { branche: true, delaiMs: 1200 });
   await ouvrirEditeur(page, 'dAppel');
@@ -133,6 +149,7 @@ test('3 confirmer : UN appel { devisId }, bouton grisé pendant l’appel, puis 
   await confirmer(page).click();
   await expect(confirmer(page)).toBeDisabled();
   await expect(boite(page).locator('[data-action="annuler-preparer-email"]')).toBeDisabled();
+  await expect(champ(page, 'objet')).toBeDisabled();
   await expect(boite(page).locator('[data-zone="etat-preparer-email"]')).toBeVisible();
   await capturer(page, info, '3-en-cours');
   await page.keyboard.press('Escape');
@@ -145,27 +162,28 @@ test('3 confirmer : UN appel { devisId }, bouton grisé pendant l’appel, puis 
   await capturer(page, info, '3-toast');
 });
 
-test('4 erreur du serveur : le message reste affiché dans la fenêtre avec « Réessayer » ; le bouton redevient actif ; « Réessayer » repart et réussit', async ({ page }, info) => {
+test('4 erreur du serveur : le message reste affiché dans la fenêtre, TOUT le texte saisi reste, le bouton redevient actif ; un second essai repart avec le même texte et réussit', async ({ page }, info) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 412 au premier essai' });
   await semer('dErreur');
   const serveur = await simulerServeur(page, { branche: true, reponses: [{ erreur: 'Une préparation est déjà en cours pour ce devis : patiente quelques instants (3 minutes au plus), puis réessaie.' }, { ok: true }] });
   await ouvrirEditeur(page, 'dErreur');
   await ouvrirMenuEnvoyer(page);
   await entree(page).click();
+  await champ(page, 'objet').fill('Mon objet à moi');
   await confirmer(page).click();
   const erreur = boite(page).locator('[data-zone="erreur-preparer-email"]');
   await expect(erreur).toContainText('Une préparation est déjà en cours');
-  await expect(confirmer(page)).toHaveText('Réessayer');
+  await expect(champ(page, 'objet')).toHaveValue('Mon objet à moi');
   await expect(confirmer(page)).toBeEnabled();
   await expect(page.getByText(MESSAGE_TOAST)).toHaveCount(0);
   await capturer(page, info, '4-erreur');
   await confirmer(page).click();
   await expect(boite(page)).toHaveCount(0);
   await expect(page.locator('#toasts')).toContainText(MESSAGE_TOAST);
-  expect(serveur.appels).toHaveLength(2);
+  expect(serveur.appels).toEqual([{ devisId: 'dErreur', objet: 'Mon objet à moi' }, { devisId: 'dErreur', objet: 'Mon objet à moi' }]);
 });
 
-test('5 cas particuliers : un brouillon propose « Finaliser d’abord » ; un devis sans destinataire dit quoi faire ; aucun appel dans les deux cas', async ({ page }, info) => {
+test('5 un brouillon propose « Finaliser d’abord » ; aucun appel', async ({ page }, info) => {
   await semer('dBrouillon', { statut: 'brouillon', numero: null, finaliseLe: null, pdf: null });
   let serveur = await simulerServeur(page, { branche: true });
   await ouvrirEditeur(page, 'dBrouillon');
@@ -177,18 +195,6 @@ test('5 cas particuliers : un brouillon propose « Finaliser d’abord » ; un d
   await expect(dlg.locator('[data-valeur="finaliser-d-abord"]')).toContainText('encore un brouillon');
   await expect(boite(page)).toHaveCount(0);
   await capturer(page, info, '5-brouillon');
-  expect(serveur.appels).toEqual([]);
-  await page.keyboard.press('Escape');
-  await page.unroute('**/devisPreparerEmailEtat');
-  await page.unroute('**/devisPreparerEmail');
-  await semer('dSans', { destinataires: [] });
-  serveur = await simulerServeur(page, { branche: true });
-  await ouvrirEditeur(page, 'dSans');
-  await ouvrirMenuEnvoyer(page);
-  await entree(page).click();
-  await expect(page.locator('.dialogue [data-valeur="sans-destinataire"]')).toContainText('n’a pas de destinataire');
-  await expect(page.locator('.dialogue [data-valeur="confirmation-preparer-email"]')).toHaveText(MESSAGE_CONFIRMATION); // la garantie « rien n’est envoyé » est dite aussi dans la fenêtre unique
-  await capturer(page, info, '5-sans-destinataire');
   expect(serveur.appels).toEqual([]);
 });
 
@@ -214,4 +220,89 @@ test('6 l’Historique du devis : « E-mail préparé dans Gmail le … » une f
   await ouvrirHistorique(page);
   await expect(historique(page).locator('[data-valeur="email-prepare"]')).toHaveText('La préparation de l’e-mail a échoué le 25/10/2026 (09 h 40). Tu peux réessayer.');
   await capturer(page, info, '6-historique-echec');
+});
+
+test('7 modifier les quatre champs : ajouter et retirer un destinataire, ajouter une copie, changer l’objet et le message ; l’appel ne porte que ce qui a changé, et le devis n’est PAS modifié', async ({ page }, info) => {
+  await semer('dModif');
+  const serveur = await simulerServeur(page, { branche: true });
+  await ouvrirEditeur(page, 'dModif');
+  await ouvrirMenuEnvoyer(page);
+  await entree(page).click();
+  await champ(page, 'destinataires').fill('paul@exemple.fr');
+  await champ(page, 'destinataires').press('Enter');
+  await expect(boite(page).locator('[data-zone="liste-destinataires"] [data-adresse]')).toHaveText(['marie@exemple.fr', 'paul@exemple.fr']);
+  await boite(page).getByRole('button', { name: 'Retirer marie@exemple.fr' }).click();
+  await expect(boite(page).locator('[data-zone="liste-destinataires"] [data-adresse]')).toHaveText(['paul@exemple.fr']);
+  await champ(page, 'copie').fill('compta@exemple.fr');
+  await champ(page, 'copie').press('Enter');
+  await expect(boite(page).locator('[data-zone="liste-copie"] [data-adresse]')).toHaveText(['compta@exemple.fr']);
+  await champ(page, 'objet').fill('Votre devis cuisine');
+  await champ(page, 'message').fill('Bonjour Paul,\n\nVoici le devis.');
+  await capturer(page, info, '7-modifie');
+  await confirmer(page).click();
+  await expect(boite(page)).toHaveCount(0);
+  expect(serveur.appels).toEqual([{ devisId: 'dModif', destinataires: ['paul@exemple.fr'], copie: ['compta@exemple.fr'], objet: 'Votre devis cuisine', message: 'Bonjour Paul,\n\nVoici le devis.' }]);
+  const devis = await lireDocument('devis_devis/dModif');
+  expect(devis.destinataires).toEqual(['marie@exemple.fr']);
+  expect(devis.copie).toEqual([]);
+  expect(serveur.autres).toEqual([]);
+});
+
+test('8 cas vide : un devis sans adresse ouvre la fenêtre, le bouton est grisé avec « Ajoute au moins un destinataire » ; il s’active dès qu’une adresse est ajoutée (et une adresse tapée sans Entrée compte)', async ({ page }, info) => {
+  await semer('dSans', { destinataires: [] });
+  const serveur = await simulerServeur(page, { branche: true });
+  await ouvrirEditeur(page, 'dSans');
+  await ouvrirMenuEnvoyer(page);
+  await entree(page).click();
+  await expect(boite(page).locator('[data-zone="aide-destinataires-preparer-email"]')).toHaveText('Ajoute au moins un destinataire');
+  await expect(confirmer(page)).toBeDisabled();
+  await capturer(page, info, '8-aucun-destinataire');
+  await champ(page, 'destinataires').fill('nouveau@exemple.fr');
+  await champ(page, 'destinataires').press('Enter');
+  await expect(confirmer(page)).toBeEnabled();
+  await expect(boite(page).locator('[data-zone="aide-destinataires-preparer-email"]')).toBeHidden();
+  await confirmer(page).click();
+  await expect(boite(page)).toHaveCount(0);
+  expect(serveur.appels).toEqual([{ devisId: 'dSans', destinataires: ['nouveau@exemple.fr'] }]);
+  expect((await lireDocument('devis_devis/dSans')).destinataires, 'le devis reste sans destinataire').toEqual([]);
+});
+
+test('9 adresse mal écrite : un message court sous le champ, le texte tapé reste, rien n’est ajouté, rien n’est demandé ; doublon et maximum de 10 refusés avec une phrase', async ({ page }, info) => {
+  await semer('dMal');
+  const serveur = await simulerServeur(page, { branche: true });
+  await ouvrirEditeur(page, 'dMal');
+  await ouvrirMenuEnvoyer(page);
+  await entree(page).click();
+  await champ(page, 'destinataires').fill('pas-une-adresse');
+  await champ(page, 'destinataires').press('Enter');
+  await expect(erreurChamp(page, 'destinataires')).toContainText('n’est pas valide');
+  await expect(champ(page, 'destinataires')).toHaveValue('pas-une-adresse');
+  await expect(boite(page).locator('[data-zone="liste-destinataires"] [data-adresse]')).toHaveText(['marie@exemple.fr']);
+  await capturer(page, info, '9-adresse-mal-ecrite');
+  await champ(page, 'destinataires').fill('marie@exemple.fr');
+  await champ(page, 'destinataires').press('Enter');
+  await expect(erreurChamp(page, 'destinataires')).toContainText('déjà');
+  await champ(page, 'destinataires').fill('');
+  await expect(erreurChamp(page, 'destinataires')).toBeHidden();
+  for (let i = 1; i < 10; i += 1) { await champ(page, 'copie').fill(`copie${i}@exemple.fr`); await champ(page, 'copie').press('Enter'); }
+  await expect(boite(page).locator('[data-zone="liste-copie"] [data-adresse]')).toHaveCount(9);
+  await champ(page, 'copie').fill('copie10@exemple.fr');
+  await champ(page, 'copie').press('Enter');
+  await expect(boite(page).locator('[data-zone="maximum-copie"]')).toHaveText('10 adresses : c’est le maximum.');
+  await expect(champ(page, 'copie')).toBeHidden();
+  await capturer(page, info, '9-maximum');
+  expect(serveur.appels).toEqual([]);
+});
+
+test('10 Échap ferme la fenêtre sans rien demander et rend le focus au menu ; la fenêtre met le focus dans le premier champ utile', async ({ page }) => {
+  await semer('dEchap');
+  const serveur = await simulerServeur(page, { branche: true });
+  await ouvrirEditeur(page, 'dEchap');
+  await ouvrirMenuEnvoyer(page);
+  await entree(page).click();
+  await expect(champ(page, 'objet')).toBeFocused(); // l'adresse du devis est déjà là : on va droit à l'objet
+  await champ(page, 'message').fill('Un texte que je ne veux plus');
+  await page.keyboard.press('Escape');
+  await expect(boite(page)).toHaveCount(0);
+  expect(serveur.appels).toEqual([]);
 });

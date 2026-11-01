@@ -1587,7 +1587,7 @@ export async function preparerEmail(c, args) {
   if (!sortie) refuser('non_branche', `${MESSAGE_NON_BRANCHE} Ne l’envoie pas toi-même par un autre moyen : dis-le à l’utilisateur.`);
   // Pas branché (aucune adresse ni secret pour cet espace) : on s'arrête AVANT de réserver une écriture et avec le bon code.
   if (!(await sortie.branche(c.espaceN8n))) refuser('non_branche', `${MESSAGE_NON_BRANCHE} Ne l’envoie pas toi-même par un autre moyen : dis-le à l’utilisateur.`);
-  const r = await appelerCoeurDevis(c, () => preparerBrouillonEmail({ donnees: c.donnees, ctx: ctxDevis(c), source: { type: args.type, id: args.id }, espace: c.espaceN8n, sortie }));
+  const r = await appelerCoeurDevis(c, () => preparerBrouillonEmail({ donnees: c.donnees, ctx: ctxDevis(c), source: { type: args.type, id: args.id }, espace: c.espaceN8n, sortie, saisie: { destinataires: args.destinataires, copie: args.copie, objet: args.objet, message: args.message } }));
   return {
     type: args.type, id: args.id, demandeId: r.demandeId, statut: 'demandee', envoye: false,
     aSavoir: 'Un BROUILLON est en cours de création dans la messagerie de l’utilisateur (quelques secondes). Rien n’a été envoyé et rien ne sera envoyé tout seul. Dis à l’utilisateur d’ouvrir son brouillon, de le relire et de l’envoyer LUI-MÊME ; ne l’envoie pas à sa place.',

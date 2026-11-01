@@ -18,6 +18,19 @@ export const MAX_MESSAGE_ETAT = 200;
 export const STATUTS_DEMANDE = Object.freeze({ DEMANDEE: 'demandee', OK: 'ok', ECHEC: 'echec' });
 export const MESSAGE_DEMANDE_INCONNUE = 'Demande inconnue ou trop ancienne.';
 const idDernier = (devisId) => `dernier-${devisId}`;
+// Contenu personnalisé d'un envoi (01/11/2026) : un document À PART par demande, dans la même collection fermée aux navigateurs (aucune règle à changer). La ligne de la demande, elle, ne contient jamais de contenu.
+// n8n ne reçoit toujours que des identifiants : il relit ce document par l'action de porte `devis.lireEmail`.
+const idContenu = (demandeId) => `contenu-${demandeId}`;
+export const ACTION_CONTENU = 'devis.contenuEmail';
+const CHAMPS_SAISIE = ['destinataires', 'copie', 'objet', 'message'];
+
+/** La saisie facultative (fenêtre ou assistant) réduite aux 4 champs connus ; null si aucun champ n'est donné. Un champ d'un autre type que prévu sera refusé par contenuDeLEnvoi. */
+export function saisieEmail(brut) {
+  if (!brut || typeof brut !== 'object') return null;
+  const s = {};
+  for (const c of CHAMPS_SAISIE) if (brut[c] !== undefined && brut[c] !== null) s[c] = brut[c];
+  return Object.keys(s).length ? s : null;
+}
 const MOTIF_DEMANDE = /^[a-z0-9][a-z0-9_-]{0,99}$/;
 
 const enMs = (v) => (v == null ? null : v instanceof Date ? v.getTime() : typeof v.toMillis === 'function' ? v.toMillis() : typeof v.toDate === 'function' ? v.toDate().getTime() : typeof v === 'number' ? v : null);
@@ -34,13 +47,20 @@ function adressesUtilisables(liste) {
   return sortie;
 }
 
+/** Adresses du devis utilisables, la copie sans les destinataires : les valeurs par défaut d'un envoi. */
+export function adressesPourEnvoi(devis) {
+  const destinataires = adressesUtilisables(devis.destinataires);
+  const copie = adressesUtilisables(devis.copie).filter((c) => !destinataires.some((a) => a.toLowerCase() === c.toLowerCase()));
+  return { destinataires, copie };
+}
+
 /** Ce qu'il faut pour préparer un e-mail : un devis finalisé (ou envoyé : renvoi), au moins un destinataire, un PDF « ok ». Lève ErreurDevis sinon. */
-export function controlerPourEmail(devis) {
+export function controlerPourEmail(devis, { destinatairesLibres = false } = {}) {
   if (devis.statut === 'brouillon') throw new ErreurDevis('brouillon', E.MESSAGE_FINALISER_D_ABORD);
   const possible = E.emailPossible(devis.statut);
   if (!possible.actif) throw new ErreurDevis('statut_interdit', possible.raison);
   const destinataires = adressesUtilisables(devis.destinataires);
-  if (!destinataires.length) throw new ErreurDevis('sans_destinataire', 'Ce devis n’a pas de destinataire : demande son adresse e-mail à l’utilisateur et enregistre-la avec modifier_destinataires_devis (ou le bouton « Préparer l’e-mail » de l’écran), puis réessaie.');
+  if (!destinataires.length && !destinatairesLibres) throw new ErreurDevis('sans_destinataire', 'Ce devis n’a pas de destinataire : demande son adresse e-mail à l’utilisateur et donne-la dans le champ « destinataires » de preparer_email (pour cet e-mail seulement) ou enregistre-la sur le devis avec modifier_destinataires_devis, puis réessaie.');
   if (devis.pdf?.statut !== 'ok' || typeof devis.pdf?.chemin !== 'string') {
     throw new ErreurDevis('pdf_pas_pret', devis.pdf?.statut === 'en_cours' ? E.MESSAGE_PDF_EN_COURS : devis.pdf?.statut === 'echec' ? E.MESSAGE_PDF_ECHEC : E.MESSAGE_PDF_PAS_PRET);
   }
@@ -53,14 +73,23 @@ export function controlerPourEmail(devis) {
  * `espace` : 'interne' (Jérôme) ou l'identifiant du client. `sortie` : { branche(espace), demander(espace, { devisId, demandeId }) } (n8n-sortie.js).
  * `genererId()` : identifiant de demande (minuscules, chiffres, - et _). Rend { ok: true, demandeId } ; la suite est asynchrone (n8n écrit le résultat par la porte).
  */
-export async function demanderPreparation({ donnees, ctx, devisId, espace, sortie, genererId = idDeDemande }) {
+export async function demanderPreparation({ donnees, ctx, devisId, espace, sortie, saisie = null, genererId = idDeDemande }) {
   if (typeof devisId !== 'string' || !devisId || devisId.length > 200 || devisId.includes('/')) throw new ErreurDevis('demande_invalide', 'Identifiant de devis manquant ou invalide.');
   if (!(await sortie.branche(espace))) throw new ErreurDevis('non_branche', MESSAGE_NON_BRANCHE);
   const demandeId = genererId();
   const maintenant = ctx.maintenant;
+  const personnalise = saisieEmail(saisie);
   await donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
-    controlerPourEmail(devis);
+    controlerPourEmail(devis, { destinatairesLibres: personnalise !== null });
+    let contenu = null;
+    if (personnalise) { // vérifié et nettoyé ICI (le serveur est le garde-fou) ; le texte n'est écrit nulle part ailleurs que dans ce document
+      const personne = devis.personneId ? await tx.document(C.personnes, devis.personneId) : null;
+      const defauts = { ...adressesPourEnvoi(devis), variables: { contact: typeof personne?.nom === 'string' ? personne.nom : '', numero: devis.numero || '', objet: devis.objet || '' } };
+      const r = E.contenuDeLEnvoi(personnalise, defauts);
+      if (!r.ok) throw new ErreurDevis(r.code === 'sans_destinataire' ? 'sans_destinataire' : 'demande_invalide', r.erreur);
+      contenu = { destinataires: r.destinataires, copie: r.copie, sujet: r.sujet, message: r.message };
+    }
     // Document fixe par devis, lu ET réécrit dans la transaction : deux appels simultanés entrent en conflit (Firestore relance la perdante, qui voit alors la demande de la première).
     const dernier = await tx.document(C.actionsLancements, idDernier(devisId));
     if (dernier && dernier.statut !== STATUTS_DEMANDE.ECHEC) { // un échec se réessaie tout de suite
@@ -73,8 +102,9 @@ export async function demanderPreparation({ donnees, ctx, devisId, espace, sorti
     }
     const emailPrepare = { le: maintenant, demandeId, canal: 'n8n', statut: STATUTS_DEMANDE.DEMANDEE };
     const changement = modifier(devis, { emailPrepare }); // l'Historique du devis dit « Préparation de l'e-mail en cours… »
-    const j = journal({ donnees, ctx, outil: 'devisPreparerEmail', parametres: { devisId, demandeId }, changements: [changement] });
+    const j = journal({ donnees, ctx, outil: 'devisPreparerEmail', parametres: { devisId, demandeId, ...(contenu ? { contenuPersonnalise: true } : {}) }, changements: [changement] });
     tx.ecrire([
+      ...(contenu ? [{ type: 'set', collection: C.actionsLancements, id: idContenu(demandeId), donnees: { action: ACTION_CONTENU, devisId, demandeId, demandeLe: maintenant, ...contenu } }] : []),
       changement.ecriture,
       { type: 'set', collection: C.actionsLancements, id: demandeId, donnees: { action: 'devis.preparerEmail', client: espace, devisId, demandeId, statut: STATUTS_DEMANDE.DEMANDEE, demandeLe: maintenant } },
       { type: 'set', collection: C.actionsLancements, id: idDernier(devisId), donnees: { action: 'dernier', devisId, demandeId, statut: STATUTS_DEMANDE.DEMANDEE, demandeLe: maintenant } },
@@ -138,13 +168,16 @@ async function lireDevisPourDemande(tx, devisId) {
  * Jamais de prix d'achat, de marge, de chemin de stockage ni d'empreinte. `pdf({ chemin, nom })` rend { lienSigne, octets } (lien de lecture signé de 10 minutes).
  */
 export async function lireEmailPourDemande({ donnees, devisId, demandeId, maintenant = new Date(), pdf }) {
-  const { devis, contact } = await donnees.transaction(async (tx) => {
+  const { devis, contact, contenu } = await donnees.transaction(async (tx) => {
     await lireDemande(tx, { devisId, demandeId, maintenant, ageMax: AGE_MAX_LECTURE_MS, accepte: [STATUTS_DEMANDE.DEMANDEE] });
     const d = await lireDevisPourDemande(tx, devisId);
     const personne = d.personneId ? await tx.document(C.personnes, d.personneId) : null;
-    return { devis: d, contact: typeof personne?.nom === 'string' ? personne.nom : '' };
+    const c = await tx.document(C.actionsLancements, idContenu(demandeId));
+    return { devis: d, contact: typeof personne?.nom === 'string' ? personne.nom : '', contenu: c && c.action === ACTION_CONTENU && c.devisId === devisId ? c : null };
   });
-  const { destinataires, copie } = controlerPourEmail(devis);
+  const base = controlerPourEmail(devis, { destinatairesLibres: contenu !== null });
+  const destinataires = contenu ? contenu.destinataires : base.destinataires;
+  const copie = contenu ? contenu.copie : base.copie;
   const variables = { contact, numero: devis.numero || '', objet: devis.objet || '' };
   let fichier;
   try { fichier = await pdf({ chemin: devis.pdf.chemin, nom: E.nomPieceJointe(devis.pdf.nom) }); } catch { throw new ErreurDevis('pdf_indisponible', 'Le lien de lecture du PDF n’a pas pu être créé. Réessaie dans un instant.'); }
@@ -154,8 +187,8 @@ export async function lireEmailPourDemande({ donnees, devisId, demandeId, mainte
     objet: devis.objet ?? '',
     destinataires,
     copie,
-    sujet: E.objetParDefaut(variables),
-    message: E.messageParDefaut(variables),
+    sujet: contenu ? contenu.sujet : E.objetParDefaut(variables),
+    message: contenu ? contenu.message : E.messageParDefaut(variables),
     pdf: { nom: E.nomPieceJointe(devis.pdf.nom), lienSigne: fichier.lienSigne, octets: fichier.octets },
   };
 }

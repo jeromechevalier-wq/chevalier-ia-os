@@ -168,6 +168,21 @@ describe('2 preparer_email : un brouillon seulement, jamais d’envoi', () => {
     assert.equal(s.collections.crm_actions_lancements.filter((l) => l.action === 'devis.preparerEmail').length, 1);
   });
 
+  test('2 destinataires, copie, objet et message facultatifs (01/11/2026) : mémorisés côté serveur, relus par la porte, jamais envoyés à n8n ; adresse invalide refusée sans rien écrire', async () => {
+    const s = await demarrer({ devis: [finalise('f1')] });
+    refuse(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1', destinataires: ['pas une adresse'] }), /n’est pas valide/);
+    assert.equal(s.demandes.length, 0);
+    assert.equal(s.doc('devis_devis', 'f1').emailPrepare, undefined);
+    const r = ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1', destinataires: ['paul@exemple.test'], copie: ['luc@exemple.test'], objet: 'Mon objet', message: 'Mon message <b>gras</b>' }));
+    assert.equal(r.envoye, false);
+    assert.deepEqual(s.demandes[0], { espace: 'interne', devisId: 'f1', demandeId: r.demandeId }, 'n8n ne reçoit que des identifiants');
+    const contenu = s.collections.crm_actions_lancements.find((l) => l.id === `contenu-${r.demandeId}`);
+    assert.deepEqual(contenu.destinataires, ['paul@exemple.test']);
+    assert.equal(contenu.sujet, 'Mon objet');
+    assert.equal(contenu.message, 'Mon message gras', 'pas de HTML');
+    assert.deepEqual(s.doc('devis_devis', 'f1').destinataires, finalise('f1').destinataires, 'le devis n’est pas modifié');
+  });
+
   test('2 refus : brouillon de devis, sans destinataire, PDF pas prêt, profil lecteur, deuxième demande trop vite ; rien n’est demandé à n8n', async () => {
     const s = await demarrer({ devis: [
       devisEnregistre('b1'), finalise('d0', 'en_attente_envoi', { destinataires: [] }), finalise('p0', 'en_attente_envoi', { pdf: { statut: 'en_cours', tentatives: 1 } }), finalise('f1'),
@@ -183,12 +198,13 @@ describe('2 preparer_email : un brouillon seulement, jamais d’envoi', () => {
     assert.equal(s.demandes.length, 1);
   });
 
-  test('2 le type de l’objet d’origine est obligatoire et limité aux sources connues (devis) ; aucun champ de texte, de destinataire ou de pièce jointe n’existe', async () => {
+  test('2 le type de l’objet d’origine est obligatoire et limité aux sources connues (devis) ; seuls destinataires, copie, objet et message sont facultatifs, jamais une pièce jointe', async () => {
     const s = await demarrer({ devis: [finalise('f1')] });
     refuse(await s.appeler('biblio', 'preparer_email', { type: 'facture', id: 'f1' }));
     refuse(await s.appeler('biblio', 'preparer_email', { id: 'f1' }));
     const o = OUTILS.find((x) => x.nom === 'preparer_email');
-    assert.deepEqual(Object.keys(o.schema).sort(), ['id', 'type']);
+    assert.deepEqual(Object.keys(o.schema).sort(), ['copie', 'destinataires', 'id', 'message', 'objet', 'type']);
+    for (const c of ['destinataires', 'copie', 'objet', 'message']) assert.equal(o.schema[c].isOptional(), true, c);
     assert.equal(s.demandes.length, 0);
   });
 
@@ -205,6 +221,14 @@ describe('2 preparer_email : un brouillon seulement, jamais d’envoi', () => {
     ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1' }));
     assert.equal(s.demandes[0].espace, 'demo');
     assert.equal(s.lignesLancements()[0].client, 'demo');
+  });
+
+  test('2 la description dit à l’assistant de montrer le texte à l’utilisateur et de le faire corriger AVANT d’appeler l’outil, sans inventer d’adresse', () => {
+    const o = OUTILS.find((x) => x.nom === 'preparer_email');
+    assert.match(o.description, /AVANT d'appeler l'outil, montre-lui dans la conversation/);
+    assert.match(o.description, /fais-les corriger/);
+    assert.match(o.description, /N'invente jamais une adresse/);
+    assert.ok(!/TEXTE À COLLER|instructions personnalisées/i.test(o.description));
   });
 
   test('2 la description dit « brouillon », « n’envoie rien » et renvoie vers l’utilisateur ; l’outil n’est ni lecture seule ni destructeur', () => {
@@ -343,15 +367,11 @@ describe('7 modifier_destinataires_devis : donner l’adresse d’un devis final
     assert.equal(annotationsDe(o).readOnlyHint, false);
   });
 
-  test('7 l’écran : sans adresse, UNE fenêtre enregistre l’adresse puis prépare le brouillon ; avec une adresse, la confirmation dit à qui, et « Changer l’adresse » passe par le serveur', () => {
+  test('7 l’écran : une seule fenêtre à quatre champs, aucune écriture dans le devis, la demande part par le serveur avec seulement les champs changés', () => {
     const ecran = readFileSync(join(racine, 'js/modules/devis/email-preparer-ecran.js'), 'utf8');
-    assert.match(ecran, /if \(!P\.aUnDestinataire\(d\)\) \{ await saisirEtPreparer\(devisId\); return; \}/);
-    assert.match(ecran, /P\.adressesApresChangement\(\{ destinataires, copie \}, depart, adresse\)/); // les autres destinataires et la copie sont gardés
-    assert.match(ecran, /D\.modifierDestinataires\(devisId, \{ destinataires: suite\.destinataires/);
-    assert.match(ecran, /if \(preparer\) await D\.preparerEmailDevis\(devisId\)/);
-    assert.match(ecran, /P\.refusDestinataire\(adresse\)/);
-    assert.match(ecran, /P\.texteAdresses\(adresses\)/);
-    assert.match(ecran, /valeur: 'changer'/);
+    assert.match(ecran, /D\.preparerEmailDevis\(devisId, P\.saisieModifiee\(depart, etat\)\)/);
+    assert.ok(!/D\.modifierDestinataires/.test(ecran));
+    assert.match(ecran, /P\.ajouterAdresse\(/);
   });
 });
 

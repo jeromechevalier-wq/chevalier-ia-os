@@ -373,7 +373,8 @@ export const pdfLien = (devisId, brouillon = false, { telecharger = false } = {}
 
 // ---------------------------------------------------------------- « Préparer l'e-mail » (un workflow n8n crée un brouillon dans le Gmail du compte ; rien n'est envoyé)
 /** Demande la préparation : `{ ok, demandeId }`. Le brouillon arrive dans Gmail quelques instants plus tard ; le devis reçoit `emailPrepare` quand le serveur l'écrit. Lève une Error lisible si refusé. */
-export const preparerEmailDevis = (devisId) => appeler('preparerEmail', { devisId });
+/** `saisie` (facultative) : { destinataires?, copie?, objet?, message? }, seulement les champs changés dans la fenêtre : valables pour CET envoi, le devis ne change pas. */
+export const preparerEmailDevis = (devisId, saisie = null) => appeler('preparerEmail', { devisId, ...(saisie ?? {}) });
 let brancheEmail = null; // null = pas encore su ; true / false = réponse du serveur (gardée pour la session)
 let brancheEnCours = null;
 /** Le bouton « Préparer l'e-mail » doit-il être montré ? Valeur déjà connue (true / false) ou null tant que le serveur n'a pas répondu. Lance la question au premier appel. */
