@@ -662,7 +662,7 @@ async function remplir(id, options, ctx, fiche) {
   const config = L.construireConfig({ etapes: etapesDoc.exists ? etapesDoc.data() : null, phases: phasesDoc.exists ? phasesDoc.data() : null, reglages: reglagesCrm.exists ? reglagesCrm.data() : null }, { racine: false, membres: [] });
   const jeu = ctx.jeu ?? (jeuMetier ? { motOuvrage: jeuMetier.motOuvrage } : JEU_BATIMENT);
   if (!MOTS_OUVRAGE.some((m) => m.id === jeu.motOuvrage)) throw new ErreurOutil(`Le mot du métier du jeu (« ${jeu.motOuvrage} ») n'est pas dans la liste du logiciel.`);
-  const reglagesDemo = A.reglagesDevis({ ...A.REGLAGES_DEVIS_DEFAUT, motOuvrage: jeu.motOuvrage, modeMarge: reglagesSource.modeMarge, marge: masquer ? 0 : reglagesSource.marge, margeDevis: masquer ? 0 : reglagesSource.margeDevis, entreprise: emetteurDe(jeuMetier) });
+  const reglagesDemo = A.reglagesDevis({ ...A.REGLAGES_DEVIS_DEFAUT, motOuvrage: jeu.motOuvrage, modeMarge: reglagesSource.modeMarge, marge: masquer ? 0 : reglagesSource.marge, margeDevis: masquer ? 0 : reglagesSource.margeDevis, entreprise: emetteurDe(jeuMetier), gestionDechets: jeuMetier?.dechets ?? true });
   const reglages = reglagesDoc.exists ? A.reglagesDevis(reglagesDoc.data()) : reglagesDemo;
   const compteurDepart = Number.isInteger(compteurDoc.data()?.valeur) ? compteurDoc.data().valeur : 0;
 

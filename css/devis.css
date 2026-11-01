@@ -523,6 +523,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 
 /* Gestion des déchets : formulaire en place sous le titre du bloc (information imprimée, jamais dans les totaux). */
 .bloc-dechets { display: flex; flex-direction: column; gap: var(--esp-3); min-width: 0; }
+.bloc-dechets[hidden] { display: none; }
 .dechets-phrases { display: flex; flex-direction: column; gap: var(--esp-1); }
 .dechets-formulaire { display: flex; flex-direction: column; gap: var(--esp-4); min-width: 0; }
 .dechets-formulaire:focus { outline: none; }

@@ -79,7 +79,9 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefix
 
     // Vue client : jamais de prix d'achat, de marge ni de coefficient (garanti par vueClient, vérifié par les tests).
     const vue = D.vueClient(devis, { clientNom: fiche?.nom ?? null, attentionNom: personne?.nom ?? null });
-    const html = devisHtml(vue, brouillon ? { emetteur, brouillon: true } : { emetteur });
+    // Réglage « Gestion des déchets » éteint (Réglages > Devis) : le bloc n'est pas imprimé. Les cases « Options » de chaque devis ne sont pas appliquées au PDF officiel (comportement inchangé).
+    const sansDechets = D.gestionDechetsActive(reglages) ? {} : { affichage: { cacherDechets: true } };
+    const html = devisHtml(vue, { emetteur, ...(brouillon ? { brouillon: true } : {}), ...sansDechets });
     const { pdf, sha256 } = await convertir(html, { pied: brouillon ? piedParDefaut('Brouillon', { version: devis.version ?? 1, genereLe: ctx?.maintenant ?? new Date() }) : piedParDefaut(devis.numero ?? '') });
 
     const chemin = cheminPdfDevis({ espace, affaireId: devis.affaireId, devisId, brouillon, nomFichier: nomFichierDevis({ numero: devis.numero, version: devis.version, objet: devis.objet }) });

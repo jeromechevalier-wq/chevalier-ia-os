@@ -15,7 +15,7 @@ const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, 
 /** Le brouillon part des réglages enregistrés ; les nombres restent du texte tant qu'on tape. */
 const brouillonDe = (r) => ({
   nomBordereau: r.nomBordereau, modeMarge: r.modeMarge, marge: String(r.marge).replace('.', ','), margeDevis: String(r.margeDevis).replace('.', ','), regimeTva: r.regimeTva, tauxProposes: [...r.tauxProposes],
-  tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), mentionEmetteur: r.mentionEmetteur, mentionTvaReduite: r.mentionTvaReduite, etapeAffaireCreee: r.etapeAffaireCreee,
+  tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), mentionEmetteur: r.mentionEmetteur, mentionTvaReduite: r.mentionTvaReduite, etapeAffaireCreee: r.etapeAffaireCreee, gestionDechets: r.gestionDechets !== false,
   motOuvrage: r.motOuvrage, motOuvrageAutre: { singulier: r.motOuvrageAutre?.singulier ?? '', pluriel: r.motOuvrageAutre?.pluriel ?? '', genre: r.motOuvrageAutre?.genre ?? '' }, // recopiés : l'enregistrement est un setDoc sans fusion
   entreprise: entrepriseBrouillon(r.entreprise),
 });
@@ -201,6 +201,8 @@ export function reglages(page) {
         bloc('dureeValiditeJours', 'Durée de validité d’un devis (jours)', texte('dureeValiditeJours', brouillon.dureeValiditeJours, { inputmode: 'numeric' }))),
       bloc('tauxProposes', 'Taux de TVA proposés', taux),
       bloc('tauxTvaDefaut', 'Taux de TVA par défaut', liste('tauxTvaDefaut', TAUX_TVA_DEFAUT.map((t) => ({ valeur: t, libelle: A.formaterTaux(t) })), brouillon.tauxTvaDefaut, (v) => changer({ tauxTvaDefaut: Number(v) }))),
+      bloc('gestionDechets', 'Gestion des déchets', liste('gestionDechets', [{ valeur: 'oui', libelle: 'Oui' }, { valeur: 'non', libelle: 'Non' }], brouillon.gestionDechets ? 'oui' : 'non', (v) => changer({ gestionDechets: v === 'oui' })),
+        'Pour les métiers sans chantier (agence, conseil…), tu peux le désactiver.'),
       h('div', { class: 'pile', dataset: { zone: 'etape-affaire-creee' } },
         bloc('etapeAffaireCreee', 'Étape des affaires créées depuis un devis', liste('etapeAffaireCreee', optionsEtapes, brouillon.etapeAffaireCreee, (v) => changer({ etapeAffaireCreee: v })),
           'Quand tu crées une affaire depuis un devis (« + Créer l’affaire » dans la ligne Affaire), elle arrive dans cette étape. Sans réglage, la liste te demande l’étape.'),

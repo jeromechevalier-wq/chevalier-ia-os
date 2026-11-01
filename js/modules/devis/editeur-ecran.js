@@ -23,7 +23,7 @@ import { ouvrirCreationPersonne } from '../crm/personnes.js';
 import { ouvrirCreationOrganisation } from '../crm/organisations.js';
 import {
   TYPE_SAUT, totauxDevis, erreursFinalisation, decisionChampFinalisation, erreursChantier, estExpire, UNITES_DUREE, MOMENTS_ACOMPTE, TYPES_ACOMPTE, detailAcomptes, erreursAcomptes, listeAcomptes, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
-  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, MAX_DESTINATAIRES, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis, MESSAGE_AFFAIRE_MANQUANTE, emetteurImprime, estErreurEntreprise, ROUTE_MON_ENTREPRISE,
+  affichageDe, gestionDechetsActive, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, MAX_DESTINATAIRES, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis, MESSAGE_AFFAIRE_MANQUANTE, emetteurImprime, estErreurEntreprise, ROUTE_MON_ENTREPRISE,
 } from './logique.js';
 import { formaterMontant } from './document.js';
 import { menuUnite } from './menu-unite.js';
@@ -91,7 +91,7 @@ export function infosClientDuDevis(d) {
   return { telephone, email: Ed.emailsDeFiche(fiche)[0] ?? '', numeroTva: fiche.numeroTva ?? fiche.tva ?? '', siren: fiche.siren ?? '' };
 }
 /** Document complet du devis, pour l'aperçu de l'éditeur. */
-export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d), attentionNom: d.organisationId && d.personneId ? CRM.personne(d.personneId)?.nom ?? null : null, emetteur: emetteurImprime(D.etat.reglages.entreprise, D.etat.reglages.mentionEmetteur, D.etat.reglages.mentionTvaReduite) });
+export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d), attentionNom: d.organisationId && d.personneId ? CRM.personne(d.personneId)?.nom ?? null : null, emetteur: emetteurImprime(D.etat.reglages.entreprise, D.etat.reglages.mentionEmetteur, D.etat.reglages.mentionTvaReduite), reglages: D.etat.reglages });
 const affaires = () => CRM.etat.affaires.filter((a) => !a.archive).sort((a, b) => String(a.titre).localeCompare(String(b.titre), 'fr'));
 const libelleAffaire = (a) => {
   const c = clientsDeAffaire(a)[0]?.nom;
@@ -576,12 +576,15 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     marquerModifie();
     appliquerAffichage();
   }
+  /** La case « Cacher la gestion des déchets » du devis masque le bloc de l'éditeur (les données restent dans le devis). */
+  function majVisibiliteDechets() { if (ref.blocDechets) ref.blocDechets.hidden = affichage().cacherDechets === true; }
   function appliquerAffichage() {
     if (!ref.corpsLignes) return;
     rendreEntetesTableau();
     rendreLignes();
     majMarges();
     majReste();
+    majVisibiliteDechets();
     if (onglet === 'apercu') rendreApercu({ garderDefilement: true });
   }
   // Panneau collé à droite (comme la Bibliothèque) : le devis se décale, les cases agissent en direct ; seule la croix ou Échap le ferme. Jamais ouvert en même temps que la Bibliothèque.
@@ -603,7 +606,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         { noeud: c('Afficher les références', 'afficherReferences') },
         { noeud: caseMenu({ libelle: 'Autoliquidation', cle: 'autoliquidation', coche: travail.autoliquidation === true, surChangement: (v) => { changer({ autoliquidation: v }); majTotaux(); } }) },
         { noeud: h('label', { class: 'menu-devis-champ' }, h('span', { class: 'menu-devis-libelle' }, 'Changer la TVA par défaut'), tva) },
-        { noeud: c('Cacher la gestion des déchets', 'cacherDechets') },
+        ...(gestionDechetsActive(D.etat.reglages) ? [{ noeud: c('Cacher la gestion des déchets', 'cacherDechets') }] : []),
         { noeud: bientot('Afficher les remises par ligne') }, { noeud: bientot('Afficher les stocks') },
         { noeud: bientot('Numérotation personnalisée') }, { noeud: bientot('Date visite préalable') },
         { separateur: true }, { titre: 'Document' },
@@ -1745,10 +1748,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       (ref.blocPaiement = h('div', { class: 'bloc-paiement', dataset: { zone: 'paiement' } })),
       (ref.blocMethodes = h('div', { class: 'bloc-methodes', dataset: { zone: 'methodes' } })),
       texteLibre, lienTexte,
-      (ref.blocDechets = h('div', { class: 'bloc-dechets', dataset: { zone: 'dechets' } })));
+      gestionDechetsActive(D.etat.reglages) ? (ref.blocDechets = h('div', { class: 'bloc-dechets', dataset: { zone: 'dechets' } })) : null);
     dessinerPaiement(null);
     dessinerMethodes(false);
     dessinerDechets(false);
+    majVisibiliteDechets();
     const [totaux, net, taux] = blocTotaux();
     const notes = h('div', { class: 'notes-bas-page' },
       h('h3', { class: 'titre-bloc' }, 'Notes de bas de page'),

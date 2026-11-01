@@ -429,6 +429,7 @@ export const REGLAGES_DEVIS_DEFAUT = Object.freeze({
   etapeAffaireCreee: '', // étape de départ de l'affaire créée à la finalisation d'un devis sans affaire ('' = non réglée : on demande à chaque fois) ; jamais contrôlée ici (le pipeline n'est pas visible), la validité se résout à l'usage
   mentionEmetteur: '',
   mentionTvaReduite: '', // vide = texte standard (MENTION_TVA_REDUITE_DEFAUT), imprimé sur les devis à 5,5 % ou 10 %
+  gestionDechets: true, // bloc « Gestion des déchets » des devis (éditeur, aperçu, PDF) ; éteint pour les métiers sans chantier (agence, conseil…)
   entreprise: Object.freeze({}),
 });
 const CLES_REGLAGES = Object.keys(REGLAGES_DEVIS_DEFAUT);
@@ -455,6 +456,7 @@ export function reglagesDevis(brut) {
     etapeAffaireCreee: typeof b.etapeAffaireCreee === 'string' ? b.etapeAffaireCreee : '',
     mentionEmetteur: typeof b.mentionEmetteur === 'string' ? nettoyerTexteLibre(b.mentionEmetteur) : '',
     mentionTvaReduite: typeof b.mentionTvaReduite === 'string' ? nettoyerTexteLibre(b.mentionTvaReduite) : '',
+    gestionDechets: b.gestionDechets !== false, // absent ou bizarre = actif
     entreprise: lireEntreprise(b.entreprise),
   };
 }
@@ -521,6 +523,7 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT }
       etapeAffaireCreee: typeof s.etapeAffaireCreee === 'string' ? s.etapeAffaireCreee : '', // recopiée telle quelle (setDoc sans fusion) ; l'étape n'est pas contrôlée ici
       mentionEmetteur: mention,
       mentionTvaReduite: mentionReduite,
+      gestionDechets: s.gestionDechets !== false, // recopié : l'enregistrement est un setDoc sans fusion
       entreprise: ent.entreprise,
     },
     erreurs: {},

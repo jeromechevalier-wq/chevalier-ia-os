@@ -163,6 +163,7 @@ for (const nom of NOMS) {
     assert.equal(reglages.motOuvrage, JEUX[nom].motOuvrage);
     assert.equal(reglages[MARQUEUR], true);
     assert.equal(reglages.entreprise.nom, JEUX[nom].entreprise.nom);
+    assert.equal(reglages.gestionDechets, JEUX[nom].dechets, 'le bloc des déchets suit le jeu : agence = non, étancheur et plombier = oui');
     const articles = await tous(id, 'devis_articles');
     assert.equal(articles.length, catalogueDuJeu(JEUX[nom]).articles.length);
     assert.ok(articles.every((a) => a[MARQUEUR] === true));
