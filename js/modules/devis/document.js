@@ -273,7 +273,7 @@ export function devisHtml(vue, options = {}) {
 
   const mentions = [...(v.mentions ?? [])];
   // Mention de TVA réduite : imprimée dès qu'une ligne est à 5,5 % ou 10 % (`vue.tvaReduite`), texte des réglages, sinon texte standard ; avant « Attestation et mentions ».
-  if (v.tvaReduite === true) mentions.push(nettoyerTexteLibre(emetteur.mentionTvaReduite) || MENTION_TVA_REDUITE_DEFAUT);
+  if (v.tvaReduite === true) mentions.push(nettoyerTexteLibre(v.mentionTvaReduiteFigee) || nettoyerTexteLibre(emetteur.mentionTvaReduite) || MENTION_TVA_REDUITE_DEFAUT); // finalisé : texte figé ; brouillon et anciens devis : réglages
   const mentionLibre = nettoyerTexteLibre(emetteur.mentionEmetteur); // « Attestation et mentions » des réglages : sur tous les devis, juste avant « Bon pour accord »
   if (mentionLibre) mentions.push(mentionLibre);
 

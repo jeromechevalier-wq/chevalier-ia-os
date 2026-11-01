@@ -1016,13 +1016,16 @@ export function figerPourFinalisation(devis, { numero, finaliseLe, reglages = {}
   copie.totaux = totauxDevis(copie);
   copie.finalisation = { n8n: 'en_cours' };
   if (texteNonVide(String(clientNom ?? ''))) copie.clientNomFige = String(clientNom).trim(); // le nom du client à la finalisation : renommer la fiche ensuite ne change pas ce devis
+  // Texte de la mention de TVA réduite : figé comme le nom du client (décision du 01/11/2026). Seulement si une ligne est à 5,5 % ou 10 % ; le texte est celui qui s'imprimerait maintenant (réglage nettoyé, sinon texte standard).
+  if (devisATvaReduite(copie)) copie.mentionTvaReduiteFigee = nettoyerTexteLibre(reglages.mentionTvaReduite) || MENTION_TVA_REDUITE_DEFAUT;
+  else delete copie.mentionTvaReduiteFigee; // un reste de brouillon (champ posé à la main) ne doit pas survivre
   return { devis: copie, erreurs: [] };
 }
 
 /** Nouveau brouillon copié d'un devis (même racine, version + 1, même numéro). L'original n'est pas modifié. */
 export function nouvelleVersion(devis, { id, creeLe, joursValidite = devis?.dureeValiditeJours ?? DUREE_VALIDITE_DEFAUT } = {}) {
   const copie = structuredClone(devis);
-  for (const cle of ['finaliseLe', 'envoyeLe', 'accepteLe', 'refuseLe', 'totaux', 'finalisation', 'envoiN8nCopie', 'raisonRefus', 'dateEmission', 'pdf', 'envois', 'emailPrepare', 'clientNomFige']) delete copie[cle]; // `envois` : l'historique des envois par e-mail reste sur la version envoyée ; `emailPrepare` : le brouillon Gmail préparé était celui de l'ancienne version
+  for (const cle of ['finaliseLe', 'envoyeLe', 'accepteLe', 'refuseLe', 'totaux', 'finalisation', 'envoiN8nCopie', 'raisonRefus', 'dateEmission', 'pdf', 'envois', 'emailPrepare', 'clientNomFige', 'mentionTvaReduiteFigee']) delete copie[cle]; // `envois` : l'historique des envois par e-mail reste sur la version envoyée ; `emailPrepare` : le brouillon Gmail préparé était celui de l'ancienne version
   for (const section of copie.sections ?? []) for (const ligne of section.lignes ?? []) { delete ligne.prixVente; delete ligne.prixVenteAjuste; } // recalculés tant que brouillon
   return {
     ...copie,
@@ -1186,7 +1189,8 @@ export function vueClient(devis, contexte = {}) {
     regimeTva: devis.regimeTva ?? 'assujetti',
     autoliquidation: devis.autoliquidation === true,
     mentions: t.mentions,
-    tvaReduite: devisATvaReduite(devis), // vrai = le document imprime la mention de TVA réduite ; le texte, lui, vient des réglages (pas dans la vue)
+    tvaReduite: devisATvaReduite(devis), // vrai = le document imprime la mention de TVA réduite ; le texte vient du devis finalisé (figé), sinon des réglages (brouillon, ancien devis)
+    ...(devisATvaReduite(devis) && devis.statut !== 'brouillon' && texteNonVide(devis.mentionTvaReduiteFigee) ? { mentionTvaReduiteFigee: devis.mentionTvaReduiteFigee } : {}),
     ...(t.remiseHt > 0 ? { remise: { libelle: devis.remise.type === 'pourcentage' ? `Remise ${nombre(devis.remise.valeur)} %` : 'Remise', montantHt: t.remiseHt } } : {}),
     ...conditionsDeVue(devis, t, devis.regimeTva === 'franchise'),
     conditions: {

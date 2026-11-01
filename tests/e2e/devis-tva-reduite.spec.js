@@ -28,7 +28,7 @@ test('3 cas vide : le champ « Mention de TVA réduite » est vide, montre le te
   await expect(zone(page)).toHaveValue('');
   await expect(zone(page)).toHaveAttribute('placeholder', /articles 278-0 bis A et 279-0 bis/);
   await expect(zone(page)).toHaveAttribute('maxlength', '600');
-  await expect(page.locator('[data-reglage="mentionTvaReduite"]')).toContainText('Imprimée automatiquement sur les devis qui ont une ligne à 5,5 % ou 10 %. Laissé vide, le texte standard s’imprime.');
+  await expect(page.locator('[data-reglage="mentionTvaReduite"]')).toContainText('Imprimée automatiquement sur les devis qui ont une ligne à 5,5 % ou 10 %. Laissé vide, le texte standard s’imprime. Un devis finalisé garde le texte qu’il avait au moment de la finalisation.');
   await expect(page.locator('[data-reglage="mentionEmetteur"]')).not.toContainText('l’attestation de TVA réduite du client');
   await expect(page.locator('[data-reglage="mentionEmetteur"]')).toContainText('La mention de TVA réduite se règle juste au-dessus');
   await zone(page).scrollIntoViewIfNeeded();

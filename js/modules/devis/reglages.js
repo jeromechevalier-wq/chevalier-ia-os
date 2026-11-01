@@ -207,7 +207,7 @@ export function reglages(page) {
         etapes.length ? null : h('p', { class: 'aide', dataset: { zone: 'etape-affaire-creee-vide' } }, 'Aucune étape dans le pipeline')),
       bloc('mentionTvaReduite', 'Mention de TVA réduite (facultatif)', h('div', { class: 'pile' },
         h('textarea', { class: 'champ', id: 'devis-mentionTvaReduite', rows: 4, maxlength: String(LIMITE_MENTION_TVA_REDUITE), dataset: { champ: 'mentionTvaReduite' }, value: brouillon.mentionTvaReduite, placeholder: MENTION_TVA_REDUITE_DEFAUT,
-          oninput: (e) => changer({ mentionTvaReduite: e.target.value }) })), 'Imprimée automatiquement sur les devis qui ont une ligne à 5,5 % ou 10 %. Laissé vide, le texte standard s’imprime.'),
+          oninput: (e) => changer({ mentionTvaReduite: e.target.value }) })), 'Imprimée automatiquement sur les devis qui ont une ligne à 5,5 % ou 10 %. Laissé vide, le texte standard s’imprime. Un devis finalisé garde le texte qu’il avait au moment de la finalisation.'),
       bloc('mentionEmetteur', 'Attestation et mentions (facultatif)', h('textarea', { class: 'champ', id: 'devis-mentionEmetteur', rows: 5, maxlength: String(LIMITE_MENTION_EMETTEUR), dataset: { champ: 'mentionEmetteur' }, value: brouillon.mentionEmetteur,
         oninput: (e) => changer({ mentionEmetteur: e.target.value }) }), 'Un texte libre imprimé sur tous tes devis, juste avant « Bon pour accord ». Par exemple : ta qualification RGE. La mention de TVA réduite se règle juste au-dessus : elle est imprimée toute seule. Les retours à la ligne sont gardés. Vide, rien ne s’imprime.'),
       sectionEntreprise());

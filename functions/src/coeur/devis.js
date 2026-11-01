@@ -32,7 +32,7 @@ export const ACTIONS_STATUT = Object.freeze({
   refuser: 'refuseLe',
 });
 
-const CHAMPS_FIGES = ['regimeTva', 'sections', 'statut', 'numero', 'finaliseLe', 'totaux', 'finalisation', 'clientNomFige'];
+const CHAMPS_FIGES = ['regimeTva', 'sections', 'statut', 'numero', 'finaliseLe', 'totaux', 'finalisation', 'clientNomFige', 'mentionTvaReduiteFigee'];
 
 /** code : introuvable | transition_interdite | brouillon_existant | demande_invalide */
 export class ErreurDevis extends Error {
