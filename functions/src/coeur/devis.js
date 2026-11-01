@@ -58,6 +58,12 @@ const enDates = (v) => {
   return v;
 };
 
+/** Détail d'une exception INATTENDUE pour le journal Cloud, pour diagnostiquer : { nom, code, detail }. Jamais le contenu : adresses e-mail masquées, retours à la ligne et caractères de contrôle ôtés, 200 caractères au plus. */
+export function detailErreur(e) {
+  const propre = (v, max) => String(v ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/[^\s@]+@[^\s@]+/g, '[adresse]').replace(/\s+/g, ' ').trim().slice(0, max);
+  return { nom: propre(e?.name, 40), code: propre(e?.code, 40), detail: propre(e?.message, 200) };
+}
+
 export async function lireDevis(tx, devisId) {
   const devis = await tx.document(C.devis, exigerId(devisId));
   if (!devis) throw new ErreurDevis('introuvable', `Devis introuvable : ${devisId}`);

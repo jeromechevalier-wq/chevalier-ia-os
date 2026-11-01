@@ -226,6 +226,18 @@ describe('E2 la fonction appelable chez Jérôme : qui peut appeler', () => {
     assert.ok(!texte.includes('dv1') && !texte.includes(ACTEUR) && !texte.includes('marie@'));
     assert.ok(entrees.every((e) => Object.keys(e).every((k) => ['action', 'statut', 'code', 'dureeMs'].includes(k))));
   });
+  test('E2 une erreur inattendue (chez Jérôme) journalise son code et un court message nettoyé, sans adresse ni identifiant de devis', async () => {
+    const entrees = [];
+    const m = monde();
+    const casse = { ...m.donnees, transaction: async () => { throw Object.assign(new Error('5 NOT_FOUND: marie@exemple.fr\nchemin dv1'), { code: 5 }); } };
+    const appelCasse = creerAppelPreparerEmail({ donnees: () => casse, sortie: fauxN8n().sortie, comptes: [ACTEUR], journal: (e) => entrees.push(e), maintenant: () => T0.getTime(), genererId: ids });
+    await assert.rejects(appelCasse({ auth: auth(ACTEUR), data: { devisId: 'dv1' } }), (e) => e.code === 'internal');
+    assert.equal(entrees.length, 1);
+    assert.equal(entrees[0].statut, 'erreur');
+    assert.equal(entrees[0].code, '5');
+    assert.match(entrees[0].detail, /NOT_FOUND/);
+    assert.ok(!entrees[0].detail.includes('marie@') && !entrees[0].detail.includes('\n'));
+  });
   test('E2 l’état « branché oui/non » : vrai seulement si l’adresse ET le secret existent ; la réponse ne contient aucune valeur', async () => {
     const lire = (n8n) => creerAppelEtatPreparerEmail({ sortie: n8n.sortie })({ auth: auth(ACTEUR), data: {} });
     assert.deepEqual(await lire(fauxN8n()), { branche: true });
@@ -253,6 +265,37 @@ describe('E3 la plateforme clients : un éditeur du client, module « devis » a
     return { collections, creerDonnees: (client) => avecBase(brut, `clients/${client}`) };
   }
   const secretsClient = (client) => ({ [`${SECRET_URL}_${client}`]: `https://n8n.chevalier-ia.fr/webhook/devis-${client}`, [`${SECRET_CLE}_${client}`]: `secret-${client}` });
+  test('E3 sans `maintenant` donné (comme en production), la date écrite est valide : une date invalide est refusée par Firestore et « Préparer l\'e-mail » échouait chez les clients (01/11/2026)', async () => {
+    const mc = mondeClients();
+    const surDate = (v) => { if (v instanceof Date && Number.isNaN(v.getTime())) throw new Error('Invalid time value (Firestore refuse cette date)'); if (v && typeof v === 'object' && !(v instanceof Date)) Object.values(v).forEach(surDate); };
+    const creerDonnees = (client) => { const base = mc.creerDonnees(client); return { ...base, transaction: (fn) => base.transaction((tx) => fn({ ...tx, ecrire: (ec) => { ec.forEach((e) => surDate(e.donnees)); tx.ecrire(ec); } })) }; };
+    const n8n = fauxN8n({ secrets: { ...secretsClient('a') } });
+    const r = await preparerEmailDevis({ db: fauxDb, auth: auth('alice@exemple.test'), donnees: { client: 'a', devisId: 'dv1' }, sortie: n8n.sortie, creerDonnees, genererId: ids });
+    assert.equal(r.ok, true);
+    const ligne = mc.collections['clients/a/crm_actions_lancements'].find((l) => l.action === 'devis.preparerEmail');
+    assert.ok(Number.isFinite(ligne.demandeLe.getTime()));
+    // une fonction qui rend le temps est aussi acceptée
+    const r2 = await preparerEmailDevis({ db: fauxDb, auth: auth('alice@exemple.test'), donnees: { client: 'a', devisId: 'dv1' }, sortie: n8n.sortie, maintenant: () => Date.now() + 10 * 60_000, creerDonnees, genererId: ids });
+    assert.equal(r2.ok, true);
+  });
+  test('E3 une erreur inattendue journalise son code et un court message nettoyé (sans adresse), jamais le contenu du devis', async () => {
+    const mc = mondeClients();
+    const n8n = fauxN8n({ secrets: { ...secretsClient('a') } });
+    const casse = (client) => { const base = mc.creerDonnees(client); return { ...base, transaction: async () => { throw Object.assign(new Error('9 FAILED_PRECONDITION: marie@exemple.fr\nIndex manquant'), { code: 9 }); } }; };
+    const sorties = [];
+    const ecrireOrig = process.stdout.write;
+    const erreurOrig = process.stderr.write;
+    const capter = (m, ...r) => { sorties.push(String(m)); const cb = r.find((x) => typeof x === 'function'); if (cb) cb(); return true; };
+    process.stdout.write = capter; process.stderr.write = capter;
+    try {
+      await assert.rejects(preparerEmailDevis({ db: fauxDb, auth: auth('alice@exemple.test'), donnees: { client: 'a', devisId: 'dv1' }, sortie: n8n.sortie, maintenant: T0.getTime(), creerDonnees: casse, genererId: ids }), (e) => e instanceof Refus && e.code === 'internal');
+    } finally { process.stdout.write = ecrireOrig; process.stderr.write = erreurOrig; }
+    const texte = sorties.join('');
+    const ligne = JSON.parse(texte.split('\n').find((l) => l.includes('préparer')));
+    assert.equal(ligne.code, '9');
+    assert.match(ligne.detail, /FAILED_PRECONDITION/);
+    assert.ok(!texte.includes('marie@') && !ligne.detail.includes('\n'));
+  });
   test('E3 une éditrice de a : la demande part vers le webhook de a avec le secret de a, et la ligne est dans l’espace de a seulement', async () => {
     const mc = mondeClients();
     const n8n = fauxN8n({ secrets: { ...secretsClient('a'), ...secretsClient('b') } });
