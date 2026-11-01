@@ -13,7 +13,7 @@ import { editeurOuvrage } from './editeur-ouvrage.js';
 import { champFamille } from './champ-famille.js';
 import { naviguer } from '../../os/router.js';
 import { devisOuvert } from './memoire.js';
-import { cheminFamille, familleEffective, typeDeFamille, idsAvecSousFamilles, optionsFamillesArbre } from './familles.js';
+import { cheminFamille, familleEffective, typeDeFamille, idsAvecSousFamilles, optionsFamillesArbre, familleParDefaut } from './familles.js';
 import { menuUnite } from './menu-unite.js';
 import { menuTaux } from './menu-taux.js';
 
@@ -295,8 +295,6 @@ async function reactiver(a) {
  * Formulaire court : seul le libellé est obligatoire pour commencer à écrire ; le prix d'achat est exigé à l'enregistrement.
  * Entrée enregistre ; le bouton « Enregistrer » est grisé tant que le libellé est vide (Entrée dit alors quoi faire). Renvoie l'identifiant créé, ou null.
  */
-const FAMILLE_DEFAUT = 'famille-1'; // « Fournitures »
-
 export async function ouvrirCreationArticle() {
   const reglages = D.etat.reglages;
   const champ = (id, libelle, attrs = {}) => {
@@ -311,8 +309,8 @@ export async function ouvrirCreationArticle() {
   const code = champ('code', 'Code (facultatif)', { placeholder: 'Exemple : CAR-6060' });
   const reference = champ('reference', 'Référence (facultatif)', { placeholder: 'Exemple : REF-4521' });
   const marque = champ('marque', 'Marque (facultatif)', { maxlength: 400 });
-  // Famille (un seul champ : le type de l'article s'en déduit) : le champ intelligent des familles. Proposée par défaut : Fournitures.
-  let familleId = D.etat.familles.some((f) => f.id === FAMILLE_DEFAUT) ? FAMILLE_DEFAUT : '';
+  // Famille (un seul champ : le type de l'article s'en déduit) : le champ intelligent des familles. Proposée par défaut : Fournitures (ou la première famille active).
+  let familleId = familleParDefaut(D.etat.familles); // « Fournitures » tant qu'elle est active, sinon la première famille active
   const familleChamp = champFamille({ valeur: familleId, id: 'article-familleId', classe: 'champ-famille', surChoix: (id) => { familleId = id; majFamille(); } });
   const familleInput = familleChamp.entree;
   const famille = { input: familleInput, bloc: h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'article-familleId' }, 'Famille'), familleChamp.element, h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: 'familleId' } })) };

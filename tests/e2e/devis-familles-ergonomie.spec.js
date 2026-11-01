@@ -96,10 +96,10 @@ test('P2 la même liste dans la modification sur place du tableau ; Échap ou un
   expect((await listerDocuments('devis_articles')).find((d) => d.id === 'a1')).toMatchObject({ familleId: 'famille-2-5', type: 'main_oeuvre' });
 });
 
-test('P3 Réglages > Familles d’articles : les sept familles sans bouton, leurs sous-familles de départ ; ajouter, doublon refusé, renommer', { tag: '@smoke' }, async ({ page }, info) => {
+test('P3 Réglages > Familles d’articles : les sept familles avec leurs boutons, leurs sous-familles de départ ; ajouter, doublon refusé, renommer', { tag: '@smoke' }, async ({ page }, info) => {
   await ouvrirReglagesFamilles(page);
   await expect(page.locator('#reglages-familles [data-niveau="1"]')).toHaveCount(7);
-  await expect(page.locator('#reglages-familles .ligne-famille-depart button')).toHaveCount(0); // verrouillées : ni renommer ni désactiver
+  await expect(page.locator('#reglages-familles [data-niveau="1"] [data-action="desactiver-famille"]')).toHaveCount(7); // les sept se renomment et se désactivent (PR 1 des familles configurables)
   await expect(page.locator('#reglages-familles [data-niveau="2"]')).toHaveCount(35);
   await capturer(page, info, 'P3-reglages-familles');
   const fournitures = groupe(page, 'famille-1');

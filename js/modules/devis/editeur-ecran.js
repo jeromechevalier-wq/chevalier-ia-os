@@ -16,6 +16,7 @@ import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as A from './articles.js';
 import { arbreFamilles, cheminFamille } from './familles.js';
+import { entreesAjoutFamilles } from './ajouts-familles.js';
 import * as Ed from './editeur-logique.js';
 import { etapePourAffaireCreee, etapeAPasser } from './affaire-depuis-devis.js';
 import * as CD from './client-devis.js';
@@ -1378,14 +1379,14 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     ref.zoneTableau = h('div', { class: 'zone-tableau zone-lignes-devis' }, h('table', { class: 'tableau-lignes-devis' }, ref.enteteTableau, ref.corpsLignes));
     const bouton = (libelle, action, onclick, { desactive = false, titre = null } = {}) => h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action }, disabled: desactive, title: titre ?? undefined, onclick }, libelle);
     const type = (libelle, familleId) => bouton([icone('plus', { taille: 14 }), libelle], `ajouter-${familleId}`, (ev) => ouvrirRecherche(familleId, { ouvreur: ev.currentTarget }));
+    // Les boutons suivent les familles de l'utilisateur : le nom qu'il a donné, et rien pour une famille désactivée (voir ajouts-familles.js).
+    const ajoutsFamilles = entreesAjoutFamilles(D.etat.familles, O.majuscule(O.motOuvrage(D.etat.reglages).singulier));
     const barre = h('div', { class: 'barre-ajouts', dataset: { zone: 'ajouts' } },
       h('div', { class: 'ajouts-types' },
-        type('Fourniture', 'famille-1'), type('Main d’œuvre', 'famille-2'), type(O.majuscule(O.motOuvrage(D.etat.reglages).singulier), 'famille-3'),
+        ajoutsFamilles.principales.map((e) => type(e.libelle, e.familleId)),
         h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'autres-ajouts' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres types de lignes', onclick: (ev) => { const ouvreur = ev.currentTarget; ouvrirMenu(ouvreur, [
-          { libelle: 'Sous-traitance', action: () => ouvrirRecherche('famille-4', { ouvreur }) },
-          { libelle: 'Matériel', action: () => ouvrirRecherche('famille-5', { ouvreur }) },
-          { libelle: 'Divers', action: () => ouvrirRecherche('famille-7', { ouvreur }) },
-          { separateur: true },
+          ...ajoutsFamilles.autres.map((e) => ({ libelle: e.libelle, action: () => ouvrirRecherche(e.familleId, { ouvreur }) })),
+          ...(ajoutsFamilles.autres.length ? [{ separateur: true }] : []),
           // Ligne libre : comme avant, elle suit la boîte « en ligne » ouverte, sinon va à la fin ; elle n'ouvre pas la boîte et ne la ferme pas.
           { libelle: 'Ligne libre', icone: 'plus', action: () => ajouterLigne(Ed.ligneLibre(nouvelId()), { suite: rechercheEnLigne && !ref.panneauRecherche.hidden }) },
         ]); } }, '…')),
@@ -1575,13 +1576,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       appliquer(Ed.insererAutour(travail.sections, element, e.id, ou, nouvelId()), { focus: element.id });
     };
     const chercher = (familleId) => () => { pointInsertion = e.id; sensInsertion = ou; ouvrirRecherche(familleId, { enLigne: true }); };
+    const ajoutsFamilles = entreesAjoutFamilles(D.etat.familles, O.majuscule(O.motOuvrage(D.etat.reglages).singulier));
     return [
-      { libelle: 'Fourniture', cle: `inserer-${ou}-fourniture`, action: chercher('famille-1') },
-      { libelle: 'Main d’œuvre', cle: `inserer-${ou}-main-oeuvre`, action: chercher('famille-2') },
-      { libelle: O.majuscule(O.motOuvrage(D.etat.reglages).singulier), cle: `inserer-${ou}-ouvrage`, action: chercher('famille-3') },
-      { libelle: 'Sous-traitance', cle: `inserer-${ou}-sous-traitance`, action: chercher('famille-4') },
-      { libelle: 'Matériel', cle: `inserer-${ou}-materiel`, action: chercher('famille-5') },
-      { libelle: 'Divers', cle: `inserer-${ou}-divers`, action: chercher('famille-7') },
+      ...[...ajoutsFamilles.principales, ...ajoutsFamilles.autres].map((f) => ({ libelle: f.libelle, cle: `inserer-${ou}-${f.cle}`, action: chercher(f.familleId) })),
       { libelle: 'Section', cle: `inserer-${ou}-section`, action: poser(() => (sousSection ? Ed.sousSectionNeuve(nouvelId()) : Ed.sectionNeuve(nouvelId()))) },
       { libelle: 'Texte', cle: `inserer-${ou}-texte`, action: poser(() => Ed.ligneTexte(nouvelId())) },
       { libelle: 'Saut de page', cle: `inserer-${ou}-saut`, action: poser(() => Ed.ligneSaut(nouvelId())) },

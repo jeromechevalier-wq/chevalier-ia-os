@@ -1,5 +1,5 @@
-// Familles d'articles du Bordereau (module Devis) : une liste `[{ id, nom, actif, parentId? }]` à DEUX niveaux. Le premier niveau est fixe (les sept familles de départ,
-// verrouillées, chacune liée à un type d'article) ; le second est libre (l'utilisateur crée « Carrelage » sous Fournitures). Un article porte au plus un `familleId` facultatif,
+// Familles d'articles du Bordereau (module Devis) : une liste `[{ id, nom, actif, parentId? }]` à DEUX niveaux. Le premier niveau est celui des sept familles de départ
+// (identifiant et type d'article fixes ; l'utilisateur peut les renommer et les désactiver) ; le second est libre (l'utilisateur crée « Carrelage » sous Fournitures). Un article porte au plus un `familleId` facultatif,
 // et son type se déduit de la famille de premier niveau. Logique PURE (aucun accès à Firebase ni au navigateur), testée avec node --test.
 // Stockage : document `devis_parametres/familles` = `{ liste: [...] }` (même collection que les réglages du module). Document absent = familles par défaut.
 // Ce fichier n'importe rien : il est copié tel quel pour le serveur MCP (scripts/preparer-fonctions.js).
@@ -30,8 +30,10 @@ const TYPE_DE_DEPART = Object.freeze(Object.fromEntries(DEPART.map(([, type], i)
 const espaces = (v) => String(v ?? '').replace(/[\s  ]+/g, ' ').trim();
 const cle = (v) => espaces(v).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-/** Une famille de départ de premier niveau est verrouillée : ni renommée, ni désactivée. */
+/** Une des sept familles de départ de premier niveau : son identifiant et son type sont fixes (son nom et son état actif se règlent comme ceux d'une sous-famille). */
 export const estFamilleDepart = (id) => Object.hasOwn(TYPE_DE_DEPART, id);
+/** Nom d'origine d'une famille de départ de premier niveau (ou null) : sert à savoir si l'utilisateur l'a renommée. */
+export const nomDeDepart = (id) => PREMIER_NIVEAU.find((f) => f.id === id)?.nom ?? null;
 /** Une sous-famille de départ se renomme et se désactive comme une sous-famille libre (elle est seulement proposée d'office). */
 export const estSousFamilleDepart = (id) => SOUS_FAMILLES_DEPART.some((f) => f.id === id);
 /** Famille de premier niveau = sans `parentId`. */
@@ -39,17 +41,19 @@ export const estPremierNiveau = (f) => !f?.parentId;
 
 /**
  * Liste lue dans la base (document absent ou illisible = familles par défaut). Toujours une liste valide : les sept familles de départ sont toujours là,
- * en tête, sous leur nom d'origine et actives (verrouillées), suivies des sous-familles de départ (celles que l'utilisateur a renommées ou désactivées gardent son choix) ; une famille dont le parent n'existe pas (ou n'est pas de premier niveau) est ramenée au premier niveau.
+ * en tête (sous leur nom d'origine et actives tant que l'utilisateur n'a rien changé ; son nom et son état actif l'emportent), suivies des sous-familles de départ
+ * (même règle) ; une famille dont le parent n'existe pas (ou n'est pas de premier niveau) est ramenée au premier niveau.
  */
 export function famillesDe(brut) {
   const liste = brut && Array.isArray(brut.liste) ? brut.liste : null;
   if (!liste) return FAMILLES_PAR_DEFAUT.map((f) => ({ ...f }));
-  const valides = liste.filter((f) => f && typeof f.id === 'string' && f.id && typeof f.nom === 'string' && espaces(f.nom) && !estFamilleDepart(f.id));
+  const valides = liste.filter((f) => f && typeof f.id === 'string' && f.id && typeof f.nom === 'string' && espaces(f.nom));
   const lues = valides.map((f) => ({ id: f.id, nom: espaces(f.nom), actif: f.actif !== false, ...(typeof f.parentId === 'string' && f.parentId ? { parentId: f.parentId } : {}) }));
-  // Une sous-famille de départ stockée (renommée ou désactivée) l'emporte sur le départ ; son parent reste celui du départ.
-  const stockees = new Map(lues.filter((f) => estSousFamilleDepart(f.id)).map((f) => [f.id, f]));
+  // Une famille de départ stockée (renommée ou désactivée) l'emporte sur le départ pour le nom et l'état actif seulement ; son identifiant, son type et son parent restent ceux du départ.
+  const departDeLaListe = (id) => estSousFamilleDepart(id) || estFamilleDepart(id);
+  const stockees = new Map(lues.filter((f) => departDeLaListe(f.id)).map((f) => [f.id, f]));
   const departs = FAMILLES_PAR_DEFAUT.map((f) => (stockees.has(f.id) ? { id: f.id, nom: stockees.get(f.id).nom, actif: stockees.get(f.id).actif, ...(f.parentId ? { parentId: f.parentId } : {}) } : { ...f }));
-  const libres = lues.filter((f) => !estSousFamilleDepart(f.id));
+  const libres = lues.filter((f) => !departDeLaListe(f.id));
   const premiers = new Set([...PREMIER_NIVEAU.map((f) => f.id), ...libres.filter((f) => !f.parentId).map((f) => f.id)]);
   return [...departs, ...libres.map((f) => (f.parentId && !premiers.has(f.parentId) ? { id: f.id, nom: f.nom, actif: f.actif } : f))];
 }
@@ -102,9 +106,11 @@ export function arbreFamilles(familles) {
 
 /** Options du filtre « Famille » en arbre : une ligne par famille de premier niveau (mention « inclut ses sous-familles » si elle en a), ses sous-familles en retrait sous leur nom court, « Sans famille » à la fin. Familles illisibles ou vides : « Sans famille » seul. */
 export function optionsFamillesArbre(familles) {
+  // Une famille désactivée reste proposée (ses articles restent au Catalogue) avec la mention « désactivée ».
+  const notes = (f, parent) => { const l = [...(parent ? ['inclut ses sous-familles'] : []), ...(f.actif === false ? ['désactivée'] : [])]; return l.length ? { note: l.join(' · ') } : {}; };
   const options = arbreFamilles(familles).flatMap(({ famille: f, enfants }) => [
-    { valeur: f.id, libelle: f.nom ?? f.id, niveau: 0, ...(enfants.length ? { note: 'inclut ses sous-familles' } : {}) },
-    ...enfants.map((e) => ({ valeur: e.id, libelle: e.nom ?? e.id, niveau: 1, parent: f.id })),
+    { valeur: f.id, libelle: f.nom ?? f.id, niveau: 0, ...notes(f, enfants.length > 0) },
+    ...enfants.map((e) => ({ valeur: e.id, libelle: e.nom ?? e.id, niveau: 1, parent: f.id, ...notes(e, false) })),
   ]);
   return [...options, { valeur: 'sans_famille', libelle: 'Sans famille', niveau: 0 }];
 }
@@ -121,6 +127,7 @@ export function planCreationFamille(nom, familles, { nouvelId, parentId = '' } =
   if (!parentId) return refus('Choisis d’abord la famille dans laquelle ranger la nouvelle (Fournitures, Main d’œuvre…) : le premier niveau ne change pas.');
   const parent = trouver(liste, parentId);
   if (!parent) return refus('Famille introuvable : recharge la page.');
+  if (parent.actif === false) return refus(`Réactive d’abord « ${parent.nom} ».`);
   if (parent.parentId) return refus(`« ${parent.nom} » est déjà une sous-famille : on ne peut pas en créer dedans (deux niveaux au plus). Choisis une famille de premier niveau.`);
   const erreur = erreursFamille(nom, liste, { parentId });
   if (erreur) return refus(erreur);
@@ -128,24 +135,25 @@ export function planCreationFamille(nom, familles, { nouvelId, parentId = '' } =
   return { erreur: null, familles: [...liste.map((f) => ({ ...f })), famille], famille };
 }
 
-/** Renommer une famille (les articles gardent leur lien : il passe par l'identifiant). Les sept familles de départ ne se renomment pas. */
+/** Renommer une famille (les articles gardent leur lien : il passe par l'identifiant, et le type d'une famille de départ ne change pas). */
 export function planRenommerFamille(id, nom, familles) {
   const liste = familles ?? [];
   const f = trouver(liste, id);
   if (!f) return refus('Famille introuvable : recharge la page.');
-  if (estFamilleDepart(id)) return refus(`« ${f.nom} » est une famille de départ : elle ne se renomme pas. Tu peux créer des sous-familles dedans.`);
   const erreur = erreursFamille(nom, liste, { sauf: id, parentId: f.parentId || '' });
   if (erreur) return refus(erreur);
   const neuve = { ...f, nom: espaces(nom) };
   return { erreur: null, familles: liste.map((x) => (x.id === id ? neuve : { ...x })), famille: neuve };
 }
 
-/** Désactiver (`actif = false`) ou réactiver une famille. Jamais de suppression : les articles déjà rattachés la gardent. Les familles de départ restent actives. */
+/** Message quand on veut désactiver la dernière famille de premier niveau active (il en faut au moins une). */
+export const ERREUR_DERNIERE_FAMILLE = 'Il en faut au moins une.';
+/** Désactiver (`actif = false`) ou réactiver une famille. Jamais de suppression : les articles déjà rattachés la gardent. Il reste toujours au moins une famille de premier niveau active. */
 export function planDesactiverFamille(id, familles, actif = false) {
   const liste = familles ?? [];
   const f = trouver(liste, id);
   if (!f) return refus('Famille introuvable : recharge la page.');
-  if (estFamilleDepart(id) && actif === false) return refus(`« ${f.nom} » est une famille de départ : elle ne se désactive pas.`);
+  if (actif === false && estPremierNiveau(f) && f.actif !== false && !liste.some((x) => x.id !== id && estPremierNiveau(x) && x.actif !== false)) return refus(ERREUR_DERNIERE_FAMILLE);
   const neuve = { ...f, actif };
   return { erreur: null, familles: liste.map((x) => (x.id === id ? neuve : { ...x })), famille: neuve };
 }
@@ -156,8 +164,22 @@ export function erreurFamilleArticle(familleId, familles, actuel = null) {
   const f = (familles ?? []).find((x) => x.id === familleId);
   if (!f) return 'Cette famille n’existe pas. Choisis une famille de la liste, ou laisse le champ vide.';
   if (f.actif === false && familleId !== actuel) return `La famille « ${f.nom} » est désactivée. Choisis-en une autre, ou réactive-la.`;
+  const parent = f.parentId ? (familles ?? []).find((x) => x.id === f.parentId) : null;
+  if (parent && parent.actif === false && familleId !== actuel) return `La famille « ${parent.nom} » est désactivée. Choisis-en une autre, ou réactive-la.`;
   return null;
 }
 
 /** Nom de la famille d'un article (vide si aucune). */
 export const nomFamille = (familles, familleId) => (familles ?? []).find((f) => f.id === familleId)?.nom ?? '';
+
+/** Combien d'articles sont rangés dans cette famille (sous-familles comprises), pour le dire avant de la désactiver. Un ancien article sans famille compte dans la famille de départ de son type. */
+export function nombreArticlesDeFamille(familles, articles, id) {
+  const ids = new Set(idsAvecSousFamilles(familles, id));
+  return (articles ?? []).filter((a) => ids.has(familleEffective(a))).length;
+}
+
+/** Famille proposée d'office à un article neuf : « Fournitures » si elle est active, sinon la première famille de premier niveau active qui n'est pas « Textes » (un texte n'a pas de prix), sinon la première active, sinon '' (aucune). */
+export function familleParDefaut(familles) {
+  const actives = (familles ?? []).filter((f) => estPremierNiveau(f) && f.actif !== false);
+  return (actives.find((f) => f.id === 'famille-1') ?? actives.find((f) => typeDeFamille(familles, f.id) !== 'texte') ?? actives[0])?.id ?? '';
+}
