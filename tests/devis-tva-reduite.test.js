@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as L from '../js/modules/devis/logique.js';
 import * as A from '../js/modules/devis/articles.js';
 import { devisHtml } from '../js/modules/devis/document.js';
+import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
 const lg = (id, extra = {}) => ({ id, libelle: `Ligne ${id}`, unite: 'u', quantite: 1, prixAchat: 100, prixVente: 100, ...extra });
 // Un devis à 100 € HT par ligne ; `taux` fixe le taux de chaque ligne (null = taux par défaut du devis).
@@ -100,5 +101,51 @@ describe('4 parité des copies serveur', () => {
       assert.equal(htmlCopie(Dp.vueClient(d, { emetteur: e }), { emetteur: e }), attendu, c);
       assert.equal(Dp.MENTION_TVA_REDUITE_DEFAUT, L.MENTION_TVA_REDUITE_DEFAUT);
     }
+  });
+});
+
+// ---------------------------------------------------------------- Texte figé à la finalisation (décision du 01/11/2026)
+describe('6 à 9 le texte de la mention est figé sur un devis finalisé', () => {
+  const REGLAGES = { regimeTva: 'assujetti', mentionTvaReduite: '  Texte de Jérôme du jour.  ' };
+  const fige = (d, reglages = REGLAGES) => L.figerPourFinalisation(d, { numero: 'N', finaliseLe: '2026-10-24T10:00:00Z', reglages, emetteur: EMETTEUR_ESSAI, aujourdhui: '2026-10-24' });
+  const finalisable = (taux) => completerPourFinaliser({ ...L.nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1' }, { id: 'd', maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'essai' }, { marge: 20, margeDevis: 20 }), sections: [{ id: 's', titre: 'Travaux', lignes: [lg('a', { tauxTva: taux })] }] });
+  const imprime = (d, emetteur = {}) => devisHtml(L.vueClient(d, { emetteur }), { emetteur });
+
+  test('6 la finalisation copie dans le devis le texte du réglage nettoyé ; réglage vide = texte standard ; devis à 20 % = rien', () => {
+    assert.equal(fige(finalisable(10)).devis.mentionTvaReduiteFigee, 'Texte de Jérôme du jour.');
+    assert.equal(fige(finalisable(5.5), { regimeTva: 'assujetti', mentionTvaReduite: '' }).devis.mentionTvaReduiteFigee, L.MENTION_TVA_REDUITE_DEFAUT);
+    assert.equal('mentionTvaReduiteFigee' in fige(finalisable(20)).devis, false, 'rien à figer sans ligne réduite');
+    assert.equal('mentionTvaReduiteFigee' in fige({ ...finalisable(20), mentionTvaReduiteFigee: 'reste' }).devis, false, 'un reste de brouillon ne survit pas');
+  });
+  test('7 un devis finalisé imprime le texte figé même si le réglage change ensuite ; un brouillon suit le réglage', () => {
+    const f = fige(finalisable(10)).devis;
+    const h = imprime(f, L.emetteurImprime({ nom: 'Atelier' }, '', 'Nouveau texte du réglage'));
+    assert.ok(h.includes('Texte de Jérôme du jour.') && !h.includes('Nouveau texte du réglage'));
+    const brouillon = { ...finalisable(10), mentionTvaReduiteFigee: 'Texte posé à la main' };
+    const hb = imprime(brouillon, L.emetteurImprime({ nom: 'Atelier' }, '', 'Nouveau texte du réglage'));
+    assert.ok(hb.includes('Nouveau texte du réglage') && !hb.includes('Texte posé à la main'), 'un brouillon ne lit jamais le texte figé');
+  });
+  test('8 un devis finalisé AVANT cette règle (sans texte figé) suit encore les réglages, puis le texte standard', () => {
+    const ancien = { ...finalisable(10), statut: 'en_attente_envoi', numero: 'N' };
+    assert.ok(imprime(ancien, L.emetteurImprime({ nom: 'A' }, '', 'Texte du réglage actuel')).includes('Texte du réglage actuel'));
+    assert.ok(imprime(ancien, {}).includes('278-0 bis A'));
+  });
+  test('8 une mention figée sur un devis passé à 20 % ne s’imprime pas (le drapeau tvaReduite commande)', () => {
+    const d = { ...finalisable(20), statut: 'en_attente_envoi', mentionTvaReduiteFigee: 'Ne doit pas sortir' };
+    assert.ok(!imprime(d).includes('Ne doit pas sortir'));
+  });
+  test('9 une nouvelle version repart des réglages du moment : le texte figé n’est pas recopié', () => {
+    const f = fige(finalisable(10)).devis;
+    assert.equal(f.mentionTvaReduiteFigee, 'Texte de Jérôme du jour.');
+    const v2 = L.nouvelleVersion(f, { id: 'd2', creeLe: new Date('2026-10-25T10:00:00Z') });
+    assert.equal('mentionTvaReduiteFigee' in v2, false);
+    assert.ok(imprime(v2, L.emetteurImprime({ nom: 'A' }, '', 'Texte du moment')).includes('Texte du moment'));
+  });
+  test('9 l’assistant ne peut pas écrire ce champ dans un brouillon (champ protégé)', async () => {
+    const B = await import('../js/modules/devis/brouillon.js');
+    assert.ok(B.CHAMPS_PROTEGES.includes('mentionTvaReduiteFigee'));
+    const r = B.planModifierBrouillon({ id: 'd', statut: 'brouillon' }, { mentionTvaReduiteFigee: 'x' });
+    assert.match(r.erreurs.general, /mentionTvaReduiteFigee/);
+    assert.deepEqual(r.ecritures, []);
   });
 });

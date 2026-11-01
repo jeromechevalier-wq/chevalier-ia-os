@@ -183,8 +183,10 @@ describe('Filtre « Famille » en arbre (Catalogue > Filtres)', () => {
     assert.equal(o.find((x) => x.valeur === 'libre').note, undefined); // pas de sous-famille : pas de mention
     const f1 = o.find((x) => x.valeur === 'famille-1');
     assert.deepEqual([f1.libelle, f1.niveau, f1.note], ['Fournitures', 0, 'inclut ses sous-familles']);
+    assert.equal(f1.parent, undefined);
     const sous = o.find((x) => x.valeur === 'sous-x');
-    assert.deepEqual([sous.libelle, sous.niveau, sous.note], ['Carrelage', 1, undefined]); // jamais « Fournitures › Carrelage »
+    assert.deepEqual([sous.libelle, sous.niveau, sous.note], ['Carrelage', 1, undefined]);
+    assert.equal(sous.parent, 'famille-1'); // jamais « Fournitures › Carrelage »
     assert.ok(o.indexOf(sous) > o.indexOf(f1) && o.indexOf(sous) < o.findIndex((x) => x.valeur === 'famille-2'));
     assert.ok(o.every((x) => !x.libelle.includes('›')));
   });

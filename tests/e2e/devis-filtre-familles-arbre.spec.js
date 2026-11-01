@@ -37,21 +37,110 @@ test('1 les familles du filtre sont en arbre : une famille par ligne, sous-famil
   await capturer(page, info, '1-arbre');
 });
 
-test('2 cocher une famille de premier niveau garde les articles de ses sous-familles ; une sous-famille seule ne garde qu’elle', async ({ page }) => {
-  await ecrireDocument('devis_parametres/familles', { liste: [{ id: 'sous-1', nom: 'Carrelage', actif: true, parentId: 'famille-1' }] });
+const casesFamille = (page, valeur) => dialogue(page).locator(`[data-cle="familles"][data-valeur="${valeur}"]`);
+async function arbreDeux() {
+  await ecrireDocument('devis_parametres/familles', { liste: [{ id: 'sous-1', nom: 'Carrelage', actif: true, parentId: 'famille-1' }, { id: 'sous-2', nom: 'Peinture', actif: true, parentId: 'famille-1' }] });
   await article('a2', { libelle: 'Carreau', type: 'fourniture', familleId: 'sous-1' });
   await article('a3', { libelle: 'Colle', type: 'fourniture' });
   await article('a4', { libelle: 'Pose', type: 'main_oeuvre', familleId: 'famille-2' });
+}
+
+test('2 cocher une famille garde les articles de ses sous-familles ; une sous-famille seule ne garde qu’elle', async ({ page }) => {
+  await arbreDeux();
   await ouvrirFiltres(page);
-  await dialogue(page).locator('[data-cle="familles"][data-valeur="famille-1"]').check();
+  await casesFamille(page, 'famille-1').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.locator('.ligne-article')).toHaveCount(2);
   await page.locator('[data-action="filtres"]').click();
-  await dialogue(page).locator('[data-cle="familles"][data-valeur="famille-1"]').uncheck();
-  await dialogue(page).locator('[data-cle="familles"][data-valeur="sous-1"]').check();
+  await casesFamille(page, 'famille-1').uncheck();
+  await casesFamille(page, 'sous-1').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.locator('.ligne-article[data-id="a2"]')).toHaveCount(1);
   await expect(page.locator('.ligne-article')).toHaveCount(1);
+});
+
+test('5.1 cocher une famille coche aussitôt ses sous-familles, grisées et non modifiables', async ({ page }, info) => {
+  await arbreDeux();
+  await ouvrirFiltres(page);
+  await casesFamille(page, 'famille-1').check();
+  for (const id of ['sous-1', 'sous-2']) {
+    await expect(casesFamille(page, id)).toBeChecked();
+    await expect(casesFamille(page, id)).toBeDisabled();
+    await expect(casesFamille(page, id)).toHaveAttribute('aria-disabled', 'true');
+  }
+  await expect(casesFamille(page, 'famille-2')).not.toBeChecked();
+  await capturer(page, info, '5-1-famille-cochee');
+});
+
+test('5.2 décocher la famille dégrise et décoche ses sous-familles', async ({ page }) => {
+  await arbreDeux();
+  await ouvrirFiltres(page);
+  await casesFamille(page, 'famille-1').check();
+  await casesFamille(page, 'famille-1').uncheck();
+  for (const id of ['sous-1', 'sous-2']) {
+    await expect(casesFamille(page, id)).not.toBeChecked();
+    await expect(casesFamille(page, id)).toBeEnabled();
+  }
+});
+
+test('5.3 tant que la famille n’est pas cochée, chaque sous-famille se coche et se décoche seule', async ({ page }, info) => {
+  await arbreDeux();
+  await ouvrirFiltres(page);
+  await casesFamille(page, 'sous-1').check();
+  await expect(casesFamille(page, 'sous-2')).not.toBeChecked();
+  await expect(casesFamille(page, 'famille-1')).not.toBeChecked();
+  await capturer(page, info, '5-3-sous-famille-seule');
+  await casesFamille(page, 'sous-1').uncheck();
+  await expect(casesFamille(page, 'sous-1')).not.toBeChecked();
+});
+
+test('5.4 sous-familles déjà cochées puis famille cochée : la famille prend tout ; décochée, tout est décoché', async ({ page }) => {
+  await arbreDeux();
+  await ouvrirFiltres(page);
+  await casesFamille(page, 'sous-1').check();
+  await casesFamille(page, 'famille-1').check();
+  await expect(casesFamille(page, 'sous-1')).toBeDisabled();
+  await expect(casesFamille(page, 'sous-2')).toBeChecked();
+  await casesFamille(page, 'famille-1').uncheck();
+  await expect(casesFamille(page, 'sous-1')).not.toBeChecked();
+  await expect(casesFamille(page, 'sous-2')).not.toBeChecked();
+});
+
+test('5.5 le filtre appliqué, la pastille de compte et la réouverture restent cohérents ; « Sans famille » ne change pas', async ({ page }) => {
+  await arbreDeux();
+  await ouvrirFiltres(page);
+  await casesFamille(page, 'sous-1').check();
+  await casesFamille(page, 'famille-1').check();
+  await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
+  await expect(page.locator('.ligne-article')).toHaveCount(2); // « Carreau » (sous-famille) et « Colle » (famille de départ de son type)
+  await expect(page.locator('[data-action="filtres"] .compteur-filtres')).toHaveText('1'); // une famille = 1, pas 3
+  await page.locator('[data-action="filtres"]').click();
+  await expect(casesFamille(page, 'famille-1')).toBeChecked();
+  await expect(casesFamille(page, 'sous-2')).toBeDisabled();
+  await casesFamille(page, 'sans_famille').check();
+  await expect(casesFamille(page, 'sans_famille')).toBeEnabled();
+  await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
+  await expect(page.locator('.ligne-article')).toHaveCount(2); // « Sans famille » n'ajoute ici aucun article
+  await page.locator('[data-action="filtres"]').click();
+  await dialogue(page).getByRole('button', { name: 'Tout effacer' }).click();
+  await expect(page.locator('.ligne-article')).toHaveCount(3);
+});
+
+test('5.6 clavier : Espace sur la famille coche et décoche ; une sous-famille grisée est désactivée', async ({ page }) => {
+  await arbreDeux();
+  await ouvrirFiltres(page);
+  await casesFamille(page, 'famille-1').focus();
+  await page.keyboard.press('Space');
+  await expect(casesFamille(page, 'sous-1')).toBeDisabled();
+  await page.keyboard.press('Space');
+  await expect(casesFamille(page, 'sous-1')).toBeEnabled();
+});
+
+test('5.7 cas vide : aucune famille, « Sans famille » seul et aucune case grisée', async ({ page }, info) => {
+  await ecrireDocument('devis_parametres/familles', { liste: [] });
+  await ouvrirFiltres(page);
+  await expect(dialogue(page).locator('input[data-cle="familles"]:disabled')).toHaveCount(0);
+  await capturer(page, info, '5-7-vide');
 });
 
 test('3 « Sans famille » est la dernière ligne de l’arbre (le cas sans aucune famille est dans tests/devis-familles.test.js)', async ({ page }, info) => {
