@@ -74,7 +74,7 @@ La plateforme est **un seul** projet Google (`chevalier-ia-app`) : ces réglages
 2. **Deux secrets** dans Secret Manager, projet de la plateforme (`chevalier-ia-app`) : `N8N_DEVIS_EMAIL_URL_<id>` (adresse du webhook) et `N8N_DEVIS_EMAIL_SECRET_<id>` (mot de passe du webhook). Les valeurs se collent dans la console, jamais dans une conversation ni un fichier.
 3. **Deux comptes de service** reçoivent « Accesseur de secrets » (`roles/secretmanager.secretAccessor`) sur **chacun** des deux secrets :
    - le compte de la **fonction d'écran** (`devisPreparerEmail`, compte par défaut de Compute du projet) : sans lui le bouton n'apparaît pas ;
-   - `mcp-clients@<projet de la plateforme>.iam.gserviceaccount.com`, pour l'**assistant** : sans lui il répond « La préparation de l'e-mail n'est pas encore branchée ».
+   - `mcp-clients@chevalier-ia-app.iam.gserviceaccount.com`, pour l'**assistant** : sans lui il répond « La préparation de l'e-mail n'est pas encore branchée ».
    ```
    gcloud secrets add-iam-policy-binding N8N_DEVIS_EMAIL_URL_<id> --member=serviceAccount:<compte> --role=roles/secretmanager.secretAccessor --condition=None
    gcloud secrets add-iam-policy-binding N8N_DEVIS_EMAIL_SECRET_<id> --member=serviceAccount:<compte> --role=roles/secretmanager.secretAccessor --condition=None

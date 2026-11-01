@@ -18,11 +18,11 @@ Tableau des choses à faire : `.github/A-FAIRE.md`. Version toujours 2.35.0 (voi
 | Familles configurables PR 2 et PR 3 | | **non lancées** |
 | Recette « brancher l'e-mail » chez un client, pages de profils corrigées, leçons | cette PR de docs | à fusionner |
 
-- **État de la nuit GitHub** : « Tests de nuit » lancé sur `main` après chaque fusion d'écran, verts (runs 79 à 83, d'après le brief de la session principale ; non relus depuis le dépôt).
+- **État de la nuit GitHub** : « Tests de nuit » lancé sur `main` après chaque fusion d'écran, verts, vérifiés sur GitHub le 01/11 (runs 79 à 83 verts : 79 = #490, 80 = #495, 81 = #496, 82 = #497, 83 = #498).
 - **Déploiements chez les clients** : site après chaque fusion d'écran ; `mcp` puis `hosting` pour la PR 496 ; workflow `deploiement-plateforme.yml` lancé par Jérôme un à la fois (d'après le brief ; le dépôt ne garde pas de trace des lancements).
 - **Pas pu être vérifié avec le vrai système** : le rendu de ClientDemo après `--vider` puis `--metier agence --ecrire` ; un envoi réel de « Préparer l'e-mail » chez un client après la PR 493.
 - **Ce que Jérôme doit faire** : (1) recharger la démo : `node scripts/donnees-demo.js clientdemo --vider --ecrire --confirmer clientdemo` puis `node scripts/donnees-demo.js clientdemo --metier agence --ecrire` ; (2) relire les noms pris seuls : sous-familles « Panneaux », « Téléviseurs et supports », « Packs clés en main » ; familles de premier niveau « Panneaux d'affichage », « Services numériques », « Prestations complètes », « Écrans en location » ; (3) répondre aux questions de `.github/A-FAIRE.md` (déchets sur le PDF officiel, condition de paiement autre que l'acompte, adresse tapée dans la conversation, logiciel de facturation, sauvegarde du VPS n8n, rotation du mot de passe du webhook).
-- **Droits des assistants (corrigé)** : tout assistant connecté par OAuth (ChatGPT, Gemini, claude.ai) a le profil `claude-code` : `finaliser_devis` (aperçu + code), `changer_statut_devis` et `supprimer_devis` lui sont déjà ouverts ; seul Hermes est bibliothécaire.
+- **Droits des assistants (corrigé)** : tout assistant connecté par OAuth (ChatGPT, Gemini, claude.ai) a le profil `claude-code` : `finaliser_devis` (aperçu + code), `changer_statut_devis` et `supprimer_devis` lui sont déjà ouverts ; le jeton d'Hermes est le seul jeton bibliothécaire connu (à vérifier dans `MCP_JETONS`, hors dépôt).
 
 ---
 
@@ -440,7 +440,7 @@ Recette ensuite : finaliser un devis, appeler la fonction, trouver le PDF dans `
 - Pas de sous-familles : une seule famille par article.
 - Un brouillon n'a pas de PDF.
 - Les anciens devis importés ne se dupliquent pas.
-- `finaliser_devis` n'est pas donné au bibliothécaire (Hermes) ; il est donné au profil Claude Code, qui est aussi celui de toute connexion OAuth (ChatGPT, Gemini, claude.ai) et du rôle éditeur chez un client (corrigé le 01/11/2026 : la première réponse « réservé à Claude Code » laissait croire que ChatGPT ne pouvait pas finaliser).
+- `finaliser_devis` n'est pas donné au bibliothécaire (jeton d'Hermes) ; il est donné au profil Claude Code, qui est aussi celui de toute connexion OAuth (ChatGPT, Gemini, claude.ai) et du rôle éditeur chez un client (corrigé le 01/11/2026 : la première réponse « réservé à Claude Code » laissait croire que ChatGPT ne pouvait pas finaliser).
 
 ## État de la nuit GitHub
 Non consulté (commande : `gh run list --workflow "Tests de nuit" --limit 3`).
