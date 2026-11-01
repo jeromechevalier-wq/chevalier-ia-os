@@ -17,7 +17,9 @@ const parLibelle = (a, b) => String(a.libelle ?? '').localeCompare(String(b.libe
  */
 export function arbreCatalogue(articles, familles, estChoisissable = (a) => a?.actif !== false && a?.type !== 'texte') {
   const choisissables = (articles ?? []).filter((a) => a && estChoisissable(a));
-  const actives = new Set((familles ?? []).filter((f) => f.actif !== false).map((f) => f.id));
+  // Une sous-famille dont la famille de premier niveau est désactivée n'est pas dans l'arbre non plus : ses articles vont dans « Sans famille ».
+  const parDe = new Map((familles ?? []).map((f) => [f.id, f]));
+  const actives = new Set((familles ?? []).filter((f) => f.actif !== false && (!f.parentId || parDe.get(f.parentId)?.actif !== false)).map((f) => f.id));
   const rangeDans = new Map();
   const sans = [];
   for (const a of choisissables) {

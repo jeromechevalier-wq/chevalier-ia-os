@@ -52,15 +52,17 @@ export function reglagesFamilles(page) {
         const ok = await ecrire(place, () => D.renommerFamille(f.id, v));
         if (ok) toast(haut ? 'Famille renommée' : 'Sous-famille renommée'); else e.target.value = D.etat.familles.find((x) => x.id === f.id)?.nom ?? nomActuel;
       } });
-    /** Ce que la confirmation dit : combien d'articles sont rangés dedans (ils restent visibles au Catalogue), et le sort des mots appris du Vocabulaire. */
+    // Le nom réel au moment du clic (la ligne n'est pas redessinée pendant la saisie : après un renommage, `f.nom` serait périmé).
+    const nomActuel = () => D.etat.familles.find((x) => x.id === f.id)?.nom ?? f.nom;
+    /** Ce que la confirmation dit : combien d'articles actifs sont rangés dedans (ils restent visibles dans le catalogue), et le sort des mots appris du Vocabulaire. */
     const messageDesactivation = () => {
       const n = nombreArticlesDeFamille(D.etat.familles, D.etat.articles, f.id);
-      const articles = n === 0 ? 'Aucun article n’y est rangé.' : `${n} article${n > 1 ? 's' : ''} y ${n > 1 ? 'sont rangés' : 'est rangé'} : ${n > 1 ? 'ils restent' : 'il reste'} dans ton catalogue.`;
-      return `« ${f.nom} » ne sera plus proposée pour de nouveaux articles${haut ? ' ni dans les boutons « + » du devis' : ''}. ${articles} Les devis déjà faits ne changent pas.${haut ? ' Les mots appris du Vocabulaire qui désignent cette famille sont ignorés tant qu’elle est désactivée.' : ''} Tu pourras la réactiver quand tu veux.`;
+      const articles = n === 0 ? 'Aucun article actif n’y est rangé.' : `${n} article${n > 1 ? 's' : ''} actif${n > 1 ? 's' : ''} y ${n > 1 ? 'sont rangés' : 'est rangé'} : ${n > 1 ? 'ils restent' : 'il reste'} dans ton catalogue.`;
+      return `« ${nomActuel()} » ne sera plus proposée pour de nouveaux articles${haut ? ' ni dans les boutons « + » du devis' : ''}. ${articles} Les devis déjà faits ne changent pas.${haut ? ' Les mots appris du Vocabulaire qui désignent cette famille elle-même sont ignorés tant qu’elle est désactivée.' : ''} Tu pourras la réactiver quand tu veux.`;
     };
     const bouton = inactive
       ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'reactiver-famille' }, 'aria-label': `Réactiver ${f.nom}`,
-        onclick: async () => { if (await ecrire(place, () => D.activerFamille(f.id, true))) toast(`« ${f.nom} » réactivée`); } }, icone('archive-restore', { taille: 14 }), 'Réactiver')
+        onclick: async () => { if (await ecrire(place, () => D.activerFamille(f.id, true))) toast(`« ${nomActuel()} » réactivée`); } }, icone('archive-restore', { taille: 14 }), 'Réactiver')
       : h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'desactiver-famille' }, 'aria-label': `Désactiver ${f.nom}`,
         onclick: async () => {
           // La règle « il en faut au moins une » se dit tout de suite, sous la famille, sans ouvrir de fenêtre de confirmation pour rien.
@@ -71,7 +73,7 @@ export function reglagesFamilles(page) {
             titre: haut ? 'Désactiver cette famille ?' : 'Désactiver cette sous-famille ?', libelleOk: 'Désactiver', message: messageDesactivation(),
             faire: async () => { const r = await D.activerFamille(f.id, false); if (r.erreur) throw new Error(r.erreur); },
             defaire: async () => { const r = await D.activerFamille(f.id, true); if (r.erreur) throw new Error(r.erreur); },
-            messageFait: `« ${f.nom} » désactivée`, messageErreur: 'Désactivation impossible : réessaie dans un instant. Rien n’a été changé.',
+            messageFait: `« ${nomActuel()} » désactivée`, messageErreur: 'Désactivation impossible : réessaie dans un instant. Rien n’a été changé.',
           });
         } }, icone('archive', { taille: 14 }), 'Désactiver');
     return h('div', { class: `ligne-reglage${inactive ? ' archivee' : ''}`, dataset: { famille: f.id, niveau: haut ? '1' : '2' } }, champ,

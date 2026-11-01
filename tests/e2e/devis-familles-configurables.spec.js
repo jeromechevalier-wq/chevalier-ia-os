@@ -89,7 +89,7 @@ test('1.2 « Matériels » se désactive (la confirmation dit combien d’articl
   await devisBrouillon();
   await ouvrirReglagesFamilles(page);
   await ligneHaute(page, 'famille-5').locator('[data-action="desactiver-famille"]').click();
-  await expect(dialogue(page)).toContainText('1 article y est rangé : il reste dans ton catalogue');
+  await expect(dialogue(page)).toContainText('1 article actif y est rangé : il reste dans ton catalogue');
   await expect(dialogue(page)).toContainText('Les devis déjà faits ne changent pas');
   await capturer(page, info, '1.2-confirmation', 'vue');
   await dialogue(page).getByRole('button', { name: 'Désactiver' }).click();
@@ -101,6 +101,10 @@ test('1.2 « Matériels » se désactive (la confirmation dit combien d’articl
   await expect(page.getByRole('menuitem', { name: 'Divers' })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Matériel' })).toHaveCount(0);
   await capturer(page, info, '1.2-editeur-menu', 'vue');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-action="ajouter-famille-1"]').click(); // la boîte de recherche ne propose ni « Matériels » ni ses sous-familles
+  await expect(page.locator('[data-champ="filtre-famille"] option[value="famille-1"]')).toHaveCount(1);
+  await expect(page.locator('[data-champ="filtre-famille"] option[value="famille-5"], [data-champ="filtre-famille"] option[value="famille-5-2"]')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await page.locator('tr[data-id="l1"] [data-action="menu-ligne"]').click();
   await page.getByRole('menuitem', { name: 'Insérer en dessous' }).click();
@@ -164,7 +168,7 @@ test('1.9 cas d’erreur : un nom déjà pris au premier niveau est refusé sous
   await expect(champ).toHaveValue('Fournitures');
   await capturer(page, info, '1.9-nom-pris', groupe(page, 'famille-1'));
   await ligneHaute(page, 'famille-6').locator('[data-action="desactiver-famille"]').click();
-  await expect(dialogue(page)).toContainText('Aucun article n’y est rangé.');
+  await expect(dialogue(page)).toContainText('Aucun article actif n’y est rangé.');
   await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
   await expect(ligneHaute(page, 'famille-6')).not.toContainText('Désactivée');
   await capturer(page, info, '1.9-aucun-article', groupe(page, 'famille-6'));

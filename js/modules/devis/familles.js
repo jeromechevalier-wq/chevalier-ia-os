@@ -172,10 +172,10 @@ export function erreurFamilleArticle(familleId, familles, actuel = null) {
 /** Nom de la famille d'un article (vide si aucune). */
 export const nomFamille = (familles, familleId) => (familles ?? []).find((f) => f.id === familleId)?.nom ?? '';
 
-/** Combien d'articles sont rangés dans cette famille (sous-familles comprises), pour le dire avant de la désactiver. Un ancien article sans famille compte dans la famille de départ de son type. */
+/** Combien d'articles ACTIFS sont rangés dans cette famille (sous-familles comprises), pour le dire avant de la désactiver. Un ancien article sans famille compte dans la famille de départ de son type. */
 export function nombreArticlesDeFamille(familles, articles, id) {
   const ids = new Set(idsAvecSousFamilles(familles, id));
-  return (articles ?? []).filter((a) => ids.has(familleEffective(a))).length;
+  return (articles ?? []).filter((a) => a?.actif !== false && ids.has(familleEffective(a))).length;
 }
 
 /** Famille proposée d'office à un article neuf : « Fournitures » si elle est active, sinon la première famille de premier niveau active qui n'est pas « Textes » (un texte n'a pas de prix), sinon la première active, sinon '' (aucune). */

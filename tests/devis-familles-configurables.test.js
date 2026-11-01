@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import * as F from '../js/modules/devis/familles.js';
 import * as A from '../js/modules/devis/articles.js';
 import { entreesAjoutFamilles } from '../js/modules/devis/ajouts-familles.js';
+import { arbreCatalogue, cheminDansArbre } from '../js/modules/devis/selecteur-catalogue-logique.js';
 
 const defauts = () => F.famillesDe(null);
 const renommer = (liste, id, nom) => F.planRenommerFamille(id, nom, liste).familles;
@@ -67,6 +68,28 @@ describe('1.2 désactiver « Matériels »', () => {
     assert.equal(F.familleParDefaut(seulsTextes), 'famille-6');
     assert.equal(F.familleParDefaut([]), '');
     assert.equal(F.familleParDefaut(null), '');
+  });
+});
+
+describe('1.2 suite : sélecteur du Vocabulaire, articles actifs, article déjà rangé', () => {
+  test('1.2 le sélecteur du Vocabulaire range sous « Sans famille » les articles d’une famille désactivée ET de ses sous-familles (jamais perdus de vue)', () => {
+    const l = desactiver(defauts(), 'famille-5');
+    const arts = [{ id: 'b', libelle: 'Bétonnière', type: 'materiel', familleId: 'famille-5-2' }, { id: 'm', libelle: 'Mini-pelle', type: 'materiel' }, { id: 'v', libelle: 'Vis', type: 'fourniture', familleId: 'famille-1-9' }];
+    const arbre = arbreCatalogue(arts, l);
+    assert.notDeepEqual(cheminDansArbre(arbre, 'b'), [], 'l’article est retrouvable dans l’arbre');
+    const sans = arbre.find((n) => n.nom === 'Sans famille');
+    assert.deepEqual(sans.articles.map((a) => a.id).sort(), ['b', 'm']);
+    assert.equal(arbre.some((n) => n.nom === 'Matériels'), false);
+  });
+  test('1.2 le compte de la confirmation ne compte que les articles actifs', () => {
+    const arts = [{ id: 'a', type: 'materiel' }, { id: 'b', type: 'materiel', actif: false }];
+    assert.equal(F.nombreArticlesDeFamille(defauts(), arts, 'famille-5'), 1);
+  });
+  test('1.2 un ancien article sans famille (rangé par son type dans une famille désactivée) peut être modifié sans la quitter', () => {
+    const l = desactiver(defauts(), 'famille-5');
+    const r = A.validerArticle({ familleId: 'famille-5' }, { familles: l, courant: { libelle: 'Pelle', prixAchat: 9, type: 'materiel' } });
+    assert.equal(r.erreurs.familleId, undefined);
+    assert.match(A.validerArticle({ familleId: 'famille-5' }, { familles: l, courant: { libelle: 'Vis', prixAchat: 1, type: 'fourniture' } }).erreurs.familleId, /désactivée/);
   });
 });
 

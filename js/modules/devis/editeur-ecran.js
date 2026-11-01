@@ -1356,7 +1356,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       oninput: (e) => { rechercheBordereau = e.target.value; majResultats(); },
     });
     ref.filtreFamille = h('select', { class: 'champ', 'aria-label': 'Famille', dataset: { champ: 'filtre-famille' }, onchange: (e) => { filtreFamille = e.target.value; majResultats(); } },
-      h('option', { value: '' }, 'Toutes les familles'), arbreFamilles(D.etat.familles).flatMap(({ famille: f, enfants }) => [f, ...enfants]).filter((f) => f.actif).map((f) => h('option', { value: f.id }, f.parentId ? `\u00a0\u00a0\u00a0\u00a0– ${f.nom}` : f.nom)), h('option', { value: 'sans_famille' }, 'Sans famille'));
+      h('option', { value: '' }, 'Toutes les familles'), arbreFamilles(D.etat.familles).filter(({ famille }) => famille.actif !== false).flatMap(({ famille: f, enfants }) => [f, ...enfants]).filter((f) => f.actif).map((f) => h('option', { value: f.id }, f.parentId ? `\u00a0\u00a0\u00a0\u00a0– ${f.nom}` : f.nom)), h('option', { value: 'sans_famille' }, 'Sans famille'));
     ref.resultats = h('ul', { class: 'resultats-bordereau', dataset: { zone: 'resultats' } });
     ref.panneauRecherche = h('div', { class: 'recherche-bordereau', hidden: true, role: 'group', 'aria-label': 'Ajouter une ligne', dataset: { zone: 'recherche' } },
       h('div', { class: 'ligne-champs' }, ref.rechercheBordereau, ref.filtreFamille,
