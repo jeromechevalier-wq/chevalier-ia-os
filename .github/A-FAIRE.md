@@ -267,3 +267,5 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 ## Fait (fusionné, en ligne, testé par Jérôme)
 - PR 306 : testée par Jérôme (26/10/2026) ; PR 278 (pastille Devis), 284 (barre du haut), 304 (Retour au devis), 298 (visualisation du devis, « Passer à Envoyé », points 1 à 5 OK), 285 (e-mails en copie, points 1 à 5 OK), 287 (pastille cliquable, points 1 à 5 OK) : testées par Jérôme.
 - PR 275, 277, 279, 280, 282 (voir l'historique Git). PR 115 : fermée (chemin d'un Mac dans CLAUDE.md).
+
+- **Section « Projet » de la fiche d'affaire par inscription** : aujourd'hui `fiche-affaire.js` teste `PD.estPret()` (01/11/2026) ; variante plus propre, le module Projets s'inscrit via `js/modules/crm/pastilles-externes.js` comme Devis.

@@ -262,3 +262,5 @@ Mêmes exigences que le cahier 2.0 (15) : tous les tests automatiques passent su
 Les trois questions du 03/10/2026 sont réglées : phases (3.1), rendez-vous de l'Accompagnement (3.4), pas d'objectif mensuel ni de suggestions de phase (3.10 et 5.8).
 
 Reste une demande nouvelle, **hors de l'écran Projets** : une fiche `.md` créée à côté de chaque document déposé sur Drive. Elle est cadrée dans `modele-fiche-document.md` et rangée dans le chantier des pièces jointes (`roadmap.md`), avec deux questions pour Jérôme.
+
+> **Pas de module Projets = pas de section « Projet » (01/11/2026).** La fiche d'une affaire gagnée ne propose « Créer le projet » / « Lier un projet » (ni n'affiche le projet lié) que si le module Projets est actif (`PD.estPret()`), chez Jérôme comme chez les clients. Variante plus propre notée dans `.github/A-FAIRE.md` : que le module Projets s'inscrive lui-même sur la fiche, comme Devis (`pastilles-externes.js`).
