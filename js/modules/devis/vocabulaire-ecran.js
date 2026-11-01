@@ -249,7 +249,7 @@ function resultatEssai(phrase) {
 }
 
 export function rendreVocabulaire(conteneur) {
-  const titre = h('h1', {}, 'Ce que l’IA a appris');
+  const titre = h('h1', {}, 'Vocabulaire');
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite', dataset: { role: 'phrase-etat' } });
   const zone = h('div', { class: 'zone-liste-vocabulaire' });
   const avis = h('div', { class: 'avis-lecture', hidden: true });
@@ -275,7 +275,7 @@ export function rendreVocabulaire(conteneur) {
   const boutonMenu = h('button', {
     type: 'button', class: 'bouton-icone', 'aria-label': 'Autres actions', 'aria-haspopup': 'menu', dataset: { action: 'menu-vocabulaire' },
     onclick: (e) => ouvrirMenu(e.currentTarget, [{
-      libelle: 'Exporter ce que l’IA a appris (CSV)', icone: 'download', desactive: !D.etat.vocabulaire.length, titreInfo: D.etat.vocabulaire.length ? null : 'Aucun mot à exporter pour l’instant.',
+      libelle: 'Exporter le vocabulaire (CSV)', icone: 'download', desactive: !D.etat.vocabulaire.length, titreInfo: D.etat.vocabulaire.length ? null : 'Aucun mot à exporter pour l’instant.',
       action: () => { telecharger(nomFichierExport(new Date(), 'vocabulaire'), V.construireCsv(D.etat.vocabulaire.map(motPourExport)), 'text/csv;charset=utf-8'); toast('Fichier téléchargé'); },
     }]),
   }, icone('ellipsis', { taille: 20 }));
