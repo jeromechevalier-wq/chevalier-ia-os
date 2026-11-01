@@ -21,7 +21,7 @@ function rendreInfosRacine(conteneur) {
   const adresse = L.lienConnexion(window.location.origin);
   const champ = h('input', { type: 'text', class: 'champ mcp-lien', readonly: true, value: adresse, 'aria-label': 'Adresse de connexion de l’IA', onfocus: (e) => e.target.select() });
   conteneur.append(h('div', { class: 'page page-mcp', dataset: { mcp: 'racine' } },
-    h('header', { class: 'page-tete' }, h('h1', {}, 'Connecter mon IA')),
+    h('header', { class: 'page-tete' }, h('h1', {}, 'Connecter l’assistant')),
     h('p', { class: 'aide' }, 'Cette page est informative : rien ne se règle ici.'),
     h('section', { class: 'mcp-bloc' },
       h('h2', {}, 'Adresse de connexion'),
@@ -51,7 +51,7 @@ export function rendreInfos(conteneur) {
   const journal = h('p', { class: 'aide' });
 
   conteneur.append(h('div', { class: 'page page-mcp' },
-    h('header', { class: 'page-tete' }, h('h1', {}, 'Connecter ton IA')),
+    h('header', { class: 'page-tete' }, h('h1', {}, 'Connecter l’assistant')),
     h('p', { class: 'aide' }, 'Cette page est informative : rien ne se règle ici. Le module « Accès MCP » s\'allume ou s\'éteint pour ton espace, il n\'a pas de réglage à toi.'),
     h('section', { class: 'mcp-bloc' },
       h('h2', {}, 'Ton lien de connexion'),

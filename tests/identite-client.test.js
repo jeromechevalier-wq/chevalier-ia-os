@@ -154,7 +154,7 @@ describe('inventaire des textes d\'identité de Jérôme dans le code de l\'inte
     'js/os/firebase-config.js': 'comptes autorisés du CRM de Jérôme (vide dans la plateforme)',
     'js/os/registre.js': 'menu « CRM » (mot du métier)',
     'js/modules/mcp/index.js': 'texte des Réglages de l’assistant à la racine seulement : « les comptes autorisés sont fixés par Jérôme » (jamais montré chez un client)',
-    'js/modules/mcp/logique.js': 'phrase de la page « Connecter mon IA » à la racine seulement : « Les comptes autorisés sont fixés par Jérôme » (jamais montrée chez un client)',
+    'js/modules/mcp/logique.js': 'phrase de la page « Connecter l’assistant » à la racine seulement : « Les comptes autorisés sont fixés par Jérôme » (jamais montrée chez un client)',
     'js/modules/crm/composants.js': 'noms des deux comptes (affichage d\'un auteur) ; image de Charles et liste Jérôme/Charles coupées chez un client',
     'js/modules/crm/logique.js': 'données de départ et textes pour Claude Code (écrans masqués chez un client)',
     'js/modules/crm/affaires.js': 'célébration « Bravo Jérôme ! » (coupée chez un client)',

@@ -200,7 +200,7 @@ test('C6b.7 l’export CSV a la colonne « Famille » (le chemin) à côté de �
   await mot('interrupteur', { articleId: 'i1', articleLibelle: 'Interrupteur étanche' });
   await ouvrir(page);
   await page.locator('[data-action="menu-vocabulaire"]').click();
-  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter ce que l’IA a appris (CSV)').click()]);
+  const [telechargement] = await Promise.all([page.waitForEvent('download'), entreeMenu(page, 'Exporter le vocabulaire (CSV)').click()]);
   const lignes = (await readFile(await telechargement.path())).toString('utf8').replace('﻿', '').trim().split('\r\n');
   expect(lignes[0]).toBe('Expression,Article,Famille,Statut,Origine,Confirmations,Dernière utilisation');
   expect(lignes[1]).toContain('interrupteur,Interrupteur étanche,,Actif,Ajouté ici');

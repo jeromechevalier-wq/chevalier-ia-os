@@ -43,7 +43,7 @@ export const ETAPES_COQUE = geler([
   { id: 'bienvenue', groupe: 'pendant', libelle: 'E-mail de bienvenue envoyé', module: null, type: 'manuel',
     reparation: 'L’administrateur de la plateforme envoie l’e-mail de bienvenue (adresse de l’espace, mode d’emploi court, comment demander de l’aide).', lien: `${DOCS}deploiement-client.md` },
   { id: 'mcp', groupe: 'pendant', libelle: 'IA (MCP) configurée', module: null, type: 'manuel',
-    reparation: 'Configure ton IA avec le lien de cet espace (menu « Connecter mon IA »).', lien: `${DOCS}mcp-clients.md` },
+    reparation: 'Configure ton IA avec le lien de cet espace (menu « Connecter l’assistant »).', lien: `${DOCS}mcp-clients.md` },
   { id: 'appli-telephone', groupe: 'pendant', libelle: 'Appli installée sur le téléphone', module: null, type: 'manuel',
     reparation: 'Ouvre l’adresse de l’espace sur le téléphone, puis « Ajouter à l’écran d’accueil ».', lien: `${DOCS}deploiement-client.md` },
   { id: 'raccourci', groupe: 'pendant', libelle: 'Raccourci épinglé sur le téléphone et l’ordinateur', module: null, type: 'manuel',
