@@ -22,7 +22,7 @@ describe('registre : le module « mcp »', () => {
     assert.ok(mcp);
     assert.equal(mcp.reserveAuxClients, undefined, 'plus réservé aux clients (18/10/2026)');
     assert.equal(mcp.horsMenu, true);
-    assert.equal(mcp.libelleMenu, 'Connecter l’assistant');
+    assert.equal(mcp.libelleMenu, 'Connecter mon ChatGPT');
     assert.deepEqual(mcp.ecrans.map((e) => e.route), ['mcp/infos']);
     assert.deepEqual([mcp.collections, mcp.outilsMcp, mcp.dependances], [[], [], []]);
     assert.ok(IDS_MODULES.includes('mcp'));
@@ -71,7 +71,7 @@ describe('page d\'information : logique', () => {
   test('mode d\'emploi : trois lignes, Google et l\'autorisation nommés', () => {
     assert.equal(L.MODE_EMPLOI.length, 3);
     const t = L.MODE_EMPLOI.map((e) => e.texte).join(' ');
-    assert.match(t, /Claude/); assert.match(t, /ChatGPT/); assert.match(t, /Google/); assert.match(t, /Autoriser/);
+    assert.match(t, /^Dans ChatGPT/); assert.match(L.PHRASE_AUSSI, /Claude ou Gemini/); assert.match(t, /Google/); assert.match(t, /Autoriser/);
   });
   test('membres : rangés par adresse, libellé du rôle, « toi » repéré ; rôle inconnu écarté', () => {
     const l = L.lignesMembres([{ id: 'zoe@x.test', role: 'lecteur' }, { id: 'Alice@x.test', role: 'editeur', nom: 'Alice' }, { id: 'x@x.test', role: 'admin' }, { id: 'y@x.test' }], 'alice@x.test');
@@ -155,7 +155,7 @@ describe('plateforme : fonction, adresses, configuration, règles', () => {
   });
 });
 
-describe('Retour (01/11/2026) : « Vocabulaire » et « Connecter l’assistant » (annule le renommage de la PR 472)', () => {
+describe('Retour (01/11/2026) : « Vocabulaire » et « Connecter mon ChatGPT » (annule le renommage de la PR 472)', () => {
   // Texte visible seulement : on retire les commentaires de ligne et de bloc.
   const sansCommentaires = (f) => lire(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   test('R1 l’écran est déclaré « Vocabulaire » (registre, liste des devis, écran), plus de « Ce que l’IA a appris » visible', () => {
@@ -165,11 +165,16 @@ describe('Retour (01/11/2026) : « Vocabulaire » et « Connecter l’assistant 
     }
     assert.match(sansCommentaires('js/modules/devis/vocabulaire-ecran.js'), /h\('h1', \{\}, 'Vocabulaire'\)/);
   });
-  test('R2 la page, le menu et le déploiement disent « Connecter l’assistant » (jamais « Connecter ton IA » ni « Connecter mon IA »)', () => {
+  test('R2 la page, le menu et le déploiement disent « Connecter mon ChatGPT » (jamais « Connecter ton IA » ni « Connecter mon IA »)', () => {
     for (const f of ['js/modules/mcp/ecran.js', 'js/os/registre.js', 'js/os/shell.js', 'js/os/deploiement.js']) {
       assert.doesNotMatch(sansCommentaires(f), /Connecter (ton|mon) (IA|assistant)/, f);
     }
-    assert.match(sansCommentaires('js/modules/mcp/ecran.js'), /h\('h1', \{\}, 'Connecter l’assistant'\)/);
-    assert.match(sansCommentaires('js/os/shell.js'), /libelle: 'Connecter l’assistant'/);
+    assert.match(sansCommentaires('js/modules/mcp/ecran.js'), /h\('h1', \{\}, 'Connecter mon ChatGPT'\)/);
+    assert.match(sansCommentaires('js/os/shell.js'), /libelle: 'Connecter mon ChatGPT'/);
+  });
+  test('R3 (mot « ChatGPT », 01/11/2026) l’outil connecté s’appelle ChatGPT à l’écran : plus de « ton IA », « l’IA » ni « IA (MCP) » dans les textes visibles', () => {
+    for (const f of ['js/modules/mcp/ecran.js', 'js/modules/mcp/index.js', 'js/modules/mcp/logique.js', 'js/modules/devis/vocabulaire-ecran.js', 'js/modules/devis/deploiement.js', 'js/modules/crm/journal.js', 'js/os/deploiement.js', 'js/os/registre.js']) {
+      assert.doesNotMatch(sansCommentaires(f).replaceAll('Chevalier IA', ''), /\bIA\b/, f);
+    }
   });
 });

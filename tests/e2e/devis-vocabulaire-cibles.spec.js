@@ -179,7 +179,7 @@ test('C5b.7 un article désactivé parmi d’autres reste dans la liste déplié
   await expect(ligne(page, 'prise').locator('[data-role="cibles"] li').nth(1)).toContainText('Prise double 16 A (désactivé)');
 });
 
-test('C5b.8 « Essayer une phrase » : « prise étanche » dit ce que l’IA comprend (« prise » désigne 3 articles au choix, je cherche « etanche » parmi eux) et pose UNE question à un seul choix ; l’usage départage deux articles à égalité', async ({ page }, info) => {
+test('C5b.8 « Essayer une phrase » : « prise étanche » dit ce que ChatGPT comprend (« prise » désigne 3 articles au choix, je cherche « etanche » parmi eux) et pose UNE question à un seul choix ; l’usage départage deux articles à égalité', async ({ page }, info) => {
   await catalogue();
   await motMultiple();
   await ouvrir(page);

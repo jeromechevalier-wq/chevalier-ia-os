@@ -6,7 +6,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from './veille/appel.js';
 import { ErreurDevis, OPERATIONS, reponsePublique } from './coeur/devis.js';
 
-const CHAMPS_JOURNAL = ['action', 'statut', 'code', 'dureeMs'];
+const CHAMPS_JOURNAL = ['action', 'statut', 'code', 'detail', 'dureeMs'];
 
 /** Une ligne de journal : liste blanche de champs, valeurs courtes. */
 export function ligneDeJournalDevis(entree) {
@@ -14,7 +14,7 @@ export function ligneDeJournalDevis(entree) {
   for (const c of CHAMPS_JOURNAL) {
     const v = entree[c];
     if (v === undefined || v === null) continue;
-    ligne[c] = typeof v === 'string' ? v.slice(0, 40) : v;
+    ligne[c] = typeof v === 'string' ? v.slice(0, c === 'detail' ? 200 : 40) : v;
   }
   return JSON.stringify(ligne);
 }

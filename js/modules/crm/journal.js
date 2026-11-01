@@ -108,7 +108,7 @@ export function rendreJournal(conteneur) {
 
   async function ouvrirFiltres() {
     // Toujours proposés (même journal vide, en chargement ou en erreur) : les deux canaux et la case « À vérifier seulement ».
-    const libelleMcp = estChezClient() ? 'Assistant IA (MCP)' : 'MCP (Claude Code, Hermes)';
+    const libelleMcp = estChezClient() ? 'ChatGPT (MCP)' : 'MCP (Claude Code, Hermes)';
     const controles = [
       { cle: 'canaux', libelle: 'Canal', type: 'cases', options: [{ valeur: 'ecran', libelle: 'Appli' }, { valeur: 'mcp', libelle: libelleMcp }] },
       { cle: 'aVerifier', libelle: 'À vérifier seulement', type: 'oui' },
@@ -186,7 +186,7 @@ export function rendreJournal(conteneur) {
     h('div', { class: 'page-actions' }, boutonActualiser));
   conteneur.append(h('div', { class: 'page page-liste page-journal' }, entete,
     h('p', { class: 'aide' }, estChezClient()
-      ? 'Chaque création, modification ou suppression faite dans l’appli ou par une IA laisse une ligne ici, avec une copie du document avant et après (gardée sans limite de durée).'
+      ? 'Chaque création, modification ou suppression faite dans l’appli ou par ChatGPT laisse une ligne ici, avec une copie du document avant et après (gardée sans limite de durée).'
       : 'Chaque création, modification ou suppression faite dans l’appli ou par Claude Code laisse une ligne ici, avec une copie du document avant et après (gardée sans limite de durée). Pour défaire une opération, demande-le à Claude Code (restaurer_depuis_audit).'),
     barre, zone, pied));
   rendre();

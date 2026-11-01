@@ -8,7 +8,7 @@
 // Le journal des demandes ne contient JAMAIS le contenu d'un e-mail : client, devis, identifiant de demande, statut, dates, durée, et un court message d'état.
 import * as E from '../../partage/devis-email.js';
 import { COLLECTIONS as C } from './donnees.js';
-import { ErreurDevis, lireDevis, journal, modifier } from './devis.js';
+import { ErreurDevis, lireDevis, journal, modifier, texteJournal } from './devis.js';
 import { MESSAGE_NON_BRANCHE, ErreurSortieN8n } from './n8n-sortie.js';
 
 export const DELAI_ANTI_DOUBLON_MS = 3 * 60_000;
@@ -195,7 +195,7 @@ export async function lireEmailPourDemande({ donnees, devisId, demandeId, mainte
 
 /** Message d'état court et sans donnée de client : pas de retour à la ligne, adresses e-mail masquées, 200 caractères au plus. */
 export function messageEtatPropre(m) {
-  return String(m ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/[^\s@]+@[^\s@]+/g, '[adresse]').replace(/\s+/g, ' ').trim().slice(0, MAX_MESSAGE_ETAT);
+  return texteJournal(m, MAX_MESSAGE_ETAT);
 }
 
 /**

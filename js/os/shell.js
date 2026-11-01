@@ -95,7 +95,7 @@ function logoEspace(logo, taille, classe) {
  * Renvoie { contenu, activer(route), majClient(nouveau), arreter() }.
  * Options : `modules` (défaut : tous) ; `client` = { nom, logo, accent? } (identité de l'espace : la même forme chez Jérôme, où elle vaut ESPACE_RACINE, et chez un client) ;
  * `accueil` = première route.
- * Menu principal : blocs d'entrées séparés par de fines lignes, sans titres de groupes. Réglages, Journal des modifications, « Connecter l’assistant », thème
+ * Menu principal : blocs d'entrées séparés par de fines lignes, sans titres de groupes. Réglages, Journal des modifications, « Connecter mon ChatGPT », thème
  * et déconnexion sont dans le menu utilisateur (clic sur le nom, en bas à gauche). Le bouton de repli est à droite du nom de l'espace (Cmd/Ctrl+B).
  */
 // Largeur du menu déplié : bornes et défaut (le même défaut que --menu-elargi dans css/tokens.css ; le script de index.html applique la valeur mémorisée avant le premier rendu).
@@ -119,7 +119,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   const entreesBadge = []; // [{ a, entree, pastille, lu }] : les entrées dont le module déclare une pastille (registre.js, champ `badge`) ; la coque ne connaît aucun module en particulier
   const nav = h('nav', { class: 'menu-nav', 'aria-label': 'Navigation' });
   // Un bloc du menu par module ou groupe de modules (le CRM réunit affaires et projets : registre.js, blocsDuMenu), lui-même coupé en sections ;
-  // une fine ligne sépare deux sections (CSS), jamais de titre. Un module sans entrée de menu (Connecter l’assistant) n'a pas de bloc.
+  // une fine ligne sépare deux sections (CSS), jamais de titre. Un module sans entrée de menu (Connecter mon ChatGPT) n'a pas de bloc.
   for (const m of blocsDuMenu(idsModules)) {
     if (!m.sections.length) continue;
     const groupe = h('div', { class: 'menu-groupe', dataset: { bloc: m.id } });
@@ -184,7 +184,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
       ...(compte.email && compte.email.toLowerCase() !== String(compte.nom || '').toLowerCase() ? [{ texte: compte.email }] : []),
       { libelle: 'Réglages', icone: 'settings', action: allerDepuisMenu('reglages') },
       ...(idsModules.includes('affaires') ? [{ libelle: 'Voir le journal des modifications', icone: 'history', action: allerDepuisMenu('crm/journal') }] : []),
-      ...(idsModules.includes('mcp') ? [{ libelle: 'Connecter l’assistant', icone: 'link', action: allerDepuisMenu('mcp/infos') }] : []),
+      ...(idsModules.includes('mcp') ? [{ libelle: 'Connecter mon ChatGPT', icone: 'link', action: allerDepuisMenu('mcp/infos') }] : []),
       { noeud: boutonTheme('menu-pop-entree') },
       { separateur: true },
       { libelle: 'Se déconnecter', icone: 'log-out', action: surDeconnexion },

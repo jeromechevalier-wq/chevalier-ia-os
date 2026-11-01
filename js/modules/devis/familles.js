@@ -110,9 +110,18 @@ export function optionsFamillesArbre(familles) {
   const notes = (f, parent) => { const l = [...(parent ? ['inclut ses sous-familles'] : []), ...(f.actif === false ? ['désactivée'] : [])]; return l.length ? { note: l.join(' · ') } : {}; };
   const options = arbreFamilles(familles).flatMap(({ famille: f, enfants }) => [
     { valeur: f.id, libelle: f.nom ?? f.id, niveau: 0, ...notes(f, enfants.length > 0) },
-    ...enfants.map((e) => ({ valeur: e.id, libelle: e.nom ?? e.id, niveau: 1, parent: f.id, ...notes(e, false) })),
+    ...enfants.map((e) => ({ valeur: e.id, libelle: e.nom ?? e.id, niveau: 1, parent: f.id })), // une sous-famille désactivée porte déjà « (désactivée) » dans son nom (famillesPourFiltre)
   ]);
   return [...options, { valeur: 'sans_famille', libelle: 'Sans famille', niveau: 0 }];
+}
+
+/**
+ * Familles proposées par le filtre « Famille » du Catalogue : les familles de premier niveau toujours ; une sous-famille active toujours ; une sous-famille INACTIVE seulement si un article y est encore rangé
+ * (alors avec la mention « (désactivée) »). Une sous-famille inactive sans aucun article n'est pas proposée (démo d'un métier : plus de familles de maçon chez une agence).
+ */
+export function famillesPourFiltre(familles, articles) {
+  const utilisees = new Set((articles ?? []).map((a) => a?.familleId).filter(Boolean));
+  return (familles ?? []).filter((f) => !f.parentId || f.actif !== false || utilisees.has(f.id)).map((f) => (f.parentId && f.actif === false ? { ...f, nom: `${f.nom ?? f.id} (désactivée)` } : f));
 }
 
 /** La famille et ses sous-familles (identifiants) : un filtre sur « Fournitures » inclut « Carrelage ». */

@@ -159,11 +159,13 @@ Raison : A répond déjà à (b) et à une grande partie de (a) avec **une seule
 
 ### PR 3 : « La démo écrit des familles propres à chaque métier »
 
+**Version provisoire déjà faite (01/11/2026)** : une PR a livré les sous-familles propres à chaque jeu et le masquage des sous-familles du bâtiment (`famillesMasquees`), SANS famille « Agence » de premier niveau : les 7 grandes familles restent visibles. La famille de premier niveau « Agence » reste le chantier futur décrit ci-dessous.
+
 **Ce que ça fait** : le format des jeux (`jeux-demo/*.js`) accepte une famille de premier niveau avec son type et une liste de familles de départ à masquer ; `catalogueDuJeu` les écrit dans le document `familles` du client de démo ; le jeu « agence » devient : une famille « Agence » (type main d'œuvre) avec 4 à 5 sous-familles (ex. Création de sites, Référencement, Contenus, Fiches Google, Installation), les familles de départ du bâtiment masquées ; le jeu « plombier » et « étancheur » masquent ce qui ne leur sert pas. `donnees-demo.js` garde les titres de section pris dans le nom de la famille.
 
 **Critères d'acceptation** :
 
-1. 3.1 Après `--metier agence`, le Catalogue du client de démo montre « Agence » et ses sous-familles, et aucune famille du bâtiment visible. Le document `familles` est écrit à `scripts/plateforme/donnees-demo.js:682`, **seulement s'il n'existe pas déjà** : un document `familles` non marqué « démo » arrête le programme avec un message clair.
+1. 3.1 Après `--metier agence`, le Catalogue du client de démo montre « Agence » et ses sous-familles, et aucune famille du bâtiment visible. Le document `familles` est écrit à `scripts/plateforme/donnees-demo.js:843`, **seulement s'il n'existe pas déjà** : un document `familles` non marqué « démo » arrête le programme avec un message clair.
 2. 3.2 Tous les articles des jeux ont un `familleId` qui existe dans la liste écrite (le contrôle de complétude des jeux existant échoue sinon).
 3. 3.3 Les devis de démo ont des titres de section qui portent les noms de famille de l'agence (pas « Gros œuvre »).
 4. 3.4 Aucun jeu n'écrit dans un vrai client (garde existante de `marquer-demo.js`, test inchangé) et l'effacement de la démo (`--retirer`) retire aussi le document `familles` : c'est déjà vrai (`devis_parametres` est dans `COLLECTIONS_DEMO`), le test le verrouille.
@@ -207,7 +209,7 @@ Raison : A répond déjà à (b) et à une grande partie de (a) avec **une seule
 
 ## 9. Ce qui reste non vérifié
 
-Réponses de la relecture Fable du 01/11/2026 intégrées : règles Firestore (aucune à changer, §1.4), filtre en arbre du Catalogue (sans filtre `actif`, critère 1.2), endroit d'écriture de la démo (`donnees-demo.js:682`, critère 3.1).
+Réponses de la relecture Fable du 01/11/2026 intégrées : règles Firestore (aucune à changer, §1.4), filtre en arbre du Catalogue (sans filtre `actif`, critère 1.2), endroit d'écriture de la démo (`donnees-demo.js:843`, critère 3.1).
 
 - **Aucun essai** : rien n'a été lancé (pas de test, pas de capture), puisque cette session ne code pas.
 - **La liste des tests à adapter** (PR 1) vient de `grep` et de la relecture, pas d'une exécution : à confirmer avant d'ouvrir la PR.

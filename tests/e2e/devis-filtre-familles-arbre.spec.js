@@ -163,3 +163,22 @@ test('4 une longue liste défile dans la fenêtre : l’en-tête « Filtres » e
   await expect(dialogue(page).locator('[data-cle="familles"][data-valeur="sans_famille"]')).toBeInViewport();
   await capturer(page, info, '4-defilement');
 });
+
+test('6 sous-famille inactive : absente du filtre si aucun article n’y est rangé, proposée « (désactivée) » sinon ; les grandes familles restent', async ({ page }, info) => {
+  await ecrireDocument('devis_parametres/familles', { liste: [
+    { id: 'famille-1-1', nom: 'Gros œuvre et maçonnerie', actif: false, parentId: 'famille-1' },
+    { id: 'famille-1-2', nom: 'Carrelage et revêtements', actif: false, parentId: 'famille-1' },
+    { id: 'agence-sites', nom: 'Sites internet', actif: true, parentId: 'famille-2' },
+  ] });
+  await article('a5', { libelle: 'Carreau ancien', type: 'fourniture', familleId: 'famille-1-2' });
+  await ouvrirFiltres(page);
+  await expect(casesFamille(page, 'famille-1-1')).toHaveCount(0);
+  await expect(dialogue(page).locator('label:has([data-cle="familles"][data-valeur="famille-1-2"])')).toHaveText('Carrelage et revêtements (désactivée)');
+  await expect(casesFamille(page, 'agence-sites')).toHaveCount(1);
+  await expect(casesFamille(page, 'famille-1')).toHaveCount(1);
+  await casesFamille(page, 'famille-1-2').check();
+  await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
+  await expect(page.locator('.ligne-article[data-id="a5"]')).toHaveCount(1);
+  await page.locator('[data-action="filtres"]').click();
+  await capturer(page, info, '6-inactives');
+});

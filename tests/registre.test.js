@@ -165,8 +165,8 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
     { id: 'tableaudebord', libelle: 'Maintenance', icone: 'layout-dashboard', prefixe: 'tableaudebord', entrees: [
       { chemin: 'tableaudebord/general', libelle: 'Maintenance', icone: 'layout-dashboard' }, // un seul écran, sans onglets (23/10/2026) ; les autres routes restent servies par le module
     ] },
-    // Ajout voulu (PR B, 18/10/2026) : « Connecter l’assistant » est chez Jérôme aussi (il s'ouvre depuis le menu utilisateur, pas depuis le menu principal).
-    { id: 'mcp', libelle: 'Connecter l’assistant', icone: 'link', prefixe: 'mcp', entrees: [
+    // Ajout voulu (PR B, 18/10/2026) : « Connecter mon ChatGPT » est chez Jérôme aussi (il s'ouvre depuis le menu utilisateur, pas depuis le menu principal).
+    { id: 'mcp', libelle: 'Connecter mon ChatGPT', icone: 'link', prefixe: 'mcp', entrees: [
       { chemin: 'mcp/infos', libelle: 'Connexion', icone: 'link' },
     ] },
   ];
@@ -337,7 +337,7 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
     const [bloc] = blocsDuMenu(['affaires']);
     assert.deepEqual(LIBELLES(bloc), ['Accueil', 'Personnes', 'Organisations', 'Affaires']);
   });
-  test('une séparation n\'apparaît que si ses deux côtés ont des entrées ; le Journal et « Connecter l’assistant » ne sont pas des entrées du menu principal', () => {
+  test('une séparation n\'apparaît que si ses deux côtés ont des entrées ; le Journal et « Connecter mon ChatGPT » ne sont pas des entrées du menu principal', () => {
     const [crm] = blocsDuMenu(['affaires']);
     assert.deepEqual(crm.sections.map((sec) => sec.length), [1, 2, 1], 'projets éteint : le dernier bloc n\'a que « Affaires »');
     const tous = blocsDuMenu(IDS_MODULES);
@@ -416,7 +416,7 @@ describe('Réglages à menu latéral (2.6.0) : ce que chaque module déclare', (
   test('un élément par module actif, dans l\'ordre du menu ; Veille et Automatisations ont leur Sauvegarde', () => {
     const items = reglagesDesModules(['affaires', 'projets', 'veille', 'automatisations', 'mcp']);
     assert.deepEqual(items.map((i) => i.id), ['crm', 'veille', 'automatisations', 'mcp']);
-    assert.deepEqual(items.map((i) => i.libelle), ['Affaires et projets', 'Veille', 'Automatisations', 'Connecter l’assistant']);
+    assert.deepEqual(items.map((i) => i.libelle), ['Affaires et projets', 'Veille', 'Automatisations', 'Connecter mon ChatGPT']);
     assert.deepEqual(items[2].sections.map((s) => s.id), ['reglages-export-automatisations'], 'Automatisations : la section Sauvegarde (export des données)');
     assert.deepEqual(items[1].sections.map((s) => s.id), ['reglages-export-veille'], 'Veille : la section Sauvegarde (export des données)');
     assert.deepEqual(reglagesDesModules(['tableaudebord'])[0].sections.map((s) => s.id), ['reglages-export-maintenance'], 'Maintenance : la section Sauvegarde (export des données)');

@@ -190,6 +190,22 @@ describe('Filtre « Famille » en arbre (Catalogue > Filtres)', () => {
     assert.ok(o.indexOf(sous) > o.indexOf(f1) && o.indexOf(sous) < o.findIndex((x) => x.valeur === 'famille-2'));
     assert.ok(o.every((x) => !x.libelle.includes('›')));
   });
+  test('4 une sous-famille inactive n’est proposée que si un article y est rangé (avec « (désactivée) ») ; les 7 grandes familles restent ; l’agence de démo ne montre aucune sous-famille de maçon', () => {
+    const brut = { liste: [{ id: 'famille-1-1', nom: 'Gros œuvre et maçonnerie', actif: false, parentId: 'famille-1' }, { id: 'famille-1-2', nom: 'Carrelage et revêtements', actif: false, parentId: 'famille-1' }, { id: 'agence-x', nom: 'Sites', actif: true, parentId: 'famille-2' }] };
+    const tous = F.famillesDe(brut);
+    const o = F.optionsFamillesArbre(F.famillesPourFiltre(tous, [{ id: 'a', familleId: 'famille-1-2' }]));
+    assert.equal(o.find((x) => x.valeur === 'famille-1-1'), undefined, 'inactive sans article : pas proposée');
+    assert.equal(o.find((x) => x.valeur === 'famille-1-2').libelle, 'Carrelage et revêtements (désactivée)', 'inactive avec un article : proposée, trouvable');
+    assert.ok(o.find((x) => x.valeur === 'agence-x'), 'active : proposée');
+    assert.equal(o.filter((x) => x.niveau === 0 && x.valeur !== 'sans_famille').length, 7, 'les 7 grandes familles restent');
+    // Toutes les sous-familles du bâtiment masquées et aucun article dedans : aucune sous-famille de départ, plus de mention « inclut ses sous-familles » sur Fournitures.
+    const masquees = { liste: F.FAMILLES_PAR_DEFAUT.filter((f) => f.parentId).map((f) => ({ ...f, actif: false })) };
+    const agence = F.optionsFamillesArbre(F.famillesPourFiltre(F.famillesDe(masquees), []));
+    assert.equal(agence.filter((x) => x.niveau === 1).length, 0);
+    assert.equal(agence.find((x) => x.valeur === 'famille-1').note, undefined);
+    // Cas vide / erreur.
+    for (const rien of [null, undefined, []]) assert.deepEqual(F.famillesPourFiltre(rien, null), []);
+  });
   test('3 « Sans famille » est toujours la dernière ligne ; cas vide et cas d’erreur (familles illisibles) : « Sans famille » seul', () => {
     assert.deepEqual(F.optionsFamillesArbre(F.famillesDe(null)).at(-1), { valeur: 'sans_famille', libelle: 'Sans famille', niveau: 0 });
     for (const illisible of [[], null, undefined]) assert.deepEqual(F.optionsFamillesArbre(illisible), [{ valeur: 'sans_famille', libelle: 'Sans famille', niveau: 0 }]);

@@ -19,9 +19,9 @@ async function copier(texte, champ) {
 /** Espace de Jérôme (racine) : adresse du MCP, connexion par compte Google, comptes fixés par Jérôme. Aucune lecture dans la base. */
 function rendreInfosRacine(conteneur) {
   const adresse = L.lienConnexion(window.location.origin);
-  const champ = h('input', { type: 'text', class: 'champ mcp-lien', readonly: true, value: adresse, 'aria-label': 'Adresse de connexion de l’IA', onfocus: (e) => e.target.select() });
+  const champ = h('input', { type: 'text', class: 'champ mcp-lien', readonly: true, value: adresse, 'aria-label': 'Adresse de connexion de ChatGPT', onfocus: (e) => e.target.select() });
   conteneur.append(h('div', { class: 'page page-mcp', dataset: { mcp: 'racine' } },
-    h('header', { class: 'page-tete' }, h('h1', {}, 'Connecter l’assistant')),
+    h('header', { class: 'page-tete' }, h('h1', {}, 'Connecter mon ChatGPT')),
     h('p', { class: 'aide' }, 'Cette page est informative : rien ne se règle ici.'),
     h('section', { class: 'mcp-bloc' },
       h('h2', {}, 'Adresse de connexion'),
@@ -29,13 +29,14 @@ function rendreInfosRacine(conteneur) {
         h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => copier(adresse, champ) }, icone('copy', { taille: 16 }), 'Copier le lien'))),
     h('section', { class: 'mcp-bloc' },
       h('h2', {}, 'Comment l\'utiliser'),
-      h('ol', { class: 'mcp-etapes' }, L.MODE_EMPLOI_RACINE.map((e) => h('li', {}, h('strong', {}, e.titre), ' : ', e.texte)))),
+      h('ol', { class: 'mcp-etapes' }, L.MODE_EMPLOI_RACINE.map((e) => h('li', {}, h('strong', {}, e.titre), ' : ', e.texte))),
+      h('p', { class: 'aide discret', dataset: { role: 'aussi-claude' } }, L.PHRASE_AUSSI)),
     h('section', { class: 'mcp-bloc' },
       h('h2', {}, 'Qui peut se connecter'),
       h('p', { class: 'aide' }, L.PHRASE_COMPTES_RACINE)),
     h('section', { class: 'mcp-bloc' },
-      h('h2', {}, 'Suivre ce que fait l\'IA'),
-      h('p', { class: 'aide' }, 'Chaque modification faite par l\'IA apparaît dans le Journal des modifications, avec son nom.'),
+      h('h2', {}, 'Suivre ce que fait ChatGPT'),
+      h('p', { class: 'aide' }, 'Chaque modification faite par ChatGPT apparaît dans le Journal des modifications, avec son nom.'),
       h('p', { class: 'aide' }, h('a', { href: lien('crm/journal') }, icone('history', { taille: 14 }), ' Journal des modifications')))));
   return () => {};
 }
@@ -51,7 +52,7 @@ export function rendreInfos(conteneur) {
   const journal = h('p', { class: 'aide' });
 
   conteneur.append(h('div', { class: 'page page-mcp' },
-    h('header', { class: 'page-tete' }, h('h1', {}, 'Connecter l’assistant')),
+    h('header', { class: 'page-tete' }, h('h1', {}, 'Connecter mon ChatGPT')),
     h('p', { class: 'aide' }, 'Cette page est informative : rien ne se règle ici. Le module « Accès MCP » s\'allume ou s\'éteint pour ton espace, il n\'a pas de réglage à toi.'),
     h('section', { class: 'mcp-bloc' },
       h('h2', {}, 'Ton lien de connexion'),
@@ -59,13 +60,14 @@ export function rendreInfos(conteneur) {
         h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => copier(adresse, champ) }, icone('copy', { taille: 16 }), 'Copier le lien'))),
     h('section', { class: 'mcp-bloc' },
       h('h2', {}, 'Comment l\'utiliser'),
-      h('ol', { class: 'mcp-etapes' }, L.MODE_EMPLOI.map((e) => h('li', {}, h('strong', {}, e.titre), ' : ', e.texte)))),
+      h('ol', { class: 'mcp-etapes' }, L.MODE_EMPLOI.map((e) => h('li', {}, h('strong', {}, e.titre), ' : ', e.texte))),
+      h('p', { class: 'aide discret', dataset: { role: 'aussi-claude' } }, L.PHRASE_AUSSI)),
     h('section', { class: 'mcp-bloc' },
       h('h2', {}, 'Qui peut se connecter'),
       h('p', { class: 'aide' }, 'Les membres de ton espace, avec leur rôle. Pour en ajouter ou en retirer, demande à la personne qui gère ton espace.'),
       membres),
     h('section', { class: 'mcp-bloc' },
-      h('h2', {}, 'Suivre ce que fait l\'IA'),
+      h('h2', {}, 'Suivre ce que fait ChatGPT'),
       journal)));
 
   Promise.all([D.lireMembres(), D.lireModulesActifs()]).then(([docs, actifs]) => {
@@ -77,7 +79,7 @@ export function rendreInfos(conteneur) {
         h('span', { class: `mcp-role mcp-role-${m.role}` }, m.libelle)))
       : h('li', { class: 'aide' }, 'Aucun membre trouvé.'));
     remplir(journal, actifs.includes('affaires')
-      ? [h('span', {}, 'Chaque modification faite par l\'IA apparaît dans le Journal des modifications, avec son nom. '),
+      ? [h('span', {}, 'Chaque modification faite par ChatGPT apparaît dans le Journal des modifications, avec son nom. '),
         h('a', { href: lien('crm/journal') }, icone('history', { taille: 14 }), ' Ouvrir le Journal des modifications')]
       : 'Le Journal des modifications n\'est pas activé dans ton espace.');
   }).catch((e) => {
