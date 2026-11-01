@@ -159,7 +159,7 @@ Raison : A répond déjà à (b) et à une grande partie de (a) avec **une seule
 
 ### PR 3 : « La démo écrit des familles propres à chaque métier »
 
-**Version provisoire déjà faite (01/11/2026)** : une PR a livré les sous-familles propres à chaque jeu et le masquage des sous-familles du bâtiment (`famillesMasquees`), SANS famille « Agence » de premier niveau : les 7 grandes familles restent visibles. La famille de premier niveau « Agence » reste le chantier futur décrit ci-dessous.
+**Version provisoire déjà faite (01/11/2026)** : une PR a livré les sous-familles propres à chaque jeu et le masquage des sous-familles du bâtiment (`famillesMasquees`), SANS famille « Agence » de premier niveau. **Complété le 01/11/2026** : le jeu « agence » renomme les familles de premier niveau (Panneaux d’affichage, Services numériques, Prestations complètes, Écrans en location) et désactive les autres (`famillesPremierNiveau`, `premierNiveauMasque`, voir `docs/donnees-demo.md`), grâce au renommage des 7 familles (PR 496). La famille de premier niveau « Agence » reste le chantier futur décrit ci-dessous.
 
 **Ce que ça fait** : le format des jeux (`jeux-demo/*.js`) accepte une famille de premier niveau avec son type et une liste de familles de départ à masquer ; `catalogueDuJeu` les écrit dans le document `familles` du client de démo ; le jeu « agence » devient : une famille « Agence » (type main d'œuvre) avec 4 à 5 sous-familles (ex. Création de sites, Référencement, Contenus, Fiches Google, Installation), les familles de départ du bâtiment masquées ; le jeu « plombier » et « étancheur » masquent ce qui ne leur sert pas. `donnees-demo.js` garde les titres de section pris dans le nom de la famille.
 

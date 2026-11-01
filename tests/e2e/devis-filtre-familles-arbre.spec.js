@@ -182,3 +182,31 @@ test('6 sous-famille inactive : absente du filtre si aucun article n’y est ran
   await page.locator('[data-action="filtres"]').click();
   await capturer(page, info, '6-inactives');
 });
+
+test('7 jeu « agence » chargé : le filtre ne montre que les familles de l’agence (aucune Sous-traitance, Matériels, Fournitures, Divers, Textes), une famille désactivée avec un article reste « désactivée »', async ({ page }, info) => {
+  // Document tel que l'écrit `--metier agence` (premier niveau renommé ou désactivé, sous-familles de l'agence, sous-familles du bâtiment masquées).
+  const liste = [
+    { id: 'famille-1', nom: 'Panneaux d’affichage', actif: true }, { id: 'famille-2', nom: 'Services numériques', actif: true }, { id: 'famille-3', nom: 'Prestations complètes', actif: true }, { id: 'famille-5', nom: 'Écrans en location', actif: true },
+    { id: 'famille-4', nom: 'Sous-traitance', actif: false }, { id: 'famille-6', nom: 'Textes', actif: false }, { id: 'famille-7', nom: 'Divers', actif: false },
+    { id: 'agence-sites', nom: 'Sites internet', actif: true, parentId: 'famille-2' }, { id: 'agence-affichage', nom: 'Panneaux', actif: true, parentId: 'famille-1' },
+    { id: 'agence-ecrans', nom: 'Téléviseurs et supports', actif: true, parentId: 'famille-5' }, { id: 'agence-complet', nom: 'Packs clés en main', actif: true, parentId: 'famille-3' },
+    // Toutes les sous-familles de départ (famille-N-M) sont écrites inactives, avec un nom (les 7 familles ont 9, 9, 5, 5, 2, 2 et 3 sous-familles).
+    ...[9, 9, 5, 5, 2, 2, 3].flatMap((n, i) => Array.from({ length: n }, (_, j) => ({ id: `famille-${i + 1}-${j + 1}`, nom: `Départ ${i + 1}-${j + 1}`, actif: false, parentId: `famille-${i + 1}` }))),
+  ];
+  await ecrireDocument('devis_parametres/familles', { liste });
+  await article('ag-p01', { libelle: 'Panneau 120 x 80', type: 'fourniture', familleId: 'agence-affichage' });
+  await article('ag-s01', { libelle: 'Site vitrine', type: 'main_oeuvre', familleId: 'agence-sites' });
+  await article('ag-t01', { libelle: 'Location téléviseur', type: 'materiel', familleId: 'agence-ecrans' });
+  await article('ag-o01', { libelle: 'Site complet', type: 'ouvrage', familleId: 'agence-complet' });
+  await ouvrirFiltres(page);
+  const libelles = await dialogue(page).locator('label:has([data-cle="familles"])').allInnerTexts();
+  for (const interdit of ['Sous-traitance', 'Matériels', 'Fournitures', 'Divers', 'Textes', 'Main d’œuvre', 'Ouvrages', 'Départ']) expect(libelles.join(' | '), interdit).not.toContain(interdit);
+  for (const attendu of ['Panneaux d’affichage', 'Services numériques', 'Prestations complètes', 'Écrans en location', 'Panneaux', 'Téléviseurs et supports', 'Packs clés en main', 'Sites internet']) expect(libelles.join(' | '), attendu).toContain(attendu);
+  await capturer(page, info, '7-agence');
+  // Cas d’erreur : un article ancien dans une famille désactivée la fait réapparaître, avec la mention.
+  await article('a-vieux', { libelle: 'Ancienne sous-traitance', type: 'sous_traitance', familleId: 'famille-4' });
+  await page.reload();
+  await attendreCalme(page);
+  await page.locator('[data-action="filtres"]').click();
+  await expect(dialogue(page).locator('label:has([data-cle="familles"][data-valeur="famille-4"])')).toContainText('désactivée');
+});

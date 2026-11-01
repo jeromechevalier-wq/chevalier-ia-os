@@ -282,7 +282,7 @@ test('8. Un mot appris réel apparu pendant le chargement n’est jamais écras�
   assert.equal((await db.doc('clients/met-course/devis_compteurs/global').get()).data().valeur, numerotes);
 });
 
-// ---- Familles du catalogue propres à chaque métier (solution provisoire : les 7 grandes familles restent, les sous-familles du bâtiment sont masquées)
+// ---- Familles du catalogue propres à chaque métier (solution provisoire : les 7 entrées de premier niveau existent toujours, renommées ou désactivées selon le jeu ; les sous-familles du bâtiment sont masquées)
 const articlesDe = (jeu, ids) => catalogueDuJeu(jeu).articles.filter((a) => ids.includes(a.id));
 
 test('9. Agence : ses sous-familles propres (ids « agence- »), chaque article rangé dans une sous-famille active du bon type, plus aucun id agence-1 à agence-8', () => {
@@ -290,14 +290,14 @@ test('9. Agence : ses sous-familles propres (ids « agence- »), chaque article 
   const liste = F.famillesDe(catalogueDuJeu(jeu).familles);
   const nomsSous = (parent) => jeu.familles.filter(([, , p]) => p === parent).map(([, nom]) => nom);
   for (const nom of ['Sites internet', 'Référencement moteurs et IA', 'Fiches Google My Business', 'Communication et contenus']) assert.ok(nomsSous('famille-2').includes(nom), `« ${nom} » sous Main d’œuvre`);
-  assert.deepEqual(nomsSous('famille-1'), ['Affichage et écrans']);
-  assert.deepEqual(nomsSous('famille-5'), ['Écrans en location']);
-  assert.deepEqual(nomsSous('famille-3'), ['Prestations complètes']);
+  assert.deepEqual(nomsSous('famille-1'), ['Panneaux']);
+  assert.deepEqual(nomsSous('famille-5'), ['Téléviseurs et supports']);
+  assert.deepEqual(nomsSous('famille-3'), ['Packs clés en main']);
   for (const [id] of jeu.familles) assert.ok(id.startsWith('agence-') && !/^agence-[1-8]$/.test(id) && !id.startsWith('famille-'), id);
   const nomDe = (a) => F.cheminFamille(liste, a.familleId);
-  for (const a of articlesDe(jeu, ['ag-p01', 'ag-p02'])) assert.equal(nomDe(a), 'Fournitures › Affichage et écrans');
-  for (const a of articlesDe(jeu, ['ag-t01', 'ag-t02', 'ag-t03'])) assert.equal(nomDe(a), 'Matériels › Écrans en location');
-  for (const a of articlesDe(jeu, ['ag-o01', 'ag-o02', 'ag-o03'])) assert.equal(nomDe(a), 'Ouvrages › Prestations complètes');
+  for (const a of articlesDe(jeu, ['ag-p01', 'ag-p02'])) assert.equal(nomDe(a), 'Panneaux d’affichage › Panneaux');
+  for (const a of articlesDe(jeu, ['ag-t01', 'ag-t02', 'ag-t03'])) assert.equal(nomDe(a), 'Écrans en location › Téléviseurs et supports');
+  for (const a of articlesDe(jeu, ['ag-o01', 'ag-o02', 'ag-o03'])) assert.equal(nomDe(a), 'Prestations complètes › Packs clés en main');
   for (const a of catalogueDuJeu(jeu).articles) {
     const f = liste.find((x) => x.id === a.familleId);
     assert.ok(f?.parentId && f.actif, `${a.id} : sous-famille active`);
@@ -314,7 +314,7 @@ test('10. Masquage : les sous-familles de départ masquées sont écrites inacti
   }
   assert.ok(familles.liste.every((f) => typeof f.nom === 'string' && f.nom), 'aucune entrée sans nom');
   assert.equal(F.famillesDe(familles).filter((f) => f.parentId && f.id.startsWith('famille-') && f.actif).length, 0, 'aucune sous-famille de départ active chez l’agence');
-  assert.equal(F.famillesDe(familles).filter((f) => !f.parentId).length, 7, 'les 7 grandes familles restent');
+  assert.equal(F.famillesDe(familles).filter((f) => !f.parentId).length, 7, 'les 7 entrées de premier niveau existent toujours (certaines désactivées)');
   // Document écrit dès qu’il y a une famille masquée, même sans famille propre.
   const seule = catalogueDuJeu({ ...JEUX.etancheur, familles: [], famillesMasquees: ['famille-1-1'] }).familles;
   assert.deepEqual(seule.liste, [{ id: 'famille-1-1', nom: departs.find((f) => f.id === 'famille-1-1').nom, actif: false, parentId: 'famille-1' }]);
@@ -370,4 +370,36 @@ test('12. --metier écrit le document familles s’il est absent ou marqué (rem
   assert.deepEqual(await photo('clients/fam-client'), avant);
   // Même refus en simulation.
   assert.equal((await lancer(['fam-client', '--metier', 'agence'])).code, 1);
+});
+
+test('13. Agence : familles de premier niveau renommées (famille-1, 2, 3, 5) et les autres désactivées, entrées { id, nom, actif } sans parentId, relues par famillesDe', () => {
+  const { familles } = catalogueDuJeu(JEUX.agence);
+  const premier = familles.liste.filter((f) => /^famille-\d$/.test(f.id));
+  assert.ok(premier.length === 7 && premier.every((f) => typeof f.nom === 'string' && f.nom && !('parentId' in f)), 'sept entrées, toutes avec un nom, aucune avec parentId');
+  assert.deepEqual(familles.liste.slice(0, 7).map((f) => f.id), ['famille-1', 'famille-2', 'famille-3', 'famille-5', 'famille-4', 'famille-6', 'famille-7'], 'premier niveau écrit avant les sous-familles');
+  const lues = F.famillesDe(familles).filter((f) => !f.parentId);
+  const vu = Object.fromEntries(lues.map((f) => [f.id, [f.nom, f.actif]]));
+  assert.deepEqual(vu, { 'famille-1': ['Panneaux d’affichage', true], 'famille-2': ['Services numériques', true], 'famille-3': ['Prestations complètes', true], 'famille-4': ['Sous-traitance', false], 'famille-5': ['Écrans en location', true], 'famille-6': ['Textes', false], 'famille-7': ['Divers', false] });
+  assert.deepEqual(lues.map((f) => F.typeDeFamille(F.famillesDe(familles), f.id)), ['fourniture', 'main_oeuvre', 'ouvrage', 'sous_traitance', 'materiel', 'texte', 'divers'], 'les types ne changent pas');
+  // Idempotence : même document à chaque fabrication ; étancheur et plombier n’écrivent aucune entrée de premier niveau.
+  assert.deepEqual(catalogueDuJeu(JEUX.agence).familles, familles);
+  for (const n of ['etancheur', 'plombier']) assert.equal(catalogueDuJeu(JEUX[n]).familles.liste.filter((f) => /^famille-\d$/.test(f.id)).length, 0, n);
+  // 'premierNiveauMasque' en liste.
+  const liste = catalogueDuJeu({ ...JEUX.agence, premierNiveauMasque: ['famille-4'] }).familles.liste.filter((f) => /^famille-\d$/.test(f.id));
+  assert.deepEqual(liste.map((f) => f.id), ['famille-1', 'famille-2', 'famille-3', 'famille-5', 'famille-4']);
+});
+
+test('14. Contrôle du premier niveau : id inconnu, nom vide, aucune famille active, parent désactivé, article hors famille active de son type', () => {
+  const avec = (modif) => problemesDuJeu({ ...JEUX.agence, ...modif }).join(' | ');
+  assert.match(avec({ famillesPremierNiveau: { ...JEUX.agence.famillesPremierNiveau, 'famille-9': 'Autre' } }), /premier niveau inconnue : « famille-9 »/);
+  assert.match(avec({ premierNiveauMasque: ['famille-9'] }), /masquée inconnue : « famille-9 »/);
+  assert.match(avec({ famillesPremierNiveau: { 'famille-1': '  ' } }), /nom manquant/);
+  assert.match(avec({ famillesPremierNiveau: {}, premierNiveauMasque: ['famille-1', 'famille-2', 'famille-3', 'famille-4', 'famille-5', 'famille-6', 'famille-7'] }), /aucune famille de premier niveau active/);
+  assert.match(avec({ premierNiveauMasque: ['famille-1'], famillesPremierNiveau: { ...JEUX.agence.famillesPremierNiveau, 'famille-1': undefined } }), /nom manquant|désactivée/);
+  // Le parent (famille-2, services) d’une sous-famille utilisée est désactivé : message sur le parent.
+  const sansServices = { ...JEUX.agence.famillesPremierNiveau }; delete sansServices['famille-2'];
+  assert.match(avec({ famillesPremierNiveau: sansServices, premierNiveauMasque: ['famille-2'] }), /parent de « Sites internet », est désactivée/);
+  // Un article dont la famille n’est pas du bon type reste refusé.
+  assert.match(problemesDuJeu({ ...JEUX.agence, articles: JEUX.agence.articles.map((x) => (x[0] === 'ag-p01' ? [...x.slice(0, 5), 'agence-complet'] : x)) }).join(' '), /ne porte pas le type/);
+  assert.deepEqual(problemesDuJeu(JEUX.agence), []);
 });
