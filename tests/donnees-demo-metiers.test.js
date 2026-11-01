@@ -283,7 +283,6 @@ test('8. Un mot appris réel apparu pendant le chargement n’est jamais écras�
 });
 
 // ---- Familles du catalogue propres à chaque métier (solution provisoire : les 7 grandes familles restent, les sous-familles du bâtiment sont masquées)
-const familleDe = (jeu, id) => F.famillesDe(catalogueDuJeu(jeu).familles).find((f) => f.id === id);
 const articlesDe = (jeu, ids) => catalogueDuJeu(jeu).articles.filter((a) => ids.includes(a.id));
 
 test('9. Agence : ses sous-familles propres (ids « agence- »), chaque article rangé dans une sous-famille active du bon type, plus aucun id agence-1 à agence-8', () => {

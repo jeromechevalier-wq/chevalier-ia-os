@@ -825,7 +825,7 @@ async function remplir(id, options, ctx, fiche) {
   // Familles : avec --metier, le document est écrit s'il est absent ou s'il vient d'une démonstration (marqué : remplacé) ; un document SANS marque est celui du client, on s'arrête avant toute écriture.
   const famillesRemplacees = Boolean(jeuMetier && catalogue.familles && famillesDoc.exists && famillesDoc.data()?.[MARQUEUR] === true);
   if (jeuMetier && catalogue.familles && famillesDoc.exists && !famillesRemplacees) {
-    throw new ErreurOutil(['Le client a déjà ses propres familles du catalogue (document « familles » sans marque de démonstration) : le jeu du métier ne les écrase pas.', 'Relancez avec --vider (remise à zéro du client de démonstration), ou retirez le document « familles » du client, puis chargez le jeu.']);
+    throw new ErreurOutil(['Le client a déjà ses propres familles du catalogue (document « familles » sans marque de démonstration) : le jeu du métier ne les écrase pas.', 'Passez par --vider (remise à zéro du client de démonstration), puis chargez le jeu.']);
   }
   const plan = construirePlan({ config, articles, familles: famillesDoc.exists && !famillesRemplacees ? famillesDoc.data() : catalogue.familles, reglages, auteur: ctx.auteur, maintenant: ctx.maintenant ?? new Date(), nouvelId: (c) => col(c).doc().id, compteurDepart, jeu: jeuMetier });
 

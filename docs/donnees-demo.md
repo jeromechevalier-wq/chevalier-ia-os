@@ -179,6 +179,7 @@ Chaque jeu de métier écrit ses **propres sous-familles** (ids `agence-…`, `e
 - Règle : un article ne va que dans une sous-famille **active** dont la famille de premier niveau porte son type (le contrôle de complétude des jeux le vérifie, ainsi que les ids masqués).
 - **Écriture (avec `--metier` seulement)** : le document `devis_parametres/familles` est écrit s'il est absent, ou **remplacé** s'il porte la marque `donneesDemo`. S'il existe **sans marque** (famille modifiée à l'écran : l'écran réécrit le document sans marque), le programme s'arrête avant toute écriture : passer par `--vider`. `--retirer` ne supprime que le document marqué ; s'il a été réécrit à l'écran, il reste et le prochain `--metier` s'arrête.
 - `--catalogue-depuis` et `--catalogue-exemple` gardent leur règle : un document `familles` déjà présent n'est jamais remplacé.
+- **Filtre « Famille » du Catalogue** : une sous-famille inactive n'y est proposée que si un article y est encore rangé (avec « (désactivée) ») ; sinon elle n'est pas proposée, donc l'agence de démo ne voit aucune sous-famille de maçon. Les 7 grandes familles restent toujours proposées (`famillesPourFiltre` dans `js/modules/devis/familles.js`).
 - Plus tard : la vraie fonction « familles configurables » (famille « Agence » de premier niveau, etc.) est cadrée dans `docs/cadrage-familles-configurables.md`.
 
 ## Comment c'est retiré
