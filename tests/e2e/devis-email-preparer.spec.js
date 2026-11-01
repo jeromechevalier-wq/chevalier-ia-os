@@ -113,7 +113,7 @@ test('2 branché : « Préparer l’e-mail » est active et en tête du menu « 
   const noms = await page.locator('.menu-pop [role="menuitem"]').allTextContents();
   expect(noms.map((n) => n.trim()), 'le menu Envoyer : « Préparer l’e-mail » en tête, puis PDF et impression').toEqual(['Préparer l’e-mail', 'Télécharger le PDF', 'Imprimer']);
   await expect(entree(page)).toBeEnabled();
-  if (estTelephone(page)) expect((await entree(page).boundingBox()).height).toBeGreaterThanOrEqual(44);
+  if (estTelephone(page)) await expect.poll(async () => (await entree(page).boundingBox()).height, { message: 'entrée de menu assez grande au doigt' }).toBeGreaterThanOrEqual(44);
   await capturer(page, info, '2-menu');
   await entree(page).click();
   await expect(boite(page).getByRole('heading', { name: 'Préparer l’e-mail' })).toBeVisible();
@@ -127,8 +127,10 @@ test('2 branché : « Préparer l’e-mail » est active et en tête du menu « 
   await expect(confirmer(page)).toBeEnabled();
   if (estTelephone(page)) { // plein écran, champs l'un sous l'autre
     const vue = page.viewportSize();
-    const dlg = await boite(page).boundingBox();
-    expect(dlg.width).toBeGreaterThanOrEqual(vue.width - 2);
+    // La fenêtre s'ouvre avec une animation (scale .98) : la boîte mesurée juste après l'ouverture est plus étroite (382 à 386 px sur 390, variable). On mesure donc la largeur de MISE EN PAGE
+    // (offsetWidth, que l'animation ne change pas) et la boîte une fois l'animation finie.
+    expect(await boite(page).evaluate((el) => el.offsetWidth)).toBe(vue.width);
+    await expect.poll(async () => (await boite(page).boundingBox()).width, { message: 'plein écran une fois l’animation d’ouverture finie' }).toBeGreaterThanOrEqual(vue.width - 2);
     const y = async (n) => (await champ(page, n).boundingBox()).y;
     expect(await y('objet')).toBeGreaterThan(await y('destinataires'));
     expect(await y('message')).toBeGreaterThan(await y('objet'));
