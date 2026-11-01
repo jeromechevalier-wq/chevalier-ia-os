@@ -71,6 +71,7 @@ Légende : 🟢 fait, 🔵 Claude travaille dessus, 🟠 attend Jérôme, ⚪ pl
 | 🟠 | **(i)** Déployer chez les clients (`hosting` puis `mcp`, un à la fois, chaque lancement lu) **après** la PR « Pour qui ? ». Les prochaines règles Firestore chez les clients seulement sur le « go » de Jérôme | En attente | Jérôme lance, Claude vérifie |
 | 🟠 | **(j)** Lancer « Tests de nuit » sur `main` après chaque série de fusions | À chaque série | Claude |
 | 🟠 | **(k)** Mettre à jour `docs/consignes-ui.md` (vers la ligne 42) : affaire facultative ; à la finalisation, message simple et champ Affaire en rouge, plus de fenêtre. À faire dans la PR « Pour qui ? » | À faire | Claude |
+| 🟠 | **(l) Familles d'articles configurables** (Jérôme, 01/11/2026) : renommer et masquer les sept familles, créer les siennes au premier niveau (avec un type), démo par métier. Cadrage : `docs/cadrage-familles-configurables.md` (3 PR : 1 renommer/masquer, 2 créer au premier niveau, 3 démo). Priorité proposée : moyenne. Fable obligatoire (serveur, données, éditeur du devis) | Cadrage écrit, 7 questions pour Jérôme (section 8) | Jérôme, puis Claude |
 
 
 ## Vue d'ensemble (28/10/2026) : où on en est, en un coup d'œil

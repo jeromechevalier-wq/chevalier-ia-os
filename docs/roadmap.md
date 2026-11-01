@@ -10,6 +10,9 @@ Chaque client choisit ses mots (affaire → vente, projet → chantier, etc.), p
 ## Données de démonstration d'un client (26/10/2026)
 Le programme `scripts/donnees-demo.js` remplit un client de démonstration de données inventées (affaires dans chaque étape, projets dans chaque phase, devis dans chaque statut, copie du catalogue), puis les retire. Il sert à chaque démonstration. Mode d'emploi : `docs/donnees-demo.md`.
 
+## Familles d'articles configurables (01/11/2026) : **piste**
+Les sept familles de premier niveau du Catalogue sont fixes. Jérôme veut les renommer, les masquer et créer les siennes (ex. « Agence »), avec le même code chez lui et chez les clients, et une démo par métier. Cadrage, options et découpage en 3 PR : `docs/cadrage-familles-configurables.md` (en attente des réponses de Jérôme, section 8).
+
 ## Module Devis (nuit du 24/10/2026)
 Cadrage : `docs/cadrage-devis.md`. Évolutions envisagées, dans l'ordre où on a envie de les faire : `docs/roadmap-evolutions-devis.md`. Idée **« pilotage »** (tableaux de bord de ventes : devis envoyés, signés, taux de signature, chiffre d'affaires par mois) : reportée, car elle a besoin de la facturation pour être complète ; le module Devis aura sa propre table d'indicateurs.
 
