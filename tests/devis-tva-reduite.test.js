@@ -142,7 +142,10 @@ describe('6 à 9 le texte de la mention est figé sur un devis finalisé', () =>
     assert.ok(imprime(v2, L.emetteurImprime({ nom: 'A' }, '', 'Texte du moment')).includes('Texte du moment'));
   });
   test('9 l’assistant ne peut pas écrire ce champ dans un brouillon (champ protégé)', async () => {
-    const { CHAMPS_PROTEGES } = await import('../js/modules/devis/brouillon.js');
-    assert.ok(CHAMPS_PROTEGES.includes('mentionTvaReduiteFigee'));
+    const B = await import('../js/modules/devis/brouillon.js');
+    assert.ok(B.CHAMPS_PROTEGES.includes('mentionTvaReduiteFigee'));
+    const r = B.planModifierBrouillon({ id: 'd', statut: 'brouillon' }, { mentionTvaReduiteFigee: 'x' });
+    assert.match(r.erreurs.general, /mentionTvaReduiteFigee/);
+    assert.deepEqual(r.ecritures, []);
   });
 });

@@ -1,12 +1,12 @@
 // Pagination : Chromium ignore les boîtes de marge @page ; le numéro « Page n / N » viendra des gabarits d'en-tête/pied du convertisseur serveur.
-// Clés de l'émetteur lues ici (options.emetteur ou vue.emetteur) : nom, forme, siret, tva, adresse, email, telephone, site, registreMetiers, assuranceTexte (ou les anciens champs assurance), coordonneesBancaires, mentionEmetteur (« Attestation et mentions »), mentionTvaReduite (texte imprimé quand vue.tvaReduite, vide = texte standard), mediateur, logo (https ou data:image), couleur, paiement, cgv. Les alias formeJuridique et tvaIntracommunautaire restent lus.
+// Clés de l'émetteur lues ici (options.emetteur ou vue.emetteur) : nom, forme, siret, tva, adresse, email, telephone, site, registreMetiers, assuranceTexte (ou les anciens champs assurance), coordonneesBancaires, mentionEmetteur (« Attestation et mentions »), mentionTvaReduite (texte imprimé quand vue.tvaReduite, vide = texte standard), mediateur, logo (https ou data:image), couleur, paiement, cgv. Les alias formeJuridique et tvaIntracommunautaire restent lus. Le texte de la mention de TVA réduite d'un devis finalisé vient du devis (vue.mentionTvaReduiteFigee, figé à la finalisation) ; le réglage n'est lu que pour un brouillon ou un ancien devis.
 // L'acompte, les primes, la retenue de garantie, les déchets, le texte libre et les notes viennent de la vue client (libellés déjà prêts, échappés ici).
 // Document « Devis » en HTML imprimable (A4). Module pur : aucun DOM, aucun réseau, aucun JavaScript dans la page produite.
 // Il reçoit la « vue client » (vueClient de logique.js, donc jamais de prix d'achat, de marge ni de coefficient) et rend une chaîne HTML
 // complète. Usage : aperçu et impression dans le navigateur (« Imprimer » puis « Enregistrer au format PDF ») ; plus tard, un
 // convertisseur HTML vers PDF côté serveur en tirera le PDF officiel.
 //
-// Plus d'attestation de TVA codée en dur (31/10/2026) : la mention de TVA réduite s'imprime toute seule (vue.tvaReduite, réglage emetteur.mentionTvaReduite), les autres mentions sont le texte libre « Attestation et mentions » des réglages (emetteur.mentionEmetteur).
+// Plus d'attestation de TVA codée en dur (31/10/2026) : la mention de TVA réduite s'imprime toute seule (vue.tvaReduite, réglage emetteur.mentionTvaReduite), les autres mentions sont le texte libre « Attestation et mentions » des réglages (emetteur.mentionEmetteur). Sauf le texte de la mention de TVA réduite, figé dans le devis à la finalisation (mentionTvaReduiteFigee).
 //
 // Décisions prises seul :
 // - Les données viennent toutes de `vue` ; le nom du destinataire est `vue.client.nom` (fourni par l'appelant dans le contexte de vueClient).

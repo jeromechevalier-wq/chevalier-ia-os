@@ -74,7 +74,7 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefix
     const personne = devis.organisationId && devis.personneId ? await donnees.document(C.personnes, devis.personneId).catch(() => null) : null; // ligne facultative : une lecture qui échoue ne bloque pas le PDF
     // « Mon entreprise » est enregistrée par l'écran sous `entreprise` (donnees.js) ; `emetteur` n'est lu qu'en repli (ancien nom).
     const brutEmetteur = [reglages?.entreprise, reglages?.emetteur].find((x) => x && typeof x === 'object' && !Array.isArray(x) && Object.keys(x).length);
-    // Lu en direct à chaque impression (rien n'est figé) : « Mon entreprise » les textes « Attestation et mentions » et « Mention de TVA réduite » des réglages, comme à l'écran.
+    // Lu en direct à chaque impression (rien n'est figé, sauf le texte de la mention de TVA réduite, figé dans le devis à la finalisation : mentionTvaReduiteFigee) : « Mon entreprise » les textes « Attestation et mentions » et « Mention de TVA réduite » des réglages, comme à l'écran.
     const emetteur = D.emetteurImprime(emetteurSansLogoExterne(brutEmetteur ? enDates(brutEmetteur) : {}), reglages?.mentionEmetteur, reglages?.mentionTvaReduite);
 
     // Vue client : jamais de prix d'achat, de marge ni de coefficient (garanti par vueClient, vérifié par les tests).
