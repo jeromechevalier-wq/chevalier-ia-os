@@ -45,9 +45,14 @@ async function peupler(id, { demo = true, nom = id } = {}) {
   await ecrire('crm_actions_lancements/l1', { contenu: 'e-mail' });
   await ecrire('devis_compteurs/global', { valeur: 7 });
   await ecrire('crm_parametres/etapes', { liste: [] });
+  await ecrire('documents_stockes/ds1', { nom: 'Plan déposé' });
+  await ecrire('projets_modeles/m1', { nom: 'Modèle chantier' });
+  await ecrire('mcp_limites/l1', { n: 1 });
   await ecrire('collection_inconnue/x', { a: 1 });
   await bucket.file(`clients/${id}/devis/af1/devis-1.pdf`).save('pdf');
+  await bucket.file(`clients/${id}/documents/plan.pdf`).save('doc');
   await bucket.file(`clients/${id}/autre/garde.txt`).save('garde');
+  await bucket.file(`marques/${id}/logo.png`).save('logo');
 }
 const existe = async (f) => (await bucket.file(f).exists())[0];
 
@@ -59,7 +64,7 @@ before(async () => {
 test('1. Un client non marqué demo est refusé, même en simulation, et rien ne bouge', async () => {
   await peupler(REEL, { demo: false });
   const avant = await photo(`clients/${REEL}`);
-  for (const argv of [[REEL, '--vider'], [REEL, '--vider', '--ecrire', '--oui', REEL]]) {
+  for (const argv of [[REEL, '--vider'], [REEL, '--vider', '--ecrire', '--confirmer', REEL]]) {
     const r = await lancer(argv);
     assert.equal(r.code, 1, r.texte);
     assert.match(r.texte, /pas marqué comme client de démonstration/);
@@ -73,7 +78,7 @@ test('2. Un client protégé (audrey, par identifiant ou par nom) est refusé, m
   await peupler('vider-nom-protege', { nom: 'Audrey' });
   for (const id of ['audrey', 'vider-nom-protege']) {
     const avant = await photo(`clients/${id}`);
-    for (const argv of [[id, '--vider'], [id, '--vider', '--ecrire', '--oui', id]]) {
+    for (const argv of [[id, '--vider'], [id, '--vider', '--ecrire', '--confirmer', id]]) {
       const r = await lancer(argv);
       assert.equal(r.code, 1, r.texte);
       assert.match(r.texte, /est protégé/);
@@ -89,9 +94,9 @@ test('3. --vider ne se combine avec aucune option de chargement', async () => {
     assert.match(r.texte, /ne se combine avec aucune autre option/);
     assert.doesNotMatch(r.texte, /Base visée/);
   }
-  const r = await lancer([DEMO, '--oui', DEMO]);
+  const r = await lancer([DEMO, '--confirmer', DEMO]);
   assert.equal(r.code, 1);
-  assert.match(r.texte, /--oui ne sert qu'avec --vider/);
+  assert.match(r.texte, /--confirmer ne sert qu'avec --vider/);
 });
 
 test('4. La simulation affiche les comptes, un aperçu et « Conservé », et n\'écrit rien', async () => {
@@ -100,9 +105,12 @@ test('4. La simulation affiche les comptes, un aperçu et « Conservé », et n\
   const r = await lancer([DEMO, '--vider']);
   assert.equal(r.code, 0, r.texte);
   assert.match(r.texte, /devis_articles : 2 \(.*Lampe Lampar/);
-  assert.match(r.texte, /devis_devis : 2/); // le devis et sa sous-collection
+  assert.match(r.texte, /devis_devis : 2/);
+  assert.match(r.texte, /documents_stockes : 1 \(Plan déposé\)/); // le devis et sa sous-collection
   assert.match(r.texte, /Storage clients\/vider-demo\/devis\/ : 1 fichier/);
-  for (const c of ['crm_audit', 'crm_audit_avant', 'crm_actions_lancements', 'devis_compteurs', 'membres']) assert.match(r.texte, new RegExp(`Conservé : .*${c} \\(`), c);
+  assert.match(r.texte, /Storage clients\/vider-demo\/documents\/ : 1 fichier/);
+  assert.match(r.texte, /--ecrire --confirmer vider-demo/);
+  for (const c of ['crm_audit', 'crm_audit_avant', 'crm_actions_lancements', 'devis_compteurs', 'membres', 'mcp_limites']) assert.match(r.texte, new RegExp(`Conservé : .*${c} \\(`), c);
   assert.match(r.texte, /collection_inconnue \(inconnue, laissée telle quelle\)/);
   assert.match(r.texte, /la numérotation continue/);
   assert.match(r.texte, /SIMULATION : rien n'a été supprimé/);
@@ -112,10 +120,10 @@ test('4. La simulation affiche les comptes, un aperçu et « Conservé », et n\
 
 test('5. Sans confirmation exacte, --ecrire ne supprime rien', async () => {
   const avant = await photo(`clients/${DEMO}`);
-  for (const extra of [{ argv: ['--oui', 'autre-chose'] }, { argv: [], confirmer: async () => 'non' }, { argv: [] }]) {
-    const r = await lancer([DEMO, '--vider', '--ecrire', ...extra.argv], extra.confirmer ? { confirmer: extra.confirmer } : {});
+  for (const extra of [{ argv: ['--confirmer', 'autre-chose'] }, { argv: [], lireLigne: async () => 'non' }, { argv: [] }]) {
+    const r = await lancer([DEMO, '--vider', '--ecrire', ...extra.argv], extra.lireLigne ? { lireLigne: extra.lireLigne } : {});
     assert.equal(r.code, 1, r.texte);
-    assert.match(r.texte, /Confirmation absente ou différente/);
+    assert.match(r.texte, /Confirmation différente|Pas de clavier/);
     assert.match(r.texte, /Rien n'a été supprimé/);
   }
   assert.deepEqual(await photo(`clients/${DEMO}`), avant);
@@ -124,13 +132,15 @@ test('5. Sans confirmation exacte, --ecrire ne supprime rien', async () => {
 test('6. Le vidage supprime les documents marqués ET non marqués, sous-collections et PDF compris, et garde le reste', async () => {
   await peupler(AUTRE); // un autre client de démonstration : jamais touché
   const autreAvant = await photo(`clients/${AUTRE}`);
-  const gardes = ['membres/alice@exemple.test', 'crm_audit/au1', 'crm_audit_avant/ab1', 'crm_actions_lancements/l1', 'devis_compteurs/global', 'crm_parametres/etapes', 'collection_inconnue/x'];
+  const gardes = ['membres/alice@exemple.test', 'crm_audit/au1', 'crm_audit_avant/ab1', 'crm_actions_lancements/l1', 'devis_compteurs/global', 'crm_parametres/etapes', 'mcp_limites/l1', 'collection_inconnue/x'];
   const gardesAvant = await Promise.all(gardes.map(async (g) => JSON.stringify((await db.doc(`clients/${DEMO}/${g}`).get()).data())));
   const ficheAvant = (await db.doc(`clients/${DEMO}`).get()).data();
-  const r = await lancer([DEMO, '--vider', '--ecrire', '--oui', DEMO]);
+  const r = await lancer([DEMO, '--vider', '--ecrire', '--confirmer', DEMO]);
   assert.equal(r.code, 0, r.texte);
-  assert.match(r.texte, /✔ 9 documents supprimés et 1 fichier\(s\) PDF/);
-  for (const c of ['devis_articles', 'devis_vocabulaire', 'devis_devis', 'crm_organisations', 'crm_personnes', 'crm_affaires', 'projets_projets']) assert.equal(await compter(DEMO, c), 0, c);
+  assert.match(r.texte, /✔ 11 documents supprimés et 2 fichier\(s\)/);
+  for (const c of ['devis_articles', 'devis_vocabulaire', 'devis_devis', 'crm_organisations', 'crm_personnes', 'crm_affaires', 'projets_projets', 'documents_stockes', 'projets_modeles']) assert.equal(await compter(DEMO, c), 0, c);
+  assert.equal(await existe(`clients/${DEMO}/documents/plan.pdf`), false);
+  assert.ok(await existe(`marques/${DEMO}/logo.png`), 'le dossier de marque reste');
   assert.equal((await db.doc(`clients/${DEMO}/devis_devis/d1/versions/v1`).get()).exists, false);
   assert.equal(await existe(`clients/${DEMO}/devis/af1/devis-1.pdf`), false);
   assert.ok(await existe(`clients/${DEMO}/autre/garde.txt`), 'un fichier hors de devis/ reste');
@@ -141,12 +151,12 @@ test('6. Le vidage supprime les documents marqués ET non marqués, sous-collect
   assert.ok(await existe(`clients/${AUTRE}/devis/af1/devis-1.pdf`));
 });
 
-test('7. Sur un client déjà vidé : « déjà vide », et la confirmation tapée à la main (ctx.confirmer) est acceptée', async () => {
+test('7. Sur un client déjà vidé : « déjà vide », et la confirmation tapée à la main (ctx.lireLigne) est acceptée', async () => {
   const r = await lancer([DEMO, '--vider', '--ecrire']);
   assert.equal(r.code, 0, r.texte);
   assert.match(r.texte, /déjà vide/);
   await db.doc(`clients/${DEMO}/crm_notes/n1`).set({ texte: 'x' });
-  const r2 = await lancer([DEMO, '--vider', '--ecrire'], { confirmer: async () => DEMO });
+  const r2 = await lancer([DEMO, '--vider', '--ecrire'], { lireLigne: async () => DEMO });
   assert.equal(r2.code, 0, r2.texte);
   assert.equal(await compter(DEMO, 'crm_notes'), 0);
 });
