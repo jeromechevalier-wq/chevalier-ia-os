@@ -16,6 +16,7 @@ Créer un client :
   node scripts/nouveau-client.js <identifiant> --nom "Nom affiché" --couleur "#336699" --accueil "Texte de bienvenue" \\
        --membre prenom@exemple.fr:editeur [--membre autre@exemple.fr:lecteur] --modules affaires,projets,automatisations \\
        [--logo chemin/logo.png] [--images chemin/a.jpg,chemin/b.jpg] [--ecrire]
+  --demo : marque le client comme client de DÉMONSTRATION (seul un tel client peut recevoir scripts/donnees-demo.js). Pour un client existant : scripts/marquer-demo.js.
   Un client qui existe déjà est refusé, sauf avec --mettre-a-jour (seuls les champs écrits dans la commande changent).
 
 Commandes annexes (toutes avec --ecrire pour écrire vraiment) :
@@ -226,6 +227,7 @@ async function creer(id, options, ctx) {
   const fiche = {};
   if (nom !== undefined) fiche.nom = nom;
   if (modulesDemandes !== undefined) fiche.modules = objetModules(modulesDemandes);
+  if (options.demo) fiche.demo = true; // client de démonstration : seul un client marqué ainsi peut recevoir l'outil donnees-demo.js
   if (!miseAJour && modulesDemandes === undefined) {
     fiche.modules = objetModules([]);
     plan.avertissements.push('Aucun module demandé (--modules) : le client verra seulement l\'accueil provisoire. Ajoutez-en plus tard avec activer-module.');
@@ -343,14 +345,14 @@ export async function executerNouveauClient(argv, ctx) {
     const { positionnels, options } = lireArguments(argv, {
       valeurs: ['nom', 'couleur', 'accueil', 'modules', 'logo', 'images', 'projet', 'bucket'],
       repetables: ['membre'],
-      drapeaux: ['ecrire', 'mettre-a-jour', 'hors-ligne', 'aide'],
+      drapeaux: ['ecrire', 'mettre-a-jour', 'hors-ligne', 'demo', 'aide'],
     });
     if (options.aide || !positionnels.length) { ctx.out(AIDE); return options.aide ? 0 : 1; }
     const commande = COMMANDES.includes(positionnels[0]) ? positionnels[0] : null;
     const id = exigerIdentifiant(commande ? positionnels[1] : positionnels[0]);
     const reste = positionnels.slice(commande ? 2 : 1);
     if (!commande && reste.length) throw new ErreurOutil(`Argument en trop : « ${reste.join(' ')} ». Les options commencent par --.`);
-    if (commande && (options.nom || options.membre || options.logo || options.images || options.modules || options.couleur || options.accueil || options['mettre-a-jour'])) {
+    if (commande && (options.nom || options.membre || options.logo || options.images || options.modules || options.couleur || options.accueil || options['mettre-a-jour'] || options.demo)) {
       throw new ErreurOutil(`« ${commande} » n'accepte pas les options de création (--nom, --membre…). Voir --aide.`);
     }
     const attendus = { afficher: 0, 'ajouter-membre': 1, 'changer-role': 1, 'retirer-membre': 1, 'activer-module': 1, 'desactiver-module': 1, 'desactiver-client': 0, 'reactiver-client': 0 };

@@ -407,6 +407,20 @@ const ENTREPRISE_DEMO = Object.freeze({
   mediateur: { nom: 'Médiateur de la consommation (exemple)', site: 'https://mediateur.exemple.test' },
 });
 
+/**
+ * Garde-fou « client de démonstration » : l'outil n'écrit (ni ne retire, ni ne fabrique de PDF) que chez un client dont la fiche clients/<id> porte `demo: true`.
+ * Aucune option ne contourne ce refus (même pas --completer). La marque se pose avec `nouveau-client.js --demo` (création) ou `marquer-demo.js` (client existant).
+ */
+export function exigerClientDemo(id, fiche) {
+  if (fiche?.demo !== true) {
+    throw new ErreurOutil([
+      `Ce client n'est pas marqué comme client de démonstration : l'outil refuse d'écrire. Rien n'a été modifié.`,
+      `Pour marquer un client de démonstration existant : node scripts/marquer-demo.js --client ${id} --ecrire (simulation d'abord, sans --ecrire).`,
+      'On ne transforme jamais un vrai client en client de démonstration : on crée un nouveau client avec --demo.',
+    ]);
+  }
+}
+
 function cheminsClient(db, id) {
   return (c) => db.collection(`clients/${id}/${c}`);
 }
@@ -582,6 +596,7 @@ export async function executerDonneesDemo(argv, ctx) {
 
     const ficheSnap = await ctx.base.db.doc(`clients/${id}`).get();
     if (!ficheSnap.exists) throw new ErreurOutil(`Le client « ${id} » n'existe pas (pas de fiche clients/${id}). Créez-le d'abord avec scripts/nouveau-client.js.`);
+    exigerClientDemo(id, ficheSnap.data());
     if (options.retirer) return await retirer(id, ctx);
     if (options.pdf) exigerModuleDevis(ficheSnap.data());
     if (pdfSeul) return await fabriquerPdf(id, ctx, ficheSnap.data() ?? {});
