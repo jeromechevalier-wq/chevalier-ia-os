@@ -20,7 +20,7 @@ async function preparer(page, modules, avecProjet = false) {
   await ecrireDocument('marques/studio', { actif: true, nom: 'Studio Lune', couleur: '#336699', accueil: 'Bienvenue.' });
   await ecrireDocument('clients/studio', { modules, equipe: [{ email: ALICE, role: 'editeur' }] });
   await ecrireDocument(`clients/studio/membres/${ALICE}`, { role: 'editeur' });
-  await ecrireDocument('clients/studio/crm_affaires/a1', { titre: 'Audit du lac', personneId: null, organisationId: null, etape: 'gagne', statut: 'gagnee', priorite: 'tiede', montant: 1200, offreId: null, dureeJours: null, source: '', besoin: '', dateEntreeEtape: t, datesEtapes: {}, raisonPerdue: '', raisonPerdueDetail: '', dateReveil: null, encaissements: [], documents: [], projetId: avecProjet ? 'x' : null, archive: false, ...b });
+  await ecrireDocument('clients/studio/crm_affaires/a1', { titre: 'Audit du lac', personneId: null, organisationId: null, etape: 'etape_5', statut: 'gagnee', priorite: 'tiede', montant: 1200, offreId: null, dureeJours: null, source: '', besoin: '', dateEntreeEtape: t, datesEtapes: { etape_5: t }, raisonPerdue: '', raisonPerdueDetail: '', dateReveil: null, encaissements: [], documents: [], projetId: avecProjet ? 'x' : null, archive: false, ...b });
   if (avecProjet) await ecrireDocument('clients/studio/projets_projets/x', { titre: 'Chantier fantôme', phase: 'lancement', statut: 'actif', affaireId: 'a1', personneId: null, organisationId: null, documents: [], archive: false, ...b });
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/studio/crm/affaires/a1`);
