@@ -17,6 +17,26 @@ gcloud auth application-default login
 
 Toutes les commandes se tapent dans le Terminal, dans le dossier du projet. Dans les exemples, remplace `clientdemo` par l'identifiant de ton client de démonstration.
 
+## Le garde-fou « client de démonstration » (la marque `demo: true`)
+
+L'outil de démonstration n'écrit **que** chez un client dont la fiche (`clients/<identifiant>`) porte la marque `demo: true`. Sans elle, il **refuse** (remplissage, `--retirer` et `--pdf`), même avec `--completer`, même en simulation :
+
+> Ce client n'est pas marqué comme client de démonstration : l'outil refuse d'écrire. Rien n'a été modifié.
+
+Poser la marque :
+
+- **Nouveau client de démonstration** : ajouter `--demo` à la création (`node scripts/nouveau-client.js <identifiant> --nom … --membre … --demo --ecrire`).
+- **Client de démonstration qui existe déjà** (le tien) : une petite commande, à lancer dans ton Terminal (simulation, puis pour de vrai) :
+
+```bash
+node scripts/marquer-demo.js --client <identifiant>
+node scripts/marquer-demo.js --client <identifiant> --ecrire
+```
+
+Remplace `<identifiant>` par l'identifiant de ton client de démonstration. Elle n'écrit que le champ `demo` (rien d'autre n'est touché), refuse ta base `chevalier-ia-os` et refuse un client qui n'existe pas.
+
+**Règle : on ne transforme jamais un vrai client en client de démonstration (ni l'inverse) : on en crée un nouveau.**
+
 ## Les commandes
 
 Règle d'or : **sans `--ecrire`, rien n'est écrit**. Lance toujours la simulation d'abord, relis, puis relance la même commande avec `--ecrire`.

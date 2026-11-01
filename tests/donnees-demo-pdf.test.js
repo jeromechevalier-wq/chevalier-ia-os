@@ -42,7 +42,7 @@ async function photo() {
 async function preparer(devis, { modules = { affaires: true, devis: true } } = {}) {
   for (const c of ['devis_devis', 'crm_affaires', 'crm_evenements']) for (const d of await col(c).listDocuments()) await d.delete();
   await bucket.deleteFiles({ prefix: `clients/${CLIENT}/`, force: true });
-  await db.doc(`clients/${CLIENT}`).set({ nom: 'Client démo PDF', modules });
+  await db.doc(`clients/${CLIENT}`).set({ demo: true, nom: 'Client démo PDF', modules });
   await col('crm_affaires').doc(AFFAIRE).set({ titre: 'Affaire fictive', statut: 'ouverte', [MARQUEUR]: true });
   await col('crm_affaires').doc(AFFAIRE_REELLE).set({ titre: 'Affaire réelle', statut: 'ouverte' });
   for (const [id, d] of Object.entries(devis)) await col('devis_devis').doc(id).set({ affaireId: AFFAIRE, numero: `DEV-2026-10-26-${id}`, objet: id, ...d });
@@ -68,7 +68,7 @@ before(async () => {
   assert.ok(process.env.FIRESTORE_EMULATOR_HOST, "FIRESTORE_EMULATOR_HOST absent : ces tests ne se lancent que sur l'émulateur");
   assert.ok(process.env.FIREBASE_STORAGE_EMULATOR_HOST, "FIREBASE_STORAGE_EMULATOR_HOST absent : ces tests ne se lancent que sur l'émulateur");
   ({ db, bucket } = ouvrir(cible({}, process.env)));
-  await db.doc(`clients/${SANS_DEVIS}`).set({ nom: 'Sans devis', modules: { affaires: true, devis: false } });
+  await db.doc(`clients/${SANS_DEVIS}`).set({ demo: true, nom: 'Sans devis', modules: { affaires: true, devis: false } });
 });
 
 test('1. Sans --ecrire, --pdf liste ce qu\'il ferait et n\'écrit rien', async () => {
@@ -253,7 +253,7 @@ test('10. --retirer supprime les événements marqués et les fichiers PDF des a
 
 test('11. Remplissage + --pdf dans la même commande : simulation sans écriture, puis les devis finalisés reçoivent leur PDF', async () => {
   const COMPLET = 'demo-pdf-complet';
-  await db.doc(`clients/${COMPLET}`).set({ nom: 'Client complet', modules: { affaires: true, projets: true, devis: true } });
+  await db.doc(`clients/${COMPLET}`).set({ demo: true, nom: 'Client complet', modules: { affaires: true, projets: true, devis: true } });
   await db.doc(`clients/${COMPLET}/membres/alice@exemple.test`).set({ role: 'editeur' });
   const h = horloge();
   const s = await lancer([COMPLET, '--catalogue-exemple', '--pdf'], { pdf: h.pdf });

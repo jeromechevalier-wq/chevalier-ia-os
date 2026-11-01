@@ -39,7 +39,7 @@ before(async () => {
   assert.ok(process.env.FIRESTORE_EMULATOR_HOST, "FIRESTORE_EMULATOR_HOST absent : ces tests ne se lancent que sur l'émulateur");
   db = ouvrir(cible({}, process.env)).db;
   for (const c of [CLIENT, AUTRE]) {
-    await db.doc(`clients/${c}`).set({ nom: `Client ${c}`, modules: { affaires: true, projets: true, devis: true } });
+    await db.doc(`clients/${c}`).set({ demo: true, nom: `Client ${c}`, modules: { affaires: true, projets: true, devis: true } });
     await db.doc(`clients/${c}/membres/alice@exemple.test`).set({ role: 'editeur' });
   }
   await db.doc(`clients/${AUTRE}/crm_affaires/reelle`).set({ titre: 'Affaire réelle', etape: 'etape_1', statut: 'ouverte' });

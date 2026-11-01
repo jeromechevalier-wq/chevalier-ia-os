@@ -23,6 +23,15 @@
 <pre><code>npm ci --prefix scripts/plateforme
 gcloud auth application-default login</code></pre>
 <p>Toutes les commandes se tapent dans le Terminal, dans le dossier du projet. Dans les exemples, remplace <code>clientdemo</code> par l'identifiant de ton client de démonstration.</p>
+<h2 id="le-garde-fou-client-de-demonstration-la-marque-demo-true">Le garde-fou « client de démonstration » (la marque <code>demo: true</code>)</h2>
+<p>L'outil de démonstration n'écrit <strong>que</strong> chez un client dont la fiche (<code>clients/&lt;identifiant&gt;</code>) porte la marque <code>demo: true</code>. Sans elle, il <strong>refuse</strong> (remplissage, <code>--retirer</code> et <code>--pdf</code>), même avec <code>--completer</code>, même en simulation :</p>
+<blockquote><p>Ce client n'est pas marqué comme client de démonstration : l'outil refuse d'écrire. Rien n'a été modifié.</p></blockquote>
+<p>Poser la marque :</p>
+<ul><li><strong>Nouveau client de démonstration</strong> : ajouter <code>--demo</code> à la création (<code>node scripts/nouveau-client.js &lt;identifiant&gt; --nom … --membre … --demo --ecrire</code>).</li><li><strong>Client de démonstration qui existe déjà</strong> (le tien) : une petite commande, à lancer dans ton Terminal (simulation, puis pour de vrai) :</li></ul>
+<pre><code>node scripts/marquer-demo.js --client &lt;identifiant&gt;
+node scripts/marquer-demo.js --client &lt;identifiant&gt; --ecrire</code></pre>
+<p>Remplace <code>&lt;identifiant&gt;</code> par l'identifiant de ton client de démonstration. Elle n'écrit que le champ <code>demo</code> (rien d'autre n'est touché), refuse ta base <code>chevalier-ia-os</code> et refuse un client qui n'existe pas.</p>
+<p><strong>Règle : on ne transforme jamais un vrai client en client de démonstration (ni l'inverse) : on en crée un nouveau.</strong></p>
 <h2 id="les-commandes">Les commandes</h2>
 <p>Règle d'or : <strong>sans <code>--ecrire</code>, rien n'est écrit</strong>. Lance toujours la simulation d'abord, relis, puis relance la même commande avec <code>--ecrire</code>.</p>
 <p><strong>1. Simulation</strong> (n'écrit rien) :</p>
