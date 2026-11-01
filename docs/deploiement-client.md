@@ -65,3 +65,23 @@ La plateforme est **un seul** projet Google (`chevalier-ia-app`) : ces réglages
 - « Préparer l'e-mail » grisé avec « pas encore branchée » : normal tant que la porte des workflows n'existe pas pour cet espace (`.github/A-FAIRE.md`).
 - Sur l'ordinateur d'une autre personne : demander la **navigation privée** et lire l'adresse affichée dans la fenêtre Google avant d'autoriser (un autre compte Gmail pourrait être déjà connecté dans ce navigateur).
 - Le MCP du client ne répond pas : interrupteurs d'urgence dans `docs/securite-et-pannes.md`.
+
+## Brancher « Préparer l'e-mail » chez un client (recette du 01/11/2026)
+
+À faire pour chaque client qui a le module Devis. Aucune valeur secrète ne s'écrit dans le dépôt : les noms ci-dessous sont des modèles, `<id>` est l'identifiant du client.
+
+1. **Un webhook n8n par client.** Son **nom commence par `client-<id>-`** ET il porte l'**étiquette `client-<id>`**. Sans l'étiquette, la porte répond 403 `workflow_refuse` (`docs/porte-cles.md`).
+2. **Deux secrets** dans Secret Manager, projet de la plateforme (`chevalier-ia-app`) : `N8N_DEVIS_EMAIL_URL_<id>` (adresse du webhook) et `N8N_DEVIS_EMAIL_SECRET_<id>` (mot de passe du webhook). Les valeurs se collent dans la console, jamais dans une conversation ni un fichier.
+3. **Deux comptes de service** reçoivent « Accesseur de secrets » (`roles/secretmanager.secretAccessor`) sur **chacun** des deux secrets :
+   - le compte de la **fonction d'écran** (`devisPreparerEmail`, compte par défaut de Compute du projet) : sans lui le bouton n'apparaît pas ;
+   - `mcp-clients@<projet de la plateforme>.iam.gserviceaccount.com`, pour l'**assistant** : sans lui il répond « La préparation de l'e-mail n'est pas encore branchée ».
+   ```
+   gcloud secrets add-iam-policy-binding N8N_DEVIS_EMAIL_URL_<id> --member=serviceAccount:<compte> --role=roles/secretmanager.secretAccessor --condition=None
+   gcloud secrets add-iam-policy-binding N8N_DEVIS_EMAIL_SECRET_<id> --member=serviceAccount:<compte> --role=roles/secretmanager.secretAccessor --condition=None
+   ```
+   (quatre commandes en tout : deux comptes, deux secrets). Un rôle ajouté agit tout de suite, sans redéployer.
+4. **Essai** : sur un devis finalisé, « Préparer l'e-mail » à l'écran, puis la même demande à l'assistant. Dans les deux cas un **brouillon** apparaît dans la messagerie ; rien n'est envoyé.
+5. **Diagnostic** d'une erreur : `gcloud logging read` sur le service Cloud Run `devisprepareremail` (filtre `resource.labels.service_name="devisprepareremail"`, quelques dernières lignes). **Ne jamais lire les données d'exécution n8n** : les en-têtes contiennent le secret.
+6. **Rotation du mot de passe du webhook** : proposée à Jérôme, qui garde l'actuel pour l'instant (nouvelle valeur dans n8n et dans une nouvelle version du secret, puis vérifier l'essai).
+
+Ordre de déploiement quand un écran dépend du serveur : **`mcp` (et `fonctions`) avant `hosting`**, un lancement à la fois.

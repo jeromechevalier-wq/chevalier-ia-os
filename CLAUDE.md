@@ -129,3 +129,14 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 4. Pour tout ce qui touche au serveur MCP : `docs/plan-mcp.md`, `docs/securite-et-pannes.md`, `docs/playbook-mcp-firebase.md`.
 5. Données de démonstration : `docs/donnees-demo.md`.
 6. Reprise après une pause ou travail en session séparée : `docs/script-de-reprise.md` (script à coller, sessions 1 à 3 et décisions restantes).
+
+### Leçons de la journée du 01/11/2026
+- **Webhook n8n d'un client** : le nom commence par `client-<id>-` ET l'étiquette `client-<id>` est posée, sinon la porte répond 403 `workflow_refuse` (recette : `docs/deploiement-client.md`).
+- **`maintenant = Date.now` passé sans l'appeler** donne `new Date(fonction)` invalide, Firestore refuse, et les tests avec un nombre fixe ne le voient pas (PR 493, « Préparer l'e-mail » cassé chez les clients). `functions-plateforme/src/devis.js` accepte maintenant un nombre ou une fonction.
+- **Diagnostiquer une fonction** : `gcloud logging read` sur son service. Jamais les données d'exécution n8n (les en-têtes contiennent le secret).
+- **L'e-mail depuis l'assistant d'un client passe par `mcp-clients@`, pas par le compte de l'écran** : deux comptes de service, deux droits « Accesseur de secrets » sur les deux secrets.
+- **Droits des assistants** : un profil OAuth (ChatGPT, Gemini, claude.ai) reçoit le profil `claude-code` (`PROFIL_OAUTH`, `functions/src/oauth/config.js`) ; `finaliser_devis` (aperçu + code) leur est DÉJÀ ouvert. Le profil bibliothécaire n'est donné qu'à l'agent autonome Hermes. Chez un client, rôle éditeur = `claude-code` (`PROFIL_PAR_ROLE`, `functions/src/clients/config.js`). Une première réponse « réservé à Claude Code » a été fausse : **vérifier le code avant de répondre sur les droits**.
+- **Le palier de PR ne lance pas tous les parcours** : lancer « Tests de nuit » sur `main` après chaque fusion d'écran (runs 79 à 83 verts ce jour).
+- **Un brief vérifié par Fable contenait encore des erreurs** : 4 briefs sur 4 cette journée.
+- **Une session créée sans `source_url` n'a pas le dépôt** (`config:no-git-repo`) : toujours le passer.
+- **Un lancement « Tests » rouge peut être un lancement annulé** : lire le dernier lancement avant de chercher une erreur.
