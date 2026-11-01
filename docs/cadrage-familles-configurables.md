@@ -18,7 +18,7 @@
 - Un seul document `devis_parametres/familles` = `{ liste: [{ id, nom, actif, parentId? }] }` (`familles.js:3-5`, écrit en entier à chaque changement par `donnees.js:273-283`, sans journal). Document absent = familles par défaut (`familles.js:42-44`).
 - Les sept familles de départ ont des identifiants **stables** `famille-1` à `famille-7` (`familles.js:13`) ; leurs sous-familles `famille-<n>-<m>` (`familles.js:24`). Un article peut donc s'y rattacher **avant** que le document existe.
 - **Le type est une table en dur** : `TYPE_DE_DEPART` (`familles.js:28`) = `famille-1` → fourniture, `-2` → main_oeuvre, `-3` → ouvrage, `-4` → sous_traitance, `-5` → materiel, `-6` → texte, `-7` → divers.
-- Le verrou : `estFamilleDepart` (`familles.js:34`) est lu à 5 endroits : `famillesDe` **jette** toute entrée stockée portant un id de départ (`familles.js:47`, donc un ancien document n'est jamais dangereux), `planRenommerFamille` (`:136`), `planDesactiverFamille` (`:148`), `planCreationFamille` (« le premier niveau ne change pas », `:121`) et l'écran des réglages (`reglages-familles.js:78`, badge « Famille de départ », aucun bouton).
+- Le verrou : `estFamilleDepart` (`familles.js:34`) est appelé à **4 endroits** : `famillesDe` **jette** toute entrée stockée portant un id de départ (`familles.js:47`, donc un ancien document n'est jamais dangereux), `planRenommerFamille` (`:136`), `planDesactiverFamille` (`:148`) et l'écran des réglages (`reglages-familles.js:78`, badge « Famille de départ », aucun bouton). Le refus de créer au premier niveau est à part : `planCreationFamille` (« le premier niveau ne change pas », `:121`). Document absent = familles par défaut : `familles.js:46`.
 
 ### 1.2 Où le type d'article est déduit de la famille
 
@@ -40,16 +40,16 @@
 - **`editeur-ecran.js:1377-1384`** : trois boutons principaux écrits en dur `type('Fourniture','famille-1')`, `type('Main d’œuvre','famille-2')`, `type(<mot du métier>,'famille-3')`, et le menu « … » avec `famille-4` (Sous-traitance), `famille-5` (Matériel), `famille-7` (Divers). Le mot « Ouvrage » y suit le **mot du métier** réglé (ex. « Prestation »), pas le nom de la famille.
 - **`editeur-ecran.js:1574-1581`** : le menu « insérer avant/après » refait la même liste en dur.
 - **`editeur-ecran.js:1354-1355, 1441`** : le filtre de la boîte de recherche ne garde que les familles actives ; `ouvrirRecherche(familleId)` retombe sur « toutes les familles » si la famille est inactive ou absente.
-- **Ce qui ne dépend PAS des familles** : les boutons « Texte », « Section », « Sous-section » et « Ligne libre » (`editeur-ecran.js:1388-1392`) sont des structures du devis, pas des familles.
+- **Ce qui ne dépend PAS des familles** : les boutons « Texte », « Section », « Sous-section » et « Ligne libre » (`editeur-ecran.js:1389-1393`) sont des structures du devis, pas des familles.
 - La **ligne de devis** reçoit une **copie** de `type` et `familleId` au moment où elle est créée (`editeur-logique.js:131-135`) : plus rien ne change si l'article change ensuite. Le PDF et le document (`document.js`, `html-devis.js`, `pdf.js`) ne lisent **aucune** famille (aucune occurrence relevée) : **un devis finalisé ne dépend pas de la liste des familles**.
 
 ### 1.4 Vocabulaire, recherche, MCP, serveur
 
 - **Dictionnaire** (`vocabulaire.js`) : une cible « famille » se résout à l'instant de la recherche en tous les articles dont `familleEffective` est la famille ou une sous-famille (`vocabulaire.js:253-273`, `idsAvecSousFamilles`). **Famille désactivée ou introuvable = cible morte, ignorée** : déjà prévu, rien à ajouter. Sans liste fournie, le moteur reprend `famillesDe(null)` (`vocabulaire.js:490`). Même chose dans `vocabulaire-plans.js:61-62`, `selecteur-catalogue.js:41`, `selecteur-catalogue-logique.js:2, 24`.
 - **Serveur** : `functions/src/coeur/metier.js:677-682` (`famillesDevis`, utilisée par `creerArticle`, `modifierArticle`, `enregistrerReponseVocabulaire`) et `functions/src/coeur/lecture.js:312-317, 325, 340-348` (`famillesLues`, `rechercherArticleParPhrase`, `lireReglagesDevis`). Le code des familles y arrive par **copie** (`scripts/preparer-fonctions.js:35`, sous le nom `devis-familles.js`), donc **un seul fichier** à changer pour Jérôme et pour les clients.
-- **Outils MCP** : `creer_article` et `modifier_article` acceptent `familleId` (`functions/src/mcp/outils/ecriture.js:156, 169`) ; `lire_reglages_devis` rend la liste des familles (`lecture.js:182`, via `lecture.js:348`) **sans le type** de chaque famille ; `rechercher_article_par_phrase` rend les questions de famille avec le chemin (`vocabulaire.js:320`). **Aucun outil MCP ne crée, renomme ni désactive une famille**, et aucun `famille-N` n'est écrit en dur dans `functions/` (relevé fait).
+- **Outils MCP** : `creer_article` et `modifier_article` acceptent `familleId` (`functions/src/mcp/outils/ecriture.js:156, 169`) ; `lire_reglages_devis` rend la liste des familles (`lecture.js:182`, via `lecture.js:348`) **sans le type** de chaque famille ; `rechercher_article_par_phrase` rend les questions de famille avec le chemin (`vocabulaire.js:320`). **Aucun outil MCP ne crée, renomme ni désactive une famille.** Aucun `famille-N` n'est écrit en dur dans le **code** de `functions/`, mais la **description** de `creer_article` (`functions/src/mcp/outils/ecriture.js:156`, champ `familleId`) cite « famille-1 à famille-7, ou une sous-famille » : elle sera fausse dès la PR 2 (voir PR 2). La description de `lire_reglages_devis` (`functions/src/mcp/outils/lecture.js:182`) est à compléter de la même façon.
 - **Export** : `export.js` copie `devis_parametres` en entier (`donnees.js:286`) : un champ de plus dans une famille s'exporte tout seul.
-- **Règles Firestore** : voir section 9 (non vérifié).
+- **Règles Firestore** : `devis_parametres` tombe sous la règle générique (`firestore.rules:172-175`, `firestore.plateforme.rules:182-184`) : **aucune règle à changer** pour les 3 PR, donc aucune PR en liste d'arrêt pour ce motif.
 
 ### 1.5 La démo
 
@@ -125,24 +125,25 @@ Raison : A répond déjà à (b) et à une grande partie de (a) avec **une seule
 
 ### PR 1 : « Renommer et masquer les sept familles de départ » (la plus petite utile)
 
-**Ce que ça fait** : lève le verrou de `estFamilleDepart` sur le **nom** et l'**état actif** (id et type inchangés) ; `famillesDe` lit une entrée stockée d'une famille de départ comme il le fait pour une sous-famille de départ (nom et actif seulement) ; l'écran Réglages > Familles d'articles donne aux sept familles les mêmes boutons (renommer, désactiver, réactiver) ; **les boutons « + » du devis, le menu « insérer », `FAMILLE_DEFAUT` et le message de `bordereau.js:138` suivent** les familles actives et leurs noms.
+**Ce que ça fait** : lève le verrou de `estFamilleDepart` sur le **nom** et l'**état actif** (id et type inchangés) ; `famillesDe` lit une entrée stockée d'une famille de départ comme il le fait pour une sous-famille de départ (nom et actif seulement) ; l'écran Réglages > Familles d'articles donne aux sept familles les mêmes boutons (renommer, désactiver, réactiver) et son texte d'aide (`reglages-familles.js:15`, « Les sept grandes familles sont fixes… ») est réécrit (aucun test ne doit le lire : à vérifier par `grep` ; la recherche de « sept grandes familles » dans `tests/` n'a rien rendu) ; `planCreationFamille` (`familles.js:119-129`) refuse de créer une sous-famille sous une famille désactivée (« Réactive d'abord « Matériels » ») ; **les boutons « + » du devis, le menu « insérer », `FAMILLE_DEFAUT` et le message de `bordereau.js:138` suivent** les familles actives et leurs noms.
 
 **Critères d'acceptation observables** (un test dont le nom commence par le numéro, une capture chacun) :
 
 1. 1.1 Dans Réglages > Familles d'articles, « Fournitures » se renomme en « Supports » : le nouveau nom apparaît dans le Catalogue (colonne Famille, filtre en arbre) et dans la boîte de recherche du devis.
-2. 1.2 « Matériels » se désactive (avec confirmation qui dit combien d'articles y sont rangés) : le bouton « Matériel » disparaît du menu « … » de l'éditeur et du menu « insérer » ; l'article déjà rangé dedans reste visible dans le Catalogue.
+2. 1.2 « Matériels » se désactive (avec confirmation qui dit combien d'articles y sont rangés) : le bouton « Matériel » disparaît du menu « … » de l'éditeur et du menu « insérer » ; l'article déjà rangé dedans reste visible dans le Catalogue. **Filtre du Catalogue** : `optionsFamillesArbre` (`familles.js:104-110`) n'a aucun filtre `actif`, donc une famille désactivée y reste proposée (alors que l'éditeur la masque, `editeur-ecran.js:1355`) ; par défaut elle reste dans le filtre du Catalogue **avec la mention « désactivée »**. À savoir : le sélecteur du Vocabulaire (`selecteur-catalogue-logique.js:24`, `selecteur-catalogue.js:41`) range ces articles sous « Sans famille ».
 3. 1.3 On ne peut pas désactiver la **dernière** famille active : message simple « Il en faut au moins une ».
 4. 1.4 Réactiver « Matériels » remet le bouton et rien d'autre ne change.
 5. 1.5 Les identifiants `famille-1` à `famille-7` et leurs types sont inchangés après renommage et désactivation (test sur `familles.js`) ; un devis finalisé avant le changement s'affiche et s'exporte à l'identique.
 6. 1.6 Un document `devis_parametres/familles` **ancien** (sans entrées de départ) donne exactement les noms d'origine ; un document avec entrées de départ lu par l'**ancien** code les ignore sans erreur (test de non-régression sur la liste filtrée).
 7. 1.7 Côté assistant : `lire_reglages_devis` rend les noms et états choisis ; `creer_article` dans une famille de départ désactivée garde le comportement des sous-familles (refusé, sauf si l'article y est déjà) ; la copie préparée du serveur charge (test K13 existant).
-8. 1.8 Cas vide et erreur de l'écran : aucune sous-famille = « Aucune sous-famille » (existant) ; nom en double ou trop long = message sous la famille (existant) ; écriture refusée = message, rien de perdu.
+8. 1.8 Créer une sous-famille sous « Matériels » désactivée est refusé avec « Réactive d'abord « Matériels » » (message sous la famille).
+9. 1.9 Cas vide et erreur de l'écran : aucune sous-famille = « Aucune sous-famille » (existant) ; nom en double ou trop long = message sous la famille (existant) ; écriture refusée = message, rien de perdu.
 
-**Tests existants à adapter** (à chercher par `grep` avant d'ouvrir la PR, leçon du 29/10) : `devis-familles.test.js` F3/F5, `devis-familles-ergonomie.test.js` P1, `devis-familles-unique.test.js` F5 (ils verrouillent le « verrou » : leur énoncé change), `devis-boutons-libelles-infobulle.spec.js`, `devis-editeur-sections-saut.spec.js`, `devis-ouvrages.spec.js`, `devis-bordereau-client.spec.js`, `devis-vocabulaire-familles.spec.js`, `parcours` (le palier complet se déclenche si on touche `firestore.rules`).
+**Tests existants à adapter** (à confirmer par `grep` avant d'ouvrir la PR, leçon du 29/10) : unitaires qui verrouillent le verrou : `devis-familles-ergonomie.test.js` P1 (`:51`) et `devis-familles-unique.test.js` F5 (`:103`) (leur énoncé change ; `devis-familles.test.js` F3/F5 ne testent pas le verrou) ; parcours : `devis-boite-ajout`, `devis-ecran-unique`, `devis-editeur-mise-en-page`, `devis-editeur`, `devis-familles-ergonomie`, `devis-mot-metier`, `devis-editeur-sections-saut` (`.spec.js`) ; le palier complet se déclenche si on touche `firestore.rules` (ce n'est pas prévu). Le script `preparer-fonctions.js` doit être relancé (copie serveur) et le test K13 (`tests/devis-vocabulaire-copie.test.js`) couvre le chargement de la copie.
 
 ### PR 2 : « Créer ses propres familles de premier niveau »
 
-**Ce que ça fait** : `planCreationFamille` accepte un `parentId` vide **avec un type obligatoire** (un des sept, présenté en mots simples) ; `typeDeFamille` lit `f.type` pour les familles non-départ ; le type est **fixé** (le nom se change) ; `lire_reglages_devis` rend `type` pour chaque famille ; les boutons « + » du devis montrent d'abord les trois premières familles actives, les autres vont dans le menu « … ».
+**Ce que ça fait** : `planCreationFamille` accepte un `parentId` vide **avec un type obligatoire** (un des sept, présenté en mots simples) ; `typeDeFamille` lit `f.type` pour les familles non-départ ; le type est **fixé** (le nom se change) ; `famillesDe` (`familles.js:48`) ne recopie aujourd'hui que `id`, `nom`, `actif`, `parentId` : elle doit garder **et contrôler** `type` (une des sept valeurs de `DEPART`, sans importer `articles.js`) ; `lire_reglages_devis` rend `type` pour chaque famille (`functions/src/coeur/lecture.js:348`) et sa description (`functions/src/mcp/outils/lecture.js:182`) le dit ; la description de `creer_article` (`functions/src/mcp/outils/ecriture.js:156`) devient « famille-1 à famille-7, une famille créée par l'utilisateur, ou une sous-famille » (deux fichiers de plus à la PR 2) ; les boutons « + » du devis montrent d'abord les trois premières familles actives, les autres vont dans le menu « … ».
 
 **Critères d'acceptation** :
 
@@ -162,11 +163,11 @@ Raison : A répond déjà à (b) et à une grande partie de (a) avec **une seule
 
 **Critères d'acceptation** :
 
-1. 3.1 Après `--metier agence`, le Catalogue du client de démo montre « Agence » et ses sous-familles, et aucune famille du bâtiment visible.
+1. 3.1 Après `--metier agence`, le Catalogue du client de démo montre « Agence » et ses sous-familles, et aucune famille du bâtiment visible. Le document `familles` est écrit à `scripts/plateforme/donnees-demo.js:682`, **seulement s'il n'existe pas déjà** : un document `familles` non marqué « démo » arrête le programme avec un message clair.
 2. 3.2 Tous les articles des jeux ont un `familleId` qui existe dans la liste écrite (le contrôle de complétude des jeux existant échoue sinon).
 3. 3.3 Les devis de démo ont des titres de section qui portent les noms de famille de l'agence (pas « Gros œuvre »).
-4. 3.4 Aucun jeu n'écrit dans un vrai client (garde existante de `marquer-demo.js`, test inchangé) et l'effacement de la démo retire aussi le document `familles` du client de démo.
-5. 3.5 Cas vide : un jeu sans `familles` ni masquage écrit rien (comportement actuel) ; cas d'erreur : une famille de départ à masquer qui n'existe pas, ou un type inconnu, arrête le programme avec un message clair.
+4. 3.4 Aucun jeu n'écrit dans un vrai client (garde existante de `marquer-demo.js`, test inchangé) et l'effacement de la démo (`--retirer`) retire aussi le document `familles` : c'est déjà vrai (`devis_parametres` est dans `COLLECTIONS_DEMO`), le test le verrouille.
+5. 3.5 Cas vide : un jeu sans `familles` ni masquage écrit rien (comportement actuel) ; cas d'erreur : une famille de départ à masquer qui n'existe pas, ou un type inconnu, arrête le programme avec un message clair (y compris le document `familles` déjà présent et non marqué démo).
 
 **Hors PR** : `scripts/plateforme/*` n'est pas déployé ; aucun secret ; pas de donnée de client.
 
@@ -181,14 +182,14 @@ Raison : A répond déjà à (b) et à une grande partie de (a) avec **une seule
 1. **Les boutons « + » du devis** (`editeur-ecran.js:1377-1384, 1574-1581`) sont le gros morceau de la PR 1 : ils lisent aujourd'hui `famille-1` à `famille-7` en dur. Un gros écran, trois à quatre défauts par PR en moyenne : la relecture Fable est indispensable.
 2. **Le mot du métier contre le nom de la famille** : le bouton « Ouvrage » suit aujourd'hui le mot du métier (« Prestation »), pas le nom de la famille. Si l'utilisateur renomme « Ouvrages » en « Forfaits », quel mot gagne ? (question 1).
 3. **Badge de type** (`bibliotheque.js:64`, `editeur-ecran.js:1500`) : il affiche le libellé du **type** (« Fourniture »), pas le nom de la famille. Après renommage, les deux peuvent différer. Acceptable, à dire à Jérôme.
-4. **Articles sans famille** (`familleEffective`, `familles.js:87`) : ils sont rangés dans la famille de départ de leur type. Si cette famille est masquée, ils restent dedans : le filtre « Famille » doit encore pouvoir les trouver (critère 1.2).
+4. **Articles sans famille** (`familleEffective`, `familles.js:87`) : ils sont rangés dans la famille de départ de leur type. Si cette famille est masquée, ils restent dedans : le filtre « Famille » doit encore pouvoir les trouver (critère 1.2). **Piège** : le champ intelligent `champ-famille.js:15` saute une famille de premier niveau désactivée **avec ses sous-familles** : un article déjà rangé dans « Matériels › Outillage » ne pourrait plus être re-choisi par ce champ. À dire à Jérôme et à tester. Un article créé sans `familleId` avec le type « matériel » tombe dans la famille désactivée sans refus : acceptable. Les sous-familles de « Textes » (`famille-6`) n'ont aucun bouton « + » : à dire si « Textes » peut devenir un des 3 boutons (question 7).
 5. **Dictionnaire** : un mot dont la cible est une famille masquée devient une « cible morte, ignorée » (`vocabulaire.js:253-257`). C'est voulu ; l'écran de masquage doit le dire.
 6. **Écran des réglages = un document réécrit en entier** (`donnees.js:273-283`, sans fusion) : deux onglets ouverts qui modifient les familles s'écrasent (comme les autres réglages). Pas de nouveau risque, mais à garder en tête pour la PR 2 (retirer un réglage : `setDoc` sans fusion peut ressusciter l'ancienne valeur).
 7. **Devis finalisés** : rien à faire (§1.3), mais un test de bout en bout les reprend dans la PR 1 (critère 1.5).
 
 ## 7. Ce que Fable devra relire
 
-- `familles.js` (la logique pure, copiée sur le serveur) : le filtre de `famillesDe`, la règle « au moins une famille active », la lecture du `type` des familles libres.
+- `familles.js` (la logique pure, copiée sur le serveur) : le filtre de `famillesDe`, la règle « au moins une famille active », la lecture et le contrôle du `type` des familles libres (`famillesDe` doit le recopier, valeur parmi les sept, sans importer `articles.js`).
 - Les anciens documents : preuve que ni l'ancien ni le nouveau code ne perdent rien (critères 1.6 et 2.6).
 - Les boutons du devis (PR 1 et 2), en format téléphone aussi.
 - La réponse de `lire_reglages_devis` (PR 2) et l'ordre de déploiement `mcp` puis `hosting`.
@@ -196,20 +197,21 @@ Raison : A répond déjà à (b) et à une grande partie de (a) avec **une seule
 
 ## 8. Questions pour Jérôme (réponse proposée par défaut, exemples à 100 €)
 
-1. **Le nom du bouton « + » suit-il le nom de la famille ?** Exemple : tu renommes « Ouvrages » en « Forfaits ». Le bouton du devis dit « + Forfaits » ou garde ton mot du métier « + Prestation » ? *Par défaut : le bouton suit le nom de la famille dès qu'elle est renommée ; tant qu'elle ne l'est pas, il garde le mot du métier.*
+1. **Le nom du bouton « + » suit-il le nom de la famille ?** Exemple : tu renommes « Ouvrages » en « Forfaits ». Le bouton du devis dit « + Forfaits » ou garde ton mot du métier « + Prestation » ? *Par défaut : le bouton suit le nom de la famille dès qu'elle est renommée ; tant qu'elle ne l'est pas, il garde le mot du métier.* (Code concerné : `bordereau.js:138` ; test `devis-mot-metier.spec.js`.)
 2. **Une famille neuve doit-elle avoir un type ?** Le type dit comment l'article est compté (un site à 100 € = « du temps passé » ou « un forfait composé » ?). *Par défaut : oui, obligatoire, choisi à la création parmi les sept en mots simples (« je l'achète », « du temps passé », « un forfait composé », « sous-traité », « du matériel loué », « du texte », « divers »), et il ne se change pas ensuite.* Pour l'agence : « du temps passé ».
 3. **Peut-on tout masquer ?** *Par défaut : non, il reste toujours au moins une famille.*
 4. **Masquer ou désactiver ?** Le logiciel dit « désactiver » pour les articles et les sous-familles. *Par défaut : même mot, « désactiver » ; un article déjà rangé dans une famille désactivée reste visible dans le Catalogue.*
 5. **L'ordre des familles** : *par défaut, ordre actuel (départ d'abord, puis par création) ; flèches haut/bas seulement si tu les demandes.*
 6. **Un « profil de métier »** à la création du compte (option C) ? *Par défaut : pas maintenant ; la démo par métier sert de modèle.*
+7. **« Textes » peut-il devenir un des trois boutons « + » ?** Aujourd'hui ses sous-familles n'ont aucun bouton. *Par défaut : non, « Textes » reste dans le menu « Texte » existant.*
 
-## 9. Ce qui n'a pas pu être vérifié (à faire au début de la PR 1)
+## 9. Ce qui reste non vérifié
 
-- **Règles Firestore** : la recherche du mot `parametres` dans `firestore.rules` n'a rien rendu ; l'accès à `devis_parametres/familles` passe donc sans doute par un motif générique ou par le registre. À confirmer. Aucune règle ne devrait changer ; si l'une devait changer, la PR passe en liste d'arrêt (étiquette `a-fusionner-par-jerome`).
-- **Filtre en arbre du Catalogue** (`bordereau.js:428` + `optionsFamillesArbre`) : relu, mais je n'ai **pas** confirmé qu'il masque les familles inactives ; le filtre de l'éditeur, lui, les masque (`editeur-ecran.js:1355`). À tester à la PR 1.
-- **Écriture du document `familles` par la démo** : `catalogueDuJeu` renvoie le document, mais l'endroit exact où il est écrit chez le client de démo n'a pas été relu ; à relire à la PR 3.
+Réponses de la relecture Fable du 01/11/2026 intégrées : règles Firestore (aucune à changer, §1.4), filtre en arbre du Catalogue (sans filtre `actif`, critère 1.2), endroit d'écriture de la démo (`donnees-demo.js:682`, critère 3.1).
+
 - **Aucun essai** : rien n'a été lancé (pas de test, pas de capture), puisque cette session ne code pas.
-- **Le comptage de tests à adapter** (fin de la PR 1) vient d'un `grep` sur les mots `famille-`/`familles`, pas d'une exécution.
+- **La liste des tests à adapter** (PR 1) vient de `grep` et de la relecture, pas d'une exécution : à confirmer avant d'ouvrir la PR.
+- **Le texte d'aide** `reglages-familles.js:15` : aucun test ne semble le lire (recherche de « sept grandes familles » dans `tests/` sans résultat) ; à reconfirmer.
 
 ## 10. Où c'est rangé
 
