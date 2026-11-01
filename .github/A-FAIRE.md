@@ -1,6 +1,21 @@
 # À faire : module Devis et outils (liste maintenue à jour)
 
-Mise à jour : **31/10/2026 soir** (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
+Mise à jour : **01/11/2026** (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
+
+## Mise à jour du 01/11/2026 (PR 490 à 498)
+
+Fait ce jour : réglage « Gestion des déchets » (490), cadrage des familles configurables (491, docs), `donnees-demo.js --vider` (492), correctif « Préparer l'e-mail » chez les clients (493), familles de départ par métier dans la démo (494), « ChatGPT » à la place de « IA » à l'écran (495), familles d'articles configurables PR 1/3 (496), pas de section « Projet » sur une affaire gagnée sans module Projets (497, inscription par le module Projets : ne pas refaire), démo agence avec familles de premier niveau propres (498).
+
+| | Sujet | État | Qui |
+|---|---|---|---|
+| 🟠 | **Familles configurables, PR 2** (créer des familles de premier niveau neuves, avec un type) | **Non lancée** (`docs/cadrage-familles-configurables.md`) | Claude |
+| 🟠 | **Familles configurables, PR 3** (démo propre à chaque métier ; la famille « Agence » de premier niveau dépend de la PR 2) | **Non lancée** ; une version provisoire est faite par les PR 494 et 498 | Claude |
+| 🟠 | **Quatre points mineurs de la relecture Fable de la PR 496, non corrigés** : (1) le champ Famille (`js/modules/devis/champ-famille.js`) ne propose plus une sous-famille d'une famille désactivée, donc impossible de la re-choisir après avoir effacé le champ ; (2) `creer_article` avec `type` seul peut tomber dans une famille désactivée (`planCreerArticle` / `familleEffective`) ; (3) le sélecteur du Vocabulaire en mode mixte propose encore une sous-famille d'une famille désactivée (`selecteur-catalogue-logique.js`) ; (4) la description de `creer_article` (`functions/src/mcp/outils/ecriture.js`, vers la ligne 151) cite les noms de famille d'origine, et le test 1.6 de `tests/devis-familles-configurables.test.js` réimplémente le filtre au lieu de tester `famillesDe` d'avant | À faire (serveur : Fable obligatoire) | Claude |
+| 🟠 | **Outils `changer_statut_devis` et `supprimer_devis`** : confirmer avec Jérôme ce que ChatGPT peut faire. Vérifié dans le code : tout profil OAuth = `claude-code`, donc `finaliser_devis`, `changer_statut_devis` et `supprimer_devis` leur sont ouverts, chez Jérôme comme chez les éditeurs des clients ; Hermes (bibliothécaire) ne les a pas | À confirmer | Jérôme |
+| 🟠 | **Questions pour Jérôme** : la mention « Gestion des déchets » doit-elle aussi s'appliquer au PDF officiel (défaut : non) ? une condition de paiement autre que l'acompte (« Retenue de garantie » est « bientôt disponible », seule « Acompte » existe) ? l'assistant peut-il utiliser une adresse tapée dans la conversation (défaut : non) ? logiciel de facturation (Pennylane, Tiime, Sellsy, Qonto, Billit, B2Brouter ; un compte par client ou un seul) ? sauvegarde du VPS n8n (il faut le résultat de `docker volume ls`) ? rotation du mot de passe du webhook n8n (plus tard) | À répondre | Jérôme |
+| 🟢 | **Recette « brancher l'e-mail chez un client »** | Écrite dans `docs/deploiement-client.md` | Fait |
+
+Rappel : Jérôme a des commits locaux non poussés.
 
 ## Mise à jour du soir du 31/10/2026 (PR 449 à 479)
 
