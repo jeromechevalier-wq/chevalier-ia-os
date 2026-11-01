@@ -4,9 +4,10 @@
 //
 // Format d'un jeu (voir etancheur.js) :
 //   id, nom, motOuvrage (ouvrage | ensemble | forfait | prestation | lot), entreprise ({ nom, … } : « Mon entreprise » fictive), tvaReduite (10 % possible pour un particulier), voie, dechets (bloc déchets des devis),
-//   noteDevis, texteLibre, familles ([[id, nom, parentId]] : sous-familles libres), articles ([[id, libelle, unité, prix de vente HT, type, familleId]]),
+//   noteDevis, texteLibre, familles ([[id, nom, parentId]] : sous-familles propres au métier, actives), famillesMasquees ('toutes' ou liste d'ids `famille-N-M` : sous-familles de départ écrites `actif: false`), articles ([[id, libelle, unité, prix de vente HT, type, familleId]]),
 //   ensembles ([[id, libelle, unité, familleId, [[idArticle, quantité]]]]), mots (mots appris, même modèle que MOTS_EXEMPLE), organisations ([[nom, ville, secteur]] ×15),
 //   travaux (intitulés d'affaires), vedettes (devis écrits à la main : { statut, client, travaux, objet, sections: [{ titre, lignes: [[idArticle, quantité, TVA facultative]] }], acompte }).
+import { FAMILLES_PAR_DEFAUT } from '../../../js/modules/devis/familles.js';
 import etancheur from './etancheur.js';
 import agence from './agence.js';
 import plombier from './plombier.js';
@@ -25,6 +26,21 @@ export function catalogueDuJeu(jeu) {
     id, code: id.toUpperCase(), libelle, unite, prixAchat: 0, tauxTva: 20, type: 'ouvrage', familleId, actif: true,
     composants: composants.map(([articleId, quantite]) => ({ articleId, quantite })),
   }));
-  const familles = jeu.familles?.length ? { liste: jeu.familles.map(([id, nom, parentId]) => ({ id, nom, actif: true, parentId })) } : null;
+  const familles = documentFamilles(jeu);
   return { articles: [...articles, ...ensembles], familles };
+}
+
+/** Sous-familles de départ (`famille-N-M`) que le jeu masque : toutes (`'toutes'`) ou la liste donnée. Un id inconnu est ignoré ici (`problemesDuJeu` le signale). */
+export function famillesMasqueesDuJeu(jeu) {
+  const departs = FAMILLES_PAR_DEFAUT.filter((f) => f.parentId);
+  if (jeu.famillesMasquees === 'toutes') return departs;
+  const ids = new Set(Array.isArray(jeu.famillesMasquees) ? jeu.famillesMasquees : []);
+  return departs.filter((f) => ids.has(f.id));
+}
+
+/** Document `devis_parametres/familles` du jeu : ses sous-familles propres (actives) puis les sous-familles de départ masquées (`actif: false`, toujours avec leur nom). Null s'il n'y a ni l'une ni l'autre. */
+function documentFamilles(jeu) {
+  const propres = (jeu.familles ?? []).map(([id, nom, parentId]) => ({ id, nom, actif: true, parentId }));
+  const masquees = famillesMasqueesDuJeu(jeu).map((f) => ({ id: f.id, nom: f.nom, actif: false, parentId: f.parentId }));
+  return propres.length || masquees.length ? { liste: [...propres, ...masquees] } : null;
 }
