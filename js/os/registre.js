@@ -197,14 +197,14 @@ export const MODULES_DECLARES = geler([
     // modules actifs. Allumé ou éteint par client comme les autres modules ; éteint = le lien ne répond plus. Le module n'a qu'une page d'information
     // (lien à copier, mode d'emploi, membres et rôles, lien vers le Journal des modifications) : aucun réglage, aucune donnée à lui. Chez Jérôme (racine) la page
     // existe aussi (18/10/2026) : elle ne lit rien dans la base, elle donne l'adresse du MCP de Jérôme et le mode d'emploi de la connexion Google.
-    // Elle s'ouvre depuis le menu utilisateur (« Connecter l’assistant »), pas depuis le menu principal.
+    // Elle s'ouvre depuis le menu utilisateur (« Connecter mon ChatGPT »), pas depuis le menu principal.
     id: 'mcp',
     nom: 'Accès MCP',
-    libelleMenu: 'Connecter l’assistant',
+    libelleMenu: 'Connecter mon ChatGPT',
     iconeMenu: 'link',
     prefixe: 'mcp',
     horsMenu: true,
-    reglages: { sections: [{ id: 'reglages-mcp', libelle: 'Connexion de l’IA' }] },
+    reglages: { sections: [{ id: 'reglages-mcp', libelle: 'Connexion de ChatGPT' }] },
     ecrans: [
       { route: 'mcp/infos', libelle: 'Connexion', icone: 'link' },
     ],

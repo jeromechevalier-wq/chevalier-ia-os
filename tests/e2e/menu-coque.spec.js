@@ -30,7 +30,7 @@ test('1 menu principal sans titres de groupes : blocs séparés par une fine lig
   await expect(page.locator('.menu .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Devis', 'Veille', 'Automatisations', 'Maintenance']);
   // Le menu aligne des modules : une entrée par module, jamais ses écrans (ils sont des onglets dans la page du module).
   for (const ecran of ['Contenus', 'Sources', 'Historique', 'À valider', 'Général', 'Technique']) await expect(page.locator('.menu').getByRole('link', { name: ecran, exact: true })).toHaveCount(0);
-  for (const absent of ['Journal des modifications', 'Réglages', 'Connecter l’assistant', 'Assistant']) await expect(page.locator('.menu').getByRole('link', { name: absent })).toHaveCount(0);
+  for (const absent of ['Journal des modifications', 'Réglages', 'Connecter mon ChatGPT', 'Assistant']) await expect(page.locator('.menu').getByRole('link', { name: absent })).toHaveCount(0);
   // Accueil | Personnes, Organisations | Affaires, Projets : trois sections dans le bloc, séparées par une ligne
   await expect(page.locator('.menu .menu-groupe[data-bloc="crm"] .menu-section')).toHaveCount(3);
   await expect(page.locator('.menu .menu-groupe[data-bloc="crm"] .menu-section').nth(1).locator('.menu-entree')).toHaveText(['Personnes', 'Organisations']);
@@ -73,7 +73,7 @@ test('3 menu utilisateur : s’ouvre vers le haut depuis le nom, contenu dans l�
   await expect(pop).toHaveAttribute('id', 'menu-utilisateur');
   expect(await pop.evaluate((el) => getComputedStyle(el).maxHeight)).not.toBe('none'); // défile sur un écran bas (téléphone en paysage)
   await expect(pop.locator('.menu-pop-texte')).toHaveCount(1);
-  await expect(pop.getByRole('menuitem')).toHaveText(['Réglages', 'Voir le journal des modifications', 'Connecter l’assistant', /Thème (clair|sombre)/, 'Se déconnecter']);
+  await expect(pop.getByRole('menuitem')).toHaveText(['Réglages', 'Voir le journal des modifications', 'Connecter mon ChatGPT', /Thème (clair|sombre)/, 'Se déconnecter']);
   await expect(pop.locator('[data-role="bascule-theme"]')).toHaveCount(1);
   await expect(pop.locator('> *').last()).toHaveText('Se déconnecter');
   await expect(pop.locator('.menu-pop-separateur')).toHaveCount(1);
@@ -99,7 +99,7 @@ test('3 menu utilisateur : s’ouvre vers le haut depuis le nom, contenu dans l�
   await page.keyboard.press('ArrowDown');
   await expect(pop.getByRole('menuitem', { name: 'Voir le journal des modifications' })).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(pop.getByRole('menuitem', { name: 'Connecter l’assistant' })).toBeFocused();
+  await expect(pop.getByRole('menuitem', { name: 'Connecter mon ChatGPT' })).toBeFocused();
   await page.keyboard.press('ArrowUp');
   await page.keyboard.press('ArrowUp');
   await expect(pop.getByRole('menuitem', { name: 'Réglages' })).toBeFocused();
@@ -113,7 +113,7 @@ test('3 menu utilisateur : s’ouvre vers le haut depuis le nom, contenu dans l�
   await pop.getByRole('menuitem', { name: 'Réglages' }).click();
   await expect(page).toHaveURL(/#\/reglages$/);
   await ouvrirMenuUtilisateur(page);
-  await pop.getByRole('menuitem', { name: 'Connecter l’assistant' }).click();
+  await pop.getByRole('menuitem', { name: 'Connecter mon ChatGPT' }).click();
   await expect(page).toHaveURL(/#\/mcp\/infos$/);
   // le thème se change sans fermer le menu, puis « Se déconnecter » ramène à la connexion
   await ouvrirMenuUtilisateur(page);
@@ -195,14 +195,14 @@ test('4 bouton de repli à droite du nom de l’espace : même état mémorisé,
   await expect(coquille).toHaveAttribute('data-menu', 'replie');
 });
 
-test('5 « Connecter l’assistant » chez Jérôme : adresse /mcp de la page, mode d’emploi Google en 3 lignes, comptes fixés par Jérôme, lien vers le Journal, aucune lecture dans la base', async ({ page }) => {
+test('5 « Connecter mon ChatGPT » chez Jérôme : adresse /mcp de la page, mode d’emploi Google en 3 lignes, comptes fixés par Jérôme, lien vers le Journal, aucune lecture dans la base', async ({ page }) => {
   await connecter(page, JEROME);
   const lecturesMembres = [];
   page.on('request', (r) => { if (/clients|membres/.test(r.url() + (r.postData() || ''))) lecturesMembres.push(r.url()); });
   await ouvrirMenuUtilisateur(page);
-  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Connecter l’assistant' }).click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Connecter mon ChatGPT' }).click();
   await expect(page).toHaveURL(/#\/mcp\/infos$/);
-  await expect(page.getByRole('heading', { name: 'Connecter l’assistant', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Connecter mon ChatGPT', level: 1 })).toBeVisible();
   await expect(page.locator('input.mcp-lien')).toHaveValue(`${new URL(page.url()).origin}/mcp`);
   await expect(page.locator('.mcp-etapes li')).toHaveCount(3);
   await expect(page.locator('.mcp-etapes')).toContainText('Google');
@@ -212,7 +212,7 @@ test('5 « Connecter l’assistant » chez Jérôme : adresse /mcp de la page, m
   await expect(page.locator('.page-mcp')).not.toContainText(/cia_|jeton|claude-code/i);
   await page.waitForTimeout(800);
   expect(lecturesMembres).toEqual([]);
-  await capture(page, '5-connecter-mon-assistant-racine');
+  await capture(page, '5-connecter-mon-chatgpt-racine');
   await page.locator('.page-mcp a', { hasText: 'Journal des modifications' }).click();
   await expect(page).toHaveURL(/#\/crm\/journal$/);
 });
