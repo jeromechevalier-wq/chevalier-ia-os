@@ -415,10 +415,15 @@ export function exigerClientDemo(id, fiche) {
   if (fiche?.demo !== true) {
     throw new ErreurOutil([
       `Ce client n'est pas marqué comme client de démonstration : l'outil refuse d'écrire. Rien n'a été modifié.`,
-      `Pour marquer un client de démonstration existant : node scripts/marquer-demo.js --client ${id} --ecrire (simulation d'abord, sans --ecrire).`,
+      `Pour marquer un client de démonstration existant : node scripts/marquer-demo.js --client ${id} (simulation), puis node scripts/marquer-demo.js --client ${id} --ecrire.`,
       'On ne transforme jamais un vrai client en client de démonstration : on crée un nouveau client avec --demo.',
     ]);
   }
+}
+
+/** Relit la fiche juste avant la première écriture : la marque a pu être retirée entre la lecture du début et maintenant. */
+async function relireMarque(db, id) {
+  exigerClientDemo(id, (await db.doc(`clients/${id}`).get()).data());
 }
 
 function cheminsClient(db, id) {
@@ -448,6 +453,7 @@ async function retirer(id, ctx) {
   }
   if (fichiers.length) ctx.out(`  Storage : ${fichiers.length} fichier(s) PDF des devis de démonstration`);
   if (!ctx.ecrire) { ctx.out(`SIMULATION : ${total} document(s)${fichiers.length ? ` et ${fichiers.length} fichier(s) PDF` : ''} seraient supprimés (seulement ceux marqués « ${MARQUEUR} »). Rien n'a été supprimé. Relancez avec --ecrire.`); return 0; }
+  await relireMarque(db, id);
   for (const f of fichiers) {
     if (!f.name.startsWith(`clients/${id}/devis/`)) throw new Error(`Chemin refusé : ${f.name}`);
     await f.delete({ ignoreNotFound: true });
@@ -554,6 +560,7 @@ async function remplir(id, options, ctx, fiche) {
 
   if (options.pdf) ctx.out(`Avec --pdf : après l'écriture, le serveur fabriquerait le PDF des ${plan.resume.devis.filter(({ id: did }) => plan.documents.find((x) => x.id === did).donnees.statut !== 'brouillon').length} devis qui ne sont plus des brouillons.`);
   if (!ctx.ecrire) { ctx.out(''); ctx.out('SIMULATION : rien n\'a été écrit. Relisez, puis relancez la même commande avec --ecrire.'); return 0; }
+  await relireMarque(db, id);
   for (let i = 0; i < ecritures.length; i += 400) {
     const lot = db.batch();
     for (const e of ecritures.slice(i, i + 400)) lot.set(db.doc(`clients/${id}/${e.chemin}`), nettoyer(e.donnees));

@@ -165,6 +165,7 @@ async function creer(id, options, ctx) {
   const erreurs = [];
   const essayer = (f) => { try { return f(); } catch (e) { if (e instanceof ErreurOutil) { erreurs.push(...e.messages); return undefined; } throw e; } };
   const miseAJour = Boolean(options['mettre-a-jour']);
+  if (miseAJour && options.demo) throw new ErreurOutil('--demo ne vaut qu\'à la création ; pour un client existant : scripts/marquer-demo.js.');
 
   const nom = options.nom === undefined ? undefined : String(options.nom).trim();
   if (nom !== undefined && (nom === '' || nom.length > 80)) erreurs.push('--nom : entre 1 et 80 caractères.');

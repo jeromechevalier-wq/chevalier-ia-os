@@ -55,6 +55,26 @@ test('1. Un client sans marque est refusé, même avec --completer, en simulatio
   assert.deepEqual(await photo(), avant);
 });
 
+test('1b. Seule la valeur booléenne true compte : "true", 1, false, un objet sont refusés, base inchangée', async () => {
+  const valeurs = { 'marque-v-texte': 'true', 'marque-v-un': 1, 'marque-v-faux': false, 'marque-v-objet': { valeur: true } };
+  for (const [c, v] of Object.entries(valeurs)) await db.doc(`clients/${c}`).set({ nom: c, modules: { affaires: true, devis: true }, demo: v });
+  const avant = await photo();
+  for (const c of Object.keys(valeurs)) {
+    for (const argv of [['--catalogue-exemple', '--ecrire', '--completer'], ['--retirer', '--ecrire'], ['--pdf', '--ecrire']]) {
+      const r = await demo([c, ...argv]);
+      assert.equal(r.code, 1, `${c} ${argv.join(' ')}`);
+      assert.match(r.texte, /n'est pas marqué comme client de démonstration/);
+    }
+  }
+  // --catalogue-depuis chez un client non marqué : refusé avant toute lecture de la source.
+  let lectures = 0;
+  const r = await demo([REEL, '--catalogue-depuis', 'chevalier-ia-os', '--ecrire', '--completer'], { lireCatalogue: async () => { lectures += 1; return { articles: [], familles: null, reglages: null }; } });
+  assert.equal(r.code, 1);
+  assert.match(r.texte, /n'est pas marqué comme client de démonstration/);
+  assert.equal(lectures, 0);
+  assert.deepEqual(await photo(), avant);
+});
+
 test('2. Le refus vaut aussi pour --retirer et --pdf', async () => {
   const avant = await photo();
   for (const argv of [['--retirer'], ['--retirer', '--ecrire'], ['--pdf'], ['--pdf', '--ecrire']]) {
@@ -126,6 +146,11 @@ test('6. nouveau-client --demo marque le client à la création ; sans --demo, p
   assert.equal((await db.doc('clients/marque-cree-demo').get()).exists, false); // simulation
   assert.equal((await lancer(['marque-cree-demo', ...base, '--demo', '--ecrire'])).code, 0);
   assert.equal((await db.doc('clients/marque-cree-demo').get()).data().demo, true);
+  // --demo avec --mettre-a-jour est refusé (pour un client existant : marquer-demo.js).
+  const maj = await lancer(['marque-cree-reel', '--mettre-a-jour', '--demo', '--ecrire']);
+  assert.equal(maj.code, 1);
+  assert.match(maj.texte, /--demo ne vaut qu'à la création/);
+  assert.equal((await db.doc('clients/marque-cree-reel').get()).exists, false);
   assert.equal((await lancer(['marque-cree-reel', ...base, '--ecrire'])).code, 0);
   assert.equal((await db.doc('clients/marque-cree-reel').get()).data().demo, undefined);
   // Un client créé sans --demo reste refusé par l'outil de démonstration.
