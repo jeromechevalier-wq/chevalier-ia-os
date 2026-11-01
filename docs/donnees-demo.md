@@ -116,7 +116,7 @@ node scripts/donnees-demo.js clientdemo --catalogue-exemple --ecrire
 | `--pdf` | fabrique les PDF des devis de démonstration qui n'en ont pas (voir « Les PDF des devis » plus bas) ; seul, il travaille sur un client déjà rempli |
 | `--retirer` | retire les données de démonstration (seulement celles qui portent la marque `donneesDemo`) |
 | `--vider` | **remet le client de démonstration à zéro** : supprime toutes ses données métier, marquées ou non (voir « Remettre un client à zéro »). Ne se combine avec aucune autre option de chargement |
-| `--confirmer clientdemo` | (avec `--vider --ecrire`) répond d'avance à la question de confirmation, pour un script ou un test ; doit être égal à l'identifiant du client |
+| `--confirmer clientdemo` (ou `--oui clientdemo`, même chose) | (avec `--vider --ecrire`) répond d'avance à la question de confirmation, pour un script ou un test ; doit être égal à l'identifiant du client |
 | `--aide` | affiche l'aide |
 
 ## Ce qui est créé
@@ -178,6 +178,8 @@ Les devis fictifs « finalisé, envoyé, signé, refusé » sont écrits directe
 
 ## Remettre un client à zéro (`--vider`)
 
+La commande se lance depuis le dossier du projet sur le Mac de Jérôme : `cd ~/demo-main && node scripts/donnees-demo.js clientdemo --vider …`.
+
 `--retirer` ne supprime que ce qui porte la marque `donneesDemo`. Les essais faits à la main (un article, un mot appris, d'anciens devis, des fiches créées à l'écran) restent. Pour repartir d'un client **propre** avant de charger un jeu de métier :
 
 ```bash
@@ -207,11 +209,11 @@ SIMULATION : rien n'a été supprimé (29 document(s) et 3 fichier(s) le seraien
 | Supprimé | Gardé, toujours |
 |---|---|
 | `crm_organisations`, `crm_personnes`, `crm_affaires`, `crm_activites`, `crm_notes`, `crm_evenements` | la fiche `clients/<client>` (marque `demo`, nom, réglages d'espace) |
-| `projets_projets`, `projets_taches`, `projets_modeles` | les accès et utilisateurs (`membres`) |
-| `devis_articles`, `devis_parametres` (réglages des devis, familles), `devis_devis`, `devis_vocabulaire`, `devis_habitudes`, `devis_usage_articles`, `documents_stockes` (fiches des documents déposés) | les journaux d'audit `crm_audit` et `crm_audit_avant` (ne s'effacent jamais) |
-| les sous-collections de ces collections | `crm_actions_lancements` (contenus d'e-mails gardés côté serveur) |
+| `projets_projets`, `projets_taches` | les accès et utilisateurs (`membres`) |
+| `devis_articles`, `devis_parametres` (réglages des devis, familles), `devis_devis`, `devis_vocabulaire`, `devis_habitudes`, `devis_usage_articles`, `documents_stockes` (fiches des documents déposés), `automatisations_propositions` | les journaux d'audit `crm_audit` et `crm_audit_avant` (ne s'effacent jamais) |
+| les sous-collections de ces collections | `crm_actions_lancements` (journal des actions et contenus d'e-mails gardés côté serveur : **jamais supprimés**, c'est un effet connu, ils restent même si les devis disparaissent) |
 | **tous** les fichiers Storage sous `clients/<client>/devis/` et `clients/<client>/documents/` (supprimés **avant** les documents) | `devis_compteurs` : **la numérotation continue**, un numéro de devis ne revient jamais |
-| | `crm_parametres` (étapes, phases), `mcp_limites`, `mcp_codes`, `workflows`, `executions`, `sync`, `automatisations_propositions`, le dossier `marques/<client>` |
+| | `crm_parametres` (étapes, phases) et `projets_modeles` (réglages et modèles, pas des données), `veille_*` (sources, contenus, résumés, pages), `tableaudebord_*` (gardés par prudence : un client de démonstration n'en a normalement pas), `workflows`, `executions`, `sync`, `mcp_limites`, `mcp_codes`, le dossier `marques/<client>` |
 | | toute collection que l'outil ne connaît pas (listée dans la sortie, « inconnue, laissée telle quelle ») ; tout ce qui est hors de l'espace du client |
 
 Attention : les réglages des devis (« Mon entreprise ») et les familles sont supprimés avec `devis_parametres` ; le jeu de métier rechargé ensuite les remet.

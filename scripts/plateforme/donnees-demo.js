@@ -624,8 +624,8 @@ async function retirer(id, ctx) {
 /** Clients qu'on ne vide JAMAIS, par identifiant ou par nom (minuscules). Pour en protéger un autre : l'ajouter ici. */
 export const CLIENTS_PROTEGES = Object.freeze(['audrey']);
 
-/** Liste FERMÉE des collections que --vider supprime (sous-collections comprises), sans filtre sur la marque : COLLECTIONS_DEMO + modèles de projet, données calculées des devis, fiches des documents déposés. */
-export const COLLECTIONS_VIDER = Object.freeze([...COLLECTIONS_DEMO, 'projets_modeles', 'devis_usage_articles', 'devis_habitudes', 'documents_stockes']);
+/** Liste FERMÉE des collections que --vider supprime (sous-collections comprises), sans filtre sur la marque : COLLECTIONS_DEMO + données calculées des devis, fiches des documents déposés, propositions des automatisations. */
+export const COLLECTIONS_VIDER = Object.freeze([...COLLECTIONS_DEMO, 'devis_usage_articles', 'devis_habitudes', 'documents_stockes', 'automatisations_propositions']);
 /** Dossiers Storage vidés (jamais marques/<client>/). */
 const PREFIXES_STORAGE = (id) => [`clients/${id}/devis/`, `clients/${id}/documents/`];
 
@@ -634,13 +634,16 @@ export const COLLECTIONS_CONSERVEES = Object.freeze({
   membres: 'accès et utilisateurs',
   crm_audit: 'journal d\'audit, ne s\'efface jamais',
   crm_audit_avant: 'journal d\'audit, copies « avant », ne s\'efface jamais',
-  crm_actions_lancements: 'journal des actions et contenus d\'e-mails gardés côté serveur',
+  crm_actions_lancements: 'journal des actions et contenus d\'e-mails gardés côté serveur, jamais supprimés : effet connu, ils restent même si les devis disparaissent',
   devis_compteurs: 'compteur des numéros de devis, un numéro ne revient jamais',
   crm_parametres: 'réglages de l\'espace (étapes, phases)',
   mcp_limites: 'limites du serveur MCP', mcp_codes: 'codes du serveur MCP',
   workflows: 'automatisations', executions: 'automatisations', sync: 'synchronisation',
-  automatisations_propositions: 'propositions des automatisations',
+  projets_modeles: 'modèles de projet (réglages, pas des données)',
 });
+/** Familles de collections gardées par préfixe (par prudence : un client de démonstration n'en a normalement pas). */
+const PREFIXES_CONSERVES = Object.freeze({ veille_: 'veille (sources, contenus, résumés, pages)', tableaudebord_: 'tableau de bord' });
+const raisonConservee = (c) => COLLECTIONS_CONSERVEES[c] ?? Object.entries(PREFIXES_CONSERVES).find(([p]) => c.startsWith(p))?.[1] ?? null;
 
 const CHAMPS_NOM = ['nom', 'titre', 'libelle', 'objet', 'expression', 'numero', 'code'];
 const NOMBRE_APERCU = 4;
@@ -712,7 +715,7 @@ async function vider(id, options, ctx, fiche) {
     throw new ErreurOutil(["Impossible de lire les fichiers du client dans Storage (rien n'a été supprimé).", ...traduireErreur(e)]);
   }
   const gardees = [...presentes].filter((c) => !COLLECTIONS_VIDER.includes(c)).sort();
-  ctx.out(`Conservé : ${gardees.length ? gardees.map((c) => `${c} (${COLLECTIONS_CONSERVEES[c] ?? 'inconnue, laissée telle quelle'})`).join(' ; ') + ' ; ' : ''}la fiche clients/${id} (marque démo, nom, réglages d'espace) ; marques/${id}.`);
+  ctx.out(`Conservé : ${gardees.length ? gardees.map((c) => `${c} (${raisonConservee(c) ?? 'inconnue, laissée telle quelle'})`).join(' ; ') + ' ; ' : ''}la fiche clients/${id} (marque démo, nom, réglages d'espace) ; marques/${id}.`);
   ctx.out('Les anciens devis disparaissent mais la numérotation continue : le compteur des numéros (devis_compteurs) est gardé tel quel.');
   if (!total && !fichiers.length) { ctx.out('Ce client est déjà vide : rien à supprimer.'); return 0; }
   if (!ctx.ecrire) { ctx.out(`SIMULATION : rien n'a été supprimé (${total} document(s) et ${fichiers.length} fichier(s) le seraient). Relancez avec --ecrire --confirmer ${id}`); return 0; }
@@ -747,6 +750,11 @@ async function vider(id, options, ctx, fiche) {
     supprimes += Math.min(400, lots.length - i);
     ctx.ecrits = true;
   }
+  let restants = 0;
+  for (const c of COLLECTIONS_VIDER) restants += (await collecterRefs(racine.collection(c))).length;
+  const restFichiers = (await Promise.all(PREFIXES_STORAGE(id).map(async (p) => (await ctx.base.bucket.getFiles({ prefix: p }))[0].length))).reduce((a, b) => a + b, 0);
+  ctx.out(`Relecture après suppression : reste ${restants} document(s) et ${restFichiers} fichier(s) dans les collections et dossiers vidés.`);
+  if (restants || restFichiers) throw new ErreurOutil(['Il reste des éléments après la suppression : relancez la même commande pour finir.']);
   ctx.out(`✔ ${supprimes} documents supprimés${supprimesFichiers ? ` et ${supprimesFichiers} fichier(s)` : ''}. La fiche du client, les accès, les journaux d'audit et le compteur des numéros n'ont pas été touchés.`);
   return 0;
 }
@@ -889,12 +897,13 @@ export async function executerDonneesDemo(argv, ctx) {
       return 0;
     }
     const { positionnels, options } = lireArguments(argv, {
-      valeurs: ['catalogue-depuis', 'auteur', 'metier', 'confirmer'],
+      valeurs: ['catalogue-depuis', 'auteur', 'metier', 'confirmer', 'oui'],
       drapeaux: ['ecrire', 'pdf', 'retirer', 'vider', 'completer', 'catalogue-exemple', 'masquer-prix-achat', 'aide', 'metiers'],
     });
     if (options.aide || !positionnels.length) { ctx.out(AIDE); return options.aide ? 0 : 1; }
     if (positionnels.length > 1) throw new ErreurOutil(`Argument en trop : « ${positionnels.slice(1).join(' ')} ». Un seul client à la fois ; les options commencent par --.`);
     const id = exigerIdentifiant(positionnels[0]);
+    if (options.oui !== undefined) { if (options.confirmer !== undefined) throw new ErreurOutil('--oui et --confirmer sont la même option : une seule.'); options.confirmer = options.oui; }
     if (options.vider) {
       const autres = ['metier', 'catalogue-depuis', 'catalogue-exemple', 'completer', 'pdf', 'masquer-prix-achat', 'retirer', 'auteur'].filter((k) => options[k]);
       if (autres.length) throw new ErreurOutil(`--vider ne se combine avec aucune autre option de chargement (${autres.map((k) => `--${k}`).join(', ')}) : videz d'abord, puis chargez avec une 2e commande. Seuls --ecrire et --confirmer vont avec.`);
