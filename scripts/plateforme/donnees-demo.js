@@ -500,6 +500,17 @@ export function problemesDuJeu(jeu) {
     if (cat.articles.filter((a) => a.type === 'ouvrage').length < 3) p.push('moins de 3 ensembles');
     if (new Set(cat.articles.map((a) => a.id)).size !== cat.articles.length) p.push('identifiants d\'article en double');
     if ((jeu.mots ?? []).length < 6) p.push('moins de 6 mots appris');
+    // Familles : ids masqués connus, chaque article rangé dans une famille active dont le parent de premier niveau porte son type.
+    const idsDepart = new Set(F.FAMILLES_PAR_DEFAUT.filter((f) => f.parentId).map((f) => f.id));
+    if (jeu.famillesMasquees !== undefined && jeu.famillesMasquees !== 'toutes' && !Array.isArray(jeu.famillesMasquees)) p.push('famillesMasquees doit valoir \'toutes\' ou être une liste d\'identifiants');
+    for (const id of Array.isArray(jeu.famillesMasquees) ? jeu.famillesMasquees : []) if (!idsDepart.has(id)) p.push(`famille masquée inconnue : « ${id} » (ce n'est pas une sous-famille de départ famille-N-M)`);
+    const listeFamilles = F.famillesDe(cat.familles);
+    for (const a of cat.articles) {
+      const fam = listeFamilles.find((f) => f.id === a.familleId);
+      if (!fam) p.push(`article ${a.id} : famille « ${a.familleId} » inconnue`);
+      else if (fam.actif === false) p.push(`article ${a.id} : famille « ${fam.nom} » masquée (inactive)`);
+      else if (F.typeDeFamille(listeFamilles, a.familleId) !== a.type) p.push(`article ${a.id} : sa famille « ${fam.nom} » ne porte pas le type « ${a.type} »`);
+    }
     const vocab = construireVocabulaire(cat.articles, { auteur: 'demo@exemple.test', maintenant: new Date('2026-01-15T10:00:00Z'), mots: jeu.mots ?? [] });
     if (vocab.sautes.catalogue) p.push('un mot appris vise un article absent du catalogue');
     if ((jeu.organisations ?? []).length < 12) p.push('moins de 12 organisations');
@@ -811,7 +822,12 @@ async function remplir(id, options, ctx, fiche) {
   const reglages = reglagesDoc.exists ? A.reglagesDevis(reglagesDoc.data()) : reglagesDemo;
   const compteurDepart = Number.isInteger(compteurDoc.data()?.valeur) ? compteurDoc.data().valeur : 0;
 
-  const plan = construirePlan({ config, articles, familles: famillesDoc.exists ? famillesDoc.data() : catalogue.familles, reglages, auteur: ctx.auteur, maintenant: ctx.maintenant ?? new Date(), nouvelId: (c) => col(c).doc().id, compteurDepart, jeu: jeuMetier });
+  // Familles : avec --metier, le document est écrit s'il est absent ou s'il vient d'une démonstration (marqué : remplacé) ; un document SANS marque est celui du client, on s'arrête avant toute écriture.
+  const famillesRemplacees = Boolean(jeuMetier && catalogue.familles && famillesDoc.exists && famillesDoc.data()?.[MARQUEUR] === true);
+  if (jeuMetier && catalogue.familles && famillesDoc.exists && !famillesRemplacees) {
+    throw new ErreurOutil(['Le client a déjà ses propres familles du catalogue (document « familles » sans marque de démonstration) : le jeu du métier ne les écrase pas.', 'Passez par --vider (remise à zéro du client de démonstration), puis chargez le jeu.']);
+  }
+  const plan = construirePlan({ config, articles, familles: famillesDoc.exists && !famillesRemplacees ? famillesDoc.data() : catalogue.familles, reglages, auteur: ctx.auteur, maintenant: ctx.maintenant ?? new Date(), nouvelId: (c) => col(c).doc().id, compteurDepart, jeu: jeuMetier });
 
   // Liste complète des documents à écrire
   const ecritures = [];
@@ -824,7 +840,7 @@ async function remplir(id, options, ctx, fiche) {
   }
   if (!reglagesDoc.exists) ecritures.push({ chemin: `${A.COLLECTION_PARAMETRES}/${A.ID_REGLAGES}`, donnees: { ...reglagesDemo, [MARQUEUR]: true } });
   else ctx.out('Réglages des devis : ceux du client sont gardés tels quels (« Mon entreprise » et le mot du métier ne sont pas remplacés).');
-  if (catalogue.familles && !famillesDoc.exists) ecritures.push({ chemin: `${A.COLLECTION_PARAMETRES}/${F.ID_DOCUMENT_FAMILLES}`, donnees: { ...catalogue.familles, [MARQUEUR]: true } });
+  if (catalogue.familles && (!famillesDoc.exists || famillesRemplacees)) ecritures.push({ chemin: `${A.COLLECTION_PARAMETRES}/${F.ID_DOCUMENT_FAMILLES}`, donnees: { ...catalogue.familles, [MARQUEUR]: true } });
   for (const d of plan.documents) ecritures.push({ chemin: `${d.collection}/${d.id}`, donnees: d.donnees });
   // Mots appris : seulement ceux dont les articles sont dans la copie, jamais par-dessus un mot que le client a déjà.
   const motsExistants = new Set((await col('devis_vocabulaire').get()).docs.map((d) => d.id));

@@ -90,9 +90,9 @@ Les métiers disponibles :
 
 | Nom à taper | Métier | Mot du métier | Contenu |
 |---|---|---|---|
-| `etancheur` | Étancheur | ouvrage | toiture-terrasse, balcon en résine, isolation, recherche de fuite, entretien |
-| `agence` | Agence de communication | prestation | sites internet, référencement (moteurs de recherche et assistants d'IA), fiches Google My Business, communication, panneaux d'affichage, location de téléviseurs avec vidéos en boucle |
-| `plombier` | Plombier | ensemble | sanitaire, chauffe-eau, robinetterie, dépannage de fuite, débouchage, entretien de chaudière |
+| `etancheur` | Étancheur | ouvrage | toiture-terrasse, balcon en résine, isolation, recherche de fuite, entretien (familles propres : Toiture-terrasse, Isolation, Recherche de fuite et entretien, Prestations complètes) |
+| `agence` | Agence de communication | prestation | sites internet, référencement (moteurs de recherche et assistants d'IA), fiches Google My Business, communication, panneaux d'affichage, location de téléviseurs avec vidéos en boucle (familles propres : Sites internet, Référencement moteurs et IA, Fiches Google My Business, Communication et contenus, Pose et installation, Affichage et écrans, Écrans en location, Prestations complètes) |
+| `plombier` | Plombier | ensemble | sanitaire, chauffe-eau, robinetterie, dépannage de fuite, débouchage, entretien de chaudière (familles propres : Chauffage et chauffe-eau, Robinetterie, Appareils sanitaires, Tubes et raccords, Dépannage et entretien, Pose et installation, Prestations complètes) |
 
 Chaque jeu contient 28 à 33 articles dont 3 ensembles (le mot du métier ; prix de vente HT inventés et arrondis, aucune marque), 8 mots appris, 15 organisations du secteur, des affaires dans chaque étape et des devis dans chaque statut (3 de chaque). **4 devis par jeu sont écrits à la main** (un brouillon, un finalisé, un envoyé, un signé) ; les autres viennent du tirage habituel, sur le catalogue du jeu. Un métier n'apparaît dans la liste que si son jeu passe le contrôle de complétude (`problemesDuJeu`, dans `scripts/plateforme/donnees-demo.js` ; `tests/donnees-demo-metiers.test.js` le vérifie). `--metier=` écrit sans nom affiche aussi la liste. `--metier` ne se combine pas avec `--catalogue-depuis` ni `--catalogue-exemple`. Sans option de ce genre, `--catalogue-exemple` garde le petit jeu général (plâtre, carrelage, peinture).
 
@@ -171,6 +171,16 @@ Les devis fictifs « finalisé, envoyé, signé, refusé » sont écrits directe
 - si **aucun** devis ne montre un PDF « en cours » dans la minute, le programme s'arrête : « Le déclencheur devisPdfAuto ne répond pas : fonctions PDF pas déployées chez les clients ? » (voir `pdf-clients.md`) ;
 - **reprise après une coupure** : si le programme est coupé entre les deux écritures, un devis reste en « brouillon » avec `donneesDemoStatutOrigine`. Au lancement suivant (`--pdf --ecrire`), il est d'abord remis dans son vrai statut. On peut relancer sans risque ;
 - prérequis : le module `devis` actif chez le client, et le projet `chevalier-ia-app` (jamais `chevalier-ia-os`).
+
+## Les familles du catalogue de chaque métier (solution provisoire)
+
+Chaque jeu de métier écrit ses **propres sous-familles** (ids `agence-…`, `etanch-N`, `plomb-N`, rangées sous une des 7 grandes familles, qui restent toujours visibles) et **masque** (écrit `actif: false`, avec leur nom) les sous-familles de départ du bâtiment qui n'ont pas de sens pour ce métier (champ `famillesMasquees` du jeu : `'toutes'` ou une liste d'ids `famille-N-M`). Rien n'est supprimé : les ids `famille-N` et `famille-N-M` ne changent jamais. Les articles, les ensembles et les titres de section des devis suivent ces familles (les affaires n'utilisent aucune famille).
+
+- Règle : un article ne va que dans une sous-famille **active** dont la famille de premier niveau porte son type (le contrôle de complétude des jeux le vérifie, ainsi que les ids masqués).
+- **Écriture (avec `--metier` seulement)** : le document `devis_parametres/familles` est écrit s'il est absent, ou **remplacé** s'il porte la marque `donneesDemo`. S'il existe **sans marque** (famille modifiée à l'écran : l'écran réécrit le document sans marque), le programme s'arrête avant toute écriture : passer par `--vider`. `--retirer` ne supprime que le document marqué ; s'il a été réécrit à l'écran, il reste et le prochain `--metier` s'arrête.
+- `--catalogue-depuis` et `--catalogue-exemple` gardent leur règle : un document `familles` déjà présent n'est jamais remplacé.
+- **Filtre « Famille » du Catalogue** : une sous-famille inactive n'y est proposée que si un article y est encore rangé (avec « (désactivée) ») ; sinon elle n'est pas proposée, donc l'agence de démo ne voit aucune sous-famille de maçon. Les 7 grandes familles restent toujours proposées (`famillesPourFiltre` dans `js/modules/devis/familles.js`).
+- Plus tard : la vraie fonction « familles configurables » (famille « Agence » de premier niveau, etc.) est cadrée dans `docs/cadrage-familles-configurables.md`.
 
 ## Comment c'est retiré
 

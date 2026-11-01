@@ -281,3 +281,93 @@ test('8. Un mot appris réel apparu pendant le chargement n’est jamais écras�
   assert.ok(numerotes > 0);
   assert.equal((await db.doc('clients/met-course/devis_compteurs/global').get()).data().valeur, numerotes);
 });
+
+// ---- Familles du catalogue propres à chaque métier (solution provisoire : les 7 grandes familles restent, les sous-familles du bâtiment sont masquées)
+const articlesDe = (jeu, ids) => catalogueDuJeu(jeu).articles.filter((a) => ids.includes(a.id));
+
+test('9. Agence : ses sous-familles propres (ids « agence- »), chaque article rangé dans une sous-famille active du bon type, plus aucun id agence-1 à agence-8', () => {
+  const jeu = JEUX.agence;
+  const liste = F.famillesDe(catalogueDuJeu(jeu).familles);
+  const nomsSous = (parent) => jeu.familles.filter(([, , p]) => p === parent).map(([, nom]) => nom);
+  for (const nom of ['Sites internet', 'Référencement moteurs et IA', 'Fiches Google My Business', 'Communication et contenus']) assert.ok(nomsSous('famille-2').includes(nom), `« ${nom} » sous Main d’œuvre`);
+  assert.deepEqual(nomsSous('famille-1'), ['Affichage et écrans']);
+  assert.deepEqual(nomsSous('famille-5'), ['Écrans en location']);
+  assert.deepEqual(nomsSous('famille-3'), ['Prestations complètes']);
+  for (const [id] of jeu.familles) assert.ok(id.startsWith('agence-') && !/^agence-[1-8]$/.test(id) && !id.startsWith('famille-'), id);
+  const nomDe = (a) => F.cheminFamille(liste, a.familleId);
+  for (const a of articlesDe(jeu, ['ag-p01', 'ag-p02'])) assert.equal(nomDe(a), 'Fournitures › Affichage et écrans');
+  for (const a of articlesDe(jeu, ['ag-t01', 'ag-t02', 'ag-t03'])) assert.equal(nomDe(a), 'Matériels › Écrans en location');
+  for (const a of articlesDe(jeu, ['ag-o01', 'ag-o02', 'ag-o03'])) assert.equal(nomDe(a), 'Ouvrages › Prestations complètes');
+  for (const a of catalogueDuJeu(jeu).articles) {
+    const f = liste.find((x) => x.id === a.familleId);
+    assert.ok(f?.parentId && f.actif, `${a.id} : sous-famille active`);
+  }
+  assert.deepEqual(problemesDuJeu(jeu), []);
+});
+
+test('10. Masquage : les sous-familles de départ masquées sont écrites inactives avec leur nom, jamais sans nom ; un id inconnu ou un article mal rangé fait échouer le contrôle', () => {
+  const departs = F.FAMILLES_PAR_DEFAUT.filter((f) => f.parentId);
+  const { familles } = catalogueDuJeu(JEUX.agence);
+  for (const d of departs) {
+    const e = familles.liste.find((f) => f.id === d.id);
+    assert.deepEqual(e, { id: d.id, nom: d.nom, actif: false, parentId: d.parentId });
+  }
+  assert.ok(familles.liste.every((f) => typeof f.nom === 'string' && f.nom), 'aucune entrée sans nom');
+  assert.equal(F.famillesDe(familles).filter((f) => f.parentId && f.id.startsWith('famille-') && f.actif).length, 0, 'aucune sous-famille de départ active chez l’agence');
+  assert.equal(F.famillesDe(familles).filter((f) => !f.parentId).length, 7, 'les 7 grandes familles restent');
+  // Document écrit dès qu’il y a une famille masquée, même sans famille propre.
+  const seule = catalogueDuJeu({ ...JEUX.etancheur, familles: [], famillesMasquees: ['famille-1-1'] }).familles;
+  assert.deepEqual(seule.liste, [{ id: 'famille-1-1', nom: departs.find((f) => f.id === 'famille-1-1').nom, actif: false, parentId: 'famille-1' }]);
+  assert.equal(catalogueDuJeu({ ...JEUX.etancheur, familles: [], famillesMasquees: undefined }).familles, null);
+  // Contrôle de complétude.
+  assert.match(problemesDuJeu({ ...JEUX.agence, famillesMasquees: ['famille-9-9'] }).join(' '), /famille masquée inconnue/);
+  const mal = (modif) => problemesDuJeu({ ...JEUX.agence, articles: JEUX.agence.articles.map((x) => (x[0] === 'ag-p01' ? modif(x) : x)) }).join(' ');
+  assert.match(mal((x) => [...x.slice(0, 5), 'famille-1-1']), /masquée/);
+  assert.match(mal((x) => [...x.slice(0, 5), 'agence-ecrans']), /ne porte pas le type/);
+  assert.match(mal((x) => [...x.slice(0, 5), 'agence-inconnue']), /inconnue/);
+});
+
+test('11. Étancheur et plombier : sous-familles propres (« etanch- », « plomb- »), sous-familles de départ gardées actives et utilisées, les autres masquées', () => {
+  for (const [nom, prefixe, gardees] of [['etancheur', 'etanch-', ['famille-4-1', 'famille-5-1', 'famille-7-1', 'famille-7-2', 'famille-7-3']], ['plombier', 'plomb-', ['famille-7-1', 'famille-7-2']]]) {
+    const jeu = JEUX[nom];
+    const cat = catalogueDuJeu(jeu);
+    const liste = F.famillesDe(cat.familles);
+    for (const [id] of jeu.familles) assert.ok(id.startsWith(prefixe), id);
+    const utilisees = new Set(cat.articles.map((a) => a.familleId));
+    for (const g of gardees) { assert.ok(liste.find((f) => f.id === g).actif, `${g} active`); assert.ok(utilisees.has(g), `${g} utilisée`); }
+    for (const f of liste.filter((x) => x.parentId?.startsWith('famille-') && x.id.startsWith('famille-') && !gardees.includes(x.id))) assert.equal(f.actif, false, `${f.id} masquée`);
+    for (const [id] of jeu.familles) assert.ok(utilisees.has(id), `${id} utilisée`);
+    assert.deepEqual(problemesDuJeu(jeu), []);
+  }
+  assert.deepEqual([...new Set(articlesDe(JEUX.plombier, ['pl-o01', 'pl-o02', 'pl-o03']).map((a) => F.cheminFamille(F.famillesDe(catalogueDuJeu(JEUX.plombier).familles), a.familleId)))], ['Ouvrages › Prestations complètes']);
+  // Un même libellé sous deux parents (règle : le type suit le parent de premier niveau).
+  const et = F.famillesDe(catalogueDuJeu(JEUX.etancheur).familles).filter((f) => f.nom === 'Toiture-terrasse');
+  assert.deepEqual(et.map((f) => f.parentId).sort(), ['famille-1', 'famille-2']);
+});
+
+test('12. --metier écrit le document familles s’il est absent ou marqué (remplacé) ; un document du client sans marque arrête tout avant l’écriture', async () => {
+  // Absent : écrit, marqué.
+  await creerClient('fam-neuf');
+  assert.equal((await lancer(['fam-neuf', '--metier', 'agence', '--ecrire'])).code, 0);
+  const doc = (await db.doc('clients/fam-neuf/devis_parametres/familles').get()).data();
+  assert.equal(doc[MARQUEUR], true);
+  assert.equal(doc.liste.find((f) => f.id === 'famille-1-1').actif, false);
+  assert.equal(doc.liste.find((f) => f.id === 'agence-sites').nom, 'Sites internet');
+  // Marqué (reste d’une démonstration, retrait manuel du reste) : remplacé par celui du nouveau métier.
+  await creerClient('fam-marque');
+  await db.doc('clients/fam-marque/devis_parametres/familles').set({ liste: [{ id: 'ancienne', nom: 'Ancienne', actif: true }], [MARQUEUR]: true });
+  assert.equal((await lancer(['fam-marque', '--metier', 'plombier', '--ecrire'])).code, 0);
+  const remplace = (await db.doc('clients/fam-marque/devis_parametres/familles').get()).data();
+  assert.ok(!remplace.liste.some((f) => f.id === 'ancienne') && remplace.liste.some((f) => f.id === 'plomb-7'));
+  // Sans marque : refus en français, rien d’écrit.
+  await creerClient('fam-client');
+  await db.doc('clients/fam-client/devis_parametres/familles').set({ liste: [{ id: 'perso', nom: 'Perso', actif: true }] });
+  const avant = await photo('clients/fam-client');
+  const r = await lancer(['fam-client', '--metier', 'agence', '--ecrire']);
+  assert.equal(r.code, 1);
+  assert.match(r.texte, /a déjà ses propres familles/);
+  assert.match(r.texte, /--vider/);
+  assert.deepEqual(await photo('clients/fam-client'), avant);
+  // Même refus en simulation.
+  assert.equal((await lancer(['fam-client', '--metier', 'agence'])).code, 1);
+});
