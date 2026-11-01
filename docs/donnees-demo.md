@@ -71,6 +71,31 @@ node scripts/donnees-demo.js clientdemo --pdf --ecrire
 
 On peut aussi l'ajouter au remplissage (`... --catalogue-exemple --ecrire --pdf`) : le PDF est alors fait juste après l'écriture. Sans l'option `--pdf`, **aucun PDF n'est jamais fabriqué**.
 
+**5. Charger le jeu d'un métier** (catalogue, mots appris, devis et affaires fictifs adaptés au métier). `--metier` est l'option qui choisit le jeu :
+
+```bash
+node scripts/donnees-demo.js --metier
+node scripts/donnees-demo.js clientdemo --metier etancheur
+node scripts/donnees-demo.js clientdemo --metier etancheur --ecrire
+```
+
+La première commande affiche la liste des métiers prêts (sans toucher à la base). La deuxième est la simulation, la troisième écrit pour de vrai. Pour **changer de métier** (un seul métier à la fois chez le client de démonstration) :
+
+```bash
+node scripts/donnees-demo.js clientdemo --retirer --ecrire
+node scripts/donnees-demo.js clientdemo --metier agence --ecrire
+```
+
+Les métiers disponibles :
+
+| Nom à taper | Métier | Mot du métier | Contenu |
+|---|---|---|---|
+| `etancheur` | Étancheur | ouvrage | toiture-terrasse, balcon en résine, isolation, recherche de fuite, entretien |
+| `agence` | Agence de communication | prestation | sites internet, référencement (moteurs de recherche et assistants d'IA), fiches Google My Business, communication, panneaux d'affichage, location de téléviseurs avec vidéos en boucle |
+| `plombier` | Plombier | ensemble | sanitaire, chauffe-eau, robinetterie, dépannage de fuite, débouchage, entretien de chaudière |
+
+Chaque jeu contient 28 à 33 articles dont 3 ensembles (le mot du métier ; prix de vente HT inventés et arrondis, aucune marque), 8 mots appris, 15 organisations du secteur, des affaires dans chaque étape et des devis dans chaque statut (3 de chaque). **4 devis par jeu sont écrits à la main** (un brouillon, un finalisé, un envoyé, un signé) ; les autres viennent du tirage habituel, sur le catalogue du jeu. Un métier n'apparaît dans la liste que si son jeu passe le contrôle de complétude (`tests/donnees-demo-metiers.test.js`). `--metier` ne se combine pas avec `--catalogue-depuis` ni `--catalogue-exemple`. Sans option de ce genre, `--catalogue-exemple` garde le petit jeu général (plâtre, carrelage, peinture).
+
 **Si ton catalogue ne se lit pas** (connexion, droits), utilise le petit catalogue fictif intégré à la place :
 
 ```bash
@@ -84,6 +109,7 @@ node scripts/donnees-demo.js clientdemo --catalogue-exemple --ecrire
 | `--ecrire` | écrit vraiment (sans elle : simulation) |
 | `--catalogue-depuis chevalier-ia-os` | copie ton catalogue des devis (articles, ouvrages, familles), lu **sans rien écrire** chez toi |
 | `--catalogue-exemple` | utilise un petit catalogue fictif de 15 articles à la place |
+| `--metier nom` | utilise le jeu complet d'un métier (liste : `--metier` seul ou `--metiers`) ; ne se combine pas avec les deux options de catalogue |
 | `--masquer-prix-achat` | facultatif : dans la copie, le prix d'achat de chaque article devient son prix de vente, sans marge |
 | `--completer` | ajoute la démonstration même si le client a déjà des données (les articles déjà présents sont gardés tels quels) |
 | `--auteur adresse@…` | qui signe les fiches (en minuscules). Par défaut : le premier éditeur du client |
@@ -152,7 +178,7 @@ Les devis fictifs « finalisé, envoyé, signé, refusé » sont écrits directe
 
 - **Pas de PDF sans l'option `--pdf`** : les devis finalisés n'ont pas de PDF tant qu'on ne lance pas `--pdf --ecrire` (l'écran affiche « PDF non rangé »). Le vrai déclencheur en ligne n'est testé que par Jérôme sur le client de démonstration.
 - **Ce que la fabrication du PDF laisse derrière elle** : le serveur écrit des lignes dans les journaux d'audit (`crm_audit`, `crm_audit_avant`, acteur `declencheur-pdf`). Elles ne sont **jamais supprimées** (règle de Jérôme : les journaux ne s'effacent jamais), même par `--retirer`. Le document ajouté à l'affaire disparaît avec l'affaire ; l'événement « Document joint » (`crm_evenements`) est marqué `donneesDemo` par `--pdf` et retiré par `--retirer`. Un événement créé à la main avant de lancer `--pdf` n'est marqué qu'au prochain `--pdf --ecrire`. Depuis le 26/10/2026, les affaires de démo n'ont pas de dossier de travail : `--pdf` fabrique le PDF mais n'ajoute ni document ni événement « Document joint ».
-- **Mots appris et mot du métier** : chaque mot porte `donneesDemo: true`, `--retirer` supprime ces mots-là et **aucun autre** (un mot que tu as ajouté à la main reste). Le mot du métier fait partie des réglages des devis : ils partent avec leur marqueur et le client retrouve « ouvrage ». Si tu modifies un mot à l'écran, il garde son marqueur et part quand même au retrait ; si tu enregistres les réglages à l'écran, ils perdent le marqueur et restent. Les journaux d'audit écrits par le serveur ne sont jamais effacés. Le jeu actuel (plâtre, carrelage, peinture) garde « ouvrage » ; l'outil sait déjà poser un autre mot par jeu (par exemple « prestation » pour une agence), mais aucun autre jeu n'existe encore.
+- **Mots appris et mot du métier** : chaque mot porte `donneesDemo: true`, `--retirer` supprime ces mots-là et **aucun autre** (un mot que tu as ajouté à la main reste). Le mot du métier fait partie des réglages des devis : ils partent avec leur marqueur et le client retrouve « ouvrage ». Si tu modifies un mot à l'écran, il garde son marqueur et part quand même au retrait ; si tu enregistres les réglages à l'écran, ils perdent le marqueur et restent. Les journaux d'audit écrits par le serveur ne sont jamais effacés. Le mot du métier du jeu (« prestation » pour l'agence, « ensemble » pour le plombier) reste si tu enregistres les réglages à l'écran pendant la démonstration : ils perdent alors leur marqueur et `--retirer` ne les supprime plus (le client garde le mot du jeu). Le petit jeu général (plâtre, carrelage, peinture) garde « ouvrage ». Le mot « à confirmer » porte une confirmation datée de la **veille** du chargement : tu peux donc le confirmer et l'activer devant le prospect le jour même. Les mots sont écrits sans jamais écraser un mot du client : si un mot réel apparaît pendant le chargement, l'outil s'arrête avec un message et ne touche à rien d'autre.
 - **Les réglages des devis créés par la démonstration** (« Mon entreprise » fictive) portent le marqueur : `--retirer` les supprime aussi. Le client retrouve alors les réglages vides. Si tu les as modifiés et enregistrés à l'écran pendant la démonstration, ils perdent le marqueur et restent.
 - **Ce que l'écran crée pendant la démonstration n'est pas retiré.** Par exemple, une note ajoutée, ou l'événement « étape changée » quand tu déplaces une affaire : ces documents n'ont pas le marqueur. **Exception avec `--pdf`** : tous les événements « Document joint » (`crm_evenements`, type `document`) d'une affaire de démonstration sont marqués, y compris un document que tu aurais ajouté à la main sur cette affaire : ils disparaissent au retrait.
 - **`--retirer` lit aussi Storage.** Si tes identifiants n'ont pas accès à Storage, tout le retrait s'arrête, sans rien supprimer (message « Impossible de lire les fichiers PDF… »). Remède : `gcloud auth application-default login` avec un compte qui a les droits, puis relancer.
@@ -167,7 +193,10 @@ Dans tous ces cas (sauf les trois lignes `--pdf` signalées plus bas), rien n'es
 | Message | Ce que ça veut dire | Que faire |
 |---|---|---|
 | *Le client « … » n'existe pas* | pas de fiche `clients/<identifiant>` | créer le client avec `nouveau-client.js`, ou corriger l'identifiant |
-| *Indiquez d'où vient le catalogue des devis* | ni `--catalogue-depuis` ni `--catalogue-exemple` | ajouter l'une des deux options |
+| *Indiquez d'où vient le catalogue des devis* | ni `--catalogue-depuis`, ni `--catalogue-exemple`, ni `--metier` | ajouter l'une des trois options |
+| *Métier inconnu : « … »* | le nom après `--metier` n'est pas dans la liste (la liste est rappelée dans le message) | retaper un nom de la liste |
+| *--metier ne se combine pas avec …* | `--metier` avec `--catalogue-depuis` ou `--catalogue-exemple` | une seule des trois options |
+| *Un mot appris est apparu chez le client pendant le chargement* | un mot réel a été créé entre la lecture et l'écriture | `--retirer --ecrire`, puis relancer le chargement |
 | *Le catalogue du projet … est vide* | aucun article à copier | utiliser `--catalogue-exemple` |
 | *Impossible de lire le catalogue …* | connexion, droits ou identifiants expirés | `gcloud auth application-default login`, ou `--catalogue-exemple` |
 | *Ce client a déjà des données (…)* | le client a déjà des affaires, personnes, devis… | choisir un client vide, ou ajouter `--completer` |
