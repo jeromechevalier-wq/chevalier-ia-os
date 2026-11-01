@@ -229,7 +229,7 @@ describe('E2 la fonction appelable chez Jérôme : qui peut appeler', () => {
   test('E2 une erreur inattendue (chez Jérôme) journalise son code et un court message nettoyé, sans adresse ni identifiant de devis', async () => {
     const entrees = [];
     const m = monde();
-    const casse = { ...m.donnees, transaction: async () => { throw Object.assign(new Error('5 NOT_FOUND: marie@exemple.fr\nchemin dv1'), { code: 5 }); } };
+    const casse = { ...m.donnees, transaction: async () => { throw Object.assign(new Error('5 NOT_FOUND: marie@exemple.fr\nNo document: projects/p/databases/(default)/documents/devis_devis/dv1'), { code: 5 }); } };
     const appelCasse = creerAppelPreparerEmail({ donnees: () => casse, sortie: fauxN8n().sortie, comptes: [ACTEUR], journal: (e) => entrees.push(e), maintenant: () => T0.getTime(), genererId: ids });
     await assert.rejects(appelCasse({ auth: auth(ACTEUR), data: { devisId: 'dv1' } }), (e) => e.code === 'internal');
     assert.equal(entrees.length, 1);
@@ -237,6 +237,7 @@ describe('E2 la fonction appelable chez Jérôme : qui peut appeler', () => {
     assert.equal(entrees[0].code, '5');
     assert.match(entrees[0].detail, /NOT_FOUND/);
     assert.ok(!entrees[0].detail.includes('marie@') && !entrees[0].detail.includes('\n'));
+    assert.ok(!JSON.stringify(entrees[0]).includes('dv1') && !entrees[0].detail.includes('projects/') && entrees[0].detail.includes('[chemin]'));
   });
   test('E2 l’état « branché oui/non » : vrai seulement si l’adresse ET le secret existent ; la réponse ne contient aucune valeur', async () => {
     const lire = (n8n) => creerAppelEtatPreparerEmail({ sortie: n8n.sortie })({ auth: auth(ACTEUR), data: {} });
