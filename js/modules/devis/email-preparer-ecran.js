@@ -73,7 +73,7 @@ function fenetre(devisId, depart) {
   const etat = { destinataires: [...depart.destinataires], copie: [...depart.copie], objet: depart.objet, message: depart.message };
   let occupe = false;
   let boutons = [];
-  const autres = (champ) => (champ === 'copie' ? { destinataires: etat.destinataires, copie: etat.copie } : { destinataires: etat.destinataires, copie: etat.copie });
+  const autres = () => ({ destinataires: etat.destinataires, copie: etat.copie });
   const erreur = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { zone: 'erreur-preparer-email' } });
   const enCours = h('p', { class: 'texte-discret', role: 'status', 'aria-live': 'polite', hidden: true, dataset: { zone: 'etat-preparer-email' } }, P.MESSAGE_EN_COURS);
   const majBouton = () => { if (boutons[1]) boutons[1].disabled = occupe || !P.peutPreparer(etat); };

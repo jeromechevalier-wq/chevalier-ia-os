@@ -107,7 +107,7 @@ export function refusAdresse(adresse) {
 
 /** Texte libre propre : retours à la ligne normalisés, caractères de contrôle et balises HTML retirés, pas plus de deux lignes vides de suite, espaces de bout retirés. */
 export function nettoyerTexteLibre(t) {
-  return String(t ?? '').replace(/\r\n?/g, '\n').replace(/<\/?[a-zA-Z!][^>]*>/g, '').replace(/\t/g, ' ').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '')
+  return String(t ?? '').replace(/\r\n?/g, '\n').replace(/<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s[^>]*)?\/?>/g, '').replace(/\t/g, ' ').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '')
     .replace(/[ ]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 const nettoyerObjet = (t) => nettoyerTexteLibre(t).replace(/\s*\n\s*/g, ' ');
@@ -152,6 +152,7 @@ export function contenuDeLEnvoi(saisie, defauts) {
   let sujet = objetParDefaut(defauts.variables);
   if (s.objet !== undefined) {
     if (typeof s.objet !== 'string') return { ok: false, code: 'saisie_invalide', erreur: 'Objet : un texte est attendu.' };
+    if (s.objet.length > 2 * MAX_OBJET) return { ok: false, code: 'saisie_invalide', erreur: `L’objet est trop long (${MAX_OBJET} caractères au plus).` };
     const o = nettoyerObjet(s.objet);
     if (o.length > MAX_OBJET) return { ok: false, code: 'saisie_invalide', erreur: `L’objet est trop long (${MAX_OBJET} caractères au plus).` };
     if (o) sujet = o;
@@ -159,6 +160,7 @@ export function contenuDeLEnvoi(saisie, defauts) {
   let message = messageParDefaut(defauts.variables);
   if (s.message !== undefined) {
     if (typeof s.message !== 'string') return { ok: false, code: 'saisie_invalide', erreur: 'Message : un texte est attendu.' };
+    if (s.message.length > 2 * MAX_MESSAGE) return { ok: false, code: 'saisie_invalide', erreur: `Le message est trop long (${MAX_MESSAGE} caractères au plus).` };
     const m = nettoyerTexteLibre(s.message);
     if (m.length > MAX_MESSAGE) return { ok: false, code: 'saisie_invalide', erreur: `Le message est trop long (${MAX_MESSAGE} caractères au plus).` };
     if (m) message = m;

@@ -169,18 +169,32 @@ describe('2 preparer_email : un brouillon seulement, jamais d’envoi', () => {
   });
 
   test('2 destinataires, copie, objet et message facultatifs (01/11/2026) : mémorisés côté serveur, relus par la porte, jamais envoyés à n8n ; adresse invalide refusée sans rien écrire', async () => {
-    const s = await demarrer({ devis: [finalise('f1')] });
-    refuse(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1', destinataires: ['pas une adresse'] }), /n’est pas valide/);
+    const s = await demarrer({ devis: [finalise('f1', 'en_attente_envoi', { personneId: 'p1' })] });
+    refuse(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1', destinataires: ['pas une adresse'] }), /ni sur le devis ni sur la fiche|n’est pas valide/);
     assert.equal(s.demandes.length, 0);
     assert.equal(s.doc('devis_devis', 'f1').emailPrepare, undefined);
-    const r = ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1', destinataires: ['paul@exemple.test'], copie: ['luc@exemple.test'], objet: 'Mon objet', message: 'Mon message <b>gras</b>' }));
+    const r = ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1', destinataires: ['camille@exemple.test'], copie: ['client@exemple.test'], objet: 'Mon objet', message: 'Mon message <b>gras</b>' }));
     assert.equal(r.envoye, false);
     assert.deepEqual(s.demandes[0], { espace: 'interne', devisId: 'f1', demandeId: r.demandeId }, 'n8n ne reçoit que des identifiants');
     const contenu = s.collections.crm_actions_lancements.find((l) => l.id === `contenu-${r.demandeId}`);
-    assert.deepEqual(contenu.destinataires, ['paul@exemple.test']);
+    assert.deepEqual(contenu.destinataires, ['camille@exemple.test']);
     assert.equal(contenu.sujet, 'Mon objet');
     assert.equal(contenu.message, 'Mon message gras', 'pas de HTML');
     assert.deepEqual(s.doc('devis_devis', 'f1').destinataires, finalise('f1').destinataires, 'le devis n’est pas modifié');
+  });
+
+  test('2 sécurité : l’assistant ne peut donner que des adresses déjà connues (devis, fiche de la personne ou de l’organisation) ; une autre est refusée avec une phrase claire, rien n’est écrit ni demandé', async () => {
+    const s = await demarrer({ devis: [finalise('f1', 'en_attente_envoi', { personneId: 'p1' })] });
+    for (const champ of ['destinataires', 'copie']) {
+      const rep = await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1', [champ]: ['pirate@exemple.test'] });
+      refuse(rep, /n’est ni sur le devis ni sur la fiche.*Rien n’a été préparé/s);
+    }
+    refuse(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1', destinataires: ['CAMILLE@exemple.test', 'pirate@exemple.test'] }), /pirate@exemple\.test/);
+    assert.equal(s.demandes.length, 0);
+    assert.equal(s.collections.crm_actions_lancements.length, 0);
+    assert.equal(s.doc('devis_devis', 'f1').emailPrepare, undefined);
+    ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1', destinataires: ['CAMILLE@exemple.test'] }));
+    assert.equal(s.demandes.length, 1);
   });
 
   test('2 refus : brouillon de devis, sans destinataire, PDF pas prêt, profil lecteur, deuxième demande trop vite ; rien n’est demandé à n8n', async () => {
@@ -228,6 +242,7 @@ describe('2 preparer_email : un brouillon seulement, jamais d’envoi', () => {
     assert.match(o.description, /AVANT d'appeler l'outil, montre-lui dans la conversation/);
     assert.match(o.description, /fais-les corriger/);
     assert.match(o.description, /N'invente jamais une adresse/);
+    assert.match(o.description, /QUE des adresses déjà connues du logiciel/);
     assert.ok(!/TEXTE À COLLER|instructions personnalisées/i.test(o.description));
   });
 

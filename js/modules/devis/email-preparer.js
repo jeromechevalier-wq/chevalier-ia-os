@@ -39,7 +39,9 @@ export function adressesDuBrouillon(devis) {
 export function valeursDeDepart(devis, contact = '') {
   const { destinataires, copie } = adressesDuBrouillon(devis);
   const variables = { contact, numero: devis?.numero || '', objet: devis?.objet || '' };
-  return { destinataires, copie, objet: E.objetParDefaut(variables), message: E.messageParDefaut(variables) };
+  // Le nom du contact vient du cache du navigateur, le serveur relit la base : si la personne existe mais que son nom n'est pas connu ici, le message affiché est PARTI SANS nom ;
+  // on l'envoie alors toujours, pour que ce que la personne relit soit exactement ce qui part (`messageAEnvoyer`).
+  return { destinataires, copie, objet: E.objetParDefaut(variables), message: E.messageParDefaut(variables), messageAEnvoyer: Boolean(devis?.personneId) && !String(contact ?? '').trim() };
 }
 
 const memeAdresse = (a, b) => a.toLowerCase() === b.toLowerCase();
@@ -73,7 +75,7 @@ export function saisieModifiee(depart, courant) {
   if (!memeListe(depart.destinataires, courant.destinataires)) s.destinataires = courant.destinataires;
   if (!memeListe(depart.copie, courant.copie)) s.copie = courant.copie;
   if (courant.objet !== depart.objet) s.objet = courant.objet;
-  if (courant.message !== depart.message) s.message = courant.message;
+  if (courant.message !== depart.message || depart.messageAEnvoyer === true) s.message = courant.message;
   return Object.keys(s).length ? s : null;
 }
 

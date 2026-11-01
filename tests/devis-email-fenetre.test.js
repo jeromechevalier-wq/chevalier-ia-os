@@ -80,6 +80,18 @@ describe('F4 seuls les champs changés partent au serveur', () => {
   });
 });
 
+describe('F4b ce que la personne relit est exactement ce qui part', () => {
+  test('F4b le nom du contact inconnu du navigateur alors que la personne existe : le message affiché (sans nom) est envoyé quand même ; avec le nom connu, rien n’est envoyé si rien ne change', () => {
+    const devis = devisType({ personneId: 'p1' });
+    const sansNom = P.valeursDeDepart(devis, '');
+    assert.match(sansNom.message, /^Bonjour,\n/);
+    assert.deepEqual(P.saisieModifiee(sansNom, structuredClone(sansNom)), { message: sansNom.message });
+    const avecNom = P.valeursDeDepart(devis, 'Marie Durand');
+    assert.equal(P.saisieModifiee(avecNom, structuredClone(avecNom)), null);
+    assert.equal(P.saisieModifiee(P.valeursDeDepart(devisType(), ''), P.valeursDeDepart(devisType(), '')), null, 'sans personne sur le devis, le serveur dira « Bonjour, » lui aussi');
+  });
+});
+
 describe('F5 le serveur revérifie, remplit les manques et nettoie', () => {
   const defauts = { destinataires: ['marie@exemple.fr'], copie: ['compta@exemple.fr'], variables: { contact: 'Marie', numero: NUMERO, objet: 'Salle de bain' } };
   test('F5 champs absents ou vides : texte standard et adresses du devis', () => {
@@ -103,6 +115,15 @@ describe('F5 le serveur revérifie, remplit les manques et nettoie', () => {
     assert.equal(r.sujet, 'Devis urgent suite');
     assert.equal(r.message, 'Bonjourx\n\nMerci');
     assert.ok(!/<|>/.test(r.sujet + r.message));
+  });
+  test('F5 une adresse entre chevrons « <jean@exemple.fr> » n’est pas une balise : elle reste dans le texte ; les vraies balises partent', () => {
+    const r = B.contenuDeLEnvoi({ message: 'Écris à <jean@exemple.fr> ou à Jean <jean@exemple.fr>.\n<p class="x">Bonjour</p><br/>', objet: 'Pour <jean@exemple.fr>' }, defauts);
+    assert.equal(r.message, 'Écris à <jean@exemple.fr> ou à Jean <jean@exemple.fr>.\nBonjour');
+    assert.equal(r.sujet, 'Pour <jean@exemple.fr>');
+  });
+  test('F5 un texte énorme est refusé AVANT le nettoyage (borne à deux fois le maximum)', () => {
+    assert.equal(B.contenuDeLEnvoi({ message: 'z'.repeat(2 * B.MAX_MESSAGE + 1) }, defauts).code, 'saisie_invalide');
+    assert.equal(B.contenuDeLEnvoi({ objet: 'z'.repeat(2 * B.MAX_OBJET + 1) }, defauts).code, 'saisie_invalide');
   });
   test('F5 longueurs maximales : objet 200, message 5000', () => {
     assert.equal(B.contenuDeLEnvoi({ objet: 'x'.repeat(201) }, defauts).code, 'saisie_invalide');
