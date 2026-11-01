@@ -74,7 +74,7 @@ export default Object.freeze({
       { titre: 'Déchets et évacuation', lignes: [['pl-e02', 1]] },
     ] },
     { statut: 'en_attente_envoi', client: 'particulier', travaux: 'Installation de chauffe-eau', objet: 'Remplacement du chauffe-eau', sections: [
-      { titre: 'Ouvrages', lignes: [['pl-o02', 1]] },
+      { titre: 'Chauffe-eau', lignes: [['pl-o02', 1]] },
       { titre: 'Déplacement', lignes: [['pl-e01', 1]] },
     ] },
     { statut: 'envoye', client: 'entreprise', travaux: 'Dépannage de fuite d’eau', objet: 'Dépannage d’une fuite d’eau et remplacement de tuyauterie', sections: [

@@ -187,7 +187,7 @@ function quantitePour(article, prixVente, t) {
   return q;
 }
 
-/** « Mon entreprise » fictive du jeu (le nom, et pour un métier sans chantier le texte d'assurance), sinon celle du bâtiment. */
+/** « Mon entreprise » fictive du jeu (le nom, et le texte d'assurance), sinon celle du bâtiment. */
 function emetteurDe(jeu) {
   return jeu?.entreprise ? Object.freeze({ ...ENTREPRISE_DEMO, ...jeu.entreprise }) : ENTREPRISE_DEMO;
 }
@@ -503,7 +503,7 @@ export function problemesDuJeu(jeu) {
     if (!p.length) {
       const config = L.construireConfig({ etapes: null, phases: null, reglages: null }, { racine: false, membres: [] });
       let n = 0;
-      const plan = construirePlan({ config, articles: cat.articles, familles: cat.familles, reglages: A.reglagesDevis({ ...A.REGLAGES_DEVIS_DEFAUT, motOuvrage: jeu.motOuvrage, entreprise: emetteurDe(jeu) }), auteur: 'demo@exemple.test', maintenant: new Date('2026-01-15T10:00:00Z'), nouvelId: (c) => `${c}-${(n += 1)}`, jeu });
+      const plan = construirePlan({ config, articles: cat.articles, familles: cat.familles, reglages: A.reglagesDevis({ ...A.REGLAGES_DEVIS_DEFAUT, motOuvrage: jeu.motOuvrage, modeMarge: 'majoration', marge: MARGE_JEUX, margeDevis: MARGE_JEUX, entreprise: emetteurDe(jeu) }), auteur: 'demo@exemple.test', maintenant: new Date('2026-01-15T10:00:00Z'), nouvelId: (c) => `${c}-${(n += 1)}`, jeu });
       const statuts = new Map();
       for (const { id } of plan.resume.devis) { const d = plan.documents.find((x) => x.id === id).donnees; statuts.set(d.statut, (statuts.get(d.statut) ?? 0) + 1); }
       for (const s of ['brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse']) if ((statuts.get(s) ?? 0) < 2) p.push(`moins de 2 devis « ${s} »`);
@@ -631,7 +631,7 @@ async function remplir(id, options, ctx, fiche) {
   let catalogue;
   if (jeuMetier) {
     const cat = catalogueDuJeu(jeuMetier);
-    catalogue = { articles: cat.articles, familles: cat.familles, reglages: { modeMarge: 'majoration', marge: MARGE_JEUX } };
+    catalogue = { articles: cat.articles, familles: cat.familles, reglages: { modeMarge: 'majoration', marge: MARGE_JEUX, margeDevis: MARGE_JEUX } };
     ctx.out(`Jeu « ${jeuMetier.nom} » : ${cat.articles.length} articles (dont ${cat.articles.filter((a) => a.type === 'ouvrage').length} ensembles), prix inventés.`);
   } else if (options['catalogue-exemple']) {
     catalogue = { articles: CATALOGUE_EXEMPLE.map((a) => ({ ...a })), familles: null, reglages: { modeMarge: 'majoration', marge: 25 } };
@@ -723,6 +723,8 @@ async function remplir(id, options, ctx, fiche) {
     await lot.commit();
     ctx.ecrits = true;
   }
+  // Le compteur des numéros avance dès que les devis numérotés sont écrits, AVANT le lot des mots : si ce lot échoue, un numéro déjà donné ne revient jamais.
+  if (plan.compteur) await col('devis_compteurs').doc('global').set({ valeur: plan.compteur, modifieLe: ctx.maintenant ?? new Date() }, { merge: true });
   // Les mots appris sont écrits avec `create` : un mot réel apparu entre la lecture et l'écriture n'est jamais écrasé (l'écriture échoue proprement).
   const motsACreer = ecritures.filter((e) => e.creerSeulement);
   if (motsACreer.length) {
@@ -736,7 +738,6 @@ async function remplir(id, options, ctx, fiche) {
     }
     ctx.ecrits = true;
   }
-  if (plan.compteur) await col('devis_compteurs').doc('global').set({ valeur: plan.compteur, modifieLe: ctx.maintenant ?? new Date() }, { merge: true });
   ctx.out(`✔ ${ecritures.length} document(s) écrits. Pour tout retirer plus tard : node scripts/donnees-demo.js ${id} --retirer --ecrire`);
   if (options.pdf) return await fabriquerPdf(id, ctx, fiche);
   return 0;

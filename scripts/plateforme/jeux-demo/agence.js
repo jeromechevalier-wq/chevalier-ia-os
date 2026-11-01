@@ -6,7 +6,7 @@ export default Object.freeze({
   nom: 'Agence de communication',
   motOuvrage: 'prestation',
   entreprise: {
-    nom: 'Agence Démo Communication', forme: 'SAS', metierBatiment: false,
+    nom: 'Agence Démo Communication', forme: 'SAS',
     assuranceTexte: 'Assurance responsabilité civile professionnelle : Assurances Fictives (exemple), contrat numéro : 000000, territorialité : France métropolitaine.',
   },
   tvaReduite: false,

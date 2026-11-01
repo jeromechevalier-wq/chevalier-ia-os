@@ -158,7 +158,7 @@ for (const nom of NOMS) {
     const parEtape = {};
     for (const a of affaires.filter((x) => !x.perdue && x.statut !== 'perdue')) parEtape[a.etape] = (parEtape[a.etape] ?? 0) + 1;
     assert.ok(Object.keys(parEtape).length >= 5, JSON.stringify(parEtape));
-    for (const [e, n] of Object.entries(parEtape)) assert.ok(n >= 2 && n <= 4 || n === 4, `étape ${e} : ${n}`);
+    for (const [e, n] of Object.entries(parEtape)) assert.ok(n >= 2 && n <= 4, `étape ${e} : ${n}`);
     const reglages = (await db.doc(`clients/${id}/devis_parametres/reglages`).get()).data();
     assert.equal(reglages.motOuvrage, JEUX[nom].motOuvrage);
     assert.equal(reglages[MARQUEUR], true);
@@ -187,6 +187,17 @@ for (const nom of NOMS) {
       const a10 = d.sections.some((s) => (s.lignes ?? []).some((l) => l.tauxTva === 10 || l.tauxTva === 5.5));
       if (a10) { avec10 += 1; assert.ok(d.mentionTvaReduiteFigee, `${d.numero} : mention de TVA réduite figée`); } else assert.equal(d.mentionTvaReduiteFigee, undefined);
       for (const s of d.sections) for (const l of s.lignes ?? []) assert.ok(typeof l.prixVente === 'number', `${d.numero} : prix de vente figé`);
+      // Les prix du devis sont ceux, ronds, du catalogue du jeu (marge du devis = marge du catalogue) ; un ensemble tombe sur la somme de ses composants.
+      for (const s of d.sections) for (const l of s.lignes ?? []) {
+        const def = JEUX[nom].articles.find((x) => x[0] === l.articleId);
+        if (def) assert.equal(l.prixVente, def[3], `${d.numero} : ${l.articleId} au prix rond`);
+        else {
+          const ens = JEUX[nom].ensembles.find((x) => x[0] === l.articleId);
+          assert.ok(ens, `${d.numero} : ligne ${l.articleId} inconnue`);
+          const somme = ens[4].reduce((t, [c, q]) => t + JEUX[nom].articles.find((x) => x[0] === c)[3] * q, 0);
+          assert.equal(l.prixVente, Math.round(somme * 100) / 100, `${d.numero} : ensemble ${l.articleId}`);
+        }
+      }
     }
     if (JEUX[nom].tvaReduite) assert.ok(avec10 >= 1, 'au moins un devis à 10 %'); else assert.equal(avec10, 0);
     const compteur = (await db.doc(`clients/${id}/devis_compteurs/global`).get()).data();
@@ -264,4 +275,8 @@ test('8. Un mot appris réel apparu pendant le chargement n’est jamais écras�
   const toujours = (await db.doc(`clients/met-course/devis_vocabulaire/${identifiantDeRegle(cleDeExpression('membrane'))}`).get()).data();
   assert.deepEqual(toujours, reel, 'le mot réel est intact');
   assert.equal((await tous('met-course', 'devis_vocabulaire')).length, 1, 'aucun autre mot écrit');
+  // Le compteur des numéros a avancé avant le lot des mots : les devis numérotés déjà écrits ne verront jamais leur numéro revenir.
+  const numerotes = (await tous('met-course', 'devis_devis')).filter((d) => d.numero).length;
+  assert.ok(numerotes > 0);
+  assert.equal((await db.doc('clients/met-course/devis_compteurs/global').get()).data().valeur, numerotes);
 });
