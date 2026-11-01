@@ -48,7 +48,7 @@ function controles(liste) {
 /**
  * Fenêtre « Filtres » COMMUNE (Personnes, Organisations, Affaires, Projets, historique des fiches) : cases à cocher par groupe, « Tout effacer », « Appliquer ».
  * controles : [{ cle, libelle, type: 'cases' (options [{ valeur, libelle }]) | 'oui' | 'choix' | 'organisations' }] ;
- * Un groupe 'cases' peut être un arbre (`arbre: true`) : chaque option porte alors `niveau` (0 = ligne principale, 1 = retrait) et peut porter `note` (petite mention grise sous le libellé) ;
+ * Un groupe 'cases' peut être un arbre (`arbre: true`) : chaque option porte alors `niveau` (0 = ligne principale, 1 = retrait) et peut porter `note` (petite mention grise sous le libellé) et `parent` (valeur de sa ligne principale : quand celle-ci est cochée, la sous-ligne s'affiche cochée et grisée, non modifiable) ;
  * la liste défile dans la fenêtre, l'en-tête « Filtres » et les boutons restent visibles. Les autres groupes ne changent pas.
  * criteres : les critères complets (chaque clé 'cases' est un tableau de valeurs cochées) ; effacer() : critères après « Tout effacer ».
  * Renvoie les nouveaux critères, ou null si on ferme sans choisir.
@@ -63,11 +63,30 @@ export async function fenetreFiltres({ controles: ctls, criteres, effacer }) {
   for (const ctl of ctls) {
     if (ctl.type === 'cases') {
       if (!ctl.options.length) continue;
+      // Arbre : une ligne de premier niveau cochée prend toutes ses sous-lignes (affichées cochées et grisées, non modifiables) ; on ne garde alors que la ligne parente dans les critères.
+      if (ctl.arbre) {
+        const parents = new Set(ctl.options.filter((o) => !o.parent).map((o) => o.valeur));
+        c[ctl.cle] = c[ctl.cle].filter((v) => {
+          const o = ctl.options.find((x) => x.valeur === v);
+          return !(o?.parent && c[ctl.cle].includes(o.parent) && parents.has(o.parent));
+        });
+      }
+      const cases = [];
+      const majSousLignes = () => { for (const { o, entree } of cases) if (o.parent) { const prise = c[ctl.cle].includes(o.parent); entree.disabled = prise; entree.checked = prise || c[ctl.cle].includes(o.valeur); entree.setAttribute('aria-disabled', String(prise)); entree.closest('label').classList.toggle('case-grisee', prise); } };
       corps.append(h('fieldset', { class: 'groupe-cases' }, h('legend', { class: 'etiquette' }, ctl.libelle),
-        h('div', { class: ctl.arbre ? 'cases cases-arbre' : 'cases' }, ctl.options.map((o) => h('label', { class: ctl.arbre ? `case case-arbre case-niveau-${o.niveau ? 1 : 0}` : 'case', dataset: ctl.arbre ? { niveau: String(o.niveau ? 1 : 0) } : {} },
-          h('input', { type: 'checkbox', checked: c[ctl.cle].includes(o.valeur), dataset: { cle: ctl.cle, valeur: o.valeur },
-            onchange: (e) => { c[ctl.cle] = e.target.checked ? [...c[ctl.cle], o.valeur] : c[ctl.cle].filter((v) => v !== o.valeur); } }),
-          o.note ? h('span', { class: 'case-texte' }, h('span', {}, o.libelle), h('span', { class: 'case-note' }, o.note)) : o.libelle)))));
+        h('div', { class: ctl.arbre ? 'cases cases-arbre' : 'cases' }, ctl.options.map((o) => {
+          const entree = h('input', { type: 'checkbox', checked: c[ctl.cle].includes(o.valeur), dataset: { cle: ctl.cle, valeur: o.valeur },
+            onchange: (e) => {
+              if (e.target.checked) c[ctl.cle] = [...c[ctl.cle], o.valeur];
+              else c[ctl.cle] = c[ctl.cle].filter((v) => v !== o.valeur);
+              if (ctl.arbre && e.target.checked) c[ctl.cle] = c[ctl.cle].filter((v) => ctl.options.find((x) => x.valeur === v)?.parent !== o.valeur); // la famille prend tout : plus de sous-famille seule
+              majSousLignes();
+            } });
+          cases.push({ o, entree });
+          return h('label', { class: ctl.arbre ? `case case-arbre case-niveau-${o.niveau ? 1 : 0}` : 'case', dataset: ctl.arbre ? { niveau: String(o.niveau ? 1 : 0) } : {} },
+            entree, o.note ? h('span', { class: 'case-texte' }, h('span', {}, o.libelle), h('span', { class: 'case-note' }, o.note)) : o.libelle);
+        }))));
+      majSousLignes();
     } else if (ctl.type === 'oui') {
       corps.append(h('label', { class: 'case case-seule' }, h('input', { type: 'checkbox', checked: !!c[ctl.cle], dataset: { cle: ctl.cle }, onchange: (e) => { c[ctl.cle] = e.target.checked; } }), ctl.libelle));
     } else if (ctl.type === 'choix') {

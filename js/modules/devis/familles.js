@@ -104,7 +104,7 @@ export function arbreFamilles(familles) {
 export function optionsFamillesArbre(familles) {
   const options = arbreFamilles(familles).flatMap(({ famille: f, enfants }) => [
     { valeur: f.id, libelle: f.nom ?? f.id, niveau: 0, ...(enfants.length ? { note: 'inclut ses sous-familles' } : {}) },
-    ...enfants.map((e) => ({ valeur: e.id, libelle: e.nom ?? e.id, niveau: 1 })),
+    ...enfants.map((e) => ({ valeur: e.id, libelle: e.nom ?? e.id, niveau: 1, parent: f.id })),
   ]);
   return [...options, { valeur: 'sans_famille', libelle: 'Sans famille', niveau: 0 }];
 }

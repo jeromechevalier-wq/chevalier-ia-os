@@ -162,6 +162,8 @@ button.badge-etat { border: 0; font-family: inherit; cursor: pointer; }
 /* Famille en arbre (Catalogue > Filtres) : une colonne, sous-familles en retrait, mention grise « inclut ses sous-familles ». */
 .cases-arbre { flex-direction: column; flex-wrap: nowrap; gap: var(--esp-2); }
 .case-niveau-1 { margin-left: var(--esp-9); }
+.case-grisee { color: var(--texte2); cursor: not-allowed; }
+.case-grisee input { cursor: not-allowed; opacity: .6; }
 .case-texte { display: flex; flex-direction: column; }
 .case-note { font-size: var(--fs-petit); color: var(--texte2); }
 .zone-tableau { background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); overflow-x: auto; }
