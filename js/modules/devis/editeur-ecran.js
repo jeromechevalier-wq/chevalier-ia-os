@@ -196,6 +196,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (entreprise !== entrepriseAffichee) { entrepriseAffichee = entreprise; if (onglet === 'apercu' && ref.panneauApercu) rendreApercu(); if (ref.blocMethodes?.dataset.ouvert !== 'oui') dessinerMethodes(false); }
     const d = devisCourant();
     if (!d) return;
+    majBadgeTest();
     if (!lecture && d.statut === 'brouillon' && !conflit && !Ed.memeContenu(d, enregistre) && !(enVol && Ed.memeContenu(d, enVol))) {
       conflit = true;
       clearTimeout(minuteur);
@@ -408,7 +409,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       boutonRetour(),
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, ref.titre,
-          h('div', { class: 'fiche-sous' }, ref.pastille, ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire))));
+          h('div', { class: 'fiche-sous' }, ref.pastille, (ref.badgeTest = h('span', { class: 'badge-test', title: 'Élément de test', dataset: { badge: 'test' }, hidden: true }, '[TEST]')), ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire))));
     // Barre d'actions de l'édition : reste collée en haut de l'écran quand on défile (onglets, Catalogue, Options, Envoyer).
     ref.sentinelle = h('div', { class: 'sentinelle-barre-devis', 'aria-hidden': 'true' });
     ref.barre = h('div', { class: 'barre-devis' },
@@ -811,9 +812,12 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
 
   // ------------------------------------------------ barre du haut
   const majTitreCompact = () => { if (ref.titreCompact) ref.titreCompact.textContent = ref.titre?.textContent ?? ''; };
+  /** Le repère « test » se lit dans l'instantané Firestore (il n'est pas dans la copie locale `travail`) : le badge suit « Marquer comme test » sans recharger. */
+  const majBadgeTest = () => { if (ref.badgeTest) ref.badgeTest.hidden = (devisCourant() ?? travail)?.test !== true; };
   function majEntete() {
     if (!ref.titre) return;
     const d = travail;
+    majBadgeTest();
     ref.titre.textContent = d.numero ? `Devis ${d.numero} · v${d.version ?? 1}` : (String(d.nom ?? '').trim() || String(d.objet ?? '').trim() || 'Nouveau devis'); // un brouillon porte son nom interne, sinon l'objet du devis (la pastille dit déjà « Brouillon »)
     majTitreCompact();
     appliquerPastilleStatut(ref.pastille, d, CRM.ctx().aujourdhui); // mêmes mots et mêmes couleurs que la liste des devis

@@ -5,6 +5,7 @@ import { h, toast, dialogue, confirmer } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
+import { MESSAGE_TEST_REFUSE, MESSAGE_TEST_ECHEC } from '../crm/composants.js';
 import * as Li from './liste.js';
 import * as Ed from './editeur-logique.js';
 import { estErreurEntreprise, ROUTE_MON_ENTREPRISE } from './logique.js';
@@ -168,6 +169,19 @@ export async function creerNouvelleVersion(d) {
   } catch (e) { dire(e); }
 }
 
+/** « Marquer comme test » / « Ce n'est plus un test » d'un brouillon : lit le repère dans l'instantané Firestore (pas dans une copie locale) et l'écrit avec `test: true` ou `test: false`. */
+export async function basculerTestDevis(d) {
+  const test = (D.devisParId(d.id) ?? d)?.test === true;
+  try {
+    const r = await D.modifierBrouillon(d.id, { test: !test });
+    const erreur = r?.erreurs && Object.values(r.erreurs)[0];
+    if (erreur) toast(erreur, { type: 'erreur' });
+  } catch (e) {
+    console.warn(e);
+    toast(e?.code === 'permission-denied' ? MESSAGE_TEST_REFUSE : MESSAGE_TEST_ECHEC, { type: 'erreur' });
+  }
+}
+
 /**
  * Entrées d'un menu « … » prêtes pour ouvrirMenu (os/ui.js). `d` : le devis. `options` :
  *  - exclure : clés à ne pas proposer (voir entreesActionsDevis) ;
@@ -183,6 +197,7 @@ export function entreesMenuDevis(d, { exclure = [], apresSuppression = () => {},
     dupliquer_prix_du_jour: () => dupliquerDevis(d, { prixDuJour: true }),
     preparer_email: () => lancerPreparationEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id), finaliser: { libelle: 'Ouvrir le devis', action: () => naviguer(`devis/editeur/${d.id}`) } }),
     supprimer: () => supprimerBrouillon(d, apresSuppression),
+    marquer_test: () => basculerTestDevis(d),
   };
   return Li.entreesActionsDevis(d, { exclure }).flatMap((e) => {
     if (e.separateur || e.texte !== undefined) return [e];

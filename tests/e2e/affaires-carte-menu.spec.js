@@ -1,4 +1,4 @@
-// Menu « … » d'une carte d'affaire du tableau de suivi : déplacements, puis Archiver, puis Supprimer définitivement….
+// Menu « … » d'une carte d'affaire du tableau de suivi : déplacements, puis Marquer comme test, Archiver, puis Supprimer définitivement….
 // Les captures vont dans tests/e2e/captures/affaires-carte-menu/ (aucune donnée réelle).
 import {
   test, expect, attendreCalme, connecter, allerA, creerAffaire, lireDocument, estTelephone,
@@ -26,7 +26,7 @@ test('1 le menu d’une carte d’affaire : déplacements, Perdue…, Archiver, 
   const iPerdue = noms.indexOf('Perdue…');
   expect(iPerdue).toBeGreaterThan(0);
   expect(noms.slice(0, iPerdue).every((n) => n.startsWith('Déplacer vers :'))).toBe(true);
-  expect(noms.slice(iPerdue)).toEqual(['Perdue…', 'Archiver', 'Supprimer définitivement…']);
+  expect(noms.slice(iPerdue)).toEqual(['Perdue…', 'Marquer comme test', 'Archiver', 'Supprimer définitivement…']);
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Ouvrir la fiche|Rouvrir/ })).toHaveCount(0);
   await capture(page, '1-menu-carte');
 });
@@ -61,11 +61,11 @@ test('3 « Supprimer définitivement… » : un titre faux ne supprime rien, le 
   await expect(page.getByText('Affaire supprimée')).toBeVisible();
 });
 
-test('4 le menu de la vue liste est inchangé : Ouvrir la fiche, Archiver, Supprimer définitivement…', async ({ page }) => {
+test('4 le menu de la vue liste est inchangé : Ouvrir la fiche, Marquer comme test, Archiver, Supprimer définitivement…', async ({ page }) => {
   await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'rdv_fixe' });
   await connecter(page);
   await allerA(page, 'Affaires');
   await page.locator('.bascule-vue[data-vue="liste"]').click();
   await page.locator('tr.ligne-liste[data-id="a1"]').getByRole('button', { name: /^Actions/ }).click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Ouvrir la fiche', 'Archiver', 'Supprimer définitivement…']);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Ouvrir la fiche', 'Marquer comme test', 'Archiver', 'Supprimer définitivement…']);
 });

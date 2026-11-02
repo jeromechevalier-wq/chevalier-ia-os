@@ -3,7 +3,7 @@
 // fonctions du serveur (donnees.js : finaliser, changerStatut), jamais par une écriture directe, et il n'y a pas de glisser-déposer.
 import { h, icone, remplir, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
 import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
-import { etatVide, planifier } from '../crm/composants.js';
+import { etatVide, planifier, badgeTest } from '../crm/composants.js';
 import { naviguer, lien } from '../../os/router.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
@@ -160,7 +160,7 @@ export function rendreListeDevis(conteneur) {
     const corps = p.lignes.map((d) => {
       const t = Li.totauxDe(d);
       return ouvrable(h('tr', { class: 'ligne-liste ligne-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
-        h('td', { dataset: { colonne: 'numero', libelle: 'Numéro' } }, h('span', { class: `devis-numero${d.numero ? '' : ' devis-numero-vide'}` }, intitule(d)), d.version > 1 ? h('span', { class: 'devis-version' }, ` v${d.version}`) : null, d.numero && d.nom ? h('span', { class: 'devis-nom-interne' }, ` – ${d.nom}`) : null),
+        h('td', { dataset: { colonne: 'numero', libelle: 'Numéro' } }, h('span', { class: `devis-numero${d.numero ? '' : ' devis-numero-vide'}` }, intitule(d)), badgeTest(d), d.version > 1 ? h('span', { class: 'devis-version' }, ` v${d.version}`) : null, d.numero && d.nom ? h('span', { class: 'devis-nom-interne' }, ` – ${d.nom}`) : null),
         h('td', { dataset: { colonne: 'statut', libelle: 'Statut' } }, pastille(d, aujourdhui)),
         h('td', { dataset: { colonne: 'documents', libelle: 'Documents' } }, indicateurPdf(d, { apres: () => rendre(), maintenant })), // lien « PDF », « en cours » ou avertissement « PDF non rangé » (finalisé seulement)
         h('td', { dataset: { colonne: 'client', libelle: 'Client / Affaire' } }, celluleClient(d)),
@@ -194,7 +194,7 @@ export function rendreListeDevis(conteneur) {
     const pdfCarte = indicateurPdf(d, { apres: () => rendre(), maintenant });
     const couleur = Li.couleurPastilleDevis(d, aujourdhui, maintenant);
     return ouvrable(h('article', { class: 'carte-affaire carte-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
-      h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, intitule(d), d.version > 1 ? ` v${d.version}` : '')),
+      h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, intitule(d), badgeTest(d), d.version > 1 ? ` v${d.version}` : '')),
       h('div', { class: 'carte-actions-devis' }, actionsDevis(d)),
       h('div', { class: 'carte-pastilles' }, pastille(d, aujourdhui), d.statut === 'en_attente_envoi' && Li.statutAffiche(d, aujourdhui) === 'en_attente_envoi' ? pastillePasEnvoye() : null),
       celluleClient(d),

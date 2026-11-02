@@ -5,7 +5,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   avatar, lien, cheminPersonne, cheminOrganisation, pastillesEtiquettes, selecteurOrganisation, selecteurEtiquettes,
-  organisationChoisieOuSaisie, listeContacts, etatVide, telecharger, planifier, selecteurTri,
+  organisationChoisieOuSaisie, listeContacts, etatVide, telecharger, planifier, selecteurTri, badgeTest, entreeMarquerTest
 } from './composants.js';
 import * as T from './tri.js';
 import { barreFiltres } from './filtres.js';
@@ -38,7 +38,7 @@ function colonnesVisibles() {
 
 function cellule(colonne, p) {
   switch (colonne) {
-    case 'nom': return h('a', { class: 'cellule-nom', href: cheminPersonne(p.id) }, avatar(p.nom, 30), h('span', {}, p.nom), p.oppositionProspection ? h('span', { class: 'badge-opposition', title: 'Opposition à la prospection' }, 'Opposition') : null);
+    case 'nom': return h('a', { class: 'cellule-nom', href: cheminPersonne(p.id) }, avatar(p.nom, 30), h('span', {}, p.nom), badgeTest(p), p.oppositionProspection ? h('span', { class: 'badge-opposition', title: 'Opposition à la prospection' }, 'Opposition') : null);
     case 'organisation': {
       const o = D.organisation(p.organisationId);
       return o ? lien(cheminOrganisation(o.id), o.nom) : null;
@@ -170,6 +170,7 @@ export function rendrePersonnes(conteneur) {
 export function menuPersonne(p) {
   return [
     { libelle: 'Ouvrir la fiche', icone: 'user', action: () => naviguer(`crm/personnes/${p.id}`) },
+    entreeMarquerTest(p, (patch) => D.majPersonne(p.id, patch)),
     { libelle: p.archive ? 'Désarchiver' : 'Archiver', icone: p.archive ? 'archive-restore' : 'archive', action: () => D.majPersonne(p.id, { archive: !p.archive }) },
     { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionPersonne(p) },
   ];

@@ -4,7 +4,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   liensEntete, afficherSelecteur, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
-  lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, iconeInfo, EXPLICATION_STATUT_AFFAIRE, pastillesExternes,
+  lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, iconeInfo, EXPLICATION_STATUT_AFFAIRE, pastillesExternes, badgeTest, entreeMarquerTest
 } from './composants.js';
 import { surChangementPastilles, ongletsDeAffaire, actionDeAffaire } from './pastilles-externes.js';
 import { panneauActivite } from './activites.js';
@@ -87,6 +87,7 @@ export function rendreFicheAffaire(conteneur, id) {
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         ...(a.statut === 'perdue' ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) }] : []),
+        entreeMarquerTest(a, (patch) => D.majAffaire(a.id, patch)),
         { libelle: a.archive ? 'Désarchiver' : 'Archiver', icone: a.archive ? 'archive-restore' : 'archive', action: () => D.archiverAffaire(a.id, !a.archive) },
         { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionAffaire(a) },
       ]) }, icone('ellipsis', { taille: 20 }));
@@ -106,6 +107,7 @@ export function rendreFicheAffaire(conteneur, id) {
         h('div', { class: 'fiche-titre' }, titre,
           h('div', { class: 'fiche-sous' }, pastilleStatut(L.statutAffiche(a)), iconeInfo(EXPLICATION_STATUT_AFFAIRE[L.statutAffiche(a)], 'État de l’affaire'),
             a.statut === 'perdue' ? h('span', { class: 'aide' }, `${a.raisonPerdue}${a.raisonPerdueDetail ? ` : ${a.raisonPerdueDetail}` : ''}`) : null,
+            badgeTest(a),
             a.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null,
             ...pastillesExternes(a.id),
             liens.element)),

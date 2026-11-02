@@ -7,7 +7,7 @@ import * as CRM from '../crm/donnees.js';
 import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
 import * as L from '../crm/logique.js';
 import {
-  lienPersonne, lienOrganisation, pastilleActivite, selecteurPersonne, selecteurOrganisation, organisationChoisieOuSaisie, etatVide, planifier, nomCompte, selecteurTri,
+  lienPersonne, lienOrganisation, pastilleActivite, selecteurPersonne, selecteurOrganisation, organisationChoisieOuSaisie, etatVide, planifier, nomCompte, selecteurTri, badgeTest, entreeMarquerTest
 } from '../crm/composants.js';
 import * as T from '../crm/tri.js';
 import * as D from './donnees.js';
@@ -125,6 +125,7 @@ export function menuProjet(p) {
       : [
         { libelle: 'Terminer', icone: 'circle-check', action: () => terminerProjet(p) },
       ]),
+    entreeMarquerTest(p, (patch) => D.majProjet(p.id, patch)),
     { libelle: p.archive ? 'Désarchiver' : 'Archiver', icone: p.archive ? 'archive-restore' : 'archive', action: () => D.archiver(p.id, !p.archive) },
     { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionProjet(p) },
   ];
@@ -306,7 +307,7 @@ function carte(p, rafraichir) {
     onkeydown: (e) => { if (e.key === 'Enter' && e.target === el) naviguer(`projets/projets/${p.id}`); },
     ondragstart: (e) => { enDeplacement = true; e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; el.classList.add('en-deplacement'); },
     ondragend: () => { enDeplacement = false; el.classList.remove('en-deplacement'); document.querySelectorAll('.colonne.cible').forEach((c) => c.classList.remove('cible')); rafraichir(); } },
-  h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, p.titre), menu),
+  h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, p.titre, badgeTest(p)), menu),
   o ? h('span', { class: 'carte-sous' }, icone('building-2', { taille: 12 }), o.nom) : null,
   pers ? h('span', { class: 'carte-sous' }, icone('user', { taille: 12 }), pers.nom) : null,
   dates,
@@ -445,7 +446,7 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
       h('button', { type: 'button', class: 'tri', onclick: () => changerTri(T.triApresClicColonne('projets', tri, c.id)) },
         c.libelle, tri.critere === c.id ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))), h('th', { class: 'col-actions' }));
     const corps = lignes.map((p) => h('tr', { class: 'ligne-liste', dataset: { id: p.id }, onclick: (e) => { if (!e.target.closest('a, button')) naviguer(`projets/projets/${p.id}`); } },
-      h('td', { dataset: { libelle: 'Titre' } }, h('a', { class: 'cellule-nom', href: cheminProjet(p.id) }, h('span', {}, p.titre))),
+      h('td', { dataset: { libelle: 'Titre' } }, h('a', { class: 'cellule-nom', href: cheminProjet(p.id) }, h('span', {}, p.titre), badgeTest(p))),
       h('td', { dataset: { libelle: 'Personne' } }, lienPersonne(CRM.personne(p.personneId))),
       h('td', { dataset: { libelle: 'Organisation' } }, lienOrganisation(CRM.organisation(p.organisationId))),
       h('td', { dataset: { libelle: 'Phase' } }, pastillePhase(p.phase)),

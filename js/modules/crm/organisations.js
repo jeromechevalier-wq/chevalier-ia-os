@@ -3,7 +3,7 @@ import { h, icone, remplir, dialogue, toast, ouvrirMenu, lirePreference, ecrireP
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
-import { avatar, cheminOrganisation, pastillesEtiquettes, selecteurEtiquettes, etatVide, planifier, selecteurTri } from './composants.js';
+import { avatar, cheminOrganisation, pastillesEtiquettes, selecteurEtiquettes, etatVide, planifier, selecteurTri, badgeTest, entreeMarquerTest } from './composants.js';
 import * as T from './tri.js';
 import { barreFiltres } from './filtres.js';
 
@@ -36,7 +36,7 @@ function colonnesVisibles() {
 
 function cellule(colonne, o) {
   switch (colonne) {
-    case 'nom': return h('a', { class: 'cellule-nom', href: cheminOrganisation(o.id) }, avatar(o.nom, 30, 'avatar-organisation'), h('span', {}, o.nom));
+    case 'nom': return h('a', { class: 'cellule-nom', href: cheminOrganisation(o.id) }, avatar(o.nom, 30, 'avatar-organisation'), h('span', {}, o.nom), badgeTest(o));
     case 'ville': return o.ville || null;
     case 'secteur': return o.secteur || null;
     case 'personnes': return String(nbPersonnes(o));
@@ -146,6 +146,7 @@ export async function demanderSuppressionOrganisation(o) {
 export function menuOrganisation(o) {
   return [
     { libelle: 'Ouvrir la fiche', icone: 'building-2', action: () => naviguer(`crm/organisations/${o.id}`) },
+    entreeMarquerTest(o, (patch) => D.majOrganisation(o.id, patch)),
     { libelle: o.archive ? 'Désarchiver' : 'Archiver', icone: o.archive ? 'archive-restore' : 'archive', action: () => D.majOrganisation(o.id, { archive: !o.archive }) },
     { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionOrganisation(o) },
   ];

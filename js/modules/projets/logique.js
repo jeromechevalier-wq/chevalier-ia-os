@@ -107,6 +107,7 @@ export function nouveauProjet(valeurs, ctx) {
     urlDossier: urlOuVide(validerUrlDossier, valeurs.urlDossier),
     archive: false,
     proprietaire: ctx.proprietaire ?? ctx.auteur ?? '',
+    ...(valeurs.test === true ? { test: true } : {}),
   };
 }
 
@@ -455,6 +456,7 @@ export function nouvelleTache(valeurs, ctx) {
     assigneA: membre?.id ?? '',
     assigneNom: membre?.libelle ?? '',
     auteur: ctx.auteur ?? '',
+    ...(valeurs.test === true ? { test: true } : {}),
   };
 }
 

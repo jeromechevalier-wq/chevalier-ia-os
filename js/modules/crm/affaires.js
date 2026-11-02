@@ -6,7 +6,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   lienPersonne, lienOrganisation, cheminAffaire, pastilleActivite, pastilleStatut, pastilleEtape, selecteurPersonne, selecteurOrganisation,
-  organisationChoisieOuSaisie, etatVide, planifier, selecteurTri, pastillesExternes,
+  organisationChoisieOuSaisie, etatVide, planifier, selecteurTri, pastillesExternes, badgeTest, entreeMarquerTest
 } from './composants.js';
 import * as T from './tri.js';
 import { surChangementPastilles } from './pastilles-externes.js';
@@ -78,6 +78,7 @@ export function menuAffaire(a) {
 /** Entrées « Archiver / Désarchiver » puis « Supprimer définitivement… » d'une affaire (liste et carte du kanban). */
 export function entreesArchiveSuppression(a) {
   return [
+    entreeMarquerTest(a, (patch) => D.majAffaire(a.id, patch)),
     { libelle: a.archive ? 'Désarchiver' : 'Archiver', icone: a.archive ? 'archive-restore' : 'archive', action: () => D.archiverAffaire(a.id, !a.archive) },
     { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionAffaire(a) },
   ];
@@ -211,7 +212,7 @@ function carte(a) {
     onkeydown: (e) => { if (e.key === 'Enter' && e.target === el) naviguer(`crm/affaires/${a.id}`); },
     ondragstart: (e) => { enDeplacement = true; e.dataTransfer.setData('text/plain', a.id); e.dataTransfer.effectAllowed = 'move'; el.classList.add('en-deplacement'); },
     ondragend: () => { enDeplacement = false; el.classList.remove('en-deplacement'); document.querySelectorAll('.colonne.cible').forEach((c) => c.classList.remove('cible')); rafraichir(); } },
-  h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, a.titre), menu),
+  h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, a.titre, badgeTest(a)), menu),
   o ? h('span', { class: 'carte-sous' }, icone('building-2', { taille: 12 }), o.nom) : null,
   p ? h('span', { class: 'carte-sous' }, icone('user', { taille: 12 }), p.nom) : null,
   ...(() => { const ext = pastillesExternes(a.id); return ext.length ? [h('div', { class: 'carte-pastilles-externes' }, ext)] : []; })(),
@@ -319,7 +320,7 @@ export function rendreAffaires(conteneur) {
     const corps = lignes.map((a) => {
       const p = prochaine(a);
       return h('tr', { class: 'ligne-liste', dataset: { id: a.id }, onclick: (e) => { if (!e.target.closest('a, button')) naviguer(`crm/affaires/${a.id}`); } },
-        h('td', { dataset: { libelle: 'Titre' } }, h('a', { class: 'cellule-nom', href: cheminAffaire(a.id) }, h('span', {}, a.titre))),
+        h('td', { dataset: { libelle: 'Titre' } }, h('a', { class: 'cellule-nom', href: cheminAffaire(a.id) }, h('span', {}, a.titre), badgeTest(a))),
         h('td', { dataset: { libelle: 'Personne' } }, lienPersonne(D.personne(a.personneId))),
         h('td', { dataset: { libelle: 'Organisation' } }, lienOrganisation(D.organisation(a.organisationId))),
         h('td', { dataset: { libelle: 'Étape' } }, L.estVivante(a) ? pastilleEtape(a.etape) : pastilleStatut(L.statutAffiche(a))),
