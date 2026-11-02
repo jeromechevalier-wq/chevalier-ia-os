@@ -71,6 +71,13 @@ export function menuAffaire(a) {
   return [
     { libelle: 'Ouvrir la fiche', icone: 'briefcase', action: () => naviguer(`crm/affaires/${a.id}`) },
     ...(a.statut === 'perdue' ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) }] : []),
+    ...entreesArchiveSuppression(a),
+  ];
+}
+
+/** Entrées « Archiver / Désarchiver » puis « Supprimer définitivement… » d'une affaire (liste et carte du kanban). */
+export function entreesArchiveSuppression(a) {
+  return [
     { libelle: a.archive ? 'Désarchiver' : 'Archiver', icone: a.archive ? 'archive-restore' : 'archive', action: () => D.archiverAffaire(a.id, !a.archive) },
     { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionAffaire(a) },
   ];
@@ -198,7 +205,7 @@ function carte(a) {
   const p = D.personne(a.personneId);
   const o = D.organisation(a.organisationId);
   const priorite = a.priorite && a.priorite !== 'tiede' ? h('span', { class: `badge-priorite ${a.priorite}` }, L.libellePriorite(a.priorite)) : null;
-  const menu = h('button', { type: 'button', class: 'bouton-icone carte-menu', 'aria-label': `Actions : ${a.titre}`, onclick: (e) => { e.stopPropagation(); ouvrirMenu(e.currentTarget, entreesDeplacement(a)); } }, icone('ellipsis', { taille: 16 }));
+  const menu = h('button', { type: 'button', class: 'bouton-icone carte-menu', 'aria-label': `Actions : ${a.titre}`, onclick: (e) => { e.stopPropagation(); ouvrirMenu(e.currentTarget, [...entreesDeplacement(a), ...entreesArchiveSuppression(a)]); } }, icone('ellipsis', { taille: 16 }));
   const el = h('article', { class: `carte-affaire statut-${L.statutAffiche(a)}`, draggable: 'true', tabindex: '0', dataset: { affaire: a.id }, 'aria-label': a.titre,
     onclick: (e) => { if (!e.target.closest('a, button')) naviguer(`crm/affaires/${a.id}`); },
     onkeydown: (e) => { if (e.key === 'Enter' && e.target === el) naviguer(`crm/affaires/${a.id}`); },
