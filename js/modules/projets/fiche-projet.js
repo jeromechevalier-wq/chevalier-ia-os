@@ -4,7 +4,7 @@ import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';
 import {
   liensEntete, afficherSelecteur, lienAffaire, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire,
-  gabaritFiche, lienRetour, saisieEnCours, etatVide, planifier, boutonEtoile, iconeInfo,
+  gabaritFiche, lienRetour, saisieEnCours, etatVide, planifier, boutonEtoile, iconeInfo, badgeTest, entreeMarquerTest
 } from '../crm/composants.js';
 import { panneauActivite } from '../crm/activites.js';
 import { creerOngletFichiers } from '../crm/fichiers-onglet.js';
@@ -61,6 +61,7 @@ export function rendreFicheProjet(conteneur, id) {
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         ...(termine ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => rouvrir(p) }] : []),
+        entreeMarquerTest(p, (patch) => D.majProjet(p.id, patch)),
         { libelle: p.archive ? 'Désarchiver' : 'Archiver', icone: p.archive ? 'archive-restore' : 'archive', action: () => D.archiver(p.id, !p.archive) },
         { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionProjet(p) },
       ]) }, icone('ellipsis', { taille: 20 }));
@@ -74,7 +75,7 @@ export function rendreFicheProjet(conteneur, id) {
       lienRetour('#/projets/projets', 'Projets'),
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, titre,
-          h('div', { class: 'fiche-sous' }, pastilleStatutProjet(p), iconeInfo(EXPLICATION_STATUT_PROJET[P.statutProjetAffiche(p)], 'État du projet'), pastilleImpaye(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivé') : null,
+          h('div', { class: 'fiche-sous' }, pastilleStatutProjet(p), iconeInfo(EXPLICATION_STATUT_PROJET[P.statutProjetAffiche(p)], 'État du projet'), pastilleImpaye(p), badgeTest(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivé') : null,
             liens.element)),
         h('div', { class: 'fiche-actions' }, actions, menu)),
       (barrePhases = barreDesPhases(p)));

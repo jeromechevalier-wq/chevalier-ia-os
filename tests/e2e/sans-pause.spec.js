@@ -29,7 +29,7 @@ test('P1 fiche affaire : le menu « … » n’a plus « En pause » ; aucun bou
   await expect(page.locator('[data-action="en-pause"]')).toHaveCount(0);
   await actions.getByRole('button', { name: 'Plus d’actions' }).click();
   const menu = page.locator('.menu-pop');
-  await expect(menu.getByRole('menuitem')).toHaveText(['Archiver', 'Supprimer définitivement…']);
+  await expect(menu.getByRole('menuitem')).toHaveText(['Marquer comme test', 'Archiver', 'Supprimer définitivement…']);
   await expect(menu.getByRole('menuitem', { name: /pause/i })).toHaveCount(0);
   await expect(page.getByText('Date de réveil')).toHaveCount(0);
   await expect(page.getByLabel('Date de réveil')).toHaveCount(0);

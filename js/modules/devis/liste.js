@@ -233,6 +233,7 @@ export function actionsPermises(d, { editeur = EDITEUR_DISPONIBLE, suppression =
     dupliquerPrixDuJour: editeur ? { actif: true } : bientot,
     facturer: bientot,
     envoyer: emailPossible(statut),
+    marquerTest: brouillon ? { actif: true } : bientot,
     supprimer: brouillon ? (suppression ? { actif: true } : bientot) : { actif: false, raison: 'Seul un brouillon se supprime.' },
   };
 }
@@ -271,6 +272,8 @@ export function entreesActionsDevis(d, { exclure = [], editeur = EDITEUR_DISPONI
   ajouter('dupliquer', 'Dupliquer', 'copy', a.dupliquer);
   ajouter('dupliquer_prix_du_jour', 'Dupliquer aux prix du jour', 'refresh-cw', a.dupliquerPrixDuJour);
   ajouter('preparer_email', 'Préparer l’e-mail', 'mail-check', a.envoyer);
+  // Mode test : un brouillon se marque depuis le navigateur ; un devis finalisé exige une fonction du serveur (PR suivantes) : entrée grisée « bientôt disponible », jamais cachée.
+  ajouter('marquer_test', d?.test === true ? 'Ce n’est plus un test' : 'Marquer comme test', 'tag', a.marquerTest);
   if (!exclure.includes('archiver')) {
     sortie.push({ separateur: true });
     sortie.push({ cle: 'archiver', libelle: ar.libelle, icone: ar.icone, actif: ar.actif, action: ar.action });

@@ -991,6 +991,7 @@ export function nouveauDevis(valeurs = {}, ctx = {}, reglages = {}) {
     archive: false,
     creePar: ctx.auteur ?? '',
     proprietaire: ctx.proprietaire ?? ctx.auteur ?? '',
+    ...(valeurs.test === true ? { test: true } : {}),
     creeLe,
     dureeValiditeJours: jours,
     expireLe: estJour(valeurs.expireLe) ? valeurs.expireLe : dateExpiration(creeLe, jours),

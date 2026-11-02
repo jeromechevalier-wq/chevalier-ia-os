@@ -4,7 +4,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   avatar, lien, cheminPersonne, sectionRepliable, champPropriete, champContacts, champAdresses, selecteurEtiquettes, titreEditable, selectProprietaire, gabaritFiche, lienRetour,
-  saisieEnCours, carteAffaireMini, fournisseurTexte, fournisseurVilles, etatVide, planifier,
+  saisieEnCours, carteAffaireMini, fournisseurTexte, fournisseurVilles, etatVide, planifier, badgeTest, entreeMarquerTest
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { ouvrirCreationAffaire } from './affaires.js';
@@ -34,6 +34,7 @@ export function rendreFicheOrganisation(conteneur, id) {
     const nom = titreEditable({ valeur: o.nom, libelle: 'Nom', surEnregistrer: (v) => D.majOrganisation(o.id, { nom: v }) });
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
+        entreeMarquerTest(o, (patch) => D.majOrganisation(o.id, patch)),
         { libelle: o.archive ? 'Désarchiver' : 'Archiver', icone: o.archive ? 'archive-restore' : 'archive', action: () => D.majOrganisation(o.id, { archive: !o.archive }) },
         { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionOrganisation(o) },
       ]) }, icone('ellipsis', { taille: 20 }));
@@ -41,7 +42,7 @@ export function rendreFicheOrganisation(conteneur, id) {
       lienRetour('#/crm/organisations', 'Organisations'),
       h('div', { class: 'fiche-tete-ligne' },
         avatar(o.nom, 52, 'avatar-organisation'),
-        h('div', { class: 'fiche-titre' }, nom, o.archive ? h('div', { class: 'fiche-sous' }, h('span', { class: 'badge-archive' }, 'Archivée')) : null),
+        h('div', { class: 'fiche-titre' }, nom, o.archive || L.estTest(o) ? h('div', { class: 'fiche-sous' }, badgeTest(o), o.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null) : null),
         h('div', { class: 'fiche-actions' },
           h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne({ organisationId: o.id }) }, icone('plus', { taille: 16 }), 'Personne'),
           h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire({ organisationId: o.id }) }, icone('plus', { taille: 16 }), 'Affaire'),

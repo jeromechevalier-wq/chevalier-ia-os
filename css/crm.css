@@ -31,6 +31,9 @@ a.pastille-externe:hover { text-decoration: underline; }
 .pastille-activite.rouge { background: var(--retard); box-shadow: 0 0 0 3px var(--retard-fond); }
 .pastille-activite.verte { background: var(--succes); }
 .badge-archive { display: inline-block; padding: 2px var(--esp-3); border-radius: var(--rayon-petit); font-size: var(--fs-petit); font-weight: var(--poids-moyen); background: var(--survol); color: var(--texte2); }
+.badge-test { display: inline-block; margin-left: var(--esp-2); padding: 2px var(--esp-3); border-radius: var(--rayon-petit); font-size: var(--fs-petit); font-weight: var(--poids-moyen); background: var(--survol); color: var(--texte); border: 1px solid var(--bordure-forte); vertical-align: middle; }
+.badge-test[hidden] { display: none; }
+.fiche-sous .badge-test { margin-left: 0; }
 .badge-priorite { padding: 2px var(--esp-3); border-radius: var(--rayon-petit); font-size: var(--fs-petit); font-weight: var(--poids-moyen); background: var(--survol); }
 .badge-priorite.chaud { background: #fd645533; }
 .badge-priorite.froid { color: var(--texte2); }

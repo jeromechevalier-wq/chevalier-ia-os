@@ -6,7 +6,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   avatar, lienOrganisation, sectionRepliable, champPropriete, selecteurOrganisation, selecteurEtiquettes, champContacts, champAdresses, titreEditable, selectProprietaire,
-  telecharger, gabaritFiche, lienRetour, saisieEnCours, carteAffaireMini, fournisseurVilles, etatVide, planifier,
+  telecharger, gabaritFiche, lienRetour, saisieEnCours, carteAffaireMini, fournisseurVilles, etatVide, planifier, badgeTest, entreeMarquerTest
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { ouvrirCreationAffaire } from './affaires.js';
@@ -71,6 +71,7 @@ export function rendreFichePersonne(conteneur, id) {
       } }, icone('download', { taille: 16 }), h('span', { class: 'libelle-bouton' }, 'Exporter'));
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
+        entreeMarquerTest(p, (patch) => D.majPersonne(p.id, patch)),
         { libelle: p.archive ? 'Désarchiver' : 'Archiver', icone: p.archive ? 'archive-restore' : 'archive', action: () => D.majPersonne(p.id, { archive: !p.archive }) },
         { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionPersonne(p) },
       ]) }, icone('ellipsis', { taille: 20 }));
@@ -79,7 +80,7 @@ export function rendreFichePersonne(conteneur, id) {
       h('div', { class: 'fiche-tete-ligne' },
         avatar(p.nom, 52),
         h('div', { class: 'fiche-titre' }, nom,
-          h('div', { class: 'fiche-sous' }, p.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null, p.oppositionProspection ? h('span', { class: 'badge-opposition' }, 'Opposition à la prospection') : null)),
+          h('div', { class: 'fiche-sous' }, badgeTest(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null, p.oppositionProspection ? h('span', { class: 'badge-opposition' }, 'Opposition à la prospection') : null)),
         h('div', { class: 'fiche-actions' },
           exporter,
           h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire({ personneId: p.id }) }, icone('plus', { taille: 16 }), 'Affaire'),

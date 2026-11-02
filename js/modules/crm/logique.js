@@ -701,6 +701,18 @@ export function regrouperVilles(valeurs) {
 /** Vrai si la ville d'une fiche correspond à l'une des villes cochées (clés normalisées ; une ancienne valeur enregistrée telle quelle marche aussi). */
 export const villeCorrespond = (cochees, ville) => !cochees.length || cochees.some((v) => cleVille(v) === cleVille(ville));
 
+/** Mode test (PR 1a-1) : le repère `test: true` marque un essai ; absent ou `false` = réel. */
+export const estTest = (fiche) => fiche?.test === true;
+
+/** Texte de la pastille d'un élément de test (une seule source pour les listes, les fiches et l'éditeur de devis). */
+export const BADGE_TEST = '[TEST]';
+
+/** « [TEST] Nom » pour un essai, le nom tel quel sinon. Calculé à l'affichage : le repère ne s'écrit JAMAIS dans le nom stocké. */
+export function libelleAvecTest(nom, test) {
+  const n = String(nom ?? '');
+  return test === true ? `${BADGE_TEST} ${n}` : n;
+}
+
 /** Espaces en trop retirés, casse conservée. */
 export function nettoyerEspaces(texte) {
   return String(texte ?? '').replace(/\s+/g, ' ').trim();
@@ -902,6 +914,7 @@ export function nouvellePersonne(valeurs, ctx) {
     dateOpposition: null,
     archive: false,
     proprietaire: ctx?.proprietaire ?? ctx?.auteur ?? '',
+    ...(valeurs.test === true ? { test: true } : {}),
   };
 }
 
@@ -919,6 +932,7 @@ export function nouvelleOrganisation(valeurs, ctx) {
     etiquettes: [...(valeurs.etiquettes || [])],
     archive: false,
     proprietaire: ctx?.proprietaire ?? ctx?.auteur ?? '',
+    ...(valeurs.test === true ? { test: true } : {}),
   };
 }
 
@@ -1097,6 +1111,7 @@ export function nouvelleAffaire(valeurs, ctx) {
     urlDossier: urlOuVide(validerUrlDossier, valeurs.urlDossier),
     archive: false,
     proprietaire: ctx.proprietaire ?? ctx.auteur ?? '',
+    ...(valeurs.test === true ? { test: true } : {}),
   };
 }
 
@@ -1375,6 +1390,7 @@ export function nouvelleActivite(valeurs, ctx) {
     // Une activité de projet (appel, rendez vous, email, tâche saisis depuis la fiche projet) porte aussi son projet : le champ n'existe que sur elles.
     ...(valeurs.projetId ? { projetId: valeurs.projetId } : {}),
     auteur: ctx.auteur ?? '',
+    ...(valeurs.test === true ? { test: true } : {}),
   };
 }
 
@@ -1489,6 +1505,7 @@ export function nouvelleNote(texte, liens, ctx) {
     // Une note de projet porte aussi son projet (le champ n'existe que sur ces notes : les autres restent comme avant).
     ...(liens?.projetId ? { projetId: liens.projetId } : {}),
     auteur: ctx.auteur ?? '',
+    ...(liens?.test === true ? { test: true } : {}),
   };
 }
 

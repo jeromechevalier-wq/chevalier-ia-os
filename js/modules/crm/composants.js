@@ -53,6 +53,33 @@ export function liensEntete(lire) {
   return { element, maj };
 }
 
+// ---------------------------------------------------------------- mode test (PR 1a-1)
+
+export const MESSAGE_TEST_REFUSE = 'Tu n’as pas le droit de modifier cet élément. Demande à un éditeur de l’espace.';
+export const MESSAGE_TEST_ECHEC = 'Ça n’a pas abouti. Vérifie ta connexion internet, puis réessaie : rien n’a été perdu.';
+
+/** Pastille « [TEST] » d'une fiche de test (null sinon). Un `span` à part : jamais dans la valeur d'un titre éditable, qui l'enregistrerait dans le nom. */
+export function badgeTest(fiche) {
+  return L.estTest(fiche) ? h('span', { class: 'badge-test', title: 'Élément de test', dataset: { badge: 'test' } }, L.BADGE_TEST) : null;
+}
+
+/**
+ * Entrée de menu « … » « Marquer comme test » / « Ce n'est plus un test ». `ecrire(patch)` : l'écriture du module (D.majPersonne…).
+ * Retirer le repère écrit `test: false` (réel aussi, comme absent). Un refus (lecteur : permission-denied) ou une panne affiche un message, sans planter.
+ */
+export function entreeMarquerTest(fiche, ecrire) {
+  const test = L.estTest(fiche);
+  return {
+    libelle: test ? 'Ce n’est plus un test' : 'Marquer comme test', icone: 'tag',
+    action: async () => {
+      try { await ecrire({ test: !test }); } catch (e) {
+        console.warn(e);
+        toast(e?.code === 'permission-denied' ? MESSAGE_TEST_REFUSE : MESSAGE_TEST_ECHEC, { type: 'erreur' });
+      }
+    },
+  };
+}
+
 /** Met à jour la valeur affichée d'un sélecteur (Personne, Organisation) sans rien écrire, sauf si on est en train de taper dedans. */
 export function afficherSelecteur(selecteur, element, versChoix) {
   if (document.activeElement === selecteur.entree) return;
