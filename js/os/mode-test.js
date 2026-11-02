@@ -16,11 +16,15 @@ function poserAttribut(allume) {
   } catch { /* pas de document (tests en Node) */ }
 }
 
-export function definirModeTest(allume) {
-  const v = allume === true;
-  ecrirePreference(CLE, v ? '1' : '0');
+function prevenir() {
+  const v = modeTestAllume(); // source unique : le stockage (s'il est bloqué, le mode reste éteint, l'écran le dit)
   poserAttribut(v);
   for (const f of [...abonnes]) { try { f(v); } catch (e) { console.warn('Mode test : abonné en échec', e); } }
+}
+
+export function definirModeTest(allume) {
+  ecrirePreference(CLE, allume === true ? '1' : '0');
+  prevenir();
 }
 
 /** Appelle `fn(allume)` à chaque changement ; renvoie la fonction qui arrête l'abonnement. */
@@ -35,3 +39,5 @@ export function avecModeTest(valeurs) {
 }
 
 poserAttribut(modeTestAllume());
+// Un autre onglet du même navigateur change le mode : l'écran de celui-ci le dit aussi (le repère est lu dans le même stockage).
+try { window.addEventListener('storage', (e) => { if (e.key === null || e.key === `chevalier-os.${CLE}`) prevenir(); }); } catch { /* pas de fenêtre */ }

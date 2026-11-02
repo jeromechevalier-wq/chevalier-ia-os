@@ -236,3 +236,15 @@ test('6 réglages et catalogue ne sont jamais marqués, même en mode test', asy
     for (const ligne of src.split('\n')) if (ligne.includes(`${nom}(`) && !ligne.includes('export')) expect(ligne).not.toContain('avecModeTest');
   }
 });
+
+test('1 stockage bloqué au clic : l’écran reste cohérent (éteint, aucun liseré) ; deux onglets : l’autre onglet suit', async ({ page, context }) => {
+  await connecter(page);
+  const autre = await context.newPage();
+  await autre.goto('/?emulateurs=1#/crm/accueil');
+  await autre.waitForFunction(() => !!window.__chevalierTest);
+  await page.evaluate((c) => localStorage.setItem(c, '1'), CLE); // simule l'autre onglet qui allume
+  await expect(autre.locator('html')).toHaveAttribute('data-mode-test', '1');
+  await page.evaluate((c) => localStorage.setItem(c, '0'), CLE);
+  await expect(autre.locator('html')).not.toHaveAttribute('data-mode-test', /.*/);
+  await autre.close();
+});
