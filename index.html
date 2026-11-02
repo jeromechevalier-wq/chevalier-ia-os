@@ -25,6 +25,10 @@
   try { if (localStorage.getItem('chevalier-os.theme') === 'clair') document.documentElement.dataset.theme = 'clair'; } catch (e) {}
 </script>
 <script>
+  // Mode test : repère posé avant le premier affichage (pas de flash du bandeau). Valeur absente ou stockage illisible = éteint.
+  try { if (localStorage.getItem('chevalier-os.modeTest') === '1') document.documentElement.dataset.modeTest = '1'; } catch (e) {}
+</script>
+<script>
   // Largeur du menu choisie avec la poignée, posée avant le premier affichage (pas de saut). Mêmes bornes que MENU_LARGEUR dans js/os/shell.js ; valeur illisible = défaut du CSS.
   try { var l = localStorage.getItem('chevalier-os.menu-largeur'); if (/^\d{3}$/.test(l) && +l >= 200 && +l <= 420) document.documentElement.style.setProperty('--menu-largeur', l + 'px'); } catch (e) {}
 </script>

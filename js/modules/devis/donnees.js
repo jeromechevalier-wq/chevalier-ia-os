@@ -13,6 +13,7 @@ import * as B from './brouillon.js';
 import * as F from './familles.js';
 import * as V from './vocabulaire-plans.js';
 import * as U from './usage.js';
+import { avecModeTest } from '../../os/mode-test.js';
 
 export const etat = {
   articles: [], familles: F.famillesDe(null), reglages: A.reglagesDevis(null), pret: false, reglagesPrets: false, erreurLecture: false,
@@ -298,7 +299,7 @@ export async function enregistrerReglages(saisie) {
 /** Crée un brouillon de devis (version 1, sans numéro) : `{ erreurs, id }`. Les réglages du module donnent la marge, la TVA et la durée de validité de départ. */
 export async function creerBrouillon(valeurs) {
   const c = CRM.ctx();
-  const plan = B.planCreerBrouillon(valeurs, { ...c, proprietaire: c.auteur }, etat.reglages);
+  const plan = B.planCreerBrouillon(avecModeTest(valeurs), { ...c, proprietaire: c.auteur }, etat.reglages);
   if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs, id: null };
   await CRM.executer(plan.ecritures, 'creerBrouillonDevis');
   return { erreurs: {}, id: plan.id };
