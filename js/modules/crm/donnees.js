@@ -9,6 +9,7 @@ import { db } from '../../os/firebase.js';
 import { normaliserBase, cheminCollection } from '../../os/chemins.js';
 import { configurerCelebrations } from '../../os/celebrations.js';
 import * as L from './logique.js';
+import { avecModeTest } from '../../os/mode-test.js';
 
 // Les collections des modules Projets, Devis et Veille sont dans la sauvegarde complète (l'export JSON), même si elles ne sont pas des collections du CRM.
 export const COLLECTIONS_CRM = [
@@ -355,7 +356,7 @@ export function ecouterFil(lien, rappel) {
 // ---------------------------------------------------------------- personnes
 
 export async function creerPersonne(valeurs) {
-  const plan = L.planCreerPersonne(valeurs, ctx());
+  const plan = L.planCreerPersonne(avecModeTest(valeurs), ctx());
   await executer(plan.ecritures, 'creerPersonne');
   return plan.id;
 }
@@ -399,7 +400,7 @@ export async function supprimerPersonne(id, choix) {
 // ---------------------------------------------------------------- organisations
 
 export async function creerOrganisation(valeurs) {
-  const plan = L.planCreerOrganisation(valeurs, ctx());
+  const plan = L.planCreerOrganisation(avecModeTest(valeurs), ctx());
   await executer(plan.ecritures, 'creerOrganisation');
   return plan.id;
 }
@@ -422,7 +423,7 @@ export async function supprimerOrganisation(id) {
 /** `modeleId` (facultatif) : un modèle d'affaire des Réglages ; il préremplit l'affaire et crée ses activités types. */
 export async function creerAffaire(valeurs, { modeleId = null } = {}) {
   const modele = modeleId ? etat.modelesAffaire.find((m) => m.id === modeleId) ?? null : null;
-  const plan = L.planCreerAffaire(valeurs, { personnes: etat.personnes, organisations: etat.organisations, modele }, ctx());
+  const plan = L.planCreerAffaire(avecModeTest(valeurs), { personnes: etat.personnes, organisations: etat.organisations, modele }, ctx());
   await executer(plan.ecritures, 'creerAffaire');
   return plan.id;
 }
@@ -466,7 +467,7 @@ export async function supprimerAffaire(id) {
 // ---------------------------------------------------------------- activités
 
 export async function creerActivite(valeurs) {
-  const plan = L.planCreerActivite(valeurs, ctx());
+  const plan = L.planCreerActivite(avecModeTest(valeurs), ctx());
   await executer(plan.ecritures, 'creerActivite');
   return plan.id;
 }
@@ -489,7 +490,7 @@ export async function supprimerActivite(id) {
 // ---------------------------------------------------------------- notes
 
 export async function creerNote(texte, liens) {
-  const plan = L.planCreerNote(texte, liens, ctx());
+  const plan = L.planCreerNote(texte, avecModeTest(liens), ctx());
   await executer(plan.ecritures, 'creerNote');
   return plan.id;
 }

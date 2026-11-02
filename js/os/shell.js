@@ -4,6 +4,7 @@ import { MODULES } from './modules.js';
 import { blocsDuMenu, routeArriveeMenu } from './registre.js';
 import { badgeDe, definirBadge, surBadge, texteBadge, phraseBadge } from './badges.js';
 import { naviguer, lien } from './router.js';
+import { modeTestAllume, definirModeTest, surModeTest } from './mode-test.js';
 
 // Routes sans entrée de menu -> entrée allumée à leur place (l'écran principal de leur module).
 /** Écrans qui gardent la barre de recherche et le bouton « + » du haut (les autres : Veille, Automatisations, Maintenance, réglages, journal, assistant…). */
@@ -253,10 +254,28 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   poserLargeur(largeur);
   majPoignee();
 
+  // Mode test : bouton à part dans le bas du menu (visible sur toutes les pages et dans le tiroir du téléphone), PAS une entrée `menu-entree`.
+  const boutonModeTest = h('button', { type: 'button', class: 'menu-mode-test', dataset: { role: 'mode-test' }, onclick: () => definirModeTest(!modeTestAllume()) });
+  const majModeTest = () => {
+    const v = modeTestAllume();
+    remplir(boutonModeTest, icone('flask-conical', { taille: 20 }), h('span', { class: 'menu-texte' }, 'Mode test'));
+    boutonModeTest.setAttribute('aria-pressed', String(v));
+    boutonModeTest.setAttribute('aria-label', v ? 'Mode test, allumé' : 'Mode test, éteint');
+    boutonModeTest.dataset.infobulle = v ? 'Mode test, allumé' : 'Mode test, éteint';
+  };
+  majModeTest();
+  // Bandeau orange tant que le mode est allumé : élément propre de la zone, non collant, avec son bouton « Éteindre ».
+  const bandeauTest = h('div', { class: 'bandeau-test', role: 'status', dataset: { role: 'bandeau-test' } },
+    h('span', { class: 'bandeau-test-texte' }, 'MODE TEST : ce que tu crées ici est marqué test et n’entre pas dans les statistiques'),
+    h('button', { type: 'button', class: 'bouton', dataset: { role: 'eteindre-mode-test' }, onclick: () => definirModeTest(false) }, 'Éteindre'));
+  const majBandeauTest = () => { bandeauTest.hidden = !modeTestAllume(); };
+  majBandeauTest();
+  surModeTest(() => { majModeTest(); majBandeauTest(); });
+
   const menu = h('aside', { class: 'menu', id: 'menu', 'aria-label': 'Menu principal' },
     h('div', { class: 'menu-marque' }, marqueNom, boutonRepli),
     nav,
-    h('div', { class: 'menu-bas' }, boutonCompte));
+    h('div', { class: 'menu-bas' }, boutonModeTest, boutonCompte));
 
   const boutonMobile = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Ouvrir le menu', 'aria-controls': 'menu', 'aria-expanded': 'false', dataset: { role: 'ouvrir-menu' },
     onclick: () => ouvrirMobile(!coquille.classList.contains('menu-ouvert')) }, icone('menu', { taille: 22 }));
@@ -300,7 +319,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   const barreHaut = h('header', { class: 'barre-haut' }, boutonMobile, marqueHaut, boutonRecherche, boutonPlusMobile, initiale(30, true));
   const voile = h('div', { class: 'voile-menu', onclick: () => ouvrirMobile(false) });
   const contenu = h('main', { class: 'contenu', id: 'contenu', tabindex: '-1' });
-  const zone = h('div', { class: 'zone' }, barreOutils, contenu);
+  const zone = h('div', { class: 'zone' }, bandeauTest, barreOutils, contenu);
   const coquille = h('div', { class: 'coquille', dataset: { menu: elargi ? 'elargi' : 'replie' } }, barreHaut, menu, voile, zone);
   racine.append(coquille);
 

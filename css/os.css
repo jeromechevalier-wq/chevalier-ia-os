@@ -228,6 +228,16 @@ body.page-connexion {
 .menu-texte { overflow: hidden; text-overflow: ellipsis; transition: opacity var(--transition); }
 .coquille[data-menu='replie'] .menu .menu-texte { opacity: 0; pointer-events: none; }
 .menu-bas { padding: var(--esp-4); border-top: 1px solid var(--bordure); display: flex; flex-direction: column; gap: 2px; flex: none; }
+/* Mode test (PR 1a-2a) : bouton du bas du menu, bandeau orange non collant en haut de la zone, liseré intérieur. Couleurs du thème seulement (--attention existe en clair et en sombre). */
+.menu-mode-test { position: relative; display: flex; align-items: center; gap: var(--esp-4); width: 100%; padding: var(--esp-2); min-height: var(--h-ctrl); white-space: nowrap; border: 0; border-radius: var(--rayon); background: transparent; color: var(--texte2); cursor: pointer; text-align: left; font: inherit; font-weight: var(--poids-moyen); -webkit-tap-highlight-color: transparent; }
+.menu-mode-test svg { flex: none; margin: 0 6px; }
+.menu-mode-test:hover { background: var(--survol); }
+.menu-mode-test[aria-pressed='true'] { color: var(--attention); }
+@media (max-width: 767px) { .menu-mode-test { min-height: 44px; } }
+.bandeau-test { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-4); flex-wrap: wrap; padding: var(--esp-3) var(--esp-6); background: color-mix(in srgb, var(--attention) 38%, var(--panneau)); color: var(--texte); border-bottom: 1px solid var(--attention); font-weight: var(--poids-moyen); }
+.bandeau-test[hidden] { display: none; }
+.bandeau-test-texte { min-width: 0; flex: 1 1 240px; }
+html[data-mode-test] .zone { box-shadow: inset 0 0 0 3px var(--attention); }
 .menu-compte { position: relative; display: flex; align-items: center; gap: var(--esp-4); width: 100%; padding: var(--esp-2); min-height: var(--h-menu-compte); white-space: nowrap; border: 0; border-radius: var(--rayon); background: transparent; color: var(--texte); cursor: pointer; text-align: left; font: inherit; }
 .menu-compte { -webkit-tap-highlight-color: transparent; }
 .menu-compte:hover, .menu-compte[aria-expanded='true'] { background: var(--survol); }

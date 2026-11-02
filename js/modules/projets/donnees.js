@@ -8,6 +8,7 @@ import { db } from '../../os/firebase.js';
 import * as CRM from '../crm/donnees.js';
 import * as CL from '../crm/logique.js';
 import * as P from './logique.js';
+import { avecModeTest } from '../../os/mode-test.js';
 
 export const etat = { projets: [], taches: [], modeles: [], pret: false, tachesPretes: false, modelesPrets: false };
 
@@ -125,7 +126,7 @@ async function appliquer(plan, outil) {
 
 /** Valeurs : titre (obligatoire) et, facultatif, personneId, organisationId, affaireId, offreId, dateDebut, dateFin. `modeleId` : le projet part avec les tâches du modèle. Renvoie l'identifiant du projet. */
 export async function creerProjet(valeurs, { modeleId = null } = {}) {
-  const plan = P.planCreerProjet(valeurs, ctx(), { modele: modeleId ? modele(modeleId) : null });
+  const plan = P.planCreerProjet(avecModeTest(valeurs), ctx(), { modele: modeleId ? modele(modeleId) : null });
   await appliquer(plan, 'creerProjet');
   return plan.id;
 }
@@ -205,7 +206,7 @@ async function notesDeLAffaire(affaireId) {
 export async function creerProjetDepuisAffaire(affaireId, valeurs = {}, { modeleId = null } = {}) {
   const affaire = affaireOuErreur(affaireId);
   const notesAffaire = await notesDeLAffaire(affaireId);
-  const plan = P.planCreerProjetDepuisAffaire({ affaire, projets: etat.projets, valeurs, modele: modeleId ? modele(modeleId) : null, notesAffaire }, ctx());
+  const plan = P.planCreerProjetDepuisAffaire({ affaire, projets: etat.projets, valeurs: avecModeTest(valeurs), modele: modeleId ? modele(modeleId) : null, notesAffaire }, ctx());
   await appliquerLien(plan, 'creerProjetDepuisAffaire');
   return plan.id;
 }
@@ -236,7 +237,7 @@ async function appliquerTache(plan, outil) {
 export async function creerTache(projetId, valeurs) {
   const p = projet(projetId);
   if (!p) throw new Error('Projet introuvable');
-  const plan = await appliquerTache(P.planCreerTache({ projet: p, taches: etat.taches, valeurs }, ctx()), 'creerTache');
+  const plan = await appliquerTache(P.planCreerTache({ projet: p, taches: etat.taches, valeurs: avecModeTest(valeurs) }, ctx()), 'creerTache');
   return plan.id;
 }
 
