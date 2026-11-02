@@ -23,19 +23,19 @@ Jérôme fait beaucoup d'essais dans sa vraie base (personnes, organisations, af
 | Sujet | Où | Ce que ça fait |
 |---|---|---|
 | Numéro de devis | `functions/src/coeur/devis.js:154-176` (`finaliser`) | attribué à la **première finalisation**, dans la transaction, avec le compteur `devis_compteurs/global` (`ID_COMPTEUR`, `devis.js:26` ; collection `donnees.js:35`) ; une version 2 ou plus **garde le numéro de sa racine** |
-| Format | `js/modules/devis/logique.js:530-534` (`numeroDevis`) | `DEV-AAAA-MM-JJ-NNN` ; refuse un compteur < 1 ; le préfixe `DEV-` est en dur ; 65 fichiers de tests contiennent « DEV- » |
+| Format | `js/modules/devis/logique.js:530-534` (`numeroDevis`) | `DEV-AAAA-MM-JJ-NNN` ; refuse un compteur < 1 ; le préfixe `DEV-` est en dur ; plus de 60 fichiers de tests contiennent « DEV- » |
 | Règles Firestore (Jérôme) | `firestore.rules:70-90` | brouillon neuf : `numero == null` ; un brouillon se modifie, un devis finalisé **jamais** depuis le navigateur ; `delete: if false` sur `devis_devis` ; `devis_compteurs` ni lu ni écrit |
 | Règles Firestore (clients) | `firestore.plateforme.rules:77-97` | mêmes règles sous `clients/<client>/` |
 | Suppression d'un devis | `functions/src/coeur/devis.js:293-299`, outil `supprimer_devis` (`functions/src/mcp/outils/suppression.js:32`) | **brouillon seulement** ; la copie « avant » reste dans `crm_audit_avant` |
 | Qui peut écrire quoi | `firestore.rules:172-174` | personnes, organisations, affaires, projets : règle générique, écriture libre pour un compte autorisé. Un devis : oui tant que brouillon, **non une fois finalisé** (`devisBrouillonModifie`, l.75-78) |
-| Aperçu puis code | `functions/src/securite/codes.js` | modèle de `supprimer_devis` et `finaliser_devis` ; plafond de suppressions par jour : `docs/securite-et-pannes.md:248` |
+| Aperçu puis code | `functions/src/securite/codes.js` | modèle de `supprimer_devis` et `finaliser_devis` ; plafond de suppressions par jour : `docs/securite-et-pannes.md:149`, aperçu puis code `:250` |
 | Marqueur déjà existant | `scripts/plateforme/donnees-demo.js:7,36` : `donneesDemo: true` | sert au jeu de démonstration livré ; `--retirer` ne supprime que ces documents |
 | Création d'un devis | **navigateur** : `js/modules/devis/actions-devis.js:114,146` → `D.creerBrouillon` (`donnees.js:299`, plan `brouillon.js:15`). Serveur : `creer_devis_brouillon` (`ecriture.js:184`), `creer_devis_depuis_modele` (208), `nouvelle_version_devis` (225) | il n'existe **pas** de fonction serveur « devis depuis une affaire » : le bouton « Nouveau devis » écrit depuis le navigateur |
 | Recherche | `js/os/shell.js:267` (écran), outil `chercher` (`functions/src/mcp/outils/lecture.js:13`, personnes / organisations / affaires) | recherche par nom |
 | Exports | `js/modules/{crm,devis,projets,automatisations,tableaudebord,veille}/export.js` (CRM : `export.js:7-11`, liste `js/os/registre.js:119`) | chaque module a son export |
 | Préférences d'écran | `js/os/ui.js:292-295` : `localStorage`, clés `chevalier-os.*` | par navigateur, jamais côté serveur |
 
-**Écart signalé** : le fichier partagé `functions-plateforme/serveur/partage/devis-numeros.js` cité dans le brief **n'existe pas** dans le dépôt. Le calcul du numéro est `numeroDevis` dans `js/modules/devis/logique.js`, copié vers `functions/partage/devis.js` par `scripts/preparer-fonctions.js`. Un test existe : `tests/devis-numeros.test.js`. Une seule source, donc une seule modification pour les deux dossiers.
+**Où le numéro se calcule (vérifié par la relecture du 02/11/2026)** : le fichier `functions-plateforme/serveur/partage/devis-numeros.js` existe (copie générée par `scripts/preparer-fonctions.js:46-49` et `104-107`, ignorée par git), mais c'est la copie de `js/modules/devis/numeros-lignes.js`, le résolveur « 1.2 » → ligne de devis : **rien à voir avec le numéro du devis**. `tests/devis-numeros.test.js` teste ce résolveur ; le vrai test du numéro est `tests/devis-logique.test.js`. Le numéro se calcule ainsi : chez Jérôme, `functions/src/coeur/devis.js` (`finaliser`) et `numeroDevis` dans `js/modules/devis/logique.js` (copié vers `functions/partage/devis.js`) ; chez les clients, `functions-plateforme/src/devis.js` (`devisFinaliser`, `avecBase` l.49) → `functions-plateforme/serveur/src/coeur/devis.js` (copie de `functions/src/coeur/devis.js`) → `functions-plateforme/serveur/partage/devis.js` (copie de `js/modules/devis/logique.js`). **Une seule source** : une modification, deux dossiers.
 
 ## 4. Modèle de données (recommandation)
 
@@ -50,7 +50,7 @@ Jérôme fait beaucoup d'essais dans sa vraie base (personnes, organisations, af
 
 | | Stocké dans le nom (« [TEST] Dupont ») | Calculé à l'affichage (recommandé) |
 |---|---|---|
-| Recherche « test » | trouve | **ne trouve pas, sauf si on cherche aussi le champ** → on le fait (voir 4.2 et 11) |
+| Recherche « test » | trouve | **ne trouve pas, sauf si on cherche aussi le champ** → on le fait (voir 11) |
 | Tri alphabétique | tous les tests se regroupent au « [ » | les tests restent à leur place dans l'alphabet |
 | PDF du devis | `figerPourFinalisation` fige `clientNom` (`devis.js:171`) : le nom « [TEST] … » sort **sur le PDF** | le PDF porte le vrai nom de la fiche et le numéro `TEST-001` |
 | E-mails (brouillon Gmail) | le « [TEST] » part dans l'objet et le texte | rien de plus que le numéro |
@@ -75,7 +75,7 @@ Jérôme fait beaucoup d'essais dans sa vraie base (personnes, organisations, af
 
 ### 5.2 Par l'assistant (MCP)
 
-- Paramètre optionnel **`test`** (booléen) sur : `creer_personne` (`ecriture.js:62`), `creer_organisation` (73), `creer_affaire` (82), `creer_projet` (102), `creer_projet_depuis_affaire` (107), `creer_devis_brouillon` (184), `creer_devis_depuis_modele` (208), `creer_activite` (277). `nouvelle_version_devis` (225) **hérite** du repère de la version source.
+- Paramètre optionnel **`test`** (booléen) sur : `creer_personne` (`ecriture.js:62`), `creer_organisation` (73), `creer_affaire` (82), `creer_projet` (102), `creer_projet_depuis_affaire` (107), `creer_devis_brouillon` (184), `creer_devis_depuis_modele` (208), `creer_activite` (277). `nouvelle_version_devis` (225) **hérite déjà** du repère de la version source sans rien coder : `nouvelleVersion` (`js/modules/devis/logique.js:1034-1046`) fait un `structuredClone` du devis et ne retire pas `test`. `creer_devis_depuis_modele` (208) **n'hérite pas** du repère du modèle (un modèle n'est pas un essai) : le devis reçoit le repère de son affaire ou de l'interrupteur, comme tout nouveau devis.
 - Deux **nouveaux outils** : `marquer_test` et `demarquer_test` (une personne, une organisation, une affaire, un projet, un devis ; aperçu puis code seulement pour un devis finalisé, voir 8.2).
 - **La consigne vit chez nous** : (1) la description du paramètre `test` dit « mets `true` si l'utilisateur parle d'un test, d'un essai, d'une démo ; sinon n'envoie rien ; ne devine jamais » ; (2) la **réponse** de chaque création rappelle `test: true/false` et, si le nom contient « test » alors que le repère n'est pas posé, ajoute une ligne : « Le nom contient "test" : appelle `marquer_test` si c'est un essai. » (un conseil, jamais une pose automatique) ; (3) les futures « Consignes stockées » (`docs/cadrage-consignes-stockees.md`) pourront reprendre ce texte. **Rien à coller chez ChatGPT ou Claude.**
 - `lister_*` et `chercher` : chaque résultat porte `test: true` quand il est posé ; un paramètre `tests` (`inclure` par défaut, `exclure`, `seulement`) les filtre. Par défaut on inclut : l'utilisateur doit pouvoir dire « montre-moi mon client de test ».
@@ -94,7 +94,7 @@ Jérôme fait beaucoup d'essais dans sa vraie base (personnes, organisations, af
 
 ### 5.5 Projets
 
-Le repère est posé sur les projets exactement comme sur les affaires (même règle générique), et les projets de test sortent du chiffre d'affaires (`caParMois` lit les projets, `accueil.js:192`). **À confirmer par Jérôme** (question 7).
+Le repère est posé sur les projets exactement comme sur les affaires (même règle générique), et les projets de test sortent du chiffre d'affaires (`caParMois`, défini `logique.js:1801`, lit les projets ; l'appel est `accueil.js:192`). **À confirmer par Jérôme** (question 7).
 
 ## 6. Interrupteur « Mode test » à l'écran
 
@@ -115,8 +115,8 @@ Règle commune : **un élément test n'entre dans aucun chiffre**. Une fonction 
 | Bloc « À faire » (`pointsCles`) | `logique.js:1458` | **ne change pas** : c'est une liste d'actions, pas une statistique ; l'élément de test s'y affiche avec son badge « [TEST] » pour qu'on puisse le travailler |
 | Montant d'une affaire | `montantDesDevis` `js/modules/devis/logique.js:596` ; outil `recalculer_montants_affaires` (`ecriture.js:263`, cœur `functions/src/coeur/metier.js:1513-1541`) | un devis compte dans le montant de son affaire **seulement si son repère est le même que celui de l'affaire** : devis de test sur affaire de test = montant visible pour tester ; devis de test sur affaire réelle = ignoré |
 | Usage des articles | `functions/src/coeur/usage-articles.js:6-8` ; outil `recalculer_usage_articles` (`ecriture.js:268`) | ajouter à la liste des règles de comptage : « **jamais un devis de test** » (même fonction pour la finalisation et pour le recalcul) |
-| Liste des devis et pastilles de nombre | module Devis (listes, pastille « Devis ») | les devis de test restent dans la liste (badge) mais n'entrent pas dans les nombres de pastille ni dans `peutArchiver`-pastilles de totaux (`logique.js:565`) |
-| Tableau de bord, Veille, Automatisations | `js/modules/tableaudebord/`, `veille/`, `automatisations/` | **à repérer par `grep` au début de la PR 1** : tout calcul qui lit affaires, projets, devis ou personnes applique `sansTests` ; le résultat du `grep` est écrit dans la PR |
+| Liste des devis et pastilles de nombre | module Devis (listes, pastille « Devis ») | les devis de test restent dans la liste (avec leur badge) mais n'entrent pas dans les nombres des pastilles ni dans les totaux. `peutArchiver` (`logique.js:565`) ne change pas : un devis de test s'archive comme les autres |
+| Tableau de bord, Veille, Automatisations | `js/modules/tableaudebord/`, `veille/`, `automatisations/` | **à repérer par `grep` au début de la PR 1b** : tout calcul qui lit affaires, projets, devis ou personnes applique `sansTests` ; le résultat du `grep` est écrit dans la PR |
 | Exports | `export.js` de chaque module | les tests sont **inclus**, avec une colonne/un champ `test` visible (on exporte « mes données » ; question 4) |
 | Recherche globale | `js/os/shell.js:267` ; outil `chercher` (`lecture.js:13`) | les tests sont trouvés (par le nom ou par le mot « test ») et affichent leur badge |
 | Compteur global des numéros | `devis_compteurs/global` | ne bouge **jamais** pour un devis de test (voir 8.1) |
@@ -125,12 +125,12 @@ Règle commune : **un élément test n'entre dans aucun chiffre**. Une fonction 
 
 ### 8.1 Numérotation
 
-- Un **second document de compteur** `devis_compteurs/test` et une **fonction distincte `numeroDevisTest(compteur)`** → `TEST-001` (3 chiffres au moins, sans date). On ne touche **pas** à `numeroDevis` ni au compteur `global` : le test C2 (10 finalisations simultanées, `tests/devis-serveur-firestore.test.js:54-60`), `tests/devis-numeros.test.js` et les 65 fichiers qui contiennent « DEV- » restent verts sans changement.
+- Un **second document de compteur** `devis_compteurs/test` et une **fonction distincte `numeroDevisTest(compteur)`** → `TEST-001` (3 chiffres au moins, sans date). On ne touche **pas** à `numeroDevis` ni au compteur `global` : le test C2 (10 finalisations simultanées, `tests/devis-serveur-firestore.test.js:54-60`), `tests/devis-logique.test.js` et les plus de 60 fichiers de tests qui contiennent « DEV- » restent verts sans changement.
 - Dans `finaliser` (`functions/src/coeur/devis.js:154-176`), **le serveur seul décide** si le devis est un devis de test :
   - version 1 (pas de numéro) : test si `devis.test === true`, ou si l'affaire ou la fiche client est de test (5.4) ; si oui, compteur `test` et `numeroDevisTest` ; sinon, compteur `global` comme aujourd'hui ;
   - version 2 ou plus (la racine a déjà un numéro) : le numéro **ne change pas** et le statut test est celui du **préfixe du numéro** (`TEST-` = test, `DEV-` = réel), quel que soit le champ du brouillon (que le navigateur peut modifier). Un brouillon marqué test sur une racine `DEV-` est donc remis réel à la finalisation, et un brouillon « réel » sur une racine `TEST-` reste test.
 - Le serveur écrit alors `test: true` ou `test: false` explicite sur le devis finalisé.
-- Ce qui peut encore lire `DEV-` : `functions/src/devis/stockage.js:20,39` (nom du PDF « DEV-… v2 – Objet.pdf »), les textes de `js/modules/crm/logique.js:617-618` et `onglet-affaire-logique.js:21`. Ce sont des exemples ou des noms construits à partir du numéro : `TEST-…` y passe sans changement ; **à vérifier par `grep` au début de la PR 3**.
+- Ce qui peut encore lire `DEV-` : `functions/src/devis/stockage.js:20,39` (nom du PDF « DEV-… v2 – Objet.pdf »), les textes de `js/modules/crm/logique.js:617-618` et `js/modules/devis/onglet-affaire-logique.js:21`. Ce sont des exemples ou des noms construits à partir du numéro : `TEST-…` y passe sans changement ; **à vérifier par `grep` au début de la PR 3**.
 
 ### 8.2 Sécurité : un devis réel ne peut jamais être supprimé
 
@@ -140,7 +140,11 @@ C'est le point le plus important. Le garde-fou, en trois verrous :
 2. **La suppression d'un devis finalisé n'est acceptée que si son numéro commence par `TEST-`** (et que `test === true`). Un devis `DEV-` ne se supprime jamais, quel que soit son champ `test`. On ne peut donc pas « rendre un vrai devis supprimable en le déclarant test après coup » : le préfixe ne se réécrit pas.
 3. **Test → réel interdit après finalisation** pour un numéro `TEST-` (« démarquer » est refusé : le numéro dirait le contraire). Pour garder ce devis, on crée un **nouveau devis** ; `nouvelle_version_devis` d'un devis de test **hérite** du repère et garde son numéro `TEST-`.
 
+4. **(si question 6 = non) Pas de restauration d'un devis `TEST-` supprimé** : `restaurer_depuis_audit` refuse explicitement une ligne d'audit d'action `supprimer` sur `devis_devis` dont le `numero` est non nul (aujourd'hui `restaurer.js:53-55` ne refuse que si le devis courant existe et n'est plus brouillon).
+
 Pour un brouillon, rien ne change : on bascule librement test / réel, il n'a pas de numéro.
+
+**Précision sur « Ce n'est plus un test »** : le verrou 3 ne concerne que les `TEST-`. Pour un devis `DEV-` marqué test après coup (question 5), « Ce n'est plus un test » reste **permis** (il n'a jamais pu être supprimé). Conséquences, à dire à Jérôme : un essai à 100 € HT finalisé sous `DEV-…-007` marqué test **sort** du montant de son affaire (`montantDesDevis` l'exclut quand les repères diffèrent) et **retire 1** à l'usage de chaque article qu'il contient (`recalculer_usage_articles`) ; le démarquer fait l'inverse, le chiffre d'affaires de 100 € HT revient.
 
 Le seul moyen d'obtenir un devis supprimable est donc de le déclarer test **avant** sa finalisation, ce qui lui donne un numéro `TEST-`, jamais un vrai. L'aperçu de `finaliser_devis` écrit « devis de test, numéro TEST-001, supprimable » pour qu'on le sache au moment de finaliser. Reste le risque humain (un devis déclaré test par erreur puis envoyé à un vrai client) : voir les risques, section 12.
 
@@ -158,11 +162,12 @@ Le compteur global ne revient jamais en arrière pour qu'un numéro ne soit **ja
 
 - Une action de **Réglages > Mes tests** (aussi un outil MCP `supprimer_tous_les_tests`). **Aperçu d'abord** : la liste chiffrée (« 3 personnes, 2 organisations, 4 affaires, 5 devis, 1 projet ») et les noms ; rien n'est écrit.
 - **Code à usage unique** (`functions/src/securite/codes.js`, même modèle que `supprimer_devis` : lié au jeton, à l'action et à l'**empreinte de la liste**, 5 minutes, une seule fois). Si la liste change entre l'aperçu et la confirmation, le code ne vaut plus.
-- **Plafond quotidien** de suppressions respecté (`docs/securite-et-pannes.md:248`) : au-delà, le travail se fait en plusieurs fois, et l'aperçu le dit.
+- **Plafond quotidien** de suppressions respecté (`docs/securite-et-pannes.md:149`, plafond de suppressions par jour ; aperçu puis code : `:250`) : au-delà, le travail se fait en plusieurs fois, et l'aperçu le dit.
 - **Ne supprime que** les documents dont le repère `test` est posé ; pour un **devis**, seulement si son numéro est `TEST-` **ou nul** (brouillon). Un devis `DEV-` marqué test (voir question 5) n'est **jamais** supprimé.
 - Ordre : devis, puis activités et notes, puis affaires et projets, puis personnes et organisations. Chaque suppression passe par les fonctions de suppression existantes de chaque type (règles de cascade inchangées : `functions/src/coeur/metier.js:609-614` pour une affaire ne touche aucun devis, d'où l'ordre).
+- **Supprimer une affaire ne touche aucun devis** (`planSupprimerAffaire`, `js/modules/crm/logique.js:2265`, et `functions/src/coeur/metier.js:609-614` ; aucun refus pour une affaire qui a des devis). Le cas « affaire de test avec un vrai devis `DEV-` » apparaît donc dans l'aperçu « reliés à un test, non supprimés » : l'affaire part, le devis `DEV-` reste (sans affaire), et l'aperçu le dit avant le code.
 - Un élément **non marqué** relié à un élément de test (par exemple une vraie note sur une personne de test) n'est pas supprimé tout seul : l'aperçu l'affiche dans une section « reliés à un test, non supprimés ».
-- Le **journal** garde tout (`crm_audit`, `crm_audit_avant`), sans durée de vie : décision RGPD du 04/10/2026, rien à changer. Une suppression de test reste donc **restaurable** par `restaurer_depuis_audit` pour tout sauf un devis finalisé `TEST-` (qui, lui, est rétabli depuis la copie « avant » : à décider avec Jérôme s'il veut cette restauration, question 6).
+- Le **journal** garde tout (`crm_audit`, `crm_audit_avant`), sans durée de vie : décision RGPD du 04/10/2026, rien à changer. Une suppression de test reste donc **restaurable** par `restaurer_depuis_audit` pour tout sauf un devis finalisé `TEST-`. **Attention (relecture)** : `functions/src/coeur/restaurer.js:53-55` ne refuse que si le devis courant existe ET n'est plus un brouillon ; un devis supprimé n'a plus de document courant, donc `restaurer_depuis_audit` recréerait un `TEST-` finalisé AVEC son numéro. Si Jérôme répond « non » à la question 6, il faut un **refus explicite** (4e verrou, voir 8.2).
 
 ## 10. Chez les clients
 
@@ -187,12 +192,13 @@ Le compteur global ne revient jamais en arrière pour qu'un numéro ne soit **ja
 
 ## 12. Découpage en PR
 
-Une PR = un sujet, fusionnée dans la journée. Toutes avec **relecture Fable obligatoire** (données, serveur, règles, statistiques). Chaque nouveau test d'écran se lance aussi en format téléphone (`--project=telephone`). Chaque PR vérifie `grep` dans `tests/e2e/` des sélecteurs et listes qu'elle change.
+Une PR = un sujet, fusionnée dans la journée. **Cinq PR** (1a, 1b, 2, 3, 4). Toutes avec **relecture Fable obligatoire** (données, serveur, règles, statistiques). Chaque nouveau test d'écran se lance aussi en format téléphone (`--project=telephone`). Chaque PR vérifie `grep` dans `tests/e2e/` des sélecteurs et listes qu'elle change.
 
 | # | Sujet | Contenu | Dépend de | Liste d'arrêt ? |
 |---|---|---|---|---|
-| 1 | **Repère + affichage + écran + statistiques** | champ `test`, `libelleAvecTest` (badge « [TEST] »), menu « … » (Marquer / Ce n'est plus un test), interrupteur « Mode test » + bandeau, héritage à la création, `sansTests` appliqué à tous les chiffres du tableau 7, recherche par le mot « test », export avec colonne test | rien | non (écran + données de l'écran ; aucune donnée existante modifiée) |
-| 2 | **Outils MCP + consigne côté serveur** | paramètre `test` sur les 8 outils de création, `nouvelle_version_devis` hérite, `marquer_test` / `demarquer_test` (cœur commun), filtre `tests` sur `lister_*` et `chercher`, `recalculer_*` excluent les tests, réponses avec conseil « le nom contient test » ; **aux deux endroits** (`functions-plateforme/`) | PR 1 | non |
+| 1a | **Repère + écran** | champ `test`, `libelleAvecTest` (badge « [TEST] »), menu « … » (Marquer / Ce n'est plus un test), interrupteur « Mode test » + bandeau, héritage à la création | rien | non (écran ; aucune donnée existante modifiée) |
+| 1b | **Statistiques + recherche + exports** | `sansTests` appliqué à tous les chiffres du tableau 7 (avec le `grep` des modules Tableau de bord, Veille, Automatisations), recherche par le mot « test », export avec colonne test | 1a | non |
+| 2 | **Outils MCP + consigne côté serveur** (avec les exclusions de `recalculer_*`) | paramètre `test` sur les 8 outils de création, `nouvelle_version_devis` hérite, `marquer_test` / `demarquer_test` (cœur commun), filtre `tests` sur `lister_*` et `chercher`, `recalculer_*` excluent les tests, réponses avec conseil « le nom contient test » ; **aux deux endroits** (`functions-plateforme/`) | PR 1a et 1b | non |
 | 3 | **Numérotation séparée + suppression des devis de test** | `numeroDevisTest`, compteur `devis_compteurs/test`, `finaliser` (8.1), garde-fou du préfixe (8.2), `supprimer` accepte un devis finalisé `TEST-` (seulement si la question 1 est « oui »), aperçu de `finaliser_devis`, règles si nécessaire ; **aux deux endroits** | PR 2 (cœur de marquage) | **oui si une règle Firestore change** : PR laissée ouverte, verte, étiquette `a-fusionner-par-jerome`, 5 vérifications à l'écran dans la description |
 | 4 | **« Supprimer tous mes tests »** | écran Réglages > Mes tests, outil MCP, aperçu puis code, plafond, ordre de suppression, remise à zéro du compteur de test (si question 2 = oui) ; **aux deux endroits** | PR 3 | non (le code est fusionné ; l'usage sur les données de Jérôme demande son accord) |
 
@@ -204,14 +210,14 @@ Ce qui n'est **pas** fait dans ce chantier : filtre « masquer les tests » dans
 - **Héritage** : affaire depuis une personne de test = test ; devis sur une affaire de test = test ; à la finalisation, le serveur rend test un devis dont la fiche est de test.
 - **Statistiques** : une ligne de test par chiffre du tableau 7 (étapes, CA, objectifs, montant d'affaire, usage des articles) : le chiffre ne bouge pas quand on ajoute un test à 100 € HT.
 - **Numérotation** : 1re finalisation d'un devis de test = `TEST-001`, la suivante `TEST-002`, `devis_compteurs/global` **inchangé** ; un vrai devis juste après = `DEV-…-001` (et non 003) ; 10 finalisations de test simultanées sans doublon (sur le modèle du test C2) ; version 2 d'un devis de test garde `TEST-001`.
-- **Sécurité (les plus importants)** : suppression d'un devis `DEV-` finalisé **refusée** même si on lui pose `test: true` après coup ; démarquer un devis `TEST-` finalisé refusé ; le navigateur ne peut pas écrire `test` sur un devis finalisé ; un brouillon `test:true` sur racine `DEV-` est finalisé en `DEV-` réel ; `supprimer_devis` d'un `TEST-` exige l'aperçu puis le code.
+- **Sécurité (les plus importants)** : suppression d'un devis `DEV-` finalisé **refusée** même si on lui pose `test: true` après coup ; démarquer un devis `TEST-` finalisé refusé ; le navigateur ne peut pas écrire `test` sur un devis finalisé ; un brouillon `test:true` sur racine `DEV-` est finalisé en `DEV-` réel ; `supprimer_devis` d'un `TEST-` exige l'aperçu puis le code ; `restaurer_depuis_audit` refuse de recréer un devis `TEST-` supprimé (si question 6 = non) ; une affaire de test avec un devis `DEV-` apparaît dans « reliés, non supprimés ».
 - **Supprimer tous mes tests** : l'aperçu ne supprime rien ; le code change si la liste change ; plafond respecté ; un devis `DEV-` marqué test n'est jamais supprimé ; élément non marqué relié à un test conservé et listé ; audit conservé.
 - **Clients** : mêmes tests dans `functions-plateforme/`, un client ne touche pas le compteur de l'autre.
 
 ### Risques
 
 1. **Un devis déclaré test par erreur, puis envoyé à un vrai client** : il porterait un numéro `TEST-` et serait supprimable. Parades : aperçu de finalisation très clair, badge « [TEST] » visible dans l'éditeur, option d'un filigrane plus tard.
-2. **Un chiffre oublié dans les statistiques** : d'où `sansTests` à l'entrée des calculs et le `grep` de la PR 1.
+2. **Un chiffre oublié dans les statistiques** : d'où `sansTests` à l'entrée des calculs et le `grep` de la PR 1b.
 3. **Un interrupteur resté allumé** : le bandeau orange est là pour ça ; il retombe sur éteint dans un navigateur neuf.
 4. **Tests de verrouillage existants** qui listent des collections, des champs ou des outils (C19, `parcours`, `devis-barre-globale`, `devis-document`) : à relancer avant l'ouverture de chaque PR (leçon du 29/10/2026) ; les compteurs d'outils MCP se recomptent en lançant les tests.
 5. **Un `setDoc` sans fusion** qui efface le repère (4.3).
@@ -220,7 +226,7 @@ Ce qui n'est **pas** fait dans ce chantier : filtre « masquer les tests » dans
 ## 13. Les données existantes de Jérôme
 
 - Rien à migrer : le champ est absent, tout l'existant est réel.
-- **Claude ne marque aucun test existant sans l'accord écrit de Jérôme dans la session.** Les moyens, une fois les PR 1 et 2 fusionnées : (a) **un par un**, Jérôme clique « Marquer comme test » dans le menu « … » de la fiche (aucune intervention de Claude) ; (b) **en lot**, un outil `marquer_test` avec liste d'identifiants, aperçu puis code, sur la liste que Jérôme valide. Rien n'est écrit dans le dépôt public (ni noms ni phrases).
+- **Claude ne marque aucun test existant sans l'accord écrit de Jérôme dans la session.** Les moyens, une fois les PR 1a et 2 fusionnées : (a) **un par un**, Jérôme clique « Marquer comme test » dans le menu « … » de la fiche (aucune intervention de Claude) ; (b) **en lot**, un outil `marquer_test` avec liste d'identifiants, aperçu puis code, sur la liste que Jérôme valide. Rien n'est écrit dans le dépôt public (ni noms ni phrases).
 - **Cas des devis de test déjà finalisés de Jérôme** : ils ont un vrai numéro `DEV-` consommé. Ils **ne peuvent pas** devenir `TEST-` (le préfixe ne se réécrit pas, 8.2) et **ne seront jamais supprimables**. Les marquer « test » après coup les sortirait seulement des statistiques : question 5.
 
 ## 14. Questions ouvertes pour Jérôme
@@ -232,11 +238,11 @@ Chaque question : la recommandation de Claude en premier. Exemples à 100 €.
 3. **Le mode test de l'écran doit-il aussi s'appliquer à l'assistant ?** **Recommandation : non** (il marque un test seulement quand tu le dis). Sinon il faudrait un réglage enregistré sur le serveur, qu'il lirait avant chaque création.
 4. **Les exports** doivent-ils contenir les éléments de test ? **Recommandation : oui, avec une colonne `test`** (on exporte ses données, on filtre ensuite).
 5. **Marquer « test » un devis déjà finalisé avec un vrai numéro** (pour sortir tes anciens essais des statistiques) ? **Recommandation : oui, par le serveur seulement, pour les statistiques ; il reste `DEV-`, il reste visible et jamais supprimable.** Exemple : un essai à 100 € HT finalisé sous `DEV-…-007` sort du chiffre d'affaires mais garde son numéro 7.
-6. **Un devis `TEST-` supprimé** peut-il être rétabli par `restaurer_depuis_audit` ? **Recommandation : non** (un test supprimé doit rester supprimé ; la copie « avant » reste lisible dans le journal).
+6. **Un devis `TEST-` supprimé** peut-il être rétabli par `restaurer_depuis_audit` ? **Recommandation : non** (un test supprimé doit rester supprimé ; la copie « avant » reste lisible dans le journal). Cela demande un refus explicite dans `restaurer_depuis_audit` (4e verrou, 8.2), sinon l'outil recréerait le devis avec son numéro.
 7. **Les projets** ont-ils aussi leur repère « test » et sortent-ils du chiffre d'affaires ? **Recommandation : oui** (ils comptent dans `caParMois`).
 8. **Un filigrane « DEVIS DE TEST »** sur le PDF et l'e-mail (n8n reçoit `test: true`) ? **Recommandation : plus tard** ; au début, le numéro `TEST-` suffit à les reconnaître.
-9. **Comment marquer tes essais existants** : un par un via le menu « … » (**recommandé**, aucun risque) ou en lot après aperçu (plus rapide, demande ton accord écrit avant)?
-10. **Ordre de fusion et déploiement** : PR 1 puis 2 faites aujourd'hui, PR 3 (règles possibles) demandera ton clic de fusion, déploiement des clients par toi seul : d'accord ?
+9. **Comment marquer tes essais existants** : un par un via le menu « … » (**recommandé**, aucun risque) ou en lot après aperçu (plus rapide, demande ton accord écrit avant) ?
+10. **Ordre de fusion et déploiement** : PR 1a, 1b et 2 faites aujourd'hui, PR 3 (règles possibles) demandera ton clic de fusion, déploiement des clients par toi seul : d'accord ?
 
 ## 15. Journal
 
