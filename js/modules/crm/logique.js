@@ -704,10 +704,13 @@ export const villeCorrespond = (cochees, ville) => !cochees.length || cochees.so
 /** Mode test (PR 1a-1) : le repère `test: true` marque un essai ; absent ou `false` = réel. */
 export const estTest = (fiche) => fiche?.test === true;
 
+/** Texte de la pastille d'un élément de test (une seule source pour les listes, les fiches et l'éditeur de devis). */
+export const BADGE_TEST = '[TEST]';
+
 /** « [TEST] Nom » pour un essai, le nom tel quel sinon. Calculé à l'affichage : le repère ne s'écrit JAMAIS dans le nom stocké. */
 export function libelleAvecTest(nom, test) {
   const n = String(nom ?? '');
-  return test === true ? `[TEST] ${n}` : n;
+  return test === true ? `${BADGE_TEST} ${n}` : n;
 }
 
 /** Espaces en trop retirés, casse conservée. */

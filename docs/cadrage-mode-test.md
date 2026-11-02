@@ -54,7 +54,7 @@ Jérôme fait beaucoup d'essais dans sa vraie base (personnes, organisations, af
 | Tri alphabétique | tous les tests se regroupent au « [ » | les tests restent à leur place dans l'alphabet |
 | PDF du devis | `figerPourFinalisation` fige `clientNom` (`devis.js:171`) : le nom « [TEST] … » sort **sur le PDF** | le PDF porte le vrai nom de la fiche et le numéro `TEST-001` |
 | E-mails (brouillon Gmail) | le « [TEST] » part dans l'objet et le texte | rien de plus que le numéro |
-| « Ce n'est plus un test » | il faut réécrire le nom (risque d'écraser une modification faite entre-temps) | on retire le champ, le nom ne bouge pas |
+| « Ce n'est plus un test » | il faut réécrire le nom (risque d'écraser une modification faite entre-temps) | on écrit `test: false` (= réel, comme absent), le nom ne bouge pas |
 | Un doublon de nom | deux fiches « Dupont » différentes par le préfixe | le badge « TEST » les distingue à l'écran |
 
 **Recommandation : champ `test` + badge « [TEST] » calculé** (une petite fonction `libelleAvecTest(nom, test)` utilisée par tous les écrans), **et la recherche (écran et `chercher`) comprend le champ** : taper « test » ramène les éléments marqués. Le PDF d'un devis de test garde le vrai nom du client ; ce qui l'identifie est le numéro `TEST-…` (voir 11 pour un éventuel « DEVIS DE TEST » sur le PDF).

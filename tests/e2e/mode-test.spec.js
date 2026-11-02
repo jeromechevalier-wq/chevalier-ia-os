@@ -122,7 +122,15 @@ test('3 menus des listes et des cartes : personnes, organisations, affaires (lis
     await carte.locator('.carte-menu').click();
     await choisir(page, 'Marquer comme test');
     await expect(carte.locator('.badge-test')).toHaveText('[TEST]');
+    await carte.locator('.carte-menu').click();
+    await choisir(page, 'Ce n’est plus un test');
+    await expect(carte.locator('.badge-test')).toHaveCount(0);
   }
+  await page.locator('.bascule-vue[data-vue="liste"]').click();
+  await page.locator('tr.ligne-liste[data-id="pr1"] .col-actions button').click();
+  await choisir(page, 'Marquer comme test');
+  await expect(page.locator('tr.ligne-liste[data-id="pr1"] .badge-test')).toHaveText('[TEST]');
+  expect((await lireDocument('projets_projets/pr1')).test).toBe(true);
   expect((await lireDocument('crm_personnes/p1')).test).toBe(true);
   expect((await lireDocument('crm_organisations/o1')).test).toBe(true);
   expect((await lireDocument('crm_affaires/a1')).test).toBe(true);

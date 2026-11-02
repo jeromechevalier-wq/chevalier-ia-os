@@ -409,7 +409,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       boutonRetour(),
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, ref.titre,
-          h('div', { class: 'fiche-sous' }, ref.pastille, (ref.badgeTest = h('span', { class: 'badge-test', title: 'Élément de test', dataset: { badge: 'test' }, hidden: true }, '[TEST]')), ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire))));
+          h('div', { class: 'fiche-sous' }, ref.pastille, (ref.badgeTest = h('span', { class: 'badge-test', title: 'Élément de test', dataset: { badge: 'test' }, hidden: true }, CL.BADGE_TEST)), ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire))));
     // Barre d'actions de l'édition : reste collée en haut de l'écran quand on défile (onglets, Catalogue, Options, Envoyer).
     ref.sentinelle = h('div', { class: 'sentinelle-barre-devis', 'aria-hidden': 'true' });
     ref.barre = h('div', { class: 'barre-devis' },
@@ -812,7 +812,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
 
   // ------------------------------------------------ barre du haut
   const majTitreCompact = () => { if (ref.titreCompact) ref.titreCompact.textContent = ref.titre?.textContent ?? ''; };
-  /** Le repère « test » se lit dans l'instantané Firestore (il n'est pas dans la copie locale `travail`) : le badge suit « Marquer comme test » sans recharger. */
+  /** `travail.test` garde la valeur du chargement : on lit l'instantané Firestore, qui suit « Marquer comme test » sans recharger. */
   const majBadgeTest = () => { if (ref.badgeTest) ref.badgeTest.hidden = (devisCourant() ?? travail)?.test !== true; };
   function majEntete() {
     if (!ref.titre) return;

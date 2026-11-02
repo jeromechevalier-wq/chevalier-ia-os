@@ -60,7 +60,7 @@ export const MESSAGE_TEST_ECHEC = 'Ça n’a pas abouti. Vérifie ta connexion i
 
 /** Pastille « [TEST] » d'une fiche de test (null sinon). Un `span` à part : jamais dans la valeur d'un titre éditable, qui l'enregistrerait dans le nom. */
 export function badgeTest(fiche) {
-  return L.estTest(fiche) ? h('span', { class: 'badge-test', title: 'Élément de test', dataset: { badge: 'test' } }, L.libelleAvecTest('', true).trim()) : null;
+  return L.estTest(fiche) ? h('span', { class: 'badge-test', title: 'Élément de test', dataset: { badge: 'test' } }, L.BADGE_TEST) : null;
 }
 
 /**
