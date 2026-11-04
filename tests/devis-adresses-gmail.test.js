@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { decouper, contientSeparateur, ajouterPlusieurs, filtrerSuggestions } from '../js/modules/devis/saisie-adresses-logique.js';
+import { decouper, ajouterPlusieurs, filtrerSuggestions } from '../js/modules/devis/saisie-adresses-logique.js';
 import * as P from '../js/modules/devis/email-preparer.js';
 import * as Ed from '../js/modules/devis/editeur-logique.js';
 
@@ -19,9 +19,13 @@ describe('1 composant : découpage et ajout', () => {
     assert.deepEqual(decouper('a@x.fr, b@x.fr;c@x.fr  d@x.fr\ne@x.fr'), ['a@x.fr', 'b@x.fr', 'c@x.fr', 'd@x.fr', 'e@x.fr']);
     assert.deepEqual(decouper('<a@x.fr>'), ['a@x.fr']);
     assert.deepEqual(decouper('  ,; '), []);
-    assert.equal(contientSeparateur('a@x.fr'), false);
-    assert.equal(contientSeparateur('a@x.fr '), true);
-    assert.equal(contientSeparateur('a@x.fr,b@x.fr'), true);
+  });
+  test('1 collage « Nom <adresse> » : on garde seulement l’adresse, même avec un nom entre guillemets ou plusieurs contacts', () => {
+    assert.deepEqual(decouper('Marie Durand <marie@exemple.fr>'), ['marie@exemple.fr']);
+    assert.deepEqual(decouper('"Durand, Marie" <marie@exemple.fr>, Paul <paul@exemple.fr>; seul@exemple.fr'), ['marie@exemple.fr', 'paul@exemple.fr', 'seul@exemple.fr']);
+    const r = ajouterPlusieurs([], 'Marie Durand <marie@exemple.fr>', refuserFenetre('destinataires'));
+    assert.deepEqual(r.liste, ['marie@exemple.fr']);
+    assert.equal(r.erreur, null);
   });
   test('1 collage de 3 adresses : les trois sont ajoutées, rien ne reste dans le champ', () => {
     const r = ajouterPlusieurs([], 'a@exemple.fr, b@exemple.fr; c@exemple.fr', refuserFenetre('destinataires'));

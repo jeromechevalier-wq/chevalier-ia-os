@@ -63,8 +63,10 @@ export function saisieAdresses({ lire, ecrire, surChangement = () => {}, refus, 
     let longueurAvant = 0; // taille du champ avant la frappe : un gros saut = collage
     champ.addEventListener('input', (e) => {
       montrer('');
-      const choisiDansLaListe = e.inputType === 'insertReplacementText' || (!e.inputType && filtrerSuggestions(suggestions(), []).includes(champ.value.trim()));
-      const colle = e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop' || champ.value.length - longueurAvant > 1; // collage, ou texte inséré d'un coup
+      const insereDUnCoup = champ.value.length - longueurAvant > 1; // collage, ou choix dans la liste du navigateur
+      const colle = e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop' || insereDUnCoup;
+      // Choix dans la liste de suggestions : le texte inséré d'un coup est exactement une suggestion (pas `insertReplacementText`, que l'autocorrection d'un téléphone déclenche aussi).
+      const choisiDansLaListe = insereDUnCoup && suggestions().some((x) => String(x).trim().toLowerCase() === champ.value.trim().toLowerCase());
       // Seulement quand un séparateur vient d'être tapé ou qu'on colle : un texte refusé laissé dans le champ (avec un espace) ne se revalide pas à chaque frappe.
       const doitValider = choisiDansLaListe || /[\s,;]$/.test(champ.value) || (colle && /[\s,;]/.test(champ.value));
       longueurAvant = champ.value.length;

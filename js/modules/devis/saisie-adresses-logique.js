@@ -2,13 +2,11 @@
 // en s'arrêtant à la première qui est refusée. Les règles de refus (adresse invalide, doublon, maximum) sont données par l'appelant : la fenêtre « Préparer l'e-mail »
 // et l'éditeur du devis ont chacune les leurs. L'écran est dans saisie-adresses.js.
 
-/** Sépare un texte en adresses : virgule, point-virgule, espace ou retour à la ligne ; « Nom <a@b.fr> » donne « a@b.fr ». Les morceaux vides sont ignorés. */
+/** Sépare un texte en adresses : virgule, point-virgule, espace ou retour à la ligne ; « Nom <a@b.fr> » (collé depuis un carnet d'adresses, le nom peut être entre guillemets) donne « a@b.fr ». Les morceaux vides sont ignorés. */
 export function decouper(texte) {
-  return String(texte ?? '').split(/[\s,;]+/).map((m) => m.replace(/^<+|>+$/g, '').trim()).filter(Boolean);
+  const sansNoms = String(texte ?? '').replace(/(?:"[^"]*"\s*|[^<>,;"]*)<([^<>\s]+)>/g, ' $1 ');
+  return sansNoms.split(/[\s,;]+/).map((m) => m.replace(/^<+|>+$/g, '').trim()).filter(Boolean);
 }
-
-/** Vrai si le texte contient déjà un séparateur au milieu ou à la fin (donc une adresse est terminée). */
-export const contientSeparateur = (texte) => /[\s,;]/.test(String(texte ?? '').trim()) || /[\s,;]$/.test(String(texte ?? ''));
 
 /**
  * Ajoute les adresses de `texte` à `liste`. `refuser(adresse, listeCourante)` rend un message ou null.

@@ -178,14 +178,18 @@ test('5 clair ET sombre, ordinateur ET téléphone : la fenêtre tient dans l’
   await simulerServeur(page);
   await ouvrirFenetre(page, 'dThemes');
   await expect(boite(page).locator('[data-zone="copie-preparer-email"]')).toBeVisible(); // une copie déjà remplie ouvre la ligne Cc d'office
-  for (const schema of ['light', 'dark']) {
-    await page.emulateMedia({ colorScheme: schema });
+  const fonds = [];
+  for (const schema of ['clair', 'sombre']) {
+    // Le vrai thème de l'appli (attribut data-theme posé par appliquerTheme), pas la préférence du navigateur.
+    await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, schema);
+    fonds.push(await page.evaluate(() => getComputedStyle(document.querySelector('.dialogue-preparer-email')).backgroundColor));
     await expect.poll(async () => page.evaluate(() => { const b = document.querySelector('.dialogue-preparer-email'); return b.scrollWidth <= b.clientWidth; })).toBe(true);
     if (info.project.name === 'telephone') {
       for (const c of [champA(page), boite(page).locator('[data-action="retirer-destinataire-preparer-email"]').first(), boite(page).locator('[data-action="retirer-copie-preparer-email"]').first()]) {
         await expect.poll(async () => (await c.boundingBox()).height, { message: 'cible assez grande au doigt (la fenêtre finit son animation d’ouverture)' }).toBeGreaterThanOrEqual(44);
       }
     }
-    await capturer(page, info, `5-fenetre-${schema === 'dark' ? 'sombre' : 'clair'}`);
+    await capturer(page, info, `5-fenetre-${schema}`);
   }
+  expect(fonds[0], 'les deux thèmes sont vraiment différents').not.toBe(fonds[1]);
 });
