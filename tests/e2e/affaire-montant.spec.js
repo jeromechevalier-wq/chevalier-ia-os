@@ -30,11 +30,12 @@ test.beforeEach(async ({ page }) => {
   await page.route('https://apis.google.com/js/api.js', (route) => route.fulfill({ status: 200, contentType: 'application/javascript', body: '' }));
 });
 
-test('1 sans devis accepté et sans montant saisi : « Montant estimé » et un tiret gris, jamais un chiffre inventé ni rien d’enregistré', async ({ page }, info) => {
+test('1 sans devis accepté et sans montant saisi : un bouton « + Montant estimé » (ni tiret ni libellé flottant), jamais un chiffre inventé ni rien d’enregistré', async ({ page }, info) => {
   await creerAffaire('a1', { titre: 'Rénovation cuisine' });
   await ouvrirAffaire(page);
-  await expect(libelle(page)).toHaveText('Montant estimé');
-  await expect(montant(page).locator('.prop-fantome')).toHaveText('—');
+  await expect(libelle(page)).toHaveCount(0);
+  await expect(montant(page).locator('.prop-vide')).toHaveText('Montant estimé');
+  await expect(montant(page)).not.toContainText('—');
   await expect(montant(page)).not.toContainText('999');
   await expect(ligneEstime(page)).toHaveCount(0); // un seul endroit pour le montant estimé : l'en-tête
   expect((await lireDocument('crm_affaires/a1')).montant ?? null).toBeNull();

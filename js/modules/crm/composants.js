@@ -213,18 +213,18 @@ export function sectionRepliable({ id, titre, contenu, actions = [], ouverte = t
  */
 /**
  * La ligne « Étiquette  + Ajouter » (texte jaune sans cadre) : le style unique pour ajouter à une liste ou à un champ.
- * `fantome` (facultatif) : un texte gris d'exemple (ex. « 999 € ») affiché à la place de « + Ajouter » ; ce n'est jamais une vraie valeur.
+ * `texte` (facultatif) : le mot après le « + » (ex. « Montant estimé » donne « + Montant estimé »).
  */
-export function boutonAjouter({ libelleAria, surClic, fantome = null, action = null, attributs = {} }) {
-  return h('button', { type: 'button', class: `prop-vide${fantome ? ' prop-fantome' : ''}`, onclick: surClic, 'aria-label': libelleAria, 'data-action': action, ...attributs },
-    ...(fantome ? [fantome] : [icone('plus', { taille: 14 }), 'Ajouter']));
+export function boutonAjouter({ libelleAria, surClic, texte = 'Ajouter', action = null, attributs = {} }) {
+  return h('button', { type: 'button', class: 'prop-vide', onclick: surClic, 'aria-label': libelleAria, 'data-action': action, ...attributs },
+    icone('plus', { taille: 14 }), texte);
 }
 export function ligneAjouter({ libelle, libelleAria, surClic, action = null }) { // (sans icône « i » : voir liens-documents.js pour une ligne avec « i »)
   return h('div', { class: 'prop prop-ajouter' }, h('span', { class: 'prop-libelle' }, libelle),
     h('div', { class: 'prop-valeur' }, boutonAjouter({ libelleAria: libelleAria || `Ajouter : ${libelle}`, surClic, action })));
 }
 
-export function champPropriete({ libelle, valeur = '', type = 'texte', options = [], surEnregistrer, placeholder = '', formater = null, lienVers = null, fournir = null, pas = null, fantome = null, autoriserCreation = true, aideListeVide = '', sansVide = false, messageErreur = '' }) {
+export function champPropriete({ libelle, valeur = '', type = 'texte', options = [], surEnregistrer, placeholder = '', formater = null, lienVers = null, fournir = null, pas = null, texteVide = 'Ajouter', autoriserCreation = true, aideListeVide = '', sansVide = false, messageErreur = '' }) {
   // `sansVide` (Propriétaire) : « — » n'est jamais un choix ; une valeur vide s'affiche « — » (au lieu du bouton « Ajouter »). `messageErreur` : texte du message si l'enregistrement échoue.
   let courant = valeur ?? '';
   let enEdition = false;
@@ -244,7 +244,7 @@ export function champPropriete({ libelle, valeur = '', type = 'texte', options =
     const vide = courant === '' || courant === null || courant === undefined;
     const ouvrirEdition = () => editer();
     if (vide && !sansVide) {
-      remplir(zone, boutonAjouter({ libelleAria: `Ajouter : ${libelle}`, surClic: ouvrirEdition, fantome }));
+      remplir(zone, boutonAjouter({ libelleAria: `Ajouter : ${libelle}`, surClic: ouvrirEdition, texte: texteVide }));
       return;
     }
     const texte = vide ? '—' : texteAffiche();

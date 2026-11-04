@@ -44,13 +44,13 @@ async function verifierAlignement(page, info, texteMontant, largeurMin = 30) {
   expect(montant.x + montant.width).toBeLessThanOrEqual(fenetre.width);
 }
 
-test('J2 le montant estimé vide (tiret « — ») est sur l’axe des boutons de droite, à la même distance du premier bouton que les boutons entre eux', async ({ page }, info) => {
+test('J2 le bouton « + Montant estimé » (montant vide) est sur l’axe des boutons de droite, à la même distance du premier bouton que les boutons entre eux', async ({ page }, info) => {
   await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'proposition_envoyee' });
   await connecter(page);
   await ouvrir(page, '#/crm/affaires/a1');
-  const fantome = page.locator('.fiche-montant .prop-fantome');
-  await expect(fantome).toHaveText('—');
-  await verifierAlignement(page, info, fantome, 12); // un tiret est étroit : on vérifie seulement qu'il n'est pas écrasé
+  const vide = page.locator('.fiche-montant .prop-vide');
+  await expect(vide).toHaveText('Montant estimé');
+  await verifierAlignement(page, info, vide);
   await capturer(page, info, 'J2-montant-tiret');
 });
 

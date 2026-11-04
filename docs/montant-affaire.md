@@ -10,7 +10,7 @@
 
 | Situation de l'affaire | Libellé | Chiffre | Modifiable ? |
 |---|---|---|---|
-| Aucun devis qui compte (module Devis absent, aucun devis finalisé, ou tous refusés, remplacés ou archivés) | **Montant estimé** | ce qui a été tapé à la main ; un tiret gris « — » si rien n'a été tapé | **Oui** (crayon) |
+| Aucun devis qui compte (module Devis absent, aucun devis finalisé, ou tous refusés, remplacés ou archivés) | **Montant estimé** | ce qui a été tapé à la main ; un bouton « + Montant estimé » si rien n'a été tapé (le libellé n'apparaît qu'avec un chiffre) | **Oui** (crayon) |
 | Au moins un devis **accepté** (Signé), non archivé | **Montant accepté HT** | la **somme HT** des devis acceptés | Non (calculé) |
 | Pas de devis accepté, mais au moins un devis **proposé** (Finalisé ou Envoyé) | **Montant proposé HT** | le HT du devis proposé **le plus récent, seul** | Non (calculé) |
 
@@ -39,7 +39,7 @@ Les cartes du Kanban, la liste et les mini-cartes affichent le même chiffre, su
 
 | Ce qui se passe | Avant | Après |
 |---|---|---|
-| Jérôme tape 1 500 € sur une affaire neuve | tiret | **Montant estimé 1 500 €** |
+| Jérôme tape 1 500 € sur une affaire neuve | bouton « + Montant estimé » | **Montant estimé 1 500 €** |
 | Il finalise un devis de 1 200 € HT | Montant estimé 1 500 € | **Montant proposé HT 1 200 €** (le 1 500 € est gardé) |
 | Il finalise une 2e offre de 900 € HT, plus récente | 1 200 € HT | **Montant proposé HT 900 €** ; l'infobulle dit que 1 200 € n'est pas compté |
 | Le client signe la première (1 200 €) | 900 € HT proposé | **Montant accepté HT 1 200 €** |
