@@ -170,11 +170,11 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
     assert.equal(affaire.montantDevisHt, 1800);
     assert.equal(affaire.montant, 1500);
     await S.archiver({ donnees, ctx: ctx(), devisId: 'd1', archive: true });
-    assert.equal((await brut(C.affaires, 'aff1')).montantDevisHt, 600);
+    assert.equal((await brut(C.affaires, 'aff1')).montantDevisHt, 1800, 'archiver = ranger : le montant ne bouge pas');
     await S.archiver({ donnees, ctx: ctx(), devisId: 'd2', archive: true });
-    assert.equal((await brut(C.affaires, 'aff1')).montantDevisHt, null);
+    assert.equal((await brut(C.affaires, 'aff1')).montantDevisHt, 1800);
     assert.equal((await brut(C.affaires, 'aff1')).montant, 1500);
-    assert.ok((await db.collection(C.audit).get()).docs.some((x) => x.data().collection === C.affaires), 'le journal garde les écritures de l’affaire');
+    assert.ok((await db.collection(C.audit).get()).docs.some((x) => x.data().collection === C.affaires), 'le journal garde les écritures de l’affaire (les acceptations)');
   });
 
   test('C8 finaliser un brouillon : l’affaire reçoit le montant « proposé » (HT, nature, détail) dans la même transaction, le montant saisi reste intact', async () => {
