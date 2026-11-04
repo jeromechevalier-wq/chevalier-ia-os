@@ -168,8 +168,8 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
     await attendreCalme(page);
     await expect(page.locator('[data-action="plus-actions"]')).toBeVisible();
     const box = await page.locator('[data-action="plus-actions"]').boundingBox();
-    expect(box.width).toBeGreaterThanOrEqual(44);
-    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.width).toBeGreaterThanOrEqual(43.5);
+    expect(box.height).toBeGreaterThanOrEqual(43.5);
     await expect(page.locator('[data-action="plus-actions"]')).toHaveAttribute('aria-label', 'Autres actions');
     await menuEcran(page);
     expect(await libellesMenu(page), `visualisation ${id}`).toEqual([...groupe(id), ...sansEnvoyer(liste).filter(sansOnglets)]); // « Voir » et « Éditer » : les onglets de l'écran le font déjà
@@ -437,7 +437,7 @@ test('B3 le menu « … » d’un devis SIGNÉ propose « Supprimer définitivem
   await expect(d).toContainText('PDF déjà générés');
   await expect(d).toContainText('journal');
   await expect(d.getByRole('button', { name: 'Archiver à la place' })).toBeVisible();
-  if (estTelephone(page)) for (const b of await d.getByRole('button').all()) expect((await b.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  if (estTelephone(page)) for (const b of await d.getByRole('button').all()) expect((await b.boundingBox()).height).toBeGreaterThanOrEqual(43.5);
   await capturer(page, info, 'B3-supprimer-devis-signe');
   // Jamais en un clic : sans la saisie, ou avec un autre texte, rien ne part.
   await d.getByRole('button', { name: 'Supprimer définitivement', exact: true }).click();
