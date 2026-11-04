@@ -102,7 +102,7 @@ describe('5 devis', () => {
     reel(brouillon({ id: 'a1' }, { type: 'organisation', fiche: { id: 'o1', emails: [] }, adresse: '' }));
     reel(brouillon(null, null));
   });
-  test('7 devis de test sur une affaire réelle : permis', () => {
+  test('7 devis de test (client de test) sur une affaire réelle : permis', () => {
     marque(brouillon({ id: 'a1' }, { type: 'organisation', fiche: { id: 'o1', test: true, emails: [] }, adresse: '' }));
   });
   test('5 nouvelle version d’un devis de test hérite déjà (copie) ; d’un devis réel : pas de champ', () => {

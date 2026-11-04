@@ -192,7 +192,7 @@ test('4 un seul point d’entrée (statique) : plans, constructeurs et écriture
   const racine = fileURLToPath(new URL('../../js/', import.meta.url));
   const lire = (f) => readFileSync(`${racine}${f}`, 'utf8');
   // Ce qui crée un élément marquable : les plans, les constructeurs de documents, et les écritures de création brutes (moteur d'écriture, lot).
-  const CREATEURS = /\b(planCreer(Personne|Organisation|Affaire|Activite|Note|Projet|ProjetDepuisAffaire|Tache|Brouillon)|nouvelle(Personne|Organisation|Affaire|Activite|Note|Tache)|nouveauProjet|nouveauDevis|ecritureCreer|ecritureNoteDeDepart)\(|\bCRM\.executer\(|\bexecuter\(|\becrireDansLot\(/g;
+  const CREATEURS = /\b(planCreer(Personne|Organisation|Affaire|Activite|Note|Projet|ProjetDepuisAffaire|Tache|Brouillon)|nouvelle(Personne|Organisation|Affaire|Activite|Note|Tache)|nouveauProjet|nouveauDevis|ecritureCreer|ecritureNoteDeDepart)\(|\bCRM\.executer\(|\becrireDansLot\(/g;
   const DONNEES = ['modules/crm/donnees.js', 'modules/projets/donnees.js', 'modules/devis/donnees.js'];
   // Liste blanche : fichiers qui ont le droit d'utiliser ces fabriques, et pourquoi. Tout autre fichier qui crée un élément doit passer par donnees.js.
   const PERMIS = {

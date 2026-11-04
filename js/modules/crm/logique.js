@@ -706,7 +706,7 @@ export const estTest = (fiche) => fiche?.test === true;
 
 /**
  * Mode test (PR 1a-2b-1) : héritage du repère À LA CRÉATION (jamais de cascade après coup). `parents` : les fiches liées à ce qu'on crée
- * ({ personne, organisation, affaire, projet }, chacune facultative). Si l'une porte `test: true`, la nouvelle fiche aussi. N'écrit JAMAIS `test: false` :
+ * (objet de fiches, par ex. { personne, organisation, affaire, projet, client }, chacune facultative). Si l'une porte `test: true`, la nouvelle fiche aussi. N'écrit JAMAIS `test: false` :
  * un élément réel sous parent réel reste sans champ. Un `test: true` déjà posé (mode allumé) n'est jamais retiré. Fonction pure, copiée au serveur.
  */
 export function heriterTest(valeurs, parents = {}) {

@@ -123,7 +123,6 @@ test('5 brouillon de devis sur une affaire de test ou pour un client de test : d
   const copieTest = (await listerDocuments('devis_devis')).find((d) => !avant.has(d.id));
   expect(copieTest.test).toBe(true);
   const avant2 = new Set((await listerDocuments('devis_devis')).map((d) => d.id));
-  await page.waitForTimeout(300);
   await dupliquer(reel);
   await expect.poll(async () => (await listerDocuments('devis_devis')).filter((d) => !avant2.has(d.id)).length).toBe(1);
   const copieReelle = (await listerDocuments('devis_devis')).find((d) => !avant2.has(d.id));
@@ -174,9 +173,10 @@ test('7 mode éteint + parent réel = rien ; mode allumé + parent réel = de te
   for (const d of await listerDocuments('crm_affaires')) expect(d.test === false, `${d.id} : jamais test: false`).toBe(false);
 });
 
-test('8 le code serveur copié hérite déjà : les plans purs reçoivent les parents (metier.js), et heriterTest est copié', { tag: '@sans-telephone' }, async () => {
+test('8 (code seulement, héritage serveur non rejoué en émulateur) le serveur appelle les plans purs avec les parents ; heriterTest est dans le code copié', { tag: '@sans-telephone' }, async () => {
   const racine = fileURLToPath(new URL('../../', import.meta.url));
   const metier = readFileSync(`${racine}functions/src/coeur/metier.js`, 'utf8');
+  expect(metier).toContain('personnes');
   for (const appel of ['planCreerAffaire(', 'planCreerProjetDepuisAffaire(', 'planCreerTache(', 'valeursDeCreation(']) expect(metier, appel).toContain(appel);
   // heriterTest est dans le code commun copié au serveur (scripts/preparer-fonctions.js copie crm/logique.js)
   expect(readFileSync(`${racine}js/modules/crm/logique.js`, 'utf8')).toContain('export function heriterTest(');
