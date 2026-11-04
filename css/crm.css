@@ -265,8 +265,6 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .prop-valeur .champ, .prop-valeur .champ-intelligent { width: 100%; }
 .prop-vide { display: inline-flex; align-items: center; gap: var(--esp-1); border: 0; background: none; padding: var(--esp-1) 0; color: var(--lien); font-weight: var(--poids-moyen); cursor: pointer; }
 .prop-vide:hover { text-decoration: underline; }
-/* Montant fantôme (« 999 € ») : un exemple gris, jamais une vraie valeur. */
-.prop-vide.prop-fantome { color: var(--placeholder); font-weight: inherit; }
 .prop-modifier { opacity: 0; width: 28px; height: 28px; }
 .prop:hover .prop-modifier, .prop-modifier:focus-visible { opacity: 1; }
 @media (hover: none) { .prop[data-prop="proprietaire"] .prop-modifier { opacity: 1; } } /* au doigt, pas de survol : le crayon du Propriétaire reste visible (avant, le menu était toujours visible) */
@@ -337,6 +335,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .fiche-montant .prop-libelle { display: none; }
 /* Le libellé (« Montant estimé », « Montant accepté HT ») est posé au-dessus du chiffre sans prendre de place : le chiffre reste sur l'axe des boutons. */
 .fiche-montant-libelle { position: absolute; left: 0; bottom: 100%; white-space: nowrap; font: var(--poids-normal) var(--fs-petit)/1.2 var(--police-texte); color: var(--texte2); }
+.fiche-montant .prop-vide { font: var(--poids-moyen) var(--fs-texte)/1.2 var(--police-texte); } /* bouton « + Montant estimé » : taille de texte, pas celle du chiffre */
 .fiche-montant-devis { display: inline-flex; align-items: center; gap: var(--esp-2); }
 .fiche-montant-suffixe { font-size: var(--fs-texte); color: var(--texte2); }
 .fiche-grille { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 24px; align-items: start; }
@@ -363,7 +362,9 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .prop { grid-template-columns: 1fr; gap: 2px; padding: var(--esp-1) 0; }
   .titre-editable { font-size: var(--fs-page); }
   .fiche-tete-droite { width: 100%; }
-  .fiche-montant { margin-left: 0; margin-top: var(--esp-6); } /* place du libellé posé au-dessus du chiffre */
+  .fiche-montant { margin-left: 0; } /* sans marge vide quand il n'y a pas de libellé */
+  .fiche-montant.avec-libelle { margin-top: var(--esp-6); } /* place du libellé posé au-dessus du chiffre */
+  .fiche-montant .prop-vide { min-height: 44px; }
   .fiche-montant .prop-modifier { position: relative; right: auto; top: auto; transform: none; width: 28px; height: 28px; } /* relative (et non static) : la zone de clic de 44 px (::after, os.css) se centre sur le crayon, pas sur le montant */
   .fiche-actions { width: 100%; }
   .fiche-actions [data-action="exporter-contact"] .libelle-bouton { display: none; } /* téléphone : icône seule (nom accessible « Exporter ce contact ») */

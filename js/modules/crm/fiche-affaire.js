@@ -75,7 +75,7 @@ export function rendreFicheAffaire(conteneur, id) {
     // Le montant vient de l'affaire elle-même (pas des devis chargés à part) : rien ne clignote au chargement (docs/montant-affaire.md).
     // Avec des devis finalisés, le chiffre est CALCULÉ par le serveur (devis acceptés, sinon devis proposé le plus récent) : il n'est pas modifiable, et son infobulle détaille les vrais devis et additions.
     // Sans devis (module absent ou aucun devis finalisé), c'est le montant saisi à la main (un tiret gris s'il est vide, jamais un chiffre inventé) ; il n'est jamais effacé et revient si les devis disparaissent.
-    const champEstime = champPropriete({ libelle: 'Montant estimé', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: '—', surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
+    const champEstime = champPropriete({ libelle: 'Montant estimé', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), texteVide: 'Montant estimé', surEnregistrer: async (v) => { await D.majAffaire(a.id, { montant: v }); majLibelleMontant(v); } });
     const nature = L.natureMontant(a);
     const depuisDevis = nature !== 'estime';
     const libelleMontant = L.LIBELLES_MONTANT[nature];
@@ -84,6 +84,15 @@ export function rendreFicheAffaire(conteneur, id) {
         h('span', { class: 'fiche-montant-valeur' }, L.formatEuros(a.montantDevisHt), h('small', { class: 'fiche-montant-suffixe' }, ' HT')),
         iconeInfo(L.detailMontant(a), libelleMontant, { garderLignes: true }))
       : champEstime.element;
+    // Le libellé n'existe que s'il y a un chiffre à nommer (montant des devis ou montant saisi) ; un montant vide montre seulement « + Montant estimé ».
+    const libelleEl = h('span', { class: 'fiche-montant-libelle', dataset: { role: 'libelle-montant' } }, libelleMontant);
+    const montantEl = h('div', { class: 'fiche-montant' }, blocMontant);
+    function majLibelleMontant(valeur) {
+      const avec = depuisDevis || !(valeur === '' || valeur === null || valeur === undefined);
+      montantEl.classList.toggle('avec-libelle', avec);
+      if (avec) montantEl.prepend(libelleEl); else libelleEl.remove();
+    }
+    majLibelleMontant(a.montant ?? '');
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         ...(a.statut === 'perdue' ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) }] : []),
@@ -113,7 +122,7 @@ export function rendreFicheAffaire(conteneur, id) {
             liens.element)),
         // Le montant et les boutons forment une seule zone : même axe vertical, même espace entre voisins.
         h('div', { class: 'fiche-tete-droite' },
-          h('div', { class: 'fiche-montant' }, h('span', { class: 'fiche-montant-libelle', dataset: { role: 'libelle-montant' } }, libelleMontant), blocMontant),
+          montantEl,
           h('div', { class: 'fiche-actions' }, actionsStatut, menu))),
       (barreEtapes = barreDesEtapes(a)));
 
