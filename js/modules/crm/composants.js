@@ -566,9 +566,25 @@ export const COMPTES = [
   { email: 'jeromebot.chevalierbot@gmail.com', nom: 'Charles' },
 ];
 
+/** Donne au champ la largeur de son texte (mesuré avec un span caché de même police). Sans effet tant que le champ n'est pas dans la page. */
+function ajusterLargeurTitre(champ) {
+  if (!champ.isConnected) return false;
+  const cs = getComputedStyle(champ);
+  const mesure = document.createElement('span');
+  mesure.textContent = champ.value;
+  Object.assign(mesure.style, { position: 'absolute', visibility: 'hidden', whiteSpace: 'pre', font: cs.font, letterSpacing: cs.letterSpacing });
+  document.body.appendChild(mesure);
+  const texte = mesure.getBoundingClientRect().width;
+  mesure.remove();
+  const marges = cs.boxSizing === 'border-box' ? ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth'].reduce((t, k) => t + (parseFloat(cs[k]) || 0), 0) : 0;
+  champ.style.width = `${Math.ceil(texte + marges + 8)}px`; // 8 px d'air pour le curseur
+  return true;
+}
+
 /** Titre de fiche modifiable en place (enregistré en quittant le champ). */
 export function titreEditable({ valeur, libelle, surEnregistrer }) {
   const champ = h('input', { class: 'titre-editable', type: 'text', value: valeur, 'aria-label': libelle, autocomplete: 'off',
+    oninput: () => ajusterLargeurTitre(champ),
     onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); champ.blur(); } if (e.key === 'Escape') { champ.value = valeur; champ.blur(); } },
     onblur: async () => {
       const v = L.nettoyerEspaces(champ.value);
@@ -576,6 +592,13 @@ export function titreEditable({ valeur, libelle, surEnregistrer }) {
       if (v === valeur) return;
       try { await surEnregistrer(v); valeur = v; } catch (e) { console.warn(e); champ.value = valeur; toast('Enregistrement impossible', { type: 'erreur' }); }
     } });
+  // Le champ est créé avant d'être inséré dans la fiche : on mesure à l'image suivante, puis une fois les polices chargées.
+  let essais = 0;
+  const attendre = () => { if (!ajusterLargeurTitre(champ) && essais++ < 20) requestAnimationFrame(attendre); };
+  requestAnimationFrame(attendre);
+  document.fonts?.ready?.then(() => ajusterLargeurTitre(champ));
+  // Valeur remise (Échap, titre vidé, échec d'enregistrement) : la largeur suit.
+  champ.addEventListener('blur', () => ajusterLargeurTitre(champ));
   return champ;
 }
 

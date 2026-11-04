@@ -8,6 +8,7 @@ Fait ce jour : réglage « Gestion des déchets » (490), cadrage des familles c
 
 | | Sujet | État | Qui |
 |---|---|---|---|
+| 🔴 | **Priorité haute (04/11/2026) : module Devis vendable seul** (un seul pipeline, CRM caché, affaire créée en silence derrière le devis) | **Étude faite** (`docs/etude-devis-autonome.md`, 8 PR proposées, 7 questions pour Jérôme dont le choix « lever la dépendance » ou « Affaires masqué »). Rien de codé. Aujourd'hui `devis` exige `affaires` (`js/os/registre.js:134`) : « Devis seul » est refusé | Jérôme (décisions), puis Claude |
 | 🟠 | **Mode test** (repère « test » sur personnes, organisations, affaires, devis, projets ; interrupteur à l'écran ; exclu des statistiques ; numérotation `TEST-` séparée ; suppression des devis de test ; « Supprimer tous mes tests ») | **Cadrage validé (02/11/2026, recommandations de Claude retenues)** ; **7 PR** : 1a-1 faite (repère `test`, badge « [TEST] », menus « Marquer comme test », PR 502 fusionnée), 1a-2a faite (interrupteur dans le menu latéral, bandeau, pose à la création), puis 1a-2b (héritage), 1b, 2, 3, 4 (`docs/cadrage-mode-test.md`) | Claude |
 | 🟠 | **Familles configurables, PR 2** (créer des familles de premier niveau neuves, avec un type) | **Non lancée** (`docs/cadrage-familles-configurables.md`) | Claude |
 | 🟠 | **Familles configurables, PR 3** (démo propre à chaque métier ; la famille « Agence » de premier niveau dépend de la PR 2) | **Non lancée** ; une version provisoire est faite par les PR 494 et 498 | Claude |
@@ -88,6 +89,7 @@ Légende : 🟢 fait, 🔵 Claude travaille dessus, 🟠 attend Jérôme, ⚪ pl
 | 🟠 | **(j)** Lancer « Tests de nuit » sur `main` après chaque série de fusions | À chaque série | Claude |
 | 🟠 | **(k)** Mettre à jour `docs/consignes-ui.md` (vers la ligne 42) : affaire facultative ; à la finalisation, message simple et champ Affaire en rouge, plus de fenêtre. À faire dans la PR « Pour qui ? » | À faire | Claude |
 | 🟠 | **(l) Familles d'articles configurables** (Jérôme, 01/11/2026) : renommer et masquer les sept familles, créer les siennes au premier niveau (avec un type), démo par métier. Cadrage : `docs/cadrage-familles-configurables.md` (3 PR : 1 renommer/masquer, 2 créer au premier niveau, 3 démo). Priorité proposée : moyenne. Fable obligatoire (serveur, données, éditeur du devis) | Cadrage écrit, 7 réponses de Jérôme (01/11/2026, « par défaut »). **PR 1 ouverte** (renommer et désactiver les sept familles) ; PR 2 et PR 3 à faire après sa fusion | Claude |
+| 🟢 | **Molette sur un champ numérique focalisé** : la valeur change encore (un écouteur global `wheel` non passif dans `js/os/shell.js`, à relire par Fable ; jamais `blur()`, l'enregistrement se fait à la perte de focus). Priorité basse (04/11/2026). | À faire | Claude |
 
 
 ## Vue d'ensemble (28/10/2026) : où on en est, en un coup d'œil
