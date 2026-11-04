@@ -582,7 +582,7 @@ export function montantAccepteHt(devisDeLAffaire) {
   let centimes = 0;
   let nombre = 0;
   for (const d of devisDeLAffaire ?? []) {
-    if (d?.statut !== 'accepte' || d.archive === true || htFige(d) === null) continue;
+    if (d?.statut !== 'accepte' || htFige(d) === null) continue;
     centimes += versCentimes(htFige(d));
     nombre += 1;
   }
@@ -594,7 +594,7 @@ const PLUS_RECENT = (a, b) => enMillisecondes(b.finaliseLe) - enMillisecondes(a.
 export const MAX_LIGNES_DETAIL = 20;
 /** Rend `{ montant, nature: 'accepte' | 'propose', detail: [{ numero, version, ht, compte }] }` ou null. `detail` est écrit avec le montant : l'écran explique SES chiffres sans recharger les devis. */
 export function montantDesDevis(devisDeLAffaire) {
-  const valides = (devisDeLAffaire ?? []).filter((d) => d && d.archive !== true && htFige(d) !== null);
+  const valides = (devisDeLAffaire ?? []).filter((d) => d && htFige(d) !== null);
   const acceptes = valides.filter((d) => d.statut === 'accepte').sort(PLUS_RECENT);
   if (acceptes.length) return { montant: montantAccepteHt(acceptes), nature: 'accepte', detail: acceptes.slice(0, MAX_LIGNES_DETAIL).map((d) => ligneDetail(d, true)) };
   const proposes = valides.filter((d) => STATUTS_PROPOSES.includes(d.statut)).sort(PLUS_RECENT);

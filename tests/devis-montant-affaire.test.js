@@ -34,16 +34,19 @@ async function envoye(m, id) {
 
 describe('N1 montantDesDevis : la règle pure', () => {
   const d = (id, statutDevis, ht, extra = {}) => ({ id, statut: statutDevis, numero: `DEV-${id}`, version: 1, finaliseLe: new Date('2026-10-20T10:00:00Z'), totaux: { ht }, ...extra });
-  test('N1 aucun devis qui compte (rien, brouillons, refusés, remplacés, archivés) : null, jamais 0', () => {
+  test('N1 aucun devis qui compte (rien, brouillons, refusés, remplacés, refusés archivés) : null, jamais 0', () => {
     assert.equal(montantDesDevis([]), null);
     assert.equal(montantDesDevis(undefined), null);
-    assert.equal(montantDesDevis([d('a', 'brouillon', 400), d('b', 'refuse', 200), d('c', 'remplace', 300), d('e', 'accepte', 50, { archive: true }), d('n', 'envoye', -10)]), null); // un total négatif est ignoré
+    assert.equal(montantDesDevis([d('a', 'brouillon', 400), d('b', 'refuse', 200), d('c', 'remplace', 300), d('e', 'refuse', 50, { archive: true }), d('n', 'envoye', -10)]), null); // un total négatif est ignoré
   });
-  test('N1 devis acceptés : leur somme HT au centime (pas d’erreur de virgule), détail avec les numéros ; les archivés et les totaux illisibles sont écartés', () => {
-    const r = montantDesDevis([d('a', 'accepte', 0.1), d('b', 'accepte', 0.2, { finaliseLe: new Date('2026-10-21T10:00:00Z') }), d('c', 'accepte', 100.05), d('x', 'accepte', 9, { archive: true }), { id: 'y', statut: 'accepte', totaux: {} }, d('z', 'accepte', Number.NaN)]);
-    assert.equal(r.montant, 100.35);
+  test('N1 devis acceptés : leur somme HT au centime (pas d’erreur de virgule), détail avec les numéros ; un archivé compte (archiver = ranger), les totaux illisibles sont écartés', () => {
+    const r = montantDesDevis([d('a', 'accepte', 0.1), d('b', 'accepte', 0.2, { finaliseLe: new Date('2026-10-21T10:00:00Z') }), d('c', 'accepte', 100.05), d('x', 'accepte', 9, { archive: true, finaliseLe: new Date('2026-10-19T10:00:00Z') }), { id: 'y', statut: 'accepte', totaux: {} }, d('z', 'accepte', Number.NaN)]);
+    assert.equal(r.montant, 109.35);
     assert.equal(r.nature, 'accepte');
-    assert.deepEqual(r.detail.map((l) => [l.numero, l.ht, l.compte]), [['DEV-b', 0.2, true], ['DEV-c', 100.05, true], ['DEV-a', 0.1, true]]);
+    assert.deepEqual(r.detail.map((l) => [l.numero, l.ht, l.compte]), [['DEV-b', 0.2, true], ['DEV-c', 100.05, true], ['DEV-a', 0.1, true], ['DEV-x', 9, true]]);
+    assert.equal(montantDesDevis([d('s', 'accepte', 50, { archive: true })]).montant, 50, 'N1 un signé archivé compte');
+    assert.equal(montantDesDevis([d('p', 'envoye', 70, { archive: true })]).nature, 'propose', 'N1 un proposé archivé compte');
+    assert.equal(montantDesDevis([d('b', 'brouillon', 70, { archive: true })]), null, 'N1 un brouillon ne compte jamais');
     assert.equal(montantDesDevis([d('a', 'accepte', 0)]).montant, 0); // un devis accepté à 0 € est une vraie valeur
   });
   test('N1 les devis acceptés passent avant les devis proposés', () => {
@@ -129,18 +132,18 @@ describe('N2 chaque transition d’un devis met le montant de l’affaire à jou
     assert.deepEqual([affaireDe(m).montantDevisHt, affaireDe(m).montantDevisNature], [600, 'propose']);
     assert.equal(affaireDe(m).montantDevisDetail.length, 1);
   });
-  test('N2b un devis FINALISÉ jamais envoyé : le refuser ou l’archiver fait disparaître le montant calculé (retour au montant saisi)', async () => {
-    for (const sortie of ['refuser', 'archiver']) {
-      const m = monde({ devis: [brouillon('d1', 100)] });
-      await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
-      assert.deepEqual([affaireDe(m).montantDevisHt, affaireDe(m).montantDevisNature], [1200, 'propose'], 'finalisé : compté comme proposé');
-      if (sortie === 'refuser') await statut(m, 'd1', 'refuser');
-      else await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
-      assert.deepEqual([affaireDe(m).montantDevisHt, affaireDe(m).montantDevisNature, affaireDe(m).montantDevisDetail], [null, null, null], sortie);
-      assert.equal(LEcran.montantAffaire(affaireDe(m)), 1500, sortie);
-    }
+  test('N2b un devis FINALISÉ jamais envoyé : le refuser fait disparaître le montant calculé (retour au montant saisi) ; l’archiver ne change rien', async () => {
+    const m = monde({ devis: [brouillon('d1', 100)] });
+    await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    assert.deepEqual([affaireDe(m).montantDevisHt, affaireDe(m).montantDevisNature], [1200, 'propose'], 'finalisé : compté comme proposé');
+    await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
+    assert.deepEqual([affaireDe(m).montantDevisHt, affaireDe(m).montantDevisNature], [1200, 'propose'], 'archiver = ranger : le montant ne bouge pas');
+    await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: false });
+    await statut(m, 'd1', 'refuser');
+    assert.deepEqual([affaireDe(m).montantDevisHt, affaireDe(m).montantDevisNature, affaireDe(m).montantDevisDetail], [null, null, null]);
+    assert.equal(LEcran.montantAffaire(affaireDe(m)), 1500);
   });
-  test('N2c un devis archivé ne change plus de statut (sinon un signé archivé serait ignoré du montant)', async () => {
+  test('N2c un devis archivé ne change plus de statut tant qu’il est archivé (il est rangé)', async () => {
     const m = monde({ devis: [brouillon('d1', 100)] });
     await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
     await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
@@ -158,28 +161,31 @@ describe('N2 chaque transition d’un devis met le montant de l’affaire à jou
 const leStatut = (m, id) => m.collections[C.devis].find((d) => d.id === id).statut;
 
 describe('N3 archiver un devis accepté', () => {
-  test('N3 archivé : retour au devis proposé s’il y en a un, sinon au montant saisi ; désarchivé : il compte de nouveau', async () => {
+  test('N3 archivé ou désarchivé : le montant ne bouge pas et l’affaire n’est pas réécrite (archiver = ranger)', async () => {
     const m = monde({ devis: [brouillon('d1', 100)] });
     await envoye(m, 'd1'); await statut(m, 'd1', 'accepter');
     assert.equal(affaireDe(m).montantDevisHt, 1200);
+    const nb = () => m.collections[C.audit].filter((l) => l.collection === C.affaires).length;
+    const avant = nb();
     await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
-    assert.equal(affaireDe(m).montantDevisHt, null);
-    assert.equal(LEcran.montantAffaire(affaireDe(m)), 1500, 'l’écran retombe sur le montant saisi');
+    assert.deepEqual([affaireDe(m).montantDevisHt, affaireDe(m).montantDevisNature], [1200, 'accepte']);
+    assert.equal(LEcran.montantAffaire(affaireDe(m)), 1200, 'l’écran garde le montant accepté');
     await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: false });
     assert.deepEqual([affaireDe(m).montantDevisHt, affaireDe(m).montantDevisNature], [1200, 'accepte']);
     assert.equal(affaireDe(m).montant, 1500);
+    assert.equal(nb(), avant, 'aucune ligne de journal pour l’affaire');
   });
-  test('N3 un devis accepté archivé parmi deux : il ne reste que l’autre', async () => {
+  test('N3 un devis accepté archivé parmi deux : les deux comptent encore', async () => {
     const m = monde({ devis: [brouillon('d1', 100), brouillon('d2', 50)] });
     await envoye(m, 'd1'); await envoye(m, 'd2');
     await statut(m, 'd1', 'accepter'); await statut(m, 'd2', 'accepter');
     await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
-    assert.equal(affaireDe(m).montantDevisHt, 600);
+    assert.equal(affaireDe(m).montantDevisHt, 1800);
   });
 });
 
 describe('N4 ce qui ne doit pas changer l’affaire', () => {
-  test('N4 un brouillon créé, supprimé ou en nouvelle version, et l’archivage d’un devis refusé : l’affaire n’est pas réécrite', async () => {
+  test('N4 un brouillon créé, supprimé ou en nouvelle version, et l’archivage d’un devis refusé ou signé : l’affaire n’est pas réécrite', async () => {
     const m = monde({ devis: [brouillon('d1', 100), brouillon('d3', 10)] });
     await envoye(m, 'd1');
     const nb = () => m.collections[C.audit].filter((l) => l.collection === C.affaires).length;
@@ -191,6 +197,8 @@ describe('N4 ce qui ne doit pas changer l’affaire', () => {
     const avantArchive = nb();
     await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
     assert.equal(nb(), avantArchive, 'un devis refusé archivé ne change pas le montant (déjà null)');
+    await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: false });
+    assert.equal(nb(), avantArchive);
   });
   test('N4 aucune migration : un devis accepté AVANT cette fonction ne change pas l’affaire tant qu’aucun de ses devis ne change', async () => {
     const ancien = { ...brouillon('vieux', 100), statut: 'accepte', accepteLe: new Date('2026-09-01T10:00:00Z'), finaliseLe: new Date('2026-08-30T10:00:00Z'), numero: 'DEV-2026-09-01-001', totaux: { ht: 1200, ttc: 1440 } };
@@ -317,12 +325,26 @@ describe('N6 restaurer_depuis_audit ne défait pas une transition de devis qui a
   test('N6 l’opération (devis + affaire) est refusée, même avec forcer ; rien n’est écrit', async () => {
     const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
     const m = monde({ devis: [brouillon('d1', 100)] });
-    await envoye(m, 'd1'); await statut(m, 'd1', 'accepter');
-    const r = await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
+    await envoye(m, 'd1');
+    const r = await S.changerStatut({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', action: 'refuser' });
     const avant = JSON.stringify(m.collections[C.affaires]);
     for (const forcer of [false, true]) {
       await assert.rejects(() => restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer }), (e) => e.code === 'restauration_refusee');
     }
+    assert.equal(JSON.stringify(m.collections[C.affaires]), avant);
+  });
+});
+
+describe('N7 archiver = ranger : l’opération ne touche pas l’affaire, sa restauration reste possible', () => {
+  test('N7 la ligne de journal d’un archivage ne porte que le devis ; restaurer_depuis_audit la défait', async () => {
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    const m = monde({ devis: [brouillon('d1', 100)] });
+    await envoye(m, 'd1'); await statut(m, 'd1', 'accepter');
+    const avant = JSON.stringify(m.collections[C.affaires]);
+    const r = await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
+    assert.equal(JSON.stringify(m.collections[C.affaires]), avant, 'affaire inchangée');
+    await restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer: false });
+    assert.notEqual(m.collections[C.devis].find((d) => d.id === 'd1').archive, true);
     assert.equal(JSON.stringify(m.collections[C.affaires]), avant);
   });
 });
