@@ -213,11 +213,9 @@ describe('C5 devisChangerStatut', () => {
 });
 
 describe('C5b devisSupprimer', () => {
-  test('C5b supprime un brouillon (journal et copie « avant » gardés) ; refuse un devis finalisé, un devis qui n’existe pas', async () => {
-    const m = monde([brouillon('b'), brouillon('f', { statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-009' })]);
-    await assert.rejects(() => S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'f' }), (e) => e.code === 'transition_interdite');
+  test('C5b supprime un brouillon (journal et copie « avant » gardés) ; refuse un devis qui n’existe pas', async () => {
+    const m = monde([brouillon('b')]);
     await assert.rejects(() => S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'nexistepas' }), (e) => e.code === 'introuvable');
-    assert.ok(leDevis(m, 'f'), 'le devis finalisé est toujours là');
     const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'b' });
     assert.equal(r.ok, true);
     assert.equal(leDevis(m, 'b'), undefined);
@@ -225,6 +223,75 @@ describe('C5b devisSupprimer', () => {
     assert.deepEqual([ligne.outil, ligne.action, ligne.docId], ['devisSupprimer', 'supprimer', 'b']);
     assert.equal(m.collections[C.auditAvant].at(-1).avant.statut, 'brouillon'); // la copie permet de le retrouver
     assert.equal(S.OPERATIONS.supprimer !== undefined, true);
+  });
+});
+
+describe('B1 B2 supprimer un devis à toutes les étapes de sa vie (décision de Jérôme, 04/11/2026)', () => {
+  const NUM = (n) => `DEV-2026-10-01-${String(n).padStart(3, '0')}`;
+  const avecAffaire = (devis) => { const m = monde(devis); m.collections[C.affaires] = [{ id: 'aff1', titre: 'Affaire', documents: [{ libelle: 'Devis.pdf', url: 'https://exemple.test/devis' }] }]; return m; };
+  const STATUTS = [['en_attente_envoi'], ['envoye'], ['accepte'], ['refuse'], ['remplace'], ['accepte', true]];
+
+  for (const [statut, archive] of STATUTS) {
+    test(`B1 un devis « ${statut}${archive ? ' archivé' : ''} » se supprime : il disparaît, l’audit garde sa copie, le numéro n’est pas rendu`, async () => {
+      const m = avecAffaire([brouillon('d', { statut, numero: NUM(1), ...(archive ? { archive: true } : {}) })]);
+      m.collections[C.devisCompteurs] = [{ id: 'global', valeur: 1 }];
+      const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'd' });
+      assert.equal(r.ok, true);
+      assert.equal(leDevis(m, 'd'), undefined);
+      const lignes = m.collections[C.audit].filter((l) => l.operationId === r.operationId);
+      assert.ok(lignes.some((l) => l.collection === C.devis && l.docId === 'd' && l.action === 'supprimer'));
+      assert.equal(m.collections[C.auditAvant].find((x) => x.id === lignes.find((l) => l.docId === 'd').id).avant.numero, NUM(1), 'la copie « avant » garde le numéro');
+      assert.equal(m.collections[C.devisCompteurs][0].valeur, 1, 'le compteur ne recule pas');
+      assert.equal(m.collections[C.affaires][0].documents.length, 1, 'les documents de l’affaire ne sont pas touchés');
+    });
+  }
+
+  test('B1 un devis signé qui sort : le montant de l’affaire est recalculé DANS la même transaction (même opération du journal)', async () => {
+    const m = avecAffaire([brouillon('a', { statut: 'accepte', numero: NUM(1), totaux: { ht: 100 } }), brouillon('b', { statut: 'envoye', numero: NUM(2), totaux: { ht: 50 } })]);
+    await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true, affaireIds: ['aff1'] });
+    const avant = m.collections[C.affaires][0];
+    assert.equal(avant.montantDevisNature, 'accepte');
+    assert.equal(avant.montantDevisHt, 100);
+    const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'a' });
+    const apres = m.collections[C.affaires][0];
+    assert.equal(apres.montantDevisNature, 'propose', 'plus de devis signé : le devis envoyé redevient le montant proposé');
+    assert.equal(apres.montantDevisHt, 50);
+    const lignes = m.collections[C.audit].filter((l) => l.operationId === r.operationId);
+    assert.deepEqual(lignes.map((l) => l.collection).sort(), [C.affaires, C.devis].sort());
+  });
+
+  test('B1 plus aucun devis qui compte : le montant de l’affaire est vidé ; un brouillon supprimé ne touche pas à l’affaire', async () => {
+    const m = avecAffaire([brouillon('a', { statut: 'accepte', numero: NUM(1), totaux: { ht: 100 } }), brouillon('b')]);
+    await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true, affaireIds: ['aff1'] });
+    const photoAffaire = JSON.stringify(m.collections[C.affaires]);
+    await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'b' });
+    assert.equal(JSON.stringify(m.collections[C.affaires]), photoAffaire, 'un brouillon ne compte pas : l’affaire est strictement inchangée');
+    await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'a' });
+    assert.equal(m.collections[C.affaires][0].montantDevisHt, null);
+    assert.equal(m.collections[C.affaires][0].montantDevisNature, null);
+  });
+
+  test('B1 affaire supprimée entre-temps : le devis part quand même, aucune erreur, rien n’est écrit sur l’affaire', async () => {
+    const m = monde([brouillon('a', { statut: 'accepte', numero: NUM(1) })]);
+    m.collections[C.affaires] = [];
+    const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'a' });
+    assert.equal(r.ok, true);
+    assert.equal(leDevis(m, 'a'), undefined);
+    assert.deepEqual(m.collections[C.audit].filter((l) => l.operationId === r.operationId).map((l) => l.collection), [C.devis]);
+  });
+
+  test('B2 toutes les versions partent ensemble ; le compteur ne recule pas : le devis suivant prend un NOUVEAU numéro (un trou apparaît)', async () => {
+    const m = avecAffaire([brouillon('v1', { statut: 'remplace', numero: NUM(1), racineId: 'v1', version: 1 }), brouillon('v2', { statut: 'accepte', numero: NUM(1), racineId: 'v1', version: 2 }), brouillon('autre', { statut: 'envoye', numero: NUM(3) }), brouillon('n')]);
+    m.collections[C.devisCompteurs] = [{ id: 'global', valeur: 5 }];
+    const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'v2' });
+    assert.equal(r.supprimes, 2);
+    assert.equal(leDevis(m, 'v1'), undefined);
+    assert.equal(leDevis(m, 'v2'), undefined);
+    assert.ok(leDevis(m, 'autre'), 'un autre devis de la même affaire reste');
+    assert.equal(m.collections[C.audit].filter((l) => l.operationId === r.operationId && l.collection === C.devis).length, 2, 'une copie « avant » par version');
+    assert.equal(m.collections[C.devisCompteurs][0].valeur, 5, 'le compteur ne recule pas');
+    const suite = await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'n' });
+    assert.equal(suite.numero, 'DEV-2026-10-24-006', 'jamais le numéro supprimé');
   });
 });
 

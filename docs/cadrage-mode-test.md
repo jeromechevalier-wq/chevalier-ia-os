@@ -26,7 +26,7 @@ Jérôme fait beaucoup d'essais dans sa vraie base (personnes, organisations, af
 | Format | `js/modules/devis/logique.js:530-534` (`numeroDevis`) | `DEV-AAAA-MM-JJ-NNN` ; refuse un compteur < 1 ; le préfixe `DEV-` est en dur ; plus de 60 fichiers de tests contiennent « DEV- » |
 | Règles Firestore (Jérôme) | `firestore.rules:70-90` | brouillon neuf : `numero == null` ; un brouillon se modifie, un devis finalisé **jamais** depuis le navigateur ; `delete: if false` sur `devis_devis` ; `devis_compteurs` ni lu ni écrit |
 | Règles Firestore (clients) | `firestore.plateforme.rules:77-97` | mêmes règles sous `clients/<client>/` |
-| Suppression d'un devis | `functions/src/coeur/devis.js:293-299`, outil `supprimer_devis` (`functions/src/mcp/outils/suppression.js:32`) | **brouillon seulement** ; la copie « avant » reste dans `crm_audit_avant` |
+| Suppression d'un devis | `functions/src/coeur/devis.js:293-299`, outil `supprimer_devis` (`functions/src/mcp/outils/suppression.js:32`) | **TOUS les statuts depuis le 04/11/2026** (avec toutes les versions) ; la copie « avant » reste dans `crm_audit_avant` |
 | Qui peut écrire quoi | `firestore.rules:172-174` | personnes, organisations, affaires, projets : règle générique, écriture libre pour un compte autorisé. Un devis : oui tant que brouillon, **non une fois finalisé** (`devisBrouillonModifie`, l.75-78) |
 | Aperçu puis code | `functions/src/securite/codes.js` | modèle de `supprimer_devis` et `finaliser_devis` ; plafond de suppressions par jour : `docs/securite-et-pannes.md:149`, aperçu puis code `:250` |
 | Marqueur déjà existant | `scripts/plateforme/donnees-demo.js:7,36` : `donneesDemo: true` | sert au jeu de démonstration livré ; `--retirer` ne supprime que ces documents |
@@ -150,6 +150,8 @@ Le seul moyen d'obtenir un devis supprimable est donc de le déclarer test **ava
 
 ### 8.3 Contradiction avec une décision écrite : à dire explicitement
 
+> **MISE À JOUR du 04/11/2026 : cette question est tranchée par Jérôme, tout devis (même `DEV-`) se supprime à tous ses statuts** (`docs/cadrage-devis.md`, D18bis). La suppression spéciale des devis `TEST-` n'est plus nécessaire ; la numérotation `TEST-` séparée reste utile. Ce qui suit est l'ancien raisonnement, gardé pour mémoire.
+>
 > **Supprimer un devis de test FINALISÉ contredit une décision écrite** : `docs/cadrage-devis.md:54` (« Les versions restent visibles, jamais supprimées »), `functions/src/coeur/devis.js:293-299` (« Seul un brouillon peut être supprimé ») et `firestore.rules:84` (`delete: if false`). **Ce n'est pas à Claude de trancher.** Question 1 ci-dessous, avec la recommandation : **oui, pour les seuls devis dont le numéro est `TEST-`**, par une fonction du serveur uniquement ; la règle Firestore reste `delete: if false` (le navigateur ne supprime toujours rien) et `supprimer_devis` garde son message pour les `DEV-`.
 
 Si Jérôme dit non : le temps 2 est réduit à la seule numérotation séparée (les devis `TEST-` restent, mais n'abîment plus la suite des vrais numéros ni les statistiques).

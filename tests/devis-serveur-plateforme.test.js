@@ -93,3 +93,28 @@ describe('C7 plateforme : qui peut appeler les fonctions de devis', () => {
     assert.ok(r.erreurs.length >= 1); // sans ligne (l'adresse e-mail n'est plus obligatoire)
   });
 });
+
+describe('B4 plateforme : supprimer un devis à tous les statuts, chez un client', () => {
+  test('B4 une éditrice supprime un devis ENVOYÉ avec toutes ses versions, dans son espace seulement ; le journal garde la copie ; le compteur ne recule pas', async () => {
+    const m = monde();
+    const devis = m.collections['clients/a/devis_devis'];
+    devis[0] = { ...devis[0], statut: 'envoye', numero: 'DEV-2026-10-01-001', racineId: 'da', version: 1 };
+    devis.push({ ...devis[0], id: 'da2', version: 2, statut: 'remplace' });
+    m.collections['clients/a/devis_compteurs'].push({ id: 'global', valeur: 7 });
+    const r = await appeler(m, 'supprimer', ALICE, { client: 'a', devisId: 'da' });
+    assert.equal(r.ok, true);
+    assert.equal(r.supprimes, 2);
+    assert.equal(m.collections['clients/a/devis_devis'].length, 0);
+    assert.equal(m.collections['clients/b/devis_devis'].length, 1, 'l’autre espace n’est pas touché');
+    assert.equal(m.collections['clients/a/crm_audit'].filter((l) => l.outil === 'devisSupprimer').length, 2, 'une ligne de journal par version');
+    assert.equal(m.collections['clients/a/devis_compteurs'][0].valeur, 7, 'le compteur ne recule pas');
+  });
+  test('B4 un lecteur ne supprime pas un devis envoyé (rien n’est écrit) ; un devis déjà supprimé est « not-found »', async () => {
+    const m = monde();
+    m.collections['clients/a/devis_devis'][0] = { ...m.collections['clients/a/devis_devis'][0], statut: 'accepte', numero: 'DEV-2026-10-01-001' };
+    await refus(appeler(m, 'supprimer', LEA, { client: 'a', devisId: 'da' }), 'permission-denied');
+    assert.equal(m.collections['clients/a/devis_devis'].length, 1);
+    await appeler(m, 'supprimer', ALICE, { client: 'a', devisId: 'da' });
+    await refus(appeler(m, 'supprimer', ALICE, { client: 'a', devisId: 'da' }), 'not-found');
+  });
+});

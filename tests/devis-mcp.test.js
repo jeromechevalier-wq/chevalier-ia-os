@@ -1014,7 +1014,7 @@ describe('N6 enregistrer_envoi_devis : historique des envois, les deux dates son
   });
 });
 
-describe('N7 supprimer_devis : brouillon seulement, aperçu puis code, documents de l’affaire et fichiers intacts, restaurable', () => {
+describe('N7 supprimer_devis : tous les statuts, aperçu puis code, documents de l’affaire et fichiers intacts, restaurable', () => {
   const lien = (id) => `https://chevalier-ia-os.web.app/#/devis/pdf/${id}/brouillon`;
 
   test('N7 aperçu sans écriture, mauvais code refusé, puis suppression ; le document « Devis brouillon » de l’affaire RESTE (comme les autres) ; le devis se restaure', async () => {
@@ -1051,10 +1051,9 @@ describe('N7 supprimer_devis : brouillon seulement, aperçu puis code, documents
     assert.equal(s.doc('crm_affaires', 'a1').documents.length, documentsAvant, 'et le document de l’affaire est toujours là');
   });
 
-  test('N7 un devis finalisé ne se supprime pas (aucun code émis) ; droits : Claude Code seulement ; un devis modifié après l’aperçu invalide le code', async () => {
+  test('N7 droits : Claude Code seulement ; un devis inconnu est refusé sans code ; un devis modifié après l’aperçu invalide le code', async () => {
     const s = await demarrer({ devis: [finalise('f1', 'en_attente_envoi'), devisEnregistre('b1')] });
     const codes = (s.collections.mcp_codes ?? []).length;
-    refuse(await s.appeler('code', 'supprimer_devis', { id: 'f1' }), /Seul un brouillon/);
     refuse(await s.appeler('code', 'supprimer_devis', { id: 'inconnu' }), /introuvable/i);
     for (const jeton of ['lecteur', 'biblio']) refuse(await s.appeler(jeton, 'supprimer_devis', { id: 'b1' }));
     assert.equal((s.collections.mcp_codes ?? []).length, codes);
@@ -1063,6 +1062,38 @@ describe('N7 supprimer_devis : brouillon seulement, aperçu puis code, documents
     refuse(await s.appeler('code', 'supprimer_devis', { id: 'b1', codeConfirmation: a.code }), /a changé/);
     assert.ok(s.doc('devis_devis', 'b1'));
     assert.ok(s.doc('devis_devis', 'f1'));
+  });
+
+  test('B4 un devis signé se supprime : l’aperçu porte l’avertissement (client, numéro jamais réutilisé, chiffre d’affaires) puis le code ; l’empreinte inclut les versions', async () => {
+    const s = await demarrer({ devis: [finalise('s1', 'accepte')] });
+    const a = ok(await s.appeler('code', 'supprimer_devis', { id: 's1' }));
+    assert.equal(a.apercu, true);
+    assert.equal(a.statut, 'accepte');
+    assert.match(a.avertissement, /appartient au client/);
+    assert.match(a.avertissement, /ne sera jamais réutilisé/);
+    assert.match(a.avertissement, /chiffre d'affaires/);
+    assert.match(a.avertissement, /archiver_devis/);
+    assert.match(a.consigne, /avertissement/i);
+    assert.deepEqual(a.versionsSupprimees.map((v) => v.id), ['s1']);
+    // Une version 2 apparaît après l'aperçu : le code n'est plus valable (l'empreinte porte la liste des versions).
+    s.collections.devis_devis.push(devisEnregistre('s2', { racineId: 's1', version: 2, numero: 'DEV-2026-10-01-001' }));
+    refuse(await s.appeler('code', 'supprimer_devis', { id: 's1', codeConfirmation: a.code }), /a changé/);
+    assert.ok(s.doc('devis_devis', 's1'));
+    const b = ok(await s.appeler('code', 'supprimer_devis', { id: 's1' }));
+    assert.equal(b.versionsSupprimees.length, 2);
+    const r = ok(await s.appeler('code', 'supprimer_devis', { id: 's1', codeConfirmation: b.code }));
+    assert.equal(r.supprime, true);
+    assert.equal(r.versionsSupprimees, 2);
+    assert.equal(s.doc('devis_devis', 's1'), undefined);
+    assert.equal(s.doc('devis_devis', 's2'), undefined);
+  });
+
+  test('B4 le plafond compte une suppression par version : un devis à deux versions avec un plafond de 1 est refusé APRÈS le code (code consommé, rien supprimé)', async () => {
+    const s = await demarrer({ devis: [finalise('s1', 'remplace', { version: 1 }), finalise('s2', 'refuse', { racineId: 's1', version: 2 })], jetonsExtra: { code: { limites: { suppressionsParJour: 1 } } } });
+    const a = ok(await s.appeler('code', 'supprimer_devis', { id: 's2' }));
+    const r = await s.appeler('code', 'supprimer_devis', { id: 's2', codeConfirmation: a.code });
+    refuse(r);
+    assert.ok(s.doc('devis_devis', 's1') && s.doc('devis_devis', 's2'), 'rien n’est supprimé');
   });
 
   test('N7 plafond de suppressions atteint : aucun code n’est émis (depassePlafond), le devis reste', async () => {
@@ -1077,17 +1108,34 @@ describe('N7 supprimer_devis : brouillon seulement, aperçu puis code, documents
     assert.ok(s.doc('devis_devis', 'b2'));
   });
 
-  test('N7 recréer un brouillon supprimé est refusé si la racine a déjà un brouillon de même version (pas deux devis au même numéro)', async () => {
+  test('N7 recréer un devis supprimé est refusé si sa racine a déjà un brouillon de même version (pas deux devis au même numéro)', async () => {
     const s = await demarrer({ devis: [finalise('f1', 'envoye')] });
-    const v2 = ok(await s.appeler('biblio', 'nouvelle_version_devis', { id: 'f1' }));
-    const a = ok(await s.appeler('code', 'supprimer_devis', { id: v2.id }));
-    const sup = ok(await s.appeler('code', 'supprimer_devis', { id: v2.id, codeConfirmation: a.code }));
-    const v2bis = ok(await s.appeler('biblio', 'nouvelle_version_devis', { id: 'f1' }));
-    assert.equal(v2bis.version, 2);
+    const a = ok(await s.appeler('code', 'supprimer_devis', { id: 'f1' }));
+    const sup = ok(await s.appeler('code', 'supprimer_devis', { id: 'f1', codeConfirmation: a.code }));
+    s.collections.devis_devis.push(devisEnregistre('intrus', { racineId: 'f1', version: 1, numero: 'DEV-2026-10-01-001' }));
     refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: sup.operationId, apercu: false }), /ne peut pas être recréé.*nouvelle_version_devis/);
     refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: sup.operationId, apercu: false, forcer: true }), /ne peut pas être recréé/);
-    assert.equal(s.doc('devis_devis', v2.id), undefined);
-    assert.equal(s.collections.devis_devis.filter((d) => d.racineId === 'f1').length, 2);
+    assert.equal(s.doc('devis_devis', 'f1'), undefined);
+  });
+
+  test('B5 restaurer_depuis_audit d’un devis signé supprimé : il revient avec son numéro, son identifiant et son statut, et le montant de l’affaire est recalculé', async () => {
+    const s = await demarrer({ devis: [finalise('s1', 'accepte', { totaux: { ht: 100, tva: 20, ttc: 120 } })] });
+    const rc = ok(await s.appeler('code', 'recalculer_montants_affaires', {}));
+    ok(await s.appeler('code', 'recalculer_montants_affaires', { codeConfirmation: rc.code }));
+    const avantRecalcul = s.doc('crm_affaires', 'a1').montantDevisHt;
+    const a = ok(await s.appeler('code', 'supprimer_devis', { id: 's1' }));
+    const sup = ok(await s.appeler('code', 'supprimer_devis', { id: 's1', codeConfirmation: a.code }));
+    assert.equal(s.doc('devis_devis', 's1'), undefined);
+    const ap = ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: sup.operationId }));
+    assert.equal(ap.apercu, true);
+    assert.deepEqual([...new Set(ap.lignes.map((l) => l.collection))], ['devis_devis'], 'seul le devis est restauré, jamais une copie de l’affaire');
+    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: sup.operationId, apercu: false }));
+    const revenu = s.doc('devis_devis', 's1');
+    assert.equal(revenu.statut, 'accepte');
+    assert.equal(revenu.numero, 'DEV-2026-10-01-001', 'le numéro est gardé');
+    assert.equal(s.doc('crm_affaires', 'a1').montantDevisNature, 'accepte', 'le devis signé compte de nouveau');
+    assert.equal(s.doc('crm_affaires', 'a1').montantDevisHt, 100);
+    assert.equal(avantRecalcul, 100);
   });
 
   test('N7 supprimer un brouillon n’appelle jamais le stockage : même branché, aucun fichier n’est touché ; l’empreinte du journal ne dépend plus du document', async () => {

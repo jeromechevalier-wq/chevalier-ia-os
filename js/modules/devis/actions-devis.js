@@ -7,6 +7,7 @@ import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import { MESSAGE_TEST_REFUSE, MESSAGE_TEST_ECHEC } from '../crm/composants.js';
 import * as Li from './liste.js';
+import * as CRMLogique from '../crm/logique.js';
 import * as Ed from './editeur-logique.js';
 import { estErreurEntreprise, ROUTE_MON_ENTREPRISE } from './logique.js';
 import { lancerPreparationEmail } from './email-preparer-ecran.js';
@@ -81,17 +82,52 @@ export async function archiver(d, archive) {
   } catch (e) { dire(e); }
 }
 
-/** Supprime un brouillon après confirmation. Le serveur refuse tout autre statut ; la copie « avant » reste dans le journal. `apres` : appelée une fois supprimé. */
-export async function supprimerBrouillon(d, apres = () => {}) {
-  if (d.statut !== 'brouillon') return;
-  const nom = d.nom?.trim() || d.objet?.trim() || nomsDe(d).client || 'ce brouillon';
-  const ok = await confirmer('Supprimer ce brouillon ?', `« ${nom} » sera supprimé. Un devis supprimé ne se retrouve pas dans la liste (seul le journal en garde une copie).`, { libelleOk: 'Supprimer', danger: true });
-  if (!ok) return;
+/**
+ * Supprime un devis, QUEL QUE SOIT SON STATUT, avec toutes ses versions (décision de Jérôme, 04/11/2026), par la fonction du serveur ; la copie « avant » reste dans le journal.
+ * Un brouillon seul garde la petite confirmation d'avant. Tout autre devis : une fenêtre d'avertissement et la saisie du numéro (ou du nom) pour confirmer ; « Archiver à la place » range sans supprimer.
+ * `apres` : appelée une fois supprimé.
+ */
+export async function supprimerDevis(d, apres = () => {}) {
+  const versions = D.versionsDe(d.racineId ?? d.id);
+  const nom = d.numero || d.nom?.trim() || d.objet?.trim() || nomsDe(d).client || 'ce devis';
+  if (Li.suppressionSimple(d, versions)) {
+    const ok = await confirmer('Supprimer ce brouillon ?', `« ${nom} » sera supprimé. Un devis supprimé ne se retrouve pas dans la liste (seul le journal en garde une copie).`, { libelleOk: 'Supprimer', danger: true });
+    if (!ok) return;
+  } else {
+    const choix = await demanderSuppressionDevis(d, versions, nom);
+    if (choix === 'archiver') { await archiver(d, true); return; }
+    if (!choix) return;
+  }
   try {
     await D.supprimer(d.id);
-    toast('Brouillon supprimé');
+    toast(d.statut === 'brouillon' && versions.length <= 1 ? 'Brouillon supprimé' : 'Devis supprimé');
     apres();
-  } catch (e) { dire(e); }
+  } catch (e) {
+    // Supprimé ailleurs entre-temps (autre onglet, assistant) : il n'existe plus, rien à refaire.
+    if (String(e?.code ?? '').replace('functions/', '') === 'not-found') { toast('Ce devis n’existe plus : il a déjà été supprimé.'); apres(); return; }
+    dire(e);
+  }
+}
+/** Ancien nom, gardé pour les écrans qui appellent « supprimer un brouillon » (la croix de l'onglet Devis d'une affaire, l'éditeur) : même fonction. */
+export const supprimerBrouillon = supprimerDevis;
+
+/** La fenêtre d'avertissement. Rend vrai (supprimer), 'archiver' (« Archiver à la place ») ou faux (annulé). */
+async function demanderSuppressionDevis(d, versions, nom) {
+  const champ = h('input', { class: 'champ', type: 'text', 'aria-label': `Tape « ${nom} » pour confirmer`, autocomplete: 'off', placeholder: nom, dataset: { champ: 'confirmation-suppression-devis' } });
+  const ar = Li.archivageDevis(d);
+  const boutons = [{ libelle: 'Annuler', valeur: false }];
+  if (ar.actif && ar.action === 'archiver') boutons.push({ libelle: 'Archiver à la place', valeur: 'archiver' });
+  boutons.push({ libelle: 'Supprimer définitivement', valeur: true, style: 'danger', avantFermeture: () => CRMLogique.confirmationValide(champ.value, nom) || (champ.classList.add('invalide'), false) });
+  return dialogue({
+    titre: 'Supprimer définitivement ce devis ?',
+    classe: 'dialogue-suppression-devis',
+    contenu: h('div', { class: 'pile', dataset: { zone: 'avertissement-suppression-devis' } },
+      ...Li.avertissementsSuppression(d, versions).map((t) => h('p', {}, t)),
+      ar.actif && ar.action === 'archiver' ? h('p', {}, 'Pour seulement le ranger, sans rien supprimer : « Archiver à la place ».') : null,
+      h('p', {}, `Pour confirmer, tape « ${nom} » ci-dessous.`),
+      champ),
+    boutons,
+  });
 }
 
 function attendreDevis(id, ms = 4000) {
@@ -185,7 +221,7 @@ export async function basculerTestDevis(d) {
 /**
  * Entrées d'un menu « … » prêtes pour ouvrirMenu (os/ui.js). `d` : le devis. `options` :
  *  - exclure : clés à ne pas proposer (voir entreesActionsDevis) ;
- *  - apresSuppression : où aller une fois le brouillon supprimé ;
+ *  - apresSuppression : où aller une fois le devis supprimé ;
  *  - surcharges : { <clé>: (d) => … } pour remplacer une action (l'éditeur enregistre d'abord ses changements, par exemple).
  */
 export function entreesMenuDevis(d, { exclure = [], apresSuppression = () => {}, surcharges = {} } = {}) {
@@ -196,7 +232,7 @@ export function entreesMenuDevis(d, { exclure = [], apresSuppression = () => {},
     dupliquer: () => dupliquerDevis(d),
     dupliquer_prix_du_jour: () => dupliquerDevis(d, { prixDuJour: true }),
     preparer_email: () => lancerPreparationEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id), finaliser: { libelle: 'Ouvrir le devis', action: () => naviguer(`devis/editeur/${d.id}`) } }),
-    supprimer: () => supprimerBrouillon(d, apresSuppression),
+    supprimer: () => supprimerDevis(d, apresSuppression),
     marquer_test: () => basculerTestDevis(d),
   };
   return Li.entreesActionsDevis(d, { exclure }).flatMap((e) => {

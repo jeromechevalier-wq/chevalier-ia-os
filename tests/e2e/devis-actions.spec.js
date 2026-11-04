@@ -417,3 +417,92 @@ test('3 archiver puis désarchiver depuis le menu de la liste (fonction du serve
   await expect(page.locator('.toast', { hasText: 'Devis sorti des archives' })).toBeVisible();
   expect(appels[1]).toEqual(['devisArchiver', { devisId: 'dSigne', archive: false }]);
 });
+
+// ---------------------------------------------------------------- B3 supprimer un devis à toutes les étapes de sa vie (décision de Jérôme, 04/11/2026)
+const dialogue = (page) => page.getByRole('dialog');
+
+test('B3 le menu « … » d’un devis SIGNÉ propose « Supprimer définitivement… » : l’avertissement parle du client, du numéro, du chiffre d’affaires ; il faut taper le numéro', async ({ page }, info) => {
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels);
+  await ouvrir(page);
+  await menuLigne(page, 'dSigne');
+  await expect(entree(page, 'Supprimer définitivement…')).toBeEnabled();
+  await entree(page, 'Supprimer définitivement…').click();
+  const d = dialogue(page);
+  await expect(d).toContainText('Supprimer définitivement ce devis ?');
+  await expect(d).toContainText('appartient à ton client');
+  await expect(d).toContainText('DEV-2026-10-03-002 ne sera pas réutilisé');
+  await expect(d).toContainText('sort de ton chiffre d’affaires');
+  await expect(d).toContainText('PDF déjà générés');
+  await expect(d).toContainText('journal');
+  await expect(d.getByRole('button', { name: 'Archiver à la place' })).toBeVisible();
+  if (estTelephone(page)) for (const b of await d.getByRole('button').all()) expect((await b.boundingBox()).height).toBeGreaterThanOrEqual(43);
+  await capturer(page, info, 'B3-supprimer-devis-signe');
+  // Jamais en un clic : sans la saisie, ou avec un autre texte, rien ne part.
+  await d.getByRole('button', { name: 'Supprimer définitivement', exact: true }).click();
+  await expect(d).toBeVisible();
+  await d.getByRole('textbox').fill('DEV-2026-10-03-999');
+  await d.getByRole('button', { name: 'Supprimer définitivement', exact: true }).click();
+  await expect(d).toBeVisible();
+  expect(appels).toEqual([]);
+  await d.getByRole('textbox').fill('dev-2026-10-03-002');
+  await d.getByRole('button', { name: 'Supprimer définitivement', exact: true }).click();
+  await expect(page.locator('.toast').last()).toContainText('Devis supprimé');
+  expect(appels).toEqual([['devisSupprimer', { devisId: 'dSigne' }]]);
+});
+
+test('B3 « Archiver à la place » range le devis sans rien supprimer ; « Annuler » n’appelle rien', async ({ page }) => {
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels);
+  await ouvrir(page);
+  await menuLigne(page, 'dSigne');
+  await entree(page, 'Supprimer définitivement…').click();
+  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
+  expect(appels).toEqual([]);
+  await menuLigne(page, 'dSigne');
+  await entree(page, 'Supprimer définitivement…').click();
+  await dialogue(page).getByRole('button', { name: 'Archiver à la place' }).click();
+  await expect(page.locator('.toast').last()).toContainText('Devis archivé');
+  expect(appels).toEqual([['devisArchiver', { devisId: 'dSigne', archive: true }]]);
+});
+
+test('B3 depuis l’éditeur d’un devis ENVOYÉ : « Supprimer définitivement… », saisie du numéro, retour à la liste', async ({ page }) => {
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels);
+  await ouvrir(page, 'devis/voir/dEnvoye', '.page-editeur-devis');
+  await menuEcran(page);
+  await entree(page, 'Supprimer définitivement…').click();
+  await expect(dialogue(page)).toContainText('montant de l’affaire et ton chiffre d’affaires seront recalculés');
+  await dialogue(page).getByRole('textbox').fill('DEV-2026-10-01-004');
+  await dialogue(page).getByRole('button', { name: 'Supprimer définitivement', exact: true }).click();
+  await expect(page).toHaveURL(/#\/devis\/liste$/);
+  expect(appels).toEqual([['devisSupprimer', { devisId: 'dEnvoye' }]]);
+});
+
+test('B3 cas d’erreur : le devis a déjà été supprimé ailleurs (introuvable) → message clair, la fenêtre se ferme ; une panne du serveur dit « rien n’a été perdu »', async ({ page, erreursConsole }) => {
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels);
+  let reponse = { status: 404, body: { error: { message: 'Ce devis est introuvable.', status: 'NOT_FOUND' } } };
+  await page.route('**/devisSupprimer', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    appels.push(['devisSupprimer', JSON.parse(route.request().postData()).data]);
+    return route.fulfill({ status: reponse.status, headers: cors, body: JSON.stringify(reponse.body) });
+  });
+  await ouvrir(page);
+  await menuLigne(page, 'dSigne');
+  await entree(page, 'Supprimer définitivement…').click();
+  await dialogue(page).getByRole('textbox').fill('DEV-2026-10-03-002');
+  await dialogue(page).getByRole('button', { name: 'Supprimer définitivement', exact: true }).click();
+  await expect(page.locator('.toast').last()).toContainText('déjà été supprimé');
+  reponse = { status: 500, body: { error: { message: 'boom', status: 'INTERNAL' } } };
+  await menuLigne(page, 'dSigne');
+  await entree(page, 'Supprimer définitivement…').click();
+  await dialogue(page).getByRole('textbox').fill('DEV-2026-10-03-002');
+  await dialogue(page).getByRole('button', { name: 'Supprimer définitivement', exact: true }).click();
+  await expect(page.locator('.toast').last()).toContainText('rien n’a été perdu');
+  erreursConsole.length = 0; // les deux réponses d'erreur du faux serveur (404, 500) sont ATTENDUES : le navigateur les note dans la console
+});

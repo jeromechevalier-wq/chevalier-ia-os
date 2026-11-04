@@ -165,12 +165,41 @@ describe('L7 actions permises par statut', () => {
   test('L7 un devis archivé ne propose aucun changement de statut', () => {
     for (const s of ['en_attente_envoi', 'envoye']) assert.deepEqual(Li.actionsPermises(d('x', { statut: s, archive: true })).statuts, [], s);
   });
-  test('L7 Supprimer : seulement un brouillon (le serveur a la fonction devisSupprimer) ; grisé « bientôt » si la suppression est coupée', () => {
+  test('L7 Supprimer : à tous les statuts (le serveur supprime le devis et ses versions) ; grisé « bientôt » si la suppression est coupée ; « Supprimer définitivement… » hors brouillon, en danger', () => {
     assert.equal(act('brouillon').supprimer.actif, true);
     assert.equal(Li.actionsPermises(d('x'), { suppression: false }).supprimer.actif, false);
     assert.equal(Li.actionsPermises(d('x'), { suppression: false }).supprimer.raison, Li.MESSAGE_BIENTOT);
-    assert.equal(Li.actionsPermises(d('x'), { suppression: true }).supprimer.actif, true);
-    assert.equal(Li.actionsPermises(d('x', { statut: 'envoye' }), { suppression: true }).supprimer.actif, false);
+    for (const s of ['brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse', 'remplace']) assert.equal(Li.actionsPermises(d('x', { statut: s }), { suppression: true }).supprimer.actif, true, s);
+    const entree = (x) => Li.entreesActionsDevis(x).find((e) => e.cle === 'supprimer');
+    assert.equal(entree(d('x')).libelle, 'Supprimer');
+    for (const s of ['en_attente_envoi', 'envoye', 'accepte', 'refuse', 'remplace']) {
+      assert.equal(entree(d('x', { statut: s })).libelle, 'Supprimer définitivement…', s);
+      assert.equal(entree(d('x', { statut: s })).danger, true, s);
+    }
+    assert.equal(entree(d('x', { statut: 'accepte', archive: true })).actif, true, 'un devis archivé se supprime aussi');
+  });
+  test('B3 l’avertissement : client, versions, numéro jamais réutilisé, chiffre d’affaires (signé), PDF non touchés, journal', () => {
+    const signe = d('s1', { statut: 'accepte', numero: 'DEV-2026-10-01-001' });
+    const t = Li.avertissementsSuppression(signe, [signe]).join(' ');
+    assert.match(t, /appartient à ton client/);
+    assert.match(t, /DEV-2026-10-01-001 ne sera pas réutilisé.*trou/);
+    assert.match(t, /sort de ton chiffre d’affaires/);
+    assert.match(t, /PDF déjà générés.*ne sont pas supprimés/);
+    assert.match(t, /journal/);
+    assert.doesNotMatch(t, /versions/);
+    const v1 = d('s0', { statut: 'remplace', numero: 'DEV-2026-10-01-001', racineId: 's0' });
+    assert.match(Li.avertissementsSuppression(signe, [v1, signe]).join(' '), /2 versions : toutes seront supprimées/);
+    const envoye = d('e1', { statut: 'envoye', numero: 'DEV-2026-10-01-002' });
+    const te = Li.avertissementsSuppression(envoye, [envoye]).join(' ');
+    assert.match(te, /montant de l’affaire et ton chiffre d’affaires seront recalculés/);
+    assert.doesNotMatch(te, /sort de ton chiffre/);
+    const brouillon = Li.avertissementsSuppression(d('b'), [d('b'), v1]).join(' ');
+    assert.match(brouillon, /2 versions/);
+  });
+  test('B3 la petite confirmation ne sert qu’à un brouillon SEUL ; un brouillon qui a d’autres versions, ou tout autre statut, passe par la fenêtre d’avertissement', () => {
+    assert.equal(Li.suppressionSimple(d('b'), [d('b')]), true);
+    assert.equal(Li.suppressionSimple(d('b', { racineId: 'r', version: 2 }), [d('b', { racineId: 'r', version: 2 }), d('v1', { statut: 'envoye', racineId: 'r' })]), false);
+    assert.equal(Li.suppressionSimple(d('e', { statut: 'envoye' }), [d('e', { statut: 'envoye' })]), false);
   });
   test('L7 Éditer : actif pour tout statut (un devis finalisé s’ouvre en lecture seule sur le même écran) ; Créer une nouvelle version pour finalisé, envoyé ou refusé ; grisés sans éditeur, actifs avec', () => {
     assert.equal(act('brouillon', sansEditeur).editer.raison, Li.MESSAGE_BIENTOT);

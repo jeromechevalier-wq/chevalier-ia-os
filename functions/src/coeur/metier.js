@@ -1606,13 +1606,15 @@ export async function preparerEmail(c, args) {
 }
 
 /**
- * Supprime un BROUILLON de devis (aperçu puis code). Ne touche jamais aux documents de l'affaire ni aux fichiers du stockage (un « Devis brouillon … .pdf » déjà joint reste).
- * Récupérable avec restaurer_depuis_audit (le devis revient avec le même identifiant).
+ * Supprime un devis, QUEL QUE SOIT SON STATUT, avec toutes ses versions (aperçu puis code ; décision de Jérôme du 04/11/2026). Ne touche jamais aux documents de l'affaire ni aux fichiers du stockage
+ * (un PDF déjà joint à l'affaire ou envoyé au client reste). Le numéro n'est jamais réutilisé. Récupérable avec restaurer_depuis_audit (les versions reviennent avec le même identifiant et le même numéro).
  */
 export async function supprimerDevis(c, args) {
   const devis = await lire(c, C.devis, args.id, 'Devis');
-  if (devis.statut !== 'brouillon') refuser('saisie_invalide', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; il peut être archivé (archiver_devis) s’il est finalisé (jamais envoyé), signé ou refusé.');
-  const t = D.totauxDevis(devis);
+  const versions = (await c.donnees.liste(C.devis, { champ: 'racineId', valeur: devis.racineId ?? devis.id })).filter((v) => v.id !== devis.id);
+  const tous = [devis, ...versions].sort((a, b) => (a.version ?? 1) - (b.version ?? 1));
+  const t = totauxAffiches(devis);
+  const compte = tous.some((v) => v.statut !== 'brouillon');
   if (!args.codeConfirmation) {
     const restantes = c.suppressionsRestantes ? await c.suppressionsRestantes() : Infinity;
     if (restantes < 1) {
@@ -1623,18 +1625,21 @@ export async function supprimerDevis(c, args) {
     }
   }
   const apercu = await confirmerDevis(c, args, {
-    outil: 'supprimer_devis', cibleId: devis.id, verbe: 'supprimé', suppressions: 1,
-    empreinte: empreinteDevis(devis),
+    outil: 'supprimer_devis', cibleId: devis.id, verbe: 'supprimé', suppressions: tous.length,
+    // L'empreinte porte la liste des versions : une version 2 ajoutée après l'aperçu rend le code invalide.
+    empreinte: empreinteDevis(devis, { versions: tous.map((v) => `${v.id}:${v.version ?? 1}:${v.statut}`).sort() }),
     apercu: {
-      supprime: false, id: devis.id, objet: devis.objet ?? '', version: devis.version ?? 1, lignes: nombreDeLignes(devis.sections), totalHT: t.totalHt, totalTTC: t.ttc,
-      destinataires: devis.destinataires ?? [],
+      supprime: false, id: devis.id, numero: devis.numero ?? null, statut: devis.statut, objet: devis.objet ?? '', version: devis.version ?? 1,
+      versionsSupprimees: tous.map((v) => ({ id: v.id, version: v.version ?? 1, statut: v.statut })),
+      lignes: nombreDeLignes(devis.sections), totalHT: t.totalHt, totalTTC: t.ttc, destinataires: devis.destinataires ?? [],
+      avertissement: `ATTENTION : le devis appartient au client, qui a peut-être déjà reçu le PDF. Toutes les versions (${tous.length}) seront supprimées. ${devis.numero ? `Le numéro ${devis.numero} ne sera jamais réutilisé : un trou apparaîtra dans la numérotation. ` : ''}${compte ? "Le montant de l'affaire et le chiffre d'affaires seront recalculés" + (devis.statut === 'accepte' ? " (ce devis signé sort du chiffre d'affaires). " : '. ') : ''}Les PDF déjà générés et les documents de l'affaire ne sont pas touchés. Pour seulement ranger le devis sans rien supprimer : archiver_devis.`,
     },
-    suite: `Le brouillon est supprimé (les documents de l'affaire et les fichiers ne sont pas touchés) ; une copie reste dans le journal (restaurer_depuis_audit le rétablit).`,
+    suite: `Le devis et toutes ses versions sont supprimés${compte ? ", le montant de l'affaire est recalculé" : ''} (les documents de l'affaire et les fichiers ne sont pas touchés) ; une copie reste dans le journal (restaurer_depuis_audit la rétablit). Rappeler l'avertissement à l'utilisateur AVANT son accord.`,
   });
   if (apercu) return apercu;
   const r = await appelerCoeurDevis(c, () => supprimerServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: devis.id }), { reserver: false });
   return {
-    supprime: true, id: devis.id, operationId: r.operationId,
-    detail: `Récupérable avec restaurer_depuis_audit (operationId ${r.operationId}). Les documents de l'affaire et les fichiers n'ont pas été touchés.`,
+    supprime: true, id: devis.id, numero: devis.numero ?? null, versionsSupprimees: r.supprimes, operationId: r.operationId,
+    detail: `Récupérable avec restaurer_depuis_audit (operationId ${r.operationId}). Les documents de l'affaire et les fichiers n'ont pas été touchés. ${compte ? "Le montant de l'affaire a été recalculé. " : ''}Le numéro n'est pas réutilisé.`,
   };
 }

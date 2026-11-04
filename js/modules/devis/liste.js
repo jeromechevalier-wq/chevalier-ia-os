@@ -7,7 +7,7 @@ import { emailPossible } from './email-brouillon.js';
 
 /** L'éditeur de devis existe : « Nouveau devis », « Modifier » et « Dupliquer » sont actifs (false les grise « bientôt disponible »). */
 export const EDITEUR_DISPONIBLE = true;
-/** Un brouillon se supprime par la fonction du serveur devisSupprimer (jamais un devis finalisé). */
+/** Un devis se supprime, à tous ses statuts, par la fonction du serveur devisSupprimer (le devis et toutes ses versions, décision du 04/11/2026). */
 export const SUPPRESSION_DISPONIBLE = true;
 export const TAILLES_PAGE = Object.freeze([10, 25, 50]);
 export const TAILLE_PAGE_DEFAUT = 25;
@@ -234,8 +234,28 @@ export function actionsPermises(d, { editeur = EDITEUR_DISPONIBLE, suppression =
     facturer: bientot,
     envoyer: emailPossible(statut),
     marquerTest: brouillon ? { actif: true } : bientot,
-    supprimer: brouillon ? (suppression ? { actif: true } : bientot) : { actif: false, raison: 'Seul un brouillon se supprime.' },
+    supprimer: suppression ? { actif: true } : bientot, // tous les statuts (décision de Jérôme, 04/11/2026) : le serveur supprime le devis et toutes ses versions
   };
+}
+
+/**
+ * Un devis qui se supprime « pour de bon » (décision de Jérôme, 04/11/2026) : tout statut, avec toutes ses versions. Un brouillon SEUL (une version, pas encore numéroté) garde la petite confirmation d'avant.
+ * `versions` : les devis de la même racine (le devis lui-même compris).
+ */
+export const suppressionSimple = (d, versions = [d]) => d?.statut === 'brouillon' && versions.filter((v) => v.id !== d.id).length === 0;
+
+/** Ce qui est écrit dans la fenêtre « Supprimer définitivement ? » : des phrases simples, dans cet ordre. `versions` : les devis de la même racine (le devis lui-même compris). */
+export function avertissementsSuppression(d, versions = [d]) {
+  const toutes = versions.some((v) => v.id === d.id) ? versions : [d, ...versions];
+  const phrases = ['Attention : ce devis appartient à ton client, qui a peut-être déjà reçu le PDF.'];
+  if (toutes.length > 1) phrases.push(`Ce devis a ${toutes.length} versions : toutes seront supprimées.`);
+  if (d.numero) phrases.push(`Le numéro ${d.numero} ne sera pas réutilisé : un trou apparaîtra dans la numérotation de tes devis.`);
+  const compte = toutes.some((v) => v.statut !== 'brouillon');
+  if (toutes.some((v) => v.statut === 'accepte')) phrases.push('Ce devis signé sort de ton chiffre d’affaires, et le montant de l’affaire sera recalculé.');
+  else if (compte) phrases.push('Le montant de l’affaire et ton chiffre d’affaires seront recalculés.');
+  phrases.push('Les PDF déjà générés et les documents joints à l’affaire ne sont pas supprimés.');
+  phrases.push('Une copie du devis reste dans le journal.');
+  return phrases;
 }
 
 export const MESSAGE_ARCHIVE_IMPOSSIBLE = 'Seul un devis finalisé, signé ou refusé peut être archivé.';
@@ -279,7 +299,9 @@ export function entreesActionsDevis(d, { exclure = [], editeur = EDITEUR_DISPONI
     sortie.push({ cle: 'archiver', libelle: ar.libelle, icone: ar.icone, actif: ar.actif, action: ar.action });
     if (!ar.actif && ar.raison) sortie.push({ texte: ar.raison });
   }
-  if (d?.statut === 'brouillon') ajouter('supprimer', 'Supprimer', 'trash-2', a.supprimer, { danger: true });
+  // Tous les statuts (décision de Jérôme, 04/11/2026) : le brouillon garde « Supprimer » ; un devis finalisé, envoyé, signé, refusé, remplacé ou archivé se supprime « définitivement » (fenêtre d'avertissement).
+  if (!exclure.includes('supprimer')) sortie.push({ separateur: true });
+  ajouter('supprimer', d?.statut === 'brouillon' ? 'Supprimer' : 'Supprimer définitivement…', 'trash-2', a.supprimer, { danger: true });
   // Jamais de séparateur en tête, en queue ou doublé.
   return sortie.filter((e, i, l) => !(e.separateur && (i === 0 || i === l.length - 1 || l[i - 1].separateur)));
 }

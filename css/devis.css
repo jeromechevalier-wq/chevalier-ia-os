@@ -652,3 +652,4 @@ tr[data-manquant] { outline-offset: -2px; }
 .champ-preparer-email { display: flex; flex-direction: column; gap: var(--esp-3); min-width: 0; }
 .champ-preparer-email .puce-choix span { overflow-wrap: anywhere; }
 .dialogue-preparer-email textarea.champ { min-height: 160px; }
+@media (max-width: 767px), (pointer: coarse) { .dialogue-suppression-devis .bouton, .dialogue-suppression-devis .champ, .dialogue-suppression-devis .dialogue-tete .bouton-icone { min-height: 44px; } .dialogue-suppression-devis .dialogue-tete .bouton-icone { min-width: 44px; } }
