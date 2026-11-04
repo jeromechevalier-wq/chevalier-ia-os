@@ -568,7 +568,7 @@ export function peutArchiver(devis) {
 
 /**
  * Le montant qu'un module Devis donne à une affaire (règle D17, décisions de Jérôme des 29/10/2026). Tout est expliqué dans docs/montant-affaire.md.
- *  1. S'il y a des devis ACCEPTÉS (non archivés) : leur somme HT, nature « accepte ».
+ *  1. S'il y a des devis ACCEPTÉS (archivés compris : archiver = ranger) : leur somme HT, nature « accepte ».
  *  2. Sinon, s'il y a des devis PROPOSÉS (finalisés ou envoyés, pas encore acceptés ni refusés ni remplacés) : le HT du plus récent seul, nature « propose »
  *     (deux offres concurrentes ne s'additionnent jamais).
  *  3. Sinon `null` : l'affaire garde son montant saisi à la main, qui n'est jamais effacé.
@@ -582,7 +582,7 @@ export function montantAccepteHt(devisDeLAffaire) {
   let centimes = 0;
   let nombre = 0;
   for (const d of devisDeLAffaire ?? []) {
-    if (d?.statut !== 'accepte' || d.archive === true || htFige(d) === null) continue;
+    if (d?.statut !== 'accepte' || htFige(d) === null) continue;
     centimes += versCentimes(htFige(d));
     nombre += 1;
   }
@@ -594,7 +594,7 @@ const PLUS_RECENT = (a, b) => enMillisecondes(b.finaliseLe) - enMillisecondes(a.
 export const MAX_LIGNES_DETAIL = 20;
 /** Rend `{ montant, nature: 'accepte' | 'propose', detail: [{ numero, version, ht, compte }] }` ou null. `detail` est écrit avec le montant : l'écran explique SES chiffres sans recharger les devis. */
 export function montantDesDevis(devisDeLAffaire) {
-  const valides = (devisDeLAffaire ?? []).filter((d) => d && d.archive !== true && htFige(d) !== null);
+  const valides = (devisDeLAffaire ?? []).filter((d) => d && htFige(d) !== null);
   const acceptes = valides.filter((d) => d.statut === 'accepte').sort(PLUS_RECENT);
   if (acceptes.length) return { montant: montantAccepteHt(acceptes), nature: 'accepte', detail: acceptes.slice(0, MAX_LIGNES_DETAIL).map((d) => ligneDetail(d, true)) };
   const proposes = valides.filter((d) => STATUTS_PROPOSES.includes(d.statut)).sort(PLUS_RECENT);

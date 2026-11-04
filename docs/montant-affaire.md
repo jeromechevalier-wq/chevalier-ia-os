@@ -1,6 +1,6 @@
 # Le montant d'une affaire : d'où vient le chiffre affiché
 
-*Décisions de Jérôme du 29/10/2026. Cette page explique tout, simplement. Règle d'origine : D17 de `docs/cadrage-devis.md`. À lire avant de toucher au montant, à un écran qui l'affiche ou à une fonction du serveur qui change un devis.*
+*Décisions de Jérôme du 29/10/2026, complétées le 04/11/2026 (archiver = ranger). Cette page explique tout, simplement. Règle d'origine : D17 de `docs/cadrage-devis.md`. À lire avant de toucher au montant, à un écran qui l'affiche ou à une fonction du serveur qui change un devis.*
 
 ## En une phrase
 
@@ -10,16 +10,19 @@
 
 | Situation de l'affaire | Libellé | Chiffre | Modifiable ? |
 |---|---|---|---|
-| Aucun devis qui compte (module Devis absent, aucun devis finalisé, ou tous refusés, remplacés ou archivés) | **Montant estimé** | ce qui a été tapé à la main ; un bouton « + Montant estimé » si rien n'a été tapé (le libellé n'apparaît qu'avec un chiffre) | **Oui** (crayon) |
-| Au moins un devis **accepté** (Signé), non archivé | **Montant accepté HT** | la **somme HT** des devis acceptés | Non (calculé) |
+| Aucun devis qui compte (module Devis absent, aucun devis finalisé, ou tous refusés ou remplacés) | **Montant estimé** | ce qui a été tapé à la main ; un bouton « + Montant estimé » si rien n'a été tapé (le libellé n'apparaît qu'avec un chiffre) | **Oui** (crayon) |
+| Au moins un devis **accepté** (Signé), archivé ou non | **Montant accepté HT** | la **somme HT** des devis acceptés | Non (calculé) |
 | Pas de devis accepté, mais au moins un devis **proposé** (Finalisé ou Envoyé) | **Montant proposé HT** | le HT du devis proposé **le plus récent, seul** | Non (calculé) |
 
 Les devis acceptés passent **avant** les devis proposés : dès qu'un devis est signé, les offres proposées ne comptent plus.
 
 ### Ce qui ne compte jamais
 - **Un brouillon.** Il change à chaque frappe et n'est pas enregistré par le serveur : seul un devis **finalisé** compte.
-- Un devis **refusé**, **remplacé** (une version plus récente existe) ou **archivé**.
+- Un devis **refusé** ou **remplacé** (une version plus récente existe).
 - Un devis dont le total HT figé n'est pas un nombre (jamais un chiffre inventé).
+
+### Archiver = ranger
+**Archiver ne change aucun chiffre** (décision de Jérôme, 04/11/2026, qui remplace celle du 29/10) : archiver = ranger. Un devis archivé compte comme avant dans le montant de l'affaire et dans le chiffre d'affaires. Pour le retirer du calcul : le passer à « Refusé », ou le supprimer.
 
 ### Pourquoi « le plus récent, seul » pour les devis proposés ?
 Deux offres envoyées au même client (une « basique », une « premium ») sont des **alternatives**, pas une addition. Si on les additionnait, le total serait faux. Le plus récent est celui sur lequel on travaille. Les devis acceptés, eux, s'additionnent : ce sont des commandes qui s'ajoutent.
@@ -44,8 +47,8 @@ Les cartes du Kanban, la liste et les mini-cartes affichent le même chiffre, su
 | Il finalise une 2e offre de 900 € HT, plus récente | 1 200 € HT | **Montant proposé HT 900 €** ; l'infobulle dit que 1 200 € n'est pas compté |
 | Le client signe la première (1 200 €) | 900 € HT proposé | **Montant accepté HT 1 200 €** |
 | Le client signe aussi la 2e (900 €) | 1 200 € HT | **Montant accepté HT 2 100 €** (1 200 + 900) |
-| Jérôme archive le devis signé de 900 € | 2 100 € HT | **1 200 € HT** |
-| Il archive aussi l'autre (plus aucun devis ne compte) | 1 200 € HT | **Montant estimé 1 500 €** (revenu) |
+| Jérôme archive le devis signé de 900 € (il est rangé) | 2 100 € HT | **2 100 € HT** (rien ne bouge) |
+| Le client refuse finalement le devis de 900 € | 2 100 € HT | **1 200 € HT** |
 | Un devis envoyé est refusé, c'est le seul | Montant proposé HT 1 200 € | **Montant estimé 1 500 €** |
 
 ## Comment ça marche (pour le développeur)
@@ -61,25 +64,25 @@ Les cartes du Kanban, la liste et les mini-cartes affichent le même chiffre, su
 
 **Pourquoi un champ voisin et pas `montant` ?** Écraser `montant` effacerait ce que l'utilisateur a tapé (il doit revenir quand les devis disparaissent), obligerait à créer un champ « estimé » et à **migrer** toutes les affaires, et casserait les autres écrivains (écran, assistant, modèles d'affaire).
 
-**Quand le serveur recalcule.** Dans la **même transaction** que chaque transition d'un devis qui peut changer le montant, `functions/src/coeur/devis.js` (fonction `montantDeLAffaire`) : finaliser, marquer envoyé / accepter / refuser, archiver / désarchiver. « Nouvelle version » et « supprimer un brouillon » ne recalculent rien : un brouillon ne compte jamais (supprimer reste donc restaurable par le journal) ; finaliser la v2 remplace la v1 et recalcule. Si le résultat est identique à ce qui est déjà écrit, **rien n'est écrit** (ni la donnée, ni le journal). Une affaire supprimée ou un devis sans affaire : rien n'est écrit, rien n'est recréé. Le calcul lui-même est une fonction pure, `montantDesDevis` (`js/modules/devis/logique.js`), testée seule.
+**Quand le serveur recalcule.** Dans la **même transaction** que chaque transition d'un devis qui peut changer le montant, `functions/src/coeur/devis.js` (fonction `montantDeLAffaire`) : finaliser, marquer envoyé / accepter / refuser. Archiver / désarchiver ne recalcule rien et n'écrit jamais l'affaire (même si elle est périmée : `recalculer_montants_affaires` la rattrape). « Nouvelle version » et « supprimer un brouillon » ne recalculent rien : un brouillon ne compte jamais (supprimer reste donc restaurable par le journal) ; finaliser la v2 remplace la v1 et recalcule. Si le résultat est identique à ce qui est déjà écrit, **rien n'est écrit** (ni la donnée, ni le journal). Une affaire supprimée ou un devis sans affaire : rien n'est écrit, rien n'est recréé. Le calcul lui-même est une fonction pure, `montantDesDevis` (`js/modules/devis/logique.js`), testée seule.
 
 **Même code chez Jérôme et chez les clients.** `functions/src/coeur/` est copié tel quel dans `functions-plateforme/serveur/` par `scripts/preparer-fonctions.js` : aucune version à maintenir en double.
 
 **Comment les écrans lisent.** Tous passent par `montantAffaire(a)` (`js/modules/crm/logique.js`) : `montantDevisHt` s'il y en a un, sinon `montant`. `natureMontant(a)` donne `'accepte' | 'propose' | 'estime'`, `LIBELLES_MONTANT` les mots de l'écran, `detailMontant(a)` le texte de l'infobulle. Utilisé par la fiche, le Kanban (carte, tri, total de colonne), la liste, les mini-cartes, le chiffre d'affaires signé (`CALCULS.ca_signe`) et l'assistant (`lire_affaire` et `lister_affaires` rendent `montantAffiche`). Le montant vient du document de l'affaire lui-même : **rien ne clignote** au chargement.
 
-**Le journal.** Chaque recalcul laisse une ligne d'audit pour l'affaire (collection `crm_affaires`, champs `montantDevis*`), dans la même opération que le devis. `restaurer_depuis_audit` **refuse** ces opérations (une copie entière de l'affaire effacerait ce qui a changé depuis) : on refait le geste inverse sur le devis (par exemple désarchiver), le montant est recalculé.
+**Le journal.** Chaque recalcul laisse une ligne d'audit pour l'affaire (collection `crm_affaires`, champs `montantDevis*`), dans la même opération que le devis. `restaurer_depuis_audit` **refuse** ces opérations (une copie entière de l'affaire effacerait ce qui a changé depuis) : on crée une nouvelle version du devis ou on change son statut, le montant est recalculé. L'archivage, lui, ne touche pas l'affaire : sa restauration reste possible.
 
 ## Limites connues (à ne pas « corriger » sans en parler à Jérôme)
 - **Aucune migration automatique** (décision du 29/10/2026). Le calcul ne s'applique qu'**aux changements à venir** : une affaire dont les devis existaient avant la mise en service garde son montant tapé tant qu'un de ses devis n'a pas changé. Pour les rattraper, il y a l'outil **`recalculer_montants_affaires`** (Claude Code seulement, accord de Jérôme du 29/10/2026) : sans code, il montre la liste des affaires à corriger (montant avant, après) et ne change rien ; avec le code à usage unique, il écrit **uniquement** `montantDevisHt`, `montantDevisNature` et `montantDevisDetail` (jamais le montant tapé), une ligne de journal par affaire (`devisRecalculMontant`), 50 affaires par appel. Il remet aussi à zéro un calcul périmé (plus aucun devis qui compte). Sans danger à relancer : une affaire déjà à jour n'est pas écrite. Ne se défait pas par `restaurer_depuis_audit` (on le relance, ou on change le devis). Il ne se lance qu'après l'accord de Jérôme sur la liste montrée.
 - Le **module Devis retiré** chez un client : les champs `montantDevis*` déjà écrits restent dans les affaires et continuent de s'afficher (le serveur n'écrit plus rien). Cas rare ; une remise à zéro serait une opération de données.
 - Un **devis expiré** (date de validité dépassée) reste « Envoyé » dans la base : il compte comme proposé.
 - Le passage de l'affaire à « Gagnée » à l'acceptation d'un devis (D17, 1re moitié) n'est **pas** branché.
-- **Un devis « Finalisé » jamais envoyé a maintenant une sortie** (décision de Jérôme, 29/10/2026) : on peut le marquer « Refusé » ou l'archiver depuis le menu « … ». Refusé ou archivé, il ne compte plus (l'archivé est ignoré, le refusé n'est plus « proposé »), et le montant de l'affaire se recalcule dans la même opération.
+- **Un devis « Finalisé » jamais envoyé a maintenant une sortie** (décision de Jérôme, 29/10/2026) : on peut le marquer « Refusé » ou l'archiver depuis le menu « … ». Refusé, il n'est plus « proposé » et le montant se recalcule dans la même opération. Archivé, il compte toujours (décision du 04/11/2026 : archiver = ranger).
 - Si le détail enregistré ne suffit pas à expliquer le total (plus de 20 devis acceptés, ou donnée modifiée à la main), l'infobulle écrit « détail incomplet » et donne le total, jamais une addition fausse.
 - Il n'y a pas de bouton pour forcer un chiffre à la main quand des devis comptent : le chiffre calculé est la vérité ; pour changer le montant, on change les devis.
 
 ## Tests
-`tests/devis-montant-affaire.test.js` (règle pure N1, chaque transition N2 à N4, lecture commune et infobulle N5, restauration refusée N6, recalcul général N7) ; `tests/devis-serveur-firestore.test.js` C8 (vraies transactions Firestore : acceptations simultanées, finalisation, espace client isolé) ; `tests/e2e/affaire-montant.spec.js` (fiche, infobulle, direct, Kanban, liste, tri, module éteint ; ordinateur et téléphone, captures dans `tests/e2e/captures/affaire-montant/`).
+`tests/devis-montant-affaire.test.js` (règle pure N1, chaque transition N2 à N4, lecture commune et infobulle N5, restauration refusée N6, recalcul général N7, archiver = ranger N9 et N10) ; `tests/devis-serveur-firestore.test.js` C8 (vraies transactions Firestore : acceptations simultanées, finalisation, espace client isolé) ; `tests/e2e/affaire-montant.spec.js` (fiche, infobulle, direct, Kanban, liste, tri, module éteint ; ordinateur et téléphone, captures dans `tests/e2e/captures/affaire-montant/`).
 
 ## Déploiement
 Le **site** (hosting) suffit pour les libellés et l'infobulle. Pour que le serveur **écrive** les champs : déployer `functions/` chez Jérôme (il porte aussi le serveur MCP) et « Déploiement plateforme clients » > `fonctions` (et `mcp`) chez les clients. Pas de règle Firestore à publier.

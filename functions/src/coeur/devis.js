@@ -13,7 +13,7 @@
 // - Accepter une version passe aussi les autres versions vivantes (finalisée ou envoyée) de la même racine à « Remplacé » (cadrage §5).
 // - Le journal n'enregistre pas le compteur lui-même (bruit) ; le numéro attribué est dans la copie du devis.
 // - Montant de l'affaire (29/10/2026, règle D17, expliquée dans docs/montant-affaire.md) : le montant calculé d'après les devis (somme HT des acceptés, sinon le HT du devis proposé le plus récent)
-//   est écrit dans `montantDevisHt` et `montantDevisNature` de l'affaire, DANS la transaction de chaque transition qui peut le changer (finaliser, changer de statut, archiver ; ni « nouvelle version » ni « supprimer » : un brouillon ne compte jamais). Un brouillon ne compte
+//   est écrit dans `montantDevisHt` et `montantDevisNature` de l'affaire, DANS la transaction de chaque transition qui peut le changer (finaliser, changer de statut ; ni « nouvelle version » ni « supprimer » : un brouillon ne compte jamais). Un brouillon ne compte
 //   jamais : il est écrit par le navigateur, hors de ces transactions. Le montant saisi à la main (`montant`) n'est jamais touché. Aucune migration : une affaire n'est recalculée que lorsqu'un de ses devis change.
 import * as D from '../../partage/devis.js';
 import * as A from '../../partage/devis-articles.js';
@@ -209,7 +209,7 @@ export async function changerStatut({ donnees, ctx, devisId, action }) {
   if (!champDate) throw new ErreurDevis('demande_invalide', 'Action inconnue : marquer_envoye, accepter ou refuser.');
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
-    // Un devis archivé ne change plus de statut (un finalisé archivé, passé à Signé, serait ignoré par le montant de l'affaire) : on le sort des archives d'abord.
+    // Un devis archivé est rangé : il ne change plus de statut tant qu'il est archivé (on le sort des archives d'abord). Archiver ne change aucun montant.
     if (devis.archive === true) throw new ErreurDevis('transition_interdite', 'Ce devis est archivé : sors-le des archives avant de changer son statut.');
     if (!D.transitionPossible(devis.statut, action)) {
       throw new ErreurDevis('transition_interdite', `Cette action n'est pas possible pour un devis « ${D.STATUTS_DEVIS.find((s) => s.id === devis.statut)?.libelle ?? devis.statut} ».`);
@@ -279,9 +279,9 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
     if (!archive && devis.archive !== true) throw new ErreurDevis('transition_interdite', 'Ce devis n\'est pas archivé.');
     const patch = { archive, archiveLe: archive ? ctx.maintenant : null };
     const changement = modifier(devis, patch);
-    // Un devis accepté archivé ne compte plus dans le montant de l'affaire ; désarchivé, il compte de nouveau (règle D17).
-    const montant = await montantDeLAffaire(tx, devis, { [devis.id]: patch });
-    const changements = montant ? [changement, montant] : [changement];
+    // Archiver = ranger (décision du 04/11/2026) : un devis archivé compte toujours dans le montant de l'affaire. L'archivage ne touche donc JAMAIS à l'affaire
+    // (même périmée : le rattrapage passe par `recalculer_montants_affaires`), et son opération reste restaurable avec le journal.
+    const changements = [changement];
     const j = journal({ donnees, ctx, outil: 'devisArchiver', parametres: { devisId, archive }, changements });
     tx.ecrire([...changements.map((c) => c.ecriture), ...j.ecritures]);
     return { ok: true, devis: { ...devis, ...patch }, operationId: j.operationId };
