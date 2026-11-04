@@ -320,7 +320,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .fiche-tete { display: flex; flex-direction: column; gap: var(--esp-5); }
 .fiche-tete-ligne { display: flex; align-items: center; gap: var(--esp-6); flex-wrap: wrap; }
 .fiche-titre { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: var(--esp-2); }
-.titre-editable { width: 100%; font: var(--poids-moyen) var(--fs-page)/1.2 var(--police-titre); letter-spacing: -.03em; color: var(--texte); background: transparent; border: 1px solid transparent; border-radius: var(--rayon); padding: 2px var(--esp-3); margin-left: calc(-1 * var(--esp-3)); }
+.titre-editable { align-self: flex-start; min-width: 12ch; max-width: 100%; box-sizing: border-box; font: var(--poids-moyen) var(--fs-page)/1.2 var(--police-titre); letter-spacing: -.03em; color: var(--texte); background: transparent; border: 1px solid transparent; border-radius: var(--rayon); padding: 2px var(--esp-3); margin-left: calc(-1 * var(--esp-3)); }
 .titre-editable:hover { border-color: var(--bordure); }
 .titre-editable:focus { outline: none; border-color: var(--accent-trait); background: var(--panneau); }
 .fiche-sous { display: flex; align-items: center; gap: var(--esp-5); flex-wrap: wrap; color: var(--texte2); font-size: var(--fs-texte); }
@@ -607,3 +607,5 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .ligne-etiquette:hover { background: var(--survol); }
 .vide-liste { margin: 0; color: var(--texte2); }
 .nouvelle-etiquette { display: flex; flex-direction: column; gap: var(--esp-2); padding-top: var(--esp-4); border-top: 1px solid var(--bordure); }
+
+@media (max-width: 767px), (pointer: coarse) { .titre-editable { min-height: 44px; } }
