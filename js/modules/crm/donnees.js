@@ -142,6 +142,9 @@ export const personne = (id) => etat.personnes.find((x) => x.id === id) || null;
 export const organisation = (id) => etat.organisations.find((x) => x.id === id) || null;
 export const affaire = (id) => etat.affaires.find((x) => x.id === id) || null;
 
+/** Fiches liées d'une activité ou d'une note (mode test : le repère est hérité à la création). Un projet de test passe `test: true` par l'appelant (ce module ne voit pas les projets). */
+const parentsDe = (liens = {}) => ({ personne: personne(liens.personneId), organisation: organisation(liens.organisationId), affaire: affaire(liens.affaireId) });
+
 /** Activités rattachées à une personne, une organisation ou une affaire ({ personneId } | { organisationId } | { affaireId }). */
 export function activitesDe(lien) {
   const [cle, id] = Object.entries(lien)[0];
@@ -356,7 +359,7 @@ export function ecouterFil(lien, rappel) {
 // ---------------------------------------------------------------- personnes
 
 export async function creerPersonne(valeurs) {
-  const plan = L.planCreerPersonne(avecModeTest(valeurs), ctx());
+  const plan = L.planCreerPersonne(L.heriterTest(avecModeTest(valeurs), { organisation: organisation(valeurs.organisationId) }), ctx());
   await executer(plan.ecritures, 'creerPersonne');
   return plan.id;
 }
@@ -467,7 +470,7 @@ export async function supprimerAffaire(id) {
 // ---------------------------------------------------------------- activités
 
 export async function creerActivite(valeurs) {
-  const plan = L.planCreerActivite(avecModeTest(valeurs), ctx());
+  const plan = L.planCreerActivite(L.heriterTest(avecModeTest(valeurs), parentsDe(valeurs)), ctx());
   await executer(plan.ecritures, 'creerActivite');
   return plan.id;
 }
@@ -490,7 +493,7 @@ export async function supprimerActivite(id) {
 // ---------------------------------------------------------------- notes
 
 export async function creerNote(texte, liens) {
-  const plan = L.planCreerNote(texte, avecModeTest(liens), ctx());
+  const plan = L.planCreerNote(texte, L.heriterTest(avecModeTest(liens), parentsDe(liens)), ctx());
   await executer(plan.ecritures, 'creerNote');
   return plan.id;
 }

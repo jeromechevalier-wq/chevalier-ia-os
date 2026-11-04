@@ -126,7 +126,7 @@ async function appliquer(plan, outil) {
 
 /** Valeurs : titre (obligatoire) et, facultatif, personneId, organisationId, affaireId, offreId, dateDebut, dateFin. `modeleId` : le projet part avec les tâches du modèle. Renvoie l'identifiant du projet. */
 export async function creerProjet(valeurs, { modeleId = null } = {}) {
-  const plan = P.planCreerProjet(avecModeTest(valeurs), ctx(), { modele: modeleId ? modele(modeleId) : null });
+  const plan = P.planCreerProjet(CL.heriterTest(avecModeTest(valeurs), { affaire: valeurs.affaireId ? CRM.affaire(valeurs.affaireId) : null, personne: valeurs.personneId ? CRM.personne(valeurs.personneId) : null, organisation: valeurs.organisationId ? CRM.organisation(valeurs.organisationId) : null }), ctx(), { modele: modeleId ? modele(modeleId) : null });
   await appliquer(plan, 'creerProjet');
   return plan.id;
 }
