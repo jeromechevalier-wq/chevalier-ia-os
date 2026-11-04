@@ -179,7 +179,7 @@ test('5 clair ET sombre, ordinateur ET téléphone : la fenêtre tient dans l’
     await expect.poll(async () => page.evaluate(() => { const b = document.querySelector('.dialogue-preparer-email'); return b.scrollWidth <= b.clientWidth; })).toBe(true);
     if (info.project.name === 'telephone') {
       for (const c of [champA(page), boite(page).locator('[data-action="retirer-destinataire-preparer-email"]').first(), boite(page).locator('[data-action="retirer-copie-preparer-email"]').first()]) {
-        expect((await c.boundingBox()).height).toBeGreaterThanOrEqual(44);
+        await expect.poll(async () => (await c.boundingBox()).height, { message: 'cible assez grande au doigt (la fenêtre finit son animation d’ouverture)' }).toBeGreaterThanOrEqual(44);
       }
     }
     await capturer(page, info, `5-fenetre-${schema === 'dark' ? 'sombre' : 'clair'}`);
