@@ -226,7 +226,7 @@ export const OUTILS_ECRITURE = [
     id: id.describe('Identifiant du devis de départ (voir lister_devis).'),
   }, metier.nouvelleVersionDevis),
 
-  outil('archiver_devis', "RANGE un devis sans le supprimer : archive (archive: true) ou désarchive (archive: false). Pour l'effacer pour de bon, voir supprimer_devis. On n'archive qu'un devis Signé (accepte) ou Refusé ; un devis archivé sort de lister_devis (sauf archives: true) mais reste lisible. Aucun prix ni statut ne change. Même logique serveur que l'écran. Récupérable avec restaurer_depuis_audit.", {
+  outil('archiver_devis', "RANGE un devis sans le supprimer : archive (archive: true) ou désarchive (archive: false). Un devis finalisé, signé ou refusé peut être archivé ; un devis archivé sort de lister_devis (sauf archives: true) mais reste lisible. Ranger ne change aucun chiffre ni le montant de l'affaire ; pour retirer un devis : supprimer_devis. Aucun prix ni statut ne change. Même logique serveur que l'écran. Récupérable avec restaurer_depuis_audit.", {
     id: id.describe('Identifiant du devis (voir lister_devis).'), archive: z.boolean().describe('true : archiver ; false : désarchiver.'),
   }, metier.archiverDevis),
 

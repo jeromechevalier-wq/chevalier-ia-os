@@ -7,7 +7,7 @@ import {
   COLLECTIONS_PLAN, MARQUES_CREATION, MARQUES_MODIFICATION,
   ecritureCreer, ecritureModifier, ecritureSupprimer, ecritureNoteDeDepart, evenements, modifierSiPatch, evenementCreation, evenementsDocuments,
   nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser, ajouterJours,
-  planChangerEtape, planMarquerPerdue, formatEuros, configDe, TYPES_ACTIVITE, noteEpingleeAffaire,
+  planChangerEtape, planMarquerPerdue, formatEuros, configDe, TYPES_ACTIVITE, noteEpingleeAffaire, heriterTest,
 } from '../crm/logique.js';
 
 const C = COLLECTIONS_PLAN;
@@ -473,7 +473,7 @@ export function planCreerTache({ projet, taches = [], valeurs }, ctx) {
   return {
     erreurs: {},
     id,
-    ecritures: [ecritureCreer(C.projetsTaches, id, nouvelleTache({ ...complet, ordre: prochainOrdre(taches, projet.id, phase) }, ctx), { horodater: ['creeLe'] })],
+    ecritures: [ecritureCreer(C.projetsTaches, id, nouvelleTache(heriterTest({ ...complet, ordre: prochainOrdre(taches, projet.id, phase) }, { projet }), ctx), { horodater: ['creeLe'] })],
   };
 }
 
@@ -606,7 +606,7 @@ export const modelesActifs = (modeles) => (modeles || []).filter((m) => m.actif 
 export const modeleParOffre = (modeles, offreId) => (offreId ? modelesActifs(modeles).find((m) => m.offreId === offreId) ?? null : null);
 
 /** Les tâches d'un modèle devenues vraies tâches d'un projet : date = début du projet + délai, ordre repris dans chaque phase. */
-function ecrituresTachesModele(modele, { projetId, dateDebut }, ctx) {
+function ecrituresTachesModele(modele, { projetId, dateDebut, test = false }, ctx) {
   if (!modele) return [];
   const comptes = {};
   return tachesDuModele(modele, configDe(ctx)).map((t) => {
@@ -615,6 +615,7 @@ function ecrituresTachesModele(modele, { projetId, dateDebut }, ctx) {
     const delai = delaiNet(t.delaiJours);
     return ecritureCreer(C.projetsTaches, id, nouvelleTache({
       titre: t.titre, projetId, phase: t.phase, ordre: comptes[t.phase], date: delai === null ? null : ajouterJours(dateDebut, delai),
+      ...(test === true ? { test: true } : {}), // les tâches du modèle héritent du projet créé
     }, ctx), { horodater: ['creeLe'] });
   });
 }
@@ -719,6 +720,8 @@ export function liensProjet(projet) {
     organisationId: projet.organisationId ?? null,
     affaireId: projet.affaireId ?? null,
     projetId: projet.id ?? null,
+    // Mode test : une note ou une activité d'un projet de test hérite du repère (ajouté seulement s'il est vrai : jamais `test: false`).
+    ...(projet.test === true ? { test: true } : {}),
   };
 }
 
@@ -753,11 +756,11 @@ export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = 
   const erreurs = validerLienAffaire({ affaire, projets });
   if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
   const id = ctx.nouvelId(C.projets);
-  const fiche = nouveauProjet({
+  const fiche = nouveauProjet(heriterTest({
     titre: affaire.titre, personneId: affaire.personneId, organisationId: affaire.organisationId, offreId: affaire.offreId,
     urlGithub: affaire.urlGithub, urlDossier: affaire.urlDossier, ...valeurs, affaireId: affaire.id,
     ...(modele ? { modeleId: modele.id } : {}),
-  }, ctx);
+  }, { affaire }), ctx);
   // `texteNote` (ancien paramètre MCP `description`) l'emporte sur la copie de la note de l'affaire.
   const originale = texteNote ? null : noteEpingleeAffaire(notesAffaire, affaire.id); // chaîne vide = « non donné » : on copie
   const note = ecritureNoteDeDepart(liensProjet({ ...fiche, id }), ctx, originale?.texte ?? (texteNote || ''), { copieDeNoteId: originale?.id ?? null });
@@ -768,7 +771,7 @@ export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = 
     noteId: note.id,
     ecritures: [
       ecritureCreer(C.projets, id, fiche, MARQUES_CREATION),
-      ...ecrituresTachesModele(modele, { projetId: id, dateDebut: fiche.dateDebut }, ctx),
+      ...ecrituresTachesModele(modele, { projetId: id, dateDebut: fiche.dateDebut, test: fiche.test === true }, ctx),
       ...modifierSiPatch(C.affaires, affaire.id, { projetId: id }, MARQUES_MODIFICATION),
       ...evenements([evenementProjet('projet_cree', `Projet créé : ${fiche.titre}`, { ...fiche, id }, ctx)], ctx),
       note,
@@ -905,7 +908,7 @@ export function planCreerProjet(valeurs, ctx, { modele = null, texteNote = '' } 
     noteId: note.id,
     ecritures: [
       ecritureCreer(C.projets, id, fiche, MARQUES_CREATION),
-      ...ecrituresTachesModele(modele, { projetId: id, dateDebut: fiche.dateDebut }, ctx),
+      ...ecrituresTachesModele(modele, { projetId: id, dateDebut: fiche.dateDebut, test: fiche.test === true }, ctx),
       ...evenements([evenementProjet('projet_cree', `Projet créé : ${fiche.titre}`, { ...fiche, id }, ctx)], ctx),
       note,
     ],

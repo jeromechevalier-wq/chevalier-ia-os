@@ -246,6 +246,14 @@ describe('B1 B2 supprimer un devis à toutes les étapes de sa vie (décision de
     });
   }
 
+  test('B1 un devis signé ET archivé compte (archiver = ranger) : le supprimer recalcule le montant de l’affaire', async () => {
+    const m = avecAffaire([brouillon('a', { statut: 'accepte', numero: NUM(1), archive: true, totaux: { ht: 100 } })]);
+    await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true, affaireIds: ['aff1'] });
+    assert.equal(m.collections[C.affaires][0].montantDevisHt, 100, 'un archivé compte');
+    await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'a' });
+    assert.equal(m.collections[C.affaires][0].montantDevisHt, null);
+  });
+
   test('B1 un devis signé qui sort : le montant de l’affaire est recalculé DANS la même transaction (même opération du journal)', async () => {
     const m = avecAffaire([brouillon('a', { statut: 'accepte', numero: NUM(1), totaux: { ht: 100 } }), brouillon('b', { statut: 'envoye', numero: NUM(2), totaux: { ht: 50 } })]);
     await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true, affaireIds: ['aff1'] });

@@ -653,3 +653,28 @@ tr[data-manquant] { outline-offset: -2px; }
 .champ-preparer-email .puce-choix span { overflow-wrap: anywhere; }
 .dialogue-preparer-email textarea.champ { min-height: 160px; }
 @media (max-width: 767px), (pointer: coarse) { .dialogue-suppression-devis .bouton, .dialogue-suppression-devis .champ, .dialogue-suppression-devis .dialogue-tete .bouton-icone { min-height: 44px; } .dialogue-suppression-devis .dialogue-tete .bouton-icone { min-width: 44px; } }
+
+/* Saisie d'adresses « comme dans Gmail » (fenêtre « Préparer l'e-mail » et éditeur du devis) : une ligne « À » avec des puces, un lien « Cc » qui ouvre la ligne Copie. */
+.saisie-adresses { display: flex; flex-direction: column; gap: var(--esp-3); min-width: 0; align-self: stretch; }
+.bloc-ligne-adresses { display: flex; flex-direction: column; gap: var(--esp-2); min-width: 0; }
+.bloc-ligne-adresses[hidden] { display: none; }
+.ligne-adresses { display: flex; align-items: flex-start; gap: var(--esp-4); min-width: 0; }
+.etiquette-adresses { min-width: 24px; min-height: var(--h-ctrl-petit); display: flex; align-items: center; flex: none; }
+.zone-adresses { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--esp-2); padding: var(--esp-1) var(--esp-3); border: 1px solid var(--bordure-champ); border-radius: var(--rayon-petit); background: var(--panneau2); }
+.zone-adresses:focus-within { border-color: var(--accent-trait); }
+.puces-adresses { display: contents; list-style: none; margin: 0; padding: 0; }
+.puce-adresse { display: inline-flex; align-items: center; gap: var(--esp-1); max-width: 100%; padding: 0 var(--esp-1) 0 var(--esp-4); min-height: var(--h-ctrl-petit); border: 1px solid var(--bordure); border-radius: 999px; background: var(--panneau2); }
+.puce-adresse span { overflow-wrap: anywhere; min-width: 0; }
+.puce-adresse-croix { min-height: var(--h-ctrl-petit); min-width: var(--h-ctrl-petit); }
+.champ-adresse { flex: 1 1 140px; min-width: 120px; min-height: var(--h-ctrl-petit); border: 0; outline: 0; background: transparent; color: var(--texte); font-family: inherit; padding: 0; }
+.champ-adresse[hidden] { display: none; }
+.lien-cc { flex: none; min-height: var(--h-ctrl-petit); min-width: var(--h-ctrl-petit); border: 0; background: transparent; color: var(--texte2); font-family: inherit; font-size: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.lien-cc:hover, .lien-cc:focus-visible { color: inherit; }
+.lien-cc[hidden] { display: none; }
+.plafond-adresses { margin: 0; }
+.dialogue-preparer-email .dialogue-pied { justify-content: flex-start; }
+.piece-jointe-puce { display: inline-flex; align-items: center; gap: var(--esp-3); align-self: flex-start; max-width: 100%; min-height: var(--h-ctrl-petit); padding: 0 var(--esp-5); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau); }
+.piece-jointe-puce span { overflow-wrap: anywhere; min-width: 0; }
+.message-limite { display: flex; align-items: flex-start; gap: var(--esp-3); margin: 0; color: var(--texte2); }
+.message-limite .icone { flex: none; margin-top: 2px; }
+@media (max-width: 767px), (pointer: coarse) { .puce-adresse, .puce-adresse-croix, .lien-cc, .champ-adresse, .etiquette-adresses { min-height: 44px; } .puce-adresse-croix, .lien-cc { min-width: 44px; } }

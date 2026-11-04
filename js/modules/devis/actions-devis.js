@@ -183,6 +183,7 @@ export async function dupliquerDevis(source, { prixDuJour = false } = {}) {
     const r = await D.creerBrouillon({
       affaireId: source.affaireId, organisationId: source.organisationId, personneId: source.personneId, adresses: source.adresses,
       destinataires: source.destinataires, copie: source.copie, modeMarge: source.modeMarge, marge: source.marge, tauxTvaDefaut: source.tauxTvaDefaut,
+      ...(source.test === true ? { test: true } : {}), // dupliquer un devis de test donne un devis de test (pas via `contenu` : `test` n'y est pas)
     });
     if (!r.id) throw new Error(Object.values(r.erreurs)[0] || ERREUR_ECRITURE);
     let copie = false;

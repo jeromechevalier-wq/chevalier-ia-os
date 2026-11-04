@@ -67,51 +67,53 @@ async function chercherEtAjouter(page, mot, quantite) {
   await page.locator('[data-action="ajouter-article"]').first().click();
   await page.locator('tr.ligne-devis-edition').last().locator('[data-champ="quantite"]').fill(quantite);
 }
+// Comme dans Gmail : le lien « Cc » (dans la ligne « À ») ouvre la ligne Copie ; il disparaît une fois la ligne ouverte.
+const ouvrirCc = async (page) => { const lien = page.locator('[data-action="ajouter-copie"]'); if (await lien.isVisible()) await lien.click(); };
 const blocA = (page) => page.locator('[data-zone="destinataires"]');
-const adressesA = (page) => blocA(page).locator('.ligne-destinataire');
-const ajouterDestinataire = async (page, adresse) => {
-  await blocA(page).locator('[data-action="ajouter-destinataire"]').click();
-  await blocA(page).locator('[data-champ="destinataire"]').fill(adresse);
-  await blocA(page).locator('[data-champ="destinataire"]').press('Enter');
+const adressesA = (page) => blocA(page).locator('[data-adresse]');
+const champA = (page) => blocA(page).locator('[data-champ="destinataire"]');
+const ajouterDestinataire = async (page, adresse) => { // la ligne « À » est toujours là : on tape, Entrée
+  await champA(page).fill(adresse);
+  await champA(page).press('Enter');
 };
 const textes = (page) => lignes(page).locator('[data-champ="libelle"]').evaluateAll((els) => els.map((e) => e.value));
 
-test('C1 « + E-mail en copie » : ajouter une adresse (Entrée), refuser une adresse invalide, retirer par la croix ; l’adresse reste après rechargement', async ({ page }, info) => {
+test('C1 « Cc » : le lien ouvre la ligne Copie, Entrée ajoute une adresse en puce, une adresse invalide est refusée, la croix retire ; l’adresse reste après rechargement', async ({ page }, info) => {
   await semer();
-  const id = await nouveauBrouillon(page);
+  await nouveauBrouillon(page);
   const bloc = page.locator('[data-zone="copie"]');
-  await expect(bloc.locator('[data-action="ajouter-copie"]')).toHaveText('E-mail en copie');
-  await expect(bloc.locator('.ligne-copie')).toHaveCount(0); // cas vide : « Aucune adresse en copie » et le bouton jaune
-  await bloc.locator('[data-action="ajouter-copie"]').click();
+  await expect(page.locator('[data-action="ajouter-copie"]')).toHaveText('Cc');
+  await expect(bloc).toBeHidden(); // cas vide : seule la ligne « À » est montrée, avec le lien « Cc » à sa droite
+  await ouvrirCc(page);
+  await expect(bloc).toBeVisible();
+  await expect(page.locator('[data-action="ajouter-copie"]')).toBeHidden();
   await bloc.locator('[data-champ="copie"]').fill('pas-un-email');
   await bloc.locator('[data-champ="copie"]').press('Enter');
   await expect(bloc.locator('[data-erreur="copie"]')).toContainText('Cette adresse email n’est pas valide');
   await bloc.locator('[data-champ="copie"]').fill('Compta@Exemple.fr');
   await bloc.locator('[data-champ="copie"]').press('Enter');
-  await expect(bloc.locator('.ligne-copie')).toHaveText(['Compta@Exemple.fr']);
-  await bloc.locator('[data-action="ajouter-copie"]').click();
+  await expect(bloc.locator('[data-adresse]')).toHaveText(['Compta@Exemple.fr']);
   await bloc.locator('[data-champ="copie"]').fill('compta@exemple.fr'); // déjà présente (sans tenir compte des majuscules) : rien n'est ajouté
   await bloc.locator('[data-champ="copie"]').press('Enter');
-  await expect(bloc.locator('.ligne-copie')).toHaveCount(1);
+  await expect(bloc.locator('[data-adresse]')).toHaveCount(1);
   await expect(bloc.locator('[data-erreur="copie"]')).toHaveText('Cette adresse est déjà en copie.'); // plus de non-réaction silencieuse
-  await bloc.locator('[data-champ="copie"]').press('Escape');
   await capturer(page, info, 'C1-email-en-copie');
+  await bloc.locator('[data-champ="copie"]').fill('');
   await enregistre(page);
   await page.reload();
-  await expect(page.locator('[data-zone="copie"] .ligne-copie')).toHaveText(['Compta@Exemple.fr']);
+  await expect(page.locator('[data-zone="copie"] [data-adresse]')).toHaveText(['Compta@Exemple.fr']);
   await page.locator('[data-zone="copie"] [data-action="retirer-copie"]').click();
-  await expect(page.locator('[data-zone="copie"] .ligne-copie')).toHaveCount(0);
+  await expect(page.locator('[data-zone="copie"] [data-adresse]')).toHaveCount(0);
 });
 
-test('C2 une adresse déjà en copie ne peut pas être ajoutée aux destinataires : message clair, rien d’enregistré, le champ reste ouvert jusqu’à Échap', async ({ page }, info) => {
+test('C2 une adresse déjà en copie ne peut pas être ajoutée aux destinataires : message clair, rien d’enregistré, le champ garde le texte tapé', async ({ page }, info) => {
   await semer();
   await nouveauBrouillon(page);
   const bloc = page.locator('[data-zone="copie"]');
-  await bloc.locator('[data-action="ajouter-copie"]').click();
+  await ouvrirCc(page);
   await bloc.locator('[data-champ="copie"]').fill('compta@exemple.fr');
   await bloc.locator('[data-champ="copie"]').press('Enter');
-  await expect(bloc.locator('.ligne-copie')).toHaveCount(1);
-  await blocA(page).locator('[data-action="ajouter-destinataire"]').click();
+  await expect(bloc.locator('[data-adresse]')).toHaveCount(1);
   const champ = blocA(page).locator('[data-champ="destinataire"]');
   await champ.fill('Compta@exemple.fr');
   await champ.press('Enter');
@@ -123,7 +125,7 @@ test('C2 une adresse déjà en copie ne peut pas être ajoutée aux destinataire
   await expect(adressesA(page)).toHaveText(['contact@exemple.fr', 'autre@exemple.fr']); // l'adresse du client reste, la nouvelle s'ajoute
 });
 
-test('C3 devis en lecture seule : les zones « Destinataire » et « En copie » sont les mêmes qu’en édition (adresses lisibles, « + » grisés, croix grisées), avec ou sans adresse en copie', async ({ page }, info) => {
+test('C3 devis en lecture seule : les lignes « À » et « Cc » sont les mêmes qu’en édition (adresses lisibles, champs et croix grisés, lien « Cc » grisé), avec ou sans adresse en copie', async ({ page }, info) => {
   await semer();
   await ouvrirListe(page);
   const base = {
@@ -136,17 +138,17 @@ test('C3 devis en lecture seule : les zones « Destinataire » et « En copie »
   await ecrireDocument('devis_devis/aveccopie', { ...base, racineId: 'aveccopie', numero: 'DEV-2026-10-02-002', copie: ['compta@exemple.fr'] });
   await page.goto('/?emulateurs=1#/devis/editeur/sanscopie');
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
-  await expect(page.locator('[data-zone="copie"]')).toBeVisible();
-  await expect(page.locator('[data-zone="copie"] [data-action="ajouter-copie"]')).toHaveAttribute('aria-disabled', 'true');
   await expect(blocA(page)).toBeVisible();
+  await expect(page.locator('[data-zone="copie"]')).toBeHidden(); // pas d'adresse en copie : la ligne Cc reste fermée, son lien est grisé
+  await expect(blocA(page).locator('[data-action="ajouter-copie"]')).toHaveAttribute('aria-disabled', 'true');
   await expect(adressesA(page)).toHaveText(['contact@exemple.fr']);
-  await expect(blocA(page).locator('[data-action="ajouter-destinataire"]')).toHaveAttribute('aria-disabled', 'true');
+  await expect(champA(page)).toHaveJSProperty('readOnly', true);
   await expect(blocA(page).locator('[data-action="retirer-destinataire"]')).toHaveAttribute('aria-disabled', 'true');
   await capturer(page, info, 'C3-lecture-seule-sans-copie');
   await page.goto('/?emulateurs=1#/devis/editeur/aveccopie');
   await page.reload(); // un simple changement d'adresse garde l'écran du devis précédent : on repart d'une page neuve
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
-  await expect(page.locator('[data-zone="copie"] .ligne-copie')).toHaveText(['compta@exemple.fr']);
+  await expect(page.locator('[data-zone="copie"] [data-adresse]')).toHaveText(['compta@exemple.fr']);
   await expect(page.locator('[data-zone="copie"] [data-action="retirer-copie"]')).toHaveAttribute('aria-disabled', 'true');
 });
 
@@ -154,62 +156,58 @@ test('C5 la croix d’une adresse en copie retire bien l’adresse même si on e
   await semer();
   await nouveauBrouillon(page);
   const bloc = page.locator('[data-zone="copie"]');
-  await bloc.locator('[data-action="ajouter-copie"]').click();
-  await bloc.locator('[data-champ="copie"]').fill('a@exemple.fr');
-  await bloc.locator('[data-champ="copie"]').press('Enter');
-  await bloc.locator('[data-action="ajouter-copie"]').click();
-  await bloc.locator('[data-champ="copie"]').fill('b@exemple.fr');
-  await bloc.locator('[data-champ="copie"]').press('Enter');
-  await expect(bloc.locator('.ligne-copie')).toHaveText(['a@exemple.fr', 'b@exemple.fr']);
-  await bloc.locator('[data-action="ajouter-copie"]').click();
+  await ajouterCopie(bloc, 'a@exemple.fr');
+  await ajouterCopie(bloc, 'b@exemple.fr');
+  await expect(bloc.locator('[data-adresse]')).toHaveText(['a@exemple.fr', 'b@exemple.fr']);
   await bloc.locator('[data-champ="copie"]').fill('c@exemple.fr'); // saisie en cours, champ actif
   await capturer(page, info, 'C5-croix-pendant-saisie');
-  await bloc.locator('[data-action="retirer-copie"]').first().click(); // un vrai clic : le champ perd le focus, la croix doit répondre quand même
-  await expect(bloc.locator('.ligne-copie')).toHaveText(['b@exemple.fr']); // a est retirée
+  await bloc.locator('[data-action="retirer-copie"]').first().click(); // un vrai clic : la croix doit répondre quand même
+  await expect(bloc.locator('[data-adresse]')).toHaveText(['b@exemple.fr']); // a est retirée
   await expect(bloc.locator('[data-champ="copie"]')).toHaveValue('c@exemple.fr'); // la saisie en cours n'est pas perdue
   await bloc.locator('[data-champ="copie"]').press('Enter');
-  await expect(bloc.locator('.ligne-copie')).toHaveText(['b@exemple.fr', 'c@exemple.fr']);
+  await expect(bloc.locator('[data-adresse]')).toHaveText(['b@exemple.fr', 'c@exemple.fr']);
 });
 
 // ------------------------------------------------ refonte du bloc « E-mail(s) en copie » : un test par point du brief (COP1 à COP7), une capture par état clé ; COP8 et COP9 : corrections après la relecture Fable.
 // Le point « lecture seule » est vérifié par C3 (plus haut) : depuis l'écran unique (PR 314) le bloc existe en lecture seule, grisé (croix et « + E-mail en copie » en `aria-disabled`).
-const ajouterCopie = async (bloc, adresse) => {
-  await bloc.locator('[data-action="ajouter-copie"]').click();
+const ajouterCopie = async (bloc, adresse) => { // `bloc` : la zone Copie ; le lien « Cc » l'ouvre au besoin
+  const page = bloc.page();
+  await ouvrirCc(page);
   await bloc.locator('[data-champ="copie"]').fill(adresse);
   await bloc.locator('[data-champ="copie"]').press('Enter');
 };
 
-test('COP1 le titre est « E-mail(s) en copie » ; sans adresse : « Aucune adresse en copie » grisé et le bouton, jamais une étiquette qui laisse croire qu’une adresse existe', async ({ page }, info) => {
+test('COP1 la ligne s’appelle « Cc » comme dans Gmail ; sans adresse elle est fermée (lien « Cc » à droite de « À »), jamais une étiquette qui laisse croire qu’une adresse existe', async ({ page }, info) => {
   await semer();
   await nouveauBrouillon(page);
   const bloc = page.locator('[data-zone="copie"]');
-  await expect(bloc.locator('.etiquette')).toHaveText('E-mail(s) en copie');
-  await expect(bloc.locator('[data-valeur="copie-vide"]')).toHaveText('Aucune adresse en copie');
-  await expect(bloc.locator('[data-action="ajouter-copie"]')).toBeVisible();
+  await expect(blocA(page).locator('.etiquette')).toHaveText('À');
+  await expect(page.locator('[data-action="ajouter-copie"]')).toBeVisible();
+  await expect(bloc).toBeHidden();
   await capturer(page, info, 'COP1-vide');
   await ajouterCopie(bloc, 'a@exemple.fr');
-  await expect(bloc.locator('[data-valeur="copie-vide"]')).toHaveCount(0); // une adresse existe : le texte grisé disparaît
+  await expect(bloc.locator('.etiquette')).toHaveText('Cc');
+  await expect(bloc.locator('[data-adresse]')).toHaveText(['a@exemple.fr']);
   await bloc.locator('[data-action="retirer-copie"]').click();
-  await expect(bloc.locator('[data-valeur="copie-vide"]')).toHaveText('Aucune adresse en copie'); // adresse ajoutée puis retirée : on revient à l'état vide, sans trace
+  await expect(bloc.locator('[data-adresse]')).toHaveCount(0); // adresse ajoutée puis retirée : la ligne reste ouverte, vide, sans trace
 });
 
-test('COP2 chaque adresse a sa ligne et sa croix « Retirer » ; retirer la dernière ramène à « Aucune adresse en copie »', async ({ page }, info) => {
+test('COP2 chaque adresse est une puce avec sa croix « Retirer <adresse> » ; Retour arrière dans le champ vide retire la dernière puce', async ({ page }, info) => {
   await semer();
   await nouveauBrouillon(page);
   const bloc = page.locator('[data-zone="copie"]');
   await ajouterCopie(bloc, 'a@exemple.fr');
   await ajouterCopie(bloc, 'b@exemple.fr');
-  await expect(bloc.locator('.ligne-copie')).toHaveText(['a@exemple.fr', 'b@exemple.fr']);
-  await expect(bloc.getByRole('button', { name: 'Retirer a@exemple.fr de la copie' })).toBeVisible();
+  await expect(bloc.locator('[data-adresse]')).toHaveText(['a@exemple.fr', 'b@exemple.fr']);
+  await expect(bloc.getByRole('button', { name: 'Retirer a@exemple.fr' })).toBeVisible();
   await capturer(page, info, 'COP2-deux-adresses');
-  await bloc.getByRole('button', { name: 'Retirer a@exemple.fr de la copie' }).click();
-  await expect(bloc.locator('.ligne-copie')).toHaveText(['b@exemple.fr']);
-  await bloc.getByRole('button', { name: 'Retirer b@exemple.fr de la copie' }).click();
-  await expect(bloc.locator('.ligne-copie')).toHaveCount(0);
-  await expect(bloc.locator('[data-valeur="copie-vide"]')).toBeVisible();
+  await bloc.getByRole('button', { name: 'Retirer a@exemple.fr' }).click();
+  await expect(bloc.locator('[data-adresse]')).toHaveText(['b@exemple.fr']);
+  await bloc.locator('[data-champ="copie"]').press('Backspace');
+  await expect(bloc.locator('[data-adresse]')).toHaveCount(0);
 });
 
-test('COP3 tout refus d’ajout est écrit sous le champ, qui reste ouvert avec le texte tapé ; le message part quand le texte change ou à Échap', async ({ page }, info) => {
+test('COP3 tout refus d’ajout est écrit sous la ligne, l’adresse refusée reste dans le champ ; le message part quand le texte change', async ({ page }, info) => {
   await semer();
   await nouveauBrouillon(page);
   const bloc = page.locator('[data-zone="copie"]');
@@ -217,7 +215,6 @@ test('COP3 tout refus d’ajout est écrit sous le champ, qui reste ouvert avec 
   const erreur = bloc.locator('[data-erreur="copie"]');
   await ajouterCopie(bloc, 'a@exemple.fr'); // le destinataire du devis est déjà contact@exemple.fr (repris du client)
   // adresse invalide
-  await bloc.locator('[data-action="ajouter-copie"]').click();
   await champ.fill('pas-un-email'); await champ.press('Enter');
   await expect(erreur).toContainText('Cette adresse email n’est pas valide');
   await expect(champ).toHaveValue('pas-un-email');
@@ -227,31 +224,29 @@ test('COP3 tout refus d’ajout est écrit sous le champ, qui reste ouvert avec 
   await expect(erreur).toHaveText('Cette adresse est déjà en copie.');
   await expect(champ).toHaveValue('A@Exemple.fr');
   await capturer(page, info, 'COP3-erreur-doublon-copie', { visible: erreur });
-  // sortie du champ avec un refus : le champ reste ouvert et le message reste
+  // sortie du champ avec un refus : le texte et le message restent
   await page.locator('[data-champ="chantier-adresse"]').click();
-  await expect(champ).toBeVisible();
+  await expect(champ).toHaveValue('A@Exemple.fr');
   await expect(erreur).toHaveText('Cette adresse est déjà en copie.');
   // déjà destinataire
   await champ.fill('Contact@exemple.fr'); await champ.press('Enter');
   await expect(erreur).toHaveText('Cette adresse est déjà le destinataire du devis : choisis-en une autre.');
   await capturer(page, info, 'COP3-erreur-doublon-destinataire', { visible: erreur });
-  // Échap : le champ se ferme, plus de message, rien n'est ajouté
-  await champ.press('Escape');
-  await expect(champ).toHaveCount(0);
-  await expect(bloc.locator('[data-erreur="copie"]')).toHaveCount(0);
-  await expect(bloc.locator('.ligne-copie')).toHaveText(['a@exemple.fr']);
+  await champ.fill('');
+  await expect(erreur).toBeHidden();
+  await expect(bloc.locator('[data-adresse]')).toHaveText(['a@exemple.fr']);
 });
 
-test('COP7 au plafond de 10 adresses : plus de bouton, mais une phrase qui explique ; il revient dès qu’on en retire une', async ({ page }) => {
+test('COP7 au plafond de 10 adresses : le champ est remplacé par une phrase qui explique ; il revient dès qu’on en retire une', async ({ page }) => {
   await semer();
   await nouveauBrouillon(page);
   const bloc = page.locator('[data-zone="copie"]');
   for (let i = 1; i <= 10; i += 1) await ajouterCopie(bloc, `p${i}@exemple.fr`);
-  await expect(bloc.locator('.ligne-copie')).toHaveCount(10);
-  await expect(bloc.locator('[data-action="ajouter-copie"]')).toHaveCount(0);
-  await expect(bloc.locator('[data-valeur="copie-plafond"]')).toContainText('c’est le maximum');
+  await expect(bloc.locator('[data-adresse]')).toHaveCount(10);
+  await expect(bloc.locator('[data-champ="copie"]')).toBeHidden();
+  await expect(bloc.locator('[data-valeur="plafond-copie"]')).toContainText('c’est le maximum');
   await bloc.locator('[data-action="retirer-copie"]').first().click();
-  await expect(bloc.locator('[data-action="ajouter-copie"]')).toBeVisible();
+  await expect(bloc.locator('[data-champ="copie"]')).toBeVisible();
 });
 
 test('COP4 le bloc « E-mail(s) du destinataire » dit la même chose, avec les mêmes mots, pour une adresse déjà en copie', async ({ page }, info) => {
@@ -263,17 +258,18 @@ test('COP4 le bloc « E-mail(s) du destinataire » dit la même chose, avec les 
   await capturer(page, info, 'COP4-doublon-destinataire');
 });
 
-test('COP6 sur ordinateur comme sur téléphone : la croix et le bouton ont au moins 44 px de haut quand l’écran est tactile, et rien ne déborde', async ({ page }, info) => {
+test('COP6 sur ordinateur comme sur téléphone : les croix, le champ et le lien « Cc » ont au moins 44 px de haut quand l’écran est tactile, et rien ne déborde', async ({ page }, info) => {
   await semer();
   await nouveauBrouillon(page);
   const bloc = page.locator('[data-zone="copie"]');
   const tactile = info.project.name === 'telephone';
   const hauteur = async (loc) => (await loc.boundingBox()).height;
-  if (tactile) expect(await hauteur(bloc.locator('[data-action="ajouter-copie"]'))).toBeGreaterThanOrEqual(44);
-  if (tactile) expect(await hauteur(blocA(page).locator('[data-action="ajouter-destinataire"]'))).toBeGreaterThanOrEqual(44);
+  if (tactile) expect(await hauteur(page.locator('[data-action="ajouter-copie"]'))).toBeGreaterThanOrEqual(44);
+  if (tactile) expect(await hauteur(champA(page))).toBeGreaterThanOrEqual(44);
   if (tactile) expect(await hauteur(blocA(page).locator('[data-action="retirer-destinataire"]'))).toBeGreaterThanOrEqual(44);
   await ajouterCopie(bloc, 'une-adresse-assez-longue-pour-le-telephone@exemple.fr');
   if (tactile) expect(await hauteur(bloc.locator('[data-action="retirer-copie"]'))).toBeGreaterThanOrEqual(44);
+  await capturer(page, info, 'COP6-saisie-adresses');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 });
 
@@ -286,7 +282,6 @@ test('COP8 choisir un client dont l’e-mail est déjà en copie : l’e-mail n�
   await ajouterCopie(page.locator('[data-zone="copie"]'), 'Compta@Exemple.fr');
   await choisirDansChampDevis(page, 'client', 'Autre', 'Autre Société'); // son e-mail est compta@exemple.fr, déjà en copie
   await expect(adressesA(page)).toHaveCount(0);
-  await expect(blocA(page).locator('[data-valeur="destinataire-vide"]')).toHaveText('Aucun destinataire');
   await expect(blocA(page).locator('[data-erreur="destinataire-auto"]')).toHaveText('Cette adresse est déjà en copie du devis : choisis-en une autre.');
   await capturer(page, info, 'COP8-client-deja-en-copie');
   await enregistre(page);
@@ -314,17 +309,15 @@ test('COP10 le message « déjà en copie » du bloc destinataire suit la copie 
   await capturer(page, info, 'COP10-client-en-copie', { visible: message });
   await bloc.locator('[data-action="retirer-copie"]').click();
   await expect(message).toHaveCount(0);
-  await expect(bloc.locator('[data-valeur="copie-vide"]')).toHaveText('Aucune adresse en copie');
   await capturer(page, info, 'COP10-message-disparu');
   // cas tapé : une adresse déjà en copie est refusée comme destinataire (aria-invalid, aria-describedby) ; une fois retirée de la copie elle est acceptée et enregistrée
   await ajouterCopie(bloc, 'tape@exemple.fr');
-  await blocA(page).locator('[data-action="ajouter-destinataire"]').click();
   const champ = blocA(page).locator('[data-champ="destinataire"]');
   await champ.fill('tape@exemple.fr');
   await champ.press('Enter');
   await expect(blocA(page).locator('[data-erreur="destinataire"]')).toBeVisible();
   await expect(champ).toHaveAttribute('aria-invalid', 'true');
-  await expect(champ).toHaveAttribute('aria-describedby', 'devis-destinataires-erreur');
+  await expect(champ).toHaveAttribute('aria-describedby', /.+/);
   await champ.press('Escape');
   await bloc.locator('[data-action="retirer-copie"]').click();
   await ajouterDestinataire(page, 'tape@exemple.fr');
@@ -343,7 +336,7 @@ test('PLUSIEURS-A plusieurs destinataires ET plusieurs adresses en copie : ajout
   await ajouterCopie(page.locator('[data-zone="copie"]'), 'cc1@exemple.fr');
   await ajouterCopie(page.locator('[data-zone="copie"]'), 'cc2@exemple.fr');
   await expect(adressesA(page)).toHaveText(['contact@exemple.fr', 'second@exemple.fr', 'troisieme@exemple.fr']);
-  await expect(page.locator('[data-zone="copie"] .ligne-copie')).toHaveText(['cc1@exemple.fr', 'cc2@exemple.fr']);
+  await expect(page.locator('[data-zone="copie"] [data-adresse]')).toHaveText(['cc1@exemple.fr', 'cc2@exemple.fr']);
   await capturer(page, info, 'PLUSIEURS-A-destinataires-et-copie');
   await enregistre(page);
   let doc = await lireDocument(`devis_devis/${id}`);
@@ -353,34 +346,28 @@ test('PLUSIEURS-A plusieurs destinataires ET plusieurs adresses en copie : ajout
   await expect(adressesA(page)).toHaveText(['contact@exemple.fr', 'second@exemple.fr', 'troisieme@exemple.fr']);
   await blocA(page).locator('[data-action="retirer-destinataire"]').first().click(); // la croix retire l'adresse choisie, pas les autres
   await expect(adressesA(page)).toHaveText(['second@exemple.fr', 'troisieme@exemple.fr']);
-  await expect(blocA(page).locator('[data-action="ajouter-destinataire"]')).toBeFocused(); // après la croix, le focus revient dans le bloc
+  await expect(champA(page)).toBeFocused(); // après la croix, le focus revient dans le champ de la ligne
   // Plafond : 10 destinataires au plus, une phrase à la place du bouton.
   for (let i = 0; i < 8; i++) await ajouterDestinataire(page, `d${i}@exemple.fr`);
   await expect(adressesA(page)).toHaveCount(10);
-  await expect(blocA(page).locator('[data-action="ajouter-destinataire"]')).toHaveCount(0);
-  await expect(blocA(page).locator('[data-valeur="destinataire-plafond"]')).toHaveText('10 destinataires : c’est le maximum.');
+  await expect(champA(page)).toBeHidden();
+  await expect(blocA(page).locator('[data-valeur="plafond-destinataire"]')).toHaveText('10 destinataires : c’est le maximum.');
   await capturer(page, info, 'PLUSIEURS-A-plafond-destinataires');
 });
 
-test('COP9 la croix d’une autre adresse pendant la saisie garde le motif du refus ; après Entrée ou Échap, le focus revient sur « + E-mail en copie »', async ({ page }) => {
+test('COP9 la croix d’une autre adresse pendant la saisie garde le motif du refus', async ({ page }) => {
   await semer();
   await nouveauBrouillon(page);
   const bloc = page.locator('[data-zone="copie"]');
   const champ = bloc.locator('[data-champ="copie"]');
-  const ajouter = bloc.locator('[data-action="ajouter-copie"]');
   await ajouterCopie(bloc, 'a@exemple.fr');
-  await expect(ajouter).toBeFocused(); // ajout réussi par Entrée
   await ajouterCopie(bloc, 'b@exemple.fr');
-  await ajouter.click();
   await champ.fill('pas-un-email'); await champ.press('Enter');
   await expect(bloc.locator('[data-erreur="copie"]')).toContainText('n’est pas valide');
-  await bloc.getByRole('button', { name: 'Retirer a@exemple.fr de la copie' }).click();
-  await expect(bloc.locator('.ligne-copie')).toHaveText(['b@exemple.fr']);
+  await bloc.getByRole('button', { name: 'Retirer a@exemple.fr' }).click();
+  await expect(bloc.locator('[data-adresse]')).toHaveText(['b@exemple.fr']);
   await expect(champ).toHaveValue('pas-un-email');
   await expect(bloc.locator('[data-erreur="copie"]')).toContainText('n’est pas valide'); // le motif reste affiché
-  await champ.press('Escape');
-  await expect(champ).toHaveCount(0);
-  await expect(ajouter).toBeFocused(); // Échap
 });
 
 test('C6 la visualisation d’un devis finalisé n’a plus de boutons « Créer une variante » ni « Dupliquer » : ils sont dans le « … » (44 px) à côté d’« Envoyer »', async ({ page }, info) => {
@@ -778,17 +765,16 @@ test('ED9 « Mon entreprise » : l’aperçu du devis affiche le bloc entreprise
   expect(html).toContain('--accent: #1f6feb');
 });
 
-test('CLIC-AUTRE-BLOC une adresse tapée puis un CLIC (sans Entrée) sur le « + » de l’autre bloc : l’adresse est ajoutée et l’autre champ s’ouvre, dans les deux sens', async ({ page }) => {
+test('CLIC-AUTRE-BLOC une adresse tapée puis un CLIC (sans Entrée) dans l’autre ligne : l’adresse est ajoutée, dans les deux sens', async ({ page }) => {
   await semer();
   await nouveauBrouillon(page);
   const copie = page.locator('[data-zone="copie"]');
-  await copie.locator('[data-action="ajouter-copie"]').click();
+  await ouvrirCc(page);
   await copie.locator('[data-champ="copie"]').fill('cc@exemple.fr');
-  await blocA(page).locator('[data-action="ajouter-destinataire"]').click(); // un vrai clic : le champ en cours de saisie perd le focus
-  await expect(copie.locator('.ligne-copie')).toHaveText(['cc@exemple.fr']);
-  await expect(blocA(page).locator('[data-champ="destinataire"]')).toBeVisible();
-  await blocA(page).locator('[data-champ="destinataire"]').fill('second@exemple.fr');
-  await copie.locator('[data-action="ajouter-copie"]').click();
+  await champA(page).click(); // perte de focus : l'adresse est validée comme dans Gmail
+  await expect(copie.locator('[data-adresse]')).toHaveText(['cc@exemple.fr']);
+  await champA(page).fill('second@exemple.fr');
+  await copie.locator('[data-champ="copie"]').click();
   await expect(adressesA(page)).toHaveText(['contact@exemple.fr', 'second@exemple.fr']);
-  await expect(copie.locator('[data-champ="copie"]')).toBeVisible();
 });
+

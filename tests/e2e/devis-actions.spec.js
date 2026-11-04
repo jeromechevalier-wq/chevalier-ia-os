@@ -437,7 +437,7 @@ test('B3 le menu « … » d’un devis SIGNÉ propose « Supprimer définitivem
   await expect(d).toContainText('PDF déjà générés');
   await expect(d).toContainText('journal');
   await expect(d.getByRole('button', { name: 'Archiver à la place' })).toBeVisible();
-  if (estTelephone(page)) for (const b of await d.getByRole('button').all()) expect((await b.boundingBox()).height).toBeGreaterThanOrEqual(43);
+  if (estTelephone(page)) for (const b of await d.getByRole('button').all()) expect((await b.boundingBox()).height).toBeGreaterThanOrEqual(44);
   await capturer(page, info, 'B3-supprimer-devis-signe');
   // Jamais en un clic : sans la saisie, ou avec un autre texte, rien ne part.
   await d.getByRole('button', { name: 'Supprimer définitivement', exact: true }).click();
