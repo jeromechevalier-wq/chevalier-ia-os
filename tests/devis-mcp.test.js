@@ -1088,11 +1088,11 @@ describe('N7 supprimer_devis : tous les statuts, aperçu puis code, documents de
     assert.equal(s.doc('devis_devis', 's2'), undefined);
   });
 
-  test('B4 le plafond compte une suppression par version : un devis à deux versions avec un plafond de 1 est refusé APRÈS le code (code consommé, rien supprimé)', async () => {
+  test('B4 le plafond compte une suppression par version : un devis à deux versions avec un plafond de 1 est refusé DÈS L’APERÇU (aucun code, rien supprimé)', async () => {
     const s = await demarrer({ devis: [finalise('s1', 'remplace', { version: 1 }), finalise('s2', 'refuse', { racineId: 's1', version: 2 })], jetonsExtra: { code: { limites: { suppressionsParJour: 1 } } } });
     const a = ok(await s.appeler('code', 'supprimer_devis', { id: 's2' }));
-    const r = await s.appeler('code', 'supprimer_devis', { id: 's2', codeConfirmation: a.code });
-    refuse(r);
+    assert.equal(a.depassePlafond, true);
+    assert.equal(a.code, undefined);
     assert.ok(s.doc('devis_devis', 's1') && s.doc('devis_devis', 's2'), 'rien n’est supprimé');
   });
 
@@ -1116,6 +1116,16 @@ describe('N7 supprimer_devis : tous les statuts, aperçu puis code, documents de
     refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: sup.operationId, apercu: false }), /ne peut pas être recréé.*nouvelle_version_devis/);
     refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: sup.operationId, apercu: false, forcer: true }), /ne peut pas être recréé/);
     assert.equal(s.doc('devis_devis', 'f1'), undefined);
+  });
+
+  test('B5 un devis supprimé puis rétabli ne se restaure pas une seconde fois, même avec forcer (le statut a pu changer entre-temps)', async () => {
+    const s = await demarrer({ devis: [finalise('e1', 'envoye')] });
+    const a = ok(await s.appeler('code', 'supprimer_devis', { id: 'e1' }));
+    const sup = ok(await s.appeler('code', 'supprimer_devis', { id: 'e1', codeConfirmation: a.code }));
+    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: sup.operationId, apercu: false }));
+    s.doc('devis_devis', 'e1').statut = 'accepte';
+    refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: sup.operationId, apercu: false, forcer: true }), /existe déjà/);
+    assert.equal(s.doc('devis_devis', 'e1').statut, 'accepte');
   });
 
   test('B5 restaurer_depuis_audit d’un devis signé supprimé : il revient avec son numéro, son identifiant et son statut, et le montant de l’affaire est recalculé', async () => {

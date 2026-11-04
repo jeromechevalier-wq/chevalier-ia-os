@@ -1617,7 +1617,7 @@ export async function supprimerDevis(c, args) {
   const compte = tous.some((v) => v.statut !== 'brouillon');
   if (!args.codeConfirmation) {
     const restantes = c.suppressionsRestantes ? await c.suppressionsRestantes() : Infinity;
-    if (restantes < 1) {
+    if (tous.length > restantes) { // une suppression par version : sinon le code serait consommé pour rien
       return {
         apercu: true, supprime: false, id: devis.id, objet: devis.objet ?? '', depassePlafond: true, suppressionsRestantesAujourdhui: restantes,
         consigne: "RIEN n'a été supprimé, et aucun code n'est donné : le plafond de suppressions du jour (par connexion) est atteint. Le dire à l'utilisateur : à faire demain, ou depuis l'écran.",

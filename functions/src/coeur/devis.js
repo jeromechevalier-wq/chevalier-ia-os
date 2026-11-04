@@ -302,8 +302,16 @@ export async function supprimer({ donnees, ctx, devisId }) {
     const changements = aSupprimer.map((v) => ({ id: v.id, collection: C.devis, action: 'supprimer', avant: v, apres: null, champs: [], ecriture: { type: 'delete', collection: C.devis, id: v.id } }));
     // Un brouillon ne compte jamais dans le montant de l'affaire (règle D17) : seuls les autres statuts obligent à recalculer. Affaire disparue entre-temps : rien à recalculer.
     const compte = aSupprimer.some((v) => v.statut !== 'brouillon');
-    const montant = compte ? await montantDeLAffaire(tx, devis, Object.fromEntries(aSupprimer.map((v) => [v.id, null]))) : null;
-    const tous = montant ? [...changements, montant] : changements;
+    // Une version brouillon a pu changer d'affaire : on recalcule chaque affaire touchée (toutes les lectures avant les écritures).
+    const retouches = Object.fromEntries(aSupprimer.map((v) => [v.id, null]));
+    const montants = [];
+    if (compte) {
+      for (const v of aSupprimer.filter((x, i, l) => l.findIndex((y) => y.affaireId === x.affaireId) === i)) {
+        const m = await montantDeLAffaire(tx, v, retouches);
+        if (m) montants.push(m);
+      }
+    }
+    const tous = [...changements, ...montants];
     const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements: tous });
     tx.ecrire([...tous.map((c) => c.ecriture), ...j.ecritures]);
     return { ok: true, devis, supprimes: aSupprimer.length, operationId: j.operationId };

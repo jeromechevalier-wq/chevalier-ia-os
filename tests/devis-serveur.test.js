@@ -280,6 +280,15 @@ describe('B1 B2 supprimer un devis à toutes les étapes de sa vie (décision de
     assert.deepEqual(m.collections[C.audit].filter((l) => l.operationId === r.operationId).map((l) => l.collection), [C.devis]);
   });
 
+  test('B1 une version brouillon déplacée sur une autre affaire : les DEUX affaires sont recalculées', async () => {
+    const m = avecAffaire([brouillon('v1', { statut: 'accepte', numero: NUM(1), racineId: 'v1', version: 1, totaux: { ht: 100 } }), brouillon('v2', { racineId: 'v1', version: 2, affaireId: 'aff2' })]);
+    m.collections[C.affaires].push({ id: 'aff2', titre: 'Autre', documents: [] });
+    await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true, affaireIds: ['aff1'] });
+    assert.equal(m.collections[C.affaires][0].montantDevisHt, 100);
+    await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'v2' });
+    assert.equal(m.collections[C.affaires][0].montantDevisHt, null, 'l’affaire de la v1 est recalculée aussi');
+  });
+
   test('B2 toutes les versions partent ensemble ; le compteur ne recule pas : le devis suivant prend un NOUVEAU numéro (un trou apparaît)', async () => {
     const m = avecAffaire([brouillon('v1', { statut: 'remplace', numero: NUM(1), racineId: 'v1', version: 1 }), brouillon('v2', { statut: 'accepte', numero: NUM(1), racineId: 'v1', version: 2 }), brouillon('autre', { statut: 'envoye', numero: NUM(3) }), brouillon('n')]);
     m.collections[C.devisCompteurs] = [{ id: 'global', valeur: 5 }];

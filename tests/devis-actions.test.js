@@ -39,7 +39,8 @@ describe('2 devis finalisé', () => {
       assert.ok(!l.some((e) => e.texte?.includes('on ne le modifie plus')), 'plus de phrase d’explication : l’entrée n’est plus grisée');
       assert.equal(entree(l, 'nouvelle_version').libelle, 'Créer une nouvelle version');
       assert.equal(entree(l, 'nouvelle_version').actif, true);
-      assert.equal(entree(l, 'supprimer'), undefined, 'seul un brouillon se supprime');
+      assert.equal(entree(l, 'supprimer').libelle, 'Supprimer définitivement…', 'tout statut se supprime (04/11/2026)');
+      assert.equal(entree(l, 'supprimer').danger, true);
     });
   }
   for (const statut of ['accepte', 'remplace']) {
