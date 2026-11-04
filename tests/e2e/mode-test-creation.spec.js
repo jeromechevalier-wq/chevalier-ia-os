@@ -121,6 +121,7 @@ test('3 mode allumé : chaque type créé à l’écran porte test: true ; étei
   await creerOrganisation('o1', { nom: 'Atelier Test' });
   await creerPersonne('p1', { nom: 'Alice Test' });
   await creerAffaire('a0', { titre: 'Audit existant', etape: 'rdv_fixe' });
+  await creerAffaire('a1', { titre: 'Affaire gagnée', etape: 'gagne' });
   await creerProjet('pr0', { titre: 'Projet existant' });
   await allumerAvant(page);
   await connecter(page);
@@ -139,10 +140,10 @@ test('3 mode allumé : chaque type créé à l’écran porte test: true ; étei
   expect((await attendre('crm_organisations', (d) => d.nom === 'Société Essai')).test).toBe(true);
 
   await ouvrirCreation(page, 'affaire');
-  await dialogue(page).getByLabel('Titre', { exact: false }).first().fill('Affaire Essai').catch(() => {});
+  await dialogue(page).getByLabel('Titre', { exact: false }).first().fill('Affaire Essai');
   await dialogue(page).getByRole('button', { name: /^(Enregistrer|Créer)/ }).first().click();
   await expect(dialogue(page)).toHaveCount(0);
-  expect((await attendre('crm_affaires', (d) => d.titre === 'Affaire Essai' || d.id !== 'a0')).test).toBe(true);
+  expect((await attendre('crm_affaires', (d) => d.titre === 'Affaire Essai')).test).toBe(true);
 
   // les autres types : la fonction de création de la couche de données que les écrans appellent
   const CRM = '/js/modules/crm/donnees.js';
@@ -159,8 +160,8 @@ test('3 mode allumé : chaque type créé à l’écran porte test: true ; étei
   const bro = await appeler(page, DEV, 'creerBrouillon', { organisationId: 'o1', objet: 'Devis Essai' });
   expect(bro.erreurs).toEqual({});
   expect((await lireDocument(`devis_devis/${bro.id}`)).test).toBe(true);
-  const pa = await appeler(page, PRO, 'creerProjetDepuisAffaire', 'a0').catch(() => null);
-  if (pa) expect((await lireDocument(`projets_projets/${pa}`)).test).toBe(true);
+  const pa = await appeler(page, PRO, 'creerProjetDepuisAffaire', 'a1'); // doit réussir (affaire gagnée) : pas de .catch qui cacherait un échec
+  expect((await lireDocument(`projets_projets/${pa}`)).test).toBe(true);
   // un test: true déjà posé par l'appelant n'est jamais retiré
   const p2 = await appeler(page, CRM, 'creerPersonne', { nom: 'Déjà Test', test: true });
   expect((await lireDocument(`crm_personnes/${p2}`)).test).toBe(true);
@@ -187,22 +188,35 @@ test('3 mode allumé PENDANT qu’un dialogue est ouvert : la valeur au clic « 
   expect((await attendre('crm_personnes', (d) => d.nom === 'Zoé Tardive')).test).toBe(true);
 });
 
-test('4 un seul point d’entrée : aucune création d’écran hors des 9 fonctions de donnees.js, et chacune lit le mode', { tag: '@sans-telephone' }, async () => {
+test('4 un seul point d’entrée (statique) : plans, constructeurs et écritures de création hors des couches donnees.js, liste blanche explicite ; chaque création des 9 fonctions lit le mode', { tag: '@sans-telephone' }, async () => {
   const racine = fileURLToPath(new URL('../../js/', import.meta.url));
   const lire = (f) => readFileSync(`${racine}${f}`, 'utf8');
-  const CREATEURS = /\bplanCreer(Personne|Organisation|Affaire|Activite|Note|Projet|ProjetDepuisAffaire|Tache|Brouillon)\(/g;
-  const fichiers = ['modules/crm/donnees.js', 'modules/projets/donnees.js', 'modules/devis/donnees.js'];
+  // Ce qui crée un élément marquable : les plans, les constructeurs de documents, et les écritures de création brutes (moteur d'écriture, lot).
+  const CREATEURS = /\b(planCreer(Personne|Organisation|Affaire|Activite|Note|Projet|ProjetDepuisAffaire|Tache|Brouillon)|nouvelle(Personne|Organisation|Affaire|Activite|Note|Tache)|nouveauProjet|nouveauDevis|ecritureCreer|ecritureNoteDeDepart)\(|\bCRM\.executer\(|\becrireDansLot\(/g;
+  const DONNEES = ['modules/crm/donnees.js', 'modules/projets/donnees.js', 'modules/devis/donnees.js'];
+  // Liste blanche : fichiers qui ont le droit d'utiliser ces fabriques, et pourquoi. Tout autre fichier qui crée un élément doit passer par donnees.js.
+  const PERMIS = {
+    'modules/crm/logique.js': 'les constructeurs et les plans eux-mêmes (purs ; l’héritage y est calculé)',
+    'modules/projets/logique.js': 'les constructeurs et les plans de projets et de tâches',
+    'modules/devis/logique.js': 'nouveauDevis (constructeur pur)',
+    'modules/devis/brouillon.js': 'planCreerBrouillon (plan pur)',
+    'modules/devis/articles.js': 'le catalogue : jamais marqué test (décision du cadrage, point 9d)',
+    'modules/devis/vocabulaire-plans.js': 'le catalogue (vocabulaire) : jamais marqué test (point 9d)',
+  };
   const { readdirSync, statSync } = await import('node:fs');
   const tous = [];
   (function parcourir(d) { for (const n of readdirSync(`${racine}${d}`)) { const c = `${d}${n}`; if (statSync(`${racine}${c}`).isDirectory()) parcourir(`${c}/`); else if (c.endsWith('.js')) tous.push(c); } })('');
   for (const f of tous) {
-    if (fichiers.includes(f) || /(^|\/)(logique|brouillon)\.js$/.test(f)) continue;
-    expect(lire(f).match(CREATEURS) ?? [], `${f} crée un élément sans passer par donnees.js`).toEqual([]);
+    if (DONNEES.includes(f) || PERMIS[f]) continue;
+    const trouves = [...new Set(lire(f).split('\n').filter((l) => !/^\s*(\/\/|\*|import )/.test(l)).flatMap((l) => l.match(CREATEURS) ?? []))];
+    expect(trouves, `${f} crée ou écrit un élément sans passer par donnees.js (ajoute le fichier à PERMIS avec la raison, ou passe par la couche de données)`).toEqual([]);
   }
+  for (const f of Object.keys(PERMIS)) expect(tous, `${f} (liste blanche) n’existe plus : retire-le de PERMIS`).toContain(f);
   let total = 0;
-  for (const f of fichiers) {
+  const PLANS = /\bplanCreer(Personne|Organisation|Affaire|Activite|Note|Projet|ProjetDepuisAffaire|Tache|Brouillon)\(/;
+  for (const f of DONNEES) {
     for (const ligne of lire(f).split('\n')) {
-      if (!ligne.match(CREATEURS) || ligne.includes('import ')) continue;
+      if (!PLANS.test(ligne) || ligne.includes('import ')) continue;
       total += 1;
       expect(ligne, `${f} : la création doit passer par avecModeTest(...)`).toContain('avecModeTest(');
     }
