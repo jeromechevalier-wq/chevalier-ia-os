@@ -1,12 +1,14 @@
 # Étude de faisabilité : le module Devis vendable seul
 
-*Étude du 04/11/2026, demandée par Jérôme (priorité haute), **réécrite le 04/11/2026 (soir) après sa décision** (voir ci-dessous), **complétée le 04/11/2026 par la partie H (le menu de la plaquette : Devis, Clients, Catalogue, Relances, Statistiques) et la partie I (l'affichage par membre)**. **Mise à jour du 04/11/2026 (2e décision de Jérôme, plus récente que la PR 511) : le carnet `devis_clients` et la migration disparaissent ; les clients du devis sont de vraies fiches Personnes/Organisations, via un noyau « Contacts ». Cette décision REMPLACE celle du carnet de la PR 511.** **Aucun code n'est écrit ici** : on vérifie ce qui existe, on dit ce qu'il faudrait changer, on propose un découpage en petites PR et on pose les questions à trancher. Chaque affirmation technique renvoie à un fichier et une ligne (état de `main` au 04/11/2026). Les chiffres d'exemple partent de 100 €.*
+*Étude du 04/11/2026, demandée par Jérôme (priorité haute), **réécrite le 04/11/2026 (soir) après sa décision** (voir ci-dessous), **complétée le 04/11/2026 par la partie H (le menu de la plaquette : Devis, Clients, Catalogue, Relances, Statistiques) et la partie I (l'affichage par membre)**. **Mise à jour du 04/11/2026 (2e décision de Jérôme, plus récente que la PR 511) : le carnet `devis_clients` et la migration disparaissent ; les clients du devis sont de vraies fiches Personnes/Organisations, via un noyau « Contacts ». Cette décision REMPLACE celle du carnet de la PR 511. 3e mise à jour (même jour) : DEUX PORTAILS sur les mêmes données (partie I) au lieu d'une vue par membre, et la règle « finalisation exige l'affaire » est SUPPRIMÉE (partie C).** **Aucun code n'est écrit ici** : on vérifie ce qui existe, on dit ce qu'il faudrait changer, on propose un découpage en petites PR et on pose les questions à trancher. Chaque affirmation technique renvoie à un fichier et une ligne (état de `main` au 04/11/2026). Les chiffres d'exemple partent de 100 €.*
 
 ## La décision de Jérôme (04/11/2026), qui commande tout le reste
 
 > « Quand un client n'a que le module Devis, on n'utilise ni CRM, ni Personnes/Organisations, ni Affaires, ni Projets. Une petite table stocke les noms de clients et les e-mails déjà tapés, pour l'auto-complétion dès les 3 premières lettres. On ne fait que ça : pas besoin de faire tourner Personnes, Organisations, Affaires, Projets en tâche de fond. La règle « un devis ne peut pas exister sans affaire » s'affine : si le module Affaires existe, un devis ne peut pas exister sans affaire ; si le module Devis est seul, un devis peut exister seul, puisque Affaires n'existe pas. »
 
 > **2e décision de Jérôme (04/11/2026, remplace le carnet ci-dessus)** : « Pas de systèmes de migration. Le plombier voit son affichage de devis ; sa secrétaire, si le module Affaires est acheté, a une autre interface avec aussi les affaires et les projets. La MÊME base de données derrière, seul l'affichage change. Le CRM minimal vit dans le vrai CRM. On utilise tout de suite les vraies bases. » Elle l'emporte sur tout passage de cette étude qui parle encore d'un carnet à part.
+
+> **3e décision de Jérôme (04/11/2026)** : (A) pas d'affichage par utilisateur mais **deux portails sur les mêmes données** (le portail actuel, et un second à une autre adresse qui n'affiche que Devis · Clients · Catalogue · Relances · Statistiques) ; (B) « pas de devis finalisé sans affaire » est **supprimée partout** (le plombier ne connaît même pas les affaires).
 
 Ce que cela change par rapport à la première version de l'étude (les décisions 4 et 5 deviennent **caduques** : plus d'affaire cachée, donc plus de question de rangement à l'achat) :
 
@@ -17,15 +19,15 @@ Ce que cela change par rapport à la première version de l'étude (les décisio
 ## Résumé (lisible sans connaître le code)
 
 1. **Le but** : vendre le module Devis seul à un artisan : il voit ses devis, ses clients, son catalogue, ses relances et ses statistiques, **sans** Affaires ni Projets, avec **la même base de données** que le CRM complet.
-2. **C'est faisable, sans deux codes séparés** : le programme est le même ; la fiche du client dit ce qu'il a acheté, et (partie I) la fiche de chaque **membre** dit ce qu'il voit.
+2. **Deux portails, un seul jeu de données (partie I)** : le portail actuel (tous les modules achetés, pour la secrétaire) et un portail **Devis**, à `/espace/<client>/devis`, qui n'affiche que Devis · Clients · Catalogue · Relances · Statistiques. Même site, même connexion, même base. Mécanisme recommandé : un préfixe d'adresse géré par le routeur, **sans toucher à `firebase.json`**.
 3. **Aujourd'hui c'est refusé par le code** : le module Devis déclare qu'il ne peut pas marcher sans Affaires (`js/os/registre.js:134`, refus dans `verifierActivation`, l.322-336).
-4. **L'obstacle, plus petit que prévu** : `js/modules/devis/donnees.js:10` importe la couche de données du CRM et `demarrer()` (l.107-109) en dépend. Plutôt que de la découper, on ajoute un **mode « noyau »** qui n'écoute que `crm_personnes` et `crm_organisations` (PR 1).
+4. **L'obstacle, plus petit que prévu** : `js/modules/devis/donnees.js:10` importe la couche de données du CRM et `demarrer()` (l.107-109) en dépend. On ajoute un **mode « noyau »** de `CRM.demarrer` qui n'écoute que `crm_personnes` et `crm_organisations` (PR 1).
 5. **Les clients du devis sont de vraies fiches** (Personnes / Organisations, fiche minimale), écrites par la couche CRM existante et son journal. **Aucune collection nouvelle, aucune règle Firestore nouvelle** (vérifié : le joker de `firestore.plateforme.rules:182-184` suffit), **aucune migration**, aucun outil MCP nouveau (sept outils existants déplacés dans le module Contacts).
-6. **Règle de finalisation** : avec Affaires actif, un nouveau devis finalisé exige une affaire ; en « Devis seul », non. Un devis finalisé sans affaire **reste valable** après l'achat d'Affaires (bouton existant « créer une affaire depuis ce devis »).
-7. **Le menu de la plaquette (partie H)** : **Devis · Clients · Catalogue · Relances · Statistiques**. *Relances* = devis envoyés sans réponse depuis N jours (10 par défaut), brouillon d'e-mail de relance (jamais d'envoi), tracée comme une ligne d'envoi de plus. *Statistiques* = chiffres des seuls devis (règle de la PR 510 : archivé compte).
-8. **L'affichage par membre (partie I)** : le plombier voit Devis ; sa secrétaire, si Affaires est acheté, voit aussi les affaires et les projets. **C'est de l'affichage, pas de la confidentialité** (les règles Firestore sont par rôle et par collection).
-9. **Ce qui ne change pas chez Jérôme** : ses données et son écran complet (règle du 18/10/2026 : même code, la fiche décide).
-10. **Découpage proposé : 12 PR**, 10 exigent la relecture Fable (1 à 7, 10, 11, 12), 2 non (8, 9). **Aucune PR de règles Firestore.** À ne pas promettre à un client : envoi direct à un logiciel de facturation, familles libres, agent autonome, branchement à Pipedrive ou Salesforce, cloisonnement des données entre membres.
+6. **La règle « finalisation exige l'affaire » est supprimée** (partie C) : un devis se finalise toujours, avec ou sans affaire. Dans le portail complet : filtre « Devis sans affaire » et bouton « Créer une affaire depuis ce devis » pour rattacher plus tard. Les montants par affaire ne comptent que les devis rattachés ; le chiffre d'affaires global compte tous les devis. Plus rien à passer au serveur sur « Affaires actif ».
+7. **Le menu de la plaquette (partie H)** : **Devis · Clients · Catalogue · Relances · Statistiques**. *Relances* = devis envoyés sans réponse depuis N jours (10 par défaut), brouillon d'e-mail de relance (jamais d'envoi), tracée comme une ligne d'envoi de plus. *Statistiques* = chiffres de tous les devis (règle de la PR 510 : archivé compte).
+8. **Honnêteté** : ce sont deux portes d'**affichage**, pas de la confidentialité entre membres (les règles Firestore sont par rôle et par collection).
+9. **Ce qui ne change pas chez Jérôme** : ses données et son écran complet (règle du 18/10/2026 : même code).
+10. **Découpage proposé : 13 PR**, 11 exigent la relecture Fable (1 à 8, 10, 11, 12), 2 non (9, 13). **Aucune PR de règles Firestore, de migration ni de `firebase*.json`.** À ne pas promettre à un client : envoi direct à un logiciel de facturation, familles libres, agent autonome, branchement à Pipedrive ou Salesforce, cloisonnement des données entre membres.
 
 ---
 
@@ -125,30 +127,35 @@ Les dossiers `coeur`, `mcp`, `oauth`, `securite`, `clients` sont copiés tels qu
 
 ---
 
-## C. Plus d'affaire cachée : la règle de finalisation affinée
+## C. La règle « finalisation exige l'affaire » est SUPPRIMÉE
 
-**Décision (04/11/2026)** : « si le module Affaires existe, un devis ne peut pas exister sans affaire ; si le module Devis est seul, un devis peut exister seul ». Les **PR 4a et 4b de la première étude** (créer une affaire en silence à chaque devis, côté écran et côté serveur) et **la décision 5** (ranger les affaires cachées à l'achat) **sont supprimées**.
+**Décision de Jérôme (04/11/2026, 3e décision, remplace l'affinage de la PR 511 et le champ « affaire seulement si Affaires est actif »).** *La règle « pas de devis finalisé sans affaire » est supprimée partout (le plombier ne connaît même pas les affaires) : un devis se finalise toujours, avec ou sans affaire.* Les PR 4a/4b et la décision 5 de la première étude (affaire cachée) restent supprimées. **Plus besoin de dire au serveur si « le module Affaires est actif »** : l'option `affairesActif`, le passage des modules actifs jusqu'au contexte `ctx` et la PR qui les portait **disparaissent**.
 
-**Décision prise seul : la lecture « finalisation exige l'affaire ».** La phrase se lit de deux façons : (1) « un brouillon est toujours lié à une affaire dès sa création » ou (2) « on ne peut pas **finaliser** un devis sans affaire ». J'ai choisi la **2e lecture**, qui est le comportement **actuel** de Jérôme : un brouillon vit déjà sans affaire (décision du 28/10/2026, « Nouveau devis sans blocage »), et seule la finalisation exige l'affaire (`MESSAGE_AFFAIRE_MANQUANTE`, `js/modules/devis/logique.js:797` ; contrôle `if (!devis.affaireId)` l.824 dans `erreursFinalisation`, l.820). Elle ne change donc rien chez Jérôme. **Question laissée visible pour Jérôme** : voulez-vous plus tard que, quand Affaires est actif, un brouillon soit aussi toujours lié à une affaire dès sa création ?
+### C.1 Ce qui verrouille la règle aujourd'hui (vérifié) et qui est à retirer
 
-**Ce qui change vraiment : l'appelant, pas la fonction.** `erreursFinalisation` est une fonction **pure** (copiée dans `functions/partage/` et `functions-plateforme/serveur/`, deux dossiers **ignorés par git** et régénérés par `scripts/preparer-fonctions.js` : `.gitignore:15` et `:21`). **Aucune PR ne modifie ces copies.** On ajoute à la fonction une option (nom proposé `affairesActif`, **valeur par défaut `true`** pour ne rien changer chez Jérôme ni dans les tests existants) et chaque appelant doit lui dire si le module Affaires est actif :
-
-| Appelant | Où | D'où vient « Affaires actif » |
+| Endroit | Ligne | À faire |
 |---|---|---|
-| Écran (finalisation) | `js/modules/devis/editeur-ecran.js:2195` ; aussi `logique.js:1007` (finalisation préparée) | les modules actifs de l'espace (écran : `js/os/espace.js:121`) |
-| Fonction du serveur `devisFinaliser` | `functions/src/coeur/devis.js:163` | modules actifs du client, lus par `functions/src/clients/espaces.js:19` (`modulesActifsDuClient`) **à faire passer jusqu'au contexte `ctx`**, qui ne les porte pas aujourd'hui |
-| Assistant (`finaliser_devis`) | `functions/src/coeur/metier.js:1358` | idem (contexte `c`) |
-| Lecture du devis par l'assistant (`erreursFinalisation` listées) | `functions/src/coeur/lecture.js:455` | idem |
+| Règle pure | `js/modules/devis/logique.js:824` (`if (!devis.affaireId) erreurs.push(MESSAGE_AFFAIRE_MANQUANTE)`), constante l.797, table des champs l.877 | retirer le contrôle ; garder les autres erreurs ; la constante ne sert plus |
+| Écran (finalisation) | `editeur-ecran.js:2195` (appel), `:2306` (`sansAffaire = locales.includes(MESSAGE_AFFAIRE_MANQUANTE)`), `client-devis.js:8-9` (« Choisis ou crée une affaire pour finaliser ce devis. »), `affaire-depuis-devis.js` (« Finaliser un devis sans affaire : l'application crée l'affaire », décision du 30/10/2026) | finaliser n'ouvre plus de fenêtre « crée l'affaire » ; l'affaire reste un **choix facultatif** |
+| Serveur (écran) | `functions/src/coeur/devis.js:163` | aucun changement de signature ; l'erreur disparaît |
+| Assistant | `functions/src/coeur/metier.js:1358` (`finaliser_devis`), `lecture.js:455` (erreurs listées par `lire_devis`), textes d'outils `functions/src/mcp/outils/ecriture.js:184,192,220` | retirer « la finalisation exige l'affaire » des descriptions |
+| Tests | `tests/devis-logique.test.js:410-416` (bloc SA), `tests/devis-mcp.test.js:1190-1211` (SA1, SA2 : message « Choisis l'affaire de ce devis. »), `tests/devis-serveur.test.js:525` (bloc SA : `devisFinaliser` refuse), `tests/e2e/devis-sans-affaire.spec.js`, `devis-nouveau-sans-blocage.spec.js` | **inverser** : un devis sans affaire se finalise (palier complet : étiquette `tests-complets`) |
+| Docs | `docs/consignes-ui.md:53` (« Finaliser exige l'affaire »), `docs/cadrage-devis.md:48` (« le devis est rattaché à une affaire »), `docs/montant-affaire.md` (devis sans affaire) | mises à jour **dans la PR de code** (règle du 29/10/2026 : pas de PR de docs séparée) |
 
-**Décision prise seul : côté Jérôme, « Affaires actif » = vrai.** Le serveur de Jérôme (`functions/`) n'a **pas de fiche `clients/<client>`** (le serveur des clients non plus ne la lit pas pour les membres, `functions/src/coeur/config.js:5`) : il n'y a donc rien à lire, et son espace complet a toujours Affaires. La valeur par défaut (vrai) s'applique ; seuls les espaces clients passent l'information réelle. **Question restante pour Jérôme** : confirmer que son espace garde toujours le module Affaires (sinon il faudra lui donner une fiche ou un réglage).
+*Décision prise seul :* un brouillon et un devis finalisé peuvent **toujours** exister sans affaire, chez Jérôme comme chez les clients, avec ou sans le module Affaires (règle du 18/10/2026 : même code). *Question restante pour Jérôme :* au moins un test d'écran doit-il garder le message d'invitation « Choisis ou crée une affaire » (l.8 de `client-devis.js`) sous forme de simple suggestion, ou le retirer ?
 
-**Textes** : `MESSAGE_AFFAIRE_MANQUANTE` n'apparaît qu'avec Affaires actif ; les textes d'outils qui disent « la finalisation exige l'affaire » (`functions/src/mcp/outils/ecriture.js:184,192,220`) doivent dire « si le module Affaires est actif ».
+### C.2 Ce qui reste vrai
 
-**Montant et PDF** : sans affaire, le calcul du montant de l'affaire ne fait rien (`functions/src/coeur/devis.js:134-137` : « pas d'affaire = null »). Le PDF est rangé sous `devis/sans-affaire/<devis>/…` (`functions/src/devis/stockage.js:63`, repli `'sans-affaire'`) : en « Devis seul », **c'est le chemin normal** ; il fonctionne déjà (à confirmer par un test dans la PR 7). Anciens chemins inchangés.
+- **Montants par affaire** : ne comptent que les devis rattachés ; sans affaire, le calcul ne fait rien (`functions/src/coeur/devis.js:134-137`, « pas d'affaire = null ») : inchangé. **Le chiffre d'affaires global** (Statistiques, partie H.5) se calcule sur **tous** les devis, rattachés ou non.
+- **PDF** : rangé sous `devis/sans-affaire/<devis>/…` (`functions/src/devis/stockage.js:63`) : c'est un chemin **normal**, plus un cas particulier ; à confirmer par un test.
+- **Numérotation** : inchangée (`devis_compteurs/global`, `devis.js:26`).
+- **Mode test** : les fiches et les devis créés en mode test portent le repère ; rien à rattacher.
 
-**Numérotation des devis** : aucun changement. Le compteur `devis_compteurs/global` (`functions/src/coeur/devis.js:26`) est global au client et ne dépend ni de l'affaire ni des modules.
+### C.3 Rattacher un devis à une affaire plus tard (portail complet)
 
-**Mode test** : l'écran pose `test: true` sur ce qu'il crée (`avecModeTest`) ; les fiches créées en mode test portent le repère ; l'assistant ne le pose jamais. **Sans affaire cachée, le risque de la première étude disparaît**, et l'héritage du repère (« PR 1a-2b » du chantier mode test, `docs/cadrage-mode-test.md:201`, citée dans le brief comme la PR 507) **n'a plus d'utilité pour ce chantier** : rien à rattacher.
+- **Un filtre « Devis sans affaire »** dans la liste des devis du portail complet (la liste écrit déjà « Sans affaire » sous le client, `liste-ecran.js:64`).
+- **Le bouton existant « Créer une affaire depuis ce devis »** (`affaire-depuis-devis.js`) rattache le devis ; ce n'est **pas une migration** : c'est un geste de l'utilisateur, un devis à la fois.
+- **Point à vérifier au codage (non fait ici)** : un devis **finalisé** est intouchable pour le navigateur (règles : seul le brouillon s'écrit, `firestore.plateforme.rules:74-90`). Rattacher un devis déjà finalisé demande donc probablement **une fonction du serveur** (journal, et recalcul du montant de l'affaire dans la **même transaction**, comme `devis.js:194,227,283`). C'est la PR 4 (serveur, données : Fable obligatoire) ; si elle existe déjà, la PR devient « tests + docs ».
 
 ---
 
@@ -187,7 +194,7 @@ Le découpage **modeste** : une option `noyau: true` pour `CRM.demarrer` qui ne 
 |---|---|---|---|
 | Lecture des modules actifs | `verifierActivation` refuse | accepte `devis` + `contacts` sans `affaires` | `registre.js:322-336` |
 | Montage des modules | un module par module actif | monte Devis et le noyau Contacts ; **Affaires et Projets ne sont pas montés** | `espace-modules.js:22-27` |
-| Menu | un bloc par module actif | **Devis · Clients · Catalogue · Relances · Statistiques** (partie H) | `registre.js:389-422` |
+| Menu | un bloc par module actif | selon le portail (partie I) : **Devis · Clients · Catalogue · Relances · Statistiques** (partie H) | `registre.js:389-422` |
 | Premier écran | `crm/accueil` | `devis/liste` | `registre.js:353`, `espace-modules.js:32` |
 | Bouton « + » | Personne, Organisation, Affaire, Devis | Devis, Client | `shell.js:282` |
 | Recherche globale | Personnes, Organisations, Affaires, Devis | Clients, Devis | `shell.js:289-296` |
@@ -200,7 +207,7 @@ Le découpage **modeste** : une option `noyau: true` pour `CRM.demarrer` qui ne 
 
 **Outils MCP d'un profil « Devis seul »** : les outils pour retrouver, lire, créer et modifier un client **existent déjà** (module `affaires`, `registre.js:86-93`) : `chercher`, `lire_personne`, `lire_organisation`, `creer_personne`, `creer_organisation`, `modifier_personne`, `modifier_organisation` (sept). *Décision prise seul :* les **déclarer dans le module `contacts`** (que `affaires` et `devis` exigent) plutôt que d'en écrire de nouveaux ; `supprimer_personne`, `supprimer_organisation`, `lire_audit` et `restaurer_depuis_audit` restent dans `affaires` (supprimer ou restaurer une fiche touche aux affaires liées). Aucun nouvel outil, **mais** la liste des outils par module change : `tests/mcp-clients.test.js` (l.597-601 : `OUTILS.length - 31`, `- 26`, `seuls(['affaires'])` contient `chercher`) est à adapter **en lançant les tests, jamais à l'estime** (Devis seul = 26 + 7 = 33 outils). *Question restante :* le plombier doit-il pouvoir faire supprimer un client par son assistant ?
 
-**Un devis finalisé sans affaire reste valable après l'achat d'Affaires.** La règle « la finalisation exige l'affaire » (partie C) ne vaut que pour les **nouveaux** devis finalisés ; les devis déjà finalisés restent lisibles, avec leur PDF, leur historique d'envois, leurs statuts (la liste écrit déjà « Sans affaire »). Le bouton existant « Créer une affaire depuis ce devis » (`js/modules/devis/affaire-depuis-devis.js`) permet de les rattacher : c'est un geste de l'utilisateur, **pas une migration**.
+**Un devis finalisé sans affaire est valable, avec ou sans Affaires.** Plus aucune règle ne l'interdit (partie C) ; il garde son PDF, son historique d'envois, ses statuts (la liste écrit déjà « Sans affaire »). Le portail complet offre le filtre « Devis sans affaire » et le bouton existant « Créer une affaire depuis ce devis » (`js/modules/devis/affaire-depuis-devis.js`, C.3) : un geste de l'utilisateur, **pas une migration**.
 
 ---
 
@@ -220,11 +227,11 @@ Le champ « Pour qui est ce devis ? » et les champs de destinataires parlent à
 
 | Sujet | Risque | Réponse |
 |---|---|---|
-| **Données de Jérôme** | Rien ne doit changer chez lui | Aucune migration. Valeur par défaut `affairesActif = true`. Toute opération sur ses données demande son accord écrit |
-| **Règles Firestore** | Aucune règle nouvelle (2e décision) ; seul risque : une fiche de membre qui porterait un droit | Le champ `vue` est de l'affichage, jamais un droit (partie I). Si une règle devenait nécessaire plus tard : liste d'arrêt, PR laissée à Jérôme |
+| **Données de Jérôme** | Rien ne doit changer chez lui | Aucune migration, aucun champ en plus. Toute opération sur ses données demande son accord écrit |
+| **Règles Firestore** | Aucune règle nouvelle | Les portails sont de l'affichage, jamais un droit (partie I). Si une règle devenait nécessaire plus tard : liste d'arrêt, PR laissée à Jérôme |
 | **Découpage de la couche de données** | Casser les écritures et le journal des devis, des articles et du vocabulaire de Jérôme | PR 1 sans aucun changement de comportement ; Fable obligatoire ; tests des modules Devis et CRM, puis « Tests de nuit » sur `main` après fusion |
-| **Serveur** | Registre, `metier.js`, descriptions d'outils | Relecture **Fable obligatoire** (CLAUDE.md) sur les PR 1 à 7, 10, 11 et 12 |
-| **`functions-plateforme/`** | Une fonction ajoutée chez Jérôme mais pas chez les clients (leçon du 26/10) | Aucune nouvelle fonction du serveur attendue, mais des **outils MCP déplacés vers le module Contacts**, un **nouveau contexte** (modules actifs et vue du membre) et une **nouvelle fonction du serveur** (régler la vue d'un membre, PR 4) : tout passe par le code partagé (`coeur`, `mcp`, `clients`), copié en entier par `scripts/preparer-fonctions.js`. À vérifier à chaque PR ; **contrôle des écarts entre les deux dossiers avant la première démonstration** |
+| **Serveur** | Registre, `metier.js`, descriptions d'outils, règle de finalisation | Relecture **Fable obligatoire** (CLAUDE.md) sur les PR 1 à 8, 10, 11 et 12 |
+| **`functions-plateforme/`** | Une fonction ajoutée chez Jérôme mais pas chez les clients (leçon du 26/10) | Peu de serveur nouveau : **outils MCP déplacés vers le module Contacts** (PR 2), **règle de finalisation retirée** (PR 3), éventuellement **une fonction « rattacher un devis à une affaire »** (PR 4) : tout passe par le code partagé (`coeur`, `mcp`, `clients`), copié en entier par `scripts/preparer-fonctions.js`. À vérifier à chaque PR ; **contrôle des écarts entre les deux dossiers avant la première démonstration** |
 | **Déploiement** | Fonctions + MCP chez les clients | Lancés un à la fois par Jérôme, jamais en même temps |
 | **Tests qui verrouillent l'ancien comportement** | Rouges à la réécriture, vus seulement par le palier complet | Liste ci-dessous : à lire (`grep`) avant chaque PR et à lancer avec l'étiquette `tests-complets` |
 | **PDF et stockage** | Chemin `devis/sans-affaire/…` | Devient le chemin normal en « Devis seul » ; à tester (PR 7) |
@@ -232,7 +239,7 @@ Le champ « Pour qui est ce devis ? » et les champs de destinataires parlent à
 
 **Tests à lire ou adapter** (vérifiés présents sur `main` ; quelques mentions par fichier) :
 
-- *Racine* : `devis-logique.test.js` (mentions « sans affaire » / `AFFAIRE_MANQUANTE` : l'option `affairesActif` ajoute des cas, l'ancien reste vrai par défaut), `devis-serveur.test.js` (bloc `SA` l.525, finalisation refusée sans affaire), `devis-mcp.test.js` (bloc `SA` l.1190-1205), `devis-client-devis.test.js`, `devis-pdf-auto.test.js`, `logique.test.js`, `registre.test.js` (l.40-44 : **ajouter** « devis sans dépendance », cas « devis seul »), `devis-affaire-depuis-devis.test.js` (inchangé : ce bouton reste utile avec Affaires).
+- *Racine* : `devis-logique.test.js` (mentions « sans affaire » / `AFFAIRE_MANQUANTE` : bloc SA l.410 **inversé** en PR 3), `devis-serveur.test.js` (bloc `SA` l.525 : le refus est **inversé**), `devis-mcp.test.js` (bloc `SA` l.1190-1211 : idem), `devis-client-devis.test.js`, `devis-pdf-auto.test.js`, `logique.test.js`, `registre.test.js` (l.40-44 : **ajouter** « devis sans dépendance », cas « devis seul »), `devis-affaire-depuis-devis.test.js` (inchangé : ce bouton reste utile avec Affaires).
 - *E2E* : `devis-sans-affaire.spec.js`, `devis-nouveau-sans-blocage.spec.js`, `devis-choix-client.spec.js`, `devis-editeur.spec.js`, `devis-editeur-mise-en-page.spec.js`, `modules-client.spec.js` (**ajouter** un cas « devis seul »), `parcours.spec.js` (C19, l.718-745), `devis-barre-globale.spec.js`.
 - Tout nouvel écran se teste aussi en format téléphone (`--project=telephone`), et `npm run test:module look-compact` pour tout CSS (leçons de CLAUDE.md).
 
@@ -240,46 +247,48 @@ Le champ « Pour qui est ce devis ? » et les champs de destinataires parlent à
 
 ## G. Découpage en PR et décisions à prendre
 
-Chaque PR : une seule idée, fusionnée le jour même, **rien de visible chez Jérôme tant qu'aucun client n'est « Devis seul »** (sauf les PR 10 à 12 : Statistiques et Relances existent aussi chez lui, même code). **Plus aucune PR de règles Firestore ni de migration** (décision du 04/11/2026, partie B). Numérotation **refaite** : l'ancienne PR 4 (carnet + règles) et l'ancienne PR 10 (migration) n'existent plus.
+Chaque PR : une seule idée, fusionnée le jour même. **Rien de visible chez Jérôme tant qu'aucun client n'est « Devis seul »**, sauf les PR 3, 4, 10, 11 et 12 (finalisation sans affaire, rattachement, Statistiques, Relances : même code chez lui). **Aucune PR de règles Firestore, de migration ni de `firebase*.json`** (décisions du 04/11/2026). Numérotation **refaite** à chaque décision : la « vue par membre » et la « finalisation affinée » n'existent plus.
 
 | N° | PR | Dépend de | Fable | Ce que Jérôme voit à l'écran |
 |---|---|---|---|---|
-| **1** | **Noyau Contacts dans la couche de données** : option `noyau` de `CRM.demarrer` (seulement personnes et organisations), `demarrer()` du module Devis sans refus, listes d'affaires vides acceptées (D.3) | aucune | **obligatoire** (données, journal) | rien (aucun changement de comportement) |
+| **1** | **Noyau Contacts dans la couche de données** : option `noyau` de `CRM.demarrer` (seulement personnes et organisations), `demarrer()` du module Devis sans refus, listes d'affaires vides acceptées (D.3) | aucune | **obligatoire** (données, journal) | rien |
 | **2** | **Registre** : module `contacts` (écran Clients, collections `crm_personnes`/`crm_organisations`, sept outils MCP déplacés) ; `devis` et `affaires` en dépendent ; `devis` n'exige plus `affaires` ; tests `registre.test.js`, `modules-client.spec.js`, `mcp-clients.test.js` ; `docs/activer-desactiver-modules.md` | 1 | **obligatoire** (le serveur lit le même fichier) | rien |
-| **3** | **Règle de finalisation affinée** : option `affairesActif` (défaut vrai) dans `erreursFinalisation` ; appelants écran et serveur ; modules actifs portés par le contexte ; textes d'outils ; test « un devis finalisé sans affaire reste valable après l'achat d'Affaires » | 2 | **obligatoire** (serveur) | rien |
-| **4** | **Vue par membre** (partie I) : champ `vue`, modules visibles, fonction du serveur pour la régler, réglage dans « Qui peut se connecter » | 2 | **obligatoire** (serveur, données) | rien tant qu'aucun membre n'a de `vue` |
-| **5** | **Source de suggestions + écran « Clients »** : champ « Pour qui est ce devis ? » et destinataires (coordination PR 508), ligne Affaire retirée sans Affaires, création de fiche minimale, texte « chantier » (H.3) | 1, 3 (et PR 508 fusionnée) | **obligatoire** (gros écran, éditeur du devis) | le champ client ne change pas avec Affaires actif |
-| **6** | **Coque** : menu **Devis · Clients · Catalogue · Relances · Statistiques** selon la vue du membre (Catalogue au premier niveau ; Relances et Statistiques apparaissent quand les PR 10 à 12 sont fusionnées), « + », recherche, Réglages, premier écran sans les écrans d'Affaires quand ils ne sont pas visibles | 2, 4 | **obligatoire** (structure d'écran) | rien |
-| **7** | **Serveur et assistant** : outils Contacts offerts à un profil Devis (suivant la vue), textes des outils (« si le module Affaires est actif »), comptes des tests | 2, 3, 4 | **obligatoire** (serveur) | rien |
-| **8** | **Export** : bouton d'export du module Contacts (personnes, organisations) ; test C19 | 2 | non requise (lecture seule ; E2E C19) | un bouton de plus |
-| **9** | **Recette de bout en bout** « Devis seul » puis « Devis + Affaires » (achat en cours de route, aucune migration, deux membres, deux vues) et docs (`deploiement-client.md`, `activer-desactiver-modules.md`) | 1 à 8, 10 à 12 | non (docs) | rien |
-| **10** | **Statistiques de devis** (H.5) : fonction pure `statistiquesDevis` sur `montantDesDevis`, écran, exclusion des devis de test, règle de la PR 510 (archivé compte) | 6 ; **PR 510 fusionnée** | **obligatoire** (nouvel écran, données) | un écran Statistiques |
+| **3** | **Supprimer la règle « finalisation exige l'affaire »** (partie C) : logique, écran, serveur, assistant, textes d'outils ; **tests inversés** ; docs (`consignes-ui.md`, `cadrage-devis.md`, `montant-affaire.md`) dans la même PR | aucune | **obligatoire** (serveur, tests qui verrouillent) | un devis se finalise sans affaire |
+| **4** | **Rattacher plus tard** (C.3) : filtre « Devis sans affaire », « Créer une affaire depuis ce devis » sur un devis finalisé, fonction du serveur si besoin (journal, recalcul du montant dans la même transaction) | 3 | **obligatoire** (serveur, données) | un filtre et un bouton |
+| **5** | **Deux portails** (partie I) : déclaration des portails, préfixe d'adresse, lien court `/espace/<client>/devis`, modules visibles = achetés ∩ portail, page indisponible | 2 | **obligatoire** (liens et adresses, navigation) | rien (le portail complet ne change pas) |
+| **6** | **Source de suggestions + écran « Clients »** : champ « Pour qui est ce devis ? » et destinataires (coordination PR 508), ligne Affaire retirée sans Affaires, création de fiche minimale, texte « chantier » (H.3) | 1, 2 (et PR 508 fusionnée) | **obligatoire** (gros écran, éditeur du devis) | le champ client ne change pas avec Affaires actif |
+| **7** | **Menu du portail Devis** : Devis · Clients · Catalogue · Relances · Statistiques (Catalogue au premier niveau ; Relances et Statistiques s'ajoutent à la fusion des PR 10 à 12), « + », recherche, Réglages, premier écran | 2, 5, 6 | **obligatoire** (structure d'écran) | rien |
+| **8** | **Serveur et assistant** : outils Contacts offerts à un profil Devis, textes des outils, comptes des tests | 2, 3 | **obligatoire** (serveur) | rien |
+| **9** | **Export** : bouton d'export du module Contacts (personnes, organisations) ; test C19 | 2 | non requise (lecture seule ; E2E C19) | un bouton de plus |
+| **10** | **Statistiques de devis** (H.5) : fonction pure `statistiquesDevis` sur `montantDesDevis` (tous les devis, rattachés ou non), écran, exclusion des devis de test, règle de la PR 510 (archivé compte) | 7 ; **PR 510 fusionnée** | **obligatoire** (nouvel écran, données) | un écran Statistiques |
 | **11** | **Relances côté serveur** (H.4, option (a)) : origine `relance` dans `ORIGINES_ENVOI` et `LIBELLES_ORIGINE_ENVOI`, libellé de `enregistrer_envoi_devis`, réglage du délai (10 jours, plus court que la validité) ; **aucune collection, aucune règle** | aucune | **obligatoire** (serveur, données) | rien |
-| **12** | **Relances côté écran** : écran « Relances », bouton « Préparer l'e-mail de relance » (même fenêtre, brouillon Gmail, jamais d'envoi), cas vide et cas d'erreur | 6, 11 | **obligatoire** (nouvel écran, e-mail) | un écran Relances |
+| **12** | **Relances côté écran** : écran « Relances », bouton « Préparer l'e-mail de relance » (même fenêtre, brouillon Gmail, jamais d'envoi), cas vide et cas d'erreur | 7, 11 | **obligatoire** (nouvel écran, e-mail) | un écran Relances |
+| **13** | **Recette de bout en bout** : portail Devis puis portail complet sur les mêmes données (une fiche créée d'un côté, vue de l'autre), devis finalisé sans affaire puis rattaché, docs (`deploiement-client.md`, `activer-desactiver-modules.md`) | 1 à 12 | non (docs) | rien |
 
-Ordre conseillé : 1 → 2 → (3, 4 en parallèle) → 5 (après la PR 508) → 6 → 7 → 8 → (10 après la PR 510, 11 puis 12) → 9. **10 PR sur 12 exigent Fable** (1 à 7, 10, 11, 12). Un déploiement des fonctions et du MCP chez les clients suit les PR 3, 4, 7 et 11 (Jérôme le lance). **Aucune règle Firestore à publier.**
+Ordre conseillé : (1 → 2, 3 → 4 en parallèle) → 5 → 6 (après la PR 508) → 7 → 8 → 9 → (11 → 12, puis 10 après la PR 510) → 13. **11 PR sur 13 exigent Fable** (1 à 8, 10, 11, 12). Un déploiement des fonctions et du MCP chez les clients suit les PR 3, 4, 8 et 11 (Jérôme le lance). **Aucune règle Firestore à publier.**
 
 ### État des décisions
 
-1. **Dépendance du module Devis** : « Devis seul sans CRM » (04/11/2026, PR 511) **remplacé** par un **noyau Contacts** sur les vraies fiches (04/11/2026, 2e décision de Jérôme).
-2. **Comment tester chez Jérôme sans éteindre son CRM ?** *Recommandation : un client de démonstration en « Devis seul » (jamais son espace), avec deux membres de vues différentes.* Reste à confirmer.
-3. **Devis et affaire** : précisée par Jérôme ; **Décision prise seul : lecture « finalisation exige l'affaire »** (voir C), seulement pour les nouveaux devis. *Question visible* : veut-il aussi, plus tard, des brouillons toujours liés quand Affaires est actif ?
+1. **Dépendance du module Devis** : « Devis seul sans CRM » (PR 511) **remplacé** par un **noyau Contacts** sur les vraies fiches (2e décision de Jérôme, 04/11/2026).
+2. **Affichage** : « vue par membre » **remplacée** par **deux portails** sur les mêmes données (3e décision, 04/11/2026).
+3. **Devis et affaire** : la règle « finalisation exige l'affaire » est **supprimée** (3e décision) ; rattachement possible plus tard (C.3). *Décision prise seul : brouillon et devis finalisé vivent toujours sans affaire, même chez Jérôme.* *Question restante :* l'invitation « Choisis ou crée une affaire » est-elle gardée comme simple suggestion ?
 4. **Une affaire cachée par devis ?** — **caduque.**
-5. **Rangement à l'achat / migration d'un carnet** — **caduque** : plus de carnet, plus de migration.
-6. **Particulier / Société : un seul mot « Client » avec le choix du type ?** *Recommandée : oui* ; ce sont les mots de l'écran « Clients » pour Personne / Organisation, la base garde ses noms.
-7. **Accueil ou liste ?** — la **liste des devis reste le premier écran** ; l'équivalent d'un accueil est **Statistiques** (partie H). *Décision prise seul : pas d'accueil à part.* *Question restante :* Statistiques en premier écran ?
-8. **Menu de la plaquette (partie H)** : décisions prises seul (Vocabulaire et Réglages hors menu principal, chantier = adresse du chantier puis libellé, relance à 10 jours, option (a), pas d'export de plus pour Relances et Statistiques), avec leurs questions dans la partie H.
-9. **Vue par membre (partie I)** : décisions prises seul (champ `vue` facultatif, règle par Jérôme, outils MCP qui suivent la vue) ; question : qui règle la vue ?
-10. **Nouvelles questions** : (a) son espace garde-t-il toujours Affaires (C) ? (b) la PR 508 définit-elle déjà la source de suggestions (E) ? (c) les outils de suppression de client restent-ils réservés à Affaires (D.4) ?
+5. **Rangement à l'achat / migration** — **caduque** : plus de carnet, plus de migration.
+6. **Particulier / Société : un seul mot « Client » avec le choix du type ?** *Recommandée : oui* ; mots de l'écran « Clients » pour Personne / Organisation, la base garde ses noms.
+7. **Accueil ou liste ?** — la **liste des devis reste le premier écran** du portail Devis ; l'équivalent d'un accueil est **Statistiques** (partie H). *Décision prise seul : pas d'accueil à part.* *Question restante :* Statistiques en premier écran ?
+8. **Comment tester chez Jérôme sans éteindre son CRM ?** *Recommandation : un client de démonstration avec les deux portails (jamais son espace).* Reste à confirmer.
+9. **Menu de la plaquette (partie H)** : décisions prises seul (Vocabulaire et Réglages hors menu principal, chantier = adresse du chantier puis libellé, relance à 10 jours, option (a), pas d'export de plus pour Relances et Statistiques), questions dans la partie H.
+10. **Portails (partie I)** : décisions prises seul (voie (1), adresse `/espace/<client>/devis`, outils MCP et connexion inchangés) ; question : quelle adresse exacte ?
+11. **Nouvelles questions** : (a) son espace garde-t-il toujours Affaires ? (b) la PR 508 définit-elle déjà la source de suggestions (E) ? (c) les outils de suppression de client restent-ils réservés à Affaires (D.4) ?
 
 ### Tableau « module acheté / ce que le client voit »
 
-| Modules achetés | Menu | Ce qu'il peut faire | Ses clients | Ses affaires |
-|---|---|---|---|---|
-| **Devis seul** | **Devis · Clients · Catalogue · Relances · Statistiques** (Vocabulaire dans la liste, Réglages dans le menu utilisateur) | cycle du devis (brouillon → signé), PDF, e-mail, **relances**, **statistiques**, assistant pour les devis et les clients | **Clients** = les vraies fiches Personnes / Organisations (fiche minimale) | **aucune** (le module n'existe pas) ; un devis finalisé existe seul |
-| **Devis + Affaires** | par membre selon sa vue : le plombier garde l'affichage Devis ; la secrétaire a en plus Accueil, Affaires (et Projets si achetés) | la même base ; un nouveau devis finalisé exige une affaire | les mêmes fiches, **sans migration** | visibles pour qui a Affaires dans sa vue |
-| **Devis + Affaires + Projets** | idem + Projets | comme aujourd'hui | complets | visibles, projets possibles |
-| **Affaires seul** (déjà possible) | Accueil, Personnes, Organisations, Affaires | CRM sans devis ; montant d'affaire saisi à la main | complets | visibles |
+| Modules achetés | Portail | Menu | Ce qu'il peut faire | Ses clients | Ses affaires |
+|---|---|---|---|---|---|
+| **Devis seul** | Devis (le complet montre la même chose) | **Devis · Clients · Catalogue · Relances · Statistiques** (Vocabulaire dans la liste, Réglages dans le menu utilisateur) | cycle du devis (brouillon → signé), PDF, e-mail, relances, statistiques, assistant pour les devis et les clients | **Clients** = vraies fiches Personnes / Organisations (fiche minimale) | **aucune** ; un devis finalisé existe seul |
+| **Devis + Affaires** | **Devis** (le plombier) ou **complet** (la secrétaire) : même connexion, mêmes données | Devis : les cinq entrées, jamais Affaires. Complet : Accueil, Personnes, Organisations, Affaires, Devis | un devis se finalise avec ou sans affaire ; filtre « Devis sans affaire » et rattachement dans le portail complet | les mêmes fiches, **sans migration** | visibles dans le portail complet seulement (affichage, pas confidentialité) |
+| **Devis + Affaires + Projets** | idem | idem + Projets dans le portail complet | comme aujourd'hui | complets | visibles, projets possibles |
+| **Affaires seul** (déjà possible) | complet | Accueil, Personnes, Organisations, Affaires | CRM sans devis ; montant d'affaire saisi à la main | complets | visibles |
 
 ---
 
@@ -291,15 +300,15 @@ Ordre conseillé : 1 → 2 → (3, 4 en parallèle) → 5 (après la PR 508) →
 
 | Entrée | Existe déjà ? | À créer | Vit de quelles données | PR |
 |---|---|---|---|---|
-| **Devis** | **Oui** : vues Liste et Tableau (`liste-ecran.js`), quatre colonnes `COLONNES_TABLEAU` = Brouillon · Envoyé (avec « Finalisé ») · Devis signé · Devis refusé (`liste.js:180-184`) ; filtres statut et période ; recherche ; « + Nouveau devis » (`liste-ecran.js:211`) | rien de nouveau ; seulement le libellé « chantier » (H.3) | `devis_devis` | aucune (PR 6 pour le menu) |
-| **Clients** | **Oui** : les écrans Personnes et Organisations du CRM (`crm/personnes.js`, `crm/organisations.js`) | un écran « Clients » simplifié (liste unique Particulier / Société, fiche minimale, sans affaires ni activités), sinon les mêmes écrans | `crm_personnes`, `crm_organisations` (vraies fiches) | PR 5 (écran), PR 6 (entrée de menu) |
-| **Catalogue** | **Oui** : `#/devis/bordereau` (`bordereau.js`), aujourd'hui un bouton de la liste | une **entrée de premier niveau** du menu pour ce profil ; le bouton reste dans la liste | `devis_articles` et familles | PR 6 |
+| **Devis** | **Oui** : vues Liste et Tableau (`liste-ecran.js`), quatre colonnes `COLONNES_TABLEAU` = Brouillon · Envoyé (avec « Finalisé ») · Devis signé · Devis refusé (`liste.js:180-184`) ; filtres statut et période ; recherche ; « + Nouveau devis » (`liste-ecran.js:211`) | rien de nouveau ; seulement le libellé « chantier » (H.3) | `devis_devis` | aucune (PR 7 pour le menu) |
+| **Clients** | **Oui** : les écrans Personnes et Organisations du CRM (`crm/personnes.js`, `crm/organisations.js`) | un écran « Clients » simplifié (liste unique Particulier / Société, fiche minimale, sans affaires ni activités), sinon les mêmes écrans | `crm_personnes`, `crm_organisations` (vraies fiches) | PR 6 (écran), PR 7 (entrée de menu) |
+| **Catalogue** | **Oui** : `#/devis/bordereau` (`bordereau.js`), aujourd'hui un bouton de la liste | une **entrée de premier niveau** du menu pour ce profil ; le bouton reste dans la liste | `devis_articles` et familles | PR 7 |
 | **Relances** | **Non** (aucune relance : `grep -i relance js/modules/devis` = 0) ; mais tout le nécessaire existe : `envois[]`, `envoyeLe`, `historiqueEnvois` (`email-brouillon.js:77`), « Préparer l'e-mail » déjà permis pour un devis envoyé (`emailPossible`, `email-brouillon.js:25`) | un écran « Relances » + une fonction pure + un réglage de délai (H.4) | `devis_devis` (pas de nouvelle collection si l'option (a) est retenue) | PR 11 (serveur), PR 12 (écran) |
 | **Statistiques** | **Non** (`grep -iE "statisti\|reporting" js/modules/devis` = 0) | une fonction pure + un écran (H.5) | `devis_devis` | PR 10 |
 
 **Vocabulaire et Réglages Devis restent accessibles.** *Décision prise seul :* **Vocabulaire** garde son bouton dans la liste des devis (là où il est aujourd'hui, comme sur la plaquette) et **Réglages** reste dans le menu utilisateur (`docs/consignes-ui.md`, « Menu de gauche » : Réglages n'est jamais dans le menu principal) ; ce ne sont donc pas des entrées de premier niveau. *Question restante pour Jérôme :* préfère-t-il aussi Vocabulaire au premier niveau ?
 
-**Même code chez Jérôme et chez les clients (18/10/2026).** Relances et Statistiques de devis existent **aussi chez Jérôme** (le module Devis est le même) : il les voit chez lui, il est le bêta-testeur. C'est la **fiche du client** (sa liste de modules) qui décide du menu : avec Affaires actif, Jérôme garde son menu complet (Accueil, Personnes, Organisations, Affaires, Devis…) et trouve Relances et Statistiques **dans l'écran Devis** (onglets de la page du module, comme Veille et Automatisations : une entrée de menu par module, `docs/consignes-ui.md`, 23/10/2026) ; sans Affaires, ces mêmes écrans passent au premier niveau avec Clients et Catalogue. *Décision prise seul :* un seul jeu d'écrans, deux façons de les ranger ; aucun écran réservé aux clients. *Question restante :* Jérôme veut-il le menu « à plat » aussi chez lui ?
+**Même code chez Jérôme et chez les clients (18/10/2026).** Relances et Statistiques de devis existent **aussi chez Jérôme** (le module Devis est le même) : il les voit chez lui, il est le bêta-testeur. Ce sont le **portail** (partie I) et les modules achetés qui décident du menu : dans le portail complet (le menu de Jérôme), Relances et Statistiques sont des **onglets de la page Devis** (une entrée de menu par module, `docs/consignes-ui.md`, 23/10/2026) ; dans le portail Devis, elles passent au premier niveau avec Clients et Catalogue. *Décision prise seul :* un seul jeu d'écrans, deux façons de les ranger ; aucun écran réservé aux clients. *Question restante :* Jérôme veut-il le menu « à plat » aussi chez lui ?
 
 ### H.2 « Clients » = les vraies fiches Personnes et Organisations
 
@@ -348,32 +357,46 @@ La plaquette dit « chantier ». En Devis seul il n'y a **pas d'affaire** ; la c
 
 ### H.6 Ce que cela change dans le découpage
 
-PR concernées (le détail est dans le tableau de la partie G) : **10** Statistiques, **11** Relances côté serveur (origine `relance`, réglage du délai), **12** Relances côté écran. Les PR 5 et 6 s'élargissent (écran « Clients », entrées Catalogue, Relances, Statistiques, texte « chantier »). **Aucune collection nouvelle** si (a) est retenue : donc aucune règle Firestore et aucun export de plus. Si (b) l'est : une PR de règles (liste d'arrêt) et une collection d'export de plus. **Export par module (27/10/2026)** : les devis étant déjà exportés, Relances et Statistiques n'ont pas besoin de leur propre bouton ; *Décision prise seul :* le bouton « Exporter mes données » du module Devis reste le seul, et la page Statistiques n'en ajoute pas (ses chiffres se recalculent des devis exportés). *Question restante :* un export CSV des chiffres de la page Statistiques est-il voulu ?
+PR concernées (le détail est dans le tableau de la partie G) : **10** Statistiques, **11** Relances côté serveur (origine `relance`, réglage du délai), **12** Relances côté écran. Les PR 6 et 7 s'élargissent (écran « Clients », entrées Catalogue, Relances, Statistiques, texte « chantier »). **Aucune collection nouvelle** si (a) est retenue : donc aucune règle Firestore et aucun export de plus. Si (b) l'est : une PR de règles (liste d'arrêt) et une collection d'export de plus. **Export par module (27/10/2026)** : les devis étant déjà exportés, Relances et Statistiques n'ont pas besoin de leur propre bouton ; *Décision prise seul :* le bouton « Exporter mes données » du module Devis reste le seul, et la page Statistiques n'en ajoute pas (ses chiffres se recalculent des devis exportés). *Question restante :* un export CSV des chiffres de la page Statistiques est-il voulu ?
 
 ---
 
-## I. L'affichage par utilisateur : une « vue » par membre (nouveau chantier central)
+## I. Deux portails sur les mêmes données
 
-**Besoin (Jérôme, 04/11/2026).** Dans un même client : le plombier voit **Devis · Clients · Catalogue · Relances · Statistiques** ; sa secrétaire, **si le client a acheté Affaires**, voit en plus les affaires et les projets. **La même base de données derrière, seul l'affichage change.**
+**Décision de Jérôme (04/11/2026, 3e décision ; elle REMPLACE la « vue par membre » de la version précédente de cette étude, supprimée).** Pas d'affichage par utilisateur : **deux portails sur les MÊMES données** (même site, même connexion, même base, mêmes fiches réelles `crm_*`) :
 
-### I.1 Ce qui existe aujourd'hui (vérifié)
+- le **portail actuel** (celui de la secrétaire) : tous les modules achetés ;
+- un **second portail**, à une autre adresse, qui n'affiche que **Devis · Clients · Catalogue · Relances · Statistiques** (et Vocabulaire / Réglages Devis).
 
-- Les modules actifs sont décidés **par client** (espace), pas par membre : champ `modules` de la fiche `clients/<client>`, lu par `modulesActifsDuClient` (`js/os/registre.js:340`) et monté par `js/os/espace.js:121` ; même lecture côté serveur (`functions/src/clients/espaces.js:19`).
-- Le membre est un document `clients/<client>/membres/<e-mail>` avec un `role` (`editeur` ou `lecteur`, `js/os/membres.js:8-11`) et un `nom`. **Aucun navigateur ne l'écrit** (`firestore.plateforme.rules:35-39`, `allow write: if false`) ; tout membre d'un client peut en revanche **lire** les fiches des autres membres du même client (page « Qui peut se connecter »).
-- Côté assistant, le rôle donne un profil (`PROFIL_PAR_ROLE`, `functions/src/clients/config.js:28` : éditeur = `claude-code`) ; les outils proposés suivent les **modules actifs du client** (`gestionnaire.js:15-23`), pas le membre.
+### I.1 Ce qui existe (vérifié)
 
-### I.2 Proposition : un champ `vue` sur la fiche du membre
+- Chez un client, la page est `#/espace/<client>` (`js/os/espace.js:1`), servie par le lien court `/espace/<client>` : `firebase.json:34` (Jérôme) et `firebase.plateforme.json:29` (clients) ont **déjà** la réécriture `/espace/**` → `/espace/index.html`, dont un petit script transforme l'adresse en `/#/espace/<client>`.
+- Les routes des modules vivent sous un préfixe : `definirPrefixe('espace/<client>')` (`js/os/espace-modules.js:26`, `js/os/router.js:10-13`) ; le routeur rend la route sans préfixe et `moduleAccessible` (`registre.js:346`) rend « introuvable » une route d'un module non actif.
+- Les modules montés = les modules actifs de la fiche du client (`espace.js:121`, `espace-modules.js:22-27`). Le menu part des modules montés.
 
-- **Un champ facultatif `vue`** (liste d'identifiants de modules, par exemple `['contacts', 'devis']`) sur la fiche du membre. **Absent = tous les modules du client** : aucun membre existant ne change, ni chez Jérôme ni chez les clients.
-- **Modules visibles d'un membre = modules actifs du client ∩ sa vue**, plus les modules dont ils dépendent (voir `dependances`, `verifierActivation`) : choisir `devis` ajoute `contacts` tout seul. Une route d'un module masqué est « introuvable » (`moduleAccessible`, `registre.js:346`) ; le menu, le « + », la recherche et la page Réglages suivent (ils partent des modules montés).
-- **Où ça se règle.** Les fiches de membres ne s'écrivent pas depuis un navigateur : il faut une **fonction du serveur** « régler la vue d'un membre » (code partagé, branché chez Jérôme et chez les clients dans la même PR : règle du 26/10/2026) et un réglage dans la page « Qui peut se connecter ». *Décision prise seul :* au début, c'est **Jérôme** qui règle la vue (sur demande du client), pas le client lui-même. *Question restante :* un éditeur « responsable » du client doit-il pouvoir régler la vue de ses collègues ?
-- **Règles Firestore : aucune règle nouvelle** (la fiche du membre est déjà non écrivable par un navigateur et lisible par les membres). Si le choix final était de passer par une règle, ce serait la liste d'arrêt de CLAUDE.md (laissé à Jérôme).
-- **Assistant (MCP).** *Décision prise seul :* les outils proposés suivent aussi la vue (`outilsDesModules` reçoit la liste visible du membre), pour que l'assistant de la secrétaire propose les affaires et celui du plombier non. *Question restante :* confirmer ; c'est la fiche du membre qui décide, comme pour le menu (règle « même code » du 18/10/2026 : aucun comportement réservé aux clients, la fiche décide).
+### I.2 Le mécanisme le plus simple (deux candidats)
 
-### I.3 L'honnêteté à écrire (et à dire au client)
+| | **(1) Préfixe d'adresse géré par le routeur (recommandé)** | (2) Réécriture Firebase Hosting |
+|---|---|---|
+| Idée | le portail fait partie du **préfixe** (`espace/<client>/portail/devis`) ; le lien court `/espace/<client>/devis` (déjà couvert par `/espace/**`) est redirigé par le script de `espace/index.html` vers `/#/espace/<client>/portail/devis` | une nouvelle adresse racine (`/devis/<client>`) réécrite vers une page |
+| Fichiers | `js/os/registre.js` (déclaration des portails), `js/os/espace.js`, `js/os/espace-modules.js`, `js/main.js:19-22` (clé d'entrée), `espace/index.html` | `firebase.json` **et** `firebase.plateforme.json` |
+| Liste d'arrêt de CLAUDE.md | **non** (aucun `firebase*.json`) | **oui** : PR laissée à Jérôme (`a-fusionner-par-jerome`) |
+| Signet | le portail est dans l'adresse : un signet garde le portail | idem |
+| Risque | `estRouteEspace` / `cleEspace` (`main.js:19-22`) doivent accepter le préfixe plus long ; liens internes et retour de connexion à tester | une réécriture de plus à publier par workflow |
 
-**C'est de l'AFFICHAGE, pas de la confidentialité entre membres.** Les règles Firestore décident **par rôle et par collection**, jamais par module (`firestore.plateforme.rules:182-184`) : un membre dont la vue masque Affaires **peut quand même lire** les affaires avec un autre outil, ou par son assistant si les outils ne suivaient pas la vue. Il ne faut **jamais** promettre à un client « ma secrétaire voit des choses que mon plombier ne voit pas » comme une protection des données. Si un jour un vrai cloisonnement est voulu, ce sera un autre chantier (règles par collection et par membre : liste d'arrêt).
+**Recommandation : (1).** *Décision prise seul : adresse courte `/espace/<client>/devis`* (le mot `devis` est libre à cet endroit, le segment `portail` du préfixe n'est le nom d'aucun module). *Question restante :* Jérôme préfère-t-il `/devis`, `/plombier` ou `/module-de-vie` ? Une adresse **à la racine** exigerait la voie (2) (`firebase.json`, laissé à Jérôme).
 
-### I.4 Découpage
+### I.3 Ce que décide le portail, et ce qu'il ne décide pas
 
-PR 4 (voir G) : champ `vue`, calcul des modules visibles d'un membre (fonction pure, écran et serveur), fonction du serveur pour le régler, réglage dans « Qui peut se connecter », tests (membre sans `vue` inchangé ; `vue` seule `devis` ; `vue` vers un module non acheté ignorée). **Fable obligatoire** (serveur, données, structure d'écran).
+- **Modules visibles = modules achetés par le client ∩ modules du portail**, plus les modules dont ils dépendent. Le portail « Devis » déclare `['devis', 'contacts']` : il **n'affiche jamais Affaires ni Projets, même s'ils sont achetés** (la même fiche du client sert aux deux portails). Le portail complet = tous les modules achetés, comme aujourd'hui. Un client qui n'a pas acheté Devis n'a pas de portail Devis (page « Espace indisponible »).
+- **Le menu dépend du portail ET des modules achetés** : dans le portail Devis, cinq entrées (Devis · Clients · Catalogue · Relances · Statistiques) ; dans le portail complet, le menu d'aujourd'hui, où Relances et Statistiques sont des **onglets** de la page Devis (une entrée de menu par module, `docs/consignes-ui.md`, 23/10/2026).
+- **Inchangés** : la connexion, les rôles (éditeur / lecteur), les règles Firestore, les outils de l'assistant (MCP) et les fiches `clients/<client>`. Un seul jeu de données ; aucun champ en plus sur les membres ; aucune fonction du serveur nouvelle pour régler une vue ; **aucune règle Firestore**.
+- **Application installée** : le portail partage l'icône et le nom du client (`appliquerIdentite`) ; *question restante :* un nom ou une icône différents pour le portail Devis sont-ils voulus ?
+
+### I.4 L'honnêteté à écrire (et à dire au client)
+
+**Ce sont deux portes d'AFFICHAGE, pas de la confidentialité entre membres.** Les règles Firestore décident **par rôle et par collection**, jamais par module ni par portail (`firestore.plateforme.rules:182-184`) : quelqu'un qui entre par le portail Devis **peut lire** les affaires s'il sait les atteindre (autre adresse du portail complet, assistant dont les outils ne suivent pas le portail). Il ne faut **jamais** promettre à un client que son plombier « ne peut pas voir » les affaires comme une protection. Un vrai cloisonnement serait un autre chantier (règles par collection et par membre : liste d'arrêt).
+
+### I.5 Découpage
+
+PR 5 (voir G) : déclaration des portails, préfixe d'adresse, lien court, modules visibles (fonction pure, testée), cas « portail Devis sans module Devis acheté », « route d'un module masqué = introuvable » ; tests de navigation et de connexion en format ordinateur et téléphone. **Fable obligatoire** (liens et adresses : un vrai bug chez les clients sur la PR 280 n'a été vu que par Fable, CLAUDE.md).
