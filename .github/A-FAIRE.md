@@ -89,6 +89,7 @@ Légende : 🟢 fait, 🔵 Claude travaille dessus, 🟠 attend Jérôme, ⚪ pl
 | 🟠 | **(j)** Lancer « Tests de nuit » sur `main` après chaque série de fusions | À chaque série | Claude |
 | 🟠 | **(k)** Mettre à jour `docs/consignes-ui.md` (vers la ligne 42) : affaire facultative ; à la finalisation, message simple et champ Affaire en rouge, plus de fenêtre. À faire dans la PR « Pour qui ? » | À faire | Claude |
 | 🟠 | **(l) Familles d'articles configurables** (Jérôme, 01/11/2026) : renommer et masquer les sept familles, créer les siennes au premier niveau (avec un type), démo par métier. Cadrage : `docs/cadrage-familles-configurables.md` (3 PR : 1 renommer/masquer, 2 créer au premier niveau, 3 démo). Priorité proposée : moyenne. Fable obligatoire (serveur, données, éditeur du devis) | Cadrage écrit, 7 réponses de Jérôme (01/11/2026, « par défaut »). **PR 1 ouverte** (renommer et désactiver les sept familles) ; PR 2 et PR 3 à faire après sa fusion | Claude |
+| 🟢 | **Molette sur un champ numérique focalisé** : la valeur change encore (un écouteur global `wheel` non passif dans `js/os/shell.js`, à relire par Fable ; jamais `blur()`, l'enregistrement se fait à la perte de focus). Priorité basse (04/11/2026). | À faire | Claude |
 
 
 ## Vue d'ensemble (28/10/2026) : où on en est, en un coup d'œil
