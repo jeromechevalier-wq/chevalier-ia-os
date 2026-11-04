@@ -19,7 +19,7 @@ Ce que cela change par rapport à la première version de l'étude (les décisio
 ## Résumé (lisible sans connaître le code)
 
 1. **Le but** : vendre le module Devis seul à un artisan : il voit ses devis, ses clients, son catalogue, ses relances et ses statistiques, **sans** Affaires ni Projets, avec **la même base de données** que le CRM complet.
-2. **Deux portails, un seul jeu de données (partie I)** : le portail actuel (tous les modules achetés, pour la secrétaire) et un portail **Devis**, à `/espace/<client>/devis`, qui n'affiche que Devis · Clients · Catalogue · Relances · Statistiques. Même site, même connexion, même base. Mécanisme recommandé : un préfixe d'adresse géré par le routeur, **sans toucher à `firebase.json`**.
+2. **Deux portails, un seul jeu de données (partie I)** : le portail actuel (tous les modules achetés, pour la secrétaire) et un portail **Devis**, à `#/espace/<client>/portail_devis`, qui n'affiche que Devis · Clients · Catalogue · Relances · Statistiques. Même site, même connexion, même base. Ce n'est qu'une **route du routeur** (`portail_devis`, nom tranché par Jérôme) : **aucun changement de `firebase.json`**.
 3. **Aujourd'hui c'est refusé par le code** : le module Devis déclare qu'il ne peut pas marcher sans Affaires (`js/os/registre.js:134`, refus dans `verifierActivation`, l.322-336).
 4. **L'obstacle, plus petit que prévu** : `js/modules/devis/donnees.js:10` importe la couche de données du CRM et `demarrer()` (l.107-109) en dépend. On ajoute un **mode « noyau »** de `CRM.demarrer` qui n'écoute que `crm_personnes` et `crm_organisations` (PR 1).
 5. **Les clients du devis sont de vraies fiches** (Personnes / Organisations, fiche minimale), écrites par la couche CRM existante et son journal. **Aucune collection nouvelle, aucune règle Firestore nouvelle** (vérifié : le joker de `firestore.plateforme.rules:182-184` suffit), **aucune migration**, aucun outil MCP nouveau (sept outils existants déplacés dans le module Contacts).
@@ -142,7 +142,7 @@ Les dossiers `coeur`, `mcp`, `oauth`, `securite`, `clients` sont copiés tels qu
 | Tests | `tests/devis-logique.test.js:410-416` (bloc SA), `tests/devis-mcp.test.js:1190-1211` (SA1, SA2 : message « Choisis l'affaire de ce devis. »), `tests/devis-serveur.test.js:525` (bloc SA : `devisFinaliser` refuse), `tests/e2e/devis-sans-affaire.spec.js`, `devis-nouveau-sans-blocage.spec.js` | **inverser** : un devis sans affaire se finalise (palier complet : étiquette `tests-complets`) |
 | Docs | `docs/consignes-ui.md:53` (« Finaliser exige l'affaire »), `docs/cadrage-devis.md:48` (« le devis est rattaché à une affaire »), `docs/montant-affaire.md` (devis sans affaire) | mises à jour **dans la PR de code** (règle du 29/10/2026 : pas de PR de docs séparée) |
 
-*Décision prise seul :* un brouillon et un devis finalisé peuvent **toujours** exister sans affaire, chez Jérôme comme chez les clients, avec ou sans le module Affaires (règle du 18/10/2026 : même code). *Question restante pour Jérôme :* au moins un test d'écran doit-il garder le message d'invitation « Choisis ou crée une affaire » (l.8 de `client-devis.js`) sous forme de simple suggestion, ou le retirer ?
+*Décision prise seul :* un brouillon et un devis finalisé peuvent **toujours** exister sans affaire, chez Jérôme comme chez les clients, avec ou sans le module Affaires (règle du 18/10/2026 : même code). L'invitation « Choisis ou crée une affaire » (`client-devis.js:8`) est **retirée du portail Devis** et **gardée en suggestion non bloquante dans le portail complet** (jamais une erreur de finalisation). *Question restante pour Jérôme :* la garder aussi dans le portail complet, ou la retirer partout ?
 
 ### C.2 Ce qui reste vrai
 
@@ -255,7 +255,7 @@ Chaque PR : une seule idée, fusionnée le jour même. **Rien de visible chez J�
 | **2** | **Registre** : module `contacts` (écran Clients, collections `crm_personnes`/`crm_organisations`, sept outils MCP déplacés) ; `devis` et `affaires` en dépendent ; `devis` n'exige plus `affaires` ; tests `registre.test.js`, `modules-client.spec.js`, `mcp-clients.test.js` ; `docs/activer-desactiver-modules.md` | 1 | **obligatoire** (le serveur lit le même fichier) | rien |
 | **3** | **Supprimer la règle « finalisation exige l'affaire »** (partie C) : logique, écran, serveur, assistant, textes d'outils ; **tests inversés** ; docs (`consignes-ui.md`, `cadrage-devis.md`, `montant-affaire.md`) dans la même PR | aucune | **obligatoire** (serveur, tests qui verrouillent) | un devis se finalise sans affaire |
 | **4** | **Rattacher plus tard** (C.3) : filtre « Devis sans affaire », « Créer une affaire depuis ce devis » sur un devis finalisé, fonction du serveur si besoin (journal, recalcul du montant dans la même transaction) | 3 | **obligatoire** (serveur, données) | un filtre et un bouton |
-| **5** | **Deux portails** (partie I) : déclaration des portails, préfixe d'adresse, lien court `/espace/<client>/devis`, modules visibles = achetés ∩ portail, page indisponible | 2 | **obligatoire** (liens et adresses, navigation) | rien (le portail complet ne change pas) |
+| **5** | **Deux portails** (partie I) : déclaration des portails, route `portail_devis` lue par le routeur, préfixe, page d'arrivée (liste des devis), liens internes, modules visibles = achetés ∩ portail, page indisponible | 2 | **obligatoire** (liens et adresses, navigation) | rien (le portail complet ne change pas) |
 | **6** | **Source de suggestions + écran « Clients »** : champ « Pour qui est ce devis ? » et destinataires (coordination PR 508), ligne Affaire retirée sans Affaires, création de fiche minimale, texte « chantier » (H.3) | 1, 2 (et PR 508 fusionnée) | **obligatoire** (gros écran, éditeur du devis) | le champ client ne change pas avec Affaires actif |
 | **7** | **Menu du portail Devis** : Devis · Clients · Catalogue · Relances · Statistiques (Catalogue au premier niveau ; Relances et Statistiques s'ajoutent à la fusion des PR 10 à 12), « + », recherche, Réglages, premier écran | 2, 5, 6 | **obligatoire** (structure d'écran) | rien |
 | **8** | **Serveur et assistant** : outils Contacts offerts à un profil Devis, textes des outils, comptes des tests | 2, 3 | **obligatoire** (serveur) | rien |
@@ -271,14 +271,14 @@ Ordre conseillé : (1 → 2, 3 → 4 en parallèle) → 5 → 6 (après la PR 50
 
 1. **Dépendance du module Devis** : « Devis seul sans CRM » (PR 511) **remplacé** par un **noyau Contacts** sur les vraies fiches (2e décision de Jérôme, 04/11/2026).
 2. **Affichage** : « vue par membre » **remplacée** par **deux portails** sur les mêmes données (3e décision, 04/11/2026).
-3. **Devis et affaire** : la règle « finalisation exige l'affaire » est **supprimée** (3e décision) ; rattachement possible plus tard (C.3). *Décision prise seul : brouillon et devis finalisé vivent toujours sans affaire, même chez Jérôme.* *Question restante :* l'invitation « Choisis ou crée une affaire » est-elle gardée comme simple suggestion ?
+3. **Devis et affaire** : la règle « finalisation exige l'affaire » est **supprimée** (3e décision) ; rattachement possible plus tard (C.3). *Décision prise seul : brouillon et devis finalisé vivent toujours sans affaire, même chez Jérôme ; l'invitation « Choisis ou crée une affaire » est **retirée du portail Devis** (le plombier ne connaît pas les affaires) et **gardée comme suggestion non bloquante dans le portail complet**.*
 4. **Une affaire cachée par devis ?** — **caduque.**
 5. **Rangement à l'achat / migration** — **caduque** : plus de carnet, plus de migration.
 6. **Particulier / Société : un seul mot « Client » avec le choix du type ?** *Recommandée : oui* ; mots de l'écran « Clients » pour Personne / Organisation, la base garde ses noms.
 7. **Accueil ou liste ?** — la **liste des devis reste le premier écran** du portail Devis ; l'équivalent d'un accueil est **Statistiques** (partie H). *Décision prise seul : pas d'accueil à part.* *Question restante :* Statistiques en premier écran ?
 8. **Comment tester chez Jérôme sans éteindre son CRM ?** *Recommandation : un client de démonstration avec les deux portails (jamais son espace).* Reste à confirmer.
 9. **Menu de la plaquette (partie H)** : décisions prises seul (Vocabulaire et Réglages hors menu principal, chantier = adresse du chantier puis libellé, relance à 10 jours, option (a), pas d'export de plus pour Relances et Statistiques), questions dans la partie H.
-10. **Portails (partie I)** : décisions prises seul (voie (1), adresse `/espace/<client>/devis`, outils MCP et connexion inchangés) ; question : quelle adresse exacte ?
+10. **Portails (partie I)** : adresse **tranchée par Jérôme** : `#/espace/<client>/portail_devis` (le portail complet garde `#/espace/<client>/devis/liste`) ; route du routeur, pas de réécriture Hosting ; outils MCP et connexion inchangés ; décisions prises seul : « Choisis ou crée une affaire » **retirée du portail Devis**, gardée en suggestion non bloquante dans le portail complet.
 11. **Nouvelles questions** : (a) son espace garde-t-il toujours Affaires ? (b) la PR 508 définit-elle déjà la source de suggestions (E) ? (c) les outils de suppression de client restent-ils réservés à Affaires (D.4) ?
 
 ### Tableau « module acheté / ce que le client voit »
@@ -363,40 +363,41 @@ PR concernées (le détail est dans le tableau de la partie G) : **10** Statisti
 
 ## I. Deux portails sur les mêmes données
 
-**Décision de Jérôme (04/11/2026, 3e décision ; elle REMPLACE la « vue par membre » de la version précédente de cette étude, supprimée).** Pas d'affichage par utilisateur : **deux portails sur les MÊMES données** (même site, même connexion, même base, mêmes fiches réelles `crm_*`) :
+**Décision de Jérôme (04/11/2026, 3e décision ; elle REMPLACE la « vue par membre » de la version précédente de cette étude, supprimée : plus de champ `vue`, plus de fonction du serveur pour la régler, plus d'outils MCP qui suivent une vue).** Pas d'affichage par utilisateur : **deux portails sur les MÊMES données** (même site, même connexion, même base, mêmes fiches réelles `crm_*`) :
 
-- le **portail actuel** (celui de la secrétaire) : tous les modules achetés ;
-- un **second portail**, à une autre adresse, qui n'affiche que **Devis · Clients · Catalogue · Relances · Statistiques** (et Vocabulaire / Réglages Devis).
+- le **portail complet** (celui de la secrétaire) : tous les modules achetés, adresse inchangée, par exemple `https://chevalier-ia-app.web.app/app.html#/espace/clientdemo/devis/liste` ;
+- le **portail Devis**, dont l'adresse dit clairement que c'est une vue particulière : **`https://chevalier-ia-app.web.app/app.html#/espace/<client>/portail_devis`** (exemple : `#/espace/clientdemo/portail_devis`). **Nom exact tranché par Jérôme : `portail_devis`**, placé juste après `/espace/<client>/`. Il n'affiche que **Devis · Clients · Catalogue · Relances · Statistiques** (et Vocabulaire / Réglages Devis).
 
 ### I.1 Ce qui existe (vérifié)
 
-- Chez un client, la page est `#/espace/<client>` (`js/os/espace.js:1`), servie par le lien court `/espace/<client>` : `firebase.json:34` (Jérôme) et `firebase.plateforme.json:29` (clients) ont **déjà** la réécriture `/espace/**` → `/espace/index.html`, dont un petit script transforme l'adresse en `/#/espace/<client>`.
-- Les routes des modules vivent sous un préfixe : `definirPrefixe('espace/<client>')` (`js/os/espace-modules.js:26`, `js/os/router.js:10-13`) ; le routeur rend la route sans préfixe et `moduleAccessible` (`registre.js:346`) rend « introuvable » une route d'un module non actif.
-- Les modules montés = les modules actifs de la fiche du client (`espace.js:121`, `espace-modules.js:22-27`). Le menu part des modules montés.
+- Chez un client, la page est `#/espace/<client>` (`js/os/espace.js:1`). **Le routeur lit déjà `espace/<client>/<reste>`** : `routeDansEspace` (`js/os/marque.js:33-39`) rend `{ client, reste }`, et `cleEspace` (`marque.js:42`) ne garde que `espace/<client>` comme clé d'entrée (changer d'écran ne recharge pas la page).
+- Les routes des modules vivent sous un préfixe : `definirPrefixe('espace/<client>')` (`js/os/espace-modules.js:26`) ; `lien()` et `naviguer()` (`js/os/router.js:10-52`) **remettent le préfixe tout seuls**, et `routeCourante()` le retire. Un module parle donc toujours en `devis/liste`.
+- Les modules montés = les modules actifs de la fiche du client (`espace.js:121`, `espace-modules.js:22-27`) ; `moduleAccessible` (`registre.js:346`) rend « introuvable » une route d'un module non actif. Le menu part des modules montés.
 
-### I.2 Le mécanisme le plus simple (deux candidats)
+### I.2 Le mécanisme : une route du routeur, aucun changement de Hosting
 
-| | **(1) Préfixe d'adresse géré par le routeur (recommandé)** | (2) Réécriture Firebase Hosting |
-|---|---|---|
-| Idée | le portail fait partie du **préfixe** (`espace/<client>/portail/devis`) ; le lien court `/espace/<client>/devis` (déjà couvert par `/espace/**`) est redirigé par le script de `espace/index.html` vers `/#/espace/<client>/portail/devis` | une nouvelle adresse racine (`/devis/<client>`) réécrite vers une page |
-| Fichiers | `js/os/registre.js` (déclaration des portails), `js/os/espace.js`, `js/os/espace-modules.js`, `js/main.js:19-22` (clé d'entrée), `espace/index.html` | `firebase.json` **et** `firebase.plateforme.json` |
-| Liste d'arrêt de CLAUDE.md | **non** (aucun `firebase*.json`) | **oui** : PR laissée à Jérôme (`a-fusionner-par-jerome`) |
-| Signet | le portail est dans l'adresse : un signet garde le portail | idem |
-| Risque | `estRouteEspace` / `cleEspace` (`main.js:19-22`) doivent accepter le préfixe plus long ; liens internes et retour de connexion à tester | une réécriture de plus à publier par workflow |
+`portail_devis` n'est **qu'une route du routeur** (le premier mot du « reste »), **pas** une réécriture Firebase Hosting : **aucun changement de `firebase.json` ni de `firebase.plateforme.json`**, donc **pas de liste d'arrêt** pour cette PR. (La réécriture `/espace/**` existe déjà, `firebase.json:34` et `firebase.plateforme.json:29`, mais elle ne sert qu'aux liens courts `/espace/<client>`.)
 
-**Recommandation : (1).** *Décision prise seul : adresse courte `/espace/<client>/devis`* (le mot `devis` est libre à cet endroit, le segment `portail` du préfixe n'est le nom d'aucun module). *Question restante :* Jérôme préfère-t-il `/devis`, `/plombier` ou `/module-de-vie` ? Une adresse **à la racine** exigerait la voie (2) (`firebase.json`, laissé à Jérôme).
+1. **Lecture** : à l'ouverture, si le « reste » commence par `portail_devis`, le portail est « devis » ; sinon « complet ». C'est une fonction pure (dans `marque.js` ou `registre.js`), testée seule.
+2. **Préfixe** : dans le portail Devis, le préfixe devient `espace/<client>/portail_devis` (`definirPrefixe`). Comme `lien()` et `naviguer()` l'ajoutent partout, **les liens internes restent sous `portail_devis` sans rien écrire** : `#/espace/<client>/portail_devis/devis/liste`, `…/portail_devis/devis/bordereau`, etc. Le module Devis ne sait pas dans quel portail il est.
+3. **Page d'arrivée** : `#/espace/<client>/portail_devis` sans route derrière ouvre **la liste des devis** (`devis/liste`, `premiereRoute`, `registre.js:353`).
+4. **Menu** : la coque reçoit la liste des modules visibles et, pour le portail Devis, la liste des cinq entrées (déclaration des portails dans `registre.js`, voir I.3).
+5. **Adresse du portail complet** : `#/espace/<client>/devis/liste` reste celle du portail complet (aucun signet existant ne casse).
+
+**À vérifier au codage (non fait ici)** : (a) `cleEspace` et `estRouteEspace` (`main.js:22`) ne regardent que les deux premiers mots : normal, mais un test doit prouver que passer d'un portail à l'autre ne recharge pas la page et que la connexion est conservée ; (b) **quatre liens écrits en dur** `href: '#/devis/liste'` ou voisins (`bordereau.js:440`, `selecteur-catalogue.js:181`, `bibliotheque.js:54`, `liste-ecran.js:211`) : comment ils sont traduits chez un client est à vérifier ; dans le portail Devis ils devront aussi rester sous `portail_devis` (le plus sûr : les passer par `lien()`) ; c'est exactement le genre de défaut que Fable a trouvé sur la PR 280 ; (c) le retour de connexion et les liens des e-mails (adresse d'un devis) : ouvrent le portail complet, sauf adresse explicite.
 
 ### I.3 Ce que décide le portail, et ce qu'il ne décide pas
 
-- **Modules visibles = modules achetés par le client ∩ modules du portail**, plus les modules dont ils dépendent. Le portail « Devis » déclare `['devis', 'contacts']` : il **n'affiche jamais Affaires ni Projets, même s'ils sont achetés** (la même fiche du client sert aux deux portails). Le portail complet = tous les modules achetés, comme aujourd'hui. Un client qui n'a pas acheté Devis n'a pas de portail Devis (page « Espace indisponible »).
-- **Le menu dépend du portail ET des modules achetés** : dans le portail Devis, cinq entrées (Devis · Clients · Catalogue · Relances · Statistiques) ; dans le portail complet, le menu d'aujourd'hui, où Relances et Statistiques sont des **onglets** de la page Devis (une entrée de menu par module, `docs/consignes-ui.md`, 23/10/2026).
-- **Inchangés** : la connexion, les rôles (éditeur / lecteur), les règles Firestore, les outils de l'assistant (MCP) et les fiches `clients/<client>`. Un seul jeu de données ; aucun champ en plus sur les membres ; aucune fonction du serveur nouvelle pour régler une vue ; **aucune règle Firestore**.
-- **Application installée** : le portail partage l'icône et le nom du client (`appliquerIdentite`) ; *question restante :* un nom ou une icône différents pour le portail Devis sont-ils voulus ?
+- **Modules visibles = modules achetés par le client ∩ modules du portail**, plus les modules dont ils dépendent. Le portail « devis » déclare `['devis', 'contacts']` : il **n'affiche jamais Affaires ni Projets, même s'ils sont achetés** (la même fiche du client sert aux deux portails). Le portail complet = tous les modules achetés, comme aujourd'hui. Un client qui n'a pas acheté Devis n'a pas de portail Devis (page « Espace indisponible »).
+- **Le menu dépend du portail ET des modules achetés** : dans le portail Devis, cinq entrées ; dans le portail complet, le menu d'aujourd'hui, où Relances et Statistiques sont des **onglets** de la page Devis (une entrée de menu par module, `docs/consignes-ui.md`, 23/10/2026).
+- **Une route d'un module masqué dans le portail** (par exemple `…/portail_devis/crm/affaires`) est « introuvable » (même mécanisme que `moduleAccessible`).
+- **Inchangés** : la connexion, les rôles (éditeur / lecteur), les règles Firestore, **les outils de l'assistant (MCP : ceux de l'espace, pas du portail)** et les fiches `clients/<client>`. Un seul jeu de données ; aucun champ en plus sur les membres ; aucune fonction du serveur nouvelle ; **aucune règle Firestore**.
+- **Application installée** : le portail partage l'icône et le nom du client (`appliquerIdentite`). *Question restante :* un nom ou une icône différents pour le portail Devis sont-ils voulus ?
 
 ### I.4 L'honnêteté à écrire (et à dire au client)
 
-**Ce sont deux portes d'AFFICHAGE, pas de la confidentialité entre membres.** Les règles Firestore décident **par rôle et par collection**, jamais par module ni par portail (`firestore.plateforme.rules:182-184`) : quelqu'un qui entre par le portail Devis **peut lire** les affaires s'il sait les atteindre (autre adresse du portail complet, assistant dont les outils ne suivent pas le portail). Il ne faut **jamais** promettre à un client que son plombier « ne peut pas voir » les affaires comme une protection. Un vrai cloisonnement serait un autre chantier (règles par collection et par membre : liste d'arrêt).
+**Ce sont deux portes d'AFFICHAGE, pas de la confidentialité entre membres.** Les règles Firestore décident **par rôle et par collection**, jamais par module ni par portail (`firestore.plateforme.rules:182-184`) : quelqu'un qui entre par le portail Devis **peut lire** les affaires s'il connaît l'adresse du portail complet, et son assistant (outils de l'espace) peut les lister. Il ne faut **jamais** promettre à un client que son plombier « ne peut pas voir » les affaires comme une protection. Un vrai cloisonnement serait un autre chantier (règles par collection et par membre : liste d'arrêt).
 
 ### I.5 Découpage
 
-PR 5 (voir G) : déclaration des portails, préfixe d'adresse, lien court, modules visibles (fonction pure, testée), cas « portail Devis sans module Devis acheté », « route d'un module masqué = introuvable » ; tests de navigation et de connexion en format ordinateur et téléphone. **Fable obligatoire** (liens et adresses : un vrai bug chez les clients sur la PR 280 n'a été vu que par Fable, CLAUDE.md).
+PR 5 (voir G) : déclaration des portails, lecture de `portail_devis`, préfixe, page d'arrivée, modules visibles (fonction pure, testée), cas « portail Devis sans module Devis acheté », « route d'un module masqué = introuvable », liens écrits en dur ; tests de navigation et de connexion en format ordinateur **et téléphone**. **Fable obligatoire** (liens et adresses : un vrai bug chez les clients sur la PR 280 n'a été vu que par Fable, CLAUDE.md).
