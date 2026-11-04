@@ -191,6 +191,19 @@ describe('Création et modification (tests 9 et 11)', () => {
     assert.equal(s.doc('crm_personnes', 'p2').archive, true);
   });
 
+  test('test 11 bis (mode test, héritage serveur) : creer_affaire sur une personne RÉELLE d’une organisation de test crée une affaire, une note et des écritures de test ; sur du réel, aucune clé `test`', async () => {
+    const s = await demarrer();
+    const org = s.doc('crm_organisations', 'org2');
+    org.test = true; // organisation de test ; la personne p2 reste réelle
+    const r = ok(await s.appeler('biblio', 'creer_affaire', { personneId: 'p2', titre: 'Essai héritage' }));
+    assert.equal(s.doc('crm_affaires', r.id).test, true, 'affaire de test');
+    assert.equal(s.collections.crm_notes.find((n) => n.id === r.noteEpingleeId).test, true, 'note de départ de test');
+    delete org.test;
+    const reel = ok(await s.appeler('biblio', 'creer_affaire', { personneId: 'p2', titre: 'Essai réel' }));
+    assert.equal('test' in s.doc('crm_affaires', reel.id), false, 'jamais test: false ni champ sur du réel');
+    assert.equal('test' in s.collections.crm_notes.find((n) => n.id === reel.noteEpingleeId), false);
+  });
+
   test('test 11 : créer une affaire = règles de l’écran (titre par défaut, organisation héritée, étape, statut, événement) ; étape ou priorité inconnue refusée', async () => {
     const s = await demarrer();
     refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'X', etape: 'nimporte' }), /Étape inconnue/);

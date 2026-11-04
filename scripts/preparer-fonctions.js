@@ -59,7 +59,7 @@ const devisBrouillon = readFileSync(join(racine, 'js', 'modules', 'devis', 'brou
 const devisEditeur = readFileSync(join(racine, 'js', 'modules', 'devis', 'editeur-logique.js'), 'utf8');
 if (!devisBrouillon.includes(IMPORT_CRM)) throw new Error('js/modules/devis/brouillon.js : import du CRM introuvable');
 writeFileSync(join(destination, 'devis-brouillon.js'), devisBrouillon.replaceAll("from './logique.js'", "from './devis.js'").replaceAll(IMPORT_CRM, "from './logique.js'"));
-writeFileSync(join(destination, 'devis-editeur.js'), devisEditeur.replaceAll("from './logique.js'", "from './devis.js'").replaceAll("from './ouvrages.js'", "from './devis-ouvrages.js'").replaceAll("from './articles.js'", "from './devis-articles.js'"));
+writeFileSync(join(destination, 'devis-editeur.js'), devisEditeur.replaceAll("from './logique.js'", "from './devis.js'").replaceAll("from './ouvrages.js'", "from './devis-ouvrages.js'").replaceAll("from './articles.js'", "from './devis-articles.js'").replaceAll(IMPORT_CRM, "from './logique.js'")); // l'éditeur importe `heriterTest` du CRM (mode test, PR 1a-2b-1)
 console.log('functions/partage/devis-brouillon.js et devis-editeur.js mis à jour (copies de js/modules/devis/, imports réécrits)');
 
 // La porte des workflows n8n (scripts/porte/) : la logique (clés, contrôles, actions de la veille, accès Firestore, lecteur n8n) est copiée telle quelle,

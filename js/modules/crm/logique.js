@@ -704,6 +704,16 @@ export const villeCorrespond = (cochees, ville) => !cochees.length || cochees.so
 /** Mode test (PR 1a-1) : le repère `test: true` marque un essai ; absent ou `false` = réel. */
 export const estTest = (fiche) => fiche?.test === true;
 
+/**
+ * Mode test (PR 1a-2b-1) : héritage du repère À LA CRÉATION (jamais de cascade après coup). `parents` : les fiches liées à ce qu'on crée
+ * (objet de fiches, par ex. { personne, organisation, affaire, projet, client }, chacune facultative). Si l'une porte `test: true`, la nouvelle fiche aussi. N'écrit JAMAIS `test: false` :
+ * un élément réel sous parent réel reste sans champ. Un `test: true` déjà posé (mode allumé) n'est jamais retiré. Fonction pure, copiée au serveur.
+ */
+export function heriterTest(valeurs, parents = {}) {
+  if (valeurs?.test === true) return valeurs;
+  return Object.values(parents || {}).some((p) => p?.test === true) ? { ...valeurs, test: true } : valeurs;
+}
+
 /** Texte de la pastille d'un élément de test (une seule source pour les listes, les fiches et l'éditeur de devis). */
 export const BADGE_TEST = '[TEST]';
 
@@ -2196,9 +2206,10 @@ export function planCreerAffaire(valeurs, { personnes = [], organisations = [], 
   const organisationId = plein.organisationId || p?.organisationId || null;
   const org = organisationId ? organisations.find((x) => x.id === organisationId) || null : null;
   const titre = nettoyerEspaces(plein.titre) || titreParDefaut({ organisation: org, personne: p });
-  const fiche = nouvelleAffaire({ ...plein, titre, organisationId }, ctx);
+  const fiche = nouvelleAffaire(heriterTest({ ...plein, titre, organisationId }, { personne: p, organisation: org }), ctx);
   const id = ctx.nouvelId(C.affaires);
-  const note = ecritureNoteDeDepart({ personneId: fiche.personneId, organisationId, affaireId: id }, ctx, texteNote);
+  const reperage = fiche.test === true ? { test: true } : {}; // la note de départ et les activités du modèle héritent de l'affaire créée
+  const note = ecritureNoteDeDepart({ personneId: fiche.personneId, organisationId, affaireId: id, ...reperage }, ctx, texteNote);
   return {
     id,
     titre,
@@ -2206,7 +2217,7 @@ export function planCreerAffaire(valeurs, { personnes = [], organisations = [], 
     ecritures: [
       ecritureCreer(C.affaires, id, fiche, MARQUES_CREATION),
       ...evenements([evenementCreation('affaire_creee', `Affaire créée : ${titre}`, { personneId: fiche.personneId, organisationId, affaireId: id }, ctx)], ctx),
-      ...ecrituresActivitesModeleAffaire(modele, { personneId: fiche.personneId, organisationId, affaireId: id }, ctx),
+      ...ecrituresActivitesModeleAffaire(modele, { personneId: fiche.personneId, organisationId, affaireId: id, ...reperage }, ctx),
       note,
     ],
   };

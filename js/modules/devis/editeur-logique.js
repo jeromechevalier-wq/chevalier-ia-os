@@ -20,6 +20,7 @@ import {
   margeEffective, coefficientDepuisPourcentage, coefficientDepuisMontant, coefficientDepuisSaisie, emailValide, MAX_COPIE, MAX_DESTINATAIRES,
 } from './logique.js';
 import { TYPE_SAUT, estSaut, listeAcomptes } from './logique.js';
+import { heriterTest } from '../crm/logique.js';
 import { descriptionOuvrage, figerOuvragePourLigne, articlesParId, TYPE_OUVRAGE } from './ouvrages.js';
 import { TYPE_TEXTE, lireNombre } from './articles.js';
 
@@ -481,13 +482,14 @@ export const texteDeAdresse = (a) => (typeof a === 'string' ? a.trim() : String(
  */
 export function valeursDeCreation(affaire, client) {
   const adresse = adresseTexteSimple(client?.adresse);
-  return {
+  // Mode test (PR 1a-2b-1) : un brouillon sur une affaire de test ou pour un client de test est de test. Pas d'héritage rétroactif : un brouillon réel auquel on rattache ensuite une affaire de test reste réel.
+  return heriterTest({
     affaireId: affaire?.id ?? null,
     organisationId: client?.type === 'organisation' ? client.fiche.id : null,
     personneId: client?.type === 'personne' ? client.fiche.id : null,
     adresses: { commanditaire: adresse, facturation: adresse, chantier: adresse },
     destinataires: client ? emailsDeFiche(client.fiche).slice(0, 1) : [],
-  };
+  }, { affaire, client: client?.fiche });
 }
 
 /** Bloc `chantier` mis à jour : l'adresse (texte), sans toucher aux dates déjà saisies. */
