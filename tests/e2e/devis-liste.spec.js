@@ -189,7 +189,7 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
   await expect(menu).toContainText('pas encore branchée');
   for (const nom of [/^Dupliquer$/, /Créer une nouvelle version/, /Voir le devis/]) await expect(menu.getByRole('menuitem', { name: nom })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Éditer le devis/ })).toBeEnabled(); // un devis finalisé s'ouvre sur l'Édition, en lecture seule
-  await expect(menu.getByRole('menuitem', { name: /Supprimer/ })).toHaveCount(0); // seulement un brouillon
+  await expect(menu.getByRole('menuitem', { name: /Supprimer définitivement…/ })).toBeEnabled(); // tous les statuts (04/11/2026)
   await capturer(page, info, 'E3-menu-devis-envoye');
   // Signé : la demande part au serveur (jamais une écriture directe).
   await menu.getByRole('menuitem', { name: /Passer à « Devis signé »/ }).click();
@@ -292,7 +292,7 @@ test('O5 le menu « … » n’a plus « Voir la fiche » : la fiche n’existe 
   await expect(page.locator('[data-role="fiche-devis"]')).toHaveCount(0);
 });
 
-test('S1 « Supprimer » d’un brouillon : confirmation, appel de devisSupprimer ; « Annuler » n’appelle rien ; un devis envoyé n’a pas d’entrée Supprimer', async ({ page }) => {
+test('S1 « Supprimer » d’un brouillon : confirmation, appel de devisSupprimer ; « Annuler » n’appelle rien ; un devis envoyé a « Supprimer définitivement… » (voir B3)', async ({ page }) => {
   const appels = [];
   await page.route('**/devisSupprimer', async (route) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
@@ -302,7 +302,7 @@ test('S1 « Supprimer » d’un brouillon : confirmation, appel de devisSupprime
   await deuxDevis();
   await ouvrir(page);
   await ouvrirMenuDe(page, 'd1'); // envoyé
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer/ })).toHaveCount(0);
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement…/ })).toBeVisible();
   await page.keyboard.press('Escape');
   await ouvrirMenuDe(page, 'd2'); // brouillon
   await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer/ }).click();

@@ -35,6 +35,7 @@ Ces règles viennent de Jérôme (non-développeur). Elles valent pour tous les 
 - « + Ajouter » reste visible sous les valeurs, jusqu'à 10 (`MAX_CONTACTS`, la même limite pour l'assistant). Entrée ou sortie du champ enregistre, Échap annule ; une valeur vide ou déjà présente (même adresse ou mêmes chiffres) n'enregistre rien ; la valeur s'affiche tout de suite et, si l'écriture échoue, l'ancienne revient avec un message ; un email invalide affiche « Cette adresse email n'est pas valide (exemple : contact@exemple.fr). ».
 
 ## Destructif
+- **Supprimer un devis à tous ses statuts (décision de Jérôme, 04/11/2026)** : entrée danger « Supprimer définitivement… » du menu « … » (liste et devis ouvert), jamais en un clic : fenêtre d'avertissement en français simple (le devis appartient au client, versions supprimées, numéro jamais réutilisé, chiffre d'affaires recalculé, PDF non touchés, copie dans le journal), saisie du numéro ou du nom, et « Archiver à la place » (ranger sans supprimer). Un brouillon seul garde la petite confirmation.
 - Tout bouton qui retire ou supprime : **fenêtre de confirmation**, puis un message « Retiré · Annuler » pendant **8 secondes** quand l'action est réversible. *(2026-10-17)*
 - Pas de bouton « Modifier » quand « Retirer » puis recréer suffit. *(2026-10-17)*
 

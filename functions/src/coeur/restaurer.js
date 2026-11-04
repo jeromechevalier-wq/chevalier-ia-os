@@ -8,11 +8,12 @@
 import { COLLECTIONS as C } from './donnees.js';
 import { egal, sansId } from './canonique.js';
 import { ErreurEcriture, executerEcritures } from './ecriture.js';
+import { recalculerMontantsAffaires } from './devis.js';
 
 /** Opérations de devis qui figent le devis (fonctions du serveur, voir coeur/devis.js) : jamais restaurées. */
 const OUTILS_DEVIS_FIGES = ['devisFinaliser', 'devisChangerStatut'];
 /** Opérations de devis qui touchent un devis déjà finalisé SANS le figer : archiver, historique des envois (statut inchangé). Elles se défont même si le devis n'est plus un brouillon. */
-const OUTILS_DEVIS_SUR_FINALISE = ['devisArchiver', 'devisEnregistrerEnvoi'];
+const OUTILS_DEVIS_SUR_FINALISE = ['devisArchiver', 'devisEnregistrerEnvoi', 'devisSupprimer'];
 const VOIE_DE_SECOURS = 'Pour corriger un devis finalisé, créer la version suivante (nouvelle_version_devis, ou depuis l’écran).';
 
 /** Ce qu'il faudrait faire pour défaire une ligne : 'supprimer' | 'remplacer' | 'recreer' | 'rien' | 'conflit'. */
@@ -30,20 +31,24 @@ const RAISONS = {
 /** `reserver(operations)` : appelé juste avant d'écrire (plafonds du jeton) ; une restauration qui supprime compte comme suppression. */
 /** `outil` : le nom écrit dans le journal (restaurer_depuis_audit par défaut ; annuler_derniere_modification_devis pour l'annulation d'un brouillon). */
 export async function restaurerOperation({ donnees, ctx, operationId, apercu = true, forcer = false, reserver = null, outil = 'restaurer_depuis_audit' }) {
-  const lignesAudit = (await donnees.liste(C.audit, { champ: 'operationId', valeur: operationId }))
+  let lignesAudit = (await donnees.liste(C.audit, { champ: 'operationId', valeur: operationId }))
     .filter((l) => l.statut !== 'echec')
     .sort((a, b) => (b.ordre ?? 0) - (a.ordre ?? 0));
   if (!lignesAudit.length) {
     throw new ErreurEcriture('introuvable', 'Aucune écriture réussie pour cette opération (identifiant inconnu, ou toutes ont échoué).');
   }
   // Une transition de devis réécrit aussi le montant de l'affaire (`montantDevis*`) : défaire cette ligne avec une copie entière de l'affaire effacerait ce qui a changé depuis (titre, étape, documents).
-  if (lignesAudit.some((l) => /^devis/.test(l.outil ?? '') && l.collection === C.affaires)) {
+  // Exception : la suppression d'un devis (devisSupprimer) ; seules ses lignes « devis » sont restaurées, le montant de l'affaire est recalculé APRÈS l'écriture (hors transaction), jamais rétabli d'après une copie.
+  const supprimeDevis = lignesAudit.some((l) => l.outil === 'devisSupprimer');
+  const affairesARecalculer = supprimeDevis ? [...new Set(lignesAudit.filter((l) => l.collection === C.affaires).map((l) => l.docId))] : [];
+  if (!supprimeDevis && lignesAudit.some((l) => /^devis/.test(l.outil ?? '') && l.collection === C.affaires)) {
     throw new ErreurEcriture('restauration_refusee', 'Cette opération a changé un devis et recalculé le montant de l’affaire : elle ne se défait pas avec le journal. Pour revenir en arrière, crée une nouvelle version du devis (nouvelle_version_devis) ou change son statut : le montant est recalculé.');
   }
   // Une finalisation (numéro consommé, prix figés) ou un changement de statut d'un devis ne se défait pas d'après le journal : créer la version suivante (nouvelle_version_devis).
   if (lignesAudit.some((l) => OUTILS_DEVIS_FIGES.includes(l.outil))) {
     throw new ErreurEcriture('restauration_refusee', `Cette opération a finalisé ou changé le statut d’un devis : elle ne se défait pas avec le journal (le numéro serait perdu). ${VOIE_DE_SECOURS}`);
   }
+  if (supprimeDevis) lignesAudit = lignesAudit.filter((l) => l.collection === C.devis); // l'affaire n'est jamais remise d'après une copie : son montant se recalcule
   const copies = await Promise.all(lignesAudit.map((l) => donnees.document(C.auditAvant, l.id)));
   const perimees = lignesAudit.filter((_, i) => !copies[i]);
   if (perimees.length) {
@@ -56,6 +61,9 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   // Archivage / envoi défaits « de force » sur un devis dont le statut a changé depuis (signé, refusé…) : on remettrait l'ancien statut, ce qui contourne la règle des statuts.
   const statutChange = lignesAudit.find((l, i) => l.collection === C.devis && courants[i] && OUTILS_DEVIS_SUR_FINALISE.includes(l.outil) && copies[i]?.apres && courants[i].statut !== copies[i].apres.statut);
   if (statutChange) throw new ErreurEcriture('restauration_refusee', 'Le statut de ce devis a changé depuis cette opération : elle ne se défait plus avec le journal, même avec forcer. ' + VOIE_DE_SECOURS);
+  // Un devis supprimé puis déjà rétabli (puis peut-être changé de statut) ne se « restaure » pas une seconde fois, même avec forcer.
+  const dejaRetabli = lignesAudit.find((l, i) => l.outil === 'devisSupprimer' && l.collection === C.devis && courants[i]);
+  if (dejaRetabli) throw new ErreurEcriture('restauration_refusee', 'Ce devis supprimé existe déjà (il a été rétabli) : il ne se restaure pas une seconde fois, même avec forcer. ' + VOIE_DE_SECOURS);
   // Recréer un devis supprimé : refusé si sa racine a déjà un brouillon ou un devis de même version (deux devis finalisés au même numéro sinon).
   for (let i = 0; i < lignesAudit.length; i += 1) {
     const l = lignesAudit[i];
@@ -86,5 +94,7 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   if (!operations.length) return { operationId, restauree: true, rienAFaire: true, ecritures: [] };
   await reserver?.(operations);
   const resultat = await executerEcritures({ donnees, ctx, outil, parametres: { operationId, forcer }, operations });
+  // Devis supprimé puis rétabli : il compte de nouveau (s'il est signé, par exemple) ; le montant de l'affaire est recalculé d'après les devis, comme après toute transition.
+  if (supprimeDevis && affairesARecalculer.length) await recalculerMontantsAffaires({ donnees, ctx, appliquer: true, affaireIds: affairesARecalculer });
   return { operationId, restauree: true, operationRestauration: resultat.operationId, ecritures: resultat.ecritures, ...(resultat.auditIncomplet ? { auditIncomplet: true, avertissement: resultat.avertissement } : {}) };
 }

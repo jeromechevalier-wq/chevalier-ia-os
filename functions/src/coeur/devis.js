@@ -289,19 +289,32 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
 }
 
 /**
- * Supprime un BROUILLON (jamais un devis finalisé : il a un numéro, des documents et des versions liées). La copie « avant » reste dans le journal
- * (crm_audit_avant) : un devis supprimé par erreur peut être retrouvé et rétabli avec `restaurer_depuis_audit`.
- * Supprimer un brouillon ne touche JAMAIS aux documents de l'affaire ni aux fichiers du stockage (décision de Jérôme, 26/10/2026) : un « Devis brouillon – … .pdf » déjà joint à l'affaire y reste.
+ * Supprime un devis, QUEL QUE SOIT SON STATUT, avec toutes ses versions (décision de Jérôme, 04/11/2026 : « le devis appartient au client », il doit pouvoir se supprimer à toutes les étapes de sa vie).
+ * Dans UNE transaction : les devis de la racine disparaissent, le montant de l'affaire est recalculé (un devis signé sort du chiffre d'affaires) et le journal garde la copie « avant » de chaque version
+ * (crm_audit_avant) : `restaurer_depuis_audit` peut les rétablir. Le compteur de numéros ne recule JAMAIS : un trou apparaît dans la numérotation, le numéro n'est pas réutilisé.
+ * Ne touche JAMAIS aux documents de l'affaire ni aux fichiers du stockage (décision de Jérôme, 26/10/2026) : un PDF déjà généré ou joint à l'affaire y reste.
  */
 export async function supprimer({ donnees, ctx, devisId }) {
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
-    if (devis.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; tu peux l’archiver s’il est finalisé (jamais envoyé), signé ou refusé.');
-    const changement = { id: devis.id, collection: C.devis, action: 'supprimer', avant: devis, apres: null, champs: [], ecriture: { type: 'delete', collection: C.devis, id: devis.id } };
-    // Un brouillon ne compte jamais dans le montant de l'affaire (règle D17) : supprimer ne touche pas à l'affaire, et l'opération reste restaurable par le journal.
-    const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements: [changement] });
-    tx.ecrire([changement.ecriture, ...j.ecritures]);
-    return { ok: true, devis, operationId: j.operationId };
+    const versions = (await lireVersions(tx, devis)).filter((v) => v.id !== devis.id);
+    const aSupprimer = [devis, ...versions];
+    const changements = aSupprimer.map((v) => ({ id: v.id, collection: C.devis, action: 'supprimer', avant: v, apres: null, champs: [], ecriture: { type: 'delete', collection: C.devis, id: v.id } }));
+    // Un brouillon ne compte jamais dans le montant de l'affaire (règle D17) : seuls les autres statuts obligent à recalculer. Affaire disparue entre-temps : rien à recalculer.
+    const compte = aSupprimer.some((v) => v.statut !== 'brouillon');
+    // Une version brouillon a pu changer d'affaire : on recalcule chaque affaire touchée (toutes les lectures avant les écritures).
+    const retouches = Object.fromEntries(aSupprimer.map((v) => [v.id, null]));
+    const montants = [];
+    if (compte) {
+      for (const v of aSupprimer.filter((x, i, l) => l.findIndex((y) => y.affaireId === x.affaireId) === i)) {
+        const m = await montantDeLAffaire(tx, v, retouches);
+        if (m) montants.push(m);
+      }
+    }
+    const tous = [...changements, ...montants];
+    const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements: tous });
+    tx.ecrire([...tous.map((c) => c.ecriture), ...j.ecritures]);
+    return { ok: true, devis, supprimes: aSupprimer.length, operationId: j.operationId };
   });
 }
 
@@ -542,5 +555,5 @@ export const OPERATIONS = Object.freeze({
 /** Ce que l'appelant reçoit : jamais le devis entier (son navigateur le lit déjà). Un devis refusé rend les messages à corriger, rien n'a été écrit. */
 export function reponsePublique(r) {
   if (!r.ok) return { ok: false, erreurs: r.erreurs };
-  return { ok: true, devisId: r.devis.id, statut: r.devis.statut, numero: r.devis.numero ?? null, ...(r.nouveauNumero !== undefined ? { nouveauNumero: r.nouveauNumero } : {}), operationId: r.operationId };
+  return { ok: true, devisId: r.devis.id, statut: r.devis.statut, numero: r.devis.numero ?? null, ...(r.nouveauNumero !== undefined ? { nouveauNumero: r.nouveauNumero } : {}), ...(r.supprimes !== undefined ? { supprimes: r.supprimes } : {}), operationId: r.operationId };
 }
