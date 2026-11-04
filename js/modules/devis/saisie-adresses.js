@@ -2,7 +2,7 @@
 // Une adresse s'ajoute avec Entrée, virgule, point-virgule, espace ou en quittant le champ ; on peut en coller plusieurs ; Retour arrière sur un champ vide retire la dernière puce.
 // UN SEUL composant pour la fenêtre « Préparer l'e-mail » et les blocs de l'éditeur (04/11/2026). Il n'écrit rien lui-même : `lire` / `ecrire` donnent la liste, `refus` donne les règles de l'appelant.
 import { h, icone } from '../../os/ui.js';
-import { ajouterPlusieurs, contientSeparateur, filtrerSuggestions } from './saisie-adresses-logique.js';
+import { ajouterPlusieurs, filtrerSuggestions } from './saisie-adresses-logique.js';
 
 const LIGNES = {
   destinataires: { libelle: 'À', mot: 'destinataire', aria: 'Ajouter un destinataire' },
@@ -43,7 +43,8 @@ export function saisieAdresses({ lire, ecrire, surChangement = () => {}, refus, 
       if (!champ.value.trim()) { champ.value = ''; return true; }
       const r = ajouterPlusieurs(lire(cle), champ.value, (a, courante) => refus(cle, a, courante, lire(autre)));
       if (r.ajoutees.length) { ecrire(cle, r.liste); surChangement(cle); }
-      champ.value = r.reste;
+      if (champ.value !== r.reste) champ.value = r.reste; // sans réassigner inutilement : le curseur ne saute pas
+      longueurAvant = champ.value.length;
       montrer(r.erreur);
       dessiner();
       return !r.erreur;
@@ -59,10 +60,15 @@ export function saisieAdresses({ lire, ecrire, surChangement = () => {}, refus, 
       else if (e.key === ',' || e.key === ';') { e.preventDefault(); valider(); }
       else if (e.key === 'Backspace' && !champ.value && lire(cle).length) { const l = lire(cle); retirer(l[l.length - 1]); }
     });
+    let longueurAvant = 0; // taille du champ avant la frappe : un gros saut = collage
     champ.addEventListener('input', (e) => {
       montrer('');
       const choisiDansLaListe = e.inputType === 'insertReplacementText' || (!e.inputType && filtrerSuggestions(suggestions(), []).includes(champ.value.trim()));
-      if (choisiDansLaListe || contientSeparateur(champ.value)) valider(); // espace ou collage de plusieurs adresses
+      const colle = e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop' || champ.value.length - longueurAvant > 1; // collage, ou texte inséré d'un coup
+      // Seulement quand un séparateur vient d'être tapé ou qu'on colle : un texte refusé laissé dans le champ (avec un espace) ne se revalide pas à chaque frappe.
+      const doitValider = choisiDansLaListe || /[\s,;]$/.test(champ.value) || (colle && /[\s,;]/.test(champ.value));
+      longueurAvant = champ.value.length;
+      if (doitValider) valider();
     });
     champ.addEventListener('blur', () => { if (champ.value.trim()) valider(); });
 

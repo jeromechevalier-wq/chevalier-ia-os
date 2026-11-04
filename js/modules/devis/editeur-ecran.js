@@ -724,7 +724,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const composant = saisieAdresses({
       lire: adresses,
       ecrire: (cle, liste) => { changer({ [cle]: liste }); },
-      surChangement: (cle) => { majBlocs(cle); },
+      // Le composant redessine les deux lignes lui-même : on rafraîchit les deux signatures, sinon un retrait suivi d'un choix de client (qui remet l'e-mail auto) ne serait pas redessiné.
+      surChangement: () => { for (const k of ['destinataires', 'copie']) ref.signatures = { ...(ref.signatures ?? {}), [k]: signatureBloc(k) }; },
       refus: (cle, v, liste, autre) => (cle === 'copie' ? Ed.refusAjoutCopie(v, liste, autre) : Ed.refusAjoutDestinataire(v, liste, autre)),
       plafond: (cle) => PLAFONDS_ADRESSES[cle],
       suggestions: () => { try { return [...Ed.emailsDeFiche(travail.personneId ? CRM.personne(travail.personneId) ?? {} : {}), ...(ficheClient(travail) ? Ed.emailsDeFiche(ficheClient(travail).fiche) : [])]; } catch { return []; } },

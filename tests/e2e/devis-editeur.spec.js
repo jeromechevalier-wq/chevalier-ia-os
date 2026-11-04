@@ -106,7 +106,7 @@ test('C1 « Cc » : le lien ouvre la ligne Copie, Entrée ajoute une adresse en 
   await expect(page.locator('[data-zone="copie"] [data-adresse]')).toHaveCount(0);
 });
 
-test('C2 une adresse déjà en copie ne peut pas être ajoutée aux destinataires : message clair, rien d’enregistré, le champ reste ouvert jusqu’à Échap', async ({ page }, info) => {
+test('C2 une adresse déjà en copie ne peut pas être ajoutée aux destinataires : message clair, rien d’enregistré, le champ garde le texte tapé', async ({ page }, info) => {
   await semer();
   await nouveauBrouillon(page);
   const bloc = page.locator('[data-zone="copie"]');

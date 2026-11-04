@@ -81,6 +81,10 @@ test('1 collage de trois adresses d’un coup : trois puces ; un collage avec un
   await expect(puces(page, 'destinataires')).toHaveText(['a@exemple.fr', 'b@exemple.fr', 'c@exemple.fr', 'd@exemple.fr']);
   await expect(boite(page).locator('[data-erreur="destinataire-preparer-email"]')).toContainText('n’est pas valide');
   await expect(champA(page)).toHaveValue('pas-une-adresse e@exemple.fr');
+  // Le texte refusé reste éditable : une frappe au début du champ ne le revalide pas (le curseur ne saute pas à la fin).
+  await champA(page).press('Home');
+  await champA(page).pressSequentially('xy');
+  await expect(champA(page)).toHaveValue('xypas-une-adresse e@exemple.fr');
 });
 
 test('1 doublon, adresse invalide et trop d’adresses : un message court sous la ligne, rien d’ajouté, rien de demandé', async ({ page }) => {
