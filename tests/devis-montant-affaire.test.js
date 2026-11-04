@@ -335,8 +335,8 @@ describe('N6 restaurer_depuis_audit ne défait pas une transition de devis qui a
   });
 });
 
-describe('N7 archiver = ranger : l’opération ne touche pas l’affaire, sa restauration reste possible', () => {
-  test('N7 la ligne de journal d’un archivage ne porte que le devis ; restaurer_depuis_audit la défait', async () => {
+describe('N9 archiver = ranger : l’opération ne touche pas l’affaire, sa restauration reste possible', () => {
+  test('N9 la ligne de journal d’un archivage ne porte que le devis ; restaurer_depuis_audit la défait', async () => {
     const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
     const m = monde({ devis: [brouillon('d1', 100)] });
     await envoye(m, 'd1'); await statut(m, 'd1', 'accepter');
@@ -349,8 +349,8 @@ describe('N7 archiver = ranger : l’opération ne touche pas l’affaire, sa re
   });
 });
 
-describe('N8 archiver ne rattrape pas une affaire périmée', () => {
-  test('N8 affaire calculée avant (montant périmé) : archiver ne l’écrit pas, l’opération reste restaurable', async () => {
+describe('N10 archiver ne rattrape pas une affaire périmée', () => {
+  test('N10 affaire calculée avant (montant périmé) : archiver ne l’écrit pas, l’opération reste restaurable', async () => {
     const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
     const m = monde({ devis: [brouillon('d1', 100)] });
     await envoye(m, 'd1'); await statut(m, 'd1', 'accepter');

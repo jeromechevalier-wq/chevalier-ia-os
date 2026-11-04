@@ -1,6 +1,6 @@
 # Le montant d'une affaire : d'où vient le chiffre affiché
 
-*Décisions de Jérôme du 29/10/2026. Cette page explique tout, simplement. Règle d'origine : D17 de `docs/cadrage-devis.md`. À lire avant de toucher au montant, à un écran qui l'affiche ou à une fonction du serveur qui change un devis.*
+*Décisions de Jérôme du 29/10/2026, complétées le 04/11/2026 (archiver = ranger). Cette page explique tout, simplement. Règle d'origine : D17 de `docs/cadrage-devis.md`. À lire avant de toucher au montant, à un écran qui l'affiche ou à une fonction du serveur qui change un devis.*
 
 ## En une phrase
 
@@ -19,8 +19,10 @@ Les devis acceptés passent **avant** les devis proposés : dès qu'un devis est
 ### Ce qui ne compte jamais
 - **Un brouillon.** Il change à chaque frappe et n'est pas enregistré par le serveur : seul un devis **finalisé** compte.
 - Un devis **refusé** ou **remplacé** (une version plus récente existe).
-- **Archiver ne change aucun chiffre** (décision de Jérôme, 04/11/2026, qui remplace celle du 29/10) : archiver = ranger. Un devis archivé compte comme avant dans le montant de l'affaire et dans le chiffre d'affaires. Pour le retirer du calcul : le passer à « Refusé », ou le supprimer.
 - Un devis dont le total HT figé n'est pas un nombre (jamais un chiffre inventé).
+
+### Archiver = ranger
+**Archiver ne change aucun chiffre** (décision de Jérôme, 04/11/2026, qui remplace celle du 29/10) : archiver = ranger. Un devis archivé compte comme avant dans le montant de l'affaire et dans le chiffre d'affaires. Pour le retirer du calcul : le passer à « Refusé », ou le supprimer.
 
 ### Pourquoi « le plus récent, seul » pour les devis proposés ?
 Deux offres envoyées au même client (une « basique », une « premium ») sont des **alternatives**, pas une addition. Si on les additionnait, le total serait faux. Le plus récent est celui sur lequel on travaille. Les devis acceptés, eux, s'additionnent : ce sont des commandes qui s'ajoutent.
@@ -80,7 +82,7 @@ Les cartes du Kanban, la liste et les mini-cartes affichent le même chiffre, su
 - Il n'y a pas de bouton pour forcer un chiffre à la main quand des devis comptent : le chiffre calculé est la vérité ; pour changer le montant, on change les devis.
 
 ## Tests
-`tests/devis-montant-affaire.test.js` (règle pure N1, chaque transition N2 à N4, lecture commune et infobulle N5, restauration refusée N6, recalcul général N7) ; `tests/devis-serveur-firestore.test.js` C8 (vraies transactions Firestore : acceptations simultanées, finalisation, espace client isolé) ; `tests/e2e/affaire-montant.spec.js` (fiche, infobulle, direct, Kanban, liste, tri, module éteint ; ordinateur et téléphone, captures dans `tests/e2e/captures/affaire-montant/`).
+`tests/devis-montant-affaire.test.js` (règle pure N1, chaque transition N2 à N4, lecture commune et infobulle N5, restauration refusée N6, recalcul général N7, archiver = ranger N9 et N10) ; `tests/devis-serveur-firestore.test.js` C8 (vraies transactions Firestore : acceptations simultanées, finalisation, espace client isolé) ; `tests/e2e/affaire-montant.spec.js` (fiche, infobulle, direct, Kanban, liste, tri, module éteint ; ordinateur et téléphone, captures dans `tests/e2e/captures/affaire-montant/`).
 
 ## Déploiement
 Le **site** (hosting) suffit pour les libellés et l'infobulle. Pour que le serveur **écrive** les champs : déployer `functions/` chez Jérôme (il porte aussi le serveur MCP) et « Déploiement plateforme clients » > `fonctions` (et `mcp`) chez les clients. Pas de règle Firestore à publier.
