@@ -25,6 +25,12 @@ export const TITRE_FENETRE = 'Préparer l’e-mail';
 export const LIBELLE_PREPARER_BROUILLON = 'Préparer le brouillon Gmail';
 export const MESSAGE_AJOUTER_DESTINATAIRE = E.MESSAGE_AJOUTER_DESTINATAIRE;
 export const MESSAGE_FENETRE_ERREUR = 'Le brouillon n’a pas pu être demandé. Ton texte est gardé : réessaie dans un instant.';
+// Les deux phrases de limite du SERVEUR (functions/src/coeur/devis-email.js, code `deja_demande`) : ce ne sont pas des pannes, la fenêtre les montre en gris avec une icône d'information,
+// pas en rouge. Un test relit le fichier du serveur pour garantir que les phrases sont identiques.
+export const MESSAGE_LIMITE_BROUILLON_CREE = 'Un brouillon vient d’être créé pour ce devis : regarde dans ton Gmail. Tu pourras en demander un autre dans quelques minutes.';
+export const MESSAGE_LIMITE_EN_COURS = 'Une préparation est déjà en cours pour ce devis : patiente quelques instants (3 minutes au plus), puis réessaie.';
+/** Vrai si le message est l'une des deux phrases de limite du serveur (à montrer comme une information, pas comme une erreur). */
+export const estMessageDeLimite = (message) => [MESSAGE_LIMITE_BROUILLON_CREE, MESSAGE_LIMITE_EN_COURS].includes(String(message ?? '').trim());
 export const maximumAtteint = (n) => `${n} adresses : c’est le maximum.`;
 
 /** À qui le brouillon sera adressé par défaut, tel que le serveur le lira dans le devis : { destinataires, copie } (adresses valides, sans doublon ; la copie sans l'adresse déjà destinataire). */
