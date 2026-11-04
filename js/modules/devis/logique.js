@@ -568,7 +568,7 @@ export function peutArchiver(devis) {
 
 /**
  * Le montant qu'un module Devis donne à une affaire (règle D17, décisions de Jérôme des 29/10/2026). Tout est expliqué dans docs/montant-affaire.md.
- *  1. S'il y a des devis ACCEPTÉS (non archivés) : leur somme HT, nature « accepte ».
+ *  1. S'il y a des devis ACCEPTÉS (archivés compris : archiver = ranger) : leur somme HT, nature « accepte ».
  *  2. Sinon, s'il y a des devis PROPOSÉS (finalisés ou envoyés, pas encore acceptés ni refusés ni remplacés) : le HT du plus récent seul, nature « propose »
  *     (deux offres concurrentes ne s'additionnent jamais).
  *  3. Sinon `null` : l'affaire garde son montant saisi à la main, qui n'est jamais effacé.

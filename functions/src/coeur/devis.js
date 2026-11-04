@@ -279,9 +279,9 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
     if (!archive && devis.archive !== true) throw new ErreurDevis('transition_interdite', 'Ce devis n\'est pas archivé.');
     const patch = { archive, archiveLe: archive ? ctx.maintenant : null };
     const changement = modifier(devis, patch);
-    // Archiver = ranger (décision du 04/11/2026) : un devis archivé compte toujours dans le montant de l'affaire. Le résultat est donc identique et rien n'est écrit sur l'affaire.
-    const montant = await montantDeLAffaire(tx, devis, { [devis.id]: patch });
-    const changements = montant ? [changement, montant] : [changement];
+    // Archiver = ranger (décision du 04/11/2026) : un devis archivé compte toujours dans le montant de l'affaire. L'archivage ne touche donc JAMAIS à l'affaire
+    // (même périmée : le rattrapage passe par `recalculer_montants_affaires`), et son opération reste restaurable avec le journal.
+    const changements = [changement];
     const j = journal({ donnees, ctx, outil: 'devisArchiver', parametres: { devisId, archive }, changements });
     tx.ecrire([...changements.map((c) => c.ecriture), ...j.ecritures]);
     return { ok: true, devis: { ...devis, ...patch }, operationId: j.operationId };

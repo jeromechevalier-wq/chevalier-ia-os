@@ -348,3 +348,17 @@ describe('N7 archiver = ranger : l’opération ne touche pas l’affaire, sa re
     assert.equal(JSON.stringify(m.collections[C.affaires]), avant);
   });
 });
+
+describe('N8 archiver ne rattrape pas une affaire périmée', () => {
+  test('N8 affaire calculée avant (montant périmé) : archiver ne l’écrit pas, l’opération reste restaurable', async () => {
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    const m = monde({ devis: [brouillon('d1', 100)] });
+    await envoye(m, 'd1'); await statut(m, 'd1', 'accepter');
+    m.collections[C.affaires].forEach((a) => { a.montantDevisHt = 1; }); // montant périmé, comme avant cette règle
+    const avant = JSON.stringify(m.collections[C.affaires]);
+    const r = await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
+    assert.equal(JSON.stringify(m.collections[C.affaires]), avant);
+    await restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer: false });
+    assert.notEqual(m.collections[C.devis].find((d) => d.id === 'd1').archive, true);
+  });
+});

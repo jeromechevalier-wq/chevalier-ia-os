@@ -38,7 +38,7 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   }
   // Une transition de devis réécrit aussi le montant de l'affaire (`montantDevis*`) : défaire cette ligne avec une copie entière de l'affaire effacerait ce qui a changé depuis (titre, étape, documents).
   if (lignesAudit.some((l) => /^devis/.test(l.outil ?? '') && l.collection === C.affaires)) {
-    throw new ErreurEcriture('restauration_refusee', 'Cette opération a changé un devis et recalculé le montant de l’affaire : elle ne se défait pas avec le journal. Refais le geste inverse sur le devis (archiver_devis avec archive: false par exemple) : le montant est recalculé.');
+    throw new ErreurEcriture('restauration_refusee', 'Cette opération a changé un devis et recalculé le montant de l’affaire : elle ne se défait pas avec le journal. Pour revenir en arrière, crée une nouvelle version du devis (nouvelle_version_devis) ou change son statut : le montant est recalculé.');
   }
   // Une finalisation (numéro consommé, prix figés) ou un changement de statut d'un devis ne se défait pas d'après le journal : créer la version suivante (nouvelle_version_devis).
   if (lignesAudit.some((l) => OUTILS_DEVIS_FIGES.includes(l.outil))) {
