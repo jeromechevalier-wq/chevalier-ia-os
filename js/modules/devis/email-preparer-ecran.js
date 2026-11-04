@@ -82,7 +82,7 @@ function fenetre(devisId, depart, nomPdf, suggestions) {
     adresses.element, aide,
     h('div', { class: 'champ-preparer-email' }, h('label', { class: 'etiquette' }, 'Objet'), objet),
     h('div', { class: 'champ-preparer-email' }, h('label', { class: 'etiquette' }, 'Message'), message),
-    h('div', { class: 'piece-jointe-puce', dataset: { zone: 'piece-jointe-preparer-email' } }, icone('file', { taille: 16 }), h('span', {}, nomPdf)), // le poids du PDF n'est connu qu'après la demande : pas affiché
+    h('div', { class: 'piece-jointe-puce', dataset: { zone: 'piece-jointe-preparer-email' } }, icone('paperclip', { taille: 16 }), h('span', {}, nomPdf)), // le poids du PDF n'est connu qu'après la demande : pas affiché
     enCours, limite, erreur);
   return dialogue({
     titre: P.TITRE_FENETRE,
