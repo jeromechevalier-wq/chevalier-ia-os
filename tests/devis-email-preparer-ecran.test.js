@@ -93,9 +93,9 @@ describe('P3 le câblage : menu « Envoyer », confirmation, textes, serveur', (
   test('P3 le navigateur ne parle jamais à n8n : il appelle seulement les deux fonctions du serveur, par la table fixe de donnees.js', () => {
     const d = lire('js/modules/devis/donnees.js');
     assert.match(d, /preparerEmail: 'devisPreparerEmail', preparerEmailEtat: 'devisPreparerEmailEtat'/);
-    for (const f of ['js/modules/devis/email-preparer.js', 'js/modules/devis/email-preparer-ecran.js']) assert.ok(!/n8n|fetch\(|webhook/i.test(sansCommentaires(lire(f))), f);
+    for (const f of ['js/modules/devis/email-preparer.js', 'js/modules/devis/email-preparer-ecran.js', 'js/modules/devis/saisie-adresses.js', 'js/modules/devis/saisie-adresses-logique.js']) assert.ok(!/n8n|fetch\(|webhook/i.test(sansCommentaires(lire(f))), f);
   });
   test('P3 vocabulaire : le mot « CRM » n’est écrit dans aucun texte vu par l’utilisateur', () => {
-    for (const f of ['js/modules/devis/email-preparer.js', 'js/modules/devis/email-preparer-ecran.js']) assert.ok(!/CRM/.test(sansCommentaires(lire(f))), f);
+    for (const f of ['js/modules/devis/email-preparer.js', 'js/modules/devis/email-preparer-ecran.js', 'js/modules/devis/saisie-adresses.js', 'js/modules/devis/saisie-adresses-logique.js']) assert.ok(!/CRM/.test(sansCommentaires(lire(f))), f);
   });
 });

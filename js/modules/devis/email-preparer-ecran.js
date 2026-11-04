@@ -9,6 +9,8 @@ import { etatPdfDevis } from './pdf.js';
 import { info, pdfPasPret } from './email-ecran.js';
 import * as E from './email-brouillon.js';
 import * as P from './email-preparer.js';
+import { saisieAdresses } from './saisie-adresses.js';
+import { emailsDeFiche } from './editeur-logique.js';
 
 /**
  * Point d'entrée (éditeur et visualisation). `getDevis()` rend le devis À JOUR ; `finaliser` : { libelle, action } proposé pour un brouillon (« Finaliser d'abord »).
@@ -27,110 +29,97 @@ export async function lancerPreparationEmail({ devisId, getDevis, finaliser = nu
   if (etat !== 'pret') { await pdfPasPret(devisId, getDevis, finaliser, etat, d, lancerPreparationEmail); return; }
   let contact = '';
   try { contact = (d.personneId ? Fiches.personne(d.personneId)?.nom : '') || ''; } catch { contact = ''; }
-  if (await fenetre(devisId, P.valeursDeDepart(d, contact))) toast(P.MESSAGE_DEMANDE_ENVOYEE, { duree: 8000 });
+  if (await fenetre(devisId, P.valeursDeDepart(d, contact), E.nomPieceJointe(d.pdf?.nom), () => adressesDeFiche(d))) toast(P.MESSAGE_DEMANDE_ENVOYEE, { duree: 8000 });
 }
 
-/** Un champ « liste d'adresses » : puces avec croix, un champ d'ajout (Entrée, virgule ou sortie du champ), un message sous le champ. `lire()` / `ecrire(liste)` : l'état de la fenêtre. */
-function champAdresses({ champ, titre, lire, ecrire, autres, changement }) {
-  const puces = h('ul', { class: 'puces-choix', dataset: { zone: `liste-${champ}` } });
-  const saisie = h('input', { class: 'champ', type: 'email', inputmode: 'email', autocomplete: 'off', 'aria-label': `Ajouter une adresse (${titre.toLowerCase()})`, placeholder: 'contact@exemple.fr', dataset: { champ: `${champ}-preparer-email` } });
-  const maximum = h('p', { class: 'texte-discret', hidden: true, dataset: { zone: `maximum-${champ}` } }, P.maximumAtteint(E.MAX_ADRESSES_PAR_CHAMP));
-  const message = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { zone: `erreur-${champ}-preparer-email` } });
-  const aide = h('p', { class: 'texte-discret', role: 'status', hidden: true, dataset: { zone: `aide-${champ}-preparer-email` } }, P.MESSAGE_AJOUTER_DESTINATAIRE);
-  const dire = (texte) => { message.textContent = texte || ''; message.hidden = !texte; saisie.setAttribute('aria-invalid', texte ? 'true' : 'false'); };
-  function dessiner() {
-    const liste = lire();
-    puces.replaceChildren(...liste.map((adresse) => h('li', { class: 'puce-choix', dataset: { adresse } },
-      h('span', {}, adresse),
-      h('button', { type: 'button', class: 'bouton-icone puce-retirer', 'aria-label': `Retirer ${adresse}`, dataset: { action: `retirer-${champ}-preparer-email` },
-        onclick: () => { ecrire(liste.filter((a) => a !== adresse)); dire(''); dessiner(); changement(); saisie.focus(); } }, icone('x', { taille: 14 })))));
-    puces.hidden = !liste.length;
-    const plein = liste.length >= E.MAX_ADRESSES_PAR_CHAMP;
-    saisie.hidden = plein;
-    maximum.hidden = !plein;
-    if (champ === 'destinataires') aide.hidden = liste.length > 0;
-  }
-  function valider() {
-    const r = P.ajouterAdresse(autres(champ), champ, saisie.value);
-    if (r.erreur) { dire(r.erreur); return false; } // le texte tapé reste
-    dire('');
-    if (saisie.value.trim()) { ecrire(r.liste); saisie.value = ''; dessiner(); changement(); }
-    return true;
-  }
-  saisie.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); if (saisie.value.trim()) valider(); else if (e.key === 'Enter') e.stopPropagation(); }
-  });
-  saisie.addEventListener('input', () => dire(''));
-  saisie.addEventListener('blur', () => { if (saisie.value.trim()) valider(); });
-  const etiquette = h('label', { class: 'etiquette' }, titre);
-  const corps = h('div', { class: 'champ-preparer-email', dataset: { zone: `champ-${champ}` } }, etiquette, puces, saisie, maximum, message, aide);
-  dessiner();
-  return { corps, saisie, valider, dessiner };
+/** Les adresses e-mail de la fiche du client du devis, proposées pendant la saisie (liste courte ; on peut toujours taper une autre adresse). Ne lève jamais. */
+function adressesDeFiche(d) {
+  try { return [...(d.personneId ? emailsDeFiche(Fiches.personne(d.personneId)) : []), ...(d.organisationId ? emailsDeFiche(Fiches.organisation(d.organisationId)) : [])]; } catch { return []; }
 }
 
 /** La fenêtre. Rend true si la demande est partie, false si annulée. Pendant l'appel tout est grisé et rien ne ferme ; un échec garde la fenêtre ouverte et tout le texte saisi. */
-function fenetre(devisId, depart) {
+function fenetre(devisId, depart, nomPdf, suggestions) {
   const etat = { destinataires: [...depart.destinataires], copie: [...depart.copie], objet: depart.objet, message: depart.message };
   let occupe = false;
   let boutons = [];
-  const autres = () => ({ destinataires: etat.destinataires, copie: etat.copie });
   const erreur = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { zone: 'erreur-preparer-email' } });
   const enCours = h('p', { class: 'texte-discret', role: 'status', 'aria-live': 'polite', hidden: true, dataset: { zone: 'etat-preparer-email' } }, P.MESSAGE_EN_COURS);
-  const majBouton = () => { if (boutons[1]) boutons[1].disabled = occupe || !P.peutPreparer(etat); };
-  const destinataires = champAdresses({ champ: 'destinataires', titre: 'Destinataires', lire: () => etat.destinataires, ecrire: (l) => { etat.destinataires = l; }, autres, changement: majBouton });
-  const copie = champAdresses({ champ: 'copie', titre: 'Copie', lire: () => etat.copie, ecrire: (l) => { etat.copie = l; }, autres, changement: majBouton });
+  const majBouton = () => { if (boutons[0]) boutons[0].disabled = occupe || !P.peutPreparer(etat); };
+  const aide = h('p', { class: 'texte-discret', role: 'status', hidden: true, dataset: { zone: 'aide-destinataires-preparer-email' } }, P.MESSAGE_AJOUTER_DESTINATAIRE);
+  const majAide = () => { aide.hidden = P.peutPreparer(etat); };
+  // Les règles de cette fenêtre (adresse sûre, doublon, maximum) sont dans P.ajouterAdresse ; le composant partagé ne fait que la saisie à la Gmail.
+  const adresses = saisieAdresses({
+    lire: (cle) => etat[cle],
+    ecrire: (cle, liste) => { etat[cle] = liste; },
+    surChangement: () => { majBouton(); majAide(); },
+    refus: (cle, adresse, courante, autre) => P.ajouterAdresse(cle === 'copie' ? { destinataires: autre, copie: courante } : { destinataires: courante, copie: autre }, cle, adresse).erreur ?? null,
+    plafond: (cle) => ({ max: E.MAX_ADRESSES_PAR_CHAMP, texte: P.maximumAtteint(E.MAX_ADRESSES_PAR_CHAMP) }),
+    suggestions,
+    suffixe: '-preparer-email',
+  });
+  const limite = h('p', { class: 'message-limite', role: 'status', hidden: true, dataset: { zone: 'limite-preparer-email' } }, icone('info', { taille: 16 }), h('span', {}));
+  const montrerErreur = (e) => {
+    const texte = e?.message || P.MESSAGE_FENETRE_ERREUR;
+    const info = P.estMessageDeLimite(texte); // une limite du serveur n'est pas une panne : phrase grise avec une icône, pas en rouge
+    limite.querySelector('span').textContent = info ? texte : '';
+    limite.hidden = !info;
+    erreur.textContent = info ? '' : texte;
+    erreur.hidden = info;
+  };
   const objet = h('input', { class: 'champ', type: 'text', maxlength: String(E.MAX_OBJET), value: etat.objet, 'aria-label': 'Objet', dataset: { champ: 'objet-preparer-email' }, oninput: () => { etat.objet = objet.value; } });
   const message = h('textarea', { class: 'champ', rows: '9', maxlength: String(E.MAX_MESSAGE), 'aria-label': 'Message', dataset: { champ: 'message-preparer-email' }, oninput: () => { etat.message = message.value; } });
   message.value = etat.message;
   const occuper = (v) => {
     occupe = v;
-    for (const el of [objet, message, destinataires.saisie, copie.saisie]) el.disabled = v;
+    for (const el of [objet, message]) el.disabled = v;
+    adresses.desactiver(v);
     boutons.forEach((b) => { b.disabled = v; });
     enCours.hidden = !v;
     if (!v) majBouton();
   };
   const contenu = h('div', { class: 'contenu-preparer-email' },
     h('p', { dataset: { valeur: 'confirmation-preparer-email' } }, P.MESSAGE_CONFIRMATION),
-    destinataires.corps, copie.corps,
+    adresses.element, aide,
     h('div', { class: 'champ-preparer-email' }, h('label', { class: 'etiquette' }, 'Objet'), objet),
     h('div', { class: 'champ-preparer-email' }, h('label', { class: 'etiquette' }, 'Message'), message),
-    enCours, erreur);
+    h('div', { class: 'piece-jointe-puce', dataset: { zone: 'piece-jointe-preparer-email' } }, icone('file', { taille: 16 }), h('span', {}, nomPdf)), // le poids du PDF n'est connu qu'après la demande : pas affiché
+    enCours, limite, erreur);
   return dialogue({
     titre: P.TITRE_FENETRE,
     classe: 'dialogue-formulaire dialogue-preparer-email',
     peutFermer: () => !occupe, // ni Échap, ni croix, ni voile pendant l'appel
     contenu,
-    boutons: [
-      { libelle: 'Annuler', valeur: false },
+    boutons: [ // comme dans Gmail : le bouton principal en bas à GAUCHE, puis « Annuler » (css : .dialogue-preparer-email .dialogue-pied)
       {
         libelle: P.LIBELLE_PREPARER_BROUILLON, valeur: true, style: 'principal',
         avantFermeture: async () => {
           if (occupe) return false;
           // Une adresse tapée mais pas encore ajoutée compte (ou affiche son refus sous le champ et la fenêtre reste ouverte).
-          if (!destinataires.valider() || !copie.valider()) return false;
+          if (!adresses.valider()) return false;
+          majAide();
           if (!P.peutPreparer(etat)) return false;
-          erreur.hidden = true;
+          limite.hidden = true; erreur.hidden = true;
           occuper(true);
           try {
             await D.preparerEmailDevis(devisId, P.saisieModifiee(depart, etat));
           } catch (e) {
             console.warn(e);
             occuper(false);
-            erreur.textContent = e?.message || P.MESSAGE_FENETRE_ERREUR;
-            erreur.hidden = false;
+            montrerErreur(e);
             return false; // la fenêtre reste ouverte, avec le message et tout le texte saisi
           }
           occuper(false);
           return true;
         },
       },
+      { libelle: 'Annuler', valeur: false },
     ],
     auMontage: ({ boutons: b }) => {
       boutons = b;
-      b[0].dataset.action = 'annuler-preparer-email';
-      b[1].dataset.action = 'confirmer-preparer-email';
-      majBouton();
-      (etat.destinataires.length ? objet : destinataires.saisie).focus();
+      b[0].dataset.action = 'confirmer-preparer-email';
+      b[1].dataset.action = 'annuler-preparer-email';
+      majBouton(); majAide();
+      (etat.destinataires.length ? objet : { focus: () => adresses.focus() }).focus();
     },
   }).then((ok) => ok === true);
 }

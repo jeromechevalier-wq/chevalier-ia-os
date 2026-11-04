@@ -339,13 +339,12 @@ test('2 l’e-mail du destinataire suit le client choisi, sauf s’il a été é
   await creerPersonne('p1', { nom: 'Julie Rubio', emails: [{ valeur: 'julie@exemple.test', type: 'travail' }] });
   await creerAffaire('a1', { titre: 'Rénovation restaurant', organisationId: 'o1', personneId: 'p1' });
   await ouvrir(page, await devisLong());
-  const adresses = page.locator('[data-zone="destinataires"] .ligne-destinataire');
+  const adresses = page.locator('[data-zone="destinataires"] [data-adresse]');
   await expect(adresses).toHaveText(['contact@exemple.fr']);
   await choisirDansChampDevis(page, 'client', 'Julie', 'Julie Rubio');
   await expect(adresses).toHaveText(['julie@exemple.test']);
   await choisirDansChampDevis(page, 'client', 'Société', 'Société Exemple');
   await expect(adresses).toHaveText(['contact@exemple.fr']);
-  await page.locator('[data-zone="destinataires"] [data-action="ajouter-destinataire"]').click(); // ajouté à la main : le choix du client ne touche plus à la liste
   await page.locator('[data-zone="destinataires"] [data-champ="destinataire"]').fill('autre@exemple.test');
   await page.locator('[data-zone="destinataires"] [data-champ="destinataire"]').press('Enter');
   await choisirDansChampDevis(page, 'client', 'Julie', 'Julie Rubio');

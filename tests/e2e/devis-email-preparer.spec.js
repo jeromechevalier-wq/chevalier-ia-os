@@ -14,8 +14,9 @@ const MESSAGE_CONFIRMATION = 'Le brouillon sera créé dans ton Gmail avec le PD
 const MESSAGE_TOAST = 'Demande envoyée : le brouillon apparaît dans ton Gmail dans quelques instants';
 const boite = (page) => page.locator('.dialogue-preparer-email');
 const confirmer = (page) => boite(page).locator('[data-action="confirmer-preparer-email"]');
-const champ = (page, nom) => boite(page).locator(`[data-champ="${nom}-preparer-email"]`);
-const erreurChamp = (page, nom) => boite(page).locator(`[data-zone="erreur-${nom}-preparer-email"]`);
+const champ = (page, nom) => boite(page).locator(`[data-champ="${nom === 'destinataires' ? 'destinataire' : nom}-preparer-email"]`);
+const erreurChamp = (page, nom) => boite(page).locator(`[data-erreur="${nom === 'destinataires' ? 'destinataire' : nom}-preparer-email"]`);
+const ouvrirCc = (page) => boite(page).locator('[data-action="ajouter-copie-preparer-email"]').click(); // le lien « Cc » comme dans Gmail
 const OBJET_ATTENDU = `Devis ${NUMERO} – Rénovation restaurant`;
 const historique = (page) => page.locator('[data-zone="historique"]');
 
@@ -118,8 +119,8 @@ test('2 branché : « Préparer l’e-mail » est active et en tête du menu « 
   await entree(page).click();
   await expect(boite(page).getByRole('heading', { name: 'Préparer l’e-mail' })).toBeVisible();
   await expect(boite(page).locator('[data-valeur="confirmation-preparer-email"]')).toHaveText(MESSAGE_CONFIRMATION);
-  await expect(boite(page).locator('[data-zone="liste-destinataires"] [data-adresse]')).toHaveText(['marie@exemple.fr']);
-  await expect(boite(page).locator('[data-zone="liste-copie"] [data-adresse]')).toHaveCount(0); // copie vide par défaut
+  await expect(boite(page).locator('[data-zone="destinataires-preparer-email"] [data-adresse]')).toHaveText(['marie@exemple.fr']);
+  await expect(boite(page).locator('[data-zone="copie-preparer-email"] [data-adresse]')).toHaveCount(0); // copie vide par défaut
   await expect(champ(page, 'objet')).toHaveValue(OBJET_ATTENDU);
   const message = await champ(page, 'message').inputValue();
   expect(message).toBe(`Bonjour Marie Durand,\n\nVeuillez trouver ci-joint notre devis ${NUMERO} – Rénovation restaurant.\n\nIl reste valable pour la durée indiquée sur le document. N’hésitez pas à me contacter pour toute question ou pour l’adapter.\n\nBien cordialement`);
@@ -173,8 +174,10 @@ test('4 erreur du serveur : le message reste affiché dans la fenêtre, TOUT le 
   await entree(page).click();
   await champ(page, 'objet').fill('Mon objet à moi');
   await confirmer(page).click();
-  const erreur = boite(page).locator('[data-zone="erreur-preparer-email"]');
-  await expect(erreur).toContainText('Une préparation est déjà en cours');
+  // Une limite du serveur n'est pas une panne : phrase grise avec une icône d'information, jamais le bloc rouge des vraies erreurs.
+  const limite = boite(page).locator('[data-zone="limite-preparer-email"]');
+  await expect(limite).toContainText('Une préparation est déjà en cours');
+  await expect(boite(page).locator('[data-zone="erreur-preparer-email"]')).toBeHidden();
   await expect(champ(page, 'objet')).toHaveValue('Mon objet à moi');
   await expect(confirmer(page)).toBeEnabled();
   await expect(page.getByText(MESSAGE_TOAST)).toHaveCount(0);
@@ -232,12 +235,13 @@ test('7 modifier les quatre champs : ajouter et retirer un destinataire, ajouter
   await entree(page).click();
   await champ(page, 'destinataires').fill('paul@exemple.fr');
   await champ(page, 'destinataires').press('Enter');
-  await expect(boite(page).locator('[data-zone="liste-destinataires"] [data-adresse]')).toHaveText(['marie@exemple.fr', 'paul@exemple.fr']);
+  await expect(boite(page).locator('[data-zone="destinataires-preparer-email"] [data-adresse]')).toHaveText(['marie@exemple.fr', 'paul@exemple.fr']);
   await boite(page).getByRole('button', { name: 'Retirer marie@exemple.fr' }).click();
-  await expect(boite(page).locator('[data-zone="liste-destinataires"] [data-adresse]')).toHaveText(['paul@exemple.fr']);
+  await expect(boite(page).locator('[data-zone="destinataires-preparer-email"] [data-adresse]')).toHaveText(['paul@exemple.fr']);
+  await ouvrirCc(page);
   await champ(page, 'copie').fill('compta@exemple.fr');
   await champ(page, 'copie').press('Enter');
-  await expect(boite(page).locator('[data-zone="liste-copie"] [data-adresse]')).toHaveText(['compta@exemple.fr']);
+  await expect(boite(page).locator('[data-zone="copie-preparer-email"] [data-adresse]')).toHaveText(['compta@exemple.fr']);
   await champ(page, 'objet').fill('Votre devis cuisine');
   await champ(page, 'message').fill('Bonjour Paul,\n\nVoici le devis.');
   await capturer(page, info, '7-modifie');
@@ -279,18 +283,19 @@ test('9 adresse mal écrite : un message court sous le champ, le texte tapé res
   await champ(page, 'destinataires').press('Enter');
   await expect(erreurChamp(page, 'destinataires')).toContainText('n’est pas valide');
   await expect(champ(page, 'destinataires')).toHaveValue('pas-une-adresse');
-  await expect(boite(page).locator('[data-zone="liste-destinataires"] [data-adresse]')).toHaveText(['marie@exemple.fr']);
+  await expect(boite(page).locator('[data-zone="destinataires-preparer-email"] [data-adresse]')).toHaveText(['marie@exemple.fr']);
   await capturer(page, info, '9-adresse-mal-ecrite');
   await champ(page, 'destinataires').fill('marie@exemple.fr');
   await champ(page, 'destinataires').press('Enter');
   await expect(erreurChamp(page, 'destinataires')).toContainText('déjà');
   await champ(page, 'destinataires').fill('');
   await expect(erreurChamp(page, 'destinataires')).toBeHidden();
+  await ouvrirCc(page);
   for (let i = 1; i < 10; i += 1) { await champ(page, 'copie').fill(`copie${i}@exemple.fr`); await champ(page, 'copie').press('Enter'); }
-  await expect(boite(page).locator('[data-zone="liste-copie"] [data-adresse]')).toHaveCount(9);
+  await expect(boite(page).locator('[data-zone="copie-preparer-email"] [data-adresse]')).toHaveCount(9);
   await champ(page, 'copie').fill('copie10@exemple.fr');
   await champ(page, 'copie').press('Enter');
-  await expect(boite(page).locator('[data-zone="maximum-copie"]')).toHaveText('10 adresses : c’est le maximum.');
+  await expect(boite(page).locator('[data-valeur="plafond-copie-preparer-email"]')).toHaveText('10 adresses : c’est le maximum.');
   await expect(champ(page, 'copie')).toBeHidden();
   await capturer(page, info, '9-maximum');
   expect(serveur.appels).toEqual([]);
