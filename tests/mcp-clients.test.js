@@ -1341,6 +1341,7 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
       { type: 'set', collection: 'marques', id: 'd', donnees: fichier('d', 'Devis Seul') },
       { type: 'set', collection: 'clients', id: 'd', donnees: { modules: { devis: true, mcp: true } } },
       { type: 'set', collection: 'clients/d/membres', id: ALICE, donnees: { role: 'editeur', nom: 'Alice' } },
+      { type: 'set', collection: 'clients/d/membres', id: LEA, donnees: { role: 'lecteur' } },
       { type: 'set', collection: 'clients/d/devis_parametres', id: 'reglages', donnees: reglagesSeul },
       { type: 'set', collection: 'clients', id: 'a', donnees: { modules: { affaires: true, projets: true, mcp: true, devis: true } } },
       { type: 'set', collection: 'clients/a/devis_parametres', id: 'reglages', donnees: reglagesSeul },
@@ -1367,6 +1368,16 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
       for (const n of [...moduleDeclare('devis').outilsMcp, ...OUTILS_SOCLE]) assert.ok(liste.includes(n), n);
       for (const n of ['lire_affaire', 'lister_affaires', 'supprimer_personne', 'supprimer_organisation', 'lister_projets']) assert.ok(!liste.includes(n), `${n} ne doit pas exister`);
       assert.equal(liste.length, 2 + 26 + 7, 'communs + 26 + 7');
+      await c.close();
+    } finally { await defaire(); }
+  });
+
+  test('D-S1b un lecteur d\'un espace Devis seul voit chercher / lire_personne / lire_organisation, ni creer_*, ni modifier_*, ni finaliser_devis', async () => {
+    await installer();
+    try {
+      const { c, liste } = await outilsDe('d', 'ID-LEA');
+      for (const n of ['chercher', 'lire_personne', 'lire_organisation', 'lire_devis']) assert.ok(liste.includes(n), n);
+      for (const n of ['creer_personne', 'creer_organisation', 'modifier_personne', 'modifier_organisation', 'finaliser_devis', 'creer_devis_brouillon']) assert.ok(!liste.includes(n), `${n} ne doit pas être visible d'un lecteur`);
       await c.close();
     } finally { await defaire(); }
   });
