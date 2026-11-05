@@ -10,6 +10,7 @@
 // Décisions prises seul (nuit du 24/10/2026) :
 // - Le compteur de numéros (`devis_compteurs/global`) est lu et incrémenté dans la transaction de la première finalisation : deux finalisations
 //   simultanées ne reçoivent jamais le même numéro (Firestore relance la perdante). Un devis invalide ne consomme AUCUN numéro.
+// - Mode test (PR 3) : `finaliser` décide seul, avec `D.decisionTestFinalisation`, si le devis est un essai (brouillon, affaire ou fiche client de test ; version 2 : le préfixe du numéro de la racine). Un essai reçoit TEST-NNN sur `devis_compteurs/test` ; `test: true|false` est écrit explicitement.
 // - Accepter une version passe aussi les autres versions vivantes (finalisée ou envoyée) de la même racine à « Remplacé » (cadrage §5).
 // - Le journal n'enregistre pas le compteur lui-même (bruit) ; le numéro attribué est dans la copie du devis.
 // - Montant de l'affaire (29/10/2026, règle D17, expliquée dans docs/montant-affaire.md) : le montant calculé d'après les devis (somme HT des acceptés, sinon le HT du devis proposé le plus récent)
@@ -24,6 +25,8 @@ import { JOURS_COPIES } from './ecriture.js';
 import { ecrituresUsage, usageDepuisLesDevis, idValable } from './usage-articles.js';
 
 export const ID_COMPTEUR = 'global';
+/** Compteur séparé des devis de test (TEST-NNN) : le compteur `global` ne bouge jamais pour un essai. */
+export const ID_COMPTEUR_TEST = 'test';
 export const ID_REGLAGES = A.ID_REGLAGES;
 /** Actions de `devisChangerStatut` (les autres transitions ont leur propre fonction). */
 export const ACTIONS_STATUT = Object.freeze({
@@ -164,21 +167,26 @@ export async function finaliser({ donnees, ctx, devisId }) {
     const erreurs = D.erreursFinalisation(devis, { emetteur: reglages.entreprise, aujourdhui: L.aujourdhuiParis(ctx.maintenant) });
     if (erreurs.length) return { ok: false, erreurs };
     const versions = await lireVersions(tx, devis);
+    const affaire = typeof devis.affaireId === 'string' && devis.affaireId && !devis.affaireId.includes('/') ? await tx.document(C.affaires, devis.affaireId) : null;
 
     // Une version 2 ou plus garde le numéro de sa racine (jamais un nouveau numéro).
     let numero = devis.numero ?? versions.find((v) => v.numero)?.numero ?? null;
+    // Essai ou réel ? Le serveur revérifie : le champ `test` du brouillon n'est qu'un indice (un navigateur peut l'avoir changé).
+    const decision = D.decisionTestFinalisation(devis, { numeroRacine: numero, affaire, fiche });
     const ecritures = [];
     const nouveauNumero = !numero;
     if (nouveauNumero) {
-      const compteur = await tx.document(C.devisCompteurs, ID_COMPTEUR);
+      const idCompteur = decision.test ? ID_COMPTEUR_TEST : ID_COMPTEUR;
+      const compteur = await tx.document(C.devisCompteurs, idCompteur);
       const suivant = (Number.isInteger(compteur?.valeur) ? compteur.valeur : 0) + 1;
-      numero = D.numeroDevis(L.aujourdhuiParis(ctx.maintenant), suivant);
-      ecritures.push({ type: 'set', collection: C.devisCompteurs, id: ID_COMPTEUR, donnees: { valeur: suivant, modifieLe: ctx.maintenant } });
+      numero = decision.test ? D.numeroDevisTest(suivant) : D.numeroDevis(L.aujourdhuiParis(ctx.maintenant), suivant);
+      ecritures.push({ type: 'set', collection: C.devisCompteurs, id: idCompteur, donnees: { valeur: suivant, modifieLe: ctx.maintenant } });
     }
 
     const fige = D.figerPourFinalisation(devis, { numero, finaliseLe: ctx.maintenant, reglages, clientNom: fiche?.nom ?? null });
     if (fige.erreurs.length) return { ok: false, erreurs: fige.erreurs };
     const apres = fige.devis;
+    apres.test = decision.test;
     // brancher n8n ici (PR suivante) : l'appel sortant se fera APRÈS cette transaction, avec la vue client (D.vueClient) ; en attendant, rien n'est envoyé.
     apres.finalisation = { n8n: 'en_attente' };
 
@@ -187,7 +195,7 @@ export async function finaliser({ donnees, ctx, devisId }) {
     const remisesAZero = { archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null, pdf: null, envois: null, emailPrepare: null,
       ...(apres.mentionTvaReduiteFigee === undefined && devis.mentionTvaReduiteFigee !== undefined ? { mentionTvaReduiteFigee: null } : {}) }; // pas de ligne réduite : un texte posé sur le brouillon ne survit pas
     const changements = [modifier(devis, { ...Object.fromEntries(CHAMPS_FIGES.filter((k) => apres[k] !== undefined).map((k) => [k, apres[k]])), // clientNomFige n'existe que si la fiche a un nom (Firestore refuse undefined)
-      ...remisesAZero })];
+      ...remisesAZero, test: decision.test })];
     // Les versions plus anciennes encore vivantes (finalisée ou envoyée) sont remplacées par celle-ci, dans la même transaction.
     const remplaces = versions.filter((v) => v.id !== devis.id && (v.version ?? 1) < (devis.version ?? 1) && D.transitionPossible(v.statut, 'remplacer'));
     for (const v of remplaces) changements.push(modifier(v, { statut: D.statutApres(v.statut, 'remplacer'), remplaceLe: ctx.maintenant }));
@@ -196,11 +204,11 @@ export async function finaliser({ donnees, ctx, devisId }) {
     if (montant) changements.push(montant);
 
     // Compteur d'usage des articles (cadrage vocabulaire-cibles, 2.9) : dans la MÊME transaction, sans ligne de journal (comme le compteur de numéros). Les lectures se font ici, avant l'écriture unique.
-    if (apres.test !== true) ecritures.push(...await ecrituresUsage(tx, { devis: apres, versions, maintenant: ctx.maintenant })); // un devis de test ne compte jamais (mode test, PR 2)
+    if (!decision.test) ecritures.push(...await ecrituresUsage(tx, { devis: apres, versions, maintenant: ctx.maintenant })); // un devis de test ne compte jamais (mode test, PR 2)
 
     const j = journal({ donnees, ctx, outil: 'devisFinaliser', parametres: { devisId }, changements });
     tx.ecrire([...ecritures, ...changements.map((c) => c.ecriture), ...j.ecritures]);
-    return { ok: true, devis: { ...apres, id: devis.id }, numero, nouveauNumero, remplaces: remplaces.map((v) => v.id), operationId: j.operationId };
+    return { ok: true, devis: { ...apres, id: devis.id }, numero, nouveauNumero, test: decision.test, remplaces: remplaces.map((v) => v.id), operationId: j.operationId };
   });
 }
 
@@ -556,5 +564,5 @@ export const OPERATIONS = Object.freeze({
 /** Ce que l'appelant reçoit : jamais le devis entier (son navigateur le lit déjà). Un devis refusé rend les messages à corriger, rien n'a été écrit. */
 export function reponsePublique(r) {
   if (!r.ok) return { ok: false, erreurs: r.erreurs };
-  return { ok: true, devisId: r.devis.id, statut: r.devis.statut, numero: r.devis.numero ?? null, ...(r.nouveauNumero !== undefined ? { nouveauNumero: r.nouveauNumero } : {}), ...(r.supprimes !== undefined ? { supprimes: r.supprimes } : {}), operationId: r.operationId };
+  return { ok: true, devisId: r.devis?.id ?? r.id, ...(r.devis ? { statut: r.devis.statut, numero: r.devis.numero ?? null } : {}), ...(r.nouveauNumero !== undefined ? { nouveauNumero: r.nouveauNumero } : {}), ...(r.test !== undefined ? { test: r.test } : {}), ...(r.versions !== undefined ? { versions: r.versions } : {}), ...(r.rien ? { rien: true } : {}), ...(r.supprimes !== undefined ? { supprimes: r.supprimes } : {}), ...(r.operationId ? { operationId: r.operationId } : {}) };
 }

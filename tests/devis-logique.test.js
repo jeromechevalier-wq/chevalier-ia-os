@@ -141,6 +141,24 @@ describe('Totaux et TVA', () => {
 });
 
 describe('Numéro, expiration, statuts', () => {
+  test('1 numeroDevisTest : TEST-001, sans date ; null si compteur invalide', () => {
+    assert.equal(D.numeroDevisTest(1), 'TEST-001');
+    assert.equal(D.numeroDevisTest(42), 'TEST-042');
+    assert.equal(D.numeroDevisTest(1000), 'TEST-1000');
+    assert.equal(D.numeroDevisTest(0), null);
+    assert.equal(D.numeroDevisTest('1'), null);
+    assert.equal(D.estNumeroTest('TEST-001'), true);
+    assert.equal(D.estNumeroTest('DEV-2026-10-24-001'), false);
+    assert.equal(D.estNumeroTest(null), false);
+  });
+  test('2 decisionTestFinalisation : racine, brouillon, affaire, client', () => {
+    assert.deepEqual(D.decisionTestFinalisation({ test: true }, { numeroRacine: 'DEV-2026-10-24-001' }), { test: false, raison: null });
+    assert.deepEqual(D.decisionTestFinalisation({ test: false }, { numeroRacine: 'TEST-001' }), { test: true, raison: 'numero' });
+    assert.deepEqual(D.decisionTestFinalisation({ test: true }), { test: true, raison: 'devis' });
+    assert.deepEqual(D.decisionTestFinalisation({}, { affaire: { test: true } }), { test: true, raison: 'affaire' });
+    assert.deepEqual(D.decisionTestFinalisation({}, { fiche: { test: true } }), { test: true, raison: 'client' });
+    assert.deepEqual(D.decisionTestFinalisation({}, { affaire: {}, fiche: null }), { test: false, raison: null });
+  });
   test('D11 format du numéro DEV-AAAA-MM-JJ-NNN, 3 chiffres au moins', () => {
     assert.equal(D.numeroDevis('2026-10-24', 1), 'DEV-2026-10-24-001');
     assert.equal(D.numeroDevis('2026-10-24', 42), 'DEV-2026-10-24-042');

@@ -318,7 +318,7 @@ export async function modifierBrouillon(id, patch) {
 // Chez un client, la demande porte le nom de son espace (déduit de la session, vérifié par le serveur : éditeur de cet espace, module « devis » actif).
 // Chez Jérôme, aucun espace : le serveur vérifie que le compte est l'un des deux comptes autorisés.
 const fonctions = () => getFunctions(app, 'europe-west9');
-const FONCTIONS = Object.freeze({ finaliser: 'devisFinaliser', changerStatut: 'devisChangerStatut', nouvelleVersion: 'devisNouvelleVersion', archiver: 'devisArchiver', supprimer: 'devisSupprimer', enregistrerEnvoi: 'devisEnregistrerEnvoi', modifierDestinataires: 'devisModifierDestinataires', pdf: 'devisPdf', pdfLien: 'devisPdfLien', preparerEmail: 'devisPreparerEmail', preparerEmailEtat: 'devisPreparerEmailEtat' });
+const FONCTIONS = Object.freeze({ finaliser: 'devisFinaliser', changerStatut: 'devisChangerStatut', nouvelleVersion: 'devisNouvelleVersion', archiver: 'devisArchiver', supprimer: 'devisSupprimer', enregistrerEnvoi: 'devisEnregistrerEnvoi', modifierDestinataires: 'devisModifierDestinataires', pdf: 'devisPdf', pdfLien: 'devisPdfLien', preparerEmail: 'devisPreparerEmail', preparerEmailEtat: 'devisPreparerEmailEtat', marquerTest: 'devisMarquerTest' });
 const CODES_LISIBLES = ['permission-denied', 'invalid-argument', 'failed-precondition', 'not-found', 'unauthenticated'];
 export const MESSAGE_RESEAU_DEVIS = 'Ça n’a pas abouti. Vérifie ta connexion internet, puis réessaie : rien n’a été perdu.';
 
@@ -346,13 +346,20 @@ export const finaliser = async (devisId) => {
   const r = await appeler('finaliser', { devisId });
   // La copie locale suit tout de suite (le prochain instantané du serveur la remplace) : l'écran qui s'ouvre ensuite sur ce devis le voit déjà finalisé, jamais un instant modifiable.
   const d = r?.ok === false ? null : devisParId(devisId);
-  if (d && d.statut === 'brouillon') { d.statut = r?.statut ?? 'en_attente_envoi'; if (r?.numero) d.numero = r.numero; }
+  if (d && d.statut === 'brouillon') { d.statut = r?.statut ?? 'en_attente_envoi'; if (r?.numero) d.numero = r.numero; if (typeof r?.test === 'boolean') d.test = r.test; }
   return r;
 };
 /** `action` : marquer_envoye | accepter (Signé) | refuser. */
 export const changerStatut = (devisId, action) => appeler('changerStatut', { devisId, action });
 /** Crée le brouillon suivant d'un devis finalisé, envoyé ou refusé. */
 export const nouvelleVersion = (devisId) => appeler('nouvelleVersion', { devisId });
+/** Marque (true) ou démarque (false) comme test un devis finalisé : le serveur change toutes les versions de la racine et recalcule le montant de l'affaire. Refusé pour un TEST- finalisé démarqué. */
+export const marquerTest = async (devisId, test) => {
+  const r = await appeler('marquerTest', { devisId, test });
+  const d = devisParId(devisId);
+  if (d && r?.ok !== false) for (const v of versionsDe(d.racineId ?? d.id)) v.test = test; // la copie locale suit ; le prochain instantané du serveur la remplace
+  return r;
+};
 /** Archive (true) ou désarchive (false) un devis finalisé, signé ou refusé. */
 export const archiver = (devisId, archive) => appeler('archiver', { devisId, archive });
 /** Supprime un brouillon (le serveur refuse tout autre statut ; la copie reste dans le journal). */

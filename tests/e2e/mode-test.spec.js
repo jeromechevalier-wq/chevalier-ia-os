@@ -136,26 +136,95 @@ test('3 menus des listes et des cartes : personnes, organisations, affaires (lis
   expect((await lireDocument('crm_affaires/a1')).test).toBe(true);
 });
 
-test('3 brouillon de devis : entrée active dans le menu de la liste ; devis finalisé : entrée grisée « bientôt disponible »', async ({ page }, info) => {
+const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
+const dialogue = (page) => page.getByRole('dialog');
+
+test('3 brouillon de devis : entrée active dans le menu de la liste ; devis finalisé : « Marquer comme test » ACTIF, confirmation, appel au serveur, badge ; refus dit en clair', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 400, comme le vrai' } }, async ({ page }, info) => {
   await creerOrganisation('o1', { nom: 'M. Paul Exemple' });
   await devis('dBrouillon');
   await devis('dFinalise', { numero: 'DEV-2026-10-02-001', statut: 'en_attente_envoi', finaliseLe: new Date(Date.now() - 2 * 86400000) });
+  const appels = [];
+  let refuser = false;
+  await page.route('**/devisMarquerTest', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    const demande = JSON.parse(route.request().postData()).data;
+    appels.push(demande);
+    if (refuser) return route.fulfill({ status: 400, headers: cors, body: JSON.stringify({ error: { message: 'Ce devis de test est finalisé (numéro TEST-…) : il reste un test.', status: 'FAILED_PRECONDITION' } }) });
+    const actuel = await lireDocument(`devis_devis/${demande.devisId}`);
+    await ecrireDocument(`devis_devis/${demande.devisId}`, { ...actuel, test: demande.test });
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true, devisId: demande.devisId, test: demande.test } }) });
+  });
   await connecter(page, JEROME, { route: 'devis/liste' });
   await expect(page.locator('.page-liste-devis')).toBeVisible();
   await page.locator('tr.ligne-devis[data-id="dFinalise"] [data-action="menu-devis"]').click();
-  const grise = menu(page).getByRole('menuitem', { name: /Marquer comme test \(bientôt disponible\)/ });
-  await expect(grise).toBeDisabled();
-  await capturer(page, info, '3-devis-finalise-grise');
-  await page.keyboard.press('Escape');
+  const entree = menu(page).getByRole('menuitem', { name: 'Marquer comme test', exact: true });
+  await expect(entree).toBeEnabled();
+  await expect(menu(page)).not.toContainText('bientôt disponible');
+  await capturer(page, info, '3-devis-finalise-actif');
+  await entree.click();
+  await expect(dialogue(page)).toContainText('Marquer ce devis comme test ?');
+  await expect(dialogue(page)).toContainText('Le devis garde son numéro');
+  await dialogue(page).getByRole('button', { name: 'Marquer comme test' }).click();
+  await expect.poll(() => appels.length).toBe(1);
+  expect(appels[0]).toEqual({ devisId: 'dFinalise', test: true });
+  await expect(page.locator('tr.ligne-devis[data-id="dFinalise"] .badge-test')).toHaveText('[TEST]');
+  // refus du serveur : dit en clair, le badge ne bouge pas
+  refuser = true;
+  await page.locator('tr.ligne-devis[data-id="dFinalise"] [data-action="menu-devis"]').click();
+  await menu(page).getByRole('menuitem', { name: 'Ce n’est plus un test', exact: true }).click();
+  await dialogue(page).getByRole('button', { name: 'Ce n’est plus un test' }).click();
+  await expect(page.locator('.toast').last()).toContainText('il reste un test');
+  await expect(page.locator('tr.ligne-devis[data-id="dFinalise"] .badge-test')).toHaveText('[TEST]');
+  // brouillon : écrit par le navigateur, sans confirmation
   await page.locator('tr.ligne-devis[data-id="dBrouillon"] [data-action="menu-devis"]').click();
   await menu(page).getByRole('menuitem', { name: 'Marquer comme test', exact: true }).click();
   await expect(page.locator('tr.ligne-devis[data-id="dBrouillon"] .badge-test')).toHaveText('[TEST]');
   await expect.poll(async () => (await lireDocument('devis_devis/dBrouillon')).test).toBe(true);
-  expect((await lireDocument('devis_devis/dFinalise')).test).toBeUndefined();
+  expect(appels.length).toBe(2, 'le brouillon ne passe pas par le serveur (le 2e appel est le refus)');
   await page.locator('tr.ligne-devis[data-id="dBrouillon"] [data-action="menu-devis"]').click();
   await menu(page).getByRole('menuitem', { name: 'Ce n’est plus un test', exact: true }).click();
-  await expect(page.locator('.badge-test')).toHaveCount(0);
+  await expect(page.locator('tr.ligne-devis[data-id="dBrouillon"] .badge-test')).toHaveCount(0);
   await expect.poll(async () => (await lireDocument('devis_devis/dBrouillon')).test).toBe(false);
+});
+
+test('3 un devis TEST- finalisé et marqué test : « Ce n’est plus un test » grisée avec sa phrase', async ({ page }, info) => {
+  await creerOrganisation('o1', { nom: 'M. Paul Exemple' });
+  await devis('dTest', { numero: 'TEST-001', statut: 'en_attente_envoi', test: true, finaliseLe: new Date(Date.now() - 86400000) });
+  await connecter(page, JEROME, { route: 'devis/liste' });
+  await page.locator('tr.ligne-devis[data-id="dTest"] [data-action="menu-devis"]').click();
+  await expect(menu(page).getByRole('menuitem', { name: 'Ce n’est plus un test', exact: true })).toBeDisabled();
+  await expect(menu(page)).toContainText('Un devis de test finalisé (numéro TEST-) reste un test');
+  await capturer(page, info, '3-devis-test-fige-grise');
+});
+
+test('14 fenêtre « Finaliser ce devis ? » d’un brouillon sur une affaire de test : la phrase TEST- ; sur une affaire réelle : pas de phrase', async ({ page }, info) => {
+  await creerOrganisation('o1', { nom: 'M. Paul Exemple' });
+  await creerAffaire('aTest', { titre: 'Essai', organisationId: 'o1', test: true });
+  await creerAffaire('aReel', { titre: 'Chantier réel', organisationId: 'o1' });
+  await ecrireDocument('devis_parametres/reglages', { regimeTva: 'assujetti', entreprise: { nom: 'Atelier Exemple', siret: '123 456 789 00012', adresse: { ligne1: '3 rue de l’Atelier', codePostal: '75001', ville: 'Paris' }, assuranceTexte: 'Assurance décennale : Assureur Exemple, contrat numéro : 123, territorialité : France métropolitaine.' } });
+  const complet = { affaireId: 'aTest', destinataires: ['contact@exemple.fr'], objet: 'Rénovation', chantier: { adresse: { texte: '12 rue des Lilas, 49000 Angers' }, debutTravaux: '2026-11-15', dureeEstimee: { valeur: 3, unite: 'semaine' } },
+    sections: [{ id: 's1', titre: 'Cuisine', lignes: [{ id: 'l1', libelle: 'Carrelage', familleId: 'famille-1', type: 'fourniture', quantite: 1, unite: 'm²', prixAchat: 100, prixVente: 100, tauxTva: 20 }] }] };
+  await devis('dEssai', complet);
+  await devis('dReel', { ...complet, affaireId: 'aReel' });
+  await page.route('**/devisFinaliser', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true, devisId: 'dEssai', statut: 'en_attente_envoi', numero: 'TEST-001', nouveauNumero: true, test: true } }) });
+  });
+  await connecter(page, JEROME, { route: 'devis/editeur/dEssai' });
+  await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+  await attendreCalme(page);
+  await page.locator('.page-editeur-devis [data-action="finaliser"]').click();
+  await expect(dialogue(page)).toContainText('Finaliser ce devis ?');
+  await expect(dialogue(page)).toContainText('Ce devis est un devis de test : il recevra un numéro TEST-');
+  await capturer(page, info, '14-finaliser-essai');
+  await dialogue(page).getByRole('button', { name: 'Finaliser' }).click();
+  await expect(page.locator('.toast').first()).toContainText('Devis de test finalisé : TEST-001');
+  await page.evaluate(() => { location.hash = '#/devis/editeur/dReel'; });
+  await expect(page.locator('.page-editeur-devis[data-devis="dReel"]')).toBeVisible();
+  await attendreCalme(page);
+  await page.locator('.page-editeur-devis [data-action="finaliser"]').click();
+  await expect(dialogue(page)).toContainText('Finaliser ce devis ?');
+  await expect(dialogue(page)).not.toContainText('devis de test');
 });
 
 test('4 renommer une fiche de test ne perd pas `test` et n’écrit jamais « [TEST] » dans le nom', async ({ page }) => {

@@ -62,6 +62,24 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
     for (const id of ids) assert.equal((await brut(C.devis, id)).statut, 'en_attente_envoi');
   });
 
+  test('10 dix finalisations simultanées de devis de test : TEST-001 à TEST-010 sans doublon, devis_compteurs/test = 10, global absent ; chez le client a, b intact', async () => {
+    const ids = Array.from({ length: 10 }, (_, i) => `t${i}`);
+    await Promise.all(ids.map((id) => poser(id, { test: true })));
+    const rs = await Promise.all(ids.map((id) => S.finaliser({ donnees, ctx: ctx(), devisId: id })));
+    assert.deepEqual(rs.map((r) => r.numero).sort(), ids.map((_, i) => `TEST-${String(i + 1).padStart(3, '0')}`));
+    assert.equal((await brut(C.devisCompteurs, 'test')).valeur, 10);
+    assert.equal(await brut(C.devisCompteurs, 'global'), null);
+    // chez le client a : son propre compteur de test ; b n'existe pas
+    const chezA = avecBase(donnees, 'clients/a');
+    const { id: _i, ...reste } = brouillon('ta', { test: true });
+    await db.collection('clients/a/devis_devis').doc('ta').set(reste);
+    const r = await S.finaliser({ donnees: chezA, ctx: ctx(), devisId: 'ta' });
+    assert.equal(r.numero, 'TEST-001');
+    assert.equal((await brut('clients/a/devis_compteurs', 'test')).valeur, 1);
+    assert.equal(await brut('clients/b/devis_compteurs', 'test'), null);
+    assert.equal((await brut(C.devisCompteurs, 'test')).valeur, 10, 'le compteur de Jérôme est intact');
+  });
+
   test('K19 dix finalisations simultanées du même article : le compteur d\u2019usage vaut 10 (les transactions perdantes sont relancées), la date reste une vraie date', async () => {
     const ids = Array.from({ length: 10 }, (_, i) => `u${i}`);
     const lignes = (id) => [{ sections: [{ id: `s-${id}`, titre: 'T', lignes: [{ genre: 'ligne', id: `l-${id}`, articleId: 'art-commun', libelle: 'Article', unite: 'u', quantite: 1, prixAchat: 10 }] }] }][0];
