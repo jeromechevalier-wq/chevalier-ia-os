@@ -35,12 +35,12 @@ export const OUTILS_COMMUNS = geler(['qui_suis_je', 'diagnostiquer_fichiers']);
  * Ce n'est PAS un module : jamais dans MODULES_DECLARES ni IDS_MODULES (aucun interrupteur, aucun écran, aucun outil MCP, aucune route),
  * la fiche `modules` d'un client ne peut pas le nommer (« contacts » y est un module inconnu). La coque le démarre avant les modules
  * (js/main.js, js/os/espace-modules.js) en mode noyau (`CRM.demarrer` avec l'option noyau) ; le module Affaires démarre par-dessus en complet.
- * `collections` : les trois collections lues/écrites par le socle, plus le journal (crm_audit, crm_audit_avant : jamais exportées, jamais déclarées par un module).
+ * `collections` : les trois collections du socle. Le journal (audit et copies « avant ») est écrit par le socle mais n'est volontairement pas listé ici : il n'est déclaré par aucun module ni exporté.
  */
 export const SOCLE = geler({
   id: 'contacts',
   nom: 'Contacts',
-  collections: ['crm_personnes', 'crm_organisations', 'crm_evenements', 'crm_audit', 'crm_audit_avant'],
+  collections: ['crm_personnes', 'crm_organisations', 'crm_evenements'],
   outilsMcp: [],
 });
 

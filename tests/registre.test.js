@@ -70,7 +70,7 @@ describe('socle commun (PR B) : SOCLE hors des modules, dépendances inchangées
     assert.equal(SOCLE.id, 'contacts');
     assert.equal(SOCLE.nom, 'Contacts');
     assert.deepEqual([...SOCLE.outilsMcp], []);
-    assert.deepEqual([...SOCLE.collections], ['crm_personnes', 'crm_organisations', 'crm_evenements', 'crm_audit', 'crm_audit_avant']);
+    assert.deepEqual([...SOCLE.collections], ['crm_personnes', 'crm_organisations', 'crm_evenements']);
     assert.throws(() => { 'use strict'; SOCLE.collections.push('x'); }, TypeError);
     assert.ok(!IDS_MODULES.includes('contacts'));
     assert.equal(moduleDeclare('contacts'), null);
@@ -82,12 +82,12 @@ describe('socle commun (PR B) : SOCLE hors des modules, dépendances inchangées
     assert.deepEqual(verifierActivation(['contacts']), { ok: true, actifs: [], erreurs: [] });
     assert.deepEqual(blocsDuMenu(['veille']).flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Veille'], 'aucune entrée Personnes/Organisations sans le module Affaires');
   });
-  test('B2 les collections du socle sont celles que le module Affaires déclare, plus le journal (jamais exporté, déclaré par aucun module)', () => {
-    const journal = ['crm_audit', 'crm_audit_avant'];
+  test('B2 les collections du socle sont toutes déclarées par le module Affaires ; le journal n\'est déclaré par aucun module et n\'est pas exporté', () => {
     const affaires = moduleDeclare('affaires').collections;
-    for (const c of SOCLE.collections.filter((x) => !journal.includes(x))) assert.ok(affaires.includes(c), c);
+    for (const c of SOCLE.collections) assert.ok(affaires.includes(c), c);
+    const journal = ['crm_audit', 'crm_audit_avant'];
     for (const c of journal) {
-      assert.ok(SOCLE.collections.includes(c), c);
+      assert.ok(!SOCLE.collections.includes(c), `${c} n'est pas listé dans SOCLE`);
       assert.ok(!MODULES_DECLARES.some((m) => m.collections.includes(c)), `${c} n'est la collection d'aucun module`);
     }
     const source = lire('js/modules/crm/donnees.js');
