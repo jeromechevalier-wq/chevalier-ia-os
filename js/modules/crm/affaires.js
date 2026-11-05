@@ -16,7 +16,9 @@ import { dialogueActivite } from './activites.js';
 
 // État conservé pendant la session.
 let criteres = L.criteresComplets('affaires', {});
-let vue = ['kanban', 'liste'].includes(lirePreference('vue.affaires', 'kanban')) ? lirePreference('vue.affaires', 'kanban') : 'kanban'; // kanban | liste | archives (« Archives » n'est jamais mémorisée comme vue de départ)
+// « Archives » n'est jamais mémorisée comme vue de départ : on relit Kanban ou Liste.
+const vueMemorisee = () => { const v = lirePreference('vue.affaires', 'kanban'); return v === 'liste' ? 'liste' : 'kanban'; };
+let vue = vueMemorisee(); // kanban | liste | archives
 // Un seul tri pour le Kanban, la Liste et les Archives : { critere, sens }, mémorisé sous `tri.affaires` (l'ancienne clé `tri.kanban` est lue une fois).
 let tri = T.lireTriMemorise('affaires', lirePreference);
 let enDeplacement = false;
@@ -248,7 +250,7 @@ function colonne({ id, titre, couleur, affaires, onDrop }) {
 let rafraichir = () => {};
 
 export function rendreAffaires(conteneur) {
-  if (vue === 'archives') vue = 'kanban'; // « Archives » ne se garde pas d'un passage à l'autre
+  if (vue === 'archives') vue = vueMemorisee(); // « Archives » ne se garde pas d'un passage à l'autre : retour sur la vue mémorisée
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite' });
   const zone = h('div', { class: 'zone-affaires' });
   const zoneBascule = h('div', { class: 'zone-bascule' });

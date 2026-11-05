@@ -22,7 +22,7 @@ test('les écrans de liste n\'écrivent pas leur recherche à la main (type sear
 
 test('les écrans de liste ne reconstruisent pas les boutons de vue à la main', () => {
   for (const chemin of ECRANS) {
-    assert.doesNotMatch(lire(chemin), /class:\s*`bascule-vue/,
+    assert.doesNotMatch(lire(chemin), /class:\s*[`'"]bascule-vue/,
       `${chemin} fabrique ses boutons de vue. Règle : utiliser basculeVues de js/modules/crm/barre-liste.js (« Archives » y est un bouton de vue, jamais mémorisé).`);
   }
 });
@@ -32,4 +32,11 @@ test('le composant commun garde la loupe et la structure attendue par le CSS', (
   assert.match(src, /champ-avec-icone/);
   assert.match(src, /barre-filtres-ligne/);
   assert.match(src, /bascule-vues/);
+});
+
+test('chacun des 5 écrans importe le composant commun', () => {
+  for (const chemin of ECRANS) {
+    assert.match(lire(chemin), /from '(\.\/|\.\.\/crm\/)barre-liste\.js'|from '\.\/barre-liste\.js'/,
+      `${chemin} n'importe plus js/modules/crm/barre-liste.js : un écran de liste utilise la barre commune (docs/consignes-ui.md).`);
+  }
 });

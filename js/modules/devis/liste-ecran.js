@@ -103,6 +103,7 @@ export function rendreListeDevis(conteneur) {
   const bascule = h('div', { class: 'zone-bascule' });
   // Même menu « Trier par » que les autres listes, aux critères des en-têtes triables (le clic d'en-tête reste possible).
   const OPTIONS_TRI = COLONNES.filter((c) => c.tri).map((c) => ({ id: c.tri, libelle: c.libelle, sens: c.tri === 'numero' ? 'asc' : 'desc' }));
+  let triAffiche = { ...tri };
   const choixTri = selecteurTri({ options: OPTIONS_TRI, valeur: tri.critere, sens: tri.sens, surChangement: (t) => { tri = { critere: t.critere, sens: t.sens }; page = 1; rendre(); } });
 
   function majBascule() {
@@ -112,7 +113,7 @@ export function rendreListeDevis(conteneur) {
 
   function rendre() {
     majBascule();
-    choixTri.maj(OPTIONS_TRI, tri.critere, tri.sens);
+    if (triAffiche.critere !== tri.critere || triAffiche.sens !== tri.sens) { choixTri.maj(OPTIONS_TRI, tri.critere, tri.sens); triAffiche = { ...tri }; } // pas à chaque rendu : le minuteur de 60 s ne doit pas recréer les options sous un menu ouvert
     filtres.majCompte(statutsFiltres.length + (periode !== 'toutes' ? 1 : 0));
     avis.hidden = !D.etat.erreurLectureDevis;
     avis.textContent = D.etat.erreurLectureDevis ? ERREUR_LECTURE : '';
@@ -205,6 +206,7 @@ export function rendreListeDevis(conteneur) {
 
   const memorisee = lirePreference('vue.devis');
   if (memorisee === 'liste' || memorisee === 'tableau') vue = memorisee;
+  else if (vue === 'archives') vue = 'liste'; // « Archives » ne se garde pas d'un passage à l'autre
 
   conteneur.append(h('div', { class: 'page page-liste page-devis page-liste-devis' },
     enteteListe({ titre, compteur, actions: [h('a', { class: 'bouton bouton-secondaire', href: '#/devis/bordereau', dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), h('a', { class: 'bouton bouton-secondaire', href: lien('devis/vocabulaire'), dataset: { action: 'ouvrir-vocabulaire' } }, icone('book-open', { taille: 16 }), 'Vocabulaire'), boutonNouveau] }),
