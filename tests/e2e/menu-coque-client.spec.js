@@ -76,6 +76,8 @@ test('3 menu utilisateur chez un client : Réglages, Journal et « Connecter mon
   await expect(page.locator('.menu-pop-texte')).toHaveCount(0); // chez un client le nom du compte est son e-mail : pas de ligne en double
   await expect(page.locator('.menu-pop > *').first()).toHaveText('Réglages');
   await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Réglages', 'Voir le journal des modifications', 'Connecter mon ChatGPT', /Thème/, 'Se déconnecter']);
+  await expect(page.locator('.menu-pop').getByRole('menuitemcheckbox')).toHaveText(['Mode test']);
+  expect(await page.locator('.menu-pop > *').evaluateAll((els) => els.map((e) => e.dataset.role || (e.classList.contains('menu-pop-separateur') ? 'separateur' : e.textContent.trim())).slice(-4))).toEqual(['bascule-theme', 'mode-test', 'separateur', 'Se déconnecter']);
   await capture(page, '3-client-menu-utilisateur');
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir le journal des modifications' }).click();
   await expect(page).toHaveURL(/#\/espace\/assistant\/crm\/journal$/);
