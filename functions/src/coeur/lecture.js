@@ -37,13 +37,13 @@ export async function chercher(donnees, { texte, types, limite }) {
   const groupes = {
     personnes: personnes.filter((p) => !p.archive).map((p) => {
       const o = organisations.find((x) => x.id === p.organisationId);
-      return { id: p.id, libelle: p.nom, sousTitre: o?.nom || L.premierEmail(p) || '', extra: [o?.nom, ...(p.emails || []).map((e) => e.valeur)].filter(Boolean) };
+      return { id: p.id, libelle: L.libelleAvecTest(p.nom, p.test), sousTitre: o?.nom || L.premierEmail(p) || '', extra: [o?.nom, ...(p.emails || []).map((e) => e.valeur)].filter(Boolean).concat(L.estTest(p) ? ['test'] : []) };
     }),
-    organisations: organisations.filter((o) => !o.archive).map((o) => ({ id: o.id, libelle: o.nom, sousTitre: o.ville || '' })),
+    organisations: organisations.filter((o) => !o.archive).map((o) => ({ id: o.id, libelle: L.libelleAvecTest(o.nom, o.test), sousTitre: o.ville || '', extra: L.estTest(o) ? ['test'] : [] })),
     affaires: affaires.filter((a) => !a.archive).map((a) => {
       const p = personnes.find((x) => x.id === a.personneId);
       const o = organisations.find((x) => x.id === a.organisationId);
-      return { id: a.id, libelle: a.titre, sousTitre: [o?.nom, p?.nom].filter(Boolean).join(' · '), extra: [o?.nom, p?.nom].filter(Boolean) };
+      return { id: a.id, libelle: L.libelleAvecTest(a.titre, a.test), sousTitre: [o?.nom, p?.nom].filter(Boolean).join(' · '), extra: [o?.nom, p?.nom].filter(Boolean).concat(L.estTest(a) ? ['test'] : []) };
     }),
   };
   const resultats = [];

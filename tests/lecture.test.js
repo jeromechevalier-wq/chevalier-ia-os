@@ -303,3 +303,16 @@ describe('Lecture seule (garantie)', () => {
     for (const f of parcourir(dossier)) assert.doesNotMatch(readFileSync(f, 'utf8'), /crm_prospects/, f);
   });
 });
+
+describe('7 chercher et le mode test', () => {
+  test('7 chercher trouve par le mot test : « [TEST] Nom » en libellé, les fiches réelles ne remontent pas', async () => {
+    const base = structuredClone(collections);
+    base.crm_personnes = [...base.crm_personnes, { id: 'pt', nom: 'Marc Essai', emails: [], archive: false, test: true, creeLe: base.crm_personnes[0].creeLe }];
+    base.crm_affaires = [...base.crm_affaires, { id: 'at', titre: 'Audit', personneId: null, organisationId: null, etape: 'premier_contact', statut: 'ouverte', archive: false, test: true, creeLe: base.crm_affaires[0].creeLe }];
+    const r = await lecture.chercher(creerAccesMemoire(base), { texte: 'test' });
+    const marques = r.resultats.filter((x) => x.libelle.startsWith('[TEST] '));
+    assert.deepEqual(ids(marques).sort(), ['at', 'pt']);
+    assert.ok(!r.resultats.some((x) => ['a1', 'a2', 'org1'].includes(x.id)), 'les affaires et organisations réelles ne remontent pas'); // (les personnes d'essai ont un e-mail en .test : elles remontent par l'e-mail, c'est sans rapport)
+    assert.equal(r.resultats.find((x) => x.id === 'pt').libelle, '[TEST] Marc Essai');
+  });
+});

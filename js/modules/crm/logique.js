@@ -705,6 +705,12 @@ export const villeCorrespond = (cochees, ville) => !cochees.length || cochees.so
 export const estTest = (fiche) => fiche?.test === true;
 
 /**
+ * Mode test (PR 1b) : la liste sans les essais. Appliquée à l'ENTRÉE de chaque calcul de chiffre (jamais à l'affichage : les essais restent visibles
+ * dans les listes, avec leur badge). `undefined` ou `null` → liste vide. Fonction pure, copiée au serveur.
+ */
+export const sansTests = (liste) => (liste || []).filter((x) => !estTest(x));
+
+/**
  * Mode test (PR 1a-2b-1) : héritage du repère À LA CRÉATION (jamais de cascade après coup). `parents` : les fiches liées à ce qu'on crée
  * (objet de fiches, par ex. { personne, organisation, affaire, projet, client }, chacune facultative). Si l'une porte `test: true`, la nouvelle fiche aussi. N'écrit JAMAIS `test: false` :
  * un élément réel sous parent réel reste sans champ. Un `test: true` déjà posé (mode allumé) n'est jamais retiré. Fonction pure, copiée au serveur.
@@ -1665,13 +1671,13 @@ export const CALCULS = {
     libelle: 'Nouveaux contacts',
     unite: '',
     explication: 'Nombre de personnes créées dans ton espace pendant le mois.',
-    calculer: ({ personnes = [] }, mois) => personnes.filter((p) => dansLeMois(p.creeLe, mois)).length,
+    calculer: ({ personnes = [] }, mois) => sansTests(personnes).filter((p) => dansLeMois(p.creeLe, mois)).length,
   },
   rdv_tenus: {
     libelle: 'Rendez vous tenus',
     unite: '',
     explication: 'Nombre d’activités de type « Rendez vous » cochées comme faites pendant le mois (selon la date où on les coche).',
-    calculer: ({ activites = [] }, mois) => activites.filter((a) => a.type === 'rendez_vous' && a.fait && dansLeMois(a.dateFait, mois)).length,
+    calculer: ({ activites = [] }, mois) => sansTests(activites).filter((a) => a.type === 'rendez_vous' && a.fait && dansLeMois(a.dateFait, mois)).length,
   },
   passages_etape: {
     libelle: 'Passages à l’étape',
@@ -1680,7 +1686,7 @@ export const CALCULS = {
     explication: 'Nombre d’affaires qui sont entrées dans l’étape choisie pendant le mois (date du premier passage dans cette étape). Si l’étape est désactivée, l’objectif l’est aussi.',
     calculer: ({ affaires = [] }, mois, objectif) => {
       const etape = etapeDeLObjectif(objectif);
-      return etape ? affaires.filter((a) => dansLeMois(a.datesEtapes?.[etape], mois)).length : 0;
+      return etape ? sansTests(affaires).filter((a) => dansLeMois(a.datesEtapes?.[etape], mois)).length : 0;
     },
   },
   ca_signe: {
@@ -1690,7 +1696,7 @@ export const CALCULS = {
     calculer: ({ affaires = [], config }, mois) => {
       if (avantDebut(mois, config)) return 0;
       const gagnee = configDe(config).roleGagnee;
-      return affaires.filter((a) => a.etape === gagnee && a.statut === 'gagnee' && dansLeMois(a.datesEtapes?.[gagnee], mois)).reduce((t, a) => t + euros(montantAffaire(a)), 0);
+      return sansTests(affaires).filter((a) => a.etape === gagnee && a.statut === 'gagnee' && dansLeMois(a.datesEtapes?.[gagnee], mois)).reduce((t, a) => t + euros(montantAffaire(a)), 0);
     },
   },
   ca_facture: {
@@ -1698,7 +1704,7 @@ export const CALCULS = {
     unite: '€',
     exige: 'suiviPaiements',
     explication: 'Total des factures des projets qui ne sont pas abandonnées (à payer ou payées), compté le mois de leur date d’envoi.',
-    calculer: ({ projets = [] }, mois) => projets.reduce(
+    calculer: ({ projets = [] }, mois) => sansTests(projets).reduce(
       (s, p) => s + (Array.isArray(p.factures) ? p.factures : []).filter((f) => f.statut !== 'abandonnee' && String(f.dateEnvoi || '').slice(0, 7) === mois)
         .reduce((t, f) => t + euros(f.montant), 0),
       0,
@@ -1710,10 +1716,10 @@ export const CALCULS = {
     exige: 'suiviPaiements',
     explication: 'Total des factures des projets marquées payées, compté le mois du paiement. Les factures abandonnées et celles à payer ne comptent pas.',
     // Les factures PAYÉES des projets (jamais les abandonnées ni les à payer) et, pour l'historique, les anciens encaissements saisis sur les affaires avant la 2.2.
-    calculer: ({ affaires = [], projets = [] }, mois) => affaires.reduce(
+    calculer: ({ affaires = [], projets = [] }, mois) => sansTests(affaires).reduce(
       (s, a) => s + (a.encaissements || []).filter((e) => dansLeMois(e.date, mois)).reduce((t, e) => t + euros(e.montant), 0),
       0,
-    ) + projets.reduce(
+    ) + sansTests(projets).reduce(
       (s, p) => s + (Array.isArray(p.factures) ? p.factures : []).filter((f) => f.statut === 'payee' && String(f.datePaiement || '').slice(0, 7) === mois)
         .reduce((t, f) => t + euros(f.montant), 0),
       0,
@@ -1725,7 +1731,7 @@ export const CALCULS = {
     unite: '',
     heritage: true,
     explication: 'Nombre d’affaires entrées dans l’étape « Proposition envoyée » pendant le mois (indicateur historique : « Passages à l’étape » le remplace).',
-    calculer: ({ affaires = [] }, mois) => affaires.filter((a) => dansLeMois(a.datesEtapes?.proposition_envoyee, mois)).length,
+    calculer: ({ affaires = [] }, mois) => sansTests(affaires).filter((a) => dansLeMois(a.datesEtapes?.proposition_envoyee, mois)).length,
   },
 };
 
@@ -1805,7 +1811,7 @@ export function objectifsActifsTries(objectifs, config) {
 
 /** Affaires par étape active, dans l'ordre des étapes (une étape vide compte zéro). */
 export function compterParEtape(affaires, config) {
-  return etapesActives(config).map((e) => ({ ...e, nombre: affaires.filter((a) => a.etape === e.id).length }));
+  return etapesActives(config).map((e) => ({ ...e, nombre: sansTests(affaires).filter((a) => a.etape === e.id).length }));
 }
 
 /**
@@ -1834,7 +1840,7 @@ export function caParMois(affaires, moisListe, projets = []) { // chiffre d'affa
 }
 
 export function totauxColonne(affaires) {
-  return { nombre: affaires.length, montant: affaires.reduce((s, a) => s + (montantAffaire(a) || 0), 0) };
+  return { nombre: affaires.length, montant: sansTests(affaires).reduce((s, a) => s + (montantAffaire(a) || 0), 0) }; // le NOMBRE compte les cartes affichées, le MONTANT exclut les essais
 }
 
 // ---------------------------------------------------------------- filtres

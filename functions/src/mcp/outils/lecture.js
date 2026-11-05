@@ -12,7 +12,7 @@ const avecFil = z.boolean().optional().describe("Joindre le fil : activités fai
 export const chercher = {
   nom: 'chercher',
   profils: TOUS,
-  description: "Recherche des personnes, organisations et affaires par leur nom (accents et casse ignorés, 2 lettres au moins), comme la recherche de l'écran. Renvoie type, id, libellé et sous-titre ; lire ensuite la fiche avec lire_personne, lire_organisation ou lire_affaire.",
+  description: "Recherche des personnes, organisations et affaires par leur nom (accents et casse ignorés, 2 lettres au moins), comme la recherche de l'écran. Renvoie type, id, libellé et sous-titre ; le libellé d'un essai commence par « [TEST] » (ce n'est pas le nom enregistré) et le mot « test » trouve les essais ; lire ensuite la fiche avec lire_personne, lire_organisation ou lire_affaire.",
   schema: {
     texte: z.string().min(1).max(200).describe('Texte recherché.'),
     types: z.array(z.enum(['personnes', 'organisations', 'affaires'])).optional().describe('Limiter à ces types (défaut : les trois).'),
