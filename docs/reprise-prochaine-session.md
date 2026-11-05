@@ -1,5 +1,47 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 06/11/2026 : journée du 05/11/2026 (PR 500 à 526 et 528)
+
+Tableau des choses à faire : `.github/A-FAIRE.md`. Version 2.36.0 (cette PR). Étude Devis seul : `docs/etude-devis-autonome.md` (section J : audit d'indépendance des modules).
+
+**Questions pour Jérôme**
+1. Règle « finaliser exige une affaire » : supprimée partout (étude, partie C, 3e décision du 04/11) ou seulement sans Affaires (fait par la 526 : exigée dès que le module Affaires est actif, chez toi compris) ? Décision prise seul dans la 526 : conditionnelle.
+2. Socle commun chez un client sans aucun module actif : le démarrer quand même (pour un futur écran) ou non (fait : non, accueil provisoire ; décision prise seul dans la 524) ?
+3. Un devis `DEV-` marqué test après coup doit-il partir avec « Supprimer tous mes tests » ? (fait : non, il est listé « relié, gardé » ; cadrage §9).
+4. Les événements du fil `{affaireId de test, personneId réel}` sont supprimés avec l'affaire de test (comme `planSupprimerAffaire`) : d'accord ?
+5. Restaurer un `DEV-` supprimé avec `restaurer_depuis_audit` : décidé oui dans la 522 (seul un `TEST-` supprimé reste supprimé) ; veux-tu aussi refuser pour un `DEV-` ?
+6. Garde-fou « > 1000 documents » de « Supprimer tous mes tests » : il compte les suppressions seulement (pas les liens vidés sur les reliés) ; au plafond MCP du jour, le code peut être brûlé sans rien perdre (refaire un aperçu) : acceptable ?
+7. Un espace « Devis seul » a la section Réglages > Mes tests mais son assistant n'a ni `marquer_test` ni `supprimer_tous_les_tests` (ils sont déclarés dans `affaires.outilsMcp`, `js/os/registre.js` l.105-106) : les prêter au socle ?
+8. Filtre « Tests » dans les listes (« PR 1c ») : n'existe pas dans le cadrage, à cadrer ou à abandonner ?
+9. Déjà en attente : condition de paiement autre que l'acompte ; mention « Gestion des déchets » sur le PDF officiel ; adresse tapée dans la conversation utilisable par l'assistant ; prix par module ; secteur de l'agence ; logiciel de facturation ; sauvegarde du VPS n8n ; commits locaux non poussés ; clés de la page Maintenance dont les dates sont à saisir.
+
+| Sujet | PR | État |
+|---|---|---|
+| Test B3 téléphone : attendre la fin de l'animation, seuil 44 px | 515 | fusionnée |
+| Barre commune des écrans de liste, PR 1 (Devis, Affaires, Projets, Catalogue, Vocabulaire ; `js/modules/crm/barre-liste.js`) | 516 | fusionnée |
+| Devis : boutons « Kanban \| Liste \| Archives » et « + Devis » | 518 | fusionnée |
+| Mode test PR 1a-2b-2 : interrupteur dans le menu Jérôme | 517 | fusionnée |
+| Mode test PR 1b : statistiques sans les tests, recherche par le mot « test », export | 520 | fusionnée, déployée chez les clients (fonctions, mcp, hosting) |
+| Barre commune, PR 2 (Personnes, Organisations, Journal, Veille, Automatisations, Maintenance, Modèles de projets) | 519 | fusionnée |
+| Mode test PR 2 : `marquer_test` / `demarquer_test`, paramètre `test`, filtre `tests`, usage des articles (83 outils) | 521 | fusionnée, déployée chez les clients (fonctions, mcp, hosting) |
+| Mode test PR 3 : numéro `TEST-NNN`, « Marquer comme test » d'un devis finalisé (`devisMarquerTest`) | 522 | fusionnée, déployée chez les clients (fonctions, mcp, hosting) |
+| Socle commun, couche de données (option `noyau`, `CLES_NOYAU`, `estNoyau`) | 523 | fusionnée (invisible) |
+| Socle commun, coque (`SOCLE` dans `js/os/registre.js`, démarrage avant les modules) | 524 | fusionnée (invisible) |
+| Mode test PR 4 : Réglages > Mes tests, `supprimer_tous_les_tests`, `modeTestSupprimer` (84 outils) | 525 | fusionnée, déployée chez les clients (fonctions, mcp, hosting) |
+| Devis seul C1 : `devis` sans dépendance, règle de finalisation conditionnelle, 7 outils du socle | 526 | fusionnée, déployée chez les clients (fonctions, mcp, hosting) |
+| Devis seul C2 : écran sans Affaires (colonne Client, menu « + », R14-9 à R14-14) | 528 | fusionnée ; hosting clients lancé |
+| Docs de la journée, leçons, version 2.36.0 | cette PR de docs | à fusionner par Jérôme ou la session principale |
+
+PR des 02/11 et 04/11, jamais rapportées ici (toutes fusionnées) : 500 cadrage mode test (docs), 501 carte d'affaire du kanban (Archiver / Supprimer dans « … »), 502 mode test 1a-1, 503 mode test 1a-2a, 504 « + Montant estimé », 505 étude Devis seul (docs), 506 titre des fiches, 507 mode test 1a-2b-1, 508 adresses comme dans Gmail, 509 champs numériques sans flèches, 510 archiver = ranger (compte dans le montant), 511 et 513 étude Devis seul (docs), 512 suppression d'un devis à toutes les étapes. Les numéros 514 et 527 ne sont pas des PR.
+
+- **État de la nuit GitHub** : « Tests de nuit » (workflow `tests-nuit.yml`, sur `main`) : runs 94 à 105 tous verts : 94 = #515, 95 = #516, 96 = #518, 97 = #517, 98 = #520, 99 = #519, 100 = #521, 101 = #522, 102 = #523, 103 = #524, **104 = #525 vert au 2e essai** (`run_attempt: 2`, relu sur GitHub ; un test C21 de `tests/e2e/parcours.spec.js`, l.857-912, instable en format téléphone sous charge), 105 = #526 (relu : vert). Le run 106 (#528) est lancé à 22:50 UTC : résultat non lu au moment de cette PR de docs.
+- **Déploiements chez les clients** : le site de Jérôme se déploie tout seul à chaque push sur `main` (`firebase-hosting.yml`). La plateforme des clients (`deploiement-plateforme.yml`, choix `hosting`, `regles`, `tout`, `fonctions`, `mcp`, `espace`, `porte`) a été lancée avec l'accord de Jérôme le 05/11 après la 522 (fonctions, mcp, hosting) et après la 526 : runs 141, 142, 143 verts (d'après l'état de la session principale). Donc les PR serveur 520, 521, 522, 525, 526 sont déployées chez les clients. Pour la 528, `hosting` a été lancé à 22:50 UTC (écran seulement) : lancé, pas vérifié.
+- **Données** (faites par la session principale avec l'accord de Jérôme, outils MCP, rien dans le dépôt) : recalcul des montants fait (5 affaires) ; 6 devis supprimés ; 7 affaires archivées supprimées ; 6 affaires archivées restantes à supprimer le 06/11 vers 00:47 UTC (rappel programmé) ; plafond du MCP : 50 suppressions par jour, par document (une affaire = plusieurs documents).
+- **Pas pu être vérifié** : les déploiements réels chez les clients (journaux des runs 141 à 143 et du `hosting` de la 528) ; les écrans chez un vrai client `modules: { devis: true }` ; les données de Jérôme ; « Tests de nuit » n°106.
+- **Ce que Jérôme doit faire** : (1) répondre aux questions ci-dessus ; (2) fusionner cette PR de docs ; (3) vérifier sur son espace les 5 points de recette de la 525 (Réglages > Mes tests) et de la 522 (TEST-001) ; (4) essayer Devis seul sur un client de démonstration (jamais son espace) avec les 5 vérifications de la PR 528.
+
+---
+
 ## Rapport du matin du 02/11/2026 : journée du 01/11/2026 (PR 490 à 498)
 
 Tableau des choses à faire : `.github/A-FAIRE.md`. Version toujours 2.35.0 (voir la PR de docs). Recette de l'e-mail chez un client : `docs/deploiement-client.md`.
