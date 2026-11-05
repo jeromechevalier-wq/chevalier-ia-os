@@ -8,10 +8,11 @@ const CODES_LISIBLES = ['permission-denied', 'invalid-argument', 'failed-precond
 export const MESSAGE_RESEAU_TESTS = 'Ça n’a pas abouti. Vérifie ta connexion internet, puis réessaie : rien n’a été perdu.';
 
 /** Erreur d'appel -> message à afficher (le SDK ajoute « [403] » en fin de message : on l'enlève). */
-export function messageDErreurTests(e) {
+export const MESSAGE_RESEAU_SUPPRESSION = 'Ça n’a pas abouti. Actualise la liste pour voir ce qui reste (une partie a pu être supprimée), puis réessaie.';
+export function messageDErreurTests(e, { suppression = false } = {}) {
   const code = String(e?.code ?? '').replace('functions/', '');
   const message = String(e?.message ?? '').replace(/\s*\[\d{3}\]$/, '').trim();
-  return CODES_LISIBLES.includes(code) && message && message !== code ? message : MESSAGE_RESEAU_TESTS;
+  return CODES_LISIBLES.includes(code) && message && message !== code ? message : suppression ? MESSAGE_RESEAU_SUPPRESSION : MESSAGE_RESEAU_TESTS; // « rien n'a été perdu » seulement pour la lecture : après un appel de suppression, une partie a pu partir
 }
 
 /**

@@ -1708,12 +1708,16 @@ export async function preparerEmail(c, args) {
  * « Supprimer tous mes tests » (mode test, PR 4) : aperçu chiffré et code à usage unique, puis suppression de tout ce qui est marqué test (plan : `planSupprimerTests`).
  * `avecGarantie` ne s'applique pas (aucun document visé par un id). Le plafond du jour compte chaque document : au-delà, aucun code, l'écran Réglages > Mes tests fait le travail (il n'a pas de plafond).
  */
+const MAX_ECRITURES_TESTS = 1000; // même maximum que le moteur d'écriture (coeur/ecriture.js)
 export async function supprimerTousLesTests(c, args) {
   const { apercu: v } = await apercuSuppressionTests({ donnees: c.donnees });
   const outil = 'supprimer_tous_les_tests';
   const jeton = c.jeton ?? c.acteur;
   if (v.total === 0) return { supprime: false, rien: true, total: 0, relies: v.relies, consigne: 'Aucun élément de test : rien à supprimer, aucun code donné.' };
   const { empreinte, ...vue } = v;
+  if (v.total + v.relies.length > 0 && v.total > MAX_ECRITURES_TESTS) {
+    return { apercu: true, supprime: false, ...vue, tropDeDocuments: true, consigne: `RIEN n'a été supprimé, et aucun code n'est donné : ${v.total} documents de test dépassent le maximum de ${MAX_ECRITURES_TESTS} par opération. Le dire à l'utilisateur : supprimer d'abord une partie (les devis, puis les affaires) un par un, ou depuis l'écran Réglages > Mes tests après avoir réduit la liste.` };
+  }
   if (!args.codeConfirmation) {
     const restantes = c.suppressionsRestantes ? await c.suppressionsRestantes() : Infinity;
     if (v.total > restantes) {

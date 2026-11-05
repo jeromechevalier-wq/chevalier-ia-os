@@ -2358,7 +2358,12 @@ const pluriel = (n, un, plusieurs) => `${n} ${n > 1 ? plusieurs : un}`;
  */
 export function planSupprimerTests({ personnes = [], organisations = [], affaires = [], projets = [], taches = [], activites = [], notes = [], evenements = [], devis = [] } = {}) {
   const relies = [];
-  const relier = (collection, doc, raison) => relies.push({ collection, id: doc.id, libelle: libelleTest(doc, collection), raison });
+  const dejaRelies = new Set();
+  const relier = (collection, doc, raison) => {
+    if (dejaRelies.has(`${collection}/${doc.id}`)) return; // un élément n'est listé qu'une fois (une racine de devis gardée : une seule ligne)
+    dejaRelies.add(`${collection}/${doc.id}`);
+    relies.push({ collection, id: doc.id, libelle: libelleTest(doc, collection), raison });
+  };
 
   // Devis : par racine. Tout ou rien.
   const racines = new Map();
@@ -2369,10 +2374,10 @@ export function planSupprimerTests({ personnes = [], organisations = [], affaire
     if (!versions.some(estTest)) continue;
     if (versions.some((v) => !estTest(v))) {
       for (const v of versions) devisGardes.push(v);
-      relier(COLLECTION_DEVIS_TESTS, versions[0], 'devis gardé : une de ses versions n’est pas marquée test');
+      relier(COLLECTION_DEVIS_TESTS, { ...versions[0], id: versions[0].racineId ?? versions[0].id }, 'devis gardé : une de ses versions n’est pas marquée test');
     } else if (versions.some((v) => v.numero && !numeroEstTest(v.numero))) {
       for (const v of versions) devisGardes.push(v);
-      relier(COLLECTION_DEVIS_TESTS, versions[0], `devis ${versions.find((v) => v.numero)?.numero} gardé : il a consommé un vrai numéro (à supprimer à part)`);
+      relier(COLLECTION_DEVIS_TESTS, { ...versions[0], id: versions[0].racineId ?? versions[0].id }, `devis ${versions.find((v) => v.numero)?.numero} gardé : il a consommé un vrai numéro (à supprimer à part)`);
     } else devisPartis.push(...versions);
   }
   const partisDevis = new Set(devisPartis.map((d) => d.id));
@@ -2409,14 +2414,15 @@ export function planSupprimerTests({ personnes = [], organisations = [], affaire
   for (const [champ, liste, collection] of [['activites', activites, C.activites], ['notes', notes, C.notes]]) {
     for (const x of liste) {
       if (estTest(x)) { supprimer(collection, x); comptes[champ] += 1; continue; }
-      const patch = modifier(collection, x);
+      const patch = modifier(collection, x, MARQUES_MODIFICATION);
       if (Object.keys(patch).length) relier(collection, x, 'élément réel gardé : son lien vers un test supprimé est vidé');
     }
   }
   for (const e of evenements) {
     const liens = touche(e);
     const restants = ['affaireId', 'personneId', 'organisationId', 'projetId'].filter((champ) => e[champ] && !supp[champ]?.has(e[champ]));
-    if (estTest(e) || (liens.length && (!restants.length || liens.some((champ) => ['affaireId', 'projetId'].includes(champ))))) { supprimer(C.evenements, e); comptes.evenements += 1; } else modifier(C.evenements, e);
+    const projetVivant = Boolean(e.projetId) && !supp.projetId.has(e.projetId); // fil d'un projet réel : gardé, ses liens vers un test sont vidés (comme planSupprimerAffaire)
+    if (estTest(e) || (liens.length && !projetVivant && (!restants.length || liens.some((champ) => ['affaireId', 'projetId'].includes(champ))))) { supprimer(C.evenements, e); comptes.evenements += 1; } else modifier(C.evenements, e);
   }
   for (const a of affaires) {
     if (estTest(a)) { supprimer(C.affaires, a); comptes.affaires += 1; continue; }
@@ -2428,7 +2434,8 @@ export function planSupprimerTests({ personnes = [], organisations = [], affaire
   for (const p of personnes.filter(estTest)) { supprimer(C.personnes, p); comptes.personnes += 1; }
   for (const o of organisations.filter((x) => supp.organisationId.has(x.id))) { supprimer(C.organisations, o); comptes.organisations += 1; }
   for (const d of [...devisGardes, ...devis.filter((x) => !estTest(x) && !partisDevis.has(x.id))]) {
-    if (d.affaireId && supp.affaireId.has(d.affaireId) && !relies.some((r) => r.id === d.id)) relier(COLLECTION_DEVIS_TESTS, d, 'devis gardé : son affaire de test est supprimée, il reste sans affaire');
+    const liensDevis = ['affaireId', 'personneId', 'organisationId'].filter((champ) => d[champ] && supp[champ].has(d[champ]));
+    if (liensDevis.length) relier(COLLECTION_DEVIS_TESTS, { ...d, id: d.racineId ?? d.id }, `devis gardé, non modifié : ${liensDevis.map((c) => ({ affaireId: 'son affaire', personneId: 'sa personne', organisationId: 'son organisation' })[c]).join(' et ')} de test ${liensDevis.length > 1 ? 'sont supprimées' : 'est supprimée'}, il reste sans ce lien`);
   }
   comptes.devis = devisA.length + devisB.length;
 

@@ -89,6 +89,22 @@ describe('4 plan pur : planSupprimerTests', () => {
     assert.equal(planSupprimerTests({ devis: [finalise('t', 'TEST-001'), finalise('x', 'TEST-002', { test: undefined })] }).compteurTestAVider, false);
     assert.equal(planSupprimerTests({ devis: [finalise('v1', 'TEST-001', { racineId: 'v1' }), finalise('v2', 'TEST-001', { racineId: 'v1', version: 2, test: undefined })] }).compteurTestAVider, false, 'racine à moitié marquée : gardée entière');
   });
+  test('4h un événement d’un projet réel lié à une affaire de test est gardé, lien vidé ; un devis réel lié à une personne de test est listé, non supprimé ; relies sans doublon', () => {
+    const p = planSupprimerTests({
+      affaires: [{ id: 'a', titre: 'Aff', test: true }], projets: [{ id: 'j', titre: 'Projet réel', affaireId: 'a' }], personnes: [{ id: 'pt', nom: 'Paul Essai', test: true }],
+      evenements: [{ id: 'e1', affaireId: 'a', projetId: 'j' }, { id: 'e2', affaireId: 'a' }],
+      devis: [finalise('r', 'DEV-2026-11-05-001', { test: undefined, affaireId: null, personneId: 'pt' }), finalise('v1', 'DEV-2026-11-05-002', { racineId: 'v1', affaireId: 'a' }), finalise('v2', 'DEV-2026-11-05-002', { racineId: 'v1', version: 2, affaireId: 'a' })],
+    });
+    const toutes = [...p.devisFinalises, ...p.reste];
+    assert.ok(!cles(toutes).includes('supprimer:crm_evenements/e1'), 'l’événement du projet réel reste');
+    assert.deepEqual(toutes.find((e) => e.collection === 'crm_evenements' && e.id === 'e1').patch, { affaireId: null });
+    assert.ok(cles(toutes).includes('supprimer:crm_evenements/e2'), 'le fil de l’affaire seule part');
+    assert.ok(!cles(toutes).some((c) => c.includes('devis_devis')), 'aucun devis supprimé');
+    assert.ok(p.relies.some((r) => r.id === 'r' && /sa personne/.test(r.raison)));
+    assert.equal(p.relies.filter((r) => r.id === 'v1').length, 1, 'une racine gardée n’est listée qu’une fois');
+    const cl = p.relies.map((r) => `${r.collection}/${r.id}`);
+    assert.equal(new Set(cl).size, cl.length);
+  });
 });
 
 function monde(extra = {}) {

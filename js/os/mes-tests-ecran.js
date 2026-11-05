@@ -112,7 +112,7 @@ export function sectionMesTests(ctx, etat) {
       await charger();
     } catch (e) {
       page.enCours = false;
-      page.message = messageDErreurTests(e);
+      page.message = messageDErreurTests(e, { suppression: true });
       await charger({ garderMessage: true });
     }
   }

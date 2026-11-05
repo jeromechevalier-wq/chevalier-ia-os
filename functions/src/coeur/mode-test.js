@@ -104,17 +104,25 @@ export async function supprimerTousLesTests({ donnees, ctx, apercu = true, empre
   if (rien) return { ok: true, tests: { rien: true, total: 0, comptes: plan.comptes, relies: plan.relies } };
   if (typeof empreinte !== 'string' || empreinte !== vue.empreinte) throw new ErreurDevis('demande_invalide', 'La liste de tes tests a changé depuis l’aperçu : relance l’aperçu.');
   if (plan.devisFinalises.length + plan.reste.length > MAX_ECRITURES) throw new ErreurDevis('demande_invalide', 'Plus de 1000 documents de test : supprime d’abord une partie (devis, puis affaires) un par un.');
-  const ecriture = ecrire ?? ((demande) => executerEcritures({ donnees, ctx, outil, ...demande }));
+  const ctxJournal = { ...ctx, jeton: ctx.jeton ?? ctx.acteur }; // même ligne de journal que `journal()` (devis.js) : l'écran n'a pas de jeton
+  const ecriture = ecrire ?? ((demande) => executerEcritures({ donnees, ctx: ctxJournal, outil, ...demande }));
   const operationIds = { devisFinalises: null, reste: null };
   if (plan.devisFinalises.length) {
-    operationIds.devisFinalises = (await ecriture({ operations: plan.devisFinalises, parametres: { total: plan.total, lot: 'devisFinalises' } })).operationId ?? null;
+    try {
+      operationIds.devisFinalises = (await ecriture({ operations: plan.devisFinalises, parametres: { total: plan.total, lot: 'devisFinalises' } })).operationId ?? null;
+    } catch (e) {
+      const partiel = e?.details?.partiel === true;
+      if (!partiel) throw e; // rien n'a été écrit : l'erreur d'origine (plafond, journal indisponible…) reste telle quelle
+      throw new ErreurDevis('transition_interdite', `Des devis de test ont pu être supprimés (opération ${e.details.operationId ?? 'inconnue'}) : actualise pour voir ce qui reste, puis relance la suppression. ${String(e?.message ?? '').slice(0, 200)}`);
+    }
   }
   if (plan.reste.length) {
     try {
       operationIds.reste = (await ecriture({ operations: plan.reste, parametres: { total: plan.total, lot: 'reste' } })).operationId ?? null;
     } catch (e) {
-      if (!operationIds.devisFinalises) throw e;
-      throw new ErreurDevis('transition_interdite', `Les devis de test sont supprimés (opération ${operationIds.devisFinalises}) mais la suite a échoué : actualise, puis relance la suppression. ${String(e?.message ?? '').slice(0, 200)}`);
+      if (!operationIds.devisFinalises && e?.details?.partiel !== true) throw e;
+      const ou = operationIds.devisFinalises ? `Les devis de test sont supprimés (opération ${operationIds.devisFinalises}) mais la suite a échoué` : `Une partie des éléments a pu être supprimée (opération ${e.details.operationId ?? 'inconnue'})`;
+      throw new ErreurDevis('transition_interdite', `${ou} : actualise, puis relance la suppression. ${String(e?.message ?? '').slice(0, 200)}`);
     }
   }
   const { remis } = await remettreCompteurTest({ donnees, ctx });
