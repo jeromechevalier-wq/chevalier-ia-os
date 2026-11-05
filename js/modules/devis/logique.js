@@ -17,7 +17,7 @@
 // - `numeroDevis`, `dateExpiration` et `transitionPossible` retournent null / false sur une entrée invalide, sans exception.
 // - Une ligne sans taux de TVA propre prend `devis.tauxTvaDefaut`, et à défaut le premier taux de TAUX_TVA_DEFAUT.
 // - Un devis qui n'a pas de `regimeTva` est traité comme « assujetti ».
-import { aujourdhuiParis, ajouterJours } from '../crm/logique.js';
+import { aujourdhuiParis, ajouterJours, estTest } from '../crm/logique.js';
 
 // ---------------------------------------------------------------- constantes
 export const MODES_MARGE = [
@@ -593,8 +593,9 @@ const ligneDetail = (d, compte) => ({ numero: typeof d.numero === 'string' ? d.n
 const PLUS_RECENT = (a, b) => enMillisecondes(b.finaliseLe) - enMillisecondes(a.finaliseLe) || (b.version ?? 1) - (a.version ?? 1) || String(b.id).localeCompare(String(a.id));
 export const MAX_LIGNES_DETAIL = 20;
 /** Rend `{ montant, nature: 'accepte' | 'propose', detail: [{ numero, version, ht, compte }] }` ou null. `detail` est écrit avec le montant : l'écran explique SES chiffres sans recharger les devis. */
-export function montantDesDevis(devisDeLAffaire) {
-  const valides = (devisDeLAffaire ?? []).filter((d) => d && htFige(d) !== null);
+export function montantDesDevis(devisDeLAffaire, affaire = null) {
+  // Mode test (PR 1b) : avec l'affaire, un devis ne compte que si son repère est le même que celui de l'affaire (devis de test sur affaire réelle : ignoré, et l'inverse). Sans affaire : tous les devis.
+  const valides = (devisDeLAffaire ?? []).filter((d) => d && htFige(d) !== null && (!affaire || estTest(d) === estTest(affaire)));
   const acceptes = valides.filter((d) => d.statut === 'accepte').sort(PLUS_RECENT);
   if (acceptes.length) return { montant: montantAccepteHt(acceptes), nature: 'accepte', detail: acceptes.slice(0, MAX_LIGNES_DETAIL).map((d) => ligneDetail(d, true)) };
   const proposes = valides.filter((d) => STATUTS_PROPOSES.includes(d.statut)).sort(PLUS_RECENT);

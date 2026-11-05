@@ -137,7 +137,7 @@ async function montantDeLAffaire(tx, devis, retouches) {
   if (!affaire) return null;
   const liste = (await tx.liste(C.devis, { champ: 'affaireId', valeur: affaireId })).map(enDates);
   if (devis.id && !liste.some((d) => d.id === devis.id) && retouches[devis.id] !== null) liste.push(devis);
-  const calcule = D.montantDesDevis(liste.filter((d) => retouches[d.id] !== null).map((d) => ({ ...d, ...(retouches[d.id] ?? {}) })));
+  const calcule = D.montantDesDevis(liste.filter((d) => retouches[d.id] !== null).map((d) => ({ ...d, ...(retouches[d.id] ?? {}) })), affaire);
   const patch = { montantDevisHt: calcule?.montant ?? null, montantDevisNature: calcule?.nature ?? null, montantDevisDetail: calcule?.detail ?? null };
   const meme = (typeof affaire.montantDevisHt === 'number' ? affaire.montantDevisHt : null) === patch.montantDevisHt && (affaire.montantDevisNature ?? null) === patch.montantDevisNature
     && memeDetail(affaire.montantDevisDetail, patch.montantDevisDetail);

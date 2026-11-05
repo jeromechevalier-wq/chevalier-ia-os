@@ -133,13 +133,13 @@ export function controlesDeploiement() {
 export function rechercher(saisie) {
   const personnes = D.etat.personnes.filter((p) => !p.archive).map((p) => {
     const o = D.organisation(p.organisationId);
-    return { id: p.id, libelle: p.nom, sousTitre: o?.nom || L.premierEmail(p), extra: [o?.nom, ...(p.emails || []).map((e) => e.valeur)].filter(Boolean), chemin: `crm/personnes/${p.id}` };
+    return { id: p.id, libelle: L.libelleAvecTest(p.nom, p.test), sousTitre: o?.nom || L.premierEmail(p), extra: [o?.nom, ...(p.emails || []).map((e) => e.valeur)].filter(Boolean).concat(L.estTest(p) ? ['test'] : []), chemin: `crm/personnes/${p.id}` };
   });
-  const organisations = D.etat.organisations.filter((o) => !o.archive).map((o) => ({ id: o.id, libelle: o.nom, sousTitre: o.ville || '', chemin: `crm/organisations/${o.id}` }));
+  const organisations = D.etat.organisations.filter((o) => !o.archive).map((o) => ({ id: o.id, libelle: L.libelleAvecTest(o.nom, o.test), sousTitre: o.ville || '', extra: L.estTest(o) ? ['test'] : [], chemin: `crm/organisations/${o.id}` }));
   const affaires = D.etat.affaires.filter((a) => !a.archive).map((a) => {
     const p = D.personne(a.personneId);
     const o = D.organisation(a.organisationId);
-    return { id: a.id, libelle: a.titre, sousTitre: [o?.nom, p?.nom].filter(Boolean).join(' · '), extra: [o?.nom, p?.nom].filter(Boolean), chemin: `crm/affaires/${a.id}` };
+    return { id: a.id, libelle: L.libelleAvecTest(a.titre, a.test), sousTitre: [o?.nom, p?.nom].filter(Boolean).join(' · '), extra: [o?.nom, p?.nom].filter(Boolean).concat(L.estTest(a) ? ['test'] : []), chemin: `crm/affaires/${a.id}` };
   });
   const groupe = (titre, elements) => ({ titre, resultats: L.rechercherSuggestions(saisie, elements, {}).resultats });
   return { groupes: [groupe('Personnes', personnes), groupe('Organisations', organisations), groupe('Affaires', affaires)].filter((g) => g.resultats.length) };

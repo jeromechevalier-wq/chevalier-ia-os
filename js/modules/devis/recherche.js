@@ -2,7 +2,7 @@
 // Rôle distinct du champ de la liste des devis : la barre du haut OUVRE un résultat, le champ de la liste FILTRE la liste.
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
-import { rechercherSuggestions } from '../crm/logique.js';
+import { rechercherSuggestions, estTest, libelleAvecTest } from '../crm/logique.js';
 
 /** Client (organisation, sinon personne) et affaire d'un devis, lus dans le CRM. */
 function nomsDuDevis(d) {
@@ -16,7 +16,7 @@ function nomsDuDevis(d) {
 export function rechercherDevis(saisie) {
   const elements = D.etat.devis.filter((d) => d.archive !== true && d.statut !== 'remplace').map((d) => {
     const n = nomsDuDevis(d);
-    return { id: d.id, libelle: d.numero || String(d.nom ?? '').trim() || 'Brouillon', sousTitre: [d.numero ? String(d.nom ?? '').trim() : '', n.client, n.affaire].filter(Boolean).join(' · '), extra: [d.nom, n.client, n.affaire].filter(Boolean), chemin: d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}` };
+    return { id: d.id, libelle: libelleAvecTest(d.numero || String(d.nom ?? '').trim() || 'Brouillon', d.test), sousTitre: [d.numero ? String(d.nom ?? '').trim() : '', n.client, n.affaire].filter(Boolean).join(' · '), extra: [d.nom, n.client, n.affaire].filter(Boolean).concat(estTest(d) ? ['test'] : []), chemin: d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}` };
   });
   const resultats = rechercherSuggestions(saisie, elements, {}).resultats;
   return { groupes: resultats.length ? [{ titre: 'Devis', resultats }] : [] };

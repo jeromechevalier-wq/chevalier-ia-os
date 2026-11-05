@@ -362,3 +362,27 @@ describe('N10 archiver ne rattrape pas une affaire périmée', () => {
     assert.notEqual(m.collections[C.devis].find((d) => d.id === 'd1').archive, true);
   });
 });
+
+// Mode test (PR 1b, docs/cadrage-mode-test.md §7) : un devis compte seulement si son repère est le même que celui de l'affaire.
+describe('N11 à N14 mode test : le repère de l’affaire et celui des devis', () => {
+  const accepte = (id, extra = {}) => ({ id, statut: 'accepte', numero: `DEV-${id}`, version: 1, finaliseLe: new Date('2026-10-20T10:00:00Z'), totaux: { ht: 100 }, ...extra });
+  test('N11 devis de test accepté à 100 € HT sur une affaire réelle : ignoré (le montant saisi est gardé)', () => {
+    assert.equal(montantDesDevis([accepte('t', { test: true })], { id: 'aff1' }), null);
+  });
+  test('N12 devis de test accepté à 100 € HT sur une affaire de test : compté', () => {
+    assert.equal(montantDesDevis([accepte('t', { test: true })], { id: 'aff1', test: true }).montant, 100);
+  });
+  test('N13 devis réel accepté sur une affaire de test : ignoré ; sans affaire : la règle d’avant (tout compte)', () => {
+    assert.equal(montantDesDevis([accepte('r')], { id: 'aff1', test: true }), null);
+    assert.equal(montantDesDevis([accepte('r'), accepte('t', { test: true })]).montant, 200);
+    assert.equal(montantDesDevis([accepte('r'), accepte('t', { test: true })], { id: 'aff1' }).montant, 100);
+  });
+  test('N14 recalculer_montants_affaires applique la même règle (le serveur passe l’affaire)', async () => {
+    const m = monde({ devis: [{ ...brouillon('dt', 100), statut: 'accepte', numero: 'DEV-T', totaux: { ht: 100, ttc: 120 }, test: true, finaliseLe: new Date('2026-10-20T10:00:00Z') }, { ...brouillon('dr', 100), statut: 'accepte', numero: 'DEV-R', totaux: { ht: 1200, ttc: 1440 }, finaliseLe: new Date('2026-10-20T10:00:00Z') }] });
+    await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true });
+    assert.equal(affaireDe(m).montantDevisHt, 1200, 'affaire réelle : seul le devis réel compte');
+    m.collections[C.affaires][0].test = true;
+    await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true });
+    assert.equal(affaireDe(m).montantDevisHt, 100, 'affaire de test : seul le devis de test compte');
+  });
+});

@@ -75,7 +75,7 @@ export function rechercher(saisie) {
   const projets = D.etat.projets.filter((p) => !p.archive).map((p) => {
     const pers = CRM.personne(p.personneId);
     const org = CRM.organisation(p.organisationId);
-    return { id: p.id, libelle: p.titre, sousTitre: [org?.nom, pers?.nom].filter(Boolean).join(' · '), extra: [org?.nom, pers?.nom].filter(Boolean), chemin: `projets/projets/${p.id}` };
+    return { id: p.id, libelle: L.libelleAvecTest(p.titre, p.test), sousTitre: [org?.nom, pers?.nom].filter(Boolean).join(' · '), extra: [org?.nom, pers?.nom].filter(Boolean).concat(L.estTest(p) ? ['test'] : []), chemin: `projets/projets/${p.id}` };
   });
   const resultats = L.rechercherSuggestions(saisie, projets, {}).resultats;
   return { groupes: resultats.length ? [{ titre: 'Projets', resultats }] : [] };
