@@ -38,6 +38,9 @@ test('4 graphique « Chiffre d’affaires encaissé » : une facture payée de 1
   await connecter(page);
   const colonne = page.locator(`.colonne-ca[data-mois="${mois}"]`);
   await expect(colonne).toBeVisible();
+  // Signal de chargement AVANT le négatif : le projet de test est bien dans l'état de l'écran (sinon l'absence de « 100 » pourrait être vraie à vide).
+  await expect.poll(() => page.evaluate(async () => (await import('/js/modules/projets/donnees.js')).etat.projets.length)).toBe(1);
+  await expect(colonne).toBeVisible();
   await expect(colonne.locator('.colonne-valeur')).not.toContainText('100');
   await creerProjet('prR', { titre: 'Chantier réel', factures: [{ ...facture, id: 'f2' }] });
   await expect(colonne.locator('.colonne-valeur')).toContainText('100');
