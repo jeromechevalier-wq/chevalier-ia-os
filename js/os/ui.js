@@ -311,7 +311,7 @@ export function estTelephone() {
  * items : [{ libelle, icone, action, danger, desactive }] ; autres éléments possibles :
  *  - { texte } : ligne d'information, non cliquable (ex. l'adresse e-mail) ;
  *  - { separateur: true } : fine ligne de séparation ;
- *  - { noeud } : bouton déjà fabriqué (ex. la bascule de thème) ; le menu reste ouvert quand on l'utilise.
+ *  - { noeud } : bouton déjà fabriqué (ex. la bascule de thème, le Mode test ; garde son `role` s'il en a un) ; le menu reste ouvert quand on l'utilise.
  * Se ferme au clic extérieur (souris ou toucher), à Échap et au choix d'une entrée ; le focus revient alors à `ancre`.
  * Clavier : flèches et Tab passent d'une entrée à l'autre, Entrée choisit. Renvoie la fonction de fermeture.
  */
@@ -339,7 +339,7 @@ export function ouvrirMenu(ancre, items, { placement = 'bas', id = null } = {}) 
   for (const it of items) {
     if (it.separateur) { menu.append(h('div', { class: 'menu-pop-separateur', role: 'separator' })); continue; }
     if (it.texte !== undefined) { menu.append(h('div', { class: 'menu-pop-texte', role: 'presentation' }, it.texte)); continue; }
-    if (it.noeud) { it.noeud.setAttribute('role', 'menuitem'); menu.append(it.noeud); continue; }
+    if (it.noeud) { if (!it.noeud.hasAttribute('role')) it.noeud.setAttribute('role', 'menuitem'); menu.append(it.noeud); continue; }
     menu.append(h('button', {
       type: 'button', role: 'menuitem', class: `menu-pop-entree${it.danger ? ' danger' : ''}`, disabled: !!it.desactive, title: it.titreInfo ?? null, // titreInfo : la phrase qui dit pourquoi l'entrée est grisée
       onclick: () => { fermer(); it.action?.(); },

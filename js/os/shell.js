@@ -187,6 +187,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
       ...(idsModules.includes('affaires') ? [{ libelle: 'Voir le journal des modifications', icone: 'history', action: allerDepuisMenu('crm/journal') }] : []),
       ...(idsModules.includes('mcp') ? [{ libelle: 'Connecter mon ChatGPT', icone: 'link', action: allerDepuisMenu('mcp/infos') }] : []),
       { noeud: boutonTheme('menu-pop-entree') },
+      { noeud: boutonModeTest },
       { separateur: true },
       { libelle: 'Se déconnecter', icone: 'log-out', action: surDeconnexion },
     ];
@@ -254,14 +255,12 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   poserLargeur(largeur);
   majPoignee();
 
-  // Mode test : bouton à part dans le bas du menu (visible sur toutes les pages et dans le tiroir du téléphone), PAS une entrée `menu-entree`.
-  const boutonModeTest = h('button', { type: 'button', class: 'menu-mode-test', dataset: { role: 'mode-test' }, onclick: () => definirModeTest(!modeTestAllume()) });
+  // Mode test : entrée du menu « Jérôme » (après le thème). Cliquer bascule le mode et le menu RESTE ouvert, comme le thème.
+  const boutonModeTest = h('button', { type: 'button', class: 'menu-pop-entree menu-pop-mode-test', role: 'menuitemcheckbox', dataset: { role: 'mode-test' }, onclick: () => definirModeTest(!modeTestAllume()) });
   const majModeTest = () => {
     const v = modeTestAllume();
-    remplir(boutonModeTest, icone('flask-conical', { taille: 20 }), h('span', { class: 'menu-texte' }, 'Mode test'));
-    boutonModeTest.setAttribute('aria-pressed', String(v));
-    boutonModeTest.setAttribute('aria-label', v ? 'Mode test, allumé' : 'Mode test, éteint');
-    boutonModeTest.dataset.infobulle = v ? 'Mode test, allumé' : 'Mode test, éteint';
+    remplir(boutonModeTest, icone('flask-conical', { taille: 16 }), h('span', { class: 'menu-pop-mode-test-texte' }, 'Mode test'), v ? icone('check', { taille: 16, classe: 'menu-pop-coche' }) : null);
+    boutonModeTest.setAttribute('aria-checked', String(v));
   };
   majModeTest();
   // Bandeau orange tant que le mode est allumé : élément propre de la zone, non collant, avec son bouton « Éteindre ».
@@ -270,12 +269,12 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     h('button', { type: 'button', class: 'bouton', dataset: { role: 'eteindre-mode-test' }, onclick: () => definirModeTest(false) }, 'Éteindre'));
   const majBandeauTest = () => { bandeauTest.hidden = !modeTestAllume(); };
   majBandeauTest();
-  surModeTest(() => { majModeTest(); majBandeauTest(); });
+  arretsEcoutes.push(surModeTest(() => { majModeTest(); majBandeauTest(); }));
 
   const menu = h('aside', { class: 'menu', id: 'menu', 'aria-label': 'Menu principal' },
     h('div', { class: 'menu-marque' }, marqueNom, boutonRepli),
     nav,
-    h('div', { class: 'menu-bas' }, boutonModeTest, boutonCompte));
+    h('div', { class: 'menu-bas' }, boutonCompte));
 
   const boutonMobile = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Ouvrir le menu', 'aria-controls': 'menu', 'aria-expanded': 'false', dataset: { role: 'ouvrir-menu' },
     onclick: () => ouvrirMobile(!coquille.classList.contains('menu-ouvert')) }, icone('menu', { taille: 22 }));

@@ -15,7 +15,7 @@ Ces règles viennent de Jérôme (non-développeur). Elles valent pour tous les 
 - Les liens vers la personne et l'organisation, en haut de l'affaire et du projet, apparaissent et disparaissent tout de suite quand on choisit ou retire dans le Résumé, sans recharger la page. Taper dans une cellule remplie ne retire rien ; seule la croix retire. *(2026-10-22)*
 
 ## Mode test : interrupteur et bandeau (02/11/2026)
-- Le bouton **« Mode test »** vit en bas du **menu latéral** (au-dessus du compte), pas dans la barre du haut : il est ainsi sur toutes les pages (Réglages comprise) et dans le tiroir du téléphone. Ce n'est pas une entrée `menu-entree`. Éteint par défaut, mémorisé par navigateur ; menu replié : icône seule et infobulle « Mode test, allumé / éteint ».
+- L'interrupteur **« Mode test »** vit dans le **menu qui s'ouvre sur le nom de l'utilisateur** (« Jérôme », en bas du menu latéral), juste **après la bascule de thème**, avant le séparateur ; il n'y a plus de bouton à part en bas du menu. Cliquer bascule le mode et **le menu reste ouvert**, comme le thème. Nom accessible exactement « Mode test », `role="menuitemcheckbox"` avec `aria-checked`, icône et coche quand il est allumé. Éteint par défaut, mémorisé par navigateur.
 - Allumé : **bandeau orange** non collant en haut de la zone de contenu (« MODE TEST : … ») avec un bouton **« Éteindre »**, et un liseré orange intérieur. Couleurs du thème seulement (`--attention`), jamais de taille ou de poids de texte en dur.
 - Tout ce qui est créé à l'écran pendant que le mode est allumé reçoit `test: true` (valeur lue au clic « Enregistrer »). Les réglages et le catalogue ne sont jamais marqués.
 
