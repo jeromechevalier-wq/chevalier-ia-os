@@ -30,7 +30,13 @@ describe('socle commun : couche de données', () => {
     }
     for (const f of ['js/os/modules.js', 'js/os/registre.js', 'js/os/espace.js', 'js/os/shell.js', 'js/os/reglages.js']) assert.ok(!/noyau: true/.test(lire(f)), f);
     for (const dossier of ['devis', 'projets']) {
-      for (const f of readdirSyncFichiers(`js/modules/${dossier}`)) assert.ok(!/noyau/i.test(lire(f)), f);
+      for (const f of readdirSyncFichiers(`js/modules/${dossier}`)) {
+        const t = lire(f);
+        assert.ok(!/noyau: true/i.test(t), `${f} ne démarre jamais le mode noyau`);
+        // PR C1 : un seul point d'entrée du socle dans Devis, `surSocleSeul` (js/modules/devis/donnees.js) ; nulle part ailleurs dans devis ni projets.
+        assert.equal(occurrences(t, 'estNoyau('), f.endsWith('js/modules/devis/donnees.js') ? 1 : 0, f);
+        assert.ok(f.endsWith('js/modules/devis/donnees.js') || !/noyau/i.test(t), f);
+      }
     }
   });
   test('S2 les listes du socle et du complet', () => {

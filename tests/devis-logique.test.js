@@ -436,4 +436,10 @@ describe('SA devis sans affaire (28/10/2026) : le brouillon se crée sans affair
     assert.equal(D.MESSAGE_AFFAIRE_MANQUANTE, 'Choisis l\'affaire de ce devis.');
     assert.ok(!D.erreursFinalisation({ ...d, affaireId: 'a1' }, OPTIONS_FINALISATION).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
   });
+  test('SA5 affaireRequise: false (Devis seul) ne nomme plus l’affaire ; sans l’option, l’affaire reste exigée (SA3)', () => {
+    const d = devisType({ affaireId: null, destinataires: [{ email: 'a@b.fr' }] });
+    assert.ok(!D.erreursFinalisation(d, { ...OPTIONS_FINALISATION, affaireRequise: false }).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
+    assert.ok(D.erreursFinalisation(d, { ...OPTIONS_FINALISATION, affaireRequise: true }).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
+    assert.ok(D.erreursFinalisation(d, OPTIONS_FINALISATION).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
+  });
 });

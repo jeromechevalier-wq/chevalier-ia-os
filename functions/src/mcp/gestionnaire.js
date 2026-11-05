@@ -161,7 +161,7 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
   for (const outil of permis) {
     serveur.registerTool(outil.nom, { description: outil.description, annotations: annotationsDe(outil), ...(outil.meta ? { _meta: outil.meta } : {}), ...(outil.schema ? { inputSchema: outil.schema } : {}) }, async (args) => {
       const contexte = {
-        acteur: jeton.acteur, email: jeton.email, profil: jeton.profil, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), nomServeur, args, donnees: donneesComptees, maintenant: ctxEcriture.maintenant,
+        acteur: jeton.acteur, email: jeton.email, profil: jeton.profil, actifs: jeton.actifs ?? null, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), nomServeur, args, donnees: donneesComptees, maintenant: ctxEcriture.maintenant,
         ecrire: (demande) => ecrire({ ...demande, outil: outil.nom }),
         restaurer,
         // Stockage des fichiers (onglet « Documents ») : fonction qui rend le stockage, ou null s'il est introuvable. `espace` : '' chez Jérôme, 'clients/<client>/' chez un client.

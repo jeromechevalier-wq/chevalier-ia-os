@@ -213,7 +213,7 @@ export const lire_devis = {
     format: z.enum(['complet', 'recapitulatif']).optional().describe("'recapitulatif' : structure courte pour redire le devis (défaut : 'complet')."),
     avecPrix: z.boolean().optional().describe("Avec format 'recapitulatif' : true ajoute le prix de vente unitaire et le total hors taxes de chaque ligne (jamais le prix d'achat ni la marge)."),
   },
-  executer: ({ args, donnees, maintenant }) => lecture.lireDevis(donnees, args, maintenant),
+  executer: ({ args, donnees, maintenant, actifs }) => lecture.lireDevis(donnees, args, maintenant, { affaireRequise: !Array.isArray(actifs) || actifs.includes('affaires') }),
 };
 
 // Garantie « aucun e-mail ne part tout seul » (29/10/2026) : le seul moyen d'obtenir le PDF d'un devis. Ne fabrique rien (le PDF est fait par le serveur à la finalisation).

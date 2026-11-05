@@ -951,7 +951,7 @@ const nombreDeLignes = (sections) => (sections ?? []).reduce((n, s) => n + (s.li
 export async function creerDevisBrouillon(c, args) {
   const { affaireId, objet, nom, personneId, organisationId, destinataires, copie, sections, lignes, remise, marge, tauxTvaDefaut, proprietaire } = args;
   if (organisationId && personneId) refuser('saisie_invalide', 'Un devis a un seul client : donner organisationId OU personneId, pas les deux.');
-  const affaire = await lireSiDonne(c, C.affaires, affaireId, 'Affaire'); // facultative : un brouillon vit sans affaire, mais finaliser_devis l'exige
+  const affaire = await lireSiDonne(c, C.affaires, affaireId, 'Affaire'); // facultative : un brouillon vit sans affaire, mais finaliser_devis l'exige seulement si le module Affaires est actif
   const organisation = await lireSiDonne(c, C.organisations, organisationId ?? (personneId ? null : affaire?.organisationId), 'Organisation');
   const personne = await lireSiDonne(c, C.personnes, personneId ?? (organisation ? null : affaire?.personneId), 'Personne');
   const client = organisation ? { type: 'organisation', fiche: organisation } : personne ? { type: 'personne', fiche: personne } : null;
@@ -1377,7 +1377,8 @@ export async function finaliserDevis(c, args) {
   const devis = await lire(c, C.devis, args.id, 'Devis');
   if (devis.statut !== 'brouillon') refuser('saisie_invalide', 'Ce devis est déjà finalisé : pour le corriger, créer la version suivante avec nouvelle_version_devis.');
   const reglages = await reglagesDuDevis(c); // lus avant le contrôle : « Mon entreprise » fait partie des règles de finalisation
-  const erreurs = D.erreursFinalisation(devis, { emetteur: reglages.entreprise, aujourdhui: L.aujourdhuiParis(c.maintenant) });
+  const affaireRequise = !Array.isArray(c.actifs) || c.actifs.includes('affaires'); // Devis seul (modules actifs sans Affaires) : un devis se finalise sans affaire
+  const erreurs = D.erreursFinalisation(devis, { emetteur: reglages.entreprise, aujourdhui: L.aujourdhuiParis(c.maintenant), affaireRequise });
   if (erreurs.length) refuser('saisie_invalide', `Ce devis ne peut pas être finalisé, rien n'a été écrit. À corriger : ${listeErreurs(erreurs)}`, { erreurs });
   const jeton = c.jeton ?? c.acteur;
   // Essai ou réel ? Même règle que la finalisation (D.decisionTestFinalisation) : le devis, son affaire, la fiche du client, le numéro de la racine.
@@ -1407,7 +1408,7 @@ export async function finaliserDevis(c, args) {
   await c.reserverEcriture?.(); // plafond d'écriture réservé seulement après un code valable (un code faux ou expiré ne coûte aucune écriture)
   let r;
   try {
-    r = await finaliserServeur({ donnees: c.donnees, ctx: { acteur: c.acteur, jeton, via: 'mcp', maintenant: c.maintenant }, devisId: devis.id });
+    r = await finaliserServeur({ donnees: c.donnees, ctx: { acteur: c.acteur, jeton, via: 'mcp', maintenant: c.maintenant, affaireRequise }, devisId: devis.id });
   } catch (e) {
     if (e instanceof ErreurDevis) refuser('saisie_invalide', e.message);
     throw e;

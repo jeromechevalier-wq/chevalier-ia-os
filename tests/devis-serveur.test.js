@@ -617,4 +617,11 @@ describe('SA devis sans affaire (28/10/2026) : la fonction devisFinaliser refuse
     m.collections[C.devis][0].affaireId = 'aff1';
     assert.equal((await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' })).ok, true);
   });
+  test('SA6 affaireRequise: false (Devis seul) : un devis sans affaire se finalise ; le contexte ordinaire reste SA4', async () => {
+    const m = monde([brouillon('d1', { affaireId: null })]);
+    assert.equal((await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' })).ok, false);
+    const r = await S.finaliser({ donnees: m.donnees, ctx: ctx({ affaireRequise: false }), devisId: 'd1' });
+    assert.equal(r.ok, true, JSON.stringify(r.erreurs));
+    assert.ok(r.numero);
+  });
 });

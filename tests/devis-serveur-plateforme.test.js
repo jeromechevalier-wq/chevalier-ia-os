@@ -21,23 +21,27 @@ const FICHES = {
   'clients/a': { modules: { affaires: true, devis: true } },
   'clients/b': { modules: { affaires: true, devis: true } },
   'clients/c': { modules: { affaires: true } },
+  'clients/d': { modules: { devis: true } }, // Devis seul (PR C1) : ni Affaires ni Projets
   [`clients/a/membres/${ALICE}`]: { role: 'editeur' },
   [`clients/a/membres/${LEA}`]: { role: 'lecteur' },
   [`clients/b/membres/${BOB}`]: { role: 'editeur' },
   [`clients/c/membres/${ZOE}`]: { role: 'editeur' },
+  [`clients/d/membres/${ALICE}`]: { role: 'editeur' },
 };
 const fauxDb = { doc: (chemin) => ({ get: async () => { const f = FICHES[chemin]; return { exists: Boolean(f), get: (champ) => f?.[champ] }; } }) };
 const auth = (email, verifie = true) => ({ uid: `uid-${email}`, token: { email, email_verified: verifie } });
 
-function brouillon(id) {
-  const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1' }, { id, maintenant: new Date(MAINTENANT), auteur: ALICE }, { marge: 20, margeDevis: 20 });
+function brouillon(id, affaireId = 'aff1') {
+  const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId }, { id, maintenant: new Date(MAINTENANT), auteur: ALICE }, { marge: 20, margeDevis: 20 });
   return completerPourFinaliser({ ...d, sections: [{ id: 's', titre: 'T', lignes: [{ id: 'l', libelle: 'Article', unite: 'u', quantite: 1, prixAchat: 10 }] }] });
 }
 function monde() {
   const collections = {};
-  for (const c of ['a', 'b', 'c']) Object.assign(collections, { [`clients/${c}/devis_devis`]: [], [`clients/${c}/devis_compteurs`]: [], [`clients/${c}/crm_audit`]: [], [`clients/${c}/crm_audit_avant`]: [], [`clients/${c}/devis_parametres`]: [{ id: 'reglages', regimeTva: 'assujetti', entreprise: EMETTEUR_ESSAI }], [`clients/${c}/crm_personnes`]: [{ id: 'p1', nom: 'Client Essai' }] });
+  for (const c of ['a', 'b', 'c', 'd']) Object.assign(collections, { [`clients/${c}/devis_devis`]: [], [`clients/${c}/devis_compteurs`]: [], [`clients/${c}/crm_audit`]: [], [`clients/${c}/crm_audit_avant`]: [], [`clients/${c}/devis_parametres`]: [{ id: 'reglages', regimeTva: 'assujetti', entreprise: EMETTEUR_ESSAI }], [`clients/${c}/crm_personnes`]: [{ id: 'p1', nom: 'Client Essai' }] });
   collections['clients/a/devis_devis'].push(brouillon('da'));
   collections['clients/b/devis_devis'].push(brouillon('db'));
+  collections['clients/d/devis_devis'].push(brouillon('dd', null));
+  collections['clients/a/devis_devis'].push(brouillon('da-sans', null));
   const brut = creerAccesMemoire(collections);
   return { collections, creerDonnees: (client) => avecBase(brut, `clients/${client}`) };
 }
@@ -46,6 +50,20 @@ const refus = async (promesse, code) => {
   await assert.rejects(promesse, (e) => e instanceof Refus && (!code || e.code === code), `refus ${code ?? ''} attendu`);
 };
 const OPERATIONS = { finaliser: { devisId: 'da' }, changerStatut: { devisId: 'da', action: 'marquer_envoye' }, nouvelleVersion: { devisId: 'da' }, archiver: { devisId: 'da', archive: true }, enregistrerEnvoi: { devisId: 'da', destinataires: ['client@exemple.test'] }, marquerTest: { devisId: 'da', test: true } };
+
+describe('C7-S plateforme : l\'affaire n\'est exigée à la finalisation que si le module Affaires est actif (PR C1)', () => {
+  test('C7-S client d (Devis seul) : un devis sans affaire se finalise (numéro attribué) ; client a (Affaires) : le même devis est refusé', async () => {
+    const m = monde();
+    const seul = await appeler(m, 'finaliser', ALICE, { client: 'd', devisId: 'dd' });
+    assert.equal(seul.ok, true);
+    assert.equal(seul.numero, 'DEV-2026-10-24-001');
+    assert.equal(m.collections['clients/d/devis_devis'][0].statut, 'en_attente_envoi');
+    const avec = await appeler(m, 'finaliser', ALICE, { client: 'a', devisId: 'da-sans' });
+    assert.equal(avec.ok, false);
+    assert.deepEqual(avec.erreurs, ['Choisis l\'affaire de ce devis.']);
+    assert.equal(m.collections['clients/a/devis_devis'][1].statut, 'brouillon');
+  });
+});
 
 describe('C7 plateforme : qui peut appeler les fonctions de devis', () => {
   test('C7 une éditrice de l’espace a avec le module devis actif finalise son devis, dans son espace seulement', async () => {

@@ -3,7 +3,7 @@
 // créer la version suivante et archiver passent par les quatre fonctions du serveur (devisFinaliser, devisChangerStatut, devisNouvelleVersion, devisArchiver), qui revérifient tout.
 // Les règles (quoi écrire) sont dans articles.js (plans, partagés avec l'assistant) ; ici : lire, puis exécuter le plan avec le même journal que le CRM
 // (`executer` de crm/donnees.js : chaque écriture laisse sa trace dans le même lot que la donnée). Les réglages s'écrivent sans journal (comme les paramètres du CRM).
-// Le module lit le CRM (étapes des affaires) par crm/donnees.js ; le CRM démarre avant lui.
+// Le module lit le CRM (étapes des affaires) par crm/donnees.js ; le socle (personnes, organisations, journal) démarre avant lui ; le CRM complet si Affaires est actif.
 import { collection, doc, onSnapshot, setDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { db, app } from '../../os/firebase.js';
@@ -105,9 +105,12 @@ export function relancerVocabulaire() {
   ecouterVocabulaire();
 }
 
+/** Vrai quand seul le socle tourne (pas d'Affaires) : seul point d'entrée du socle dans le module. */
+export const surSocleSeul = () => CRM.estNoyau();
+
 export function demarrer(base = '') {
-  // Le CRM démarre d'abord (ordre du registre) et fixe le chemin : on refuse un désaccord plutôt que d'écrire à deux endroits.
-  if (base !== CRM.cheminDeBase()) throw new Error('Le module Devis doit utiliser le même chemin de base que les affaires');
+  // Le socle commun (personnes, organisations, journal) est démarré par la coque avant tout module, sur le chemin de l'espace ; Devis écrit par son journal (CRM.executer). On refuse de démarrer sans lui ou sur un autre chemin, plutôt que d'écrire à deux endroits.
+  if (!CRM.ecoutesDemarrees().length || base !== CRM.cheminDeBase()) throw new Error('Le module Devis doit démarrer après le socle commun, sur le même chemin de base');
   desabonnements.push(onSnapshot(collection(db, chemin(A.COLLECTION_ARTICLES)), (snap) => {
     const docs = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
     const sig = empreinte(docs);

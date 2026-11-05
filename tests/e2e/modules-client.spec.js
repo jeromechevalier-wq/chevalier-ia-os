@@ -2,7 +2,7 @@
 // puis les règles du CRM remises). Un client voit le menu et les écrans de ses seuls modules actifs, sous clients/<client>/…
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, estTelephone, ouvrirSectionReglages, choisirDansMenuUtilisateur, ouvrirMenuUtilisateur, attendreCalme, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, estTelephone, ouvrirSectionReglages, choisirDansMenuUtilisateur, ouvrirMenuUtilisateur, attendreCalme, listerDocuments, CHANTIER_ESSAI, PROJET, FIRESTORE, URL_APP } from './outils.js';
 
 const CRM = '/js/modules/crm/donnees.js';
 const CAPTURES = fileURLToPath(new URL('./captures/modules-client/', import.meta.url));
@@ -37,7 +37,7 @@ function personne(nom) {
 }
 
 test.beforeEach(async () => {
-  for (const [id, nom] of [['cabinet', 'Cabinet Martin'], ['studio', 'Studio Lune'], ['vide', 'Maison Vide'], ['faux', 'Atelier Faux'], ['plein', 'Maison Pleine'], ['veilleseule', 'Veille Seule']]) {
+  for (const [id, nom] of [['cabinet', 'Cabinet Martin'], ['studio', 'Studio Lune'], ['vide', 'Maison Vide'], ['faux', 'Atelier Faux'], ['plein', 'Maison Pleine'], ['veilleseule', 'Veille Seule'], ['devisseul', 'Devis Seul']]) {
     await ecrireDocument(`marques/${id}`, { actif: true, nom, couleur: '#336699', accueil: 'Bienvenue.' });
   }
   await ecrireDocument('clients/cabinet', { modules: { affaires: true, projets: false } });
@@ -49,6 +49,22 @@ test.beforeEach(async () => {
   await ecrireDocument(`clients/plein/membres/${LEA}`, { role: 'lecteur' });
   await ecrireDocument('clients/veilleseule', { modules: { veille: true } });
   await ecrireDocument('clients/veilleseule/membres/' + ALICE, { role: 'editeur' });
+  // « devisseul » (PR C1) : le seul module Devis, sans Affaires ; « Mon entreprise » complète et un brouillon prêt à finaliser
+  await ecrireDocument('clients/devisseul', { modules: { devis: true } });
+  await ecrireDocument('clients/devisseul/membres/' + ALICE, { role: 'editeur' });
+  await ecrireDocument('clients/devisseul/devis_parametres/reglages', {
+    regimeTva: 'assujetti',
+    entreprise: { nom: 'Atelier Exemple', siret: '123 456 789 00012', adresse: { ligne1: '3 rue de l’Atelier', codePostal: '75001', ville: 'Paris' }, assuranceTexte: 'Assurance décennale : Assureur Exemple, contrat numéro : 123, territorialité : France métropolitaine.' },
+  });
+  await ecrireDocument('clients/devisseul/crm_personnes/pz', personne('Zoé Prête'));
+  for (const [id, lignes] of [['dPret', [{ id: 'l1', libelle: 'Carrelage', familleId: 'famille-1', type: 'fourniture', quantite: 1, unite: 'u', prixAchat: 80, prixVente: 100, tauxTva: 20 }]], ['dVide', []]]) {
+    const maintenant = new Date();
+    await ecrireDocument(`clients/devisseul/devis_devis/${id}`, {
+      racineId: id, version: 1, numero: null, statut: 'brouillon', affaireId: null, personneId: 'pz', organisationId: null, modeMarge: 'majoration', marge: 25, tauxTvaDefaut: 20,
+      regimeTva: 'assujetti', autoliquidation: false, archive: false, dureeValiditeJours: 90, expireLe: '2099-12-31', objet: 'Rénovation', destinataires: ['zoe@exemple.test'],
+      sections: [{ id: 's1', titre: 'Cuisine', lignes }], chantier: CHANTIER_ESSAI, creePar: ALICE, modifiePar: ALICE, proprietaire: ALICE, creeLe: maintenant, modifieLe: maintenant,
+    });
+  }
   // « vide » n'a pas de document clients/vide : aucun module actif
   for (const c of ['cabinet', 'studio', 'vide', 'faux']) await ecrireDocument(`clients/${c}/membres/${ALICE}`, { role: 'editeur' });
   await ecrireDocument(`clients/cabinet/membres/${LEA}`, { role: 'lecteur' });
@@ -303,4 +319,126 @@ test('R13 un client « Veille seul » : le socle commun tourne, invisible (deux 
   await choisirDansMenuUtilisateur(page, 'Se déconnecter');
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
   expect((await etatSocle(page)).ecoutes).toEqual([]);
+});
+
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
+/** Intercepte devisFinaliser : note le corps des appels et répond `reponse`. */
+async function simulerFinalisation(page, reponse) {
+  const appels = [];
+  await page.route('**/devisFinaliser', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+    appels.push(JSON.parse(route.request().postData() || '{}'));
+    return route.fulfill({ status: 200, headers: CORS, body: JSON.stringify({ result: reponse }) });
+  });
+  return appels;
+}
+
+test.describe('R14 Devis seul (sans Affaires ni Projets) : le socle commun porte les fiches, un devis se finalise sans affaire', () => {
+  test('R14-1 le client « devisseul » ouvre la coque sur la liste des devis, titre « Devis Seul »', async ({ page }) => {
+    await ouvrir(page, 'devisseul');
+    await expect(page.locator('.coquille')).toBeVisible();
+    await expect(page).toHaveURL(/#\/espace\/devisseul\/devis\/liste$/);
+    await expect(page).toHaveTitle('Devis Seul');
+  });
+
+  test('R14-2 le menu n\'a qu\'une entrée « Devis » : ni Accueil, ni Personnes, ni Organisations, ni Affaires, ni Projets', async ({ page }) => {
+    await ouvrir(page, 'devisseul');
+    await expect(page.locator('.coquille')).toBeVisible();
+    await ouvrirMenu(page);
+    await expect(menu(page).getByRole('link', { name: 'Devis', exact: true })).toHaveCount(1);
+    for (const lib of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(0);
+    if (estTelephone(page)) await page.keyboard.press('Escape');
+  });
+
+  test('R14-3 le socle tourne en mode noyau (personnes, organisations) sur le chemin du client ; le module Devis a lu ses collections', async ({ page }) => {
+    await ouvrir(page, 'devisseul');
+    await expect(page.locator('.page-liste-devis')).toBeVisible();
+    await expect.poll(async () => (await etatSocle(page)).pret.personnes).toBe(true);
+    await expect.poll(async () => (await etatSocle(page)).pret.organisations).toBe(true);
+    const e = await etatSocle(page);
+    expect(e.ecoutes).toEqual(['personnes', 'organisations']);
+    expect(e.noyau).toBe(true);
+    expect(e.base).toBe('clients/devisseul');
+    const devis = await page.evaluate(async () => (await import('/js/modules/devis/donnees.js')).estPret());
+    expect(devis).toBe(true);
+  });
+
+  test('R14-4 cas vide : « Aucun devis pour l\'instant. » ; « Nouveau devis » ouvre l\'éditeur et crée un brouillon sans affaire', async ({ page }) => {
+    for (const id of ['dPret', 'dVide']) await fetch(`${FIRESTORE}/v1/projects/${PROJET}/databases/(default)/documents/clients/devisseul/devis_devis/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer owner' } });
+    await ouvrir(page, 'devisseul');
+    await expect(page.locator('.page-liste-devis')).toBeVisible();
+    await expect(page.locator('.page-liste-devis')).toContainText('Aucun devis pour l’instant.');
+    const avant = (await listerDocuments('clients/devisseul/devis_devis')).length;
+    expect(avant).toBe(0);
+    await page.locator('[data-action="nouveau-devis-vide"], [data-action="nouveau-devis"]').first().click();
+    await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+    await attendreCalme(page);
+    const apres = await listerDocuments('clients/devisseul/devis_devis');
+    expect(apres.length).toBe(avant + 1);
+    const nouveau = apres[0];
+    expect(nouveau.statut).toBe('brouillon');
+    expect(nouveau.affaireId ?? null).toBeNull();
+  });
+
+  test('R14-5 « Pour qui est ce devis ? » : créer la personne sur place donne une vraie fiche, choisie, journalisée', async ({ page }) => {
+    await ouvrir(page, 'devisseul', ALICE, 'devis/editeur/dVide');
+    await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+    await attendreCalme(page);
+    const champ = page.locator('[data-champ="client"]');
+    await champ.click();
+    await champ.fill('Zoé Client');
+    const suggestions = page.locator('.entete-droite .suggestions:not([hidden]) .suggestion');
+    await expect(suggestions).toHaveText([/Créer la personne « Zoé Client »/, /Créer l’organisation « Zoé Client »/]);
+    await suggestions.filter({ hasText: 'Créer la personne' }).click();
+    await expect(page.getByRole('dialog')).toContainText('Ajouter une personne');
+    await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
+    await expect(champ).toHaveValue('Zoé Client');
+    await expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré');
+    const fiche = (await listerDocuments('clients/devisseul/crm_personnes')).find((p) => p.nom === 'Zoé Client');
+    expect(fiche).toBeTruthy();
+    const brouillon = (await listerDocuments('clients/devisseul/devis_devis')).find((d) => d.id === 'dVide');
+    expect(brouillon.personneId).toBe(fiche.id);
+    expect((await listerDocuments('clients/devisseul/crm_audit')).some((l) => l.outil === 'creerPersonne')).toBe(true);
+  });
+
+  test('R14-6 finaliser sans affaire : pas de message « Choisis l\'affaire », la fonction du serveur est appelée, le devis reçoit son numéro', async ({ page }, info) => {
+    const appels = await simulerFinalisation(page, { ok: true, devisId: 'dPret', statut: 'en_attente_envoi', numero: 'DEV-2026-11-05-001' });
+    await ouvrir(page, 'devisseul', ALICE, 'devis/editeur/dPret');
+    await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+    await attendreCalme(page);
+    await page.locator('.page-editeur-devis[data-devis] .bouton-principal').click();
+    await expect(page.getByRole('dialog')).not.toContainText('Ce devis ne peut pas encore être finalisé');
+    await expect(page.locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/);
+    await expect(page.getByRole('dialog')).toContainText('Finaliser ce devis ?');
+    await page.screenshot({ path: `${CAPTURES}14-devis-seul-${info.project.name}.png`, animations: 'disabled' });
+    await page.getByRole('dialog').getByRole('button', { name: 'Finaliser', exact: true }).click();
+    await expect.poll(() => appels.length).toBe(1);
+    expect(appels[0].data.client).toBe('devisseul');
+    expect(appels[0].data.devisId).toBe('dPret');
+    await expect(page.locator('.toast, [role="status"]').filter({ hasText: 'Devis finalisé : DEV-2026-11-05-001' }).first()).toBeVisible();
+  });
+
+  test('R14-7 cas d\'erreur : le serveur refuse (ok: false) : la fenêtre donne les phrases, rien n\'est écrit', async ({ page }) => {
+    await simulerFinalisation(page, { ok: false, erreurs: ['Ajoute au moins une ligne au devis avant de le finaliser.'] });
+    await ouvrir(page, 'devisseul', ALICE, 'devis/editeur/dVide');
+    await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+    await attendreCalme(page);
+    await page.locator('.page-editeur-devis[data-devis] .bouton-principal').click();
+    const fenetre = page.getByRole('dialog');
+    await expect(fenetre).toContainText('Ce devis ne peut pas encore être finalisé');
+    await expect(fenetre).toContainText('Ajoute au moins une ligne au devis avant de le finaliser.');
+    await fenetre.getByRole('button', { name: 'Compris' }).click();
+    const d = (await listerDocuments('clients/devisseul/devis_devis')).find((x) => x.id === 'dVide');
+    expect(d.statut).toBe('brouillon');
+    expect(d.numero ?? null).toBeNull();
+  });
+
+  test('R14-8 aucune erreur console ; la déconnexion arrête le socle', async ({ page }) => {
+    await ouvrir(page, 'devisseul');
+    await expect(page.locator('.page-liste-devis')).toBeVisible();
+    await attendreCalme(page);
+    await choisirDansMenuUtilisateur(page, 'Se déconnecter');
+    await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
+    expect((await etatSocle(page)).ecoutes).toEqual([]);
+  });
 });

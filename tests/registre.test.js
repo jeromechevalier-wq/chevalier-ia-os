@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
   MODULES_DECLARES, IDS_MODULES, OUTILS_COMMUNS, SOCLE, moduleDeclare, moduleDeRoute, lireModulesDemandes, verifierActivation,
-  modulesActifsDuClient, moduleAccessible, premiereRoute, ecransActifs,
+  modulesActifsDuClient, moduleAccessible, premiereRoute, ecransActifs, outilsMcpActifs,
   ANCIENS_IDENTIFIANTS, ANCIENS_PREFIXES, identifiantActuel, routeModernisee,
   GROUPES_MENU, INTERRUPTEURS, modulesDeNom, groupeDuModule, blocsDuMenu, reglagesDesModules, ongletsDuModule,
   SECTIONS_ESPACE, sectionsEspaceVisibles, interrupteursDuClient, cibleReglages, badgeDuModule, routeArriveeMenu,
@@ -69,7 +69,9 @@ describe('socle commun (PR B) : SOCLE hors des modules, dépendances inchangées
   test('B1 SOCLE existe, gelé, hors de MODULES_DECLARES : « contacts » n\'est ni un module, ni un interrupteur, ni activable', () => {
     assert.equal(SOCLE.id, 'contacts');
     assert.equal(SOCLE.nom, 'Contacts');
-    assert.deepEqual([...SOCLE.outilsMcp], []);
+    // PR C1 : B1 disait « aucun outil » parce qu'aucun module ne tournait sur le socle seul ; le socle ne crée aucun outil, il en prête sept d'Affaires (jamais les suppressions).
+    assert.deepEqual([...SOCLE.outilsMcp], ['chercher', 'lire_personne', 'lire_organisation', 'creer_personne', 'creer_organisation', 'modifier_personne', 'modifier_organisation']);
+    for (const n of SOCLE.outilsMcp) assert.ok(moduleDeclare('affaires').outilsMcp.includes(n), n);
     assert.deepEqual([...SOCLE.collections], ['crm_personnes', 'crm_organisations', 'crm_evenements']);
     assert.throws(() => { 'use strict'; SOCLE.collections.push('x'); }, TypeError);
     assert.ok(!IDS_MODULES.includes('contacts'));
@@ -95,13 +97,27 @@ describe('socle commun (PR B) : SOCLE hors des modules, dépendances inchangées
     for (const c of journal) assert.ok(!bloc.includes(`'${c}'`), `${c} n'est pas dans l'export`);
     assert.ok(/chemin\('crm_audit'\)/.test(source), 'le journal est bien écrit par le socle (executer)');
   });
-  test('B3 devis et projets exigent encore affaires (la PR C « Devis sur le socle seul » n\'est pas faite)', () => {
-    assert.deepEqual(moduleDeclare('devis').dependances, ['affaires']);
+  test('B3 projets exige encore affaires ; devis ne dépend plus de rien (PR C1)', () => {
+    assert.deepEqual(moduleDeclare('devis').dependances, []);
     assert.deepEqual(moduleDeclare('projets').dependances, ['affaires']);
     const r = modulesActifsDuClient({ modules: { devis: true } });
-    assert.deepEqual(r.actifs, []);
-    assert.match(r.erreurs[0], /Devis.*sans.*Affaires/);
+    assert.deepEqual(r.actifs, ['devis']);
+    assert.deepEqual(r.erreurs, []);
     assert.deepEqual(modulesActifsDuClient({ modules: { devis: true, affaires: true } }).actifs, ['affaires', 'devis']);
+    assert.match(modulesActifsDuClient({ modules: { projets: true } }).erreurs[0], /Projets.*sans.*Affaires/);
+  });
+  test('B4 outilsMcpActifs : les outils du socle arrivent avec un module « socle: true » sans Affaires, sans doublon', () => {
+    const communs = [...OUTILS_COMMUNS];
+    const ensemble = (actifs) => [...outilsMcpActifs(actifs)].sort();
+    assert.deepEqual(ensemble([]), [...communs].sort());
+    assert.deepEqual(ensemble(['veille']), [...communs].sort());
+    const devisSeul = [...new Set([...communs, ...moduleDeclare('devis').outilsMcp, ...SOCLE.outilsMcp])].sort();
+    assert.deepEqual(ensemble(['devis']), devisSeul);
+    assert.equal(outilsMcpActifs(['devis']).length, devisSeul.length, 'aucun doublon');
+    const avecAffaires = [...new Set([...communs, ...moduleDeclare('affaires').outilsMcp, ...moduleDeclare('devis').outilsMcp])].sort();
+    assert.deepEqual(ensemble(['affaires', 'devis']), avecAffaires);
+    assert.equal(moduleDeclare('devis').socle, true);
+    assert.deepEqual(MODULES_DECLARES.filter((m) => m.socle).map((m) => m.id), ['devis']);
   });
 });
 
