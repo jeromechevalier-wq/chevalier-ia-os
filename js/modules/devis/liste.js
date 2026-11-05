@@ -72,7 +72,7 @@ export function initialesDe(email) {
 // ---------------------------------------------------------------- statut affiché, totaux
 
 /** Statut montré : « expire » quand un devis finalisé ou envoyé a dépassé sa validité (calculé, jamais stocké). */
-/** Pastille ronde en bas à droite d'une carte du Tableau, comme sur les Affaires et les Projets : rouge (à régler : PDF non rangé, devis expiré ou refusé), verte (envoyé ou signé), grise (le reste : brouillon, finalisé pas encore envoyé). */
+/** Pastille ronde en bas à droite d'une carte du Kanban, comme sur les Affaires et les Projets : rouge (à régler : PDF non rangé, devis expiré ou refusé), verte (envoyé ou signé), grise (le reste : brouillon, finalisé pas encore envoyé). */
 export function couleurPastilleDevis(d, aujourdhui, maintenant = Date.now()) {
   const statut = statutAffiche(d, aujourdhui);
   if (etatPdfDevis(d, maintenant) === 'a_reessayer' || statut === 'expire' || statut === 'refuse') return 'rouge';
@@ -176,7 +176,7 @@ export function paginer(liste, page = 1, parPage = TAILLE_PAGE_DEFAUT) {
 
 // ---------------------------------------------------------------- tableau (colonnes par statut)
 
-/** Colonnes de la vue Tableau (décision de Jérôme, 25/10/2026) : quatre colonnes. Un devis finalisé mais pas encore envoyé reste dans « Envoyé » (avec une pastille « Pas encore envoyé »). */
+/** Colonnes de la vue Kanban (décision de Jérôme, 25/10/2026) : quatre colonnes. Un devis finalisé mais pas encore envoyé reste dans « Envoyé » (avec une pastille « Pas encore envoyé »). */
 export const COLONNES_TABLEAU = Object.freeze([
   { id: 'brouillon', libelle: 'Brouillon', statuts: ['brouillon'] },
   { id: 'envoye', libelle: 'Envoyé', statuts: ['envoye', 'en_attente_envoi'] },
@@ -184,7 +184,7 @@ export const COLONNES_TABLEAU = Object.freeze([
   { id: 'refuse', libelle: 'Devis refusé', statuts: ['refuse'] },
 ]);
 
-/** Statuts qui ne sont plus dans le Tableau : ils se lisent dans la vue « Archives » (rien n'est modifié en base). */
+/** Statuts qui ne sont plus dans le Kanban : ils se lisent dans la vue « Archives » (rien n'est modifié en base). */
 export const STATUTS_HORS_TABLEAU = Object.freeze(['remplace', 'expire']);
 export const estHorsTableau = (d, aujourdhui) => STATUTS_HORS_TABLEAU.includes(statutAffiche(d, aujourdhui));
 /** Vue « Archives » : les devis archivés à la main, plus les anciennes versions (remplacées) et les devis expirés. */
