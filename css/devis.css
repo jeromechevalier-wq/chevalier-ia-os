@@ -62,7 +62,7 @@ fieldset.cases { border: 0; padding: 0; margin: 0; min-width: 0; } /* groupe de 
   .tableau-articles td.col-actions .bouton { min-height: 44px; }
 }
 
-/* Liste des devis : vue Liste (tableau), vue Tableau (colonnes par statut), pied de page, aperçu. */
+/* Liste des devis : vue Liste (tableau), vue Kanban (colonnes par statut), pied de page, aperçu. */
 .page-liste-devis { max-width: none; }
 .tableau-devis .ligne-liste { cursor: default; }
 .tableau-devis .montant { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
