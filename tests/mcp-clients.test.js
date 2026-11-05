@@ -17,6 +17,7 @@ import { creerGestionnaireClients, outilsDesModules, outilsSelonOptions, OUTILS_
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
 import { EMETTEUR_PLATEFORME as EMETTEUR } from '../functions/src/clients/config.js';
 import { collections } from './_donnees-essai.js';
+import { EMETTEUR_ESSAI, CHANTIER_ESSAI } from './jeu-finalisation.js';
 import { moduleDeclare } from '../js/os/registre.js';
 
 const CLAUDE = 'https://claude.ai/api/mcp/auth_callback';
@@ -627,8 +628,14 @@ describe('Modules : les outils suivent les modules actifs du client', () => {
     assert.ok(seuls(['affaires']).includes('chercher') && !seuls(['affaires']).includes('lister_projets'));
     assert.equal(seuls(['affaires', 'projets']).length, OUTILS.length - 31, 'sans les modules Automatisations (5 outils de la file À valider) et Devis (6 outils du bordereau et de la recherche par phrase, 20 outils des devis et de leurs réglages, dont le PDF officiel et le brouillon d\'e-mail) : 31 outils manquent');
     assert.equal(seuls(['affaires', 'projets', 'automatisations']).length, OUTILS.length - 26, 'sans le module Devis : ses 26 outils manquent');
-    assert.equal(seuls(['affaires', 'devis']).filter((n) => /article/.test(n)).length, 7, 'Devis exige les Affaires et apporte ses outils du bordereau et la recherche par phrase (rechercher_article_par_phrase), et 13 outils des devis (dont enregistrer_reponse_vocabulaire), sans le mot « article »');
+    assert.equal(seuls(['affaires', 'devis']).filter((n) => /article/.test(n)).length, 7, 'Devis apporte (il n\'exige plus les Affaires) ses outils du bordereau et la recherche par phrase (rechercher_article_par_phrase), et 13 outils des devis (dont enregistrer_reponse_vocabulaire), sans le mot « article »');
     assert.equal(seuls(['affaires', 'projets', 'automatisations', 'devis']).length, OUTILS.length);
+    // PR C1 : Devis seul = communs + ses 26 outils + les 7 outils du socle (jamais les suppressions ni les outils d'affaires)
+    const devisSeul = seuls(['devis']);
+    assert.equal(devisSeul.length, 2 + 26 + 7, 'communs + 26 outils Devis + 7 outils du socle');
+    for (const n of ['creer_personne', 'chercher', 'lire_organisation', 'modifier_personne']) assert.ok(devisSeul.includes(n), n);
+    for (const n of ['supprimer_personne', 'supprimer_organisation', 'lire_affaire', 'lister_affaires', 'lister_projets']) assert.ok(!devisSeul.includes(n), n);
+    assert.deepEqual(seuls(['veille']), ['qui_suis_je', 'diagnostiquer_fichiers']);
   });
   test('M9 module « mcp » éteint, ou client désactivé : l\'accès déjà accordé est coupé tout de suite, et la connexion n\'est plus possible', async () => {
     await reinitialiser();
@@ -1321,5 +1328,104 @@ describe('Devis : les 26 outils du module arrivent chez les clients, dans l\'esp
       assert.equal((await donnees.liste('clients/a/devis_vocabulaire')).length, 1, 'inchangé');
       await lea.c.close();
     } finally { await remettre(); }
+  });
+});
+
+// --- Devis seul (PR C1, 05/11/2026) : un espace avec le seul module Devis reçoit les sept outils du socle, sans Affaires -------------------
+describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
+  const OUTILS_SOCLE = ['chercher', 'lire_personne', 'lire_organisation', 'creer_personne', 'creer_organisation', 'modifier_personne', 'modifier_organisation'];
+  const reglagesSeul = { id: 'reglages', regimeTva: 'assujetti', marge: 20, modeMarge: 'majoration', entreprise: EMETTEUR_ESSAI };
+  /** Client « d » : Devis + MCP, AUCUN crm_parametres ; client « a » : Affaires + Devis. Tout est défait à la fin. */
+  async function installer() {
+    await donnees.appliquer([
+      { type: 'set', collection: 'marques', id: 'd', donnees: fichier('d', 'Devis Seul') },
+      { type: 'set', collection: 'clients', id: 'd', donnees: { modules: { devis: true, mcp: true } } },
+      { type: 'set', collection: 'clients/d/membres', id: ALICE, donnees: { role: 'editeur', nom: 'Alice' } },
+      { type: 'set', collection: 'clients/d/membres', id: LEA, donnees: { role: 'lecteur' } },
+      { type: 'set', collection: 'clients/d/devis_parametres', id: 'reglages', donnees: reglagesSeul },
+      { type: 'set', collection: 'clients', id: 'a', donnees: { modules: { affaires: true, projets: true, mcp: true, devis: true } } },
+      { type: 'set', collection: 'clients/a/devis_parametres', id: 'reglages', donnees: reglagesSeul },
+    ]);
+  }
+  async function defaire() {
+    for (const nom of ['crm_personnes', 'crm_audit', 'crm_audit_avant', 'devis_devis', 'devis_articles', 'devis_compteurs', 'devis_parametres', 'membres', 'mcp_codes']) {
+      const existants = await donnees.liste(`clients/d/${nom}`);
+      if (existants.length) await donnees.appliquer(existants.map((d) => ({ type: 'delete', collection: `clients/d/${nom}`, id: d.id })));
+    }
+    await donnees.appliquer([{ type: 'delete', collection: 'clients', id: 'd' }, { type: 'delete', collection: 'marques', id: 'd' }]);
+    for (const nom of ['devis_devis', 'devis_articles', 'devis_compteurs', 'devis_parametres']) {
+      const existants = await donnees.liste(`clients/a/${nom}`);
+      if (existants.length) await donnees.appliquer(existants.map((d) => ({ type: 'delete', collection: `clients/a/${nom}`, id: d.id })));
+    }
+    await reinitialiser();
+  }
+  const ok = (r) => { assert.ok(!r.isError, r.content[0].text); return resultat(r); };
+
+  test('D-S1 tools/list : les 26 outils Devis et les sept du socle ; ni affaires, ni suppression de fiche, ni projets ; réponse 200 sans crm_parametres', async () => {
+    await installer();
+    try {
+      const { c, liste } = await outilsDe('d');
+      for (const n of [...moduleDeclare('devis').outilsMcp, ...OUTILS_SOCLE]) assert.ok(liste.includes(n), n);
+      for (const n of ['lire_affaire', 'lister_affaires', 'supprimer_personne', 'supprimer_organisation', 'lister_projets']) assert.ok(!liste.includes(n), `${n} ne doit pas exister`);
+      assert.equal(liste.length, 2 + 26 + 7, 'communs + 26 + 7');
+      await c.close();
+    } finally { await defaire(); }
+  });
+
+  test('D-S1b un lecteur d\'un espace Devis seul voit chercher / lire_personne / lire_organisation, ni creer_*, ni modifier_*, ni finaliser_devis', async () => {
+    await installer();
+    try {
+      const { c, liste } = await outilsDe('d', 'ID-LEA');
+      for (const n of ['chercher', 'lire_personne', 'lire_organisation', 'lire_devis']) assert.ok(liste.includes(n), n);
+      for (const n of ['creer_personne', 'creer_organisation', 'modifier_personne', 'modifier_organisation', 'finaliser_devis', 'creer_devis_brouillon']) assert.ok(!liste.includes(n), `${n} ne doit pas être visible d'un lecteur`);
+      await c.close();
+    } finally { await defaire(); }
+  });
+
+  test('D-S2 creer_personne écrit la fiche et le journal ; lire_personne la relit ; un brouillon pour elle vit sans affaire ; lire_devis le montre', async () => {
+    await installer();
+    try {
+      const { c } = await outilsDe('d');
+      const p = ok(await c.callTool({ name: 'creer_personne', arguments: { nom: 'Zoé Client', email: 'zoe@exemple.test' } }));
+      const fiche = await donnees.document('clients/d/crm_personnes', p.id);
+      assert.equal(fiche.nom, 'Zoé Client');
+      assert.ok((await donnees.liste('clients/d/crm_audit')).length >= 1, 'une ligne de journal');
+      const lue = ok(await c.callTool({ name: 'lire_personne', arguments: { id: p.id } }));
+      assert.ok(JSON.stringify(lue).includes('Zoé Client'), 'la fiche relue porte le nom');
+      const article = ok(await c.callTool({ name: 'creer_article', arguments: { libelle: 'Peinture', prixAchat: 50, unite: 'm²', code: 'PEI' } }));
+      const d = ok(await c.callTool({ name: 'creer_devis_brouillon', arguments: { personneId: p.id, objet: 'Salon', lignes: [{ articleId: article.id, quantite: 2 }] } }));
+      const enBase = await donnees.document('clients/d/devis_devis', d.id);
+      assert.equal(enBase.affaireId ?? null, null);
+      assert.equal(enBase.personneId, p.id);
+      assert.equal(ok(await c.callTool({ name: 'lire_devis', arguments: { id: d.id } })).id, d.id);
+      await c.close();
+    } finally { await defaire(); }
+  });
+
+  test('D-S3 finaliser_devis (aperçu puis code) finalise un devis sans affaire chez d ; chez a (Affaires) le même scénario reste refusé', async () => {
+    await installer();
+    try {
+      const scenario = async (client, ajoutPersonne) => {
+        const { c } = await outilsDe(client);
+        const p = ok(await c.callTool({ name: ajoutPersonne, arguments: { nom: 'Zoé Client', email: 'zoe@exemple.test' } }));
+        const article = ok(await c.callTool({ name: 'creer_article', arguments: { libelle: 'Peinture', prixAchat: 50, unite: 'm²', code: 'PEI' } }));
+        const d = ok(await c.callTool({ name: 'creer_devis_brouillon', arguments: { personneId: p.id, objet: 'Salon', destinataires: ['zoe@exemple.test'], lignes: [{ articleId: article.id, quantite: 2 }] } }));
+        await donnees.appliquer([{ type: 'update', collection: `clients/${client}/devis_devis`, id: d.id, donnees: { chantier: { ...CHANTIER_ESSAI }, expireLe: '2027-01-22' } }]);
+        return { c, d };
+      };
+      const seul = await scenario('d', 'creer_personne');
+      const apercu = ok(await seul.c.callTool({ name: 'finaliser_devis', arguments: { id: seul.d.id } }));
+      assert.ok(apercu.code, 'aperçu avec un code');
+      const final = ok(await seul.c.callTool({ name: 'finaliser_devis', arguments: { id: seul.d.id, codeConfirmation: apercu.code } }));
+      assert.equal(final.finalise, true);
+      const enBase = await donnees.document('clients/d/devis_devis', seul.d.id);
+      assert.ok(enBase.numero, 'numéro attribué');
+      await seul.c.close();
+      const avec = await scenario('a', 'creer_personne');
+      const refus = await avec.c.callTool({ name: 'finaliser_devis', arguments: { id: avec.d.id } });
+      assert.equal(refus.isError, true);
+      assert.match(refus.content[0].text, /Choisis l'affaire de ce devis\./);
+      await avec.c.close();
+    } finally { await defaire(); }
   });
 });

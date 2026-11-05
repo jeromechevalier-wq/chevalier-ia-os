@@ -12,7 +12,7 @@ import { lireConfig } from '../coeur/config.js';
 import { OUTILS } from '../mcp/outils/index.js';
 import { descriptionAppel, creerSuiviDemarrage, refuser, servirMcp } from '../mcp/gestionnaire.js';
 import { FORMAT_CLIENT, ORIGINES_PLATEFORME, adressesClient } from './config.js';
-import { MODULES_DECLARES, OUTILS_COMMUNS } from '../../partage/registre.js';
+import { MODULES_DECLARES, OUTILS_COMMUNS, outilsMcpActifs } from '../../partage/registre.js';
 import { cheminBaseClient } from '../../partage/chemins.js';
 
 /** Nom de serveur neutre : le client ne voit pas le nom interne du CRM de Jérôme. */
@@ -22,7 +22,7 @@ const MOTIF_LIEN = /^\/mcp\/([^/]+)$/;
 
 /** Outils proposés à un client : les outils communs et ceux des modules actifs (le profil du membre filtre ensuite). */
 export function outilsDesModules(actifs, outils = OUTILS) {
-  const noms = new Set([...OUTILS_COMMUNS, ...MODULES_DECLARES.filter((m) => actifs.includes(m.id)).flatMap((m) => m.outilsMcp)]);
+  const noms = new Set(outilsMcpActifs(actifs));
   return outils.filter((o) => noms.has(o.nom));
 }
 

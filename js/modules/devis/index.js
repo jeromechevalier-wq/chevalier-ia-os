@@ -1,5 +1,5 @@
 // Module Devis (cadrage-devis.md) : montage et routes. Quatre écrans : le Bordereau (articles), le Vocabulaire (mots appris), la liste des devis et l'éditeur d'un devis.
-// Routes : devis/bordereau, devis/vocabulaire, devis/liste, devis/voir/<id> (le même écran que l'éditeur, ouvert sur l'onglet Prévisualisation), devis/editeur (ancienne page « Nouveau devis » : crée un brouillon sans affaire et ouvre l'éditeur), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), et les anciennes adresses devis/pdf/<id> et devis/pdf/<id>/brouillon (la page du PDF n'existe plus : elles mènent à l'éditeur du devis ; elles sont écrites dans les Documents des affaires et dans des e-mails déjà envoyés). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
+// Routes : devis/bordereau, devis/vocabulaire, devis/liste, devis/voir/<id> (le même écran que l'éditeur, ouvert sur l'onglet Prévisualisation), devis/editeur (ancienne page « Nouveau devis » : crée un brouillon sans affaire et ouvre l'éditeur), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), et les anciennes adresses devis/pdf/<id> et devis/pdf/<id>/brouillon (la page du PDF n'existe plus : elles mènent à l'éditeur du devis ; elles sont écrites dans les Documents des affaires et dans des e-mails déjà envoyés). Le module lit le CRM (étapes des affaires) : le socle commun démarre avant lui (le module Devis ne dépend d'aucun autre module ; le CRM complet tourne si Affaires est actif).
 import { vider } from '../../os/ui.js';
 import * as D from './donnees.js';
 import { rendreBordereau } from './bordereau.js';
@@ -135,7 +135,7 @@ export function controlesDeploiement() {
     etapes: ETAPES_DEPLOIEMENT_DEVIS,
     verifier: async () => {
       const ecouter = (rappel) => { const a = D.surChangement(rappel); const b = CRM.surChangement(rappel); return () => { a?.(); b?.(); }; };
-      const pret = await attendreQue(() => D.estPret() && CRM.etat.pret.parametres, ecouter);
+      const pret = await attendreQue(() => D.estPret() && CRM.estPret(), ecouter);
       return controlerDeploiementDevis({
         pret, reglages: D.etat.reglages, articles: D.etat.articles, erreurArticles: D.etat.erreurLecture,
       });

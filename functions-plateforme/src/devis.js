@@ -12,6 +12,7 @@ import { creerAccesFirestore, avecBase } from '../serveur/src/coeur/donnees.js';
 import { ErreurDevis, OPERATIONS, reponsePublique, detailErreur } from '../serveur/src/coeur/devis.js';
 import { OPERATIONS_TEST } from '../serveur/src/coeur/mode-test.js';
 import { demanderPreparation } from '../serveur/src/coeur/devis-email.js';
+import { modulesActifsDuClient } from '../serveur/partage/registre.js';
 import { Refus } from './appels.js';
 import { MOTIF_IDENTIFIANT_CLIENT } from './etiquettes.js';
 
@@ -83,9 +84,10 @@ export async function transitionDevis({ db, auth, donnees, operation, maintenant
   if (!membre.exists || membre.get('role') !== 'editeur') throw REFUS_NEUTRE();
   const fiche = await db.doc(`clients/${client}`).get();
   if (!fiche.exists || (!OPERATIONS_SANS_MODULE_DEVIS.includes(operation) && fiche.get('modules')?.[MODULE_DEVIS] !== true)) throw REFUS_NEUTRE();
+  const { actifs } = modulesActifsDuClient({ modules: fiche.get('modules') }); // l'affaire n'est exigée à la finalisation que si le module Affaires est actif
   try {
     const acces = creerDonnees ? creerDonnees(client) : avecBase(creerAccesFirestore({ db }), `clients/${client}`);
-    const r = await executer({ donnees: acces, ctx: { acteur: email, via: 'ecran', maintenant: new Date(maintenant) } }, donnees);
+    const r = await executer({ donnees: acces, ctx: { acteur: email, via: 'ecran', maintenant: new Date(maintenant), affaireRequise: actifs.includes('affaires') } }, donnees);
     return reponsePublique(r);
   } catch (e) {
     if (e instanceof ErreurDevis) {

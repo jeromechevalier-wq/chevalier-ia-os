@@ -32,8 +32,9 @@ export const OUTILS_COMMUNS = geler(['qui_suis_je', 'diagnostiquer_fichiers']);
 
 /**
  * Socle commun (05/11/2026) : les fiches Personnes et Organisations et leur journal, sur lesquels tout module repose.
- * Ce n'est PAS un module : jamais dans MODULES_DECLARES ni IDS_MODULES (aucun interrupteur, aucun écran, aucun outil MCP, aucune route),
- * la fiche `modules` d'un client ne peut pas le nommer (« contacts » y est un module inconnu). La coque le démarre avant les modules
+ * Ce n'est PAS un module : jamais dans MODULES_DECLARES ni IDS_MODULES (aucun interrupteur, aucun écran, aucune route),
+ * la fiche `modules` d'un client ne peut pas le nommer (« contacts » y est un module inconnu). Ses outils d'assistant (`outilsMcp`, sept outils prêtés par Affaires, jamais les suppressions)
+ * sont offerts à un espace dont un module actif déclare `socle: true` sans que le module Affaires soit actif (voir `outilsMcpActifs`). La coque le démarre avant les modules
  * (js/main.js, js/os/espace-modules.js) en mode noyau (`CRM.demarrer` avec l'option noyau) ; le module Affaires démarre par-dessus en complet.
  * `collections` : les trois collections du socle. Le journal (audit et copies « avant ») est écrit par le socle mais n'est volontairement pas listé ici : il n'est déclaré par aucun module ni exporté.
  */
@@ -41,7 +42,7 @@ export const SOCLE = geler({
   id: 'contacts',
   nom: 'Contacts',
   collections: ['crm_personnes', 'crm_organisations', 'crm_evenements'],
-  outilsMcp: [],
+  outilsMcp: ['chercher', 'lire_personne', 'lire_organisation', 'creer_personne', 'creer_organisation', 'modifier_personne', 'modifier_organisation'],
 });
 
 /**
@@ -128,7 +129,8 @@ export const MODULES_DECLARES = geler([
   },
   {
     // Devis (cadrage-devis.md, 24/10/2026) : le bordereau de prix (articles) et les réglages du module, en attendant les devis eux-mêmes.
-    // Dépend des seules Affaires (le client pilote n'a ni Projets ni facturation). Présent chez Jérôme comme chez les clients (même code).
+    // Devis seul (05/11/2026) : ne dépend d'aucun module ; repose sur le socle commun (fiches Personnes/Organisations démarrées par la coque) et offre à l'assistant les outils du socle (SOCLE.outilsMcp) quand Affaires n'est pas actif.
+    // Présent chez Jérôme comme chez les clients (même code).
     // `devis_devis` (un document par version, règles Firestore : écrit par le navigateur tant que brouillon, sinon par les fonctions du serveur) est déclarée ici.
     // `devis_compteurs` (compteur des numéros) ne l'est PAS : réservée au serveur, ni lue ni écrite par un navigateur, jamais dans l'export.
     id: 'devis',
@@ -145,7 +147,8 @@ export const MODULES_DECLARES = geler([
     ],
     collections: ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire', 'devis_usage_articles'],
     outilsMcp: ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'obtenir_pdf_officiel_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'modifier_lignes_devis', 'annuler_derniere_modification_devis', 'creer_devis_depuis_modele', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'preparer_email', 'modifier_destinataires_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire'],
-    dependances: ['affaires'],
+    dependances: [],
+    socle: true,
   },
   {
     // Veille (étape 1, lecture seule) : sources suivies, contenus détectés (vidéos, épisodes, articles) et résumés produits.
@@ -386,6 +389,13 @@ export function badgeDuModule(idModule) {
 /** Route d'arrivée de l'entrée de menu d'un module à badge : l'écran du badge quand `nombre` > 0, sinon l'entrée habituelle. Un lien direct vers un autre écran n'est jamais redirigé. */
 export function routeArriveeMenu(entree, nombre) {
   return entree?.badge && nombre > 0 ? entree.badge.ecran : entree?.chemin;
+}
+
+/** Noms des outils MCP offerts à un espace : les communs, ceux des modules actifs et, si un module actif déclare `socle: true`, ceux du socle (déjà présents si Affaires est actif : un Set dédoublonne). */
+export function outilsMcpActifs(actifs) {
+  const noms = new Set([...OUTILS_COMMUNS, ...MODULES_DECLARES.filter((m) => actifs.includes(m.id)).flatMap((m) => m.outilsMcp)]);
+  if (MODULES_DECLARES.some((m) => actifs.includes(m.id) && m.socle === true)) for (const n of SOCLE.outilsMcp) noms.add(n);
+  return [...noms];
 }
 
 /** Toutes les routes d'écran des modules actifs (pour le menu et les tests). */
