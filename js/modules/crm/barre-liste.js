@@ -16,7 +16,7 @@ export function champRecherche({ placeholder, libelleAria = placeholder, valeur 
 export function enteteListe({ titre, compteur = null, retour = null, actions = [] }) {
   return h('header', { class: 'page-tete' },
     h('div', {}, retour, typeof titre === 'string' ? h('h1', {}, titre) : titre, compteur),
-    h('div', { class: 'page-actions' }, actions));
+    actions.length ? h('div', { class: 'page-actions' }, actions) : null);
 }
 
 /** Groupe de boutons de vue : `vues` = [[id, libellé, icône]], `courante` = id actif. Même structure que les anciennes bascules (data-vue, aria-pressed). */
