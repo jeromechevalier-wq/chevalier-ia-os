@@ -8,6 +8,7 @@
 // dans la base : « Enregistrer » appelle la fonction du serveur (D.saisir), et le niveau change tout seul par la lecture en direct.
 import { h, icone, remplir } from '../../os/ui.js';
 import { boutonFiltres, fenetreFiltres } from '../crm/filtres.js';
+import { enteteListe } from '../crm/barre-liste.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 
@@ -209,7 +210,7 @@ export function rendreTableau(conteneur, ancre) {
   remplir(barreFiltres, boutonF.element, zonePastilles);
 
   conteneur.append(h('div', { class: 'page page-tableaudebord' },
-    h('header', { class: 'page-tete' }, h('h1', {}, 'Maintenance')),
+    enteteListe({ titre: 'Maintenance' }),
     barreFiltres, avis, contenu));
 
   function annoncer(nom, rappel) {

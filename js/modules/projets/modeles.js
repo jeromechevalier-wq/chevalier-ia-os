@@ -6,6 +6,7 @@ import { retirerAvecAnnulation } from '../../os/retrait.js';
 import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';
 import { champPropriete, sectionRepliable, titreEditable, lienRetour, saisieEnCours, etatVide, planifier } from '../crm/composants.js';
+import { enteteListe } from '../crm/barre-liste.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
 const cfg = () => CRM.etat.config;
@@ -59,9 +60,7 @@ export function rendreModeles(conteneur, { page = true } = {}) {
   const aide = h('p', { class: 'aide' }, 'Un modèle donne à un projet ses livrables de départ. Il se choisit à la création du projet ; celui de l’offre de l’affaire est proposé d’office.');
   conteneur.append(page
     ? h('div', { class: 'page page-affaires page-modeles' },
-      h('header', { class: 'page-tete' },
-        h('div', {}, h('p', { class: 'etiquette' }, 'Réglages'), h('h1', {}, 'Modèles de projets'), compteur),
-        h('div', { class: 'page-actions' }, boutonNouveau)),
+      enteteListe({ titre: 'Modèles de projets', retour: h('p', { class: 'etiquette' }, 'Réglages'), compteur, actions: [boutonNouveau] }),
       aide, zone)
     : h('div', { class: 'pile modeles-reglages' }, aide, h('div', { class: 'ligne-boutons' }, compteur, boutonNouveau), zone));
   const planifie = planifier(rendre);

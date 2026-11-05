@@ -6,6 +6,7 @@
 import { h, remplir } from '../../os/ui.js';
 import { barreOnglets } from '../../os/onglets.js';
 import { ongletsDuModule } from '../../os/registre.js';
+import { enteteListe } from '../crm/barre-liste.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { frise, libelleEtat, estPerimee, estBloquee, enMs } from './propositions.js';
@@ -33,7 +34,7 @@ export function rendreAValider(conteneur) {
   const compte = h('span', { class: 'prop-compte', 'aria-live': 'polite' });
 
   conteneur.append(h('div', { class: 'page page-liste page-automatisations page-a-valider' },
-    h('header', { class: 'page-tete' }, h('h1', {}, 'À valider'), compte),
+    enteteListe({ titre: 'À valider', compteur: compte }),
     barreOnglets({ onglets: ongletsDuModule('automatisations'), actif: 'automatisations/a-valider', etiquette: 'Écrans des automatisations', module: 'automatisations' }),
     bandeau,
     sectionPreparation,

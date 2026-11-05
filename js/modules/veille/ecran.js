@@ -7,6 +7,7 @@ import { estChezClient } from '../../os/contexte.js';
 import { barreOnglets } from '../../os/onglets.js';
 import { ongletsDuModule } from '../../os/registre.js';
 import { boutonFiltres, fenetreFiltres } from '../crm/filtres.js';
+import { barreListe, enteteListe } from '../crm/barre-liste.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { analyserLien } from './lien.js';
@@ -39,7 +40,6 @@ export function rendreContenus(conteneur) {
   let signature = '';
 
   const resume = h('div', { class: 'veille-resume', 'aria-live': 'polite' });
-  const recherche = h('input', { type: 'search', class: 'champ', placeholder: 'Chercher dans les titres', 'aria-label': 'Chercher dans les titres', value: filtres.texte, oninput: (e) => { filtres.texte = e.target.value; signature = ''; rendre(); } });
   const liste = h('ol', { class: 'veille-liste' });
 
   // Bouton « Filtres » commun à toutes les listes : même fenêtre à cases à cocher (OU dans un groupe, ET entre groupes), pastille = nombre de cases cochées.
@@ -99,11 +99,12 @@ export function rendreContenus(conteneur) {
   majAjout();
 
   conteneur.append(h('div', { class: 'page page-liste page-veille' },
-    h('header', { class: 'page-tete' }, h('h1', {}, 'Veille')),
+    enteteListe({ titre: 'Veille' }),
     ongletsVeille('veille/contenus'),
     formulaireAjout,
     resume,
-    h('div', { class: 'barre-filtres-ligne veille-filtres' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), recherche), boutonF.element),
+    // Décision prise seul : pas de tri ici (la liste suit la date), la recherche prend la largeur de la barre commune.
+    barreListe({ recherche: { placeholder: 'Chercher dans les titres', valeur: filtres.texte, surSaisie: (v) => { filtres.texte = v; signature = ''; rendre(); } }, elements: { filtres: boutonF.element } }).element,
     liste));
 
   // Une source, un type ou un état qui n'existe plus dans les contenus ne reste pas coché en cachette.
@@ -169,7 +170,7 @@ export function rendreContenus(conteneur) {
 export function rendreSources(conteneur) {
   const liste = h('ol', { class: 'veille-liste' });
   conteneur.append(h('div', { class: 'page page-liste page-veille' },
-    h('header', { class: 'page-tete' }, h('h1', {}, 'Sources suivies')), ongletsVeille('veille/sources'), liste));
+    enteteListe({ titre: 'Sources suivies' }), ongletsVeille('veille/sources'), liste));
 
   function rendre() {
     if (!D.etat.pret) { remplir(liste, h('li', { class: 'veille-vide' }, 'Chargement…')); return; }

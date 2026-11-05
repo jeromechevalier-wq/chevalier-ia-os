@@ -6,6 +6,7 @@ import * as L from './logique.js';
 import { avatar, cheminOrganisation, pastillesEtiquettes, selecteurEtiquettes, etatVide, planifier, selecteurTri, badgeTest, entreeMarquerTest } from './composants.js';
 import * as T from './tri.js';
 import { barreFiltres } from './filtres.js';
+import { enteteListe } from './barre-liste.js';
 
 let criteres = L.criteresComplets('organisations', {});
 // Un seul tri : { critere, sens }, piloté par le menu de tri, la flèche et les en-têtes ; mémorisé sous `tri.organisations`.
@@ -100,10 +101,8 @@ export function rendreOrganisations(conteneur) {
     remplir(zoneTableau, h('table', { class: 'tableau tableau-organisations' }, h('thead', {}, entete), h('tbody', {}, corps)));
   }
 
-  const entete = h('header', { class: 'page-tete' },
-    h('div', {}, h('h1', {}, 'Organisations'), compteur),
-    h('div', { class: 'page-actions' },
-      h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-organisation', onclick: () => ouvrirCreationOrganisation() }, icone('plus', { taille: 16 }), 'Organisation')));
+  const entete = enteteListe({ titre: 'Organisations', compteur, actions: [
+    h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-organisation', onclick: () => ouvrirCreationOrganisation() }, icone('plus', { taille: 16 }), 'Organisation')] });
   conteneur.append(h('div', { class: 'page page-liste' }, entete, h('div', { class: 'barre-affaires' }, filtres.element, choixTri.element), zoneTableau));
 
   const rafraichir = planifier(() => { rendre(); filtres.rafraichir(); });

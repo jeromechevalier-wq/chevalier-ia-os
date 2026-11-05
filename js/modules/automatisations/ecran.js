@@ -11,6 +11,7 @@ import { ongletsDuModule } from '../../os/registre.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { boutonFiltres, fenetreFiltres } from '../crm/filtres.js';
+import { enteteListe } from '../crm/barre-liste.js';
 
 const CLE_AUTO = 'automatisations.auto';
 
@@ -43,7 +44,7 @@ export function rendreHistorique(conteneur) {
   const alerteVerifier = h('button', { type: 'button', class: 'autom-alerte-verifier', hidden: true, onclick: () => changerProprietaire('a-verifier') });
 
   conteneur.append(h('div', { class: 'page page-liste page-automatisations' },
-    h('header', { class: 'page-tete' }, h('h1', {}, 'Automatisations')),
+    enteteListe({ titre: 'Automatisations' }),
     barreOnglets({ onglets: ongletsDuModule('automatisations'), actif: 'automatisations/historique', etiquette: 'Écrans des automatisations', module: 'automatisations' }),
     bandeau,
     h('section', { class: 'autom-barre' }, resume,
