@@ -13,6 +13,7 @@ import { definirChezClient, definirLogoEspace } from './contexte.js';
 import { appliquerIdentite } from './identite.js';
 import { normaliserMarque } from './marque.js';
 import { h, icone, vider, remplir } from './ui.js';
+import { demarrer as demarrerSocle, arreter as arreterSocle } from '../modules/crm/donnees.js';
 
 /**
  * Monte les modules actifs d'un client. Renvoie une fonction `fermer()` (déconnexion ou changement de compte).
@@ -24,6 +25,8 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
   for (const m of modules) apis.set(m.id, await m.monter());
   const base = cheminBaseClient(client);
   definirPrefixe(`espace/${client}`);
+  // Socle commun (05/11/2026) : fiches Personnes/Organisations et journal, avant les modules ; le module Affaires, s'il est actif, démarre par-dessus en complet.
+  demarrerSocle(compte, base, { noyau: true, equipe, nomEspace: marque?.nom || '' });
   for (const api of apis.values()) api.demarrer({ compte, cheminBase: base, equipe, nomEspace: marque?.nom || '' }); // equipe : membres de l'espace (fiche du client), pour « Confiée à »
   document.body.classList.remove('page-espace');
   appliquerIdentite(marque, client); // titre, icône, appli installée et accent de l'interface = ceux du client
@@ -88,6 +91,7 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
     vue?.quitter?.();
     coquille.arreter?.();
     for (const api of apis.values()) api.arreter();
+    arreterSocle(); // après les modules (idempotent si Affaires a déjà tout arrêté)
     definirPrefixe('');
     definirChezClient(false);
     definirLogoEspace(null);

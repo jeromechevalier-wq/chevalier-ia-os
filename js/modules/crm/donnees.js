@@ -7,7 +7,7 @@
 // `emailEnvoye`, `marquerOppositionPersonne`, `creerOrganisation`, `majOrganisation`, `personne`, `organisation`, `surChangement`, `estPret`,
 // `estNoyau`, `ecoutesDemarrees`, `cheminDeBase`, `compteCourant`, `nomDeLEspace`, `chemin`, `collectionsParNoms`, `lireJournal`, `lireCopieJournal`.
 // Hors socle : tout ce qui lit affaires, activités, notes, paramètres, et les deux suppressions. Le CRM complet démarre par-dessus avec le
-// même `demarrer` sans `noyau`. Personne n'appelle encore le mode noyau : PR B (coque) puis PR C (Devis).
+// même `demarrer` sans `noyau`. Le mode noyau est appelé par la coque (js/main.js, js/os/espace-modules.js) depuis la PR B ; PR C (Devis sur le socle seul) à venir.
 import {
   collection, doc, onSnapshot, query, where, orderBy, limit, startAfter, getDoc, getDocs, setDoc, runTransaction, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
