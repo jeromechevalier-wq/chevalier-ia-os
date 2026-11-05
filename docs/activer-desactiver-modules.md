@@ -9,8 +9,11 @@ Un **module** est un bloc d'écrans (par exemple « Automatisations » ou « Aff
 | `affaires` | « Affaires et projets », sans les projets : accueil, personnes, organisations, affaires, journal des modifications | **à écrire pour tout nouveau client** |
 | `projets` | les projets (et leurs archives, depuis le bouton « Archives » de l'écran Projets) | ne marche **que si `affaires` est aussi actif** : écris `affaires: true` **et** `projets: true` |
 | `crm` | **ancien raccourci (avant 2.12)** : `crm: true` allume `affaires` **et** `projets`. Il est toujours **lu** (une fiche qui le contient ne change pas, par exemple chez Ingrid), mais il n'est plus proposé : pour une nouvelle fiche, écris `affaires: true` + `projets: true` | ne plus l'écrire |
+| `devis` | « Devis » : liste, catalogue, vocabulaire, réglages | **marche seul depuis le 05/11/2026** (plus besoin d'`affaires`) : les fiches clients viennent du socle commun ; avec `affaires`, un devis doit avoir une affaire pour être finalisé ; sans, non |
 | `veille` | « Veille » : contenus et sources suivies | |
 | `automatisations` | « Automatisations > Historique » (historique des workflows n8n) | l'identifiant du client doit faire 17 caractères au plus ; il faut aussi l'étiquette `client-<identifiant>` sur les workflows dans n8n. **Ancien nom : `journal`** (renommé le 16/10/2026) : une fiche qui dit encore `journal: true` marche toujours, sans rien changer ; pour un nouveau réglage, écris `automatisations`. Ne pas confondre avec l'écran « Journal des modifications » (historique des modifications), qui n'est pas un module à activer. |
+
+Le **socle commun** (fiches Personnes et Organisations et leur journal) tourne chez tout client qui a au moins un module actif ; ce n'est pas un module à activer, il n'a ni interrupteur ni écran, et `contacts: true` dans une fiche est un module inconnu (refusé).
 
 Ce que change un interrupteur : les **menus du client** (au prochain rechargement de sa page). Les **données ne sont jamais effacées** : si tu rallumes un module, tout est retrouvé. Pour `automatisations`, éteint, plus rien n'est copié depuis n8n pour ce client.
 
@@ -77,4 +80,4 @@ node scripts/nouveau-client.js afficher <identifiant>
 Voir aussi : `docs/nouveau-client.md` (créer un client, membres) et `docs/automatisations-n8n.md` (le module Automatisations).
 
 ## Le module « mcp » (accès d'un assistant : Claude, ChatGPT)
-`activer-module <client> mcp --ecrire` allume le lien `https://chevalier-ia-app.web.app/mcp/<client>` et la page « Connecter ton IA » ; `desactiver-module <client> mcp --ecrire` les éteint (le lien ne répond plus à l'appel suivant). Il ne dépend d'aucun autre module, mais n'a d'outils à proposer que ceux des modules actifs (CRM = `affaires` + `projets`). Tout est expliqué dans `docs/mcp-clients.md`.
+`activer-module <client> mcp --ecrire` allume le lien `https://chevalier-ia-app.web.app/mcp/<client>` et la page « Connecter ton IA » ; `desactiver-module <client> mcp --ecrire` les éteint (le lien ne répond plus à l'appel suivant). Il ne dépend d'aucun autre module, mais n'a d'outils à proposer que ceux des modules actifs (`affaires`, `projets`, `devis`, `automatisations` ; un espace Devis seul reçoit aussi les 7 outils du socle). Tout est expliqué dans `docs/mcp-clients.md`.

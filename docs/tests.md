@@ -73,6 +73,11 @@ Voir `docs/acceleration-tests-mesures.md`, section « Instabilités ». Sur GitH
 - Deux suites de tests en même temps sur la même machine font échouer au hasard (veille-filtres, tableaudebord, porte) : relancer seul.
 - La suite de nuit peut être relancée à la main (GitHub, Actions, « Tests de nuit », « Run workflow ») pour vérifier un correctif sans attendre la nuit.
 
+## Pièges connus (05/11/2026)
+- **Un fichier `tests/*.test.js` absent des listes de `tests/package.json` ne tourne JAMAIS sur GitHub** (les listes `test:logique`, `test:fonctions`, etc. sont explicites) : `mode-test-numerotation.test.js`, créé par la PR 522, n'a tourné qu'à partir de la PR 525 qui l'a ajouté à `test:fonctions`. Toute PR qui crée un test vérifie qu'il est listé (le `grep` dans `tests/package.json` fait partie de la relecture).
+- **C21 de `tests/e2e/parcours.spec.js` (l.857-912) est instable en format téléphone sous charge** : « Tests de nuit » 104 (05/11) rouge au 1er essai, vert au 2e ; relancer une fois avant de conclure.
+- Voie « Docs » : une PR qui touche `js/os/version.js` ou `tests/statique.test.js` n'est plus une PR « docs seules » : c'est le palier Rapide qui tourne (3 à 4 minutes).
+
 ## Voie « Docs » et étiquette `tests-complets` (31/10/2026)
 - **Voie « Docs »** (PR 470) : une PR qui ne touche que `docs/`, `wiki/`, `README.md`, `CLAUDE.md`, `PROMPT-CONSTRUCTION.md` ou `.github/A-FAIRE.md` lance le job `Docs` (environ 1 à 2 minutes). Sa fusion ne redéploie plus le site. `wiki/` doit être régénéré (test W6).
 - **« Tests de nuit » teste toujours `main`** (`ref: main` écrit en dur) : le lancer « sur une branche » ne teste pas la branche. Pour valider une PR avant la fusion : poser l'étiquette `tests-complets`, puis lire la coche « Tests ». Poser l'étiquette **avant** de mettre la branche à jour (un seul lancement).
