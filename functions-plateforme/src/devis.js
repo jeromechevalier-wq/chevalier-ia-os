@@ -47,7 +47,6 @@ export async function preparerEmailDevis({ db, auth, donnees, sortie, maintenant
   // `maintenant` : un nombre (millisecondes) ou une fonction qui le rend (défaut Date.now). Le 01/11/2026, `new Date(Date.now)` (la fonction elle-même) donnait une date invalide que Firestore refuse : « Préparer l'e-mail » échouait chez tous les clients.
   const quand = new Date(typeof maintenant === 'function' ? maintenant() : maintenant);
   const { email, client } = await controlerAppelant({ db, auth, client: donnees?.client });
-  const { actifs } = modulesActifsDuClient({ modules: fiche.get('modules') }); // l'affaire n'est exigée à la finalisation que si le module Affaires est actif
   try {
     const acces = creerDonnees ? creerDonnees(client) : avecBase(creerAccesFirestore({ db }), `clients/${client}`);
     const r = await demanderPreparation({ donnees: acces, ctx: { acteur: email, via: 'ecran', maintenant: quand }, devisId: donnees.devisId, espace: client, sortie, saisie: donnees, ...(genererId ? { genererId } : {}) });
@@ -82,6 +81,7 @@ export async function transitionDevis({ db, auth, donnees, operation, maintenant
   if (!membre.exists || membre.get('role') !== 'editeur') throw REFUS_NEUTRE();
   const fiche = await db.doc(`clients/${client}`).get();
   if (!fiche.exists || fiche.get('modules')?.[MODULE_DEVIS] !== true) throw REFUS_NEUTRE();
+  const { actifs } = modulesActifsDuClient({ modules: fiche.get('modules') }); // l'affaire n'est exigée à la finalisation que si le module Affaires est actif
   try {
     const acces = creerDonnees ? creerDonnees(client) : avecBase(creerAccesFirestore({ db }), `clients/${client}`);
     const r = await executer({ donnees: acces, ctx: { acteur: email, via: 'ecran', maintenant: new Date(maintenant), affaireRequise: actifs.includes('affaires') } }, donnees);

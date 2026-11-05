@@ -41,7 +41,6 @@ function monde() {
   collections['clients/a/devis_devis'].push(brouillon('da'));
   collections['clients/b/devis_devis'].push(brouillon('db'));
   collections['clients/d/devis_devis'].push(brouillon('dd', null));
-  collections['clients/a/devis_devis'].push(brouillon('da-sans', null));
   const brut = creerAccesMemoire(collections);
   return { collections, creerDonnees: (client) => avecBase(brut, `clients/${client}`) };
 }
@@ -54,6 +53,7 @@ const OPERATIONS = { finaliser: { devisId: 'da' }, changerStatut: { devisId: 'da
 describe('C7-S plateforme : l\'affaire n\'est exigée à la finalisation que si le module Affaires est actif (PR C1)', () => {
   test('C7-S client d (Devis seul) : un devis sans affaire se finalise (numéro attribué) ; client a (Affaires) : le même devis est refusé', async () => {
     const m = monde();
+    m.collections['clients/a/devis_devis'].push(brouillon('da-sans', null));
     const seul = await appeler(m, 'finaliser', ALICE, { client: 'd', devisId: 'dd' });
     assert.equal(seul.ok, true);
     assert.equal(seul.numero, 'DEV-2026-10-24-001');

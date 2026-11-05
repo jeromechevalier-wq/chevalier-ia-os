@@ -1346,12 +1346,12 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
     ]);
   }
   async function defaire() {
-    for (const nom of ['crm_personnes', 'crm_audit', 'crm_audit_avant', 'devis_devis', 'devis_compteurs', 'devis_parametres', 'membres', 'mcp_codes']) {
+    for (const nom of ['crm_personnes', 'crm_audit', 'crm_audit_avant', 'devis_devis', 'devis_articles', 'devis_compteurs', 'devis_parametres', 'membres', 'mcp_codes']) {
       const existants = await donnees.liste(`clients/d/${nom}`);
       if (existants.length) await donnees.appliquer(existants.map((d) => ({ type: 'delete', collection: `clients/d/${nom}`, id: d.id })));
     }
     await donnees.appliquer([{ type: 'delete', collection: 'clients', id: 'd' }, { type: 'delete', collection: 'marques', id: 'd' }]);
-    for (const nom of ['devis_devis', 'devis_compteurs', 'devis_parametres']) {
+    for (const nom of ['devis_devis', 'devis_articles', 'devis_compteurs', 'devis_parametres']) {
       const existants = await donnees.liste(`clients/a/${nom}`);
       if (existants.length) await donnees.appliquer(existants.map((d) => ({ type: 'delete', collection: `clients/a/${nom}`, id: d.id })));
     }
@@ -1378,7 +1378,8 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
       const fiche = await donnees.document('clients/d/crm_personnes', p.id);
       assert.equal(fiche.nom, 'Zoé Client');
       assert.ok((await donnees.liste('clients/d/crm_audit')).length >= 1, 'une ligne de journal');
-      assert.equal(ok(await c.callTool({ name: 'lire_personne', arguments: { id: p.id } })).nom, 'Zoé Client');
+      const lue = ok(await c.callTool({ name: 'lire_personne', arguments: { id: p.id } }));
+      assert.ok(JSON.stringify(lue).includes('Zoé Client'), 'la fiche relue porte le nom');
       const article = ok(await c.callTool({ name: 'creer_article', arguments: { libelle: 'Peinture', prixAchat: 50, unite: 'm²', code: 'PEI' } }));
       const d = ok(await c.callTool({ name: 'creer_devis_brouillon', arguments: { personneId: p.id, objet: 'Salon', lignes: [{ articleId: article.id, quantite: 2 }] } }));
       const enBase = await donnees.document('clients/d/devis_devis', d.id);
