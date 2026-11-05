@@ -234,8 +234,9 @@ export function demarrer(compteConnecte, base = '', options = {}) {
   if (ecoutes.length && (cheminBase !== nouvelleBase || compte?.email !== compteConnecte?.email)) arreter();
   compte = compteConnecte;
   cheminBase = nouvelleBase;
-  equipe = options.equipe ?? equipe; // après arreter() : null, comme avant
-  nomEspace = options.nomEspace ?? nomEspace; // après arreter() : '', comme avant
+  // Une option absente (null, undefined ou '') garde la valeur en place : après arreter() elles valent null et '', comme avant le socle.
+  equipe = options.equipe || equipe;
+  nomEspace = options.nomEspace || nomEspace;
   for (const cle of voulues) {
     if (ecoutes.includes(cle)) continue; // déjà démarré
     ecoutes.push(cle);
