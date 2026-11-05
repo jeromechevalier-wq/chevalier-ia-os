@@ -11,6 +11,7 @@ import * as E from '../../partage/devis-editeur.js';
 import * as B from '../../partage/devis-brouillon.js';
 import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, recalculerMontantsAffaires as recalculerMontantsServeur, recalculerUsageArticles as recalculerUsageServeur, modifierEnTransaction as modifierEnTransactionServeur, ErreurDevis } from './devis.js';
 import { COLLECTIONS as C } from './donnees.js';
+import { basculerTest, TYPES_TEST } from './mode-test.js';
 import { lireUsages } from './usage-articles.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
@@ -110,6 +111,15 @@ function sortie(r, extra = {}) {
   };
 }
 
+// ---- mode test (PR 2) : le paramètre `test`, ce que la réponse en dit, et le conseil quand le nom parle d'un test.
+/** `test: true` seulement : un `test: false` ou une valeur absente n'écrit AUCUNE clé (jamais `test: false` à la création). */
+const nettoyerTest = (valeurs) => { if (valeurs.test !== true) delete valeurs.test; return valeurs; };
+const CONSEIL_TEST = 'Le nom contient « test » : appelle marquer_test si c’est un essai.';
+/** Le conseil (jamais une pose automatique) : le mot « test » SEUL dans le nom, et le repère n'est pas posé. */
+const conseilTest = (nom, fiche) => (!L.estTest(fiche) && /\btest\b/.test(L.normaliserNom(nom ?? '')) ? { conseil: CONSEIL_TEST } : {});
+/** Ce que chaque création rappelle : `test: true` ou `test: false`, plus le conseil éventuel. `fiche` : le document créé (première écriture du plan). */
+const rappelTest = (nom, fiche) => ({ test: L.estTest(fiche), ...conseilTest(nom, fiche) });
+
 function refuserDoublons(doublons, genre, libelle) {
   if (!doublons.length) return;
   const liste = doublons.slice(0, 5).map((d) => `${d.nom} (id ${d.id})`).join(', ');
@@ -123,10 +133,10 @@ export async function creerPersonne(c, args) {
   verifierMessages(L.validerPersonne(valeurs));
   await verifierEtiquettes(c, valeurs.etiquettes);
   if (valeurs.source !== undefined) valeurs.source = await verifierSource(c, valeurs.source);
-  await lireSiDonne(c, C.organisations, valeurs.organisationId, 'Organisation');
+  const organisation = await lireSiDonne(c, C.organisations, valeurs.organisationId, 'Organisation');
   if (!forcer) refuserDoublons(L.trouverDoublonsPersonne(await c.donnees.liste(C.personnes), { nom: valeurs.nom, emails: valeurs.emails }), 'Personne', 'une autre personne');
-  const plan = L.planCreerPersonne(valeurs, await contexte(c, proprietaire));
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id });
+  const plan = L.planCreerPersonne(L.heriterTest(nettoyerTest(valeurs), { organisation }), await contexte(c, proprietaire)); // une personne d'une organisation de test est de test
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, ...rappelTest(valeurs.nom, plan.ecritures[0].donnees) });
 }
 
 export async function modifierPersonne(c, args) {
@@ -168,8 +178,8 @@ export async function creerOrganisation(c, args) {
   verifierMessages(L.validerOrganisation(valeurs));
   await verifierEtiquettes(c, valeurs.etiquettes);
   if (!forcer) refuserDoublons(L.trouverDoublonsOrganisation(await c.donnees.liste(C.organisations), valeurs.nom), 'Organisation', 'une autre organisation');
-  const plan = L.planCreerOrganisation(valeurs, await contexte(c, proprietaire));
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id });
+  const plan = L.planCreerOrganisation(nettoyerTest(valeurs), await contexte(c, proprietaire));
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, ...rappelTest(valeurs.nom, plan.ecritures[0].donnees) });
 }
 
 /**
@@ -233,9 +243,9 @@ export async function creerAffaire(c, args) {
   if (valeurs.source !== undefined) valeurs.source = await verifierSource(c, valeurs.source);
   const personne = await lireSiDonne(c, C.personnes, valeurs.personneId, 'Personne');
   const organisation = await lireSiDonne(c, C.organisations, valeurs.organisationId || personne?.organisationId, 'Organisation');
-  const plan = L.planCreerAffaire(valeurs, { personnes: personne ? [personne] : [], organisations: organisation ? [organisation] : [], texteNote: description ?? '' }, ctx);
+  const plan = L.planCreerAffaire(nettoyerTest(valeurs), { personnes: personne ? [personne] : [], organisations: organisation ? [organisation] : [], texteNote: description ?? '' }, ctx);
   verifierMessages(L.validerAffaire({ titre: plan.titre }));
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, noteEpingleeId: plan.noteId });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, noteEpingleeId: plan.noteId, ...rappelTest(plan.titre, plan.ecritures[0].donnees) });
 }
 
 export async function modifierAffaire(c, args) {
@@ -333,10 +343,10 @@ export async function creerProjet(c, args) {
   if (valeurs.urlDossier !== undefined) verifierMessages(L.validerUrlDossier(valeurs.urlDossier));
   await verifierOffre(c, valeurs.offreId);
   const personne = await lireSiDonne(c, C.personnes, valeurs.personneId, 'Personne');
-  await lireSiDonne(c, C.organisations, valeurs.organisationId || personne?.organisationId, 'Organisation');
+  const organisation = await lireSiDonne(c, C.organisations, valeurs.organisationId || personne?.organisationId, 'Organisation');
   const modele = await modeleDemande(c, modeleId);
-  const plan = PL.planCreerProjet({ ...valeurs, organisationId: valeurs.organisationId || personne?.organisationId || null }, ctx, { modele, texteNote: description ?? '' });
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, modeleId: modele?.id ?? null, noteEpingleeId: plan.noteId });
+  const plan = PL.planCreerProjet(L.heriterTest({ ...nettoyerTest(valeurs), organisationId: valeurs.organisationId || personne?.organisationId || null }, { personne, organisation }), ctx, { modele, texteNote: description ?? '' });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, modeleId: modele?.id ?? null, noteEpingleeId: plan.noteId, ...rappelTest(plan.titre, plan.ecritures[0].donnees) });
 }
 
 /** Crée le projet d'une affaire GAGNÉE (reprend l'affaire et la lie), comme « Créer le projet » de l'écran. */
@@ -345,9 +355,9 @@ export async function creerProjetDepuisAffaire(c, args) {
   const a = await lire(c, C.affaires, affaireId, 'Affaire');
   verifierMessages(PL.validerProjet({ titre: valeurs.titre || a.titre, dateDebut: valeurs.dateDebut, dateFin: valeurs.dateFin }, (await contexte(c)).config));
   const [projets, modele, notesAffaire] = await Promise.all([c.donnees.liste(C.projets), modeleDemande(c, modeleId), c.donnees.liste(C.notes, { champ: 'affaireId', valeur: a.id })]);
-  const plan = PL.planCreerProjetDepuisAffaire({ affaire: a, projets, valeurs, modele, notesAffaire, texteNote: description }, await contexte(c));
+  const plan = PL.planCreerProjetDepuisAffaire({ affaire: a, projets, valeurs: nettoyerTest(valeurs), modele, notesAffaire, texteNote: description }, await contexte(c));
   verifierMessages(plan.erreurs);
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, affaireId, modeleId: modele?.id ?? null, noteEpingleeId: plan.noteId });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, affaireId, modeleId: modele?.id ?? null, noteEpingleeId: plan.noteId, ...rappelTest(plan.titre, plan.ecritures[0].donnees) });
 }
 
 export async function modifierProjet(c, args) {
@@ -440,22 +450,31 @@ export async function abandonnerFacture(c, args) {
 
 // ---------------------------------------------------------------- notes et activités
 
-/** Liens à poser sur une note ou une activité : comme l'écran (une affaire porte aussi sa personne et son organisation). */
+/**
+ * Liens à poser sur une note ou une activité : comme l'écran (une affaire porte aussi sa personne et son organisation). Rend aussi `parents` : les fiches liées (affaire, personne, organisation),
+ * pour que l'élément créé hérite du repère test (`L.heriterTest`) comme à l'écran.
+ */
 async function liensCreation(c, { affaireId, personneId, organisationId }) {
   if (!affaireId && !personneId && !organisationId) refuser('saisie_invalide', 'Rattacher à une affaire, une personne ou une organisation (affaireId, personneId ou organisationId).');
-  if (affaireId) return L.liensAffaire(await lire(c, C.affaires, affaireId, 'Affaire'));
+  const lueSiDonnee = (collection, id) => (id ? c.donnees.document(collection, id) : null);
+  if (affaireId) {
+    const affaire = await lire(c, C.affaires, affaireId, 'Affaire');
+    const [personne, organisation] = await Promise.all([lueSiDonnee(C.personnes, affaire.personneId), lueSiDonnee(C.organisations, affaire.organisationId)]);
+    return { liens: L.liensAffaire(affaire), parents: { affaire, personne, organisation } };
+  }
   if (personneId) {
     const p = await lire(c, C.personnes, personneId, 'Personne');
-    return { personneId, organisationId: p.organisationId ?? null, affaireId: null };
+    return { liens: { personneId, organisationId: p.organisationId ?? null, affaireId: null }, parents: { personne: p, organisation: await lueSiDonnee(C.organisations, p.organisationId) } };
   }
-  await lire(c, C.organisations, organisationId, 'Organisation');
-  return { personneId: null, organisationId, affaireId: null };
+  const organisation = await lire(c, C.organisations, organisationId, 'Organisation');
+  return { liens: { personneId: null, organisationId, affaireId: null }, parents: { organisation } };
 }
 
 export async function ajouterNote(c, args) {
   verifierMessages(L.validerNote(args.texte));
-  const plan = L.planCreerNote(args.texte, await liensCreation(c, args), await contexte(c));
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id });
+  const { liens, parents } = await liensCreation(c, args);
+  const plan = L.planCreerNote(args.texte, L.heriterTest(liens, parents), await contexte(c)); // pas de paramètre test : la note hérite seulement
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, test: L.estTest(plan.ecritures[0].donnees) });
 }
 
 export async function modifierNote(c, args) {
@@ -467,11 +486,12 @@ export async function modifierNote(c, args) {
 
 export async function creerActivite(c, args) {
   const ctx = await contexte(c);
-  const valeurs = { type: args.type || 'tache', titre: args.titre, date: args.date || ctx.aujourdhui, heure: args.heure, ...await liensCreation(c, args) };
+  const { liens, parents } = await liensCreation(c, args);
+  const valeurs = { type: args.type || 'tache', titre: args.titre, date: args.date || ctx.aujourdhui, heure: args.heure, ...liens };
   verifierMessages(L.validerActivite(valeurs));
   if (!jourValide(valeurs.date)) refuser('saisie_invalide', 'date : attendu AAAA-MM-JJ.');
-  const plan = L.planCreerActivite(valeurs, ctx);
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id });
+  const plan = L.planCreerActivite(L.heriterTest(args.test === true ? { ...valeurs, test: true } : valeurs, parents), ctx);
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, ...rappelTest(valeurs.titre, plan.ecritures[0].donnees) });
 }
 
 export async function terminerActivite(c, args) {
@@ -937,6 +957,7 @@ export async function creerDevisBrouillon(c, args) {
   const client = organisation ? { type: 'organisation', fiche: organisation } : personne ? { type: 'personne', fiche: personne } : null;
   const adresse = client ? (L.adressesDe(client.fiche).find((a) => a.parDefaut) ?? L.adressesDe(client.fiche)[0])?.adresse ?? '' : '';
   const valeurs = { ...E.valeursDeCreation(affaire, client ? { ...client, adresse } : null) };
+  if (args.test === true) valeurs.test = true; // le repère passe dans l'objet de creerBrouillon (jamais test: false)
   if (destinataires !== undefined) { verifierDestinataires(destinataires); valeurs.destinataires = destinataires; }
   if (copie !== undefined) valeurs.copie = verifierCopie(copie, valeurs.destinataires);
   for (const [k, v] of Object.entries({ marge, tauxTvaDefaut })) if (v !== undefined) valeurs[k] = v;
@@ -949,7 +970,7 @@ export async function creerDevisBrouillon(c, args) {
   if (remise !== undefined) { verifierRemise(remise, { ...plan.devis, ...extra }); extra.remise = remise; }
   plan.ecritures[0].donnees = { ...plan.ecritures[0].donnees, ...extra };
   const t = D.totauxDevis({ ...plan.devis, ...extra });
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, statut: 'brouillon', numero: null, lignes: nombreDeLignes(extra.sections), sections: structureCourte(extra.sections), totalHT: t.totalHt, totalTTC: t.ttc });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, statut: 'brouillon', numero: null, lignes: nombreDeLignes(extra.sections), sections: structureCourte(extra.sections), totalHT: t.totalHt, totalTTC: t.ttc, ...rappelTest(`${objet ?? ''} ${nom ?? ''}`, plan.ecritures[0].donnees) });
 }
 
 /** Adresse (texte) de la fiche du client : l'adresse par défaut, sinon la première. */
@@ -1259,6 +1280,7 @@ export async function creerDevisDepuisModele(c, args) {
   const personne = await lireSiDonne(c, C.personnes, personneId ?? (organisation ? null : affaire?.personneId), 'Personne');
   const client = organisation ? { type: 'organisation', fiche: organisation } : personne ? { type: 'personne', fiche: personne } : null;
   const valeurs = { ...E.valeursDeCreation(affaire, client ? { ...client, adresse: adresseDuClient(client.fiche) } : null) };
+  if (args.test === true) valeurs.test = true; // le repère du modèle ne se copie pas (un modèle n'est pas un essai) : celui de l'affaire, du client ou du paramètre
   const ctx = await contexte(c, proprietaire);
   const plan = B.planCreerBrouillon(valeurs, { nouvelId: ctx.nouvelId, maintenant: ctx.maintenant, auteur: ctx.auteur, proprietaire: ctx.proprietaire }, await reglagesDuDevis(c)); // marge, mode de marge et TVA : réglages du jour
   verifierMessages(plan.erreurs);
@@ -1298,7 +1320,7 @@ export async function creerDevisDepuisModele(c, args) {
   const t = D.totauxDevis({ ...plan.devis, sections: travail });
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), {
     id: plan.id, statut: 'brouillon', numero: null, modeleId, lignes: nombreDeLignes(travail), sections: structureCourte(travail), totalHT: t.totalHt, totalTTC: t.ttc, phraseTotaux: phraseTotaux(t.totalHt, t.ttc),
-    aReviser, ...(aReviser.length ? { consigne: `À dire à l'utilisateur : ${aReviser.length} ligne(s) du modèle sont à revoir (aReviser, numéros du MODÈLE). Les lignes non copiées sont à ajouter avec modifier_lignes_devis si besoin.` } : {}),
+    aReviser, ...rappelTest('', plan.ecritures[0].donnees), ...(aReviser.length ? { consigne: `À dire à l'utilisateur : ${aReviser.length} ligne(s) du modèle sont à revoir (aReviser, numéros du MODÈLE). Les lignes non copiées sont à ajouter avec modifier_lignes_devis si besoin.` } : {}),
   });
 }
 
@@ -1540,6 +1562,74 @@ export async function recalculerUsageArticlesDevis(c, args) {
   const r = await recalculerUsageServeur({ donnees: c.donnees, ctx: ctxDevis(c), appliquer: true });
   return { change: true, ecrits: r.ecrits, ignores: r.ignores, detail: r.ignores ? `${r.ecrits} compteur(s) mis à jour ; ${r.ignores} ont changé pendant le calcul (une finalisation est passée) : relancer recalculer_usage_articles SANS codeConfirmation.` : r.ecrits ? `${r.ecrits} compteur(s) mis à jour.` : 'Tout est à jour.' };
 }
+
+// ---------------------------------------------------------------- mode test : marquer_test / demarquer_test (PR 2, cadrage docs/cadrage-mode-test.md §5.2 et §8.2)
+
+const GENRES_TEST = { personne: 'Personne', organisation: 'Organisation', affaire: 'Affaire', projet: 'Projet', devis: 'Devis' };
+const montantAffaireLu = (a) => ({ ht: typeof a?.montantDevisHt === 'number' ? a.montantDevisHt : null, nature: a?.montantDevisNature ?? null });
+
+/**
+ * Aperçu du montant de CHAQUE affaire touchée si les versions `versions` changeaient de repère (lecture seule, même règle D17 que l'écriture : une version brouillon a pu être rattachée à une autre affaire).
+ * Rend [{ affaireId, avant, apres }] (vide si aucune affaire ne change).
+ */
+async function apercuMontantsAffaires(c, toutes, versions, test) {
+  const retouchees = new Set(versions.map((v) => v.id));
+  const ids = [...new Set(toutes.map((v) => v.affaireId).filter((a) => typeof a === 'string' && a && !a.includes('/')))];
+  const lignes = [];
+  for (const affaireId of ids) {
+    const affaire = await c.donnees.document(C.affaires, affaireId);
+    if (!affaire) continue;
+    const liste = (await c.donnees.liste(C.devis, { champ: 'affaireId', valeur: affaireId })).map((d) => (retouchees.has(d.id) ? { ...d, test } : d));
+    const calcule = D.montantDesDevis(liste, affaire);
+    const apres = { ht: calcule?.montant ?? null, nature: calcule?.nature ?? null };
+    const avant = montantAffaireLu(affaire);
+    if (avant.ht !== apres.ht || avant.nature !== apres.nature) lignes.push({ affaireId, avant, apres });
+  }
+  return lignes;
+}
+
+async function basculerTestMetier(c, args, test) {
+  const { type, id } = args;
+  const outil = test ? 'marquer_test' : 'demarquer_test';
+  const genre = GENRES_TEST[type];
+  const fiche = await lire(c, TYPES_TEST[type], id, genre);
+  const dit = test ? 'Déjà un essai' : 'Déjà réel';
+  const rien = () => ({ rien: true, id, type, test, message: `${dit} : rien à changer.` });
+  let finalise = false;
+  if (type === 'devis') {
+    const racine = await c.donnees.liste(C.devis, { champ: 'racineId', valeur: fiche.racineId ?? fiche.id });
+    const toutes = racine.some((v) => v.id === fiche.id) ? racine : [fiche, ...racine];
+    const aChanger = toutes.filter((v) => (v.test === true) !== test);
+    if (!aChanger.length) return rien();
+    // « Finalisé » se décide sur l'ENSEMBLE des versions de la racine : viser la version brouillon d'un devis dont une autre version est signée ne contourne pas l'aperçu et le code.
+    finalise = toutes.some((v) => v.statut !== 'brouillon');
+    if (finalise) {
+      if (c.profil === 'bibliothecaire') refuser('saisie_invalide', `Marquer ou démarquer un devis FINALISÉ (une version au moins n'est plus un brouillon) est réservé à Claude Code : cela change le chiffre d'affaires et ne se défait pas avec le journal (un bibliothécaire ne peut pas non plus finaliser un devis). ${test ? 'Un brouillon se marque' : 'Un brouillon se démarque'} sans restriction.`);
+      const montantsAffaires = await apercuMontantsAffaires(c, toutes, aChanger, test);
+      const apercu = await confirmerDevis(c, args, {
+        outil, cibleId: id, verbe: 'marqué', empreinte: empreinteDevis(fiche, { test, versions: aChanger.map((v) => `${v.id}:${v.statut}`).sort() }),
+        apercu: { change: false, id, numero: fiche.numero ?? toutes.find((v) => v.numero)?.numero ?? null, statut: fiche.statut, test: { avant: fiche.test === true, apres: test }, versions: aChanger.length, affaireId: fiche.affaireId ?? null, montantsAffaires },
+        suite: `Le numéro du devis ne change pas ; le montant de chaque affaire touchée est recalculé ; l'usage des articles se remet juste ensuite avec recalculer_usage_articles. Cette opération ne se défait pas avec restaurer_depuis_audit (la bascule inverse : ${test ? 'demarquer_test' : 'marquer_test'}, avec aperçu et code).`,
+      });
+      if (apercu) return apercu;
+    }
+  } else if ((fiche.test === true) === test) {
+    return rien();
+  }
+  const r = await appelerCoeurDevis(c, () => basculerTest({ donnees: c.donnees, ctx: ctxDevis(c), type, id, test }), { reserver: !finalise }); // plafond d'écriture : UNE par bascule (déjà réservé par confirmerDevis avec un code)
+  if (r.rien) return rien();
+  return {
+    change: true, id, type, test, operationId: r.operationId, ...(r.versions !== undefined ? { versions: r.versions } : {}), ...(r.montant ? { montant: r.montant } : {}),
+    detail: finalise
+      ? 'Le devis garde son numéro. Relancer recalculer_usage_articles pour remettre le compteur d\'usage des articles à jour. Ne se défait pas avec restaurer_depuis_audit : utiliser ' + (test ? 'demarquer_test' : 'marquer_test') + ' (aperçu et code).'
+      : `Détail : lire_audit avec operationId ${r.operationId}. Récupérable avec restaurer_depuis_audit.`,
+  };
+}
+
+/** Marque un essai (`test: true`). Une fiche ou un brouillon : écriture directe ; un devis finalisé : aperçu puis code. */
+export const marquerTest = (c, args) => basculerTestMetier(c, args, true);
+/** « Ce n'est plus un test » (`test: false`). Même fonctionnement que marquerTest. */
+export const demarquerTest = (c, args) => basculerTestMetier(c, args, false);
 
 // ---------------------------------------------------------------- Garantie « aucun e-mail ne part tout seul » (29/10/2026)
 // Le logiciel NE FAIT QUE préparer un brouillon d'e-mail que la personne relit et envoie elle-même. Ces deux outils donnent à l'assistant les seules voies permises :

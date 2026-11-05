@@ -3,7 +3,7 @@
 //
 // Règles de comptage :
 // - Un article compte UNE fois par devis (deux lignes du même article = 1), d'après `articleId` de la ligne : jamais les composants d'un ouvrage (ce que l'utilisateur a demandé).
-// - Jamais pour un brouillon. Un même numéro de devis ne compte qu'une fois : une version suivante ne compte que la DIFFÉRENCE avec la version non brouillon la plus récente de la même racine,
+// - Jamais un devis de test (`test: true`, mode test PR 2) : ni à la finalisation, ni au recalcul (une seule règle, ici et dans devis.js). Jamais pour un brouillon. Un même numéro de devis ne compte qu'une fois : une version suivante ne compte que la DIFFÉRENCE avec la version non brouillon la plus récente de la même racine,
 //   quel que soit son statut (+1 article nouveau, -1 article retiré, 0 article resté). `remplaces` ne suffit pas (une nouvelle version peut partir d'un devis refusé).
 // - Un devis refusé ou archivé reste compté (décision de Jérôme, 30/10/2026).
 // - Un article RESTÉ garde son nombre mais prend la date de la nouvelle finalisation. Jamais négatif. Pas de ligne de journal par article (le devis finalisé a la sienne, et le compteur se recalcule depuis les devis).
@@ -71,7 +71,7 @@ const enDate = (v) => (v && typeof v.toDate === 'function' ? v.toDate() : v inst
 export function usageDepuisLesDevis(devis) {
   const parRacine = new Map();
   for (const d of devis ?? []) {
-    if (d?.statut === 'brouillon' || !d?.id) continue;
+    if (d?.statut === 'brouillon' || d?.test === true || !d?.id) continue; // un brouillon et un devis de test ne comptent jamais
     const racine = d.racineId ?? d.id;
     const courante = parRacine.get(racine);
     if (!courante || (d.version ?? 1) > (courante.version ?? 1)) parRacine.set(racine, d);

@@ -57,7 +57,9 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   const courants = await Promise.all(lignesAudit.map((l) => donnees.document(l.collection, l.docId)));
   // Même avec `forcer` : un devis qui n'est plus un brouillon (finalisé à l'écran après sa création par l'assistant, par exemple) ne se supprime ni ne se remet en brouillon par le journal.
   const figee = lignesAudit.find((l, i) => l.collection === C.devis && courants[i] && courants[i].statut !== 'brouillon' && !OUTILS_DEVIS_SUR_FINALISE.includes(l.outil));
-  if (figee) throw new ErreurEcriture('restauration_refusee', 'Un devis de cette opération n’est plus un brouillon : il ne se restaure pas avec le journal, même avec forcer. ' + VOIE_DE_SECOURS);
+  // Mode test : le marquage d'un devis finalisé se défait par l'outil inverse (aperçu et code), pas par une nouvelle version.
+  const voieMarquage = 'Pour revenir en arrière, utiliser l’outil inverse (demarquer_test ou marquer_test), avec son aperçu et son code.';
+  if (figee) throw new ErreurEcriture('restauration_refusee', 'Un devis de cette opération n’est plus un brouillon : il ne se restaure pas avec le journal, même avec forcer. ' + (['marquerTest', 'demarquerTest'].includes(figee.outil) ? voieMarquage : VOIE_DE_SECOURS));
   // Archivage / envoi défaits « de force » sur un devis dont le statut a changé depuis (signé, refusé…) : on remettrait l'ancien statut, ce qui contourne la règle des statuts.
   const statutChange = lignesAudit.find((l, i) => l.collection === C.devis && courants[i] && OUTILS_DEVIS_SUR_FINALISE.includes(l.outil) && copies[i]?.apres && courants[i].statut !== copies[i].apres.statut);
   if (statutChange) throw new ErreurEcriture('restauration_refusee', 'Le statut de ce devis a changé depuis cette opération : elle ne se défait plus avec le journal, même avec forcer. ' + VOIE_DE_SECOURS);

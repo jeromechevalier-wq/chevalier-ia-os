@@ -73,7 +73,7 @@ export async function lireDevis(tx, devisId) {
   if (!devis) throw new ErreurDevis('introuvable', `Devis introuvable : ${devisId}`);
   return enDates(devis);
 }
-const lireVersions = async (tx, devis) => (await tx.liste(C.devis, { champ: 'racineId', valeur: racineDe(devis) })).map(enDates);
+export const lireVersions = async (tx, devis) => (await tx.liste(C.devis, { champ: 'racineId', valeur: racineDe(devis) })).map(enDates);
 
 /** Lignes de journal d'une série de changements `{ id, action, avant, apres, champs }` (même forme que le moteur d'écriture du MCP). */
 export function journal({ donnees, ctx, outil, parametres, changements }) {
@@ -130,14 +130,15 @@ const memeDetail = (a, b) => {
   return x.length === y.length && x.every((l, i) => l?.numero === y[i].numero && l?.version === y[i].version && l?.ht === y[i].ht && l?.compte === y[i].compte);
 };
 
-async function montantDeLAffaire(tx, devis, retouches) {
+/** `affaireRetouchee` (facultatif) : champs que la transaction change sur l'AFFAIRE (mode test : le repère), appliqués en mémoire avant le calcul, comme `retouches` pour les devis. */
+export async function montantDeLAffaire(tx, devis, retouches, affaireRetouchee = null) {
   const affaireId = devis.affaireId;
   if (typeof affaireId !== 'string' || !affaireId || affaireId.includes('/')) return null;
   const affaire = await tx.document(C.affaires, affaireId);
   if (!affaire) return null;
   const liste = (await tx.liste(C.devis, { champ: 'affaireId', valeur: affaireId })).map(enDates);
   if (devis.id && !liste.some((d) => d.id === devis.id) && retouches[devis.id] !== null) liste.push(devis);
-  const calcule = D.montantDesDevis(liste.filter((d) => retouches[d.id] !== null).map((d) => ({ ...d, ...(retouches[d.id] ?? {}) })), affaire);
+  const calcule = D.montantDesDevis(liste.filter((d) => retouches[d.id] !== null).map((d) => ({ ...d, ...(retouches[d.id] ?? {}) })), affaireRetouchee ? { ...affaire, ...affaireRetouchee } : affaire);
   const patch = { montantDevisHt: calcule?.montant ?? null, montantDevisNature: calcule?.nature ?? null, montantDevisDetail: calcule?.detail ?? null };
   const meme = (typeof affaire.montantDevisHt === 'number' ? affaire.montantDevisHt : null) === patch.montantDevisHt && (affaire.montantDevisNature ?? null) === patch.montantDevisNature
     && memeDetail(affaire.montantDevisDetail, patch.montantDevisDetail);
@@ -195,7 +196,7 @@ export async function finaliser({ donnees, ctx, devisId }) {
     if (montant) changements.push(montant);
 
     // Compteur d'usage des articles (cadrage vocabulaire-cibles, 2.9) : dans la MÊME transaction, sans ligne de journal (comme le compteur de numéros). Les lectures se font ici, avant l'écriture unique.
-    ecritures.push(...await ecrituresUsage(tx, { devis: apres, versions, maintenant: ctx.maintenant }));
+    if (apres.test !== true) ecritures.push(...await ecrituresUsage(tx, { devis: apres, versions, maintenant: ctx.maintenant })); // un devis de test ne compte jamais (mode test, PR 2)
 
     const j = journal({ donnees, ctx, outil: 'devisFinaliser', parametres: { devisId }, changements });
     tx.ecrire([...ecritures, ...changements.map((c) => c.ecriture), ...j.ecritures]);
