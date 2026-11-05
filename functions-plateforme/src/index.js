@@ -95,6 +95,7 @@ export const devisArchiver = appelDevis('archiver');
 export const devisSupprimer = appelDevis('supprimer');
 export const devisEnregistrerEnvoi = appelDevis('enregistrerEnvoi'); // historique des envois par e-mail
 export const devisModifierDestinataires = appelDevis('modifierDestinataires'); // destinataire et copie d'un devis finalisé ou envoyé (rien d'autre ne change)
+export const modeTestSupprimer = appelDevis('supprimerTests'); // Réglages > Mes tests (mode test, PR 4) : éditeur seul, module Devis non exigé
 export const devisMarquerTest = appelDevis('marquerTest'); // marquer ou démarquer comme test un devis finalisé (mode test, PR 3)
 
 // `automatisationsDecider` chez les clients (28/10/2026) : écran « À valider » du module Automatisations (valider, refuser, relancer une proposition), même code métier que chez Jérôme

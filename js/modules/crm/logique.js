@@ -2337,6 +2337,114 @@ export const planMajNote = (id, texte) => ({ ecritures: [ecritureModifier(C.note
 export const planEpinglerNote = (id, epinglee) => ({ ecritures: [ecritureModifier(C.notes, id, { epinglee: !!epinglee }, { horodater: ['modifieLe'] })] });
 export const planSupprimerNote = (id) => ({ ecritures: [ecritureSupprimer(C.notes, id)] });
 
+// ---- mode test : « Supprimer tous mes tests » (cadrage-mode-test.md §9)
+
+const COLLECTION_DEVIS_TESTS = 'devis_devis';
+const NOMS_TESTS_APERCU = 10;
+const numeroEstTest = (numero) => typeof numero === 'string' && numero.startsWith('TEST-');
+const libelleTest = (doc, collection) => {
+  const brut = ['nom', 'titre', 'objet', 'libelle', 'texte', 'type'].map((k) => doc?.[k]).find((v) => typeof v === 'string' && v.trim());
+  return `${collection} : « ${brut ? brut.replace(/\s+/g, ' ').trim().slice(0, 60) : doc?.id} »`;
+};
+const pluriel = (n, un, plusieurs) => `${n} ${n > 1 ? plusieurs : un}`;
+
+/**
+ * « Supprimer tous mes tests ». Fonction pure : l'appelant lit les collections ENTIÈRES (devis compris) et passe ce qu'il a lu.
+ * Seul le repère `test: true` décide (jamais `donneesDemo`). Rend :
+ * { devisFinalises: [écritures] (devis TEST-, jamais restaurables), reste: [écritures] (modifications de liens puis suppressions, restaurables),
+ *   comptes, total, noms (10 premiers puis « et N autres »), relies: [{ collection, id, libelle, raison }] (réels gardés), compteurTestAVider }.
+ * Gardés et listés : un devis DEV- marqué test (il a consommé un vrai numéro), une racine de devis dont une version n'est pas marquée test,
+ * une organisation de test qui garde une personne ou une affaire réelle ; les éléments réels reliés à un test supprimé gardent leur fiche (lien vidé).
+ */
+export function planSupprimerTests({ personnes = [], organisations = [], affaires = [], projets = [], taches = [], activites = [], notes = [], evenements = [], devis = [] } = {}) {
+  const relies = [];
+  const relier = (collection, doc, raison) => relies.push({ collection, id: doc.id, libelle: libelleTest(doc, collection), raison });
+
+  // Devis : par racine. Tout ou rien.
+  const racines = new Map();
+  for (const d of devis) racines.set(d.racineId ?? d.id, [...(racines.get(d.racineId ?? d.id) || []), d]);
+  const devisPartis = [];
+  const devisGardes = [];
+  for (const versions of racines.values()) {
+    if (!versions.some(estTest)) continue;
+    if (versions.some((v) => !estTest(v))) {
+      for (const v of versions) devisGardes.push(v);
+      relier(COLLECTION_DEVIS_TESTS, versions[0], 'devis gardé : une de ses versions n’est pas marquée test');
+    } else if (versions.some((v) => v.numero && !numeroEstTest(v.numero))) {
+      for (const v of versions) devisGardes.push(v);
+      relier(COLLECTION_DEVIS_TESTS, versions[0], `devis ${versions.find((v) => v.numero)?.numero} gardé : il a consommé un vrai numéro (à supprimer à part)`);
+    } else devisPartis.push(...versions);
+  }
+  const partisDevis = new Set(devisPartis.map((d) => d.id));
+  const finalisesRacines = new Set(devisPartis.filter((d) => numeroEstTest(d.numero)).map((d) => d.racineId ?? d.id));
+  const devisA = devisPartis.filter((d) => finalisesRacines.has(d.racineId ?? d.id));
+  const devisB = devisPartis.filter((d) => !finalisesRacines.has(d.racineId ?? d.id));
+
+  // Fiches de test. Une organisation de test qui garde du réel est gardée.
+  const supp = { personneId: new Set(personnes.filter(estTest).map((x) => x.id)), affaireId: new Set(affaires.filter(estTest).map((x) => x.id)), projetId: new Set(projets.filter(estTest).map((x) => x.id)), organisationId: new Set() };
+  for (const o of organisations.filter(estTest)) {
+    const personnesReelles = personnes.filter((p) => p.organisationId === o.id && !estTest(p)).length;
+    const affairesReelles = affaires.filter((a) => a.organisationId === o.id && !estTest(a)).length;
+    if (personnesReelles || affairesReelles) {
+      const morceaux = [personnesReelles && pluriel(personnesReelles, 'personne', 'personnes'), affairesReelles && pluriel(affairesReelles, 'affaire', 'affaires')].filter(Boolean).join(' et ');
+      relier(C.organisations, o, `organisation gardée : elle garde ${morceaux} réelles`);
+    } else supp.organisationId.add(o.id);
+  }
+  const touche = (doc) => Object.keys(supp).filter((champ) => doc[champ] && supp[champ].has(doc[champ]));
+  const patchLiens = (doc) => Object.fromEntries(touche(doc).map((champ) => [champ, null]));
+
+  const modifications = [];
+  const modifier = (collection, doc, marques) => {
+    const patch = patchLiens(doc);
+    if (Object.keys(patch).length) modifications.push(ecritureModifier(collection, doc.id, patch, marques));
+    return patch;
+  };
+  const suppressions = [];
+  const supprimer = (collection, doc) => suppressions.push({ collection, doc, ecriture: ecritureSupprimer(collection, doc.id) });
+  const comptes = { devis: 0, taches: 0, projets: 0, activites: 0, notes: 0, evenements: 0, affaires: 0, personnes: 0, organisations: 0 };
+
+  // Tâches : celles d'un projet de test, et les tâches marquées test.
+  for (const t of taches) if (estTest(t) || supp.projetId.has(t.projetId)) { supprimer(C.projetsTaches, t); comptes.taches += 1; }
+  for (const p of projets.filter(estTest)) { supprimer(C.projets, p); comptes.projets += 1; }
+  for (const [champ, liste, collection] of [['activites', activites, C.activites], ['notes', notes, C.notes]]) {
+    for (const x of liste) {
+      if (estTest(x)) { supprimer(collection, x); comptes[champ] += 1; continue; }
+      const patch = modifier(collection, x);
+      if (Object.keys(patch).length) relier(collection, x, 'élément réel gardé : son lien vers un test supprimé est vidé');
+    }
+  }
+  for (const e of evenements) {
+    const liens = touche(e);
+    const restants = ['affaireId', 'personneId', 'organisationId', 'projetId'].filter((champ) => e[champ] && !supp[champ]?.has(e[champ]));
+    if (estTest(e) || (liens.length && (!restants.length || liens.some((champ) => ['affaireId', 'projetId'].includes(champ))))) { supprimer(C.evenements, e); comptes.evenements += 1; } else modifier(C.evenements, e);
+  }
+  for (const a of affaires) {
+    if (estTest(a)) { supprimer(C.affaires, a); comptes.affaires += 1; continue; }
+    if (Object.keys(modifier(C.affaires, a, MARQUES_MODIFICATION)).length) relier(C.affaires, a, 'affaire réelle gardée : sa personne ou son organisation de test est supprimée, son lien est vidé');
+  }
+  for (const p of projets.filter((x) => !estTest(x))) {
+    if (Object.keys(modifier(C.projets, p, MARQUES_MODIFICATION)).length) relier(C.projets, p, 'projet réel gardé : son lien vers un test supprimé est vidé');
+  }
+  for (const p of personnes.filter(estTest)) { supprimer(C.personnes, p); comptes.personnes += 1; }
+  for (const o of organisations.filter((x) => supp.organisationId.has(x.id))) { supprimer(C.organisations, o); comptes.organisations += 1; }
+  for (const d of [...devisGardes, ...devis.filter((x) => !estTest(x) && !partisDevis.has(x.id))]) {
+    if (d.affaireId && supp.affaireId.has(d.affaireId) && !relies.some((r) => r.id === d.id)) relier(COLLECTION_DEVIS_TESTS, d, 'devis gardé : son affaire de test est supprimée, il reste sans affaire');
+  }
+  comptes.devis = devisA.length + devisB.length;
+
+  const lotDevisA = devisA.map((d) => ecritureSupprimer(COLLECTION_DEVIS_TESTS, d.id));
+  const lotDevisB = devisB.map((d) => ecritureSupprimer(COLLECTION_DEVIS_TESTS, d.id));
+  // Ordre des suppressions : devis, tâches, projets, activités/notes/événements, affaires, personnes, organisations.
+  const rang = [C.projetsTaches, C.projets, C.activites, C.notes, C.evenements, C.affaires, C.personnes, C.organisations];
+  const triees = [...suppressions].sort((x, y) => rang.indexOf(x.collection) - rang.indexOf(y.collection));
+  const reste = [...modifications, ...lotDevisB, ...triees.map((s) => s.ecriture)];
+  const designes = [...devisA.map((d) => [COLLECTION_DEVIS_TESTS, d]), ...devisB.map((d) => [COLLECTION_DEVIS_TESTS, d]), ...triees.map((s) => [s.collection, s.doc])];
+  const noms = designes.slice(0, NOMS_TESTS_APERCU).map(([collection, doc]) => libelleTest(doc, collection));
+  if (designes.length > NOMS_TESTS_APERCU) noms.push(`et ${designes.length - NOMS_TESTS_APERCU} autres`);
+  const restants = devis.filter((d) => !partisDevis.has(d.id));
+  return { devisFinalises: lotDevisA, reste, comptes, total: designes.length, noms, relies, compteurTestAVider: !restants.some((d) => numeroEstTest(d.numero)) };
+}
+
 // ---------------------------------------------------------------- audit des écritures faites à l'écran
 //
 // Chaque action de l'écran écrit, DANS LE MÊME LOT que les données, une ligne dans crm_audit (qui, quand, quoi, quel document) et une

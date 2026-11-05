@@ -65,6 +65,9 @@ export async function etatPreparerEmail({ db, auth, donnees, sortie }) {
   return { branche: (await sortie.branche(client)) === true };
 }
 
+/** Opérations qui ne demandent pas le module Devis : un client « affaires seules » a aussi des éléments de test à supprimer (Réglages > Mes tests). Éditeur de l'espace exigé quand même. */
+const OPERATIONS_SANS_MODULE_DEVIS = Object.freeze(['supprimerTests']);
+
 /**
  * Exécute une transition de devis pour le client de la demande. `operation` : finaliser | changerStatut | nouvelleVersion | archiver | supprimer.
  * Donnée reçue : { client, devisId, action?, archive? }. Rend { ok, ... } (voir coeur/devis.js, reponsePublique) ou lève un Refus.
@@ -79,7 +82,7 @@ export async function transitionDevis({ db, auth, donnees, operation, maintenant
   const membre = await db.doc(`clients/${client}/membres/${email}`).get();
   if (!membre.exists || membre.get('role') !== 'editeur') throw REFUS_NEUTRE();
   const fiche = await db.doc(`clients/${client}`).get();
-  if (!fiche.exists || fiche.get('modules')?.[MODULE_DEVIS] !== true) throw REFUS_NEUTRE();
+  if (!fiche.exists || (!OPERATIONS_SANS_MODULE_DEVIS.includes(operation) && fiche.get('modules')?.[MODULE_DEVIS] !== true)) throw REFUS_NEUTRE();
   try {
     const acces = creerDonnees ? creerDonnees(client) : avecBase(creerAccesFirestore({ db }), `clients/${client}`);
     const r = await executer({ donnees: acces, ctx: { acteur: email, via: 'ecran', maintenant: new Date(maintenant) } }, donnees);
