@@ -10,6 +10,7 @@ import {
   lienPersonne, lienOrganisation, pastilleActivite, selecteurPersonne, selecteurOrganisation, organisationChoisieOuSaisie, etatVide, planifier, nomCompte, selecteurTri, badgeTest, entreeMarquerTest
 } from '../crm/composants.js';
 import * as T from '../crm/tri.js';
+import { enteteListe, basculeVues, barreListe } from '../crm/barre-liste.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
 import { proposerSorties } from './factures.js';
@@ -341,8 +342,7 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
   vue = surArchives ? 'archives' : vueMemorisee();
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite' });
   const zone = h('div', { class: 'zone-affaires zone-projets' });
-  const zoneBascule = h('div', {});
-  const zoneFiltres = h('div', { class: 'barre-filtres' });
+  const zoneBascule = h('div', { class: 'zone-bascule' });
   let rafraichir = () => {};
 
   function contexteFiltres(archives) {
@@ -350,17 +350,14 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
   }
 
   function bascule() {
-    const vues = [['kanban', 'Kanban', 'square-kanban'], ['liste', 'Liste', 'list'], ['archives', 'Archives', 'archive']];
-    return h('div', { class: 'bascule-vues', role: 'group', 'aria-label': 'Vue' }, vues.map(([id, libelle, ic]) => h('button', {
-      type: 'button', class: `bascule-vue${vue === id ? ' actif' : ''}`, 'aria-pressed': String(vue === id), dataset: { vue: id },
-      onclick: () => {
+    return basculeVues({ vues: [['kanban', 'Kanban', 'square-kanban'], ['liste', 'Liste', 'list'], ['archives', 'Archives', 'archive']], courante: vue,
+      surChangement: (id) => {
         if (id === 'archives') { naviguer('projets/archives'); return; }
         ecrirePreference('vue.projets', id);
         if (vue === 'archives') { naviguer('projets/projets'); return; }
         vue = id;
         rendre();
-      },
-    }, icone(ic, { taille: 16 }), h('span', {}, libelle))));
+      } });
   }
 
   function majCriteres(nouveaux) {
@@ -368,8 +365,6 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
     rendre();
   }
 
-  const champRecherche = h('input', { class: 'champ', type: 'search', 'aria-label': 'Rechercher un projet', placeholder: 'Rechercher un projet', autocomplete: 'off', value: criteres.recherche,
-    oninput: (e) => majCriteres({ ...criteres, recherche: e.target.value }) });
   const boutonFiltres_ = boutonFiltresCommun({ auClic: async () => {
     const r = await ouvrirFenetreFiltres();
     if (r) majCriteres(r);
@@ -389,7 +384,9 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
       { libelle: 'Enregistrer ce filtre…', icone: 'bookmark-plus', desactive: !P.criteresProjetsActifs(criteres), action: enregistrerFiltre },
     ]) }, icone('bookmark', { taille: 16 }));
   const zonePastilles = h('div', { class: 'pastilles-actives' });
-  zoneFiltres.append(h('div', { class: 'barre-filtres-ligne' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), champRecherche), boutonFiltres, boutonEnregistres), zonePastilles);
+  const choixTri = selecteurTri({ options: T.optionsMenu('projets', tri.critere), valeur: tri.critere, sens: tri.sens, surChangement: (nouveau) => changerTri(nouveau) });
+  const barre = barreListe({ recherche: { placeholder: 'Rechercher un projet', valeur: criteres.recherche, surSaisie: (v) => majCriteres({ ...criteres, recherche: v }) },
+    elements: { filtres: boutonFiltres, signet: boutonEnregistres, vues: zoneBascule, pastilles: zonePastilles }, tri: choixTri.element });
 
   function majFiltres() {
     const actifs = pastillesFiltres();
@@ -398,10 +395,9 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
       actifs.map((a) => h('span', { class: 'pastille-filtre' }, a.libelle,
         h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer le filtre : ${a.libelle}`, onclick: () => majCriteres(a.retirer()) }, icone('x', { taille: 12 })))),
       actifs.length > 1 ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', onclick: () => majCriteres({ recherche: criteres.recherche }) }, 'Tout effacer') : null);
-    if (champRecherche.value !== criteres.recherche && document.activeElement !== champRecherche) champRecherche.value = criteres.recherche;
+    if (barre.champ.value !== criteres.recherche && document.activeElement !== barre.champ) barre.champ.value = criteres.recherche;
   }
 
-  const choixTri = selecteurTri({ options: T.optionsMenu('projets', tri.critere), valeur: tri.critere, sens: tri.sens, surChangement: (nouveau) => changerTri(nouveau) });
   function changerTri(nouveau) {
     tri = nouveau;
     ecrirePreference('tri.projets', T.texteTri(tri));
@@ -457,12 +453,9 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
     remplir(zone, h('div', { class: 'zone-tableau' }, h('table', { class: 'tableau tableau-projets' }, h('thead', {}, entete), h('tbody', {}, corps))));
   }
 
-  const entete = h('header', { class: 'page-tete' },
-    h('div', {}, h('h1', {}, 'Projets'), compteur),
-    h('div', { class: 'page-actions' },
-      zoneBascule,
-      h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouveau-projet', onclick: () => ouvrirCreationProjet() }, icone('plus', { taille: 16 }), 'Projet')));
-  conteneur.append(h('div', { class: 'page page-affaires page-projets' }, entete, h('div', { class: 'barre-affaires' }, zoneFiltres, choixTri.element), zone));
+  const entete = enteteListe({ titre: 'Projets', compteur, actions: [
+    h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouveau-projet', onclick: () => ouvrirCreationProjet() }, icone('plus', { taille: 16 }), 'Projet')] });
+  conteneur.append(h('div', { class: 'page page-affaires page-projets' }, entete, barre.element, zone));
 
   const planifie = planifier(() => { if (enDeplacement) return; rendre(); });
   rafraichir = planifie;

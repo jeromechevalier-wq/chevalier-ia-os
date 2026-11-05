@@ -15,9 +15,6 @@
 .article-desactive td { color: var(--texte2); }
 .erreur-cellule { margin: var(--esp-2) 0 0; font-size: var(--fs-petit); }
 .tableau-articles td .champ { min-width: 90px; }
-@media (min-width: 768px) {
-  .page-devis .barre-affaires .champ[type="search"] { flex: 1 1 260px; max-width: var(--largeur-recherche); } /* sur téléphone la barre est une colonne : la recherche prend sa hauteur normale */
-}
 .reglages-devis .cases { display: flex; gap: var(--esp-7); flex-wrap: wrap; }
 fieldset.cases { border: 0; padding: 0; margin: 0; min-width: 0; } /* groupe de cases : la légende (lecteurs d’écran) remplace le titre visible, l’apparence ne change pas */
 .reglages-devis h3 { display: flex; align-items: center; gap: var(--esp-4); margin-top: var(--esp-8); font-size: var(--fs-section); } /* « Mon entreprise » : même allure que le titre d'une section */

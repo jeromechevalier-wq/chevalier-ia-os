@@ -5,6 +5,7 @@ import { h, icone, remplir, dialogue, toast, boutonSelonTexte } from '../../os/u
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
 import { etatVide, planifier, saisieEnCours, selecteurTri } from '../crm/composants.js';
+import { enteteListe, barreListe } from '../crm/barre-liste.js';
 import * as D from './donnees.js';
 import * as A from './articles.js';
 import * as O from './ouvrages.js';
@@ -416,10 +417,6 @@ export function rendreBordereau(conteneur) {
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite' });
   const zoneTableau = h('div', { class: 'zone-tableau' });
   const avis = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'lecture' }, hidden: true });
-  const champRecherche = h('input', {
-    class: 'champ', type: 'search', 'aria-label': 'Rechercher un article', placeholder: 'Rechercher un article', autocomplete: 'off', value: recherche,
-    oninput: (e) => { recherche = e.target.value; rendre(); },
-  });
   const filtres = boutonFiltresCommun({ auClic: async () => {
     const r = await fenetreFiltres({
       controles: [
@@ -494,10 +491,9 @@ export function rendreBordereau(conteneur) {
   }
 
   conteneur.append(h('div', { class: 'page page-liste page-devis' },
-    h('header', { class: 'page-tete' },
-      h('div', {}, boutonRetour, titre, compteur),
-      h('div', { class: 'page-actions' }, boutonReprise, boutonAjout)),
-    h('div', { class: 'barre-affaires' }, champRecherche, filtres.element, choixTri.element, boutonPlus),
+    enteteListe({ titre, compteur, retour: boutonRetour, actions: [boutonReprise, boutonAjout] }),
+    barreListe({ recherche: { placeholder: 'Rechercher un article', valeur: recherche, surSaisie: (v) => { recherche = v; rendre(); } },
+      elements: { filtres: filtres.element }, tri: choixTri.element, apres: [boutonPlus] }).element,
     avis, zoneTableau));
 
   // Pendant la frappe dans une cellule, on ne reconstruit pas (la saisie serait perdue) ; la liste se met à jour à la fin de la saisie.

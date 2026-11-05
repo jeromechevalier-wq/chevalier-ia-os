@@ -187,6 +187,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .barre-affaires { display: flex; gap: var(--esp-4); align-items: flex-start; flex-wrap: wrap; }
 .champ-tri { width: auto; min-width: 200px; }
 .selecteur-tri { display: inline-flex; align-items: center; gap: var(--esp-2); }
+.zone-bascule { display: contents; } /* la zone qui se redessine ne compte pas dans la mise en page : les boutons de vue sont de vrais éléments de la ligne */
 .bascule-vues { display: inline-flex; border: 1px solid var(--bordure-forte); border-radius: var(--rayon); overflow: hidden; }
 .bascule-vue { display: inline-flex; align-items: center; gap: var(--esp-2); padding: var(--esp-3) var(--esp-5); border: 0; background: transparent; color: var(--texte2); cursor: pointer; font-weight: var(--poids-moyen); font-size: var(--fs-texte); }
 .bascule-vue + .bascule-vue { border-left: 1px solid var(--bordure-forte); }
@@ -455,6 +456,9 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .page-actions { width: 100%; }
   .page-actions .bouton { flex: 1 1 auto; justify-content: center; }
   .page-tete > div:first-child { min-width: 0; }
+  /* Boutons de vue dans la barre : toute la largeur, boutons égaux, au moins 44 px de haut (décision du 05/11/2026) */
+  .bascule-vues { display: flex; flex: 1 1 100%; }
+  .bascule-vue { flex: 1 1 0; justify-content: center; min-height: 44px; }
 }
 
 /* ---------------------------------------------------------------- adresse GitHub et dossier (lanceurs) */

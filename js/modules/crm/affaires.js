@@ -11,11 +11,12 @@ import {
 import * as T from './tri.js';
 import { surChangementPastilles } from './pastilles-externes.js';
 import { barreFiltres } from './filtres.js';
+import { enteteListe, basculeVues } from './barre-liste.js';
 import { dialogueActivite } from './activites.js';
 
 // État conservé pendant la session.
 let criteres = L.criteresComplets('affaires', {});
-let vue = lirePreference('vue.affaires', 'kanban'); // kanban | liste | archives
+let vue = ['kanban', 'liste'].includes(lirePreference('vue.affaires', 'kanban')) ? lirePreference('vue.affaires', 'kanban') : 'kanban'; // kanban | liste | archives (« Archives » n'est jamais mémorisée comme vue de départ)
 // Un seul tri pour le Kanban, la Liste et les Archives : { critere, sens }, mémorisé sous `tri.affaires` (l'ancienne clé `tri.kanban` est lue une fois).
 let tri = T.lireTriMemorise('affaires', lirePreference);
 let enDeplacement = false;
@@ -247,23 +248,21 @@ function colonne({ id, titre, couleur, affaires, onDrop }) {
 let rafraichir = () => {};
 
 export function rendreAffaires(conteneur) {
+  if (vue === 'archives') vue = 'kanban'; // « Archives » ne se garde pas d'un passage à l'autre
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite' });
   const zone = h('div', { class: 'zone-affaires' });
+  const zoneBascule = h('div', { class: 'zone-bascule' });
   const filtres = barreFiltres({
-    liste: 'affaires', placeholder: 'Rechercher une affaire',
+    liste: 'affaires', placeholder: 'Rechercher une affaire', vues: zoneBascule,
     lireCriteres: () => criteres,
     ecrireCriteres: (c) => { criteres = L.criteresComplets('affaires', c); rendre(); filtres.rafraichir(); },
     contexte: () => ({ offres: D.etat.offres, personnes: D.etat.personnes, organisations: D.etat.organisations, config: D.etat.config }),
   });
 
   function bascule() {
-    const vues = [['kanban', 'Kanban', 'square-kanban'], ['liste', 'Liste', 'list'], ['archives', 'Archives', 'archive']];
-    return h('div', { class: 'bascule-vues', role: 'group', 'aria-label': 'Vue' }, vues.map(([id, libelle, ic]) => h('button', {
-      type: 'button', class: `bascule-vue${vue === id ? ' actif' : ''}`, 'aria-pressed': String(vue === id), dataset: { vue: id },
-      onclick: () => { vue = id; ecrirePreference('vue.affaires', id); rendre(); },
-    }, icone(ic, { taille: 16 }), h('span', {}, libelle))));
+    return basculeVues({ vues: [['kanban', 'Kanban', 'square-kanban'], ['liste', 'Liste', 'list'], ['archives', 'Archives', 'archive']], courante: vue,
+      surChangement: (id) => { vue = id; if (id !== 'archives') ecrirePreference('vue.affaires', id); rendre(); } });
   }
-  const zoneBascule = h('div', {});
   const choixTri = selecteurTri({ options: T.optionsMenu('affaires', tri.critere), valeur: tri.critere, sens: tri.sens, surChangement: (nouveau) => changerTri(nouveau) });
   function changerTri(nouveau) {
     tri = nouveau;
@@ -332,11 +331,8 @@ export function rendreAffaires(conteneur) {
     remplir(zone, h('div', { class: 'zone-tableau' }, h('table', { class: 'tableau tableau-affaires' }, h('thead', {}, entete), h('tbody', {}, corps))));
   }
 
-  const entete = h('header', { class: 'page-tete' },
-    h('div', {}, h('h1', {}, 'Affaires'), compteur),
-    h('div', { class: 'page-actions' },
-      zoneBascule,
-      h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire() }, icone('plus', { taille: 16 }), 'Affaire')));
+  const entete = enteteListe({ titre: 'Affaires', compteur, actions: [
+    h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire() }, icone('plus', { taille: 16 }), 'Affaire')] });
   conteneur.append(h('div', { class: 'page page-affaires' }, entete, h('div', { class: 'barre-affaires' }, filtres.element, choixTri.element), zone));
 
   const planifie = planifier(() => { if (enDeplacement) return; rendre(); filtres.rafraichir(); });
