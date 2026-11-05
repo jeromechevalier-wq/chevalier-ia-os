@@ -207,3 +207,15 @@ Indicateurs : une ligne basse par indicateur, l'explication « Comment c'est cal
 - **Boutons « + » du devis** (question 1 de Jérôme) : le bouton porte le **nom de la famille** dès qu'elle est renommée ; tant qu'elle ne l'est pas, il garde son mot d'origine, et pour les ouvrages le mot du métier réglé (« Prestation »). « Textes » n'a pas de bouton « + » : il reste dans le menu « Texte » existant. Le badge de type d'un article (« Fourniture ») dit le type, pas le nom de la famille : les deux peuvent différer après renommage.
 - Un nouvel article démarre dans « Fournitures » si elle est active, sinon dans la première famille active (jamais « Textes » tant qu'une autre l'est).
 - **Archiver un devis = le ranger (2026-11-04)** : l'archivage ne change aucun montant ni le chiffre d'affaires ; l'archivé quitte seulement les listes (onglet Devis de l'affaire, colonnes) et apparaît dans Archives. Pour retirer un devis du calcul : « Refusé » ou la suppression.
+
+## Écrans de liste : une seule barre (05/11/2026)
+
+Décision de Jérôme (captures de ses écrans Devis et Projets) : tous les écrans de liste ont la même barre, fabriquée par `js/modules/crm/barre-liste.js` (`enteteListe`, `barreListe`, `basculeVues`, `champRecherche`).
+
+- **Ligne du haut** : le titre et le compteur à gauche (une flèche « ‹ Devis » avant le titre pour un écran qui dépend d'un autre) ; à droite seulement les **actions** : le bouton jaune « + Nouveau… » et, au besoin, des boutons secondaires (Catalogue, Vocabulaire, « … »).
+- **Ligne du bas**, dans cet ordre : la **recherche avec sa loupe**, le bouton « Filtres », le signet « Filtres enregistrés » (là où il existe), le groupe de **boutons de vue** (Kanban / Liste / Tableau…), puis le menu « Trier par » à droite. Les pastilles de filtres actifs se mettent sous cette ligne.
+- **La recherche a toujours une loupe.** Le placeholder dit ce qu'on cherche (« Rechercher une affaire ») ; le nom lu par les lecteurs d'écran peut différer (`libelleAria`).
+- **« Archives » est un bouton de vue** dans le groupe, quand le module a des archives. Elle n'est **jamais mémorisée** comme vue de départ : on revient toujours sur la vue normale.
+- **Tableau de bord** (Maintenance, Automatisations) : ligne du haut seulement, pas de barre de recherche.
+- **Téléphone** : la barre passe en colonne, la recherche d'abord ; les boutons de vue prennent toute la largeur, trois boutons égaux de 44 px de haut au moins.
+- **Tout nouveau module de liste utilise ce composant**, sauf décision écrite de Jérôme. Le test `tests/barre-liste.test.js` échoue si un écran de liste pose un champ `type: 'search'` ou ses boutons de vue à la main.

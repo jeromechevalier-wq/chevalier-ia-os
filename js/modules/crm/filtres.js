@@ -1,6 +1,7 @@
 // Barre de recherche et de filtres des listes (personnes, organisations, affaires) : champ de recherche,
 // fenêtre de filtres combinables, pastilles supprimables, filtres enregistrés.
 import { h, icone, remplir, dialogue, demanderTexte, ouvrirMenu, toast, champIntelligent } from '../../os/ui.js';
+import { champRecherche as champDeRecherche } from './barre-liste.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 
@@ -138,12 +139,12 @@ export function boutonFiltres({ auClic, petit = false }) {
 
 /**
  * Barre de filtres d'une liste.
- * options : { liste, lireCriteres(), ecrireCriteres(c), contexte() (pour les libellés des pastilles) }
+ * options : { liste, lireCriteres(), ecrireCriteres(c), contexte() (pour les libellés des pastilles), vues (élément : boutons de vue, après les filtres enregistrés) }
  * Renvoie { element, rafraichir() }.
  */
-export function barreFiltres({ liste, lireCriteres, ecrireCriteres, contexte = () => ({}), placeholder = 'Rechercher' }) {
-  const champRecherche = h('input', { class: 'champ', type: 'search', 'aria-label': placeholder, placeholder, autocomplete: 'off', value: lireCriteres().recherche || '',
-    oninput: (e) => ecrireCriteres({ ...L.criteresComplets(liste, lireCriteres()), recherche: e.target.value }) });
+export function barreFiltres({ liste, lireCriteres, ecrireCriteres, contexte = () => ({}), placeholder = 'Rechercher', vues = null }) {
+  const { champ: champRecherche, element: boiteRecherche } = champDeRecherche({ placeholder, valeur: lireCriteres().recherche || '',
+    surSaisie: (v) => ecrireCriteres({ ...L.criteresComplets(liste, lireCriteres()), recherche: v }) });
   const zonePastilles = h('div', { class: 'pastilles-actives' });
   const boutonFiltres_ = boutonFiltres({ auClic: async () => {
     const r = await ouvrirFenetreFiltres(liste, lireCriteres());
@@ -176,7 +177,7 @@ export function barreFiltres({ liste, lireCriteres, ecrireCriteres, contexte = (
       actifs.length > 1 || (actifs.length && c.recherche) ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', onclick: () => ecrireCriteres(L.criteresComplets(liste, {})) }, 'Tout effacer') : null);
   }
   const element = h('div', { class: 'barre-filtres' },
-    h('div', { class: 'barre-filtres-ligne' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), champRecherche), boutonF, boutonEnregistres),
+    h('div', { class: 'barre-filtres-ligne' }, boiteRecherche, boutonF, boutonEnregistres, vues),
     zonePastilles);
   rafraichir();
   return { element, rafraichir };

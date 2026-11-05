@@ -6,6 +6,7 @@ import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { lien } from '../../os/router.js';
 import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
 import { etatVide, ligneAjouter, selecteurTri, planifier, telecharger } from '../crm/composants.js';
+import { enteteListe, barreListe } from '../crm/barre-liste.js';
 import { nomFichierExport } from '../crm/logique.js';
 import * as D from './donnees.js';
 import * as A from './articles.js';
@@ -253,10 +254,6 @@ export function rendreVocabulaire(conteneur) {
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite', dataset: { role: 'phrase-etat' } });
   const zone = h('div', { class: 'zone-liste-vocabulaire' });
   const avis = h('div', { class: 'avis-lecture', hidden: true });
-  const champRecherche = h('input', {
-    class: 'champ', type: 'search', 'aria-label': 'Rechercher un mot appris', placeholder: 'Rechercher un mot appris', autocomplete: 'off', value: recherche,
-    oninput: (e) => { recherche = e.target.value; rendre(); },
-  });
   const filtres = boutonFiltresCommun({ auClic: async () => {
     const r = await fenetreFiltres({
       controles: [
@@ -271,6 +268,7 @@ export function rendreVocabulaire(conteneur) {
     if (r) { criteres = { statuts: r.statuts ?? [], origines: r.origines ?? [], aTrancher: !!r.aTrancher, tropGeneral: !!r.tropGeneral }; rendre(); }
   } });
   const choixTri = selecteurTri({ options: V.CRITERES_TRI, valeur: tri.critere, sens: tri.sens, surChangement: (t) => { tri = { critere: t.critere, sens: t.sens }; rendre(); } });
+  const barre = barreListe({ recherche: { placeholder: 'Rechercher un mot appris', valeur: recherche, surSaisie: (v) => { recherche = v; rendre(); } }, elements: { filtres: filtres.element }, tri: choixTri.element });
   const boutonRetour = h('a', { class: 'lien-retour', href: lien('devis/liste'), dataset: { action: 'retour-devis' } }, icone('chevron-left', { taille: 16 }), 'Devis');
   const boutonMenu = h('button', {
     type: 'button', class: 'bouton-icone', 'aria-label': 'Autres actions', 'aria-haspopup': 'menu', dataset: { action: 'menu-vocabulaire' },
@@ -299,7 +297,7 @@ export function rendreVocabulaire(conteneur) {
     h('a', { href: lien('reglages/devis/reglages-devis') }, 'Réglages > Devis'), '.'); // refait à chaque changement : les réglages arrivent après l'écran
 
   const aucunFiltre = () => !recherche.trim() && V.nombreFiltres(criteres) === 0;
-  function toutEffacer() { recherche = ''; champRecherche.value = ''; criteres = { ...V.CRITERES_VOCABULAIRE_VIDES }; rendre(); }
+  function toutEffacer() { recherche = ''; barre.champ.value = ''; criteres = { ...V.CRITERES_VOCABULAIRE_VIDES }; rendre(); }
 
   async function agir(regle, faire, messageSucces = null) {
     erreursLigne.delete(regle.id);
@@ -441,8 +439,8 @@ export function rendreVocabulaire(conteneur) {
   }
 
   conteneur.append(h('div', { class: 'page page-liste page-devis page-vocabulaire' },
-    h('header', { class: 'page-tete' }, h('div', {}, boutonRetour, titre, compteur), h('div', { class: 'page-actions' }, boutonMenu)),
-    h('div', { class: 'barre-affaires' }, champRecherche, filtres.element, choixTri.element),
+    enteteListe({ titre, compteur, retour: boutonRetour, actions: [boutonMenu] }),
+    barre.element,
     ajout, blocEssai, noteMotMetier, avis, zone));
 
   remplir(resultat, ...resultatEssai(essai));

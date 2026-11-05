@@ -284,3 +284,22 @@ test('6 Le même menu partout : un seul composant, libellés « Trier par : <cri
   await expect(page.locator('.selecteur-tri')).not.toContainText(/crm/i);
   await capture(page, '6-liste-vide');
 });
+
+test('7 Affaires : « Archives » n\'est jamais mémorisée ; Liste → Archives → fiche → retour redonne la Liste', async ({ page }) => {
+  await affairesDeTest();
+  await creerAffaire('a4', { titre: 'Zeta archivée', montant: 10, archive: true, creeLe: DATE(4) });
+  await connecter(page);
+  await allerA(page, 'Affaires');
+  await bascule(page, 'liste').click();
+  await expect(bascule(page, 'liste')).toHaveAttribute('aria-pressed', 'true');
+  await bascule(page, 'archives').click();
+  await expect(titresListe(page)).toHaveText(['Zeta archivée']);
+  expect(await preference(page, 'vue.affaires')).toBe('liste'); // Archives n'est pas écrite
+  await titresListe(page).first().click(); // la fiche de l'affaire archivée
+  await expect(page.locator('.fiche-tete').getByRole('textbox', { name: 'Titre' })).toHaveValue('Zeta archivée');
+  await page.goBack();
+  await attendreCalme(page);
+  await expect(bascule(page, 'liste')).toHaveAttribute('aria-pressed', 'true');
+  await expect(bascule(page, 'archives')).toHaveAttribute('aria-pressed', 'false');
+  await capture(page, '7-retour-liste-apres-archives');
+});

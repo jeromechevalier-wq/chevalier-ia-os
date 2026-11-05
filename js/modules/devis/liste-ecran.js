@@ -3,7 +3,8 @@
 // fonctions du serveur (donnees.js : finaliser, changerStatut), jamais par une écriture directe, et il n'y a pas de glisser-déposer.
 import { h, icone, remplir, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
 import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
-import { etatVide, planifier, badgeTest } from '../crm/composants.js';
+import { etatVide, planifier, badgeTest, selecteurTri } from '../crm/composants.js';
+import { enteteListe, barreListe, basculeVues } from '../crm/barre-liste.js';
 import { naviguer, lien } from '../../os/router.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
@@ -84,10 +85,6 @@ export function rendreListeDevis(conteneur) {
   const zone = h('div', { class: 'zone-devis' });
   const pied = h('div', { class: 'pied-liste-devis' });
   const avis = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'lecture' }, hidden: true });
-  const champRecherche = h('input', {
-    class: 'champ', type: 'search', 'aria-label': 'Rechercher un devis', placeholder: 'Numéro, client ou affaire', autocomplete: 'off', value: recherche,
-    oninput: (e) => { recherche = e.target.value; page = 1; rendre(); },
-  });
   const filtres = boutonFiltresCommun({ auClic: async () => {
     const r = await fenetreFiltres({
       controles: [
@@ -103,17 +100,20 @@ export function rendreListeDevis(conteneur) {
     type: 'button', class: `bouton ${Li.EDITEUR_DISPONIBLE ? 'bouton-principal' : 'bouton-secondaire'}`, disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT,
     dataset: { action: 'nouveau-devis' }, onclick: () => creerDevisSansAffaire(),
   }, icone('plus', { taille: 16 }), 'Nouveau devis', Li.EDITEUR_DISPONIBLE ? null : h('span', { class: 'bientot' }, ' (bientôt disponible)'));
-  const bascule = h('div', { class: 'bascule-vues', role: 'group', 'aria-label': 'Vue' });
+  const bascule = h('div', { class: 'zone-bascule' });
+  // Même menu « Trier par » que les autres listes, aux critères des en-têtes triables (le clic d'en-tête reste possible).
+  const OPTIONS_TRI = COLONNES.filter((c) => c.tri).map((c) => ({ id: c.tri, libelle: c.libelle, sens: c.tri === 'numero' ? 'asc' : 'desc' }));
+  let triAffiche = { ...tri };
+  const choixTri = selecteurTri({ options: OPTIONS_TRI, valeur: tri.critere, sens: tri.sens, surChangement: (t) => { tri = { critere: t.critere, sens: t.sens }; page = 1; rendre(); } });
 
   function majBascule() {
-    remplir(bascule, [['liste', 'Liste', 'list'], ['tableau', 'Tableau', 'columns-3'], ['archives', 'Archives', 'archive']].map(([id, libelle, ic]) => h('button', {
-      type: 'button', class: `bascule-vue${vue === id ? ' actif' : ''}`, 'aria-pressed': String(vue === id), dataset: { vue: id },
-      onclick: () => { vue = id; if (id !== 'archives') ecrirePreference('vue.devis', id); page = 1; rendre(); },
-    }, icone(ic, { taille: 16 }), h('span', {}, libelle))));
+    remplir(bascule, basculeVues({ vues: [['liste', 'Liste', 'list'], ['tableau', 'Tableau', 'columns-3'], ['archives', 'Archives', 'archive']], courante: vue,
+      surChangement: (id) => { vue = id; if (id !== 'archives') ecrirePreference('vue.devis', id); page = 1; rendre(); } }));
   }
 
   function rendre() {
     majBascule();
+    if (triAffiche.critere !== tri.critere || triAffiche.sens !== tri.sens) { choixTri.maj(OPTIONS_TRI, tri.critere, tri.sens); triAffiche = { ...tri }; } // pas à chaque rendu : le minuteur de 60 s ne doit pas recréer les options sous un menu ouvert
     filtres.majCompte(statutsFiltres.length + (periode !== 'toutes' ? 1 : 0));
     avis.hidden = !D.etat.erreurLectureDevis;
     avis.textContent = D.etat.erreurLectureDevis ? ERREUR_LECTURE : '';
@@ -206,10 +206,12 @@ export function rendreListeDevis(conteneur) {
 
   const memorisee = lirePreference('vue.devis');
   if (memorisee === 'liste' || memorisee === 'tableau') vue = memorisee;
+  else if (vue === 'archives') vue = 'liste'; // « Archives » ne se garde pas d'un passage à l'autre
 
   conteneur.append(h('div', { class: 'page page-liste page-devis page-liste-devis' },
-    h('header', { class: 'page-tete' }, h('div', {}, titre, compteur), h('div', { class: 'page-actions' }, h('a', { class: 'bouton bouton-secondaire', href: '#/devis/bordereau', dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), h('a', { class: 'bouton bouton-secondaire', href: lien('devis/vocabulaire'), dataset: { action: 'ouvrir-vocabulaire' } }, icone('book-open', { taille: 16 }), 'Vocabulaire'), boutonNouveau)),
-    h('div', { class: 'barre-affaires' }, champRecherche, filtres.element, bascule),
+    enteteListe({ titre, compteur, actions: [h('a', { class: 'bouton bouton-secondaire', href: '#/devis/bordereau', dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), h('a', { class: 'bouton bouton-secondaire', href: lien('devis/vocabulaire'), dataset: { action: 'ouvrir-vocabulaire' } }, icone('book-open', { taille: 16 }), 'Vocabulaire'), boutonNouveau] }),
+    barreListe({ recherche: { placeholder: 'Numéro, client ou affaire', libelleAria: 'Rechercher un devis', valeur: recherche, surSaisie: (v) => { recherche = v; page = 1; rendre(); } },
+      elements: { filtres: filtres.element, vues: bascule }, tri: choixTri.element }).element,
     avis, zone, pied));
 
   // Les « il y a … » avancent d'eux-mêmes ; tout changement de données (devis, clients, affaires) redessine la liste.
