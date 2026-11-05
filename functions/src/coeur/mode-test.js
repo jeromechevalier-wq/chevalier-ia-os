@@ -9,7 +9,10 @@
 //   le montant de chaque affaire touchée est recalculé dans la même transaction. Le compteur d'usage des articles n'est PAS touché ici : `recalculer_usage_articles` le remet juste.
 // - Le nom du journal (`marquerTest` / `demarquerTest`) ne commence pas par « devis » : la restauration d'une fiche ou d'un brouillon remet le document ET le montant ensemble ;
 //   pour un devis finalisé, la restauration est refusée par restaurer.js (un devis qui n'est plus un brouillon ne se restaure pas).
+// - PR 3 : un devis finalisé dont le numéro est TEST-… reste un test (démarquer refusé, avant toute écriture) ; un DEV- marqué test après coup reste démarquable.
+//   `OPERATIONS_TEST` (fonction appelable de l'écran) vit ici et non dans devis.js : devis.js n'importe pas ce fichier (pas de cycle).
 import { COLLECTIONS as C } from './donnees.js';
+import { estNumeroTest } from '../../partage/devis.js';
 import { ErreurDevis, journal, modifier, lireDevis, lireVersions, montantDeLAffaire } from './devis.js';
 
 export const TYPES_TEST = Object.freeze({
@@ -21,6 +24,8 @@ export const TYPES_TEST = Object.freeze({
 });
 
 const montantLu = (a) => ({ ht: typeof a?.montantDevisHt === 'number' ? a.montantDevisHt : null, nature: a?.montantDevisNature ?? null });
+
+export const MESSAGE_TEST_FINALISE = 'Ce devis de test est finalisé (numéro TEST-…) : il reste un test. Pour un vrai devis, crée un nouveau devis.';
 
 export async function basculerTest({ donnees, ctx, type, id, test }) {
   const collection = TYPES_TEST[type];
@@ -35,8 +40,9 @@ export async function basculerTest({ donnees, ctx, type, id, test }) {
     if (type === 'devis') {
       const versions = await lireVersions(tx, doc);
       const toutes = [doc, ...versions.filter((v) => v.id !== doc.id)];
+      if (test === false && toutes.some((v) => estNumeroTest(v.numero))) throw new ErreurDevis('transition_interdite', MESSAGE_TEST_FINALISE);
       const aChanger = toutes.filter((v) => !dejaFait(v));
-      if (!aChanger.length) return { ok: true, rien: true, id, type, test };
+      if (!aChanger.length) return { ok: true, rien: true, id, type, test, devis: doc };
       for (const v of aChanger) changements.push(modifier(v, { test }));
       const retouches = Object.fromEntries(aChanger.map((v) => [v.id, { test }]));
       const suivi = [];
@@ -59,8 +65,16 @@ export async function basculerTest({ donnees, ctx, type, id, test }) {
     tx.ecrire([...changements.map((c) => c.ecriture), ...j.ecritures]);
     return {
       ok: true, id, type, test, operationId: j.operationId,
-      ...(type === 'devis' ? { versions: changements.filter((c) => c.collection === C.devis).length } : {}),
+      ...(type === 'devis' ? { versions: changements.filter((c) => c.collection === C.devis).length, devis: { ...doc, test } } : {}),
       ...(montant ? { montant } : {}),
     };
   });
 }
+
+/** Opérations de la fonction appelable de l'écran (chez Jérôme et chez les clients) : `{ devisId, test }`. */
+export const OPERATIONS_TEST = Object.freeze({
+  marquerTest: (base, d) => {
+    if (typeof d.test !== 'boolean') throw new ErreurDevis('demande_invalide', 'Le champ test doit être vrai ou faux.');
+    return basculerTest({ ...base, type: 'devis', id: d.devisId, test: d.test });
+  },
+});

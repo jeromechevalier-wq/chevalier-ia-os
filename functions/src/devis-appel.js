@@ -5,6 +5,7 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from './veille/appel.js';
 import { ErreurDevis, OPERATIONS, reponsePublique } from './coeur/devis.js';
+import { OPERATIONS_TEST } from './coeur/mode-test.js';
 
 const CHAMPS_JOURNAL = ['action', 'statut', 'code', 'detail', 'dureeMs'];
 
@@ -37,7 +38,7 @@ export function exigerCompteAutorise(requete, comptes = COMPTES_AUTORISES) {
 }
 
 export function creerAppelDevis(operation, { donnees, comptes = COMPTES_AUTORISES, journal = () => {}, maintenant = Date.now }) {
-  const executer = OPERATIONS[operation];
+  const executer = ({ ...OPERATIONS, ...OPERATIONS_TEST })[operation];
   if (!executer) throw new Error(`Opération de devis inconnue : ${operation}`);
   return async function appel(requete) {
     const debut = maintenant();

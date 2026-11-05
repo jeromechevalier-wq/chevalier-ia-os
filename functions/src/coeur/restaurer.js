@@ -2,6 +2,7 @@
 //  - création annulée = suppression du document ;
 //  - modification annulée = remise de la copie « avant » ;
 //  - suppression annulée = recréation avec le MÊME identifiant (les liens personneId, affaireId… restent valides).
+//    Exception (mode test, PR 3) : un devis de test finalisé supprimé (numéro TEST-…) n'est jamais recréé ; sa copie « avant » reste lisible dans le journal. Les DEV- (D18bis) et les brouillons se restaurent.
 // Un document qui a changé depuis l'opération (état actuel ≠ état « après » gardé dans l'audit) n'est pas touché, sauf `forcer`.
 // La restauration passe par le même moteur que toute écriture : elle laisse sa propre trace (action « restaurer ») et peut elle-même
 // être restaurée. Si une copie manque réellement (écriture échouée, copie perdue), message clair, et la sauvegarde prend le relais.
@@ -9,6 +10,7 @@ import { COLLECTIONS as C } from './donnees.js';
 import { egal, sansId } from './canonique.js';
 import { ErreurEcriture, executerEcritures } from './ecriture.js';
 import { recalculerMontantsAffaires } from './devis.js';
+import { estNumeroTest } from '../../partage/devis.js';
 
 /** Opérations de devis qui figent le devis (fonctions du serveur, voir coeur/devis.js) : jamais restaurées. */
 const OUTILS_DEVIS_FIGES = ['devisFinaliser', 'devisChangerStatut'];
@@ -58,7 +60,7 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   // Même avec `forcer` : un devis qui n'est plus un brouillon (finalisé à l'écran après sa création par l'assistant, par exemple) ne se supprime ni ne se remet en brouillon par le journal.
   const figee = lignesAudit.find((l, i) => l.collection === C.devis && courants[i] && courants[i].statut !== 'brouillon' && !OUTILS_DEVIS_SUR_FINALISE.includes(l.outil));
   // Mode test : le marquage d'un devis finalisé se défait par l'outil inverse (aperçu et code), pas par une nouvelle version.
-  const voieMarquage = 'Pour revenir en arrière, utiliser l’outil inverse (demarquer_test ou marquer_test), avec son aperçu et son code.';
+  const voieMarquage = 'Pour revenir en arrière, utiliser l’outil inverse (demarquer_test ou marquer_test), avec son aperçu et son code (sauf un devis TEST- finalisé, qui reste un test).';
   if (figee) throw new ErreurEcriture('restauration_refusee', 'Un devis de cette opération n’est plus un brouillon : il ne se restaure pas avec le journal, même avec forcer. ' + (['marquerTest', 'demarquerTest'].includes(figee.outil) ? voieMarquage : VOIE_DE_SECOURS));
   // Archivage / envoi défaits « de force » sur un devis dont le statut a changé depuis (signé, refusé…) : on remettrait l'ancien statut, ce qui contourne la règle des statuts.
   const statutChange = lignesAudit.find((l, i) => l.collection === C.devis && courants[i] && OUTILS_DEVIS_SUR_FINALISE.includes(l.outil) && copies[i]?.apres && courants[i].statut !== copies[i].apres.statut);
@@ -71,6 +73,7 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
     const l = lignesAudit[i];
     const avant = copies[i]?.avant;
     if (l.collection !== C.devis || courants[i] || !avant) continue;
+    if (l.outil === 'devisSupprimer' && estNumeroTest(avant.numero)) throw new ErreurEcriture('restauration_refusee', 'Ce devis de test (numéro TEST-…) a été supprimé : un test supprimé reste supprimé ; sa copie « avant » reste lisible dans le journal (lire_audit).');
     const freres = await donnees.liste(C.devis, { champ: 'racineId', valeur: avant.racineId ?? l.docId });
     const conflit = freres.find((v) => v.id !== l.docId && (v.statut === 'brouillon' || (v.version ?? 1) === (avant.version ?? 1)));
     if (conflit) throw new ErreurEcriture('restauration_refusee', 'Ce devis ne peut pas être recréé : une autre version brouillon ou de même version existe déjà pour ce numéro. ' + VOIE_DE_SECOURS);

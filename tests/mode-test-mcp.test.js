@@ -281,12 +281,14 @@ describe('6 devis finalisé', () => {
     const devis = [devisFige('reel', { ht: 1200 }), devisFige('v1', { ht: 100, statut: 'remplace' }), devisFige('v2', { ht: 100, statut: 'accepte', racineId: 'v1', version: 2, numero: 'DEV-2026-10-01-v1' })];
     const s = await demarrer({ devis, fiches: (c) => { Object.assign(c.crm_affaires.find((a) => a.id === 'a1'), { montantDevisHt: 1300, montantDevisNature: 'accepte' }); } });
     const avant = structuredClone(s.collections.devis_devis);
+    const affairesAvant = structuredClone(s.collections.crm_affaires);
     const apercu = ok(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'v2' }));
     assert.equal(apercu.apercu, true);
     assert.equal(apercu.versions, 2, 'toutes les versions de la racine sont annoncées');
     assert.deepEqual(apercu.test, { avant: false, apres: true });
     assert.deepEqual(apercu.montantsAffaires, [{ affaireId: 'a1', avant: { ht: 1300, nature: 'accepte' }, apres: { ht: 1200, nature: 'accepte' } }]);
     assert.deepEqual(s.collections.devis_devis, avant, 'le premier appel n’écrit RIEN');
+    assert.deepEqual(s.collections.crm_affaires, affairesAvant, 'aucune affaire écrite sans code');
     refuse(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'v2', codeConfirmation: 'faux' }), /Confirmation refusée/);
     assert.deepEqual(s.collections.devis_devis, avant, 'un faux code n’écrit rien');
     const apercuNeuf = ok(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'v2' })); // un essai raté brûle le code : nouvel aperçu
@@ -324,11 +326,13 @@ describe('6 devis finalisé', () => {
       fiches: (c) => { Object.assign(c.crm_affaires.find((a) => a.id === 'a1'), { montantDevisHt: 1200, montantDevisNature: 'accepte' }); },
     });
     const avant = structuredClone(s.collections.devis_devis);
+    const affairesAvantBrouillon = structuredClone(s.collections.crm_affaires);
     const apercu = ok(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'v2' }));
     assert.equal(apercu.apercu, true, 'pas de contournement par la version brouillon');
     assert.equal(apercu.versions, 2);
     assert.deepEqual(apercu.montantsAffaires, [{ affaireId: 'a1', avant: { ht: 1200, nature: 'accepte' }, apres: { ht: null, nature: null } }]);
     assert.deepEqual(s.collections.devis_devis, avant, 'rien d’écrit sans code');
+    assert.deepEqual(s.collections.crm_affaires, affairesAvantBrouillon, 'aucune affaire écrite sans code');
     const r = ok(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'v2', codeConfirmation: apercu.code }));
     assert.equal(s.doc('devis_devis', 'v1').test, true);
     assert.equal(s.doc('crm_affaires', 'a1').montantDevisHt, null);
@@ -460,12 +464,55 @@ describe('11 plafonds', () => {
     assert.equal(apercu.apercu, true, 'un aperçu se fait même au plafond (lecture seule)');
     refuse(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'd1', codeConfirmation: apercu.code }), /Plafond atteint/);
     assert.equal(s.doc('devis_devis', 'd1').test, undefined, 'devis intact au plafond');
-    s.horloge.t += 3_600_000; // l'heure suivante : le code présenté au plafond est consommé, le rejouer est refusé
-    refuse(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'd1', codeConfirmation: apercu.code }), /Confirmation refusée/);
-    s.horloge.t -= 3_600_000;
+    // le code présenté au plafond est CONSOMMÉ : rejoué tout de suite (même horloge, bien avant l'expiration de 5 minutes), il est refusé pour cette raison
+    refuse(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'd1', codeConfirmation: apercu.code }), /aucun aperçu en cours pour ce devis \(ou code déjà utilisé\)/);
     // l'heure suivante : un nouvel aperçu et un nouveau code suffisent
     s.horloge.t += 7_200_000;
     ok(await s.avecCode('code', 'marquer_test', { type: 'devis', id: 'd1' }));
     assert.equal(s.doc('devis_devis', 'd1').test, true);
+  });
+});
+
+describe('12 finaliser_devis : aperçu et finalisation d’un devis de test', () => {
+  test('12 aperçu test: true + numeroPrevu TEST- pour un brouillon sur une affaire de test, rien d’écrit ; avec le code : TEST-001, test: true ; l’affaire marquée test entre l’aperçu et le code → « le devis a changé »', async () => {
+    const brouillon = (id, extra = {}) => completerPourFinaliser({ ...brouillonEnregistre(id), destinataires: [{ email: 'client@exemple.test' }], organisationId: 'org1', personneId: null, ...extra });
+    const s = await demarrer({ devis: [brouillon('b1'), brouillon('b2', { affaireId: 'a2' })], fiches: (c) => { Object.assign(c.crm_affaires.find((a) => a.id === 'a1'), { test: true }); } });
+    const avant = structuredClone(s.collections.devis_devis);
+    const compteursAvant = structuredClone(s.collections.devis_compteurs);
+    const apercu = ok(await s.appeler('code', 'finaliser_devis', { id: 'b1' }));
+    assert.equal(apercu.apercu, true);
+    assert.deepEqual([apercu.test, apercu.raisonTest], [true, 'affaire']);
+    assert.match(apercu.numero, /attribué/);
+    assert.match(apercu.numeroPrevu, /TEST-/);
+    assert.match(apercu.consigne, /DEVIS DE TEST/);
+    assert.deepEqual(s.collections.devis_devis, avant, 'le premier appel n’écrit RIEN');
+    assert.deepEqual(s.collections.devis_compteurs, compteursAvant);
+    const r = ok(await s.appeler('code', 'finaliser_devis', { id: 'b1', codeConfirmation: apercu.code }));
+    assert.deepEqual([r.finalise, r.numero, r.test], [true, 'TEST-001', true]);
+    assert.equal(s.doc('devis_devis', 'b1').test, true);
+    assert.equal(s.doc('devis_compteurs', 'global'), undefined);
+    // l'affaire d'un autre devis devient « test » entre l'aperçu et le code : le verdict est « change »
+    const a2 = ok(await s.appeler('code', 'finaliser_devis', { id: 'b2' }));
+    assert.equal(a2.test, false);
+    assert.match(a2.numeroPrevu, /DEV-/);
+    Object.assign(s.collections.crm_affaires.find((a) => a.id === 'a2'), { test: true });
+    refuse(await s.appeler('code', 'finaliser_devis', { id: 'b2', codeConfirmation: a2.code }), /le devis a changé depuis l’aperçu|le devis a changé depuis l'aperçu/);
+    assert.equal(s.doc('devis_devis', 'b2').statut, 'brouillon');
+  });
+});
+
+describe('13 démarquer un devis de test finalisé', () => {
+  test('13 demarquer_test d’un TEST- finalisé : refusé AVANT tout code (pas d’aperçu, mcp_codes vide) ; marquer_test d’un DEV- finalisé : aperçu + code comme en PR 2', async () => {
+    const s = await demarrer({ devis: [devisFige('t1', { ht: 100, test: true, numero: 'TEST-001' }), devisFige('r1', { ht: 1200 })] });
+    const codes = (s.collections.mcp_codes ?? []).length;
+    refuse(await s.appeler('code', 'demarquer_test', { type: 'devis', id: 't1' }), /reste un test/);
+    assert.equal((s.collections.mcp_codes ?? []).length, codes, 'aucun code émis');
+    assert.equal(s.doc('devis_devis', 't1').test, true);
+    const apercu = ok(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'r1' }));
+    assert.equal(apercu.apercu, true);
+    ok(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'r1', codeConfirmation: apercu.code }));
+    assert.equal(s.doc('devis_devis', 'r1').test, true);
+    const apercu2 = ok(await s.appeler('code', 'demarquer_test', { type: 'devis', id: 'r1' }));
+    assert.equal(apercu2.apercu, true, 'un DEV- marqué après coup reste démarquable');
   });
 });

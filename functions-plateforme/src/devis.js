@@ -10,6 +10,7 @@
 import { logger } from 'firebase-functions';
 import { creerAccesFirestore, avecBase } from '../serveur/src/coeur/donnees.js';
 import { ErreurDevis, OPERATIONS, reponsePublique, detailErreur } from '../serveur/src/coeur/devis.js';
+import { OPERATIONS_TEST } from '../serveur/src/coeur/mode-test.js';
 import { demanderPreparation } from '../serveur/src/coeur/devis-email.js';
 import { Refus } from './appels.js';
 import { MOTIF_IDENTIFIANT_CLIENT } from './etiquettes.js';
@@ -70,7 +71,7 @@ export async function etatPreparerEmail({ db, auth, donnees, sortie }) {
  * `creerDonnees(client)` : pour les essais (accès en mémoire) ; par défaut, la base du projet cadrée sur clients/<client>.
  */
 export async function transitionDevis({ db, auth, donnees, operation, maintenant = Date.now(), creerDonnees = null }) {
-  const executer = OPERATIONS[operation];
+  const executer = ({ ...OPERATIONS, ...OPERATIONS_TEST })[operation];
   if (!executer) throw new Error(`Opération de devis inconnue : ${operation}`);
   const email = emailDe(auth);
   const client = donnees?.client;

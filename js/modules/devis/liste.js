@@ -1,7 +1,7 @@
 // Liste des devis : fonctions PURES (tri, filtre, recherche, pagination, regroupement en colonnes, statut affiché, actions permises).
 // Aucun accès à Firebase ni au navigateur : l'écran (liste-ecran.js) les appelle, `node --test` les vérifie (tests/devis-liste.test.js).
 // Les règles de statut viennent de logique.js (TRANSITIONS, estExpire) : rien n'est redéfini ici.
-import { STATUTS_DEVIS, estExpire, transitionPossible, totauxDevis, peutArchiver } from './logique.js';
+import { STATUTS_DEVIS, estExpire, transitionPossible, totauxDevis, peutArchiver, estNumeroTest } from './logique.js';
 import { etatPdfDevis } from './pdf.js';
 import { emailPossible } from './email-brouillon.js';
 
@@ -12,6 +12,16 @@ export const SUPPRESSION_DISPONIBLE = true;
 export const TAILLES_PAGE = Object.freeze([10, 25, 50]);
 export const TAILLE_PAGE_DEFAUT = 25;
 export const MESSAGE_BIENTOT = 'Bientôt disponible';
+export const MESSAGE_TEST_FINALISE_FIGE = 'Un devis de test finalisé (numéro TEST-) reste un test. Pour un vrai devis, crée un nouveau devis.';
+
+/** Phrase de la fenêtre « Finaliser ce devis ? » selon `decisionTestFinalisation` : '' pour un devis réel sans surprise. */
+export function phraseFinalisationTest(decision, numeroRacine = null, brouillonTest = false, ficheNonChargee = false) {
+  if (decision?.test && numeroRacine) return `Ce devis reste un devis de test : il garde son numéro ${numeroRacine}, il n’entre dans aucune statistique et pourra être supprimé.`;
+  if (decision?.test) return 'Ce devis est un devis de test : il recevra un numéro TEST-… (compteur séparé), il n’entre dans aucune statistique et pourra être supprimé.';
+  if (numeroRacine && brouillonTest) return `Ce devis garde son numéro ${numeroRacine} : il sera finalisé comme un vrai devis.`;
+  if (!numeroRacine && ficheNonChargee) return 'Le numéro peut passer en TEST- si l’affaire ou le client de ce devis est de test (leur fiche n’est pas encore chargée ici).';
+  return '';
+}
 
 /** Couleur de pastille de chaque statut affiché (comme les autres pastilles de l'interface). */
 export const COULEURS_STATUT = Object.freeze({
@@ -233,7 +243,7 @@ export function actionsPermises(d, { editeur = EDITEUR_DISPONIBLE, suppression =
     dupliquerPrixDuJour: editeur ? { actif: true } : bientot,
     facturer: bientot,
     envoyer: emailPossible(statut),
-    marquerTest: brouillon ? { actif: true } : bientot,
+    marquerTest: (d?.test === true && estNumeroTest(d?.numero)) ? { actif: false, raison: MESSAGE_TEST_FINALISE_FIGE } : { actif: true }, // un devis de test finalisé (TEST-) reste un test ; un DEV- finalisé se marque et se démarque (fonction du serveur)
     supprimer: suppression ? { actif: true } : bientot, // tous les statuts (décision de Jérôme, 04/11/2026) : le serveur supprime le devis et toutes ses versions
   };
 }
@@ -292,7 +302,7 @@ export function entreesActionsDevis(d, { exclure = [], editeur = EDITEUR_DISPONI
   ajouter('dupliquer', 'Dupliquer', 'copy', a.dupliquer);
   ajouter('dupliquer_prix_du_jour', 'Dupliquer aux prix du jour', 'refresh-cw', a.dupliquerPrixDuJour);
   ajouter('preparer_email', 'Préparer l’e-mail', 'mail-check', a.envoyer);
-  // Mode test : un brouillon se marque depuis le navigateur ; un devis finalisé exige une fonction du serveur (PR suivantes) : entrée grisée « bientôt disponible », jamais cachée.
+  // Mode test : un brouillon se marque depuis le navigateur ; un devis finalisé passe par la fonction du serveur (confirmation à l'écran) ; un TEST- finalisé est grisé avec sa phrase.
   ajouter('marquer_test', d?.test === true ? 'Ce n’est plus un test' : 'Marquer comme test', 'tag', a.marquerTest);
   if (!exclure.includes('archiver')) {
     sortie.push({ separateur: true });

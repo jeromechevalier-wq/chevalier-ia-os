@@ -9,7 +9,7 @@ import { MESSAGE_TEST_REFUSE, MESSAGE_TEST_ECHEC } from '../crm/composants.js';
 import * as Li from './liste.js';
 import * as CRMLogique from '../crm/logique.js';
 import * as Ed from './editeur-logique.js';
-import { estErreurEntreprise, ROUTE_MON_ENTREPRISE } from './logique.js';
+import { estErreurEntreprise, ROUTE_MON_ENTREPRISE, decisionTestFinalisation } from './logique.js';
 import { lancerPreparationEmail } from './email-preparer-ecran.js';
 import { MESSAGE_NON_BRANCHE } from './email-preparer.js';
 import { adressesDuDevis } from './email-brouillon.js';
@@ -40,7 +40,8 @@ async function noterEnvoi(d) {
 export async function changerStatut(d, action, libelle) {
   try {
     if (action === 'finaliser') {
-      const ok = await confirmer('Finaliser ce devis ?', 'Les prix, la TVA et les totaux seront figés et le devis recevra son numéro. Pour le corriger ensuite, tu créeras une nouvelle version.', { libelleOk: 'Finaliser' });
+      const { phrase } = decisionFinalisation(d);
+      const ok = await confirmer('Finaliser ce devis ?', `Les prix, la TVA et les totaux seront figés et le devis recevra son numéro. Pour le corriger ensuite, tu créeras une nouvelle version.${phrase ? ` ${phrase}` : ''}`, { libelleOk: 'Finaliser' });
       if (!ok) return;
       const r = await D.finaliser(d.id);
       if (r?.ok === false) {
@@ -50,7 +51,7 @@ export async function changerStatut(d, action, libelle) {
         if (choix === 'entreprise') naviguer(ROUTE_MON_ENTREPRISE);
         return;
       }
-      toast('Devis finalisé');
+      toast(messageFinalisation(r));
       return;
     }
     // Signé et refusé : fenêtre de confirmation, aussi depuis le menu « … » de la liste (phrases = ce que le code permet vraiment ensuite : logique.js TRANSITIONS, serveur changerStatut).
@@ -206,16 +207,44 @@ export async function creerNouvelleVersion(d) {
   } catch (e) { dire(e); }
 }
 
-/** « Marquer comme test » / « Ce n'est plus un test » d'un brouillon : lit le repère dans l'instantané Firestore (pas dans une copie locale) et l'écrit avec `test: true` ou `test: false`. */
+/** Décision test/réel d'un brouillon qu'on va finaliser : la MÊME règle que le serveur (decisionTestFinalisation), avec l'affaire, la fiche client et le numéro de la racine lus dans l'écran. */
+export function decisionFinalisation(d) {
+  const brouillon = D.devisParId(d.id) ?? d;
+  const numeroRacine = brouillon.numero ?? D.versionsDe(brouillon.racineId ?? brouillon.id).find((v) => v.numero)?.numero ?? null;
+  const fiche = brouillon.organisationId ? CRM.organisation(brouillon.organisationId) : brouillon.personneId ? CRM.personne(brouillon.personneId) : null;
+  const affaire = brouillon.affaireId ? CRM.affaire(brouillon.affaireId) : null;
+  const nonCharge = Boolean((brouillon.affaireId && !affaire) || ((brouillon.organisationId || brouillon.personneId) && !fiche)); // fiche liée absente de l'écran : on ne peut pas trancher
+  const decision = decisionTestFinalisation(brouillon, { numeroRacine, affaire, fiche, versions: D.versionsDe(brouillon.racineId ?? brouillon.id) });
+  return { decision, numeroRacine, phrase: Li.phraseFinalisationTest(decision, numeroRacine, brouillon.test === true, nonCharge) };
+}
+
+/** Texte de toast après une finalisation. */
+export const messageFinalisation = (r) => (r?.test ? `Devis de test finalisé${r.numero ? ` : ${r.numero}` : ''}` : `Devis finalisé${r?.numero ? ` : ${r.numero}` : ''}`);
+
+/**
+ * « Marquer comme test » / « Ce n'est plus un test ». Un brouillon dont AUCUNE version n'est finalisée : écrit par le navigateur (`modifierBrouillon`).
+ * Sinon : fenêtre de confirmation puis fonction du serveur (toutes les versions, montant de l'affaire recalculé).
+ */
 export async function basculerTestDevis(d) {
-  const test = (D.devisParId(d.id) ?? d)?.test === true;
+  const courant = D.devisParId(d.id) ?? d;
+  const test = courant?.test === true;
   try {
-    const r = await D.modifierBrouillon(d.id, { test: !test });
-    const erreur = r?.erreurs && Object.values(r.erreurs)[0];
-    if (erreur) toast(erreur, { type: 'erreur' });
+    const finalise = D.versionsDe(courant.racineId ?? courant.id).some((v) => v.statut !== 'brouillon') || courant.statut !== 'brouillon';
+    if (!finalise) {
+      const r = await D.modifierBrouillon(d.id, { test: !test });
+      const erreur = r?.erreurs && Object.values(r.erreurs)[0];
+      if (erreur) toast(erreur, { type: 'erreur' });
+      return;
+    }
+    const ok = await confirmer(test ? 'Ce devis n’est plus un test ?' : 'Marquer ce devis comme test ?',
+      'Le devis garde son numéro. Le montant de son affaire et le chiffre d’affaires sont recalculés (un devis signé de 100 € HT sort des chiffres, ou y revient). Cette action ne se défait pas avec le journal : tu pourras la refaire dans l’autre sens.',
+      { libelleOk: test ? 'Ce n’est plus un test' : 'Marquer comme test' });
+    if (!ok) return;
+    await D.marquerTest(d.id, !test);
+    toast(test ? 'Devis réel' : 'Devis marqué test');
   } catch (e) {
     console.warn(e);
-    toast(e?.code === 'permission-denied' ? MESSAGE_TEST_REFUSE : MESSAGE_TEST_ECHEC, { type: 'erreur' });
+    toast(e?.code === 'permission-denied' ? MESSAGE_TEST_REFUSE : (e?.message || MESSAGE_TEST_ECHEC), { type: 'erreur', duree: 8000 });
   }
 }
 

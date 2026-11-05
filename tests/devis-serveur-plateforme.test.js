@@ -45,7 +45,7 @@ const appeler = (m, operation, email, donnees, extra = {}) => transitionDevis({ 
 const refus = async (promesse, code) => {
   await assert.rejects(promesse, (e) => e instanceof Refus && (!code || e.code === code), `refus ${code ?? ''} attendu`);
 };
-const OPERATIONS = { finaliser: { devisId: 'da' }, changerStatut: { devisId: 'da', action: 'marquer_envoye' }, nouvelleVersion: { devisId: 'da' }, archiver: { devisId: 'da', archive: true }, enregistrerEnvoi: { devisId: 'da', destinataires: ['client@exemple.test'] } };
+const OPERATIONS = { finaliser: { devisId: 'da' }, changerStatut: { devisId: 'da', action: 'marquer_envoye' }, nouvelleVersion: { devisId: 'da' }, archiver: { devisId: 'da', archive: true }, enregistrerEnvoi: { devisId: 'da', destinataires: ['client@exemple.test'] }, marquerTest: { devisId: 'da', test: true } };
 
 describe('C7 plateforme : qui peut appeler les fonctions de devis', () => {
   test('C7 une éditrice de l’espace a avec le module devis actif finalise son devis, dans son espace seulement', async () => {
@@ -116,5 +116,25 @@ describe('B4 plateforme : supprimer un devis à tous les statuts, chez un client
     assert.equal(m.collections['clients/a/devis_devis'].length, 1);
     await appeler(m, 'supprimer', ALICE, { client: 'a', devisId: 'da' });
     await refus(appeler(m, 'supprimer', ALICE, { client: 'a', devisId: 'da' }), 'not-found');
+  });
+});
+
+describe('11 plateforme : « marquer comme test » et numéro TEST- chez un client', () => {
+  test('11 une éditrice marque un devis finalisé de son espace ; un devis test chez a reçoit TEST-001 et b garde son compteur', async () => {
+    const m = monde();
+    m.collections['clients/a/devis_devis'].push({ ...brouillon('dt'), test: true });
+    m.collections['clients/b/devis_compteurs'].push({ id: 'global', valeur: 4 });
+    await appeler(m, 'finaliser', ALICE, { client: 'a', devisId: 'da' });
+    const t = await appeler(m, 'finaliser', ALICE, { client: 'a', devisId: 'dt' });
+    assert.deepEqual([t.numero, t.test], ['TEST-001', true]);
+    assert.equal(m.collections['clients/a/devis_compteurs'].find((c) => c.id === 'test').valeur, 1);
+    assert.equal(m.collections['clients/a/devis_compteurs'].find((c) => c.id === 'global').valeur, 1);
+    assert.deepEqual(m.collections['clients/b/devis_compteurs'], [{ id: 'global', valeur: 4 }], 'le compteur de b est intact');
+    const r = await appeler(m, 'marquerTest', ALICE, { client: 'a', devisId: 'da', test: true });
+    assert.deepEqual([r.ok, r.devisId, r.test], [true, 'da', true]);
+    assert.equal(m.collections['clients/a/devis_devis'].find((d) => d.id === 'da').test, true);
+    assert.equal(m.collections['clients/b/devis_devis'][0].test, undefined);
+    await refus(appeler(m, 'marquerTest', ALICE, { client: 'a', devisId: 'dt', test: false }), 'failed-precondition');
+    await refus(appeler(m, 'marquerTest', ALICE, { client: 'a', devisId: 'da', test: 'oui' }), 'invalid-argument');
   });
 });

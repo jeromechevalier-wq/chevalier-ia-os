@@ -41,7 +41,7 @@ import { saisieAdresses } from './saisie-adresses.js';
 import { LIBELLE_PREPARER_EMAIL, MESSAGE_NON_BRANCHE } from './email-preparer.js';
 import { emailPossible } from './email-brouillon.js';
 import { boutonsEntete, MESSAGE_FINALISER_POUR_ENVOYER } from './entete-boutons.js';
-import { ERREUR_ECRITURE, creerDevisSansAffaire, dupliquerDevis, supprimerBrouillon, entreesMenuDevis, changerStatut, creerNouvelleVersion } from './actions-devis.js';
+import { ERREUR_ECRITURE, creerDevisSansAffaire, dupliquerDevis, supprimerBrouillon, entreesMenuDevis, changerStatut, creerNouvelleVersion, decisionFinalisation, messageFinalisation } from './actions-devis.js';
 import { pastilleStatutDevis, appliquerPastilleStatut } from './pastille-statut.js';
 import { ouvrirPanneauLateral } from './panneau-lateral.js';
 import { contenuHistorique } from './historique-logique.js';
@@ -2246,9 +2246,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (locales.length === 1 && sansAffaire) return;
     if (locales.length) { await listeErreurs('Ce devis ne peut pas encore être finalisé', locales); marquerChampsManquants(locales); if (sansAffaire) { ref.champAffaire?.focus?.(); ref.champAffaire?.fermer?.(); } return; }
     const avis = Ed.avertissements(travail);
+    const { phrase: phraseTest } = decisionFinalisation(travail);
     const ok = await dialogue({
       titre: 'Finaliser ce devis ?',
       contenu: h('div', {}, h('p', {}, 'Les prix, la TVA et les totaux seront figés et le devis recevra son numéro. Pour le corriger ensuite, tu créeras une nouvelle version.'),
+        phraseTest ? h('p', { dataset: { zone: 'phrase-test-finalisation' } }, phraseTest) : null,
         avis.length ? h('ul', { class: 'avertissements-devis', dataset: { zone: 'avertissements-finalisation' } }, avis.map((a) => h('li', {}, icone('triangle-alert', { taille: 14 }), ' ', a.message))) : null),
       boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Finaliser', valeur: true, style: 'principal' }],
     });
@@ -2260,10 +2262,10 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       const r = await D.finaliser(id);
       if (r?.ok === false) {
         verrou = false; await listeErreurs('Ce devis ne peut pas encore être finalisé', r.erreurs ?? []); marquerChampsManquants(r.erreurs ?? []); return; }
-      toast(`Devis finalisé${r?.numero ? ` : ${r.numero}` : ''}`);
+      toast(messageFinalisation(r));
       clearTimeout(minuteur);
       lecture = true; // plus rien à enregistrer ni à confirmer en quittant
-      travail = { ...travail, statut: r?.statut ?? 'en_attente_envoi', numero: r?.numero ?? travail.numero };
+      travail = { ...travail, statut: r?.statut ?? 'en_attente_envoi', numero: r?.numero ?? travail.numero, ...(typeof r?.test === 'boolean' ? { test: r.test } : {}) };
       enregistre = structuredClone(travail);
       // Un devis finalisé se regarde sur la Prévisualisation (devis/voir/<id>). Depuis devis/editeur/<id>, le changement d'adresse reconstruit l'écran (une seule fois) ;
       // déjà sur devis/voir/<id> (brouillon ouvert par « Voir »), l'adresse ne change pas : on reconstruit ici, en lecture seule.

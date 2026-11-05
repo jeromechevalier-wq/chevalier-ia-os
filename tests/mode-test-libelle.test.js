@@ -60,11 +60,23 @@ describe('3 menu « … » d’un devis : « Marquer comme test » avant « Arch
     assert.deepEqual([entree(l, 'marquer_test').libelle, entree(l, 'marquer_test').actif], ['Marquer comme test', true]);
     assert.equal(entree(Li.entreesActionsDevis({ statut: 'brouillon', test: true }), 'marquer_test').libelle, 'Ce n’est plus un test');
   });
-  test('3 devis finalisé : entrée GRISÉE avec « bientôt disponible », jamais cachée', () => {
+  test('3 devis finalisé DEV- : entrée ACTIVE « Marquer comme test » (plus de « bientôt disponible ») ; TEST- marqué : « Ce n’est plus un test » grisée avec sa phrase', () => {
     for (const statut of ['en_attente_envoi', 'envoye', 'accepte', 'refuse', 'remplace']) {
-      const e = entree(Li.entreesActionsDevis({ statut }), 'marquer_test');
-      assert.equal(e.actif, false, statut);
-      assert.match(e.libelle, /Marquer comme test \(bientôt disponible\)/, statut);
+      const l = Li.entreesActionsDevis({ statut, numero: 'DEV-2026-11-05-001' });
+      const e = entree(l, 'marquer_test');
+      assert.deepEqual([e.actif, e.libelle], [true, 'Marquer comme test'], statut);
+      assert.equal(Li.entreesActionsDevis({ statut, numero: 'DEV-2026-11-05-001', test: true }).find((x) => x.cle === 'marquer_test').libelle, 'Ce n’est plus un test');
     }
+    const t = Li.entreesActionsDevis({ statut: 'en_attente_envoi', numero: 'TEST-001', test: true });
+    assert.deepEqual([entree(t, 'marquer_test').actif, entree(t, 'marquer_test').libelle], [false, 'Ce n’est plus un test']);
+    assert.ok(t.some((x) => x.texte === Li.MESSAGE_TEST_FINALISE_FIGE && /TEST-/.test(x.texte)));
+    assert.equal(entree(Li.entreesActionsDevis({ statut: 'en_attente_envoi', numero: 'TEST-001', test: false }), 'marquer_test').actif, true, 'un TEST- non marqué (donnée incohérente) reste actionnable : le serveur tranche');
+  });
+  test('14 phraseFinalisationTest : essai, racine DEV- avec brouillon marqué, réel', () => {
+    assert.match(Li.phraseFinalisationTest({ test: true, raison: 'affaire' }), /devis de test.*TEST-.*compteur séparé.*aucune statistique/);
+    assert.match(Li.phraseFinalisationTest({ test: false, raison: null }, 'DEV-2026-11-05-001', true), /garde son numéro DEV-2026-11-05-001.*vrai devis/);
+    assert.equal(Li.phraseFinalisationTest({ test: false, raison: null }, null, false), '');
+    assert.match(Li.phraseFinalisationTest({ test: true, raison: 'racine' }, 'DEV-2026-11-05-001'), /reste un devis de test.*garde son numéro DEV-2026-11-05-001/);
+    assert.match(Li.phraseFinalisationTest({ test: false, raison: null }, null, false, true), /peut passer en TEST-/);
   });
 });
