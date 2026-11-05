@@ -7,6 +7,7 @@ import { estRouteEspace, cleEspace } from './os/marque.js';
 import { MODULES } from './os/modules.js';
 import { demarrerObjectifs, arreterObjectifs } from './os/objectifs.js';
 import { monterReglages } from './os/reglages.js';
+import { demarrer as demarrerSocle, arreter as arreterSocle } from './modules/crm/donnees.js';
 import { h, lirePreference, vider, remplir, toast } from './os/ui.js';
 
 appliquerTheme(lirePreference('theme', 'sombre'));
@@ -71,6 +72,7 @@ async function ouvrirSession(compte) {
   }
   const objectifsDepart = [...apis.values()].flatMap((api) => api.objectifsDepart || []);
   demarrerObjectifs(compte, objectifsDepart);
+  demarrerSocle(compte, '', { noyau: true }); // socle commun, racine ; le module Affaires démarre par-dessus en complet (cinq écouteurs, aucun doublon)
   for (const api of apis.values()) api.demarrer({ compte, cheminBase: '' }); // '' = racine (CRM de Jérôme) ; chez un client : cheminBaseClient(client)
   const coquille = monterCoquille(racine, compte, {
     apis,
@@ -92,6 +94,7 @@ function fermerSession() {
   session.vue?.quitter?.();
   session.coquille?.arreter?.();
   for (const api of session.apis.values()) api.arreter();
+  arreterSocle();
   arreterObjectifs();
   import('./modules/crm/activites.js').then((m) => m.oublierFiltresHistorique()).catch(() => {}); // chargement à la demande : pas de dépendance circulaire
   import('./modules/crm/journal.js').then((m) => m.oublierFiltresJournal()).catch(() => {});
