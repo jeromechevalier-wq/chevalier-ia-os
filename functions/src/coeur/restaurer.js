@@ -11,6 +11,7 @@ import { egal, sansId } from './canonique.js';
 import { ErreurEcriture, executerEcritures } from './ecriture.js';
 import { recalculerMontantsAffaires } from './devis.js';
 import { estNumeroTest } from '../../partage/devis.js';
+import { OUTILS_SUPPRESSION_TESTS } from './mode-test.js';
 
 /** Opérations de devis qui figent le devis (fonctions du serveur, voir coeur/devis.js) : jamais restaurées. */
 const OUTILS_DEVIS_FIGES = ['devisFinaliser', 'devisChangerStatut'];
@@ -73,7 +74,7 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
     const l = lignesAudit[i];
     const avant = copies[i]?.avant;
     if (l.collection !== C.devis || courants[i] || !avant) continue;
-    if (l.outil === 'devisSupprimer' && estNumeroTest(avant.numero)) throw new ErreurEcriture('restauration_refusee', 'Ce devis de test (numéro TEST-…) a été supprimé : un test supprimé reste supprimé ; sa copie « avant » reste lisible dans le journal (lire_audit).');
+    if (['devisSupprimer', ...OUTILS_SUPPRESSION_TESTS].includes(l.outil) && estNumeroTest(avant.numero)) throw new ErreurEcriture('restauration_refusee', 'Ce devis de test (numéro TEST-…) a été supprimé : un test supprimé reste supprimé ; sa copie « avant » reste lisible dans le journal (lire_audit).');
     const freres = await donnees.liste(C.devis, { champ: 'racineId', valeur: avant.racineId ?? l.docId });
     const conflit = freres.find((v) => v.id !== l.docId && (v.statut === 'brouillon' || (v.version ?? 1) === (avant.version ?? 1)));
     if (conflit) throw new ErreurEcriture('restauration_refusee', 'Ce devis ne peut pas être recréé : une autre version brouillon ou de même version existe déjà pour ce numéro. ' + VOIE_DE_SECOURS);

@@ -270,7 +270,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     // Exceptions : le module Devis (quatre fonctions de transition), le module Automatisations (n8n) appelle trois fonctions du serveur (rafraîchir, renommer, décider d'une proposition), et la veille en appelle une seule,
     // `veille` (ajouter un lien collé, lancer un résumé : 2026-10-15), et le tableau de bord en appelle une seule, `tableaudebordSaisir`
     // (saisir une date ou une valeur : le serveur contrôle, écrit et journalise) ; aucun Cloud Storage.
-    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js', 'js/modules/devis/donnees.js', 'js/os/deploiement-ecran.js', 'js/modules/crm/fichiers-donnees.js'];
+    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js', 'js/modules/devis/donnees.js', 'js/os/deploiement-ecran.js', 'js/os/mode-test-donnees.js', 'js/modules/crm/fichiers-donnees.js'];
     for (const f of fichiersAppli().filter((x) => /\.js$/.test(x))) {
       const t = AVEC_FONCTIONS.includes(f) ? lire(f).replaceAll(/getFunctions|httpsCallable|firebase-functions\.js/g, '') : lire(f);
       assert.doesNotMatch(t, /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
@@ -289,9 +289,10 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.deepEqual(appelsTableau, ['tableaudebordSaisir']); // saisir une date ou une valeur à l'écran : le serveur contrôle, écrit et journalise
     const appelsEspace = [...lire('js/os/mon-espace-donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual([...lire('js/os/deploiement-ecran.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['deploiementVerifier']); // Réglages > Déploiement (25/10/2026) : contrôles du serveur, lecture seule
+    assert.deepEqual([...lire('js/os/mode-test-donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['modeTestSupprimer']); // Réglages > Mes tests (mode test, PR 4) : aperçu et suppression des éléments de test, par le serveur
     assert.deepEqual(appelsEspace, ['espaceReglages']); // « Mon espace » (2.10.2) : fonction appelée par la coque, pour les éditeurs d'un client
     // Coque : seuls mon-espace-donnees.js (espaceReglages) et deploiement-ecran.js (deploiementVerifier, 25/10/2026, lecture seule) appellent une fonction.
-    for (const f of fichiersAppli().filter((x) => /^js\/os\/.*\.js$/.test(x) && !['js/os/mon-espace-donnees.js', 'js/os/deploiement-ecran.js'].includes(x))) assert.doesNotMatch(lire(f), /httpsCallable|firebase-functions/, `${f} : seuls mon-espace-donnees.js et deploiement-ecran.js appellent une fonction`);
+    for (const f of fichiersAppli().filter((x) => /^js\/os\/.*\.js$/.test(x) && !['js/os/mon-espace-donnees.js', 'js/os/deploiement-ecran.js', 'js/os/mode-test-donnees.js'].includes(x))) assert.doesNotMatch(lire(f), /httpsCallable|firebase-functions/, `${f} : seuls mon-espace-donnees.js et deploiement-ecran.js appellent une fonction`);
   });
 });
 

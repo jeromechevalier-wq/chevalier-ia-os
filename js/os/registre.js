@@ -102,7 +102,7 @@ export const MODULES_DECLARES = geler([
       'creer_personne', 'creer_organisation', 'creer_affaire', 'creer_activite', 'ajouter_note', 'joindre_lien',
       'modifier_personne', 'modifier_organisation', 'modifier_affaire', 'modifier_note', 'changer_etape', 'terminer_activite',
       'marquer_perdue', 'rouvrir_affaire', 'retirer_document', 'deposer_document', 'marquer_test', 'demarquer_test',
-      'supprimer_personne', 'supprimer_organisation', 'supprimer_affaire', 'supprimer_activite', 'supprimer_note', 'supprimer_document_stocke', 'restaurer_depuis_audit',
+      'supprimer_personne', 'supprimer_organisation', 'supprimer_affaire', 'supprimer_activite', 'supprimer_note', 'supprimer_document_stocke', 'supprimer_tous_les_tests', 'restaurer_depuis_audit',
     ],
     dependances: [],
   },
@@ -465,6 +465,8 @@ export const SECTIONS_ESPACE = geler([
   { id: 'modules', libelle: 'Modules actifs', icone: 'layout-dashboard', editeursSeulement: true, clientSeulement: false },
   // Déploiement (25/10/2026) : la liste des étapes d'un déploiement et leur état dans CET espace (js/os/deploiement.js) ; chez Jérôme comme chez chaque client.
   { id: 'deploiement', libelle: 'Déploiement', icone: 'shield-check', editeursSeulement: true, clientSeulement: false },
+  // Mes tests (mode test, PR 4) : aperçu et suppression de tous les éléments marqués test ; éditeurs seulement, chez Jérôme comme chez les clients.
+  { id: 'tests', libelle: 'Mes tests', icone: 'flask-conical', editeursSeulement: true, clientSeulement: false },
 ]);
 
 /** Sections d'espace visibles : `chezClient` (plateforme) ou racine ; `editeur` = le compte peut écrire (à la racine, toujours vrai). */

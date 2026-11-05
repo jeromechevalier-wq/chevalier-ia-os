@@ -327,6 +327,22 @@ export async function supprimer({ donnees, ctx, devisId }) {
   });
 }
 
+/**
+ * Mode test (PR 4) : après « Supprimer tous mes tests », le compteur `devis_compteurs/test` repart à 0 (le prochain essai finalisé reçoit TEST-001) SI plus aucun devis ne porte un numéro TEST-.
+ * Décision prise seul : on lit TOUTE la collection des devis (pas seulement `test: true`) : un TEST- dont le repère aurait été abîmé à la main empêche aussi la remise à zéro.
+ * Le compteur `global` n'est JAMAIS lu ni écrit ici. Le compteur n'est pas journalisé (comme à la finalisation). Rend { remis }.
+ */
+export async function remettreCompteurTest({ donnees, ctx }) {
+  return donnees.transaction(async (tx) => {
+    const tous = await tx.liste(C.devis);
+    if (tous.some((d) => D.estNumeroTest(d.numero))) return { remis: false };
+    const compteur = await tx.document(C.devisCompteurs, ID_COMPTEUR_TEST);
+    if (!(Number.isInteger(compteur?.valeur) && compteur.valeur > 0)) return { remis: false };
+    tx.ecrire([{ type: 'set', collection: C.devisCompteurs, id: ID_COMPTEUR_TEST, donnees: { valeur: 0, modifieLe: ctx.maintenant } }]);
+    return { remis: true };
+  });
+}
+
 // ---------------------------------------------------------------- historique des envois par e-mail (25/10/2026)
 // L'appli crée un brouillon Gmail dans la boîte de l'utilisateur ; c'est LUI qui l'envoie. Après son clic « Marquer comme envoyé », l'écran appelle
 // `changerStatut` (statut « Envoyé », `envoyeLe` = date du PREMIER envoi) puis cette opération, qui AJOUTE une ligne à `envois` : { date, destinataires, copie }.
@@ -564,5 +580,5 @@ export const OPERATIONS = Object.freeze({
 /** Ce que l'appelant reçoit : jamais le devis entier (son navigateur le lit déjà). Un devis refusé rend les messages à corriger, rien n'a été écrit. */
 export function reponsePublique(r) {
   if (!r.ok) return { ok: false, erreurs: r.erreurs };
-  return { ok: true, devisId: r.devis?.id ?? r.id, ...(r.devis ? { statut: r.devis.statut, numero: r.devis.numero ?? null } : {}), ...(r.nouveauNumero !== undefined ? { nouveauNumero: r.nouveauNumero } : {}), ...(r.test !== undefined ? { test: r.test } : {}), ...(r.versions !== undefined ? { versions: r.versions } : {}), ...(r.rien ? { rien: true } : {}), ...(r.supprimes !== undefined ? { supprimes: r.supprimes } : {}), ...(r.operationId ? { operationId: r.operationId } : {}) };
+  return { ok: true, devisId: r.devis?.id ?? r.id, ...(r.devis ? { statut: r.devis.statut, numero: r.devis.numero ?? null } : {}), ...(r.nouveauNumero !== undefined ? { nouveauNumero: r.nouveauNumero } : {}), ...(r.test !== undefined ? { test: r.test } : {}), ...(r.versions !== undefined ? { versions: r.versions } : {}), ...(r.rien ? { rien: true } : {}), ...(r.supprimes !== undefined ? { supprimes: r.supprimes } : {}), ...(r.operationId ? { operationId: r.operationId } : {}), ...(r.tests !== undefined ? { tests: r.tests } : {}) };
 }
