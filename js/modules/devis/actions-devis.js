@@ -123,7 +123,7 @@ async function demanderSuppressionDevis(d, versions, nom) {
     titre: 'Supprimer définitivement ce devis ?',
     classe: 'dialogue-suppression-devis',
     contenu: h('div', { class: 'pile', dataset: { zone: 'avertissement-suppression-devis' } },
-      ...Li.avertissementsSuppression(d, versions).map((t) => h('p', {}, t)),
+      ...Li.avertissementsSuppression(d, versions, { affaires: !D.surSocleSeul() }).map((t) => h('p', {}, t)),
       ar.actif && ar.action === 'archiver' ? h('p', {}, 'Pour seulement le ranger, sans rien supprimer : « Archiver à la place ».') : null,
       h('p', {}, `Pour confirmer, tape « ${nom} » ci-dessous.`),
       champ),
@@ -237,7 +237,7 @@ export async function basculerTestDevis(d) {
       return;
     }
     const ok = await confirmer(test ? 'Ce devis n’est plus un test ?' : 'Marquer ce devis comme test ?',
-      'Le devis garde son numéro. Le montant de son affaire et le chiffre d’affaires sont recalculés (un devis signé de 100 € HT sort des chiffres, ou y revient). Cette action ne se défait pas avec le journal : tu pourras la refaire dans l’autre sens.',
+      `Le devis garde son numéro. ${D.surSocleSeul() ? 'Le chiffre d’affaires est recalculé' : 'Le montant de son affaire et le chiffre d’affaires sont recalculés'} (un devis signé de 100 € HT sort des chiffres, ou y revient). Cette action ne se défait pas avec le journal : tu pourras la refaire dans l’autre sens.`,
       { libelleOk: test ? 'Ce n’est plus un test' : 'Marquer comme test' });
     if (!ok) return;
     await D.marquerTest(d.id, !test);

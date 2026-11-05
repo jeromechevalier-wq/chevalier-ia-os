@@ -196,6 +196,15 @@ describe('L7 actions permises par statut', () => {
     const brouillon = Li.avertissementsSuppression(d('b'), [d('b'), v1]).join(' ');
     assert.match(brouillon, /2 versions/);
   });
+  test('B2bis sans Affaires, les avertissements de suppression ne nomment pas l’affaire', () => {
+    const envoye = d('e1', { statut: 'envoye', numero: 'DEV-2026-10-01-002' });
+    const t = Li.avertissementsSuppression(envoye, [envoye], { affaires: false }).join(' ');
+    assert.doesNotMatch(t.replace(/chiffre d’affaires/g, ''), /affaire/i);
+    assert.match(t, /Ton chiffre d’affaires sera recalculé\./);
+    assert.match(t, /Les PDF déjà générés ne sont pas supprimés\./);
+    const signe = d('s1', { statut: 'accepte', numero: 'DEV-2026-10-01-003' });
+    assert.match(Li.avertissementsSuppression(signe, [signe], { affaires: false }).join(' '), /sort de ton chiffre d’affaires\./);
+  });
   test('B3 la petite confirmation ne sert qu’à un brouillon SEUL ; un brouillon qui a d’autres versions, ou tout autre statut, passe par la fenêtre d’avertissement', () => {
     assert.equal(Li.suppressionSimple(d('b'), [d('b')]), true);
     assert.equal(Li.suppressionSimple(d('b', { racineId: 'r', version: 2 }), [d('b', { racineId: 'r', version: 2 }), d('v1', { statut: 'envoye', racineId: 'r' })]), false);

@@ -203,7 +203,7 @@ export function reglages(page) {
       bloc('tauxTvaDefaut', 'Taux de TVA par défaut', liste('tauxTvaDefaut', TAUX_TVA_DEFAUT.map((t) => ({ valeur: t, libelle: A.formaterTaux(t) })), brouillon.tauxTvaDefaut, (v) => changer({ tauxTvaDefaut: Number(v) }))),
       bloc('gestionDechets', 'Gestion des déchets', liste('gestionDechets', [{ valeur: 'oui', libelle: 'Oui' }, { valeur: 'non', libelle: 'Non' }], brouillon.gestionDechets ? 'oui' : 'non', (v) => changer({ gestionDechets: v === 'oui' })),
         'Pour les métiers sans chantier (agence, conseil…), tu peux la désactiver.'),
-      h('div', { class: 'pile', dataset: { zone: 'etape-affaire-creee' } },
+      D.surSocleSeul() ? null : h('div', { class: 'pile', dataset: { zone: 'etape-affaire-creee' } }, // sans Affaires : pas d'étape à choisir (la valeur reste recopiée telle quelle)
         bloc('etapeAffaireCreee', 'Étape des affaires créées depuis un devis', liste('etapeAffaireCreee', optionsEtapes, brouillon.etapeAffaireCreee, (v) => changer({ etapeAffaireCreee: v })),
           'Quand tu crées une affaire depuis un devis (« + Créer l’affaire » dans la ligne Affaire), elle arrive dans cette étape. Sans réglage, la liste te demande l’étape.'),
         etapes.length ? null : h('p', { class: 'aide', dataset: { zone: 'etape-affaire-creee-vide' } }, 'Aucune étape dans le pipeline')),

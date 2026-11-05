@@ -255,15 +255,15 @@ export function actionsPermises(d, { editeur = EDITEUR_DISPONIBLE, suppression =
 export const suppressionSimple = (d, versions = [d]) => d?.statut === 'brouillon' && versions.filter((v) => v.id !== d.id).length === 0;
 
 /** Ce qui est écrit dans la fenêtre « Supprimer définitivement ? » : des phrases simples, dans cet ordre. `versions` : les devis de la même racine (le devis lui-même compris). */
-export function avertissementsSuppression(d, versions = [d]) {
+export function avertissementsSuppression(d, versions = [d], { affaires = true } = {}) { // affaires = false : Devis seul, sans Affaires (rien ne nomme l'affaire)
   const toutes = versions.some((v) => v.id === d.id) ? versions : [d, ...versions];
   const phrases = ['Attention : ce devis appartient à ton client, qui a peut-être déjà reçu le PDF.'];
   if (toutes.length > 1) phrases.push(`Ce devis a ${toutes.length} versions : toutes seront supprimées.`);
   if (d.numero) phrases.push(`Le numéro ${d.numero} ne sera pas réutilisé : un trou apparaîtra dans la numérotation de tes devis.`);
   const compte = toutes.some((v) => v.statut !== 'brouillon');
-  if (toutes.some((v) => v.statut === 'accepte')) phrases.push('Ce devis signé sort de ton chiffre d’affaires, et le montant de l’affaire sera recalculé.');
-  else if (compte) phrases.push('Le montant de l’affaire et ton chiffre d’affaires seront recalculés.');
-  phrases.push('Les PDF déjà générés et les documents joints à l’affaire ne sont pas supprimés.');
+  if (toutes.some((v) => v.statut === 'accepte')) phrases.push(affaires ? 'Ce devis signé sort de ton chiffre d’affaires, et le montant de l’affaire sera recalculé.' : 'Ce devis signé sort de ton chiffre d’affaires.');
+  else if (compte) phrases.push(affaires ? 'Le montant de l’affaire et ton chiffre d’affaires seront recalculés.' : 'Ton chiffre d’affaires sera recalculé.');
+  phrases.push(affaires ? 'Les PDF déjà générés et les documents joints à l’affaire ne sont pas supprimés.' : 'Les PDF déjà générés ne sont pas supprimés.');
   phrases.push('Une copie du devis reste dans le journal.');
   return phrases;
 }
