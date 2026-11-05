@@ -2265,7 +2265,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       toast(messageFinalisation(r));
       clearTimeout(minuteur);
       lecture = true; // plus rien à enregistrer ni à confirmer en quittant
-      travail = { ...travail, statut: r?.statut ?? 'en_attente_envoi', numero: r?.numero ?? travail.numero };
+      travail = { ...travail, statut: r?.statut ?? 'en_attente_envoi', numero: r?.numero ?? travail.numero, ...(typeof r?.test === 'boolean' ? { test: r.test } : {}) };
       enregistre = structuredClone(travail);
       // Un devis finalisé se regarde sur la Prévisualisation (devis/voir/<id>). Depuis devis/editeur/<id>, le changement d'adresse reconstruit l'écran (une seule fois) ;
       // déjà sur devis/voir/<id> (brouillon ouvert par « Voir »), l'adresse ne change pas : on reconstruit ici, en lecture seule.

@@ -180,7 +180,7 @@ test('3 brouillon de devis : entrée active dans le menu de la liste ; devis fin
   await menu(page).getByRole('menuitem', { name: 'Marquer comme test', exact: true }).click();
   await expect(page.locator('tr.ligne-devis[data-id="dBrouillon"] .badge-test')).toHaveText('[TEST]');
   await expect.poll(async () => (await lireDocument('devis_devis/dBrouillon')).test).toBe(true);
-  expect(appels.length).toBe(2, 'le brouillon ne passe pas par le serveur (le 2e appel est le refus)');
+  expect(appels.length, 'le brouillon ne passe pas par le serveur (le 2e appel est le refus)').toBe(2);
   await page.locator('tr.ligne-devis[data-id="dBrouillon"] [data-action="menu-devis"]').click();
   await menu(page).getByRole('menuitem', { name: 'Ce n’est plus un test', exact: true }).click();
   await expect(page.locator('tr.ligne-devis[data-id="dBrouillon"] .badge-test')).toHaveCount(0);

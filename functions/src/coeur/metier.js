@@ -1385,7 +1385,7 @@ export async function finaliserDevis(c, args) {
   const fiche = devis.organisationId ? await c.donnees.document(C.organisations, devis.organisationId) : devis.personneId ? await c.donnees.document(C.personnes, devis.personneId) : null;
   const racine = await c.donnees.liste(C.devis, { champ: 'racineId', valeur: devis.racineId ?? devis.id });
   const numeroRacine = devis.numero ?? racine.find((v) => v.numero)?.numero ?? null;
-  const decision = D.decisionTestFinalisation(devis, { numeroRacine, affaire, fiche });
+  const decision = D.decisionTestFinalisation(devis, { numeroRacine, affaire, fiche, versions: racine });
   // L'empreinte couvre le devis (forme canonique, sans l'id : l'ordre des clés ne compte pas) et les réglages qui jouent sur le figeage (régime de TVA, marge et mode par défaut).
   const empreinte = empreinteApercu([JSON.stringify({ devis: canonique(sansId(devis)), reglages: { regimeTva: reglages.regimeTva, marge: reglages.marge, modeMarge: reglages.modeMarge, tauxTvaDefaut: reglages.tauxTvaDefaut }, essai: decision.test })]);
   if (!args.codeConfirmation) {

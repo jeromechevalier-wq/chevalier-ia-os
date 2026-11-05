@@ -87,6 +87,25 @@ describe('2 revérification à la finalisation', () => {
     assert.equal(compteur(m, 'test').valeur, testAvant);
     assert.equal(compteur(m, 'global').valeur, 1);
   });
+  test('4 racine DEV- envoyée de 100 € HT, marquée test après coup, nouvelle version finalisée → v2 test: true, même numéro DEV-, aucun numéro TEST- consommé, les 100 € restent exclus du montant de l’affaire, usage des articles intact', async () => {
+    const avecArticle = brouillon('r', { sections: [{ id: 's-r', titre: 'T', lignes: [ligne('l-r', { articleId: 'art1' })] }] });
+    const m = monde({ devis: [avecArticle] });
+    await fin(m, 'r');
+    await S.changerStatut({ donnees: m.donnees, ctx: ctx(), devisId: 'r', action: 'marquer_envoye' });
+    const affaire = () => m.collections[C.affaires].find((a) => a.id === 'aff1');
+    assert.equal(affaire().montantDevisHt, 100);
+    const usageAvant = JSON.stringify(m.collections[C.devisUsageArticles]);
+    await basculerTest({ donnees: m.donnees, ctx: ctx(), type: 'devis', id: 'r', test: true });
+    assert.equal(affaire().montantDevisHt ?? null, null, 'les 100 € HT sortent');
+    const nv = await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'r' });
+    leDevis(m, nv.devis.id).test = false; // un navigateur a démarqué le brouillon : le serveur suit la racine
+    const r2 = await fin(m, nv.devis.id);
+    assert.deepEqual([r2.numero, r2.test, r2.nouveauNumero], ['DEV-2026-10-24-001', true, false]);
+    assert.equal(leDevis(m, nv.devis.id).test, true);
+    assert.equal(compteur(m, 'test'), undefined, 'aucun numéro TEST- consommé');
+    assert.equal(affaire().montantDevisHt ?? null, null, 'les 100 € restent exclus');
+    assert.equal(JSON.stringify(m.collections[C.devisUsageArticles]), usageAvant, 'un devis de test ne compte pas dans l’usage');
+  });
   test('5 usage des articles : un TEST- ne compte pas ; un brouillon test: true sur racine DEV- compte (finalisé réel)', async () => {
     const avecArticle = (id, extra) => brouillon(id, { ...extra, sections: [{ id: `s-${id}`, titre: 'T', lignes: [ligne(`l-${id}`, { articleId: 'art1' })] }] });
     const m = monde({ devis: [avecArticle('t', { test: true }), avecArticle('r')] });
@@ -135,6 +154,12 @@ describe('7 restaurer_depuis_audit', () => {
     assert.equal(leDevis(m, 'r').numero, 'DEV-2026-10-24-001');
     await restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: sb.operationId, apercu: false });
     assert.equal(leDevis(m, 'b').statut, 'brouillon');
+  });
+  test('7 restaurer_depuis_audit en mode aperçu : le refus du TEST- supprimé est aussi dit à l’aperçu', async () => {
+    const m = monde({ devis: [brouillon('t', { test: true })] });
+    await fin(m, 't');
+    const st = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 't' });
+    await assert.rejects(() => restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: st.operationId, apercu: true }), (e) => e.code === 'restauration_refusee' && /reste supprimé/.test(e.message));
   });
   test('9 supprimer un TEST- finalisé : les versions partent, la copie « avant » reste dans le journal', async () => {
     const m = monde({ devis: [brouillon('t', { test: true })] });

@@ -544,12 +544,17 @@ export const estNumeroTest = (numero) => typeof numero === 'string' && numero.st
 
 /**
  * Un devis qu'on finalise est-il un essai ? Règle UNIQUE (serveur : finaliser et aperçu de l'assistant ; écran : fenêtre de confirmation).
- * Version 2 ou plus : le numéro de la racine décide (TEST- = essai, DEV- = réel), quel que soit le champ `test` du brouillon.
+ * Version 2 ou plus : le numéro de la racine décide (TEST- = essai) ; racine DEV- : essai seulement si une version déjà finalisée est marquée test (`versions`), quel que soit le champ `test` du brouillon.
  * Version 1 : essai si le brouillon, son affaire ou la fiche client (organisation, sinon personne) est marqué test.
- * Rend `{ test, raison }` ; raison : 'numero' | 'devis' | 'affaire' | 'client' | null.
+ * Rend `{ test, raison }` ; raison : 'numero' | 'racine' | 'devis' | 'affaire' | 'client' | null.
  */
-export function decisionTestFinalisation(devis, { numeroRacine = null, affaire = null, fiche = null } = {}) {
-  if (numeroRacine) return { test: estNumeroTest(numeroRacine), raison: estNumeroTest(numeroRacine) ? 'numero' : null };
+export function decisionTestFinalisation(devis, { numeroRacine = null, affaire = null, fiche = null, versions = [] } = {}) {
+  if (numeroRacine) {
+    if (estNumeroTest(numeroRacine)) return { test: true, raison: 'numero' };
+    // Racine DEV- : le repère suit celui des versions déjà finalisées (un DEV- marqué test après coup ne redevient pas réel en silence) ; le champ du brouillon seul ne décide pas.
+    const marquee = versions.some((v) => v?.id !== devis?.id && v?.statut && v.statut !== 'brouillon' && v.test === true);
+    return { test: marquee, raison: marquee ? 'racine' : null };
+  }
   if (devis?.test === true) return { test: true, raison: 'devis' };
   if (affaire?.test === true) return { test: true, raison: 'affaire' };
   if (fiche?.test === true) return { test: true, raison: 'client' };

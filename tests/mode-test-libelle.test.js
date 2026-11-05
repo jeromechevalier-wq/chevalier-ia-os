@@ -76,5 +76,7 @@ describe('3 menu « … » d’un devis : « Marquer comme test » avant « Arch
     assert.match(Li.phraseFinalisationTest({ test: true, raison: 'affaire' }), /devis de test.*TEST-.*compteur séparé.*aucune statistique/);
     assert.match(Li.phraseFinalisationTest({ test: false, raison: null }, 'DEV-2026-11-05-001', true), /garde son numéro DEV-2026-11-05-001.*vrai devis/);
     assert.equal(Li.phraseFinalisationTest({ test: false, raison: null }, null, false), '');
+    assert.match(Li.phraseFinalisationTest({ test: true, raison: 'racine' }, 'DEV-2026-11-05-001'), /reste un devis de test.*garde son numéro DEV-2026-11-05-001/);
+    assert.match(Li.phraseFinalisationTest({ test: false, raison: null }, null, false, true), /peut passer en TEST-/);
   });
 });

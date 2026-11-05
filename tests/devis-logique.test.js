@@ -157,6 +157,9 @@ describe('Numéro, expiration, statuts', () => {
     assert.deepEqual(D.decisionTestFinalisation({ test: true }), { test: true, raison: 'devis' });
     assert.deepEqual(D.decisionTestFinalisation({}, { affaire: { test: true } }), { test: true, raison: 'affaire' });
     assert.deepEqual(D.decisionTestFinalisation({}, { fiche: { test: true } }), { test: true, raison: 'client' });
+    const v1 = { id: 'v1', statut: 'envoye', test: true };
+    assert.deepEqual(D.decisionTestFinalisation({ id: 'v2', test: false }, { numeroRacine: 'DEV-2026-10-24-001', versions: [v1] }), { test: true, raison: 'racine' });
+    assert.deepEqual(D.decisionTestFinalisation({ id: 'v2', test: true }, { numeroRacine: 'DEV-2026-10-24-001', versions: [{ ...v1, test: false }, { id: 'v2', statut: 'brouillon', test: true }] }), { test: false, raison: null });
     assert.deepEqual(D.decisionTestFinalisation({}, { affaire: {}, fiche: null }), { test: false, raison: null });
   });
   test('D11 format du numéro DEV-AAAA-MM-JJ-NNN, 3 chiffres au moins', () => {

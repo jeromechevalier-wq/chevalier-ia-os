@@ -172,7 +172,7 @@ export async function finaliser({ donnees, ctx, devisId }) {
     // Une version 2 ou plus garde le numéro de sa racine (jamais un nouveau numéro).
     let numero = devis.numero ?? versions.find((v) => v.numero)?.numero ?? null;
     // Essai ou réel ? Le serveur revérifie : le champ `test` du brouillon n'est qu'un indice (un navigateur peut l'avoir changé).
-    const decision = D.decisionTestFinalisation(devis, { numeroRacine: numero, affaire, fiche });
+    const decision = D.decisionTestFinalisation(devis, { numeroRacine: numero, affaire, fiche, versions });
     const ecritures = [];
     const nouveauNumero = !numero;
     if (nouveauNumero) {

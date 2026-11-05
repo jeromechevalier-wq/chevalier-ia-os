@@ -102,14 +102,12 @@ function lesCas({ nom, projet, fichier, preparer, ref, refCompteur, refLancement
       await assertFails(setDoc(refCompteur(db(autre)), { valeur: 1 }));
     });
     test('C1l le compteur des devis de test (devis_compteurs/test) est fermé comme le compteur global : ni lecture ni écriture depuis un navigateur', async () => {
-      const d = db(ecrivain);
       const test = (qui) => doc(refCompteur(db(qui)).parent, 'test');
       await assertFails(getDoc(test(ecrivain)));
       await assertFails(setDoc(test(ecrivain), { valeur: 0 })); // remettre le compteur de test à zéro depuis le navigateur
       await assertFails(updateDoc(test(ecrivain), { valeur: 0 }));
       await assertFails(deleteDoc(test(ecrivain)));
       await assertFails(setDoc(test(autre), { valeur: 1 }));
-      assert.ok(d);
     });
     test('C1j le journal des demandes « Préparer l’e-mail » (crm_actions_lancements) est fermé aux navigateurs : ni lecture, ni liste, ni écriture, pour personne', async () => {
       for (const qui of [ecrivain, lecteur, autre].filter(Boolean)) {

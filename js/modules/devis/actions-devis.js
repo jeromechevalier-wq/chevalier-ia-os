@@ -213,8 +213,9 @@ export function decisionFinalisation(d) {
   const numeroRacine = brouillon.numero ?? D.versionsDe(brouillon.racineId ?? brouillon.id).find((v) => v.numero)?.numero ?? null;
   const fiche = brouillon.organisationId ? CRM.organisation(brouillon.organisationId) : brouillon.personneId ? CRM.personne(brouillon.personneId) : null;
   const affaire = brouillon.affaireId ? CRM.affaire(brouillon.affaireId) : null;
-  const decision = decisionTestFinalisation(brouillon, { numeroRacine, affaire, fiche });
-  return { decision, numeroRacine, phrase: Li.phraseFinalisationTest(decision, numeroRacine, brouillon.test === true) };
+  const nonCharge = Boolean((brouillon.affaireId && !affaire) || ((brouillon.organisationId || brouillon.personneId) && !fiche)); // fiche liée absente de l'écran : on ne peut pas trancher
+  const decision = decisionTestFinalisation(brouillon, { numeroRacine, affaire, fiche, versions: D.versionsDe(brouillon.racineId ?? brouillon.id) });
+  return { decision, numeroRacine, phrase: Li.phraseFinalisationTest(decision, numeroRacine, brouillon.test === true, nonCharge) };
 }
 
 /** Texte de toast après une finalisation. */
