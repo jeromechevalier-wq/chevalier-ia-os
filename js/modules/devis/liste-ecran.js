@@ -1,4 +1,4 @@
-// Écran « Devis » (liste des devis) : deux vues, « Liste » et « Tableau » (colonnes par statut), recherche, filtres (statut, période), pagination, menu « … ».
+// Écran « Devis » (liste des devis) : deux vues, « Kanban » et « Liste » (colonnes par statut), recherche, filtres (statut, période), pagination, menu « … ».
 // Aucune règle ici : tri, filtre, recherche, pagination, regroupement et actions permises sont dans liste.js (pur, testé) ; le statut ne change QUE par les
 // fonctions du serveur (donnees.js : finaliser, changerStatut), jamais par une écriture directe, et il n'y a pas de glisser-déposer.
 import { h, icone, remplir, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
@@ -17,7 +17,7 @@ import { pastilleStatutDevis } from './pastille-statut.js';
 const ERREUR_LECTURE = 'La liste des devis n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
 
 // Choix conservés jusqu'au rechargement de la page (comme les autres listes).
-let vue = 'liste'; // liste | tableau | archives (les archives s'affichent en liste ; seules Liste et Tableau sont mémorisées)
+let vue = 'liste'; // liste | tableau (= Kanban) | archives (les archives s'affichent en liste ; seules Liste et Kanban sont mémorisées)
 let recherche = '';
 let statutsFiltres = [];
 let periode = 'toutes';
@@ -41,7 +41,7 @@ const euros = (n) => (typeof n === 'number' ? formaterMontant(n) : '—');
 
 const pastille = pastilleStatutDevis; // la même pastille que dans l'en-tête d'un devis (pastille-statut.js)
 
-/** Petite pastille d'un devis finalisé mais pas encore envoyé (dans la colonne « Envoyé » du Tableau). */
+/** Petite pastille d'un devis finalisé mais pas encore envoyé (dans la colonne « Envoyé » du Kanban). */
 const pastillePasEnvoye = () => h('span', { class: 'pastille-statut pastille-pas-envoye', style: { '--couleur': Li.COULEURS_STATUT.en_attente_envoi }, dataset: { pastille: 'pas-encore-envoye' } }, Li.LIBELLE_PAS_ENCORE_ENVOYE);
 
 // ---------------------------------------------------------------- actions
@@ -99,7 +99,7 @@ export function rendreListeDevis(conteneur) {
   const boutonNouveau = h('button', {
     type: 'button', class: `bouton ${Li.EDITEUR_DISPONIBLE ? 'bouton-principal' : 'bouton-secondaire'}`, disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT,
     dataset: { action: 'nouveau-devis' }, onclick: () => creerDevisSansAffaire(),
-  }, icone('plus', { taille: 16 }), 'Nouveau devis', Li.EDITEUR_DISPONIBLE ? null : h('span', { class: 'bientot' }, ' (bientôt disponible)'));
+  }, icone('plus', { taille: 16 }), 'Devis', Li.EDITEUR_DISPONIBLE ? null : h('span', { class: 'bientot' }, ' (bientôt disponible)'));
   const bascule = h('div', { class: 'zone-bascule' });
   // Même menu « Trier par » que les autres listes, aux critères des en-têtes triables (le clic d'en-tête reste possible).
   const OPTIONS_TRI = COLONNES.filter((c) => c.tri).map((c) => ({ id: c.tri, libelle: c.libelle, sens: c.tri === 'numero' ? 'asc' : 'desc' }));
@@ -107,7 +107,7 @@ export function rendreListeDevis(conteneur) {
   const choixTri = selecteurTri({ options: OPTIONS_TRI, valeur: tri.critere, sens: tri.sens, surChangement: (t) => { tri = { critere: t.critere, sens: t.sens }; page = 1; rendre(); } });
 
   function majBascule() {
-    remplir(bascule, basculeVues({ vues: [['liste', 'Liste', 'list'], ['tableau', 'Tableau', 'columns-3'], ['archives', 'Archives', 'archive']], courante: vue,
+    remplir(bascule, basculeVues({ vues: [['tableau', 'Kanban', 'square-kanban'], ['liste', 'Liste', 'list'], ['archives', 'Archives', 'archive']], courante: vue,
       surChangement: (id) => { vue = id; if (id !== 'archives') ecrirePreference('vue.devis', id); page = 1; rendre(); } }));
   }
 
@@ -123,7 +123,7 @@ export function rendreListeDevis(conteneur) {
     const aujourdhui = CRM.ctx().aujourdhui;
     const { du, au } = Li.bornesDePeriode(periode, aujourdhui);
     // Les anciennes versions « Remplacé » restent visibles (filtre de statut) ; tout est affiché par défaut.
-    // Archives = devis archivés + anciennes versions (remplacées) + expirés. Tableau = tout sauf remplacés et expirés. Liste = tout ce qui n'est pas archivé à la main.
+    // Archives = devis archivés + anciennes versions (remplacées) + expirés. Kanban = tout sauf remplacés et expirés. Liste = tout ce qui n'est pas archivé à la main.
     const archives = vue === 'archives';
     const tous = D.etat.devis.filter((d) => (archives ? Li.estDansArchives(d, aujourdhui) : d.archive !== true && !(vue === 'tableau' && Li.estHorsTableau(d, aujourdhui))));
     let lignes = Li.rechercher(tous, recherche, nomsDe);
@@ -136,7 +136,7 @@ export function rendreListeDevis(conteneur) {
       if (vraimentVide && archives) { remplir(zone, etatVide('Aucun devis archivé. Un devis finalisé, signé ou refusé se range ici avec « Archiver », dans le menu « … » du devis ; les devis remplacés et expirés y sont aussi.')); return; }
       remplir(zone, etatVide(vraimentVide ? 'Aucun devis pour l’instant.' : 'Aucun devis ne correspond.', {
         action: vraimentVide ? h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'nouveau-devis-vide' }, onclick: () => creerDevisSansAffaire() },
-          icone('plus', { taille: 16 }), 'Nouveau devis', Li.EDITEUR_DISPONIBLE ? null : ' (bientôt disponible)') : null,
+          icone('plus', { taille: 16 }), 'Devis', Li.EDITEUR_DISPONIBLE ? null : ' (bientôt disponible)') : null,
       }));
       return;
     }

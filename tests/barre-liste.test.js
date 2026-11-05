@@ -40,3 +40,16 @@ test('chacun des 5 écrans importe le composant commun', () => {
       `${chemin} n'importe plus js/modules/crm/barre-liste.js : un écran de liste utilise la barre commune (docs/consignes-ui.md).`);
   }
 });
+
+test('les boutons de vue disent « Kanban | Liste » (jamais « Tableau ») et les boutons jaunes « + Module » (jamais « + Nouveau … »)', () => {
+  const regle = 'Règle (docs/consignes-ui.md, « Écrans de liste : une seule barre ») : boutons de vue Kanban | Liste | Archives, bouton jaune « + <module au singulier> ».';
+  for (const chemin of ECRANS) {
+    const src = lire(chemin);
+    assert.doesNotMatch(src, /vues:\s*\[[^\n]*'Tableau'/, `${chemin} écrit « Tableau » dans ses vues. ${regle}`);
+    if (src.includes('basculeVues(')) {
+      assert.match(src, /\[\s*'(kanban|tableau)',\s*'Kanban',\s*'square-kanban'\s*\],\s*\[\s*'liste',\s*'Liste',\s*'list'\s*\]/,
+        `${chemin} : les vues ne commencent pas par Kanban puis Liste. ${regle}`);
+    }
+    assert.doesNotMatch(src, /icone\('plus'[^)]*\),\s*'Nouve(au|lle) /, `${chemin} a un bouton « + Nouveau … ». ${regle}`);
+  }
+});
