@@ -45,7 +45,7 @@ export function sectionMesTests(ctx, etat) {
         h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'reessayer-tests' }, onclick: () => charger() }, 'Réessayer'));
     }
     if (t && !page.chargement) {
-      if (total === 0) parts.push(h('p', { class: 'aide', dataset: { role: 'vide-tests' } }, 'Aucun élément de test pour l’instant. Allume le mode test (menu Jérôme) ou dis « c’est un test » à ton assistant.'));
+      if (total === 0) parts.push(h('p', { class: 'aide', dataset: { role: 'vide-tests' } }, 'Aucun élément de test pour l’instant. Allume le mode test (menu de ton compte) ou dis « c’est un test » à ton assistant.'));
       else {
         for (const [id, etiquette, un, plusieurs, toujours] of LIGNES) {
           const n = t.comptes?.[id] ?? 0;
