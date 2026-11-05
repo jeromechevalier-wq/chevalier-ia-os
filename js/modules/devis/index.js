@@ -38,7 +38,7 @@ function ajouterFeuille() {
 const ENTREE_DEVIS = { id: 'devis', libelle: 'Devis', icone: 'file-text', action: () => creerDevisSansAffaire() };
 // Sans Affaires, personne d'autre ne fournit « Personne » et « Organisation » : Devis les ajoute (avec Affaires, la fiche du CRM les fournit déjà : pas de doublon). Recomposé à chaque demarrer().
 const ENTREES_SOCLE = [
-  { id: 'personne', libelle: 'Personne', icone: 'user-plus', action: () => ouvrirCreationPersonne() },
+  { id: 'personne', libelle: 'Personne', icone: 'user-plus', raccourci: 'n', action: () => ouvrirCreationPersonne() },
   { id: 'organisation', libelle: 'Organisation', icone: 'building-2', action: () => ouvrirCreationOrganisation() },
 ];
 export const actionsRapides = [ENTREE_DEVIS];

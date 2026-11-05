@@ -14,11 +14,15 @@ export const TAILLE_PAGE_DEFAUT = 25;
 export const MESSAGE_BIENTOT = 'Bientôt disponible';
 export const MESSAGE_TEST_FINALISE_FIGE = 'Un devis de test finalisé (numéro TEST-) reste un test. Pour un vrai devis, crée un nouveau devis.';
 
+/** Une fiche liée au brouillon (affaire seulement si Affaires est actif, client) n'est pas encore chargée dans l'écran : on ne peut pas trancher test ou réel. */
+export const ficheLieeNonChargee = (b, { affaire = null, fiche = null, affaires = true } = {}) => Boolean((affaires && b.affaireId && !affaire) || ((b.organisationId || b.personneId) && !fiche));
+
 /** Phrase de la fenêtre « Finaliser ce devis ? » selon `decisionTestFinalisation` : '' pour un devis réel sans surprise. */
-export function phraseFinalisationTest(decision, numeroRacine = null, brouillonTest = false, ficheNonChargee = false) {
+export function phraseFinalisationTest(decision, numeroRacine = null, brouillonTest = false, ficheNonChargee = false, { affaires = true } = {}) {
   if (decision?.test && numeroRacine) return `Ce devis reste un devis de test : il garde son numéro ${numeroRacine}, il n’entre dans aucune statistique et pourra être supprimé.`;
   if (decision?.test) return 'Ce devis est un devis de test : il recevra un numéro TEST-… (compteur séparé), il n’entre dans aucune statistique et pourra être supprimé.';
   if (numeroRacine && brouillonTest) return `Ce devis garde son numéro ${numeroRacine} : il sera finalisé comme un vrai devis.`;
+  if (!numeroRacine && ficheNonChargee && !affaires) return 'Le numéro peut passer en TEST- si le client de ce devis est de test (sa fiche n’est pas encore chargée ici).';
   if (!numeroRacine && ficheNonChargee) return 'Le numéro peut passer en TEST- si l’affaire ou le client de ce devis est de test (leur fiche n’est pas encore chargée ici).';
   return '';
 }

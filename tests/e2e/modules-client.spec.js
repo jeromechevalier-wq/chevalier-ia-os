@@ -472,6 +472,10 @@ test.describe('R14 Devis seul (sans Affaires ni Projets) : le socle commun porte
     const suggestions = page.locator('.entete-droite .suggestions:not([hidden]) .suggestion');
     await expect(suggestions).toHaveText([/Créer la personne « Réno »/, /Créer l’organisation « Réno »/]);
     await expect(page.locator('.entete-droite')).not.toContainText('Créer l’affaire');
+    await suggestions.filter({ hasText: 'Créer la personne' }).click();
+    await expect(page.getByRole('dialog')).toContainText('Ajouter une personne');
+    await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
+    await expect(champ).toHaveValue('Réno');
     await attendreCalme(page);
     expect(await listerDocuments('clients/devisseul/crm_affaires')).toHaveLength(0);
   });
@@ -503,6 +507,13 @@ test.describe('R14 Devis seul (sans Affaires ni Projets) : le socle commun porte
     await fenetre.getByRole('button', { name: 'Enregistrer' }).click();
     await expect(fenetre).toHaveCount(0);
     await expect.poll(async () => (await listerDocuments('clients/devisseul/crm_personnes')).some((p) => p.nom === 'Paul Test')).toBe(true);
+    if (!estTelephone(page)) { // la touche « n » (raccourci de « Personne ») ouvre la même fenêtre
+      await page.evaluate(() => document.activeElement?.blur());
+      await page.keyboard.press('n');
+      await expect(page.getByRole('dialog')).toContainText('Ajouter une personne');
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }
   });
 
   test('R14-13 Réglages > Devis : pas de bloc « Étape des affaires créées depuis un devis »', async ({ page }) => {
