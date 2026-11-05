@@ -32,6 +32,8 @@ const lienActivite = (a) => a.affaireId ?? a.personneId ?? a.organisationId ?? n
 /** `tests` : 'inclure' (défaut : tout), 'exclure' (sans les essais) ou 'seulement' (les essais). Appliqué AVANT la borne, jamais à l'affichage seul. */
 const selonTests = (liste, mode) => (mode === 'exclure' ? L.sansTests(liste) : mode === 'seulement' ? (liste || []).filter(L.estTest) : liste);
 const reperTest = (fiche) => (L.estTest(fiche) ? { test: true } : {});
+/** Le document sans la clé `test` quand elle n'est pas vraie : `test: false` (démarqué) = réel, rien à montrer. */
+const sansTestFaux = ({ test, ...reste }) => (test === true ? { ...reste, test: true } : reste);
 
 // ---------------------------------------------------------------- chercher
 
@@ -150,7 +152,7 @@ export async function listerAffaires(donnees, { etape, statut, archive, personne
     sansAction: !!sansAction,
   };
   const gardees = L.filtrerAffaires(selonTests(affaires, tests), criteres, { activites, personnes, organisations, aujourdhui });
-  const lignes = gardees.map((a) => ({ ...sansDescription(a), statut: L.statutAffiche(a), montantAffiche: L.montantAffaire(a), personne: nomDe(personnes, a.personneId), organisation: nomDe(organisations, a.organisationId) }));
+  const lignes = gardees.map((a) => ({ ...sansTestFaux(sansDescription(a)), statut: L.statutAffiche(a), montantAffiche: L.montantAffaire(a), personne: nomDe(personnes, a.personneId), organisation: nomDe(organisations, a.organisationId) }));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
   return serialiser({ total, tronque, affaires: elements });
 }
@@ -165,7 +167,7 @@ export async function listerActivites(donnees, { affaireId, personneId, organisa
   if (enRetard) activites = activites.filter((a) => L.estActiviteEnRetard(a, aujourdhui));
   activites = L.trierActivites(activites);
   const { total, tronque, elements } = borne(activites, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
-  return serialiser({ total, tronque, activites: elements.map((a) => ({ ...a, lien: lienActivite(a) })) });
+  return serialiser({ total, tronque, activites: elements.map((a) => ({ ...sansTestFaux(a), lien: lienActivite(a) })) });
 }
 
 export async function listerDocuments(donnees, { affaireId, projetId }) {
@@ -200,7 +202,7 @@ export async function listerProjets(donnees, { phase, statut, archive, affaireId
   if (personneId) gardes = gardes.filter((p) => p.personneId === personneId);
   if (organisationId) gardes = gardes.filter((p) => p.organisationId === organisationId);
   const lignes = L.trier(gardes, (p) => L.normaliser(p.titre)).map((p) => ({
-    ...sansDescription(p), statut: PL.statutProjetAffiche(p), personne: nomDe(personnes, p.personneId), organisation: nomDe(organisations, p.organisationId),
+    ...sansTestFaux(sansDescription(p)), statut: PL.statutProjetAffiche(p), personne: nomDe(personnes, p.personneId), organisation: nomDe(organisations, p.organisationId),
     avancement: PL.progressionProjet(PL.tachesDuProjet(taches, p.id, config)), facturation: config.options.suiviPaiements ? resumeFacturation(p) : null,
   }));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));

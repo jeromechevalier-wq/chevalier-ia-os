@@ -285,7 +285,7 @@ describe('6 devis finalisé', () => {
     assert.equal(apercu.apercu, true);
     assert.equal(apercu.versions, 2, 'toutes les versions de la racine sont annoncées');
     assert.deepEqual(apercu.test, { avant: false, apres: true });
-    assert.deepEqual(apercu.montantAffaire, { avant: { ht: 1300, nature: 'accepte' }, apres: { ht: 1200, nature: 'accepte' } });
+    assert.deepEqual(apercu.montantsAffaires, [{ affaireId: 'a1', avant: { ht: 1300, nature: 'accepte' }, apres: { ht: 1200, nature: 'accepte' } }]);
     assert.deepEqual(s.collections.devis_devis, avant, 'le premier appel n’écrit RIEN');
     refuse(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'v2', codeConfirmation: 'faux' }), /Confirmation refusée/);
     assert.deepEqual(s.collections.devis_devis, avant, 'un faux code n’écrit rien');
@@ -317,6 +317,31 @@ describe('6 devis finalisé', () => {
     refuse(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'reel', codeConfirmation: apercu2.code }), /Confirmation refusée/);
     assert.equal(s.doc('devis_devis', 'reel').test, undefined);
   });
+
+  test('6 devis finalisé : viser la version BROUILLON d’une racine dont une autre version est signée exige aussi l’aperçu et le code ; restauration refusée avec la bonne voie', async () => {
+    const s = await demarrer({
+      devis: [devisFige('v1', { ht: 1200 }), brouillonEnregistre('v2', { racineId: 'v1', version: 2, numero: 'DEV-2026-10-01-v1' })],
+      fiches: (c) => { Object.assign(c.crm_affaires.find((a) => a.id === 'a1'), { montantDevisHt: 1200, montantDevisNature: 'accepte' }); },
+    });
+    const avant = structuredClone(s.collections.devis_devis);
+    const apercu = ok(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'v2' }));
+    assert.equal(apercu.apercu, true, 'pas de contournement par la version brouillon');
+    assert.equal(apercu.versions, 2);
+    assert.deepEqual(apercu.montantsAffaires, [{ affaireId: 'a1', avant: { ht: 1200, nature: 'accepte' }, apres: { ht: null, nature: null } }]);
+    assert.deepEqual(s.collections.devis_devis, avant, 'rien d’écrit sans code');
+    const r = ok(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'v2', codeConfirmation: apercu.code }));
+    assert.equal(s.doc('devis_devis', 'v1').test, true);
+    assert.equal(s.doc('crm_affaires', 'a1').montantDevisHt, null);
+    refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }), /demarquer_test/);
+    // un bibliothécaire (Hermes) ne marque pas un devis finalisé, mais marque un brouillon seul
+    const s2 = await demarrer({ devis: [devisFige('v1', { ht: 1200 }), brouillonEnregistre('v2', { racineId: 'v1', version: 2 }), brouillonEnregistre('seul')] });
+    refuse(await s2.appeler('biblio', 'marquer_test', { type: 'devis', id: 'v1' }), /réservé à Claude Code/);
+    refuse(await s2.appeler('biblio', 'marquer_test', { type: 'devis', id: 'v2' }), /réservé à Claude Code/);
+    assert.equal(ok(await s2.appeler('biblio', 'demarquer_test', { type: 'devis', id: 'v1' })).rien, true, 'déjà réel : rien à changer, aucune restriction à lever');
+    assert.equal(s2.doc('devis_devis', 'v1').test, undefined);
+    assert.equal(ok(await s2.appeler('biblio', 'marquer_test', { type: 'devis', id: 'seul' })).change, true);
+    assert.equal(ok(await s2.appeler('biblio', 'marquer_test', { type: 'personne', id: 'p1' })).change, true);
+  });
 });
 
 describe('7 filtre tests', () => {
@@ -327,9 +352,10 @@ describe('7 filtre tests', () => {
         c.crm_affaires.find((a) => a.id === 'a2').test = true;
         c.crm_affaires.find((a) => a.id === 'a1').test = false; // démarquée : réelle
         c.crm_activites.find((a) => a.id === 'ac2').test = true;
+        c.crm_activites.find((a) => a.id === 'ac1').test = false; // démarquée : réelle
         c.crm_personnes.find((p) => p.id === 'p2').test = true;
         c.crm_organisations.find((o) => o.id === 'org2').test = true;
-        c.projets_projets.push({ id: 'pr1', titre: 'Projet réel', phase: 'preparation', statut: 'actif', archive: false }, { id: 'pr2', titre: 'Projet essai', phase: 'preparation', statut: 'actif', archive: false, test: true });
+        c.projets_projets.push({ id: 'pr1', titre: 'Projet réel', phase: 'preparation', statut: 'actif', archive: false, test: false }, { id: 'pr2', titre: 'Projet essai', phase: 'preparation', statut: 'actif', archive: false, test: true });
       },
     });
     const ids = (r, cle) => (r[cle]).map((x) => x.id).sort();
@@ -342,6 +368,10 @@ describe('7 filtre tests', () => {
     assert.equal((await liste('lister_affaires', 'affaires', 'exclure')).includes('a1'), true, 'démarquée : test: false = réelle');
     assert.deepEqual(await liste('lister_affaires', 'affaires', 'seulement'), ['a2']);
     assert.equal(ok(await s.appeler('code', 'lister_affaires', { tests: 'seulement' })).affaires[0].test, true);
+    // test: false (démarqué) ne sort jamais : `test: true` seulement quand il est posé (affaires, projets, activités)
+    assert.equal('test' in ok(await s.appeler('code', 'lister_affaires', {})).affaires.find((a) => a.id === 'a1'), false);
+    assert.equal('test' in ok(await s.appeler('code', 'lister_projets', {})).projets.find((p) => p.id === 'pr1'), false);
+    assert.equal('test' in ok(await s.appeler('code', 'lister_activites', {})).activites.find((a) => a.id === 'ac1'), false);
     // lister_projets
     assert.deepEqual(await liste('lister_projets', 'projets', 'seulement'), ['pr2']);
     assert.deepEqual(await liste('lister_projets', 'projets', 'exclure'), ['pr1']);
@@ -414,7 +444,7 @@ describe('8 usage des articles', () => {
 });
 
 describe('11 plafonds', () => {
-  test('11 plafonds : une écriture par bascule, code préservé au plafond', async () => {
+  test('11 plafonds : une écriture par bascule ; au plafond, le code est consommé et un nouvel aperçu suffit (comportement existant de confirmerDevis)', async () => {
     const s = await demarrer({ devis: [devisFige('d1', { ht: 100 })], jetonsExtra: { code: { limites: { ecrituresParHeure: 3 } } } });
     ok(await s.appeler('code', 'marquer_test', { type: 'personne', id: 'p1' })); // 1
     ok(await s.appeler('code', 'demarquer_test', { type: 'personne', id: 'p1' })); // 2
@@ -430,8 +460,11 @@ describe('11 plafonds', () => {
     assert.equal(apercu.apercu, true, 'un aperçu se fait même au plafond (lecture seule)');
     refuse(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'd1', codeConfirmation: apercu.code }), /Plafond atteint/);
     assert.equal(s.doc('devis_devis', 'd1').test, undefined, 'devis intact au plafond');
-    // l'heure suivante : un nouvel aperçu et un nouveau code (le code présenté au plafond est consommé, comme pour les autres outils à code)
-    s.horloge.t += 3_600_000;
+    s.horloge.t += 3_600_000; // l'heure suivante : le code présenté au plafond est consommé, le rejouer est refusé
+    refuse(await s.appeler('code', 'marquer_test', { type: 'devis', id: 'd1', codeConfirmation: apercu.code }), /Confirmation refusée/);
+    s.horloge.t -= 3_600_000;
+    // l'heure suivante : un nouvel aperçu et un nouveau code suffisent
+    s.horloge.t += 7_200_000;
     ok(await s.avecCode('code', 'marquer_test', { type: 'devis', id: 'd1' }));
     assert.equal(s.doc('devis_devis', 'd1').test, true);
   });

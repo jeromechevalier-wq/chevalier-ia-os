@@ -1568,14 +1568,24 @@ export async function recalculerUsageArticlesDevis(c, args) {
 const GENRES_TEST = { personne: 'Personne', organisation: 'Organisation', affaire: 'Affaire', projet: 'Projet', devis: 'Devis' };
 const montantAffaireLu = (a) => ({ ht: typeof a?.montantDevisHt === 'number' ? a.montantDevisHt : null, nature: a?.montantDevisNature ?? null });
 
-/** Aperçu du montant de l'affaire d'un devis finalisé si ses versions changeaient de repère (lecture seule, même règle D17 que l'écriture). */
-async function apercuMontantAffaire(c, devis, versions, test) {
-  const affaire = typeof devis.affaireId === 'string' && devis.affaireId && !devis.affaireId.includes('/') ? await c.donnees.document(C.affaires, devis.affaireId) : null;
-  if (!affaire) return null;
+/**
+ * Aperçu du montant de CHAQUE affaire touchée si les versions `versions` changeaient de repère (lecture seule, même règle D17 que l'écriture : une version brouillon a pu être rattachée à une autre affaire).
+ * Rend [{ affaireId, avant, apres }] (vide si aucune affaire ne change).
+ */
+async function apercuMontantsAffaires(c, toutes, versions, test) {
   const retouchees = new Set(versions.map((v) => v.id));
-  const liste = (await c.donnees.liste(C.devis, { champ: 'affaireId', valeur: devis.affaireId })).map((d) => (retouchees.has(d.id) ? { ...d, test } : d));
-  const calcule = D.montantDesDevis(liste, affaire);
-  return { avant: montantAffaireLu(affaire), apres: { ht: calcule?.montant ?? null, nature: calcule?.nature ?? null } };
+  const ids = [...new Set(toutes.map((v) => v.affaireId).filter((a) => typeof a === 'string' && a && !a.includes('/')))];
+  const lignes = [];
+  for (const affaireId of ids) {
+    const affaire = await c.donnees.document(C.affaires, affaireId);
+    if (!affaire) continue;
+    const liste = (await c.donnees.liste(C.devis, { champ: 'affaireId', valeur: affaireId })).map((d) => (retouchees.has(d.id) ? { ...d, test } : d));
+    const calcule = D.montantDesDevis(liste, affaire);
+    const apres = { ht: calcule?.montant ?? null, nature: calcule?.nature ?? null };
+    const avant = montantAffaireLu(affaire);
+    if (avant.ht !== apres.ht || avant.nature !== apres.nature) lignes.push({ affaireId, avant, apres });
+  }
+  return lignes;
 }
 
 async function basculerTestMetier(c, args, test) {
@@ -1587,16 +1597,19 @@ async function basculerTestMetier(c, args, test) {
   const rien = () => ({ rien: true, id, type, test, message: `${dit} : rien à changer.` });
   let finalise = false;
   if (type === 'devis') {
-    const versions = (await c.donnees.liste(C.devis, { champ: 'racineId', valeur: fiche.racineId ?? fiche.id })).filter((v) => (v.test === true) !== test);
-    const aChanger = versions;
-    if (!aChanger.length && (fiche.test === true) === test) return rien();
-    finalise = fiche.statut !== 'brouillon';
+    const racine = await c.donnees.liste(C.devis, { champ: 'racineId', valeur: fiche.racineId ?? fiche.id });
+    const toutes = racine.some((v) => v.id === fiche.id) ? racine : [fiche, ...racine];
+    const aChanger = toutes.filter((v) => (v.test === true) !== test);
+    if (!aChanger.length) return rien();
+    // « Finalisé » se décide sur l'ENSEMBLE des versions de la racine : viser la version brouillon d'un devis dont une autre version est signée ne contourne pas l'aperçu et le code.
+    finalise = toutes.some((v) => v.statut !== 'brouillon');
     if (finalise) {
-      const montantAffaire = await apercuMontantAffaire(c, fiche, aChanger.length ? aChanger : [fiche], test);
+      if (c.profil === 'bibliothecaire') refuser('saisie_invalide', `Marquer ou démarquer un devis FINALISÉ (une version au moins n'est plus un brouillon) est réservé à Claude Code : cela change le chiffre d'affaires et ne se défait pas avec le journal (un bibliothécaire ne peut pas non plus finaliser un devis). ${test ? 'Un brouillon se marque' : 'Un brouillon se démarque'} sans restriction.`);
+      const montantsAffaires = await apercuMontantsAffaires(c, toutes, aChanger, test);
       const apercu = await confirmerDevis(c, args, {
-        outil, cibleId: id, verbe: 'marqué', empreinte: empreinteDevis(fiche, { test }),
-        apercu: { change: false, id, numero: fiche.numero ?? null, statut: fiche.statut, test: { avant: fiche.test === true, apres: test }, versions: aChanger.length, affaireId: fiche.affaireId ?? null, ...(montantAffaire ? { montantAffaire } : {}) },
-        suite: `Le numéro du devis ne change pas ; le montant de son affaire est recalculé ; l'usage des articles se remet juste ensuite avec recalculer_usage_articles. Cette opération ne se défait pas avec restaurer_depuis_audit (la bascule inverse : ${test ? 'demarquer_test' : 'marquer_test'}).`,
+        outil, cibleId: id, verbe: 'marqué', empreinte: empreinteDevis(fiche, { test, versions: aChanger.map((v) => `${v.id}:${v.statut}`).sort() }),
+        apercu: { change: false, id, numero: fiche.numero ?? toutes.find((v) => v.numero)?.numero ?? null, statut: fiche.statut, test: { avant: fiche.test === true, apres: test }, versions: aChanger.length, affaireId: fiche.affaireId ?? null, montantsAffaires },
+        suite: `Le numéro du devis ne change pas ; le montant de chaque affaire touchée est recalculé ; l'usage des articles se remet juste ensuite avec recalculer_usage_articles. Cette opération ne se défait pas avec restaurer_depuis_audit (la bascule inverse : ${test ? 'demarquer_test' : 'marquer_test'}, avec aperçu et code).`,
       });
       if (apercu) return apercu;
     }
@@ -1608,7 +1621,7 @@ async function basculerTestMetier(c, args, test) {
   return {
     change: true, id, type, test, operationId: r.operationId, ...(r.versions !== undefined ? { versions: r.versions } : {}), ...(r.montant ? { montant: r.montant } : {}),
     detail: finalise
-      ? 'Le devis garde son numéro. Relancer recalculer_usage_articles pour remettre le compteur d\'usage des articles à jour. Ne se défait pas avec restaurer_depuis_audit : utiliser ' + (test ? 'demarquer_test' : 'marquer_test') + '.'
+      ? 'Le devis garde son numéro. Relancer recalculer_usage_articles pour remettre le compteur d\'usage des articles à jour. Ne se défait pas avec restaurer_depuis_audit : utiliser ' + (test ? 'demarquer_test' : 'marquer_test') + ' (aperçu et code).'
       : `Détail : lire_audit avec operationId ${r.operationId}. Récupérable avec restaurer_depuis_audit.`,
   };
 }
