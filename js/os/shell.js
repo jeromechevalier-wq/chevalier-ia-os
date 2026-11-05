@@ -173,6 +173,14 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   };
   remplirMarque();
 
+  // Mode test : entrée du menu « Jérôme » (après le thème). Cliquer bascule le mode et le menu RESTE ouvert, comme le thème.
+  const boutonModeTest = h('button', { type: 'button', class: 'menu-pop-entree menu-pop-mode-test', role: 'menuitemcheckbox', dataset: { role: 'mode-test' }, onclick: () => definirModeTest(!modeTestAllume()) });
+  const majModeTest = () => {
+    const v = modeTestAllume();
+    remplir(boutonModeTest, icone('flask-conical', { taille: 16 }), h('span', { class: 'menu-pop-mode-test-texte' }, 'Mode test'), v ? icone('check', { taille: 16 }) : null);
+    boutonModeTest.setAttribute('aria-checked', String(v));
+  };
+  majModeTest();
   // Menu utilisateur : s'ouvre vers le haut depuis le nom du compte (ouvrirMenu, placement 'haut').
   const boutonCompte = h('button', {
     type: 'button', class: 'menu-compte', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': 'menu-utilisateur', dataset: { role: 'menu-utilisateur', infobulle: compte.nom },
@@ -255,14 +263,6 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   poserLargeur(largeur);
   majPoignee();
 
-  // Mode test : entrée du menu « Jérôme » (après le thème). Cliquer bascule le mode et le menu RESTE ouvert, comme le thème.
-  const boutonModeTest = h('button', { type: 'button', class: 'menu-pop-entree menu-pop-mode-test', role: 'menuitemcheckbox', dataset: { role: 'mode-test' }, onclick: () => definirModeTest(!modeTestAllume()) });
-  const majModeTest = () => {
-    const v = modeTestAllume();
-    remplir(boutonModeTest, icone('flask-conical', { taille: 16 }), h('span', { class: 'menu-pop-mode-test-texte' }, 'Mode test'), v ? icone('check', { taille: 16, classe: 'menu-pop-coche' }) : null);
-    boutonModeTest.setAttribute('aria-checked', String(v));
-  };
-  majModeTest();
   // Bandeau orange tant que le mode est allumé : élément propre de la zone, non collant, avec son bouton « Éteindre ».
   const bandeauTest = h('div', { class: 'bandeau-test', role: 'status', dataset: { role: 'bandeau-test' } },
     h('span', { class: 'bandeau-test-texte' }, 'MODE TEST : ce que tu crées ici est marqué test et n’entre pas dans les statistiques'),

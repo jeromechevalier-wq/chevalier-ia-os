@@ -1,4 +1,4 @@
-// Mode test, PR 1a-2a : l'interrupteur (menu latéral), le bandeau orange et la pose de `test: true` à la création (sans héritage : c'est la PR 1a-2b).
+// Mode test, PR 1a-2a : l'interrupteur (menu Jérôme), le bandeau orange et la pose de `test: true` à la création (sans héritage : c'est la PR 1a-2b).
 // Un test par critère, le nom commence par son numéro : 1 interrupteur, 2 bandeau, 3 pose à la création, 4 un seul point d'entrée (statique), 5 éteindre ne retire rien, 6 réglages et catalogue jamais marqués.
 // Captures dans tests/e2e/captures/mode-test-creation/ (ordinateur ET téléphone).
 import { fileURLToPath } from 'node:url';
@@ -69,6 +69,17 @@ test('1 interrupteur : dans le menu Jérôme après le thème, éteint par défa
   await expect(interrupteur(page)).toHaveAttribute('aria-checked', 'false');
   await expect(bandeau(page)).toBeHidden();
   expect(await lireStockage(page)).toBe('0');
+});
+
+test('1 clavier : flèches jusqu’à « Mode test », Entrée bascule, le menu reste ouvert', async ({ page }) => {
+  await connecter(page);
+  await ouvrirMenuUtilisateur(page);
+  for (let i = 0; i < 10 && !(await interrupteur(page).evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press('ArrowDown');
+  await expect(interrupteur(page)).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(interrupteur(page)).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('.menu-pop')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-mode-test', '1');
 });
 
 test('1 stockage indisponible ou vide = éteint (aucune erreur)', async ({ page }) => {
