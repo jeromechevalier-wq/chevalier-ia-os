@@ -29,7 +29,7 @@ test.beforeEach(async () => {
   for (const [id, nom, modules] of [
     ['avecdevis', 'Cabinet Devis', { affaires: true, devis: true }],
     ['sansdevis', 'Cabinet Sans', { affaires: true }],
-    ['devissolo', 'Cabinet Solo', { devis: true }], // Devis sans Affaires : refusé
+    ['devissolo', 'Cabinet Solo', { devis: true }], // Devis seul (PR C1) : accepté, sur le socle commun
     ['autre', 'Cabinet Autre', { affaires: true, devis: true }],
   ]) {
     await ecrireDocument(`marques/${id}`, { actif: true, nom, couleur: '#336699', accueil: 'Bienvenue.' });
@@ -53,7 +53,7 @@ async function article(chemin, valeurs = {}) {
 }
 const ligne = (page, libelle) => page.locator('.ligne-article', { hasText: libelle });
 
-test('B1 chez un client, « Devis » est au menu quand le module est actif avec Affaires, et n\'y est pas sans Affaires ni sans le module', { tag: '@sans-telephone' }, async ({ page }, info) => {
+test('B1 chez un client, « Devis » est au menu quand le module est actif avec Affaires, et n\'y est pas sans le module ; seul (sans Affaires), il est au menu tout seul (PR C1)', { tag: '@sans-telephone' }, async ({ page }, info) => {
   await ouvrir(page, 'avecdevis');
   await expect(page.locator('.coquille')).toBeVisible();
   const elargir = page.getByRole('button', { name: 'Élargir le menu' });
@@ -72,11 +72,13 @@ test('B1 chez un client, « Devis » est au menu quand le module est actif avec 
   await expect(page.locator('.menu').getByRole('link', { name: 'Devis', exact: true })).toHaveCount(0);
   await page.evaluate(() => { location.hash = '#/espace/sansdevis/devis/bordereau'; });
   await expect(page.getByRole('heading', { name: 'Page introuvable' })).toBeVisible();
-  // Devis sans Affaires : refusé, aucun écran
+  // Devis sans Affaires (PR C1, inversé : c'était « refusé, aucun écran ») : accepté, un seul écran au menu
   await ouvrir(page, 'devissolo');
-  await expect(page.getByText("Aucun écran n'est encore activé dans cet espace.")).toBeVisible();
-  await expect(page.locator('.coquille')).toHaveCount(0);
-  await capturer(page, info, 'B1-client-devis-sans-affaires');
+  await expect(page.locator('.coquille')).toBeVisible();
+  await expect(page).toHaveURL(/#\/espace\/devissolo\/devis\/liste$/);
+  await expect(page.locator('.menu').getByRole('link', { name: 'Devis', exact: true })).toHaveCount(1);
+  await expect(page.locator('.menu').getByRole('link', { name: 'Personnes', exact: true })).toHaveCount(0);
+  await capturer(page, info, 'B1-client-devis-seul');
 });
 
 test('B2 chez un client, l\'article se crée sous clients/<client>/devis_articles (jamais à la racine), avec sa trace, et un autre client ne le voit pas', { tag: '@sans-telephone' }, async ({ page }) => {

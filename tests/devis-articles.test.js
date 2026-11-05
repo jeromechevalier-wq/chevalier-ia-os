@@ -17,27 +17,27 @@ const creer = (valeurs, articles = []) => A.planCreerArticle(valeurs, ctx(), { a
 /** Applique un plan « creer » à une liste (comme la base). */
 const appliquer = (articles, plan) => [...articles, ...plan.ecritures.filter((e) => e.type === 'creer').map((e) => ({ id: e.id, ...e.donnees }))];
 
-describe('B1 le module Devis est déclaré et ne dépend que des Affaires', () => {
+describe('B1 le module Devis est déclaré et ne dépend plus d\'aucun module (PR C1 : Devis seul)', () => {
   const devis = moduleDeclare('devis');
-  test('B1 déclaration : dépend de « affaires » (pas de « projets »), une entrée de menu « Devis » qui ouvre la liste des devis, pas de réservé aux clients', () => {
+  test('B1 déclaration : ne dépend de rien (PR C1 ; avant : « affaires »), une entrée de menu « Devis » qui ouvre la liste des devis, pas de réservé aux clients', () => {
     assert.ok(devis);
-    assert.deepEqual(devis.dependances, ['affaires']);
+    assert.deepEqual(devis.dependances, []); // PR C1 : inversé, Devis repose sur le socle commun
     assert.equal(devis.entreeMenu, 'devis/liste');
     assert.deepEqual(devis.ecrans.map((e) => e.route), ['devis/liste', 'devis/bordereau', 'devis/vocabulaire']);
     assert.deepEqual(devis.collections, ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire', 'devis_usage_articles']);
     assert.ok(!('reserveAuxClients' in devis));
     assert.ok(MODULES_DECLARES.findIndex((m) => m.id === 'affaires') < MODULES_DECLARES.findIndex((m) => m.id === 'devis'), 'les dépendances viennent avant');
   });
-  test('B1 le menu montre « Devis » quand le module est actif (Affaires seules suffisent) et pas sans « affaires »', () => {
+  test('B1 le menu montre « Devis » quand le module est actif (Affaires seules suffisent) ; seul, il n’a que sa propre entrée (PR C1)', () => {
     const entrees = (actifs) => blocsDuMenu(actifs).flatMap((b) => b.sections.flat()).map((e) => [e.libelle, e.chemin]);
     assert.deepEqual(entrees(['affaires', 'devis']).filter(([l]) => l === 'Devis'), [['Devis', 'devis/liste']]);
     assert.ok(!entrees(['affaires']).some(([l]) => l === 'Devis'));
-    const sans = modulesActifsDuClient({ modules: { devis: true } });
-    assert.deepEqual(sans.actifs, [], 'Devis sans Affaires est refusé');
-    assert.match(sans.erreurs.join(' '), /Devis.*Affaires/);
+    const seul = modulesActifsDuClient({ modules: { devis: true } }); // PR C1 : inversé, Devis seul est accepté
+    assert.deepEqual(seul.actifs, ['devis']);
+    assert.deepEqual(seul.erreurs, []);
     assert.deepEqual(modulesActifsDuClient({ modules: { affaires: true, devis: true } }).actifs, ['affaires', 'devis']);
     assert.deepEqual(modulesActifsDuClient({ modules: { crm: true, devis: true } }).actifs, ['affaires', 'projets', 'devis']);
-    assert.deepEqual(verifierActivation(['devis']).actifs, []);
+    assert.deepEqual(verifierActivation(['devis']).actifs, ['devis']);
   });
   test('B1 les Réglages ont un bloc « Devis » avec sa section', () => {
     const bloc = reglagesDesModules(['affaires', 'devis']).find((b) => b.id === 'devis');
