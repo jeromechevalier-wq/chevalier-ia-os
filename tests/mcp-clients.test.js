@@ -298,6 +298,33 @@ describe('Rôles : le profil vient du rôle du membre', () => {
     assert.deepEqual(await donneesDe('a'), avant);
     await c.close();
   });
+  test('10 clients : listés pour l\'éditeur, refusés au lecteur, étanches (mode test : marquer_test / demarquer_test)', async () => {
+    await reinitialiser();
+    try {
+      await donnees.appliquer([{ type: 'set', collection: 'clients/b/crm_personnes', id: 'p-seulement-b', donnees: { nom: 'Seulement Bravo' } }]);
+      const t = await connecter('a', 'ID-ALICE');
+      const c = await assistant('/mcp/a', t.access_token);
+      const liste = noms(await c.listTools());
+      assert.ok(liste.includes('marquer_test') && liste.includes('demarquer_test'), 'l\'éditeur les a');
+      const r = resultat(await c.callTool({ name: 'marquer_test', arguments: { type: 'personne', id: 'p1' } }));
+      assert.equal(r.change, true);
+      assert.equal((await donnees.document('clients/a/crm_personnes', 'p1')).test, true);
+      assert.equal((await donnees.document('clients/b/crm_personnes', 'p1')).test, undefined, 'l\'espace B n\'est pas touché');
+      // étanchéité : un identifiant du client B est introuvable depuis A
+      assert.ok(await refuse(c, 'marquer_test', { type: 'personne', id: 'p-seulement-b' }));
+      assert.equal((await donnees.document('clients/b/crm_personnes', 'p-seulement-b')).test, undefined);
+      assert.equal(resultat(await c.callTool({ name: 'demarquer_test', arguments: { type: 'personne', id: 'p1' } })).change, true);
+      await c.close();
+      // le lecteur ne les voit pas et ne peut pas les appeler
+      const tl = await connecter('a', 'ID-LEA');
+      const cl = await assistant('/mcp/a', tl.access_token);
+      assert.ok(!noms(await cl.listTools()).some((n) => /_test$/.test(n)));
+      assert.ok(await refuse(cl, 'marquer_test', { type: 'personne', id: 'p2' }));
+      assert.equal((await donnees.document('clients/a/crm_personnes', 'p2')).test, undefined);
+      await cl.close();
+    } finally { await reinitialiser(); }
+  });
+
   test('M7 éditeur : lecture, écriture, suppression et restauration (listées et appelables), profil claude-code', async () => {
     await reinitialiser();
     const t = await connecter('a', 'ID-ALICE');
@@ -964,7 +991,7 @@ describe('Textes des outils : valables pour tout espace (Partie A)', () => {
       assert.match(ancien, TEXTE_DE_JEROME, ancien);
     }
     for (const permis of ['une affaire gagnée', 'nature livraison', 'lire_audit : le journal d\'audit', 'phase de clôture']) assert.doesNotMatch(permis, TEXTE_DE_JEROME, permis);
-    assert.equal(OUTILS.length, 81); // 81 : + recalculer_usage_articles (recalcul du compteur d'usage des articles, 30/10/2026) ; 80 : + creer_devis_depuis_modele (nouveau brouillon copié d'un devis, 30/10/2026) ; 79 : + annuler_derniere_modification_devis (annulation d'un seul niveau, 30/10/2026) ; 78 : + modifier_lignes_devis (opérations groupées sur les lignes d'un brouillon, par numéro, 30/10/2026) ; 77 : + recalculer_montants_affaires (recalcul général du montant des affaires, 30/10/2026) ; 76 : + modifier_destinataires_devis (destinataire d'un devis finalisé, 29/10/2026) ; 75 : + obtenir_pdf_officiel_devis et preparer_email (garantie « aucun e-mail ne part tout seul », 29/10/2026) ; 73 : + deposer_document et supprimer_document_stocke (onglet « Documents », 28/10/2026) ; 71 : + enregistrer_reponse_vocabulaire et rechercher_article_par_phrase (dictionnaire de vocabulaire, 28/10/2026) ; 69 : + diagnostiquer_fichiers (outil d'essai temporaire, 26/10/2026) ; 68 avant : 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations), plus 5 outils du bordereau et 11 outils des devis (module Devis, 24/10/2026 puis 25/10/2026 : + lire_reglages_devis, nouvelle_version_devis, archiver_devis, enregistrer_envoi_devis, changer_statut_devis, supprimer_devis)
+    assert.equal(OUTILS.length, 83); // 83 : + marquer_test, demarquer_test (mode test, PR 2, 05/11/2026) ; 81 : + recalculer_usage_articles (recalcul du compteur d'usage des articles, 30/10/2026) ; 80 : + creer_devis_depuis_modele (nouveau brouillon copié d'un devis, 30/10/2026) ; 79 : + annuler_derniere_modification_devis (annulation d'un seul niveau, 30/10/2026) ; 78 : + modifier_lignes_devis (opérations groupées sur les lignes d'un brouillon, par numéro, 30/10/2026) ; 77 : + recalculer_montants_affaires (recalcul général du montant des affaires, 30/10/2026) ; 76 : + modifier_destinataires_devis (destinataire d'un devis finalisé, 29/10/2026) ; 75 : + obtenir_pdf_officiel_devis et preparer_email (garantie « aucun e-mail ne part tout seul », 29/10/2026) ; 73 : + deposer_document et supprimer_document_stocke (onglet « Documents », 28/10/2026) ; 71 : + enregistrer_reponse_vocabulaire et rechercher_article_par_phrase (dictionnaire de vocabulaire, 28/10/2026) ; 69 : + diagnostiquer_fichiers (outil d'essai temporaire, 26/10/2026) ; 68 avant : 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations), plus 5 outils du bordereau et 11 outils des devis (module Devis, 24/10/2026 puis 25/10/2026 : + lire_reglages_devis, nouvelle_version_devis, archiver_devis, enregistrer_envoi_devis, changer_statut_devis, supprimer_devis)
     for (const o of OUTILS) assert.doesNotMatch(textesDe(o), TEXTE_DE_JEROME, `${o.nom} : ${textesDe(o).match(TEXTE_DE_JEROME)?.[0]}`);
   });
 

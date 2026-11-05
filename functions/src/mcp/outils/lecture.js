@@ -7,6 +7,7 @@ import { resumerForme, phraseDe, ligneDeDiagnostic } from '../diagnostic-fichier
 const TOUS = ['lecteur', 'bibliothecaire', 'claude-code'];
 const id = z.string().min(1).max(200);
 const limite = z.number().int().min(1).max(lecture.MAX_LIGNES).optional().describe(`Nombre maximal de lignes (défaut et plafond : ${lecture.MAX_LIGNES}).`);
+const tests = z.enum(['inclure', 'exclure', 'seulement']).optional().describe("Mode test : inclure (défaut) : tout ; exclure : sans les essais ; seulement : les essais (test: true). Par défaut on inclut : l'utilisateur doit pouvoir dire « montre-moi mon client de test ». Chaque résultat qui est un essai porte test: true.");
 const avecFil = z.boolean().optional().describe("Joindre le fil : activités faites, notes et événements, du plus récent au plus ancien.");
 
 export const chercher = {
@@ -17,6 +18,7 @@ export const chercher = {
     texte: z.string().min(1).max(200).describe('Texte recherché.'),
     types: z.array(z.enum(['personnes', 'organisations', 'affaires'])).optional().describe('Limiter à ces types (défaut : les trois).'),
     limite: z.number().int().min(1).max(50).optional().describe('Résultats par type (défaut 8).'),
+    tests,
   },
   executer: ({ args, donnees }) => lecture.chercher(donnees, args),
 };
@@ -58,6 +60,7 @@ export const lister_affaires = {
     recherche: z.string().max(200).optional().describe('Texte cherché dans le titre, la personne et l’organisation.'),
     enRetard: z.boolean().optional().describe('Avec une activité en retard.'),
     sansAction: z.boolean().optional().describe('Affaires actives sans aucune activité à venir.'),
+    tests,
     limite,
   },
   executer: ({ args, donnees, maintenant }) => lecture.listerAffaires(donnees, args, maintenant),
@@ -77,6 +80,7 @@ export const lister_projets = {
     recherche: z.string().max(200).optional().describe('Texte cherché dans le titre, la personne et l’organisation.'),
     enRetard: z.boolean().optional().describe('Avec un livrable en retard.'),
     limite,
+    tests,
   },
   executer: ({ args, donnees, maintenant }) => lecture.listerProjets(donnees, args, maintenant),
 };
@@ -108,6 +112,7 @@ export const lister_activites = {
     fait: z.boolean().optional().describe('true : faites ; false : à faire ; absent : toutes.'),
     enRetard: z.boolean().optional(),
     limite,
+    tests,
   },
   executer: ({ args, donnees, maintenant }) => lecture.listerActivites(donnees, args, maintenant),
 };
@@ -194,6 +199,7 @@ export const lister_devis = {
     texte: z.string().max(200).optional().describe("Mots cherchés dans le numéro, l'objet ou le nom du client."),
     archives: z.boolean().optional().describe("true : inclure les devis archivés (exclus par défaut)."),
     limite,
+    tests,
   },
   executer: ({ args, donnees, maintenant }) => lecture.listerDevis(donnees, args, maintenant),
 };

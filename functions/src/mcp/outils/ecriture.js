@@ -19,6 +19,10 @@ const adresses = z.array(z.object({
 const contacts = z.array(z.object({ valeur: z.string().max(200), type: z.enum(L.TYPES_CONTACT.map((t) => t.id)).optional() })).max(10);
 const etiquettes = z.array(z.string().max(80)).max(30).describe('Identifiants d’étiquettes (voir lire_reglages, etiquettes).');
 const proprietaire = z.string().max(120).optional().describe('Propriétaire de la fiche créée (facultatif ; si absent, par défaut la personne connectée).');
+// Mode test (docs/cadrage-mode-test.md §5.2) : la consigne vit ICI (description du paramètre), jamais chez l'assistant.
+const testCreation = z.boolean().optional().describe("true SEULEMENT si l'utilisateur dit que c'est un test, un essai ou une démo ; sinon n'envoie rien (jamais false) ; ne devine jamais. Un essai porte « [TEST] » à l'écran et n'entre dans aucune statistique. Il se rattrape après coup avec marquer_test.");
+const typeTest = z.enum(['personne', 'organisation', 'affaire', 'projet', 'devis']).describe('Ce qu’on marque : personne, organisation, affaire, projet ou devis.');
+const codeTest = z.string().max(40).optional().describe("Devis finalisé seulement : absent au premier appel (aperçu et code), à donner au second appel après l'accord de l'utilisateur.");
 const forcer = z.boolean().optional().describe('true : créer malgré un doublon possible (nom ou e-mail déjà connu), après avoir vérifié que c’est une autre fiche.');
 const texteCourt = z.string().max(300);
 // Devis : type d'article et composants d'un ouvrage (les règles fines sont dans devis-articles.js, les mêmes que l'écran).
@@ -62,6 +66,7 @@ export const OUTILS_ECRITURE = [
   outil('creer_personne', "Crée une personne (seul le nom est obligatoire), avec son événement dans le fil. Refuse un doublon (même nom, accents et casse ignorés, ou même e-mail) sauf forcer: true. Le propriétaire est, par défaut, la personne connectée si on n'en donne pas.", {
     nom: z.string().min(1).max(200), organisationId: id.optional(), emails: contacts.optional(), telephones: contacts.optional(), adresses: adresses.optional(), etiquettes: etiquettes.optional(),
     ville: texteCourt.optional(), source: sourceListe, forcer, proprietaire,
+    test: testCreation,
   }, metier.creerPersonne),
 
   outil('modifier_personne', "Modifie des champs d'une personne (seuls les champs donnés changent) : nom, organisationId (null pour détacher), emails, telephones, adresses (liste qui remplace l'actuelle), etiquettes, ville, source, linkedin, siteWeb, archive. Ne supprime jamais. Refuse un nom ou e-mail qui ferait doublon avec une autre personne sauf forcer: true.", {
@@ -72,6 +77,7 @@ export const OUTILS_ECRITURE = [
 
   outil('creer_organisation', "Crée une organisation (seul le nom est obligatoire ; emails et telephones : listes de { valeur, type }, 10 au plus ; adresses : liste d'adresses enregistrées), avec son événement dans le fil. Refuse un doublon de nom sauf forcer: true.", {
     nom: z.string().min(1).max(200), adresse: texteCourt.optional(), ville: texteCourt.optional(), secteur: texteCourt.optional(), emails: contacts.optional(), telephones: contacts.optional(), adresses: adresses.optional(), etiquettes: etiquettes.optional(), forcer, proprietaire,
+    test: testCreation,
   }, metier.creerOrganisation),
 
   outil('modifier_organisation', "Modifie des champs d'une organisation : nom, adresse, ville, siteWeb, adresses (liste d'adresses enregistrées, qui REMPLACE l'actuelle ; les champs adresse et ville ne bougent pas), emails et telephones (listes { valeur, type } de 10 au plus, qui REMPLACENT la liste actuelle ; [] la vide), secteur, taille (Solo, 2 à 10, 11 à 50, Plus de 50, ou vide), etiquettes, archive. Les anciens champs texte email et telephone sont gardés : une valeur donnée est AJOUTÉE à la liste (jamais perdue ; pour vider, passer emails: []). Ne supprime jamais.", {
@@ -83,6 +89,7 @@ export const OUTILS_ECRITURE = [
     titre: z.string().max(300).optional(), personneId: id.optional(), organisationId: id.optional(), etape: z.string().max(60).optional(), priorite: z.string().max(40).optional(),
     montant: z.number().min(0).max(1e9).nullable().optional().describe("Montant saisi à la main, en euros. Dès qu'un devis de l'affaire est finalisé, l'écran montre à la place le montant calculé par le serveur d'après les devis (montantDevisHt : somme hors taxes des devis acceptés, sinon hors taxes du devis proposé le plus récent, seulement les devis du même repère test que l'affaire) ; le montant saisi reste enregistré et revient s'il n'y a plus de devis."), offreId: id.optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(),
     source: sourceListe, besoin: z.string().max(5000).optional(), urlGithub, urlDossier, proprietaire, description: descriptionAncienne,
+    test: testCreation,
   }, metier.creerAffaire),
 
   outil('modifier_affaire', "Modifie des champs d'une affaire : titre, personneId et organisationId (null pour détacher), montant, priorite, offreId, dureeJours, source, besoin, urlGithub, urlDossier, archive. Pour l'étape ou le statut, utiliser changer_etape, marquer_perdue, rouvrir_affaire.", {
@@ -102,10 +109,12 @@ export const OUTILS_ECRITURE = [
   outil('creer_projet', `Crée un projet (seul le titre est obligatoire), avec son événement. modeleId (voir lister_modeles_projet) : le projet part avec les livrables du modèle, datés à partir de la date de début. Phase de départ : la première phase active de l'espace (voir lire_reglages, configuration.phases). Pour le projet d'une affaire gagnée, préférer creer_projet_depuis_affaire. Le projet part avec une note épinglée vide (de quoi parle le projet) : son identifiant est rendu dans noteEpingleeId ; l'écrire avec modifier_note.`, {
     titre: z.string().min(1).max(300), personneId: id.optional(), organisationId: id.optional(), offreId: id.optional(), modeleId: id.optional(),
     dateDebut: jour.optional(), dateFin: jour.optional(), urlGithub, urlDossier, proprietaire, description: descriptionAncienne,
+    test: testCreation,
   }, metier.creerProjet),
 
   outil('creer_projet_depuis_affaire', "Crée le projet d'une affaire GAGNÉE (comme « Créer le projet » de la fiche affaire) : reprend son titre, sa personne, son organisation, son offre, son dépôt, son dossier, et lie l'affaire au projet (une affaire n'a qu'un projet). Le projet part avec une note épinglée qui copie le texte de la note épinglée de l'affaire (vide si elle n'en a pas) : identifiant rendu dans noteEpingleeId. modeleId : tâches du modèle.", {
     affaireId: id, modeleId: id.optional(), titre: z.string().max(300).optional(), dateDebut: jour.optional(), dateFin: jour.optional(), description: descriptionAncienne,
+    test: testCreation,
   }, metier.creerProjetDepuisAffaire),
 
   outil('modifier_projet', "Modifie des champs d'un projet : titre, personneId et organisationId (null pour détacher), offreId, dateDebut, dateFin (null pour effacer), urlGithub, urlDossier. La phase et le statut passent par changer_phase_projet, terminer_projet, rouvrir_projet, archiver_projet.", {
@@ -187,6 +196,7 @@ export const OUTILS_ECRITURE = [
     lignes: lignesDevis.optional(), sections: sectionsDevis.optional(), remise: remiseDevis.optional(),
     marge: z.number().min(0).max(1000).optional().describe('Marge du devis, en %. Absente : la marge par défaut des nouveaux devis des réglages (20 par défaut) ; 0 : aucune marge.'),
     tauxTvaDefaut: z.number().min(0).max(100).optional().describe('Taux de TVA par défaut du devis, en %.'), proprietaire,
+    test: testCreation,
   }, metier.creerDevisBrouillon),
 
   outil('modifier_devis_brouillon', "Modifie un BROUILLON de devis (refusé pour un devis déjà finalisé : créer d'abord la version suivante avec nouvelle_version_devis). Champs : objet (imprimé), nom (interne, jamais imprimé), affaireId (choisir l'affaire d'un brouillon créé sans affaire : son client est repris si le devis n'en a pas), organisationId, personneId, destinataires, copie (e-mails en copie, liste qui remplace l'actuelle), remise (null pour l'enlever), marge, tauxTvaDefaut, chantier { debutTravaux (AAAA-MM-JJ), dureeEstimee { valeur, unite : heure, jour, semaine, mois ou annee } } (la finalisation exige le début et la durée des travaux ; l'adresse du chantier n'est pas touchée), expireLe (AAAA-MM-JJ, jusqu'à quand le devis est valable : la finalisation exige une date qui n'est pas dépassée). Les lignes : lignes ou sections REMPLACENT tout le contenu du devis (les lignes libres faites à l'écran sont perdues : relire avec lire_devis avant) ; ajouterLignes AJOUTE à la fin sans toucher au reste. Mêmes lignes que creer_devis_brouillon (articleId OU reference, quantite > 0, prixVente facultatif en euros hors taxes). Renvoie les totaux hors taxes et TTC. Les sections données dans `sections` sont toutes de niveau 1 (les sous-sections faites à l'écran sont perdues quand `sections` ou `lignes` remplacent le contenu ; ajouterLignes les garde) ; la réponse renvoie `sections`, la structure courte avec les numéros.", {
@@ -210,6 +220,7 @@ export const OUTILS_ECRITURE = [
     affaireId: id.optional(), organisationId: id.optional(), personneId: id.optional(),
     ajustements: z.array(operationLigne).max(MAX_OPERATIONS_LIGNES).optional().describe(`Opérations de modifier_lignes_devis, numéros du MODÈLE (${MAX_OPERATIONS_LIGNES} au plus).`),
     proprietaire,
+    test: testCreation,
   }, metier.creerDevisDepuisModele),
 
   outil('annuler_derniere_modification_devis', "Annule la DERNIÈRE modification d'un BROUILLON de devis (celle qu'on vient de faire avec modifier_lignes_devis ou modifier_devis_brouillon) et répond en une phrase ce qui a été remis (« J'ai remis la ligne 1.2 à 3 prises »). UN SEUL niveau : l'appeler deux fois de suite répond « déjà annulé », et une annulation ne se défait pas toute seule (pour refaire, redemande la modification). Refusé si le devis est finalisé, si le journal n'a rien à annuler, si la dernière modification vient de l'écran (à défaire à l'écran), si le devis vient d'être créé (utilise supprimer_devis) ou s'il a changé depuis la modification (rien n'est écrit). L'annulation s'écrit au journal sous son propre nom ; rien n'est effacé.", {
@@ -265,7 +276,7 @@ export const OUTILS_ECRITURE = [
   }, metier.recalculerMontantsAffairesDevis, ['claude-code']),
 
   // Écriture groupée mais bornée à la collection du compteur d'usage (jamais un devis). Claude Code seulement, aperçu puis code.
-  outil('recalculer_usage_articles', "Recalcule le compteur d'usage des articles (nombre de devis finalisés où chaque article apparaît ; le catalogue et le choix entre deux articles à égalité s'en serviront) d'après les devis existants : chaque numéro de devis compte une fois, d'après sa version finalisée la plus récente ; un brouillon ne compte jamais ; un devis refusé ou archivé reste compté. N'écrit QUE la collection du compteur, jamais un devis. Sans danger à relancer. Le premier appel ne change RIEN : il rend la liste (avant, après) et un code à usage unique ; après l'accord écrit de l'utilisateur, le second appel (codeConfirmation) écrit.", {
+  outil('recalculer_usage_articles', "Recalcule le compteur d'usage des articles (nombre de devis finalisés où chaque article apparaît ; le catalogue et le choix entre deux articles à égalité s'en serviront) d'après les devis existants : chaque numéro de devis compte une fois, d'après sa version finalisée la plus récente ; un brouillon ne compte jamais ; un devis de test (test: true) ne compte jamais non plus (à relancer après marquer_test ou demarquer_test sur un devis finalisé) ; un devis refusé ou archivé reste compté. N'écrit QUE la collection du compteur, jamais un devis. Sans danger à relancer. Le premier appel ne change RIEN : il rend la liste (avant, après) et un code à usage unique ; après l'accord écrit de l'utilisateur, le second appel (codeConfirmation) écrit.", {
     codeConfirmation: z.string().max(40).optional().describe("Absent au premier appel : l'outil ne change rien, rend un APERÇU et un code. À donner au second appel, après accord de l'utilisateur.")
   }, metier.recalculerUsageArticlesDevis, ['claude-code']),
 
@@ -277,7 +288,17 @@ export const OUTILS_ECRITURE = [
   outil('creer_activite', `Planifie une activité (rappel, appel, rendez-vous…) rattachée à une affaire, une personne ou une organisation. Types : ${L.TYPES_ACTIVITE.map((t) => t.id).join(', ')} (défaut tache) ; date du jour par défaut ; heure HH:MM facultative.`, {
     type: z.enum(L.TYPES_ACTIVITE.map((t) => t.id)).optional(), titre: texteCourt.optional(), date: jour.optional(), heure: z.string().regex(/^\d{2}:\d{2}$/).optional(),
     affaireId: id.optional(), personneId: id.optional(), organisationId: id.optional(),
+    test: testCreation,
   }, metier.creerActivite),
+  // Mode test (PR 2, docs/cadrage-mode-test.md) : la consigne vit dans ces descriptions, jamais dans les instructions de l'assistant. Aperçu puis code seulement pour un devis finalisé.
+  outil('marquer_test', "Marque un essai : la fiche porte test: true, « [TEST] » devant son nom à l'écran, et n'entre dans AUCUNE statistique (un devis de test à 100 € hors taxes ne compte ni dans le montant de l'affaire si elle est réelle, ni dans le chiffre d'affaires, ni dans l'usage des articles). À appeler quand l'utilisateur dit que c'est un test, un essai ou une démo ; ne devine jamais (un nom qui contient « test » ne suffit pas). type : personne, organisation, affaire, projet ou devis ; id : son identifiant. Une affaire : son montant calculé d'après les devis est recalculé dans la même opération. Un brouillon de devis ou une fiche : écrit tout de suite, récupérable avec restaurer_depuis_audit. Un devis FINALISÉ (ou envoyé, signé…) : le premier appel ne change RIEN et rend un APERÇU et un code à usage unique ; après l'accord de l'utilisateur, le second appel (mêmes arguments + codeConfirmation) écrit sur le devis et toutes ses versions ; le devis garde son numéro ; relancer ensuite recalculer_usage_articles ; ne se défait pas avec restaurer_depuis_audit (utiliser demarquer_test). Déjà un essai : rien n'est écrit.", {
+    type: typeTest, id, codeConfirmation: codeTest,
+  }, metier.marquerTest),
+
+  outil('demarquer_test', "« Ce n'est plus un test » : écrit test: false (réel, comme si le repère n'avait jamais été posé) ; la fiche redevient comptée partout (un devis signé de 100 € hors taxes revient dans le montant de son affaire réelle et dans le chiffre d'affaires). À appeler quand l'utilisateur dit qu'un élément n'est plus un essai ; ne devine jamais. type : personne, organisation, affaire, projet ou devis ; id : son identifiant. Une affaire : son montant calculé est recalculé dans la même opération. Un brouillon ou une fiche : écrit tout de suite, récupérable avec restaurer_depuis_audit. Un devis FINALISÉ : aperçu et code à usage unique comme pour marquer_test (numéro inchangé ; relancer ensuite recalculer_usage_articles). Déjà réel : rien n'est écrit.", {
+    type: typeTest, id, codeConfirmation: codeTest,
+  }, metier.demarquerTest),
+
   outil('terminer_activite', "Marque une activité comme faite (et ajoute l'événement au fil).", { id }, metier.terminerActivite),
 
   outil('joindre_lien', "Ajoute un lien ou un document à la liste « Liens et documents » d'une affaire (affaireId) ou d'un projet (projetId), un seul des deux, par son adresse (http ou https obligatoire : Drive, serveur, site, dépôt GitHub…), un libellé facultatif ; favori: true le met en favori (étoile, visible sur l'accueil de l'OS) ; note facultative.", {

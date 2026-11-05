@@ -130,14 +130,16 @@ Deux collections, toutes deux écrites **uniquement** par les fonctions.
 
 ### 5.3 Outils MCP (liste complète)
 
+Mode test (PR 2) : les 8 outils de création (`creer_personne`, `creer_organisation`, `creer_affaire`, `creer_projet`, `creer_projet_depuis_affaire`, `creer_devis_brouillon`, `creer_devis_depuis_modele`, `creer_activite`) ont un paramètre facultatif `test` (jamais `test: false` à la création) et leur réponse rappelle `test: true|false` (plus un `conseil` si le nom contient « test » sans repère).
+
 Profils : **L** lecteur · **B** bibliothécaire (L + écriture + pièces jointes + sauvegarde) · **C** `claude-code-jerome` (tout). « Audit » = écrit dans `crm_audit`. **Qui a quel profil (vérifié dans le code le 01/11/2026)** : toute connexion OAuth (ChatGPT, Gemini, claude.ai, l'appli du téléphone) reçoit le profil **C** (`PROFIL_OAUTH = 'claude-code'`, `functions/src/oauth/config.js`) ; profil **B** : le jeton d'Hermes est le seul jeton bibliothécaire connu (les porteurs sont dans le secret `MCP_JETONS`, hors dépôt : à vérifier là) ; chez un client, le rôle éditeur donne le profil **C** et le rôle lecteur le profil **L** (`PROFIL_PAR_ROLE`, `functions/src/clients/config.js`). « C seulement » ci-dessous veut donc dire « tout assistant connecté par OAuth, pas Hermes ».
 
 | Outil | Paramètres principaux | Effet | Audit | Jetons |
 |---|---|---|---|---|
 | `qui_suis_je` | — | acteur, profil, outils autorisés, version | non | L B C |
-| `chercher` | `texte`, `types[]` | personnes, organisations, affaires (recherche de l'écran, `rechercherSuggestions`) | non | L B C |
+| `chercher` | `texte`, `types[]`, `tests` | personnes, organisations, affaires (recherche de l'écran, `rechercherSuggestions`) ; `tests` (mode test) : `inclure` (défaut), `exclure`, `seulement` ; un essai porte `test: true` | non | L B C |
 | `lire_personne` / `lire_organisation` / `lire_affaire` | `id`, `avecFil` | fiche + notes, événements, activités | non | L B C |
-| `lister_affaires` | `etape`, `statut`, `archive`, `personneId`, `organisationId` | liste filtrée (`filtrerAffaires`) | non | L B C |
+| `lister_affaires` | `etape`, `statut`, `archive`, `personneId`, `organisationId`, `tests` | liste filtrée (`filtrerAffaires`) ; `tests` : `inclure` / `exclure` / `seulement` (même paramètre sur `lister_projets`, `lister_activites` et `lister_devis`) | non | L B C |
 | `lister_activites` | `affaireId` / `personneId`, `fait`, `enRetard` | activités | non | L B C |
 | `lister_documents` | `affaireId?` | tous les documents joints (lien, libellé, Drive ou non) pour contrôler les liens cassés | non | L B C |
 | `lire_reglages` | — | offres, listes, étiquettes, réglages | non | L B C |
@@ -149,6 +151,7 @@ Profils : **L** lecteur · **B** bibliothécaire (L + écriture + pièces jointe
 | `marquer_perdue`, `rouvrir_affaire` | `id`, raison (`mettre_en_pause` supprimé le 22/10/2026) | règles de l'écran | oui | B C |
 | `ajouter_encaissement` | `id`, `montant`, `date?` | `ajouterEncaissement` | oui | B C |
 | `ajouter_note`, `modifier_note` | liens, `texte` | notes (jamais modifiées automatiquement) | oui | B C |
+| `marquer_test` / `demarquer_test` | `type` (personne, organisation, affaire, projet, devis), `id`, `codeConfirmation` | mode test (PR 2, 05/11/2026) : écrit `test: true` / `test: false` ; une affaire recalcule son montant dans la même opération ; un devis finalisé : aperçu puis code, toutes les versions, montant de l'affaire recalculé, non restaurable ; déjà dans l'état demandé : `rien: true` | oui | B C |
 | `creer_activite`, `terminer_activite` | champs / `id` | `nouvelleActivite`, `activiteFaite` | oui | B C |
 | `joindre_lien` | `affaireId` ou `projetId`, `url`, `libelle`, `favori` | `ajouterDocument` (http obligatoire) | oui | B C |
 | `retirer_document` | `affaireId`, `index` ou `url` (réalisation étape 4) | retire la pièce (jamais le fichier Drive) | oui | B C |

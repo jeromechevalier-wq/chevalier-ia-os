@@ -27,12 +27,21 @@ async function toutes(donnees) {
 
 const lienActivite = (a) => a.affaireId ?? a.personneId ?? a.organisationId ?? null;
 
+// ---------------------------------------------------------------- mode test : le filtre `tests` (PR 2)
+
+/** `tests` : 'inclure' (défaut : tout), 'exclure' (sans les essais) ou 'seulement' (les essais). Appliqué AVANT la borne, jamais à l'affichage seul. */
+const selonTests = (liste, mode) => (mode === 'exclure' ? L.sansTests(liste) : mode === 'seulement' ? (liste || []).filter(L.estTest) : liste);
+const reperTest = (fiche) => (L.estTest(fiche) ? { test: true } : {});
+
 // ---------------------------------------------------------------- chercher
 
-export async function chercher(donnees, { texte, types, limite }) {
+export async function chercher(donnees, { texte, types, limite, tests }) {
   const voulus = new Set(types?.length ? types : ['personnes', 'organisations', 'affaires']);
   if (L.normaliserNom(texte).length < L.MIN_LETTRES) return { resultats: [], total: 0, message: `Saisir au moins ${L.MIN_LETTRES} lettres.` };
-  const { personnes, organisations, affaires } = await toutes(donnees);
+  const tout = await toutes(donnees);
+  const personnes = selonTests(tout.personnes, tests);
+  const organisations = selonTests(tout.organisations, tests);
+  const affaires = selonTests(tout.affaires, tests);
   const max = Math.min(limite ?? L.MAX_SUGGESTIONS, 50);
   const groupes = {
     personnes: personnes.filter((p) => !p.archive).map((p) => {
@@ -52,7 +61,8 @@ export async function chercher(donnees, { texte, types, limite }) {
     if (!voulus.has(type)) continue;
     const r = L.rechercherSuggestions(texte, groupes[type], { max });
     total += r.total;
-    for (const el of r.resultats) resultats.push({ type, id: el.id, libelle: el.libelle, sousTitre: el.sousTitre });
+    const fiches = { personnes, organisations, affaires }[type];
+    for (const el of r.resultats) resultats.push({ type, id: el.id, libelle: el.libelle, sousTitre: el.sousTitre, ...reperTest(fiches.find((f) => f.id === el.id)) });
   }
   return { resultats, total };
 }
@@ -126,7 +136,7 @@ export async function lireAffaire(donnees, { id, avecFil }) {
 
 // ---------------------------------------------------------------- listes
 
-export async function listerAffaires(donnees, { etape, statut, archive, personneId, organisationId, recherche, enRetard, sansAction, limite }, maintenant) {
+export async function listerAffaires(donnees, { etape, statut, archive, personneId, organisationId, recherche, enRetard, sansAction, limite, tests }, maintenant) {
   const { personnes, organisations, affaires, activites } = await toutes(donnees);
   const aujourdhui = L.aujourdhuiParis(maintenant);
   const criteres = {
@@ -139,18 +149,18 @@ export async function listerAffaires(donnees, { etape, statut, archive, personne
     enRetard: !!enRetard,
     sansAction: !!sansAction,
   };
-  const gardees = L.filtrerAffaires(affaires, criteres, { activites, personnes, organisations, aujourdhui });
+  const gardees = L.filtrerAffaires(selonTests(affaires, tests), criteres, { activites, personnes, organisations, aujourdhui });
   const lignes = gardees.map((a) => ({ ...sansDescription(a), statut: L.statutAffiche(a), montantAffiche: L.montantAffaire(a), personne: nomDe(personnes, a.personneId), organisation: nomDe(organisations, a.organisationId) }));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
   return serialiser({ total, tronque, affaires: elements });
 }
 
-export async function listerActivites(donnees, { affaireId, personneId, organisationId, fait, enRetard, limite }, maintenant) {
+export async function listerActivites(donnees, { affaireId, personneId, organisationId, fait, enRetard, limite, tests }, maintenant) {
   const lien = affaireId ? { champ: 'affaireId', valeur: affaireId }
     : personneId ? { champ: 'personneId', valeur: personneId }
       : organisationId ? { champ: 'organisationId', valeur: organisationId } : null;
   const aujourdhui = L.aujourdhuiParis(maintenant);
-  let activites = await donnees.liste(C.activites, lien || undefined);
+  let activites = selonTests(await donnees.liste(C.activites, lien || undefined), tests);
   if (fait !== undefined) activites = activites.filter((a) => !!a.fait === fait);
   if (enRetard) activites = activites.filter((a) => L.estActiviteEnRetard(a, aujourdhui));
   activites = L.trierActivites(activites);
@@ -181,11 +191,11 @@ export async function listerDocuments(donnees, { affaireId, projetId }) {
 
 const resumeFacturation = (p) => ({ ...PL.totauxFactures(p), aPayer: PL.facturesAPayer(p).length, impaye: PL.aUnImpaye(p) });
 
-export async function listerProjets(donnees, { phase, statut, archive, affaireId, personneId, organisationId, recherche, enRetard, limite }, maintenant, espace = {}) {
+export async function listerProjets(donnees, { phase, statut, archive, affaireId, personneId, organisationId, recherche, enRetard, limite, tests }, maintenant, espace = {}) {
   const config = await lireConfig(donnees, espace);
   const [projets, taches, personnes, organisations] = await Promise.all([C.projets, C.projetsTaches, C.personnes, C.organisations].map((nom) => donnees.liste(nom)));
   const criteres = { recherche: recherche || '', phases: phase ? [phase] : [], statuts: statut ? [statut] : [], enRetard: !!enRetard };
-  let gardes = PL.filtrerProjets(projets, criteres, { personnes, organisations, taches, aujourdhui: L.aujourdhuiParis(maintenant), archives: !!archive });
+  let gardes = PL.filtrerProjets(selonTests(projets, tests), criteres, { personnes, organisations, taches, aujourdhui: L.aujourdhuiParis(maintenant), archives: !!archive });
   if (affaireId) gardes = gardes.filter((p) => p.affaireId === affaireId);
   if (personneId) gardes = gardes.filter((p) => p.personneId === personneId);
   if (organisationId) gardes = gardes.filter((p) => p.organisationId === organisationId);
@@ -377,7 +387,7 @@ function resumeDevis(devis, { organisations, personnes, aujourdhui }) {
     client: clientDe(devis, organisations, personnes), totalHT: t.totalHt, totalTTC: t.ttc,
     creeLe: devis.creeLe ?? null, expireLe: devis.expireLe ?? null, finaliseLe: devis.finaliseLe ?? null, envoyeLe: devis.envoyeLe ?? null,
     accepteLe: devis.accepteLe ?? null, refuseLe: devis.refuseLe ?? null, archive: devis.archive === true, archiveLe: devis.archiveLe ?? null,
-    nombreEnvois: Array.isArray(devis.envois) ? devis.envois.length : 0, pdf: pdfDe(devis),
+    nombreEnvois: Array.isArray(devis.envois) ? devis.envois.length : 0, pdf: pdfDe(devis), ...reperTest(devis),
   };
 }
 
@@ -389,12 +399,12 @@ function pdfDe(devis) {
 }
 
 /** Les devis, du plus récent au plus ancien. Filtres : statut (brouillon, en_attente_envoi, envoye, accepte, refuse, expire, remplace ; expire = calculé), affaire, texte (numéro, objet, client). Archivés exclus sauf `archives: true`. */
-export async function listerDevis(donnees, { statut, affaireId, texte, archives, limite }, maintenant = new Date()) {
+export async function listerDevis(donnees, { statut, affaireId, texte, archives, limite, tests }, maintenant = new Date()) {
   const aujourdhui = L.aujourdhuiParis(maintenant);
   const [devis, organisations, personnes] = await Promise.all([C.devis, C.organisations, C.personnes].map((nom) => donnees.liste(nom)));
   const contexte = { organisations, personnes, aujourdhui };
   const mots = L.normaliserNom(texte ?? '').split(/\s+/).filter(Boolean);
-  const lignes = devis
+  const lignes = selonTests(devis, tests)
     .filter((d) => (archives === true || d.archive !== true) && (!affaireId || d.affaireId === affaireId))
     .map((d) => resumeDevis(d, contexte))
     .filter((r) => (!statut || statut === 'tous' || r.statut === statut))
