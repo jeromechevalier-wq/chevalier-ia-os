@@ -6,6 +6,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import { etatVide } from './composants.js';
 import { boutonFiltres, fenetreFiltres } from './filtres.js';
+import { barreListe, enteteListe } from './barre-liste.js';
 import { estChezClient } from '../../os/contexte.js';
 
 const TAILLE_PAGE = 200;
@@ -99,8 +100,6 @@ export function rendreJournal(conteneur) {
   const zone = h('div', { class: 'zone-tableau' });
   const pied = h('div', { class: 'journal-pied' });
 
-  const champTexte = h('input', { class: 'champ', type: 'search', 'aria-label': 'Rechercher dans le journal', placeholder: 'Rechercher (qui, outil, identifiant…)', value: criteres.texte,
-    oninput: (e) => { criteres = { ...criteres, texte: e.target.value }; rendre(); } });
   const choixDate = h('input', { class: 'champ champ-petit', type: 'date', 'aria-label': 'Depuis le', value: criteres.depuis, dataset: { role: 'filtre-depuis' },
     onchange: (e) => { criteres = { ...criteres, depuis: e.target.value }; rendre(); } });
   const bouton = boutonFiltres({ auClic: ouvrirFiltres });
@@ -179,11 +178,13 @@ export function rendreJournal(conteneur) {
       : h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'journal-plus', disabled: enCours, onclick: () => charger(false) }, 'Charger les lignes plus anciennes'));
   }
 
-  const barre = h('div', { class: 'barre-filtres' },
-    h('div', { class: 'barre-filtres-ligne' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), champTexte), bouton.element, choixDate));
-  const entete = h('header', { class: 'page-tete' },
-    h('div', {}, h('p', { class: 'etiquette' }, 'Lecture seule'), h('h1', {}, 'Journal des modifications'), compteur),
-    h('div', { class: 'page-actions' }, boutonActualiser));
+  // Décision prise seul : le champ « Depuis le » suit le bouton « Filtres » dans la ligne ; « Lecture seule » reste dans le créneau `retour` (au-dessus du titre).
+  const barre = barreListe({
+    recherche: { placeholder: 'Rechercher (qui, outil, identifiant…)', libelleAria: 'Rechercher dans le journal', valeur: criteres.texte,
+      surSaisie: (v) => { criteres = { ...criteres, texte: v }; rendre(); } },
+    elements: { filtres: [bouton.element, choixDate] },
+  }).element;
+  const entete = enteteListe({ titre: 'Journal des modifications', compteur, retour: h('p', { class: 'etiquette' }, 'Lecture seule'), actions: [boutonActualiser] });
   conteneur.append(h('div', { class: 'page page-liste page-journal' }, entete,
     h('p', { class: 'aide' }, estChezClient()
       ? 'Chaque création, modification ou suppression faite dans l’appli ou par ChatGPT laisse une ligne ici, avec une copie du document avant et après (gardée sans limite de durée).'

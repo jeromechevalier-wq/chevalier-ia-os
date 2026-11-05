@@ -9,6 +9,7 @@ import {
 } from './composants.js';
 import * as T from './tri.js';
 import { barreFiltres } from './filtres.js';
+import { enteteListe } from './barre-liste.js';
 import { demanderSuppressionPersonne } from './fiche-personne.js';
 
 // Filtres et tri conservés pendant la session.
@@ -114,11 +115,9 @@ export function rendrePersonnes(conteneur) {
     remplir(zoneTableau, h('table', { class: 'tableau tableau-personnes' }, h('thead', {}, entete), h('tbody', {}, corps)));
   }
 
-  const entete = h('header', { class: 'page-tete' },
-    h('div', {}, h('h1', {}, 'Personnes'), compteur),
-    h('div', { class: 'page-actions' },
-      h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-personnes', 'aria-label': 'Exporter les contacts', title: 'Exporter les contacts', onclick: ouvrirExportContacts }, icone('download', { taille: 16 })),
-      h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne')));
+  const entete = enteteListe({ titre: 'Personnes', compteur, actions: [
+    h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-personnes', 'aria-label': 'Exporter les contacts', title: 'Exporter les contacts', onclick: ouvrirExportContacts }, icone('download', { taille: 16 })),
+    h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne')] });
   conteneur.append(h('div', { class: 'page page-liste' }, entete, h('div', { class: 'barre-affaires' }, filtres.element, choixTri.element), zoneTableau));
 
   /** Petite fenêtre : tout exporter, ou seulement ce qui a changé depuis le dernier export. */

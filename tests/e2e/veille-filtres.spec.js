@@ -38,7 +38,7 @@ test('I1 la Veille a le bouton commun « Filtres » : trois groupes de cases (So
   await connecter(page);
   await aller(page, '#/veille/contenus');
   await expect(lignes(page)).toHaveCount(5);
-  await expect(page.locator('.veille-filtres select')).toHaveCount(0);
+  await expect(page.locator('.barre-filtres select')).toHaveCount(0);
   await expect(bouton(page)).toBeVisible();
   await expect(bouton(page)).toContainText('Filtres');
   await expect(page.getByLabel('Chercher dans les titres')).toBeVisible();

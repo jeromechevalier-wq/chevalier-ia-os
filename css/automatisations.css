@@ -68,7 +68,7 @@
 .autom-liste, .autom-barre { font-variant-numeric: tabular-nums; }
 
 /* Écran « À valider » : cartes de propositions (type, titre, résumé, champs), frise de suivi, boutons de décision. Lisible à 390 px. */
-.page-a-valider .page-tete { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--esp-3) var(--esp-6); }
+.page-a-valider .page-tete > div:first-child { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--esp-3) var(--esp-6); }
 .prop-compte { color: var(--texte2); font-size: var(--fs-texte); }
 .prop-zone { margin-bottom: var(--esp-8); }
 .prop-titre-zone { font-size: var(--fs-section); margin: 0 0 var(--esp-4); }
