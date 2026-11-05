@@ -1,4 +1,4 @@
-// Socle commun (noyau Contacts), PR A : la couche de données du CRM sait démarrer sur deux collections seulement, sans que personne l'appelle encore.
+// Socle commun (noyau Contacts), PR A : la couche de données du CRM sait démarrer sur deux collections seulement. PR B : la coque appelle le mode noyau.
 // Tests de texte (comme registre.test.js). Un test par point, le nom commence par son numéro.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,10 +18,17 @@ const corps = (nom) => {
 const occurrences = (texte, motif) => texte.split(motif).length - 1;
 
 describe('socle commun : couche de données', () => {
-  test("S1 la signature de demarrer ne change pas et crm/index.js l'appelle sans noyau", () => {
+  test("S1 la signature de demarrer ne change pas ; seule la coque appelle le mode noyau (main.js et espace-modules.js, une fois chacun) ; devis, projets et modules.js l'ignorent", () => {
     assert.match(donnees, /export function demarrer\(compteConnecte, base = '', options = \{\}\)/);
     assert.ok(lire('js/modules/crm/index.js').includes('D.demarrer(compte, cheminBase, { equipe, nomEspace })'));
-    for (const f of ['js/main.js', 'js/os/espace-modules.js', 'js/os/modules.js', 'js/os/registre.js']) assert.ok(!/noyau/i.test(lire(f)), f);
+    for (const f of ['js/main.js', 'js/os/espace-modules.js']) {
+      const t = lire(f);
+      assert.equal(occurrences(t, 'noyau: true'), 1, f);
+      assert.ok(t.indexOf('noyau: true') < t.indexOf('api.demarrer('), `${f} : le socle démarre avant les modules`);
+      assert.ok(t.indexOf('api.arreter()') < t.indexOf('arreterSocle()'), `${f} : le socle s'arrête après les modules`);
+      assert.equal(occurrences(t, 'arreterSocle()'), 1, f);
+    }
+    for (const f of ['js/os/modules.js', 'js/os/registre.js', 'js/os/espace.js', 'js/os/shell.js', 'js/os/reglages.js']) assert.ok(!/noyau: true/.test(lire(f)), f);
     for (const dossier of ['devis', 'projets']) {
       for (const f of readdirSyncFichiers(`js/modules/${dossier}`)) assert.ok(!/noyau/i.test(lire(f)), f);
     }

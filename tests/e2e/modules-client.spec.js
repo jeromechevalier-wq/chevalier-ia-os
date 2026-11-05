@@ -4,6 +4,13 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { test, expect, ecrireDocument, estTelephone, ouvrirSectionReglages, choisirDansMenuUtilisateur, ouvrirMenuUtilisateur, attendreCalme, PROJET, FIRESTORE, URL_APP } from './outils.js';
 
+const CRM = '/js/modules/crm/donnees.js';
+const CAPTURES = fileURLToPath(new URL('./captures/modules-client/', import.meta.url));
+const etatSocle = (page) => page.evaluate(async (m) => {
+  const D = await import(m);
+  return { ecoutes: D.ecoutesDemarrees(), noyau: D.estNoyau(), pret: { ...D.etat.pret }, personnes: D.etat.personnes.length, base: D.cheminDeBase() };
+}, CRM);
+
 const ALICE = 'alice@exemple.test';
 const LEA = 'lea@exemple.test';
 const BOB = 'bob@exemple.test';
@@ -30,7 +37,7 @@ function personne(nom) {
 }
 
 test.beforeEach(async () => {
-  for (const [id, nom] of [['cabinet', 'Cabinet Martin'], ['studio', 'Studio Lune'], ['vide', 'Maison Vide'], ['faux', 'Atelier Faux'], ['plein', 'Maison Pleine']]) {
+  for (const [id, nom] of [['cabinet', 'Cabinet Martin'], ['studio', 'Studio Lune'], ['vide', 'Maison Vide'], ['faux', 'Atelier Faux'], ['plein', 'Maison Pleine'], ['veilleseule', 'Veille Seule']]) {
     await ecrireDocument(`marques/${id}`, { actif: true, nom, couleur: '#336699', accueil: 'Bienvenue.' });
   }
   await ecrireDocument('clients/cabinet', { modules: { affaires: true, projets: false } });
@@ -40,6 +47,8 @@ test.beforeEach(async () => {
   await ecrireDocument('clients/plein', { modules: { crm: true, veille: true, automatisations: true, mcp: true }, equipe: [{ email: ALICE, role: 'editeur' }, { email: LEA, role: 'lecteur' }] });
   await ecrireDocument(`clients/plein/membres/${ALICE}`, { role: 'editeur' });
   await ecrireDocument(`clients/plein/membres/${LEA}`, { role: 'lecteur' });
+  await ecrireDocument('clients/veilleseule', { modules: { veille: true } });
+  await ecrireDocument('clients/veilleseule/membres/' + ALICE, { role: 'editeur' });
   // « vide » n'a pas de document clients/vide : aucun module actif
   for (const c of ['cabinet', 'studio', 'vide', 'faux']) await ecrireDocument(`clients/${c}/membres/${ALICE}`, { role: 'editeur' });
   await ecrireDocument(`clients/cabinet/membres/${LEA}`, { role: 'lecteur' });
@@ -75,6 +84,11 @@ test('R1 un client avec « affaires » seul : menu et écrans du CRM, aucun écr
   await expect(menu(page)).toContainText('Cabinet Martin');
   await expect(menu(page)).not.toContainText('Chevalier IA');
   await expect(page.locator('.section-objectifs')).toHaveCount(0); // les objectifs de Jérôme n'existent pas chez un client
+  // Socle commun (PR B) : la coque l'a démarré, le module Affaires a démarré par-dessus : cinq écouteurs, aucun doublon, pas en mode noyau.
+  await expect.poll(async () => (await etatSocle(page)).ecoutes).toEqual(['personnes', 'organisations', 'affaires', 'activites', 'parametres']);
+  const e1 = await etatSocle(page);
+  expect(e1.noyau).toBe(false);
+  expect(e1.base).toBe('clients/cabinet');
 });
 
 test('R2 les données sont sous clients/<client> : on voit les personnes du client, jamais celles de la racine ni d\'un autre client', async ({ page }) => {
@@ -261,4 +275,32 @@ test('R12 un client sans le module « projets » : le CRM est complet côté Ré
   await page.evaluate(() => { location.hash = '#/espace/cabinet/reglages/inconnu'; });
   await expect(page).toHaveURL(/#\/espace\/cabinet\/reglages$/);
   await expect(page.locator('.reglages-menu-lien[aria-current="page"]')).toHaveText('Mon espace');
+});
+
+test('R13 un client « Veille seul » : le socle commun tourne, invisible (deux écouteurs, mode noyau), aucune entrée Personnes ; la déconnexion l\'arrête', async ({ page }, info) => {
+  await ouvrir(page, 'veilleseule');
+  await expect(page.locator('.coquille')).toBeVisible();
+  await expect(page).toHaveURL(/#\/espace\/veilleseule\/veille\/contenus$/);
+  await ouvrirMenu(page);
+  await expect(menu(page).getByRole('link', { name: 'Veille', exact: true })).toHaveCount(1);
+  for (const lib of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Devis']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(0);
+  if (estTelephone(page)) await page.keyboard.press('Escape');
+  await expect.poll(async () => (await etatSocle(page)).pret.personnes).toBe(true); // cas vide : prêt avec des listes vides
+  const e = await etatSocle(page);
+  expect(e.ecoutes).toEqual(['personnes', 'organisations']);
+  expect(e.noyau).toBe(true);
+  expect(e.pret).toEqual({ personnes: true, organisations: true, affaires: false, activites: false, parametres: false });
+  expect(e.personnes).toBe(0);
+  expect(e.base).toBe('clients/veilleseule');
+  await page.screenshot({ path: `${CAPTURES}13-veille-seul-${info.project.name}.png`, animations: 'disabled' });
+  // Invisible : l'adresse directe d'un écran du CRM reste introuvable (le socle n'a pas d'écran)
+  await page.evaluate(() => { location.hash = '#/espace/veilleseule/crm/personnes'; });
+  await expect(page.getByRole('heading', { name: 'Page introuvable' })).toBeVisible();
+  await page.getByRole('link', { name: "Retour à l'accueil" }).click();
+  await expect(page.locator('.coquille')).toBeVisible();
+  await attendreCalme(page);
+  // Déconnexion : fermer() arrête les modules puis le socle
+  await choisirDansMenuUtilisateur(page, 'Se déconnecter');
+  await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
+  expect((await etatSocle(page)).ecoutes).toEqual([]);
 });

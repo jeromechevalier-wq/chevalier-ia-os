@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  MODULES_DECLARES, IDS_MODULES, OUTILS_COMMUNS, moduleDeclare, moduleDeRoute, lireModulesDemandes, verifierActivation,
+  MODULES_DECLARES, IDS_MODULES, OUTILS_COMMUNS, SOCLE, moduleDeclare, moduleDeRoute, lireModulesDemandes, verifierActivation,
   modulesActifsDuClient, moduleAccessible, premiereRoute, ecransActifs,
   ANCIENS_IDENTIFIANTS, ANCIENS_PREFIXES, identifiantActuel, routeModernisee,
   GROUPES_MENU, INTERRUPTEURS, modulesDeNom, groupeDuModule, blocsDuMenu, reglagesDesModules, ongletsDuModule,
@@ -62,6 +62,46 @@ describe('registre : déclarations', () => {
     assert.equal(moduleDeRoute('crm').id, 'affaires');
     assert.equal(moduleDeRoute('reglages'), null);
     assert.equal(moduleDeRoute('espace'), null);
+  });
+});
+
+describe('socle commun (PR B) : SOCLE hors des modules, dépendances inchangées', () => {
+  test('B1 SOCLE existe, gelé, hors de MODULES_DECLARES : « contacts » n\'est ni un module, ni un interrupteur, ni activable', () => {
+    assert.equal(SOCLE.id, 'contacts');
+    assert.equal(SOCLE.nom, 'Contacts');
+    assert.deepEqual([...SOCLE.outilsMcp], []);
+    assert.deepEqual([...SOCLE.collections], ['crm_personnes', 'crm_organisations', 'crm_evenements', 'crm_audit', 'crm_audit_avant']);
+    assert.throws(() => { 'use strict'; SOCLE.collections.push('x'); }, TypeError);
+    assert.ok(!IDS_MODULES.includes('contacts'));
+    assert.equal(moduleDeclare('contacts'), null);
+    assert.equal(moduleDeRoute('contacts'), null);
+    assert.ok(!Object.prototype.hasOwnProperty.call(INTERRUPTEURS, 'contacts'));
+    const lu = lireModulesDemandes({ modules: { contacts: true, veille: true } });
+    assert.deepEqual(lu.demandes, ['veille']);
+    assert.deepEqual(lu.erreurs, ['Module inconnu : « contacts ».']);
+    assert.deepEqual(verifierActivation(['contacts']), { ok: true, actifs: [], erreurs: [] });
+    assert.deepEqual(blocsDuMenu(['veille']).flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Veille'], 'aucune entrée Personnes/Organisations sans le module Affaires');
+  });
+  test('B2 les collections du socle sont celles que le module Affaires déclare, plus le journal (jamais exporté, déclaré par aucun module)', () => {
+    const journal = ['crm_audit', 'crm_audit_avant'];
+    const affaires = moduleDeclare('affaires').collections;
+    for (const c of SOCLE.collections.filter((x) => !journal.includes(x))) assert.ok(affaires.includes(c), c);
+    for (const c of journal) {
+      assert.ok(SOCLE.collections.includes(c), c);
+      assert.ok(!MODULES_DECLARES.some((m) => m.collections.includes(c)), `${c} n'est la collection d'aucun module`);
+    }
+    const source = lire('js/modules/crm/donnees.js');
+    const bloc = source.match(/COLLECTIONS_CRM = \[([\s\S]*?)\]/)[1];
+    for (const c of journal) assert.ok(!bloc.includes(`'${c}'`), `${c} n'est pas dans l'export`);
+    assert.ok(/chemin\('crm_audit'\)/.test(source), 'le journal est bien écrit par le socle (executer)');
+  });
+  test('B3 devis et projets exigent encore affaires (la PR C « Devis sur le socle seul » n\'est pas faite)', () => {
+    assert.deepEqual(moduleDeclare('devis').dependances, ['affaires']);
+    assert.deepEqual(moduleDeclare('projets').dependances, ['affaires']);
+    const r = modulesActifsDuClient({ modules: { devis: true } });
+    assert.deepEqual(r.actifs, []);
+    assert.match(r.erreurs[0], /Devis.*sans.*Affaires/);
+    assert.deepEqual(modulesActifsDuClient({ modules: { devis: true, affaires: true } }).actifs, ['affaires', 'devis']);
   });
 });
 

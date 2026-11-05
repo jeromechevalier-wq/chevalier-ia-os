@@ -525,7 +525,9 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     for (const f of fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x))) {
       const t = lire(f);
       assert.doesNotMatch(t, /mcp_limites|mcp_oauth|plateforme_cles/, f);
-      if (!/^js\/modules\/crm\/(donnees|logique)\.js$/.test(f)) assert.doesNotMatch(t, /crm_audit/, `${f} : seuls donnees.js et logique.js touchent au journal`);
+      // registre.js (SOCLE, PR B) ne fait que DÉCLARER les noms des collections du journal : il n'importe rien et n'écrit rien (verrouillé ci-dessous)
+      if (!/^js\/modules\/crm\/(donnees|logique)\.js$/.test(f) && f !== 'js/os/registre.js') assert.doesNotMatch(t, /crm_audit/, `${f} : seuls donnees.js et logique.js touchent au journal`);
+      if (f === 'js/os/registre.js') assert.doesNotMatch(t, /^\s*import /m, 'registre.js : aucun import, il ne peut pas écrire le journal');
     }
     // jamais de modification ni de suppression du journal par l'appli : les seules écritures sont des créations (types « creer » des plans d'audit)
     const logique = lire('js/modules/crm/logique.js');

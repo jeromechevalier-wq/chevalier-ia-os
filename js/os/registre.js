@@ -31,6 +31,20 @@ const geler = (o) => {
 export const OUTILS_COMMUNS = geler(['qui_suis_je', 'diagnostiquer_fichiers']);
 
 /**
+ * Socle commun (05/11/2026) : les fiches Personnes et Organisations et leur journal, sur lesquels tout module repose.
+ * Ce n'est PAS un module : jamais dans MODULES_DECLARES ni IDS_MODULES (aucun interrupteur, aucun écran, aucun outil MCP, aucune route),
+ * la fiche `modules` d'un client ne peut pas le nommer (« contacts » y est un module inconnu). La coque le démarre avant les modules
+ * (js/main.js, js/os/espace-modules.js) en mode noyau (`CRM.demarrer` avec l'option noyau) ; le module Affaires démarre par-dessus en complet.
+ * `collections` : les trois collections lues/écrites par le socle, plus le journal (crm_audit, crm_audit_avant : jamais exportées, jamais déclarées par un module).
+ */
+export const SOCLE = geler({
+  id: 'contacts',
+  nom: 'Contacts',
+  collections: ['crm_personnes', 'crm_organisations', 'crm_evenements', 'crm_audit', 'crm_audit_avant'],
+  outilsMcp: [],
+});
+
+/**
  * Modules déclarés, dans l'ordre de démarrage (une dépendance vient toujours avant ce qui en dépend).
  *  id          : identifiant dans le champ `modules` d'un client ;
  *  nom         : nom montré à l'utilisateur ; libelleMenu / iconeMenu : titre du groupe dans le menu (« CRM » pour le CRM de Jérôme) ;
