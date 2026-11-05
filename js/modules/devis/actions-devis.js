@@ -123,7 +123,7 @@ async function demanderSuppressionDevis(d, versions, nom) {
     titre: 'Supprimer définitivement ce devis ?',
     classe: 'dialogue-suppression-devis',
     contenu: h('div', { class: 'pile', dataset: { zone: 'avertissement-suppression-devis' } },
-      ...Li.avertissementsSuppression(d, versions).map((t) => h('p', {}, t)),
+      ...Li.avertissementsSuppression(d, versions, { affaires: !D.surSocleSeul() }).map((t) => h('p', {}, t)),
       ar.actif && ar.action === 'archiver' ? h('p', {}, 'Pour seulement le ranger, sans rien supprimer : « Archiver à la place ».') : null,
       h('p', {}, `Pour confirmer, tape « ${nom} » ci-dessous.`),
       champ),
@@ -213,9 +213,10 @@ export function decisionFinalisation(d) {
   const numeroRacine = brouillon.numero ?? D.versionsDe(brouillon.racineId ?? brouillon.id).find((v) => v.numero)?.numero ?? null;
   const fiche = brouillon.organisationId ? CRM.organisation(brouillon.organisationId) : brouillon.personneId ? CRM.personne(brouillon.personneId) : null;
   const affaire = brouillon.affaireId ? CRM.affaire(brouillon.affaireId) : null;
-  const nonCharge = Boolean((brouillon.affaireId && !affaire) || ((brouillon.organisationId || brouillon.personneId) && !fiche)); // fiche liée absente de l'écran : on ne peut pas trancher
+  const avecAffaires = !D.surSocleSeul();
+  const nonCharge = Li.ficheLieeNonChargee(brouillon, { affaire, fiche, affaires: avecAffaires }); // fiche liée absente de l'écran : on ne peut pas trancher (sans Affaires, l'affaire ne compte pas)
   const decision = decisionTestFinalisation(brouillon, { numeroRacine, affaire, fiche, versions: D.versionsDe(brouillon.racineId ?? brouillon.id) });
-  return { decision, numeroRacine, phrase: Li.phraseFinalisationTest(decision, numeroRacine, brouillon.test === true, nonCharge) };
+  return { decision, numeroRacine, phrase: Li.phraseFinalisationTest(decision, numeroRacine, brouillon.test === true, nonCharge, { affaires: avecAffaires }) };
 }
 
 /** Texte de toast après une finalisation. */
@@ -237,7 +238,7 @@ export async function basculerTestDevis(d) {
       return;
     }
     const ok = await confirmer(test ? 'Ce devis n’est plus un test ?' : 'Marquer ce devis comme test ?',
-      'Le devis garde son numéro. Le montant de son affaire et le chiffre d’affaires sont recalculés (un devis signé de 100 € HT sort des chiffres, ou y revient). Cette action ne se défait pas avec le journal : tu pourras la refaire dans l’autre sens.',
+      `Le devis garde son numéro. ${D.surSocleSeul() ? 'Le chiffre d’affaires est recalculé' : 'Le montant de son affaire et le chiffre d’affaires sont recalculés'} (un devis signé de 100 € HT sort des chiffres, ou y revient). Cette action ne se défait pas avec le journal : tu pourras la refaire dans l’autre sens.`,
       { libelleOk: test ? 'Ce n’est plus un test' : 'Marquer comme test' });
     if (!ok) return;
     await D.marquerTest(d.id, !test);

@@ -410,7 +410,7 @@ test.describe('R14 Devis seul (sans Affaires ni Projets) : le socle commun porte
     await attendreCalme(page);
     await page.locator('.page-editeur-devis[data-devis] .bouton-principal').click();
     await expect(page.getByRole('dialog')).not.toContainText('Ce devis ne peut pas encore être finalisé');
-    await expect(page.locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/);
+    await expect(page.locator('[data-champ="affaire"]')).toHaveCount(0);
     await expect(page.getByRole('dialog')).toContainText('Finaliser ce devis ?');
     await page.screenshot({ path: `${CAPTURES}14-devis-seul-${info.project.name}.png`, animations: 'disabled' });
     await page.getByRole('dialog').getByRole('button', { name: 'Finaliser', exact: true }).click();
@@ -442,5 +442,101 @@ test.describe('R14 Devis seul (sans Affaires ni Projets) : le socle commun porte
     await choisirDansMenuUtilisateur(page, 'Se déconnecter');
     await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
     expect((await etatSocle(page)).ecoutes).toEqual([]);
+  });
+
+  const plusDevis = (page) => page.locator(estTelephone(page) ? '.bouton-plus-mobile' : '.bouton-plus:not(.bouton-plus-mobile)');
+
+  test('R14-9 l\'éditeur d\'un brouillon en socle seul n\'a pas de ligne « Affaire », le champ client dit « Personne ou organisation »', async ({ page }) => {
+    await ouvrir(page, 'devisseul', ALICE, 'devis/editeur/dVide');
+    await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+    await attendreCalme(page);
+    for (const sel of ['[data-champ="affaire"]', '#devis-affaire', '[data-erreur="affaire"]', '[data-info="affaire-videe"]']) await expect(page.locator(sel)).toHaveCount(0);
+    await expect(page.locator('.entete-droite')).not.toContainText(/affaire/i);
+    const champ = page.locator('[data-champ="client"]');
+    await expect(champ).toHaveAttribute('placeholder', 'Personne ou organisation');
+    await expect(page.locator('[data-valeur="lien-affaire"]')).toBeHidden();
+    await champ.click();
+    await champ.fill('Zoé');
+    const groupes = page.locator('.entete-droite .suggestions:not([hidden])');
+    await expect(groupes).toContainText('Personnes');
+    await expect(groupes).not.toContainText('Affaires');
+  });
+
+  test('R14-10 aucune création d\'affaire possible : seules « Créer la personne » et « Créer l\'organisation » sont proposées, aucun crm_affaires écrit', async ({ page }) => {
+    await ouvrir(page, 'devisseul', ALICE, 'devis/editeur/dVide');
+    await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+    await attendreCalme(page);
+    const champ = page.locator('[data-champ="client"]');
+    await champ.click();
+    await champ.fill('Réno');
+    const suggestions = page.locator('.entete-droite .suggestions:not([hidden]) .suggestion');
+    await expect(suggestions).toHaveText([/Créer la personne « Réno »/, /Créer l’organisation « Réno »/]);
+    await expect(page.locator('.entete-droite')).not.toContainText('Créer l’affaire');
+    await suggestions.filter({ hasText: 'Créer la personne' }).click();
+    await expect(page.getByRole('dialog')).toContainText('Ajouter une personne');
+    await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
+    await expect(champ).toHaveValue('Réno');
+    await attendreCalme(page);
+    expect(await listerDocuments('clients/devisseul/crm_affaires')).toHaveLength(0);
+  });
+
+  test('R14-11 liste : colonne « Client », aucune puce « Sans affaire », recherche « Numéro ou client », lien du catalogue complet', async ({ page }, info) => {
+    await ouvrir(page, 'devisseul', ALICE, 'devis/liste');
+    await expect(page.locator('.page-liste-devis')).toBeVisible();
+    await page.locator('.bascule-vue[data-vue="liste"]').click();
+    await expect(page.locator('th', { hasText: 'Client' }).first()).toHaveText('Client');
+    await expect(page.locator('.page-liste-devis')).not.toContainText('Client / Affaire');
+    await expect(page.locator('[data-valeur="sans-affaire"]')).toHaveCount(0);
+    await expect(page.locator('[aria-label="Rechercher un devis"]')).toHaveAttribute('placeholder', 'Numéro ou client');
+    await expect(page.locator('[data-action="ouvrir-bordereau"]')).toHaveAttribute('href', '#/espace/devisseul/devis/bordereau');
+    await page.screenshot({ path: `${CAPTURES}15-devis-seul-liste-${info.project.name}.png`, animations: 'disabled' });
+    await page.locator('.bascule-vue[data-vue="tableau"]').click();
+    await expect(page.locator('.page-liste-devis')).not.toContainText('Sans affaire');
+  });
+
+  test('R14-12 menu « + » : Personne, Organisation, Devis ; « Personne » crée une vraie fiche', async ({ page }) => {
+    await ouvrir(page, 'devisseul');
+    await expect(page.locator('.page-liste-devis')).toBeVisible();
+    await attendreCalme(page);
+    await plusDevis(page).click();
+    await expect(page.getByRole('menuitem')).toHaveText(['Personne', 'Organisation', 'Devis']);
+    await page.getByRole('menuitem', { name: 'Personne' }).click();
+    const fenetre = page.getByRole('dialog');
+    await expect(fenetre).toContainText('Ajouter une personne');
+    await fenetre.locator('input').first().fill('Paul Test');
+    await fenetre.getByRole('button', { name: 'Enregistrer' }).click();
+    await expect(fenetre).toHaveCount(0);
+    await expect.poll(async () => (await listerDocuments('clients/devisseul/crm_personnes')).some((p) => p.nom === 'Paul Test')).toBe(true);
+    if (!estTelephone(page)) { // la touche « n » (raccourci de « Personne ») ouvre la même fenêtre
+      await page.evaluate(() => document.activeElement?.blur());
+      await page.keyboard.press('n');
+      await expect(page.getByRole('dialog')).toContainText('Ajouter une personne');
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }
+  });
+
+  test('R14-13 Réglages > Devis : pas de bloc « Étape des affaires créées depuis un devis »', async ({ page }) => {
+    await ouvrir(page, 'devisseul', ALICE, 'reglages');
+    await ouvrirSectionReglages(page, 'Devis');
+    await expect(page.locator('#reglages-devis')).toBeVisible();
+    await expect(page.locator('#reglages-entreprise')).toBeVisible();
+    await expect(page.locator('[data-zone="etape-affaire-creee"]')).toHaveCount(0);
+    await expect(page.locator('[data-zone="etape-affaire-creee-vide"]')).toHaveCount(0);
+    await expect(page.locator('#reglages-devis')).not.toContainText('Étape des affaires créées');
+  });
+
+  test('R14-14 aucune erreur console sur la liste, l\'éditeur, les réglages Devis et le menu « + » ouvert puis fermé', async ({ page }) => {
+    await ouvrir(page, 'devisseul', ALICE, 'devis/liste');
+    await expect(page.locator('.page-liste-devis')).toBeVisible();
+    await plusDevis(page).click();
+    await expect(page.getByRole('menuitem').first()).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.goto(`${URL_APP}#/espace/devisseul/devis/editeur/dPret`);
+    await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+    await attendreCalme(page);
+    await page.goto(`${URL_APP}#/espace/devisseul/reglages`);
+    await ouvrirSectionReglages(page, 'Devis');
+    await expect(page.locator('#reglages-devis')).toBeVisible();
   });
 });

@@ -35,6 +35,7 @@ describe('PDF devis : règles du navigateur', () => {
     assert.equal(P.messageApresEnregistrement({ affaireId: 'a1' }), 'PDF brouillon prêt');
     assert.match(P.messageApresEnregistrement({ affaireId: null }), /n’a pas d’affaire/);
     assert.match(P.messageApresEnregistrement({ affaireId: null }), /dans son onglet Devis\.$/);
+    assert.equal(P.messageApresEnregistrement({ affaireId: null }, { affaires: false }), 'PDF brouillon prêt');
     assert.match(P.MESSAGE_PDF_EN_COURS, /en cours de fabrication/);
   });
 

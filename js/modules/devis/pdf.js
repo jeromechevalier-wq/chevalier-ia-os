@@ -46,4 +46,4 @@ export const MESSAGE_PDF_PRET_LIEN = 'Le PDF est prêt. Ton navigateur a bloqué
 export const routeApresPdfSupprime = (devisId) => `devis/editeur/${encodeURIComponent(devisId)}`;
 
 /** Message affiché après « Télécharger le PDF » d'un brouillon : le PDF n'est visible dans l'onglet Devis d'une affaire que si le devis en a une. */
-export const messageApresEnregistrement = (devis) => (devis?.affaireId ? MESSAGE_PDF_RANGE_AFFAIRE : MESSAGE_PDF_RANGE_SANS_AFFAIRE);
+export const messageApresEnregistrement = (devis, { affaires = true } = {}) => (devis?.affaireId || !affaires ? MESSAGE_PDF_RANGE_AFFAIRE : MESSAGE_PDF_RANGE_SANS_AFFAIRE); // affaires = false : Devis seul, sans Affaires

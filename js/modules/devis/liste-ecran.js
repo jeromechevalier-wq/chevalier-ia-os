@@ -25,6 +25,8 @@ let tri = { critere: 'modifie', sens: 'desc' };
 let page = 1;
 let parPage = Li.TAILLE_PAGE_DEFAUT;
 
+const libelleClient = () => (D.surSocleSeul() ? 'Client' : 'Client / Affaire'); // lu au rendu (sans Affaires : pas d'affaire à nommer)
+const libelleColonne = (c) => (c.id === 'client' ? libelleClient() : c.libelle);
 const COLONNES = [
   { id: 'numero', libelle: 'Numéro', tri: 'numero' },
   { id: 'statut', libelle: 'Statut' },
@@ -62,7 +64,7 @@ const ouvrirDevis = (d) => naviguer(d.statut === 'brouillon' ? `devis/editeur/${
 const intitule = (d) => d.numero ?? (String(d.nom ?? '').trim() || 'Brouillon'); // un brouillon nommé porte son nom (interne) ; un devis numéroté garde son numéro
 function celluleClient(d) {
   const n = nomsDe(d);
-  return h('div', { class: 'devis-client' }, h('span', { class: 'devis-client-nom' }, n.client || '—'), n.affaire ? h('span', { class: 'devis-affaire' }, n.affaire) : !d.affaireId ? h('span', { class: 'devis-affaire devis-sans-affaire', dataset: { valeur: 'sans-affaire' } }, 'Sans affaire') : null);
+  return h('div', { class: 'devis-client' }, h('span', { class: 'devis-client-nom' }, n.client || '—'), D.surSocleSeul() ? null : n.affaire ? h('span', { class: 'devis-affaire' }, n.affaire) : !d.affaireId ? h('span', { class: 'devis-affaire devis-sans-affaire', dataset: { valeur: 'sans-affaire' } }, 'Sans affaire') : null);
 }
 function celluleModifie(d, maintenant) {
   const qui = Li.initialesDe(d.modifiePar ?? d.creePar);
@@ -155,15 +157,15 @@ export function rendreListeDevis(conteneur) {
     page = p.page;
     const entete = h('tr', {}, COLONNES.map((c) => (c.tri
       ? h('th', { scope: 'col', 'aria-sort': tri.critere === c.tri ? (tri.sens === 'asc' ? 'ascending' : 'descending') : 'none' },
-        h('button', { type: 'button', class: 'tri', onclick: () => changerTri(c.tri) }, c.libelle, tri.critere === c.tri ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))
-      : h('th', { scope: 'col' }, h('span', { class: 'tri titre-colonne' }, c.libelle)))), h('th', { class: 'col-actions' }));
+        h('button', { type: 'button', class: 'tri', onclick: () => changerTri(c.tri) }, libelleColonne(c), tri.critere === c.tri ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))
+      : h('th', { scope: 'col' }, h('span', { class: 'tri titre-colonne' }, libelleColonne(c))))), h('th', { class: 'col-actions' }));
     const corps = p.lignes.map((d) => {
       const t = Li.totauxDe(d);
       return ouvrable(h('tr', { class: 'ligne-liste ligne-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
         h('td', { dataset: { colonne: 'numero', libelle: 'Numéro' } }, h('span', { class: `devis-numero${d.numero ? '' : ' devis-numero-vide'}` }, intitule(d)), badgeTest(d), d.version > 1 ? h('span', { class: 'devis-version' }, ` v${d.version}`) : null, d.numero && d.nom ? h('span', { class: 'devis-nom-interne' }, ` – ${d.nom}`) : null),
         h('td', { dataset: { colonne: 'statut', libelle: 'Statut' } }, pastille(d, aujourdhui)),
         h('td', { dataset: { colonne: 'documents', libelle: 'Documents' } }, indicateurPdf(d, { apres: () => rendre(), maintenant })), // lien « PDF », « en cours » ou avertissement « PDF non rangé » (finalisé seulement)
-        h('td', { dataset: { colonne: 'client', libelle: 'Client / Affaire' } }, celluleClient(d)),
+        h('td', { dataset: { colonne: 'client', libelle: libelleClient() } }, celluleClient(d)),
         h('td', { dataset: { colonne: 'modifie', libelle: 'Modifié' } }, celluleModifie(d, maintenant)),
         h('td', { dataset: { colonne: 'date', libelle: 'En date du' } }, Li.dateFr(Li.dateDuDevis(d))),
         h('td', { dataset: { colonne: 'validite', libelle: 'Valable jusqu’au' } }, Li.dateFr(d.expireLe)),
@@ -209,8 +211,8 @@ export function rendreListeDevis(conteneur) {
   else if (vue === 'archives') vue = 'liste'; // « Archives » ne se garde pas d'un passage à l'autre
 
   conteneur.append(h('div', { class: 'page page-liste page-devis page-liste-devis' },
-    enteteListe({ titre, compteur, actions: [h('a', { class: 'bouton bouton-secondaire', href: '#/devis/bordereau', dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), h('a', { class: 'bouton bouton-secondaire', href: lien('devis/vocabulaire'), dataset: { action: 'ouvrir-vocabulaire' } }, icone('book-open', { taille: 16 }), 'Vocabulaire'), boutonNouveau] }),
-    barreListe({ recherche: { placeholder: 'Numéro, client ou affaire', libelleAria: 'Rechercher un devis', valeur: recherche, surSaisie: (v) => { recherche = v; page = 1; rendre(); } },
+    enteteListe({ titre, compteur, actions: [h('a', { class: 'bouton bouton-secondaire', href: lien('devis/bordereau'), dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), h('a', { class: 'bouton bouton-secondaire', href: lien('devis/vocabulaire'), dataset: { action: 'ouvrir-vocabulaire' } }, icone('book-open', { taille: 16 }), 'Vocabulaire'), boutonNouveau] }),
+    barreListe({ recherche: { placeholder: D.surSocleSeul() ? 'Numéro ou client' : 'Numéro, client ou affaire', libelleAria: 'Rechercher un devis', valeur: recherche, surSaisie: (v) => { recherche = v; page = 1; rendre(); } },
       elements: { filtres: filtres.element, vues: bascule }, tri: choixTri.element }).element,
     avis, zone, pied));
 

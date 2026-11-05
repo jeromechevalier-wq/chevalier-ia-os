@@ -553,7 +553,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     try {
       if (!(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le PDF n’a pas été créé.`, { type: 'erreur', duree: 8000 }); return; }
       await D.pdfBrouillon(id);
-      toast(messageApresEnregistrement(travail), { duree: 8000 });
+      toast(messageApresEnregistrement(travail, { affaires: !D.surSocleSeul() }), { duree: 8000 });
       retirerAttente();
       await actionPdf(id, mode, { brouillon: true, ancre: ancre ?? document.querySelector('[data-action="plus-actions"]') });
     } catch (e) {
@@ -930,11 +930,12 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
 
     // À droite : « Pour qui est ce devis ? » (un seul champ : personne, organisation ou affaire, comme la grande barre de recherche), puis la ligne Affaire (les affaires de ce client).
     // Facultatifs tant que le devis est un brouillon (l'affaire est exigée à la finalisation, qui peut la créer).
-    ref.erreurAffaire = h('p', { class: 'texte-discret', id: 'devis-affaire-aide', role: 'status', dataset: { erreur: 'affaire' } });
-    ref.messageAffaireVidee = h('p', { class: 'texte-discret', role: 'status', dataset: { info: 'affaire-videe' }, hidden: true });
+    const sansAffaires = D.surSocleSeul(); // lu au rendu : sans Affaires, jamais de ligne Affaire (ni en lecture seule)
+    ref.erreurAffaire = sansAffaires ? null : h('p', { class: 'texte-discret', id: 'devis-affaire-aide', role: 'status', dataset: { erreur: 'affaire' } });
+    ref.messageAffaireVidee = sansAffaires ? null : h('p', { class: 'texte-discret', role: 'status', dataset: { info: 'affaire-videe' }, hidden: true });
     ref.zoneClient = h('div', { class: 'zone-client-devis', dataset: { zone: 'client-devis' } });
     ref.champClient = lecture ? texteSeul('client', clientDuDevis(d)) : champClientIntelligent();
-    ref.champAffaire = lecture ? texteSeul('affaire', d.affaireId ? libelleAffaireDuDevis(d.affaireId) : '') : champAffaireIntelligent();
+    ref.champAffaire = sansAffaires ? null : lecture ? texteSeul('affaire', d.affaireId ? libelleAffaireDuDevis(d.affaireId) : '') : champAffaireIntelligent();
     const attentionLecture = lecture && d.organisationId && d.personneId ? CRM.personne(d.personneId)?.nom : '';
     ref.champAdresse = h('textarea', {
       class: 'champ', id: 'devis-chantier-adresse', rows: 3, dataset: { champ: 'chantier-adresse' }, value: Ed.texteDeAdresse(c.adresse) || Ed.texteDeAdresse(d.adresses?.chantier),
@@ -944,7 +945,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const droite = h('div', { class: 'entete-droite' },
       champ('Pour qui est ce devis ?', lecture ? ref.champClient : ref.champClient.element, { id: 'devis-client', aide: lecture ? null : ref.zoneClient }),
       attentionLecture ? champ('À l’attention de', texteSeul('attention', attentionLecture), { id: 'devis-attention' }) : null,
-      champ('Affaire', lecture ? ref.champAffaire : ref.champAffaire.element, { id: 'devis-affaire', aide: lecture ? null : [ref.erreurAffaire, ref.messageAffaireVidee] }),
+      sansAffaires ? null : champ('Affaire', lecture ? ref.champAffaire : ref.champAffaire.element, { id: 'devis-affaire', aide: lecture ? null : [ref.erreurAffaire, ref.messageAffaireVidee] }),
       champ('Adresse du chantier', ref.champAdresse, { id: 'devis-chantier-adresse' }),
       blocAdresses());
     return h('div', { class: 'entete-document' }, gauche, droite);
@@ -990,12 +991,12 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       return { id: `affaire:${a.id}`, libelle: a.titre, sousTitre: [o?.nom, p?.nom].filter(Boolean).join(' · '), extra: [o?.nom, p?.nom].filter(Boolean) };
     });
     const ci = champIntelligent({
-      id: 'devis-client', etiquette: 'Pour qui est ce devis ?', placeholder: 'Personne, organisation ou affaire', classe: 'champ-grand', valeur: elementClient(), ouvrirAuFocus: false,
+      id: 'devis-client', etiquette: 'Pour qui est ce devis ?', placeholder: D.surSocleSeul() ? 'Personne ou organisation' : 'Personne, organisation ou affaire', classe: 'champ-grand', valeur: elementClient(), ouvrirAuFocus: false,
       fournir: (saisie) => {
         const groupes = [
           { titre: 'Personnes', resultats: CL.rechercherSuggestions(saisie, personnes()).resultats },
           { titre: 'Organisations', resultats: CL.rechercherSuggestions(saisie, organisations()).resultats },
-          { titre: 'Affaires', resultats: CL.rechercherSuggestions(saisie, affairesRecherche()).resultats },
+          ...(D.surSocleSeul() ? [] : [{ titre: 'Affaires', resultats: CL.rechercherSuggestions(saisie, affairesRecherche()).resultats }]),
         ].filter((g) => g.resultats.length);
         const texte = saisie.trim().replace(/\s+/g, ' ');
         // Rien trouvé : deux lignes, rien n'est créé sans clic.
@@ -1158,7 +1159,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   function poserClient(client) {
     afficherAffaireVidee(null);
     Object.assign(travail, { organisationId: client.organisationId, personneId: client.personneId });
-    if (travail.affaireId) {
+    if (travail.affaireId && !D.surSocleSeul()) { // sans Affaires, le lien existant n'est ni affiché ni effacé
       const a = CRM.affaire(travail.affaireId);
       if (!a || !CD.affaireDuClient(a, client, CRM.etat.affaires, CRM.etat.personnes)) { afficherAffaireVidee(a ?? { titre: 'Affaire du devis' }); travail.affaireId = null; }
     }
@@ -1176,7 +1177,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       if (!valeurClient() && !travail.affaireId) return;
       ref.depart = null;
       afficherAffaireVidee(null);
-      Object.assign(travail, { organisationId: null, personneId: null, affaireId: null });
+      Object.assign(travail, { organisationId: null, personneId: null, ...(D.surSocleSeul() ? {} : { affaireId: null }) });
       appliquerClient(null, false, '');
       majChoix();
       return;

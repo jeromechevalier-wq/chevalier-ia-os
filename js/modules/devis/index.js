@@ -15,6 +15,8 @@ import * as CRM from '../crm/donnees.js';
 import { inscrirePastilleAffaire, inscrireOngletAffaire, inscrireActionAffaire, signaler } from '../crm/pastilles-externes.js';
 import { pastilleDevisDeAffaire } from './pastille-affaire.js';
 import { creerDevisSansAffaire } from './actions-devis.js';
+import { ouvrirCreationPersonne } from '../crm/personnes.js';
+import { ouvrirCreationOrganisation } from '../crm/organisations.js';
 import { ongletDevisDeAffaire, oublierOnglets, ajouterDevis } from './onglet-affaire.js';
 import { actionEnteteDevis } from './onglet-affaire-logique.js';
 import { naviguer } from '../../os/router.js';
@@ -33,9 +35,13 @@ function ajouterFeuille() {
 }
 
 /** Entrées du bouton « + » de la barre supérieure : « Devis » crée un brouillon sans affaire et ouvre l'éditeur. */
-export const actionsRapides = [
-  { id: 'devis', libelle: 'Devis', icone: 'file-text', action: () => creerDevisSansAffaire() },
+const ENTREE_DEVIS = { id: 'devis', libelle: 'Devis', icone: 'file-text', action: () => creerDevisSansAffaire() };
+// Sans Affaires, personne d'autre ne fournit « Personne » et « Organisation » : Devis les ajoute (avec Affaires, la fiche du CRM les fournit déjà : pas de doublon). Recomposé à chaque demarrer().
+const ENTREES_SOCLE = [
+  { id: 'personne', libelle: 'Personne', icone: 'user-plus', raccourci: 'n', action: () => ouvrirCreationPersonne() },
+  { id: 'organisation', libelle: 'Organisation', icone: 'building-2', action: () => ouvrirCreationOrganisation() },
 ];
+export const actionsRapides = [ENTREE_DEVIS];
 
 let montee = null; // { cle, quitter }
 
@@ -47,6 +53,7 @@ let arretSignal = null;
 export function demarrer({ cheminBase = '' } = {}) {
   ajouterFeuille(); // aussi pour la page Réglages, qui montre une section du module
   D.demarrer(cheminBase);
+  actionsRapides.splice(0, actionsRapides.length, ...(D.surSocleSeul() ? ENTREES_SOCLE : []), ENTREE_DEVIS); // splice : le module reste en cache d'un client à l'autre
   // Pastille « Devis : … » sur les cartes et fiches d'affaire (seulement tant que le module tourne : éteint, le CRM n'affiche rien).
   retirerPastille?.(); retirerOnglet?.(); retirerAction?.(); arretSignal?.();
   retirerPastille = inscrirePastilleAffaire((affaireId) => (D.estPretDevis() ? pastilleDevisDeAffaire(D.etat.devis, affaireId, { aujourdhui: CRM.ctx().aujourdhui }) : null));
