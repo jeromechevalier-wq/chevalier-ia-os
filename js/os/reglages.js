@@ -12,6 +12,7 @@ import { lien, naviguer } from './router.js';
 import { boutonTheme } from './shell.js';
 import { sectionMonEspace, sectionMembresEditable } from './mon-espace.js';
 import { sectionDeploiement } from './deploiement-ecran.js';
+import { sectionMesTests } from './mes-tests-ecran.js';
 import { reglagesDesModules, sectionsEspaceVisibles, interrupteursDuClient, cibleReglages, moduleDeclare } from './registre.js';
 
 const LIBELLES_ROLE = Object.freeze({ editeur: 'Éditeur : consulte et modifie', lecteur: 'Lecteur : consulte seulement' });
@@ -97,7 +98,7 @@ function sectionModules(ctx) {
     })))];
 }
 
-const SECTIONS_ESPACE_RENDU = { espace: sectionEspace, membres: sectionMembres, modules: sectionModules, deploiement: (ctx, etat) => [sectionDeploiement(ctx, etat)] };
+const SECTIONS_ESPACE_RENDU = { espace: sectionEspace, membres: sectionMembres, modules: sectionModules, deploiement: (ctx, etat) => [sectionDeploiement(ctx, etat)], tests: (ctx, etat) => [sectionMesTests(ctx, etat)] };
 
 // ---------------------------------------------------------------- réglages d'un module (ou d'un groupe de modules)
 

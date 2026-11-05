@@ -156,3 +156,34 @@ describe('11 plateforme : « marquer comme test » et numéro TEST- chez un clie
     await refus(appeler(m, 'marquerTest', ALICE, { client: 'a', devisId: 'da', test: 'oui' }), 'invalid-argument');
   });
 });
+
+describe('12 plateforme : supprimer tous mes tests', () => {
+  const essais = (m, client, nom) => {
+    m.collections[`clients/${client}/crm_personnes`].push({ id: `pt-${client}`, nom, test: true });
+    m.collections[`clients/${client}/devis_devis`].push({ id: `dt-${client}`, racineId: `dt-${client}`, version: 1, statut: 'finalise', numero: 'TEST-001', test: true, totaux: { ht: 100 } });
+    m.collections[`clients/${client}/devis_compteurs`].push({ id: 'test', valeur: 4 });
+  };
+  test('12 l’éditrice de a reçoit l’aperçu puis supprime ses tests ; le compteur de a repart à 0 ; b est intact ; la lectrice est refusée ; un client sans module devis (affaires seules) est accepté', async () => {
+    const m = monde();
+    essais(m, 'a', 'Paul Essai'); essais(m, 'b', 'Bruno Essai'); essais(m, 'c', 'Chloé Essai');
+    await refus(appeler(m, 'supprimerTests', LEA, { client: 'a', apercu: true }), 'permission-denied');
+    assert.equal(m.collections['clients/a/crm_personnes'].some((p) => p.id === 'pt-a'), true);
+    const a = await appeler(m, 'supprimerTests', ALICE, { client: 'a', apercu: true });
+    assert.equal(a.tests.apercu, true);
+    assert.equal(a.tests.total, 2);
+    assert.ok(a.tests.empreinte);
+    await refus(appeler(m, 'supprimerTests', ALICE, { client: 'a', apercu: false, empreinte: 'fausse' }), 'invalid-argument');
+    const r = await appeler(m, 'supprimerTests', ALICE, { client: 'a', apercu: false, empreinte: a.tests.empreinte });
+    assert.equal(r.tests.supprime, true);
+    assert.equal(r.tests.compteurTestRemis, true);
+    assert.equal(m.collections['clients/a/crm_personnes'].some((p) => p.id === 'pt-a'), false);
+    assert.equal(m.collections['clients/a/devis_compteurs'].find((c) => c.id === 'test').valeur, 0);
+    assert.equal(m.collections['clients/b/crm_personnes'].some((p) => p.id === 'pt-b'), true, 'les tests de b sont intacts');
+    assert.equal(m.collections['clients/b/devis_compteurs'].find((c) => c.id === 'test').valeur, 4, 'compteur de b intact');
+    assert.equal(m.collections['clients/a/crm_audit'].some((l) => l.outil === 'supprimerTousLesTests'), true);
+    // « affaires seules » : pas de module devis, mais des tests à supprimer
+    const z = await appeler(m, 'supprimerTests', ZOE, { client: 'c', apercu: true });
+    assert.equal(z.tests.total, 2);
+    await refus(appeler(m, 'finaliser', ZOE, { client: 'c', devisId: 'x' }), 'permission-denied');
+  });
+});
