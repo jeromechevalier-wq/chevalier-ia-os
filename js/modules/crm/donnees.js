@@ -2,6 +2,12 @@
 // Un écouteur onSnapshot par collection de listes pour toute la session (personnes, organisations, affaires,
 // activités, paramètres) ; notes et événements se chargent à l'ouverture d'une fiche, par une requête sur son lien.
 // Aucune requête composite : une seule condition par requête (égalité), le reste est fait dans le navigateur.
+// Socle commun (05/11/2026) : `demarrer(compte, base, { noyau: true })` n'écoute que `crm_personnes` et `crm_organisations`.
+// API du socle : `ctx`, `executer` (journal `crm_audit` + `crm_audit_avant`), `creerPersonne`, `majPersonne`, `lierPersonneOrganisation`,
+// `emailEnvoye`, `marquerOppositionPersonne`, `creerOrganisation`, `majOrganisation`, `personne`, `organisation`, `surChangement`, `estPret`,
+// `estNoyau`, `ecoutesDemarrees`, `cheminDeBase`, `compteCourant`, `nomDeLEspace`, `chemin`, `collectionsParNoms`, `lireJournal`, `lireCopieJournal`.
+// Hors socle : tout ce qui lit affaires, activités, notes, paramètres, et les deux suppressions. Le CRM complet démarre par-dessus avec le
+// même `demarrer` sans `noyau`. Personne n'appelle encore le mode noyau : PR B (coque) puis PR C (Devis).
 import {
   collection, doc, onSnapshot, query, where, orderBy, limit, startAfter, getDoc, getDocs, setDoc, runTransaction, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
@@ -54,8 +60,18 @@ let desabonnements = [];
 const abonnes = new Set();
 let initialisation = false;
 
+/** Écouteurs du socle commun (toujours présent, invisible) et du CRM complet (module Affaires). */
+export const CLES_NOYAU = Object.freeze(['personnes', 'organisations']);
+export const CLES_COMPLET = Object.freeze([...CLES_NOYAU, 'affaires', 'activites', 'parametres']);
+const COLLECTIONS_ECOUTEES = { personnes: 'crm_personnes', organisations: 'crm_organisations', affaires: 'crm_affaires', activites: 'crm_activites' };
+let ecoutes = []; // clés des écouteurs réellement démarrés, dans l'ordre de démarrage
+export const ecoutesDemarrees = () => [...ecoutes];
+/** Vrai quand seul le socle tourne (ni affaires, ni activités, ni paramètres). Faux si rien ne tourne. */
+export const estNoyau = () => ecoutes.length > 0 && !ecoutes.includes('affaires');
+
+/** Tout ce qui est démarré est prêt (faux si rien ne tourne). */
 export function estPret() {
-  return Object.values(etat.pret).every(Boolean);
+  return ecoutes.length > 0 && ecoutes.every((cle) => etat.pret[cle]);
 }
 
 export function surChangement(rappel) {
@@ -170,14 +186,10 @@ export function membresDeEquipe(liste) {
     .map((m) => ({ id: String(m.email).toLowerCase(), libelle: nom(m.email), email: String(m.email).toLowerCase() }));
 }
 
-export function demarrer(compteConnecte, base = '', options = {}) {
-  compte = compteConnecte;
-  cheminBase = normaliserBase(base);
-  equipe = options.equipe ?? null;
-  nomEspace = options.nomEspace ?? '';
-  // Quand seul un horodatage serveur se précise (modifieLe, creeLe), les données affichées ne changent pas :
-  // on met l'état à jour sans prévenir les écrans (pas de nouveau rendu, donc pas de glisser déposer interrompu).
-  const ecouter = (nom, cle) => desabonnements.push(onSnapshot(collection(db, chemin(nom)), (snap) => {
+// Quand seul un horodatage serveur se précise (modifieLe, creeLe), les données affichées ne changent pas :
+// on met l'état à jour sans prévenir les écrans (pas de nouveau rendu, donc pas de glisser déposer interrompu).
+function ecouterListe(nom, cle) {
+  desabonnements.push(onSnapshot(collection(db, chemin(nom)), (snap) => {
     const docs = lireDocs(snap);
     const sig = signature(docs);
     const inchange = etat.pret[cle] && signatures[cle] === sig;
@@ -186,10 +198,9 @@ export function demarrer(compteConnecte, base = '', options = {}) {
     etat.pret[cle] = true;
     if (!inchange) notifier();
   }, (e) => console.warn(`${nom} indisponible`, e.code)));
-  ecouter('crm_personnes', 'personnes');
-  ecouter('crm_organisations', 'organisations');
-  ecouter('crm_affaires', 'affaires');
-  ecouter('crm_activites', 'activites');
+}
+
+function ecouterParametres() {
   desabonnements.push(onSnapshot(collection(db, chemin('crm_parametres')), (snap) => {
     const docs = Object.fromEntries(snap.docs.map((d) => [d.id, d.data({ serverTimestamps: 'estimate' })]));
     const tri = (items) => [...(items || [])].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
@@ -216,9 +227,26 @@ export function demarrer(compteConnecte, base = '', options = {}) {
   }, (e) => console.warn('Paramètres indisponibles', e.code)));
 }
 
+export function demarrer(compteConnecte, base = '', options = {}) {
+  const voulues = options.noyau ? CLES_NOYAU : CLES_COMPLET;
+  const nouvelleBase = normaliserBase(base);
+  // Jamais deux jeux d'écouteurs : un autre espace ou un autre compte arrête tout avant de repartir.
+  if (ecoutes.length && (cheminBase !== nouvelleBase || compte?.email !== compteConnecte?.email)) arreter();
+  compte = compteConnecte;
+  cheminBase = nouvelleBase;
+  equipe = options.equipe ?? equipe; // après arreter() : null, comme avant
+  nomEspace = options.nomEspace ?? nomEspace; // après arreter() : '', comme avant
+  for (const cle of voulues) {
+    if (ecoutes.includes(cle)) continue; // déjà démarré
+    ecoutes.push(cle);
+    if (cle === 'parametres') ecouterParametres(); else ecouterListe(COLLECTIONS_ECOUTEES[cle], cle);
+  }
+}
+
 export function arreter() {
   desabonnements.forEach((f) => f());
   desabonnements = [];
+  ecoutes = [];
   for (const cle of ['personnes', 'organisations', 'affaires', 'activites']) etat[cle] = [];
   for (const cle of Object.keys(etat.pret)) etat.pret[cle] = false;
   for (const cle of Object.keys(signatures)) delete signatures[cle];
@@ -231,6 +259,9 @@ export function arreter() {
   nomEspace = '';
   etat.config = L.CONFIG_NEUTRE;
   etat.modelesAffaire = [];
+  // Décision prise seul : les paramètres de l'espace précédent ne survivent pas à l'arrêt (sinon le socle seul afficherait les offres d'un autre compte).
+  etat.offres = []; etat.secteurs = []; etat.sources = []; etat.etiquettes = []; etat.filtres = [];
+  etat.reglages = { ...L.REGLAGES_NEUTRES };
 }
 
 /**
@@ -389,6 +420,7 @@ export async function marquerOppositionPersonne(personneId, coche) {
  * (ses affaires restent, rattachées à leur organisation seule). Ses activités, notes et événements suivent.
  */
 export async function supprimerPersonne(id, choix) {
+  if (estNoyau()) throw new Error('Supprimer une fiche demande le module Affaires : ses affaires, activités et notes sont à traiter en même temps.');
   const liens = await liensDe('personneId', id);
   const projets = await projetsLies('personneId', id);
   if (choix === 'affaires') {
@@ -414,6 +446,7 @@ export async function majOrganisation(id, patch) {
 
 /** Refus (Error) tant que l'organisation a des personnes ou des affaires. */
 export async function supprimerOrganisation(id) {
+  if (estNoyau()) throw new Error('Supprimer une fiche demande le module Affaires : ses affaires, activités et notes sont à traiter en même temps.');
   const plan = L.planSupprimerOrganisation({
     organisationId: id, personnes: etat.personnes, affaires: etat.affaires, liens: await liensDe('organisationId', id), projets: await projetsLies('organisationId', id),
   });
