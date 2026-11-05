@@ -1,10 +1,10 @@
-// Mode test, PR 1a-2a : l'interrupteur (menu latéral), le bandeau orange et la pose de `test: true` à la création (sans héritage : c'est la PR 1a-2b).
+// Mode test, PR 1a-2a : l'interrupteur (menu Jérôme), le bandeau orange et la pose de `test: true` à la création (sans héritage : c'est la PR 1a-2b).
 // Un test par critère, le nom commence par son numéro : 1 interrupteur, 2 bandeau, 3 pose à la création, 4 un seul point d'entrée (statique), 5 éteindre ne retire rien, 6 réglages et catalogue jamais marqués.
 // Captures dans tests/e2e/captures/mode-test-creation/ (ordinateur ET téléphone).
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import {
-  test, expect, connecter, attendreCalme, allerA, estTelephone, listerDocuments, lireDocument, creerPersonne, creerOrganisation, creerAffaire, creerProjet, JEROME,
+  test, expect, connecter, ouvrirMenuUtilisateur, attendreCalme, allerA, estTelephone, listerDocuments, lireDocument, creerPersonne, creerOrganisation, creerAffaire, creerProjet, JEROME,
 } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/mode-test-creation/', import.meta.url));
@@ -21,7 +21,7 @@ test.beforeEach(async ({ page }) => {
 /** Allume le mode AVANT le chargement (comme un navigateur qui s'en souvient). */
 const allumerAvant = (page) => page.addInitScript((c) => { try { if (localStorage.getItem(c) === null) localStorage.setItem(c, '1'); } catch { /* rien */ } }, CLE);
 const lireStockage = (page) => page.evaluate((c) => localStorage.getItem(c), CLE);
-async function ouvrirMenuSiTelephone(page) {
+async function ouvrirMenuTelephone(page) {
   if (estTelephone(page) && !(await page.locator('.coquille.menu-ouvert').count())) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
 }
 async function ouvrirCreation(page, quoi) {
@@ -37,36 +37,49 @@ async function attendre(collection, predicat) {
 /** Appelle une fonction de création de la couche `donnees.js` de l'appli (celle que les écrans appellent). */
 const appeler = (page, module, fonction, ...args) => page.evaluate(async ([m, f, a]) => (await import(m))[f](...a), [module, fonction, args]);
 
-test('1 interrupteur : éteint par défaut, bascule, persiste après rechargement, stockage indisponible = éteint, présent sans barre d’outils et dans le tiroir téléphone, menu replié = icône + infobulle', async ({ page }, info) => {
+test('1 interrupteur : dans le menu Jérôme après le thème, éteint par défaut, un clic bascule et le menu reste ouvert, persiste après rechargement, plus de bouton en bas du menu latéral', async ({ page }, info) => {
   await connecter(page);
-  await ouvrirMenuSiTelephone(page);
-  await expect(interrupteur(page)).toBeVisible();
-  await expect(interrupteur(page)).not.toHaveClass(/menu-entree/);
-  await expect(interrupteur(page)).toHaveAttribute('aria-pressed', 'false');
-  await expect(interrupteur(page)).toHaveAttribute('aria-label', 'Mode test, éteint');
+  await expect(page.locator('.menu-bas [data-role="mode-test"]')).toHaveCount(0);
+  await expect(page.locator('[data-role="mode-test"]')).toHaveCount(0);
+  await ouvrirMenuTelephone(page);
+  await capturer(page, info, '1-menu-ferme');
+  await ouvrirMenuUtilisateur(page);
+  // juste après la bascule de thème, avant le séparateur
+  const noms = await page.locator('.menu-pop > *').evaluateAll((els) => els.map((e) => e.dataset.role || e.className));
+  expect(noms.indexOf('mode-test')).toBe(noms.indexOf('bascule-theme') + 1);
+  await expect(interrupteur(page)).toHaveAccessibleName('Mode test');
+  await expect(interrupteur(page)).toHaveAttribute('role', 'menuitemcheckbox');
+  await expect(interrupteur(page)).toHaveAttribute('aria-checked', 'false');
+  await capturer(page, info, '1-menu-ouvert-eteint');
   await interrupteur(page).click();
-  await expect(interrupteur(page)).toHaveAttribute('aria-pressed', 'true');
-  await expect(interrupteur(page)).toHaveAttribute('aria-label', 'Mode test, allumé');
+  await expect(page.locator('.menu-pop')).toBeVisible(); // le menu reste ouvert, comme le thème
+  await expect(interrupteur(page)).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('html')).toHaveAttribute('data-mode-test', '1');
+  await expect(bandeau(page)).toBeVisible();
   expect(await lireStockage(page)).toBe('1');
-  // page sans barre d'outils (Réglages) : l'interrupteur y est aussi
-  if (estTelephone(page)) await page.keyboard.press('Escape');
-  await allerA(page, 'Réglages');
-  await ouvrirMenuSiTelephone(page);
-  await expect(page.locator('.barre-outils')).toBeHidden();
-  await expect(interrupteur(page)).toHaveAttribute('aria-pressed', 'true');
-  // menu replié : icône seule + infobulle qui suit l'état (ordinateur)
-  if (!estTelephone(page)) {
-    const replier = page.getByRole('button', { name: 'Replier le menu' });
-    if (await replier.count()) await replier.click();
-    await expect(page.locator('.coquille')).toHaveAttribute('data-menu', 'replie');
-    await expect(interrupteur(page)).toHaveAttribute('data-infobulle', 'Mode test, allumé');
-    await expect(interrupteur(page).locator('.menu-texte')).toHaveCSS('opacity', '0');
-  }
-  await capturer(page, info, '1-interrupteur');
+  await capturer(page, info, '1-menu-ouvert-allume');
   // rechargement : l'état est conservé (l'attribut est posé avant tout rendu)
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-mode-test', '1');
   expect(await lireStockage(page)).toBe('1');
+  await expect(bandeau(page)).toBeVisible();
+  await ouvrirMenuUtilisateur(page);
+  await expect(interrupteur(page)).toHaveAttribute('aria-checked', 'true');
+  await interrupteur(page).click();
+  await expect(interrupteur(page)).toHaveAttribute('aria-checked', 'false');
+  await expect(bandeau(page)).toBeHidden();
+  expect(await lireStockage(page)).toBe('0');
+});
+
+test('1 clavier : flèches jusqu’à « Mode test », Entrée bascule, le menu reste ouvert', async ({ page }) => {
+  await connecter(page);
+  await ouvrirMenuUtilisateur(page);
+  for (let i = 0; i < 10 && !(await interrupteur(page).evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press('ArrowDown');
+  await expect(interrupteur(page)).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(interrupteur(page)).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('.menu-pop')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-mode-test', '1');
 });
 
 test('1 stockage indisponible ou vide = éteint (aucune erreur)', async ({ page }) => {

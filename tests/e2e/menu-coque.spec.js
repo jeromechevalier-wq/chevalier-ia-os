@@ -66,7 +66,7 @@ test('3 menu utilisateur : s’ouvre vers le haut depuis le nom, contenu dans l�
   // vers le haut : le menu se termine au-dessus du nom
   const [bp, bc] = [await pop.boundingBox(), await compte.boundingBox()];
   expect(bp.y + bp.height).toBeLessThanOrEqual(bc.y + 1);
-  // contenu et ordre : e-mail (texte), Réglages, Journal, assistant, thème, ligne, Se déconnecter tout en bas
+  // contenu et ordre : e-mail (texte), Réglages, Journal, assistant, thème, Mode test (menuitemcheckbox), ligne, Se déconnecter tout en bas
   await expect(pop.locator('> *').first()).toHaveText(JEROME);
   await expect(pop.locator('.menu-pop-texte')).toHaveAttribute('role', 'presentation');
   await expect(compte).toHaveAttribute('aria-controls', 'menu-utilisateur');
@@ -77,6 +77,9 @@ test('3 menu utilisateur : s’ouvre vers le haut depuis le nom, contenu dans l�
   await expect(pop.locator('[data-role="bascule-theme"]')).toHaveCount(1);
   await expect(pop.locator('> *').last()).toHaveText('Se déconnecter');
   await expect(pop.locator('.menu-pop-separateur')).toHaveCount(1);
+  await expect(pop.getByRole('menuitemcheckbox')).toHaveText(['Mode test']);
+  // ordre : thème → Mode test → séparateur → Se déconnecter
+  expect(await pop.locator('> *').evaluateAll((els) => els.map((e) => e.dataset.role || (e.classList.contains('menu-pop-separateur') ? 'separateur' : e.textContent.trim())).slice(-4))).toEqual(['bascule-theme', 'mode-test', 'separateur', 'Se déconnecter']);
   await capture(page, '3-menu-utilisateur');
   // Échap ferme et rend le focus au nom
   await page.keyboard.press('Escape');
