@@ -58,3 +58,18 @@ test('3c etatDevisDeAffaire : mot en minuscules sans « Devis », archive, intro
   assert.equal(etatDevisDeAffaire(l, 'a1', 'DEV-8', 1, opts), null);
   assert.equal(etatDevisDeAffaire(l, 'a2', 'DEV-9', 1, opts), null);
 });
+
+test('3d la ligne d’origine ne change jamais de mot pendant le chargement : pas prêt = sans mot, prêt = mot réel', () => {
+  const un = aff([{ numero: 'DEV-2026-10-26-004', version: 1, ht: 100, compte: true }]);
+  assert.equal(origineMontant(un, () => ({ pret: false })), 'Devis DEV-2026-10-26-004'); // jamais « proposé » deviné
+  assert.equal(origineMontant(un, () => ({ mot: 'finalisé', archive: true })), 'Devis DEV-2026-10-26-004, finalisé, archivé');
+  assert.equal(origineMontant(un, () => null), 'Devis DEV-2026-10-26-004, proposé'); // repli : module éteint ou devis introuvable
+});
+
+test('3e détail tronqué (20 devis) ou qui n’explique pas le total : « Plusieurs devis signés (détail dans le i) », sans chiffre', () => {
+  const vingt = Array.from({ length: 20 }, (_, n) => ({ numero: `DEV-${n}`, version: 1, ht: 100, compte: true }));
+  assert.equal(origineMontant(aff(vingt, 'accepte', 2500)), 'Plusieurs devis signés (détail dans le i)');
+  const deux = [{ numero: 'DEV-1', version: 1, ht: 100, compte: true }, { numero: 'DEV-2', version: 1, ht: 100, compte: true }];
+  assert.equal(origineMontant(aff(deux, 'accepte', 250)), 'Plusieurs devis signés (détail dans le i)'); // somme 200 ≠ 250
+  assert.equal(origineMontant(aff(deux, 'accepte', 200)), 'Devis signés : DEV-1 + DEV-2');
+});

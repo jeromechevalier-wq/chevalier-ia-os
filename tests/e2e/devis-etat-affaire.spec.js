@@ -92,6 +92,7 @@ test('3 sous le montant de la fiche, l’origine du chiffre : « Devis DEV-2026-
   await ouvrirAffaire(page);
   await expect(origine(page)).toHaveText('Devis DEV-2026-10-26-004, finalisé, archivé');
   await expect(page.locator('.fiche-tete .fiche-montant-valeur')).toContainText('100');
+  if (estTelephone(page)) expect(await sansDebordement(page)).toBe(true);
   await capturer(page, info, '3-origine-montant');
 });
 
@@ -103,6 +104,7 @@ test('3b plusieurs devis signés : « Devis signés : DEV-… + DEV-… v2 » ; 
   await devis('d2', { ...FINALISE, numero: 'DEV-2026-10-26-009', version: 2, statut: 'accepte', creeLe: IL_Y_A(2) });
   await ouvrirAffaire(page);
   await expect(origine(page)).toHaveText('Devis signés : DEV-2026-10-26-004 + DEV-2026-10-26-009 v2');
+  if (estTelephone(page)) expect(await sansDebordement(page)).toBe(true);
   await capturer(page, info, '3b-plusieurs-signes');
   await page.evaluate(() => { location.hash = '#/crm/affaires/a2'; });
   await expect(page.locator('.fiche-tete .fiche-montant')).toBeVisible();
@@ -172,16 +174,36 @@ test('6b module Devis prêt mais détail absent : « D’après les devis »', a
   await capturer(page, info, '6b-detail-absent');
 });
 
-test('6c erreur de lecture : message dans l’onglet et repli du mot d’état (« proposé ») sous le montant', async ({ page }, info) => {
+test('6c erreur de lecture (vrai état : devis prêts ET erreur) : message dans l’onglet ; liste gardée = le mot réel reste, liste vidée = repli « proposé »', async ({ page }, info) => {
   await donneesArchive();
   await ouvrirAffaire(page);
   const panneau = await ouvrirOnglet(page);
-  await page.evaluate(async () => {
+  const forcer = (vider) => page.evaluate(async (v) => {
     const D = await import('/js/modules/devis/donnees.js');
     const { signaler } = await import('/js/modules/crm/pastilles-externes.js');
-    D.etat.devisPrets = false; D.etat.erreurLectureDevis = true; signaler();
-  });
+    D.etat.devisPrets = true; D.etat.erreurLectureDevis = true; // comme donnees.js : une erreur de lecture laisse devisPrets à true
+    if (v) D.etat.devis = [];
+    signaler();
+  }, vider);
+  await forcer(false);
   await expect(panneau.locator('[data-erreur="lecture-devis"]')).toHaveText('Les devis n’ont pas pu être chargés. Recharge la page.');
-  await expect(origine(page)).toHaveText('Devis DEV-2026-10-26-004, proposé');
+  await expect(origine(page)).toHaveText('Devis DEV-2026-10-26-004, finalisé, archivé'); // liste gardée : le mot réel reste
+  await forcer(true);
+  await expect(origine(page)).toHaveText('Devis DEV-2026-10-26-004, proposé'); // liste vidée : repli sur la nature
   await capturer(page, info, '6c-erreur-lecture');
+});
+
+test('6d devis pas encore lus : la ligne d’origine n’écrit aucun mot d’état (rien ne clignote), puis le mot réel apparaît', async ({ page }, info) => {
+  await donneesArchive();
+  await ouvrirAffaire(page);
+  const forcer = (pret) => page.evaluate(async (p) => {
+    const D = await import('/js/modules/devis/donnees.js');
+    const { signaler } = await import('/js/modules/crm/pastilles-externes.js');
+    D.etat.devisPrets = p; signaler();
+  }, pret);
+  await forcer(false);
+  await expect(origine(page)).toHaveText('Devis DEV-2026-10-26-004');
+  await capturer(page, info, '6d-chargement');
+  await forcer(true);
+  await expect(origine(page)).toHaveText('Devis DEV-2026-10-26-004, finalisé, archivé');
 });

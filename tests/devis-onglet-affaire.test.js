@@ -53,10 +53,10 @@ test('12 l’écran de l’onglet ne propose de suppression que celle des brouil
   const src = readFileSync(new URL('../js/modules/devis/onglet-affaire.js', import.meta.url), 'utf8').replace(/\/\/.*$/gm, ''); // sans les commentaires
   assert.doesNotMatch(src.replace(/supprimerBrouillon|supprimer-devis|Supprimer le brouillon|enSuppression|supprimer\(/g, ''), /supprim|corbeille/i); // seule la croix des brouillons
   assert.match(src, /brouillon \? h\('button'/); // la croix n'existe que pour un brouillon
-  assert.doesNotMatch(src, /archiver\(|Désarchiver|D\.archiver/); // pas d'action d'archivage (l'étiquette « Archivé » est un simple texte)
+  assert.doesNotMatch(src, /archiver|désarchiver/i); // pas d'action d'archivage (l'étiquette « Archivé » est un simple texte)
   assert.doesNotMatch(src, /bouton-principal/);
 });
-test('13 bouton d’en-tête : « Créer un devis » sans devis, « Voir le devis » (le plus récent) sinon, rien tant que les devis ne sont pas lus', () => {
+test('13 bouton d’en-tête : « Créer un devis » sans devis, « Voir le devis » (non archivé d’abord, sinon l’archivé) sinon, rien tant que les devis ne sont pas lus', () => {
   assert.equal(actionEnteteDevis(devis, 'a1', false), null);
   assert.equal(actionEnteteDevis(devis, '', true), null);
   assert.deepEqual(actionEnteteDevis(devis, 'a1', true), { mode: 'voir', libelle: 'Voir le devis', route: 'devis/editeur/d4' }); // le plus récent est le brouillon v3

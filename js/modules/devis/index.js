@@ -58,8 +58,8 @@ export function demarrer({ cheminBase = '' } = {}) {
   // Pastille « Devis : … » sur les cartes et fiches d'affaire (seulement tant que le module tourne : éteint, le CRM n'affiche rien).
   retirerPastille?.(); retirerEtat?.(); retirerOnglet?.(); retirerAction?.(); arretSignal?.();
   retirerPastille = inscrirePastilleAffaire((affaireId) => (D.estPretDevis() ? pastilleDevisDeAffaire(D.etat.devis, affaireId, { aujourdhui: CRM.ctx().aujourdhui }) : null));
-  // Mot d'état du devis sous le montant de la fiche (« finalisé », « signé »…) : sans module prêt, la fiche se rabat sur la nature du montant.
-  retirerEtat = inscrireEtatDevisAffaire((affaireId, numero, version) => (D.estPretDevis() ? etatDevisDeAffaire(D.etat.devis, affaireId, numero, version, { aujourdhui: CRM.ctx().aujourdhui }) : null));
+  // Mot d'état du devis sous le montant de la fiche (« finalisé », « signé »…) : module inscrit mais devis pas encore lus = { pret: false } (la fiche n'écrit aucun mot d'état : rien ne clignote) ; module éteint ou devis introuvable = repli sur la nature du montant.
+  retirerEtat = inscrireEtatDevisAffaire((affaireId, numero, version) => (D.estPretDevis() ? etatDevisDeAffaire(D.etat.devis, affaireId, numero, version, { aujourdhui: CRM.ctx().aujourdhui }) : { pret: false }));
   // Onglet « Devis » à côté d'Activité / Notes / Documents (même règle : module éteint = rien d'inscrit = pas d'onglet). Un seul signal pour la pastille et l'onglet.
   retirerOnglet = inscrireOngletAffaire(ongletDevisDeAffaire);
   // Bouton d'action de l'en-tête de l'affaire, à côté de « Perdue » : « Créer un devis », ou « Voir le devis » quand il y en a déjà un.
