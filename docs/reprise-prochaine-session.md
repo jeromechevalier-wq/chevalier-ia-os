@@ -1,8 +1,31 @@
 # À faire au début de la prochaine session
 
+## Rapport de fin de journée du 06/11/2026 (PR 539 à 544)
+
+Version 2.38.0 (cette PR). Tableau des choses à faire : `.github/A-FAIRE.md`. Portail devis seul : `docs/consignes-ui.md` (section « Portail devis seul ») et `docs/etude-devis-autonome.md`.
+
+| Sujet | PR | État |
+|---|---|---|
+| Test 1.2 des familles : capture stable | 539 | fusionnée |
+| Fiche d'affaire et Kanban : l'état des devis est lisible, archivés compris (étiquette « Archivé », compteur, pastille « Devis : Finalisé (archivé) ») | 540 | fusionnée |
+| En-têtes de colonne du Kanban : « 14 affaires · 552,47 € » puis « 2 affaires [TEST] · 500 € », Affaires et Devis | 541 | fusionnée |
+| Colonne « Brouillon » du Kanban des Devis sans montant | 543 | fusionnée |
+| Portail devis seul, étape 1 (`#/portail-devis`, « À traiter ») | 544 | fusionnée |
+| Docs du jour, version 2.38.0 | cette PR | brouillon |
+
+- **En ligne chez Jérôme et chez les clients** : tout est fusionné sur `main` ; l'interface est déployée chez les clients. Aucune fonction du serveur ni règle ne change (PR de l'interface seulement).
+- **État de la nuit GitHub** : « Tests de nuit » runs 116, 117, 118 et 119 verts. Les runs 112 et 115 étaient rouges pour un seul test (1.2 des familles, une capture d'un bloc redessiné), corrigé par la 539 ; l'issue d'alerte 534 est fermée.
+- **Pas pu être vérifié avec le vrai système** : le portail chez un vrai client Devis seul (recette S9 sur le client de démonstration) ; l'ouverture de `#/portail-devis` avec un vrai compte Google ; les données de Jérôme.
+- **Questions ouvertes pour Jérôme** : (a) deux pastilles « Jamais envoyé · 8 j » et « Pas encore envoyé » sur la même carte : garder les deux ? (b) « Seulement les tests » + « Seulement à traiter » donne une liste vide : phrase d'explication ? (c) délai de relance 7 / 10 / 15 jours, « Relancé le » ou « Relance envoyée le » ? (d) garde-fou au-delà de 1000 documents (question 6). Plus : le prix du portail, non tranché.
+- **Suite décidée par Jérôme** : étape 2 Relances (à la main d'abord, automatiques à terme ; le bouton est le même que « Préparer l'e-mail » avec un texte de relance, brouillon dans le Gmail du client, pas d'envoi automatique) ; étape 3 Statistiques (envoyés, signés, refusés, taux de signature, montant signé par mois, délai moyen de réponse, tests exclus ; le client marque lui-même « signé » / « refusé »).
+- **Décisions prises seul (PR 544)** : pas d'entrée de menu chez Jérôme, pas de redirection par défaut chez un client Devis seul, menu utilisateur réduit, titre de la page inchangé, pas de tri « à traiter ».
+- **Ce que Jérôme doit faire** : répondre aux questions ci-dessus ; ouvrir `#/portail-devis` chez lui et vérifier la liste, le bouton « À traiter » et « Espace complet ».
+
+---
+
 ## Rapport du matin du 07/11/2026 : journée du 06/11/2026 (PR 530 à 536)
 
-Tableau des choses à faire : `.github/A-FAIRE.md`. Version 2.37.0 (cette PR). Étude Devis seul : `docs/etude-devis-autonome.md` (tableau G : reste S4 à S9).
+Tableau des choses à faire : `.github/A-FAIRE.md`. Version 2.37.0. Étude Devis seul : `docs/etude-devis-autonome.md` (tableau G : reste S4 à S9).
 
 **Réponses de Jérôme du 06/11** (aux questions du rapport du 05/11) : 1 finalisation conditionnelle confirmée ; 2 pas de socle sans module actif confirmé ; 3 un `DEV-` marqué test n'est jamais supprimé en lot ; 4 les événements d'une affaire de test partent avec elle ; 5 restaurer un `DEV-` reste permis ; 6 garde-fou « > 1000 documents » : **pas de réponse, reste ouverte** ; 7 `marquer_test` / `demarquer_test` prêtés au socle (531), pas `supprimer_tous_les_tests` ; 8 filtre « Tests » : fait (530). Vocabulaire : « test », jamais « essai ».
 

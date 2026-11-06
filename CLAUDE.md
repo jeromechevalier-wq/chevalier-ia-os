@@ -124,6 +124,15 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 - Voie « Docs » (PR 470) : une PR qui ne touche que `docs/`, `wiki/`, `README.md`, `CLAUDE.md`, `PROMPT-CONSTRUCTION.md`, `.github/A-FAIRE.md` lance le job `Docs` (≈ 1-2 min) ; une fusion de docs seules ne redéploie plus le site.
 - La facturation n'utilise plus n8n (décision du 31/10) : la porte n8n chez les clients (PR 463) reste utile pour « Préparer l'e-mail », les propositions et la veille.
 
+### Leçons de la journée du 06/11/2026 (suite)
+- **Décision de Jérôme** : le portail devis seul est un **mode d'affichage de la coque**, jamais un module ni un espace séparé ; le client final n'y a jamais accès.
+- **Un brief se vérifie contre le code** : le brief des en-têtes de colonne avait oublié une partie de la demande (complément arrivé trop tard) ; renvoyer le complément au même agent et attendre sa nouvelle réponse.
+- **PR de navigation (portail)** : deux relectures Fable, la seconde sur le delta. Elle a trouvé une icône inexistante que les tests ne voyaient pas (`icone()` rend un svg vide si le nom n'est pas dans `ICONES` : le verrouiller par un test statique) et un lien construit à partir de l'adresse tapée (toujours vérifier : commence par `#/`, identifiant validé).
+- **Une session de code ne pose jamais l'étiquette `tests-complets` et ne pousse pas plusieurs fois** (un push annule et relance) : regrouper les corrections de relecture en UN push, en fusionnant `main` dans le même push.
+- **Une PR qui touche les mêmes fichiers qu'une autre passe APRÈS** : la 541 a eu un conflit après la 540, résolu en gardant les deux côtés.
+- **« Tests de nuit » 112 et 115 rouges pour une seule capture** d'un bloc redessiné (test 1.2 des familles) : cause lue seulement au 115, corrigée par la 539. Lire la cause dès le premier rouge.
+- **Un devis « Archivé » compte toujours dans le montant** : l'écran doit le dire (étiquette, PR 540).
+
 ## Au démarrage d'une session
 
 1. Lis `docs/roadmap.md` (état et décisions).
