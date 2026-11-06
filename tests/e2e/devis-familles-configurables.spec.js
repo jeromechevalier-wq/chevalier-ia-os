@@ -9,7 +9,8 @@ const DOSSIER = fileURLToPath(new URL('./captures/devis-familles-configurables/'
 const capturer = (page, info, nom, cible = null) => {
   const path = `${DOSSIER}${nom}-${info.project.name === 'telephone' ? 'tel' : 'ordi'}.png`;
   if (cible === 'vue') return page.screenshot({ path, animations: 'disabled' });
-  if (cible) return cible.screenshot({ path, animations: 'disabled' });
+  // Le bloc est redessiné par l'écoute en direct des familles : l'élément peut se détacher pendant la capture, on recommence (le locator se résout à nouveau).
+  if (cible) return expect(async () => { await cible.screenshot({ path, animations: 'disabled', timeout: 5000 }); }).toPass({ timeout: 20000 });
   return page.screenshot({ path, fullPage: true, animations: 'disabled' });
 };
 const dialogue = (page) => page.getByRole('dialog').last();
