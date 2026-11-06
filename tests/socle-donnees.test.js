@@ -74,7 +74,8 @@ describe('socle commun : couche de données', () => {
     ]);
     assert.equal(noms.length, 20);
     const exp = lire('js/modules/devis/donnees.js');
-    assert.ok(exp.includes("CRM.collectionsParNoms(['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire', 'devis_usage_articles'])"));
+    assert.ok(exp.includes("import { SOCLE } from '../../os/registre.js';"));
+    assert.ok(exp.includes("CRM.collectionsParNoms(['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire', 'devis_usage_articles', ...SOCLE.collections])"));
   });
 });
 

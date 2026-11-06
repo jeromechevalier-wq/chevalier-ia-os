@@ -561,4 +561,19 @@ test.describe('R14 Devis seul (sans Affaires ni Projets) : le socle commun porte
     await ouvrirSectionReglages(page, 'Devis');
     await expect(page.locator('#reglages-devis')).toBeVisible();
   });
+
+  test('R14-15 Réglages > Devis > Sauvegarde : l\'export contient les fiches du socle (lecture permise par les règles des clients), sans affaires, journal ni compteur', async ({ page }) => {
+    await ouvrir(page, 'devisseul', ALICE, 'reglages/devis');
+    await ouvrirSectionReglages(page, 'Devis');
+    const bouton = page.locator('#reglages-export-devis [data-action="exporter-devis"]');
+    await bouton.scrollIntoViewIfNeeded();
+    await expect(page.locator('#reglages-export-devis')).toBeVisible();
+    const [dl] = await Promise.all([page.waitForEvent('download'), bouton.click()]);
+    expect(dl.suggestedFilename()).toMatch(/^chevalier-ia-devis-\d{4}-\d{2}-\d{2}\.json$/);
+    const json = JSON.parse(await readFile(await dl.path(), 'utf8'));
+    expect(Object.keys(json.collections).sort()).toEqual(['crm_evenements', 'crm_organisations', 'crm_personnes', 'devis_articles', 'devis_devis', 'devis_parametres', 'devis_usage_articles', 'devis_vocabulaire']);
+    expect(json.collections.crm_personnes.find((p) => p.id === 'pz').nom).toBe('Zoé Prête');
+    for (const absente of ['crm_affaires', 'crm_audit', 'crm_audit_avant', 'devis_compteurs']) expect(json.collections[absente]).toBeUndefined();
+    await expect(page.locator('.toast')).toContainText('Sauvegarde téléchargée');
+  });
 });

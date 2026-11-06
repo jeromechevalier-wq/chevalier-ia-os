@@ -96,7 +96,7 @@ Les dossiers `coeur`, `mcp`, `oauth`, `securite`, `clients` sont copiés tels qu
 
 - L'export du module Devis contient ses cinq collections : `js/modules/devis/donnees.js:287` (`devis_articles`, `devis_parametres`, `devis_devis`, `devis_vocabulaire`, `devis_usage_articles`).
 - L'export complet (Réglages > section CRM) et les contacts `.vcf` appartiennent à l'écran du CRM : `js/modules/crm/export.js:8`, test `tests/e2e/parcours.spec.js:718` (C19, liste des collections attendue).
-- En « Devis seul », les clients sont de vraies fiches : le module Contacts a **son propre bouton d'export** (règle du 27/10/2026), pas de 6e collection dans l'export Devis (PR 8, test C19 à vérifier).
+- En « Devis seul », les clients sont de vraies fiches. Le socle n'a pas d'écran (PR 524), donc pas de bouton « Contacts » : les trois collections de `SOCLE.collections` (`crm_personnes`, `crm_organisations`, `crm_evenements`) entrent dans l'export du module Devis (06/11/2026, test C19 inchangé).
 
 ### A.7 Recherche, « + », accueil, statistiques
 
@@ -265,7 +265,7 @@ Chaque PR : une seule idée, fusionnée le jour même. **Rien de visible chez J�
 | **6** | **FAITE** (528, C2) : ligne Affaire cachée, colonne Client, menu « + », R14-9 à R14-14 | 1, 2 (et PR 508 fusionnée) | **obligatoire** (gros écran, éditeur du devis) | le champ client ne change pas avec Affaires actif |
 | **7** | **À faire** : **Menu du portail Devis** : Devis · Clients · Catalogue · Relances · Statistiques (Catalogue au premier niveau ; Relances et Statistiques s'ajoutent à la fusion des PR 10 à 12), « + », recherche, Réglages, premier écran | 2, 5, 6 | **obligatoire** (structure d'écran) | rien |
 | **8** | faite par la 526 (outils du socle) | 2, 3 | **obligatoire** (serveur) | rien |
-| **9** | **À faire** : **Export** : bouton d'export du module Contacts (personnes, organisations) ; test C19 | 2 | non requise (lecture seule ; E2E C19) | un bouton de plus |
+| **9** | **FAITE (PR de cette session, 06/11)** : pas de bouton Contacts (le socle n'a pas d'écran, PR 524) ; les trois collections de `SOCLE.collections` entrent dans l'export du module Devis ; C19 inchangé | 2 | non requise (lecture seule ; E2E C19) | un bouton de plus |
 | **10** | **À faire** : **Statistiques de devis** (H.5) : fonction pure `statistiquesDevis` sur `montantDesDevis` (tous les devis, rattachés ou non), écran, exclusion des devis de test, règle de la PR 510 (archivé compte) | 7 ; **PR 510 fusionnée** | **obligatoire** (nouvel écran, données) | un écran Statistiques |
 | **11** | **FAITE (PR n°…, 06/11)** : origine `relance`, réglage `delaiRelanceJours` (10), règle pure `relances.js` (`devisARelancer`) ; aucune collection, aucune règle, aucun outil MCP nouveau. Reste l'écran (ligne 12). Ancien texte : **Relances côté serveur** (H.4, option (a)) : origine `relance` dans `ORIGINES_ENVOI` et `LIBELLES_ORIGINE_ENVOI`, libellé de `enregistrer_envoi_devis`, réglage du délai (10 jours, plus court que la validité) ; **aucune collection, aucune règle** | aucune | **obligatoire** (serveur, données) | rien |
 | **12** | **À faire** : **Relances côté écran** : écran « Relances », bouton « Préparer l'e-mail de relance » (même fenêtre, brouillon Gmail, jamais d'envoi), cas vide et cas d'erreur | 7, 11 | **obligatoire** (nouvel écran, e-mail) | un écran Relances |
