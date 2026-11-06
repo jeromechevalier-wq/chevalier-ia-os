@@ -47,14 +47,14 @@ test('4 graphique « Chiffre d’affaires encaissé » : une facture payée de 1
   await capturer(page, info, '4-graphique-ca');
 });
 
-test('5 Kanban des affaires : le total réel exclut le test, « tests : 100 € » dessous, le nombre compte les cartes affichées', async ({ page }, info) => {
+test('5 Kanban des affaires : le total réel exclut le test, « 1 affaire [TEST] · 100 € » dessous, le nombre compte les cartes affichées', async ({ page }, info) => {
   await creerAffaire('aR', { titre: 'Audit réel', etape: 'rdv_fixe', montant: 2000 });
   await creerAffaire('aT', { titre: 'Audit essai', etape: 'rdv_fixe', montant: 100, test: true });
   await connecter(page);
   await allerA(page, 'Affaires');
   const colonne = page.locator('.colonne[data-colonne="rdv_fixe"]');
-  await expect(colonne.locator('.colonne-totaux')).toHaveText('2 000 € · 2 affaires');
-  await expect(colonne.locator('.colonne-totaux-tests')).toHaveText('tests : 100 €');
+  await expect(colonne.locator('.colonne-totaux')).toHaveText('2 affaires · 2 000 €');
+  await expect(colonne.locator('.colonne-totaux-tests')).toHaveText('1 affaire [TEST] · 100 €');
   const tete = colonne.locator('.colonne-tete');
   expect(await tete.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
   await expect(colonne.locator('.carte-affaire[data-affaire="aT"]')).toContainText('[TEST]');

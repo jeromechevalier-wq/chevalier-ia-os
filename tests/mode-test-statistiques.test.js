@@ -75,9 +75,9 @@ describe('mode test : statistiques', () => {
     assert.deepEqual(L.totauxColonne([{ id: 's', test: true }]), { nombre: 1, montant: 0, nombreTests: 1, montantTests: 0 });
   });
 
-  test('5d verrouillage : l’en-tête de colonne des affaires a sa ligne « tests : » et aucun « essai » visible', () => {
+  test('5d verrouillage : l’en-tête de colonne des affaires a sa ligne des tests avec le badge [TEST] et aucun « essai » visible', () => {
     const src = readFileSync(new URL('../js/modules/crm/affaires.js', import.meta.url), 'utf8');
-    assert.ok(src.includes('colonne-totaux-tests') && src.includes('tests : '));
+    assert.ok(src.includes('colonne-totaux-tests') && src.includes('badgeTest'));
     assert.ok(!/(['"`])[^'"`\n]*\bessai/i.test(src.replace(/réessai|bloc-essai|essai-/gi, '')));
   });
 

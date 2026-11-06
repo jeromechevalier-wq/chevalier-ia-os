@@ -229,6 +229,7 @@ function carte(a) {
 
 function colonne({ id, titre, couleur, affaires, onDrop }) {
   const totaux = L.totauxColonne(affaires);
+  const entete = L.texteEnteteColonne(totaux, 'affaire');
   const corps = h('div', { class: 'colonne-corps' }, trierCartes(affaires).map(carte));
   const el = h('section', { class: 'colonne', dataset: { colonne: id }, 'aria-label': titre, style: { '--couleur': couleur },
     ondragover: (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('cible'); },
@@ -242,8 +243,8 @@ function colonne({ id, titre, couleur, affaires, onDrop }) {
     } },
   h('header', { class: 'colonne-tete' },
     h('h2', {}, titre),
-    h('span', { class: 'colonne-totaux' }, `${totaux.montant ? `${L.formatEuros(totaux.montant)} · ` : ''}${totaux.nombre} ${totaux.nombre > 1 ? 'affaires' : 'affaire'}`),
-    totaux.nombreTests ? h('span', { class: 'colonne-totaux-tests' }, `tests : ${L.formatEuros(totaux.montantTests)}`) : null),
+    h('span', { class: 'colonne-totaux' }, entete.principal),
+    entete.tests ? h('span', { class: 'colonne-totaux-tests' }, `${entete.tests.nombre} `, badgeTest({ test: true }), entete.tests.montant ? ` · ${entete.tests.montant}` : '') : null),
   corps);
   return el;
 }

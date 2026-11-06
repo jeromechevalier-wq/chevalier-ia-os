@@ -4,7 +4,7 @@
 import { STATUTS_DEVIS, estExpire, transitionPossible, totauxDevis, peutArchiver, estNumeroTest } from './logique.js';
 import { etatPdfDevis } from './pdf.js';
 import { emailPossible } from './email-brouillon.js';
-import { testsCorrespond } from '../crm/logique.js';
+import { testsCorrespond, estTest } from '../crm/logique.js';
 
 /** L'éditeur de devis existe : « Nouveau devis », « Modifier » et « Dupliquer » sont actifs (false les grise « bientôt disponible »). */
 export const EDITEUR_DISPONIBLE = true;
@@ -227,6 +227,14 @@ export function regrouperParColonne(liste, aujourdhui) {
     colonnes[i === -1 ? 0 : i].devis.push(d);
   }
   return colonnes;
+}
+
+/** Totaux d'une colonne du Kanban des devis, même forme que totauxColonne des Affaires : nombre (tests compris), montant HT réel (sans les tests), tests à part. Centimes exacts ; total illisible = 0. */
+export function totauxColonneDevis(devis) {
+  const liste = devis || [];
+  const centimes = (l) => l.reduce((s, d) => s + Math.round((totauxDe(d)?.ht ?? 0) * 100), 0) / 100;
+  const tests = liste.filter(estTest);
+  return { nombre: liste.length, montant: centimes(liste.filter((d) => !estTest(d))), nombreTests: tests.length, montantTests: centimes(tests) };
 }
 
 // ---------------------------------------------------------------- actions permises (menu « … »)

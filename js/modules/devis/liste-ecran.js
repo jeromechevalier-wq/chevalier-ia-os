@@ -3,7 +3,7 @@
 // fonctions du serveur (donnees.js : finaliser, changerStatut), jamais par une écriture directe, et il n'y a pas de glisser-déposer.
 import { h, icone, remplir, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
 import { boutonFiltres as boutonFiltresCommun, fenetreFiltres, controleTests } from '../crm/filtres.js';
-import { FILTRE_TESTS_DEFAUT } from '../crm/logique.js';
+import { FILTRE_TESTS_DEFAUT, texteEnteteColonne } from '../crm/logique.js';
 import { etatVide, planifier, badgeTest, selecteurTri } from '../crm/composants.js';
 import { enteteListe, barreListe, basculeVues } from '../crm/barre-liste.js';
 import { naviguer, lien } from '../../os/router.js';
@@ -189,9 +189,11 @@ export function rendreListeDevis(conteneur) {
 
   function rendreTableau(lignes, maintenant, aujourdhui) {
     const colonnes = Li.regrouperParColonne(lignes, aujourdhui);
-    remplir(zone, h('div', { class: 'kanban tableau-devis-colonnes' }, colonnes.map((c) => h('section', { class: 'colonne', style: { '--couleur': Li.COULEURS_STATUT[c.id] ?? '#8d8993' }, dataset: { colonne: c.id } },
-      h('header', { class: 'colonne-tete' }, h('h2', {}, c.libelle), h('span', { class: 'colonne-totaux' }, `${c.devis.length} devis`)),
-      h('div', { class: 'colonne-corps' }, c.devis.length ? c.devis.map((d) => carte(d, maintenant, aujourdhui)) : h('p', { class: 'colonne-vide' }, 'Aucun devis'))))));
+    remplir(zone, h('div', { class: 'kanban tableau-devis-colonnes' }, colonnes.map((c) => { const entete = texteEnteteColonne(Li.totauxColonneDevis(c.devis), 'devis'); return h('section', { class: 'colonne', style: { '--couleur': Li.COULEURS_STATUT[c.id] ?? '#8d8993' }, dataset: { colonne: c.id } },
+      h('header', { class: 'colonne-tete' }, h('h2', {}, c.libelle), h('span', { class: 'colonne-totaux' }, entete.principal),
+        entete.tests ? h('span', { class: 'colonne-totaux-tests' }, `${entete.tests.nombre} `, badgeTest({ test: true }), entete.tests.montant ? ` · ${entete.tests.montant}` : '') : null),
+      h('div', { class: 'colonne-corps' }, c.devis.length ? c.devis.map((d) => carte(d, maintenant, aujourdhui)) : h('p', { class: 'colonne-vide' }, 'Aucun devis')));
+    })));
   }
 
   function carte(d, maintenant, aujourdhui) {
