@@ -242,7 +242,8 @@ function colonne({ id, titre, couleur, affaires, onDrop }) {
     } },
   h('header', { class: 'colonne-tete' },
     h('h2', {}, titre),
-    h('span', { class: 'colonne-totaux' }, `${totaux.montant ? `${L.formatEuros(totaux.montant)} · ` : ''}${totaux.nombre} ${totaux.nombre > 1 ? 'affaires' : 'affaire'}`)),
+    h('span', { class: 'colonne-totaux' }, `${totaux.montant ? `${L.formatEuros(totaux.montant)} · ` : ''}${totaux.nombre} ${totaux.nombre > 1 ? 'affaires' : 'affaire'}`),
+    totaux.nombreTests ? h('span', { class: 'colonne-totaux-tests' }, `tests : ${L.formatEuros(totaux.montantTests)}`) : null),
   corps);
   return el;
 }

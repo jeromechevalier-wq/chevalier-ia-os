@@ -157,7 +157,7 @@ describe('Déploiement : contrôles des modules (sans réseau)', () => {
   });
   test('4 le libellé et la réparation de l’essai de bout en bout ne parlent plus de Drive', () => {
     const essai = TOUTES.find((e) => e.id === 'devis-essai');
-    assert.equal(essai.libelle, 'Essai de bout en bout d’un devis (PDF, e-mail, Envoyé)');
+    assert.equal(essai.libelle, 'Test de bout en bout d’un devis (PDF, e-mail, Envoyé)');
     assert.match(essai.reparation, /ouvre son PDF depuis l’onglet Devis de l’affaire/);
     assert.doesNotMatch(`${essai.libelle} ${essai.reparation}`, /Drive/);
   });

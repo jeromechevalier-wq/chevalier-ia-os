@@ -1855,7 +1855,9 @@ export function caParMois(affaires, moisListe, projets = []) { // chiffre d'affa
 }
 
 export function totauxColonne(affaires) {
-  return { nombre: affaires.length, montant: sansTests(affaires).reduce((s, a) => s + (montantAffaire(a) || 0), 0) }; // le NOMBRE compte les cartes affichées, le MONTANT exclut les essais
+  const tests = (affaires || []).filter(estTest);
+  const somme = (liste) => liste.reduce((s, a) => s + (montantAffaire(a) || 0), 0);
+  return { nombre: affaires.length, montant: somme(sansTests(affaires)), nombreTests: tests.length, montantTests: somme(tests) }; // le NOMBRE compte les cartes affichées ; le MONTANT exclut les tests, qui ont leur propre total
 }
 
 // ---------------------------------------------------------------- filtres

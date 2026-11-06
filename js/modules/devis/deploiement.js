@@ -22,8 +22,8 @@ export const ETAPES_DEPLOIEMENT_DEVIS = geler([
     reparation: 'L’administrateur de la plateforme publie la porte des workflows (déploiement « porte » puis « hosting »), crée la clé de l’espace et dépose les deux secrets du workflow (adresse et secret) ; sans eux, le bouton reste grisé.', lien: `${DOCS}ajouter-un-bouton-workflow.md` },
   { id: 'devis-garantie-email', groupe: 'pendant', module: 'devis', type: 'manuel', libelle: 'Garantie lue : le logiciel n’envoie jamais d’e-mail',
     reparation: 'À lire : Notre logiciel n’envoie jamais rien : il prépare seulement un brouillon, que tu relis et envoies toi-même. Si tu connectes le Gmail de ton assistant, c’est toi qui règles cet accès (de préférence brouillon, ou confirmation avant tout envoi) : nous ne le contrôlons pas.', lien: `${DOCS}deploiement-client.md` },
-  { id: 'devis-essai', groupe: 'pendant', module: 'devis', type: 'manuel', libelle: 'Essai de bout en bout d’un devis (PDF, e-mail, Envoyé)',
-    reparation: 'Sur une affaire de test : crée un devis, finalise-le, ouvre son PDF depuis l’onglet Devis de l’affaire, prépare l’e-mail, passe-le à Envoyé, puis archive l’essai.', lien: `${DOCS}deploiement-client.md` },
+  { id: 'devis-essai', groupe: 'pendant', module: 'devis', type: 'manuel', libelle: 'Test de bout en bout d’un devis (PDF, e-mail, Envoyé)',
+    reparation: 'Sur une affaire de test : crée un devis, finalise-le, ouvre son PDF depuis l’onglet Devis de l’affaire, prépare l’e-mail, passe-le à Envoyé, puis archive ce devis de test.', lien: `${DOCS}deploiement-client.md` },
   { id: 'devis-mcp', groupe: 'pendant', module: 'devis', type: 'manuel', libelle: 'Assistant : « liste mes devis » vérifié',
     reparation: 'Demande à ChatGPT « liste mes devis », puis « lis le devis X » : il ne montre jamais les prix d’achat.', lien: `${DOCS}deploiement-client.md` },
 ]);

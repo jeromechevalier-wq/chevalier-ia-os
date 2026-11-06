@@ -128,7 +128,7 @@ test('3 plus d’étape « CORS » : la page ne lit plus le stockage, le groupe 
   for (const id of ['devis-entreprise', 'devis-catalogue']) await expect(ligne(page, id)).toHaveAttribute('data-couleur', 'vert');
   await expect(ligne(page, 'dossier-drive')).toHaveCount(1);
   await expect(ligne(page, 'devis-essai').locator('[data-role="etat"]')).toHaveText('À vérifier à la main');
-  await expect(page.locator('#reglages-deploiement')).toContainText('Essai de bout en bout d’un devis (PDF, e-mail, Envoyé)');
+  await expect(page.locator('#reglages-deploiement')).toContainText('Test de bout en bout d’un devis (PDF, e-mail, Envoyé)');
   await expect(page.locator('#reglages-deploiement')).not.toContainText('PDF, Drive');
   expect(lectures, 'aucune lecture du stockage par la page').toEqual([]);
   await page.screenshot({ path: `${DOSSIER_RETRAIT}4-deploiement-sans-cors-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
