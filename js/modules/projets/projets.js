@@ -4,7 +4,7 @@ import { h, icone, remplir, dialogue, demanderTexte, toast, ouvrirMenu, lirePref
 import { naviguer } from '../../os/router.js';
 import { celebrerCloture } from '../../os/celebrations.js';
 import * as CRM from '../crm/donnees.js';
-import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
+import { boutonFiltres as boutonFiltresCommun, fenetreFiltres, controleTests } from '../crm/filtres.js';
 import * as L from '../crm/logique.js';
 import {
   lienPersonne, lienOrganisation, pastilleActivite, selecteurPersonne, selecteurOrganisation, organisationChoisieOuSaisie, etatVide, planifier, nomCompte, selecteurTri, badgeTest, entreeMarquerTest
@@ -273,6 +273,7 @@ async function ouvrirFenetreFiltres() {
       { cle: 'phases', libelle: 'Phase', type: 'cases', options: options(P.phasesActives(cfg())) },
       { cle: 'statuts', libelle: 'Statut', type: 'cases', options: options(P.STATUTS_PROJET) },
       { cle: 'enRetard', libelle: 'En retard', type: 'oui' },
+      controleTests(),
     ],
     criteres: c,
     effacer: () => P.criteresProjetsComplets({ recherche: c.recherche }),
@@ -287,6 +288,7 @@ function pastillesFiltres() {
     ...c.phases.map((v) => ({ libelle: `Phase : ${P.libellePhase(v, cfg())}`, retirer: () => sans('phases', v) })),
     ...c.statuts.map((v) => ({ libelle: `Statut : ${P.libelleStatutProjet(v)}`, retirer: () => sans('statuts', v) })),
     ...(c.enRetard ? [{ libelle: 'En retard', retirer: () => P.criteresProjetsComplets({ ...c, enRetard: false }) }] : []),
+    ...(c.tests !== L.FILTRE_TESTS_DEFAUT ? [{ libelle: L.libelleFiltreTests(c.tests), retirer: () => P.criteresProjetsComplets({ ...c, tests: L.FILTRE_TESTS_DEFAUT }) }] : []),
   ];
 }
 

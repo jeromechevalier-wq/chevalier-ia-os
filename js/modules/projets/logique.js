@@ -8,6 +8,7 @@ import {
   ecritureCreer, ecritureModifier, ecritureSupprimer, ecritureNoteDeDepart, evenements, modifierSiPatch, evenementCreation, evenementsDocuments,
   nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser, ajouterJours,
   planChangerEtape, planMarquerPerdue, formatEuros, configDe, TYPES_ACTIVITE, noteEpingleeAffaire, heriterTest,
+  FILTRE_TESTS_DEFAUT, modeTestsValide, testsCorrespond,
 } from '../crm/logique.js';
 
 const C = COLLECTIONS_PLAN;
@@ -831,7 +832,7 @@ export function notesDuProjet(notesProjet = [], notesAffaire = [], projetId) {
 
 // ---------------------------------------------------------------- filtres (écran Projets)
 
-export const CRITERES_PROJETS_VIDES = Object.freeze({ recherche: '', phases: [], statuts: [], enRetard: false });
+export const CRITERES_PROJETS_VIDES = Object.freeze({ recherche: '', phases: [], statuts: [], enRetard: false, tests: FILTRE_TESTS_DEFAUT });
 
 /** Critères complets : les clés manquantes reprennent leur valeur vide (comme `criteresComplets` du CRM). */
 export function criteresProjetsComplets(c = {}) {
@@ -841,6 +842,7 @@ export function criteresProjetsComplets(c = {}) {
     // un filtre enregistré avant la suppression de la pause peut contenir « en_pause » : il se lit comme « actif » (sans doublon)
     statuts: [...new Set((c.statuts ?? []).map((s) => (s === 'en_pause' ? 'actif' : s)))],
     enRetard: !!c.enRetard,
+    tests: modeTestsValide(c.tests),
   };
 }
 
@@ -865,7 +867,7 @@ export function nouveauFiltreProjets(nom, criteres, filtres = [], suffixe = '') 
 /** Nombre de filtres posés (la recherche n'est pas un filtre : elle a son propre champ). */
 export function filtresProjetsActifs(c = {}) {
   const k = criteresProjetsComplets(c);
-  return [k.phases.length, k.statuts.length, k.enRetard ? 1 : 0].filter(Boolean).length;
+  return [k.phases.length, k.statuts.length, k.enRetard ? 1 : 0, k.tests !== FILTRE_TESTS_DEFAUT ? 1 : 0].filter(Boolean).length;
 }
 
 /**
@@ -880,6 +882,7 @@ export function filtrerProjets(projets, criteres, { personnes = [], organisation
   const nomOrganisation = new Map(organisations.map((o) => [o.id, o.nom]));
   return (projets || []).filter((p) => {
     if (!!p.archive !== !!archives) return false;
+    if (!testsCorrespond(c.tests, p)) return false;
     if (c.phases.length && !c.phases.includes(p.phase)) return false;
     if (c.statuts.length && !c.statuts.includes(statutProjetAffiche(p))) return false;
     if (c.enRetard && !estProjetEnRetard(p, taches.filter((t) => t.projetId === p.id), aujourdhui)) return false;

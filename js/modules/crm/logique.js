@@ -710,6 +710,21 @@ export const estTest = (fiche) => fiche?.test === true;
  */
 export const sansTests = (liste) => (liste || []).filter((x) => !estTest(x));
 
+/** Filtre « Tests » des listes (PR 1c, 06/11/2026) : même vocabulaire que le paramètre `tests` des outils de l'assistant. Fonctions pures. */
+export const FILTRE_TESTS_DEFAUT = 'inclure';
+export const OPTIONS_FILTRE_TESTS = Object.freeze([
+  { valeur: 'inclure', libelle: 'Tout' },
+  { valeur: 'exclure', libelle: 'Sans les tests' },
+  { valeur: 'seulement', libelle: 'Seulement les tests' },
+]);
+/** Une valeur inconnue (ancien filtre enregistré, faute de frappe) se lit « Tout ». */
+export const modeTestsValide = (mode) => (OPTIONS_FILTRE_TESTS.some((o) => o.valeur === mode) ? mode : FILTRE_TESTS_DEFAUT);
+/** Vrai si la fiche passe le filtre : « exclure » garde les réels, « seulement » garde les essais, le reste garde tout. */
+export const testsCorrespond = (mode, fiche) => (mode === 'exclure' ? !estTest(fiche) : mode === 'seulement' ? estTest(fiche) : true);
+/** La liste selon le filtre (même règle que `selonTests` du serveur, functions/src/coeur/lecture.js l.33). */
+export const selonTests = (liste, mode) => (liste || []).filter((x) => testsCorrespond(mode, x));
+export const libelleFiltreTests = (mode) => OPTIONS_FILTRE_TESTS.find((o) => o.valeur === mode)?.libelle ?? '';
+
 /**
  * Mode test (PR 1a-2b-1) : héritage du repère À LA CRÉATION (jamais de cascade après coup). `parents` : les fiches liées à ce qu'on crée
  * (objet de fiches, par ex. { personne, organisation, affaire, projet, client }, chacune facultative). Si l'une porte `test: true`, la nouvelle fiche aussi. N'écrit JAMAIS `test: false` :
@@ -1846,14 +1861,14 @@ export function totauxColonne(affaires) {
 // ---------------------------------------------------------------- filtres
 
 export const CRITERES_PERSONNES_VIDES = Object.freeze({
-  recherche: '', etiquettes: [], organisations: [], sources: [], villes: [], archives: false,
+  recherche: '', etiquettes: [], organisations: [], sources: [], villes: [], archives: false, tests: FILTRE_TESTS_DEFAUT,
 });
 export const CRITERES_ORGANISATIONS_VIDES = Object.freeze({
-  recherche: '', etiquettes: [], secteurs: [], villes: [], archives: false,
+  recherche: '', etiquettes: [], secteurs: [], villes: [], archives: false, tests: FILTRE_TESTS_DEFAUT,
 });
 export const CRITERES_AFFAIRES_VIDES = Object.freeze({
   recherche: '', etapes: [], statuts: [], priorites: [], offres: [], sources: [], personnes: [], organisations: [],
-  enRetard: false, sansAction: false, semaine: false, archives: false,
+  enRetard: false, sansAction: false, semaine: false, archives: false, tests: FILTRE_TESTS_DEFAUT,
 });
 
 const VIDES = { personnes: CRITERES_PERSONNES_VIDES, organisations: CRITERES_ORGANISATIONS_VIDES, affaires: CRITERES_AFFAIRES_VIDES };
@@ -1866,12 +1881,13 @@ export function criteresComplets(liste, c = {}) {
   }
   // Un filtre enregistré avant la suppression de la pause peut contenir « en_pause » : il se lit comme « ouverte » (sans doublon).
   if (liste === 'affaires') complet.statuts = [...new Set(complet.statuts.map((s) => (s === 'en_pause' ? 'ouverte' : s)))];
+  complet.tests = modeTestsValide(complet.tests);
   return complet;
 }
 
 export function criteresActifs(liste, c) {
   const complet = criteresComplets(liste, c);
-  return Object.entries(complet).some(([, v]) => (Array.isArray(v) ? v.length : !!v));
+  return Object.entries(complet).some(([cle, v]) => (Array.isArray(v) ? v.length > 0 : v !== VIDES[liste][cle]));
 }
 
 const inter = (liste, valeur) => !liste.length || liste.includes(valeur);
@@ -1891,6 +1907,7 @@ export function filtrerPersonnes(personnes, criteres, { organisations = [] } = {
   const orgs = new Map(organisations.map((o) => [o.id, o]));
   return personnes.filter((p) => {
     if (c.archives ? !estArchivee(p) : estArchivee(p)) return false;
+    if (!testsCorrespond(c.tests, p)) return false;
     if (!correspond(recherchePersonne(p, orgs.get(p.organisationId)?.nom), c.recherche)) return false;
     if (!interAvec(c.etiquettes, p.etiquettes)) return false;
     if (!inter(c.organisations, p.organisationId)) return false;
@@ -1904,6 +1921,7 @@ export function filtrerOrganisations(organisations, criteres) {
   const c = criteresComplets('organisations', criteres);
   return organisations.filter((o) => {
     if (c.archives ? !estArchivee(o) : estArchivee(o)) return false;
+    if (!testsCorrespond(c.tests, o)) return false;
     if (!correspond(normaliser([o.nom, o.ville, o.adresse, texteAdresses(o)].join(' \u0001 ')), c.recherche)) return false;
     if (!interAvec(c.etiquettes, o.etiquettes)) return false;
     if (!inter(c.secteurs, o.secteur)) return false;
@@ -1920,6 +1938,7 @@ export function filtrerAffaires(affaires, criteres, { activites = [], personnes 
   const dimanche = aujourdhui ? dimancheDeLaSemaine(aujourdhui) : null;
   return affaires.filter((a) => {
     if (c.archives ? !estArchivee(a) : estArchivee(a)) return false;
+    if (!testsCorrespond(c.tests, a)) return false;
     const botte = normaliser([a.titre, pers.get(a.personneId)?.nom, orgs.get(a.organisationId)?.nom].join(' \u0001 '));
     if (!correspond(botte, c.recherche)) return false;
     if (!inter(c.etapes, a.etape)) return false;
@@ -1956,6 +1975,7 @@ export function pastillesFiltres(liste, criteres, { offres = [], etiquettes = []
   if (c.enRetard) p.push({ cle: 'enRetard', valeur: true, libelle: 'En retard' });
   if (c.sansAction) p.push({ cle: 'sansAction', valeur: true, libelle: 'Sans action prévue' });
   if (c.semaine) p.push({ cle: 'semaine', valeur: true, libelle: 'À relancer cette semaine' });
+  if (c.tests && c.tests !== FILTRE_TESTS_DEFAUT) p.push({ cle: 'tests', valeur: c.tests, libelle: libelleFiltreTests(c.tests) });
   if (c.archives) p.push({ cle: 'archives', valeur: true, libelle: 'Archivées' });
   return p;
 }
