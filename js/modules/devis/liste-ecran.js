@@ -212,7 +212,7 @@ export function rendreListeDevis(conteneur) {
 
   function rendreTableau(lignes, maintenant, aujourdhui) {
     const colonnes = Li.regrouperParColonne(lignes, aujourdhui);
-    remplir(zone, h('div', { class: 'kanban tableau-devis-colonnes' }, colonnes.map((c) => { const entete = texteEnteteColonne(Li.totauxColonneDevis(c.devis), 'devis'); return h('section', { class: 'colonne', style: { '--couleur': Li.COULEURS_STATUT[c.id] ?? '#8d8993' }, dataset: { colonne: c.id } },
+    remplir(zone, h('div', { class: 'kanban tableau-devis-colonnes' }, colonnes.map((c) => { const entete = texteEnteteColonne(Li.totauxColonneDevis(c.devis, { sansMontant: c.id === 'brouillon' }), 'devis'); return h('section', { class: 'colonne', style: { '--couleur': Li.COULEURS_STATUT[c.id] ?? '#8d8993' }, dataset: { colonne: c.id } },
       h('header', { class: 'colonne-tete' }, h('h2', {}, c.libelle), h('span', { class: 'colonne-totaux' }, entete.principal),
         entete.tests ? h('span', { class: 'colonne-totaux-tests' }, `${entete.tests.nombre} `, badgeTest({ test: true }), entete.tests.montant ? ` · ${entete.tests.montant}` : '') : null),
       h('div', { class: 'colonne-corps' }, c.devis.length ? c.devis.map((d) => carte(d, maintenant, aujourdhui)) : h('p', { class: 'colonne-vide' }, 'Aucun devis')));

@@ -28,4 +28,9 @@ describe('3 totauxColonneDevis', () => {
     assert.equal(totauxColonneDevis([brouillon]).montant, 125);
     assert.equal(totauxColonneDevis([{ id: 'x', statut: 'brouillon', sections: 'illisible' }]).montant, 0);
   });
+  test('3b totauxColonneDevis sansMontant : nombre et nombreTests gardés, montants à 0', () => {
+    assert.deepEqual(totauxColonneDevis([fige('a', 100), fige('b', 120), fige('t', 100, { test: true })], { sansMontant: true }), { nombre: 3, montant: 0, nombreTests: 1, montantTests: 0 });
+    assert.deepEqual(totauxColonneDevis([], { sansMontant: true }), { nombre: 0, montant: 0, nombreTests: 0, montantTests: 0 });
+    assert.equal(totauxColonneDevis([fige('a', 100)], { sansMontant: false }).montant, 100);
+  });
 });
