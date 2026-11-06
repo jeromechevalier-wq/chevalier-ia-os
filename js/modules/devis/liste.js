@@ -147,13 +147,21 @@ export function filtrer(liste, { statuts = [], du = '', au = '', aujourdhui, tes
 
 const sansAccent = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-/** Recherche sur le numéro, le nom interne, le client et l'affaire (sans accent ni majuscule ; chaque mot doit se retrouver). `noms(d)` rend { client, affaire }. */
+const texteAdresse = (a) => (typeof a === 'string' ? a : (a && typeof a === 'object' && typeof a.texte === 'string' ? a.texte : ''));
+
+/** Le « chantier » d'un devis : l'adresse du chantier, sinon le libellé (objet) ; '' si rien (lecteur tolérant aux données mal formées). */
+export const chantierDe = (d) => {
+  const objet = typeof d?.objet === 'string' ? d.objet : '';
+  return String(texteAdresse(d?.chantier?.adresse) || texteAdresse(d?.adresses?.chantier) || objet).trim();
+};
+
+/** Recherche sur le numéro, le nom interne, le client, l'affaire, le chantier et le libellé du devis (sans accent ni majuscule ; chaque mot doit se retrouver). `noms(d)` rend { client, affaire }. */
 export function rechercher(liste, texte, noms = () => ({})) {
   const mots = sansAccent(texte).split(/\s+/).filter(Boolean);
   if (!mots.length) return liste;
   return liste.filter((d) => {
     const n = noms(d) ?? {};
-    const botte = sansAccent(`${d.numero ?? ''} ${d.nom ?? ''} ${n.client ?? ''} ${n.affaire ?? ''}`);
+    const botte = sansAccent(`${d.numero ?? ''} ${d.nom ?? ''} ${n.client ?? ''} ${n.affaire ?? ''} ${chantierDe(d)} ${typeof d.objet === 'string' ? d.objet : ''}`);
     return mots.every((m) => botte.includes(m));
   });
 }

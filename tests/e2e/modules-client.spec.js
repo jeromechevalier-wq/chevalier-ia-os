@@ -61,7 +61,7 @@ test.beforeEach(async () => {
     const maintenant = new Date();
     await ecrireDocument(`clients/devisseul/devis_devis/${id}`, {
       racineId: id, version: 1, numero: null, statut: 'brouillon', affaireId: null, personneId: 'pz', organisationId: null, modeMarge: 'majoration', marge: 25, tauxTvaDefaut: 20,
-      regimeTva: 'assujetti', autoliquidation: false, archive: false, dureeValiditeJours: 90, expireLe: '2099-12-31', objet: 'Rénovation', destinataires: ['zoe@exemple.test'],
+      regimeTva: 'assujetti', autoliquidation: false, archive: false, dureeValiditeJours: 90, expireLe: '2099-12-31', objet: 'Rénovation', adresses: id === 'dPret' ? { chantier: { texte: '12 rue des Lilas, 91000 Évry' } } : {}, destinataires: ['zoe@exemple.test'],
       sections: [{ id: 's1', titre: 'Cuisine', lignes }], chantier: CHANTIER_ESSAI, creePar: ALICE, modifiePar: ALICE, proprietaire: ALICE, creeLe: maintenant, modifieLe: maintenant,
     });
   }
@@ -480,18 +480,40 @@ test.describe('R14 Devis seul (sans Affaires ni Projets) : le socle commun porte
     expect(await listerDocuments('clients/devisseul/crm_affaires')).toHaveLength(0);
   });
 
-  test('R14-11 liste : colonne « Client », aucune puce « Sans affaire », recherche « Numéro ou client », lien du catalogue complet', async ({ page }, info) => {
+  test('R14-11 liste : colonne « Client », aucune puce « Sans affaire », recherche « Numéro, client ou chantier », lien du catalogue complet', async ({ page }, info) => {
     await ouvrir(page, 'devisseul', ALICE, 'devis/liste');
     await expect(page.locator('.page-liste-devis')).toBeVisible();
     await page.locator('.bascule-vue[data-vue="liste"]').click();
     await expect(page.locator('th', { hasText: 'Client' }).first()).toHaveText('Client');
     await expect(page.locator('.page-liste-devis')).not.toContainText('Client / Affaire');
     await expect(page.locator('[data-valeur="sans-affaire"]')).toHaveCount(0);
-    await expect(page.locator('[aria-label="Rechercher un devis"]')).toHaveAttribute('placeholder', 'Numéro ou client');
+    await expect(page.locator('[aria-label="Rechercher un devis"]')).toHaveAttribute('placeholder', 'Numéro, client ou chantier');
     await expect(page.locator('[data-action="ouvrir-bordereau"]')).toHaveAttribute('href', '#/espace/devisseul/devis/bordereau');
     await page.screenshot({ path: `${CAPTURES}15-devis-seul-liste-${info.project.name}.png`, animations: 'disabled' });
     await page.locator('.bascule-vue[data-vue="tableau"]').click();
     await expect(page.locator('.page-liste-devis')).not.toContainText('Sans affaire');
+  });
+
+  test('R14-16 la recherche de la liste lit le chantier (adresse, sinon objet) et le client', async ({ page }, info) => {
+    await ouvrir(page, 'devisseul', ALICE, 'devis/liste');
+    await page.locator('.bascule-vue[data-vue="liste"]').click();
+    const champ = page.locator('[aria-label="Rechercher un devis"]');
+    const lignes = page.locator('.ligne-devis');
+    await expect(lignes).toHaveCount(2);
+    await champ.fill('evry');
+    await expect(lignes).toHaveCount(1);
+    await expect(lignes.first()).toHaveAttribute('data-id', 'dPret');
+    await champ.fill('rénovation');
+    await expect(lignes).toHaveCount(2);
+    await champ.fill('zoé');
+    await expect(lignes).toHaveCount(2);
+    await champ.fill('zzz');
+    await expect(page.locator('.page-liste-devis')).toContainText('Aucun devis ne correspond.');
+    await champ.fill('evry');
+    await expect(lignes).toHaveCount(1);
+    await page.screenshot({ path: `${CAPTURES}16-devis-seul-recherche-${info.project.name}.png`, animations: 'disabled' });
+    await champ.fill('');
+    await expect(lignes).toHaveCount(2);
   });
 
   test('R14-12 menu « + » : Personne, Organisation, Devis ; « Personne » crée une vraie fiche', async ({ page }) => {

@@ -215,7 +215,7 @@ export function rendreListeDevis(conteneur) {
 
   conteneur.append(h('div', { class: 'page page-liste page-devis page-liste-devis' },
     enteteListe({ titre, compteur, actions: [h('a', { class: 'bouton bouton-secondaire', href: lien('devis/bordereau'), dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), h('a', { class: 'bouton bouton-secondaire', href: lien('devis/vocabulaire'), dataset: { action: 'ouvrir-vocabulaire' } }, icone('book-open', { taille: 16 }), 'Vocabulaire'), boutonNouveau] }),
-    barreListe({ recherche: { placeholder: D.surSocleSeul() ? 'Numéro ou client' : 'Numéro, client ou affaire', libelleAria: 'Rechercher un devis', valeur: recherche, surSaisie: (v) => { recherche = v; page = 1; rendre(); } },
+    barreListe({ recherche: { placeholder: D.surSocleSeul() ? 'Numéro, client ou chantier' : 'Numéro, client ou affaire', libelleAria: 'Rechercher un devis', valeur: recherche, surSaisie: (v) => { recherche = v; page = 1; rendre(); } },
       elements: { filtres: filtres.element, vues: bascule }, tri: choixTri.element }).element,
     avis, zone, pied));
 

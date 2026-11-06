@@ -90,6 +90,43 @@ describe('L3 recherche', () => {
   });
 });
 
+describe('L3 recherche (chantier)', () => {
+  test('S3-1 chantierDe : adresse du chantier > adresses.chantier > objet > vide', () => {
+    assert.equal(Li.chantierDe(d('x', { chantier: { adresse: { texte: '12 rue des Lilas' } }, adresses: { chantier: { texte: 'autre' } }, objet: 'Objet' })), '12 rue des Lilas');
+    assert.equal(Li.chantierDe(d('x', { adresses: { chantier: { texte: '5 rue B' } }, objet: 'Objet' })), '5 rue B');
+    assert.equal(Li.chantierDe(d('x', { adresses: { chantier: '3 rue de l’Atelier' }, objet: 'Objet' })), '3 rue de l’Atelier');
+    assert.equal(Li.chantierDe(d('x', { objet: 'Objet' })), 'Objet');
+    assert.equal(Li.chantierDe(d('x')), '');
+  });
+  test('S3-2 recherche sans accent ni majuscule sur le chantier', () => {
+    const l = [d('a', { adresses: { chantier: { texte: '12 rue des Lilas, Évry' } } }), d('b', { objet: 'Rénovation cuisine' })];
+    const noms = (x) => (x.id === 'a' ? { client: 'Dupont' } : {});
+    assert.deepEqual(ids(Li.rechercher(l, 'evry', noms)), ['a']);
+    assert.deepEqual(ids(Li.rechercher(l, 'RENOVATION', noms)), ['b']);
+    assert.deepEqual(ids(Li.rechercher(l, 'dupont lilas', noms)), ['a']);
+  });
+  test('S3-3 sans Affaires : rien ne plante, un mot d’affaire ne trouve rien', () => {
+    const l = [d('a', { objet: 'Cuisine' })];
+    assert.deepEqual(ids(Li.rechercher(l, 'cuisine')), ['a']);
+    assert.deepEqual(ids(Li.rechercher(l, 'client', () => ({ client: 'Client Zoé' }))), ['a']);
+    assert.deepEqual(Li.rechercher(l, 'salle', () => ({ client: 'Zoé' })), []);
+  });
+  test('S3-4 avec Affaires : les cas existants restent, l’objet s’ajoute', () => {
+    const l = [d('a', { objet: 'Terrasse' }), d('b')];
+    const noms = (x) => (x.id === 'b' ? { client: 'Dupont', affaire: 'Salle de bain' } : { client: 'Martin', affaire: 'Rénovation' });
+    assert.deepEqual(ids(Li.rechercher(l, 'salle', noms)), ['b']);
+    assert.deepEqual(ids(Li.rechercher(l, 'terrasse', noms)), ['a']);
+    assert.deepEqual(ids(Li.rechercher(l, 'renovation', noms)), ['a']);
+  });
+  test('S3-5 vide, rien trouvé, champs mal formés', () => {
+    const l = [d('a', { objet: null, adresses: 42, chantier: 'texte' }), d('b', { adresses: { chantier: {} } })];
+    assert.equal(Li.rechercher(l, '  ').length, 2);
+    assert.deepEqual(Li.rechercher(l, 'zzz'), []);
+    assert.equal(Li.chantierDe(l[0]), '');
+    assert.equal(Li.chantierDe(l[1]), '');
+  });
+});
+
 describe('L4 pagination', () => {
   const liste = Array.from({ length: 60 }, (_, i) => d(`d${i}`));
   test('L4 25 par défaut ; libellé « 1 à 25 sur 60 éléments »', () => {
