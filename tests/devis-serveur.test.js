@@ -327,6 +327,21 @@ describe('C5c devisEnregistrerEnvoi : l’historique des envois par e-mail', () 
     assert.deepEqual(leDevis(m, 'd1').envois.map((e) => e.date), [MAINTENANT, plusTard]);
     assert.deepEqual(leDevis(m, 'd1').envoyeLe, ENVOYE.envoyeLe);
   });
+  test('1 C5c une relance (origine « relance ») ajoute une ligne ; statut et envoyeLe ne bougent pas ; journal devisEnregistrerEnvoi', async () => {
+    const m = monde([brouillon('d1', ENVOYE)]);
+    await S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', destinataires: ['client@exemple.test'], origine: 'relance' });
+    const d = leDevis(m, 'd1');
+    assert.equal(d.statut, 'envoye');
+    assert.deepEqual(d.envoyeLe, ENVOYE.envoyeLe);
+    assert.deepEqual(d.envois, [{ date: MAINTENANT, destinataires: ['client@exemple.test'], copie: [], origine: 'relance' }]);
+    assert.equal(m.collections[C.audit].at(-1).outil, 'devisEnregistrerEnvoi');
+  });
+  test('2 C5c une origine inconnue est refusée (demande_invalide) et le message cite les trois origines', async () => {
+    const m = monde([brouillon('d1', ENVOYE)]);
+    await assert.rejects(S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', destinataires: ['client@exemple.test'], origine: 'auto' }),
+      (e) => e.code === 'demande_invalide' && ['brouillon_logiciel', 'hors_logiciel', 'relance'].every((o) => e.message.includes(o)));
+    assert.equal(leDevis(m, 'd1').envois, undefined);
+  });
   test('C5c journal d’audit et copie « avant » écrits dans la même transaction (devisEnregistrerEnvoi, champ envois)', async () => {
     const m = monde([brouillon('d1', ENVOYE)]);
     await S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', destinataires: ['client@exemple.test'] });

@@ -349,8 +349,9 @@ export async function remettreCompteurTest({ donnees, ctx }) {
 // Un renvoi garde donc les deux dates. Le navigateur n'écrit jamais `envois` (les règles Firestore ne lui laissent que le brouillon) : tout passe ici, journal compris.
 export const MAX_ENVOIS = 100;
 export const MAX_ADRESSES_ENVOI = 10;
-/** D'où est parti l'e-mail enregistré (29/10/2026, sans migration : les anciennes lignes n'ont pas ce champ). Le logiciel ne fait que PRÉPARER un brouillon ; l'envoi est toujours fait par la personne. */
-export const ORIGINES_ENVOI = Object.freeze(['brouillon_logiciel', 'hors_logiciel']);
+/** D'où est parti l'e-mail enregistré (29/10/2026, sans migration : les anciennes lignes n'ont pas ce champ). Le logiciel ne fait que PRÉPARER un brouillon ; l'envoi est toujours fait par la personne.
+ * `relance` (06/11/2026) : la personne a envoyé elle-même un e-mail de relance d'un devis resté sans réponse ; c'est une ligne d'envoi de plus, le statut « Envoyé » et `envoyeLe` ne bougent pas. */
+export const ORIGINES_ENVOI = Object.freeze(['brouillon_logiciel', 'hors_logiciel', 'relance']);
 
 /** Liste d'adresses nettoyée (espaces ôtés, doublons ignorés sans tenir compte de la casse). Une adresse invalide refuse toute la demande. */
 function adressesDeEnvoi(valeur, { nom, minimum }) {

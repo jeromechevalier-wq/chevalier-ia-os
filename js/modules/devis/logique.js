@@ -46,6 +46,8 @@ export const MENTION_AUTOLIQUIDATION = 'Autoliquidation de la TVA (article 283-2
 export const MENTION_SIGNATURE = 'Reçu avant l\'exécution des travaux, bon pour accord. Date et signature du client :';
 export const ERREUR_MARGE_100 = 'En calcul comptable, la marge doit rester inférieure à 100 %.';
 export const DUREE_VALIDITE_DEFAUT = 90;
+/** Délai (en jours) après lequel un devis envoyé resté sans réponse apparaît dans les relances à faire (06/11/2026, réglable : `delaiRelanceJours`). */
+export const DELAI_RELANCE_DEFAUT = 10;
 /** Types de remise (visible du client, contrairement à la marge) : `devis.remise = { type, valeur }` ou null. */
 export const TYPES_REMISE = ['pourcentage', 'montant'];
 /** Moments de l'acompte et leurs textes imprimés (le moment « libre » prend `texteMoment`). */
