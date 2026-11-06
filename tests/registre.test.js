@@ -69,8 +69,10 @@ describe('socle commun (PR B) : SOCLE hors des modules, dépendances inchangées
   test('B1 SOCLE existe, gelé, hors de MODULES_DECLARES : « contacts » n\'est ni un module, ni un interrupteur, ni activable', () => {
     assert.equal(SOCLE.id, 'contacts');
     assert.equal(SOCLE.nom, 'Contacts');
-    // PR C1 : B1 disait « aucun outil » parce qu'aucun module ne tournait sur le socle seul ; le socle ne crée aucun outil, il en prête sept d'Affaires (jamais les suppressions).
-    assert.deepEqual([...SOCLE.outilsMcp], ['chercher', 'lire_personne', 'lire_organisation', 'creer_personne', 'creer_organisation', 'modifier_personne', 'modifier_organisation']);
+    // PR C1 : B1 disait « aucun outil » parce qu'aucun module ne tournait sur le socle seul ; le socle ne crée aucun outil, il en prête neuf d'Affaires (jamais les suppressions ; marquer_test / demarquer_test depuis le 06/11/2026).
+    assert.deepEqual([...SOCLE.outilsMcp], ['chercher', 'lire_personne', 'lire_organisation', 'creer_personne', 'creer_organisation', 'modifier_personne', 'modifier_organisation', 'marquer_test', 'demarquer_test']);
+    assert.ok(!SOCLE.outilsMcp.includes('supprimer_tous_les_tests'));
+    assert.ok(!SOCLE.outilsMcp.some((n) => /^supprimer_|restaurer_depuis_audit/.test(n)));
     for (const n of SOCLE.outilsMcp) assert.ok(moduleDeclare('affaires').outilsMcp.includes(n), n);
     assert.deepEqual([...SOCLE.collections], ['crm_personnes', 'crm_organisations', 'crm_evenements']);
     assert.throws(() => { 'use strict'; SOCLE.collections.push('x'); }, TypeError);
