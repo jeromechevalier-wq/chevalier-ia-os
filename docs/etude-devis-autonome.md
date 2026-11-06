@@ -270,6 +270,7 @@ Chaque PR : une seule idée, fusionnée le jour même. **Rien de visible chez J�
 | **11** | **FAITE (PR n°…, 06/11)** : origine `relance`, réglage `delaiRelanceJours` (10), règle pure `relances.js` (`devisARelancer`) ; aucune collection, aucune règle, aucun outil MCP nouveau. Reste l'écran (ligne 12). Ancien texte : **Relances côté serveur** (H.4, option (a)) : origine `relance` dans `ORIGINES_ENVOI` et `LIBELLES_ORIGINE_ENVOI`, libellé de `enregistrer_envoi_devis`, réglage du délai (10 jours, plus court que la validité) ; **aucune collection, aucune règle** | aucune | **obligatoire** (serveur, données) | rien |
 | **12** | **À faire** : **Relances côté écran** : écran « Relances », bouton « Préparer l'e-mail de relance » (même fenêtre, brouillon Gmail, jamais d'envoi), cas vide et cas d'erreur | 7, 11 | **obligatoire** (nouvel écran, e-mail) | un écran Relances |
 | **13** | **À faire** : **Recette de bout en bout** : portail Devis puis portail complet sur les mêmes données (une fiche créée d'un côté, vue de l'autre), devis finalisé sans affaire puis rattaché, docs (`deploiement-client.md`, `activer-desactiver-modules.md`) | 1 à 12 | non (docs) | rien |
+| **14** | **FAITE (PR de cette session, 06/11)** : recherche de la liste des devis sur le chantier (chantierDe : adresse du chantier, sinon objet), placeholder « Numéro, client ou chantier » en Devis seul (H.3) ; même botte avec Affaires actif ; R14-11 adapté, R14-16, L3 | 6 | non requise (logique pure, libellé) | rien |
 
 Ordre conseillé : (1 → 2, 3 → 4 en parallèle) → 5 → 6 (après la PR 508) → 7 → 8 → 9 → (11 → 12, puis 10 après la PR 510) → 13. **11 PR sur 13 exigent Fable** (1 à 8, 10, 11, 12). Un déploiement des fonctions et du MCP chez les clients suit les PR 3, 4, 8 et 11 (Jérôme le lance). **Aucune règle Firestore à publier.**
 
@@ -322,7 +323,7 @@ Depuis la 2e décision de Jérôme (04/11/2026, partie B), **Clients** n'est plu
 
 ### H.3 « Chantier » en Devis seul
 
-La plaquette dit « chantier ». En Devis seul il n'y a **pas d'affaire** ; la colonne et la recherche « chantier » se lisent ainsi. *Décision prise seul :* le **chantier d'un devis** est son **adresse de chantier** (`adresses.chantier`, déjà lue par `document.js:226` et l'éditeur `editeur-ecran.js:1001`), et, si elle est vide, le **libellé (objet) du devis**. La recherche « Numéro, client ou chantier… » (aujourd'hui « Numéro, client ou affaire », `liste-ecran.js:88`) lit ces champs quand Affaires n'est pas actif ; avec Affaires actif le texte reste « affaire ». *Question restante :* Jérôme préfère-t-il « adresse du chantier » seule, ou « libellé du devis » seul ?
+La plaquette dit « chantier ». En Devis seul il n'y a **pas d'affaire** ; la colonne et la recherche « chantier » se lisent ainsi. *Décision prise seul :* le **chantier d'un devis** est son **adresse de chantier** (`adresses.chantier`, déjà lue par `document.js:226` et l'éditeur `editeur-ecran.js:941`), et, si elle est vide, le **libellé (objet) du devis**. La recherche « Numéro, client ou chantier… » (aujourd'hui « Numéro, client ou affaire », `liste-ecran.js:218`) lit ces champs quand Affaires n'est pas actif ; avec Affaires actif le texte reste « affaire ». *Question restante :* Jérôme préfère-t-il « adresse du chantier » seule, ou « libellé du devis » seul ?
 
 ### H.4 « Relances » : devis envoyés sans réponse
 
