@@ -1,5 +1,37 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 07/11/2026 : journée du 06/11/2026 (PR 530 à 536)
+
+Tableau des choses à faire : `.github/A-FAIRE.md`. Version 2.37.0 (cette PR). Étude Devis seul : `docs/etude-devis-autonome.md` (tableau G : reste S4 à S9).
+
+**Réponses de Jérôme du 06/11** (aux questions du rapport du 05/11) : 1 finalisation conditionnelle confirmée ; 2 pas de socle sans module actif confirmé ; 3 un `DEV-` marqué test n'est jamais supprimé en lot ; 4 les événements d'une affaire de test partent avec elle ; 5 restaurer un `DEV-` reste permis ; 6 garde-fou « > 1000 documents » : **pas de réponse, reste ouverte** ; 7 `marquer_test` / `demarquer_test` prêtés au socle (531), pas `supprimer_tous_les_tests` ; 8 filtre « Tests » : fait (530). Vocabulaire : « test », jamais « essai ».
+
+**Questions ouvertes pour Jérôme**
+(a) Toujours en attente : condition de paiement autre que l'acompte ; mention « Gestion des déchets » sur le PDF officiel ; adresse tapée en conversation utilisable par l'assistant ; prix par module ; secteur de l'agence ; logiciel de facturation ; sauvegarde du VPS n8n ; commits locaux non poussés ; dates des clés de la page Maintenance ; garde-fou « > 1000 documents ».
+(b) Relances (533) : délai 7 / 10 / 15 jours ? « Relancé le … » ou « Relance envoyée le … » ? Exclure les devis de test des relances (aujourd'hui inclus) ? Un outil `lister_relances` (changerait le compte 84) ?
+(c) Recherche du chantier (536) : garder adresse + libellé ? « chantier » aussi chez toi ?
+(d) Montant des tests dans l'en-tête avec « Seulement les tests » : répondu par la 532.
+
+| Sujet | PR | État |
+|---|---|---|
+| Mode test PR 1c : filtre « Tests » dans les listes | 530 | fusionnée (09:56 UTC) ; hosting clients fait |
+| `marquer_test` / `demarquer_test` dans le socle (Devis seul = 37) | 531 | fusionnée ; déploiements fonctions + mcp chez les clients faits |
+| Kanban Affaires : « tests : 100 € » dans l'en-tête des colonnes ; libellé « Test de bout en bout » | 532 | fusionnée (12:44 UTC) ; hosting clients fait |
+| Devis seul suite 1 : relances étape 1 (origine `relance`, `delaiRelanceJours` 10, `devisARelancer`) | 533 | fusionnée (13:11 UTC) ; fonctions + mcp chez les clients faits |
+| Devis seul suite 2 : fiches du socle dans l'export Devis | 535 | fusionnée (13:57 UTC) ; hosting clients fait |
+| Devis seul suite 3 : recherche de la liste des devis sur le chantier | 536 | fusionnée (14:30 UTC) ; hosting clients fait |
+| Docs de la journée, décisions du 06/11, leçons, version 2.37.0 | cette PR | brouillon |
+
+Le numéro 534 n'est pas une PR (introuvable dans le dépôt).
+
+- **État de la nuit GitHub** : « Tests de nuit » (`tests-nuit.yml`, sur `main`) : run 109 (#530), 110 (#531), 111 (#532), 113 (#535) verts ; **run 112 (#533) rouge, cause non lue ici** (le run 113, juste après, est vert) ; run 114 (#536) en cours au moment de l'écriture : non vérifié.
+- **Déploiements chez les clients** : faits par la session principale avec l'accord de Jérôme : `fonctions` puis `mcp` pour 531 et 533 (réussis), `hosting` pour 532, 535, 536. Le Déploiement chez les clients n'a rien d'autre à faire.
+- **Pas pu être vérifié** : les écrans chez un vrai client Devis seul ; les données de Jérôme.
+- **Suivis mineurs** (13 défauts de code relevés par les relectures, non corrigés) : voir `.github/A-FAIRE.md`, section du 06/11.
+- **Ce que Jérôme doit faire** : (1) répondre aux questions ouvertes ; (2) fusionner cette PR (ou la session principale) ; (3) recette 533 (Réglages > Devis : champ « Relancer un devis envoyé sans réponse après (jours) » = 10 ; 90 refusé), 535 (l'export contient `crm_personnes`…), 536 (recherche « Évry »).
+
+---
+
 ## Rapport du matin du 06/11/2026 : journée du 05/11/2026 (PR 500 à 526 et 528)
 
 Tableau des choses à faire : `.github/A-FAIRE.md`. Version 2.36.0 (cette PR). Étude Devis seul : `docs/etude-devis-autonome.md` (section J : audit d'indépendance des modules).
