@@ -1860,6 +1860,16 @@ export function totauxColonne(affaires) {
   return { nombre: affaires.length, montant: somme(sansTests(affaires)), nombreTests: tests.length, montantTests: somme(tests) }; // le NOMBRE compte les cartes affichées ; le MONTANT exclut les tests, qui ont leur propre total
 }
 
+/** Textes de l'en-tête d'une colonne de Kanban (Affaires et Devis) : « 14 affaires · 552,47 € » puis, s'il y a des tests, « 2 affaires [TEST] · 500 € » (l'écran pose le badge entre le nombre et le montant). mot : « affaire » (pluriel en s) ou « devis » (invariable). Jamais « 0 € », jamais « 1 affaires ». */
+export function texteEnteteColonne(totaux, mot) {
+  const libelle = (n) => `${n} ${n > 1 && mot !== 'devis' ? `${mot}s` : mot}`;
+  const principal = totaux.montant ? `${libelle(totaux.nombre)} · ${formatEuros(totaux.montant)}` : libelle(totaux.nombre);
+  const tests = totaux.nombreTests
+    ? { nombre: libelle(totaux.nombreTests), montant: totaux.montantTests ? formatEuros(totaux.montantTests) : null }
+    : null;
+  return { principal, tests };
+}
+
 // ---------------------------------------------------------------- filtres
 
 export const CRITERES_PERSONNES_VIDES = Object.freeze({

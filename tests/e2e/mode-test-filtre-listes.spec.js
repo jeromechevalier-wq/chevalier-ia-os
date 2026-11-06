@@ -82,7 +82,7 @@ test('2 par défaut tout s’affiche, badge compris, sans pastille de compte, mo
   await connecter(page);
   await allerA(page, 'Affaires');
   await expect(page.locator('.carte-affaire')).toHaveCount(3);
-  await expect(page.locator('.badge-test')).toHaveCount(1);
+  await expect(page.locator('.carte-affaire .badge-test')).toHaveCount(1);
   await expect(compteur(page)).toHaveCount(0);
   await capturer(page, info, '2-defaut');
   await ouvrirMenuUtilisateur(page);
@@ -111,19 +111,19 @@ test('3 « Sans les tests » sur Personnes puis Organisations : seules les ligne
   }
 });
 
-test('4 « Seulement les tests » sur le Kanban des affaires : seules les cartes [TEST], l’en-tête dit « 1 affaire » sans total réel et « tests : 100 € » ; Liste puis Archives gardent le filtre', async ({ page }, info) => {
+test('4 « Seulement les tests » sur le Kanban des affaires : seules les cartes [TEST], l’en-tête dit « 1 affaire » sans total réel et « 1 affaire [TEST] · 100 € » ; Liste puis Archives gardent le filtre', async ({ page }, info) => {
   await jeu();
   await connecter(page);
   await allerA(page, 'Affaires');
   const totaux = page.locator('.colonne[data-colonne="rdv_fixe"] .colonne-totaux');
-  await expect(totaux).toHaveText('2 100 € · 3 affaires');
+  await expect(totaux).toHaveText('3 affaires · 2 100 €');
   const totauxTests = page.locator('.colonne[data-colonne="rdv_fixe"] .colonne-totaux-tests');
-  await expect(totauxTests).toHaveText('tests : 100 €');
+  await expect(totauxTests).toHaveText('1 affaire [TEST] · 100 €');
   await poserTests(page, 'seulement');
   await expect(page.locator('.carte-affaire')).toHaveCount(1);
   await expect(page.locator('.carte-affaire[data-affaire="aT"]')).toContainText('[TEST]');
   await expect(totaux).toHaveText('1 affaire');
-  await expect(totauxTests).toHaveText('tests : 100 €');
+  await expect(totauxTests).toHaveText('1 affaire [TEST] · 100 €');
   await capturer(page, info, '4-seulement-kanban');
   await page.locator('.bascule-vue[data-vue="liste"]').click();
   await expect(page.locator('tr.ligne-liste')).toHaveCount(1);
@@ -156,7 +156,7 @@ test('5 Projets : « Seulement les tests » filtre, pose la pastille, « Enregis
   await capturer(page, info, '5-projets-enregistre');
 });
 
-test('6 Devis : « Sans les tests » en Liste et en Kanban, le compteur dit « 2 devis · 1 affiché », la colonne « Brouillon » dit « 1 devis », la pastille de compte vaut 1', async ({ page }, info) => {
+test('6 Devis : « Sans les tests » en Liste et en Kanban, le compteur dit « 2 devis · 1 affiché », la colonne « Brouillon » dit « 1 devis · 125 € », la pastille de compte vaut 1', async ({ page }, info) => {
   await jeu({ devisAussi: true });
   await connecter(page, undefined, { route: 'devis/liste' });
   await expect(page.locator('.page-liste-devis')).toBeVisible();
@@ -168,7 +168,7 @@ test('6 Devis : « Sans les tests » en Liste et en Kanban, le compteur dit « 2
   await expect(page.locator('.compteur-liste')).toHaveText('2 devis · 1 affiché');
   await expect(compteur(page)).toHaveText('1');
   await page.locator('.bascule-vue[data-vue="tableau"]').click();
-  await expect(page.locator('.colonne[data-colonne="brouillon"] .colonne-totaux')).toHaveText('1 devis');
+  await expect(page.locator('.colonne[data-colonne="brouillon"] .colonne-totaux')).toHaveText(/^1 devis · 125 €$/);
   await capturer(page, info, '6-devis');
   await page.locator('.bascule-vue[data-vue="archives"]').click();
   await expect(compteur(page)).toHaveText('1');
@@ -238,7 +238,7 @@ test('10 un filtre enregistré d’avant cette PR (sans clé tests) se lit « To
   await page.locator('[data-action="filtres-enregistres"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Ancien' }).click();
   await expect(page.locator('.carte-affaire')).toHaveCount(3);
-  await expect(page.locator('.badge-test')).toHaveCount(1);
+  await expect(page.locator('.carte-affaire .badge-test')).toHaveCount(1);
   await page.locator('[data-action="filtres-enregistres"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Bizarre' }).click();
   await expect(compteur(page)).toHaveCount(0);
