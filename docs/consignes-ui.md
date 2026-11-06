@@ -118,6 +118,7 @@ Zone « En préparation » au-dessus de « À valider » (masquée si vide). Les
 Indicateurs : une ligne basse par indicateur, l'explication « Comment c'est calculé » est derrière l'icône « i » (survol, clavier, toucher ; `iconeInfo` est dans `js/os/ui.js`). Phases des projets et Étapes des affaires : une ligne par emplacement, explication sur une ligne qui grandit avec le texte, à côté de la case « Proposer une action ». Mesuré à 1280 px : −41 % et −38 % ; sur téléphone jamais plus haut qu'avant, zones de clic de 44 px. Le menu « Trier par » dit « Date de création ».
 
 ## Module Devis : règles apprises (24/10/2026)
+- **Relances (06/11/2026)** : le logiciel n'envoie jamais de relance ; il montre les devis « Envoyé » sans réponse après le délai réglé (10 jours par défaut, plus court que la durée de validité), et la personne relance elle-même, puis enregistre l'envoi avec l'origine `relance` (historique : « Relancé le … »).
 - **Un écran, deux onglets** : un document qu'on écrit a **Édition** et **Prévisualisation** (ce que le client verra), jamais de sous-onglets en plus.
 - **Fenêtre de sortie** : quitter l'éditeur avec des changements non enregistrés ouvre une fenêtre à trois choix : **Rester**, **Quitter** (sans enregistrer), **Enregistrer et quitter**.
 - **Bandeau « modifié ailleurs »** : si le devis a changé pendant qu'on l'éditait (autre onglet, assistant), un bandeau le dit et propose de recharger ; on n'écrase jamais en silence.

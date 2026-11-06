@@ -64,7 +64,7 @@ const enMillis = (t) => {
   return Number.isFinite(ms) ? ms : null;
 };
 /** D'où est parti l'e-mail (29/10/2026, champ facultatif de la ligne d'envoi : les anciennes lignes n'en ont pas). Le logiciel ne fait que préparer un brouillon ; l'envoi est toujours fait par la personne. */
-export const LIBELLES_ORIGINE_ENVOI = Object.freeze({ brouillon_logiciel: 'depuis le brouillon du logiciel', hors_logiciel: 'hors logiciel' });
+export const LIBELLES_ORIGINE_ENVOI = Object.freeze({ brouillon_logiciel: 'depuis le brouillon du logiciel', hors_logiciel: 'hors logiciel', relance: 'relance' });
 const FORMAT_JOUR = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric' });
 const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 /** Écart sous lequel `envoyeLe` et le premier envoi de la liste sont le même envoi (le statut est posé juste avant l'historique). */
@@ -85,6 +85,7 @@ export function historiqueEnvois(devis) {
     const heure = FORMAT_HEURE.format(new Date(e.ms)).replace(':', ' h ');
     const aQui = e.destinataires.length ? ` à ${e.destinataires.join(', ')}` : '';
     const copie = e.copie.length ? `, en copie : ${e.copie.join(', ')}` : '';
+    if (e.origine === 'relance') return { ...e, jour, heure, texte: `Relancé le ${jour} (${heure})${aQui}${copie}` }; // une relance se dit par le verbe, sans parenthèse d'origine
     const origine = e.origine ? ` (${LIBELLES_ORIGINE_ENVOI[e.origine]})` : '';
     return { ...e, jour, heure, texte: `Envoyé le ${jour} (${heure})${aQui}${copie}${origine}` };
   });

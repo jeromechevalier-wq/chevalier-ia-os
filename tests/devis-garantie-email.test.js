@@ -297,13 +297,15 @@ describe('4 enregistrer_envoi_devis : « depuis le brouillon du logiciel » ou �
     assert.equal(a.dernierEnvoi.origine, 'brouillon_logiciel');
     const b = ok(await s.appeler('biblio', 'enregistrer_envoi_devis', { id: 'e1', destinataires: EMAIL, origine: 'hors_logiciel' }));
     assert.equal(b.dernierEnvoi.origine, 'hors_logiciel');
+    const r = ok(await s.appeler('biblio', 'enregistrer_envoi_devis', { id: 'e1', destinataires: EMAIL, origine: 'relance' }));
+    assert.equal(r.dernierEnvoi.origine, 'relance');
     const c = ok(await s.appeler('biblio', 'enregistrer_envoi_devis', { id: 'e1', destinataires: EMAIL }));
     assert.equal('origine' in c.dernierEnvoi, false, 'sans origine : la ligne reste comme les anciennes');
     refuse(await s.appeler('biblio', 'enregistrer_envoi_devis', { id: 'e1', destinataires: EMAIL, origine: 'gmail_de_lassistant' }));
     const envois = s.doc('devis_devis', 'e1').envois;
-    assert.deepEqual(envois.map((e) => e.origine), ['brouillon_logiciel', 'hors_logiciel', undefined]);
+    assert.deepEqual(envois.map((e) => e.origine), ['brouillon_logiciel', 'hors_logiciel', 'relance', undefined]);
     const lu = ok(await s.appeler('lecteur', 'lire_devis', { id: 'e1' }));
-    assert.equal(lu.envois.length, 3);
+    assert.equal(lu.envois.length, 4);
   });
 
   test('4 la description demande de toujours renseigner l’origine', () => {

@@ -103,6 +103,13 @@ describe('5 historique des envois', () => {
       'Envoyé le 27/10/2026 (14 h 05) à b@x.fr', 'Envoyé le 28/10/2026 (14 h 05) à b@x.fr',
     ]);
   });
+  test('4 une relance se dit « Relancé le … » sans parenthèse d’origine ; une ligne sans origine reste « Envoyé le … » (aucune migration)', () => {
+    const h = E.historiqueEnvois({ envois: [
+      { date: t('2026-10-20T08:00:00Z'), destinataires: ['a@x.fr'], copie: [] },
+      { date: t('2026-11-05T13:05:00Z'), destinataires: ['b@x.fr'], copie: [], origine: 'relance' },
+    ] });
+    assert.deepEqual(h.map((l) => l.texte), ['Envoyé le 20/10/2026 (10 h 00) à a@x.fr', 'Relancé le 05/11/2026 (14 h 05) à b@x.fr']);
+  });
   test('5 cas vide : ni envoi ni date -> liste vide ; des dates illisibles sont ignorées ; des Date et des textes ISO sont acceptés', () => {
     assert.deepEqual(E.historiqueEnvois({}), []);
     assert.deepEqual(E.historiqueEnvois({ envois: [{ date: 'n’importe quoi' }, null, {}] }), []);

@@ -15,7 +15,7 @@ const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, 
 /** Le brouillon part des réglages enregistrés ; les nombres restent du texte tant qu'on tape. */
 const brouillonDe = (r) => ({
   nomBordereau: r.nomBordereau, modeMarge: r.modeMarge, marge: String(r.marge).replace('.', ','), margeDevis: String(r.margeDevis).replace('.', ','), regimeTva: r.regimeTva, tauxProposes: [...r.tauxProposes],
-  tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), mentionEmetteur: r.mentionEmetteur, mentionTvaReduite: r.mentionTvaReduite, etapeAffaireCreee: r.etapeAffaireCreee, gestionDechets: r.gestionDechets !== false,
+  tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), delaiRelanceJours: String(r.delaiRelanceJours), mentionEmetteur: r.mentionEmetteur, mentionTvaReduite: r.mentionTvaReduite, etapeAffaireCreee: r.etapeAffaireCreee, gestionDechets: r.gestionDechets !== false,
   motOuvrage: r.motOuvrage, motOuvrageAutre: { singulier: r.motOuvrageAutre?.singulier ?? '', pluriel: r.motOuvrageAutre?.pluriel ?? '', genre: r.motOuvrageAutre?.genre ?? '' }, // recopiés : l'enregistrement est un setDoc sans fusion
   entreprise: entrepriseBrouillon(r.entreprise),
 });
@@ -198,7 +198,9 @@ export function reglages(page) {
       h('div', { class: 'ligne-champs' },
         bloc('regimeTva', 'Régime de TVA', liste('regimeTva', REGIMES_TVA.map((r) => ({ valeur: r.id, libelle: r.libelle })), brouillon.regimeTva, (v) => changer({ regimeTva: v })),
           'Franchise en base : pas de TVA sur les devis (mention « article 293 B du CGI »). Assujetti : la TVA est calculée. À faire valider par ton comptable.'),
-        bloc('dureeValiditeJours', 'Durée de validité d’un devis (jours)', texte('dureeValiditeJours', brouillon.dureeValiditeJours, { inputmode: 'numeric' }))),
+        bloc('dureeValiditeJours', 'Durée de validité d’un devis (jours)', texte('dureeValiditeJours', brouillon.dureeValiditeJours, { inputmode: 'numeric' })),
+        bloc('delaiRelanceJours', 'Relancer un devis envoyé sans réponse après (jours)', texte('delaiRelanceJours', brouillon.delaiRelanceJours, { inputmode: 'numeric' }),
+          'Passé ce délai, un devis envoyé resté sans réponse apparaît dans les relances à faire. Doit être plus court que la durée de validité.')),
       bloc('tauxProposes', 'Taux de TVA proposés', taux),
       bloc('tauxTvaDefaut', 'Taux de TVA par défaut', liste('tauxTvaDefaut', TAUX_TVA_DEFAUT.map((t) => ({ valeur: t, libelle: A.formaterTaux(t) })), brouillon.tauxTvaDefaut, (v) => changer({ tauxTvaDefaut: Number(v) }))),
       bloc('gestionDechets', 'Gestion des déchets', liste('gestionDechets', [{ valeur: 'oui', libelle: 'Oui' }, { valeur: 'non', libelle: 'Non' }], brouillon.gestionDechets ? 'oui' : 'non', (v) => changer({ gestionDechets: v === 'oui' })),

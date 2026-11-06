@@ -15,7 +15,7 @@ import {
   ecritureCreer, ecritureModifier, MARQUES_CREATION, MARQUES_MODIFICATION, normaliser, normaliserNom, nettoyerEspaces,
 } from '../crm/logique.js';
 import {
-  MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, DUREE_VALIDITE_DEFAUT, coefficientDeMarge, emailValide,
+  MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, DUREE_VALIDITE_DEFAUT, DELAI_RELANCE_DEFAUT, coefficientDeMarge, emailValide,
   LIMITE_ASSURANCE_TEXTE, LIMITE_COORDONNEES_BANCAIRES, LIMITE_MENTION_EMETTEUR, LIMITE_MENTION_TVA_REDUITE, nettoyerTexteLibre, assuranceDepuisAnciensChamps,
 } from './logique.js';
 import { TYPE_OUVRAGE, motOuvrage, majuscule, duMot, erreursOuvrage, articlesParId, calculerOuvrage, lireMotOuvrage, validerMotAutre, MOTS_OUVRAGE, MOT_OUVRAGE_AUTRE } from './ouvrages.js';
@@ -423,6 +423,7 @@ export const REGLAGES_DEVIS_DEFAUT = Object.freeze({
   tauxProposes: [...TAUX_TVA_DEFAUT],
   tauxTvaDefaut: TAUX_TVA_DEFAUT_REGLAGE,
   dureeValiditeJours: DUREE_VALIDITE_DEFAUT,
+  delaiRelanceJours: DELAI_RELANCE_DEFAUT, // jours sans réponse avant qu'un devis envoyé apparaisse dans les relances à faire (06/11/2026) ; toujours plus court que la durée de validité
   etapeDevis: '', // anciens réglages (étape des devis retirée le 28/10/2026, un devis vit à toutes les étapes) : gardés tels quels dans la base, plus modifiables
   etapeAFaire: '', // idem (25/10/2026)
   etapeEnvoye: '',
@@ -440,6 +441,8 @@ export function reglagesDevis(brut) {
   const d = REGLAGES_DEVIS_DEFAUT;
   const taux = Array.isArray(b.tauxProposes) ? b.tauxProposes.filter((t) => TAUX_TVA_DEFAUT.includes(t)) : [];
   const proposes = taux.length ? TAUX_TVA_DEFAUT.filter((t) => taux.includes(t)) : [...d.tauxProposes];
+  const duree = Number.isInteger(b.dureeValiditeJours) && b.dureeValiditeJours > 0 ? b.dureeValiditeJours : d.dureeValiditeJours;
+  const delaiSecours = Math.max(1, Math.min(DELAI_RELANCE_DEFAUT, duree - 1));
   return {
     nomBordereau: NOMS_BORDEREAU.includes(b.nomBordereau) ? b.nomBordereau : d.nomBordereau,
     ...lireMotOuvrage(b),
@@ -449,7 +452,8 @@ export function reglagesDevis(brut) {
     regimeTva: REGIMES_TVA.some((r) => r.id === b.regimeTva) ? b.regimeTva : d.regimeTva,
     tauxProposes: proposes,
     tauxTvaDefaut: proposes.includes(b.tauxTvaDefaut) ? b.tauxTvaDefaut : proposes[0],
-    dureeValiditeJours: Number.isInteger(b.dureeValiditeJours) && b.dureeValiditeJours > 0 ? b.dureeValiditeJours : d.dureeValiditeJours,
+    dureeValiditeJours: duree,
+    delaiRelanceJours: Number.isInteger(b.delaiRelanceJours) && b.delaiRelanceJours >= 1 && b.delaiRelanceJours < duree ? b.delaiRelanceJours : delaiSecours,
     etapeDevis: typeof b.etapeDevis === 'string' ? b.etapeDevis : '',
     etapeAFaire: typeof b.etapeAFaire === 'string' ? b.etapeAFaire : '',
     etapeEnvoye: typeof b.etapeEnvoye === 'string' ? b.etapeEnvoye : '',
@@ -494,6 +498,9 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT }
   if (proposes.length && !proposes.includes(tauxDefaut)) erreurs.tauxTvaDefaut = 'Le taux par défaut doit être l’un des taux proposés.';
   const jours = lireNombre(s.dureeValiditeJours);
   if (jours === null || !Number.isInteger(jours) || jours < 1 || jours > LIMITES.jours) erreurs.dureeValiditeJours = `La durée de validité est un nombre entier de jours, entre 1 et ${LIMITES.jours} (exemple : 90).`;
+  const delai = lireNombre(s.delaiRelanceJours);
+  if (delai === null || !Number.isInteger(delai) || delai < 1 || delai > LIMITES.jours) erreurs.delaiRelanceJours = `Le délai de relance est un nombre entier de jours, entre 1 et ${LIMITES.jours} (exemple : 10).`;
+  else if (!erreurs.dureeValiditeJours && delai >= jours) erreurs.delaiRelanceJours = `Le délai de relance doit être plus court que la durée de validité du devis (ici ${jours} jours).`;
   const mention = nettoyerTexteLibre(s.mentionEmetteur);
   if (mention.length > LIMITES.mention) erreurs.mentionEmetteur = `Le texte « Attestation et mentions » est trop long (${LIMITES.mention} caractères au plus).`;
   const mentionReduite = nettoyerTexteLibre(s.mentionTvaReduite);
@@ -517,6 +524,7 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT }
       tauxProposes: TAUX_TVA_DEFAUT.filter((t) => proposes.includes(t)),
       tauxTvaDefaut: tauxDefaut,
       dureeValiditeJours: jours,
+      delaiRelanceJours: delai,
       etapeDevis: s.etapeDevis || '', // anciens réglages : recopiés tels quels (rien n'est effacé de la base)
       etapeAFaire: s.etapeAFaire || '',
       etapeEnvoye: s.etapeEnvoye || '',
