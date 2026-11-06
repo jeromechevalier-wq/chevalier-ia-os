@@ -229,10 +229,10 @@ export function regrouperParColonne(liste, aujourdhui) {
   return colonnes;
 }
 
-/** Totaux d'une colonne du Kanban des devis, même forme que totauxColonne des Affaires : nombre (tests compris), montant HT réel (sans les tests), tests à part. Centimes exacts ; total illisible = 0. */
-export function totauxColonneDevis(devis) {
+/** Totaux d'une colonne du Kanban des devis, même forme que totauxColonne des Affaires : nombre (tests compris), montant HT réel (sans les tests), tests à part. `sansMontant` (colonne Brouillon : le HT bouge à chaque frappe) : montants à 0, nombres gardés. Centimes exacts ; total illisible = 0. */
+export function totauxColonneDevis(devis, { sansMontant = false } = {}) {
   const liste = devis || [];
-  const centimes = (l) => l.reduce((s, d) => s + Math.round((totauxDe(d)?.ht ?? 0) * 100), 0) / 100;
+  const centimes = (l) => sansMontant ? 0 : l.reduce((s, d) => s + Math.round((totauxDe(d)?.ht ?? 0) * 100), 0) / 100;
   const tests = liste.filter(estTest);
   return { nombre: liste.length, montant: centimes(liste.filter((d) => !estTest(d))), nombreTests: tests.length, montantTests: centimes(tests) };
 }
