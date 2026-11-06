@@ -6,7 +6,7 @@ import {
   liensEntete, afficherSelecteur, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
   lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, iconeInfo, EXPLICATION_STATUT_AFFAIRE, pastillesExternes, badgeTest, entreeMarquerTest
 } from './composants.js';
-import { surChangementPastilles, ongletsDeAffaire, actionDeAffaire } from './pastilles-externes.js';
+import { surChangementPastilles, ongletsDeAffaire, actionDeAffaire, etatDevisDeAffaire } from './pastilles-externes.js';
 import { panneauActivite } from './activites.js';
 import { creerOngletFichiers } from './fichiers-onglet.js';
 import { creerLanceurs } from './lanceurs.js';
@@ -86,7 +86,8 @@ export function rendreFicheAffaire(conteneur, id) {
       : champEstime.element;
     // Le libellé n'existe que s'il y a un chiffre à nommer (montant des devis ou montant saisi) ; un montant vide montre seulement « + Montant estimé ».
     const libelleEl = h('span', { class: 'fiche-montant-libelle', dataset: { role: 'libelle-montant' } }, libelleMontant);
-    const montantEl = h('div', { class: 'fiche-montant' }, blocMontant);
+    const origine = depuisDevis ? L.origineMontant(a, (numero, version) => etatDevisDeAffaire(a.id, numero, version)) : '';
+    const montantEl = h('div', { class: 'fiche-montant' }, blocMontant, origine ? h('span', { class: 'fiche-montant-origine', dataset: { role: 'origine-montant' } }, origine) : null);
     function majLibelleMontant(valeur) {
       const avec = depuisDevis || !(valeur === '' || valeur === null || valeur === undefined);
       montantEl.classList.toggle('avec-libelle', avec);

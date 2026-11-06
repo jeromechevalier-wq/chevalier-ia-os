@@ -642,6 +642,27 @@ export function detailMontant(a) {
   return phrases.join('\n'); // une phrase par ligne (la bulle de l'en-tête garde les retours à la ligne)
 }
 
+/**
+ * La ligne « d'où vient le chiffre » sous le montant de la fiche (jamais un numéro inventé). `etatDe(numero, version)` rend { mot, archive } ou null (module Devis éteint ou devis introuvable) :
+ * le mot se rabat alors sur la nature (« proposé » / « signé »). Rend '' pour un montant saisi à la main.
+ * Exemples : « Devis DEV-…-004, finalisé, archivé » ; « Devis signés : DEV-… + DEV-… v2 » ; « D'après les devis » (détail absent).
+ */
+export function origineMontant(a, etatDe = () => null) {
+  if (!montantVientDesDevis(a)) return '';
+  const compte = (Array.isArray(a.montantDevisDetail) ? a.montantDevisDetail : []).filter((l) => l && l.compte === true && l.numero);
+  if (!compte.length) return 'D’après les devis';
+  const nom = (l) => `${l.numero}${(l.version ?? 1) > 1 ? ` v${l.version}` : ''}`;
+  const nature = natureMontant(a);
+  if (compte.length === 1) {
+    let etat = null;
+    try { etat = etatDe(compte[0].numero, compte[0].version ?? 1); } catch { etat = null; }
+    const mot = etat?.mot || (nature === 'accepte' ? 'signé' : 'proposé');
+    return `Devis ${nom(compte[0])}, ${mot}${etat?.archive ? ', archivé' : ''}`;
+  }
+  if (compte.length <= 3) return `Devis signés : ${compte.map(nom).join(' + ')}`;
+  return `${compte.length} devis signés (détail dans le i)`;
+}
+
 export function formatEuros(n) {
   const v = Number(n) || 0;
   return new Intl.NumberFormat('fr-FR', {

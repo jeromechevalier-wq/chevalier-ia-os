@@ -3,18 +3,19 @@ import { enMs } from './liste.js';
 
 export const LIBELLE_CHARGEMENT = 'Chargement des devis…';
 export const LIBELLE_VIDE = 'Aucun devis pour cette affaire.';
+export const LIBELLE_ARCHIVE = 'Archivé';
 export const ERREUR_LECTURE_ONGLET = 'Les devis n’ont pas pu être chargés. Recharge la page.';
 
 const cleDate = (d) => enMs(d?.creeLe) ?? enMs(d?.finaliseLe) ?? 0;
 
 /**
  * Les devis de l'affaire, du plus récent au plus ancien (même clé que `devisRecentDeAffaire` : création, sinon finalisation, puis version).
- * Les devis archivés sont écartés ; les versions « Remplacé » restent (leur PDF est réel et a pu être envoyé).
+ * Les devis archivés restent (ils comptent dans le montant de l'affaire ; la ligne porte l'étiquette « Archivé ») ; les versions « Remplacé » aussi (leur PDF est réel et a pu être envoyé).
  */
 export function devisDeAffaire(devis, affaireId) {
   if (!affaireId) return [];
   return (devis ?? [])
-    .filter((d) => d?.affaireId === affaireId && d.archive !== true)
+    .filter((d) => d?.affaireId === affaireId)
     .sort((a, b) => (cleDate(b) - cleDate(a)) || ((b.version ?? 1) - (a.version ?? 1)));
 }
 
@@ -42,12 +43,13 @@ export const libelleLigneDevis = (d) => {
 export const routeVoirDevis = (d) => (brouillon(d) ? `devis/editeur/${d.id}` : `devis/voir/${d.id}`);
 
 /**
- * Le bouton d'action de l'en-tête de l'affaire : « Créer un devis » sans devis, « Voir le devis » (le plus récent) sinon ; rien tant que les devis ne sont pas lus.
+ * Le bouton d'action de l'en-tête de l'affaire : « Créer un devis » sans devis, « Voir le devis » (le plus récent non archivé, sinon le plus récent archivé) sinon ; rien tant que les devis ne sont pas lus.
  * Même si l'affaire est perdue ou gagnée : on a toujours envie de revoir le devis ; mais on n'y crée pas de nouveau devis (`ouverte` faux). Rend { mode: 'creer' } ou { mode: 'voir', route }.
  */
 export function actionEnteteDevis(devis, affaireId, pret, ouverte = true) {
   if (!pret || !affaireId) return null;
-  const dernier = devisDeAffaire(devis, affaireId)[0];
+  const tous = devisDeAffaire(devis, affaireId);
+  const dernier = tous.find((d) => d.archive !== true) ?? tous[0]; // le plus récent non archivé, sinon le plus récent archivé
   if (dernier) return { mode: 'voir', libelle: 'Voir le devis', route: routeVoirDevis(dernier) };
   return ouverte ? { mode: 'creer', libelle: 'Créer un devis' } : null; // pas de nouveau devis sur une affaire gagnée ou perdue
 }

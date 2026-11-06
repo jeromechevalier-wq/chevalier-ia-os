@@ -12,8 +12,8 @@ import { reglages as reglagesDuModule } from './reglages.js';
 import { retenirDevis } from './memoire.js';
 import { noterArrivee, oublierOrigine } from './origine.js';
 import * as CRM from '../crm/donnees.js';
-import { inscrirePastilleAffaire, inscrireOngletAffaire, inscrireActionAffaire, signaler } from '../crm/pastilles-externes.js';
-import { pastilleDevisDeAffaire } from './pastille-affaire.js';
+import { inscrirePastilleAffaire, inscrireEtatDevisAffaire, inscrireOngletAffaire, inscrireActionAffaire, signaler } from '../crm/pastilles-externes.js';
+import { pastilleDevisDeAffaire, etatDevisDeAffaire } from './pastille-affaire.js';
 import { creerDevisSansAffaire } from './actions-devis.js';
 import { ouvrirCreationPersonne } from '../crm/personnes.js';
 import { ouvrirCreationOrganisation } from '../crm/organisations.js';
@@ -46,6 +46,7 @@ export const actionsRapides = [ENTREE_DEVIS];
 let montee = null; // { cle, quitter }
 
 let retirerPastille = null;
+let retirerEtat = null;
 let retirerOnglet = null;
 let retirerAction = null;
 let arretSignal = null;
@@ -55,8 +56,10 @@ export function demarrer({ cheminBase = '' } = {}) {
   D.demarrer(cheminBase);
   actionsRapides.splice(0, actionsRapides.length, ...(D.surSocleSeul() ? ENTREES_SOCLE : []), ENTREE_DEVIS); // splice : le module reste en cache d'un client à l'autre
   // Pastille « Devis : … » sur les cartes et fiches d'affaire (seulement tant que le module tourne : éteint, le CRM n'affiche rien).
-  retirerPastille?.(); retirerOnglet?.(); retirerAction?.(); arretSignal?.();
+  retirerPastille?.(); retirerEtat?.(); retirerOnglet?.(); retirerAction?.(); arretSignal?.();
   retirerPastille = inscrirePastilleAffaire((affaireId) => (D.estPretDevis() ? pastilleDevisDeAffaire(D.etat.devis, affaireId, { aujourdhui: CRM.ctx().aujourdhui }) : null));
+  // Mot d'état du devis sous le montant de la fiche (« finalisé », « signé »…) : sans module prêt, la fiche se rabat sur la nature du montant.
+  retirerEtat = inscrireEtatDevisAffaire((affaireId, numero, version) => (D.estPretDevis() ? etatDevisDeAffaire(D.etat.devis, affaireId, numero, version, { aujourdhui: CRM.ctx().aujourdhui }) : null));
   // Onglet « Devis » à côté d'Activité / Notes / Documents (même règle : module éteint = rien d'inscrit = pas d'onglet). Un seul signal pour la pastille et l'onglet.
   retirerOnglet = inscrireOngletAffaire(ongletDevisDeAffaire);
   // Bouton d'action de l'en-tête de l'affaire, à côté de « Perdue » : « Créer un devis », ou « Voir le devis » quand il y en a déjà un.
@@ -74,6 +77,7 @@ export function arreter() {
   quitter();
   annulerAttentesPdf(); // une attente de PDF en cours ne doit rien faire après l'arrêt du module
   retirerPastille?.(); retirerPastille = null;
+  retirerEtat?.(); retirerEtat = null;
   retirerOnglet?.(); retirerOnglet = null;
   retirerAction?.(); retirerAction = null;
   oublierOnglets();

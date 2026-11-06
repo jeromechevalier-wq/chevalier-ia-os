@@ -15,24 +15,24 @@ const devis = [
 ];
 
 test('2 les devis de l’affaire sont triés du plus récent au plus ancien', () => {
-  assert.deepEqual(devisDeAffaire(devis, 'a1').map((d) => d.id), ['d4', 'd2', 'd1']);
+  assert.deepEqual(devisDeAffaire(devis, 'a1').map((d) => d.id), ['d4', 'd2', 'd1', 'd5']);
 });
 test('2 à date égale, la version la plus haute passe d’abord ; sans date de création, la date de finalisation compte', () => {
   const m = new Date(MAINT);
   assert.deepEqual(devisDeAffaire([{ id: 'x', affaireId: 'a', version: 1, creeLe: m }, { id: 'y', affaireId: 'a', version: 2, creeLe: m }], 'a').map((d) => d.id), ['y', 'x']);
   assert.deepEqual(devisDeAffaire([{ id: 'x', affaireId: 'a', finaliseLe: new Date(MAINT - JOUR) }, { id: 'y', affaireId: 'a', finaliseLe: new Date(MAINT) }], 'a').map((d) => d.id), ['y', 'x']);
 });
-test('9 un devis d’une autre affaire n’apparaît pas, un archivé non plus, un « Remplacé » oui', () => {
+test('9 un devis d’une autre affaire n’apparaît pas, un archivé et un « Remplacé » oui', () => {
   const ids = devisDeAffaire(devis, 'a1').map((d) => d.id);
   assert.ok(!ids.includes('d3'));
-  assert.ok(!ids.includes('d5'));
+  assert.ok(ids.includes('d5')); // l'archivé compte dans le montant : il apparaît
   assert.ok(ids.includes('d1'));
   assert.deepEqual(devisDeAffaire(devis, 'inconnue'), []);
   assert.deepEqual(devisDeAffaire(devis, ''), []);
   assert.deepEqual(devisDeAffaire(null, 'a1'), []);
 });
 test('2 le compteur est le nombre de lignes, et absent tant que les devis ne sont pas lus', () => {
-  assert.equal(compteurOnglet(devisDeAffaire(devis, 'a1'), true), 3);
+  assert.equal(compteurOnglet(devisDeAffaire(devis, 'a1'), true), 4);
   assert.equal(compteurOnglet([], true), 0);
   assert.equal(compteurOnglet([], false), null);
 });
@@ -53,7 +53,7 @@ test('12 l’écran de l’onglet ne propose de suppression que celle des brouil
   const src = readFileSync(new URL('../js/modules/devis/onglet-affaire.js', import.meta.url), 'utf8').replace(/\/\/.*$/gm, ''); // sans les commentaires
   assert.doesNotMatch(src.replace(/supprimerBrouillon|supprimer-devis|Supprimer le brouillon|enSuppression|supprimer\(/g, ''), /supprim|corbeille/i); // seule la croix des brouillons
   assert.match(src, /brouillon \? h\('button'/); // la croix n'existe que pour un brouillon
-  assert.doesNotMatch(src, /archiv/i);
+  assert.doesNotMatch(src, /archiver\(|Désarchiver|D\.archiver/); // pas d'action d'archivage (l'étiquette « Archivé » est un simple texte)
   assert.doesNotMatch(src, /bouton-principal/);
 });
 test('13 bouton d’en-tête : « Créer un devis » sans devis, « Voir le devis » (le plus récent) sinon, rien tant que les devis ne sont pas lus', () => {
@@ -62,7 +62,7 @@ test('13 bouton d’en-tête : « Créer un devis » sans devis, « Voir le devi
   assert.deepEqual(actionEnteteDevis(devis, 'a1', true), { mode: 'voir', libelle: 'Voir le devis', route: 'devis/editeur/d4' }); // le plus récent est le brouillon v3
   assert.deepEqual(actionEnteteDevis(devis, 'a2', true), { mode: 'voir', libelle: 'Voir le devis', route: 'devis/editeur/d3' });
   assert.deepEqual(actionEnteteDevis(devis, 'a3', true), { mode: 'creer', libelle: 'Créer un devis' });
-  assert.deepEqual(actionEnteteDevis([{ id: 'x', affaireId: 'a9', archive: true }], 'a9', true), { mode: 'creer', libelle: 'Créer un devis' }); // un archivé ne compte pas
+  assert.deepEqual(actionEnteteDevis([{ id: 'x', affaireId: 'a9', archive: true }], 'a9', true), { mode: 'voir', libelle: 'Voir le devis', route: 'devis/voir/x' }); // un archivé seul : « Voir le devis » (comme le montant)
   assert.equal(actionEnteteDevis(devis, 'a3', true, false), null); // affaire gagnée ou perdue sans devis : pas de « Créer un devis »
   assert.equal(actionEnteteDevis(devis, 'a1', true, false).mode, 'voir'); // mais « Voir le devis » reste
 });
