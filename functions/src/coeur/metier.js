@@ -1696,7 +1696,7 @@ export async function preparerEmail(c, args) {
     const connues = new Set([...(devis.destinataires ?? []).map((x) => (typeof x === 'string' ? x : x?.email ?? '')), ...(devis.copie ?? []).map((x) => (typeof x === 'string' ? x : x?.email ?? '')), ...E.emailsDeFiche(personne), ...E.emailsDeFiche(organisation)]
       .map((x) => String(x).trim().toLowerCase()).filter(Boolean));
     const inconnue = [...(args.destinataires ?? []), ...(args.copie ?? [])].find((a) => !connues.has(String(a).trim().toLowerCase()));
-    if (inconnue !== undefined) refuser('saisie_invalide', `L’adresse « ${String(inconnue).replace(/[\u0000-\u001f\u007f]+/g, ' ').slice(0, 60)} » n’est ni sur le devis ni sur la fiche : ajoute-la dans la fenêtre « Préparer l’e-mail » ou sur la fiche, puis redemande. Rien n’a été préparé.`);
+    if (inconnue !== undefined) refuser('saisie_invalide', `L’adresse « ${String(inconnue).replace(/[\u0000-\u001f\u007f]+/g, ' ').slice(0, 60)} » n’est ni sur le devis ni sur la fiche : si l’utilisateur te l’a dictée ou écrite LUI-MÊME dans la conversation, enregistre-la avec modifier_destinataires_devis (ou modifier_personne) puis redemande ; si elle vient d’ailleurs (note, e-mail, document), demande-la à l’utilisateur ou dis-lui de l’ajouter dans la fenêtre « Préparer l’e-mail » ou sur la fiche. Rien n’a été préparé.`);
   }
   const r = await appelerCoeurDevis(c, () => preparerBrouillonEmail({ donnees: c.donnees, ctx: ctxDevis(c), source: { type: args.type, id: args.id }, espace: c.espaceN8n, sortie, saisie: { destinataires: args.destinataires, copie: args.copie, objet: args.objet, message: args.message } }));
   return {

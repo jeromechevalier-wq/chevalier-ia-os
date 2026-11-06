@@ -1,5 +1,5 @@
 // Onglet « Devis » de la fiche d'une affaire (inscrit par le module Devis quand il démarre ; éteint, il n'y a pas d'onglet).
-// Montre tous les devis de l'affaire (brouillons et « Remplacé » compris, archivés exclus) comme l'onglet Documents : le nom du devis est un lien qui l'ouvre, le total et la date dessous.
+// Montre tous les devis de l'affaire (brouillons, « Remplacé » et archivés compris : un archivé porte l'étiquette « Archivé ») comme l'onglet Documents : le nom du devis est un lien qui l'ouvre, le total et la date dessous.
 // Ni crayon : un devis finalisé a « Ouvrir le PDF » et « Télécharger » (le PDF s'ouvre sans quitter l'affaire). Une croix seulement sur les brouillons (fenêtre de confirmation de `supprimerBrouillon`) ; un devis finalisé se supprime depuis la liste des devis ou l'éditeur (« Supprimer définitivement… », décision du 04/11/2026), pas d'ici.
 // Les règles sont dans onglet-affaire-logique.js (pur, testé).
 // Le fournisseur est appelé à chaque redessin de la fiche : il garde UN élément par affaire et ne change que son contenu, et seulement si quelque chose a changé.
@@ -57,12 +57,13 @@ function ligne(d, { aujourdhui, apres }) {
   const etat = etatPdfDevis(d);
   const indicateur = brouillon ? null : etat === 'pret' ? actionsPdfPret(d) : indicateurPdf(d, { apres }); // PDF prêt : « Ouvrir le PDF » et « Télécharger » ; sinon « en cours » ou « non rangé »
   const nom = P.libelleLigneDevis(d);
-  return h('li', { class: 'ligne-lien', dataset: { devis: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
+  return h('li', { class: 'ligne-lien', dataset: { devis: d.id, statut: Li.statutAffiche(d, aujourdhui), archive: d.archive === true ? 'oui' : 'non' } },
     icone('file-text', { taille: 14 }),
     h('div', { class: 'lien-texte' },
       h('span', { class: 'devis-onglet-titre' },
         h('a', { href: lienRoute(P.routeVoirDevis(d)), 'aria-label': P.nomVoir(d), dataset: { action: 'voir-devis' } }, nom),
-        pastilleStatutDevis(d, aujourdhui)),
+        pastilleStatutDevis(d, aujourdhui),
+        d.archive === true ? h('span', { class: 'badge-archive', dataset: { valeur: 'archive' } }, P.LIBELLE_ARCHIVE) : null),
       h('span', { class: 'lien-date' },
         h('span', { dataset: { valeur: 'ttc' } }, `${euros(t?.ttc)} TTC`),
         Li.dateFr(Li.dateDuDevis(d)) ? ' · ' : null,
@@ -80,7 +81,7 @@ function creerElement(affaireId) {
     const aujourdhui = CRM.ctx().aujourdhui;
     const lignes = P.devisDeAffaire(D.etat.devis, affaireId);
     const maintenant = Date.now();
-    const signature = JSON.stringify([pret, erreur, aujourdhui, lignes.map((d) => [d.id, d.numero, d.version, d.statut, d.nom, d.objet, d.dateEmission, enMsCle(d), Li.totauxDe(d), d.expireLe, etatPdfDevis(d, maintenant)])]);
+    const signature = JSON.stringify([pret, erreur, aujourdhui, lignes.map((d) => [d.id, d.numero, d.version, d.statut, d.archive === true, d.nom, d.objet, d.dateEmission, enMsCle(d), Li.totauxDe(d), d.expireLe, etatPdfDevis(d, maintenant)])]);
     if (!force && signature === e.signature) return lignes;
     e.signature = signature;
     const apres = () => e.maj(true);

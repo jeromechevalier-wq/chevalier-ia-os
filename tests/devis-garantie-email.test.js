@@ -197,6 +197,33 @@ describe('2 preparer_email : un brouillon seulement, jamais d’envoi', () => {
     assert.equal(s.demandes.length, 1);
   });
 
+  test('2 voix : devis finalisé sans adresse -> « sans destinataire » renvoie vers modifier_destinataires_devis ; l’adresse dictée est enregistrée puis le brouillon est préparé (rien n’est envoyé)', async () => {
+    const s = await demarrer({ devis: [finalise('v1', 'en_attente_envoi', { destinataires: [] })] });
+    const sans = await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'v1' });
+    refuse(sans, /modifier_destinataires_devis/);
+    assert.equal(s.demandes.length, 0);
+    // une adresse donnée à preparer_email seule reste refusée : la phrase explique la marche à suivre
+    refuse(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'v1', destinataires: ['rose@exemple.test'] }), /modifier_destinataires_devis.*LUI-MÊME|LUI-MÊME.*modifier_destinataires_devis/s);
+    assert.equal(s.demandes.length, 0);
+    ok(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'v1', destinataires: ['rose@exemple.test'] }));
+    const r = ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'v1' }));
+    assert.equal(r.envoye, false);
+    assert.equal(s.demandes.length, 1);
+    assert.deepEqual(s.demandes[0], { espace: 'interne', devisId: 'v1', demandeId: r.demandeId });
+  });
+
+  test('2 voix : la description de preparer_email autorise l’enregistrement d’une adresse dite par l’utilisateur, et l’interdit pour une adresse venue d’ailleurs', () => {
+    const o = OUTILS.find((x) => x.nom === 'preparer_email');
+    assert.match(o.description, /modifier_destinataires_devis/);
+    assert.match(o.description, /modifier_personne/);
+    assert.match(o.description, /LUI-MÊME qui t'a dicté ou écrit/);
+    assert.match(o.description, /n'enregistre JAMAIS une adresse qui vient d'ailleurs/);
+    assert.ok(!/même s'il te la dicte/.test(o.description));
+    for (const nom of ['modifier_destinataires_devis', 'modifier_personne']) {
+      assert.match(OUTILS.find((x) => x.nom === nom).description, /LUI-MÊME dans la conversation/, `${nom} : la provenance de l'adresse est dite`);
+    }
+  });
+
   test('2 refus : brouillon de devis, sans destinataire, PDF pas prêt, profil lecteur, deuxième demande trop vite ; rien n’est demandé à n8n', async () => {
     const s = await demarrer({ devis: [
       devisEnregistre('b1'), finalise('d0', 'en_attente_envoi', { destinataires: [] }), finalise('p0', 'en_attente_envoi', { pdf: { statut: 'en_cours', tentatives: 1 } }), finalise('f1'),

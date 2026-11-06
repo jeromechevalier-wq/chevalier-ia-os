@@ -69,6 +69,10 @@ async function ouvrirOnglet(page) {
   await expect(panneau).toBeVisible();
   return panneau;
 }
+// Dans ce bac à sable, le script de Google (apis.google.com) est inaccessible : on le remplace par un fichier vide.
+test.beforeEach(async ({ page }) => {
+  await page.route('https://apis.google.com/js/api.js', (route) => route.fulfill({ status: 200, contentType: 'application/javascript', body: '' }));
+});
 const sansDebordement = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 
 // ------------------------------------------------------------------ point 1 : module éteint = pas d'onglet
@@ -238,7 +242,7 @@ test('8 échec de « Télécharger » : message d’erreur avec « Réessayer »
 
 // ------------------------------------------------------------------ point 9 : quels devis
 
-test('9 un devis d’une AUTRE affaire n’apparaît pas, un archivé non plus, un « Remplacé » oui', async ({ page }, info) => {
+test('9 un devis d’une AUTRE affaire n’apparaît pas, un archivé aussi (avec l’étiquette « Archivé »), un « Remplacé » oui', async ({ page }, info) => {
   await base();
   await devis('dActuel', { ...FINALISE, numero: 'DEV-2026-10-02-002', version: 2, statut: 'envoye', creeLe: IL_Y_A(1), pdf: PDF_OK });
   await devis('dRemplace', { ...FINALISE, numero: 'DEV-2026-10-02-002', version: 1, statut: 'remplace', creeLe: IL_Y_A(8), pdf: PDF_OK });
@@ -246,11 +250,12 @@ test('9 un devis d’une AUTRE affaire n’apparaît pas, un archivé non plus, 
   await devis('dAutre', { ...FINALISE, numero: 'DEV-2026-10-03-001', affaireId: 'a2', creeLe: IL_Y_A(2), pdf: PDF_OK });
   await ouvrirAffaire(page);
   const panneau = await ouvrirOnglet(page);
-  await expect(panneau.locator('[data-liste="devis-affaire"] > li')).toHaveCount(2);
+  await expect(panneau.locator('[data-liste="devis-affaire"] > li')).toHaveCount(3);
   await expect(panneau.locator('[data-devis="dActuel"] [data-action="voir-devis"]')).toHaveText(/^DEV-2026-10-02-002 v2/);
   await expect(panneau.locator('[data-devis="dRemplace"] [data-valeur="statut"]')).toHaveText('Devis remplacé');
-  await expect(panneau.locator('[data-devis="dArchive"], [data-devis="dAutre"]')).toHaveCount(0);
-  await expect(page.locator('.compositeur [data-onglet="devis"] .compteur')).toHaveText('2');
+  await expect(panneau.locator('[data-devis="dArchive"] [data-valeur="archive"]')).toHaveText('Archivé');
+  await expect(panneau.locator('[data-devis="dAutre"]')).toHaveCount(0);
+  await expect(page.locator('.compositeur [data-onglet="devis"] .compteur')).toHaveText('3');
   await capturer(page, info, '9-remplace-montre');
   await page.evaluate(() => { location.hash = '#/crm/affaires/a2'; }); // l'autre affaire a son propre élément et son propre compteur
   await attendreCalme(page);

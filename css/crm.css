@@ -338,6 +338,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 /* Le libellé (« Montant estimé », « Montant accepté HT ») est posé au-dessus du chiffre sans prendre de place : le chiffre reste sur l'axe des boutons. */
 .fiche-montant-libelle { position: absolute; left: 0; bottom: 100%; white-space: nowrap; font: var(--poids-normal) var(--fs-petit)/1.2 var(--police-texte); color: var(--texte2); }
 .fiche-montant .prop-vide { font: var(--poids-moyen) var(--fs-texte)/1.2 var(--police-texte); } /* bouton « + Montant estimé » : taille de texte, pas celle du chiffre */
+.fiche-montant-origine { display: block; font: var(--poids-normal) var(--fs-petit)/1.2 var(--police-texte); color: var(--texte2); }
 .fiche-montant-devis { display: inline-flex; align-items: center; gap: var(--esp-2); }
 .fiche-montant-suffixe { font-size: var(--fs-texte); color: var(--texte2); }
 .fiche-grille { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 24px; align-items: start; }

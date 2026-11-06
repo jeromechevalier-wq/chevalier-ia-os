@@ -545,7 +545,7 @@ export function barreEtapes(affaire) {
 /** Pastilles ajoutées par d'autres modules (ex. « Devis : Brouillon ») pour une affaire ; liste vide si aucun module n'en fournit. */
 export function pastillesExternes(affaireId) {
   return pastillesDeAffaire(affaireId).map((p) => {
-    const attributs = { class: 'pastille-statut pastille-externe', style: { '--couleur': p.couleur }, dataset: { pastilleExterne: p.statut ?? '' } };
+    const attributs = { class: 'pastille-statut pastille-externe', style: { '--couleur': p.couleur }, dataset: { pastilleExterne: p.statut ?? '', ...(p.archive ? { archive: 'oui' } : {}) } };
     // Avec un lien, la pastille ouvre l'élément (ex. le devis) ; la carte ignore déjà les clics venus d'un lien. Pas de stopPropagation : chez un client, le routeur doit voir le clic pour remettre le préfixe de l'espace.
     if (p.lien) return h('a', { ...attributs, href: `#/${p.lien}`, title: 'Ouvrir le devis' }, p.texte);
     return h('span', attributs, p.texte);

@@ -18,6 +18,22 @@ export function pastillesDeAffaire(affaireId) {
   return liste;
 }
 
+// Mot d'état d'un devis, pour la ligne « d'où vient le montant » de la fiche. Un fournisseur est `(affaireId, numero, version) => { mot, archive } | null` ; un fournisseur qui plante est ignoré. `{ pret: false }` = module inscrit mais devis pas encore lus (aucun mot à écrire, pour que la ligne ne change pas pendant le chargement).
+const fournisseursEtat = new Set();
+
+export function inscrireEtatDevisAffaire(fournisseur) {
+  fournisseursEtat.add(fournisseur);
+  return () => { fournisseursEtat.delete(fournisseur); };
+}
+
+/** { mot, archive } du devis demandé, { pret: false } (module inscrit, devis pas encore lus), ou null (aucun module inscrit, devis introuvable). */
+export function etatDevisDeAffaire(affaireId, numero, version) {
+  for (const f of fournisseursEtat) {
+    try { const r = f(affaireId, numero, version); if (r && ((typeof r.mot === 'string' && r.mot) || r.pret === false)) return r; } catch (e) { console.warn(e); }
+  }
+  return null;
+}
+
 // Onglets qu'un module ajoute sur la fiche d'une affaire, après Activité / Notes / Documents (ex. « Devis »). Même principe : le CRM ne connaît aucun module.
 // Un fournisseur est `(affaireId) => null | { id, libelle, icone, element, compteur }` : `id` mot court unique, `icone` un nom du jeu d'icônes,
 // `element` le contenu déjà construit, `compteur` un nombre (pastille) ou null/undefined (pas de pastille). Le module appelle `signaler()` pour redessiner.

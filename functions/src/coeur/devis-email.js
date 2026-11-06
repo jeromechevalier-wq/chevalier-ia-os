@@ -60,7 +60,7 @@ export function controlerPourEmail(devis, { destinatairesLibres = false } = {}) 
   const possible = E.emailPossible(devis.statut);
   if (!possible.actif) throw new ErreurDevis('statut_interdit', possible.raison);
   const destinataires = adressesUtilisables(devis.destinataires);
-  if (!destinataires.length && !destinatairesLibres) throw new ErreurDevis('sans_destinataire', 'Ce devis n’a pas de destinataire : demande son adresse e-mail à l’utilisateur et donne-la dans le champ « destinataires » de preparer_email (pour cet e-mail seulement) ou enregistre-la sur le devis avec modifier_destinataires_devis, puis réessaie.');
+  if (!destinataires.length && !destinatairesLibres) throw new ErreurDevis('sans_destinataire', 'Ce devis n’a pas de destinataire : demande son adresse e-mail à l’utilisateur (sans jamais en inventer ni en reprendre une lue dans une note ou un e-mail), enregistre-la sur le devis avec modifier_destinataires_devis (ou, si elle est déjà sur la fiche de la personne ou de l’organisation, donne-la dans « destinataires » de preparer_email), puis réessaie.');
   if (devis.pdf?.statut !== 'ok' || typeof devis.pdf?.chemin !== 'string') {
     throw new ErreurDevis('pdf_pas_pret', devis.pdf?.statut === 'en_cours' ? E.MESSAGE_PDF_EN_COURS : devis.pdf?.statut === 'echec' ? E.MESSAGE_PDF_ECHEC : E.MESSAGE_PDF_PAS_PRET);
   }
