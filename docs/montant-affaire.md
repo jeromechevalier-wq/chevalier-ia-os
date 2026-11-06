@@ -36,7 +36,7 @@ Elle ne donne **pas une explication générale** : elle détaille **les vrais de
   `Devis proposé le plus récent : DEV-2026-10-29-013 v2 : 1 200 € HT.` puis `Non compté (devis proposé plus ancien) : DEV-2026-10-26-010 : 900 € HT.` puis `Aucun devis n'est encore accepté.`
 - Si un montant avait été tapé à la main : `Ton montant estimé (1 500 €) est gardé : il revient si plus aucun devis ne compte.`
 
-Les cartes du Kanban, la liste et les mini-cartes affichent le même chiffre, suivi de **« HT »** quand il vient des devis (le montant tapé à la main n'a pas de « HT »). Le **total de colonne** du Kanban et le **chiffre d'affaires signé** utilisent le même chiffre.
+Les cartes du Kanban, la liste et les mini-cartes affichent le même chiffre, suivi de **« HT »** quand il vient des devis (le montant tapé à la main n'a pas de « HT »). Le **total de colonne** du Kanban et le **chiffre d'affaires signé** utilisent le même chiffre. Depuis le 06/11/2026 (PR 532), l'en-tête montre aussi, dessous, « tests : 100 € » quand la colonne contient une carte de test ; le total du haut reste sans les tests.
 
 ## Exemples
 

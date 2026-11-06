@@ -150,6 +150,12 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 - **Une PR de nuit qui supprime des données (525) = deux relectures Fable** : la seconde a validé le correctif d'un bloquant.
 - **Relire son diff « en adversaire »** avec un jeu de données adversarial (reliés réels, `DEV-` marqué test, événements mixtes, ancienne donnée sans le nouveau champ). Consigne, pas un fait vécu.
 - **Plafond du MCP : 50 suppressions par jour, par document** (une affaire = plusieurs documents) : les suppressions de données se planifient sur plusieurs jours.
-- **`actions_list` d'un workflow rend 50 Ko** : lire UN run par son id (`mcp__github__actions_get`, `get_workflow_run`).
+- **`actions_list` d'un workflow rend 50 Ko** : lire UN run par son id (`mcp__github__actions_get`, `get_workflow_run`), ou lire la sortie par `python3` sur le fichier.
 - **Un 503 de Google sur « Déployer les fonctions »** (`firebase-hosting.yml` l.43) saute le déploiement du site : relancer une fois (`rerun_failed_jobs`).
 - **Décisions de Jérôme du 05/11 sur Devis seul** (voir la décision permanente) : socle commun, modules indépendants, deux portails, liste des devis en arrivée, Projets sans Affaires plus tard, recette sur `clientdemo`.
+
+### Leçons de la journée du 06/11/2026
+- **Décisions de Jérôme du 06/11** : finalisation conditionnelle confirmée ; pas de socle sans module actif ; un `DEV-` marqué test n'est jamais supprimé en lot ; les événements d'une affaire de test partent avec elle ; restaurer un `DEV-` reste permis ; un client Devis seul marque et démarque un test par son assistant (`marquer_test` / `demarquer_test` dans `SOCLE.outilsMcp`, 9 outils, Devis seul = 2 + 26 + 9 = 37) mais `supprimer_tous_les_tests` reste dans Réglages > Mes tests ; vocabulaire : « test », jamais « essai ».
+- **Sessions parallèles** : des sessions de code avec `TESTS_DECALAGE` 3, 4 et 5 ont tenu toute la journée sans collision.
+- **Deux PR qui ajoutent un test du même nom** (R14-15 dans la 535, prévu aussi dans la 536) : la seconde renomme (R14-16) avant la fusion, jamais de doublon de nom dans un `describe`.
+- **Une PR sans écart à son brief n'existe presque pas** : la 536 a dû lire aussi l'objet du devis pour que son test passe ; la PR écrit l'écart et la session principale le relit.
