@@ -630,11 +630,11 @@ describe('Modules : les outils suivent les modules actifs du client', () => {
     assert.equal(seuls(['affaires', 'projets', 'automatisations']).length, OUTILS.length - 26, 'sans le module Devis : ses 26 outils manquent');
     assert.equal(seuls(['affaires', 'devis']).filter((n) => /article/.test(n)).length, 7, 'Devis apporte (il n\'exige plus les Affaires) ses outils du bordereau et la recherche par phrase (rechercher_article_par_phrase), et 13 outils des devis (dont enregistrer_reponse_vocabulaire), sans le mot « article »');
     assert.equal(seuls(['affaires', 'projets', 'automatisations', 'devis']).length, OUTILS.length);
-    // PR C1 : Devis seul = communs + ses 26 outils + les 7 outils du socle (jamais les suppressions ni les outils d'affaires)
+    // PR C1 : Devis seul = communs + ses 26 outils + les 9 outils du socle (jamais les suppressions ni les outils d'affaires)
     const devisSeul = seuls(['devis']);
-    assert.equal(devisSeul.length, 2 + 26 + 7, 'communs + 26 outils Devis + 7 outils du socle');
-    for (const n of ['creer_personne', 'chercher', 'lire_organisation', 'modifier_personne']) assert.ok(devisSeul.includes(n), n);
-    for (const n of ['supprimer_personne', 'supprimer_organisation', 'lire_affaire', 'lister_affaires', 'lister_projets']) assert.ok(!devisSeul.includes(n), n);
+    assert.equal(devisSeul.length, 2 + 26 + 9, 'communs + 26 outils Devis + 9 outils du socle');
+    for (const n of ['creer_personne', 'chercher', 'lire_organisation', 'modifier_personne', 'marquer_test', 'demarquer_test']) assert.ok(devisSeul.includes(n), n);
+    for (const n of ['supprimer_personne', 'supprimer_organisation', 'supprimer_tous_les_tests', 'lire_affaire', 'lister_affaires', 'lister_projets']) assert.ok(!devisSeul.includes(n), n);
     assert.deepEqual(seuls(['veille']), ['qui_suis_je', 'diagnostiquer_fichiers']);
   });
   test('M9 module « mcp » éteint, ou client désactivé : l\'accès déjà accordé est coupé tout de suite, et la connexion n\'est plus possible', async () => {
@@ -1331,9 +1331,9 @@ describe('Devis : les 26 outils du module arrivent chez les clients, dans l\'esp
   });
 });
 
-// --- Devis seul (PR C1, 05/11/2026) : un espace avec le seul module Devis reçoit les sept outils du socle, sans Affaires -------------------
+// --- Devis seul (PR C1, 05/11/2026) : un espace avec le seul module Devis reçoit les neuf outils du socle, sans Affaires -------------------
 describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
-  const OUTILS_SOCLE = ['chercher', 'lire_personne', 'lire_organisation', 'creer_personne', 'creer_organisation', 'modifier_personne', 'modifier_organisation'];
+  const OUTILS_SOCLE = ['chercher', 'lire_personne', 'lire_organisation', 'creer_personne', 'creer_organisation', 'modifier_personne', 'modifier_organisation', 'marquer_test', 'demarquer_test'];
   const reglagesSeul = { id: 'reglages', regimeTva: 'assujetti', marge: 20, modeMarge: 'majoration', entreprise: EMETTEUR_ESSAI };
   /** Client « d » : Devis + MCP, AUCUN crm_parametres ; client « a » : Affaires + Devis. Tout est défait à la fin. */
   async function installer() {
@@ -1361,13 +1361,13 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
   }
   const ok = (r) => { assert.ok(!r.isError, r.content[0].text); return resultat(r); };
 
-  test('D-S1 tools/list : les 26 outils Devis et les sept du socle ; ni affaires, ni suppression de fiche, ni projets ; réponse 200 sans crm_parametres', async () => {
+  test('D-S1 tools/list : les 26 outils Devis et les neuf du socle ; ni affaires, ni suppression de fiche, ni projets ; réponse 200 sans crm_parametres', async () => {
     await installer();
     try {
       const { c, liste } = await outilsDe('d');
       for (const n of [...moduleDeclare('devis').outilsMcp, ...OUTILS_SOCLE]) assert.ok(liste.includes(n), n);
-      for (const n of ['lire_affaire', 'lister_affaires', 'supprimer_personne', 'supprimer_organisation', 'lister_projets']) assert.ok(!liste.includes(n), `${n} ne doit pas exister`);
-      assert.equal(liste.length, 2 + 26 + 7, 'communs + 26 + 7');
+      for (const n of ['lire_affaire', 'lister_affaires', 'supprimer_personne', 'supprimer_organisation', 'supprimer_tous_les_tests', 'lire_audit', 'restaurer_depuis_audit', 'lister_projets']) assert.ok(!liste.includes(n), `${n} ne doit pas exister`);
+      assert.equal(liste.length, 2 + 26 + 9, 'communs + 26 + 9');
       await c.close();
     } finally { await defaire(); }
   });
@@ -1378,6 +1378,9 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
       const { c, liste } = await outilsDe('d', 'ID-LEA');
       for (const n of ['chercher', 'lire_personne', 'lire_organisation', 'lire_devis']) assert.ok(liste.includes(n), n);
       for (const n of ['creer_personne', 'creer_organisation', 'modifier_personne', 'modifier_organisation', 'finaliser_devis', 'creer_devis_brouillon']) assert.ok(!liste.includes(n), `${n} ne doit pas être visible d'un lecteur`);
+      assert.ok(!liste.some((n) => /_tests?$/.test(n)), 'aucun outil de test pour un lecteur');
+      const refus = await c.callTool({ name: 'marquer_test', arguments: { type: 'personne', id: 'p1' } });
+      assert.equal(refus.isError, true, 'marquer_test refusé au lecteur');
       await c.close();
     } finally { await defaire(); }
   });
@@ -1426,6 +1429,70 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
       assert.equal(refus.isError, true);
       assert.match(refus.content[0].text, /Choisis l'affaire de ce devis\./);
       await avec.c.close();
+    } finally { await defaire(); }
+  });
+
+  test('D-S4 marquer_test / demarquer_test chez Devis seul : fiche, brouillon sans affaire, bascule, rien, affaire introuvable, étanchéité', async () => {
+    await installer();
+    try {
+      const { c } = await outilsDe('d');
+      const journal = async () => (await donnees.liste('clients/d/crm_audit')).length;
+      const p = ok(await c.callTool({ name: 'creer_personne', arguments: { nom: 'Zoé Client', email: 'zoe@exemple.test' } }));
+      const m = ok(await c.callTool({ name: 'marquer_test', arguments: { type: 'personne', id: p.id } }));
+      assert.equal(m.change, true);
+      assert.equal((await donnees.document('clients/d/crm_personnes', p.id)).test, true);
+      assert.ok((await donnees.liste('clients/d/crm_audit')).some((l) => l.outil === 'marquerTest'), 'ligne de journal marquerTest');
+      const d = ok(await c.callTool({ name: 'creer_devis_brouillon', arguments: { personneId: p.id, objet: 'Salon' } }));
+      assert.equal((await donnees.document('clients/d/devis_devis', d.id)).test, true, 'le brouillon de la fiche de test naît test');
+      const dm = ok(await c.callTool({ name: 'demarquer_test', arguments: { type: 'devis', id: d.id } }));
+      assert.equal(dm.change, true);
+      const enBase = await donnees.document('clients/d/devis_devis', d.id);
+      assert.equal(enBase.test, false);
+      assert.equal(enBase.affaireId ?? null, null);
+      assert.ok(!('montant' in dm) && !JSON.stringify(dm).includes('"montant"'), 'aucune clé montant');
+      assert.equal(ok(await c.callTool({ name: 'marquer_test', arguments: { type: 'devis', id: d.id } })).change, true);
+      assert.equal(ok(await c.callTool({ name: 'marquer_test', arguments: { type: 'devis', id: d.id } })).rien, true);
+      const avant = await journal();
+      const refus = await c.callTool({ name: 'marquer_test', arguments: { type: 'affaire', id: 'a1' } });
+      assert.equal(refus.isError, true);
+      assert.match(refus.content[0].text, /Affaire introuvable/);
+      assert.equal(await journal(), avant, 'rien d\'écrit au journal');
+      // étanchéité : une personne du client a n'est pas atteignable depuis d
+      const etanche = await c.callTool({ name: 'marquer_test', arguments: { type: 'personne', id: 'p1' } });
+      assert.equal(etanche.isError, true);
+      assert.equal((await donnees.document('clients/a/crm_personnes', 'p1'))?.test, undefined);
+      await c.close();
+    } finally { await defaire(); }
+  });
+
+  test('D-S5 marquer_test / demarquer_test d\'un devis finalisé chez Devis seul : aperçu sans montant d\'affaire, puis code', async () => {
+    await installer();
+    try {
+      const { c } = await outilsDe('d');
+      const p = ok(await c.callTool({ name: 'creer_personne', arguments: { nom: 'Zoé Client', email: 'zoe@exemple.test' } }));
+      const article = ok(await c.callTool({ name: 'creer_article', arguments: { libelle: 'Peinture', prixAchat: 50, unite: 'm²', code: 'PEI' } }));
+      const d = ok(await c.callTool({ name: 'creer_devis_brouillon', arguments: { personneId: p.id, objet: 'Salon', destinataires: ['zoe@exemple.test'], lignes: [{ articleId: article.id, quantite: 2 }] } }));
+      await donnees.appliquer([{ type: 'update', collection: 'clients/d/devis_devis', id: d.id, donnees: { chantier: { ...CHANTIER_ESSAI }, expireLe: '2027-01-22' } }]);
+      const ap = ok(await c.callTool({ name: 'finaliser_devis', arguments: { id: d.id } }));
+      ok(await c.callTool({ name: 'finaliser_devis', arguments: { id: d.id, codeConfirmation: ap.code } }));
+      const numero = (await donnees.document('clients/d/devis_devis', d.id)).numero;
+      assert.match(numero, /^DEV-/);
+      const apercu = ok(await c.callTool({ name: 'marquer_test', arguments: { type: 'devis', id: d.id } }));
+      assert.ok(apercu.code, 'aperçu avec un code');
+      assert.deepEqual(apercu.montantsAffaires, []);
+      assert.equal(apercu.affaireId, null);
+      assert.notEqual((await donnees.document('clients/d/devis_devis', d.id)).test, true, 'rien d\'écrit à l\'aperçu');
+      const fait = ok(await c.callTool({ name: 'marquer_test', arguments: { type: 'devis', id: d.id, codeConfirmation: apercu.code } }));
+      assert.equal(fait.change, true);
+      assert.equal(fait.versions, 1);
+      const enBase = await donnees.document('clients/d/devis_devis', d.id);
+      assert.equal(enBase.test, true);
+      assert.equal(enBase.numero, numero, 'numéro inchangé');
+      const apercu2 = ok(await c.callTool({ name: 'demarquer_test', arguments: { type: 'devis', id: d.id } }));
+      const defait = ok(await c.callTool({ name: 'demarquer_test', arguments: { type: 'devis', id: d.id, codeConfirmation: apercu2.code } }));
+      assert.equal(defait.change, true);
+      assert.equal((await donnees.document('clients/d/devis_devis', d.id)).test, false);
+      await c.close();
     } finally { await defaire(); }
   });
 });

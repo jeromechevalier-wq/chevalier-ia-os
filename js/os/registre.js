@@ -33,7 +33,7 @@ export const OUTILS_COMMUNS = geler(['qui_suis_je', 'diagnostiquer_fichiers']);
 /**
  * Socle commun (05/11/2026) : les fiches Personnes et Organisations et leur journal, sur lesquels tout module repose.
  * Ce n'est PAS un module : jamais dans MODULES_DECLARES ni IDS_MODULES (aucun interrupteur, aucun écran, aucune route),
- * la fiche `modules` d'un client ne peut pas le nommer (« contacts » y est un module inconnu). Ses outils d'assistant (`outilsMcp`, sept outils prêtés par Affaires, jamais les suppressions)
+ * la fiche `modules` d'un client ne peut pas le nommer (« contacts » y est un module inconnu). Ses outils d'assistant (`outilsMcp`, neuf outils prêtés par Affaires (dont marquer_test / demarquer_test), jamais les suppressions)
  * sont offerts à un espace dont un module actif déclare `socle: true` sans que le module Affaires soit actif (voir `outilsMcpActifs`). La coque le démarre avant les modules
  * (js/main.js, js/os/espace-modules.js) en mode noyau (`CRM.demarrer` avec l'option noyau) ; le module Affaires démarre par-dessus en complet.
  * `collections` : les trois collections du socle. Le journal (audit et copies « avant ») est écrit par le socle mais n'est volontairement pas listé ici : il n'est déclaré par aucun module ni exporté.
@@ -42,7 +42,7 @@ export const SOCLE = geler({
   id: 'contacts',
   nom: 'Contacts',
   collections: ['crm_personnes', 'crm_organisations', 'crm_evenements'],
-  outilsMcp: ['chercher', 'lire_personne', 'lire_organisation', 'creer_personne', 'creer_organisation', 'modifier_personne', 'modifier_organisation'],
+  outilsMcp: ['chercher', 'lire_personne', 'lire_organisation', 'creer_personne', 'creer_organisation', 'modifier_personne', 'modifier_organisation', 'marquer_test', 'demarquer_test'],
 });
 
 /**
