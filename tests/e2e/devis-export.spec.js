@@ -2,7 +2,7 @@
 // Un test par critère (le nom commence par son numéro). Captures dans tests/e2e/captures/devis-export/ (ordinateur et téléphone).
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
-import { test, expect, connecter, allerA, ouvrirSectionReglages, attendreCalme, ecrireDocument, JEROME } from './outils.js';
+import { test, expect, connecter, allerA, ouvrirSectionReglages, attendreCalme, ecrireDocument, creerPersonne, creerOrganisation, JEROME } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-export/', import.meta.url));
 async function capturer(page, info, nom) {
@@ -46,12 +46,12 @@ test('2a le bouton « Exporter mes données » est dans Réglages > Devis, secti
   await capturer(page, info, '2a-bouton');
 });
 
-test('2b le fichier téléchargé est un JSON daté avec devis (archivés compris), catalogue, familles et réglages ; toast « Sauvegarde téléchargée »', async ({ page }, info) => {
+test('2b le fichier téléchargé est un JSON daté avec devis (archivés compris), catalogue, familles, réglages et les trois collections du socle ; toast « Sauvegarde téléchargée »', async ({ page }, info) => {
   await donnees();
   await ouvrirReglagesDevis(page);
   const { nom, json } = await telecharger(page);
   expect(nom).toMatch(/^chevalier-ia-devis-\d{4}-\d{2}-\d{2}\.json$/);
-  expect(Object.keys(json.collections).sort()).toEqual(['devis_articles', 'devis_devis', 'devis_parametres', 'devis_usage_articles', 'devis_vocabulaire']);
+  expect(Object.keys(json.collections).sort()).toEqual(['crm_evenements', 'crm_organisations', 'crm_personnes', 'devis_articles', 'devis_devis', 'devis_parametres', 'devis_usage_articles', 'devis_vocabulaire']);
   expect(json.collections.devis_vocabulaire.map((r) => r.id)).toEqual(['tableau']);
   expect(json.collections.devis_devis.map((d) => d.id).sort()).toEqual(['d1', 'd2', 'd3']);
   expect(json.collections.devis_devis.find((d) => d.id === 'd3').archive).toBe(true);
@@ -63,10 +63,10 @@ test('2b le fichier téléchargé est un JSON daté avec devis (archivés compri
   await capturer(page, info, '2b-telecharge');
 });
 
-test('2c cas vide : sans aucune donnée, le fichier contient des listes vides et aucune erreur n’apparaît', async ({ page }) => {
+test('2c cas vide : sans aucune donnée, le fichier contient 8 listes vides et aucune erreur n’apparaît', async ({ page }) => {
   await ouvrirReglagesDevis(page);
   const { json } = await telecharger(page);
-  expect(json.collections).toEqual({ devis_articles: [], devis_parametres: [], devis_devis: [], devis_vocabulaire: [], devis_usage_articles: [] });
+  expect(json.collections).toEqual({ crm_evenements: [], crm_organisations: [], crm_personnes: [], devis_articles: [], devis_parametres: [], devis_devis: [], devis_vocabulaire: [], devis_usage_articles: [] });
   await expect(page.locator('.toast')).toContainText('Sauvegarde téléchargée');
 });
 
@@ -89,4 +89,26 @@ test('2e aucun secret dans le fichier : ni jeton, ni clé, ni compteur de numér
   const { json } = await telecharger(page);
   expect(JSON.stringify(json)).not.toMatch(/token|jeton|secret|apikey|api_key|password|mot_de_passe/i);
   expect(json.collections.devis_compteurs).toBeUndefined();
+  expect(json.collections.crm_audit).toBeUndefined();
+  expect(json.collections.crm_audit_avant).toBeUndefined();
+});
+
+test('2f les fiches du socle (personne, organisation) sont dans le fichier avec leur id et leur nom ; crm_evenements est une liste', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Paul Cent' });
+  await creerOrganisation('o1', { nom: 'Atelier Cent' });
+  await ouvrirReglagesDevis(page);
+  const { json } = await telecharger(page);
+  expect(json.collections.crm_personnes.map((p) => [p.id, p.nom])).toEqual([['p1', 'Paul Cent']]);
+  expect(json.collections.crm_organisations.map((o) => [o.id, o.nom])).toEqual([['o1', 'Atelier Cent']]);
+  expect(Array.isArray(json.collections.crm_evenements)).toBe(true);
+});
+
+test('2g une fiche de test est incluse avec test: true, à côté d’une fiche réelle sans ce champ', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Paul Cent' });
+  await creerPersonne('p2', { nom: 'Zoé Test', test: true });
+  await ouvrirReglagesDevis(page);
+  const { json } = await telecharger(page);
+  const parId = Object.fromEntries(json.collections.crm_personnes.map((p) => [p.id, p]));
+  expect(parId.p2.test).toBe(true);
+  expect(parId.p1.test).toBeUndefined();
 });

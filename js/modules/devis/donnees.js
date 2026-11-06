@@ -8,6 +8,7 @@ import { collection, doc, onSnapshot, setDoc } from 'https://www.gstatic.com/fir
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { db, app } from '../../os/firebase.js';
 import * as CRM from '../crm/donnees.js';
+import { SOCLE } from '../../os/registre.js';
 import * as A from './articles.js';
 import * as B from './brouillon.js';
 import * as F from './familles.js';
@@ -287,8 +288,8 @@ export const creerFamille = (nom, parentId) => ecrireFamilles(F.planCreationFami
 export const renommerFamille = (id, nom) => ecrireFamilles(F.planRenommerFamille(id, nom, etat.familles));
 export const activerFamille = (id, actif) => ecrireFamilles(F.planDesactiverFamille(id, etat.familles, actif));
 
-/** Les données du module pour l'export : { devis_articles, devis_parametres, devis_devis, devis_vocabulaire, devis_usage_articles } (toutes versions, tous statuts, archivés compris). Jamais le compteur de numéros (réservé au serveur). */
-export const lireToutPourExport = () => CRM.collectionsParNoms(['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire', 'devis_usage_articles']);
+/** Les données du module pour l'export : { devis_articles, devis_parametres, devis_devis, devis_vocabulaire, devis_usage_articles } (toutes versions, tous statuts, archivés compris) plus les fiches du socle commun (`SOCLE.collections` : personnes, organisations, historique), qui n'ont pas d'écran ni de bouton à elles. Jamais le compteur de numéros (réservé au serveur) ni le journal d'audit. */
+export const lireToutPourExport = () => CRM.collectionsParNoms(['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire', 'devis_usage_articles', ...SOCLE.collections]);
 
 /** Enregistre les réglages du module (document complet). `saisie` : les champs saisis ; renvoie `{ erreurs, reglages }`. */
 export async function enregistrerReglages(saisie) {
