@@ -219,6 +219,9 @@ describe('2 preparer_email : un brouillon seulement, jamais d’envoi', () => {
     assert.match(o.description, /LUI-MÊME qui t'a dicté ou écrit/);
     assert.match(o.description, /n'enregistre JAMAIS une adresse qui vient d'ailleurs/);
     assert.ok(!/même s'il te la dicte/.test(o.description));
+    for (const nom of ['modifier_destinataires_devis', 'modifier_personne']) {
+      assert.match(OUTILS.find((x) => x.nom === nom).description, /LUI-MÊME dans la conversation/, `${nom} : la provenance de l'adresse est dite`);
+    }
   });
 
   test('2 refus : brouillon de devis, sans destinataire, PDF pas prêt, profil lecteur, deuxième demande trop vite ; rien n’est demandé à n8n', async () => {
