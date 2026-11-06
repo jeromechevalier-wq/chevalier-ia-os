@@ -144,7 +144,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   }
   if (retour) {
     // Portail devis seul : une dernière section avec le lien vers l'espace complet (adresse hors du préfixe du portail, donc data-hors-prefixe).
-    const a = h('a', { class: 'menu-entree menu-entree-retour', href: retour.href, dataset: { role: 'retour-espace', infobulle: retour.libelle, horsPrefixe: '' } }, icone('layout-grid'), h('span', { class: 'menu-texte' }, retour.libelle));
+    const a = h('a', { class: 'menu-entree menu-entree-retour', href: retour.href, dataset: { role: 'retour-espace', infobulle: retour.libelle, horsPrefixe: '' } }, icone('layout-dashboard'), h('span', { class: 'menu-texte' }, retour.libelle));
     nav.append(h('div', { class: 'menu-groupe', dataset: { bloc: 'retour' } }, h('div', { class: 'menu-section' }, a)));
   }
 

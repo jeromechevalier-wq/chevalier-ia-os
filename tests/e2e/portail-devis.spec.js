@@ -65,6 +65,7 @@ test.describe('chez Jérôme', () => {
     await ouvrirPortail(page);
     await ouvrirMenu(page);
     expect(await entreesMenu(page)).toEqual(['Devis', 'Espace complet']);
+    await expect(page.locator('[data-role="retour-espace"] svg :is(path, rect, circle, line)').first()).toBeAttached(); // icône réellement dessinée
     for (const lib of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille', 'Automatisations', 'Maintenance']) await expect(page.locator('.menu').getByRole('link', { name: lib, exact: true })).toHaveCount(0);
     await capturer(page, info, '6-menu');
     await ouvrirMenuUtilisateur(page);
@@ -108,6 +109,7 @@ test.describe('chez Jérôme', () => {
     await expect(page.getByRole('heading', { name: 'Page introuvable' })).toBeVisible();
     await expect(page.locator('[data-action="retour-accueil"]')).toHaveAttribute('href', '#/portail-devis/devis/liste');
     await expect(page.locator('[data-action="ouvrir-espace-complet"]')).toHaveAttribute('href', '#/crm/affaires');
+    await expect(page.locator('[data-action="ouvrir-espace-complet"] svg :is(path, rect, circle, line)').first()).toBeAttached(); // icône réellement dessinée
     await capturer(page, info, '9-introuvable');
     await page.locator('[data-action="retour-accueil"]').click();
     await expect(page).toHaveURL(/#\/portail-devis\/devis\/liste$/);

@@ -2,6 +2,7 @@
 // Le nom d'un test commence par le numéro du critère.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
+import { readFileSync } from 'node:fs';
 import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe } from '../js/os/portail.js';
 import { moduleDeclare, MODULES_DECLARES } from '../js/os/registre.js';
 import { devisATraiter, devisARelancer } from '../js/modules/devis/relances.js';
@@ -79,5 +80,17 @@ describe('bornes exactes', () => {
     assert.deepEqual(pile.map((x) => [x.devis.id, x.motif, x.joursDepuis]), [['e10', 'a_relancer', 10], ['f7', 'jamais_envoye', 7]]);
     const presque = [envoye('e', 10, { envoyeLe: new Date(MAINTENANT - 10 * 86_400_000 + 1) }), finalise('f', 7, { finaliseLe: new Date(MAINTENANT - 7 * 86_400_000 + 1) })];
     assert.deepEqual(traiter(presque), []);
+  });
+});
+
+describe('icônes du portail', () => {
+  test('4b toute icône passée à icone() dans portail-introuvable.js et shell.js existe dans ICONES (sinon le SVG est vide)', async () => {
+    const { ICONES } = await import('../js/os/ui.js');
+    for (const f of ['../js/os/portail-introuvable.js', '../js/os/shell.js']) {
+      const src = readFileSync(new URL(f, import.meta.url), 'utf8');
+      const noms = [...src.matchAll(/icone\(\s*'([a-z0-9-]+)'/g)].map((m) => m[1]);
+      assert.ok(noms.length > 0, f);
+      for (const n of noms) assert.ok(n in ICONES, `${f} : icône « ${n} » absente de ICONES`);
+    }
   });
 });

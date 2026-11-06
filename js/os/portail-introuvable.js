@@ -6,7 +6,7 @@ import { h, icone } from './ui.js';
 export function blocIntrouvablePortail({ retourHref, retourHorsPortail = false, completHref = null }) {
   const lienRetour = h('a', { class: 'bouton bouton-principal', href: retourHref, dataset: { action: 'retour-accueil', ...(retourHorsPortail ? { horsPrefixe: '' } : {}) } }, icone('house', { taille: 16 }), "Retour à l'accueil");
   const lienComplet = completHref
-    ? h('a', { class: 'bouton bouton-secondaire', href: completHref, dataset: { action: 'ouvrir-espace-complet', horsPrefixe: '' } }, icone('layout-grid', { taille: 16 }), "Ouvrir dans l'espace complet")
+    ? h('a', { class: 'bouton bouton-secondaire', href: completHref, dataset: { action: 'ouvrir-espace-complet', horsPrefixe: '' } }, icone('layout-dashboard', { taille: 16 }), "Ouvrir dans l'espace complet")
     : null;
   return h('div', { class: 'page-introuvable' },
     h('h1', {}, 'Page introuvable'),
