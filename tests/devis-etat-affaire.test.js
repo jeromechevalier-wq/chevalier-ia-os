@@ -15,10 +15,12 @@ test('1 devisDeAffaire garde les archivés', () => {
   assert.deepEqual(l.map((d) => d.id), ['x', 'y']);
 });
 
-test('1b actionEnteteDevis : non archivé d’abord, sinon l’archivé', () => {
+test('1b actionEnteteDevis : le plus récent, archivé ou non (A archivé récent + B non archivé ancien → A)', () => {
   const nouveau = D('n', { archive: false, creeLe: new Date(MAINT - 9 * JOUR) });
   const archive = D('a', { archive: true, creeLe: new Date(MAINT - 1 * JOUR) });
-  assert.equal(actionEnteteDevis([nouveau, archive], 'a1', true).route, 'devis/voir/n');
+  assert.equal(actionEnteteDevis([nouveau, archive], 'a1', true).route, 'devis/voir/a'); // l'archivé est le plus récent
+  assert.equal(actionEnteteDevis([D('b', { creeLe: new Date(MAINT - 9 * JOUR) }), D('r', { archive: true, creeLe: new Date(MAINT - 2 * JOUR) })], 'a1', true).route, 'devis/voir/r');
+  assert.equal(actionEnteteDevis([D('r2', { archive: false, creeLe: new Date(MAINT - 2 * JOUR) }), D('v', { archive: true, creeLe: new Date(MAINT - 9 * JOUR) })], 'a1', true).route, 'devis/voir/r2');
   assert.equal(actionEnteteDevis([archive], 'a1', true).route, 'devis/voir/a');
 });
 

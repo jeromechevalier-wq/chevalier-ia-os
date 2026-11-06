@@ -56,7 +56,7 @@ test('12 l’écran de l’onglet ne propose de suppression que celle des brouil
   assert.doesNotMatch(src, /archiver|désarchiver/i); // pas d'action d'archivage (l'étiquette « Archivé » est un simple texte)
   assert.doesNotMatch(src, /bouton-principal/);
 });
-test('13 bouton d’en-tête : « Créer un devis » sans devis, « Voir le devis » (non archivé d’abord, sinon l’archivé) sinon, rien tant que les devis ne sont pas lus', () => {
+test('13 bouton d’en-tête : « Créer un devis » sans devis, « Voir le devis » (le plus récent, archivé ou non) sinon, rien tant que les devis ne sont pas lus', () => {
   assert.equal(actionEnteteDevis(devis, 'a1', false), null);
   assert.equal(actionEnteteDevis(devis, '', true), null);
   assert.deepEqual(actionEnteteDevis(devis, 'a1', true), { mode: 'voir', libelle: 'Voir le devis', route: 'devis/editeur/d4' }); // le plus récent est le brouillon v3

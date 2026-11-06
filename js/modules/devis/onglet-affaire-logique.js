@@ -43,13 +43,12 @@ export const libelleLigneDevis = (d) => {
 export const routeVoirDevis = (d) => (brouillon(d) ? `devis/editeur/${d.id}` : `devis/voir/${d.id}`);
 
 /**
- * Le bouton d'action de l'en-tête de l'affaire : « Créer un devis » sans devis, « Voir le devis » (le plus récent non archivé, sinon le plus récent archivé) sinon ; rien tant que les devis ne sont pas lus.
+ * Le bouton d'action de l'en-tête de l'affaire : « Créer un devis » sans devis, « Voir le devis » (le plus récent, archivé ou non) sinon ; rien tant que les devis ne sont pas lus.
  * Même si l'affaire est perdue ou gagnée : on a toujours envie de revoir le devis ; mais on n'y crée pas de nouveau devis (`ouverte` faux). Rend { mode: 'creer' } ou { mode: 'voir', route }.
  */
 export function actionEnteteDevis(devis, affaireId, pret, ouverte = true) {
   if (!pret || !affaireId) return null;
-  const tous = devisDeAffaire(devis, affaireId);
-  const dernier = tous.find((d) => d.archive !== true) ?? tous[0]; // le plus récent non archivé, sinon le plus récent archivé
+  const dernier = devisDeAffaire(devis, affaireId)[0]; // le plus récent, archivé ou non (comme la pastille et le montant ; décision de Jérôme)
   if (dernier) return { mode: 'voir', libelle: 'Voir le devis', route: routeVoirDevis(dernier) };
   return ouverte ? { mode: 'creer', libelle: 'Créer un devis' } : null; // pas de nouveau devis sur une affaire gagnée ou perdue
 }
