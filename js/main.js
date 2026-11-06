@@ -2,8 +2,10 @@
 import { demarrerPwa } from './os/pwa.js';
 import { appliquerTheme, afficherConnexion, monterCoquille, ESPACE_RACINE } from './os/shell.js';
 import { surveillerCompte, connecter, deconnecter, crmDisponible, MESSAGE_REFUS } from './os/auth.js';
-import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, ROUTE_DEFAUT } from './os/router.js';
-import { estRouteEspace, cleEspace } from './os/marque.js';
+import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, ROUTE_DEFAUT } from './os/router.js';
+import { estRouteEspace } from './os/marque.js';
+import { blocIntrouvablePortail } from './os/portail-introuvable.js';
+import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe } from './os/portail.js';
 import { MODULES } from './os/modules.js';
 import { demarrerObjectifs, arreterObjectifs } from './os/objectifs.js';
 import { monterReglages } from './os/reglages.js';
@@ -16,15 +18,19 @@ demarrerPwa();
 const racine = document.getElementById('app');
 let session = null; // { compte, coquille, apis: Map(id → api), vue: { cle, quitter } }
 let arretRoute = null;
+let arretLiens = null;
+const portail = portailDeRoute(routeDepuisHash(location.hash)); // portail devis seul chez Jérôme : null pour le CRM complet
+const accueilPortail = portail ? PORTAILS[portail.id].accueil : null;
 
 // Deux entrées : la page d'un client de la plateforme (#/espace/<client>, js/os/espace.js) ou le CRM de Jérôme (tout le reste, inchangé).
 // Passer de l'une à l'autre (ou d'un client à un autre) recharge la page : chaque entrée démarre avec son propre état.
 // La clé est `espace/<client>` : changer d'écran chez un même client ne recharge pas la page. (Route brute, sans le préfixe que le router ajoute chez un client.)
-const cleEntree = () => (estRouteEspace(routeDepuisHash(location.hash)) ? cleEspace(routeDepuisHash(location.hash)) : '');
+// Le portail devis seul (js/os/portail.js) est une entrée de plus : passer du CRM au portail, ou d'un portail à l'autre, recharge aussi la page.
+const cleEntree = () => cleEntreeDe(routeDepuisHash(location.hash));
 const entree = cleEntree();
 window.addEventListener('hashchange', () => { if (cleEntree() !== entree) location.reload(); });
 
-if (entree) {
+if (estRouteEspace(routeDepuisHash(location.hash))) {
   afficherChargement();
   import('./os/espace.js').then((m) => m.demarrerEspace(racine));
 } else {
@@ -74,8 +80,21 @@ async function ouvrirSession(compte) {
   demarrerObjectifs(compte, objectifsDepart);
   demarrerSocle(compte, '', { noyau: true }); // socle commun, racine ; le module Affaires démarre par-dessus en complet (cinq écouteurs, aucun doublon)
   for (const api of apis.values()) api.demarrer({ compte, cheminBase: '' }); // '' = racine (CRM de Jérôme) ; chez un client : cheminBaseClient(client)
+  let modulesCoquille = MODULES;
+  let apisCoquille = apis;
+  let options = {};
+  if (portail) {
+    const ids = modulesDuPortail(portail.id, MODULES.map((m) => m.id));
+    modulesCoquille = MODULES.filter((m) => ids.includes(m.id));
+    apisCoquille = new Map([...apis].filter(([id]) => ids.includes(id))); // les autres modules restent montés et démarrés (Devis lit les affaires par le CRM), mais n'offrent ni « + » ni recherche
+    definirPrefixe(portail.id);
+    arretLiens = suivreLiensDuPrefixe();
+    options = { accueil: accueilPortail, retour: { libelle: PORTAILS[portail.id].libelleRetour, href: '#/' + accueilPortail } }; // href hors portail : l'espace complet
+  }
   const coquille = monterCoquille(racine, compte, {
-    apis,
+    ...options,
+    apis: apisCoquille,
+    modules: modulesCoquille,
     client: ESPACE_RACINE,
     surDeconnexion: async () => {
       fermerSession();
@@ -91,6 +110,9 @@ function fermerSession() {
   if (!session) return;
   arretRoute?.();
   arretRoute = null;
+  arretLiens?.();
+  arretLiens = null;
+  if (portail) definirPrefixe('');
   session.vue?.quitter?.();
   session.coquille?.arreter?.();
   for (const api of session.apis.values()) api.arreter();
@@ -103,10 +125,28 @@ function fermerSession() {
   session = null;
 }
 
+const lienDuPortail = (chemin) => `#/${portail.id}/${chemin}`;
+
 function afficherRoute(route) {
   if (!session) return;
   const segs = segments(route);
   const { coquille, apis } = session;
+  if (cleEntree() !== entree) return; // la clé d'entrée a changé : la page va se recharger, aucune navigation ici
+  if (portail) {
+    // Dans le portail : l'accueil ramène à la liste des devis (jamais crm/accueil, qui ferait sortir du portail) ; un écran hors portail montre « Page introuvable »
+    // (le même bloc que chez un client) avec un lien vers l'espace complet quand le module existe.
+    const dansPortail = modulesDuPortail(portail.id, MODULES.map((m) => m.id));
+    const m0 = MODULES.find((x) => x.prefixe === segs[0]);
+    if (!segs.length) { naviguer(accueilPortail, { remplacer: true }); return; }
+    if (segs[0] !== 'reglages' && !(m0 && dansPortail.includes(m0.id))) {
+      session.vue?.quitter?.();
+      session.vue = { cle: 'introuvable', quitter: null };
+      vider(coquille.contenu);
+      coquille.contenu.append(blocIntrouvablePortail({ retourHref: lienDuPortail(accueilPortail), completHref: m0 ? `#/${segs.join('/')}` : null }));
+      coquille.activer('');
+      return;
+    }
+  }
   let cle;
   let afficher;
   if (segs[0] === 'reglages') {

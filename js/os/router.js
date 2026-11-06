@@ -91,7 +91,7 @@ export function suivreLiensDuPrefixe() {
   const surClic = (e) => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     const a = e.target?.closest?.('a[href^="#/"]');
-    if (!a) return;
+    if (!a || a.hasAttribute('data-hors-prefixe')) return; // data-hors-prefixe : lien volontairement hors du préfixe (« Espace complet » du portail)
     const cible = a.getAttribute('href');
     if (estSousPrefixe(cible, prefixe)) return;
     e.preventDefault();
@@ -101,7 +101,7 @@ export function suivreLiensDuPrefixe() {
   // pour que « ouvrir dans un nouvel onglet » et l'adresse affichée en bas du navigateur gardent le préfixe du client.
   const reecrire = (e) => {
     const a = e.target?.closest?.('a[href^="#/"]');
-    if (!a) return;
+    if (!a || a.hasAttribute('data-hors-prefixe')) return;
     const cible = a.getAttribute('href');
     if (!cible || estSousPrefixe(cible, prefixe)) return;
     a.setAttribute('href', lien(cible.replace(/^#\/?/, '')));

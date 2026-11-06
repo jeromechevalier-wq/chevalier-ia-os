@@ -14,6 +14,7 @@ import { formaterMontant } from './document.js';
 import { nomsDe, entreesMenuDevis, creerDevisSansAffaire } from './actions-devis.js';
 import { indicateurPdf } from './pdf-indicateur.js';
 import { pastilleStatutDevis } from './pastille-statut.js';
+import { devisATraiter } from './relances.js';
 
 const ERREUR_LECTURE = 'La liste des devis n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
 
@@ -23,6 +24,7 @@ let recherche = '';
 let statutsFiltres = [];
 let periode = 'toutes';
 let testsFiltre = FILTRE_TESTS_DEFAUT;
+let aTraiterFiltre = 'tout'; // tout | seulement (« À traiter » : devis à relancer ou jamais envoyés, devis-ATraiter)
 let tri = { critere: 'modifie', sens: 'desc' };
 let page = 1;
 let parPage = Li.TAILLE_PAGE_DEFAUT;
@@ -44,6 +46,11 @@ const COLONNES = [
 const euros = (n) => (typeof n === 'number' ? formaterMontant(n) : '—');
 
 const pastille = pastilleStatutDevis; // la même pastille que dans l'en-tête d'un devis (pastille-statut.js)
+
+const LIBELLES_A_TRAITER = { a_relancer: 'À relancer', jamais_envoye: 'Jamais envoyé' };
+/** Pastille « À relancer · 12 j » ou « Jamais envoyé · 8 j » d'un devis à traiter (couleur « retard »). */
+const pastilleATraiter = (e) => h('span', { class: 'pastille-statut pastille-a-traiter', dataset: { aTraiter: e.motif } }, `${LIBELLES_A_TRAITER[e.motif]} · ${e.joursDepuis} j`);
+const OPTIONS_A_TRAITER = [{ valeur: 'tout', libelle: 'Tout' }, { valeur: 'seulement', libelle: 'Seulement à traiter' }];
 
 /** Petite pastille d'un devis finalisé mais pas encore envoyé (dans la colonne « Envoyé » du Kanban). */
 const pastillePasEnvoye = () => h('span', { class: 'pastille-statut pastille-pas-envoye', style: { '--couleur': Li.COULEURS_STATUT.en_attente_envoi }, dataset: { pastille: 'pas-encore-envoye' } }, Li.LIBELLE_PAS_ENCORE_ENVOYE);
@@ -94,17 +101,21 @@ export function rendreListeDevis(conteneur) {
       controles: [
         { cle: 'statuts', libelle: 'Statut', type: 'cases', options: [...['brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse', ...(vue === 'tableau' ? [] : ['expire', 'remplace'])].map((id) => ({ valeur: id, libelle: Li.libelleStatut(id) }))] },
         { cle: 'periode', libelle: 'En date du', type: 'choix', options: Li.PERIODES.map((p) => ({ valeur: p.id, libelle: p.libelle })) },
+        ...(vue === 'archives' ? [] : [{ cle: 'aTraiter', libelle: 'À traiter', type: 'choix', options: OPTIONS_A_TRAITER }]), // jamais en Archives (un devis à traiter n'y est pas)
         controleTests(),
       ],
-      criteres: { statuts: statutsFiltres, periode, tests: testsFiltre },
-      effacer: () => ({ statuts: [], periode: 'toutes', tests: FILTRE_TESTS_DEFAUT }),
+      criteres: { statuts: statutsFiltres, periode, aTraiter: aTraiterFiltre, tests: testsFiltre },
+      effacer: () => ({ statuts: [], periode: 'toutes', aTraiter: 'tout', tests: FILTRE_TESTS_DEFAUT }),
     });
-    if (r) { statutsFiltres = r.statuts ?? []; periode = r.periode || 'toutes'; testsFiltre = r.tests || FILTRE_TESTS_DEFAUT; page = 1; rendre(); }
+    if (r) { statutsFiltres = r.statuts ?? []; periode = r.periode || 'toutes'; aTraiterFiltre = vue === 'archives' ? 'tout' : (r.aTraiter || 'tout'); testsFiltre = r.tests || FILTRE_TESTS_DEFAUT; page = 1; rendre(); }
   } });
   const boutonNouveau = h('button', {
     type: 'button', class: `bouton ${Li.EDITEUR_DISPONIBLE ? 'bouton-principal' : 'bouton-secondaire'}`, disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT,
     dataset: { action: 'nouveau-devis' }, onclick: () => creerDevisSansAffaire(),
   }, icone('plus', { taille: 16 }), 'Devis', Li.EDITEUR_DISPONIBLE ? null : h('span', { class: 'bientot' }, ' (bientôt disponible)'));
+  const pastilleBouton = h('span', { class: 'pastille-a-traiter', 'aria-hidden': 'true' });
+  const boutonATraiter = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-a-traiter', hidden: true, dataset: { action: 'a-traiter' },
+    onclick: () => { aTraiterFiltre = aTraiterFiltre === 'seulement' ? 'tout' : 'seulement'; page = 1; rendre(); } }, 'À traiter', pastilleBouton); // second clic : retour à « Tout »
   const bascule = h('div', { class: 'zone-bascule' });
   // Même menu « Trier par » que les autres listes, aux critères des en-têtes triables (le clic d'en-tête reste possible).
   const OPTIONS_TRI = COLONNES.filter((c) => c.tri).map((c) => ({ id: c.tri, libelle: c.libelle, sens: c.tri === 'numero' ? 'asc' : 'desc' }));
@@ -113,26 +124,39 @@ export function rendreListeDevis(conteneur) {
 
   function majBascule() {
     remplir(bascule, basculeVues({ vues: [['tableau', 'Kanban', 'square-kanban'], ['liste', 'Liste', 'list'], ['archives', 'Archives', 'archive']], courante: vue,
-      surChangement: (id) => { vue = id; if (id !== 'archives') ecrirePreference('vue.devis', id); page = 1; rendre(); } }));
+      surChangement: (id) => { vue = id; if (id === 'archives') aTraiterFiltre = 'tout'; if (id !== 'archives') ecrirePreference('vue.devis', id); page = 1; rendre(); } }));
   }
+
+  let aTraiter = new Map(); // id du devis -> { motif, joursDepuis } (devisATraiter)
 
   function rendre() {
     majBascule();
     if (triAffiche.critere !== tri.critere || triAffiche.sens !== tri.sens) { choixTri.maj(OPTIONS_TRI, tri.critere, tri.sens); triAffiche = { ...tri }; } // pas à chaque rendu : le minuteur de 60 s ne doit pas recréer les options sous un menu ouvert
-    filtres.majCompte(statutsFiltres.length + (periode !== 'toutes' ? 1 : 0) + (testsFiltre !== FILTRE_TESTS_DEFAUT ? 1 : 0));
+    filtres.majCompte(statutsFiltres.length + (periode !== 'toutes' ? 1 : 0) + (aTraiterFiltre !== 'tout' ? 1 : 0) + (testsFiltre !== FILTRE_TESTS_DEFAUT ? 1 : 0));
     avis.hidden = !D.etat.erreurLectureDevis;
     avis.textContent = D.etat.erreurLectureDevis ? ERREUR_LECTURE : '';
     remplir(pied);
+    aTraiter = new Map();
+    boutonATraiter.hidden = true;
     if (!D.estPretDevis()) { remplir(zone, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }))); remplir(compteur, ''); return; }
     const maintenant = Date.now();
     const aujourdhui = CRM.ctx().aujourdhui;
     const { du, au } = Li.bornesDePeriode(periode, aujourdhui);
+    // « À traiter » : calculé sur tous les devis (la règle exclut déjà archivés et tests) ; le bouton n'existe qu'en dehors des Archives et s'il y en a.
+    const delai = D.etat.reglages?.delaiRelanceJours;
+    aTraiter = new Map(devisATraiter(D.etat.devis, { aujourdhui, maintenant, ...(Number.isFinite(delai) ? { delaiJours: delai } : {}) }).map((e) => [e.devis.id, e]));
     // Les anciennes versions « Remplacé » restent visibles (filtre de statut) ; tout est affiché par défaut.
     // Archives = devis archivés + anciennes versions (remplacées) + expirés. Kanban = tout sauf remplacés et expirés. Liste = tout ce qui n'est pas archivé à la main.
     const archives = vue === 'archives';
     const tous = D.etat.devis.filter((d) => (archives ? Li.estDansArchives(d, aujourdhui) : d.archive !== true && !(vue === 'tableau' && Li.estHorsTableau(d, aujourdhui))));
     let lignes = Li.rechercher(tous, recherche, nomsDe);
     lignes = Li.filtrer(lignes, { statuts: statutsFiltres, du, au, aujourdhui, tests: testsFiltre });
+    if (aTraiterFiltre === 'seulement') lignes = lignes.filter((d) => aTraiter.has(d.id) && !archives);
+    const nbATraiter = archives ? 0 : tous.filter((d) => aTraiter.has(d.id)).length;
+    boutonATraiter.hidden = nbATraiter === 0 && aTraiterFiltre !== 'seulement'; // reste là tant que le critère est posé (pour le retirer d'un clic)
+    boutonATraiter.setAttribute('aria-pressed', String(aTraiterFiltre === 'seulement'));
+    pastilleBouton.textContent = String(nbATraiter);
+    boutonATraiter.setAttribute('aria-label', `À traiter : ${nbATraiter} devis`);
     lignes = Li.trier(lignes, tri);
     const total = tous.length;
     remplir(compteur, `${total} devis`, lignes.length !== total ? ` · ${lignes.length} affiché${lignes.length > 1 ? 's' : ''}` : '');
@@ -166,7 +190,7 @@ export function rendreListeDevis(conteneur) {
       const t = Li.totauxDe(d);
       return ouvrable(h('tr', { class: 'ligne-liste ligne-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
         h('td', { dataset: { colonne: 'numero', libelle: 'Numéro' } }, h('span', { class: `devis-numero${d.numero ? '' : ' devis-numero-vide'}` }, intitule(d)), badgeTest(d), d.version > 1 ? h('span', { class: 'devis-version' }, ` v${d.version}`) : null, d.numero && d.nom ? h('span', { class: 'devis-nom-interne' }, ` – ${d.nom}`) : null),
-        h('td', { dataset: { colonne: 'statut', libelle: 'Statut' } }, pastille(d, aujourdhui)),
+        h('td', { dataset: { colonne: 'statut', libelle: 'Statut' } }, pastille(d, aujourdhui), aTraiter.has(d.id) ? pastilleATraiter(aTraiter.get(d.id)) : null),
         h('td', { dataset: { colonne: 'documents', libelle: 'Documents' } }, indicateurPdf(d, { apres: () => rendre(), maintenant })), // lien « PDF », « en cours » ou avertissement « PDF non rangé » (finalisé seulement)
         h('td', { dataset: { colonne: 'client', libelle: libelleClient() } }, celluleClient(d)),
         h('td', { dataset: { colonne: 'modifie', libelle: 'Modifié' } }, celluleModifie(d, maintenant)),
@@ -203,7 +227,7 @@ export function rendreListeDevis(conteneur) {
     return ouvrable(h('article', { class: 'carte-affaire carte-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
       h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, intitule(d), badgeTest(d), d.version > 1 ? ` v${d.version}` : '')),
       h('div', { class: 'carte-actions-devis' }, actionsDevis(d)),
-      h('div', { class: 'carte-pastilles' }, pastille(d, aujourdhui), d.statut === 'en_attente_envoi' && Li.statutAffiche(d, aujourdhui) === 'en_attente_envoi' ? pastillePasEnvoye() : null),
+      h('div', { class: 'carte-pastilles' }, pastille(d, aujourdhui), aTraiter.has(d.id) ? pastilleATraiter(aTraiter.get(d.id)) : null, d.statut === 'en_attente_envoi' && Li.statutAffiche(d, aujourdhui) === 'en_attente_envoi' ? pastillePasEnvoye() : null),
       celluleClient(d),
       h('div', { class: 'carte-pied' },
         h('span', { class: 'carte-montant' }, `HT ${euros(t?.ht)}`),
@@ -216,7 +240,7 @@ export function rendreListeDevis(conteneur) {
   else if (vue === 'archives') vue = 'liste'; // « Archives » ne se garde pas d'un passage à l'autre
 
   conteneur.append(h('div', { class: 'page page-liste page-devis page-liste-devis' },
-    enteteListe({ titre, compteur, actions: [h('a', { class: 'bouton bouton-secondaire', href: lien('devis/bordereau'), dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), h('a', { class: 'bouton bouton-secondaire', href: lien('devis/vocabulaire'), dataset: { action: 'ouvrir-vocabulaire' } }, icone('book-open', { taille: 16 }), 'Vocabulaire'), boutonNouveau] }),
+    enteteListe({ titre, compteur, actions: [boutonATraiter, h('a', { class: 'bouton bouton-secondaire', href: lien('devis/bordereau'), dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), h('a', { class: 'bouton bouton-secondaire', href: lien('devis/vocabulaire'), dataset: { action: 'ouvrir-vocabulaire' } }, icone('book-open', { taille: 16 }), 'Vocabulaire'), boutonNouveau] }),
     barreListe({ recherche: { placeholder: D.surSocleSeul() ? 'Numéro, client ou chantier' : 'Numéro, client ou affaire', libelleAria: 'Rechercher un devis', valeur: recherche, surSaisie: (v) => { recherche = v; page = 1; rendre(); } },
       elements: { filtres: filtres.element, vues: bascule }, tri: choixTri.element }).element,
     avis, zone, pied));
