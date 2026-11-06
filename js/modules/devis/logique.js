@@ -48,6 +48,8 @@ export const ERREUR_MARGE_100 = 'En calcul comptable, la marge doit rester infé
 export const DUREE_VALIDITE_DEFAUT = 90;
 /** Délai (en jours) après lequel un devis envoyé resté sans réponse apparaît dans les relances à faire (06/11/2026, réglable : `delaiRelanceJours`). */
 export const DELAI_RELANCE_DEFAUT = 10;
+/** Jours après la finalisation d'un devis jamais envoyé avant qu'il soit signalé « à traiter » (réglage plus tard). */
+export const DELAI_SANS_ENVOI_DEFAUT = 7;
 /** Types de remise (visible du client, contrairement à la marge) : `devis.remise = { type, valeur }` ou null. */
 export const TYPES_REMISE = ['pourcentage', 'montant'];
 /** Moments de l'acompte et leurs textes imprimés (le moment « libre » prend `texteMoment`). */

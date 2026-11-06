@@ -95,7 +95,7 @@ function logoEspace(logo, taille, classe) {
  * Monte la coquille pour le compte connecté.
  * Renvoie { contenu, activer(route), majClient(nouveau), arreter() }.
  * Options : `modules` (défaut : tous) ; `client` = { nom, logo, accent? } (identité de l'espace : la même forme chez Jérôme, où elle vaut ESPACE_RACINE, et chez un client) ;
- * `accueil` = première route.
+ * `accueil` = première route ; `retour` = { libelle, href } (portail devis seul : dernière entrée du menu, lien vers l'espace complet).
  * Menu principal : blocs d'entrées séparés par de fines lignes, sans titres de groupes. Réglages, Journal des modifications, « Connecter mon ChatGPT », thème
  * et déconnexion sont dans le menu utilisateur (clic sur le nom, en bas à gauche). Le bouton de repli est à droite du nom de l'espace (Cmd/Ctrl+B).
  */
@@ -110,7 +110,7 @@ export function largeurMemorisee() {
 }
 const poserLargeur = (n) => document.documentElement.style.setProperty('--menu-largeur', `${n}px`);
 
-export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(), modules = MODULES, client = ESPACE_RACINE, accueil = 'crm/accueil' }) {
+export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(), modules = MODULES, client = ESPACE_RACINE, accueil = 'crm/accueil', retour = null }) {
   vider(racine);
   document.body.classList.remove('page-connexion');
   const elargi = lirePreference('menu', 'replie') === 'elargi';
@@ -141,6 +141,11 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
       groupe.append(section);
     }
     nav.append(groupe);
+  }
+  if (retour) {
+    // Portail devis seul : une dernière section avec le lien vers l'espace complet (adresse hors du préfixe du portail, donc data-hors-prefixe).
+    const a = h('a', { class: 'menu-entree menu-entree-retour', href: retour.href, dataset: { role: 'retour-espace', infobulle: retour.libelle, horsPrefixe: '' } }, icone('layout-grid'), h('span', { class: 'menu-texte' }, retour.libelle));
+    nav.append(h('div', { class: 'menu-groupe', dataset: { bloc: 'retour' } }, h('div', { class: 'menu-section' }, a)));
   }
 
   /** Met à jour la pastille et le lien d'une entrée : le lien arrive sur l'écran du badge quand il y a quelque chose à traiter, sinon sur l'entrée habituelle. */

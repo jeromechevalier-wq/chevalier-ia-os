@@ -675,3 +675,11 @@ tr[data-manquant] { outline-offset: -2px; }
 .message-limite { display: flex; align-items: flex-start; gap: var(--esp-3); margin: 0; color: var(--texte2); }
 .message-limite .icone { flex: none; margin-top: 2px; }
 @media (max-width: 767px), (pointer: coarse) { .puce-adresse, .puce-adresse-croix, .lien-cc, .champ-adresse, .etiquette-adresses { min-height: 44px; } .puce-adresse-croix, .lien-cc { min-width: 44px; } }
+
+/* Portail devis seul, étape 1 : « À traiter » (devis à relancer ou jamais envoyés). Couleur « retard » (sémantique), jamais de jaune plein. */
+.bouton-a-traiter { display: inline-flex; align-items: center; gap: var(--esp-3); }
+.bouton-a-traiter[hidden] { display: none; }
+.bouton-a-traiter .pastille-a-traiter { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 var(--esp-2); border-radius: 999px; background: var(--retard); color: var(--sur-retard); font-size: var(--fs-petit); font-weight: var(--poids-moyen); line-height: 1; font-variant-numeric: tabular-nums; }
+.pastille-statut.pastille-a-traiter { --couleur: var(--retard); margin-left: var(--esp-2); }
+.carte-pastilles .pastille-statut.pastille-a-traiter { margin-left: 0; }
+@media (max-width: 767px), (pointer: coarse) { .bouton-a-traiter { min-height: 44px; } }

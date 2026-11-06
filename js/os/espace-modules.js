@@ -6,12 +6,13 @@
 import { MODULES_CLIENT } from './modules.js';
 import { cheminBaseClient } from './chemins.js';
 import { moduleAccessible, premiereRoute, routeModernisee } from './registre.js';
-import { definirPrefixe, routeCourante, segments, surChangementRoute, naviguer, lien, suivreLiensDuPrefixe } from './router.js';
+import { definirPrefixe, routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, lien, suivreLiensDuPrefixe } from './router.js';
 import { monterCoquille } from './shell.js';
 import { monterReglages } from './reglages.js';
 import { definirChezClient, definirLogoEspace } from './contexte.js';
 import { appliquerIdentite } from './identite.js';
-import { normaliserMarque } from './marque.js';
+import { normaliserMarque, routeDansEspace } from './marque.js';
+import { PORTAILS, portailDeRoute, modulesDuPortail } from './portail.js';
 import { h, icone, vider, remplir } from './ui.js';
 import { demarrer as demarrerSocle, arreter as arreterSocle } from '../modules/crm/donnees.js';
 
@@ -24,7 +25,12 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
   const apis = new Map();
   for (const m of modules) apis.set(m.id, await m.monter());
   const base = cheminBaseClient(client);
-  definirPrefixe(`espace/${client}`);
+  // Portail devis seul (js/os/portail.js) : #/espace/<client>/portail-devis. Mêmes modules montés et démarrés, mais menu, « + » et recherche réduits.
+  const portail = portailDeRoute(routeDansEspace(routeDepuisHash(location.hash))?.reste);
+  const idsPortail = portail ? modulesDuPortail(portail.id, actifs) : null; // [] = Devis non acheté : coque au menu vide + « Page introuvable »
+  const modulesCoquille = idsPortail ? modules.filter((m) => idsPortail.includes(m.id)) : modules;
+  const apisCoquille = idsPortail ? new Map([...apis].filter(([id]) => idsPortail.includes(id))) : apis;
+  definirPrefixe(portail ? `espace/${client}/${portail.id}` : `espace/${client}`);
   // Socle commun (05/11/2026) : fiches Personnes/Organisations et journal, avant les modules ; le module Affaires, s'il est actif, démarre par-dessus en complet.
   demarrerSocle(compte, base, { noyau: true, equipe, nomEspace: marque?.nom || '' });
   for (const api of apis.values()) api.demarrer({ compte, cheminBase: base, equipe, nomEspace: marque?.nom || '' }); // equipe : membres de l'espace (fiche du client), pour « Confiée à »
@@ -32,8 +38,9 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
   appliquerIdentite(marque, client); // titre, icône, appli installée et accent de l'interface = ceux du client
   definirChezClient(true); // masque ce qui est personnel à Jérôme (Charles, sauvegarde, GitHub…) ; les célébrations n'y existent qu'avec leur option, et l'image de Charles n'y est jamais
   definirLogoEspace(marque.logo); // le logo de l'espace peut servir d'image aux célébrations (lu en direct, jamais recopié)
-  const accueil = premiereRoute(actifs);
-  const coquille = monterCoquille(racine, compte, { apis, modules, client: { nom: marque.nom, logo: marque.logo }, accueil, surDeconnexion });
+  const accueil = portail ? PORTAILS[portail.id].accueil : premiereRoute(actifs);
+  const retour = portail && idsPortail.length ? { libelle: PORTAILS[portail.id].libelleRetour, href: lien(PORTAILS[portail.id].accueil, `espace/${client}`) } : null;
+  const coquille = monterCoquille(racine, compte, { apis: apisCoquille, modules: modulesCoquille, client: { nom: marque.nom, logo: marque.logo }, accueil, retour, surDeconnexion });
   /** Un éditeur vient d'enregistrer nom, couleur ou logo : tout ce qui est visible se met à jour tout de suite, sans recharger (les autres appareils au prochain chargement). */
   const surMarque = (nouvelle) => {
     Object.assign(marque, normaliserMarque({ actif: true, ...nouvelle }) ?? nouvelle); // mêmes formes que la marque lue à l'ouverture (images : { url, alt })
@@ -60,7 +67,7 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
       return;
     }
     const m = modules.find((x) => x.prefixe === segs[0]);
-    if (!m || !moduleAccessible(segs[0], actifs)) {
+    if (!m || !moduleAccessible(segs[0], actifs) || (idsPortail && !idsPortail.includes(m.id))) {
       vue?.quitter?.();
       vue = { cle: 'introuvable', quitter: null };
       vider(coquille.contenu);
