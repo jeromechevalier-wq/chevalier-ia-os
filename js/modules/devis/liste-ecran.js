@@ -101,13 +101,13 @@ export function rendreListeDevis(conteneur) {
       controles: [
         { cle: 'statuts', libelle: 'Statut', type: 'cases', options: [...['brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse', ...(vue === 'tableau' ? [] : ['expire', 'remplace'])].map((id) => ({ valeur: id, libelle: Li.libelleStatut(id) }))] },
         { cle: 'periode', libelle: 'En date du', type: 'choix', options: Li.PERIODES.map((p) => ({ valeur: p.id, libelle: p.libelle })) },
-        { cle: 'aTraiter', libelle: 'À traiter', type: 'choix', options: OPTIONS_A_TRAITER },
+        ...(vue === 'archives' ? [] : [{ cle: 'aTraiter', libelle: 'À traiter', type: 'choix', options: OPTIONS_A_TRAITER }]), // jamais en Archives (un devis à traiter n'y est pas)
         controleTests(),
       ],
       criteres: { statuts: statutsFiltres, periode, aTraiter: aTraiterFiltre, tests: testsFiltre },
       effacer: () => ({ statuts: [], periode: 'toutes', aTraiter: 'tout', tests: FILTRE_TESTS_DEFAUT }),
     });
-    if (r) { statutsFiltres = r.statuts ?? []; periode = r.periode || 'toutes'; aTraiterFiltre = r.aTraiter || 'tout'; testsFiltre = r.tests || FILTRE_TESTS_DEFAUT; page = 1; rendre(); }
+    if (r) { statutsFiltres = r.statuts ?? []; periode = r.periode || 'toutes'; aTraiterFiltre = vue === 'archives' ? 'tout' : (r.aTraiter || 'tout'); testsFiltre = r.tests || FILTRE_TESTS_DEFAUT; page = 1; rendre(); }
   } });
   const boutonNouveau = h('button', {
     type: 'button', class: `bouton ${Li.EDITEUR_DISPONIBLE ? 'bouton-principal' : 'bouton-secondaire'}`, disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT,
@@ -115,7 +115,7 @@ export function rendreListeDevis(conteneur) {
   }, icone('plus', { taille: 16 }), 'Devis', Li.EDITEUR_DISPONIBLE ? null : h('span', { class: 'bientot' }, ' (bientôt disponible)'));
   const pastilleBouton = h('span', { class: 'pastille-a-traiter', 'aria-hidden': 'true' });
   const boutonATraiter = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-a-traiter', hidden: true, dataset: { action: 'a-traiter' },
-    onclick: () => { aTraiterFiltre = 'seulement'; page = 1; rendre(); } }, 'À traiter', pastilleBouton);
+    onclick: () => { aTraiterFiltre = aTraiterFiltre === 'seulement' ? 'tout' : 'seulement'; page = 1; rendre(); } }, 'À traiter', pastilleBouton); // second clic : retour à « Tout »
   const bascule = h('div', { class: 'zone-bascule' });
   // Même menu « Trier par » que les autres listes, aux critères des en-têtes triables (le clic d'en-tête reste possible).
   const OPTIONS_TRI = COLONNES.filter((c) => c.tri).map((c) => ({ id: c.tri, libelle: c.libelle, sens: c.tri === 'numero' ? 'asc' : 'desc' }));
@@ -124,7 +124,7 @@ export function rendreListeDevis(conteneur) {
 
   function majBascule() {
     remplir(bascule, basculeVues({ vues: [['tableau', 'Kanban', 'square-kanban'], ['liste', 'Liste', 'list'], ['archives', 'Archives', 'archive']], courante: vue,
-      surChangement: (id) => { vue = id; if (id !== 'archives') ecrirePreference('vue.devis', id); page = 1; rendre(); } }));
+      surChangement: (id) => { vue = id; if (id === 'archives') aTraiterFiltre = 'tout'; if (id !== 'archives') ecrirePreference('vue.devis', id); page = 1; rendre(); } }));
   }
 
   let aTraiter = new Map(); // id du devis -> { motif, joursDepuis } (devisATraiter)
@@ -153,7 +153,8 @@ export function rendreListeDevis(conteneur) {
     lignes = Li.filtrer(lignes, { statuts: statutsFiltres, du, au, aujourdhui, tests: testsFiltre });
     if (aTraiterFiltre === 'seulement') lignes = lignes.filter((d) => aTraiter.has(d.id) && !archives);
     const nbATraiter = archives ? 0 : tous.filter((d) => aTraiter.has(d.id)).length;
-    boutonATraiter.hidden = nbATraiter === 0;
+    boutonATraiter.hidden = nbATraiter === 0 && aTraiterFiltre !== 'seulement'; // reste là tant que le critère est posé (pour le retirer d'un clic)
+    boutonATraiter.setAttribute('aria-pressed', String(aTraiterFiltre === 'seulement'));
     pastilleBouton.textContent = String(nbATraiter);
     boutonATraiter.setAttribute('aria-label', `À traiter : ${nbATraiter} devis`);
     lignes = Li.trier(lignes, tri);

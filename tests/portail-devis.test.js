@@ -72,3 +72,12 @@ describe('devisATraiter', () => {
     assert.deepEqual(traiter([envoye('sans-date', 12, { envoyeLe: null })]), [], 'envoyé sans date d\'envoi : jamais « à relancer »');
   });
 });
+
+describe('bornes exactes', () => {
+  test('13b 10 jours pile (envoyé) et 7 jours pile (finalisé) sont présents ; une milliseconde de moins : absent', () => {
+    const pile = traiter([envoye('e10', 10), finalise('f7', 7)]);
+    assert.deepEqual(pile.map((x) => [x.devis.id, x.motif, x.joursDepuis]), [['e10', 'a_relancer', 10], ['f7', 'jamais_envoye', 7]]);
+    const presque = [envoye('e', 10, { envoyeLe: new Date(MAINTENANT - 10 * 86_400_000 + 1) }), finalise('f', 7, { finaliseLe: new Date(MAINTENANT - 7 * 86_400_000 + 1) })];
+    assert.deepEqual(traiter(presque), []);
+  });
+});

@@ -12,7 +12,8 @@ import { monterReglages } from './reglages.js';
 import { definirChezClient, definirLogoEspace } from './contexte.js';
 import { appliquerIdentite } from './identite.js';
 import { normaliserMarque, routeDansEspace } from './marque.js';
-import { PORTAILS, portailDeRoute, modulesDuPortail } from './portail.js';
+import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe } from './portail.js';
+import { blocIntrouvablePortail } from './portail-introuvable.js';
 import { h, icone, vider, remplir } from './ui.js';
 import { demarrer as demarrerSocle, arreter as arreterSocle } from '../modules/crm/donnees.js';
 
@@ -26,6 +27,7 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
   for (const m of modules) apis.set(m.id, await m.monter());
   const base = cheminBaseClient(client);
   // Portail devis seul (js/os/portail.js) : #/espace/<client>/portail-devis. Mêmes modules montés et démarrés, mais menu, « + » et recherche réduits.
+  const entree = cleEntreeDe(routeDepuisHash(location.hash));
   const portail = portailDeRoute(routeDansEspace(routeDepuisHash(location.hash))?.reste);
   const idsPortail = portail ? modulesDuPortail(portail.id, actifs) : null; // [] = Devis non acheté : coque au menu vide + « Page introuvable »
   const modulesCoquille = idsPortail ? modules.filter((m) => idsPortail.includes(m.id)) : modules;
@@ -52,6 +54,7 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
   const arretLiens = suivreLiensDuPrefixe();
 
   function afficherRoute(route) {
+    if (cleEntreeDe(routeDepuisHash(location.hash)) !== entree) return; // la clé d'entrée a changé : la page va se recharger, aucune navigation ici
     const modernisee = routeModernisee(route); // ancien lien #/espace/<client>/journal/… -> automatisations/… (renommage du 16/10/2026)
     if (modernisee !== route) { naviguer(modernisee, { remplacer: true }); return; }
     const segs = segments(route);
@@ -71,10 +74,14 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
       vue?.quitter?.();
       vue = { cle: 'introuvable', quitter: null };
       vider(coquille.contenu);
-      coquille.contenu.append(h('div', { class: 'page-introuvable' },
-        h('h1', {}, 'Page introuvable'),
-        h('p', { class: 'aide' }, "Cette page n'existe pas ou n'est pas disponible dans cet espace."),
-        h('a', { class: 'bouton bouton-principal', href: lien(accueil) }, icone('house', { taille: 16 }), "Retour à l'accueil")));
+      coquille.contenu.append(idsPortail
+        ? blocIntrouvablePortail(idsPortail.length
+          ? { retourHref: lien(accueil), completHref: m && moduleAccessible(segs[0], actifs) ? lien(segs.join('/'), `espace/${client}`) : null }
+          : { retourHref: lien('', `espace/${client}`), retourHorsPortail: true }) // Devis non acheté : le portail est vide, on renvoie à l'espace complet
+        : h('div', { class: 'page-introuvable' },
+          h('h1', {}, 'Page introuvable'),
+          h('p', { class: 'aide' }, "Cette page n'existe pas ou n'est pas disponible dans cet espace."),
+          h('a', { class: 'bouton bouton-principal', href: lien(accueil) }, icone('house', { taille: 16 }), "Retour à l'accueil")));
       coquille.activer('');
       return;
     }

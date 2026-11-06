@@ -4,6 +4,7 @@ import { appliquerTheme, afficherConnexion, monterCoquille, ESPACE_RACINE } from
 import { surveillerCompte, connecter, deconnecter, crmDisponible, MESSAGE_REFUS } from './os/auth.js';
 import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace } from './os/marque.js';
+import { blocIntrouvablePortail } from './os/portail-introuvable.js';
 import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe } from './os/portail.js';
 import { MODULES } from './os/modules.js';
 import { demarrerObjectifs, arreterObjectifs } from './os/objectifs.js';
@@ -124,15 +125,27 @@ function fermerSession() {
   session = null;
 }
 
+const lienDuPortail = (chemin) => `#/${portail.id}/${chemin}`;
+
 function afficherRoute(route) {
   if (!session) return;
   const segs = segments(route);
   const { coquille, apis } = session;
+  if (cleEntree() !== entree) return; // la clé d'entrée a changé : la page va se recharger, aucune navigation ici
   if (portail) {
-    // Dans le portail : l'accueil et tout écran d'un module hors portail ramènent à la liste des devis (jamais crm/accueil, qui ferait sortir du portail).
+    // Dans le portail : l'accueil ramène à la liste des devis (jamais crm/accueil, qui ferait sortir du portail) ; un écran hors portail montre « Page introuvable »
+    // (le même bloc que chez un client) avec un lien vers l'espace complet quand le module existe.
     const dansPortail = modulesDuPortail(portail.id, MODULES.map((m) => m.id));
     const m0 = MODULES.find((x) => x.prefixe === segs[0]);
-    if (!segs.length || (segs[0] !== 'reglages' && !(m0 && dansPortail.includes(m0.id)))) { naviguer(accueilPortail, { remplacer: true }); return; }
+    if (!segs.length) { naviguer(accueilPortail, { remplacer: true }); return; }
+    if (segs[0] !== 'reglages' && !(m0 && dansPortail.includes(m0.id))) {
+      session.vue?.quitter?.();
+      session.vue = { cle: 'introuvable', quitter: null };
+      vider(coquille.contenu);
+      coquille.contenu.append(blocIntrouvablePortail({ retourHref: lienDuPortail(accueilPortail), completHref: m0 ? `#/${segs.join('/')}` : null }));
+      coquille.activer('');
+      return;
+    }
   }
   let cle;
   let afficher;

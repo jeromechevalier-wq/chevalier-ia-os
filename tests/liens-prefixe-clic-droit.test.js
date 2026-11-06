@@ -16,7 +16,7 @@ function faireDocument() {
   return ecouteurs;
 }
 function faireLien(href) {
-  const a = { attrs: href === undefined ? {} : { href }, getAttribute(n) { return n in this.attrs ? this.attrs[n] : null; }, setAttribute(n, v) { this.attrs[n] = v; } };
+  const a = { attrs: href === undefined ? {} : { href }, getAttribute(n) { return n in this.attrs ? this.attrs[n] : null; }, setAttribute(n, v) { this.attrs[n] = v; }, hasAttribute(n) { return n in this.attrs; } };
   // Fidèle à closest('a[href^="#/"]') : le lien n'est trouvé que si son href commence par « #/ ».
   a.closest = () => (String(a.attrs.href ?? '').startsWith('#/') ? a : null);
   const enfant = { closest: () => a.closest() };
@@ -95,5 +95,22 @@ describe('liens-prefixe-clic-droit', () => {
     assert.equal(ec.length, 7);
     stop();
     assert.equal(ec.length, 0);
+  });
+
+  test('6. un lien data-hors-prefixe n’est ni réécrit ni intercepté (survol, clic droit, mousedown, clic)', () => {
+    definirPrefixe('espace/clientdemo/portail-devis');
+    const ec = faireDocument();
+    const stop = suivreLiensDuPrefixe();
+    const { a, enfant } = faireLien('#/espace/clientdemo/devis/liste');
+    a.attrs['data-hors-prefixe'] = '';
+    for (const type of ['mouseover', 'focusin', 'contextmenu', 'auxclick', 'pointerdown', 'mousedown']) declencher(ec, type, enfant);
+    assert.equal(a.getAttribute('href'), '#/espace/clientdemo/devis/liste');
+    const clic = declencher(ec, 'click', enfant);
+    assert.equal(clic.defaultPrevented, false, 'le clic n’est pas intercepté : le navigateur suit le lien tel quel');
+    // un lien sans l'attribut, lui, reste ramené sous le préfixe
+    const autre = faireLien('#/devis/liste');
+    declencher(ec, 'mouseover', autre.enfant);
+    assert.equal(autre.a.getAttribute('href'), '#/espace/clientdemo/portail-devis/devis/liste');
+    stop();
   });
 });

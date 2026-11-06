@@ -102,10 +102,20 @@ test.describe('chez Jérôme', () => {
     await expect.poll(() => entreesMenu(page).then((t) => t.length).catch(() => 0)).toBe(9);
   });
 
-  test('9 un module hors portail redirige vers la liste des devis ; les Réglages s\'ouvrent dans le portail', async ({ page }) => {
+  test('9 un module hors portail : « Page introuvable » avec « Retour à l\'accueil » et « Ouvrir dans l\'espace complet » ; les Réglages s\'ouvrent dans le portail', async ({ page }, info) => {
     await ouvrirPortail(page);
     await page.evaluate(() => { location.hash = '#/portail-devis/crm/affaires'; });
+    await expect(page.getByRole('heading', { name: 'Page introuvable' })).toBeVisible();
+    await expect(page.locator('[data-action="retour-accueil"]')).toHaveAttribute('href', '#/portail-devis/devis/liste');
+    await expect(page.locator('[data-action="ouvrir-espace-complet"]')).toHaveAttribute('href', '#/crm/affaires');
+    await capturer(page, info, '9-introuvable');
+    await page.locator('[data-action="retour-accueil"]').click();
     await expect(page).toHaveURL(/#\/portail-devis\/devis\/liste$/);
+    await page.evaluate(() => { location.hash = '#/portail-devis/crm/affaires'; });
+    await page.locator('[data-action="ouvrir-espace-complet"]').click();
+    await expect(page).toHaveURL(/#\/crm\/affaires$/); // hors portail : page rechargée, menu complet
+    await ouvrirMenu(page);
+    await expect.poll(() => entreesMenu(page).then((t) => t.length).catch(() => 0)).toBe(9); // page rechargée, menu complet
     await page.evaluate(() => { location.hash = '#/portail-devis/reglages'; });
     await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
     await expect(page).toHaveURL(/#\/portail-devis\/reglages$/);
@@ -152,6 +162,27 @@ test.describe('« À traiter » dans la liste', () => {
     await page.locator('.voile-dialogue').getByRole('button', { name: 'Appliquer' }).click();
     await expect(lignes(page)).toHaveCount(1);
     await expect(page.locator('[data-id="d1"]')).toBeVisible();
+  });
+
+  test('14b le bouton « À traiter » suit le critère (aria-pressed) et un second clic remet « Tout » ; entrer en Archives remet « Tout »', async ({ page }) => {
+    await jeuATraiter();
+    await ouvrirPortail(page, 'devis/liste');
+    const bouton = page.locator('[data-action="a-traiter"]');
+    await expect(bouton).toHaveAttribute('aria-pressed', 'false');
+    await bouton.click();
+    await expect(bouton).toHaveAttribute('aria-pressed', 'true');
+    await expect(lignes(page)).toHaveCount(2);
+    await bouton.click();
+    await expect(bouton).toHaveAttribute('aria-pressed', 'false');
+    await expect(lignes(page)).toHaveCount(5);
+    await bouton.click();
+    await page.getByRole('button', { name: 'Archives' }).click();
+    await page.getByRole('button', { name: 'Liste' }).click();
+    await expect(bouton).toHaveAttribute('aria-pressed', 'false'); // le critère n'a pas suivi en Archives
+    await expect(lignes(page)).toHaveCount(5);
+    await page.getByRole('button', { name: 'Archives' }).click();
+    await page.getByRole('button', { name: /Filtres/ }).click();
+    await expect(page.locator('.voile-dialogue select[data-cle="aTraiter"]')).toHaveCount(0); // pas de critère « À traiter » en Archives
   });
 
   test('15 Kanban : mêmes pastilles, d2 garde « Pas encore envoyé » ; en Archives, rien et le bouton est caché', async ({ page }, info) => {
@@ -249,7 +280,8 @@ test.describe('chez un client (règles de la plateforme)', () => {
     await page.keyboard.press('Escape');
     await page.evaluate(() => { location.hash = '#/espace/devisseul/portail-devis/crm/affaires'; });
     await expect(page.getByRole('heading', { name: 'Page introuvable' })).toBeVisible();
-    await expect(page.getByRole('link', { name: "Retour à l'accueil" })).toHaveAttribute('href', '#/espace/devisseul/portail-devis/devis/liste');
+    await expect(page.locator('[data-action="retour-accueil"]')).toHaveAttribute('href', '#/espace/devisseul/portail-devis/devis/liste');
+    await expect(page.locator('[data-action="ouvrir-espace-complet"]')).toHaveCount(0); // Affaires n'est pas actif chez ce client : rien à ouvrir dans l'espace complet
     await page.evaluate(() => { location.hash = '#/espace/devisseul'; });
     await expect(page).toHaveURL(/#\/espace\/devisseul\/devis\/liste$/); // l'arrivée par défaut reste la liste, hors portail
     // Espace complet : hors portail, page rechargée
@@ -266,5 +298,21 @@ test.describe('chez un client (règles de la plateforme)', () => {
     await expect(page.getByRole('heading', { name: 'Page introuvable' })).toBeVisible();
     await expect(page.locator('.menu .menu-entree')).toHaveCount(0);
     await expect(page.locator('body')).not.toContainText('Camille Secrète');
+    // pas de cul-de-sac : le retour mène à l'espace du client, hors portail
+    await expect(page.locator('[data-action="retour-accueil"]')).toHaveAttribute('href', '#/espace/cabinet');
+    await expect(page.locator('[data-action="retour-accueil"]')).toHaveAttribute('data-hors-prefixe', '');
+    await page.locator('[data-action="retour-accueil"]').click();
+    await expect(page).toHaveURL(/#\/espace\/cabinet\/crm\/accueil$/);
+    await expect(page.locator('.coquille')).toBeVisible();
+  });
+
+  test('10c client Devis + Affaires : une adresse d\'Affaires dans le portail propose « Ouvrir dans l\'espace complet »', async ({ page }) => {
+    await ecrireDocument('clients/duo', { modules: { affaires: true, devis: true } });
+    await ecrireDocument('marques/duo', { actif: true, nom: 'Duo', couleur: '#336699', accueil: 'Bienvenue.' });
+    await ecrireDocument(`clients/duo/membres/${ALICE}`, { role: 'editeur' });
+    await ouvrirClient(page, 'duo', 'portail-devis/crm/affaires');
+    await expect(page.getByRole('heading', { name: 'Page introuvable' })).toBeVisible();
+    await expect(page.locator('[data-action="ouvrir-espace-complet"]')).toHaveAttribute('href', '#/espace/duo/crm/affaires');
+    await expect(page.locator('[data-action="retour-accueil"]')).toHaveAttribute('href', '#/espace/duo/portail-devis/devis/liste');
   });
 });
