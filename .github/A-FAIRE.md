@@ -2,6 +2,18 @@
 
 Mise à jour : **06/11/2026** (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Mise à jour du 06/11/2026, fin de journée (PR 539 à 544)
+
+| | Sujet | État | Qui |
+|---|---|---|---|
+| 🟢 | **Test 1.2 des familles stabilisé** (539), **état des devis lisible sur l'affaire, archivés compris** (540), **en-têtes de colonne « N affaires · montant » + ligne des tests, Affaires et Devis** (541), **colonne « Brouillon » sans montant** (543), **portail devis seul étape 1** (544) | Fait, fusionné | Claude |
+| 🟠 | **Devis seul, reste** : étape 2 écran Relances + e-mail de relance (`D.enregistrerEnvoi` ne transmet pas encore `origine: 'relance'`, le serveur l'accepte déjà) ; étape 3 Statistiques ; S8 rattacher plus tard ; S9 recette sur le client de démonstration | À faire | Claude |
+| 🟠 | **Question (a)** : deux pastilles « Jamais envoyé · 8 j » et « Pas encore envoyé » sur la même carte : garder les deux ou cacher la seconde ? | En attente | Jérôme |
+| 🟠 | **Question (b)** : « Seulement les tests » + « Seulement à traiter » donne toujours une liste vide (les tests ne sont jamais « à traiter ») : ajouter une phrase d'explication ? | En attente | Jérôme |
+| 🟠 | **Question (c)** : délai de relance 7 / 10 / 15 jours (réglage) ; « Relancé le » ou « Relance envoyée le » ? | En attente | Jérôme |
+| 🟠 | **Question (d)** : garde-fou au-delà de 1000 documents (question 6, toujours ouverte) | En attente | Jérôme |
+| 🟠 | **Suivis mineurs** : les 13 de la section du 06/11 ci-dessous restent à corriger | À faire | Claude |
+
 ## Mise à jour du 06/11/2026 (PR 530 à 536)
 
 | | Sujet | État | Qui |

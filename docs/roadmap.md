@@ -16,6 +16,9 @@ Les sept familles de premier niveau du Catalogue sont fixes. Jérôme veut les r
 ## Mode test (02/11/2026) : **fait le 05-06/11/2026**
 Jérôme fait ses tests dans sa vraie base : ils faussent les statistiques et chaque devis de test finalisé consomme un vrai numéro. Cadrage : un repère `test` (champ, « [TEST] » affiché), trois déclencheurs (assistant, interrupteur à l'écran, menu « … »), éléments de test exclus de tous les chiffres, numérotation séparée `TEST-001`, suppression des devis de test et bouton « Supprimer tous mes tests ». Mêmes fonctions chez Jérôme et chez les clients. 9 PR faites (502, 503, 507, 517, 520, 521, 522, 525 ; filtre « Tests » 530), outils du socle (531), en-tête Kanban (532) ; décisions du 06/11 dans `docs/cadrage-mode-test.md` §15.
 
+## Devis seul : état au 06/11/2026 (fin de journée)
+Fait : socle, relances étape 1 (533), export du socle (535), recherche du chantier (536), **portail devis seul étape 1** (544 : mode d'affichage de la coque, adresse `portail-devis`, liste des devis, « À traiter »). **À faire** : étape 2 écran Relances + e-mail de relance (même bouton que « Préparer l'e-mail », texte de relance, brouillon dans le Gmail du client, pas d'envoi automatique) ; étape 3 Statistiques (envoyés, signés, refusés, taux de signature, montant signé par mois, délai moyen de réponse, tests exclus) ; S8 rattacher plus tard ; S9 recette sur le client de démonstration. Le client final n'a jamais accès au portail. Prix du portail non tranché. Étude : `docs/etude-devis-autonome.md`.
+
 ## Module Devis (nuit du 24/10/2026)
 Cadrage : `docs/cadrage-devis.md`. Évolutions envisagées, dans l'ordre où on a envie de les faire : `docs/roadmap-evolutions-devis.md`. Idée **« pilotage »** (tableaux de bord de ventes : devis envoyés, signés, taux de signature, chiffre d'affaires par mois) : reportée, car elle a besoin de la facturation pour être complète ; le module Devis aura sa propre table d'indicateurs.
 
