@@ -1020,6 +1020,7 @@ test('C22 Kanban des affaires : colonnes avec total en € et nombre d’affaire
   await allerA(page, 'Affaires');
   const colonne = page.locator('.colonne[data-colonne="rdv_fixe"]');
   await expect(colonne.locator('.colonne-totaux')).toHaveText('2 000 € · 2 affaires');
+  await expect(colonne.locator('.colonne-totaux-tests')).toHaveCount(0);
   const carte = colonne.locator('.carte-affaire[data-affaire="a1"]');
   await expect(carte).toContainText('Fleurs de Provence');
   await expect(carte).toContainText('Marie Durand');

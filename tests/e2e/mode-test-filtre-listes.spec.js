@@ -111,16 +111,19 @@ test('3 « Sans les tests » sur Personnes puis Organisations : seules les ligne
   }
 });
 
-test('4 « Seulement les tests » sur le Kanban des affaires : seules les cartes [TEST], l’en-tête dit « 1 affaire » sans montant ; Liste puis Archives gardent le filtre', async ({ page }, info) => {
+test('4 « Seulement les tests » sur le Kanban des affaires : seules les cartes [TEST], l’en-tête dit « 1 affaire » sans total réel et « tests : 100 € » ; Liste puis Archives gardent le filtre', async ({ page }, info) => {
   await jeu();
   await connecter(page);
   await allerA(page, 'Affaires');
   const totaux = page.locator('.colonne[data-colonne="rdv_fixe"] .colonne-totaux');
   await expect(totaux).toHaveText('2 100 € · 3 affaires');
+  const totauxTests = page.locator('.colonne[data-colonne="rdv_fixe"] .colonne-totaux-tests');
+  await expect(totauxTests).toHaveText('tests : 100 €');
   await poserTests(page, 'seulement');
   await expect(page.locator('.carte-affaire')).toHaveCount(1);
   await expect(page.locator('.carte-affaire[data-affaire="aT"]')).toContainText('[TEST]');
   await expect(totaux).toHaveText('1 affaire');
+  await expect(totauxTests).toHaveText('tests : 100 €');
   await capturer(page, info, '4-seulement-kanban');
   await page.locator('.bascule-vue[data-vue="liste"]').click();
   await expect(page.locator('tr.ligne-liste')).toHaveCount(1);

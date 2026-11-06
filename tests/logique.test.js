@@ -622,7 +622,7 @@ describe('B12 Graphique du chiffre d’affaires depuis le début d’activité',
       affaire({ id: '1', etape: 'gagne', statut: 'gagnee', montant: 100 }),
       affaire({ id: '3', etape: 'gagne', statut: 'gagnee', montant: 70 }),
     ];
-    assert.deepEqual(L.totauxColonne(affaires), { nombre: 2, montant: 170 });
+    assert.deepEqual(L.totauxColonne(affaires), { nombre: 2, montant: 170, nombreTests: 0, montantTests: 0 });
     assert.equal(L.compterParEtape(affaires, L.CONFIG_JEROME).find((e) => e.id === 'gagne').nombre, 2);
     assert.equal(L.compterParEtape(affaires, L.CONFIG_JEROME).length, 4, 'toutes les étapes actives, même vides');
     assert.equal(L.compterParEtape(affaires, L.CONFIG_JEROME).find((e) => e.id === 'rdv_fixe').nombre, 0);

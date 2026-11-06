@@ -3,6 +3,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import * as L from '../js/modules/crm/logique.js';
+import { readFileSync } from 'node:fs';
 
 const MOIS = '2026-10';
 const D = (j) => new Date(`2026-10-${j}T10:00:00Z`);
@@ -66,10 +67,18 @@ describe('mode test : statistiques', () => {
     assert.deepEqual(L.caParMois([], [MOIS], [{ id: 'r', factures: [payee] }]).map((x) => x.montant), [100]);
   });
 
-  test('5 totauxColonne : le montant exclut les essais, le nombre compte les cartes affichées', () => {
+  test('5 totauxColonne : le montant réel exclut les tests, le total des tests est à part, le nombre compte les cartes affichées', () => {
     const affaires = [{ id: 'r', montant: 2000 }, { id: 't', montant: 100, test: true }];
-    assert.deepEqual(L.totauxColonne(affaires), { nombre: 2, montant: 2000 });
-    assert.deepEqual(L.totauxColonne([affaires[1]]), { nombre: 1, montant: 0 });
+    assert.deepEqual(L.totauxColonne(affaires), { nombre: 2, montant: 2000, nombreTests: 1, montantTests: 100 });
+    assert.deepEqual(L.totauxColonne([affaires[1]]), { nombre: 1, montant: 0, nombreTests: 1, montantTests: 100 });
+    assert.deepEqual(L.totauxColonne([affaires[0]]), { nombre: 1, montant: 2000, nombreTests: 0, montantTests: 0 });
+    assert.deepEqual(L.totauxColonne([{ id: 's', test: true }]), { nombre: 1, montant: 0, nombreTests: 1, montantTests: 0 });
+  });
+
+  test('5d verrouillage : l’en-tête de colonne des affaires a sa ligne « tests : » et aucun « essai » visible', () => {
+    const src = readFileSync(new URL('../js/modules/crm/affaires.js', import.meta.url), 'utf8');
+    assert.ok(src.includes('colonne-totaux-tests') && src.includes('tests : '));
+    assert.ok(!/(['"`])[^'"`\n]*\bessai/i.test(src.replace(/réessai|bloc-essai|essai-/gi, '')));
   });
 
   test('8 exportJson garde test: true (la « colonne test » de l’export est le champ lui-même)', () => {

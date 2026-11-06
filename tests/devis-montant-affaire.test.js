@@ -312,7 +312,7 @@ describe('N5 la lecture commune à tous les écrans', () => {
   test('N5 le total de colonne et le chiffre d’affaires signé du mois comptent le même montant que la fiche', () => {
     const gagnee = { etape: 'etape_5', statut: 'gagnee', datesEtapes: { etape_5: new Date('2026-10-10T10:00:00Z') } };
     const affaires = [{ id: 'a', montant: 1500, montantDevisHt: 1200, ...gagnee }, { id: 'b', montant: 300, ...gagnee }, { id: 'c', ...gagnee }];
-    assert.deepEqual(LEcran.totauxColonne(affaires), { nombre: 3, montant: 1500 });
+    assert.deepEqual(LEcran.totauxColonne(affaires), { nombre: 3, montant: 1500, nombreTests: 0, montantTests: 0 });
     assert.equal(LEcran.CALCULS.ca_signe.calculer({ affaires, config: LEcran.CONFIG_NEUTRE }, '2026-10'), 1500);
   });
   test('N5 la copie du serveur (functions/partage) lit pareil que l’écran', () => {
