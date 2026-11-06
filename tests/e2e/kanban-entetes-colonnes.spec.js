@@ -88,6 +88,23 @@ test('3 Kanban des Devis (vue Tableau) : « 2 devis · 220 € » (HT) puis « 1
   await capturer(page, info, '3-devis-entetes');
 });
 
+test('3c colonne Brouillon : « 2 devis » sans montant, et « 1 devis [TEST] » sans montant ; la colonne « Envoyé » garde « 2 devis · 220 € »', async ({ page }, info) => {
+  await jeuDevis();
+  await devis('b1', { numero: null, statut: 'brouillon', finaliseLe: null, expireLe: null });
+  await devis('b2', { numero: null, statut: 'brouillon', finaliseLe: null, expireLe: null });
+  await devis('bT', { numero: null, statut: 'brouillon', finaliseLe: null, expireLe: null, test: true });
+  await versTableauDevis(page);
+  await poserTests(page, 'exclure');
+  await expect(page.locator('.tableau-devis-colonnes .colonne[data-colonne="brouillon"] .colonne-totaux')).toHaveText(/^2 devis$/);
+  expect(await texte(page.locator('.tableau-devis-colonnes .colonne[data-colonne="envoye"] .colonne-totaux'))).toBe('2 devis · 220 €');
+  await poserTests(page, 'inclure');
+  const colonne = page.locator('.tableau-devis-colonnes .colonne[data-colonne="brouillon"]');
+  expect(await texte(colonne.locator('.colonne-totaux'))).toBe('3 devis');
+  expect(await texte(colonne.locator('.colonne-totaux-tests'))).toBe('1 devis [TEST]');
+  expect(await texte(page.locator('.tableau-devis-colonnes .colonne[data-colonne="envoye"] .colonne-totaux'))).toBe('3 devis · 220 €');
+  await capturer(page, info, '3c-brouillon-sans-montant');
+});
+
 test('4 filtre « Seulement les tests » : Affaires « 1 affaire » (sans montant réel) + « 1 affaire [TEST] · 100 € » ; Devis pareil ; « Sans les tests » : plus de seconde ligne', async ({ page }, info) => {
   await jeuAffaires();
   await jeuDevis();

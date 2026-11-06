@@ -156,7 +156,7 @@ test('5 Projets : « Seulement les tests » filtre, pose la pastille, « Enregis
   await capturer(page, info, '5-projets-enregistre');
 });
 
-test('6 Devis : « Sans les tests » en Liste et en Kanban, le compteur dit « 2 devis · 1 affiché », la colonne « Brouillon » dit « 1 devis · 125 € », la pastille de compte vaut 1', async ({ page }, info) => {
+test('6 Devis : « Sans les tests » en Liste et en Kanban, le compteur dit « 2 devis · 1 affiché », la colonne « Brouillon » dit « 1 devis » (sans montant : le brouillon bouge à chaque frappe), la pastille de compte vaut 1', async ({ page }, info) => {
   await jeu({ devisAussi: true });
   await connecter(page, undefined, { route: 'devis/liste' });
   await expect(page.locator('.page-liste-devis')).toBeVisible();
@@ -168,7 +168,7 @@ test('6 Devis : « Sans les tests » en Liste et en Kanban, le compteur dit « 2
   await expect(page.locator('.compteur-liste')).toHaveText('2 devis · 1 affiché');
   await expect(compteur(page)).toHaveText('1');
   await page.locator('.bascule-vue[data-vue="tableau"]').click();
-  await expect(page.locator('.colonne[data-colonne="brouillon"] .colonne-totaux')).toHaveText(/^1 devis · 125 €$/);
+  await expect(page.locator('.colonne[data-colonne="brouillon"] .colonne-totaux')).toHaveText(/^1 devis$/);
   await capturer(page, info, '6-devis');
   await page.locator('.bascule-vue[data-vue="archives"]').click();
   await expect(compteur(page)).toHaveText('1');
