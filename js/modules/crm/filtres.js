@@ -9,6 +9,9 @@ function unique(valeurs) {
   return [...new Set(valeurs.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
 }
 
+/** Groupe « Tests » de la fenêtre « Filtres », le même pour les cinq listes qui portent le repère `test` (Personnes, Organisations, Affaires, Projets, Devis). */
+export const controleTests = () => ({ cle: 'tests', libelle: 'Tests', type: 'choix', options: L.OPTIONS_FILTRE_TESTS.map((o) => ({ valeur: o.valeur, libelle: o.libelle })) });
+
 /** Contrôles de la fenêtre de filtres, selon la liste. */
 function controles(liste) {
   const cases = (cle, libelle, options) => ({ cle, libelle, type: 'cases', options });
@@ -24,6 +27,7 @@ function controles(liste) {
       cases('sources', 'Source', sources.map((s) => ({ valeur: s, libelle: s }))),
       cases('villes', 'Ville', villes(D.etat.personnes.map((p) => p.ville))),
       oui('archives', 'Archivées seulement'),
+      controleTests(),
     ];
   }
   if (liste === 'organisations') {
@@ -32,6 +36,7 @@ function controles(liste) {
       cases('secteurs', 'Secteur', unique([...D.etat.secteurs, ...D.etat.organisations.map((o) => o.secteur)]).map((v) => ({ valeur: v, libelle: v }))),
       cases('villes', 'Ville', villes(D.etat.organisations.map((o) => o.ville))),
       oui('archives', 'Archivées seulement'),
+      controleTests(),
     ];
   }
   return [
@@ -43,6 +48,7 @@ function controles(liste) {
     oui('enRetard', 'En retard'),
     oui('sansAction', 'Sans action prévue'),
     oui('semaine', 'À relancer cette semaine'),
+    controleTests(),
   ];
 }
 

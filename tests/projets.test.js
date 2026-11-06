@@ -388,7 +388,7 @@ describe('B26 Projets : filtres et recherche de l’écran', () => {
   const contexte = { personnes, organisations, taches: [], aujourdhui: '2026-10-15' };
 
   test('B26 critères : les clés manquantes sont vides ; les filtres posés sont comptés, pas la recherche', () => {
-    assert.deepEqual(P.criteresProjetsComplets(), { recherche: '', phases: [], statuts: [], enRetard: false });
+    assert.deepEqual(P.criteresProjetsComplets(), { recherche: '', phases: [], statuts: [], enRetard: false, tests: 'inclure' });
     assert.equal(P.filtresProjetsActifs({ recherche: 'x' }), 0);
     assert.equal(P.filtresProjetsActifs({ phases: ['lancement', 'livraison'], enRetard: true }), 2, 'un groupe de cases compte pour un filtre');
     assert.deepEqual(P.CRITERES_PROJETS_VIDES, P.criteresProjetsComplets({}));
@@ -448,7 +448,7 @@ describe('B27 Projets : filtres enregistrés', () => {
     const existants = [{ id: 'x', nom: 'Chaudes', liste: 'affaires', ordre: 1 }];
     const r = P.nouveauFiltreProjets('  Projets   en retard ', { enRetard: true, phases: ['livraison'] }, existants, 'ab12');
     assert.deepEqual(r.erreurs, {});
-    assert.deepEqual(r.filtre, { id: 'projets_en_retard_ab12', nom: 'Projets en retard', liste: 'projets', criteres: { recherche: '', phases: ['livraison'], statuts: [], enRetard: true }, ordre: 2 });
+    assert.deepEqual(r.filtre, { id: 'projets_en_retard_ab12', nom: 'Projets en retard', liste: 'projets', criteres: { recherche: '', phases: ['livraison'], statuts: [], enRetard: true, tests: 'inclure' }, ordre: 2 });
   });
   test('B27 nom vide ou déjà pris par un filtre de projets : refusé ; le même nom chez les affaires ne gêne pas', () => {
     const existants = [{ id: 'x', nom: 'Chaudes', liste: 'affaires' }, { id: 'y', nom: 'Retards', liste: 'projets' }];
@@ -888,7 +888,7 @@ describe('X Extraction de valeur supprimée (18/10/2026) : plus de création, an
     const doc = P.nouveauProjet({ titre: 'Neuf', nature: 'extraction', projetSourceId: 'pr9' }, c());
     assert.equal('nature' in doc, false);
     assert.equal('projetSourceId' in doc, false);
-    assert.deepEqual(P.CRITERES_PROJETS_VIDES, { recherche: '', phases: [], statuts: [], enRetard: false });
+    assert.deepEqual(P.CRITERES_PROJETS_VIDES, { recherche: '', phases: [], statuts: [], enRetard: false, tests: 'inclure' });
     assert.equal('natures' in P.criteresProjetsComplets({ natures: ['extraction'] }), false, 'un ancien filtre enregistré avec « natures » est lu sans erreur');
   });
   test('X7 une ancienne extraction (nature « extraction ») est un projet ordinaire : liste, phase, fin, archivage, validation, sans erreur', () => {

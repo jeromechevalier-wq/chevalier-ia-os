@@ -4,6 +4,7 @@
 import { STATUTS_DEVIS, estExpire, transitionPossible, totauxDevis, peutArchiver, estNumeroTest } from './logique.js';
 import { etatPdfDevis } from './pdf.js';
 import { emailPossible } from './email-brouillon.js';
+import { testsCorrespond } from '../crm/logique.js';
 
 /** L'éditeur de devis existe : « Nouveau devis », « Modifier » et « Dupliquer » sont actifs (false les grise « bientôt disponible »). */
 export const EDITEUR_DISPONIBLE = true;
@@ -129,9 +130,10 @@ export function trier(liste, { critere = 'modifie', sens = 'desc' } = {}) {
 
 // ---------------------------------------------------------------- filtres et recherche
 
-/** `statuts` : statuts affichés cochés (vide = tous ; « expire » reconnu) ; `du` / `au` : jours AAAA-MM-JJ inclus, sur « En date du » (un devis sans date est écarté dès qu'une borne est posée). */
-export function filtrer(liste, { statuts = [], du = '', au = '', aujourdhui } = {}) {
+/** `statuts` : statuts affichés cochés (vide = tous ; « expire » reconnu) ; `du` / `au` : jours AAAA-MM-JJ inclus, sur « En date du » (un devis sans date est écarté dès qu'une borne est posée) ; `tests` : inclure (défaut) | exclure | seulement. */
+export function filtrer(liste, { statuts = [], du = '', au = '', aujourdhui, tests = 'inclure' } = {}) {
   return liste.filter((d) => {
+    if (!testsCorrespond(tests, d)) return false;
     if (statuts.length && !statuts.includes(statutAffiche(d, aujourdhui))) return false;
     if (du || au) {
       const jour = dateDuDevis(d);

@@ -1,8 +1,9 @@
-// Écran « Devis » (liste des devis) : deux vues, « Kanban » et « Liste » (colonnes par statut), recherche, filtres (statut, période), pagination, menu « … ».
+// Écran « Devis » (liste des devis) : deux vues, « Kanban » et « Liste » (colonnes par statut), recherche, filtres (statut, période, tests), pagination, menu « … ».
 // Aucune règle ici : tri, filtre, recherche, pagination, regroupement et actions permises sont dans liste.js (pur, testé) ; le statut ne change QUE par les
 // fonctions du serveur (donnees.js : finaliser, changerStatut), jamais par une écriture directe, et il n'y a pas de glisser-déposer.
 import { h, icone, remplir, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
-import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
+import { boutonFiltres as boutonFiltresCommun, fenetreFiltres, controleTests } from '../crm/filtres.js';
+import { FILTRE_TESTS_DEFAUT } from '../crm/logique.js';
 import { etatVide, planifier, badgeTest, selecteurTri } from '../crm/composants.js';
 import { enteteListe, barreListe, basculeVues } from '../crm/barre-liste.js';
 import { naviguer, lien } from '../../os/router.js';
@@ -21,6 +22,7 @@ let vue = 'liste'; // liste | tableau (= Kanban) | archives (les archives s'affi
 let recherche = '';
 let statutsFiltres = [];
 let periode = 'toutes';
+let testsFiltre = FILTRE_TESTS_DEFAUT;
 let tri = { critere: 'modifie', sens: 'desc' };
 let page = 1;
 let parPage = Li.TAILLE_PAGE_DEFAUT;
@@ -92,11 +94,12 @@ export function rendreListeDevis(conteneur) {
       controles: [
         { cle: 'statuts', libelle: 'Statut', type: 'cases', options: [...['brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse', ...(vue === 'tableau' ? [] : ['expire', 'remplace'])].map((id) => ({ valeur: id, libelle: Li.libelleStatut(id) }))] },
         { cle: 'periode', libelle: 'En date du', type: 'choix', options: Li.PERIODES.map((p) => ({ valeur: p.id, libelle: p.libelle })) },
+        controleTests(),
       ],
-      criteres: { statuts: statutsFiltres, periode },
-      effacer: () => ({ statuts: [], periode: 'toutes' }),
+      criteres: { statuts: statutsFiltres, periode, tests: testsFiltre },
+      effacer: () => ({ statuts: [], periode: 'toutes', tests: FILTRE_TESTS_DEFAUT }),
     });
-    if (r) { statutsFiltres = r.statuts ?? []; periode = r.periode || 'toutes'; page = 1; rendre(); }
+    if (r) { statutsFiltres = r.statuts ?? []; periode = r.periode || 'toutes'; testsFiltre = r.tests || FILTRE_TESTS_DEFAUT; page = 1; rendre(); }
   } });
   const boutonNouveau = h('button', {
     type: 'button', class: `bouton ${Li.EDITEUR_DISPONIBLE ? 'bouton-principal' : 'bouton-secondaire'}`, disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT,
@@ -116,7 +119,7 @@ export function rendreListeDevis(conteneur) {
   function rendre() {
     majBascule();
     if (triAffiche.critere !== tri.critere || triAffiche.sens !== tri.sens) { choixTri.maj(OPTIONS_TRI, tri.critere, tri.sens); triAffiche = { ...tri }; } // pas à chaque rendu : le minuteur de 60 s ne doit pas recréer les options sous un menu ouvert
-    filtres.majCompte(statutsFiltres.length + (periode !== 'toutes' ? 1 : 0));
+    filtres.majCompte(statutsFiltres.length + (periode !== 'toutes' ? 1 : 0) + (testsFiltre !== FILTRE_TESTS_DEFAUT ? 1 : 0));
     avis.hidden = !D.etat.erreurLectureDevis;
     avis.textContent = D.etat.erreurLectureDevis ? ERREUR_LECTURE : '';
     remplir(pied);
@@ -129,7 +132,7 @@ export function rendreListeDevis(conteneur) {
     const archives = vue === 'archives';
     const tous = D.etat.devis.filter((d) => (archives ? Li.estDansArchives(d, aujourdhui) : d.archive !== true && !(vue === 'tableau' && Li.estHorsTableau(d, aujourdhui))));
     let lignes = Li.rechercher(tous, recherche, nomsDe);
-    lignes = Li.filtrer(lignes, { statuts: statutsFiltres, du, au, aujourdhui });
+    lignes = Li.filtrer(lignes, { statuts: statutsFiltres, du, au, aujourdhui, tests: testsFiltre });
     lignes = Li.trier(lignes, tri);
     const total = tous.length;
     remplir(compteur, `${total} devis`, lignes.length !== total ? ` · ${lignes.length} affiché${lignes.length > 1 ? 's' : ''}` : '');
