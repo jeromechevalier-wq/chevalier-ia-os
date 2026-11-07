@@ -13,8 +13,8 @@ export const URL_METADONNEES_RESSOURCE = `${EMETTEUR}/.well-known/oauth-protecte
  */
 export const COMPTES_AUTORISES = ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com'];
 
-/** Décision de Jérôme (09/10/2026) : le téléphone reçoit tous les droits, comme Claude Code (suppression et restauration comprises). */
-export const PROFIL_OAUTH = 'claude-code';
+/** Décision de Jérôme (09/10/2026) : le téléphone reçoit tous les droits, comme le profil complet (suppression et restauration comprises). */
+export const PROFIL_OAUTH = 'complet';
 
 /** Seules adresses de retour acceptées (comparaison exacte) : les applications hébergées de Claude (web, bureau, téléphone). */
 export const REDIRECTIONS_AUTORISEES = ['https://claude.ai/api/mcp/auth_callback', 'https://claude.com/api/mcp/auth_callback'];

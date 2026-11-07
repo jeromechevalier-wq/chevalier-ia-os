@@ -1,10 +1,10 @@
-// Outils de lecture (profils lecteur, bibliothécaire et Claude Code) : aucun n'écrit dans la base ni dans l'audit.
+// Outils de lecture (profils lecture, écriture et complet) : aucun n'écrit dans la base ni dans l'audit.
 import { z } from 'zod';
 import * as lecture from '../../coeur/lecture.js';
 import * as metier from '../../coeur/metier.js';
 import { resumerForme, phraseDe, ligneDeDiagnostic } from '../diagnostic-fichiers.js';
 
-const TOUS = ['lecteur', 'bibliothecaire', 'claude-code'];
+const TOUS = ['lecture', 'ecriture', 'complet'];
 const id = z.string().min(1).max(200);
 const limite = z.number().int().min(1).max(lecture.MAX_LIGNES).optional().describe(`Nombre maximal de lignes (défaut et plafond : ${lecture.MAX_LIGNES}).`);
 const tests = z.enum(['inclure', 'exclure', 'seulement']).optional().describe("Mode test : inclure (défaut) : tout ; exclure : sans les essais ; seulement : les essais (test: true). Par défaut on inclut : l'utilisateur doit pouvoir dire « montre-moi mon client de test ». Chaque résultat qui est un essai porte test: true.");

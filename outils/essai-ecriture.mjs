@@ -1,5 +1,5 @@
 // Recette de l'étape 4 du serveur MCP : crée une organisation de test « ZZ Essai MCP », lit le journal, essaie des refus,
-// la supprime, la restaure, puis la supprime pour nettoyer. Ne touche à aucune autre fiche. Il faut le jeton Claude Code.
+// la supprime, la restaure, puis la supprime pour nettoyer. Ne touche à aucune autre fiche. Il faut un jeton de profil complet.
 // Usage (Terminal du Mac, le jeton est saisi sans s'afficher et n'est jamais écrit ni affiché) :
 //   read -s CHEVALIER_MCP_TOKEN; export CHEVALIER_MCP_TOKEN
 //   node outils/essai-ecriture.mjs
@@ -71,7 +71,7 @@ async function supprimerAvecCode(args) {
 }
 
 const moi = await attendu('0. Connexion', appeler('qui_suis_je'), (d) => {
-  if (d.profil !== 'claude-code') return `ce jeton est « ${d.profil} » : il faut le jeton Claude Code`;
+  if (d.profil !== 'complet') return `ce jeton est « ${d.profil} » : il faut un jeton de profil complet`;
   if (!d.outils.includes('creer_organisation')) return 'le serveur n’offre pas encore les outils d’écriture (déploiement de l’étape 4 pas terminé ?)';
   return null;
 });

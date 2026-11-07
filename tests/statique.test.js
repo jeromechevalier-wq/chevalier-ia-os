@@ -441,9 +441,9 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
       assert.doesNotMatch(lire(f), /cia_[A-Za-z0-9_-]{40,}|GOCSPX-|client_secret|-----BEGIN/, f);
     }
   });
-  test('D8 OAuth : le téléphone reçoit le profil décidé par Jérôme (claude-code, 09/10/2026), 30 jours glissants, code de 60 s, accès d’une heure, adresses de retour de Claude seulement', async () => {
+  test('D8 OAuth : le téléphone reçoit le profil décidé par Jérôme (complet, 09/10/2026), 30 jours glissants, code de 60 s, accès d’une heure, adresses de retour de Claude seulement', async () => {
     const c = await import('../functions/src/oauth/config.js');
-    assert.equal(c.PROFIL_OAUTH, 'claude-code');
+    assert.equal(c.PROFIL_OAUTH, 'complet');
     assert.deepEqual({ ...c.DUREES }, { codeS: 60, accesS: 3600, connexionJours: 30 });
     assert.deepEqual(c.REDIRECTIONS_AUTORISEES, ['https://claude.ai/api/mcp/auth_callback', 'https://claude.com/api/mcp/auth_callback']);
     assert.equal(c.RESSOURCE, 'https://chevalier-ia-os.web.app/mcp');
@@ -508,12 +508,12 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.match(g, /limiteur\?\.requete/);
     assert.match(g, /limiteur\?\.reserver/);
   });
-  test('D6 étape 4 : les outils de suppression et de restauration sont réservés au profil claude-code, tous les outils d’écriture à bibliothécaire et claude-code', () => {
+  test('D6 étape 4 : les outils de suppression et de restauration sont réservés au profil complet, tous les outils d’écriture à ecriture et complet', () => {
     const suppr = lire('functions/src/mcp/outils/suppression.js');
-    assert.match(suppr, /const PROFILS = \['claude-code'\];/);
+    assert.match(suppr, /const PROFILS = \['complet'\];/);
     const ecr = lire('functions/src/mcp/outils/ecriture.js');
-    assert.match(ecr, /const PROFILS = \['bibliothecaire', 'claude-code'\];/);
-    assert.doesNotMatch(ecr, /lecteur/);
+    assert.match(ecr, /const PROFILS = \['ecriture', 'complet'\];/);
+    assert.doesNotMatch(ecr, /'lecture'|lecteur/);
     assert.doesNotMatch(lire('functions/src/mcp/outils/lecture.js'), /creer_|modifier_|supprimer_|restaurer/);
   });
   test('D6 étape 4 : les outils et les actions métier n’accèdent jamais directement à Firestore (ni SDK d’administration, ni écriture hors moteur)', () => {
@@ -542,7 +542,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   test('D7 étape 6 : la liste des outils du bibliothécaire donnée pour Hermes est exactement celle du serveur', async () => {
     const { OUTILS, outilsAutorises } = await import('../functions/src/mcp/outils/index.js');
     const bloc = /include: \[([^\]]+)\]/.exec(lire('docs/branchement-mcp.md'))[1].split(',').map((x) => x.trim());
-    assert.deepEqual([...bloc].sort(), outilsAutorises('bibliothecaire', OUTILS).map((o) => o.nom).sort());
+    assert.deepEqual([...bloc].sort(), outilsAutorises('ecriture', OUTILS).map((o) => o.nom).sort());
   });
   test('D8b un numéro de téléphone d\'un tableau ne passe jamais à la ligne (règle css/crm.css)', () => {
     assert.match(lire('css/crm.css'), /\.tableau a\[href\^="tel:"\] \{ white-space: nowrap; \}/);

@@ -27,7 +27,7 @@ describe('Jetons : format et lecture', () => {
     assert.equal(analyserSecret(JSON.stringify({ ...e1, actif: 'oui' })).entrees.length, 0);
   });
   test('seuls les trois profils du plan existent', () => {
-    assert.deepEqual(PROFILS, ['lecteur', 'bibliothecaire', 'claude-code']);
+    assert.deepEqual(PROFILS, ['lecture', 'ecriture', 'complet']);
   });
 });
 
@@ -79,7 +79,7 @@ describe('outils/creer-jeton.js', () => {
     const ligne = JSON.parse(/\{"jeton".*\}/.exec(sortie)[0]);
     assert.match(jeton, FORMAT_JETON);
     assert.equal(ligne.empreinte, empreinte(jeton));
-    assert.equal(ligne.profil, 'bibliothecaire');
+    assert.equal(ligne.profil, 'ecriture');
     assert.equal(ligne.actif, true);
     assert.equal(JSON.stringify(ligne).includes(jeton), false);
     assert.ok(trouverJeton(analyserSecret(JSON.stringify(ligne)).entrees, jeton));

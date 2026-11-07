@@ -21,7 +21,7 @@ export function derniereLigneDuJournal(lignes) {
  * Ordre des refus : déjà annulé, écran, création.
  */
 export function refusDeLaDerniereLigne(ligne) {
-  if (ligne.action === 'restaurer') return 'La dernière opération sur ce devis est déjà une annulation (déjà annulé) : je n’annule qu’une seule modification, et je ne défais pas une annulation sans qu’on me le demande. Pour revenir plus loin, utilise restaurer_depuis_audit (Claude Code) ou fais-le à l’écran.';
+  if (ligne.action === 'restaurer') return 'La dernière opération sur ce devis est déjà une annulation (déjà annulé) : je n’annule qu’une seule modification, et je ne défais pas une annulation sans qu’on me le demande. Pour revenir plus loin, utilise restaurer_depuis_audit (profil complet) ou fais-le à l’écran.';
   if (ligne.via === 'ecran') return 'La dernière modification vient de l’écran, je ne l’annule pas. Fais-le à l’écran.';
   if (ligne.action === 'creer') return 'Ce devis vient d’être créé, rien à annuler : utilise supprimer_devis si tu veux le retirer.';
   return null;

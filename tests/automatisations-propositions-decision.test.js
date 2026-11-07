@@ -56,13 +56,13 @@ describe('1 accès : un compte non autorisé est refusé', () => {
     assert.equal(lectures, 0);
     assert.deepEqual(m.collections, avant);
   });
-  test('1 les outils d\'écriture sont refusés au profil lecteur ; un jeton sans compte (pas d\'e-mail) ne peut pas décider', async () => {
+  test('1 les outils d\'écriture sont refusés au profil lecture ; un jeton sans compte (pas d\'e-mail) ne peut pas décider', async () => {
     const noms = (profil) => outilsAutorises(profil).map((o) => o.nom);
     for (const n of ['valider_proposition', 'refuser_proposition']) {
-      assert.ok(!noms('lecteur').includes(n), `lecteur : ${n}`);
-      assert.ok(noms('bibliothecaire').includes(n) && noms('claude-code').includes(n), n);
+      assert.ok(!noms('lecture').includes(n), `lecture : ${n}`);
+      assert.ok(noms('ecriture').includes(n) && noms('complet').includes(n), n);
     }
-    for (const n of ['lister_propositions', 'lire_proposition', 'lister_automatisations']) assert.ok(noms('lecteur').includes(n), n);
+    for (const n of ['lister_propositions', 'lire_proposition', 'lister_automatisations']) assert.ok(noms('lecture').includes(n), n);
     const m = monde();
     const avant = structuredClone(m.collections);
     await assert.rejects(() => valider_proposition.executer(ctxOutil(m.donnees, { id: 'p1' }, { email: undefined })), /connexion avec un compte/);
@@ -148,12 +148,12 @@ describe('3 valider_proposition', () => {
     assert.throws(() => z.object(refuser_proposition.schema).parse({ id: 'p1', raison: 'x'.repeat(201) }));
   });
   test('3 par le protocole MCP (connexion Google simulée) : valider_proposition écrit validee / canal mcp ; un jeton « cia_ » sans compte est refusé', async () => {
-    const s = await serveur({ profil: 'claude-code', email: MAIL });
+    const s = await serveur({ profil: 'complet', email: MAIL });
     const r = await s.appeler('valider_proposition', { id: 'p1' });
     assert.equal(r.isError, false, r.texte);
     assert.equal(r.data.etat, 'validee');
     assert.deepEqual([s.m.doc('p1').valideePar, s.m.doc('p1').canal], [MAIL, 'mcp']);
-    const sans = await serveur({ profil: 'claude-code', email: undefined });
+    const sans = await serveur({ profil: 'complet', email: undefined });
     const r2 = await sans.appeler('valider_proposition', { id: 'p1' });
     assert.equal(r2.isError, true);
     assert.match(r2.texte, /connexion avec un compte/);

@@ -146,7 +146,7 @@ describe('1 obtenir_pdf_officiel_devis : le seul PDF, un lien court, jamais fabr
 
   test('1 outil de lecture seule : ouvert au profil lecteur, indice « lecture seule »', () => {
     const o = OUTILS.find((x) => x.nom === 'obtenir_pdf_officiel_devis');
-    assert.ok(o.profils.includes('lecteur'));
+    assert.ok(o.profils.includes('lecture'));
     assert.equal(annotationsDe(o).readOnlyHint, true);
   });
 });
@@ -280,7 +280,7 @@ describe('2 preparer_email : un brouillon seulement, jamais d’envoi', () => {
     assert.match(o.description, /l'envoie LUI-MÊME/);
     assert.equal(annotationsDe(o).readOnlyHint, false);
     assert.equal(annotationsDe(o).destructiveHint, false);
-    assert.ok(!o.profils.includes('lecteur'));
+    assert.ok(!o.profils.includes('lecture'));
   });
 });
 
