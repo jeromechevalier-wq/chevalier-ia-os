@@ -703,6 +703,7 @@ describe('Étanchéité entre clients (plan M1 à M15)', () => {
     assert.equal(refus.status, 401);
     assert.equal(await refus.text(), '{"error":"non_autorise"}');
     assert.equal(await (await brut('/mcp/inconnu', ta.access_token)).text(), '{"error":"non_autorise"}');
+    assert.equal(await (await brut('/mcp/interne', ta.access_token)).text(), '{"error":"non_autorise"}', '« interne » est l’espace de Jérôme : jamais un client');
     // M10 : Clara, éditrice chez A et lectrice chez B ; chaque lien lui donne SON espace et SON rôle.
     const tc = await connecter('a', 'ID-CLARA');
     const sur = async (client, token) => { const c = await assistant(`/mcp/${client}`, token); const t = JSON.stringify((await c.callTool({ name: 'lister_affaires', arguments: {} })).content) + resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).profil; await c.close(); return t; };

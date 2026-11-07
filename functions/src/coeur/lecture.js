@@ -408,7 +408,7 @@ export async function listerDevis(donnees, { statut, affaireId, texte, archives,
   const mots = L.normaliserNom(texte ?? '').split(/\s+/).filter(Boolean);
   const lignes = selonTests(devis, tests)
     .filter((d) => (archives === true || d.archive !== true) && (!affaireId || d.affaireId === affaireId))
-    .map((d) => ({ ...resumeDevis(d, contexte), ...(lienEcran(d) ? { lienEcran: lienEcran(d) } : {}) })) // statut STOCKÉ pour le lien (un devis expiré n'est pas un brouillon)
+    .map((d) => { const l = lienEcran(d); return { ...resumeDevis(d, contexte), ...(l ? { lienEcran: l } : {}) }; }) // statut STOCKÉ pour le lien (un devis expiré n'est pas un brouillon)
     .filter((r) => (!statut || statut === 'tous' || r.statut === statut))
     .filter((r) => {
       if (!mots.length) return true;

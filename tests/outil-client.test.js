@@ -157,6 +157,7 @@ describe('nouveau client : création et lecture par les vraies règles', () => {
       [['x'.repeat(41), ...base], /pas valide/],
       [['marques', ...base], /réservé/],
       [['clients', ...base], /réservé/],
+      [['interne', ...base], /réservé/], // « interne » est l'espace de Jérôme (ESPACE_JEROME) : un client de ce nom aurait des liens faux
       [['c1', '--nom', 'N', '--membre', `${ALICE}:editeur`, '--couleur', 'rouge'], /Couleur/],
       [['c1', '--nom', 'N', '--membre', `${ALICE}:editeur`, '--couleur', '#12345'], /Couleur/],
       [['c1', '--nom', 'N', '--membre', 'Alice@exemple.test:editeur'], /minuscules/],

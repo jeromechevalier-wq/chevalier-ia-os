@@ -1661,6 +1661,7 @@ export async function pdfOfficielDevis(c, args) {
   if (devis.pdf?.statut === 'en_cours') refuser('saisie_invalide', `Le PDF officiel est en cours de fabrication.${arret} Tu peux seulement rappeler cet outil dans quelques instants.`);
   if (devis.pdf?.statut !== 'ok' || typeof devis.pdf?.chemin !== 'string') refuser('saisie_invalide', `Le PDF officiel de ce devis n’est pas disponible${devis.pdf?.statut === 'echec' ? ' (sa fabrication a échoué)' : ''}.${arret}`);
   if (!cheminAppartientALEspace(devis.pdf.chemin, c.espace ?? '')) refuser('stockage_indisponible', `Le PDF officiel n’a pas été retrouvé au bon endroit du stockage.${arret}`);
+  const lienDevis = lienEcranDepuisContexte(c, devis);
   const stockage = c.stockage?.() ?? null;
   let lien = null;
   if (stockage && await stockage.existe(devis.pdf.chemin)) {
@@ -1672,7 +1673,7 @@ export async function pdfOfficielDevis(c, args) {
   return {
     id: devis.id, numero: devis.numero ?? null, version: devis.version ?? 1, statut: devis.statut, nom: devis.pdf.nom ?? null,
     ...(lien ? { lien, valableMinutes: DUREE_LIEN_MINUTES } : {}),
-    ...(lienEcranDepuisContexte(c, devis) ? { lienApplication: lienEcranDepuisContexte(c, devis), lienEcran: lienEcranDepuisContexte(c, devis) } : {}),
+    ...(lienDevis ? { lienApplication: lienDevis, lienEcran: lienDevis } : {}),
     ...(avertissements.length ? { avertissement: avertissements.join(' ') } : {}),
     consigne: 'Ce devis a un PDF officiel, le seul à utiliser. Donne le lien à l’utilisateur qui l’a demandé. Ne transmets ni le PDF ni le lien à quelqu’un d’autre (client, collègue…) sans lui avoir montré le destinataire et obtenu un « oui » clair, et n’envoie rien toi-même : pour préparer l’e-mail avec ce PDF joint, utilise preparer_email.',
   };

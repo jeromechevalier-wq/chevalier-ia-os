@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
+import { GARANTIE_PAS_D_ENVOI } from '../functions/src/mcp/outils/garantie.js';
 import { CONSIGNE_LIEN_ECRAN, lienEcranDevis } from '../functions/src/coeur/liens.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerAccesMemoire, avecBase } from '../functions/src/coeur/donnees.js';
@@ -165,7 +166,8 @@ describe('6 aucun secret dans un lien', () => {
     assert.ok(liens.length >= 5, `liens trouvés : ${liens.length}`);
     for (const l of liens) {
       assert.match(l, /^https:\/\/[^/?\s]+\/#\/devis\/(editeur|voir)\/[A-Za-z0-9%_-]+$/);
-      assert.doesNotMatch(l, /cia_|@|\?|code/i);
+      assert.doesNotMatch(l, /cia_|@|\?/);
+      assert.ok(!l.includes(apercu.code), 'le code de confirmation n’est jamais dans un lien');
     }
   });
 });
@@ -174,8 +176,26 @@ describe('7 consigne dans les descriptions', () => {
   const AVEC_LIEN = ['creer_devis_brouillon', 'modifier_devis_brouillon', 'modifier_lignes_devis', 'creer_devis_depuis_modele', 'annuler_derniere_modification_devis', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'modifier_destinataires_devis', 'changer_statut_devis', 'lister_devis', 'lire_devis', 'obtenir_pdf_officiel_devis'];
   test('7 chaque outil qui rend lienEcran porte la consigne ; elle n’a aucun mot réservé ni nom de domaine ; 84 outils', () => {
     for (const nom of AVEC_LIEN) assert.ok(OUTILS.find((o) => o.nom === nom)?.description.includes(CONSIGNE_LIEN_ECRAN), nom);
+    assert.deepEqual(OUTILS.filter((o) => o.description.includes(CONSIGNE_LIEN_ECRAN)).map((o) => o.nom).sort(), [...AVEC_LIEN].sort(), 'seuls ces outils portent la consigne');
+    for (const o of OUTILS.filter((x) => x.description.includes(GARANTIE_PAS_D_ENVOI))) assert.ok(o.description.endsWith(GARANTIE_PAS_D_ENVOI), `${o.nom} : la règle d’envoi reste en dernière position`);
     assert.doesNotMatch(CONSIGNE_LIEN_ECRAN, /Jérôme|Audit|Accompagnement|lancement|decouverte|cloture|gagne|premier_contact|rdv_fixe|proposition_envoyee|jerome\.chevalier|\.web\.app|https?:/i);
     assert.equal(OUTILS.length, 84);
+  });
+});
+
+describe('3 refus', () => {
+  test('3 un refus d’écriture ne porte jamais lienEcran (devis finalisé, mauvais code)', async () => {
+    const s = await demarrer({ devis: [devisEnregistre('b1')] });
+    const apercu = ok(await s.appeler('code', 'finaliser_devis', { id: 'b1' }));
+    const faux = await s.appeler('code', 'finaliser_devis', { id: 'b1', codeConfirmation: 'FAUX-CODE' });
+    assert.equal(faux.isError, true);
+    const apercu2 = ok(await s.appeler('code', 'finaliser_devis', { id: 'b1' })); // un code faux consomme l'aperçu : en demander un autre
+    assert.ok(apercu.code && apercu2.code);
+    ok(await s.appeler('code', 'finaliser_devis', { id: 'b1', codeConfirmation: apercu2.code }));
+    const refus = await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'b1', objet: 'Autre' });
+    assert.equal(refus.isError, true);
+    assert.doesNotMatch(faux.texte, /lienEcran/);
+    assert.doesNotMatch(refus.texte, /lienEcran/);
   });
 });
 

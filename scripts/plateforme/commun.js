@@ -20,7 +20,7 @@ export const TAILLE_MAX_IMAGE = 2 * 1024 * 1024; // 2 Mo par image
 const ID_CLIENT = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 /** Mots qui ne peuvent pas être un identifiant de client : noms de collections, mots d'ordre des outils, valeurs « tout le monde ». */
 export const IDENTIFIANTS_RESERVES = Object.freeze([
-  'marques', 'clients', 'membres', 'tous', 'tout', 'all', 'null', 'undefined', 'admin', 'espace',
+  'marques', 'clients', 'membres', 'tous', 'tout', 'all', 'null', 'undefined', 'admin', 'espace', 'interne',
   'creer', 'afficher', 'exporter', 'supprimer', 'ajouter-membre', 'retirer-membre', 'changer-role',
   'activer-module', 'desactiver-module', 'desactiver-client', 'reactiver-client',
 ]);
