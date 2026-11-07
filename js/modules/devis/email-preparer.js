@@ -42,11 +42,13 @@ export function adressesDuBrouillon(devis) {
 }
 
 /** Les valeurs de départ de la fenêtre : adresses du devis (comme le serveur les lira), objet et message standard remplis. `contact` : nom de la personne du devis (vide si inconnu). */
-export function valeursDeDepart(devis, contact = '') {
+export function valeursDeDepart(devis, contact = '', { relance = false } = {}) {
   const { destinataires, copie } = adressesDuBrouillon(devis);
   const variables = { contact, numero: devis?.numero || '', objet: devis?.objet || '' };
   // Le nom du contact vient du cache du navigateur, le serveur relit la base : si la personne existe mais que son nom n'est pas connu ici, le message affiché est PARTI SANS nom ;
   // on l'envoie alors toujours, pour que ce que la personne relit soit exactement ce qui part (`messageAEnvoyer`).
+  // Relance : la fenêtre s'ouvre sur le texte de relance, que le serveur ne connaît pas (il mettrait le texte standard) : objet ET message partent toujours, même sans modification.
+  if (relance) return { destinataires, copie, objet: E.objetRelanceParDefaut(variables), message: E.messageRelanceParDefaut(variables), objetAEnvoyer: true, messageAEnvoyer: true };
   return { destinataires, copie, objet: E.objetParDefaut(variables), message: E.messageParDefaut(variables), messageAEnvoyer: Boolean(devis?.personneId) && !String(contact ?? '').trim() };
 }
 
@@ -80,7 +82,7 @@ export function saisieModifiee(depart, courant) {
   const s = {};
   if (!memeListe(depart.destinataires, courant.destinataires)) s.destinataires = courant.destinataires;
   if (!memeListe(depart.copie, courant.copie)) s.copie = courant.copie;
-  if (courant.objet !== depart.objet) s.objet = courant.objet;
+  if (courant.objet !== depart.objet || depart.objetAEnvoyer === true) s.objet = courant.objet;
   if (courant.message !== depart.message || depart.messageAEnvoyer === true) s.message = courant.message;
   return Object.keys(s).length ? s : null;
 }

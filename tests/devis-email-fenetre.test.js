@@ -80,6 +80,28 @@ describe('F4 seuls les champs changés partent au serveur', () => {
   });
 });
 
+describe('F9 relance : le texte de relance part même sans modification', () => {
+  test('F9 relance : objet ET message partent même si l’utilisateur n’a rien modifié', () => {
+    const depart = P.valeursDeDepart(devisType(), 'Marie Durand', { relance: true });
+    assert.equal(depart.objet, 'Relance – Devis D-2026-014 – Rénovation salle de bain');
+    assert.match(depart.message, /^Bonjour Marie Durand,\n\nJe me permets de revenir vers vous/);
+    assert.deepEqual(P.saisieModifiee(depart, structuredClone(depart)), { objet: depart.objet, message: depart.message });
+  });
+  test('F9 hors relance : rien n’est ajouté (F4 inchangé)', () => {
+    const d = P.valeursDeDepart(devisType(), 'Marie Durand', { relance: false });
+    assert.equal(d.objetAEnvoyer, undefined);
+    assert.equal(P.saisieModifiee(d, structuredClone(d)), null);
+  });
+});
+
+describe('F10 relance : le texte modifié par la personne est celui qui part', () => {
+  test('F10 si l’utilisateur modifie le message de relance, c’est SON texte qui part (et l’objet de relance part aussi)', () => {
+    const depart = P.valeursDeDepart(devisType(), 'Marie Durand', { relance: true });
+    assert.deepEqual(P.saisieModifiee(depart, { ...depart, message: 'Mon texte' }), { objet: depart.objet, message: 'Mon texte' });
+    assert.deepEqual(P.saisieModifiee(depart, { ...depart, objet: 'Mon objet' }), { objet: 'Mon objet', message: depart.message });
+  });
+});
+
 describe('F4b ce que la personne relit est exactement ce qui part', () => {
   test('F4b le nom du contact inconnu du navigateur alors que la personne existe : le message affiché (sans nom) est envoyé quand même ; avec le nom connu, rien n’est envoyé si rien ne change', () => {
     const devis = devisType({ personneId: 'p1' });

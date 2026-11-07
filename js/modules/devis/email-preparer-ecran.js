@@ -16,7 +16,7 @@ import { emailsDeFiche } from './editeur-logique.js';
  * Point d'entrée (éditeur et visualisation). `getDevis()` rend le devis À JOUR ; `finaliser` : { libelle, action } proposé pour un brouillon (« Finaliser d'abord »).
  * Ne lève jamais : tout problème devient un message.
  */
-export async function lancerPreparationEmail({ devisId, getDevis, finaliser = null }) {
+export async function lancerPreparationEmail({ devisId, getDevis, finaliser = null, relance = false }) {
   const d = getDevis();
   if (!d) { toast('Ce devis est introuvable.', { type: 'erreur', duree: 6000 }); return; }
   const possible = E.emailPossible(d.statut);
@@ -29,7 +29,7 @@ export async function lancerPreparationEmail({ devisId, getDevis, finaliser = nu
   if (etat !== 'pret') { await pdfPasPret(devisId, getDevis, finaliser, etat, d, lancerPreparationEmail); return; }
   let contact = '';
   try { contact = (d.personneId ? Fiches.personne(d.personneId)?.nom : '') || ''; } catch { contact = ''; }
-  if (await fenetre(devisId, P.valeursDeDepart(d, contact), E.nomPieceJointe(d.pdf?.nom), () => adressesDeFiche(d))) toast(P.MESSAGE_DEMANDE_ENVOYEE, { duree: 8000 });
+  if (await fenetre(devisId, P.valeursDeDepart(d, contact, { relance }), E.nomPieceJointe(d.pdf?.nom), () => adressesDeFiche(d))) toast(P.MESSAGE_DEMANDE_ENVOYEE, { duree: 8000 });
 }
 
 /** Les adresses e-mail de la fiche du client du devis, proposées pendant la saisie (liste courte ; on peut toujours taper une autre adresse). Ne lève jamais. */
