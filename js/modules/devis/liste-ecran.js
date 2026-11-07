@@ -16,7 +16,7 @@ import { indicateurPdf } from './pdf-indicateur.js';
 import { pastilleStatutDevis } from './pastille-statut.js';
 import { devisATraiter } from './relances.js';
 
-const ERREUR_LECTURE = 'La liste des devis n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
+export const ERREUR_LECTURE = 'La liste des devis n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
 
 // Choix conservés jusqu'au rechargement de la page (comme les autres listes).
 let vue = 'liste'; // liste | tableau (= Kanban) | archives (les archives s'affichent en liste ; seules Liste et Kanban sont mémorisées)
@@ -49,7 +49,7 @@ const pastille = pastilleStatutDevis; // la même pastille que dans l'en-tête d
 
 const LIBELLES_A_TRAITER = { a_relancer: 'À relancer', jamais_envoye: 'Jamais envoyé' };
 /** Pastille « À relancer · 12 j » ou « Jamais envoyé · 8 j » d'un devis à traiter (couleur « retard »). */
-const pastilleATraiter = (e) => h('span', { class: 'pastille-statut pastille-a-traiter', dataset: { aTraiter: e.motif } }, `${LIBELLES_A_TRAITER[e.motif]} · ${e.joursDepuis} j`);
+export const pastilleATraiter = (e) => h('span', { class: 'pastille-statut pastille-a-traiter', dataset: { aTraiter: e.motif } }, `${LIBELLES_A_TRAITER[e.motif]} · ${e.joursDepuis} j`);
 /** Cas vide « Seulement les tests » + « Seulement à traiter » : un devis de test n'est jamais « à traiter » (libellés du filtre Tests : OPTIONS_FILTRE_TESTS). */
 const PHRASE_TESTS_A_TRAITER_VIDE = 'Un devis de test n’est jamais « à traiter » : choisis « Sans les tests » ou « Tout » pour voir les devis à traiter.';
 const OPTIONS_A_TRAITER = [{ valeur: 'tout', libelle: 'Tout' }, { valeur: 'seulement', libelle: 'Seulement à traiter' }];
@@ -62,7 +62,7 @@ const pastillePasEnvoye = () => h('span', { class: 'pastille-statut pastille-pas
 
 const actionsDevis = (d) => h('div', { class: 'actions-devis' }, boutonMenu(d));
 
-function boutonMenu(d) {
+export function boutonMenu(d) {
   return h('button', {
     type: 'button', class: 'bouton-icone carte-menu', 'aria-label': `Actions : ${d.numero ?? 'brouillon'} ${nomsDe(d).client}`.trim(), 'aria-haspopup': 'menu', dataset: { action: 'menu-devis' },
     onclick: (e) => { e.stopPropagation(); ouvrirMenu(e.currentTarget, entreesMenuDevis(d)); },
@@ -71,9 +71,9 @@ function boutonMenu(d) {
 
 // ---------------------------------------------------------------- cellules
 
-const ouvrirDevis = (d) => naviguer(d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}`);
-const intitule = (d) => d.numero ?? (String(d.nom ?? '').trim() || 'Brouillon'); // un brouillon nommé porte son nom (interne) ; un devis numéroté garde son numéro
-function celluleClient(d) {
+export const ouvrirDevis = (d) => naviguer(d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}`);
+export const intitule = (d) => d.numero ?? (String(d.nom ?? '').trim() || 'Brouillon'); // un brouillon nommé porte son nom (interne) ; un devis numéroté garde son numéro
+export function celluleClient(d) {
   const n = nomsDe(d);
   return h('div', { class: 'devis-client' }, h('span', { class: 'devis-client-nom' }, n.client || '—'), D.surSocleSeul() ? null : n.affaire ? h('span', { class: 'devis-affaire' }, n.affaire) : !d.affaireId ? h('span', { class: 'devis-affaire devis-sans-affaire', dataset: { valeur: 'sans-affaire' } }, 'Sans affaire') : null);
 }
@@ -83,7 +83,7 @@ function celluleModifie(d, maintenant) {
 }
 
 /** Un clic (ou Entrée) sur une ligne ou une carte ouvre le devis (l'éditeur pour un brouillon, la visualisation pour un devis finalisé), sauf sur un bouton, un lien ou un champ de la ligne. */
-function ouvrable(el, ouvrir) {
+export function ouvrable(el, ouvrir) {
   el.tabIndex = 0;
   el.addEventListener('click', (e) => { if (!e.target.closest('button, a, input, select, textarea, .menu-pop')) ouvrir(); });
   el.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); ouvrir(); } });

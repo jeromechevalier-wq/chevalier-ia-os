@@ -1,10 +1,11 @@
-// Module Devis (cadrage-devis.md) : montage et routes. Quatre écrans : le Bordereau (articles), le Vocabulaire (mots appris), la liste des devis et l'éditeur d'un devis.
+// Module Devis (cadrage-devis.md) : montage et routes. Cinq écrans : le Bordereau (articles), le Vocabulaire (mots appris), la liste des devis, l'éditeur d'un devis et les Relances (devis/relances : à relancer, déjà relancés, à relancer bientôt ; au menu du portail devis seul seulement).
 // Routes : devis/bordereau, devis/vocabulaire, devis/liste, devis/voir/<id> (le même écran que l'éditeur, ouvert sur l'onglet Prévisualisation), devis/editeur (ancienne page « Nouveau devis » : crée un brouillon sans affaire et ouvre l'éditeur), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), et les anciennes adresses devis/pdf/<id> et devis/pdf/<id>/brouillon (la page du PDF n'existe plus : elles mènent à l'éditeur du devis ; elles sont écrites dans les Documents des affaires et dans des e-mails déjà envoyés). Le module lit le CRM (étapes des affaires) : le socle commun démarre avant lui (le module Devis ne dépend d'aucun autre module ; le CRM complet tourne si Affaires est actif).
 import { vider } from '../../os/ui.js';
 import * as D from './donnees.js';
 import { rendreBordereau } from './bordereau.js';
 import { rendreVocabulaire } from './vocabulaire-ecran.js';
 import { rendreListeDevis } from './liste-ecran.js';
+import { rendreRelances } from './relances-ecran.js';
 import { rendreEditeurDevis } from './editeur-ecran.js';
 import { routeApresPdfSupprime } from './pdf.js';
 import { annulerAttentesPdf } from './pdf-actions.js';
@@ -95,6 +96,7 @@ function quitter() {
 
 const VUES = {
   liste: (conteneur) => rendreListeDevis(conteneur),
+  relances: (conteneur) => rendreRelances(conteneur),
   editeur: (conteneur, segs) => rendreEditeurDevis(conteneur, segs[1] || null),
   voir: (conteneur, segs) => rendreEditeurDevis(conteneur, segs[1], { voir: true }), // devis/voir/<id> : le MÊME écran que devis/editeur/<id>, ouvert sur l'onglet Prévisualisation (lecture seule si le devis n'est plus un brouillon)
   bordereau: (conteneur) => rendreBordereau(conteneur),

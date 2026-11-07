@@ -10,7 +10,7 @@ const lire = (chemin) => readFileSync(join(RACINE, chemin), 'utf8');
 
 const ECRANS = [
   'js/modules/devis/liste-ecran.js', 'js/modules/crm/affaires.js', 'js/modules/projets/projets.js',
-  'js/modules/devis/bordereau.js', 'js/modules/devis/vocabulaire-ecran.js',
+  'js/modules/devis/relances-ecran.js', 'js/modules/devis/bordereau.js', 'js/modules/devis/vocabulaire-ecran.js',
   // PR 2 (05/11/2026)
   'js/modules/crm/personnes.js', 'js/modules/crm/organisations.js', 'js/modules/crm/journal.js', 'js/modules/veille/ecran.js',
   'js/modules/automatisations/ecran.js', 'js/modules/automatisations/a-valider.js', 'js/modules/tableaudebord/ecran.js', 'js/modules/projets/modeles.js',

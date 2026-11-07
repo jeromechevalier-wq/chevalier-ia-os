@@ -36,6 +36,19 @@ async function noterEnvoi(d) {
   try { await D.enregistrerEnvoi(d.id, { destinataires, copie: adressesDuDevis(d.copie) }); } catch (e) { console.warn(e); toast(MESSAGE_ENVOI_NON_NOTE, { type: 'erreur', duree: 8000 }); }
 }
 
+/** « Relancé » (écran Relances) : une ligne de plus dans l'historique des envois (origine `relance`), aux adresses du devis. Rend true si c'est écrit ; un refus du serveur est montré tel quel. */
+const relancesEnCours = new Set(); // ids des devis dont « Relancé » attend la réponse du serveur : un second clic ne doit pas écrire une seconde relance
+export const relanceEnCours = (id) => relancesEnCours.has(id);
+export async function noterRelance(d) {
+  if (relancesEnCours.has(d.id)) return false;
+  relancesEnCours.add(d.id);
+  try {
+    await D.enregistrerEnvoi(d.id, { destinataires: adressesDuDevis(d.destinataires), copie: adressesDuDevis(d.copie), origine: 'relance' });
+    toast('Relance enregistrée');
+    return true;
+  } catch (e) { dire(e); return false; } finally { relancesEnCours.delete(d.id); }
+}
+
 /** Appelle la fonction du serveur puis dit le résultat. Un refus du serveur ou une panne de réseau s'affiche en clair ; rien n'est écrit par le navigateur. */
 export async function changerStatut(d, action, libelle) {
   try {

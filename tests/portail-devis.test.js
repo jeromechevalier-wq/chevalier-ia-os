@@ -34,6 +34,8 @@ describe('adresse du portail', () => {
       assert.ok(Object.isFrozen(p) && Object.isFrozen(p.modules), id);
       const module = moduleDeclare(p.modules[0]);
       assert.ok(module.ecrans.some((e) => e.route === p.accueil), `${id} : accueil ${p.accueil}`);
+      assert.ok(Object.isFrozen(p.menu), id);
+      for (const route of p.menu) assert.ok(module.ecrans.some((e) => e.route === route), `${id} : menu ${route}`);
       assert.ok(!prefixes.includes(id), id);
     }
   });
@@ -86,7 +88,7 @@ describe('bornes exactes', () => {
 describe('icônes du portail', () => {
   test('4b toute icône passée à icone() dans portail-introuvable.js et shell.js existe dans ICONES (sinon le SVG est vide)', async () => {
     const { ICONES } = await import('../js/os/ui.js');
-    for (const f of ['../js/os/portail-introuvable.js', '../js/os/shell.js']) {
+    for (const f of ['../js/os/portail-introuvable.js', '../js/os/shell.js', '../js/modules/devis/relances-ecran.js']) {
       const src = readFileSync(new URL(f, import.meta.url), 'utf8');
       const noms = [...src.matchAll(/icone\(\s*'([a-z0-9-]+)'/g)].map((m) => m[1]);
       assert.ok(noms.length > 0, f);
