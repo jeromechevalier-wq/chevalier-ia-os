@@ -2,8 +2,8 @@
 // Aucune dépendance (seulement node:crypto) : le script outils/creer-jeton.js importe aussi ce fichier.
 import { createHash, timingSafeEqual } from 'node:crypto';
 
-/** Profils : lecture (lecture seule), ecriture (lire, créer, modifier ; jamais supprimer, restaurer ni finaliser), complet (tout). */
-export const PROFILS = ['lecture', 'ecriture', 'complet'];
+/** Profils : lecture (lecture seule), ecriture (lire, créer, modifier ; jamais supprimer, restaurer ni finaliser), agent-devis (liste blanche : créer le client et le devis, finaliser avec aperçu + code, préparer l'e-mail), complet (tout). */
+export const PROFILS = ['lecture', 'ecriture', 'agent-devis', 'complet'];
 /** Anciens noms, valables pour toujours : les jetons déjà déclarés dans MCP_JETONS ne sont jamais à réécrire. */
 export const ALIAS_PROFILS = Object.freeze({ lecteur: 'lecture', bibliothecaire: 'ecriture', 'claude-code': 'complet' });
 /** Nom canonique d'un profil (nouveau nom ou ancien alias), ou null si inconnu. Seul point d'entrée des alias. */
