@@ -144,6 +144,7 @@ export const MODULES_DECLARES = geler([
       { route: 'devis/liste', libelle: 'Devis', icone: 'file-text' },
       { route: 'devis/bordereau', libelle: 'Catalogue', icone: 'list' },
       { route: 'devis/vocabulaire', libelle: 'Vocabulaire', icone: 'book-open' },
+      { route: 'devis/relances', libelle: 'Relances', icone: 'history' }, // visible au menu du portail devis seul seulement (blocsDuMenu, option `visibles`)
     ],
     collections: ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire', 'devis_usage_articles'],
     outilsMcp: ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'obtenir_pdf_officiel_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'modifier_lignes_devis', 'annuler_derniere_modification_devis', 'creer_devis_depuis_modele', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'preparer_email', 'modifier_destinataires_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire'],
@@ -410,7 +411,7 @@ export function ecransActifs(actifs) {
  * `entrees` contient tous les écrans du bloc (une entrée « horsMenu » porte l'indicateur) ; `sections` ne contient que ce que le menu principal montre. Un bloc sans section n'a pas de place dans le menu.
  * Les modules d'un même groupe (GROUPES_MENU) ne forment qu'un bloc ; les autres ont chacun le leur. Un bloc sans module actif n'existe pas.
  */
-export function blocsDuMenu(actifs) {
+export function blocsDuMenu(actifs, { visibles = [] } = {}) {
   const blocs = [];
   for (const m of MODULES_DECLARES) {
     if (!actifs.includes(m.id)) continue;
@@ -425,7 +426,7 @@ export function blocsDuMenu(actifs) {
     if (m.entreeMenu) {
       // Une seule entrée pour tout le module ; `prefixe` sert à l'allumer sur chacun de ses écrans. Les écrans restent déclarés (routes servies, onglets) mais hors menu.
       bloc.entrees.push({ chemin: m.entreeMenu, libelle: m.libelleMenu, icone: m.iconeMenu, prefixe: m.prefixe, ...(m.badge ? { module: m.id, badge: m.badge } : {}), ...(m.horsMenu ? { horsMenu: true } : {}) });
-      bloc.entrees.push(...m.ecrans.filter((e) => e.route !== m.entreeMenu).map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone, horsMenu: true })));
+      bloc.entrees.push(...m.ecrans.filter((e) => e.route !== m.entreeMenu).map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone, horsMenu: !visibles.includes(e.route) }))); // `visibles` : routes que le portail remet au menu
     } else {
       bloc.entrees.push(...m.ecrans.map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone, ...(m.horsMenu ? { horsMenu: true } : {}) })));
     }

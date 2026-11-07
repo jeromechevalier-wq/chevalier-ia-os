@@ -64,7 +64,7 @@ test.describe('chez Jérôme', () => {
   test('6 le menu du portail : Devis + Espace complet ; menu utilisateur réduit ; le « + » ne propose que Devis', async ({ page }, info) => {
     await ouvrirPortail(page);
     await ouvrirMenu(page);
-    expect(await entreesMenu(page)).toEqual(['Devis', 'Espace complet']);
+    expect(await entreesMenu(page)).toEqual(['Devis', 'Relances', 'Espace complet']);
     await expect(page.locator('[data-role="retour-espace"] svg :is(path, rect, circle, line)').first()).toBeAttached(); // icône réellement dessinée
     for (const lib of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille', 'Automatisations', 'Maintenance']) await expect(page.locator('.menu').getByRole('link', { name: lib, exact: true })).toHaveCount(0);
     await capturer(page, info, '6-menu');
@@ -275,7 +275,7 @@ test.describe('chez un client (règles de la plateforme)', () => {
     await expect(page).toHaveURL(/#\/espace\/devisseul\/portail-devis\/devis\/liste$/);
     await expect(page).toHaveTitle('Devis Seul');
     await ouvrirMenu(page);
-    expect(await entreesMenu(page)).toEqual(['Devis', 'Espace complet']);
+    expect(await entreesMenu(page)).toEqual(['Devis', 'Relances', 'Espace complet']);
     await expect(page.locator('[data-role="retour-espace"]')).toHaveAttribute('href', '#/espace/devisseul/devis/liste');
     await expect(page.locator('[data-action="a-traiter"] .pastille-a-traiter')).toHaveText('1');
     await capturer(page, info, '10-client');

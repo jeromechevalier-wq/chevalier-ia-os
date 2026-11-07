@@ -36,6 +36,15 @@ async function noterEnvoi(d) {
   try { await D.enregistrerEnvoi(d.id, { destinataires, copie: adressesDuDevis(d.copie) }); } catch (e) { console.warn(e); toast(MESSAGE_ENVOI_NON_NOTE, { type: 'erreur', duree: 8000 }); }
 }
 
+/** « Relancé » (écran Relances) : une ligne de plus dans l'historique des envois (origine `relance`), aux adresses du devis. Rend true si c'est écrit ; un refus du serveur est montré tel quel. */
+export async function noterRelance(d) {
+  try {
+    await D.enregistrerEnvoi(d.id, { destinataires: adressesDuDevis(d.destinataires), copie: adressesDuDevis(d.copie), origine: 'relance' });
+    toast('Relance enregistrée');
+    return true;
+  } catch (e) { dire(e); return false; }
+}
+
 /** Appelle la fonction du serveur puis dit le résultat. Un refus du serveur ou une panne de réseau s'affiche en clair ; rien n'est écrit par le navigateur. */
 export async function changerStatut(d, action, libelle) {
   try {
