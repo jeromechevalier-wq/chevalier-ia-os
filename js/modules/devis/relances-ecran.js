@@ -1,14 +1,14 @@
 // Écran « Relances » du portail devis seul (étape 2a) : les devis à relancer, déjà relancés et qui vont l'être. À la main d'abord, jamais d'envoi automatique.
 // Aucune règle ici : les groupes viennent de relances.js (groupesDeRelance, pur et testé). « Préparer l'e-mail » ouvre la fenêtre standard ; « Relancé » écrit une ligne
 // d'envoi d'origine `relance` PAR LE SERVEUR (donnees.js : enregistrerEnvoi), jamais par une écriture directe. Tableau de bord : titre et compteur, ni recherche ni vues.
-import { h, icone, remplir, confirmer } from '../../os/ui.js';
+import { h, icone, remplir, confirmer, toast } from '../../os/ui.js';
 import { etatVide, planifier } from '../crm/composants.js';
 import { enteteListe } from '../crm/barre-liste.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as Li from './liste.js';
 import { formaterMontant } from './document.js';
-import { noterRelance } from './actions-devis.js';
+import { noterRelance, relanceEnCours } from './actions-devis.js';
 import { lancerPreparationEmail } from './email-preparer-ecran.js';
 import { LIBELLE_PREPARER_EMAIL, MESSAGE_NON_BRANCHE } from './email-preparer.js';
 import { adressesDuDevis } from './email-brouillon.js';
@@ -33,14 +33,20 @@ export function rendreRelances(conteneur) {
   function boutonEmail(d) {
     const nonBranche = D.emailPreparable() === false;
     return h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: nonBranche, title: nonBranche ? MESSAGE_NON_BRANCHE : null, dataset: { action: 'preparer-email' },
-      onclick: () => lancerPreparationEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id) ?? d, finaliser: null }) }, icone('mail-check', { taille: 16 }), LIBELLE_PREPARER_EMAIL);
+      onclick: (e) => {
+        if (D.emailPreparable() === false) { e.currentTarget.disabled = true; e.currentTarget.title = MESSAGE_NON_BRANCHE; toast(MESSAGE_NON_BRANCHE, { type: 'erreur', duree: 8000 }); return; } // la réponse du serveur est arrivée après le dessin
+        lancerPreparationEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id) ?? d, finaliser: null });
+      } }, icone('mail-check', { taille: 16 }), LIBELLE_PREPARER_EMAIL);
   }
   function boutonRelance(d, delai) {
     const sansDestinataire = adressesDuDevis(d.destinataires).length === 0;
-    return h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: sansDestinataire, title: sansDestinataire ? MESSAGE_SANS_DESTINATAIRE : null, dataset: { action: 'relance' },
-      onclick: async () => {
-        if (!await confirmer('Relance envoyée ?', `Le devis sort de « À relancer » pendant ${delai} jours. Tu pourras la retrouver dans l’Historique.`, { libelleOk: 'Relancé' })) return;
-        await noterRelance(d);
+    return h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: sansDestinataire || relanceEnCours(d.id), title: sansDestinataire ? MESSAGE_SANS_DESTINATAIRE : null, dataset: { action: 'relance' },
+      onclick: async (e) => {
+        const bouton = e.currentTarget;
+        if (bouton.disabled || relanceEnCours(d.id)) return;
+        if (!await confirmer('Relance envoyée ?', `Le devis sort de « À relancer » pendant ${delai} jours. Tu retrouveras cette relance dans l’Historique du devis.`, { libelleOk: 'Relancé' })) return;
+        bouton.disabled = true; // grisé jusqu'à la réponse du serveur (le dessin suivant le remet à jour)
+        if (!await noterRelance(d)) bouton.disabled = sansDestinataire;
       } }, icone('check', { taille: 16 }), 'Relancé');
   }
   const ligne = (d, { pastille = null, detail, boutons = [], motif }) => ouvrable(h('article', { class: 'ligne-relance', dataset: { id: d.id, groupe: motif } },

@@ -63,6 +63,7 @@ async function simulerServeur(page, etat = {}) {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
     const donnees = JSON.parse(route.request().postData()).data;
     etat.appels.push(donnees);
+    if (etat.delaiMs) await new Promise((r) => setTimeout(r, etat.delaiMs));
     if (etat.refus) return route.fulfill({ status: 400, headers: cors, body: JSON.stringify({ error: { message: etat.refus, status: 'FAILED_PRECONDITION' } }) });
     await etat.ecrire?.(donnees);
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
@@ -151,7 +152,7 @@ test.describe('chez Jérôme', () => {
     await ligne(page, 'r12').locator('[data-action="relance"]').click();
     const fenetre = page.locator('.voile-dialogue');
     await expect(fenetre).toContainText('Relance envoyée ?');
-    await expect(fenetre).toContainText('Le devis sort de « À relancer » pendant 10 jours. Tu pourras la retrouver dans l’Historique.');
+    await expect(fenetre).toContainText('Le devis sort de « À relancer » pendant 10 jours. Tu retrouveras cette relance dans l’Historique du devis.');
     await capturer(page, info, '23-confirmation');
     await fenetre.getByRole('button', { name: 'Annuler' }).click();
     expect(etat.appels).toHaveLength(0);
@@ -163,6 +164,21 @@ test.describe('chez Jérôme', () => {
     await expect(ligne(page, 'r12')).toContainText(/1re relance/);
     await expect(bloc(page, 'a-relancer')).toHaveCount(0); // plus rien à relancer
     await capturer(page, info, '23-apres-relance');
+  });
+
+  test('23b deux clics rapides sur « Relancé » (réponse lente du serveur) : UN SEUL appel, le bouton est grisé pendant l\'appel', async ({ page }) => {
+    await jeu();
+    const etat = await simulerServeur(page, { delaiMs: 1500, ecrire: async (a) => devis(a.devisId, { numero: 'DEV-2026-10-01-001', statut: 'envoye', finaliseLe: ilYA(12), envoyeLe: ilYA(12), envois: [{ date: ilYA(12) }, { date: new Date(), origine: 'relance', destinataires: a.destinataires }] }) });
+    await ouvrirRelances(page);
+    const bouton = ligne(page, 'r12').locator('[data-action="relance"]');
+    await bouton.click();
+    await page.locator('.voile-dialogue').getByRole('button', { name: 'Relancé', exact: true }).click();
+    await expect(bouton).toBeDisabled();
+    await bouton.click({ force: true });
+    await expect.poll(() => etat.appels.length).toBe(1);
+    await expect(bloc(page, 'deja-relances').locator('.ligne-relance[data-id="r12"]')).toBeVisible();
+    expect(etat.appels).toHaveLength(1);
+    await expect(ligne(page, 'r12')).toContainText('1re relance'); // jamais « 2e relance »
   });
 
   test('24 pas de « Relancé » sur un « jamais envoyé » ; « Relancé » grisé (avec la raison) sans destinataire', async ({ page }, info) => {

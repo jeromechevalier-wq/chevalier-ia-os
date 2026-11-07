@@ -1,5 +1,5 @@
 // Portail devis seul, étape 2a : la règle pure des trois groupes de l'écran « Relances » (relances.js), le menu du portail et l'envoi de l'origine. Aucun navigateur.
-// Les numéros des critères continuent ceux de portail-devis.test.js (1 à 18) : ici 19 à 28.
+// Les numéros des critères continuent ceux de portail-devis.test.js (1 à 18) : ici les critères unitaires 19, 20 et 28 (envoi de l'origine) ; les critères d'écran 19, 21 à 28 sont dans tests/e2e/portail-devis-relances.spec.js.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync } from 'node:fs';

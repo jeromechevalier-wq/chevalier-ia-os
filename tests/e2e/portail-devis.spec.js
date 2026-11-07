@@ -63,7 +63,7 @@ test.describe('chez Jérôme', () => {
     await capturer(page, info, '5-ouverture');
   });
 
-  test('6 le menu du portail : Devis + Espace complet ; menu utilisateur réduit ; le « + » ne propose que Devis', async ({ page }, info) => {
+  test('6 le menu du portail : Devis, Relances + Espace complet ; menu utilisateur réduit ; le « + » ne propose que Devis', async ({ page }, info) => {
     await ouvrirPortail(page);
     await ouvrirMenu(page);
     expect(await entreesMenu(page)).toEqual(['Devis', 'Relances', 'Espace complet']);
