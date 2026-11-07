@@ -683,3 +683,19 @@ tr[data-manquant] { outline-offset: -2px; }
 .pastille-statut.pastille-a-traiter { --couleur: var(--retard); margin-left: var(--esp-2); }
 .carte-pastilles .pastille-statut.pastille-a-traiter { margin-left: 0; }
 @media (max-width: 767px), (pointer: coarse) { .bouton-a-traiter { min-height: 44px; } }
+
+/* Écran « Relances » (portail devis seul, étape 2a) : des lignes en cartes, boutons de 44 px au tactile. */
+.zone-relances { display: flex; flex-direction: column; gap: var(--esp-9); }
+.bloc-relances { display: flex; flex-direction: column; gap: var(--esp-4); }
+.bloc-relances > h2 { display: flex; align-items: baseline; gap: var(--esp-3); font-size: var(--fs-base); margin: 0; }
+.ligne-relance { display: flex; flex-wrap: wrap; align-items: center; gap: var(--esp-4) var(--esp-8); background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: var(--esp-5) var(--esp-7); cursor: pointer; }
+.ligne-relance:hover { border-color: var(--bordure-forte); }
+.relance-principal { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: var(--esp-1); }
+.relance-etat { display: flex; flex-wrap: wrap; align-items: center; gap: var(--esp-3); color: var(--texte2); }
+.relance-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--esp-3); }
+@media (max-width: 767px), (pointer: coarse) {
+  .ligne-relance { flex-direction: column; align-items: stretch; }
+  .relance-principal { flex: 0 0 auto; }
+  .relance-actions { flex-direction: column; align-items: stretch; }
+  .relance-actions .bouton, .relance-actions .bouton-icone { min-height: 44px; }
+}

@@ -23,7 +23,7 @@ describe('B1 le module Devis est déclaré et ne dépend plus d\'aucun module (P
     assert.ok(devis);
     assert.deepEqual(devis.dependances, []); // PR C1 : inversé, Devis repose sur le socle commun
     assert.equal(devis.entreeMenu, 'devis/liste');
-    assert.deepEqual(devis.ecrans.map((e) => e.route), ['devis/liste', 'devis/bordereau', 'devis/vocabulaire']);
+    assert.deepEqual(devis.ecrans.map((e) => e.route), ['devis/liste', 'devis/bordereau', 'devis/vocabulaire', 'devis/relances']);
     assert.deepEqual(devis.collections, ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire', 'devis_usage_articles']);
     assert.ok(!('reserveAuxClients' in devis));
     assert.ok(MODULES_DECLARES.findIndex((m) => m.id === 'affaires') < MODULES_DECLARES.findIndex((m) => m.id === 'devis'), 'les dépendances viennent avant');

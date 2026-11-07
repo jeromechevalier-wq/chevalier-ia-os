@@ -51,3 +51,29 @@ export function devisATraiter(liste, { aujourdhui, maintenant = Date.now(), dela
     .map((r) => ({ devis: r.devis, motif: 'jamais_envoye', joursDepuis: Math.floor((now - r.depuisMs) / JOUR_MS), depuisMs: r.depuisMs }));
   return [...relances, ...jamais].sort((a, b) => a.depuisMs - b.depuisMs).map(({ devis, motif, joursDepuis }) => ({ devis, motif, joursDepuis }));
 }
+
+/**
+ * Écran « Relances » (portail devis seul, étape 2a) : trois groupes disjoints, jamais de devis de test.
+ *  - aTraiter : devisATraiter (à relancer + jamais envoyés) ;
+ *  - dejaRelances : envoyés dont le dernier contact est récent (moins de `delaiJours`) ET déjà relancés au moins une fois ; { devis, derniereRelanceMs, nbRelances, dansJours } ;
+ *  - aVenir : envoyés au dernier contact récent, jamais relancés ; { devis, dernierContactMs, joursDepuis, dansJours } (relance dans `dansJours` jours).
+ * Un devis archivé, expiré ou de test n'y est jamais. `dansJours` = delaiJours − jours écoulés (au moins 1).
+ */
+export function groupesDeRelance(liste, { aujourdhui, maintenant = Date.now(), delaiJours = DELAI_RELANCE_DEFAUT, delaiSansEnvoiJours = DELAI_SANS_ENVOI_DEFAUT } = {}) {
+  const now = typeof maintenant === 'function' ? maintenant() : (enMs(maintenant) ?? Date.now());
+  const vraies = (Array.isArray(liste) ? liste : []).filter((d) => d && !estTest(d));
+  const aTraiter = devisATraiter(vraies, { aujourdhui, maintenant: now, delaiJours, delaiSansEnvoiJours });
+  const recents = vraies
+    .filter((devis) => devis.statut === 'envoye' && devis.archive !== true && !estExpire(devis, aujourdhui))
+    .map((devis) => ({ devis, dernierContactMs: dernierContact(devis), derniereRelanceMs: derniereRelance(devis) }))
+    .filter((r) => r.dernierContactMs !== null && now - r.dernierContactMs < delaiJours * JOUR_MS)
+    .map((r) => ({ ...r, joursDepuis: Math.max(0, Math.floor((now - r.dernierContactMs) / JOUR_MS)), nbRelances: nombreDeRelances(r.devis) }))
+    .map((r) => ({ ...r, dansJours: delaiJours - r.joursDepuis }))
+    .sort((a, b) => b.dernierContactMs - a.dernierContactMs);
+  return { aTraiter, dejaRelances: recents.filter((r) => r.derniereRelanceMs !== null), aVenir: recents.filter((r) => r.derniereRelanceMs === null) };
+}
+
+/** Nombre de lignes d'envoi d'origine `relance` (« 1re relance », « 2e relance »). */
+export const nombreDeRelances = (devis) => (Array.isArray(devis?.envois) ? devis.envois : []).filter((e) => e?.origine === 'relance').length;
+/** « 1re relance », « 2e relance »… */
+export const libelleRelance = (n) => `${n === 1 ? '1re' : `${n}e`} relance`;

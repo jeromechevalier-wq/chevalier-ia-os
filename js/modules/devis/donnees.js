@@ -369,7 +369,7 @@ export const archiver = (devisId, archive) => appeler('archiver', { devisId, arc
 /** Supprime un brouillon (le serveur refuse tout autre statut ; la copie reste dans le journal). */
 export const supprimer = (devisId) => appeler('supprimer', { devisId });
 /** Ajoute un envoi par e-mail à l'historique d'un devis « Envoyé » (le statut ne change pas) : `destinataires` et `copie` sont des listes d'adresses. */
-export const enregistrerEnvoi = (devisId, { destinataires, copie = [] }) => appeler('enregistrerEnvoi', { devisId, destinataires, copie });
+export const enregistrerEnvoi = (devisId, { destinataires, copie = [], origine }) => appeler('enregistrerEnvoi', { devisId, destinataires, copie, ...(origine ? { origine } : {}) }); // sans origine : une ligne « comme avant »
 /** Change le destinataire (la copie reste telle quelle si elle n'est pas donnée) d'un devis finalisé ou envoyé : le serveur n'écrit que ces deux champs, jamais le contenu du devis. */
 export const modifierDestinataires = async (devisId, { destinataires, copie }) => {
   const r = await appeler('modifierDestinataires', { devisId, destinataires, ...(copie === undefined ? {} : { copie }) });

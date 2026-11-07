@@ -3,7 +3,7 @@
 // et le menu, le « + » et la recherche se limitent aux modules du portail. Ce fichier est pur (aucun import, testable seul) :
 // le portail est un préfixe de route lu dans le navigateur, il ne donne aucun droit (les règles Firestore décident, inchangées).
 export const PORTAILS = Object.freeze({
-  'portail-devis': Object.freeze({ modules: Object.freeze(['devis']), accueil: 'devis/liste', libelleRetour: 'Espace complet' }),
+  'portail-devis': Object.freeze({ modules: Object.freeze(['devis']), accueil: 'devis/liste', menu: Object.freeze(['devis/liste', 'devis/relances']), libelleRetour: 'Espace complet' }),
 });
 
 const segs = (route) => String(route ?? '').split('/').filter(Boolean);
