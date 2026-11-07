@@ -5,7 +5,7 @@
 ## Deux mots à ne pas mélanger
 
 - **La porte** : comment on prouve qui on est pour entrer. C'est **OAuth** ou un **jeton**.
-- **Les droits** : ce qu'on a le droit de faire une fois entré. C'est le **profil** (lecteur, éditeur, « claude-code »).
+- **Les droits** : ce qu'on a le droit de faire une fois entré. C'est le **profil** (lecteur, éditeur, « agent-devis », « claude-code »).
 
 **OAuth** : on clique « Se connecter avec Google » sur un écran. Google confirme que c'est bien la personne, puis l'assistant (Claude, bientôt ChatGPT) reçoit une clé temporaire (1 heure, renouvelée toute seule, 30 jours glissants). C'est le clic sur « Autoriser » qui protège l'accès.
 
@@ -30,6 +30,9 @@ Les deux serveurs sont séparés : le CRM est sur `https://chevalier-ia-os.web.a
 | **Jérôme**, par ChatGPT (**prévu**) | oui | oui | oui |
 | **Claude Code** (jeton `claude-code-jerome`) | oui | oui | oui |
 | **Hermes** (jeton « bibliothécaire ») | oui | oui | non |
+| **Agent n8n devis** (jeton `agent-devis`, liste blanche de 21 outils) | seulement ce qu'il faut pour un devis | créer le client, l'affaire et le brouillon ; finaliser (aperçu + code) ; préparer l'e-mail | non (ni `supprimer_*`, ni `restaurer_depuis_audit`, ni changement de statut) |
+
+Le profil `agent-devis` existe par jeton seulement : absent chez les clients (pas de porte par jeton). Outils accordés : `qui_suis_je`, `chercher`, `lire_personne`, `lire_organisation`, `lire_affaire`, `lister_affaires`, `lister_devis`, `lire_devis`, `lire_reglages_devis`, `chercher_article`, `lister_articles`, `rechercher_article_par_phrase`, `obtenir_pdf_officiel_devis`, `creer_personne`, `creer_organisation`, `creer_affaire`, `creer_devis_brouillon`, `modifier_devis_brouillon`, `finaliser_devis`, `modifier_destinataires_devis`, `preparer_email`.
 
 Chaque client ne voit et ne touche que **son** espace : l'identifiant du client est lu dans l'adresse, jamais dans ce que l'assistant envoie. Les suppressions sont journalisées dans l'audit et restaurables (outil `restaurer_depuis_audit`) ; plafond de **50 suppressions par jour** et par connexion, compté **par document supprimé** (supprimer une personne avec 30 notes en compte 31 ; une restauration qui supprime compte aussi).
 
