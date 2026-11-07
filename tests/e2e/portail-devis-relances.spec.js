@@ -142,6 +142,7 @@ test.describe('chez Jérôme', () => {
     await boite.locator('[data-action="confirmer-preparer-email"]').click();
     await expect.poll(() => etat.email.length).toBe(1);
     expect(etat.email[0].devisId).toBe('r12');
+    expect(etat.email[0].objet).toMatch(/^Relance – /); // le texte de relance part sans modification
     expect(etat.appels).toHaveLength(0); // « Préparer » n'enregistre aucune relance
   });
 

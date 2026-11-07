@@ -110,6 +110,10 @@ describe('F11 relance : objet ou message vidé = impossible de préparer (sinon 
     assert.equal(P.refusTexteRelance({ ...d, objet: '' }), P.MESSAGE_OBJET_VIDE);
     assert.equal(P.peutPreparer({ ...d, message: '' }), false);
     assert.equal(P.refusTexteRelance({ ...d, message: ' \n ' }), P.MESSAGE_MESSAGE_VIDE);
+    for (const balise of ['<b>', '<a completer>', '<voir PJ>']) { // le serveur retire les balises puis trim : vide côté serveur = texte standard
+      assert.equal(P.refusTexteRelance({ ...d, message: balise }), P.MESSAGE_MESSAGE_VIDE, balise);
+      assert.equal(P.peutPreparer({ ...d, objet: balise }), false, balise);
+    }
     const s = P.valeursDeDepart(devisType(), 'Marie Durand');
     assert.equal(P.peutPreparer({ ...s, objet: '', message: '' }), true, 'hors relance : un champ vide reprend le texte standard, comme avant');
     assert.equal(P.refusTexteRelance({ ...s, objet: '' }), null);
@@ -123,6 +127,8 @@ describe('F12 relance : l’objet de départ tient toujours dans la limite du se
     assert.ok(d.objet.startsWith('Relance – Devis D-2026-014 – x'));
     const juste = P.valeursDeDepart(devisType({ objet: 'y'.repeat(170) }), 'Marie', { relance: true });
     assert.ok(juste.objet.length <= B.MAX_OBJET);
+    const emoji = P.valeursDeDepart(devisType({ objet: `${'x'.repeat(170)}😀` }), 'Marie', { relance: true });
+    assert.ok(emoji.objet.length <= B.MAX_OBJET && !/[\uD800-\uDBFF]$/.test(emoji.objet), 'pas de moitié d’emoji');
     assert.equal(P.valeursDeDepart(devisType(), 'Marie', { relance: true }).objet, 'Relance – Devis D-2026-014 – Rénovation salle de bain');
   });
 });

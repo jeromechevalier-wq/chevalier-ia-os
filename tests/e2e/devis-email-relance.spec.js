@@ -1,5 +1,5 @@
 // Portail devis seul, étape 2b : le texte de RELANCE dans la fenêtre « Préparer l'e-mail » (même fenêtre, même bouton ; seul le texte change). Le serveur est SIMULÉ (page.route).
-// Captures dans tests/e2e/captures/devis-email-relance/ (ordinateur ET téléphone).
+// Les captures sont prises dans tests/e2e/captures/devis-email-relance/ à chaque lancement (aucune n'est commitée : le bac à sable de Claude n'a pas l'émulateur).
 import { fileURLToPath } from 'node:url';
 import { test, expect, connecter, ecrireDocument, JEROME, attendreCalme } from './outils.js';
 
@@ -71,7 +71,7 @@ test('2b-3 un devis finalisé jamais envoyé (bloc « Jamais envoyés ») : « P
   await devis('j8', { numero: 'DEV-2026-10-01-004', statut: 'en_attente_envoi', finaliseLe: ilYA(8) });
   const etat = await simulerServeur(page);
   await ouvrirRelances(page);
-  await expect(page.locator('[data-bloc="jamais-envoyes"]')).toContainText('Jamais envoyés');
+  await expect(ligne(page, 'j8')).toHaveAttribute('data-groupe', 'jamais_envoye');
   await ligne(page, 'j8').locator('[data-action="preparer-email"]').click();
   await expect(boite(page)).toBeVisible();
   await expect(boite(page).locator('[data-champ="objet-preparer-email"]')).toHaveValue('Devis DEV-2026-10-01-004 – Rénovation cuisine');

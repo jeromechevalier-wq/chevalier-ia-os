@@ -51,9 +51,10 @@ export function valeursDeDepart(devis, contact = '', { relance = false } = {}) {
   // Relance : la fenêtre s'ouvre sur le texte de relance, que le serveur ne connaît pas (il mettrait le texte standard) : objet ET message partent toujours, même sans modification.
   if (relance) {
     let objet = E.objetRelanceParDefaut(variables);
+    const coupe = (t, n) => t.slice(0, n).replace(/[\uD800-\uDBFF]$/, '').trimEnd(); // jamais au milieu d'un emoji (paire de substitution)
     if (objet.length > E.MAX_OBJET) { // on raccourcit l'objet du devis (pas le numéro) pour que le motif entier tienne
       const reste = Math.max(0, String(variables.objet).length - (objet.length - E.MAX_OBJET));
-      objet = E.objetRelanceParDefaut({ ...variables, objet: String(variables.objet).slice(0, reste).trimEnd() }).slice(0, E.MAX_OBJET);
+      objet = coupe(E.objetRelanceParDefaut({ ...variables, objet: coupe(String(variables.objet), reste) }), E.MAX_OBJET);
     }
     return { destinataires, copie, objet, message: E.messageRelanceParDefaut(variables), objetAEnvoyer: true, messageAEnvoyer: true, relance: true };
   }
@@ -83,13 +84,10 @@ export function ajouterAdresse({ destinataires, copie }, champ, saisie) {
 /** Le bouton « Préparer le brouillon Gmail » est grisé sans destinataire (cas vide). */
 export const MESSAGE_OBJET_VIDE = 'L’objet ne peut pas être vide.';
 export const MESSAGE_MESSAGE_VIDE = 'Le message ne peut pas être vide.';
-/** En relance, un objet ou un message vidé ferait revenir le serveur au texte STANDARD, que personne n'a relu : on exige les deux. Rend une phrase d'aide, ou null (hors relance : toujours null). */
-export function refusTexteRelance(valeurs) {
-  if (!valeurs?.relance) return null;
-  if (!String(valeurs.objet ?? '').trim()) return MESSAGE_OBJET_VIDE;
-  if (!String(valeurs.message ?? '').trim()) return MESSAGE_MESSAGE_VIDE;
-  return null;
-}
+/** En relance, un objet ou un message vidé ferait revenir le serveur au texte STANDARD, que personne n'a relu : on exige les deux. Le vide se juge comme le serveur (balises retirées, puis trim). Rend une phrase d'aide, ou null (hors relance : toujours null). */
+export const refusObjetRelance = (valeurs) => (valeurs?.relance && !E.nettoyerTexteLibre(valeurs.objet) ? MESSAGE_OBJET_VIDE : null);
+export const refusMessageRelance = (valeurs) => (valeurs?.relance && !E.nettoyerTexteLibre(valeurs.message) ? MESSAGE_MESSAGE_VIDE : null);
+export const refusTexteRelance = (valeurs) => refusObjetRelance(valeurs) ?? refusMessageRelance(valeurs);
 export const peutPreparer = (valeurs) => (valeurs?.destinataires?.length ?? 0) > 0 && refusTexteRelance(valeurs) === null;
 
 /**
