@@ -8,16 +8,17 @@
 import { extraireBearer } from '../securite/jetons.js';
 import { journaliser } from '../securite/journaux.js';
 import { avecBase } from '../coeur/donnees.js';
+import { ESPACE_JEROME } from '../coeur/n8n-sortie.js';
 import { lireConfig } from '../coeur/config.js';
 import { OUTILS } from '../mcp/outils/index.js';
 import { descriptionAppel, creerSuiviDemarrage, refuser, servirMcp } from '../mcp/gestionnaire.js';
-import { FORMAT_CLIENT, ORIGINES_PLATEFORME, adressesClient } from './config.js';
+import { EMETTEUR_PLATEFORME, FORMAT_CLIENT, ORIGINES_PLATEFORME, adressesClient } from './config.js';
 import { MODULES_DECLARES, OUTILS_COMMUNS, outilsMcpActifs } from '../../partage/registre.js';
 import { cheminBaseClient } from '../../partage/chemins.js';
 
 /** Nom de serveur neutre : le client ne voit pas le nom interne du CRM de Jérôme. */
 export const NOM_SERVEUR_CLIENT = 'espace-client';
-const BASE_LIEN_PLATEFORME = 'https://chevalier-ia-app.web.app';
+const BASE_LIEN_PLATEFORME = EMETTEUR_PLATEFORME; // même domaine pour tous les clients
 const MOTIF_LIEN = /^\/mcp\/([^/]+)$/;
 
 /** Outils proposés à un client : les outils communs et ceux des modules actifs (le profil du membre filtre ensuite). */
@@ -52,7 +53,7 @@ export function creerGestionnaireClients({ donnees, oauth, limiteur = null, stoc
     const { pathname } = new URL(req.url || '/', 'http://local');
     const lien = MOTIF_LIEN.exec(pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname);
     // Lien inconnu ou mal formé (majuscules, caractères spéciaux, autre chemin) : même refus que pour n'importe quel jeton mauvais.
-    if (!lien || !FORMAT_CLIENT.test(lien[1])) { infos.code = 'lien'; return refuser(res, 401, 'non_autorise', { 'WWW-Authenticate': 'Bearer' }); }
+    if (!lien || !FORMAT_CLIENT.test(lien[1]) || lien[1] === ESPACE_JEROME) { /* « interne » = l'espace de Jérôme, jamais un client */ infos.code = 'lien'; return refuser(res, 401, 'non_autorise', { 'WWW-Authenticate': 'Bearer' }); }
     const client = lien[1];
     infos.client = client;
     if (req.method !== 'POST') { infos.code = 'methode'; return refuser(res, 405, 'methode_refusee', { Allow: 'POST' }); }

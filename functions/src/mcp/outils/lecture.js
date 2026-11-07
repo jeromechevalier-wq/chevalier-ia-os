@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import * as lecture from '../../coeur/lecture.js';
 import * as metier from '../../coeur/metier.js';
+import { CONSIGNE_LIEN_ECRAN, lienEcranDepuisContexte } from '../../coeur/liens.js';
 import { resumerForme, phraseDe, ligneDeDiagnostic } from '../diagnostic-fichiers.js';
 
 const TOUS = ['lecture', 'ecriture', 'complet'];
@@ -194,7 +195,7 @@ export const lire_reglages_devis = {
 export const lister_devis = {
   nom: 'lister_devis',
   profils: TOUS_ET_AGENT,
-  description: "Liste les devis du module Devis, du plus récent au plus ancien : id, numéro (vide tant que c'est un brouillon), version, statut (brouillon, en_attente_envoi = Finalisé, envoye, accepte = Signé, refuse, remplace, et expire, CALCULÉ quand la date de validité est dépassée), objet (imprimé sur le PDF), nom (interne, jamais imprimé), client, total hors taxes et TTC en euros, dates (créé, finalisé, envoyé, signé, refusé, archivé), archive, nombreEnvois (envois par e-mail enregistrés) et pdf (état : ok, en_cours, echec). Ne montre jamais de prix d'achat ni de marge (lire_devis donne les lignes). Filtres : statut ('tous' par défaut), affaireId, texte (numéro, objet, nom ou client), archives: true pour inclure les devis archivés. Les devis archivés comptent dans le montant de l'affaire même s'ils ne sont pas listés sans archives: true (archiver = ranger).",
+  description: "Liste les devis du module Devis, du plus récent au plus ancien : id, numéro (vide tant que c'est un brouillon), version, statut (brouillon, en_attente_envoi = Finalisé, envoye, accepte = Signé, refuse, remplace, et expire, CALCULÉ quand la date de validité est dépassée), objet (imprimé sur le PDF), nom (interne, jamais imprimé), client, total hors taxes et TTC en euros, dates (créé, finalisé, envoyé, signé, refusé, archivé), archive, nombreEnvois (envois par e-mail enregistrés) et pdf (état : ok, en_cours, echec). Ne montre jamais de prix d'achat ni de marge (lire_devis donne les lignes). Filtres : statut ('tous' par défaut), affaireId, texte (numéro, objet, nom ou client), archives: true pour inclure les devis archivés. Les devis archivés comptent dans le montant de l'affaire même s'ils ne sont pas listés sans archives: true (archiver = ranger)." + " " + CONSIGNE_LIEN_ECRAN,
   schema: {
     statut: z.enum(['tous', 'brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse', 'expire', 'remplace']).optional().describe("Défaut : tous."),
     affaireId: id.optional().describe("Seulement les devis de cette affaire."),
@@ -203,26 +204,26 @@ export const lister_devis = {
     limite,
     tests,
   },
-  executer: ({ args, donnees, maintenant }) => lecture.listerDevis(donnees, args, maintenant),
+  executer: ({ args, donnees, maintenant, ...c }) => lecture.listerDevis(donnees, args, maintenant, { lienEcran: (d) => lienEcranDepuisContexte(c, d) }),
 };
 
 export const lire_devis = {
   nom: 'lire_devis',
   profils: TOUS_ET_AGENT,
-  description: "Lit un devis complet, côté artisan : client, affaire, destinataires, chantier, sections et lignes (quantité, unité, prix d'achat, marge, prix de vente unitaire et total hors taxes de chaque ligne, comme lister_articles montre les prix d'achat), remise, acomptes (liste : type pourcentage, montantHt ou montantTtc, valeur, moment ; un ancien devis à acompte unique donne une liste d'un élément) et totaux (brut, remise, hors taxes, TVA, TTC, acompteTTC = somme des acomptes, acomptesTTC = un montant TTC par acompte, resteAFacturerTTC), copie (e-mails en copie), envois (historique des envois par e-mail : date, destinataires, copie ; envoyeLe = premier envoi), archive/archiveLe et pdf (état seulement, jamais de chemin). Pour un brouillon, erreursFinalisation liste ce qui manque avant finaliser_devis (vide = prêt). Ne sert jamais à écrire au client : la vue client sans marge est celle du document. Chaque section et chaque ligne porte son `numero` (1, 1.1, 1.2… calculé, jamais stocké) et son `id` ; format: 'recapitulatif' rend seulement numéro, intitulé et quantité de chaque ligne (jamais de prix d'achat ni de marge ; avecPrix: true ajoute le prix de vente unitaire et le total hors taxes) et `phraseTotaux`, la phrase des totaux à redire telle quelle. Le mot affiché à l'utilisateur est donné par lire_reglages_devis.",
+  description: "Lit un devis complet, côté artisan : client, affaire, destinataires, chantier, sections et lignes (quantité, unité, prix d'achat, marge, prix de vente unitaire et total hors taxes de chaque ligne, comme lister_articles montre les prix d'achat), remise, acomptes (liste : type pourcentage, montantHt ou montantTtc, valeur, moment ; un ancien devis à acompte unique donne une liste d'un élément) et totaux (brut, remise, hors taxes, TVA, TTC, acompteTTC = somme des acomptes, acomptesTTC = un montant TTC par acompte, resteAFacturerTTC), copie (e-mails en copie), envois (historique des envois par e-mail : date, destinataires, copie ; envoyeLe = premier envoi), archive/archiveLe et pdf (état seulement, jamais de chemin). Pour un brouillon, erreursFinalisation liste ce qui manque avant finaliser_devis (vide = prêt). Ne sert jamais à écrire au client : la vue client sans marge est celle du document. Chaque section et chaque ligne porte son `numero` (1, 1.1, 1.2… calculé, jamais stocké) et son `id` ; format: 'recapitulatif' rend seulement numéro, intitulé et quantité de chaque ligne (jamais de prix d'achat ni de marge ; avecPrix: true ajoute le prix de vente unitaire et le total hors taxes) et `phraseTotaux`, la phrase des totaux à redire telle quelle. " + CONSIGNE_LIEN_ECRAN + " Le mot affiché à l'utilisateur est donné par lire_reglages_devis.",
   schema: {
     id: id.describe('Identifiant du devis (voir lister_devis).'),
     format: z.enum(['complet', 'recapitulatif']).optional().describe("'recapitulatif' : structure courte pour redire le devis (défaut : 'complet')."),
     avecPrix: z.boolean().optional().describe("Avec format 'recapitulatif' : true ajoute le prix de vente unitaire et le total hors taxes de chaque ligne (jamais le prix d'achat ni la marge)."),
   },
-  executer: ({ args, donnees, maintenant, actifs }) => lecture.lireDevis(donnees, args, maintenant, { affaireRequise: !Array.isArray(actifs) || actifs.includes('affaires') }),
+  executer: ({ args, donnees, maintenant, actifs, ...c }) => lecture.lireDevis(donnees, args, maintenant, { affaireRequise: !Array.isArray(actifs) || actifs.includes('affaires'), lienEcran: (d) => lienEcranDepuisContexte(c, d) }),
 };
 
 // Garantie « aucun e-mail ne part tout seul » (29/10/2026) : le seul moyen d'obtenir le PDF d'un devis. Ne fabrique rien (le PDF est fait par le serveur à la finalisation).
 export const obtenir_pdf_officiel_devis = {
   nom: 'obtenir_pdf_officiel_devis',
   profils: TOUS_ET_AGENT,
-  description: "À n'appeler QUE si l'utilisateur demande explicitement le PDF d'un devis. Donne le PDF OFFICIEL d'un devis finalisé (celui que le serveur a fabriqué à la finalisation ; ni prix d'achat ni marge) : un lien de lecture COURT (5 minutes, `lien`) et le lien du devis dans l'application (`lienApplication`, connexion nécessaire). C'est le SEUL PDF de devis à utiliser : ne fabrique JAMAIS un autre PDF toi-même, même « de démonstration ». Ne transmets jamais ce PDF ni ce lien à quelqu'un d'autre sans montrer le destinataire à l'utilisateur et obtenir son « oui » clair. Refusé pour un brouillon de devis, ou si le PDF n'est pas prêt ou introuvable : dans ce cas ARRÊTE-TOI et dis-le à l'utilisateur, n'envoie rien. Un avertissement signale un devis qui n'est plus en cours (remplacé, refusé, expiré, archivé) ou l'absence de lien direct. Pour préparer l'e-mail avec ce PDF joint : preparer_email.",
+  description: "À n'appeler QUE si l'utilisateur demande explicitement le PDF d'un devis. Donne le PDF OFFICIEL d'un devis finalisé (celui que le serveur a fabriqué à la finalisation ; ni prix d'achat ni marge) : un lien de lecture COURT (5 minutes, `lien`) et le lien du devis dans l'application (`lienApplication`, connexion nécessaire ; `lienEcran` a la même valeur). C'est le SEUL PDF de devis à utiliser : ne fabrique JAMAIS un autre PDF toi-même, même « de démonstration ». Ne transmets jamais ce PDF ni ce lien à quelqu'un d'autre sans montrer le destinataire à l'utilisateur et obtenir son « oui » clair. Refusé pour un brouillon de devis, ou si le PDF n'est pas prêt ou introuvable : dans ce cas ARRÊTE-TOI et dis-le à l'utilisateur, n'envoie rien. Un avertissement signale un devis qui n'est plus en cours (remplacé, refusé, expiré, archivé) ou l'absence de lien direct. Pour préparer l'e-mail avec ce PDF joint : preparer_email." + " " + CONSIGNE_LIEN_ECRAN,
   schema: { id: id.describe('Identifiant du devis finalisé (voir lister_devis).') },
   executer: ({ args, ...c }) => metier.pdfOfficielDevis(c, args),
 };
