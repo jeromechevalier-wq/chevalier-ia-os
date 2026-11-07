@@ -1,5 +1,5 @@
 // Recette de l'étape 4 du serveur MCP : crée une organisation de test « ZZ Essai MCP », lit le journal, essaie des refus,
-// la supprime, la restaure, puis la supprime pour nettoyer. Ne touche à aucune autre fiche. Il faut le jeton Claude Code.
+// la supprime, la restaure, puis la supprime pour nettoyer. Ne touche à aucune autre fiche. Il faut un jeton de profil complet.
 // Usage (Terminal du Mac, le jeton est saisi sans s'afficher et n'est jamais écrit ni affiché) :
 //   read -s CHEVALIER_MCP_TOKEN; export CHEVALIER_MCP_TOKEN
 //   node outils/essai-ecriture.mjs

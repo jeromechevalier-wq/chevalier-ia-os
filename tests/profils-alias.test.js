@@ -113,6 +113,7 @@ describe('profils de droits du serveur MCP', () => {
       for (const outil of ['supprimer_personne', 'restaurer_depuis_audit', 'finaliser_devis']) {
         const r = await s.appeler('biblio', outil, { id: 'p1', operationId: 'x' });
         assert.equal(r.isError, true, outil);
+        assert.match(r.texte, /not found/i, `${outil} : refusé comme outil inconnu pour ce profil, pas pour des arguments invalides`);
       }
       assert.equal((await s.appeler('lecteur', 'creer_personne', { nom: 'Essai' })).isError, true);
       assert.deepEqual(s.collections, avant, 'rien d’écrit par un refus');

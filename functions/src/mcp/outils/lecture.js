@@ -1,4 +1,4 @@
-// Outils de lecture (profils lecteur, bibliothécaire et Claude Code) : aucun n'écrit dans la base ni dans l'audit.
+// Outils de lecture (profils lecture, écriture et complet) : aucun n'écrit dans la base ni dans l'audit.
 import { z } from 'zod';
 import * as lecture from '../../coeur/lecture.js';
 import * as metier from '../../coeur/metier.js';
