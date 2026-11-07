@@ -931,7 +931,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     // À droite : « Pour qui est ce devis ? » (un seul champ : personne, organisation ou affaire, comme la grande barre de recherche), puis la ligne Affaire (les affaires de ce client).
     // Facultatifs, même pour finaliser (07/11/2026) : sans affaire, un avertissement non bloquant s'affiche quand le module Affaires est actif.
     const sansAffaires = D.surSocleSeul(); // lu au rendu : sans Affaires, jamais de ligne Affaire (ni en lecture seule)
-    ref.erreurAffaire = sansAffaires ? null : h('p', { class: 'texte-discret', id: 'devis-affaire-aide', role: 'status', dataset: { erreur: 'affaire' } });
+    ref.aideAffaire = sansAffaires ? null : h('p', { class: 'texte-discret', id: 'devis-affaire-aide', role: 'status', dataset: { erreur: 'affaire' } });
     ref.messageAffaireVidee = sansAffaires ? null : h('p', { class: 'texte-discret', role: 'status', dataset: { info: 'affaire-videe' }, hidden: true });
     ref.zoneClient = h('div', { class: 'zone-client-devis', dataset: { zone: 'client-devis' } });
     ref.champClient = lecture ? texteSeul('client', clientDuDevis(d)) : champClientIntelligent();
@@ -945,7 +945,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const droite = h('div', { class: 'entete-droite' },
       champ('Pour qui est ce devis ?', lecture ? ref.champClient : ref.champClient.element, { id: 'devis-client', aide: lecture ? null : ref.zoneClient }),
       attentionLecture ? champ('À l’attention de', texteSeul('attention', attentionLecture), { id: 'devis-attention' }) : null,
-      sansAffaires ? null : champ('Affaire', lecture ? ref.champAffaire : ref.champAffaire.element, { id: 'devis-affaire', aide: lecture ? null : [ref.erreurAffaire, ref.messageAffaireVidee] }),
+      sansAffaires ? null : champ('Affaire', lecture ? ref.champAffaire : ref.champAffaire.element, { id: 'devis-affaire', aide: lecture ? null : [ref.aideAffaire, ref.messageAffaireVidee] }),
       champ('Adresse du chantier', ref.champAdresse, { id: 'devis-chantier-adresse' }),
       blocAdresses());
     return h('div', { class: 'entete-document' }, gauche, droite);
@@ -1078,11 +1078,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   }
   /** Le texte sous la ligne Affaire et son texte d'invitation, d'après le client et l'affaire du devis. */
   function majAideAffaire() {
-    if (lecture || !ref.erreurAffaire) return;
+    if (lecture || !ref.aideAffaire) return;
     const nb = affairesDuClient()?.length ?? 0;
     const phrase = CD.aideAffaire({ client: clientActuel(), affaireId: travail.affaireId, nbAffaires: nb });
-    ref.erreurAffaire.textContent = phrase;
-    ref.erreurAffaire.hidden = !phrase; // simple invitation : l'affaire est facultative, brouillon comme devis finalisé
+    ref.aideAffaire.textContent = phrase;
+    ref.aideAffaire.hidden = !phrase; // simple invitation : l'affaire est facultative, brouillon comme devis finalisé
     if (ref.champAffaire?.entree) ref.champAffaire.entree.placeholder = CD.PLACEHOLDER_AFFAIRE;
   }
   /** Sous le champ unique : la question « l'organisation / elle seule » (client choisi parmi les personnes, qui a une organisation) ou la liste facultative « à l'attention de » (organisation, affaire). */

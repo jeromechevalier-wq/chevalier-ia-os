@@ -1,5 +1,5 @@
 // Module Devis : créer un devis SANS affaire (28/10/2026). Plus de page « Nouveau devis » : « Nouveau devis » crée le brouillon tout de suite et ouvre l'éditeur, où l'on choisit l'affaire.
-// La finalisation n'exige plus l'affaire (07/11/2026) : la fenêtre « Finaliser ce devis ? » porte un avertissement non bloquant (tests/devis-mcp.test.js SA1-SA2, devis-serveur.test.js SA4, devis-logique.test.js SA3).
+// La finalisation n'exige plus l'affaire (07/11/2026) : la fenêtre « Finaliser ce devis ? » porte un avertissement non bloquant (tests/devis-mcp.test.js SA1-SA2, devis-serveur.test.js SA4 et SA6, devis-logique.test.js SA3 et SA5).
 // Un test par critère (le nom commence par son numéro) ; UNE capture : tests/e2e/captures/devis-sans-affaire/ (ordinateur ET téléphone).
 import { fileURLToPath } from 'node:url';
 import { test, expect, connecter, attendreCalme, listerDocuments, lireDocument, ecrireDocument, creerOrganisation, creerAffaire, choisirDansChampDevis, JEROME, CHANTIER_ESSAI, ecrireEntrepriseComplete } from './outils.js';
@@ -109,7 +109,7 @@ test('3b cas d’erreur : un devis vide sans affaire est refusé pour ses lignes
   await editeur(page).locator('.bouton-principal').click();
   const fenetre = page.getByRole('dialog');
   await expect(fenetre).toContainText('Ce devis ne peut pas encore être finalisé');
-  expect((await fenetre.locator('li').allTextContents()).some((t) => /affaire/i.test(t))).toBe(false);
+  await expect(fenetre.locator('li', { hasText: /affaire/i })).toHaveCount(0);
   await fenetre.getByRole('button', { name: 'Compris' }).click();
   await expect(page.locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/);
   expect(appels).toHaveLength(0);

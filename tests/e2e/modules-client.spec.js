@@ -403,7 +403,7 @@ test.describe('R14 Devis seul (sans Affaires ni Projets) : le socle commun porte
     expect((await listerDocuments('clients/devisseul/crm_audit')).some((l) => l.outil === 'creerPersonne')).toBe(true);
   });
 
-  test('R14-6 finaliser sans affaire : pas de message « Choisis l\'affaire », la fonction du serveur est appelée, le devis reçoit son numéro', async ({ page }, info) => {
+  test('R14-6 finaliser sans affaire (Devis seul) : aucune erreur ni avertissement sur l\'affaire, la fonction du serveur est appelée, le devis reçoit son numéro', async ({ page }, info) => {
     const appels = await simulerFinalisation(page, { ok: true, devisId: 'dPret', statut: 'en_attente_envoi', numero: 'DEV-2026-11-05-001' });
     await ouvrir(page, 'devisseul', ALICE, 'devis/editeur/dPret');
     await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
@@ -412,7 +412,7 @@ test.describe('R14 Devis seul (sans Affaires ni Projets) : le socle commun porte
     await expect(page.getByRole('dialog')).not.toContainText('Ce devis ne peut pas encore être finalisé');
     await expect(page.locator('[data-champ="affaire"]')).toHaveCount(0);
     await expect(page.getByRole('dialog')).toContainText('Finaliser ce devis ?');
-    await expect(page.locator('[data-zone="avertissements-finalisation"]')).toHaveCount(0); // Devis seul : jamais un mot sur l'affaire
+    await expect(page.locator('[data-zone="avertissements-finalisation"]')).toHaveCount(0); // Devis seul : aucune erreur ni avertissement sur l'affaire
     await expect(page.locator('[data-avertissement="sansAffaire"]')).toHaveCount(0);
     await page.screenshot({ path: `${CAPTURES}14-devis-seul-${info.project.name}.png`, animations: 'disabled' });
     await page.getByRole('dialog').getByRole('button', { name: 'Finaliser', exact: true }).click();

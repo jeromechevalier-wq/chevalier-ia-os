@@ -201,7 +201,7 @@ test('6 cas vide : un devis introuvable ne montre aucun bouton ; cas d’erreur 
   await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
   await expect(racine(page).locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/);
   await page.evaluate(() => { location.hash = '#/devis/editeur/dSansClient'; });
-  await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+  await expect(page.locator('.page-editeur-devis[data-devis="dSansClient"]')).toBeVisible();
   await attendreCalme(page);
   await jaunes(page).click();
   await expect(page.getByRole('dialog')).toContainText('Ce devis ne peut pas encore être finalisé');

@@ -87,7 +87,7 @@ Les dossiers `coeur`, `mcp`, `oauth`, `securite`, `clients` sont copiés tels qu
 
 - Les outils proposés à un client sont ceux des **modules actifs** : `functions/src/clients/gestionnaire.js:15-23` (`outilsDesModules`), modules actifs lus par `functions/src/clients/espaces.js:19` via la copie `functions/partage/registre.js`.
 - Le module `devis` déclare 26 outils (`registre.js:133`) ; **les outils pour retrouver ou créer un client appartiennent au module `affaires`** : `chercher`, `lire_personne`, `lire_organisation`, `creer_personne`, `creer_organisation`, `modifier_personne`, `modifier_organisation`… (`registre.js:86-93`). Un client « Devis seul » n'aurait donc **aucun moyen** de désigner un client à son assistant (`creer_devis_brouillon` demande un `organisationId` ou un `personneId`) : on déclare les sept outils utiles dans le module Contacts (D.4).
-- Le texte de `creer_devis_brouillon` dit que l'affaire est **facultative** et que la finalisation l'exige (`functions/src/mcp/outils/ecriture.js:184`) ; `chercher` renvoie aussi des affaires (`lecture.js:~13-20`, paramètre `types`).
+- Le texte de `creer_devis_brouillon` dit que l'affaire est **facultative** et que la finalisation l'exige (périmé le 07/11/2026 : le texte dit maintenant qu'elle ne l'exige plus) (`functions/src/mcp/outils/ecriture.js:184`) ; `chercher` renvoie aussi des affaires (`lecture.js:~13-20`, paramètre `types`).
 
 ### A.5 Règles Firestore
 
@@ -150,7 +150,7 @@ Les dossiers `coeur`, `mcp`, `oauth`, `securite`, `clients` sont copiés tels qu
 | ✅ *fait le 07/11 (PR 1)* Tests | `tests/devis-logique.test.js:410-416` (bloc SA), `tests/devis-mcp.test.js:1190-1211` (SA1, SA2 : message « Choisis l'affaire de ce devis. »), `tests/devis-serveur.test.js:525` (bloc SA : `devisFinaliser` refuse), `tests/e2e/devis-sans-affaire.spec.js`, `devis-nouveau-sans-blocage.spec.js` | **inverser** : un devis sans affaire se finalise (palier complet : étiquette `tests-complets`) |
 | ✅ *fait le 07/11 (PR 1)* Docs | `docs/consignes-ui.md:53` (« Finaliser exige l'affaire »), `docs/cadrage-devis.md:48` (« le devis est rattaché à une affaire »), `docs/montant-affaire.md` (devis sans affaire) | mises à jour **dans la PR de code** (règle du 29/10/2026 : pas de PR de docs séparée) |
 
-*Décision prise seul :* un brouillon et un devis finalisé peuvent exister sans affaire : un brouillon, oui ; un devis finalisé sans affaire : seulement sans Affaires (526) (règle du 18/10/2026 : même code). L'invitation « Choisis ou crée une affaire » (`client-devis.js:8`) est **retirée du portail Devis** et **gardée en suggestion non bloquante dans le portail complet** (jamais une erreur de finalisation). *Question restante pour Jérôme :* la garder aussi dans le portail complet, ou la retirer partout ?
+*Périmé le 07/11/2026 (option A : un devis finalisé existe sans affaire partout ; question tranchée).* *Décision prise seul :* un brouillon et un devis finalisé peuvent exister sans affaire : un brouillon, oui ; un devis finalisé sans affaire : seulement sans Affaires (526) (règle du 18/10/2026 : même code). L'invitation « Choisis ou crée une affaire » (`client-devis.js:8`) est **retirée du portail Devis** et **gardée en suggestion non bloquante dans le portail complet** (jamais une erreur de finalisation). *Question restante pour Jérôme :* la garder aussi dans le portail complet, ou la retirer partout ?
 
 ### C.2 Ce qui reste vrai
 

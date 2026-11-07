@@ -952,7 +952,7 @@ const nombreDeLignes = (sections) => (sections ?? []).reduce((n, s) => n + (s.li
 export async function creerDevisBrouillon(c, args) {
   const { affaireId, objet, nom, personneId, organisationId, destinataires, copie, sections, lignes, remise, marge, tauxTvaDefaut, proprietaire } = args;
   if (organisationId && personneId) refuser('saisie_invalide', 'Un devis a un seul client : donner organisationId OU personneId, pas les deux.');
-  const affaire = await lireSiDonne(c, C.affaires, affaireId, 'Affaire'); // facultative : un brouillon vit sans affaire, mais finaliser_devis l'exige seulement si le module Affaires est actif
+  const affaire = await lireSiDonne(c, C.affaires, affaireId, 'Affaire'); // facultative : un devis se crée et se finalise sans affaire (07/11/2026) ; l'aperçu de finaliser_devis avertit seulement si Affaires est actif
   const organisation = await lireSiDonne(c, C.organisations, organisationId ?? (personneId ? null : affaire?.organisationId), 'Organisation');
   const personne = await lireSiDonne(c, C.personnes, personneId ?? (organisation ? null : affaire?.personneId), 'Personne');
   const client = organisation ? { type: 'organisation', fiche: organisation } : personne ? { type: 'personne', fiche: personne } : null;

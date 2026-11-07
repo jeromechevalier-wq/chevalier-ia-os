@@ -5,7 +5,7 @@
 //  3 personne d'une organisation → question, organisation par défaut, un clic bascule
 //  4 organisation → affaires de l'organisation ET de ses personnes, liste « à l'attention de »
 //  5 affaire → client + à l'attention de
-//  6 client sans affaire → message permanent, jamais d'affaire d'un autre client ; finaliser = message + champ rouge ; « + Créer l'affaire » dans la liste crée et lie (6b : second pas « Dans quelle étape ? »)
+//  6 client sans affaire → message permanent, jamais d'affaire d'un autre client ; finaliser = fenêtre de confirmation avec l'avertissement ; « + Créer l'affaire » dans la liste crée et lie (6b : second pas « Dans quelle étape ? »)
 //  7 changement de client avec une affaire d'un autre client → affaire vidée + message
 //  8 rien trouvé → les deux lignes de création (rien n'est créé sans clic)
 //  9 la croix efface le client ET l'affaire
