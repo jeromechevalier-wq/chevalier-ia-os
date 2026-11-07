@@ -6,7 +6,7 @@ Mise à jour : **06/11/2026** (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 52
 
 | | Sujet | État | Qui |
 |---|---|---|---|
-| 🟠 | **Renommer le profil `bibliothecaire`** par un nom plus adéquat (idée de Jérôme, 07/11/2026) : touche serveur, tests, docs, `functions-plateforme` ; Fable obligatoire. | À faire | Claude |
+| ✅ | **Renommer le profil `bibliothecaire`** (idée de Jérôme, 07/11/2026) : fait par la PR 549 (profil `ecriture`, ancien nom `bibliothecaire` gardé comme alias). | Fait | Claude |
 | 🟠 | **Profil `agent-devis` : absent chez les clients** (pas de porte par jeton chez eux, le profil y est le rôle) ; le code est copié mais injoignable. Page Réglages > Déploiement non modifiée (décision prise seul). | Noté | Jérôme (décision) |
 | 🟡 | **Idée : second facteur par jeton** pour `finaliser_devis` : aujourd'hui le serveur garantit aperçu + code, mais ne prouve pas qu'un humain a vu l'aperçu ; l'accord humain est à la charge du workflow n8n. | Idée | Jérôme (décision) |
 

@@ -5,7 +5,7 @@
 ## Deux mots à ne pas mélanger
 
 - **La porte** : comment on prouve qui on est pour entrer. C'est **OAuth** ou un **jeton**.
-- **Les droits** : ce qu'on a le droit de faire une fois entré. C'est le **profil** (lecteur, éditeur, « agent-devis », « claude-code »).
+- **Les droits** : ce qu'on a le droit de faire une fois entré. C'est le **profil** du jeton ou de la connexion : `lecture`, `ecriture`, `agent-devis`, `complet` (anciens noms `lecteur`, `bibliothecaire`, `claude-code` valables comme alias). Chez un client, le **rôle** (lecteur ou éditeur) donne le profil `lecture` ou `complet`.
 
 **OAuth** : on clique « Se connecter avec Google » sur un écran. Google confirme que c'est bien la personne, puis l'assistant (Claude, bientôt ChatGPT) reçoit une clé temporaire (1 heure, renouvelée toute seule, 30 jours glissants). C'est le clic sur « Autoriser » qui protège l'accès.
 

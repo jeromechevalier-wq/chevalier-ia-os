@@ -200,10 +200,14 @@ describe('Profil agent-devis : liste blanche et outils refusés', () => {
     const c = await client(JETON.agent);
     const vus = (await c.listTools()).tools.map((t) => t.name);
     assert.ok(vus.includes('finaliser_devis') && !vus.includes('supprimer_devis'));
+    const avant = JSON.stringify(collections);
     for (const nom of NON_ACCORDES) {
       const r = await c.callTool({ name: nom, arguments: {} }).catch((e) => ({ erreur: e }));
       assert.ok(r.erreur || r.isError, `${nom} doit être refusé`);
+      const texte = r.erreur ? String(r.erreur.message) : (r.content ?? []).map((x) => x.text ?? '').join(' ');
+      assert.match(texte, /not found/i, `${nom} : refusé comme outil inconnu pour ce profil, pas pour des arguments invalides`);
     }
+    assert.equal(JSON.stringify(collections), avant, 'aucun refus n’écrit');
     const q = JSON.parse((await c.callTool({ name: 'qui_suis_je', arguments: {} })).content[0].text);
     assert.equal(q.profil, 'agent-devis');
     assert.deepEqual([...q.outils].sort(), nomsPour('agent-devis'));
