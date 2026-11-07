@@ -32,6 +32,20 @@ describe('1 message et objet par défaut', () => {
   });
 });
 
+describe('1 texte de relance (07/11/2026, validé par Jérôme)', () => {
+  test('1 relance : objet et message exacts, variables remplies', () => {
+    const v = { contact: 'Marie Durand', numero: 'D-2026-014', objet: 'Rénovation salle de bain' };
+    assert.equal(E.objetRelanceParDefaut(v), 'Relance – Devis D-2026-014 – Rénovation salle de bain');
+    assert.equal(E.messageRelanceParDefaut(v), 'Bonjour Marie Durand,\n\nJe me permets de revenir vers vous au sujet de notre devis D-2026-014 – Rénovation salle de bain, envoyé il y a quelques jours.\n\nAvez-vous pu en prendre connaissance ? Je reste à votre disposition pour toute question ou pour l’adapter.\n\nBien cordialement,');
+  });
+  test('1 relance : sans contact « Bonjour, », sans objet pas de tiret final, longueurs sous les maxima', () => {
+    const v = { contact: '', numero: 'D-2026-014', objet: '' };
+    assert.equal(E.objetRelanceParDefaut(v), 'Relance – Devis D-2026-014');
+    assert.match(E.messageRelanceParDefaut(v), /^Bonjour,\n\nJe me permets de revenir vers vous au sujet de notre devis D-2026-014, envoyé/);
+    assert.ok(E.OBJET_RELANCE_PAR_DEFAUT.length <= E.MAX_OBJET && E.MESSAGE_RELANCE_PAR_DEFAUT.length <= E.MAX_MESSAGE);
+  });
+});
+
 describe('2 qui peut recevoir un e-mail, et quelles adresses', () => {
   test('2 « Préparer l’e-mail » : permis pour un brouillon (on propose de finaliser), un finalisé, un envoyé ; refusé ensuite', () => {
     for (const s of ['brouillon', 'en_attente_envoi', 'envoye']) assert.equal(E.emailPossible(s).actif, true, s);

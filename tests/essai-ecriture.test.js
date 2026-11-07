@@ -60,7 +60,7 @@ describe('Script de recette de l’étape 4', () => {
     const lignes = s.collections.crm_audit.length;
     const r = await s.lancer(JETONS.biblio);
     assert.equal(r.code, 1);
-    assert.match(r.stdout, /il faut le jeton Claude Code/);
+    assert.match(r.stdout, /il faut un jeton de profil complet/);
     assert.deepEqual(s.vue(), avant);
     assert.equal(s.collections.crm_audit.length, lignes);
   });

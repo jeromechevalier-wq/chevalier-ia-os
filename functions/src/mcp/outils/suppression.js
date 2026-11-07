@@ -1,11 +1,11 @@
-// Outils de suppression et de restauration : réservés au profil Claude Code (le serveur les refuse à tout autre jeton, même si le client est mal
-// configuré). Chez un client, ce profil « claude-code » est celui du rôle ÉDITEUR (clients/config.js, PROFIL_PAR_ROLE).
+// Outils de suppression et de restauration : réservés au profil complet (le serveur les refuse à tout autre jeton, même si le client est mal
+// configuré). Chez un client, ce profil « complet » est celui du rôle ÉDITEUR (clients/config.js, PROFIL_PAR_ROLE).
 // Les suppressions exigent la confirmation par le nom de la fiche, comme l'écran, puis une DOUBLE confirmation : un premier appel rend l'aperçu
 // de tout ce qui partirait et un code à usage unique, le second (avec codeConfirmation) supprime. Une copie « avant » est gardée.
 import { z } from 'zod';
 import * as metier from '../../coeur/metier.js';
 
-const PROFILS = ['claude-code'];
+const PROFILS = ['complet'];
 const id = z.string().min(1).max(200);
 const confirmation = (quoi) => z.string().min(1).max(300).describe(`${quoi} (comparaison sans accents ni casse), comme la confirmation de l'écran.`);
 const codeConfirmation = z.string().max(40).optional().describe("Absent au premier appel : l'outil ne supprime rien, rend un APERÇU et un code. À donner au second appel, après accord de l'utilisateur.");

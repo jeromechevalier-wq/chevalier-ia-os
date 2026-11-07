@@ -1,15 +1,16 @@
 // Génère un jeton pour un client du serveur MCP (hors ligne, sur ton Mac). Usage :
-//   node outils/creer-jeton.js hermes-bibliothecaire bibliothecaire
-//   node outils/creer-jeton.js claude-code-jerome claude-code
-// Premier argument : nom du jeton (et de l'acteur écrit dans le fil et l'audit) ; second : profil (lecteur, bibliothecaire, agent-devis, claude-code).
+//   node outils/creer-jeton.js hermes-bibliothecaire ecriture
+//   node outils/creer-jeton.js claude-code-jerome complet
+// Premier argument : nom du jeton (et de l'acteur écrit dans le fil et l'audit) ; second : profil (lecture, ecriture, agent-devis, complet ; les anciens noms lecteur, bibliothecaire, claude-code sont acceptés et écrits sous le nom canonique).
 // Le jeton est affiché UNE SEULE FOIS et n'est enregistré nulle part. Seule la ligne JSON (avec l'empreinte) va dans le
 // secret MCP_JETONS de Secret Manager (une ligne par jeton, nouvelle version du secret).
 import { randomBytes } from 'node:crypto';
-import { PROFILS, empreinte } from '../functions/src/securite/jetons.js';
+import { PROFILS, profilCanonique, empreinte } from '../functions/src/securite/jetons.js';
 
-const [nom, profil] = process.argv.slice(2);
-if (!nom || !/^[a-z0-9][a-z0-9-]{1,40}$/.test(nom) || !PROFILS.includes(profil)) {
-  console.error(`Usage : node outils/creer-jeton.js <nom> <profil>\n  nom : minuscules, chiffres et tirets (2 à 41 caractères), ex. hermes-bibliothecaire\n  profil : ${PROFILS.join(' | ')}`);
+const [nom, profilSaisi] = process.argv.slice(2);
+const profil = profilCanonique(profilSaisi);
+if (!nom || !/^[a-z0-9][a-z0-9-]{1,40}$/.test(nom) || profil === null) {
+  console.error(`Usage : node outils/creer-jeton.js <nom> <profil>\n  nom : minuscules, chiffres et tirets (2 à 41 caractères), ex. hermes-bibliothecaire\n  profil : ${PROFILS.join(' | ')} (anciens noms acceptés : lecteur, bibliothecaire, claude-code)`);
   process.exit(1);
 }
 

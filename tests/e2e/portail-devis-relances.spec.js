@@ -130,7 +130,7 @@ test.describe('chez Jérôme', () => {
     await expect(page).toHaveURL(/#\/portail-devis\/devis\/voir\/r12$/);
   });
 
-  test('22 « Préparer l\'e-mail » depuis Relances ouvre la fenêtre standard et ne marque rien comme relancé', async ({ page }, info) => {
+  test('22 « Préparer l\'e-mail » depuis Relances ouvre la fenêtre (texte de relance) et ne marque rien comme relancé', async ({ page }, info) => {
     await jeu();
     const etat = await simulerServeur(page);
     await ouvrirRelances(page);
@@ -142,6 +142,7 @@ test.describe('chez Jérôme', () => {
     await boite.locator('[data-action="confirmer-preparer-email"]').click();
     await expect.poll(() => etat.email.length).toBe(1);
     expect(etat.email[0].devisId).toBe('r12');
+    expect(etat.email[0].objet).toMatch(/^Relance – /); // le texte de relance part sans modification
     expect(etat.appels).toHaveLength(0); // « Préparer » n'enregistre aucune relance
   });
 

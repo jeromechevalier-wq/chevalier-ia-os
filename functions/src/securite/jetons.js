@@ -2,8 +2,16 @@
 // Aucune dépendance (seulement node:crypto) : le script outils/creer-jeton.js importe aussi ce fichier.
 import { createHash, timingSafeEqual } from 'node:crypto';
 
-/** Profils : lecteur (lecture seule), bibliothecaire (lecture, écriture, pièces jointes, sauvegarde), agent-devis (liste blanche : créer le client et le devis, finaliser avec aperçu + code, préparer l'e-mail), claude-code (tout). */
-export const PROFILS = ['lecteur', 'bibliothecaire', 'agent-devis', 'claude-code'];
+/** Profils : lecture (lecture seule), ecriture (lire, créer, modifier ; jamais supprimer, restaurer ni finaliser), agent-devis (liste blanche : créer le client et le devis, finaliser avec aperçu + code, préparer l'e-mail), complet (tout). */
+export const PROFILS = ['lecture', 'ecriture', 'agent-devis', 'complet'];
+/** Anciens noms, valables pour toujours : les jetons déjà déclarés dans MCP_JETONS ne sont jamais à réécrire. */
+export const ALIAS_PROFILS = Object.freeze({ lecteur: 'lecture', bibliothecaire: 'ecriture', 'claude-code': 'complet' });
+/** Nom canonique d'un profil (nouveau nom ou ancien alias), ou null si inconnu. Seul point d'entrée des alias. */
+export function profilCanonique(nom) {
+  if (typeof nom !== 'string') return null;
+  if (PROFILS.includes(nom)) return nom;
+  return Object.hasOwn(ALIAS_PROFILS, nom) ? ALIAS_PROFILS[nom] : null;
+}
 
 /** « cia_ » suivi de 256 bits en base64url (43 caractères). */
 export const FORMAT_JETON = /^cia_[A-Za-z0-9_-]{43}$/;
@@ -35,10 +43,11 @@ export function analyserSecret(texte) {
     brutes = String(texte).split('\n').map((l) => l.trim()).filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } });
   }
   for (const e of brutes) {
+    const profil = e && typeof e === 'object' ? profilCanonique(e.profil) : null;
     const ok = e && typeof e === 'object'
       && FORMAT_NOM.test(e.jeton ?? '') && FORMAT_NOM.test(e.acteur ?? '')
-      && PROFILS.includes(e.profil) && FORMAT_EMPREINTE.test(e.empreinte ?? '') && typeof e.actif === 'boolean';
-    if (ok) entrees.push({ jeton: e.jeton, acteur: e.acteur, profil: e.profil, empreinte: e.empreinte, actif: e.actif, ...(e.limites && typeof e.limites === 'object' ? { limites: e.limites } : {}) });
+      && profil !== null && FORMAT_EMPREINTE.test(e.empreinte ?? '') && typeof e.actif === 'boolean';
+    if (ok) entrees.push({ jeton: e.jeton, acteur: e.acteur, profil, empreinte: e.empreinte, actif: e.actif, ...(e.limites && typeof e.limites === 'object' ? { limites: e.limites } : {}) });
     else invalides += 1;
   }
   return { entrees, invalides };

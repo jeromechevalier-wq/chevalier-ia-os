@@ -116,7 +116,7 @@ describe('diagnostiquer_fichiers : jamais l\'adresse complète ni le jeton', () 
   });
 
   test('l\'outil est en lecture seule, ouvert aux trois profils, et déclare le champ « fichiers » à ChatGPT', () => {
-    assert.deepEqual(diagnostiquer_fichiers.profils, ['lecteur', 'bibliothecaire', 'claude-code']);
+    assert.deepEqual(diagnostiquer_fichiers.profils, ['lecture', 'ecriture', 'complet']);
     assert.deepEqual(diagnostiquer_fichiers.meta, { 'openai/fileParams': ['fichiers'] });
     assert.ok(OUTILS.includes(diagnostiquer_fichiers));
   });

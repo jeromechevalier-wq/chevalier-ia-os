@@ -291,7 +291,7 @@ describe('Rôles : le profil vient du rôle du membre', () => {
     const liste = noms(await c.listTools());
     assert.ok(liste.includes('chercher') && liste.includes('lister_projets') && liste.includes('qui_suis_je'));
     assert.deepEqual(liste.filter((n) => MOTS_ECRITURE.test(n) || SUPPRESSIONS.test(n)), []);
-    assert.equal(resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'lecteur');
+    assert.equal(resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'lecture');
     const avant = await donneesDe('a');
     assert.ok(await refuse(c, 'creer_personne', { nom: 'Intrus' }));
     assert.ok(await refuse(c, 'supprimer_personne', { id: 'p1', confirmationNom: 'Camille ALPHA' }));
@@ -327,14 +327,14 @@ describe('Rôles : le profil vient du rôle du membre', () => {
     } finally { await reinitialiser(); }
   });
 
-  test('M7 éditeur : lecture, écriture, suppression et restauration (listées et appelables), profil claude-code', async () => {
+  test('M7 éditeur : lecture, écriture, suppression et restauration (listées et appelables), profil complet', async () => {
     await reinitialiser();
     const t = await connecter('a', 'ID-ALICE');
     const c = await assistant('/mcp/a', t.access_token);
     const liste = noms(await c.listTools());
     assert.ok(liste.includes('creer_personne') && liste.includes('modifier_projet'));
     assert.ok(liste.includes('supprimer_personne') && liste.includes('restaurer_depuis_audit'));
-    assert.equal(resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'claude-code');
+    assert.equal(resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'complet');
     await c.close();
     await reinitialiser();
   });
@@ -377,7 +377,7 @@ describe('Rôles : le profil vient du rôle du membre', () => {
     await reinitialiser();
     const tb = await connecter('b', 'ID-CLARA');
     const cb = await assistant('/mcp/b', tb.access_token);
-    assert.equal(resultat(await cb.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'lecteur');
+    assert.equal(resultat(await cb.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'lecture');
     const avantB = await donneesDe('b');
     assert.ok(await refuse(cb, 'supprimer_personne', { id: 'p1', choix: 'conserver', confirmationNom: 'Camille BRAVO' }));
     assert.ok(await refuse(cb, 'supprimer_note', { id: 'n1' }));
@@ -439,7 +439,7 @@ describe('Rôles : le profil vient du rôle du membre', () => {
     await c.close();
     await donnees.appliquer([{ type: 'set', collection: 'clients/a/membres', id: ALICE, donnees: { role: 'lecteur' } }]);
     const c2 = await assistant('/mcp/a', t.access_token);
-    assert.equal(resultat(await c2.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'lecteur');
+    assert.equal(resultat(await c2.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'lecture');
     assert.deepEqual(noms(await c2.listTools()).filter((n) => MOTS_ECRITURE.test(n)), []);
     await c2.close();
     await reinitialiser();
@@ -707,11 +707,11 @@ describe('Étanchéité entre clients (plan M1 à M15)', () => {
     const tc = await connecter('a', 'ID-CLARA');
     const sur = async (client, token) => { const c = await assistant(`/mcp/${client}`, token); const t = JSON.stringify((await c.callTool({ name: 'lister_affaires', arguments: {} })).content) + resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).profil; await c.close(); return t; };
     const chezA = await sur('a', tc.access_token);
-    assert.ok(chezA.includes('ALPHA') && !chezA.includes('BRAVO') && chezA.endsWith('claude-code'));
+    assert.ok(chezA.includes('ALPHA') && !chezA.includes('BRAVO') && chezA.endsWith('complet'));
     assert.equal((await brut('/mcp/b', tc.access_token)).status, 401, 'le jeton de A ne vaut pas sur B, même pour un compte membre des deux');
     const tcb = await connecter('b', 'ID-CLARA');
     const chezB = await sur('b', tcb.access_token);
-    assert.ok(chezB.includes('BRAVO') && !chezB.includes('ALPHA') && chezB.endsWith('lecteur'));
+    assert.ok(chezB.includes('BRAVO') && !chezB.includes('ALPHA') && chezB.endsWith('lecture'));
     assert.equal((await brut('/mcp/a', tcb.access_token)).status, 401);
   });
   test('M4 un document de B demandé par A (lecture, modification) : « introuvable », aucune écriture chez B', async () => {
@@ -789,11 +789,11 @@ describe('Étanchéité entre clients (plan M1 à M15)', () => {
     await c.close();
     const appels = lignesJournal.filter((l) => l.outil === 'lire_personne');
     assert.ok(appels.length > 0);
-    for (const l of appels) assert.deepEqual([l.client, l.acteur, l.profil, l.role], ['a', 'claude-ai-alice', 'claude-code', 'editeur']);
+    for (const l of appels) assert.deepEqual([l.client, l.acteur, l.profil, l.role], ['a', 'claude-ai-alice', 'complet', 'editeur']);
     assert.ok(!JSON.stringify(lignesJournal).includes('BRAVO') && !JSON.stringify(lignesJournal).includes('ALPHA'));
     const { journaliser } = await import('../functions/src/securite/journaux.js');
     const lignes = [];
-    journaliser({ client: 'a', acteur: 'claude-ai-alice', jeton: 'a__claude-ai-alice', profil: 'lecteur', role: 'lecteur', statut: 200, secret: 'NE PAS ECRIRE' }, (l) => lignes.push(l));
+    journaliser({ client: 'a', acteur: 'claude-ai-alice', jeton: 'a__claude-ai-alice', profil: 'lecture', role: 'lecteur', statut: 200, secret: 'NE PAS ECRIRE' }, (l) => lignes.push(l));
     assert.match(lignes[0], /"client":"a"/);
     assert.ok(!lignes[0].includes('NE PAS ECRIRE'));
   });
@@ -969,7 +969,7 @@ describe('Jérôme : son serveur ne change pas', () => {
   test('le serveur de Jérôme garde ses adresses, sa liste de comptes et son profil unique', async () => {
     const c = await import('../functions/src/oauth/config.js');
     assert.equal(c.RESSOURCE, 'https://chevalier-ia-os.web.app/mcp');
-    assert.equal(c.PROFIL_OAUTH, 'claude-code');
+    assert.equal(c.PROFIL_OAUTH, 'complet');
     assert.deepEqual(c.COMPTES_AUTORISES, ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com']);
     const { pageAutorisation } = await import('../functions/src/oauth/page.js');
     const p = pageAutorisation({ client_id: 'x', redirect_uri: 'https://claude.ai/api/mcp/auth_callback', code_challenge: 'c'.repeat(43) });

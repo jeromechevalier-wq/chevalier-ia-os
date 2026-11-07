@@ -340,8 +340,8 @@ describe('6 devis finalisé', () => {
     refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }), /demarquer_test/);
     // un bibliothécaire (Hermes) ne marque pas un devis finalisé, mais marque un brouillon seul
     const s2 = await demarrer({ devis: [devisFige('v1', { ht: 1200 }), brouillonEnregistre('v2', { racineId: 'v1', version: 2 }), brouillonEnregistre('seul')] });
-    refuse(await s2.appeler('biblio', 'marquer_test', { type: 'devis', id: 'v1' }), /réservé à Claude Code/);
-    refuse(await s2.appeler('biblio', 'marquer_test', { type: 'devis', id: 'v2' }), /réservé à Claude Code/);
+    refuse(await s2.appeler('biblio', 'marquer_test', { type: 'devis', id: 'v1' }), /profil complet/);
+    refuse(await s2.appeler('biblio', 'marquer_test', { type: 'devis', id: 'v2' }), /profil complet/);
     assert.equal(ok(await s2.appeler('biblio', 'demarquer_test', { type: 'devis', id: 'v1' })).rien, true, 'déjà réel : rien à changer, aucune restriction à lever');
     assert.equal(s2.doc('devis_devis', 'v1').test, undefined);
     assert.equal(ok(await s2.appeler('biblio', 'marquer_test', { type: 'devis', id: 'seul' })).change, true);

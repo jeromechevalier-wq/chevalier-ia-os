@@ -501,7 +501,7 @@ export async function terminerActivite(c, args) {
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: a.id });
 }
 
-// ---------------------------------------------------------------- suppressions (profil Claude Code)
+// ---------------------------------------------------------------- suppressions (profil complet)
 
 /** Activités, notes et événements portant un lien `champ` = id, dans le format attendu par les plans de suppression. */
 async function liensDe(c, champ, id) {
@@ -1340,7 +1340,7 @@ export async function annulerDerniereModificationDevis(c, args) {
   // Premier appel : aperçu (rien n'est écrit), pour refuser avec une phrase claire plutôt qu'avec le message général qui propose forcer.
   const apercu = await c.restaurer({ operationId: derniere.operationId, apercu: true, forcer: false, outil: 'annuler_derniere_modification_devis' });
   // L'opération doit ne toucher que ce devis : sinon la phrase ne dirait pas tout ce qui serait remis (filet pour un futur outil qui écrirait aussi un autre document).
-  if (apercu.lignes.some((l) => l.collection !== C.devis || l.docId !== id)) refuser('saisie_invalide', 'La dernière opération a aussi touché un autre document que ce devis : je ne l’annule pas d’ici. Utilise restaurer_depuis_audit (Claude Code) après avoir relu l’aperçu.');
+  if (apercu.lignes.some((l) => l.collection !== C.devis || l.docId !== id)) refuser('saisie_invalide', 'La dernière opération a aussi touché un autre document que ce devis : je ne l’annule pas d’ici. Utilise restaurer_depuis_audit (profil complet) après avoir relu l’aperçu.');
   if (apercu.conflits) refuser('conflit', COUVERT);
   if (!apercu.aDefaire) refuser('saisie_invalide', 'Rien à annuler : le devis est déjà tel qu’il était avant la dernière modification.');
   const copie = await c.donnees.document(C.auditAvant, derniere.id);
@@ -1614,7 +1614,7 @@ async function basculerTestMetier(c, args, test) {
     // Un devis de test finalisé (numéro TEST-…) reste un test : refusé AVANT tout aperçu et tout code.
     if (!test && toutes.some((v) => D.estNumeroTest(v.numero))) refuser('saisie_invalide', MESSAGE_TEST_FINALISE);
     if (finalise) {
-      if (c.profil !== 'claude-code') refuser('saisie_invalide', `Marquer ou démarquer un devis FINALISÉ (une version au moins n'est plus un brouillon) est réservé à Claude Code : cela change le chiffre d'affaires et ne se défait pas avec le journal (un profil autre que Claude Code ne peut pas le faire). ${test ? 'Un brouillon se marque' : 'Un brouillon se démarque'} sans restriction.`);
+      if (c.profil !== 'complet') refuser('saisie_invalide', `Marquer ou démarquer un devis FINALISÉ (une version au moins n'est plus un brouillon) est réservé au profil complet (toute connexion OAuth ; chez un client : rôle éditeur) : cela change le chiffre d'affaires et ne se défait pas avec le journal (le profil écriture ne peut pas non plus finaliser un devis). ${test ? 'Un brouillon se marque' : 'Un brouillon se démarque'} sans restriction.`);
       const montantsAffaires = await apercuMontantsAffaires(c, toutes, aChanger, test);
       const apercu = await confirmerDevis(c, args, {
         outil, cibleId: id, verbe: 'marqué', empreinte: empreinteDevis(fiche, { test, versions: aChanger.map((v) => `${v.id}:${v.statut}`).sort() }),

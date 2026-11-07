@@ -99,3 +99,13 @@ describe('P3 le câblage : menu « Envoyer », confirmation, textes, serveur', (
     for (const f of ['js/modules/devis/email-preparer.js', 'js/modules/devis/email-preparer-ecran.js', 'js/modules/devis/saisie-adresses.js', 'js/modules/devis/saisie-adresses-logique.js']) assert.ok(!/CRM/.test(sansCommentaires(lire(f))), f);
   });
 });
+
+describe('P4 relance : elle survit au « Réessayer » du PDF et au bouton de l’écran Relances', () => {
+  test('P4 le « Réessayer » rappelle lancerPreparationEmail AVEC relance ; l’écran Relances décide relance par bloc (À relancer = oui, Jamais envoyés = non)', () => {
+    const ecran = sansCommentaires(lire('js/modules/devis/email-preparer-ecran.js'));
+    assert.match(ecran, /pdfPasPret\([^)]*\(args\) => lancerPreparationEmail\(\{ \.\.\.args, relance \}\)\)/);
+    const relances = sansCommentaires(lire('js/modules/devis/relances-ecran.js'));
+    assert.match(relances, /boutonEmail\(e\.devis, \{ relance: true \}\), boutonRelance/);
+    assert.match(relances, /jamais_envoye'[^\n]*boutonEmail\(e\.devis, \{ relance: false \}\)/);
+  });
+});
