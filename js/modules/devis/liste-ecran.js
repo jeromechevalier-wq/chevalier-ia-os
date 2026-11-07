@@ -50,6 +50,8 @@ const pastille = pastilleStatutDevis; // la même pastille que dans l'en-tête d
 const LIBELLES_A_TRAITER = { a_relancer: 'À relancer', jamais_envoye: 'Jamais envoyé' };
 /** Pastille « À relancer · 12 j » ou « Jamais envoyé · 8 j » d'un devis à traiter (couleur « retard »). */
 export const pastilleATraiter = (e) => h('span', { class: 'pastille-statut pastille-a-traiter', dataset: { aTraiter: e.motif } }, `${LIBELLES_A_TRAITER[e.motif]} · ${e.joursDepuis} j`);
+/** Cas vide « Seulement les tests » + « Seulement à traiter » : un devis de test n'est jamais « à traiter » (libellés du filtre Tests : OPTIONS_FILTRE_TESTS). */
+const PHRASE_TESTS_A_TRAITER_VIDE = 'Un devis de test n’est jamais « à traiter » : choisis « Sans les tests » ou « Tout » pour voir les devis à traiter.';
 const OPTIONS_A_TRAITER = [{ valeur: 'tout', libelle: 'Tout' }, { valeur: 'seulement', libelle: 'Seulement à traiter' }];
 
 /** Petite pastille d'un devis finalisé mais pas encore envoyé (dans la colonne « Envoyé » du Kanban). */
@@ -163,7 +165,7 @@ export function rendreListeDevis(conteneur) {
     if (!lignes.length) {
       const vraimentVide = total === 0;
       if (vraimentVide && archives) { remplir(zone, etatVide('Aucun devis archivé. Un devis finalisé, signé ou refusé se range ici avec « Archiver », dans le menu « … » du devis ; les devis remplacés et expirés y sont aussi.')); return; }
-      remplir(zone, etatVide(vraimentVide ? 'Aucun devis pour l’instant.' : 'Aucun devis ne correspond.', {
+      remplir(zone, etatVide(vraimentVide ? 'Aucun devis pour l’instant.' : (aTraiterFiltre === 'seulement' && testsFiltre === 'seulement' ? PHRASE_TESTS_A_TRAITER_VIDE : 'Aucun devis ne correspond.'), {
         action: vraimentVide ? h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'nouveau-devis-vide' }, onclick: () => creerDevisSansAffaire() },
           icone('plus', { taille: 16 }), 'Devis', Li.EDITEUR_DISPONIBLE ? null : ' (bientôt disponible)') : null,
       }));
@@ -227,7 +229,7 @@ export function rendreListeDevis(conteneur) {
     return ouvrable(h('article', { class: 'carte-affaire carte-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
       h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, intitule(d), badgeTest(d), d.version > 1 ? ` v${d.version}` : '')),
       h('div', { class: 'carte-actions-devis' }, actionsDevis(d)),
-      h('div', { class: 'carte-pastilles' }, pastille(d, aujourdhui), aTraiter.has(d.id) ? pastilleATraiter(aTraiter.get(d.id)) : null, d.statut === 'en_attente_envoi' && Li.statutAffiche(d, aujourdhui) === 'en_attente_envoi' ? pastillePasEnvoye() : null),
+      h('div', { class: 'carte-pastilles' }, pastille(d, aujourdhui), aTraiter.has(d.id) ? pastilleATraiter(aTraiter.get(d.id)) : null, d.statut === 'en_attente_envoi' && Li.statutAffiche(d, aujourdhui) === 'en_attente_envoi' && aTraiter.get(d.id)?.motif !== 'jamais_envoye' ? pastillePasEnvoye() : null),
       celluleClient(d),
       h('div', { class: 'carte-pied' },
         h('span', { class: 'carte-montant' }, `HT ${euros(t?.ht)}`),

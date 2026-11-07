@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { test, expect, listerDocuments, connecter, ecrireDocument, estTelephone, attendreCalme, ouvrirMenuUtilisateur, CHANTIER_ESSAI, JEROME, PROJET, FIRESTORE, URL_APP } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/portail-devis/', import.meta.url));
+const DOSSIER_RETOUCHES = fileURLToPath(new URL('./captures/a-traiter-retouches/', import.meta.url));
+const capturerRetouche = (page, info, nom) => page.screenshot({ path: `${DOSSIER_RETOUCHES}${nom}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
 const ALICE = 'alice@exemple.test';
 const jourDansLe = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
@@ -141,6 +143,55 @@ test.describe('« À traiter » dans la liste', () => {
     await capturer(page, info, '13-liste');
   });
 
+  test('1 une seule pastille : d2 (jamais envoyé depuis 8 j) n’a que « Jamais envoyé · 8 j » en Liste et en Kanban ; d3 (2 j) garde « Pas encore envoyé »', async ({ page }, info) => {
+    await jeuATraiter();
+    await ouvrirPortail(page, 'devis/liste');
+    await expect(page.locator('tr[data-id="d2"] [data-a-traiter="jamais_envoye"]')).toHaveText('Jamais envoyé · 8 j');
+    await expect(page.locator('tr[data-id="d2"]')).not.toContainText('Pas encore envoyé');
+    await capturerRetouche(page, info, '1-liste');
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    await expect(page.locator('.carte-devis[data-id="d2"] [data-a-traiter="jamais_envoye"]')).toHaveText('Jamais envoyé · 8 j');
+    await expect(page.locator('.carte-devis[data-id="d2"]')).not.toContainText('Pas encore envoyé');
+    await expect(page.locator('.carte-devis[data-id="d3"] [data-pastille="pas-encore-envoye"]')).toHaveText('Pas encore envoyé');
+    await expect(page.locator('.carte-devis[data-id="d1"] [data-a-traiter="a_relancer"]')).toHaveText('À relancer · 12 j');
+    await expect(page.locator('.carte-devis[data-id="d1"] [data-pastille="pas-encore-envoye"]')).toHaveCount(0);
+    await capturerRetouche(page, info, '1-kanban');
+  });
+
+  const PHRASE_VIDE = 'Un devis de test n’est jamais « à traiter » : choisis « Sans les tests » ou « Tout » pour voir les devis à traiter.';
+  async function poserFiltres(page, { aTraiter, tests }) {
+    await page.getByRole('button', { name: /Filtres/ }).click();
+    const fenetre = page.locator('.voile-dialogue');
+    if (aTraiter) await fenetre.locator('select[data-cle="aTraiter"]').selectOption(aTraiter);
+    if (tests) await fenetre.locator('select[data-cle="tests"]').selectOption(tests);
+    await fenetre.getByRole('button', { name: 'Appliquer' }).click();
+  }
+
+  test('2 « Seulement les tests » + « Seulement à traiter » : la liste est vide et dit la phrase qui explique pourquoi', async ({ page }, info) => {
+    await jeuATraiter();
+    await ouvrirPortail(page, 'devis/liste');
+    await poserFiltres(page, { aTraiter: 'seulement', tests: 'seulement' });
+    await expect(lignes(page)).toHaveCount(0);
+    await expect(page.locator('.etat-vide')).toHaveText(PHRASE_VIDE);
+    await capturerRetouche(page, info, '2-phrase-vide');
+  });
+
+  test('2b la phrase n’apparaît pas hors de ce cas (autre filtre Tests, ou liste non vide) ; le cas vide général est inchangé', async ({ page }) => {
+    await jeuATraiter();
+    await ouvrirPortail(page, 'devis/liste');
+    await poserFiltres(page, { aTraiter: 'seulement', tests: 'exclure' });
+    await expect(lignes(page)).toHaveCount(2);
+    await expect(page.getByText(PHRASE_VIDE)).toHaveCount(0);
+    await poserFiltres(page, { aTraiter: 'tout', tests: 'seulement' });
+    await expect(lignes(page)).toHaveCount(1); // d5, le seul devis test
+    await expect(page.getByText(PHRASE_VIDE)).toHaveCount(0);
+    await poserFiltres(page, { aTraiter: 'tout', tests: 'inclure' });
+    await page.getByRole('button', { name: /Filtres/ }).click();
+    await page.locator('.voile-dialogue').getByRole('checkbox', { name: 'Devis refusé', exact: true }).check();
+    await page.locator('.voile-dialogue').getByRole('button', { name: 'Appliquer' }).click();
+    await expect(page.locator('.etat-vide')).toHaveText('Aucun devis ne correspond.'); // vide sans « tests + à traiter » : phrase habituelle
+  });
+
   test('14 le clic sur « À traiter » garde d1 et d2 ; Filtres vaut 1 ; Tout effacer remet tout ; combiné avec Statut', async ({ page }, info) => {
     await jeuATraiter();
     await ouvrirPortail(page, 'devis/liste');
@@ -187,13 +238,14 @@ test.describe('« À traiter » dans la liste', () => {
     await expect(page.locator('.voile-dialogue select[data-cle="aTraiter"]')).toHaveCount(0); // pas de critère « À traiter » en Archives
   });
 
-  test('15 Kanban : mêmes pastilles, d2 garde « Pas encore envoyé » ; en Archives, rien et le bouton est caché', async ({ page }, info) => {
+  test('15 Kanban : mêmes pastilles, d2 n’a que « Jamais envoyé · 8 j » et d3 (finalisé il y a 2 j) garde « Pas encore envoyé » ; en Archives, rien et le bouton est caché', async ({ page }, info) => {
     await jeuATraiter();
     await ouvrirPortail(page, 'devis/liste');
     await page.getByRole('button', { name: 'Kanban' }).click();
     await expect(page.locator('.carte-devis[data-id="d1"] [data-a-traiter="a_relancer"]')).toHaveText('À relancer · 12 j');
     await expect(page.locator('.carte-devis[data-id="d2"] [data-a-traiter="jamais_envoye"]')).toHaveText('Jamais envoyé · 8 j');
-    await expect(page.locator('.carte-devis[data-id="d2"] [data-pastille="pas-encore-envoye"]')).toBeVisible();
+    await expect(page.locator('.carte-devis[data-id="d2"] [data-pastille="pas-encore-envoye"]')).toHaveCount(0);
+    await expect(page.locator('.carte-devis[data-id="d3"] [data-pastille="pas-encore-envoye"]')).toBeVisible();
     await expect(page.locator('.carte-devis[data-id="d3"] [data-a-traiter]')).toHaveCount(0);
     await capturer(page, info, '15-kanban');
     await page.getByRole('button', { name: 'Archives' }).click();
