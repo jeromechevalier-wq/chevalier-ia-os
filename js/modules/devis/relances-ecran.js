@@ -35,7 +35,7 @@ export function rendreRelances(conteneur) {
     return h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: nonBranche, title: nonBranche ? MESSAGE_NON_BRANCHE : null, dataset: { action: 'preparer-email' },
       onclick: (e) => {
         if (D.emailPreparable() === false) { e.currentTarget.disabled = true; e.currentTarget.title = MESSAGE_NON_BRANCHE; toast(MESSAGE_NON_BRANCHE, { type: 'erreur', duree: 8000 }); return; } // la réponse du serveur est arrivée après le dessin
-        lancerPreparationEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id) ?? d, finaliser: null });
+        lancerPreparationEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id) ?? d, finaliser: null, relance: true });
       } }, icone('mail-check', { taille: 16 }), LIBELLE_PREPARER_EMAIL);
   }
   function boutonRelance(d, delai) {
