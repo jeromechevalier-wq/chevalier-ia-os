@@ -13,11 +13,12 @@ import { collections, MAINTENANT } from './_donnees-essai.js';
 
 const nomsPour = (profil) => outilsAutorises(profil).map((o) => o.nom).sort();
 
-const JETON = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, code: `cia_${'C'.repeat(43)}`, revoque: `cia_${'R'.repeat(43)}` };
+const JETON = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, agent: `cia_${'A'.repeat(43)}`, code: `cia_${'C'.repeat(43)}`, revoque: `cia_${'R'.repeat(43)}` };
 const entree = (jeton, nom, profil, actif = true) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif });
 const SECRET = JSON.stringify([
   entree(JETON.lecteur, 'lecteur-essai', 'lecteur'),
   entree(JETON.biblio, 'hermes-bibliothecaire', 'bibliothecaire'),
+  entree(JETON.agent, 'n8n-devis-essai', 'agent-devis'),
   entree(JETON.code, 'claude-code-jerome', 'claude-code'),
   entree(JETON.revoque, 'ancien-client', 'claude-code', false),
 ]);
@@ -181,6 +182,33 @@ describe('Journaux sans secret', () => {
   });
 });
 
+describe('Profil agent-devis : liste blanche et outils refusés', () => {
+  const NON_ACCORDES = ['supprimer_devis', 'supprimer_affaire', 'supprimer_personne', 'supprimer_organisation', 'supprimer_document_stocke', 'supprimer_activite', 'supprimer_note', 'supprimer_projet', 'supprimer_tous_les_tests', 'restaurer_depuis_audit',
+    'changer_statut_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles', 'modifier_lignes_devis', 'annuler_derniere_modification_devis', 'nouvelle_version_devis', 'archiver_devis', 'retirer_document', 'deposer_document', 'joindre_lien',
+    'desactiver_article', 'creer_article', 'modifier_article', 'modifier_personne', 'modifier_organisation', 'modifier_affaire', 'changer_etape', 'marquer_perdue', 'rouvrir_affaire', 'rouvrir_projet', 'marquer_test', 'demarquer_test',
+    'enregistrer_envoi_devis', 'enregistrer_reponse_vocabulaire', 'ajouter_note', 'modifier_note', 'creer_activite', 'terminer_activite', 'creer_projet', 'creer_projet_depuis_affaire', 'modifier_projet', 'lire_projet', 'lister_projets', 'lire_audit',
+    'lister_propositions', 'lire_proposition', 'lister_automatisations', 'valider_proposition', 'refuser_proposition', 'creer_devis_depuis_modele', 'lister_documents', 'lister_activites', 'lire_reglages', 'diagnostiquer_fichiers'];
+  test('agent-devis : 21 outils, finaliser_devis présent, aucun outil non accordé', () => {
+    const noms = nomsPour('agent-devis');
+    assert.equal(noms.length, 21);
+    assert.ok(noms.includes('finaliser_devis') && noms.includes('preparer_email') && noms.includes('qui_suis_je'));
+    for (const n of NON_ACCORDES) assert.ok(!noms.includes(n), `${n} ne doit pas être accordé`);
+  });
+  test('agent-devis : listTools sans supprimer_devis ; l’appel d’un outil non accordé est refusé', async () => {
+    const c = await client(JETON.agent);
+    const vus = (await c.listTools()).tools.map((t) => t.name);
+    assert.ok(vus.includes('finaliser_devis') && !vus.includes('supprimer_devis'));
+    for (const nom of NON_ACCORDES) {
+      const r = await c.callTool({ name: nom, arguments: {} }).catch((e) => ({ erreur: e }));
+      assert.ok(r.erreur || r.isError, `${nom} doit être refusé`);
+    }
+    const q = JSON.parse((await c.callTool({ name: 'qui_suis_je', arguments: {} })).content[0].text);
+    assert.equal(q.profil, 'agent-devis');
+    assert.deepEqual([...q.outils].sort(), nomsPour('agent-devis'));
+    await c.close();
+  });
+});
+
 describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => {
   // Listes écrites à la main, relevées sur main (2.10.0), puis ajustées le 22/10/2026 : « tâche de projet » est devenue « livrable » (ajouter_livrable_projet, terminer_livrable_projet, anciens noms retirés), puis la pause a été supprimée le 22/10/2026 (mettre_en_pause, mettre_projet_en_pause et reprendre_projet retirés, sans alias : 27 outils d’écriture au lieu de 30). Ni les autres noms ni le nombre d'outils ne doivent bouger.
   const LECTURE = ['chercher', 'lire_affaire', 'lire_audit', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_reglages', 'lister_activites', 'lister_affaires', 'lister_documents', 'lister_modeles_projet', 'lister_projets', 'qui_suis_je',
@@ -200,8 +228,12 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
     'marquer_test', 'demarquer_test']; // + mode test : marquer ou démarquer un essai (PR 2, 05/11/2026)
   const FINALISATION = ['finaliser_devis', 'changer_statut_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles']; // écritures sensibles (figent le devis, ne se défont pas avec le journal, confirmation par code) : Claude Code seulement
   const SUPPRESSION = ['restaurer_depuis_audit', 'supprimer_activite', 'supprimer_devis', 'supprimer_affaire', 'supprimer_note', 'supprimer_organisation', 'supprimer_personne', 'supprimer_projet', 'supprimer_document_stocke', 'supprimer_tous_les_tests'];
+  // Liste blanche EXACTE du profil agent-devis (décision de Jérôme, 07/11/2026), écrite à la main : créer le client et le devis, le finaliser (aperçu + code), préparer l'e-mail. 21 outils.
+  const AGENT_DEVIS = ['qui_suis_je', 'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_devis', 'lire_devis', 'lire_reglages_devis', 'chercher_article', 'lister_articles', 'rechercher_article_par_phrase', 'obtenir_pdf_officiel_devis',
+    'creer_personne', 'creer_organisation', 'creer_affaire', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'modifier_destinataires_devis', 'preparer_email'];
   const attendu = {
     lecteur: [...LECTURE].sort(),
+    agent: [...AGENT_DEVIS].sort(),
     biblio: [...LECTURE, ...ECRITURE].sort(),
     code: [...LECTURE, ...ECRITURE, ...FINALISATION, ...SUPPRESSION].sort(),
   };
@@ -212,7 +244,7 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
       const recus = (await c.listTools()).tools.map((t) => t.name).filter((n) => n !== OUTIL_RESERVE.nom).sort();
       await c.close();
       assert.deepEqual(recus, liste);
-      assert.deepEqual(nomsPour(profil === 'biblio' ? 'bibliothecaire' : profil === 'code' ? 'claude-code' : 'lecteur'), liste);
+      assert.deepEqual(nomsPour(profil === 'biblio' ? 'bibliothecaire' : profil === 'code' ? 'claude-code' : profil === 'agent' ? 'agent-devis' : 'lecteur'), liste);
     });
   }
 });

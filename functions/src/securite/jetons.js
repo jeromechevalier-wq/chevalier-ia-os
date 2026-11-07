@@ -2,8 +2,8 @@
 // Aucune dépendance (seulement node:crypto) : le script outils/creer-jeton.js importe aussi ce fichier.
 import { createHash, timingSafeEqual } from 'node:crypto';
 
-/** Profils : lecteur (lecture seule), bibliothecaire (lecture, écriture, pièces jointes, sauvegarde), claude-code (tout). */
-export const PROFILS = ['lecteur', 'bibliothecaire', 'claude-code'];
+/** Profils : lecteur (lecture seule), bibliothecaire (lecture, écriture, pièces jointes, sauvegarde), agent-devis (liste blanche : créer le client et le devis, finaliser avec aperçu + code, préparer l'e-mail), claude-code (tout). */
+export const PROFILS = ['lecteur', 'bibliothecaire', 'agent-devis', 'claude-code'];
 
 /** « cia_ » suivi de 256 bits en base64url (43 caractères). */
 export const FORMAT_JETON = /^cia_[A-Za-z0-9_-]{43}$/;

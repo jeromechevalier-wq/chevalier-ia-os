@@ -14,7 +14,7 @@ import { canonique, sansId } from '../functions/src/coeur/canonique.js';
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
 import { EMETTEUR_ESSAI } from './jeu-finalisation.js';
 
-const JETONS = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, code: `cia_${'C'.repeat(43)}` };
+const JETONS = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, agent: `cia_${'A'.repeat(43)}`, code: `cia_${'C'.repeat(43)}` };
 const entree = (jeton, nom, profil, extra = {}) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif: true, ...extra });
 const EMAIL = ['client@exemple.test'];
 
@@ -36,7 +36,7 @@ async function demarrer({ devis = [], jetonsExtra = {} } = {}) {
   Object.assign(collections, { devis_articles: [], devis_devis: devis.map((d) => structuredClone(d)), devis_compteurs: [], devis_parametres: [{ id: 'reglages', regimeTva: 'assujetti', marge: 20, modeMarge: 'majoration', entreprise: EMETTEUR_ESSAI }] });
   const donnees = creerAccesMemoire(collections);
   const horloge = { t: MAINTENANT.getTime() };
-  const secret = JSON.stringify([entree(JETONS.lecteur, 'lecteur-essai', 'lecteur'), entree(JETONS.biblio, 'hermes-bibliothecaire', 'bibliothecaire'), entree(JETONS.code, 'claude-code-jerome', 'claude-code', jetonsExtra.code)]);
+  const secret = JSON.stringify([entree(JETONS.lecteur, 'lecteur-essai', 'lecteur'), entree(JETONS.biblio, 'hermes-bibliothecaire', 'bibliothecaire'), entree(JETONS.agent, 'n8n-devis-essai', 'agent-devis'), entree(JETONS.code, 'claude-code-jerome', 'claude-code', jetonsExtra.code)]);
   const magasin = creerMagasin({ lire: async () => secret, dureeCacheMs: 0 });
   const limiteur = creerLimiteur({ donnees, maintenant: () => horloge.t });
   const gestionnaire = creerGestionnaire({ magasin, donnees, limiteur, maintenant: () => horloge.t, journal: () => {} });
@@ -387,6 +387,23 @@ describe('B mentions légales (31/10/2026) : l’assistant', () => {
     for (const p of phrases) refuse(r, new RegExp(p.replace(/[.()]/g, '\\$&')));
     assert.equal(JSON.stringify(s.collections.devis_devis), JSON.stringify(JSON.parse(avant).devis_devis), 'rien n’a été écrit');
     assert.equal(s.collections.devis_compteurs.length, 0, 'aucun numéro consommé');
+  });
+});
+
+describe('M6b profil agent-devis', () => {
+  test('M6b agent-devis : le premier appel de finaliser_devis rend l’aperçu et un code sans rien finaliser ; les outils non accordés sont refusés sans écrire', async () => {
+    const s = await demarrer({ devis: [devisEnregistre('d1', { destinataires: EMAIL })] });
+    const avant = JSON.stringify(s.collections.devis_devis);
+    const apercu = ok(await s.appeler('agent', 'finaliser_devis', { id: 'd1' }));
+    assert.equal(apercu.apercu, true);
+    assert.equal(apercu.finalise, false);
+    assert.ok(apercu.code);
+    assert.match(apercu.consigne, /accord explicite de l'utilisateur/);
+    assert.match(apercu.consigne, /ne demande jamais le code/);
+    assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'l’aperçu n’écrit rien');
+    for (const outil of ['changer_statut_devis', 'supprimer_devis', 'restaurer_depuis_audit', 'recalculer_montants_affaires', 'modifier_lignes_devis', 'nouvelle_version_devis']) refuse(await s.appeler('agent', outil, { id: 'd1' }));
+    assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'aucun refus n’écrit');
+    ok(await s.appeler('agent', 'modifier_devis_brouillon', { id: 'd1', objet: 'Par l’agent' }));
   });
 });
 
