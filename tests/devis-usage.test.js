@@ -106,8 +106,8 @@ describe('K18 un même numéro de devis ne compte qu’une fois par article', ()
 
 describe('K19 le compteur suit la transaction de finalisation', () => {
   test('K19 si la finalisation échoue (erreurs de finalisation), aucun compteur n’est écrit', async () => {
-    const sansDestinataire = brouillon('d1', ['a1'], { affaireId: null });
-    const m = monde([sansDestinataire]);
+    const sansLigne = { ...brouillon('d1', ['a1']), sections: [] }; // une vraie erreur de finalisation (l'affaire n'en est plus une)
+    const m = monde([sansLigne]);
     const r = await finaliser(m, 'd1');
     assert.equal(r.ok, false);
     assert.deepEqual(usage(m), {});

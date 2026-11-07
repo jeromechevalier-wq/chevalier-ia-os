@@ -1,4 +1,4 @@
-// Finaliser un devis sans affaire : nom proposé et étape de départ de l'affaire créée (js/modules/devis/affaire-depuis-devis.js). Fonctions pures.
+// Créer l'affaire depuis un devis (la finalisation ne l'exige plus, 07/11/2026) : nom proposé et étape de départ de l'affaire créée (js/modules/devis/affaire-depuis-devis.js). Fonctions pures.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { nomAffaireProposee, etapePourAffaireCreee, etapeAPasser } from '../js/modules/devis/affaire-depuis-devis.js';

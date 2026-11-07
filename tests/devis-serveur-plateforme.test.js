@@ -50,8 +50,8 @@ const refus = async (promesse, code) => {
 };
 const OPERATIONS = { finaliser: { devisId: 'da' }, changerStatut: { devisId: 'da', action: 'marquer_envoye' }, nouvelleVersion: { devisId: 'da' }, archiver: { devisId: 'da', archive: true }, enregistrerEnvoi: { devisId: 'da', destinataires: ['client@exemple.test'] }, marquerTest: { devisId: 'da', test: true } };
 
-describe('C7-S plateforme : l\'affaire n\'est exigée à la finalisation que si le module Affaires est actif (PR C1)', () => {
-  test('C7-S client d (Devis seul) : un devis sans affaire se finalise (numéro attribué) ; client a (Affaires) : le même devis est refusé', async () => {
+describe('C7-S plateforme : un devis se finalise sans affaire, avec ou sans le module Affaires (07/11/2026)', () => {
+  test('C7-S client d (Devis seul) et client a (Affaires) : un devis sans affaire se finalise, numéro attribué', async () => {
     const m = monde();
     m.collections['clients/a/devis_devis'].push(brouillon('da-sans', null));
     const seul = await appeler(m, 'finaliser', ALICE, { client: 'd', devisId: 'dd' });
@@ -59,9 +59,9 @@ describe('C7-S plateforme : l\'affaire n\'est exigée à la finalisation que si 
     assert.equal(seul.numero, 'DEV-2026-10-24-001');
     assert.equal(m.collections['clients/d/devis_devis'][0].statut, 'en_attente_envoi');
     const avec = await appeler(m, 'finaliser', ALICE, { client: 'a', devisId: 'da-sans' });
-    assert.equal(avec.ok, false);
-    assert.deepEqual(avec.erreurs, ['Choisis l\'affaire de ce devis.']);
-    assert.equal(m.collections['clients/a/devis_devis'][1].statut, 'brouillon');
+    assert.equal(avec.ok, true, JSON.stringify(avec.erreurs));
+    assert.ok(avec.numero);
+    assert.equal(m.collections['clients/a/devis_devis'][1].statut, 'en_attente_envoi');
   });
 });
 

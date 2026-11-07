@@ -24,7 +24,7 @@ async function monde({ finaliser = false, affaire = true, urlDossier = 'https://
   const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1', organisationId: 'org1', objet: 'Cuisine' }, { id: 'd1', maintenant: MAINTENANT, auteur: ACTEUR }, { marge: 20, margeDevis: 20 });
   collections[C.devis].push(completerPourFinaliser({ ...d, objet: 'Cuisine', sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'l1', libelle: 'Pose', unite: 'u', quantite: 2, prixAchat: 100 }] }] }));
   const donnees = creerAccesMemoire(collections);
-  if (finaliser) await finaliserDevis(donnees); // finaliser exige l'affaire : « sans affaire » = un devis finalisé avant cette règle, l'affaire lui est retirée après
+  if (finaliser) await finaliserDevis(donnees); // l'affaire est retirée après la finalisation pour tester un devis finalisé sans affaire
   if (!affaire) collections[C.devis][0].affaireId = null;
   return { collections, donnees };
 }

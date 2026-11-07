@@ -1262,7 +1262,7 @@ describe('3f nom interne du devis par l’assistant (MCP)', () => {
   });
 });
 
-describe('SA devis sans affaire (28/10/2026) : un brouillon vit sans affaire, la finalisation l’exige', () => {
+describe('SA devis sans affaire (28/10/2026, finalisation sans affaire le 07/11/2026) : un devis vit et se finalise sans affaire, l’aperçu avertit', () => {
   test('SA1 creer_devis_brouillon sans affaireId : brouillon créé sans affaire ni client ; lister_devis et lire_devis le montrent', async () => {
     const s = await demarrer();
     const ids = await articlesDeBase(s);
@@ -1273,25 +1273,41 @@ describe('SA devis sans affaire (28/10/2026) : un brouillon vit sans affaire, la
     assert.equal(d.organisationId, null);
     assert.equal(r.totalHT, 120);
     assert.equal(ok(await s.appeler('lecteur', 'lister_devis', {})).devis.find((x) => x.id === r.id).affaireId, null);
-    assert.ok(ok(await s.appeler('lecteur', 'lire_devis', { id: r.id })).erreursFinalisation.some((e) => /Choisis l'affaire de ce devis\./.test(e)));
+    const lu = ok(await s.appeler('lecteur', 'lire_devis', { id: r.id }));
+    assert.ok(!lu.erreursFinalisation.some((e) => /affaire/i.test(e)), 'l’affaire n’est plus une erreur de finalisation');
+    assert.match(lu.avertissement, /n'a pas d'affaire/, 'Affaires actif (contexte de Jérôme) : avertissement non bloquant');
     refuse(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'inconnue' }), /Affaire/); // une affaire donnée mais inconnue reste refusée
   });
 
-  test('SA2 finaliser_devis refuse un devis sans affaire (« Choisis l’affaire de ce devis. »), sans code ni écriture ; modifier_devis_brouillon avec affaireId lève le refus et reprend le client', async () => {
+  test('SA2 finaliser_devis sans affaire : aperçu avec code ET avertissement, rien d’écrit ; le code finalise ; avec une affaire, pas d’avertissement ; modifier_devis_brouillon avec affaireId reprend le client', async () => {
+    const s = await demarrer();
+    const ids = await articlesDeBase(s);
+    const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { organisationId: 'org1', destinataires: EMAIL, lignes: [{ articleId: ids.a, quantite: 1 }] }));
+    avecChantier(s, r.id);
+    const avant = JSON.stringify(s.collections.devis_devis);
+    const apercu = ok(await s.appeler('code', 'finaliser_devis', { id: r.id }));
+    assert.ok(apercu.code, 'un code est émis malgré l’absence d’affaire');
+    assert.match(apercu.avertissement, /n'a pas d'affaire : il n'apparaîtra dans aucune fiche d'affaire ni dans son montant\. Propose à l'utilisateur de choisir une affaire/);
+    assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'l’aperçu n’écrit rien');
+    assert.equal(s.collections.devis_compteurs.length, 0, 'aucun numéro consommé');
+    const fait = ok(await s.appeler('code', 'finaliser_devis', { id: r.id, codeConfirmation: apercu.code }));
+    assert.equal(fait.finalise, true);
+    assert.equal(s.doc('devis_devis', r.id).affaireId ?? null, null, 'finalisé sans affaire');
+  });
+
+  test('SA2b avec une affaire : l’aperçu ne porte aucun champ avertissement ; modifier_devis_brouillon avec affaireId reprend le client du devis sans client', async () => {
     const s = await demarrer();
     const ids = await articlesDeBase(s);
     const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { destinataires: EMAIL, lignes: [{ articleId: ids.a, quantite: 1 }] }));
     avecChantier(s, r.id);
-    const avant = JSON.stringify(s.collections.devis_devis);
-    refuse(await s.appeler('code', 'finaliser_devis', { id: r.id }), /Choisis l'affaire de ce devis\./);
-    assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'rien n’a été écrit');
-    assert.equal(s.collections.devis_compteurs.length, 0, 'aucun numéro consommé');
     refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, affaireId: 'inconnue' }), /Affaire/);
     const m = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, affaireId: 'a1' }));
     assert.ok(m.champsModifies.includes('affaireId'));
     assert.equal(s.doc('devis_devis', r.id).affaireId, 'a1');
     assert.equal(s.doc('devis_devis', r.id).organisationId, 'org1', 'le client de l’affaire est repris puisque le devis n’en avait pas');
     const apercu = ok(await s.appeler('code', 'finaliser_devis', { id: r.id }));
+    assert.equal('avertissement' in apercu, false);
+    assert.equal('avertissement' in ok(await s.appeler('lecteur', 'lire_devis', { id: r.id })), false);
     assert.equal(ok(await s.appeler('code', 'finaliser_devis', { id: r.id, codeConfirmation: apercu.code })).finalise, true);
   });
 });

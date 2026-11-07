@@ -190,16 +190,24 @@ test('5 « Imprimer » un brouillon : aucune fenêtre « Finaliser », le devis 
   expect(appels.find(([nom]) => nom === 'devisPdf')[1]).toEqual({ devisId: 'dBrouillon', brouillon: true });
 });
 
-test('6 cas vide : un devis introuvable ne montre aucun bouton ; cas d’erreur : si « Finaliser » échoue (affaire manquante), la liste des erreurs s’affiche comme avant et le bouton reste « Finaliser »', async ({ page }, info) => {
+test('6 cas vide : un devis introuvable ne montre aucun bouton ; cas d’erreur : si « Finaliser » échoue (client manquant), la liste des erreurs s’affiche comme avant et le bouton reste « Finaliser » ; sans affaire (client présent), la fenêtre de confirmation s’ouvre avec l’avertissement', async ({ page }, info) => {
   await donnees();
-  await devis('dSansAffaire', { affaireId: null }); // le client et le reste sont complets : seule l'affaire manque
+  await devis('dSansAffaire', { affaireId: null }); // le client et le reste sont complets : seule l'affaire manque, et elle n'est plus exigée
+  await devis('dSansClient', { organisationId: null, personneId: null });
   await ouvrir(page, 'devis/editeur/dSansAffaire');
   await jaunes(page).click();
-  // Seule l'affaire manque : pas de fenêtre, le champ Affaire s'affiche en rouge avec son message et le focus (comme un champ obligatoire).
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(racine(page).locator('[data-erreur="affaire"]')).toHaveText('Choisis ou crée une affaire pour finaliser ce devis.');
-  await expect(racine(page).locator('[data-champ="affaire"]')).toHaveClass(/invalide/);
-  await expect(racine(page).locator('[data-champ="affaire"]')).toBeFocused();
+  await expect(page.getByRole('dialog')).toContainText('Finaliser ce devis ?');
+  await expect(page.getByRole('dialog').locator('[data-zone="avertissements-finalisation"]')).toContainText('Ce devis n\'a pas d\'affaire');
+  await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
+  await expect(racine(page).locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/);
+  await page.evaluate(() => { location.hash = '#/devis/editeur/dSansClient'; });
+  await expect(page.locator('.page-editeur-devis[data-devis="dSansClient"]')).toBeVisible();
+  await attendreCalme(page);
+  await jaunes(page).click();
+  await expect(page.getByRole('dialog')).toContainText('Ce devis ne peut pas encore être finalisé');
+  await expect(page.getByRole('dialog').locator('li')).toHaveText(['Choisis le client de ce devis.']);
+  await page.getByRole('dialog').getByRole('button', { name: 'Compris' }).click();
+  await expect(racine(page).locator('[data-champ="client"]')).toHaveClass(/invalide/);
   await capturer(page, info, '6-erreur-finalisation', true);
   await expect(jaunes(page)).toHaveText('Finaliser');
   await expect(racine(page).locator('[data-action="envoyer"]')).toHaveAttribute('aria-disabled', 'true');

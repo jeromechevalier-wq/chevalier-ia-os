@@ -1406,7 +1406,7 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
     } finally { await defaire(); }
   });
 
-  test('D-S3 finaliser_devis (aperçu puis code) finalise un devis sans affaire chez d ; chez a (Affaires) le même scénario reste refusé', async () => {
+  test('D-S3 finaliser_devis (aperçu puis code) finalise un devis sans affaire chez d (aucun avertissement) et chez a (Affaires : aperçu avec avertissement, finalisation possible)', async () => {
     await installer();
     try {
       const scenario = async (client, ajoutPersonne) => {
@@ -1420,15 +1420,18 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
       const seul = await scenario('d', 'creer_personne');
       const apercu = ok(await seul.c.callTool({ name: 'finaliser_devis', arguments: { id: seul.d.id } }));
       assert.ok(apercu.code, 'aperçu avec un code');
+      assert.equal(apercu.avertissement, undefined, 'Devis seul : jamais un mot sur l’affaire');
       const final = ok(await seul.c.callTool({ name: 'finaliser_devis', arguments: { id: seul.d.id, codeConfirmation: apercu.code } }));
       assert.equal(final.finalise, true);
       const enBase = await donnees.document('clients/d/devis_devis', seul.d.id);
       assert.ok(enBase.numero, 'numéro attribué');
       await seul.c.close();
       const avec = await scenario('a', 'creer_personne');
-      const refus = await avec.c.callTool({ name: 'finaliser_devis', arguments: { id: avec.d.id } });
-      assert.equal(refus.isError, true);
-      assert.match(refus.content[0].text, /Choisis l'affaire de ce devis\./);
+      const apercuA = ok(await avec.c.callTool({ name: 'finaliser_devis', arguments: { id: avec.d.id } }));
+      assert.ok(apercuA.code, 'chez a aussi, un code est émis');
+      assert.match(apercuA.avertissement, /n'a pas d'affaire/, 'Affaires actif : avertissement non bloquant');
+      const finalA = ok(await avec.c.callTool({ name: 'finaliser_devis', arguments: { id: avec.d.id, codeConfirmation: apercuA.code } }));
+      assert.equal(finalA.finalise, true);
       await avec.c.close();
     } finally { await defaire(); }
   });

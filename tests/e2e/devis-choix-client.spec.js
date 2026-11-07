@@ -5,7 +5,7 @@
 //  3 personne d'une organisation → question, organisation par défaut, un clic bascule
 //  4 organisation → affaires de l'organisation ET de ses personnes, liste « à l'attention de »
 //  5 affaire → client + à l'attention de
-//  6 client sans affaire → message permanent, jamais d'affaire d'un autre client ; finaliser = message + champ rouge ; « + Créer l'affaire » dans la liste crée et lie (6b : second pas « Dans quelle étape ? »)
+//  6 client sans affaire → message permanent, jamais d'affaire d'un autre client ; finaliser = fenêtre de confirmation avec l'avertissement ; « + Créer l'affaire » dans la liste crée et lie (6b : second pas « Dans quelle étape ? »)
 //  7 changement de client avec une affaire d'un autre client → affaire vidée + message
 //  8 rien trouvé → les deux lignes de création (rien n'est créé sans clic)
 //  9 la croix efface le client ET l'affaire
@@ -167,7 +167,7 @@ test('5 affaire : l’affaire et le client se remplissent ensemble, la personne 
   expect(d.organisationId ?? null).toBeNull();
 });
 
-test('6 client sans affaire : message permanent, jamais l’affaire d’un autre client ; finaliser donne le message et le champ rouge ; « + Créer l’affaire » dans la liste crée et lie', async ({ page }, info) => {
+test('6 client sans affaire : message permanent, jamais l’affaire d’un autre client ; finaliser ouvre la fenêtre de confirmation avec l’avertissement (jamais bloquant) ; « + Créer l’affaire » dans la liste crée et lie', async ({ page }, info) => {
   await semer();
   await brouillon(page, { destinataires: ['contact@exemple.fr'] });
   await choisir(page, 'Nouveau', 'Nouveau Client');
@@ -181,12 +181,12 @@ test('6 client sans affaire : message permanent, jamais l’affaire d’un autre
   await page.keyboard.press('Escape');
   await capturer(page, info, '6-client-sans-affaire');
   await page.locator('.page-editeur-devis[data-devis] .bouton-principal').click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.locator('[data-erreur="affaire"]')).toHaveText('Choisis ou crée une affaire pour finaliser ce devis.');
-  await expect(champAffaire(page)).toHaveClass(/invalide/);
-  await expect(champAffaire(page)).toBeFocused();
+  await expect(page.getByRole('dialog')).toContainText('Finaliser ce devis ?');
+  await expect(page.getByRole('dialog').locator('[data-zone="avertissements-finalisation"]')).toContainText('Ce devis n\'a pas d\'affaire');
+  await expect(champAffaire(page)).not.toHaveClass(/invalide/);
+  await capturer(page, info, '6-fenetre-avertissement');
+  await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
   await expect(page.locator('[data-zone=\"destinataires\"] [data-adresse]')).toHaveText(['contact@exemple.fr']); // l'e-mail écrit à la main n'est pas écrasé par le choix du client
-  await capturer(page, info, '6-champ-rouge');
   await champAffaire(page).click();
   await capturer(page, info, '6-ligne-creer');
   const avant = (await listerDocuments('crm_affaires')).length;
@@ -296,7 +296,7 @@ test('9 la croix du champ efface le client ET l’affaire ; la croix de la ligne
   expect(d.personneId ?? null).toBeNull();
   await expect(champClient(page)).toHaveValue('');
   await expect(champAffaire(page)).toHaveValue('');
-  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif tant que le devis est un brouillon'); // sans client : le sens d'avant
+  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif : sans affaire'); // sans client : le sens d'avant
   await capturer(page, info, '9-croix-efface-tout');
 });
 

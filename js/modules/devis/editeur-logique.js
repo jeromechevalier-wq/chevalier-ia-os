@@ -19,7 +19,7 @@ import {
   coefficientDeMarge, prixVenteUnitaire, prixVenteDeLigne, totauxDevis, versCentimes, erreursChantier, numerosDevis,
   margeEffective, coefficientDepuisPourcentage, coefficientDepuisMontant, coefficientDepuisSaisie, emailValide, MAX_COPIE, MAX_DESTINATAIRES,
 } from './logique.js';
-import { TYPE_SAUT, estSaut, listeAcomptes } from './logique.js';
+import { TYPE_SAUT, estSaut, listeAcomptes, AVERTISSEMENT_SANS_AFFAIRE } from './logique.js';
 import { heriterTest } from '../crm/logique.js';
 import { descriptionOuvrage, figerOuvragePourLigne, articlesParId, TYPE_OUVRAGE } from './ouvrages.js';
 import { TYPE_TEXTE, lireNombre } from './articles.js';
@@ -32,6 +32,7 @@ export const CHAMPS_ENREGISTRES = Object.freeze([
   'tauxTvaDefaut', 'acompte', 'acomptes', 'modesPaiement', 'texteLibre', 'notesBasDePage', 'expireLe', 'dateEmission', 'ajustement', 'affichage', 'autoliquidation', 'dechets',
 ]);
 export const AVERTISSEMENTS = Object.freeze({
+  sansAffaire: AVERTISSEMENT_SANS_AFFAIRE,
   aucuneLigne: 'Ce devis n’a encore aucune ligne.',
   totalZero: 'Le total du devis est à 0 €.',
   sansQuantite: 'Une ligne n’a pas de quantité : elle compte pour 0 €.',
@@ -376,10 +377,14 @@ export function numerotation(sections) {
 // ---------------------------------------------------------------- avertissements (jamais bloquants), champs obligatoires, enregistrement
 const lignesDe = (devis) => (devis?.sections ?? []).flatMap((s) => (s.lignes ?? []).filter((l) => !estSaut(l)));
 
-/** Les trois avertissements possibles, dans l'ordre : aucune ligne, total à zéro, ligne sans quantité. Liste vide = rien à signaler. */
-export function avertissements(devis) {
+/**
+ * Les avertissements possibles, dans l'ordre : sans affaire (seulement si `affaires`, c'est-à-dire si le module Affaires est actif), aucune ligne, total à zéro, ligne sans quantité.
+ * Jamais bloquants. Liste vide = rien à signaler.
+ */
+export function avertissements(devis, { affaires = true } = {}) {
   const lignes = lignesDe(devis);
   const sortie = [];
+  if (affaires && !devis?.affaireId) sortie.push({ code: 'sansAffaire', message: AVERTISSEMENTS.sansAffaire });
   if (!lignes.length) sortie.push({ code: 'aucuneLigne', message: AVERTISSEMENTS.aucuneLigne });
   else {
     let total = 0;
@@ -392,7 +397,7 @@ export function avertissements(devis) {
 
 /**
  * Champs à remplir pour COMMENCER un devis : aucun (30/10/2026, « rien ne doit empêcher un artisan de commencer »). Ni l'affaire ni le client ne sont obligatoires pour un brouillon ;
- * l'affaire est exigée pour FINALISER (erreursFinalisation, logique.js) et l'écran la crée alors si elle manque (affaire-depuis-devis.js).
+ * l'affaire n'est jamais exigée (07/11/2026) : sans affaire, l'écran avertit seulement quand le module Affaires est actif (avertissements ci-dessus).
  */
 export function champsManquants() {
   return [];

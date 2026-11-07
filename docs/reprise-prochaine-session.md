@@ -60,7 +60,7 @@ Le numéro 534 n'est pas une PR (introuvable dans le dépôt).
 Tableau des choses à faire : `.github/A-FAIRE.md`. Version 2.36.0 (cette PR). Étude Devis seul : `docs/etude-devis-autonome.md` (section J : audit d'indépendance des modules).
 
 **Questions pour Jérôme**
-1. Règle « finaliser exige une affaire » : supprimée partout (étude, partie C, 3e décision du 04/11) ou seulement sans Affaires (fait par la 526 : exigée dès que le module Affaires est actif, chez toi compris) ? Décision prise seul dans la 526 : conditionnelle.
+1. Règle « finaliser exige une affaire » : **répondue le 07/11/2026 par Jérôme (option A) : supprimée partout**, avertissement non bloquant quand le module Affaires est actif (PR 1). *Question restante : bouton « Choisir l'affaire » à la place de l'invitation « Choisis ou crée une affaire » (placeholder inchangé en PR 1) ; un devis dont l'affaire a été supprimée compte-t-il comme « Sans affaire » (PR 2) ?*
 2. Socle commun chez un client sans aucun module actif : le démarrer quand même (pour un futur écran) ou non (fait : non, accueil provisoire ; décision prise seul dans la 524) ?
 3. Un devis `DEV-` marqué test après coup doit-il partir avec « Supprimer tous mes tests » ? (fait : non, il est listé « relié, gardé » ; cadrage §9).
 4. Les événements du fil `{affaireId de test, personneId réel}` sont supprimés avec l'affaire de test (comme `planSupprimerAffaire`) : d'accord ?

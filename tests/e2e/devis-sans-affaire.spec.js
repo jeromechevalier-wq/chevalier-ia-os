@@ -1,8 +1,8 @@
 // Module Devis : créer un devis SANS affaire (28/10/2026). Plus de page « Nouveau devis » : « Nouveau devis » crée le brouillon tout de suite et ouvre l'éditeur, où l'on choisit l'affaire.
-// La finalisation, elle, exige l'affaire (même phrase à l'écran, dans la fonction du serveur et dans l'assistant : tests/devis-mcp.test.js SA1-SA2, devis-serveur.test.js SA4, devis-logique.test.js SA3).
+// La finalisation n'exige plus l'affaire (07/11/2026) : la fenêtre « Finaliser ce devis ? » porte un avertissement non bloquant (tests/devis-mcp.test.js SA1-SA2, devis-serveur.test.js SA4 et SA6, devis-logique.test.js SA3 et SA5).
 // Un test par critère (le nom commence par son numéro) ; UNE capture : tests/e2e/captures/devis-sans-affaire/ (ordinateur ET téléphone).
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, listerDocuments, lireDocument, creerOrganisation, creerAffaire, choisirDansChampDevis } from './outils.js';
+import { test, expect, connecter, attendreCalme, listerDocuments, lireDocument, ecrireDocument, creerOrganisation, creerAffaire, choisirDansChampDevis, JEROME, CHANTIER_ESSAI, ecrireEntrepriseComplete } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-sans-affaire/', import.meta.url));
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
@@ -24,7 +24,7 @@ test('1 « Nouveau devis » (liste vide, aucune affaire dans l’espace) crée l
   await expect(editeur(page)).toBeVisible();
   await expect(page.locator('.page-nouveau-devis')).toHaveCount(0); // plus de page intermédiaire « Nouveau devis » / « Créer le brouillon »
   await expect(page.locator('[data-action="creer-brouillon"]')).toHaveCount(0);
-  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif tant que le devis est un brouillon');
+  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif : sans affaire, le devis n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.');
   await expect(page.locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/);
   await page.locator('[data-champ="affaire"]').fill('Ré'); // cas vide : aucune affaire à proposer, la liste ne propose que de créer l'affaire au nom tapé
   await expect(page.locator('.entete-droite .suggestions:not([hidden]) .suggestion')).toHaveText([/\+ Créer l’affaire « Ré »/]);
@@ -59,25 +59,59 @@ test('2 depuis la liste (bouton « Nouveau devis » du haut) puis choix de l’a
   await expect(page.locator('[data-valeur="sans-affaire"]')).toHaveCount(0);
 });
 
-test('3 finaliser un devis sans affaire est refusé à l’écran avec la phrase « Choisis l’affaire de ce devis. » : la fonction du serveur n’est pas appelée', async ({ page }) => {
+/** Un brouillon complet SANS affaire (client, une ligne, un destinataire, dates) : la seule chose qui manque est l'affaire, et elle n'est plus exigée. */
+async function brouillonCompletSansAffaire(page, valeurs = {}) {
+  const maintenant = new Date();
+  await ecrireDocument('devis_devis/dPret', {
+    racineId: 'dPret', version: 1, numero: null, statut: 'brouillon', affaireId: null, personneId: null, organisationId: 'o1', modeMarge: 'majoration', marge: 25, tauxTvaDefaut: 20,
+    regimeTva: 'assujetti', autoliquidation: false, archive: false, dureeValiditeJours: 90, expireLe: '2099-12-31', objet: 'Rénovation', destinataires: ['contact@exemple.fr'],
+    sections: [{ id: 's1', titre: 'Cuisine', lignes: [{ id: 'l1', libelle: 'Carrelage', familleId: 'famille-1', type: 'fourniture', quantite: 10, unite: 'm²', prixAchat: 40, prixVente: 60, tauxTva: 20 }] }],
+    chantier: CHANTIER_ESSAI, creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, ...valeurs,
+  });
+  await connecter(page, undefined, { route: 'devis/editeur/dPret' });
+  await expect(editeur(page)).toBeVisible();
+  await attendreCalme(page);
+}
+
+test('3 finaliser un brouillon complet sans affaire n’est plus refusé : la fenêtre « Finaliser ce devis ? » porte l’avertissement, le champ Affaire n’est pas en rouge, et « Finaliser » appelle la fonction du serveur une fois', async ({ page }, info) => {
   await semer();
+  await ecrireEntrepriseComplete();
   const appels = [];
   await page.route('**/devisFinaliser', async (route) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
     appels.push(1);
-    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true, numero: 'DEV-2026-001', statut: 'en_attente_envoi' } }) });
   });
+  await brouillonCompletSansAffaire(page);
+  // Le panneau des totaux dit déjà la phrase, sans attendre la finalisation.
+  await expect(page.locator('[data-zone="total"] [data-avertissement="sansAffaire"]')).toContainText('Ce devis n\'a pas d\'affaire');
+  await editeur(page).locator('.bouton-principal').click();
+  const fenetre = page.getByRole('dialog');
+  await expect(fenetre).toContainText('Finaliser ce devis ?');
+  await expect(fenetre.locator('[data-zone="avertissements-finalisation"]')).toContainText('Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.');
+  await expect(fenetre.locator('[data-avertissement]')).toHaveCount(0); // les li de la fenêtre n'ont pas de data-avertissement (réservé au panneau des totaux)
+  await expect(page.locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/);
+  await expect(page.locator('[data-erreur="affaire"]')).not.toHaveClass(/erreur/);
+  await page.screenshot({ path: `${DOSSIER}3-fenetre-finaliser-avertissement-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
+  expect(appels).toHaveLength(0);
+  await fenetre.getByRole('button', { name: 'Finaliser' }).click();
+  await expect.poll(() => appels.length).toBe(1);
+});
+
+test('3b cas d’erreur : un devis vide sans affaire est refusé pour ses lignes et ses dates, sans une phrase sur l’affaire', async ({ page }) => {
+  await semer();
+  const appels = [];
+  await page.route('**/devisFinaliser', async (route) => { appels.push(1); return route.abort(); });
   await ouvrirListe(page);
   await page.locator('[data-action="nouveau-devis-vide"]').click();
   await expect(editeur(page)).toBeVisible();
   await attendreCalme(page);
   await editeur(page).locator('.bouton-principal').click();
-  await expect(page.getByRole('dialog')).toContainText('Ce devis ne peut pas encore être finalisé');
-  await expect(page.getByRole('dialog').locator('li').first()).toHaveText('Choisis l\'affaire de ce devis.');
-  await page.getByRole('dialog').getByRole('button', { name: 'Compris' }).click();
-  await expect(page.locator('[data-erreur="affaire"]')).toHaveText('Choisis ou crée une affaire pour finaliser ce devis.'); // le champ Affaire est aussi en rouge, avec le focus
-  await expect(page.locator('[data-champ="affaire"]')).toHaveClass(/invalide/);
-  await expect(page.locator('[data-champ="affaire"]')).toBeFocused();
+  const fenetre = page.getByRole('dialog');
+  await expect(fenetre).toContainText('Ce devis ne peut pas encore être finalisé');
+  await expect(fenetre.locator('li', { hasText: /affaire/i })).toHaveCount(0);
+  await fenetre.getByRole('button', { name: 'Compris' }).click();
+  await expect(page.locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/);
   expect(appels).toHaveLength(0);
 });
 

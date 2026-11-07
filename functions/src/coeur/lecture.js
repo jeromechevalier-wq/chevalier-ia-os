@@ -425,7 +425,7 @@ export async function listerDevis(donnees, { statut, affaireId, texte, archives,
  * Acomptes : `acomptes` est la liste normalisée ({ type: pourcentage | montantHt | montantTtc, valeur, moment, texteMoment? }), même pour un ancien devis à acompte unique (`acompte`, gardé tel quel) ;
  * `totaux.acomptesTTC` donne le montant TTC de chaque acompte retenu, `totaux.acompteTTC` leur somme.
  */
-export async function lireDevis(donnees, { id, format, avecPrix }, maintenant = new Date(), { affaireRequise = true, lienEcran = () => undefined } = {}) {
+export async function lireDevis(donnees, { id, format, avecPrix }, maintenant = new Date(), { affairesActif = true, lienEcran = () => undefined } = {}) {
   const devis = await donnees.document(C.devis, id);
   if (!devis) introuvable('Devis');
   const [organisations, personnes] = await Promise.all([C.organisations, C.personnes].map((nom) => donnees.liste(nom)));
@@ -467,6 +467,7 @@ export async function lireDevis(donnees, { id, format, avecPrix }, maintenant = 
     })),
     acomptes: D.listeAcomptes(devis),
     totaux: { totalBrutHT: t.totalBrutHt, remiseHT: t.remiseHt, totalHT: t.totalHt, tvaParTaux: t.tvaParTaux, tva: t.tva, totalTTC: t.ttc, acompteTTC: t.acompteTtc, acomptesTTC: t.acomptesTtc ?? (t.acompteTtc == null ? [] : [t.acompteTtc]), resteAFacturerTTC: t.resteAFacturerTtc, netAPayer: t.netAPayer, mentions: (t.mentions ?? []).map(ditHorsTaxes) },
-    ...(devis.statut === 'brouillon' ? { erreursFinalisation: D.erreursFinalisation(devis, { emetteur: DA.reglagesDevis(await reglagesDevis(donnees)).entreprise, aujourdhui, affaireRequise }).map(ditPourAssistant) } : {}),
+    ...(devis.statut === 'brouillon' ? { erreursFinalisation: D.erreursFinalisation(devis, { emetteur: DA.reglagesDevis(await reglagesDevis(donnees)).entreprise, aujourdhui }).map(ditPourAssistant) } : {}),
+    ...(devis.statut === 'brouillon' && affairesActif && !devis.affaireId ? { avertissement: D.AVERTISSEMENT_SANS_AFFAIRE } : {}),
   });
 }
