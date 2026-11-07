@@ -14,6 +14,18 @@ export const MESSAGE_PAR_DEFAUT = [
   'Bien cordialement',
 ].join('\n'); // pas de signature écrite : c'est celle de Gmail de l'utilisateur
 
+// Texte de relance (07/11/2026, validé par Jérôme) : même fenêtre « Préparer l'e-mail », seul le texte change. Le serveur ne lit PAS ces constantes (il met le texte standard sauf saisie).
+export const OBJET_RELANCE_PAR_DEFAUT = 'Relance – Devis {numero} – {objet}';
+export const MESSAGE_RELANCE_PAR_DEFAUT = [
+  'Bonjour {contact},',
+  '',
+  'Je me permets de revenir vers vous au sujet de notre devis {numero} – {objet}, envoyé il y a quelques jours.',
+  '',
+  'Avez-vous pu en prendre connaissance ? Je reste à votre disposition pour toute question ou pour l’adapter.',
+  '',
+  'Bien cordialement,',
+].join('\n');
+
 export const MESSAGE_FINALISER_D_ABORD = 'Ce devis est encore un brouillon. Il faut le finaliser (numéro, prix figés, PDF) avant de l’envoyer par e-mail.';
 export const MESSAGE_PDF_EN_COURS = 'Le PDF est en cours de fabrication. Réessaie dans quelques instants.';
 export const MESSAGE_PDF_PAS_PRET = 'Le PDF de ce devis n’est pas prêt. Appuie sur « Réessayer » pour le fabriquer.';
@@ -39,6 +51,8 @@ export function remplirModele(modele, { contact = '', numero = '', objet = '' } 
 }
 export const objetParDefaut = (v) => remplirModele(OBJET_PAR_DEFAUT, v);
 export const messageParDefaut = (v) => remplirModele(MESSAGE_PAR_DEFAUT, v);
+export const objetRelanceParDefaut = (v) => remplirModele(OBJET_RELANCE_PAR_DEFAUT, v);
+export const messageRelanceParDefaut = (v) => remplirModele(MESSAGE_RELANCE_PAR_DEFAUT, v);
 
 // ---------------------------------------------------------------- adresses
 /** Seul l'ASCII imprimable est sûr (« josé@x.fr » demanderait SMTPUTF8) ; pas de caractère spécial (parenthèses, guillemet, chevrons, barre, virgule) avant le « @ ». */
