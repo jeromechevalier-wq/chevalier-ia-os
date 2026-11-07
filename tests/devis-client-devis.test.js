@@ -1,7 +1,7 @@
 // Choix du client et de l'affaire d'un devis (js/modules/devis/client-devis.js). Fonctions pures.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { lireChoix, clientDePersonne, clientDOrganisation, clientDAffaire, memeClient, affairesDuClient, affaireDuClient, personnesAttention, emailDestinataire, aideAffaire, nomAffaireCreee, MESSAGE_SANS_AFFAIRE_CLIENT, MESSAGE_FINALISER_SANS_AFFAIRE } from '../js/modules/devis/client-devis.js';
+import { lireChoix, clientDePersonne, clientDOrganisation, clientDAffaire, memeClient, affairesDuClient, affaireDuClient, personnesAttention, emailDestinataire, aideAffaire, nomAffaireCreee, MESSAGE_SANS_AFFAIRE_CLIENT } from '../js/modules/devis/client-devis.js';
 
 const personnes = [
   { id: 'p1', nom: 'Julie', organisationId: 'o1' },
@@ -70,7 +70,7 @@ describe('CD choix du client et de l’affaire', () => {
     assert.equal(emailDestinataire('', ''), '');
   });
   test('CD10 phrase sous la ligne Affaire : sans client, client sans affaire, rien sinon', () => {
-    assert.match(aideAffaire({ client: null, affaireId: null, nbAffaires: 0 }), /^Facultatif tant que le devis est un brouillon/);
+    assert.match(aideAffaire({ client: null, affaireId: null, nbAffaires: 0 }), /^Facultatif : sans affaire, le devis n'apparaîtra dans aucune fiche d'affaire ni dans son montant\.$/);
     assert.equal(aideAffaire({ client: { organisationId: 'o1' }, affaireId: null, nbAffaires: 0 }), MESSAGE_SANS_AFFAIRE_CLIENT);
     assert.equal(aideAffaire({ client: { organisationId: 'o1' }, affaireId: null, nbAffaires: 2 }), '');
     assert.equal(aideAffaire({ client: { organisationId: 'o1' }, affaireId: 'a1', nbAffaires: 0 }), '');
@@ -90,8 +90,5 @@ describe('CD choix du client et de l’affaire', () => {
   test('CD13 une affaire archivée du même client reste « du client » quand on lui passe toutes les affaires', () => {
     const toutes = [...affaires, { id: 'a7', titre: 'Archivée', organisationId: 'o1', archive: true }];
     assert.equal(affaireDuClient(toutes.at(-1), { organisationId: 'o1', personneId: 'p1' }, toutes, personnes), true);
-  });
-  test('CD14 le message de finalisation de l’écran est la phrase de Jérôme (celle du serveur ne change pas)', () => {
-    assert.equal(MESSAGE_FINALISER_SANS_AFFAIRE, 'Choisis ou crée une affaire pour finaliser ce devis.');
   });
 });

@@ -24,7 +24,7 @@ import { ouvrirCreationPersonne } from '../crm/personnes.js';
 import { ouvrirCreationOrganisation } from '../crm/organisations.js';
 import {
   TYPE_SAUT, totauxDevis, erreursFinalisation, decisionChampFinalisation, erreursChantier, estExpire, UNITES_DUREE, MOMENTS_ACOMPTE, TYPES_ACOMPTE, detailAcomptes, erreursAcomptes, listeAcomptes, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
-  affichageDe, gestionDechetsActive, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, MAX_DESTINATAIRES, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis, MESSAGE_AFFAIRE_MANQUANTE, emetteurImprime, estErreurEntreprise, ROUTE_MON_ENTREPRISE,
+  affichageDe, gestionDechetsActive, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, MAX_DESTINATAIRES, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis, emetteurImprime, estErreurEntreprise, ROUTE_MON_ENTREPRISE,
 } from './logique.js';
 import { formaterMontant } from './document.js';
 import { menuUnite } from './menu-unite.js';
@@ -929,7 +929,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       ref.objet);
 
     // À droite : « Pour qui est ce devis ? » (un seul champ : personne, organisation ou affaire, comme la grande barre de recherche), puis la ligne Affaire (les affaires de ce client).
-    // Facultatifs tant que le devis est un brouillon (l'affaire est exigée à la finalisation, qui peut la créer).
+    // Facultatifs, même pour finaliser (07/11/2026) : sans affaire, un avertissement non bloquant s'affiche quand le module Affaires est actif.
     const sansAffaires = D.surSocleSeul(); // lu au rendu : sans Affaires, jamais de ligne Affaire (ni en lecture seule)
     ref.erreurAffaire = sansAffaires ? null : h('p', { class: 'texte-discret', id: 'devis-affaire-aide', role: 'status', dataset: { erreur: 'affaire' } });
     ref.messageAffaireVidee = sansAffaires ? null : h('p', { class: 'texte-discret', role: 'status', dataset: { info: 'affaire-videe' }, hidden: true });
@@ -1042,32 +1042,10 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       surChoix: (el, info) => { if (el || info?.effacement) changerAffaire(el); },
     });
     ci.entree.dataset.champ = 'affaire';
-    ci.entree.addEventListener('input', () => effacerAffaireManquante());
     ci.entree.addEventListener('keydown', (e) => { if (e.key === 'Escape') ref.pasEtape = null; });
     ci.entree.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== ci.entree) ref.pasEtape = null; }, 250));
     reprendreValeurEnQuittant(ci, elementAffaire);
     return ci;
-  }
-  /** Finaliser sans affaire : le champ s'affiche en rouge avec son message (comme les autres champs obligatoires) et prend le focus. */
-  function montrerAffaireManquante() {
-    if (lecture || !ref.erreurAffaire) return;
-    if (onglet !== 'edition') choisirOnglet('edition');
-    ref.erreurAffaire.textContent = CD.MESSAGE_FINALISER_SANS_AFFAIRE;
-    ref.erreurAffaire.hidden = false;
-    ref.erreurAffaire.classList.add('erreur');
-    ref.champAffaire.entree.classList.add('invalide');
-    ref.champAffaire.entree.setAttribute('aria-invalid', 'true');
-    ref.champAffaire.entree.setAttribute('aria-describedby', 'devis-affaire-aide');
-    ref.champAffaire.entree.focus();
-    ref.champAffaire.fermer(); // la liste (ouverte par le focus) cacherait le message : elle s'ouvre au clic ou en tapant
-  }
-  function effacerAffaireManquante() {
-    if (!ref.erreurAffaire?.classList.contains('erreur')) return;
-    ref.erreurAffaire.classList.remove('erreur');
-    ref.champAffaire.entree.classList.remove('invalide');
-    ref.champAffaire.entree.setAttribute('aria-invalid', 'false');
-    ref.champAffaire.entree.removeAttribute('aria-describedby');
-    majAideAffaire();
   }
   /** « + Créer l'affaire » : crée tout de suite (même écriture que « + Affaire », même journal) et la lie au devis. L'étape vient du réglage ; sinon second pas dans la liste, jamais de repli automatique. */
   async function creerAffaireDeLaListe(titre, etapeChoisie = null) {
@@ -1089,7 +1067,6 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       if (!CD.memeClient(clientDepart, clientActuel())) toast('L’affaire est créée, mais le client du devis a changé entre-temps : choisis-la dans la liste Affaire si c’est bien celle-ci.', { duree: 8000 });
       else {
         afficherAffaireVidee(null);
-        effacerAffaireManquante();
         changer({ affaireId: idCree });
         toast('Affaire créée', { duree: 5000 });
       }
@@ -1101,11 +1078,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   }
   /** Le texte sous la ligne Affaire et son texte d'invitation, d'après le client et l'affaire du devis. */
   function majAideAffaire() {
-    if (lecture || !ref.erreurAffaire || ref.erreurAffaire.classList.contains('erreur')) return;
+    if (lecture || !ref.erreurAffaire) return;
     const nb = affairesDuClient()?.length ?? 0;
     const phrase = CD.aideAffaire({ client: clientActuel(), affaireId: travail.affaireId, nbAffaires: nb });
     ref.erreurAffaire.textContent = phrase;
-    ref.erreurAffaire.hidden = !phrase; // simple invitation : un brouillon s'enregistre sans affaire, c'est la finalisation qui la crée ou l'exige
+    ref.erreurAffaire.hidden = !phrase; // simple invitation : l'affaire est facultative, brouillon comme devis finalisé
     if (ref.champAffaire?.entree) ref.champAffaire.entree.placeholder = CD.PLACEHOLDER_AFFAIRE;
   }
   /** Sous le champ unique : la question « l'organisation / elle seule » (client choisi parmi les personnes, qui a une organisation) ou la liste facultative « à l'attention de » (organisation, affaire). */
@@ -1225,7 +1202,6 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (!a) { if (travail.affaireId) { changer({ affaireId: null }); } majAideAffaire(); majEntete(); return; }
     // Affaire et client se remplissent ensemble : le client est l'organisation de l'affaire (sinon sa personne), la personne de l'affaire est « à l'attention de ».
     afficherAffaireVidee(null);
-    effacerAffaireManquante();
     const c = CD.clientDAffaire(a, existeFiche);
     if (c.organisationId && !c.personneId && travail.personneId && CRM.personne(travail.personneId)?.organisationId === c.organisationId) c.personneId = travail.personneId; // l'attention déjà choisie reste
     travail.affaireId = a.id;
@@ -2131,11 +2107,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       if (el) el.textContent = euros(s.sousTotalHT);
     }
     // Message de saisie de la remise lu dans les règles de finalisation : jamais refait ici (celui des acomptes est sous le formulaire de l'acompte).
-    const messages = erreursFinalisation(travail, { emetteur: D.etat.reglages.entreprise, aujourdhui: CRM.ctx().aujourdhui, affaireRequise: !D.surSocleSeul() });
+    const messages = erreursFinalisation(travail, { emetteur: D.etat.reglages.entreprise, aujourdhui: CRM.ctx().aujourdhui });
     const montrer = (el, motif) => { if (!el) return; const m = messages.filter((x) => motif.test(x)); el.hidden = !m.length; el.textContent = m.join(' '); };
     montrer(ref.erreurRemise, /remise/i);
     // Avertissements non bloquants.
-    const avis = lecture ? [] : Ed.avertissements(travail);
+    const avis = lecture ? [] : Ed.avertissements(travail, { affaires: !D.surSocleSeul() });
     remplir(ref.avertissementsTotal, avis.map((a) => h('li', { dataset: { avertissement: a.code } }, icone('triangle-alert', { taille: 14 }), ' ', a.message)));
   }
 
@@ -2185,7 +2161,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       case 'marge': { const el = q('[data-champ="marge-menu"]'); return el ? { el, ancre: el, apres: el, focus: el } : null; }
       case 'acompte': { const el = q('[data-zone="acomptes"]'); return el ? { el, ancre: null, apres: el, focus: null } : null; }
       case 'dechets': { const el = q('[data-zone="dechets-formulaire"]'); return el ? { el, ancre: null, apres: el, focus: null } : null; }
-      default: return null; // primes, affaire (déjà géré par montrerAffaireManquante) : pas de marque
+      default: return null; // primes : pas de marque
     }
   }
   function poserMarques({ defiler = false } = {}) {
@@ -2220,7 +2196,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     for (const message of erreurs ?? []) {
       let d = null;
       try { d = decisionChampFinalisation(message, travail); } catch (e) { console.warn(e); }
-      if (!d || d.champ === 'affaire') continue;
+      if (!d) continue;
       const cle = `${d.champ}|${d.ligneId ?? ''}`;
       if (!marquesActives.has(cle)) marquesActives.set(cle, message);
     }
@@ -2231,7 +2207,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   /** À chaque modification : une marque disparaît dès que sa phrase n'est plus dans les erreurs de finalisation (les autres restent). */
   function majMarquesManquantes() {
     if (!marquesActives.size) return;
-    const encore = new Set(erreursFinalisation(travail, { emetteur: D.etat.reglages.entreprise, aujourdhui: CRM.ctx().aujourdhui, affaireRequise: !D.surSocleSeul() }));
+    const encore = new Set(erreursFinalisation(travail, { emetteur: D.etat.reglages.entreprise, aujourdhui: CRM.ctx().aujourdhui }));
     let change = false;
     for (const [cle, message] of [...marquesActives]) if (!encore.has(message)) { marquesActives.delete(cle); change = true; }
     if (change) poserMarques();
@@ -2240,13 +2216,10 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   async function finaliser() {
     clearTimeout(minuteur);
     if (!(await sauver())) { toast(messageEnreg || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 }); return; }
-    const locales = erreursFinalisation(travail, { emetteur: D.etat.reglages.entreprise, aujourdhui: CRM.ctx().aujourdhui, affaireRequise: !D.surSocleSeul() }); // l'affaire manquante y est (même phrase que la fonction du serveur et l'assistant)
-    // L'affaire manque : comme tout champ obligatoire, le champ s'affiche en rouge avec son message et reçoit le focus (créer l'affaire se fait dans sa liste). Seule l'affaire manque : pas de fenêtre.
-    const sansAffaire = locales.includes(MESSAGE_AFFAIRE_MANQUANTE);
-    if (sansAffaire) montrerAffaireManquante();
-    if (locales.length === 1 && sansAffaire) return;
-    if (locales.length) { await listeErreurs('Ce devis ne peut pas encore être finalisé', locales); marquerChampsManquants(locales); if (sansAffaire) { ref.champAffaire?.focus?.(); ref.champAffaire?.fermer?.(); } return; }
-    const avis = Ed.avertissements(travail);
+    const locales = erreursFinalisation(travail, { emetteur: D.etat.reglages.entreprise, aujourdhui: CRM.ctx().aujourdhui });
+    if (locales.length) { await listeErreurs('Ce devis ne peut pas encore être finalisé', locales); marquerChampsManquants(locales); return; }
+    // Sans affaire : jamais bloquant, la fenêtre de confirmation porte l'avertissement (seulement si le module Affaires est actif).
+    const avis = Ed.avertissements(travail, { affaires: !D.surSocleSeul() });
     const { phrase: phraseTest } = decisionFinalisation(travail);
     const ok = await dialogue({
       titre: 'Finaliser ce devis ?',

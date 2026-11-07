@@ -14,7 +14,6 @@ const erreurs = (d, e = entreprise) => L.erreursFinalisation(d, { emetteur: e, a
 
 // [devis, emetteur, champ attendu pour la phrase produite]
 const CAS = [
-  [base({ affaireId: null }), entreprise, 'affaire'],
   [base({ organisationId: null }), entreprise, 'client'],
   [base({ chantier: { dureeEstimee: { valeur: 2, unite: 'jour' } } }), entreprise, 'debutTravaux'],
   [base({ chantier: { debutTravaux: '2099-01-01' } }), entreprise, 'duree'],

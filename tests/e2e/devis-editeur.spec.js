@@ -645,7 +645,7 @@ test('ED6 depuis la liste : Nouveau devis, Modifier ouvre l’éditeur, Duplique
   await ouvrirListe(page);
   await page.locator('[data-action="nouveau-devis-vide"]').click();
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
-  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif tant que le devis est un brouillon');
+  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif : sans affaire, le devis n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.');
   await expect(page.locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/); // une invitation, pas une erreur
   await capturer(page, info, 'ED6-sans-affaire');
   await semer();

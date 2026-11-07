@@ -6,7 +6,6 @@ import { nomAffaireProposee } from './affaire-depuis-devis.js';
 
 export const MESSAGE_SANS_AFFAIRE_CLIENT = 'Pas d’affaire pour ce client : crée-la avec « + Créer l’affaire » dans cette liste.';
 export const PLACEHOLDER_AFFAIRE = 'Choisis ou crée une affaire';
-export const MESSAGE_FINALISER_SANS_AFFAIRE = 'Choisis ou crée une affaire pour finaliser ce devis.'; // écran seulement : la phrase du serveur et de l'assistant (MESSAGE_AFFAIRE_MANQUANTE) ne change pas
 
 const vide = (client) => !client?.organisationId && !client?.personneId;
 
@@ -68,7 +67,7 @@ export const emailDestinataire = (emailAttention, emailClient) => emailAttention
 /** Phrase sous la ligne Affaire (« » = rien à dire). */
 export function aideAffaire({ client, affaireId, nbAffaires }) {
   if (affaireId) return '';
-  if (vide(client)) return 'Facultatif tant que le devis est un brouillon ; il en faut une pour finaliser.';
+  if (vide(client)) return 'Facultatif : sans affaire, le devis n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.';
   return nbAffaires ? '' : MESSAGE_SANS_AFFAIRE_CLIENT;
 }
 

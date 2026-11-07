@@ -826,8 +826,8 @@ export const NOM_DEVIS_MAX = 80;
 /** Texte d'un nom de devis : espaces nettoyés, au plus NOM_DEVIS_MAX caractères (accents conservés). */
 export const nettoyerNomDevis = (v) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, NOM_DEVIS_MAX);
 
-/** Refus de finaliser un devis sans affaire : le même mot à l'écran, dans la fonction du serveur et dans l'assistant. */
-export const MESSAGE_AFFAIRE_MANQUANTE = 'Choisis l\'affaire de ce devis.';
+/** Avertissement NON bloquant (module Affaires actif, devis sans affaire) : la même phrase à l'écran et dans l'assistant. */
+export const AVERTISSEMENT_SANS_AFFAIRE = 'Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.';
 
 /** Refus de finaliser un devis sans client (personne ou organisation) : le même mot à l'écran, dans la fonction du serveur et dans l'assistant. */
 export const MESSAGE_CLIENT_MANQUANT = 'Choisis le client de ce devis.';
@@ -850,11 +850,10 @@ export const ROUTE_MON_ENTREPRISE = 'reglages/devis/reglages-entreprise';
  * `emetteur` : « Mon entreprise » (nom, SIRET, adresse, texte d'assurance) ; `aujourdhui` : le jour AAAA-MM-JJ (fuseau de Paris) pour la date de validité.
  * Sans `emetteur`, l'entreprise est vue comme vide : il faut le passer (écran, fonction du serveur et assistant le font tous avec la même règle).
  */
-export function erreursFinalisation(devis, { emetteur, aujourdhui, affaireRequise = true } = {}) {
+export function erreursFinalisation(devis, { emetteur, aujourdhui } = {}) {
   const erreurs = [];
   if (!devis) return ['Le devis est introuvable.'];
   if (devis.statut !== 'brouillon') erreurs.push('Ce devis est déjà finalisé : pour le corriger, crée la version suivante.');
-  if (affaireRequise && !devis.affaireId) erreurs.push(MESSAGE_AFFAIRE_MANQUANTE); // un brouillon vit sans affaire ; un devis finalisé en exige une seulement là où le module Affaires est actif (Devis seul : jamais)
   if (!idsModes.includes(devis.modeMarge)) erreurs.push('Choisis le calcul de la marge du devis.');
   if (!absent(devis.marge) && !estNombre(devis.marge)) erreurs.push('La marge du devis doit être un nombre.');
   const destinataires = (devis.destinataires ?? []).map(emailDe);
@@ -907,7 +906,6 @@ export function erreursFinalisation(devis, { emetteur, aujourdhui, affaireRequis
 export function decisionChampFinalisation(message, devis = null) {
   const m = String(message ?? '');
   const fixes = new Map([
-    [MESSAGE_AFFAIRE_MANQUANTE, { champ: 'affaire' }],
     [MESSAGE_CLIENT_MANQUANT, { champ: 'client' }],
     [MESSAGE_DEBUT_TRAVAUX_MANQUANT, { champ: 'debutTravaux' }],
     [MESSAGE_DUREE_TRAVAUX_MANQUANTE, { champ: 'duree' }],
@@ -1035,9 +1033,9 @@ export function nouveauDevis(valeurs = {}, ctx = {}, reglages = {}) {
  * Fige un brouillon pour la finalisation : copie avec statut, numéro, régime de TVA, prix de vente et taux de chaque ligne, totaux.
  * Retourne `{ devis, erreurs }` : si le devis est invalide, `devis` est null et `erreurs` dit quoi corriger. L'original n'est pas modifié.
  */
-export function figerPourFinalisation(devis, { numero, finaliseLe, reglages = {}, clientNom = null, emetteur, aujourdhui, affaireRequise = true } = {}) {
+export function figerPourFinalisation(devis, { numero, finaliseLe, reglages = {}, clientNom = null, emetteur, aujourdhui } = {}) {
   // L'émetteur est « Mon entreprise » des réglages ; le jour est celui de la finalisation (fuseau de Paris) sauf indication contraire.
-  const erreurs = erreursFinalisation(devis, { emetteur: emetteur ?? reglages.entreprise, aujourdhui: aujourdhui ?? aujourdhuiParis(finaliseLe), affaireRequise });
+  const erreurs = erreursFinalisation(devis, { emetteur: emetteur ?? reglages.entreprise, aujourdhui: aujourdhui ?? aujourdhuiParis(finaliseLe) });
   if (!numero) erreurs.push('Le numéro du devis est manquant.');
   if (!REGIMES_TVA.some((r) => r.id === reglages.regimeTva)) erreurs.push('Choisis le régime de TVA dans les réglages du module.');
   if (erreurs.length) return { devis: null, erreurs };

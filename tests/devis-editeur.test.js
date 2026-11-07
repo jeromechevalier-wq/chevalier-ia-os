@@ -180,6 +180,14 @@ describe('E7 avertissements non bloquants', () => {
     const texte = devisDe([{ id: 's', lignes: [L('a'), { ...Ed.ligneTexte('t'), quantite: undefined }] }]);
     assert.deepEqual(Ed.avertissements(texte), []);
   });
+  test('E7 sansAffaire (07/11/2026) : seulement si le module Affaires est actif et que le devis n’a pas d’affaire ; toujours en premier', () => {
+    const sans = devisDe([], { affaireId: null });
+    assert.deepEqual(Ed.avertissements(sans).map((a) => a.code), ['sansAffaire', 'aucuneLigne']);
+    assert.deepEqual(Ed.avertissements(sans, { affaires: true }).map((a) => a.code), ['sansAffaire', 'aucuneLigne']);
+    assert.deepEqual(Ed.avertissements(sans, { affaires: false }).map((a) => a.code), ['aucuneLigne'], 'Devis seul : rien sur l’affaire');
+    assert.deepEqual(Ed.avertissements(devisDe([])).map((a) => a.code), ['aucuneLigne'], 'avec une affaire : rien');
+    assert.equal(Ed.avertissements(sans)[0].message, 'Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.');
+  });
   test('E7 un devis correct n’a aucun avertissement et se finalise (hors destinataire)', () => {
     const ok = completerPourFinaliser(devisDe([{ id: 's', lignes: [L('a', { quantite: 2 })] }], { destinataires: ['client@example.fr'] }));
     assert.deepEqual(Ed.avertissements(ok), []);

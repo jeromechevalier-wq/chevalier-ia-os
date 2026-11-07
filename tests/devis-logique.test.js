@@ -428,18 +428,18 @@ describe('3 nom interne du devis (distinct de l’objet imprimé)', () => {
   });
 });
 
-describe('SA devis sans affaire (28/10/2026) : le brouillon se crée sans affaire, la finalisation l’exige', () => {
-  test('SA3 nouveauDevis accepte l’absence d’affaire ; erreursFinalisation nomme l’affaire manquante (même phrase pour l’écran, la fonction et l’assistant)', () => {
+describe('SA devis sans affaire (28/10/2026, finalisation sans affaire partout le 07/11/2026)', () => {
+  test('SA3 nouveauDevis accepte l’absence d’affaire ; erreursFinalisation ne parle jamais de l’affaire (ni sans, ni avec)', () => {
     const d = devisType({ affaireId: null, destinataires: [{ email: 'a@b.fr' }] });
     assert.equal(D.nouveauDevis({}, { id: 'x' }).affaireId, null);
-    assert.ok(D.erreursFinalisation(d, OPTIONS_FINALISATION).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
-    assert.equal(D.MESSAGE_AFFAIRE_MANQUANTE, 'Choisis l\'affaire de ce devis.');
-    assert.ok(!D.erreursFinalisation({ ...d, affaireId: 'a1' }, OPTIONS_FINALISATION).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
+    assert.deepEqual(D.erreursFinalisation(d, OPTIONS_FINALISATION), []);
+    assert.ok(!D.erreursFinalisation({ ...d, nom: null, modeMarge: null }, OPTIONS_FINALISATION).some((m) => /affaire/i.test(m)), 'aucune phrase ne cite l’affaire');
+    assert.deepEqual(D.erreursFinalisation({ ...d, affaireId: 'a1' }, OPTIONS_FINALISATION), []);
   });
-  test('SA5 affaireRequise: false (Devis seul) ne nomme plus l’affaire ; sans l’option, l’affaire reste exigée (SA3)', () => {
+  test('SA5 un ancien appelant qui passe encore affaireRequise: true ne change rien (l’option n’existe plus)', () => {
     const d = devisType({ affaireId: null, destinataires: [{ email: 'a@b.fr' }] });
-    assert.ok(!D.erreursFinalisation(d, { ...OPTIONS_FINALISATION, affaireRequise: false }).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
-    assert.ok(D.erreursFinalisation(d, { ...OPTIONS_FINALISATION, affaireRequise: true }).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
-    assert.ok(D.erreursFinalisation(d, OPTIONS_FINALISATION).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
+    assert.deepEqual(D.erreursFinalisation(d, { ...OPTIONS_FINALISATION, affaireRequise: true }), []);
+    assert.equal(D.MESSAGE_AFFAIRE_MANQUANTE, undefined);
+    assert.equal(D.AVERTISSEMENT_SANS_AFFAIRE, 'Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.');
   });
 });

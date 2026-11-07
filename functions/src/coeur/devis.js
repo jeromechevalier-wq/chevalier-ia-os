@@ -164,7 +164,7 @@ export async function finaliser({ donnees, ctx, devisId }) {
     // Les lectures d'abord (réglages, fiche du client) : l'entreprise et le jour servent aux règles de finalisation, la fiche donne le nom du client à figer.
     const reglages = A.reglagesDevis(await tx.document(C.devisParametres, ID_REGLAGES));
     const fiche = devis.organisationId ? await tx.document(C.organisations, devis.organisationId) : devis.personneId ? await tx.document(C.personnes, devis.personneId) : null;
-    const erreurs = D.erreursFinalisation(devis, { emetteur: reglages.entreprise, aujourdhui: L.aujourdhuiParis(ctx.maintenant), affaireRequise: ctx.affaireRequise !== false });
+    const erreurs = D.erreursFinalisation(devis, { emetteur: reglages.entreprise, aujourdhui: L.aujourdhuiParis(ctx.maintenant) });
     if (erreurs.length) return { ok: false, erreurs };
     const versions = await lireVersions(tx, devis);
     const affaire = typeof devis.affaireId === 'string' && devis.affaireId && !devis.affaireId.includes('/') ? await tx.document(C.affaires, devis.affaireId) : null;
@@ -183,7 +183,7 @@ export async function finaliser({ donnees, ctx, devisId }) {
       ecritures.push({ type: 'set', collection: C.devisCompteurs, id: idCompteur, donnees: { valeur: suivant, modifieLe: ctx.maintenant } });
     }
 
-    const fige = D.figerPourFinalisation(devis, { numero, finaliseLe: ctx.maintenant, reglages, clientNom: fiche?.nom ?? null, affaireRequise: ctx.affaireRequise !== false });
+    const fige = D.figerPourFinalisation(devis, { numero, finaliseLe: ctx.maintenant, reglages, clientNom: fiche?.nom ?? null });
     if (fige.erreurs.length) return { ok: false, erreurs: fige.erreurs };
     const apres = fige.devis;
     apres.test = decision.test;

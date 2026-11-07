@@ -412,6 +412,8 @@ test.describe('R14 Devis seul (sans Affaires ni Projets) : le socle commun porte
     await expect(page.getByRole('dialog')).not.toContainText('Ce devis ne peut pas encore être finalisé');
     await expect(page.locator('[data-champ="affaire"]')).toHaveCount(0);
     await expect(page.getByRole('dialog')).toContainText('Finaliser ce devis ?');
+    await expect(page.locator('[data-zone="avertissements-finalisation"]')).toHaveCount(0); // Devis seul : jamais un mot sur l'affaire
+    await expect(page.locator('[data-avertissement="sansAffaire"]')).toHaveCount(0);
     await page.screenshot({ path: `${CAPTURES}14-devis-seul-${info.project.name}.png`, animations: 'disabled' });
     await page.getByRole('dialog').getByRole('button', { name: 'Finaliser', exact: true }).click();
     await expect.poll(() => appels.length).toBe(1);

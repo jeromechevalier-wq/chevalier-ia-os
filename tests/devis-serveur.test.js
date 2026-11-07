@@ -621,22 +621,22 @@ describe('6 texte de la mention de TVA réduite figé par la finalisation serveu
   });
 });
 
-describe('SA devis sans affaire (28/10/2026) : la fonction devisFinaliser refuse un devis sans affaire', () => {
-  test('SA4 finaliser rend « Choisis l\'affaire de ce devis. » et n’écrit rien (ni numéro ni compteur) ; avec une affaire il passe', async () => {
+describe('SA devis sans affaire (07/11/2026) : la fonction devisFinaliser n’exige plus d’affaire', () => {
+  test('SA4 finaliser un devis sans affaire : ok, numéro attribué, compteur +1, aucune affaire écrite', async () => {
     const m = monde([brouillon('d1', { affaireId: null })]);
-    const avant = photo(m);
+    m.collections[C.affaires] = [];
     const r = await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
-    assert.equal(r.ok, false);
-    assert.deepEqual(r.erreurs, ['Choisis l\'affaire de ce devis.']);
-    assert.equal(photo(m), avant);
-    m.collections[C.devis][0].affaireId = 'aff1';
-    assert.equal((await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' })).ok, true);
-  });
-  test('SA6 affaireRequise: false (Devis seul) : un devis sans affaire se finalise ; le contexte ordinaire reste SA4', async () => {
-    const m = monde([brouillon('d1', { affaireId: null })]);
-    assert.equal((await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' })).ok, false);
-    const r = await S.finaliser({ donnees: m.donnees, ctx: ctx({ affaireRequise: false }), devisId: 'd1' });
     assert.equal(r.ok, true, JSON.stringify(r.erreurs));
     assert.ok(r.numero);
+    assert.deepEqual(m.collections[C.affaires], [], 'aucune affaire créée ni modifiée');
+    assert.equal(m.collections[C.devisCompteurs].find((x) => x.id === 'global').valeur, 1);
+  });
+  test('SA6 le résultat est le même avec ou sans l’ancienne option affaireRequise du contexte', async () => {
+    for (const extra of [{}, { affaireRequise: false }, { affaireRequise: true }]) {
+      const m = monde([brouillon('d1', { affaireId: null })]);
+      const r = await S.finaliser({ donnees: m.donnees, ctx: ctx(extra), devisId: 'd1' });
+      assert.equal(r.ok, true, JSON.stringify(r.erreurs));
+      assert.ok(r.numero);
+    }
   });
 });

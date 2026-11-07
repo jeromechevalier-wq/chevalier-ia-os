@@ -1,4 +1,4 @@
-// Finaliser un devis sans affaire : l'application crée l'affaire (décision de Jérôme, 30/10/2026). Règles PURES (aucun accès à Firebase ni au navigateur), testées dans tests/devis-affaire-depuis-devis.test.js.
+// Créer l'affaire depuis un devis (« + Créer l'affaire » dans la liste du champ Affaire ; la finalisation ne l'exige plus depuis le 07/11/2026). Règles PURES (aucun accès à Firebase ni au navigateur), testées dans tests/devis-affaire-depuis-devis.test.js.
 // Fichier à part : editeur-logique.js est copié dans functions/partage/ (imports réécrits), il ne doit pas importer le CRM.
 import { titreParDefaut, etapesActives, etapeActive } from '../crm/logique.js';
 import { nettoyerNomDevis } from './logique.js';
