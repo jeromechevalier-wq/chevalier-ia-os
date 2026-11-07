@@ -1,4 +1,4 @@
-// Outils de création et de modification (profils bibliothécaire et Claude Code). Chacun valide sa saisie (zod), puis délègue à coeur/metier.js :
+// Outils de création et de modification (profils bibliothécaire et Claude Code ; agent-devis seulement sur 7 outils nommés, plus finaliser_devis). Chacun valide sa saisie (zod), puis délègue à coeur/metier.js :
 // mêmes règles que l'écran (plans de logique.js), écriture journalisée par le moteur (audit en trois lots). Aucun outil n'écrit directement.
 import { z } from 'zod';
 import * as L from '../../../partage/logique.js';

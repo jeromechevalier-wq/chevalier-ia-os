@@ -11,6 +11,10 @@ import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { collections, MAINTENANT } from './_donnees-essai.js';
 
+// Liste blanche EXACTE du profil agent-devis (décision de Jérôme, 07/11/2026), écrite à la main : créer le client et le devis, le finaliser (aperçu + code), préparer l'e-mail. 21 outils.
+const LISTE_AGENT = ['qui_suis_je', 'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_devis', 'lire_devis', 'lire_reglages_devis', 'chercher_article', 'lister_articles', 'rechercher_article_par_phrase', 'obtenir_pdf_officiel_devis',
+  'creer_personne', 'creer_organisation', 'creer_affaire', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'modifier_destinataires_devis', 'preparer_email'];
+
 const nomsPour = (profil) => outilsAutorises(profil).map((o) => o.nom).sort();
 
 const JETON = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, agent: `cia_${'A'.repeat(43)}`, code: `cia_${'C'.repeat(43)}`, revoque: `cia_${'R'.repeat(43)}` };
@@ -183,14 +187,12 @@ describe('Journaux sans secret', () => {
 });
 
 describe('Profil agent-devis : liste blanche et outils refusés', () => {
-  const NON_ACCORDES = ['supprimer_devis', 'supprimer_affaire', 'supprimer_personne', 'supprimer_organisation', 'supprimer_document_stocke', 'supprimer_activite', 'supprimer_note', 'supprimer_projet', 'supprimer_tous_les_tests', 'restaurer_depuis_audit',
-    'changer_statut_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles', 'modifier_lignes_devis', 'annuler_derniere_modification_devis', 'nouvelle_version_devis', 'archiver_devis', 'retirer_document', 'deposer_document', 'joindre_lien',
-    'desactiver_article', 'creer_article', 'modifier_article', 'modifier_personne', 'modifier_organisation', 'modifier_affaire', 'changer_etape', 'marquer_perdue', 'rouvrir_affaire', 'rouvrir_projet', 'marquer_test', 'demarquer_test',
-    'enregistrer_envoi_devis', 'enregistrer_reponse_vocabulaire', 'ajouter_note', 'modifier_note', 'creer_activite', 'terminer_activite', 'creer_projet', 'creer_projet_depuis_affaire', 'modifier_projet', 'lire_projet', 'lister_projets', 'lire_audit',
-    'lister_propositions', 'lire_proposition', 'lister_automatisations', 'valider_proposition', 'refuser_proposition', 'creer_devis_depuis_modele', 'lister_documents', 'lister_activites', 'lire_reglages', 'diagnostiquer_fichiers'];
-  test('agent-devis : 21 outils, finaliser_devis présent, aucun outil non accordé', () => {
+  // Dérivé de la liste réelle des outils : tout futur outil est refusé à agent-devis tant qu'il n'est pas ajouté à la liste blanche en dur de D3d.
+  const NON_ACCORDES = outilsAutorises('claude-code').map((o) => o.nom).filter((n) => !LISTE_AGENT.includes(n));
+  test('agent-devis : 21 outils exactement, finaliser_devis présent, tout le reste refusé (liste dérivée des outils réels)', () => {
     const noms = nomsPour('agent-devis');
     assert.equal(noms.length, 21);
+    assert.ok(NON_ACCORDES.length >= 60, 'la liste dérivée couvre tous les autres outils');
     assert.ok(noms.includes('finaliser_devis') && noms.includes('preparer_email') && noms.includes('qui_suis_je'));
     for (const n of NON_ACCORDES) assert.ok(!noms.includes(n), `${n} ne doit pas être accordé`);
   });
@@ -228,12 +230,9 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
     'marquer_test', 'demarquer_test']; // + mode test : marquer ou démarquer un essai (PR 2, 05/11/2026)
   const FINALISATION = ['finaliser_devis', 'changer_statut_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles']; // écritures sensibles (figent le devis, ne se défont pas avec le journal, confirmation par code) : Claude Code seulement
   const SUPPRESSION = ['restaurer_depuis_audit', 'supprimer_activite', 'supprimer_devis', 'supprimer_affaire', 'supprimer_note', 'supprimer_organisation', 'supprimer_personne', 'supprimer_projet', 'supprimer_document_stocke', 'supprimer_tous_les_tests'];
-  // Liste blanche EXACTE du profil agent-devis (décision de Jérôme, 07/11/2026), écrite à la main : créer le client et le devis, le finaliser (aperçu + code), préparer l'e-mail. 21 outils.
-  const AGENT_DEVIS = ['qui_suis_je', 'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_devis', 'lire_devis', 'lire_reglages_devis', 'chercher_article', 'lister_articles', 'rechercher_article_par_phrase', 'obtenir_pdf_officiel_devis',
-    'creer_personne', 'creer_organisation', 'creer_affaire', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'modifier_destinataires_devis', 'preparer_email'];
   const attendu = {
     lecteur: [...LECTURE].sort(),
-    agent: [...AGENT_DEVIS].sort(),
+    agent: [...LISTE_AGENT].sort(),
     biblio: [...LECTURE, ...ECRITURE].sort(),
     code: [...LECTURE, ...ECRITURE, ...FINALISATION, ...SUPPRESSION].sort(),
   };

@@ -1,7 +1,7 @@
 // Génère un jeton pour un client du serveur MCP (hors ligne, sur ton Mac). Usage :
 //   node outils/creer-jeton.js hermes-bibliothecaire bibliothecaire
 //   node outils/creer-jeton.js claude-code-jerome claude-code
-// Premier argument : nom du jeton (et de l'acteur écrit dans le fil et l'audit) ; second : profil (lecteur, bibliothecaire, claude-code).
+// Premier argument : nom du jeton (et de l'acteur écrit dans le fil et l'audit) ; second : profil (lecteur, bibliothecaire, agent-devis, claude-code).
 // Le jeton est affiché UNE SEULE FOIS et n'est enregistré nulle part. Seule la ligne JSON (avec l'empreinte) va dans le
 // secret MCP_JETONS de Secret Manager (une ligne par jeton, nouvelle version du secret).
 import { randomBytes } from 'node:crypto';
