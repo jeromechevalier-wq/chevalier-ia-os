@@ -1,6 +1,6 @@
 // Registre des outils MCP. Chaque outil déclare les profils autorisés ; le serveur n'expose et n'exécute que ceux du profil
 // du jeton (deuxième niveau de protection, après le filtre « tools.include » côté Hermes).
-//  lecteur : lecture ; bibliothécaire : + écriture ; claude-code : + suppression et restauration.
+//  lecture : lecture ; ecriture : + écriture ; complet : + suppression et restauration.
 import { qui_suis_je } from './identite.js';
 import { OUTILS_LECTURE } from './lecture.js';
 import { OUTILS_ECRITURE } from './ecriture.js';
@@ -20,7 +20,7 @@ export const outilsAutorises = (profil, outils = OUTILS) => outils.filter((o) =>
 
 /**
  * Annotations MCP (Claude et ChatGPT les lisent pour classer les outils sans les bloquer par défaut) :
- *  - lecture (ouverte au profil lecteur) : readOnlyHint ;
+ *  - lecture (ouverte au profil lecture) : readOnlyHint ;
  *  - supprimer_*, restaurer_depuis_audit, annuler_derniere_modification_devis (même logique) et modifier_lignes_devis (il peut retirer des lignes) : destructiveHint ;
  *  - autres écritures : ni lecture seule ni destructrices, jamais idempotentes ;
  *    sauf valider_proposition et refuser_proposition, les décisions de la file « À valider » : elles NE passent PAS par le journal d'audit
@@ -30,7 +30,7 @@ export const outilsAutorises = (profil, outils = OUTILS) => outils.filter((o) =>
  * Aucun outil ne sort du CRM : openWorldHint toujours faux.
  */
 export function annotationsDe(outil) {
-  const lecture = outil.profils.includes('lecteur');
+  const lecture = outil.profils.includes('lecture');
   const destructif = /^supprimer_/.test(outil.nom) || OUTILS_DESTRUCTIFS.includes(outil.nom);
   return { readOnlyHint: lecture, destructiveHint: !lecture && destructif, idempotentHint: lecture, openWorldHint: false };
 }

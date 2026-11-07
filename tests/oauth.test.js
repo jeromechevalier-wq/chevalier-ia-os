@@ -201,7 +201,7 @@ describe('ChatGPT (20/10/2026) : adresse de retour acceptée, nommée chatgpt-<c
     const c = await client(t.access_token);
     const qui = JSON.parse((await c.callTool({ name: 'qui_suis_je', arguments: {} })).content[0].text);
     assert.equal(qui.acteur, 'chatgpt-jerome-chevalier');
-    assert.equal(qui.profil, 'claude-code');
+    assert.equal(qui.profil, 'complet');
     await c.close();
     const r2 = await jeton({ grant_type: 'refresh_token', refresh_token: t.refresh_token, client_id: 'cli_essai' });
     const c2 = await client((await r2.json()).access_token);
@@ -334,7 +334,7 @@ describe('Propriétaire par défaut sur le serveur de Jérôme (point 2)', () =>
 });
 
 describe('Jetons (POST /oauth/token) : code + PKCE, puis accès à /mcp', () => {
-  test('parcours complet : le jeton d’accès ouvre /mcp avec TOUS les droits (profil claude-code, suppression comprise), acteur nommé d’après le compte', async () => {
+  test('parcours complet : le jeton d’accès ouvre /mcp avec TOUS les droits (profil complet, suppression comprise), acteur nommé d’après le compte', async () => {
     const t = await ouvrirSession();
     assert.equal(t.token_type, 'Bearer');
     assert.equal(t.expires_in, 3600);
@@ -343,7 +343,7 @@ describe('Jetons (POST /oauth/token) : code + PKCE, puis accès à /mcp', () => 
     const c = await client(t.access_token);
     const qui = JSON.parse((await c.callTool({ name: 'qui_suis_je', arguments: {} })).content[0].text);
     assert.equal(qui.acteur, 'claude-ai-jerome-chevalier');
-    assert.equal(qui.profil, 'claude-code');
+    assert.equal(qui.profil, 'complet');
     assert.ok(qui.outils.includes('supprimer_personne') && qui.outils.includes('restaurer_depuis_audit') && qui.outils.includes('creer_personne'));
     await c.close();
   });
@@ -477,7 +477,7 @@ describe('Les jetons « cia_… » (Hermes, Claude Code) ne changent pas', () =>
     const c = await client(HERMES);
     const qui = JSON.parse((await c.callTool({ name: 'qui_suis_je', arguments: {} })).content[0].text);
     assert.equal(qui.acteur, 'hermes-bibliothecaire');
-    assert.equal(qui.profil, 'bibliothecaire');
+    assert.equal(qui.profil, 'ecriture');
     assert.ok(!qui.outils.includes('supprimer_personne'));
     await c.close();
   });

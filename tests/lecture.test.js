@@ -294,8 +294,8 @@ describe('Lecture seule (garantie)', () => {
     const lecteurs = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE];
     const noms = lecteurs.map((o) => o.nom).sort();
     assert.deepEqual(noms, ['chercher', 'chercher_article', 'diagnostiquer_fichiers', 'lire_affaire', 'lire_audit', 'lire_devis', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_proposition', 'lire_reglages', 'lire_reglages_devis', 'lister_activites', 'lister_affaires', 'lister_articles', 'lister_automatisations', 'lister_devis', 'lister_documents', 'lister_modeles_projet', 'lister_projets', 'lister_propositions', 'obtenir_pdf_officiel_devis', 'qui_suis_je', 'rechercher_article_par_phrase']);
-    for (const o of lecteurs) assert.deepEqual(o.profils, ['lecteur', 'bibliothecaire', 'claude-code'], o.nom);
-    for (const o of OUTILS.filter((x) => !noms.includes(x.nom))) assert.ok(!o.profils.includes('lecteur'), `${o.nom} : le lecteur n’a aucun droit d’écriture`);
+    for (const o of lecteurs) assert.deepEqual(o.profils, ['lecture', 'ecriture', 'complet'], o.nom);
+    for (const o of OUTILS.filter((x) => !noms.includes(x.nom))) assert.ok(!o.profils.includes('lecture'), `${o.nom} : le lecteur n’a aucun droit d’écriture`);
   });
   test('le code des fonctions ne référence jamais l’ancienne collection crm_prospects', () => {
     const dossier = join(RACINE, 'functions/src');

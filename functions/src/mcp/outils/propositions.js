@@ -12,8 +12,8 @@ import { decider, ErreurDecision } from '../../coeur/propositions.js';
 import { ErreurMetier } from '../../coeur/metier.js';
 import { ETATS, enMs, estPerimee, frise } from '../../../partage/propositions.js';
 
-const TOUS = ['lecteur', 'bibliothecaire', 'claude-code'];
-const ECRITURE = ['bibliothecaire', 'claude-code'];
+const TOUS = ['lecture', 'ecriture', 'complet'];
+const ECRITURE = ['ecriture', 'complet'];
 const id = z.string().min(1).max(100);
 export const MAX_PROPOSITIONS = 100;
 

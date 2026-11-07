@@ -71,7 +71,7 @@ async function supprimerAvecCode(args) {
 }
 
 const moi = await attendu('0. Connexion', appeler('qui_suis_je'), (d) => {
-  if (d.profil !== 'claude-code') return `ce jeton est « ${d.profil} » : il faut le jeton Claude Code`;
+  if (d.profil !== 'complet') return `ce jeton est « ${d.profil} » : il faut un jeton de profil complet`;
   if (!d.outils.includes('creer_organisation')) return 'le serveur n’offre pas encore les outils d’écriture (déploiement de l’étape 4 pas terminé ?)';
   return null;
 });

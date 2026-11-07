@@ -24,7 +24,7 @@ const SECRET = JSON.stringify([
 
 // Un outil réservé à Claude Code, pour prouver le refus côté serveur (le plan n'en a pas encore à l'étape 2).
 const OUTIL_RESERVE = {
-  nom: 'outil_reserve', profils: ['claude-code'], description: 'Réservé à Claude Code (essai).',
+  nom: 'outil_reserve', profils: ['complet'], description: 'Réservé à Claude Code (essai).',
   async executer() { return { ok: true }; },
 };
 
@@ -91,8 +91,8 @@ describe('Protocole MCP et droits par profil', () => {
     const r = await c.callTool({ name: 'qui_suis_je', arguments: {} });
     const donnees = JSON.parse(r.content[0].text);
     assert.equal(donnees.acteur, 'hermes-bibliothecaire');
-    assert.equal(donnees.profil, 'bibliothecaire');
-    assert.deepEqual([...donnees.outils].sort(), nomsPour('bibliothecaire'));
+    assert.equal(donnees.profil, 'ecriture');
+    assert.deepEqual([...donnees.outils].sort(), nomsPour('ecriture'));
     assert.ok(donnees.outils.includes('creer_personne') && !donnees.outils.includes('supprimer_personne') && !donnees.outils.includes('restaurer_depuis_audit'));
     assert.ok(!donnees.outils.includes('outil_reserve'));
     assert.equal(donnees.serveur.nom, 'chevalier-ia-os');
@@ -101,12 +101,12 @@ describe('Protocole MCP et droits par profil', () => {
   });
   test('droits par profil : un outil hors profil n’est ni listé ni exécutable, même si l’appel arrive', async () => {
     const biblio = await client(JETON.biblio);
-    assert.deepEqual((await biblio.listTools()).tools.map((t) => t.name).sort(), nomsPour('bibliothecaire'));
+    assert.deepEqual((await biblio.listTools()).tools.map((t) => t.name).sort(), nomsPour('ecriture'));
     const refus = await biblio.callTool({ name: 'outil_reserve', arguments: {} }).catch((e) => ({ erreur: e }));
     assert.ok(refus.erreur || refus.isError, 'appel refusé');
     await biblio.close();
     const code = await client(JETON.code);
-    assert.deepEqual((await code.listTools()).tools.map((t) => t.name).sort(), [...nomsPour('claude-code'), 'outil_reserve'].sort());
+    assert.deepEqual((await code.listTools()).tools.map((t) => t.name).sort(), [...nomsPour('complet'), 'outil_reserve'].sort());
     assert.equal(JSON.parse((await code.callTool({ name: 'outil_reserve', arguments: {} })).content[0].text).ok, true);
     await code.close();
   });
@@ -212,7 +212,7 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
       const recus = (await c.listTools()).tools.map((t) => t.name).filter((n) => n !== OUTIL_RESERVE.nom).sort();
       await c.close();
       assert.deepEqual(recus, liste);
-      assert.deepEqual(nomsPour(profil === 'biblio' ? 'bibliothecaire' : profil === 'code' ? 'claude-code' : 'lecteur'), liste);
+      assert.deepEqual(nomsPour(profil === 'biblio' ? 'ecriture' : profil === 'code' ? 'complet' : 'lecture'), liste);
     });
   }
 });
