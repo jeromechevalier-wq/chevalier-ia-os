@@ -11,13 +11,13 @@ import { avecBase } from '../coeur/donnees.js';
 import { lireConfig } from '../coeur/config.js';
 import { OUTILS } from '../mcp/outils/index.js';
 import { descriptionAppel, creerSuiviDemarrage, refuser, servirMcp } from '../mcp/gestionnaire.js';
-import { FORMAT_CLIENT, ORIGINES_PLATEFORME, adressesClient } from './config.js';
+import { EMETTEUR_PLATEFORME, FORMAT_CLIENT, ORIGINES_PLATEFORME, adressesClient } from './config.js';
 import { MODULES_DECLARES, OUTILS_COMMUNS, outilsMcpActifs } from '../../partage/registre.js';
 import { cheminBaseClient } from '../../partage/chemins.js';
 
 /** Nom de serveur neutre : le client ne voit pas le nom interne du CRM de Jérôme. */
 export const NOM_SERVEUR_CLIENT = 'espace-client';
-const BASE_LIEN_PLATEFORME = 'https://chevalier-ia-app.web.app';
+const BASE_LIEN_PLATEFORME = EMETTEUR_PLATEFORME; // même domaine pour tous les clients
 const MOTIF_LIEN = /^\/mcp\/([^/]+)$/;
 
 /** Outils proposés à un client : les outils communs et ceux des modules actifs (le profil du membre filtre ensuite). */

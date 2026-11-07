@@ -401,14 +401,14 @@ function pdfDe(devis) {
 }
 
 /** Les devis, du plus récent au plus ancien. Filtres : statut (brouillon, en_attente_envoi, envoye, accepte, refuse, expire, remplace ; expire = calculé), affaire, texte (numéro, objet, client). Archivés exclus sauf `archives: true`. */
-export async function listerDevis(donnees, { statut, affaireId, texte, archives, limite, tests }, maintenant = new Date()) {
+export async function listerDevis(donnees, { statut, affaireId, texte, archives, limite, tests }, maintenant = new Date(), { lienEcran = () => undefined } = {}) {
   const aujourdhui = L.aujourdhuiParis(maintenant);
   const [devis, organisations, personnes] = await Promise.all([C.devis, C.organisations, C.personnes].map((nom) => donnees.liste(nom)));
   const contexte = { organisations, personnes, aujourdhui };
   const mots = L.normaliserNom(texte ?? '').split(/\s+/).filter(Boolean);
   const lignes = selonTests(devis, tests)
     .filter((d) => (archives === true || d.archive !== true) && (!affaireId || d.affaireId === affaireId))
-    .map((d) => resumeDevis(d, contexte))
+    .map((d) => ({ ...resumeDevis(d, contexte), ...(lienEcran(d) ? { lienEcran: lienEcran(d) } : {}) })) // statut STOCKÉ pour le lien (un devis expiré n'est pas un brouillon)
     .filter((r) => (!statut || statut === 'tous' || r.statut === statut))
     .filter((r) => {
       if (!mots.length) return true;
@@ -425,7 +425,7 @@ export async function listerDevis(donnees, { statut, affaireId, texte, archives,
  * Acomptes : `acomptes` est la liste normalisée ({ type: pourcentage | montantHt | montantTtc, valeur, moment, texteMoment? }), même pour un ancien devis à acompte unique (`acompte`, gardé tel quel) ;
  * `totaux.acomptesTTC` donne le montant TTC de chaque acompte retenu, `totaux.acompteTTC` leur somme.
  */
-export async function lireDevis(donnees, { id, format, avecPrix }, maintenant = new Date(), { affaireRequise = true } = {}) {
+export async function lireDevis(donnees, { id, format, avecPrix }, maintenant = new Date(), { affaireRequise = true, lienEcran = () => undefined } = {}) {
   const devis = await donnees.document(C.devis, id);
   if (!devis) introuvable('Devis');
   const [organisations, personnes] = await Promise.all([C.organisations, C.personnes].map((nom) => donnees.liste(nom)));
@@ -433,6 +433,8 @@ export async function lireDevis(donnees, { id, format, avecPrix }, maintenant = 
   const t = totauxDe(devis);
   const parLigne = new Map(t.lignes.map((l) => [l.id, l]));
   const affaire = devis.affaireId ? await donnees.document(C.affaires, devis.affaireId) : null;
+  const lien = lienEcran(devis);
+  const champLien = lien ? { lienEcran: lien } : {};
   const { sections, totaux: _figes, modeMarge: _mode, ...reste } = devis; // le mode de calcul de la marge n'est jamais montré à l'assistant
   // Récapitulatif court (pour redire le devis à voix haute) : numéro, intitulé et quantité, jamais de prix d'achat ni de marge ; les prix de vente seulement si avecPrix.
   if (format === 'recapitulatif') {
@@ -442,7 +444,7 @@ export async function lireDevis(donnees, { id, format, avecPrix }, maintenant = 
     const structure = structureCourte(sections, { prixParLigne: avecPrix === true ? parLigne : undefined })
       .map((x) => ({ ...x, lignes: x.lignes.map((l) => (ouvrages.has(l.id) ? { ...l, typeAffiche: motRecap.singulier } : l)) }));
     return serialiser({
-      id: devis.id, numero: resume.numero ?? null, version: devis.version ?? 1, statut: resume.statut, objet: devis.objet ?? '', client: resume.client,
+      id: devis.id, numero: resume.numero ?? null, version: devis.version ?? 1, statut: resume.statut, ...champLien, objet: devis.objet ?? '', client: resume.client,
       sections: structure, totalHT: t.totalHt, totalTTC: t.ttc, phraseTotaux: phraseTotaux(t.totalHt, t.ttc),
       ...(structure.some((s) => s.lignes.length) ? {} : { message: "Ce devis n'a encore aucune ligne." }),
     });
@@ -452,6 +454,7 @@ export async function lireDevis(donnees, { id, format, avecPrix }, maintenant = 
   return serialiser({
     ...reste,
     ...resumeDevis(devis, { organisations, personnes, aujourdhui }),
+    ...champLien,
     affaire: affaire ? { id: affaire.id, titre: affaire.titre } : null,
     // E-mails en copie et historique des envois par e-mail ({ date, destinataires, copie }, du plus ancien au plus récent) : envoyeLe est la date du PREMIER envoi.
     copie: Array.isArray(devis.copie) ? devis.copie : [],

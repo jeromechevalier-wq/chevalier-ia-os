@@ -24,6 +24,7 @@ Chemin du dépôt sur le Mac de Jérôme (à utiliser dans chaque commande) : `/
 |---|---|---|---|
 | 1 | **Créer l'espace client** | Jérôme, au Terminal | `nouveau-client.js` en **simulation**, relire, puis `--ecrire`. Identifiant du client : 17 caractères au plus s'il aura des automatisations. Puis `node scripts/nouveau-client.js afficher <client>`. |
 | 2 | **Vérifier la connexion** | Jérôme + client | Ouvrir `https://chevalier-ia-app.web.app/espace/<client>`, se connecter avec **son** compte Google, voir son espace, créer une fiche de test puis la supprimer. Sans ça, on ne sait pas si l'espace marche. |
+| 2 bis | **Lien d'un devis** | Jérôme + client | Demander à l'assistant « ouvre mon dernier devis » : le lien donné commence par `https://chevalier-ia-app.web.app/#/espace/<client>/devis/` et ouvre l'écran après connexion. |
 | 3 | **E-mail de bienvenue** | Jérôme | Modèle à rédiger une fois (adresse de l'espace, mode d'emploi court, comment demander de l'aide). Envoyé pendant ou juste après la séance. |
 | 4 | **Dossier racine Google Drive**, avec lui | Jérôme + client | Créer **à la main** le dossier racine de ses projets dans **son** Drive, avec le même nom chez tous les clients (par défaut `Chevalier-IA/Projets`) ; régler le chemin dans ses Réglages. Rien à coder. |
 | 5 | **Configurer le MCP** | Jérôme | **Pour tous les clients** : c'est ce qui permet au client d'utiliser Claude avec ses propres données (voir `docs/mcp-clients.md`). |

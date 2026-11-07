@@ -6,6 +6,7 @@ import * as PL from '../../../partage/projets.js';
 import * as DA from '../../../partage/devis-articles.js';
 import * as DEVIS from '../../../partage/devis.js';
 import * as metier from '../../coeur/metier.js';
+import { CONSIGNE_LIEN_ECRAN } from '../../coeur/liens.js';
 import { TYPES_SOURCE_EMAIL } from '../../coeur/brouillon-email.js';
 import { ACTIONS_STATUT, MAX_ADRESSES_ENVOI, ORIGINES_ENVOI } from '../../coeur/devis.js';
 import { ACTIONS as ACTIONS_LIGNES, MAX_OPERATIONS as MAX_OPERATIONS_LIGNES } from '../../coeur/devis-lignes.js';
@@ -58,8 +59,10 @@ const urlDossier = z.string().max(500).optional().describe('Lien du dossier de t
 
 const sourceListe = texteCourt.optional().describe('Source = une valeur de la liste des Réglages (voir lire_reglages, sources), jamais un texte libre : une autre valeur est refusée ; le détail (par exemple « recommandé par … ») va dans une note. Chaîne vide pour l’effacer.');
 
+// Outils Devis qui rendent lienEcran (l'adresse de l'écran du devis, calculée par le serveur) : la consigne pour l'assistant est ajoutée à la fin de leur description.
+const AVEC_LIEN_ECRAN = new Set(['creer_devis_brouillon', 'modifier_devis_brouillon', 'modifier_lignes_devis', 'creer_devis_depuis_modele', 'annuler_derniere_modification_devis', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'modifier_destinataires_devis', 'changer_statut_devis']);
 const outil = (nom, description, schema, action, profils = PROFILS) => ({
-  nom, profils, description, schema, executer: ({ args, ...c }) => action(c, args),
+  nom, profils, description: AVEC_LIEN_ECRAN.has(nom) ? `${description} ${CONSIGNE_LIEN_ECRAN}` : description, schema, executer: ({ args, ...c }) => action(c, args),
 });
 
 export const OUTILS_ECRITURE = [

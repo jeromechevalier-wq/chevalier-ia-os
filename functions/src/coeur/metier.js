@@ -22,7 +22,8 @@ import * as DL from './devis-lignes.js';
 import { derniereLigneDuJournal, refusDeLaDerniereLigne, phraseAnnulation, resumeDuDevis } from './devis-annulation.js';
 import { resoudreNumero, ErreurNumero } from '../../partage/devis-numeros.js';
 import { preparerBrouillonEmail } from './brouillon-email.js';
-import { MESSAGE_NON_BRANCHE, ESPACE_JEROME } from './n8n-sortie.js';
+import { MESSAGE_NON_BRANCHE } from './n8n-sortie.js';
+import { champLienEcran, lienEcranDepuisContexte } from './liens.js';
 import { ditHorsTaxes, ditPourAssistant, MARGE_IMPOSSIBLE } from './voix.js';
 import { cheminAppartientALEspace, DUREE_LIEN_MINUTES } from '../devis/stockage.js';
 
@@ -970,7 +971,7 @@ export async function creerDevisBrouillon(c, args) {
   if (remise !== undefined) { verifierRemise(remise, { ...plan.devis, ...extra }); extra.remise = remise; }
   plan.ecritures[0].donnees = { ...plan.ecritures[0].donnees, ...extra };
   const t = D.totauxDevis({ ...plan.devis, ...extra });
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, statut: 'brouillon', numero: null, lignes: nombreDeLignes(extra.sections), sections: structureCourte(extra.sections), totalHT: t.totalHt, totalTTC: t.ttc, ...rappelTest(`${objet ?? ''} ${nom ?? ''}`, plan.ecritures[0].donnees) });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, statut: 'brouillon', ...champLienEcran(c, { id: plan.id, statut: 'brouillon' }), numero: null, lignes: nombreDeLignes(extra.sections), sections: structureCourte(extra.sections), totalHT: t.totalHt, totalTTC: t.ttc, ...rappelTest(`${objet ?? ''} ${nom ?? ''}`, plan.ecritures[0].donnees) });
 }
 
 /** Adresse (texte) de la fiche du client : l'adresse par défaut, sinon la première. */
@@ -1063,7 +1064,7 @@ export async function modifierDevisBrouillon(c, args) {
   for (const e of plan.ecritures) e.exigerStatut = 'brouillon'; // refusé par le moteur si le devis a été finalisé entre-temps
   if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (objet, nom, affaireId, personneId, organisationId, destinataires, copie, chantier, expireLe, sections, lignes, ajouterLignes, remise, marge, tauxTvaDefaut).');
   const t = D.totauxDevis(travail);
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch), sections: structureCourte(travail.sections), totalHT: t.totalHt, totalTTC: t.ttc });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, ...champLienEcran(c, { id, statut: 'brouillon' }), champsModifies: Object.keys(plan.patch), sections: structureCourte(travail.sections), totalHT: t.totalHt, totalTTC: t.ttc });
 }
 
 // ---------------------------------------------------------------- Devis : modifier_lignes_devis (30/10/2026)
@@ -1254,6 +1255,7 @@ export async function modifierLignesDevis(c, args) {
   const { reponse } = r;
   return {
     ...reponse,
+    ...champLienEcran(c, { id: reponse.id, statut: 'brouillon' }),
     ...(reponse.changementImportant ? { consigne: "Changement important : redis à l'utilisateur, en une phrase, ce qui a été fait (lignes marquées changementImportant et total du devis)." } : {}),
     detail: `Se défait avec restaurer_depuis_audit (operationId ${reponse.operationId}) tant que le devis est un brouillon.`,
   };
@@ -1319,7 +1321,7 @@ export async function creerDevisDepuisModele(c, args) {
   plan.ecritures[0].donnees = { ...plan.ecritures[0].donnees, objet: '', sections: travail };
   const t = D.totauxDevis({ ...plan.devis, sections: travail });
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), {
-    id: plan.id, statut: 'brouillon', numero: null, modeleId, lignes: nombreDeLignes(travail), sections: structureCourte(travail), totalHT: t.totalHt, totalTTC: t.ttc, phraseTotaux: phraseTotaux(t.totalHt, t.ttc),
+    id: plan.id, statut: 'brouillon', ...champLienEcran(c, { id: plan.id, statut: 'brouillon' }), numero: null, modeleId, lignes: nombreDeLignes(travail), sections: structureCourte(travail), totalHT: t.totalHt, totalTTC: t.ttc, phraseTotaux: phraseTotaux(t.totalHt, t.ttc),
     aReviser, ...rappelTest('', plan.ecritures[0].donnees), ...(aReviser.length ? { consigne: `À dire à l'utilisateur : ${aReviser.length} ligne(s) du modèle sont à revoir (aReviser, numéros du MODÈLE). Les lignes non copiées sont à ajouter avec modifier_lignes_devis si besoin.` } : {}),
   });
 }
@@ -1353,7 +1355,7 @@ export async function annulerDerniereModificationDevis(c, args) {
   }
   const remis = { ...(copie?.avant ?? devis), id };
   return {
-    annule: true, id, operationAnnulee: derniere.operationId, operationId: r.operationRestauration ?? null,
+    annule: true, id, ...champLienEcran(c, { id, statut: 'brouillon' }), operationAnnulee: derniere.operationId, operationId: r.operationRestauration ?? null,
     phrase: phraseAnnulation(remis, copie?.apres ?? devis),
     ...resumeDuDevis(remis),
     consigne: 'Redis à l’utilisateur, en une phrase, ce qui a été remis (champ phrase). Un seul niveau d’annulation : un deuxième appel répond « déjà annulé ».',
@@ -1393,7 +1395,7 @@ export async function finaliserDevis(c, args) {
     const t = D.totauxDevis(devis);
     const { code, valideMinutes } = await emettreCode({ donnees: c.donnees, jeton, outil: 'finaliser_devis', cibleId: devis.id, empreinte, maintenant: c.maintenant });
     return {
-      apercu: true, finalise: false, id: devis.id, objet: devis.objet ?? '', version: devis.version ?? 1, numero: devis.numero ?? 'attribué à la finalisation',
+      apercu: true, finalise: false, id: devis.id, ...champLienEcran(c, devis), objet: devis.objet ?? '', version: devis.version ?? 1, numero: devis.numero ?? 'attribué à la finalisation',
       test: decision.test, raisonTest: decision.raison, numeroPrevu: numeroRacine ?? (decision.test ? 'TEST-NNN (prévu, compteur séparé)' : 'DEV-AAAA-MM-JJ-NNN (prévu)'),
       lignes: nombreDeLignes(devis.sections), totalBrutHT: t.totalBrutHt, remiseHT: t.remiseHt, totalHT: t.totalHt, totalTTC: t.ttc, destinataires: devis.destinataires ?? [],
       code, valideMinutes,
@@ -1416,7 +1418,7 @@ export async function finaliserDevis(c, args) {
   if (!r.ok) refuser('saisie_invalide', `Ce devis ne peut pas être finalisé, rien n'a été écrit. À corriger : ${listeErreurs(r.erreurs)}`, { erreurs: r.erreurs });
   c.noterOperation?.(r.operationId);
   return {
-    finalise: true, id: devis.id, numero: r.numero, test: r.devis.test === true, statut: r.devis.statut, nouveauNumero: r.nouveauNumero, totalHT: r.devis.totaux.totalHt, totalTTC: r.devis.totaux.ttc, operationId: r.operationId,
+    finalise: true, id: devis.id, ...champLienEcran(c, r.devis), numero: r.numero, test: r.devis.test === true, statut: r.devis.statut, nouveauNumero: r.nouveauNumero, totalHT: r.devis.totaux.totalHt, totalTTC: r.devis.totaux.ttc, operationId: r.operationId,
     detail: `${r.devis.test === true ? 'Devis de test : numéro TEST-, compteur séparé (le numéro DEV- n\'est pas consommé). ' : ''}Détail de l'opération : lire_audit avec operationId ${r.operationId}. Le devis n'est pas encore envoyé : l'envoi du message se fait depuis l'écran ; ensuite changer_statut_devis (marquer_envoye) puis enregistrer_envoi_devis.`,
   };
 }
@@ -1478,7 +1480,7 @@ export async function changerStatutDevis(c, args) {
   if (action === 'marquer_envoye') { // décision de Jérôme (25/10/2026) : exécution directe, sans aperçu ni code ; journal écrit, mais non restaurable
     const r = await appelerCoeurDevis(c, () => changerStatutServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: devis.id, action }));
     return {
-      change: true, id: devis.id, numero: r.devis.numero ?? null, action, statut: r.devis.statut, remplaces: r.remplaces, operationId: r.operationId,
+      change: true, id: devis.id, ...champLienEcran(c, r.devis), numero: r.devis.numero ?? null, action, statut: r.devis.statut, remplaces: r.remplaces, operationId: r.operationId,
       detail: `Détail de l'opération : lire_audit avec operationId ${r.operationId}. Ce changement de statut ne se défait pas avec restaurer_depuis_audit : pour corriger, nouvelle_version_devis.`,
     };
   }
@@ -1489,7 +1491,7 @@ export async function changerStatutDevis(c, args) {
     outil: 'changer_statut_devis', cibleId: `${devis.id}:${action}`, verbe: 'changé',
     empreinte: empreinteDevis(devis, { action, remplaces: remplaces.map((v) => v.id).sort() }),
     apercu: {
-      change: false, id: devis.id, numero: devis.numero ?? null, version: devis.version ?? 1, objet: devis.objet ?? '', action,
+      change: false, id: devis.id, ...champLienEcran(c, devis), numero: devis.numero ?? null, version: devis.version ?? 1, objet: devis.objet ?? '', action,
       statutActuel: devis.statut, statutApres: D.statutApres(devis.statut, action), totalHT: t.totalHt, totalTTC: t.ttc,
       remplaceraAussi: remplaces.map((v) => ({ id: v.id, version: v.version ?? 1, statut: v.statut })),
     },
@@ -1498,7 +1500,7 @@ export async function changerStatutDevis(c, args) {
   if (apercu) return apercu;
   const r = await appelerCoeurDevis(c, () => changerStatutServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: devis.id, action }), { reserver: false });
   return {
-    change: true, id: devis.id, numero: r.devis.numero ?? null, action, statut: r.devis.statut, remplaces: r.remplaces, operationId: r.operationId,
+    change: true, id: devis.id, ...champLienEcran(c, r.devis), numero: r.devis.numero ?? null, action, statut: r.devis.statut, remplaces: r.remplaces, operationId: r.operationId,
     detail: `Détail de l'opération : lire_audit avec operationId ${r.operationId}. Ce changement de statut ne se défait pas avec restaurer_depuis_audit : pour corriger, nouvelle_version_devis.`,
   };
 }
@@ -1507,7 +1509,7 @@ export async function changerStatutDevis(c, args) {
 export async function nouvelleVersionDevis(c, args) {
   const r = await appelerCoeurDevis(c, () => nouvelleVersionServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id }));
   return {
-    id: r.devis.id, sourceId: args.id, numero: r.devis.numero ?? null, version: r.devis.version, statut: r.devis.statut, operationId: r.operationId, sections: structureCourte(r.devis.sections),
+    id: r.devis.id, ...champLienEcran(c, r.devis), sourceId: args.id, numero: r.devis.numero ?? null, version: r.devis.version, statut: r.devis.statut, operationId: r.operationId, sections: structureCourte(r.devis.sections),
     detail: 'Un brouillon est créé : le modifier avec modifier_devis_brouillon, puis le finaliser avec finaliser_devis. La version précédente ne change pas de statut avant la finalisation. Récupérable avec restaurer_depuis_audit (supprime ce brouillon).',
   };
 }
@@ -1515,20 +1517,20 @@ export async function nouvelleVersionDevis(c, args) {
 /** Archive (archive: true : devis finalisé, signé ou refusé seulement) ou désarchive un devis. Restaurable. */
 export async function archiverDevis(c, args) {
   const r = await appelerCoeurDevis(c, () => archiverServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, archive: args.archive }));
-  return { id: args.id, archive: args.archive, statut: r.devis.statut, operationId: r.operationId };
+  return { id: args.id, ...champLienEcran(c, { id: args.id, statut: r.devis.statut }), archive: args.archive, statut: r.devis.statut, operationId: r.operationId };
 }
 
 /** Ajoute un envoi (destinataires, copie) à l'historique d'un devis « Envoyé » ; `envoyeLe` garde la date du premier envoi, un renvoi ajoute une ligne. Restaurable. */
 export async function enregistrerEnvoiDevis(c, args) {
   const r = await appelerCoeurDevis(c, () => enregistrerEnvoiServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, destinataires: args.destinataires, copie: args.copie, origine: args.origine }));
   const dernier = r.devis.envois[r.devis.envois.length - 1];
-  return { id: args.id, nombreEnvois: r.devis.envois.length, dernierEnvoi: { destinataires: dernier.destinataires, copie: dernier.copie, ...(dernier.origine ? { origine: dernier.origine } : {}) }, operationId: r.operationId };
+  return { id: args.id, ...champLienEcran(c, { id: args.id, statut: r.devis.statut }), nombreEnvois: r.devis.envois.length, dernierEnvoi: { destinataires: dernier.destinataires, copie: dernier.copie, ...(dernier.origine ? { origine: dernier.origine } : {}) }, operationId: r.operationId };
 }
 
 /** Destinataire (et copie) d'un devis FINALISÉ ou ENVOYÉ : seuls ces deux champs changent (option A de Jérôme, 29/10/2026). La copie reste si elle n'est pas donnée. */
 export async function modifierDestinatairesDevis(c, args) {
   const r = await appelerCoeurDevis(c, () => modifierDestinatairesServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, destinataires: args.destinataires, copie: args.copie }));
-  return { id: args.id, destinataires: r.devis.destinataires, copie: r.devis.copie, operationId: r.operationId };
+  return { id: args.id, ...champLienEcran(c, { id: args.id, statut: r.devis.statut }), destinataires: r.devis.destinataires, copie: r.devis.copie, operationId: r.operationId };
 }
 
 /**
@@ -1659,8 +1661,6 @@ export async function pdfOfficielDevis(c, args) {
   if (devis.pdf?.statut === 'en_cours') refuser('saisie_invalide', `Le PDF officiel est en cours de fabrication.${arret} Tu peux seulement rappeler cet outil dans quelques instants.`);
   if (devis.pdf?.statut !== 'ok' || typeof devis.pdf?.chemin !== 'string') refuser('saisie_invalide', `Le PDF officiel de ce devis n’est pas disponible${devis.pdf?.statut === 'echec' ? ' (sa fabrication a échoué)' : ''}.${arret}`);
   if (!cheminAppartientALEspace(devis.pdf.chemin, c.espace ?? '')) refuser('stockage_indisponible', `Le PDF officiel n’a pas été retrouvé au bon endroit du stockage.${arret}`);
-  const base = String(c.baseLien ?? '').replace(/\/+$/, '');
-  const prefixe = c.espaceN8n && c.espaceN8n !== ESPACE_JEROME ? `espace/${c.espaceN8n}/` : '';
   const stockage = c.stockage?.() ?? null;
   let lien = null;
   if (stockage && await stockage.existe(devis.pdf.chemin)) {
@@ -1672,7 +1672,7 @@ export async function pdfOfficielDevis(c, args) {
   return {
     id: devis.id, numero: devis.numero ?? null, version: devis.version ?? 1, statut: devis.statut, nom: devis.pdf.nom ?? null,
     ...(lien ? { lien, valableMinutes: DUREE_LIEN_MINUTES } : {}),
-    lienApplication: `${base}/#/${prefixe}devis/voir/${encodeURIComponent(devis.id)}`,
+    ...(lienEcranDepuisContexte(c, devis) ? { lienApplication: lienEcranDepuisContexte(c, devis), lienEcran: lienEcranDepuisContexte(c, devis) } : {}),
     ...(avertissements.length ? { avertissement: avertissements.join(' ') } : {}),
     consigne: 'Ce devis a un PDF officiel, le seul à utiliser. Donne le lien à l’utilisateur qui l’a demandé. Ne transmets ni le PDF ni le lien à quelqu’un d’autre (client, collègue…) sans lui avoir montré le destinataire et obtenu un « oui » clair, et n’envoie rien toi-même : pour préparer l’e-mail avec ce PDF joint, utilise preparer_email.',
   };
