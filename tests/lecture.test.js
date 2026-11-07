@@ -294,7 +294,10 @@ describe('Lecture seule (garantie)', () => {
     const lecteurs = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE];
     const noms = lecteurs.map((o) => o.nom).sort();
     assert.deepEqual(noms, ['chercher', 'chercher_article', 'diagnostiquer_fichiers', 'lire_affaire', 'lire_audit', 'lire_devis', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_proposition', 'lire_reglages', 'lire_reglages_devis', 'lister_activites', 'lister_affaires', 'lister_articles', 'lister_automatisations', 'lister_devis', 'lister_documents', 'lister_modeles_projet', 'lister_projets', 'lister_propositions', 'obtenir_pdf_officiel_devis', 'qui_suis_je', 'rechercher_article_par_phrase']);
-    for (const o of lecteurs) assert.deepEqual(o.profils, ['lecture', 'ecriture', 'complet'], o.nom);
+    // Le profil agent-devis (07/11/2026) n'a que 13 outils de lecture, listés en dur : jamais « tous ».
+    const LECTURE_AGENT_DEVIS = ['qui_suis_je', 'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_devis', 'lire_devis', 'lire_reglages_devis', 'chercher_article', 'lister_articles', 'rechercher_article_par_phrase', 'obtenir_pdf_officiel_devis'];
+    for (const o of lecteurs) assert.deepEqual(o.profils, LECTURE_AGENT_DEVIS.includes(o.nom) ? ['lecture', 'ecriture', 'agent-devis', 'complet'] : ['lecture', 'ecriture', 'complet'], o.nom);
+    assert.equal(lecteurs.filter((o) => o.profils.includes('agent-devis')).length, 13);
     for (const o of OUTILS.filter((x) => !noms.includes(x.nom))) assert.ok(!o.profils.includes('lecture'), `${o.nom} : le lecteur n’a aucun droit d’écriture`);
   });
   test('le code des fonctions ne référence jamais l’ancienne collection crm_prospects', () => {

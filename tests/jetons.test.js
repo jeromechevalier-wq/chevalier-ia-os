@@ -26,8 +26,8 @@ describe('Jetons : format et lecture', () => {
     assert.equal(analyserSecret(JSON.stringify({ ...e1, empreinte: 'abc' })).entrees.length, 0);
     assert.equal(analyserSecret(JSON.stringify({ ...e1, actif: 'oui' })).entrees.length, 0);
   });
-  test('seuls les trois profils du plan existent', () => {
-    assert.deepEqual(PROFILS, ['lecture', 'ecriture', 'complet']);
+  test('seuls les quatre profils existent', () => {
+    assert.deepEqual(PROFILS, ['lecture', 'ecriture', 'agent-devis', 'complet']);
   });
 });
 
@@ -82,6 +82,13 @@ describe('outils/creer-jeton.js', () => {
     assert.equal(ligne.profil, 'ecriture');
     assert.equal(ligne.actif, true);
     assert.equal(JSON.stringify(ligne).includes(jeton), false);
+    assert.ok(trouverJeton(analyserSecret(JSON.stringify(ligne)).entrees, jeton));
+  });
+  test('le profil agent-devis est accepté, la ligne est valide', () => {
+    const sortie = lancer('n8n-devis-essai', 'agent-devis');
+    const jeton = /cia_[A-Za-z0-9_-]{43}/.exec(sortie)[0];
+    const ligne = JSON.parse(/\{"jeton".*\}/.exec(sortie)[0]);
+    assert.equal(ligne.profil, 'agent-devis');
     assert.ok(trouverJeton(analyserSecret(JSON.stringify(ligne)).entrees, jeton));
   });
   test('deux appels donnent deux jetons différents ; un profil ou un nom invalide est refusé', () => {

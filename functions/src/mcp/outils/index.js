@@ -1,6 +1,6 @@
 // Registre des outils MCP. Chaque outil déclare les profils autorisés ; le serveur n'expose et n'exécute que ceux du profil
 // du jeton (deuxième niveau de protection, après le filtre « tools.include » côté Hermes).
-//  lecture : lecture ; ecriture : + écriture ; complet : + suppression et restauration.
+//  lecture : lecture ; ecriture : + écriture ; agent-devis : liste blanche de 21 outils (devis, e-mail) ; complet : + suppression et restauration.
 import { qui_suis_je } from './identite.js';
 import { OUTILS_LECTURE } from './lecture.js';
 import { OUTILS_ECRITURE } from './ecriture.js';
