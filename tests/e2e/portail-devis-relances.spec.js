@@ -130,7 +130,7 @@ test.describe('chez Jérôme', () => {
     await expect(page).toHaveURL(/#\/portail-devis\/devis\/voir\/r12$/);
   });
 
-  test('22 « Préparer l\'e-mail » depuis Relances ouvre la fenêtre standard et ne marque rien comme relancé', async ({ page }, info) => {
+  test('22 « Préparer l\'e-mail » depuis Relances ouvre la fenêtre (texte de relance) et ne marque rien comme relancé', async ({ page }, info) => {
     await jeu();
     const etat = await simulerServeur(page);
     await ouvrirRelances(page);

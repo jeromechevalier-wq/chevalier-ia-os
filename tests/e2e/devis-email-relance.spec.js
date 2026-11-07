@@ -23,7 +23,7 @@ const VALEURS = (id, valeurs) => ({
 const devis = (id, valeurs = {}, base = '') => ecrireDocument(`${base}devis_devis/${id}`, VALEURS(id, valeurs));
 const ligne = (page, id) => page.locator(`.ligne-relance[data-id="${id}"]`);
 
-/** Faux serveur. `etat.appels` : devisEnregistrerEnvoi reçus ; `etat.refus` : message de refus ; `etat.ecrire(appel)` : écrit la ligne dans la base (comme le vrai serveur). */
+/** Faux serveur. `etat.email` : devisPreparerEmail reçus ; `etat.appels` : devisEnregistrerEnvoi reçus (doit rester vide : « Relancé » est un clic séparé). */
 async function simulerServeur(page, etat = {}) {
   etat.appels = []; etat.email = [];
   await page.route('**/devisPreparerEmailEtat', async (route) => {
@@ -39,9 +39,6 @@ async function simulerServeur(page, etat = {}) {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
     const donnees = JSON.parse(route.request().postData()).data;
     etat.appels.push(donnees);
-    if (etat.delaiMs) await new Promise((r) => setTimeout(r, etat.delaiMs));
-    if (etat.refus) return route.fulfill({ status: 400, headers: cors, body: JSON.stringify({ error: { message: etat.refus, status: 'FAILED_PRECONDITION' } }) });
-    await etat.ecrire?.(donnees);
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
   });
   return etat;
@@ -68,6 +65,35 @@ test('2b-1 depuis Relances, « Préparer l’e-mail » ouvre la fenêtre prérem
   await expect.poll(() => etat.email.length).toBe(1);
   expect(etat.email[0]).toEqual({ devisId: 'r12', objet: OBJET_RELANCE, message });
   expect(etat.appels).toHaveLength(0); // « Relancé » reste un clic séparé : rien n'est enregistré à l'ouverture
+});
+
+test('2b-3 un devis finalisé jamais envoyé (bloc « Jamais envoyés ») : « Préparer l’e-mail » garde le texte STANDARD (pas de « envoyé il y a quelques jours »), appel { devisId } seul', async ({ page }, info) => {
+  await devis('j8', { numero: 'DEV-2026-10-01-004', statut: 'en_attente_envoi', finaliseLe: ilYA(8) });
+  const etat = await simulerServeur(page);
+  await ouvrirRelances(page);
+  await expect(page.locator('[data-bloc="jamais-envoyes"]')).toContainText('Jamais envoyés');
+  await ligne(page, 'j8').locator('[data-action="preparer-email"]').click();
+  await expect(boite(page)).toBeVisible();
+  await expect(boite(page).locator('[data-champ="objet-preparer-email"]')).toHaveValue('Devis DEV-2026-10-01-004 – Rénovation cuisine');
+  const message = await boite(page).locator('[data-champ="message-preparer-email"]').inputValue();
+  expect(message).toContain('Veuillez trouver ci-joint notre devis');
+  expect(message).not.toContain('il y a quelques jours');
+  await capturer(page, info, '2b-3-fenetre-jamais-envoye');
+  await boite(page).locator('[data-action="confirmer-preparer-email"]').click();
+  await expect.poll(() => etat.email.length).toBe(1);
+  expect(etat.email[0]).toEqual({ devisId: 'j8' });
+});
+
+test('2b-4 relance : un message vidé grise « Préparer le brouillon Gmail » avec « Le message ne peut pas être vide. »', async ({ page }) => {
+  await devis('r12', { numero: 'DEV-2026-10-01-001', statut: 'envoye', finaliseLe: ilYA(12), envoyeLe: ilYA(12), envois: [{ date: ilYA(12) }] });
+  await simulerServeur(page);
+  await ouvrirRelances(page);
+  await ligne(page, 'r12').locator('[data-action="preparer-email"]').click();
+  await boite(page).locator('[data-champ="message-preparer-email"]').fill('');
+  await expect(boite(page).locator('[data-action="confirmer-preparer-email"]')).toBeDisabled();
+  await expect(boite(page).locator('[data-zone="aide-texte-preparer-email"]')).toHaveText('Le message ne peut pas être vide.');
+  await boite(page).locator('[data-champ="message-preparer-email"]').fill('Mon texte');
+  await expect(boite(page).locator('[data-action="confirmer-preparer-email"]')).toBeEnabled();
 });
 
 test('2b-2 depuis le menu « … » de la liste, « Préparer l’e-mail » garde le texte STANDARD et l’appel ne porte que { devisId }', async ({ page }, info) => {

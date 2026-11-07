@@ -1,6 +1,6 @@
 // « Préparer l'e-mail » avec contenu personnalisé (01/11/2026) : règles pures (écran ET serveur) et serveur (accès en mémoire, faux n8n). Le nom d'un test commence par le numéro du critère.
 //  F1 la fenêtre est préremplie avec les textes standard EXACTS ; F2 ajouter/retirer des adresses, validation, maximum, doublons ; F3 cas vide ; F4 seuls les champs changés partent ;
-//  F5 le serveur revérifie et nettoie ; F6 le texte vit côté serveur et n8n ne reçoit que des identifiants ; F7 sans champ, comportement inchangé ; F8 le devis n'est jamais modifié.
+//  F5 le serveur revérifie et nettoie ; F6 le texte vit côté serveur et n8n ne reçoit que des identifiants ; F7 sans champ, comportement inchangé ; F8 le devis n'est jamais modifié ; F9 à F12 relance (07/11/2026) : texte de relance envoyé même sans modification, texte modifié = le sien, champ vidé refusé, objet tronqué à MAX_OBJET.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { creerAccesMemoire, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';
@@ -99,6 +99,31 @@ describe('F10 relance : le texte modifié par la personne est celui qui part', (
     const depart = P.valeursDeDepart(devisType(), 'Marie Durand', { relance: true });
     assert.deepEqual(P.saisieModifiee(depart, { ...depart, message: 'Mon texte' }), { objet: depart.objet, message: 'Mon texte' });
     assert.deepEqual(P.saisieModifiee(depart, { ...depart, objet: 'Mon objet' }), { objet: 'Mon objet', message: depart.message });
+  });
+});
+
+describe('F11 relance : objet ou message vidé = impossible de préparer (sinon le serveur mettrait le texte standard, que personne n’a relu)', () => {
+  test('F11 relance : objet vide, message vide ou espaces seuls grisent le bouton avec une phrase ; hors relance rien ne change', () => {
+    const d = P.valeursDeDepart(devisType(), 'Marie Durand', { relance: true });
+    assert.equal(P.peutPreparer(d), true);
+    assert.equal(P.peutPreparer({ ...d, objet: '  ' }), false);
+    assert.equal(P.refusTexteRelance({ ...d, objet: '' }), P.MESSAGE_OBJET_VIDE);
+    assert.equal(P.peutPreparer({ ...d, message: '' }), false);
+    assert.equal(P.refusTexteRelance({ ...d, message: ' \n ' }), P.MESSAGE_MESSAGE_VIDE);
+    const s = P.valeursDeDepart(devisType(), 'Marie Durand');
+    assert.equal(P.peutPreparer({ ...s, objet: '', message: '' }), true, 'hors relance : un champ vide reprend le texte standard, comme avant');
+    assert.equal(P.refusTexteRelance({ ...s, objet: '' }), null);
+  });
+});
+
+describe('F12 relance : l’objet de départ tient toujours dans la limite du serveur', () => {
+  test('F12 un objet de devis de 300 caractères : l’objet de relance fait au plus MAX_OBJET et garde le numéro', () => {
+    const d = P.valeursDeDepart(devisType({ objet: 'x'.repeat(300) }), 'Marie', { relance: true });
+    assert.ok(d.objet.length <= B.MAX_OBJET, String(d.objet.length));
+    assert.ok(d.objet.startsWith('Relance – Devis D-2026-014 – x'));
+    const juste = P.valeursDeDepart(devisType({ objet: 'y'.repeat(170) }), 'Marie', { relance: true });
+    assert.ok(juste.objet.length <= B.MAX_OBJET);
+    assert.equal(P.valeursDeDepart(devisType(), 'Marie', { relance: true }).objet, 'Relance – Devis D-2026-014 – Rénovation salle de bain');
   });
 });
 
