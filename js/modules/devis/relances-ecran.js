@@ -1,5 +1,5 @@
 // Écran « Relances » du portail devis seul (étape 2a) : les devis à relancer, déjà relancés et qui vont l'être. À la main d'abord, jamais d'envoi automatique.
-// Aucune règle ici : les groupes viennent de relances.js (groupesDeRelance, pur et testé). « Préparer l'e-mail » ouvre la fenêtre standard ; « Relancé » écrit une ligne
+// Aucune règle ici : les groupes viennent de relances.js (groupesDeRelance, pur et testé). « Préparer l'e-mail » ouvre la fenêtre avec le texte de RELANCE (devis déjà envoyés) ou le texte standard (jamais envoyés) ; « Relancé » écrit une ligne
 // d'envoi d'origine `relance` PAR LE SERVEUR (donnees.js : enregistrerEnvoi), jamais par une écriture directe. Tableau de bord : titre et compteur, ni recherche ni vues.
 import { h, icone, remplir, confirmer, toast } from '../../os/ui.js';
 import { etatVide, planifier } from '../crm/composants.js';
@@ -30,12 +30,12 @@ export function rendreRelances(conteneur) {
   const zone = h('div', { class: 'zone-relances' });
   const avis = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'lecture' }, hidden: true });
 
-  function boutonEmail(d) {
+  function boutonEmail(d, { relance }) {
     const nonBranche = D.emailPreparable() === false;
     return h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: nonBranche, title: nonBranche ? MESSAGE_NON_BRANCHE : null, dataset: { action: 'preparer-email' },
       onclick: (e) => {
         if (D.emailPreparable() === false) { e.currentTarget.disabled = true; e.currentTarget.title = MESSAGE_NON_BRANCHE; toast(MESSAGE_NON_BRANCHE, { type: 'erreur', duree: 8000 }); return; } // la réponse du serveur est arrivée après le dessin
-        lancerPreparationEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id) ?? d, finaliser: null });
+        lancerPreparationEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id) ?? d, finaliser: null, relance });
       } }, icone('mail-check', { taille: 16 }), LIBELLE_PREPARER_EMAIL);
   }
   function boutonRelance(d, delai) {
@@ -71,9 +71,9 @@ export function rendreRelances(conteneur) {
     const blocs = [
       bloc('a-relancer', 'À relancer', aRelancer.map((e) => {
         const n = nombreDeRelances(e.devis);
-        return ligne(e.devis, { motif: 'a_relancer', pastille: pastilleATraiter(e), detail: n ? `${libelleRelance(n)} déjà faite` : null, boutons: [boutonEmail(e.devis), boutonRelance(e.devis, delaiJours)] });
+        return ligne(e.devis, { motif: 'a_relancer', pastille: pastilleATraiter(e), detail: n ? `${libelleRelance(n)} déjà faite` : null, boutons: [boutonEmail(e.devis, { relance: true }), boutonRelance(e.devis, delaiJours)] });
       })),
-      bloc('jamais-envoyes', 'Jamais envoyés', jamais.map((e) => ligne(e.devis, { motif: 'jamais_envoye', pastille: pastilleATraiter(e), boutons: [boutonEmail(e.devis)] }))),
+      bloc('jamais-envoyes', 'Jamais envoyés', jamais.map((e) => ligne(e.devis, { motif: 'jamais_envoye', pastille: pastilleATraiter(e), boutons: [boutonEmail(e.devis, { relance: false })] }))), // jamais envoyé : texte STANDARD (un premier envoi, pas une relance)
       bloc('deja-relances', 'Déjà relancés', g.dejaRelances.map((r) => ligne(r.devis, { motif: 'deja_relance',
         detail: `Relancé le ${dateCourte(r.derniereRelanceMs)} · ${libelleRelance(r.nbRelances)} · à relancer de nouveau dans ${jours(r.dansJours)}` }))),
       bloc('a-venir', 'À relancer bientôt', g.aVenir.map((r) => ligne(r.devis, { motif: 'a_venir',

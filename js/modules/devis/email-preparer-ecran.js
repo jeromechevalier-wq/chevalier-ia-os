@@ -16,7 +16,7 @@ import { emailsDeFiche } from './editeur-logique.js';
  * Point d'entrée (éditeur et visualisation). `getDevis()` rend le devis À JOUR ; `finaliser` : { libelle, action } proposé pour un brouillon (« Finaliser d'abord »).
  * Ne lève jamais : tout problème devient un message.
  */
-export async function lancerPreparationEmail({ devisId, getDevis, finaliser = null }) {
+export async function lancerPreparationEmail({ devisId, getDevis, finaliser = null, relance = false }) {
   const d = getDevis();
   if (!d) { toast('Ce devis est introuvable.', { type: 'erreur', duree: 6000 }); return; }
   const possible = E.emailPossible(d.statut);
@@ -26,10 +26,10 @@ export async function lancerPreparationEmail({ devisId, getDevis, finaliser = nu
     return;
   }
   const etat = etatPdfDevis(d);
-  if (etat !== 'pret') { await pdfPasPret(devisId, getDevis, finaliser, etat, d, lancerPreparationEmail); return; }
+  if (etat !== 'pret') { await pdfPasPret(devisId, getDevis, finaliser, etat, d, (args) => lancerPreparationEmail({ ...args, relance })); return; }
   let contact = '';
   try { contact = (d.personneId ? Fiches.personne(d.personneId)?.nom : '') || ''; } catch { contact = ''; }
-  if (await fenetre(devisId, P.valeursDeDepart(d, contact), E.nomPieceJointe(d.pdf?.nom), () => adressesDeFiche(d))) toast(P.MESSAGE_DEMANDE_ENVOYEE, { duree: 8000 });
+  if (await fenetre(devisId, P.valeursDeDepart(d, contact, { relance }), E.nomPieceJointe(d.pdf?.nom), () => adressesDeFiche(d))) toast(P.MESSAGE_DEMANDE_ENVOYEE, { duree: 8000 });
 }
 
 /** Les adresses e-mail de la fiche du client du devis, proposées pendant la saisie (liste courte ; on peut toujours taper une autre adresse). Ne lève jamais. */
@@ -39,14 +39,20 @@ function adressesDeFiche(d) {
 
 /** La fenêtre. Rend true si la demande est partie, false si annulée. Pendant l'appel tout est grisé et rien ne ferme ; un échec garde la fenêtre ouverte et tout le texte saisi. */
 function fenetre(devisId, depart, nomPdf, suggestions) {
-  const etat = { destinataires: [...depart.destinataires], copie: [...depart.copie], objet: depart.objet, message: depart.message };
+  const etat = { destinataires: [...depart.destinataires], copie: [...depart.copie], objet: depart.objet, message: depart.message, relance: depart.relance === true };
   let occupe = false;
   let boutons = [];
   const erreur = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { zone: 'erreur-preparer-email' } });
   const enCours = h('p', { class: 'texte-discret', role: 'status', 'aria-live': 'polite', hidden: true, dataset: { zone: 'etat-preparer-email' } }, P.MESSAGE_EN_COURS);
   const majBouton = () => { if (boutons[0]) boutons[0].disabled = occupe || !P.peutPreparer(etat); };
   const aide = h('p', { class: 'texte-discret', role: 'status', hidden: true, dataset: { zone: 'aide-destinataires-preparer-email' } }, P.MESSAGE_AJOUTER_DESTINATAIRE);
-  const majAide = () => { aide.hidden = P.peutPreparer(etat); };
+  const aideObjet = h('p', { class: 'texte-discret', id: 'aide-objet-preparer-email', role: 'status', hidden: true, dataset: { zone: 'aide-objet-preparer-email' } });
+  const aideMessage = h('p', { class: 'texte-discret', id: 'aide-message-preparer-email', role: 'status', hidden: true, dataset: { zone: 'aide-texte-preparer-email' } });
+  const majAide = () => {
+    aide.hidden = etat.destinataires.length > 0;
+    const o = P.refusObjetRelance(etat); aideObjet.textContent = o ?? ''; aideObjet.hidden = !o;
+    const m = P.refusMessageRelance(etat); aideMessage.textContent = m ?? ''; aideMessage.hidden = !m;
+  };
   // Les règles de cette fenêtre (adresse sûre, doublon, maximum) sont dans P.ajouterAdresse ; le composant partagé ne fait que la saisie à la Gmail.
   const adresses = saisieAdresses({
     lire: (cle) => etat[cle],
@@ -66,8 +72,8 @@ function fenetre(devisId, depart, nomPdf, suggestions) {
     erreur.textContent = info ? '' : texte;
     erreur.hidden = info;
   };
-  const objet = h('input', { class: 'champ', type: 'text', maxlength: String(E.MAX_OBJET), value: etat.objet, 'aria-label': 'Objet', dataset: { champ: 'objet-preparer-email' }, oninput: () => { etat.objet = objet.value; } });
-  const message = h('textarea', { class: 'champ', rows: '9', maxlength: String(E.MAX_MESSAGE), 'aria-label': 'Message', dataset: { champ: 'message-preparer-email' }, oninput: () => { etat.message = message.value; } });
+  const objet = h('input', { class: 'champ', type: 'text', maxlength: String(E.MAX_OBJET), value: etat.objet, 'aria-label': 'Objet', 'aria-describedby': 'aide-objet-preparer-email', dataset: { champ: 'objet-preparer-email' }, oninput: () => { etat.objet = objet.value; majBouton(); majAide(); } });
+  const message = h('textarea', { class: 'champ', rows: '9', maxlength: String(E.MAX_MESSAGE), 'aria-label': 'Message', 'aria-describedby': 'aide-message-preparer-email', dataset: { champ: 'message-preparer-email' }, oninput: () => { etat.message = message.value; majBouton(); majAide(); } });
   message.value = etat.message;
   const occuper = (v) => {
     occupe = v;
@@ -80,8 +86,8 @@ function fenetre(devisId, depart, nomPdf, suggestions) {
   const contenu = h('div', { class: 'contenu-preparer-email' },
     h('p', { dataset: { valeur: 'confirmation-preparer-email' } }, P.MESSAGE_CONFIRMATION),
     adresses.element, aide,
-    h('div', { class: 'champ-preparer-email' }, h('label', { class: 'etiquette' }, 'Objet'), objet),
-    h('div', { class: 'champ-preparer-email' }, h('label', { class: 'etiquette' }, 'Message'), message),
+    h('div', { class: 'champ-preparer-email' }, h('label', { class: 'etiquette' }, 'Objet'), objet, aideObjet),
+    h('div', { class: 'champ-preparer-email' }, h('label', { class: 'etiquette' }, 'Message'), message, aideMessage),
     h('div', { class: 'piece-jointe-puce', dataset: { zone: 'piece-jointe-preparer-email' } }, icone('paperclip', { taille: 16 }), h('span', {}, nomPdf)), // le poids du PDF n'est connu qu'après la demande : pas affiché
     enCours, limite, erreur);
   return dialogue({

@@ -41,10 +41,23 @@ export function adressesDuBrouillon(devis) {
   return { destinataires, copie };
 }
 
-/** Les valeurs de départ de la fenêtre : adresses du devis (comme le serveur les lira), objet et message standard remplis. `contact` : nom de la personne du devis (vide si inconnu). */
-export function valeursDeDepart(devis, contact = '') {
+/**
+ * Les valeurs de départ de la fenêtre : adresses du devis (comme le serveur les lira), objet et message standard remplis. `contact` : nom de la personne du devis (vide si inconnu).
+ * `{ relance: true }` : texte de relance au lieu du texte standard (objet tronqué pour tenir dans MAX_OBJET, le serveur refuse au-delà) ; objet ET message partent alors toujours.
+ */
+export function valeursDeDepart(devis, contact = '', { relance = false } = {}) {
   const { destinataires, copie } = adressesDuBrouillon(devis);
   const variables = { contact, numero: devis?.numero || '', objet: devis?.objet || '' };
+  // Relance : la fenêtre s'ouvre sur le texte de relance, que le serveur ne connaît pas (il mettrait le texte standard) : objet ET message partent toujours, même sans modification.
+  if (relance) {
+    let objet = E.objetRelanceParDefaut(variables);
+    const coupe = (t, n) => t.slice(0, n).replace(/[\uD800-\uDBFF]$/, '').trimEnd(); // jamais au milieu d'un emoji (paire de substitution)
+    if (objet.length > E.MAX_OBJET) { // on raccourcit l'objet du devis (pas le numéro) pour que le motif entier tienne
+      const reste = Math.max(0, String(variables.objet).length - (objet.length - E.MAX_OBJET));
+      objet = coupe(E.objetRelanceParDefaut({ ...variables, objet: coupe(String(variables.objet), reste) }), E.MAX_OBJET);
+    }
+    return { destinataires, copie, objet, message: E.messageRelanceParDefaut(variables), objetAEnvoyer: true, messageAEnvoyer: true, relance: true };
+  }
   // Le nom du contact vient du cache du navigateur, le serveur relit la base : si la personne existe mais que son nom n'est pas connu ici, le message affiché est PARTI SANS nom ;
   // on l'envoie alors toujours, pour que ce que la personne relit soit exactement ce qui part (`messageAEnvoyer`).
   return { destinataires, copie, objet: E.objetParDefaut(variables), message: E.messageParDefaut(variables), messageAEnvoyer: Boolean(devis?.personneId) && !String(contact ?? '').trim() };
@@ -69,7 +82,13 @@ export function ajouterAdresse({ destinataires, copie }, champ, saisie) {
 }
 
 /** Le bouton « Préparer le brouillon Gmail » est grisé sans destinataire (cas vide). */
-export const peutPreparer = (valeurs) => (valeurs?.destinataires?.length ?? 0) > 0;
+export const MESSAGE_OBJET_VIDE = 'L’objet ne peut pas être vide.';
+export const MESSAGE_MESSAGE_VIDE = 'Le message ne peut pas être vide.';
+/** En relance, un objet ou un message vidé ferait revenir le serveur au texte STANDARD, que personne n'a relu : on exige les deux. Le vide se juge comme le serveur (balises retirées, puis trim). Rend une phrase d'aide, ou null (hors relance : toujours null). */
+export const refusObjetRelance = (valeurs) => (valeurs?.relance && !E.nettoyerTexteLibre(valeurs.objet) ? MESSAGE_OBJET_VIDE : null);
+export const refusMessageRelance = (valeurs) => (valeurs?.relance && !E.nettoyerTexteLibre(valeurs.message) ? MESSAGE_MESSAGE_VIDE : null);
+export const refusTexteRelance = (valeurs) => refusObjetRelance(valeurs) ?? refusMessageRelance(valeurs);
+export const peutPreparer = (valeurs) => (valeurs?.destinataires?.length ?? 0) > 0 && refusTexteRelance(valeurs) === null;
 
 /**
  * Ce qu'on envoie au serveur : SEULEMENT les champs que l'utilisateur a changés (un champ absent reprend la valeur du devis ou le texte standard calculé par le serveur).
@@ -80,7 +99,7 @@ export function saisieModifiee(depart, courant) {
   const s = {};
   if (!memeListe(depart.destinataires, courant.destinataires)) s.destinataires = courant.destinataires;
   if (!memeListe(depart.copie, courant.copie)) s.copie = courant.copie;
-  if (courant.objet !== depart.objet) s.objet = courant.objet;
+  if (courant.objet !== depart.objet || depart.objetAEnvoyer === true) s.objet = courant.objet;
   if (courant.message !== depart.message || depart.messageAEnvoyer === true) s.message = courant.message;
   return Object.keys(s).length ? s : null;
 }
