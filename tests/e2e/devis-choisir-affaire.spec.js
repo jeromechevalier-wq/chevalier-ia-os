@@ -63,7 +63,7 @@ async function fauxServeur(page, { refus = null, abandon = false } = {}) {
   return appels;
 }
 const lignes = (page) => page.locator('.page-liste-devis :is(tr.ligne-devis, .carte-devis)[data-id]');
-const tous = (page) => page.locator('[data-action="choisir-affaire"]'); // la barre ET le champ Affaire
+const tous = (page) => page.locator('[data-action="choisir-affaire"]:visible'); // la barre ET le champ Affaire
 const bouton = (page) => page.locator('.entete-droite [data-action="choisir-affaire"]'); // sous le champ Affaire (onglet Édition)
 const barre = (page) => page.locator('.fiche-sous [data-action="choisir-affaire"]'); // dans la barre du haut, sur tous les onglets
 const fenetre = (page) => page.getByRole('dialog');
