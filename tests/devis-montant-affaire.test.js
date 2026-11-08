@@ -422,6 +422,13 @@ describe('N15 choisir l’affaire d’un devis finalisé sans affaire (08/11/202
     }
     assert.equal(leDevis(m, 'd1').affaireId, 'aff1');
   });
+  test('N15-4 un devis archivé rattaché compte quand même dans le montant', async () => {
+    const m = await sansAffaire();
+    await statut(m, 'd1', 'accepter');
+    await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
+    await choisir(m, 'd1');
+    assert.equal(affaireDe(m).montantDevisHt, leDevis(m, 'd1').totaux.ht);
+  });
   test('N15-5 une version a été créée depuis le choix de l’affaire : la restauration est refusée, même avec forcer (la racine resterait à moitié rattachée)', async () => {
     const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
     const m = await sansAffaire();
@@ -432,11 +439,17 @@ describe('N15 choisir l’affaire d’un devis finalisé sans affaire (08/11/202
     }
     assert.equal(leDevis(m, 'd1').affaireId, 'aff1');
   });
-  test('N15-4 un devis archivé rattaché compte quand même dans le montant', async () => {
-    const m = await sansAffaire();
-    await statut(m, 'd1', 'accepter');
-    await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
-    await choisir(m, 'd1');
-    assert.equal(affaireDe(m).montantDevisHt, leDevis(m, 'd1').totaux.ht);
+  test('N15-6 racine v1 déjà sur l’affaire + v2 sans affaire : choisir l’affaire sur v2 puis restaurer est ACCEPTÉ (v2 redevient sans affaire, v1 intacte, montant recalculé)', async () => {
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    const m = await sansAffaire('v1');
+    await choisir(m, 'v1'); // v1 sur aff1
+    const nv = await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'v1' });
+    m.collections[C.devis].find((d) => d.id === nv.devis.id).affaireId = null; // la v2 n'a pas d'affaire
+    await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: nv.devis.id });
+    const r = await choisir(m, nv.devis.id);
+    assert.equal(r.versions, 1, 'une seule ligne de devis au journal');
+    await restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer: false });
+    assert.equal(leDevis(m, nv.devis.id).affaireId ?? null, null);
+    assert.equal(leDevis(m, 'v1').affaireId, 'aff1');
   });
 });

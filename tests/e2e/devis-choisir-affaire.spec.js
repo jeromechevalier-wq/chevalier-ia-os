@@ -149,7 +149,7 @@ test('3 le choix : la fenêtre ne propose que les affaires du client ; UN appel 
 
 test('4 cas d’erreur : le serveur refuse → toast rouge avec son message, le devis ne bouge pas ; serveur injoignable → « rien n’a été perdu »', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 400 puis coupe la connexion' } }, async ({ page }, info) => {
   await semer();
-  let appels = await fauxServeur(page, { refus: 'Ce devis a déjà une affaire : un devis finalisé ne change pas d’affaire.' });
+  let appels = await fauxServeur(page, { refus: 'Une version de ce devis a déjà une affaire : un devis finalisé ne change pas d’affaire.' });
   await voir(page, 'dSans');
   await ouvrirChoix(page);
   await fenetre(page).locator('[data-champ="choisir-affaire"]').click();
@@ -244,7 +244,7 @@ test('7 affaire supprimée (identifiant orphelin) : le champ Affaire est vide (p
 test('8 l’affaire est créée mais le rattachement est refusé : une SEULE affaire est créée, elle reste dans le champ, et un nouveau clic sur « Choisir l’affaire » la rattache', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 400 au premier appel' } }, async ({ page }, info) => {
   await creerOrganisation('o3', { nom: 'Client Neuf' });
   await devis('dVide', { ...FINALISE(5), organisationId: 'o3' });
-  let appels = await fauxServeur(page, { refus: 'Ce devis a déjà une affaire : un devis finalisé ne change pas d’affaire.' });
+  let appels = await fauxServeur(page, { refus: 'Une version de ce devis a déjà une affaire : un devis finalisé ne change pas d’affaire.' });
   await voir(page, 'dVide');
   await ouvrirChoix(page);
   await fenetre(page).locator('[data-champ="choisir-affaire"]').click();

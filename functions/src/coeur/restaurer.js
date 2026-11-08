@@ -70,10 +70,15 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   if (statutChange) throw new ErreurEcriture('restauration_refusee', 'Le statut de ce devis a changé depuis cette opération : elle ne se défait plus avec le journal, même avec forcer. ' + VOIE_DE_SECOURS);
   // Choix d'une affaire : si une version de la même racine est apparue DEPUIS (nouvelle version), la défaire laisserait la racine à moitié rattachée : refusé, même avec forcer.
   const racinesChoix = new Set(lignesAudit.map((l, i) => (l.outil === 'devisChoisirAffaire' && l.collection === C.devis ? (copies[i]?.avant?.racineId ?? l.docId) : null)).filter(Boolean));
-  for (const racine of racinesChoix) {
-    const dansOperation = new Set(lignesAudit.filter((l) => l.collection === C.devis).map((l) => l.docId));
-    const depuis = (await donnees.liste(C.devis, { champ: 'racineId', valeur: racine })).find((v) => !dansOperation.has(v.id));
-    if (depuis) throw new ErreurEcriture('restauration_refusee', 'Une version de ce devis a été créée depuis le choix de l’affaire : l’opération ne se défait plus avec le journal, même avec forcer.');
+  if (racinesChoix.size) {
+    // Seules comptent les versions PLUS RÉCENTES que celles de l'opération (nouvelleVersion crée toujours version = max + 1) : une ancienne version déjà rattachée, donc absente de l'opération, ne bloque pas.
+    const indices = lignesAudit.map((l, i) => (l.collection === C.devis ? i : -1)).filter((i) => i >= 0);
+    const dansOperation = new Set(indices.map((i) => lignesAudit[i].docId));
+    const versionMax = Math.max(...indices.map((i) => copies[i]?.avant?.version ?? 1));
+    for (const racine of racinesChoix) {
+      const depuis = (await donnees.liste(C.devis, { champ: 'racineId', valeur: racine })).find((v) => !dansOperation.has(v.id) && (v.version ?? 1) > versionMax);
+      if (depuis) throw new ErreurEcriture('restauration_refusee', 'Une version de ce devis a été créée depuis le choix de l’affaire : l’opération ne se défait plus avec le journal, même avec forcer.');
+    }
   }
   // Un devis supprimé puis déjà rétabli (puis peut-être changé de statut) ne se « restaure » pas une seconde fois, même avec forcer.
   const dejaRetabli = lignesAudit.find((l, i) => l.outil === 'devisSupprimer' && l.collection === C.devis && courants[i]);
