@@ -65,8 +65,13 @@ async function fauxServeur(page, { refus = null, abandon = false } = {}) {
 const lignes = (page) => page.locator('.page-liste-devis :is(tr.ligne-devis, .carte-devis)[data-id]');
 const bouton = (page) => page.locator('[data-action="choisir-affaire"]');
 const fenetre = (page) => page.getByRole('dialog');
+const connectees = new WeakSet();
+async function aller(page, route) { // première visite : connexion ; ensuite : simple changement d'adresse (une page déjà connectée ne se reconnecte pas)
+  if (connectees.has(page)) await page.evaluate((r) => { location.hash = `#/${r}`; }, route);
+  else { await connecter(page, JEROME, { route }); connectees.add(page); }
+}
 async function voir(page, id) {
-  await connecter(page, JEROME, { route: `devis/voir/${id}` });
+  await aller(page, `devis/voir/${id}`);
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
   await page.locator('.page-editeur-devis .barre-devis [data-onglet="edition"]').click(); // un devis finalisé s'ouvre sur la Prévisualisation ; l'en-tête (client, affaire) est dans l'onglet Édition
   await attendreCalme(page);
@@ -106,7 +111,7 @@ test('2 écran d’un devis finalisé sans affaire : le lien « Choisir l’affa
   await capturer(page, info, '2-bouton-choisir');
   await voir(page, 'dAvec');
   await expect(bouton(page)).toHaveCount(0);
-  await connecter(page, JEROME, { route: 'devis/editeur/dBrouillon' });
+  await aller(page, 'devis/editeur/dBrouillon');
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
   await expect(bouton(page)).toHaveCount(0);
 });
