@@ -1,11 +1,12 @@
 # À faire : module Devis et outils (liste maintenue à jour)
 
-Mise à jour : **07/11/2026** (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
+Mise à jour : **08/11/2026** (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
 ## Mise à jour du 07/11/2026 (profil `agent-devis`)
 
 | | Sujet | État | Qui |
 |---|---|---|---|
+| ✅ | **Choisir l'affaire + filtre « Sans affaire »** (PR 553, 08/11/2026) : un devis finalisé sans affaire se rattache plus tard (sens unique, toutes les versions, montant recalculé, restaurable ; fonction `devisChoisirAffaire` chez Jérôme ET chez les clients). Reste : l'outil MCP `choisir_affaire_devis` (non fait). Questions pour Jérôme dans la PR (cible archivée, affaire d'un autre client, menu « … »). |
 | ✅ | **Renommer le profil `bibliothecaire`** (idée de Jérôme, 07/11/2026) : fait par la PR 549 (profil `ecriture`, ancien nom `bibliothecaire` gardé comme alias). | Fait | Claude |
 | 🟠 | **Brief n8n « agent-devis » (hors dépôt) à revoir par Jérôme** : le workflow ne doit plus forcer `creer_affaire` avant `finaliser_devis` mais lire le champ `avertissement` de l'aperçu (décision du 07/11/2026, PR 1) | À faire | Jérôme |
 | 🟠 | **Profil `agent-devis` : absent chez les clients** (pas de porte par jeton chez eux, le profil y est le rôle) ; le code est copié mais injoignable. Page Réglages > Déploiement non modifiée (décision prise seul). | Noté | Jérôme (décision) |

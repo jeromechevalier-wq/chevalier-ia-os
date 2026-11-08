@@ -86,7 +86,7 @@ Les cartes du Kanban, la liste et les mini-cartes affichent le même chiffre, su
 
 ## Tests
 `tests/devis-montant-affaire.test.js` (règle pure N1, chaque transition N2 à N4, lecture commune et infobulle N5, restauration refusée N6, recalcul général N7, archiver = ranger N9 et N10) ; `tests/devis-serveur-firestore.test.js` C8 (vraies transactions Firestore : acceptations simultanées, finalisation, espace client isolé) ; `tests/e2e/affaire-montant.spec.js` (fiche, infobulle, direct, Kanban, liste, tri, module éteint ; ordinateur et téléphone, captures dans `tests/e2e/captures/affaire-montant/`).
+- **N15** (`tests/devis-montant-affaire.test.js`) : choisir l'affaire d'un devis finalisé (montant, restauration, statut changé depuis, devis archivé).
 
 ## Déploiement
 Le **site** (hosting) suffit pour les libellés et l'infobulle. Pour que le serveur **écrive** les champs : déployer `functions/` chez Jérôme (il porte aussi le serveur MCP) et « Déploiement plateforme clients » > `fonctions` (et `mcp`) chez les clients. Pas de règle Firestore à publier.
-- **N15** (`tests/devis-montant-affaire.test.js`) : choisir l'affaire d'un devis finalisé (montant, restauration, statut changé depuis, devis archivé).

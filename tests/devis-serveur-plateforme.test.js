@@ -118,13 +118,15 @@ describe('C7-CA plateforme : choisir l’affaire d’un devis finalisé (08/11/2
     const finalise = { ...m.collections['clients/a/devis_devis'][0], affaireId: null, statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-001', racineId: 'da', version: 1 };
     m.collections['clients/a/devis_devis'][0] = finalise;
     m.collections['clients/a/crm_affaires'].push({ id: 'aff1', titre: 'Rénovation' });
-    const avantB = JSON.stringify(m.collections['clients/b']);
+    const espaceB = () => JSON.stringify(Object.fromEntries(Object.entries(m.collections).filter(([k]) => k.startsWith('clients/b/')))); // toutes les collections de l'espace b
+    const avantB = espaceB();
+    assert.notEqual(avantB, '{}', 'l’espace b existe bien dans le monde de test');
     const r = await appeler(m, 'choisirAffaire', ALICE, { client: 'a', devisId: 'da', affaireId: 'aff1' });
     assert.equal(r.ok, true);
     assert.equal(r.affaireId, 'aff1');
     assert.equal(m.collections['clients/a/devis_devis'][0].affaireId, 'aff1');
     assert.equal(m.collections['clients/a/crm_audit'].filter((l) => l.outil === 'devisChoisirAffaire').length >= 1, true);
-    assert.equal(JSON.stringify(m.collections['clients/b']), avantB, 'l’autre espace n’est pas touché');
+    assert.equal(espaceB(), avantB, 'l’autre espace n’est pas touché');
   });
   test('C7-CA chez un client en Devis seul (pas d’affaire), la fonction répond « not-found » sans rien écrire', async () => {
     const m = monde();

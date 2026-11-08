@@ -1287,7 +1287,7 @@ describe('SA devis sans affaire (28/10/2026, finalisation sans affaire le 07/11/
     const avant = JSON.stringify(s.collections.devis_devis);
     const apercu = ok(await s.appeler('code', 'finaliser_devis', { id: r.id }));
     assert.ok(apercu.code, 'un code est émis malgré l’absence d’affaire');
-    assert.match(apercu.avertissement, /n'a pas d'affaire : il n'apparaîtra dans aucune fiche d'affaire ni dans son montant\. Tu pourras lui choisir une affaire plus tard\. Propose à l'utilisateur de choisir une affaire/);
+    assert.match(apercu.avertissement, /n'a pas d'affaire : il n'apparaîtra dans aucune fiche d'affaire ni dans son montant\. Tu pourras lui choisir une affaire plus tard\. \(le choix de l'affaire se fait pour l'instant sur l'écran du devis, pas encore par l'assistant\) Propose à l'utilisateur de choisir une affaire/);
     assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'l’aperçu n’écrit rien');
     assert.equal(s.collections.devis_compteurs.length, 0, 'aucun numéro consommé');
     const fait = ok(await s.appeler('code', 'finaliser_devis', { id: r.id, codeConfirmation: apercu.code }));

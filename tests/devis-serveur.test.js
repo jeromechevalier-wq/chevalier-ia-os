@@ -684,7 +684,7 @@ describe('CA devisChoisirAffaire (08/11/2026, PR 2) : choisir l’affaire d’un
     const { m, v2 } = await racineSansAffaire();
     await choisir(m, v2, 'aff1');
     const avant = photo(m);
-    await assert.rejects(() => choisir(m, v2, 'aff2'), (e) => e.code === 'transition_interdite' && /déjà une affaire/.test(e.message));
+    await assert.rejects(() => choisir(m, v2, 'aff2'), (e) => e.code === 'transition_interdite' && /a déjà une affaire/.test(e.message));
     const encore = await choisir(m, v2, 'aff1');
     assert.deepEqual([encore.ok, encore.rien], [true, true]);
     assert.equal(photo(m), avant);
@@ -701,13 +701,27 @@ describe('CA devisChoisirAffaire (08/11/2026, PR 2) : choisir l’affaire d’un
     const { m, v2 } = await racineSansAffaire();
     const avant = photo(m);
     await assert.rejects(() => choisir(m, v2, 'nulle-part'), (e) => e.code === 'introuvable');
-    for (const mauvais of [undefined, '', '   ', 'a/b', 42]) await assert.rejects(() => choisir(m, v2, mauvais), (e) => e.code === 'demande_invalide');
+    for (const mauvais of [undefined, '', '   ', ' aff1', 'aff1 ', 'a/b', 42, 'x'.repeat(201)]) await assert.rejects(() => choisir(m, v2, mauvais), (e) => e.code === 'demande_invalide');
     assert.equal(photo(m), avant);
     const d = leDevis(m, v2);
     const { organisationId, personneId, totaux, numero, clientNomFige } = d;
     await choisir(m, v2, 'aff1');
     const apres = leDevis(m, v2);
     assert.deepEqual([apres.organisationId, apres.personneId, apres.totaux, apres.numero, apres.clientNomFige], [organisationId, personneId, totaux, numero, clientNomFige]);
+  });
+  test('CA7 racine mixte : une version sur une affaire existante + une orpheline → refusé ; v1 déjà sur aff1 + v2 sans affaire → seule v2 est rattachée', async () => {
+    const { m, v2 } = await racineSansAffaire();
+    leDevis(m, 'v1').affaireId = 'aff2';
+    leDevis(m, v2).affaireId = 'aZZ';
+    const avant = photo(m);
+    await assert.rejects(() => choisir(m, v2, 'aff1'), (e) => e.code === 'transition_interdite' && /Une version de ce devis a déjà une affaire/.test(e.message));
+    assert.equal(photo(m), avant);
+    leDevis(m, 'v1').affaireId = 'aff1';
+    leDevis(m, v2).affaireId = null;
+    const r = await choisir(m, v2, 'aff1');
+    assert.equal(r.versions, 1, 'seule la version sans affaire est écrite');
+    assert.ok(m.collections[C.devis].every((d) => d.affaireId === 'aff1'));
+    assert.ok(m.collections[C.devis].every((d) => d.affaireId !== undefined));
   });
   test('CA6 porte de Jérôme : réponse publique sans le devis, compte inconnu refusé, brouillon et identifiant manquant refusés', async () => {
     const requete = (email, data) => ({ auth: email === undefined ? undefined : { uid: 'u', token: { email, email_verified: true } }, data });

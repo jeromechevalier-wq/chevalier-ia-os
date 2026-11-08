@@ -420,7 +420,7 @@ export async function modifierDestinataires({ donnees, ctx, devisId, destinatair
  * Ne touche ni l'organisation ni la personne du devis (D2) : l'écran ne propose que les affaires du client.
  */
 export async function choisirAffaire({ donnees, ctx, devisId, affaireId }) {
-  if (typeof affaireId !== 'string' || !affaireId.trim() || affaireId.length > 200 || affaireId.includes('/')) throw new ErreurDevis('demande_invalide', "Identifiant d'affaire manquant ou invalide.");
+  if (typeof affaireId !== 'string' || !affaireId || affaireId !== affaireId.trim() || affaireId.length > 200 || affaireId.includes('/')) throw new ErreurDevis('demande_invalide', "Identifiant d'affaire manquant ou invalide.");
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
     if (devis.statut === 'brouillon') throw new ErreurDevis('transition_interdite', 'Ce devis est encore un brouillon : choisis son affaire directement dans le devis.');
@@ -430,7 +430,7 @@ export async function choisirAffaire({ donnees, ctx, devisId, affaireId }) {
     if (toutes.every((v) => v.affaireId === affaire.id)) return { ok: true, rien: true, devis, affaireId: affaire.id };
     // Sens unique : une affaire qui existe encore sur une version = ce devis a déjà une affaire. Une affaire disparue est ignorée.
     for (const id of new Set(toutes.map((v) => v.affaireId).filter((x) => typeof x === 'string' && x && x !== affaire.id && !x.includes('/')))) {
-      if (await tx.document(C.affaires, id)) throw new ErreurDevis('transition_interdite', "Ce devis a déjà une affaire : un devis finalisé ne change pas d'affaire.");
+      if (await tx.document(C.affaires, id)) throw new ErreurDevis('transition_interdite', "Une version de ce devis a déjà une affaire : un devis finalisé ne change pas d'affaire.");
     }
     const changements = toutes.filter((v) => v.affaireId !== affaire.id).map((v) => modifier(v, { affaireId: affaire.id }));
     const montant = await montantDeLAffaire(tx, { ...devis, affaireId: affaire.id }, retouchesDe(changements), null, toutes.filter((v) => v.id !== devis.id).map((v) => ({ ...v, affaireId: affaire.id })));

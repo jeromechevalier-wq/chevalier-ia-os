@@ -68,6 +68,13 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   // Archivage / envoi défaits « de force » sur un devis dont le statut a changé depuis (signé, refusé…) : on remettrait l'ancien statut, ce qui contourne la règle des statuts.
   const statutChange = lignesAudit.find((l, i) => l.collection === C.devis && courants[i] && OUTILS_DEVIS_SUR_FINALISE.includes(l.outil) && copies[i]?.apres && courants[i].statut !== copies[i].apres.statut);
   if (statutChange) throw new ErreurEcriture('restauration_refusee', 'Le statut de ce devis a changé depuis cette opération : elle ne se défait plus avec le journal, même avec forcer. ' + VOIE_DE_SECOURS);
+  // Choix d'une affaire : si une version de la même racine est apparue DEPUIS (nouvelle version), la défaire laisserait la racine à moitié rattachée : refusé, même avec forcer.
+  const racinesChoix = new Set(lignesAudit.map((l, i) => (l.outil === 'devisChoisirAffaire' && l.collection === C.devis ? (copies[i]?.avant?.racineId ?? l.docId) : null)).filter(Boolean));
+  for (const racine of racinesChoix) {
+    const dansOperation = new Set(lignesAudit.filter((l) => l.collection === C.devis).map((l) => l.docId));
+    const depuis = (await donnees.liste(C.devis, { champ: 'racineId', valeur: racine })).find((v) => !dansOperation.has(v.id));
+    if (depuis) throw new ErreurEcriture('restauration_refusee', 'Une version de ce devis a été créée depuis le choix de l’affaire : l’opération ne se défait plus avec le journal, même avec forcer.');
+  }
   // Un devis supprimé puis déjà rétabli (puis peut-être changé de statut) ne se « restaure » pas une seconde fois, même avec forcer.
   const dejaRetabli = lignesAudit.find((l, i) => l.outil === 'devisSupprimer' && l.collection === C.devis && courants[i]);
   if (dejaRetabli) throw new ErreurEcriture('restauration_refusee', 'Ce devis supprimé existe déjà (il a été rétabli) : il ne se restaure pas une seconde fois, même avec forcer. ' + VOIE_DE_SECOURS);

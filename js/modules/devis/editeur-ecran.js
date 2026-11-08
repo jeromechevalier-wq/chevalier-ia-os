@@ -57,7 +57,7 @@ const messageLectureSeule = (d) => (versionPossible(d)
   ? `Ce devis est ${motDuStatut(d)} : pour le corriger, crée une nouvelle version (menu « … »).`
   : `Ce devis est ${motDuStatut(d)} : il ne se modifie plus.`);
 const infobulleCatalogueLecture = (d) => `Ajouter un article, c’est modifier le devis : il est ${motDuStatut(d)}, ${versionPossible(d) ? 'crée une nouvelle version pour le corriger.' : 'il ne se modifie plus.'}`;
-const SANS_VERROU = '[data-action="replier"], [data-action="definir-ajustement"], [data-action="description"], [data-action="choisir-affaire"]'; // en lecture seule, replier une section, ouvrir « Marge et ajustement » et afficher / masquer la description restent possibles (ce n'est que regarder)
+const SANS_VERROU = '[data-action="replier"], [data-action="definir-ajustement"], [data-action="description"], [data-action="choisir-affaire"]'; // en lecture seule, replier une section, ouvrir « Marge et ajustement » et afficher / masquer la description restent possibles (ce n'est que regarder) ; « Choisir l'affaire » aussi : il ouvre une fenêtre, il ne modifie pas la feuille
 const LARGEUR_TELEPHONE = 700; // même seuil que le CSS (max-width: 700px)
 const DELAI_INTROUVABLE_MS = 4000;
 const DELAI_ENREGISTREMENT_MS = 900;
@@ -384,6 +384,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     // L'enregistrement est automatique : il n'y a plus de bouton « Enregistrer ». Le nombre de champs obligatoires à remplir et le bouton « Réessayer » (seulement après un échec) prennent sa place.
     ref.lienClient = h('a', { class: 'lien-entite', dataset: { valeur: 'lien-client' }, hidden: true });
     ref.lienAffaire = h('a', { class: 'lien-entite', dataset: { valeur: 'lien-affaire' }, hidden: true });
+    ref.boutonBarreChoisir = h('button', { type: 'button', class: 'bouton-lien', hidden: true, dataset: { action: 'choisir-affaire' }, onclick: () => ouvrirChoixAffaire() }, 'Sans affaire · Choisir l’affaire'); // dans la barre : visible dès l'ouverture, sur l'onglet Prévisualisation aussi
     ref.titreCompact = h('span', { class: 'titre-compact', 'aria-hidden': 'true' }); // montré seulement quand la barre est collée en haut
     ref.compteurManquants = h('span', { class: 'indicateur-manquants', hidden: true, dataset: { valeur: 'manquants' }, title: 'Champs obligatoires à remplir' });
     ref.boutonReessayer = h('button', { type: 'button', class: 'bouton-lien', hidden: true, dataset: { action: 'reessayer-enregistrement' }, onclick: async () => { const ok = await sauver(); if (!ok) toast(messageEnreg || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 }); } }, 'Réessayer');
@@ -410,7 +411,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       boutonRetour(),
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, ref.titre,
-          h('div', { class: 'fiche-sous' }, ref.pastille, (ref.badgeTest = h('span', { class: 'badge-test', title: 'Élément de test', dataset: { badge: 'test' }, hidden: true }, CL.BADGE_TEST)), ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire))));
+          h('div', { class: 'fiche-sous' }, ref.pastille, (ref.badgeTest = h('span', { class: 'badge-test', title: 'Élément de test', dataset: { badge: 'test' }, hidden: true }, CL.BADGE_TEST)), ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire, ref.boutonBarreChoisir))));
     // Barre d'actions de l'édition : reste collée en haut de l'écran quand on défile (onglets, Catalogue, Options, Envoyer).
     ref.sentinelle = h('div', { class: 'sentinelle-barre-devis', 'aria-hidden': 'true' });
     ref.barre = h('div', { class: 'barre-devis' },
@@ -766,6 +767,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     lienDe(ref.lienClient, nomClient, d.organisationId ? cheminOrganisation(d.organisationId) : cheminPersonne(d.personneId), d.organisationId ? 'building-2' : 'user');
     const affaire = d.affaireId ? CRM.affaire(d.affaireId) : null;
     lienDe(ref.lienAffaire, affaire?.titre, cheminAffaire(d.affaireId), 'briefcase');
+    ref.boutonBarreChoisir.hidden = !peutChoisirAffaire(d);
     ref.indicateur.hidden = lecture; // lecture seule : rien à enregistrer
     if (lecture) { ref.indicateur.replaceChildren(); return; }
     if (ref.indicateur.dataset.etat !== etatEnreg) { // une icône de taille fixe : la barre ne bouge pas ; les mots restent pour l'infobulle et les lecteurs d'écran, et s'affichent seulement en cas d'échec
@@ -935,10 +937,10 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     ref.messageAffaireVidee = sansAffaires ? null : h('p', { class: 'texte-discret', role: 'status', dataset: { info: 'affaire-videe' }, hidden: true });
     ref.zoneClient = h('div', { class: 'zone-client-devis', dataset: { zone: 'client-devis' } });
     ref.champClient = lecture ? texteSeul('client', clientDuDevis(d)) : champClientIntelligent();
-    const affaireConnue = (id) => !CRM.etat.pret.affaires || Boolean(CRM.affaire(id)); // affaires pas encore chargées : on ne dit pas « sans affaire » trop tôt
+    const affaireConnue = (id) => !CRM.etat.pret.affaires || Boolean(CRM.affaire(id)); // tant que les affaires ne sont pas chargées (`CRM.etat.pret.affaires`), un identifiant compte comme connu : jamais « sans affaire » trop tôt
     ref.champAffaire = sansAffaires ? null : lecture ? texteSeul('affaire', d.affaireId && affaireConnue(d.affaireId) ? libelleAffaireDuDevis(d.affaireId) : '') : champAffaireIntelligent();
     // Devis finalisé sans affaire (ou dont l'affaire a été supprimée) : « Choisir l'affaire » ouvre une fenêtre (jamais un champ dans la feuille). Sens unique : jamais pour changer d'affaire.
-    ref.boutonChoisirAffaire = lecture && !sansAffaires && CRM.etat.pret.affaires && sansAffaire(d, (id) => Boolean(CRM.affaire(id)))
+    ref.boutonChoisirAffaire = peutChoisirAffaire(d)
       ? h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'choisir-affaire' }, onclick: () => ouvrirChoixAffaire() }, 'Choisir l’affaire') : null;
     const attentionLecture = lecture && d.organisationId && d.personneId ? CRM.personne(d.personneId)?.nom : '';
     ref.champAdresse = h('textarea', {
@@ -1082,8 +1084,10 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
    * « Choisir l'affaire » (devis finalisé sans affaire, PR 2 du 08/11/2026) : une fenêtre avec la même liste que la ligne Affaire (les affaires du client, « + Créer l'affaire »).
    * Le serveur rattache TOUTES les versions et recalcule le montant de l'affaire ; il refuse si le devis a déjà une affaire.
    */
+  /** Devis finalisé sans affaire (ou dont l'affaire a disparu), module Affaires actif, affaires chargées, compte qui peut écrire (un lecteur ne voit pas le bouton). */
+  const peutChoisirAffaire = (d) => lecture && !D.surSocleSeul() && CRM.etat.pret.affaires && CRM.compteCourant()?.ecrit !== false && sansAffaire(d, (id) => Boolean(CRM.affaire(id)));
   function ouvrirChoixAffaire() {
-    if (!lecture || !travail.id) return;
+    if (!peutChoisirAffaire(travail) || !travail.id) return;
     const etat = { pasEtape: null };
     let choisie = null;
     let enCours = false;
@@ -1121,7 +1125,13 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         console.warn(e);
         toast('L’affaire n’a pas pu être créée. Vérifie ta connexion puis réessaie : ton devis est intact.', { type: 'erreur', duree: 8000 });
       } finally { enCours = false; maj(); }
-      if (idCree && await rattacher(idCree)) fermerFenetre(true);
+      if (!idCree) return;
+      if (await rattacher(idCree)) { fermerFenetre(true); return; }
+      // L'affaire existe mais n'est pas rattachée (le serveur a refusé, ou la connexion a coupé) : on la garde dans le champ pour réessayer, jamais une seconde création.
+      choisie = idCree;
+      ci.afficher({ id: idCree, libelle: libelleAffaireDuDevis(idCree) });
+      maj();
+      toast('L’affaire est créée mais pas encore rattachée : clique « Choisir l’affaire » pour réessayer.', { type: 'erreur', duree: 8000 });
     }
     const ci = champIntelligent({
       id: 'devis-choisir-affaire', etiquette: 'Affaire', placeholder: CD.PLACEHOLDER_AFFAIRE, classe: 'champ-affaire-devis', ouvrirAuFocus: true,
@@ -1136,8 +1146,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     });
     ci.entree.dataset.champ = 'choisir-affaire';
     ci.entree.addEventListener('keydown', (e) => { if (e.key === 'Escape') etat.pasEtape = null; });
+    ci.entree.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== ci.entree) etat.pasEtape = null; }, 250)); // quitter le champ abandonne le second pas (comme la ligne Affaire)
     dialogue({
-      titre: 'Choisir l’affaire', classe: 'dialogue-formulaire',
+      titre: 'Choisir l’affaire', classe: 'dialogue-formulaire', peutFermer: () => !enCours,
       contenu: h('div', {}, h('p', {}, `Toutes les versions de ce devis seront rattachées à cette affaire ; son montant sera recalculé.${travail.archive === true ? ' Ce devis est archivé : il compte quand même dans le montant.' : ''}`), ci.element),
       boutons: [
         { libelle: 'Annuler', valeur: false },

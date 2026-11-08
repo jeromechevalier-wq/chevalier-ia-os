@@ -63,17 +63,19 @@ async function fauxServeur(page, { refus = null, abandon = false } = {}) {
   return appels;
 }
 const lignes = (page) => page.locator('.page-liste-devis :is(tr.ligne-devis, .carte-devis)[data-id]');
-const bouton = (page) => page.locator('[data-action="choisir-affaire"]');
+const tous = (page) => page.locator('[data-action="choisir-affaire"]'); // la barre ET le champ Affaire
+const bouton = (page) => page.locator('.entete-droite [data-action="choisir-affaire"]'); // sous le champ Affaire (onglet Édition)
+const barre = (page) => page.locator('.fiche-sous [data-action="choisir-affaire"]'); // dans la barre du haut, sur tous les onglets
 const fenetre = (page) => page.getByRole('dialog');
 const connectees = new WeakSet();
 async function aller(page, route) { // première visite : connexion ; ensuite : simple changement d'adresse (une page déjà connectée ne se reconnecte pas)
   if (connectees.has(page)) await page.evaluate((r) => { location.hash = `#/${r}`; }, route);
   else { await connecter(page, JEROME, { route }); connectees.add(page); }
 }
-async function voir(page, id) {
+async function voir(page, id, { edition = true } = {}) {
   await aller(page, `devis/voir/${id}`);
-  await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
-  await page.locator('.page-editeur-devis .barre-devis [data-onglet="edition"]').click(); // un devis finalisé s'ouvre sur la Prévisualisation ; l'en-tête (client, affaire) est dans l'onglet Édition
+  await expect(page.locator(`.page-editeur-devis[data-devis="${id}"]`)).toBeVisible();
+  if (edition) await page.locator('.page-editeur-devis .barre-devis [data-onglet="edition"]').click(); // un devis finalisé s'ouvre sur la Prévisualisation ; le champ Affaire est dans l'onglet Édition
   await attendreCalme(page);
 }
 async function ouvrirChoix(page) {
@@ -91,7 +93,7 @@ test('1 liste : Filtres > Affaire « Sans affaire » ne garde que les devis sans
   await page.locator('.voile-dialogue').getByRole('button', { name: 'Appliquer' }).click();
   await expect(lignes(page)).toHaveCount(3);
   await expect(page.locator('.page-liste-devis [data-id="dAvec"]')).toHaveCount(0);
-  for (const id of ['dSans', 'dOrphelin', 'dBrouillon']) await expect(lignes(page).filter({ has: page.locator(`[data-id="${id}"]`) }).or(page.locator(`.page-liste-devis [data-id="${id}"]`)).first()).toBeVisible();
+  for (const id of ['dSans', 'dOrphelin', 'dBrouillon']) await expect(page.locator(`.page-liste-devis [data-id="${id}"]`).first()).toBeVisible();
   await expect(page.locator('[data-action="filtres"] .compteur-filtres')).toHaveText('1');
   await expect(page.locator('.page-liste-devis [data-id="dOrphelin"] [data-valeur="sans-affaire"]')).toHaveText('Sans affaire'); // l'affaire disparue s'écrit « Sans affaire »
   await capturer(page, info, '1-filtre-sans-affaire');
@@ -102,7 +104,12 @@ test('1 liste : Filtres > Affaire « Sans affaire » ne garde que les devis sans
 
 test('2 écran d’un devis finalisé sans affaire : le lien « Choisir l’affaire » est là et cliquable (pas grisé) ; absent si le devis a une affaire ou est un brouillon ; aucun champ dans la feuille', async ({ page }, info) => {
   await semer();
-  await voir(page, 'dSans');
+  await voir(page, 'dSans', { edition: false }); // à l'ouverture (Prévisualisation) la barre du haut dit déjà « Sans affaire » et propose le choix
+  await expect(barre(page)).toBeVisible();
+  await expect(barre(page)).toContainText('Sans affaire');
+  await expect(barre(page)).not.toHaveAttribute('aria-disabled', 'true');
+  await capturer(page, info, '2b-barre-choisir');
+  await page.locator('.page-editeur-devis .barre-devis [data-onglet="edition"]').click();
   await expect(bouton(page)).toBeVisible();
   await expect(bouton(page)).not.toHaveAttribute('data-lecture', 'verrou');
   await expect(bouton(page)).not.toHaveAttribute('aria-disabled', 'true');
@@ -110,10 +117,10 @@ test('2 écran d’un devis finalisé sans affaire : le lien « Choisir l’affa
   await expect(page.locator('[data-champ="affaire"]')).toHaveValue('');
   await capturer(page, info, '2-bouton-choisir');
   await voir(page, 'dAvec');
-  await expect(bouton(page)).toHaveCount(0);
+  await expect(tous(page)).toHaveCount(0);
   await aller(page, 'devis/editeur/dBrouillon');
-  await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
-  await expect(bouton(page)).toHaveCount(0);
+  await expect(page.locator('.page-editeur-devis[data-devis="dBrouillon"]')).toBeVisible();
+  await expect(tous(page)).toHaveCount(0);
 });
 
 test('3 le choix : la fenêtre ne propose que les affaires du client ; UN appel au serveur ; « Affaire choisie » ; le nom s’affiche ; le lien disparaît ; la liste ne dit plus « Sans affaire »', async ({ page }, info) => {
@@ -134,9 +141,9 @@ test('3 le choix : la fenêtre ne propose que les affaires du client ; UN appel 
   expect(appels).toEqual([{ devisId: 'dSans', affaireId: 'a1' }]);
   await expect(page.locator('[data-champ="affaire"]')).toHaveValue(/Rénovation cuisine/);
   await expect(page.locator('[data-valeur="lien-affaire"]')).toBeVisible();
-  await expect(bouton(page)).toHaveCount(0);
+  await expect(tous(page)).toHaveCount(0);
   expect((await lireDocument('devis_devis/dSans')).affaireId).toBe('a1');
-  await page.goto(`${URL_APP}#/devis/liste`);
+  await aller(page, 'devis/liste');
   await expect(page.locator('.page-liste-devis [data-id="dSans"] [data-valeur="sans-affaire"]')).toHaveCount(0);
 });
 
@@ -154,6 +161,7 @@ test('4 cas d’erreur : le serveur refuse → toast rouge avec son message, le 
   expect((await lireDocument('devis_devis/dSans')).affaireId ?? null).toBeNull();
   await capturer(page, info, '4-erreur');
   await fenetre(page).getByRole('button', { name: 'Annuler' }).click();
+  await expect(fenetre(page)).toHaveCount(0);
   await expect(bouton(page)).toBeVisible();
   // serveur injoignable
   await page.unroute('**/devisChoisirAffaire');
@@ -180,11 +188,13 @@ test('5 cas vide : un client sans affaire → la fenêtre ne propose que « + Cr
   expect(await listerDocuments('crm_affaires')).toHaveLength(0);
   expect(appels).toHaveLength(0);
   await capturer(page, info, '5-cas-vide-creer');
-  await propositions(page).first().click();
+  await propositions(page).filter({ hasText: 'Premier contact' }).click(); // l'étape est choisie par son texte
   await expect.poll(async () => (await listerDocuments('crm_affaires')).length).toBe(1);
   await expect.poll(() => appels.length).toBe(1);
   const affaire = (await listerDocuments('crm_affaires'))[0];
   expect(appels[0]).toEqual({ devisId: 'dVide', affaireId: affaire.id });
+  await expect(page.locator('.toast, [role="status"]').filter({ hasText: 'Affaire choisie' }).first()).toBeVisible();
+  await expect(fenetre(page)).toHaveCount(0); // la fenêtre se ferme
 });
 
 test('6 Devis seul (client sans Affaires) : aucun critère « Affaire » dans Filtres, aucun « Choisir l’affaire », aucune mention « Sans affaire »', async ({ page }, info) => {
@@ -208,8 +218,8 @@ test('6 Devis seul (client sans Affaires) : aucun critère « Affaire » dans Fi
     await capturer(page, info, '6-devis-seul');
     await page.keyboard.press('Escape');
     await page.goto(`${URL_APP}#/espace/devisseul/portail-devis/devis/voir/cSans`);
-    await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
-    await expect(bouton(page)).toHaveCount(0);
+    await expect(page.locator('.page-editeur-devis[data-devis="cSans"]')).toBeVisible();
+    await expect(tous(page)).toHaveCount(0);
     await expect(page.locator('[data-champ="affaire"]')).toHaveCount(0);
   } finally { await chargerRegles('firestore.rules'); }
 });
@@ -227,4 +237,53 @@ test('7 affaire supprimée (identifiant orphelin) : le champ Affaire est vide (p
   await fenetre(page).getByRole('button', { name: 'Choisir l’affaire' }).click();
   await expect.poll(() => appels.length).toBe(1);
   expect(appels[0]).toEqual({ devisId: 'dOrphelin', affaireId: 'a1' });
+  await expect(page.locator('.toast, [role="status"]').filter({ hasText: 'Affaire choisie' }).first()).toBeVisible();
+  await expect(page.locator('[data-champ="affaire"]')).toHaveValue(/Rénovation cuisine/);
+});
+
+test('8 l’affaire est créée mais le rattachement est refusé : une SEULE affaire est créée, elle reste dans le champ, et un nouveau clic sur « Choisir l’affaire » la rattache', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 400 au premier appel' } }, async ({ page }, info) => {
+  await creerOrganisation('o3', { nom: 'Client Neuf' });
+  await devis('dVide', { ...FINALISE(5), organisationId: 'o3' });
+  let appels = await fauxServeur(page, { refus: 'Ce devis a déjà une affaire : un devis finalisé ne change pas d’affaire.' });
+  await voir(page, 'dVide');
+  await ouvrirChoix(page);
+  await fenetre(page).locator('[data-champ="choisir-affaire"]').click();
+  await propositions(page).first().click();
+  await propositions(page).filter({ hasText: 'Premier contact' }).click();
+  await expect(page.locator('.toast, [role="status"], [role="alert"]').filter({ hasText: 'créée mais pas encore rattachée' }).first()).toBeVisible();
+  expect(await listerDocuments('crm_affaires')).toHaveLength(1);
+  expect(appels).toHaveLength(1);
+  const creee = (await listerDocuments('crm_affaires'))[0];
+  await expect(fenetre(page)).toBeVisible(); // la fenêtre reste ouverte, l'affaire créée est dans le champ
+  await expect(fenetre(page).locator('[data-champ="choisir-affaire"]')).toHaveValue(/Affaire Client Neuf/);
+  await capturer(page, info, '8-cree-pas-rattachee');
+  await page.unroute('**/devisChoisirAffaire');
+  appels = await fauxServeur(page);
+  await expect(fenetre(page).getByRole('button', { name: 'Choisir l’affaire' })).toBeEnabled();
+  await fenetre(page).getByRole('button', { name: 'Choisir l’affaire' }).click();
+  await expect.poll(() => appels.length).toBe(1);
+  expect(appels[0]).toEqual({ devisId: 'dVide', affaireId: creee.id });
+  expect(await listerDocuments('crm_affaires')).toHaveLength(1); // jamais une seconde création
+  await expect(fenetre(page)).toHaveCount(0);
+});
+
+test('9 un compte lecteur (client avec Affaires) ne voit aucun « Choisir l’affaire », ni dans la barre ni sous le champ', async ({ page }, info) => {
+  await chargerRegles('firestore.plateforme.rules');
+  try {
+    await ecrireDocument('marques/cabinet', { actif: true, nom: 'Cabinet Martin', couleur: '#336699', accueil: 'Bienvenue.' });
+    await ecrireDocument('clients/cabinet', { modules: { affaires: true, devis: true } });
+    await ecrireDocument('clients/cabinet/membres/lea@exemple.test', { role: 'lecteur' });
+    await ecrireDocument('clients/cabinet/devis_parametres/reglages', { regimeTva: 'assujetti', entreprise: { nom: 'Atelier Exemple', siret: '123 456 789 00012' } });
+    await devis('lSans', { ...FINALISE(9), organisationId: null }, 'clients/cabinet/');
+    await page.goto('about:blank');
+    await page.goto(`${URL_APP}#/espace/cabinet/devis/voir/lSans`);
+    await page.waitForFunction(() => !!window.__chevalierTest);
+    await page.evaluate((e) => window.__chevalierTest.connecter(e, true), 'lea@exemple.test');
+    await expect(page.locator('.page-editeur-devis[data-devis="lSans"]')).toBeVisible();
+    await attendreCalme(page);
+    await page.locator('.page-editeur-devis .barre-devis [data-onglet="edition"]').click();
+    await expect(page.locator('[data-champ="affaire"]')).toBeVisible(); // la ligne Affaire est bien là (Affaires actif)…
+    await expect(tous(page)).toHaveCount(0); // …mais aucun bouton pour un lecteur
+    await capturer(page, info, '9-lecteur');
+  } finally { await chargerRegles('firestore.rules'); }
 });

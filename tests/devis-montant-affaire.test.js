@@ -422,6 +422,16 @@ describe('N15 choisir l’affaire d’un devis finalisé sans affaire (08/11/202
     }
     assert.equal(leDevis(m, 'd1').affaireId, 'aff1');
   });
+  test('N15-5 une version a été créée depuis le choix de l’affaire : la restauration est refusée, même avec forcer (la racine resterait à moitié rattachée)', async () => {
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    const m = await sansAffaire();
+    const r = await choisir(m, 'd1');
+    await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    for (const forcer of [false, true]) {
+      await assert.rejects(() => restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer }), (e) => e.code === 'restauration_refusee' && /version de ce devis a été créée depuis/.test(e.message));
+    }
+    assert.equal(leDevis(m, 'd1').affaireId, 'aff1');
+  });
   test('N15-4 un devis archivé rattaché compte quand même dans le montant', async () => {
     const m = await sansAffaire();
     await statut(m, 'd1', 'accepter');

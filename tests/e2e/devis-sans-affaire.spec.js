@@ -88,7 +88,7 @@ test('3 finaliser un brouillon complet sans affaire n’est plus refusé : la fe
   await editeur(page).locator('.bouton-principal').click();
   const fenetre = page.getByRole('dialog');
   await expect(fenetre).toContainText('Finaliser ce devis ?');
-  await expect(fenetre.locator('[data-zone="avertissements-finalisation"]')).toContainText('Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.');
+  await expect(fenetre.locator('[data-zone="avertissements-finalisation"]')).toContainText('Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant. Tu pourras lui choisir une affaire plus tard.');
   await expect(fenetre.locator('[data-avertissement]')).toHaveCount(0); // les li de la fenêtre n'ont pas de data-avertissement (réservé au panneau des totaux)
   await expect(page.locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/);
   await expect(page.locator('[data-erreur="affaire"]')).not.toHaveClass(/erreur/);
