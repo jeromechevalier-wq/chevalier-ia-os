@@ -28,8 +28,8 @@ Les deux serveurs sont séparés : le CRM est sur `https://chevalier-ia-os.web.a
 | Client **éditeur** (décidé le 17/10/2026) | oui | oui | oui, dans son espace seulement |
 | **Jérôme**, par Claude (OAuth) | oui | oui | oui |
 | **Jérôme**, par ChatGPT (**prévu**) | oui | oui | oui |
-| **Claude Code** (jeton `claude-code-jerome`) | oui | oui | oui |
-| **Hermes** (jeton « bibliothécaire ») | oui | oui | non |
+| **Claude Code** (jeton `claude-code-jerome`, profil `complet`) | oui | oui | oui |
+| **Hermes** (jeton de profil `ecriture`, ancien nom « bibliothécaire ») | oui | oui | non |
 | **Agent n8n devis** (jeton `agent-devis`, liste blanche de 21 outils) | seulement ce qu'il faut pour un devis | créer le client, l'affaire et le brouillon ; finaliser (aperçu + code) ; préparer l'e-mail | non (ni `supprimer_*`, ni `restaurer_depuis_audit`, ni changement de statut) |
 
 Noms des profils depuis la PR 549 : `lecture`, `ecriture`, `complet` (anciens noms `lecteur`, `bibliothecaire`, `claude-code` valables comme alias) ; le jeton `n8n-devis` peut garder `bibliothecaire` (= `ecriture`) jusqu'au passage à `agent-devis`. Le profil `agent-devis` existe par jeton seulement : absent chez les clients (pas de porte par jeton). Outils accordés : `qui_suis_je`, `chercher`, `lire_personne`, `lire_organisation`, `lire_affaire`, `lister_affaires`, `lister_devis`, `lire_devis`, `lire_reglages_devis`, `chercher_article`, `lister_articles`, `rechercher_article_par_phrase`, `obtenir_pdf_officiel_devis`, `creer_personne`, `creer_organisation`, `creer_affaire`, `creer_devis_brouillon`, `modifier_devis_brouillon`, `finaliser_devis`, `modifier_destinataires_devis`, `preparer_email`.

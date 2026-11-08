@@ -1,8 +1,39 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 08/11/2026 : journée du 07/11/2026 et nuit du 07 au 08/11 (PR 546 à 553 ; 539 à 545 rappelées)
+
+Version 2.39.0 (cette PR). Tableau des choses à faire : `.github/A-FAIRE.md`. Relances du portail : `docs/consignes-ui.md` (section « Relances du portail devis seul ») ; profils de droits : `docs/portes-et-droits-mcp.md` ; finalisation sans affaire et « Choisir l'affaire » : `docs/consignes-ui.md`, `docs/montant-affaire.md`.
+
+**Décisions de Jérôme du 07/11** : « go relances » (étape 2) ; texte de relance validé ; cacher « Pas encore envoyé » quand « Jamais envoyé · N j » est là ; une phrase quand « Seulement les tests » + « Seulement à traiter » est vide ; profils renommés `lecture` / `ecriture` / `complet`, anciens noms `lecteur` / `bibliothecaire` / `claude-code` gardés pour toujours comme alias (le jeton d'Hermes continue de marcher sans toucher au secret) ; profil `agent-devis` pour l'agent n8n des devis (PR 550, écrite par l'autre session de Jérôme) ; champ `lienEcran` dans les outils MCP Devis (PR 551) ; **option A : finaliser un devis ne demande plus jamais d'affaire, nulle part, avertissement non bloquant seulement quand Affaires est actif** ; « GO NUIT » à 22:25 UTC ; accord « ok mcp clients » pour redéployer `mcp` chez les clients après la 549 puis après la 551 (pas de hosting demandé).
+
+| Sujet | PR | État |
+|---|---|---|
+| Test 1.2 des familles stabilisé ; état des devis lisible sur l'affaire ; en-têtes de colonne Kanban ; colonne Brouillon sans montant ; portail devis seul étape 1 ; docs 2.38.0 | 539, 540, 541, 543, 544, 545 | fusionnées le 06/11 (rapport précédent) ; hosting clients fait |
+| Liste des devis : une seule pastille pour un devis jamais envoyé ; phrase quand « Seulement les tests » + « Seulement à traiter » est vide | 546 | fusionnée ; hosting clients run 157 |
+| Portail devis seul, étape 2a : écran « Relances » (à relancer, déjà relancés, à relancer bientôt), entrée « Relances » du menu du portail, bouton « Relancé » (origine `relance` écrite par le serveur) | 547 | fusionnée (deux relectures Fable) ; hosting clients run 158 ; Tests de nuit 123 vert |
+| Étape 2b : texte de relance dans la fenêtre « Préparer l'e-mail » (objet et message partent toujours en relance) | 548 | fusionnée (deux relectures Fable) ; hosting clients run 159 ; Tests de nuit 124 vert |
+| Profils de droits du serveur MCP : `lecture` / `ecriture` / `complet`, anciens noms en alias (`ALIAS_PROFILS`) | 549 | fusionnée ; serveur de Jérôme redéployé (run 522) ; `mcp` clients run 160 vert ; Tests de nuit 125 vert |
+| Profil MCP `agent-devis` : liste blanche de 21 outils pour l'agent n8n des devis (autre session de Jérôme) | 550 | fusionnée ; serveur de Jérôme redéployé (run 523) ; Tests de nuit 126 vert ; chez les clients : injoignable (pas de porte par jeton) |
+| MCP Devis : `lienEcran` calculé par le serveur, `interne` réservé | 551 | fusionnée (deux relectures Fable) ; serveur de Jérôme (run 524) ; `mcp` clients run 161 vert ; Tests de nuit 127 vert |
+| Finaliser un devis sans affaire partout, avertissement non bloquant quand Affaires est actif (PR 1) | 552 | fusionnée le 07/11 à 23:55 UTC (deux relectures Fable) ; serveur et site de Jérôme (run 525) ; Tests de nuit 128 vert ; **pas déployée chez les clients** |
+| « Choisir l'affaire » d'un devis finalisé sans affaire + filtre « Sans affaire » (PR 2) | 553 | fusionnée le 08/11 à 01:43 UTC (trois relectures Fable) ; serveur et site de Jérôme (run 526) ; Tests de nuit 129 vert (id 42435495877) ; **pas déployée chez les clients** |
+| Docs du jour et de la nuit, version 2.39.0 | cette PR | brouillon |
+
+- **En ligne chez Jérôme** : tout `main` jusqu'à la 553 (site, fonctions et serveur MCP se redéploient seuls à chaque fusion : runs 519 à 526 verts).
+- **Chez les clients, déjà fait** : `hosting` après 546, 547, 548 (runs 157, 158, 159) ; `mcp` après 549 (run 160) et après 551 (run 161, qui porte aussi la 550). D'après les imports de `functions-plateforme/src`, rien de 549 à 551 n'est utilisé par les autres fonctions des clients (code MCP seulement) : `fonctions` n'était pas nécessaire ; 549 à 551 ne touchent aucun fichier `js/` : `hosting` non plus.
+- **Chez les clients, PAS déployé (attend l'accord de Jérôme, un élément à la fois, dans cet ordre)** : PR 552 et 553 = `fonctions` (nouvelle fonction `devisChoisirAffaire` dans `functions-plateforme/src/index.js`, `functions-plateforme/src/devis.js`, `functions/src/coeur/devis.js` partagé) → `mcp` (`finaliser_devis` et `lire_devis` avec `avertissement`, `restaurer.js`) → `hosting` (éditeur, liste, filtre). `hosting` en dernier : sinon le bouton « Choisir l'affaire » appellerait une fonction absente. Aucune règle Firestore. Tant que ce n'est pas fait, les clients avec Affaires doivent encore choisir une affaire pour finaliser.
+- **État de la nuit GitHub** : « Tests de nuit » 122 à 129 verts. Aucune PR ouverte.
+- **Pas pu être vérifié avec le vrai système** : le brouillon Gmail réel avec le texte de relance (nœud n8n hors dépôt) ; la capture téléphone identique entre deux tests de l'écran Relances (même rendu) ; deux échecs non reproduits en bac à sable (R13 `modules-client`, « Imprimer » des menus) ; `qui_suis_je` avec un vrai jeton après la 549/550 ; les données de Jérôme.
+- **Questions ouvertes pour Jérôme** : (1) PR 553 : accepter une affaire **archivée** comme cible de « Choisir l'affaire » (aujourd'hui acceptée) ? un compte **lecteur** ne voit ni « Sans affaire » ni « Choisir l'affaire » dans la barre du haut (décision prise seul) ? **D1** une affaire supprimée (`affaireId` orphelin) compte comme « Sans affaire » et le serveur permet le rattachement : garder ? **D2** le serveur doit-il refuser une affaire d'un autre client (l'écran ne propose que celles du client) ? **D3** « Choisir l'affaire » aussi dans le menu « … » ? **D4** déjà sur cette affaire = `rien: true` sans écrire ; **D5** devis de test sur affaire réelle : refuser ? (2) PR 552 : sur un brouillon sans client, l'aide sous « Affaire » et la phrase du panneau des totaux disent la même chose ; option proposée : aide neutre « Facultatif : à choisir si ce devis suit une affaire. » pour ne dire la phrase qu'une fois. (3) Relances : « Relancé le … » (actuel) ou « Relance envoyée le … » ? délai 7 / 10 / 15 jours ? (4) garde-fou au-delà de 1000 documents (question 6). (5) Anciennes : condition de paiement autre que l'acompte, mention déchets sur le PDF officiel, prix par module, secteur de l'agence, logiciel de facturation, sauvegarde n8n du VPS, commits locaux non poussés, dates des clés de la page Maintenance.
+- **Décisions prises seul (nuit)** : PR 552 : pas de bouton secondaire dans la fenêtre « Finaliser ce devis ? » ; mots « Sans affaire » / « Choisir l'affaire » ; écran avant outil MCP. PR 553 : rattachement sens unique (sans affaire → une affaire ; ni changement ni retrait), toutes les versions sans affaire de la racine, montant recalculé dans la même transaction, restaurable, refus de restauration si le statut a changé ou si une version a été créée depuis ; filtre dans Filtres > Affaire ; rien en Devis seul ; bouton aussi dans la barre du devis finalisé ; affaire créée mais non rattachée : le bouton principal réessaie sans créer de doublon.
+- **Ce que Jérôme doit faire** : (1) **jeton n8n** : après le déploiement de son serveur (fait), vérifier `qui_suis_je` avec un jeton `complet`, PUIS modifier **en place** la ligne `n8n-devis` de `MCP_JETONS` (`"profil": "bibliothecaire"` → `"agent-devis"`), dans une nouvelle version du secret, **jamais deux lignes de même `jeton`** (codes de confirmation et plafonds liés au nom ; en cas de doublon d'empreinte, la dernière ligne gagne), attendre 1 minute (cache 60 s), limites explicites (`limites`) conseillées ; (2) **brief n8n hors dépôt** : le workflow propose ou choisit l'affaire avant de finaliser, lit le champ `avertissement` de l'aperçu de `finaliser_devis`, et ne force plus `creer_affaire` ; (3) essayer chez lui un **brouillon Gmail de relance** depuis l'écran Relances ; (4) donner son accord pour le déploiement clients (`fonctions`, `mcp`, `hosting`) ; (5) répondre aux questions ci-dessus.
+- **Mineurs connus, pour une petite PR de code (Fable obligatoire : serveur)** : voir `.github/A-FAIRE.md`, section du 08/11.
+
+---
+
 ## Rapport de fin de journée du 06/11/2026 (PR 539 à 544)
 
-Version 2.38.0 (cette PR). Tableau des choses à faire : `.github/A-FAIRE.md`. Portail devis seul : `docs/consignes-ui.md` (section « Portail devis seul ») et `docs/etude-devis-autonome.md`.
+Version 2.38.0 (PR 545). Tableau des choses à faire : `.github/A-FAIRE.md`. Portail devis seul : `docs/consignes-ui.md` (section « Portail devis seul ») et `docs/etude-devis-autonome.md`.
 
 | Sujet | PR | État |
 |---|---|---|
@@ -11,7 +42,7 @@ Version 2.38.0 (cette PR). Tableau des choses à faire : `.github/A-FAIRE.md`. P
 | En-têtes de colonne du Kanban : « 14 affaires · 552,47 € » puis « 2 affaires [TEST] · 500 € », Affaires et Devis | 541 | fusionnée |
 | Colonne « Brouillon » du Kanban des Devis sans montant | 543 | fusionnée |
 | Portail devis seul, étape 1 (`#/portail-devis`, « À traiter ») | 544 | fusionnée |
-| Docs du jour, version 2.38.0 | cette PR | brouillon |
+| Docs du jour, version 2.38.0 | 545 | fusionnée |
 
 - **En ligne chez Jérôme et chez les clients** : tout est fusionné sur `main` ; l'interface est déployée chez les clients. Aucune fonction du serveur ni règle ne change (PR de l'interface seulement).
 - **État de la nuit GitHub** : « Tests de nuit » runs 116, 117, 118 et 119 verts. Les runs 112 et 115 étaient rouges pour un seul test (1.2 des familles, une capture d'un bloc redessiné), corrigé par la 539 ; l'issue d'alerte 534 est fermée.
@@ -119,7 +150,7 @@ Tableau des choses à faire : `.github/A-FAIRE.md`. Version toujours 2.35.0 (voi
 - **Déploiements chez les clients** : site après chaque fusion d'écran ; `mcp` puis `hosting` pour la PR 496 ; workflow `deploiement-plateforme.yml` lancé par Jérôme un à la fois (d'après le brief ; le dépôt ne garde pas de trace des lancements).
 - **Pas pu être vérifié avec le vrai système** : le rendu de ClientDemo après `--vider` puis `--metier agence --ecrire` ; un envoi réel de « Préparer l'e-mail » chez un client après la PR 493.
 - **Ce que Jérôme doit faire** : (1) recharger la démo : `node scripts/donnees-demo.js clientdemo --vider --ecrire --confirmer clientdemo` puis `node scripts/donnees-demo.js clientdemo --metier agence --ecrire` ; (2) relire les noms pris seuls : sous-familles « Panneaux », « Téléviseurs et supports », « Packs clés en main » ; familles de premier niveau « Panneaux d'affichage », « Services numériques », « Prestations complètes », « Écrans en location » ; (3) répondre aux questions de `.github/A-FAIRE.md` (déchets sur le PDF officiel, condition de paiement autre que l'acompte, adresse tapée dans la conversation, logiciel de facturation, sauvegarde du VPS n8n, rotation du mot de passe du webhook).
-- **Droits des assistants (corrigé)** : tout assistant connecté par OAuth (ChatGPT, Gemini, claude.ai) a le profil `claude-code` : `finaliser_devis` (aperçu + code), `changer_statut_devis` et `supprimer_devis` lui sont déjà ouverts ; le jeton d'Hermes est le seul jeton bibliothécaire connu (à vérifier dans `MCP_JETONS`, hors dépôt).
+- **Droits des assistants (corrigé)** : tout assistant connecté par OAuth (ChatGPT, Gemini, claude.ai) a le profil `claude-code` : `finaliser_devis` (aperçu + code), `changer_statut_devis` et `supprimer_devis` lui sont déjà ouverts ; le jeton d'Hermes est le seul jeton bibliothécaire connu (à vérifier dans `MCP_JETONS`, hors dépôt). *(profils renommés `complet` / `ecriture` par la PR 549 du 07/11/2026, anciens noms gardés comme alias)*
 
 ---
 
@@ -537,7 +568,7 @@ Recette ensuite : finaliser un devis, appeler la fonction, trouver le PDF dans `
 - Pas de sous-familles : une seule famille par article.
 - Un brouillon n'a pas de PDF.
 - Les anciens devis importés ne se dupliquent pas.
-- `finaliser_devis` n'est pas donné au bibliothécaire (jeton d'Hermes) ; il est donné au profil Claude Code, qui est aussi celui de toute connexion OAuth (ChatGPT, Gemini, claude.ai) et du rôle éditeur chez un client (corrigé le 01/11/2026 : la première réponse « réservé à Claude Code » laissait croire que ChatGPT ne pouvait pas finaliser).
+- `finaliser_devis` n'est pas donné au bibliothécaire (jeton d'Hermes) ; il est donné au profil Claude Code, qui est aussi celui de toute connexion OAuth (ChatGPT, Gemini, claude.ai) et du rôle éditeur chez un client (corrigé le 01/11/2026 : la première réponse « réservé à Claude Code » laissait croire que ChatGPT ne pouvait pas finaliser). *(profils renommés `complet` / `ecriture` par la PR 549 du 07/11/2026, anciens noms gardés comme alias)*
 
 ## État de la nuit GitHub
 Non consulté (commande : `gh run list --workflow "Tests de nuit" --limit 3`).
