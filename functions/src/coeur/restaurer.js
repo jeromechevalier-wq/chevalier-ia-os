@@ -16,7 +16,9 @@ import { OUTILS_SUPPRESSION_TESTS } from './mode-test.js';
 /** Opérations de devis qui figent le devis (fonctions du serveur, voir coeur/devis.js) : jamais restaurées. */
 const OUTILS_DEVIS_FIGES = ['devisFinaliser', 'devisChangerStatut'];
 /** Opérations de devis qui touchent un devis déjà finalisé SANS le figer : archiver, historique des envois (statut inchangé). Elles se défont même si le devis n'est plus un brouillon. */
-const OUTILS_DEVIS_SUR_FINALISE = ['devisArchiver', 'devisEnregistrerEnvoi', 'devisSupprimer'];
+const OUTILS_DEVIS_SUR_FINALISE = ['devisArchiver', 'devisEnregistrerEnvoi', 'devisSupprimer', 'devisChoisirAffaire'];
+/** Opérations qui recalculent le montant de l'affaire : leurs lignes « affaire » ne sont jamais remises d'après une copie, le montant se recalcule APRÈS l'écriture (suppression d'un devis ; choix d'une affaire, qui se défait en revenant « sans affaire »). */
+const OUTILS_DEVIS_RECALCUL_APRES = ['devisSupprimer', 'devisChoisirAffaire'];
 const VOIE_DE_SECOURS = 'Pour corriger un devis finalisé, créer la version suivante (nouvelle_version_devis, ou depuis l’écran).';
 
 /** Ce qu'il faudrait faire pour défaire une ligne : 'supprimer' | 'remplacer' | 'recreer' | 'rien' | 'conflit'. */
@@ -41,8 +43,8 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
     throw new ErreurEcriture('introuvable', 'Aucune écriture réussie pour cette opération (identifiant inconnu, ou toutes ont échoué).');
   }
   // Une transition de devis réécrit aussi le montant de l'affaire (`montantDevis*`) : défaire cette ligne avec une copie entière de l'affaire effacerait ce qui a changé depuis (titre, étape, documents).
-  // Exception : la suppression d'un devis (devisSupprimer) ; seules ses lignes « devis » sont restaurées, le montant de l'affaire est recalculé APRÈS l'écriture (hors transaction), jamais rétabli d'après une copie.
-  const supprimeDevis = lignesAudit.some((l) => l.outil === 'devisSupprimer');
+  // Exception : la suppression d'un devis (devisSupprimer) et le choix d'une affaire (devisChoisirAffaire) ; seules ses lignes « devis » sont restaurées, le montant de l'affaire est recalculé APRÈS l'écriture (hors transaction), jamais rétabli d'après une copie.
+  const supprimeDevis = lignesAudit.some((l) => OUTILS_DEVIS_RECALCUL_APRES.includes(l.outil));
   const affairesARecalculer = supprimeDevis ? [...new Set(lignesAudit.filter((l) => l.collection === C.affaires).map((l) => l.docId))] : [];
   if (!supprimeDevis && lignesAudit.some((l) => /^devis/.test(l.outil ?? '') && l.collection === C.affaires)) {
     throw new ErreurEcriture('restauration_refusee', 'Cette opération a changé un devis et recalculé le montant de l’affaire : elle ne se défait pas avec le journal. Pour revenir en arrière, crée une nouvelle version du devis (nouvelle_version_devis) ou change son statut : le montant est recalculé.');

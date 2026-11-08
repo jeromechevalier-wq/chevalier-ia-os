@@ -1,4 +1,4 @@
-// Fonctions appelables du module Devis chez Jérôme (projet chevalier-ia-os) : devisFinaliser, devisChangerStatut, devisNouvelleVersion, devisArchiver.
+// Fonctions appelables du module Devis chez Jérôme (projet chevalier-ia-os) : devisFinaliser, devisChangerStatut, devisNouvelleVersion, devisArchiver, devisChoisirAffaire (choisir l'affaire d'un devis finalisé).
 // Même règle d'accès que `automatisationsDecider` : un compte Google vérifié, parmi COMPTES_AUTORISES. Le travail est dans coeur/devis.js (transactions).
 // Aucune porte dérobée : pas de clé, pas de paramètre qui contourne le contrôle du compte. Aucun appel à n8n dans cette version.
 // Le journal Cloud ne reçoit jamais le contenu d'un devis, ni l'identifiant du devis, ni l'adresse de l'appelant.

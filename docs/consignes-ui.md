@@ -245,3 +245,15 @@ Décision de Jérôme (captures de ses écrans Devis et Projets) : tous les écr
 - C'est un **mode d'affichage de la coque** (`js/os/portail.js`), pas un module ni un espace séparé. Le client final du client n'y entre **jamais**.
 - Accueil = la liste des devis (Kanban | Liste | Archives, filtres, recherche). Menu réduit : « Devis » et « Espace complet » (Relances et Statistiques viendront avec leurs écrans). Menu utilisateur réduit (ni Journal ni « Connecter mon ChatGPT »).
 - **Cas d'erreur** : un écran hors portail (ex. le lien de l'affaire en haut de l'éditeur) donne « Page introuvable » avec deux boutons, « Retour à l'accueil » et « Ouvrir dans l'espace complet ». **Cas vide** : liste des devis vide comme d'habitude. Pas d'entrée de menu chez Jérôme (il ouvre l'adresse).
+
+## Devis finalisé : choisir l'affaire plus tard (08/11/2026, PR 2)
+
+Un devis finalisé peut exister sans affaire (PR 1, 07/11). On peut lui en choisir une plus tard, **dans un seul sens** : « sans affaire » vers « affaire ». Jamais changer d'affaire, jamais la retirer.
+
+- **Mots visibles** : « Sans affaire » (l'état) et « Choisir l'affaire » (l'action). L'avertissement du devis sans affaire finit par « Tu pourras lui choisir une affaire plus tard. ».
+- **Où** : sur l'écran du devis finalisé (lecture seule), un bouton-lien « Choisir l'affaire » sous le champ Affaire. Il ouvre une **fenêtre** (jamais un champ dans la feuille) avec les affaires du client du devis et « + Créer l'affaire « nom » » (puis « Dans quelle étape ? »). Le bouton de la fenêtre est grisé tant qu'aucune affaire n'est choisie. Pas d'entrée dans le menu « … ».
+- **Ce que fait le serveur** (`devisChoisirAffaire`, chez Jérôme et chez les clients) : toutes les versions du devis reçoivent l'affaire, le montant de l'affaire est recalculé dans la même transaction (exemple : un devis finalisé de 100 € HT donne « Montant proposé HT 100 € »), le geste est écrit au journal et se défait avec « Restaurer » (le devis redevient sans affaire, le montant revient). Il refuse si le devis a déjà une affaire.
+- **Filtre « Sans affaire »** : Filtres > Affaire > « Sans affaire » dans la liste des devis (la pastille du bouton Filtres compte 1).
+- **Une affaire supprimée** compte comme « Sans affaire » (liste, filtre, bouton). Une affaire archivée n'est pas supprimée.
+- **Devis seul (sans le module Affaires)** : rien de tout cela n'apparaît (ni bouton, ni critère de filtre, ni mention « Sans affaire »).
+- **Cas vide** : un client sans affaire voit seulement « + Créer l'affaire « … » ». **Cas d'erreur** : message rouge du serveur (« Ce devis a déjà une affaire… ») ou « … rien n'a été perdu » si la connexion est coupée ; le devis ne bouge pas.

@@ -293,3 +293,21 @@ describe('L8 pastille de la carte du Tableau (gris, vert, rouge)', () => {
     assert.equal(Li.couleurPastilleDevis(d('a', { statut: 'envoye', expireLe: '2026-10-01', ...ok }), AUJOURDHUI, MAINT), 'rouge');
   });
 });
+
+describe('L9 filtre « Sans affaire » (08/11/2026, PR 2)', () => {
+  const liste = [d('sans', { statut: 'envoye' }), d('avec', { statut: 'envoye', affaireId: 'a1' }), d('orphelin', { statut: 'accepte', affaireId: 'aZZ' }), d('brouillon')];
+  const existe = (id) => id === 'a1';
+  test('L9-1 « sans » garde le devis sans affaire et celui dont l’affaire a disparu, écarte celui dont l’affaire existe ; « toutes » (défaut) ne change rien ; se combine avec les statuts', () => {
+    assert.deepEqual(ids(Li.filtrer(liste, { affaire: 'sans', affaireExiste: existe })), ['sans', 'orphelin', 'brouillon']);
+    assert.deepEqual(ids(Li.filtrer(liste, { affaireExiste: existe })), ['sans', 'avec', 'orphelin', 'brouillon']);
+    assert.deepEqual(ids(Li.filtrer(liste, { affaire: 'toutes', affaireExiste: existe })), ['sans', 'avec', 'orphelin', 'brouillon']);
+    assert.deepEqual(ids(Li.filtrer(liste, { affaire: 'sans', affaireExiste: existe, statuts: ['envoye'], aujourdhui: AUJOURDHUI })), ['sans']);
+    assert.deepEqual(ids(Li.filtrer(liste, { affaire: 'sans' })), ['sans', 'brouillon'], 'sans prédicat : seule l’absence d’affaire compte');
+  });
+  test('L9-2 les options du filtre sont « Toutes » et « Sans affaire » ; sansAffaire(d) sans prédicat = pas d’affaireId', () => {
+    assert.deepEqual(Li.OPTIONS_FILTRE_AFFAIRE, [{ valeur: 'toutes', libelle: 'Toutes' }, { valeur: 'sans', libelle: 'Sans affaire' }]);
+    assert.equal(Li.sansAffaire({ affaireId: null }), true);
+    assert.equal(Li.sansAffaire({ affaireId: 'a1' }), false);
+    assert.equal(Li.sansAffaire({ affaireId: 'a1' }, () => false), true);
+  });
+});

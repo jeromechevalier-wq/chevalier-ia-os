@@ -386,3 +386,47 @@ describe('N11 à N14 mode test : le repère de l’affaire et celui des devis', 
     assert.equal(affaireDe(m).montantDevisHt, 100, 'affaire de test : seul le devis de test compte');
   });
 });
+
+describe('N15 choisir l’affaire d’un devis finalisé sans affaire (08/11/2026, PR 2)', () => {
+  const choisir = (m, devisId, affaireId = 'aff1') => S.choisirAffaire({ donnees: m.donnees, ctx: ctx(), devisId, affaireId });
+  const sansAffaire = async (id = 'd1') => { const m = monde({ devis: [brouillon(id, 100, { affaireId: null })] }); await envoye(m, id); return m; };
+  test('N15-1 un devis SIGNÉ sans affaire rattaché à l’affaire : montant et nature écrits, le montant saisi à la main est intact', async () => {
+    const m = await sansAffaire();
+    await statut(m, 'd1', 'accepter');
+    assert.equal(affaireDe(m).montantDevisHt, undefined);
+    await choisir(m, 'd1');
+    assert.equal(affaireDe(m).montantDevisHt, leDevis(m, 'd1').totaux.ht);
+    assert.equal(affaireDe(m).montantDevisNature, 'accepte');
+    assert.equal(affaireDe(m).montant, 1500);
+  });
+  test('N15-2 restaurer l’opération : le devis redevient sans affaire et le montant de l’affaire revient à l’état d’avant (recalculé après l’écriture)', async () => {
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    const m = await sansAffaire();
+    const r = await choisir(m, 'd1');
+    assert.ok(affaireDe(m).montantDevisHt > 0);
+    await restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer: false });
+    assert.equal(leDevis(m, 'd1').affaireId ?? null, null);
+    assert.equal(affaireDe(m).montantDevisHt ?? null, null);
+    assert.equal(affaireDe(m).montant, 1500);
+    // N6 reste vrai : un changement de statut ne se restaure toujours pas
+    const r2 = await S.changerStatut({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', action: 'refuser' });
+    await assert.rejects(() => restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r2.operationId, apercu: false, forcer: true }), (e) => e.code === 'restauration_refusee');
+  });
+  test('N15-3 le statut a changé depuis le rattachement : la restauration est refusée, même avec forcer', async () => {
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    const m = await sansAffaire();
+    const r = await choisir(m, 'd1');
+    await statut(m, 'd1', 'accepter');
+    for (const forcer of [false, true]) {
+      await assert.rejects(() => restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer }), (e) => e.code === 'restauration_refusee');
+    }
+    assert.equal(leDevis(m, 'd1').affaireId, 'aff1');
+  });
+  test('N15-4 un devis archivé rattaché compte quand même dans le montant', async () => {
+    const m = await sansAffaire();
+    await statut(m, 'd1', 'accepter');
+    await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
+    await choisir(m, 'd1');
+    assert.equal(affaireDe(m).montantDevisHt, leDevis(m, 'd1').totaux.ht);
+  });
+});

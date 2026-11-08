@@ -186,7 +186,7 @@ describe('E7 avertissements non bloquants', () => {
     assert.deepEqual(Ed.avertissements(sans, { affaires: true }).map((a) => a.code), ['sansAffaire', 'aucuneLigne']);
     assert.deepEqual(Ed.avertissements(sans, { affaires: false }).map((a) => a.code), ['aucuneLigne'], 'Devis seul : rien sur l’affaire');
     assert.deepEqual(Ed.avertissements(devisDe([])).map((a) => a.code), ['aucuneLigne'], 'avec une affaire : rien');
-    assert.equal(Ed.avertissements(sans)[0].message, 'Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.');
+    assert.equal(Ed.avertissements(sans)[0].message, 'Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant. Tu pourras lui choisir une affaire plus tard.');
   });
   test('E7 un devis correct n’a aucun avertissement et se finalise (hors destinataire)', () => {
     const ok = completerPourFinaliser(devisDe([{ id: 's', lignes: [L('a', { quantite: 2 })] }], { destinataires: ['client@example.fr'] }));

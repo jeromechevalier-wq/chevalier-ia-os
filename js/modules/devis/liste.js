@@ -1,7 +1,8 @@
 // Liste des devis : fonctions PURES (tri, filtre, recherche, pagination, regroupement en colonnes, statut affiché, actions permises).
 // Aucun accès à Firebase ni au navigateur : l'écran (liste-ecran.js) les appelle, `node --test` les vérifie (tests/devis-liste.test.js).
 // Les règles de statut viennent de logique.js (TRANSITIONS, estExpire) : rien n'est redéfini ici.
-import { STATUTS_DEVIS, estExpire, transitionPossible, totauxDevis, peutArchiver, estNumeroTest } from './logique.js';
+import { STATUTS_DEVIS, estExpire, transitionPossible, totauxDevis, peutArchiver, estNumeroTest, sansAffaire } from './logique.js';
+export { sansAffaire };
 import { etatPdfDevis } from './pdf.js';
 import { emailPossible } from './email-brouillon.js';
 import { testsCorrespond, estTest } from '../crm/logique.js';
@@ -130,10 +131,14 @@ export function trier(liste, { critere = 'modifie', sens = 'desc' } = {}) {
 
 // ---------------------------------------------------------------- filtres et recherche
 
+/** Filtre « Affaire » de la fenêtre Filtres (module Affaires actif seulement) : « Sans affaire » = pas d'affaire, ou une affaire supprimée. */
+export const OPTIONS_FILTRE_AFFAIRE = [{ valeur: 'toutes', libelle: 'Toutes' }, { valeur: 'sans', libelle: 'Sans affaire' }];
+
 /** `statuts` : statuts affichés cochés (vide = tous ; « expire » reconnu) ; `du` / `au` : jours AAAA-MM-JJ inclus, sur « En date du » (un devis sans date est écarté dès qu'une borne est posée) ; `tests` : inclure (défaut) | exclure | seulement. */
-export function filtrer(liste, { statuts = [], du = '', au = '', aujourdhui, tests = 'inclure' } = {}) {
+export function filtrer(liste, { statuts = [], du = '', au = '', aujourdhui, tests = 'inclure', affaire = 'toutes', affaireExiste = () => true } = {}) {
   return liste.filter((d) => {
     if (!testsCorrespond(tests, d)) return false;
+    if (affaire === 'sans' && !sansAffaire(d, affaireExiste)) return false;
     if (statuts.length && !statuts.includes(statutAffiche(d, aujourdhui))) return false;
     if (du || au) {
       const jour = dateDuDevis(d);

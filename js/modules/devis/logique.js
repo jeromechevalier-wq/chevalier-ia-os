@@ -635,6 +635,9 @@ export function montantDesDevis(devisDeLAffaire, affaire = null) {
   return { montant: versEuros(versCentimes(htFige(proposes[0]))), nature: 'propose', detail: proposes.slice(0, MAX_LIGNES_DETAIL).map((d, i) => ligneDetail(d, i === 0)) };
 }
 
+/** Un devis est « sans affaire » s'il n'en a pas, ou si son affaire n'existe plus (affaire supprimée : décision D1 du 08/11/2026). `affaireExiste(id)` : rend faux tant qu'on SAIT que l'affaire a disparu ; par défaut tout identifiant compte comme existant. */
+export const sansAffaire = (d, affaireExiste = () => true) => !d?.affaireId || !affaireExiste(d.affaireId);
+
 // ---------------------------------------------------------------- validation de finalisation
 const EMAIL = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]{2,}$/;
 const emailDe = (d) => (typeof d === 'string' ? d : d?.email ?? '').trim();
@@ -827,7 +830,7 @@ export const NOM_DEVIS_MAX = 80;
 export const nettoyerNomDevis = (v) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, NOM_DEVIS_MAX);
 
 /** Avertissement NON bloquant (module Affaires actif, devis sans affaire) : la même phrase à l'écran et dans l'assistant. */
-export const AVERTISSEMENT_SANS_AFFAIRE = 'Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.';
+export const AVERTISSEMENT_SANS_AFFAIRE = 'Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant. Tu pourras lui choisir une affaire plus tard.';
 
 /** Refus de finaliser un devis sans client (personne ou organisation) : le même mot à l'écran, dans la fonction du serveur et dans l'assistant. */
 export const MESSAGE_CLIENT_MANQUANT = 'Choisis le client de ce devis.';

@@ -322,7 +322,7 @@ export async function modifierBrouillon(id, patch) {
 // Chez un client, la demande porte le nom de son espace (déduit de la session, vérifié par le serveur : éditeur de cet espace, module « devis » actif).
 // Chez Jérôme, aucun espace : le serveur vérifie que le compte est l'un des deux comptes autorisés.
 const fonctions = () => getFunctions(app, 'europe-west9');
-const FONCTIONS = Object.freeze({ finaliser: 'devisFinaliser', changerStatut: 'devisChangerStatut', nouvelleVersion: 'devisNouvelleVersion', archiver: 'devisArchiver', supprimer: 'devisSupprimer', enregistrerEnvoi: 'devisEnregistrerEnvoi', modifierDestinataires: 'devisModifierDestinataires', pdf: 'devisPdf', pdfLien: 'devisPdfLien', preparerEmail: 'devisPreparerEmail', preparerEmailEtat: 'devisPreparerEmailEtat', marquerTest: 'devisMarquerTest' });
+const FONCTIONS = Object.freeze({ finaliser: 'devisFinaliser', changerStatut: 'devisChangerStatut', nouvelleVersion: 'devisNouvelleVersion', archiver: 'devisArchiver', supprimer: 'devisSupprimer', enregistrerEnvoi: 'devisEnregistrerEnvoi', modifierDestinataires: 'devisModifierDestinataires', pdf: 'devisPdf', pdfLien: 'devisPdfLien', preparerEmail: 'devisPreparerEmail', preparerEmailEtat: 'devisPreparerEmailEtat', marquerTest: 'devisMarquerTest', choisirAffaire: 'devisChoisirAffaire' });
 const CODES_LISIBLES = ['permission-denied', 'invalid-argument', 'failed-precondition', 'not-found', 'unauthenticated'];
 export const MESSAGE_RESEAU_DEVIS = 'Ça n’a pas abouti. Vérifie ta connexion internet, puis réessaie : rien n’a été perdu.';
 
@@ -362,6 +362,13 @@ export const marquerTest = async (devisId, test) => {
   const r = await appeler('marquerTest', { devisId, test });
   const d = devisParId(devisId);
   if (d && r?.ok !== false) for (const v of versionsDe(d.racineId ?? d.id)) v.test = test; // la copie locale suit ; le prochain instantané du serveur la remplace
+  return r;
+};
+/** Choisit l'affaire d'un devis finalisé qui n'en a pas (jamais en changer, jamais la retirer) : le serveur rattache toutes les versions de la racine et recalcule le montant de l'affaire. */
+export const choisirAffaire = async (devisId, affaireId) => {
+  const r = await appeler('choisirAffaire', { devisId, affaireId });
+  const d = devisParId(devisId);
+  if (d && r?.ok !== false) for (const v of versionsDe(d.racineId ?? d.id)) v.affaireId = affaireId; // la copie locale suit ; le prochain instantané du serveur la remplace
   return r;
 };
 /** Archive (true) ou désarchive (false) un devis finalisé, signé ou refusé. */

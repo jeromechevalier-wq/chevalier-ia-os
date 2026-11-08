@@ -37,7 +37,7 @@ function brouillon(id, affaireId = 'aff1') {
 }
 function monde() {
   const collections = {};
-  for (const c of ['a', 'b', 'c', 'd']) Object.assign(collections, { [`clients/${c}/devis_devis`]: [], [`clients/${c}/devis_compteurs`]: [], [`clients/${c}/crm_audit`]: [], [`clients/${c}/crm_audit_avant`]: [], [`clients/${c}/devis_parametres`]: [{ id: 'reglages', regimeTva: 'assujetti', entreprise: EMETTEUR_ESSAI }], [`clients/${c}/crm_personnes`]: [{ id: 'p1', nom: 'Client Essai' }] });
+  for (const c of ['a', 'b', 'c', 'd']) Object.assign(collections, { [`clients/${c}/devis_devis`]: [], [`clients/${c}/devis_compteurs`]: [], [`clients/${c}/crm_audit`]: [], [`clients/${c}/crm_audit_avant`]: [], [`clients/${c}/devis_parametres`]: [{ id: 'reglages', regimeTva: 'assujetti', entreprise: EMETTEUR_ESSAI }], [`clients/${c}/crm_personnes`]: [{ id: 'p1', nom: 'Client Essai' }], [`clients/${c}/crm_affaires`]: [] });
   collections['clients/a/devis_devis'].push(brouillon('da'));
   collections['clients/b/devis_devis'].push(brouillon('db'));
   collections['clients/d/devis_devis'].push(brouillon('dd', null));
@@ -48,7 +48,7 @@ const appeler = (m, operation, email, donnees, extra = {}) => transitionDevis({ 
 const refus = async (promesse, code) => {
   await assert.rejects(promesse, (e) => e instanceof Refus && (!code || e.code === code), `refus ${code ?? ''} attendu`);
 };
-const OPERATIONS = { finaliser: { devisId: 'da' }, changerStatut: { devisId: 'da', action: 'marquer_envoye' }, nouvelleVersion: { devisId: 'da' }, archiver: { devisId: 'da', archive: true }, enregistrerEnvoi: { devisId: 'da', destinataires: ['client@exemple.test'] }, marquerTest: { devisId: 'da', test: true } };
+const OPERATIONS = { finaliser: { devisId: 'da' }, changerStatut: { devisId: 'da', action: 'marquer_envoye' }, nouvelleVersion: { devisId: 'da' }, archiver: { devisId: 'da', archive: true }, enregistrerEnvoi: { devisId: 'da', destinataires: ['client@exemple.test'] }, marquerTest: { devisId: 'da', test: true }, choisirAffaire: { devisId: 'da', affaireId: 'aff1' } };
 
 describe('C7-S plateforme : un devis se finalise sans affaire, avec ou sans le module Affaires (07/11/2026)', () => {
   test('C7-S client d (Devis seul) et client a (Affaires) : un devis sans affaire se finalise, numéro attribué', async () => {
@@ -109,6 +109,29 @@ describe('C7 plateforme : qui peut appeler les fonctions de devis', () => {
     const r = await appeler(m, 'finaliser', ALICE, { client: 'a', devisId: 'vide' });
     assert.equal(r.ok, false);
     assert.ok(r.erreurs.length >= 1); // sans ligne (l'adresse e-mail n'est plus obligatoire)
+  });
+});
+
+describe('C7-CA plateforme : choisir l’affaire d’un devis finalisé (08/11/2026)', () => {
+  test('C7-CA une éditrice rattache un devis finalisé sans affaire à une affaire de son espace, sans toucher aux autres espaces', async () => {
+    const m = monde();
+    const finalise = { ...m.collections['clients/a/devis_devis'][0], affaireId: null, statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-001', racineId: 'da', version: 1 };
+    m.collections['clients/a/devis_devis'][0] = finalise;
+    m.collections['clients/a/crm_affaires'].push({ id: 'aff1', titre: 'Rénovation' });
+    const avantB = JSON.stringify(m.collections['clients/b']);
+    const r = await appeler(m, 'choisirAffaire', ALICE, { client: 'a', devisId: 'da', affaireId: 'aff1' });
+    assert.equal(r.ok, true);
+    assert.equal(r.affaireId, 'aff1');
+    assert.equal(m.collections['clients/a/devis_devis'][0].affaireId, 'aff1');
+    assert.equal(m.collections['clients/a/crm_audit'].filter((l) => l.outil === 'devisChoisirAffaire').length >= 1, true);
+    assert.equal(JSON.stringify(m.collections['clients/b']), avantB, 'l’autre espace n’est pas touché');
+  });
+  test('C7-CA chez un client en Devis seul (pas d’affaire), la fonction répond « not-found » sans rien écrire', async () => {
+    const m = monde();
+    m.collections['clients/d/devis_devis'][0] = { ...m.collections['clients/d/devis_devis'][0], statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-002', racineId: 'dd', version: 1 };
+    const avant = JSON.stringify(m.collections);
+    await refus(appeler(m, 'choisirAffaire', ALICE, { client: 'd', devisId: 'dd', affaireId: 'aff1' }), 'not-found');
+    assert.equal(JSON.stringify(m.collections), avant);
   });
 });
 

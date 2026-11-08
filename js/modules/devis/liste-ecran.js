@@ -24,6 +24,7 @@ let recherche = '';
 let statutsFiltres = [];
 let periode = 'toutes';
 let testsFiltre = FILTRE_TESTS_DEFAUT;
+let affaireFiltre = 'toutes'; // toutes | sans (« Sans affaire », seulement avec le module Affaires)
 let aTraiterFiltre = 'tout'; // tout | seulement (« À traiter » : devis à relancer ou jamais envoyés, devis-ATraiter)
 let tri = { critere: 'modifie', sens: 'desc' };
 let page = 1;
@@ -73,9 +74,11 @@ export function boutonMenu(d) {
 
 export const ouvrirDevis = (d) => naviguer(d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}`);
 export const intitule = (d) => d.numero ?? (String(d.nom ?? '').trim() || 'Brouillon'); // un brouillon nommé porte son nom (interne) ; un devis numéroté garde son numéro
+/** Tant que les affaires ne sont pas chargées, on ne sait pas si une affaire a disparu : tout identifiant compte comme existant (sinon tous les devis clignoteraient « Sans affaire » au chargement). */
+const affaireExiste = () => (CRM.etat.pret.affaires ? (id) => Boolean(CRM.affaire(id)) : () => true);
 export function celluleClient(d) {
   const n = nomsDe(d);
-  return h('div', { class: 'devis-client' }, h('span', { class: 'devis-client-nom' }, n.client || '—'), D.surSocleSeul() ? null : n.affaire ? h('span', { class: 'devis-affaire' }, n.affaire) : !d.affaireId ? h('span', { class: 'devis-affaire devis-sans-affaire', dataset: { valeur: 'sans-affaire' } }, 'Sans affaire') : null);
+  return h('div', { class: 'devis-client' }, h('span', { class: 'devis-client-nom' }, n.client || '—'), D.surSocleSeul() ? null : n.affaire ? h('span', { class: 'devis-affaire' }, n.affaire) : Li.sansAffaire(d, affaireExiste()) ? h('span', { class: 'devis-affaire devis-sans-affaire', dataset: { valeur: 'sans-affaire' } }, 'Sans affaire') : null);
 }
 function celluleModifie(d, maintenant) {
   const qui = Li.initialesDe(d.modifiePar ?? d.creePar);
@@ -104,12 +107,13 @@ export function rendreListeDevis(conteneur) {
         { cle: 'statuts', libelle: 'Statut', type: 'cases', options: [...['brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse', ...(vue === 'tableau' ? [] : ['expire', 'remplace'])].map((id) => ({ valeur: id, libelle: Li.libelleStatut(id) }))] },
         { cle: 'periode', libelle: 'En date du', type: 'choix', options: Li.PERIODES.map((p) => ({ valeur: p.id, libelle: p.libelle })) },
         ...(vue === 'archives' ? [] : [{ cle: 'aTraiter', libelle: 'À traiter', type: 'choix', options: OPTIONS_A_TRAITER }]), // jamais en Archives (un devis à traiter n'y est pas)
+        ...(D.surSocleSeul() ? [] : [{ cle: 'affaire', libelle: 'Affaire', type: 'choix', options: Li.OPTIONS_FILTRE_AFFAIRE }]), // rien en Devis seul : pas d'affaire
         controleTests(),
       ],
-      criteres: { statuts: statutsFiltres, periode, aTraiter: aTraiterFiltre, tests: testsFiltre },
-      effacer: () => ({ statuts: [], periode: 'toutes', aTraiter: 'tout', tests: FILTRE_TESTS_DEFAUT }),
+      criteres: { statuts: statutsFiltres, periode, aTraiter: aTraiterFiltre, affaire: affaireFiltre, tests: testsFiltre },
+      effacer: () => ({ statuts: [], periode: 'toutes', aTraiter: 'tout', affaire: 'toutes', tests: FILTRE_TESTS_DEFAUT }),
     });
-    if (r) { statutsFiltres = r.statuts ?? []; periode = r.periode || 'toutes'; aTraiterFiltre = vue === 'archives' ? 'tout' : (r.aTraiter || 'tout'); testsFiltre = r.tests || FILTRE_TESTS_DEFAUT; page = 1; rendre(); }
+    if (r) { statutsFiltres = r.statuts ?? []; periode = r.periode || 'toutes'; aTraiterFiltre = vue === 'archives' ? 'tout' : (r.aTraiter || 'tout'); affaireFiltre = D.surSocleSeul() ? 'toutes' : (r.affaire || 'toutes'); testsFiltre = r.tests || FILTRE_TESTS_DEFAUT; page = 1; rendre(); }
   } });
   const boutonNouveau = h('button', {
     type: 'button', class: `bouton ${Li.EDITEUR_DISPONIBLE ? 'bouton-principal' : 'bouton-secondaire'}`, disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT,
@@ -134,7 +138,7 @@ export function rendreListeDevis(conteneur) {
   function rendre() {
     majBascule();
     if (triAffiche.critere !== tri.critere || triAffiche.sens !== tri.sens) { choixTri.maj(OPTIONS_TRI, tri.critere, tri.sens); triAffiche = { ...tri }; } // pas à chaque rendu : le minuteur de 60 s ne doit pas recréer les options sous un menu ouvert
-    filtres.majCompte(statutsFiltres.length + (periode !== 'toutes' ? 1 : 0) + (aTraiterFiltre !== 'tout' ? 1 : 0) + (testsFiltre !== FILTRE_TESTS_DEFAUT ? 1 : 0));
+    filtres.majCompte(statutsFiltres.length + (periode !== 'toutes' ? 1 : 0) + (aTraiterFiltre !== 'tout' ? 1 : 0) + (!D.surSocleSeul() && affaireFiltre !== 'toutes' ? 1 : 0) + (testsFiltre !== FILTRE_TESTS_DEFAUT ? 1 : 0));
     avis.hidden = !D.etat.erreurLectureDevis;
     avis.textContent = D.etat.erreurLectureDevis ? ERREUR_LECTURE : '';
     remplir(pied);
@@ -152,7 +156,7 @@ export function rendreListeDevis(conteneur) {
     const archives = vue === 'archives';
     const tous = D.etat.devis.filter((d) => (archives ? Li.estDansArchives(d, aujourdhui) : d.archive !== true && !(vue === 'tableau' && Li.estHorsTableau(d, aujourdhui))));
     let lignes = Li.rechercher(tous, recherche, nomsDe);
-    lignes = Li.filtrer(lignes, { statuts: statutsFiltres, du, au, aujourdhui, tests: testsFiltre });
+    lignes = Li.filtrer(lignes, { statuts: statutsFiltres, du, au, aujourdhui, tests: testsFiltre, affaire: D.surSocleSeul() ? 'toutes' : affaireFiltre, affaireExiste: affaireExiste() });
     if (aTraiterFiltre === 'seulement') lignes = lignes.filter((d) => aTraiter.has(d.id) && !archives);
     const nbATraiter = archives ? 0 : tous.filter((d) => aTraiter.has(d.id)).length;
     boutonATraiter.hidden = nbATraiter === 0 && aTraiterFiltre !== 'seulement'; // reste là tant que le critère est posé (pour le retirer d'un clic)
