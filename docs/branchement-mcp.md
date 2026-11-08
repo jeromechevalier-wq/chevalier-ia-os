@@ -9,7 +9,7 @@ Règle commune : **le jeton n'est jamais écrit dans un fichier du dépôt, dans
 ### Ce qui a été testé, et où
 
 - **Prototype dans une session cloud** (Claude Code 2.1.288, copie locale du serveur, jeton d'essai) : la commande ci-dessous se connecte (`✓ Connected`), un vrai appel d'outil réussit (`claude -p` a appelé `qui_suis_je`), avec la variable absente ou fausse Claude Code affiche une erreur claire (« Missing environment variables », puis 401) et ne se connecte pas. La configuration écrite ne contient que `${CHEVALIER_MCP_TOKEN}`, jamais le jeton.
-- **Sur le Mac de Jérôme, serveur réel** : `claude mcp list` affiche `chevalier-ia-os … ✓ Connected` ; dans Claude Code, `qui_suis_je` répond `claude-code-jerome`, profil `claude-code`, 33 outils. Le Trousseau (section « Retrouver le jeton tout seul ») a été validé dans un onglet neuf.
+- **Sur le Mac de Jérôme, serveur réel** : `claude mcp list` affiche `chevalier-ia-os … ✓ Connected` ; dans Claude Code, `qui_suis_je` répond `claude-code-jerome`, profil `claude-code` (aujourd'hui `complet`), 33 outils à l'époque. Le Trousseau (section « Retrouver le jeton tout seul ») a été validé dans un onglet neuf.
 
 ### La commande (une seule fois)
 
@@ -39,7 +39,7 @@ Sans cela, le jeton n'existe que dans la fenêtre où il a été saisi : dans un
    ```
 3. Dans un **nouvel onglet** : `claude mcp list` montre `✓ Connected` sans avoir saisi le jeton, et `[ -z "$CHEVALIER_MCP_TOKEN" ] && echo "bon"` répond « bon » (le jeton n'est pas dans la fenêtre : il n'est lu que par `claude`).
 
-Limite : un Claude Code lancé **hors du Terminal** (application, éditeur) ne passe pas par cette fonction : le serveur y apparaît en échec, sans rien casser d'autre. Les sessions lancées par `claude` héritent du jeton, comme tout programme qu'elles démarrent : c'est le jeton « claude-code », qui a tous les droits (suppression comprise).
+Limite : un Claude Code lancé **hors du Terminal** (application, éditeur) ne passe pas par cette fonction : le serveur y apparaît en échec, sans rien casser d'autre. Les sessions lancées par `claude` héritent du jeton, comme tout programme qu'elles démarrent : c'est le jeton `claude-code-jerome` (profil `complet`), qui a tous les droits (suppression comprise).
 
 ### Permissions : garder la demande pour ce qui écrit
 
@@ -47,7 +47,7 @@ Claude Code demande une permission avant chaque outil du serveur. **Garder cette
 
 ### Changer ou révoquer le jeton
 
-- **Remplacer** : créer un nouveau jeton (`node outils/creer-jeton.js claude-code-jerome-2 claude-code`), ajouter sa ligne dans une **nouvelle version** du secret `MCP_JETONS`, ranger le nouveau jeton dans le Trousseau (`security add-generic-password … -U -w` remplace l'ancien), tester `claude mcp list`, puis passer l'ancienne ligne à `"actif": false`.
+- **Remplacer** : créer un nouveau jeton (`node outils/creer-jeton.js claude-code-jerome-2 complet`), ajouter sa ligne dans une **nouvelle version** du secret `MCP_JETONS`, ranger le nouveau jeton dans le Trousseau (`security add-generic-password … -U -w` remplace l'ancien), tester `claude mcp list`, puis passer l'ancienne ligne à `"actif": false`.
 - **Couper tout de suite** : voir `securite-et-pannes.md`, section 4.
 - **Retirer le serveur de Claude Code** : `claude mcp remove chevalier-ia-os`.
 
@@ -65,9 +65,9 @@ Notes de fonctionnement, sans conséquence : le journal du serveur montre parfoi
 
 ## 2. Hermes Agent sur le VPS (brouillon, non testé)
 
-**À faire quand Jérôme le décide.** Il faut d'abord : (1) le résultat de `hermes --version` sur le VPS ; (2) un jeton **bibliothécaire**.
+**À faire quand Jérôme le décide.** Il faut d'abord : (1) le résultat de `hermes --version` sur le VPS ; (2) un jeton **bibliothécaire** (profil `ecriture`).
 
-1. **Créer le jeton** (Mac, hors ligne) : `node outils/creer-jeton.js hermes-bibliothecaire bibliothecaire` ; ajouter la ligne JSON dans une nouvelle version du secret `MCP_JETONS` ; ranger le jeton dans le gestionnaire de mots de passe.
+1. **Créer le jeton** (Mac, hors ligne) : `node outils/creer-jeton.js hermes-bibliothecaire ecriture` ; ajouter la ligne JSON dans une nouvelle version du secret `MCP_JETONS` ; ranger le jeton dans le gestionnaire de mots de passe.
 2. **Sur le VPS** : le jeton va dans le fichier d'environnement de Hermes (droits `600`), sous le nom `CHEVALIER_MCP_TOKEN`, **pas** dans le YAML.
 3. **`~/.hermes/config.yaml`** (forme relevée dans la documentation de Hermes sur GitHub, version `main`, **non vérifiée sur la version installée**) :
    ```yaml
@@ -80,7 +80,7 @@ Notes de fonctionnement, sans conséquence : le journal du serveur montre parfoi
        tools:
          include: [qui_suis_je, diagnostiquer_fichiers, chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit, creer_personne, modifier_personne, creer_organisation, modifier_organisation, creer_affaire, modifier_affaire, changer_etape, marquer_perdue, rouvrir_affaire, creer_projet, creer_projet_depuis_affaire, modifier_projet, changer_phase_projet, rouvrir_projet, archiver_projet, terminer_projet, ajouter_livrable_projet, terminer_livrable_projet, ajouter_facture, marquer_facture_payee, abandonner_facture, ajouter_note, modifier_note, creer_activite, terminer_activite, joindre_lien, retirer_document, lister_propositions, lire_proposition, lister_automatisations, valider_proposition, refuser_proposition, lister_articles, chercher_article, rechercher_article_par_phrase, lire_reglages_devis, creer_article, modifier_article, desactiver_article, lister_devis, lire_devis, obtenir_pdf_officiel_devis, creer_devis_brouillon, modifier_devis_brouillon, modifier_lignes_devis, annuler_derniere_modification_devis, creer_devis_depuis_modele, nouvelle_version_devis, archiver_devis, enregistrer_envoi_devis, modifier_destinataires_devis, preparer_email, enregistrer_reponse_vocabulaire, deposer_document, marquer_test, demarquer_test]
    ```
-   Ces **70 outils** sont exactement ceux du profil bibliothécaire aujourd'hui (les outils Devis y sont, dont la nouvelle version, l'archivage et l'historique des envois, qui se défont avec le journal ; `finaliser_devis`, `changer_statut_devis` et `supprimer_devis` n'y sont pas : le bibliothécaire prépare des brouillons, il ne finalise pas, ne change pas le statut et ne supprime pas, seul le profil Claude Code le peut, sauf `finaliser_devis` (aperçu + code) ouvert aussi au profil `agent-devis` d'un agent n8n (21 outils en liste blanche, voir `docs/portes-et-droits-mcp.md`) ; or toute connexion OAuth, ChatGPT compris, reçoit ce profil : le jeton d'Hermes est le seul jeton bibliothécaire connu (les porteurs sont dans le secret `MCP_JETONS`, hors dépôt : à vérifier là)). Les outils de sauvegarde (étape 5) et de pièces jointes (étape 7) s'ajouteront à la liste quand ils existeront. Même sans ce filtre, le serveur refuse tout outil hors profil.
+   Ces **70 outils** sont exactement ceux du profil `ecriture` (bibliothécaire) aujourd'hui (les outils Devis y sont, dont la nouvelle version, l'archivage et l'historique des envois, qui se défont avec le journal ; `finaliser_devis`, `changer_statut_devis` et `supprimer_devis` n'y sont pas : le bibliothécaire prépare des brouillons, il ne finalise pas, ne change pas le statut et ne supprime pas, seul le profil `complet` (Claude Code) le peut, sauf `finaliser_devis` (aperçu + code) ouvert aussi au profil `agent-devis` d'un agent n8n (21 outils en liste blanche, voir `docs/portes-et-droits-mcp.md`) ; or toute connexion OAuth, ChatGPT compris, reçoit ce profil : le jeton d'Hermes est le seul jeton `ecriture` (bibliothécaire) connu (les porteurs sont dans le secret `MCP_JETONS`, hors dépôt : à vérifier là)). Les outils de sauvegarde (étape 5) et de pièces jointes (étape 7) s'ajouteront à la liste quand ils existeront. Même sans ce filtre, le serveur refuse tout outil hors profil.
 4. **Essai** : depuis le VPS, un `curl` avec ce jeton (`qui_suis_je` doit répondre `hermes-bibliothecaire`, profil `ecriture` ; la ligne du secret peut porter l'ancien nom `bibliothecaire`) avant de brancher Hermes ; puis demander à Hermes de créer une fiche de test, vérifier dans `lire_audit` et dans le fil de l'écran (« hermes-bibliothecaire · via MCP »), vérifier qu'un `supprimer_affaire` est refusé, puis nettoyer.
 5. **Points à confirmer à la première connexion** : la syntaxe de `${env:…}` dans cette version de Hermes, le préfixe des noms d'outils vus par l'agent, le comportement du délai de 120 secondes au démarrage à froid.
 
@@ -95,7 +95,7 @@ Notes de fonctionnement, sans conséquence : le journal du serveur montre parfoi
 3. Nom : `Chevalier IA OS`. Adresse du serveur : `https://chevalier-ia-os.web.app/mcp`. Ne remplis **aucun** champ « avancé » (identifiant ou secret OAuth) : Claude s'enregistre tout seul. Clique **Ajouter**.
 4. Clique **Se connecter** (ou « Connect ») sur la ligne du connecteur : une page s'ouvre. Connecte-toi avec ton compte Google, vérifie que la page dit bien « Retour vers : claude.ai », puis **Autoriser**.
 5. Sur le téléphone : ouvre l'appli Claude → Paramètres → Connecteurs. Le connecteur ajouté depuis ton compte doit apparaître **[à confirmer au premier essai]** ; s'il demande de se connecter, refais l'étape 4 sur le téléphone. Dans une conversation, active-le (bouton « + », puis Connecteurs).
-6. Essai : demande à Claude « Appelle qui_suis_je sur Chevalier IA OS ». Réponse attendue : acteur **`claude-ai-jerome-chevalier`**, profil `claude-code`.
+6. Essai : demande à Claude « Appelle qui_suis_je sur Chevalier IA OS ». Réponse attendue : acteur **`claude-ai-jerome-chevalier`**, profil `complet`.
 
 Si ça échoue : « Couldn't reach the MCP server » → regarder `https://chevalier-ia-os.web.app/.well-known/oauth-protected-resource/mcp` dans un navigateur (doit afficher du JSON) ; « Authorization failed » → regarder les journaux Cloud Run du service `mcp` (champ `code` : `oauth_…`, qui dit à quelle étape ça casse ; jamais de secret dans les journaux). Pour **couper** l'accès : `securite-et-pannes.md`, section 4, point 5.
 
