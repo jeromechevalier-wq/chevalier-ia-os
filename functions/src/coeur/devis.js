@@ -134,13 +134,14 @@ const memeDetail = (a, b) => {
 };
 
 /** `affaireRetouchee` (facultatif) : champs que la transaction change sur l'AFFAIRE (mode test : le repère), appliqués en mémoire avant le calcul, comme `retouches` pour les devis. */
-export async function montantDeLAffaire(tx, devis, retouches, affaireRetouchee = null) {
+export async function montantDeLAffaire(tx, devis, retouches, affaireRetouchee = null, ajouts = []) {
   const affaireId = devis.affaireId;
   if (typeof affaireId !== 'string' || !affaireId || affaireId.includes('/')) return null;
   const affaire = await tx.document(C.affaires, affaireId);
   if (!affaire) return null;
   const liste = (await tx.liste(C.devis, { champ: 'affaireId', valeur: affaireId })).map(enDates);
-  if (devis.id && !liste.some((d) => d.id === devis.id) && retouches[devis.id] !== null) liste.push(devis);
+  // `ajouts` (facultatif) : d'autres devis que la transaction rattache à cette affaire et qui n'y sont pas encore en base (choisir l'affaire d'un devis : toutes les versions de la racine).
+  for (const x of [devis, ...ajouts]) if (x.id && !liste.some((d) => d.id === x.id) && retouches[x.id] !== null) liste.push(x);
   const calcule = D.montantDesDevis(liste.filter((d) => retouches[d.id] !== null).map((d) => ({ ...d, ...(retouches[d.id] ?? {}) })), affaireRetouchee ? { ...affaire, ...affaireRetouchee } : affaire);
   const patch = { montantDevisHt: calcule?.montant ?? null, montantDevisNature: calcule?.nature ?? null, montantDevisDetail: calcule?.detail ?? null };
   const meme = (typeof affaire.montantDevisHt === 'number' ? affaire.montantDevisHt : null) === patch.montantDevisHt && (affaire.montantDevisNature ?? null) === patch.montantDevisNature
@@ -412,6 +413,34 @@ export async function modifierDestinataires({ donnees, ctx, devisId, destinatair
   });
 }
 
+/**
+ * Choisit l'affaire d'un devis FINALISÉ qui n'en a pas (PR 2 « Devis sans affaire », 08/11/2026) : UNIQUEMENT « sans affaire → affaire », jamais changer d'affaire ni la retirer.
+ * Toutes les versions de la racine reçoivent l'affaire, le montant de l'affaire est recalculé DANS LA MÊME transaction, et le journal (`devisChoisirAffaire`) permet de défaire (restaurer.js).
+ * Un `affaireId` qui ne désigne plus aucune affaire (affaire supprimée) compte comme « sans affaire » (décision D1). Déjà sur cette affaire : rien n'est écrit.
+ * Ne touche ni l'organisation ni la personne du devis (D2) : l'écran ne propose que les affaires du client.
+ */
+export async function choisirAffaire({ donnees, ctx, devisId, affaireId }) {
+  if (typeof affaireId !== 'string' || !affaireId || affaireId !== affaireId.trim() || affaireId.length > 200 || affaireId.includes('/')) throw new ErreurDevis('demande_invalide', "Identifiant d'affaire manquant ou invalide.");
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    if (devis.statut === 'brouillon') throw new ErreurDevis('transition_interdite', 'Ce devis est encore un brouillon : choisis son affaire directement dans le devis.');
+    const affaire = await tx.document(C.affaires, affaireId);
+    if (!affaire) throw new ErreurDevis('introuvable', `Affaire introuvable : ${affaireId}`);
+    const toutes = [devis, ...(await lireVersions(tx, devis)).filter((v) => v.id !== devis.id)];
+    if (toutes.every((v) => v.affaireId === affaire.id)) return { ok: true, rien: true, devis, affaireId: affaire.id };
+    // Sens unique : une affaire qui existe encore sur une version = ce devis a déjà une affaire. Une affaire disparue est ignorée.
+    for (const id of new Set(toutes.map((v) => v.affaireId).filter((x) => typeof x === 'string' && x && x !== affaire.id && !x.includes('/')))) {
+      if (await tx.document(C.affaires, id)) throw new ErreurDevis('transition_interdite', "Une version de ce devis a déjà une affaire : un devis finalisé ne change pas d'affaire.");
+    }
+    const changements = toutes.filter((v) => v.affaireId !== affaire.id).map((v) => modifier(v, { affaireId: affaire.id }));
+    const montant = await montantDeLAffaire(tx, { ...devis, affaireId: affaire.id }, retouchesDe(changements), null, toutes.filter((v) => v.id !== devis.id).map((v) => ({ ...v, affaireId: affaire.id })));
+    if (montant) changements.push(montant);
+    const j = journal({ donnees, ctx, outil: 'devisChoisirAffaire', parametres: { devisId, affaireId: affaire.id }, changements });
+    tx.ecrire([...changements.map((c) => c.ecriture), ...j.ecritures]);
+    return { ok: true, devis: { ...devis, affaireId: affaire.id }, affaireId: affaire.id, versions: changements.filter((c) => c.collection === C.devis).length, operationId: j.operationId };
+  });
+}
+
 // ---------------------------------------------------------------- PDF du devis (25/10/2026) : états, idempotence. Le PDF vit dans l'onglet « Devis » de l'affaire : le serveur n'ajoute plus rien aux Documents de l'affaire (décision de Jérôme, 27/10/2026)
 // Le PDF d'un devis finalisé est fabriqué par le serveur (déclencheur Firestore ou demande explicite), jamais par le navigateur. Le champ `pdf` du devis dit où on en est :
 //   pdf = { statut: 'en_cours' | 'ok' | 'echec', tentatives, demarreLe?, chemin?, sha256?, nom?, genereLe?, message?, echecLe? }
@@ -576,10 +605,11 @@ export const OPERATIONS = Object.freeze({
   supprimer: (base, d) => supprimer({ ...base, devisId: d.devisId }),
   enregistrerEnvoi: (base, d) => enregistrerEnvoi({ ...base, devisId: d.devisId, destinataires: d.destinataires, copie: d.copie, origine: d.origine }),
   modifierDestinataires: (base, d) => modifierDestinataires({ ...base, devisId: d.devisId, destinataires: d.destinataires, copie: d.copie }),
+  choisirAffaire: (base, d) => choisirAffaire({ ...base, devisId: d.devisId, affaireId: d.affaireId }),
 });
 
 /** Ce que l'appelant reçoit : jamais le devis entier (son navigateur le lit déjà). Un devis refusé rend les messages à corriger, rien n'a été écrit. */
 export function reponsePublique(r) {
   if (!r.ok) return { ok: false, erreurs: r.erreurs };
-  return { ok: true, devisId: r.devis?.id ?? r.id, ...(r.devis ? { statut: r.devis.statut, numero: r.devis.numero ?? null } : {}), ...(r.nouveauNumero !== undefined ? { nouveauNumero: r.nouveauNumero } : {}), ...(r.test !== undefined ? { test: r.test } : {}), ...(r.versions !== undefined ? { versions: r.versions } : {}), ...(r.rien ? { rien: true } : {}), ...(r.supprimes !== undefined ? { supprimes: r.supprimes } : {}), ...(r.operationId ? { operationId: r.operationId } : {}), ...(r.tests !== undefined ? { tests: r.tests } : {}) };
+  return { ok: true, devisId: r.devis?.id ?? r.id, ...(r.devis ? { statut: r.devis.statut, numero: r.devis.numero ?? null } : {}), ...(r.nouveauNumero !== undefined ? { nouveauNumero: r.nouveauNumero } : {}), ...(r.test !== undefined ? { test: r.test } : {}), ...(r.affaireId ? { affaireId: r.affaireId } : {}), ...(r.versions !== undefined ? { versions: r.versions } : {}), ...(r.rien ? { rien: true } : {}), ...(r.supprimes !== undefined ? { supprimes: r.supprimes } : {}), ...(r.operationId ? { operationId: r.operationId } : {}), ...(r.tests !== undefined ? { tests: r.tests } : {}) };
 }

@@ -16,7 +16,9 @@ import { OUTILS_SUPPRESSION_TESTS } from './mode-test.js';
 /** Opérations de devis qui figent le devis (fonctions du serveur, voir coeur/devis.js) : jamais restaurées. */
 const OUTILS_DEVIS_FIGES = ['devisFinaliser', 'devisChangerStatut'];
 /** Opérations de devis qui touchent un devis déjà finalisé SANS le figer : archiver, historique des envois (statut inchangé). Elles se défont même si le devis n'est plus un brouillon. */
-const OUTILS_DEVIS_SUR_FINALISE = ['devisArchiver', 'devisEnregistrerEnvoi', 'devisSupprimer'];
+const OUTILS_DEVIS_SUR_FINALISE = ['devisArchiver', 'devisEnregistrerEnvoi', 'devisSupprimer', 'devisChoisirAffaire'];
+/** Opérations qui recalculent le montant de l'affaire : leurs lignes « affaire » ne sont jamais remises d'après une copie, le montant se recalcule APRÈS l'écriture (suppression d'un devis ; choix d'une affaire, qui se défait en revenant « sans affaire »). */
+const OUTILS_DEVIS_RECALCUL_APRES = ['devisSupprimer', 'devisChoisirAffaire'];
 const VOIE_DE_SECOURS = 'Pour corriger un devis finalisé, créer la version suivante (nouvelle_version_devis, ou depuis l’écran).';
 
 /** Ce qu'il faudrait faire pour défaire une ligne : 'supprimer' | 'remplacer' | 'recreer' | 'rien' | 'conflit'. */
@@ -41,8 +43,8 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
     throw new ErreurEcriture('introuvable', 'Aucune écriture réussie pour cette opération (identifiant inconnu, ou toutes ont échoué).');
   }
   // Une transition de devis réécrit aussi le montant de l'affaire (`montantDevis*`) : défaire cette ligne avec une copie entière de l'affaire effacerait ce qui a changé depuis (titre, étape, documents).
-  // Exception : la suppression d'un devis (devisSupprimer) ; seules ses lignes « devis » sont restaurées, le montant de l'affaire est recalculé APRÈS l'écriture (hors transaction), jamais rétabli d'après une copie.
-  const supprimeDevis = lignesAudit.some((l) => l.outil === 'devisSupprimer');
+  // Exception : la suppression d'un devis (devisSupprimer) et le choix d'une affaire (devisChoisirAffaire) ; seules ses lignes « devis » sont restaurées, le montant de l'affaire est recalculé APRÈS l'écriture (hors transaction), jamais rétabli d'après une copie.
+  const supprimeDevis = lignesAudit.some((l) => OUTILS_DEVIS_RECALCUL_APRES.includes(l.outil));
   const affairesARecalculer = supprimeDevis ? [...new Set(lignesAudit.filter((l) => l.collection === C.affaires).map((l) => l.docId))] : [];
   if (!supprimeDevis && lignesAudit.some((l) => /^devis/.test(l.outil ?? '') && l.collection === C.affaires)) {
     throw new ErreurEcriture('restauration_refusee', 'Cette opération a changé un devis et recalculé le montant de l’affaire : elle ne se défait pas avec le journal. Pour revenir en arrière, crée une nouvelle version du devis (nouvelle_version_devis) ou change son statut : le montant est recalculé.');
@@ -66,6 +68,18 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   // Archivage / envoi défaits « de force » sur un devis dont le statut a changé depuis (signé, refusé…) : on remettrait l'ancien statut, ce qui contourne la règle des statuts.
   const statutChange = lignesAudit.find((l, i) => l.collection === C.devis && courants[i] && OUTILS_DEVIS_SUR_FINALISE.includes(l.outil) && copies[i]?.apres && courants[i].statut !== copies[i].apres.statut);
   if (statutChange) throw new ErreurEcriture('restauration_refusee', 'Le statut de ce devis a changé depuis cette opération : elle ne se défait plus avec le journal, même avec forcer. ' + VOIE_DE_SECOURS);
+  // Choix d'une affaire : si une version de la même racine est apparue DEPUIS (nouvelle version), la défaire laisserait la racine à moitié rattachée : refusé, même avec forcer.
+  const racinesChoix = new Set(lignesAudit.map((l, i) => (l.outil === 'devisChoisirAffaire' && l.collection === C.devis ? (copies[i]?.avant?.racineId ?? l.docId) : null)).filter(Boolean));
+  if (racinesChoix.size) {
+    // Seules comptent les versions PLUS RÉCENTES que celles de l'opération (nouvelleVersion crée toujours version = max + 1) : une ancienne version déjà rattachée, donc absente de l'opération, ne bloque pas.
+    const indices = lignesAudit.map((l, i) => (l.collection === C.devis ? i : -1)).filter((i) => i >= 0);
+    const dansOperation = new Set(indices.map((i) => lignesAudit[i].docId));
+    const versionMax = Math.max(...indices.map((i) => copies[i]?.avant?.version ?? 1));
+    for (const racine of racinesChoix) {
+      const depuis = (await donnees.liste(C.devis, { champ: 'racineId', valeur: racine })).find((v) => !dansOperation.has(v.id) && (v.version ?? 1) > versionMax);
+      if (depuis) throw new ErreurEcriture('restauration_refusee', 'Une version de ce devis a été créée depuis le choix de l’affaire : l’opération ne se défait plus avec le journal, même avec forcer.');
+    }
+  }
   // Un devis supprimé puis déjà rétabli (puis peut-être changé de statut) ne se « restaure » pas une seconde fois, même avec forcer.
   const dejaRetabli = lignesAudit.find((l, i) => l.outil === 'devisSupprimer' && l.collection === C.devis && courants[i]);
   if (dejaRetabli) throw new ErreurEcriture('restauration_refusee', 'Ce devis supprimé existe déjà (il a été rétabli) : il ne se restaure pas une seconde fois, même avec forcer. ' + VOIE_DE_SECOURS);

@@ -172,7 +172,7 @@ test('4 l’entrée « Devis » du menu « + » crée un brouillon sans client n
 const LIGNE_CREER = (nom) => suggestions0().filter({ hasText: `+ Créer l’affaire « ${nom} »` });
 function suggestions0() { return pageCourante.locator('.entete-droite .suggestions:not([hidden]) .suggestion'); }
 let pageCourante = null;
-const AVERTISSEMENT = 'Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.';
+const AVERTISSEMENT = 'Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant. Tu pourras lui choisir une affaire plus tard.';
 
 test('5 finaliser sans affaire : la fenêtre « Finaliser ce devis ? » porte l’avertissement (Annuler) ; « + Créer l’affaire » dans la liste du champ crée l’affaire au nom du client, à l’étape réglée, la lie au devis et l’avertissement disparaît du panneau des totaux', async ({ page }, info) => {
   pageCourante = page;

@@ -640,3 +640,104 @@ describe('SA devis sans affaire (07/11/2026) : la fonction devisFinaliser n’ex
     }
   });
 });
+
+describe('CA devisChoisirAffaire (08/11/2026, PR 2) : choisir l’affaire d’un devis finalisé', () => {
+  /** Une racine finalisée SANS affaire, avec deux versions (v1 « Remplacé », v2 finalisée) et deux affaires. */
+  async function racineSansAffaire() {
+    const m = monde([brouillon('v1', { affaireId: null })]);
+    m.collections[C.affaires] = [{ id: 'aff1', titre: 'Rénovation' }, { id: 'aff2', titre: 'Extension' }];
+    await fin(m, 'v1');
+    await S.changerStatut({ donnees: m.donnees, ctx: ctx(), devisId: 'v1', action: 'marquer_envoye' });
+    const nv = await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'v1' });
+    await fin(m, nv.devis.id);
+    return { m, v2: nv.devis.id };
+  }
+  const fin = (m, devisId) => S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId });
+  const choisir = (m, devisId, affaireId) => S.choisirAffaire({ donnees: m.donnees, ctx: ctx(), devisId, affaireId });
+  test('CA1 un brouillon est refusé (transition_interdite), rien n’est écrit', async () => {
+    const m = monde([brouillon('d1', { affaireId: null })]);
+    m.collections[C.affaires] = [{ id: 'aff1', titre: 'Rénovation' }];
+    const avant = photo(m);
+    await assert.rejects(() => choisir(m, 'd1', 'aff1'), (e) => e.code === 'transition_interdite');
+    assert.equal(photo(m), avant);
+  });
+  test('CA2 un devis finalisé sans affaire : toutes les versions reçoivent l’affaire, son montant est écrit dans la MÊME opération', async () => {
+    const { m, v2 } = await racineSansAffaire();
+    assert.equal(leDevis(m, 'v1').statut, 'remplace');
+    const r = await choisir(m, v2, 'aff1');
+    assert.equal(r.ok, true);
+    assert.equal(r.versions, 2);
+    assert.equal(r.affaireId, 'aff1');
+    assert.equal(leDevis(m, 'v1').affaireId, 'aff1');
+    assert.equal(leDevis(m, v2).affaireId, 'aff1');
+    const aff = m.collections[C.affaires].find((a) => a.id === 'aff1');
+    assert.equal(aff.montantDevisNature, 'propose');
+    assert.equal(aff.montantDevisHt, leDevis(m, v2).totaux.ht);
+    assert.ok(aff.montantDevisHt > 0);
+    assert.equal(m.collections[C.affaires].find((a) => a.id === 'aff2').montantDevisHt, undefined, 'l’autre affaire n’est pas touchée');
+    const lignes = m.collections[C.audit].filter((l) => l.operationId === r.operationId);
+    assert.deepEqual([...new Set(lignes.map((l) => l.outil))], ['devisChoisirAffaire']);
+    assert.deepEqual(lignes.map((l) => l.collection).sort(), [C.affaires, C.devis, C.devis]);
+    assert.deepEqual([...(lignes[0].parametresRecus ?? [])].sort(), ['affaireId', 'devisId']);
+  });
+  test('CA3 une version porte une affaire EXISTANTE : refus, rien d’écrit ; déjà sur CETTE affaire : { rien: true }, aucun journal', async () => {
+    const { m, v2 } = await racineSansAffaire();
+    await choisir(m, v2, 'aff1');
+    const avant = photo(m);
+    await assert.rejects(() => choisir(m, v2, 'aff2'), (e) => e.code === 'transition_interdite' && /a déjà une affaire/.test(e.message));
+    const encore = await choisir(m, v2, 'aff1');
+    assert.deepEqual([encore.ok, encore.rien], [true, true]);
+    assert.equal(photo(m), avant);
+  });
+  test('CA4 un affaireId orphelin (affaire supprimée) compte comme « sans affaire » : permis, la nouvelle affaire reçoit son montant', async () => {
+    const { m, v2 } = await racineSansAffaire();
+    for (const d of m.collections[C.devis]) d.affaireId = 'aZZ';
+    const r = await choisir(m, v2, 'aff2');
+    assert.equal(r.ok, true);
+    assert.ok(m.collections[C.devis].every((d) => d.affaireId === 'aff2'));
+    assert.ok(m.collections[C.affaires].find((a) => a.id === 'aff2').montantDevisHt > 0);
+  });
+  test('CA5 affaire introuvable, identifiant vide ou avec « / » refusés ; le client, les totaux et le numéro ne bougent pas (D2)', async () => {
+    const { m, v2 } = await racineSansAffaire();
+    const avant = photo(m);
+    await assert.rejects(() => choisir(m, v2, 'nulle-part'), (e) => e.code === 'introuvable');
+    for (const mauvais of [undefined, '', '   ', ' aff1', 'aff1 ', 'a/b', 42, 'x'.repeat(201)]) await assert.rejects(() => choisir(m, v2, mauvais), (e) => e.code === 'demande_invalide');
+    assert.equal(photo(m), avant);
+    const d = leDevis(m, v2);
+    const { organisationId, personneId, totaux, numero, clientNomFige } = d;
+    await choisir(m, v2, 'aff1');
+    const apres = leDevis(m, v2);
+    assert.deepEqual([apres.organisationId, apres.personneId, apres.totaux, apres.numero, apres.clientNomFige], [organisationId, personneId, totaux, numero, clientNomFige]);
+  });
+  test('CA6 porte de Jérôme : réponse publique sans le devis, compte inconnu refusé, brouillon et identifiant manquant refusés', async () => {
+    const requete = (email, data) => ({ auth: email === undefined ? undefined : { uid: 'u', token: { email, email_verified: true } }, data });
+    const { m, v2 } = await racineSansAffaire();
+    const appel = creerAppelDevis('choisirAffaire', { donnees: () => m.donnees });
+    const avant = photo(m);
+    await assert.rejects(() => appel(requete('intrus@exemple.test', { devisId: v2, affaireId: 'aff1' })), (e) => e.code === 'permission-denied');
+    await assert.rejects(() => appel(requete(ACTEUR, { devisId: v2 })), (e) => e.code === 'invalid-argument');
+    assert.equal(photo(m), avant);
+    const ok = await appel(requete(ACTEUR, { devisId: v2, affaireId: 'aff1' }));
+    assert.deepEqual([ok.ok, ok.devisId, ok.affaireId, ok.versions], [true, v2, 'aff1', 2]);
+    assert.ok(ok.operationId);
+    assert.equal(ok.sections, undefined);
+    const m2 = monde([brouillon('b1', { affaireId: null })]);
+    m2.collections[C.affaires] = [{ id: 'aff1', titre: 'Rénovation' }];
+    const appel2 = creerAppelDevis('choisirAffaire', { donnees: () => m2.donnees });
+    await assert.rejects(() => appel2(requete(ACTEUR, { devisId: 'b1', affaireId: 'aff1' })), (e) => e.code === 'failed-precondition');
+  });
+  test('CA7 racine mixte : une version sur une affaire existante + une orpheline → refusé ; v1 déjà sur aff1 + v2 sans affaire → seule v2 est rattachée', async () => {
+    const { m, v2 } = await racineSansAffaire();
+    leDevis(m, 'v1').affaireId = 'aff2';
+    leDevis(m, v2).affaireId = 'aZZ';
+    const avant = photo(m);
+    await assert.rejects(() => choisir(m, v2, 'aff1'), (e) => e.code === 'transition_interdite' && /Une version de ce devis a déjà une affaire/.test(e.message));
+    assert.equal(photo(m), avant);
+    leDevis(m, 'v1').affaireId = 'aff1';
+    leDevis(m, v2).affaireId = null;
+    const r = await choisir(m, v2, 'aff1');
+    assert.equal(r.versions, 1, 'seule la version sans affaire est écrite');
+    assert.ok(m.collections[C.devis].every((d) => d.affaireId === 'aff1'));
+    assert.ok(m.collections[C.devis].every((d) => d.affaireId !== undefined));
+  });
+});

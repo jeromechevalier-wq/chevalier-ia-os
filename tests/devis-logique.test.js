@@ -440,6 +440,11 @@ describe('SA devis sans affaire (28/10/2026, finalisation sans affaire partout l
     const d = devisType({ affaireId: null, destinataires: [{ email: 'a@b.fr' }] });
     assert.deepEqual(D.erreursFinalisation(d, { ...OPTIONS_FINALISATION, affaireRequise: true }), []);
     assert.equal(D.MESSAGE_AFFAIRE_MANQUANTE, undefined);
-    assert.equal(D.AVERTISSEMENT_SANS_AFFAIRE, 'Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.');
+    assert.equal(D.AVERTISSEMENT_SANS_AFFAIRE, 'Ce devis n\'a pas d\'affaire : il n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant. Tu pourras lui choisir une affaire plus tard.');
+  });
+  test('SA7 l’avertissement se termine par « Tu pourras lui choisir une affaire plus tard. » et la copie du serveur est identique', async () => {
+    assert.ok(D.AVERTISSEMENT_SANS_AFFAIRE.endsWith(' Tu pourras lui choisir une affaire plus tard.'));
+    const serveur = await import('../functions/partage/devis.js');
+    assert.equal(serveur.AVERTISSEMENT_SANS_AFFAIRE, D.AVERTISSEMENT_SANS_AFFAIRE);
   });
 });

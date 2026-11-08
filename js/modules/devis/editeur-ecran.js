@@ -24,7 +24,7 @@ import { ouvrirCreationPersonne } from '../crm/personnes.js';
 import { ouvrirCreationOrganisation } from '../crm/organisations.js';
 import {
   TYPE_SAUT, totauxDevis, erreursFinalisation, decisionChampFinalisation, erreursChantier, estExpire, UNITES_DUREE, MOMENTS_ACOMPTE, TYPES_ACOMPTE, detailAcomptes, erreursAcomptes, listeAcomptes, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
-  affichageDe, gestionDechetsActive, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, MAX_DESTINATAIRES, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis, emetteurImprime, estErreurEntreprise, ROUTE_MON_ENTREPRISE,
+  affichageDe, gestionDechetsActive, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, MAX_DESTINATAIRES, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis, emetteurImprime, estErreurEntreprise, ROUTE_MON_ENTREPRISE, sansAffaire,
 } from './logique.js';
 import { formaterMontant } from './document.js';
 import { menuUnite } from './menu-unite.js';
@@ -57,7 +57,7 @@ const messageLectureSeule = (d) => (versionPossible(d)
   ? `Ce devis est ${motDuStatut(d)} : pour le corriger, crée une nouvelle version (menu « … »).`
   : `Ce devis est ${motDuStatut(d)} : il ne se modifie plus.`);
 const infobulleCatalogueLecture = (d) => `Ajouter un article, c’est modifier le devis : il est ${motDuStatut(d)}, ${versionPossible(d) ? 'crée une nouvelle version pour le corriger.' : 'il ne se modifie plus.'}`;
-const SANS_VERROU = '[data-action="replier"], [data-action="definir-ajustement"], [data-action="description"]'; // en lecture seule, replier une section, ouvrir « Marge et ajustement » et afficher / masquer la description restent possibles (ce n'est que regarder)
+const SANS_VERROU = '[data-action="replier"], [data-action="definir-ajustement"], [data-action="description"], [data-action="choisir-affaire"]'; // en lecture seule, replier une section, ouvrir « Marge et ajustement » et afficher / masquer la description restent possibles (ce n'est que regarder) ; « Choisir l'affaire » aussi : il ouvre une fenêtre, il ne modifie pas la feuille
 const LARGEUR_TELEPHONE = 700; // même seuil que le CSS (max-width: 700px)
 const DELAI_INTROUVABLE_MS = 4000;
 const DELAI_ENREGISTREMENT_MS = 900;
@@ -384,6 +384,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     // L'enregistrement est automatique : il n'y a plus de bouton « Enregistrer ». Le nombre de champs obligatoires à remplir et le bouton « Réessayer » (seulement après un échec) prennent sa place.
     ref.lienClient = h('a', { class: 'lien-entite', dataset: { valeur: 'lien-client' }, hidden: true });
     ref.lienAffaire = h('a', { class: 'lien-entite', dataset: { valeur: 'lien-affaire' }, hidden: true });
+    ref.boutonBarreChoisir = h('button', { type: 'button', class: 'bouton-lien', hidden: true, dataset: { action: 'choisir-affaire' }, onclick: () => ouvrirChoixAffaire() }, 'Sans affaire · Choisir l’affaire'); // dans la barre : visible dès l'ouverture, sur l'onglet Prévisualisation aussi
     ref.titreCompact = h('span', { class: 'titre-compact', 'aria-hidden': 'true' }); // montré seulement quand la barre est collée en haut
     ref.compteurManquants = h('span', { class: 'indicateur-manquants', hidden: true, dataset: { valeur: 'manquants' }, title: 'Champs obligatoires à remplir' });
     ref.boutonReessayer = h('button', { type: 'button', class: 'bouton-lien', hidden: true, dataset: { action: 'reessayer-enregistrement' }, onclick: async () => { const ok = await sauver(); if (!ok) toast(messageEnreg || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 }); } }, 'Réessayer');
@@ -410,7 +411,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       boutonRetour(),
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, ref.titre,
-          h('div', { class: 'fiche-sous' }, ref.pastille, (ref.badgeTest = h('span', { class: 'badge-test', title: 'Élément de test', dataset: { badge: 'test' }, hidden: true }, CL.BADGE_TEST)), ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire))));
+          h('div', { class: 'fiche-sous' }, ref.pastille, (ref.badgeTest = h('span', { class: 'badge-test', title: 'Élément de test', dataset: { badge: 'test' }, hidden: true }, CL.BADGE_TEST)), ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire, ref.boutonBarreChoisir))));
     // Barre d'actions de l'édition : reste collée en haut de l'écran quand on défile (onglets, Catalogue, Options, Envoyer).
     ref.sentinelle = h('div', { class: 'sentinelle-barre-devis', 'aria-hidden': 'true' });
     ref.barre = h('div', { class: 'barre-devis' },
@@ -766,6 +767,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     lienDe(ref.lienClient, nomClient, d.organisationId ? cheminOrganisation(d.organisationId) : cheminPersonne(d.personneId), d.organisationId ? 'building-2' : 'user');
     const affaire = d.affaireId ? CRM.affaire(d.affaireId) : null;
     lienDe(ref.lienAffaire, affaire?.titre, cheminAffaire(d.affaireId), 'briefcase');
+    ref.boutonBarreChoisir.hidden = !peutChoisirAffaire(d);
     ref.indicateur.hidden = lecture; // lecture seule : rien à enregistrer
     if (lecture) { ref.indicateur.replaceChildren(); return; }
     if (ref.indicateur.dataset.etat !== etatEnreg) { // une icône de taille fixe : la barre ne bouge pas ; les mots restent pour l'infobulle et les lecteurs d'écran, et s'affichent seulement en cas d'échec
@@ -935,7 +937,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     ref.messageAffaireVidee = sansAffaires ? null : h('p', { class: 'texte-discret', role: 'status', dataset: { info: 'affaire-videe' }, hidden: true });
     ref.zoneClient = h('div', { class: 'zone-client-devis', dataset: { zone: 'client-devis' } });
     ref.champClient = lecture ? texteSeul('client', clientDuDevis(d)) : champClientIntelligent();
-    ref.champAffaire = sansAffaires ? null : lecture ? texteSeul('affaire', d.affaireId ? libelleAffaireDuDevis(d.affaireId) : '') : champAffaireIntelligent();
+    const affaireConnue = (id) => !CRM.etat.pret.affaires || Boolean(CRM.affaire(id)); // tant que les affaires ne sont pas chargées (`CRM.etat.pret.affaires`), un identifiant compte comme connu : jamais « sans affaire » trop tôt
+    ref.champAffaire = sansAffaires ? null : lecture ? texteSeul('affaire', d.affaireId && affaireConnue(d.affaireId) ? libelleAffaireDuDevis(d.affaireId) : '') : champAffaireIntelligent();
+    // Devis finalisé sans affaire (ou dont l'affaire a été supprimée) : « Choisir l'affaire » ouvre une fenêtre (jamais un champ dans la feuille). Sens unique : jamais pour changer d'affaire.
+    ref.boutonChoisirAffaire = peutChoisirAffaire(d)
+      ? h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'choisir-affaire' }, onclick: () => ouvrirChoixAffaire() }, 'Choisir l’affaire') : null;
     const attentionLecture = lecture && d.organisationId && d.personneId ? CRM.personne(d.personneId)?.nom : '';
     ref.champAdresse = h('textarea', {
       class: 'champ', id: 'devis-chantier-adresse', rows: 3, dataset: { champ: 'chantier-adresse' }, value: Ed.texteDeAdresse(c.adresse) || Ed.texteDeAdresse(d.adresses?.chantier),
@@ -945,7 +951,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const droite = h('div', { class: 'entete-droite' },
       champ('Pour qui est ce devis ?', lecture ? ref.champClient : ref.champClient.element, { id: 'devis-client', aide: lecture ? null : ref.zoneClient }),
       attentionLecture ? champ('À l’attention de', texteSeul('attention', attentionLecture), { id: 'devis-attention' }) : null,
-      sansAffaires ? null : champ('Affaire', lecture ? ref.champAffaire : ref.champAffaire.element, { id: 'devis-affaire', aide: lecture ? null : [ref.aideAffaire, ref.messageAffaireVidee] }),
+      sansAffaires ? null : champ('Affaire', lecture ? ref.champAffaire : ref.champAffaire.element, { id: 'devis-affaire', aide: lecture ? ref.boutonChoisirAffaire : [ref.aideAffaire, ref.messageAffaireVidee] }),
       champ('Adresse du chantier', ref.champAdresse, { id: 'devis-chantier-adresse' }),
       blocAdresses());
     return h('div', { class: 'entete-document' }, gauche, droite);
@@ -1014,31 +1020,29 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     reprendreValeurEnQuittant(ci, elementClient);
     return ci;
   }
+  /** Ce que propose la liste des affaires (ligne Affaire de la feuille ET fenêtre « Choisir l'affaire »). `etat.pasEtape` : le second pas « Dans quelle étape ? », propre à chaque champ. */
+  function fournirAffaires(saisie, etat) {
+    if (etat.pasEtape && saisie.trim()) etat.pasEtape = null; // taper un texte abandonne le second pas (la réouverture de la liste se fait champ vide)
+    if (etat.pasEtape) { // second pas : les étapes actives, dans la même liste
+      const { actives } = etapePourAffaireCreee(null, CRM.etat.config);
+      return { groupes: [{ titre: 'Dans quelle étape ?', resultats: actives.map((e) => ({ id: `etape:${e.id}`, libelle: e.libelle })) }] };
+    }
+    const nom = CD.nomAffaireCreee(saisie, travail, { organisation: travail.organisationId ? CRM.organisation(travail.organisationId) : null, personne: travail.personneId ? CRM.personne(travail.personneId) : null });
+    const duClient = affairesDuClient();
+    const base = (duClient ?? affaires()).map((a) => ({ id: a.id, libelle: libelleAffaire(a) }));
+    const trouvees = saisie.trim().length < CL.MIN_LETTRES ? (duClient ? base.slice(0, MAX_AFFAIRES_PROPOSEES) : []) : CL.rechercherSuggestions(saisie, base).resultats;
+    return { groupes: [...(trouvees.length ? [{ titre: null, resultats: trouvees }] : []), ...(nom ? [{ titre: null, resultats: [{ id: `creer-affaire:${nom}`, libelle: `+ Créer l’affaire « ${nom} »` }] }] : [])] };
+  }
+  const messageVideAffaires = (saisie, etat) => {
+    if (etat.pasEtape) return 'Crée d’abord une étape dans le pipeline des affaires (Réglages), puis reviens créer l’affaire.';
+    return saisie.trim().length < CL.MIN_LETTRES ? 'Tape un nom pour créer une affaire, ou au moins 2 lettres pour en retrouver une.' : 'Aucune affaire ne correspond.';
+  };
   /** La ligne Affaire : les affaires du client seulement (jamais celles d'un autre) ; sans client, il faut taper quelques lettres. Dans la même liste : « + Créer l'affaire « nom » » (puis « Dans quelle étape ? » si le réglage ne le dit pas). */
   function champAffaireIntelligent() {
-    const element = (a) => ({ id: a.id, libelle: libelleAffaire(a) });
-    const nomCree = (saisie) => CD.nomAffaireCreee(saisie, travail, { organisation: travail.organisationId ? CRM.organisation(travail.organisationId) : null, personne: travail.personneId ? CRM.personne(travail.personneId) : null });
-    const ligneCreer = (saisie) => {
-      const nom = nomCree(saisie);
-      return nom ? [{ titre: null, resultats: [{ id: `creer-affaire:${nom}`, libelle: `+ Créer l’affaire « ${nom} »` }] }] : [];
-    };
     const ci = champIntelligent({
       id: 'devis-affaire', etiquette: 'Affaire', placeholder: CD.PLACEHOLDER_AFFAIRE, classe: 'champ-affaire-devis', ouvrirAuFocus: true, valeur: elementAffaire(),
-      fournir: (saisie) => {
-        if (ref.pasEtape && saisie.trim()) ref.pasEtape = null; // taper un texte abandonne le second pas (la réouverture de la liste se fait champ vide)
-        if (ref.pasEtape) { // second pas : les étapes actives, dans la même liste
-          const { actives } = etapePourAffaireCreee(null, CRM.etat.config);
-          return { groupes: [{ titre: 'Dans quelle étape ?', resultats: actives.map((e) => ({ id: `etape:${e.id}`, libelle: e.libelle })) }] };
-        }
-        const duClient = affairesDuClient();
-        const base = (duClient ?? affaires()).map(element);
-        const trouvees = saisie.trim().length < CL.MIN_LETTRES ? (duClient ? base.slice(0, MAX_AFFAIRES_PROPOSEES) : []) : CL.rechercherSuggestions(saisie, base).resultats;
-        return { groupes: [...(trouvees.length ? [{ titre: null, resultats: trouvees }] : []), ...ligneCreer(saisie)] };
-      },
-      messageVide: (saisie) => {
-        if (ref.pasEtape) return 'Crée d’abord une étape dans le pipeline des affaires (Réglages), puis reviens créer l’affaire.';
-        return saisie.trim().length < CL.MIN_LETTRES ? 'Tape un nom pour créer une affaire, ou au moins 2 lettres pour en retrouver une.' : 'Aucune affaire ne correspond.';
-      },
+      fournir: (saisie) => fournirAffaires(saisie, ref),
+      messageVide: (saisie) => messageVideAffaires(saisie, ref),
       surChoix: (el, info) => { if (el || info?.effacement) changerAffaire(el); },
     });
     ci.entree.dataset.champ = 'affaire';
@@ -1075,6 +1079,83 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       toast('L’affaire n’a pas pu être créée. Vérifie ta connexion puis réessaie : ton devis est intact.', { type: 'erreur', duree: 8000 });
     } finally { enCreationAffaire = false; }
     majChoix();
+  }
+  /**
+   * « Choisir l'affaire » (devis finalisé sans affaire, PR 2 du 08/11/2026) : une fenêtre avec la même liste que la ligne Affaire (les affaires du client, « + Créer l'affaire »).
+   * Le serveur rattache TOUTES les versions et recalcule le montant de l'affaire ; il refuse si le devis a déjà une affaire.
+   */
+  /** Devis finalisé sans affaire (ou dont l'affaire a disparu), module Affaires actif, affaires chargées, compte qui peut écrire (un lecteur ne voit pas le bouton). */
+  const peutChoisirAffaire = (d) => lecture && !D.surSocleSeul() && CRM.etat.pret.affaires && CRM.compteCourant()?.ecrit !== false && sansAffaire(d, (id) => Boolean(CRM.affaire(id)));
+  function ouvrirChoixAffaire() {
+    if (!peutChoisirAffaire(travail) || !travail.id) return;
+    const etat = { pasEtape: null };
+    let choisie = null;
+    let enCours = false;
+    let bouton = null;
+    const maj = () => { if (bouton) bouton.disabled = !choisie || enCours; };
+    async function rattacher(affaireId) {
+      if (enCours) return false;
+      enCours = true; maj(); bouton?.setAttribute('aria-busy', 'true');
+      try {
+        await D.choisirAffaire(travail.id, affaireId);
+        toast('Affaire choisie', { duree: 5000 });
+        return true;
+      } catch (e) {
+        console.warn(e);
+        toast(e?.message || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 });
+        return false;
+      } finally { enCours = false; bouton?.removeAttribute('aria-busy'); maj(); }
+    }
+    let fermerFenetre = () => {};
+    async function creerEtRattacher(titre, etapeChoisie = null) {
+      if (enCours || !String(titre).trim()) return;
+      const etape = etapeAPasser(D.etat.reglages.etapeAffaireCreee, etapeChoisie, CRM.etat.config);
+      if (!etape) { // pas d'étape retenue : les étapes actives (ou le message « aucune étape ») s'affichent dans la même liste
+        etat.pasEtape = { titre };
+        ci.afficher(null); ci.entree.focus(); ci.entree.dispatchEvent(new Event('input'));
+        return;
+      }
+      enCours = true; maj();
+      etat.pasEtape = null;
+      let idCree = null;
+      try {
+        idCree = await CRM.creerAffaire({ titre, personneId: travail.personneId || null, organisationId: travail.organisationId || null, etape });
+        await attendreFiche('affaire', idCree);
+      } catch (e) {
+        console.warn(e);
+        toast('L’affaire n’a pas pu être créée. Vérifie ta connexion puis réessaie : ton devis est intact.', { type: 'erreur', duree: 8000 });
+      } finally { enCours = false; maj(); }
+      if (!idCree) return;
+      if (await rattacher(idCree)) { fermerFenetre(true); return; }
+      // L'affaire existe mais n'est pas rattachée (le serveur a refusé, ou la connexion a coupé) : on la garde dans le champ pour réessayer, jamais une seconde création.
+      choisie = idCree;
+      ci.afficher({ id: idCree, libelle: libelleAffaireDuDevis(idCree) });
+      maj();
+      toast('L’affaire est créée mais pas encore rattachée : clique « Choisir l’affaire » pour réessayer.', { type: 'erreur', duree: 8000 });
+    }
+    const ci = champIntelligent({
+      id: 'devis-choisir-affaire', etiquette: 'Affaire', placeholder: CD.PLACEHOLDER_AFFAIRE, classe: 'champ-affaire-devis', ouvrirAuFocus: true,
+      fournir: (saisie) => fournirAffaires(saisie, etat),
+      messageVide: (saisie) => messageVideAffaires(saisie, etat),
+      surChoix: (el) => {
+        const id = el ? String(el.id) : '';
+        if (id.startsWith('creer-affaire:')) { creerEtRattacher(id.slice('creer-affaire:'.length)); return; }
+        if (id.startsWith('etape:')) { creerEtRattacher(etat.pasEtape?.titre ?? '', id.slice('etape:'.length)); return; }
+        choisie = el ? id : null; etat.pasEtape = null; maj();
+      },
+    });
+    ci.entree.dataset.champ = 'choisir-affaire';
+    ci.entree.addEventListener('keydown', (e) => { if (e.key === 'Escape') etat.pasEtape = null; });
+    ci.entree.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== ci.entree) etat.pasEtape = null; }, 250)); // quitter le champ abandonne le second pas (comme la ligne Affaire)
+    dialogue({
+      titre: 'Choisir l’affaire', classe: 'dialogue-formulaire', peutFermer: () => !enCours,
+      contenu: h('div', {}, h('p', {}, `Toutes les versions de ce devis seront rattachées à cette affaire ; son montant sera recalculé.${travail.archive === true ? ' Ce devis est archivé : il compte quand même dans le montant.' : ''}`), ci.element),
+      boutons: [
+        { libelle: 'Annuler', valeur: false },
+        { libelle: 'Choisir l’affaire', valeur: true, style: 'principal', desactive: true, avantFermeture: async () => Boolean(choisie) && rattacher(choisie) },
+      ],
+      auMontage: ({ boutons, fermer }) => { bouton = boutons[1]; bouton.dataset.action = 'valider-choisir-affaire'; fermerFenetre = (v) => fermer(v, true); },
+    });
   }
   /** Le texte sous la ligne Affaire et son texte d'invitation, d'après le client et l'affaire du devis. */
   function majAideAffaire() {

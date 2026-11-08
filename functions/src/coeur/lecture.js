@@ -468,6 +468,6 @@ export async function lireDevis(donnees, { id, format, avecPrix }, maintenant = 
     acomptes: D.listeAcomptes(devis),
     totaux: { totalBrutHT: t.totalBrutHt, remiseHT: t.remiseHt, totalHT: t.totalHt, tvaParTaux: t.tvaParTaux, tva: t.tva, totalTTC: t.ttc, acompteTTC: t.acompteTtc, acomptesTTC: t.acomptesTtc ?? (t.acompteTtc == null ? [] : [t.acompteTtc]), resteAFacturerTTC: t.resteAFacturerTtc, netAPayer: t.netAPayer, mentions: (t.mentions ?? []).map(ditHorsTaxes) },
     ...(devis.statut === 'brouillon' ? { erreursFinalisation: D.erreursFinalisation(devis, { emetteur: DA.reglagesDevis(await reglagesDevis(donnees)).entreprise, aujourdhui }).map(ditPourAssistant) } : {}),
-    ...(devis.statut === 'brouillon' && affairesActif && !devis.affaireId ? { avertissement: D.AVERTISSEMENT_SANS_AFFAIRE } : {}),
+    ...(devis.statut === 'brouillon' && affairesActif && !devis.affaireId ? { avertissement: `${D.AVERTISSEMENT_SANS_AFFAIRE} (le choix de l'affaire se fait pour l'instant sur l'écran du devis, pas encore par l'assistant)` } : {}),
   });
 }

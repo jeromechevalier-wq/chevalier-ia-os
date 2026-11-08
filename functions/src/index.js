@@ -132,6 +132,7 @@ export const devisArchiver = appelDevis('archiver');
 export const devisSupprimer = appelDevis('supprimer');
 export const devisEnregistrerEnvoi = appelDevis('enregistrerEnvoi'); // historique des envois par e-mail (le brouillon Gmail est créé par le navigateur, avec le Google de l'utilisateur)
 export const devisModifierDestinataires = appelDevis('modifierDestinataires'); // destinataire et copie d'un devis finalisé ou envoyé (rien d'autre ne change)
+export const devisChoisirAffaire = appelDevis('choisirAffaire'); // choisir l'affaire d'un devis finalisé qui n'en a pas (toutes les versions, montant recalculé, restaurable)
 export const modeTestSupprimer = appelDevis('supprimerTests'); // Réglages > Mes tests : aperçu puis suppression de tous les éléments de test (mode test, PR 4)
 export const devisMarquerTest = appelDevis('marquerTest'); // marquer ou démarquer comme test un devis finalisé (mode test, PR 3) ; un TEST- finalisé reste un test
 
