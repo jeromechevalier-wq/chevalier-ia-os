@@ -68,6 +68,7 @@ const fenetre = (page) => page.getByRole('dialog');
 async function voir(page, id) {
   await connecter(page, JEROME, { route: `devis/voir/${id}` });
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+  await page.locator('.page-editeur-devis .barre-devis [data-onglet="edition"]').click(); // un devis finalisé s'ouvre sur la Prévisualisation ; l'en-tête (client, affaire) est dans l'onglet Édition
   await attendreCalme(page);
 }
 async function ouvrirChoix(page) {
