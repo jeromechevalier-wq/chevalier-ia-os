@@ -626,13 +626,13 @@ describe('Modules : les outils suivent les modules actifs du client', () => {
     const seuls = (actifs) => outilsDesModules(actifs, OUTILS).map((o) => o.nom);
     assert.deepEqual(seuls([]), ['qui_suis_je', 'diagnostiquer_fichiers']); // + outil d'essai temporaire
     assert.ok(seuls(['affaires']).includes('chercher') && !seuls(['affaires']).includes('lister_projets'));
-    assert.equal(seuls(['affaires', 'projets']).length, OUTILS.length - 31, 'sans les modules Automatisations (5 outils de la file À valider) et Devis (6 outils du bordereau et de la recherche par phrase, 20 outils des devis et de leurs réglages, dont le PDF officiel et le brouillon d\'e-mail) : 31 outils manquent');
-    assert.equal(seuls(['affaires', 'projets', 'automatisations']).length, OUTILS.length - 26, 'sans le module Devis : ses 26 outils manquent');
+    assert.equal(seuls(['affaires', 'projets']).length, OUTILS.length - 32, 'sans les modules Automatisations (5 outils de la file À valider) et Devis (6 outils du bordereau et de la recherche par phrase, 21 outils des devis et de leurs réglages, dont le PDF officiel et le brouillon d\'e-mail) : 32 outils manquent');
+    assert.equal(seuls(['affaires', 'projets', 'automatisations']).length, OUTILS.length - 27, 'sans le module Devis : ses 27 outils manquent');
     assert.equal(seuls(['affaires', 'devis']).filter((n) => /article/.test(n)).length, 7, 'Devis apporte (il n\'exige plus les Affaires) ses outils du bordereau et la recherche par phrase (rechercher_article_par_phrase), et 13 outils des devis (dont enregistrer_reponse_vocabulaire), sans le mot « article »');
     assert.equal(seuls(['affaires', 'projets', 'automatisations', 'devis']).length, OUTILS.length);
-    // PR C1 : Devis seul = communs + ses 26 outils + les 9 outils du socle (jamais les suppressions ni les outils d'affaires)
+    // PR C1 : Devis seul = communs + ses 27 outils + les 9 outils du socle (jamais les suppressions ni les outils d'affaires)
     const devisSeul = seuls(['devis']);
-    assert.equal(devisSeul.length, 2 + 26 + 9, 'communs + 26 outils Devis + 9 outils du socle');
+    assert.equal(devisSeul.length, 2 + 27 + 9, 'communs + 27 outils Devis + 9 outils du socle');
     for (const n of ['creer_personne', 'chercher', 'lire_organisation', 'modifier_personne', 'marquer_test', 'demarquer_test']) assert.ok(devisSeul.includes(n), n);
     for (const n of ['supprimer_personne', 'supprimer_organisation', 'supprimer_tous_les_tests', 'lire_affaire', 'lister_affaires', 'lister_projets']) assert.ok(!devisSeul.includes(n), n);
     assert.deepEqual(seuls(['veille']), ['qui_suis_je', 'diagnostiquer_fichiers']);
@@ -1000,7 +1000,7 @@ describe('Textes des outils : valables pour tout espace (Partie A)', () => {
       assert.match(ancien, TEXTE_DE_JEROME, ancien);
     }
     for (const permis of ['une affaire gagnée', 'nature livraison', 'lire_audit : le journal d\'audit', 'phase de clôture']) assert.doesNotMatch(permis, TEXTE_DE_JEROME, permis);
-    assert.equal(OUTILS.length, 84); // 84 : + supprimer_tous_les_tests (mode test, PR 4, 05/11/2026) ; 83 : + marquer_test, demarquer_test (mode test, PR 2, 05/11/2026) ; 81 : + recalculer_usage_articles (recalcul du compteur d'usage des articles, 30/10/2026) ; 80 : + creer_devis_depuis_modele (nouveau brouillon copié d'un devis, 30/10/2026) ; 79 : + annuler_derniere_modification_devis (annulation d'un seul niveau, 30/10/2026) ; 78 : + modifier_lignes_devis (opérations groupées sur les lignes d'un brouillon, par numéro, 30/10/2026) ; 77 : + recalculer_montants_affaires (recalcul général du montant des affaires, 30/10/2026) ; 76 : + modifier_destinataires_devis (destinataire d'un devis finalisé, 29/10/2026) ; 75 : + obtenir_pdf_officiel_devis et preparer_email (garantie « aucun e-mail ne part tout seul », 29/10/2026) ; 73 : + deposer_document et supprimer_document_stocke (onglet « Documents », 28/10/2026) ; 71 : + enregistrer_reponse_vocabulaire et rechercher_article_par_phrase (dictionnaire de vocabulaire, 28/10/2026) ; 69 : + diagnostiquer_fichiers (outil d'essai temporaire, 26/10/2026) ; 68 avant : 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations), plus 5 outils du bordereau et 11 outils des devis (module Devis, 24/10/2026 puis 25/10/2026 : + lire_reglages_devis, nouvelle_version_devis, archiver_devis, enregistrer_envoi_devis, changer_statut_devis, supprimer_devis)
+    assert.equal(OUTILS.length, 85); // 85 : + modifier_reglages_devis (réglages du module Devis par l'assistant, profil complet, 09/11/2026) ; 84 : + supprimer_tous_les_tests (mode test, PR 4, 05/11/2026) ; 83 : + marquer_test, demarquer_test (mode test, PR 2, 05/11/2026) ; 81 : + recalculer_usage_articles (recalcul du compteur d'usage des articles, 30/10/2026) ; 80 : + creer_devis_depuis_modele (nouveau brouillon copié d'un devis, 30/10/2026) ; 79 : + annuler_derniere_modification_devis (annulation d'un seul niveau, 30/10/2026) ; 78 : + modifier_lignes_devis (opérations groupées sur les lignes d'un brouillon, par numéro, 30/10/2026) ; 77 : + recalculer_montants_affaires (recalcul général du montant des affaires, 30/10/2026) ; 76 : + modifier_destinataires_devis (destinataire d'un devis finalisé, 29/10/2026) ; 75 : + obtenir_pdf_officiel_devis et preparer_email (garantie « aucun e-mail ne part tout seul », 29/10/2026) ; 73 : + deposer_document et supprimer_document_stocke (onglet « Documents », 28/10/2026) ; 71 : + enregistrer_reponse_vocabulaire et rechercher_article_par_phrase (dictionnaire de vocabulaire, 28/10/2026) ; 69 : + diagnostiquer_fichiers (outil d'essai temporaire, 26/10/2026) ; 68 avant : 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations), plus 5 outils du bordereau et 11 outils des devis (module Devis, 24/10/2026 puis 25/10/2026 : + lire_reglages_devis, nouvelle_version_devis, archiver_devis, enregistrer_envoi_devis, changer_statut_devis, supprimer_devis)
     for (const o of OUTILS) assert.doesNotMatch(textesDe(o), TEXTE_DE_JEROME, `${o.nom} : ${textesDe(o).match(TEXTE_DE_JEROME)?.[0]}`);
   });
 
@@ -1125,7 +1125,7 @@ describe('Outils factures : listés selon les options de l\'espace (Partie B)', 
 
 // --- Devis chez les clients (nuit du 28/10/2026) : le client crée ses devis par son assistant -------------------------------------------
 // Aucun code d'outil n'est copié dans `mcpclients` : ce sont les mêmes OUTILS que chez Jérôme, filtrés par le registre des modules et par le rôle.
-describe('Devis : les 26 outils du module arrivent chez les clients, dans l\'espace de chacun', () => {
+describe('Devis : les 27 outils du module arrivent chez les clients, dans l\'espace de chacun', () => {
   const OUTILS_DEVIS = moduleDeclare('devis').outilsMcp;
   const reglagesDevis = { id: 'reglages', regimeTva: 'assujetti', marge: 20, modeMarge: 'majoration' };
   /** Allume le module Devis (et ses Affaires) pour un client, avec ses réglages et, au besoin, des devis déjà enregistrés. */
@@ -1150,8 +1150,8 @@ describe('Devis : les 26 outils du module arrivent chez les clients, dans l\'esp
   }
   const devisBravo = { id: 'dv-bravo', racineId: 'dv-bravo', version: 1, numero: null, statut: 'brouillon', affaireId: 'a1', organisationId: 'org1', objet: 'Devis seulement chez Bravo', destinataires: ['x@exemple.test'], modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', archive: false, creeLe: new Date('2026-10-01T08:00:00Z'), sections: [{ id: 's1', titre: '', lignes: [{ id: 'l1', libelle: 'Peinture', unite: 'm²', quantite: 1, prixAchat: 8 }] }] };
 
-  test('devis-1 registre : les 26 outils du module Devis sortent de outilsDesModules + outilsSelonOptions pour un espace qui a Affaires et Devis ; sans Devis, aucun', () => {
-    assert.equal(OUTILS_DEVIS.length, 26);
+  test('devis-1 registre : les 27 outils du module Devis sortent de outilsDesModules + outilsSelonOptions pour un espace qui a Affaires et Devis ; sans Devis, aucun', () => {
+    assert.equal(OUTILS_DEVIS.length, 27);
     const avec = outilsSelonOptions(outilsDesModules(['affaires', 'devis', 'mcp'], OUTILS), {}).map((o) => o.nom);
     for (const n of OUTILS_DEVIS) assert.ok(avec.includes(n), `${n} manque chez les clients`);
     const sans = outilsSelonOptions(outilsDesModules(['affaires', 'mcp'], OUTILS), {}).map((o) => o.nom);
@@ -1159,7 +1159,7 @@ describe('Devis : les 26 outils du module arrivent chez les clients, dans l\'esp
     for (const n of OUTILS_DEVIS) assert.ok(OUTILS.some((o) => o.nom === n), `${n} n'a pas de code d'outil`);
   });
 
-  test('devis-2 un éditeur voit les 26 outils du module Devis par son assistant ; un lecteur voit seulement ceux de lecture', async () => {
+  test('devis-2 un éditeur voit les 27 outils du module Devis par son assistant ; un lecteur voit seulement ceux de lecture', async () => {
     await remettre();
     try {
       await activerDevis('a');
@@ -1362,13 +1362,13 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
   }
   const ok = (r) => { assert.ok(!r.isError, r.content[0].text); return resultat(r); };
 
-  test('D-S1 tools/list : les 26 outils Devis et les neuf du socle ; ni affaires, ni suppression de fiche, ni projets ; réponse 200 sans crm_parametres', async () => {
+  test('D-S1 tools/list : les 27 outils Devis et les neuf du socle ; ni affaires, ni suppression de fiche, ni projets ; réponse 200 sans crm_parametres', async () => {
     await installer();
     try {
       const { c, liste } = await outilsDe('d');
       for (const n of [...moduleDeclare('devis').outilsMcp, ...OUTILS_SOCLE]) assert.ok(liste.includes(n), n);
       for (const n of ['lire_affaire', 'lister_affaires', 'supprimer_personne', 'supprimer_organisation', 'supprimer_tous_les_tests', 'lire_audit', 'restaurer_depuis_audit', 'lister_projets']) assert.ok(!liste.includes(n), `${n} ne doit pas exister`);
-      assert.equal(liste.length, 2 + 26 + 9, 'communs + 26 + 9');
+      assert.equal(liste.length, 2 + 27 + 9, 'communs + 27 + 9');
       await c.close();
     } finally { await defaire(); }
   });

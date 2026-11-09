@@ -15,7 +15,8 @@ import { MESSAGE_TEST_FINALISE, basculerTest, TYPES_TEST, apercuSuppressionTests
 import { lireUsages } from './usage-articles.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
-import { canonique, sansId } from './canonique.js';
+import { canonique, sansId, egal } from './canonique.js';
+import { lireReglagesDevis } from './lecture.js';
 import * as DOC from './documents.js';
 import { structureCourte, phraseTotaux } from './recapitulatif.js';
 import * as DL from './devis-lignes.js';
@@ -726,6 +727,51 @@ export async function desactiverArticle(c, args) {
   const plan = DA.planActiverArticle(args.id, actif, { articles: await c.donnees.liste(C.devisArticles) });
   verifierMessages(plan.erreurs);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: args.id, actif });
+}
+
+// ---------------------------------------------------------------- Devis : réglages du module (09/11/2026)
+const objetPlat = (v) => v !== null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date);
+/** Chemins des feuilles qui diffèrent (« entreprise.siret », « marge ») : la liste des champs réellement modifiés. */
+function cheminsModifies(avant, apres, prefixe = '') {
+  if (!(objetPlat(avant) && objetPlat(apres))) return egal({ v: avant }, { v: apres }) ? [] : [prefixe];
+  return [...new Set([...Object.keys(avant), ...Object.keys(apres)])].flatMap((k) => cheminsModifies(avant[k], apres[k], prefixe ? `${prefixe}.${k}` : k));
+}
+
+/**
+ * Change les réglages du module Devis (`args.reglages`, schéma strict de l'outil). Fusion PROFONDE de « Mon entreprise » avant la validation de l'écran
+ * (validerReglagesDevis ne fusionne qu'au premier niveau) : un champ non cité ne bouge jamais. Document absent : créé ; sinon, modification des seules clés qui changent.
+ */
+export async function modifierReglagesDevis(c, args) {
+  const saisie = args.reglages ?? {};
+  if (!Object.keys(saisie).length) refuser('saisie_invalide', 'Aucun réglage à changer : donne au moins un champ dans `reglages`.');
+  let brut = null;
+  try { brut = await c.donnees.document(C.devisParametres, DA.ID_REGLAGES); } catch { brut = null; }
+  const actuels = DA.reglagesDevis(brut);
+  const inconnus = (saisie.tauxProposes ?? []).filter((t) => !D.TAUX_TVA_DEFAUT.includes(t));
+  if (inconnus.length) refuser('saisie_invalide', `Taux de TVA non proposé : ${inconnus.join(', ')}. Les taux possibles sont ${D.TAUX_TVA_DEFAUT.join(', ')}.`);
+  const fusion = { ...saisie };
+  if (saisie.entreprise) {
+    const { adresse, mediateur, ...autres } = saisie.entreprise;
+    fusion.entreprise = {
+      ...actuels.entreprise, ...autres,
+      ...(adresse ? { adresse: { ...actuels.entreprise.adresse, ...adresse } } : {}),
+      ...(mediateur ? { mediateur: { ...actuels.entreprise.mediateur, ...mediateur } } : {}),
+    };
+  }
+  const { reglages: propres, erreurs } = DA.validerReglagesDevis(fusion, { actuels: brut });
+  // Le mode de calcul de la marge n'est jamais dit à l'assistant (décision du 30/10/2026) : la phrase de l'écran qui le nomme est retirée.
+  verifierMessages(Object.fromEntries(Object.entries(erreurs).map(([k, m]) => [k, m.replace(/,? ?ou le mode « [^»]*»/g, '')])));
+  const patch = {};
+  for (const cle of Object.keys(saisie)) if (!egal({ v: propres[cle] }, { v: actuels[cle] })) patch[cle] = propres[cle];
+  const modifies = Object.keys(patch).flatMap((cle) => cheminsModifies(actuels[cle], propres[cle], cle));
+  if (!Object.keys(patch).length) {
+    return { rienAChanger: true, message: 'Rien à changer : ces réglages sont déjà ceux de l\'espace. Rien n\'a été écrit.', champsModifies: [], ...(await lireReglagesDevis(c.donnees)) };
+  }
+  const operations = brut
+    ? [{ type: 'modifier', collection: C.devisParametres, id: DA.ID_REGLAGES, patch }]
+    : [{ type: 'creer', collection: C.devisParametres, id: DA.ID_REGLAGES, donnees: propres }];
+  const r = await c.ecrire({ operations, parametres: args });
+  return { ...sortie(r, { champsModifies: modifies, cree: !brut }), ...(await lireReglagesDevis(c.donnees)) };
 }
 
 // ---------------------------------------------------------------- Devis : dictionnaire de vocabulaire (PR 3, 28/10/2026)
