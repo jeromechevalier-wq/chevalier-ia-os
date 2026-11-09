@@ -9,9 +9,10 @@
 import { logger } from 'firebase-functions';
 import { creerAccesFirestore, avecBase, COLLECTIONS as C } from '../serveur/src/coeur/donnees.js';
 import { ErreurDevis } from '../serveur/src/coeur/devis.js';
-import { fabriquerPdfDevis, MESSAGE_GENERIQUE } from '../serveur/src/devis/pdf-service.js';
+import { fabriquerPdfDevis, MESSAGE_GENERIQUE, LOGO_OCTETS_MAX } from '../serveur/src/devis/pdf-service.js';
 import { creerDeclencheurPdf, estFinalisation } from '../serveur/src/devis/pdf-declencheur.js';
 import { cheminPdfDevis, cheminAppartientALEspace, DUREE_LIEN_MINUTES } from '../serveur/src/devis/stockage.js';
+import { cheminDeUrl } from './espace.js';
 import { Refus } from './appels.js';
 import { MOTIF_IDENTIFIANT_CLIENT } from './etiquettes.js';
 import { controlerAppelant, MODULE_DEVIS } from './devis.js';
@@ -23,6 +24,27 @@ const espaceDe = (client) => `clients/${client}/`;
 const routeDe = (client) => `espace/${client}`;
 const stockageDe = (s) => (typeof s === 'function' ? s() : s) ?? null;
 const accesDe = ({ db, creerDonnees }, client) => (creerDonnees ? creerDonnees(client) : avecBase(creerAccesFirestore({ db }), `clients/${client}`));
+
+/**
+ * Octets du logo de l'espace d'un client (Réglages > Mon espace), pour le PDF. Le logo vit dans la fiche de MARQUE `marques/<client>` (champ `logo`, écrit par espace.js : même document que l'écran).
+ * L'adresse de la fiche n'est JAMAIS demandée sur le réseau : on n'en tire que le CHEMIN `marques/<client>/…` (cheminDeUrl refuse tout autre bucket, un autre client ou un `..`), lu par l'API du stockage.
+ * Pas de logo (ou adresse refusée) : null, donc aucun message. Fichier plus gros que le plafond : { raison: 'trop_lourd' } (message clair, PDF sans logo). Autre échec de lecture : lève (« illisible »).
+ */
+export function creerLireLogoEspace({ db, client, nomBucket, stockage }) {
+  return async function lireLogoEspace() {
+    const rangement = stockageDe(stockage);
+    if (!rangement || typeof rangement.lire !== 'function' || !nomBucket) return null;
+    const fiche = await db.doc(`marques/${client}`).get();
+    const chemin = fiche.exists ? cheminDeUrl(fiche.get('logo'), nomBucket, client) : null;
+    if (!chemin) return null;
+    try {
+      return await rangement.lire(chemin, { maxOctets: LOGO_OCTETS_MAX });
+    } catch (e) {
+      if (e?.cause?.code === 'trop_gros' || e?.code === 'trop_gros') return { raison: 'trop_lourd' };
+      throw e;
+    }
+  };
+}
 
 /** Lit et contrôle la demande : { devisId, brouillon, telecharger } ou null (`telecharger` : booléen facultatif, utilisé par le lien seulement ; la fabrication le refuse si le type est invalide mais l'ignore). */
 export function lireDemande(donnees) {
@@ -38,7 +60,7 @@ const refusNonConfigure = () => new Refus('failed-precondition', MESSAGE_PDF_NON
  * Donnée reçue : { client, devisId, brouillon? }. Éditeurs seulement. Rend { statut, lien, nom? } ou lève un Refus.
  * `convertir(html, { pied })` -> { pdf, sha256 } ; `stockage` : l'objet de stockage.js (ou une fonction qui le rend, ou null s'il est introuvable).
  */
-export async function fabriquerPdfClient({ db, auth, donnees, convertir, stockage, creerDonnees = null, journal = () => {}, maintenant = Date.now }) {
+export async function fabriquerPdfClient({ db, auth, donnees, convertir, stockage, nomBucket = null, delaiLogoMs = null, creerDonnees = null, journal = () => {}, maintenant = Date.now }) {
   const debut = maintenant();
   const { email, client } = await controlerAppelant({ db, auth, client: donnees?.client, roles: ['editeur'] });
   const demande = lireDemande(donnees);
@@ -50,13 +72,14 @@ export async function fabriquerPdfClient({ db, auth, donnees, convertir, stockag
     const r = await fabriquerPdfDevis({
       donnees: accesDe({ db, creerDonnees }, client), espace: espaceDe(client), baseLien: BASE_LIEN_PLATEFORME, prefixeRoute: routeDe(client),
       devisId: demande.devisId, brouillon: demande.brouillon, explicite: true, ctx, convertir, stockage: rangement,
+      lireLogo: creerLireLogoEspace({ db, client, nomBucket, stockage: rangement }), ...(delaiLogoMs ? { delaiLogoMs } : {}),
     });
     if (r.statut === 'echec') {
       journal({ action: 'pdf', statut: 'erreur', code: String(r.erreur?.name ?? 'inconnue').slice(0, 30), dureeMs: maintenant() - debut });
       throw new Refus('internal', r.message || MESSAGE_GENERIQUE);
     }
     journal({ action: 'pdf', statut: r.statut === 'ok' ? 'ok' : 'en_cours', dureeMs: maintenant() - debut });
-    return { statut: r.statut, lien: r.lien, ...(r.nom ? { nom: r.nom } : {}) };
+    return { statut: r.statut, lien: r.lien, ...(r.nom ? { nom: r.nom } : {}), ...(r.avertissement ? { avertissement: r.avertissement } : {}) };
   } catch (e) {
     if (e instanceof Refus) throw e;
     if (e instanceof ErreurDevis) {
@@ -112,7 +135,7 @@ export async function lienPdfClient({ db, auth, donnees, stockage, creerDonnees 
  * Ordre : (1) seulement le passage brouillon -> finalisé (aucune lecture sinon) ; (2) identifiant du client valide ; (3) module « devis » actif sur la fiche ; (4) fabrication.
  * Ne lève jamais : un échec de fabrication est noté sur le devis (`pdf.statut = 'echec'`), le devis reste finalisé.
  */
-export function creerDeclencheurPdfClient({ db, convertir, stockage, creerDonnees = null, journal = () => {}, maintenant = Date.now }) {
+export function creerDeclencheurPdfClient({ db, convertir, stockage, nomBucket = null, creerDonnees = null, journal = () => {}, maintenant = Date.now }) {
   return async function gestionnaire(evenement) {
     try {
       const avant = evenement?.data?.before?.data?.();
@@ -130,7 +153,7 @@ export function creerDeclencheurPdfClient({ db, convertir, stockage, creerDonnee
       }
       return await creerDeclencheurPdf({
         donnees: () => accesDe({ db, creerDonnees }, client), espace: espaceDe(client), baseLien: BASE_LIEN_PLATEFORME, prefixeRoute: routeDe(client),
-        convertir, stockage, journal, maintenant,
+        convertir, stockage, journal, maintenant, lireLogo: creerLireLogoEspace({ db, client, nomBucket, stockage }),
       })(evenement);
     } catch (e) {
       logger.error('Devis : erreur inattendue (PDF automatique)', { nom: e?.name });

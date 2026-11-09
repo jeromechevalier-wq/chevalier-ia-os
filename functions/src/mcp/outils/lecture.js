@@ -6,8 +6,8 @@ import { CONSIGNE_LIEN_ECRAN, lienEcranDepuisContexte } from '../../coeur/liens.
 import { resumerForme, phraseDe, ligneDeDiagnostic } from '../diagnostic-fichiers.js';
 
 const TOUS = ['lecture', 'ecriture', 'complet'];
-// Liste blanche du profil agent-devis (décision de Jérôme, 07/11/2026) : ajouté outil par outil, jamais à TOUS.
-const TOUS_ET_AGENT = ['lecture', 'ecriture', 'agent-devis', 'complet'];
+// Liste blanche des profils agent-devis et assistant-devis (décision de Jérôme, 07/11/2026) : ajouté outil par outil, jamais à TOUS.
+const TOUS_ET_AGENT = ['lecture', 'ecriture', 'agent-devis', 'assistant-devis', 'complet'];
 const id = z.string().min(1).max(200);
 const limite = z.number().int().min(1).max(lecture.MAX_LIGNES).optional().describe(`Nombre maximal de lignes (défaut et plafond : ${lecture.MAX_LIGNES}).`);
 const tests = z.enum(['inclure', 'exclure', 'seulement']).optional().describe("Mode test : inclure (défaut) : tout ; exclure : sans les essais ; seulement : les essais (test: true). Par défaut on inclut : l'utilisateur doit pouvoir dire « montre-moi mon client de test ». Chaque résultat qui est un essai porte test: true.");
@@ -187,7 +187,7 @@ export const rechercher_article_par_phrase = {
 export const lire_reglages_devis = {
   nom: 'lire_reglages_devis',
   profils: TOUS_ET_AGENT,
-  description: "Lit les réglages du module Devis (nom du bordereau, marge de revente des articles et marge par défaut des nouveaux devis, régime et taux de TVA proposés, durée de validité, texte « Attestation et mentions » (`mentionEmetteur`, imprimé sur tous les devis), texte « Mention de TVA réduite » (`mentionTvaReduite`, imprimé seulement sur les devis qui ont une ligne à 5,5 % ou 10 % ; vide = texte standard), `gestionDechets` (true par défaut ; false = le bloc « Gestion des déchets » n'est ni affiché ni imprimé sur les devis, les données `dechets` des devis restent), « Mon entreprise » dont le texte d'assurance `assuranceTexte` et les `coordonneesBancaires`) et les familles d'articles du bordereau (id, nom, actif, parentId). Lecture seule : ces réglages se changent depuis l'écran. Donne aussi `vocabulaire` : le mot affiché à l'utilisateur pour le type ouvrage.",
+  description: "Lit les réglages du module Devis (nom du bordereau, marge de revente des articles et marge par défaut des nouveaux devis, régime et taux de TVA proposés, durée de validité, texte « Attestation et mentions » (`mentionEmetteur`, imprimé sur tous les devis), texte « Mention de TVA réduite » (`mentionTvaReduite`, imprimé seulement sur les devis qui ont une ligne à 5,5 % ou 10 % ; vide = texte standard), `gestionDechets` (true par défaut ; false = le bloc « Gestion des déchets » n'est ni affiché ni imprimé sur les devis, les données `dechets` des devis restent), « Mon entreprise » dont le texte d'assurance `assuranceTexte` et les `coordonneesBancaires`) et les familles d'articles du bordereau (id, nom, actif, parentId). Lecture seule ici : ils se changent avec l'outil de réglages des devis (profil complet) ou depuis l'écran Réglages > Devis. Donne aussi `vocabulaire` : le mot affiché à l'utilisateur pour le type ouvrage.",
   schema: {},
   executer: ({ donnees }) => lecture.lireReglagesDevis(donnees),
 };

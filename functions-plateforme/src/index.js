@@ -144,7 +144,7 @@ const journalPdf = (e) => {
   if (e.statut === 'erreur') logger.error('devisPdf', ligne); else logger.info('devisPdf', ligne);
 };
 export const devisPdf = onCall(OPTIONS_PDF, async (requete) => {
-  try { return await fabriquerPdfClient({ db: db(), auth: requete.auth, donnees: requete.data, convertir: (html, options) => convertirHtmlEnPdf(html, options), stockage: stockagePdf, journal: journalPdf }); } catch (e) { throw enHttps(e); }
+  try { return await fabriquerPdfClient({ db: db(), auth: requete.auth, donnees: requete.data, convertir: (html, options) => convertirHtmlEnPdf(html, options), stockage: stockagePdf, nomBucket: BUCKET, journal: journalPdf }); } catch (e) { throw enHttps(e); }
 });
 export const devisPdfLien = onCall({ region: REGION, memory: '256MiB', timeoutSeconds: 60, maxInstances: 5, serviceAccount: COMPTE_PDF }, async (requete) => {
   try { return await lienPdfClient({ db: db(), auth: requete.auth, donnees: requete.data, stockage: stockagePdf, journal: journalPdf }); } catch (e) { throw enHttps(e); }
@@ -168,7 +168,7 @@ export const documentSupprimer = appelDoc('supprimer', OPTIONS_DOCUMENT);
 // Déclencheur : ne réagit qu'au passage brouillon -> finalisé (l'écriture de `pdf` ne le relance donc jamais), ne fabrique que si le module « devis » est actif chez ce client, ne lève jamais d'erreur.
 export const devisPdfAuto = onDocumentUpdated(
   { document: 'clients/{client}/devis_devis/{devisId}', region: REGION, memory: '2GiB', timeoutSeconds: 540, concurrency: 1, maxInstances: 2, retry: false, serviceAccount: COMPTE_PDF },
-  (evenement) => creerDeclencheurPdfClient({ db: db(), convertir: (html, options) => convertirHtmlEnPdf(html, options), stockage: stockagePdf, journal: journalPdf })(evenement),
+  (evenement) => creerDeclencheurPdfClient({ db: db(), convertir: (html, options) => convertirHtmlEnPdf(html, options), stockage: stockagePdf, nomBucket: BUCKET, journal: journalPdf })(evenement),
 );
 
 // La porte des workflows n8n des clients (31/10/2026) : les workflows d'un client (ex. « préparer l'e-mail d'un devis ») rappellent le serveur par HTTPS avec une clé PAR CLIENT

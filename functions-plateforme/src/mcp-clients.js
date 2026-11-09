@@ -8,6 +8,7 @@ import { creerSortieN8n } from '../serveur/src/coeur/n8n-sortie.js';
 import { creerLecteurSecrets } from '../serveur/src/securite/secrets.js';
 import { creerStockage } from '../serveur/src/devis/stockage.js';
 import { creerAccesFirestore } from '../serveur/src/coeur/donnees.js';
+import { creerMagasin } from '../serveur/src/securite/jetons.js';
 import { creerLimiteur } from '../serveur/src/securite/limites.js';
 import { creerEspaces } from '../serveur/src/clients/espaces.js';
 import { creerRouteurOauthClients } from '../serveur/src/clients/routeur-oauth.js';
@@ -22,10 +23,14 @@ export function creerMcpClients() {
     const d = await getAuth(app).verifyIdToken(jeton); // signature, émetteur, audience (chevalier-ia-app) et expiration contrôlés par le SDK
     return { email: d.email, emailVerifie: d.email_verified === true, fournisseur: d.firebase?.sign_in_provider };
   };
-  const oauth = creerRouteurOauthClients({ donnees, verifierIdToken, espaces: creerEspaces({ donnees }) });
+  const espaces = creerEspaces({ donnees });
+  const oauth = creerRouteurOauthClients({ donnees, verifierIdToken, espaces });
   // Fichiers de l'onglet « Documents » déposés par un assistant (texte seulement) : le compte du MCP des clients doit avoir « Administrateur des objets » sur clients/ (docs/securite-et-pannes.md) ; sans lui, l'outil répond « droit manquant ».
   const stockage = () => { try { return creerStockage({ bucket: getStorage().bucket(BUCKET) }); } catch { return null; } };
   // Brouillon d'e-mail d'un devis (jamais d'envoi) : un workflow et des secrets PAR CLIENT, lus dans Secret Manager à l'appel (coeur/n8n-sortie.js). Le compte du MCP des clients doit avoir « Accesseur de secrets » sur ces secrets, sinon l'outil répond « pas branché ».
   const sortieEmail = creerSortieN8n({ lireSecret: creerLecteurSecrets({ projet: 'chevalier-ia-app' }) });
-  return creerGestionnaireClients({ donnees, oauth, limiteur: creerLimiteur({ donnees }), stockage, sortieEmail });
+  // Jetons fixes liés à UN client (bot n8n, profils lecture, agent-devis ou assistant-devis) : secret MCP_JETONS_CLIENTS lu à l'exécution (jamais lié au déploiement), cache de 60 s ; le magasin est créé UNE fois ici, pas par requête. Le compte du MCP des clients doit avoir « Accesseur de secrets » sur ce secret.
+  const lireSecretPlateforme = creerLecteurSecrets({ projet: 'chevalier-ia-app' });
+  const magasinJetons = creerMagasin({ lire: () => lireSecretPlateforme('MCP_JETONS_CLIENTS') });
+  return creerGestionnaireClients({ donnees, oauth, magasinJetons, espaces, limiteur: creerLimiteur({ donnees }), stockage, sortieEmail });
 }

@@ -15,14 +15,18 @@ import { collections, MAINTENANT } from './_donnees-essai.js';
 const LISTE_AGENT = ['qui_suis_je', 'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_devis', 'lire_devis', 'lire_reglages_devis', 'chercher_article', 'lister_articles', 'rechercher_article_par_phrase', 'obtenir_pdf_officiel_devis',
   'creer_personne', 'creer_organisation', 'creer_affaire', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'modifier_destinataires_devis', 'preparer_email'];
 
+// Liste blanche EXACTE du profil assistant-devis (09/11/2026), écrite à la main : les 21 outils d'agent-devis + modifier les lignes, annuler la dernière modification, nouvelle version. 24 outils.
+const LISTE_ASSISTANT = [...LISTE_AGENT, 'modifier_lignes_devis', 'annuler_derniere_modification_devis', 'nouvelle_version_devis'];
+
 const nomsPour = (profil) => outilsAutorises(profil).map((o) => o.nom).sort();
 
-const JETON = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, agent: `cia_${'A'.repeat(43)}`, code: `cia_${'C'.repeat(43)}`, revoque: `cia_${'R'.repeat(43)}` };
+const JETON = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, agent: `cia_${'A'.repeat(43)}`, assistant: `cia_${'S'.repeat(43)}`, code: `cia_${'C'.repeat(43)}`, revoque: `cia_${'R'.repeat(43)}` };
 const entree = (jeton, nom, profil, actif = true) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif });
 const SECRET = JSON.stringify([
   entree(JETON.lecteur, 'lecteur-essai', 'lecteur'),
   entree(JETON.biblio, 'hermes-bibliothecaire', 'bibliothecaire'),
   entree(JETON.agent, 'n8n-devis-essai', 'agent-devis'),
+  entree(JETON.assistant, 'assistant-devis-essai', 'assistant-devis'),
   entree(JETON.code, 'claude-code-jerome', 'claude-code'),
   entree(JETON.revoque, 'ancien-client', 'claude-code', false),
 ]);
@@ -111,7 +115,8 @@ describe('Protocole MCP et droits par profil', () => {
     assert.ok(refus.erreur || refus.isError, 'appel refusé');
     await biblio.close();
     const code = await client(JETON.code);
-    assert.deepEqual((await code.listTools()).tools.map((t) => t.name).sort(), [...nomsPour('complet'), 'outil_reserve'].sort());
+    // Un jeton statique n'a pas d'e-mail vérifié : modifier_reglages_devis (réservé à Jérôme, par son identité) n'est jamais listé, même en profil complet.
+    assert.deepEqual((await code.listTools()).tools.map((t) => t.name).sort(), [...nomsPour('complet').filter((n) => n !== 'modifier_reglages_devis'), 'outil_reserve'].sort());
     assert.equal(JSON.parse((await code.callTool({ name: 'outil_reserve', arguments: {} })).content[0].text).ok, true);
     await code.close();
   });
@@ -215,6 +220,42 @@ describe('Profil agent-devis : liste blanche et outils refusés', () => {
   });
 });
 
+describe('Profil assistant-devis : liste blanche et outils refusés', () => {
+  const NON_ACCORDES = outilsAutorises('complet').map((o) => o.nom).filter((n) => !LISTE_ASSISTANT.includes(n));
+  test('1 assistant-devis : 24 outils exactement (liste écrite à la main), tout futur outil refusé tant qu\'il n\'est pas ajouté en dur', () => {
+    const noms = nomsPour('assistant-devis');
+    assert.equal(LISTE_ASSISTANT.length, 24);
+    assert.deepEqual(noms, [...LISTE_ASSISTANT].sort());
+    assert.ok(NON_ACCORDES.length >= 55);
+  });
+  test('2 agent-devis : toujours exactement 21 outils, sans les trois outils de modification (non-régression)', () => {
+    const noms = nomsPour('agent-devis');
+    assert.equal(noms.length, 21);
+    assert.deepEqual(noms, [...LISTE_AGENT].sort());
+    for (const n of ['modifier_lignes_devis', 'annuler_derniere_modification_devis', 'nouvelle_version_devis']) assert.ok(!noms.includes(n));
+  });
+  test('3 assistant-devis : aucun supprimer_*, restaurer_depuis_audit, modifier_personne, changer_statut_devis, archiver_devis, marquer_test, demarquer_test, modifier_reglages_devis ; appel direct refusé', async () => {
+    const noms = nomsPour('assistant-devis');
+    for (const n of ['restaurer_depuis_audit', 'modifier_personne', 'changer_statut_devis', 'archiver_devis', 'marquer_test', 'demarquer_test', 'modifier_reglages_devis']) assert.ok(!noms.includes(n), n);
+    assert.ok(!noms.some((n) => n.startsWith('supprimer_')));
+    const c = await client(JETON.assistant);
+    const vus = (await c.listTools()).tools.map((t) => t.name);
+    assert.ok(vus.includes('modifier_lignes_devis') && vus.includes('nouvelle_version_devis') && !vus.includes('supprimer_devis'));
+    const avant = JSON.stringify(collections);
+    for (const nom of NON_ACCORDES) {
+      const r = await c.callTool({ name: nom, arguments: {} }).catch((e) => ({ erreur: e }));
+      assert.ok(r.erreur || r.isError, `${nom} doit être refusé`);
+      const texte = r.erreur ? String(r.erreur.message) : (r.content ?? []).map((x) => x.text ?? '').join(' ');
+      assert.match(texte, /not found/i, nom);
+    }
+    assert.equal(JSON.stringify(collections), avant, 'aucun refus n’écrit');
+    const q = JSON.parse((await c.callTool({ name: 'qui_suis_je', arguments: {} })).content[0].text);
+    assert.equal(q.profil, 'assistant-devis');
+    assert.deepEqual([...q.outils].sort(), noms);
+    await c.close();
+  });
+});
+
 describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => {
   // Listes écrites à la main, relevées sur main (2.10.0), puis ajustées le 22/10/2026 : « tâche de projet » est devenue « livrable » (ajouter_livrable_projet, terminer_livrable_projet, anciens noms retirés), puis la pause a été supprimée le 22/10/2026 (mettre_en_pause, mettre_projet_en_pause et reprendre_projet retirés, sans alias : 27 outils d’écriture au lieu de 30). Ni les autres noms ni le nombre d'outils ne doivent bouger.
   const LECTURE = ['chercher', 'lire_affaire', 'lire_audit', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_reglages', 'lister_activites', 'lister_affaires', 'lister_documents', 'lister_modeles_projet', 'lister_projets', 'qui_suis_je',
@@ -232,11 +273,12 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
     'preparer_email', // + brouillon d'e-mail d'un devis, jamais d'envoi (garantie « aucun e-mail ne part tout seul », 29/10/2026)
     'deposer_document', // + dépôt d'un fichier texte dans l'onglet « Documents » (28/10/2026)
     'marquer_test', 'demarquer_test']; // + mode test : marquer ou démarquer un essai (PR 2, 05/11/2026)
-  const FINALISATION = ['finaliser_devis', 'changer_statut_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles']; // écritures sensibles (figent le devis, ne se défont pas avec le journal, confirmation par code) : Claude Code seulement
+  const FINALISATION = ['finaliser_devis', 'changer_statut_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles']; // écritures sensibles (figent le devis, ne se défont pas avec le journal, confirmation par code) : Claude Code seulement ; modifier_reglages_devis (09/11/2026) n'est PAS dans cette liste : réservé aux super admins (identité vérifiée) (e-mail OAuth vérifié), il n'apparaît jamais pour un jeton statique, même complet
   const SUPPRESSION = ['restaurer_depuis_audit', 'supprimer_activite', 'supprimer_devis', 'supprimer_affaire', 'supprimer_note', 'supprimer_organisation', 'supprimer_personne', 'supprimer_projet', 'supprimer_document_stocke', 'supprimer_tous_les_tests'];
   const attendu = {
     lecteur: [...LECTURE].sort(),
     agent: [...LISTE_AGENT].sort(),
+    assistant: [...LISTE_ASSISTANT].sort(),
     biblio: [...LECTURE, ...ECRITURE].sort(),
     code: [...LECTURE, ...ECRITURE, ...FINALISATION, ...SUPPRESSION].sort(),
   };
@@ -246,8 +288,9 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
       // outil_reserve : outil d'essai de ce fichier, absent du vrai serveur.
       const recus = (await c.listTools()).tools.map((t) => t.name).filter((n) => n !== OUTIL_RESERVE.nom).sort();
       await c.close();
-      assert.deepEqual(recus, liste);
-      assert.deepEqual(nomsPour(profil === 'biblio' ? 'ecriture' : profil === 'code' ? 'complet' : profil === 'agent' ? 'agent-devis' : 'lecture'), liste);
+      // Jeton statique : jamais d'e-mail vérifié, donc jamais modifier_reglages_devis (réservé aux super admins (identité vérifiée)), même en profil complet.
+      assert.deepEqual(recus, liste.filter((n) => n !== 'modifier_reglages_devis'));
+      assert.deepEqual(nomsPour(profil === 'biblio' ? 'ecriture' : profil === 'code' ? 'complet' : profil === 'agent' ? 'agent-devis' : profil === 'assistant' ? 'assistant-devis' : 'lecture').filter((n) => n !== 'modifier_reglages_devis'), liste.filter((n) => n !== 'modifier_reglages_devis'));
     });
   }
 });

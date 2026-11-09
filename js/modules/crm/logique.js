@@ -2588,6 +2588,7 @@ const NOMS_DOCUMENTS = {
   devis_articles: ['article du catalogue', 'articles du catalogue'],
   devis_devis: ['devis', 'devis'],
   devis_vocabulaire: ['mot appris', 'mots appris'],
+  devis_parametres: ['réglages des devis', 'réglages des devis'],
 };
 const ACTIONS_JOURNAL = { creer: 'Création', modifier: 'Modification', supprimer: 'Suppression', restaurer: 'Restauration', echec: 'Échec' };
 
