@@ -11,6 +11,8 @@ import { Client } from '../functions/node_modules/@modelcontextprotocol/sdk/dist
 import { StreamableHTTPClientTransport } from '../functions/node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js';
 import { creerAccesMemoire, avecBase } from '../functions/src/coeur/donnees.js';
 import { creerLimiteur, LIMITES_PAR_DEFAUT } from '../functions/src/securite/limites.js';
+import { empreinte, creerMagasin, analyserSecret, trouverJeton, trouverJetonClient } from '../functions/src/securite/jetons.js';
+import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { creerEspaces } from '../functions/src/clients/espaces.js';
 import { creerRouteurOauthClients } from '../functions/src/clients/routeur-oauth.js';
 import { creerGestionnaireClients, outilsDesModules, outilsSelonOptions, OUTILS_PAR_OPTION, NOM_SERVEUR_CLIENT } from '../functions/src/clients/gestionnaire.js';
@@ -89,6 +91,8 @@ function baseInitiale() {
 }
 
 let serveur, base, donnees, lignesJournal, horloge, panne, panneReglages;
+// Secret des jetons fixes liés à un client (MCP_JETONS_CLIENTS), remplacé par un texte en mémoire ; horloge propre au cache de 60 s du magasin.
+let secretJetons = '', panneSecret = false, horlogeSecret = 0, lecturesSecret = 0;
 const maintenant = () => horloge;
 
 before(async () => {
@@ -105,7 +109,8 @@ before(async () => {
     maintenant,
     limitePostParMinute: 1_000_000,
   });
-  const gestionnaire = creerGestionnaireClients({ donnees, oauth, limiteur: creerLimiteur({ donnees, maintenant }), maintenant, journal: (e) => { lignesJournal.push(e); } });
+  const magasinJetons = creerMagasin({ lire: async () => { lecturesSecret += 1; if (panneSecret) throw new Error('Secret Manager en panne : détail interne'); return secretJetons; }, maintenant: () => horlogeSecret });
+  const gestionnaire = creerGestionnaireClients({ donnees, oauth, magasinJetons, espaces: creerEspaces({ donnees }), limiteur: creerLimiteur({ donnees, maintenant }), maintenant, journal: (e) => { lignesJournal.push(e); } });
   serveur = createServer((req, res) => {
     const morceaux = [];
     req.on('data', (m) => morceaux.push(m));
@@ -1558,5 +1563,229 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
       assert.equal((await donnees.document('clients/d/devis_devis', d.id)).test, false);
       await c.close();
     } finally { await defaire(); }
+  });
+});
+
+// --- Porte par jeton fixe lié à UN client (bot n8n) : secret MCP_JETONS_CLIENTS, profils lecture et agent-devis ------------------------------
+describe('Porte par jeton fixe lié à un client (PJ1 à PJ8)', () => {
+  const jetonDe = (c) => `cia_${c.repeat(43)}`;
+  const JD = jetonDe('D'); // jeton du bot du client « d » (agent-devis)
+  const JDL = jetonDe('L'); // jeton lecture du client « d »
+  const JA = jetonDe('A'); // jeton du client « a »
+  const JINCONNU = jetonDe('Z');
+  const ligne = (jeton, nom, profil, client, extra = {}) => JSON.stringify({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif: true, ...(client ? { client } : {}), ...extra });
+  const secret = (...lignes) => lignes.join('\n');
+  const LISTE_AGENT = ['qui_suis_je', 'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_devis', 'lire_devis', 'lire_reglages_devis', 'chercher_article', 'lister_articles', 'rechercher_article_par_phrase', 'obtenir_pdf_officiel_devis',
+    'creer_personne', 'creer_organisation', 'creer_affaire', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'modifier_destinataires_devis', 'preparer_email'];
+  const AFFAIRES = ['lire_affaire', 'lister_affaires', 'creer_affaire'];
+  const SECRET_BASE = () => secret(ligne(JD, 'bot-devis', 'agent-devis', 'd'), ligne(JDL, 'bot-lecture', 'lecture', 'd'), ligne(JA, 'bot-a', 'agent-devis', 'a'));
+
+  async function installer() {
+    await donnees.appliquer([
+      { type: 'set', collection: 'marques', id: 'd', donnees: fichier('d', 'Devis Seul') },
+      { type: 'set', collection: 'clients', id: 'd', donnees: { modules: { devis: true, mcp: true } } },
+    ]);
+  }
+  async function defaire() {
+    for (const nom of ['crm_personnes', 'crm_organisations', 'crm_audit', 'crm_audit_avant', 'mcp_codes']) {
+      const existants = await donnees.liste(`clients/d/${nom}`);
+      if (existants.length) await donnees.appliquer(existants.map((d) => ({ type: 'delete', collection: `clients/d/${nom}`, id: d.id })));
+    }
+    await donnees.appliquer([{ type: 'delete', collection: 'clients', id: 'd' }, { type: 'delete', collection: 'marques', id: 'd' }]);
+    await reinitialiser();
+  }
+  const rejouer = () => { horlogeSecret += 61_000; }; // fait expirer le cache de 60 s du magasin
+  beforeEach(async () => { rejouer(); secretJetons = SECRET_BASE(); panneSecret = false; lecturesSecret = 0; await installer(); });
+  after(async () => { secretJetons = ''; await defaire(); });
+  const ok = (r) => { assert.ok(!r.isError, r.content[0].text); return resultat(r); };
+
+  test('PJ1 un jeton n\'ouvre QUE son client : sur un autre client ou un client inconnu, exactement le refus d\'un jeton inconnu (statut, corps, en-tête, code de journal)', async () => {
+    assert.equal((await brut('/mcp/d', JD)).status, 200);
+    const refus = async (lien, jeton) => {
+      lignesJournal = [];
+      const r = await brut(lien, jeton);
+      return [r.status, await r.text(), r.headers.get('www-authenticate'), lignesJournal.at(-1).code];
+    };
+    for (const lien of ['/mcp/d', '/mcp/a', '/mcp/b', '/mcp/inconnu', '/mcp/sans-mcp']) {
+      const inconnu = await refus(lien, JINCONNU);
+      assert.deepEqual(inconnu.slice(0, 2), [401, '{"error":"non_autorise"}'], lien);
+      assert.equal(inconnu[3], 'jeton', lien);
+      if (lien !== '/mcp/d') assert.deepEqual(await refus(lien, JD), inconnu, `${lien} : jeton de d`);
+    }
+    assert.deepEqual(await refus('/mcp/d', JA), await refus('/mcp/d', JINCONNU), 'jeton du client a sur d');
+    // « interne » : refusé avant toute authentification (code « lien »), jeton valable ou non.
+    const interne = await refus('/mcp/interne', JD);
+    assert.deepEqual([interne[0], interne[3]], [401, 'lien']);
+  });
+
+  test('PJ1 le MCP de Jérôme refuse un jeton lié à un client, même si sa ligne atterrit dans MCP_JETONS', async () => {
+    const magasin = creerMagasin({ lire: async () => secretJetons, maintenant: () => horlogeSecret });
+    const jerome = creerGestionnaire({ magasin, donnees: creerAccesMemoire({}), limiteur: null, journal: () => {} });
+    const srv = createServer((req, res) => {
+      const m = []; req.on('data', (x) => m.push(x)); req.on('end', () => { try { req.body = JSON.parse(Buffer.concat(m).toString('utf8')); } catch { req.body = undefined; } jerome(req, res); });
+    });
+    await new Promise((o) => srv.listen(0, '127.0.0.1', o));
+    try {
+      const url = `http://127.0.0.1:${srv.address().port}/mcp`;
+      const appel = (jeton) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${jeton}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
+      assert.equal((await appel(JD)).status, 401);
+      secretJetons = secret(ligne(jetonDe('J'), 'hermes', 'ecriture')); // le même type de ligne SANS client ouvre bien le serveur de Jérôme
+      rejouer();
+      assert.equal((await appel(jetonDe('J'))).status, 200);
+    } finally { srv.close(); }
+  });
+
+  test('PJ1 dans l\'autre sens : une ligne SANS client (jeton de Jérôme) n\'ouvre aucun client', async () => {
+    secretJetons = secret(ligne(jetonDe('J'), 'hermes', 'agent-devis'));
+    rejouer();
+    assert.equal((await brut('/mcp/d', jetonDe('J'))).status, 401);
+    assert.equal(trouverJetonClient(analyserSecret(secretJetons).entrees, jetonDe('J'), 'd'), null);
+    assert.ok(trouverJeton(analyserSecret(secretJetons).entrees, jetonDe('J')));
+  });
+
+  test('PJ2 profils permis : lecture et agent-devis seulement ; une ligne complet, ecriture ou claude-code avec un client est ignorée comme invalide', async () => {
+    for (const profil of ['complet', 'ecriture', 'claude-code', 'bibliothecaire']) {
+      secretJetons = secret(ligne(JD, 'bot-devis', profil, 'd'));
+      rejouer();
+      assert.equal(analyserSecret(secretJetons).entrees.length, 0, profil);
+      assert.equal(analyserSecret(secretJetons).invalides, 1, profil);
+      assert.equal((await brut('/mcp/d', JD)).status, 401, `ligne ${profil} + client => 401`);
+    }
+    secretJetons = secret(ligne(JD, 'bot-devis', 'lecteur', 'd')); // ancien nom de lecture : accepté
+    rejouer();
+    assert.equal((await brut('/mcp/d', JD)).status, 200);
+    // Client mal formé, ou nom réservé aux connexions OAuth : ligne invalide.
+    for (const mauvaise of [ligne(JD, 'bot-devis', 'agent-devis', 'D'), ligne(JD, 'bot-devis', 'agent-devis', '../a'), ligne(JD, 'claude-ai-bot', 'agent-devis', 'd'), ligne(JD, 'chatgpt-bot', 'agent-devis', 'd'), JSON.stringify({ ...JSON.parse(ligne(JD, 'bot-devis', 'agent-devis')), client: 5 })]) {
+      assert.equal(analyserSecret(mauvaise).entrees.length, 0, mauvaise);
+    }
+  });
+
+  test('PJ2 agent-devis chez un espace Devis + MCP : exactement 18 outils (la liste blanche de 21 moins les trois d\'Affaires), aucun outil de suppression ni de restauration', async () => {
+    const c = await assistant('/mcp/d', JD);
+    const liste = noms(await c.listTools());
+    await c.close();
+    assert.equal(liste.length, 18);
+    assert.deepEqual(liste, LISTE_AGENT.filter((n) => !AFFAIRES.includes(n)).sort());
+    assert.ok(liste.includes('finaliser_devis'));
+    assert.equal(liste.filter((n) => SUPPRESSIONS.test(n)).length, 0);
+  });
+
+  test('PJ2 lecture : aucun outil d\'écriture, de suppression ni de restauration ; un appel d\'écriture est refusé', async () => {
+    const c = await assistant('/mcp/d', JDL);
+    const liste = noms(await c.listTools());
+    assert.ok(liste.length > 0);
+    assert.equal(liste.filter((n) => MOTS_ECRITURE.test(n) || SUPPRESSIONS.test(n) || n === 'finaliser_devis').length, 0, liste.join(','));
+    assert.equal(await refuse(c, 'creer_personne', { nom: 'Essai' }), true);
+    await c.close();
+  });
+
+  test('PJ3 relu à chaque appel : jeton révoqué (moins d\'une minute plus tard), module « mcp » éteint, client désactivé = refus', async () => {
+    assert.equal((await brut('/mcp/d', JD)).status, 200);
+    // Module « mcp » éteint : refus immédiat, sans attendre le cache du secret.
+    await donnees.appliquer([{ type: 'set', collection: 'clients', id: 'd', donnees: { modules: { devis: true, mcp: false } } }]);
+    const eteint = await brut('/mcp/d', JD);
+    assert.equal(eteint.status, 401);
+    assert.equal(await eteint.text(), '{"error":"non_autorise"}');
+    // Module Devis éteint (mcp allumé) : le jeton ouvre, mais seuls les outils communs restent.
+    await donnees.appliquer([{ type: 'set', collection: 'clients', id: 'd', donnees: { modules: { devis: false, mcp: true } } }]);
+    const c = await assistant('/mcp/d', JD);
+    const restants = noms(await c.listTools());
+    await c.close();
+    assert.ok(restants.length < 18 && !restants.includes('creer_devis_brouillon'), restants.join(','));
+    // Marque désactivée : refus.
+    await donnees.appliquer([{ type: 'set', collection: 'clients', id: 'd', donnees: { modules: { devis: true, mcp: true } } }, { type: 'set', collection: 'marques', id: 'd', donnees: fichier('d', 'Devis Seul', { actif: false }) }]);
+    assert.equal((await brut('/mcp/d', JD)).status, 401);
+    await donnees.appliquer([{ type: 'set', collection: 'marques', id: 'd', donnees: fichier('d', 'Devis Seul') }]);
+    assert.equal((await brut('/mcp/d', JD)).status, 200);
+    // Révocation : actif false dans le secret, effective après l'expiration du cache (60 s), pas avant.
+    secretJetons = secret(ligne(JD, 'bot-devis', 'agent-devis', 'd', { actif: false }));
+    assert.equal((await brut('/mcp/d', JD)).status, 200, 'cache de 60 s encore valable');
+    horlogeSecret += 59_000;
+    assert.equal((await brut('/mcp/d', JD)).status, 200);
+    horlogeSecret += 2_000;
+    assert.equal((await brut('/mcp/d', JD)).status, 401);
+  });
+
+  test('PJ4 forme du jeton : clé de plafonds « <client>__<nom> », acteur = nom, rôle absent, fiches créées sans propriétaire inventé ; journal sans rôle ni e-mail', async () => {
+    const c = await assistant('/mcp/d', JD);
+    const moi = ok(await c.callTool({ name: 'qui_suis_je', arguments: {} }));
+    assert.equal(moi.acteur, 'bot-devis');
+    assert.equal(moi.profil, 'agent-devis');
+    const p = ok(await c.callTool({ name: 'creer_personne', arguments: { nom: 'Essai Porte' } }));
+    await c.close();
+    const fiche = await donnees.document('clients/d/crm_personnes', p.id);
+    assert.ok(!fiche.proprietaire, `propriétaire vide, pas d'e-mail inventé : « ${fiche.proprietaire} »`);
+    assert.ok(!JSON.stringify(fiche).includes('@'));
+    const limites = await donnees.liste('mcp_limites');
+    assert.ok(limites.some((l) => l.id === 'd__bot-devis'), limites.map((l) => l.id).join(','));
+    const appels = lignesJournal.filter((l) => l.outil === 'creer_personne');
+    assert.ok(appels.length > 0);
+    for (const l of appels) assert.deepEqual([l.client, l.jeton, l.acteur, l.profil, l.role ?? null], ['d', 'd__bot-devis', 'bot-devis', 'agent-devis', null]);
+    // Le code de confirmation d'une finalisation est rangé sous le client (cloisonné).
+    await defaire();
+  });
+
+  test('PJ5 le secret n\'est lu que pour un porteur de « cia_ » + 43 ; sa panne = 503 pour lui seul, les connexions OAuth restent vertes', async () => {
+    const ta = await connecter('a', 'ID-ALICE');
+    lecturesSecret = 0;
+    panneSecret = true;
+    // OAuth : intact, et le secret n'est même pas consulté.
+    const c = await assistant('/mcp/a', ta.access_token);
+    assert.ok((await c.listTools()).tools.length > 0);
+    await c.close();
+    assert.equal((await brut('/mcp/a')).status, 401); // sans bearer
+    assert.equal((await brut('/mcp/a', 'cia_trop-court')).status, 401);
+    assert.equal(lecturesSecret, 0, 'secret non consulté');
+    // Porteur d'un « cia_… » : 503 indisponible, sans détail interne.
+    lignesJournal = [];
+    const r = await brut('/mcp/d', JD);
+    assert.equal(r.status, 503);
+    const texte = await r.text();
+    assert.equal(texte, '{"error":"indisponible"}');
+    assert.ok(!texte.includes('Secret Manager'));
+    assert.equal(lignesJournal.at(-1).code, 'secret_illisible');
+    // Un secret rétabli rouvre aussitôt.
+    panneSecret = false;
+    assert.equal((await brut('/mcp/d', JD)).status, 200);
+    await reinitialiser();
+  });
+
+  test('PJ6 la liste vient de analyserSecret : le champ client est conservé, une ligne sans client reste sans client', () => {
+    const { entrees } = analyserSecret(SECRET_BASE());
+    assert.deepEqual(entrees.map((e) => e.client), ['d', 'd', 'a']);
+    assert.equal(analyserSecret(ligne(JD, 'hermes', 'complet')).entrees[0].client, undefined);
+  });
+
+  test('PJ7 outils/creer-jeton.js --client écrit un champ client, refuse un profil hors liste, un nom OAuth et « interne »', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const lancer = (...a) => execFileSync('node', ['outils/creer-jeton.js', ...a], { cwd: new URL('..', import.meta.url).pathname, encoding: 'utf8', stdio: 'pipe' });
+    const sortie = lancer('bot-devis-essai', 'agent-devis', '--client', 'clientdemo');
+    const jeton = /cia_[A-Za-z0-9_-]{43}/.exec(sortie)[0];
+    const l = JSON.parse(/\{"jeton".*\}/.exec(sortie)[0]);
+    assert.equal(l.client, 'clientdemo');
+    assert.equal(JSON.stringify(l).includes(jeton), false);
+    assert.ok(trouverJetonClient(analyserSecret(JSON.stringify(l)).entrees, jeton, 'clientdemo'));
+    assert.equal(trouverJetonClient(analyserSecret(JSON.stringify(l)).entrees, jeton, 'autre'), null);
+    assert.equal(trouverJeton(analyserSecret(JSON.stringify(l)).entrees, jeton), null);
+    for (const args of [['a-b', 'complet', '--client', 'd'], ['a-b', 'ecriture', '--client', 'd'], ['claude-ai-x', 'agent-devis', '--client', 'd'], ['chatgpt-x', 'lecture', '--client', 'd'], ['a-b', 'lecture', '--client', 'interne'], ['a-b', 'lecture', '--client', 'D'], ['a-b', 'lecture', '--client']]) {
+      assert.throws(() => lancer(...args), undefined, args.join(' '));
+    }
+    assert.equal(JSON.parse(/\{"jeton".*\}/.exec(lancer('a-b', 'lecture'))[0]).client, undefined, 'sans --client : inchangé');
+  });
+
+  test('PJ8 aucun « cia_ » ni empreinte dans les lignes de journal, y compris pour un refus et une panne', async () => {
+    lignesJournal = [];
+    await brut('/mcp/d', JD);
+    await brut('/mcp/a', JD);
+    await brut('/mcp/d', JINCONNU);
+    const c = await assistant('/mcp/d', JD);
+    await c.callTool({ name: 'qui_suis_je', arguments: {} });
+    await c.close();
+    panneSecret = true;
+    await brut('/mcp/d', JD);
+    const tout = JSON.stringify(lignesJournal);
+    assert.ok(lignesJournal.length > 4);
+    assert.ok(!tout.includes('cia_'));
+    for (const j of [JD, JDL, JA, JINCONNU]) assert.ok(!tout.includes(empreinte(j)));
   });
 });
