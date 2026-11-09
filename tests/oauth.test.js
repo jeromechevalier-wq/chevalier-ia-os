@@ -202,6 +202,9 @@ describe('ChatGPT (20/10/2026) : adresse de retour acceptée, nommée chatgpt-<c
     const qui = JSON.parse((await c.callTool({ name: 'qui_suis_je', arguments: {} })).content[0].text);
     assert.equal(qui.acteur, 'chatgpt-jerome-chevalier');
     assert.equal(qui.profil, 'complet');
+    // Jérôme (e-mail Google vérifié de COMPTES_AUTORISES) voit modifier_reglages_devis, par la liste et par qui_suis_je (09/11/2026).
+    assert.ok((await c.listTools()).tools.some((o) => o.name === 'modifier_reglages_devis'));
+    assert.ok(qui.outils.includes('modifier_reglages_devis'));
     await c.close();
     const r2 = await jeton({ grant_type: 'refresh_token', refresh_token: t.refresh_token, client_id: 'cli_essai' });
     const c2 = await client((await r2.json()).access_token);

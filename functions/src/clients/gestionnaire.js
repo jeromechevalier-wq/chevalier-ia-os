@@ -5,7 +5,7 @@
 //  - les données vues par les outils sont celles de CE client seulement (avecBase : clients/<client>/…) ;
 //  - les outils proposés sont ceux des modules ACTIFS du client (registre des modules) ; module « mcp » éteint = plus rien ne répond ;
 //  - les outils de factures n'existent que si l'option du client est allumée (OUTILS_PAR_OPTION), relue à chaque appel.
-import { extraireBearer } from '../securite/jetons.js';
+import { FORMAT_JETON, extraireBearer, trouverJetonClient } from '../securite/jetons.js';
 import { journaliser } from '../securite/journaux.js';
 import { avecBase } from '../coeur/donnees.js';
 import { ESPACE_JEROME } from '../coeur/n8n-sortie.js';
@@ -38,8 +38,11 @@ export function outilsSelonOptions(outils, options) {
   return outils.filter((o) => !retires.has(o.nom));
 }
 
-/** `oauth` : creerRouteurOauthClients(). `limiteur` : plafonds par jeton (securite/limites.js, sur la base brute : clé « <client>__<acteur> »). */
-export function creerGestionnaireClients({ donnees, oauth, limiteur = null, stockage = null, sortieEmail = null, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
+/**
+ * `oauth` : creerRouteurOauthClients(). `limiteur` : plafonds par jeton (securite/limites.js, sur la base brute : clé « <client>__<acteur> »).
+ * `magasinJetons` + `espaces` (facultatifs, ensemble) : porte par jeton fixe lié à UN client (secret MCP_JETONS_CLIENTS, bot n8n) ; sans eux, seule la connexion OAuth ouvre.
+ */
+export function creerGestionnaireClients({ donnees, oauth, magasinJetons = null, espaces = null, limiteur = null, stockage = null, sortieEmail = null, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
   const noterDemarrage = creerSuiviDemarrage();
   return async function gestionnaire(req, res) {
     const debut = maintenant();
@@ -58,9 +61,23 @@ export function creerGestionnaireClients({ donnees, oauth, limiteur = null, stoc
     infos.client = client;
     if (req.method !== 'POST') { infos.code = 'methode'; return refuser(res, 405, 'methode_refusee', { Allow: 'POST' }); }
 
-    let jeton;
+    let jeton = null;
+    const bearer = extraireBearer(req.headers.authorization);
+    // Jeton fixe : le secret n'est lu QUE pour un porteur de « cia_ » + 43 (un jeton OAuth « cia_a_… » n'a pas cette forme) ; sa panne ne touche donc pas les connexions OAuth.
+    if (magasinJetons && espaces && typeof bearer === 'string' && FORMAT_JETON.test(bearer)) {
+      try {
+        const { entrees } = await magasinJetons.entrees();
+        const entree = trouverJetonClient(entrees, bearer, client);
+        // Pas de contrôle de compte ici : l'espace (client actif, module « mcp » allumé) est relu à CHAQUE requête et fournit les modules actifs.
+        const espace = entree ? await espaces.charger(client) : null; // une panne de base est aussi un 503 (même code de journal : « secret_illisible » couvre les deux lectures)
+        if (entree && espace) jeton = { jeton: `${client}__${entree.jeton}`, acteur: entree.acteur, profil: entree.profil, client, role: null, actifs: espace.actifs, actif: true, ...(entree.limites ? { limites: entree.limites } : {}) };
+      } catch {
+        infos.code = 'secret_illisible';
+        return refuser(res, 503, 'indisponible');
+      }
+    }
     try {
-      jeton = await oauth.verifierAcces(extraireBearer(req.headers.authorization), client);
+      if (!jeton) jeton = await oauth.verifierAcces(bearer, client);
     } catch {
       infos.code = 'oauth_illisible';
       return refuser(res, 503, 'indisponible');
