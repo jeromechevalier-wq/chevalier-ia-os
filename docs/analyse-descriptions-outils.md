@@ -141,3 +141,12 @@ A + B ensemble : environ **-34 000 caractères, -9 700 tokens, de 17 400 à envi
 4. **L'option C : non pour l'instant** (gain faible, chaque réponse grossit).
 
 Relecture Fable obligatoire pour l'étape 2 (serveur, MCP, sécurité) : le brief et la PR.
+
+## Réalisé (nuit du 09 au 10/11/2026, PR 565, en attente de l'accord de Jérôme)
+
+- **Mécanisme** : `functions/src/mcp/outils/variantes-assistant-devis.js` et `varianteDuProfil(outil, profil)` dans `functions/src/mcp/gestionnaire.js` ; seul le profil `assistant-devis` reçoit les variantes, les autres profils reçoivent exactement le même objet qu'avant (listes figées `tests/fixtures/tools-list-*.json`, comparaison octet par octet, script `node tests/outils/figer-tools-list.js`).
+- **Option A** : 12 descriptions réécrites (les 9 outils du bot et `obtenir_pdf_officiel_devis`, `creer_devis_brouillon`, `modifier_destinataires_devis`, `lire_reglages_devis`, `rechercher_article_par_phrase`). La garantie « aucun e-mail ne part seul » reste **complète** sur `preparer_email`, `obtenir_pdf_officiel_devis`, `finaliser_devis` et tient en une phrase ailleurs (**écart à la décision du 29/10/2026, accord de Jérôme à confirmer**).
+- **Option B** : pour `modifier_devis_brouillon`, le schéma annoncé ne contient plus `lignes` ni `sections` ; ces deux champs sont **refusés** à l'exécution (isError, renvoi vers `modifier_lignes_devis`, devis inchangé, pas de journal). Tout autre champ inconnu reste toléré comme avant (un objet strict aurait tout cassé si le client MCP du bot ajoute un champ technique : constat de la relecture Fable).
+- **Chiffres** (caractères du JSON de `tools/list`, tokens = caractères / 3,5) : chez Jérôme 60 815 → 46 543 (~17 400 → ~13 300 tokens, -23 %) ; client Devis seul 55 605 → 41 333 (-26 %) ; 9 outils du bot 30 929 → 20 986 (~8 800 → ~6 000 tokens, -32 %). Plafonds des tests = mesuré + 10 %.
+- **Constat de la mesure réelle du bot** : le plus gros poste n'est pas les descriptions mais la **mémoire de 30 messages** (≈ 17 000 tokens à chaque appel) ; réduire la fenêtre à 8-10 messages gagnerait plus que cet allègement.
+- **Avant tout déploiement chez les clients** : vérifier dans le journal d'un vrai appel du bot qu'aucun champ inattendu n'est envoyé.
