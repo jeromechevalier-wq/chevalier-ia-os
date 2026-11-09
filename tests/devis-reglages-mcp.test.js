@@ -269,3 +269,25 @@ describe('RG9 comptes rendus honnêtes et concurrence', () => {
     assert.equal(collections.devis_parametres[0].margeDevis, undefined);
   });
 });
+
+describe('RG10 réservé au propriétaire (décision du 09/11/2026) : le profil ne suffit pas', () => {
+  test('RG10 estProprietaire : serveur de Jérôme sans e-mail ou avec un compte autorisé = oui ; espace client, autre e-mail = non, même en profil complet', async () => {
+    const { estProprietaire } = await import('../functions/src/mcp/gestionnaire.js');
+    const jerome = {};
+    const client = { base: 'clients/a' };
+    assert.equal(estProprietaire({ donnees: jerome, jeton: { profil: 'complet' } }), true, 'jeton sans e-mail sur le serveur de Jérôme');
+    assert.equal(estProprietaire({ donnees: jerome, jeton: { profil: 'complet', email: 'JEROME.CHEVALIER@gmail.com' } }), true, 'compte autorisé (casse ignorée)');
+    assert.equal(estProprietaire({ donnees: jerome, jeton: { profil: 'complet', email: 'autre@exemple.test' } }), false, 'autre compte Google');
+    assert.equal(estProprietaire({ donnees: client, jeton: { profil: 'complet', role: 'editeur' } }), false, 'éditeur d’un client (profil complet)');
+    assert.equal(estProprietaire({ donnees: client, jeton: { profil: 'complet', email: 'jerome.chevalier@gmail.com' } }), false, 'même le compte du propriétaire dans l’espace d’un client');
+    assert.equal(estProprietaire({ donnees: client, jeton: { profil: 'lecture', role: 'lecteur' } }), false, 'lecteur client');
+  });
+  test('RG10 deuxième verrou : l’action refuse à l’exécution si l’appelant n’est pas le propriétaire, sans rien lire ni écrire', async () => {
+    const metier = await import('../functions/src/coeur/metier.js');
+    let appels = 0;
+    const c = { proprietaire: false, args: { reglages: { marge: 30 } }, donnees: { document: async () => { appels++; return null; } }, ecrire: async () => { appels++; } };
+    await assert.rejects(() => metier.modifierReglagesDevis(c, c.args), /pas disponible pour ce compte/);
+    await assert.rejects(() => metier.modifierReglagesDevis({ ...c, proprietaire: undefined }, c.args), /pas disponible/);
+    assert.equal(appels, 0);
+  });
+});

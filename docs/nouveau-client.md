@@ -214,10 +214,8 @@ Pour essayer **sans rien lire en ligne** (par exemple sans être connecté) : aj
 - Ils écrivent avec les droits d'administration, donc **sans passer par les règles de sécurité** : c'est pour cela qu'ils vérifient tout eux-mêmes. Les tests (`tests/outil-client.test.js`, sur émulateurs) prouvent qu'un client créé est lisible par ses membres et refusé aux autres, qu'une simulation n'écrit rien, qu'une sauvegarde ne contient que le client demandé et qu'une suppression n'efface rien d'un autre client.
 - Journal technique : `docs/journal-chantier-13.md`. Étude : `docs/etude-reutilisation-coque.md`, chantier 13.
 
-## Régler l'espace d'un nouveau client avec l'assistant (09/11/2026)
+## Régler l'espace d'un nouveau client (09/11/2026)
 
-Une fois le client créé avec `scripts/nouveau-client.js` (et le module Devis actif), son éditeur peut régler le module Devis **en conversation** avec son assistant : « Mon entreprise » (nom, forme, SIRET, TVA, téléphone, e-mail, adresse, assurance…), marge, TVA, durée de validité, textes imprimés sur les devis. L'outil s'appelle `modifier_reglages_devis` (profil `complet` = rôle éditeur). Il ne règle ni les coordonnées bancaires, ni le logo, ni le nom ou la couleur de l'espace (ceux-là se règlent à l'écran pour l'instant).
+L'outil `modifier_reglages_devis` est **réservé au propriétaire** (serveur de Jérôme) : un client, même éditeur, ne le voit pas. Il ne règle donc pas l'espace d'un client à distance ; le « un clic » pour les nouveaux clients (réglages et `modifier_mon_espace`) reste à concevoir (voir `.github/A-FAIRE.md`). En attendant, « Mon entreprise », la marge et les mentions se règlent à l'écran (Réglages > Devis) dans l'espace du client.
 
-- Chaque changement laisse une ligne dans le Journal avec la copie d'avant ; `restaurer_depuis_audit` la défait.
-- Ne dicte jamais de donnée réelle dans le dépôt, ni dans les docs : une « fiche de démarrage » du client (ses informations à reprendre) reste **hors dépôt**.
-- Pour vérifier : `lire_reglages_devis` relit ce qui a été écrit ; l'écran Réglages > Devis le montre.
+Ne mets jamais de donnée réelle d'un client dans le dépôt ni dans les docs : une « fiche de démarrage » reste hors dépôt.

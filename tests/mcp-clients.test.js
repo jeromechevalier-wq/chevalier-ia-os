@@ -1159,12 +1159,15 @@ describe('Devis : les 27 outils du module arrivent chez les clients, dans l\'esp
     for (const n of OUTILS_DEVIS) assert.ok(OUTILS.some((o) => o.nom === n), `${n} n'a pas de code d'outil`);
   });
 
-  test('devis-2 un éditeur voit les 27 outils du module Devis par son assistant ; un lecteur voit seulement ceux de lecture', async () => {
+  test('devis-2 un éditeur voit les outils du module Devis par son assistant, sauf les réglages (réservés au propriétaire) ; un lecteur voit seulement ceux de lecture', async () => {
     await remettre();
     try {
       await activerDevis('a');
       const editeur = await outilsDe('a', 'ID-ALICE');
-      for (const n of OUTILS_DEVIS) assert.ok(editeur.liste.includes(n), `éditeur : ${n}`);
+      for (const n of OUTILS_DEVIS.filter((x) => x !== 'modifier_reglages_devis')) assert.ok(editeur.liste.includes(n), `éditeur : ${n}`);
+      assert.ok(!editeur.liste.includes('modifier_reglages_devis'), 'un éditeur client (profil complet) ne voit pas modifier_reglages_devis');
+      const refus = await editeur.c.callTool({ name: 'modifier_reglages_devis', arguments: { reglages: { marge: 30 } } }).catch((e) => ({ isError: true, content: [{ text: String(e.message) }] }));
+      assert.equal(refus.isError, true, 'appel direct refusé par le serveur');
       await editeur.c.close();
       const lecteur = await outilsDe('a', 'ID-LEA');
       assert.deepEqual(lecteur.liste.filter((n) => OUTILS_DEVIS.includes(n)), ['chercher_article', 'lire_devis', 'lire_reglages_devis', 'lister_articles', 'lister_devis', 'obtenir_pdf_officiel_devis', 'rechercher_article_par_phrase']);
@@ -1366,9 +1369,10 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
     await installer();
     try {
       const { c, liste } = await outilsDe('d');
-      for (const n of [...moduleDeclare('devis').outilsMcp, ...OUTILS_SOCLE]) assert.ok(liste.includes(n), n);
+      for (const n of [...moduleDeclare('devis').outilsMcp.filter((x) => x !== 'modifier_reglages_devis'), ...OUTILS_SOCLE]) assert.ok(liste.includes(n), n);
+      assert.ok(!liste.includes('modifier_reglages_devis'), 'réservé au propriétaire');
       for (const n of ['lire_affaire', 'lister_affaires', 'supprimer_personne', 'supprimer_organisation', 'supprimer_tous_les_tests', 'lire_audit', 'restaurer_depuis_audit', 'lister_projets']) assert.ok(!liste.includes(n), `${n} ne doit pas exister`);
-      assert.equal(liste.length, 2 + 27 + 9, 'communs + 27 + 9');
+      assert.equal(liste.length, 2 + 26 + 9, 'communs + 26 (sans les réglages, réservés au propriétaire) + 9');
       await c.close();
     } finally { await defaire(); }
   });
