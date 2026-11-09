@@ -744,8 +744,8 @@ function cheminsModifies(avant, apres, prefixe = '') {
 export async function modifierReglagesDevis(c, args) {
   const saisie = args.reglages ?? {};
   if (!Object.keys(saisie).length) refuser('saisie_invalide', 'Aucun réglage à changer : donne au moins un champ dans `reglages`.');
-  let brut = null;
-  try { brut = await c.donnees.document(C.devisParametres, DA.ID_REGLAGES); } catch { brut = null; }
+  const brut = await c.donnees.document(C.devisParametres, DA.ID_REGLAGES); // null = document absent ; une panne de lecture remonte telle quelle
+  const base = sansId(brut) ?? {};
   const actuels = DA.reglagesDevis(brut);
   const inconnus = (saisie.tauxProposes ?? []).filter((t) => !D.TAUX_TVA_DEFAUT.includes(t));
   if (inconnus.length) refuser('saisie_invalide', `Taux de TVA non proposé : ${inconnus.join(', ')}. Les taux possibles sont ${D.TAUX_TVA_DEFAUT.join(', ')}.`);
@@ -759,17 +759,20 @@ export async function modifierReglagesDevis(c, args) {
     };
   }
   const { reglages: propres, erreurs } = DA.validerReglagesDevis(fusion, { actuels: brut });
-  // Le mode de calcul de la marge n'est jamais dit à l'assistant (décision du 30/10/2026) : la phrase de l'écran qui le nomme est retirée.
-  verifierMessages(Object.fromEntries(Object.entries(erreurs).map(([k, m]) => [k, m.replace(/,? ?ou le mode « [^»]*»/g, '')])));
+  // Le mode de calcul de la marge n'est jamais dit à l'assistant (décision du 30/10/2026) : la phrase de l'écran qui le nomme est remplacée, et le « ou le mode … » retiré.
+  verifierMessages(Object.fromEntries(Object.entries(erreurs).map(([k, m]) => [k, m.includes(D.ERREUR_MARGE_100) ? MARGE_IMPOSSIBLE : m.replace(/,? ?ou le mode « [^»]*»/g, '')])));
+  // Le patch se calcule contre le document BRUT : un nettoyage fait par la validation (champ invalide ou inconnu retiré) apparaît dans `champsModifies` au lieu de disparaître en silence.
   const patch = {};
-  for (const cle of Object.keys(saisie)) if (!egal({ v: propres[cle] }, { v: actuels[cle] })) patch[cle] = propres[cle];
-  const modifies = Object.keys(patch).flatMap((cle) => cheminsModifies(actuels[cle], propres[cle], cle));
-  if (!Object.keys(patch).length) {
+  for (const cle of Object.keys(saisie)) if (!egal({ v: propres[cle] }, { v: base[cle] })) patch[cle] = propres[cle];
+  const modifies = Object.keys(patch).flatMap((cle) => cheminsModifies(base[cle], propres[cle], cle));
+  if (brut && !Object.keys(patch).length) {
     return { rienAChanger: true, message: 'Rien à changer : ces réglages sont déjà ceux de l\'espace. Rien n\'a été écrit.', champsModifies: [], ...(await lireReglagesDevis(c.donnees)) };
   }
+  // Espace neuf : le document est créé (sans le mode de calcul de la marge, que la lecture remplace par son défaut).
+  const { modeMarge: _mode, ...pourCreation } = propres;
   const operations = brut
-    ? [{ type: 'modifier', collection: C.devisParametres, id: DA.ID_REGLAGES, patch }]
-    : [{ type: 'creer', collection: C.devisParametres, id: DA.ID_REGLAGES, donnees: propres }];
+    ? [{ type: 'modifier', collection: C.devisParametres, id: DA.ID_REGLAGES, patch, exigerAvant: base }]
+    : [{ type: 'creer', collection: C.devisParametres, id: DA.ID_REGLAGES, donnees: pourCreation }];
   const r = await c.ecrire({ operations, parametres: args });
   return { ...sortie(r, { champsModifies: modifies, cree: !brut }), ...(await lireReglagesDevis(c.donnees)) };
 }

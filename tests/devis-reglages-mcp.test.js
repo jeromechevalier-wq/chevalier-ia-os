@@ -164,12 +164,24 @@ describe('RG4 validation : celle de l’écran, rien d’écrit en cas de refus'
       assert.equal(lignesReglages(s).length, 0);
     });
   }
-  test('RG4 un champ interdit à côté de `reglages` n’écrit rien : la liste blanche est dans `reglages`', async () => {
+  test('RG4 `reglages` vide est refusé ; une clé placée à côté de `reglages` est ignorée (jamais écrite) et le reste s’applique', async () => {
     const s = await demarrer();
     const avant = JSON.stringify(s.collections.devis_parametres);
-    const r = await s.appeler('code', OUTIL, { reglages: {} });
-    refuse(r, /Aucun réglage/);
+    refuse(await s.appeler('code', OUTIL, { reglages: {} }), /Aucun réglage/);
     assert.equal(JSON.stringify(s.collections.devis_parametres), avant);
+    ok(await s.appeler('code', OUTIL, { reglages: { marge: 31 }, modeMarge: 'marge_vente', entreprise: { iban: 'FR76' } }));
+    const d = s.doc('devis_parametres', 'reglages');
+    assert.equal(d.marge, 31);
+    assert.equal(d.modeMarge, 'majoration');
+    assert.deepEqual(d.entreprise.paiement, ENTREPRISE.paiement);
+  });
+  test('RG4 espace en calcul comptable : marge de 100 % refusée sans citer le mode de calcul', async () => {
+    const s = await demarrer();
+    s.doc('devis_parametres', 'reglages').modeMarge = 'marge_vente';
+    const r = await s.appeler('code', OUTIL, { reglages: { margeDevis: 100 } });
+    refuse(r, /marge est impossible/);
+    assert.doesNotMatch(r.texte, /calcul (artisan|comptable)|modeMarge/i);
+    assert.equal((r.texte.match(/pourcentage plus petit/g) ?? []).length, 1, 'la phrase ne se répète pas');
   });
 });
 
@@ -218,5 +230,42 @@ describe('RG8 rien à changer', () => {
     assert.match(r.message, /Rien à changer/);
     assert.equal(JSON.stringify(s.collections.devis_parametres), avant);
     assert.equal(s.collections.crm_audit.length, journal);
+  });
+});
+
+describe('RG9 comptes rendus honnêtes et concurrence', () => {
+  test('RG9 un document « sale » : le nettoyage de la validation apparaît dans champsModifies au lieu de disparaître en silence', async () => {
+    const s = await demarrer();
+    Object.assign(s.doc('devis_parametres', 'reglages').entreprise, { email: 'pas-un-mail', logoUrl: 'x' });
+    const r = ok(await s.appeler('code', OUTIL, { reglages: { entreprise: { siret: '1' } } }));
+    assert.ok(r.champsModifies.includes('entreprise.siret'));
+    assert.ok(r.champsModifies.includes('entreprise.email') && r.champsModifies.includes('entreprise.logoUrl'), r.champsModifies.join());
+  });
+  test('RG9 une valeur invalide restée en base et remplacée par la bonne valeur n’est pas « rien à changer »', async () => {
+    const s = await demarrer();
+    s.doc('devis_parametres', 'reglages').marge = 'abc';
+    const r = ok(await s.appeler('code', OUTIL, { reglages: { marge: 20 } }));
+    assert.equal(r.rienAChanger, undefined);
+    assert.equal(s.doc('devis_parametres', 'reglages').marge, 20);
+  });
+  test('RG9 espace neuf et réglages égaux aux défauts : le document est tout de même créé, sans modeMarge, et le journal ne le montre pas', async () => {
+    const s = await demarrer({ existants: false });
+    const r = ok(await s.appeler('code', OUTIL, { reglages: { marge: DA.REGLAGES_DEVIS_DEFAUT.marge } }));
+    assert.equal(r.cree, true);
+    const d = s.doc('devis_parametres', 'reglages');
+    assert.ok(d);
+    assert.equal('modeMarge' in d, false);
+    assert.equal(JSON.stringify(lignesReglages(s)).includes('modeMarge'), false);
+  });
+  test('RG9 le moteur refuse d’écrire si le document a changé depuis la lecture (exigerAvant) : rien n’est écrit', async () => {
+    const { executerEcritures } = await import('../functions/src/coeur/ecriture.js');
+    const collections = { devis_parametres: [{ id: 'reglages', marge: 20 }], crm_audit: [], crm_audit_avant: [] };
+    const donnees = creerAccesMemoire(collections);
+    const ctx = { acteur: 'essai', jeton: 'j', via: 'mcp', maintenant: MAINTENANT };
+    const lu = { marge: 20 };
+    collections.devis_parametres[0].marge = 99; // l'écran a enregistré entre la lecture et l'écriture
+    await assert.rejects(() => executerEcritures({ donnees, ctx, outil: 'essai', operations: [{ type: 'modifier', collection: 'devis_parametres', id: 'reglages', patch: { margeDevis: 5 }, exigerAvant: lu }] }), /a changé pendant la préparation/);
+    assert.equal(collections.devis_parametres[0].marge, 99);
+    assert.equal(collections.devis_parametres[0].margeDevis, undefined);
   });
 });

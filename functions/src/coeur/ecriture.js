@@ -13,7 +13,7 @@
 // Marques demandées par les règles métier (voir logique.js) : `horodater: [champs]` reçoivent l'heure de l'appel,
 // `signer: [champs]` reçoivent l'acteur. `via` (canal) est posé sur chaque document CRÉÉ.
 import { COLLECTIONS as C } from './donnees.js';
-import { sansId } from './canonique.js';
+import { sansId, egal } from './canonique.js';
 
 /** Collections de données du CRM que le moteur a le droit d'écrire (jamais l'audit, les limites ni les paramètres). */
 export const COLLECTIONS_ECRITES = [C.personnes, C.organisations, C.affaires, C.activites, C.notes, C.evenements, C.projets, C.projetsTaches, C.projetsModeles, C.devisArticles, C.devis, C.devisVocabulaire, C.documentsStockes, C.devisParametres];
@@ -92,6 +92,8 @@ async function preparer(donnees, ctx, operations) {
       if (!avant) throw new ErreurEcriture('introuvable', `Document introuvable : ${l.collection}/${l.id}`);
       // `exigerStatut` : la modification n'a lieu que si le document a ce statut. Ce contrôle porte sur l'état lu ici, et l'écriture est ensuite vérifiée contre ce même état (attendus) : pas de fenêtre de course.
       if (op.exigerStatut && avant.statut !== op.exigerStatut) throw new ErreurEcriture('conflit', `Le document ${l.collection}/${l.id} n'a plus le statut « ${op.exigerStatut} » : rien n'a été écrit.`);
+      // `exigerAvant` : l'état que l'appelant a lu avant de calculer sa modification ; s'il a changé entre-temps, rien n'est écrit (évite d'écraser un enregistrement fait entre les deux lectures).
+      if (op.exigerAvant !== undefined && !egal(avant, op.exigerAvant ?? {})) throw new ErreurEcriture('conflit', `Le document ${l.collection}/${l.id} a changé pendant la préparation : rien n'a été écrit, recommence.`);
       apres = { ...avant, ...contenu };
       ecriture = { type: 'update', donnees: contenu };
     } else if (type === 'supprimer') {
