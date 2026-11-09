@@ -5,7 +5,7 @@ import { surveillerCompte, connecter, deconnecter, crmDisponible, MESSAGE_REFUS 
 import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace } from './os/marque.js';
 import { blocIntrouvablePortail } from './os/portail-introuvable.js';
-import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe } from './os/portail.js';
+import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe, ecranSocleDeRoute } from './os/portail.js';
 import { MODULES } from './os/modules.js';
 import { demarrerObjectifs, arreterObjectifs } from './os/objectifs.js';
 import { monterReglages } from './os/reglages.js';
@@ -89,7 +89,7 @@ async function ouvrirSession(compte) {
     apisCoquille = new Map([...apis].filter(([id]) => ids.includes(id))); // les autres modules restent montés et démarrés (Devis lit les affaires par le CRM), mais n'offrent ni « + » ni recherche
     definirPrefixe(portail.id);
     arretLiens = suivreLiensDuPrefixe();
-    options = { accueil: accueilPortail, menu: PORTAILS[portail.id].menu, retour: { libelle: PORTAILS[portail.id].libelleRetour, href: '#/' + accueilPortail } }; // href hors portail : l'espace complet
+    options = { accueil: accueilPortail, menu: PORTAILS[portail.id].menu, supplements: PORTAILS[portail.id].supplements, retour: { libelle: PORTAILS[portail.id].libelleRetour, href: '#/' + accueilPortail } }; // href hors portail : l'espace complet
   }
   const coquille = monterCoquille(racine, compte, {
     ...options,
@@ -138,6 +138,21 @@ function afficherRoute(route) {
     const dansPortail = modulesDuPortail(portail.id, MODULES.map((m) => m.id));
     const m0 = MODULES.find((x) => x.prefixe === segs[0]);
     if (!segs.length) { naviguer(accueilPortail, { remplacer: true }); return; }
+    const socle = ecranSocleDeRoute(segs); // Clients (fiches Personnes et Organisations) : le socle est toujours servi, avec ou sans le module Affaires
+    if (socle) {
+      if (session.vue?.cle !== 'socle') { session.vue?.quitter?.(); vider(coquille.contenu); session.vue = { cle: 'socle', quitter: null }; }
+      import('./os/portail-socle.js').then((m) => {
+        if (!session || session.vue?.cle !== 'socle') return; // l'utilisateur est déjà ailleurs
+        vider(coquille.contenu);
+        session.vue.quitter?.();
+        session.vue.quitter = m.monterEcranSocle(coquille.contenu, socle);
+      }).catch((e) => {
+        console.warn(e);
+        if (session?.vue?.cle === 'socle') { vider(coquille.contenu); coquille.contenu.append(h('p', { class: 'erreur', role: 'alert' }, 'Impossible d’ouvrir cet écran pour le moment. Réessaie.')); }
+      });
+      coquille.activer(segs.join('/'));
+      return;
+    }
     if (segs[0] !== 'reglages' && !(m0 && dansPortail.includes(m0.id))) {
       session.vue?.quitter?.();
       session.vue = { cle: 'introuvable', quitter: null };

@@ -17,10 +17,10 @@ const ids = (l) => l.map((x) => x.devis.id);
 
 describe('19 menu du portail', () => {
   test('19 le portail met Relances au menu ; chez Jérôme (sans option) le menu complet ne l\'a pas', () => {
-    assert.deepEqual([...PORTAILS['portail-devis'].menu], ['devis/liste', 'devis/relances']);
+    assert.ok(PORTAILS['portail-devis'].menu.includes('devis/relances')); // menu complet du portail : tests/portail-devis-menu.test.js (M1)
     const chemins = (opt) => blocsDuMenu(['devis'], opt).flatMap((b) => b.sections.flat()).map((e) => e.chemin);
     assert.deepEqual(chemins(), ['devis/liste']);
-    assert.deepEqual(chemins({ visibles: PORTAILS['portail-devis'].menu }), ['devis/liste', 'devis/relances']);
+    assert.deepEqual(chemins({ visibles: ['devis/liste', 'devis/relances'] }), ['devis/liste', 'devis/relances']);
   });
 });
 

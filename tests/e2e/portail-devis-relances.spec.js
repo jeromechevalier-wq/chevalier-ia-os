@@ -77,11 +77,11 @@ async function ouvrirRelances(page, route = 'portail-devis/devis/relances') {
 }
 
 test.describe('chez Jérôme', () => {
-  test('19 le menu du portail a trois entrées, « Relances » seule allumée sur son écran, « Devis » seule sur la liste ; chez Jérôme (espace complet) pas d\'entrée Relances', async ({ page }, info) => {
+  test('19 le menu du portail a cinq entrées, « Relances » seule allumée sur son écran, « Devis » seule sur la liste ; chez Jérôme (espace complet) pas d\'entrée Relances', async ({ page }, info) => {
     await jeu();
     await ouvrirRelances(page);
     await ouvrirMenu(page);
-    expect(await entreesMenu(page)).toEqual(['Devis', 'Relances', 'Espace complet']);
+    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques', 'Espace complet']);
     await expect(page.locator('.menu [aria-current="page"]')).toHaveCount(1);
     await expect(page.locator('.menu [aria-current="page"]')).toHaveText(/Relances/);
     await expect(page.locator('.menu .menu-entree[data-chemin="devis/relances"] svg :is(path, circle, line, polyline)').first()).toBeAttached(); // icône réellement dessinée
@@ -232,7 +232,7 @@ test.describe('chez Jérôme', () => {
 test.describe('chez un client (règles de la plateforme)', () => {
   test.beforeAll(() => chargerRegles('firestore.plateforme.rules'));
   test.afterAll(() => chargerRegles('firestore.rules'));
-  test('28 chez un client Devis seul : menu à trois entrées, écran Relances fonctionnel', async ({ page }, info) => {
+  test('28 chez un client Devis seul : menu à cinq entrées, écran Relances fonctionnel', async ({ page }, info) => {
     await ecrireDocument('marques/devisseul', { actif: true, nom: 'Devis Seul', couleur: '#336699', accueil: 'Bienvenue.' });
     await ecrireDocument('clients/devisseul', { modules: { devis: true } });
     await ecrireDocument(`clients/devisseul/membres/${ALICE}`, { role: 'editeur' });
@@ -244,7 +244,7 @@ test.describe('chez un client (règles de la plateforme)', () => {
     await expect(page.locator('.page-relances')).toBeVisible();
     await attendreCalme(page);
     await ouvrirMenu(page);
-    expect(await entreesMenu(page)).toEqual(['Devis', 'Relances', 'Espace complet']);
+    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques', 'Espace complet']);
     await expect(page.locator('.menu [aria-current="page"]')).toHaveText(/Relances/);
     await page.keyboard.press('Escape');
     await expect(bloc(page, 'a-relancer').locator('.ligne-relance')).toHaveCount(1);

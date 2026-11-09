@@ -63,10 +63,10 @@ test.describe('chez Jérôme', () => {
     await capturer(page, info, '5-ouverture');
   });
 
-  test('6 le menu du portail : Devis, Relances + Espace complet ; menu utilisateur réduit ; le « + » ne propose que Devis', async ({ page }, info) => {
+  test('6 le menu du portail : Devis, Clients, Catalogue, Relances, Statistiques + Espace complet ; menu utilisateur réduit ; le « + » ne propose que Devis', async ({ page }, info) => {
     await ouvrirPortail(page);
     await ouvrirMenu(page);
-    expect(await entreesMenu(page)).toEqual(['Devis', 'Relances', 'Espace complet']);
+    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques', 'Espace complet']);
     await expect(page.locator('[data-role="retour-espace"] svg :is(path, rect, circle, line)').first()).toBeAttached(); // icône réellement dessinée
     for (const lib of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille', 'Automatisations', 'Maintenance']) await expect(page.locator('.menu').getByRole('link', { name: lib, exact: true })).toHaveCount(0);
     await capturer(page, info, '6-menu');
@@ -321,13 +321,13 @@ test.describe('chez un client (règles de la plateforme)', () => {
     await expect(page.locator('.coquille')).toBeVisible();
   }
 
-  test('10 client Devis seul : portail sur la liste, menu Devis + Espace complet, « + » complet ; module hors portail introuvable ; sans Devis introuvable ; l\'arrivée par défaut ne change pas', async ({ page }, info) => {
+  test('10 client Devis seul : portail sur la liste, menu à cinq entrées + Espace complet, « + » complet ; module hors portail introuvable ; sans Devis introuvable ; l\'arrivée par défaut ne change pas', async ({ page }, info) => {
     await devis('c1', { numero: 'DEV-2026-10-01-009', statut: 'envoye', finaliseLe: ilYA(12), envoyeLe: ilYA(12), envois: [{ date: ilYA(12) }], creePar: ALICE }, 'clients/devisseul/');
     await ouvrirClient(page, 'devisseul', 'portail-devis');
     await expect(page).toHaveURL(/#\/espace\/devisseul\/portail-devis\/devis\/liste$/);
     await expect(page).toHaveTitle('Devis Seul');
     await ouvrirMenu(page);
-    expect(await entreesMenu(page)).toEqual(['Devis', 'Relances', 'Espace complet']);
+    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques', 'Espace complet']);
     await expect(page.locator('[data-role="retour-espace"]')).toHaveAttribute('href', '#/espace/devisseul/devis/liste');
     await expect(page.locator('[data-action="a-traiter"] .pastille-a-traiter')).toHaveText('1');
     await capturer(page, info, '10-client');

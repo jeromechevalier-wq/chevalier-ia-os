@@ -45,7 +45,7 @@ export async function demanderSuppressionPersonne(p) {
   }
 }
 
-export function rendreFichePersonne(conteneur, id) {
+export function rendreFichePersonne(conteneur, id, { clients = false } = {}) { // clients : portail devis seul, où l'écran s'appelle « Clients »
   let panneau = null;
   let editionOrganisation = false;
   let toutesAffaires = false;
@@ -53,7 +53,7 @@ export function rendreFichePersonne(conteneur, id) {
   conteneur.append(racine);
 
   function introuvable() {
-    remplir(racine, h('div', { class: 'page' }, lienRetour('#/crm/personnes', 'Personnes'),
+    remplir(racine, h('div', { class: 'page' }, lienRetour('#/crm/personnes', clients ? 'Clients' : 'Personnes'),
       etatVide(D.estPret() ? 'Cette personne n’existe plus.' : 'Chargement…')));
   }
 
@@ -73,26 +73,26 @@ export function rendreFichePersonne(conteneur, id) {
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         entreeMarquerTest(p, (patch) => D.majPersonne(p.id, patch)),
         { libelle: p.archive ? 'Désarchiver' : 'Archiver', icone: p.archive ? 'archive-restore' : 'archive', action: () => D.majPersonne(p.id, { archive: !p.archive }) },
-        { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionPersonne(p) },
+        ...(D.estNoyau() ? [] : [{ libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionPersonne(p) }]), // Devis seul : la suppression d'une fiche passe par les affaires, elle n'existe pas sans elles
       ]) }, icone('ellipsis', { taille: 20 }));
     const entete = h('header', { class: 'fiche-tete' },
-      lienRetour('#/crm/personnes', 'Personnes'),
+      lienRetour('#/crm/personnes', clients ? 'Clients' : 'Personnes'),
       h('div', { class: 'fiche-tete-ligne' },
         avatar(p.nom, 52),
         h('div', { class: 'fiche-titre' }, nom,
           h('div', { class: 'fiche-sous' }, badgeTest(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null, p.oppositionProspection ? h('span', { class: 'badge-opposition' }, 'Opposition à la prospection') : null)),
         h('div', { class: 'fiche-actions' },
           exporter,
-          h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire({ personneId: p.id }) }, icone('plus', { taille: 16 }), 'Affaire'),
+          D.estNoyau() ? null : h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire({ personneId: p.id }) }, icone('plus', { taille: 16 }), 'Affaire'), // Devis seul (socle seul) : ni affaires ni activités
           menu)));
 
     // ---- Résumé
-    const etiquettes = selecteurEtiquettes({ valeurIds: p.etiquettes || [], surChoix: (liste) => D.majPersonne(p.id, { etiquettes: liste.map((e) => e.id) }) });
+    const etiquettes = D.estNoyau() ? null : selecteurEtiquettes({ valeurIds: p.etiquettes || [], surChoix: (liste) => D.majPersonne(p.id, { etiquettes: liste.map((e) => e.id) }) });
     const emailOk = L.emailActif(p);
     const resume = sectionRepliable({
       id: 'personne-resume', titre: 'Résumé',
       contenu: h('div', { class: 'pile resume' },
-        h('div', { class: 'resume-ligne' }, etiquettes.element),
+        etiquettes ? h('div', { class: 'resume-ligne' }, etiquettes.element) : null,
         champContacts({ libelle: 'Email', genre: 'email', valeurs: p.emails || [], surEnregistrer: (liste) => D.majPersonne(p.id, L.patchEmails(liste)) }).element,
         champContacts({ libelle: 'Téléphone', genre: 'tel', valeurs: p.telephones || [], surEnregistrer: (liste) => D.majPersonne(p.id, L.patchTelephones(liste)) }).element,
         champAdresses({ valeurs: L.adressesDe(p), surEnregistrer: (patch) => D.majPersonne(p.id, patch), lireActuelles: () => L.adressesDe(D.personne(p.id) || p) }).element,
@@ -157,13 +157,13 @@ export function rendreFichePersonne(conteneur, id) {
       contenu: h('div', { class: 'liste-cartes-mini' }, projets.map(carteProjetMini)),
     }) : null;
 
-    if (!panneau) {
+    if (!panneau && !D.estNoyau()) {
       panneau = panneauActivite({ lien: { personneId: p.id }, liensCreation: () => ({ personneId: p.id, organisationId: D.personne(p.id)?.organisationId ?? null }) });
     }
     const gabarit = gabaritFiche({
       entete,
-      gauche: [resume.element, details.element, sectionOrg.element, sectionAffaires.element, sectionProjets?.element].filter(Boolean),
-      droite: panneau.element,
+      gauche: [resume.element, details.element, sectionOrg.element, D.estNoyau() ? null : sectionAffaires.element, sectionProjets?.element].filter(Boolean),
+      droite: panneau?.element ?? null,
     });
     // Le panneau de droite garde son état : on ne le recrée pas.
     remplir(racine, gabarit);
