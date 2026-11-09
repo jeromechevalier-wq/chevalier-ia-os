@@ -2,6 +2,14 @@
 
 Mise à jour : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de session) ; avant : 08/11/2026 (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Mise à jour du 09/11/2026 (espace de démonstration MCA Étanchéité)
+
+| | Sujet | État | Qui |
+|---|---|---|---|
+| 🟠 | **Limite de caractères de l'identifiant d'un client** : **17 caractères au plus** dès qu'il a le module `automatisations` ou un workflow n8n (l'étiquette `client-<identifiant>` est limitée à 24 caractères par n8n, `client-` en prend 7) ; 40 au plus sinon (`^[a-z0-9][a-z0-9_-]{0,39}$`). Vérifié par `scripts/plateforme/commun.js` (l.112). À savoir AVANT de choisir le nom d'un espace : l'identifiant est l'adresse `/espace/<identifiant>`, la clé de la porte `cle-n8n.<identifiant>.…`, les secrets `N8N_DEVIS_EMAIL_URL_<identifiant>` et le nom du workflow `client-<identifiant>-…`, et il ne se change plus. Premier espace concerné : `mca-etancheite` (14 caractères, valide). | À savoir | Jérôme et Claude |
+| 🟡 | **Rendre obligatoire le 3e signe d'un workflow client** (credential n8n « Clé n8n - <identifiant> », même nom que l'espace) : aujourd'hui exigé pour `interne`, seulement vérifié s'il est présent pour un client (`functions-plateforme/src/etiquettes.js`, l.11). Idée : l'exiger aussi. Serveur : relecture Fable obligatoire, et vérifier d'abord les workflows des clients existants. Non urgent (une clé n'ouvre déjà que son propre espace). Pour MCA : créer le credential « Clé n8n - mca-etancheite » dès le départ. | Idée | Jérôme (décision) |
+| 🟡 | **Fichiers joints fixes aux e-mails de devis** (plaquette, certifications, assurances de l'entreprise) : décidé le 09/11/2026 : liste de fichiers dans Réglages > Devis, tous joints à chaque « Préparer l'e-mail », sans date de validité, poids total limité (15 Mo, PDF compris), cas vide = PDF seul, fichier manquant = brouillon quand même avec avertissement. Passe par `devis.lireEmail` (`scripts/porte/actions-devis.js`, champ `piecesJointes`) ET par le workflow n8n de chaque client (hors dépôt). Chez Jérôme ET chez les clients dans la même PR, bouton d'export, Fable obligatoire. **Pas prioritaire** : la démo MCA passe d'abord. | À faire plus tard | Claude |
+
 ## Mise à jour du 08/11/2026, fin de nuit (PR 546 à 553)
 
 | | Sujet | État | Qui |
