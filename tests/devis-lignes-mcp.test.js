@@ -239,7 +239,7 @@ describe('M7 droits et statut', () => {
     assert.equal(s.doc('devis_devis', 'd1').sections[0].lignes.length, 3);
     refuse(await modifier(s, [], 'inconnu'), /Aucune opération/);
   });
-  test('M7 le profil complet peut aussi l’appeler ; les deux profils d’écriture le déclarent, le lecteur non', async () => {
+  test('M7 le profil complet peut aussi l’appeler ; les profils ecriture et assistant-devis le déclarent, le lecteur non', async () => {
     const { OUTILS, annotationsDe } = await import('../functions/src/mcp/outils/index.js');
     const o = OUTILS.find((x) => x.nom === 'modifier_lignes_devis');
     assert.deepEqual(o.profils, ['ecriture', 'assistant-devis', 'complet']);

@@ -1645,7 +1645,7 @@ describe('Porte par jeton fixe lié à un client (PJ1 à PJ8)', () => {
     assert.ok(trouverJeton(analyserSecret(secretJetons).entrees, jetonDe('J')));
   });
 
-  test('PJ2 profils permis : lecture et agent-devis seulement ; une ligne complet, ecriture ou claude-code avec un client est ignorée comme invalide', async () => {
+  test('PJ2 profils permis : lecture, agent-devis et assistant-devis seulement ; une ligne complet, ecriture ou claude-code avec un client est ignorée comme invalide', async () => {
     for (const profil of ['complet', 'ecriture', 'claude-code', 'bibliothecaire']) {
       secretJetons = secret(ligne(JD, 'bot-devis', profil, 'd'));
       rejouer();
