@@ -2,9 +2,29 @@
 // Même compte, mêmes données, mêmes écrans ; seule l'adresse change (#/portail-devis chez Jérôme, #/espace/<client>/portail-devis chez un client),
 // et le menu, le « + » et la recherche se limitent aux modules du portail. Ce fichier est pur (aucun import, testable seul) :
 // le portail est un préfixe de route lu dans le navigateur, il ne donne aucun droit (les règles Firestore décident, inchangées).
+// Menu du portail devis (décision de Jérôme du 09/11/2026) : Devis · Clients · Catalogue · Relances · Statistiques, puis « Espace complet ».
+// « Clients » est l'écran Personnes du socle commun (crm/personnes) sous un autre mot, dans le portail seulement (`supplements`) ; le menu normal garde « Personnes ».
 export const PORTAILS = Object.freeze({
-  'portail-devis': Object.freeze({ modules: Object.freeze(['devis']), accueil: 'devis/liste', menu: Object.freeze(['devis/liste', 'devis/relances']), libelleRetour: 'Espace complet' }),
+  'portail-devis': Object.freeze({
+    modules: Object.freeze(['devis']),
+    accueil: 'devis/liste',
+    menu: Object.freeze(['devis/liste', 'crm/personnes', 'devis/bordereau', 'devis/relances', 'devis/statistiques']),
+    supplements: Object.freeze([Object.freeze({ chemin: 'crm/personnes', libelle: 'Clients', icone: 'user' })]), // entrées du menu qui ne sont pas des écrans d'un module du portail
+    libelleRetour: 'Espace complet',
+  }),
 });
+
+const ID_FICHE = /^[A-Za-z0-9_-]{1,128}$/;
+/**
+ * Écrans du socle commun (fiches Personnes et Organisations) que le portail sert TOUJOURS, même sans le module Affaires : { vue: 'personnes' | 'organisations', id: string | null } ou null.
+ * L'identifiant d'une fiche doit être de la forme d'un identifiant Firestore (jamais un morceau d'adresse tapé librement) ; sinon null (« Page introuvable »).
+ */
+export function ecranSocleDeRoute(segments) {
+  const [prefixe, vue, id, ...reste] = segments ?? [];
+  if (prefixe !== 'crm' || !['personnes', 'organisations'].includes(vue) || reste.length) return null;
+  if (id !== undefined && !ID_FICHE.test(id)) return null;
+  return { vue, id: id ?? null };
+}
 
 const segs = (route) => String(route ?? '').split('/').filter(Boolean);
 

@@ -83,7 +83,7 @@ export function rendreFichePersonne(conteneur, id) {
           h('div', { class: 'fiche-sous' }, badgeTest(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null, p.oppositionProspection ? h('span', { class: 'badge-opposition' }, 'Opposition à la prospection') : null)),
         h('div', { class: 'fiche-actions' },
           exporter,
-          h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire({ personneId: p.id }) }, icone('plus', { taille: 16 }), 'Affaire'),
+          D.estNoyau() ? null : h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire({ personneId: p.id }) }, icone('plus', { taille: 16 }), 'Affaire'), // Devis seul (socle seul) : ni affaires ni activités
           menu)));
 
     // ---- Résumé
@@ -157,13 +157,13 @@ export function rendreFichePersonne(conteneur, id) {
       contenu: h('div', { class: 'liste-cartes-mini' }, projets.map(carteProjetMini)),
     }) : null;
 
-    if (!panneau) {
+    if (!panneau && !D.estNoyau()) {
       panneau = panneauActivite({ lien: { personneId: p.id }, liensCreation: () => ({ personneId: p.id, organisationId: D.personne(p.id)?.organisationId ?? null }) });
     }
     const gabarit = gabaritFiche({
       entete,
-      gauche: [resume.element, details.element, sectionOrg.element, sectionAffaires.element, sectionProjets?.element].filter(Boolean),
-      droite: panneau.element,
+      gauche: [resume.element, details.element, sectionOrg.element, D.estNoyau() ? null : sectionAffaires.element, sectionProjets?.element].filter(Boolean),
+      droite: panneau?.element ?? null,
     });
     // Le panneau de droite garde son état : on ne le recrée pas.
     remplir(racine, gabarit);

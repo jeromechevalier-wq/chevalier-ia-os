@@ -8,7 +8,7 @@ import { modeTestAllume, definirModeTest, surModeTest } from './mode-test.js';
 
 // Routes sans entrée de menu -> entrée allumée à leur place (l'écran principal de leur module).
 /** Écrans qui gardent la barre de recherche et le bouton « + » du haut (les autres : Veille, Automatisations, Maintenance, réglages, journal, assistant…). */
-const PAGES_AVEC_OUTILS = ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/', 'devis/editeur', 'devis/voir', 'devis/liste', 'devis/relances', 'devis/bordereau', 'devis/vocabulaire'];
+const PAGES_AVEC_OUTILS = ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/', 'devis/editeur', 'devis/voir', 'devis/liste', 'devis/relances', 'devis/statistiques', 'devis/bordereau', 'devis/vocabulaire'];
 const ROUTES_SOUS_ENTREE = [['projets/archives', 'projets/projets'], ['projets/modeles', 'projets/projets']];
 
 // ---------------------------------------------------------------- thème
@@ -110,7 +110,7 @@ export function largeurMemorisee() {
 }
 const poserLargeur = (n) => document.documentElement.style.setProperty('--menu-largeur', `${n}px`);
 
-export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(), modules = MODULES, client = ESPACE_RACINE, accueil = 'crm/accueil', retour = null, menu: entreesPortail = null }) {
+export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(), modules = MODULES, client = ESPACE_RACINE, accueil = 'crm/accueil', retour = null, menu: entreesPortail = null, supplements = [] }) {
   vider(racine);
   document.body.classList.remove('page-connexion');
   const elargi = lirePreference('menu', 'replie') === 'elargi';
@@ -121,7 +121,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   const nav = h('nav', { class: 'menu-nav', 'aria-label': 'Navigation' });
   // Un bloc du menu par module ou groupe de modules (le CRM réunit affaires et projets : registre.js, blocsDuMenu), lui-même coupé en sections ;
   // une fine ligne sépare deux sections (CSS), jamais de titre. Un module sans entrée de menu (Connecter mon ChatGPT) n'a pas de bloc.
-  for (const m of blocsDuMenu(idsModules, { visibles: entreesPortail ?? [] })) {
+  for (const m of blocsDuMenu(idsModules, { visibles: entreesPortail ?? [], supplements })) {
     if (!m.sections.length) continue;
     const groupe = h('div', { class: 'menu-groupe', dataset: { bloc: m.id } });
     for (const liste of m.sections) {
@@ -395,7 +395,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
       // Les pages d'un module qui n'ont pas (ou plus) d'entrée de menu allument l'entrée de leur écran principal : archives et modèles -> Projets.
       const chemin = ROUTES_SOUS_ENTREE.find(([prefixe]) => route === prefixe || route.startsWith(`${prefixe}/`))?.[1];
       // Entrée d'un module à onglets (data-prefixe) : allumée sur tous les écrans du module, quel que soit l'onglet.
-      const actif = route === a.dataset.chemin || route.startsWith(`${a.dataset.chemin}/`) || chemin === a.dataset.chemin
+      const actif = route === a.dataset.chemin || route.startsWith(`${a.dataset.chemin}/`) || (!exacte && chemin === a.dataset.chemin)
         || Boolean(!exacte && a.dataset.prefixe && route.startsWith(`${a.dataset.prefixe}/`));
       a.classList.toggle('actif', actif);
       if (actif) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');

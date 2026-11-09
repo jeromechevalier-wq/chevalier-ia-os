@@ -45,7 +45,7 @@ export function rendreFicheOrganisation(conteneur, id) {
         h('div', { class: 'fiche-titre' }, nom, o.archive || L.estTest(o) ? h('div', { class: 'fiche-sous' }, badgeTest(o), o.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null) : null),
         h('div', { class: 'fiche-actions' },
           h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne({ organisationId: o.id }) }, icone('plus', { taille: 16 }), 'Personne'),
-          h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire({ organisationId: o.id }) }, icone('plus', { taille: 16 }), 'Affaire'),
+          D.estNoyau() ? null : h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire({ organisationId: o.id }) }, icone('plus', { taille: 16 }), 'Affaire'), // Devis seul (socle seul) : ni affaires ni activités
           menu)));
 
     const etiquettes = selecteurEtiquettes({ valeurIds: o.etiquettes || [], surChoix: (liste) => D.majOrganisation(o.id, { etiquettes: liste.map((e) => e.id) }) });
@@ -88,8 +88,8 @@ export function rendreFicheOrganisation(conteneur, id) {
       id: 'organisation-projets', titre: 'Projets', compteur: projets.length,
       contenu: h('div', { class: 'liste-cartes-mini' }, projets.map(carteProjetMini)),
     }) : null;
-    if (!panneau) panneau = panneauActivite({ lien: { organisationId: o.id }, liensCreation: () => ({ organisationId: o.id }) });
-    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, details.element, sectionPersonnes.element, sectionAffaires.element, sectionProjets?.element].filter(Boolean), droite: panneau.element }));
+    if (!panneau && !D.estNoyau()) panneau = panneauActivite({ lien: { organisationId: o.id }, liensCreation: () => ({ organisationId: o.id }) });
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, details.element, sectionPersonnes.element, D.estNoyau() ? null : sectionAffaires.element, sectionProjets?.element].filter(Boolean), droite: panneau?.element ?? null }));
   }
 
   function reconstruire() {

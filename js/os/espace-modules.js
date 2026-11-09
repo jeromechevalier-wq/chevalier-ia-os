@@ -12,7 +12,7 @@ import { monterReglages } from './reglages.js';
 import { definirChezClient, definirLogoEspace } from './contexte.js';
 import { appliquerIdentite } from './identite.js';
 import { normaliserMarque, routeDansEspace } from './marque.js';
-import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe } from './portail.js';
+import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe, ecranSocleDeRoute } from './portail.js';
 import { blocIntrouvablePortail } from './portail-introuvable.js';
 import { h, icone, vider, remplir } from './ui.js';
 import { demarrer as demarrerSocle, arreter as arreterSocle } from '../modules/crm/donnees.js';
@@ -42,7 +42,7 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
   definirLogoEspace(marque.logo); // le logo de l'espace peut servir d'image aux célébrations (lu en direct, jamais recopié)
   const accueil = portail ? PORTAILS[portail.id].accueil : premiereRoute(actifs);
   const retour = portail && idsPortail.length ? { libelle: PORTAILS[portail.id].libelleRetour, href: lien(PORTAILS[portail.id].accueil, `espace/${client}`) } : null;
-  const coquille = monterCoquille(racine, compte, { apis: apisCoquille, modules: modulesCoquille, client: { nom: marque.nom, logo: marque.logo }, accueil, retour, menu: portail ? PORTAILS[portail.id].menu : null, surDeconnexion });
+  const coquille = monterCoquille(racine, compte, { apis: apisCoquille, modules: modulesCoquille, client: { nom: marque.nom, logo: marque.logo }, accueil, retour, menu: portail ? PORTAILS[portail.id].menu : null, supplements: portail ? PORTAILS[portail.id].supplements : [], surDeconnexion });
   /** Un éditeur vient d'enregistrer nom, couleur ou logo : tout ce qui est visible se met à jour tout de suite, sans recharger (les autres appareils au prochain chargement). */
   const surMarque = (nouvelle) => {
     Object.assign(marque, normaliserMarque({ actif: true, ...nouvelle }) ?? nouvelle); // mêmes formes que la marque lue à l'ouverture (images : { url, alt })
@@ -66,6 +66,18 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
         vue = { cle: 'reglages', quitter: null };
       }
       vue.quitter = monterReglages(coquille.contenu, segs, { apis, actifs, chezClient: true, client, nomEspace: marque.nom, marque, fiche, compte, surMarque, surDeconnexion });
+      coquille.activer(segs.join('/'));
+      return;
+    }
+    const socle = idsPortail?.length ? ecranSocleDeRoute(segs) : null; // Clients : le socle est toujours servi dans le portail, avec ou sans Affaires
+    if (socle) {
+      if (vue?.cle !== 'socle') { vue?.quitter?.(); vider(coquille.contenu); vue = { cle: 'socle', quitter: null }; }
+      import('./portail-socle.js').then((mod) => {
+        if (vue?.cle !== 'socle') return;
+        vider(coquille.contenu);
+        vue.quitter?.();
+        vue.quitter = mod.monterEcranSocle(coquille.contenu, socle);
+      });
       coquille.activer(segs.join('/'));
       return;
     }
