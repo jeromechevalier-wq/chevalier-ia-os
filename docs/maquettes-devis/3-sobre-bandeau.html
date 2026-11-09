@@ -3,7 +3,7 @@
 body{margin:0;width:210mm;height:297mm;position:relative;overflow:hidden;background:#fff}
 .page{padding:14mm 14mm 12mm;position:relative;height:297mm}
 table{border-collapse:collapse;width:100%}
-.logo{height:17mm;width:auto;display:block}
+.logo{height:26mm;width:26mm;display:block}
 .emetteur{line-height:1.4;font-size:8.5pt;color:#444}.emetteur .nom{font-size:11pt;font-weight:700;color:#1b1b1b}
 .destinataire{line-height:1.4}.destinataire .etiquette{font-size:7.5pt;text-transform:uppercase;letter-spacing:.4pt;margin-bottom:1mm}.destinataire .nom{font-weight:700;font-size:10.5pt}
 .infos div{line-height:1.5}.objet{font-weight:700;font-size:11pt;margin-top:2mm}
@@ -19,20 +19,20 @@ table{border-collapse:collapse;width:100%}
 .assurance{font-size:7.5pt;color:#555;line-height:1.4;margin-top:3mm}
 .pied{position:absolute;left:14mm;right:14mm;bottom:6mm;font-size:7.5pt;color:#777;text-align:center}
 .filigrane{position:absolute;top:42%;left:0;right:0;text-align:center;font-size:72pt;font-weight:700;letter-spacing:4mm;color:rgba(150,150,150,.14);transform:rotate(-30deg);z-index:5;pointer-events:none}
-
-:root{--a:#2b3a42}.page{padding:0 0 12mm}
+.serif h1,.serif .emetteur .nom,.serif .destinataire .nom,.serif .titre,.serif .t,.serif .objet,.serif .bandeau td,.serif .net td,.serif .paiement h2{font-family:Georgia,'Times New Roman',serif}
+:root{--a:#1B2A4A}.page{padding:0 0 12mm}
 .bandeau-haut{background:var(--a);color:#fff;padding:9mm 14mm;display:flex;justify-content:space-between;align-items:center}
 .bandeau-haut .pastille{background:#fff;border-radius:2mm;padding:2.5mm 4mm}.bandeau-haut .t{font-size:26pt;font-weight:700;letter-spacing:1mm;text-align:right;line-height:1}.bandeau-haut .n{font-size:9pt;opacity:.8;text-align:right;margin-top:1.5mm}
-.corps{padding:7mm 14mm 0}
+.corps{padding:3mm 14mm 0}
 .deux{display:flex;justify-content:space-between;gap:10mm;margin-bottom:6mm}.deux>div{flex:1}
-.destinataire{border-left:1.2mm solid #d9822b;padding-left:4mm}.destinataire .etiquette{color:#d9822b;font-weight:700}
+.destinataire{border-left:1.2mm solid #2A8FD8;padding-left:4mm}.destinataire .etiquette{color:#2A8FD8;font-weight:700}
 .infos{margin-bottom:4mm;padding:3mm 0;border-top:.2mm solid #ccc;border-bottom:.2mm solid #ccc}
 .lignes th{border-bottom:.5mm solid var(--a);color:var(--a);text-transform:uppercase;letter-spacing:.3pt}
-.lignes .bandeau td{font-weight:700;color:var(--a);background:#f1f3f4;border-left:1mm solid #d9822b}
+.lignes .bandeau td{font-weight:700;color:var(--a);background:#f1f3f4;border-left:1mm solid #2A8FD8}
 .taux td,.taux th{border-bottom:.2mm solid #ccc}.taux th{color:var(--a)}
 .totaux td{border-bottom:.2mm solid #ddd}.totaux .net td{font-weight:700;font-size:12pt;border-top:.6mm solid var(--a);border-bottom:.6mm solid var(--a);color:var(--a)}
 .paiement h2{color:var(--a)}.pied{left:0;right:0}
-</style></head><body><div class="filigrane">BROUILLON</div><div class="page"><div class="bandeau-haut"><div class="pastille"><svg class="logo" viewBox="0 0 220 64" xmlns="http://www.w3.org/2000/svg"><path d="M8 52 L32 14 L56 52 Z" fill="#2b3a42"/><path d="M20 52 Q32 36 44 52" fill="none" stroke="#fff" stroke-width="4"/><text x="66" y="34" font-family="Helvetica,Arial,sans-serif" font-size="20" font-weight="700" fill="#2b3a42">LOGO</text><text x="66" y="52" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#2b3a42" opacity=".7">de l’entreprise</text></svg></div><div><div class="t">DEVIS</div><div class="n">N° DEV-2026-0042 · 09/11/2026</div></div></div>
+</style></head><body class="serif"><div class="filigrane">BROUILLON</div><div class="page"><div class="bandeau-haut"><div class="pastille"><svg class="logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect x="22" y="30" width="56" height="30" fill="#fff" stroke="#1B2A4A" stroke-width="2"/><path d="M14 32 L50 6 L86 32 Z" fill="#1B2A4A"/><path d="M50 36v20M40 46h20" stroke="#1B2A4A" stroke-width="2"/><path d="M30 68 Q40 60 50 68 T70 68" fill="none" stroke="#2A8FD8" stroke-width="3"/><path d="M30 74 Q40 66 50 74 T70 74" fill="none" stroke="#7CC4EE" stroke-width="3"/><text x="50" y="92" text-anchor="middle" font-family="Georgia,serif" font-size="11" fill="#2F6DB5">LOGO</text></svg></div><div><div class="t">DEVIS</div><div class="n">N° DEV-2026-0042 · 09/11/2026</div></div></div>
 <div class="corps"><div class="deux"><div class="emetteur"><div class="nom">Étanchéité Exemple SARL</div><div>12 rue des Ardoises, 00000 Exempleville</div><div>01 00 00 00 00 · contact@exemple.test</div><div>SIRET 000 000 000 00000 · TVA FR00 000000000</div></div><div class="destinataire"><div class="etiquette">Destinataire</div><div class="nom">Copropriété Les Tilleuls</div><div>À l’attention de Mme Exemple</div><div>8 allée des Tilleuls<br>00000 Exempleville</div></div></div><div class="infos"><div>Date d’émission : 09/11/2026</div><div>Valable jusqu’au : 09/12/2026</div><div class="objet">Réfection de l’étanchéité de la toiture-terrasse</div><div>Adresse du chantier : 8 allée des Tilleuls, 00000 Exempleville</div></div><table class="lignes"><thead><tr><th class="num">N°</th><th>Désignation</th><th class="d">Qté</th><th>Unité</th><th class="d">Prix U. HT</th><th class="d">TVA</th><th class="d">Total HT</th></tr></thead><tbody>
 <tr class="bandeau"><td class="num">1</td><td colspan="6">Toiture-terrasse : étanchéité</td></tr>
 <tr><td class="num">1.1</td><td>Dépose de l’ancienne étanchéité<div class="description">Évacuation en déchetterie comprise.</div></td><td class="d">85</td><td>m²</td><td class="d">18,00 €</td><td class="d">20 %</td><td class="d">1 530,00 €</td></tr>
