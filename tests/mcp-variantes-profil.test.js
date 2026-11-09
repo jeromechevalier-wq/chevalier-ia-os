@@ -114,7 +114,7 @@ describe('4 garde-fous lisibles dans les descriptions servies à assistant-devis
     assert.doesNotMatch(t.description, /REMPLACENT/);
     assert.ok(!('lignes' in t.inputSchema.properties) && !('sections' in t.inputSchema.properties), 'lignes et sections ne sont plus annoncés');
     assert.ok('ajouterLignes' in t.inputSchema.properties);
-    assert.equal(t.inputSchema.additionalProperties, false);
+    assert.notEqual(t.inputSchema.additionalProperties, false, 'un champ inconnu est toléré comme sur main, pas refusé');
   });
   test('4e aucun e-mail ne part seul : texte COMPLET sur preparer_email, obtenir_pdf_officiel_devis et finaliser_devis ; une phrase courte sur les autres outils devis', async () => {
     const t = parNom((await listes()).jerome);
@@ -151,6 +151,20 @@ describe('4 garde-fous lisibles dans les descriptions servies à assistant-devis
   test('4h chaque outil réécrit reste plus court que l\'original (sinon la variante ne sert à rien)', async () => {
     const t = parNom((await listes()).jerome);
     for (const nom of OUTILS_AVEC_VARIANTE) assert.ok(t[nom].description.length < OUTILS.find((o) => o.nom === nom).description.length, nom);
+  });
+});
+
+describe('4bis toute description servie ne cite que des outils du profil', () => {
+  test('4bis aucun renvoi vers un outil que le bot ne reçoit pas', async () => {
+    const l = await listes();
+    const tousLesNoms = OUTILS.map((o) => o.nom);
+    for (const liste of [l.jerome, l.client]) {
+      const presents = new Set(liste.map((t) => t.name));
+      for (const t of liste.filter((x) => OUTILS_AVEC_VARIANTE.includes(x.name))) for (const nom of tousLesNoms) { // les petits outils de fiches gardent leur texte d'origine (qui cite encore lire_reglages)
+        if (presents.has(nom) || AFFAIRES.includes(nom)) continue; // les outils d'Affaires sont cités par chercher / creer_devis_brouillon même quand le module est éteint (texte d'origine)
+        assert.doesNotMatch(t.description, new RegExp(`\\b${nom}\\b`), `${t.name} cite ${nom}, absent du profil`);
+      }
+    }
   });
 });
 
@@ -227,15 +241,26 @@ describe('6 refus de `lignes` et `sections` par le protocole MCP (assistant-devi
       assert.equal(s.audit(), auditAvant, `${champ} : aucune ligne de journal`);
     }
   });
-  test('6 assistant-devis : un autre champ inconnu est refusé aussi (objet strict) ; objet et ajouterLignes passent', async () => {
+  test('6 assistant-devis : `lignes: null` est refusé aussi ; un champ inconnu (champ technique d\'un client MCP) PASSE comme sur main, sans être transmis à executer ; objet et ajouterLignes passent', async () => {
     const s = await demarrer();
-    const r = await s.appeler('assistant', 'modifier_devis_brouillon', { id: 'd1', inventé: 1 });
-    assert.equal(r.isError, true, r.texte);
+    const avant = structuredClone(s.doc());
+    const nul = await s.appeler('assistant', 'modifier_devis_brouillon', { id: 'd1', lignes: null });
+    assert.equal(nul.isError, true, nul.texte);
+    assert.match(nul.texte, /modifier_lignes_devis/);
+    assert.deepEqual(s.doc(), avant);
+    const inconnu = await s.appeler('assistant', 'modifier_devis_brouillon', { id: 'd1', objet: 'Objet vu', toolCallId: 'abc', champInventé: { a: 1 } });
+    assert.equal(inconnu.isError, false, inconnu.texte);
+    assert.equal(s.doc().objet, 'Objet vu');
+    assert.equal('toolCallId' in s.doc() || 'champInventé' in s.doc(), false, 'le champ inconnu n\'est pas écrit');
     const ok = await s.appeler('assistant', 'modifier_devis_brouillon', { id: 'd1', objet: 'Nouvel objet', ajouterLignes: [{ articleId: s.articleId, quantite: 2 }] });
     assert.equal(ok.isError, false, ok.texte);
     assert.equal(s.doc().objet, 'Nouvel objet');
     assert.equal(s.doc().sections.flatMap((x) => x.lignes).length, 2, 'la ligne libre existante est gardée, la nouvelle est ajoutée');
     assert.equal(s.audit() > 0, true);
+  });
+  test('6 agent-devis et complet : un champ inconnu passe aussi, comme avant', async () => {
+    const s = await demarrer();
+    for (const jeton of ['agent', 'complet']) assert.equal((await s.appeler(jeton, 'modifier_devis_brouillon', { id: 'd1', objet: `Objet ${jeton}`, champInventé: 1 })).isError, false, jeton);
   });
   test('6 agent-devis et complet : le même appel avec `lignes` passe toujours (il remplace le contenu) ; `sections` aussi', async () => {
     for (const jeton of ['agent', 'complet']) {
@@ -250,8 +275,9 @@ describe('6 refus de `lignes` et `sections` par le protocole MCP (assistant-devi
 });
 
 describe('7 poids de tools/list plafonné pour assistant-devis (caractères du JSON ; tokens à 3,5 caractères par token)', () => {
-  // Mesuré le 09/11/2026 après l'option A + B : Jérôme 46 370 ; client Devis seul 41 160 ; les 9 outils du bot 20 790 (avant : 60 815 ; 55 605 ; 30 929). Plafond = mesuré + 10 %.
-  const PLAFOND = { jerome: 51_007, client: 45_276, bot: 22_869 };
+  // Mesuré le 09/11/2026 après l'option A + B : Jérôme 46 543 ; client Devis seul 41 333 ; les 9 outils du bot 20 986. Avant (profil assistant-devis sur main, relevé le 09/11/2026) : 60 815 ; 55 605 ; 30 929. Plafond = mesuré + 10 %.
+  const AVANT_JEROME = 60_815;
+  const PLAFOND = { jerome: 51_198, client: 45_467, bot: 23_085 };
   const taille = (tools) => JSON.stringify(tools).length;
   const consigne = (nom, n, plafond) => `tools/list de assistant-devis (${nom}) : ${n} caractères (~${Math.round(n / 3.5)} tokens), plafond ${plafond}. Un outil ou un texte ajouté alourdit ce que le bot relit à CHAQUE appel : raccourcis la description dans functions/src/mcp/outils/variantes-assistant-devis.js, ou relève le plafond en le disant dans la PR.`;
   test('7 la liste de Jérôme (24 outils), celle d\'un client Devis seul (21) et les 9 outils du bot restent sous leur plafond', async () => {
@@ -262,9 +288,9 @@ describe('7 poids de tools/list plafonné pour assistant-devis (caractères du J
     assert.ok(taille(l.client) <= PLAFOND.client, consigne('client Devis seul', taille(l.client), PLAFOND.client));
     assert.ok(taille(bot) <= PLAFOND.bot, consigne('9 outils du bot', taille(bot), PLAFOND.bot));
   });
-  test('7 l\'allègement est réel : au moins 20 % de moins que la liste complète (celle du profil agent-devis, mêmes textes d\'origine, plus lourde)', async () => {
+  test('7 l\'allègement est réel : au moins 20 % de moins que les 60 815 caractères d\'avant (mesure de main)', async () => {
     const l = await listes();
-    assert.ok(taille(l.jerome) < 0.8 * 60_815);
+    assert.ok(taille(l.jerome) < 0.8 * AVANT_JEROME);
   });
 });
 

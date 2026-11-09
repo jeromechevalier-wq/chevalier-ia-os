@@ -172,7 +172,9 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
   for (const outil of permis) {
     // Ce que le profil VOIT (description, schéma annoncé et validé) : la variante allégée pour assistant-devis, l'outil lui-même pour tous les autres. L'exécution reste celle de l'outil d'origine.
     const annonce = varianteDuProfil(outil, jeton.profil);
-    serveur.registerTool(outil.nom, { description: annonce.description, annotations: annotationsDe(outil), ...(outil.meta ? { _meta: outil.meta } : {}), ...(annonce.schema ? { inputSchema: annonce.schema } : {}) }, async (args) => {
+    serveur.registerTool(outil.nom, { description: annonce.description, annotations: annotationsDe(outil), ...(outil.meta ? { _meta: outil.meta } : {}), ...(annonce.schema ? { inputSchema: annonce.schema } : {}) }, async (argsRecus) => {
+      // Variante à schéma souple : tout champ non annoncé est retiré avant l'exécution (comme le faisait le schéma d'origine).
+      const args = annonce.champsAcceptes ? Object.fromEntries(Object.entries(argsRecus ?? {}).filter(([c]) => annonce.champsAcceptes.includes(c))) : argsRecus;
       const contexte = {
         acteur: jeton.acteur, email: jeton.email, profil: jeton.profil, superAdmin, actifs: jeton.actifs ?? null, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), nomServeur, args, donnees: donneesComptees, maintenant: ctxEcriture.maintenant,
         ecrire: (demande) => ecrire({ ...demande, outil: outil.nom }),
