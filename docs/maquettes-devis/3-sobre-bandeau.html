@@ -1,0 +1,44 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Maquette devis</title><style>
+@page{size:A4;margin:0}*{box-sizing:border-box}html{font-family:Helvetica,Arial,sans-serif;font-size:9.5pt;color:#1b1b1b}
+body{margin:0;width:210mm;height:297mm;position:relative;overflow:hidden;background:#fff}
+.page{padding:14mm 14mm 12mm;position:relative;height:297mm}
+table{border-collapse:collapse;width:100%}
+.logo{height:17mm;width:auto;display:block}
+.emetteur{line-height:1.4;font-size:8.5pt;color:#444}.emetteur .nom{font-size:11pt;font-weight:700;color:#1b1b1b}
+.destinataire{line-height:1.4}.destinataire .etiquette{font-size:7.5pt;text-transform:uppercase;letter-spacing:.4pt;margin-bottom:1mm}.destinataire .nom{font-weight:700;font-size:10.5pt}
+.infos div{line-height:1.5}.objet{font-weight:700;font-size:11pt;margin-top:2mm}
+.lignes th{text-align:left;font-size:8pt;padding:1.8mm 2mm}.lignes td{padding:1.5mm 2mm;border-bottom:.2mm solid #ddd;vertical-align:top}
+.lignes .num{width:11mm;white-space:nowrap}.lignes .d{text-align:right;white-space:nowrap}.lignes th.d{text-align:right}
+.description{font-size:8pt;color:#555;margin-top:.6mm}
+.sous-total td{text-align:right;font-style:italic;font-size:8.5pt;color:#444}
+.bas{display:flex;justify-content:space-between;gap:10mm;margin-top:6mm}
+.taux{width:80mm;align-self:flex-start}.taux th,.taux td{padding:1.1mm 2mm;font-size:8pt;text-align:left}.taux .d{text-align:right}
+.totaux{width:78mm}.totaux td{padding:1.4mm 2.5mm}.totaux .d{text-align:right;white-space:nowrap}
+.paiement,.mentions{margin-top:3.5mm;line-height:1.4;font-size:8.5pt}.paiement h2{font-size:9.5pt;margin:0 0 1mm}.paiement ul{margin:0;padding-left:5mm}.mentions p{margin:0 0 1.5mm}
+.signature{margin-top:5mm;border:.3mm solid #888;padding:3mm 4mm;height:18mm;width:85mm;font-size:8.5pt}.signature b{display:block;margin-bottom:1mm}
+.assurance{font-size:7.5pt;color:#555;line-height:1.4;margin-top:3mm}
+.pied{position:absolute;left:14mm;right:14mm;bottom:6mm;font-size:7.5pt;color:#777;text-align:center}
+.filigrane{position:absolute;top:42%;left:0;right:0;text-align:center;font-size:72pt;font-weight:700;letter-spacing:4mm;color:rgba(150,150,150,.14);transform:rotate(-30deg);z-index:5;pointer-events:none}
+
+:root{--a:#2b3a42}.page{padding:0 0 12mm}
+.bandeau-haut{background:var(--a);color:#fff;padding:9mm 14mm;display:flex;justify-content:space-between;align-items:center}
+.bandeau-haut .pastille{background:#fff;border-radius:2mm;padding:2.5mm 4mm}.bandeau-haut .t{font-size:26pt;font-weight:700;letter-spacing:1mm;text-align:right;line-height:1}.bandeau-haut .n{font-size:9pt;opacity:.8;text-align:right;margin-top:1.5mm}
+.corps{padding:7mm 14mm 0}
+.deux{display:flex;justify-content:space-between;gap:10mm;margin-bottom:6mm}.deux>div{flex:1}
+.destinataire{border-left:1.2mm solid #d9822b;padding-left:4mm}.destinataire .etiquette{color:#d9822b;font-weight:700}
+.infos{margin-bottom:4mm;padding:3mm 0;border-top:.2mm solid #ccc;border-bottom:.2mm solid #ccc}
+.lignes th{border-bottom:.5mm solid var(--a);color:var(--a);text-transform:uppercase;letter-spacing:.3pt}
+.lignes .bandeau td{font-weight:700;color:var(--a);background:#f1f3f4;border-left:1mm solid #d9822b}
+.taux td,.taux th{border-bottom:.2mm solid #ccc}.taux th{color:var(--a)}
+.totaux td{border-bottom:.2mm solid #ddd}.totaux .net td{font-weight:700;font-size:12pt;border-top:.6mm solid var(--a);border-bottom:.6mm solid var(--a);color:var(--a)}
+.paiement h2{color:var(--a)}.pied{left:0;right:0}
+</style></head><body><div class="filigrane">BROUILLON</div><div class="page"><div class="bandeau-haut"><div class="pastille"><svg class="logo" viewBox="0 0 220 64" xmlns="http://www.w3.org/2000/svg"><path d="M8 52 L32 14 L56 52 Z" fill="#2b3a42"/><path d="M20 52 Q32 36 44 52" fill="none" stroke="#fff" stroke-width="4"/><text x="66" y="34" font-family="Helvetica,Arial,sans-serif" font-size="20" font-weight="700" fill="#2b3a42">LOGO</text><text x="66" y="52" font-family="Helvetica,Arial,sans-serif" font-size="11" fill="#2b3a42" opacity=".7">de l’entreprise</text></svg></div><div><div class="t">DEVIS</div><div class="n">N° DEV-2026-0042 · 09/11/2026</div></div></div>
+<div class="corps"><div class="deux"><div class="emetteur"><div class="nom">Étanchéité Exemple SARL</div><div>12 rue des Ardoises, 00000 Exempleville</div><div>01 00 00 00 00 · contact@exemple.test</div><div>SIRET 000 000 000 00000 · TVA FR00 000000000</div></div><div class="destinataire"><div class="etiquette">Destinataire</div><div class="nom">Copropriété Les Tilleuls</div><div>À l’attention de Mme Exemple</div><div>8 allée des Tilleuls<br>00000 Exempleville</div></div></div><div class="infos"><div>Date d’émission : 09/11/2026</div><div>Valable jusqu’au : 09/12/2026</div><div class="objet">Réfection de l’étanchéité de la toiture-terrasse</div><div>Adresse du chantier : 8 allée des Tilleuls, 00000 Exempleville</div></div><table class="lignes"><thead><tr><th class="num">N°</th><th>Désignation</th><th class="d">Qté</th><th>Unité</th><th class="d">Prix U. HT</th><th class="d">TVA</th><th class="d">Total HT</th></tr></thead><tbody>
+<tr class="bandeau"><td class="num">1</td><td colspan="6">Toiture-terrasse : étanchéité</td></tr>
+<tr><td class="num">1.1</td><td>Dépose de l’ancienne étanchéité<div class="description">Évacuation en déchetterie comprise.</div></td><td class="d">85</td><td>m²</td><td class="d">18,00 €</td><td class="d">20 %</td><td class="d">1 530,00 €</td></tr>
+<tr><td class="num">1.2</td><td>Pose d’une membrane bitumineuse bicouche<div class="description">Soudée en plein, relevés de 15 cm.</div></td><td class="d">85</td><td>m²</td><td class="d">42,00 €</td><td class="d">20 %</td><td class="d">3 570,00 €</td></tr>
+<tr><td class="num">1.3</td><td>Protection lourde par gravillons</td><td class="d">85</td><td>m²</td><td class="d">9,00 €</td><td class="d">20 %</td><td class="d">765,00 €</td></tr>
+<tr class="sous-total"><td colspan="7">Sous-total 1 : 5 865,00 €</td></tr>
+<tr class="bandeau"><td class="num">2</td><td colspan="6">Évacuations</td></tr>
+<tr><td class="num">2.1</td><td>Remplacement de 2 entrées d’eau pluviale</td><td class="d">2</td><td>u</td><td class="d">120,00 €</td><td class="d">10 %</td><td class="d">240,00 €</td></tr>
+<tr class="sous-total"><td colspan="7">Sous-total 2 : 240,00 €</td></tr></tbody></table><div class="bas"><table class="taux"><thead><tr><th>Taux TVA</th><th class="d">Base HT</th><th class="d">Total TVA</th></tr></thead><tbody><tr><td>20 %</td><td class="d">5 865,00 €</td><td class="d">1 173,00 €</td></tr><tr><td>10 %</td><td class="d">240,00 €</td><td class="d">24,00 €</td></tr></tbody></table><table class="totaux"><tbody><tr><td>Total net HT</td><td class="d">6 105,00 €</td></tr><tr><td>TVA</td><td class="d">1 197,00 €</td></tr><tr><td>Total TTC</td><td class="d">7 302,00 €</td></tr><tr class="net"><td>Net à payer</td><td class="d">7 302,00 €</td></tr></tbody></table></div><div class="paiement"><h2>Conditions et modes de paiement</h2><p>Acompte de 30 % à la commande, solde à réception des travaux. Paiement à 30 jours.</p><ul><li>Virement</li><li>Chèque</li></ul></div><div class="mentions"><p>TVA à 10 % : attestation de travaux sur logement de plus de 2 ans remise par le client (texte fictif).</p></div><div class="signature"><b>Bon pour accord</b>Date, signature précédée de la mention « Bon pour accord »</div><div class="assurance">Assurance décennale : Assureur Exemple, contrat n° 000000, zone : France (texte fictif).</div></div><div class="pied">Devis DEV-2026-0042 · Étanchéité Exemple SARL · Page 1 / 1</div></div></body></html>
