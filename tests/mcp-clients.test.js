@@ -1205,6 +1205,12 @@ describe('Devis : les outils du module arrivent chez les clients (sauf les régl
       assert.equal(await donnees.document('devis_parametres', 'reglages'), null, 'rien à la racine (CRM de Jérôme)');
       const ligne = (await donnees.liste('clients/a/crm_audit')).find((l) => l.outil === 'modifier_reglages_devis');
       assert.ok(ligne && /jerome/.test(ligne.acteur), `le journal retient l'acteur : ${ligne?.acteur}`);
+      // Une autre éditrice du client ne défait pas l'opération de Jérôme avec le journal (la restauration ne contourne pas la réservation).
+      const operationJerome = (await donnees.liste('clients/a/crm_audit')).find((l) => l.outil === 'modifier_reglages_devis').operationId;
+      const alice0 = await outilsDe('a', 'ID-ALICE');
+      assert.equal(await refuse(alice0.c, 'restaurer_depuis_audit', { operationId: operationJerome, apercu: false, forcer: true }), true);
+      await alice0.c.close();
+      assert.equal((await donnees.document('clients/a/devis_parametres', 'reglages')).margeDevis, 17, 'la restauration refusée n\'a rien changé');
       // Même éditeur du client, autre identité : refus.
       const alice = await outilsDe('a', 'ID-ALICE');
       assert.ok(!alice.liste.includes('modifier_reglages_devis'));

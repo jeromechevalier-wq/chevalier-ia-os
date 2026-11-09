@@ -158,7 +158,7 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
   const restaurer = async ({ operationId, apercu, forcer, outil }) => {
     try {
       const r = await restaurerOperation({
-        donnees: donneesComptees, ctx: ctxEcriture, operationId, apercu, forcer, outil,
+        donnees: donneesComptees, ctx: ctxEcriture, operationId, apercu, forcer, outil, superAdmin,
         reserver: (operations) => limiteur?.reserver(jeton.jeton, limites, { suppressions: compterSuppressions(operations) }),
       });
       if (r.operationRestauration) infos.operationId = r.operationRestauration;

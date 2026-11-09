@@ -303,3 +303,25 @@ describe('RG10 réservé aux super admins (décision du 09/11/2026) : le profil 
     assert.equal(appels, 0);
   });
 });
+
+describe('RG11 la restauration ne contourne pas la réservation', () => {
+  test('RG11 un autre compte complet et un jeton statique ne défont pas l’opération d’un super admin (aperçu et exécution refusés, document intact) ; le super admin la défait', async () => {
+    const s = await demarrer();
+    const avant = structuredClone(s.doc('devis_parametres', 'reglages'));
+    const r = ok(await s.appeler('code', OUTIL, { reglages: { marge: 44 } }));
+    const apres = JSON.stringify(s.collections.devis_parametres);
+    for (const j of ['autre', 'statique']) {
+      refuse(await s.appeler(j, 'restaurer_depuis_audit', { operationId: r.operationId }), /réservé aux super admins/);
+      refuse(await s.appeler(j, 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false, forcer: true }), /réservé aux super admins/);
+      assert.equal(JSON.stringify(s.collections.devis_parametres), apres, `${j} : document intact`);
+    }
+    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }));
+    assert.deepEqual(s.doc('devis_parametres', 'reglages'), avant);
+  });
+  test('RG11 les entrées du secret des jetons n’ont jamais d’e-mail (un jeton statique n’est jamais super admin)', async () => {
+    const { analyserSecret } = await import('../functions/src/securite/jetons.js');
+    const { entrees } = analyserSecret(JSON.stringify([{ jeton: 'jeton-essai', acteur: 'acteur-essai', profil: 'complet', empreinte: 'a'.repeat(64), actif: true, email: 'jerome.chevalier@gmail.com' }]));
+    assert.equal(entrees.length, 1);
+    assert.deepEqual(Object.keys(entrees[0]).sort(), ['acteur', 'actif', 'empreinte', 'jeton', 'profil']);
+  });
+});

@@ -35,12 +35,18 @@ const RAISONS = {
 
 /** `reserver(operations)` : appelé juste avant d'écrire (plafonds du jeton) ; une restauration qui supprime compte comme suppression. */
 /** `outil` : le nom écrit dans le journal (restaurer_depuis_audit par défaut ; annuler_derniere_modification_devis pour l'annulation d'un brouillon). */
-export async function restaurerOperation({ donnees, ctx, operationId, apercu = true, forcer = false, reserver = null, outil = 'restaurer_depuis_audit' }) {
+/** Outils dont l'opération ne se défait que par un super admin (09/11/2026) : sinon la restauration contournerait la réservation de l'outil. */
+export const OUTILS_RESERVES_SUPER_ADMINS = Object.freeze(['modifier_reglages_devis']);
+
+export async function restaurerOperation({ donnees, ctx, operationId, apercu = true, forcer = false, reserver = null, outil = 'restaurer_depuis_audit', superAdmin = false }) {
   let lignesAudit = (await donnees.liste(C.audit, { champ: 'operationId', valeur: operationId }))
     .filter((l) => l.statut !== 'echec')
     .sort((a, b) => (b.ordre ?? 0) - (a.ordre ?? 0));
   if (!lignesAudit.length) {
     throw new ErreurEcriture('introuvable', 'Aucune écriture réussie pour cette opération (identifiant inconnu, ou toutes ont échoué).');
+  }
+  if (!superAdmin && lignesAudit.some((l) => OUTILS_RESERVES_SUPER_ADMINS.includes(l.outil))) {
+    throw new ErreurEcriture('restauration_refusee', 'Cette opération a été faite par un outil réservé aux super admins : elle ne se défait pas avec ce compte. Rien n\'a été restauré.');
   }
   // Une transition de devis réécrit aussi le montant de l'affaire (`montantDevis*`) : défaire cette ligne avec une copie entière de l'affaire effacerait ce qui a changé depuis (titre, étape, documents).
   // Exception : la suppression d'un devis (devisSupprimer) et le choix d'une affaire (devisChoisirAffaire) ; seules ses lignes « devis » sont restaurées, le montant de l'affaire est recalculé APRÈS l'écriture (hors transaction), jamais rétabli d'après une copie.
