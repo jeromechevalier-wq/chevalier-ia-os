@@ -223,7 +223,7 @@ describe('Q8 devisPdf : le logo externe est retiré', () => {
     m2.collections[C.devisParametres][0].entreprise.logo = 'data:image/png;base64,iVBORw0KGgo=';
     const f2 = faux();
     await appel(m2, f2)(requete({ devisId: 'd1' }));
-    assert.ok(f2.vus.html[0].includes('<img src="data:image/png;base64,iVBORw0KGgo='));
+    assert.ok(f2.vus.html[0].includes('<img class="logo-devis" src="data:image/png;base64,iVBORw0KGgo='));
   });
 });
 

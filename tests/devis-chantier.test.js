@@ -136,20 +136,20 @@ describe('Chantier et émetteur du devis', () => {
     assert.ok(h.includes('&lt;script&gt;'));
   });
 
-  test('H6 aucune ressource externe sans logo fourni ; logo https accepté ; couleur invalide donne le gris', () => {
+  test('H6 aucune ressource externe sans logo fourni ; logo https accepté ; couleur invalide donne le bleu marine par défaut', () => {
     const h = html(fige({ chantier: chantierComplet }), emetteurComplet);
     assert.ok(!/<img|<link|<script|url\(|@import|src=|href=/i.test(h));
     assert.ok(h.includes('--accent: #1a73e8'));
     const avecLogo = html(fige(), { ...emetteurComplet, logo: 'https://exemple.test/logo.png' });
-    assert.ok(avecLogo.includes('<img src="https://exemple.test/logo.png"'));
+    assert.ok(avecLogo.includes('<img class="logo-devis" src="https://exemple.test/logo.png"'));
     const data = html(fige(), { ...emetteurComplet, logo: 'data:image/png;base64,AAAA' });
-    assert.ok(data.includes('<img src="data:image/png;base64,AAAA"'));
+    assert.ok(data.includes('<img class="logo-devis" src="data:image/png;base64,AAAA"'));
     for (const logo of ['http://exemple.test/logo.png', 'javascript:alert(1)', 'https://x.test/"onerror="y']) {
       assert.ok(!html(fige(), { ...emetteurComplet, logo }).includes('<img'), logo);
     }
     for (const couleur of ['red', '#12', 'url(x)', '#12345g', '#1a73e8; background:url(http://x)', undefined]) {
       const c = html(fige(), { ...emetteurComplet, couleur });
-      assert.ok(c.includes('--accent: #666666'), String(couleur));
+      assert.ok(c.includes('--accent: #1B2A4A'), String(couleur));
       assert.ok(!c.includes('url('), String(couleur));
     }
   });
@@ -187,12 +187,12 @@ describe('Chantier et émetteur du devis', () => {
     assert.equal(v2.statut, 'brouillon');
   });
 
-  test('H10 régressions : adresse {texte}, titre noir sans couleur, délai 0', () => {
+  test('H10 régressions : adresse {texte}, titre bleu marine par défaut, délai 0', () => {
     const devis = fige({});
     const h = html(devis, { nom: 'Atelier Test', adresse: { texte: '3 rue Z\n69001 Lyon' } });
     assert.ok(h.includes('3 rue Z') && h.includes('69001 Lyon'));
-    assert.match(h, /--accent-titre: #1b1b1b/);
-    assert.match(html(devis, { nom: 'A', couleur: '#aa1122' }), /--accent-titre: #aa1122/);
+    assert.match(h, /--accent: #1B2A4A/);
+    assert.match(html(devis, { nom: 'A', couleur: '#aa1122' }), /--accent: #aa1122/);
     assert.ok(html(devis, { nom: 'A', paiement: { delaiJours: 0 } }).includes('Paiement à réception'));
   });
 });

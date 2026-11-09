@@ -347,6 +347,7 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 - E-mail du devis : le client garde la responsabilité d'envoyer (l'appli n'envoie jamais) ; n8n prépare seulement le brouillon (décision du 25/10/2026).
 
 - 🟠 **Profil `assistant-devis` (09/11/2026)** : après la fusion, Jérôme lance « Déploiement plateforme clients » > mcp, puis crée le jeton avec `creer-jeton.js` (hors dépôt) et le contrôle avec `qui_suis_je`. Déplacer une ligne, ligne libre, sous-section par un bot : refusé le 09/11/2026, restent à l'écran.
+- 🟠 **Devis « moderne » et logo de l'espace (09/11/2026)** : après la fusion, Jérôme lance « Déploiement plateforme clients » > fonctions ; AVANT, il étend la condition IAM de `devis-pdf` à `marques/` (`docs/pdf-clients.md`, étape 2 bis) : sans cela le PDF se fait sans logo. Chez Jérôme : pas de logo d'espace (décision prise seul), à reprendre si Jérôme le veut.
 
 ## Fait (fusionné, en ligne, testé par Jérôme)
 - PR 306 : testée par Jérôme (26/10/2026) ; PR 278 (pastille Devis), 284 (barre du haut), 304 (Retour au devis), 298 (visualisation du devis, « Passer à Envoyé », points 1 à 5 OK), 285 (e-mails en copie, points 1 à 5 OK), 287 (pastille cliquable, points 1 à 5 OK) : testées par Jérôme.

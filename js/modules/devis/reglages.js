@@ -9,6 +9,7 @@ import { reglagesFamilles } from './reglages-familles.js';
 import { reglagesExportDevis } from './export.js';
 import { majuscule } from './ouvrages.js';
 import { MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, erreursEmetteur, assuranceDepuisAnciensChamps, ASSURANCE_DEFAUT, LIMITE_ASSURANCE_TEXTE, LIMITE_COORDONNEES_BANCAIRES, LIMITE_MENTION_EMETTEUR, LIMITE_MENTION_TVA_REDUITE, MENTION_TVA_REDUITE_DEFAUT } from './logique.js';
+import { COULEUR_DEVIS_DEFAUT } from './document.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, ou demande à un éditeur de l’espace.';
 
@@ -110,16 +111,16 @@ export function reglages(page) {
     listeMentions.hidden = !mentions.length;
     blocEntreprise?.toggleAttribute('data-alerte', mentions.length > 0); // le raccourci « Mon entreprise » en haut de la page affiche alors un point d'alerte
   }
-  const couleurAffichee = () => brouillon.entreprise.couleur || '#666666';
+  const couleurAffichee = () => brouillon.entreprise.couleur || COULEUR_DEVIS_DEFAUT;
   function blocCouleur() {
     const cle = 'entreprise.couleur';
     const choix = h('input', { type: 'color', class: 'champ champ-couleur', id: `devis-${cle}`, value: couleurAffichee(), dataset: { champ: cle },
       oninput: (e) => { ecrireEnt(['couleur'], e.target.value); etat.textContent = 'Couleur choisie.'; } });
-    const etat = h('span', { class: 'discret' }, brouillon.entreprise.couleur ? 'Couleur choisie.' : 'Couleur par défaut (gris).');
+    const etat = h('span', { class: 'discret' }, brouillon.entreprise.couleur ? 'Couleur choisie.' : 'Couleur par défaut (bleu marine).');
     const defaut = h('button', { type: 'button', class: 'bouton', dataset: { action: 'couleur-par-defaut' },
-      onclick: () => { ecrireEnt(['couleur'], ''); choix.value = '#666666'; etat.textContent = 'Couleur par défaut (gris).'; } }, 'Remettre la couleur par défaut');
+      onclick: () => { ecrireEnt(['couleur'], ''); choix.value = COULEUR_DEVIS_DEFAUT; etat.textContent = 'Couleur par défaut (bleu marine).'; } }, 'Remettre la couleur par défaut');
     return h('div', { class: 'bloc-champ', dataset: { reglage: cle } },
-      h('label', { class: 'etiquette', for: `devis-${cle}` }, 'Couleur du tableau', iconeInfo('La couleur des titres et des traits du tableau de ton devis. Sans choix, le devis reste gris.', 'Couleur du tableau')),
+      h('label', { class: 'etiquette', for: `devis-${cle}` }, 'Couleur du tableau', iconeInfo('La couleur des titres et des traits du tableau de ton devis. Sans choix, le devis est en bleu marine.', 'Couleur du tableau')),
       h('div', { class: 'ligne-boutons' }, choix, etat, defaut),
       h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: cle } }));
   }

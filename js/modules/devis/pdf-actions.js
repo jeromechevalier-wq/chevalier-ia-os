@@ -69,6 +69,9 @@ export function annulerAttentesPdf() {
  * `mode` : 'ouvrir' (nouvel onglet) ou 'telecharger' (fichier). `brouillon` : le PDF filigrané d'un brouillon (déjà fabriqué par l'appelant).
  * `ancre` : le bouton cliqué (marqué occupé pendant l'attente). Toute erreur devient un message avec « Réessayer », jamais un écran.
  */
+/** Logo de l'espace trop lourd ou illisible : le serveur a fait le PDF sans logo et le dit (jamais un échec). */
+const avertirLogo = (r) => { if (r?.avertissement) toast(String(r.avertissement), { duree: 10000 }); };
+
 export async function actionPdf(devisId, mode, { brouillon = false, ancre = null } = {}) {
   const cle = `${devisId}/${mode}`;
   if (occupes.has(cle)) return;
@@ -85,7 +88,7 @@ export async function actionPdf(devisId, mode, { brouillon = false, ancre = null
       let etat = etatPdfDevis(d);
       if (mode === 'ouvrir' && etat === 'pret') fenetre = window.open('', '_blank'); // synchrone, au clic : Safari bloque les fenêtres ouvertes après une attente réseau (null si bloquée : bannière plus bas)
       if (etat === 'en_cours') { toast(MESSAGE_PDF_EN_COURS, { duree: 6000 }); attente(); await attendreFinDeFabrication(devisId); if (annule()) return; etat = etatPdfDevis(D.devisParId(devisId)); }
-      if (etat === 'a_reessayer') { attente(); await D.pdfDevis(devisId); if (annule()) return; }
+      if (etat === 'a_reessayer') { attente(); avertirLogo(await D.pdfDevis(devisId)); if (annule()) return; }
     }
     let url;
     try {
@@ -93,7 +96,7 @@ export async function actionPdf(devisId, mode, { brouillon = false, ancre = null
     } catch (e) {
       if (brouillon || String(e?.code ?? '').replace('functions/', '') !== 'failed-precondition') throw e;
       attente(); // le serveur dit « pas encore prêt » : on relance la fabrication une fois
-      await D.pdfDevis(devisId);
+      avertirLogo(await D.pdfDevis(devisId));
       url = await lienSigne(devisId, brouillon, mode);
     }
     if (annule()) { fenetre?.close(); return; }

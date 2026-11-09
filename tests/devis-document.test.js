@@ -128,7 +128,7 @@ describe('Document HTML du devis', () => {
     assert.ok(!h.includes('"onload='));
     assert.ok(h.includes('&lt;script&gt;'));
     const ok = devisHtml(D.vueClient(devisFige(), {}), { logo: 'data:image/png;base64,iVBORw0KGgo=' });
-    assert.match(ok, /<img src="data:image\/png;base64,iVBORw0KGgo=" alt="">/);
+    assert.match(ok, /<img class="logo-devis" src="data:image\/png;base64,iVBORw0KGgo=" alt="">/);
   });
 
   test('H7 le filigrane BROUILLON n\'existe qu\'avec l\'option brouillon', () => {
