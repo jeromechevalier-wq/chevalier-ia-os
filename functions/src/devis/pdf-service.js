@@ -33,9 +33,10 @@ export function emetteurSansLogoExterne(emetteur) {
 
 // Logo de l'ESPACE (Réglages > Mon espace) : le serveur le lit lui-même dans le stockage (jamais par l'adresse de la fiche : pas de requête sortante, pas de SSRF), contrôle ses premiers octets et sa taille,
 // puis l'intègre en data:image. Trop lourd, d'un autre format ou illisible : le PDF est fait SANS logo et le résultat porte `avertissement` (jamais un échec du PDF).
-export const LOGO_OCTETS_MAX = 1_500_000;
+export const LOGO_OCTETS_MAX = 2 * 1024 * 1024; // = OCTETS_LOGO de functions-plateforme/src/espace.js (plafond de l'envoi : un logo accepté par « Mon espace » passe dans le PDF ; un test le verrouille)
+export const LOGO_DELAI_MS = 6000;
 export const AVERTISSEMENTS_LOGO = Object.freeze({
-  trop_lourd: 'Le logo de l’espace est trop lourd pour le PDF (1,5 Mo au plus) : le PDF est fait sans logo. Choisis un logo plus léger dans Réglages > Mon espace.',
+  trop_lourd: 'Le logo de l’espace est trop lourd pour le PDF (2 Mo au plus) : le PDF est fait sans logo. Choisis un logo plus léger dans Réglages > Mon espace.',
   format: 'Le logo de l’espace n’est pas un PNG, un JPG ou un WebP : le PDF est fait sans logo. Choisis une autre image dans Réglages > Mon espace.',
   illisible: 'Le logo de l’espace n’a pas pu être lu : le PDF est fait sans logo.',
 });
@@ -76,7 +77,7 @@ export function lienStablePdf(baseLien, devisId, brouillon = false, prefixeRoute
  * `donnees` : accès aux données DÉJÀ cadré sur le bon espace ; `espace` : '' (Jérôme) ou 'clients/<client>/' (préfixe des chemins Storage).
  * Rend { statut: 'ok' | 'en_cours' | 'echec', lien, nom?, deja?, definitif?, message?, erreur? }. Ne lève que pour un devis introuvable ou une demande refusée (brouillon).
  */
-export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefixeRoute = '', devisId, brouillon = false, explicite = false, ctx, convertir, stockage, tentativesMax = TENTATIVES_AUTO_MAX, lireLogo = null }) {
+export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefixeRoute = '', devisId, brouillon = false, explicite = false, ctx, convertir, stockage, tentativesMax = TENTATIVES_AUTO_MAX, lireLogo = null, delaiLogoMs = LOGO_DELAI_MS }) {
   const lien = lienStablePdf(baseLien, devisId, brouillon, prefixeRoute);
   let devis;
   if (brouillon) {
@@ -108,8 +109,11 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefix
     let avertissement;
     if (!emetteur.logo && typeof lireLogo === 'function') {
       try {
-        const octets = await lireLogo();
-        if (octets) {
+        // Délai court : un stockage qui ne répond pas donne « illisible » et un PDF sans logo, jamais un échec ni une attente sans fin.
+        let minuteur;
+        const octets = await Promise.race([lireLogo(), new Promise((_, rejeter) => { minuteur = setTimeout(() => rejeter(new Error('délai')), delaiLogoMs); })]).finally(() => clearTimeout(minuteur));
+        if (octets?.raison && !Buffer.isBuffer(octets)) avertissement = AVERTISSEMENTS_LOGO[octets.raison] ?? AVERTISSEMENTS_LOGO.illisible;
+        else if (octets) {
           const r = logoEnDataUrl(octets);
           if (r.logo) emetteur = { ...emetteur, logo: r.logo }; else avertissement = AVERTISSEMENTS_LOGO[r.raison];
         }

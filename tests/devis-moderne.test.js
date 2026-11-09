@@ -93,7 +93,7 @@ describe('5 sans logo, logo trop gros, brouillon', () => {
     assert.ok(!h.includes('<img'));
     assert.ok(h.includes('<h1>Devis</h1>') && h.includes('Net à payer'));
   });
-  test('5 logo trop lourd (> 1,5 Mo), d’un autre format (SVG, texte) ou vide : aucune data:, une raison et un message clair', () => {
+  test('5 logo trop lourd (> 2 Mo), d’un autre format (SVG, texte) ou vide : aucune data:, une raison et un message clair', () => {
     const gros = Buffer.concat([PNG, Buffer.alloc(LOGO_OCTETS_MAX)]);
     assert.deepEqual(logoEnDataUrl(gros), { raison: 'trop_lourd' });
     assert.deepEqual(logoEnDataUrl(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>')), { raison: 'format' });
@@ -101,7 +101,7 @@ describe('5 sans logo, logo trop gros, brouillon', () => {
     assert.deepEqual(logoEnDataUrl(Buffer.alloc(0)), { raison: 'illisible' });
     assert.deepEqual(logoEnDataUrl('pas un buffer'), { raison: 'illisible' });
     for (const m of Object.values(AVERTISSEMENTS_LOGO)) assert.match(m, /sans logo/);
-    assert.equal(logoEnDataUrl(Buffer.concat([PNG, Buffer.alloc(LOGO_OCTETS_MAX - PNG.length)])).raison, undefined, 'pile 1,5 Mo : accepté');
+    assert.equal(logoEnDataUrl(Buffer.concat([PNG, Buffer.alloc(LOGO_OCTETS_MAX - PNG.length)])).raison, undefined, 'pile au plafond : accepté');
   });
   test('5 brouillon : le filigrane BROUILLON est conservé avec la nouvelle mise en page (et absent d’un devis finalisé)', () => {
     const h = devisHtml(vue(), { brouillon: true, logo: LOGO_HTTPS, emetteur: EMETTEUR_ESSAI });

@@ -9,7 +9,7 @@
 import { logger } from 'firebase-functions';
 import { creerAccesFirestore, avecBase, COLLECTIONS as C } from '../serveur/src/coeur/donnees.js';
 import { ErreurDevis } from '../serveur/src/coeur/devis.js';
-import { fabriquerPdfDevis, MESSAGE_GENERIQUE } from '../serveur/src/devis/pdf-service.js';
+import { fabriquerPdfDevis, MESSAGE_GENERIQUE, LOGO_OCTETS_MAX } from '../serveur/src/devis/pdf-service.js';
 import { creerDeclencheurPdf, estFinalisation } from '../serveur/src/devis/pdf-declencheur.js';
 import { cheminPdfDevis, cheminAppartientALEspace, DUREE_LIEN_MINUTES } from '../serveur/src/devis/stockage.js';
 import { cheminDeUrl } from './espace.js';
@@ -26,16 +26,23 @@ const stockageDe = (s) => (typeof s === 'function' ? s() : s) ?? null;
 const accesDe = ({ db, creerDonnees }, client) => (creerDonnees ? creerDonnees(client) : avecBase(creerAccesFirestore({ db }), `clients/${client}`));
 
 /**
- * Octets du logo de l'espace d'un client (Réglages > Mon espace), pour le PDF. L'adresse de la fiche (`clients/<client>`, champ `logo`) n'est JAMAIS demandée sur le réseau : on n'en tire que le CHEMIN
- * `marques/<client>/…` (cheminDeUrl refuse tout autre bucket, un autre client ou un `..`), lu par l'API du stockage. Pas de logo (ou adresse refusée) : null. Pas de nom de bucket : null (PDF sans logo).
+ * Octets du logo de l'espace d'un client (Réglages > Mon espace), pour le PDF. Le logo vit dans la fiche de MARQUE `marques/<client>` (champ `logo`, écrit par espace.js : même document que l'écran).
+ * L'adresse de la fiche n'est JAMAIS demandée sur le réseau : on n'en tire que le CHEMIN `marques/<client>/…` (cheminDeUrl refuse tout autre bucket, un autre client ou un `..`), lu par l'API du stockage.
+ * Pas de logo (ou adresse refusée) : null, donc aucun message. Fichier plus gros que le plafond : { raison: 'trop_lourd' } (message clair, PDF sans logo). Autre échec de lecture : lève (« illisible »).
  */
 export function creerLireLogoEspace({ db, client, nomBucket, stockage }) {
   return async function lireLogoEspace() {
     const rangement = stockageDe(stockage);
     if (!rangement || typeof rangement.lire !== 'function' || !nomBucket) return null;
-    const fiche = await db.doc(`clients/${client}`).get();
+    const fiche = await db.doc(`marques/${client}`).get();
     const chemin = fiche.exists ? cheminDeUrl(fiche.get('logo'), nomBucket, client) : null;
-    return chemin ? rangement.lire(chemin, { maxOctets: 5 * 1024 * 1024 }) : null;
+    if (!chemin) return null;
+    try {
+      return await rangement.lire(chemin, { maxOctets: LOGO_OCTETS_MAX });
+    } catch (e) {
+      if (e?.cause?.code === 'trop_gros' || e?.code === 'trop_gros') return { raison: 'trop_lourd' };
+      throw e;
+    }
   };
 }
 
@@ -53,7 +60,7 @@ const refusNonConfigure = () => new Refus('failed-precondition', MESSAGE_PDF_NON
  * Donnée reçue : { client, devisId, brouillon? }. Éditeurs seulement. Rend { statut, lien, nom? } ou lève un Refus.
  * `convertir(html, { pied })` -> { pdf, sha256 } ; `stockage` : l'objet de stockage.js (ou une fonction qui le rend, ou null s'il est introuvable).
  */
-export async function fabriquerPdfClient({ db, auth, donnees, convertir, stockage, nomBucket = null, creerDonnees = null, journal = () => {}, maintenant = Date.now }) {
+export async function fabriquerPdfClient({ db, auth, donnees, convertir, stockage, nomBucket = null, delaiLogoMs = null, creerDonnees = null, journal = () => {}, maintenant = Date.now }) {
   const debut = maintenant();
   const { email, client } = await controlerAppelant({ db, auth, client: donnees?.client, roles: ['editeur'] });
   const demande = lireDemande(donnees);
@@ -65,7 +72,7 @@ export async function fabriquerPdfClient({ db, auth, donnees, convertir, stockag
     const r = await fabriquerPdfDevis({
       donnees: accesDe({ db, creerDonnees }, client), espace: espaceDe(client), baseLien: BASE_LIEN_PLATEFORME, prefixeRoute: routeDe(client),
       devisId: demande.devisId, brouillon: demande.brouillon, explicite: true, ctx, convertir, stockage: rangement,
-      lireLogo: creerLireLogoEspace({ db, client, nomBucket, stockage: rangement }),
+      lireLogo: creerLireLogoEspace({ db, client, nomBucket, stockage: rangement }), ...(delaiLogoMs ? { delaiLogoMs } : {}),
     });
     if (r.statut === 'echec') {
       journal({ action: 'pdf', statut: 'erreur', code: String(r.erreur?.name ?? 'inconnue').slice(0, 30), dureeMs: maintenant() - debut });

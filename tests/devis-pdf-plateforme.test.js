@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { test, describe } from 'node:test';
 import { creerAccesMemoire, avecBase } from '../functions/src/coeur/donnees.js';
 import * as S from '../functions/src/coeur/devis.js';
-import { lienStablePdf } from '../functions/src/devis/pdf-service.js';
+import { lienStablePdf, LOGO_OCTETS_MAX } from '../functions/src/devis/pdf-service.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
 import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
@@ -476,11 +476,11 @@ describe('3 logo de l’espace : le serveur le lit lui-même dans le stockage (j
     const f = faux();
     const lus = [];
     f.stockage.lire = async (chemin) => { lus.push(chemin); if (lireOctets instanceof Error) throw lireOctets; return lireOctets; };
-    FICHES['clients/a'] = { ...FICHES['clients/a'], logo };
-    const brouillon = () => fabriquerPdfClient({ db: fauxDb(), auth: auth(ALICE), donnees: { client: 'a', devisId: 'd-a', brouillon: true }, convertir: f.convertir, stockage: f.stockage, nomBucket: BUCKET, creerDonnees: m.creerDonnees, maintenant: () => MAINTENANT.getTime() });
+    FICHES['marques/a'] = { actif: true, logo }; // le logo de l'espace vit dans la fiche de MARQUE (marques/<client>), comme l'écrit espace.js
+    const brouillon = (extra = {}) => fabriquerPdfClient({ ...extra, db: fauxDb(), auth: auth(ALICE), donnees: { client: 'a', devisId: 'd-a', brouillon: true }, convertir: f.convertir, stockage: f.stockage, nomBucket: BUCKET, creerDonnees: m.creerDonnees, maintenant: () => MAINTENANT.getTime() });
     return { m, f, lus, brouillon };
   };
-  const retirer = () => { delete FICHES['clients/a'].logo; };
+  const retirer = () => { delete FICHES['marques/a']; };
 
   test('3 chez un client, le logo de l’espace est lu par son chemin marques/<client>/… et mis dans le PDF en data:image (écran = même document)', async () => {
     const { f, lus, brouillon } = await avecLogo(adresse('marques/a/logo-1700000000000.png'), PNG);
@@ -505,8 +505,8 @@ describe('3 logo de l’espace : le serveur le lit lui-même dans le stockage (j
       } finally { retirer(); }
     }
   });
-  test('3 logo trop lourd (> 1,5 Mo) : le PDF est fait SANS logo et la réponse porte un message clair (jamais un échec)', async () => {
-    const { f, brouillon } = await avecLogo(adresse('marques/a/logo-1.png'), Buffer.concat([PNG, Buffer.alloc(1_600_000)]));
+  test('3 logo trop lourd (> 2 Mo) : le PDF est fait SANS logo et la réponse porte un message clair (jamais un échec)', async () => {
+    const { f, brouillon } = await avecLogo(adresse('marques/a/logo-1.png'), Buffer.concat([PNG, Buffer.alloc(LOGO_OCTETS_MAX)]));
     try {
       const r = await brouillon();
       assert.equal(r.statut, 'ok');
@@ -544,5 +544,41 @@ describe('3 logo de l’espace : le serveur le lit lui-même dans le stockage (j
     assert.ok(!/lireLogo/.test(appel), 'pdf-appel.js (Jérôme) ne branche pas de logo d’espace');
     assert.match(readFileSync(new URL('../functions-plateforme/src/devis-pdf.js', import.meta.url), 'utf8'), /lireLogo: creerLireLogoEspace/);
     assert.match(readFileSync(new URL('../functions-plateforme/src/index.js', import.meta.url), 'utf8'), /nomBucket: BUCKET/);
+  });
+  test('3 trop lourd côté stockage (plus gros que le plafond) : message « trop lourd », PDF sans logo ; une lecture qui ne répond JAMAIS : « n’a pas pu être lu » au bout du délai, PDF sans logo, jamais un échec', async () => {
+    const gros = Object.assign(new Error('Stockage : le fichier n\'a pas pu être lu.'), { cause: { code: 'trop_gros' } });
+    const a = await avecLogo(adresse('marques/a/logo-1.png'), gros);
+    try {
+      const r = await a.brouillon();
+      assert.equal(r.statut, 'ok');
+      assert.match(r.avertissement, /trop lourd/);
+    } finally { retirer(); }
+    const b = await avecLogo(adresse('marques/a/logo-1.png'), PNG);
+    b.f.stockage.lire = () => new Promise(() => {}); // ne répond jamais
+    try {
+      const r = await b.brouillon({ delaiLogoMs: 40 });
+      assert.equal(r.statut, 'ok');
+      assert.match(r.avertissement, /n’a pas pu être lu/);
+      assert.ok(!b.f.vus.html[0].includes('<img'));
+    } finally { retirer(); }
+  });
+  test('3 pas de logo dans la fiche de marque : PDF sans logo et SANS message (le message n’existe que si un logo existait)', async () => {
+    const { f, lus, brouillon } = await avecLogo(null, PNG);
+    try {
+      const r = await brouillon();
+      assert.equal(r.statut, 'ok');
+      assert.equal(r.avertissement, undefined);
+      assert.deepEqual(lus, []);
+      assert.ok(!f.vus.html[0].includes('<img'));
+    } finally { retirer(); }
+  });
+  test('3 le PDF lit le MÊME document que « Mon espace » (marques/<client>) et le même plafond que l’envoi', async () => {
+    const pdf = readFileSync(new URL('../functions-plateforme/src/devis-pdf.js', import.meta.url), 'utf8');
+    const espace = readFileSync(new URL('../functions-plateforme/src/espace.js', import.meta.url), 'utf8');
+    assert.match(pdf, /db\.doc\(`marques\/\$\{client\}`\)/);
+    assert.match(espace, /db\.doc\(`marques\/\$\{client\}`\)/);
+    assert.ok(!/db\.doc\(`clients\/\$\{client\}`\)\.get\(\)[\s\S]{0,120}\.get\('logo'\)/.test(pdf), 'le logo ne se lit jamais dans clients/<client>');
+    const { OCTETS_LOGO } = await import('../functions-plateforme/src/espace.js');
+    assert.equal(LOGO_OCTETS_MAX, OCTETS_LOGO, 'un logo accepté par « Mon espace » passe dans le PDF');
   });
 });
