@@ -73,7 +73,7 @@ export function lienStablePdf(baseLien, devisId, brouillon = false, prefixeRoute
 }
 
 /**
- * `lireLogo` (facultatif) : () => Promise<Buffer | null>, les octets du logo de l'espace (chez un client) ; absent chez Jérôme, où `emetteur.logo` est la seule source.
+ * `lireLogo` (facultatif) : () => Promise<Buffer | { raison: 'trop_lourd' } | null>, les octets du logo de l'espace (ou { raison } si le fichier est trop gros) (chez un client) ; absent chez Jérôme, où `emetteur.logo` est la seule source.
  * `donnees` : accès aux données DÉJÀ cadré sur le bon espace ; `espace` : '' (Jérôme) ou 'clients/<client>/' (préfixe des chemins Storage).
  * Rend { statut: 'ok' | 'en_cours' | 'echec', lien, nom?, deja?, definitif?, message?, erreur? }. Ne lève que pour un devis introuvable ou une demande refusée (brouillon).
  */

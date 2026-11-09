@@ -1672,6 +1672,26 @@ describe('Porte par jeton fixe lié à un client (PJ1 à PJ8)', () => {
     assert.equal(liste.filter((n) => SUPPRESSIONS.test(n)).length, 0);
   });
 
+  test('1 lister_devis sans argument rend le devis, avec un jeton agent-devis comme assistant-devis (espace Devis seul) : le profil ne filtre rien', async () => {
+    for (const [jeton, nom, profil] of [[JD, 'bot-devis', 'agent-devis'], [JS, 'bot-assistant', 'assistant-devis']]) {
+      secretJetons = secret(ligne(jeton, nom, profil, 'd'));
+      rejouer();
+      const c = await assistant('/mcp/d', jeton);
+      try {
+        const b = ok(await c.callTool({ name: 'creer_devis_brouillon', arguments: { objet: `Verrou ${profil}` } }));
+        const liste = ok(await c.callTool({ name: 'lister_devis', arguments: {} }));
+        assert.equal(liste.total, 1, profil);
+        assert.equal(liste.devis[0].id, b.id, profil);
+      } finally {
+        await c.close();
+        const rest = await donnees.liste('clients/d/devis_devis');
+        if (rest.length) await donnees.appliquer(rest.map((d) => ({ type: 'delete', collection: 'clients/d/devis_devis', id: d.id })));
+        const aud = await donnees.liste('clients/d/crm_audit');
+        if (aud.length) await donnees.appliquer(aud.map((d) => ({ type: 'delete', collection: 'clients/d/crm_audit', id: d.id })));
+      }
+    }
+  });
+
   test('PJ2b assistant-devis chez un espace Devis + MCP : exactement 21 outils (24 moins les trois d\'Affaires), 24 avec Affaires, jamais de suppression ni de restauration', async () => {
     secretJetons = secret(ligne(JS, 'bot-assistant', 'assistant-devis', 'd'));
     rejouer();
