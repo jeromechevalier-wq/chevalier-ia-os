@@ -2,7 +2,7 @@
 // De bout en bout par le protocole MCP, sur des données fictives en mémoire. Le nom d'un test commence par le numéro du critère :
 //  1 brouillon créé -> editeur (Jérôme) ; 2 lister_devis / lire_devis (complet et récapitulatif) : editeur pour un brouillon, voir sinon, même expiré ;
 //  3 chez un client : plateforme + espace/<client>/ ; 4 finaliser (aperçu puis final) et nouvelle version ; 5 base inconnue ou espace mal formé : champ absent ;
-//  6 jamais de jeton, code, e-mail ni « ? » dans un lien ; 7 consigne dans la description des outils, sans mot du verrou, 84 outils ; 8 obtenir_pdf_officiel_devis garde lienApplication.
+//  6 jamais de jeton, code, e-mail ni « ? » dans un lien ; 7 consigne dans la description des outils, sans mot du verrou, 85 outils ; 8 obtenir_pdf_officiel_devis garde lienApplication.
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -174,12 +174,12 @@ describe('6 aucun secret dans un lien', () => {
 
 describe('7 consigne dans les descriptions', () => {
   const AVEC_LIEN = ['creer_devis_brouillon', 'modifier_devis_brouillon', 'modifier_lignes_devis', 'creer_devis_depuis_modele', 'annuler_derniere_modification_devis', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'modifier_destinataires_devis', 'changer_statut_devis', 'lister_devis', 'lire_devis', 'obtenir_pdf_officiel_devis'];
-  test('7 chaque outil qui rend lienEcran porte la consigne ; elle n’a aucun mot réservé ni nom de domaine ; 84 outils', () => {
+  test('7 chaque outil qui rend lienEcran porte la consigne ; elle n’a aucun mot réservé ni nom de domaine ; 85 outils', () => {
     for (const nom of AVEC_LIEN) assert.ok(OUTILS.find((o) => o.nom === nom)?.description.includes(CONSIGNE_LIEN_ECRAN), nom);
     assert.deepEqual(OUTILS.filter((o) => o.description.includes(CONSIGNE_LIEN_ECRAN)).map((o) => o.nom).sort(), [...AVEC_LIEN].sort(), 'seuls ces outils portent la consigne');
     for (const o of OUTILS.filter((x) => x.description.includes(GARANTIE_PAS_D_ENVOI))) assert.ok(o.description.endsWith(GARANTIE_PAS_D_ENVOI), `${o.nom} : la règle d’envoi reste en dernière position`);
     assert.doesNotMatch(CONSIGNE_LIEN_ECRAN, /Jérôme|Audit|Accompagnement|lancement|decouverte|cloture|gagne|premier_contact|rdv_fixe|proposition_envoyee|jerome\.chevalier|\.web\.app|https?:/i);
-    assert.equal(OUTILS.length, 84);
+    assert.equal(OUTILS.length, 85);
   });
 });
 

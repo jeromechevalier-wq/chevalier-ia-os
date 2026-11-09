@@ -15,7 +15,8 @@ import { MESSAGE_TEST_FINALISE, basculerTest, TYPES_TEST, apercuSuppressionTests
 import { lireUsages } from './usage-articles.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
-import { canonique, sansId } from './canonique.js';
+import { canonique, sansId, egal } from './canonique.js';
+import { lireReglagesDevis } from './lecture.js';
 import * as DOC from './documents.js';
 import { structureCourte, phraseTotaux } from './recapitulatif.js';
 import * as DL from './devis-lignes.js';
@@ -726,6 +727,63 @@ export async function desactiverArticle(c, args) {
   const plan = DA.planActiverArticle(args.id, actif, { articles: await c.donnees.liste(C.devisArticles) });
   verifierMessages(plan.erreurs);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: args.id, actif });
+}
+
+// ---------------------------------------------------------------- Devis : réglages du module (09/11/2026)
+const objetPlat = (v) => v !== null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date);
+/** Chemins des feuilles qui diffèrent (« entreprise.siret », « marge ») : la liste des champs réellement modifiés. */
+function cheminsModifies(avant, apres, prefixe = '') {
+  if (!(objetPlat(avant) && objetPlat(apres))) return egal({ v: avant }, { v: apres }) ? [] : [prefixe];
+  return [...new Set([...Object.keys(avant), ...Object.keys(apres)])].flatMap((k) => cheminsModifies(avant[k], apres[k], prefixe ? `${prefixe}.${k}` : k));
+}
+
+/** La réponse de l'outil ne montre jamais les coordonnées bancaires ni le paiement (IBAN) : retirés de « Mon entreprise », comme modeMarge (décision du 09/11/2026). */
+const sansBanque = (r) => {
+  if (!r?.reglages?.entreprise) return r;
+  const { coordonneesBancaires: _b, paiement: _p, ...entreprise } = r.reglages.entreprise;
+  return { ...r, reglages: { ...r.reglages, entreprise } };
+};
+
+/**
+ * Change les réglages du module Devis (`args.reglages`, schéma strict de l'outil). Fusion PROFONDE de « Mon entreprise » avant la validation de l'écran
+ * (validerReglagesDevis ne fusionne qu'au premier niveau) : un champ non cité ne bouge jamais. Document absent : créé ; sinon, modification des seules clés qui changent.
+ */
+export async function modifierReglagesDevis(c, args) {
+  // Deuxième verrou (le premier : l'outil n'existe que pour un super admin, identité vérifiée, mcp/gestionnaire.js) : refus à l'exécution pour tout autre appelant.
+  if (c.superAdmin !== true) refuser('interdit', 'Cet outil n\'est pas disponible pour ce compte.');
+  const saisie = args.reglages ?? {};
+  if (!Object.keys(saisie).length) refuser('saisie_invalide', 'Aucun réglage à changer : donne au moins un champ dans `reglages`.');
+  const brut = await c.donnees.document(C.devisParametres, DA.ID_REGLAGES); // null = document absent ; une panne de lecture remonte telle quelle
+  const base = sansId(brut) ?? {};
+  const actuels = DA.reglagesDevis(brut);
+  const inconnus = (saisie.tauxProposes ?? []).filter((t) => !D.TAUX_TVA_DEFAUT.includes(t));
+  if (inconnus.length) refuser('saisie_invalide', `Taux de TVA non proposé : ${inconnus.join(', ')}. Les taux possibles sont ${D.TAUX_TVA_DEFAUT.join(', ')}.`);
+  const fusion = { ...saisie };
+  if (saisie.entreprise) {
+    const { adresse, mediateur, ...autres } = saisie.entreprise;
+    fusion.entreprise = {
+      ...actuels.entreprise, ...autres,
+      ...(adresse ? { adresse: { ...actuels.entreprise.adresse, ...adresse } } : {}),
+      ...(mediateur ? { mediateur: { ...actuels.entreprise.mediateur, ...mediateur } } : {}),
+    };
+  }
+  const { reglages: propres, erreurs } = DA.validerReglagesDevis(fusion, { actuels: brut });
+  // Le mode de calcul de la marge n'est jamais dit à l'assistant (décision du 30/10/2026) : la phrase de l'écran qui le nomme est remplacée, et le « ou le mode … » retiré.
+  verifierMessages(Object.fromEntries(Object.entries(erreurs).map(([k, m]) => [k, m.includes(D.ERREUR_MARGE_100) ? MARGE_IMPOSSIBLE : m.replace(/,? ?ou le mode « [^»]*»/g, '')])));
+  // Le patch se calcule contre le document BRUT : un nettoyage fait par la validation (champ invalide ou inconnu retiré) apparaît dans `champsModifies` au lieu de disparaître en silence.
+  const patch = {};
+  for (const cle of Object.keys(saisie)) if (!egal({ v: propres[cle] }, { v: base[cle] })) patch[cle] = propres[cle];
+  const modifies = Object.keys(patch).flatMap((cle) => cheminsModifies(base[cle], propres[cle], cle));
+  if (brut && !Object.keys(patch).length) {
+    return { rienAChanger: true, message: 'Rien à changer : ces réglages sont déjà ceux de l\'espace. Rien n\'a été écrit.', champsModifies: [], ...sansBanque(await lireReglagesDevis(c.donnees)) };
+  }
+  // Espace neuf : le document est créé (sans le mode de calcul de la marge, que la lecture remplace par son défaut).
+  const { modeMarge: _mode, ...pourCreation } = propres;
+  const operations = brut
+    ? [{ type: 'modifier', collection: C.devisParametres, id: DA.ID_REGLAGES, patch, exigerAvant: base }]
+    : [{ type: 'creer', collection: C.devisParametres, id: DA.ID_REGLAGES, donnees: pourCreation }];
+  const r = await c.ecrire({ operations, parametres: args });
+  return { ...sortie(r, { champsModifies: modifies, cree: !brut }), ...sansBanque(await lireReglagesDevis(c.donnees)) };
 }
 
 // ---------------------------------------------------------------- Devis : dictionnaire de vocabulaire (PR 3, 28/10/2026)

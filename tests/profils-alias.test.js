@@ -89,7 +89,7 @@ describe('profils de droits du serveur MCP', () => {
     assert.equal(complet.length, OUTILS.length);
     assert.ok(lecture.length > 0 && lecture.every((n) => ecriture.includes(n)) && ecriture.every((n) => complet.includes(n)));
     const reserves = complet.filter((n) => !ecriture.includes(n));
-    assert.deepEqual(reserves, [...new Set(['finaliser_devis', 'changer_statut_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles', 'restaurer_depuis_audit', ...complet.filter((n) => n.startsWith('supprimer_'))])].sort());
+    assert.deepEqual(reserves, [...new Set(['finaliser_devis', 'changer_statut_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles', 'modifier_reglages_devis', 'restaurer_depuis_audit', ...complet.filter((n) => n.startsWith('supprimer_'))])].sort());
     for (const n of ecriture) assert.ok(!n.startsWith('supprimer_') && n !== 'restaurer_depuis_audit', n);
     assert.ok(ecriture.includes('creer_personne') && !lecture.includes('creer_personne'));
     assert.deepEqual(outilsAutorises('bibliothecaire', OUTILS), []);
@@ -103,7 +103,7 @@ describe('profils de droits du serveur MCP', () => {
       const s = await monter(secret);
       assert.deepEqual(await s.liste('lecteur'), noms('lecture'));
       assert.deepEqual(await s.liste('biblio'), noms('ecriture'));
-      assert.deepEqual(await s.liste('code'), noms('complet'));
+      assert.deepEqual(await s.liste('code'), noms('complet').filter((n) => n !== 'modifier_reglages_devis'), 'jeton statique : jamais modifier_reglages_devis (réservé aux super admins (identité vérifiée))');
       const moi = await s.appeler('biblio', 'qui_suis_je');
       assert.equal(moi.data.profil, 'ecriture');
       assert.equal(moi.data.acteur, 'hermes-bibliothecaire');
