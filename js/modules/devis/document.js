@@ -120,9 +120,7 @@ export const couleurValide = (c) => (typeof c === 'string' && /^#[0-9a-fA-F]{6}$
 const LOGO_DATA = /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/;
 const LOGO_HTTPS = /^https:\/\/[^\s"'<>\\]+$/;
 /** Le logo n'est une ressource externe que s'il est fourni explicitement (URL https ou image en data:). */
-/** Plafond de la data: URL du logo, en caractères : le MÊME que `LOGO_TAILLE_MAX` du PDF (functions/src/devis/pdf-service.js), pour que l'écran et le PDF montrent la même chose (un test les compare). */
-export const LOGO_TAILLE_MAX = 1_500_000;
-const logoValide = (l) => typeof l === 'string' && ((l.length <= LOGO_TAILLE_MAX && LOGO_DATA.test(l)) || LOGO_HTTPS.test(l));
+const logoValide = (l) => typeof l === 'string' && (LOGO_DATA.test(l) || LOGO_HTTPS.test(l));
 
 /** Image du logo (en haut à gauche, carrée 26 mm) : celle de « Mon entreprise » si elle existe, sinon celle fournie par l'appelant (logo de l'espace) ; jamais une autre adresse que https ou data:image. */
 function blocLogo(e, logo) {
