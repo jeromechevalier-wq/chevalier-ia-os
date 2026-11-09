@@ -72,7 +72,7 @@ describe('P3 le câblage : menu « Envoyer », confirmation, textes, serveur', (
     assert.match(t, /\{ texte: MESSAGE_NON_BRANCHE \}/);
   });
   test('P3 les textes demandés sont exacts : confirmation et toast', () => {
-    assert.equal(P.MESSAGE_CONFIRMATION, 'Le brouillon sera créé dans ton Gmail avec le PDF. Rien n’est envoyé.');
+    assert.equal(P.MESSAGE_CONFIRMATION, 'Le brouillon sera créé dans ton Gmail avec le PDF du devis, et les documents habituels de l’entreprise s’il y en a (plaquette, certifications, assurance). Rien n’est envoyé.');
     assert.equal(P.MESSAGE_DEMANDE_ENVOYEE, 'Demande envoyée : le brouillon apparaît dans ton Gmail dans quelques instants');
     assert.equal(P.LIBELLE_PREPARER_EMAIL, 'Préparer l’e-mail');
   });

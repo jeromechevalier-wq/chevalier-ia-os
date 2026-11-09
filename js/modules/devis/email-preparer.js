@@ -7,7 +7,7 @@ import { adresseSure, adressesDuDevis } from './email-brouillon.js';
 
 export const LIBELLE_PREPARER_EMAIL = 'Préparer l’e-mail';
 export const TITRE_PREPARER_EMAIL = 'Préparer l’e-mail';
-export const MESSAGE_CONFIRMATION = 'Le brouillon sera créé dans ton Gmail avec le PDF. Rien n’est envoyé.';
+export const MESSAGE_CONFIRMATION = 'Le brouillon sera créé dans ton Gmail avec le PDF du devis, et les documents habituels de l’entreprise s’il y en a (plaquette, certifications, assurance). Rien n’est envoyé.';
 export const MESSAGE_DEMANDE_ENVOYEE = 'Demande envoyée : le brouillon apparaît dans ton Gmail dans quelques instants';
 export const MESSAGE_EN_COURS = 'Demande en cours…';
 export const TEXTE_PREPARATION_EN_COURS = 'Préparation de l’e-mail en cours…';
