@@ -38,6 +38,14 @@ Sur <https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-app>, b
 
 Le compte de déploiement `deploiement-github` agit au nom de ce compte grâce au rôle « Utilisateur du compte de service » déjà accordé au niveau du projet (même principe que `mcp-clients`, `docs/mcp-clients.md`).
 
+## Étape 2 bis : le logo de l'espace dans le PDF (09/11/2026, à donner AVANT de s'attendre à voir le logo)
+Le PDF d'un client met en haut à gauche le logo de son espace (Réglages > Mon espace). Le serveur le lit **dans le stockage** (`marques/<client>/logo-….png`), jamais par l'adresse de la fiche. Or le compte `devis-pdf` n'a la main que sur `clients/` (condition de l'étape 2) : sans changement, il ne peut pas lire `marques/`, et le PDF se fait **sans logo** (jamais en échec ; le brouillon à la demande le dit : « Le logo de l'espace n'a pas pu être lu : le PDF est fait sans logo. »).
+Pour que le logo apparaisse : sur <https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-app>, crayon à droite de la ligne `devis-pdf@…` > la ligne « Administrateur des objets Storage » > **Modifier la condition** et remplace la condition par :
+```
+resource.type == "storage.googleapis.com/Object" && (resource.name.startsWith("projects/_/buckets/chevalier-ia-app.firebasestorage.app/objects/clients/") || resource.name.startsWith("projects/_/buckets/chevalier-ia-app.firebasestorage.app/objects/marques/"))
+```
+Puis **Enregistrer**. (Le droit reste limité à ces deux dossiers ; le code ne lit que `marques/<le client du devis>/`, `cheminDeUrl` refuse tout autre chemin.) Chez Jérôme : aucun logo d'espace pour l'instant (décision du 09/11/2026), le logo vient de `emetteur.logo` s'il existe.
+
 ## Étape 3 : le PDF reste chez nous (plus de CORS, plus de Drive)
 Depuis le 27/10/2026, le navigateur ne lit plus jamais le PDF : il ouvre ou télécharge un lien signé de 5 minutes. Le réglage CORS du stockage n'est donc plus nécessaire pour les devis (`docs/cors-stockage-pdf.md` est gardé pour mémoire) et la page Déploiement n'a plus d'étape CORS.
 

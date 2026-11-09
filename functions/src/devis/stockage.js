@@ -126,6 +126,15 @@ export function creerStockage({ bucket, maintenant = Date.now }) {
     async existe(chemin) {
       try { const [oui] = await bucket.file(chemin).exists(); return oui === true; } catch { return false; }
     },
+    /** Contenu d'un fichier (Buffer), jamais plus de `maxOctets` : sa taille est lue avant le téléchargement. Absent ou trop gros : lève « Stockage : … » (cause `code: 'trop_gros'` si la taille dépasse `maxOctets`). */
+    async lire(chemin, { maxOctets = 5 * 1024 * 1024 } = {}) {
+      try {
+        const [meta] = await bucket.file(chemin).getMetadata();
+        if (Number(meta?.size) > maxOctets) throw Object.assign(new Error('trop gros'), { code: 'trop_gros' });
+        const [octets] = await bucket.file(chemin).download();
+        return octets;
+      } catch (e) { throw new Error('Stockage : le fichier n\'a pas pu être lu.', { cause: e }); }
+    },
     /** Taille du fichier en octets (null si elle n'est pas lisible). */
     async taille(chemin) {
       try { const [meta] = await bucket.file(chemin).getMetadata(); const n = Number(meta?.size); return Number.isFinite(n) && n >= 0 ? n : null; } catch { return null; }

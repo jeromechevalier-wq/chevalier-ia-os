@@ -112,7 +112,8 @@ describe('N5 ancien devis sans sous-section : rien ne change', () => {
   }
   const html = () => { const { chantier: _chantier, ...sansChantier } = devisAncien(); return devisHtml(D.vueClient(sansChantier, { clientNom: 'Mme Dupont' }), { brouillon: false }); }; // sans bloc Chantier : l'empreinte est celle du devis d'avant, le jeu d'essai de finalisation en ajoute un
   // Empreinte du HTML produit AVANT cette évolution par le même devis (calculée avec le code de `main` du 24/10/2026 ; mise à jour le 31/10/2026 : plus d'attestation de TVA codée en dur, l'assurance par défaut s'imprime toujours ; seule cette différence a été vérifiée).
-  const EMPREINTE_AVANT = 'a9f28feaeb17132eb8f0ff0eaaa8ae77f2d7ebdfd86d3e5b8a58ff63b95d7e7d';
+  // Mise à jour le 09/11/2026 : nouvelle mise en page « moderne » du devis (CSS, haut de page, bloc émetteur/destinataire) ; le CONTENU d'un devis sans sous-section n'a pas changé.
+  const EMPREINTE_AVANT = '90902c37fa57c1e86da70d98af522aa2cb2d401b96433df07030f51daf95bc44';
   test('N5 le document d’un devis sans sous-section est identique, octet pour octet, à celui d’avant', () => {
     // 31/10/2026 : la ligne à 10 % de ce devis imprime désormais la mention de TVA réduite (drapeau de vue) ; sans elle le document reste identique à celui d'avant.
     const { chantier: _chantier, ...sansChantier } = devisAncien();

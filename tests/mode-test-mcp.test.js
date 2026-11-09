@@ -13,7 +13,7 @@ import { nouveauDevis } from '../functions/partage/devis.js';
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
 import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
-const JETONS = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, agent: `cia_${'A'.repeat(43)}`, code: `cia_${'C'.repeat(43)}` };
+const JETONS = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, agent: `cia_${'A'.repeat(43)}`, assistant: `cia_${'S'.repeat(43)}`, code: `cia_${'C'.repeat(43)}` };
 const entree = (jeton, nom, profil, extra = {}) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif: true, ...extra });
 const arrets = [];
 afterEach(async () => { while (arrets.length) await arrets.pop()(); });
@@ -47,6 +47,7 @@ async function demarrer({ devis = [], jetonsExtra = {}, fiches = (c) => c } = {}
     entree(JETONS.lecteur, 'lecteur-essai', 'lecteur'),
     entree(JETONS.biblio, 'hermes-bibliothecaire', 'bibliothecaire', jetonsExtra.biblio),
     entree(JETONS.agent, 'n8n-devis-essai', 'agent-devis'),
+    entree(JETONS.assistant, 'assistant-devis-essai', 'assistant-devis'),
     entree(JETONS.code, 'claude-code-jerome', 'claude-code', jetonsExtra.code),
   ]);
   const magasin = creerMagasin({ lire: async () => secret, dureeCacheMs: 0 });
@@ -350,6 +351,8 @@ describe('6 devis finalisé', () => {
     for (const id of ['v1', 'v2', 'seul']) {
       refuse(await s2.appeler('agent', 'marquer_test', { type: 'devis', id }));
       refuse(await s2.appeler('agent', 'demarquer_test', { type: 'devis', id }));
+      refuse(await s2.appeler('assistant', 'marquer_test', { type: 'devis', id }));
+      refuse(await s2.appeler('assistant', 'demarquer_test', { type: 'devis', id }));
     }
   });
 });

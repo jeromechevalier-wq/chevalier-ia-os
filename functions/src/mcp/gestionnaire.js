@@ -114,7 +114,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
  */
 /**
  * Super admin (décision de Jérôme, 09/11/2026) : la CONNEXION porte l'e-mail vérifié d'un compte de SUPER_ADMINS (securite/super-admins.js, liste du serveur), sur le serveur de Jérôme comme dans l'espace d'un client.
- * Cet e-mail vient de l'identité Google vérifiée à la connexion OAuth (jamais d'une saisie ni d'une donnée du client) ; un jeton statique (agent-devis, lecture, ecriture, claude-code) n'en a pas : refusé.
+ * Cet e-mail vient de l'identité Google vérifiée à la connexion OAuth (jamais d'une saisie ni d'une donnée du client) ; un jeton statique (agent-devis, assistant-devis, lecture, ecriture, claude-code) n'en a pas : refusé.
  * Le profil ne compte pas : un éditeur client ou un assistant OAuth d'un client a le profil `complet` sans être super admin.
  */
 export const estSuperAdmin = ({ jeton }) => estSuperAdminEmail(jeton?.email);

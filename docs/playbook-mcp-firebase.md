@@ -49,7 +49,7 @@ Remarque : le déploiement d'une fonction prend 1 à 3 minutes ; les tentatives 
 
 ## 4. Modèle de sécurité à reprendre tel quel
 
-Un jeton par client (nom + profil + 256 bits) ; seules les empreintes SHA-256 dans Secret Manager ; comparaison à temps constant ; réponse 401 identique pour tout refus ; échec fermé si le secret est illisible ; profils (`lecture`, `ecriture`, `complet`, `agent-devis` ; anciens noms lecteur, bibliothécaire, claude-code en alias) filtrant les outils côté serveur ; refus des `Origin` étrangers et de tout sauf `POST` ; journaux à liste blanche ; 3 instances au plus ; budget d'alerte ; interrupteur d'urgence (désactiver la version du secret). **Pas de porte dérobée dans le code** (voir `securite-et-pannes.md`, section 5). Le jeton ne va jamais dans le dépôt ni dans une conversation.
+Un jeton par client (nom + profil + 256 bits) ; seules les empreintes SHA-256 dans Secret Manager ; comparaison à temps constant ; réponse 401 identique pour tout refus ; échec fermé si le secret est illisible ; profils (`lecture`, `ecriture`, `complet`, `agent-devis`, `assistant-devis` ; anciens noms lecteur, bibliothécaire, claude-code en alias) filtrant les outils côté serveur ; refus des `Origin` étrangers et de tout sauf `POST` ; journaux à liste blanche ; 3 instances au plus ; budget d'alerte ; interrupteur d'urgence (désactiver la version du secret). **Pas de porte dérobée dans le code** (voir `securite-et-pannes.md`, section 5). Le jeton ne va jamais dans le dépôt ni dans une conversation.
 
 ## 5. Ce qui n'est pas encore validé (à vérifier sur la prochaine appli, ou aux étapes suivantes ici)
 

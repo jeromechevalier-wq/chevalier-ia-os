@@ -63,7 +63,7 @@ const noms = (profil) => outilsAutorises(profil, OUTILS).map((o) => o.nom).sort(
 
 describe('profils de droits du serveur MCP', () => {
   test('1 PROFILS, ALIAS_PROFILS et profilCanonique : nouveaux noms, anciens alias, tout le reste refusé', () => {
-    assert.deepEqual(PROFILS, ['lecture', 'ecriture', 'agent-devis', 'complet']);
+    assert.deepEqual(PROFILS, ['lecture', 'ecriture', 'agent-devis', 'assistant-devis', 'complet']);
     assert.deepEqual({ ...ALIAS_PROFILS }, { lecteur: 'lecture', bibliothecaire: 'ecriture', 'claude-code': 'complet' });
     for (const p of PROFILS) assert.equal(profilCanonique(p), p);
     for (const [ancien, nouveau] of Object.entries(ALIAS_PROFILS)) assert.equal(profilCanonique(ancien), nouveau);

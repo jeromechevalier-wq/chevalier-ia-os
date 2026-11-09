@@ -30,6 +30,34 @@ export function emetteurSansLogoExterne(emetteur) {
   return typeof logo === 'string' && logo.length <= LOGO_TAILLE_MAX && LOGO_INTEGRE.test(logo) ? { ...reste, logo } : reste;
 }
 
+
+// Logo de l'ESPACE (Réglages > Mon espace) : le serveur le lit lui-même dans le stockage (jamais par l'adresse de la fiche : pas de requête sortante, pas de SSRF), contrôle ses premiers octets et sa taille,
+// puis l'intègre en data:image. Trop lourd, d'un autre format ou illisible : le PDF est fait SANS logo et le résultat porte `avertissement` (jamais un échec du PDF).
+export const LOGO_OCTETS_MAX = 2 * 1024 * 1024; // = OCTETS_LOGO de functions-plateforme/src/espace.js (plafond de l'envoi : un logo accepté par « Mon espace » passe dans le PDF ; un test le verrouille)
+export const LOGO_DELAI_MS = 6000;
+export const AVERTISSEMENTS_LOGO = Object.freeze({
+  trop_lourd: 'Le logo de l’espace est trop lourd pour le PDF (2 Mo au plus) : le PDF est fait sans logo. Choisis un logo plus léger dans Réglages > Mon espace.',
+  format: 'Le logo de l’espace n’est pas un PNG, un JPG ou un WebP : le PDF est fait sans logo. Choisis une autre image dans Réglages > Mon espace.',
+  illisible: 'Le logo de l’espace n’a pas pu être lu : le PDF est fait sans logo.',
+});
+const octetsCommencentPar = (o, debut) => debut.every((x, i) => o[i] === x);
+/** Type d'une image d'après ses PREMIERS OCTETS (jamais d'après un nom ni un type annoncé) : mime ou null. */
+export function mimeDesOctets(octets) {
+  if (!Buffer.isBuffer(octets)) return null;
+  if (octetsCommencentPar(octets, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'image/png';
+  if (octetsCommencentPar(octets, [0xff, 0xd8, 0xff])) return 'image/jpeg';
+  if (octets.length >= 12 && octets.subarray(0, 4).toString('latin1') === 'RIFF' && octets.subarray(8, 12).toString('latin1') === 'WEBP') return 'image/webp';
+  return null;
+}
+/** Octets d'un logo -> { logo: 'data:image/…;base64,…' } ou { raison: 'trop_lourd' | 'format' | 'illisible' }. */
+export function logoEnDataUrl(octets) {
+  if (!Buffer.isBuffer(octets) || !octets.length) return { raison: 'illisible' };
+  const mime = mimeDesOctets(octets);
+  if (!mime) return { raison: 'format' };
+  if (octets.length > LOGO_OCTETS_MAX) return { raison: 'trop_lourd' };
+  return { logo: `data:${mime};base64,${octets.toString('base64')}` };
+}
+
 /** Message d'erreur lisible (écrit pour l'être, sans HTML ni chemin) ou, sinon, un message générique. */
 export const MESSAGE_GENERIQUE = 'Une erreur est survenue. Réessaie.';
 export function messageLisible(e) {
@@ -45,10 +73,11 @@ export function lienStablePdf(baseLien, devisId, brouillon = false, prefixeRoute
 }
 
 /**
+ * `lireLogo` (facultatif) : () => Promise<Buffer | { raison: 'trop_lourd' } | null>, les octets du logo de l'espace (ou { raison } si le fichier est trop gros) (chez un client) ; absent chez Jérôme, où `emetteur.logo` est la seule source.
  * `donnees` : accès aux données DÉJÀ cadré sur le bon espace ; `espace` : '' (Jérôme) ou 'clients/<client>/' (préfixe des chemins Storage).
  * Rend { statut: 'ok' | 'en_cours' | 'echec', lien, nom?, deja?, definitif?, message?, erreur? }. Ne lève que pour un devis introuvable ou une demande refusée (brouillon).
  */
-export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefixeRoute = '', devisId, brouillon = false, explicite = false, ctx, convertir, stockage, tentativesMax = TENTATIVES_AUTO_MAX }) {
+export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefixeRoute = '', devisId, brouillon = false, explicite = false, ctx, convertir, stockage, tentativesMax = TENTATIVES_AUTO_MAX, lireLogo = null, delaiLogoMs = LOGO_DELAI_MS }) {
   const lien = lienStablePdf(baseLien, devisId, brouillon, prefixeRoute);
   let devis;
   if (brouillon) {
@@ -75,7 +104,21 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefix
     // « Mon entreprise » est enregistrée par l'écran sous `entreprise` (donnees.js) ; `emetteur` n'est lu qu'en repli (ancien nom).
     const brutEmetteur = [reglages?.entreprise, reglages?.emetteur].find((x) => x && typeof x === 'object' && !Array.isArray(x) && Object.keys(x).length);
     // Lu en direct à chaque impression (rien n'est figé, sauf le texte de la mention de TVA réduite, figé dans le devis à la finalisation : mentionTvaReduiteFigee) : « Mon entreprise » les textes « Attestation et mentions » et « Mention de TVA réduite » des réglages, comme à l'écran.
-    const emetteur = D.emetteurImprime(emetteurSansLogoExterne(brutEmetteur ? enDates(brutEmetteur) : {}), reglages?.mentionEmetteur, reglages?.mentionTvaReduite);
+    let emetteur = D.emetteurImprime(emetteurSansLogoExterne(brutEmetteur ? enDates(brutEmetteur) : {}), reglages?.mentionEmetteur, reglages?.mentionTvaReduite);
+    // Logo : celui de « Mon entreprise » (data:) s'il existe, sinon celui de l'espace lu par le serveur ; tout échec donne un PDF sans logo et un avertissement.
+    let avertissement;
+    if (!emetteur.logo && typeof lireLogo === 'function') {
+      try {
+        // Délai court : un stockage qui ne répond pas donne « illisible » et un PDF sans logo, jamais un échec ni une attente sans fin.
+        let minuteur;
+        const octets = await Promise.race([lireLogo(), new Promise((_, rejeter) => { minuteur = setTimeout(() => rejeter(new Error('délai')), delaiLogoMs); })]).finally(() => clearTimeout(minuteur));
+        if (octets?.raison && !Buffer.isBuffer(octets)) avertissement = AVERTISSEMENTS_LOGO[octets.raison] ?? AVERTISSEMENTS_LOGO.illisible;
+        else if (octets) {
+          const r = logoEnDataUrl(octets);
+          if (r.logo) emetteur = { ...emetteur, logo: r.logo }; else avertissement = AVERTISSEMENTS_LOGO[r.raison];
+        }
+      } catch { avertissement = AVERTISSEMENTS_LOGO.illisible; }
+    }
 
     // Vue client : jamais de prix d'achat, de marge ni de coefficient (garanti par vueClient, vérifié par les tests).
     const vue = D.vueClient(devis, { clientNom: fiche?.nom ?? null, attentionNom: personne?.nom ?? null });
@@ -87,9 +130,9 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefix
     const chemin = cheminPdfDevis({ espace, affaireId: devis.affaireId, devisId, brouillon, nomFichier: nomFichierDevis({ numero: devis.numero, version: devis.version, objet: devis.objet }) });
     await stockage.envoyer(chemin, pdf);
     const libelle = libelleDocumentDevis({ numero: devis.numero, version: devis.version, objet: devis.objet, brouillon, date: ctx?.maintenant });
-    if (brouillon) return { statut: 'ok', lien, nom: libelle, brouillon: true };
+    if (brouillon) return { statut: 'ok', lien, nom: libelle, brouillon: true, ...(avertissement ? { avertissement } : {}) };
     await terminerPdf({ donnees, ctx, devisId, chemin, sha256, libelle });
-    return { statut: 'ok', lien, nom: libelle };
+    return { statut: 'ok', lien, nom: libelle, ...(avertissement ? { avertissement } : {}) };
   } catch (e) {
     const message = messageLisible(e);
     // Le devis reste finalisé ; l'échec est noté (sauf pour un brouillon à la demande, qui n'a pas d'état).

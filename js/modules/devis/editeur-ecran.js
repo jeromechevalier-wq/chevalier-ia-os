@@ -31,6 +31,7 @@ import { menuUnite } from './menu-unite.js';
 import { ouvrirFenetreMenu, contenuMenu, caseMenu, donnees as donneesDe } from './menu-devis.js';
 import { ouvrirBibliotheque } from './bibliotheque.js';
 import { htmlDuDevis } from './html-devis.js';
+import { logoEspace } from '../../os/contexte.js';
 import { editeurOuvrage } from './editeur-ouvrage.js';
 import * as O from './ouvrages.js';
 import { messageApresEnregistrement } from './pdf.js';
@@ -93,7 +94,7 @@ export function infosClientDuDevis(d) {
   return { telephone, email: Ed.emailsDeFiche(fiche)[0] ?? '', numeroTva: fiche.numeroTva ?? fiche.tva ?? '', siren: fiche.siren ?? '' };
 }
 /** Document complet du devis, pour l'aperçu de l'éditeur. */
-export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d), attentionNom: d.organisationId && d.personneId ? CRM.personne(d.personneId)?.nom ?? null : null, emetteur: emetteurImprime(D.etat.reglages.entreprise, D.etat.reglages.mentionEmetteur, D.etat.reglages.mentionTvaReduite), reglages: D.etat.reglages });
+export const htmlImpressionDevis = (d) => htmlDuDevis(d, { logo: logoEspace(), clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d), attentionNom: d.organisationId && d.personneId ? CRM.personne(d.personneId)?.nom ?? null : null, emetteur: emetteurImprime(D.etat.reglages.entreprise, D.etat.reglages.mentionEmetteur, D.etat.reglages.mentionTvaReduite), reglages: D.etat.reglages });
 const affaires = () => CRM.etat.affaires.filter((a) => !a.archive).sort((a, b) => String(a.titre).localeCompare(String(b.titre), 'fr'));
 const libelleAffaire = (a) => {
   const c = clientsDeAffaire(a)[0]?.nom;
@@ -553,7 +554,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const retirerAttente = afficherAttentePdf({ bouton: ancre ?? document.querySelector('[data-action="plus-actions"]') });
     try {
       if (!(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le PDF n’a pas été créé.`, { type: 'erreur', duree: 8000 }); return; }
-      await D.pdfBrouillon(id);
+      const reponsePdf = await D.pdfBrouillon(id);
+      if (reponsePdf?.avertissement) toast(String(reponsePdf.avertissement), { duree: 10000 }); // logo de l'espace trop lourd ou illisible : PDF fait sans logo, jamais un échec
       toast(messageApresEnregistrement(travail, { affaires: !D.surSocleSeul() }), { duree: 8000 });
       retirerAttente();
       await actionPdf(id, mode, { brouillon: true, ancre: ancre ?? document.querySelector('[data-action="plus-actions"]') });

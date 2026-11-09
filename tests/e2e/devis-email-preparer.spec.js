@@ -10,7 +10,7 @@ const DOSSIER = fileURLToPath(new URL('./captures/devis-email-preparer/', import
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, animations: 'disabled' });
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, GET, OPTIONS' };
 const NUMERO = 'DEV-2026-10-25-001';
-const MESSAGE_CONFIRMATION = 'Le brouillon sera créé dans ton Gmail avec le PDF. Rien n’est envoyé.';
+const MESSAGE_CONFIRMATION = 'Le brouillon sera créé dans ton Gmail avec le PDF du devis, et les documents habituels de l’entreprise s’il y en a (plaquette, certifications, assurance). Rien n’est envoyé.';
 const MESSAGE_TOAST = 'Demande envoyée : le brouillon apparaît dans ton Gmail dans quelques instants';
 const boite = (page) => page.locator('.dialogue-preparer-email');
 const confirmer = (page) => boite(page).locator('[data-action="confirmer-preparer-email"]');
