@@ -315,8 +315,15 @@ describe('RG11 la restauration ne contourne pas la réservation', () => {
       refuse(await s.appeler(j, 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false, forcer: true }), /réservé aux super admins/);
       assert.equal(JSON.stringify(s.collections.devis_parametres), apres, `${j} : document intact`);
     }
-    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }));
+    // « Restaurer la restauration » ne contourne pas la réservation : l'opération de restauration du super admin est refusée aux autres comptes.
+    const b = ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }));
     assert.deepEqual(s.doc('devis_parametres', 'reglages'), avant);
+    const apresRestauration = JSON.stringify(s.collections.devis_parametres);
+    for (const j of ['autre', 'statique']) {
+      refuse(await s.appeler(j, 'restaurer_depuis_audit', { operationId: b.operationRestauration }), /réservé aux super admins/);
+      refuse(await s.appeler(j, 'restaurer_depuis_audit', { operationId: b.operationRestauration, apercu: false, forcer: true }), /réservé aux super admins/);
+      assert.equal(JSON.stringify(s.collections.devis_parametres), apresRestauration, `${j} : document intact après la restauration`);
+    }
   });
   test('RG11 les entrées du secret des jetons n’ont jamais d’e-mail (un jeton statique n’est jamais super admin)', async () => {
     const { analyserSecret } = await import('../functions/src/securite/jetons.js');

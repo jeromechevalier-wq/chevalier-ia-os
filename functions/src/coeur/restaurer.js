@@ -38,6 +38,8 @@ const RAISONS = {
 /** Outils dont l'opération ne se défait que par un super admin (09/11/2026) : sinon la restauration contournerait la réservation de l'outil. */
 export const OUTILS_RESERVES_SUPER_ADMINS = Object.freeze(['modifier_reglages_devis']);
 
+export const COLLECTIONS_RESERVEES_SUPER_ADMINS = Object.freeze([C.devisParametres]); // seul modifier_reglages_devis écrit cette collection côté serveur
+
 export async function restaurerOperation({ donnees, ctx, operationId, apercu = true, forcer = false, reserver = null, outil = 'restaurer_depuis_audit', superAdmin = false }) {
   let lignesAudit = (await donnees.liste(C.audit, { champ: 'operationId', valeur: operationId }))
     .filter((l) => l.statut !== 'echec')
@@ -45,7 +47,8 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   if (!lignesAudit.length) {
     throw new ErreurEcriture('introuvable', 'Aucune écriture réussie pour cette opération (identifiant inconnu, ou toutes ont échoué).');
   }
-  if (!superAdmin && lignesAudit.some((l) => OUTILS_RESERVES_SUPER_ADMINS.includes(l.outil))) {
+  // Par outil ET par collection : une restauration écrit ses lignes sous son propre nom (restaurer_depuis_audit) sur la même collection ; « restaurer la restauration » contournerait sinon la réservation.
+  if (!superAdmin && lignesAudit.some((l) => OUTILS_RESERVES_SUPER_ADMINS.includes(l.outil) || COLLECTIONS_RESERVEES_SUPER_ADMINS.includes(l.collection))) {
     throw new ErreurEcriture('restauration_refusee', 'Cette opération a été faite par un outil réservé aux super admins : elle ne se défait pas avec ce compte. Rien n\'a été restauré.');
   }
   // Une transition de devis réécrit aussi le montant de l'affaire (`montantDevis*`) : défaire cette ligne avec une copie entière de l'affaire effacerait ce qui a changé depuis (titre, étape, documents).

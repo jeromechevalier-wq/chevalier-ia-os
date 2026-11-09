@@ -1209,6 +1209,7 @@ describe('Devis : les outils du module arrivent chez les clients (sauf les régl
       const operationJerome = (await donnees.liste('clients/a/crm_audit')).find((l) => l.outil === 'modifier_reglages_devis').operationId;
       const alice0 = await outilsDe('a', 'ID-ALICE');
       assert.equal(await refuse(alice0.c, 'restaurer_depuis_audit', { operationId: operationJerome, apercu: false, forcer: true }), true);
+      assert.equal(await refuse(alice0.c, 'restaurer_depuis_audit', { operationId: operationJerome }), true, 'l\'aperçu aussi');
       await alice0.c.close();
       assert.equal((await donnees.document('clients/a/devis_parametres', 'reglages')).margeDevis, 17, 'la restauration refusée n\'a rien changé');
       // Même éditeur du client, autre identité : refus.
