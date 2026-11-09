@@ -64,7 +64,7 @@ export function rendrePersonnes(conteneur, { clients = false } = {}) { // client
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite' });
   const zoneTableau = h('div', { class: 'zone-tableau' });
   const filtres = barreFiltres({
-    liste: 'personnes', placeholder: 'Rechercher une personne',
+    liste: 'personnes', placeholder: clients ? 'Rechercher un client' : 'Rechercher une personne',
     lireCriteres: () => criteres,
     ecrireCriteres: (c) => { criteres = L.criteresComplets('personnes', c); rendre(); filtres.rafraichir(); },
     contexte: () => ({ etiquettes: D.etat.etiquettes, organisations: D.etat.organisations }),
@@ -100,8 +100,8 @@ export function rendrePersonnes(conteneur, { clients = false } = {}) { // client
     if (!D.estPret()) { remplir(zoneTableau, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }))); return; }
     if (!lignes.length) {
       remplir(zoneTableau, etatVide(
-        D.etat.personnes.length ? 'Aucune personne ne correspond.' : 'Ajoute ta première personne, il suffit de son nom.',
-        { action: D.etat.personnes.length ? null : h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne') }));
+        D.etat.personnes.length ? (clients ? 'Aucun client ne correspond.' : 'Aucune personne ne correspond.') : (clients ? 'Ajoute ton premier client, il suffit de son nom.' : 'Ajoute ta première personne, il suffit de son nom.'),
+        { action: D.etat.personnes.length ? null : h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => ouvrirCreationPersonne({ clients }) }, icone('plus', { taille: 16 }), clients ? 'Client' : 'Personne') }));
       return;
     }
     const visibles = colonnesPossibles().filter((c) => colonnesVisibles().includes(c.id));
@@ -119,7 +119,7 @@ export function rendrePersonnes(conteneur, { clients = false } = {}) { // client
 
   const entete = enteteListe({ titre: clients ? 'Clients' : 'Personnes', compteur, actions: [
     h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-personnes', 'aria-label': 'Exporter les contacts', title: 'Exporter les contacts', onclick: ouvrirExportContacts }, icone('download', { taille: 16 })),
-    h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne')] });
+    h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne({ clients }) }, icone('plus', { taille: 16 }), clients ? 'Client' : 'Personne')] });
   conteneur.append(h('div', { class: 'page page-liste' }, entete, h('div', { class: 'barre-affaires' }, filtres.element, choixTri.element), zoneTableau));
 
   /** Petite fenêtre : tout exporter, ou seulement ce qui a changé depuis le dernier export. */
@@ -183,7 +183,7 @@ export function menuPersonne(p) {
  * Fenêtre de création : seul le nom est obligatoire. Renvoie l'identifiant créé (ou null).
  * options : { organisationId, nom } pour préremplir.
  */
-export async function ouvrirCreationPersonne({ organisationId = null, nom = '' } = {}) {
+export async function ouvrirCreationPersonne({ organisationId = null, nom = '', clients = false } = {}) { // clients : portail devis seul (mot « client »)
   const champNom = h('input', { class: 'champ', type: 'text', id: 'creation-nom', autocomplete: 'off', 'aria-label': 'Nom', placeholder: 'Nom', value: nom, autofocus: true });
   const orga = selecteurOrganisation({ valeurId: organisationId });
   const telephones = listeContacts({ libelle: 'Téléphone', ajout: 'Ajouter un numéro de téléphone', type: 'tel', surChangement: verifierDoublon });
@@ -217,7 +217,7 @@ export async function ouvrirCreationPersonne({ organisationId = null, nom = '' }
 
   let identifiant = null;
   const r = await dialogue({
-    titre: 'Ajouter une personne',
+    titre: clients ? 'Ajouter un client' : 'Ajouter une personne',
     classe: 'dialogue-formulaire',
     contenu: corps,
     boutons: [
@@ -255,7 +255,7 @@ export async function ouvrirCreationPersonne({ organisationId = null, nom = '' }
     },
   });
   if (r && identifiant) {
-    toast('Personne ajoutée', { lien: { libelle: 'Ouvrir la fiche', href: cheminPersonne(identifiant) }, duree: 5000 });
+    toast(clients ? 'Client ajouté' : 'Personne ajoutée', { lien: { libelle: 'Ouvrir la fiche', href: cheminPersonne(identifiant) }, duree: 5000 });
     return identifiant;
   }
   return null;
