@@ -28,6 +28,7 @@ const accesDe = ({ db, creerDonnees }, client) => (creerDonnees ? creerDonnees(c
 /**
  * Octets du logo de l'espace d'un client (Réglages > Mon espace), pour le PDF. Le logo vit dans la fiche de MARQUE `marques/<client>` (champ `logo`, écrit par espace.js : même document que l'écran).
  * L'adresse de la fiche n'est JAMAIS demandée sur le réseau : on n'en tire que le CHEMIN `marques/<client>/…` (cheminDeUrl refuse tout autre bucket, un autre client ou un `..`), lu par l'API du stockage.
+ * @returns {() => Promise<Buffer | { raison: 'trop_lourd' } | null>} la fonction `lireLogoEspace`.
  * Pas de logo (ou adresse refusée) : null, donc aucun message. Fichier plus gros que le plafond : { raison: 'trop_lourd' } (message clair, PDF sans logo). Autre échec de lecture : lève (« illisible »).
  */
 export function creerLireLogoEspace({ db, client, nomBucket, stockage }) {
