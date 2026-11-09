@@ -14,7 +14,7 @@ import { canonique, sansId } from '../functions/src/coeur/canonique.js';
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
 import { EMETTEUR_ESSAI } from './jeu-finalisation.js';
 
-const JETONS = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, agent: `cia_${'A'.repeat(43)}`, code: `cia_${'C'.repeat(43)}` };
+const JETONS = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, agent: `cia_${'A'.repeat(43)}`, assistant: `cia_${'S'.repeat(43)}`, code: `cia_${'C'.repeat(43)}` };
 const entree = (jeton, nom, profil, extra = {}) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif: true, ...extra });
 const EMAIL = ['client@exemple.test'];
 
@@ -36,7 +36,7 @@ async function demarrer({ devis = [], jetonsExtra = {} } = {}) {
   Object.assign(collections, { devis_articles: [], devis_devis: devis.map((d) => structuredClone(d)), devis_compteurs: [], devis_parametres: [{ id: 'reglages', regimeTva: 'assujetti', marge: 20, modeMarge: 'majoration', entreprise: EMETTEUR_ESSAI }] });
   const donnees = creerAccesMemoire(collections);
   const horloge = { t: MAINTENANT.getTime() };
-  const secret = JSON.stringify([entree(JETONS.lecteur, 'lecteur-essai', 'lecteur'), entree(JETONS.biblio, 'hermes-bibliothecaire', 'bibliothecaire'), entree(JETONS.agent, 'n8n-devis-essai', 'agent-devis'), entree(JETONS.code, 'claude-code-jerome', 'claude-code', jetonsExtra.code)]);
+  const secret = JSON.stringify([entree(JETONS.lecteur, 'lecteur-essai', 'lecteur'), entree(JETONS.biblio, 'hermes-bibliothecaire', 'bibliothecaire'), entree(JETONS.agent, 'n8n-devis-essai', 'agent-devis'), entree(JETONS.assistant, 'assistant-devis-essai', 'assistant-devis'), entree(JETONS.code, 'claude-code-jerome', 'claude-code', jetonsExtra.code)]);
   const magasin = creerMagasin({ lire: async () => secret, dureeCacheMs: 0 });
   const limiteur = creerLimiteur({ donnees, maintenant: () => horloge.t });
   const gestionnaire = creerGestionnaire({ magasin, donnees, limiteur, maintenant: () => horloge.t, journal: () => {} });
@@ -404,6 +404,43 @@ describe('M6b profil agent-devis', () => {
     for (const outil of ['changer_statut_devis', 'supprimer_devis', 'restaurer_depuis_audit', 'recalculer_montants_affaires', 'modifier_lignes_devis', 'nouvelle_version_devis']) refuse(await s.appeler('agent', outil, { id: 'd1' }));
     assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'aucun refus n’écrit');
     ok(await s.appeler('agent', 'modifier_devis_brouillon', { id: 'd1', objet: 'Par l’agent' }));
+  });
+});
+
+describe('M6c profil assistant-devis', () => {
+  test('5 assistant-devis : modifier les lignes, annuler, finaliser (aperçu + code), nouvelle version ; journal au nom du jeton ; outils non accordés refusés', async () => {
+    const s = await demarrer({ devis: [devisEnregistre('d1', { destinataires: EMAIL })] });
+    avecChantier(s, 'd1');
+    const lire = async () => ok(await s.appeler('assistant', 'lire_devis', { id: 'd1' }));
+    s.horloge.t += 60_000; // le journal ordonne par date : une minute entre deux modifications
+    ok(await s.appeler('assistant', 'modifier_lignes_devis', { id: 'd1', operations: [{ action: 'modifier', ligne: '1.1', attendu: 'Peinture', quantite: 12 }] }));
+    assert.equal(s.doc('devis_devis', 'd1').sections[0].lignes[0].quantite, 12);
+    s.horloge.t += 60_000; // le journal ordonne par date : une minute entre deux modifications
+    ok(await s.appeler('assistant', 'modifier_lignes_devis', { id: 'd1', operations: [{ action: 'ajouterSection', titre: 'Options' }] }));
+    assert.equal(s.doc('devis_devis', 'd1').sections.length, 2);
+    s.horloge.t += 60_000;
+    ok(await s.appeler('assistant', 'annuler_derniere_modification_devis', { id: 'd1' }));
+    assert.equal(s.doc('devis_devis', 'd1').sections.length, 1, 'la section ajoutée est annulée');
+    s.horloge.t += 60_000; // le journal ordonne par date : une minute entre deux modifications
+    ok(await s.appeler('assistant', 'modifier_lignes_devis', { id: 'd1', operations: [{ action: 'supprimer', ligne: '1.1', attendu: 'Peinture' }] }));
+    assert.equal(s.doc('devis_devis', 'd1').sections[0].lignes.length, 0);
+    s.horloge.t += 60_000;
+    ok(await s.appeler('assistant', 'annuler_derniere_modification_devis', { id: 'd1' }));
+    assert.equal(s.doc('devis_devis', 'd1').sections[0].lignes.length, 1);
+    assert.ok(await lire());
+    const apercu = ok(await s.appeler('assistant', 'finaliser_devis', { id: 'd1' }));
+    assert.equal(apercu.apercu, true);
+    assert.ok(apercu.code);
+    ok(await s.appeler('assistant', 'finaliser_devis', { id: 'd1', codeConfirmation: apercu.code }));
+    assert.notEqual(s.doc('devis_devis', 'd1').statut, 'brouillon');
+    refuse(await s.appeler('assistant', 'modifier_lignes_devis', { id: 'd1', operations: [{ action: 'ajouterSection', titre: 'X' }] }));
+    const v2 = ok(await s.appeler('assistant', 'nouvelle_version_devis', { id: 'd1' }));
+    const nouveau = s.collections.devis_devis.find((d) => d.racineId === 'd1' && d.version === 2);
+    assert.ok(nouveau && nouveau.statut === 'brouillon', JSON.stringify(v2));
+    refuse(await s.appeler('assistant', 'nouvelle_version_devis', { id: nouveau.id }));
+    for (const outil of ['changer_statut_devis', 'supprimer_devis', 'restaurer_depuis_audit', 'archiver_devis', 'marquer_test', 'demarquer_test', 'modifier_reglages_devis', 'recalculer_montants_affaires']) refuse(await s.appeler('assistant', outil, { id: 'd1' }));
+    const lignes = s.collections.crm_audit.filter((l) => l.collection === 'devis_devis');
+    assert.ok(lignes.length >= 5 && lignes.every((l) => l.acteur === 'assistant-devis-essai' && l.via === 'mcp'));
   });
 });
 

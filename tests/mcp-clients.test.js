@@ -1566,7 +1566,7 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
   });
 });
 
-// --- Porte par jeton fixe lié à UN client (bot n8n) : secret MCP_JETONS_CLIENTS, profils lecture et agent-devis ------------------------------
+// --- Porte par jeton fixe lié à UN client (bot n8n) : secret MCP_JETONS_CLIENTS, profils lecture, agent-devis et assistant-devis ------------------------------
 describe('Porte par jeton fixe lié à un client (PJ1 à PJ8)', () => {
   const jetonDe = (c) => `cia_${c.repeat(43)}`;
   const JD = jetonDe('D'); // jeton du bot du client « d » (agent-devis)
@@ -1578,6 +1578,8 @@ describe('Porte par jeton fixe lié à un client (PJ1 à PJ8)', () => {
   const LISTE_AGENT = ['qui_suis_je', 'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_devis', 'lire_devis', 'lire_reglages_devis', 'chercher_article', 'lister_articles', 'rechercher_article_par_phrase', 'obtenir_pdf_officiel_devis',
     'creer_personne', 'creer_organisation', 'creer_affaire', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'modifier_destinataires_devis', 'preparer_email'];
   const AFFAIRES = ['lire_affaire', 'lister_affaires', 'creer_affaire'];
+  const JS = jetonDe('S'); // jeton assistant-devis du client « d »
+  const LISTE_ASSISTANT = [...LISTE_AGENT, 'modifier_lignes_devis', 'annuler_derniere_modification_devis', 'nouvelle_version_devis'];
   const SECRET_BASE = () => secret(ligne(JD, 'bot-devis', 'agent-devis', 'd'), ligne(JDL, 'bot-lecture', 'lecture', 'd'), ligne(JA, 'bot-a', 'agent-devis', 'a'));
 
   async function installer() {
@@ -1670,6 +1672,77 @@ describe('Porte par jeton fixe lié à un client (PJ1 à PJ8)', () => {
     assert.equal(liste.filter((n) => SUPPRESSIONS.test(n)).length, 0);
   });
 
+  test('PJ2b assistant-devis chez un espace Devis + MCP : exactement 21 outils (24 moins les trois d\'Affaires), 24 avec Affaires, jamais de suppression ni de restauration', async () => {
+    secretJetons = secret(ligne(JS, 'bot-assistant', 'assistant-devis', 'd'));
+    rejouer();
+    let c = await assistant('/mcp/d', JS);
+    let liste = noms(await c.listTools());
+    const moi = ok(await c.callTool({ name: 'qui_suis_je', arguments: {} }));
+    await c.close();
+    assert.equal(liste.length, 21);
+    assert.deepEqual(liste, LISTE_ASSISTANT.filter((n) => !AFFAIRES.includes(n)).sort());
+    assert.ok(liste.includes('modifier_lignes_devis') && liste.includes('nouvelle_version_devis'));
+    assert.equal(liste.filter((n) => SUPPRESSIONS.test(n)).length, 0);
+    assert.equal(moi.profil, 'assistant-devis');
+    await donnees.appliquer([{ type: 'set', collection: 'clients', id: 'd', donnees: { modules: { devis: true, mcp: true, affaires: true } } }]);
+    c = await assistant('/mcp/d', JS);
+    liste = noms(await c.listTools());
+    await c.close();
+    assert.equal(liste.length, 24);
+    assert.deepEqual(liste, [...LISTE_ASSISTANT].sort());
+  });
+
+  test('PJ2b assistant-devis lié à un client n\'ouvre ni un autre client ni le serveur de Jérôme ; sans client il ouvre le serveur de Jérôme (24 outils) et aucun client', async () => {
+    secretJetons = secret(ligne(JS, 'bot-assistant', 'assistant-devis', 'd'));
+    rejouer();
+    assert.equal((await brut('/mcp/d', JS)).status, 200);
+    assert.equal((await brut('/mcp/a', JS)).status, 401);
+    const magasin = creerMagasin({ lire: async () => secretJetons, maintenant: () => horlogeSecret });
+    const jerome = creerGestionnaire({ magasin, donnees: creerAccesMemoire({}), limiteur: null, journal: () => {} });
+    const srv = createServer((req, res) => {
+      const m = []; req.on('data', (x) => m.push(x)); req.on('end', () => { try { req.body = JSON.parse(Buffer.concat(m).toString('utf8')); } catch { req.body = undefined; } jerome(req, res); });
+    });
+    await new Promise((o) => srv.listen(0, '127.0.0.1', o));
+    try {
+      const url = `http://127.0.0.1:${srv.address().port}/mcp`;
+      const appel = (jeton) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${jeton}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
+      assert.equal((await appel(JS)).status, 401, 'ligne avec client ignorée par le serveur de Jérôme');
+      secretJetons = secret(ligne(JS, 'bot-assistant', 'assistant-devis'));
+      rejouer();
+      const r = await appel(JS);
+      assert.equal(r.status, 200);
+      const corps = await r.text();
+      const outils = JSON.parse(corps.replace(/^[^{]*/, '').split('\n')[0]).result.tools.map((t) => t.name).sort();
+      assert.equal(outils.length, 24);
+      assert.deepEqual(outils, [...LISTE_ASSISTANT].sort());
+      assert.equal((await brut('/mcp/d', JS)).status, 401, 'une ligne sans client n\'ouvre aucun client');
+    } finally { srv.close(); }
+  });
+
+  test('5 PJ2b parcours assistant-devis chez un client : brouillon, ajout de section, annulation ; le journal porte le nom du jeton, sous le client', async () => {
+    secretJetons = secret(ligne(JS, 'bot-assistant', 'assistant-devis', 'd'));
+    rejouer();
+    const c = await assistant('/mcp/d', JS);
+    try {
+      const b = ok(await c.callTool({ name: 'creer_devis_brouillon', arguments: { objet: 'Essai assistant' } }));
+      horloge += 60_000; // le journal ordonne par date
+      ok(await c.callTool({ name: 'modifier_lignes_devis', arguments: { id: b.id, operations: [{ action: 'ajouterSection', titre: 'Options' }] } }));
+      horloge += 60_000;
+      const avant = (await donnees.document('clients/d/devis_devis', b.id)).sections.length;
+      ok(await c.callTool({ name: 'annuler_derniere_modification_devis', arguments: { id: b.id } }));
+      assert.equal((await donnees.document('clients/d/devis_devis', b.id)).sections.length, avant - 1);
+      assert.equal(await refuse(c, 'supprimer_devis', { id: b.id }), true);
+      const journal = (await donnees.liste('clients/d/crm_audit')).filter((l) => l.docId === b.id);
+      assert.ok(journal.length >= 3 && journal.every((l) => l.acteur === 'bot-assistant'));
+    } finally {
+      await c.close();
+      const rest = await donnees.liste('clients/d/devis_devis');
+      if (rest.length) await donnees.appliquer(rest.map((d) => ({ type: 'delete', collection: 'clients/d/devis_devis', id: d.id })));
+      const aud = await donnees.liste('clients/d/crm_audit');
+      if (aud.length) await donnees.appliquer(aud.map((d) => ({ type: 'delete', collection: 'clients/d/crm_audit', id: d.id })));
+    }
+  });
+
   test('PJ2 lecture : aucun outil d\'écriture, de suppression ni de restauration ; un appel d\'écriture est refusé', async () => {
     const c = await assistant('/mcp/d', JDL);
     const liste = noms(await c.listTools());
@@ -1759,6 +1832,10 @@ describe('Porte par jeton fixe lié à un client (PJ1 à PJ8)', () => {
   test('PJ7 outils/creer-jeton.js --client écrit un champ client, refuse un profil hors liste, un nom OAuth et « interne »', async () => {
     const { execFileSync } = await import('node:child_process');
     const lancer = (...a) => execFileSync('node', ['outils/creer-jeton.js', ...a], { cwd: new URL('..', import.meta.url).pathname, encoding: 'utf8', stdio: 'pipe' });
+    const sortieAssistant = lancer('bot-assistant-essai', 'assistant-devis', '--client', 'clientdemo');
+    assert.equal(JSON.parse(/\{"jeton".*\}/.exec(sortieAssistant)[0]).profil, 'assistant-devis');
+    assert.equal(JSON.parse(/\{"jeton".*\}/.exec(sortieAssistant)[0]).client, 'clientdemo');
+    assert.equal(JSON.parse(/\{"jeton".*\}/.exec(lancer('bot-assistant-essai', 'assistant-devis'))[0]).client, undefined, 'sans --client : accepté');
     const sortie = lancer('bot-devis-essai', 'agent-devis', '--client', 'clientdemo');
     const jeton = /cia_[A-Za-z0-9_-]{43}/.exec(sortie)[0];
     const l = JSON.parse(/\{"jeton".*\}/.exec(sortie)[0]);

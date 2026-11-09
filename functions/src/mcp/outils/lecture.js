@@ -6,8 +6,8 @@ import { CONSIGNE_LIEN_ECRAN, lienEcranDepuisContexte } from '../../coeur/liens.
 import { resumerForme, phraseDe, ligneDeDiagnostic } from '../diagnostic-fichiers.js';
 
 const TOUS = ['lecture', 'ecriture', 'complet'];
-// Liste blanche du profil agent-devis (décision de Jérôme, 07/11/2026) : ajouté outil par outil, jamais à TOUS.
-const TOUS_ET_AGENT = ['lecture', 'ecriture', 'agent-devis', 'complet'];
+// Liste blanche des profils agent-devis et assistant-devis (décision de Jérôme, 07/11/2026) : ajouté outil par outil, jamais à TOUS.
+const TOUS_ET_AGENT = ['lecture', 'ecriture', 'agent-devis', 'assistant-devis', 'complet'];
 const id = z.string().min(1).max(200);
 const limite = z.number().int().min(1).max(lecture.MAX_LIGNES).optional().describe(`Nombre maximal de lignes (défaut et plafond : ${lecture.MAX_LIGNES}).`);
 const tests = z.enum(['inclure', 'exclure', 'seulement']).optional().describe("Mode test : inclure (défaut) : tout ; exclure : sans les essais ; seulement : les essais (test: true). Par défaut on inclut : l'utilisateur doit pouvoir dire « montre-moi mon client de test ». Chaque résultat qui est un essai porte test: true.");

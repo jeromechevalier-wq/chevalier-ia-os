@@ -242,7 +242,7 @@ describe('M7 droits et statut', () => {
   test('M7 le profil complet peut aussi l’appeler ; les deux profils d’écriture le déclarent, le lecteur non', async () => {
     const { OUTILS, annotationsDe } = await import('../functions/src/mcp/outils/index.js');
     const o = OUTILS.find((x) => x.nom === 'modifier_lignes_devis');
-    assert.deepEqual(o.profils, ['ecriture', 'complet']);
+    assert.deepEqual(o.profils, ['ecriture', 'assistant-devis', 'complet']);
     assert.equal(annotationsDe(o).destructiveHint, true);
     assert.equal(annotationsDe(o).readOnlyHint, false);
     const s = await demarrer({ devis: [devisDeBase()] });

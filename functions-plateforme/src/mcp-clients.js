@@ -29,7 +29,7 @@ export function creerMcpClients() {
   const stockage = () => { try { return creerStockage({ bucket: getStorage().bucket(BUCKET) }); } catch { return null; } };
   // Brouillon d'e-mail d'un devis (jamais d'envoi) : un workflow et des secrets PAR CLIENT, lus dans Secret Manager à l'appel (coeur/n8n-sortie.js). Le compte du MCP des clients doit avoir « Accesseur de secrets » sur ces secrets, sinon l'outil répond « pas branché ».
   const sortieEmail = creerSortieN8n({ lireSecret: creerLecteurSecrets({ projet: 'chevalier-ia-app' }) });
-  // Jetons fixes liés à UN client (bot n8n, profils lecture ou agent-devis) : secret MCP_JETONS_CLIENTS lu à l'exécution (jamais lié au déploiement), cache de 60 s ; le magasin est créé UNE fois ici, pas par requête. Le compte du MCP des clients doit avoir « Accesseur de secrets » sur ce secret.
+  // Jetons fixes liés à UN client (bot n8n, profils lecture, agent-devis ou assistant-devis) : secret MCP_JETONS_CLIENTS lu à l'exécution (jamais lié au déploiement), cache de 60 s ; le magasin est créé UNE fois ici, pas par requête. Le compte du MCP des clients doit avoir « Accesseur de secrets » sur ce secret.
   const lireSecretPlateforme = creerLecteurSecrets({ projet: 'chevalier-ia-app' });
   const magasinJetons = creerMagasin({ lire: () => lireSecretPlateforme('MCP_JETONS_CLIENTS') });
   return creerGestionnaireClients({ donnees, oauth, magasinJetons, espaces, limiteur: creerLimiteur({ donnees }), stockage, sortieEmail });
