@@ -134,6 +134,15 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 - **« Tests de nuit » 112 et 115 rouges pour une seule capture** d'un bloc redessiné (test 1.2 des familles) : cause lue seulement au 115, corrigée par la 539. Lire la cause dès le premier rouge.
 - **Un devis « Archivé » compte toujours dans le montant** : l'écran doit le dire (étiquette, PR 540).
 
+### Leçons de la nuit du 09 au 10/11/2026
+- **Un brief se vérifie par Fable ET par grep avant l'envoi** (encore 4 erreurs trouvées sur 2 briefs) : « le schéma allégé refuse » était faux (le SDK retire les champs inconnus sans erreur) ; « bug `lister_devis` dans `outils/lecture.js` » : le code ne dépend pas du profil, donc **un bug signalé qu'on ne reproduit pas se garde comme test verrou, on n'invente pas de correctif** (la cause est dans les arguments du bot n8n) ; un plafond « à ajouter » existait déjà ; un fichier de docs n'était pas sur `main`.
+- **Un plafond ajouté côté écran peut faire disparaître du PDF un logo que « Mon espace » accepte** (plafonds différents : 2 Mo d'octets contre 1,5 M caractères) : vérifier le chemin réel de la donnée avant d'aligner deux limites.
+- **En Devis seul (socle seul), `crm_parametres` n'est pas lu** : toute écriture qui part d'une liste lue dans cet état (étiquettes, secteurs, sources) ÉCRASE les listes déjà en base ; masquer le champ plutôt que l'écrire.
+- **Le profil allégé d'un outil ne doit pas être strict** : un champ technique ajouté par le client MCP du bot aurait tout cassé ; refuser seulement ce qui doit l'être (`lignes`, `sections`) et tolérer le reste comme sur `main`.
+- **Le poids du bot vient surtout de sa MÉMOIRE** (30 messages ≈ 17 000 tokens à chaque appel), pas des descriptions d'outils : mesurer avant d'optimiser, lire l'exécution n8n (`get_workflow_execution` avec `nodeNames`, puis `python3` sur le fichier de résultat, jamais à l'écran).
+- **Sessions de code en parallèle** (5 sessions, `TESTS_DECALAGE` 3 à 6, un seul push chacune) : zéro collision ; les briefs disent « ne touche NI `docs/` NI `wiki/` » pour éviter les conflits sur le wiki (la PR de docs de fin de nuit les régénère une fois). Une session qui ouvre sa PR envoie son numéro, la session principale relit (Fable : serveur, données, nouvel écran), renvoie les bloquants en UN message, et arme l'auto-merge quand c'est corrigé.
+- **Écart à une décision de Jérôme écrite (ex. la garantie du 29/10)** : la PR le dit dans « Décision prise seul », reste en brouillon sans étiquette et attend son accord ; ne jamais la fusionner de nuit.
+
 ## Au démarrage d'une session
 
 1. Lis `docs/roadmap.md` (état et décisions).

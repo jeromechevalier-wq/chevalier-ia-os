@@ -1,5 +1,30 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 10/11/2026 : nuit « GO NUIT » du 09 au 10/11/2026 (PR 562 à 567)
+
+Version 2.40.0 (cette PR). Tableau des choses à faire : `.github/A-FAIRE.md` (section « nuit GO NUIT »). **Objectif de Jérôme pour cette nuit : présenter le portail « Devis seul » avec toutes ses pages, opérationnel.** Visite guidée : ci-dessous.
+
+| Sujet | PR | État |
+|---|---|---|
+| Analyse du poids des outils du profil `assistant-devis` (docs) | 562 | fusionnée |
+| Test statique des écarts `functions/` vs `functions-plateforme/` ; module `mcp` : rien à exporter | 563 | fusionnée |
+| Corrections du serveur MCP : verrou `lister_devis`, test `trop_gros` par le vrai stockage, JSDoc, verrou du plafond du logo (1 500 000 caractères) | 564 | fusionnée (Fable : un bloquant corrigé) ; sans effet chez les clients avant « Déploiement plateforme clients » > `mcp` |
+| Portail devis seul : menu Devis · Clients · Catalogue · Relances · Statistiques + écran Statistiques | 566 | fusionnée (Fable : un bloquant corrigé, étiquettes et secteurs jamais écrasés en Devis seul) ; « Tests de nuit » 134 vert |
+| Recette de bout en bout du portail + « + Client » dans l'écran Clients | 567 | auto-merge armé le 09/11 à 21 h 52 UTC (retouche de libellés, Fable non requise) : **vérifier qu'elle est fusionnée** |
+| Allègement des descriptions d'outils du profil `assistant-devis` | 565 | **EN ATTENTE de ton accord** (garantie raccourcie, écart à ta décision du 29/10) |
+| Docs de fin de nuit, version 2.40.0 | cette PR | brouillon |
+
+**Mesure du bot (lecture seule)** : ~35 000 tokens d'entrée par appel, ~3 s. Explication : 9 outils ≈ 8 800 tokens, consigne ≈ 3 000, **mémoire de 30 messages ≈ 17 000 tokens** (60 entrées, ~60 800 caractères, résultats d'outils compris). La mémoire pèse plus que les descriptions d'outils. L'allègement 565 gagne ~2 800 tokens sur les 9 outils (-32 %). Proposition (à valider, bot n8n non touché cette nuit) : fenêtre de 30 à 8-10 messages, gain ~10 000 à 12 000 tokens par appel ; puis refaire la mesure « après ».
+
+**Visite guidée du portail Devis seul** (captures de la PR 567 : `tests/e2e/captures/recette-portail/`, et de la PR 566 : `tests/e2e/captures/portail-menu/`) : adresse `#/portail-devis` chez toi (ton site s'est redéployé tout seul), `#/espace/<client>/portail-devis` chez un client (après « hosting », sur ton feu vert). Le menu : **Devis** (page d'arrivée : la liste, Kanban/Liste/Archives, « + Devis ») · **Clients** (les personnes à qui on fait des devis, « + Client », fiche sans Affaires) · **Catalogue** (la liste de prix de l'artisan, ses articles s'ajoutent en un clic dans un devis) · **Relances** (devis envoyés sans réponse depuis 10 jours, « Préparer l'e-mail », « Relancé ») · **Statistiques** (chiffre d'affaires signé HT, taux de transformation, devis par statut, mois par mois) + « Espace complet ». Parcours complet vérifié en test (ordinateur et téléphone) : client → devis avec lignes du catalogue → finaliser → envoyé → signé → Relances → Statistiques (96 € HT, 1 signé sur 2 envoyés = 50 %) → export (Réglages > Devis > « Exporter mes données ») → Espace complet.
+
+- **Décisions prises seul (à confirmer)** : voir `.github/A-FAIRE.md` (titre « Clients », pas d'entrée Organisations, colonne de droite retirée en Devis seul, règles de dates des Statistiques, garantie courte dans la PR 565, objet souple plutôt que strict dans la PR 565).
+- **Ce que Jérôme doit faire** : (1) ouvrir `#/portail-devis` chez lui et parcourir les cinq pages ; (2) dire si on déploie chez les clients, **un élément à la fois** : `hosting` (portail), puis `mcp` (PR 564) ; (3) accord ou refus sur la PR 565 (garantie courte) ; (4) accord sur la réduction de la mémoire du bot (30 → 8-10 messages) ; (5) renommer l'ancien credential « MCA - MCP du bot de devis » ; logo d'espace chez lui : non par défaut.
+- **Pas pu être vérifié avec le vrai système** : le vrai serveur (la recette simule `devisFinaliser`, `devisChangerStatut`, `devisEnregistrerEnvoi`, l'e-mail) ; le journal d'un vrai appel du bot (champs envoyés par n8n) avant de déployer la PR 565 ; `test:smoke` de la 563, 564 et 565 (pas de navigateur dans le bac à sable des sessions, la coche GitHub a fait foi).
+- **Faux rouges déjà vus** : un lancement « Tests » annulé après un push ; `fiches-coherentes` rouge dans le bac à sable (`apis.google.com` injoignable) mais vert sur GitHub.
+
+---
+
 ## Rapport du matin du 08/11/2026 : journée du 07/11/2026 et nuit du 07 au 08/11 (PR 546 à 553 ; 539 à 545 rappelées)
 
 Version 2.39.0 (cette PR). Tableau des choses à faire : `.github/A-FAIRE.md`. Relances du portail : `docs/consignes-ui.md` (section « Relances du portail devis seul ») ; profils de droits : `docs/portes-et-droits-mcp.md` ; finalisation sans affaire et « Choisir l'affaire » : `docs/consignes-ui.md`, `docs/montant-affaire.md`.
