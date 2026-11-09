@@ -111,7 +111,8 @@ describe('Protocole MCP et droits par profil', () => {
     assert.ok(refus.erreur || refus.isError, 'appel refusé');
     await biblio.close();
     const code = await client(JETON.code);
-    assert.deepEqual((await code.listTools()).tools.map((t) => t.name).sort(), [...nomsPour('complet'), 'outil_reserve'].sort());
+    // Un jeton statique n'a pas d'e-mail vérifié : modifier_reglages_devis (réservé à Jérôme, par son identité) n'est jamais listé, même en profil complet.
+    assert.deepEqual((await code.listTools()).tools.map((t) => t.name).sort(), [...nomsPour('complet').filter((n) => n !== 'modifier_reglages_devis'), 'outil_reserve'].sort());
     assert.equal(JSON.parse((await code.callTool({ name: 'outil_reserve', arguments: {} })).content[0].text).ok, true);
     await code.close();
   });
@@ -232,7 +233,7 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
     'preparer_email', // + brouillon d'e-mail d'un devis, jamais d'envoi (garantie « aucun e-mail ne part tout seul », 29/10/2026)
     'deposer_document', // + dépôt d'un fichier texte dans l'onglet « Documents » (28/10/2026)
     'marquer_test', 'demarquer_test']; // + mode test : marquer ou démarquer un essai (PR 2, 05/11/2026)
-  const FINALISATION = ['finaliser_devis', 'changer_statut_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles', 'modifier_reglages_devis']; // écritures sensibles (figent le devis, ne se défont pas avec le journal, confirmation par code) et modifier_reglages_devis (réglages du module Devis, 09/11/2026) : Claude Code seulement
+  const FINALISATION = ['finaliser_devis', 'changer_statut_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles']; // écritures sensibles (figent le devis, ne se défont pas avec le journal, confirmation par code) : Claude Code seulement ; modifier_reglages_devis (09/11/2026) n'est PAS dans cette liste : réservé à l'identité de Jérôme (e-mail OAuth vérifié), il n'apparaît jamais pour un jeton statique, même complet
   const SUPPRESSION = ['restaurer_depuis_audit', 'supprimer_activite', 'supprimer_devis', 'supprimer_affaire', 'supprimer_note', 'supprimer_organisation', 'supprimer_personne', 'supprimer_projet', 'supprimer_document_stocke', 'supprimer_tous_les_tests'];
   const attendu = {
     lecteur: [...LECTURE].sort(),
@@ -246,8 +247,9 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
       // outil_reserve : outil d'essai de ce fichier, absent du vrai serveur.
       const recus = (await c.listTools()).tools.map((t) => t.name).filter((n) => n !== OUTIL_RESERVE.nom).sort();
       await c.close();
-      assert.deepEqual(recus, liste);
-      assert.deepEqual(nomsPour(profil === 'biblio' ? 'ecriture' : profil === 'code' ? 'complet' : profil === 'agent' ? 'agent-devis' : 'lecture'), liste);
+      // Jeton statique : jamais d'e-mail vérifié, donc jamais modifier_reglages_devis (réservé à l'identité de Jérôme), même en profil complet.
+      assert.deepEqual(recus, liste.filter((n) => n !== 'modifier_reglages_devis'));
+      assert.deepEqual(nomsPour(profil === 'biblio' ? 'ecriture' : profil === 'code' ? 'complet' : profil === 'agent' ? 'agent-devis' : 'lecture').filter((n) => n !== 'modifier_reglages_devis'), liste.filter((n) => n !== 'modifier_reglages_devis'));
     });
   }
 });

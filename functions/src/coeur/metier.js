@@ -737,12 +737,19 @@ function cheminsModifies(avant, apres, prefixe = '') {
   return [...new Set([...Object.keys(avant), ...Object.keys(apres)])].flatMap((k) => cheminsModifies(avant[k], apres[k], prefixe ? `${prefixe}.${k}` : k));
 }
 
+/** La réponse de l'outil ne montre jamais les coordonnées bancaires ni le paiement (IBAN) : retirés de « Mon entreprise », comme modeMarge (décision du 09/11/2026). */
+const sansBanque = (r) => {
+  if (!r?.reglages?.entreprise) return r;
+  const { coordonneesBancaires: _b, paiement: _p, ...entreprise } = r.reglages.entreprise;
+  return { ...r, reglages: { ...r.reglages, entreprise } };
+};
+
 /**
  * Change les réglages du module Devis (`args.reglages`, schéma strict de l'outil). Fusion PROFONDE de « Mon entreprise » avant la validation de l'écran
  * (validerReglagesDevis ne fusionne qu'au premier niveau) : un champ non cité ne bouge jamais. Document absent : créé ; sinon, modification des seules clés qui changent.
  */
 export async function modifierReglagesDevis(c, args) {
-  // Deuxième verrou (le premier : l'outil n'existe pas hors du serveur du propriétaire, mcp/gestionnaire.js) : refus à l'exécution pour tout autre appelant.
+  // Deuxième verrou (le premier : l'outil n'existe que pour le propriétaire, identité vérifiée, mcp/gestionnaire.js) : refus à l'exécution pour tout autre appelant.
   if (c.proprietaire !== true) refuser('interdit', 'Cet outil n\'est pas disponible pour ce compte.');
   const saisie = args.reglages ?? {};
   if (!Object.keys(saisie).length) refuser('saisie_invalide', 'Aucun réglage à changer : donne au moins un champ dans `reglages`.');
@@ -768,7 +775,7 @@ export async function modifierReglagesDevis(c, args) {
   for (const cle of Object.keys(saisie)) if (!egal({ v: propres[cle] }, { v: base[cle] })) patch[cle] = propres[cle];
   const modifies = Object.keys(patch).flatMap((cle) => cheminsModifies(base[cle], propres[cle], cle));
   if (brut && !Object.keys(patch).length) {
-    return { rienAChanger: true, message: 'Rien à changer : ces réglages sont déjà ceux de l\'espace. Rien n\'a été écrit.', champsModifies: [], ...(await lireReglagesDevis(c.donnees)) };
+    return { rienAChanger: true, message: 'Rien à changer : ces réglages sont déjà ceux de l\'espace. Rien n\'a été écrit.', champsModifies: [], ...sansBanque(await lireReglagesDevis(c.donnees)) };
   }
   // Espace neuf : le document est créé (sans le mode de calcul de la marge, que la lecture remplace par son défaut).
   const { modeMarge: _mode, ...pourCreation } = propres;
@@ -776,7 +783,7 @@ export async function modifierReglagesDevis(c, args) {
     ? [{ type: 'modifier', collection: C.devisParametres, id: DA.ID_REGLAGES, patch, exigerAvant: base }]
     : [{ type: 'creer', collection: C.devisParametres, id: DA.ID_REGLAGES, donnees: pourCreation }];
   const r = await c.ecrire({ operations, parametres: args });
-  return { ...sortie(r, { champsModifies: modifies, cree: !brut }), ...(await lireReglagesDevis(c.donnees)) };
+  return { ...sortie(r, { champsModifies: modifies, cree: !brut }), ...sansBanque(await lireReglagesDevis(c.donnees)) };
 }
 
 // ---------------------------------------------------------------- Devis : dictionnaire de vocabulaire (PR 3, 28/10/2026)

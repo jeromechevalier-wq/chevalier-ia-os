@@ -4,14 +4,16 @@ import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
-import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
+import { empreinte } from '../functions/src/securite/jetons.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { creerLimiteur } from '../functions/src/securite/limites.js';
 import * as DA from '../functions/partage/devis-articles.js';
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
 
-const JETONS = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, agent: `cia_${'A'.repeat(43)}`, code: `cia_${'C'.repeat(43)}` };
-const entree = (jeton, nom, profil) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif: true });
+const JETONS = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, agent: `cia_${'A'.repeat(43)}`, code: `cia_${'C'.repeat(43)}`, statique: `cia_${'S'.repeat(43)}`, autre: `cia_${'X'.repeat(43)}` };
+const entree = (jeton, nom, profil, extra = {}) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif: true, ...extra });
+// `code` simule une connexion OAuth du propriétaire (e-mail vérifié, casse libre) ; `autre` = un autre compte en profil complet ; `statique` = jeton statique complet sans e-mail (le secret des jetons n'en porte jamais).
+const EMAIL_PROPRIETAIRE = 'Jerome.Chevalier@Gmail.com';
 const arrets = [];
 afterEach(async () => { while (arrets.length) await arrets.pop()(); });
 
@@ -29,8 +31,8 @@ async function demarrer({ existants = true } = {}) {
   Object.assign(collections, { devis_articles: [], devis_devis: [], devis_compteurs: [], devis_parametres: existants ? [REGLAGES_EXISTANTS()] : [] });
   const donnees = creerAccesMemoire(collections);
   const horloge = { t: MAINTENANT.getTime() };
-  const secret = JSON.stringify([entree(JETONS.lecteur, 'lecteur-essai', 'lecteur'), entree(JETONS.biblio, 'hermes-bibliothecaire', 'bibliothecaire'), entree(JETONS.agent, 'n8n-devis-essai', 'agent-devis'), entree(JETONS.code, 'claude-code-essai', 'claude-code')]);
-  const magasin = creerMagasin({ lire: async () => secret, dureeCacheMs: 0 });
+  const entrees = [entree(JETONS.lecteur, 'lecteur-essai', 'lecture'), entree(JETONS.biblio, 'hermes-bibliothecaire', 'ecriture'), entree(JETONS.agent, 'n8n-devis-essai', 'agent-devis'), entree(JETONS.code, 'claude-essai', 'complet', { email: EMAIL_PROPRIETAIRE }), entree(JETONS.statique, 'claude-code-statique', 'complet'), entree(JETONS.autre, 'autre-complet', 'complet', { email: 'autre@exemple.test' })];
+  const magasin = { entrees: async () => ({ entrees, invalides: 0 }) };
   const limiteur = creerLimiteur({ donnees, maintenant: () => horloge.t });
   const gestionnaire = creerGestionnaire({ magasin, donnees, limiteur, maintenant: () => horloge.t, journal: () => {} });
   const serveur = createServer((req, res) => {
@@ -74,6 +76,9 @@ describe('RG1 mise à jour partielle : seuls les champs cités changent', () => 
     assert.equal(r.reglages.marge, 30);
     assert.equal(r.reglages.mentionEmetteur, 'Nouvelle mention');
     assert.equal(r.reglages.entreprise.siret, '999 888 777 00011');
+    assert.equal('coordonneesBancaires' in r.reglages.entreprise, false, 'la réponse ne montre pas les coordonnées bancaires');
+    assert.equal('paiement' in r.reglages.entreprise, false, 'la réponse ne montre pas le paiement (IBAN)');
+    assert.equal(JSON.stringify(r).includes('FR76'), false);
     assert.equal('modeMarge' in r.reglages, false, 'le mode de calcul n’est jamais montré');
     const d = s.doc('devis_parametres', 'reglages');
     assert.equal(d.modeMarge, 'majoration');
@@ -111,10 +116,10 @@ describe('RG2 espace neuf : le document des réglages est créé', () => {
 });
 
 describe('RG3 droits : profil complet seulement', () => {
-  test('RG3 agent-devis, lecture et écriture ne voient pas l’outil et ne peuvent pas l’appeler ; le profil complet le voit', async () => {
+  test('RG3 agent-devis, lecture, écriture, un autre compte complet et un jeton statique complet ne voient pas l’outil et ne peuvent pas l’appeler ; le propriétaire (e-mail vérifié, casse libre) le voit', async () => {
     const s = await demarrer();
     assert.ok((await s.outils('code')).includes(OUTIL));
-    for (const j of ['agent', 'lecteur', 'biblio']) {
+    for (const j of ['agent', 'lecteur', 'biblio', 'autre', 'statique']) {
       assert.ok(!(await s.outils(j)).includes(OUTIL), j);
       refuse(await s.appeler(j, OUTIL, { reglages: { marge: 30 } }));
     }
@@ -271,16 +276,15 @@ describe('RG9 comptes rendus honnêtes et concurrence', () => {
 });
 
 describe('RG10 réservé au propriétaire (décision du 09/11/2026) : le profil ne suffit pas', () => {
-  test('RG10 estProprietaire : serveur de Jérôme sans e-mail ou avec un compte autorisé = oui ; espace client, autre e-mail = non, même en profil complet', async () => {
+  test('RG10 estProprietaire : seul un e-mail de COMPTES_AUTORISES porte le droit, casse et espaces ignorés ; ni profil, ni espace, ni jeton statique ne le donnent', async () => {
     const { estProprietaire } = await import('../functions/src/mcp/gestionnaire.js');
-    const jerome = {};
-    const client = { base: 'clients/a' };
-    assert.equal(estProprietaire({ donnees: jerome, jeton: { profil: 'complet' } }), true, 'jeton sans e-mail sur le serveur de Jérôme');
-    assert.equal(estProprietaire({ donnees: jerome, jeton: { profil: 'complet', email: 'JEROME.CHEVALIER@gmail.com' } }), true, 'compte autorisé (casse ignorée)');
-    assert.equal(estProprietaire({ donnees: jerome, jeton: { profil: 'complet', email: 'autre@exemple.test' } }), false, 'autre compte Google');
-    assert.equal(estProprietaire({ donnees: client, jeton: { profil: 'complet', role: 'editeur' } }), false, 'éditeur d’un client (profil complet)');
-    assert.equal(estProprietaire({ donnees: client, jeton: { profil: 'complet', email: 'jerome.chevalier@gmail.com' } }), false, 'même le compte du propriétaire dans l’espace d’un client');
-    assert.equal(estProprietaire({ donnees: client, jeton: { profil: 'lecture', role: 'lecteur' } }), false, 'lecteur client');
+    assert.equal(estProprietaire({ jeton: { profil: 'complet', email: 'jerome.chevalier@gmail.com' } }), true);
+    assert.equal(estProprietaire({ jeton: { profil: 'complet', email: ' JEROME.CHEVALIER@gmail.com ' } }), true, 'casse et espaces normalisés');
+    assert.equal(estProprietaire({ jeton: { profil: 'complet', email: 'autre@exemple.test', role: 'editeur', client: 'a' } }), false, 'éditeur client en profil complet');
+    assert.equal(estProprietaire({ jeton: { profil: 'lecture', role: 'lecteur', email: 'lea@exemple.test' } }), false);
+    assert.equal(estProprietaire({ jeton: { profil: 'complet' } }), false, 'jeton statique sans e-mail');
+    assert.equal(estProprietaire({ jeton: { profil: 'agent-devis', email: 42 } }), false);
+    assert.equal(estProprietaire({}), false);
   });
   test('RG10 deuxième verrou : l’action refuse à l’exécution si l’appelant n’est pas le propriétaire, sans rien lire ni écrire', async () => {
     const metier = await import('../functions/src/coeur/metier.js');

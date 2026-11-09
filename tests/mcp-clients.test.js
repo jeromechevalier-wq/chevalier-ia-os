@@ -35,6 +35,9 @@ const IDENTITES = {
   'ID-ZOE': { email: ZOE, emailVerifie: true, fournisseur: 'google.com' },
   'ID-ALICE-NON-VERIFIEE': { email: ALICE, emailVerifie: false, fournisseur: 'google.com' },
   'ID-ALICE-MOT-DE-PASSE': { email: ALICE, emailVerifie: true, fournisseur: 'password' },
+  'ID-JEROME': { email: 'jerome.chevalier@gmail.com', emailVerifie: true, fournisseur: 'google.com' },
+  'ID-JEROME-CASSE': { email: 'Jerome.Chevalier@Gmail.COM', emailVerifie: true, fournisseur: 'google.com' },
+  'ID-JEROME-LECTEUR': { email: 'jerome.chevalier@gmail.com', emailVerifie: true, fournisseur: 'google.com' },
   'ID-ALICE-MAJUSCULES': { email: 'Alice@Exemple.TEST', emailVerifie: true, fournisseur: 'google.com' },
 };
 
@@ -1125,7 +1128,7 @@ describe('Outils factures : listés selon les options de l\'espace (Partie B)', 
 
 // --- Devis chez les clients (nuit du 28/10/2026) : le client crée ses devis par son assistant -------------------------------------------
 // Aucun code d'outil n'est copié dans `mcpclients` : ce sont les mêmes OUTILS que chez Jérôme, filtrés par le registre des modules et par le rôle.
-describe('Devis : les 27 outils du module arrivent chez les clients, dans l\'espace de chacun', () => {
+describe('Devis : les outils du module arrivent chez les clients (sauf les réglages, réservés à Jérôme), dans l\'espace de chacun', () => {
   const OUTILS_DEVIS = moduleDeclare('devis').outilsMcp;
   const reglagesDevis = { id: 'reglages', regimeTva: 'assujetti', marge: 20, modeMarge: 'majoration' };
   /** Allume le module Devis (et ses Affaires) pour un client, avec ses réglages et, au besoin, des devis déjà enregistrés. */
@@ -1166,13 +1169,56 @@ describe('Devis : les 27 outils du module arrivent chez les clients, dans l\'esp
       const editeur = await outilsDe('a', 'ID-ALICE');
       for (const n of OUTILS_DEVIS.filter((x) => x !== 'modifier_reglages_devis')) assert.ok(editeur.liste.includes(n), `éditeur : ${n}`);
       assert.ok(!editeur.liste.includes('modifier_reglages_devis'), 'un éditeur client (profil complet) ne voit pas modifier_reglages_devis');
+      const avantReglages = await donnees.document('clients/a/devis_parametres', 'reglages');
       const refus = await editeur.c.callTool({ name: 'modifier_reglages_devis', arguments: { reglages: { marge: 30 } } }).catch((e) => ({ isError: true, content: [{ text: String(e.message) }] }));
       assert.equal(refus.isError, true, 'appel direct refusé par le serveur');
+      assert.match(refus.content[0].text, /not found|introuvable|inconnu/i);
+      assert.deepEqual(await donnees.document('clients/a/devis_parametres', 'reglages'), avantReglages, 'rien n\'a été écrit chez le client');
       await editeur.c.close();
       const lecteur = await outilsDe('a', 'ID-LEA');
       assert.deepEqual(lecteur.liste.filter((n) => OUTILS_DEVIS.includes(n)), ['chercher_article', 'lire_devis', 'lire_reglages_devis', 'lister_articles', 'lister_devis', 'obtenir_pdf_officiel_devis', 'rechercher_article_par_phrase']);
       await lecteur.c.close();
     } finally { await remettre(); }
+  });
+
+  test('devis-2b modifier_reglages_devis : Jérôme (identité Google vérifiée) le voit et l\'utilise dans l\'espace d\'un client, et seulement dans le sien ; un autre éditeur complet, un lecteur, un compte non vérifié : outil absent et refusé', async () => {
+    await remettre();
+    const membre = (role) => donnees.appliquer([{ type: 'set', collection: 'clients/a/membres', id: 'jerome.chevalier@gmail.com', donnees: { role } }]);
+    try {
+      await activerDevis('a');
+      await membre('editeur');
+      for (const identite of ['ID-JEROME', 'ID-JEROME-CASSE']) {
+        const { c, liste } = await outilsDe('a', identite);
+        assert.ok(liste.includes('modifier_reglages_devis'), `${identite} : outil visible`);
+        const r = await c.callTool({ name: 'modifier_reglages_devis', arguments: { reglages: { margeDevis: 17, entreprise: { nom: 'Atelier ALPHA' } } } });
+        assert.ok(!r.isError, r.content?.[0]?.text);
+        const sortie = resultat(r);
+        assert.equal('paiement' in sortie.reglages.entreprise, false);
+        assert.equal('coordonneesBancaires' in sortie.reglages.entreprise, false);
+        await c.close();
+      }
+      const ecrit = await donnees.document('clients/a/devis_parametres', 'reglages');
+      assert.equal(ecrit.margeDevis, 17, 'écrit dans l\'espace du client');
+      assert.equal(ecrit.entreprise.nom, 'Atelier ALPHA');
+      assert.equal(await donnees.document('devis_parametres', 'reglages'), null, 'rien à la racine (CRM de Jérôme)');
+      const ligne = (await donnees.liste('clients/a/crm_audit')).find((l) => l.outil === 'modifier_reglages_devis');
+      assert.ok(ligne && /jerome/.test(ligne.acteur), `le journal retient l'acteur : ${ligne?.acteur}`);
+      // Même éditeur du client, autre identité : refus.
+      const alice = await outilsDe('a', 'ID-ALICE');
+      assert.ok(!alice.liste.includes('modifier_reglages_devis'));
+      assert.equal(await refuse(alice.c, 'modifier_reglages_devis', { reglages: { margeDevis: 99 } }), true);
+      await alice.c.close();
+      // Jérôme lui-même mais seulement lecteur de cet espace : profil lecture, jamais l'outil.
+      await membre('lecteur');
+      const lecteur = await outilsDe('a', 'ID-JEROME-LECTEUR');
+      assert.ok(!lecteur.liste.includes('modifier_reglages_devis'));
+      assert.equal(await refuse(lecteur.c, 'modifier_reglages_devis', { reglages: { margeDevis: 98 } }), true);
+      await lecteur.c.close();
+      assert.equal((await donnees.document('clients/a/devis_parametres', 'reglages')).margeDevis, 17, 'les refus n\'ont rien écrit');
+    } finally {
+      await donnees.appliquer([{ type: 'delete', collection: 'clients/a/membres', id: 'jerome.chevalier@gmail.com' }]).catch(() => {});
+      await remettre();
+    }
   });
 
   test('devis-3 un éditeur crée un brouillon de devis dans SON espace (rien chez un autre client)', async () => {

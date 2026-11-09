@@ -112,11 +112,11 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
  * `donnees` est ce que les outils voient (chez un client : l'espace du client seulement, voir avecBase) ; `outils` est déjà limité aux modules actifs.
  */
 /**
- * Appelant propriétaire (décision de Jérôme, 09/11/2026) : l'appel arrive sur le serveur de Jérôme, jamais dans l'espace d'un client (`donnees.base` n'existe que pour un client,
- * fixé par avecBase, jamais lu dans une demande), et, si la connexion porte un e-mail (compte Google), cet e-mail est l'un des comptes autorisés. Le profil ne compte pas :
- * un éditeur client ou un assistant OAuth d'un client a le profil `complet` sans être le propriétaire.
+ * Appelant propriétaire (décision de Jérôme, 09/11/2026) : la CONNEXION porte l'e-mail vérifié d'un compte de COMPTES_AUTORISES, sur le serveur de Jérôme comme dans l'espace d'un client.
+ * Cet e-mail vient de l'identité Google vérifiée à la connexion OAuth (jamais d'une saisie ni d'une donnée du client) ; un jeton statique (agent-devis, lecture, ecriture, claude-code) n'en a pas : refusé.
+ * Le profil ne compte pas : un éditeur client ou un assistant OAuth d'un client a le profil `complet` sans être le propriétaire.
  */
-export const estProprietaire = ({ donnees, jeton }) => !donnees?.base && (typeof jeton?.email !== 'string' || COMPTES_AUTORISES.includes(jeton.email.toLowerCase()));
+export const estProprietaire = ({ jeton }) => typeof jeton?.email === 'string' && COMPTES_AUTORISES.includes(jeton.email.trim().toLowerCase());
 
 export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM, stockage = null, sortieEmail = null, baseLien = BASE_LIEN_JEROME }) {
   const limites = limitesDuJeton(jeton);
@@ -132,8 +132,8 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
     return refuser(res, 429, 'limite_depassee', { 'Retry-After': String(e.reessayerDansS) });
   }
 
-  // Les outils marqués `reserveAuProprietaire` n'existent (liste, qui_suis_je, exécution) que pour le propriétaire, quel que soit le profil.
-  const proprietaire = estProprietaire({ donnees, jeton });
+  // Les outils marqués `reserveAuProprietaire` n'existent (liste, qui_suis_je, exécution) que pour le propriétaire (identité vérifiée), quel que soit le profil.
+  const proprietaire = estProprietaire({ jeton });
   const permis = outilsAutorises(jeton.profil, outils).filter((o) => !o.reserveAuProprietaire || proprietaire);
   const serveur = new McpServer({ name: nomServeur, version: VERSION_SERVEUR });
   // Contexte d'écriture de CET appel : acteur du jeton, canal « mcp », heure du serveur. Les plafonds d'écriture sont réservés ici, juste avant d'écrire.

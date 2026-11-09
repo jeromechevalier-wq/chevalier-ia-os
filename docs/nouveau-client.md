@@ -214,8 +214,8 @@ Pour essayer **sans rien lire en ligne** (par exemple sans être connecté) : aj
 - Ils écrivent avec les droits d'administration, donc **sans passer par les règles de sécurité** : c'est pour cela qu'ils vérifient tout eux-mêmes. Les tests (`tests/outil-client.test.js`, sur émulateurs) prouvent qu'un client créé est lisible par ses membres et refusé aux autres, qu'une simulation n'écrit rien, qu'une sauvegarde ne contient que le client demandé et qu'une suppression n'efface rien d'un autre client.
 - Journal technique : `docs/journal-chantier-13.md`. Étude : `docs/etude-reutilisation-coque.md`, chantier 13.
 
-## Régler l'espace d'un nouveau client (09/11/2026)
+## Régler l'espace d'un nouveau client avec l'assistant (09/11/2026)
 
-L'outil `modifier_reglages_devis` est **réservé au propriétaire** (serveur de Jérôme) : un client, même éditeur, ne le voit pas. Il ne règle donc pas l'espace d'un client à distance ; le « un clic » pour les nouveaux clients (réglages et `modifier_mon_espace`) reste à concevoir (voir `.github/A-FAIRE.md`). En attendant, « Mon entreprise », la marge et les mentions se règlent à l'écran (Réglages > Devis) dans l'espace du client.
+Jérôme (seul) peut régler le module Devis d'un client en conversation : il se connecte à `/mcp/<client>` avec son compte Google (il doit être membre de l'espace) et demande à son assistant de régler « Mon entreprise », la marge, la TVA, la durée de validité, les mentions (outil `modifier_reglages_devis`). Aucun client ne voit cet outil, même éditeur. Il ne règle ni les coordonnées bancaires, ni le logo, ni le nom ou la couleur de l'espace (à l'écran pour l'instant). Chaque changement laisse une ligne dans le Journal du client avec la copie d'avant (`restaurer_depuis_audit`).
 
-Ne mets jamais de donnée réelle d'un client dans le dépôt ni dans les docs : une « fiche de démarrage » reste hors dépôt.
+Ne mets jamais de donnée réelle d'un client dans le dépôt ni dans les docs : une « fiche de démarrage » reste hors dépôt. Vérifier : `lire_reglages_devis`, puis l'écran Réglages > Devis.
