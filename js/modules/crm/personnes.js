@@ -29,12 +29,14 @@ const COLONNES_DEFAUT = ['nom', 'organisation', 'email', 'telephone', 'etiquette
 /** Clés de tri : celles des colonnes (même identifiant), plus la création (sans colonne). */
 const CLES_TRI = { ...Object.fromEntries(COLONNES.map((c) => [c.id, c.tri])), creation: T.cleCreation };
 
+/** Devis seul (socle seul) : pas d'étiquettes (leur liste n'est pas lue). */
+const colonnesPossibles = () => COLONNES.filter((c) => !(D.estNoyau() && c.id === 'etiquettes'));
 function colonnesVisibles() {
   try {
     const v = JSON.parse(lirePreference('colonnes.personnes', 'null'));
-    if (Array.isArray(v) && v.length) return v.filter((id) => COLONNES.some((c) => c.id === id));
+    if (Array.isArray(v) && v.length) return v.filter((id) => colonnesPossibles().some((c) => c.id === id));
   } catch { /* préférence illisible */ }
-  return COLONNES_DEFAUT;
+  return COLONNES_DEFAUT.filter((id) => colonnesPossibles().some((c) => c.id === id));
 }
 
 function cellule(colonne, p) {
@@ -58,7 +60,7 @@ function cellule(colonne, p) {
   }
 }
 
-export function rendrePersonnes(conteneur) {
+export function rendrePersonnes(conteneur, { clients = false } = {}) { // clients : portail devis seul (titre « Clients »)
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite' });
   const zoneTableau = h('div', { class: 'zone-tableau' });
   const filtres = barreFiltres({
@@ -71,7 +73,7 @@ export function rendrePersonnes(conteneur) {
   const boutonColonnes = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Choisir les colonnes', 'data-action': 'colonnes',
     onclick: (e) => {
       const visibles = colonnesVisibles();
-      ouvrirMenu(e.currentTarget, COLONNES.filter((c) => !c.fixe).map((c) => ({
+      ouvrirMenu(e.currentTarget, colonnesPossibles().filter((c) => !c.fixe).map((c) => ({
         libelle: `${visibles.includes(c.id) ? '✓ ' : ''}${c.libelle}`,
         action: () => {
           const v = visibles.includes(c.id) ? visibles.filter((x) => x !== c.id) : [...visibles, c.id];
@@ -94,7 +96,7 @@ export function rendrePersonnes(conteneur) {
     let lignes = L.filtrerPersonnes(D.etat.personnes, criteres, contexte);
     lignes = T.trierSelon(lignes, tri, CLES_TRI);
     const total = D.etat.personnes.filter((p) => !p.archive).length;
-    remplir(compteur, `${lignes.length} ${lignes.length > 1 ? 'contacts' : 'contact'}`, lignes.length !== total && !criteres.archives ? ` sur ${total}` : '');
+    remplir(compteur, `${lignes.length} ${clients ? (lignes.length > 1 ? 'clients' : 'client') : (lignes.length > 1 ? 'contacts' : 'contact')}`, lignes.length !== total && !criteres.archives ? ` sur ${total}` : '');
     if (!D.estPret()) { remplir(zoneTableau, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }))); return; }
     if (!lignes.length) {
       remplir(zoneTableau, etatVide(
@@ -102,7 +104,7 @@ export function rendrePersonnes(conteneur) {
         { action: D.etat.personnes.length ? null : h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne') }));
       return;
     }
-    const visibles = COLONNES.filter((c) => colonnesVisibles().includes(c.id));
+    const visibles = colonnesPossibles().filter((c) => colonnesVisibles().includes(c.id));
     const entete = h('tr', {}, visibles.map((c) => h('th', { scope: 'col', 'aria-sort': tri.critere === c.id ? (tri.sens === 'asc' ? 'ascending' : 'descending') : 'none' },
       h('button', { type: 'button', class: 'tri', onclick: () => changerTri(T.triApresClicColonne('personnes', tri, c.id)) },
         c.libelle, tri.critere === c.id ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))),
@@ -115,7 +117,7 @@ export function rendrePersonnes(conteneur) {
     remplir(zoneTableau, h('table', { class: 'tableau tableau-personnes' }, h('thead', {}, entete), h('tbody', {}, corps)));
   }
 
-  const entete = enteteListe({ titre: 'Personnes', compteur, actions: [
+  const entete = enteteListe({ titre: clients ? 'Clients' : 'Personnes', compteur, actions: [
     h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-personnes', 'aria-label': 'Exporter les contacts', title: 'Exporter les contacts', onclick: ouvrirExportContacts }, icone('download', { taille: 16 })),
     h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne')] });
   conteneur.append(h('div', { class: 'page page-liste' }, entete, h('div', { class: 'barre-affaires' }, filtres.element, choixTri.element), zoneTableau));
@@ -171,7 +173,7 @@ export function menuPersonne(p) {
     { libelle: 'Ouvrir la fiche', icone: 'user', action: () => naviguer(`crm/personnes/${p.id}`) },
     entreeMarquerTest(p, (patch) => D.majPersonne(p.id, patch)),
     { libelle: p.archive ? 'Désarchiver' : 'Archiver', icone: p.archive ? 'archive-restore' : 'archive', action: () => D.majPersonne(p.id, { archive: !p.archive }) },
-    { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionPersonne(p) },
+    ...(D.estNoyau() ? [] : [{ libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionPersonne(p) }]),
   ];
 }
 
@@ -187,7 +189,7 @@ export async function ouvrirCreationPersonne({ organisationId = null, nom = '' }
   const telephones = listeContacts({ libelle: 'Téléphone', ajout: 'Ajouter un numéro de téléphone', type: 'tel', surChangement: verifierDoublon });
   const emails = listeContacts({ libelle: 'Email', ajout: 'Ajouter une adresse email', type: 'email', surChangement: verifierDoublon });
   let etiquettes = [];
-  const champEtiquettes = selecteurEtiquettes({ surChoix: (liste) => { etiquettes = liste.map((e) => e.id); } });
+  const champEtiquettes = D.estNoyau() ? null : selecteurEtiquettes({ surChoix: (liste) => { etiquettes = liste.map((e) => e.id); } });
   const bandeau = h('div', { class: 'bandeau-doublon', role: 'status', hidden: true });
   let doublon = false;
   let boutonEnregistrer = null;
@@ -210,7 +212,7 @@ export async function ouvrirCreationPersonne({ organisationId = null, nom = '' }
     h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Organisation'), orga.element),
     h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Téléphone'), telephones.element),
     h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Email'), emails.element),
-    h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Étiquettes'), champEtiquettes.element),
+    champEtiquettes ? h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Étiquettes'), champEtiquettes.element) : null,
     h('p', { class: 'erreur', role: 'alert', 'data-erreur': 'creation' }));
 
   let identifiant = null;

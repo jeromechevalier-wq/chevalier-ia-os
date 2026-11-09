@@ -342,6 +342,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .fiche-montant-devis { display: inline-flex; align-items: center; gap: var(--esp-2); }
 .fiche-montant-suffixe { font-size: var(--fs-texte); color: var(--texte2); }
 .fiche-grille { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 24px; align-items: start; }
+.fiche-grille.fiche-sans-droite { grid-template-columns: minmax(0, 1fr); } /* Devis seul : pas d'activités, la fiche prend toute la largeur */
 .fiche-gauche, .fiche-droite { min-width: 0; }
 .fiche-gauche { background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); padding: var(--esp-2) 15px; }
 @media (max-width: 1023px) {

@@ -209,6 +209,7 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
       { chemin: 'devis/bordereau', libelle: 'Catalogue', icone: 'list' },
       { chemin: 'devis/vocabulaire', libelle: 'Vocabulaire', icone: 'book-open' }, // 3e écran du module Devis (29/10/2026, hors menu : on y arrive par la liste des devis)
       { chemin: 'devis/relances', libelle: 'Relances', icone: 'history' }, // 4e écran (portail devis seul, étape 2a) : hors menu complet, au menu du portail seulement
+      { chemin: 'devis/statistiques', libelle: 'Statistiques', icone: 'chart-column' }, // 5e écran (09/11/2026) : idem
     ] },
     // Ajout voulu (veille vendable en module, étape 1, 2026-10-14) : le menu du CRM gagne « Veille » après Projets.
     { id: 'veille', libelle: 'Veille', icone: 'globe', prefixe: 'veille', entrees: [

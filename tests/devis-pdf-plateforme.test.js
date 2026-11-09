@@ -545,13 +545,46 @@ describe('3 logo de l’espace : le serveur le lit lui-même dans le stockage (j
     assert.match(readFileSync(new URL('../functions-plateforme/src/devis-pdf.js', import.meta.url), 'utf8'), /lireLogo: creerLireLogoEspace/);
     assert.match(readFileSync(new URL('../functions-plateforme/src/index.js', import.meta.url), 'utf8'), /nomBucket: BUCKET/);
   });
+  test('M4 emetteurSansLogoExterne : une data: URL de plus de 1 500 000 caractères est retirée, le PDF se fait sans logo', async () => {
+    const { emetteurSansLogoExterne, LOGO_TAILLE_MAX } = await import('../functions/src/devis/pdf-service.js');
+    const prefixe = 'data:image/png;base64,';
+    const pile = prefixe + 'A'.repeat(LOGO_TAILLE_MAX - prefixe.length);
+    assert.equal(pile.length, 1_500_000);
+    assert.equal(emetteurSansLogoExterne({ nom: 'A', logo: pile }).logo, pile, 'exactement au plafond : gardé');
+    const trop = pile + 'A';
+    assert.equal(trop.length, 1_500_001);
+    const e = emetteurSansLogoExterne({ nom: 'A', logo: trop });
+    assert.equal(e.logo, undefined);
+    assert.equal(e.nom, 'A');
+    // Le PDF : « Mon entreprise » avec un logo data: de 1 500 001 caractères → statut ok, aucune image.
+    const m = await monde({ finaliser: [] });
+    const f = faux();
+    m.collections['clients/a/devis_parametres'][0] = { id: 'reglages', regimeTva: 'assujetti', entreprise: { ...EMETTEUR_ESSAI, nom: 'Entreprise Ecran', logo: trop } };
+    const r = await fabriquerPdfClient({ db: fauxDb(), auth: auth(ALICE), donnees: { client: 'a', devisId: 'd-a', brouillon: true }, convertir: f.convertir, stockage: f.stockage, nomBucket: BUCKET, creerDonnees: m.creerDonnees, maintenant: () => MAINTENANT.getTime() });
+    assert.equal(r.statut, 'ok');
+    assert.ok(!f.vus.html[0].includes('<img class="logo-devis"'));
+  });
+  test('M4 un logo d’espace de la taille maximale acceptée par « Mon espace » (LOGO_OCTETS_MAX) passe dans le PDF, sans avertissement', async () => {
+    const { f, brouillon } = await avecLogo(adresse('marques/a/logo-1.png'), Buffer.concat([PNG, Buffer.alloc(LOGO_OCTETS_MAX - PNG.length)]));
+    try {
+      const r = await brouillon();
+      assert.equal(r.statut, 'ok');
+      assert.equal(r.avertissement, undefined);
+      assert.match(f.vus.html[0], /<img class="logo-devis" src="data:image\/png;base64,/);
+    } finally { retirer(); }
+  });
   test('3 trop lourd côté stockage (plus gros que le plafond) : message « trop lourd », PDF sans logo ; une lecture qui ne répond JAMAIS : « n’a pas pu être lu » au bout du délai, PDF sans logo, jamais un échec', async () => {
-    const gros = Object.assign(new Error('Stockage : le fichier n\'a pas pu être lu.'), { cause: { code: 'trop_gros' } });
-    const a = await avecLogo(adresse('marques/a/logo-1.png'), gros);
+    // M1 : le VRAI `lire` de stockage.js (taille lue avant le téléchargement) lève l'erreur ; creerLireLogoEspace la traduit en « trop lourd ».
+    const { creerStockage } = await import('../functions/src/devis/stockage.js');
+    const bucket = { file: () => ({ getMetadata: async () => [{ size: 2 * 1024 * 1024 + 1 }], download: async () => { throw new Error('ne doit pas être téléchargé'); } }) };
+    const vrai = creerStockage({ bucket });
+    const a = await avecLogo(adresse('marques/a/logo-1.png'), PNG);
+    a.f.stockage.lire = vrai.lire;
     try {
       const r = await a.brouillon();
       assert.equal(r.statut, 'ok');
       assert.match(r.avertissement, /trop lourd/);
+      assert.ok(!a.f.vus.html[0].includes('<img class="logo-devis"'));
     } finally { retirer(); }
     const b = await avecLogo(adresse('marques/a/logo-1.png'), PNG);
     b.f.stockage.lire = () => new Promise(() => {}); // ne répond jamais
