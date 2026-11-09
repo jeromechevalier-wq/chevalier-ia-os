@@ -77,6 +77,9 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
         vider(coquille.contenu);
         vue.quitter?.();
         vue.quitter = mod.monterEcranSocle(coquille.contenu, socle);
+      }).catch((e) => {
+        console.warn(e);
+        if (vue?.cle === 'socle') { vider(coquille.contenu); coquille.contenu.append(h('p', { class: 'erreur', role: 'alert' }, 'Impossible d’ouvrir cet écran pour le moment. Réessaie.')); }
       });
       coquille.activer(segs.join('/'));
       return;

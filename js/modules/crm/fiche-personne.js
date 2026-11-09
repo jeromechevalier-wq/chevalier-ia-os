@@ -45,7 +45,7 @@ export async function demanderSuppressionPersonne(p) {
   }
 }
 
-export function rendreFichePersonne(conteneur, id) {
+export function rendreFichePersonne(conteneur, id, { clients = false } = {}) { // clients : portail devis seul, où l'écran s'appelle « Clients »
   let panneau = null;
   let editionOrganisation = false;
   let toutesAffaires = false;
@@ -53,7 +53,7 @@ export function rendreFichePersonne(conteneur, id) {
   conteneur.append(racine);
 
   function introuvable() {
-    remplir(racine, h('div', { class: 'page' }, lienRetour('#/crm/personnes', 'Personnes'),
+    remplir(racine, h('div', { class: 'page' }, lienRetour('#/crm/personnes', clients ? 'Clients' : 'Personnes'),
       etatVide(D.estPret() ? 'Cette personne n’existe plus.' : 'Chargement…')));
   }
 
@@ -73,10 +73,10 @@ export function rendreFichePersonne(conteneur, id) {
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         entreeMarquerTest(p, (patch) => D.majPersonne(p.id, patch)),
         { libelle: p.archive ? 'Désarchiver' : 'Archiver', icone: p.archive ? 'archive-restore' : 'archive', action: () => D.majPersonne(p.id, { archive: !p.archive }) },
-        { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionPersonne(p) },
+        ...(D.estNoyau() ? [] : [{ libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionPersonne(p) }]), // Devis seul : la suppression d'une fiche passe par les affaires, elle n'existe pas sans elles
       ]) }, icone('ellipsis', { taille: 20 }));
     const entete = h('header', { class: 'fiche-tete' },
-      lienRetour('#/crm/personnes', 'Personnes'),
+      lienRetour('#/crm/personnes', clients ? 'Clients' : 'Personnes'),
       h('div', { class: 'fiche-tete-ligne' },
         avatar(p.nom, 52),
         h('div', { class: 'fiche-titre' }, nom,
@@ -87,12 +87,12 @@ export function rendreFichePersonne(conteneur, id) {
           menu)));
 
     // ---- Résumé
-    const etiquettes = selecteurEtiquettes({ valeurIds: p.etiquettes || [], surChoix: (liste) => D.majPersonne(p.id, { etiquettes: liste.map((e) => e.id) }) });
+    const etiquettes = D.estNoyau() ? null : selecteurEtiquettes({ valeurIds: p.etiquettes || [], surChoix: (liste) => D.majPersonne(p.id, { etiquettes: liste.map((e) => e.id) }) });
     const emailOk = L.emailActif(p);
     const resume = sectionRepliable({
       id: 'personne-resume', titre: 'Résumé',
       contenu: h('div', { class: 'pile resume' },
-        h('div', { class: 'resume-ligne' }, etiquettes.element),
+        etiquettes ? h('div', { class: 'resume-ligne' }, etiquettes.element) : null,
         champContacts({ libelle: 'Email', genre: 'email', valeurs: p.emails || [], surEnregistrer: (liste) => D.majPersonne(p.id, L.patchEmails(liste)) }).element,
         champContacts({ libelle: 'Téléphone', genre: 'tel', valeurs: p.telephones || [], surEnregistrer: (liste) => D.majPersonne(p.id, L.patchTelephones(liste)) }).element,
         champAdresses({ valeurs: L.adressesDe(p), surEnregistrer: (patch) => D.majPersonne(p.id, patch), lireActuelles: () => L.adressesDe(D.personne(p.id) || p) }).element,

@@ -66,7 +66,7 @@ export function statistiquesDevis(devis, { aujourdhui, periode = PERIODE_DEFAUT 
     const ligne = parMois.get(moisParis(new Date(ms)));
     if (!ligne) continue; // hors période
     parStatut[d.statut] += 1;
-    ligne.devis += 1;
+    if (d.statut !== 'remplace') ligne.devis += 1; // une ancienne version remplacée n'est pas un devis de plus : « N devis » = la somme des statuts affichés
     if (SORTIS.includes(d.statut)) ligne.envoyes += 1;
     if (d.statut === 'accepte') {
       ligne.signes += 1;

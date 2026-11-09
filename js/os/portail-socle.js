@@ -7,7 +7,7 @@ import { rendreFichePersonne } from '../modules/crm/fiche-personne.js';
 import { rendreFicheOrganisation } from '../modules/crm/fiche-organisation.js';
 
 const RENDUS = {
-  personnes: (conteneur, id) => (id ? rendreFichePersonne(conteneur, id) : rendrePersonnes(conteneur)),
+  personnes: (conteneur, id) => (id ? rendreFichePersonne(conteneur, id, { clients: true }) : rendrePersonnes(conteneur, { clients: true })), // dans le portail, l'écran s'appelle « Clients »
   organisations: (conteneur, id) => (id ? rendreFicheOrganisation(conteneur, id) : rendreOrganisations(conteneur)),
 };
 

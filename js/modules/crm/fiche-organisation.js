@@ -36,7 +36,7 @@ export function rendreFicheOrganisation(conteneur, id) {
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         entreeMarquerTest(o, (patch) => D.majOrganisation(o.id, patch)),
         { libelle: o.archive ? 'Désarchiver' : 'Archiver', icone: o.archive ? 'archive-restore' : 'archive', action: () => D.majOrganisation(o.id, { archive: !o.archive }) },
-        { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionOrganisation(o) },
+        ...(D.estNoyau() ? [] : [{ libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionOrganisation(o) }]),
       ]) }, icone('ellipsis', { taille: 20 }));
     const entete = h('header', { class: 'fiche-tete' },
       lienRetour('#/crm/organisations', 'Organisations'),
@@ -48,11 +48,11 @@ export function rendreFicheOrganisation(conteneur, id) {
           D.estNoyau() ? null : h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire({ organisationId: o.id }) }, icone('plus', { taille: 16 }), 'Affaire'), // Devis seul (socle seul) : ni affaires ni activités
           menu)));
 
-    const etiquettes = selecteurEtiquettes({ valeurIds: o.etiquettes || [], surChoix: (liste) => D.majOrganisation(o.id, { etiquettes: liste.map((e) => e.id) }) });
+    const etiquettes = D.estNoyau() ? null : selecteurEtiquettes({ valeurIds: o.etiquettes || [], surChoix: (liste) => D.majOrganisation(o.id, { etiquettes: liste.map((e) => e.id) }) });
     const prop = (libelle, champ, extra = {}) => champPropriete({ libelle, valeur: o[champ] ?? '', surEnregistrer: (v) => D.majOrganisation(o.id, { [champ]: v }), ...extra }).element;
     const resume = sectionRepliable({
       id: 'organisation-resume', titre: 'Résumé',
-      contenu: h('div', { class: 'pile resume' }, h('div', { class: 'resume-ligne' }, etiquettes.element),
+      contenu: h('div', { class: 'pile resume' }, etiquettes ? h('div', { class: 'resume-ligne' }, etiquettes.element) : null,
         h('div', { class: 'proprietes' }, champAdresses({ valeurs: L.adressesDe(o), surEnregistrer: (patch) => D.majOrganisation(o.id, patch), lireActuelles: () => L.adressesDe(D.organisation(o.id) || o) }).element, prop('Site web', 'siteWeb', { type: 'url', lienVers: (v) => v }),
           champContacts({ libelle: 'Téléphone', genre: 'tel', valeurs: L.contactsOrganisation(o, 'telephones'), surEnregistrer: (liste) => D.majOrganisation(o.id, L.patchContactsOrganisation('telephones', liste)) }).element,
           champContacts({ libelle: 'Email', genre: 'email', valeurs: L.contactsOrganisation(o, 'emails'), surEnregistrer: (liste) => D.majOrganisation(o.id, L.patchContactsOrganisation('emails', liste)) }).element,
@@ -61,7 +61,8 @@ export function rendreFicheOrganisation(conteneur, id) {
     const details = sectionRepliable({
       id: 'organisation-details', titre: 'Détails',
       contenu: h('div', { class: 'proprietes' },
-        champPropriete({ libelle: 'Secteur', valeur: o.secteur || '', type: 'intelligent', fournir: fournisseurTexte(() => [...D.etat.secteurs, ...D.etat.organisations.map((x) => x.secteur)]),
+        D.estNoyau() ? prop('Secteur', 'secteur') // Devis seul : texte simple, la liste des secteurs (crm_parametres) n'est pas lue et ne doit pas être réécrite
+        : champPropriete({ libelle: 'Secteur', valeur: o.secteur || '', type: 'intelligent', fournir: fournisseurTexte(() => [...D.etat.secteurs, ...D.etat.organisations.map((x) => x.secteur)]),
           surEnregistrer: async (v) => { if (v) await D.ajouterValeurListe('secteurs', v); await D.majOrganisation(o.id, { secteur: v }); } }).element,
         champPropriete({ libelle: 'Taille', valeur: o.taille || '', type: 'select', options: L.TAILLES.map((t) => ({ valeur: t, libelle: t })), surEnregistrer: (v) => D.majOrganisation(o.id, { taille: v }) }).element,
         prop('Ville', 'ville', { type: 'intelligent', fournir: fournisseurVilles() })),

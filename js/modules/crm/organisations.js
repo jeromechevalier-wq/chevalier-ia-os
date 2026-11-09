@@ -27,12 +27,14 @@ const COLONNES_DEFAUT = COLONNES.map((c) => c.id);
 /** Clés de tri : celles des colonnes (même identifiant), plus la création (sans colonne). */
 const CLES_TRI = { ...Object.fromEntries(COLONNES.map((c) => [c.id, c.tri])), creation: T.cleCreation };
 
+/** Devis seul (socle seul) : ni affaires ni étiquettes. */
+const colonnesPossibles = () => COLONNES.filter((c) => !(D.estNoyau() && ['affaires', 'etiquettes'].includes(c.id)));
 function colonnesVisibles() {
   try {
     const v = JSON.parse(lirePreference('colonnes.organisations', 'null'));
-    if (Array.isArray(v) && v.length) return v.filter((id) => COLONNES.some((c) => c.id === id));
+    if (Array.isArray(v) && v.length) return v.filter((id) => colonnesPossibles().some((c) => c.id === id));
   } catch { /* préférence illisible */ }
-  return COLONNES_DEFAUT;
+  return COLONNES_DEFAUT.filter((id) => colonnesPossibles().some((c) => c.id === id));
 }
 
 function cellule(colonne, o) {
@@ -59,7 +61,7 @@ export function rendreOrganisations(conteneur) {
   const boutonColonnes = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Choisir les colonnes', 'data-action': 'colonnes',
     onclick: (e) => {
       const visibles = colonnesVisibles();
-      ouvrirMenu(e.currentTarget, COLONNES.filter((c) => !c.fixe).map((c) => ({
+      ouvrirMenu(e.currentTarget, colonnesPossibles().filter((c) => !c.fixe).map((c) => ({
         libelle: `${visibles.includes(c.id) ? '✓ ' : ''}${c.libelle}`,
         action: () => {
           const v = visibles.includes(c.id) ? visibles.filter((x) => x !== c.id) : [...visibles, c.id];
@@ -88,7 +90,7 @@ export function rendreOrganisations(conteneur) {
         { action: D.etat.organisations.length ? null : h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => ouvrirCreationOrganisation() }, icone('plus', { taille: 16 }), 'Organisation') }));
       return;
     }
-    const visibles = COLONNES.filter((c) => colonnesVisibles().includes(c.id));
+    const visibles = colonnesPossibles().filter((c) => colonnesVisibles().includes(c.id));
     const entete = h('tr', {}, visibles.map((c) => h('th', { scope: 'col', 'aria-sort': tri.critere === c.id ? (tri.sens === 'asc' ? 'ascending' : 'descending') : 'none' },
       h('button', { type: 'button', class: 'tri', onclick: () => changerTri(T.triApresClicColonne('organisations', tri, c.id)) },
         c.libelle, tri.critere === c.id ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))),
@@ -147,7 +149,7 @@ export function menuOrganisation(o) {
     { libelle: 'Ouvrir la fiche', icone: 'building-2', action: () => naviguer(`crm/organisations/${o.id}`) },
     entreeMarquerTest(o, (patch) => D.majOrganisation(o.id, patch)),
     { libelle: o.archive ? 'Désarchiver' : 'Archiver', icone: o.archive ? 'archive-restore' : 'archive', action: () => D.majOrganisation(o.id, { archive: !o.archive }) },
-    { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionOrganisation(o) },
+    ...(D.estNoyau() ? [] : [{ libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionOrganisation(o) }]),
   ];
 }
 
@@ -157,7 +159,7 @@ export async function ouvrirCreationOrganisation({ nom = '' } = {}) {
   const champNom = h('input', { class: 'champ', type: 'text', id: 'creation-org-nom', autocomplete: 'off', 'aria-label': 'Nom', placeholder: 'Nom', value: nom, autofocus: true });
   const champAdresse = h('input', { class: 'champ', type: 'text', autocomplete: 'off', 'aria-label': 'Adresse', placeholder: 'Adresse' });
   let etiquettes = [];
-  const champEtiquettes = selecteurEtiquettes({ surChoix: (liste) => { etiquettes = liste.map((e) => e.id); } });
+  const champEtiquettes = D.estNoyau() ? null : selecteurEtiquettes({ surChoix: (liste) => { etiquettes = liste.map((e) => e.id); } });
   const bandeau = h('div', { class: 'bandeau-doublon', role: 'status', hidden: true });
   let boutonEnregistrer = null;
   function verifierDoublon() {
@@ -170,7 +172,7 @@ export async function ouvrirCreationOrganisation({ nom = '' } = {}) {
   const corps = h('div', { class: 'pile formulaire-creation' },
     h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'creation-org-nom' }, 'Nom'), champNom),
     bandeau,
-    h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Étiquettes'), champEtiquettes.element),
+    champEtiquettes ? h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Étiquettes'), champEtiquettes.element) : null,
     h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Adresse'), champAdresse),
     h('p', { class: 'erreur', role: 'alert', 'data-erreur': 'creation' }));
   let identifiant = null;

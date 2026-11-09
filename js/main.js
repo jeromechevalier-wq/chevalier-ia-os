@@ -146,6 +146,9 @@ function afficherRoute(route) {
         vider(coquille.contenu);
         session.vue.quitter?.();
         session.vue.quitter = m.monterEcranSocle(coquille.contenu, socle);
+      }).catch((e) => {
+        console.warn(e);
+        if (session?.vue?.cle === 'socle') { vider(coquille.contenu); coquille.contenu.append(h('p', { class: 'erreur', role: 'alert' }, 'Impossible d’ouvrir cet écran pour le moment. Réessaie.')); }
       });
       coquille.activer(segs.join('/'));
       return;

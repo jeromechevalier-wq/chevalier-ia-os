@@ -2,7 +2,7 @@
 // Le nom d'un test commence par le numéro du critère (E1 à E6). Exemples chiffrés : 100 €.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, estTelephone, attendreCalme, JEROME, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, connecter, ecrireDocument, lireDocument, estTelephone, attendreCalme, JEROME, PROJET, FIRESTORE, URL_APP } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/portail-menu/', import.meta.url));
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
@@ -154,5 +154,41 @@ test.describe('chez un client Devis seul (sans Affaires)', () => {
     await expect(page.locator('[data-chiffre="ca-signe"] .chiffre-valeur')).toContainText('200');
     await page.evaluate(() => { location.hash = '#/espace/devisseul/portail-devis/crm/affaires'; });
     await expect(page.getByRole('heading', { name: 'Page introuvable' })).toBeVisible(); // Affaires n'existe toujours pas dans ce portail
+  });
+  test('E7 Devis seul : un jeu d\'étiquettes et de secteurs déjà en base n\'est jamais écrasé ; ni sélecteur d\'étiquettes, ni filtre, ni colonne, ni suppression ; titre « Clients »', async ({ page }, info) => {
+    const listeEtiquettes = { liste: [{ id: 'vip', nom: 'VIP', couleur: '#336699' }] };
+    const listeSecteurs = { secteurs: ['Bâtiment'], sources: ['Bouche à oreille'] };
+    await ecrireDocument('clients/devisseul/crm_parametres/etiquettes', listeEtiquettes);
+    await ecrireDocument('clients/devisseul/crm_parametres/listes', listeSecteurs);
+    await ecrireDocument('clients/devisseul/crm_organisations/o1', { nom: 'Atelier Martin', secteur: 'Bâtiment', telephones: [], emails: [], emailsNormalises: [], etiquettes: ['vip'], archive: false, proprietaire: ALICE, creeLe: new Date(), modifieLe: new Date(), creePar: ALICE, modifiePar: ALICE });
+    await ecrireDocument('clients/devisseul/crm_personnes/pc', { nom: 'Camille Martin', prenom: 'Camille', nomFamille: 'Martin', organisationId: 'o1', telephones: [], emails: [], emailsNormalises: [], etiquettes: ['vip'], archive: false, proprietaire: ALICE, creeLe: new Date(), modifieLe: new Date(), creePar: ALICE, modifiePar: ALICE });
+    await ouvrir(page, 'portail-devis/crm/personnes');
+    await expect(page.getByRole('heading', { name: 'Clients', level: 1 })).toBeVisible();
+    await expect(page.locator('.compteur-liste')).toHaveText('1 client');
+    await expect(page.locator('th', { hasText: 'Étiquettes' })).toHaveCount(0);
+    await page.locator('[data-action="filtres"]').click();
+    await expect(page.getByText('Étiquettes', { exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.locator('[data-action="nouvelle-personne"]').click();
+    await expect(page.getByRole('dialog').getByText('Étiquettes', { exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.getByText('Camille Martin').first().click();
+    await expect(page.getByRole('textbox', { name: 'Nom' })).toHaveValue('Camille Martin');
+    await expect(page.getByRole('link', { name: 'Clients' }).first()).toBeVisible(); // lien retour
+    await expect(page.locator('[data-action="choisir-etiquettes"]')).toHaveCount(0);
+    await page.locator('[data-action="menu-fiche"]').click();
+    await expect(page.getByRole('menuitem', { name: /Supprimer définitivement/ })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => { location.hash = '#/espace/devisseul/portail-devis/crm/organisations/o1'; });
+    await expect(page.getByRole('textbox', { name: 'Nom' })).toHaveValue('Atelier Martin');
+    await expect(page.locator('[data-action="choisir-etiquettes"]')).toHaveCount(0);
+    await expect(page.locator('.menu .menu-entree[aria-current="page"]')).toHaveAttribute('data-chemin', 'crm/personnes'); // « Clients » reste allumé
+    await page.getByRole('button', { name: 'Modifier : Secteur' }).click();
+    await page.locator('.prop:has(.prop-libelle:text-is("Secteur")) input').fill('Bâtiment bis');
+    await page.keyboard.press('Enter');
+    await expect.poll(async () => (await lireDocument('clients/devisseul/crm_organisations/o1'))?.secteur).toBe('Bâtiment bis');
+    await capturer(page, info, 'E7-devis-seul-sans-etiquettes');
+    expect(await lireDocument('clients/devisseul/crm_parametres/etiquettes')).toEqual(listeEtiquettes); // rien d'écrasé
+    expect(await lireDocument('clients/devisseul/crm_parametres/listes')).toEqual(listeSecteurs);
   });
 });

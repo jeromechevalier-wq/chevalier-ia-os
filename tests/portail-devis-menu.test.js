@@ -74,6 +74,7 @@ describe('statistiquesDevis', () => {
     assert.equal(s.caSigneHt, 300);
     assert.equal(s.signes, 3);
     assert.deepEqual(s.parStatut, { brouillon: 1, en_attente_envoi: 1, envoye: 1, accepte: 3, refuse: 1, remplace: 1 });
+    assert.equal(s.nbDevis, 7); // les 8 devis moins l'ancienne version remplacée : égal à la somme des statuts affichés
     assert.equal(s.tauxTransformation, 60); // 3 signés sur 5 sortis (3 signés + 1 refusé + 1 envoyé) ; remplacé, finalisé et brouillon n'y sont pas
   });
   test('S3 les devis de test sont exclus de tout (CA, statuts, taux)', () => {

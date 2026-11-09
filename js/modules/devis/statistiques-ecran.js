@@ -45,7 +45,7 @@ export function rendreStatistiques(conteneur) {
         chiffre('ca-signe', 'Chiffre d’affaires signé', `${formaterMontant(s.caSigneHt)} HT`, 'Devis signés, archivés compris'),
         chiffre('signes', 'Devis signés', String(s.signes)),
         chiffre('envoyes', 'Devis envoyés', String(s.sortis), 'Envoyés, signés ou refusés'),
-        chiffre('taux', 'Taux de transformation', pourcent(s.tauxTransformation), s.tauxTransformation === null ? 'Aucun devis envoyé' : 'Signés ÷ envoyés')),
+        chiffre('taux', 'Taux de transformation', pourcent(s.tauxTransformation), s.tauxTransformation === null ? 'Aucun devis envoyé' : 'Signés ÷ envoyés, chacun compté à sa propre date')),
       h('section', { class: 'bloc-statistiques', dataset: { bloc: 'statuts' } }, h('h2', {}, 'Devis par statut'),
         h('ul', { class: 'liste-statuts-stat' }, STATUTS_AFFICHES.map(([id, libelle]) => h('li', { dataset: { statut: id } }, h('span', {}, libelle), h('strong', {}, String(s.parStatut[id])))))),
       h('section', { class: 'bloc-statistiques', dataset: { bloc: 'mois' } }, h('h2', {}, 'Mois par mois'),

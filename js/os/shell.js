@@ -9,7 +9,7 @@ import { modeTestAllume, definirModeTest, surModeTest } from './mode-test.js';
 // Routes sans entrée de menu -> entrée allumée à leur place (l'écran principal de leur module).
 /** Écrans qui gardent la barre de recherche et le bouton « + » du haut (les autres : Veille, Automatisations, Maintenance, réglages, journal, assistant…). */
 const PAGES_AVEC_OUTILS = ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/', 'devis/editeur', 'devis/voir', 'devis/liste', 'devis/relances', 'devis/statistiques', 'devis/bordereau', 'devis/vocabulaire'];
-const ROUTES_SOUS_ENTREE = [['projets/archives', 'projets/projets'], ['projets/modeles', 'projets/projets']];
+const ROUTES_SOUS_ENTREE = [['projets/archives', 'projets/projets'], ['projets/modeles', 'projets/projets'], ['crm/organisations', 'crm/personnes']]; // dernière : dans le portail devis seul, les organisations n'ont pas d'entrée, « Clients » s'allume ; le menu complet a sa propre entrée Organisations (entrée exacte gagnante)
 
 // ---------------------------------------------------------------- thème
 
