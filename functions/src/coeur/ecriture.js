@@ -93,7 +93,7 @@ async function preparer(donnees, ctx, operations) {
       // `exigerStatut` : la modification n'a lieu que si le document a ce statut. Ce contrôle porte sur l'état lu ici, et l'écriture est ensuite vérifiée contre ce même état (attendus) : pas de fenêtre de course.
       if (op.exigerStatut && avant.statut !== op.exigerStatut) throw new ErreurEcriture('conflit', `Le document ${l.collection}/${l.id} n'a plus le statut « ${op.exigerStatut} » : rien n'a été écrit.`);
       // `exigerAvant` : l'état que l'appelant a lu avant de calculer sa modification ; s'il a changé entre-temps, rien n'est écrit (évite d'écraser un enregistrement fait entre les deux lectures).
-      if (op.exigerAvant !== undefined && !egal(avant, op.exigerAvant ?? {})) throw new ErreurEcriture('conflit', `Le document ${l.collection}/${l.id} a changé pendant la préparation : rien n'a été écrit, recommence.`);
+      if (op.exigerAvant !== undefined && !egal(avant, op.exigerAvant)) throw new ErreurEcriture('conflit', `Le document ${l.collection}/${l.id} a changé pendant la préparation : rien n'a été écrit, recommence.`);
       apres = { ...avant, ...contenu };
       ecriture = { type: 'update', donnees: contenu };
     } else if (type === 'supprimer') {
