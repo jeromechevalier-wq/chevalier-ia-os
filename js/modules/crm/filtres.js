@@ -20,11 +20,12 @@ function controles(liste) {
   // Source = la liste des Réglages, rien d'autre (L2). Ville = texte libre, regroupé par clé normalisée (L3).
   const sources = unique(D.etat.sources);
   const villes = (valeurs) => L.regrouperVilles(valeurs).map((v) => ({ valeur: v.cle, libelle: v.libelle }));
+  const noyau = D.estNoyau(); // Devis seul : ni étiquettes ni sources (leurs listes, dans crm_parametres, ne sont pas lues)
   if (liste === 'personnes') {
     return [
-      cases('etiquettes', 'Étiquettes', etiquettes),
+      ...(noyau ? [] : [cases('etiquettes', 'Étiquettes', etiquettes)]),
       { cle: 'organisations', libelle: 'Organisations', type: 'organisations' },
-      cases('sources', 'Source', sources.map((s) => ({ valeur: s, libelle: s }))),
+      ...(noyau ? [] : [cases('sources', 'Source', sources.map((s) => ({ valeur: s, libelle: s })))]),
       cases('villes', 'Ville', villes(D.etat.personnes.map((p) => p.ville))),
       oui('archives', 'Archivées seulement'),
       controleTests(),
@@ -32,7 +33,7 @@ function controles(liste) {
   }
   if (liste === 'organisations') {
     return [
-      cases('etiquettes', 'Étiquettes', etiquettes),
+      ...(noyau ? [] : [cases('etiquettes', 'Étiquettes', etiquettes)]),
       cases('secteurs', 'Secteur', unique([...D.etat.secteurs, ...D.etat.organisations.map((o) => o.secteur)]).map((v) => ({ valeur: v, libelle: v }))),
       cases('villes', 'Ville', villes(D.etat.organisations.map((o) => o.ville))),
       oui('archives', 'Archivées seulement'),

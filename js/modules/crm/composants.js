@@ -620,7 +620,7 @@ export function selectProprietaire({ valeur, surChoix }) {
 /** Gabarit commun : en tête, colonne de gauche (sections), colonne de droite (activité, notes, historique). */
 export function gabaritFiche({ entete, gauche, droite }) {
   return h('div', { class: 'page fiche' }, entete,
-    h('div', { class: 'fiche-grille' }, h('div', { class: 'fiche-gauche' }, gauche), h('aside', { class: 'fiche-droite', 'aria-label': 'Activité et historique' }, droite)));
+    h('div', { class: `fiche-grille${droite ? '' : ' fiche-sans-droite'}` }, h('div', { class: 'fiche-gauche' }, gauche), droite ? h('aside', { class: 'fiche-droite', 'aria-label': 'Activité et historique' }, droite) : null)); // sans colonne de droite (Devis seul : pas d'activités) la fiche prend toute la largeur
 }
 
 /** Retour vers la liste, affiché en haut des fiches. */

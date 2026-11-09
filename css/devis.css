@@ -699,3 +699,24 @@ tr[data-manquant] { outline-offset: -2px; }
   .relance-actions { flex-direction: column; align-items: stretch; }
   .relance-actions .bouton, .relance-actions .bouton-icone { min-height: 44px; }
 }
+
+/* Écran Statistiques du portail devis seul (09/11/2026) : quatre chiffres, devis par statut, détail par mois. Tout en variables de l'interface (aucune taille ni graisse en dur). */
+.zone-statistiques { display: flex; flex-direction: column; gap: var(--esp-9); }
+.chiffres-statistiques { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--esp-5); }
+.chiffre-statistique { display: flex; flex-direction: column; gap: var(--esp-1); background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: var(--esp-5) var(--esp-7); }
+.chiffre-libelle { color: var(--texte2); }
+.chiffre-valeur { font-size: var(--fs-chiffre); }
+.bloc-statistiques { display: flex; flex-direction: column; gap: var(--esp-4); }
+.bloc-statistiques > h2 { font-size: var(--fs-section); margin: 0; }
+.liste-statuts-stat, .liste-mois-stat { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-2); }
+.liste-statuts-stat li { display: flex; justify-content: space-between; gap: var(--esp-5); background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: var(--esp-3) var(--esp-7); }
+.liste-mois-stat li { display: grid; grid-template-columns: 110px minmax(60px, 1fr) 120px minmax(0, 190px); align-items: center; gap: var(--esp-5); }
+.mois-barre { display: block; height: 8px; border-radius: var(--rayon); background: var(--bordure); overflow: hidden; }
+.mois-barre-remplie { display: block; height: 100%; width: var(--part, 0%); background: var(--accent); }
+.mois-libelle { white-space: nowrap; }
+.mois-ca { text-align: right; white-space: nowrap; }
+@media (max-width: 720px) {
+  .liste-mois-stat li { grid-template-columns: 1fr auto; }
+  .mois-barre { grid-column: 1 / -1; order: 3; }
+  .mois-detail { grid-column: 1 / -1; order: 4; }
+}

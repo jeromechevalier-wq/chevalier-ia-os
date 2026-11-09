@@ -35,7 +35,7 @@ describe('adresse du portail', () => {
       const module = moduleDeclare(p.modules[0]);
       assert.ok(module.ecrans.some((e) => e.route === p.accueil), `${id} : accueil ${p.accueil}`);
       assert.ok(Object.isFrozen(p.menu), id);
-      for (const route of p.menu) assert.ok(module.ecrans.some((e) => e.route === route), `${id} : menu ${route}`);
+      for (const route of p.menu) assert.ok(module.ecrans.some((e) => e.route === route) || p.supplements.some((x) => x.chemin === route), `${id} : menu ${route}`);
       assert.ok(!prefixes.includes(id), id);
     }
   });
