@@ -216,6 +216,6 @@ Pour essayer **sans rien lire en ligne** (par exemple sans être connecté) : aj
 
 ## Régler l'espace d'un nouveau client avec l'assistant (09/11/2026)
 
-Jérôme (seul) peut régler le module Devis d'un client en conversation : il se connecte à `/mcp/<client>` avec son compte Google (il doit être membre de l'espace) et demande à son assistant de régler « Mon entreprise », la marge, la TVA, la durée de validité, les mentions (outil `modifier_reglages_devis`). Aucun client ne voit cet outil, même éditeur. Il ne règle ni les coordonnées bancaires, ni le logo, ni le nom ou la couleur de l'espace (à l'écran pour l'instant). Chaque changement laisse une ligne dans le Journal du client avec la copie d'avant (`restaurer_depuis_audit`).
+Jérôme (ses deux comptes super admins, et personne d'autre) peut régler le module Devis d'un client en conversation : il se connecte à `/mcp/<client>` avec son compte Google (il doit être membre de l'espace) et demande à son assistant de régler « Mon entreprise », la marge, la TVA, la durée de validité, les mentions (outil `modifier_reglages_devis`). Aucun client ne voit cet outil, même éditeur. Il ne règle ni les coordonnées bancaires, ni le logo, ni le nom ou la couleur de l'espace (à l'écran pour l'instant). Chaque changement laisse une ligne dans le Journal du client avec la copie d'avant (`restaurer_depuis_audit`).
 
 Ne mets jamais de donnée réelle d'un client dans le dépôt ni dans les docs : une « fiche de démarrage » reste hors dépôt. Vérifier : `lire_reglages_devis`, puis l'écran Réglages > Devis.

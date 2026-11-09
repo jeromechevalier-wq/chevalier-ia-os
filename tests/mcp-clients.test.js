@@ -37,6 +37,7 @@ const IDENTITES = {
   'ID-ALICE-MOT-DE-PASSE': { email: ALICE, emailVerifie: true, fournisseur: 'password' },
   'ID-JEROME': { email: 'jerome.chevalier@gmail.com', emailVerifie: true, fournisseur: 'google.com' },
   'ID-JEROME-CASSE': { email: 'Jerome.Chevalier@Gmail.COM', emailVerifie: true, fournisseur: 'google.com' },
+  'ID-JEROMEBOT': { email: 'jeromebot.chevalierbot@gmail.com', emailVerifie: true, fournisseur: 'google.com' },
   'ID-JEROME-LECTEUR': { email: 'jerome.chevalier@gmail.com', emailVerifie: true, fournisseur: 'google.com' },
   'ID-ALICE-MAJUSCULES': { email: 'Alice@Exemple.TEST', emailVerifie: true, fournisseur: 'google.com' },
 };
@@ -1162,7 +1163,7 @@ describe('Devis : les outils du module arrivent chez les clients (sauf les régl
     for (const n of OUTILS_DEVIS) assert.ok(OUTILS.some((o) => o.nom === n), `${n} n'a pas de code d'outil`);
   });
 
-  test('devis-2 un éditeur voit les outils du module Devis par son assistant, sauf les réglages (réservés au propriétaire) ; un lecteur voit seulement ceux de lecture', async () => {
+  test('devis-2 un éditeur voit les outils du module Devis par son assistant, sauf les réglages (réservés aux super admins) ; un lecteur voit seulement ceux de lecture', async () => {
     await remettre();
     try {
       await activerDevis('a');
@@ -1187,7 +1188,8 @@ describe('Devis : les outils du module arrivent chez les clients (sauf les régl
     try {
       await activerDevis('a');
       await membre('editeur');
-      for (const identite of ['ID-JEROME', 'ID-JEROME-CASSE']) {
+      await donnees.appliquer([{ type: 'set', collection: 'clients/a/membres', id: 'jeromebot.chevalierbot@gmail.com', donnees: { role: 'editeur' } }]);
+      for (const identite of ['ID-JEROME', 'ID-JEROME-CASSE', 'ID-JEROMEBOT']) {
         const { c, liste } = await outilsDe('a', identite);
         assert.ok(liste.includes('modifier_reglages_devis'), `${identite} : outil visible`);
         const r = await c.callTool({ name: 'modifier_reglages_devis', arguments: { reglages: { margeDevis: 17, entreprise: { nom: 'Atelier ALPHA' } } } });
@@ -1217,6 +1219,7 @@ describe('Devis : les outils du module arrivent chez les clients (sauf les régl
       assert.equal((await donnees.document('clients/a/devis_parametres', 'reglages')).margeDevis, 17, 'les refus n\'ont rien écrit');
     } finally {
       await donnees.appliquer([{ type: 'delete', collection: 'clients/a/membres', id: 'jerome.chevalier@gmail.com' }]).catch(() => {});
+      await donnees.appliquer([{ type: 'delete', collection: 'clients/a/membres', id: 'jeromebot.chevalierbot@gmail.com' }]).catch(() => {});
       await remettre();
     }
   });
@@ -1416,7 +1419,7 @@ describe('Devis seul : les outils du socle arrivent sans Affaires', () => {
     try {
       const { c, liste } = await outilsDe('d');
       for (const n of [...moduleDeclare('devis').outilsMcp.filter((x) => x !== 'modifier_reglages_devis'), ...OUTILS_SOCLE]) assert.ok(liste.includes(n), n);
-      assert.ok(!liste.includes('modifier_reglages_devis'), 'réservé au propriétaire');
+      assert.ok(!liste.includes('modifier_reglages_devis'), 'réservé aux super admins');
       for (const n of ['lire_affaire', 'lister_affaires', 'supprimer_personne', 'supprimer_organisation', 'supprimer_tous_les_tests', 'lire_audit', 'restaurer_depuis_audit', 'lister_projets']) assert.ok(!liste.includes(n), `${n} ne doit pas exister`);
       assert.equal(liste.length, 2 + 26 + 9, 'communs + 26 (sans les réglages, réservés au propriétaire) + 9');
       await c.close();

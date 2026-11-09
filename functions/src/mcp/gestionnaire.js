@@ -13,7 +13,8 @@ import { ESPACE_JEROME } from '../coeur/n8n-sortie.js';
 export const BASE_LIEN_JEROME = 'https://chevalier-ia-os.web.app';
 import { OUTILS, outilsAutorises, annotationsDe } from './outils/index.js';
 import { VERSION_SERVEUR } from '../version.js';
-import { ORIGINES_AUTORISEES as ORIGINES, URL_METADONNEES_RESSOURCE, COMPTES_AUTORISES } from '../oauth/config.js';
+import { ORIGINES_AUTORISEES as ORIGINES, URL_METADONNEES_RESSOURCE } from '../oauth/config.js';
+import { estSuperAdminEmail } from '../securite/super-admins.js';
 
 // Les clients MCP (Hermes, Claude Code) n'envoient pas d'en-tête Origin. Un navigateur, si : on n'accepte que l'appli.
 export const ORIGINES_AUTORISEES = ORIGINES;
@@ -112,11 +113,11 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
  * `donnees` est ce que les outils voient (chez un client : l'espace du client seulement, voir avecBase) ; `outils` est déjà limité aux modules actifs.
  */
 /**
- * Appelant propriétaire (décision de Jérôme, 09/11/2026) : la CONNEXION porte l'e-mail vérifié d'un compte de COMPTES_AUTORISES, sur le serveur de Jérôme comme dans l'espace d'un client.
+ * Super admin (décision de Jérôme, 09/11/2026) : la CONNEXION porte l'e-mail vérifié d'un compte de SUPER_ADMINS (securite/super-admins.js, liste du serveur), sur le serveur de Jérôme comme dans l'espace d'un client.
  * Cet e-mail vient de l'identité Google vérifiée à la connexion OAuth (jamais d'une saisie ni d'une donnée du client) ; un jeton statique (agent-devis, lecture, ecriture, claude-code) n'en a pas : refusé.
- * Le profil ne compte pas : un éditeur client ou un assistant OAuth d'un client a le profil `complet` sans être le propriétaire.
+ * Le profil ne compte pas : un éditeur client ou un assistant OAuth d'un client a le profil `complet` sans être super admin.
  */
-export const estProprietaire = ({ jeton }) => typeof jeton?.email === 'string' && COMPTES_AUTORISES.includes(jeton.email.trim().toLowerCase());
+export const estSuperAdmin = ({ jeton }) => estSuperAdminEmail(jeton?.email);
 
 export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM, stockage = null, sortieEmail = null, baseLien = BASE_LIEN_JEROME }) {
   const limites = limitesDuJeton(jeton);
@@ -132,9 +133,9 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
     return refuser(res, 429, 'limite_depassee', { 'Retry-After': String(e.reessayerDansS) });
   }
 
-  // Les outils marqués `reserveAuProprietaire` n'existent (liste, qui_suis_je, exécution) que pour le propriétaire (identité vérifiée), quel que soit le profil.
-  const proprietaire = estProprietaire({ jeton });
-  const permis = outilsAutorises(jeton.profil, outils).filter((o) => !o.reserveAuProprietaire || proprietaire);
+  // Les outils marqués `reserveAuxSuperAdmins` n'existent (liste, qui_suis_je, exécution) que pour un super admin (identité vérifiée), quel que soit le profil.
+  const superAdmin = estSuperAdmin({ jeton });
+  const permis = outilsAutorises(jeton.profil, outils).filter((o) => !o.reserveAuxSuperAdmins || superAdmin);
   const serveur = new McpServer({ name: nomServeur, version: VERSION_SERVEUR });
   // Contexte d'écriture de CET appel : acteur du jeton, canal « mcp », heure du serveur. Les plafonds d'écriture sont réservés ici, juste avant d'écrire.
   const ctxEcriture = { acteur: jeton.acteur, jeton: jeton.jeton, via: 'mcp', maintenant: new Date(maintenant()) };
@@ -170,7 +171,7 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
   for (const outil of permis) {
     serveur.registerTool(outil.nom, { description: outil.description, annotations: annotationsDe(outil), ...(outil.meta ? { _meta: outil.meta } : {}), ...(outil.schema ? { inputSchema: outil.schema } : {}) }, async (args) => {
       const contexte = {
-        acteur: jeton.acteur, email: jeton.email, profil: jeton.profil, proprietaire, actifs: jeton.actifs ?? null, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), nomServeur, args, donnees: donneesComptees, maintenant: ctxEcriture.maintenant,
+        acteur: jeton.acteur, email: jeton.email, profil: jeton.profil, superAdmin, actifs: jeton.actifs ?? null, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), nomServeur, args, donnees: donneesComptees, maintenant: ctxEcriture.maintenant,
         ecrire: (demande) => ecrire({ ...demande, outil: outil.nom }),
         restaurer,
         // Stockage des fichiers (onglet « Documents ») : fonction qui rend le stockage, ou null s'il est introuvable. `espace` : '' chez Jérôme, 'clients/<client>/' chez un client.

@@ -749,8 +749,8 @@ const sansBanque = (r) => {
  * (validerReglagesDevis ne fusionne qu'au premier niveau) : un champ non cité ne bouge jamais. Document absent : créé ; sinon, modification des seules clés qui changent.
  */
 export async function modifierReglagesDevis(c, args) {
-  // Deuxième verrou (le premier : l'outil n'existe que pour le propriétaire, identité vérifiée, mcp/gestionnaire.js) : refus à l'exécution pour tout autre appelant.
-  if (c.proprietaire !== true) refuser('interdit', 'Cet outil n\'est pas disponible pour ce compte.');
+  // Deuxième verrou (le premier : l'outil n'existe que pour un super admin, identité vérifiée, mcp/gestionnaire.js) : refus à l'exécution pour tout autre appelant.
+  if (c.superAdmin !== true) refuser('interdit', 'Cet outil n\'est pas disponible pour ce compte.');
   const saisie = args.reglages ?? {};
   if (!Object.keys(saisie).length) refuser('saisie_invalide', 'Aucun réglage à changer : donne au moins un champ dans `reglages`.');
   const brut = await c.donnees.document(C.devisParametres, DA.ID_REGLAGES); // null = document absent ; une panne de lecture remonte telle quelle

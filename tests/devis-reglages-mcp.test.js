@@ -275,23 +275,31 @@ describe('RG9 comptes rendus honnêtes et concurrence', () => {
   });
 });
 
-describe('RG10 réservé au propriétaire (décision du 09/11/2026) : le profil ne suffit pas', () => {
-  test('RG10 estProprietaire : seul un e-mail de COMPTES_AUTORISES porte le droit, casse et espaces ignorés ; ni profil, ni espace, ni jeton statique ne le donnent', async () => {
-    const { estProprietaire } = await import('../functions/src/mcp/gestionnaire.js');
-    assert.equal(estProprietaire({ jeton: { profil: 'complet', email: 'jerome.chevalier@gmail.com' } }), true);
-    assert.equal(estProprietaire({ jeton: { profil: 'complet', email: ' JEROME.CHEVALIER@gmail.com ' } }), true, 'casse et espaces normalisés');
-    assert.equal(estProprietaire({ jeton: { profil: 'complet', email: 'autre@exemple.test', role: 'editeur', client: 'a' } }), false, 'éditeur client en profil complet');
-    assert.equal(estProprietaire({ jeton: { profil: 'lecture', role: 'lecteur', email: 'lea@exemple.test' } }), false);
-    assert.equal(estProprietaire({ jeton: { profil: 'complet' } }), false, 'jeton statique sans e-mail');
-    assert.equal(estProprietaire({ jeton: { profil: 'agent-devis', email: 42 } }), false);
-    assert.equal(estProprietaire({}), false);
+describe('RG10 réservé aux super admins (décision du 09/11/2026) : le profil ne suffit pas', () => {
+  test('RG10 la liste SUPER_ADMINS (configuration du serveur) contient exactement les deux comptes de Jérôme, tous deux dans COMPTES_AUTORISES', async () => {
+    const { SUPER_ADMINS } = await import('../functions/src/securite/super-admins.js');
+    const { COMPTES_AUTORISES } = await import('../functions/src/oauth/config.js');
+    assert.deepEqual([...SUPER_ADMINS], ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com']);
+    for (const e of SUPER_ADMINS) assert.ok(COMPTES_AUTORISES.includes(e), `${e} peut se connecter`);
   });
-  test('RG10 deuxième verrou : l’action refuse à l’exécution si l’appelant n’est pas le propriétaire, sans rien lire ni écrire', async () => {
+  test('RG10 estSuperAdmin : chacun des deux comptes = oui, casse et espaces ignorés ; un autre compte, le profil, l’espace, un jeton statique = non', async () => {
+    const { estSuperAdmin } = await import('../functions/src/mcp/gestionnaire.js');
+    assert.equal(estSuperAdmin({ jeton: { profil: 'complet', email: 'jerome.chevalier@gmail.com' } }), true);
+    assert.equal(estSuperAdmin({ jeton: { profil: 'complet', email: 'jeromebot.chevalierbot@gmail.com' } }), true);
+    assert.equal(estSuperAdmin({ jeton: { profil: 'complet', email: ' JEROME.CHEVALIER@gmail.com ' } }), true, 'casse et espaces normalisés');
+    assert.equal(estSuperAdmin({ jeton: { profil: 'complet', email: 'autre@exemple.test', role: 'editeur', client: 'a' } }), false, 'éditeur client en profil complet');
+    assert.equal(estSuperAdmin({ jeton: { profil: 'complet', email: 'jerome.chevalier@gmail.com.evil.test' } }), false, 'pas de correspondance partielle');
+    assert.equal(estSuperAdmin({ jeton: { profil: 'lecture', role: 'lecteur', email: 'lea@exemple.test' } }), false);
+    assert.equal(estSuperAdmin({ jeton: { profil: 'complet' } }), false, 'jeton statique sans e-mail');
+    assert.equal(estSuperAdmin({ jeton: { profil: 'agent-devis', email: 42 } }), false);
+    assert.equal(estSuperAdmin({}), false);
+  });
+  test('RG10 deuxième verrou : l’action refuse à l’exécution si l’appelant n’est pas un super admin, sans rien lire ni écrire', async () => {
     const metier = await import('../functions/src/coeur/metier.js');
     let appels = 0;
-    const c = { proprietaire: false, args: { reglages: { marge: 30 } }, donnees: { document: async () => { appels++; return null; } }, ecrire: async () => { appels++; } };
+    const c = { superAdmin: false, args: { reglages: { marge: 30 } }, donnees: { document: async () => { appels++; return null; } }, ecrire: async () => { appels++; } };
     await assert.rejects(() => metier.modifierReglagesDevis(c, c.args), /pas disponible pour ce compte/);
-    await assert.rejects(() => metier.modifierReglagesDevis({ ...c, proprietaire: undefined }, c.args), /pas disponible/);
+    await assert.rejects(() => metier.modifierReglagesDevis({ ...c, superAdmin: undefined }, c.args), /pas disponible/);
     assert.equal(appels, 0);
   });
 });

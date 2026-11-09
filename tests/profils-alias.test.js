@@ -103,7 +103,7 @@ describe('profils de droits du serveur MCP', () => {
       const s = await monter(secret);
       assert.deepEqual(await s.liste('lecteur'), noms('lecture'));
       assert.deepEqual(await s.liste('biblio'), noms('ecriture'));
-      assert.deepEqual(await s.liste('code'), noms('complet').filter((n) => n !== 'modifier_reglages_devis'), 'jeton statique : jamais modifier_reglages_devis (réservé à l’identité de Jérôme)');
+      assert.deepEqual(await s.liste('code'), noms('complet').filter((n) => n !== 'modifier_reglages_devis'), 'jeton statique : jamais modifier_reglages_devis (réservé aux super admins (identité vérifiée))');
       const moi = await s.appeler('biblio', 'qui_suis_je');
       assert.equal(moi.data.profil, 'ecriture');
       assert.equal(moi.data.acteur, 'hermes-bibliothecaire');
