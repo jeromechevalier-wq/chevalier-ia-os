@@ -26,8 +26,8 @@ describe('Jetons : format et lecture', () => {
     assert.equal(analyserSecret(JSON.stringify({ ...e1, empreinte: 'abc' })).entrees.length, 0);
     assert.equal(analyserSecret(JSON.stringify({ ...e1, actif: 'oui' })).entrees.length, 0);
   });
-  test('seuls les quatre profils existent', () => {
-    assert.deepEqual(PROFILS, ['lecture', 'ecriture', 'agent-devis', 'complet']);
+  test('seuls les cinq profils existent', () => {
+    assert.deepEqual(PROFILS, ['lecture', 'ecriture', 'agent-devis', 'assistant-devis', 'complet']);
   });
 });
 

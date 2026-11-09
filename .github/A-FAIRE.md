@@ -22,7 +22,7 @@ Mise à jour : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de sessio
 | ✅ | **Choisir l'affaire + filtre « Sans affaire »** (PR 553, 08/11/2026) : un devis finalisé sans affaire se rattache plus tard (sens unique, toutes les versions, montant recalculé, restaurable ; fonction `devisChoisirAffaire` chez Jérôme ET chez les clients). Reste : l'outil MCP `choisir_affaire_devis` (non fait). Questions pour Jérôme dans la PR (cible archivée, affaire d'un autre client, menu « … »). | Fait | Claude |
 | ✅ | **Renommer le profil `bibliothecaire`** (idée de Jérôme, 07/11/2026) : fait par la PR 549 (profil `ecriture`, ancien nom `bibliothecaire` gardé comme alias). | Fait | Claude |
 | 🟠 | **Brief n8n « agent-devis » (hors dépôt) à revoir par Jérôme** : le workflow ne doit plus forcer `creer_affaire` avant `finaliser_devis` mais lire le champ `avertissement` de l'aperçu ; proposer ou choisir l'affaire AVANT de finaliser (le serveur ne l'exige plus ; l'outil MCP `choisir_affaire_devis` viendra plus tard) (décision du 07/11/2026, PR 1) | À faire | Jérôme |
-| 🟠 | **Porte par jeton chez les clients (09/11/2026, bot n8n d'un client)** : code prêt (secret `MCP_JETONS_CLIENTS`, profils `lecture` / `agent-devis`, 18 outils sur Devis + MCP). Reste à Jérôme : créer le secret, donner « Accesseur de secrets » à `mcp-clients@`, lancer « Déploiement plateforme clients » > `mcp`, créer le jeton (`outils/creer-jeton.js --client`). Question : propriétaire par défaut des fiches créées par le bot ? | En attente | Jérôme |
+| 🟠 | **Porte par jeton chez les clients (09/11/2026, bot n8n d'un client)** : code prêt (secret `MCP_JETONS_CLIENTS`, profils `lecture` / `agent-devis` / `assistant-devis` (PR du 09/11), 18 outils pour agent-devis sur Devis + MCP). Reste à Jérôme : créer le secret, donner « Accesseur de secrets » à `mcp-clients@`, lancer « Déploiement plateforme clients » > `mcp`, créer le jeton (`outils/creer-jeton.js --client`). Question : propriétaire par défaut des fiches créées par le bot ? | En attente | Jérôme |
 | 🟡 | **Idée : second facteur par jeton** pour `finaliser_devis` : aujourd'hui le serveur garantit aperçu + code, mais ne prouve pas qu'un humain a vu l'aperçu ; l'accord humain est à la charge du workflow n8n. | Idée | Jérôme (décision) |
 
 ## Mise à jour du 06/11/2026, fin de journée (PR 539 à 544)
@@ -345,6 +345,8 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 ## Décidé : rien à faire
 - Anciens documents « Brouillon – … » : ils se renomment tout seuls au prochain PDF du même devis (décision de Jérôme, 25/10/2026).
 - E-mail du devis : le client garde la responsabilité d'envoyer (l'appli n'envoie jamais) ; n8n prépare seulement le brouillon (décision du 25/10/2026).
+
+- 🟠 **Profil `assistant-devis` (09/11/2026)** : après la fusion, Jérôme lance « Déploiement plateforme clients » > mcp, puis crée le jeton avec `creer-jeton.js` (hors dépôt) et le contrôle avec `qui_suis_je`. Déplacer une ligne, ligne libre, sous-section par un bot : refusé le 09/11/2026, restent à l'écran.
 
 ## Fait (fusionné, en ligne, testé par Jérôme)
 - PR 306 : testée par Jérôme (26/10/2026) ; PR 278 (pastille Devis), 284 (barre du haut), 304 (Retour au devis), 298 (visualisation du devis, « Passer à Envoyé », points 1 à 5 OK), 285 (e-mails en copie, points 1 à 5 OK), 287 (pastille cliquable, points 1 à 5 OK) : testées par Jérôme.
