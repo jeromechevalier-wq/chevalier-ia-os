@@ -3,10 +3,10 @@ import { vueClient, affichageDe, affichageAvecReglages } from './logique.js';
 import { devisHtml } from './document.js';
 
 /**
- * HTML du devis tel que le client le voit (aperçu, impression). `contexte` : { clientNom, client: { telephone, email, numeroTva, siren }, emetteur }.
+ * HTML du devis tel que le client le voit (aperçu, impression). `contexte` : { clientNom, client: { telephone, email, numeroTva, siren }, emetteur, logo (adresse https du logo de l'espace, chez un client ; `emetteur.logo` passe avant) }.
  * Les cases du menu « Options » du devis (`devis.affichage`) s'appliquent. Un devis en brouillon porte le filigrane « BROUILLON ».
  */
-export function htmlDuDevis(devis, { clientNom = null, client = null, emetteur = undefined, attentionNom = null, reglages = null } = {}) {
+export function htmlDuDevis(devis, { clientNom = null, client = null, emetteur = undefined, attentionNom = null, reglages = null, logo = null } = {}) {
   const vue = vueClient(devis, { clientNom, client: client ?? undefined, attentionNom });
-  return devisHtml(vue, { brouillon: devis?.statut === 'brouillon', affichage: affichageAvecReglages(affichageDe(devis), reglages), ...(emetteur ? { emetteur } : {}) });
+  return devisHtml(vue, { brouillon: devis?.statut === 'brouillon', affichage: affichageAvecReglages(affichageDe(devis), reglages), ...(emetteur ? { emetteur } : {}), ...(logo ? { logo } : {}) });
 }

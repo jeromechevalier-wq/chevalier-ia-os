@@ -48,43 +48,47 @@ table { border-collapse: collapse; width: 100%; }
 .mise-en-page > thead > tr > td, .mise-en-page > tfoot > tr > td { padding: 0; }
 .entete-court { font-size: 8pt; color: #666; text-align: right; padding-bottom: 3mm; }
 .pied-court { font-size: 7.5pt; color: #666; text-align: center; padding-top: 3mm; }
-.haut { display: flex; justify-content: space-between; gap: 10mm; margin-bottom: 8mm; }
-.emetteur { max-width: 90mm; line-height: 1.35; }
-.emetteur .nom { font-size: 12pt; font-weight: bold; }
-.emetteur img { max-height: 22mm; max-width: 60mm; display: block; margin-bottom: 2mm; }
-.destinataire { width: 80mm; border: 0.3mm solid #999; padding: 3mm 4mm; line-height: 1.35; }
-.destinataire .etiquette { font-size: 7.5pt; text-transform: uppercase; color: #666; }
-.destinataire .nom { font-weight: bold; }
-h1 { font-size: 20pt; margin: 0 0 1mm; color: var(--accent-titre); }
+.serif, h1, .emetteur .nom, .destinataire .nom, .infos .objet, .lignes .bandeau td, .totaux .net td, .paiement h2, .chantier h2, .cgv h2, .dechets h2, .notes h2 { font-family: Georgia, 'Times New Roman', Times, serif; }
+.haut { display: flex; justify-content: space-between; align-items: flex-start; gap: 10mm; margin-bottom: 6mm; min-height: 12mm; }
+.logo-devis { display: block; width: 26mm; height: 26mm; object-fit: contain; object-position: left top; }
+.titre-devis { text-align: right; margin-left: auto; }
+h1 { font-size: 30pt; font-weight: normal; letter-spacing: 1.2mm; text-transform: uppercase; margin: 0; line-height: 1; color: var(--accent-clair); }
+.titre-devis .numero { margin-top: 2mm; font-size: 10pt; font-weight: bold; color: var(--accent); }
+.parties { display: flex; justify-content: space-between; align-items: flex-start; gap: 10mm; margin-bottom: 5mm; }
+.emetteur { max-width: 90mm; line-height: 1.4; font-size: 8.5pt; color: #444; }
+.emetteur .nom { font-size: 11pt; font-weight: bold; color: #1b1b1b; }
+.destinataire { width: 82mm; background: #eef3f8; border-radius: 1.5mm; padding: 4mm 5mm; line-height: 1.4; }
+.destinataire .etiquette { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.4pt; color: var(--accent-clair); font-weight: bold; margin-bottom: 1mm; }
+.destinataire .nom { font-weight: bold; font-size: 10.5pt; }
 .infos { margin-bottom: 5mm; line-height: 1.5; }
-.infos .objet { font-size: 11pt; font-weight: bold; margin-top: 2mm; }
-.lignes th { background: #e9ecef; text-align: left; font-size: 8.5pt; padding: 1.6mm 2mm; border-bottom: 0.3mm solid var(--accent); }
-.lignes td { padding: 1.4mm 2mm; border-bottom: 0.2mm solid #ddd; vertical-align: top; }
+.infos .objet { font-size: 11pt; font-weight: bold; margin-top: 2mm; color: var(--accent); }
+.lignes th { background: var(--accent); color: #fff; text-align: left; font-size: 8.5pt; padding: 1.8mm 2mm; }
+.lignes td { padding: 1.4mm 2mm; border-bottom: 0.2mm solid #e0e4e8; vertical-align: top; }
 .lignes tr { page-break-inside: avoid; break-inside: avoid; }
 .lignes .num { width: 11mm; white-space: nowrap; }
 .lignes .d { text-align: right; white-space: nowrap; }
 .lignes tr.saut-avant { break-before: page; page-break-before: always; }
-.lignes .bandeau td { background: #f1f3f5; font-weight: bold; border-top: 0.3mm solid #999; }
-.lignes .sous-total td { text-align: right; font-style: italic; border-bottom: 0.3mm solid #999; }
-.lignes .description { font-size: 8.5pt; color: #444; margin-top: 0.8mm; }
+.lignes .bandeau td { background: var(--accent-clair); color: #fff; font-weight: bold; border-bottom: 0; }
+.lignes .sous-total td { text-align: right; font-style: italic; background: #f7f9fb; border-bottom: 0.2mm solid #cfd6dd; }
+.lignes .description { font-size: 8.5pt; color: #555; margin-top: 0.8mm; }
 .bas { display: flex; justify-content: space-between; gap: 10mm; margin-top: 6mm; page-break-inside: avoid; break-inside: avoid; }
 .taux { width: 85mm; align-self: flex-start; }
-.taux th, .taux td { padding: 1.2mm 2mm; border: 0.2mm solid #bbb; font-size: 8.5pt; }
-.taux th { background: #e9ecef; text-align: left; }
-.totaux { width: 80mm; margin-left: auto; }
-.totaux td { padding: 1.3mm 2mm; }
+.taux th, .taux td { padding: 1.2mm 2mm; border-bottom: 0.2mm solid #cfd6dd; font-size: 8.5pt; }
+.taux th { background: #eef3f8; text-align: left; }
+.totaux { width: 80mm; margin-left: auto; background: #eef3f8; }
+.totaux td { padding: 1.3mm 2.5mm; border-bottom: 0.2mm solid #d9e1e8; }
 .totaux .d { text-align: right; white-space: nowrap; }
-.totaux .net td { font-weight: bold; font-size: 11pt; border-top: 0.4mm solid #1b1b1b; }
+.totaux .net td { background: var(--accent-clair); color: #fff; font-weight: bold; font-size: 12pt; border: 0; padding: 2mm 2.5mm; }
 .paiement, .mentions { margin-top: 6mm; line-height: 1.4; page-break-inside: avoid; break-inside: avoid; }
-.paiement h2 { font-size: 9.5pt; margin: 0 0 1mm; }
+.paiement h2 { font-size: 9.5pt; margin: 0 0 1mm; color: var(--accent); }
 .paiement ul { margin: 0; padding-left: 5mm; }
 .dechets { margin-top: 6mm; line-height: 1.4; page-break-inside: avoid; break-inside: avoid; }
 .dechets h2, .notes h2 { font-size: 9.5pt; margin: 0 0 1mm; }
 .texte-libre { margin-top: 4mm; line-height: 1.4; }
 .notes { margin-top: 6mm; line-height: 1.4; font-size: 8pt; color: #444; }
 .mentions p { margin: 0 0 1.5mm; font-size: 8.5pt; }
-.client { margin-top: 6mm; border: 0.3mm solid #666; padding: 3mm 4mm; min-height: 38mm; page-break-inside: avoid; break-inside: avoid; }
-.client .titre { font-weight: bold; margin-bottom: 1mm; }
+.client { margin-top: 6mm; border: 0.3mm solid var(--accent); border-radius: 1.5mm; padding: 3mm 4mm; min-height: 38mm; page-break-inside: avoid; break-inside: avoid; }
+.client .titre { font-weight: bold; margin-bottom: 1mm; color: var(--accent); }
 .chantier { margin-bottom: 5mm; line-height: 1.5; page-break-inside: avoid; break-inside: avoid; }
 .chantier h2 { font-size: 9.5pt; margin: 0 0 1mm; color: var(--accent); }
 .chantier p { margin: 0; }
@@ -97,11 +101,20 @@ h1 { font-size: 20pt; margin: 0 0 1mm; color: var(--accent-titre); }
 
 // Mise en forme des sous-sections : ajoutée seulement quand le devis en a (un devis sans sous-section produit exactement le même document qu'avant).
 const CSS_SOUS_SECTIONS = `
-.lignes .sous-bandeau td { background: #f8f9fa; border-top: 0.2mm solid #bbb; }
+.lignes .sous-bandeau td { background: #eef3f8; color: var(--accent); border-top: 0.2mm solid #cfd6dd; }
 .lignes .sous-total-sous td { font-size: 8.5pt; border-bottom: 0.2mm solid #bbb; }
 `;
 
 const GRIS = '#666666';
+/** Couleur principale du devis quand l'entreprise n'en a pas choisi (bleu marine) et son pendant clair (bleu eau). */
+export const COULEUR_DEVIS_DEFAUT = '#1B2A4A';
+const CLAIR_DEFAUT = '#2A8FD8';
+const melanger = (hex, avec, t) => `#${[1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - t) + parseInt(avec.slice(i, i + 2), 16) * t).toString(16).padStart(2, '0')).join('')}`;
+/** Palette du devis : la couleur choisie (« Couleur du tableau ») est la couleur principale, son clair en est tiré ; sans choix, marine et bleu eau. */
+export function paletteDevis(couleur) {
+  const choisie = typeof couleur === 'string' && /^#[0-9a-fA-F]{6}$/.test(couleur.trim()) ? couleur.trim().toLowerCase() : null;
+  return choisie ? { principale: choisie, claire: melanger(choisie, '#ffffff', 0.25) } : { principale: COULEUR_DEVIS_DEFAUT, claire: CLAIR_DEFAUT };
+}
 /** Couleur d'accent : seulement #rrggbb (jamais de texte libre dans le CSS), sinon gris. */
 export const couleurValide = (c) => (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c) ? c : GRIS);
 const LOGO_DATA = /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/;
@@ -109,11 +122,15 @@ const LOGO_HTTPS = /^https:\/\/[^\s"'<>\\]+$/;
 /** Le logo n'est une ressource externe que s'il est fourni explicitement (URL https ou image en data:). */
 const logoValide = (l) => typeof l === 'string' && (LOGO_DATA.test(l) || LOGO_HTTPS.test(l));
 
-/** Bloc de l'émetteur : logo (https ou data:image) puis les champs connus de l'émetteur. */
-function blocEmetteur(e, logo) {
+/** Image du logo (en haut à gauche, carrée 26 mm) : celle de « Mon entreprise » si elle existe, sinon celle fournie par l'appelant (logo de l'espace) ; jamais une autre adresse que https ou data:image. */
+function blocLogo(e, logo) {
+  const image = logoValide(e.logo) ? e.logo : logoValide(logo) ? logo : null;
+  return image ? `<img class="logo-devis" src="${echapper(image)}" alt="">` : '';
+}
+
+/** Bloc de l'émetteur : les champs connus de l'émetteur (le logo est en haut de page, voir blocLogo). */
+function blocEmetteur(e) {
   const l = [];
-  const imageLogo = logoValide(logo) ? logo : e.logo;
-  if (logoValide(imageLogo)) l.push(`<img src="${echapper(imageLogo)}" alt="">`);
   if (e.nom) l.push(`<div class="nom">${texte(e.nom)}</div>`);
   const forme = e.forme ?? e.formeJuridique;
   if (forme) l.push(`<div>${texte(forme)}</div>`);
@@ -216,9 +233,9 @@ export function devisHtml(vue, options = {}) {
   // Réglages de l'entreprise : fournis à côté du devis (options.emetteur) ou portés par la vue.
   const emetteur = options.emetteur ?? v.emetteur ?? {};
   const aff = options.affichage ?? {};
-  const accent = couleurValide(emetteur.couleur);
+  const palette = paletteDevis(emetteur.couleur);
 
-  const infos = [`<h1>Devis</h1>`];
+  const infos = [];
   infos.push(`<div>Numéro${NBSP}: <strong>${texte(v.numero ?? 'brouillon')}</strong>${v.version > 1 ? ` (version ${texte(v.version)})` : ''}</div>`);
   if (v.dateEmission) infos.push(`<div>Date d'émission${NBSP}: ${dateFr(v.dateEmission)}</div>`);
   if (v.dateValidite) infos.push(`<div>Valable jusqu'au${NBSP}: ${dateFr(v.dateValidite)}</div>`);
@@ -292,7 +309,8 @@ export function devisHtml(vue, options = {}) {
 
   const corps = [
     ...pagesAvant,
-    `<div class="haut">${blocEmetteur(emetteur, options.logo)}${blocDestinataire(v, aff)}</div>`,
+    `<div class="haut">${blocLogo(emetteur, options.logo)}<div class="titre-devis"><h1>Devis</h1></div></div>`,
+    `<div class="parties">${blocEmetteur(emetteur)}${blocDestinataire(v, aff)}</div>`,
     `<div class="infos">${infos.join('')}</div>`,
     blocChantier,
     tableauLignes(v, sansTva, aff),
@@ -313,7 +331,7 @@ export function devisHtml(vue, options = {}) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${texte(titre)}</title>
-<style>:root { --accent: ${accent}; --accent-titre: ${/^#[0-9a-fA-F]{6}$/.test(String(emetteur.couleur ?? '').trim()) ? accent : '#1b1b1b'}; }${CSS}${(v.sections ?? []).some((x) => x.niveau === 2) ? CSS_SOUS_SECTIONS : ''}</style>
+<style>:root { --accent: ${palette.principale}; --accent-clair: ${palette.claire}; }${CSS}${(v.sections ?? []).some((x) => x.niveau === 2) ? CSS_SOUS_SECTIONS : ''}</style>
 </head>
 <body>
 ${options.brouillon === true ? '<div class="filigrane">BROUILLON</div>' : ''}

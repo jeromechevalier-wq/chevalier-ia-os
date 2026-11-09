@@ -465,3 +465,84 @@ describe('R plateforme : fichiers déposés, rôles et cloisonnement entre clien
     assert.equal(m.objets.size, 0);
   });
 });
+
+// ---------------------------------------------------------------- 3 Logo de l'espace dans le PDF (09/11/2026)
+describe('3 logo de l’espace : le serveur le lit lui-même dans le stockage (jamais par l’adresse de la fiche)', () => {
+  const BUCKET = 'bucket-essai.firebasestorage.app';
+  const adresse = (chemin) => `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodeURIComponent(chemin)}?alt=media`;
+  const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(300, 9)]);
+  const avecLogo = async (logo, lireOctets) => {
+    const m = await monde({ finaliser: [] });
+    const f = faux();
+    const lus = [];
+    f.stockage.lire = async (chemin) => { lus.push(chemin); if (lireOctets instanceof Error) throw lireOctets; return lireOctets; };
+    FICHES['clients/a'] = { ...FICHES['clients/a'], logo };
+    const brouillon = () => fabriquerPdfClient({ db: fauxDb(), auth: auth(ALICE), donnees: { client: 'a', devisId: 'd-a', brouillon: true }, convertir: f.convertir, stockage: f.stockage, nomBucket: BUCKET, creerDonnees: m.creerDonnees, maintenant: () => MAINTENANT.getTime() });
+    return { m, f, lus, brouillon };
+  };
+  const retirer = () => { delete FICHES['clients/a'].logo; };
+
+  test('3 chez un client, le logo de l’espace est lu par son chemin marques/<client>/… et mis dans le PDF en data:image (écran = même document)', async () => {
+    const { f, lus, brouillon } = await avecLogo(adresse('marques/a/logo-1700000000000.png'), PNG);
+    try {
+      const r = await brouillon();
+      assert.equal(r.statut, 'ok');
+      assert.equal(r.avertissement, undefined);
+      assert.deepEqual(lus, ['marques/a/logo-1700000000000.png']);
+      assert.match(f.vus.html[0], /<img class="logo-devis" src="data:image\/png;base64,[A-Za-z0-9+/=]+" alt="">/);
+      assert.ok(!f.vus.html[0].includes('firebasestorage'), 'l’adresse https de la fiche n’est jamais écrite dans le document');
+    } finally { retirer(); }
+  });
+  test('3 SSRF : une adresse hors de CE bucket, d’un autre client, avec « .. » ou sans https n’est jamais lue ; le PDF se fait sans logo, sans avertissement', async () => {
+    for (const logo of ['https://evil.example/x.png', adresse('marques/b/logo-1.png'), adresse('marques/a/../b/logo.png'), `https://firebasestorage.googleapis.com/v0/b/autre-bucket/o/${encodeURIComponent('marques/a/l.png')}?alt=media`, 'http://169.254.169.254/latest', 'data:image/png;base64,AAAA', 42, null]) {
+      const { f, lus, brouillon } = await avecLogo(logo, PNG);
+      try {
+        const r = await brouillon();
+        assert.equal(r.statut, 'ok', String(logo));
+        assert.deepEqual(lus, [], String(logo));
+        assert.ok(!f.vus.html[0].includes('<img'), String(logo));
+        assert.equal(r.avertissement, undefined, String(logo));
+      } finally { retirer(); }
+    }
+  });
+  test('3 logo trop lourd (> 1,5 Mo) : le PDF est fait SANS logo et la réponse porte un message clair (jamais un échec)', async () => {
+    const { f, brouillon } = await avecLogo(adresse('marques/a/logo-1.png'), Buffer.concat([PNG, Buffer.alloc(1_600_000)]));
+    try {
+      const r = await brouillon();
+      assert.equal(r.statut, 'ok');
+      assert.match(r.avertissement, /trop lourd.*sans logo/);
+      assert.ok(!f.vus.html[0].includes('<img'));
+    } finally { retirer(); }
+  });
+  test('3 logo d’un autre format (SVG) ou illisible (le stockage répond une erreur) : PDF sans logo + message, jamais d’échec', async () => {
+    for (const [octets, motif] of [[Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'), /PNG, un JPG ou un WebP/], [new Error('Stockage : le fichier n\'a pas pu être lu.'), /n’a pas pu être lu/]]) {
+      const { f, brouillon } = await avecLogo(adresse('marques/a/logo-1.png'), octets);
+      try {
+        const r = await brouillon();
+        assert.equal(r.statut, 'ok');
+        assert.match(r.avertissement, motif);
+        assert.ok(!f.vus.html[0].includes('<img'));
+      } finally { retirer(); }
+    }
+  });
+  test('3 le PDF automatique (déclencheur à la finalisation) met aussi le logo de l’espace ; sans nom de bucket, pas de logo', async () => {
+    for (const [nomBucket, attendu] of [[BUCKET, true], [null, false]]) {
+      const { m, f } = await avecLogo(adresse('marques/a/logo-2.png'), PNG);
+      try {
+        await S.finaliser({ donnees: m.creerDonnees('a'), ctx: { acteur: ALICE, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd-a' });
+        await creerDeclencheurPdfClient({ db: fauxDb(), creerDonnees: m.creerDonnees, convertir: f.convertir, stockage: f.stockage, nomBucket, maintenant: () => MAINTENANT.getTime() })(evenement('a', 'd-a', { statut: 'brouillon' }, FINALISE));
+        assert.equal(f.vus.html.length, 1);
+        assert.equal(f.vus.html[0].includes('<img class="logo-devis" src="data:image/png;base64,'), attendu);
+      } finally { retirer(); }
+    }
+  });
+  test('3 chez Jérôme : aucun logo d’espace (décision prise seul) ; seul `emetteur.logo` en data:image est gardé, une adresse https est retirée', async () => {
+    const { emetteurSansLogoExterne } = await import('../functions/src/devis/pdf-service.js');
+    assert.equal(emetteurSansLogoExterne({ nom: 'A', logo: 'https://exemple.test/l.png' }).logo, undefined);
+    assert.equal(emetteurSansLogoExterne({ nom: 'A', logo: 'data:image/png;base64,iVBORw0KGgo=' }).logo, 'data:image/png;base64,iVBORw0KGgo=');
+    const appel = readFileSync(new URL('../functions/src/devis/pdf-appel.js', import.meta.url), 'utf8');
+    assert.ok(!/lireLogo/.test(appel), 'pdf-appel.js (Jérôme) ne branche pas de logo d’espace');
+    assert.match(readFileSync(new URL('../functions-plateforme/src/devis-pdf.js', import.meta.url), 'utf8'), /lireLogo: creerLireLogoEspace/);
+    assert.match(readFileSync(new URL('../functions-plateforme/src/index.js', import.meta.url), 'utf8'), /nomBucket: BUCKET/);
+  });
+});
