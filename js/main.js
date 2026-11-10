@@ -5,6 +5,7 @@ import { surveillerCompte, connecter, deconnecter, crmDisponible, MESSAGE_REFUS 
 import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace } from './os/marque.js';
 import { blocIntrouvablePortail } from './os/portail-introuvable.js';
+import { actionsDuPortail } from './os/portail-actions.js';
 import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe, ecranSocleDeRoute } from './os/portail.js';
 import { MODULES } from './os/modules.js';
 import { demarrerObjectifs, arreterObjectifs } from './os/objectifs.js';
@@ -89,7 +90,7 @@ async function ouvrirSession(compte) {
     apisCoquille = new Map([...apis].filter(([id]) => ids.includes(id))); // les autres modules restent montés et démarrés (Devis lit les affaires par le CRM), mais n'offrent ni « + » ni recherche
     definirPrefixe(portail.id);
     arretLiens = suivreLiensDuPrefixe();
-    options = { accueil: accueilPortail, menu: PORTAILS[portail.id].menu, supplements: PORTAILS[portail.id].supplements, retour: { libelle: PORTAILS[portail.id].libelleRetour, href: '#/' + accueilPortail } }; // href hors portail : l'espace complet
+    options = { accueil: accueilPortail, menu: PORTAILS[portail.id].menu, supplements: PORTAILS[portail.id].supplements, retour: { libelle: PORTAILS[portail.id].libelleRetour, href: '#/' + accueilPortail }, actionsRetour: actionsDuPortail(PORTAILS[portail.id]) }; // href hors portail : l'espace complet
   }
   const coquille = monterCoquille(racine, compte, {
     ...options,

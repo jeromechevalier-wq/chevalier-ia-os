@@ -225,7 +225,7 @@ test('R1 le parcours complet : client, devis depuis le catalogue, finalisation, 
   await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
   await attendreCalme(page);
   await ouvrirSectionReglages(page, 'Devis'); // Réglages > Modules > Devis
-  const bouton = page.locator('[data-action="exporter-devis"]');
+  const bouton = page.locator('#reglages-export-devis [data-action="exporter-devis"]'); // le raccourci du menu porte le même data-action : on vise celui de la page
   await bouton.scrollIntoViewIfNeeded();
   await capturer(page, info, '16-reglages-export', { pleine: false });
   const [fichier] = await Promise.all([page.waitForEvent('download'), bouton.click()]);
