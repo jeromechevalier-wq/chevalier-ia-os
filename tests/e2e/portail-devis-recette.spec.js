@@ -5,7 +5,7 @@
 import { readFile } from 'node:fs/promises';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { test, expect, poserDebutEtDuree, ouvrirSectionReglages, ecrireDocument, lireDocument, estTelephone, attendreCalme, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, poserDebutEtDuree, ouvrirSectionReglages, ecrireDocument, lireDocument, estTelephone, choisirDansMenuUtilisateur, attendreCalme, PROJET, FIRESTORE, URL_APP } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/recette-portail/', import.meta.url));
 const capturer = async (page, info, nom, { pleine = true } = {}) => { mkdirSync(DOSSIER, { recursive: true }); await page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: pleine, animations: 'disabled' }); };
@@ -234,8 +234,7 @@ test('R1 le parcours complet : client, devis depuis le catalogue, finalisation, 
   expect(JSON.stringify(contenu)).toContain('DEV-2026-11-09-001');
 
   // R1.12 « Espace complet » : revient à l'espace du client, hors portail
-  await ouvrirMenu(page);
-  await page.locator('.menu').getByRole('link', { name: 'Espace complet' }).click();
+  await choisirDansMenuUtilisateur(page, 'Espace complet');
   await expect(page).toHaveURL(/#\/espace\/devisseul(\/devis\/liste)?$/);
   await page.waitForLoadState('load'); // changer d'entrée recharge la page
   await expect(page.locator('.coquille')).toBeVisible();
@@ -243,13 +242,13 @@ test('R1 le parcours complet : client, devis depuis le catalogue, finalisation, 
   await capturer(page, info, '17-espace-complet');
 });
 
-test('R2 arrivée et menu : la liste des devis à l\'arrivée, le menu (tiroir sur téléphone) a cinq entrées + « Espace complet »', async ({ page }, info) => {
+test('R2 arrivée et menu : la liste des devis à l\'arrivée, le menu (tiroir sur téléphone) a cinq entrées', async ({ page }, info) => {
   await devisAncien();
   await ouvrir(page);
   await expect(page.locator('.page-liste-devis')).toBeVisible();
   await expect(page).toHaveURL(/#\/espace\/devisseul\/portail-devis(\/devis\/liste)?$/);
   await ouvrirMenu(page);
-  await expect(page.locator('.menu .menu-entree')).toHaveCount(6);
+  await expect(page.locator('.menu .menu-entree')).toHaveCount(5);
   await expect(page.locator('.menu [aria-current="page"]')).toHaveAttribute('data-chemin', 'devis/liste');
   await capturer(page, info, '18-menu', { pleine: false });
   if (estTelephone(page)) { await page.keyboard.press('Escape'); await expect(page.locator('.coquille.menu-ouvert')).toHaveCount(0); }

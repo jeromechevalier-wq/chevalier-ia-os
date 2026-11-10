@@ -43,7 +43,7 @@ test.describe('chez Jérôme', () => {
     await expect(page.locator('.page-liste-devis')).toBeVisible();
     await attendreCalme(page);
     await ouvrirMenu(page);
-    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques', 'Espace complet']);
+    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques']);
     if (!estTelephone(page) && (await page.locator('.coquille[data-menu="replie"]').count())) await page.locator('[data-role="bascule-menu"]').click(); // menu déplié pour que la capture montre les mots
     await expect(page.locator('.menu .menu-entree[data-chemin="devis/statistiques"] .menu-texte')).toBeVisible();
     await capturer(page, info, 'E1-menu-cinq-entrees');
@@ -136,7 +136,7 @@ test.describe('chez un client Devis seul (sans Affaires)', () => {
     await ouvrir(page, 'portail-devis');
     await expect(page.locator('.page-liste-devis')).toBeVisible();
     await ouvrirMenu(page);
-    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques', 'Espace complet']);
+    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques']);
     await cliquerMenu(page, 'crm/personnes');
     await expect(page).toHaveURL(/#\/espace\/devisseul\/portail-devis\/crm\/personnes$/);
     await expect(page.getByText('Camille Martin')).toBeVisible();

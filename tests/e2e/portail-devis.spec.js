@@ -2,7 +2,7 @@
 // Le nom d'un test commence par le numéro du critère (5 à 10 et 13 à 18 ici ; 1 à 4, 11 et 12 : tests/portail-devis.test.js). Captures dans tests/e2e/captures/portail-devis/.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, listerDocuments, connecter, ecrireDocument, estTelephone, attendreCalme, ouvrirMenuUtilisateur, CHANTIER_ESSAI, JEROME, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, listerDocuments, connecter, ecrireDocument, estTelephone, attendreCalme, ouvrirMenuUtilisateur, choisirDansMenuUtilisateur, CHANTIER_ESSAI, JEROME, PROJET, FIRESTORE, URL_APP } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/portail-devis/', import.meta.url));
 const DOSSIER_RETOUCHES = fileURLToPath(new URL('./captures/a-traiter-retouches/', import.meta.url));
@@ -66,12 +66,12 @@ test.describe('chez Jérôme', () => {
   test('6 le menu du portail : Devis, Clients, Catalogue, Relances, Statistiques + Espace complet ; menu utilisateur réduit ; le « + » ne propose que Devis', async ({ page }, info) => {
     await ouvrirPortail(page);
     await ouvrirMenu(page);
-    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques', 'Espace complet']);
-    await expect(page.locator('[data-role="retour-espace"] svg :is(path, rect, circle, line)').first()).toBeAttached(); // icône réellement dessinée
+    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques']);
+    await expect(page.locator('.menu [data-role="retour-espace"], .menu [data-action="exporter-devis"]')).toHaveCount(0); // « Espace complet » et l'export ont quitté le menu latéral (10/11/2026)
     for (const lib of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille', 'Automatisations', 'Maintenance']) await expect(page.locator('.menu').getByRole('link', { name: lib, exact: true })).toHaveCount(0);
     await capturer(page, info, '6-menu');
     await ouvrirMenuUtilisateur(page);
-    await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Réglages', /Thème (clair|sombre)/, 'Se déconnecter']);
+    await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Réglages', 'Exporter mes données', 'Espace complet', /Thème (clair|sombre)/, 'Se déconnecter']);
     await expect(page.locator('.menu-pop').getByRole('menuitemcheckbox')).toHaveText(['Mode test']);
     await page.keyboard.press('Escape');
     if (estTelephone(page)) { await page.keyboard.press('Escape'); await expect(page.locator('.coquille.menu-ouvert')).toHaveCount(0); }
@@ -99,7 +99,7 @@ test.describe('chez Jérôme', () => {
   test('8 « Espace complet » mène à #/devis/liste hors du portail : page rechargée, menu complet', async ({ page }) => {
     await ouvrirPortail(page);
     await ouvrirMenu(page);
-    await page.locator('[data-role="retour-espace"]').click();
+    await choisirDansMenuUtilisateur(page, 'Espace complet');
     await expect(page).toHaveURL(/#\/devis\/liste$/);
     await expect(page.locator('.page-liste-devis')).toBeVisible();
     await ouvrirMenu(page);
@@ -328,8 +328,7 @@ test.describe('chez un client (règles de la plateforme)', () => {
     await expect(page).toHaveURL(/#\/espace\/devisseul\/portail-devis\/devis\/liste$/);
     await expect(page).toHaveTitle('Devis Seul');
     await ouvrirMenu(page);
-    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques', 'Espace complet']);
-    await expect(page.locator('[data-role="retour-espace"]')).toHaveAttribute('href', '#/espace/devisseul/devis/liste');
+    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques']);
     await expect(page.locator('[data-action="a-traiter"] .pastille-a-traiter')).toHaveText('1');
     await capturer(page, info, '10-client');
     await page.keyboard.press('Escape');
@@ -342,8 +341,7 @@ test.describe('chez un client (règles de la plateforme)', () => {
     // Espace complet : hors portail, page rechargée
     await page.goto('about:blank');
     await ouvrirClient(page, 'devisseul', 'portail-devis');
-    await ouvrirMenu(page);
-    await page.locator('[data-role="retour-espace"]').click();
+    await choisirDansMenuUtilisateur(page, 'Espace complet');
     await expect(page).toHaveURL(/#\/espace\/devisseul\/devis\/liste$/);
     await expect(page.locator('.page-liste-devis')).toBeVisible();
   });

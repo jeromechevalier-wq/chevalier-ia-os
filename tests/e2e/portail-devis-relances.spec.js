@@ -81,7 +81,7 @@ test.describe('chez Jérôme', () => {
     await jeu();
     await ouvrirRelances(page);
     await ouvrirMenu(page);
-    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques', 'Espace complet']);
+    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques']);
     await expect(page.locator('.menu [aria-current="page"]')).toHaveCount(1);
     await expect(page.locator('.menu [aria-current="page"]')).toHaveText(/Relances/);
     await expect(page.locator('.menu .menu-entree[data-chemin="devis/relances"] svg :is(path, circle, line, polyline)').first()).toBeAttached(); // icône réellement dessinée
@@ -244,7 +244,7 @@ test.describe('chez un client (règles de la plateforme)', () => {
     await expect(page.locator('.page-relances')).toBeVisible();
     await attendreCalme(page);
     await ouvrirMenu(page);
-    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques', 'Espace complet']);
+    expect(await entreesMenu(page)).toEqual(['Devis', 'Clients', 'Catalogue', 'Relances', 'Statistiques']);
     await expect(page.locator('.menu [aria-current="page"]')).toHaveText(/Relances/);
     await page.keyboard.press('Escape');
     await expect(bloc(page, 'a-relancer').locator('.ligne-relance')).toHaveCount(1);
