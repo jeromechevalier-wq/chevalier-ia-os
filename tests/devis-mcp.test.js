@@ -1250,7 +1250,7 @@ describe('N9 lire_reglages_devis et journal du bordereau', () => {
 
   test('A5 lire_reglages_devis renvoie le texte d’assurance et « Attestation et mentions », jamais les coordonnées bancaires ni le paiement (10/11/2026)', async () => {
     const s = await demarrer();
-    Object.assign(s.doc('devis_parametres', 'reglages'), { mentionEmetteur: 'Attestation de TVA réduite', mentionTvaReduite: 'Taux réduit appliqué', entreprise: { nom: 'Atelier', assuranceTexte: 'Décennale chez X', coordonneesBancaires: 'Banque\nIBAN', paiement: { modes: ['Virement'], iban: 'FR76 0000 0000 0000' } } });;
+    Object.assign(s.doc('devis_parametres', 'reglages'), { mentionEmetteur: 'Attestation de TVA réduite', mentionTvaReduite: 'Taux réduit appliqué', entreprise: { nom: 'Atelier', assuranceTexte: 'Décennale chez X', coordonneesBancaires: 'Banque\nIBAN', paiement: { modes: ['Virement'], iban: 'FR76 0000 0000 0000' } } });
     const r = ok(await s.appeler('lecteur', 'lire_reglages_devis', {}));
     assert.equal(r.reglages.mentionEmetteur, 'Attestation de TVA réduite');
     assert.equal(r.reglages.mentionTvaReduite, 'Taux réduit appliqué');
