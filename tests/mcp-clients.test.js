@@ -17,6 +17,7 @@ import { creerEspaces } from '../functions/src/clients/espaces.js';
 import { creerRouteurOauthClients } from '../functions/src/clients/routeur-oauth.js';
 import { creerGestionnaireClients, outilsDesModules, outilsSelonOptions, OUTILS_PAR_OPTION, NOM_SERVEUR_CLIENT } from '../functions/src/clients/gestionnaire.js';
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
+import { varianteDuProfil } from '../functions/src/mcp/outils/variantes-assistant-devis.js';
 import { EMETTEUR_PLATEFORME as EMETTEUR } from '../functions/src/clients/config.js';
 import { collections } from './_donnees-essai.js';
 import { EMETTEUR_ESSAI, CHANTIER_ESSAI } from './jeu-finalisation.js';
@@ -1011,6 +1012,8 @@ describe('Textes des outils : valables pour tout espace (Partie A)', () => {
     for (const permis of ['une affaire gagnée', 'nature livraison', 'lire_audit : le journal d\'audit', 'phase de clôture']) assert.doesNotMatch(permis, TEXTE_DE_JEROME, permis);
     assert.equal(OUTILS.length, 85); // 85 : + modifier_reglages_devis (réglages du module Devis par l'assistant, profil complet, 09/11/2026) ; 84 : + supprimer_tous_les_tests (mode test, PR 4, 05/11/2026) ; 83 : + marquer_test, demarquer_test (mode test, PR 2, 05/11/2026) ; 81 : + recalculer_usage_articles (recalcul du compteur d'usage des articles, 30/10/2026) ; 80 : + creer_devis_depuis_modele (nouveau brouillon copié d'un devis, 30/10/2026) ; 79 : + annuler_derniere_modification_devis (annulation d'un seul niveau, 30/10/2026) ; 78 : + modifier_lignes_devis (opérations groupées sur les lignes d'un brouillon, par numéro, 30/10/2026) ; 77 : + recalculer_montants_affaires (recalcul général du montant des affaires, 30/10/2026) ; 76 : + modifier_destinataires_devis (destinataire d'un devis finalisé, 29/10/2026) ; 75 : + obtenir_pdf_officiel_devis et preparer_email (garantie « aucun e-mail ne part tout seul », 29/10/2026) ; 73 : + deposer_document et supprimer_document_stocke (onglet « Documents », 28/10/2026) ; 71 : + enregistrer_reponse_vocabulaire et rechercher_article_par_phrase (dictionnaire de vocabulaire, 28/10/2026) ; 69 : + diagnostiquer_fichiers (outil d'essai temporaire, 26/10/2026) ; 68 avant : 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations), plus 5 outils du bordereau et 11 outils des devis (module Devis, 24/10/2026 puis 25/10/2026 : + lire_reglages_devis, nouvelle_version_devis, archiver_devis, enregistrer_envoi_devis, changer_statut_devis, supprimer_devis)
     for (const o of OUTILS) assert.doesNotMatch(textesDe(o), TEXTE_DE_JEROME, `${o.nom} : ${textesDe(o).match(TEXTE_DE_JEROME)?.[0]}`);
+    // Les textes servis au profil assistant-devis (variantes allégées) passent le même contrôle (09/11/2026) : `OUTILS` ne contient que les textes d'origine.
+    for (const o of OUTILS) { const v = varianteDuProfil(o, 'assistant-devis'); const t = JSON.stringify([v.nom, v.description, v.schema ? z.toJSONSchema(v.schema instanceof z.ZodType ? v.schema : z.object(v.schema)) : null]); assert.doesNotMatch(t, TEXTE_DE_JEROME, `variante ${o.nom} : ${t.match(TEXTE_DE_JEROME)?.[0]}`); }
   });
 
   test('D1b sur un espace client, lire_reglages rend etape_1…, phase_1… et leurs noms, sans identifiant de Jérôme', async () => {

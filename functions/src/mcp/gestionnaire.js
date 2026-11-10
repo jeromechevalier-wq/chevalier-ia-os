@@ -12,6 +12,7 @@ import { ESPACE_JEROME } from '../coeur/n8n-sortie.js';
 
 export const BASE_LIEN_JEROME = 'https://chevalier-ia-os.web.app';
 import { OUTILS, outilsAutorises, annotationsDe } from './outils/index.js';
+import { varianteDuProfil } from './outils/variantes-assistant-devis.js';
 import { VERSION_SERVEUR } from '../version.js';
 import { ORIGINES_AUTORISEES as ORIGINES, URL_METADONNEES_RESSOURCE } from '../oauth/config.js';
 import { estSuperAdminEmail } from '../securite/super-admins.js';
@@ -169,7 +170,11 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
     }
   };
   for (const outil of permis) {
-    serveur.registerTool(outil.nom, { description: outil.description, annotations: annotationsDe(outil), ...(outil.meta ? { _meta: outil.meta } : {}), ...(outil.schema ? { inputSchema: outil.schema } : {}) }, async (args) => {
+    // Ce que le profil VOIT (description, schéma annoncé et validé) : la variante allégée pour assistant-devis, l'outil lui-même pour tous les autres. L'exécution reste celle de l'outil d'origine.
+    const annonce = varianteDuProfil(outil, jeton.profil);
+    serveur.registerTool(outil.nom, { description: annonce.description, annotations: annotationsDe(outil), ...(outil.meta ? { _meta: outil.meta } : {}), ...(annonce.schema ? { inputSchema: annonce.schema } : {}) }, async (argsRecus) => {
+      // Variante à schéma souple : tout champ non annoncé est retiré avant l'exécution (comme le faisait le schéma d'origine).
+      const args = annonce.champsAcceptes ? Object.fromEntries(Object.entries(argsRecus ?? {}).filter(([c]) => annonce.champsAcceptes.includes(c))) : argsRecus;
       const contexte = {
         acteur: jeton.acteur, email: jeton.email, profil: jeton.profil, superAdmin, actifs: jeton.actifs ?? null, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), nomServeur, args, donnees: donneesComptees, maintenant: ctxEcriture.maintenant,
         ecrire: (demande) => ecrire({ ...demande, outil: outil.nom }),
