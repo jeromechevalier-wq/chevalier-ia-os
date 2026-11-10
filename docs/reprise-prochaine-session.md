@@ -1,5 +1,49 @@
 # À faire au début de la prochaine session
 
+## Rapport de la matinée du 10/11/2026 (PR 563 à 572, déploiements clients, décisions de Jérôme)
+
+Pas de nouvelle version dans cette PR de docs (la version reste 2.40.0). Tableau des choses à faire : `.github/A-FAIRE.md` (section « Matinée du 10/11/2026 »). Ce rapport complète celui de la nuit (plus bas) : les lignes « en attente » de la nuit (565, 567) sont réglées.
+
+| Sujet | PR | État |
+|---|---|---|
+| Test statique des écarts `functions/` vs `functions-plateforme/` | 563 | fusionnée |
+| Corrections du serveur MCP ; `lister_devis` non reproduit côté serveur (test verrou ; cause probable : arguments envoyés par le bot n8n) | 564 | fusionnée |
+| Variantes courtes des outils pour le profil `assistant-devis` (`functions/src/mcp/outils/variantes-assistant-devis.js` ; `lignes` / `sections` refusés sur `modifier_devis_brouillon`) | 565 | fusionnée (garantie courte acceptée par Jérôme) |
+| Menu du portail devis seul | 566 | fusionnée |
+| Recette du portail, bouton « Clients » | 567 | fusionnée |
+| Coordonnées bancaires et paiement masqués dans `lire_reglages_devis` et dans la réponse de `modifier_reglages_devis` | 568 | fusionnée |
+| Raccourci « Exporter mes données » du portail | 569 | fusionnée |
+| Bandeaux de confirmation qui ne s'empilent plus (`js/os/ui.js`) | 570 | fusionnée |
+| Bouton « Catalogue » en double retiré de la page Devis en portail | 571 | fusionnée |
+| « Exporter mes données » et « Espace complet » déplacés du menu latéral du portail vers le menu du compte ; entrée « Portail devis » dans le menu du compte de l'espace complet (chez Jérôme et chez les clients qui ont Devis) | 572 | fusionnée |
+| Docs de la matinée | cette PR | brouillon |
+
+- **Déploiements chez les clients faits le 10/11** (un par un, après le test de Jérôme) : `hosting` (portail), puis une 2e fois après la PR 572 ; `mcp` (565 + 568) ; `fonctions` (logo dans le PDF, droit IAM étendu par Jérôme : `docs/pdf-clients.md`, étape 2 bis).
+- **Testé par Jérôme** : le portail chez lui et chez MCA, le logo du PDF, le menu du compte.
+- **Pas pu être vérifié** : un vrai appel du bot Telegram de MCA après le déploiement `mcp` (**à confirmer par Jérôme** : lui envoyer un message de test) ; le profil réel du jeton du bot n'a pas pu être lu dans le journal (gcloud non authentifié depuis la session) : **à vérifier**.
+
+**Décisions de Jérôme du 10/11/2026** :
+- Garantie courte du profil `assistant-devis` (PR 565) : **acceptée**.
+- Déploiements chez les clients **un par un après son test** (`hosting`, `mcp`, `fonctions`).
+- Mémoire du bot n8n de MCA ramenée de 30 à 12 échanges (workflow n8n, hors dépôt) + filtre qui retire du message Telegram les blocs internes `[CODE:…]` et `[DEVIS …]` (hors dépôt).
+- Coordonnées bancaires **masquées en lecture MCP** (PR 568).
+- Lien PDF signé de `obtenir_pdf_officiel_devis` (valable 5 minutes) : accepté tel quel.
+- Attribution des devis dirigeant / secrétaire : **on laisse comme maintenant** (un seul jeton, `creePar` = l'acteur du jeton, propriétaire vide). Idée future : un jeton par personne, avec choix du jeton selon le canal Telegram.
+- Le credential n8n a été renommé (hors dépôt, nom exact non écrit ici).
+- Logo d'espace chez Jérôme : **non par défaut**.
+- Les trois écarts `functions/` vs `functions-plateforme/` (`tableaudebord`, `tableaudebordSaisir`, `veille`) sont **« absents chez les clients, volontairement »** : Maintenance = scripts de surveillance de Jérôme ; la Veille passe par n8n.
+- Menu du portail : **pas d'entrée « Vocabulaire »** (le bouton Vocabulaire de la page Devis reste). « Espace complet » et « Exporter mes données » vivent dans le **menu du compte**.
+- Vocabulaire de l'interface : **« Portail devis »** (pas « portail de vie »).
+
+**Restes (pas des décisions)** :
+- Ligne d'explication sur l'écran Statistiques, « Les devis de test ne sont pas comptés » : proposée, **pas validée** (un devis `[TEST]` n'entre pas dans les statistiques, `js/modules/devis/statistiques.js` vers la ligne 63).
+- Mineurs de la PR 569 : le `.catch` de l'export n'est pas testé sur chaque chemin ; un double clic lance deux exports ; sur téléphone le tiroir reste ouvert après le clic (comme dans Réglages) ; le rôle lecteur dépend des règles Firestore.
+- Les fiches « Test Dupont » et « Test Martin » restent dans l'espace de MCA (à supprimer à l'écran si Jérôme le veut, jamais en lot).
+
+**Prochaines étapes** : (1) Jérôme envoie un message de test au bot de MCA ; (2) lire dans le journal d'une vraie exécution les arguments de `lister_devis` envoyés par n8n (sans lire les données d'exécution des nœuds HTTP) ; (3) décider de la ligne « devis de test non comptés » ; (4) petite PR de code pour les mineurs de la 569 si Jérôme les veut.
+
+---
+
 ## Rapport du matin du 10/11/2026 : nuit « GO NUIT » du 09 au 10/11/2026 (PR 562 à 567)
 
 Version 2.40.0 (cette PR). Tableau des choses à faire : `.github/A-FAIRE.md` (section « nuit GO NUIT »). **Objectif de Jérôme pour cette nuit : présenter le portail « Devis seul » avec toutes ses pages, opérationnel.** Visite guidée : ci-dessous.

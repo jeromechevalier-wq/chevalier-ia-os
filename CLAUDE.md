@@ -191,3 +191,10 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 - **La restauration du journal est le garde-fou de toute opération sur un devis finalisé** (choix de l'affaire, archivage, envoi enregistré) : `restaurer.js` refuse plutôt que de laisser une racine à moitié rattachée ; un refus à tort est acceptable (rien n'est perdu), une restauration à tort ne l'est pas (limite connue dans `docs/montant-affaire.md`).
 - **Décisions de Jérôme du 07/11** : portail devis seul = Relances à la main d'abord (même bouton « Préparer l'e-mail », texte de relance validé, brouillon Gmail, jamais d'envoi) ; profils `lecture` / `ecriture` / `complet` avec les anciens noms en alias durables ; **option A** : finalisation sans affaire partout (chez lui, chez un client avec Affaires, en Devis seul), avertissement non bloquant quand Affaires est actif, « Choisir l'affaire » plus tard ; changement de règle de finalisation = **pas de déploiement chez les clients de nuit**, accord explicite le matin.
 - **Secret `MCP_JETONS` : une seule ligne par jeton**. `trouverJeton` (`functions/src/securite/jetons.js`) compare toutes les lignes et garde la DERNIÈRE qui correspond ; codes de confirmation et plafonds sont liés au NOM du jeton : changer un profil = modifier la ligne en place, attendre une minute (cache 60 s).
+
+### Leçons de la matinée du 10/11/2026
+- **Le poids du bot vient surtout de sa mémoire, de ses outils et de ses consignes** : mesurer avant d'optimiser (30 → 12 échanges a été le gain principal).
+- **Une modification n8n par l'API ne change que le brouillon** : publier aussi la version active, sinon le bot garde l'ancienne.
+- **`gh workflow run` et GraphQL sont refusés en session** : lancer un workflow avec l'outil GitHub MCP, lire avec `gh api` REST.
+- **Après un déploiement `mcp` chez un client, envoyer un message de test à son bot** (le profil réel du jeton ne se lit pas toujours depuis la session).
+- **Ne jamais lire les données d'exécution des nœuds HTTP de n8n** : les en-têtes contiennent le secret.
