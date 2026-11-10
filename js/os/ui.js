@@ -159,6 +159,13 @@ export function toast(message, { type = 'info', duree = 3200, lien = null, actio
     zone = h('div', { id: 'toasts', class: 'toasts', role: 'status', 'aria-live': 'polite' });
     document.body.append(zone);
   }
+  // Anti-empilement : un message au texte identique remplace le précédent ; au plus 2 messages visibles (le plus ancien part).
+  // Jamais retirés par un autre message : les erreurs et les messages avec « Annuler » (l'utilisateur perdrait sa voie de retour).
+  const vivants = () => [...zone.querySelectorAll('.toast:not(.sortie)')];
+  const protege = (el) => el.classList.contains('toast-erreur') || !!el.querySelector('[data-action="toast-action"]');
+  const texte = (el) => el.querySelector('span')?.textContent;
+  vivants().filter((el) => texte(el) === message && el.classList.contains('toast-erreur') === (type === 'erreur') && !el.querySelector('[data-action="toast-action"]') === !action).forEach((el) => el.remove());
+  while (vivants().length >= 2) { const ancien = vivants().find((el) => !protege(el)); if (!ancien) break; ancien.remove(); }
   const t = h('div', { class: `toast toast-${type}${lien ? ' avec-lien' : ''}` }, icone(type === 'erreur' ? 'triangle-alert' : 'circle-check', { taille: 16 }), h('span', {}, message),
     lien ? h('a', { class: 'toast-lien', href: lien.href }, lien.libelle) : null,
     // Action (ex. « Annuler » après un retrait) : un bouton dans le message, qui le ferme.
