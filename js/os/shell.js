@@ -95,7 +95,7 @@ function logoEspace(logo, taille, classe) {
  * Monte la coquille pour le compte connecté.
  * Renvoie { contenu, activer(route), majClient(nouveau), arreter() }.
  * Options : `modules` (défaut : tous) ; `client` = { nom, logo, accent? } (identité de l'espace : la même forme chez Jérôme, où elle vaut ESPACE_RACINE, et chez un client) ;
- * `accueil` = première route ; `retour` = { libelle, href } (portail devis seul : dernière entrée du menu, lien vers l'espace complet) ; `actionsRetour` = [{ id, libelle, icone, surClic }] boutons au-dessus de ce lien.
+ * `accueil` = première route ; `retour` = { libelle, href } (portail devis seul : entrée du menu du compte, lien vers l'espace complet) ; `actionsRetour` = [{ id, libelle, icone, surClic }] entrées du menu du compte, avant ce lien.
  * Menu principal : blocs d'entrées séparés par de fines lignes, sans titres de groupes. Réglages, Journal des modifications, « Connecter mon ChatGPT », thème
  * et déconnexion sont dans le menu utilisateur (clic sur le nom, en bas à gauche). Le bouton de repli est à droite du nom de l'espace (Cmd/Ctrl+B).
  */
@@ -142,14 +142,6 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     }
     nav.append(groupe);
   }
-  if (retour) {
-    // Portail devis seul : une dernière section avec le lien vers l'espace complet (adresse hors du préfixe du portail, donc data-hors-prefixe).
-    const a = h('a', { class: 'menu-entree menu-entree-retour', href: retour.href, dataset: { role: 'retour-espace', infobulle: retour.libelle, horsPrefixe: '' } }, icone('layout-dashboard'), h('span', { class: 'menu-texte' }, retour.libelle));
-    // `actionsRetour` : boutons d'action (ex. « Exporter mes données ») au-dessus du lien ; ce ne sont pas des entrées de menu (classe menu-action, pas menu-entree).
-    const actions = actionsRetour.map((x) => h('button', { type: 'button', class: 'menu-action', dataset: { action: x.id, infobulle: x.libelle }, onclick: x.surClic }, icone(x.icone), h('span', { class: 'menu-texte' }, x.libelle)));
-    nav.append(h('div', { class: 'menu-groupe', dataset: { bloc: 'retour' } }, h('div', { class: 'menu-section' }, ...actions, a)));
-  }
-
   /** Met à jour la pastille et le lien d'une entrée : le lien arrive sur l'écran du badge quand il y a quelque chose à traiter, sinon sur l'entrée habituelle. */
   function majBadgeEntree({ a, entree, pastille }) {
     const n = badgeDe(entree.module);
@@ -199,6 +191,9 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     const items = [
       ...(compte.email && compte.email.toLowerCase() !== String(compte.nom || '').toLowerCase() ? [{ texte: compte.email }] : []),
       { libelle: 'Réglages', icone: 'settings', action: allerDepuisMenu('reglages') },
+      // Portail devis seul : « Exporter mes données » et « Espace complet » vivent ici, plus dans le menu latéral (décision de Jérôme du 10/11/2026).
+      ...actionsRetour.map((x) => ({ libelle: x.libelle, icone: x.icone, action: x.surClic })),
+      ...(retour && /^#\//.test(retour.href) ? [{ libelle: retour.libelle, icone: 'layout-dashboard', action: () => { if (estTelephone()) ouvrirMobile(false); location.hash = retour.href; } }] : []), // adresse construite par la coque (jamais saisie) ; hors du préfixe client, comme l'ancien lien data-hors-prefixe
       ...(idsModules.includes('affaires') ? [{ libelle: 'Voir le journal des modifications', icone: 'history', action: allerDepuisMenu('crm/journal') }] : []),
       ...(idsModules.includes('mcp') ? [{ libelle: 'Connecter mon ChatGPT', icone: 'link', action: allerDepuisMenu('mcp/infos') }] : []),
       { noeud: boutonTheme('menu-pop-entree') },
