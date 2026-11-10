@@ -4,6 +4,7 @@ import { MODULES } from './modules.js';
 import { blocsDuMenu, routeArriveeMenu } from './registre.js';
 import { badgeDe, definirBadge, surBadge, texteBadge, phraseBadge } from './badges.js';
 import { naviguer, lien } from './router.js';
+import { modulesDuPortail } from './portail.js';
 import { modeTestAllume, definirModeTest, surModeTest } from './mode-test.js';
 
 // Routes sans entrée de menu -> entrée allumée à leur place (l'écran principal de leur module).
@@ -191,6 +192,8 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     const items = [
       ...(compte.email && compte.email.toLowerCase() !== String(compte.nom || '').toLowerCase() ? [{ texte: compte.email }] : []),
       { libelle: 'Réglages', icone: 'settings', action: allerDepuisMenu('reglages') },
+      // Espace complet : « Portail devis » mène au portail de la même installation (préfixe de l'espace appliqué par naviguer : #/portail-devis chez Jérôme, #/espace/<client>/portail-devis chez un client) ; seulement si Devis est actif ici (décision de Jérôme du 10/11/2026).
+      ...(!retour && modulesDuPortail('portail-devis', idsModules).length ? [{ libelle: 'Portail devis', icone: 'file-text', action: allerDepuisMenu('portail-devis') }] : []),
       // Portail devis seul : « Exporter mes données » et « Espace complet » vivent ici, plus dans le menu latéral (décision de Jérôme du 10/11/2026).
       ...actionsRetour.map((x) => ({ libelle: x.libelle, icone: x.icone, action: x.surClic })),
       ...(retour && /^#\//.test(retour.href) ? [{ libelle: retour.libelle, icone: 'layout-dashboard', action: () => { if (estTelephone()) ouvrirMobile(false); location.hash = retour.href; } }] : []), // adresse construite par la coque (jamais saisie) ; hors du préfixe client, comme l'ancien lien data-hors-prefixe

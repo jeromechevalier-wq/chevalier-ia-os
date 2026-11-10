@@ -155,14 +155,40 @@ test.describe('chez un client (règles de la plateforme)', () => {
     await expect(page).toHaveURL(/#\/espace\/devisseul\/devis\/liste$/);
   });
 
-  test('6 hors portail (espace du client) et client sans Devis : aucune de ces deux entrées dans le menu du compte', async ({ page }) => {
+  test('5c hors portail (espace du client) et client sans Devis : aucune de ces deux entrées dans le menu du compte', async ({ page }) => {
     await ouvrirClient(page, CLIENT, '');
     await ouvrirMenuUtilisateur(page);
     await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Exporter mes données|Espace complet/ })).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await ouvrirClient(page, 'cabinet', 'portail-devis'); // client sans Devis : « Page introuvable », menu vide
     await expect(page.getByRole('heading', { name: 'Page introuvable' })).toBeVisible();
     await ouvrirMenuUtilisateur(page);
     await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Exporter mes données/ })).toHaveCount(0);
+  });
+  test('7 espace d\'un client avec Devis (éditeur ET lecteur) : « Portail devis » juste après « Réglages » mène au portail DU CLIENT', async ({ page }, info) => {
+    for (const compte of [ALICE, LECTEUR]) {
+      await ouvrirClient(page, CLIENT, 'devis/liste', compte);
+      await ouvrirMenuUtilisateur(page);
+      const noms = (await page.locator('.menu-pop').getByRole('menuitem').allTextContents()).map((t) => t.trim());
+      expect(noms.slice(0, 2), compte).toEqual(['Réglages', 'Portail devis']);
+      if (compte === ALICE) await capturer(page, info, '7-client-portail');
+      await entree(page, 'Portail devis').click();
+      await expect(page).toHaveURL(/#\/espace\/devisseul\/portail-devis(\/devis\/liste)?$/);
+      await expect(page.locator('.page-liste-devis')).toBeVisible();
+      await expect.poll(() => page.locator('.menu .menu-entree').count()).toBe(5); // le portail a rechargé la page
+      await attendreCalme(page);
+      await ouvrirMenuUtilisateur(page); // dans le portail lui-même : pas de « Portail devis »
+      await expect(entree(page, 'Portail devis')).toHaveCount(0);
+      await expect(entree(page, 'Espace complet')).toBeVisible();
+      await page.keyboard.press('Escape');
+    }
+  });
+
+  test('8 espace d\'un client sans le module Devis : pas d\'entrée « Portail devis »', async ({ page }) => {
+    await ouvrirClient(page, 'cabinet', '');
+    await ouvrirMenuUtilisateur(page);
+    await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Réglages' })).toBeVisible();
+    await expect(entree(page, 'Portail devis')).toHaveCount(0);
   });
 });
 
@@ -172,7 +198,19 @@ test('5b hors portail chez Jérôme (#/) : aucune de ces deux entrées dans le m
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Exporter mes données|Espace complet/ })).toHaveCount(0);
 });
 
-test('7 verrou : l\'icône de « Espace complet » (layout-dashboard) et celle de l\'export (download) existent dans ICONES', async () => {
+test('10 verrou : les icônes de « Espace complet » (layout-dashboard), de l\'export (download) et de « Portail devis » (file-text) existent dans ICONES', async () => {
   const src = await readFile(fileURLToPath(new URL('../../js/os/ui.js', import.meta.url)), 'utf8');
-  for (const nom of ['layout-dashboard', 'download']) expect(src, nom).toMatch(new RegExp(`['"]?${nom}['"]?\\s*:`));
+  for (const nom of ['layout-dashboard', 'download', 'file-text']) expect(src, nom).toMatch(new RegExp(`['"]?${nom}['"]?\\s*:`));
+});
+
+test('6 espace complet de Jérôme : « Portail devis » juste après « Réglages » mène à #/portail-devis ; téléphone : présente dans le menu du compte (9)', async ({ page }, info) => {
+  await connecter(page, JEROME);
+  await ouvrirMenuUtilisateur(page);
+  const noms = (await page.locator('.menu-pop').getByRole('menuitem').allTextContents()).map((t) => t.trim());
+  expect(noms.slice(0, 2)).toEqual(['Réglages', 'Portail devis']);
+  await expect(entree(page, 'Portail devis').locator('svg :is(path, rect, circle, line, polyline)').first()).toBeAttached();
+  await capturer(page, info, '6-espace-complet'); // ordinateur ; en projet téléphone, c'est la capture du critère 9
+  await entree(page, 'Portail devis').click();
+  await expect(page).toHaveURL(/#\/portail-devis(\/devis\/liste)?$/);
+  await expect(page.locator('.page-liste-devis')).toBeVisible();
 });

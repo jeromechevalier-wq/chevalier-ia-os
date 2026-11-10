@@ -73,7 +73,7 @@ test('3 menu utilisateur : s’ouvre vers le haut depuis le nom, contenu dans l�
   await expect(pop).toHaveAttribute('id', 'menu-utilisateur');
   expect(await pop.evaluate((el) => getComputedStyle(el).maxHeight)).not.toBe('none'); // défile sur un écran bas (téléphone en paysage)
   await expect(pop.locator('.menu-pop-texte')).toHaveCount(1);
-  await expect(pop.getByRole('menuitem')).toHaveText(['Réglages', 'Voir le journal des modifications', 'Connecter mon ChatGPT', /Thème (clair|sombre)/, 'Se déconnecter']);
+  await expect(pop.getByRole('menuitem')).toHaveText(['Réglages', 'Portail devis', 'Voir le journal des modifications', 'Connecter mon ChatGPT', /Thème (clair|sombre)/, 'Se déconnecter']);
   await expect(pop.locator('[data-role="bascule-theme"]')).toHaveCount(1);
   await expect(pop.locator('> *').last()).toHaveText('Se déconnecter');
   await expect(pop.locator('.menu-pop-separateur')).toHaveCount(1);
@@ -100,12 +100,16 @@ test('3 menu utilisateur : s’ouvre vers le haut depuis le nom, contenu dans l�
   await page.keyboard.press('Enter');
   await expect(pop.getByRole('menuitem', { name: 'Réglages' })).toBeFocused();
   await page.keyboard.press('ArrowDown');
+  await expect(pop.getByRole('menuitem', { name: 'Portail devis' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
   await expect(pop.getByRole('menuitem', { name: 'Voir le journal des modifications' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(pop.getByRole('menuitem', { name: 'Connecter mon ChatGPT' })).toBeFocused();
   await page.keyboard.press('ArrowUp');
   await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
   await expect(pop.getByRole('menuitem', { name: 'Réglages' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/#\/crm\/journal$/);
