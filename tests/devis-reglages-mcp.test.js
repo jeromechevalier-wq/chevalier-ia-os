@@ -231,6 +231,8 @@ describe('RG8 rien à changer', () => {
     const journal = s.collections.crm_audit.length;
     const r = ok(await s.appeler('code', OUTIL, { reglages: { marge: 20, entreprise: { siret: '123 456 789 00010' } } }));
     assert.equal(r.rienAChanger, true);
+    assert.equal('paiement' in r.reglages.entreprise || 'coordonneesBancaires' in r.reglages.entreprise, false, 'même sans changement, la banque n’est pas montrée');
+    assert.equal(JSON.stringify(r).includes('FR76'), false);
     assert.deepEqual(r.champsModifies, []);
     assert.match(r.message, /Rien à changer/);
     assert.equal(JSON.stringify(s.collections.devis_parametres), avant);
@@ -330,5 +332,15 @@ describe('RG11 la restauration ne contourne pas la réservation', () => {
     const { entrees } = analyserSecret(JSON.stringify([{ jeton: 'jeton-essai', acteur: 'acteur-essai', profil: 'complet', empreinte: 'a'.repeat(64), actif: true, email: 'jerome.chevalier@gmail.com' }]));
     assert.equal(entrees.length, 1);
     assert.deepEqual(Object.keys(entrees[0]).sort(), ['acteur', 'actif', 'empreinte', 'jeton', 'profil']);
+  });
+});
+
+describe('RG12 la sortie de « Mon entreprise » est une liste connue (aucune clé bancaire future ne passe sans test)', () => {
+  test('RG12 lire_reglages_devis ne rend que des clés d’« Mon entreprise » autorisées, même avec tous les champs saisis', async () => {
+    const s = await demarrer();
+    Object.assign(s.doc('devis_parametres', 'reglages').entreprise, { forme: 'SARL', tva: 'FR00', telephone: '0102030405', email: 'a@exemple.test', site: 'https://exemple.test', registreMetiers: 'RM 1', couleur: '#112233', mediateur: { nom: 'M' } });
+    const lu = ok(await s.appeler('lecteur', 'lire_reglages_devis', {}));
+    const permises = ['nom', 'forme', 'siret', 'tva', 'telephone', 'email', 'site', 'registreMetiers', 'adresse', 'couleur', 'assuranceTexte', 'assurance', 'mediateur'];
+    for (const k of Object.keys(lu.reglages.entreprise)) assert.ok(permises.includes(k), `clé inattendue en sortie : ${k}`);
   });
 });
