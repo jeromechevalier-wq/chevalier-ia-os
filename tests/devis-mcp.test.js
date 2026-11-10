@@ -1248,14 +1248,19 @@ describe('N9 lire_reglages_devis et journal du bordereau', () => {
     assert.equal(typeof defaut.reglages.marge, 'number', 'document absent : valeurs par défaut');
   });
 
-  test('A5 lire_reglages_devis renvoie le texte d’assurance, les coordonnées bancaires et « Attestation et mentions »', async () => {
+  test('A5 lire_reglages_devis renvoie le texte d’assurance et « Attestation et mentions », jamais les coordonnées bancaires ni le paiement (10/11/2026)', async () => {
     const s = await demarrer();
-    Object.assign(s.doc('devis_parametres', 'reglages'), { mentionEmetteur: 'Attestation de TVA réduite', mentionTvaReduite: 'Taux réduit appliqué', entreprise: { nom: 'Atelier', assuranceTexte: 'Décennale chez X', coordonneesBancaires: 'Banque\nIBAN' } });
+    Object.assign(s.doc('devis_parametres', 'reglages'), { mentionEmetteur: 'Attestation de TVA réduite', mentionTvaReduite: 'Taux réduit appliqué', entreprise: { nom: 'Atelier', assuranceTexte: 'Décennale chez X', coordonneesBancaires: 'Banque\nIBAN', paiement: { modes: ['Virement'], iban: 'FR76 0000 0000 0000' } } });;
     const r = ok(await s.appeler('lecteur', 'lire_reglages_devis', {}));
     assert.equal(r.reglages.mentionEmetteur, 'Attestation de TVA réduite');
     assert.equal(r.reglages.mentionTvaReduite, 'Taux réduit appliqué');
     assert.equal(r.reglages.entreprise.assuranceTexte, 'Décennale chez X');
-    assert.equal(r.reglages.entreprise.coordonneesBancaires, 'Banque\nIBAN');
+    assert.equal('coordonneesBancaires' in r.reglages.entreprise, false, 'coordonnées bancaires jamais montrées');
+    assert.equal('paiement' in r.reglages.entreprise, false, 'paiement et IBAN jamais montrés');
+    assert.equal(JSON.stringify(r).includes('FR76'), false);
+    assert.equal(r.reglages.entreprise.nom, 'Atelier');
+    // Le PDF et l'écran, eux, lisent toujours la base : le document n'a pas changé.
+    assert.equal(s.doc('devis_parametres', 'reglages').entreprise.coordonneesBancaires, 'Banque\nIBAN');
   });
 
   test('A5 un espace aux quatre anciens champs d’assurance : l’assistant lit le texte reconstruit (assuranceTexte), sans rien écrire', async () => {

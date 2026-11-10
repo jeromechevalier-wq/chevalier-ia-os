@@ -351,7 +351,10 @@ export async function lireReglagesDevis(donnees) {
   const lire = async (id) => { try { return await donnees.document(C.devisParametres, id); } catch { return null; } };
   const [reglages, familles] = await Promise.all([lire(DA.ID_REGLAGES), lire(DF.ID_DOCUMENT_FAMILLES)]);
   // Le mode de calcul de la marge (artisan / comptable) n'est jamais montré à l'assistant : il s'applique sans être dit ni demandé (décision du 30/10/2026).
+  // Les coordonnées bancaires et le paiement (IBAN) ne le sont pas non plus (décision de Jérôme, 10/11/2026) : ils ne servent qu'à l'impression du devis, jamais à l'assistant.
   const { modeMarge: _mode, ...visibles } = DA.reglagesDevis(reglages);
+  const { coordonneesBancaires: _banque, paiement: _paiement, ...entrepriseSansBanque } = visibles.entreprise;
+  visibles.entreprise = entrepriseSansBanque;
   // Un espace qui a encore les quatre anciens champs d'assurance : l'assistant lit le texte reconstruit, celui que le devis imprime (lecture seule, rien n'est écrit).
   const assuranceSaisie = D.assuranceSaisie(visibles.entreprise);
   if (assuranceSaisie && !visibles.entreprise.assuranceTexte) visibles.entreprise = { ...visibles.entreprise, assuranceTexte: assuranceSaisie };
