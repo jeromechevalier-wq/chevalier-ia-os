@@ -6,7 +6,8 @@ import { boutonFiltres as boutonFiltresCommun, fenetreFiltres, controleTests } f
 import { FILTRE_TESTS_DEFAUT, texteEnteteColonne } from '../crm/logique.js';
 import { etatVide, planifier, badgeTest, selecteurTri } from '../crm/composants.js';
 import { enteteListe, barreListe, basculeVues } from '../crm/barre-liste.js';
-import { naviguer, lien } from '../../os/router.js';
+import { naviguer, lien, routeDepuisHash } from '../../os/router.js';
+import { cleEntreeDe } from '../../os/portail.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as Li from './liste.js';
@@ -241,12 +242,14 @@ export function rendreListeDevis(conteneur) {
         h('span', { class: `pastille-activite ${couleur}`, role: 'img', 'aria-label': Li.LIBELLES_PASTILLE_DEVIS[couleur], title: Li.LIBELLES_PASTILLE_DEVIS[couleur] }))), () => ouvrirDevis(d));
   }
 
+  // En portail devis seul, « Catalogue » est déjà une entrée du menu : pas de bouton en double (hors portail, il garde son rôle). « Vocabulaire » garde son accès.
+  const enModePortail = cleEntreeDe(routeDepuisHash(location.hash)).endsWith('portail-devis');
   const memorisee = lirePreference('vue.devis');
   if (memorisee === 'liste' || memorisee === 'tableau') vue = memorisee;
   else if (vue === 'archives') vue = 'liste'; // « Archives » ne se garde pas d'un passage à l'autre
 
   conteneur.append(h('div', { class: 'page page-liste page-devis page-liste-devis' },
-    enteteListe({ titre, compteur, actions: [boutonATraiter, h('a', { class: 'bouton bouton-secondaire', href: lien('devis/bordereau'), dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), h('a', { class: 'bouton bouton-secondaire', href: lien('devis/vocabulaire'), dataset: { action: 'ouvrir-vocabulaire' } }, icone('book-open', { taille: 16 }), 'Vocabulaire'), boutonNouveau] }),
+    enteteListe({ titre, compteur, actions: [boutonATraiter, enModePortail ? null : h('a', { class: 'bouton bouton-secondaire', href: lien('devis/bordereau'), dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), h('a', { class: 'bouton bouton-secondaire', href: lien('devis/vocabulaire'), dataset: { action: 'ouvrir-vocabulaire' } }, icone('book-open', { taille: 16 }), 'Vocabulaire'), boutonNouveau] }),
     barreListe({ recherche: { placeholder: D.surSocleSeul() ? 'Numéro, client ou chantier' : 'Numéro, client ou affaire', libelleAria: 'Rechercher un devis', valeur: recherche, surSaisie: (v) => { recherche = v; page = 1; rendre(); } },
       elements: { filtres: filtres.element, vues: bascule }, tri: choixTri.element }).element,
     avis, zone, pied));
