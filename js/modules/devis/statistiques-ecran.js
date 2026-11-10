@@ -10,6 +10,7 @@ import { formaterMontant } from './document.js';
 import { PERIODES, PERIODE_DEFAUT, statistiquesDevis, libelleMois } from './statistiques.js';
 
 export const VIDE = 'Pas encore de devis sur cette période.';
+export const NOTE_TESTS = 'Les devis de test ne sont pas comptés.'; // une seule phrase, toujours affichée (10/11/2026)
 export const ERREUR_STATISTIQUES = 'Impossible de lire tes devis pour le moment. Réessaie.';
 const STATUTS_AFFICHES = [['brouillon', 'Brouillons'], ['en_attente_envoi', 'Finalisés'], ['envoye', 'Envoyés'], ['accepte', 'Signés'], ['refuse', 'Refusés']];
 const pourcent = (n) => (n === null ? '—' : `${n} %`);
@@ -57,7 +58,7 @@ export function rendreStatistiques(conteneur) {
       s.sansDate ? h('p', { class: 'aide', dataset: { role: 'sans-date' } }, `${s.sansDate} devis sans date lisible ne sont pas comptés.`) : null);
   }
 
-  conteneur.append(h('div', { class: 'page page-liste page-devis page-statistiques' }, enteteListe({ titre, compteur, actions: [choix] }), avis, zone));
+  conteneur.append(h('div', { class: 'page page-liste page-devis page-statistiques' }, enteteListe({ titre, compteur, actions: [choix] }), avis, zone, h('p', { class: 'aide', dataset: { role: 'note-tests' } }, NOTE_TESTS)));
   const rafraichir = planifier(rendre);
   rendre();
   const arret = D.surChangement(rafraichir);
