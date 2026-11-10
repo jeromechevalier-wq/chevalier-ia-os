@@ -13,6 +13,7 @@ import { definirChezClient, definirLogoEspace } from './contexte.js';
 import { appliquerIdentite } from './identite.js';
 import { normaliserMarque, routeDansEspace } from './marque.js';
 import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe, ecranSocleDeRoute } from './portail.js';
+import { actionsDuPortail } from './portail-actions.js';
 import { blocIntrouvablePortail } from './portail-introuvable.js';
 import { h, icone, vider, remplir } from './ui.js';
 import { demarrer as demarrerSocle, arreter as arreterSocle } from '../modules/crm/donnees.js';
@@ -42,7 +43,7 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
   definirLogoEspace(marque.logo); // le logo de l'espace peut servir d'image aux célébrations (lu en direct, jamais recopié)
   const accueil = portail ? PORTAILS[portail.id].accueil : premiereRoute(actifs);
   const retour = portail && idsPortail.length ? { libelle: PORTAILS[portail.id].libelleRetour, href: lien(PORTAILS[portail.id].accueil, `espace/${client}`) } : null;
-  const coquille = monterCoquille(racine, compte, { apis: apisCoquille, modules: modulesCoquille, client: { nom: marque.nom, logo: marque.logo }, accueil, retour, menu: portail ? PORTAILS[portail.id].menu : null, supplements: portail ? PORTAILS[portail.id].supplements : [], surDeconnexion });
+  const coquille = monterCoquille(racine, compte, { apis: apisCoquille, modules: modulesCoquille, client: { nom: marque.nom, logo: marque.logo }, accueil, retour, actionsRetour: portail ? actionsDuPortail(PORTAILS[portail.id]) : [], menu: portail ? PORTAILS[portail.id].menu : null, supplements: portail ? PORTAILS[portail.id].supplements : [], surDeconnexion });
   /** Un éditeur vient d'enregistrer nom, couleur ou logo : tout ce qui est visible se met à jour tout de suite, sans recharger (les autres appareils au prochain chargement). */
   const surMarque = (nouvelle) => {
     Object.assign(marque, normaliserMarque({ actif: true, ...nouvelle }) ?? nouvelle); // mêmes formes que la marque lue à l'ouverture (images : { url, alt })

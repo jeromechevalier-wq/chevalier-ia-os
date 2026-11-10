@@ -9,6 +9,12 @@ import { test, expect, connecter, allerA, ecrireDocument, estTelephone, attendre
 const DOSSIER = fileURLToPath(new URL('./captures/raccourci-export/', import.meta.url));
 const capturer = async (page, info, nom) => { mkdirSync(DOSSIER, { recursive: true }); await page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: false, animations: 'disabled' }); };
 const ALICE = 'alice@exemple.test';
+const LECTEUR = 'lecteur@exemple.test';
+async function chargerRegles(fichier) {
+  const contenu = await readFile(fileURLToPath(new URL(`../../${fichier}`, import.meta.url)), 'utf8');
+  const r = await fetch(`${FIRESTORE}/emulator/v1/projects/${PROJET}:securityRules`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: { files: [{ name: fichier, content: contenu }] } }) });
+  if (!r.ok) throw new Error(`Règles non chargées (${fichier}) : ${await r.text()}`);
+}
 const raccourci = (page) => page.locator('.menu [data-action="exporter-devis"]');
 const ouvrirMenu = async (page) => { if (estTelephone(page) && !(await page.locator('.coquille.menu-ouvert').count())) await page.getByRole('button', { name: 'Ouvrir le menu' }).click(); };
 
@@ -38,8 +44,15 @@ test('1 le raccourci « Exporter mes données » est visible dans le menu du por
   await expect(raccourci(page)).toHaveText('Exporter mes données');
   const ordre = await page.locator('.menu-groupe[data-bloc="retour"] > .menu-section > *').evaluateAll((e) => e.map((x) => x.dataset.action ?? x.dataset.role));
   expect(ordre).toEqual(['exporter-devis', 'retour-espace']);
+  await expect(raccourci(page).locator('svg')).toHaveCount(1); // l'icône (download) est rendue, comme celle de « Espace complet »
+  await expect(page.locator('.menu [data-role="retour-espace"] svg')).toHaveCount(1);
   await expect(page.locator('.menu .menu-entree')).toHaveCount(6); // les cinq entrées + « Espace complet » : le raccourci n'est pas une entrée de menu
-  await capturer(page, info, '1-ordinateur');
+  await capturer(page, info, '1-ordinateur-replie');
+  await page.locator('[data-role="bascule-menu"]').click(); // menu déplié
+  await expect(page.locator('.coquille[data-menu="elargi"]')).toHaveCount(1);
+  await expect(raccourci(page)).toBeVisible();
+  await expect(raccourci(page)).toContainText('Exporter mes données');
+  await capturer(page, info, '1-ordinateur-deplie');
 });
 
 test('2 le raccourci est visible dans le tiroir du téléphone, qui se referme avec Échap', async ({ page }, info) => {
@@ -72,14 +85,71 @@ test('3 un clic télécharge le même fichier que Réglages > Devis (un client e
   expect(depuisMenu.nom.replace(/\d/g, '0')).toBe(depuisReglages.nom.replace(/\d/g, '0'));
 });
 
-test('3b cas d\'erreur : si l\'export échoue, un message clair « Export impossible » s\'affiche', async ({ page }) => {
+test('3b cas d\'erreur : l\'export échoue après un clic sur le vrai bouton -> message clair « Export impossible », rien n\'est téléchargé', async ({ page }) => {
   await ouvrirPortail(page);
   await ouvrirMenu(page);
-  await page.route('**/*', (route) => route.continue()); // pas de réseau à couper : on casse la lecture côté page
-  await page.evaluate(async () => {
-    const m = await import('/js/modules/devis/export.js');
-    window.__resultat = await m.exporterDevis({ lire: async () => { throw new Error('permission-denied'); } });
-  });
-  expect(await page.evaluate(() => window.__resultat)).toBe(false);
+  await page.evaluate(() => { URL.createObjectURL = () => { throw new Error('refus simulé'); }; }); // le fichier ne peut pas être fabriqué
+  let telechargement = false;
+  page.on('download', () => { telechargement = true; });
+  await raccourci(page).click();
   await expect(page.getByText('Export impossible')).toBeVisible();
+  expect(telechargement).toBe(false);
+});
+
+test.describe('chez un client (règles de la plateforme)', () => {
+  const CLIENT = 'devisseul';
+  test.beforeAll(() => chargerRegles('firestore.plateforme.rules'));
+  test.afterAll(() => chargerRegles('firestore.rules'));
+  test.beforeEach(async () => {
+    for (const [id, nom] of [['devisseul', 'Devis Seul'], ['cabinet', 'Cabinet Martin']]) await ecrireDocument(`marques/${id}`, { actif: true, nom, couleur: '#336699', accueil: 'Bienvenue.' });
+    await ecrireDocument('clients/devisseul', { modules: { devis: true } });
+    await ecrireDocument('clients/cabinet', { modules: { affaires: true } });
+    await ecrireDocument(`clients/devisseul/membres/${ALICE}`, { role: 'editeur' });
+    await ecrireDocument(`clients/cabinet/membres/${ALICE}`, { role: 'editeur' });
+    await ecrireDocument(`clients/devisseul/membres/${LECTEUR}`, { role: 'lecteur' });
+    const t = new Date();
+    await ecrireDocument('clients/devisseul/crm_personnes/p1', { nom: 'Marie Durand', prenom: 'Marie', nomFamille: 'Durand', organisationId: null, telephones: [], emails: [], emailsNormalises: [], etiquettes: [], ville: '', archive: false, proprietaire: ALICE, creeLe: t, modifieLe: t });
+    await ecrireDocument('clients/devisseul/devis_devis/d1', { racineId: 'd1', version: 1, numero: 'DEV-2026-11-10-001', statut: 'envoye', archive: false, sections: [], envois: [], creePar: ALICE, modifiePar: ALICE, proprietaire: ALICE, creeLe: t, modifieLe: t });
+  });
+  async function ouvrirClient(page, client, reste, compte = ALICE) {
+    await page.goto('about:blank');
+    await page.goto(`${URL_APP}#/espace/${client}${reste ? `/${reste}` : ''}`);
+    await page.waitForFunction(() => !!window.__chevalierTest);
+    await page.evaluate((e) => window.__chevalierTest.connecter(e, true), compte);
+    await expect(page.locator('.coquille')).toBeVisible();
+    await attendreCalme(page);
+  }
+
+  test('4 chez un client Devis seul : le raccourci est dans le menu du portail et télécharge ses données (éditeur)', async ({ page }, info) => {
+    await ouvrirClient(page, CLIENT, 'portail-devis');
+    await ouvrirMenu(page);
+    await expect(raccourci(page)).toBeVisible();
+    await capturer(page, info, '4-client');
+    const f = await telecharger(page, () => raccourci(page).click());
+    expect(JSON.stringify(f.json)).toContain('Marie Durand');
+    expect(JSON.stringify(f.json)).toContain('DEV-2026-11-10-001');
+  });
+
+  test('5 chez un client, rôle lecteur : le raccourci est là et le fichier part (le lecteur lit ses données)', async ({ page }) => {
+    await ouvrirClient(page, CLIENT, 'portail-devis', LECTEUR);
+    await ouvrirMenu(page);
+    await expect(raccourci(page)).toBeVisible();
+    const f = await telecharger(page, () => raccourci(page).click());
+    expect(JSON.stringify(f.json)).toContain('DEV-2026-11-10-001');
+  });
+
+  test('6 le raccourci n\'existe pas hors du portail (espace du client, espace de Jérôme) ni quand Devis n\'est pas actif', async ({ page }) => {
+    await ouvrirClient(page, CLIENT, '');
+    await ouvrirMenu(page);
+    await expect(page.locator('.menu [data-action="exporter-devis"]')).toHaveCount(0);
+    await ouvrirClient(page, 'cabinet', 'portail-devis'); // client sans Devis : « Page introuvable », menu vide
+    await expect(page.getByRole('heading', { name: 'Page introuvable' })).toBeVisible();
+    await expect(page.locator('.menu [data-action="exporter-devis"]')).toHaveCount(0);
+  });
+});
+
+test('6b chez Jérôme hors portail (#/) le raccourci n\'existe pas', async ({ page }) => {
+  await connecter(page, JEROME);
+  await ouvrirMenu(page);
+  await expect(page.locator('.menu [data-action="exporter-devis"]')).toHaveCount(0);
 });
