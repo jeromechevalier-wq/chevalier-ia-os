@@ -89,7 +89,7 @@ async function ouvrirSession(compte) {
     apisCoquille = new Map([...apis].filter(([id]) => ids.includes(id))); // les autres modules restent montés et démarrés (Devis lit les affaires par le CRM), mais n'offrent ni « + » ni recherche
     definirPrefixe(portail.id);
     arretLiens = suivreLiensDuPrefixe();
-    options = { accueil: accueilPortail, menu: PORTAILS[portail.id].menu, supplements: PORTAILS[portail.id].supplements, retour: { libelle: PORTAILS[portail.id].libelleRetour, href: '#/' + accueilPortail } }; // href hors portail : l'espace complet
+    options = { accueil: accueilPortail, menu: PORTAILS[portail.id].menu, supplements: PORTAILS[portail.id].supplements, retour: { libelle: PORTAILS[portail.id].libelleRetour, href: '#/' + accueilPortail }, actionsRetour: (PORTAILS[portail.id].actions ?? []).map((x) => ({ ...x, surClic: () => import('./modules/devis/export.js').then((m) => m.exporterDevis()) })) }; // href hors portail : l'espace complet
   }
   const coquille = monterCoquille(racine, compte, {
     ...options,

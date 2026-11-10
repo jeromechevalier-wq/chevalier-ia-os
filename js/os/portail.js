@@ -11,6 +11,7 @@ export const PORTAILS = Object.freeze({
     menu: Object.freeze(['devis/liste', 'crm/personnes', 'devis/bordereau', 'devis/relances', 'devis/statistiques']),
     supplements: Object.freeze([Object.freeze({ chemin: 'crm/personnes', libelle: 'Clients', icone: 'user' })]), // entrées du menu qui ne sont pas des écrans d'un module du portail
     libelleRetour: 'Espace complet',
+    actions: Object.freeze([Object.freeze({ id: 'exporter-devis', libelle: 'Exporter mes données', icone: 'download' })]), // règle « chaque module a son export » : même fonction que Réglages > Devis (exporterDevis), en bas du menu au-dessus de « Espace complet »
   }),
 });
 
