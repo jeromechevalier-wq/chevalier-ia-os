@@ -9,11 +9,12 @@ Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08
 | 🟢 | PR 565 (garantie courte `assistant-devis`), 567, 568 (coordonnées bancaires masquées), 569 à 572 (portail : export, bandeaux, doublon Catalogue, menu du compte) | Fusionnées ; décisions de Jérôme dans `docs/reprise-prochaine-session.md` | Fait |
 | 🟢 | Mémoire du bot de MCA ramenée de 30 à 12 échanges + filtre des blocs `[CODE:…]` et `[DEVIS …]` (n8n, hors dépôt) ; credential n8n renommé | Fait par Jérôme et Claude | Fait |
 | 🟢 | Écarts `functions/` vs `functions-plateforme/` (`tableaudebord`, `tableaudebordSaisir`, `veille`) | Décidé : absents chez les clients, volontairement | Fait |
-| 🟠 | **Message de test au bot Telegram de MCA après le déploiement `mcp`** ; profil réel du jeton du bot non lu (gcloud non authentifié en session) : à vérifier | À faire | **Jérôme** |
+| 🟢 | **Message de test au bot Telegram de MCA après le déploiement `mcp`** | Fait (le bot répond, confirmé par Jérôme le 10/11) ; reste : profil réel du jeton du bot non lu (gcloud non authentifié en session), à vérifier | Fait |
+| 🟢 | **Bulle vocale du bot de MCA** : désactivée depuis le 09/11 (jeton retiré), remise le 10/11 par Jérôme (jeton collé dans l'étape n8n « Envoyer la bulle vocale (Telegram) », workflow `client-mca-etancheite-agent-devis`) | Testée par Jérôme, OK. Rappel : le jeton vit dans le workflow n8n, jamais dans un export ni dans le dépôt ; option future : envoyer la bulle sans écrire le jeton dans l'adresse | Fait |
 | 🟡 | `lister_devis` sans `texte` avec le jeton du bot : cause probable dans les arguments envoyés par n8n (verrou en test, PR 564) | À vérifier | Claude |
-| 🟡 | Statistiques : ligne « Les devis de test ne sont pas comptés » (`js/modules/devis/statistiques.js` vers l.63) | Proposée, pas validée | **Jérôme** |
+| 🟢 | Statistiques : ligne « Les devis de test ne sont pas comptés. » (`NOTE_TESTS`, `js/modules/devis/statistiques-ecran.js`) | Validée par Jérôme le 10/11, faite dans cette PR | Fait |
 | 🟡 | Mineurs PR 569 : `.catch` de l'export non testé sur chaque chemin ; double clic = deux exports ; tiroir téléphone reste ouvert ; rôle lecteur selon les règles Firestore | Petite PR de code si voulu (Fable : non requise, interface seule) | Claude |
-| 🟡 | Fiches « Test Dupont » et « Test Martin » dans l'espace de MCA | À supprimer à l'écran si voulu, jamais en lot | **Jérôme** |
+| 🟡 | Fiches « Test Dupont » et « Test Martin » (organisations) dans l'espace de MCA | Suppression demandée par Jérôme, à faire à l'écran par lui, jamais en lot | **Jérôme** |
 | 🟡 | Idée future : un jeton par personne (dirigeant / secrétaire), choix selon le canal Telegram ; aujourd'hui un seul jeton | Pas à l'ordre du jour | Idée |
 
 ## Mise à jour du 09/11/2026, nuit « GO NUIT » (PR 562 à 567)

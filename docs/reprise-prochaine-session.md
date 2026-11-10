@@ -20,7 +20,8 @@ Pas de nouvelle version dans cette PR de docs (la version reste 2.40.0). Tableau
 
 - **Déploiements chez les clients faits le 10/11** (un par un, après le test de Jérôme) : `hosting` (portail), puis une 2e fois après la PR 572 ; `mcp` (565 + 568) ; `fonctions` (logo dans le PDF, droit IAM étendu par Jérôme : `docs/pdf-clients.md`, étape 2 bis).
 - **Testé par Jérôme** : le portail chez lui et chez MCA, le logo du PDF, le menu du compte.
-- **Pas pu être vérifié** : un vrai appel du bot Telegram de MCA après le déploiement `mcp` (**à confirmer par Jérôme** : lui envoyer un message de test) ; le profil réel du jeton du bot n'a pas pu être lu dans le journal (gcloud non authentifié depuis la session) : **à vérifier**.
+- **Test du bot de MCA après `mcp` : FAIT** (le bot répond, confirmé par Jérôme le 10/11). **Bulle vocale** : désactivée depuis le 09/11 (jeton retiré), remise le 10/11 par Jérôme (jeton collé dans l'étape n8n « Envoyer la bulle vocale (Telegram) », workflow `client-mca-etancheite-agent-devis`) ; testée par Jérôme, OK. Le jeton est dans le workflow n8n, jamais dans un export ni dans le dépôt ; option future : envoyer la bulle sans écrire le jeton dans l'adresse.
+- **Pas pu être vérifié** : le profil réel du jeton du bot n'a pas pu être lu dans le journal (gcloud non authentifié depuis la session) : **à vérifier**.
 
 **Décisions de Jérôme du 10/11/2026** :
 - Garantie courte du profil `assistant-devis` (PR 565) : **acceptée**.
@@ -36,9 +37,9 @@ Pas de nouvelle version dans cette PR de docs (la version reste 2.40.0). Tableau
 - Vocabulaire de l'interface : **« Portail devis »** (pas « portail de vie »).
 
 **Restes (pas des décisions)** :
-- Ligne d'explication sur l'écran Statistiques, « Les devis de test ne sont pas comptés » : proposée, **pas validée** (un devis `[TEST]` n'entre pas dans les statistiques, `js/modules/devis/statistiques.js` vers la ligne 63).
+- Ligne d'explication sur l'écran Statistiques, « Les devis de test ne sont pas comptés. » : **validée par Jérôme le 10/11, faite dans cette PR** (toujours visible, cas vide compris ; un devis `[TEST]` n'entre pas dans les statistiques).
 - Mineurs de la PR 569 : le `.catch` de l'export n'est pas testé sur chaque chemin ; un double clic lance deux exports ; sur téléphone le tiroir reste ouvert après le clic (comme dans Réglages) ; le rôle lecteur dépend des règles Firestore.
-- Les fiches « Test Dupont » et « Test Martin » restent dans l'espace de MCA (à supprimer à l'écran si Jérôme le veut, jamais en lot).
+- Les fiches « Test Dupont » et « Test Martin » (organisations) restent dans l'espace de MCA : suppression demandée par Jérôme, **à faire à l'écran par lui**, jamais en lot.
 
 **Prochaines étapes** : (1) Jérôme envoie un message de test au bot de MCA ; (2) lire dans le journal d'une vraie exécution les arguments de `lister_devis` envoyés par n8n (sans lire les données d'exécution des nœuds HTTP) ; (3) décider de la ligne « devis de test non comptés » ; (4) petite PR de code pour les mineurs de la 569 si Jérôme les veut.
 
