@@ -82,7 +82,8 @@ test.describe('chez Jérôme', () => {
 
   test('7 les adresses restent sous #/portail-devis ; le brouillon créé est sans affaire et se retrouve dans #/devis/liste', async ({ page }) => {
     await ouvrirPortail(page);
-    await page.locator('[data-action="ouvrir-bordereau"]').click();
+    await ouvrirMenu(page);
+    await page.locator('.menu').getByRole('link', { name: 'Catalogue', exact: true }).click(); // le bouton « Catalogue » de la page Devis n'existe plus en portail : on passe par le menu
     await expect(page).toHaveURL(/#\/portail-devis\/devis\/bordereau$/);
     await page.locator('[data-action="retour-devis"]').click();
     await expect(page).toHaveURL(/#\/portail-devis\/devis\/liste$/);
