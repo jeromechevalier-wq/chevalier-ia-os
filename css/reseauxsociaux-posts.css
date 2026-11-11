@@ -1,0 +1,43 @@
+/* Écran « Posts » du module Réseaux sociaux : cartes de Kanban, équilibre des piliers, tableau des statistiques.
+   Les colonnes et les cartes viennent de crm.css (mêmes classes que les affaires) ; ici seulement ce qui est propre à l'écran.
+   Tailles et poids de texte : toujours les variables de tokens.css. */
+.page-posts .zone-posts { margin-top: var(--esp-6); }
+.page-posts .rs-cartes-posts { margin-bottom: var(--esp-7); }
+.page-posts .rs-cartes-posts:empty { display: none; }
+[hidden].selecteur-tri { display: none; }
+
+/* Équilibre et contrôle : cartes repliables (la section du CRM porte aussi la classe de carte). */
+.carte-section.carte-repliable { padding: var(--esp-6) var(--esp-8); gap: 0; border: 1px solid var(--bordure); }
+.carte-repliable .section-corps { padding-top: var(--esp-4); }
+@media (max-width: 767px) { .carte-section.carte-repliable { padding: var(--esp-5) var(--esp-7); } }
+
+/* Cartes de posts : on les ouvre d'un clic, on ne les déplace pas (le statut vient de Buffer). */
+.carte-post { cursor: pointer; }
+.carte-post .groupe-pastilles { margin-top: var(--esp-1); }
+.carte-post .carte-titre { font-weight: var(--poids-moyen); }
+
+/* Équilibre des piliers : une ligne par pilier, barre fine avec un repère à la part visée. */
+.rs-equilibre { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 10em; align-items: center; gap: var(--esp-2) var(--esp-6); }
+.rs-barre { position: relative; display: block; height: 6px; border-radius: 999px; background: var(--bordure); }
+.rs-barre-part { position: absolute; inset: 0 auto 0 0; width: var(--part); max-width: 100%; border-radius: 999px; background: var(--violet-clair); }
+.rs-barre-cible { position: absolute; top: -3px; bottom: -3px; left: var(--cible); width: 2px; background: var(--texte2); }
+.rs-equilibre .rs-ligne-detail { white-space: nowrap; text-align: right; }
+.rs-controle { color: var(--texte); }
+
+/* Tableau des statistiques : chiffres alignés à droite, ligne « Moyenne » en pied. */
+.tableau-posts td.rs-nombre, .tableau-posts th[data-colonne='impressions'], .tableau-posts th[data-colonne='portee'],
+.tableau-posts th[data-colonne='reactions'], .tableau-posts th[data-colonne='commentaires'], .tableau-posts th[data-colonne='tauxEngagement'] { text-align: right; }
+.tableau-posts .tri { white-space: nowrap; }
+.tableau-posts td[data-colonne='texte'] { max-width: 28ch; overflow-wrap: anywhere; }
+.tableau-posts tfoot td { border-top: 1px solid var(--bordure-forte); border-bottom: 0; font-weight: var(--poids-moyen); background: var(--panneau2); }
+.tableau-posts tr[data-post] { cursor: default; }
+
+@media (max-width: 767px) {
+  .rs-equilibre { grid-template-columns: minmax(0, 1fr) auto; }
+  .rs-equilibre .rs-ligne-detail { text-align: left; }
+  .rs-equilibre .rs-barre { grid-column: 1 / -1; grid-row: 2; }
+  .tableau-posts tfoot { display: block; }
+  .tableau-posts td.rs-nombre { text-align: left; }
+  .tableau-posts td[data-colonne='texte'] { max-width: none; }
+  .tableau-posts tfoot tr.ligne-liste { margin-top: var(--esp-4); }
+}
