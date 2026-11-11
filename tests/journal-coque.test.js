@@ -77,10 +77,9 @@ describe('journal commun : branchement des modules (A1, A6)', () => {
     for (const f of ['js/modules/devis/donnees.js', 'js/modules/projets/donnees.js']) assert.ok(/CRM\.executer\(/.test(lire(f)), f);
   });
   test('A6 aucun autre fichier n’écrit dans crm_audit : la coque est la seule porte', () => {
-    for (const f of [...fichiers('js'), ...fichiers('functions/src')]) {
-      if (f === 'js/os/journal-donnees.js' || /functions\/src\/coeur\/(ecriture|restaurer|lecture)/.test(f)) continue;
+    for (const f of fichiers('js')) {
+      if (f === 'js/os/journal-donnees.js') continue;
       const t = sansCommentaires(lire(f));
-      if (!f.startsWith('js/')) continue;
       assert.ok(!/chemin\('crm_audit'\)|chemin\('crm_audit_avant'\)/.test(t), `${f} lit ou écrit le journal sans passer par js/os/journal-donnees.js`);
     }
   });
@@ -115,8 +114,8 @@ describe('journal commun : écran et routes (A3, A4, A5)', () => {
   });
   test('A4 la route #/journal est servie par la coque (Jérôme, portail, client) sans passer par un module', () => {
     const main = lire('js/main.js');
-    assert.match(main, /segs\[0\] === 'journal'/);
-    assert.match(main, /segs\[0\] !== 'reglages' && segs\[0\] !== 'journal'/, 'le portail laisse passer la route journal comme Réglages');
+    assert.match(main, /segs\[0\] === 'journal' && segs\.length === 1/);
+    assert.match(main, /segs\[0\] !== 'reglages' && !\(segs\[0\] === 'journal' && segs\.length === 1\)/, 'le portail laisse passer la route journal comme Réglages');
     assert.ok(main.includes('rendreJournal(coquille.contenu)'));
     const espace = lire('js/os/espace-modules.js');
     assert.match(espace, /segs\[0\] === 'journal' && segs\.length === 1/);
@@ -128,6 +127,7 @@ describe('journal commun : écran et routes (A3, A4, A5)', () => {
     assert.match(shell, /idsModules\.length \? \[\{ libelle: 'Voir le journal des modifications', icone: 'history', action: allerDepuisMenu\('journal'\) \}\] : \[\]/);
     assert.ok(!shell.includes("allerDepuisMenu('crm/journal')"));
     assert.ok(!lire('js/modules/mcp/ecran.js').includes("lien('crm/journal')"));
+    assert.ok(!lire('js/modules/mcp/ecran.js').includes("actifs.includes('affaires')"), 'le lien du Journal ne dépend plus du module Affaires');
     assert.equal(occurrences(lire('js/modules/mcp/ecran.js'), "lien('journal')"), 2);
   });
   test('A3 l’écran garde ses textes : journal vide, lecture impossible, chargement des lignes plus anciennes', () => {

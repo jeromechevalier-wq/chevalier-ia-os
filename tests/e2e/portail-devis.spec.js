@@ -78,6 +78,10 @@ test.describe('chez Jérôme', () => {
     await page.locator('[data-role="bouton-plus"], .bouton-plus-mobile').filter({ visible: true }).first().click();
     await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Devis']);
     await page.keyboard.press('Escape');
+    await ouvrirMenuUtilisateur(page);
+    await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir le journal des modifications' }).click(); // le Journal s'ouvre DANS le portail
+    await expect(page).toHaveURL(/#\/portail-devis\/journal$/);
+    await expect(page.getByRole('heading', { name: 'Journal des modifications', level: 1 })).toBeVisible();
   });
 
   test('7 les adresses restent sous #/portail-devis ; le brouillon créé est sans affaire et se retrouve dans #/devis/liste', async ({ page }) => {

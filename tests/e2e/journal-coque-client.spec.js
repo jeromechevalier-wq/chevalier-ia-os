@@ -66,3 +66,14 @@ test('A5 client avec Affaires : l’ancienne adresse #/espace/<client>/crm/journ
   await expect(page.getByRole('heading', { name: 'Journal des modifications', level: 1 })).toBeVisible();
   await capture(page, 'A5-journal');
 });
+
+test('A4 bis client sans Affaires : la page « Connecter mon ChatGPT » propose le lien vers le Journal ; #/journal/x ne montre qu’un seul écran Journal', async ({ page }) => {
+  await ouvrir(page, 'soloassistant', 'mcp/infos');
+  await expect(page.getByRole('link', { name: /Ouvrir le Journal des modifications/ })).toBeVisible();
+  await expect(page.getByText('Le Journal des modifications n’est pas activé dans ton espace.')).toHaveCount(0);
+  await page.getByRole('link', { name: /Ouvrir le Journal des modifications/ }).click();
+  await expect(page.getByRole('heading', { name: 'Journal des modifications', level: 1 })).toHaveCount(1);
+  await page.evaluate(() => { location.hash = '#/espace/soloassistant/journal/x'; });
+  await expect(page).not.toHaveURL(/journal\/x/); // une adresse inconnue sous journal/ redirige vers l'accueil de l'espace, sans empiler un deuxième Journal
+  await expect(page.getByRole('heading', { name: 'Journal des modifications', level: 1 })).toHaveCount(0);
+});

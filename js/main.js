@@ -158,7 +158,7 @@ function afficherRoute(route) {
       coquille.activer(segs.join('/'));
       return;
     }
-    if (segs[0] !== 'reglages' && segs[0] !== 'journal' && !(m0 && dansPortail.includes(m0.id))) {
+    if (segs[0] !== 'reglages' && !(segs[0] === 'journal' && segs.length === 1) && !(m0 && dansPortail.includes(m0.id))) {
       session.vue?.quitter?.();
       session.vue = { cle: 'introuvable', quitter: null };
       vider(coquille.contenu);
@@ -174,7 +174,7 @@ function afficherRoute(route) {
     afficher = () => monterReglages(coquille.contenu, segs, {
       apis, actifs: MODULES.map((m) => m.id), chezClient: false, nomEspace: 'Chevalier IA OS', marque: null, fiche: null, compte: session.compte,
     });
-  } else if (segs[0] === 'journal') { // Journal des modifications : écran de la coque, servi même sans le module Affaires
+  } else if (segs[0] === 'journal' && segs.length === 1) { // Journal des modifications : écran de la coque, servi même sans le module Affaires
     cle = 'journal';
     afficher = () => rendreJournal(coquille.contenu);
   } else {

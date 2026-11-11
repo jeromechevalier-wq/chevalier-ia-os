@@ -5,7 +5,7 @@
 // Aucune écriture, aucun bouton de restauration ici : on lit, on comprend, puis on demande la restauration à Claude Code.
 import { h, icone, remplir, dialogue } from './ui.js';
 import { lireJournal, lireCopieJournal } from './journal-donnees.js';
-import { etat as etatCrm } from '../modules/crm/donnees.js';
+import { etat as etatCrm, estNoyau } from '../modules/crm/donnees.js';
 import * as L from '../modules/crm/logique.js';
 import { etatVide } from '../modules/crm/composants.js';
 import { boutonFiltres, fenetreFiltres } from '../modules/crm/filtres.js';
@@ -71,7 +71,7 @@ function tableauDifferences(copie) {
 
 function blocLigne(ligne, ouvert) {
   const corps = h('div', { class: 'journal-copie' });
-  const fiche = CHEMINS[ligne.collection] && etatCrm[CHEMINS[ligne.collection]]?.some((x) => x.id === ligne.docId)
+  const fiche = !estNoyau() && CHEMINS[ligne.collection] && etatCrm[CHEMINS[ligne.collection]]?.some((x) => x.id === ligne.docId)
     ? h('a', { class: 'lien-fiche', href: `#/crm/${CHEMINS[ligne.collection]}/${ligne.docId}` }, 'Ouvrir la fiche') : null;
   let charge = false;
   async function charger() {
