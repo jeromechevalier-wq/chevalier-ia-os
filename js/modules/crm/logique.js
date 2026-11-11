@@ -44,6 +44,8 @@ export const TYPES_ACTIVITE = [
   { id: 'rendez_vous', libelle: 'Rendez vous', titre: 'Rendez vous' },
   { id: 'email', libelle: 'Email', titre: 'Email' },
   { id: 'tache', libelle: 'Tâche', titre: 'Tâche' },
+  // En dernier : le type par défaut des boutons reste « Appel ».
+  { id: 'linkedin', libelle: 'LinkedIn', titre: 'Échange LinkedIn' },
 ];
 
 export const TAILLES = ['Solo', '2 à 10', '11 à 50', 'Plus de 50'];
@@ -1433,15 +1435,31 @@ export function validerSaisieActivite(v) {
   return erreurs;
 }
 
+/**
+ * Champs propres au type « linkedin » (tous facultatifs ; absents ou invalides = ignorés, jamais d'erreur) :
+ * sens du dernier message résumé (« envoye » ou « recu »), nombre de voix (2 = les deux ont écrit), clé anti-doublon d'import (80 caractères au plus),
+ * et « fait » (avec sa date, par défaut maintenant) : un échange LinkedIn résumé est déjà passé. Les autres types ignorent ces champs.
+ */
+function champsLinkedin(valeurs, ctx) {
+  const extra = {};
+  if (valeurs.sens === 'envoye' || valeurs.sens === 'recu') extra.sens = valeurs.sens;
+  if (valeurs.voix === 1 || valeurs.voix === 2) extra.voix = valeurs.voix;
+  if (typeof valeurs.cleImport === 'string' && valeurs.cleImport.length > 0 && valeurs.cleImport.length <= 80) extra.cleImport = valeurs.cleImport;
+  const fait = valeurs.fait === true;
+  return { extra, fait, dateFait: fait ? (valeurs.dateFait ?? ctx.maintenant) : null };
+}
+
 export function nouvelleActivite(valeurs, ctx) {
   const type = TYPES_ACTIVITE.some((t) => t.id === valeurs.type) ? valeurs.type : 'tache';
+  const li = type === 'linkedin' ? champsLinkedin(valeurs, ctx) : { extra: {}, fait: false, dateFait: null };
   return {
     type,
     titre: nettoyerEspaces(valeurs.titre) || titreActiviteParDefaut(type),
     date: valeurs.date || aujourdhuiParis(ctx.maintenant),
     heure: valeurs.heure || '',
-    fait: false,
-    dateFait: null,
+    fait: li.fait,
+    dateFait: li.dateFait,
+    ...li.extra,
     personneId: valeurs.personneId ?? null,
     organisationId: valeurs.organisationId ?? null,
     affaireId: valeurs.affaireId ?? null,
