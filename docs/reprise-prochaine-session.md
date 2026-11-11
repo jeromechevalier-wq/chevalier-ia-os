@@ -1,5 +1,50 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 12/11/2026 : nuit « GO NUIT » du 11 au 12/11/2026, module Réseaux sociaux (PR 576 à 582)
+
+Version 2.41.0 (cette PR). Le module `reseauxsociaux` (squelette, Aujourd'hui, Posts) est dans `main` ; les écrans Relations et Import ne le sont pas encore. Aucune donnée de Jérôme n'a été touchée, aucun secret affiché.
+
+| Sujet | PR | État |
+|---|---|---|
+| A : journal commun déplacé du module Affaires vers la coque | 578 | fusionnée seule (corrections de relecture faites) |
+| B : type d'activité « LinkedIn » dans le CRM | 577 | fusionnée seule (non relue par Fable) |
+| C : fonction Firebase de lecture Buffer, lecture seule | 576 | fusionnée seule (non relue par Fable) |
+| D : squelette du module et écran Aujourd'hui | 579 | **ses commits sont déjà dans `main` via la 582** ; la PR reste ouverte en conflit, **à fermer** par Jérôme |
+| E : écran Posts | 582 | fusionnée seule (embarque D ; deux corrections faites dans la nuit) |
+| F : écran Relations | 580 | **à reprendre** : brouillon, en conflit. Elle attendait D, maintenant dans `main` : fusionner `main`, adapter le test D1, la passer en prête |
+| G : écran Import et workflow n8n non publié | 581 | **à reprendre** : fusion armée mais coches rouges (elle attendait D) ; fusionner `main`, adapter le test D1, GitHub fera le reste |
+
+**Pourquoi F et G ne sont pas fusionnées** : elles importaient des fichiers de D, bloquée plus d'une heure dans la file GitHub, puis D est entrée dans `main` par la 582 et a rendu F et G en conflit. Ce n'est pas un échec de leur code. Règle des conflits : garder toutes les lignes de `tests/package.json` (`test:logique`, `test:fonctions`) et de `tests/statique.test.js` ; `wiki/` se régénère par `node scripts/wiki/construire.js`, jamais à la main.
+
+**État des tests de nuit sur `main`** : le dernier « Tests de nuit » terminé date du 11/11 à 06 h 35 UTC (vert, avant la nuit). Un lancement manuel a été fait le 11/11 à 22 h 10 UTC (https://github.com/jeromechevalier-wq/chevalier-ia-os/actions/runs/43109529926) alors que F et G ne sont pas fusionnées : il teste donc `main` avec A, B, C, D et E seulement. Résultat non connu au moment d'écrire ; **à relire, puis relancer après la fusion de F et G**. Le test C28 de `parcours` était rouge sur `main` depuis la PR A (adresse `#/journal`), corrigé par la PR 582.
+
+**Ce qui n'a pas pu être vérifié**
+- Buffer réel jamais interrogé : plafond `first:60`, `direction:desc`, noms réels de `metrics.type`, et correspondance du statut « draft » avec « brouillon » ne sont pas prouvés ; seules la première organisation et le premier canal LinkedIn sont lus. La fonction (PR 576) doit être déployée pour que l'écran Aujourd'hui lise Buffer ; ensuite tester `{ action: 'lirePosts', limite: 5 }`, puis sans limite.
+- La coche « Tests » de la PR 579 est restée en file plus de 35 minutes, jamais exécutée.
+- Les captures de recette D7 de la 579 datent d'avant le changement de pastilles.
+- Format réel de l'export LinkedIn, lecture de la boîte de Charles, workflow n8n (non publié) : non testés. Le filtre Gmail vers Charles n'est pas vérifié.
+- PR B : test de téléphone B2 en 390 px (pas 375) ; les activités LinkedIn créées « faites » par l'assistant n'écrivent pas l'événement `activite_faite` ; pastille LinkedIn de la page Activités non vue en téléphone.
+- PR A : tout vu sur émulateur ; parcours avec Google Picker non rejoués ; `test:rapide` en local échoue pour une raison d'environnement (`@google-cloud/secret-manager` absent), la coche GitHub est verte.
+- PR E : seul le niveau « Rapide » de la CI a tourné (niveaux « Complet » sautés) ; l'échec d'écriture est simulé.
+
+**Relectures Fable** : B et C non relues (économie de Fable, décision du 11/11) ; D est entrée dans `main` avec la 582 sans relecture ; E, F et G : relecture groupée prévue, non faite ; A : relue, corrections appliquées. À refaire si le budget Fable le permet : D+E (écrans neufs), C (serveur), F, G.
+
+**« Décision prise seul » de la nuit**
+- A : la recherche du Journal filtre sur le résumé brut (pas sur les libellés de `declarerLibellesJournal`) : à traiter avec le module Réseaux sociaux. Sur le portail, le lien « Ouvrir la fiche » suit la présence d'Affaires. Changements visibles : `#/espace/<client>/journal` nu ne redirige plus vers Automatisations ; le menu du compte du portail devis gagne « Journal » ; `executer` après `arreterJournal` lève une erreur.
+- D : chez un client sans Affaires, « Ouvrir Buffer », « Réessayer » et la phrase sur le dernier post s'affichent alors que Buffer n'y sera jamais branché, et les catégories ne se créent pas. Les piliers éditoriaux, parts et créneaux sont en dur dans `logique.js` (contenu de Jérôme dans du code public, à revoir). `socle: true` active les outils MCP du socle chez tout client qui a ce module sans Affaires. « À relancer » n'a pas de limite d'ancienneté et « hors cible » n'est reconnu que par l'identifiant `hors_cible`. Cas limites de `donnees.js`, `index.js`, `aujourdhui.js` et un chargement inutile dans `espace.js` et `main.js` : non traités.
+- E : lien symbolique `tests/node_modules` (chemin local) retiré du dépôt public ; test C28 corrigé sans être désactivé.
+- G : conception de l'import retenue seule : n8n détecte le mail et donne le lien, Jérôme télécharge l'archive LinkedIn (connexion requise) et la dépose dans le module ; fusion automatique armée malgré les coches rouges (elle ne partira qu'une fois vertes).
+- Nom du workflow n8n : `interne-reseaux-sociaux-verifier-mail-linkedin`.
+
+**Les 5 vérifications à l'écran du module** (une fois F et G fusionnées pour les deux dernières)
+1. Menu : « Réseaux sociaux » apparaît chez toi, pas chez un client qui ne l'a pas ; l'écran Aujourd'hui s'ouvre sans erreur (cas vide compris : aucune relation, Buffer injoignable avec le bouton « Réessayer »).
+2. Aujourd'hui : un nom de relation à relancer ouvre bien sa fiche du CRM ; les pastilles ressemblent à celles du CRM (téléphone compris).
+3. Posts : le Kanban a quatre colonnes au plus ; changer le pilier ou le format d'un post est mémorisé ; les statistiques et le contrôle éditorial sont lisibles ; en cas d'erreur d'écriture, un message clair s'affiche.
+4. Journal : le menu ouvre `#/journal` ; une action du CRM y figure ; le lien « Ouvrir la fiche » mène à la bonne fiche ; une activité de type « LinkedIn » s'affiche avec son icône.
+5. Relations et Import (après F et G) : quatre colonnes, catégories par étiquettes, import d'une petite archive d'essai fictive sans écraser aucune donnée existante.
+
+---
+
 ## Rapport de la matinée du 10/11/2026 (PR 563 à 572, déploiements clients, décisions de Jérôme)
 
 Pas de nouvelle version dans cette PR de docs (la version reste 2.40.0). Tableau des choses à faire : `.github/A-FAIRE.md` (section « Matinée du 10/11/2026 »). Ce rapport complète celui de la nuit (plus bas) : les lignes « en attente » de la nuit (565, 567) sont réglées.
