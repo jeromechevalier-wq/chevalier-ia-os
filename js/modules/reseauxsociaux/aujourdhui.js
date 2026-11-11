@@ -17,7 +17,7 @@ const MAX_RELATIONS = 5;
 /** « 06:08 » -> « 6 h 08 ». */
 const heureLisible = (heure) => heure.replace(/^0/, '').replace(':', ' h ');
 
-const pastilleRouge = (texte) => h('span', { class: 'rs-pastille rs-pastille-rouge' }, texte);
+const pastilleRouge = (texte) => h('span', { class: 'badge-retard' }, texte);
 const phraseGrise = (texte) => h('p', { class: 'aide', dataset: { role: 'phrase-grise' } }, texte);
 
 function carteCreneaux() {
@@ -44,7 +44,7 @@ function carteRelations() {
       // La fiche d'une personne n'est servie que si le module Affaires est actif (sinon « Page introuvable ») : sans lui, le nom reste du texte.
       estNoyau() ? h('span', { class: 'rs-ligne-titre' }, r.personne.nom || 'Sans nom')
         : h('a', { class: 'lien-fiche rs-ligne-titre', href: lien(`crm/personnes/${r.personne.id}`) }, r.personne.nom || 'Sans nom'),
-      r.badge === 'relancer' ? pastilleRouge(R.libelleBadgeRelation(r)) : h('span', { class: 'rs-pastille' }, R.libelleBadgeRelation(r)))))]
+      r.badge === 'relancer' ? pastilleRouge(R.libelleBadgeRelation(r)) : h('span', { class: 'pastille-etiquette', style: { '--couleur': 'var(--bordure-forte)' } }, R.libelleBadgeRelation(r)))))]
       : [phraseGrise('Aucune relation à traiter pour le moment.')];
   return h('section', { class: 'carte-section', dataset: { carte: 'relations' } },
     h('h2', {}, icone('users', { taille: 18 }), 'Relations à traiter'), ...corps,

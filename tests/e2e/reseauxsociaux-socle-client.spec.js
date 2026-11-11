@@ -20,7 +20,8 @@ async function chargerRegles(fichier) {
 test.beforeAll(() => chargerRegles('firestore.plateforme.rules'));
 test.afterAll(() => chargerRegles('firestore.rules'));
 
-const jourIlYa = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+// Jour de Paris (le module compte en jour de Paris : un calcul en UTC se trompe d'un jour entre minuit et 1 h ou 2 h à Paris).
+const jourIlYa = (n) => new Date(Date.now() - n * 86400000).toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
 const personne = (nom) => {
   const maintenant = new Date();
   return {

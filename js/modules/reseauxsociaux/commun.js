@@ -7,8 +7,8 @@ import { URL_BUFFER } from './logique.js';
 /** Barre d'onglets du module : le menu n'a qu'une entrée « Réseaux sociaux », les écrans se rejoignent par cette barre. `actif` = route de l'écran affiché. */
 export const ongletsReseauxSociaux = (actif) => barreOnglets({ onglets: ongletsDuModule('reseauxsociaux'), actif, etiquette: 'Écrans des réseaux sociaux' });
 
-/** Rond de chargement (même rendu que la Veille). */
-export const chargement = () => h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement'));
+/** Rond de chargement dans un bloc (`chargement-bloc` : la classe `chargement` seule fait la hauteur de l'écran, elle est réservée à la coque). */
+export const chargement = () => h('div', { class: 'chargement-bloc', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement'));
 
 /** Lien vers Buffer, dans un nouvel onglet : Buffer reste le lieu où l'on écrit les posts. `principal` = le bouton jaune de la page. */
 export function lienBuffer({ libelle = 'Ouvrir Buffer', principal = true } = {}) {

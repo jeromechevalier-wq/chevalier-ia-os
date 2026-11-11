@@ -2,7 +2,7 @@
 // UNE capture chacun dans tests/e2e/captures/reseauxsociaux-socle/ (« -telephone » sur téléphone). Données fictives uniquement ; Buffer est simulé dans le navigateur (aucun serveur réel).
 // Le même module chez un client (D2, catégories, « Buffer non branché ») : tests/e2e/reseauxsociaux-socle-client.spec.js.
 import { readFile } from 'node:fs/promises';
-import { test, expect, connecter, allerA, ouvrirSectionReglages, attendreCalme, listerDocuments, estTelephone } from './outils.js';
+import { test, expect, connecter, allerA, ouvrirSectionReglages, attendreCalme, listerDocuments, estTelephone, ecrireDocument, creerPersonne } from './outils.js';
 
 const CAPTURES = 'e2e/captures/reseauxsociaux-socle';
 const capture = (page, nom) => page.screenshot({ path: `${CAPTURES}/${nom}${estTelephone(page) ? '-telephone' : ''}.png`, animations: 'disabled' });
@@ -121,7 +121,7 @@ test('D7 Aujourd’hui, Buffer simulé avec 1 post programmé : un créneau « P
   await expect(page.locator('[data-creneau="pris"]')).toContainText('Programmé : Un post programmé pour la semaine');
   await expect(page.locator('[data-creneau="vide"]')).toHaveCount(prevu - 1);
   await expect(page.locator('[data-creneau="vide"]').first()).toContainText('Créneau vide');
-  const couleur = await page.locator('[data-creneau="vide"] .rs-pastille-rouge').first().evaluate((el) => getComputedStyle(el).color);
+  const couleur = await page.locator('[data-creneau="vide"] .badge-retard').first().evaluate((el) => getComputedStyle(el).color);
   expect(couleur).not.toBe(await page.locator('.rs-ligne-titre').first().evaluate((el) => getComputedStyle(el).color)); // la pastille est colorée (rouge du thème), pas le texte courant
   const dernier = page.locator('[data-carte="dernier-post"]');
   await expect(dernier.locator('[data-role="dernier-texte"]')).toHaveText('Le dernier post publié');
@@ -157,6 +157,31 @@ test('D7 cas vide : aucun post, aucune relation, aucun import = une phrase grise
   await expect(page.locator('[data-role="rappel-import"] [data-action="importer"]')).toHaveAttribute('href', /#\/reseauxsociaux\/import$/);
   await expect(page.locator('[data-role="rappel-import"] .bouton-principal')).toHaveCount(0);
   await capture(page, 'D7-cas-vide');
+});
+
+test('D7 chez Jérôme (Affaires actif), le nom d’une relation à relancer ouvre sa fiche ; pendant la lecture de Buffer, la carte en chargement reste un bloc (pas la hauteur de l’écran)', async ({ page }) => {
+  const jour = (n) => new Date(Date.now() - n * 86400000).toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
+  await creerPersonne('rs-p1', { nom: 'Claire Exemple' });
+  await ecrireDocument('crm_activites/rs-a1', { type: 'linkedin', titre: 'Échange LinkedIn', fait: true, date: jour(10), dateFait: new Date(), personneId: 'rs-p1', sens: 'envoye', voix: 1, auteur: 'jerome@exemple.test' });
+  // Réponse retenue : la carte reste en chargement le temps de la mesure.
+  let liberer;
+  const attente = new Promise((r) => { liberer = r; });
+  await page.route(/cloudfunctions\.net\/reseauxsociauxBuffer$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+    await attente;
+    return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: reponseBuffer([]) }) });
+  });
+  await connecter(page);
+  await page.evaluate(() => { location.hash = '#/reseauxsociaux/aujourdhui'; });
+  const enChargement = page.locator('[data-carte="creneaux"] [role="status"]');
+  await expect(enChargement).toBeVisible();
+  const hauteurs = await page.evaluate(() => ({ carte: document.querySelector('[data-carte="creneaux"]').getBoundingClientRect().height, ecran: innerHeight }));
+  expect(hauteurs.carte).toBeLessThan(hauteurs.ecran * 0.6);
+  liberer();
+  const lien = page.locator('[data-carte="relations"] a.lien-fiche', { hasText: 'Claire Exemple' });
+  await expect(lien).toHaveAttribute('href', /#\/crm\/personnes\/rs-p1$/);
+  await lien.click();
+  await expect(page).toHaveURL(/#\/crm\/personnes\/rs-p1$/);
 });
 
 test('D7 cas d’erreur : Buffer refuse la clé = message du serveur + bouton « Réessayer » ; les relations restent là ; « Réessayer » relance la lecture', async ({ page }) => {
