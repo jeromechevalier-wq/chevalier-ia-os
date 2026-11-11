@@ -1,0 +1,20 @@
+/* Écran « Relations » du module Réseaux sociaux. Le Kanban, les colonnes, les cartes, les pastilles et la liste viennent de crm.css (mêmes composants que les affaires) ;
+   ici seulement ce qui change : cartes non déplaçables, bandeau des catégories. Tailles et poids de texte : toujours les variables de tokens.css. */
+.page-relations { max-width: none; }
+.zone-relations { min-width: 0; }
+/* Les cartes ne se déplacent pas : curseur de clic (la classe des affaires affiche la main qui attrape). */
+.carte-relation { cursor: pointer; }
+.carte-relation:focus-visible { outline: 2px solid var(--accent-trait); outline-offset: 2px; }
+.carte-relation .carte-ligne { align-items: center; gap: var(--esp-3); }
+.carte-relation .carte-nom { color: var(--texte); text-decoration: none; }
+.carte-relation a.carte-nom:hover { text-decoration: underline; text-decoration-color: var(--accent-trait); }
+.carte-pastilles:empty { display: none; }
+.carte-date { margin-left: auto; }
+/* Bandeau « Les catégories ne sont pas encore créées. » : fond de carte, trait fin ; le bouton est secondaire (le seul jaune de l'écran est « + Relation »). */
+.bandeau-categories { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--esp-4); padding: var(--esp-4) var(--esp-6); border: 1px solid var(--bordure); border-radius: var(--rayon); background: var(--panneau2); }
+.zone-bandeau-categories:empty { display: none; }
+.zone-bandeau-categories > .aide { margin: 0; }
+@media (max-width: 767px) {
+  .bandeau-categories { flex-direction: column; align-items: stretch; }
+  .carte-date { margin-left: 0; }
+}
