@@ -490,6 +490,13 @@ export async function creerActivite(c, args) {
   const ctx = await contexte(c);
   const { liens, parents } = await liensCreation(c, args);
   const valeurs = { type: args.type || 'tache', titre: args.titre, date: args.date || ctx.aujourdhui, heure: args.heure, ...liens };
+  if (valeurs.type === 'linkedin') {
+    // Un échange LinkedIn résumé est déjà passé : créé FAIT par défaut. Résumé de 200 caractères au plus (la limite ne vaut que pour l'assistant, pas pour la saisie à l'écran).
+    if (typeof valeurs.titre === 'string' && valeurs.titre.length > 200) refuser('saisie_invalide', 'Un résumé LinkedIn tient en 200 caractères au plus.');
+    valeurs.fait = args.fait !== false;
+    if (args.sens) valeurs.sens = args.sens;
+    if (args.voix) valeurs.voix = args.voix;
+  }
   verifierMessages(L.validerActivite(valeurs));
   if (!jourValide(valeurs.date)) refuser('saisie_invalide', 'date : attendu AAAA-MM-JJ.');
   const plan = L.planCreerActivite(L.heriterTest(args.test === true ? { ...valeurs, test: true } : valeurs, parents), ctx);

@@ -37,7 +37,7 @@ function rendreInfosRacine(conteneur) {
     h('section', { class: 'mcp-bloc' },
       h('h2', {}, 'Suivre ce que fait ChatGPT'),
       h('p', { class: 'aide' }, 'Chaque modification faite par ChatGPT apparaît dans le Journal des modifications, avec son nom.'),
-      h('p', { class: 'aide' }, h('a', { href: lien('crm/journal') }, icone('history', { taille: 14 }), ' Journal des modifications')))));
+      h('p', { class: 'aide' }, h('a', { href: lien('journal') }, icone('history', { taille: 14 }), ' Journal des modifications')))));
   return () => {};
 }
 
@@ -78,10 +78,8 @@ export function rendreInfos(conteneur) {
         h('span', { class: 'mcp-membre-nom' }, m.nom ? `${m.nom} · ${m.email}` : m.email, m.moi ? ' (toi)' : ''),
         h('span', { class: `mcp-role mcp-role-${m.role}` }, m.libelle)))
       : h('li', { class: 'aide' }, 'Aucun membre trouvé.'));
-    remplir(journal, actifs.includes('affaires')
-      ? [h('span', {}, 'Chaque modification faite par ChatGPT apparaît dans le Journal des modifications, avec son nom. '),
-        h('a', { href: lien('crm/journal') }, icone('history', { taille: 14 }), ' Ouvrir le Journal des modifications')]
-      : 'Le Journal des modifications n\'est pas activé dans ton espace.');
+    remplir(journal, [h('span', {}, 'Chaque modification faite par ChatGPT apparaît dans le Journal des modifications, avec son nom. '),
+      h('a', { href: lien('journal') }, icone('history', { taille: 14 }), ' Ouvrir le Journal des modifications')]); // le Journal est servi par la coque : disponible même sans le module Affaires
   }).catch((e) => {
     console.warn('Page MCP : lecture impossible', e?.code);
     if (ferme) return;

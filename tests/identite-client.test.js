@@ -159,7 +159,7 @@ describe('inventaire des textes d\'identité de Jérôme dans le code de l\'inte
     'js/modules/crm/logique.js': 'données de départ et textes pour Claude Code (écrans masqués chez un client)',
     'js/modules/crm/affaires.js': 'célébration « Bravo Jérôme ! » (coupée chez un client)',
     'js/modules/crm/accueil.js': 'texte de Charles remplacé chez un client',
-    'js/modules/crm/journal.js': 'texte neutre chez un client',
+    'js/os/journal.js': 'texte neutre chez un client',
     'js/modules/crm/lanceurs.js': 'Claude Code / GitHub : derrière l’option « Dépôt de code et dossier » (allumée par défaut chez un client, réglable)',
     'js/modules/crm/reglages.js': 'écran Réglages du CRM : inaccessible chez un client',
     'js/modules/crm/dossier-parent.js': 'zone « Dossier Drive parent » des options : l’aide cite le nom « Chevalier IA - … » du dossier créé tout seul (voulu, comme google-drive.js)',
@@ -182,7 +182,7 @@ describe('inventaire des textes d\'identité de Jérôme dans le code de l\'inte
     assert.deepEqual(inconnus, [], `nouvelles mentions à classer : ${inconnus.join(', ')}`);
   });
   test('les fichiers partagés qui montrent encore un texte de Jérôme le coupent chez un client', () => {
-    for (const f of ['js/modules/crm/accueil.js', 'js/modules/crm/composants.js', 'js/modules/crm/journal.js']) {
+    for (const f of ['js/modules/crm/accueil.js', 'js/modules/crm/composants.js', 'js/os/journal.js']) {
       assert.match(lire(f), /estChezClient/, f);
     }
     // Depuis le ménage du CRM, les célébrations, le GitHub et « Confiée à » ne dépendent plus de « chez un client » mais d'une option / des membres.

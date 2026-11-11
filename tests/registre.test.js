@@ -97,7 +97,7 @@ describe('socle commun (PR B) : SOCLE hors des modules, dépendances inchangées
     const source = lire('js/modules/crm/donnees.js');
     const bloc = source.match(/COLLECTIONS_CRM = \[([\s\S]*?)\]/)[1];
     for (const c of journal) assert.ok(!bloc.includes(`'${c}'`), `${c} n'est pas dans l'export`);
-    assert.ok(/chemin\('crm_audit'\)/.test(source), 'le journal est bien écrit par le socle (executer)');
+    assert.ok(/chemin\('crm_audit'\)/.test(lire('js/os/journal-donnees.js')), 'le journal est bien écrit par la coque (executer, js/os/journal-donnees.js)');
   });
   test('B3 projets exige encore affaires ; devis ne dépend plus de rien (PR C1)', () => {
     assert.deepEqual(moduleDeclare('devis').dependances, []);

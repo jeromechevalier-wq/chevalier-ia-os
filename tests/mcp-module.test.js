@@ -173,7 +173,7 @@ describe('Retour (01/11/2026) : « Vocabulaire » et « Connecter mon ChatGPT »
     assert.match(sansCommentaires('js/os/shell.js'), /libelle: 'Connecter mon ChatGPT'/);
   });
   test('R3 (mot « ChatGPT », 01/11/2026) l’outil connecté s’appelle ChatGPT à l’écran : plus de « ton IA », « l’IA » ni « IA (MCP) » dans les textes visibles', () => {
-    for (const f of ['js/modules/mcp/ecran.js', 'js/modules/mcp/index.js', 'js/modules/mcp/logique.js', 'js/modules/devis/vocabulaire-ecran.js', 'js/modules/devis/deploiement.js', 'js/modules/crm/journal.js', 'js/os/deploiement.js', 'js/os/registre.js']) {
+    for (const f of ['js/modules/mcp/ecran.js', 'js/modules/mcp/index.js', 'js/modules/mcp/logique.js', 'js/modules/devis/vocabulaire-ecran.js', 'js/modules/devis/deploiement.js', 'js/os/journal.js', 'js/os/deploiement.js', 'js/os/registre.js']) {
       assert.doesNotMatch(sansCommentaires(f).replaceAll('Chevalier IA', ''), /\bIA\b/, f);
     }
   });

@@ -254,7 +254,7 @@ test('C29 fiche projet : phase modifiable depuis le Résumé (sans ligne Statut)
   await champDoc('projets_projets', 'pr1', 'phase', 'decouverte');
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Découverte');
   const panneau = page.locator('.panneau-activite');
-  await expect(panneau.getByRole('group', { name: 'Type d’activité' }).getByRole('button')).toHaveText(['Appel', 'Rendez vous', 'Email', 'Tâche']);
+  await expect(panneau.getByRole('group', { name: 'Type d’activité' }).getByRole('button')).toHaveText(['Appel', 'Rendez vous', 'Email', 'Tâche', 'LinkedIn']);
   await panneau.getByRole('button', { name: 'Rendez vous' }).click();
   await panneau.getByLabel('Titre de l’activité').fill('Point de lancement');
   await panneau.locator('[data-action="enregistrer-activite"]').click();

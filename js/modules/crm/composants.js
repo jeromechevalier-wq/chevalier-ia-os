@@ -166,7 +166,7 @@ export function selecteurTri({ options, valeur, sens, surChangement }) {
 }
 
 export function iconeTypeActivite(type) {
-  const icones = { appel: 'phone', rendez_vous: 'calendar', email: 'mail', tache: 'circle-check' };
+  const icones = { appel: 'phone', rendez_vous: 'calendar', email: 'mail', tache: 'circle-check', linkedin: 'handshake' };
   return icone(icones[type] || 'circle-check', { taille: 16 });
 }
 

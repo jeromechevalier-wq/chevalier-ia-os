@@ -66,7 +66,7 @@ test('1 cas limite : un client qui n’a que l’assistant n’a aucune entrée 
   await expect(page.locator('.menu .menu-entree')).toHaveCount(0);
   await expect(page.locator('.menu .menu-section, .menu .menu-groupe')).toHaveCount(0);
   await ouvrirMenuUtilisateur(page);
-  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Réglages', 'Connecter mon ChatGPT', /Thème/, 'Se déconnecter']);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Réglages', 'Voir le journal des modifications', 'Connecter mon ChatGPT', /Thème/, 'Se déconnecter']);
 });
 
 test('3 menu utilisateur chez un client : Réglages, Journal et « Connecter mon ChatGPT » (si le module est allumé) mènent aux pages de l’espace', async ({ page }) => {
@@ -80,7 +80,7 @@ test('3 menu utilisateur chez un client : Réglages, Journal et « Connecter mon
   expect(await page.locator('.menu-pop > *').evaluateAll((els) => els.map((e) => e.dataset.role || (e.classList.contains('menu-pop-separateur') ? 'separateur' : e.textContent.trim())).slice(-4))).toEqual(['bascule-theme', 'mode-test', 'separateur', 'Se déconnecter']);
   await capture(page, '3-client-menu-utilisateur');
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir le journal des modifications' }).click();
-  await expect(page).toHaveURL(/#\/espace\/assistant\/crm\/journal$/);
+  await expect(page).toHaveURL(/#\/espace\/assistant\/journal$/);
   await ouvrirMenuUtilisateur(page);
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Connecter mon ChatGPT' }).click();
   await expect(page).toHaveURL(/#\/espace\/assistant\/mcp\/infos$/);

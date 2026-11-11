@@ -16,7 +16,7 @@ test('J8 le type choisi au départ est « Appel » sur la fiche affaire comme su
   await creerProjet('pr1', { titre: 'Refonte du site' });
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
-  await expect(groupe(page).getByRole('button')).toHaveText(['Appel', 'Rendez vous', 'Email', 'Tâche']);
+  await expect(groupe(page).getByRole('button')).toHaveText(['Appel', 'Rendez vous', 'Email', 'Tâche', 'LinkedIn']);
   await expect(groupe(page).getByRole('button', { name: 'Appel' })).toHaveAttribute('aria-pressed', 'true');
   await expect(groupe(page).getByRole('button', { name: 'Tâche' })).toHaveAttribute('aria-pressed', 'false');
   await expect(groupe(page).locator('.pastille-type.actif')).toHaveText('Appel');
@@ -36,13 +36,13 @@ test('J8 sans choisir de type, l’activité créée sur une affaire est un appe
   await expect.poll(async () => (await listerDocuments('crm_activites')).map((d) => d.type)).toEqual(['appel']);
 });
 
-test('J4 la fiche projet propose les 4 pastilles ; une activité Tâche créée depuis le projet apparaît dans le fil, se termine avec le rond et ne compte pas dans les livrables', async ({ page }) => {
+test('J4 la fiche projet propose les 5 pastilles ; une activité Tâche créée depuis le projet apparaît dans le fil, se termine avec le rond et ne compte pas dans les livrables', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Camille Durand' });
   await creerProjet('pr1', { titre: 'Audit des Lilas', personneId: 'p1' });
   await creerTacheProjet('t1', { titre: 'Maquette', projetId: 'pr1' });
   await connecter(page);
   await aller(page, '#/projets/projets/pr1');
-  await expect(groupe(page).getByRole('button')).toHaveText(['Appel', 'Rendez vous', 'Email', 'Tâche']);
+  await expect(groupe(page).getByRole('button')).toHaveText(['Appel', 'Rendez vous', 'Email', 'Tâche', 'LinkedIn']);
   await capture(page, 'J4-pastilles');
   const resume = page.locator('[data-section="projet-resume"]');
   const avant = await resume.locator('[data-prop="avancement"]').textContent();

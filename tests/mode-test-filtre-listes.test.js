@@ -93,7 +93,7 @@ describe('13 verrouillage', () => {
   test('13 le filtre Tests est sur les cinq listes qui portent le repère, et nulle part ailleurs', () => {
     assert.equal(lire('js/modules/crm/filtres.js').split('controleTests()').length - 1, 3, '2 listes dans controles() + la définition = 3 occurrences de « controleTests() »');
     for (const f of ['js/modules/projets/projets.js', 'js/modules/devis/liste-ecran.js']) assert.ok(lire(f).includes('controleTests('), f);
-    for (const f of ['js/modules/devis/bordereau.js', 'js/modules/devis/vocabulaire-ecran.js', 'js/modules/crm/journal.js', 'js/modules/veille/ecran.js', 'js/modules/automatisations/ecran.js', 'js/modules/tableaudebord/ecran.js', 'js/modules/projets/modeles.js']) {
+    for (const f of ['js/modules/devis/bordereau.js', 'js/modules/devis/vocabulaire-ecran.js', 'js/os/journal.js', 'js/modules/veille/ecran.js', 'js/modules/automatisations/ecran.js', 'js/modules/tableaudebord/ecran.js', 'js/modules/projets/modeles.js']) {
       const s = lire(f);
       assert.ok(!s.includes('controleTests') && !s.includes("cle: 'tests'"), `${f} : ce module n'a pas de repère test : pas de filtre Tests`);
     }
