@@ -19,6 +19,8 @@
 // Réglages à menu latéral (2.6.0) : chaque module déclare ici `reglages` (sections qu'il affiche, résumé s'il n'en a pas) ; la coque (js/os/reglages.js) en tire
 // le menu de gauche sans connaître aucun module. Ajouter un module ou une section = une déclaration ici + l'écran dans le module (`reglages(page, ctx)`).
 //
+// Créer un module : docs/creer-un-module.md (fiche unique : déclaration ici, montage dans modules.js, tests qui énumèrent les modules, tables, activation chez un client).
+//
 // Les outils MCP ne sont ici qu'une DÉCLARATION (liste de noms). Le serveur MCP multi-clients est le chantier 9 ; un test
 // (tests/registre-mcp.test.js) vérifie que cette liste correspond exactement aux outils du serveur.
 
@@ -170,6 +172,28 @@ export const MODULES_DECLARES = geler([
     collections: ['veille_sources', 'veille_contenus', 'veille_resumes', 'veille_pages'],
     outilsMcp: [],
     dependances: [],
+  },
+  {
+    // Réseaux sociaux (squelette du 11/11/2026) : Aujourd'hui (créneaux, relations à traiter, dernier post), Posts (lus dans Buffer, jamais copiés), Relations (échanges LinkedIn du CRM) et Import.
+    // Deux tables seulement (`reseauxsociaux_posts` : pilier, format et service par post, clé = identifiant Buffer ; `reseauxsociaux_imports` : historique des imports). Aucune dépendance :
+    // le module marche quand Affaires est éteint (il écoute lui-même les activités LinkedIn et les étiquettes du CRM). Buffer est lu par une fonction du serveur, absente chez les clients.
+    id: 'reseauxsociaux',
+    nom: 'Réseaux sociaux',
+    libelleMenu: 'Réseaux sociaux',
+    iconeMenu: 'handshake',
+    prefixe: 'reseauxsociaux',
+    reglages: { sections: [{ id: 'reglages-export-reseauxsociaux', libelle: 'Sauvegarde' }] },
+    entreeMenu: 'reseauxsociaux/aujourdhui',
+    ecrans: [
+      { route: 'reseauxsociaux/aujourdhui', libelle: 'Aujourd’hui', icone: 'calendar' },
+      { route: 'reseauxsociaux/posts', libelle: 'Posts', icone: 'square-kanban' },
+      { route: 'reseauxsociaux/relations', libelle: 'Relations', icone: 'users' },
+      { route: 'reseauxsociaux/import', libelle: 'Import', icone: 'upload' },
+    ],
+    collections: ['reseauxsociaux_posts', 'reseauxsociaux_imports'],
+    outilsMcp: [],
+    dependances: [],
+    socle: true,
   },
   {
     // Automatisations : historique des workflows n8n (chantier 14, anciennement le module « journal »). Présent chez Jérôme comme chez les clients.

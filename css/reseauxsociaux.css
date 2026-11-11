@@ -1,0 +1,17 @@
+/* Module Réseaux sociaux : écrans Aujourd'hui, Posts, Relations, Import. Les boutons, cartes, pastilles et onglets viennent de os.css et crm.css (mêmes composants) ;
+   ici seulement ce qui est propre au module. Tailles et poids de texte : toujours les variables de tokens.css. */
+.page-reseauxsociaux { max-width: 1120px; }
+.rs-cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--esp-7); align-items: start; }
+.rs-rappel-zone:empty { display: none; }
+.rs-rappel { margin: 0; }
+.rs-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.rs-ligne { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--esp-2) var(--esp-6); padding: var(--esp-4) 0; border-bottom: 1px solid var(--bordure); }
+.rs-ligne:last-child { border-bottom: 0; }
+.rs-ligne-titre { font-weight: var(--poids-moyen); min-width: 0; overflow-wrap: anywhere; }
+.rs-ligne-detail { color: var(--texte2); font-size: var(--fs-texte); min-width: 0; overflow-wrap: anywhere; }
+.rs-pastille { display: inline-block; padding: 2px var(--esp-4); border-radius: 999px; font-size: var(--fs-petit); font-weight: var(--poids-moyen); background: var(--survol); border: 1px solid var(--bordure-forte); color: var(--texte2); white-space: nowrap; }
+.rs-pastille-rouge { background: var(--retard-fond); border-color: var(--retard); color: var(--retard); }
+.rs-extrait { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  .rs-cartes { grid-template-columns: 1fr; }
+}

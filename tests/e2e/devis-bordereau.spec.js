@@ -44,7 +44,7 @@ test('B1 le module Devis apparaît au menu (après Projets) et ouvre la liste pu
   await connecter(page);
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   else { const elargir = page.getByRole('button', { name: 'Élargir le menu' }); if (await elargir.count()) await elargir.click(); }
-  await expect(page.locator('.menu .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Devis', 'Veille', 'Automatisations', 'Maintenance']);
+  await expect(page.locator('.menu .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Devis', 'Veille', 'Réseaux sociaux', 'Automatisations', 'Maintenance']);
   if (estTelephone(page)) await page.keyboard.press('Escape');
   await allerA(page, 'Devis');
   await expect(page).toHaveURL(/#\/devis\/liste$/);
