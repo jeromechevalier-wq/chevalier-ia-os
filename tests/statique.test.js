@@ -274,7 +274,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     // Exceptions : le module Devis (quatre fonctions de transition), le module Automatisations (n8n) appelle trois fonctions du serveur (rafraîchir, renommer, décider d'une proposition), et la veille en appelle une seule,
     // `veille` (ajouter un lien collé, lancer un résumé : 2026-10-15), et le tableau de bord en appelle une seule, `tableaudebordSaisir`
     // (saisir une date ou une valeur : le serveur contrôle, écrit et journalise) ; aucun Cloud Storage.
-    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/reseauxsociaux/donnees.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js', 'js/modules/devis/donnees.js', 'js/os/deploiement-ecran.js', 'js/os/mode-test-donnees.js', 'js/modules/crm/fichiers-donnees.js'];
+    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/reseauxsociaux/donnees.js', 'js/modules/reseauxsociaux/import-actions.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js', 'js/modules/devis/donnees.js', 'js/os/deploiement-ecran.js', 'js/os/mode-test-donnees.js', 'js/modules/crm/fichiers-donnees.js'];
     for (const f of fichiersAppli().filter((x) => /\.js$/.test(x))) {
       const t = AVEC_FONCTIONS.includes(f) ? lire(f).replaceAll(/getFunctions|httpsCallable|firebase-functions\.js/g, '') : lire(f);
       assert.doesNotMatch(t, /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
@@ -293,6 +293,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.deepEqual(appelsReseaux, ['reseauxsociauxBuffer']); // Réseaux sociaux (11/11/2026) : lecture de Buffer par le serveur, en lecture seule ; la fonction n'est pas branchée chez les clients (tests/ecarts-fonctions.test.js)
     const appelsTableau = [...lire('js/modules/tableaudebord/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual(appelsTableau, ['tableaudebordSaisir']); // saisir une date ou une valeur à l'écran : le serveur contrôle, écrit et journalise
+    assert.deepEqual([...lire('js/modules/reseauxsociaux/import-actions.js').matchAll(/httpsCallable\(getFunctions\(app, 'europe-west9'\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['reseauxsociauxBoite']); // Réseaux sociaux, écran Import (11/11/2026) : l'état de la boîte mail (arrivé ou non + lien), lecture seule côté serveur
     const appelsEspace = [...lire('js/os/mon-espace-donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual([...lire('js/os/deploiement-ecran.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['deploiementVerifier']); // Réglages > Déploiement (25/10/2026) : contrôles du serveur, lecture seule
     assert.deepEqual([...lire('js/os/mode-test-donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['modeTestSupprimer']); // Réglages > Mes tests (mode test, PR 4) : aperçu et suppression des éléments de test, par le serveur
