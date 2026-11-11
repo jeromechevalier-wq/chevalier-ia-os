@@ -16,6 +16,7 @@ Le code est le même (règle du 18/10/2026) : un module a les mêmes collections
 | Affaires (CRM) | `crm_personnes`, `crm_organisations`, `crm_affaires`, `crm_activites`, `crm_notes`, `crm_evenements`, `crm_parametres`, plus `crm_audit` et `crm_audit_avant` (journal des modifications et copies « avant », lus par l'écran Journal) |
 | Projets | `projets_projets`, `projets_taches`, `projets_modeles` |
 | Veille | `veille_sources`, `veille_contenus`, `veille_resumes`, `veille_pages` |
+| Réseaux sociaux | `reseauxsociaux_posts` (pilier, format et service de chaque post, le document porte l'identifiant du post dans Buffer ; le texte, les dates et les chiffres restent dans Buffer et se relisent), `reseauxsociaux_imports` (un document par import LinkedIn). Elles n'existent qu'à la première écriture. Le module lit aussi les activités LinkedIn et les étiquettes du CRM (`crm_activites`, `crm_parametres`), sans les copier |
 | Automatisations | `workflows`, `executions`, `sync` (noms historiques, **jamais renommés**), et la sous-collection `executions/<n>/steps` (restée vide : les étapes sont dans la proposition) |
 | Tableau de bord | `tableaudebord_indicateurs`, `tableaudebord_releves`, `tableaudebord_demandes` |
 | Accès MCP | aucune |

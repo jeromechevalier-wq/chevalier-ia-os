@@ -22,7 +22,7 @@ describe('registre : déclarations', () => {
     for (const m of MODULES_DECLARES) {
       assert.match(m.id, /^[a-z]+$/);
       assert.ok(m.nom && m.libelleMenu && m.iconeMenu && m.prefixe, m.id);
-      assert.ok(m.ecrans.length > 0 && (m.collections.length > 0 || m.id === 'mcp') && (m.outilsMcp.length > 0 || ['automatisations', 'veille', 'tableaudebord', 'mcp'].includes(m.id)), m.id); // « mcp » n'a ni données ni outil à lui : il allume le lien du client
+      assert.ok(m.ecrans.length > 0 && (m.collections.length > 0 || m.id === 'mcp') && (m.outilsMcp.length > 0 || ['automatisations', 'veille', 'reseauxsociaux', 'tableaudebord', 'mcp'].includes(m.id)), m.id); // « mcp » n'a ni données ni outil à lui : il allume le lien du client
       for (const e of m.ecrans) {
         assert.ok(e.route.startsWith(`${m.prefixe}/`) && e.libelle && e.icone, `${m.id} ${e.route}`);
       }
@@ -119,7 +119,7 @@ describe('socle commun (PR B) : SOCLE hors des modules, dépendances inchangées
     const avecAffaires = [...new Set([...communs, ...moduleDeclare('affaires').outilsMcp, ...moduleDeclare('devis').outilsMcp])].sort();
     assert.deepEqual(ensemble(['affaires', 'devis']), avecAffaires);
     assert.equal(moduleDeclare('devis').socle, true);
-    assert.deepEqual(MODULES_DECLARES.filter((m) => m.socle).map((m) => m.id), ['devis']);
+    assert.deepEqual(MODULES_DECLARES.filter((m) => m.socle).map((m) => m.id), ['devis', 'reseauxsociaux']); // Réseaux sociaux (11/11/2026) : aucun module exigé, il lit les fiches Personnes du socle
   });
 });
 
@@ -215,6 +215,13 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
     { id: 'veille', libelle: 'Veille', icone: 'globe', prefixe: 'veille', entrees: [
       { chemin: 'veille/contenus', libelle: 'Contenus', icone: 'file-text' },
       { chemin: 'veille/sources', libelle: 'Sources', icone: 'link' },
+    ] },
+    // Ajout voulu (11/11/2026) : le module Réseaux sociaux, entre Veille et Automatisations (une seule entrée de menu, quatre écrans en onglets).
+    { id: 'reseauxsociaux', libelle: 'Réseaux sociaux', icone: 'handshake', prefixe: 'reseauxsociaux', entrees: [
+      { chemin: 'reseauxsociaux/aujourdhui', libelle: 'Aujourd’hui', icone: 'calendar' },
+      { chemin: 'reseauxsociaux/posts', libelle: 'Posts', icone: 'square-kanban' },
+      { chemin: 'reseauxsociaux/relations', libelle: 'Relations', icone: 'users' },
+      { chemin: 'reseauxsociaux/import', libelle: 'Import', icone: 'upload' },
     ] },
     // Ajout voulu (16/10/2026) : le module n8n (ex-« journal », menu « Automatisations ») n'est plus réservé aux clients ; il est chez Jérôme aussi (règle « tout module existe d'abord chez Jérôme »).
     { id: 'automatisations', libelle: 'Automatisations', icone: 'activity', prefixe: 'automatisations', entrees: [
@@ -369,15 +376,17 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
     const blocs = blocsDuMenu(IDS_MODULES);
     const entree = (id) => blocs.find((b) => b.id === id).sections.flat();
     assert.deepEqual(entree('veille').map((e) => [e.libelle, e.chemin, e.prefixe]), [['Veille', 'veille/contenus', 'veille']]);
+    assert.deepEqual(entree('reseauxsociaux').map((e) => [e.libelle, e.chemin, e.prefixe]), [['Réseaux sociaux', 'reseauxsociaux/aujourdhui', 'reseauxsociaux']]);
     assert.deepEqual(entree('automatisations').map((e) => [e.libelle, e.chemin, e.prefixe]), [['Automatisations', 'automatisations/historique', 'automatisations']]);
     assert.deepEqual(entree('tableaudebord').map((e) => [e.libelle, e.chemin, e.prefixe]), [['Maintenance', 'tableaudebord/general', 'tableaudebord']]);
     // Toutes les routes d'écran restent servies (signets) : elles sont dans `entrees`, marquées hors menu sauf l'arrivée.
     const horsMenu = (id) => blocs.find((b) => b.id === id).entrees.filter((e) => e.horsMenu).map((e) => e.chemin);
     assert.deepEqual(horsMenu('veille'), ['veille/sources']);
+    assert.deepEqual(horsMenu('reseauxsociaux'), ['reseauxsociaux/posts', 'reseauxsociaux/relations', 'reseauxsociaux/import']);
     assert.deepEqual(horsMenu('automatisations'), ['automatisations/a-valider']);
     assert.deepEqual(horsMenu('tableaudebord'), [], 'Maintenance : un seul écran, plus aucune route déclarée hors menu (technique, finance, stocks, historique sont servies par le module)');
     // Menu complet : une entrée par module, dans l'ordre.
-    assert.deepEqual(blocs.flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Devis', 'Veille', 'Automatisations', 'Maintenance']);
+    assert.deepEqual(blocs.flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Devis', 'Veille', 'Réseaux sociaux', 'Automatisations', 'Maintenance']);
     // Chez un client sans le module : pas d'entrée.
     assert.deepEqual(blocsDuMenu(['affaires', 'projets', 'veille']).flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille']);
     // La route d'arrivée de l'entrée est un écran du module, et le préfixe est celui du module.
@@ -433,7 +442,7 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
   });
   test('l\'interface déclare un interrupteur par bloc (CRM = affaires + projets)', () => {
     const lignes = interrupteursDuClient(['affaires', 'projets', 'mcp']);
-    assert.deepEqual(lignes.map((l) => [l.id, l.actif, l.complet]), [['crm', true, true], ['devis', false, false], ['veille', false, false], ['automatisations', false, false], ['tableaudebord', false, false], ['mcp', true, true]]);
+    assert.deepEqual(lignes.map((l) => [l.id, l.actif, l.complet]), [['crm', true, true], ['devis', false, false], ['veille', false, false], ['reseauxsociaux', false, false], ['automatisations', false, false], ['tableaudebord', false, false], ['mcp', true, true]]);
     assert.deepEqual(interrupteursDuClient(['affaires']).find((l) => l.id === 'crm'), { id: 'crm', libelle: 'Affaires et projets', modules: ['affaires', 'projets'], actif: true, complet: false });
     assert.deepEqual(interrupteursDuClient([]).filter((l) => l.actif), []);
   });
