@@ -1318,7 +1318,7 @@ test('C28 Journal : ce que je fais dans l’appli y apparaît avec la copie avan
   const nbLignes = (await listerDocuments('crm_audit')).length;
 
   await allerA(page, 'Journal des modifications');
-  await expect(page).toHaveURL(/#\/crm\/journal$/);
+  await expect(page).toHaveURL(/#\/journal$/); // le Journal est un écran de la coque (PR A) ; #/crm/journal reste servi comme signet
   await expect(page.getByRole('heading', { name: 'Journal des modifications' })).toBeVisible();
   const lignes = page.locator('.tableau-journal tbody tr');
   await expect(lignes).toHaveCount(4); // suppression de la personne (avec son événement), sa création, ligne MCP réussie, ligne MCP à vérifier
