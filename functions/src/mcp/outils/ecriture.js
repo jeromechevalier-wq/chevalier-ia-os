@@ -325,9 +325,10 @@ export const OUTILS_ECRITURE = [
   }, metier.ajouterNote),
   outil('modifier_note', 'Remplace le texte d\'une note existante.', { id, texte: z.string().min(1).max(20000) }, metier.modifierNote),
 
-  outil('creer_activite', `Planifie une activité (rappel, appel, rendez-vous…) rattachée à une affaire, une personne ou une organisation. Types : ${L.TYPES_ACTIVITE.map((t) => t.id).join(', ')} (défaut tache) ; date du jour par défaut ; heure HH:MM facultative.`, {
+  outil('creer_activite', `Planifie une activité (rappel, appel, rendez-vous…) rattachée à une affaire, une personne ou une organisation. Types : ${L.TYPES_ACTIVITE.map((t) => t.id).join(', ')} (défaut tache) ; date du jour par défaut ; heure HH:MM facultative. Type linkedin : résumé d'un échange LinkedIn déjà passé (200 caractères au plus dans titre, sans copier le message), créé directement FAIT (fait: false pour le planifier) ; sens : envoye ou recu (sens du dernier message), voix : 1 ou 2 (2 = les deux ont écrit).`, {
     type: z.enum(L.TYPES_ACTIVITE.map((t) => t.id)).optional(), titre: texteCourt.optional(), date: jour.optional(), heure: z.string().regex(/^\d{2}:\d{2}$/).optional(),
     affaireId: id.optional(), personneId: id.optional(), organisationId: id.optional(),
+    sens: z.enum(['envoye', 'recu']).optional(), voix: z.union([z.literal(1), z.literal(2)]).optional(), fait: z.boolean().optional(),
     test: testCreation,
   }, metier.creerActivite),
   // Mode test (PR 2, docs/cadrage-mode-test.md) : la consigne vit dans ces descriptions, jamais dans les instructions de l'assistant. Aperçu puis code seulement pour un devis finalisé.
