@@ -166,7 +166,8 @@ describe('D3 firebase.json, en têtes, indexation', () => {
       'index.html', 'manifest.webmanifest', 'version.json', 'robots.txt', 'firebase.json', '.firebaserc', 'firestore.rules', '.gitignore', 'README.md',
       'css/tokens.css', 'css/os.css', 'css/crm.css', 'js/main.js',
       ...['firebase-config', 'firebase', 'auth', 'router', 'shell', 'modules', 'objectifs', 'celebrations', 'version', 'pwa', 'ui'].map((f) => `js/os/${f}.js`),
-      ...['index', 'donnees', 'logique', 'accueil', 'personnes', 'organisations', 'affaires', 'fiche-personne', 'fiche-organisation', 'fiche-affaire', 'activites', 'reglages', 'export', 'lanceurs', 'journal'].map((f) => `js/modules/crm/${f}.js`),
+      ...['index', 'donnees', 'logique', 'accueil', 'personnes', 'organisations', 'affaires', 'fiche-personne', 'fiche-organisation', 'fiche-affaire', 'activites', 'reglages', 'export', 'lanceurs'].map((f) => `js/modules/crm/${f}.js`),
+      'js/os/journal.js', 'js/os/journal-donnees.js', // le Journal est un écran de la coque depuis le 11/11/2026 (js/modules/crm/journal.js n'existe plus)
       'assets/charles-portrait.png', 'assets/jerome-portrait.png', 'docs/cahier-des-charges-v2.0.md', 'docs/pipedrive-reference.md',
       'tests/package.json', 'tests/regles.test.js', 'tests/logique.test.js', '.github/workflows/firebase-hosting.yml',
     ];
@@ -193,8 +194,9 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
   const sources = () => fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x));
 
   test('D4 aucune requête composite : pas de orderBy (sauf le tri du journal sur un seul champ), une seule condition where par requête, jamais de plage', () => {
-    // Seule exception : la lecture du journal (donnees.js, lireJournal), un tri sur UN champ sans aucune condition, servi par l'index automatique.
-    const donnees = lire('js/modules/crm/donnees.js');
+    // Seule exception : la lecture du journal (js/os/journal-donnees.js, lireJournal), un tri sur UN champ sans aucune condition, servi par l'index automatique.
+    const FICHIER_JOURNAL = 'js/os/journal-donnees.js';
+    const donnees = lire(FICHIER_JOURNAL);
     const debut = donnees.indexOf('export async function lireJournal');
     const journal = donnees.slice(debut, donnees.indexOf('\n}\n', debut));
     // Seconde exception (chantier 14) : l'historique des automatisations (n8n) lit les 300 dernières exécutions, triées sur UN champ, sans condition.
@@ -206,7 +208,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.ok(debut > 0 && /orderBy\('date', 'desc'\)/.test(journal), 'lireJournal trie sur le seul champ date');
     assert.doesNotMatch(journal, /\bwhere\s*\(/, 'lireJournal : aucune condition en plus du tri');
     for (const f of sources()) {
-      const t = f === 'js/modules/crm/donnees.js' ? donnees.replace(journal, '') : f === FICHIER_AUTOMATISATIONS ? donneesWorkflows.replace(requeteWorkflows, '') : lire(f);
+      const t = f === FICHIER_JOURNAL ? donnees.replace(journal, '') : f === FICHIER_AUTOMATISATIONS ? donneesWorkflows.replace(requeteWorkflows, '') : lire(f);
       assert.doesNotMatch(t, /\borderBy\s*\(/, `${f} : orderBy`);
       assert.doesNotMatch(t, /\blimit\s*\(/, `${f} : limit`);
       for (const [requete] of t.matchAll(/query\s*\([^;]*?\)\s*,/gs)) {
@@ -299,7 +301,11 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
 describe('D6 Modules : chaque appel à un module de données existe', () => {
   // Les modules de données importent le SDK Firebase par une adresse web : on ne peut pas les charger ici, on vérifie donc par le texte
   // que chaque `X.nom` utilisé dans les écrans (X = alias d'un `import * as X from './donnees.js'`) est bien exporté par ce module.
-  const exportes = (chemin) => new Set([...lire(chemin).matchAll(/^export\s+(?:async\s+)?(?:function|const|let|class)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]));
+  // Comprend aussi `export { a, b };` (le CRM ré-exporte executer, lireJournal et lireCopieJournal de la coque, 11/11/2026).
+  const exportes = (chemin) => new Set([
+    ...[...lire(chemin).matchAll(/^export\s+(?:async\s+)?(?:function|const|let|class)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]),
+    ...[...lire(chemin).matchAll(/^export\s*\{([^}]*)\}\s*;/gm)].flatMap((m) => m[1].split(',').map((n) => n.trim().split(/\s+as\s+/).pop()).filter(Boolean)),
+  ]);
   test('D6 les écrans des modules n’appellent que des fonctions exportées par les modules de données qu’ils importent', () => {
     const fichiers = fichiersAppli().filter((x) => /^js\/modules\/.*\.js$/.test(x));
     let verifies = 0;
@@ -526,7 +532,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     for (const f of fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x))) {
       const t = lire(f);
       assert.doesNotMatch(t, /mcp_limites|mcp_oauth|plateforme_cles/, f);
-      if (!/^js\/modules\/crm\/(donnees|logique)\.js$/.test(f)) assert.doesNotMatch(t, /crm_audit/, `${f} : seuls donnees.js et logique.js touchent au journal`);
+      if (!/^js\/(modules\/crm\/(donnees|logique)|os\/journal-donnees)\.js$/.test(f)) assert.doesNotMatch(t, /crm_audit/, `${f} : seuls donnees.js, logique.js et journal-donnees.js (coque) touchent au journal`);
     }
     // jamais de modification ni de suppression du journal par l'appli : les seules écritures sont des créations (types « creer » des plans d'audit)
     const logique = lire('js/modules/crm/logique.js');

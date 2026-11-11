@@ -9,6 +9,8 @@ import { moduleAccessible, premiereRoute, routeModernisee } from './registre.js'
 import { definirPrefixe, routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, lien, suivreLiensDuPrefixe } from './router.js';
 import { monterCoquille } from './shell.js';
 import { monterReglages } from './reglages.js';
+import { rendreJournal } from './journal.js';
+import { demarrerJournal, arreterJournal } from './journal-donnees.js';
 import { definirChezClient, definirLogoEspace } from './contexte.js';
 import { appliquerIdentite } from './identite.js';
 import { normaliserMarque, routeDansEspace } from './marque.js';
@@ -35,6 +37,7 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
   const apisCoquille = idsPortail ? new Map([...apis].filter(([id]) => idsPortail.includes(id))) : apis;
   definirPrefixe(portail ? `espace/${client}/${portail.id}` : `espace/${client}`);
   // Socle commun (05/11/2026) : fiches Personnes/Organisations et journal, avant les modules ; le module Affaires, s'il est actif, démarre par-dessus en complet.
+  demarrerJournal(compte, base); // le journal commun de l'espace démarre avant le socle et les modules
   demarrerSocle(compte, base, { noyau: true, equipe, nomEspace: marque?.nom || '' });
   for (const api of apis.values()) api.demarrer({ compte, cheminBase: base, equipe, nomEspace: marque?.nom || '' }); // equipe : membres de l'espace (fiche du client), pour « Confiée à »
   document.body.classList.remove('page-espace');
@@ -56,7 +59,7 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
 
   function afficherRoute(route) {
     if (cleEntreeDe(routeDepuisHash(location.hash)) !== entree) return; // la clé d'entrée a changé : la page va se recharger, aucune navigation ici
-    const modernisee = routeModernisee(route); // ancien lien #/espace/<client>/journal/… -> automatisations/… (renommage du 16/10/2026)
+    const modernisee = route === 'journal' ? route : routeModernisee(route); // `journal` seul = le Journal des modifications (nouvelle route de la coque) ; `journal/historique`… restent redirigés // ancien lien #/espace/<client>/journal/… -> automatisations/… (renommage du 16/10/2026)
     if (modernisee !== route) { naviguer(modernisee, { remplacer: true }); return; }
     const segs = segments(route);
     if (!segs.length) { naviguer(accueil, { remplacer: true }); return; }
@@ -68,6 +71,17 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
       }
       vue.quitter = monterReglages(coquille.contenu, segs, { apis, actifs, chezClient: true, client, nomEspace: marque.nom, marque, fiche, compte, surMarque, surDeconnexion });
       coquille.activer(segs.join('/'));
+      return;
+    }
+    if (segs[0] === 'journal' && segs.length === 1) { // Journal des modifications : écran de la coque, servi quels que soient les modules actifs (comme Réglages)
+      if (vue?.cle !== 'journal') {
+        vue?.quitter?.();
+        vider(coquille.contenu);
+        vue = { cle: 'journal', quitter: null };
+      }
+      const quitterJournal = rendreJournal(coquille.contenu);
+      if (typeof quitterJournal === 'function') vue.quitter = quitterJournal;
+      coquille.activer('journal');
       return;
     }
     const socle = idsPortail?.length ? ecranSocleDeRoute(segs) : null; // Clients : le socle est toujours servi dans le portail, avec ou sans Affaires
@@ -122,6 +136,7 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
     coquille.arreter?.();
     for (const api of apis.values()) api.arreter();
     arreterSocle(); // après les modules (idempotent si Affaires a déjà tout arrêté)
+    arreterJournal(); // en dernier : plus aucune écriture possible
     definirPrefixe('');
     definirChezClient(false);
     definirLogoEspace(null);

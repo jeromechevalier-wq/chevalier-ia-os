@@ -112,7 +112,7 @@ test('3 menu utilisateur : s’ouvre vers le haut depuis le nom, contenu dans l�
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/#\/crm\/journal$/);
+  await expect(page).toHaveURL(/#\/journal$/);
   await expect(pop).toHaveCount(0);
   if (estTelephone(page)) await expect(page.locator('.coquille.menu-ouvert')).toHaveCount(0); // sur téléphone, le choix referme aussi le menu
   // les autres entrées mènent à leur page
@@ -215,13 +215,13 @@ test('5 « Connecter mon ChatGPT » chez Jérôme : adresse /mcp de la page, mod
   await expect(page.locator('.mcp-etapes')).toContainText('Google');
   await expect(page.locator('.page-mcp')).toContainText('Les comptes autorisés sont fixés par Jérôme.');
   await expect(page.locator('.mcp-membre')).toHaveCount(0);
-  await expect(page.locator('.page-mcp a', { hasText: 'Journal des modifications' })).toHaveAttribute('href', '#/crm/journal');
+  await expect(page.locator('.page-mcp a', { hasText: 'Journal des modifications' })).toHaveAttribute('href', '#/journal');
   await expect(page.locator('.page-mcp')).not.toContainText(/cia_|jeton|claude-code/i);
   await page.waitForTimeout(800);
   expect(lecturesMembres).toEqual([]);
   await capture(page, '5-connecter-mon-chatgpt-racine');
   await page.locator('.page-mcp a', { hasText: 'Journal des modifications' }).click();
-  await expect(page).toHaveURL(/#\/crm\/journal$/);
+  await expect(page).toHaveURL(/#\/journal$/);
 });
 
 test('6 en-tête du menu : nom de l’espace + logo + bouton de repli, avatar = initiale du compte (plus de photo)', async ({ page }) => {
