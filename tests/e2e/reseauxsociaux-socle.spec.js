@@ -57,8 +57,8 @@ test('D1 le menu montre « Réseaux sociaux » entre Veille et Automatisations ;
     await onglets(page).filter({ hasText: libelle }).click();
     await expect(page).toHaveURL(new RegExp(`#/reseauxsociaux/${route}$`));
     await expect(page.getByRole('heading', { name: libelle, level: 1 })).toBeVisible();
-    // L'écran Posts est réel depuis la PR « Posts » (son contrôle est dans reseauxsociaux-posts.spec.js) ; Relations et Import restent des écrans d'attente.
-    if (route !== 'posts') await expect(page.getByText('Cet écran arrive bientôt.')).toBeVisible();
+    // L'écran Posts est réel depuis la PR « Posts » (son contrôle est dans reseauxsociaux-posts.spec.js) ; Relations est réel depuis la PR « Relations » (reseauxsociaux-relations.spec.js) ; seul Import reste un écran d'attente.
+    if (route === 'import') await expect(page.getByText('Cet écran arrive bientôt.')).toBeVisible();
   }
   await page.evaluate(() => { location.hash = '#/reseauxsociaux/inconnu'; });
   await expect(page).toHaveURL(/#\/reseauxsociaux\/aujourdhui$/); // route inconnue : retour à Aujourd'hui
