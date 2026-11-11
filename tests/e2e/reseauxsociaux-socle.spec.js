@@ -36,7 +36,7 @@ const creneaux = (page) => page.evaluate(async () => {
 const onglets = (page) => page.getByRole('navigation', { name: 'Écrans des réseaux sociaux' }).getByRole('link');
 const ouvrirMenuSurTelephone = async (page) => { if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click(); };
 
-test('D1 le menu montre « Réseaux sociaux » entre Veille et Automatisations ; les quatre écrans sont des onglets ; Posts, Relations et Import disent « Cet écran arrive bientôt. »', async ({ page }) => {
+test('D1 le menu montre « Réseaux sociaux » entre Veille et Automatisations ; les quatre écrans sont des onglets ; Relations et Import disent « Cet écran arrive bientôt. » (Posts : voir reseauxsociaux-posts.spec.js)', async ({ page }) => {
   await simulerBuffer(page, () => reponseBuffer([]));
   await connecter(page);
   await ouvrirMenuSurTelephone(page);
@@ -57,7 +57,8 @@ test('D1 le menu montre « Réseaux sociaux » entre Veille et Automatisations ;
     await onglets(page).filter({ hasText: libelle }).click();
     await expect(page).toHaveURL(new RegExp(`#/reseauxsociaux/${route}$`));
     await expect(page.getByRole('heading', { name: libelle, level: 1 })).toBeVisible();
-    await expect(page.getByText('Cet écran arrive bientôt.')).toBeVisible();
+    // L'écran Posts est réel depuis la PR « Posts » (son contrôle est dans reseauxsociaux-posts.spec.js) ; Relations et Import restent des écrans d'attente.
+    if (route !== 'posts') await expect(page.getByText('Cet écran arrive bientôt.')).toBeVisible();
   }
   await page.evaluate(() => { location.hash = '#/reseauxsociaux/inconnu'; });
   await expect(page).toHaveURL(/#\/reseauxsociaux\/aujourdhui$/); // route inconnue : retour à Aujourd'hui
