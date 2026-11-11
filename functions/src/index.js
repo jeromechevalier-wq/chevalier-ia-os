@@ -20,6 +20,8 @@ import { creerAppelRenommer, ligneDeJournalRenommer } from './automatisations/re
 import { creerAdaptateur } from '../partage/porte/adaptateur.js';
 import { creerServiceVeille } from './veille/service.js';
 import { creerAppelVeille } from './veille/appel.js';
+import { creerServiceBuffer } from './reseauxsociaux/service.js';
+import { creerAppelBuffer } from './reseauxsociaux/appel.js';
 import { creerAppelDevis, ligneDeJournalDevis } from './devis-appel.js';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { creerAppelDevisPdf, creerAppelDevisPdfLien, ligneDeJournalDevisPdf } from './devis/pdf-appel.js';
@@ -210,6 +212,17 @@ export const veille = onCall(
     if (!getApps().length) initializeApp();
     const service = creerServiceVeille({ donnees: creerAdaptateur({ db: getFirestore() }), lireJeton: () => JETON_RESUMER.value() });
     return creerAppelVeille({ service, journal: (e) => process.stdout.write(`${JSON.stringify({ severity: 'INFO', message: 'veille', ...e })}\n`) })(requete);
+  },
+);
+
+// `reseauxsociauxBuffer` : lecture SEULE des posts LinkedIn dans Buffer (module Réseaux sociaux), réservée aux comptes de Jérôme. La clé vit dans Secret Manager
+// (BUFFER_API_KEY, déjà créé : un secret absent ferait échouer tout le déploiement), jamais dans la page. Aucune écriture dans Buffer, aucune dans Firestore.
+const CLE_BUFFER = defineSecret('BUFFER_API_KEY');
+export const reseauxsociauxBuffer = onCall(
+  { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, secrets: [CLE_BUFFER] },
+  (requete) => {
+    const service = creerServiceBuffer({ lireCle: () => CLE_BUFFER.value() });
+    return creerAppelBuffer({ service, journal: (e) => process.stdout.write(`${JSON.stringify({ severity: 'INFO', message: 'reseauxsociauxBuffer', ...e })}\n`) })(requete);
   },
 );
 

@@ -30,6 +30,7 @@ const RESERVEES_JEROME = {
   tableaudebord: 'ÉCART connu : porte des indicateurs de maintenance (scripts de surveillance de Jérôme) ; module Maintenance non branché chez les clients',
   tableaudebordSaisir: 'ÉCART connu : saisie d\'une échéance ou d\'une valeur du module Maintenance, absente chez les clients',
   veille: 'ÉCART connu : ajout de lien et résumé du module Veille (passe par n8n), absent chez les clients',
+  reseauxsociauxBuffer: 'ÉCART connu : lecture Buffer, clé personnelle de Jérôme, absente chez les clients (une clé par client demanderait un secret par client)',
 };
 
 /** Seulement chez les clients : raison par ligne. */
