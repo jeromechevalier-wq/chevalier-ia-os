@@ -47,7 +47,7 @@ test('1 portail ordinateur : le menu latéral n\'a plus « Espace complet » ni 
   await expect(page.locator('.menu [data-action="exporter-devis"], .menu [data-role="retour-espace"], .menu-action')).toHaveCount(0);
   await expect(page.locator('.menu .menu-entree')).toHaveCount(5); // les cinq entrées seulement
   await ouvrirMenuUtilisateur(page);
-  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Réglages', 'Exporter mes données', 'Espace complet', /Thème (clair|sombre)/, 'Se déconnecter']);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Réglages', 'Exporter mes données', 'Espace complet', 'Voir le journal des modifications', /Thème (clair|sombre)/, 'Se déconnecter']);
   await expect(raccourci(page).locator('svg :is(path, rect, circle, line, polyline)').first()).toBeAttached(); // les icônes sont réellement dessinées
   await expect(entree(page, 'Espace complet').locator('svg :is(path, rect, circle, line, polyline)').first()).toBeAttached();
   await capturer(page, info, '1-ordinateur');

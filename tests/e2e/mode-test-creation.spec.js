@@ -206,7 +206,7 @@ test('4 un seul point d’entrée (statique) : plans, constructeurs et écriture
   const lire = (f) => readFileSync(`${racine}${f}`, 'utf8');
   // Ce qui crée un élément marquable : les plans, les constructeurs de documents, et les écritures de création brutes (moteur d'écriture, lot).
   const CREATEURS = /\b(planCreer(Personne|Organisation|Affaire|Activite|Note|Projet|ProjetDepuisAffaire|Tache|Brouillon)|nouvelle(Personne|Organisation|Affaire|Activite|Note|Tache)|nouveauProjet|nouveauDevis|ecritureCreer|ecritureNoteDeDepart)\(|\bCRM\.executer\(|\becrireDansLot\(/g;
-  const DONNEES = ['modules/crm/donnees.js', 'modules/projets/donnees.js', 'modules/devis/donnees.js'];
+  const DONNEES = ['modules/crm/donnees.js', 'modules/projets/donnees.js', 'modules/devis/donnees.js', 'os/journal-donnees.js']; // journal-donnees.js : le lot du journal commun (ex-crm/donnees.js, 11/11/2026)
   // Liste blanche : fichiers qui ont le droit d'utiliser ces fabriques, et pourquoi. Tout autre fichier qui crée un élément doit passer par donnees.js.
   const PERMIS = {
     'modules/crm/logique.js': 'les constructeurs et les plans eux-mêmes (purs ; l’héritage y est calculé)',

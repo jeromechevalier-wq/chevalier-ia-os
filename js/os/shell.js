@@ -197,7 +197,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
       // Portail devis seul : « Exporter mes données » et « Espace complet » vivent ici, plus dans le menu latéral (décision de Jérôme du 10/11/2026).
       ...actionsRetour.map((x) => ({ libelle: x.libelle, icone: x.icone, action: x.surClic })),
       ...(retour && /^#\//.test(retour.href) ? [{ libelle: retour.libelle, icone: 'layout-dashboard', action: () => { if (estTelephone()) ouvrirMobile(false); location.hash = retour.href; } }] : []), // adresse construite par la coque (jamais saisie) ; hors du préfixe client, comme l'ancien lien data-hors-prefixe
-      ...(idsModules.includes('affaires') ? [{ libelle: 'Voir le journal des modifications', icone: 'history', action: allerDepuisMenu('crm/journal') }] : []),
+      ...(idsModules.length ? [{ libelle: 'Voir le journal des modifications', icone: 'history', action: allerDepuisMenu('journal') }] : []), // dès qu'un module est actif : le Journal est un écran de la coque
       ...(idsModules.includes('mcp') ? [{ libelle: 'Connecter mon ChatGPT', icone: 'link', action: allerDepuisMenu('mcp/infos') }] : []),
       { noeud: boutonTheme('menu-pop-entree') },
       { noeud: boutonModeTest },

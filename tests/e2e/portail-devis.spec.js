@@ -71,7 +71,7 @@ test.describe('chez Jérôme', () => {
     for (const lib of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille', 'Automatisations', 'Maintenance']) await expect(page.locator('.menu').getByRole('link', { name: lib, exact: true })).toHaveCount(0);
     await capturer(page, info, '6-menu');
     await ouvrirMenuUtilisateur(page);
-    await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Réglages', 'Exporter mes données', 'Espace complet', /Thème (clair|sombre)/, 'Se déconnecter']);
+    await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Réglages', 'Exporter mes données', 'Espace complet', 'Voir le journal des modifications', /Thème (clair|sombre)/, 'Se déconnecter']);
     await expect(page.locator('.menu-pop').getByRole('menuitemcheckbox')).toHaveText(['Mode test']);
     await page.keyboard.press('Escape');
     if (estTelephone(page)) { await page.keyboard.press('Escape'); await expect(page.locator('.coquille.menu-ouvert')).toHaveCount(0); }

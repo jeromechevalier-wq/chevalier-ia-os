@@ -1,13 +1,16 @@
+// Écran Journal (lecture seule), UN journal commun à tous les modules (déplacé de js/modules/crm/ vers la coque le 11/11/2026 : les collections
+// du journal et le format des lignes ne changent pas). Les données viennent de journal-donnees.js (même dossier).
 // Écran Journal (lecture seule) : ce qui a été créé, modifié ou supprimé, par l'appli ou par le serveur MCP (Claude Code, Hermes).
 // Il lit directement Firestore, sans passer par le serveur MCP : il reste utilisable le jour où le MCP est en panne.
 // Aucune écriture, aucun bouton de restauration ici : on lit, on comprend, puis on demande la restauration à Claude Code.
-import { h, icone, remplir, dialogue } from '../../os/ui.js';
-import * as D from './donnees.js';
-import * as L from './logique.js';
-import { etatVide } from './composants.js';
-import { boutonFiltres, fenetreFiltres } from './filtres.js';
-import { barreListe, enteteListe } from './barre-liste.js';
-import { estChezClient } from '../../os/contexte.js';
+import { h, icone, remplir, dialogue } from './ui.js';
+import { lireJournal, lireCopieJournal } from './journal-donnees.js';
+import { etat as etatCrm } from '../modules/crm/donnees.js';
+import * as L from '../modules/crm/logique.js';
+import { etatVide } from '../modules/crm/composants.js';
+import { boutonFiltres, fenetreFiltres } from '../modules/crm/filtres.js';
+import { barreListe, enteteListe } from '../modules/crm/barre-liste.js';
+import { estChezClient } from './contexte.js';
 
 const TAILLE_PAGE = 200;
 const CHEMINS = { crm_personnes: 'personnes', crm_organisations: 'organisations', crm_affaires: 'affaires' };
@@ -18,6 +21,29 @@ const CRITERES_VIDES = { canaux: [], aVerifier: false, depuis: '', texte: '' };
 let criteres = { ...CRITERES_VIDES };
 /** Remet les filtres du Journal à zéro : appelée à la déconnexion, pour qu'un autre compte connecté dans le même onglet ne hérite pas des filtres du précédent. */
 export function oublierFiltresJournal() { criteres = { ...CRITERES_VIDES }; }
+
+// Libellés des tables propres à un module (le CRM, Devis et Projets sont connus de logique.js ; un module qui écrit ailleurs déclare les siens).
+// La coque ne connaît aucun module : c'est le `demarrer` du module qui appelle declarerLibellesJournal({ nomCollection: [singulier, pluriel] }).
+// Sans déclaration : le libellé de logique.js, puis le nom brut de la collection.
+const LIBELLES_DECLARES = new Map();
+export function declarerLibellesJournal(table) {
+  for (const [collection, libelle] of Object.entries(table || {})) {
+    if (Array.isArray(libelle) && libelle.length === 2) LIBELLES_DECLARES.set(collection, libelle);
+  }
+}
+const libelleDocument = (collection, pluriel = false) => LIBELLES_DECLARES.get(collection)?.[pluriel ? 1 : 0] ?? L.libelleDocumentJournal(collection, pluriel);
+/** Résumé d'une opération : celui de logique.js, refait ici seulement quand l'opération touche une table déclarée par un module. */
+function resumeOperation(op) {
+  if (!op.lignes.some((l) => LIBELLES_DECLARES.has(l.collection))) return op.resume;
+  const parAction = new Map();
+  for (const l of op.lignes) {
+    const m = parAction.get(l.action) ?? new Map();
+    m.set(l.collection, (m.get(l.collection) ?? 0) + 1);
+    parAction.set(l.action, m);
+  }
+  return ['creer', 'modifier', 'supprimer', 'restaurer'].filter((a) => parAction.has(a)).map((a) => (
+    `${L.libelleActionJournal(a)} de ${[...parAction.get(a)].map(([c, n]) => `${n} ${libelleDocument(c, n > 1)}`).join(', ')}`)).join(' · ') || op.resume;
+}
 
 const TEXTES_STATUT = { averifier: 'À vérifier', echec: 'Échec' };
 
@@ -45,7 +71,7 @@ function tableauDifferences(copie) {
 
 function blocLigne(ligne, ouvert) {
   const corps = h('div', { class: 'journal-copie' });
-  const fiche = CHEMINS[ligne.collection] && D.etat[CHEMINS[ligne.collection]]?.some((x) => x.id === ligne.docId)
+  const fiche = CHEMINS[ligne.collection] && etatCrm[CHEMINS[ligne.collection]]?.some((x) => x.id === ligne.docId)
     ? h('a', { class: 'lien-fiche', href: `#/crm/${CHEMINS[ligne.collection]}/${ligne.docId}` }, 'Ouvrir la fiche') : null;
   let charge = false;
   async function charger() {
@@ -53,7 +79,7 @@ function blocLigne(ligne, ouvert) {
     charge = true;
     remplir(corps, h('p', { class: 'aide' }, 'Chargement de la copie…'));
     try {
-      const copie = await D.lireCopieJournal(ligne.id);
+      const copie = await lireCopieJournal(ligne.id);
       remplir(corps, copie ? tableauDifferences(copie)
         : h('p', { class: 'aide' }, 'Pas de copie « avant / après » pour cette ligne.'));
     } catch (e) {
@@ -63,7 +89,7 @@ function blocLigne(ligne, ouvert) {
     }
   }
   const el = h('details', { class: 'journal-ligne', open: ouvert, dataset: { docId: ligne.docId } },
-    h('summary', {}, h('strong', {}, L.libelleActionJournal(ligne.action)), ` · ${L.libelleDocumentJournal(ligne.collection)} `, h('code', {}, ligne.docId), ' ', pastilleStatut(L.statutOperationJournal([ligne]))),
+    h('summary', {}, h('strong', {}, L.libelleActionJournal(ligne.action)), ` · ${libelleDocument(ligne.collection)} `, h('code', {}, ligne.docId), ' ', pastilleStatut(L.statutOperationJournal([ligne]))),
     ligne.erreur ? h('p', { class: 'message-refus' }, ligne.erreur) : null,
     (ligne.champsModifies || []).length ? h('p', { class: 'aide' }, `Champs touchés : ${ligne.champsModifies.join(', ')}`) : null,
     fiche, corps);
@@ -79,7 +105,7 @@ function ouvrirOperation(op) {
     h('div', {}, h('dt', {}, 'Action'), h('dd', {}, op.outil)),
     h('div', {}, h('dt', {}, 'Opération'), h('dd', {}, h('code', {}, op.operationId))));
   return dialogue({
-    titre: op.resume,
+    titre: resumeOperation(op),
     classe: 'dialogue-journal',
     contenu: h('div', { class: 'journal-detail' }, entete, op.lignes.map((l) => blocLigne(l, op.lignes.length <= 3))),
     boutons: [{ libelle: 'Fermer', valeur: true, style: 'principal' }],
@@ -127,7 +153,7 @@ export function rendreJournal(conteneur) {
     enCours = true;
     if (depuisLeDebut) { lignes = []; curseur = null; fini = false; etat = 'chargement'; rendre(); }
     try {
-      const page = await D.lireJournal({ taille: TAILLE_PAGE, apres: curseur });
+      const page = await lireJournal({ taille: TAILLE_PAGE, apres: curseur });
       if (!vivant) return;
       lignes = lignes.concat(page.lignes);
       curseur = page.curseur;
@@ -170,7 +196,7 @@ export function rendreJournal(conteneur) {
       h('td', { dataset: { libelle: 'Quand' } }, L.formatDateHeure(o.date)),
       h('td', { dataset: { libelle: 'Qui' } }, o.acteur),
       h('td', { dataset: { libelle: 'Canal' } }, o.canal),
-      h('td', { dataset: { libelle: 'Ce qui s’est passé' } }, h('div', {}, o.resume), h('div', { class: 'journal-outil' }, o.outil)),
+      h('td', { dataset: { libelle: 'Ce qui s’est passé' } }, h('div', {}, resumeOperation(o)), h('div', { class: 'journal-outil' }, o.outil)),
       h('td', { dataset: { libelle: 'État' } }, pastilleStatut(o.statut))));
       remplir(zone, h('table', { class: 'tableau tableau-journal' }, h('thead', {}, entete), h('tbody', {}, corps)));
     }

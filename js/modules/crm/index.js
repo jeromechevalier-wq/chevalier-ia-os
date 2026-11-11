@@ -14,7 +14,7 @@ import { rendreFichePersonne } from './fiche-personne.js';
 import { rendreFicheOrganisation } from './fiche-organisation.js';
 import { rendreFicheAffaire } from './fiche-affaire.js';
 import { rendreReglagesCrm } from './reglages.js';
-import { rendreJournal } from './journal.js';
+import { rendreJournal } from '../../os/journal.js';
 import { ETAPES_DEPLOIEMENT_AFFAIRES, controlerDeploiementAffaires } from './deploiement.js';
 import { attendreQue } from '../../os/deploiement.js';
 
@@ -23,7 +23,7 @@ const VUES = {
   personnes: (conteneur, id) => (id ? rendreFichePersonne(conteneur, id) : rendrePersonnes(conteneur)),
   organisations: (conteneur, id) => (id ? rendreFicheOrganisation(conteneur, id) : rendreOrganisations(conteneur)),
   affaires: (conteneur, id) => (id ? rendreFicheAffaire(conteneur, id) : rendreAffaires(conteneur)),
-  journal: (conteneur) => rendreJournal(conteneur),
+  journal: (conteneur) => rendreJournal(conteneur), // l'écran vit dans la coque (js/os/journal.js) ; cette route reste servie ici : aucun signet ne casse
 };
 
 /** Objectifs de départ fournis à l'OS (créés au premier lancement de la base de Jérôme ; un nouvel espace part des objectifs neutres : L.objectifsDepart(config)). */

@@ -10,6 +10,8 @@ import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe, ecranSocleDeRo
 import { MODULES } from './os/modules.js';
 import { demarrerObjectifs, arreterObjectifs } from './os/objectifs.js';
 import { monterReglages } from './os/reglages.js';
+import { rendreJournal } from './os/journal.js';
+import { demarrerJournal, arreterJournal } from './os/journal-donnees.js';
 import { demarrer as demarrerSocle, arreter as arreterSocle } from './modules/crm/donnees.js';
 import { h, lirePreference, vider, remplir, toast } from './os/ui.js';
 
@@ -79,6 +81,7 @@ async function ouvrirSession(compte) {
   }
   const objectifsDepart = [...apis.values()].flatMap((api) => api.objectifsDepart || []);
   demarrerObjectifs(compte, objectifsDepart);
+  demarrerJournal(compte, ''); // le journal commun démarre avant le socle et les modules : tout ce qui écrit passe par lui
   demarrerSocle(compte, '', { noyau: true }); // socle commun, racine ; le module Affaires démarre par-dessus en complet (cinq écouteurs, aucun doublon)
   for (const api of apis.values()) api.demarrer({ compte, cheminBase: '' }); // '' = racine (CRM de Jérôme) ; chez un client : cheminBaseClient(client)
   let modulesCoquille = MODULES;
@@ -118,9 +121,10 @@ function fermerSession() {
   session.coquille?.arreter?.();
   for (const api of session.apis.values()) api.arreter();
   arreterSocle();
+  arreterJournal();
   arreterObjectifs();
   import('./modules/crm/activites.js').then((m) => m.oublierFiltresHistorique()).catch(() => {}); // chargement à la demande : pas de dépendance circulaire
-  import('./modules/crm/journal.js').then((m) => m.oublierFiltresJournal()).catch(() => {});
+  import('./os/journal.js').then((m) => m.oublierFiltresJournal()).catch(() => {});
   import('./modules/veille/ecran.js').then((m) => m.oublierFiltresVeille()).catch(() => {});
   import('./modules/automatisations/ecran.js').then((m) => m.oublierFiltresAutomatisations()).catch(() => {});
   session = null;
@@ -154,7 +158,7 @@ function afficherRoute(route) {
       coquille.activer(segs.join('/'));
       return;
     }
-    if (segs[0] !== 'reglages' && !(m0 && dansPortail.includes(m0.id))) {
+    if (segs[0] !== 'reglages' && segs[0] !== 'journal' && !(m0 && dansPortail.includes(m0.id))) {
       session.vue?.quitter?.();
       session.vue = { cle: 'introuvable', quitter: null };
       vider(coquille.contenu);
@@ -170,6 +174,9 @@ function afficherRoute(route) {
     afficher = () => monterReglages(coquille.contenu, segs, {
       apis, actifs: MODULES.map((m) => m.id), chezClient: false, nomEspace: 'Chevalier IA OS', marque: null, fiche: null, compte: session.compte,
     });
+  } else if (segs[0] === 'journal') { // Journal des modifications : écran de la coque, servi même sans le module Affaires
+    cle = 'journal';
+    afficher = () => rendreJournal(coquille.contenu);
   } else {
     const m = MODULES.find((x) => x.prefixe === segs[0]);
     if (!m) { naviguer(ROUTE_DEFAUT, { remplacer: true }); return; }
