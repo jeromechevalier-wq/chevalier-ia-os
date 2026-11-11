@@ -88,6 +88,8 @@ describe('D2 Aucune ressource externe hors Google', () => {
         if (/^https:\/\/chevalier-ia-(os|app)\.web\.app$/.test(url) && /modules\/devis\/pdf\.js$/.test(f)) continue;
         // Page Réglages > Déploiement (25/10/2026) : liens de réparation (mode d'emploi dans docs/ sur GitHub, console Google), affichés comme liens, jamais chargés.
         if (/^https:\/\/(github\.com\/jeromechevalier-wq\/chevalier-ia-os\/blob\/main\/docs\/|console\.cloud\.google\.com\/)/.test(url) && /deploiement\.js$/.test(f)) continue;
+        // Module Réseaux sociaux (11/11/2026) : lien « Ouvrir Buffer » (nouvel onglet, rel noopener), jamais chargé.
+        if (url === 'https://publish.buffer.com' && f === 'js/modules/reseauxsociaux/logique.js') continue;
         assert.match(url, autorise, `${f} : ${url}`);
       }
       assert.doesNotMatch(t, /fonts\.googleapis\.com|cdn\.jsdelivr|unpkg\.com|cdnjs/, f);
@@ -272,7 +274,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     // Exceptions : le module Devis (quatre fonctions de transition), le module Automatisations (n8n) appelle trois fonctions du serveur (rafraîchir, renommer, décider d'une proposition), et la veille en appelle une seule,
     // `veille` (ajouter un lien collé, lancer un résumé : 2026-10-15), et le tableau de bord en appelle une seule, `tableaudebordSaisir`
     // (saisir une date ou une valeur : le serveur contrôle, écrit et journalise) ; aucun Cloud Storage.
-    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js', 'js/modules/devis/donnees.js', 'js/os/deploiement-ecran.js', 'js/os/mode-test-donnees.js', 'js/modules/crm/fichiers-donnees.js'];
+    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/reseauxsociaux/donnees.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js', 'js/modules/devis/donnees.js', 'js/os/deploiement-ecran.js', 'js/os/mode-test-donnees.js', 'js/modules/crm/fichiers-donnees.js'];
     for (const f of fichiersAppli().filter((x) => /\.js$/.test(x))) {
       const t = AVEC_FONCTIONS.includes(f) ? lire(f).replaceAll(/getFunctions|httpsCallable|firebase-functions\.js/g, '') : lire(f);
       assert.doesNotMatch(t, /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
@@ -287,6 +289,8 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.equal((donneesDevis.match(/httpsCallable\(/g) || []).length, 1, 'un seul appel de fonction dans le fichier');
     const appelsVeille = [...lire('js/modules/veille/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual(appelsVeille, ['veille']);
+    const appelsReseaux = [...lire('js/modules/reseauxsociaux/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
+    assert.deepEqual(appelsReseaux, ['reseauxsociauxBuffer']); // Réseaux sociaux (11/11/2026) : lecture de Buffer par le serveur, en lecture seule ; la fonction n'est pas branchée chez les clients (tests/ecarts-fonctions.test.js)
     const appelsTableau = [...lire('js/modules/tableaudebord/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual(appelsTableau, ['tableaudebordSaisir']); // saisir une date ou une valeur à l'écran : le serveur contrôle, écrit et journalise
     const appelsEspace = [...lire('js/os/mon-espace-donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);

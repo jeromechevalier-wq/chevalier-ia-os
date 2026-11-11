@@ -727,7 +727,7 @@ test('C19 export : JSON complet de toutes les collections, contacts .vcf ; le ra
   expect(telechargement.suggestedFilename()).toMatch(/^chevalier-ia-os-\d{4}-\d{2}-\d{2}\.json$/);
   const json = JSON.parse(await readFile(await telechargement.path(), 'utf8'));
   expect(json.version).toBe('2.0.0');
-  expect(Object.keys(json.collections).sort()).toEqual(['crm_activites', 'crm_affaires', 'crm_evenements', 'crm_notes', 'crm_organisations', 'crm_parametres', 'crm_personnes', 'devis_articles', 'devis_devis', 'devis_parametres', 'devis_usage_articles', 'devis_vocabulaire', 'documents_stockes', 'projets_modeles', 'projets_projets', 'projets_taches', 'veille_contenus', 'veille_pages', 'veille_resumes', 'veille_sources']);
+  expect(Object.keys(json.collections).sort()).toEqual(['crm_activites', 'crm_affaires', 'crm_evenements', 'crm_notes', 'crm_organisations', 'crm_parametres', 'crm_personnes', 'devis_articles', 'devis_devis', 'devis_parametres', 'devis_usage_articles', 'devis_vocabulaire', 'documents_stockes', 'projets_modeles', 'projets_projets', 'projets_taches', 'reseauxsociaux_imports', 'reseauxsociaux_posts', 'veille_contenus', 'veille_pages', 'veille_resumes', 'veille_sources']);
   expect(json.collections.crm_personnes.map((p) => p.id).sort()).toEqual(['p1', 'p2']);
   expect(json.collections.crm_notes).toHaveLength(1);
   expect(json.collections.crm_affaires[0].id).toBe('a1');
@@ -1318,7 +1318,7 @@ test('C28 Journal : ce que je fais dans l’appli y apparaît avec la copie avan
   const nbLignes = (await listerDocuments('crm_audit')).length;
 
   await allerA(page, 'Journal des modifications');
-  await expect(page).toHaveURL(/#\/crm\/journal$/);
+  await expect(page).toHaveURL(/#\/journal$/); // le Journal est un écran de la coque (PR A) ; #/crm/journal reste servi comme signet
   await expect(page.getByRole('heading', { name: 'Journal des modifications' })).toBeVisible();
   const lignes = page.locator('.tableau-journal tbody tr');
   await expect(lignes).toHaveCount(4); // suppression de la personne (avec son événement), sa création, ligne MCP réussie, ligne MCP à vérifier

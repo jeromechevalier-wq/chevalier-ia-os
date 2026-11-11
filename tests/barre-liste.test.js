@@ -15,6 +15,8 @@ const ECRANS = [
   // PR 2 (05/11/2026)
   'js/modules/crm/personnes.js', 'js/modules/crm/organisations.js', 'js/os/journal.js', 'js/modules/veille/ecran.js',
   'js/modules/automatisations/ecran.js', 'js/modules/automatisations/a-valider.js', 'js/modules/tableaudebord/ecran.js', 'js/modules/projets/modeles.js',
+  // Réseaux sociaux (11/11/2026) : écran Posts (vues Kanban | Statistiques)
+  'js/modules/reseauxsociaux/posts-ecran.js',
 ];
 
 test('les écrans de liste n\'écrivent pas leur recherche à la main (type search)', () => {
@@ -51,7 +53,8 @@ test('les boutons de vue disent « Kanban | Liste » (jamais « Tableau ») et l
     const src = lire(chemin);
     assert.doesNotMatch(src, /vues:\s*\[[^\n]*'Tableau'/, `${chemin} écrit « Tableau » dans ses vues. ${regle}`);
     if (src.includes('basculeVues(')) {
-      assert.match(src, /\[\s*'(kanban|tableau)',\s*'Kanban',\s*'square-kanban'\s*\],\s*\[\s*'liste',\s*'Liste',\s*'list'\s*\]/,
+      // L'écran Posts n'a pas de liste : sa seconde vue est le tableau des « Statistiques ».
+      assert.match(src, /\[\s*'(kanban|tableau)',\s*'Kanban',\s*'square-kanban'\s*\],\s*\[\s*'(liste',\s*'Liste',\s*'list|stats',\s*'Statistiques',\s*'chart-column)'\s*\]/,
         `${chemin} : les vues ne commencent pas par Kanban puis Liste. ${regle}`);
     }
     assert.doesNotMatch(src, /icone\('plus'[^)]*\),\s*'Nouve(au|lle) /, `${chemin} a un bouton « + Nouveau … ». ${regle}`);
