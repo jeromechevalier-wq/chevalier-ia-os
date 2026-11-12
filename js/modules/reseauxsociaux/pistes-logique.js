@@ -180,6 +180,11 @@ export function planAjouterPistes(source, entrees, ctx = {}) {
   if (!Array.isArray(entrees) || !entrees.length) throw new ErreurClaire('Aucune piste à ajouter.');
   const jour = N.normaliserJour(ctx.jour);
   if (!jour) throw new ErreurClaire('Jour du traitement manquant.');
+  // Une fiche qui n'existe pas encore est créée avec ces pistes : sans nom elle serait refusée, et un résumé de veille sans son contenu n'aurait aucun lien avec la Veille.
+  if (ctx.sourceExiste === false) {
+    if (!texteSimple(source.nom, N.MAX_NOM)) throw new ErreurClaire('Le nom de la source est nécessaire pour la créer avec ses pistes.');
+    if (N.typeSource(source) === 'veille' && !texteSimple(source.veilleContenuId, 100)) throw new ErreurClaire('Le contenu de veille (veilleContenuId) est nécessaire pour créer cette source.');
+  }
   const { lignes } = controlerPistes(entrees, { source, pistesExistantes: ctx.pistesExistantes, champsPermis: ctx.champsPermis ?? CHAMPS_REPONSE });
   const retenues = lignes.filter((l) => !l.refus && (ctx.accepterDoublons || !l.doublon));
   if (retenues.length > MAX_PISTES_PAR_LOT) throw new ErreurClaire(`Au plus ${MAX_PISTES_PAR_LOT} pistes à la fois.`);
@@ -313,7 +318,7 @@ export function construirePromptPistes({ source = {}, pistesExistantes = [], exe
     '- url : lien facultatif, en https',
     '- pilier, format, service : un identifiant des listes ci-dessous',
     '', 'PILIERS PERMIS', ligneListe(R.PILIERS), '', 'FORMATS PERMIS', ligneListe(R.FORMATS), '', 'SERVICES PERMIS', ligneListe(R.SERVICES));
-  const recentes = [...(pistesExistantes || [])].filter((p) => texteSimple(p?.angle, MAX_ANGLE))
+  const recentes = [...(pistesExistantes || [])].filter((p) => texteSimple(p?.angle, MAX_ANGLE) && (!p?.sourceId || !source?.id || p.sourceId === source.id)) // seulement les pistes de CETTE source
     .sort((a, b) => (L.versDate(b.creeLe)?.getTime() ?? 0) - (L.versDate(a.creeLe)?.getTime() ?? 0)).slice(0, MAX_PISTES_DANS_PROMPT);
   l.push('', 'PISTES DÉJÀ EN STOCK POUR CETTE SOURCE');
   if (recentes.length) l.push('Ne propose rien qui dise la même chose :', ...recentes.map((p) => `- ${texteSimple(p.angle, MAX_ANGLE)}`));

@@ -285,6 +285,12 @@ describe('ajouter des pistes : un seul plan pour l’écran et pour les outils',
     assert.deepEqual([e.type, e.collection, e.id, e.donnees.type, e.donnees.veilleContenuId, e.donnees.traiteLe, e.donnees.ordre], ['creer', 'reseauxsociaux_inspirations', 'veille-c42', 'veille', 'c42', '2026-11-13', 7]);
     assert.equal(plan.ecritures[0].donnees.sourceId, 'veille-c42');
   });
+  test('fiche à créer : le nom est exigé, et le contenu de veille pour un résumé (sinon refus clair, rien d’écrit)', () => {
+    const c = ctx({ sourceExiste: false, ordre: 1 });
+    assert.throws(() => P.planAjouterPistes({ id: 'veille-c1', type: 'veille', veilleContenuId: 'c1' }, [{ angle: 'Un' }], c), (e) => e instanceof I.ErreurClaire && /nom/i.test(e.message));
+    assert.throws(() => P.planAjouterPistes({ id: 'veille-c1', type: 'veille', nom: 'Résumé' }, [{ angle: 'Un' }], c), (e) => e instanceof I.ErreurClaire && /veilleContenuId/.test(e.message));
+    assert.equal(P.planAjouterPistes({ id: 'x1', type: 'site', nom: 'Un site', url: 'https://site.test' }, [{ angle: 'Un' }], c).creees, 1); // un site n'a pas de contenu de veille
+  });
 });
 
 describe('modifier, écarter, en faire une idée', () => {
@@ -358,6 +364,11 @@ describe('compteurs et état affiché : calculés, jamais stockés', () => {
 });
 
 describe('le prompt à copier', () => {
+  test('seules les pistes de la source du prompt sont citées (celles d’une autre source sont ignorées)', () => {
+    const t = P.construirePromptPistes({ source: site, pistesExistantes: [piste('a', { angle: 'Angle de ce site' }), piste('z', { sourceId: 'autre', angle: 'Angle d’une autre source' })] });
+    assert.ok(t.includes('Angle de ce site'));
+    assert.ok(!t.includes('Angle d’une autre source'));
+  });
   const stock = [piste('a', { angle: 'Angle ancien', creeLe: '2026-11-01T10:00:00Z' }), piste('b', { angle: 'Angle récent', creeLe: '2026-11-05T10:00:00Z' })];
   test('contient la demande, la source, les règles, les champs fermés, les valeurs permises, les pistes en stock et le modèle', () => {
     const t = P.construirePromptPistes({ source: site, pistesExistantes: stock });

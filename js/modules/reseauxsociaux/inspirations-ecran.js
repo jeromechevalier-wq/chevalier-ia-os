@@ -14,6 +14,7 @@ import * as N from './inspirations-logique.js';
 import * as P from './pistes-logique.js';
 import * as V from './inspirations-vue-logique.js';
 import { lignePiste, ouvrirTirerIdees } from './pistes-ecran.js';
+import { ouvrirCarte, boutonCarte } from './carte-ecran.js';
 import { enregistrerInspiration, deplacerInspiration, enregistrerExemple } from './idees-actions.js';
 import { ongletsReseauxSociaux, chargement, pastillePilier, pastilleFormat, pastilleService, COULEUR_GRISE, champTexte, champListe, lienExterne } from './commun.js';
 
@@ -196,7 +197,7 @@ async function deplacer(source, sens) {
 const boutonIcone = (action, ic, libelle, auClic, desactive) => h('button', { type: 'button', class: 'bouton-icone', dataset: { action }, 'aria-label': libelle, title: libelle, disabled: desactive, onclick: auClic }, icone(ic, { taille: 16 }));
 
 /** Une source : une ligne (nom qui déplie, compteurs, « En tirer des idées », ▲ ▼) et, dépliée, ses détails, ses pistes et (profil) ses exemples. */
-function carteSource(ligne, reelles, surChangement, { filtre = false } = {}) {
+function carteSource(ligne, reelles, surChangement, { filtre = false, surOuvrirPiste = () => {} } = {}) {
   const { source, pistes, total, compteurs } = ligne;
   const ouverte = ouvertes.has(source.id);
   const rang = reelles.findIndex((p) => p.id === source.id);
@@ -211,6 +212,8 @@ function carteSource(ligne, reelles, surChangement, { filtre = false } = {}) {
     h('span', { class: 'rs-compteurs', dataset: { role: 'compteurs-source' } }, V.libelleCompteurs(compteurs)),
     h('div', { class: 'rs-profil-actions' },
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'tirer-idees' }, onclick: () => ouvrirTirerIdees({ source }) }, icone('sparkles', { taille: 16 }), 'En tirer des idées'),
+      // La carte montre TOUTES les pistes de la source (écartées comprises), même sous un filtre de la liste.
+      boutonCarte(() => ouvrirCarte({ source, pistes: V.pistesDeSource(D.etat.pistes, source.id), surChoisir: surOuvrirPiste })),
       source.virtuelle ? null : boutonIcone('monter-profil', 'arrow-up', `Monter ${source.nom}`, () => deplacer(source, -1), rang <= 0 || filtre),
       source.virtuelle ? null : boutonIcone('descendre-profil', 'arrow-down', `Descendre ${source.nom}`, () => deplacer(source, 1), rang < 0 || rang === reelles.length - 1 || filtre)));
   let corps = null;
@@ -278,6 +281,19 @@ export function rendreInspirations(conteneur) {
       h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer le filtre : ${libelle}`, onclick: () => retirer(cle, valeur) }, icone('x', { taille: 12 })))));
   }
 
+  /** Clic sur une piste de la carte : la liste se remet « Par source », sans filtre (la piste doit être visible), déplie la source et met la piste en relief. */
+  function ouvrirPisteDansListe(piste, source) {
+    if (!piste) return;
+    criteres = V.criteresInspirations(); vue = 'source'; ouvertes.add(source.id);
+    rendre();
+    const ligne = zone.querySelector(`[data-piste="${CSS.escape(piste.id)}"]`);
+    if (!ligne) return;
+    ligne.classList.add('rs-piste-ouverte');
+    ligne.setAttribute('tabindex', '-1');
+    ligne.scrollIntoView({ block: 'center' });
+    ligne.focus({ preventScroll: true });
+  }
+
   function rendre() {
     filtres.majCompte(V.nombreFiltresInspirations(criteres));
     pastillesActives();
@@ -305,7 +321,7 @@ export function rendreInspirations(conteneur) {
         : phraseGrise(sousFiltre ? 'Aucune piste ne correspond à ta recherche ou à tes filtres.' : 'Aucune piste pour le moment. Ouvre une source et clique sur « En tirer des idées ».', 'plat-vide'));
       return;
     }
-    remplir(zone, h('div', { class: 'rs-inspirations' }, lignes.map((l) => carteSource(l, reelles, rendre, { filtre: sousFiltre }))));
+    remplir(zone, h('div', { class: 'rs-inspirations' }, lignes.map((l) => carteSource(l, reelles, rendre, { filtre: sousFiltre, surOuvrirPiste: ouvrirPisteDansListe }))));
   }
   const arret = D.surChangement(rendre);
   rendre();
