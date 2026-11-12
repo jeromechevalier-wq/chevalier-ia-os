@@ -263,6 +263,7 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
     'lister_articles', 'chercher_article',
     'diagnostiquer_fichiers', // outil d'essai temporaire (26/10/2026), à retirer après l'essai
     'lister_devis', 'lire_devis', 'lire_reglages_devis', 'rechercher_article_par_phrase', // + 2 outils de lecture du bordereau, + 2 de lecture des devis (module Devis, 24/10/2026), + la recherche par phrase (28/10/2026)
+    'lister_sources_inspiration', 'lire_source_inspiration', 'lister_pistes', 'lister_idees', // + 4 outils de lecture du module Réseaux sociaux (13/11/2026)
     'obtenir_pdf_officiel_devis']; // + le PDF officiel d'un devis finalisé, seul PDF à utiliser (garantie « aucun e-mail ne part tout seul », 29/10/2026)
   const ECRITURE = ['refuser_proposition', 'valider_proposition', 'abandonner_facture', 'ajouter_facture', 'ajouter_note', 'ajouter_livrable_projet', 'archiver_projet', 'changer_etape', 'changer_phase_projet', 'creer_activite', 'creer_affaire', 'creer_organisation', 'creer_personne', 'creer_projet', 'creer_projet_depuis_affaire', 'joindre_lien', 'marquer_facture_payee', 'marquer_perdue', 'modifier_affaire', 'modifier_note', 'modifier_organisation', 'modifier_personne', 'modifier_projet', 'retirer_document', 'rouvrir_affaire', 'rouvrir_projet', 'terminer_activite', 'terminer_projet', 'terminer_livrable_projet',
     'creer_article', 'modifier_article', 'desactiver_article',
@@ -272,6 +273,7 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
     'modifier_destinataires_devis', // + destinataire d'un devis finalisé (29/10/2026)
     'preparer_email', // + brouillon d'e-mail d'un devis, jamais d'envoi (garantie « aucun e-mail ne part tout seul », 29/10/2026)
     'deposer_document', // + dépôt d'un fichier texte dans l'onglet « Documents » (28/10/2026)
+    'creer_source_inspiration', 'modifier_source_inspiration', 'ajouter_pistes', 'modifier_piste', 'retenir_piste', 'enregistrer_exemple', 'creer_idee', 'modifier_idee', // + 8 outils d'écriture du module Réseaux sociaux (13/11/2026), aucun de suppression
     'marquer_test', 'demarquer_test']; // + mode test : marquer ou démarquer un essai (PR 2, 05/11/2026)
   const FINALISATION = ['finaliser_devis', 'changer_statut_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles']; // écritures sensibles (figent le devis, ne se défont pas avec le journal, confirmation par code) : Claude Code seulement ; modifier_reglages_devis (09/11/2026) n'est PAS dans cette liste : réservé aux super admins (identité vérifiée) (e-mail OAuth vérifié), il n'apparaît jamais pour un jeton statique, même complet
   const SUPPRESSION = ['restaurer_depuis_audit', 'supprimer_activite', 'supprimer_devis', 'supprimer_affaire', 'supprimer_note', 'supprimer_organisation', 'supprimer_personne', 'supprimer_projet', 'supprimer_document_stocke', 'supprimer_tous_les_tests'];

@@ -876,6 +876,179 @@
   }
  },
  {
+  "name": "lister_sources_inspiration",
+  "description": "Liste les sources d'inspiration du module Réseaux sociaux (profils LinkedIn, sites, résumés de veille) avec, pour chacune, ses compteurs calculés : pistes, retenues, postées (l'idée liée est « Dans Buffer »). Filtres : type, sansPiste (sources qui n'ont encore aucune piste : celles à traiter). Les identifiants servent à lire_source_inspiration et ajouter_pistes.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "type": {
+     "type": "string",
+     "enum": [
+      "profil",
+      "site",
+      "veille"
+     ],
+     "description": "Type de source : profil, site, veille (sans type, une fiche vaut profil)."
+    },
+    "sansPiste": {
+     "description": "true : seulement les sources à 0 piste.",
+     "type": "boolean"
+    },
+    "limite": {
+     "description": "Nombre maximal de lignes (défaut et plafond : 200).",
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 200
+    }
+   }
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "lire_source_inspiration",
+  "description": "Lit une source d'inspiration avec ses compteurs, ses exemples de posts (lien et analyse, chiffres et écart à la moyenne du profil ; jamais le texte d'un post) et toutes ses pistes (avec leur état affiché : stock, retenue, rédaction, postée, écartée).",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200,
+     "description": "Identifiant de la source."
+    }
+   },
+   "required": [
+    "id"
+   ]
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "lister_pistes",
+  "description": "Liste les pistes de posts (le stock). Filtres : sourceId, etat (nouvelle, retenue, ecartee), pilier, format, lot (étiquette d'un arrivage). 200 lignes au plus.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "sourceId": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200
+    },
+    "etat": {
+     "type": "string",
+     "enum": [
+      "nouvelle",
+      "retenue",
+      "ecartee"
+     ]
+    },
+    "pilier": {
+     "type": "string",
+     "enum": [
+      "cas_concrets",
+      "pedagogie",
+      "actu_ia",
+      "demarche_offre"
+     ],
+     "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+    },
+    "format": {
+     "type": "string",
+     "enum": [
+      "texte",
+      "image",
+      "carrousel",
+      "animation",
+      "video"
+     ],
+     "description": "Format : texte, image, carrousel, animation, video."
+    },
+    "lot": {
+     "type": "string",
+     "maxLength": 60
+    },
+    "limite": {
+     "description": "Nombre maximal de lignes (défaut et plafond : 200).",
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 200
+    }
+   }
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "lister_idees",
+  "description": "Liste les idées de posts (les pistes retenues et les idées libres). Filtres : etat (idee, en_redaction, dans_buffer, abandonnee), pilier. Le texte d'un brouillon est rendu ; les mots d'un tiers saisis à l'écran (extrait) ne le sont jamais.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "etat": {
+     "type": "string",
+     "enum": [
+      "idee",
+      "en_redaction",
+      "dans_buffer",
+      "abandonnee"
+     ]
+    },
+    "pilier": {
+     "type": "string",
+     "enum": [
+      "cas_concrets",
+      "pedagogie",
+      "actu_ia",
+      "demarche_offre"
+     ],
+     "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+    },
+    "limite": {
+     "description": "Nombre maximal de lignes (défaut et plafond : 200).",
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 200
+    }
+   }
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
   "name": "creer_personne",
   "description": "Crée une personne (seul le nom est obligatoire), avec son événement dans le fil. Refuse un doublon (même nom, accents et casse ignorés, ou même e-mail) sauf forcer: true. Le propriétaire est, par défaut, la personne connectée si on n'en donne pas.",
   "inputSchema": {
@@ -4283,6 +4456,855 @@
      "description": "Pourquoi (200 caractères au plus).",
      "type": "string",
      "maxLength": 200
+    }
+   },
+   "required": [
+    "id"
+   ]
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "creer_source_inspiration",
+  "description": "Ajoute une source d'inspiration : un profil LinkedIn (type profil, adresse LinkedIn obligatoire), un site (type site, adresse https obligatoire) ou un résumé de veille (type veille). Refuse un doublon (même nom ou même adresse, accents et casse ignorés) sauf forcer: true. Jamais le texte d'un post écrit par quelqu'un d'autre : seulement un lien et une analyse écrite avec tes mots.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "type": {
+     "type": "string",
+     "enum": [
+      "profil",
+      "site",
+      "veille"
+     ],
+     "description": "Type de source : profil, site, veille (sans type, une fiche vaut profil)."
+    },
+    "nom": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 100,
+     "description": "Nom de la source (un profil, un site, un résumé de veille)."
+    },
+    "url": {
+     "description": "Adresse : LinkedIn pour un profil (obligatoire), https pour un site (obligatoire), facultative pour un résumé de veille.",
+     "type": "string",
+     "maxLength": 500
+    },
+    "pourquoi": {
+     "description": "« Ce qui m'inspire » (500 caractères au plus), écrit avec tes mots.",
+     "type": "string",
+     "maxLength": 500
+    },
+    "piliers": {
+     "maxItems": 4,
+     "type": "array",
+     "items": {
+      "type": "string",
+      "enum": [
+       "cas_concrets",
+       "pedagogie",
+       "actu_ia",
+       "demarche_offre"
+      ],
+      "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+     }
+    },
+    "formats": {
+     "maxItems": 5,
+     "type": "array",
+     "items": {
+      "type": "string",
+      "enum": [
+       "texte",
+       "image",
+       "carrousel",
+       "animation",
+       "video"
+      ],
+      "description": "Format : texte, image, carrousel, animation, video."
+     }
+    },
+    "resume": {
+     "description": "Résumé de veille fait à la main : nom EXACT du fichier résumé du second cerveau.",
+     "type": "string",
+     "maxLength": 200
+    },
+    "veilleContenuId": {
+     "description": "Résumé de veille fait par n8n : identifiant du contenu dans la table veille_contenus.",
+     "type": "string",
+     "maxLength": 100
+    },
+    "moyenneReactions": {
+     "description": "Profil : moyenne des réactions de ses posts de plus de deux semaines, relevée par toi.",
+     "type": "number",
+     "minimum": 0,
+     "maximum": 1000000000
+    },
+    "moyenneCommentaires": {
+     "description": "Profil : moyenne des commentaires, relevée par toi.",
+     "type": "number",
+     "minimum": 0,
+     "maximum": 1000000000
+    },
+    "nombrePostsReleves": {
+     "description": "Profil : nombre de posts pris pour les deux moyennes.",
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 1000000
+    },
+    "releveLe": {
+     "description": "Profil : jour du relevé des moyennes.",
+     "type": "string",
+     "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "forcer": {
+     "description": "true : créer malgré un doublon possible, après avoir vérifié que c’est une autre source.",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "nom"
+   ]
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "modifier_source_inspiration",
+  "description": "Modifie des champs d'une source (seuls les champs donnés changent) : type, nom, url, pourquoi, piliers et formats (listes qui remplacent les actuelles), resume, veilleContenuId et, pour un profil, les moyennes relevées. Les pistes ne sont pas touchées.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200,
+     "description": "Identifiant de la source."
+    },
+    "type": {
+     "type": "string",
+     "enum": [
+      "profil",
+      "site",
+      "veille"
+     ],
+     "description": "Type de source : profil, site, veille (sans type, une fiche vaut profil)."
+    },
+    "nom": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 100,
+     "description": "Nom de la source (un profil, un site, un résumé de veille)."
+    },
+    "url": {
+     "description": "Adresse : LinkedIn pour un profil (obligatoire), https pour un site (obligatoire), facultative pour un résumé de veille.",
+     "type": "string",
+     "maxLength": 500
+    },
+    "pourquoi": {
+     "description": "« Ce qui m'inspire » (500 caractères au plus), écrit avec tes mots.",
+     "type": "string",
+     "maxLength": 500
+    },
+    "piliers": {
+     "maxItems": 4,
+     "type": "array",
+     "items": {
+      "type": "string",
+      "enum": [
+       "cas_concrets",
+       "pedagogie",
+       "actu_ia",
+       "demarche_offre"
+      ],
+      "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+     }
+    },
+    "formats": {
+     "maxItems": 5,
+     "type": "array",
+     "items": {
+      "type": "string",
+      "enum": [
+       "texte",
+       "image",
+       "carrousel",
+       "animation",
+       "video"
+      ],
+      "description": "Format : texte, image, carrousel, animation, video."
+     }
+    },
+    "resume": {
+     "description": "Résumé de veille fait à la main : nom EXACT du fichier résumé du second cerveau.",
+     "type": "string",
+     "maxLength": 200
+    },
+    "veilleContenuId": {
+     "description": "Résumé de veille fait par n8n : identifiant du contenu dans la table veille_contenus.",
+     "type": "string",
+     "maxLength": 100
+    },
+    "moyenneReactions": {
+     "description": "Profil : moyenne des réactions de ses posts de plus de deux semaines, relevée par toi.",
+     "type": "number",
+     "minimum": 0,
+     "maximum": 1000000000
+    },
+    "moyenneCommentaires": {
+     "description": "Profil : moyenne des commentaires, relevée par toi.",
+     "type": "number",
+     "minimum": 0,
+     "maximum": 1000000000
+    },
+    "nombrePostsReleves": {
+     "description": "Profil : nombre de posts pris pour les deux moyennes.",
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 1000000
+    },
+    "releveLe": {
+     "description": "Profil : jour du relevé des moyennes.",
+     "type": "string",
+     "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    }
+   },
+   "required": [
+    "id"
+   ]
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "ajouter_pistes",
+  "description": "Ajoute 1 à 30 pistes à une source, en un appel (au-delà : plusieurs appels). Mêmes contrôles que le collage de l'écran : un angle déjà en stock pour cette source (accents, casse et ponctuation ignorés) ou répété dans l'appel est ignoré et listé dans « ignorees » ; un pilier, format ou service inconnu reste vide. Les pistes arrivent à l'état nouvelle, auteur claude, avec un lot (défaut : AAAA-MM-JJ-claude). Pour le résumé de veille d'un contenu de veille_contenus qui n'a pas encore de fiche : sourceId = « veille- » suivi de veilleContenuId, avec veilleContenuId et nom (la fiche est créée). Jamais le texte d'un post écrit par quelqu'un d'autre : seulement un lien et une analyse écrite avec tes mots.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "sourceId": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200,
+     "description": "Identifiant de la source (lister_sources_inspiration)."
+    },
+    "nom": {
+     "description": "Seulement pour créer la fiche d’un résumé de veille qui n’existe pas encore.",
+     "type": "string",
+     "maxLength": 100
+    },
+    "veilleContenuId": {
+     "description": "Seulement pour créer la fiche d’un résumé de veille qui n’existe pas encore.",
+     "type": "string",
+     "maxLength": 100
+    },
+    "lot": {
+     "description": "Étiquette de l’arrivage, pour le retrouver d’un coup.",
+     "type": "string",
+     "maxLength": 60
+    },
+    "pistes": {
+     "minItems": 1,
+     "maxItems": 30,
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "angle": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "description": "La piste en une phrase, avec tes mots."
+       },
+       "note": {
+        "description": "Pourquoi c’est une bonne piste (écrit par toi).",
+        "type": "string",
+        "maxLength": 300
+       },
+       "ancre": {
+        "description": "La section du site, ou les mots-clés pour retrouver le passage du résumé.",
+        "type": "string",
+        "maxLength": 200
+       },
+       "url": {
+        "description": "Lien facultatif en https (page du site, post LinkedIn).",
+        "type": "string",
+        "maxLength": 500
+       },
+       "exempleId": {
+        "description": "L'exemple de post (de cette source) qui a donné la piste.",
+        "type": "string",
+        "maxLength": 100
+       },
+       "pilier": {
+        "type": "string",
+        "enum": [
+         "cas_concrets",
+         "pedagogie",
+         "actu_ia",
+         "demarche_offre"
+        ],
+        "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+       },
+       "format": {
+        "type": "string",
+        "enum": [
+         "texte",
+         "image",
+         "carrousel",
+         "animation",
+         "video"
+        ],
+        "description": "Format : texte, image, carrousel, animation, video."
+       },
+       "service": {
+        "type": "string",
+        "enum": [
+         "administratif_rh",
+         "finance",
+         "production",
+         "commercial",
+         "direction"
+        ],
+        "description": "Service : administratif_rh, finance, production, commercial, direction."
+       }
+      },
+      "required": [
+       "angle"
+      ],
+      "description": "Une piste. Jamais le texte d'un post écrit par quelqu'un d'autre : seulement un lien et une analyse écrite avec tes mots. Champs fermés : aucun texte ni extrait."
+     }
+    }
+   },
+   "required": [
+    "sourceId",
+    "pistes"
+   ]
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "modifier_piste",
+  "description": "Modifie une piste : angle, note, ancre, pilier, format, service, et etat (nouvelle pour la remettre en stock, ecartee pour l'écarter : elle reste retrouvable, rien ne se supprime). Pour retenir une piste, utiliser retenir_piste.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200,
+     "description": "Identifiant de la piste."
+    },
+    "angle": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200
+    },
+    "note": {
+     "type": "string",
+     "maxLength": 300
+    },
+    "ancre": {
+     "type": "string",
+     "maxLength": 200
+    },
+    "pilier": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "cas_concrets",
+        "pedagogie",
+        "actu_ia",
+        "demarche_offre"
+       ],
+       "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "format": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "texte",
+        "image",
+        "carrousel",
+        "animation",
+        "video"
+       ],
+       "description": "Format : texte, image, carrousel, animation, video."
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "service": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "administratif_rh",
+        "finance",
+        "production",
+        "commercial",
+        "direction"
+       ],
+       "description": "Service : administratif_rh, finance, production, commercial, direction."
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "etat": {
+     "description": "nouvelle : remettre en stock ; ecartee : écarter. « retenue » est refusé ici : utiliser retenir_piste.",
+     "type": "string",
+     "enum": [
+      "nouvelle",
+      "retenue",
+      "ecartee"
+     ]
+    }
+   },
+   "required": [
+    "id"
+   ]
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "retenir_piste",
+  "description": "Retient une piste (comme « En faire une idée » à l'écran) : crée l'idée (angle, pilier, format, service et source recopiés) et lie les deux ; la piste passe à « retenue ». Refusé si la piste est déjà devenue une idée.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200,
+     "description": "Identifiant de la piste."
+    }
+   },
+   "required": [
+    "id"
+   ]
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "enregistrer_exemple",
+  "description": "Enregistre l'exemple d'un post d'un profil : son lien LinkedIn et TON analyse (accroche, structure, longueur, pourquoi ça marche), avec les chiffres relevés (reactions, commentaires, releveLe). Il n'y a PAS de champ pour le texte du post. Refuse un lien déjà enregistré pour ce profil ; avec id, met à jour l'exemple existant (chiffres, analyse). Jamais le texte d'un post écrit par quelqu'un d'autre : seulement un lien et une analyse écrite avec tes mots.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "id": {
+     "description": "Seulement pour mettre à jour un exemple existant.",
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200
+    },
+    "profilId": {
+     "description": "Identifiant du profil (une source de type profil). Obligatoire à la création.",
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200
+    },
+    "url": {
+     "description": "Lien du post sur LinkedIn. Obligatoire à la création.",
+     "type": "string",
+     "maxLength": 500
+    },
+    "date": {
+     "description": "Jour du post.",
+     "type": "string",
+     "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "accroche": {
+     "type": "string",
+     "maxLength": 500
+    },
+    "structure": {
+     "type": "string",
+     "maxLength": 500
+    },
+    "longueur": {
+     "type": "string",
+     "maxLength": 500
+    },
+    "pourquoi": {
+     "type": "string",
+     "maxLength": 500
+    },
+    "format": {
+     "type": "string",
+     "enum": [
+      "texte",
+      "image",
+      "carrousel",
+      "animation",
+      "video"
+     ],
+     "description": "Format : texte, image, carrousel, animation, video."
+    },
+    "pilier": {
+     "type": "string",
+     "enum": [
+      "cas_concrets",
+      "pedagogie",
+      "actu_ia",
+      "demarche_offre"
+     ],
+     "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+    },
+    "service": {
+     "type": "string",
+     "enum": [
+      "administratif_rh",
+      "finance",
+      "production",
+      "commercial",
+      "direction"
+     ],
+     "description": "Service : administratif_rh, finance, production, commercial, direction."
+    },
+    "reactions": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 1000000000
+    },
+    "commentaires": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 1000000000
+    },
+    "releveLe": {
+     "description": "Jour où les chiffres ont été relevés.",
+     "type": "string",
+     "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    }
+   }
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "creer_idee",
+  "description": "Crée une idée de post (état idee par défaut). Refuse un angle déjà pris par une autre idée (accents et casse ignorés) sauf forcer: true. Pour transformer une piste en idée, utiliser retenir_piste. texte = un brouillon de l'utilisateur, jamais le texte d'un tiers ; une idée « dans_buffer » n'a pas de texte dans le module.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "angle": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200
+    },
+    "sources": {
+     "description": "D'où vient l'idée (10 au plus). À la modification, la liste donnée REMPLACE l'actuelle.",
+     "maxItems": 10,
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "type": {
+        "description": "Type : veille, site, inspiration, libre.",
+        "type": "string",
+        "enum": [
+         "veille",
+         "site",
+         "inspiration",
+         "libre"
+        ]
+       },
+       "titre": {
+        "type": "string",
+        "maxLength": 200
+       },
+       "url": {
+        "type": "string",
+        "maxLength": 500
+       },
+       "ancre": {
+        "description": "Section ou page, en texte.",
+        "type": "string",
+        "maxLength": 200
+       },
+       "resume": {
+        "description": "Veille : nom exact du fichier résumé.",
+        "type": "string",
+        "maxLength": 200
+       },
+       "motsCles": {
+        "description": "Veille : mots-clés pour retrouver le passage.",
+        "type": "string",
+        "maxLength": 200
+       },
+       "consulteLe": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "description": "Jour AAAA-MM-JJ."
+       },
+       "archive": {
+        "description": "Adresse d’une copie archivée.",
+        "type": "string",
+        "maxLength": 500
+       }
+      },
+      "description": "Une source de l'idée : un lien et un titre, JAMAIS le texte d'un tiers (pas de champ extrait)."
+     }
+    },
+    "pilier": {
+     "type": "string",
+     "enum": [
+      "cas_concrets",
+      "pedagogie",
+      "actu_ia",
+      "demarche_offre"
+     ],
+     "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+    },
+    "format": {
+     "type": "string",
+     "enum": [
+      "texte",
+      "image",
+      "carrousel",
+      "animation",
+      "video"
+     ],
+     "description": "Format : texte, image, carrousel, animation, video."
+    },
+    "service": {
+     "type": "string",
+     "enum": [
+      "administratif_rh",
+      "finance",
+      "production",
+      "commercial",
+      "direction"
+     ],
+     "description": "Service : administratif_rh, finance, production, commercial, direction."
+    },
+    "etat": {
+     "description": "État : idee, en_redaction, dans_buffer, abandonnee.",
+     "type": "string",
+     "enum": [
+      "idee",
+      "en_redaction",
+      "dans_buffer",
+      "abandonnee"
+     ]
+    },
+    "texte": {
+     "description": "Le texte d'un post DE L'UTILISATEUR (brouillon), jamais celui d'un tiers. Il s'efface du module quand l'idée passe « Dans Buffer ».",
+     "type": "string",
+     "maxLength": 3000
+    },
+    "forcer": {
+     "description": "true : créer malgré un doublon possible.",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "angle"
+   ]
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "modifier_idee",
+  "description": "Modifie une idée (seuls les champs donnés changent) : angle, sources (la liste donnée remplace l'actuelle), pilier, format, service, etat, texte. Passer « dans_buffer » efface le texte du module : refusé sans effacerLeTexte: true quand l'idée a un texte.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200,
+     "description": "Identifiant de l'idée."
+    },
+    "angle": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200
+    },
+    "sources": {
+     "description": "D'où vient l'idée (10 au plus). À la modification, la liste donnée REMPLACE l'actuelle.",
+     "maxItems": 10,
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "type": {
+        "description": "Type : veille, site, inspiration, libre.",
+        "type": "string",
+        "enum": [
+         "veille",
+         "site",
+         "inspiration",
+         "libre"
+        ]
+       },
+       "titre": {
+        "type": "string",
+        "maxLength": 200
+       },
+       "url": {
+        "type": "string",
+        "maxLength": 500
+       },
+       "ancre": {
+        "description": "Section ou page, en texte.",
+        "type": "string",
+        "maxLength": 200
+       },
+       "resume": {
+        "description": "Veille : nom exact du fichier résumé.",
+        "type": "string",
+        "maxLength": 200
+       },
+       "motsCles": {
+        "description": "Veille : mots-clés pour retrouver le passage.",
+        "type": "string",
+        "maxLength": 200
+       },
+       "consulteLe": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "description": "Jour AAAA-MM-JJ."
+       },
+       "archive": {
+        "description": "Adresse d’une copie archivée.",
+        "type": "string",
+        "maxLength": 500
+       }
+      },
+      "description": "Une source de l'idée : un lien et un titre, JAMAIS le texte d'un tiers (pas de champ extrait)."
+     }
+    },
+    "pilier": {
+     "type": "string",
+     "enum": [
+      "cas_concrets",
+      "pedagogie",
+      "actu_ia",
+      "demarche_offre"
+     ],
+     "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+    },
+    "format": {
+     "type": "string",
+     "enum": [
+      "texte",
+      "image",
+      "carrousel",
+      "animation",
+      "video"
+     ],
+     "description": "Format : texte, image, carrousel, animation, video."
+    },
+    "service": {
+     "type": "string",
+     "enum": [
+      "administratif_rh",
+      "finance",
+      "production",
+      "commercial",
+      "direction"
+     ],
+     "description": "Service : administratif_rh, finance, production, commercial, direction."
+    },
+    "etat": {
+     "description": "État : idee, en_redaction, dans_buffer, abandonnee.",
+     "type": "string",
+     "enum": [
+      "idee",
+      "en_redaction",
+      "dans_buffer",
+      "abandonnee"
+     ]
+    },
+    "texte": {
+     "description": "Le texte d'un post DE L'UTILISATEUR (brouillon), jamais celui d'un tiers. Il s'efface du module quand l'idée passe « Dans Buffer ».",
+     "type": "string",
+     "maxLength": 3000
+    },
+    "effacerLeTexte": {
+     "description": "true : confirmer que le texte peut s’effacer du module (il est déjà dans Buffer).",
+     "type": "boolean"
     }
    },
    "required": [
