@@ -180,7 +180,10 @@ describe('D3 firebase.json, en têtes, indexation', () => {
   });
   test('D3 déploiement GitHub : action officielle, canal live, projet et secret attendus', () => {
     const yml = lire('.github/workflows/firebase-hosting.yml');
-    assert.match(yml, /FirebaseExtended\/action-hosting-deploy@v0/);
+    assert.match(yml, /FirebaseExtended\/action-hosting-deploy@[0-9a-f]{40} # v0/);
+    assert.doesNotMatch(yml, /repoToken/);
+    assert.match(yml, /persist-credentials: false/);
+    assert.match(yml, /permissions:\s*\n\s*contents: read\s*\n\s*actions: read/);
     assert.match(yml, /channelId: live/);
     assert.match(yml, /projectId: chevalier-ia-os/);
     assert.match(yml, /secrets\.FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS/);
@@ -397,7 +400,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.match(yml, /node-version: 22/);
     assert.match(yml, /npm ci --prefix functions/);
     assert.match(yml, /firebase-tools@15\.32\.0 deploy --only functions --project chevalier-ia-os --non-interactive --force/);
-    assert.ok(yml.indexOf('deploy --only functions') < yml.indexOf('FirebaseExtended/action-hosting-deploy@v0'), 'fonctions avant Hosting');
+    assert.ok(yml.indexOf('deploy --only functions') < yml.indexOf('FirebaseExtended/action-hosting-deploy@'), 'fonctions avant Hosting');
     assert.match(yml, /GOOGLE_APPLICATION_CREDENTIALS/);
     assert.match(yml, /trap 'rm -f "\$fichier"' EXIT/);
     assert.match(yml, /umask 077/);
