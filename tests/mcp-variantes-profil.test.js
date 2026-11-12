@@ -39,10 +39,10 @@ describe('1 invariance : tout profil autre qu\'assistant-devis reçoit exactemen
       assert.ok(texteFige(tools) === lireFixture(cas), `La liste d'outils du profil « ${cas} » a changé. Si c'est voulu (description ou schéma d'un autre profil), régénère les listes de référence avec « ${COMMANDE} » et dis-le dans la PR ; sinon une variante a fuité hors d'assistant-devis. (Dépend de @modelcontextprotocol/sdk 1.32.0 et zod 4.6.5.)`);
     });
   }
-  test('1 les nombres de référence : 84 outils pour un jeton fixe complet, 85 pour un super admin OAuth (avec modifier_reglages_devis)', () => {
-    assert.equal(JSON.parse(lireFixture('complet')).length, 84);
+  test('1 les nombres de référence : 96 outils pour un jeton fixe complet, 97 pour un super admin OAuth (avec modifier_reglages_devis ; 12 outils du module Réseaux sociaux ajoutés le 13/11/2026)', () => {
+    assert.equal(JSON.parse(lireFixture('complet')).length, 96);
     const superAdmin = JSON.parse(lireFixture('complet-super-admin'));
-    assert.equal(superAdmin.length, 85);
+    assert.equal(superAdmin.length, 97);
     assert.ok(superAdmin.some((t) => t.name === 'modifier_reglages_devis'));
   });
   test('1 varianteDuProfil rend l\'outil LUI-MÊME (même objet) pour tout profil autre qu\'assistant-devis', () => {

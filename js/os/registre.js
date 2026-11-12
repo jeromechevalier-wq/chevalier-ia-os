@@ -194,7 +194,8 @@ export const MODULES_DECLARES = geler([
       { route: 'reseauxsociaux/import', libelle: 'Import', icone: 'upload' },
     ],
     collections: ['reseauxsociaux_posts', 'reseauxsociaux_imports', 'reseauxsociaux_idees', 'reseauxsociaux_inspirations', 'reseauxsociaux_exemples', 'reseauxsociaux_pistes'],
-    outilsMcp: [],
+    // 12 outils du 13/11/2026 : 4 de lecture, 8 d'écriture, AUCUN de suppression (une piste s'écarte, une idée s'abandonne).
+    outilsMcp: ['lister_sources_inspiration', 'lire_source_inspiration', 'lister_pistes', 'lister_idees', 'creer_source_inspiration', 'modifier_source_inspiration', 'ajouter_pistes', 'modifier_piste', 'retenir_piste', 'enregistrer_exemple', 'creer_idee', 'modifier_idee'],
     dependances: [],
     socle: true,
   },

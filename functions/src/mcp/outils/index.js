@@ -7,8 +7,9 @@ import { OUTILS_ECRITURE } from './ecriture.js';
 import { OUTILS_SUPPRESSION } from './suppression.js';
 import { avecGarantie } from './garantie.js';
 import { OUTILS_PROPOSITIONS_LECTURE, OUTILS_PROPOSITIONS_ECRITURE } from './propositions.js';
+import { OUTILS_RESEAUX_LECTURE, OUTILS_RESEAUX_ECRITURE } from './reseauxsociaux.js';
 
-export const OUTILS = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE, ...OUTILS_ECRITURE, ...OUTILS_PROPOSITIONS_ECRITURE, ...OUTILS_SUPPRESSION].map(avecGarantie); // la règle « aucun e-mail ne part tout seul » est ajoutée aux outils des devis
+export const OUTILS = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE, ...OUTILS_RESEAUX_LECTURE, ...OUTILS_ECRITURE, ...OUTILS_PROPOSITIONS_ECRITURE, ...OUTILS_RESEAUX_ECRITURE, ...OUTILS_SUPPRESSION].map(avecGarantie); // la règle « aucun e-mail ne part tout seul » est ajoutée aux outils des devis
 
 /** Écritures qui ne sont pas annulables par restaurer_depuis_audit. */
 export const OUTILS_NON_ANNULABLES = Object.freeze(['valider_proposition', 'refuser_proposition']);

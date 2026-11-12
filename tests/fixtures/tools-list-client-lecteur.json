@@ -874,5 +874,178 @@
   "execution": {
    "taskSupport": "forbidden"
   }
+ },
+ {
+  "name": "lister_sources_inspiration",
+  "description": "Liste les sources d'inspiration du module Réseaux sociaux (profils LinkedIn, sites, résumés de veille) avec, pour chacune, ses compteurs calculés : pistes, retenues, postées (l'idée liée est « Dans Buffer »). Filtres : type, sansPiste (sources qui n'ont encore aucune piste : celles à traiter). Les identifiants servent à lire_source_inspiration et ajouter_pistes.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "type": {
+     "type": "string",
+     "enum": [
+      "profil",
+      "site",
+      "veille"
+     ],
+     "description": "Type de source : profil, site, veille (sans type, une fiche vaut profil)."
+    },
+    "sansPiste": {
+     "description": "true : seulement les sources à 0 piste.",
+     "type": "boolean"
+    },
+    "limite": {
+     "description": "Nombre maximal de lignes (défaut et plafond : 200).",
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 200
+    }
+   }
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "lire_source_inspiration",
+  "description": "Lit une source d'inspiration avec ses compteurs, ses exemples de posts (lien et analyse, chiffres et écart à la moyenne du profil ; jamais le texte d'un post) et toutes ses pistes (avec leur état affiché : stock, retenue, rédaction, postée, écartée).",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200,
+     "description": "Identifiant de la source."
+    }
+   },
+   "required": [
+    "id"
+   ]
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "lister_pistes",
+  "description": "Liste les pistes de posts (le stock). Filtres : sourceId, etat (nouvelle, retenue, ecartee), pilier, format, lot (étiquette d'un arrivage). 200 lignes au plus.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "sourceId": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200
+    },
+    "etat": {
+     "type": "string",
+     "enum": [
+      "nouvelle",
+      "retenue",
+      "ecartee"
+     ]
+    },
+    "pilier": {
+     "type": "string",
+     "enum": [
+      "cas_concrets",
+      "pedagogie",
+      "actu_ia",
+      "demarche_offre"
+     ],
+     "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+    },
+    "format": {
+     "type": "string",
+     "enum": [
+      "texte",
+      "image",
+      "carrousel",
+      "animation",
+      "video"
+     ],
+     "description": "Format : texte, image, carrousel, animation, video."
+    },
+    "lot": {
+     "type": "string",
+     "maxLength": 60
+    },
+    "limite": {
+     "description": "Nombre maximal de lignes (défaut et plafond : 200).",
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 200
+    }
+   }
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "lister_idees",
+  "description": "Liste les idées de posts (les pistes retenues et les idées libres). Filtres : etat (idee, en_redaction, dans_buffer, abandonnee), pilier. Le texte d'un brouillon est rendu ; les mots d'un tiers saisis à l'écran (extrait) ne le sont jamais.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "etat": {
+     "type": "string",
+     "enum": [
+      "idee",
+      "en_redaction",
+      "dans_buffer",
+      "abandonnee"
+     ]
+    },
+    "pilier": {
+     "type": "string",
+     "enum": [
+      "cas_concrets",
+      "pedagogie",
+      "actu_ia",
+      "demarche_offre"
+     ],
+     "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+    },
+    "limite": {
+     "description": "Nombre maximal de lignes (défaut et plafond : 200).",
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 200
+    }
+   }
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
  }
 ]
