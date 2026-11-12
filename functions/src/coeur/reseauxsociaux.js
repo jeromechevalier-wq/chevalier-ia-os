@@ -70,7 +70,7 @@ export async function listerPistes(c, { sourceId, etat, pilier, format, lot, lim
   let gardees = pistes;
   if (sourceId) gardees = gardees.filter((p) => p.sourceId === sourceId);
   if (etat) gardees = gardees.filter((p) => (p.etat ?? 'nouvelle') === etat);
-  if (pilier) gardees = gardees.filter((p) => R.convertirPilier(p.pilier) === pilier);
+  if (pilier) gardees = gardees.filter((p) => P.piliersDePiste(p).includes(pilier));
   if (format) gardees = gardees.filter((p) => p.format === format);
   if (lot) gardees = gardees.filter((p) => p.lot === lot);
   const triees = L.trier(gardees, (p) => `${p.sourceTitre ?? ''}`.toLowerCase() + String(p.angle ?? '').toLowerCase());

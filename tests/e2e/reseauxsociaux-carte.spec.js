@@ -96,7 +96,7 @@ test('H3 une source sans piste : la carte dit clairement qu’il n’y a rien à
   await ouvrir(page);
   await page.locator('[data-inspiration="s1"] [data-action="carte-source"]').click();
   const f = fenetre(page);
-  await expect(f.locator('[data-role="resume-carte"]')).toContainText('Aucune piste pour le moment');
+  await expect(f.locator('[data-role="resume-carte"]')).toContainText('Aucune idée pour le moment');
   await expect(f.locator('[data-role="centre-carte"]')).toContainText('Site Exemple');
   await expect(f.locator('[data-role="branche-carte"]')).toHaveCount(0);
   await page.keyboard.press('Escape');

@@ -26,10 +26,12 @@ const MARQUES = Object.freeze({ stock: 'circle', retenue: 'star', redaction: 'pe
  * Une ligne de piste : pastille de la couleur du pilier, angle (coupé si trop long, entier au survol), format, marque d'état, puis « Retenir », « En faire une idée », « Écarter ».
  * `nomSource` (vue « Toutes les pistes ») ajoute le nom de la source. Les actions écrivent par `idees-actions.js` (journal commun) ; une erreur s'affiche dans un message, jamais en silence.
  */
+// Les brouillons dépliés le restent d'un affichage à l'autre (chaque arrivée de données redessine la liste).
+const depliees = new Set();
+
 export function lignePiste(piste, { nomSource = null } = {}) {
   const etat = P.etatAffichePiste(piste, D.etat.idees);
   const libelleEtat = V.libelleEtatAffiche(etat);
-  const pilier = R.convertirPilier(piste.pilier);
   const href = I.normaliserUrlWeb(piste.url);
   let enCours = false;
   const agir = (action, succes) => async (e) => {
@@ -39,10 +41,21 @@ export function lignePiste(piste, { nomSource = null } = {}) {
     try { await action(); if (succes) toast(succes); } catch (err) { console.warn(err); toast(messageErreur(err), { type: 'erreur' }); } finally { enCours = false; bouton.disabled = false; }
   };
   const bouton = (action, ic, libelle, auClic) => h('button', { type: 'button', class: 'bouton-icone rs-piste-bouton', dataset: { action }, 'aria-label': libelle, title: libelle, onclick: auClic }, icone(ic, { taille: 16 }));
+  const piliers = P.piliersDePiste(piste);
+  const principal = piliers[0] ?? null;
+  const titre = piste.accroche || piste.angle;
+  const detail = (piste.accroche && piste.angle && piste.accroche !== piste.angle) || piste.brouillon || piste.visuel || piste.note;
+  const corps = detail ? h('div', { class: 'rs-piste-detail', dataset: { role: 'detail-piste' } },
+    piste.accroche && piste.angle && piste.accroche !== piste.angle ? h('p', { class: 'rs-analyse', dataset: { role: 'angle-detail' } }, h('strong', {}, 'Angle : '), piste.angle) : null,
+    piste.brouillon ? h('div', { class: 'rs-brouillon', dataset: { role: 'brouillon-piste' } }, piste.brouillon.split('\n\n').map((para) => h('p', {}, para))) : null,
+    piste.visuel ? h('p', { class: 'rs-analyse', dataset: { role: 'visuel-piste' } }, h('strong', {}, 'Visuel : '), piste.visuel) : null,
+    piste.note ? h('p', { class: 'rs-analyse', dataset: { role: 'note-piste' } }, h('strong', {}, 'Pourquoi : '), piste.note) : null) : null;
   return h('li', { class: `rs-piste${etat === 'ecartee' ? ' rs-piste-ecartee' : ''}`, dataset: { piste: piste.id, etat } },
-    h('span', { class: 'rs-point', style: { '--couleur': COULEUR_PILIER[pilier] ?? COULEUR_GRISE }, title: R.libellePilier(pilier) ?? 'À classer', dataset: { role: 'pastille-pilier', pilier: pilier ?? '' } }),
+    h('span', { class: 'rs-point', style: { '--couleur': COULEUR_PILIER[principal] ?? COULEUR_GRISE }, title: piliers.map((x) => R.libellePilier(x)).join(', ') || 'À classer', dataset: { role: 'pastille-pilier', pilier: principal ?? '' } }),
     h('span', { class: 'rs-piste-texte' },
-      h('span', { class: 'rs-piste-angle', title: [piste.angle, piste.note].filter(Boolean).join(' — '), dataset: { role: 'angle-piste' } }, V.couper(piste.angle, 140)),
+      corps ? h('details', { class: 'rs-piste-deplie', open: depliees.has(piste.id), ontoggle: (e) => { if (e.currentTarget.open) depliees.add(piste.id); else depliees.delete(piste.id); } }, h('summary', { class: 'rs-piste-angle', title: [piste.angle, piste.note].filter(Boolean).join(' — '), dataset: { role: 'angle-piste' } }, V.couper(titre, 140)), corps)
+        : h('span', { class: 'rs-piste-angle', title: [piste.angle, piste.note].filter(Boolean).join(' — '), dataset: { role: 'angle-piste' } }, V.couper(titre, 140)),
+      h('span', { class: 'groupe-pastilles', dataset: { role: 'piliers-piste' } }, piliers.map((x) => pastillePilier(x))),
       nomSource ? h('span', { class: 'rs-piste-source', dataset: { role: 'source-piste' } }, nomSource) : null),
     piste.format ? h('span', { class: 'rs-mini', dataset: { role: 'format-piste' } }, R.libelleFormat(piste.format)) : null,
     h('span', { class: 'rs-marque', title: libelleEtat, role: 'img', 'aria-label': `État : ${libelleEtat}`, dataset: { role: 'etat-piste', etat } }, icone(MARQUES[etat], { taille: 16 })),
@@ -135,7 +148,7 @@ function panneauClaude(source, { fermer, verrou }) {
         h('label', { class: 'rs-apercu-case' },
           h('input', { type: 'checkbox', checked: choisies.has(l.rang), disabled: !!l.refus, dataset: { case: String(l.rang) }, onchange: (e) => { if (e.target.checked) choisies.add(l.rang); else choisies.delete(l.rang); majCreer(); } }),
           h('span', { class: 'rs-apercu-angle', dataset: { role: 'angle-apercu' } }, l.refus ? (l.angle || 'Piste sans angle') : l.piste.angle)),
-        l.piste ? h('div', { class: 'groupe-pastilles' }, pastillePilier(l.piste.pilier), pastilleFormat(l.piste.format), pastilleService(l.piste.service)) : null,
+        l.piste ? h('div', { class: 'groupe-pastilles' }, (l.piste.piliers?.length ? l.piste.piliers : [l.piste.pilier]).map((x) => pastillePilier(x)), pastilleFormat(l.piste.format), pastilleService(l.piste.service)) : null,
         l.refus ? h('p', { class: 'aide rs-apercu-remarque', dataset: { role: 'refus-apercu' } }, `Refusée : ${l.refus}`) : null,
         l.remarques.length ? h('p', { class: 'aide rs-apercu-remarque', dataset: { role: 'remarque-apercu' } }, l.remarques.join(' · ')) : null))));
     majCreer();
