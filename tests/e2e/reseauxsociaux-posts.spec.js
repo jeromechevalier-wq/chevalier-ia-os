@@ -295,7 +295,8 @@ test('E7 aucun contrôle en échec : « Tout est en ordre. »', async ({ page })
   });
   const posts = creneaux.map((prevuLe, i) => poste(`p${i}`, { statut: 'programme', statutBuffer: 'scheduled', prevuLe, video: true, texte: `Post programmé ${i}` }));
   expect(posts.length).toBeGreaterThanOrEqual(3);
-  for (const p of posts) await ecrireDocument(`reseauxsociaux_posts/${p.id}`, { pilier: 'pme', format: 'video', services: [] });
+  const piliers = ['pme', 'claude', 'proximite', 'pme', 'actu_ia', 'claude', 'proximite', 'pme', 'offre', 'claude']; // répartis selon la cible : avec 6 posts ou plus, un seul pilier ferait s'allumer le point e
+  for (const [i, p] of posts.entries()) await ecrireDocument(`reseauxsociaux_posts/${p.id}`, { pilier: piliers[i % piliers.length], format: 'video', services: [] });
   await ouvrirPosts(page, () => reponseBuffer(posts));
   await deplier(page);
   await expect(page.locator('[data-carte="controle"] [data-role="tout-en-ordre"]')).toHaveText('Tout est en ordre.');

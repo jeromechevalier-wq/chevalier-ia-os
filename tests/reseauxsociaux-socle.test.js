@@ -120,12 +120,30 @@ describe('D5 créneaux de publication', () => {
     assert.equal(c.find((x) => x.date === '2026-10-22').post, null);
   });
 
-  test('D5 seuls les posts programmés comptent ; les créneaux sont les mardis et jeudis des 14 prochains jours, passés exclus', () => {
+  test('D5 seuls les posts programmés ou publiés comptent ; les créneaux sont les mardis et jeudis des 21 prochains jours, passés exclus', () => {
     const posts = [{ id: 'a', statut: 'brouillon', prevuLe: '2026-10-22T04:08:00Z' }, { id: 'b', statut: 'publie', prevuLe: '2026-10-22T04:08:00Z' }];
     const c = R.creneauxAVenir(instant('2026-10-19T08:00:00Z'), posts);
-    assert.deepEqual(c.map((x) => x.date), ['2026-10-20', '2026-10-22', '2026-10-27', '2026-10-29']); // lundi 19 à 10h Paris : les 14 jours vont jusqu'au dimanche 01/11 ; le mardi 03/11 est hors fenêtre
+    assert.deepEqual(c.map((x) => x.date), ['2026-10-20', '2026-10-22', '2026-10-27', '2026-10-29', '2026-11-03', '2026-11-05']); // lundi 19 à 10h Paris : les 21 jours vont jusqu'au dimanche 08/11 ; le mardi 10/11 est hors fenêtre
     // créneau déjà passé aujourd'hui : jeudi 22/10 à 9h Paris, le créneau de 6h08 n'est plus listé
     assert.deepEqual(R.creneauxAVenir(instant('2026-10-22T07:00:00Z'), []).map((x) => x.date).slice(0, 2), ['2026-10-27', '2026-10-29']);
+  });
+
+  test('D5b la fenêtre par défaut couvre 21 jours : le jeudi 05/11 (17 jours plus tard) est listé, le mardi 10/11 (22 jours) ne l\'est pas ; 14 jours en paramètre coupent avant', () => {
+    const dates = R.creneauxAVenir(instant('2026-10-19T08:00:00Z'), []).map((x) => x.date);
+    assert.ok(dates.includes('2026-11-05'));
+    assert.ok(!dates.includes('2026-11-10'));
+    assert.ok(!R.creneauxAVenir(instant('2026-10-19T08:00:00Z'), [], 14).some((x) => x.date === '2026-11-05'));
+  });
+
+  test('D5b un post publié sur le créneau le remplit aussi (post non nul) ; un brouillon, jamais', () => {
+    // créneau du jeudi 22/10 à 6h08 Paris encore à venir (03:00 UTC = 5h Paris)
+    const maintenant = instant('2026-10-22T03:00:00Z');
+    const publie = { id: 'pub', statut: 'publie', prevuLe: '2026-10-22T04:08:00Z', publieLe: '2026-10-22T04:08:00Z' };
+    const publieSansPrevu = { id: 'pub2', statut: 'publie', publieLe: '2026-10-22T04:09:00Z' };
+    const brouillon = { id: 'bro', statut: 'brouillon', prevuLe: '2026-10-22T04:08:00Z' };
+    assert.equal(R.creneauxAVenir(maintenant, [publie])[0].post?.id, 'pub');
+    assert.equal(R.creneauxAVenir(maintenant, [publieSansPrevu])[0].post?.id, 'pub2');
+    assert.equal(R.creneauxAVenir(maintenant, [brouillon])[0].post, null);
   });
 });
 

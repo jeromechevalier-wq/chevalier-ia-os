@@ -1,5 +1,5 @@
 // Écran « Aujourd'hui » du module Réseaux sociaux : ce qu'il y a à faire cette semaine.
-//  1. Les créneaux de publication des 14 prochains jours (pris par un post programmé dans Buffer, ou vides) ;
+//  1. Les créneaux de publication des 21 prochains jours (remplis par un post programmé ou publié dans Buffer : pastille verte ; ou vides : pastille rouge) ;
 //  2. les relations LinkedIn à traiter (à répondre, à relancer), lues dans les activités du CRM ;
 //  3. le dernier post publié, avec ses chiffres.
 // Buffer reste le lieu d'écriture (un seul bouton jaune : « Ouvrir Buffer »). Si Buffer est en erreur ou non branché, seule la carte des créneaux et celle du dernier post le disent :
@@ -18,6 +18,7 @@ const MAX_RELATIONS = 5;
 const heureLisible = (heure) => heure.replace(/^0/, '').replace(':', ' h ');
 
 const pastilleRouge = (texte) => h('span', { class: 'badge-retard' }, texte);
+const pastilleVerte = (texte) => h('span', { class: 'pastille-etiquette', style: { '--couleur': 'var(--succes)' } }, texte);
 const phraseGrise = (texte) => h('p', { class: 'aide', dataset: { role: 'phrase-grise' } }, texte);
 
 function carteCreneaux() {
@@ -32,9 +33,9 @@ function carteCreneaux() {
   } else {
     corps.push(h('ul', { class: 'rs-liste', dataset: { role: 'creneaux' } }, R.creneauxAVenir(new Date(), b.posts).map((c) => h('li', { class: 'rs-ligne', dataset: { date: c.date, creneau: c.post ? 'pris' : 'vide' } },
       h('span', { class: 'rs-ligne-titre' }, `${R.libelleJour(c.date)} · ${heureLisible(c.heure)}`),
-      c.post ? h('span', { class: 'rs-ligne-detail' }, `Programmé : ${R.debutTexte(c.post.texte, 40)}`) : pastilleRouge('Créneau vide')))));
+      c.post ? [pastilleVerte('Créneau rempli'), h('span', { class: 'rs-ligne-detail' }, `${c.post.statut === 'publie' ? 'Publié' : 'Programmé'} : ${R.debutTexte(c.post.texte, 40)}`)] : pastilleRouge('Créneau vide')))));
   }
-  return h('section', { class: 'carte-section', dataset: { carte: 'creneaux' } }, h('h2', {}, icone('calendar', { taille: 18 }), 'Créneaux des 14 prochains jours'), ...corps);
+  return h('section', { class: 'carte-section', dataset: { carte: 'creneaux' } }, h('h2', {}, icone('calendar', { taille: 18 }), 'Créneaux des 21 prochains jours'), ...corps);
 }
 
 function carteRelations() {

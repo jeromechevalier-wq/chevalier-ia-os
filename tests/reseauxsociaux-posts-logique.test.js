@@ -285,11 +285,13 @@ describe('E7 contrôle éditorial', () => {
   });
 
   test('E7 aucun contrôle en échec : liste vide (l’écran dit « Tout est en ordre. »)', () => {
-    // Un post programmé, classé et en vidéo sur chaque créneau des 14 prochains jours ; texte court.
-    const creneaux = R.creneauxAVenir(NOW_HIVER, [], 14);
+    // Un post programmé, classé et en vidéo sur chaque créneau des 21 prochains jours ; texte court.
+    const creneaux = R.creneauxAVenir(NOW_HIVER, [], 21);
     const posts = creneaux.map((c, i) => post(`p${i}`, 'programme', { prevuLe: L.dateHeureParisVersDate(`${c.date}T${c.heure}`).toISOString(), video: true }));
     assert.ok(posts.length >= 4);
-    assert.deepEqual(P.controlesEditoriaux(posts, posts.map((p) => classement(p.id, 'pme', 'video')), NOW_HIVER), []);
+    // Piliers répartis selon la cible (avec 6 posts ou plus, un seul pilier « pèse 100 % » et le point e s'allume).
+    const piliers = ['pme', 'claude', 'proximite', 'pme', 'actu_ia', 'claude', 'proximite', 'pme', 'offre', 'claude'];
+    assert.deepEqual(P.controlesEditoriaux(posts, posts.map((p, i) => classement(p.id, piliers[i % piliers.length], 'video')), NOW_HIVER), []);
   });
 });
 

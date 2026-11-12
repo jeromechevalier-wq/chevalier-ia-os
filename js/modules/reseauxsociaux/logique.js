@@ -156,12 +156,12 @@ const jourSemaine = (jour) => { const [a, m, j] = jour.split('-').map(Number); r
 
 /**
  * Les créneaux (mardi et jeudi à 6 h 08, heure de Paris) des `jours` prochains jours, du plus proche au plus lointain : [{ date, heure, post }].
- * Un créneau est « pris » si un post programmé est prévu à 60 minutes au plus de l'heure ; `post` = ce post, sinon null (créneau vide).
+ * Un créneau est « rempli » (`post` = ce post) si un post programmé ou publié est prévu à 60 minutes au plus de l'heure ; sinon `post` vaut null (créneau vide).
  * Un créneau déjà passé aujourd'hui n'est pas listé.
  */
-export function creneauxAVenir(maintenant, posts, jours = 14) {
+export function creneauxAVenir(maintenant, posts, jours = 21) {
   const aujourdhui = L.aujourdhuiParis(maintenant);
-  const programmes = (posts || []).filter((p) => p.statut === 'programme').map((p) => ({ post: p, instant: L.versDate(p.prevuLe) })).filter((x) => x.instant);
+  const programmes = (posts || []).filter((p) => p.statut === 'programme' || p.statut === 'publie').map((p) => ({ post: p, instant: L.versDate(p.prevuLe) ?? L.versDate(p.publieLe) })).filter((x) => x.instant);
   const sortie = [];
   for (let i = 0; i < jours; i++) {
     const date = L.ajouterJours(aujourdhui, i);

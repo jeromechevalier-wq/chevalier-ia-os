@@ -26,7 +26,7 @@ async function simulerBuffer(page, reponse) {
 }
 const reponseBuffer = (posts) => ({ ok: true, lueLe: new Date().toISOString(), canal: { id: 'canal-fictif', nom: 'Canal fictif', service: 'linkedin' }, posts });
 const poste = (id, extra) => ({ id, statut: 'publie', statutBuffer: 'sent', texte: `Texte du post ${id}`, prevuLe: null, publieLe: null, lien: null, video: false, image: false, stats: null, statsLuesLe: null, ...extra });
-/** Les créneaux (mardi et jeudi 6h08, heure de Paris) des 14 prochains jours, calculés par la règle du module dans la page (un test ne lit pas js/ directement : hors de son paquet). Avec l'instant de chacun. */
+/** Les créneaux (mardi et jeudi 6h08, heure de Paris) des 21 prochains jours, calculés par la règle du module dans la page (un test ne lit pas js/ directement : hors de son paquet). Avec l'instant de chacun. */
 const creneaux = (page) => page.evaluate(async () => {
   const R = await import('/js/modules/reseauxsociaux/logique.js');
   const L = await import('/js/modules/crm/logique.js');
@@ -103,11 +103,11 @@ test('D4 chargerBuffer : une seule lecture pour deux appels rapprochés (cache d
   await capture(page, 'D4-cache-buffer');
 });
 
-test('D7 Aujourd’hui, Buffer simulé avec 1 post programmé : un créneau « Programmé », les autres « Créneau vide » en rouge ; le dernier post publié montre ses chiffres', async ({ page }) => {
+test('D7 Aujourd’hui, Buffer simulé avec 1 post programmé : un créneau « Programmé » (pastille verte « Créneau rempli »), les autres « Créneau vide » en rouge ; le dernier post publié montre ses chiffres', async ({ page }) => {
   await page.goto('/?emulateurs=1'); // l'application doit être chargée pour calculer les créneaux avec la règle du module
   const liste = await creneaux(page);
   const prevu = liste.length;
-  expect(prevu).toBeGreaterThan(2); // quatre créneaux environ sur 14 jours
+  expect(prevu).toBeGreaterThan(2); // six créneaux environ sur 21 jours
   const prevuLe = liste[0].instant;
   await simulerBuffer(page, () => reponseBuffer([
     poste('prog-1', { statut: 'programme', statutBuffer: 'scheduled', prevuLe, texte: 'Un post programmé pour la semaine prochaine, avec un texte assez long pour être coupé.' }),
@@ -121,6 +121,9 @@ test('D7 Aujourd’hui, Buffer simulé avec 1 post programmé : un créneau « P
   await expect(lignes.locator('xpath=self::*[@data-creneau="pris"]')).toHaveCount(1);
   await expect(page.locator('[data-creneau="pris"]')).toContainText('Programmé : Un post programmé pour la semaine');
   await expect(page.locator('[data-creneau="vide"]')).toHaveCount(prevu - 1);
+  await expect(page.locator('[data-creneau="pris"] .pastille-etiquette')).toHaveText('Créneau rempli'); // le créneau rempli a sa pastille verte
+  const verte = await page.locator('[data-creneau="pris"] .pastille-etiquette').evaluate((el) => el.style.getPropertyValue('--couleur'));
+  expect(verte).toBe('var(--succes)');
   await expect(page.locator('[data-creneau="vide"]').first()).toContainText('Créneau vide');
   const couleur = await page.locator('[data-creneau="vide"] .badge-retard').first().evaluate((el) => getComputedStyle(el).color);
   expect(couleur).not.toBe(await page.locator('.rs-ligne-titre').first().evaluate((el) => getComputedStyle(el).color)); // la pastille est colorée (rouge du thème), pas le texte courant

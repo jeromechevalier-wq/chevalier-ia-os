@@ -184,7 +184,7 @@ const heureLisible = (heure) => heure.replace(/^0/, '').replace(':', ' h ');
 /**
  * Le contrôle éditorial : une liste de phrases positives, une par point à regarder ; liste vide = « Tout est en ordre ».
  * `posts` = les posts de Buffer, `classements` = les documents de reseauxsociaux_posts. Chaque phrase : { code, texte, postId? }, code = a à e.
- *  a. un créneau (mardi ou jeudi, 14 prochains jours) sans post programmé ;
+ *  a. un créneau (mardi ou jeudi, 21 prochains jours) sans post programmé ;
  *  b. un texte programmé ou en brouillon au-dessus de 3 000 caractères ;
  *  c. un post programmé sans pilier ou sans format ;
  *  d. moins de 50 % de vidéos sur les 8 derniers posts publiés et programmés ;
