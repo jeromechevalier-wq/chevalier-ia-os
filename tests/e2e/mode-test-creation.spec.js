@@ -215,6 +215,10 @@ test('4 un seul point d’entrée (statique) : plans, constructeurs et écriture
     'modules/devis/brouillon.js': 'planCreerBrouillon (plan pur)',
     'modules/devis/articles.js': 'le catalogue : jamais marqué test (décision du cadrage, point 9d)',
     'modules/devis/vocabulaire-plans.js': 'le catalogue (vocabulaire) : jamais marqué test (point 9d)',
+    'modules/reseauxsociaux/idees-logique.js': 'plans purs du module Réseaux sociaux (tables propres au module, jamais marquées test ; l’écriture passe par donnees.js)',
+    'modules/reseauxsociaux/import-logique.js': 'plans purs du module Réseaux sociaux (tables propres au module, jamais marquées test ; l’écriture passe par donnees.js)',
+    'modules/reseauxsociaux/inspirations-logique.js': 'plans purs du module Réseaux sociaux (tables propres au module, jamais marquées test ; l’écriture passe par donnees.js)',
+    'modules/reseauxsociaux/logique.js': 'plans purs du module Réseaux sociaux (tables propres au module, jamais marquées test ; l’écriture passe par donnees.js)',
   };
   const { readdirSync, statSync } = await import('node:fs');
   const tous = [];

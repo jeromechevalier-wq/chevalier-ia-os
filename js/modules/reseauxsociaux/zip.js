@@ -1,5 +1,5 @@
 // Lecteur de fichiers ZIP pour l'import LinkedIn, tout dans le navigateur (rien n'est envoyé hors de la machine).
-// Le fichier n'est jamais chargé en entier : on lit la fin (répertoire central), puis seulement les entrées utiles, par `Blob.slice`.
+// Le fichier n'est jamais chargé en entier : on lit la fin (table centrale de l'archive), puis seulement les entrées utiles, par `Blob.slice`.
 // Décompression : `DecompressionStream('deflate-raw')` (méthode 8) ou copie (méthode 0). ZIP64, entrées chiffrées et archives de plus de 300 Mo sont refusés avec un message lisible.
 // Aucune dépendance Firebase ni DOM : importable par les tests Node (Blob et DecompressionStream existent dans Node).
 
@@ -25,7 +25,7 @@ const erreur = (code) => new ErreurArchive(MESSAGES[code], code);
 
 const lire = async (blob, debut, fin) => new DataView(await blob.slice(debut, fin).arrayBuffer());
 
-/** Lit le répertoire central : { taille, entrees: [{ nom, methode, crc, octetsComprimes, octets, decalage, chiffre }], repertoire: ArrayBuffer }. */
+/** Lit la table centrale : { taille, entrees: [{ nom, methode, crc, octetsComprimes, octets, decalage, chiffre }], repertoire: ArrayBuffer }. */
 export async function ouvrirZip(blob, { tailleMax = TAILLE_MAX_ARCHIVE } = {}) {
   if (!blob || typeof blob.size !== 'number' || typeof blob.slice !== 'function') throw erreur('pasUnZip');
   if (blob.size > tailleMax) throw erreur('trop');
@@ -145,7 +145,7 @@ export async function lireFichiersUtiles(blob, noms, ouverture = null) {
 }
 
 /**
- * Empreinte de l'archive (SHA-256 hexadécimal) : taille + répertoire central (noms, tailles et sommes de contrôle de TOUTES les entrées).
+ * Empreinte de l'archive (SHA-256 hexadécimal) : taille + table centrale (noms, tailles et sommes de contrôle de TOUTES les entrées).
  * Même contenu = même empreinte, sans lire les 300 Mo en mémoire.
  */
 export async function empreinteArchive(zip) {
