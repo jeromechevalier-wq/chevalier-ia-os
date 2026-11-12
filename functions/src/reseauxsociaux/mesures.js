@@ -40,10 +40,10 @@ export function construireMesure(post, { semaine, releveLe }) {
 
 /**
  * Lit tous les posts publiés dans Buffer et écrit les mesures de la semaine en cours.
- * Rend le compte rendu complet (jamais de plafond silencieux) : { ok, semaine, releveLe, pages, lus, publies, ecrits, sansChiffres, ignores, tronque, raisonTronque }.
+ * Rend le compte rendu complet (jamais de plafond silencieux) : { ok, semaine, releveLe, pages, lus, publies, ecrits, dejaReleves, sansChiffres, ignores, tronque, raisonTronque }.
  * `tronque` vrai = tous les posts n'ont pas pu être lus : le dire à Jérôme ; ce qui a été lu est quand même écrit.
  */
-export async function releverMesures({ service, donnees, maintenant = Date.now, journal = () => {} }) {
+export async function releverMesures({ service, donnees, maintenant = Date.now, journal = () => {}, ecraser = true }) {
   const instant = new Date(maintenant());
   const semaine = semaineIsoParis(instant);
   const lecture = await service.lirePostsPublies();
@@ -56,10 +56,13 @@ export async function releverMesures({ service, donnees, maintenant = Date.now, 
     if (!doc) { sansChiffres += 1; continue; }
     documents.push({ id: idMesure(post.id, semaine), donnees: doc });
   }
-  if (documents.length > 0) await donnees.ecrire(COLLECTION_MESURES, documents);
+  // `ecraser` vrai (relevé planifié) : le document de la semaine est remplacé. Faux (relevé à la main) : un document déjà relevé cette semaine est laissé tel quel et compté.
+  let ecrits = 0;
+  let dejaReleves = 0;
+  if (documents.length > 0) ({ ecrits, ignores: dejaReleves } = await donnees.ecrire(COLLECTION_MESURES, documents, { ecraser }));
   const compte = {
     ok: true, semaine, releveLe: instant.toISOString(), pages: lecture.pages, lus: lecture.lus, publies: lecture.posts.length,
-    ecrits: documents.length, sansChiffres, ignores, tronque: lecture.tronque, raisonTronque: lecture.raisonTronque,
+    ecrits, dejaReleves, sansChiffres, ignores, tronque: lecture.tronque, raisonTronque: lecture.raisonTronque,
   };
   journal({ ...compte, statut: lecture.tronque ? 'tronque' : 'ok' });
   return compte;

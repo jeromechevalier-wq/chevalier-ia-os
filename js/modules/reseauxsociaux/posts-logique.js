@@ -112,11 +112,11 @@ const NUMERIQUES = COLONNES_STATS.filter((c) => c.numerique).map((c) => c.id);
 const nombreOuNull = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 /**
- * Tableau des posts PUBLIÉS : une ligne par post (valeur absente = null, jamais un zéro inventé) et la moyenne de chaque colonne de chiffres.
+ * Tableau des posts PUBLIÉS (parmi les posts comptés, `R.postsComptes`) : une ligne par post (valeur absente = null, jamais un zéro inventé) et la moyenne de chaque colonne de chiffres.
  * La moyenne d'une colonne ne compte que les posts qui ont cette valeur ; null si aucun n'en a. Lignes du plus récent au plus ancien.
  */
 export function statistiques(posts) {
-  const lignes = (posts || []).filter((p) => p.statut === 'publie').sort((a, b) => comparer(a, b, 'desc')).map((p) => ({
+  const lignes = R.postsComptes(posts).filter((p) => p.statut === 'publie').sort((a, b) => comparer(a, b, 'desc')).map((p) => ({
     id: p.id, publieLe: p.publieLe ?? null, texte: p.texte ?? '', pilier: p.classement?.pilier ?? null, format: p.classement?.format ?? null,
     ...Object.fromEntries(NUMERIQUES.map((cle) => [cle, nombreOuNull(p.stats?.[cle])])),
   }));
@@ -165,13 +165,13 @@ export const NB_SUGGESTIONS = 3;
 const pourcent = (n, total) => (total ? Math.round((n * 100) / total) : 0);
 
 /**
- * Matrice pilier × format sur les posts publiés et programmés. Une case ne compte que les posts classés des DEUX côtés (pilier ET format) ;
+ * Matrice pilier × format sur les posts comptés (`R.postsComptes` : publiés + programmés avec date). Une case ne compte que les posts classés des DEUX côtés (pilier ET format) ;
  * les autres sont comptés à part (`sansPilier`, `sansFormat`), jamais dans une case. Les parts (arrondies à l'unité) sont des parts des posts de la matrice (`classes`).
  * Cibles : uniquement sur le total de chaque ligne (cible du pilier) et sur les colonnes vidéo + animation (50 %), jamais par case.
  * `suggestions` : les cases les plus utiles à remplir (voir `suggererCases`).
  */
 export function matrice(posts) {
-  const retenus = (posts || []).filter((p) => p.statut === 'publie' || p.statut === 'programme');
+  const retenus = R.postsComptes(posts);
   const rangees = retenus.filter((p) => p.classement?.pilier && p.classement?.format && FORMATS_MATRICE.includes(p.classement.format));
   const classes = rangees.length;
   const formats = FORMATS_MATRICE.map((id) => R.FORMATS.find((f) => f.id === id));
@@ -185,6 +185,7 @@ export function matrice(posts) {
   const nbVideo = colonnes.filter((c) => FORMATS_VIDEO.includes(c.id)).reduce((t, c) => t + c.nombre, 0);
   const sortie = {
     total: retenus.length,
+    base: R.baseDeCalcul(posts),
     classes,
     sansPilier: retenus.filter((p) => !p.classement?.pilier).length,
     sansFormat: retenus.filter((p) => !p.classement?.format).length,
@@ -235,7 +236,10 @@ const heureLisible = (heure) => heure.replace(/^0/, '').replace(':', ' h ');
  *  b. un texte programmé ou en brouillon au-dessus de 3 000 caractères ;
  *  c. un post programmé sans pilier ou sans format ;
  *  d. moins de 50 % de vidéos sur les 8 derniers posts publiés et programmés ;
- *  e. un pilier à plus de 15 points de sa cible (à partir de 5 posts classés).
+ *  e. un pilier à plus de 15 points de sa cible (à partir de 5 posts classés) ;
+ *  f. un post programmé sans date de publication dans Buffer (il n'est pas compté) ;
+ *  g. un post publié sans date (il est compté, mais signalé).
+ * Les points c, d et e ne regardent que les posts comptés (`R.postsComptes`), comme la matrice : mêmes totaux partout.
  */
 export function controlesEditoriaux(posts, classements, maintenant = new Date()) {
   const tous = fusionnerPosts(posts, classements);
@@ -250,12 +254,20 @@ export function controlesEditoriaux(posts, classements, maintenant = new Date())
     sortie.push({ code: 'b', postId: p.id, texte: `Ce texte dépasse la limite de LinkedIn de ${R.formaterNombre(trop)} caractère${trop > 1 ? 's' : ''} : « ${debutPost(p.texte, 40)} »` });
   }
   // c. programmés non classés
-  for (const p of tous.filter((x) => x.statut === 'programme' && (!x.classement.pilier || !x.classement.format))) {
+  const comptes = R.postsComptes(tous);
+  for (const p of comptes.filter((x) => x.statut === 'programme' && (!x.classement.pilier || !x.classement.format))) {
     const manque = !p.classement.pilier && !p.classement.format ? 'pilier ni de format' : !p.classement.pilier ? 'pilier' : 'format';
     sortie.push({ code: 'c', postId: p.id, texte: `Le post programmé « ${debutPost(p.texte, 40)} » n’a pas encore de ${manque}.` });
   }
+  // f. programmés sans date de publication dans Buffer : ils ne comptent pas, on le dit ; g. publiés sans date : ils comptent, on le signale
+  for (const p of tous.filter((x) => x.statut === 'programme' && !L.versDate(x.prevuLe))) {
+    sortie.push({ code: 'f', postId: p.id, texte: `Le post « ${debutPost(p.texte, 40)} » est programmé sans date de publication dans Buffer : il n’est pas compté.` });
+  }
+  for (const p of tous.filter((x) => x.statut === 'publie' && !L.versDate(x.publieLe))) {
+    sortie.push({ code: 'g', postId: p.id, texte: `Le post publié « ${debutPost(p.texte, 40)} » n’a pas de date de publication dans Buffer.` });
+  }
   // d. part de vidéos des derniers posts
-  const derniers = tous.filter((p) => p.statut === 'publie' || p.statut === 'programme').sort((a, b) => comparer(a, b, 'desc')).slice(0, NB_POSTS_VIDEO);
+  const derniers = [...comptes].sort((a, b) => comparer(a, b, 'desc')).slice(0, NB_POSTS_VIDEO);
   if (derniers.length && (derniers.filter(estVideo).length * 100) / derniers.length < PART_VIDEO_CIBLE) {
     const part = Math.round((derniers.filter(estVideo).length * 100) / derniers.length);
     sortie.push({ code: 'd', texte: `La part de vidéos est de ${part} % sur les ${derniers.length} derniers posts (objectif ${PART_VIDEO_CIBLE} %).` });

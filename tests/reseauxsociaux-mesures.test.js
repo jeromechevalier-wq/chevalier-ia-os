@@ -34,7 +34,18 @@ const serviceAvec = (faux) => creerServiceBuffer({ fetchImpl: faux.fetchImpl, li
 const fauxeBase = () => {
   const docs = new Map();
   let appels = 0;
-  return { docs, get appels() { return appels; }, async ecrire(collection, documents) { appels += 1; for (const d of documents) docs.set(`${collection}/${d.id}`, structuredClone(d.donnees)); } };
+  return { docs, get appels() { return appels; }, async ecrire(collection, documents, { ecraser }) {
+    appels += 1;
+    let ecrits = 0;
+    let ignores = 0;
+    for (const d of documents) {
+      const cle = `${collection}/${d.id}`;
+      if (!ecraser && docs.has(cle)) { ignores += 1; continue; } // comme `create` : un document existant n'est pas touché
+      docs.set(cle, structuredClone(d.donnees));
+      ecrits += 1;
+    }
+    return { ecrits, ignores };
+  } };
 };
 
 describe('M1 semaine ISO à Paris', () => {
@@ -206,6 +217,18 @@ describe('M4 relevé de la semaine : écriture, idempotence', () => {
     assert.equal(p1.impressions, 130);
     assert.equal(Object.hasOwn(p1, 'reach'), false);
   });
+  test('M4 relevé à la main (ecraser: false) : un document déjà relevé cette semaine n\'est pas touché, et le compte rendu dit combien ont été ignorés', async () => {
+    const base = fauxeBase();
+    const service = (p) => serviceAvec(fauxBuffer({ pages: p }));
+    await releverMesures({ service: service(pages()), donnees: base, maintenant: () => lundi }); // le relevé planifié du lundi
+    const avant = structuredClone(base.docs.get('reseauxsociaux_mesures/p1_2026-S46'));
+    const change = [{ noeuds: [publie('p1', [mesure('impressions', 999)]), publie('p9', [mesure('impressions', 3)])], pageInfo: { hasNextPage: false } }];
+    const r = await releverMesures({ service: service(change), donnees: base, maintenant: () => lundi + 86_400_000, ecraser: false });
+    assert.deepEqual(base.docs.get('reseauxsociaux_mesures/p1_2026-S46'), avant);
+    assert.ok(base.docs.has('reseauxsociaux_mesures/p9_2026-S46'));
+    assert.equal(r.ecrits, 1);
+    assert.equal(r.dejaReleves, 1);
+  });
   test('M4 lecture tronquée : ce qui a été lu est écrit ET le compte rendu le dit', async () => {
     const base = fauxeBase();
     const faux = fauxBuffer({ pages: (i) => ({ noeuds: [publie(`q${i}`, [mesure('impressions', 1)])], pageInfo: { hasNextPage: true, endCursor: `c${i + 1}` } }) });
@@ -261,8 +284,16 @@ describe('M6 branchement du serveur', () => {
   const index = lire('functions/src/index.js');
   test('M6 deux fonctions : planifiée le lundi 06:00 Europe/Paris et appelable, avec la clé Buffer déjà existante', () => {
     assert.match(index, /export const reseauxsociauxMesuresHebdo = onSchedule\(\s*\{[^}]*schedule: '0 6 \* \* 1', timeZone: 'Europe\/Paris', secrets: \[CLE_BUFFER\]/);
+    assert.match(index, /export const reseauxsociauxMesuresHebdo = onSchedule\([^]*?retryCount: 3/);
+    assert.match(index, /relever: \(\) => releverMaintenant\(\{ ecraser: false \}\)/, 'le relevé à la main ne remplace rien');
+    assert.match(index, /releverMaintenant\(\{ ecraser: true \}\)/, 'le relevé planifié remplace la semaine');
     assert.match(index, /export const reseauxsociauxReleverMesures = onCall\(\s*\{[^}]*secrets: \[CLE_BUFFER\]/);
     assert.equal((index.match(/defineSecret\('BUFFER_API_KEY'\)/g) ?? []).length, 1, 'un seul secret, déjà créé');
+  });
+  test('M6 règles Firestore : reseauxsociaux_mesures lecture seule et sortie du joker', () => {
+    const regles = lire('firestore.rules');
+    assert.match(regles, /match \/reseauxsociaux_mesures\/\{id\} \{\s*allow read: if compteAutorise\(\);\s*allow write: if false;/);
+    assert.match(regles, /collection in \[[^\]]*'reseauxsociaux_mesures'\]/);
   });
   test('M6 aucune mutation Buffer dans le relevé', () => {
     for (const f of ['functions/src/reseauxsociaux/mesures.js', 'functions/src/reseauxsociaux/service.js']) {

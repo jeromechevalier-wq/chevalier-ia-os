@@ -88,7 +88,8 @@ test('E1 cas vide : aucun post dans Buffer = une phrase pour écrire dans Buffer
   await expect(page.getByText('Aucun post pour le moment. Écris-en un dans Buffer, il apparaîtra ici.')).toBeVisible();
   await expect(page.locator('.kanban')).toHaveCount(0);
   await deplier(page);
-  await expect(page.locator('[data-carte="matrice"]')).toContainText('Pas encore de posts publiés ou programmés.');
+  await expect(page.locator('[data-carte="matrice"]')).toContainText('Pas encore de posts publiés ou programmés avec une date.');
+  await expect(page.locator('[data-carte="matrice"] [data-role="base-calcul"]')).toHaveText('Base : 0 post publié + 0 programmé avec date. 0 programmé sans date et 0 brouillon ne sont pas comptés.');
   await expect(page.locator('[data-carte="matrice"] [data-role="matrice"]')).toHaveCount(0);
   await expect(page.locator('[data-carte="matrice"] [data-role="suggestions"]')).toHaveCount(0);
   await expect(page.locator('[data-carte="controle"]')).toBeVisible();
@@ -279,6 +280,7 @@ test('E6 matrice pilier × format : une case = nombre de posts et pourcentage, c
   await expect(carteM.locator('[data-role="sans-classement"]')).toHaveText('1 sans pilier, 1 sans format');
   await expect(carteM.locator('[data-role="pilier-pme"], [data-role="pilier-claude"], [data-role="pilier-proximite"], [data-role="pilier-offre"]')).toHaveCount(0); // plus que les quatre piliers
   expect(await sansDebordement(page)).toBe(true);
+  await expect(carteM.locator('[data-role="base-calcul"]')).toHaveText('Base : 3 posts publiés + 1 programmé avec date. 0 programmé sans date et 1 brouillon ne sont pas comptés.');
   await capture(page, 'E6-matrice');
 });
 
@@ -309,6 +311,22 @@ test('E6 matrice avec les nouveaux identifiants de pilier : les écritures nouve
   await ouvrirPosts(page, () => reponseBuffer([poste('a', { publieLe: '2026-11-03T05:08:00.000Z' }), poste('b', { publieLe: '2026-10-27T05:08:00.000Z' })]));
   await deplier(page);
   await verifierCase(caseM(page.locator('[data-carte="matrice"]'), 'demarche_offre', 'carrousel'), '2', '100 %');
+});
+
+test('E6 base de calcul : un programmé sans date et un brouillon ne comptent pas (matrice, total) et le contrôle éditorial signale le programmé sans date', async ({ page }) => {
+  await ecrireDocument('reseauxsociaux_posts/a', { pilier: 'cas_concrets', format: 'video', services: [] });
+  await ecrireDocument('reseauxsociaux_posts/s', { pilier: 'cas_concrets', format: 'texte', services: [] });
+  await ecrireDocument('reseauxsociaux_posts/e', { pilier: 'cas_concrets', format: 'texte', services: [] });
+  await ouvrirPosts(page, () => reponseBuffer([
+    poste('a', { publieLe: '2026-11-03T05:08:00.000Z', video: true }),
+    poste('s', { statut: 'programme', prevuLe: null }), // programmé sans date de publication : ne compte pas
+    poste('e', { statut: 'brouillon' }), // brouillon classé : ne compte pas
+  ]));
+  await deplier(page);
+  const carteM = page.locator('[data-carte="matrice"]');
+  await verifierCase(carteM.locator('[data-role="total-general"]'), '1', null);
+  await expect(carteM.locator('[data-role="base-calcul"]')).toHaveText('Base : 1 post publié + 0 programmé avec date. 1 programmé sans date et 1 brouillon ne sont pas comptés.');
+  await expect(page.locator('[data-carte="controle"] [data-controle="f"]')).toContainText('est programmé sans date de publication dans Buffer');
 });
 
 test('E6 cas vide : sans post publié ni programmé, la carte le dit et ne montre ni matrice ni suggestion ; avec des posts non classés, la matrice est à zéro et le dit', async ({ page }) => {
