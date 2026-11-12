@@ -6,7 +6,11 @@ import * as L from '../crm/logique.js';
 
 export const COLLECTION_POSTS = 'reseauxsociaux_posts';
 export const COLLECTION_IMPORTS = 'reseauxsociaux_imports';
-export const COLLECTIONS = Object.freeze([COLLECTION_POSTS, COLLECTION_IMPORTS]);
+// Volet « Idées et inspirations » (12/11/2026) : trois tables de plus (voir idees-logique.js et inspirations-logique.js).
+export const COLLECTION_IDEES = 'reseauxsociaux_idees';
+export const COLLECTION_INSPIRATIONS = 'reseauxsociaux_inspirations';
+export const COLLECTION_EXEMPLES = 'reseauxsociaux_exemples';
+export const COLLECTIONS = Object.freeze([COLLECTION_POSTS, COLLECTION_IMPORTS, COLLECTION_IDEES, COLLECTION_INSPIRATIONS, COLLECTION_EXEMPLES]);
 
 /** Buffer reste le lieu où l'on écrit les posts (ce module ne fait que lire). */
 export const URL_BUFFER = 'https://publish.buffer.com';

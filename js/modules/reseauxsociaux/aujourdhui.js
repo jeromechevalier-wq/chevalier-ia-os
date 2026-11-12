@@ -1,7 +1,8 @@
 // Écran « Aujourd'hui » du module Réseaux sociaux : ce qu'il y a à faire cette semaine.
 //  1. Les créneaux de publication des 21 prochains jours (remplis par un post programmé ou publié dans Buffer : pastille verte ; ou vides : pastille rouge) ;
 //  2. les relations LinkedIn à traiter (à répondre, à relancer), lues dans les activités du CRM ;
-//  3. le dernier post publié, avec ses chiffres.
+//  3. les profils qui inspirent (un bouton par profil vers LinkedIn) ;
+//  4. le dernier post publié, avec ses chiffres.
 // Buffer reste le lieu d'écriture (un seul bouton jaune : « Ouvrir Buffer »). Si Buffer est en erreur ou non branché, seule la carte des créneaux et celle du dernier post le disent :
 // la carte des relations ne dépend pas de Buffer. Le module ne lit jamais les activités ni les étiquettes de l'état du CRM (vides quand Affaires est éteint) : il écoute les siennes.
 import { h, icone, remplir } from '../../os/ui.js';
@@ -10,7 +11,8 @@ import { enteteListe } from '../crm/barre-liste.js';
 import { etat as etatCrm, surChangement as surChangementCrm, estNoyau } from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as R from './logique.js';
-import { ongletsReseauxSociaux, chargement, lienBuffer } from './commun.js';
+import * as N from './inspirations-logique.js';
+import { ongletsReseauxSociaux, chargement, lienBuffer, lienExterne } from './commun.js';
 
 const MAX_RELATIONS = 5;
 
@@ -52,6 +54,17 @@ function carteRelations() {
     h('a', { class: 'lien-fiche', href: lien('reseauxsociaux/relations'), dataset: { action: 'voir-relations' } }, 'Voir les relations'));
 }
 
+/** Carte « Inspirations » : un bouton par profil, pour ouvrir LinkedIn en un clic (nouvel onglet). Sans profil : une phrase et le lien vers l'écran Inspirations. */
+function carteInspirations() {
+  const profils = D.etat.pret ? N.trierInspirations(D.etat.inspirations).filter((p) => p.url) : [];
+  const corps = !D.etat.pret ? [chargement()]
+    : profils.length ? [h('div', { class: 'ligne-boutons rs-profils', dataset: { role: 'profils' } }, profils.map((p) => lienExterne({ href: p.url, libelle: p.nom || 'Profil', action: 'ouvrir-profil' })))]
+      : [phraseGrise('Ajoute les profils qui t’inspirent.')];
+  return h('section', { class: 'carte-section', dataset: { carte: 'inspirations' } },
+    h('h2', {}, icone('star', { taille: 18 }), 'Inspirations'), ...corps,
+    h('a', { class: 'lien-fiche', href: lien('reseauxsociaux/inspirations'), dataset: { action: 'voir-inspirations' } }, profils.length ? 'Voir les inspirations' : 'Ajouter un profil'));
+}
+
 function carteDernierPost() {
   const b = D.etat.buffer;
   let corps;
@@ -91,7 +104,7 @@ export function rendreAujourdhui(conteneur) {
 
   function rendre() {
     remplir(rappel, rappelImport());
-    remplir(cartes, carteCreneaux(), carteRelations(), carteDernierPost());
+    remplir(cartes, carteCreneaux(), carteRelations(), carteInspirations(), carteDernierPost());
   }
   const arrets = [D.surChangement(rendre), surChangementCrm(rendre)];
   D.chargerBuffer().catch((e) => console.warn(e)); // deux appels rapprochés = une seule lecture (cache de cinq minutes)

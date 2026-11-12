@@ -220,6 +220,8 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
     { id: 'reseauxsociaux', libelle: 'Réseaux sociaux', icone: 'handshake', prefixe: 'reseauxsociaux', entrees: [
       { chemin: 'reseauxsociaux/aujourdhui', libelle: 'Aujourd’hui', icone: 'calendar' },
       { chemin: 'reseauxsociaux/posts', libelle: 'Posts', icone: 'square-kanban' },
+      { chemin: 'reseauxsociaux/idees', libelle: 'Idées', icone: 'sparkles' },
+      { chemin: 'reseauxsociaux/inspirations', libelle: 'Inspirations', icone: 'star' },
       { chemin: 'reseauxsociaux/relations', libelle: 'Relations', icone: 'users' },
       { chemin: 'reseauxsociaux/import', libelle: 'Import', icone: 'upload' },
     ] },
@@ -382,7 +384,7 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
     // Toutes les routes d'écran restent servies (signets) : elles sont dans `entrees`, marquées hors menu sauf l'arrivée.
     const horsMenu = (id) => blocs.find((b) => b.id === id).entrees.filter((e) => e.horsMenu).map((e) => e.chemin);
     assert.deepEqual(horsMenu('veille'), ['veille/sources']);
-    assert.deepEqual(horsMenu('reseauxsociaux'), ['reseauxsociaux/posts', 'reseauxsociaux/relations', 'reseauxsociaux/import']);
+    assert.deepEqual(horsMenu('reseauxsociaux'), ['reseauxsociaux/posts', 'reseauxsociaux/idees', 'reseauxsociaux/inspirations', 'reseauxsociaux/relations', 'reseauxsociaux/import']);
     assert.deepEqual(horsMenu('automatisations'), ['automatisations/a-valider']);
     assert.deepEqual(horsMenu('tableaudebord'), [], 'Maintenance : un seul écran, plus aucune route déclarée hors menu (technique, finance, stocks, historique sont servies par le module)');
     // Menu complet : une entrée par module, dans l'ordre.

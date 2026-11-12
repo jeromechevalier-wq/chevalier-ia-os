@@ -15,7 +15,7 @@ const instant = (iso) => new Date(iso);
 const sansCommentaires = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '');
 
 describe('D1 D2 déclaration du module au registre', () => {
-  test('D1 le module vient entre Veille et Automatisations, une seule entrée de menu (icône handshake), quatre écrans en onglets', () => {
+  test('D1 le module vient entre Veille et Automatisations, une seule entrée de menu (icône handshake), six écrans en onglets', () => {
     const ids = MODULES_DECLARES.map((m) => m.id);
     assert.equal(ids.indexOf('reseauxsociaux'), ids.indexOf('veille') + 1);
     assert.equal(ids.indexOf('automatisations'), ids.indexOf('reseauxsociaux') + 1);
@@ -23,8 +23,9 @@ describe('D1 D2 déclaration du module au registre', () => {
     assert.deepEqual([m.nom, m.libelleMenu, m.iconeMenu, m.prefixe, m.entreeMenu], ['Réseaux sociaux', 'Réseaux sociaux', 'handshake', 'reseauxsociaux', 'reseauxsociaux/aujourdhui']);
     assert.deepEqual(m.ecrans.map((e) => [e.route, e.libelle, e.icone]), [
       ['reseauxsociaux/aujourdhui', 'Aujourd’hui', 'calendar'], ['reseauxsociaux/posts', 'Posts', 'square-kanban'],
+      ['reseauxsociaux/idees', 'Idées', 'sparkles'], ['reseauxsociaux/inspirations', 'Inspirations', 'star'],
       ['reseauxsociaux/relations', 'Relations', 'users'], ['reseauxsociaux/import', 'Import', 'upload']]);
-    assert.deepEqual(ongletsDuModule('reseauxsociaux').map((o) => o.libelle), ['Aujourd’hui', 'Posts', 'Relations', 'Import']);
+    assert.deepEqual(ongletsDuModule('reseauxsociaux').map((o) => o.libelle), ['Aujourd’hui', 'Posts', 'Idées', 'Inspirations', 'Relations', 'Import']);
     const entrees = blocsDuMenu(['reseauxsociaux']).flatMap((b) => b.sections.flat());
     assert.deepEqual(entrees.map((e) => [e.libelle, e.chemin]), [['Réseaux sociaux', 'reseauxsociaux/aujourdhui']]);
     assert.equal(premiereRoute(['reseauxsociaux']), 'reseauxsociaux/aujourdhui');
@@ -50,9 +51,9 @@ describe('D1 D2 déclaration du module au registre', () => {
     assert.deepEqual(interrupteursDuClient([]).find((l) => l.id === 'reseauxsociaux'), { id: 'reseauxsociaux', libelle: 'Réseaux sociaux', modules: ['reseauxsociaux'], actif: false, complet: false });
   });
 
-  test('D3 les Réglages du module ont une section Sauvegarde ; les deux tables sont déclarées et dans la sauvegarde complète', () => {
+  test('D3 les Réglages du module ont une section Sauvegarde ; les cinq tables sont déclarées et dans la sauvegarde complète', () => {
     assert.deepEqual(reglagesDesModules(['reseauxsociaux'])[0].sections.map((s) => s.id), ['reglages-export-reseauxsociaux']);
-    assert.deepEqual(moduleDeclare('reseauxsociaux').collections, ['reseauxsociaux_posts', 'reseauxsociaux_imports']);
+    assert.deepEqual(moduleDeclare('reseauxsociaux').collections, ['reseauxsociaux_posts', 'reseauxsociaux_imports', 'reseauxsociaux_idees', 'reseauxsociaux_inspirations', 'reseauxsociaux_exemples']);
     assert.deepEqual([...R.COLLECTIONS], moduleDeclare('reseauxsociaux').collections);
     const donnees = lire('js/modules/crm/donnees.js');
     for (const nom of R.COLLECTIONS) assert.ok(donnees.includes(`'${nom}'`), nom);
