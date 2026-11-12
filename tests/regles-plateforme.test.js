@@ -19,7 +19,7 @@ const BOB = 'bob@exemple.test';
 const CLARA = 'clara@exemple.test';
 const LEA = 'lea@exemple.test';
 const ZOE = 'zoe@exemple.test';
-const DONNEES = ['crm_personnes', 'crm_affaires', 'projets_projets', 'devis_parametres'];
+const DONNEES = ['crm_personnes', 'crm_affaires', 'projets_projets', 'devis_parametres', 'reseauxsociaux_pistes'];
 // Bordereau du module Devis : lu par les membres, créé et modifié par les éditeurs, jamais supprimé (un article se désactive).
 const SANS_SUPPRESSION = ['devis_articles'];
 

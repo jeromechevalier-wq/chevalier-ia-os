@@ -27,7 +27,7 @@ export const COLLECTIONS_CRM = [
   // Onglet « Documents » : les FICHES (nom, taille, date, qui) sont dans la sauvegarde, pas les fichiers eux-mêmes (ils restent dans le stockage).
   'documents_stockes',
   'veille_sources', 'veille_contenus', 'veille_resumes', 'veille_pages',
-  'reseauxsociaux_posts', 'reseauxsociaux_imports', 'reseauxsociaux_idees', 'reseauxsociaux_inspirations', 'reseauxsociaux_exemples',
+  'reseauxsociaux_posts', 'reseauxsociaux_imports', 'reseauxsociaux_idees', 'reseauxsociaux_inspirations', 'reseauxsociaux_exemples', 'reseauxsociaux_pistes',
 ];
 
 export const etat = {

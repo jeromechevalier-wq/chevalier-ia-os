@@ -26,7 +26,7 @@ describe('adresses LinkedIn', () => {
 describe('un profil qui inspire', () => {
   test('champs rangés : nom, url, pourquoi, piliers et formats connus (ordre des listes, sans doublon), ordre', () => {
     const n = N.normaliserInspiration({ nom: ' Alice  Exemple ', url: 'linkedin.com/in/alice-exemple', pourquoi: 'Des accroches courtes', piliers: ['claude', 'cas_concrets', 'cas_concrets', 'inconnu'], formats: ['video', 'texte', 'xx'], ordre: 3, extra: 1 });
-    assert.deepEqual(n, { nom: 'Alice Exemple', url: 'https://linkedin.com/in/alice-exemple', pourquoi: 'Des accroches courtes', piliers: ['cas_concrets', 'pedagogie'], formats: ['texte', 'video'], ordre: 3 });
+    assert.deepEqual(n, { type: 'profil', nom: 'Alice Exemple', url: 'https://linkedin.com/in/alice-exemple', pourquoi: 'Des accroches courtes', piliers: ['cas_concrets', 'pedagogie'], formats: ['texte', 'video'], ordre: 3, veilleContenuId: '', resume: '', traiteLe: null, moyenneReactions: null, moyenneCommentaires: null, nombrePostsReleves: null, releveLe: null });
   });
   test('validation : nom et adresse obligatoires, 500 caractères au plus pour « ce qui m’inspire »', () => {
     assert.match(N.validerInspiration({ nom: '', url: 'linkedin.com/in/a' }), /nom/);
@@ -70,7 +70,7 @@ describe('un exemple de post : le lien et l’analyse, JAMAIS le texte', () => {
   const saisie = { profilId: 'p1', url: 'https://www.linkedin.com/posts/alice-exemple_cas-concret-123', date: '2026-11-03', accroche: 'Une facture oubliée coûte cher', extrait: 'Une facture oubliée', structure: 'Accroche, histoire, leçon', longueur: '1 200 caractères', format: 'carrousel', pilier: 'cas_concrets', service: 'finance', pourquoi: 'Chiffre dès la première ligne' };
   test('les champs sont une liste fermée : un champ « texte » ou « contenu » n’est jamais écrit', () => {
     const n = N.normaliserExemple({ ...saisie, texte: 'LE TEXTE COMPLET DU POST', contenu: 'autre copie', corps: 'encore' });
-    assert.deepEqual(Object.keys(n).sort(), ['accroche', 'date', 'extrait', 'format', 'longueur', 'pilier', 'pourquoi', 'profilId', 'service', 'structure', 'url']);
+    assert.deepEqual(Object.keys(n).sort(), ['accroche', 'commentaires', 'date', 'extrait', 'format', 'longueur', 'pilier', 'pourquoi', 'profilId', 'reactions', 'releveLe', 'service', 'structure', 'url']);
     assert.ok(!JSON.stringify(n).includes('TEXTE COMPLET'));
     const ecriture = N.planEnregistrerExemple(null, { ...saisie, texte: 'LE TEXTE COMPLET DU POST' }, { id: 'e1' }).ecritures[0];
     assert.ok(!JSON.stringify(ecriture).includes('TEXTE COMPLET'));

@@ -218,6 +218,7 @@ test('4 un seul point d’entrée (statique) : plans, constructeurs et écriture
     'modules/reseauxsociaux/idees-logique.js': 'plans purs du module Réseaux sociaux (tables propres au module, jamais marquées test ; l’écriture passe par donnees.js)',
     'modules/reseauxsociaux/import-logique.js': 'plans purs du module Réseaux sociaux (tables propres au module, jamais marquées test ; l’écriture passe par donnees.js)',
     'modules/reseauxsociaux/inspirations-logique.js': 'plans purs du module Réseaux sociaux (tables propres au module, jamais marquées test ; l’écriture passe par donnees.js)',
+    'modules/reseauxsociaux/pistes-logique.js': 'plans purs du module Réseaux sociaux (tables propres au module, jamais marquées test ; l’écriture passe par donnees.js)',
     'modules/reseauxsociaux/logique.js': 'plans purs du module Réseaux sociaux (tables propres au module, jamais marquées test ; l’écriture passe par donnees.js)',
   };
   const { readdirSync, statSync } = await import('node:fs');

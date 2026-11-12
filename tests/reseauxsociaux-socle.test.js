@@ -51,9 +51,9 @@ describe('D1 D2 déclaration du module au registre', () => {
     assert.deepEqual(interrupteursDuClient([]).find((l) => l.id === 'reseauxsociaux'), { id: 'reseauxsociaux', libelle: 'Réseaux sociaux', modules: ['reseauxsociaux'], actif: false, complet: false });
   });
 
-  test('D3 les Réglages du module ont une section Sauvegarde ; les cinq tables sont déclarées et dans la sauvegarde complète', () => {
+  test('D3 les Réglages du module ont une section Sauvegarde ; les six tables sont déclarées et dans la sauvegarde complète', () => {
     assert.deepEqual(reglagesDesModules(['reseauxsociaux'])[0].sections.map((s) => s.id), ['reglages-export-reseauxsociaux']);
-    assert.deepEqual(moduleDeclare('reseauxsociaux').collections, ['reseauxsociaux_posts', 'reseauxsociaux_imports', 'reseauxsociaux_idees', 'reseauxsociaux_inspirations', 'reseauxsociaux_exemples']);
+    assert.deepEqual(moduleDeclare('reseauxsociaux').collections, ['reseauxsociaux_posts', 'reseauxsociaux_imports', 'reseauxsociaux_idees', 'reseauxsociaux_inspirations', 'reseauxsociaux_exemples', 'reseauxsociaux_pistes']);
     assert.deepEqual([...R.COLLECTIONS], moduleDeclare('reseauxsociaux').collections);
     const donnees = lire('js/modules/crm/donnees.js');
     for (const nom of R.COLLECTIONS) assert.ok(donnees.includes(`'${nom}'`), nom);

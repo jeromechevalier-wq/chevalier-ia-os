@@ -30,7 +30,7 @@ describe('une idée : champs et états', () => {
   });
   test('une idée rangée a exactement les champs prévus ; pilier, format, service inconnus deviennent null ; un ancien pilier est converti', () => {
     const n = I.normaliserIdee({ angle: '  Un   angle  ', pilier: 'pme', format: 'inconnu', service: 'cuisine', etat: 'en_redaction', texte: 'Bonjour', extra: 1 });
-    assert.deepEqual(Object.keys(n).sort(), ['angle', 'etat', 'format', 'lien', 'pilier', 'service', 'sources', 'texte']);
+    assert.deepEqual(Object.keys(n).sort(), ['angle', 'etat', 'format', 'lien', 'pilier', 'pisteId', 'service', 'sources', 'texte']);
     assert.equal(n.angle, 'Un angle');
     assert.deepEqual([n.pilier, n.format, n.service], ['cas_concrets', null, null]);
     assert.equal(I.normaliserIdee({ angle: 'x', etat: 'nimporte' }).etat, 'idee');
