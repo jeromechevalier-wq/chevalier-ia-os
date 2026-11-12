@@ -28,6 +28,16 @@ const prets = { posts: false, imports: false, idees: false, inspirations: false,
 
 export const chemin = (nom) => cheminCollection(base, nom);
 
+// Post que l'écran Aujourd'hui demande à classer : l'écran Posts ouvre la fenêtre de classement de ce post à son affichage, une seule fois.
+let classementDemande = null;
+export const demanderClassement = (id) => { classementDemande = id; };
+export function prendreClassementDemande() { const id = classementDemande; classementDemande = null; return id; }
+
+// Créneau vide pour lequel l'écran Aujourd'hui demande une idée : l'écran Idées lance un tirage de contrainte à son affichage, une seule fois (aucune donnée créée).
+let tirageDemande = null;
+export const demanderTirage = (libelleCreneau) => { tirageDemande = libelleCreneau; };
+export function prendreTirageDemande() { const c = tirageDemande; tirageDemande = null; return c; }
+
 export function surChangement(rappel) {
   abonnes.add(rappel);
   return () => abonnes.delete(rappel);

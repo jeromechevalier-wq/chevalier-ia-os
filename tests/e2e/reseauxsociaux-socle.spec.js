@@ -121,16 +121,16 @@ test('D7 Aujourd’hui, Buffer simulé avec 1 post programmé : un créneau « P
   await expect(lignes.locator('xpath=self::*[@data-creneau="pris"]')).toHaveCount(1);
   await expect(page.locator('[data-creneau="pris"]')).toContainText('Programmé : Un post programmé pour la semaine');
   await expect(page.locator('[data-creneau="vide"]')).toHaveCount(prevu - 1);
-  await expect(page.locator('[data-creneau="pris"] .pastille-etiquette')).toHaveText('Créneau rempli'); // le créneau rempli a sa pastille verte
-  const verte = await page.locator('[data-creneau="pris"] .pastille-etiquette').evaluate((el) => el.style.getPropertyValue('--couleur'));
+  await expect(page.locator('[data-creneau="pris"] .pastille-etiquette').first()).toHaveText('Créneau rempli'); // le créneau rempli a sa pastille verte
+  const verte = await page.locator('[data-creneau="pris"] .pastille-etiquette').first().evaluate((el) => el.style.getPropertyValue('--couleur'));
   expect(verte).toBe('var(--succes)');
   await expect(page.locator('[data-creneau="vide"]').first()).toContainText('Créneau vide');
   const couleur = await page.locator('[data-creneau="vide"] .badge-retard').first().evaluate((el) => getComputedStyle(el).color);
   expect(couleur).not.toBe(await page.locator('.rs-ligne-titre').first().evaluate((el) => getComputedStyle(el).color)); // la pastille est colorée (rouge du thème), pas le texte courant
   const dernier = page.locator('[data-carte="dernier-post"]');
-  await expect(dernier.locator('[data-role="dernier-texte"]')).toHaveText('Le dernier post publié');
-  await expect(dernier.locator('[data-role="dernier-chiffres"]')).toHaveText(/1\s240 impressions · 31 réactions/);
-  await expect(dernier).toContainText('Publié le 3 novembre 2026');
+  await expect(dernier.locator('[data-role="dernier-texte"]').first()).toHaveText('Le dernier post publié');
+  await expect(dernier.locator('[data-role="dernier-chiffres"]').first()).toHaveText(/1\s240 impressions · 31 réactions · 4 commentaires/);
+  await expect(dernier.locator('[data-role="date-publication"]').first()).toHaveText('mardi 3 novembre · 6 h 08');
   // Un seul bouton jaune : « Ouvrir Buffer », dans un nouvel onglet, sans référent.
   const buffer = page.locator('[data-action="ouvrir-buffer"]');
   await expect(page.locator('.bouton-principal')).toHaveCount(1);
@@ -196,7 +196,7 @@ test('D7 cas d’erreur : Buffer refuse la clé = message du serveur + bouton «
   const creneaux = page.locator('[data-carte="creneaux"]');
   await expect(creneaux.locator('[data-role="erreur-buffer"]')).toHaveText('La clé Buffer est refusée.');
   await expect(page.locator('[data-carte="relations"] h2')).toHaveText('Relations à traiter'); // indépendante de Buffer
-  await expect(page.locator('[data-carte="dernier-post"]')).toContainText('s’affichera dès que Buffer répondra');
+  await expect(page.locator('[data-carte="dernier-post"]')).toContainText('s’afficheront dès que Buffer répondra');
   await capture(page, 'D7-erreur-buffer');
   await creneaux.locator('[data-action="reessayer-buffer"]').click();
   await expect(creneaux.locator('[data-role="creneaux"] .rs-ligne').first()).toBeVisible();

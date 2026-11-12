@@ -315,6 +315,9 @@ export function rendrePosts(conteneur) {
       remplir(zone, etatVide('Aucun post pour le moment. Écris-en un dans Buffer, il apparaîtra ici.'));
       return;
     }
+    const demande = D.prendreClassementDemande(); // « À classer » de l'écran Aujourd'hui : ouvre la fenêtre de ce post
+    const aClasser = demande ? tous.find((p) => p.id === demande) : null;
+    if (aClasser) ouvrirClassement(aClasser);
     const affiches = P.filtrerPosts(tous, criteres);
     const retenus = (liste) => liste.filter((p) => ['brouillon', 'programme', 'publie'].includes(p.statut)).length;
     const nb = retenus(affiches);
