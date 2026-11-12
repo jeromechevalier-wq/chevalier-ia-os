@@ -287,9 +287,9 @@ describe('Membres : une seule transaction (membres ET équipe)', () => {
   const membresDe = async () => Object.fromEntries((await db.collection('clients/audrey/membres').get()).docs.map((d) => [d.id, d.data()]));
 
   test('M12 ajouter : le document de membre ET l\'équipe, en minuscules et triée', async () => {
-    const r = await membre('membre-ajouter', '  Ingrid.Atamian@Gmail.COM ', 'lecteur');
-    assert.deepEqual((await membresDe())['ingrid.atamian@gmail.com'], { role: 'lecteur' });
-    assert.deepEqual(r.equipe, [{ email: ALICE, role: 'editeur' }, { email: 'ingrid.atamian@gmail.com', role: 'lecteur' }, { email: LEA, role: 'lecteur' }]);
+    const r = await membre('membre-ajouter', '  Cliente.Exemple@Exemple.TEST ', 'lecteur');
+    assert.deepEqual((await membresDe())['cliente.exemple@exemple.test'], { role: 'lecteur' });
+    assert.deepEqual(r.equipe, [{ email: ALICE, role: 'editeur' }, { email: 'cliente.exemple@exemple.test', role: 'lecteur' }, { email: LEA, role: 'lecteur' }]);
     assert.deepEqual(await equipeDe(), r.equipe);
     assert.deepEqual((await lire('clients/audrey')).modules, { affaires: true });
   });

@@ -191,18 +191,18 @@ describe('G7 dossier parent créé tout seul au premier besoin', () => {
     return { appels, appelFetch };
   };
   test('G7 nom du dossier : « Chevalier IA OS » à la racine, « Chevalier IA - <espace> » chez un client', () => {
-    assert.equal(G.nomDossierParentAuto('Ingrid Atamian', false), 'Chevalier IA - Ingrid Atamian');
+    assert.equal(G.nomDossierParentAuto('Cliente Exemple', false), 'Chevalier IA - Cliente Exemple');
     assert.equal(G.nomDossierParentAuto('Chevalier IA OS', true), 'Chevalier IA OS');
     assert.equal(G.nomDossierParentAuto('', false), 'Chevalier IA - Mon espace');
   });
   test('G7 aucun parent : créé UNE fois dans Mon Drive (sans champ parents), enregistré avec auto: true', async () => {
     const { appels, appelFetch } = faux();
-    const r = await G.preparerDossierParent({ jeton: 'j', parent: null, nomAuto: 'Chevalier IA - Ingrid Atamian', appelFetch });
-    assert.deepEqual(r.parent, { id: 'NOUVEAU_DOSSIER_1_xyz', nom: 'Chevalier IA - Ingrid Atamian', auto: true });
+    const r = await G.preparerDossierParent({ jeton: 'j', parent: null, nomAuto: 'Chevalier IA - Cliente Exemple', appelFetch });
+    assert.deepEqual(r.parent, { id: 'NOUVEAU_DOSSIER_1_xyz', nom: 'Chevalier IA - Cliente Exemple', auto: true });
     assert.equal(r.cree, true);
     assert.equal(r.recree, false);
     const creation = appels.find((a) => a.methode === 'POST');
-    assert.deepEqual(creation.corps, { name: 'Chevalier IA - Ingrid Atamian', mimeType: 'application/vnd.google-apps.folder' });
+    assert.deepEqual(creation.corps, { name: 'Chevalier IA - Cliente Exemple', mimeType: 'application/vnd.google-apps.folder' });
   });
   test('G7 un dossier de ce nom déjà connu de l\'appli est réutilisé (pas de doublon)', async () => {
     const { appels, appelFetch } = faux({ existants: [{ id: 'DEJA_LA_0123456789', name: 'Chevalier IA OS' }] });

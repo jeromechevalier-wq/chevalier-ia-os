@@ -1292,6 +1292,28 @@ export function normaliserLienWeb(url) {
   return u;
 }
 
+/** Lien web sûr : l'adresse telle quelle si elle commence par http:// ou https:// et ne contient aucun espace, sinon null (« javascript: », « data: », vide). Ne complète rien : voir normaliserLienWeb. */
+export function lienWebSur(valeur) {
+  if (typeof valeur !== 'string') return null;
+  return /^https?:\/\/\S+$/i.test(valeur) ? valeur : null;
+}
+
+/** Saisie d'un champ lien (site web, LinkedIn) prête à enregistrer : '' si vide, l'adresse complétée si elle est sûre, null si elle est refusée. */
+export function lienWebAEnregistrer(valeur) {
+  const u = nettoyerEspaces(valeur);
+  if (!u) return '';
+  return lienWebSur(normaliserLienWeb(u));
+}
+
+export const MESSAGE_LIEN_WEB_INVALIDE = 'Adresse invalide : elle doit commencer par http:// ou https://';
+
+/** Pour l'écran : la saisie prête à enregistrer, ou une erreur de saisie (message affiché tel quel par champPropriete). */
+export function lienWebOuErreur(valeur) {
+  const v = lienWebAEnregistrer(valeur);
+  if (v === null) throw Object.assign(new Error(MESSAGE_LIEN_WEB_INVALIDE), { saisie: true });
+  return v;
+}
+
 /** Nom court d'un lien sans nom : le nom du site (sans « www. »), sinon l'adresse elle-même. */
 export function nomCourtLien(url) {
   const u = nettoyerEspaces(url);

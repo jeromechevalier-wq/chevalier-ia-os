@@ -64,7 +64,7 @@ const contient = (texte, mot) => sansAccent(texte).includes(mot);
 export function filtrerSources(sources, pistes, idees, criteres = criteresInspirations()) {
   const mot = sansAccent(criteres.recherche).trim();
   const filtrePiste = !!(criteres.piliers?.length || criteres.formats?.length || criteres.etats?.length);
-  const passe = (p) => (!criteres.piliers?.length || criteres.piliers.includes(p.pilier))
+  const passe = (p) => (!criteres.piliers?.length || P.piliersDePiste(p).some((x) => criteres.piliers.includes(x)))
     && (!criteres.formats?.length || criteres.formats.includes(p.format))
     && (!criteres.etats?.length || criteres.etats.includes(P.etatAffichePiste(p, idees)));
   const sortie = [];
@@ -75,7 +75,7 @@ export function filtrerSources(sources, pistes, idees, criteres = criteresInspir
     let gardees = toutes.filter(passe);
     if (mot) {
       const parNom = contient(source.nom, mot);
-      if (!parNom) gardees = gardees.filter((p) => contient(p.angle, mot) || contient(p.note, mot));
+      if (!parNom) gardees = gardees.filter((p) => contient(p.angle, mot) || contient(p.accroche, mot) || contient(p.brouillon, mot) || contient(p.visuel, mot) || contient(p.note, mot));
       if (!parNom && !gardees.length) continue;
     }
     if (filtrePiste && !criteres.sansPiste && !gardees.length) continue;

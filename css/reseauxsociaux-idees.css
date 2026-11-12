@@ -67,6 +67,11 @@
 .rs-point { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--couleur, var(--bordure-forte)); }
 .rs-piste-texte { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .rs-piste-angle { overflow-wrap: anywhere; }
+.rs-piste-deplie > summary { cursor: pointer; }
+.rs-piste-detail { display: flex; flex-direction: column; gap: var(--esp-2); padding: var(--esp-2) 0; }
+.rs-brouillon { display: flex; flex-direction: column; gap: var(--esp-2); border-left: 3px solid var(--bordure-forte); padding-left: var(--esp-3); }
+.rs-brouillon p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.lien-bouton { background: none; border: 0; padding: 0; color: var(--accent-trait); text-decoration: underline; cursor: pointer; font: inherit; }
 .rs-piste-source { font-size: var(--fs-petit); color: var(--texte2); overflow-wrap: anywhere; }
 .rs-mini { flex: none; font-size: var(--fs-petit); color: var(--texte2); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 0 var(--esp-2); }
 .rs-marque { flex: none; display: inline-flex; color: var(--texte2); }
