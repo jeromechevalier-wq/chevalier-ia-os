@@ -91,7 +91,7 @@ describe('RS1 les 12 outils, les profils, aucune suppression', () => {
   test('RS2 le profil lecture ne peut écrire aucun outil du module : refusé, rien n\'est écrit', async () => {
     const s = await demarrer();
     const avant = JSON.stringify(s.collections);
-    for (const nom of ECRITURE) refuse(await s.appeler('lecteur', nom, { id: 'x', angle: 'a', nom: 'n', sourceId: 'x', pistes: [piste('a')], profilId: 'x', url: LINKEDIN }), /not found|introuvable/i);
+    for (const nom of ECRITURE) refuse(await s.appeler('lecteur', nom, { id: 'x', angle: 'a', nom: 'n', sourceId: 'x', pistes: [piste('a')], profilId: 'x', url: LINKEDIN }), /not found/i);
     refuse(await s.appeler('agent', 'lister_pistes', {}), /not found/i);
     assert.equal(JSON.stringify(s.collections), avant);
     ok(await s.appeler('lecteur', 'lister_pistes', {})); // la lecture reste ouverte
@@ -403,5 +403,47 @@ describe('RS15 aucune suppression, journal, espace client', () => {
     assert.equal(s.collections.crm_audit.filter((l) => TABLES.includes(l.collection)).length, 0);
     const lue = ok(await s.appeler('lecteur', 'lire_source_inspiration', { id: sourceId }));
     assert.equal(lue.pistes.length, 2);
+  });
+});
+
+describe('RS17 corrections de la relecture', () => {
+  test('RS17 un extrait saisi à l\'écran survit à modifier_idee avec sources ; retirer une source qui en porte un est refusé ; une idée dans Buffer refuse un texte', async () => {
+    const s = await demarrer({ tables: { reseauxsociaux_idees: [{ id: 'i1', angle: 'Idée', etat: 'idee', sources: [{ type: 'site', titre: 'HeraHub', url: 'https://herahub.example.test', extrait: 'MOTS SAISIS PAR L’UTILISATEUR' }] }, { id: 'i2', angle: 'Dans Buffer', etat: 'dans_buffer', sources: [] }] } });
+    ok(await s.appeler('biblio', 'modifier_idee', { id: 'i1', sources: [{ type: 'site', titre: 'HeraHub', url: 'https://herahub.example.test' }, { type: 'veille', titre: 'Nouvelle', resume: 'r.md' }] }));
+    const sources = s.idees().find((i) => i.id === 'i1').sources;
+    assert.equal(sources.length, 2);
+    assert.equal(sources[0].extrait, 'MOTS SAISIS PAR L’UTILISATEUR');
+    assert.equal(sources[1].extrait, '');
+    refuse(await s.appeler('biblio', 'modifier_idee', { id: 'i1', sources: [{ type: 'veille', titre: 'Nouvelle', resume: 'r.md' }] }), /mots saisis/);
+    assert.equal(s.idees().find((i) => i.id === 'i1').sources.length, 2);
+    refuse(await s.appeler('biblio', 'modifier_idee', { id: 'i2', texte: 'x' }), /Buffer/);
+  });
+  test('RS18 une piste liée à une idée ne revient pas en stock ; un identifiant de source trop long est refusé ; une fiche de veille a l\'identifiant prévisible et n\'est pas créée deux fois', async () => {
+    const s = await demarrer();
+    const site = await avecSite(s);
+    const { ids } = ok(await s.appeler('biblio', 'ajouter_pistes', { sourceId: site, pistes: [piste('À retenir')] }));
+    ok(await s.appeler('biblio', 'retenir_piste', { id: ids[0] }));
+    refuse(await s.appeler('biblio', 'modifier_piste', { id: ids[0], etat: 'nouvelle' }), /liée à l’idée/);
+    ok(await s.appeler('biblio', 'modifier_piste', { id: ids[0], etat: 'ecartee' }));
+    refuse(await s.appeler('biblio', 'ajouter_pistes', { sourceId: 'x'.repeat(101), pistes: [piste('a')] }), /invalide/);
+    const v = ok(await s.appeler('biblio', 'creer_source_inspiration', { type: 'veille', nom: 'Veille 7', veilleContenuId: 'abc_7' }));
+    assert.equal(v.id, 'veille-abc_7');
+    refuse(await s.appeler('biblio', 'creer_source_inspiration', { type: 'veille', nom: 'Autre nom', veilleContenuId: 'abc_7' }), /existe déjà/);
+    const r = ok(await s.appeler('biblio', 'ajouter_pistes', { sourceId: 'veille-abc_7', veilleContenuId: 'abc_7', pistes: [piste('Une actu')] }));
+    assert.equal(r.sourceCreee, false);
+    assert.equal(s.sources().filter((x) => x.veilleContenuId === 'abc_7').length, 1);
+  });
+  test('RS19 une modification est refusée si le document a changé entre la lecture et l\'écriture (exigerAvant) : le moteur reçoit la condition', async () => {
+    const s = await demarrer({ tables: { reseauxsociaux_idees: [{ id: 'i1', angle: 'Idée', etat: 'idee', sources: [], texte: 'ancien' }] } });
+    const { executerEcritures } = await import('../functions/src/coeur/ecriture.js');
+    const { modifierIdee } = await import('../functions/src/coeur/reseauxsociaux.js');
+    const donnees = creerAccesMemoire(s.collections);
+    let recu;
+    await modifierIdee({ donnees, ecrire: async ({ operations }) => { recu = operations; return { operationId: null, ecritures: [] }; } }, { id: 'i1', angle: 'Nouvel angle' });
+    assert.equal(recu.length, 1);
+    assert.equal(recu[0].exigerAvant.texte, 'ancien');
+    s.collections.reseauxsociaux_idees[0].texte = 'modifié entre-temps à l\'écran';
+    await assert.rejects(executerEcritures({ donnees, ctx: { acteur: 'a', jeton: 'j', maintenant: new Date() }, outil: 'modifier_idee', operations: recu }), /changé pendant la préparation/);
+    assert.equal(s.collections.reseauxsociaux_idees[0].texte, 'modifié entre-temps à l\'écran');
   });
 });

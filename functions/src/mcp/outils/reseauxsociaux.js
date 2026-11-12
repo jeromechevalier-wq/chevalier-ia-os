@@ -31,7 +31,7 @@ const champsSource = {
   piliers: z.array(pilier).max(R.PILIERS.length).optional(),
   formats: z.array(format).max(R.FORMATS.length).optional(),
   resume: z.string().max(I.MAX_RESUME).optional().describe('Résumé de veille fait à la main : nom EXACT du fichier résumé du second cerveau.'),
-  veilleContenuId: z.string().max(100).optional().describe('Résumé de veille fait par n8n : identifiant du contenu dans la table veille_contenus.'),
+  veilleContenuId: z.string().max(90).regex(/^[A-Za-z0-9_-]+$/, 'Lettres, chiffres, tiret et tiret bas seulement').optional().describe('Résumé de veille fait par n8n : la fiche prend alors l’identifiant « veille-<contenu> ». Identifiant du contenu : identifiant du contenu dans la table veille_contenus.'),
   moyenneReactions: z.number().min(0).max(1e9).optional().describe('Profil : moyenne des réactions de ses posts de plus de deux semaines, relevée par toi.'),
   moyenneCommentaires: z.number().min(0).max(1e9).optional().describe('Profil : moyenne des commentaires, relevée par toi.'),
   nombrePostsReleves: z.number().int().min(0).max(1e6).optional().describe('Profil : nombre de posts pris pour les deux moyennes.'),
@@ -79,10 +79,10 @@ export const OUTILS_RESEAUX_ECRITURE = [
   outil('modifier_source_inspiration', ECRITURE, "Modifie des champs d'une source (seuls les champs donnés changent) : type, nom, url, pourquoi, piliers et formats (listes qui remplacent les actuelles), resume, veilleContenuId et, pour un profil, les moyennes relevées. Les pistes ne sont pas touchées.", {
     id: id.describe('Identifiant de la source.'), type: typeSource.optional(), ...Object.fromEntries(Object.entries(champsSource).map(([k, v]) => [k, k === 'nom' ? v.optional() : v])),
   }, RS.modifierSource),
-  outil('ajouter_pistes', ECRITURE, `Ajoute 1 à ${P.MAX_PISTES_PAR_LOT} pistes à une source, en un appel (au-delà : plusieurs appels). Mêmes contrôles que le collage de l'écran : un angle déjà en stock pour cette source (accents, casse et ponctuation ignorés) ou répété dans l'appel est ignoré et listé dans « ignorees » ; un pilier, format ou service inconnu reste vide. Les pistes arrivent à l'état nouvelle, auteur claude, avec un lot (défaut : AAAA-MM-JJ-claude). Pour le résumé de veille d'un contenu de veille_contenus qui n'a pas encore de fiche : sourceId = « veille- » suivi de veilleContenuId, avec veilleContenuId et nom (la fiche est créée). ${CONSIGNE_TEXTE_TIERS}`, {
+  outil('ajouter_pistes', ECRITURE, `Ajoute 1 à ${P.MAX_PISTES_PAR_LOT} pistes à une source, en un appel (au-delà : plusieurs appels). Mêmes contrôles que le collage de l'écran : un angle déjà en stock pour cette source (accents, casse et ponctuation ignorés) ou répété dans l'appel est ignoré et listé dans « ignorees » ; un pilier, format ou service hors liste refuse l'appel (la liste permise est donnée). Les pistes arrivent à l'état nouvelle, auteur claude, avec un lot (défaut : AAAA-MM-JJ-claude). Pour le résumé de veille d'un contenu de veille_contenus qui n'a pas encore de fiche : sourceId = « veille- » suivi de veilleContenuId, avec veilleContenuId et nom (la fiche est créée). ${CONSIGNE_TEXTE_TIERS}`, {
     sourceId: id.describe('Identifiant de la source (lister_sources_inspiration).'),
     nom: z.string().max(N.MAX_NOM).optional().describe('Seulement pour créer la fiche d’un résumé de veille qui n’existe pas encore.'),
-    veilleContenuId: z.string().max(100).optional().describe('Seulement pour créer la fiche d’un résumé de veille qui n’existe pas encore.'),
+    veilleContenuId: z.string().max(90).regex(/^[A-Za-z0-9_-]+$/, 'Lettres, chiffres, tiret et tiret bas seulement').optional().describe('Seulement pour créer la fiche d’un résumé de veille qui n’existe pas encore.'),
     lot: z.string().max(P.MAX_LOT).optional().describe('Étiquette de l’arrivage, pour le retrouver d’un coup.'),
     pistes: z.array(unePiste).min(1).max(P.MAX_PISTES_PAR_LOT),
   }, RS.ajouterPistes),
@@ -94,7 +94,7 @@ export const OUTILS_RESEAUX_ECRITURE = [
   outil('enregistrer_exemple', ECRITURE, `Enregistre l'exemple d'un post d'un profil : son lien LinkedIn et TON analyse (accroche, structure, longueur, pourquoi ça marche), avec les chiffres relevés (reactions, commentaires, releveLe). Il n'y a PAS de champ pour le texte du post. Refuse un lien déjà enregistré pour ce profil ; avec id, met à jour l'exemple existant (chiffres, analyse). ${CONSIGNE_TEXTE_TIERS}`, {
     id: id.optional().describe("Seulement pour mettre à jour un exemple existant."), profilId: id.optional().describe('Identifiant du profil (une source de type profil). Obligatoire à la création.'),
     url: z.string().max(N.MAX_URL).optional().describe('Lien du post sur LinkedIn. Obligatoire à la création.'), date: jour.optional().describe('Jour du post.'),
-    accroche: z.string().max(N.MAX_ANALYSE).optional(), structure: z.string().max(N.MAX_ANALYSE).optional(), longueur: z.string().max(N.MAX_ANALYSE).optional(), pourquoi: z.string().max(N.MAX_ANALYSE).optional(),
+    accroche: z.string().max(N.MAX_ANALYSE).optional().describe('Décris l’accroche avec tes mots : ne recopie pas la phrase du post.'), structure: z.string().max(N.MAX_ANALYSE).optional(), longueur: z.string().max(N.MAX_ANALYSE).optional(), pourquoi: z.string().max(N.MAX_ANALYSE).optional(),
     format: format.optional(), pilier: pilier.optional(), service: service.optional(),
     reactions: z.number().int().min(0).max(1e9).optional(), commentaires: z.number().int().min(0).max(1e9).optional(), releveLe: jour.optional().describe('Jour où les chiffres ont été relevés.'),
   }, RS.enregistrerExemple),

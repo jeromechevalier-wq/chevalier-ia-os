@@ -21,6 +21,8 @@ const lireDoc = async (c, collection, id, genre) => (await c.donnees.document(co
 const sortie = (r, extra = {}) => ({ operationId: r.operationId, ...extra, ecritures: r.ecritures.length, ...(r.auditIncomplet ? { auditIncomplet: true, avertissement: r.avertissement } : {}) });
 const borne = (liste, limite) => { const max = Math.min(limite ?? MAX_LIGNES, MAX_LIGNES); return { total: liste.length, tronque: liste.length > max, elements: liste.slice(0, max) }; };
 const cle = (texte) => P.cleAngle(texte);
+/** La modification n'a lieu que si le document n'a pas changé depuis la lecture (une modification faite à l'écran entre-temps n'est jamais écrasée par l'ancienne valeur). */
+const siInchange = (ecritures, collection, id, existant) => ecritures.map((e) => (e.type === 'modifier' && e.collection === collection && e.id === id ? { ...e, exigerAvant: sansId(existant) } : e));
 
 /** Un plan pur lève une ErreurClaire (message lisible) : elle devient un refus de saisie, comme pour les autres outils. */
 function plan(fabriquer) {
@@ -103,7 +105,9 @@ export async function creerSource(c, args) {
   const sources = await c.donnees.liste(C.reseauxInspirations);
   const doublon = doublonSource(sources, valeurs);
   if (doublon && !forcer) refuser('doublon', `Une source existe déjà : « ${doublon.nom} » (id ${doublon.id}). Si c'est bien une autre source, recommencer avec forcer: true.`, { doublons: [{ id: doublon.id, nom: doublon.nom }] });
-  const id = c.donnees.nouvelId(C.reseauxInspirations);
+  // Un résumé de veille de n8n a un identifiant prévisible (veille-<contenu>) : ajouter_pistes le retrouve, jamais deux fiches pour le même contenu.
+  const id = valeurs.type === 'veille' && valeurs.veilleContenuId ? P.idSourceVeille(valeurs.veilleContenuId) : c.donnees.nouvelId(C.reseauxInspirations);
+  if (sources.some((s) => s.id === id)) refuser('doublon', `Une source existe déjà pour ce contenu de veille (id ${id}).`, { doublons: [{ id }] });
   const p = plan(() => N.planEnregistrerInspiration(null, valeurs, { id, autres: sources }));
   return sortie(await c.ecrire({ operations: p.ecritures, parametres: args }), { id });
 }
@@ -114,7 +118,7 @@ export async function modifierSource(c, args) {
   const valeurs = choisir(args, CHAMPS_SOURCE);
   if (!Object.keys(valeurs).length) refuser('saisie_invalide', 'Aucun champ à modifier.');
   const p = plan(() => N.planEnregistrerInspiration(existante, valeurs, { id }));
-  return sortie(await c.ecrire({ operations: p.ecritures, parametres: args }), { id });
+  return sortie(await c.ecrire({ operations: siInchange(p.ecritures, C.reseauxInspirations, id, existante), parametres: args }), { id });
 }
 
 // ---------------------------------------------------------------- pistes
@@ -125,9 +129,12 @@ export async function ajouterPistes(c, args) {
   const { sourceId, nom, veilleContenuId, lot } = args;
   const entrees = (Array.isArray(args.pistes) ? args.pistes : []).map((p) => choisir(p ?? {}, CHAMPS_PISTE));
   if (entrees.length > P.MAX_PISTES_PAR_LOT) refuser('saisie_invalide', `Au plus ${P.MAX_PISTES_PAR_LOT} pistes à la fois : en envoyer 30, puis le reste dans un autre appel.`);
+  // Un identifiant que le rangement des pistes couperait ou changerait (plus de 100 caractères, espaces doubles) laisserait des pistes orphelines.
+  if (sourceId !== String(sourceId).replace(/\s+/g, ' ').trim().slice(0, 100)) refuser('saisie_invalide', 'Identifiant de source invalide (100 caractères au plus, sans espaces en trop).');
   const sources = await c.donnees.liste(C.reseauxInspirations);
-  let source = sources.find((s) => s.id === sourceId);
+  let source = sources.find((s) => s.id === sourceId) ?? (veilleContenuId ? sources.find((s) => N.typeSource(s) === 'veille' && s.veilleContenuId === veilleContenuId) : undefined);
   const sourceExiste = !!source;
+  const idSource = source?.id ?? sourceId;
   if (!source) {
     // Seul un résumé de veille venu de n8n n'a pas encore de fiche : son identifiant est prévisible (veille-<contenu>), la fiche est créée avec les pistes. Toute autre source doit exister.
     if (!veilleContenuId || sourceId !== P.idSourceVeille(veilleContenuId)) {
@@ -141,10 +148,10 @@ export async function ajouterPistes(c, args) {
   const cites = [...new Set(entrees.map((e) => e.exempleId).filter(Boolean))];
   if (cites.length) {
     const exemples = await c.donnees.liste(C.reseauxExemples);
-    const inconnus = cites.filter((x) => !exemples.some((e) => e.id === x && e.profilId === sourceId));
+    const inconnus = cites.filter((x) => !exemples.some((e) => e.id === x && e.profilId === idSource));
     if (inconnus.length) refuser('saisie_invalide', `exempleId inconnu pour cette source : ${inconnus.join(', ')} (voir lire_source_inspiration, exemples).`);
   }
-  const pistesExistantes = (await c.donnees.liste(C.reseauxPistes)).filter((p) => p.sourceId === sourceId);
+  const pistesExistantes = (await c.donnees.liste(C.reseauxPistes)).filter((p) => p.sourceId === idSource);
   const jour = L.aujourdhuiParis(c.maintenant);
   const ordre = sourceExiste ? 0 : Math.max(-1, ...sources.map((s) => (Number.isFinite(s.ordre) ? s.ordre : -1))) + 1;
   const p = plan(() => P.planAjouterPistes(source, entrees, {
@@ -152,7 +159,7 @@ export async function ajouterPistes(c, args) {
     pistesExistantes, accepterDoublons: false, sourceExiste, ordre, champsPermis: CHAMPS_PISTE,
   }));
   const ids = p.ecritures.filter((e) => e.collection === C.reseauxPistes).map((e) => e.id);
-  return sortie(await c.ecrire({ operations: p.ecritures, parametres: args }), { sourceId, sourceCreee: !sourceExiste, creees: p.creees, ids, ignorees: p.ignorees, lot: lot || `${jour}-claude` });
+  return sortie(await c.ecrire({ operations: p.ecritures, parametres: args }), { sourceId: idSource, sourceCreee: !sourceExiste, creees: p.creees, ids, ignorees: p.ignorees, lot: lot || `${jour}-claude` });
 }
 
 export async function modifierPiste(c, args) {
@@ -162,8 +169,10 @@ export async function modifierPiste(c, args) {
   if (!Object.keys(valeurs).length) refuser('saisie_invalide', 'Aucun champ à modifier.');
   // « Retenue » passe par retenir_piste (qui crée l'idée et lie les deux) ; ici, seulement remettre en stock ou écarter.
   if (valeurs.etat === 'retenue') refuser('saisie_invalide', 'Pour retenir une piste, utiliser retenir_piste (il crée l’idée et lie les deux).');
+  // Une piste liée à une idée ne revient pas « en stock » : elle resterait bloquée (retenir_piste la dirait déjà devenue une idée).
+  if (valeurs.etat === 'nouvelle' && existante.ideeId) refuser('saisie_invalide', `Cette piste est liée à l’idée ${existante.ideeId} : on ne la remet pas en stock (abandonne l’idée avec modifier_idee, ou écarte la piste).`);
   const p = plan(() => P.planModifierPiste(existante, valeurs, { id }));
-  return sortie(await c.ecrire({ operations: p.ecritures, parametres: args }), { id });
+  return sortie(await c.ecrire({ operations: siInchange(p.ecritures, C.reseauxPistes, id, existante), parametres: args }), { id });
 }
 
 export async function retenirPiste(c, { id }) {
@@ -186,6 +195,7 @@ export async function enregistrerExemple(c, args) {
   const exemples = await c.donnees.liste(C.reseauxExemples);
   const existant = id ? exemples.find((e) => e.id === id) ?? refuser('introuvable', `Exemple introuvable : ${id}`) : null;
   const profilId = valeurs.profilId ?? existant?.profilId;
+  if (!profilId) refuser('saisie_invalide', 'Donne profilId (le profil de l’exemple) pour créer un exemple, ou id pour en mettre un à jour.');
   const profil = await lireDoc(c, C.reseauxInspirations, profilId, 'Profil');
   if (N.typeSource(profil) !== 'profil') refuser('saisie_invalide', 'Un exemple de post se rattache à un profil (une source de type profil), pas à un site ni à un résumé de veille.');
   if (existant && valeurs.profilId && valeurs.profilId !== existant.profilId) refuser('saisie_invalide', 'Un exemple ne change pas de profil.');
@@ -194,7 +204,7 @@ export async function enregistrerExemple(c, args) {
   if (doublon) refuser('doublon', `Cet exemple existe déjà (id ${doublon.id}) : pour changer ses chiffres ou son analyse, passer id.`, { doublons: [{ id: doublon.id }] });
   const nouvelId = id ?? c.donnees.nouvelId(C.reseauxExemples);
   const p = plan(() => N.planEnregistrerExemple(existant, valeurs, { id: nouvelId }));
-  return sortie(await c.ecrire({ operations: p.ecritures, parametres: args }), { id: nouvelId });
+  return sortie(await c.ecrire({ operations: existant ? siInchange(p.ecritures, C.reseauxExemples, nouvelId, existant) : p.ecritures, parametres: args }), { id: nouvelId });
 }
 
 // ---------------------------------------------------------------- idées
@@ -228,6 +238,22 @@ export async function modifierIdee(c, args) {
     refuser('confirmation', 'Passer cette idée « Dans Buffer » efface son texte du module (il vit alors dans Buffer). Si le texte est déjà dans Buffer, recommencer avec effacerLeTexte: true (une copie « avant » reste dans le journal).');
   }
   if (valeurs.etat === 'dans_buffer' && existante.etat !== 'dans_buffer' && String(valeurs.texte ?? '').trim()) refuser('saisie_invalide', 'Une idée « Dans Buffer » n’a pas de texte dans le module.');
+  if (valeurs.texte !== undefined && (valeurs.etat ?? existante.etat) === 'dans_buffer') refuser('saisie_invalide', 'Une idée « Dans Buffer » n’a pas de texte dans le module : il vit dans Buffer.');
+  // Les mots d'un tiers saisis à l'écran (extrait) ne sont jamais montrés à l'assistant : la liste qu'il renvoie ne doit pas les effacer.
+  if (valeurs.sources) {
+    const anciennes = Array.isArray(existante.sources) ? existante.sources : [];
+    const cleSource = (x) => `${x?.type ?? ''}|${x?.url ?? ''}|${cle(x?.titre)}`;
+    const reprises = new Set();
+    valeurs.sources = valeurs.sources.map((nouvelle) => {
+      const k = cleSource(nouvelle);
+      const j = anciennes.findIndex((a, n) => !reprises.has(n) && cleSource(a) === k);
+      const ancienne = j >= 0 ? anciennes[j] : undefined;
+      if (j >= 0) reprises.add(j);
+      return ancienne?.extrait ? { ...nouvelle, extrait: ancienne.extrait } : nouvelle;
+    });
+    const perdues = anciennes.filter((a, n) => a?.extrait && !reprises.has(n));
+    if (perdues.length) refuser('confirmation', `Cette liste retirerait ${perdues.length} source(s) qui portent des mots saisis à l’écran (non montrés ici) : « ${perdues.map((a) => a.titre || a.url || a.type).join(' ; ')} ». Les garder dans la liste (même type, adresse et titre), ou les retirer à l’écran.`);
+  }
   const p = plan(() => I.planEnregistrerIdee(existante, valeurs, { id }));
-  return sortie(await c.ecrire({ operations: p.ecritures, parametres: args }), { id });
+  return sortie(await c.ecrire({ operations: siInchange(p.ecritures, C.reseauxIdees, id, existante), parametres: args }), { id });
 }

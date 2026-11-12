@@ -4715,9 +4715,10 @@
      "maxLength": 200
     },
     "veilleContenuId": {
-     "description": "Résumé de veille fait par n8n : identifiant du contenu dans la table veille_contenus.",
+     "description": "Résumé de veille fait par n8n : la fiche prend alors l’identifiant « veille-<contenu> ». Identifiant du contenu : identifiant du contenu dans la table veille_contenus.",
      "type": "string",
-     "maxLength": 100
+     "maxLength": 90,
+     "pattern": "^[A-Za-z0-9_-]+$"
     },
     "moyenneReactions": {
      "description": "Profil : moyenne des réactions de ses posts de plus de deux semaines, relevée par toi.",
@@ -4834,9 +4835,10 @@
      "maxLength": 200
     },
     "veilleContenuId": {
-     "description": "Résumé de veille fait par n8n : identifiant du contenu dans la table veille_contenus.",
+     "description": "Résumé de veille fait par n8n : la fiche prend alors l’identifiant « veille-<contenu> ». Identifiant du contenu : identifiant du contenu dans la table veille_contenus.",
      "type": "string",
-     "maxLength": 100
+     "maxLength": 90,
+     "pattern": "^[A-Za-z0-9_-]+$"
     },
     "moyenneReactions": {
      "description": "Profil : moyenne des réactions de ses posts de plus de deux semaines, relevée par toi.",
@@ -4878,7 +4880,7 @@
  },
  {
   "name": "ajouter_pistes",
-  "description": "Ajoute 1 à 30 pistes à une source, en un appel (au-delà : plusieurs appels). Mêmes contrôles que le collage de l'écran : un angle déjà en stock pour cette source (accents, casse et ponctuation ignorés) ou répété dans l'appel est ignoré et listé dans « ignorees » ; un pilier, format ou service inconnu reste vide. Les pistes arrivent à l'état nouvelle, auteur claude, avec un lot (défaut : AAAA-MM-JJ-claude). Pour le résumé de veille d'un contenu de veille_contenus qui n'a pas encore de fiche : sourceId = « veille- » suivi de veilleContenuId, avec veilleContenuId et nom (la fiche est créée). Jamais le texte d'un post écrit par quelqu'un d'autre : seulement un lien et une analyse écrite avec tes mots.",
+  "description": "Ajoute 1 à 30 pistes à une source, en un appel (au-delà : plusieurs appels). Mêmes contrôles que le collage de l'écran : un angle déjà en stock pour cette source (accents, casse et ponctuation ignorés) ou répété dans l'appel est ignoré et listé dans « ignorees » ; un pilier, format ou service hors liste refuse l'appel (la liste permise est donnée). Les pistes arrivent à l'état nouvelle, auteur claude, avec un lot (défaut : AAAA-MM-JJ-claude). Pour le résumé de veille d'un contenu de veille_contenus qui n'a pas encore de fiche : sourceId = « veille- » suivi de veilleContenuId, avec veilleContenuId et nom (la fiche est créée). Jamais le texte d'un post écrit par quelqu'un d'autre : seulement un lien et une analyse écrite avec tes mots.",
   "inputSchema": {
    "$schema": "http://json-schema.org/draft-07/schema#",
    "type": "object",
@@ -4897,7 +4899,8 @@
     "veilleContenuId": {
      "description": "Seulement pour créer la fiche d’un résumé de veille qui n’existe pas encore.",
      "type": "string",
-     "maxLength": 100
+     "maxLength": 90,
+     "pattern": "^[A-Za-z0-9_-]+$"
     },
     "lot": {
      "description": "Étiquette de l’arrivage, pour le retrouver d’un coup.",
@@ -5153,6 +5156,7 @@
      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
     },
     "accroche": {
+     "description": "Décris l’accroche avec tes mots : ne recopie pas la phrase du post.",
      "type": "string",
      "maxLength": 500
     },
