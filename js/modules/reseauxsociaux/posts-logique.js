@@ -1,6 +1,6 @@
 // Règles pures de l'écran « Posts » du module Réseaux sociaux (aucune dépendance à Firebase ni au DOM : importables par les tests Node).
 // Les posts viennent de Buffer (texte, statut, dates, chiffres : toujours lus, jamais copiés) ; le module ne garde que le classement de chaque post
-// (pilier, format, services ; clé = identifiant Buffer). Ici : fusion des deux, colonnes, filtres, tableau des statistiques, équilibre des piliers et contrôle éditorial
+// (pilier, format, services ; clé = identifiant Buffer). Ici : fusion des deux, colonnes, filtres, tableau des statistiques, matrice pilier × format et contrôle éditorial
 // (source : fiche « Ligne éditoriale LinkedIn Chevalier IA » du second cerveau). Les jours et les heures se calculent à Paris (heure d'été et d'hiver).
 import * as L from '../crm/logique.js';
 import * as R from './logique.js';
@@ -154,26 +154,73 @@ export function formaterTaux(v) {
 /** Nombre entier au format français pour une moyenne (arrondie à l'unité), « — » s'il manque. */
 export const formaterMoyenne = (v) => R.formaterNombre(typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : null);
 
-// ---------------------------------------------------------------- équilibre des piliers
+// ---------------------------------------------------------------- matrice pilier × format
+
+/** Colonnes de la matrice, dans l'ordre de lecture voulu (les formats vidéo sont côte à côte à la fin). */
+export const FORMATS_MATRICE = Object.freeze(['texte', 'image', 'carrousel', 'video', 'animation']);
+/** Les formats qui comptent pour la cible de vidéos (une animation se publie comme une vidéo). */
+export const FORMATS_VIDEO = Object.freeze(['video', 'animation']);
+export const NB_SUGGESTIONS = 3;
+
+const pourcent = (n, total) => (total ? Math.round((n * 100) / total) : 0);
 
 /**
- * Équilibre sur les posts publiés et programmés : part réelle de chaque pilier (en % des posts CLASSÉS, arrondie à l'unité) face à sa cible,
- * posts sans pilier comptés à part, et part de vidéos (en % de tous ces posts) face à 50 %.
+ * Matrice pilier × format sur les posts publiés et programmés. Une case ne compte que les posts classés des DEUX côtés (pilier ET format) ;
+ * les autres sont comptés à part (`sansPilier`, `sansFormat`), jamais dans une case. Les parts (arrondies à l'unité) sont des parts des posts de la matrice (`classes`).
+ * Cibles : uniquement sur le total de chaque ligne (cible du pilier) et sur les colonnes vidéo + animation (50 %), jamais par case.
+ * `suggestions` : les cases les plus utiles à remplir (voir `suggererCases`).
  */
-export function equilibre(posts) {
+export function matrice(posts) {
   const retenus = (posts || []).filter((p) => p.statut === 'publie' || p.statut === 'programme');
-  const classes = retenus.filter((p) => p.classement?.pilier);
-  const pourcent = (n, total) => (total ? Math.round((n * 100) / total) : 0);
-  return {
+  const rangees = retenus.filter((p) => p.classement?.pilier && p.classement?.format && FORMATS_MATRICE.includes(p.classement.format));
+  const classes = rangees.length;
+  const formats = FORMATS_MATRICE.map((id) => R.FORMATS.find((f) => f.id === id));
+  const nombreCase = (pilier, format) => rangees.filter((p) => p.classement.pilier === pilier && p.classement.format === format).length;
+  const lignes = R.PILIERS.map((pilier) => {
+    const cases = formats.map((f) => { const nombre = nombreCase(pilier.id, f.id); return { format: f.id, nombre, part: pourcent(nombre, classes) }; });
+    const nombre = cases.reduce((t, c) => t + c.nombre, 0);
+    return { id: pilier.id, libelle: pilier.libelle, cible: pilier.cible, cases, nombre, part: pourcent(nombre, classes) };
+  });
+  const colonnes = formats.map((f) => { const nombre = rangees.filter((p) => p.classement.format === f.id).length; return { id: f.id, libelle: f.libelle, nombre, part: pourcent(nombre, classes) }; });
+  const nbVideo = colonnes.filter((c) => FORMATS_VIDEO.includes(c.id)).reduce((t, c) => t + c.nombre, 0);
+  const sortie = {
     total: retenus.length,
-    classes: classes.length,
-    sansPilier: retenus.length - classes.length,
-    piliers: R.PILIERS.map((pilier) => {
-      const nombre = classes.filter((p) => p.classement.pilier === pilier.id).length;
-      return { id: pilier.id, libelle: pilier.libelle, cible: pilier.cible, nombre, part: pourcent(nombre, classes.length) };
-    }),
-    video: { nombre: retenus.filter(estVideo).length, total: retenus.length, part: pourcent(retenus.filter(estVideo).length, retenus.length), cible: PART_VIDEO_CIBLE },
+    classes,
+    sansPilier: retenus.filter((p) => !p.classement?.pilier).length,
+    sansFormat: retenus.filter((p) => !p.classement?.format).length,
+    lignes,
+    colonnes,
+    video: { formats: [...FORMATS_VIDEO], nombre: nbVideo, part: pourcent(nbVideo, classes), cible: PART_VIDEO_CIBLE },
   };
+  return { ...sortie, suggestions: suggererCases(sortie) };
+}
+
+/**
+ * Les 3 cases (pilier × format) les plus utiles à remplir : on additionne l'écart de la ligne à sa cible (points, positif quand le pilier est en retard)
+ * et l'écart de la colonne à sa cible (vidéo et animation se partagent les 50 % de vidéos ; les trois autres formats se partagent les 50 % restants).
+ * À score égal, la case la moins remplie passe d'abord, puis l'ordre de lecture (lignes puis colonnes). Matrice sans aucun post : liste vide.
+ */
+export function suggererCases(m) {
+  if (!m?.total) return [];
+  const classes = m.classes;
+  const partVideo = classes ? (m.video.nombre * 100) / classes : 0;
+  const ecartColonne = (id) => (FORMATS_VIDEO.includes(id) ? (m.video.cible - partVideo) / FORMATS_VIDEO.length : (partVideo - m.video.cible) / (FORMATS_MATRICE.length - FORMATS_VIDEO.length));
+  const candidats = [];
+  m.lignes.forEach((l, i) => {
+    const partLigne = classes ? (l.nombre * 100) / classes : 0;
+    m.colonnes.forEach((c, j) => {
+      const nombre = l.cases[j].nombre;
+      candidats.push({ ordre: i * 100 + j, pilier: l.id, format: c.id, nombre, score: (l.cible - partLigne) + ecartColonne(c.id), partLigne: Math.round(partLigne), cibleLigne: l.cible, libellePilier: l.libelle, libelleFormat: c.libelle });
+    });
+  });
+  candidats.sort((a, b) => b.score - a.score || a.nombre - b.nombre || a.ordre - b.ordre);
+  return candidats.slice(0, NB_SUGGESTIONS).map((c) => {
+    const partV = Math.round(partVideo);
+    const raison = `${c.libellePilier} est à ${c.partLigne} % (cible ${c.cibleLigne} %)`
+      + (FORMATS_VIDEO.includes(c.format) ? `, les vidéos à ${partV} % (cible ${m.video.cible} %)` : '')
+      + (c.nombre === 0 ? ' et cette case est encore vide.' : '.');
+    return { pilier: c.pilier, format: c.format, titre: `${c.libellePilier} × ${c.libelleFormat}`, phrase: raison, nombre: c.nombre };
+  });
 }
 
 // ---------------------------------------------------------------- contrôle éditorial
@@ -214,9 +261,9 @@ export function controlesEditoriaux(posts, classements, maintenant = new Date())
     sortie.push({ code: 'd', texte: `La part de vidéos est de ${part} % sur les ${derniers.length} derniers posts (objectif ${PART_VIDEO_CIBLE} %).` });
   }
   // e. piliers loin de leur cible
-  const eq = equilibre(tous);
+  const eq = matrice(tous);
   if (eq.classes >= MIN_POSTS_CLASSES) {
-    for (const p of eq.piliers.filter((x) => Math.abs((x.nombre * 100) / eq.classes - x.cible) > ECART_PILIER_MAX)) {
+    for (const p of eq.lignes.filter((x) => Math.abs((x.nombre * 100) / eq.classes - x.cible) > ECART_PILIER_MAX)) {
       sortie.push({ code: 'e', texte: `Le pilier « ${p.libelle} » pèse ${p.part} % des posts classés (cible ${p.cible} %).` });
     }
   }

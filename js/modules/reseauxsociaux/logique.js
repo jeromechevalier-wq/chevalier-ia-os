@@ -13,14 +13,20 @@ export const URL_BUFFER = 'https://publish.buffer.com';
 /** Les chiffres de Buffer sont gardés cinq minutes en mémoire (une lecture = un appel au serveur, qui interroge Buffer). */
 export const DUREE_CACHE_BUFFER_MS = 5 * 60 * 1000;
 
-/** Les cinq piliers de la ligne éditoriale (part visée, en pourcentage des posts). */
+/** Les quatre piliers de la ligne éditoriale (part visée, en pourcentage des posts ; décision de Jérôme du 12/11/2026, ils remplacent les cinq d'avant). */
 export const PILIERS = Object.freeze([
-  { id: 'pme', libelle: 'Cas concrets', cible: 30 },
-  { id: 'claude', libelle: 'Claude au quotidien', cible: 25 },
+  { id: 'cas_concrets', libelle: 'Cas concrets', cible: 25 },
+  { id: 'pedagogie', libelle: 'Pédagogie et méthodes', cible: 35 },
   { id: 'actu_ia', libelle: 'Actu IA décryptée', cible: 15 },
-  { id: 'proximite', libelle: 'Parcours et proximité', cible: 20 },
-  { id: 'offre', libelle: 'Offre et premier pas', cible: 10 },
+  { id: 'demarche_offre', libelle: 'Ma démarche et mon offre', cible: 25 },
 ]);
+
+/** Anciens identifiants de pilier encore présents dans les données (table `reseauxsociaux_posts`), lus comme les nouveaux. Les écritures n'utilisent que les nouveaux. */
+export const ANCIENS_PILIERS = Object.freeze({
+  pme: 'cas_concrets', claude: 'pedagogie', actu_ia: 'actu_ia', proximite: 'demarche_offre', offre: 'demarche_offre',
+});
+/** Identifiant de pilier d'aujourd'hui pour une valeur lue (nouvelle ou ancienne) ; null si inconnue. */
+export const convertirPilier = (id) => (PILIERS.some((p) => p.id === id) ? id : (Object.hasOwn(ANCIENS_PILIERS, id) ? ANCIENS_PILIERS[id] : null));
 
 export const FORMATS = Object.freeze([
   { id: 'texte', libelle: 'Texte' },
@@ -58,7 +64,7 @@ export const CRENEAUX = Object.freeze([{ jour: 2, heure: '06:08' }, { jour: 4, h
 const TOLERANCE_CRENEAU_MS = 60 * 60 * 1000;
 
 const libelleDe = (liste, id) => liste.find((x) => x.id === id)?.libelle ?? null;
-export const libellePilier = (id) => libelleDe(PILIERS, id);
+export const libellePilier = (id) => libelleDe(PILIERS, convertirPilier(id));
 export const libelleFormat = (id) => libelleDe(FORMATS, id);
 export const libelleService = (id) => libelleDe(SERVICES, id);
 
@@ -105,9 +111,9 @@ export function nomFichierExportReseauxSociaux(maintenant = new Date()) {
 /** Un identifiant de post Buffer sert d'identifiant de document : lettres, chiffres, tiret, tiret bas. */
 export const idPostValide = (id) => typeof id === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(id);
 
-/** Range un classement : pilier et format inconnus deviennent null, services inconnus retirés (ordre de la liste), sans doublon. */
+/** Range un classement : pilier (ancien ou nouvel identifiant, rendu en nouvel identifiant) et format inconnus deviennent null, services inconnus retirés (ordre de la liste), sans doublon. */
 export function normaliserClassement(valeurs = {}) {
-  const pilier = PILIERS.some((p) => p.id === valeurs.pilier) ? valeurs.pilier : null;
+  const pilier = convertirPilier(valeurs.pilier);
   const format = FORMATS.some((f) => f.id === valeurs.format) ? valeurs.format : null;
   const demandes = new Set(Array.isArray(valeurs.services) ? valeurs.services : []);
   return { pilier, format, services: SERVICES.map((s) => s.id).filter((id) => demandes.has(id)) };

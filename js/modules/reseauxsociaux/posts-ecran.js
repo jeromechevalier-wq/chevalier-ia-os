@@ -2,7 +2,7 @@
 // Les posts viennent de Buffer (texte, statut, dates, chiffres : toujours lus, jamais copiés) ; le module garde seulement le classement de chaque post
 // (pilier, format, services ; clé = identifiant Buffer). Buffer reste le lieu d'écriture : « + Post » l'ouvre dans un nouvel onglet, aucune écriture vers Buffer.
 // Deux vues : Kanban (Brouillons, Programmés, Publiés : cartes non déplaçables, le statut vient de Buffer) et Statistiques (une ligne par post publié).
-// Au-dessus : l'équilibre des piliers et le contrôle éditorial (règles pures dans posts-logique.js). Tri et filtres se font ici, dans le navigateur (règle D4).
+// Au-dessus : la matrice pilier × format et le contrôle éditorial (règles pures dans posts-logique.js). Tri et filtres se font ici, dans le navigateur (règle D4).
 // Le texte d'un post vient de l'extérieur : il est toujours posé comme texte (la fabrique `h` crée des nœuds texte), jamais en HTML.
 import { h, icone, remplir, dialogue, toast, estTelephone } from '../../os/ui.js';
 import { enteteListe, barreListe, basculeVues } from '../crm/barre-liste.js';
@@ -39,7 +39,7 @@ export function oublierFiltresPosts() {
 
 const OPTIONS_TRI = [{ id: 'date', libelle: 'Date', sens: 'desc' }];
 // Couleurs des pastilles : variables de tokens.css (jamais de jaune plein hors bouton).
-const COULEUR_PILIER = { pme: 'var(--violet-clair)', claude: 'var(--corail)', actu_ia: 'var(--vert)', proximite: 'var(--lilas)', offre: 'var(--gris-lilas)' };
+const COULEUR_PILIER = { cas_concrets: 'var(--violet-clair)', pedagogie: 'var(--corail)', actu_ia: 'var(--vert)', demarche_offre: 'var(--lilas)' };
 const COULEUR_GRISE = 'var(--bordure-forte)';
 const COULEUR_COLONNE = { brouillons: 'var(--gris-lilas)', programmes: 'var(--violet-clair)', publies: 'var(--vert)' };
 
@@ -51,7 +51,7 @@ function pastille(role, nom, couleur) {
   el.dataset.role = role;
   return el;
 }
-const pastillePilier = (id) => (id ? pastille('pilier', R.libellePilier(id), COULEUR_PILIER[id] ?? COULEUR_GRISE) : pastille('pilier-vide', 'À classer', COULEUR_GRISE));
+const pastillePilier = (id) => (id ? pastille('pilier', R.libellePilier(id), COULEUR_PILIER[R.convertirPilier(id)] ?? COULEUR_GRISE) : pastille('pilier-vide', 'À classer', COULEUR_GRISE));
 const pastilleFormat = (id) => (id ? pastille('format', R.libelleFormat(id), COULEUR_GRISE) : null);
 
 // ---------------------------------------------------------------- fenêtre « Classer ce post »
@@ -185,7 +185,7 @@ function vueStatistiques(posts, rafraichir) {
 
 // ---------------------------------------------------------------- équilibre et contrôle éditorial
 
-// Les deux cartes se replient (l'état est gardé sur l'appareil) : sur téléphone elles partent repliées, pour que le Kanban reste à portée de pouce.
+// Les cartes se replient (l'état est gardé sur l'appareil) : sur téléphone elles partent repliées, pour que le Kanban reste à portée de pouce.
 const carteRepliable = (id, titre, contenu, compteur = null) => {
   const { element } = sectionRepliable({ id: `reseauxsociaux-${id}`, titre, contenu, ouverte: !estTelephone(), compteur });
   element.classList.add('carte-section', 'carte-repliable');
@@ -193,16 +193,50 @@ const carteRepliable = (id, titre, contenu, compteur = null) => {
   return element;
 };
 
-function carteEquilibre(tous) {
-  const e = P.equilibre(tous);
-  const ligne = (libelle, part, cible, role) => h('li', { class: 'rs-ligne rs-equilibre', dataset: { role } },
-    h('span', { class: 'rs-ligne-titre' }, libelle),
-    h('span', { class: 'rs-barre', style: { '--part': `${part}%`, '--cible': `${cible}%` }, 'aria-hidden': 'true' }, h('span', { class: 'rs-barre-part' }), h('span', { class: 'rs-barre-cible' })),
-    h('span', { class: 'rs-ligne-detail' }, `${part} % (cible ${cible} %)`));
-  return carteRepliable('equilibre', 'Équilibre des piliers', e.total
-    ? [h('ul', { class: 'rs-liste' }, e.piliers.map((p) => ligne(p.libelle, p.part, p.cible, `pilier-${p.id}`)), ligne('Vidéos', e.video.part, e.video.cible, 'videos')),
-      e.sansPilier ? phraseGrise(`${R.formaterNombre(e.sansPilier)} sans pilier`, 'sans-pilier') : null,
-      phraseGrise('Posts publiés et programmés.')]
+/** Une case de la matrice : le nombre de posts et sa part du total, teintée d'autant plus fort qu'elle est pleine ; à 0, grisée (c'est un trou à remplir). */
+function caseMatrice(c, max, libelleLigne, libelleColonne) {
+  const vide = c.nombre === 0;
+  return h('td', { class: `rs-case${vide ? ' rs-case-zero' : ''}`, style: vide ? {} : { '--intensite': String(max ? c.nombre / max : 0) },
+    dataset: { format: c.format, nombre: String(c.nombre) }, 'aria-label': `${libelleLigne}, ${libelleColonne} : ${pluriel(c.nombre, 'post', 'posts')}, ${c.part} %` },
+  h('span', { class: 'rs-case-nombre' }, R.formaterNombre(c.nombre)), h('span', { class: 'rs-case-part' }, `${c.part} %`));
+}
+
+function suggestionsPosts(m) {
+  if (!m.suggestions.length) return null;
+  return h('div', { class: 'rs-suggestions', dataset: { role: 'suggestions' } },
+    h('p', { class: 'rs-suggestions-titre' }, 'Prochain post à imaginer'),
+    h('ol', { class: 'rs-liste' }, m.suggestions.map((s) => h('li', { class: 'rs-ligne rs-suggestion', dataset: { role: 'suggestion', pilier: s.pilier, format: s.format } },
+      h('span', { class: 'rs-ligne-titre' }, s.titre), h('span', { class: 'rs-ligne-detail' }, s.phrase)))));
+}
+
+function tableauMatrice(m) {
+  const max = Math.max(0, ...m.lignes.flatMap((l) => l.cases.map((c) => c.nombre)));
+  const nbVideo = m.video.formats.length;
+  const nbAutres = m.colonnes.length - nbVideo;
+  const entete = h('tr', {}, h('th', { scope: 'col' }, 'Pilier'),
+    m.colonnes.map((c) => h('th', { scope: 'col', dataset: { format: c.id } }, c.libelle)), h('th', { scope: 'col', class: 'rs-total' }, 'Total et cible'));
+  const lignes = m.lignes.map((l) => h('tr', { dataset: { role: `pilier-${l.id}` } },
+    h('th', { scope: 'row' }, l.libelle),
+    l.cases.map((c, j) => caseMatrice(c, max, l.libelle, m.colonnes[j].libelle)),
+    h('td', { class: 'rs-total', dataset: { role: 'total-ligne' } }, h('span', { class: 'rs-case-nombre' }, R.formaterNombre(l.nombre)), h('span', { class: 'rs-case-part' }, `${l.part} % (cible ${l.cible} %)`))));
+  const pied = [
+    h('tr', { dataset: { role: 'total-colonnes' } }, h('th', { scope: 'row' }, 'Total'),
+      m.colonnes.map((c) => h('td', { class: 'rs-total', dataset: { format: c.id, nombre: String(c.nombre) } }, h('span', { class: 'rs-case-nombre' }, R.formaterNombre(c.nombre)), h('span', { class: 'rs-case-part' }, `${c.part} %`))),
+      h('td', { class: 'rs-total', dataset: { role: 'total-general' } }, h('span', { class: 'rs-case-nombre' }, R.formaterNombre(m.classes)))),
+    h('tr', { dataset: { role: 'videos' } }, h('th', { scope: 'row' }, 'Vidéos'),
+      h('td', { colSpan: nbAutres }), h('td', { class: 'rs-total rs-cible-video', colSpan: nbVideo }, `${m.video.part} % de vidéos et d’animations (cible ${m.video.cible} %)`), h('td')),
+  ];
+  return h('div', { class: 'rs-matrice-defile', dataset: { role: 'matrice-defile' }, tabindex: '0', role: 'region', 'aria-label': 'Matrice pilier par format' },
+    h('table', { class: 'rs-matrice', dataset: { role: 'matrice' } }, h('thead', {}, entete), h('tbody', {}, lignes), h('tfoot', {}, pied)));
+}
+
+function carteMatrice(tous) {
+  const m = P.matrice(tous);
+  const aPart = m.sansPilier || m.sansFormat;
+  return carteRepliable('matrice', 'Matrice pilier × format', m.total
+    ? [suggestionsPosts(m), tableauMatrice(m),
+      aPart ? phraseGrise(`${R.formaterNombre(m.sansPilier)} sans pilier, ${R.formaterNombre(m.sansFormat)} sans format`, 'sans-classement') : null,
+      phraseGrise('Posts publiés et programmés. Un post sans pilier ou sans format reste hors de la matrice.')]
     : phraseGrise('Pas encore de posts publiés ou programmés.'));
 }
 
@@ -280,7 +314,7 @@ export function rendrePosts(conteneur) {
     }
     if (!b.lueLe) { remplir(compteur, ''); remplir(zoneCartes); remplir(zone, chargement()); return; }
     const tous = P.fusionnerPosts(b.posts, D.etat.posts);
-    remplir(zoneCartes, carteEquilibre(tous), carteControle(tous, D.etat.posts));
+    remplir(zoneCartes, carteMatrice(tous), carteControle(tous, D.etat.posts));
     if (!tous.length) {
       remplir(compteur, '');
       remplir(zone, etatVide('Aucun post pour le moment. Écris-en un dans Buffer, il apparaîtra ici.'));
