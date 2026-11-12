@@ -31,6 +31,8 @@ const RESERVEES_JEROME = {
   tableaudebordSaisir: 'ÉCART connu : saisie d\'une échéance ou d\'une valeur du module Maintenance, absente chez les clients',
   veille: 'ÉCART connu : ajout de lien et résumé du module Veille (passe par n8n), absent chez les clients',
   reseauxsociauxBuffer: 'ÉCART connu : lecture Buffer, clé personnelle de Jérôme, absente chez les clients (une clé par client demanderait un secret par client)',
+  reseauxsociauxMesuresHebdo: 'ÉCART connu : relevé hebdomadaire (lundi 06:00) des chiffres des posts LinkedIn de Jérôme dans `reseauxsociaux_mesures`, même raison que `reseauxsociauxBuffer` (clé Buffer personnelle)',
+  reseauxsociauxReleverMesures: 'ÉCART connu : même relevé lancé à la main par Jérôme, absent chez les clients pour la même raison',
 };
 
 /** Seulement chez les clients : raison par ligne. */
