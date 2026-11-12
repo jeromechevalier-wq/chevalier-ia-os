@@ -71,7 +71,7 @@ describe('journal commun : branchement des modules (A1, A6)', () => {
     for (const n of ['function executer(', 'function ecrireDansLot(', 'function lireAvants(', 'const ACTIONS_PAR_LOT', 'function lireJournal(', 'function lireCopieJournal(', 'writeBatch(']) {
       assert.ok(!crm.includes(n), `crm/donnees.js ne contient plus ${n}`);
     }
-    assert.equal(occurrences(sansCommentaires(crm), 'await executer('), 22, 'les 22 appels internes passent toujours par executer');
+    assert.equal(occurrences(sansCommentaires(crm), 'await executer('), 23, 'les 23 appels internes passent toujours par executer (dont « J’ai relancé » de l’Accueil)');
   });
   test('A6 Devis et Projets écrivent toujours par CRM.executer, donc par le même journal', () => {
     for (const f of ['js/modules/devis/donnees.js', 'js/modules/projets/donnees.js']) assert.ok(/CRM\.executer\(/.test(lire(f)), f);

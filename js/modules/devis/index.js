@@ -14,7 +14,9 @@ import { reglages as reglagesDuModule } from './reglages.js';
 import { retenirDevis } from './memoire.js';
 import { noterArrivee, oublierOrigine } from './origine.js';
 import * as CRM from '../crm/donnees.js';
-import { inscrirePastilleAffaire, inscrireEtatDevisAffaire, inscrireOngletAffaire, inscrireActionAffaire, signaler } from '../crm/pastilles-externes.js';
+import { estExpire } from './logique.js';
+import { dernierContact } from './relances.js';
+import { inscrirePastilleAffaire, inscrireEtatDevisAffaire, inscrireOngletAffaire, inscrireActionAffaire, inscrireDevisARelancer, signaler } from '../crm/pastilles-externes.js';
 import { pastilleDevisDeAffaire, etatDevisDeAffaire } from './pastille-affaire.js';
 import { creerDevisSansAffaire } from './actions-devis.js';
 import { ouvrirCreationPersonne } from '../crm/personnes.js';
@@ -51,6 +53,7 @@ let retirerPastille = null;
 let retirerEtat = null;
 let retirerOnglet = null;
 let retirerAction = null;
+let retirerDevisARelancer = null;
 let arretSignal = null;
 
 export function demarrer({ cheminBase = '' } = {}) {
@@ -58,7 +61,7 @@ export function demarrer({ cheminBase = '' } = {}) {
   D.demarrer(cheminBase);
   actionsRapides.splice(0, actionsRapides.length, ...(D.surSocleSeul() ? ENTREES_SOCLE : []), ENTREE_DEVIS); // splice : le module reste en cache d'un client à l'autre
   // Pastille « Devis : … » sur les cartes et fiches d'affaire (seulement tant que le module tourne : éteint, le CRM n'affiche rien).
-  retirerPastille?.(); retirerEtat?.(); retirerOnglet?.(); retirerAction?.(); arretSignal?.();
+  retirerPastille?.(); retirerEtat?.(); retirerOnglet?.(); retirerAction?.(); retirerDevisARelancer?.(); arretSignal?.();
   retirerPastille = inscrirePastilleAffaire((affaireId) => (D.estPretDevis() ? pastilleDevisDeAffaire(D.etat.devis, affaireId, { aujourdhui: CRM.ctx().aujourdhui }) : null));
   // Mot d'état du devis sous le montant de la fiche (« finalisé », « signé »…) : module inscrit mais devis pas encore lus = { pret: false } (la fiche n'écrit aucun mot d'état : rien ne clignote) ; module éteint ou devis introuvable = repli sur la nature du montant.
   retirerEtat = inscrireEtatDevisAffaire((affaireId, numero, version) => (D.estPretDevis() ? etatDevisDeAffaire(D.etat.devis, affaireId, numero, version, { aujourdhui: CRM.ctx().aujourdhui }) : { pret: false }));
@@ -72,6 +75,8 @@ export function demarrer({ cheminBase = '' } = {}) {
       ? { libelle: r.libelle, icone: 'plus', action: () => ajouterDevis(affaireId) }
       : { libelle: r.libelle, icone: 'file-text', action: () => naviguer(r.route) };
   });
+  // Bloc « À relancer » de l'Accueil : les devis lus (rien tant qu'ils ne sont pas prêts).
+  retirerDevisARelancer = inscrireDevisARelancer(() => (D.estPretDevis() ? D.etat.devis.map((d) => ({ ...d, expire: estExpire(d, CRM.ctx().aujourdhui), dernierContactMs: dernierContact(d), lien: d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}` })) : []));
   arretSignal = D.surChangement(signaler);
 }
 
@@ -82,6 +87,7 @@ export function arreter() {
   retirerEtat?.(); retirerEtat = null;
   retirerOnglet?.(); retirerOnglet = null;
   retirerAction?.(); retirerAction = null;
+  retirerDevisARelancer?.(); retirerDevisARelancer = null;
   oublierOnglets();
   oublierOrigine();
   arretSignal?.(); arretSignal = null;

@@ -1,10 +1,11 @@
-// Accueil : objectifs du mois, Favoris (documents), À faire (En retard, Aujourd'hui, Sans action prévue), statistiques, rappel d'export.
-import { h, icone, vider, remplir } from '../../os/ui.js';
+// Accueil : objectifs du mois, Favoris (documents), À faire (En retard, Aujourd'hui, Sans action prévue), À relancer (ce qui dort, brouillon à copier), statistiques, rappel d'export.
+import { h, icone, vider, remplir, dialogue, toast } from '../../os/ui.js';
 import { rendreObjectifs, surObjectifs, moisCourantParis } from '../../os/objectifs.js';
 import { animerCompteur, charlesContent } from '../../os/celebrations.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
-import { etatVide, lienAffaire, pastilleEtape, boutonEtoile, lien, cheminAffaire } from './composants.js';
+import { etatVide, lienAffaire, lienPersonne, pastilleEtape, boutonEtoile, lien, cheminAffaire } from './composants.js';
+import { devisDesModules, surChangementPastilles } from './pastilles-externes.js';
 import { ligneActivite, faireActivite, dialogueActivite } from './activites.js';
 import { exporterToutesLesDonnees } from './export.js';
 import { estChezClient } from '../../os/contexte.js';
@@ -14,12 +15,17 @@ import { ligneTachePointsCles } from '../projets/taches.js';
 import { cheminProjet } from '../projets/composants.js';
 
 let moisAffiche = null;
+let nomDuCompte = '';
+let relanceVoirTout = false;
+const relancesEnCours = new Set(); // lignes dont « J'ai relancé » est en train de s'écrire (un double clic n'écrit qu'une fois)
 
 // `objectifs: false` (chez un client, chantier 7) : la section « Objectifs du mois » n'est pas montée (les objectifs sortent de la coquille au chantier 8).
 export function rendreAccueil(conteneur, { compte, objectifs = true }) {
   const moisActuel = moisCourantParis();
   if (!moisAffiche || moisAffiche > moisActuel) moisAffiche = moisActuel;
   retires = new Map();
+  nomDuCompte = compte.nom;
+  relanceVoirTout = false;
 
   const jour = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
   const rappel = h('div', { class: 'zone-rappel' });
@@ -29,6 +35,10 @@ export function rendreAccueil(conteneur, { compte, objectifs = true }) {
   const suivant = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Mois suivant', onclick: () => changerMois(1) }, icone('chevron-right'));
   const zoneFavoris = h('div', { class: 'zone-favoris' });
   const zonePoints = h('div', { class: 'zone-a-faire' });
+  const zoneRelancer = h('div', { class: 'zone-a-relancer' });
+  const sectionRelancer = h('section', { class: 'carte-section section-a-relancer', 'aria-labelledby': 'titre-a-relancer', hidden: true },
+    h('div', { class: 'section-tete' }, h('h2', { id: 'titre-a-relancer' }, icone('mail', { taille: 18 }), 'À relancer')),
+    zoneRelancer);
   const zoneStats = h('div', { class: 'zone-stats' });
 
   const page = h('div', { class: 'page page-accueil' },
@@ -47,6 +57,7 @@ export function rendreAccueil(conteneur, { compte, objectifs = true }) {
     h('section', { class: 'carte-section section-a-faire', 'aria-labelledby': 'titre-points-cles' },
       h('div', { class: 'section-tete' }, h('h2', { id: 'titre-points-cles' }, icone('check-check', { taille: 18 }), 'À faire')),
       zonePoints),
+    sectionRelancer,
     h('section', { class: 'carte-section section-stats', 'aria-labelledby': 'titre-stats' },
       h('div', { class: 'section-tete' }, h('h2', { id: 'titre-stats' }, icone('chart-column', { taille: 18 }), 'Statistiques')),
       zoneStats));
@@ -74,12 +85,14 @@ export function rendreAccueil(conteneur, { compte, objectifs = true }) {
     rendreRappel(rappel);
     rendreFavoris(zoneFavoris);
     rendrePointsCles(zonePoints);
+    sectionRelancer.hidden = D.estNoyau(); // sans le module Affaires, rien à relancer ici
+    if (!sectionRelancer.hidden) { try { rendreARelancer(zoneRelancer); } catch (e) { console.warn(e); remplir(zoneRelancer, etatVide('Rien à relancer pour l’instant.')); } } // une erreur dans ce bloc ne coupe pas la fin de l'Accueil
     rendreStats(zoneStats);
   }
 
   monterObjectifs();
   rafraichir();
-  const arrets = [D.surChangement(rafraichir), PD.surChangement(rafraichir), surObjectifs(() => majObjectifs?.())];
+  const arrets = [D.surChangement(rafraichir), PD.surChangement(rafraichir), surChangementPastilles(rafraichir), surObjectifs(() => majObjectifs?.())];
   return () => arrets.forEach((f) => f());
 }
 
@@ -180,6 +193,74 @@ function rendrePointsCles(zone) {
       h('div', { class: 'activite-texte' }, lienAffaire(a), h('span', { class: 'activite-meta' }, pastilleEtape(a.etape))),
       h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'planifier', onclick: () => dialogueActivite({ liens: L.liensAffaire(a), titre: 'Planifier une activité' }) }, icone('calendar', { taille: 16 }), 'Planifier')))) : null,
     'groupe-sans-action'));
+}
+
+const MESSAGE_RELANCE_ECHEC = 'La relance n’a pas pu être enregistrée. Vérifie ta connexion, puis réessaie : la ligne reste dans la liste.';
+
+/** Où mène le nom d'une ligne : la fiche de l'affaire, de la personne, ou le devis. */
+function lienLigneRelance(l) {
+  if (l.type === 'affaire') return lienAffaire({ id: l.id, titre: l.titre });
+  if (l.type === 'personne') return lienPersonne({ id: l.id, nom: l.titre });
+  return /^devis\/(voir|editeur)\/[\w-]+$/.test(l.lien ?? '') ? lien(`#/${l.lien}`, l.titre) : h('span', {}, l.titre); // la route vient du module Devis
+}
+
+/** Copie le texte : le bouton « Copier » du brouillon. */
+async function copierTexte(texte) {
+  try { await navigator.clipboard.writeText(texte); toast('Texte copié'); } catch (e) { console.warn(e); toast('Copie impossible : sélectionne le texte et copie-le à la main.', { type: 'erreur' }); }
+}
+
+/** Fenêtre « Brouillon » : un texte modèle prérempli (à relire, modifiable), jamais envoyé par l'application. */
+function ouvrirBrouillonRelance(l) {
+  const p = l.personneId ? D.personne(l.personneId) : null;
+  const prenom = p?.prenom || L.decouperNom(p?.nom || '').prenom;
+  const zone = h('textarea', { class: 'champ', rows: 10, 'aria-label': 'Texte de la relance', dataset: { role: 'brouillon-relance' }, value: L.brouillonRelance(l, { prenom, signature: nomDuCompte }) });
+  dialogue({
+    titre: `Brouillon : ${l.titre}`,
+    classe: 'dialogue-relance',
+    contenu: h('div', { class: 'brouillon-relance' }, h('p', { class: 'aide' }, 'Relis et change ce qui te plaît, puis copie le texte pour l’envoyer toi-même.'), zone),
+    boutons: [
+      { libelle: 'Fermer', valeur: false },
+      { libelle: 'Copier', valeur: true, style: 'principal', avantFermeture: async () => { await copierTexte(zone.value); return false; } },
+    ],
+  });
+}
+
+/** « J'ai relancé » : une activité email déjà faite ; la ligne sort d'elle-même. En cas d'échec, un message et la ligne reste. */
+async function aiRelance(l, bouton) {
+  if (relancesEnCours.has(l.cle)) return;
+  relancesEnCours.add(l.cle);
+  bouton.disabled = true;
+  try { await D.enregistrerRelance(l); } catch (e) { console.warn(e); toast(MESSAGE_RELANCE_ECHEC, { type: 'erreur', duree: 6000 }); } finally { relancesEnCours.delete(l.cle); bouton.disabled = false; }
+}
+
+function ligneRelance(l) {
+  return h('li', { class: 'ligne-relance', dataset: { relance: l.cle, motif: l.motif } },
+    h('div', { class: 'relance-texte' },
+      h('strong', {}, lienLigneRelance(l)),
+      h('span', { class: 'relance-meta' }, l.libelle, h('span', { class: 'relance-anciennete' }, texteAnciennete(l.jours)), l.type !== 'personne' && l.nomPersonne ? h('span', {}, l.nomPersonne) : null)),
+    h('div', { class: 'relance-actions' },
+      ...L.liensUtilesRelance(l, l.personneId ? D.personne(l.personneId) : null, D.etat.activites).map((u) => h('a', {
+        class: 'bouton bouton-discret bouton-petit', href: u.href, dataset: { action: `lien-${u.id}` }, ...(u.externe ? { target: '_blank', rel: 'noopener noreferrer' } : {}),
+      }, u.libelle)),
+      h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', dataset: { action: 'brouillon-relance' }, onclick: () => ouvrirBrouillonRelance(l) }, 'Brouillon'),
+      h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'ai-relance' }, onclick: (e) => aiRelance(l, e.currentTarget) }, 'J’ai relancé')));
+}
+
+const texteAnciennete = L.texteAnciennete;
+
+/** Bloc « À relancer » : ce qui dort (devis sans réponse, affaires sans nouvelle, personnes sans activité), le plus ancien d'abord. */
+function rendreARelancer(zone) {
+  vider(zone);
+  const lignes = L.aRelancer({ personnes: D.etat.personnes, affaires: D.etat.affaires, activites: D.etat.activites, devis: devisDesModules() }, D.ctx().aujourdhui);
+  if (!lignes.length) {
+    zone.append(etatVide('Rien à relancer pour l’instant.'));
+    return;
+  }
+  const visibles = relanceVoirTout ? lignes : lignes.slice(0, L.LIGNES_A_RELANCER);
+  zone.append(h('ul', { class: 'liste-relances' }, visibles.map(ligneRelance)));
+  if (lignes.length > visibles.length) {
+    zone.append(h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'voir-tout-relances' }, onclick: () => { relanceVoirTout = true; rendreARelancer(zone); } }, `Voir tout (${lignes.length})`));
+  }
 }
 
 let derniersNombres = new Map();

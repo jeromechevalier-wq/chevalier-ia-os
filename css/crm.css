@@ -616,3 +616,19 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .nouvelle-etiquette { display: flex; flex-direction: column; gap: var(--esp-2); padding-top: var(--esp-4); border-top: 1px solid var(--bordure); }
 
 @media (max-width: 767px), (pointer: coarse) { .titre-editable { min-height: 44px; } }
+
+/* Bloc « À relancer » de l'Accueil (classes à lui : les parcours de l'Accueil comptent .activite) */
+.liste-relances { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-2); }
+.ligne-relance { display: flex; flex-wrap: wrap; align-items: center; gap: var(--esp-4); padding: var(--esp-4) var(--esp-5); background: var(--panneau2); border: 1px solid var(--bordure); border-radius: var(--rayon); }
+.relance-texte { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.relance-texte strong { overflow-wrap: anywhere; }
+.relance-meta { display: flex; align-items: center; gap: var(--esp-3); flex-wrap: wrap; color: var(--texte2); font-size: var(--fs-menu); }
+.relance-actions { display: flex; flex-wrap: wrap; gap: var(--esp-2); }
+.relance-actions a.bouton { text-decoration: none; }
+.dialogue-relance .brouillon-relance { display: flex; flex-direction: column; gap: var(--esp-3); }
+.section-a-relancer .liste-relances + .bouton { margin-top: var(--esp-3); }
+@media (max-width: 767px) {
+  .ligne-relance .relance-texte { flex-basis: 100%; }
+  .relance-actions { width: 100%; }
+  .relance-actions .bouton { flex: 1 1 40%; width: auto; min-height: 44px; justify-content: center; }
+}
