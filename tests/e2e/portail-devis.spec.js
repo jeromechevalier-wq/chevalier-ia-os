@@ -107,7 +107,7 @@ test.describe('chez Jérôme', () => {
     await expect(page).toHaveURL(/#\/devis\/liste$/);
     await expect(page.locator('.page-liste-devis')).toBeVisible();
     await ouvrirMenu(page);
-    await expect.poll(() => entreesMenu(page).then((t) => t.length).catch(() => 0)).toBe(9);
+    await expect.poll(() => entreesMenu(page).then((t) => t.length).catch(() => 0)).toBe(10); // menu complet : 10 entrées (dont Réseaux sociaux)
   });
 
   test('9 un module hors portail : « Page introuvable » avec « Retour à l\'accueil » et « Ouvrir dans l\'espace complet » ; les Réglages s\'ouvrent dans le portail', async ({ page }, info) => {
@@ -124,7 +124,7 @@ test.describe('chez Jérôme', () => {
     await page.locator('[data-action="ouvrir-espace-complet"]').click();
     await expect(page).toHaveURL(/#\/crm\/affaires$/); // hors portail : page rechargée, menu complet
     await ouvrirMenu(page);
-    await expect.poll(() => entreesMenu(page).then((t) => t.length).catch(() => 0)).toBe(9); // page rechargée, menu complet
+    await expect.poll(() => entreesMenu(page).then((t) => t.length).catch(() => 0)).toBe(10); // page rechargée, menu complet (10 entrées, dont Réseaux sociaux)
     await page.evaluate(() => { location.hash = '#/portail-devis/reglages'; });
     await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
     await expect(page).toHaveURL(/#\/portail-devis\/reglages$/);
