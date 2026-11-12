@@ -1,6 +1,13 @@
 /* Module Réseaux sociaux : écrans Aujourd'hui, Posts, Relations, Import. Les boutons, cartes, pastilles et onglets viennent de os.css et crm.css (mêmes composants) ;
    ici seulement ce qui est propre au module. Tailles et poids de texte : toujours les variables de tokens.css. */
 .page-reseauxsociaux { max-width: 1120px; }
+/* Barre d'onglets stable (12/11/2026) : les 6 écrans ont la même largeur (1120 px, Relations et Import n'ont plus de largeur propre) et le même en-tête,
+   donc la barre ne bouge pas quand on passe d'un écran à l'autre. Un tableau large défile dans son propre conteneur, jamais en élargissant la page. */
+.page-reseauxsociaux > * { min-width: 0; }
+/* En-tête de hauteur constante : la ligne de sous-titre (« 34 posts ») est toujours réservée, même vide (Aujourd'hui, Import) ; les boutons d'action ont la même hauteur. */
+.page-reseauxsociaux .page-tete > div:first-child:not(:has(.compteur-liste))::after { content: "\00a0"; display: block; margin-top: var(--esp-1); font-size: var(--fs-texte); }
+.page-reseauxsociaux .page-tete > div:first-child .compteur-liste:empty::before { content: "\00a0"; }
+.page-reseauxsociaux .page-actions .bouton { min-height: 40px; box-sizing: border-box; }
 .rs-cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--esp-7); align-items: start; }
 .rs-rappel-zone:empty { display: none; }
 .rs-rappel { margin: 0; }

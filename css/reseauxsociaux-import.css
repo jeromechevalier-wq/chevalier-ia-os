@@ -1,6 +1,5 @@
 /* Écran Import du module Réseaux sociaux : zone de dépôt de l'archive et compteurs du compte rendu.
    Les boutons, cartes, pastilles et lignes de liste viennent de os.css, crm.css et reseauxsociaux.css. Tailles et poids de texte : toujours les variables de tokens.css. */
-.page-import { max-width: 920px; }
 .rs-import-depot {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--esp-5);
   padding: var(--esp-9) var(--esp-7); text-align: center;
