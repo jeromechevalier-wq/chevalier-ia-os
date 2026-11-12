@@ -1,5 +1,16 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 13/11/2026 (nuit « GO NUIT »), bloc « À relancer » de l'Accueil
+
+Version 2.45.0. Cadrage : `docs/cadrage-a-relancer.md`. Aucune donnée de Jérôme touchée, aucune règle Firestore, aucune fonction du serveur, rien à brancher chez les clients (même code, section masquée sans le module Affaires).
+
+| Sujet | PR | État |
+|---|---|---|
+| Bloc « À relancer » (devis sans réponse, affaires qui dorment, personnes sans activité), brouillons à copier, liens utiles (LinkedIn, e-mail, appeler, devis), « J'ai relancé » | voir le résumé de la session | relue par Fable ; auto-merge armé quand la coche « Tests » est verte (état exact dans la PR) |
+
+Décisions prises seul : un devis dont l'affaire est perdue ou archivée n'a pas de ligne ; un devis sans date d'envoi prend sa date de finalisation ; plusieurs devis envoyés sur une affaire : le plus ancien seul ; « J'ai relancé » repart de zéro aussi pour le devis ; pas de lien vers le PDF (le lien mène au devis) ; la date de création d'une affaire compte comme dernier mouvement à défaut d'autre.
+Non vérifié avec le vrai système : le bloc sur les vraies données de Jérôme (seuls les jeux de test ont servi), le clic réel sur « Ouvrir LinkedIn » et « E-mail » (liens vérifiés dans le HTML), la suite `fonctions` du palier rapide (dépendances du dossier `functions/` absentes dans ce dossier de travail : la coche GitHub fait foi).
+
 ## Rapport du matin du 13/11/2026 : nuit « GO NUIT », Réseaux sociaux, pistes et carte mentale
 
 Version 2.44.0 (cette PR, la seule à toucher la version, `js/os/version.js`, le test de version et `wiki/`). Aucune donnée de Jérôme touchée, aucun secret affiché, `firestore.rules` non touché (la nouvelle table passe par le joker des règles). Fiche du flux : `docs/reseauxsociaux-pistes-et-sources.md`.
