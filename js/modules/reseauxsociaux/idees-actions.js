@@ -9,6 +9,8 @@ import * as D from './donnees.js';
 import * as R from './logique.js';
 import * as I from './idees-logique.js';
 import * as N from './inspirations-logique.js';
+import * as P from './pistes-logique.js';
+import * as V from './inspirations-vue-logique.js';
 
 const nouvelId = (nom) => doc(collection(db, D.chemin(nom))).id;
 
@@ -54,4 +56,42 @@ export async function enregistrerExemple(id, valeurs) {
   const idDoc = id || nouvelId(R.COLLECTION_EXEMPLES);
   await executer(N.planEnregistrerExemple(existant, valeurs, { id: idDoc }).ecritures);
   return idDoc;
+}
+
+// ---------------------------------------------------------------- pistes (13/11/2026)
+
+/**
+ * Dépose des pistes sur une source (l'aperçu validé de la réponse collée, ou une piste saisie à la main). `source` = la fiche affichée (réelle, ou virtuelle pour un résumé de veille : la fiche est alors créée ici,
+ * avec son nom et son `veilleContenuId`). `options` : `voie` (« collage » ou « main », pour l'étiquette du lot), `auteur` (« claude » par défaut), `accepterDoublons` (vrai quand Jérôme a recoché un doublon).
+ * La source est relue FRAIS : si elle existe déjà, on la modifie seulement (`traiteLe`) ; sinon elle est créée. Rien n'est supprimé. Renvoie { creees, ignorees }.
+ */
+export async function ajouterPistes(source, entrees, { voie = 'collage', auteur = 'claude', accepterDoublons = false } = {}) {
+  const fiche = await lire(R.COLLECTION_INSPIRATIONS, source.id);
+  if (!source.virtuelle && !fiche) throw new I.ErreurClaire('Cette source n’existe plus.');
+  const base = fiche ?? source;
+  const sourceExiste = !!fiche;
+  const dernier = Math.max(-1, ...D.etat.inspirations.map((p) => (Number.isFinite(p.ordre) ? p.ordre : -1)));
+  const plan = P.planAjouterPistes(
+    // Le nom et le résumé de veille servent quand la fiche n'existe pas encore : sans eux la fiche créée serait sans nom (refusée) et sans lien avec son contenu de veille.
+    { ...base, id: source.id, type: N.typeSource(base), nom: base.nom ?? source.nom, veilleContenuId: base.veilleContenuId ?? source.veilleContenuId },
+    entrees,
+    { nouvelId, jour: V.jourDuLot(), lot: V.etiquetteLot(voie), auteur, accepterDoublons, sourceExiste, ordre: dernier + 1, pistesExistantes: V.pistesDeSource(D.etat.pistes, source.id) });
+  await executer(plan.ecritures);
+  return { creees: plan.creees, ignorees: plan.ignorees };
+}
+
+/** Écarte une piste, la retient ou la remet en stock (un état de plus : rien ne s'efface). */
+export async function changerEtatPiste(id, etat) {
+  const existante = await lire(R.COLLECTION_PISTES, id);
+  await executer(P.planChangerEtatPiste(existante, etat, { id }).ecritures);
+}
+
+/** « En faire une idée » : crée l'idée (angle, pilier, format, service, source = la piste) et lie les deux ; la piste passe « retenue ». Renvoie l'identifiant de l'idée. */
+export async function enFaireUneIdee(pisteId) {
+  const piste = await lire(R.COLLECTION_PISTES, pisteId);
+  if (!piste) throw new I.ErreurClaire('Cette piste n’existe plus.');
+  const source = await lire(R.COLLECTION_INSPIRATIONS, piste.sourceId);
+  const ideeId = nouvelId(R.COLLECTION_IDEES);
+  await executer(P.planEnFaireUneIdee(piste, source, { ideeId }).ecritures);
+  return ideeId;
 }

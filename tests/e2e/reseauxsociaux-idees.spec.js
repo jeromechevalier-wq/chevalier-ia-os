@@ -30,6 +30,8 @@ async function ouvrir(page, ecran, posts = []) {
   return recues;
 }
 const sansDebordement = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+/** Les sources sont repliées : on déplie celle dont on veut lire le contenu (une ligne par source, un clic la déplie). */
+const deplier = async (page, id) => { const l = page.locator(`[data-inspiration="${id}"] [data-action="deplier-source"]`); if ((await l.getAttribute('aria-expanded')) !== 'true') await l.click(); };
 const fenetre = (page, nom) => page.getByRole('dialog', { name: nom });
 const carte = (page, id) => page.locator(`.carte-idee[data-idee="${id}"]`);
 const idees = async () => (await listerDocuments('reseauxsociaux_idees'));
@@ -278,7 +280,7 @@ test('F8 Inspirations, cas vide : « Ajoute les profils qui t’inspirent. » ; 
   await expect(page.getByText('Ajoute les profils qui t’inspirent.')).toBeVisible();
   await expect(page.locator('.carte-inspiration')).toHaveCount(0);
   await expect(page.locator('.page-tete .bouton-principal')).toHaveCount(1);
-  await expect(page.locator('[data-action="nouvelle-inspiration"]')).toHaveText('Inspiration');
+  await expect(page.locator('[data-action="nouvelle-inspiration"]')).toHaveText('Source');
   expect(await sansDebordement(page)).toBe(true);
   await capture(page, 'F8-cas-vide');
   await page.evaluate(() => { location.hash = '#/reseauxsociaux/aujourdhui'; });
@@ -292,7 +294,7 @@ test('F8 Inspirations, cas vide : « Ajoute les profils qui t’inspirent. » ; 
 test('F9 ajouter un profil : adresse refusée si elle n’est pas LinkedIn ; le profil est écrit ; « Ouvrir LinkedIn » s’ouvre dans un nouvel onglet (noopener) ; la carte d’Aujourd’hui a un bouton par profil', async ({ page }) => {
   await ouvrir(page, 'inspirations');
   await page.locator('[data-action="nouvelle-inspiration"]').click();
-  const f = fenetre(page, 'Nouveau profil');
+  const f = fenetre(page, 'Nouvelle source');
   await expect(f.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
   await f.locator('[data-champ="nom"]').fill('Alice Exemple');
   await f.locator('[data-champ="url"]').fill('https://exemple.test/alice');
@@ -311,6 +313,7 @@ test('F9 ajouter un profil : adresse refusée si elle n’est pas LinkedIn ; le 
   const c = page.locator('.carte-inspiration');
   await expect(c).toHaveCount(1);
   await expect(c.locator('[data-role="nom-profil"]')).toContainText('Alice Exemple');
+  await deplier(page, (await listerDocuments('reseauxsociaux_inspirations'))[0].id);
   await expect(c.locator('[data-role="habitudes"]')).toContainText('Cas concrets');
   const lien = c.locator('[data-action="ouvrir-linkedin"]');
   await expect(lien).toHaveAttribute('href', 'https://linkedin.com/in/alice-exemple');
@@ -333,6 +336,7 @@ test('F9 ajouter un profil : adresse refusée si elle n’est pas LinkedIn ; le 
 test('F10 exemples d’un profil : lien + analyse (jamais le texte du post), 500 caractères au plus par champ, lien refusé s’il n’est pas LinkedIn', async ({ page }) => {
   await ecrireDocument('reseauxsociaux_inspirations/p1', { nom: 'Alice Exemple', url: 'https://www.linkedin.com/in/alice-exemple', pourquoi: '', piliers: [], formats: [], ordre: 0 });
   await ouvrir(page, 'inspirations');
+  await deplier(page, 'p1');
   await page.locator('[data-inspiration="p1"] [data-action="nouvel-exemple"]').click();
   const f = fenetre(page, 'Nouvel exemple de post');
   await expect(f.getByText('Colle seulement le lien. Le texte du post n’est pas copié ici.')).toBeVisible();
@@ -389,8 +393,9 @@ test('F11 ranger les profils : ▲ et ▼ échangent deux profils (l’ordre est
   await expect(page.locator('[data-inspiration="p2"] [data-action="descendre-profil"]')).toBeDisabled();
   await page.locator('[data-inspiration="p2"] [data-action="monter-profil"]').click();
   await expect(page.locator('.carte-inspiration').first()).toHaveAttribute('data-inspiration', 'p2');
-  expect((await lireDocument('reseauxsociaux_inspirations/p2')).ordre).toBe(0);
-  expect((await lireDocument('reseauxsociaux_inspirations/p1')).ordre).toBe(1);
+  // L'écran montre l'écriture avant que le serveur l'ait confirmée : on attend la valeur au lieu de la lire tout de suite.
+  await expect.poll(async () => (await lireDocument('reseauxsociaux_inspirations/p2')).ordre).toBe(0);
+  await expect.poll(async () => (await lireDocument('reseauxsociaux_inspirations/p1')).ordre).toBe(1);
   await page.locator('[data-inspiration="p2"] [data-action="descendre-profil"]').click();
   await expect(page.locator('.carte-inspiration').first()).toHaveAttribute('data-inspiration', 'p1');
   await capture(page, 'F11-ranger');
@@ -399,6 +404,7 @@ test('F11 ranger les profils : ▲ et ▼ échangent deux profils (l’ordre est
 test('F12 modifier un profil : « Enregistrer » grisé tant que rien n’a changé ; le nouvel ordre et le nom sont gardés', async ({ page }) => {
   await ecrireDocument('reseauxsociaux_inspirations/p1', { nom: 'Alice Exemple', url: 'https://www.linkedin.com/in/alice-exemple', pourquoi: 'Avant', piliers: [], formats: [], ordre: 3 });
   await ouvrir(page, 'inspirations');
+  await deplier(page, 'p1');
   await page.locator('[data-inspiration="p1"] [data-action="modifier-profil"]').click();
   const f = fenetre(page, 'Modifier ce profil');
   await expect(f.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
@@ -428,6 +434,7 @@ test('F13 téléphone et ordinateur : les deux écrans ne débordent pas, la fen
   await page.evaluate(() => { location.hash = '#/reseauxsociaux/inspirations'; });
   await expect(page.getByRole('heading', { name: 'Inspirations', level: 1 })).toBeVisible();
   await expect(page.locator('.carte-inspiration')).toHaveCount(1);
+  await deplier(page, 'p1'); // nom long, 300 caractères de « pourquoi » et pastilles : le contenu déplié ne déborde pas non plus
   expect(await sansDebordement(page)).toBe(true);
   await capture(page, 'F13-inspirations');
 });
