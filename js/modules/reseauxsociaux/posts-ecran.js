@@ -143,7 +143,7 @@ function changerTriStats(colonneId) {
     : { colonne: colonneId, sens: c?.numerique || colonneId === 'date' ? 'desc' : 'asc' };
 }
 
-function vueStatistiques(posts, rafraichir) {
+function vueStatistiques(posts, rafraichir, tous) {
   const { lignes, moyenne } = P.statistiques(posts);
   if (!lignes.length) return [etatVide('Aucun post publié pour le moment.')];
   const triees = P.trierStatistiques(lignes, triStats.colonne, triStats.sens);
@@ -170,6 +170,7 @@ function vueStatistiques(posts, rafraichir) {
   return [
     h('div', { class: 'zone-tableau' }, h('table', { class: 'tableau tableau-posts' }, h('thead', {}, entete), h('tbody', {}, triees.map(ligne)), h('tfoot', {}, pied))),
     phraseGrise('Les chiffres viennent de Buffer et se mettent à jour tout seuls.', 'note-stats'),
+    phraseGrise(`${R.phraseBase(tous)} Le tableau ne montre que les posts publiés.`, 'base-calcul-stats'),
   ];
 }
 
@@ -190,6 +191,9 @@ function caseMatrice(c, max, libelleLigne, libelleColonne) {
     dataset: { format: c.format, nombre: String(c.nombre) }, 'aria-label': `${libelleLigne}, ${libelleColonne} : ${pluriel(c.nombre, 'post', 'posts')}, ${c.part} %` },
   h('span', { class: 'rs-case-nombre' }, R.formaterNombre(c.nombre)), h('span', { class: 'rs-case-part' }, `${c.part} %`));
 }
+
+/** Base de calcul des statistiques, sous la matrice et sous le tableau : « Base : n posts publiés + n programmés avec date. … » */
+const phraseBaseCalcul = (tous) => phraseGrise(R.phraseBase(tous), 'base-calcul');
 
 function suggestionsPosts(m) {
   if (!m.suggestions.length) return null;
@@ -226,8 +230,9 @@ function carteMatrice(tous) {
   return carteRepliable('matrice', 'Matrice pilier × format', m.total
     ? [suggestionsPosts(m), tableauMatrice(m),
       aPart ? phraseGrise(`${R.formaterNombre(m.sansPilier)} sans pilier, ${R.formaterNombre(m.sansFormat)} sans format`, 'sans-classement') : null,
-      phraseGrise('Posts publiés et programmés. Un post sans pilier ou sans format reste hors de la matrice.')]
-    : phraseGrise('Pas encore de posts publiés ou programmés.'));
+      phraseGrise('Un post sans pilier ou sans format reste hors de la matrice.'),
+      phraseBaseCalcul(tous)]
+    : [phraseGrise('Pas encore de posts publiés ou programmés avec une date.'), phraseBaseCalcul(tous)]);
 }
 
 function carteControle(tous, classements) {
@@ -314,7 +319,7 @@ export function rendrePosts(conteneur) {
     const retenus = (liste) => liste.filter((p) => ['brouillon', 'programme', 'publie'].includes(p.statut)).length;
     const nb = retenus(affiches);
     remplir(compteur, `${pluriel(nb, 'post', 'posts')}${nb !== retenus(tous) ? ` sur ${R.formaterNombre(retenus(tous))}` : ''}`);
-    remplir(zone, ...(vue === 'stats' ? vueStatistiques(affiches, rendre) : vueKanban(affiches)));
+    remplir(zone, ...(vue === 'stats' ? vueStatistiques(affiches, rendre, tous) : vueKanban(affiches)));
   }
 
   const arret = D.surChangement(rendre);

@@ -160,18 +160,53 @@ export function categoriesManquantes(existantes, noms) {
   return { items, creees };
 }
 
+// ---------------------------------------------------------------- posts comptés (règle unique des statistiques)
+
+/**
+ * LA règle unique de ce qui compte dans les statistiques et les équilibres du module (matrice, cibles, part de vidéos, suggestions, contrôle éditorial,
+ * onglet Statistiques, créneaux remplis). Décision de Jérôme du 12/11/2026 : on compte ce qui est PUBLIÉ et ce qui est PROGRAMMÉ AVEC UNE DATE de publication dans Buffer.
+ * Un publié compte toujours (sans date il compte quand même, mais il est signalé) ; un programmé sans date, un brouillon (même classé) et tout autre statut ne comptent jamais.
+ * Aucun autre filtre de statut ne doit servir à ces calculs : passer par cette fonction.
+ */
+export function postsComptes(posts) {
+  return (posts || []).filter((p) => p && (p.statut === 'publie' || (p.statut === 'programme' && !!L.versDate(p.prevuLe))));
+}
+
+/** Base de calcul : combien de posts comptent, combien sont laissés de côté (et pourquoi). */
+export function baseDeCalcul(posts) {
+  const liste = (posts || []).filter(Boolean);
+  const comptes = postsComptes(liste);
+  const publies = comptes.filter((p) => p.statut === 'publie');
+  return {
+    publies: publies.length,
+    publiesSansDate: publies.filter((p) => !L.versDate(p.publieLe)).length,
+    programmesAvecDate: comptes.length - publies.length,
+    programmesSansDate: liste.filter((p) => p.statut === 'programme' && !L.versDate(p.prevuLe)).length,
+    brouillons: liste.filter((p) => p.statut === 'brouillon').length,
+    total: comptes.length,
+  };
+}
+
+/** La ligne affichée sous la matrice (cas à 0 inclus). */
+export function phraseBase(posts) {
+  const b = baseDeCalcul(posts);
+  const n = (v, un, plusieurs) => `${formaterNombre(v)} ${v > 1 ? plusieurs : un}`;
+  return `Base : ${n(b.publies, 'post publié', 'posts publiés')} + ${n(b.programmesAvecDate, 'programmé avec date', 'programmés avec date')}. `
+    + `${n(b.programmesSansDate, 'programmé sans date', 'programmés sans date')} et ${n(b.brouillons, 'brouillon', 'brouillons')} ne sont pas comptés.`;
+}
+
 // ---------------------------------------------------------------- créneaux de publication
 
 const jourSemaine = (jour) => { const [a, m, j] = jour.split('-').map(Number); return new Date(Date.UTC(a, m - 1, j)).getUTCDay(); };
 
 /**
  * Les créneaux (mardi et jeudi à 6 h 08, heure de Paris) des `jours` prochains jours, du plus proche au plus lointain : [{ date, heure, post }].
- * Un créneau est « rempli » (`post` = ce post) si un post programmé ou publié est prévu à 60 minutes au plus de l'heure ; sinon `post` vaut null (créneau vide).
+ * Un créneau est « rempli » (`post` = ce post) si un post compté (`postsComptes` : publié, ou programmé avec date) est prévu à 60 minutes au plus de l'heure ; sinon `post` vaut null (créneau vide).
  * Un créneau déjà passé aujourd'hui n'est pas listé.
  */
 export function creneauxAVenir(maintenant, posts, jours = 21) {
   const aujourdhui = L.aujourdhuiParis(maintenant);
-  const programmes = (posts || []).filter((p) => p.statut === 'programme' || p.statut === 'publie').map((p) => ({ post: p, instant: L.versDate(p.prevuLe) ?? L.versDate(p.publieLe) })).filter((x) => x.instant);
+  const programmes = postsComptes(posts).map((p) => ({ post: p, instant: L.versDate(p.prevuLe) ?? L.versDate(p.publieLe) })).filter((x) => x.instant);
   const sortie = [];
   for (let i = 0; i < jours; i++) {
     const date = L.ajouterJours(aujourdhui, i);

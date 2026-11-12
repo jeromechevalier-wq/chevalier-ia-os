@@ -426,3 +426,77 @@ describe('E9 E10 écran : texte de Buffer, messages, interface', () => {
     assert.doesNotMatch(lire('index.html'), /reseauxsociaux-posts/);
   });
 });
+
+// Décision de Jérôme du 12/11/2026 : les statistiques reflètent ce qui est PUBLIÉ et ce qui est PROGRAMMÉ AVEC UNE DATE de publication dans Buffer.
+describe('E11 base de calcul unique (R.postsComptes)', () => {
+  const NOW = new Date('2026-11-03T04:00:00Z');
+  const brouillonClasse = post('bro', 'brouillon', { prevuLe: '2026-11-17T05:08:00Z', video: true });
+  const sansDate = post('psd', 'programme', { video: true });
+  const daté = post('pda', 'programme', { prevuLe: '2026-11-17T05:08:00Z', video: true });
+  const publie = post('pub', 'publie', { publieLe: '2026-11-03T05:08:00Z' });
+  const publieSansDate = post('pubsd', 'publie');
+  const tous = [brouillonClasse, sansDate, daté, publie, publieSansDate];
+  const classes = tous.map((p) => classement(p.id, 'cas_concrets', 'video'));
+  const fusion = P.fusionnerPosts(tous, classes);
+
+  test('E11 un brouillon ne compte jamais, même classé et daté', () => {
+    assert.deepEqual(ids(R.postsComptes([brouillonClasse])), []);
+  });
+  test('E11 un programmé sans date ne compte pas ; un programmé daté compte ; un publié compte', () => {
+    assert.deepEqual(ids(R.postsComptes([sansDate])), []);
+    assert.deepEqual(ids(R.postsComptes([daté])), ['pda']);
+    assert.deepEqual(ids(R.postsComptes([publie])), ['pub']);
+    assert.deepEqual(ids(R.postsComptes([{ ...daté, statut: 'autre' }])), []);
+  });
+  test('E11 un publié sans date compte quand même, mais il est signalé (base et contrôle éditorial)', () => {
+    assert.deepEqual(ids(R.postsComptes([publieSansDate])), ['pubsd']);
+    assert.equal(R.baseDeCalcul(tous).publiesSansDate, 1);
+    const g = P.controlesEditoriaux(tous, classes, NOW).filter((p) => p.code === 'g');
+    assert.deepEqual(g.map((p) => p.postId), ['pubsd']);
+  });
+  test('E11 la matrice ne compte que les posts comptés et le dit dans sa base', () => {
+    const m = P.matrice(fusion);
+    assert.equal(m.total, 3);
+    assert.equal(m.classes, 3);
+    assert.deepEqual([m.base.publies, m.base.programmesAvecDate, m.base.programmesSansDate, m.base.brouillons], [2, 1, 1, 1]);
+  });
+  test('E11 phrase de base : « Base : n posts publiés + n programmés avec date. n programmés sans date et n brouillons ne sont pas comptés. »', () => {
+    assert.equal(R.phraseBase(fusion), 'Base : 2 posts publiés + 1 programmé avec date. 1 programmé sans date et 1 brouillon ne sont pas comptés.');
+    assert.equal(R.phraseBase([]), 'Base : 0 post publié + 0 programmé avec date. 0 programmé sans date et 0 brouillon ne sont pas comptés.');
+  });
+  test('E11 contrôle éditorial : un post programmé sans date est signalé (« est programmé sans date de publication dans Buffer »)', () => {
+    const f = P.controlesEditoriaux(tous, classes, NOW).filter((p) => p.code === 'f');
+    assert.equal(f.length, 1);
+    assert.equal(f[0].postId, 'psd');
+    assert.ok(f[0].texte.includes('est programmé sans date de publication dans Buffer'));
+  });
+  test('E11 un programmé sans date non classé n’ajoute pas de message « pas de pilier » (il ne compte pas)', () => {
+    assert.equal(P.controlesEditoriaux([post('x', 'programme')], [], NOW).filter((p) => p.code === 'c').length, 0);
+  });
+  test('E11 cohérence : la matrice et le contrôle éditorial disent le même total (part de vidéos et piliers sur les mêmes posts)', () => {
+    // 6 posts comptés (vidéo) + brouillons et programmés sans date NON vidéo : s'ils comptaient, la part de vidéos tomberait sous 50 %.
+    const bons = Array.from({ length: 6 }, (_, i) => post(`ok${i}`, 'publie', { publieLe: `2026-10-${10 + i}T05:08:00Z`, video: true }));
+    const exclus = [post('b1', 'brouillon'), post('b2', 'brouillon'), post('s1', 'programme'), post('s2', 'programme'), post('s3', 'programme')];
+    const piliers = ['cas_concrets', 'pedagogie', 'demarche_offre', 'cas_concrets', 'actu_ia', 'pedagogie'];
+    const cl = bons.map((p, i) => classement(p.id, piliers[i], 'video'));
+    const m = P.matrice(P.fusionnerPosts([...bons, ...exclus], cl));
+    assert.equal(m.total, 6);
+    assert.equal(m.video.nombre, 6);
+    const points = P.controlesEditoriaux([...bons, ...exclus], cl, NOW);
+    assert.equal(points.filter((p) => p.code === 'd').length, 0, 'la part de vidéos du contrôle est calculée sur les 6 posts comptés, comme la matrice');
+    assert.equal(points.filter((p) => p.code === 'f').length, 3);
+  });
+  test('E11 les statistiques et les créneaux utilisent la même règle : un brouillon ou un programmé sans date ne remplit pas un créneau', () => {
+    assert.deepEqual(ids(P.statistiques(fusion).lignes).sort(), ['pub', 'pubsd']);
+    const creneau = R.creneauxAVenir(NOW, [{ ...sansDate, prevuLe: null, publieLe: null }, { ...brouillonClasse, prevuLe: '2026-11-03T05:08:00Z' }])[0];
+    assert.equal(creneau.post, null);
+    const rempli = R.creneauxAVenir(NOW, [{ ...daté, prevuLe: '2026-11-03T05:08:00Z' }])[0];
+    assert.equal(rempli.post?.id, 'pda');
+  });
+  test('E11 aucun autre filtre de statut pour les calculs : le code des statistiques passe par postsComptes', () => {
+    const src = sansCommentaires(lire('js/modules/reseauxsociaux/posts-logique.js'));
+    assert.ok(!/statut === 'publie' \|\| [a-z.]*statut === 'programme'/.test(src));
+    assert.ok(/postsComptes\(posts\)/.test(src));
+    assert.ok(/postsComptes\(posts\)/.test(sansCommentaires(lire('js/modules/reseauxsociaux/logique.js'))));
+  });
+});
