@@ -143,6 +143,15 @@ describe('lire la réponse collée : chaque cas du tableau d’erreurs', () => {
   test('sourceId d’une autre source : « autre source », rien à créer ; absent : accepté', () => {
     assert.deepEqual(lire(reponse([bonne], { sourceId: 'autre' })), { ok: false, erreur: 'Cette réponse est pour une autre source.' });
     assert.equal(lire(JSON.stringify({ format: 'pistes-v1', pistes: [bonne] })).ok, true);
+    assert.equal(lire(reponse([bonne], { sourceId: null })).ok, true, 'sourceId nul = aucune source annoncée : accepté (décision du 13/11)');
+    assert.equal(lire(reponse([bonne], { sourceId: '' })).ok, false, 'une chaîne vide n’est pas « absent » : refusée');
+  });
+  test('les longueurs se comptent en caractères réels : 200 emojis passent entiers, 201 sont refusés', () => {
+    const deux = '😀'.repeat(200);
+    const ok = lire(reponse([{ angle: deux }]));
+    assert.equal(ok.lignes[0].angle, deux);
+    assert.equal(P.normaliserPiste({ sourceId: 's1', angle: deux }).angle, deux);
+    assert.match(lire(reponse([{ angle: '😀'.repeat(201) }])).lignes[0].refus, /angle trop long/);
   });
   test('Claude entoure le JSON d’un bloc de code ou d’une phrase : lu quand même', () => {
     assert.equal(lire(`Voici :\n\`\`\`json\n${reponse([bonne])}\n\`\`\`\nBonne chance !`).nombreCochees, 1);

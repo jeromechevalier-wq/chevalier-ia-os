@@ -1,5 +1,6 @@
 // Données du module Réseaux sociaux. Ce que le module écoute lui-même (il marche même quand le module Affaires est éteint, où le CRM ne charge ni les activités ni les étiquettes) :
-//  - reseauxsociaux_posts, reseauxsociaux_imports, puis les trois tables du volet Idées et inspirations (idees, inspirations, exemples) ;
+//  - reseauxsociaux_posts, reseauxsociaux_imports, puis les quatre tables du volet Idées et inspirations (idees, inspirations, exemples, pistes) ;
+//  - veille_contenus (lecture seule) : les résumés de veille apparaissent tout seuls comme sources dans l'écran Inspirations ; sans module Veille la table est simplement vide ;
 //  - les activités LinkedIn et les rendez-vous du CRM (UNE condition par requête, tri dans le navigateur) ;
 //  - le document des étiquettes du CRM (lecture seule, sauf `creerCategories`, au clic).
 // Les posts viennent de Buffer, lus par la fonction `reseauxsociauxBuffer` du serveur (lecture seule) et gardés cinq minutes en mémoire.
@@ -14,7 +15,8 @@ import * as L from '../crm/logique.js';
 import * as R from './logique.js';
 
 const vierge = () => ({
-  posts: [], imports: [], idees: [], inspirations: [], exemples: [], activitesLinkedin: [], rendezVous: [],
+  posts: [], imports: [], idees: [], inspirations: [], exemples: [], pistes: [], veilleContenus: [], activitesLinkedin: [], rendezVous: [],
+  auteur: '', // nom de la personne pour qui le prompt des pistes est écrit (celui du compte connecté) ; vide = « moi »
   etiquettes: [], etiquettesDisponibles: null, // null = pas encore lues ; false = illisibles ou absentes ; true = lues
   pret: false,
   buffer: { posts: [], lueLe: null, canal: null, erreur: null, chargement: false },
@@ -24,7 +26,7 @@ export const etat = vierge();
 let desabonnements = [];
 let base = '';
 const abonnes = new Set();
-const prets = { posts: false, imports: false, idees: false, inspirations: false, exemples: false, activitesLinkedin: false, rendezVous: false };
+const prets = { posts: false, imports: false, idees: false, inspirations: false, exemples: false, pistes: false, veilleContenus: false, activitesLinkedin: false, rendezVous: false };
 
 export const chemin = (nom) => cheminCollection(base, nom);
 
@@ -74,13 +76,16 @@ export async function chargerEtiquettes() {
 }
 
 /** Chez Jérôme, cheminBase est '' (racine de la base 1) ; chez un client, clients/<client>. */
-export function demarrer(_compte, cheminBase = '') {
+export function demarrer(compte, cheminBase = '') {
   base = cheminBase;
+  etat.auteur = String(compte?.displayName ?? '').replace(/\s+/g, ' ').trim().slice(0, 100);
   suivre(R.COLLECTION_POSTS, 'posts');
   suivre(R.COLLECTION_IMPORTS, 'imports');
   suivre(R.COLLECTION_IDEES, 'idees');
   suivre(R.COLLECTION_INSPIRATIONS, 'inspirations');
   suivre(R.COLLECTION_EXEMPLES, 'exemples');
+  suivre(R.COLLECTION_PISTES, 'pistes');
+  suivre('veille_contenus', 'veilleContenus');
   suivre('crm_activites', 'activitesLinkedin', query(collection(db, chemin('crm_activites')), where('type', '==', 'linkedin')));
   suivre('crm_activites', 'rendezVous', query(collection(db, chemin('crm_activites')), where('type', '==', 'rendez_vous')));
   chargerEtiquettes();
@@ -90,7 +95,7 @@ export function arreter() {
   desabonnements.forEach((f) => f());
   desabonnements = [];
   Object.assign(etat, vierge());
-  Object.assign(prets, { posts: false, imports: false, idees: false, inspirations: false, exemples: false, activitesLinkedin: false, rendezVous: false });
+  Object.assign(prets, { posts: false, imports: false, idees: false, inspirations: false, exemples: false, pistes: false, veilleContenus: false, activitesLinkedin: false, rendezVous: false });
   derniereLecture = 0;
   enCours = null;
   base = '';

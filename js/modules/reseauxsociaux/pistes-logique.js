@@ -34,7 +34,8 @@ export const CHAMPS_OUTIL = Object.freeze([...CHAMPS_REPONSE, 'exempleId']);
 export const CHAMPS_MODIFIABLES = Object.freeze(['angle', 'note', 'ancre', 'pilier', 'format', 'service', 'etat']);
 export const FORMAT_REPONSE = 'pistes-v1';
 
-const texteSimple = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+// Coupe en caractères réels (points de code), jamais au milieu d'un emoji : `longueur` compte de la même façon, donc un angle accepté n'est jamais rogné.
+const texteSimple = (v, max) => Array.from(String(v ?? '').replace(/\s+/g, ' ').trim()).slice(0, max).join('');
 const longueur = (v) => Array.from(String(v ?? '').replace(/\s+/g, ' ').trim()).length;
 const idConnu = (liste, id) => (liste.some((x) => x.id === id) ? id : null);
 /** Adresse https seulement (sans schéma, elle est refusée : une piste ne reçoit que des liens complets). */
@@ -155,8 +156,8 @@ export function lireReponsePistes(texte, { source = {}, pistesExistantes = [] } 
   let json;
   try { json = JSON.parse(brut.slice(debut, fin + 1)); } catch { return { ok: false, erreur: ERREUR_ILLISIBLE }; }
   if (!json || typeof json !== 'object' || Array.isArray(json) || json.format !== FORMAT_REPONSE || !Array.isArray(json.pistes)) return { ok: false, erreur: ERREUR_ILLISIBLE };
-  // Décision prise seul : un sourceId absent est accepté (Claude l'oublie parfois) ; un sourceId présent mais différent est refusé.
-  if (json.sourceId !== undefined && json.sourceId !== source?.id) return { ok: false, erreur: 'Cette réponse est pour une autre source.' };
+  // Décision prise seul : un sourceId absent OU nul est accepté (Claude l'oublie ou met null quand il ne sait pas) ; un sourceId rempli mais différent est refusé.
+  if (json.sourceId !== undefined && json.sourceId !== null && json.sourceId !== source?.id) return { ok: false, erreur: 'Cette réponse est pour une autre source.' };
   const { lignes, champsIgnores } = controlerPistes(json.pistes, { source, pistesExistantes, champsPermis: CHAMPS_REPONSE });
   const nombreCochees = lignes.filter((l) => l.cochee).length;
   return { ok: true, lignes, nombreCochees, champsIgnores, message: nombreCochees || lignes.some((l) => l.piste) ? '' : 'Aucune piste valide dans cette réponse.' };

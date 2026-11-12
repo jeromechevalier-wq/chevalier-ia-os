@@ -50,3 +50,48 @@
 .rs-source-editeur { display: flex; flex-direction: column; gap: var(--esp-4); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: var(--esp-5); min-width: 0; }
 .carte-inspiration, .carte-inspiration p { min-width: 0; overflow-wrap: anywhere; }
 .rs-profil-tete > h2 { flex: 1 1 auto; }
+
+/* Inspirations en liste dense (13/11/2026) : une ligne par source qui se déplie, une ligne par piste (pastille = pilier, marque = état). */
+.rs-source { padding: var(--esp-4) var(--esp-5); gap: var(--esp-3); }
+.rs-source-tete { display: flex; flex-wrap: wrap; align-items: center; gap: var(--esp-2) var(--esp-5); }
+.rs-source-titre { flex: 1 1 14rem; min-width: 0; margin: 0; font-size: var(--fs-texte); }
+.rs-deplier { display: flex; align-items: center; gap: var(--esp-3); width: 100%; min-height: 36px; padding: 0; background: none; border: 0; color: inherit; font: inherit; font-weight: var(--poids-moyen); text-align: left; cursor: pointer; }
+.rs-deplier:focus-visible { outline: 2px solid var(--accent-trait); outline-offset: 2px; }
+.rs-source-nom { min-width: 0; overflow-wrap: anywhere; }
+.rs-compteurs { font-size: var(--fs-petit); color: var(--texte2); white-space: nowrap; }
+.rs-source-corps { display: flex; flex-direction: column; gap: var(--esp-4); border-top: 1px solid var(--bordure); padding-top: var(--esp-4); min-width: 0; }
+.rs-titre-pistes { margin: 0 0 var(--esp-2); font-weight: var(--poids-moyen); font-size: var(--fs-texte); }
+.rs-pistes-liste { list-style: none; margin: 0; padding: 0; }
+.rs-piste { display: flex; align-items: center; gap: var(--esp-3); padding: var(--esp-2) 0; border-bottom: 1px solid var(--bordure); min-width: 0; }
+.rs-piste:last-child { border-bottom: 0; }
+.rs-point { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--couleur, var(--bordure-forte)); }
+.rs-piste-texte { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.rs-piste-angle { overflow-wrap: anywhere; }
+.rs-piste-source { font-size: var(--fs-petit); color: var(--texte2); overflow-wrap: anywhere; }
+.rs-mini { flex: none; font-size: var(--fs-petit); color: var(--texte2); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 0 var(--esp-2); }
+.rs-marque { flex: none; display: inline-flex; color: var(--texte2); }
+.rs-piste[data-etat="retenue"] .rs-marque, .rs-piste[data-etat="postee"] .rs-marque { color: var(--accent-trait); }
+.rs-piste-ecartee .rs-piste-angle { color: var(--texte2); text-decoration: line-through; }
+.rs-piste-actions { flex: none; display: flex; align-items: center; gap: var(--esp-1); }
+.rs-piste-idee { padding: var(--esp-1) var(--esp-3); min-height: 32px; font-size: var(--fs-petit); }
+.rs-exemple-tete { align-items: baseline; }
+@media (max-width: 767px), (pointer: coarse) {
+  .rs-piste { flex-wrap: wrap; }
+  .rs-piste-texte { flex-basis: calc(100% - 40px); }
+  .rs-piste-actions { margin-left: auto; }
+  .rs-piste-bouton { min-width: 44px; min-height: 44px; }
+  .rs-piste-idee { min-height: 44px; }
+  .rs-deplier { min-height: 44px; }
+}
+
+/* Fenêtre « En tirer des idées » : le prompt se lit dans une zone de texte (sélectionnable si la copie est refusée), l'aperçu a une ligne par piste lue. */
+.dialogue.dialogue-formulaire.dialogue-pistes { overflow: auto; width: min(680px, 100%); }
+.dialogue-pistes .pile { gap: var(--esp-4); }
+.dialogue-pistes [hidden] { display: none; }
+.rs-prompt { min-height: 9rem; resize: vertical; font-size: var(--fs-petit); }
+.rs-apercu { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-2); }
+.rs-apercu-ligne { border: 1px solid var(--bordure); border-radius: var(--rayon); padding: var(--esp-3) var(--esp-4); min-width: 0; }
+.rs-apercu-case { display: flex; align-items: flex-start; gap: var(--esp-3); }
+.rs-apercu-angle { min-width: 0; overflow-wrap: anywhere; }
+.rs-apercu-doublon, .rs-apercu-refusee { color: var(--texte2); }
+.rs-apercu-remarque { margin: var(--esp-1) 0 0; }
