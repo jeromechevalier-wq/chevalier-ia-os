@@ -28,7 +28,8 @@ const COLLECTIONS_SERVEUR = ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp
 const COLLECTIONS_TABLEAU = ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes'];
 // File « À valider » des automatisations : mêmes droits que le tableau de bord (lecture oui, écriture non).
 // + documents_stockes (fiches des fichiers de l'onglet « Documents », 28/10/2026) : lecture oui, écriture jamais depuis un navigateur.
-const COLLECTIONS_AUTOMATISATIONS = ['automatisations_propositions', 'documents_stockes'];
+// + reseauxsociaux_mesures (relevés hebdomadaires des posts, 12/11/2026) : lecture oui, écriture jamais depuis un navigateur (le joker ne la couvre plus).
+const COLLECTIONS_AUTOMATISATIONS = ['automatisations_propositions', 'documents_stockes', 'reseauxsociaux_mesures'];
 const COMPTES = ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com'];
 
 let env;

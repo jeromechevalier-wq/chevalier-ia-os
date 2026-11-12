@@ -2,6 +2,12 @@
 
 Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de session) ; avant : 08/11/2026 (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Mise à jour du 12/11/2026 (Réseaux sociaux : relevé des chiffres des posts)
+
+| | Sujet | État | Qui |
+|---|---|---|---|
+| 🟡 | **Absents chez les clients, volontairement** : `reseauxsociauxMesuresHebdo` (planifiée, lundi 06:00 Paris) et `reseauxsociauxReleverMesures` (à la main) écrivent `reseauxsociaux_mesures` chez Jérôme seulement (clé Buffer personnelle, comme `reseauxsociauxBuffer` ; déclarées dans `tests/ecarts-fonctions.test.js`). Après le déploiement : **lancer le premier relevé à la main** (bouton à venir dans la PR 2 des courbes), puis vérifier dans Cloud Scheduler que la tâche du lundi existe. La règle Firestore de lecture de `reseauxsociaux_mesures` vient avec la PR des courbes. | À faire après fusion | Jérôme / Claude |
+
 ## Matinée du 10/11/2026 (PR 563 à 572 fusionnées ; déploiements clients `hosting`, `mcp`, `fonctions` faits)
 
 | | Sujet | État | Qui |

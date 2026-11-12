@@ -11,6 +11,12 @@ const STATUTS = Object.freeze({ draft: 'brouillon', scheduled: 'programme', sent
 /** Type de métrique Buffer -> champ de la réponse. */
 const METRIQUES = Object.freeze({ impressions: 'impressions', reach: 'portee', reactions: 'reactions', comments: 'commentaires', engagementRate: 'tauxEngagement' });
 const IDENTIFIANT = /^[A-Za-z0-9_-]{1,64}$/;
+/** Types de métriques Buffer gardés pour le suivi dans le temps (mêmes noms que Buffer). Une métrique absente n'est jamais inventée. */
+export const TYPES_MESURES = Object.freeze(['impressions', 'reach', 'reactions', 'comments', 'engagementRate', 'views', 'viewers', 'totalTimeWatched']);
+/** Lecture de tous les posts publiés : pages de 100, au plus 50 pages (5 000 posts). Au-delà, on le DIT (tronque), on ne coupe jamais en silence. */
+export const TAILLE_PAGE = 100;
+export const PAGES_MAX = 50;
+const CURSEUR = /^[A-Za-z0-9_=+/.-]{1,512}$/;
 
 /** Erreur « métier » : code stable, message écrit pour être lu par Jérôme (jamais de morceau de réponse Buffer ni de clé). */
 export class ErreurBuffer extends Error {
@@ -24,6 +30,8 @@ export class ErreurBuffer extends Error {
 const REQUETE_ORGANISATIONS = '{ account { organizations { id } } }';
 const requeteCanaux = (organisation) => `{ channels(input:{organizationId:"${organisation}"}) { id name service } }`;
 const requetePosts = (organisation, canal, limite) => `{ posts(first:${limite}, input:{organizationId:"${organisation}", filter:{channelIds:["${canal}"]}, sort:[{field:createdAt, direction:desc}]}) { edges { node { id status dueAt sentAt text externalLink assets { __typename } metricsUpdatedAt metrics { type name value unit } } } } }`;
+
+const requetePage = (organisation, canal, apres) => `{ posts(first:${TAILLE_PAGE}${apres ? `, after:"${apres}"` : ''}, input:{organizationId:"${organisation}", filter:{channelIds:["${canal}"]}, sort:[{field:createdAt, direction:desc}]}) { pageInfo { hasNextPage endCursor } edges { node { id status sentAt metricsUpdatedAt metrics { type name value unit } } } } }`;
 
 const dateIso = (v) => {
   if (typeof v !== 'string' || !v) return null;
@@ -119,5 +127,65 @@ export function creerServiceBuffer({ fetchImpl = fetch, lireCle, maintenant = Da
     };
   }
 
-  return { lirePosts };
+  /** Identifie l'organisation et le canal LinkedIn (deux lectures). */
+  async function trouverCanal() {
+    const donneesOrg = await envoyer(REQUETE_ORGANISATIONS);
+    const organisations = donneesOrg?.account?.organizations;
+    attendu(Array.isArray(organisations) && organisations.length > 0 && IDENTIFIANT.test(String(organisations[0]?.id)));
+    const organisation = String(organisations[0].id);
+    const donneesCanaux = await envoyer(requeteCanaux(organisation));
+    attendu(Array.isArray(donneesCanaux?.channels));
+    const canal = donneesCanaux.channels.find((c) => c?.service === 'linkedin');
+    if (!canal) throw new ErreurBuffer('aucun_canal_linkedin', 'Aucun canal LinkedIn n\'est connecté dans Buffer.');
+    attendu(IDENTIFIANT.test(String(canal.id)));
+    return { organisation, canal: String(canal.id) };
+  }
+
+  /**
+   * Lit TOUS les posts publiés (`sent`) du canal LinkedIn, page par page, avec leurs métriques brutes (pour le suivi dans le temps). Lecture seule.
+   * Rend { posts: [{ id, publieLe, metricsUpdatedAt, mesures: { <type>: nombre } }], lus, pages, tronque, raisonTronque } :
+   *  - `lus` = tous les posts vus (brouillons et programmés compris), `posts` = seulement les publiés ;
+   *  - `tronque` vrai si la lecture s'arrête avant la fin (50 pages, curseur inutilisable ou jamais renouvelé, page pleine sans indication de suite) : jamais de coupure silencieuse.
+   */
+  async function lirePostsPublies() {
+    const { organisation, canal } = await trouverCanal();
+    const posts = [];
+    let lus = 0;
+    let pages = 0;
+    let curseur = null;
+    const vus = new Set();
+    let tronque = false;
+    let raisonTronque = null;
+    for (;;) {
+      const donnees = await envoyer(requetePage(organisation, canal, curseur));
+      pages += 1;
+      const aretes = donnees?.posts?.edges;
+      attendu(Array.isArray(aretes));
+      for (const a of aretes) {
+        const n = a?.node;
+        if (!n || n.id === undefined || n.id === null || n.id === '') continue;
+        lus += 1;
+        if (n.status !== 'sent') continue;
+        const mesures = {};
+        for (const m of Array.isArray(n.metrics) ? n.metrics : []) {
+          if (m && TYPES_MESURES.includes(m.type) && !Object.hasOwn(mesures, m.type) && nombreOuNull(m.value) !== null) mesures[m.type] = m.value;
+        }
+        posts.push({ id: String(n.id), publieLe: dateIso(n.sentAt), metricsUpdatedAt: dateIso(n.metricsUpdatedAt), mesures });
+      }
+      const info = donnees.posts.pageInfo;
+      if (info?.hasNextPage === true) {
+        const suivant = info.endCursor;
+        if (typeof suivant !== 'string' || !CURSEUR.test(suivant) || vus.has(suivant)) { tronque = true; raisonTronque = 'curseur_inutilisable'; break; }
+        if (pages >= PAGES_MAX) { tronque = true; raisonTronque = 'pages_max'; break; }
+        vus.add(suivant);
+        curseur = suivant;
+        continue;
+      }
+      if (info?.hasNextPage !== false && aretes.length >= TAILLE_PAGE) { tronque = true; raisonTronque = 'suite_inconnue'; } // page pleine et Buffer ne dit pas s'il y a une suite
+      break;
+    }
+    return { canal, posts, lus, pages, tronque, raisonTronque };
+  }
+
+  return { lirePosts, lirePostsPublies };
 }

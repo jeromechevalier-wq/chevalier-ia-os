@@ -21,7 +21,8 @@ import { creerAdaptateur } from '../partage/porte/adaptateur.js';
 import { creerServiceVeille } from './veille/service.js';
 import { creerAppelVeille } from './veille/appel.js';
 import { creerServiceBuffer } from './reseauxsociaux/service.js';
-import { creerAppelBuffer } from './reseauxsociaux/appel.js';
+import { creerAppelBuffer, creerAppelReleve } from './reseauxsociaux/appel.js';
+import { releverMesures } from './reseauxsociaux/mesures.js';
 import { creerAppelDevis, ligneDeJournalDevis } from './devis-appel.js';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { creerAppelDevisPdf, creerAppelDevisPdfLien, ligneDeJournalDevisPdf } from './devis/pdf-appel.js';
@@ -224,6 +225,52 @@ export const reseauxsociauxBuffer = onCall(
     const service = creerServiceBuffer({ lireCle: () => CLE_BUFFER.value() });
     return creerAppelBuffer({ service, journal: (e) => process.stdout.write(`${JSON.stringify({ severity: 'INFO', message: 'reseauxsociauxBuffer', ...e })}\n`) })(requete);
   },
+);
+
+// Relevé des chiffres des posts (module Réseaux sociaux) : Buffer ne donne que les chiffres d'aujourd'hui, donc on en garde une photo par post et par semaine dans la table
+// `reseauxsociaux_mesures` (créée à la première écriture). Même clé BUFFER_API_KEY que ci-dessus (lecture SEULE dans Buffer ; la seule écriture est dans notre base).
+// Deux portes pour la même logique : `reseauxsociauxMesuresHebdo` (planifiée, chaque lundi 06:00 à Paris) et `reseauxsociauxReleverMesures` (bouton / appel à la main, mêmes comptes que la lecture).
+// Les écritures vont DIRECTEMENT dans Firestore, sans le moteur d'audit du CRM (`crm_audit`, réservé aux données du CRM et à leur restauration) : ce sont des relevés automatiques, un par post et par semaine,
+// qu'on ne « restaure » jamais ; la trace est la ligne de journal Cloud (nombre lu, écrit, tronqué). Même identifiant = même document : relancer ne double rien.
+const journalMesures = (e) => process.stdout.write(`${JSON.stringify({ severity: e.statut === 'ok' ? 'INFO' : 'WARNING', message: 'reseauxsociauxMesures', ...e })}\n`);
+const releverMaintenant = ({ ecraser }) => {
+  if (!getApps().length) initializeApp();
+  const db = getFirestore();
+  const donnees = {
+    // Lots de 400 documents (limite Firestore : 500). ecraser : `set` sans fusion remplace le document de la semaine. Sinon : on lit d'abord ce qui existe, on ne crée que le reste (`create`).
+    async ecrire(collection, documents, options) {
+      let ecrits = 0;
+      let ignores = 0;
+      for (let i = 0; i < documents.length; i += 400) {
+        const tranche = documents.slice(i, i + 400);
+        const refs = tranche.map((d) => db.collection(collection).doc(d.id));
+        const existants = options.ecraser ? [] : await db.getAll(...refs);
+        const lot = db.batch();
+        tranche.forEach((d, k) => {
+          if (options.ecraser) { lot.set(refs[k], d.donnees); ecrits += 1; } else if (existants[k].exists) ignores += 1; else { lot.create(refs[k], d.donnees); ecrits += 1; }
+        });
+        await lot.commit();
+      }
+      return { ecrits, ignores };
+    },
+  };
+  return releverMesures({ service: creerServiceBuffer({ lireCle: () => CLE_BUFFER.value() }), donnees, journal: journalMesures, ecraser });
+};
+// 540 s = maximum d'une fonction planifiée ; une lecture de 50 pages de 100 posts tient largement dedans (quelques secondes par page).
+export const reseauxsociauxMesuresHebdo = onSchedule(
+  { region: 'europe-west9', schedule: '0 6 * * 1', timeZone: 'Europe/Paris', secrets: [CLE_BUFFER], timeoutSeconds: 540, memory: '256MiB', maxInstances: 1, retryCount: 3 }, // relance possible : l'écriture est idempotente (même semaine = même document)
+  async () => {
+    try {
+      await releverMaintenant({ ecraser: true });
+    } catch (e) {
+      process.stdout.write(`${JSON.stringify({ severity: 'ERROR', message: 'reseauxsociauxMesures : relevé hebdomadaire en échec', nom: e?.name, code: e?.code })}\n`);
+      throw e; // le lancement apparaît en échec dans Cloud Scheduler
+    }
+  },
+);
+export const reseauxsociauxReleverMesures = onCall(
+  { region: 'europe-west9', maxInstances: 1, memory: '256MiB', timeoutSeconds: 540, secrets: [CLE_BUFFER] },
+  (requete) => creerAppelReleve({ relever: () => releverMaintenant({ ecraser: false }), journal: (e) => process.stdout.write(`${JSON.stringify({ severity: 'INFO', message: 'reseauxsociauxReleverMesures', ...e })}\n`) })(requete),
 );
 
 // Automatisations (workflows n8n) dans Chevalier IA OS : copie de TES workflows « interne » et vue administrateur de tous les propriétaires.

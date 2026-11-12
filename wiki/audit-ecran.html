@@ -193,10 +193,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Relevés hebdomadaires des chiffres des posts LinkedIn (module Réseaux sociaux, 12/11/2026) : écrits par le SERVEUR seulement (fonctions reseauxsociauxMesuresHebdo et reseauxsociauxReleverMesures).
+    // Les comptes autorisés LISENT (courbes d'évolution) ; aucune écriture depuis un navigateur. Exclue du joker ci-dessous.
+    match /reseauxsociaux_mesures/{id} {
+      allow read: if compteAutorise();
+      allow write: if false;
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        &amp;&amp; !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles']);
+        &amp;&amp; !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures']);
     }
   }
 }</code></pre>
