@@ -160,7 +160,8 @@ export async function modifierPersonne(c, args) {
     patch.organisationId = champs.organisationId || null;
   }
   if (champs.etiquettes !== undefined) { await verifierEtiquettes(c, champs.etiquettes); patch.etiquettes = [...champs.etiquettes]; }
-  for (const cle of ['ville', 'linkedin', 'siteWeb']) if (champs[cle] !== undefined) patch[cle] = texte(champs[cle]);
+  if (champs.ville !== undefined) patch.ville = texte(champs.ville);
+  for (const cle of ['linkedin', 'siteWeb']) if (champs[cle] !== undefined) patch[cle] = lienWebOuRefuser(champs[cle], cle === 'linkedin' ? 'LinkedIn' : 'Site web');
   if (champs.source !== undefined) patch.source = await verifierSource(c, champs.source);
   if (champs.archive !== undefined) patch.archive = champs.archive;
   if (!Object.keys(patch).length) refuser('saisie_invalide', 'Aucun champ à modifier.');
@@ -203,12 +204,20 @@ function contactsOrganisationModifies(o, champs) {
   return patch;
 }
 
+function lienWebOuRefuser(valeur, nom) {
+  if (typeof valeur !== 'string') refuser('saisie_invalide', `${nom} : une adresse (texte) est attendue.`);
+  const v = L.lienWebAEnregistrer(valeur);
+  if (v === null) refuser('saisie_invalide', `${nom} : adresse invalide, elle doit commencer par http:// ou https://.`);
+  return v;
+}
+
 export async function modifierOrganisation(c, args) {
   const { id, forcer, ...champs } = args;
   const o = await lire(c, C.organisations, id, 'Organisation');
   const patch = {};
   if (champs.nom !== undefined) { verifierMessages(L.validerOrganisation({ nom: champs.nom })); patch.nom = texte(champs.nom); }
-  for (const cle of ['adresse', 'ville', 'siteWeb', 'secteur']) if (champs[cle] !== undefined) patch[cle] = texte(champs[cle]);
+  for (const cle of ['adresse', 'ville', 'secteur']) if (champs[cle] !== undefined) patch[cle] = texte(champs[cle]);
+  if (champs.siteWeb !== undefined) patch.siteWeb = lienWebOuRefuser(champs.siteWeb, 'Site web');
   if (champs.adresses !== undefined) { verifierMessages(L.validerOrganisation({ nom: 'x', adresses: champs.adresses })); Object.assign(patch, L.patchAdresses(champs.adresses).patch); } // liste complète remplaçante ; `adresse` et `ville` restent comme ils sont
   Object.assign(patch, contactsOrganisationModifies(o, champs));
   if (champs.taille !== undefined) {

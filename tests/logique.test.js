@@ -1383,6 +1383,18 @@ describe('Emails et téléphones d\'une organisation (contactsOrganisation, patc
     assert.equal('email' in o, false);
     assert.deepEqual(L.validerOrganisation({ nom: 'X', emails: [{ valeur: 'pas' }] }), { emails: "Cette adresse email n'est pas valide." });
   });
+  test('2b lienWebSur : seulement http:// ou https:// sans espace ; le reste devient null ; lienEmail refuse ?subject, &body, %40', () => {
+    assert.equal(L.lienWebSur('https://monsite.fr/a?b=1'), 'https://monsite.fr/a?b=1');
+    assert.equal(L.lienWebSur('http://monsite.fr'), 'http://monsite.fr');
+    for (const v of ['JAVASCRIPT:alert(1)', ' javascript:alert(1)', 'java\nscript:alert(1)', '//evil.com', 'ftp://x.fr', ['https://a.fr'], 'javascript:alert(1)', 'data:text/html,x', 'https://mon site.fr', 'monsite.fr', '', '   ', undefined, null, 5]) assert.equal(L.lienWebSur(v), null, String(v));
+    assert.equal(L.lienWebAEnregistrer(' monsite.fr '), 'https://monsite.fr');
+    assert.equal(L.lienWebAEnregistrer(''), '');
+    assert.equal(L.lienWebAEnregistrer('javascript:alert(1)'), null);
+    assert.throws(() => L.lienWebOuErreur('data:x'), (e) => e.saisie === true && /http:\/\/ ou https:\/\//.test(e.message));
+    assert.equal(L.lienEmail('a@x.fr?subject=Bonjour'), null);
+    assert.equal(L.lienEmail('a@x.fr&body=x'), null);
+    assert.equal(L.lienEmail('a%40x.fr'), null);
+  });
   test('2 liens : mailto seulement pour une adresse valide sans paramètre, tel avec chiffres et + seulement', () => {
     assert.equal(L.lienEmail('Contact@X.fr'), 'mailto:contact@x.fr');
     assert.equal(L.lienEmail('a@x.fr?bcc=b@y.fr'), null);

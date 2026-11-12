@@ -248,8 +248,9 @@ export function champPropriete({ libelle, valeur = '', type = 'texte', options =
       return;
     }
     const texte = vide ? '—' : texteAffiche();
-    const contenu = lienVers
-      ? h('a', { class: 'prop-lien', href: lienVers(courant), target: type === 'url' ? '_blank' : null, rel: type === 'url' ? 'noopener noreferrer' : null }, texte)
+    const href = lienVers && !vide ? lienVers(courant) : null;
+    const contenu = lienVers && (href || vide)
+      ? h('a', { class: 'prop-lien', href, target: type === 'url' ? '_blank' : null, rel: type === 'url' ? 'noopener noreferrer' : null }, texte)
       : h('span', {}, texte);
     remplir(zone, contenu, h('button', { type: 'button', class: 'prop-modifier bouton-icone', 'aria-label': `Modifier : ${libelle}`, onclick: ouvrirEdition }, icone('pencil', { taille: 14 })));
   }

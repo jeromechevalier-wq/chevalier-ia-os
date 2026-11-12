@@ -171,6 +171,22 @@ describe('Création et modification (tests 9 et 11)', () => {
     assert.deepEqual([s.doc('crm_personnes', bon.id).organisationId, s.doc('crm_personnes', bon.id).ville, s.doc('crm_personnes', bon.id).etiquettes], ['org2', 'Nantes', ['chaud']]);
   });
 
+  test('liens sûrs : modifier_personne et modifier_organisation complètent « monsite.fr », acceptent le vide, refusent javascript: et data:', async () => {
+    const s = await demarrer();
+    ok(await s.appeler('biblio', 'modifier_personne', { id: 'p2', siteWeb: 'monsite.fr', linkedin: 'https://exemple.test/in/x' }));
+    assert.equal(s.doc('crm_personnes', 'p2').siteWeb, 'https://monsite.fr');
+    refuse(await s.appeler('biblio', 'modifier_personne', { id: 'p2', siteWeb: 'javascript:alert(1)' }), /adresse invalide/i);
+    refuse(await s.appeler('biblio', 'modifier_personne', { id: 'p2', linkedin: 'data:text/html,x' }), /LinkedIn/);
+    assert.equal(s.doc('crm_personnes', 'p2').siteWeb, 'https://monsite.fr', 'rien n’est écrit après un refus');
+    ok(await s.appeler('biblio', 'modifier_personne', { id: 'p2', siteWeb: '' }));
+    assert.equal(s.doc('crm_personnes', 'p2').siteWeb, '');
+    ok(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', siteWeb: 'monsite.fr' }));
+    assert.equal(s.doc('crm_organisations', 'org1').siteWeb, 'https://monsite.fr');
+    refuse(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', siteWeb: 'javascript:alert(1)' }), /adresse invalide/i);
+    ok(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', siteWeb: '' }));
+    assert.equal(s.doc('crm_organisations', 'org1').siteWeb, '');
+  });
+
   test('modification de personne : seuls les champs donnés changent ; nom redécoupé ; rien à modifier et fiche inconnue refusés ; doublon refusé', async () => {
     const s = await demarrer();
     const avant = structuredClone(s.doc('crm_personnes', 'p2'));

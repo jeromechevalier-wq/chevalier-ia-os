@@ -53,7 +53,7 @@ export function rendreFicheOrganisation(conteneur, id) {
     const resume = sectionRepliable({
       id: 'organisation-resume', titre: 'Résumé',
       contenu: h('div', { class: 'pile resume' }, etiquettes ? h('div', { class: 'resume-ligne' }, etiquettes.element) : null,
-        h('div', { class: 'proprietes' }, champAdresses({ valeurs: L.adressesDe(o), surEnregistrer: (patch) => D.majOrganisation(o.id, patch), lireActuelles: () => L.adressesDe(D.organisation(o.id) || o) }).element, prop('Site web', 'siteWeb', { type: 'url', lienVers: (v) => v }),
+        h('div', { class: 'proprietes' }, champAdresses({ valeurs: L.adressesDe(o), surEnregistrer: (patch) => D.majOrganisation(o.id, patch), lireActuelles: () => L.adressesDe(D.organisation(o.id) || o) }).element, prop('Site web', 'siteWeb', { type: 'url', lienVers: (v) => L.lienWebSur(L.normaliserLienWeb(v)), surEnregistrer: (v) => D.majOrganisation(o.id, { siteWeb: L.lienWebOuErreur(v) }) }),
           champContacts({ libelle: 'Téléphone', genre: 'tel', valeurs: L.contactsOrganisation(o, 'telephones'), surEnregistrer: (liste) => D.majOrganisation(o.id, L.patchContactsOrganisation('telephones', liste)) }).element,
           champContacts({ libelle: 'Email', genre: 'email', valeurs: L.contactsOrganisation(o, 'emails'), surEnregistrer: (liste) => D.majOrganisation(o.id, L.patchContactsOrganisation('emails', liste)) }).element,
           selectProprietaire({ valeur: o.proprietaire, surChoix: (v) => D.majOrganisation(o.id, { proprietaire: v }) }))),
