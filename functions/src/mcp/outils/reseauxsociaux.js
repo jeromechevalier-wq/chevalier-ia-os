@@ -54,9 +54,14 @@ const unePiste = z.object({
   angle: z.string().min(1).max(P.MAX_ANGLE).describe('La piste en une phrase, avec tes mots.'),
   note: z.string().max(P.MAX_NOTE).optional().describe('Pourquoi c’est une bonne piste (écrit par toi).'),
   ancre: z.string().max(P.MAX_ANCRE).optional().describe('La section du site, ou les mots-clés pour retrouver le passage du résumé.'),
+  accroche: z.string().max(P.MAX_ACCROCHE).optional().describe('La première phrase du post (écrite par toi).'),
+  brouillon: z.string().max(P.MAX_BROUILLON * 2).optional().describe('Le post presque prêt : accroche, développement en paragraphes courts, appel final. Nos mots, jamais ceux d’un tiers.'),
+  visuel: z.string().max(P.MAX_VISUEL).optional().describe('Proposition de visuel ou d’animation qui accompagne le post (ce qu’on y voit).'),
+  pilier: pilier.optional().describe('Ancien champ : un seul pilier. Préfère piliers.'),
+  piliers: z.array(pilier).min(1).max(P.MAX_PILIERS).optional().describe(`TOUS les piliers que la piste sert (1 à ${P.MAX_PILIERS}), le premier est le principal.`),
   url: z.string().max(500).optional().describe('Lien facultatif en https (page du site, post LinkedIn).'),
   exempleId: z.string().max(100).optional().describe("L'exemple de post (de cette source) qui a donné la piste."),
-  pilier: pilier.optional(), format: format.optional(), service: service.optional(),
+  format: format.optional(), service: service.optional(),
 }).describe(`Une piste. ${CONSIGNE_TEXTE_TIERS} Champs fermés : aucun texte ni extrait.`);
 
 export const OUTILS_RESEAUX_LECTURE = [
@@ -86,11 +91,12 @@ export const OUTILS_RESEAUX_ECRITURE = [
     lot: z.string().max(P.MAX_LOT).optional().describe('Étiquette de l’arrivage, pour le retrouver d’un coup.'),
     pistes: z.array(unePiste).min(1).max(P.MAX_PISTES_PAR_LOT),
   }, RS.ajouterPistes),
-  outil('modifier_piste', ECRITURE, "Modifie une piste : angle, note, ancre, pilier, format, service, et etat (nouvelle pour la remettre en stock, ecartee pour l'écarter : elle reste retrouvable, rien ne se supprime). Pour retenir une piste, utiliser retenir_piste.", {
+  outil('modifier_piste', ECRITURE, "Modifie une piste : angle, accroche, brouillon, note, ancre, piliers (liste), pilier, format, service, et etat (nouvelle pour la remettre en stock, ecartee pour l'écarter : elle reste retrouvable, rien ne se supprime). Pour retenir une piste, utiliser retenir_piste.", {
     id: id.describe('Identifiant de la piste.'), angle: z.string().min(1).max(P.MAX_ANGLE).optional(), note: z.string().max(P.MAX_NOTE).optional(), ancre: z.string().max(P.MAX_ANCRE).optional(),
+    accroche: z.string().max(P.MAX_ACCROCHE).optional(), brouillon: z.string().max(P.MAX_BROUILLON * 2).optional(), visuel: z.string().max(P.MAX_VISUEL).optional(), piliers: z.array(pilier).max(P.MAX_PILIERS).optional().describe('Remplace la liste des piliers.'),
     pilier: pilier.nullable().optional(), format: format.nullable().optional(), service: service.nullable().optional(), etat: z.enum(P.ETATS_PISTE.map((x) => x.id)).optional().describe('nouvelle : remettre en stock ; ecartee : écarter. « retenue » est refusé ici : utiliser retenir_piste.'),
   }, RS.modifierPiste),
-  outil('retenir_piste', ECRITURE, "Retient une piste (comme « En faire une idée » à l'écran) : crée l'idée (angle, pilier, format, service et source recopiés) et lie les deux ; la piste passe à « retenue ». Refusé si la piste est déjà devenue une idée.", { id: id.describe('Identifiant de la piste.') }, RS.retenirPiste),
+  outil('retenir_piste', ECRITURE, "Retient une piste (comme « En faire une idée » à l'écran) : crée l'idée (angle, brouillon recopié comme texte, pilier principal, format, service et source recopiés) et lie les deux ; la piste passe à « retenue ». Refusé si la piste est déjà devenue une idée.", { id: id.describe('Identifiant de la piste.') }, RS.retenirPiste),
   outil('enregistrer_exemple', ECRITURE, `Enregistre l'exemple d'un post d'un profil : son lien LinkedIn et TON analyse (accroche, structure, longueur, pourquoi ça marche), avec les chiffres relevés (reactions, commentaires, releveLe). Il n'y a PAS de champ pour le texte du post. Refuse un lien déjà enregistré pour ce profil ; avec id, met à jour l'exemple existant (chiffres, analyse). ${CONSIGNE_TEXTE_TIERS}`, {
     id: id.optional().describe("Seulement pour mettre à jour un exemple existant."), profilId: id.optional().describe('Identifiant du profil (une source de type profil). Obligatoire à la création.'),
     url: z.string().max(N.MAX_URL).optional().describe('Lien du post sur LinkedIn. Obligatoire à la création.'), date: jour.optional().describe('Jour du post.'),

@@ -78,7 +78,7 @@ export function ouvrirCarte({ source, pistes, surChoisir = () => {} }) {
     const carte = C.construireCarte({ source, pistes, idees: D.etat.idees, inversees });
     const repliees = carte.branches.filter((b) => b.replie).length;
     resume.textContent = carte.vide
-      ? 'Aucune piste pour le moment : ferme cette carte et clique sur « En tirer des idées ».'
+      ? 'Aucune idée pour le moment : demande à Claude de remplir cette source.'
       : `${pluriel(carte.total, 'piste', 'pistes')} sur ${pluriel(carte.branches.length, 'branche', 'branches')}${repliees ? ` (${repliees} repliée${repliees > 1 ? 's' : ''})` : ''}. Clique sur un pilier pour replier ou déplier sa branche, sur une piste pour l’ouvrir dans la liste.`;
     const avant = { gauche: cadre.scrollLeft, haut: cadre.scrollTop };
     cadre.replaceChildren(dessinerCarte(carte, {

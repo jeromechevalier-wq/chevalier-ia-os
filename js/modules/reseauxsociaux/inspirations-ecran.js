@@ -211,7 +211,6 @@ function carteSource(ligne, reelles, surChangement, { filtre = false, surOuvrirP
         h('span', { class: 'rs-source-nom', dataset: { role: 'nom-profil' } }, source.nom || 'Source sans nom'))),
     h('span', { class: 'rs-compteurs', dataset: { role: 'compteurs-source' } }, V.libelleCompteurs(compteurs)),
     h('div', { class: 'rs-profil-actions' },
-      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'tirer-idees' }, onclick: () => ouvrirTirerIdees({ source }) }, icone('sparkles', { taille: 16 }), 'En tirer des idées'),
       // La carte montre TOUTES les pistes de la source (écartées comprises), même sous un filtre de la liste.
       boutonCarte(() => ouvrirCarte({ source, pistes: V.pistesDeSource(D.etat.pistes, source.id), surChoisir: surOuvrirPiste })),
       source.virtuelle ? null : boutonIcone('monter-profil', 'arrow-up', `Monter ${source.nom}`, () => deplacer(source, -1), rang <= 0 || filtre),
@@ -226,9 +225,12 @@ function carteSource(ligne, reelles, surChangement, { filtre = false, surOuvrirP
         href ? lienExterne({ href, libelle: source.type === 'profil' ? 'Ouvrir LinkedIn' : 'Ouvrir le lien', action: source.type === 'profil' ? 'ouvrir-linkedin' : 'ouvrir-source' }) : null,
         h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'modifier-profil' }, onclick: () => ouvrirSource({ source }) }, icone('pencil', { taille: 16 }), 'Modifier')),
       h('div', { class: 'rs-pistes', dataset: { role: 'pistes' } },
-        h('h4', { class: 'rs-titre-pistes' }, `Pistes (${R.formaterNombre(pistes.length)}${pistes.length !== total ? ` sur ${R.formaterNombre(total)}` : ''})`),
+        h('h4', { class: 'rs-titre-pistes' }, `Idées (${R.formaterNombre(pistes.length)}${pistes.length !== total ? ` sur ${R.formaterNombre(total)}` : ''})`),
+        // Le stock vient de Claude (outil ajouter_pistes, ou réponse collée) : l'appli n'appelle aucune IA. Sous le minimum, on le dit et on offre la voie du collage, sans bouton à chaque ligne.
+        h('p', { class: 'aide', dataset: { role: total < P.MIN_PISTES_DEMANDEES ? 'stock-leger' : 'stock-complet' } }, total < P.MIN_PISTES_DEMANDEES ? `Moins de ${P.MIN_PISTES_DEMANDEES} idées en stock. Demande à Claude de remplir cette source, ou ` : 'Tu peux aussi ',
+          h('button', { type: 'button', class: 'lien-bouton', dataset: { action: 'tirer-idees' }, onclick: () => ouvrirTirerIdees({ source }) }, total < P.MIN_PISTES_DEMANDEES ? 'colle sa réponse ici' : 'ajouter une idée ou coller une réponse de Claude'), '.'),
         pistes.length ? h('ul', { class: 'rs-liste rs-pistes-liste' }, pistes.map((p) => lignePiste(p)))
-          : phraseGrise(total ? 'Aucune piste ne correspond aux filtres.' : 'Aucune piste pour le moment. Clique sur « En tirer des idées ».', 'pistes-vides')),
+          : phraseGrise(total ? 'Aucune piste ne correspond aux filtres.' : 'Aucune idée pour le moment. Demande à Claude de remplir cette source.', 'pistes-vides')),
       source.type === 'profil' ? h('div', { class: 'rs-exemples', dataset: { role: 'exemples' } },
         h('div', { class: 'rs-exemples-tete' }, h('h3', {}, `Exemples de posts (${R.formaterNombre(exemples.length)})`),
           h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'nouvel-exemple' }, onclick: () => ouvrirExemple({ profil: source }) }, icone('plus', { taille: 16 }), 'Exemple')),
@@ -318,7 +320,7 @@ export function rendreInspirations(conteneur) {
     if (vue === 'plat') {
       const plat = V.pistesAPlat(lignes);
       remplir(zone, plat.length ? h('ul', { class: 'rs-liste rs-pistes-liste rs-pistes-plat', dataset: { role: 'pistes-plat' } }, plat.map(({ piste, source }) => lignePiste(piste, { nomSource: source.nom })))
-        : phraseGrise(sousFiltre ? 'Aucune piste ne correspond à ta recherche ou à tes filtres.' : 'Aucune piste pour le moment. Ouvre une source et clique sur « En tirer des idées ».', 'plat-vide'));
+        : phraseGrise(sousFiltre ? 'Aucune piste ne correspond à ta recherche ou à tes filtres.' : 'Aucune idée pour le moment. Demande à Claude de remplir une source.', 'plat-vide'));
       return;
     }
     remplir(zone, h('div', { class: 'rs-inspirations' }, lignes.map((l) => carteSource(l, reelles, rendre, { filtre: sousFiltre, surOuvrirPiste: ouvrirPisteDansListe }))));

@@ -93,7 +93,7 @@ describe('un exemple chiffré et l’écart à la moyenne', () => {
 describe('une piste : liste fermée de champs', () => {
   test('aucun champ texte, contenu ni extrait n’est écrit ; les champs sont exactement ceux prévus', () => {
     const n = P.normaliserPiste({ sourceId: 's1', angle: 'Un angle', texte: 'TEXTE TIERS', contenu: 'COPIE', extrait: 'EXTRAIT', corps: 'x', note: 'n' });
-    assert.deepEqual(Object.keys(n).sort(), ['ancre', 'angle', 'auteur', 'etat', 'exempleId', 'format', 'ideeId', 'lot', 'note', 'pilier', 'service', 'sourceId', 'sourceTitre', 'sourceType', 'url']);
+    assert.deepEqual(Object.keys(n).sort(), ['accroche', 'ancre', 'angle', 'auteur', 'brouillon', 'etat', 'exempleId', 'format', 'ideeId', 'lot', 'note', 'pilier', 'piliers', 'service', 'sourceId', 'sourceTitre', 'sourceType', 'url', 'visuel']);
     assert.ok(!JSON.stringify(n).match(/TEXTE TIERS|COPIE|EXTRAIT/));
   });
   test('valeurs inconnues : pilier ancien converti, format et service inconnus null, état inconnu « nouvelle », lien non https vidé, auteur inconnu « utilisateur »', () => {
@@ -124,7 +124,7 @@ describe('lire la réponse collée : chaque cas du tableau d’erreurs', () => {
     const r = lire(reponse([bonne]));
     assert.equal(r.ok, true);
     assert.deepEqual([r.nombreCochees, r.champsIgnores, r.message], [1, 0, '']);
-    assert.deepEqual(r.lignes[0].piste, { ...bonne, exempleId: '' });
+    assert.deepEqual(r.lignes[0].piste, { ...bonne, exempleId: '', accroche: '', brouillon: '', visuel: '', piliers: ['cas_concrets'] });
     assert.deepEqual([r.lignes[0].cochee, r.lignes[0].refus, r.lignes[0].remarques], [true, null, []]);
   });
   test('zone vide ou texte sans JSON lisible : message, rien à créer', () => {
@@ -378,7 +378,7 @@ describe('le prompt à copier', () => {
     assert.match(t, /Jamais de phrase recopiée/);
     assert.match(t, /UNIQUEMENT par le bloc JSON/);
     assert.match(t, /200 caractères au plus/);
-    for (const c of ['- angle (obligatoire', '- note (', '- ancre (', '- url :', '- pilier, format, service :']) assert.ok(t.includes(c), c);
+    for (const c of ['- angle (obligatoire', '- note (', '- ancre (', '- url :', '- accroche (', '- brouillon (', '- visuel (', '- piliers (', '- format, service :']) assert.ok(t.includes(c), c);
     assert.match(t, /liste fermée/);
     for (const liste of [R.PILIERS, R.FORMATS, R.SERVICES]) for (const x of liste) assert.ok(t.includes(`- ${x.id} : ${x.libelle}`), x.id);
     assert.ok(t.includes('Angle ancien') && t.includes('Angle récent'));
@@ -399,7 +399,7 @@ describe('le prompt à copier', () => {
   test('le JSON du modèle est lisible, au format pistes-v1, et la réponse modèle (remplie) est lue par lireReponsePistes', () => {
     const t = P.construirePromptPistes({ source: site });
     const modele = JSON.parse(t.slice(t.indexOf('{', t.indexOf('MODÈLE DE RÉPONSE'))));
-    assert.deepEqual([modele.format, modele.sourceId, Object.keys(modele.pistes[0])], ['pistes-v1', 's1', [...P.CHAMPS_REPONSE]]);
+    assert.deepEqual([modele.format, modele.sourceId, Object.keys(modele.pistes[0])], ['pistes-v1', 's1', P.CHAMPS_REPONSE.filter((c) => c !== 'pilier')]); // l'ancien champ `pilier` reste lu, mais le modèle demande `piliers`
     const r = P.lireReponsePistes(t.slice(t.indexOf('MODÈLE DE RÉPONSE')), { source: site });
     assert.equal(r.ok, true);
     assert.deepEqual(r.lignes[0].remarques, ['lien retiré', 'pilier à choisir', 'format à choisir', 'service à choisir']); // les marques du modèle ne sont pas des valeurs permises
@@ -429,5 +429,46 @@ describe('le prompt à copier', () => {
   test('une source sans nom ni lien ne casse rien', () => {
     assert.match(P.construirePromptPistes({}), /cette source/);
     assert.match(P.construirePromptPistes(), /LES RÈGLES/);
+  });
+});
+
+describe('piliers multiples, brouillon et visuel d\'une piste (nuit du 12/11/2026)', () => {
+  test('normaliserPiliers : liste sans doublon, anciens identifiants convertis, inconnus laissés de côté, 4 au plus, le premier est le principal', () => {
+    assert.deepEqual(P.normaliserPiliers(['pedagogie', 'pme', 'zzz', 'pedagogie'], null), ['pedagogie', 'cas_concrets']);
+    assert.deepEqual(P.normaliserPiliers('actu_ia'), ['actu_ia']);
+    assert.deepEqual(P.normaliserPiliers(undefined, 'claude'), ['pedagogie']);
+    assert.deepEqual(P.normaliserPiliers(R.PILIERS.map((x) => x.id).concat('pme', 'offre'), null).length, 4);
+    const n = P.normaliserPiste({ sourceId: 's', angle: 'a', piliers: ['pedagogie', 'demarche_offre'] });
+    assert.deepEqual([n.pilier, n.piliers], ['pedagogie', ['pedagogie', 'demarche_offre']]);
+    assert.deepEqual(P.piliersDePiste({ pilier: 'pme' }), ['cas_concrets']); // une piste d'avant n'a que `pilier`
+  });
+  test('une réponse porte piliers, accroche, brouillon (paragraphes gardés) et visuel ; un pilier inconnu est signalé, un brouillon trop long refuse la ligne', () => {
+    const rep = { format: 'pistes-v1', sourceId: 's1', pistes: [
+      { angle: 'A1', accroche: 'Première phrase', brouillon: 'Para un\n\n\n\nPara deux', visuel: 'Carrousel de 5 slides', piliers: ['pedagogie', 'actu_ia', 'zzz'] },
+      { angle: 'A2', brouillon: 'x'.repeat(P.MAX_BROUILLON + 1) },
+    ] };
+    const r = P.lireReponsePistes(JSON.stringify(rep), { source: { id: 's1' } });
+    assert.deepEqual(r.lignes[0].piste.piliers, ['pedagogie', 'actu_ia']);
+    assert.equal(r.lignes[0].piste.pilier, 'pedagogie');
+    assert.equal(r.lignes[0].piste.visuel, 'Carrousel de 5 slides');
+    assert.equal(P.normaliserPiste(r.lignes[0].piste).brouillon, 'Para un\n\nPara deux');
+    assert.ok(r.lignes[0].remarques.includes('pilier inconnu laissé de côté'));
+    assert.match(r.lignes[1].refus, /brouillon trop long/);
+  });
+  test('modifier le pilier seul remplace la liste ; « En faire une idée » emporte le brouillon', () => {
+    const existante = { id: 'p1', ...P.normaliserPiste({ sourceId: 's', angle: 'a', piliers: ['pedagogie', 'actu_ia'] }) };
+    const { ecritures } = P.planModifierPiste(existante, { pilier: 'cas_concrets' }, { id: 'p1' });
+    assert.deepEqual(ecritures[0].patch.piliers, ['cas_concrets']);
+    const pl = P.planEnFaireUneIdee({ ...existante, brouillon: 'Mon post prêt' }, { id: 's', type: 'site', nom: 'S' }, { ideeId: 'i1' });
+    assert.ok(JSON.stringify(pl.ecritures).includes('Mon post prêt'));
+  });
+  test('modifier piliers REMPLACE la liste (l\'ancien pilier ne revient pas) ; une liste vide vide tout', () => {
+    const ancienne = { id: 'p1', ...P.normaliserPiste({ sourceId: 's', angle: 'a', pilier: 'pedagogie' }) };
+    assert.deepEqual(P.planModifierPiste(ancienne, { piliers: ['actu_ia'] }, { id: 'p1' }).ecritures[0].patch.piliers, ['actu_ia']);
+    const multi = { id: 'p2', ...P.normaliserPiste({ sourceId: 's', angle: 'a', piliers: ['pedagogie', 'actu_ia'] }) };
+    const p = P.planModifierPiste(multi, { piliers: ['cas_concrets'] }, { id: 'p2' }).ecritures[0].patch;
+    assert.deepEqual([p.piliers, p.pilier], [['cas_concrets'], 'cas_concrets']);
+    const vide = P.planModifierPiste(multi, { piliers: [] }, { id: 'p2' }).ecritures[0].patch;
+    assert.deepEqual([vide.piliers, vide.pilier], [[], null]);
   });
 });
