@@ -96,6 +96,15 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 - La relecture Fable de chaque brief et de chaque PR de la liste « obligatoire » reste la règle (les petites retouches d'interface en sont dispensées) ; un sous-agent qui se réveille sans fin (tâche de fond) est arrêté (`TaskStop`) une fois son travail fusionné.
 - Mode d'emploi pour Jérôme : `docs/fonctionnement-du-travail.md` ; bouton qui lance un workflow : `docs/ajouter-un-bouton-workflow.md` ; déploiement chez un client : `docs/deploiement-client.md`.
 
+### Leçons de la nuit du 11 au 12/11/2026 (tests, goulot d'étranglement)
+- **Le palier complet se déclenche selon les fichiers touchés** (`firestore.rules`, serveur, menus) ; une PR qui ne touche que des tests ou du CSS ne passe que le « rapide ». Conséquence : du rouge peut rester caché sur `main` après des PR fusionnées au palier rapide (les PR 578, 581 et 582 ont laissé les menus, le Journal et une liste blanche rouges, vus seulement par la PR 590).
+- **Après chaque fusion d'écran ou de menu, lancer « Tests de nuit » sur `main`** et réparer le rouge avant d'ouvrir la PR sensible suivante : sinon elle porte les échecs des autres. Un menu qui gagne une entrée = `grep` des décomptes (« 9 entrées ») dans `tests/e2e/` avant la PR.
+- **Grouper les changements sensibles** (règles, serveur, secrets) en une seule PR plutôt que trois petites : chaque PR sensible relance le palier complet et la file d'attente GitHub s'allonge. Les petites PR (tests, CSS, textes) restent à part, elles passent le rapide.
+- **Avant le push d'une PR sensible, lancer en local les specs navigateur de la zone touchée** (menu, Journal, `mode-test-creation`, `consignes-ui`), pas seulement `test:module` et `test:rapide`.
+- **Un seul push par correction** : chaque push relance les tests ; corriger tout d'un coup. Poser l'étiquette `tests-complets` AVANT de mettre la branche à jour (un seul lancement).
+- **Sur « rouge », comparer d'abord avec `main`** (« Tests de nuit » récents) : si les mêmes tests y sont rouges, la cause n'est pas la PR ; corriger dans une PR à part.
+- **Ne jamais commiter de captures** générées par les tests (un agent en a poussé 89 : second commit pour les retirer).
+
 ### Leçons de la 3e nuit et des sessions séparées (28 au 29/10/2026)
 - **Un brief se vérifie contre le code avant l'envoi** : sur cette nuit, la relecture Fable a trouvé des briefs faux (outils MCP « à brancher » alors que les 16 outils Devis l'étaient déjà ; `lienStablePdf` sans aucun consommateur ; `exigerStatut` inexistant dans la transaction). Avant de promettre un chantier, `grep` ce qui existe déjà : le bon résultat est parfois « tests de verrouillage + doc » ou « ne pas faire ».
 - **Faux rouges** : un push annule le lancement précédent de « Tests » (croix rouge « annulé »), et ajouter une étiquette relance les tests. Avant de chercher une erreur, ouvrir la liste des lancements et regarder si le rouge est un lancement annulé. `get_job_logs` : `failed_only` exige un `run_id` ; utiliser `return_content` + `tail_lines`.
