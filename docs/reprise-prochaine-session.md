@@ -1,5 +1,49 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 13/11/2026 : nuit « GO NUIT », Réseaux sociaux, pistes et carte mentale
+
+Version 2.44.0 (cette PR, la seule à toucher la version, `js/os/version.js`, le test de version et `wiki/`). Aucune donnée de Jérôme touchée, aucun secret affiché, `firestore.rules` non touché (la nouvelle table passe par le joker des règles). Fiche du flux : `docs/reseauxsociaux-pistes-et-sources.md`.
+
+| Sujet | PR | État |
+|---|---|---|
+| Mesures hebdomadaires Buffer (`reseauxsociaux_mesures`) | 590 | fusionnée |
+| Tests | 591 | fusionnée |
+| Protocole de nuit | 592 | fusionnée |
+| Onglets stables | 593 | fusionnée |
+| Écran Aujourd'hui | 594 | fusionnée |
+| `ajouter_note` d'un projet | 595 | fusionnée |
+| Règles pures des sources, pistes et exemples (Mac) | 596 | fusionnée |
+| Audit de sécurité | 597 | brouillon, étiquette `a-fusionner-par-jerome` : à lire par Jérôme |
+| 12 outils MCP (cloud) | 598 | fusionnée |
+| Écran Inspirations dense, prompt copié, réponse collée (cloud) | 599 | fusionnée |
+| Carte mentale d'une source (Mac), relue contre le cahier, aucun défaut bloquant | 600 | fusionnée |
+| Version 2.44.0, fiche du flux, `docs/tables.md`, ce rapport | cette PR | voir le résumé de la session |
+
+**« Tests de nuit » sur `main`** : lancé à la main après la fusion de cette PR (voir le résumé de la session pour son numéro) ; **à lire par identifiant, puis à réparer s'il est rouge**.
+
+**Ce qui n'a pas pu être vérifié**
+- Relecture Fable de la PR 4 (écran neuf) : faite par lecture du diff seulement, pas d'essai à l'écran ; carte jamais ouverte sur ordinateur ni sur téléphone par un humain, thème clair non regardé, seule la touche Entrée testée au clavier.
+- Centaines de pistes dépliées dans un vrai navigateur : testé en règles pures jusqu'à 300 pistes, en parcours à 31.
+- Le parcours `tests/e2e/reseauxsociaux-carte.spec.js` : lancé par l'agent de la PR 4 (ordinateur et téléphone), non relancé après la fusion ; le contrôle sur `main` est « Tests de nuit ».
+- Outils MCP des pistes : non essayés sur le serveur déployé ; les fonctions doivent être déployées pour les voir.
+
+**« Décision prise seul » de la nuit** (détail dans chaque PR)
+- Un clic sur une piste de la carte remet la liste à zéro (recherche et filtres effacés, vue « Par source ») pour que la piste soit visible : à revoir si Jérôme perd trop de filtres.
+- La carte montre les pistes chargées à l'ouverture : un lot arrivé pendant qu'elle est ouverte n'apparaît qu'à la réouverture.
+- `sourceId` nul accepté dans une réponse collée ; coupe des textes en caractères réels ; le prompt ne nomme plus d'auteur en dur.
+
+- Écrans jamais vus à l'œil par un humain : Inspirations dense, carte, aperçu du collage. Rien n'a été lancé avec de vraies données.
+- Apify non lancé (prix à vérifier avant). Palier complet et format téléphone testés selon les PR, pas partout.
+- « Tests de nuit » à relancer sur `main`.
+
+**Mesure cloud contre Mac : NON concluante** (PR 1 Mac 31 min / 825 lignes ; PR 2 cloud environ 20 min / 977 lignes ; PR 3 cloud moins de 15 min / 5 309 lignes ; PR 4 Mac 11 min / 533 lignes). Leçons : arrêter un workflow (TaskStop) n'arrête pas ses agents déjà au travail ; une session cloud demandée depuis une tâche automatique ne démarre que sur un message de Jérôme.
+
+**Suite** : lancer le relevé Buffer hebdomadaire (callable `reseauxsociauxReleverMesures`, pas encore lancé) ; saisir les données par les outils MCP (HeraHub, profils Graffeuil et Rapillard, résumés de veille déclarés) avec l'accord de Jérôme.
+
+**À faire par Jérôme** : ouvrir la carte d'une source (ordinateur et téléphone), vérifier qu'elle est lisible avec beaucoup de pistes ; saisir ensuite ses données (pistes de HeraHub, relevés de Graffeuil et Rapillard) avec les outils, après son accord.
+
+---
+
 ## Rapport du matin du 12/11/2026 : nuit « GO NUIT » du 11 au 12/11/2026, module Réseaux sociaux (PR 576 à 582)
 
 Version 2.41.0 (cette PR). Le module `reseauxsociaux` (squelette, Aujourd'hui, Posts) est dans `main` ; les écrans Relations et Import ne le sont pas encore. Aucune donnée de Jérôme n'a été touchée, aucun secret affiché.
