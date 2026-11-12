@@ -79,7 +79,7 @@ test('E3 chez un client, le classement d’un post s’écrit sous clients/<clie
   await page.evaluate(async () => (await import('/js/modules/reseauxsociaux/posts-actions.js')).classerPost('post-fictif-1', { pilier: 'claude', format: 'video', services: ['production'] }));
   const docs = await listerDocuments('clients/reseaux/reseauxsociaux_posts');
   expect(docs.map((d) => d.id)).toEqual(['post-fictif-1']);
-  expect(docs[0]).toMatchObject({ pilier: 'claude', format: 'video', services: ['production'] });
+  expect(docs[0]).toMatchObject({ pilier: 'pedagogie', format: 'video', services: ['production'] });
   expect((await listerDocuments('clients/reseaux/crm_audit')).filter((d) => d.collection === 'reseauxsociaux_posts').map((d) => d.action).sort()).toEqual(['creer', 'modifier']);
   expect(await listerDocuments('reseauxsociaux_posts')).toEqual([]);
   expect(await listerDocuments('crm_audit')).toEqual([]);

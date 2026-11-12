@@ -221,18 +221,20 @@ describe('Classement des posts et catégories (règles pures)', () => {
     const cree = R.planClasserPost(null, valeurs, { id: 'abc_123-X' }).ecritures;
     assert.equal(cree.length, 1);
     assert.deepEqual([cree[0].type, cree[0].collection, cree[0].id], ['creer', 'reseauxsociaux_posts', 'abc_123-X']);
-    assert.deepEqual(cree[0].donnees, { pilier: 'pme', format: 'video', services: ['production'] });
+    assert.deepEqual(cree[0].donnees, { pilier: 'cas_concrets', format: 'video', services: ['production'] });
     assert.deepEqual(cree[0].horodater, ['creeLe', 'modifieLe']);
-    const modif = R.planClasserPost({ pilier: 'claude' }, valeurs, { id: 'abc_123-X' }).ecritures[0];
+    const modif = R.planClasserPost({ pilier: 'pedagogie' }, valeurs, { id: 'abc_123-X' }).ecritures[0];
     assert.deepEqual([modif.type, modif.id], ['modifier', 'abc_123-X']);
-    assert.deepEqual(modif.patch, { pilier: 'pme', format: 'video', services: ['production'] });
+    assert.deepEqual(modif.patch, { pilier: 'cas_concrets', format: 'video', services: ['production'] });
     assert.deepEqual(modif.horodater, ['modifieLe']);
     assert.deepEqual(R.normaliserClassement({ pilier: 'x', format: 'y', services: 'z' }), { pilier: null, format: null, services: [] });
     for (const mauvais of ['', 'a b', 'a/b', 'x'.repeat(101), null, 12]) assert.throws(() => R.planClasserPost(null, {}, { id: mauvais }), /invalide/, String(mauvais));
   });
 
-  test('les constantes de la ligne éditoriale : cinq piliers dont les parts font 100, créneaux mardi et jeudi', () => {
-    assert.deepEqual(R.PILIERS.map((p) => p.id), ['pme', 'claude', 'actu_ia', 'proximite', 'offre']);
+  test('les constantes de la ligne éditoriale : quatre piliers dont les parts font 100, créneaux mardi et jeudi', () => {
+    assert.deepEqual(R.PILIERS.map((p) => p.id), ['cas_concrets', 'pedagogie', 'actu_ia', 'demarche_offre']);
+    assert.deepEqual(R.PILIERS.map((p) => p.cible), [25, 35, 15, 25]);
+    assert.deepEqual(R.PILIERS.map((p) => p.libelle), ['Cas concrets', 'Pédagogie et méthodes', 'Actu IA décryptée', 'Ma démarche et mon offre']);
     assert.equal(R.PILIERS.reduce((t, p) => t + p.cible, 0), 100);
     assert.deepEqual(R.FORMATS.map((f) => f.id), ['texte', 'image', 'carrousel', 'animation', 'video']);
     assert.deepEqual(R.SERVICES.map((s) => s.id), ['administratif_rh', 'finance', 'production', 'commercial', 'direction']);

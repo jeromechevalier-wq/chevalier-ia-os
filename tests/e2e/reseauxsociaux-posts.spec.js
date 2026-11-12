@@ -40,7 +40,7 @@ async function ouvrirPosts(page, reponse) {
   await expect(page.getByRole('heading', { name: 'Posts', level: 1 })).toBeVisible();
   return recues;
 }
-/** Sur téléphone, l'équilibre et le contrôle partent repliés : on les déplie pour lire leur contenu. */
+/** Sur téléphone, la matrice et le contrôle partent repliés : on les déplie pour lire leur contenu. */
 async function deplier(page) {
   await expect(page.locator('[data-carte="controle"]')).toBeVisible();
   await attendreCalme(page); // l'écran est redessiné à chaque lot de données de Buffer ou de la base : on agit sur un écran posé
@@ -83,12 +83,14 @@ test('E1 Buffer simulé (brouillon, programmé, publié) : trois colonnes « Bro
   await capture(page, 'E1-kanban');
 });
 
-test('E1 cas vide : aucun post dans Buffer = une phrase pour écrire dans Buffer ; l’équilibre et le contrôle restent là', async ({ page }) => {
+test('E1 cas vide : aucun post dans Buffer = une phrase pour écrire dans Buffer ; la matrice et le contrôle restent là', async ({ page }) => {
   await ouvrirPosts(page, () => reponseBuffer([]));
   await expect(page.getByText('Aucun post pour le moment. Écris-en un dans Buffer, il apparaîtra ici.')).toBeVisible();
   await expect(page.locator('.kanban')).toHaveCount(0);
   await deplier(page);
-  await expect(page.locator('[data-carte="equilibre"]')).toContainText('Pas encore de posts publiés ou programmés.');
+  await expect(page.locator('[data-carte="matrice"]')).toContainText('Pas encore de posts publiés ou programmés.');
+  await expect(page.locator('[data-carte="matrice"] [data-role="matrice"]')).toHaveCount(0);
+  await expect(page.locator('[data-carte="matrice"] [data-role="suggestions"]')).toHaveCount(0);
   await expect(page.locator('[data-carte="controle"]')).toBeVisible();
   await capture(page, 'E1-cas-vide');
 });
@@ -135,7 +137,7 @@ test('E3 cliquer une carte, pilier « Cas concrets », format « Vidéo 9:16 »,
   await expect(fenetre(page)).toHaveCount(0);
   await expect(page.locator('.toast')).toContainText('Classement enregistré');
   const document_ = await lireDocument('reseauxsociaux_posts/prog-1');
-  expect(document_).toMatchObject({ pilier: 'pme', format: 'video', services: ['production'] });
+  expect(document_).toMatchObject({ pilier: 'cas_concrets', format: 'video', services: ['production'] });
   expect(document_.creeLe).toBeTruthy();
   expect(Object.keys(document_).sort()).toEqual(['creeLe', 'format', 'modifieLe', 'pilier', 'services']); // jamais le texte, la date, le statut ni un chiffre de Buffer
   await expect(carte(page, 'prog-1').locator('[data-role="pilier"]')).toHaveText('Cas concrets');
@@ -154,12 +156,12 @@ test('E4 reclasser le même post écrit une modification (un seul document, la d
   await classer(page, 'prog-1', { pilier: 'Cas concrets', format: 'Vidéo 9:16', services: ['Production'] });
   await expect(fenetre(page)).toHaveCount(0);
   const premier = await lireDocument('reseauxsociaux_posts/prog-1');
-  await classer(page, 'prog-1', { pilier: 'Claude au quotidien' });
+  await classer(page, 'prog-1', { pilier: 'Pédagogie et méthodes' });
   await expect(fenetre(page)).toHaveCount(0);
-  await expect(carte(page, 'prog-1').locator('[data-role="pilier"]')).toHaveText('Claude au quotidien');
+  await expect(carte(page, 'prog-1').locator('[data-role="pilier"]')).toHaveText('Pédagogie et méthodes');
   const documents = await listerDocuments('reseauxsociaux_posts');
   expect(documents.map((d) => d.id)).toEqual(['prog-1']);
-  expect(documents[0]).toMatchObject({ pilier: 'claude', format: 'video', services: ['production'] });
+  expect(documents[0]).toMatchObject({ pilier: 'pedagogie', format: 'video', services: ['production'] });
   expect(String(documents[0].creeLe)).toBe(String(premier.creeLe));
   const lignes = (await listerDocuments('crm_audit')).filter((d) => d.collection === 'reseauxsociaux_posts');
   expect(lignes.map((d) => d.action).sort()).toEqual(['creer', 'modifier']);
@@ -234,28 +236,90 @@ test('E5 vue Statistiques sans post publié : une phrase, pas de tableau', async
   await expect(page.locator('.tableau-posts')).toHaveCount(0);
 });
 
-test('E6 équilibre des piliers : la part réelle de chaque pilier face à sa cible, la part de vidéos face à 50 %, les posts sans pilier à part', async ({ page }) => {
+/** Jeu de la matrice : a, b, c classés des deux côtés (pilier en ANCIEN identifiant : l'écran doit les lire), d non classé, e brouillon (hors compte). */
+async function ouvrirMatrice(page) {
   await ecrireDocument('reseauxsociaux_posts/a', { pilier: 'pme', format: 'video', services: [] });
-  await ecrireDocument('reseauxsociaux_posts/b', { pilier: 'pme', format: 'texte', services: [] });
+  await ecrireDocument('reseauxsociaux_posts/b', { pilier: 'cas_concrets', format: 'texte', services: [] });
   await ecrireDocument('reseauxsociaux_posts/c', { pilier: 'claude', format: 'image', services: [] });
   await ouvrirPosts(page, () => reponseBuffer([
     poste('a', { publieLe: '2026-11-03T05:08:00.000Z', video: true }), poste('b', { publieLe: '2026-10-27T05:08:00.000Z' }),
     poste('c', { statut: 'programme', prevuLe: '2026-11-17T05:08:00.000Z' }), poste('d', { publieLe: '2026-10-20T04:08:00.000Z' }),
     poste('e', { statut: 'brouillon' }), // un brouillon ne compte pas
   ]));
-  const carteEq = page.locator('[data-carte="equilibre"]');
   await deplier(page);
-  await expect(carteEq.locator('h2')).toHaveText('Équilibre des piliers');
-  await expect(carteEq.locator('[data-role="pilier-pme"] .rs-ligne-detail')).toHaveText('67 % (cible 30 %)'); // 2 posts sur 3 classés
-  await expect(carteEq.locator('[data-role="pilier-claude"] .rs-ligne-detail')).toHaveText('33 % (cible 25 %)');
-  await expect(carteEq.locator('[data-role="pilier-actu_ia"] .rs-ligne-detail')).toHaveText('0 % (cible 15 %)');
-  await expect(carteEq.locator('[data-role="pilier-proximite"] .rs-ligne-detail')).toHaveText('0 % (cible 20 %)');
-  await expect(carteEq.locator('[data-role="pilier-offre"] .rs-ligne-detail')).toHaveText('0 % (cible 10 %)');
-  await expect(carteEq.locator('[data-role="videos"] .rs-ligne-detail')).toHaveText('25 % (cible 50 %)'); // 1 vidéo sur 4 posts publiés ou programmés
-  await expect(carteEq.locator('[data-role="sans-pilier"]')).toHaveText('1 sans pilier');
-  const largeur = await carteEq.locator('[data-role="pilier-pme"] .rs-barre-part').evaluate((el) => el.getBoundingClientRect().width / el.parentElement.getBoundingClientRect().width);
-  expect(Math.round(largeur * 100)).toBe(67);
-  await capture(page, 'E6-equilibre');
+  return page.locator('[data-carte="matrice"]');
+}
+const caseM = (carteM, pilier, format) => carteM.locator(`[data-role="pilier-${pilier}"] td[data-format="${format}"]`);
+/** Une case ou un total affiche deux lignes : le nombre de posts, puis le pourcentage (ou « % (cible n %) » pour un total de ligne). */
+async function verifierCase(td, nombre, part) {
+  await expect(td.locator('.rs-case-nombre')).toHaveText(nombre);
+  if (part !== null) await expect(td.locator('.rs-case-part')).toHaveText(part);
+}
+
+test('E6 matrice pilier × format : une case = nombre de posts et pourcentage, cases à 0 grisées, totaux de ligne face à la cible, totaux de colonne, 50 % de vidéos sous les colonnes vidéo', async ({ page }) => {
+  const carteM = await ouvrirMatrice(page);
+  await expect(carteM.locator('h2')).toHaveText('Matrice pilier × format');
+  await expect(carteM.locator('thead th')).toHaveText(['Pilier', 'Texte', 'Image', 'Carrousel', 'Vidéo 9:16', 'Animation 16:9', 'Total et cible']);
+  await expect(carteM.locator('tbody tr th')).toHaveText(['Cas concrets', 'Pédagogie et méthodes', 'Actu IA décryptée', 'Ma démarche et mon offre']);
+  await verifierCase(caseM(carteM, 'cas_concrets', 'video'), '1', '33 %'); // 1 post, 33 % des 3 posts classés
+  await verifierCase(caseM(carteM, 'cas_concrets', 'texte'), '1', '33 %');
+  await verifierCase(caseM(carteM, 'pedagogie', 'image'), '1', '33 %');
+  await expect(caseM(carteM, 'cas_concrets', 'video')).not.toHaveClass(/rs-case-zero/);
+  await verifierCase(caseM(carteM, 'actu_ia', 'carrousel'), '0', '0 %');
+  await expect(caseM(carteM, 'actu_ia', 'carrousel')).toHaveClass(/rs-case-zero/); // un trou : grisé
+  // Totaux : lignes face à leur cible (anciens identifiants lus comme les nouveaux), colonnes, cible de vidéos.
+  await verifierCase(carteM.locator('[data-role="pilier-cas_concrets"] [data-role="total-ligne"]'), '2', '67 % (cible 25 %)');
+  await verifierCase(carteM.locator('[data-role="pilier-pedagogie"] [data-role="total-ligne"]'), '1', '33 % (cible 35 %)');
+  await verifierCase(carteM.locator('[data-role="pilier-actu_ia"] [data-role="total-ligne"]'), '0', '0 % (cible 15 %)');
+  await verifierCase(carteM.locator('[data-role="pilier-demarche_offre"] [data-role="total-ligne"]'), '0', '0 % (cible 25 %)');
+  await verifierCase(carteM.locator('[data-role="total-colonnes"] td[data-format="texte"]'), '1', '33 %');
+  await verifierCase(carteM.locator('[data-role="total-colonnes"] td[data-format="video"]'), '1', '33 %');
+  await verifierCase(carteM.locator('[data-role="total-general"]'), '3', null);
+  await expect(carteM.locator('[data-role="videos"] .rs-cible-video')).toHaveText('33 % de vidéos et d’animations (cible 50 %)');
+  await expect(carteM.locator('[data-role="sans-classement"]')).toHaveText('1 sans pilier, 1 sans format');
+  await expect(carteM.locator('[data-role="pilier-pme"], [data-role="pilier-claude"], [data-role="pilier-proximite"], [data-role="pilier-offre"]')).toHaveCount(0); // plus que les quatre piliers
+  expect(await sansDebordement(page)).toBe(true);
+  await capture(page, 'E6-matrice');
+});
+
+test('E6 « Prochain post à imaginer » : trois cases pilier × format, calculées sur l’écart de la ligne et de la colonne à leur cible, chacune avec une phrase', async ({ page }) => {
+  const carteM = await ouvrirMatrice(page);
+  const sug = carteM.locator('[data-role="suggestions"]');
+  await expect(sug.locator('.rs-suggestions-titre')).toHaveText('Prochain post à imaginer');
+  await expect(sug.locator('[data-role="suggestion"] .rs-ligne-titre')).toHaveText(['Ma démarche et mon offre × Vidéo 9:16', 'Ma démarche et mon offre × Animation 16:9', 'Actu IA décryptée × Vidéo 9:16']);
+  await expect(sug.locator('[data-role="suggestion"]').first().locator('.rs-ligne-detail')).toHaveText('Ma démarche et mon offre est à 0 % (cible 25 %), les vidéos à 33 % (cible 50 %) et cette case est encore vide.');
+  await expect(sug.locator('[data-role="suggestion"]').first()).toHaveAttribute('data-pilier', 'demarche_offre');
+  await capture(page, 'E6-suggestions');
+});
+
+test('E6 téléphone : la matrice défile horizontalement dans son propre conteneur, la page ne défile jamais', async ({ page }) => {
+  const carteM = await ouvrirMatrice(page);
+  const defile = carteM.locator('[data-role="matrice-defile"]');
+  await expect(defile).toBeVisible();
+  const mesures = await defile.evaluate((el) => ({ contenu: el.scrollWidth, boite: el.clientWidth, overflowX: getComputedStyle(el).overflowX }));
+  expect(mesures.overflowX).toBe('auto');
+  if (estTelephone(page)) expect(mesures.contenu).toBeGreaterThan(mesures.boite); // la matrice déborde de son conteneur, pas de la page
+  expect(await sansDebordement(page)).toBe(true);
+  await capture(page, 'E6-matrice-defilement');
+});
+
+test('E6 matrice avec les nouveaux identifiants de pilier : les écritures nouvelles se lisent comme les anciennes', async ({ page }) => {
+  await ecrireDocument('reseauxsociaux_posts/a', { pilier: 'demarche_offre', format: 'carrousel', services: [] });
+  await ecrireDocument('reseauxsociaux_posts/b', { pilier: 'proximite', format: 'carrousel', services: [] });
+  await ouvrirPosts(page, () => reponseBuffer([poste('a', { publieLe: '2026-11-03T05:08:00.000Z' }), poste('b', { publieLe: '2026-10-27T05:08:00.000Z' })]));
+  await deplier(page);
+  await verifierCase(caseM(page.locator('[data-carte="matrice"]'), 'demarche_offre', 'carrousel'), '2', '100 %');
+});
+
+test('E6 cas vide : sans post publié ni programmé, la carte le dit et ne montre ni matrice ni suggestion ; avec des posts non classés, la matrice est à zéro et le dit', async ({ page }) => {
+  await ouvrirPosts(page, () => reponseBuffer([poste('d', { publieLe: '2026-10-20T04:08:00.000Z' })]));
+  await deplier(page);
+  const carteM = page.locator('[data-carte="matrice"]');
+  await expect(carteM.locator('[data-role="matrice"]')).toBeVisible();
+  await expect(carteM.locator('td.rs-case-zero')).toHaveCount(20);
+  await expect(carteM.locator('[data-role="sans-classement"]')).toHaveText('1 sans pilier, 1 sans format');
+  await expect(carteM.locator('[data-role="suggestion"]')).toHaveCount(3);
+  await capture(page, 'E6-matrice-non-classes');
 });
 
 test('E7 contrôle éditorial : sans aucun post, chaque créneau du mardi et du jeudi attend un post ; un texte trop long et un post programmé non classé sont signalés', async ({ page }) => {
@@ -269,7 +333,7 @@ test('E7 contrôle éditorial : sans aucun post, chaque créneau du mardi et du 
 
 test('E7 contrôle éditorial : textes trop longs (b), programmé non classé (c), part de vidéos (d) et piliers loin de leur cible (e) s’affichent en phrases', async ({ page }) => {
   const six = Array.from({ length: 6 }, (_, i) => poste(`u${i}`, { publieLe: `2026-10-0${i + 1}T05:08:00.000Z` }));
-  for (const p of six) await ecrireDocument(`reseauxsociaux_posts/${p.id}`, { pilier: 'pme', format: 'texte', services: [] });
+  for (const p of six) await ecrireDocument(`reseauxsociaux_posts/${p.id}`, { pilier: 'cas_concrets', format: 'texte', services: [] });
   await ouvrirPosts(page, () => reponseBuffer([
     ...six,
     poste('long-1', { statut: 'programme', prevuLe: '2026-11-17T05:08:00.000Z', texte: 'x'.repeat(3050) }),
@@ -295,7 +359,7 @@ test('E7 aucun contrôle en échec : « Tout est en ordre. »', async ({ page })
   });
   const posts = creneaux.map((prevuLe, i) => poste(`p${i}`, { statut: 'programme', statutBuffer: 'scheduled', prevuLe, video: true, texte: `Post programmé ${i}` }));
   expect(posts.length).toBeGreaterThanOrEqual(3);
-  const piliers = ['pme', 'claude', 'proximite', 'pme', 'actu_ia', 'claude', 'proximite', 'pme', 'offre', 'claude']; // répartis selon la cible : avec 6 posts ou plus, un seul pilier ferait s'allumer le point e
+  const piliers = ['cas_concrets', 'pedagogie', 'demarche_offre', 'cas_concrets', 'actu_ia', 'pedagogie', 'demarche_offre', 'cas_concrets', 'demarche_offre', 'pedagogie']; // répartis selon la cible : avec 6 posts ou plus, un seul pilier ferait s'allumer le point e
   for (const [i, p] of posts.entries()) await ecrireDocument(`reseauxsociaux_posts/${p.id}`, { pilier: piliers[i % piliers.length], format: 'video', services: [] });
   await ouvrirPosts(page, () => reponseBuffer(posts));
   await deplier(page);
@@ -305,8 +369,8 @@ test('E7 aucun contrôle en échec : « Tout est en ordre. »', async ({ page })
 });
 
 test('E8 filtres : « Non classés seulement » montre les posts sans classement ; la recherche porte sur le texte ; la pastille se retire', async ({ page }) => {
-  await ecrireDocument('reseauxsociaux_posts/a', { pilier: 'pme', format: 'video', services: ['commercial'] });
-  await ecrireDocument('reseauxsociaux_posts/b', { pilier: 'claude', format: 'texte', services: [] });
+  await ecrireDocument('reseauxsociaux_posts/a', { pilier: 'cas_concrets', format: 'video', services: ['commercial'] });
+  await ecrireDocument('reseauxsociaux_posts/b', { pilier: 'pedagogie', format: 'texte', services: [] });
   await ouvrirPosts(page, () => reponseBuffer([
     poste('a', { publieLe: '2026-11-03T05:08:00.000Z', texte: 'Un devis fait en dix minutes' }), poste('b', { publieLe: '2026-10-27T05:08:00.000Z', texte: 'Claude au quotidien' }),
     poste('c', { publieLe: '2026-10-20T04:08:00.000Z', texte: 'Évènement à Manosque' }), poste('d', { statut: 'brouillon', texte: 'Un autre brouillon' }),
@@ -364,7 +428,7 @@ test('E9 le texte d’un post est affiché comme du texte, jamais comme du HTML'
 test('E10 les trois colonnes défilent horizontalement sur téléphone (scroll-snap, comme les affaires), sans barre horizontale de page ; trois colonnes sur ordinateur', async ({ page }) => {
   await ouvrirPosts(page, TROIS);
   await expect(page.locator('.kanban .colonne')).toHaveCount(3);
-  // Sur téléphone, l'équilibre et le contrôle partent repliés (le Kanban reste à portée de pouce) ; sur ordinateur, dépliés.
+  // Sur téléphone, la matrice et le contrôle partent repliés (le Kanban reste à portée de pouce) ; sur ordinateur, dépliés.
   await expect(page.locator('[data-carte] .section-bascule[aria-expanded="true"]')).toHaveCount(estTelephone(page) ? 0 : 2);
   expect(await sansDebordement(page), 'pas de défilement horizontal de la page').toBe(true);
   const mesures = await page.locator('.kanban').evaluate((el) => ({ snap: getComputedStyle(el).scrollSnapType, defile: el.scrollWidth > el.clientWidth, colonne: el.querySelector('.colonne').getBoundingClientRect().width, vue: innerWidth }));

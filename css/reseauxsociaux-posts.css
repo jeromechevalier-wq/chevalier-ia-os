@@ -1,9 +1,10 @@
-/* Écran « Posts » du module Réseaux sociaux : cartes de Kanban, équilibre des piliers, tableau des statistiques.
+/* Écran « Posts » du module Réseaux sociaux : cartes de Kanban, matrice pilier × format, tableau des statistiques.
    Les colonnes et les cartes viennent de crm.css (mêmes classes que les affaires) ; ici seulement ce qui est propre à l'écran.
    Tailles et poids de texte : toujours les variables de tokens.css. */
 .page-posts .zone-posts { margin-top: var(--esp-6); }
 .page-posts .rs-cartes-posts { margin-bottom: var(--esp-7); }
 .page-posts .rs-cartes-posts:empty { display: none; }
+.page-posts .rs-cartes-posts [data-carte="matrice"] { grid-column: 1 / -1; } /* la matrice prend toute la largeur ; le contrôle éditorial passe dessous */
 [hidden].selecteur-tri { display: none; }
 
 /* Équilibre et contrôle : cartes repliables (la section du CRM porte aussi la classe de carte). */
@@ -16,12 +17,23 @@
 .carte-post .groupe-pastilles { margin-top: var(--esp-1); }
 .carte-post .carte-titre { font-weight: var(--poids-moyen); }
 
-/* Équilibre des piliers : une ligne par pilier, barre fine avec un repère à la part visée. */
-.rs-equilibre { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 10em; align-items: center; gap: var(--esp-2) var(--esp-6); }
-.rs-barre { position: relative; display: block; height: 6px; border-radius: 999px; background: var(--bordure); }
-.rs-barre-part { position: absolute; inset: 0 auto 0 0; width: var(--part); max-width: 100%; border-radius: 999px; background: var(--violet-clair); }
-.rs-barre-cible { position: absolute; top: -3px; bottom: -3px; left: var(--cible); width: 2px; background: var(--texte2); }
-.rs-equilibre .rs-ligne-detail { white-space: nowrap; text-align: right; }
+/* Matrice pilier × format : le tableau défile dans son propre conteneur (jamais la page). Teinte d'autant plus forte que la case est pleine ; case à 0 = grisé neutre (un trou). */
+.rs-matrice-defile { overflow-x: auto; max-width: 100%; margin-top: var(--esp-4); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); }
+.rs-matrice { border-collapse: separate; border-spacing: var(--esp-1); width: 100%; min-width: 44rem; }
+.rs-matrice th, .rs-matrice td { padding: var(--esp-3) var(--esp-4); text-align: center; vertical-align: middle; }
+.rs-matrice thead th { font-weight: var(--poids-moyen); color: var(--texte2); }
+.rs-matrice tbody th, .rs-matrice tfoot th { text-align: left; font-weight: var(--poids-moyen); white-space: nowrap; }
+.rs-case { border-radius: var(--rayon-carte); background: color-mix(in srgb, var(--violet-clair) calc(15% + var(--intensite, 0) * 45%), transparent); }
+.rs-case-zero { background: var(--panneau2); border: 1px dashed var(--bordure-forte); color: var(--texte2); }
+.rs-case-nombre { display: block; font-weight: var(--poids-moyen); }
+.rs-case-part { display: block; color: var(--texte2); }
+.rs-matrice .rs-total { white-space: nowrap; }
+.rs-matrice tfoot td, .rs-matrice tfoot th { border-top: 1px solid var(--bordure-forte); }
+.rs-matrice tfoot tr + tr td, .rs-matrice tfoot tr + tr th { border-top: 0; }
+.rs-cible-video { color: var(--texte2); }
+.rs-suggestions { margin-top: var(--esp-2); }
+.rs-suggestions-titre { font-weight: var(--poids-moyen); margin: 0 0 var(--esp-2); }
+.rs-suggestion { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--esp-2) var(--esp-6); align-items: baseline; }
 .rs-controle { color: var(--texte); }
 
 /* Tableau des statistiques : chiffres alignés à droite, ligne « Moyenne » en pied. */
@@ -33,9 +45,7 @@
 .tableau-posts tr[data-post] { cursor: default; }
 
 @media (max-width: 767px) {
-  .rs-equilibre { grid-template-columns: minmax(0, 1fr) auto; }
-  .rs-equilibre .rs-ligne-detail { text-align: left; }
-  .rs-equilibre .rs-barre { grid-column: 1 / -1; grid-row: 2; }
+  .rs-suggestion { grid-template-columns: minmax(0, 1fr); }
   .tableau-posts tfoot { display: block; }
   .tableau-posts td.rs-nombre { text-align: left; }
   .tableau-posts td[data-colonne='texte'] { max-width: none; }

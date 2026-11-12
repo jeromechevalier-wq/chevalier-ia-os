@@ -42,9 +42,9 @@ describe('E1 colonnes du Kanban', () => {
   });
 
   test('E1 fusion : un post sans document est « pas encore classé » ; un classement inconnu est rangé ; les posts sans identifiant sont ignorés', () => {
-    const tous = P.fusionnerPosts([post('a'), post('b'), { statut: 'publie' }, null], [classement('a', 'pme', 'video', ['finance']), { id: 'b', pilier: 'inconnu', format: 'zzz', services: ['rien'] }]);
+    const tous = P.fusionnerPosts([post('a'), post('b'), { statut: 'publie' }, null], [classement('a', 'cas_concrets', 'video', ['finance']), { id: 'b', pilier: 'inconnu', format: 'zzz', services: ['rien'] }]);
     assert.deepEqual(ids(tous), ['a', 'b']);
-    assert.deepEqual([tous[0].classe, tous[0].classement], [true, { pilier: 'pme', format: 'video', services: ['finance'] }]);
+    assert.deepEqual([tous[0].classe, tous[0].classement], [true, { pilier: 'cas_concrets', format: 'video', services: ['finance'] }]);
     assert.deepEqual([tous[1].classe, tous[1].classement], [true, { pilier: null, format: null, services: [] }]);
     assert.equal(P.fusionnerPosts([post('c')], []).at(0).classe, false);
   });
@@ -82,30 +82,30 @@ describe('E2 cartes', () => {
 
 describe('E3 E4 classement d’un post (plan d’écriture)', () => {
   test('E3 le classement écrit pilier, format, services et horodate ; jamais le texte, la date, le statut ni un chiffre de Buffer', () => {
-    const plan = R.planClasserPost(null, { pilier: 'pme', format: 'video', services: ['production'], texte: 'copie interdite', statut: 'publie', stats: { impressions: 1 } }, { id: 'post-fictif-1' });
+    const plan = R.planClasserPost(null, { pilier: 'cas_concrets', format: 'video', services: ['production'], texte: 'copie interdite', statut: 'publie', stats: { impressions: 1 } }, { id: 'post-fictif-1' });
     assert.equal(plan.ecritures.length, 1);
     const e = plan.ecritures[0];
     assert.deepEqual([e.type, e.collection, e.id], ['creer', 'reseauxsociaux_posts', 'post-fictif-1']);
-    assert.deepEqual(e.donnees, { pilier: 'pme', format: 'video', services: ['production'] });
+    assert.deepEqual(e.donnees, { pilier: 'cas_concrets', format: 'video', services: ['production'] });
     assert.deepEqual(e.horodater, ['creeLe', 'modifieLe']);
   });
 
   test('E4 reclasser le même post écrit une modification (pas de création) qui garde la date de création', () => {
-    const plan = R.planClasserPost({ id: 'post-fictif-1', pilier: 'pme', format: 'video', services: [] }, { pilier: 'claude', format: 'texte', services: [] }, { id: 'post-fictif-1' });
+    const plan = R.planClasserPost({ id: 'post-fictif-1', pilier: 'cas_concrets', format: 'video', services: [] }, { pilier: 'pedagogie', format: 'texte', services: [] }, { id: 'post-fictif-1' });
     const e = plan.ecritures[0];
     assert.deepEqual([e.type, e.collection, e.id], ['modifier', 'reseauxsociaux_posts', 'post-fictif-1']);
-    assert.deepEqual(e.patch, { pilier: 'claude', format: 'texte', services: [] });
+    assert.deepEqual(e.patch, { pilier: 'pedagogie', format: 'texte', services: [] });
     assert.deepEqual(e.horodater, ['modifieLe']);
   });
 
   test('E3 « Enregistrer » reste grisé tant que rien n’a changé (classementModifie)', () => {
-    const base = { pilier: 'pme', format: 'video', services: ['finance', 'production'] };
+    const base = { pilier: 'cas_concrets', format: 'video', services: ['finance', 'production'] };
     assert.equal(P.classementModifie(base, { ...base }), false);
     assert.equal(P.classementModifie(base, { ...base, services: ['production', 'finance'] }), false); // l'ordre des cases ne compte pas
-    assert.equal(P.classementModifie(base, { ...base, pilier: 'claude' }), true);
+    assert.equal(P.classementModifie(base, { ...base, pilier: 'pedagogie' }), true);
     assert.equal(P.classementModifie(base, { ...base, services: ['finance'] }), true);
     assert.equal(P.classementModifie(null, { pilier: null, format: null, services: [] }), false);
-    assert.equal(P.classementModifie(null, { pilier: 'pme', format: null, services: [] }), true);
+    assert.equal(P.classementModifie(null, { pilier: 'cas_concrets', format: null, services: [] }), true);
   });
 
   test('E4 l’écriture relit le document avant d’écrire (création ou modification), par le journal, jamais par setDoc', () => {
@@ -126,10 +126,10 @@ describe('E5 tableau des statistiques', () => {
   ];
 
   test('E5 une ligne par post publié, du plus récent au plus ancien ; les valeurs absentes restent null (jamais 0)', () => {
-    const { lignes } = P.statistiques(P.fusionnerPosts(jeu, [classement('u1', 'pme', 'video')]));
+    const { lignes } = P.statistiques(P.fusionnerPosts(jeu, [classement('u1', 'cas_concrets', 'video')]));
     assert.deepEqual(ids(lignes), ['u1', 'u2', 'u3', 'u4']);
     assert.deepEqual([lignes[2].portee, lignes[2].commentaires, lignes[2].tauxEngagement, lignes[3].impressions], [null, null, null, null]);
-    assert.deepEqual([lignes[0].pilier, lignes[0].format, lignes[1].pilier], ['pme', 'video', null]);
+    assert.deepEqual([lignes[0].pilier, lignes[0].format, lignes[1].pilier], ['cas_concrets', 'video', null]);
   });
 
   test('E5 moyenne exacte : chaque colonne ne compte que les posts qui ont la valeur ; null si personne ne l’a', () => {
@@ -154,9 +154,9 @@ describe('E5 tableau des statistiques', () => {
   test('E5 tri par texte, pilier et format (valeurs absentes à la fin)', () => {
     const { lignes } = P.statistiques(P.fusionnerPosts(
       [post('a', 'publie', { publieLe: '2026-11-03T05:08:00Z', texte: 'Banane' }), post('b', 'publie', { publieLe: '2026-11-02T05:08:00Z', texte: 'Abricot' }), post('c', 'publie', { publieLe: '2026-11-01T05:08:00Z', texte: 'Cerise' })],
-      [classement('a', 'offre', 'texte'), classement('b', 'pme', 'video')]));
+      [classement('a', 'demarche_offre', 'texte'), classement('b', 'cas_concrets', 'video')]));
     assert.deepEqual(ids(P.trierStatistiques(lignes, 'texte', 'asc')), ['b', 'a', 'c']);
-    assert.deepEqual(ids(P.trierStatistiques(lignes, 'pilier', 'asc')), ['b', 'a', 'c']); // Cas concrets avant Offre ; c sans pilier à la fin
+    assert.deepEqual(ids(P.trierStatistiques(lignes, 'pilier', 'asc')), ['b', 'a', 'c']); // Cas concrets avant Ma démarche et mon offre ; c sans pilier à la fin
     assert.deepEqual(ids(P.trierStatistiques(lignes, 'format', 'desc')), ['b', 'a', 'c']); // sens inversé : c reste à la fin
   });
 
@@ -170,30 +170,77 @@ describe('E5 tableau des statistiques', () => {
   });
 });
 
-describe('E6 équilibre des piliers', () => {
-  // 10 posts publiés ou programmés : 9 classés (pme 3, claude 2, actu_ia 2, proximite 1, offre 1), 1 sans pilier ; 4 vidéos ; plus un brouillon (hors compte).
-  const piliers = ['pme', 'pme', 'pme', 'claude', 'claude', 'actu_ia', 'actu_ia', 'proximite', 'offre', null];
-  const brut = piliers.map((p, i) => post(`e${i}`, i % 2 ? 'programme' : 'publie', { prevuLe: i % 2 ? '2026-11-17T05:08:00Z' : null, publieLe: i % 2 ? null : '2026-11-03T05:08:00Z', video: i < 2 }));
+describe('E6 matrice pilier × format', () => {
+  // 10 posts publiés ou programmés + un brouillon (hors compte). Classés des deux côtés : 7 ; sans pilier : 2 ; sans format : 1 (dont 1 sans rien).
+  const spec = [
+    ['cas_concrets', 'video'], ['cas_concrets', 'video'], ['cas_concrets', 'texte'], ['pedagogie', 'carrousel'], ['pedagogie', 'animation'],
+    ['actu_ia', 'texte'], ['demarche_offre', 'image'], [null, 'texte'], [null, null], ['pedagogie', null],
+  ];
+  const brut = spec.map((_, i) => post(`e${i}`, i % 2 ? 'programme' : 'publie', { prevuLe: i % 2 ? '2026-11-17T05:08:00Z' : null, publieLe: i % 2 ? null : '2026-11-03T05:08:00Z' }));
   brut.push(post('brouillon-1', 'brouillon'));
-  const classements = piliers.map((p, i) => (p ? classement(`e${i}`, p, i === 2 || i === 3 ? 'video' : 'texte') : null)).filter(Boolean);
-  const eq = P.equilibre(P.fusionnerPosts(brut, classements));
+  const classements = spec.map(([pi, fo], i) => classement(`e${i}`, pi, fo));
+  const m = P.matrice(P.fusionnerPosts(brut, classements));
+  const ligne = (id) => m.lignes.find((l) => l.id === id);
 
-  test('E6 parts exactes à l’unité près sur les posts classés, cibles de la ligne éditoriale, posts sans pilier à part', () => {
-    assert.deepEqual([eq.total, eq.classes, eq.sansPilier], [10, 9, 1]);
-    assert.deepEqual(eq.piliers.map((p) => [p.id, p.nombre, p.part, p.cible]), [['pme', 3, 33, 30], ['claude', 2, 22, 25], ['actu_ia', 2, 22, 15], ['proximite', 1, 11, 20], ['offre', 1, 11, 10]]);
+  test('E6 une case = nombre de posts et part du total classé (arrondie à l’unité) ; colonnes dans l’ordre texte, image, carrousel, vidéo, animation', () => {
+    assert.deepEqual(m.colonnes.map((c) => c.id), ['texte', 'image', 'carrousel', 'video', 'animation']);
+    assert.deepEqual([m.total, m.classes], [10, 7]);
+    assert.deepEqual(ligne('cas_concrets').cases.map((c) => [c.nombre, c.part]), [[1, 14], [0, 0], [0, 0], [2, 29], [0, 0]]);
+    assert.deepEqual(ligne('pedagogie').cases.map((c) => c.nombre), [0, 0, 1, 0, 1]);
+    assert.deepEqual(ligne('actu_ia').cases.map((c) => c.nombre), [1, 0, 0, 0, 0]);
+    assert.deepEqual(ligne('demarche_offre').cases.map((c) => c.nombre), [0, 1, 0, 0, 0]);
   });
 
-  test('E6 part de vidéos face à 50 % : fichier vidéo de Buffer ou classé « Vidéo 9:16 » / « Animation 16:9 », sur tous les posts publiés et programmés', () => {
-    assert.deepEqual(eq.video, { nombre: 4, total: 10, part: 40, cible: 50 });
+  test('E6 totaux : chaque ligne face à la cible de son pilier (25, 35, 15, 25), chaque colonne ; cible de 50 % de vidéos sur vidéo + animation', () => {
+    assert.deepEqual(m.lignes.map((l) => [l.id, l.nombre, l.part, l.cible]), [['cas_concrets', 3, 43, 25], ['pedagogie', 2, 29, 35], ['actu_ia', 1, 14, 15], ['demarche_offre', 1, 14, 25]]);
+    assert.deepEqual(m.colonnes.map((c) => [c.id, c.nombre]), [['texte', 2], ['image', 1], ['carrousel', 1], ['video', 2], ['animation', 1]]);
+    assert.deepEqual(m.video, { formats: ['video', 'animation'], nombre: 3, part: 43, cible: 50 });
+    assert.equal(m.lignes.reduce((t, l) => t + l.nombre, 0), m.classes);
+  });
+
+  test('E6 un post sans pilier ou sans format est compté à part (« n sans pilier, n sans format »), jamais dans une case', () => {
+    assert.deepEqual([m.sansPilier, m.sansFormat], [2, 2]);
+    assert.equal(m.lignes.reduce((t, l) => t + l.cases.reduce((u, c) => u + c.nombre, 0), 0), 7);
+  });
+
+  test('E6 les anciens identifiants de pilier sont lus comme les nouveaux (pme, claude, actu_ia, proximite, offre) ; une écriture n’utilise que les nouveaux', () => {
+    assert.deepEqual(['pme', 'claude', 'actu_ia', 'proximite', 'offre', 'inconnu', null].map(R.convertirPilier), ['cas_concrets', 'pedagogie', 'actu_ia', 'demarche_offre', 'demarche_offre', null, null]);
+    const anciens = P.fusionnerPosts([post('a'), post('b')], [classement('a', 'proximite', 'texte'), classement('b', 'offre', 'texte')]);
+    assert.deepEqual(anciens.map((p) => p.classement.pilier), ['demarche_offre', 'demarche_offre']);
+    assert.equal(R.libellePilier('claude'), 'Pédagogie et méthodes');
+    const mAnciens = P.matrice(P.fusionnerPosts([post('a'), post('b')], [classement('a', 'proximite', 'texte'), classement('b', 'offre', 'texte')]));
+    assert.equal(mAnciens.lignes.find((l) => l.id === 'demarche_offre').nombre, 2);
+    assert.equal(P.classementModifie({ pilier: 'pme', format: 'texte' }, { pilier: 'cas_concrets', format: 'texte' }), false);
+    assert.equal(R.normaliserClassement({ pilier: 'pme' }).pilier, 'cas_concrets');
+  });
+
+  test('E6 « Prochain post à imaginer » : les 3 cases les plus utiles (écart de la ligne + écart de la colonne), chacune avec une phrase', () => {
+    assert.equal(m.suggestions.length, 3);
+    // Pédagogie : 35 - 29 = 6 ; Démarche : 25 - 14 = 11 ; Actu : 15 - 14 = 1 ; Cas concrets : 25 - 43 = -18. Colonnes vidéo : (50 - 43) / 2 = 3,5 ; autres : -2,33.
+    assert.deepEqual(m.suggestions.map((s) => [s.pilier, s.format]), [['demarche_offre', 'video'], ['demarche_offre', 'animation'], ['pedagogie', 'video']]);
+    assert.equal(m.suggestions[0].titre, 'Ma démarche et mon offre × Vidéo 9:16');
+    assert.match(m.suggestions[0].phrase, /Ma démarche et mon offre est à 14 % \(cible 25 %\), les vidéos à 43 % \(cible 50 %\) et cette case est encore vide\./);
+  });
+
+  test('E6 une suggestion tient compte du retard de la ligne : le pilier le plus en retard sur sa cible passe en premier', () => {
+    const jeu = ['cas_concrets', 'cas_concrets', 'cas_concrets', 'cas_concrets', 'pedagogie'].map((pi, i) => post(`s${i}`, 'publie', { publieLe: '2026-11-03T05:08:00Z' }));
+    const sug = P.matrice(P.fusionnerPosts(jeu, jeu.map((p, i) => classement(p.id, i < 4 ? 'cas_concrets' : 'pedagogie', 'texte')))).suggestions;
+    assert.equal(sug[0].pilier, 'demarche_offre'); // 0 % pour 25 % de cible
+  });
+
+  test('E6 cas vide : aucun post, aucune division par zéro, aucune suggestion ; posts non classés : matrice à zéro et suggestions quand même', () => {
+    const vide = P.matrice([]);
+    assert.deepEqual([vide.total, vide.classes, vide.sansPilier, vide.sansFormat, vide.video.part, vide.suggestions], [0, 0, 0, 0, 0, []]);
+    assert.ok(vide.lignes.every((l) => l.part === 0 && l.cases.every((c) => c.nombre === 0 && c.part === 0)));
+    const nonClasses = P.matrice(P.fusionnerPosts([post('n1'), post('n2', 'programme', { prevuLe: '2026-11-17T05:08:00Z' })], []));
+    assert.deepEqual([nonClasses.total, nonClasses.classes, nonClasses.sansPilier, nonClasses.sansFormat], [2, 0, 2, 2]);
+    assert.equal(nonClasses.suggestions.length, 3);
+  });
+
+  test('E6 la part de vidéos du contrôle éditorial garde sa règle : fichier vidéo de Buffer ou classé « Vidéo 9:16 » / « Animation 16:9 »', () => {
     assert.equal(P.estVideo({ video: false, classement: { format: 'animation' } }), true);
     assert.equal(P.estVideo({ video: false, classement: { format: 'image' } }), false);
     assert.equal(P.estVideo({ video: true, classement: { format: null } }), true);
-  });
-
-  test('E6 aucun post : parts à zéro, aucune division par zéro', () => {
-    const vide = P.equilibre([]);
-    assert.deepEqual([vide.total, vide.classes, vide.sansPilier, vide.video.part], [0, 0, 0, 0]);
-    assert.ok(vide.piliers.every((p) => p.part === 0));
   });
 });
 
@@ -250,7 +297,7 @@ describe('E7 contrôle éditorial', () => {
       post('p3', 'programme', { prevuLe: '2026-11-10T05:08:00Z', texte: 'Sans pilier' }),
       post('p4', 'programme', { prevuLe: '2026-11-12T05:08:00Z', texte: 'Complet' }),
       post('b1', 'brouillon', { texte: 'Brouillon libre' }), // un brouillon n'est pas contrôlé
-    ], [classement('p2', 'pme'), classement('p3', null, 'texte'), classement('p4', 'claude', 'video')], NOW_HIVER);
+    ], [classement('p2', 'cas_concrets'), classement('p3', null, 'texte'), classement('p4', 'pedagogie', 'video')], NOW_HIVER);
     assert.deepEqual(codes(points, 'c').map((p) => p.texte), [
       'Le post programmé « Sans rien » n’a pas encore de pilier ni de format.',
       'Le post programmé « Sans format » n’a pas encore de format.',
@@ -275,13 +322,13 @@ describe('E7 contrôle éditorial', () => {
 
   test('E7 (e) un pilier à plus de 15 points de sa cible est signalé (à partir de 5 posts classés) ; l’écart exact de 15 points ne l’est pas', () => {
     const six = Array.from({ length: 6 }, (_, i) => post(`u${i}`, 'publie', { publieLe: `2026-11-0${i + 1}T05:08:00Z`, video: true }));
-    const points = codes(P.controlesEditoriaux(six, six.map((p) => classement(p.id, 'pme', 'video')), NOW_HIVER), 'e').map((p) => p.texte);
-    assert.ok(points.includes('Le pilier « Cas concrets » pèse 100 % des posts classés (cible 30 %).'));
-    assert.ok(points.some((t) => t.startsWith('Le pilier « Claude au quotidien » pèse 0 %')));
+    const points = codes(P.controlesEditoriaux(six, six.map((p) => classement(p.id, 'cas_concrets', 'video')), NOW_HIVER), 'e').map((p) => p.texte);
+    assert.ok(points.includes('Le pilier « Cas concrets » pèse 100 % des posts classés (cible 25 %).'));
+    assert.ok(points.some((t) => t.startsWith('Le pilier « Pédagogie et méthodes » pèse 0 %')));
     assert.ok(!points.some((t) => t.includes('Actu IA')), 'Actu IA : 0 % face à 15 % = exactement 15 points, pas plus');
     // Sous 5 posts classés : le contrôle se tait.
     const quatre = six.slice(0, 4);
-    assert.equal(codes(P.controlesEditoriaux(quatre, quatre.map((p) => classement(p.id, 'pme', 'video')), NOW_HIVER), 'e').length, 0);
+    assert.equal(codes(P.controlesEditoriaux(quatre, quatre.map((p) => classement(p.id, 'cas_concrets', 'video')), NOW_HIVER), 'e').length, 0);
   });
 
   test('E7 aucun contrôle en échec : liste vide (l’écran dit « Tout est en ordre. »)', () => {
@@ -290,7 +337,7 @@ describe('E7 contrôle éditorial', () => {
     const posts = creneaux.map((c, i) => post(`p${i}`, 'programme', { prevuLe: L.dateHeureParisVersDate(`${c.date}T${c.heure}`).toISOString(), video: true }));
     assert.ok(posts.length >= 4);
     // Piliers répartis selon la cible (avec 6 posts ou plus, un seul pilier « pèse 100 % » et le point e s'allume).
-    const piliers = ['pme', 'claude', 'proximite', 'pme', 'actu_ia', 'claude', 'proximite', 'pme', 'offre', 'claude'];
+    const piliers = ['cas_concrets', 'pedagogie', 'demarche_offre', 'cas_concrets', 'actu_ia', 'pedagogie', 'demarche_offre', 'cas_concrets', 'demarche_offre', 'pedagogie'];
     assert.deepEqual(P.controlesEditoriaux(posts, posts.map((p, i) => classement(p.id, piliers[i % piliers.length], 'video')), NOW_HIVER), []);
   });
 });
@@ -298,7 +345,7 @@ describe('E7 contrôle éditorial', () => {
 describe('E8 filtres et recherche', () => {
   const tous = P.fusionnerPosts([
     post('a', 'publie', { texte: 'Un devis fait en dix minutes' }), post('b', 'publie', { texte: 'Évènement à Manosque' }), post('c', 'programme', { texte: 'Claude au quotidien' }), post('d', 'brouillon', { texte: 'Autre sujet' }),
-  ], [classement('a', 'pme', 'video', ['commercial']), classement('b', 'proximite', 'image', []), classement('c', 'claude', 'texte', ['direction', 'finance'])]);
+  ], [classement('a', 'cas_concrets', 'video', ['commercial']), classement('b', 'demarche_offre', 'image', []), classement('c', 'pedagogie', 'texte', ['direction', 'finance'])]);
 
   test('E8 « Non classés seulement » montre les posts sans document de classement', () => {
     assert.deepEqual(ids(P.filtrerPosts(tous, { nonClasses: true })), ['d']);
@@ -312,15 +359,15 @@ describe('E8 filtres et recherche', () => {
   });
 
   test('E8 pilier, format et service : « ou » dans un groupe, « et » entre groupes ; rien de coché = tout', () => {
-    assert.deepEqual(ids(P.filtrerPosts(tous, { piliers: ['pme', 'claude'] })), ['a', 'c']);
-    assert.deepEqual(ids(P.filtrerPosts(tous, { piliers: ['pme', 'claude'], formats: ['texte'] })), ['c']);
+    assert.deepEqual(ids(P.filtrerPosts(tous, { piliers: ['cas_concrets', 'pedagogie'] })), ['a', 'c']);
+    assert.deepEqual(ids(P.filtrerPosts(tous, { piliers: ['cas_concrets', 'pedagogie'], formats: ['texte'] })), ['c']);
     assert.deepEqual(ids(P.filtrerPosts(tous, { services: ['finance', 'commercial'] })), ['a', 'c']);
     assert.deepEqual(ids(P.filtrerPosts(tous, { formats: ['image'], services: ['finance'] })), []);
     assert.deepEqual(ids(P.filtrerPosts(tous, {})), ['a', 'b', 'c', 'd']);
   });
 
   test('E8 le nombre de filtres (pastille du bouton) ne compte pas la recherche', () => {
-    assert.equal(P.nombreFiltres({ recherche: 'abc', piliers: ['pme'], formats: ['video', 'image'], services: [], nonClasses: true }), 4);
+    assert.equal(P.nombreFiltres({ recherche: 'abc', piliers: ['cas_concrets'], formats: ['video', 'image'], services: [], nonClasses: true }), 4);
     assert.equal(P.nombreFiltres({ recherche: 'abc' }), 0);
   });
 });
