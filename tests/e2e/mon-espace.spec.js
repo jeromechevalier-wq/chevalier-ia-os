@@ -372,14 +372,14 @@ test('M12 éditeur : « Membres et rôles » liste les membres avec mon adresse 
   await expect(page.locator(`[data-membre="${ALICE}"] .reglages-membre-nom`)).toHaveText(`${ALICE} (toi)`);
   await expect(page.locator(`[data-membre="${LEA}"] .reglages-membre-nom`)).toHaveText(LEA);
   await expect(page.locator('.mon-espace-ajout-aide')).toHaveText('La personne doit se connecter avec le compte Google de cette adresse.');
-  await page.getByLabel('Adresse Google du nouveau membre').fill('Ingrid.Atamian@gmail.com');
+  await page.getByLabel('Adresse Google du nouveau membre').fill('Cliente.Exemple@Exemple.TEST');
   await page.getByLabel('Rôle du nouveau membre').selectOption('editeur');
   await page.getByRole('button', { name: 'Ajouter un membre' }).click();
-  const ligne = page.locator('[data-membre="ingrid.atamian@gmail.com"]');
+  const ligne = page.locator('[data-membre="cliente.exemple@exemple.test"]');
   await expect(ligne).toBeVisible();
   await expect(ligne.locator('[data-role="role-membre"]')).toHaveValue('editeur');
-  expect(await lireDocument('clients/studio/membres/ingrid.atamian@gmail.com')).toEqual({ role: 'editeur' });
-  expect((await lireDocument('clients/studio')).equipe).toContainEqual({ email: 'ingrid.atamian@gmail.com', role: 'editeur' });
+  expect(await lireDocument('clients/studio/membres/cliente.exemple@exemple.test')).toEqual({ role: 'editeur' });
+  expect((await lireDocument('clients/studio')).equipe).toContainEqual({ email: 'cliente.exemple@exemple.test', role: 'editeur' });
   await capturer(page, 'M12');
 });
 

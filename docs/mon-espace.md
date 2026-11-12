@@ -1,6 +1,6 @@
 # Mon espace modifiable (version 2.10.0)
 
-**Décidé par Jérôme le 17/10/2026.** Ingrid Atamian (et tout autre client) règle elle-même le nom, le logo, les couleurs, les images et le texte d'accueil de son espace, et gère ses membres. Jérôme n'a plus à le faire pour elle.
+**Décidé par Jérôme le 17/10/2026.** Une cliente (et tout autre client) règle elle-même le nom, le logo, les couleurs, les images et le texte d'accueil de son espace, et gère ses membres. Jérôme n'a plus à le faire pour elle.
 
 ## Qui peut quoi (à ne pas changer sans Jérôme)
 | | Éditeur | Lecteur | Jérôme (administrateur) |
