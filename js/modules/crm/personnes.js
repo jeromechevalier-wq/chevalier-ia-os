@@ -48,7 +48,8 @@ function cellule(colonne, p) {
     }
     case 'email': {
       const e = L.premierEmail(p);
-      return e ? h('a', { href: `mailto:${e}` }, e) : null;
+      const lienMail = e ? L.lienEmail(e) : null;
+      return e ? (lienMail ? h('a', { href: lienMail }, e) : h('span', {}, e)) : null;
     }
     case 'telephone': {
       const t = p.telephones?.[0]?.valeur;

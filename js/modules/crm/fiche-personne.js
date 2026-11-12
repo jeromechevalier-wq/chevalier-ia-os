@@ -89,6 +89,7 @@ export function rendreFichePersonne(conteneur, id, { clients = false } = {}) { /
     // ---- Résumé
     const etiquettes = D.estNoyau() ? null : selecteurEtiquettes({ valeurIds: p.etiquettes || [], surChoix: (liste) => D.majPersonne(p.id, { etiquettes: liste.map((e) => e.id) }) });
     const emailOk = L.emailActif(p);
+    const lienMail = emailOk ? L.lienEmail(L.premierEmail(p)) : null;
     const resume = sectionRepliable({
       id: 'personne-resume', titre: 'Résumé',
       contenu: h('div', { class: 'pile resume' },
@@ -100,8 +101,8 @@ export function rendreFichePersonne(conteneur, id, { clients = false } = {}) { /
           ? h('div', { class: 'contact-ligne' }, icone('building-2', { taille: 15 }), lienOrganisation(org))
           : h('button', { type: 'button', class: 'prop-vide', 'data-action': 'ajouter-organisation', onclick: () => { editionOrganisation = true; reconstruire(); } }, icone('plus', { taille: 14 }), 'Organisation'),
         h('div', { class: 'actions-email' },
-          emailOk ? h('a', { class: 'bouton bouton-secondaire bouton-petit', href: `mailto:${L.premierEmail(p)}`, 'data-action': 'ecrire-email' }, icone('mail', { taille: 15 }), 'Écrire un email')
-            : h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', disabled: true, 'data-action': 'ecrire-email', title: p.oppositionProspection ? 'Opposition à la prospection' : 'Pas d’adresse email' }, icone('mail', { taille: 15 }), 'Écrire un email'),
+          lienMail ? h('a', { class: 'bouton bouton-secondaire bouton-petit', href: lienMail, 'data-action': 'ecrire-email' }, icone('mail', { taille: 15 }), 'Écrire un email')
+            : h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', disabled: true, 'data-action': 'ecrire-email', title: p.oppositionProspection ? 'Opposition à la prospection' : (emailOk ? 'Adresse email à corriger' : 'Pas d’adresse email') }, icone('mail', { taille: 15 }), 'Écrire un email'),
           h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', disabled: !emailOk, 'data-action': 'email-envoye', onclick: async () => { await D.emailEnvoye(p.id); toast('Email noté dans l’historique'); } }, icone('mail-check', { taille: 15 }), 'Email envoyé')),
         h('div', { class: 'proprietes' }, selectProprietaire({ valeur: p.proprietaire, surChoix: (v) => D.majPersonne(p.id, { proprietaire: v }) }))),
     });
@@ -116,8 +117,8 @@ export function rendreFichePersonne(conteneur, id, { clients = false } = {}) { /
         champPropriete({ libelle: 'Prénom', valeur: p.prenom || '', surEnregistrer: (v) => D.majPersonne(p.id, L.patchNomDetaille(v, p.nomFamille)) }).element,
         champPropriete({ libelle: 'Nom de famille', valeur: p.nomFamille || '', surEnregistrer: (v) => D.majPersonne(p.id, L.patchNomDetaille(p.prenom, v)) }).element,
         prop('Ville', 'ville', { type: 'intelligent', fournir: fournisseurVilles() }).element,
-        prop('LinkedIn', 'linkedin', { type: 'url', lienVers: (v) => v }).element,
-        prop('Site web', 'siteWeb', { type: 'url', lienVers: (v) => v }).element,
+        prop('LinkedIn', 'linkedin', { type: 'url', lienVers: (v) => L.lienWebSur(L.normaliserLienWeb(v)), surEnregistrer: (v) => D.majPersonne(p.id, { linkedin: L.lienWebOuErreur(v) }) }).element,
+        prop('Site web', 'siteWeb', { type: 'url', lienVers: (v) => L.lienWebSur(L.normaliserLienWeb(v)), surEnregistrer: (v) => D.majPersonne(p.id, { siteWeb: L.lienWebOuErreur(v) }) }).element,
         champPropriete({ libelle: 'Source', valeur: p.source || '', type: 'liste', autoriserCreation: false, fournir: () => D.etat.sources, aideListeVide: 'Aucune source dans la liste : ajoute-en dans Réglages, Sources.',
           surEnregistrer: (v) => D.majPersonne(p.id, { source: v }) }).element,
         opposition),
