@@ -220,10 +220,44 @@ export function creneauxAVenir(maintenant, posts, jours = 21) {
   return sortie;
 }
 
-/** Le post publié le plus récemment (null s'il n'y en a pas). */
-export function dernierPostPublie(posts) {
-  return (posts || []).filter((p) => p.statut === 'publie').map((p) => ({ p, t: L.versDate(p.publieLe)?.getTime() ?? 0 })).sort((a, b) => b.t - a.t)[0]?.p ?? null;
+/** Les `n` posts publiés les plus récents, du plus récent au plus ancien (liste vide s'il n'y en a pas). */
+export function derniersPostsPublies(posts, n = 3) {
+  return (posts || []).filter((p) => p.statut === 'publie').map((p) => ({ p, t: L.versDate(p.publieLe)?.getTime() ?? 0 })).sort((a, b) => b.t - a.t).slice(0, n).map((x) => x.p);
 }
+
+/** Le post publié le plus récemment (null s'il n'y en a pas). */
+export const dernierPostPublie = (posts) => derniersPostsPublies(posts, 1)[0] ?? null;
+
+export const JOURS_RYTHME = 21;
+export const OBJECTIF_RYTHME = Object.freeze({ min: 6, max: 9 }); // 2 à 3 posts par semaine, sur 21 jours
+
+/**
+ * Nombre de posts publiés sur les 21 derniers jours GLISSANTS (jamais la semaine civile : le lundi tout serait à zéro) : le jour de Paris de `publieLe` va d'il y a 20 jours à aujourd'hui, aujourd'hui inclus ;
+ * le jour d'il y a 21 jours est exclu, un post daté dans le futur aussi.
+ */
+export function nombrePublies21Jours(posts, maintenant = new Date()) {
+  const aujourdhui = L.aujourdhuiParis(maintenant);
+  const debut = L.ajouterJours(aujourdhui, -JOURS_RYTHME); // exclu
+  return (posts || []).filter((p) => {
+    if (p.statut !== 'publie') return false;
+    const j = L.jourParis(p.publieLe);
+    return !!j && j > debut && j <= aujourdhui;
+  }).length;
+}
+/** Niveau du rythme : 'vert' (6 ou plus), 'orange' (3 à 5), 'rouge' (moins de 3). */
+export const niveauRythme = (n) => (n >= OBJECTIF_RYTHME.min ? 'vert' : n >= 3 ? 'orange' : 'rouge');
+
+const formateurHeureParis = new Intl.DateTimeFormat('en-GB', { timeZone: L.FUSEAU, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+/** « mardi 17 novembre · 6 h 08 » (jour et heure de Paris) pour une date ; chaîne vide si la date est absente. */
+export function libelleJourHeure(dateLike) {
+  const d = L.versDate(dateLike);
+  if (!d) return '';
+  const parties = Object.fromEntries(formateurHeureParis.formatToParts(d).map((x) => [x.type, x.value]));
+  return `${libelleJour(L.jourParis(d))} · ${Number(parties.hour)} h ${parties.minute}`;
+}
+
+/** Adresse d'un post sur LinkedIn (champ `lien` renvoyé par Buffer, `externalLink`) : seulement une adresse https, sinon null. */
+export const adressePostLinkedin = (post) => (typeof post?.lien === 'string' && /^https:\/\//.test(post.lien) ? post.lien : null);
 
 // ---------------------------------------------------------------- suite des échanges LinkedIn
 

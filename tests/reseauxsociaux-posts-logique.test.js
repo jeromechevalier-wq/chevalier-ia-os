@@ -500,3 +500,35 @@ describe('E11 base de calcul unique (R.postsComptes)', () => {
     assert.ok(/postsComptes\(posts\)/.test(sansCommentaires(lire('js/modules/reseauxsociaux/logique.js'))));
   });
 });
+
+describe('Aujourd’hui : derniers posts publiés et liens (13/11/2026)', () => {
+  test('derniersPostsPublies rend les 3 plus récents publiés, du plus récent au plus ancien ; dernierPostPublie reste le premier', () => {
+    const posts = [post('a', 'publie', { publieLe: '2026-11-01T05:08:00.000Z' }), post('b', 'programme', { prevuLe: '2026-11-20T05:08:00.000Z' }),
+      post('c', 'publie', { publieLe: '2026-11-10T05:08:00.000Z' }), post('d', 'publie', { publieLe: '2026-11-05T05:08:00.000Z' }), post('e', 'publie', { publieLe: '2026-10-01T05:08:00.000Z' })];
+    assert.deepEqual(R.derniersPostsPublies(posts).map((p) => p.id), ['c', 'd', 'a']);
+    assert.equal(R.dernierPostPublie(posts).id, 'c');
+    assert.deepEqual(R.derniersPostsPublies([]), []);
+  });
+  test('libelleJourHeure : jour et heure de Paris (hiver et été) ; vide sans date', () => {
+    assert.equal(R.libelleJourHeure('2026-11-17T05:08:00.000Z'), 'mardi 17 novembre · 6 h 08');
+    assert.equal(R.libelleJourHeure('2026-07-14T04:08:00.000Z'), 'mardi 14 juillet · 6 h 08');
+    assert.equal(R.libelleJourHeure(null), '');
+  });
+  test('adressePostLinkedin : seulement une adresse https', () => {
+    assert.equal(R.adressePostLinkedin({ lien: 'https://www.linkedin.com/feed/update/urn:li:share:1/' }), 'https://www.linkedin.com/feed/update/urn:li:share:1/');
+    assert.equal(R.adressePostLinkedin({ lien: 'javascript:alert(1)' }), null);
+    assert.equal(R.adressePostLinkedin({ lien: null }), null);
+    assert.equal(R.adressePostLinkedin(null), null);
+  });
+  test('nombrePublies21Jours : fenêtre glissante, aujourd’hui inclus, il y a 21 jours exclu, futur et non publiés écartés', () => {
+    const maintenant = new Date('2026-11-12T10:00:00.000Z'); // jeudi 12 novembre, Paris
+    const publie = (id, publieLe) => post(id, 'publie', { publieLe });
+    const posts = [publie('auj', '2026-11-12T05:08:00.000Z'), publie('j20', '2026-10-23T12:00:00.000Z'), publie('j21', '2026-10-22T12:00:00.000Z'),
+      publie('futur', '2026-11-13T05:08:00.000Z'), post('prog', 'programme', { prevuLe: '2026-11-12T05:08:00.000Z' }), publie('sans', null)];
+    assert.equal(R.nombrePublies21Jours(posts, maintenant), 2); // aujourd'hui et il y a 20 jours seulement
+    assert.equal(R.nombrePublies21Jours([], maintenant), 0);
+  });
+  test('niveauRythme : 6 et plus vert, 3 à 5 orange, moins de 3 rouge', () => {
+    assert.deepEqual([0, 2, 3, 5, 6, 9, 12].map(R.niveauRythme), ['rouge', 'rouge', 'orange', 'orange', 'vert', 'vert', 'vert']);
+  });
+});

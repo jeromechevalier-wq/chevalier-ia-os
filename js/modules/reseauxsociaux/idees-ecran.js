@@ -17,6 +17,7 @@ import { ongletsReseauxSociaux, chargement, pastillePilier, pastilleFormat, past
 // Choix gardés jusqu'au rechargement de la page (remis à zéro à la déconnexion : `oublierFiltresIdees`).
 let criteres = I.criteresIdees();
 let contrainte = null;
+let creneauDemande = null; // libellé du créneau de l'écran Aujourd'hui pour lequel on imagine un post (rappelé au-dessus de la contrainte)
 
 // Feuille de style commune aux deux écrans, ajoutée au premier affichage (index.html reste inchangé).
 function ajouterFeuille() {
@@ -31,6 +32,7 @@ function ajouterFeuille() {
 export function oublierFiltresIdees() {
   criteres = I.criteresIdees();
   contrainte = null;
+  creneauDemande = null;
 }
 
 const COULEUR_COLONNE = { idee: 'var(--gris-lilas)', en_redaction: 'var(--violet-clair)', dans_buffer: 'var(--vert)', abandonnee: 'var(--bordure-forte)' };
@@ -199,9 +201,10 @@ async function tirer(aleatoire = Math.random) {
   return I.tirerContrainte(aleatoire, { suggestions: matrice.suggestions, classements: D.etat.posts, idees: D.etat.idees });
 }
 
-function carteContrainte(c, { relancer, creer }) {
+function carteContrainte(c, { relancer, creer, creneau = null }) {
   return h('section', { class: 'carte-section rs-contrainte', dataset: { carte: 'contrainte' } },
     h('h2', {}, icone('sparkles', { taille: 18 }), 'Contrainte tirée'),
+    creneau ? h('p', { class: 'aide', dataset: { role: 'creneau-demande' } }, `Pour le créneau du ${creneau}`) : null,
     h('div', { class: 'groupe-pastilles', dataset: { role: 'contrainte' } }, pastillePilier(c.pilier), pastilleFormat(c.format), pastilleService(c.service)),
     h('p', { class: 'aide', dataset: { role: 'raison-contrainte' } }, c.origine === 'suggestion'
       ? 'Le pilier et le format sont ceux que la matrice de tes posts met en avant ; le service vient plus souvent parmi les moins travaillés.'
@@ -222,7 +225,7 @@ export function rendreIdees(conteneur) {
 
   const nouvelle = (prerempli = null) => ouvrirIdee({ prerempli });
   const boutonIdee = h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'nouvelle-idee' }, onclick: () => nouvelle() }, icone('plus', { taille: 16 }), 'Idée');
-  const boutonTirer = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'tirer-contrainte' }, onclick: () => lancerTirage() }, icone('sparkles', { taille: 16 }), 'Tirer une contrainte');
+  const boutonTirer = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'tirer-contrainte' }, onclick: () => { creneauDemande = null; lancerTirage(); } }, icone('sparkles', { taille: 16 }), 'Tirer une contrainte');
 
   async function lancerTirage() {
     boutonTirer.disabled = true;
@@ -269,7 +272,7 @@ export function rendreIdees(conteneur) {
     filtres.majCompte(I.nombreFiltresIdees(criteres));
     pastillesActives();
     if (barre.champ.value !== criteres.recherche && document.activeElement !== barre.champ) barre.champ.value = criteres.recherche;
-    remplir(zoneContrainte, contrainte ? carteContrainte(contrainte, { relancer: () => lancerTirage(), creer: () => nouvelle({ pilier: contrainte.pilier, format: contrainte.format, service: contrainte.service }) }) : null);
+    remplir(zoneContrainte, contrainte ? carteContrainte(contrainte, { creneau: creneauDemande, relancer: () => lancerTirage(), creer: () => nouvelle({ pilier: contrainte.pilier, format: contrainte.format, service: contrainte.service }) }) : null);
     if (!D.etat.pret) { remplir(compteur, ''); remplir(zone, chargement()); return; }
     const toutes = D.etat.idees;
     if (!toutes.length) {
@@ -286,6 +289,9 @@ export function rendreIdees(conteneur) {
   }
 
   const arret = D.surChangement(rendre);
+  const demande = D.prendreTirageDemande(); // « Imaginer un post pour ce créneau » de l'écran Aujourd'hui
+  if (demande) creneauDemande = demande;
   rendre();
+  if (demande) lancerTirage();
   return function quitter() { arret(); };
 }
