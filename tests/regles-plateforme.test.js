@@ -463,4 +463,22 @@ describe('J. Journal des workflows : lecture seule pour tous les navigateurs', (
       await droitsComplets(ctx(ALICE), 'a', c);
     });
   }
+
+  test('R7 jeton avec majuscules : le lot réel de l\'écran (acteur en minuscules) passe encore', async () => {
+    const db = env.authenticatedContext('uid-maj', { email: 'Alice@Exemple.test', email_verified: true }).firestore();
+    const lot = writeBatch(db);
+    lot.set(doc(db, 'clients', 'a', 'crm_personnes', 'pm'), { nom: 'Test' });
+    lot.set(doc(db, 'clients', 'a', 'crm_audit', 'lm'), ligne(ALICE));
+    lot.set(doc(db, 'clients', 'a', 'crm_audit_avant', 'lm'), copie());
+    await assertSucceeds(lot.commit());
+  });
+  test('R8 verrous : sous-collections profondes, réécriture d\'une ligne existante, via nul ou liste', async () => {
+    await semer();
+    const db = ctx(ALICE);
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'crm_audit', 'x', 'sous', 'y'), ligne()));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'mcp_codes', 'c', 'sous', 's'), { code: '1' }));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'crm_audit', 'existant'), ligne()));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'crm_audit', 'v1'), { via: null, acteur: ALICE }));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'crm_audit', 'v2'), { via: ['ecran'], acteur: ALICE }));
+  });
 });

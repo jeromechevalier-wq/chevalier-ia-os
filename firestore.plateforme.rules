@@ -61,7 +61,7 @@ service cloud.firestore {
     }
     match /clients/{client}/crm_audit/{id} {
       allow read: if roleDe(client) in ['editeur', 'lecteur'];
-      allow create: if roleDe(client) == 'editeur' && request.resource.data.get('via', '') == 'ecran' && request.resource.data.get('acteur', '') == request.auth.token.email;
+      allow create: if roleDe(client) == 'editeur' && request.resource.data.get('via', '') == 'ecran' && request.resource.data.get('acteur', '') == request.auth.token.email.lower();
       allow update, delete: if false;
     }
     match /clients/{client}/crm_audit_avant/{id} {
