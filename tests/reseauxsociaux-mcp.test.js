@@ -21,7 +21,7 @@ afterEach(async () => { while (arrets.length) await arrets.pop()(); });
 const LECTURE = ['lister_sources_inspiration', 'lire_source_inspiration', 'lister_pistes', 'lister_idees'];
 const ECRITURE = ['creer_source_inspiration', 'modifier_source_inspiration', 'ajouter_pistes', 'modifier_piste', 'retenir_piste', 'enregistrer_exemple', 'creer_idee', 'modifier_idee'];
 const TABLES = ['reseauxsociaux_idees', 'reseauxsociaux_inspirations', 'reseauxsociaux_exemples', 'reseauxsociaux_pistes'];
-const CHAMPS_PISTE = ['angle', 'ancre', 'auteur', 'creeLe', 'ideeId', 'etat', 'exempleId', 'format', 'lot', 'modifieLe', 'note', 'pilier', 'service', 'sourceId', 'sourceTitre', 'sourceType', 'url', 'via'];
+const CHAMPS_PISTE = ['accroche', 'brouillon', 'piliers', 'visuel', 'angle', 'ancre', 'auteur', 'creeLe', 'ideeId', 'etat', 'exempleId', 'format', 'lot', 'modifieLe', 'note', 'pilier', 'service', 'sourceId', 'sourceTitre', 'sourceType', 'url', 'via'];
 const LINKEDIN = 'https://www.linkedin.com/in/graffeuil';
 
 /** `racine` : null = serveur de Jérôme ; 'clients/a' = données rangées sous un client (comme la plateforme). */

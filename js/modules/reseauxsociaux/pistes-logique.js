@@ -13,6 +13,10 @@ const { ErreurClaire } = I;
 export const MAX_ANGLE = I.MAX_ANGLE; // 200
 export const MAX_NOTE = 300;
 export const MAX_ANCRE = 200;
+export const MAX_ACCROCHE = 200; // la première phrase du post
+export const MAX_BROUILLON = 1500; // le post presque prêt : accroche, développement, appel final (nos mots, jamais ceux d'un tiers)
+export const MAX_VISUEL = 400; // proposition de visuel ou d'animation (ce qu'on voit, pas un fichier)
+export const MAX_PILIERS = 4; // une piste peut servir plusieurs piliers à la fois
 export const MAX_LOT = 60;
 export const MAX_PISTES_PAR_LOT = 30; // propositions : 30 pistes au plus par collage ou par appel d'outil
 export const MIN_PISTES_DEMANDEES = 10;
@@ -27,19 +31,34 @@ export const ETATS_PISTE = Object.freeze([
 ]);
 export const AUTEURS_PISTE = Object.freeze(['claude', 'utilisateur']);
 /** Les champs qu'une réponse de Claude peut porter (liste fermée) ; tout autre champ est ignoré. */
-export const CHAMPS_REPONSE = Object.freeze(['angle', 'note', 'ancre', 'url', 'pilier', 'format', 'service']);
+export const CHAMPS_REPONSE = Object.freeze(['angle', 'accroche', 'brouillon', 'visuel', 'note', 'ancre', 'url', 'piliers', 'pilier', 'format', 'service']);
 /** Les champs qu'un outil de Claude peut porter : ceux de la réponse, plus l'exemple d'où vient la piste. */
 export const CHAMPS_OUTIL = Object.freeze([...CHAMPS_REPONSE, 'exempleId']);
 /** Les champs qu'on peut modifier sur une piste existante. */
-export const CHAMPS_MODIFIABLES = Object.freeze(['angle', 'note', 'ancre', 'pilier', 'format', 'service', 'etat']);
+export const CHAMPS_MODIFIABLES = Object.freeze(['angle', 'accroche', 'brouillon', 'visuel', 'note', 'ancre', 'piliers', 'pilier', 'format', 'service', 'etat']);
 export const FORMAT_REPONSE = 'pistes-v1';
 
 // Coupe en caractères réels (points de code), jamais au milieu d'un emoji : `longueur` compte de la même façon, donc un angle accepté n'est jamais rogné.
 const texteSimple = (v, max) => Array.from(String(v ?? '').replace(/\s+/g, ' ').trim()).slice(0, max).join('');
+// Texte sur plusieurs lignes (le brouillon d'un post garde ses paragraphes) : retours à la ligne unifiés, pas plus d'une ligne vide de suite, coupé en caractères réels.
+const nettoyerLong = (v) => String(v ?? '').replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+const texteLong = (v, max) => Array.from(nettoyerLong(v)).slice(0, max).join('');
+const longueurLong = (v) => Array.from(nettoyerLong(v)).length;
 const longueur = (v) => Array.from(String(v ?? '').replace(/\s+/g, ' ').trim()).length;
 const idConnu = (liste, id) => (liste.some((x) => x.id === id) ? id : null);
 /** Adresse https seulement (sans schéma, elle est refusée : une piste ne reçoit que des liens complets). */
 const urlHttps = (v) => (/^https:\/\//i.test(String(v ?? '').trim()) ? I.normaliserUrlWeb(v) : '');
+
+/**
+ * Les piliers d'une piste : liste d'identifiants d'aujourd'hui, sans doublon, 4 au plus. Accepte `piliers` (liste, ou un seul texte) et l'ancien champ `pilier` (un seul) ;
+ * une valeur inconnue est laissée de côté. La liste garde l'ordre donné : le premier est le pilier principal (couleur, carte, filtre).
+ */
+export function normaliserPiliers(piliers, pilier) {
+  const brut = [...(Array.isArray(piliers) ? piliers : (typeof piliers === 'string' ? [piliers] : [])), pilier];
+  return [...new Set(brut.map((x) => R.convertirPilier(x)).filter(Boolean))].slice(0, MAX_PILIERS);
+}
+/** Tous les piliers d'une piste lue en base (une piste d'avant n'a que `pilier`). */
+export const piliersDePiste = (piste) => normaliserPiliers(piste?.piliers, piste?.pilier);
 
 export const libelleEtatPiste = (id) => ETATS_PISTE.find((e) => e.id === id)?.libelle ?? null;
 
@@ -58,11 +77,15 @@ export function normaliserPiste(valeurs = {}) {
     sourceType: idConnu(N.TYPES_SOURCE, valeurs.sourceType) ?? 'profil',
     sourceTitre: texteSimple(valeurs.sourceTitre, N.MAX_NOM),
     angle: texteSimple(valeurs.angle, MAX_ANGLE),
+    accroche: texteSimple(valeurs.accroche, MAX_ACCROCHE),
+    brouillon: texteLong(valeurs.brouillon, MAX_BROUILLON),
+    visuel: texteSimple(valeurs.visuel, MAX_VISUEL),
     note: texteSimple(valeurs.note, MAX_NOTE),
     ancre: texteSimple(valeurs.ancre, MAX_ANCRE),
     url: urlHttps(valeurs.url),
     exempleId: texteSimple(valeurs.exempleId, 100) || null,
-    pilier: R.convertirPilier(valeurs.pilier),
+    piliers: normaliserPiliers(valeurs.piliers, valeurs.pilier),
+    pilier: normaliserPiliers(valeurs.piliers, valeurs.pilier)[0] ?? null,
     format: idConnu(R.FORMATS, valeurs.format),
     service: idConnu(R.SERVICES, valeurs.service),
     etat: idConnu(ETATS_PISTE, valeurs.etat) ?? 'nouvelle',
@@ -77,6 +100,9 @@ export function validerPiste(valeurs = {}) {
   if (!texteSimple(valeurs.sourceId, 101)) return 'Cette piste n’est rattachée à aucune source.';
   if (!longueur(valeurs.angle)) return 'Donne un angle à cette piste.';
   if (longueur(valeurs.angle) > MAX_ANGLE) return `L’angle doit tenir en ${MAX_ANGLE} caractères au plus.`;
+  if (longueur(valeurs.accroche) > MAX_ACCROCHE) return `L’accroche doit tenir en ${MAX_ACCROCHE} caractères au plus.`;
+  if (longueurLong(valeurs.brouillon) > MAX_BROUILLON) return `Le brouillon doit tenir en ${MAX_BROUILLON} caractères au plus.`;
+  if (longueur(valeurs.visuel) > MAX_VISUEL) return `Le visuel doit tenir en ${MAX_VISUEL} caractères au plus.`;
   if (longueur(valeurs.note) > MAX_NOTE) return `La note doit tenir en ${MAX_NOTE} caractères au plus.`;
   if (longueur(valeurs.ancre) > MAX_ANCRE) return `L’ancre doit tenir en ${MAX_ANCRE} caractères au plus.`;
   if (String(valeurs.url ?? '').trim() && !urlHttps(valeurs.url)) return 'Le lien d’une piste doit commencer par https.';
@@ -110,16 +136,20 @@ export function controlerPistes(entrees, { source = {}, pistesExistantes = [], c
     const lu = (k) => (champsPermis.includes(k) && typeof brut[k] === 'string' ? brut[k] : '');
     ligne.angle = texteSimple(lu('angle'), MAX_ANGLE);
     if (!longueur(lu('angle'))) { ligne.refus = 'angle vide'; return ligne; }
-    for (const [champ, max] of [['angle', MAX_ANGLE], ['note', MAX_NOTE], ['ancre', MAX_ANCRE]]) {
+    for (const [champ, max] of [['angle', MAX_ANGLE], ['accroche', MAX_ACCROCHE], ['visuel', MAX_VISUEL], ['note', MAX_NOTE], ['ancre', MAX_ANCRE]]) {
       if (longueur(lu(champ)) > max) { ligne.refus = `${champ} trop long (${max} caractères au plus)`; return ligne; }
     }
+    if (longueurLong(lu('brouillon')) > MAX_BROUILLON) { ligne.refus = `brouillon trop long (${MAX_BROUILLON} caractères au plus)`; return ligne; }
+    const piliersLus = champsPermis.includes('piliers') && Array.isArray(brut.piliers) ? brut.piliers.filter((x) => typeof x === 'string') : [];
     const piste = {
-      angle: lu('angle'), note: lu('note'), ancre: lu('ancre'),
-      url: urlHttps(lu('url')), pilier: R.convertirPilier(lu('pilier')), format: idConnu(R.FORMATS, lu('format')), service: idConnu(R.SERVICES, lu('service')),
+      angle: lu('angle'), accroche: lu('accroche'), brouillon: lu('brouillon'), visuel: lu('visuel'), note: lu('note'), ancre: lu('ancre'),
+      url: urlHttps(lu('url')), piliers: normaliserPiliers(piliersLus, lu('pilier')), pilier: normaliserPiliers(piliersLus, lu('pilier'))[0] ?? null, format: idConnu(R.FORMATS, lu('format')), service: idConnu(R.SERVICES, lu('service')),
       exempleId: champsPermis.includes('exempleId') ? lu('exempleId') : '',
     };
     if (lu('url').trim() && !piste.url) ligne.remarques.push('lien retiré');
-    for (const champ of ['pilier', 'format', 'service']) if (lu(champ).trim() && !piste[champ]) ligne.remarques.push(`${champ} à choisir`);
+    if ((lu('pilier').trim() || piliersLus.length) && !piste.piliers.length) ligne.remarques.push('pilier à choisir');
+    else if (piliersLus.length > piste.piliers.length) ligne.remarques.push('pilier inconnu laissé de côté');
+    for (const champ of ['format', 'service']) if (lu(champ).trim() && !piste[champ]) ligne.remarques.push(`${champ} à choisir`);
     ligne.piste = piste;
     const cle = cleAngle(piste.angle);
     if (cle && vus.has(cle)) {
@@ -211,7 +241,9 @@ export function planModifierPiste(existante, valeurs = {}, ctx = {}) {
   if (typeof ctx.id !== 'string' || !ctx.id) throw new ErreurClaire('Identifiant de piste manquant.');
   if (valeurs.etat !== undefined && !idConnu(ETATS_PISTE, valeurs.etat)) throw new ErreurClaire('État inconnu.');
   const changements = Object.fromEntries(CHAMPS_MODIFIABLES.filter((k) => valeurs[k] !== undefined).map((k) => [k, valeurs[k]]));
-  const fusion = { ...champsPiste(existante), ...changements };
+  if (changements.pilier !== undefined && changements.piliers === undefined) changements.piliers = changements.pilier ? [changements.pilier] : [];
+  if (changements.piliers !== undefined) changements.pilier = changements.piliers[0] ?? null; // la liste donnée REMPLACE l'actuelle (vide = aucun pilier) ; sans ça l'ancien pilier reviendrait en fin de liste
+  const fusion = { ...champsPiste(existante), piliers: piliersDePiste(existante), ...changements };
   const erreur = validerPiste(fusion);
   if (erreur) throw new ErreurClaire(erreur);
   return { ecritures: [L.ecritureModifier(R.COLLECTION_PISTES, ctx.id, normaliserPiste(fusion), { horodater: ['modifieLe'] })] };
@@ -239,7 +271,7 @@ export function planEnFaireUneIdee(piste, source, ctx = {}) {
     ancre: piste.ancre,
     resume: type === 'veille' ? source?.resume : '',
   };
-  const creation = I.planEnregistrerIdee(null, { angle: piste.angle, sources: [sourceIdee], pilier: piste.pilier, format: piste.format, service: piste.service, etat: 'idee', pisteId: piste.id }, { id: ctx.ideeId });
+  const creation = I.planEnregistrerIdee(null, { angle: piste.angle, texte: piste.brouillon, sources: [sourceIdee], pilier: piste.pilier, format: piste.format, service: piste.service, etat: 'idee', pisteId: piste.id }, { id: ctx.ideeId });
   return { ecritures: [...creation.ecritures, L.ecritureModifier(R.COLLECTION_PISTES, piste.id, { etat: 'retenue', ideeId: ctx.ideeId }, { horodater: ['modifieLe'] })] };
 }
 
@@ -309,14 +341,21 @@ export function construirePromptPistes({ source = {}, pistesExistantes = [], exe
   }
   l.push('', 'LES RÈGLES',
     '- Jamais de phrase recopiée de la source : tout est reformulé avec nos mots.',
+    `- Chaque piste est une IDÉE ÉLABORÉE, prête à servir de post : une accroche, un brouillon complet (accroche, développement en quelques paragraphes courts, appel final) que ${pour} n'aura qu'à relire.`,
+    `- Pour chaque piste, propose aussi un visuel ou une animation qui accompagne le post.`,
+    `- Pour chaque piste, nomme TOUS les piliers qu'elle sert (de un à ${MAX_PILIERS}), le premier est le principal.`,
     `- Une piste = un angle pour ${pour}, en une phrase de ${MAX_ANGLE} caractères au plus.`,
     '- Réponds UNIQUEMENT par le bloc JSON du modèle ci-dessous, sans phrase autour.',
     '', 'LES CHAMPS (liste fermée ; tout autre champ sera ignoré)',
     `- angle (obligatoire, ${MAX_ANGLE} caractères au plus) : la piste en une phrase`,
+    `- accroche (${MAX_ACCROCHE} caractères au plus) : la première phrase du post`,
+    `- brouillon (${MAX_BROUILLON} caractères au plus) : le post presque prêt, paragraphes séparés par une ligne vide`,
+    `- piliers (liste de 1 à ${MAX_PILIERS} identifiants de la liste ci-dessous) : tous les piliers concernés`,
+    `- visuel (${MAX_VISUEL} caractères au plus) : une proposition de visuel ou d'animation (image, carrousel slide par slide, animation 16:9, vidéo 9:16 : ce qu'on y voit)`,
     `- note (${MAX_NOTE} caractères au plus) : pourquoi c’est une bonne piste`,
     `- ancre (${MAX_ANCRE} caractères au plus) : la section du site, ou les mots-clés pour retrouver le passage du résumé`,
     '- url : lien facultatif, en https',
-    '- pilier, format, service : un identifiant des listes ci-dessous',
+    '- format, service : un identifiant des listes ci-dessous',
     '', 'PILIERS PERMIS', ligneListe(R.PILIERS), '', 'FORMATS PERMIS', ligneListe(R.FORMATS), '', 'SERVICES PERMIS', ligneListe(R.SERVICES));
   const recentes = [...(pistesExistantes || [])].filter((p) => texteSimple(p?.angle, MAX_ANGLE) && (!p?.sourceId || !source?.id || p.sourceId === source.id)) // seulement les pistes de CETTE source
     .sort((a, b) => (L.versDate(b.creeLe)?.getTime() ?? 0) - (L.versDate(a.creeLe)?.getTime() ?? 0)).slice(0, MAX_PISTES_DANS_PROMPT);
@@ -326,7 +365,7 @@ export function construirePromptPistes({ source = {}, pistesExistantes = [], exe
   l.push('', 'MODÈLE DE RÉPONSE', JSON.stringify({
     format: FORMAT_REPONSE,
     sourceId: source.id ?? '',
-    pistes: [{ angle: 'La piste en une phrase.', note: 'Pourquoi c’est une bonne piste.', ancre: 'Section ou mots-clés.', url: 'Lien complet en https (facultatif)', pilier: '<identifiant de pilier>', format: '<identifiant de format>', service: '<identifiant de service>' }],
+    pistes: [{ angle: 'La piste en une phrase.', accroche: 'La première phrase du post.', brouillon: 'Le post presque prêt.', visuel: 'Le visuel ou l’animation proposé.', note: 'Pourquoi c’est une bonne piste.', ancre: 'Section ou mots-clés.', url: 'Lien complet en https (facultatif)', piliers: ['<identifiant de pilier>', '<un autre, si la piste en sert plusieurs>'], format: '<identifiant de format>', service: '<identifiant de service>' }],
   }, null, 2));
   return l.join('\n');
 }

@@ -11,6 +11,10 @@
 - **Idée** : une piste retenue devient une idée (écran Idées), avec son lien vers la piste d'origine.
 - **Post** : l'idée passe dans Buffer, puis dans l'écran Posts.
 
+## 1 bis. Une idée élaborée (12/11/2026)
+
+Chaque ligne de source s'ouvre sur **10 à 30 idées prêtes à servir de post** : une accroche, un **brouillon** (1 500 caractères au plus), **tous les piliers concernés** (de 1 à 4, le premier est le principal), une **proposition de visuel ou d'animation** (400 caractères au plus), la note « pourquoi ». Il n'y a plus de bouton « En tirer des idées » sur la ligne : l'appli n'appelle aucune IA (décision de Jérôme), le stock est rempli par Claude avec l'outil `ajouter_pistes` (ou par collage, lien discret dans la source quand elle a moins de 10 idées). « En faire une idée » emporte le brouillon dans l'idée.
+
 ## 2. À l'écran : prompt copié, réponse collée
 
 1. Dans Inspirations, tu ouvres une source et tu cliques pour **copier le prompt**. Il contient la fiche de la source, les valeurs permises (pilier, format, service), tes pistes déjà en stock et le modèle de réponse.

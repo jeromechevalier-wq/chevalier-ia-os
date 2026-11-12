@@ -1,6 +1,6 @@
 // Variantes de tools/list par profil (09/11/2026) : le profil assistant-devis reçoit des descriptions courtes et un schéma allégé pour modifier_devis_brouillon ; TOUS les autres profils reçoivent exactement la même liste qu'avant.
 // 1 invariance octet par octet des autres profils ; 2 alias ; 3 noms inchangés ; 4 garde-fous lisibles ; 5 champs obligatoires ; 6 refus de lignes et sections ; 7 poids plafonné ; 8 textes sans mot propre à Jérôme.
-// ATTENTION : l'octet par octet dépend des versions FIGÉES de @modelcontextprotocol/sdk (1.32.0) et de zod (4.6.5) : une mise à jour d'une de ces dépendances change la forme du JSON Schema et rend le test rouge sans que rien d'autre n'ait bougé.
+// ATTENTION : l'octet par octet dépend des versions FIGÉES de @modelcontextprotocol/sdk (1.32.0) et de zod (4.6.7) : une mise à jour d'une de ces dépendances change la forme du JSON Schema et rend le test rouge sans que rien d'autre n'ait bougé.
 // Les listes de référence ont été créées à partir de main AVANT le changement. Pour les régénérer (seulement quand une description d'un autre profil change volontairement) : node tests/outils/figer-tools-list.js
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -36,7 +36,7 @@ describe('1 invariance : tout profil autre qu\'assistant-devis reçoit exactemen
   for (const [cas, params] of Object.entries(CAS_FIGES)) {
     test(`1 ${cas} : tools/list identique octet par octet à tests/fixtures/tools-list-${cas}.json`, async () => {
       const { tools } = await listerOutils(params);
-      assert.ok(texteFige(tools) === lireFixture(cas), `La liste d'outils du profil « ${cas} » a changé. Si c'est voulu (description ou schéma d'un autre profil), régénère les listes de référence avec « ${COMMANDE} » et dis-le dans la PR ; sinon une variante a fuité hors d'assistant-devis. (Dépend de @modelcontextprotocol/sdk 1.32.0 et zod 4.6.5.)`);
+      assert.ok(texteFige(tools) === lireFixture(cas), `La liste d'outils du profil « ${cas} » a changé. Si c'est voulu (description ou schéma d'un autre profil), régénère les listes de référence avec « ${COMMANDE} » et dis-le dans la PR ; sinon une variante a fuité hors d'assistant-devis. (Dépend de @modelcontextprotocol/sdk 1.32.0 et zod 4.6.7.)`);
     });
   }
   test('1 les nombres de référence : 96 outils pour un jeton fixe complet, 97 pour un super admin OAuth (avec modifier_reglages_devis ; 12 outils du module Réseaux sociaux ajoutés le 13/11/2026)', () => {

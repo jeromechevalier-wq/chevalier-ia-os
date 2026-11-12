@@ -4930,6 +4930,47 @@
         "type": "string",
         "maxLength": 200
        },
+       "accroche": {
+        "description": "La première phrase du post (écrite par toi).",
+        "type": "string",
+        "maxLength": 200
+       },
+       "brouillon": {
+        "description": "Le post presque prêt : accroche, développement en paragraphes courts, appel final. Nos mots, jamais ceux d’un tiers.",
+        "type": "string",
+        "maxLength": 3000
+       },
+       "visuel": {
+        "description": "Proposition de visuel ou d’animation qui accompagne le post (ce qu’on y voit).",
+        "type": "string",
+        "maxLength": 400
+       },
+       "pilier": {
+        "description": "Ancien champ : un seul pilier. Préfère piliers.",
+        "type": "string",
+        "enum": [
+         "cas_concrets",
+         "pedagogie",
+         "actu_ia",
+         "demarche_offre"
+        ]
+       },
+       "piliers": {
+        "description": "TOUS les piliers que la piste sert (1 à 4), le premier est le principal.",
+        "minItems": 1,
+        "maxItems": 4,
+        "type": "array",
+        "items": {
+         "type": "string",
+         "enum": [
+          "cas_concrets",
+          "pedagogie",
+          "actu_ia",
+          "demarche_offre"
+         ],
+         "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+        }
+       },
        "url": {
         "description": "Lien facultatif en https (page du site, post LinkedIn).",
         "type": "string",
@@ -4939,16 +4980,6 @@
         "description": "L'exemple de post (de cette source) qui a donné la piste.",
         "type": "string",
         "maxLength": 100
-       },
-       "pilier": {
-        "type": "string",
-        "enum": [
-         "cas_concrets",
-         "pedagogie",
-         "actu_ia",
-         "demarche_offre"
-        ],
-        "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
        },
        "format": {
         "type": "string",
@@ -4997,7 +5028,7 @@
  },
  {
   "name": "modifier_piste",
-  "description": "Modifie une piste : angle, note, ancre, pilier, format, service, et etat (nouvelle pour la remettre en stock, ecartee pour l'écarter : elle reste retrouvable, rien ne se supprime). Pour retenir une piste, utiliser retenir_piste.",
+  "description": "Modifie une piste : angle, accroche, brouillon, note, ancre, piliers (liste), pilier, format, service, et etat (nouvelle pour la remettre en stock, ecartee pour l'écarter : elle reste retrouvable, rien ne se supprime). Pour retenir une piste, utiliser retenir_piste.",
   "inputSchema": {
    "$schema": "http://json-schema.org/draft-07/schema#",
    "type": "object",
@@ -5020,6 +5051,33 @@
     "ancre": {
      "type": "string",
      "maxLength": 200
+    },
+    "accroche": {
+     "type": "string",
+     "maxLength": 200
+    },
+    "brouillon": {
+     "type": "string",
+     "maxLength": 3000
+    },
+    "visuel": {
+     "type": "string",
+     "maxLength": 400
+    },
+    "piliers": {
+     "description": "Remplace la liste des piliers.",
+     "maxItems": 4,
+     "type": "array",
+     "items": {
+      "type": "string",
+      "enum": [
+       "cas_concrets",
+       "pedagogie",
+       "actu_ia",
+       "demarche_offre"
+      ],
+      "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+     }
     },
     "pilier": {
      "anyOf": [
@@ -5100,7 +5158,7 @@
  },
  {
   "name": "retenir_piste",
-  "description": "Retient une piste (comme « En faire une idée » à l'écran) : crée l'idée (angle, pilier, format, service et source recopiés) et lie les deux ; la piste passe à « retenue ». Refusé si la piste est déjà devenue une idée.",
+  "description": "Retient une piste (comme « En faire une idée » à l'écran) : crée l'idée (angle, brouillon recopié comme texte, pilier principal, format, service et source recopiés) et lie les deux ; la piste passe à « retenue ». Refusé si la piste est déjà devenue une idée.",
   "inputSchema": {
    "$schema": "http://json-schema.org/draft-07/schema#",
    "type": "object",

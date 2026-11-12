@@ -28,7 +28,7 @@ const ligne = (page, id) => page.locator(`[data-inspiration="${id}"]`);
 const deplier = async (page, id) => { const l = ligne(page, id).locator('[data-action="deplier-source"]'); if ((await l.getAttribute('aria-expanded')) !== 'true') await l.click(); };
 const pistes = () => listerDocuments('reseauxsociaux_pistes');
 const sansHorodatage = (d) => Object.keys(d).filter((k) => !['id', 'creeLe', 'modifieLe'].includes(k)).sort();
-const CHAMPS_PISTE = ['ancre', 'angle', 'auteur', 'etat', 'exempleId', 'format', 'ideeId', 'lot', 'note', 'pilier', 'service', 'sourceId', 'sourceTitre', 'sourceType', 'url'];
+const CHAMPS_PISTE = ['accroche', 'ancre', 'angle', 'auteur', 'brouillon', 'etat', 'exempleId', 'format', 'ideeId', 'lot', 'note', 'pilier', 'piliers', 'service', 'sourceId', 'sourceTitre', 'sourceType', 'url', 'visuel'];
 
 test('G1 de bout en bout : ajouter une source, copier le prompt, coller une réponse, aperçu avec un doublon décoché, créer, retenir une piste, compteurs ; idée « Dans Buffer » = postée', async ({ page }) => {
   await ouvrir(page);
@@ -47,6 +47,7 @@ test('G1 de bout en bout : ajouter une source, copier le prompt, coller une rép
   expect(s).toMatchObject({ type: 'site', nom: 'Site Exemple', url: 'https://site-exemple.test/' });
   await expect(ligne(page, s.id).locator('[data-role="compteurs-source"]')).toHaveText('0 piste · 0 retenue · 0 postée');
   // 2. une piste à la main (sert de doublon plus bas)
+  await deplier(page, s.id);
   await ligne(page, s.id).locator('[data-action="tirer-idees"]').click();
   const f = fenetre(page, 'En tirer des idées');
   await expect(f.locator('[data-role="source-nom"]')).toHaveText('Source : Site Exemple');
@@ -132,6 +133,7 @@ test('G1 de bout en bout : ajouter une source, copier le prompt, coller une rép
 test('G2 réponse mal formée : un message clair, aucun aperçu, AUCUNE écriture (texte sans JSON, mauvais format, autre source, trop long) ; un champ « sourceId: null » est accepté', async ({ page }) => {
   await ecrireDocument('reseauxsociaux_inspirations/s1', { type: 'site', nom: 'Site Exemple', url: 'https://site-exemple.test/', pourquoi: '', piliers: [], formats: [], ordre: 0 });
   await ouvrir(page);
+  await deplier(page, 's1');
   await ligne(page, 's1').locator('[data-action="tirer-idees"]').click();
   const f = fenetre(page, 'En tirer des idées');
   await f.locator('[data-vue="claude"]').click();
@@ -170,6 +172,7 @@ test('G3 résumés de veille : un contenu « résumé » de la Veille apparaît 
   await expect(l.locator('[data-role="nom-profil"]')).toHaveText('Résumé - Épisode fictif');
   await expect(l.locator('[data-role="compteurs-source"]')).toHaveText('0 piste · 0 retenue · 0 postée');
   expect(await listerDocuments('reseauxsociaux_inspirations')).toHaveLength(0);
+  await deplier(page, 'veille-c1');
   await l.locator('[data-action="tirer-idees"]').click();
   const f = fenetre(page, 'En tirer des idées');
   await f.locator('[data-vue="claude"]').click();
@@ -256,6 +259,7 @@ test('G6 un profil : le prompt reprend les analyses de ses exemples (jamais le t
   await ecrireDocument('reseauxsociaux_inspirations/p1', { type: 'profil', nom: 'Alice Exemple', url: 'https://www.linkedin.com/in/alice-exemple', pourquoi: '', piliers: [], formats: [], ordre: 0 });
   await ecrireDocument('reseauxsociaux_exemples/e1', { profilId: 'p1', url: 'https://www.linkedin.com/posts/alice-exemple_a-1', date: '2026-10-20', accroche: 'Accroche analysée', structure: 'Histoire puis leçon', longueur: '', extrait: 'EXTRAIT SAISI PAR JÉRÔME', format: null, pilier: null, service: null, pourquoi: 'Parce que' });
   await ouvrir(page);
+  await deplier(page, 'p1');
   await ligne(page, 'p1').locator('[data-action="tirer-idees"]').click();
   const f = fenetre(page, 'En tirer des idées');
   await f.locator('[data-vue="claude"]').click();
