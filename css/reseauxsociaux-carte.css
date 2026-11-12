@@ -1,0 +1,30 @@
+/* Carte mentale d'une source (13/11/2026) : fenêtre plein écran, dessin SVG fixe qui défile DANS son cadre (la page ne déborde jamais). Couleur = pilier (--couleur), marque = état. */
+.dialogue.dialogue-carte { width: 100%; height: 100%; max-height: none; display: flex; flex-direction: column; overflow: hidden; }
+.dialogue-carte .dialogue-tete, .dialogue-carte .dialogue-pied { flex: none; }
+.dialogue-carte .dialogue-corps { flex: 1 1 auto; min-height: 0; padding-top: var(--esp-4); padding-bottom: var(--esp-4); }
+.rs-carte { display: flex; flex-direction: column; gap: var(--esp-3); flex: 1 1 auto; min-height: 0; min-width: 0; }
+.rs-carte-resume { margin: 0; }
+.rs-carte-cadre { flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto; border: 1px solid var(--bordure); border-radius: var(--rayon); background: var(--panneau2); }
+.rs-carte-svg { display: block; max-width: none; }
+.rs-carte-liens path { fill: none; stroke: var(--couleur, var(--bordure-forte)); stroke-width: 2; opacity: .7; }
+.rs-carte-centre rect { fill: var(--panneau); stroke: var(--accent-trait); stroke-width: 2; }
+.rs-carte-centre text, .rs-carte-tete text, .rs-carte-piste text { fill: var(--texte); font-size: var(--fs-texte); pointer-events: none; }
+.rs-carte-centre text { font-weight: var(--poids-moyen); }
+.rs-carte-tete { cursor: pointer; }
+.rs-carte-tete rect { fill: var(--panneau); stroke: var(--couleur, var(--bordure-forte)); stroke-width: 2; }
+.rs-carte-tete text { font-size: var(--fs-petit); font-weight: var(--poids-moyen); }
+.rs-carte-tete[data-replie="true"] rect { fill: var(--couleur, var(--panneau)); fill-opacity: .25; }
+.rs-carte-piste { cursor: pointer; }
+.rs-carte-piste rect { fill: var(--panneau); stroke: var(--bordure); stroke-width: 1; }
+.rs-carte-piste .rs-carte-bande { fill: var(--couleur, var(--bordure-forte)); stroke: none; }
+.rs-carte-piste text { font-size: var(--fs-petit); }
+.rs-carte-marque { fill: none; stroke: var(--texte2); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.rs-carte-piste[data-etat="retenue"] .rs-carte-marque, .rs-carte-piste[data-etat="postee"] .rs-carte-marque { stroke: var(--accent-trait); }
+.rs-carte-piste-ecartee text { fill: var(--texte2); text-decoration: line-through; }
+.rs-carte-piste:hover rect:not(.rs-carte-bande), .rs-carte-tete:hover rect { stroke: var(--accent-trait); }
+.rs-carte-piste:focus-visible, .rs-carte-tete:focus-visible { outline: 2px solid var(--accent-trait); outline-offset: 2px; }
+/* La piste ouverte depuis la carte, dans la liste : un instant de relief. */
+.rs-piste-ouverte { outline: 2px solid var(--accent-trait); outline-offset: 2px; border-radius: var(--rayon); }
+@media (max-width: 767px), (pointer: coarse) {
+  .voile-dialogue:has(.dialogue-carte) { padding: var(--esp-3); }
+}
