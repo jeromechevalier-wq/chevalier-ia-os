@@ -301,6 +301,18 @@ describe('Création et modification (tests 9 et 11)', () => {
     assert.equal(ok(await s.appeler('biblio', 'terminer_activite', { id: a.id })).rien, true);
   });
 
+  test('ajouter_note sur un projet : la note porte le projet et ce qu’il relie (comme l’écran), donc elle apparaît aussi chez la personne et l’organisation', async () => {
+    const s = await demarrer();
+    const projet = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Accompagnement', personneId: 'p1', organisationId: 'org1' }));
+    refuse(await s.appeler('biblio', 'ajouter_note', { texte: 'x', projetId: 'zzz' }), /Projet introuvable/);
+    const n = ok(await s.appeler('biblio', 'ajouter_note', { texte: '  Résumé de la réunion ', projetId: projet.id }));
+    const note = s.doc('crm_notes', n.id);
+    assert.deepEqual([note.texte, note.projetId, note.personneId, note.organisationId], ['Résumé de la réunion', projet.id, 'p1', 'org1']);
+    assert.equal(note.test, undefined, 'projet réel : pas de repère test');
+    // une activité ne se rattache toujours pas à un projet
+    refuse(await s.appeler('biblio', 'creer_activite', { titre: 'sans lien', projetId: projet.id }), /Rattacher à une affaire, une personne ou une organisation/);
+  });
+
   test('test 16 : joindre_lien refuse une adresse sans http ; retirer_document par index ou par url (jamais le mauvais)', async () => {
     const s = await demarrer();
     refuse(await s.appeler('biblio', 'joindre_lien', { affaireId: 'a1', url: 'ftp://exemple.test/x' }), /http/);

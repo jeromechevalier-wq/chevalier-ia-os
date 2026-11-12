@@ -456,9 +456,16 @@ export async function abandonnerFacture(c, args) {
  * Liens à poser sur une note ou une activité : comme l'écran (une affaire porte aussi sa personne et son organisation). Rend aussi `parents` : les fiches liées (affaire, personne, organisation),
  * pour que l'élément créé hérite du repère test (`L.heriterTest`) comme à l'écran.
  */
-async function liensCreation(c, { affaireId, personneId, organisationId }) {
-  if (!affaireId && !personneId && !organisationId) refuser('saisie_invalide', 'Rattacher à une affaire, une personne ou une organisation (affaireId, personneId ou organisationId).');
+async function liensCreation(c, { affaireId, personneId, organisationId, projetId }, avecProjet = false) {
+  // `avecProjet` : seules les notes se rattachent à un projet (une activité garde ses trois cibles).
+  if (!affaireId && !personneId && !organisationId && !(avecProjet && projetId)) refuser('saisie_invalide', avecProjet ? 'Rattacher à une affaire, une personne, une organisation ou un projet (affaireId, personneId, organisationId ou projetId).' : 'Rattacher à une affaire, une personne ou une organisation (affaireId, personneId ou organisationId).');
   const lueSiDonnee = (collection, id) => (id ? c.donnees.document(collection, id) : null);
+  if (avecProjet && projetId) {
+    // Comme l'écran d'un projet : la note porte le projet ET ce qu'il relie (personne, organisation, affaire), donc elle apparaît aussi dans leur historique.
+    const projet = await lireProjet(c, projetId);
+    const [personne, organisation, affaire] = await Promise.all([lueSiDonnee(C.personnes, projet.personneId), lueSiDonnee(C.organisations, projet.organisationId), lueSiDonnee(C.affaires, projet.affaireId)]);
+    return { liens: PL.liensProjet(projet), parents: { projet, personne, organisation, affaire } };
+  }
   if (affaireId) {
     const affaire = await lire(c, C.affaires, affaireId, 'Affaire');
     const [personne, organisation] = await Promise.all([lueSiDonnee(C.personnes, affaire.personneId), lueSiDonnee(C.organisations, affaire.organisationId)]);
@@ -474,7 +481,7 @@ async function liensCreation(c, { affaireId, personneId, organisationId }) {
 
 export async function ajouterNote(c, args) {
   verifierMessages(L.validerNote(args.texte));
-  const { liens, parents } = await liensCreation(c, args);
+  const { liens, parents } = await liensCreation(c, args, true);
   const plan = L.planCreerNote(args.texte, L.heriterTest(liens, parents), await contexte(c)); // pas de paramètre test : la note hérite seulement
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, test: L.estTest(plan.ecritures[0].donnees) });
 }
