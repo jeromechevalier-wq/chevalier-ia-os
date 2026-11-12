@@ -41,6 +41,19 @@ describe('R1 À relancer : sélection', () => {
     assert.equal(calc({ affaires: [aff()], devis: [dev()], activites: [act({ dateFait: il(0) })], personnes: [per()] }).length, 0);
     assert.equal(calc({ devis: [dev({ affaireId: null })], activites: [act({ affaireId: null, personneId: 'p1', dateFait: il(1) })], personnes: [per()] }).length, 0);
   });
+  test('R1-6b devis expiré : jamais ; envoi relancé dans Devis (dernier contact) ou activité sur la personne seule : la ligne sort', () => {
+    assert.equal(calc({ affaires: [aff()], devis: [dev({ expire: true })], personnes: [per()] }).filter((l) => l.motif === 'B').length, 0);
+    assert.equal(calc({ affaires: [aff({ dateEntreeEtape: il(1) })], devis: [dev({ dernierContactMs: Date.parse(`${il(1)}T12:00:00Z`) })], personnes: [per()] }).filter((l) => l.motif === 'B').length, 0);
+    assert.equal(calc({ affaires: [aff()], devis: [dev()], activites: [act({ affaireId: null, personneId: 'p1', dateFait: il(1) })], personnes: [per()] }).filter((l) => l.motif === 'B').length, 0);
+  });
+  test('R1-6c devis dont le client est une organisation, sans personne ni affaire : « J’ai relancé » (activité sur l’organisation) le fait sortir', () => {
+    const d = dev({ affaireId: null, personneId: null, organisationId: 'o1' });
+    assert.equal(calc({ devis: [d] }).length, 1);
+    assert.equal(calc({ devis: [d], activites: [act({ affaireId: null, organisationId: 'o1', dateFait: il(0) })] }).length, 0);
+  });
+  test('R1-6d une activité prévue sur la personne seule écarte l’affaire (elle est dans « À faire »)', () => {
+    assert.equal(calc({ affaires: [aff({ dateEntreeEtape: il(20) })], personnes: [per()], activites: [act({ fait: false, dateFait: null, affaireId: null, personneId: 'p1', date: il(-2) })] }).length, 0);
+  });
   test('R1-7 personne d’une affaire ouverte sans activité depuis 14 jours (motif C) ; 13 jours : non ; sans affaire ouverte : non', () => {
     const base = { affaires: [aff({ dateEntreeEtape: il(1) })], personnes: [per({ creeLe: il(14) })] };
     assert.deepEqual(calc(base).map((l) => [l.motif, l.type, l.id, l.jours]), [['C', 'personne', 'p1', 14]]);
@@ -79,6 +92,11 @@ describe('R1 À relancer : sélection', () => {
 
 describe('R2 À relancer : brouillons et activité faite', () => {
   const ligne = (motif, extra = {}) => ({ motif, titre: 'Cuisine', jours: 12, joursEnvoi: 12, ...extra });
+  test('R2-0 un titre coupé au milieu d’un emoji ne fait pas planter l’adresse e-mail', () => {
+    const r = L.liensUtilesRelance({ motif: 'A', type: 'affaire', titre: 'Cuisine \ud83d', personneId: 'p1' }, { id: 'p1', emails: [{ valeur: 'a@b.fr' }] }, []);
+    assert.equal(r.length, 1);
+    assert.ok(!r[0].href.includes('\n'));
+  });
   test('R2-1 trois modèles, vouvoiement, prénom et signature', () => {
     for (const m of ['A', 'B', 'C']) {
       const t = L.brouillonRelance(ligne(m), { prenom: 'Marie', signature: 'Jérôme' });
@@ -134,16 +152,17 @@ describe('R3 À relancer : liens utiles', () => {
   });
   test('R3-4 adresses LinkedIn refusées : autre site, http, faux domaine, identifiants, texte, javascript:', () => {
     for (const u of ['https://exemple.fr/in/x', 'http://www.linkedin.com/in/x', 'https://www.linkedin.com.pirate.fr/in/x', 'https://linkedin.com@pirate.fr/', 'https://user:pw@www.linkedin.com/in/x', 'marie', 'javascript:alert(1)', 'https://fr.linkedin.com/in/x', '']) {
-      assert.equal(L.lienLinkedinSur(u), null, u);
+      assert.equal(L.lienLinkedinStrict(u), null, u);
       assert.deepEqual(L.liensUtilesRelance(l(), p({ linkedin: u }), []), [], u);
     }
-    assert.equal(L.lienLinkedinSur('https://linkedin.com/in/marie'), 'https://linkedin.com/in/marie');
+    assert.equal(L.lienLinkedinStrict('https://linkedin.com/in/marie'), 'https://linkedin.com/in/marie');
   });
   test('R3-5 e-mail invalide ou téléphone sans chiffre : pas de lien ; sujet d’un devis', () => {
     assert.deepEqual(L.liensUtilesRelance(l(), p({ emails: [{ valeur: 'pas-un-mail' }], telephones: [{ valeur: 'abc' }] }), []), []);
-    const r = L.liensUtilesRelance(l({ motif: 'B', type: 'devis', titre: 'Devis DEV-1', devisId: 'd1' }), p({ emails: [{ valeur: 'a@b.fr' }] }), []);
+    const r = L.liensUtilesRelance(l({ motif: 'B', type: 'devis', titre: 'Devis DEV-1', devisId: 'd1', lien: 'devis/voir/d1' }), p({ emails: [{ valeur: 'a@b.fr' }] }), []);
     assert.deepEqual(ids(r), ['email', 'devis']);
     assert.equal(r[0].href, 'mailto:a@b.fr?subject=Votre%20devis%20DEV-1');
-    assert.equal(r[1].href, '#/devis/editeur/d1');
+    assert.equal(r[1].href, '#/devis/voir/d1');
+    assert.deepEqual(ids(L.liensUtilesRelance(l({ motif: 'B', type: 'devis', titre: 'Devis DEV-1', lien: 'https://pirate.fr' }), p(), [])), []); // une route qui ne vient pas de Devis est refusée
   });
 });

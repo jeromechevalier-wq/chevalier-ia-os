@@ -1,4 +1,4 @@
-// Bloc « À relancer » de l'Accueil (lecture seule + modèles de texte). Un test par critère ; captures dans tests/e2e/captures/crm-a-relancer/ (non versionnées).
+// Bloc « À relancer » de l'Accueil (lecture seule + modèles de texte). Un test par critère ; captures dans tests/e2e/captures/crm-a-relancer/.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {

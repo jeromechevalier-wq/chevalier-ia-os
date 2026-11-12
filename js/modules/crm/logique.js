@@ -1621,15 +1621,16 @@ export function aRelancer({ personnes = [], affaires = [], activites = [], devis
     const affaire = d.affaireId ? affaireDe.get(d.affaireId) : null;
     if (affaire && (!estAffaireActive(affaire) || estTest(affaire))) continue;
     if (opposee(d.personneId ?? affaire?.personneId)) continue;
-    if (!jourEnvoi || (d.affaireId && affairesVues.has(d.affaireId))) continue;
+    if (!jourEnvoi || d.expire === true || (d.affaireId && affairesVues.has(d.affaireId))) continue; // `expire` : posé par le module Devis (un devis expiré n'est plus à relancer)
     const personneId = d.personneId ?? affaire?.personneId ?? null;
-    // Une relance faite depuis l'envoi (activité déjà faite sur l'affaire du devis, ou sur la personne s'il n'a pas d'affaire) repart de zéro : « J'ai relancé » sort la ligne.
-    const contacts = activites.filter((x) => x.fait && (d.affaireId ? x.affaireId === d.affaireId : !!personneId && x.personneId === personneId)).map(jourActiviteFaite);
-    const dernier = dernierJour([jourEnvoi, ...contacts]);
+    const organisationId = d.organisationId ?? affaire?.organisationId ?? null;
+    // Une relance faite depuis l'envoi repart de zéro : une activité déjà faite sur l'affaire du devis, sur sa personne ou, à défaut, son organisation ; ou un envoi noté dans Devis (`dernierContactMs`).
+    const contacts = activites.filter((x) => x.fait && ((d.affaireId && x.affaireId === d.affaireId) || (personneId && x.personneId === personneId) || (!personneId && !d.affaireId && organisationId && x.organisationId === organisationId))).map(jourActiviteFaite);
+    const dernier = dernierJour([jourEnvoi, ...contacts, d.dernierContactMs]);
     if (ecart(dernier) < SEUIL_DEVIS_SANS_REPONSE) continue;
     lignes.push({
       motif: 'B', type: 'devis', id: d.id, devisId: d.id, titre: d.numero ? `Devis ${d.numero}` : 'Devis',
-      personneId, organisationId: d.organisationId ?? affaire?.organisationId ?? null, affaireId: d.affaireId ?? null,
+      personneId, organisationId, affaireId: d.affaireId ?? null, lien: d.lien ?? null,
       jours: ecart(dernier), joursEnvoi: ecart(jourEnvoi), libelle: MOTIFS_RELANCE.B,
     });
     if (d.affaireId) affairesVues.add(d.affaireId);
@@ -1642,7 +1643,7 @@ export function aRelancer({ personnes = [], affaires = [], activites = [], devis
   for (const a of affaires) {
     if (!jeLaisse(a) || !estAffaireActive(a) || statutAffiche(a) !== 'ouverte' || affairesVues.has(a.id) || opposee(a.personneId)) continue;
     const siennes = activites.filter((x) => x.affaireId === a.id);
-    if (siennes.some((x) => !x.fait)) continue; // une activité est prévue : elle est déjà dans « À faire »
+    if (siennes.some((x) => !x.fait) || (a.personneId && activites.some((x) => !x.fait && x.personneId === a.personneId))) continue; // une activité est prévue : elle est déjà dans « À faire »
     const dernier = dernierJour([a.dateEntreeEtape, ...Object.values(a.datesEtapes || {}), ...siennes.map(jourActiviteFaite), ...(envoisParAffaire.get(a.id) || []), a.creeLe]);
     if (!dernier || ecart(dernier) < SEUIL_AFFAIRE_QUI_DORT) continue;
     lignes.push({
@@ -1676,7 +1677,7 @@ export function aRelancer({ personnes = [], affaires = [], activites = [], devis
 }
 
 /** Adresse LinkedIn sûre : seulement en https, sur le site linkedin.com (avec ou sans « www. »), sans identifiant ni mot de passe dans l'adresse, sinon null. */
-export function lienLinkedinSur(url) {
+export function lienLinkedinStrict(url) {
   try {
     const u = new URL(String(url ?? '').trim());
     if (u.protocol !== 'https:' || !['www.linkedin.com', 'linkedin.com'].includes(u.hostname) || u.username || u.password || u.port) return null;
@@ -1686,6 +1687,10 @@ export function lienLinkedinSur(url) {
 
 /** Objet du courriel d'une relance (ouvre seulement le brouillon : aucun corps, rien ne part). */
 export function sujetRelance(ligne) {
+  const texte = sujetBrut(ligne);
+  return nettoyerEspaces(typeof texte.toWellFormed === 'function' ? texte.toWellFormed() : texte); // un titre coupé au milieu d'un emoji ne fait pas planter encodeURIComponent ; pas de retour à la ligne dans l'objet
+}
+function sujetBrut(ligne) {
   return ligne.motif === 'B' ? `Votre devis ${ligne.titre.replace(/^Devis\s+/, '')}`.trim() : ligne.motif === 'A' ? ligne.titre : 'Prendre de vos nouvelles';
 }
 
@@ -1695,7 +1700,7 @@ export function sujetRelance(ligne) {
  */
 export function liensUtilesRelance(ligne, personne = null, activites = []) {
   const liens = [];
-  const li = lienLinkedinSur(personne?.linkedin);
+  const li = lienLinkedinStrict(personne?.linkedin);
   if (li) liens.push({ id: 'linkedin', libelle: 'Ouvrir LinkedIn', href: li, externe: true });
   for (const e of personne?.emails || []) {
     const m = lienEmail(e?.valeur);
@@ -1705,7 +1710,7 @@ export function liensUtilesRelance(ligne, personne = null, activites = []) {
     const m = lienTel(t?.valeur);
     if (m) { liens.push({ id: 'appeler', libelle: 'Appeler', href: m, externe: false }); break; }
   }
-  if (ligne.type === 'devis' && ligne.devisId && /^[\w-]+$/.test(ligne.devisId)) liens.push({ id: 'devis', libelle: 'Ouvrir le devis', href: `#/devis/editeur/${ligne.devisId}`, externe: false });
+  if (ligne.type === 'devis' && /^devis\/(voir|editeur)\/[\w-]+$/.test(ligne.lien ?? '')) liens.push({ id: 'devis', libelle: 'Ouvrir le devis', href: `#/${ligne.lien}`, externe: false }); // la route vient du module Devis, avec chaque devis
   const lies = activites.filter((x) => x.fait && ((ligne.personneId && x.personneId === ligne.personneId) || (ligne.affaireId && x.affaireId === ligne.affaireId)));
   const dernier = lies.sort((x, y) => (jourActiviteFaite(y) ?? '').localeCompare(jourActiviteFaite(x) ?? ''))[0];
   const prioritaire = dernier?.type === 'linkedin' ? 'linkedin' : 'email';

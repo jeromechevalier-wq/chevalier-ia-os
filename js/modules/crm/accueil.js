@@ -86,7 +86,7 @@ export function rendreAccueil(conteneur, { compte, objectifs = true }) {
     rendreFavoris(zoneFavoris);
     rendrePointsCles(zonePoints);
     sectionRelancer.hidden = D.estNoyau(); // sans le module Affaires, rien à relancer ici
-    if (!sectionRelancer.hidden) rendreARelancer(zoneRelancer);
+    if (!sectionRelancer.hidden) { try { rendreARelancer(zoneRelancer); } catch (e) { console.warn(e); remplir(zoneRelancer, etatVide('Rien à relancer pour l’instant.')); } } // une erreur dans ce bloc ne coupe pas la fin de l'Accueil
     rendreStats(zoneStats);
   }
 
@@ -201,7 +201,7 @@ const MESSAGE_RELANCE_ECHEC = 'La relance n’a pas pu être enregistrée. Véri
 function lienLigneRelance(l) {
   if (l.type === 'affaire') return lienAffaire({ id: l.id, titre: l.titre });
   if (l.type === 'personne') return lienPersonne({ id: l.id, nom: l.titre });
-  return lien(`#/devis/editeur/${l.id}`, l.titre);
+  return /^devis\/(voir|editeur)\/[\w-]+$/.test(l.lien ?? '') ? lien(`#/${l.lien}`, l.titre) : h('span', {}, l.titre); // la route vient du module Devis
 }
 
 /** Copie le texte : le bouton « Copier » du brouillon. */

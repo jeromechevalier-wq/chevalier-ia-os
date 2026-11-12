@@ -14,6 +14,8 @@ import { reglages as reglagesDuModule } from './reglages.js';
 import { retenirDevis } from './memoire.js';
 import { noterArrivee, oublierOrigine } from './origine.js';
 import * as CRM from '../crm/donnees.js';
+import { estExpire } from './logique.js';
+import { dernierContact } from './relances.js';
 import { inscrirePastilleAffaire, inscrireEtatDevisAffaire, inscrireOngletAffaire, inscrireActionAffaire, inscrireDevisARelancer, signaler } from '../crm/pastilles-externes.js';
 import { pastilleDevisDeAffaire, etatDevisDeAffaire } from './pastille-affaire.js';
 import { creerDevisSansAffaire } from './actions-devis.js';
@@ -74,7 +76,7 @@ export function demarrer({ cheminBase = '' } = {}) {
       : { libelle: r.libelle, icone: 'file-text', action: () => naviguer(r.route) };
   });
   // Bloc « À relancer » de l'Accueil : les devis lus (rien tant qu'ils ne sont pas prêts).
-  retirerDevisARelancer = inscrireDevisARelancer(() => (D.estPretDevis() ? D.etat.devis : []));
+  retirerDevisARelancer = inscrireDevisARelancer(() => (D.estPretDevis() ? D.etat.devis.map((d) => ({ ...d, expire: estExpire(d, CRM.ctx().aujourdhui), dernierContactMs: dernierContact(d), lien: d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}` })) : []));
   arretSignal = D.surChangement(signaler);
 }
 
