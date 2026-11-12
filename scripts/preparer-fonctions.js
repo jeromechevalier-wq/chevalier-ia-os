@@ -77,6 +77,17 @@ for (const f of FICHIERS_PORTE) {
 }
 console.log(`functions/partage/porte/ mis à jour (${FICHIERS_PORTE.length} fichiers copiés de scripts/porte/)`);
 
+// Module Réseaux sociaux (13/11/2026) : les règles pures des sources, pistes, exemples et idées sont les mêmes pour l'écran et pour les outils MCP (lister_pistes, ajouter_pistes, retenir_piste…).
+// Dans functions/partage/ les quatre fichiers prennent des noms « rs-… » (le « logique.js » du module ferait doublon avec celui du CRM) ; leurs imports sont réécrits :
+// ./logique.js (module) -> ./rs-logique.js, ./idees-logique.js -> ./rs-idees.js, ./inspirations-logique.js -> ./rs-inspirations.js, ../crm/logique.js -> ./logique.js (le CRM). Le SEUL fichier hors du module qu'ils importent est celui du CRM.
+const dossierRs = join(racine, 'js', 'modules', 'reseauxsociaux');
+for (const [source, copie] of [['logique.js', 'rs-logique.js'], ['idees-logique.js', 'rs-idees.js'], ['inspirations-logique.js', 'rs-inspirations.js'], ['pistes-logique.js', 'rs-pistes.js']]) {
+  const texteRs = readFileSync(join(dossierRs, source), 'utf8');
+  if (/^import .*from '(?!\.\/(logique|idees-logique|inspirations-logique)\.js'|\.\.\/crm\/logique\.js')/m.test(texteRs)) throw new Error(`js/modules/reseauxsociaux/${source} : import inattendu (seuls le CRM et les trois fichiers du module sont copiés)`);
+  writeFileSync(join(destination, copie), texteRs.replaceAll("from './logique.js'", "from './rs-logique.js'").replaceAll("from './idees-logique.js'", "from './rs-idees.js'").replaceAll("from './inspirations-logique.js'", "from './rs-inspirations.js'").replaceAll(IMPORT_CRM, "from './logique.js'"));
+}
+console.log('functions/partage/rs-logique.js, rs-idees.js, rs-inspirations.js et rs-pistes.js mis à jour (copies de js/modules/reseauxsociaux/, imports réécrits)');
+
 // Le lien YouTube collé à la main (reconnaissance d'un épisode ou d'une chaîne, lecture du flux) : écrit une seule fois pour l'écran et pour le serveur.
 copyFileSync(join(racine, 'js', 'modules', 'veille', 'lien.js'), join(destination, 'veille-lien.js'));
 console.log('functions/partage/veille-lien.js mis à jour (copie exacte de js/modules/veille/lien.js)');
@@ -102,7 +113,7 @@ mkdirSync(join(destinationServeur, 'src', 'devis'), { recursive: true });
 for (const f of ['pdf-service.js', 'pdf-declencheur.js', 'chromium.js', 'stockage.js']) copyFileSync(join(racine, 'functions', 'src', 'devis', f), join(destinationServeur, 'src', 'devis', f));
 copyFileSync(join(racine, 'functions', 'src', 'version.js'), join(destinationServeur, 'src', 'version.js'));
 copyFileSync(join(racine, 'functions', 'package.json'), join(destinationServeur, 'package.json')); // version.js lit la version du serveur ici
-for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'devis-document.js', 'devis-numeros.js', 'devis-vocabulaire.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'fichiers-regles.js', 'propositions.js']) {
+for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'devis-document.js', 'devis-numeros.js', 'devis-vocabulaire.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'fichiers-regles.js', 'rs-logique.js', 'rs-idees.js', 'rs-inspirations.js', 'rs-pistes.js', 'propositions.js']) {
   mkdirSync(join(destinationServeur, 'partage'), { recursive: true });
   copyFileSync(join(destination, f), join(destinationServeur, 'partage', f));
 }

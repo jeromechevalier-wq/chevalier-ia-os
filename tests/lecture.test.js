@@ -11,6 +11,7 @@ import { serialiser } from '../functions/src/coeur/serialisation.js';
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
 import { OUTILS_LECTURE } from '../functions/src/mcp/outils/lecture.js';
 import { OUTILS_PROPOSITIONS_LECTURE } from '../functions/src/mcp/outils/propositions.js';
+import { OUTILS_RESEAUX_LECTURE } from '../functions/src/mcp/outils/reseauxsociaux.js';
 import { qui_suis_je } from '../functions/src/mcp/outils/identite.js';
 import { collections, MAINTENANT } from './_donnees-essai.js';
 
@@ -284,16 +285,16 @@ describe('Lecture seule (garantie)', () => {
       assert.ok(['coeur/donnees.js', 'coeur/devis.js', 'coeur/devis-email.js', 'coeur/mode-test.js', 'securite/mesure.js'].some((a) => f.endsWith(a)), `transaction hors de coeur/devis.js : ${f}`); // mode-test.js : marquer ou démarquer un essai (PR 2, 05/11/2026), UNE transaction (fiche ou devis et ses versions, montant de l'affaire, journal) ; devis-email.js : « Préparer l'e-mail » (la demande, la lecture et la note du résultat : une transaction chacune, journal compris)
     }
     for (const f of parcourir(dossier).filter((x) => /\.nouvelId\(/.test(readFileSync(x, 'utf8')))) {
-      assert.ok([...autorises, 'coeur/metier.js'].some((a) => f.endsWith(a)), `identifiants tirés hors du moteur et de metier.js : ${f}`);
+      assert.ok([...autorises, 'coeur/metier.js', 'coeur/reseauxsociaux.js'].some((a) => f.endsWith(a)), `identifiants tirés hors du moteur et de metier.js : ${f}`);
     }
   });
   test('la mesure (securite/mesure.js) est un simple passe-plat : ni .set( ni batch( ni .delete(', () => {
     assert.doesNotMatch(readFileSync(join(RACINE, 'functions/src/securite/mesure.js'), 'utf8'), /\.set\(|\bbatch\(|\.delete\(/);
   });
   test('tous les outils de lecture sont ouverts aux trois profils, et ne sont pas les seuls outils enregistrés', () => {
-    const lecteurs = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE];
+    const lecteurs = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE, ...OUTILS_RESEAUX_LECTURE];
     const noms = lecteurs.map((o) => o.nom).sort();
-    assert.deepEqual(noms, ['chercher', 'chercher_article', 'diagnostiquer_fichiers', 'lire_affaire', 'lire_audit', 'lire_devis', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_proposition', 'lire_reglages', 'lire_reglages_devis', 'lister_activites', 'lister_affaires', 'lister_articles', 'lister_automatisations', 'lister_devis', 'lister_documents', 'lister_modeles_projet', 'lister_projets', 'lister_propositions', 'obtenir_pdf_officiel_devis', 'qui_suis_je', 'rechercher_article_par_phrase']);
+    assert.deepEqual(noms, ['chercher', 'chercher_article', 'diagnostiquer_fichiers', 'lire_affaire', 'lire_audit', 'lire_devis', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_proposition', 'lire_reglages', 'lire_reglages_devis', 'lire_source_inspiration', 'lister_activites', 'lister_affaires', 'lister_articles', 'lister_automatisations', 'lister_devis', 'lister_documents', 'lister_idees', 'lister_modeles_projet', 'lister_pistes', 'lister_projets', 'lister_propositions', 'lister_sources_inspiration', 'obtenir_pdf_officiel_devis', 'qui_suis_je', 'rechercher_article_par_phrase']);
     // Le profil agent-devis (07/11/2026) n'a que 13 outils de lecture, listés en dur : jamais « tous ».
     const LECTURE_AGENT_DEVIS = ['qui_suis_je', 'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_devis', 'lire_devis', 'lire_reglages_devis', 'chercher_article', 'lister_articles', 'rechercher_article_par_phrase', 'obtenir_pdf_officiel_devis'];
     for (const o of lecteurs) assert.deepEqual(o.profils, LECTURE_AGENT_DEVIS.includes(o.nom) ? ['lecture', 'ecriture', 'agent-devis', 'assistant-devis', 'complet'] : ['lecture', 'ecriture', 'complet'], o.nom);
