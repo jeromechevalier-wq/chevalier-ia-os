@@ -3982,7 +3982,7 @@
  },
  {
   "name": "ajouter_note",
-  "description": "Ajoute une note rattachée à une affaire (qui porte aussi sa personne et son organisation), à une personne ou à une organisation. Les notes ne sont jamais modifiées automatiquement.",
+  "description": "Ajoute une note rattachée à une affaire (qui porte aussi sa personne et son organisation), à un projet (projetId, prioritaire si une autre cible est donnée : la note apparaît dans l'onglet Notes du projet, et aussi dans l'historique de sa personne, de son organisation et de son affaire), à une personne ou à une organisation. Les notes ne sont jamais modifiées automatiquement.",
   "inputSchema": {
    "$schema": "http://json-schema.org/draft-07/schema#",
    "type": "object",
@@ -4003,6 +4003,11 @@
      "maxLength": 200
     },
     "organisationId": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200
+    },
+    "projetId": {
      "type": "string",
      "minLength": 1,
      "maxLength": 200

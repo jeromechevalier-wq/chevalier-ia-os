@@ -320,7 +320,7 @@ export const OUTILS_ECRITURE = [
     codeConfirmation: z.string().max(40).optional().describe("Absent au premier appel : l'outil ne change rien, rend un APERÇU et un code. À donner au second appel, après accord de l'utilisateur.")
   }, metier.recalculerUsageArticlesDevis, ['complet']),
 
-  outil('ajouter_note', "Ajoute une note rattachée à une affaire (qui porte aussi sa personne et son organisation), à un projet (projetId : la note apparaît dans l'onglet Notes du projet, et aussi dans l'historique de sa personne, de son organisation et de son affaire), à une personne ou à une organisation. Les notes ne sont jamais modifiées automatiquement.", {
+  outil('ajouter_note', "Ajoute une note rattachée à une affaire (qui porte aussi sa personne et son organisation), à un projet (projetId, prioritaire si une autre cible est donnée : la note apparaît dans l'onglet Notes du projet, et aussi dans l'historique de sa personne, de son organisation et de son affaire), à une personne ou à une organisation. Les notes ne sont jamais modifiées automatiquement.", {
     texte: z.string().min(1).max(20000), affaireId: id.optional(), personneId: id.optional(), organisationId: id.optional(), projetId: id.optional(),
   }, metier.ajouterNote),
   outil('modifier_note', 'Remplace le texte d\'une note existante.', { id, texte: z.string().min(1).max(20000) }, metier.modifierNote),
