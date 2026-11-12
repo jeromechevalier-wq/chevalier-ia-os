@@ -32,7 +32,7 @@ main{width:100%;max-width:440px;background:var(--carte);border:1px solid var(--b
 h1{font-size:1.25rem;margin:0 0 12px}p{margin:0 0 12px}.discret{color:var(--discret);font-size:.9rem}
 button{width:100%;min-height:48px;margin-top:8px;border-radius:12px;border:1px solid var(--bord);background:transparent;color:var(--texte);font:inherit;font-weight:600;cursor:pointer}
 button.principal{background:var(--accent);border-color:var(--accent);color:#fff}button:disabled{opacity:.6;cursor:default}
-.alerte{color:var(--danger);font-weight:600}.droits{border:1px solid var(--bord);border-radius:12px;padding:12px;margin:12px 0}
+.long{overflow-wrap:anywhere;word-break:break-all;font-size:.85rem}.alerte{color:var(--danger);font-weight:600}.droits{border:1px solid var(--bord);border-radius:12px;padding:12px;margin:12px 0}
 [hidden]{display:none!important}`;
 
 export const enveloppe = (titre, corps, styleEnPlus = '') => `<!doctype html>
@@ -72,6 +72,8 @@ export function pageAutorisation(demande, options = {}) {
   <div class="droits">
     ${droits}
     <p class="discret">Retour vers : <strong id="destination"></strong></p>
+    <p class="discret">Connecteur : <code class="long" id="connecteur"></code></p>
+    <p class="discret">Adresse de retour complète : <code class="long" id="adresse-retour"></code></p>
   </div>
   <button type="button" class="principal" id="autoriser">Autoriser</button>
   <button type="button" id="refuser">Refuser</button>
@@ -91,6 +93,9 @@ const $ = (id) => document.getElementById(id);
 const montrer = (etat) => { $('etat-connexion').hidden = etat !== 'connexion'; $('etat-consentement').hidden = etat !== 'consentement'; };
 const dire = (texte) => { $('message').textContent = texte || ''; $('message').hidden = !texte; };
 $('destination').textContent = new URL(demande.redirect_uri).host;
+// Identifiant du connecteur et adresse de retour complète (hôte + chemin) : le chemin propre à un connecteur permet de repérer un faux lien. Texte seulement, jamais du HTML.
+$('connecteur').textContent = demande.client_id;
+{ const u = new URL(demande.redirect_uri); $('adresse-retour').textContent = u.host + u.pathname; }
 const fournisseur = () => { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' }); return p; };
 const mobile = () => /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.matchMedia('(max-width: 767px)').matches;
 let utilisateur = null;

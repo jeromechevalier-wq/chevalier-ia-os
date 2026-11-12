@@ -69,6 +69,16 @@ function messageEcriture(e) {
  * `stockage` : le stockage des fichiers déposés (stockage.js, ou fonction qui le rend) ; sans lui, les outils de dépôt répondent « stockage introuvable ».
  * `sortieEmail` : la sortie vers n8n (coeur/n8n-sortie.js, ou fonction qui la rend) pour préparer un BROUILLON d'e-mail ; sans elle, l'outil répond « pas branché ». Rien n'envoie jamais l'e-mail.
  */
+/**
+ * Une erreur d'outil dont le message est écrit par nous (classes maison `Erreur…`, erreurs d'écriture marquées `lisible`, `throw new Error('…')` simples
+ * sans code technique) reste lisible par l'assistant. Les autres (Firestore, réseau, TypeError…) sont rendues générales.
+ */
+export function erreurLisible(e) {
+  if (!(e instanceof Error)) return false;
+  if (e.lisible === true || /^Erreur[A-Z]/.test(e.name)) return true;
+  return e.name === 'Error' && e.code === undefined && e.errno === undefined && e.syscall === undefined;
+}
+
 export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = null, stockage = null, sortieEmail = null, baseLien = BASE_LIEN_JEROME, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
   const noterDemarrage = creerSuiviDemarrage();
   return async function gestionnaire(req, res) {
@@ -151,7 +161,7 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
       if (e instanceof ErreurEcriture) {
         if (e.details?.operationId) infos.operationId = e.details.operationId;
         infos.code = e.code;
-        throw new Error(messageEcriture(e));
+        throw Object.assign(new Error(messageEcriture(e)), { lisible: true });
       }
       throw e;
     }
@@ -165,7 +175,7 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
       if (r.operationRestauration) infos.operationId = r.operationRestauration;
       return r;
     } catch (e) {
-      if (e instanceof ErreurEcriture) { infos.code = e.code; throw new Error(messageEcriture(e)); }
+      if (e instanceof ErreurEcriture) { infos.code = e.code; throw Object.assign(new Error(messageEcriture(e)), { lisible: true }); }
       throw e;
     }
   };
@@ -199,7 +209,12 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
         noterOutil(infos, compteur, maintenant() - debutOutil);
         if (e instanceof ErreurLimite) infos.code = e.limite;
         else if (e?.name === 'ErreurMetier') infos.code = e.code;
-        throw e;
+        if (erreurLisible(e)) throw e;
+        // Erreur interne (Firestore, réseau, bug) : le détail va dans le journal du serveur, l'assistant ne reçoit qu'un message général.
+        const heure = new Date(maintenant()).toISOString();
+        infos.code ??= 'erreur_outil';
+        process.stderr.write(`${JSON.stringify({ severity: 'ERROR', action: 'outil_erreur', outil: outil.nom, nom: String(e?.name ?? typeof e).slice(0, 80), code: e?.code === undefined ? undefined : String(e.code).slice(0, 80), message: String(e?.message ?? e).slice(0, 300) })}\n`);
+        throw new Error(`Erreur interne pendant « ${outil.nom} » (${heure}). Réessaie dans un instant ; si cela continue, préviens l'administrateur.`);
       }
       return { content: [{ type: 'text', text: JSON.stringify(resultat) }], structuredContent: resultat };
     });

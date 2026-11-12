@@ -159,12 +159,13 @@ export const devisPreparerEmailEtat = onCall(OPTIONS_DEVIS, (requete) => {
 const BASE_LIEN_DEVIS = 'https://chevalier-ia-os.web.app';
 const stockageDevis = stockageDuProjet;
 const OPTIONS_PDF = { ...OPTIONS_DEVIS, memory: '2GiB', timeoutSeconds: 120, concurrency: 1, maxInstances: 2 };
+const limiteurPdf = creerLimiteur({ donnees: null }); // seul `requete` (compteur en mémoire) sert ici, jamais `reserver` ; créé une seule fois : un compteur par compte, partagé par tous les appels de cette instance
 const journalPdf = (e) => process.stdout.write(`${ligneDeJournalDevisPdf(e)}\n`);
 
 // Réessai à la demande (icône d'avertissement, rattrapage des devis déjà finalisés) ou PDF « brouillon » filigrané : `devisPdf({ devisId, brouillon? })`.
 export const devisPdf = onCall(OPTIONS_PDF, (requete) => {
   if (!getApps().length) initializeApp();
-  return creerAppelDevisPdf({ donnees: () => creerAccesFirestore(), baseLien: BASE_LIEN_DEVIS, stockage: stockageDevis, journal: journalPdf })(requete);
+  return creerAppelDevisPdf({ donnees: () => creerAccesFirestore(), baseLien: BASE_LIEN_DEVIS, stockage: stockageDevis, journal: journalPdf, limiteur: limiteurPdf })(requete);
 });
 // Lien de lecture signé de 5 minutes : c'est ce que l'application appelle quand on clique sur le document « DEV-… v1 – Objet.pdf » de l'affaire.
 export const devisPdfLien = onCall(OPTIONS_DEVIS, (requete) => {

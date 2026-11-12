@@ -71,6 +71,8 @@ test('connexion Google, consentement, retour vers Claude avec un code que le ser
   await page.getByRole('button', { name: 'Se connecter avec Google' }).click();
   await expect(page.locator('#compte')).toHaveText('jerome.chevalier@gmail.com');
   await expect(page.locator('#destination')).toHaveText('claude.ai');
+  await expect(page.locator('#connecteur')).toHaveText('cli_navigateur');
+  await expect(page.locator('#adresse-retour')).toHaveText(new URL(CALLBACK).host + new URL(CALLBACK).pathname);
   await expect(page.getByText('supprimer')).toBeVisible();
   await page.getByRole('button', { name: 'Autoriser', exact: true }).click();
   await page.waitForURL(/claude\.ai\/api\/mcp\/auth_callback/);
