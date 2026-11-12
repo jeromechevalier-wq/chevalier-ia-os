@@ -80,6 +80,23 @@ export function actionDeAffaire(affaireId) {
   return null;
 }
 
+// Devis que le module Devis met à la disposition de l'Accueil (bloc « À relancer »). Un fournisseur est `() => [devis]` ; module éteint = rien d'inscrit = aucun devis.
+const fournisseursDevis = new Set();
+
+export function inscrireDevisARelancer(fournisseur) {
+  fournisseursDevis.add(fournisseur);
+  return () => { fournisseursDevis.delete(fournisseur); };
+}
+
+/** Les devis fournis par les modules inscrits (un fournisseur qui plante est ignoré). */
+export function devisDesModules() {
+  const liste = [];
+  for (const f of fournisseursDevis) {
+    try { const r = f(); if (Array.isArray(r)) liste.push(...r); } catch (e) { console.warn(e); }
+  }
+  return liste;
+}
+
 export function surChangementPastilles(rappel) {
   abonnes.add(rappel);
   return () => { abonnes.delete(rappel); };

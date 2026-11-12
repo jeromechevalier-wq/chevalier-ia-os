@@ -465,6 +465,14 @@ export async function creerActivite(valeurs) {
   return plan.id;
 }
 
+/** « J'ai relancé » (Accueil) : une activité email déjà faite sur la personne ou l'affaire de la ligne. */
+export async function enregistrerRelance(ligne) {
+  const test = L.heriterTest(avecModeTest({}), parentsDe(ligne)).test === true;
+  const plan = L.planRelanceFaite(ligne, ctx(), { test });
+  await executer(plan.ecritures, 'enregistrerRelance');
+  return plan.id;
+}
+
 export async function marquerActiviteFaite(id) {
   const a = etat.activites.find((x) => x.id === id);
   if (!a) return null;

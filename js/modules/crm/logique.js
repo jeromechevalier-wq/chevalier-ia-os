@@ -39,6 +39,13 @@ export const TYPES_CONTACT = [
 /** Nombre maximal d'emails (et de téléphones) sur une fiche : le même à l'écran et pour l'assistant (MCP). */
 export const MAX_CONTACTS = 10;
 
+/** Seuils du bloc « À relancer » de l'Accueil, en jours (plus tard, un réglage de l'espace). */
+export const SEUIL_AFFAIRE_QUI_DORT = 7;
+export const SEUIL_DEVIS_SANS_REPONSE = 7;
+export const SEUIL_PERSONNE_SANS_ACTIVITE = 14;
+/** Nombre de lignes visibles du bloc « À relancer » avant « Voir tout ». */
+export const LIGNES_A_RELANCER = 10;
+
 export const TYPES_ACTIVITE = [
   { id: 'appel', libelle: 'Appel', titre: 'Appel' },
   { id: 'rendez_vous', libelle: 'Rendez vous', titre: 'Rendez vous' },
@@ -1555,6 +1562,184 @@ export function pointsCles({ activites = [], affaires = [] }, aujourdhui) {
     enRetard: ouvertes.filter((a) => estActiviteEnRetard(a, aujourdhui)),
     aujourdhui: ouvertes.filter((a) => a.date === aujourdhui),
     sansAction: affaires.filter((a) => estSansAction(a, activites)),
+  };
+}
+
+// ---------------------------------------------------------------- bloc « À relancer » de l'Accueil
+
+/** Motifs du bloc « À relancer » du plus fort au plus faible : B devis envoyé sans réponse, A affaire qui dort, C personne sans activité. */
+export const MOTIFS_RELANCE = {
+  B: 'Devis envoyé, sans réponse',
+  A: 'Affaire sans nouvelle',
+  C: 'Personne sans activité récente',
+};
+
+/** « il y a 12 jours » (jamais négatif). */
+export function texteAnciennete(jours) {
+  const n = Math.max(0, jours | 0);
+  if (n === 0) return 'aujourd’hui';
+  return `il y a ${n} jour${n > 1 ? 's' : ''}`;
+}
+
+/** Dernière date connue parmi des valeurs (Timestamp, Date, nombre ou « AAAA-MM-JJ ») : un jour « AAAA-MM-JJ » à Paris, ou null. */
+function dernierJour(valeurs) {
+  let meilleur = null;
+  for (const v of valeurs) {
+    if (v === null || v === undefined || v === '') continue;
+    const j = typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : jourParis(versDate(v));
+    if (j && (meilleur === null || j > meilleur)) meilleur = j;
+  }
+  return meilleur;
+}
+
+/** Jour d'une activité déjà faite : la date où elle a été faite, sinon sa date prévue. */
+const jourActiviteFaite = (a) => dernierJour([a.dateFait ?? a.date]);
+
+/**
+ * Ce qui dort et mérite une relance (bloc « À relancer » de l'Accueil, lecture seule). `aujourdhui` : « AAAA-MM-JJ ».
+ * Motifs : B devis « envoyé » depuis 7 jours ou plus (ni accepté, ni refusé) ; A affaire ouverte sans mouvement depuis 7 jours ou plus et sans activité prévue ;
+ * C personne d'une affaire ouverte sans aucune activité depuis 14 jours ou plus. Une affaire ou une personne n'apparaît qu'une fois (B, puis A, puis C).
+ * Écartés : archivés, éléments de test, personnes opposées à la prospection. Le plus ancien d'abord.
+ * `devis` : les devis lus par le module Devis (vide si le module est éteint). Renvoie des lignes
+ * { cle, motif, type, id, titre, personneId, organisationId, affaireId, devisId, jours, libelle, nomPersonne } (`jours` : depuis le dernier mouvement ; `joursEnvoi` en plus pour un devis).
+ */
+export function aRelancer({ personnes = [], affaires = [], activites = [], devis = [] }, aujourdhui) {
+  const personneDe = new Map(personnes.map((p) => [p.id, p]));
+  const affaireDe = new Map(affaires.map((a) => [a.id, a]));
+  const ecart = (jour) => ecartJours(jour, aujourdhui);
+  const opposee = (id) => !!id && personneDe.get(id)?.oppositionProspection === true;
+  const jeLaisse = (x) => !!x && !estArchivee(x) && !estTest(x);
+  const nomPersonne = (id) => personneDe.get(id)?.nom ?? '';
+  const lignes = [];
+  const affairesVues = new Set();
+  const personnesVues = new Set();
+
+  // B : devis envoyés sans réponse
+  const envoyes = devis.filter((d) => d?.statut === 'envoye' && jeLaisse(d)).map((d) => ({ d, jourEnvoi: dernierJour([d.envoyeLe ?? d.finaliseLe]) }))
+    .sort((x, y) => (x.jourEnvoi ?? '9').localeCompare(y.jourEnvoi ?? '9')); // le plus ancien d'abord : s'il y a deux devis sur une affaire, c'est lui qui est montré
+  for (const { d, jourEnvoi } of envoyes) {
+    const affaire = d.affaireId ? affaireDe.get(d.affaireId) : null;
+    if (affaire && (!estAffaireActive(affaire) || estTest(affaire))) continue;
+    if (opposee(d.personneId ?? affaire?.personneId)) continue;
+    if (!jourEnvoi || (d.affaireId && affairesVues.has(d.affaireId))) continue;
+    const personneId = d.personneId ?? affaire?.personneId ?? null;
+    // Une relance faite depuis l'envoi (activité déjà faite sur l'affaire du devis, ou sur la personne s'il n'a pas d'affaire) repart de zéro : « J'ai relancé » sort la ligne.
+    const contacts = activites.filter((x) => x.fait && (d.affaireId ? x.affaireId === d.affaireId : !!personneId && x.personneId === personneId)).map(jourActiviteFaite);
+    const dernier = dernierJour([jourEnvoi, ...contacts]);
+    if (ecart(dernier) < SEUIL_DEVIS_SANS_REPONSE) continue;
+    lignes.push({
+      motif: 'B', type: 'devis', id: d.id, devisId: d.id, titre: d.numero ? `Devis ${d.numero}` : 'Devis',
+      personneId, organisationId: d.organisationId ?? affaire?.organisationId ?? null, affaireId: d.affaireId ?? null,
+      jours: ecart(dernier), joursEnvoi: ecart(jourEnvoi), libelle: MOTIFS_RELANCE.B,
+    });
+    if (d.affaireId) affairesVues.add(d.affaireId);
+    if (personneId) personnesVues.add(personneId);
+  }
+
+  // A : affaires ouvertes qui dorment
+  const envoisParAffaire = new Map();
+  for (const d of devis) if (d?.affaireId && ['envoye', 'accepte', 'refuse'].includes(d.statut)) { const j = dernierJour([d.envoyeLe]); if (j) envoisParAffaire.set(d.affaireId, [...(envoisParAffaire.get(d.affaireId) || []), j]); }
+  for (const a of affaires) {
+    if (!jeLaisse(a) || !estAffaireActive(a) || statutAffiche(a) !== 'ouverte' || affairesVues.has(a.id) || opposee(a.personneId)) continue;
+    const siennes = activites.filter((x) => x.affaireId === a.id);
+    if (siennes.some((x) => !x.fait)) continue; // une activité est prévue : elle est déjà dans « À faire »
+    const dernier = dernierJour([a.dateEntreeEtape, ...Object.values(a.datesEtapes || {}), ...siennes.map(jourActiviteFaite), ...(envoisParAffaire.get(a.id) || []), a.creeLe]);
+    if (!dernier || ecart(dernier) < SEUIL_AFFAIRE_QUI_DORT) continue;
+    lignes.push({
+      motif: 'A', type: 'affaire', id: a.id, titre: a.titre, personneId: a.personneId ?? null, organisationId: a.organisationId ?? null,
+      affaireId: a.id, devisId: null, jours: ecart(dernier), libelle: MOTIFS_RELANCE.A,
+    });
+    affairesVues.add(a.id);
+    if (a.personneId) personnesVues.add(a.personneId);
+  }
+
+  // C : personnes d'une affaire ouverte, sans activité depuis longtemps
+  const affairesOuvertes = affaires.filter((a) => jeLaisse(a) && estAffaireActive(a) && statutAffiche(a) === 'ouverte');
+  for (const p of personnes) {
+    if (!jeLaisse(p) || p.oppositionProspection === true || personnesVues.has(p.id)) continue;
+    const sesAffaires = affairesOuvertes.filter((a) => a.personneId === p.id);
+    if (!sesAffaires.length) continue;
+    const ids = new Set(sesAffaires.map((a) => a.id));
+    const siennes = activites.filter((x) => x.personneId === p.id || (x.affaireId && ids.has(x.affaireId)));
+    if (siennes.some((x) => !x.fait)) continue;
+    const dernier = dernierJour([...siennes.map(jourActiviteFaite), p.creeLe]);
+    if (!dernier || ecart(dernier) < SEUIL_PERSONNE_SANS_ACTIVITE) continue;
+    lignes.push({
+      motif: 'C', type: 'personne', id: p.id, titre: p.nom, personneId: p.id, organisationId: p.organisationId ?? null,
+      affaireId: null, devisId: null, jours: ecart(dernier), libelle: MOTIFS_RELANCE.C,
+    });
+  }
+
+  return lignes
+    .map((l) => ({ ...l, cle: `${l.type}/${l.id}`, nomPersonne: nomPersonne(l.personneId) }))
+    .sort((x, y) => y.jours - x.jours || x.cle.localeCompare(y.cle));
+}
+
+/** Adresse LinkedIn sûre : seulement en https, sur le site linkedin.com (avec ou sans « www. »), sans identifiant ni mot de passe dans l'adresse, sinon null. */
+export function lienLinkedinSur(url) {
+  try {
+    const u = new URL(String(url ?? '').trim());
+    if (u.protocol !== 'https:' || !['www.linkedin.com', 'linkedin.com'].includes(u.hostname) || u.username || u.password || u.port) return null;
+    return u.href;
+  } catch { return null; }
+}
+
+/** Objet du courriel d'une relance (ouvre seulement le brouillon : aucun corps, rien ne part). */
+export function sujetRelance(ligne) {
+  return ligne.motif === 'B' ? `Votre devis ${ligne.titre.replace(/^Devis\s+/, '')}`.trim() : ligne.motif === 'A' ? ligne.titre : 'Prendre de vos nouvelles';
+}
+
+/**
+ * Liens utiles d'une ligne de « À relancer », le canal le plus pertinent d'abord (LinkedIn si le dernier échange était sur LinkedIn, sinon e-mail) :
+ * [{ id: 'linkedin' | 'email' | 'appeler' | 'devis', libelle, href, externe }]. Un lien sans donnée valide n'existe pas (jamais de lien cassé).
+ */
+export function liensUtilesRelance(ligne, personne = null, activites = []) {
+  const liens = [];
+  const li = lienLinkedinSur(personne?.linkedin);
+  if (li) liens.push({ id: 'linkedin', libelle: 'Ouvrir LinkedIn', href: li, externe: true });
+  for (const e of personne?.emails || []) {
+    const m = lienEmail(e?.valeur);
+    if (m) { liens.push({ id: 'email', libelle: 'E-mail', href: `${m}?subject=${encodeURIComponent(sujetRelance(ligne))}`, externe: false }); break; }
+  }
+  for (const t of personne?.telephones || []) {
+    const m = lienTel(t?.valeur);
+    if (m) { liens.push({ id: 'appeler', libelle: 'Appeler', href: m, externe: false }); break; }
+  }
+  if (ligne.type === 'devis' && ligne.devisId && /^[\w-]+$/.test(ligne.devisId)) liens.push({ id: 'devis', libelle: 'Ouvrir le devis', href: `#/devis/editeur/${ligne.devisId}`, externe: false });
+  const lies = activites.filter((x) => x.fait && ((ligne.personneId && x.personneId === ligne.personneId) || (ligne.affaireId && x.affaireId === ligne.affaireId)));
+  const dernier = lies.sort((x, y) => (jourActiviteFaite(y) ?? '').localeCompare(jourActiviteFaite(x) ?? ''))[0];
+  const prioritaire = dernier?.type === 'linkedin' ? 'linkedin' : 'email';
+  return liens.sort((x, y) => (y.id === prioritaire) - (x.id === prioritaire));
+}
+
+/**
+ * Brouillon de relance (modèle de texte, sans IA), à relire et copier : vouvoiement par défaut.
+ * `ligne` vient de `aRelancer`, `prenom` : celui de la personne (vide = « Bonjour, »), `signature` : le nom de celui qui écrit.
+ */
+export function brouillonRelance(ligne, { prenom = '', signature = '' } = {}) {
+  const bonjour = nettoyerEspaces(prenom) ? `Bonjour ${nettoyerEspaces(prenom)},` : 'Bonjour,';
+  const fin = `\n\nBien cordialement,\n${nettoyerEspaces(signature)}`.replace(/\n$/, '');
+  if (ligne.motif === 'B') {
+    return `${bonjour}\n\nJe me permets de revenir vers vous au sujet du devis que je vous ai envoyé${(ligne.joursEnvoi ?? 0) > 0 ? ` il y a ${ligne.joursEnvoi} jour${ligne.joursEnvoi > 1 ? 's' : ''}` : ''}. Avez-vous pu en prendre connaissance ? Je reste disponible pour répondre à vos questions ou ajuster la proposition si besoin.${fin}`;
+  }
+  if (ligne.motif === 'A') {
+    return `${bonjour}\n\nJe reviens vers vous au sujet de « ${ligne.titre} ». Où en est votre réflexion ? Si vous avez des questions ou si le calendrier a changé, dites-le-moi : nous pourrons en reparler à votre convenance.${fin}`;
+  }
+  return `${bonjour}\n\nCela fait un moment que nous n’avons pas échangé. Je voulais prendre de vos nouvelles et savoir si votre projet avance. Souhaitez-vous que nous fassions un point rapide ?${fin}`;
+}
+
+/** Activité « email » déjà faite, créée par « J'ai relancé » : la ligne sort du bloc, le journal garde la trace. */
+export function planRelanceFaite(ligne, ctx, { test = false } = {}) {
+  const id = ctx.nouvelId(C.activites);
+  const liens = { personneId: ligne.personneId ?? null, organisationId: ligne.organisationId ?? null, affaireId: ligne.affaireId ?? null };
+  const base = nouvelleActivite({ type: 'email', titre: `Relance : ${ligne.titre}`, date: ctx.aujourdhui ?? aujourdhuiParis(ctx.maintenant), ...liens, ...(test ? { test: true } : {}) }, ctx);
+  const faite = { ...base, fait: true, dateFait: ctx.maintenant };
+  return {
+    id,
+    ecritures: [
+      ecritureCreer(C.activites, id, faite, { horodater: ['creeLe'] }),
+      ...evenements([evenement('activite_faite', `${libelleTypeActivite('email')} fait : ${faite.titre}`, liens, ctx)], ctx),
+    ],
   };
 }
 
