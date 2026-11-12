@@ -7,12 +7,12 @@
 import { h, icone, remplir, dialogue, toast, estTelephone } from '../../os/ui.js';
 import { enteteListe, barreListe, basculeVues } from '../crm/barre-liste.js';
 import { boutonFiltres, fenetreFiltres } from '../crm/filtres.js';
-import { etatVide, pastilleEtiquette, selecteurTri, sectionRepliable, MESSAGE_TEST_ECHEC } from '../crm/composants.js';
+import { etatVide, selecteurTri, sectionRepliable, MESSAGE_TEST_ECHEC } from '../crm/composants.js';
 import * as D from './donnees.js';
 import * as R from './logique.js';
 import * as P from './posts-logique.js';
 import { classerPost } from './posts-actions.js';
-import { ongletsReseauxSociaux, chargement, lienBuffer } from './commun.js';
+import { ongletsReseauxSociaux, chargement, lienBuffer, pastillePilier, pastilleFormat } from './commun.js';
 
 // Feuille de style propre à l'écran, ajoutée au premier affichage (même mécanisme que celle du module, index.html reste inchangé).
 function ajouterFeuille() {
@@ -38,21 +38,11 @@ export function oublierFiltresPosts() {
 }
 
 const OPTIONS_TRI = [{ id: 'date', libelle: 'Date', sens: 'desc' }];
-// Couleurs des pastilles : variables de tokens.css (jamais de jaune plein hors bouton).
-const COULEUR_PILIER = { cas_concrets: 'var(--violet-clair)', pedagogie: 'var(--corail)', actu_ia: 'var(--vert)', demarche_offre: 'var(--lilas)' };
-const COULEUR_GRISE = 'var(--bordure-forte)';
+// Couleurs des pastilles : voir commun.js (les mêmes sur les posts et sur les idées).
 const COULEUR_COLONNE = { brouillons: 'var(--gris-lilas)', programmes: 'var(--violet-clair)', publies: 'var(--vert)' };
 
 const phraseGrise = (texte, role = 'phrase-grise') => h('p', { class: 'aide', dataset: { role } }, texte);
 const pluriel = (n, un, plusieurs) => `${R.formaterNombre(n)} ${n > 1 ? plusieurs : un}`;
-
-function pastille(role, nom, couleur) {
-  const el = pastilleEtiquette({ nom, couleur });
-  el.dataset.role = role;
-  return el;
-}
-const pastillePilier = (id) => (id ? pastille('pilier', R.libellePilier(id), COULEUR_PILIER[R.convertirPilier(id)] ?? COULEUR_GRISE) : pastille('pilier-vide', 'À classer', COULEUR_GRISE));
-const pastilleFormat = (id) => (id ? pastille('format', R.libelleFormat(id), COULEUR_GRISE) : null);
 
 // ---------------------------------------------------------------- fenêtre « Classer ce post »
 

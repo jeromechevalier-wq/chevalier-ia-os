@@ -1,6 +1,6 @@
 // Module Réseaux sociaux (squelette, 11/11/2026) : suivre ses posts LinkedIn (lus dans Buffer, jamais copiés), la suite de ses échanges LinkedIn (activités du CRM)
-// et préparer ses publications. Routes : reseauxsociaux/aujourdhui, posts, relations, import. Chez Jérôme, les tables sont à la racine de la base
-// (reseauxsociaux_posts, reseauxsociaux_imports) ; chez un client, sous clients/<client>/. Le module n'exige aucun autre module (il marche quand Affaires est éteint).
+// et préparer ses publications. Routes : reseauxsociaux/aujourdhui, posts, idees, inspirations, relations, import. Chez Jérôme, les tables sont à la racine de la base
+// (reseauxsociaux_posts, _imports, _idees, _inspirations, _exemples) ; chez un client, sous clients/<client>/. Le module n'exige aucun autre module (il marche quand Affaires est éteint).
 // Modèle : js/modules/veille/index.js. Mode d'emploi pour créer un module : docs/creer-un-module.md.
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
@@ -13,6 +13,8 @@ import { LIBELLES_JOURNAL } from './libelles-journal.js';
 const VUES = {
   aujourdhui: () => import('./aujourdhui.js').then((m) => ({ rendre: m.rendreAujourdhui, oublier: m.oublierFiltresAujourdhui })),
   posts: () => import('./posts-ecran.js').then((m) => ({ rendre: m.rendrePosts, oublier: m.oublierFiltresPosts })),
+  idees: () => import('./idees-ecran.js').then((m) => ({ rendre: m.rendreIdees, oublier: m.oublierFiltresIdees })),
+  inspirations: () => import('./inspirations-ecran.js').then((m) => ({ rendre: m.rendreInspirations, oublier: m.oublierFiltresInspirations })),
   relations: () => import('./relations-ecran.js').then((m) => ({ rendre: m.rendreRelations, oublier: m.oublierFiltresRelations })),
   import: () => import('./import-ecran.js').then((m) => ({ rendre: m.rendreImport, oublier: m.oublierFiltresImport })),
 };
@@ -27,7 +29,7 @@ function ajouterFeuille(nom) {
   document.head.append(l);
 }
 
-export const actionsRapides = []; // rien à créer depuis l'écran : les posts s'écrivent dans Buffer
+export const actionsRapides = []; // rien à créer depuis le menu « + » : les posts s'écrivent dans Buffer (les idées se créent dans l'écran Idées)
 
 /** Réglages du module : une seule section, « Sauvegarde » (export des données). */
 export function reglages(page) {

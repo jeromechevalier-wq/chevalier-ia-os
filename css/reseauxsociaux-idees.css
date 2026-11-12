@@ -1,0 +1,52 @@
+/* Écrans « Idées » et « Inspirations » du module Réseaux sociaux (12/11/2026). Le Kanban, les colonnes, les cartes, les pastilles, les fenêtres et les boutons viennent de crm.css et os.css (mêmes composants) ;
+   ici seulement ce qui est propre aux deux écrans. Tailles et poids de texte : toujours les variables de tokens.css. */
+.page-idees .zone-idees, .page-inspirations .zone-inspirations { margin-top: var(--esp-6); min-width: 0; }
+.zone-contrainte:empty { display: none; }
+.zone-contrainte { margin-bottom: var(--esp-6); }
+.rs-contrainte .groupe-pastilles { margin: var(--esp-2) 0; }
+.rs-contrainte .aide { margin: 0 0 var(--esp-4); }
+
+/* Cartes d'idées : on les ouvre d'un clic, on ne les déplace pas (l'état se change dans la fenêtre). */
+.carte-idee { cursor: pointer; }
+.carte-idee:focus-visible { outline: 2px solid var(--accent-trait); outline-offset: 2px; }
+.carte-idee .carte-titre { font-weight: var(--poids-moyen); overflow-wrap: anywhere; }
+.carte-idee .groupe-pastilles { margin-top: var(--esp-1); }
+.carte-idee .carte-sous { overflow-wrap: anywhere; }
+
+/* Fenêtres : plus hautes que l'écran, elles défilent (la fenêtre de saisie commune ne défile pas sur ordinateur) ; la zone de rédaction est large et haute, sans déborder de la fenêtre. */
+.dialogue.dialogue-formulaire.dialogue-idee, .dialogue.dialogue-formulaire.dialogue-inspiration, .dialogue.dialogue-formulaire.dialogue-exemple { overflow: auto; }
+.dialogue-idee { width: min(640px, 100%); }
+.dialogue-idee textarea.champ { min-height: 12rem; resize: vertical; }
+.dialogue-inspiration, .dialogue-exemple { width: min(560px, 100%); }
+.dialogue-idee .pile, .dialogue-inspiration .pile, .dialogue-exemple .pile { gap: var(--esp-5); }
+.dialogue-idee .bloc-champ[hidden], .dialogue-idee .pile[hidden] { display: none; }
+
+/* Inspirations : une carte par profil, ses exemples dessous. */
+.rs-inspirations { display: flex; flex-direction: column; gap: var(--esp-7); }
+.carte-inspiration { gap: var(--esp-4); }
+.rs-profil-tete { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-4); }
+.rs-profil-tete h2 { display: flex; align-items: center; gap: var(--esp-3); min-width: 0; overflow-wrap: anywhere; }
+.rs-profil-actions { display: flex; gap: var(--esp-1); flex-shrink: 0; }
+.rs-exemples { border-top: 1px solid var(--bordure); padding-top: var(--esp-4); }
+.rs-exemples-tete { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-4); flex-wrap: wrap; }
+.rs-exemples-tete h3 { margin: 0; font-weight: var(--poids-moyen); font-size: var(--fs-texte); }
+.rs-exemple { display: flex; flex-direction: column; gap: var(--esp-2); padding: var(--esp-4) 0; border-bottom: 1px solid var(--bordure); }
+.rs-exemple:last-child { border-bottom: 0; }
+.rs-exemple-tete { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--esp-2) var(--esp-6); }
+.rs-exemple-titre { min-width: 0; overflow-wrap: anywhere; font-weight: var(--poids-moyen); }
+.rs-analyse { margin: 0; color: var(--texte2); overflow-wrap: anywhere; }
+.rs-profils { margin: var(--esp-2) 0; }
+@media (max-width: 767px) {
+  .rs-profil-tete { align-items: flex-start; }
+  .rs-profils .bouton { flex: 1 1 100%; justify-content: center; }
+}
+
+/* Sources d'une idée et extrait d'un exemple : les mots de la source, entre guillemets, en plus petit sous le titre. */
+.rs-sources-carte { display: flex; flex-direction: column; gap: var(--esp-2); }
+.rs-source { display: flex; flex-direction: column; gap: var(--esp-1); min-width: 0; }
+.rs-source .lien-fiche { overflow-wrap: anywhere; }
+.rs-extrait-source { quotes: "« " " »"; font-size: var(--fs-petit); color: var(--texte2); overflow-wrap: anywhere; }
+.rs-consulte { font-size: var(--fs-petit); color: var(--texte2); }
+.rs-source-editeur { display: flex; flex-direction: column; gap: var(--esp-4); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: var(--esp-5); min-width: 0; }
+.carte-inspiration, .carte-inspiration p { min-width: 0; overflow-wrap: anywhere; }
+.rs-profil-tete > h2 { flex: 1 1 auto; }

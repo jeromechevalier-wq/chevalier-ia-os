@@ -175,7 +175,8 @@ export const MODULES_DECLARES = geler([
   },
   {
     // Réseaux sociaux (squelette du 11/11/2026) : Aujourd'hui (créneaux, relations à traiter, dernier post), Posts (lus dans Buffer, jamais copiés), Relations (échanges LinkedIn du CRM) et Import.
-    // Deux tables seulement (`reseauxsociaux_posts` : pilier, format et service par post, clé = identifiant Buffer ; `reseauxsociaux_imports` : historique des imports). Aucune dépendance :
+    // Cinq tables (`reseauxsociaux_posts` : pilier, format et service par post, clé = identifiant Buffer ; `reseauxsociaux_imports` : historique des imports ; volet Idées et inspirations du 12/11/2026 :
+    // `reseauxsociaux_idees`, `reseauxsociaux_inspirations`, `reseauxsociaux_exemples`) et deux écrans de plus (Idées, Inspirations). Aucune dépendance :
     // le module marche quand Affaires est éteint (il écoute lui-même les activités LinkedIn et les étiquettes du CRM). Buffer est lu par une fonction du serveur, absente chez les clients.
     id: 'reseauxsociaux',
     nom: 'Réseaux sociaux',
@@ -187,10 +188,12 @@ export const MODULES_DECLARES = geler([
     ecrans: [
       { route: 'reseauxsociaux/aujourdhui', libelle: 'Aujourd’hui', icone: 'calendar' },
       { route: 'reseauxsociaux/posts', libelle: 'Posts', icone: 'square-kanban' },
+      { route: 'reseauxsociaux/idees', libelle: 'Idées', icone: 'sparkles' },
+      { route: 'reseauxsociaux/inspirations', libelle: 'Inspirations', icone: 'star' },
       { route: 'reseauxsociaux/relations', libelle: 'Relations', icone: 'users' },
       { route: 'reseauxsociaux/import', libelle: 'Import', icone: 'upload' },
     ],
-    collections: ['reseauxsociaux_posts', 'reseauxsociaux_imports'],
+    collections: ['reseauxsociaux_posts', 'reseauxsociaux_imports', 'reseauxsociaux_idees', 'reseauxsociaux_inspirations', 'reseauxsociaux_exemples'],
     outilsMcp: [],
     dependances: [],
     socle: true,

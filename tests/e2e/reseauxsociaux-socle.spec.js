@@ -50,10 +50,10 @@ test('D1 le menu montre « Réseaux sociaux » entre Veille et Automatisations ;
   await page.evaluate(() => { location.hash = '#/reseauxsociaux'; }); // la route nue mène à Aujourd'hui
   await expect(page).toHaveURL(/#\/reseauxsociaux\/aujourdhui$/);
   await expect(page.getByRole('heading', { name: 'Aujourd’hui', level: 1 })).toBeVisible();
-  await expect(onglets(page)).toHaveText(['Aujourd’hui', 'Posts', 'Relations', 'Import']);
+  await expect(onglets(page)).toHaveText(['Aujourd’hui', 'Posts', 'Idées', 'Inspirations', 'Relations', 'Import']);
   await expect(onglets(page).nth(0)).toHaveAttribute('aria-current', 'page');
   await capture(page, 'D1-onglets');
-  for (const [libelle, route] of [['Posts', 'posts'], ['Relations', 'relations'], ['Import', 'import']]) {
+  for (const [libelle, route] of [['Posts', 'posts'], ['Idées', 'idees'], ['Inspirations', 'inspirations'], ['Relations', 'relations'], ['Import', 'import']]) {
     await onglets(page).filter({ hasText: libelle }).click();
     await expect(page).toHaveURL(new RegExp(`#/reseauxsociaux/${route}$`));
     await expect(page.getByRole('heading', { name: libelle, level: 1 })).toBeVisible();
@@ -65,7 +65,7 @@ test('D1 le menu montre « Réseaux sociaux » entre Veille et Automatisations ;
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), 'pas de défilement horizontal').toBe(true);
 });
 
-test('D3 Réglages > Réseaux sociaux > Sauvegarde télécharge un JSON contenant les deux tables (vides acceptées) ; bouton secondaire', async ({ page }) => {
+test('D3 Réglages > Réseaux sociaux > Sauvegarde télécharge un JSON contenant les cinq tables (vides acceptées) ; bouton secondaire', async ({ page }) => {
   await connecter(page);
   await allerA(page, 'Réglages');
   await ouvrirSectionReglages(page, 'Réseaux sociaux');
@@ -77,7 +77,7 @@ test('D3 Réglages > Réseaux sociaux > Sauvegarde télécharge un JSON contenan
   const [dl] = await Promise.all([page.waitForEvent('download'), bouton.click()]);
   expect(dl.suggestedFilename()).toMatch(/^chevalier-ia-reseaux-sociaux-\d{4}-\d{2}-\d{2}\.json$/);
   const json = JSON.parse(await readFile(await dl.path(), 'utf8'));
-  expect(Object.keys(json.collections).sort()).toEqual(['reseauxsociaux_imports', 'reseauxsociaux_posts']);
+  expect(Object.keys(json.collections).sort()).toEqual(['reseauxsociaux_exemples', 'reseauxsociaux_idees', 'reseauxsociaux_imports', 'reseauxsociaux_inspirations', 'reseauxsociaux_posts']);
   expect(json.collections.reseauxsociaux_posts).toEqual([]);
   expect(json.collections.reseauxsociaux_imports).toEqual([]);
   await expect(page.locator('.toast')).toContainText('Sauvegarde téléchargée');

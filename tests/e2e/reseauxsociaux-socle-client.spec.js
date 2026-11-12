@@ -73,7 +73,7 @@ test('D2 un client dont la fiche dit modules: { reseauxsociaux: true } voit le m
   await expect(page.locator('.menu .menu-entree')).toHaveText(['Réseaux sociaux']);
   if (estTelephone(page)) await page.keyboard.press('Escape');
   await expect(page.getByRole('heading', { name: 'Aujourd’hui', level: 1 })).toBeVisible();
-  await expect(page.getByRole('navigation', { name: 'Écrans des réseaux sociaux' }).getByRole('link')).toHaveText(['Aujourd’hui', 'Posts', 'Relations', 'Import']);
+  await expect(page.getByRole('navigation', { name: 'Écrans des réseaux sociaux' }).getByRole('link')).toHaveText(['Aujourd’hui', 'Posts', 'Idées', 'Inspirations', 'Relations', 'Import']);
   await capture(page, 'D2-menu-client');
   // Un autre client (module Veille seul) : pas d'entrée, et l'adresse du module est introuvable.
   await ouvrir(page, 'veilleseule');

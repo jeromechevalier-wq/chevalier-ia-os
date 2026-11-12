@@ -1,4 +1,4 @@
-// Réglages > Réseaux sociaux > « Sauvegarde » : un fichier JSON avec les données du module (classement des posts, historique des imports LinkedIn).
+// Réglages > Réseaux sociaux > « Sauvegarde » : un fichier JSON avec les données du module (classement des posts, historique des imports LinkedIn, idées, profils d'inspiration et leurs exemples).
 // Même présentation que la Veille. Lecture seule : l'export n'écrit rien. Les posts eux-mêmes restent dans Buffer (ils ne sont pas copiés ici).
 import { h, icone, toast } from '../../os/ui.js';
 import { telecharger } from '../crm/composants.js';
@@ -25,7 +25,7 @@ export async function exporterReseauxSociaux({ lire = D.lireToutPourExport } = {
 export function reglagesExportReseauxSociaux(page) {
   page.append(h('section', { class: 'carte-section', id: 'reglages-export-reseauxsociaux' },
     h('h2', {}, icone('download', { taille: 18 }), 'Sauvegarde'),
-    h('p', { class: 'aide' }, 'Télécharge le classement de tes posts et l’historique de tes imports dans un fichier. Les textes des posts restent dans Buffer.'),
+    h('p', { class: 'aide' }, 'Télécharge le classement de tes posts, l’historique de tes imports, tes idées, tes profils d’inspiration et leurs exemples dans un fichier. Les textes des posts restent dans Buffer.'),
     h('div', { class: 'ligne-boutons' },
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'exporter-reseauxsociaux' }, onclick: () => exporterReseauxSociaux() }, icone('download', { taille: 16 }), 'Exporter mes données'))));
 }

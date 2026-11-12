@@ -3,4 +3,7 @@
 export const LIBELLES_JOURNAL = Object.freeze({
   reseauxsociaux_posts: ['classement de post', 'classements de post'],
   reseauxsociaux_imports: ['import LinkedIn', 'imports LinkedIn'],
+  reseauxsociaux_idees: ['idée de post', 'idées de post'],
+  reseauxsociaux_inspirations: ['profil d’inspiration', 'profils d’inspiration'],
+  reseauxsociaux_exemples: ['exemple de post', 'exemples de post'],
 });
