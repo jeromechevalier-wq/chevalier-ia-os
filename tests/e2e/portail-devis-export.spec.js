@@ -101,7 +101,7 @@ test('4 chez Jérôme : « Espace complet » du menu du compte mène à l\'espac
   await depuisCompte(page, 'Espace complet');
   await expect(page).toHaveURL(/#\/devis\/liste$/);
   await expect(page.locator('.page-liste-devis')).toBeVisible();
-  await expect.poll(() => page.locator('.menu .menu-entree').count()).toBe(9); // menu complet : la page a bien rechargé
+  await expect.poll(() => page.locator('.menu .menu-entree').count()).toBe(10); // menu complet (10 entrées, dont Réseaux sociaux) : la page a bien rechargé
   await attendreCalme(page);
   await ouvrirMenuUtilisateur(page); // hors portail : plus aucune des deux entrées
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Exporter mes données|Espace complet/ })).toHaveCount(0);
