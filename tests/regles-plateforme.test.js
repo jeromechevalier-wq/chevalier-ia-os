@@ -5,7 +5,7 @@ import { test, describe, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, setLogLevel } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, writeBatch, Timestamp, setLogLevel } from 'firebase/firestore';
 
 setLogLevel('error');
 
@@ -394,4 +394,73 @@ describe('J. Journal des workflows : lecture seule pour tous les navigateurs', (
   test('J6 les autres collections de l\'éditeur ne changent pas (il écrit toujours ses données métier)', async () => {
     await droitsComplets(ctx(ALICE), 'a', 'crm_personnes');
   });
+
+  // R. Journal d'audit et codes de confirmation (audit du 12/11/2026, R1 et R2)
+  const ligne = (acteur = ALICE, via = 'ecran') => ({ via, acteur, action: 'creer' });
+  const copie = () => ({ valeur: 1, expireAt: Timestamp.fromDate(new Date('2027-01-01T00:00:00Z')) });
+  async function semer() {
+    await env.withSecurityRulesDisabled(async (c) => {
+      for (const n of ['crm_audit', 'crm_audit_avant', 'mcp_codes']) await setDoc(doc(c.firestore(), 'clients', 'a', n, 'existant'), { via: 'ecran', acteur: ALICE, expireAt: Timestamp.now() });
+    });
+  }
+  test('R1 l\'éditrice crée une ligne du journal et sa copie, dans UN lot avec la fiche (cas réel de l\'écran)', async () => {
+    const db = ctx(ALICE);
+    const lot = writeBatch(db);
+    lot.set(doc(db, 'clients', 'a', 'crm_personnes', 'p1'), { nom: 'Test' });
+    lot.set(doc(db, 'clients', 'a', 'crm_audit', 'l1'), ligne());
+    lot.set(doc(db, 'clients', 'a', 'crm_audit_avant', 'l1'), copie());
+    await assertSucceeds(lot.commit());
+  });
+  test('R2 l\'éditrice ne peut pas fausser la ligne : via autre, acteur d\'un autre, copie sans date', async () => {
+    const db = ctx(ALICE);
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'crm_audit', 'x1'), ligne(ALICE, 'mcp')));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'crm_audit', 'x2'), ligne(BOB)));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'crm_audit', 'x3'), { action: 'creer' }));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'crm_audit_avant', 'x4'), { valeur: 1, expireAt: 'demain' }));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'crm_audit_avant', 'x5'), { valeur: 1 }));
+  });
+  test('R3 l\'éditrice ne modifie ni ne supprime le journal existant ; mcp_codes fermé (lire, créer, modifier, supprimer)', async () => {
+    await semer();
+    const db = ctx(ALICE);
+    for (const n of ['crm_audit', 'crm_audit_avant']) {
+      await assertSucceeds(getDoc(doc(db, 'clients', 'a', n, 'existant')));
+      await assertFails(updateDoc(doc(db, 'clients', 'a', n, 'existant'), { valeur: 9 }));
+      await assertFails(deleteDoc(doc(db, 'clients', 'a', n, 'existant')));
+    }
+    const m = doc(db, 'clients', 'a', 'mcp_codes', 'existant');
+    await assertFails(getDoc(m));
+    await assertFails(getDocs(collection(db, 'clients', 'a', 'mcp_codes')));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'mcp_codes', 'nouveau'), { code: '1' }));
+    await assertFails(updateDoc(m, { code: '2' }));
+    await assertFails(deleteDoc(m));
+  });
+  test('R4 la lectrice lit le journal, n\'y écrit pas, ne lit pas mcp_codes', async () => {
+    await semer();
+    const db = ctx(LEA);
+    for (const n of ['crm_audit', 'crm_audit_avant']) {
+      await assertSucceeds(getDoc(doc(db, 'clients', 'a', n, 'existant')));
+      await assertSucceeds(getDocs(collection(db, 'clients', 'a', n)));
+    }
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'crm_audit', 'n1'), ligne(LEA)));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'crm_audit_avant', 'n1'), copie()));
+    await assertFails(getDoc(doc(db, 'clients', 'a', 'mcp_codes', 'existant')));
+  });
+  test('R5 membre d\'un autre client, non-membre, visiteur, e-mail non vérifié : rien sur ces trois collections', async () => {
+    await semer();
+    const cas = [ctx(BOB), ctx(ZOE), env.unauthenticatedContext().firestore(), ctx(ALICE, false)];
+    for (const db of cas) {
+      for (const n of ['crm_audit', 'crm_audit_avant', 'mcp_codes']) {
+        await assertFails(getDoc(doc(db, 'clients', 'a', n, 'existant')));
+        await assertFails(setDoc(doc(db, 'clients', 'a', n, 'n1'), { ...ligne(), expireAt: Timestamp.now() }));
+        await assertFails(deleteDoc(doc(db, 'clients', 'a', n, 'existant')));
+      }
+    }
+  });
+  const COLLECTIONS_JOKER = ['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres', 'projets_projets', 'projets_taches', 'projets_modeles', 'devis_parametres', 'reseauxsociaux_posts', 'reseauxsociaux_imports', 'reseauxsociaux_idees', 'reseauxsociaux_inspirations', 'reseauxsociaux_exemples', 'reseauxsociaux_pistes'];
+  for (const c of COLLECTIONS_JOKER) {
+    test(`R6 l'éditrice écrit toujours ${c} (liste du navigateur)`, async () => {
+      await env.withSecurityRulesDisabled(async (x) => { await setDoc(doc(x.firestore(), 'clients', 'a', c, 'existant'), { valeur: 1 }); });
+      await droitsComplets(ctx(ALICE), 'a', c);
+    });
+  }
 });
