@@ -135,6 +135,8 @@ export function normaliserIdee(valeurs = {}) {
     etat,
     texte: etat === 'dans_buffer' ? '' : texteRedaction(valeurs.texte),
     lien: normaliserLien(valeurs.lien),
+    // La piste d'où vient l'idée (13/11/2026) : facultatif, un identifiant de `reseauxsociaux_pistes`.
+    pisteId: texteSimple(valeurs.pisteId, MAX_ID_LIEN) || null,
   };
 }
 
@@ -151,7 +153,7 @@ export function validerIdee(valeurs = {}) {
 }
 
 /** Les champs d'une idée existante, prêts à être refusionnés avec des changements. */
-const champsIdee = (existante) => ({ angle: existante?.angle, sources: existante?.sources, pilier: existante?.pilier, format: existante?.format, service: existante?.service, etat: existante?.etat, texte: existante?.texte, lien: existante?.lien });
+const champsIdee = (existante) => ({ angle: existante?.angle, sources: existante?.sources, pilier: existante?.pilier, format: existante?.format, service: existante?.service, etat: existante?.etat, texte: existante?.texte, lien: existante?.lien, pisteId: existante?.pisteId });
 
 /**
  * Plan d'écriture d'une idée : `existante` = document déjà présent (ou null = création), `valeurs` = les champs à poser (le reste vient de l'existante), `ctx.id` = identifiant du document.

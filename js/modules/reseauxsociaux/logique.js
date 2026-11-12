@@ -10,7 +10,9 @@ export const COLLECTION_IMPORTS = 'reseauxsociaux_imports';
 export const COLLECTION_IDEES = 'reseauxsociaux_idees';
 export const COLLECTION_INSPIRATIONS = 'reseauxsociaux_inspirations';
 export const COLLECTION_EXEMPLES = 'reseauxsociaux_exemples';
-export const COLLECTIONS = Object.freeze([COLLECTION_POSTS, COLLECTION_IMPORTS, COLLECTION_IDEES, COLLECTION_INSPIRATIONS, COLLECTION_EXEMPLES]);
+// Les pistes de posts tirées des sources d'inspiration (13/11/2026, voir pistes-logique.js). `reseauxsociaux_inspirations` devient la table des SOURCES (profil, site, résumé de veille).
+export const COLLECTION_PISTES = 'reseauxsociaux_pistes';
+export const COLLECTIONS = Object.freeze([COLLECTION_POSTS, COLLECTION_IMPORTS, COLLECTION_IDEES, COLLECTION_INSPIRATIONS, COLLECTION_EXEMPLES, COLLECTION_PISTES]);
 
 /** Buffer reste le lieu où l'on écrit les posts (ce module ne fait que lire). */
 export const URL_BUFFER = 'https://publish.buffer.com';

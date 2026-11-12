@@ -77,7 +77,7 @@ test('D3 Réglages > Réseaux sociaux > Sauvegarde télécharge un JSON contenan
   const [dl] = await Promise.all([page.waitForEvent('download'), bouton.click()]);
   expect(dl.suggestedFilename()).toMatch(/^chevalier-ia-reseaux-sociaux-\d{4}-\d{2}-\d{2}\.json$/);
   const json = JSON.parse(await readFile(await dl.path(), 'utf8'));
-  expect(Object.keys(json.collections).sort()).toEqual(['reseauxsociaux_exemples', 'reseauxsociaux_idees', 'reseauxsociaux_imports', 'reseauxsociaux_inspirations', 'reseauxsociaux_posts']);
+  expect(Object.keys(json.collections).sort()).toEqual(['reseauxsociaux_exemples', 'reseauxsociaux_idees', 'reseauxsociaux_imports', 'reseauxsociaux_inspirations', 'reseauxsociaux_pistes', 'reseauxsociaux_posts']);
   expect(json.collections.reseauxsociaux_posts).toEqual([]);
   expect(json.collections.reseauxsociaux_imports).toEqual([]);
   await expect(page.locator('.toast')).toContainText('Sauvegarde téléchargée');

@@ -6,4 +6,5 @@ export const LIBELLES_JOURNAL = Object.freeze({
   reseauxsociaux_idees: ['idée de post', 'idées de post'],
   reseauxsociaux_inspirations: ['profil d’inspiration', 'profils d’inspiration'],
   reseauxsociaux_exemples: ['exemple de post', 'exemples de post'],
+  reseauxsociaux_pistes: ['piste de post', 'pistes de post'],
 });

@@ -85,7 +85,7 @@ test('F2 créer une idée (angle, pilier, format, service, source « Veille » +
   expect(d.sources[0]).toEqual({ type: 'veille', titre: '', url: '', ancre: '', extrait: 'Les mots de la veille', consulteLe: '2026-11-10', archive: '', resume: '2026-11-10 Résumé fictif de la veille.md', motsCles: '' });
   expect(d.sources[1]).toMatchObject({ type: 'site', titre: 'Page d’un concurrent', url: 'https://exemple.test/offre#tarifs', ancre: 'Tarifs', extrait: 'Une offre nationale' });
   expect(d.creeLe).toBeTruthy();
-  expect(Object.keys(d).sort()).toEqual(['angle', 'creeLe', 'etat', 'format', 'id', 'lien', 'modifieLe', 'pilier', 'service', 'sources', 'texte']);
+  expect(Object.keys(d).sort()).toEqual(['angle', 'creeLe', 'etat', 'format', 'id', 'lien', 'modifieLe', 'pilier', 'pisteId', 'service', 'sources', 'texte']);
   const c = page.locator('[data-colonne="idee"]').locator('.carte-idee');
   await expect(c).toHaveCount(1);
   await expect(c.locator('[data-role="pilier"]')).toHaveText('Cas concrets');
@@ -357,7 +357,7 @@ test('F10 exemples d’un profil : lien + analyse (jamais le texte du post), 500
   await expect(f).toHaveCount(0);
   const e = (await listerDocuments('reseauxsociaux_exemples'))[0];
   expect(e).toMatchObject({ profilId: 'p1', url: 'https://www.linkedin.com/posts/alice-exemple_cas-concret-123', date: '2026-11-03', accroche: 'Une facture oubliée coûte cher', format: 'carrousel', pilier: 'cas_concrets', service: 'finance' });
-  expect(Object.keys(e).sort()).toEqual(['accroche', 'creeLe', 'date', 'extrait', 'format', 'id', 'longueur', 'modifieLe', 'pilier', 'pourquoi', 'profilId', 'service', 'structure', 'url']); // aucun champ pour le texte du post
+  expect(Object.keys(e).sort()).toEqual(['accroche', 'commentaires', 'creeLe', 'date', 'extrait', 'format', 'id', 'longueur', 'modifieLe', 'pilier', 'pourquoi', 'profilId', 'reactions', 'releveLe', 'service', 'structure', 'url']); // aucun champ pour le texte du post
   const ligne = page.locator('[data-inspiration="p1"] .rs-exemple');
   await expect(ligne).toHaveCount(1);
   await expect(ligne.locator('[data-role="accroche"]')).toHaveText('Une facture oubliée coûte cher');
