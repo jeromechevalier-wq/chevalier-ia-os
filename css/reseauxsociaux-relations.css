@@ -1,6 +1,5 @@
 /* Écran « Relations » du module Réseaux sociaux. Le Kanban, les colonnes, les cartes, les pastilles et la liste viennent de crm.css (mêmes composants que les affaires) ;
    ici seulement ce qui change : cartes non déplaçables, bandeau des catégories. Tailles et poids de texte : toujours les variables de tokens.css. */
-.page-relations { max-width: none; }
 .zone-relations { min-width: 0; }
 /* Les cartes ne se déplacent pas : curseur de clic (la classe des affaires affiche la main qui attrape). */
 .carte-relation { cursor: pointer; }
