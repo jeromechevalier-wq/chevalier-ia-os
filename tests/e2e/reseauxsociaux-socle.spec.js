@@ -65,7 +65,7 @@ test('D1 le menu montre « Réseaux sociaux » entre Veille et Automatisations ;
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), 'pas de défilement horizontal').toBe(true);
 });
 
-test('D3 Réglages > Réseaux sociaux > Sauvegarde télécharge un JSON contenant les cinq tables (vides acceptées) ; bouton secondaire', async ({ page }) => {
+test('D3 Réglages > Réseaux sociaux > Sauvegarde télécharge un JSON contenant les six tables (vides acceptées) ; bouton secondaire', async ({ page }) => {
   await connecter(page);
   await allerA(page, 'Réglages');
   await ouvrirSectionReglages(page, 'Réseaux sociaux');
