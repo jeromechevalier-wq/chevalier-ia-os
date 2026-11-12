@@ -1386,7 +1386,7 @@ describe('Emails et téléphones d\'une organisation (contactsOrganisation, patc
   test('2b lienWebSur : seulement http:// ou https:// sans espace ; le reste devient null ; lienEmail refuse ?subject, &body, %40', () => {
     assert.equal(L.lienWebSur('https://monsite.fr/a?b=1'), 'https://monsite.fr/a?b=1');
     assert.equal(L.lienWebSur('http://monsite.fr'), 'http://monsite.fr');
-    for (const v of ['javascript:alert(1)', 'data:text/html,x', 'https://mon site.fr', 'monsite.fr', '', '   ', undefined, null, 5]) assert.equal(L.lienWebSur(v), null, String(v));
+    for (const v of ['JAVASCRIPT:alert(1)', ' javascript:alert(1)', 'java\nscript:alert(1)', '//evil.com', 'ftp://x.fr', ['https://a.fr'], 'javascript:alert(1)', 'data:text/html,x', 'https://mon site.fr', 'monsite.fr', '', '   ', undefined, null, 5]) assert.equal(L.lienWebSur(v), null, String(v));
     assert.equal(L.lienWebAEnregistrer(' monsite.fr '), 'https://monsite.fr');
     assert.equal(L.lienWebAEnregistrer(''), '');
     assert.equal(L.lienWebAEnregistrer('javascript:alert(1)'), null);

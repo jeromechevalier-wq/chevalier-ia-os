@@ -205,7 +205,8 @@ function contactsOrganisationModifies(o, champs) {
 }
 
 function lienWebOuRefuser(valeur, nom) {
-  const v = L.lienWebAEnregistrer(typeof valeur === 'string' ? valeur : '');
+  if (typeof valeur !== 'string') refuser('saisie_invalide', `${nom} : une adresse (texte) est attendue.`);
+  const v = L.lienWebAEnregistrer(valeur);
   if (v === null) refuser('saisie_invalide', `${nom} : adresse invalide, elle doit commencer par http:// ou https://.`);
   return v;
 }

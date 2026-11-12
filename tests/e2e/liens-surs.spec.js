@@ -44,5 +44,8 @@ test('4 un e-mail piégé : pas de mailto: dans la liste ni sur le bouton « Éc
   await expect(page.getByText('alice@exemple.test?subject=Bonjour').first()).toBeVisible();
   await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
   await aller(page, '#/crm/personnes/p1');
-  await expect(page.locator('a[href^="mailto:"][data-action="ecrire-email"]')).toHaveCount(0);
+  const bouton = page.locator('button[data-action="ecrire-email"]');
+  await expect(bouton).toBeDisabled();
+  await expect(bouton).toHaveAttribute('title', 'Adresse email à corriger');
+  await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
 });
