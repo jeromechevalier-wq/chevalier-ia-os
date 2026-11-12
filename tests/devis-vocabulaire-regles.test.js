@@ -241,8 +241,8 @@ describe('V4 Cohérence des deux jeux de règles', () => {
       assert.match(t, /hasOnly\(\['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'modifieLe', 'modifiePar', 'via', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe', 'cibles'\]\)/);
       assert.match(t, /match \/(?:clients\/\{client\}\/)?devis_vocabulaire\/\{id\} \{[^}]*allow delete: if false;/s);
     }
-    assert.match(j, /'crm_actions_lancements', 'devis_vocabulaire'(, 'documents_stockes')?(, 'devis_habitudes')?(, 'devis_usage_articles')?\]\)/);
-    assert.match(j, /'devis_habitudes', 'devis_usage_articles'\]\)/); // K23 : la collection d'usage est exclue du joker de Jérôme
+    assert.match(j, /'crm_actions_lancements', 'devis_vocabulaire'(, 'documents_stockes')?(, 'devis_habitudes')?(, 'devis_usage_articles')?(, 'reseauxsociaux_mesures')?\]\)/);
+    assert.match(j, /'devis_habitudes', 'devis_usage_articles'(, 'reseauxsociaux_mesures')?\]\)/); // K23 : la collection d'usage est exclue du joker de Jérôme
     assert.match(j, /match \/devis_usage_articles\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow write: if false;/);
     assert.match(p, /\['documents_stockes', 'devis_habitudes', 'devis_usage_articles'\];/); // K23 : exclue du joker d'écriture des clients
     assert.match(p, /match \/clients\/\{client\}\/devis_usage_articles\/\{id\} \{[^}]*allow write: if false;/s);

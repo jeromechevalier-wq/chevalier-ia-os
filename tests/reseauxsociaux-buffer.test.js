@@ -213,7 +213,7 @@ describe('C4 aucune écriture dans Buffer', () => {
     }
   });
   test('C4 le service n\'expose que la lecture, et le texte du code n\'écrit jamais « mutation » dans une requête', () => {
-    assert.deepEqual(Object.keys(serviceAvec(fauxBuffer())), ['lirePosts']);
+    assert.deepEqual(Object.keys(serviceAvec(fauxBuffer())), ['lirePosts', 'lirePostsPublies']); // deux lectures (12/11/2026 : posts publiés avec pagination pour le relevé hebdomadaire), aucune écriture
     const code = readFileSync(new URL('../functions/src/reseauxsociaux/service.js', import.meta.url), 'utf8');
     const requetes = code.split('\n').filter((l) => /^const (REQUETE_|requete)/.test(l));
     assert.ok(requetes.length >= 3);
