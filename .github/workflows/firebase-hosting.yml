@@ -15,6 +15,10 @@ on:
       - 'CLAUDE.md'
       - 'PROMPT-CONSTRUCTION.md'
       - '.github/A-FAIRE.md'
+# Droits minimaux (12/11/2026) : lire le code, et lire les jobs du lancement pour l'étape de mesure de la durée (même droit que dans tests.yml).
+permissions:
+  contents: read
+  actions: read
 # Un seul déploiement à la fois : sans ça, un run plus ancien qui finit en dernier republie l'ancien arbre par-dessus un plus récent (30/10/2026).
 # GitHub ne garde qu'UN run en attente (le plus récent) ; false = on ne coupe jamais un déploiement en cours (fonctions).
 concurrency:
@@ -25,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -48,9 +54,9 @@ jobs:
           (umask 077; printf '%s' "$COMPTE_DE_SERVICE" > "$fichier")
           trap 'rm -f "$fichier"' EXIT
           GOOGLE_APPLICATION_CREDENTIALS="$fichier" npx --yes firebase-tools@15.32.0 deploy --only functions --project chevalier-ia-os --non-interactive --force
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      # Épinglée par le SHA du commit (tag annoté v0) : une mise à jour du tag ne change plus ce qui s'exécute ici. Le jeton d'entrée de l'action est retiré : il ne sert qu'aux événements pull_request.
+      - uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a # v0
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS }}
           channelId: live
           projectId: chevalier-ia-os
