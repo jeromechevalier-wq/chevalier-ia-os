@@ -196,7 +196,7 @@ async function deplacer(source, sens) {
 const boutonIcone = (action, ic, libelle, auClic, desactive) => h('button', { type: 'button', class: 'bouton-icone', dataset: { action }, 'aria-label': libelle, title: libelle, disabled: desactive, onclick: auClic }, icone(ic, { taille: 16 }));
 
 /** Une source : une ligne (nom qui déplie, compteurs, « En tirer des idées », ▲ ▼) et, dépliée, ses détails, ses pistes et (profil) ses exemples. */
-function carteSource(ligne, reelles, surChangement) {
+function carteSource(ligne, reelles, surChangement, { filtre = false } = {}) {
   const { source, pistes, total, compteurs } = ligne;
   const ouverte = ouvertes.has(source.id);
   const rang = reelles.findIndex((p) => p.id === source.id);
@@ -211,8 +211,8 @@ function carteSource(ligne, reelles, surChangement) {
     h('span', { class: 'rs-compteurs', dataset: { role: 'compteurs-source' } }, V.libelleCompteurs(compteurs)),
     h('div', { class: 'rs-profil-actions' },
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'tirer-idees' }, onclick: () => ouvrirTirerIdees({ source }) }, icone('sparkles', { taille: 16 }), 'En tirer des idées'),
-      source.virtuelle ? null : boutonIcone('monter-profil', 'arrow-up', `Monter ${source.nom}`, () => deplacer(source, -1), rang <= 0),
-      source.virtuelle ? null : boutonIcone('descendre-profil', 'arrow-down', `Descendre ${source.nom}`, () => deplacer(source, 1), rang < 0 || rang === reelles.length - 1)));
+      source.virtuelle ? null : boutonIcone('monter-profil', 'arrow-up', `Monter ${source.nom}`, () => deplacer(source, -1), rang <= 0 || filtre),
+      source.virtuelle ? null : boutonIcone('descendre-profil', 'arrow-down', `Descendre ${source.nom}`, () => deplacer(source, 1), rang < 0 || rang === reelles.length - 1 || filtre)));
   let corps = null;
   if (ouverte) {
     corps = h('div', { class: 'rs-source-corps', dataset: { role: 'corps-source' } },
@@ -291,6 +291,7 @@ export function rendreInspirations(conteneur) {
       remplir(zone, etatVide('Ajoute les profils qui t’inspirent.', { action: h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'nouvelle-inspiration-vide' }, onclick: nouveau }, icone('plus', { taille: 16 }), 'Ajouter une source') }));
       return;
     }
+    const sousFiltre = V.nombreFiltresInspirations(criteres) > 0 || criteres.recherche.trim() !== ''; // sous filtre, ▲ ▼ seraient trompeurs (l'échange peut viser une source cachée)
     const lignes = V.filtrerSources(sources, D.etat.pistes, D.etat.idees, criteres);
     const nbPistes = lignes.reduce((n, l) => n + l.pistes.length, 0);
     remplir(compteur, `${pluriel(lignes.length, 'source', 'sources')} · ${pluriel(nbPistes, 'piste', 'pistes')}`);
@@ -301,10 +302,10 @@ export function rendreInspirations(conteneur) {
     if (vue === 'plat') {
       const plat = V.pistesAPlat(lignes);
       remplir(zone, plat.length ? h('ul', { class: 'rs-liste rs-pistes-liste rs-pistes-plat', dataset: { role: 'pistes-plat' } }, plat.map(({ piste, source }) => lignePiste(piste, { nomSource: source.nom })))
-        : phraseGrise('Aucune piste pour le moment. Ouvre une source et clique sur « En tirer des idées ».', 'plat-vide'));
+        : phraseGrise(sousFiltre ? 'Aucune piste ne correspond à ta recherche ou à tes filtres.' : 'Aucune piste pour le moment. Ouvre une source et clique sur « En tirer des idées ».', 'plat-vide'));
       return;
     }
-    remplir(zone, h('div', { class: 'rs-inspirations' }, lignes.map((l) => carteSource(l, reelles, rendre))));
+    remplir(zone, h('div', { class: 'rs-inspirations' }, lignes.map((l) => carteSource(l, reelles, rendre, { filtre: sousFiltre }))));
   }
   const arret = D.surChangement(rendre);
   rendre();

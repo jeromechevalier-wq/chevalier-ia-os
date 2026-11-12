@@ -50,7 +50,7 @@ export function lignePiste(piste, { nomSource = null } = {}) {
       href ? h('a', { class: 'bouton-icone rs-piste-bouton', href, target: '_blank', rel: 'noopener noreferrer', 'aria-label': 'Ouvrir le lien de la piste', title: 'Ouvrir le lien de la piste', dataset: { action: 'ouvrir-piste' } }, icone('external-link', { taille: 16 })) : null,
       etat === 'stock' ? bouton('retenir-piste', 'star', 'Retenir', agir(() => changerEtatPiste(piste.id, 'retenue'))) : null,
       piste.ideeId ? null : h('button', { type: 'button', class: 'bouton bouton-secondaire rs-piste-idee', dataset: { action: 'faire-idee' }, onclick: agir(() => enFaireUneIdee(piste.id), 'Idée créée') }, icone('plus', { taille: 14 }), 'En faire une idée'),
-      etat === 'ecartee' ? bouton('remettre-piste', 'rotate-ccw', 'Remettre en stock', agir(() => changerEtatPiste(piste.id, 'nouvelle')))
+      etat === 'ecartee' ? bouton('remettre-piste', 'rotate-ccw', 'Remettre en stock', agir(() => changerEtatPiste(piste.id, piste.ideeId ? 'retenue' : 'nouvelle'))) // une piste déjà devenue idée reste « retenue »
         : bouton('ecarter-piste', 'x', 'Écarter', agir(() => changerEtatPiste(piste.id, 'ecartee')))));
 }
 
@@ -68,37 +68,37 @@ export function promptPourSource(source) {
   });
 }
 
-function panneauMain(source) {
+function panneauMain(source, verrou) {
   const v = { angle: '', pilier: null, format: null, service: null };
   let ajoutees = 0;
-  let enCours = false;
   const erreur = h('p', { class: 'erreur', role: 'alert', dataset: { role: 'erreur-piste' } });
   const confirmation = h('p', { class: 'aide', 'aria-live': 'polite', dataset: { role: 'piste-ajoutee' } });
   const bouton = h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: true, dataset: { action: 'ajouter-piste' } }, icone('plus', { taille: 16 }), 'Ajouter et continuer');
-  const maj = () => { const ok = v.angle.trim() !== ''; bouton.disabled = !ok || enCours; bouton.classList.toggle('bouton-principal', ok); bouton.classList.toggle('bouton-secondaire', !ok); };
+  const maj = () => { const ok = v.angle.trim() !== ''; bouton.disabled = !ok || verrou.pris; bouton.classList.toggle('bouton-principal', ok); bouton.classList.toggle('bouton-secondaire', !ok); };
   const angle = champTexte({ cle: 'angle', libelle: 'Angle : la piste en une phrase', valeur: '', maxlength: P.MAX_ANGLE, surSaisie: (x) => { v.angle = x; maj(); } });
   const pilier = champListe({ cle: 'pilier', libelle: 'Pilier', options: R.PILIERS, vide: 'À choisir', surChangement: (x) => { v.pilier = x; } });
   const format = champListe({ cle: 'format', libelle: 'Format', options: R.FORMATS, vide: 'À choisir', surChangement: (x) => { v.format = x; } });
   const service = champListe({ cle: 'service', libelle: 'Service', options: R.SERVICES, vide: 'Tous les services', surChangement: (x) => { v.service = x; } });
   async function ajouter() {
-    if (enCours || !v.angle.trim()) return;
-    enCours = true; maj(); erreur.textContent = '';
+    if (verrou.pris || !v.angle.trim()) return;
+    verrou.pris = true; maj(); erreur.textContent = '';
     try {
       await ajouterPistes(source, [{ angle: v.angle, pilier: v.pilier ?? '', format: v.format ?? '', service: v.service ?? '' }], { voie: 'main', auteur: 'utilisateur' });
       ajoutees++;
       confirmation.textContent = `${pluriel(ajoutees, 'piste ajoutée', 'pistes ajoutées')}. Tu peux en saisir une autre.`;
       v.angle = ''; angle.champ.value = ''; angle.champ.focus();
-    } catch (e) { console.warn(e); erreur.textContent = messageErreur(e); } finally { enCours = false; maj(); }
+    } catch (e) { console.warn(e); erreur.textContent = messageErreur(e); } finally { verrou.pris = false; maj(); }
   }
   bouton.addEventListener('click', ajouter);
   angle.champ.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ajouter(); } });
   return h('div', { class: 'pile', dataset: { voie: 'main' } }, angle.bloc, h('div', { class: 'ligne-champs' }, pilier.bloc, format.bloc, service.bloc), erreur, confirmation, h('div', { class: 'ligne-boutons' }, bouton));
 }
 
-function panneauClaude(source, { fermer }) {
+function panneauClaude(source, { fermer, verrou }) {
   const zonePrompt = h('textarea', { class: 'champ rs-prompt', readonly: true, rows: '8', 'aria-label': 'Prompt à copier dans Claude', dataset: { role: 'prompt' } });
   // Le prompt est refait chaque fois qu'on arrive sur cette voie : une piste ajoutée à la main entre-temps doit y figurer (« ne propose rien qui dise la même chose »).
-  const rafraichir = () => { zonePrompt.value = promptPourSource(source); statutCopie.textContent = ''; };
+  // Une réponse déjà lue est relue aussi : une piste ajoutée à la main entre-temps devient un doublon décoché (l'aperçu ne doit jamais être périmé).
+  const rafraichir = () => { zonePrompt.value = promptPourSource(source); statutCopie.textContent = ''; if (lecture) lireLaReponse(); };
   const statutCopie = h('p', { class: 'aide', role: 'status', dataset: { role: 'copie-statut' } });
   zonePrompt.value = promptPourSource(source);
   const boutonCopier = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'copier-prompt' }, onclick: async () => {
@@ -109,7 +109,6 @@ function panneauClaude(source, { fermer }) {
 
   let lecture = null; // { lignes, champsIgnores, message } de la dernière réponse lue
   const choisies = new Set();
-  let enCours = false;
   const erreur = h('p', { class: 'erreur', role: 'alert', dataset: { role: 'erreur-reponse' } });
   const apercu = h('div', { class: 'rs-apercu-zone', dataset: { role: 'apercu' } });
   const boutonLire = h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: true, dataset: { action: 'lire-reponse' } }, icone('eye', { taille: 16 }), 'Lire la réponse');
@@ -121,7 +120,7 @@ function panneauClaude(source, { fermer }) {
     const n = choisies.size;
     boutonCreer.hidden = !lecture;
     boutonCreer.textContent = n ? `Créer ${pluriel(n, 'piste', 'pistes')}` : 'Créer 0 piste';
-    boutonCreer.disabled = enCours || n === 0 || n > MAX_CHOISIES;
+    boutonCreer.disabled = verrou.pris || n === 0 || n > MAX_CHOISIES;
     boutonCreer.classList.toggle('bouton-principal', !boutonCreer.disabled);
     boutonCreer.classList.toggle('bouton-secondaire', boutonCreer.disabled);
     if (lecture) erreur.textContent = n > MAX_CHOISIES ? `Au plus ${MAX_CHOISIES} pistes à la fois : décoche-en ${n - MAX_CHOISIES}.` : '';
@@ -142,7 +141,7 @@ function panneauClaude(source, { fermer }) {
     majCreer();
   }
 
-  boutonLire.addEventListener('click', () => {
+  function lireLaReponse() {
     erreur.textContent = '';
     const r = P.lireReponsePistes(reponse.champ.value, { source: { id: source.id }, pistesExistantes: V.pistesDeSource(D.etat.pistes, source.id) });
     choisies.clear();
@@ -150,17 +149,18 @@ function panneauClaude(source, { fermer }) {
     lecture = r;
     for (const l of r.lignes) if (l.cochee) choisies.add(l.rang);
     rendreApercu();
-  });
+  }
+  boutonLire.addEventListener('click', lireLaReponse);
   boutonCreer.addEventListener('click', async () => {
-    if (enCours || !lecture || !choisies.size || choisies.size > MAX_CHOISIES) return;
-    enCours = true; majCreer(); erreur.textContent = '';
+    if (verrou.pris || !lecture || !choisies.size || choisies.size > MAX_CHOISIES) return;
+    verrou.pris = true; majCreer(); erreur.textContent = '';
     try {
       // Les lignes cochées seulement (doublons recochés compris : Jérôme a décidé). Un seul plan d'écriture, un seul lot : rien n'est écrit avant ce clic.
       const entrees = lecture.lignes.filter((l) => choisies.has(l.rang) && l.piste).map((l) => l.piste);
       const { creees } = await ajouterPistes(source, entrees, { voie: 'collage', auteur: 'claude', accepterDoublons: true });
       toast(`${pluriel(creees, 'piste créée', 'pistes créées')}`);
       fermer();
-    } catch (e) { console.warn(e); erreur.textContent = messageErreur(e); } finally { enCours = false; majCreer(); }
+    } catch (e) { console.warn(e); erreur.textContent = messageErreur(e); } finally { verrou.pris = false; majCreer(); }
   });
   const panneau = h('div', { class: 'pile', dataset: { voie: 'claude' } },
     h('p', { class: 'aide' }, 'Copie ce texte, colle-le dans Claude, puis colle ici sa réponse.'),
@@ -174,8 +174,9 @@ function panneauClaude(source, { fermer }) {
 export function ouvrirTirerIdees({ source }) {
   let fermerBouton = null;
   const fermer = () => fermerBouton?.click();
-  const main = panneauMain(source);
-  const claude = panneauClaude(source, { fermer });
+  const verrou = { pris: false }; // un seul verrou pour les deux voies : jamais deux écritures en même temps (fiche de veille créée une seule fois)
+  const main = panneauMain(source, verrou);
+  const claude = panneauClaude(source, { fermer, verrou });
   let voie = 'main';
   const barre = h('div', { class: 'rs-voies' });
   const maj = () => {

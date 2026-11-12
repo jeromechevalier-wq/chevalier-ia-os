@@ -434,6 +434,7 @@ test('F13 téléphone et ordinateur : les deux écrans ne débordent pas, la fen
   await page.evaluate(() => { location.hash = '#/reseauxsociaux/inspirations'; });
   await expect(page.getByRole('heading', { name: 'Inspirations', level: 1 })).toBeVisible();
   await expect(page.locator('.carte-inspiration')).toHaveCount(1);
+  await deplier(page, 'p1'); // nom long, 300 caractères de « pourquoi » et pastilles : le contenu déplié ne déborde pas non plus
   expect(await sansDebordement(page)).toBe(true);
   await capture(page, 'F13-inspirations');
 });

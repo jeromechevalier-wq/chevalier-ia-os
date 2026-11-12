@@ -78,7 +78,7 @@ export async function chargerEtiquettes() {
 /** Chez Jérôme, cheminBase est '' (racine de la base 1) ; chez un client, clients/<client>. */
 export function demarrer(compte, cheminBase = '') {
   base = cheminBase;
-  etat.auteur = String(compte?.displayName ?? '').replace(/\s+/g, ' ').trim().slice(0, 100);
+  etat.auteur = String(compte?.nom ?? compte?.displayName ?? '').replace(/\s+/g, ' ').trim().slice(0, 100);
   suivre(R.COLLECTION_POSTS, 'posts');
   suivre(R.COLLECTION_IMPORTS, 'imports');
   suivre(R.COLLECTION_IDEES, 'idees');

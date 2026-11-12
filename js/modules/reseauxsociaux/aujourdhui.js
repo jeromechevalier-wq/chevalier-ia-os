@@ -103,7 +103,7 @@ function carteRelations() {
 
 /** Carte « Inspirations » : un bouton par profil, pour ouvrir LinkedIn en un clic (nouvel onglet). Sans profil : une phrase et le lien vers l'écran Inspirations. */
 function carteInspirations() {
-  const profils = D.etat.pret ? N.trierInspirations(D.etat.inspirations).filter((p) => N.typeSource(p) === 'profil' && p.url) : []; // seuls les profils LinkedIn ont un bouton ici (les sites et les résumés de veille s'ouvrent dans l'écran Inspirations)
+  const profils = D.etat.pret ? N.trierInspirations(D.etat.inspirations).filter((p) => N.typeSource(p) === 'profil' && N.normaliserUrlLinkedin(p.url)).map((p) => ({ ...p, url: N.normaliserUrlLinkedin(p.url) })) : []; // seuls les profils LinkedIn ont un bouton ici (les sites et les résumés de veille s'ouvrent dans l'écran Inspirations)
   const corps = !D.etat.pret ? [chargement()]
     : profils.length ? [h('div', { class: 'ligne-boutons rs-profils', dataset: { role: 'profils' } }, profils.map((p) => lienExterne({ href: p.url, libelle: p.nom || 'Profil', action: 'ouvrir-profil' })))]
       : [phraseGrise('Ajoute les profils qui t’inspirent.')];
