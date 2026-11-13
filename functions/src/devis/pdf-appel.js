@@ -7,12 +7,14 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from '../veille/appel.js';
 import { exigerCompteAutorise, enErreurAppel } from '../devis-appel.js';
+import { ErreurLimite } from '../securite/limites.js';
 import { COLLECTIONS as C } from '../coeur/donnees.js';
 import { convertirHtmlEnPdf } from './chromium.js';
 import { fabriquerPdfDevis, MESSAGE_GENERIQUE } from './pdf-service.js';
 import { cheminPdfDevis, cheminAppartientALEspace, DUREE_LIEN_MINUTES } from './stockage.js';
 
 const CHAMPS_JOURNAL = ['action', 'statut', 'code', 'dureeMs'];
+export const PDF_PAR_MINUTE = 10;
 export const MESSAGE_PDF_NON_CONFIGURE = 'PDF non configuré : l\'espace de stockage des PDF est introuvable.';
 
 export function ligneDeJournalDevisPdf(entree) {
@@ -38,7 +40,7 @@ function lireDemande(requete) {
  * `donnees()` : accès aux données déjà cadré sur l'espace ; `espace` : '' (Jérôme) ou 'clients/<client>/' ; `baseLien` : adresse de l'application (pour l'adresse stable du PDF).
  * `convertir(html, { pied })` -> { pdf, sha256 } ; `stockage` : { envoyer, ... } (voir stockage.js) ou fonction qui le rend, ou null si le stockage est introuvable.
  */
-export function creerAppelDevisPdf({ donnees, espace = '', baseLien = '', comptes = COMPTES_AUTORISES, convertir, stockage, journal = () => {}, maintenant = Date.now }) {
+export function creerAppelDevisPdf({ donnees, espace = '', baseLien = '', comptes = COMPTES_AUTORISES, convertir, stockage, journal = () => {}, maintenant = Date.now, limiteur = null, pdfParMinute = PDF_PAR_MINUTE }) {
   const faireConvertir = convertir ?? ((html, options) => convertirHtmlEnPdf(html, options));
   return async function appel(requete) {
     const debut = maintenant();
@@ -46,6 +48,11 @@ export function creerAppelDevisPdf({ donnees, espace = '', baseLien = '', compte
     const refuser = (code, erreur) => { journal({ action: 'pdf', statut: 'refus', code, dureeMs: maintenant() - debut }); return erreur; };
     const demande = lireDemande(requete);
     if (!demande) throw refuser('demande_invalide', new HttpsError('invalid-argument', 'Identifiant de devis manquant ou invalide.'));
+    // Plafond par minute et par compte (le limiteur est créé UNE fois par le module qui appelle, sinon le compteur repartirait de zéro à chaque appel).
+    try { limiteur?.requete(String(jeton.email).toLowerCase(), { requetesParMinute: pdfParMinute }); } catch (e) {
+      if (!(e instanceof ErreurLimite)) throw e;
+      throw refuser('limite', new HttpsError('resource-exhausted', `Trop de PDF demandés : réessaie dans ${e.reessayerDansS} ${e.reessayerDansS > 1 ? 'secondes' : 'seconde'}.`));
+    }
     const rangement = stockageDe(stockage);
     if (!rangement) throw refuser('non_configure', new HttpsError('failed-precondition', MESSAGE_PDF_NON_CONFIGURE, { code: 'non_configure' }));
     try {

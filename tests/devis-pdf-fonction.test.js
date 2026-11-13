@@ -5,6 +5,7 @@ import { test, describe } from 'node:test';
 import { creerAccesMemoire, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';
 import * as S from '../functions/src/coeur/devis.js';
 import { creerAppelDevisPdf, MESSAGE_PDF_NON_CONFIGURE } from '../functions/src/devis/pdf-appel.js';
+import { creerLimiteur } from '../functions/src/securite/limites.js';
 import { nomFichierDevis, creerStockage } from '../functions/src/devis/stockage.js';
 import { creerAppelDocument } from '../functions/src/documents/appel.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
@@ -522,5 +523,30 @@ describe('Q10 devisPdf : « À l\'attention de » est imprimé quand le devis a 
     const r = await appel(m, f)(requete({ devisId: 'd1', brouillon: true }));
     assert.equal(r.statut, 'ok');
     assert.doesNotMatch(f.vus.html[0], /attention de/);
+  });
+});
+
+describe('F4 devisPdf : plafond par minute et par compte', () => {
+  test('F4 au-delà du plafond : resource-exhausted avec un message sur les PDF, journal « limite », rien n\'est converti ; un autre compte et la minute suivante passent', async () => {
+    const m = await monde({ finaliser: false });
+    const f = faux();
+    let t = MAINTENANT.getTime();
+    const limiteur = creerLimiteur({ donnees: null, maintenant: () => t });
+    const lignes = [];
+    // Le limiteur est créé une seule fois, l'appel est recréé à chaque requête comme dans index.js : le compteur doit survivre.
+    const faire = (email) => creerAppelDevisPdf({ donnees: () => m.donnees, baseLien: BASE_LIEN, convertir: f.convertir, stockage: f.stockage, maintenant: () => t, limiteur, pdfParMinute: 2, journal: (e) => lignes.push(e) })(requete({ devisId: 'd1', brouillon: true }, email));
+    await faire(ACTEUR); await faire(ACTEUR);
+    const avant = f.vus.html.length;
+    await assert.rejects(() => faire(ACTEUR), (e) => e.code === 'resource-exhausted' && /Trop de PDF demandés : réessaie dans \d+ secondes?\./.test(e.message) && !/jeton/i.test(e.message));
+    assert.equal(f.vus.html.length, avant);
+    assert.ok(lignes.some((l) => l.action === 'pdf' && l.statut === 'refus' && l.code === 'limite'));
+    t += 61_000;
+    await faire(ACTEUR);
+  });
+  test('F4 sans limiteur, le comportement est inchangé (aucun plafond)', async () => {
+    const m = await monde({ finaliser: false });
+    const f = faux();
+    const a = appel(m, f);
+    for (let i = 0; i < 15; i++) await a(requete({ devisId: 'd1', brouillon: true }));
   });
 });

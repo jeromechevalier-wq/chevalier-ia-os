@@ -534,3 +534,64 @@ describe('Cohérence avec le reste du dépôt', () => {
     } finally { petit.close(); }
   });
 });
+
+describe('M1 consentement : identifiant du connecteur et adresse de retour complète', () => {
+  test('M1 la page porte les deux lignes, remplies en texte (textContent) et coupées par le CSS ; les id existants restent', () => {
+    const html = pageAutorisation({ client_id: 'cli_essai', redirect_uri: CALLBACK, code_challenge: 'x'.repeat(43) });
+    for (const id of ['destination', 'compte', 'autoriser', 'refuser', 'changer', 'connecteur', 'adresse-retour']) assert.ok(html.includes(`id="${id}"`), id);
+    assert.ok(html.includes("$('connecteur').textContent = demande.client_id;"));
+    assert.ok(html.includes("$('adresse-retour').textContent = u.host + u.pathname;"));
+    assert.ok(html.includes('overflow-wrap:anywhere'));
+    assert.ok(!/innerHTML/.test(html));
+  });
+});
+
+describe('M5 renouvellement : mesure du client_id manquant (rien n’est refusé)', () => {
+  test('M5 avec client_id : « oauth_jeton_renouvele » ; sans client_id : renouvelé quand même, code « oauth_jeton_renouvele_sans_client »', async () => {
+    const t1 = await ouvrirSession();
+    lignesJournal = [];
+    const r1 = await jeton({ grant_type: 'refresh_token', refresh_token: t1.refresh_token, client_id: 'cli_essai' });
+    assert.equal(r1.status, 200);
+    const t2 = await r1.json();
+    assert.ok(lignesJournal.some((l) => l.code === 'oauth_jeton_renouvele'));
+    lignesJournal = [];
+    const r2 = await jeton({ grant_type: 'refresh_token', refresh_token: t2.refresh_token });
+    assert.equal(r2.status, 200);
+    assert.ok(lignesJournal.some((l) => l.code === 'oauth_jeton_renouvele_sans_client'));
+    assert.ok(!lignesJournal.some((l) => l.code === 'oauth_jeton_renouvele'));
+  });
+});
+
+describe('M2 freins par route et par appelant', () => {
+  async function serveurFrein(options) {
+    const oauth = creerRouteurOauth({ donnees, verifierIdToken: async () => { throw new Error('non'); }, ...options });
+    const petit = createServer((req, res) => {
+      req.on('data', () => {});
+      req.on('end', () => { req.body = {}; oauth.traiter(req, res); });
+    });
+    await new Promise((ok) => petit.listen(0, '127.0.0.1', ok));
+    const appeler = async (chemin, entetes = {}) => (await fetch(`http://127.0.0.1:${petit.address().port}${chemin}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...entetes }, body: '{}' })).status;
+    return { petit, appeler };
+  }
+  test('M2 « register » saturé (20 par minute) : « token » répond encore', async () => {
+    const { petit, appeler } = await serveurFrein({ limitePostParMinute: 100, horlogeLimite: () => 1_000_000 });
+    try {
+      const statuts = [];
+      for (let i = 0; i < 25; i++) statuts.push(await appeler('/oauth/register'));
+      assert.equal(statuts.filter((s) => s === 429).length, 5);
+      assert.equal(statuts.filter((s) => s === 400).length, 20);
+      assert.equal(await appeler('/oauth/token'), 400); // « type de demande non pris en charge », pas 429
+      assert.equal(await appeler('/oauth/approve', { Origin: 'https://attaquant.example' }), 403);
+    } finally { petit.close(); }
+  });
+  test('M2 plafond par appelant : un appelant qui dépasse 30 par minute est freiné, un autre appelant passe encore', async () => {
+    const { petit, appeler } = await serveurFrein({ limitePostParMinute: 60, horlogeLimite: () => 2_000_000 });
+    try {
+      const statuts = [];
+      for (let i = 0; i < 32; i++) statuts.push(await appeler('/oauth/token', { 'X-Forwarded-For': '203.0.113.7, 10.0.0.1' }));
+      assert.equal(statuts.slice(0, 30).every((s) => s === 400), true);
+      assert.deepEqual(statuts.slice(30), [429, 429]);
+      assert.equal(await appeler('/oauth/token', { 'X-Forwarded-For': '203.0.113.8' }), 400);
+    } finally { petit.close(); }
+  });
+});

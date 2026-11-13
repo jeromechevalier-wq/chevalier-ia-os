@@ -75,9 +75,30 @@ export function creerFenetre({ max, ms, maintenant }) {
  * `verifierIdToken(jeton)` : { email, emailVerifie, fournisseur } ou lève (jeton d'identité Google invalide) ; injecté (testable).
  * `traiter(req, res, infos)` rend true si la requête était une route OAuth (réponse envoyée), false sinon.
  */
+/** Plafond par appelant (clé = adresse vue par le serveur, non vérifiée derrière Firebase Hosting) : 30 par minute au moins, mémoire bornée. */
+const PLAFOND_APPELANT_PAR_MINUTE = 30;
+const CLES_APPELANT_MAX = 2000;
+export const cleAppelant = (req) => {
+  const xff = typeof req.headers?.['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'].split(',')[0].trim() : '';
+  return (xff || req.socket?.remoteAddress || 'inconnu').slice(0, 64);
+};
+
 export function creerRouteurOauth({ donnees, verifierIdToken, maintenant = () => Date.now(), limitePostParMinute = 60, horlogeLimite = () => Date.now() }) {
   const magasin = creerMagasinOauth({ donnees, maintenant });
+  // Trois freins en mémoire de l'instance : par appelant, propre à `register` (le plus bas), puis le compteur commun des trois routes.
   const autoriseEcriture = creerFenetre({ max: limitePostParMinute, ms: 60_000, maintenant: horlogeLimite });
+  const autoriseRegister = creerFenetre({ max: Math.min(20, limitePostParMinute), ms: 60_000, maintenant: horlogeLimite });
+  const plafondAppelant = Math.max(PLAFOND_APPELANT_PAR_MINUTE, Math.floor(limitePostParMinute / 2));
+  const appelants = new Map(); // clé -> { debut, n }
+  const autoriseAppelant = (cle) => {
+    const t = horlogeLimite();
+    if (appelants.size >= CLES_APPELANT_MAX) for (const [k, c] of appelants) if (t - c.debut >= 60_000) appelants.delete(k);
+    if (appelants.size >= CLES_APPELANT_MAX && !appelants.has(cle)) return true; // table pleine : on ne refuse personne, le compteur commun reste derrière
+    const c = appelants.get(cle);
+    if (!c || t - c.debut >= 60_000) { appelants.set(cle, { debut: t, n: 1 }); return true; }
+    c.n += 1;
+    return c.n <= plafondAppelant;
+  };
 
   async function approuver(req, res, infos) {
     const origine = req.headers.origin;
@@ -113,7 +134,8 @@ export function creerRouteurOauth({ donnees, verifierIdToken, maintenant = () =>
         infos.code = 'oauth_jeton_emis';
       } else if (p.grant_type === 'refresh_token') {
         r = await magasin.rafraichir({ refreshToken: texte(p.refresh_token), clientId: texte(p.client_id) });
-        infos.code = 'oauth_jeton_renouvele';
+        // Mesure seulement (M5) : on ne refuse rien, on note combien de renouvellements arrivent sans `client_id`.
+        infos.code = texte(p.client_id) ? 'oauth_jeton_renouvele' : 'oauth_jeton_renouvele_sans_client';
       } else {
         throw new ErreurOauth('unsupported_grant_type', 'Type de demande non pris en charge.');
       }
@@ -181,7 +203,7 @@ export function creerRouteurOauth({ donnees, verifierIdToken, maintenant = () =>
       const cible = cibles[chemin];
       if (!cible) { infos.code = 'oauth_inconnu'; repondre(res, 404, { error: 'introuvable' }); return true; }
       if (!bien('POST')) return true;
-      if (!autoriseEcriture()) { infos.code = 'oauth_limite'; repondre(res, 429, { error: 'temporarily_unavailable' }, { 'Retry-After': '30' }); return true; }
+      if (!autoriseAppelant(cleAppelant(req)) || (chemin === '/oauth/register' && !autoriseRegister()) || !autoriseEcriture()) { infos.code = 'oauth_limite'; repondre(res, 429, { error: 'temporarily_unavailable' }, { 'Retry-After': '30' }); return true; }
       try {
         await cible(req, res, infos);
       } catch {
