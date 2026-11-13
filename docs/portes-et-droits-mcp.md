@@ -52,7 +52,7 @@ Claude et ChatGPT classent les outils d'après leurs **annotations** (lecture se
 ## Où en est ChatGPT (18/10/2026)
 
 - **Plateforme clients** : le code accepte déjà les adresses de retour de ChatGPT et l'enregistrement dynamique. **Jamais essayé avec un vrai ChatGPT.**
-- **CRM de Jérôme** : refuse encore ChatGPT (adresses de retour, enregistrement). Chantier prévu, avec la page de consentement qui affichera l'identifiant du connecteur pour repérer un faux lien.
+- **CRM de Jérôme** : refuse encore ChatGPT (adresses de retour, enregistrement). Chantier prévu. La page de consentement affiche désormais l'identifiant du connecteur et l'adresse de retour complète (PR 607, 13/11/2026), pour repérer un faux lien.
 - **Le risque à connaître** : avec OAuth, un pirate peut envoyer un faux lien pour faire autoriser *son* connecteur. Le risque est le même avec Claude. La parade : lire l'identifiant affiché avant de cliquer « Autoriser ». Option plus forte, à décider plus tard : une liste des seuls connecteurs ChatGPT autorisés.
 
 ## Pour aller plus loin
