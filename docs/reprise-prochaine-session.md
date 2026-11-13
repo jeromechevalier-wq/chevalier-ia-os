@@ -1,5 +1,29 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 13/11/2026 : nuit sécurité
+
+Version 2.45.1 (cette PR, la seule de la nuit à toucher la version, `docs/` et `wiki/`). Suite de l'audit du 12/11/2026 (PR 597, brouillon). Aucun code d'appli ni règle touché par cette PR : version, docs, anonymisation de ce fichier. Rien n'est déployé chez les clients.
+
+| Lot | PR | État |
+|---|---|---|
+| Workflow de déploiement (droits limités, action épinglée) et dépendances (`zod`, `puppeteer-core`) | 602 | fusionnée |
+| Anonymisation du dépôt (cliente, entreprise cliente) | 604 | fusionnée |
+| Liens et e-mails sûrs (Site web, LinkedIn, `mailto:`) | 605 | fusionnée |
+| Serveur OAuth et MCP (consentement détaillé, freins, erreurs générales, plafond PDF) | 607 | fusionnée |
+| Règles Firestore des clients (journal d'audit en création seule, `mcp_codes` fermé) | 608 | **ouverte, à fusionner par Jérôme après lecture** (étiquette `a-fusionner-par-jerome`, tests verts) ; rien ne change chez les clients avant « Déploiement plateforme clients > regles » |
+| Rapport d'audit | 597 | brouillon |
+
+**Décisions pour Jérôme** :
+- Réécrire ou non l'historique Git pour la cliente (nom et e-mail restent dans l'historique public) ; l'anonymisation de la 604 et de cette PR ne porte que sur les fichiers actuels. Il reste des prénoms de clients seuls dans `CLAUDE.md`, d'autres `docs/*.md` et quelques tests (hors périmètre de la 604).
+- Console Google (je n'y ai pas accès) : comptes de service dédiés aux fonctions (F1, F2), double authentification des comptes de Jérôme et du compte bot, sauvegardes (S1 : Storage sans sauvegarde, restauration Firestore jamais essayée).
+- Clé de déploiement longue durée (S2) : identité fédérée ou rotation.
+- En-têtes anti-clic (`X-Frame-Options`, `frame-ancestors`) puis politique de contenu (R3, N2) dans `firebase.json` : à décider.
+- App Check (F3) : à décider.
+
+**Reste à faire de l'audit** : M5 mesuré, pas appliqué (regarder `oauth_jeton_renouvele_sans_client` dans le journal après quelques jours, puis décider) ; M8 non fait (droits du compte de service à contrôler) ; M2 et F4 à faire côté clients (`functions/src/clients/routeur-oauth.js`, `functions-plateforme/src/devis-pdf.js`) ; `CODES_LISIBLES` à compléter (`resource-exhausted`) ; liste blanche des collections (R7) ; correctif serveur contre une fausse ligne de journal (`restaurer_depuis_audit`) ; les autres trouvailles basses (F5, F6, M3, M4, M6, M9, R4). Détail : `docs/securite-et-pannes.md`, section 15.
+
+**Non vérifié** : PDF réel sur Cloud Functions après la montée de `puppeteer-core` (Jérôme crée un PDF brouillon après le prochain déploiement) ; les écrans de la 605 sur les vraies fiches (5 vérifications dans la description de la PR) ; les règles de la 608 en réel (5 vérifications après publication) ; `--project=telephone` de la 607 ; l'alerte `npm audit` modérée restante (`gaxios`, `google-gax`, `uuid`…) ; l'historique Git plus ancien que les 50 derniers commits (pas rebalayé) ; rôles IAM réels, clés web restreintes, double authentification (console).
+
 ## Rapport du matin du 13/11/2026 (nuit « GO NUIT »), bloc « À relancer » de l'Accueil
 
 Version 2.45.0. Cadrage : `docs/cadrage-a-relancer.md`. Aucune donnée de Jérôme touchée, aucune règle Firestore, aucune fonction du serveur, rien à brancher chez les clients (même code, section masquée sans le module Affaires).
@@ -119,14 +143,14 @@ Pas de nouvelle version dans cette PR de docs (la version reste 2.40.0). Tableau
 | Docs de la matinée | cette PR | brouillon |
 
 - **Déploiements chez les clients faits le 10/11** (un par un, après le test de Jérôme) : `hosting` (portail), puis une 2e fois après la PR 572 ; `mcp` (565 + 568) ; `fonctions` (logo dans le PDF, droit IAM étendu par Jérôme : `docs/pdf-clients.md`, étape 2 bis).
-- **Testé par Jérôme** : le portail chez lui et chez MCA, le logo du PDF, le menu du compte.
-- **Test du bot de MCA après `mcp` : FAIT** (le bot répond, confirmé par Jérôme le 10/11). **Bulle vocale** : désactivée depuis le 09/11 (jeton retiré), remise le 10/11 par Jérôme (jeton collé dans l'étape n8n « Envoyer la bulle vocale (Telegram) », workflow `client-mca-etancheite-agent-devis`) ; testée par Jérôme, OK. Le jeton est dans le workflow n8n, jamais dans un export ni dans le dépôt ; option future : envoyer la bulle sans écrire le jeton dans l'adresse.
+- **Testé par Jérôme** : le portail chez lui et chez le client pilote, le logo du PDF, le menu du compte.
+- **Test du bot du client pilote après `mcp` : FAIT** (le bot répond, confirmé par Jérôme le 10/11). **Bulle vocale** : désactivée depuis le 09/11 (jeton retiré), remise le 10/11 par Jérôme (jeton collé dans l'étape n8n « Envoyer la bulle vocale (Telegram) », workflow `client-pilote-agent-devis`) ; testée par Jérôme, OK. Le jeton est dans le workflow n8n, jamais dans un export ni dans le dépôt ; option future : envoyer la bulle sans écrire le jeton dans l'adresse.
 - **Pas pu être vérifié** : le profil réel du jeton du bot n'a pas pu être lu dans le journal (gcloud non authentifié depuis la session) : **à vérifier**.
 
 **Décisions de Jérôme du 10/11/2026** :
 - Garantie courte du profil `assistant-devis` (PR 565) : **acceptée**.
 - Déploiements chez les clients **un par un après son test** (`hosting`, `mcp`, `fonctions`).
-- Mémoire du bot n8n de MCA ramenée de 30 à 12 échanges (workflow n8n, hors dépôt) + filtre qui retire du message Telegram les blocs internes `[CODE:…]` et `[DEVIS …]` (hors dépôt).
+- Mémoire du bot n8n du client pilote ramenée de 30 à 12 échanges (workflow n8n, hors dépôt) + filtre qui retire du message Telegram les blocs internes `[CODE:…]` et `[DEVIS …]` (hors dépôt).
 - Coordonnées bancaires **masquées en lecture MCP** (PR 568).
 - Lien PDF signé de `obtenir_pdf_officiel_devis` (valable 5 minutes) : accepté tel quel.
 - Attribution des devis dirigeant / secrétaire : **on laisse comme maintenant** (un seul jeton, `creePar` = l'acteur du jeton, propriétaire vide). Idée future : un jeton par personne, avec choix du jeton selon le canal Telegram.
@@ -139,9 +163,9 @@ Pas de nouvelle version dans cette PR de docs (la version reste 2.40.0). Tableau
 **Restes (pas des décisions)** :
 - Ligne d'explication sur l'écran Statistiques, « Les devis de test ne sont pas comptés. » : **validée par Jérôme le 10/11, faite dans cette PR** (toujours visible, cas vide compris ; un devis `[TEST]` n'entre pas dans les statistiques).
 - Mineurs de la PR 569 : le `.catch` de l'export n'est pas testé sur chaque chemin ; un double clic lance deux exports ; sur téléphone le tiroir reste ouvert après le clic (comme dans Réglages) ; le rôle lecteur dépend des règles Firestore.
-- Les fiches « Test Dupont » et « Test Martin » (organisations) restent dans l'espace de MCA : suppression demandée par Jérôme, **à faire à l'écran par lui**, jamais en lot.
+- Les fiches « Test Dupont » et « Test Martin » (organisations) restent dans l'espace du client pilote : suppression demandée par Jérôme, **à faire à l'écran par lui**, jamais en lot.
 
-**Prochaines étapes** : (1) Jérôme envoie un message de test au bot de MCA ; (2) lire dans le journal d'une vraie exécution les arguments de `lister_devis` envoyés par n8n (sans lire les données d'exécution des nœuds HTTP) ; (3) décider de la ligne « devis de test non comptés » ; (4) petite PR de code pour les mineurs de la 569 si Jérôme les veut.
+**Prochaines étapes** : (1) Jérôme envoie un message de test au bot du client pilote ; (2) lire dans le journal d'une vraie exécution les arguments de `lister_devis` envoyés par n8n (sans lire les données d'exécution des nœuds HTTP) ; (3) décider de la ligne « devis de test non comptés » ; (4) petite PR de code pour les mineurs de la 569 si Jérôme les veut.
 
 ---
 
@@ -164,7 +188,7 @@ Version 2.40.0 (cette PR). Tableau des choses à faire : `.github/A-FAIRE.md` (s
 **Visite guidée du portail Devis seul** (captures de la PR 567 : `tests/e2e/captures/recette-portail/`, et de la PR 566 : `tests/e2e/captures/portail-menu/`) : adresse `#/portail-devis` chez toi (ton site s'est redéployé tout seul), `#/espace/<client>/portail-devis` chez un client (après « hosting », sur ton feu vert). Le menu : **Devis** (page d'arrivée : la liste, Kanban/Liste/Archives, « + Devis ») · **Clients** (les personnes à qui on fait des devis, « + Client », fiche sans Affaires) · **Catalogue** (la liste de prix de l'artisan, ses articles s'ajoutent en un clic dans un devis) · **Relances** (devis envoyés sans réponse depuis 10 jours, « Préparer l'e-mail », « Relancé ») · **Statistiques** (chiffre d'affaires signé HT, taux de transformation, devis par statut, mois par mois) + « Espace complet ». Parcours complet vérifié en test (ordinateur et téléphone) : client → devis avec lignes du catalogue → finaliser → envoyé → signé → Relances → Statistiques (96 € HT, 1 signé sur 2 envoyés = 50 %) → export (Réglages > Devis > « Exporter mes données ») → Espace complet.
 
 - **Décisions prises seul (à confirmer)** : voir `.github/A-FAIRE.md` (titre « Clients », pas d'entrée Organisations, colonne de droite retirée en Devis seul, règles de dates des Statistiques, garantie courte dans la PR 565, objet souple plutôt que strict dans la PR 565).
-- **Ce que Jérôme doit faire** : (1) ouvrir `#/portail-devis` chez lui et parcourir les cinq pages ; (2) dire si on déploie chez les clients, **un élément à la fois** : `hosting` (portail), puis `mcp` (PR 564) ; (3) accord ou refus sur la PR 565 (garantie courte) ; (4) accord sur la réduction de la mémoire du bot (30 → 8-10 messages) ; (5) renommer l'ancien credential « MCA - MCP du bot de devis » ; logo d'espace chez lui : non par défaut.
+- **Ce que Jérôme doit faire** : (1) ouvrir `#/portail-devis` chez lui et parcourir les cinq pages ; (2) dire si on déploie chez les clients, **un élément à la fois** : `hosting` (portail), puis `mcp` (PR 564) ; (3) accord ou refus sur la PR 565 (garantie courte) ; (4) accord sur la réduction de la mémoire du bot (30 → 8-10 messages) ; (5) renommer l'ancien credential « client pilote - MCP du bot de devis » ; logo d'espace chez lui : non par défaut.
 - **Pas pu être vérifié avec le vrai système** : le vrai serveur (la recette simule `devisFinaliser`, `devisChangerStatut`, `devisEnregistrerEnvoi`, l'e-mail) ; le journal d'un vrai appel du bot (champs envoyés par n8n) avant de déployer la PR 565 ; `test:smoke` de la 563, 564 et 565 (pas de navigateur dans le bac à sable des sessions, la coche GitHub a fait foi).
 - **Faux rouges déjà vus** : un lancement « Tests » annulé après un push ; `fiches-coherentes` rouge dans le bac à sable (`apis.google.com` injoignable) mais vert sur GitHub.
 
@@ -772,7 +796,7 @@ Non consulté (commande : `gh run list --workflow "Tests de nuit" --limit 3`).
 - **À trancher avec Jérôme** : `docs/deploiement-client.md` (points « ? » : MCP du client, dossier Drive racine, qui est présent aux étapes 4, 6 et 7, accord écrit sur les données).
 - **Chemin réel du dépôt sur le Mac de Jérôme** : `/Users/jeromechevalier/Code-Chevalier-IA/chevalier-ia-os` (l'ancien chemin Google Drive n'est plus à utiliser ; corrigé dans `docs/activer-desactiver-modules.md`).
 - **Non vérifié avec le vrai système** : le rendu sur un vrai téléphone ; le comportement de l'Accueil sur la vraie base après la PR 204 ; l'instabilité réelle d'I18 (non reproduit).
-- **Encore à faire** (rien n'est codé) : refuser à l'écran la proposition d'essai restée dans sa base ; relevé hebdomadaire des indicateurs et réglages d'Ingrid ; renommage des fonctions et du module `tableaudebord` (de jour, avec alias) ; légende de la pastille d'activité ; chaîne d'étapes visible dans l'Historique ; simplifier le doublon « à traiter » de Maintenance.
+- **Encore à faire** (rien n'est codé) : refuser à l'écran la proposition d'essai restée dans sa base ; relevé hebdomadaire des indicateurs et réglages de la cliente ; renommage des fonctions et du module `tableaudebord` (de jour, avec alias) ; légende de la pastille d'activité ; chaîne d'étapes visible dans l'Historique ; simplifier le doublon « à traiter » de Maintenance.
 
 ## Rapport du matin : 5e et 6e nuit « GO NUIT » (22 au 23/10/2026, version 2.25.0)
 
@@ -792,7 +816,7 @@ Jérôme a donné « GO NUIT » le 22/10/2026 après une longue conception avec 
 | (numéro 199 : pris par une autre session, sans lien avec cette nuit ; non vérifié) | 199 | – |
 | Documentation 2.25.0 et wiki | 203 | cette PR |
 
-**Déjà en ligne chez Jérôme** (chaque fusion déploie les fonctions et le site de son CRM) : tout ce qui précède, sauf le renommage des tables (code éteint). **Pas chez Ingrid** (plateforme clients non déployée).
+**Déjà en ligne chez Jérôme** (chaque fusion déploie les fonctions et le site de son CRM) : tout ce qui précède, sauf le renommage des tables (code éteint). **Pas chez la cliente** (plateforme clients non déployée).
 
 **À regarder à l'écran (recette de Jérôme, 5 vérifications)** : (1) le menu de gauche a 8 entrées (Accueil, Personnes, Organisations, Affaires, Projets, Veille, Automatisations, Maintenance) ; Veille, Automatisations et Maintenance ouvrent des pages à onglets ou à blocs ; (2) la pastille rouge « n » sur Automatisations (une proposition d'essai fictive attend, prénom Alex) : la valider ou la refuser la fait baisser seule ; (3) Maintenance : un seul écran, bouton « Filtres », « Historique des saisies » replié ; `#/tableaudebord/technique` ouvre le même écran ; (4) sur une fiche affaire ou projet : « Notes épinglées » (carte jaune) au-dessus de « À faire » ; (5) l'Accueil : le bloc « Indicateurs » et le bloc « À faire ». **Cas vide** : « Rien à valider pour l'instant. », « Aucune activité à faire. », pas de section « Notes épinglées » sans note épinglée. **Cas d'erreur** : lecture refusée = pas de pastille et aucun message ; lecture de Maintenance impossible = message avec « Réessayer ».
 
@@ -812,13 +836,13 @@ Jérôme a donné « GO NUIT » le 22/10/2026 après une longue conception avec 
 **Questions et idées en attente (rien n'est codé)** :
 - **Voir la chaîne d'étapes dans l'Historique** : aujourd'hui elle n'est que sur « À valider ». Deux pistes : relier l'exécution à la proposition (lien ou mini-chaîne sur la ligne), ou mettre la chaîne dans l'onglet Automatisations lui-même. Elle ne s'allume que pour les workflows qui annoncent leurs étapes (seul « proposer » le fait).
 - **Légende de la pastille d'activité** des cartes d'affaires (verte : activité prévue, rouge : en retard, grise : aucune) : le sens ne s'affiche qu'au survol ; une légende ou un texte est possible.
-- **Indicateurs** (`docs/tables.md`) : relevé hebdomadaire (dimanche soir) écrit par une fonction planifiée du serveur ; réglage « quels indicateurs afficher + cibles mensuelles » pour Ingrid (écran de Réglages « Indicateurs » à monter chez les clients, `objectifs: true`) ; module d'analyse « Tableau de bord » quand il y a 8 à 10 semaines d'historique. Le renommage des fonctions et du module `tableaudebord` se fait de jour, avec alias.
+- **Indicateurs** (`docs/tables.md`) : relevé hebdomadaire (dimanche soir) écrit par une fonction planifiée du serveur ; réglage « quels indicateurs afficher + cibles mensuelles » pour la cliente (écran de Réglages « Indicateurs » à monter chez les clients, `objectifs: true`) ; module d'analyse « Tableau de bord » quand il y a 8 à 10 semaines d'historique. Le renommage des fonctions et du module `tableaudebord` se fait de jour, avec alias.
 - **Bouton « Générer devis »** : `docs/actions-de-fiche.md`.
 - **Plus tard** : l'animation fine de la chaîne ; la vraie action du workflow B ; les canaux e-mail et SMS (chantier de sécurité à relire) ; la porte de la base 2 ; en base 2, `crm_audit` et `mcp_codes` sont écrivables par un éditeur depuis le navigateur (à fermer) ; la plateforme clients (déploiement manuel). **Rien sur la plateforme clients ne se fait tant que tout n'a pas été testé sur la plateforme de Jérôme.**
 
 ## Rapport : suppression de la fonctionnalité « En pause » (version 2.23.0)
 
-Décision de Jérôme (22/10/2026) : plus de pause, ni pour les affaires ni pour les projets. Une affaire est ouverte, gagnée ou perdue ; un projet est actif ou terminé ; pour relancer plus tard, on planifie une activité (comme dans Pipedrive). Retiré : bouton et menu « En pause », boîte « Date de réveil », filtre « Statut : En pause », bloc « Reprendre contact » de l'Accueil, outils MCP `mettre_en_pause`, `mettre_projet_en_pause`, `reprendre_projet` (sans alias ; 40 outils pour le profil bibliothécaire). Les 4 affaires de Jérôme qui étaient en pause ont été rouvertes avec `rouvrir_affaire` (accord écrit de Jérôme) ; Ingrid n'en a aucune. Tolérance : un document ancien au statut `en_pause` s'affiche comme ouvert (affaire) ou actif (projet), un filtre enregistré avec « En pause » se lit comme « Ouverte » / « Actif », et les anciens événements « Affaire en pause jusqu'au … » restent dans l'Historique (filtre « Affaires »). Règles Firestore non touchées.
+Décision de Jérôme (22/10/2026) : plus de pause, ni pour les affaires ni pour les projets. Une affaire est ouverte, gagnée ou perdue ; un projet est actif ou terminé ; pour relancer plus tard, on planifie une activité (comme dans Pipedrive). Retiré : bouton et menu « En pause », boîte « Date de réveil », filtre « Statut : En pause », bloc « Reprendre contact » de l'Accueil, outils MCP `mettre_en_pause`, `mettre_projet_en_pause`, `reprendre_projet` (sans alias ; 40 outils pour le profil bibliothécaire). Les 4 affaires de Jérôme qui étaient en pause ont été rouvertes avec `rouvrir_affaire` (accord écrit de Jérôme) ; la cliente n'en a aucune. Tolérance : un document ancien au statut `en_pause` s'affiche comme ouvert (affaire) ou actif (projet), un filtre enregistré avec « En pause » se lit comme « Ouverte » / « Actif », et les anciens événements « Affaire en pause jusqu'au … » restent dans l'Historique (filtre « Affaires »). Règles Firestore non touchées.
 
 **À regarder à l'écran** : (1) fiche d'une affaire : menu « … » = Archiver / Supprimer, plus de « En pause » ; (2) Affaires, Liste, Filtres : Statut = Ouverte, Gagnée, Perdue ; (3) Accueil : plus de « Reprendre contact » ; (4) Projets : fiche (« Terminer » seul), menu d'une carte, Filtres (Actif, Terminé) ; (5) Historique d'une affaire qui a eu une pause : l'ancienne phrase s'affiche toujours. **Pas pu vérifier** : plateforme clients réelle, téléphone, Journal des modifications sur un vieil événement. **Annotations d'audit à faire** : `docs/audit-fonctionnel/` (constats A-04, C-20, E-14 : « pause supprimée le 22/10/2026 »), `docs/roadmap.md`.
 
@@ -847,7 +871,7 @@ Décisions N1 à N7 de Jérôme, un sujet par PR, relues par Fable, fusionnées 
 
 **Cas vide / erreur** : étiquettes, aucune existante → seul « + Nouvelle étiquette » ; nom vide ou en double → message sous le champ. Livrable : « Le titre est obligatoire. ». Propriétaire : jamais vide ; en cas d'échec d'écriture, l'ancienne valeur reste.
 
-**Pas pu vérifier avec le vrai système** : vraie base, téléphone réel, plateforme clients (Ingrid), outils MCP renommés (visibles après redéploiement et reconnexion).
+**Pas pu vérifier avec le vrai système** : vraie base, téléphone réel, plateforme clients (la cliente), outils MCP renommés (visibles après redéploiement et reconnexion).
 
 **Reste à faire** : voir la liste de la nuit précédente ci-dessous (phrases de Sources dans Réglages, I16 boutons, place de `boutonFiltres`, anciens défauts de tests). Le crayon de Propriétaire reste visible sur écran tactile (seulement lui). Le focus clavier n'est pas rendu après un choix dans la liste (comportement existant de Source).
 
@@ -870,7 +894,7 @@ Jérôme a validé ses décisions le 22/10/2026 puis écrit « GO NUIT ». Claud
 
 **À regarder à l'écran (recette de Jérôme)** : les « 5 vérifications » de chaque PR sont dans leur description (169 à 177). Les plus importantes : (1) une affaire : plus de bouton « Gagnée », le « 999 € » est à la hauteur des boutons « Perdue / En pause » ; (2) un projet : « Livrables 0/1 », « Clique ici pour ajouter un livrable… » et la pastille « Tâche » dans l'activité ; (3) l'Historique d'une fiche : « Filtres », coche deux types, la pastille indique 2, le filtre reste quand on ouvre une autre fiche ; (4) Personnes : la Source ne propose que la liste des Réglages, la Ville n'a plus de doublon ; (5) Journal, Veille, Automatisations : le même bouton « Filtres » partout.
 
-**Données de Jérôme modifiées pendant la nuit (accord explicite de Jérôme)** : les phrases de source qui n'étaient pas dans la liste (4 affaires, 2 personnes) ont été remplacées par une valeur de la liste, et la phrase d'origine a été gardée dans une note de la fiche (le journal des modifications garde les copies « avant »). **À faire par Jérôme** : une phrase de source n'a pas pu être retrouvée sur une fiche avec les outils disponibles ; dans Personnes, filtre « Source » pour la repérer, la remplacer, puis **retirer les phrases de la liste dans Réglages, Sources** (le code ne recopie plus rien dans cette liste). Rien n'a été modifié chez Ingrid (plateforme clients non déployée : ses changements arrivent au prochain déploiement manuel).
+**Données de Jérôme modifiées pendant la nuit (accord explicite de Jérôme)** : les phrases de source qui n'étaient pas dans la liste (4 affaires, 2 personnes) ont été remplacées par une valeur de la liste, et la phrase d'origine a été gardée dans une note de la fiche (le journal des modifications garde les copies « avant »). **À faire par Jérôme** : une phrase de source n'a pas pu être retrouvée sur une fiche avec les outils disponibles ; dans Personnes, filtre « Source » pour la repérer, la remplacer, puis **retirer les phrases de la liste dans Réglages, Sources** (le code ne recopie plus rien dans cette liste). Rien n'a été modifié chez la cliente (plateforme clients non déployée : ses changements arrivent au prochain déploiement manuel).
 
 **Ce qui n'a pas pu être vérifié avec le vrai système** : tout a été testé sur émulateurs et avec le navigateur de test ; pas de vraie base de Jérôme ni de vrai téléphone, pas de vrais clients MCP (les outils renommés `ajouter_livrable_projet` et `terminer_livrable_projet` ne sont visibles dans l'assistant qu'après redéploiement du serveur MCP et reconnexion), pas de plateforme clients. Le test J4 des Automatisations et « assistant non administrateur » échouent en local pour des causes déjà connues (fuseau du bac à sable, erreur 409 de l'émulateur) ; ils passent sur GitHub.
 
@@ -881,11 +905,11 @@ Jérôme a validé ses décisions le 22/10/2026 puis écrit « GO NUIT ». Claud
 2. **I16 : aligner les boutons restants** (liste dans `docs/consignes-ui.md`, section « Boutons »), à discuter avec Jérôme : pastilles Appel / Rendez-vous / Email / Tâche (un 4e style ?), « Créer le projet », le style discret ; zone de clic des « + Ajouter » sur téléphone (44 px).
 3. Anciens défauts de tests : P1 et C12 (fenêtre 22 h–minuit UTC) ; C30 téléphone de `projets.spec.js` ; `ports-et-isolation.test.js` ; le test « assistant non administrateur » (erreur 409 à filtrer comme dans `filtres-commun.spec.js`).
 4. Roadmap : `boutonFiltres` / `fenetreFiltres` vivent dans `js/modules/crm/filtres.js` mais servent à tout (leur place logique serait `js/os/ui.js`).
-5. Audit de sécurité Fable (cette semaine ou la suivante, décision de Jérôme), audit des différences Jérôme / clients, configuration des types d'activité par l'utilisateur, retours d'Ingrid.
+5. Audit de sécurité Fable (cette semaine ou la suivante, décision de Jérôme), audit des différences Jérôme / clients, configuration des types d'activité par l'utilisateur, retours de la cliente.
 
 ## Rapport du matin : nuit « GO NUIT » du 21 au 22/10/2026 (version 2.19.0)
 
-Jérôme a donné « GO NUIT » le 21/10/2026 au soir ; Claude a codé les idées de `docs/idees-affaires-projets.md` (revue faite avec Jérôme) en autonomie, un sujet par PR, relue par Fable avant chaque fusion, fusionnée seule quand la coche « Tests » est verte (protocole dans `CLAUDE.md`). **Rien n'a eu besoin de la liste d'arrêt** : aucune règle Firestore, aucune migration, aucun déploiement de la plateforme clients (le CRM d'Ingrid n'a pas bougé : il ne se met à jour que par le workflow manuel).
+Jérôme a donné « GO NUIT » le 21/10/2026 au soir ; Claude a codé les idées de `docs/idees-affaires-projets.md` (revue faite avec Jérôme) en autonomie, un sujet par PR, relue par Fable avant chaque fusion, fusionnée seule quand la coche « Tests » est verte (protocole dans `CLAUDE.md`). **Rien n'a eu besoin de la liste d'arrêt** : aucune règle Firestore, aucune migration, aucun déploiement de la plateforme clients (le CRM de la cliente n'a pas bougé : il ne se met à jour que par le workflow manuel).
 
 | Sujet | PR | État |
 |---|---|---|
@@ -916,11 +940,11 @@ Jérôme a donné « GO NUIT » le 21/10/2026 au soir ; Claude a codé les idée
 4. `js/modules/crm/journal.js` ~l.172 écrit encore « gardée 90 jours » : contraire à la décision du 04/10/2026 (point 1 plus bas : « Appliquer la décision pas de RGPD »).
 5. **I11 suite, I12 suite** : rien ; **I1, I3** abandonnées.
 6. Audit de sécurité Fable (semaine prochaine), audit des différences Jérôme / clients, second passage du look compact, aide client publique, chantier ChatGPT sur le MCP, allègement des fiches.
-7. Retours d'Ingrid (premier client réel depuis le 21/10/2026).
+7. Retours de la cliente (premier client réel depuis le 21/10/2026).
 
 ## État au 21/10/2026
 
-- **Premier client réel en service (21/10/2026)** : Ingrid utilise désormais le CRM. Appel téléphonique fait par Jérôme ce jour ; les 8 tâches de préparation du projet « Accompagnement Ingrid » étaient faites. L'e-mail prévu ce jour n'est plus à envoyer (l'appel l'a remplacé). Elle remontera ce qu'elle remarque : traiter ses retours en petites PR. Aucun détail de client dans ce dépôt public.
+- **Premier client réel en service (21/10/2026)** : la cliente utilise désormais le CRM. Appel téléphonique fait par Jérôme ce jour ; les 8 tâches de préparation du projet « Accompagnement (client réel) » étaient faites. L'e-mail prévu ce jour n'est plus à envoyer (l'appel l'a remplacé). Elle remontera ce qu'elle remarque : traiter ses retours en petites PR. Aucun détail de client dans ce dépôt public.
 - **Synchronisation GitHub vérifiée le 21/10/2026** : `main` est au commit 66dbc52 (PR 155), la branche de session le contient, rien n'est en retard.
 - **Champ texte libre : fusionné** (PR 145 en 2.16.0, PR 149 en 2.16.2 : hauteur fixe de 4 lignes avec ascenseur, 16 px au moins sur téléphone). Plus rien à reprendre. **Reste du chantier lié** : allègement des fiches Affaires et Projets (trop de champs affichés), inventaire champ par champ (« je le regarde » / « jamais ») puis décision avec Jérôme. Pas de tags sur les affaires et projets (décision du 19/10/2026). Détail : second cerveau, fiches `Plateforme clients - décisions du module Automatisations et de la veille` et `Idée - affaires et projets dans le CRM de Chevalier IA OS`. Règle de Jérôme : une capture ou une maquette avant tout développement d'un écran.
 - **Tests de PR corrigés (PR 158, fusionnée le 21/10/2026)** : un fichier de test ajouté ne déclenche plus la suite complète ; la coche = rapide + smoke + parcours de la PR. Mesure à faire sur les premières PR de code : si la coche dépasse 10 minutes, revoir avec Fable (objectif : environ 5 minutes). Les nuits des 19, 20 et 21/10 étaient rouges (issue GitHub 156, onglet Documents en format téléphone) : Jérôme a décidé de ne pas enquêter, à revoir après la nuit du 21 au 22/10.
