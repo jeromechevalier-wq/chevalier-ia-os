@@ -68,7 +68,7 @@ describe('rdv.aEnvoyer : SMS dus et réservation', () => {
     assert.deepEqual(r.messages.map((x) => x.typeMessage), ['confiance', 'confiance']);
     assert.deepEqual(r.messages.map((x) => x.numero).sort(), ['+33600000001', '+33600000002']);
     assert.match(r.messages[0].texte, /^Bonjour, c'est Mme Martin\./);
-    assert.ok(r.messages.every((x) => x.caracteres === R.compterSms(x.texte).caracteres && x.segments === 1));
+    assert.ok(r.messages.every((x) => x.caracteres === R.compterSms(x.texte).caracteres && x.segments <= 2 && x.texte.endsWith('Chevalier IA - Répondez STOP pour vous désabonner.')));
     const doc = m.base.docs.get(`rdv_messages/${r.messages[0].messageId}`).d;
     assert.equal(doc.etatEnvoi, 'reserve');
     assert.equal(doc.echeance, `r1:t1:confiance:${doc.participantId}`);

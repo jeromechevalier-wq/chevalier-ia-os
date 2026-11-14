@@ -64,7 +64,9 @@ export async function envoyerSms({ donnees, ctx, espace, sortie, rendezVousId, t
   if (!TYPES_SMS_MANUEL.includes(type)) throw new ErreurRdvEnvoi('invalid-argument', 'Type de SMS inconnu.');
   if (typeof texte !== 'string' || !texte.trim() || texte.length > 1000) throw new ErreurRdvEnvoi('invalid-argument', 'Écris le texte du SMS (1 000 caractères au plus).');
   await exigerBranche(sortie, espace);
-  const sms = R.preparerSms(texte);
+  // Le nom de l'entreprise et « STOP » sont toujours présents (ajoutés ici si la professionnelle les a effacés du texte).
+  const reglages = await donnees.document('rdv_parametres', 'reglages');
+  const sms = R.preparerSms(R.avecMentionStop(texte, reglages ?? {}));
   if (sms.encodage !== 'gsm7') throw new ErreurRdvEnvoi('invalid-argument', 'Ce texte contient un caractère spécial qui ne peut pas être envoyé tel quel : retire-le.');
   if (sms.segments > SEGMENTS_MAX_MANUEL) throw new ErreurRdvEnvoi('invalid-argument', `Ce SMS est trop long (${SEGMENTS_MAX_MANUEL} SMS au plus).`);
   const { rdv, participants } = await lireRendezVous(donnees, rendezVousId);

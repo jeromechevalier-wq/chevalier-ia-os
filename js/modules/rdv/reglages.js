@@ -110,6 +110,13 @@ export function reglages(page) {
     h('p', { class: 'aide' }, 'Il remplace {nom_pro} dans les modèles. Écris-le court : chaque caractère compte dans un SMS.')];
   }));
 
+  redessins.push(carte(page, 'reglages-rdv-entreprise', 'Nom de l’entreprise dans les SMS', () => {
+    const p = D.parametres();
+    return [ligne('Nom de l’entreprise', h('input', { class: 'champ', type: 'text', maxlength: String(R.NOM_ENTREPRISE_MAX), value: p.nomEntreprise, 'aria-label': 'Nom de l’entreprise dans les SMS', placeholder: R.NOM_ENTREPRISE_DEFAUT,
+      onchange: (e) => enregistrer({ nomEntreprise: L.nettoyerEspaces(e.target.value).slice(0, R.NOM_ENTREPRISE_MAX) || R.NOM_ENTREPRISE_DEFAUT }) })),
+    h('p', { class: 'aide' }, `Chaque SMS envoyé à un participant se termine par « ${R.mentionStop(p)} » : le nom de l’entreprise et le moyen de se désabonner. Si quelqu’un répond STOP, il ne reçoit plus aucun SMS et tu es prévenue.`)];
+  }));
+
   redessins.push(carte(page, 'reglages-rdv-roles', 'Rôles des participants', () => {
     const p = D.parametres();
     const lignes = p.roles.map((r) => {
@@ -139,7 +146,7 @@ export function reglages(page) {
       h('pre', { class: 'rdv-modele-texte' }, m.texte)));
     return [h('div', { class: 'pile' }, lignes),
       h('p', { class: 'aide', dataset: { role: 'explication-accents' } }, EXPLICATION_ACCENTS),
-      h('p', { class: 'aide' }, `Variables : ${R.VARIABLES_SMS.map((v) => `{${v}}`).join(', ')}. Les exemples ci-dessus utilisent des données fictives.`)];
+      h('p', { class: 'aide' }, `Variables : ${R.VARIABLES_SMS.map((v) => `{${v}}`).join(', ')}. Les exemples ci-dessus utilisent des données fictives. La dernière ligne (nom de l’entreprise et « Répondez STOP ») est ajoutée toute seule à chaque SMS envoyé à un participant.`)];
   }));
 
   async function modifierModele(type) {
@@ -148,7 +155,7 @@ export function reglages(page) {
     champ.value = R.modeleDe(type, p);
     const compteur = compteurSms('');
     const maj = () => {
-      const sms = R.construireSms(type, R.EXEMPLE_SMS, { modeles: { [type]: champ.value } });
+      const sms = R.construireSms(type, R.EXEMPLE_SMS, { modeles: { [type]: champ.value }, nomEntreprise: p.nomEntreprise });
       compteur.maj(sms.texte);
     };
     champ.addEventListener('input', maj);

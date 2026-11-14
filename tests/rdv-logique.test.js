@@ -56,8 +56,8 @@ describe('12 comptage des SMS et règle des accents', () => {
     assert.deepEqual(types, ['confiance', 'creneaux', 'relance', 'confirmation', 'rappel', 'pluie']);
     for (const type of types) {
       const sms = L.construireSms(type, L.EXEMPLE_SMS);
-      assert.ok(sms.caracteres < 160, `${type} : ${sms.caracteres} caractères`);
-      assert.equal(sms.segments, 1, type);
+      assert.ok(sms.segments <= 2, `${type} : ${sms.caracteres} caractères, ${sms.segments} SMS`);
+      assert.ok(sms.texte.endsWith('Chevalier IA - Répondez STOP pour vous désabonner.'), `${type} : nom de l'entreprise et STOP en dernière ligne`);
       assert.equal(sms.encodage, 'gsm7', type);
       assert.equal(L.preparerSms(L.MODELES_DEFAUT[type]).modifie, false, `${type} : le modèle contient un caractère à remplacer`);
       assert.doesNotMatch(sms.texte, /\{[a-z_]+\}/, `${type} : variable non remplacée`);
@@ -76,7 +76,7 @@ describe('12 comptage des SMS et règle des accents', () => {
   test('12 un modèle modifié par l’utilisateur l’emporte, un modèle vide revient au modèle par défaut', () => {
     assert.equal(L.modeleDe('rappel', { modeles: { rappel: 'Demain {heure}' } }), 'Demain {heure}');
     assert.equal(L.modeleDe('rappel', { modeles: { rappel: '   ' } }), L.MODELES_DEFAUT.rappel);
-    assert.equal(L.construireSms('rappel', { heure: '10h' }, { modeles: { rappel: 'Demain à {heure} {inconnue}' } }).texte, 'Demain a 10h {inconnue}'.replace('a 10h', 'à 10h'));
+    assert.equal(L.construireSms('rappel', { heure: '10h' }, { modeles: { rappel: 'Demain à {heure} {inconnue}' } }).texte, 'Demain a 10h {inconnue}\nChevalier IA - Répondez STOP pour vous désabonner.'.replace('a 10h', 'à 10h'));
   });
 });
 
@@ -325,7 +325,7 @@ describe('L échéances : liste des SMS dus', () => {
     const sms = apres.find((d) => d.typeMessage === 'creneaux');
     assert.match(sms.texte, /^Mme Martin : chantier M\. Durand/);
     assert.match(sms.texte, /1 : mar\. 17 nov\. 10h\n2 : mer\. 18 nov\. 14h\n3 : jeu\. 19 nov\. 9h/);
-    assert.ok(sms.caracteres < 160 && sms.segments === 1);
+    assert.ok(sms.segments <= 2 && sms.texte.endsWith('STOP pour vous désabonner.'));
     const confiance = apres.find((d) => d.typeMessage === 'confiance');
     assert.match(confiance.texte, /06 00 00 00 00|07 00 00 00 02/, 'le numéro choisi pour les participants (n2)');
     assert.match(confiance.texte, /07 00 00 00 02/);
@@ -374,7 +374,7 @@ describe('L échéances : liste des SMS dus', () => {
   });
   test('L adresse absente : la confirmation part quand même, sans ligne vide ni {adresse}', () => {
     const dus = L.smsDus({ rdv: { ...base, adresse: '', etat: 'confirme', creneauChoisi: creneaux[0], confirmeLe: parisEnISO(2026, 11, 14, 10) }, participants: parts, parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 14, 10) });
-    assert.equal(dus[0].texte, 'RDV confirmé : chantier M. Durand, mar. 17 nov. à 10h.\nMerci, Mme Martin');
+    assert.equal(dus[0].texte, 'RDV confirmé : chantier M. Durand, mar. 17 nov. à 10h.\nMerci, Mme Martin\nChevalier IA - Répondez STOP pour vous désabonner.');
     assert.deepEqual(dus[0].manque, []);
   });
   test('L rendez-vous confirmé sans date de confirmation : la confirmation part quand même', () => {
@@ -601,7 +601,8 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
     const rdv = { client: 'M. Durand', creneauChoisi: '2031-03-17T09:00:00Z' };
     for (const type of ['pluie', 'annulation']) {
       const t = L.texteSmsManuel(type, rdv, { nomDansLesSms: 'Mme Martin' });
-      assert.ok(t.length < 160 && L.compterSms(t).encodage === 'gsm7', type);
+      assert.ok(L.compterSms(t).segments <= 2 && L.compterSms(t).encodage === 'gsm7', type);
+      assert.match(t, /Chevalier IA - Répondez STOP pour vous désabonner\.$/, type);
       assert.doesNotMatch(t, /\{|\}/);
     }
     assert.match(L.texteSmsManuel('annulation', { client: 'M. Durand' }, {}), /est annulé\./);
@@ -609,5 +610,29 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
   test('L historique : les messages par date, avec le nom retrouvé par le numéro', () => {
     const h = L.historiqueMessages([{ id: 'b', numero: '+33600000002', recuLe: '2031-03-17T11:00:00Z', sens: 'entrant' }, { id: 'a', numero: '+33600000001', envoyeLe: '2031-03-17T09:00:00Z', sens: 'sortant' }], [{ telephone: '+33600000001', nom: 'M. Durand' }, { telephone: '+33600000002', nom: 'Terrassier' }]);
     assert.deepEqual(h.map((m) => [m.id, m.qui]), [['a', 'M. Durand'], ['b', 'Terrassier']]);
+  });
+});
+
+describe('M nom de l’entreprise et STOP dans chaque SMS', () => {
+  test('M le nom est réglable, « Chevalier IA » tant qu’il n’est pas réglé, nettoyé et limité', () => {
+    assert.equal(L.mentionStop({}), 'Chevalier IA - Répondez STOP pour vous désabonner.');
+    assert.equal(L.mentionStop({ nomEntreprise: '   ' }), 'Chevalier IA - Répondez STOP pour vous désabonner.');
+    assert.equal(L.mentionStop({ nomEntreprise: '  Géolucie   Étanchéité ' }), 'Géolucie Étanchéité - Répondez STOP pour vous désabonner.');
+    assert.equal(L.mentionStop({ nomEntreprise: 'x'.repeat(80) }).split(' - ')[0].length, L.NOM_ENTREPRISE_MAX);
+    assert.equal(L.PARAMETRES_DEFAUT.nomEntreprise, 'Chevalier IA');
+  });
+  test('M la ligne est ajoutée une seule fois, jamais si le texte contient déjà STOP', () => {
+    const un = L.avecMentionStop('Bonjour', { nomEntreprise: 'Géolucie' });
+    assert.equal(un, 'Bonjour\nGéolucie - Répondez STOP pour vous désabonner.');
+    assert.equal(L.avecMentionStop(un, { nomEntreprise: 'Géolucie' }), un);
+    assert.equal(L.avecMentionStop('Répondez STOP pour arrêter', {}), 'Répondez STOP pour arrêter');
+    assert.equal(L.avecMentionStop('   ', {}), '');
+  });
+  test('M les six modèles portent le nom réglé ; les alertes à la professionnelle n’en portent pas', () => {
+    for (const type of Object.keys(L.MODELES_DEFAUT)) {
+      const sms = L.construireSms(type, L.EXEMPLE_SMS, { nomEntreprise: 'Géolucie' });
+      assert.ok(sms.texte.endsWith('Géolucie - Répondez STOP pour vous désabonner.'), type);
+    }
+    assert.doesNotMatch(L.texteAlerte('incomprise', { client: 'M. Durand', nom: 'Terrassier', reponse: 'peut-etre' }).texte, /STOP/);
   });
 });

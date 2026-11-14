@@ -31,6 +31,11 @@ const JOURS_LONGS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendred
 const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 const MOIS_LONGS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
+/** Nom de l'entreprise écrit dans les SMS (réglable dans Réglages > Rendez-vous ; « Chevalier IA » tant qu'il n'est pas réglé). */
+export const NOM_ENTREPRISE_DEFAUT = 'Chevalier IA';
+export const NOM_ENTREPRISE_MAX = 30;
+const nomEntrepriseDe = (p) => String(p?.nomEntreprise ?? '').replace(/\s+/g, ' ').trim().slice(0, NOM_ENTREPRISE_MAX) || NOM_ENTREPRISE_DEFAUT;
+
 export const PARAMETRES_DEFAUT = Object.freeze({
   relances: { delaiHeures: 24, nombre: 3 },
   rappel: { actif: true, heure: '19:00' },
@@ -39,6 +44,7 @@ export const PARAMETRES_DEFAUT = Object.freeze({
   numeroAffiche: '',            // id du numéro d'alerte donné aux participants dans le premier SMS
   numeroTest: '',               // seul numéro qui reçoit les SMS d'un rendez-vous marqué test (jamais dans le dépôt)
   nomDansLesSms: '',
+  nomEntreprise: NOM_ENTREPRISE_DEFAUT, // nom de l'entreprise, écrit dans la ligne finale de chaque SMS envoyé à un participant
   roles: [...ROLES_DEPART],
   modeles: {},                  // surcharges des modèles par défaut, par type
 });
@@ -250,6 +256,19 @@ export function preparerSms(texte) {
   return { texte: normalise, ...compterSms(normalise), modifie: normalise !== String(texte ?? '').replace(/\r\n?/g, '\n') };
 }
 
+/**
+ * Ligne finale de tout SMS envoyé à un participant : le nom de l'entreprise et le moyen de se désabonner (demandés par ClickSend).
+ * Les alertes à la professionnelle n'en portent pas. Si le texte contient déjà « STOP », rien n'est ajouté.
+ */
+export function mentionStop(parametres) {
+  return `${nomEntrepriseDe(parametres)} - Répondez STOP pour vous désabonner.`;
+}
+export function avecMentionStop(texte, parametres) {
+  const t = String(texte ?? '').replace(/\s+$/, '');
+  if (!t || /\bSTOP\b/i.test(t)) return t;
+  return `${t}\n${mentionStop(parametres)}`;
+}
+
 /** « 124 caractères sur 160 · 1 SMS » */
 export function libelleCompteur(texte) {
   const c = preparerSms(texte);
@@ -316,7 +335,7 @@ export function modeleDe(type, parametres) {
 
 /** Texte exact d'un SMS : modèle rempli, puis normalisé et compté. */
 export function construireSms(type, valeurs, parametres) {
-  return { typeMessage: typeDeModele[type] || type, ...preparerSms(remplirModele(modeleDe(type, parametres), valeurs)) };
+  return { typeMessage: typeDeModele[type] || type, ...preparerSms(avecMentionStop(remplirModele(modeleDe(type, parametres), valeurs), parametres)) };
 }
 
 /** Aperçu et taille des six modèles avec des données d'exemple (écran Réglages). */
@@ -519,6 +538,7 @@ const params = (p) => ({
   numeroAffiche: p?.numeroAffiche || '',
   numeroTest: p?.numeroTest || '',
   nomDansLesSms: p?.nomDansLesSms || '',
+  nomEntreprise: nomEntrepriseDe(p),
   modeles: p?.modeles || {},
 });
 
@@ -941,13 +961,13 @@ export function texteSmsManuel(type, rdv, parametres) {
   const signature = p.nomDansLesSms ? `${p.nomDansLesSms} : ` : '';
   const quand = date ? ` du ${date} à ${heure}` : '';
   const chantier = client ? ` chantier ${client}` : '';
-  if (type === 'annulation') return preparerSms(`${signature}le RDV${chantier}${quand} est annulé. Je vous recontacte pour une autre date.`).texte;
+  if (type === 'annulation') return preparerSms(avecMentionStop(`${signature}le RDV${chantier}${quand} est annulé. Je vous recontacte pour une autre date.`, parametres)).texte;
   if (p.nomDansLesSms && client && date) {
     const valeurs = { nom_pro: p.nomDansLesSms, client, creneaux: listeCreneauxSms(rdv?.creneaux), adresse: String(rdv?.adresse || '').replace(/\s*\n\s*/g, ', '), numero_pro: numeroPro(p) ? afficherTelephone(numeroPro(p)) : '', date, heure };
     const sms = construireSms('pluie', valeurs, parametres);
     if (!/\{[a-z_]+\}/.test(sms.texte)) return sms.texte;
   }
-  return preparerSms(`${signature}le RDV${chantier ? ` (${chantier.trim()})` : ''}${quand} est annulé à cause de la pluie. Je vous propose une autre date très vite.`).texte;
+  return preparerSms(avecMentionStop(`${signature}le RDV${chantier ? ` (${chantier.trim()})` : ''}${quand} est annulé à cause de la pluie. Je vous propose une autre date très vite.`, parametres)).texte;
 }
 
 /** Historique d'un rendez-vous : les messages par date, avec le nom de l'expéditeur ou du destinataire (retrouvé par le numéro). */
