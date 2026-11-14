@@ -67,7 +67,7 @@ export const emailDestinataire = (emailAttention, emailClient) => emailAttention
 /** Phrase sous la ligne Affaire (« » = rien à dire). */
 export function aideAffaire({ client, affaireId, nbAffaires }) {
   if (affaireId) return '';
-  if (vide(client)) return 'Facultatif : sans affaire, le devis n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.';
+  if (vide(client)) return 'Facultatif : à choisir si ce devis suit une affaire.';
   return nbAffaires ? '' : MESSAGE_SANS_AFFAIRE_CLIENT;
 }
 

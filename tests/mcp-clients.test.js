@@ -216,6 +216,15 @@ describe('Adresses : un lien par client, rien ne dit si un client existe', () =>
     }
     assert.equal((await fetch(`${base}/.well-known/oauth-protected-resource/mcp/A`)).status, 404);
   });
+  test('4a « interne » (l\'espace de Jérôme) n\'est jamais un client : métadonnées et connexion répondent 404 ; un client valable répond toujours 200', async () => {
+    for (const chemin of ['/.well-known/oauth-protected-resource/mcp/interne', '/.well-known/oauth-authorization-server/mcp/interne', '/oauth/interne/authorize']) {
+      const r = await fetch(`${base}${chemin}`);
+      assert.equal(r.status, 404, chemin);
+      assert.deepEqual(await r.json(), { error: 'introuvable' }, chemin);
+    }
+    assert.equal((await fetch(`${base}/.well-known/oauth-protected-resource/mcp/a`)).status, 200);
+    assert.equal((await fetch(`${base}/.well-known/oauth-authorization-server/mcp/a`)).status, 200);
+  });
   test('un jeton « cia_… » (Hermes, Claude Code) n\'ouvre aucun client ; une origine de navigateur inconnue est refusée', async () => {
     assert.equal((await brut('/mcp/a', `cia_${'H'.repeat(43)}`)).status, 401);
     const r = await fetch(`${base}/mcp/a`, { method: 'POST', headers: { Origin: 'https://pirate.example', 'Content-Type': 'application/json' }, body: '{}' });
@@ -712,8 +721,11 @@ describe('Étanchéité entre clients (plan M1 à M15)', () => {
     const refus = await brut('/mcp/b', ta.access_token);
     assert.equal(refus.status, 401);
     assert.equal(await refus.text(), '{"error":"non_autorise"}');
-    assert.equal(await (await brut('/mcp/inconnu', ta.access_token)).text(), '{"error":"non_autorise"}');
-    assert.equal(await (await brut('/mcp/interne', ta.access_token)).text(), '{"error":"non_autorise"}', '« interne » est l’espace de Jérôme : jamais un client');
+    for (const lien of ['/mcp/inconnu', '/mcp/interne']) {
+      const r = await brut(lien, ta.access_token);
+      assert.equal(r.status, 401, lien);
+      assert.equal(await r.text(), '{"error":"non_autorise"}', lien === '/mcp/interne' ? '« interne » est l’espace de Jérôme : jamais un client' : lien);
+    }
     // M10 : Clara, éditrice chez A et lectrice chez B ; chaque lien lui donne SON espace et SON rôle.
     const tc = await connecter('a', 'ID-CLARA');
     const sur = async (client, token) => { const c = await assistant(`/mcp/${client}`, token); const t = JSON.stringify((await c.callTool({ name: 'lister_affaires', arguments: {} })).content) + resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).profil; await c.close(); return t; };

@@ -2,7 +2,7 @@
 // De bout en bout par le protocole MCP, sur des données fictives en mémoire. Le nom d'un test commence par le numéro du critère :
 //  1 brouillon créé -> editeur (Jérôme) ; 2 lister_devis / lire_devis (complet et récapitulatif) : editeur pour un brouillon, voir sinon, même expiré ;
 //  3 chez un client : plateforme + espace/<client>/ ; 4 finaliser (aperçu puis final) et nouvelle version ; 5 base inconnue ou espace mal formé : champ absent ;
-//  6 jamais de jeton, code, e-mail ni « ? » dans un lien ; 7 consigne dans la description des outils, sans mot du verrou, 97 outils ; 8 obtenir_pdf_officiel_devis garde lienApplication.
+//  6 jamais de jeton, code, e-mail ni « ? » dans un lien ; 7 consigne dans la description des outils, sans mot du verrou, 97 outils ; 8 obtenir_pdf_officiel_devis garde lienApplication ; 9 un refus d'écriture ne porte jamais lienEcran.
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -183,8 +183,8 @@ describe('7 consigne dans les descriptions', () => {
   });
 });
 
-describe('3 refus', () => {
-  test('3 un refus d’écriture ne porte jamais lienEcran (devis finalisé, mauvais code)', async () => {
+describe('9 refus', () => {
+  test('9 un refus d’écriture ne porte jamais lienEcran (devis finalisé, mauvais code)', async () => {
     const s = await demarrer({ devis: [devisEnregistre('b1')] });
     const apercu = ok(await s.appeler('code', 'finaliser_devis', { id: 'b1' }));
     const faux = await s.appeler('code', 'finaliser_devis', { id: 'b1', codeConfirmation: 'FAUX-CODE' });

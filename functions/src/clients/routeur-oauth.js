@@ -14,6 +14,7 @@ import { adresseRetour, creerFenetre, objet, repondre, texte, validerDemande } f
 import {
   FORMAT_CLIENT, ORIGINES_PLATEFORME, EMETTEUR_PLATEFORME, PROFIL_PAR_ROLE, acteurClient, adressesClient, assistantDeRedirection, redirectionAutorisee,
 } from './config.js';
+import { ESPACE_JEROME } from '../coeur/n8n-sortie.js';
 import { pageAutorisationClient } from './page.js';
 import { MESSAGE_REFUS_ESPACE } from '../../partage/marque.js';
 import { emailNormalise } from '../../partage/membres.js';
@@ -144,7 +145,7 @@ export function creerRouteurOauthClients({ donnees, verifierIdToken, espaces, ma
         repondre(res, 405, { error: 'methode_refusee' }, { Allow: methodes.join(', ') });
         return false;
       };
-      if (!FORMAT_CLIENT.test(client)) { infos.code = 'oauth_inconnu'; repondre(res, 404, { error: 'introuvable' }); return true; }
+      if (!FORMAT_CLIENT.test(client) || client === ESPACE_JEROME) { /* « interne » = l'espace de Jérôme, jamais un client */ infos.code = 'oauth_inconnu'; repondre(res, 404, { error: 'introuvable' }); return true; }
       infos.client = client;
       const adresses = adressesClient(client);
       if (genre === 'ressource') {
