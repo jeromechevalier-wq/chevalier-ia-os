@@ -799,7 +799,7 @@ export function filtrerRendezVous(rdvs, criteres, participantsParRdv = {}, { arc
   const c = { ...criteresVides(), ...criteres };
   const q = SANS_ACCENT(String(c.recherche || '').toLowerCase()).trim();
   return (rdvs || []).filter((r) => {
-    if (!!r.archive !== archives) return false;
+    if ((!!r.archive || !!r.annule) !== archives) return false; // un rendez-vous annulé est toujours dans les Archives
     if (c.etats.length && !c.etats.includes(r.etat || 'en_attente')) return false;
     if (c.tests === 'exclure' && r.test === true) return false;
     if (c.tests === 'seulement' && r.test !== true) return false;
@@ -828,26 +828,31 @@ export function nomFichierExportRdv(maintenant = new Date()) {
 // ───────────────────────────── Fiche : bandeaux, confirmation, nouvelle série ─────────────────────────────
 
 /**
- * Créneau à proposer à la confirmation : le créneau commun s'il y en a un (le plus tôt), sinon celui qui convient au plus de monde ; null s'il n'y en a aucun.
- * C'est une PROPOSITION : seule la professionnelle confirme.
+ * Créneau à proposer à la confirmation : parmi les créneaux ENCORE À VENIR, le créneau commun s'il y en a un (le plus tôt), sinon celui qui convient au plus de monde
+ * (à égalité : le plus tôt en date) ; null s'il n'y en a aucun. C'est une PROPOSITION : seule la professionnelle confirme.
+ * `creneaux` et `maintenant` (facultatifs) écartent les créneaux déjà passés.
  */
-export function creneauAConfirmer(bilan) {
-  if (bilan?.communs?.length) return bilan.communs[0];
-  return bilan?.meilleur?.creneau ?? null;
+export function creneauAConfirmer(bilan, { creneaux = null, maintenant = null } = {}) {
+  const avenir = (n) => !creneaux || !Number.isFinite(enMs(maintenant)) || enMs(creneaux[n - 1]) > enMs(maintenant);
+  const instant = (n) => (creneaux ? enMs(creneaux[n - 1]) : n);
+  const communs = (bilan?.communs || []).filter(avenir).sort((x, y) => instant(x) - instant(y));
+  if (communs.length) return communs[0];
+  const candidats = (bilan?.parCreneau || []).map((nombre, i) => ({ numero: i + 1, nombre })).filter((c) => c.nombre > 0 && avenir(c.numero));
+  candidats.sort((x, y) => y.nombre - x.nombre || instant(x.numero) - instant(y.numero));
+  return candidats[0]?.numero ?? null;
 }
 
-/** Bandeau violet de la fiche : { type: 'commun' | 'partiel' | 'aucun', texte }, ou null tant qu'il n'y a rien à dire. */
-export function bandeauCreneau(bilan) {
+/** Bandeau violet de la fiche : { type: 'commun' | 'partiel' | 'aucun', creneau, texte }, ou null tant qu'il n'y a rien à dire. Mêmes options que `creneauAConfirmer` (créneaux passés écartés). */
+export function bandeauCreneau(bilan, options = {}) {
   if (!bilan || !bilan.total) return null;
-  if (bilan.complet && bilan.communs.length) {
-    const c = bilan.communs[0];
-    return { type: 'commun', creneau: c, texte: `Le créneau ${c} convient à tout le monde. Seul toi peux le confirmer.` };
+  const c = creneauAConfirmer(bilan, options);
+  if (bilan.complet && bilan.communs.length && c && bilan.communs.includes(c)) return { type: 'commun', creneau: c, texte: `Le créneau ${c} convient à tout le monde. Seul toi peux le confirmer.` };
+  if (bilan.complet && !bilan.communs.length) return { type: 'aucun', creneau: null, texte: 'Aucun créneau ne convient à tout le monde. Tu peux proposer d’autres créneaux.' };
+  if (c) {
+    const n = bilan.parCreneau[c - 1];
+    return { type: 'partiel', creneau: c, texte: `Pour l’instant, le créneau ${c} convient à ${n} ${n > 1 ? 'personnes' : 'personne'} sur ${bilan.total}. Seul toi peux le confirmer.` };
   }
-  if (bilan.complet) return { type: 'aucun', creneau: null, texte: 'Aucun créneau ne convient à tout le monde. Tu peux proposer d’autres créneaux.' };
-  if (bilan.meilleur) {
-    const n = bilan.meilleur.nombre;
-    return { type: 'partiel', creneau: bilan.meilleur.creneau, texte: `Pour l’instant, le créneau ${bilan.meilleur.creneau} convient à ${n} ${n > 1 ? 'personnes' : 'personne'} sur ${bilan.total}. Seul toi peux le confirmer.` };
-  }
+  if (bilan.complet) return { type: 'aucun', creneau: null, texte: 'Les créneaux qui conviennent sont passés. Tu peux proposer d’autres créneaux.' };
   return null;
 }
 
@@ -865,16 +870,16 @@ export function planConfirmer(rdv, numero, maintenant) {
 }
 
 /**
- * Nouvelle série de créneaux : l'historique des SMS est gardé (les messages ne sont jamais modifiés), le numéro de série `tour` augmente,
+ * Nouvelle série de créneaux (aussi après une confirmation, par exemple à cause de la pluie : le créneau choisi est alors retiré) : l'historique des SMS est gardé (les messages ne sont jamais modifiés), le numéro de série `tour` augmente,
  * les réponses des participants sont remises à zéro (la réponse tardive à l'ancienne série ne compte que dans l'historique) et les relances repartent.
  * Rend { patchRdv, patchParticipant } ou { erreur }.
  */
 export function planNouvelleSerie(rdv, creneaux, maintenant) {
-  if (!rdv || rdv.annule || rdv.etat === 'confirme') return { erreur: 'Ce rendez-vous n’est plus ouvert aux propositions.' };
+  if (!rdv || rdv.annule || rdv.archive) return { erreur: 'Ce rendez-vous n’est plus ouvert aux propositions.' };
   const verdict = validerCreneaux(creneaux, maintenant);
   if (verdict.erreurs.length) return { erreur: verdict.erreurs[0] };
   return {
-    patchRdv: { creneaux: verdict.creneaux, tour: (rdv.tour || 1) + 1, etat: 'en_attente', relancesFaites: 0, relancesTermineesLe: null, envoiDemandeLe: null },
+    patchRdv: { creneaux: verdict.creneaux, tour: (rdv.tour || 1) + 1, etat: 'en_attente', creneauChoisi: null, confirmeLe: null, relancesFaites: 0, relancesTermineesLe: null, envoiDemandeLe: null },
     patchParticipant: { etatReponse: 'attente', creneauxOk: [], reponse: '', reponseLe: null, idReponse: null },
   };
 }
@@ -893,17 +898,26 @@ export function validerCreneaux(creneaux, maintenant) {
   return { creneaux: ms.filter(Number.isFinite).map(versISO), erreurs };
 }
 
-/** Texte prérempli (modifiable) du SMS de pluie ou d'annulation, avec les variables du rendez-vous remplies. */
+/**
+ * Texte prérempli (modifiable) du SMS de pluie ou d'annulation. Jamais d'accolade visible : un nom ou une date qui manque est simplement omis.
+ * Pluie : le modèle réglé si toutes ses données existent, sinon une phrase simple.
+ */
 export function texteSmsManuel(type, rdv, parametres) {
   const p = params(parametres);
   const choisi = rdv?.creneauChoisi;
-  const valeurs = {
-    nom_pro: p.nomDansLesSms, client: rdv?.client || rdv?.objet || '', creneaux: listeCreneauxSms(rdv?.creneaux),
-    adresse: String(rdv?.adresse || '').replace(/\s*\n\s*/g, ', '), numero_pro: numeroPro(p) ? afficherTelephone(numeroPro(p)) : '',
-    date: choisi ? formaterCreneauSms(choisi).replace(/ \d{1,2}h(\d{2})?$/, '') : '', heure: choisi ? formaterHeure(choisi) : '',
-  };
-  if (type === 'annulation') return preparerSms(remplirModele('{nom_pro} : le RDV chantier {client}{quand} est annulé. Je vous recontacte pour une autre date.', { ...valeurs, quand: choisi ? ` du ${valeurs.date} à ${valeurs.heure}` : '' }).replace('{quand}', '')).texte;
-  return construireSms('pluie', valeurs, parametres).texte;
+  const date = choisi ? formaterCreneauSms(choisi).replace(/ \d{1,2}h(\d{2})?$/, '') : '';
+  const heure = choisi ? formaterHeure(choisi) : '';
+  const client = rdv?.client || rdv?.objet || '';
+  const signature = p.nomDansLesSms ? `${p.nomDansLesSms} : ` : '';
+  const quand = date ? ` du ${date} à ${heure}` : '';
+  const chantier = client ? ` chantier ${client}` : '';
+  if (type === 'annulation') return preparerSms(`${signature}le RDV${chantier}${quand} est annulé. Je vous recontacte pour une autre date.`).texte;
+  if (p.nomDansLesSms && client && date) {
+    const valeurs = { nom_pro: p.nomDansLesSms, client, creneaux: listeCreneauxSms(rdv?.creneaux), adresse: String(rdv?.adresse || '').replace(/\s*\n\s*/g, ', '), numero_pro: numeroPro(p) ? afficherTelephone(numeroPro(p)) : '', date, heure };
+    const sms = construireSms('pluie', valeurs, parametres);
+    if (!/\{[a-z_]+\}/.test(sms.texte)) return sms.texte;
+  }
+  return preparerSms(`${signature}le RDV${chantier ? ` (${chantier.trim()})` : ''}${quand} est annulé à cause de la pluie. Je vous propose une autre date très vite.`).texte;
 }
 
 /** Historique d'un rendez-vous : les messages par date, avec le nom de l'expéditeur ou du destinataire (retrouvé par le numéro). */

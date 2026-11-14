@@ -566,9 +566,36 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
     assert.deepEqual(plan.patchParticipant, { etatReponse: 'attente', creneauxOk: [], reponse: '', reponseLe: null, idReponse: null });
     assert.match(L.planNouvelleSerie(rdv, [], maintenant).erreur, /au moins un créneau/);
     assert.match(L.planNouvelleSerie(rdv, [futur(-1)], maintenant).erreur, /futur/);
-    assert.match(L.planNouvelleSerie({ ...rdv, etat: 'confirme' }, [futur(4)], maintenant).erreur, /plus ouvert/);
+    const apresConfirmation = L.planNouvelleSerie({ ...rdv, etat: 'confirme', creneauChoisi: futur(2), confirmeLe: maintenant }, [futur(4)], maintenant);
+    assert.deepEqual([apresConfirmation.patchRdv.etat, apresConfirmation.patchRdv.creneauChoisi, apresConfirmation.patchRdv.confirmeLe], ['en_attente', null, null], 'après la pluie, une nouvelle série est possible et retire le créneau choisi');
+    assert.match(L.planNouvelleSerie({ ...rdv, archive: true }, [futur(4)], maintenant).erreur, /plus ouvert/);
     assert.match(L.planNouvelleSerie({ ...rdv, annule: true }, [futur(4)], maintenant).erreur, /plus ouvert/);
     assert.equal(L.validerCreneaux([futur(4), futur(4)], maintenant).erreurs[0], 'Deux créneaux sont identiques.');
+  });
+  test('L les créneaux déjà passés ne sont jamais proposés à la confirmation (égalité : le plus tôt)', () => {
+    const maintenant = new Date().toISOString();
+    const creneaux = [futur(-1), futur(3), futur(2)];
+    const tous = L.bilanReponses([p('a', 'comprise', [1, 2, 3]), p('bb', 'comprise', [1, 2, 3])], 3);
+    assert.equal(L.creneauAConfirmer(tous, { creneaux, maintenant }), 3, 'le 1 est passé ; entre 2 et 3, le plus tôt en date est le 3');
+    assert.equal(L.bandeauCreneau(tous, { creneaux, maintenant }).creneau, 3);
+    const seulPasse = L.bilanReponses([p('a', 'comprise', [1]), p('bb', 'comprise', [1])], 3);
+    assert.equal(L.creneauAConfirmer(seulPasse, { creneaux, maintenant }), null);
+    assert.match(L.bandeauCreneau(seulPasse, { creneaux, maintenant }).texte, /sont passés/);
+    const partiel = L.bilanReponses([p('a', 'comprise', [2]), p('bb', 'attente')], 3);
+    assert.equal(L.creneauAConfirmer(partiel, { creneaux, maintenant }), 2);
+  });
+  test('L SMS de pluie et d’annulation sans nom ni date : aucune accolade visible', () => {
+    for (const [type, rdv, params] of [['pluie', { client: 'M. Durand' }, {}], ['pluie', {}, {}], ['pluie', { client: 'M. Durand', etat: 'confirme' }, { nomDansLesSms: 'Mme Martin' }], ['annulation', {}, {}]]) {
+      const t = L.texteSmsManuel(type, rdv, params);
+      assert.doesNotMatch(t, /[{}]/, `${type} ${JSON.stringify(rdv)}`);
+      assert.ok(t.length > 20 && L.compterSms(t).encodage === 'gsm7');
+    }
+    assert.match(L.texteSmsManuel('pluie', { client: 'M. Durand' }, { nomDansLesSms: 'Mme Martin' }), /^Mme Martin : le RDV \(chantier M\. Durand\) est annulé à cause de la pluie\./);
+  });
+  test('L un rendez-vous annulé est toujours dans les Archives', () => {
+    const rdvs = [{ id: 'a', annule: true, archive: false }, { id: 'b' }, { id: 'c', archive: true }];
+    assert.deepEqual(L.filtrerRendezVous(rdvs, {}, {}).map((r) => r.id), ['b']);
+    assert.deepEqual(L.filtrerRendezVous(rdvs, {}, {}, { archives: true }).map((r) => r.id), ['a', 'c']);
   });
   test('L SMS de pluie et d’annulation : texte prérempli, sans caractère à remplacer, moins de 160 caractères', () => {
     const rdv = { client: 'M. Durand', creneauChoisi: '2031-03-17T09:00:00Z' };

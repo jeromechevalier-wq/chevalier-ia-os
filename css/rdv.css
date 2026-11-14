@@ -84,7 +84,7 @@
 .rdv-bandeau-violet { background: var(--violet-clair); border-color: var(--violet); color: var(--ink); }
 .rdv-bandeau-confirme { background: var(--panneau2); border-color: var(--succes); }
 .rdv-boutons-fiche { flex-wrap: wrap; margin-bottom: var(--esp-6); }
-.bouton-danger-discret { color: var(--retard); background: transparent; border: 1px solid var(--bordure); }
+.rdv-bouton-danger { color: var(--retard); background: transparent; border: 1px solid var(--bordure); }
 .rdv-historique { display: flex; flex-direction: column; gap: var(--esp-4); }
 .rdv-case { display: flex; align-items: center; gap: var(--esp-3); padding: var(--esp-2) 0; }
 .page-rdv-fiche { max-width: 920px; }

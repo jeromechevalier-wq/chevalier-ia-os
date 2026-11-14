@@ -23,7 +23,8 @@ export function symbole(nom) {
   return h('span', { class: `rdv-symbole rdv-symbole-${nom}`, role: 'img', 'aria-label': s.libelle, title: s.libelle, dataset: { symbole: nom } }, icone(s.icone, { taille: 28 }));
 }
 
-const nomEtat = (r) => (r.annule ? 'Annulé' : R.LIBELLES_ETATS[r.etat || 'en_attente']);
+const ETATS_FICHE = { en_attente: 'En attente', a_valider: 'À valider', confirme: 'Confirmé', a_reprendre: 'À reprendre' };
+const nomEtat = (r) => (r.annule ? 'Annulé' : ETATS_FICHE[r.etat || 'en_attente']);
 
 /** Saisie de la réponse d'un participant par la professionnelle : une case par créneau, ou « Aucun créneau ne convient ». */
 async function saisirReponse(rdv, participant) {
@@ -33,7 +34,7 @@ async function saisirReponse(rdv, participant) {
   cases.forEach((c) => c.querySelector('input').addEventListener('change', (e) => { if (e.target.checked) aucun.querySelector('input').checked = false; }));
   const erreur = h('p', { class: 'erreur', role: 'alert' });
   const r = await dialogue({
-    titre: `Réponse de ${participant.nom}`, classe: 'dialogue-formulaire',
+    titre: `Réponse de ${participant.nom || 'cette personne'}`, classe: 'dialogue-formulaire',
     contenu: h('div', { class: 'pile' },
       participant.reponse ? h('p', { class: 'aide' }, 'Sa réponse exacte : ', h('strong', {}, `« ${participant.reponse} »`)) : null,
       h('p', {}, 'Quels créneaux lui conviennent ?'), ...cases, aucun, erreur),
@@ -60,7 +61,7 @@ async function proposerAutresCreneaux(rdv) {
     boutons: [{ libelle: 'Annuler', valeur: false }, {
       libelle: 'Enregistrer la nouvelle série', valeur: true, style: 'principal',
       avantFermeture: async () => {
-        try { await D.nouvelleSerie(rdv.id, champs.map((c) => creneauDepuisChamp(c.value)).filter(Boolean)); toast('Nouvelle série enregistrée'); return true; } catch (e) { console.warn(e); erreur.textContent = D.messageErreur(e, e?.message || 'Enregistrement impossible, réessaie.'); return false; }
+        try { await D.nouvelleSerie(rdv.id, champs.map((c) => creneauDepuisChamp(c.value)).filter(Boolean)); toast('Nouvelle série enregistrée'); return true; } catch (e) { console.warn(e); erreur.textContent = D.messageErreur(e, 'Enregistrement impossible, réessaie.'); return false; }
       },
     }],
   });
@@ -87,27 +88,46 @@ async function fenetreSmsManuel(rdv, type, { titre, bouton2 = null } = {}) {
 async function annuler(rdv) {
   const r = await fenetreSmsManuel(rdv, 'annulation', {
     titre: 'Annuler le rendez-vous',
-    bouton2: { libelle: 'Annuler sans prévenir', valeur: 'sans', avantFermeture: async () => { try { await D.annulerRendezVous(rdv.id); toast('Rendez-vous annulé'); return true; } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Annulation impossible'), { type: 'erreur' }); return false; } } },
+    bouton2: { libelle: 'Annuler sans prévenir', valeur: 'sans', style: 'danger', avantFermeture: async () => { try { await D.annulerRendezVous(rdv.id); toast('Rendez-vous annulé'); return true; } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Annulation impossible'), { type: 'erreur' }); return false; } } },
   });
   if (r === 'sans') naviguer('rdv/archives');
+}
+
+let confirmationEnCours = false;
+/** Confirmer un créneau est un acte qui prévient tout le monde par SMS (PR 4) : une fenêtre demande confirmation, avec ce que disent les réponses. */
+async function confirmerAvecFenetre(rdv, numero, bilan, bouton) {
+  if (confirmationEnCours) return;
+  const n = bilan.parCreneau[numero - 1];
+  const ok = await dialogue({
+    titre: `Confirmer le créneau ${numero} ?`,
+    contenu: h('div', { class: 'pile' }, h('p', {}, R.libelleCreneau(numero - 1, rdv.creneaux[numero - 1])),
+      h('p', { class: 'aide' }, `Il convient à ${n} ${n > 1 ? 'personnes' : 'personne'} sur ${bilan.total}. Une fois confirmé, tout le monde sera prévenu par SMS.`)),
+    boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: `Confirmer le créneau ${numero}`, valeur: true, style: 'principal' }],
+  });
+  if (ok !== true) return;
+  confirmationEnCours = true;
+  bouton.disabled = true;
+  try { await D.confirmerCreneau(rdv.id, numero); toast(`Créneau ${numero} confirmé`); } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Confirmation impossible'), { type: 'erreur' }); bouton.disabled = false; } finally { confirmationEnCours = false; }
 }
 
 export function rendreFiche(conteneur, id) {
   const zone = h('div', { class: 'pile' });
   conteneur.append(h('div', { class: 'page page-rdv page-rdv-fiche' }, h('a', { class: 'lien-retour', href: '#/rdv/liste' }, icone('chevron-left', { taille: 16 }), 'Rendez-vous'), zone));
 
-  function tableau(r, parts, bilan) {
+  function tableau(r, parts, ouvert) {
     const colonnes = (r.creneaux || []).map((c, i) => h('th', { scope: 'col', class: 'rdv-col-creneau', dataset: { creneau: String(i + 1) } }, h('span', { class: 'rdv-col-numero' }, `Créneau ${i + 1}`), h('span', { class: 'rdv-col-date' }, `${R.formaterJourLong(c)} à ${R.formaterHeure(c)}`)));
     const lignes = parts.map((p) => {
       const incompris = p.etatReponse === 'incomprise';
       return h('tr', { class: `rdv-ligne-reponse${incompris ? ' rdv-ligne-incomprise' : ''}`, dataset: { participant: p.id } },
         h('th', { scope: 'row', class: 'rdv-personne' },
-          h('div', { class: 'rdv-personne-nom' }, h('span', {}, p.nom), infoTelephone(p.telephone), incompris ? symbole('incompris') : null),
+          h('div', { class: 'rdv-personne-nom' }, h('span', {}, p.nom || 'Sans nom'), infoTelephone(p.telephone), incompris ? symbole('incompris') : null),
           p.role ? h('div', { class: 'aide rdv-personne-role' }, p.role) : null),
         (r.creneaux || []).map((_, i) => h('td', { class: 'rdv-cellule', dataset: { creneau: String(i + 1) } }, incompris ? null : symbole(R.symboleCellule(p, i)))),
-        h('td', { class: 'rdv-sa-reponse' }, p.reponse ? h('span', { class: 'rdv-reponse-texte', dataset: { role: 'reponse-exacte' } }, `« ${p.reponse} »`) : h('span', { class: 'aide' }, p.etatReponse === 'saisie' ? 'Saisie par toi' : ''),
-          incompris || p.etatReponse === 'attente' || !p.etatReponse
-            ? h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'saisir-reponse', onclick: () => saisirReponse(r, p) }, 'Saisir sa réponse') : null));
+        h('td', { class: 'rdv-sa-reponse' },
+          p.reponse ? h('span', { class: 'rdv-reponse-texte', dataset: { role: 'reponse-exacte' } }, `« ${p.reponse} »`) : null,
+          p.etatReponse === 'saisie' ? h('span', { class: 'aide', dataset: { role: 'saisie-par-toi' } }, 'Coché par toi') : null,
+          ouvert ? h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'saisir-reponse', onclick: () => saisirReponse(r, p) },
+            p.etatReponse === 'comprise' || p.etatReponse === 'saisie' ? 'Corriger' : 'Saisir sa réponse') : null));
     });
     return h('div', { class: 'zone-tableau' }, h('table', { class: 'tableau tableau-rdv-reponses', dataset: { role: 'qui-peut-quand' } },
       h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Participant'), colonnes, h('th', { scope: 'col' }, 'Sa réponse'))), h('tbody', {}, lignes)));
@@ -133,23 +153,26 @@ export function rendreFiche(conteneur, id) {
     const etat = r.annule ? 'annule' : (r.etat || 'en_attente');
     const confirme = !r.annule && (r.etat === 'confirme' || !!r.creneauChoisi);
     const ouvert = R.estOuvert(r);
-    const bandeau = ouvert ? R.bandeauCreneau(bilan) : null;
-    const propose = ouvert ? R.creneauAConfirmer(bilan) : null;
+    const options = { creneaux: r.creneaux, maintenant: new Date().toISOString() };
+    const bandeau = ouvert ? R.bandeauCreneau(bilan, options) : null;
+    const propose = ouvert ? R.creneauAConfirmer(bilan, options) : null;
+    const modifiable = !r.annule && !r.archive;
 
-    const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Actions du rendez-vous', onclick: (e) => ouvrirMenu(e.currentTarget, [
+    const menu = r.annule ? null : h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Actions du rendez-vous', onclick: (e) => ouvrirMenu(e.currentTarget, [
       { libelle: r.archive ? 'Désarchiver' : 'Archiver', icone: r.archive ? 'archive-restore' : 'archive', action: async () => { try { await D.archiver(r.id, !r.archive); toast(r.archive ? 'Rendez-vous désarchivé' : 'Rendez-vous archivé'); } catch (err) { console.warn(err); toast(D.messageErreur(err, 'Action impossible'), { type: 'erreur' }); } } },
     ]) }, icone('ellipsis', { taille: 18 }));
 
     const boutons = [];
     if (ouvert) {
       boutons.push(h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'confirmer-creneau', disabled: !propose,
-        title: propose ? '' : 'Aucun créneau à confirmer pour l’instant',
-        onclick: async () => { try { await D.confirmerCreneau(r.id, propose); toast(`Créneau ${propose} confirmé`); } catch (e) { console.warn(e); toast(D.messageErreur(e, e?.message || 'Confirmation impossible'), { type: 'erreur' }); } } },
+        title: propose ? '' : 'Aucun créneau à venir à confirmer pour l’instant', 'aria-describedby': propose ? undefined : 'rdv-raison-confirmer',
+        onclick: (e) => confirmerAvecFenetre(r, propose, bilan, e.currentTarget) },
       propose ? `Confirmer le créneau ${propose}` : 'Confirmer un créneau'));
-      boutons.push(h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'autres-creneaux', onclick: () => proposerAutresCreneaux(r) }, 'Proposer d’autres créneaux'));
+      if (!propose) boutons.push(h('span', { id: 'rdv-raison-confirmer', class: 'aide', dataset: { role: 'raison-confirmer' } }, 'Aucun créneau à venir ne convient encore à quelqu’un : attends des réponses ou propose d’autres créneaux.'));
     }
+    if (modifiable) boutons.push(h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'autres-creneaux', onclick: () => proposerAutresCreneaux(r) }, 'Proposer d’autres créneaux'));
     if (confirme) boutons.push(h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'prevenir-pluie', onclick: () => fenetreSmsManuel(r, 'pluie', { titre: 'Prévenir de la pluie' }) }, 'Prévenir de la pluie'));
-    if (!r.annule) boutons.push(h('button', { type: 'button', class: 'bouton bouton-danger-discret', 'data-action': 'annuler-rdv', onclick: () => annuler(r) }, 'Annuler le rendez-vous'));
+    if (!r.annule) boutons.push(h('button', { type: 'button', class: 'bouton rdv-bouton-danger', 'data-action': 'annuler-rdv', onclick: () => annuler(r) }, 'Annuler le rendez-vous'));
 
     remplir(zone,
       h('header', { class: 'page-tete' }, h('div', {}, h('h1', {}, [r.client || 'Rendez-vous', r.commune].filter(Boolean).join(' · '), badgeTest(r)),
@@ -157,8 +180,8 @@ export function rendreFiche(conteneur, id) {
       h('div', { class: 'page-actions' }, h('span', { class: `pastille-statut rdv-etat-${etat === 'annule' ? 'a_reprendre' : etat}`, dataset: { role: 'etat' } }, nomEtat(r)), menu)),
       confirme ? h('div', { class: 'rdv-bandeau rdv-bandeau-confirme', dataset: { role: 'bandeau-confirme' } }, `Rendez-vous confirmé : ${R.formaterCreneau(r.creneauChoisi)}.`) : null,
       bilan.incomprises ? h('div', { class: 'rdv-bandeau rdv-bandeau-rouge', role: 'alert', dataset: { role: 'bandeau-incompris' } }, icone('triangle-alert', { taille: 18 }), bilan.incomprises > 1 ? R.TEXTE_REPONSES_INCOMPRISES : R.TEXTE_REPONSE_INCOMPRISE) : null,
-      bandeau ? h('div', { class: 'rdv-bandeau rdv-bandeau-violet', dataset: { role: 'bandeau-creneau', type: bandeau.type } }, bandeau.texte) : null,
-      h('section', { class: 'carte-section' }, h('h2', {}, 'Qui peut quand'), parts.length ? tableau(r, parts, bilan) : h('p', { class: 'aide' }, 'Aucun participant.'), legende()),
+      bandeau ? h('div', { class: 'rdv-bandeau rdv-bandeau-violet', role: 'status', dataset: { role: 'bandeau-creneau', type: bandeau.type } }, bandeau.texte) : null,
+      h('section', { class: 'carte-section' }, h('h2', {}, 'Qui peut quand'), parts.length ? tableau(r, parts, ouvert) : h('p', { class: 'aide' }, 'Aucun participant.'), legende()),
       h('div', { class: 'ligne-boutons rdv-boutons-fiche' }, boutons),
       h('section', { class: 'carte-section' }, h('h2', {}, 'Historique des SMS'), historique(r, parts)));
   }

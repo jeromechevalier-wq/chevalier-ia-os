@@ -9,7 +9,9 @@ test.beforeEach(async ({ context }) => {
 });
 
 const dansJours = (n, h = 10) => { const d = new Date(Date.now() + n * 86400000); d.setUTCHours(h - 1, 0, 0, 0); return d.toISOString(); };
-const il = (n, h) => dansJours(n, h);
+// Créneaux à dates FIXES en hiver (Paris = UTC+1) : le test ne dépend plus de la saison où il tourne. 10h, 14h et 9h heure de Paris.
+const CRENEAUX = ['2031-02-18T09:00:00.000Z', '2031-02-19T13:00:00.000Z', '2031-02-20T08:00:00.000Z'];
+const il = (n, h) => (n === 5 && h === 10 ? CRENEAUX[0] : n === 6 && h === 14 ? CRENEAUX[1] : n === 7 && h === 9 ? CRENEAUX[2] : dansJours(n, h));
 async function semer(id = 'r1', extra = {}) {
   await ecrireDocument(`rdv_rendezvous/${id}`, {
     client: 'M. Durand', objet: 'Visite avant terrassement', adresse: '12 rue des Lilas\n69000 Lyon', commune: 'Lyon', creneaux: [il(5, 10), il(6, 14), il(7, 9)],
@@ -117,6 +119,10 @@ test('13 une réponse non comprise : bandeau rouge, SMS d’alerte, relances sus
   await expect(page.locator('tr[data-participant="p2"] td[data-creneau="2"] [data-symbole]')).toHaveAttribute('data-symbole', 'oui');
   await expect(page.locator('[data-role="bandeau-creneau"]')).toHaveText('Le créneau 2 convient à tout le monde. Seul toi peux le confirmer.');
   await expect(page.locator('[data-action="confirmer-creneau"]')).toHaveText('Confirmer le créneau 2');
+  await expect.poll(async () => (await lireDocument('rdv_rendezvous/r1'))?.etat).toBe('a_valider'); // la colonne de la carte suit
+  await expect(page.locator('[data-role="etat"]')).toHaveText('À valider');
+  await expect(page.locator('tr[data-participant="p2"] [data-role="saisie-par-toi"]')).toHaveText('Coché par toi');
+  await expect(page.locator('tr[data-participant="p2"] [data-action="saisir-reponse"]')).toHaveText('Corriger'); // une erreur de coche se corrige
 });
 
 test('confirmer : bandeau violet « Pour l’instant… », bouton jaune, un clic confirme (état Confirmés, créneau choisi), la pluie devient possible', async ({ page }) => {
@@ -131,13 +137,19 @@ test('confirmer : bandeau violet « Pour l’instant… », bouton jaune, un cli
   await expect(page.locator('[data-action="prevenir-pluie"]')).toHaveCount(0);
   await capture(page, 'confirmer-bandeau');
   await page.getByRole('button', { name: 'Confirmer le créneau 3' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Il convient à 2 personnes sur 4. Une fois confirmé, tout le monde sera prévenu par SMS.');
+  await capture(page, 'confirmer-fenetre');
+  await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
+  expect((await lireDocument('rdv_rendezvous/r1')).etat).toBe('en_attente'); // un clic par erreur ne confirme rien
+  await page.getByRole('button', { name: 'Confirmer le créneau 3' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirmer le créneau 3' }).click();
   await expect(page.locator('[data-role="bandeau-confirme"]')).toBeVisible();
   await expect.poll(async () => (await lireDocument('rdv_rendezvous/r1'))?.etat).toBe('confirme');
   const r = await lireDocument('rdv_rendezvous/r1');
   expect(r.etat).toBe('confirme');
   expect(new Date(r.creneauChoisi).getTime()).toBe(new Date((await lireDocument('rdv_rendezvous/r1')).creneaux[2]).getTime());
   expect(r.confirmeLe).toBeTruthy();
-  await expect(page.locator('[data-role="etat"]')).toHaveText('Confirmés');
+  await expect(page.locator('[data-role="etat"]')).toHaveText('Confirmé');
   await expect(page.locator('[data-action="confirmer-creneau"]')).toHaveCount(0);
   await expect(page.locator('[data-action="prevenir-pluie"]')).toBeVisible();
   await page.locator('.lien-retour').click();
