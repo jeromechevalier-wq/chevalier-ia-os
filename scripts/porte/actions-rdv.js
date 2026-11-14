@@ -1,11 +1,11 @@
-// Actions de la porte pour le module Rendez-vous : les workflows n8n envoient les SMS (ClickSend) et reçoivent les réponses ; la plateforme décide de TOUT le reste.
+// Actions de la porte pour le module Rendez-vous : le serveur (functions/src/coeur/sms-direct.js) envoie les SMS par ClickSend et reçoit les réponses en appelant ces actions directement ; la plateforme décide de TOUT le reste.
 //  - rdv.aEnvoyer           : liste les SMS dus maintenant (premiers SMS, relances, alerte de fin, rappel de la veille, confirmation, alertes, SMS écrits à la main), avec le texte EXACT
 //                             (déjà normalisé et compté) et le numéro cible. Chaque SMS est RÉSERVÉ 15 minutes (aucun doublon entre « lire » et « confirmer », même si deux workflows tournent) ;
 //  - rdv.confirmerEnvoi     : le workflow dit « envoyé » (avec l'identifiant du fournisseur) ou « raté ». Rejouable : un SMS déjà confirmé répond `deja: true` ;
 //  - rdv.enregistrerReponse : une réponse reçue (numéro, texte, identifiant du message chez le fournisseur). Rattachée au bon participant, jamais deux fois (idempotente) ;
 //                             « STOP » désinscrit le numéro ; un numéro présent dans deux rendez-vous ouverts n'est jamais deviné (la professionnelle tranche).
 // Chaque SMS a un identifiant d'échéance DÉTERMINISTE (logique.js, idEcheance) qui sert d'identifiant de document : deux appels simultanés ne peuvent pas créer deux SMS.
-// La porte ne parle jamais à ClickSend : n8n envoie le texte reçu tel quel. Le journal de la porte ne reçoit ni numéro, ni texte (ligneDeJournal : liste blanche).
+// La porte ne parle jamais à ClickSend : l'appelant envoie le texte reçu tel quel. Le journal de la porte ne reçoit ni numéro, ni texte (ligneDeJournal : liste blanche).
 import { ErreurAction } from './actions-veille.js';
 import * as R from '../../js/modules/rdv/logique.js';
 
@@ -14,6 +14,7 @@ export const ESSAIS_MAX = 3;
 export const MAX_PAR_APPEL = 40;
 const LOT_MAX = 18; // une opération en moins que la limite de 20 de l'adaptateur : marge pour le repère « déjà vu »
 const T = { rdv: 'rdv_rendezvous', part: 'rdv_participants', msg: 'rdv_messages', param: 'rdv_parametres' };
+export const REESSAI_APRES_ECHEC_MS = 10 * 60_000; // après un échec, le SMS n'est pas redemandé avant 10 minutes : trois clics rapides ne brûlent jamais les trois essais (3 échecs = au moins 20 minutes)
 const PRECONDITION = (v) => v && typeof v === 'object' && v.preconditionEchouee === true;
 
 const chemin = (base, table, id) => `${base ? `${base}/` : ''}${table}${id === undefined ? '' : `/${id}`}`;
@@ -66,7 +67,8 @@ async function reserver(ctx, docId, creation, maintenantMs) {
   const existant = await donnees.lireDoc(ch);
   if (!existant) return null;
   const expiree = existant.etatEnvoi === 'reserve' && enMs(existant.reserveJusqua) <= maintenantMs;
-  const libre = existant.etatEnvoi === 'a_envoyer' || existant.etatEnvoi === 'echec' || expiree;
+  const enAttenteDeReessai = existant.etatEnvoi === 'echec' && enMs(existant.reessaiApres) > maintenantMs; // échec récent : pas avant le délai (un clic répété ne brûle pas les essais)
+  const libre = existant.etatEnvoi === 'a_envoyer' || (existant.etatEnvoi === 'echec' && !enAttenteDeReessai) || expiree;
   if (!libre) return null;
   if (expiree) {
     // Réservation expirée = le SMS est peut-être parti sans que sa confirmation soit arrivée : chaque reprise compte comme un essai, et après 3 on ne le renvoie plus jamais seul.
@@ -158,7 +160,7 @@ export const ACTIONS_RDV = Object.freeze({
       if (!m || m.sens === 'entrant') throw new ErreurAction('message_inconnu', 'Ce message n\'existe pas.', 404);
       if (m.etatEnvoi === 'envoye') { await appliquerSuites(ctx, m, maintenantMs); return { messageId: d.messageId, statut: 'ok', deja: true }; } // rejeu : on refait les suites (idempotentes) au cas où un plantage les aurait interrompues
       if (m.etatEnvoi === 'abandonne' && d.statut !== 'ok') return { messageId: d.messageId, statut: 'echec', deja: true };
-      // Un « ok » qui arrive APRÈS l'abandon (n8n lent : le SMS est bien parti) remet le SMS à « envoyé » et applique les suites.
+      // Un « ok » qui arrive APRÈS l'abandon (réponse lente : le SMS est bien parti) remet le SMS à « envoyé » et applique les suites.
       if (d.statut === 'ok') {
         const r = await donnees.majDoc(ch, { etatEnvoi: 'envoye', envoyeLe: new Date(maintenantMs), reserveJusqua: null, ...(d.idFournisseur ? { idFournisseur: d.idFournisseur } : {}) }, { lastUpdateTime: m.updateTime });
         if (PRECONDITION(r)) { const apres = await donnees.lireDoc(ch); if (apres?.etatEnvoi === 'envoye') return { messageId: d.messageId, statut: 'ok', deja: true }; throw new ErreurAction('conflit', 'Le message a changé : réessaie.', 409); }
@@ -167,8 +169,24 @@ export const ACTIONS_RDV = Object.freeze({
       }
       const essais = (m.essais ?? 0) + 1;
       const abandon = essais >= ESSAIS_MAX;
-      await donnees.majDoc(ch, { etatEnvoi: abandon ? 'abandonne' : 'echec', essais, reserveJusqua: null, ...(abandon ? { envoyeLe: new Date(maintenantMs) } : {}), ...(d.message ? { erreur: d.message } : {}) });
+      await donnees.majDoc(ch, { etatEnvoi: abandon ? 'abandonne' : 'echec', essais, reserveJusqua: null, ...(abandon ? { envoyeLe: new Date(maintenantMs) } : { reessaiApres: new Date(maintenantMs + REESSAI_APRES_ECHEC_MS) }), ...(d.message ? { erreur: d.message } : {}) });
       return { messageId: d.messageId, statut: 'echec', essais, abandonne: abandon, deja: false };
+    },
+  },
+
+  // Rend un SMS réservé à « à envoyer » SANS compter d'essai : l'appelant sait que rien n'est parti (clé refusée, crédit épuisé, ClickSend indisponible, budget de temps dépassé).
+  // Sans cela, chaque réservation expirée compterait comme un essai et trois pannes passagères abandonneraient le SMS pour toujours.
+  'rdv.libererEnvoi': {
+    ecrit: true,
+    schema: { messageId: { type: 'id', requis: true } },
+    async executer(ctx, d) {
+      const { base, donnees } = ctx;
+      const ch = chemin(base, T.msg, d.messageId);
+      const m = await donnees.lireDoc(ch);
+      if (!m || m.sens === 'entrant') throw new ErreurAction('message_inconnu', 'Ce message n\'existe pas.', 404);
+      if (m.etatEnvoi !== 'reserve') return { messageId: d.messageId, libere: false };
+      const r = await donnees.majDoc(ch, { etatEnvoi: 'a_envoyer', reserveJusqua: null }, { lastUpdateTime: m.updateTime });
+      return { messageId: d.messageId, libere: !(r === false || PRECONDITION(r)) };
     },
   },
 

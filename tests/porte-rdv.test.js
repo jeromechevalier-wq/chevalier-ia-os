@@ -170,12 +170,14 @@ describe('rdv.confirmerEnvoi : rejouable', () => {
     assert.equal(m.base.docs.get('rdv_rendezvous/r1').d.relancesFaites, 1);
     assert.equal((await m.action('rdv.aEnvoyer')).nombre, 0, 'la relance 2 attend 24 h après l\'envoi réel de la 1');
   });
-  test('« echec » : le SMS revient à l\'appel suivant ; après 3 échecs il est abandonné', async () => {
+  test('« echec » : le SMS revient après le délai de 10 minutes ; après 3 échecs il est abandonné', async () => {
     const m = monde(); m.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
     const id = (await m.action('rdv.aEnvoyer')).messages[0].messageId;
     for (let i = 1; i < ESSAIS_MAX; i++) {
       const r = await m.action('rdv.confirmerEnvoi', { messageId: id, statut: 'echec', message: 'réseau' });
       assert.deepEqual([r.statut, r.essais, r.abandonne], ['echec', i, false]);
+      assert.equal((await m.action('rdv.aEnvoyer')).messages.length, 0, 'pas avant le délai de 10 minutes après un échec');
+      m.temps.t += 11 * 60_000;
       assert.equal((await m.action('rdv.aEnvoyer')).messages[0].messageId, id);
     }
     const dernier = await m.action('rdv.confirmerEnvoi', { messageId: id, statut: 'echec' });
@@ -399,5 +401,39 @@ describe('réponse reçue après la confirmation', () => {
     const alertes = dus.messages.filter((x) => x.typeMessage === 'alerte');
     assert.equal(alertes.length, 1);
     assert.match(alertes[0].texte, /après la confirmation/);
+  });
+});
+
+describe('rdv.libererEnvoi', () => {
+  test('un SMS réservé redevient « à envoyer » SANS compter d’essai et revient au tir suivant avec le même identifiant ; sinon rien ne change', async () => {
+    const m = monde(); m.semer();
+    const premier = await m.action('rdv.aEnvoyer');
+    const { messageId } = premier.messages[0];
+    assert.equal(m.base.docs.get(`rdv_messages/${messageId}`).d.etatEnvoi, 'reserve');
+    assert.deepEqual(await m.action('rdv.libererEnvoi', { messageId }), { messageId, libere: true });
+    const doc = m.base.docs.get(`rdv_messages/${messageId}`).d;
+    assert.deepEqual([doc.etatEnvoi, doc.essais, doc.reserveJusqua], ['a_envoyer', 0, null]);
+    const second = await m.action('rdv.aEnvoyer');
+    assert.ok(second.messages.some((x) => x.messageId === messageId), 'le même SMS revient tout de suite');
+    assert.equal(m.base.docs.get(`rdv_messages/${messageId}`).d.essais, 0);
+    // déjà envoyé : on ne touche à rien
+    await m.action('rdv.confirmerEnvoi', { messageId, statut: 'ok' });
+    assert.deepEqual(await m.action('rdv.libererEnvoi', { messageId }), { messageId, libere: false });
+    assert.equal(m.base.docs.get(`rdv_messages/${messageId}`).d.etatEnvoi, 'envoye');
+  });
+  test('un échec n’est pas redemandé avant 10 minutes (trois clics rapides ne brûlent pas les trois essais) ; ensuite il revient avec le même identifiant', async () => {
+    const m = monde(); m.semer();
+    const { messageId } = (await m.action('rdv.aEnvoyer')).messages[0];
+    await m.action('rdv.confirmerEnvoi', { messageId, statut: 'echec', message: 'refus' });
+    for (let k = 0; k < 3; k += 1) assert.ok(!(await m.action('rdv.aEnvoyer')).messages.some((x) => x.messageId === messageId), 'pas avant le délai');
+    m.temps.t += 11 * 60_000;
+    assert.ok((await m.action('rdv.aEnvoyer')).messages.some((x) => x.messageId === messageId), 'après 10 minutes, il revient');
+    assert.equal(m.base.docs.get(`rdv_messages/${messageId}`).d.essais, 1);
+  });
+  test('message inconnu ou entrant : 404', async () => {
+    const m = monde(); m.semer();
+    await assert.rejects(() => m.action('rdv.libererEnvoi', { messageId: 'inconnu' }), (e) => e.code === 'message_inconnu');
+    m.base.docs.set('rdv_messages/in_x', { v: 1, d: { sens: 'entrant', etatEnvoi: 'recu' } });
+    await assert.rejects(() => m.action('rdv.libererEnvoi', { messageId: 'in_x' }), (e) => e.code === 'message_inconnu');
   });
 });

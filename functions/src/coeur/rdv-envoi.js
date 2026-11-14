@@ -1,11 +1,11 @@
 // Module Rendez-vous : ce que l'écran demande au serveur pour faire PARTIR des SMS (« Envoyer les propositions », « Prévenir de la pluie », « Annuler le rendez-vous » avec SMS).
 // Le même code chez Jérôme et chez les clients (`donnees` est déjà cadré sur l'espace : `avecBase` chez un client).
-//  - envoyerPropositions : note la demande d'envoi sur le rendez-vous (`envoiDemandeLe`) puis dit à n8n « tire maintenant » (identifiants seulement, coeur/n8n-sortie.js). Les SMS eux-mêmes sont
-//    fabriqués et réservés par la porte (rdv.aEnvoyer) : un seul chemin d'envoi. Si n8n ne répond pas, le workflow planifié (toutes les 15 minutes) enverra quand même ;
-//  - envoyerSms          : crée un SMS « a_envoyer » par participant avec le texte écrit à la main (normalisé et compté ici, par le serveur), puis dit à n8n « tire maintenant ».
-// Rien ne part si n8n n'est pas branché pour l'espace (secrets N8N_RDV_URL / N8N_RDV_SECRET) : la demande est refusée AVANT d'écrire quoi que ce soit.
+//  - envoyerPropositions : note la demande d'envoi sur le rendez-vous (`envoiDemandeLe`) puis demande « tire maintenant » à coeur/sms-direct.js. Les SMS eux-mêmes sont
+//    fabriqués et réservés par la porte (rdv.aEnvoyer) : un seul chemin d'envoi. Si l'envoi n'aboutit pas, la fonction planifiée (toutes les 15 minutes) enverra quand même ;
+//  - envoyerSms          : crée un SMS « a_envoyer » par participant avec le texte écrit à la main (normalisé et compté ici, par le serveur), puis demande « tire maintenant ».
+// Rien ne part si l'envoi n'est pas branché pour l'espace (secret CLICKSEND_RDV[_client] : coeur/sms-direct.js) : la demande est refusée AVANT d'écrire quoi que ce soit.
 import * as R from '../../partage/rdv.js';
-import { ErreurSortieN8n } from './n8n-sortie.js';
+import { ErreurSortieSms } from './sms-direct.js';
 
 export const MESSAGE_RDV_NON_BRANCHE = 'L’envoi des SMS n’est pas encore branché sur cet espace.';
 export const TYPES_SMS_MANUEL = Object.freeze(['pluie', 'annulation']);
@@ -35,10 +35,14 @@ async function lireRendezVous(donnees, rendezVousId) {
   return { rdv, participants };
 }
 
-/** « Tire maintenant » : vrai si n8n a répondu. Une panne de n8n n'annule rien (le workflow planifié enverra) ; « pas branché » est refusé avant. */
+/** « Tire maintenant » : vrai si le tir a abouti. Une panne n'annule rien (la fonction planifiée enverra) ; « pas branché » est refusé avant. */
 async function declencher(sortie, espace, rendezVousId) {
-  try { await sortie.tirerRdv(espace, { rendezVousId }); return true; } catch (e) {
-    if (e instanceof ErreurSortieN8n && e.genre !== 'non_branche') return false;
+  try {
+    const bilan = await sortie.tirerRdv(espace, { rendezVousId });
+    // Vrai seulement si le tir est allé au bout sans arrêt, doute ni refus : sinon la demande reste notée et l'écran dit que l'envoi partira dans quelques minutes (jamais « envoyé » à tort).
+    return !bilan || (!bilan.arret && !bilan.incertains && !bilan.restants && !bilan.echecs);
+  } catch (e) {
+    if (e instanceof ErreurSortieSms && e.genre !== 'non_branche') return false;
     throw e;
   }
 }

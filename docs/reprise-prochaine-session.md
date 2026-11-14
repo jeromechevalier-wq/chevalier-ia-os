@@ -2,7 +2,7 @@
 
 ## Rapport du matin du 14/11/2026 : module « Rendez-vous » (4 PR), prêt à brancher
 
-Module `rdv` autonome (socle), même code chez Jérôme et chez les clients. Spécification des SMS et de n8n : `docs/rdv-workflows-n8n.md`. Aucune donnée de Jérôme touchée, aucune règle Firestore touchée, rien déployé chez les clients.
+Module `rdv` autonome (socle), même code chez Jérôme et chez les clients. Spécification des SMS : `docs/rdv-sms-clicksend.md`. Aucune donnée de Jérôme touchée, aucune règle Firestore touchée, rien déployé chez les clients.
 
 | Sujet | PR | État |
 |---|---|---|
@@ -12,12 +12,11 @@ Module `rdv` autonome (socle), même code chez Jérôme et chez les clients. Sp�
 | Serveur : porte `rdv.*`, fonctions `rdvEtat` / `rdvEnvoyer` (Jérôme ET clients), sortie n8n, écran | 613 | fusionnée (coche « Tests » verte, deux relectures Fable) |
 | Règles Firestore : réserver `rdv_messages` et `rdv_parametres/desinscrits` au serveur | non faite | **liste d'arrêt** : jamais sans ton accord |
 
-**Ce que Jérôme fait pour tester (dans l'ordre, détail dans `docs/rdv-workflows-n8n.md`)** :
-1. n8n : créer le secret « Webhook rendez-vous » (en-tête `X-Chevalier-Secret`) et le choisir dans le webhook de `interne-rdv-envoyer-les-sms` ; créer le secret ClickSend (Basic Auth) et le choisir dans l'étape d'envoi. **Ne pas publier avant.**
-2. Secret Manager (projet `chevalier-ia-os`) : `N8N_RDV_URL` et `N8N_RDV_SECRET`, avec « Accesseur de secrets » pour le compte de service des fonctions.
-3. ClickSend : règle « SMS entrants » vers l'adresse du workflow `interne-rdv-recevoir-une-reponse`.
-4. Réglages > Rendez-vous : « Numéro des SMS de test », puis un rendez-vous marqué test. Jamais d'envoi à un tiers avant d'avoir vu un SMS arriver sur ce numéro.
-5. Publier les deux workflows ; « Envoyer les propositions » devient actif tout seul.
+**Ce que Jérôme fait pour tester (dans l'ordre, détail dans `docs/rdv-sms-clicksend.md`)** — les SMS partent maintenant DIRECTEMENT par ClickSend, plus de n8n pour ce module :
+1. Secret Manager (projet `chevalier-ia-os`) : créer `CLICKSEND_RDV` (JSON : identifiant, clé d'API, jeton aléatoire) et donner « Accesseur de secrets » à `porte-serveur@chevalier-ia-os.iam.gserviceaccount.com`.
+2. Après la fusion (le site et les fonctions de Jérôme se déploient tout seuls) : console Firebase > Functions > `rdvReponseSms` > copier l'adresse, ajouter `/<jeton>`, la mettre dans la règle « SMS entrants » de ClickSend.
+3. Réglages > Rendez-vous : numéro des SMS de test = ton mobile, nom de l'entreprise ; créer un rendez-vous marqué test et « Envoyer les propositions » : le SMS arrive sur ton numéro de test seulement.
+4. Répondre « 1 », puis « STOP » : vérifier la fiche et l'alerte.
 
 **Conformité des SMS (à traiter avant le premier envoi à un tiers)** : ClickSend a mis deux SMS d'essai en « CancelledAfterReview » (nom de l'entreprise dans chaque message, moyen simple de se désabonner). Les 6 modèles par défaut ne portent pas encore « Répondez STOP » ni le nom partout ; effet sur la limite de 160 caractères à décider avec Jérôme. Page à lire : « Managing opt-outs » de ClickSend.
 

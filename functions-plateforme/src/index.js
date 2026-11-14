@@ -15,12 +15,14 @@ import { creerMcpClients } from './mcp-clients.js';
 import { reglerEspace } from './espace.js';
 import { deciderClient } from './propositions.js';
 import { transitionDevis, preparerEmailDevis, etatPreparerEmail } from './devis.js';
-import { envoyerRdv, etatRdv } from './rdv.js';
+import { envoyerRdv, etatRdv, tirerPourTous } from './rdv.js';
+import { creerSmsDirect, creerGestionnaireReponses } from '../serveur/src/coeur/sms-direct.js';
+import { creerAdaptateur } from '../serveur/partage/porte/adaptateur.js';
 import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient } from './devis-pdf.js';
 import { appelDocument } from './documents.js';
 import { verifierDeploiementClient } from './deploiement.js';
 import { VERSION_SERVEUR } from '../serveur/src/version.js';
-import { creerGestionnairePortePlateforme } from './porte.js';
+import { creerGestionnairePortePlateforme, creerModulesActifs } from './porte.js';
 import { creerSortieN8n } from '../serveur/src/coeur/n8n-sortie.js';
 import { creerLecteurSecrets } from '../serveur/src/securite/secrets.js';
 import { creerStockage } from '../serveur/src/devis/stockage.js';
@@ -134,14 +136,34 @@ export const devisPreparerEmailEtat = onCall(OPTIONS_DEVIS, async (requete) => {
 });
 
 // Module Rendez-vous chez les clients (14/11/2026) : « Envoyer les propositions », SMS de pluie ou d'annulation (rdvEnvoyer) et l'état du branchement (rdvEtat). Même code que chez Jérôme (serveur/src/coeur/rdv-envoi.js).
-// UN webhook n8n et UN secret PAR CLIENT (N8N_RDV_URL_<client>, N8N_RDV_SECRET_<client>), lus au moment de l'appel : sans eux, « Envoyer » reste grisé. AUCUN secret déclaré (un secret absent ferait échouer le déploiement de toutes
-// les fonctions). Éditeurs seulement, module « rdv » actif exigé. Déployées seulement par le workflow MANUEL de la plateforme, avec Jérôme.
-export const rdvEnvoyer = onCall(OPTIONS_DEVIS, async (requete) => {
-  try { return await envoyerRdv({ db: db(), auth: requete.auth, donnees: requete.data, sortie: sortieN8nDevis }); } catch (e) { throw enHttps(e); }
+// Les SMS partent DIRECTEMENT par l'API de ClickSend (serveur/src/coeur/sms-direct.js) avec la connexion DU client : secret CLICKSEND_RDV_<client> (identifiant, clé, jeton de l'adresse de réponse), lu au moment
+// de l'appel : sans lui, « Envoyer » reste grisé. AUCUN secret déclaré (un secret absent ferait échouer le déploiement de toutes les fonctions). Éditeurs seulement, module « rdv » actif exigé.
+// Déployées seulement par le workflow MANUEL de la plateforme, avec Jérôme.
+const smsDirect = creerSmsDirect({
+  lireSecret: creerLecteurSecrets({ projet: 'chevalier-ia-app' }),
+  donneesDe: (client) => ({ base: `clients/${client}`, donnees: creerAdaptateur({ db: db() }) }),
+  moduleActif: async (client) => (await creerModulesActifs({ db: db() })(client)).includes('rdv'),
+  espaceRacine: null, // sur la plateforme, tous les secrets portent le nom du client (un client nommé « interne » garde son suffixe)
+});
+export const rdvEnvoyer = onCall({ ...OPTIONS_DEVIS, timeoutSeconds: 120 }, async (requete) => {
+  try { return await envoyerRdv({ db: db(), auth: requete.auth, donnees: requete.data, sortie: smsDirect }); } catch (e) { throw enHttps(e); }
 });
 export const rdvEtat = onCall(OPTIONS_DEVIS, async (requete) => {
-  try { return await etatRdv({ db: db(), auth: requete.auth, donnees: requete.data, sortie: sortieN8nDevis }); } catch (e) { throw enHttps(e); }
+  try { return await etatRdv({ db: db(), auth: requete.auth, donnees: requete.data, sortie: smsDirect }); } catch (e) { throw enHttps(e); }
 });
+// Filet : toutes les 15 minutes, les SMS dus de chaque client branché (relances, rappel de la veille, confirmation…).
+export const rdvEnvoiPlanifie = onSchedule(
+  { region: REGION, schedule: '*/15 * * * *', timeZone: 'Europe/Paris', timeoutSeconds: 300, memory: '256MiB', maxInstances: 1 },
+  async () => {
+    const bilan = await tirerPourTous({ db: db(), sortie: smsDirect, modulesActifs: creerModulesActifs({ db: db() }) });
+    if (bilan.branches || bilan.interrompu) logger.info('Rendez-vous : tir planifié', bilan);
+  },
+);
+// Réponses par SMS : ClickSend appelle cette adresse (POST) avec « <client>/<jeton> » en chemin. Invocation publique côté Google ; la vraie porte est le jeton (sinon 404, sans rien dire).
+export const rdvReponseSms = onRequest(
+  { region: REGION, invoker: 'public', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60 },
+  creerGestionnaireReponses({ sms: smsDirect, journal: (e) => logger.error('Rendez-vous : réponse par SMS en échec', { code: e.code }) }),
+);
 
 // PDF des devis chez les clients : fabriqué PAR LE SERVEUR dès qu'un devis passe de brouillon à finalisé (déclencheur `devisPdfAuto`), jamais par le navigateur. Chromium tourne dans la fonction
 // (2 GiB) ; le PDF est rangé dans Cloud Storage sous clients/<client>/devis/… (jamais public) et lu par un lien signé de 5 minutes (`devisPdfLien`, éditeurs ET lecteurs).

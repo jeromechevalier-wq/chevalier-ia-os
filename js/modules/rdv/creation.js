@@ -136,7 +136,7 @@ export function rendreCreation(conteneur) {
   const boutonEnvoyer = h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'envoyer-propositions', disabled: true, title: MESSAGE_ENVOI_NON_BRANCHE, onclick: () => enregistrer({ envoyer: true }) }, 'Envoyer les propositions');
   const boutonEnregistrer = h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'enregistrer-rdv', onclick: () => enregistrer() }, 'Enregistrer sans envoyer');
   const phraseEnvoi = h('p', { class: 'aide', dataset: { role: 'envoi-non-branche' } }, MESSAGE_ENVOI_NON_BRANCHE);
-  /** « Envoyer » n'est actif que si le serveur dit que n8n est branché pour cet espace ; sinon il reste grisé avec sa phrase. */
+  /** « Envoyer » n'est actif que si le serveur dit que l'envoi des SMS est branché pour cet espace ; sinon il reste grisé avec sa phrase. */
   function majEnvoi() {
     const branche = D.envoiBranche() === true;
     boutonEnvoyer.disabled = !branche;
