@@ -16,6 +16,7 @@ const VUES = {
   idees: () => import('./idees-ecran.js').then((m) => ({ rendre: m.rendreIdees, oublier: m.oublierFiltresIdees })),
   inspirations: () => import('./inspirations-ecran.js').then((m) => ({ rendre: m.rendreInspirations, oublier: m.oublierFiltresInspirations })),
   relations: () => import('./relations-ecran.js').then((m) => ({ rendre: m.rendreRelations, oublier: m.oublierFiltresRelations })),
+  frequentation: () => import('./frequentation-ecran.js').then((m) => ({ rendre: m.rendreFrequentation, oublier: m.oublierFiltresFrequentation })),
   import: () => import('./import-ecran.js').then((m) => ({ rendre: m.rendreImport, oublier: m.oublierFiltresImport })),
 };
 

@@ -50,7 +50,7 @@ test('D1 le menu montre « Réseaux sociaux » entre Veille et Rendez-vous ; les
   await page.evaluate(() => { location.hash = '#/reseauxsociaux'; }); // la route nue mène à Aujourd'hui
   await expect(page).toHaveURL(/#\/reseauxsociaux\/aujourdhui$/);
   await expect(page.getByRole('heading', { name: 'Aujourd’hui', level: 1 })).toBeVisible();
-  await expect(onglets(page)).toHaveText(['Aujourd’hui', 'Posts', 'Idées', 'Inspirations', 'Relations', 'Import']);
+  await expect(onglets(page)).toHaveText(['Aujourd’hui', 'Posts', 'Idées', 'Inspirations', 'Relations', 'Site web', 'Import']);
   await expect(onglets(page).nth(0)).toHaveAttribute('aria-current', 'page');
   await capture(page, 'D1-onglets');
   for (const [libelle, route] of [['Posts', 'posts'], ['Idées', 'idees'], ['Inspirations', 'inspirations'], ['Relations', 'relations'], ['Import', 'import']]) {
