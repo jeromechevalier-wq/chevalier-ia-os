@@ -3,7 +3,7 @@
 //
 // Formes de données (tables `rdv_…`, voir docs/tables.md) :
 //  - rendez-vous : { id, client, objet, adresse, commune, creneaux: [ISO…] (1 à 3), etat, creneauChoisi, archive,
-//      tour, envoiDemandeLe, confirmeLe, annule, test }
+//      tour, envoiDemandeLe, confirmeLe, annule, test, relancesTermineesLe (écrit par le serveur avec l'alerte de fin) }
 //  - participant : { id, rendezVousId, personneId, nom, role, telephone (+33…), reponse, etatReponse,
 //      creneauxOk: [1, 3], reponseLe, idReponse }
 //  - message (jamais modifié) : { id, rendezVousId, tour, sens: 'sortant'|'entrant', numero, texte, caracteres,
@@ -115,6 +115,12 @@ export function prochaineOuverture(ms, plage) {
   if (minutes >= debut && minutes <= fin) return ms;
   const j = minutes < debut ? { annee: p.annee, mois: p.mois, jour: p.jour } : jourParisPlusN(ms, 1);
   return instantDepuisParis(j.annee, j.mois, j.jour, Math.floor(debut / 60), debut % 60);
+}
+
+/** Minuit de Paris au début du jour du créneau : le rappel « demain » ne part plus à partir de là. */
+export function debutDuJour(ms) {
+  const j = jourParisPlusN(ms, 0);
+  return instantDepuisParis(j.annee, j.mois, j.jour, 0, 0);
 }
 
 /** Rappel de la veille : la veille (jour de Paris) du créneau, à l'heure réglée. */
@@ -282,12 +288,19 @@ export const EXEMPLE_SMS = Object.freeze({
 
 const typeDeModele = { confiance: 'confiance', creneaux: 'creneaux', relance: 'relance', confirmation: 'confirmation', rappel: 'rappel', pluie: 'pluie' };
 
-/** Remplace les variables `{nom}` ; une variable inconnue ou vide est laissée telle quelle (visible dans l'aperçu). */
+/**
+ * Remplace les variables `{nom}`. Une variable inconnue ou vide est laissée telle quelle (visible dans l'aperçu), sauf les
+ * variables facultatives (`adresse`) : vides, elles disparaissent avec leur ligne.
+ */
+export const VARIABLES_FACULTATIVES = ['adresse'];
 export function remplirModele(modele, valeurs = {}) {
-  return String(modele ?? '').replace(/\{([a-z_]+)\}/g, (tout, nom) => {
+  let retire = false;
+  const texte = String(modele ?? '').replace(/\{([a-z_]+)\}/g, (tout, nom) => {
     const v = valeurs[nom];
+    if (VARIABLES_FACULTATIVES.includes(nom) && v === '') { retire = true; return ''; }
     return v === undefined || v === null || v === '' ? tout : String(v);
   });
+  return retire ? texte.replace(/[ \t]+\n/g, '\n').replace(/\n{2,}/g, '\n').replace(/\s+$/, '') : texte;
 }
 /** Variables d'un modèle qui ne sont pas dans la liste connue (pour refuser un modèle faux à l'enregistrement). */
 export function variablesInconnues(modele) {
@@ -397,6 +410,10 @@ export function appliquerReponse({ participant, rdv, texte, recuLe, idReponse, t
   const tour = Number.isFinite(tourReponse) ? tourReponse : (rdv?.tour ?? 1);
   if (tour < (rdv?.tour ?? 1)) return { historiqueSeulement: true, comprise: null, patch: null };
   const lu = interpreterReponse(texte, (rdv?.creneaux || []).length || MAX_CRENEAUX);
+  // Un « Merci » après une bonne réponse (ou après une saisie de la professionnelle) n'efface rien : trace seulement.
+  if (!lu.comprise && (participant?.etatReponse === 'comprise' || participant?.etatReponse === 'saisie')) {
+    return { historiqueSeulement: true, comprise: false, patch: null, alerteIncomprise: false };
+  }
   const patch = {
     reponse: String(texte ?? ''),
     etatReponse: lu.comprise ? 'comprise' : 'incomprise',
@@ -404,7 +421,7 @@ export function appliquerReponse({ participant, rdv, texte, recuLe, idReponse, t
     reponseLe: recuLe ?? null,
     idReponse: idReponse ?? null,
   };
-  return { historiqueSeulement: false, comprise: lu.comprise, patch, alerteIncomprise: !lu.comprise && participant?.etatReponse !== 'incomprise' };
+  return { historiqueSeulement: false, comprise: lu.comprise, patch, alerteIncomprise: !lu.comprise && (participant?.etatReponse !== 'incomprise' || participant?.idReponse !== (idReponse ?? null)) };
 }
 
 /** Réponse saisie à la main par la professionnelle : `creneauxOk` = numéros (1 à 3), vide = aucun. */
@@ -468,7 +485,10 @@ export function ligneEtat({ rdv, participants, parametres, messages, maintenant 
   if (b.incomprises) return b.incomprises === 1 ? 'Une réponse non comprise' : `${b.incomprises} réponses non comprises`;
   const texte = `${b.reponses} ${b.reponses > 1 ? 'réponses' : 'réponse'} sur ${b.total}`;
   const prochaine = prochaineRelance({ rdv, participants, parametres, messages });
-  if (prochaine && Number.isFinite(enMs(maintenant))) return `${texte} · Relance ${prochaine.numero} sur ${prochaine.sur} ${quandRelatif(prochaine.dueLe, maintenant)}`;
+  if (prochaine && Number.isFinite(enMs(maintenant))) {
+    const quand = enMs(prochaine.dueLe) <= enMs(maintenant) ? 'bientôt' : quandRelatif(prochaine.dueLe, maintenant);
+    return `${texte} · Relance ${prochaine.numero} sur ${prochaine.sur} ${quand}`;
+  }
   return texte;
 }
 
@@ -517,27 +537,52 @@ function valeursSms(rdv, p, extra = {}) {
   };
 }
 
+const enAttente = (x) => !x.etatReponse || x.etatReponse === 'attente';
+const dernierCreneau = (rdv) => Math.max(...(rdv?.creneaux || []).map(enMs).filter(Number.isFinite), -Infinity);
+
+/**
+ * Calendrier des relances, partagé par la carte et par `smsDus`. Seules les personnes joignables (avec un téléphone) et en attente comptent.
+ *  - le départ est le premier SMS de créneaux réellement envoyé ;
+ *  - la relance k est due au plus tôt `délai` après l'envoi RÉEL de la relance k-1 (jamais de rafale après une panne) ;
+ *  - une relance enregistrée sans horodatage d'envoi arrête le calendrier (on ne devine pas) ;
+ *  - `complet` : toutes les relances prévues sont faites (l'alerte de fin peut être due).
+ */
+function calendrierRelances({ rdv, participants, p, deja }) {
+  const tour = rdv.tour || 1;
+  const n = nombreRelances(p);
+  const joignables = (participants || []).filter((x) => x.telephone);
+  const attentes = joignables.filter(enAttente);
+  const envoiDe = (nature, x) => { const m = deja.get(idEcheance(rdv.id, tour, nature, x.id)); return m ? enMs(m.envoyeLe) : undefined; };
+  const departs = joignables.map((x) => envoiDe('creneaux', x)).filter(Number.isFinite);
+  const depart = departs.length ? Math.min(...departs) : NaN;
+  const sortie = { n, depart, attentes, etapes: [], derniere: Number.isFinite(depart) ? depart : null, complet: false };
+  if (!Number.isFinite(depart) || !attentes.length) return sortie;
+  for (let k = 1; k <= n; k++) {
+    let instant = depart + k * delaiRelance(p);
+    if (k > 1) {
+      const avant = attentes.map((x) => envoiDe(`relance${k - 1}`, x));
+      if (avant.some((v) => !Number.isFinite(v))) return sortie;
+      instant = Math.max(instant, Math.max(...avant) + delaiRelance(p));
+    }
+    const faits = attentes.map((x) => envoiDe(`relance${k}`, x));
+    sortie.etapes.push({ k, instant, cibles: attentes.filter((x, i) => faits[i] === undefined) });
+    if (faits.some((v) => !Number.isFinite(v))) return sortie;
+    sortie.derniere = Math.max(...faits);
+  }
+  sortie.complet = true;
+  return sortie;
+}
+
 /** Prochaine relance prévue (pour la carte) : { numero, sur, dueLe } ou null. */
 export function prochaineRelance({ rdv, participants, parametres, messages }) {
   const p = params(parametres);
-  const n = nombreRelances(p);
-  if (!n || !estOuvert(rdv) || !rdv?.id) return null;
-  if (!(participants || []).some((x) => !x.etatReponse || x.etatReponse === 'attente')) return null;
-  const deja = envoyes(messages);
-  const base = deja.get(idEcheance(rdv.id, rdv.tour, 'creneaux', premierParticipant(participants)));
-  if (!base) return null;
-  const depart = enMs(base.envoyeLe);
-  if (!Number.isFinite(depart)) return null;
-  for (let k = 1; k <= n; k++) {
-    const cibles = (participants || []).filter((x) => !x.etatReponse || x.etatReponse === 'attente');
-    const fait = cibles.every((x) => deja.has(idEcheance(rdv.id, rdv.tour, `relance${k}`, x.id)));
-    if (!fait) return { numero: k, sur: n, dueLe: versISO(prochaineOuverture(depart + k * delaiRelance(p), p.plage)) };
-  }
-  return null;
+  if (!nombreRelances(p) || !estOuvert(rdv) || !rdv?.id) return null;
+  const cal = calendrierRelances({ rdv, participants, p, deja: envoyes(messages) });
+  const etape = cal.etapes.find((e) => e.cibles.length);
+  return etape ? { numero: etape.k, sur: cal.n, dueLe: versISO(prochaineOuverture(etape.instant, p.plage)) } : null;
 }
-const premierParticipant = (participants) => (participants && participants[0] ? participants[0].id : '');
 
-/** Les relances d'un rendez-vous sont finies et plus de 24 h ont passé sans que tout le monde réponde (l'alerte est due). */
+/** Le serveur a écrit `rdv.relancesTermineesLe` (alerte de fin envoyée) et il manque encore des réponses : colonne « À reprendre ». */
 export function relancesTerminees(rdv, participants, parametres) {
   return !!rdv?.relancesTermineesLe && (participants || []).some((x) => !x.etatReponse || x.etatReponse === 'attente');
 }
@@ -564,6 +609,7 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
     if (!numero) return;
     const dueLe = def.horsPlage === false ? def.instant : prochaineOuverture(def.instant, p.plage);
     if (dueLe > nowMs) return;
+    if (Number.isFinite(def.avant) && (dueLe >= def.avant || nowMs >= def.avant)) return;
     const sms = def.texte ? preparerSms(def.texte) : construireSms(def.modele, def.valeurs, p);
     dus.push({
       idEcheance: def.idEcheance, typeMessage: def.typeMessage, sousType: def.sousType || null, participantId: def.participantId || null,
@@ -573,12 +619,12 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
     });
   };
   const valeurs = valeursSms(rdv, p);
-  const actifsAlerte = p.numerosAlerte.filter((n) => n && n.actif && n.numero);
+  const actifsAlerte = p.numerosAlerte.map((n, i) => (n ? { ...n, id: n.id || `n${i + 1}` } : n)).filter((n) => n && n.actif && n.numero);
   const alerter = (sousType, nature, ctx) => {
     for (const n of actifsAlerte) {
       proposer({
         idEcheance: idEcheance(rdv.id, tour, `alerte-${nature}`, n.id), typeMessage: 'alerte', sousType, numero: n.numero,
-        instant: ctx.instant, texte: texteAlerte(sousType, { client: rdv.client, ...ctx }).texte,
+        instant: ctx.instant, avant: ctx.avant, texte: texteAlerte(sousType, { client: rdv.client, ...ctx }).texte,
       });
     }
   };
@@ -589,34 +635,25 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
   // 1. Premiers SMS (présentation, puis créneaux une minute après pour garder l'ordre).
   if (Number.isFinite(envoiDemande) && !confirme) {
     for (const x of participants) {
-      proposer({ idEcheance: idEcheance(rdv.id, tour, 'confiance', x.id), typeMessage: 'confiance', modele: 'confiance', valeurs, numero: x.telephone, participantId: x.id, instant: envoiDemande });
+      if (tour === 1) proposer({ idEcheance: idEcheance(rdv.id, tour, 'confiance', x.id), typeMessage: 'confiance', modele: 'confiance', valeurs, numero: x.telephone, participantId: x.id, instant: envoiDemande });
       proposer({ idEcheance: idEcheance(rdv.id, tour, 'creneaux', x.id), typeMessage: 'creneaux', modele: 'creneaux', valeurs, numero: x.telephone, participantId: x.id, instant: envoiDemande + MINUTE_MS });
     }
   }
 
-  // 2. Relances : seulement les personnes en attente (une réponse non comprise suspend leurs relances).
+  // 2. Relances : seulement les personnes joignables en attente (une réponse non comprise suspend leurs relances),
+  //    et plus du tout quand tous les créneaux sont passés.
   const ouverts = estOuvert(rdv);
-  const attentes = participants.filter((x) => !x.etatReponse || x.etatReponse === 'attente');
-  const n = nombreRelances(p);
-  const premier = participants[0];
-  const baseMsg = premier ? deja.get(idEcheance(rdv.id, tour, 'creneaux', premier.id)) : null;
-  const depart = baseMsg ? enMs(baseMsg.envoyeLe) : NaN;
-  let derniereRelanceFaite = null;
-  if (ouverts && Number.isFinite(depart)) {
-    for (let k = 1; k <= n; k++) {
-      const precedenteOk = k === 1 || attentes.every((x) => deja.has(idEcheance(rdv.id, tour, `relance${k - 1}`, x.id)));
-      if (!precedenteOk) break;
-      for (const x of attentes) {
-        proposer({ idEcheance: idEcheance(rdv.id, tour, `relance${k}`, x.id), typeMessage: 'relance', modele: 'relance', valeurs, numero: x.telephone, participantId: x.id, instant: depart + k * delaiRelance(p) });
-      }
-      if (attentes.length && attentes.every((x) => deja.has(idEcheance(rdv.id, tour, `relance${k}`, x.id)))) {
-        derniereRelanceFaite = Math.max(...attentes.map((x) => enMs(deja.get(idEcheance(rdv.id, tour, `relance${k}`, x.id)).envoyeLe)));
+  const limite = dernierCreneau(rdv);
+  if (ouverts && nowMs < limite) {
+    const cal = calendrierRelances({ rdv, participants, p, deja });
+    for (const etape of cal.etapes) {
+      for (const x of etape.cibles) {
+        proposer({ idEcheance: idEcheance(rdv.id, tour, `relance${etape.k}`, x.id), typeMessage: 'relance', modele: 'relance', valeurs, numero: x.telephone, participantId: x.id, instant: etape.instant, avant: limite });
       }
     }
     // 3. Alerte « relances terminées » : 24 h après la dernière relance, s'il manque encore des réponses.
-    if (attentes.length && (n === 0 || derniereRelanceFaite !== null) && attentes.every((x) => n === 0 || deja.has(idEcheance(rdv.id, tour, `relance${n}`, x.id)))) {
-      const base = n === 0 ? depart : derniereRelanceFaite;
-      alerter('fin-relances', 'fin', { instant: base + DELAI_ALERTE_HEURES * HEURE_MS });
+    if (cal.complet && cal.attentes.length && Number.isFinite(cal.derniere)) {
+      alerter('fin-relances', 'fin', { instant: cal.derniere + DELAI_ALERTE_HEURES * HEURE_MS, avant: limite });
     }
   }
 
@@ -634,8 +671,8 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
 
   // 5. Confirmation (jamais retardée par la plage) et rappel de la veille.
   if (confirme) {
-    const confirmeLe = enMs(rdv.confirmeLe);
-    if (Number.isFinite(confirmeLe)) {
+    const confirmeLe = Number.isFinite(enMs(rdv.confirmeLe)) ? enMs(rdv.confirmeLe) : nowMs;
+    {
       for (const x of participants) {
         proposer({ idEcheance: idEcheance(rdv.id, tour, 'confirmation', x.id), typeMessage: 'confirmation', modele: 'confirmation', valeurs: valeursSms(rdv, p), numero: x.telephone, participantId: x.id, instant: confirmeLe, horsPlage: false });
       }
@@ -644,7 +681,7 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
         const rappelA = instantRappelVeille(choisi, p.rappel.heure);
         if (rappelA >= confirmeLe) {
           for (const x of participants) {
-            proposer({ idEcheance: idEcheance(rdv.id, tour, 'rappel', x.id), typeMessage: 'rappel', modele: 'rappel', valeurs: valeursSms(rdv, p), numero: x.telephone, participantId: x.id, instant: rappelA });
+            proposer({ idEcheance: idEcheance(rdv.id, tour, 'rappel', x.id), typeMessage: 'rappel', modele: 'rappel', valeurs: valeursSms(rdv, p), numero: x.telephone, participantId: x.id, instant: rappelA, avant: debutDuJour(choisi) });
           }
         }
       }
@@ -657,7 +694,7 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
 
 /**
  * Rattache une réponse reçue à UN participant. `rendezVous` = [{ rdv, participants }] (tous les rendez-vous).
- *  - { type: 'unique', rendezVousId, participantId } : un seul rendez-vous ouvert attend ce numéro ;
+ *  - { type: 'unique', rendezVousId, participantId } : un seul rendez-vous ouvert contient ce numéro ;
  *  - { type: 'ambigu', cibles: [{ rendezVousId, participantId }] } : le numéro est dans plusieurs rendez-vous ouverts, la réponse ne
  *    peut pas être rattachée avec certitude → incomprise pour tous, alerte, la professionnelle tranche ;
  *  - { type: 'inconnu' } : aucun rendez-vous ouvert avec ce numéro.
@@ -670,14 +707,12 @@ export function rattacherReponse(numero, rendezVous) {
     if (!estOuvert(rdv)) continue;
     for (const x of participants || []) {
       const t = normaliserTelephone(x.telephone);
-      if ((t.ok ? t.telephone : x.telephone) === cle) candidats.push({ rendezVousId: rdv.id, participantId: x.id, attend: !x.etatReponse || x.etatReponse === 'attente' });
+      if ((t.ok ? t.telephone : x.telephone) === cle) candidats.push({ rendezVousId: rdv.id, participantId: x.id });
     }
   }
   const sortie = (c) => ({ rendezVousId: c.rendezVousId, participantId: c.participantId });
   if (!candidats.length) return { type: 'inconnu' };
   if (candidats.length === 1) return { type: 'unique', ...sortie(candidats[0]) };
-  const attendent = candidats.filter((c) => c.attend);
-  if (attendent.length === 1) return { type: 'unique', ...sortie(attendent[0]) };
   return { type: 'ambigu', cibles: candidats.map(sortie) };
 }
 
@@ -720,6 +755,11 @@ export function validerNouveauRdv({ participants, creneaux, maintenant }) {
     const t = normaliserTelephone(x.telephone);
     if (!t.ok) erreurs.push(`Participant ${i + 1} : ${t.message}`);
     return { ...x, telephone: t.ok ? t.telephone : x.telephone };
+  });
+  const vus = new Set();
+  sortie.forEach((x, i) => {
+    if (x.telephone && vus.has(x.telephone)) erreurs.push(`Participant ${i + 1} : ce numéro est déjà celui d’un autre participant de ce rendez-vous.`);
+    vus.add(x.telephone);
   });
   const utiles = (creneaux || []).filter((c) => c !== '' && c != null);
   if (!utiles.length) erreurs.push('Ajoute au moins un créneau.');

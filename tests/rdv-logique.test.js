@@ -162,6 +162,15 @@ describe('13 réponse non comprise : alerte et relances suspendues', () => {
     const b = L.bilanReponses([{ ...pers('1'), ...patch }, pers('2', { etatReponse: 'comprise', creneauxOk: [1] })], 3);
     assert.deepEqual(b.communs, [1]);
   });
+  test('13 un « Merci » après une bonne réponse ou une saisie n’efface rien', () => {
+    for (const etat of ['comprise', 'saisie']) {
+      const r = L.appliquerReponse({ participant: pers('1', { etatReponse: etat, creneauxOk: [1, 3] }), rdv, texte: 'Merci' });
+      assert.equal(r.patch, null, etat);
+      assert.equal(r.alerteIncomprise, false);
+    }
+    const correction = L.appliquerReponse({ participant: pers('1', { etatReponse: 'comprise', creneauxOk: [1] }), rdv, texte: '2' });
+    assert.deepEqual(correction.patch.creneauxOk, [2], 'une vraie correction remplace la réponse');
+  });
   test('13 une réponse à une ancienne série n’est qu’une trace : l’état ne change pas', () => {
     const r = L.appliquerReponse({ participant: pers('1'), rdv: { ...rdv, tour: 2 }, texte: '1', tourReponse: 1 });
     assert.equal(r.historiqueSeulement, true);
@@ -256,7 +265,7 @@ describe('L heure de Paris et changements d’heure', () => {
 
 describe('L créneaux communs et états', () => {
   const creneaux = [parisEnISO(2026, 11, 17, 10), parisEnISO(2026, 11, 18, 14), parisEnISO(2026, 11, 19, 9)];
-  const p = (id, etat, ok = []) => ({ id, nom: id, etatReponse: etat, creneauxOk: ok });
+  const p = (id, etat, ok = []) => ({ id, nom: id, telephone: `+3360000010${id.length}`, etatReponse: etat, creneauxOk: ok });
   test('L tant que tout le monde n’a pas répondu, pas de créneau commun mais le meilleur est connu', () => {
     const b = L.bilanReponses([p('a', 'comprise', [3]), p('b', 'comprise', [2, 3]), p('c', 'attente'), p('d', 'attente')], 3);
     assert.deepEqual(b.communs, []);
@@ -332,12 +341,55 @@ describe('L échéances : liste des SMS dus', () => {
     assert.equal(restant.length, un.length - 1);
     assert.ok(!restant.some((d) => d.idEcheance === un[0].idEcheance));
   });
-  test('L les relances arrivent après le délai, une à la fois, pas en rafale après une panne', () => {
+  test('L les relances arrivent après le délai, une à la fois, pas en rafale après une panne (deux appels de suite)', () => {
     const envoyes = parts.flatMap((x) => [envoye('confiance', x.id, base.envoiDemandeLe), envoye('creneaux', x.id, parisEnISO(2026, 11, 14, 9, 1))]);
     const avant = L.smsDus({ rdv: base, participants: parts, parametres: params, messages: envoyes, maintenant: parisEnISO(2026, 11, 15, 9, 0) });
     assert.deepEqual(avant, [], '24 h pas tout à fait écoulées');
-    const apres = L.smsDus({ rdv: base, participants: parts, parametres: params, messages: envoyes, maintenant: parisEnISO(2026, 11, 20, 12) });
-    assert.deepEqual(apres.map((d) => `${d.typeMessage}:${d.idEcheance.split(':')[2]}`).sort(), ['relance:relance1', 'relance:relance1'], 'seule la relance 1, même cinq jours plus tard');
+    // panne : le planificateur repasse le 16 à midi, alors que la relance 1 était due le 15
+    const t1 = parisEnISO(2026, 11, 16, 12, 0);
+    const un = L.smsDus({ rdv: base, participants: parts, parametres: params, messages: envoyes, maintenant: t1 });
+    assert.deepEqual(un.map((d) => d.idEcheance.split(':')[2]), ['relance1', 'relance1']);
+    const apresEnvoi = [...envoyes, ...un.map((d) => ({ sens: 'sortant', echeance: d.idEcheance, envoyeLe: t1 }))];
+    assert.deepEqual(L.smsDus({ rdv: base, participants: parts, parametres: params, messages: apresEnvoi, maintenant: parisEnISO(2026, 11, 16, 12, 5) }), [], 'la relance 2 attend 24 h après l’envoi RÉEL de la relance 1, pas son échéance théorique');
+    assert.equal(L.smsDus({ rdv: base, participants: parts, parametres: params, messages: apresEnvoi, maintenant: parisEnISO(2026, 11, 17, 12, 1) }).length, 2);
+  });
+  test('L une relance enregistrée sans heure d’envoi ne fait pas planter : le calendrier s’arrête', () => {
+    const envoyes = parts.flatMap((x) => [envoye('confiance', x.id, base.envoiDemandeLe), envoye('creneaux', x.id, parisEnISO(2026, 11, 14, 9, 1)), { sens: 'sortant', echeance: L.idEcheance('r1', 1, 'relance1', x.id), envoyeLe: null }]);
+    assert.deepEqual(L.smsDus({ rdv: base, participants: parts, parametres: params, messages: envoyes, maintenant: parisEnISO(2026, 11, 18, 12) }), []);
+  });
+  test('L un participant sans téléphone ne bloque pas les relances des autres, quelle que soit sa place', () => {
+    for (const ordre of [[{ id: 'z', nom: 'Sans numéro', etatReponse: 'attente' }, ...parts], [...parts, { id: 'z', nom: 'Sans numéro', etatReponse: 'attente' }]]) {
+      const envoyes = parts.flatMap((x) => [envoye('confiance', x.id, base.envoiDemandeLe), envoye('creneaux', x.id, parisEnISO(2026, 11, 14, 9, 1))]);
+      const dus = L.smsDus({ rdv: base, participants: ordre, parametres: params, messages: envoyes, maintenant: parisEnISO(2026, 11, 16, 12) });
+      assert.deepEqual(dus.map((d) => d.participantId).sort(), ['a', 'b']);
+    }
+  });
+  test('L plus de relance ni de rappel une fois les créneaux passés', () => {
+    const envoyes = parts.flatMap((x) => [envoye('confiance', x.id, base.envoiDemandeLe), envoye('creneaux', x.id, parisEnISO(2026, 11, 14, 9, 1))]);
+    assert.deepEqual(L.smsDus({ rdv: base, participants: parts, parametres: params, messages: envoyes, maintenant: parisEnISO(2026, 11, 25, 12) }), []);
+    const confirme = { ...base, etat: 'confirme', creneauChoisi: creneaux[0], confirmeLe: parisEnISO(2026, 11, 14, 10) };
+    const conf = parts.map((x) => envoye('confirmation', x.id, parisEnISO(2026, 11, 14, 10)));
+    assert.deepEqual(L.smsDus({ rdv: confirme, participants: parts, parametres: params, messages: conf, maintenant: parisEnISO(2026, 11, 25, 12) }), [], 'rappel « demain » jamais envoyé après le rendez-vous');
+    assert.deepEqual(L.smsDus({ rdv: confirme, participants: parts, parametres: { ...params, rappel: { actif: true, heure: '23:00' } }, messages: conf, maintenant: parisEnISO(2026, 11, 17, 8, 30) }), [], 'heure de rappel hors plage repoussée à 8 h le jour J : plus de rappel');
+  });
+  test('L adresse absente : la confirmation part quand même, sans ligne vide ni {adresse}', () => {
+    const dus = L.smsDus({ rdv: { ...base, adresse: '', etat: 'confirme', creneauChoisi: creneaux[0], confirmeLe: parisEnISO(2026, 11, 14, 10) }, participants: parts, parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 14, 10) });
+    assert.equal(dus[0].texte, 'RDV confirmé : chantier M. Durand, mar. 17 nov. à 10h.\nMerci, Mme Martin');
+    assert.deepEqual(dus[0].manque, []);
+  });
+  test('L rendez-vous confirmé sans date de confirmation : la confirmation part quand même', () => {
+    const dus = L.smsDus({ rdv: { ...base, etat: 'confirme', creneauChoisi: creneaux[0] }, participants: parts, parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 14, 10) });
+    assert.deepEqual(dus.map((d) => d.typeMessage), ['confirmation', 'confirmation']);
+  });
+  test('L deuxième série : pas de nouveau SMS de présentation', () => {
+    const dus = L.smsDus({ rdv: { ...base, tour: 2, envoiDemandeLe: parisEnISO(2026, 11, 14, 9) }, participants: parts, parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 14, 9, 5) });
+    assert.deepEqual([...new Set(dus.map((d) => d.typeMessage))], ['creneaux']);
+  });
+  test('L deux numéros d’alerte sans identifiant sont alertés tous les deux', () => {
+    const sansId = { ...params, numerosAlerte: [{ numero: '+33700000001', actif: true }, { numero: '+33700000002', actif: true }] };
+    const rep = (id, ok) => ({ id, nom: id, telephone: '+33600000009', etatReponse: 'comprise', creneauxOk: ok, reponseLe: parisEnISO(2026, 11, 14, 11) });
+    const dus = L.smsDus({ rdv: base, participants: [rep('a', [1]), rep('b', [2])], parametres: sansId, messages: [], maintenant: parisEnISO(2026, 11, 14, 12) }).filter((d) => d.typeMessage === 'alerte');
+    assert.deepEqual(dus.map((d) => d.numero).sort(), ['+33700000001', '+33700000002']);
   });
   test('L délai et nombre de relances réglables, 0 relance = directement l’alerte', () => {
     const envoyes = parts.flatMap((x) => [envoye('confiance', x.id, base.envoiDemandeLe), envoye('creneaux', x.id, parisEnISO(2026, 11, 14, 9, 1))]);
@@ -432,15 +484,16 @@ describe('L même téléphone dans plusieurs rendez-vous', () => {
     assert.equal(r.type, 'ambigu');
     assert.deepEqual(r.cibles, [{ rendezVousId: 'r1', participantId: 'a' }, { rendezVousId: 'r2', participantId: 'b' }]);
   });
-  test('L si un seul des deux attend encore, c’est lui ; les rendez-vous archivés, annulés ou confirmés ne comptent pas', () => {
+  test('L même si un seul des deux attend encore, rien n’est deviné ; archivés, annulés et confirmés ne comptent pas', () => {
     const r = L.rattacherReponse('+33600000001', [
-      { rdv: rdv('r1'), participants: [part('a', '+33600000001', { etatReponse: 'comprise' })] },
+      { rdv: rdv('r1'), participants: [part('a', '+33600000001', { etatReponse: 'incomprise' })] },
       { rdv: rdv('r2'), participants: [part('b', '+33600000001')] },
       { rdv: rdv('r3', { archive: true }), participants: [part('c', '+33600000001')] },
       { rdv: rdv('r4', { annule: true }), participants: [part('d', '+33600000001')] },
       { rdv: rdv('r5', { etat: 'confirme' }), participants: [part('e', '+33600000001')] },
     ]);
-    assert.deepEqual(r, { type: 'unique', rendezVousId: 'r2', participantId: 'b' });
+    assert.equal(r.type, 'ambigu');
+    assert.deepEqual(r.cibles.map((c) => c.rendezVousId), ['r1', 'r2']);
   });
   test('L numéro inconnu', () => assert.equal(L.rattacherReponse('+33600000042', [{ rdv: rdv('r1'), participants: [part('a', '+33600000001')] }]).type, 'inconnu'));
 });
@@ -452,6 +505,11 @@ describe('L validation de la création', () => {
     const r = L.validerNouveauRdv({ participants: [{ nom: 'M. Durand', telephone: '06 00 00 00 00' }], creneaux: futur, maintenant });
     assert.equal(r.ok, true);
     assert.equal(r.participants[0].telephone, '+33600000000');
+  });
+  test('L deux participants avec le même numéro sont refusés (un SMS ne part jamais deux fois au même téléphone)', () => {
+    const r = L.validerNouveauRdv({ participants: [{ telephone: '0600000001' }, { telephone: '+33 6 00 00 00 01' }], creneaux: futur, maintenant });
+    assert.equal(r.ok, false);
+    assert.match(r.erreurs[0], /Participant 2 : .*déjà/);
   });
   test('L les problèmes sont dits un par un', () => {
     assert.match(L.validerNouveauRdv({ participants: [], creneaux: futur, maintenant }).erreurs[0], /au moins un participant/);
