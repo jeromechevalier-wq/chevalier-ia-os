@@ -223,6 +223,7 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
       { chemin: 'reseauxsociaux/idees', libelle: 'Idées', icone: 'sparkles' },
       { chemin: 'reseauxsociaux/inspirations', libelle: 'Inspirations', icone: 'star' },
       { chemin: 'reseauxsociaux/relations', libelle: 'Relations', icone: 'users' },
+      { chemin: 'reseauxsociaux/frequentation', libelle: 'Site web', icone: 'globe' },
       { chemin: 'reseauxsociaux/import', libelle: 'Import', icone: 'upload' },
     ] },
     // Ajout voulu (14/11/2026) : le module Rendez-vous, après Réseaux sociaux (une seule entrée de menu, un seul écran : la liste ; création et fiche s'ouvrent depuis elle).
@@ -389,7 +390,7 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
     // Toutes les routes d'écran restent servies (signets) : elles sont dans `entrees`, marquées hors menu sauf l'arrivée.
     const horsMenu = (id) => blocs.find((b) => b.id === id).entrees.filter((e) => e.horsMenu).map((e) => e.chemin);
     assert.deepEqual(horsMenu('veille'), ['veille/sources']);
-    assert.deepEqual(horsMenu('reseauxsociaux'), ['reseauxsociaux/posts', 'reseauxsociaux/idees', 'reseauxsociaux/inspirations', 'reseauxsociaux/relations', 'reseauxsociaux/import']);
+    assert.deepEqual(horsMenu('reseauxsociaux'), ['reseauxsociaux/posts', 'reseauxsociaux/idees', 'reseauxsociaux/inspirations', 'reseauxsociaux/relations', 'reseauxsociaux/frequentation', 'reseauxsociaux/import']);
     assert.deepEqual(horsMenu('automatisations'), ['automatisations/a-valider']);
     assert.deepEqual(horsMenu('tableaudebord'), [], 'Maintenance : un seul écran, plus aucune route déclarée hors menu (technique, finance, stocks, historique sont servies par le module)');
     // Menu complet : une entrée par module, dans l'ordre.

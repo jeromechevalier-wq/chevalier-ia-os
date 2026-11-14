@@ -15,7 +15,7 @@ const instant = (iso) => new Date(iso);
 const sansCommentaires = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '');
 
 describe('D1 D2 déclaration du module au registre', () => {
-  test('D1 le module vient après Veille (et avant Rendez-vous puis Automatisations), une seule entrée de menu (icône handshake), six écrans en onglets', () => {
+  test('D1 le module vient après Veille (et avant Rendez-vous puis Automatisations), une seule entrée de menu (icône handshake), sept écrans en onglets', () => {
     const ids = MODULES_DECLARES.map((m) => m.id);
     assert.equal(ids.indexOf('reseauxsociaux'), ids.indexOf('veille') + 1);
     assert.equal(ids.indexOf('rdv'), ids.indexOf('reseauxsociaux') + 1, 'Rendez-vous (14/11/2026) s’intercale entre Réseaux sociaux et Automatisations');
@@ -25,8 +25,8 @@ describe('D1 D2 déclaration du module au registre', () => {
     assert.deepEqual(m.ecrans.map((e) => [e.route, e.libelle, e.icone]), [
       ['reseauxsociaux/aujourdhui', 'Aujourd’hui', 'calendar'], ['reseauxsociaux/posts', 'Posts', 'square-kanban'],
       ['reseauxsociaux/idees', 'Idées', 'sparkles'], ['reseauxsociaux/inspirations', 'Inspirations', 'star'],
-      ['reseauxsociaux/relations', 'Relations', 'users'], ['reseauxsociaux/import', 'Import', 'upload']]);
-    assert.deepEqual(ongletsDuModule('reseauxsociaux').map((o) => o.libelle), ['Aujourd’hui', 'Posts', 'Idées', 'Inspirations', 'Relations', 'Import']);
+      ['reseauxsociaux/relations', 'Relations', 'users'], ['reseauxsociaux/frequentation', 'Site web', 'globe'], ['reseauxsociaux/import', 'Import', 'upload']]);
+    assert.deepEqual(ongletsDuModule('reseauxsociaux').map((o) => o.libelle), ['Aujourd’hui', 'Posts', 'Idées', 'Inspirations', 'Relations', 'Site web', 'Import']);
     const entrees = blocsDuMenu(['reseauxsociaux']).flatMap((b) => b.sections.flat());
     assert.deepEqual(entrees.map((e) => [e.libelle, e.chemin]), [['Réseaux sociaux', 'reseauxsociaux/aujourdhui']]);
     assert.equal(premiereRoute(['reseauxsociaux']), 'reseauxsociaux/aujourdhui');

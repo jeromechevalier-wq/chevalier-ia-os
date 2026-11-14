@@ -191,6 +191,7 @@ export const MODULES_DECLARES = geler([
       { route: 'reseauxsociaux/idees', libelle: 'Idées', icone: 'sparkles' },
       { route: 'reseauxsociaux/inspirations', libelle: 'Inspirations', icone: 'star' },
       { route: 'reseauxsociaux/relations', libelle: 'Relations', icone: 'users' },
+      { route: 'reseauxsociaux/frequentation', libelle: 'Site web', icone: 'globe' },
       { route: 'reseauxsociaux/import', libelle: 'Import', icone: 'upload' },
     ],
     collections: ['reseauxsociaux_posts', 'reseauxsociaux_imports', 'reseauxsociaux_idees', 'reseauxsociaux_inspirations', 'reseauxsociaux_exemples', 'reseauxsociaux_pistes'],

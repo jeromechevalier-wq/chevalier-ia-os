@@ -8,9 +8,9 @@ test.beforeEach(async ({ context }) => {
 });
 
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
-const ECRANS = [['aujourdhui', 'Aujourd’hui'], ['posts', 'Posts'], ['idees', 'Idées'], ['inspirations', 'Inspirations'], ['relations', 'Relations'], ['import', 'Import']];
+const ECRANS = [['aujourdhui', 'Aujourd’hui'], ['posts', 'Posts'], ['idees', 'Idées'], ['inspirations', 'Inspirations'], ['relations', 'Relations'], ['frequentation', 'Fréquentation du site'], ['import', 'Import']];
 
-test('Les 6 écrans du module gardent la barre d’onglets à la même position et à la même largeur', async ({ page }) => {
+test('Les 7 écrans du module gardent la barre d’onglets à la même position et à la même largeur', async ({ page }) => {
   await page.route(/cloudfunctions\.net\/reseauxsociauxBuffer$/, async (route) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
     return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { ok: true, lueLe: new Date().toISOString(), canal: { id: 'canal-fictif', nom: 'Canal fictif', service: 'linkedin' }, posts: [] } }) });
