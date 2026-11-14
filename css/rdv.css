@@ -59,3 +59,32 @@
 .rdv-info-tel { display: inline-flex; align-items: center; gap: var(--esp-1); }
 .rdv-info-tel .lien-tel { color: var(--texte2); display: inline-flex; }
 .rdv-adresse { white-space: pre-line; }
+
+/* Fiche : tableau « qui peut quand », symboles, bandeaux, boutons */
+.rdv-symbole { display: inline-flex; align-items: center; justify-content: center; width: 2.2rem; height: 2.2rem; border-radius: 50%; }
+.rdv-symbole-oui { color: var(--succes); }
+.rdv-symbole-non { color: var(--retard); }
+.rdv-symbole-inconnu { color: var(--gris); }
+.rdv-symbole-incompris { color: var(--retard); }
+.tableau-rdv-reponses th, .tableau-rdv-reponses td { vertical-align: middle; }
+.rdv-col-creneau { text-align: center; }
+.rdv-col-numero { display: block; font-weight: var(--poids-moyen); }
+.rdv-col-date { display: block; color: var(--texte2); font-size: var(--fs-petit); font-weight: var(--poids-normal); }
+.rdv-cellule { text-align: center; }
+.rdv-personne-nom { display: flex; align-items: center; gap: var(--esp-2); flex-wrap: wrap; }
+.rdv-personne-role { margin-top: var(--esp-1); }
+.rdv-ligne-incomprise { background: var(--retard-fond); }
+.rdv-sa-reponse { min-width: 10rem; }
+.rdv-reponse-texte { display: block; margin-bottom: var(--esp-1); overflow-wrap: anywhere; }
+.rdv-legende { display: flex; flex-wrap: wrap; gap: var(--esp-5); margin: var(--esp-5) 0 0; padding: 0; list-style: none; color: var(--texte2); }
+.rdv-legende li { display: inline-flex; align-items: center; gap: var(--esp-2); }
+.rdv-legende .rdv-symbole { width: 1.6rem; height: 1.6rem; }
+.rdv-bandeau { display: flex; align-items: center; gap: var(--esp-3); padding: var(--esp-4) var(--esp-6); border-radius: var(--rayon-carte); border: 1px solid transparent; margin-bottom: var(--esp-5); }
+.rdv-bandeau-rouge { background: var(--retard-fond); border-color: var(--retard); color: var(--texte); }
+.rdv-bandeau-violet { background: var(--violet-clair); border-color: var(--violet); color: var(--ink); }
+.rdv-bandeau-confirme { background: var(--panneau2); border-color: var(--succes); }
+.rdv-boutons-fiche { flex-wrap: wrap; margin-bottom: var(--esp-6); }
+.bouton-danger-discret { color: var(--retard); background: transparent; border: 1px solid var(--bordure); }
+.rdv-historique { display: flex; flex-direction: column; gap: var(--esp-4); }
+.rdv-case { display: flex; align-items: center; gap: var(--esp-3); padding: var(--esp-2) 0; }
+.page-rdv-fiche { max-width: 920px; }

@@ -171,3 +171,41 @@ export async function majParametres(patch) {
     : L.ecritureCreer('rdv_parametres', DOC_REGLAGES, { ...R.PARAMETRES_DEFAUT, ...patch }, MARQUES);
   await executer([e], 'majParametresRendezVous');
 }
+
+// ---------------------------------------------------------------- fiche d'un rendez-vous
+
+const MARQUES_MAJ = L.MARQUES_MODIFICATION;
+
+/** La professionnelle saisit la réponse d'un participant à sa place (consigne 13) : la réponse exacte reçue est gardée telle quelle. */
+export async function saisirReponseParticipant(participantId, creneauxOk) {
+  exigerEcriture();
+  const p = etat.participants.find((x) => x.id === participantId);
+  if (!p) throw new Error('Ce participant n’existe plus.');
+  const rdv = rendezVous(p.rendezVousId);
+  const patch = R.saisirReponse(p, creneauxOk, (rdv?.creneaux || []).length || R.MAX_CRENEAUX);
+  await executer([L.ecritureModifier('rdv_participants', participantId, { ...patch, reponseLe: R.versISO(Date.now()) }, MARQUES_MAJ)], 'saisirReponseRendezVous');
+}
+
+/** Confirme le créneau `numero` (1 à 3) : seule la professionnelle le fait. Le SMS de confirmation est tiré par le serveur (PR 4). Lève une erreur au message lisible si refusé. */
+export async function confirmerCreneau(rdvId, numero, maintenant = new Date()) {
+  exigerEcriture();
+  const plan = R.planConfirmer(rendezVous(rdvId), numero, maintenant);
+  if (plan.erreur) throw new Error(plan.erreur);
+  await executer([L.ecritureModifier('rdv_rendezvous', rdvId, plan.patch, MARQUES_MAJ)], 'confirmerRendezVous');
+}
+
+/** Nouvelle série de créneaux : le rendez-vous et ses participants repartent à zéro, l'historique des SMS est gardé, en UN seul lot. */
+export async function nouvelleSerie(rdvId, creneaux, maintenant = new Date()) {
+  exigerEcriture();
+  const plan = R.planNouvelleSerie(rendezVous(rdvId), creneaux, maintenant);
+  if (plan.erreur) throw new Error(plan.erreur);
+  const ecritures = [L.ecritureModifier('rdv_rendezvous', rdvId, plan.patchRdv, MARQUES_MAJ)];
+  for (const p of participantsDe(rdvId)) ecritures.push(L.ecritureModifier('rdv_participants', p.id, plan.patchParticipant, MARQUES_MAJ));
+  await executer(ecritures, 'nouvelleSerieRendezVous');
+}
+
+/** Annule le rendez-vous (il passe dans les Archives, marqué « annulé »). Le SMS d'annulation éventuel est une autre action, écrite à la main. */
+export async function annulerRendezVous(rdvId) {
+  exigerEcriture();
+  await executer([L.ecritureModifier('rdv_rendezvous', rdvId, { annule: true, archive: true }, MARQUES_MAJ)], 'annulerRendezVous');
+}
