@@ -54,7 +54,8 @@ export async function envoyerPropositions({ donnees, ctx, espace, sortie, rendez
   if (!R.estOuvert(rdv)) throw new ErreurRdvEnvoi('failed-precondition', 'Ce rendez-vous n’est plus à envoyer.');
   const verdict = R.validerNouveauRdv({ participants, creneaux: rdv.creneaux, maintenant: ctx.maintenant });
   if (!verdict.ok) throw new ErreurRdvEnvoi('failed-precondition', verdict.erreurs[0]);
-  if (!rdv.envoiDemandeLe) await donnees.appliquer([{ type: 'update', collection: T.rdv, id: rendezVousId, donnees: { envoiDemandeLe: ctx.maintenant } }]);
+  // La demande est notée une minute en arrière : les SMS « créneaux » (dus une minute après la présentation) partent dans le MÊME tir que le premier SMS, sans attendre 15 minutes.
+  if (!rdv.envoiDemandeLe) await donnees.appliquer([{ type: 'update', collection: T.rdv, id: rendezVousId, donnees: { envoiDemandeLe: new Date(ctx.maintenant.getTime() - 60_000) } }]);
   return { ok: true, declenche: await declencher(sortie, espace, rendezVousId) };
 }
 
@@ -69,6 +70,9 @@ export async function envoyerSms({ donnees, ctx, espace, sortie, rendezVousId, t
   const { rdv, participants } = await lireRendezVous(donnees, rendezVousId);
   if (rdv.archive && !rdv.annule) throw new ErreurRdvEnvoi('failed-precondition', 'Ce rendez-vous est archivé.');
   if (!participants.length) throw new ErreurRdvEnvoi('failed-precondition', 'Ce rendez-vous n’a aucun participant.');
+  // Anti-doublon : un SMS du même type demandé il y a moins de 2 minutes pour ce rendez-vous (deuxième onglet, clic refait après une réponse perdue) n'est pas recréé.
+  const recents = (await donnees.liste(T.msg, { champ: 'rendezVousId', valeur: rendezVousId })).filter((m) => m.manuel === true && m.typeMessage === type && ctx.maintenant.getTime() - (m.creeLe?.toMillis?.() ?? new Date(m.creeLe).getTime()) < 120_000);
+  if (recents.length) throw new ErreurRdvEnvoi('failed-precondition', 'Ce SMS vient déjà d’être demandé : patiente deux minutes avant de le renvoyer.');
   const suffixe = ctx.maintenant.getTime().toString(36);
   const ecritures = participants.map((p, i) => ({
     type: 'set', collection: T.msg, id: `man_${rendezVousId}_${suffixe}_${i + 1}`,

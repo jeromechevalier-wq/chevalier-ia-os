@@ -110,7 +110,7 @@ test('pluie : « Envoyer » est actif quand c’est branché ; il envoie le text
   await page.getByRole('button', { name: 'Prévenir de la pluie' }).click();
   const dialogue = page.getByRole('dialog');
   await expect(dialogue.getByRole('button', { name: 'Envoyer' })).toBeEnabled();
-  await expect(dialogue.locator('[data-role="envoi-non-branche"]')).toHaveCount(0);
+  await expect(dialogue.locator('[data-role="envoi-non-branche"]')).toBeHidden();
   await dialogue.getByLabel('Texte du SMS').fill('Pluie demain, RDV reporté.');
   await capture(page, 'pluie-envoyer-actif');
   await dialogue.getByRole('button', { name: 'Envoyer' }).click();

@@ -62,6 +62,20 @@ Nommage obligatoire (sinon la porte répond 403 `workflow_refuse`) : chez Jérô
 5. **Test avec le numéro de test seulement** : `numeroTest` (Réglages > Rendez-vous, à ajouter) puis un rendez-vous marqué test. Jamais d'envoi à un tiers avant d'avoir vu un SMS arriver sur ce numéro.
 6. Publier les deux workflows. L'écran active « Envoyer » tout seul (la fonction `rdvEtat` répond « branché » quand les deux secrets de l'étape 3 existent).
 
+## Garde-fous ajoutés après la relecture (14/11/2026)
+- La confirmation et le rappel de la veille partent bien (les rendez-vous confirmés sont lus tant que le rendez-vous n'est pas passé depuis plus de 2 jours).
+- Un SMS dont la confirmation d'envoi n'arrive jamais est repris au plus 3 fois, puis abandonné ; un SMS abandonné ne bloque plus les relances des autres et la professionnelle reçoit une alerte (« un SMS n'est pas parti vers … »).
+- Un SMS écrit à la main sur un rendez-vous de test ne part que vers le numéro de test, et rien si le rendez-vous a disparu. Le même SMS redemandé dans les 2 minutes n'est pas recréé.
+- Une réponse n'est rattachée qu'à un rendez-vous dont les propositions sont réellement parties ; un numéro présent dans plusieurs rendez-vous n'efface pas la réponse déjà donnée dans l'un d'eux.
+- Après « Envoyer », les SMS « créneaux » partent dans le même tir que la présentation (la demande est notée une minute en arrière).
+
+## Limites connues (à décider avec Jérôme)
+- **Règles Firestore** : `rdv_messages`, `rdv_participants` et `rdv_parametres` sont inscriptibles par le navigateur d'un éditeur (règle joker, comme les autres tables de module). Un éditeur malveillant pourrait fabriquer un SMS « à envoyer » ; une PR de règles (liste d'arrêt : jamais sans accord) réserverait `rdv_messages` et `rdv_parametres/desinscrits` au serveur. Les rendez-vous eux-mêmes restent écrits par l'écran.
+- **Réponse de ClickSend rejouée** : l'adresse du webhook « réponse » n'est protégée que par son secret (ClickSend ne signe pas) ; qui la connaît peut forger une réponse ou un STOP. Piste : un jeton dans l'adresse, vérifié par un nœud du workflow.
+- **STOP simultanés** : deux STOP exactement en même temps peuvent n'en enregistrer qu'un dans `rdv_parametres/desinscrits` (rare ; le participant garde son repère).
+- **Plafond** : 500 rendez-vous non archivés par espace et 50 participants par rendez-vous sont lus à chaque tir.
+- **Piste** : ClickSend renvoie l'identifiant du message d'origine (`custom_string` = notre `messageId`) dans le SMS entrant ; cela lèverait l'ambiguïté du même numéro dans deux rendez-vous sans rien deviner (à vérifier sur un vrai envoi).
+
 ## Règles de conformité des SMS (à vérifier avant le premier envoi à un tiers)
 ClickSend a mis deux SMS d'essai en « CancelledAfterReview ». Son assistant demande : **le nom de l'entreprise dans chaque message** et **un moyen simple de se désabonner** (« Répondez STOP pour vous désabonner », ou un lien). Les modèles par défaut ne portent pas encore « STOP » ; la réponse STOP est déjà gérée côté plateforme (ci-dessus). Page de ClickSend à lire : « Managing opt-outs ». À décider avec Jérôme : où mettre « STOP » dans les modèles (le premier SMS suffit-il ?) et l'effet sur la limite de 160 caractères.
 

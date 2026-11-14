@@ -12,6 +12,7 @@ import * as R from '../../js/modules/rdv/logique.js';
 export const RESERVATION_MS = 15 * 60 * 1000;
 export const ESSAIS_MAX = 3;
 export const MAX_PAR_APPEL = 40;
+const LOT_MAX = 18; // une opération en moins que la limite de 20 de l'adaptateur : marge pour le repère « déjà vu »
 const T = { rdv: 'rdv_rendezvous', part: 'rdv_participants', msg: 'rdv_messages', param: 'rdv_parametres' };
 const PRECONDITION = (v) => v && typeof v === 'object' && v.preconditionEchouee === true;
 
@@ -37,15 +38,24 @@ async function lireContexte(ctx) {
   return { parametres: reglages ?? {}, desinscrits: Array.isArray(desinscrits?.numeros) ? desinscrits.numeros : [] };
 }
 
-/** Tous les rendez-vous OUVERTS de l'espace, avec leurs participants. */
-async function rendezVousOuverts(ctx) {
+const DEUX_JOURS_MS = 2 * 86400000;
+
+/** Les rendez-vous non archivés de l'espace (les archivés sont lus par leur champ `archive`, jamais tous : pas de plafond qui masquerait des rendez-vous ouverts), avec leurs participants. */
+async function rendezVousActifs(ctx, filtre) {
   const { base, donnees } = ctx;
-  const tous = await donnees.lister(chemin(base, T.rdv), { limite: 500 });
-  const ouverts = tous.filter((r) => R.estOuvert(r));
+  const tous = await donnees.listerPar(chemin(base, T.rdv), 'archive', false, { limite: 500 });
   const liste = [];
-  for (const rdv of ouverts) liste.push({ rdv, participants: await donnees.listerPar(chemin(base, T.part), 'rendezVousId', rdv.id, { limite: 50 }) });
+  for (const rdv of tous.filter((r) => r.annule !== true && filtre(r))) liste.push({ rdv, participants: await donnees.listerPar(chemin(base, T.part), 'rendezVousId', rdv.id, { limite: 50 }) });
   return liste;
 }
+/** Pour ENVOYER : les rendez-vous ouverts ET les confirmés dont le rendez-vous n'est pas passé depuis plus de 2 jours (confirmation et rappel de la veille naissent là) ; `smsDus` fait le tri. */
+const rendezVousPourEnvoi = (ctx, maintenantMs) => rendezVousActifs(ctx, (r) => {
+  if (R.estOuvert(r)) return true;
+  const choisi = enMs(r.creneauChoisi);
+  return (r.etat === 'confirme' || !!r.creneauChoisi) && (!Number.isFinite(choisi) || choisi > maintenantMs - DEUX_JOURS_MS);
+});
+/** Pour RATTACHER une réponse : les rendez-vous ouverts dont les propositions sont réellement parties (un brouillon n'attend aucune réponse). */
+const rendezVousAttendantUneReponse = (ctx) => rendezVousActifs(ctx, (r) => R.estOuvert(r) && !!r.envoiDemandeLe);
 
 /** Réserve un SMS : crée son document, ou reprend un SMS dont la réservation est expirée ou qui a échoué (moins de 3 fois). Rend le document à envoyer, ou null s'il n'est pas à envoyer. */
 async function reserver(ctx, docId, creation, maintenantMs) {
@@ -55,11 +65,41 @@ async function reserver(ctx, docId, creation, maintenantMs) {
   if (creation && await donnees.creerSiAbsent(ch, sansIndefini({ ...creation, ...reservation, essais: 0, creeLe: new Date(maintenantMs) }))) return { ...creation, essais: 0 };
   const existant = await donnees.lireDoc(ch);
   if (!existant) return null;
-  const libre = existant.etatEnvoi === 'a_envoyer' || existant.etatEnvoi === 'echec' || (existant.etatEnvoi === 'reserve' && enMs(existant.reserveJusqua) <= maintenantMs);
+  const expiree = existant.etatEnvoi === 'reserve' && enMs(existant.reserveJusqua) <= maintenantMs;
+  const libre = existant.etatEnvoi === 'a_envoyer' || existant.etatEnvoi === 'echec' || expiree;
   if (!libre) return null;
+  if (expiree) {
+    // Réservation expirée = le SMS est peut-être parti sans que sa confirmation soit arrivée : chaque reprise compte comme un essai, et après 3 on ne le renvoie plus jamais seul.
+    const essais = (existant.essais ?? 0) + 1;
+    if (essais >= ESSAIS_MAX) { await donnees.majDoc(ch, { etatEnvoi: 'abandonne', essais, reserveJusqua: null, envoyeLe: new Date(maintenantMs), erreur: 'Confirmation d\'envoi jamais reçue' }); return null; }
+    const r = await donnees.majDoc(ch, { ...reservation, essais }, { lastUpdateTime: existant.updateTime });
+    return r === false || PRECONDITION(r) ? null : existant;
+  }
   const r = await donnees.majDoc(ch, reservation, { lastUpdateTime: existant.updateTime });
   if (r === false || PRECONDITION(r)) return null; // un autre appel l'a pris entre-temps
   return existant;
+}
+
+/**
+ * Ce qui suit un SMS envoyé, écrit APRÈS la ligne « envoyé » et idempotent (rejouable sans effet de plus) :
+ * l'alerte « relances terminées » est notée sur le rendez-vous ET le rendez-vous passe à « À reprendre » s'il manque encore des réponses ; le compteur de relances avance ; la demande d'envoi est notée.
+ */
+async function appliquerSuites(ctx, m, maintenantMs) {
+  const { base, donnees } = ctx;
+  if (!m.rendezVousId) return;
+  const rdv = await donnees.lireDoc(chemin(base, T.rdv, m.rendezVousId));
+  if (!rdv) return;
+  const patch = {};
+  if (m.sousType === 'fin-relances' && !rdv.relancesTermineesLe) {
+    patch.relancesTermineesLe = new Date(maintenantMs);
+    const participants = await donnees.listerPar(chemin(base, T.part), 'rendezVousId', rdv.id, { limite: 50 });
+    const etat = R.etatCalcule({ ...rdv, relancesTermineesLe: new Date(maintenantMs) }, participants);
+    if (etat !== (rdv.etat || 'en_attente')) patch.etat = etat;
+  }
+  const k = /:relance(\d+):/.exec(String(m.echeance))?.[1];
+  if (k && Number(k) > (rdv.relancesFaites ?? 0)) patch.relancesFaites = Number(k);
+  if (!rdv.envoiDemandeLe && m.typeMessage === 'creneaux') patch.envoiDemandeLe = new Date(maintenantMs);
+  if (Object.keys(patch).length) await donnees.majDoc(chemin(base, T.rdv, rdv.id), patch);
 }
 
 export const ACTIONS_RDV = Object.freeze({
@@ -71,9 +111,10 @@ export const ACTIONS_RDV = Object.freeze({
       const { parametres, desinscrits } = await lireContexte(ctx);
       const aEnvoyer = [];
       const limite = d.limite ?? MAX_PAR_APPEL;
-      for (const { rdv, participants } of await rendezVousOuverts(ctx)) {
+      for (const { rdv, participants } of await rendezVousPourEnvoi(ctx, maintenantMs)) {
         if (aEnvoyer.length >= limite) break;
-        const messages = (await ctx.donnees.listerPar(chemin(ctx.base, T.msg), 'rendezVousId', rdv.id, { limite: 1000 })).filter((m) => m.etatEnvoi === 'envoye' && m.sens !== 'entrant');
+        // « envoyé » ET « abandonné » comptent comme faits pour le calendrier (sinon un SMS abandonné bloquerait les relances de tout le rendez-vous) ; l'abandon déclenche une alerte (smsDus).
+        const messages = (await ctx.donnees.listerPar(chemin(ctx.base, T.msg), 'rendezVousId', rdv.id, { limite: 1000 })).filter((m) => (m.etatEnvoi === 'envoye' || m.etatEnvoi === 'abandonne') && m.sens !== 'entrant');
         const dus = R.smsDus({ rdv, participants, parametres, messages, maintenant: maintenantMs, desinscrits });
         for (const du of dus) {
           if (aEnvoyer.length >= limite) break;
@@ -91,7 +132,8 @@ export const ACTIONS_RDV = Object.freeze({
           if (aEnvoyer.length >= limite) break;
           if (m.manuel !== true || m.sens === 'entrant') continue;
           const rdv = m.rendezVousId ? await ctx.donnees.lireDoc(chemin(ctx.base, T.rdv, m.rendezVousId)) : null;
-          const numero = R.numeroCible(m.numero, rdv ?? {}, parametres);
+          if (!rdv) continue; // rendez-vous introuvable : on n'envoie rien (jamais un SMS « test » vers un vrai numéro)
+          const numero = R.numeroCible(m.numero, { test: rdv.test === true || m.test === true }, parametres);
           if (!numero || desinscrits.includes(m.numero)) continue;
           if (!(await reserver(ctx, m.id, null, maintenantMs))) continue;
           aEnvoyer.push({ messageId: m.id, rendezVousId: m.rendezVousId, numero, texte: m.texte, caracteres: m.caracteres, segments: m.segments, typeMessage: m.typeMessage });
@@ -115,26 +157,17 @@ export const ACTIONS_RDV = Object.freeze({
       const ch = chemin(base, T.msg, d.messageId);
       const m = await donnees.lireDoc(ch);
       if (!m || m.sens === 'entrant') throw new ErreurAction('message_inconnu', 'Ce message n\'existe pas.', 404);
-      if (m.etatEnvoi === 'envoye') return { messageId: d.messageId, statut: 'ok', deja: true };
+      if (m.etatEnvoi === 'envoye') { await appliquerSuites(ctx, m, maintenantMs); return { messageId: d.messageId, statut: 'ok', deja: true }; } // rejeu : on refait les suites (idempotentes) au cas où un plantage les aurait interrompues
       if (m.etatEnvoi === 'abandonne') return { messageId: d.messageId, statut: 'echec', deja: true };
       if (d.statut === 'ok') {
         const r = await donnees.majDoc(ch, { etatEnvoi: 'envoye', envoyeLe: new Date(maintenantMs), reserveJusqua: null, ...(d.idFournisseur ? { idFournisseur: d.idFournisseur } : {}) }, { lastUpdateTime: m.updateTime });
         if (PRECONDITION(r)) { const apres = await donnees.lireDoc(ch); if (apres?.etatEnvoi === 'envoye') return { messageId: d.messageId, statut: 'ok', deja: true }; throw new ErreurAction('conflit', 'Le message a changé : réessaie.', 409); }
-        // Suites : l'alerte « relances terminées » est notée sur le rendez-vous ; le compteur de relances avance.
-        const rdv = m.rendezVousId ? await donnees.lireDoc(chemin(base, T.rdv, m.rendezVousId)) : null;
-        if (rdv) {
-          const patch = {};
-          if (m.sousType === 'fin-relances' && !rdv.relancesTermineesLe) patch.relancesTermineesLe = new Date(maintenantMs);
-          const k = /:relance(\d+):/.exec(String(m.echeance))?.[1];
-          if (k && Number(k) > (rdv.relancesFaites ?? 0)) patch.relancesFaites = Number(k);
-          if (!rdv.envoiDemandeLe && m.typeMessage === 'creneaux') patch.envoiDemandeLe = new Date(maintenantMs);
-          if (Object.keys(patch).length) await donnees.majDoc(chemin(base, T.rdv, rdv.id), patch);
-        }
+        await appliquerSuites(ctx, m, maintenantMs);
         return { messageId: d.messageId, statut: 'ok', deja: false };
       }
       const essais = (m.essais ?? 0) + 1;
       const abandon = essais >= ESSAIS_MAX;
-      await donnees.majDoc(ch, { etatEnvoi: abandon ? 'abandonne' : 'echec', essais, reserveJusqua: null, ...(d.message ? { erreur: d.message } : {}) });
+      await donnees.majDoc(ch, { etatEnvoi: abandon ? 'abandonne' : 'echec', essais, reserveJusqua: null, ...(abandon ? { envoyeLe: new Date(maintenantMs) } : {}), ...(d.message ? { erreur: d.message } : {}) });
       return { messageId: d.messageId, statut: 'echec', essais, abandonne: abandon, deja: false };
     },
   },
@@ -155,23 +188,26 @@ export const ACTIONS_RDV = Object.freeze({
       const tel = R.normaliserTelephone(d.numero);
       const numero = tel.ok ? tel.telephone : d.numero;
       const docId = docIdMessage(`in_${d.idFournisseur}`);
-      if (await donnees.lireDoc(chemin(base, T.msg, docId))) return { deja: true, messageId: docId };
+      if (await donnees.lireDoc(chemin(base, T.msg, docId))) return { deja: true, messageId: docId }; // le repère « déjà vu » est TOUJOURS le message `in_<id>`, même pour un numéro ambigu
       const recuLe = d.recuLe ?? new Date(maintenantMs);
       const sms = R.compterSms(d.texte);
       const commun = { sens: 'entrant', numero, texte: d.texte, caracteres: sms.caracteres, segments: sms.segments, typeMessage: 'reponse', idFournisseur: d.idFournisseur, recuLe, etatEnvoi: 'recu', creeLe: new Date(maintenantMs) };
       const stop = R.estDesinscription(d.texte);
-      const liste = await rendezVousOuverts(ctx);
+      const liste = await rendezVousAttendantUneReponse(ctx);
       const cible = R.rattacherReponse(numero, liste);
       const operations = [];
-      let rattache = cible.type;
       const parRdv = new Map(liste.map((x) => [x.rdv.id, x]));
-      const appliquer = ({ rendezVousId, participantId }, suffixe = '', ambigu = false) => {
+      const creerMessage = (id, extra) => operations.push({ type: 'creer', chemin: chemin(base, T.msg, id), donnees: sansIndefini({ ...commun, ...extra }) });
+      const appliquer = ({ rendezVousId, participantId }, { ambigu = false, idMessage }) => {
         const { rdv, participants } = parRdv.get(rendezVousId);
         const participant = participants.find((p) => p.id === participantId);
         const ligne = R.appliquerReponse({ participant, rdv, texte: d.texte, recuLe, idReponse: docId });
-        if (ambigu && !ligne.historiqueSeulement) { ligne.comprise = false; ligne.patch = { reponse: d.texte, etatReponse: 'incomprise', creneauxOk: [], reponseLe: recuLe, idReponse: docId, ambigu: true }; }
-        const idMsg = suffixe ? docIdMessage(`in_${d.idFournisseur}${suffixe}`) : docId;
-        operations.push({ type: 'creer', chemin: chemin(base, T.msg, idMsg), donnees: sansIndefini({ ...commun, rendezVousId, participantId, tour: rdv.tour ?? 1, comprise: ligne.comprise === true, desinscription: stop || undefined, historique: ligne.historiqueSeulement || undefined }) });
+        // Numéro ambigu : « non comprise » pour chaque rendez-vous, SAUF pour celui où cette personne a déjà répondu (sa réponse n'est pas effacée par un message dont on ignore le destinataire).
+        const dejaRepondu = participant && (participant.etatReponse === 'comprise' || participant.etatReponse === 'saisie');
+        if (ambigu && !ligne.historiqueSeulement && !dejaRepondu) { ligne.comprise = false; ligne.patch = { reponse: d.texte, etatReponse: 'incomprise', creneauxOk: [], reponseLe: recuLe, idReponse: docId, ambigu: true }; }
+        else if (ambigu && dejaRepondu) { ligne.historiqueSeulement = true; ligne.patch = null; }
+        if (stop && !ligne.historiqueSeulement) ligne.patch = { ...ligne.patch, desinscrit: true };
+        creerMessage(idMessage, { rendezVousId, participantId, tour: rdv.tour ?? 1, comprise: ligne.comprise === true, desinscription: stop || undefined, historique: ligne.historiqueSeulement || undefined, ambigu: ambigu || undefined });
         if (!ligne.historiqueSeulement) {
           operations.push({ type: 'maj', chemin: chemin(base, T.part, participantId), donnees: sansIndefini(ligne.patch) });
           const apres = participants.map((p) => (p.id === participantId ? { ...p, ...ligne.patch } : p));
@@ -179,12 +215,13 @@ export const ACTIONS_RDV = Object.freeze({
           if (etatCalcule !== (rdv.etat || 'en_attente')) operations.push({ type: 'maj', chemin: chemin(base, T.rdv, rendezVousId), donnees: { etat: etatCalcule } });
         }
       };
-      if (cible.type === 'unique') appliquer(cible);
+      if (cible.type === 'unique') appliquer(cible, { idMessage: docId });
       else if (cible.type === 'ambigu') {
-        // Le même numéro dans plusieurs rendez-vous ouverts : jamais deviné. « Non comprise » pour chacun, la professionnelle tranche.
-        for (const [i, c] of cible.cibles.entries()) appliquer(c, `_${i + 1}`, true);
+        // Le repère « déjà vu » (`in_<id>`) est créé en PREMIER, puis une trace par rendez-vous : le même numéro dans plusieurs rendez-vous ouverts n'est jamais deviné.
+        creerMessage(docId, { rendezVousId: cible.cibles[0].rendezVousId, comprise: false, ambigu: true, desinscription: stop || undefined, historique: true });
+        for (const [i, c] of cible.cibles.entries()) appliquer(c, { ambigu: true, idMessage: docIdMessage(`in_${d.idFournisseur}_${i + 1}`) });
       } else {
-        operations.push({ type: 'creer', chemin: chemin(base, T.msg, docId), donnees: sansIndefini({ ...commun, rendezVousId: '', orphelin: true, comprise: false, desinscription: stop || undefined }) });
+        creerMessage(docId, { rendezVousId: '', orphelin: true, comprise: false, desinscription: stop || undefined });
       }
       if (stop) {
         const existants = await donnees.lireDoc(chemin(base, T.param, 'desinscrits'));
@@ -192,12 +229,14 @@ export const ACTIONS_RDV = Object.freeze({
         if (existants) await donnees.majDoc(chemin(base, T.param, 'desinscrits'), { numeros });
         else await donnees.creerSiAbsent(chemin(base, T.param, 'desinscrits'), { numeros });
       }
-      if (operations.length > 20) operations.length = 20;
-      try { await donnees.ecrireLot(operations); } catch (e) {
+      // Plus de 20 opérations (un numéro dans beaucoup de rendez-vous) : plusieurs lots, le repère « déjà vu » partant dans le premier ; jamais de coupure silencieuse.
+      try {
+        for (let i = 0; i < operations.length; i += LOT_MAX) await donnees.ecrireLot(operations.slice(i, i + LOT_MAX));
+      } catch (e) {
         if (e?.code === 6 || e?.code === 'already-exists' || e?.code === 'ALREADY_EXISTS') return { deja: true, messageId: docId }; // deux appels en même temps : un seul écrit
         throw e;
       }
-      return { deja: false, messageId: docId, rattache, desinscription: stop, comprise: operations[0]?.donnees?.comprise ?? false };
+      return { deja: false, messageId: docId, rattache: cible.type, desinscription: stop, comprise: operations.find((o) => o.type === 'creer')?.donnees?.comprise ?? false };
     },
   },
 });

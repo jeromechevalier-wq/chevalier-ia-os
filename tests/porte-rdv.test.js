@@ -96,9 +96,26 @@ describe('rdv.aEnvoyer : SMS dus et réservation', () => {
     assert.equal((await m.action('rdv.aEnvoyer', { limite: 1 })).nombre, 1);
     assert.equal((await m.action('rdv.aEnvoyer', { limite: 1 })).nombre, 0);
   });
-  test('un rendez-vous archivé, annulé, confirmé ou sans demande d\'envoi n\'envoie rien', async () => {
+  test('un rendez-vous archivé, annulé ou sans demande d\'envoi n\'envoie rien', async () => {
     const m = monde();
-    m.semer('a', { archive: true }); m.semer('b', { annule: true }); m.semer('c', { etat: 'confirme', creneauChoisi: iso(T0 + 86400000) }); m.semer('d', { envoiDemandeLe: null });
+    m.semer('a', { archive: true }); m.semer('b', { annule: true }); m.semer('d', { envoiDemandeLe: null });
+    assert.equal((await m.action('rdv.aEnvoyer')).nombre, 0);
+  });
+  test('un rendez-vous CONFIRMÉ envoie la confirmation à tous, puis le rappel de la veille à 19 h ; pas de relance', async () => {
+    const m = monde();
+    m.semer('r1', { etat: 'confirme', creneauChoisi: iso(Date.parse('2026-11-18T09:00:00Z')), confirmeLe: iso(T0 - 60000) });
+    const conf = (await m.action('rdv.aEnvoyer')).messages;
+    assert.deepEqual(conf.map((x) => x.typeMessage), ['confirmation', 'confirmation']);
+    assert.match(conf[0].texte, /^RDV confirmé : chantier M\. Durand, mer\. 18 nov\. à 10h\./);
+    for (const x of conf) await m.action('rdv.confirmerEnvoi', { messageId: x.messageId, statut: 'ok' });
+    m.temps.t = Date.parse('2026-11-17T17:59:00Z'); // 18 h 59 à Paris : trop tôt
+    assert.equal((await m.action('rdv.aEnvoyer')).nombre, 0);
+    m.temps.t = Date.parse('2026-11-17T18:00:00Z'); // 19 h à Paris
+    const rappels = (await m.action('rdv.aEnvoyer')).messages;
+    assert.deepEqual(rappels.map((x) => x.typeMessage), ['rappel', 'rappel']);
+    assert.match(rappels[0].texte, /^Rappel : demain mer\. 18 nov\. à 10h/);
+    for (const x of rappels) await m.action('rdv.confirmerEnvoi', { messageId: x.messageId, statut: 'ok' });
+    m.temps.t = Date.parse('2026-11-19T12:00:00Z'); // le rendez-vous est passé depuis plus de 2 jours
     assert.equal((await m.action('rdv.aEnvoyer')).nombre, 0);
   });
   test('hors plage d\'envoi (3 h du matin à Paris), rien ne part avant 8 h', async () => {
@@ -164,7 +181,9 @@ describe('rdv.confirmerEnvoi : rejouable', () => {
     const dernier = await m.action('rdv.confirmerEnvoi', { messageId: id, statut: 'echec' });
     assert.equal(dernier.abandonne, true);
     assert.equal(m.base.docs.get(`rdv_messages/${id}`).d.etatEnvoi, 'abandonne');
-    assert.equal((await m.action('rdv.aEnvoyer')).nombre, 0);
+    const apres = await m.action('rdv.aEnvoyer');
+    assert.ok(!apres.messages.some((x) => x.typeMessage === 'confiance'), 'le SMS abandonné n\'est plus jamais redemandé');
+    assert.deepEqual(apres.messages.map((x) => x.typeMessage), ['alerte'], 'seule l\'alerte « un SMS n\'est pas parti » est due');
   });
   test('un message inconnu ou une réponse reçue : refus clair (404)', async () => {
     const m = monde();
@@ -183,6 +202,37 @@ describe('rdv.confirmerEnvoi : rejouable', () => {
     assert.ok(alerte, 'alerte de fin due');
     await m.action('rdv.confirmerEnvoi', { messageId: alerte.messageId, statut: 'ok' });
     assert.ok(base.docs.get('rdv_rendezvous/r1').d.relancesTermineesLe);
+    assert.equal(base.docs.get('rdv_rendezvous/r1').d.etat, 'a_reprendre', 'le rendez-vous passe dans la colonne « À reprendre »');
+    assert.equal((await m.action('rdv.confirmerEnvoi', { messageId: alerte.messageId, statut: 'ok' })).deja, true, 'rejeu : rien de plus');
+  });
+  test('un SMS abandonné ne bloque pas les relances des autres, et la professionnelle en est prévenue une seule fois', async () => {
+    const m = monde(); m.semer('r1', { envoiDemandeLe: iso(T0 - 3 * 86400000) });
+    const dep = T0 - 3 * 86400000;
+    const pose = (nature, pid, quand, etatEnvoi = 'envoye') => m.base.docs.set(`rdv_messages/${docIdMessage(`r1:t1:${nature}:r1-${pid}`)}`, { v: 1, d: { rendezVousId: 'r1', participantId: `r1-${pid}`, sens: 'sortant', echeance: `r1:t1:${nature}:r1-${pid}`, typeMessage: nature, etatEnvoi, envoyeLe: iso(quand), numero: '+33600000001', texte: 'x' } });
+    for (const pid of ['p1', 'p2']) { pose('confiance', pid, dep); pose('creneaux', pid, dep + 60000); }
+    pose('relance1', 'p1', dep + 86400000, 'abandonne'); pose('relance1', 'p2', dep + 86400000);
+    m.temps.t = dep + 2 * 86400000 + 3600000;
+    const r = (await m.action('rdv.aEnvoyer')).messages;
+    assert.deepEqual(r.filter((x) => x.typeMessage === 'relance').map((x) => x.rendezVousId), ['r1', 'r1'], 'la relance 2 part pour les deux, malgré l\'abandon de la relance 1 de la première personne');
+    const alertes = r.filter((x) => x.typeMessage === 'alerte');
+    assert.equal(alertes.length, 1);
+    assert.match(alertes[0].texte, /un SMS n'est pas parti vers M\. Durand/);
+    await m.action('rdv.confirmerEnvoi', { messageId: alertes[0].messageId, statut: 'ok' });
+    assert.ok(!(await m.action('rdv.aEnvoyer')).messages.some((x) => x.typeMessage === 'alerte' && /n'est pas parti/.test(x.texte)), 'une seule alerte par SMS abandonné');
+  });
+  test('une réservation expirée sans confirmation compte comme un essai : après 3 reprises le SMS n\'est plus renvoyé seul', async () => {
+    const m = monde(); m.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
+    let id = null;
+    for (let i = 0; i < ESSAIS_MAX; i++) {
+      const r = await m.action('rdv.aEnvoyer');
+      const conf = r.messages.find((x) => x.typeMessage === 'confiance');
+      if (i < ESSAIS_MAX - 1) assert.ok(conf, `reprise ${i}`);
+      if (conf) id = conf.messageId;
+      m.temps.t += RESERVATION_MS + 1000;
+    }
+    const dernier = await m.action('rdv.aEnvoyer');
+    assert.ok(!dernier.messages.some((x) => x.messageId === id), 'plus jamais renvoyé');
+    assert.equal(m.base.docs.get(`rdv_messages/${id}`).d.etatEnvoi, 'abandonne');
   });
 });
 
@@ -229,7 +279,31 @@ describe('rdv.enregistrerReponse', () => {
     const r = await recevoir(m, '+33600000001', '1');
     assert.equal(r.rattache, 'ambigu');
     for (const id of ['r1-p1', 'r2-p1']) assert.equal(m.base.docs.get(`rdv_participants/${id}`).d.etatReponse, 'incomprise');
-    assert.equal([...m.base.docs.keys()].filter((c) => c.startsWith('rdv_messages/in_')).length, 2);
+    assert.equal([...m.base.docs.keys()].filter((c) => c.startsWith('rdv_messages/in_')).length, 3, 'le repère « déjà vu » + une trace par rendez-vous');
+    assert.equal((await recevoir(m, '+33600000001', '1')).deja, true, 'rejeu d\'une réponse ambiguë : rien de plus');
+  });
+  test('numéro ambigu : celui qui avait déjà répondu dans un rendez-vous garde sa réponse ; STOP garde son repère même ambigu', async () => {
+    const m = monde(); m.semer('r1'); m.semer('r2');
+    m.base.docs.set('rdv_participants/r1-p1', { v: 1, d: { ...m.base.docs.get('rdv_participants/r1-p1').d, etatReponse: 'comprise', creneauxOk: [2], reponse: '2' } });
+    await recevoir(m, '+33600000001', 'STOP', 'cs-stop');
+    assert.deepEqual([m.base.docs.get('rdv_participants/r1-p1').d.etatReponse, m.base.docs.get('rdv_participants/r1-p1').d.creneauxOk], ['comprise', [2]], 'sa réponse n\'est pas effacée');
+    const autre = m.base.docs.get('rdv_participants/r2-p1').d;
+    assert.deepEqual([autre.etatReponse, autre.desinscrit], ['incomprise', true]);
+  });
+  test('une réponse n\'est jamais rattachée à un rendez-vous dont les propositions ne sont pas parties', async () => {
+    const m = monde(); m.semer('r1'); m.semer('brouillon', { envoiDemandeLe: null });
+    const r = await recevoir(m, '+33600000001', '1');
+    assert.equal(r.rattache, 'unique');
+    assert.equal(m.base.docs.get('rdv_participants/r1-p1').d.etatReponse, 'comprise');
+    assert.equal(m.base.docs.get('rdv_participants/brouillon-p1').d.etatReponse, 'attente');
+  });
+  test('un numéro présent dans beaucoup de rendez-vous : toutes les écritures passent (plusieurs lots), aucune coupure silencieuse', async () => {
+    const m = monde();
+    for (let i = 1; i <= 9; i++) m.semer(`rv${i}`);
+    const r = await recevoir(m, '+33600000001', 'plutôt jeudi', 'cs-gros');
+    assert.equal(r.rattache, 'ambigu');
+    for (let i = 1; i <= 9; i++) assert.equal(m.base.docs.get(`rdv_participants/rv${i}-p1`).d.etatReponse, 'incomprise', `rendez-vous ${i}`);
+    assert.equal([...m.base.docs.keys()].filter((c) => c.startsWith('rdv_messages/in_')).length, 10);
   });
   test('un numéro inconnu est gardé comme message orphelin, rien n\'est modifié', async () => {
     const m = monde(); m.semer();
@@ -267,6 +341,15 @@ describe('SMS écrits à la main (pluie, annulation)', () => {
     assert.equal((await m.action('rdv.aEnvoyer')).nombre, 0, 'réservé');
     await m.action('rdv.confirmerEnvoi', { messageId: 'man_1', statut: 'ok' });
     assert.equal(m.base.docs.get('rdv_messages/man_1').d.etatEnvoi, 'envoye');
+  });
+  test('SMS manuel d\'un rendez-vous de TEST : vers le numéro de test seulement, rien sans lui, rien si le rendez-vous a disparu', async () => {
+    const sms = (id, extra = {}) => ({ v: 1, d: { rendezVousId: 'r1', participantId: 'r1-p1', sens: 'sortant', manuel: true, typeMessage: 'pluie', numero: '+33600000001', texte: 'Pluie.', caracteres: 6, segments: 1, etatEnvoi: 'a_envoyer', echeance: `r1:man:${id}:p1`, ...extra } });
+    const sansNumero = monde({ test: true }); sansNumero.semer(); sansNumero.base.docs.set('rdv_messages/man_1', sms('1'));
+    assert.equal((await sansNumero.action('rdv.aEnvoyer')).messages.filter((x) => x.messageId === 'man_1').length, 0, 'pas de numéro de test : rien ne part');
+    const avec = monde({ test: true, reglages: { ...REGLAGES, numeroTest: '+33600000099' } }); avec.semer(); avec.base.docs.set('rdv_messages/man_1', sms('1'));
+    assert.deepEqual((await avec.action('rdv.aEnvoyer')).messages.filter((x) => x.messageId === 'man_1').map((x) => x.numero), ['+33600000099']);
+    const disparu = monde({ test: true, reglages: { ...REGLAGES, numeroTest: '+33600000099' } }); disparu.base.docs.set('rdv_messages/man_1', sms('1', { test: true }));
+    assert.equal((await disparu.action('rdv.aEnvoyer')).nombre, 0, 'rendez-vous introuvable : aucun SMS, surtout pas vers le vrai numéro');
   });
 });
 

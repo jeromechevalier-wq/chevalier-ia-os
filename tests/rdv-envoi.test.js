@@ -40,7 +40,7 @@ describe('envoyerPropositions', () => {
     const r = await envoyerPropositions({ donnees, ctx, espace: 'interne', sortie, rendezVousId: 'r1' });
     assert.deepEqual(r, { ok: true, declenche: true });
     assert.deepEqual(sortie.appels, [{ espace: 'interne', params: { rendezVousId: 'r1' } }]);
-    assert.equal(new Date((await donnees.document('rdv_rendezvous', 'r1')).envoiDemandeLe).getTime(), T0.getTime());
+    assert.equal(new Date((await donnees.document('rdv_rendezvous', 'r1')).envoiDemandeLe).getTime(), T0.getTime() - 60_000, 'notée une minute en arrière : les créneaux partent dans le même tir que la présentation');
   });
   test('n8n pas branché : refus clair AVANT d\'écrire quoi que ce soit', async () => {
     const donnees = creerAccesMemoire(base());
@@ -98,6 +98,15 @@ describe('envoyerSms (pluie, annulation)', () => {
     await assert.rejects(() => appel({}, { archive: true }), /archivé/);
     await assert.rejects(() => envoyerSms({ donnees: creerAccesMemoire(base()), ctx, espace: 'interne', sortie: fauxSortie({ branche: false }), rendezVousId: 'r1', type: 'pluie', texte: 'x' }), (e) => e.message === MESSAGE_RDV_NON_BRANCHE);
     assert.equal((await appel({}, { annule: true, archive: true })).ok, true, 'un SMS d\'annulation peut partir même si le rendez-vous est déjà annulé');
+  });
+  test('le même SMS manuel redemandé dans les 2 minutes (deuxième onglet, clic refait) n\'est pas recréé ; un autre type ou plus tard, si', async () => {
+    const donnees = creerAccesMemoire(base({ etat: 'confirme', creneauChoisi: FUTUR[0] }));
+    const demander = (type, quand) => envoyerSms({ donnees, ctx: { maintenant: quand }, espace: 'interne', sortie: fauxSortie(), rendezVousId: 'r1', type, texte: 'Pluie.' });
+    await demander('pluie', T0);
+    await assert.rejects(() => demander('pluie', new Date(T0.getTime() + 30_000)), /vient déjà d’être demandé/);
+    await demander('annulation', new Date(T0.getTime() + 30_000));
+    await demander('pluie', new Date(T0.getTime() + 121_000));
+    assert.equal((await donnees.liste('rdv_messages')).length, 6);
   });
   test('rien n\'est écrit quand un contrôle échoue', async () => {
     const donnees = creerAccesMemoire(base());

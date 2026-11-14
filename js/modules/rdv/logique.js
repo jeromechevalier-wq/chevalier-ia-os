@@ -331,9 +331,10 @@ export function texteAlerte(sousType, ctx = {}) {
   const brut = {
     commun: `RDV ${c} : un créneau convient à tous${creneau}. À toi de confirmer dans l'appli.`,
     aucun: `RDV ${c} : aucun créneau commun. Propose d'autres dates dans l'appli.`,
-    incomprise: `RDV ${c} : réponse non comprise de ${ctx.nom || 'un participant'}${ctx.reponse ? ` : « ${ctx.reponse} »` : ''}. Appelle ou saisis sa réponse dans l'appli.`,
+    incomprise: `RDV ${c} : réponse non comprise de ${ctx.nom || 'un participant'}${ctx.reponse ? ` : « ${String(ctx.reponse).replace(/\s+/g, ' ').trim().slice(0, 40)} »` : ''}. Appelle ou saisis sa réponse dans l'appli.`,
     'fin-relances': `RDV ${c} : relances terminées, il manque des réponses. Ouvre le rendez-vous dans l'appli.`,
     ambigu: `RDV ${c} : ce numéro est dans deux rendez-vous ouverts, réponse non rattachée. Tranche dans l'appli.`,
+    'echec-envoi': `RDV ${c} : un SMS n'est pas parti vers ${ctx.nom || 'une personne'}. Appelle cette personne.`,
     desinscription: `RDV ${c} : ${ctx.nom || 'une personne'} a répondu STOP. Plus aucun SMS ne lui sera envoyé : appelle cette personne.`,
   }[sousType] || `RDV ${c} : à regarder dans l'appli.`;
   return preparerSms(brut);
@@ -683,6 +684,13 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
     for (const x of participants.filter((y) => y.etatReponse === 'incomprise')) {
       alerter(x.desinscrit ? 'desinscription' : x.ambigu ? 'ambigu' : 'incomprise', `incomprise-${x.id}-${x.idReponse || 'r'}`, { instant: enMs(x.reponseLe) || nowMs, nom: x.nom, reponse: x.reponse });
     }
+  }
+
+  // 4 bis. Un SMS abandonné (3 échecs d'envoi) : la professionnelle est prévenue, une seule fois par SMS.
+  for (const m of messages) {
+    if (m.etatEnvoi !== 'abandonne' || m.sens === 'entrant' || m.typeMessage === 'alerte' || !m.id) continue;
+    const x = participants.find((y) => y.id === m.participantId);
+    alerter('echec-envoi', `echec-${m.id}`, { instant: enMs(m.envoyeLe) || nowMs, nom: x?.nom });
   }
 
   // 5. Confirmation (jamais retardée par la plage) et rappel de la veille.
