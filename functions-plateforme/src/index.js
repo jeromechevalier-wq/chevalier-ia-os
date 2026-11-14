@@ -15,6 +15,7 @@ import { creerMcpClients } from './mcp-clients.js';
 import { reglerEspace } from './espace.js';
 import { deciderClient } from './propositions.js';
 import { transitionDevis, preparerEmailDevis, etatPreparerEmail } from './devis.js';
+import { envoyerRdv, etatRdv } from './rdv.js';
 import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient } from './devis-pdf.js';
 import { appelDocument } from './documents.js';
 import { verifierDeploiementClient } from './deploiement.js';
@@ -130,6 +131,16 @@ export const devisPreparerEmail = onCall(OPTIONS_DEVIS, async (requete) => {
 });
 export const devisPreparerEmailEtat = onCall(OPTIONS_DEVIS, async (requete) => {
   try { return await etatPreparerEmail({ db: db(), auth: requete.auth, donnees: requete.data, sortie: sortieN8nDevis }); } catch (e) { throw enHttps(e); }
+});
+
+// Module Rendez-vous chez les clients (14/11/2026) : « Envoyer les propositions », SMS de pluie ou d'annulation (rdvEnvoyer) et l'état du branchement (rdvEtat). Même code que chez Jérôme (serveur/src/coeur/rdv-envoi.js).
+// UN webhook n8n et UN secret PAR CLIENT (N8N_RDV_URL_<client>, N8N_RDV_SECRET_<client>), lus au moment de l'appel : sans eux, « Envoyer » reste grisé. AUCUN secret déclaré (un secret absent ferait échouer le déploiement de toutes
+// les fonctions). Éditeurs seulement, module « rdv » actif exigé. Déployées seulement par le workflow MANUEL de la plateforme, avec Jérôme.
+export const rdvEnvoyer = onCall(OPTIONS_DEVIS, async (requete) => {
+  try { return await envoyerRdv({ db: db(), auth: requete.auth, donnees: requete.data, sortie: sortieN8nDevis }); } catch (e) { throw enHttps(e); }
+});
+export const rdvEtat = onCall(OPTIONS_DEVIS, async (requete) => {
+  try { return await etatRdv({ db: db(), auth: requete.auth, donnees: requete.data, sortie: sortieN8nDevis }); } catch (e) { throw enHttps(e); }
 });
 
 // PDF des devis chez les clients : fabriqué PAR LE SERVEUR dès qu'un devis passe de brouillon à finalisé (déclencheur `devisPdfAuto`), jamais par le navigateur. Chromium tourne dans la fonction

@@ -22,7 +22,7 @@ export function creerPorteCrm({ db, lireSecret = lireSecretJetons({ nom: NOM_SEC
     contexte: 'crm',
     donnees: creerAdaptateur({ db }),
     n8n: creerN8nDepuisSecret({ lireSecret, urlN8n, fetchImpl }),
-    modulesActifs: async () => ['veille', 'automatisations', 'devis'],
+    modulesActifs: async () => ['veille', 'automatisations', 'devis', 'rdv'],
     services: { devis: creerServiceDevis({ db, stockage: stockage ?? stockageDuProjet }) },
     journal: (entree) => sortie(ligneDeJournal(entree)),
     ...(maintenant ? { maintenant } : {}),

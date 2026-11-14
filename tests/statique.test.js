@@ -277,7 +277,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     // Exceptions : le module Devis (quatre fonctions de transition), le module Automatisations (n8n) appelle trois fonctions du serveur (rafraîchir, renommer, décider d'une proposition), et la veille en appelle une seule,
     // `veille` (ajouter un lien collé, lancer un résumé : 2026-10-15), et le tableau de bord en appelle une seule, `tableaudebordSaisir`
     // (saisir une date ou une valeur : le serveur contrôle, écrit et journalise) ; aucun Cloud Storage.
-    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/reseauxsociaux/donnees.js', 'js/modules/reseauxsociaux/import-actions.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js', 'js/modules/devis/donnees.js', 'js/os/deploiement-ecran.js', 'js/os/mode-test-donnees.js', 'js/modules/crm/fichiers-donnees.js'];
+    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/reseauxsociaux/donnees.js', 'js/modules/reseauxsociaux/import-actions.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js', 'js/modules/devis/donnees.js', 'js/os/deploiement-ecran.js', 'js/os/mode-test-donnees.js', 'js/modules/crm/fichiers-donnees.js', 'js/modules/rdv/donnees.js'];
     for (const f of fichiersAppli().filter((x) => /\.js$/.test(x))) {
       const t = AVEC_FONCTIONS.includes(f) ? lire(f).replaceAll(/getFunctions|httpsCallable|firebase-functions\.js/g, '') : lire(f);
       assert.doesNotMatch(t, /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
@@ -290,6 +290,10 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     const donneesDevis = lire('js/modules/devis/donnees.js');
     assert.deepEqual([...donneesDevis.matchAll(/'(devis[A-Za-z]+)'/g)].map((m) => m[1]).sort(), ['devisArchiver', 'devisChangerStatut', 'devisChoisirAffaire', 'devisEnregistrerEnvoi', 'devisFinaliser', 'devisMarquerTest', 'devisModifierDestinataires', 'devisNouvelleVersion', 'devisPdf', 'devisPdfLien', 'devisPreparerEmail', 'devisPreparerEmailEtat', 'devisSupprimer']);
     assert.equal((donneesDevis.match(/httpsCallable\(/g) || []).length, 1, 'un seul appel de fonction dans le fichier');
+    // Module Rendez-vous (14/11/2026) : deux fonctions du serveur seulement (l'état du branchement, et l'envoi de SMS demandé par un clic) ; le navigateur ne parle jamais à n8n ni au fournisseur de SMS.
+    const donneesRdv = lire('js/modules/rdv/donnees.js');
+    assert.deepEqual([...donneesRdv.matchAll(/'(rdv[A-Za-z]+)'/g)].map((m) => m[1]).sort(), ['rdvEnvoyer', 'rdvEtat']);
+    assert.equal((donneesRdv.match(/httpsCallable\(/g) || []).length, 1, 'un seul appel de fonction dans le fichier');
     const appelsVeille = [...lire('js/modules/veille/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual(appelsVeille, ['veille']);
     const appelsReseaux = [...lire('js/modules/reseauxsociaux/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);

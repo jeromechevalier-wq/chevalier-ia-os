@@ -7,6 +7,12 @@ const CAPTURES = 'e2e/captures/rdv';
 const capture = (page, nom) => page.screenshot({ path: `${CAPTURES}/${nom}${estTelephone(page) ? '-telephone' : ''}.png`, animations: 'disabled' });
 test.beforeEach(async ({ context }) => {
   await context.route('https://apis.google.com/**', (route) => route.fulfill({ status: 200, body: '', headers: { 'Content-Type': 'text/javascript' } }));
+  // La fonction du serveur qui dit si l'envoi des SMS est branché : ici « pas branché » (l'envoi réel est essayé dans rdv-envoi.spec.js). Aucun appel réseau réel.
+  await context.route(/cloudfunctions\.net\/rdvEtat$/, (route) => {
+    const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+    return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { branche: false } }) });
+  });
 });
 
 const dansJours = (n, h = 10) => { const d = new Date(Date.now() + n * 86400000); d.setUTCHours(h - 1, 0, 0, 0); return d.toISOString(); };
@@ -366,4 +372,22 @@ test('réglages : écrire un réglage ne remplace jamais le reste (modèles, num
   expect(doc.roles).toEqual(['Client', 'Maçon']);
   expect(doc.numerosAlerte).toHaveLength(1);
   expect(doc.modeles.rappel).toBe('Demain {heure}');
+});
+
+test('réglages : le numéro des SMS de test est normalisé et enregistré ; un fixe est refusé ; vide = aucun numéro de test', async ({ page }) => {
+  await connecter(page);
+  await allerA(page, 'Réglages');
+  await ouvrirSectionReglages(page, 'Rendez-vous');
+  const champ = page.getByLabel('Numéro des SMS de test');
+  await champ.fill('06.00.00.00.99');
+  await champ.blur();
+  await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.numeroTest).toBe('+33600000099');
+  await expect(champ).toHaveValue('06 00 00 00 99');
+  await champ.fill('01 02 03 04 05');
+  await champ.blur();
+  await expect(page.locator('.toast-erreur')).toContainText('fixe');
+  await expect(champ).toHaveValue('06 00 00 00 99');
+  await champ.fill('');
+  await champ.blur();
+  await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.numeroTest).toBe('');
 });

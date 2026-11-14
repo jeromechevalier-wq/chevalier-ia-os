@@ -93,11 +93,11 @@ async function http(gestionnaire, { methode = 'POST', url = '/porte', entetes = 
 }
 
 describe('P1 parité : le code copié chez les clients est celui de Jérôme (après npm run preparer)', () => {
-  test('P1 les 12 fichiers de la porte sont identiques, et porte-commun.js aussi', () => {
+  test('P1 les 13 fichiers de la porte sont identiques, et porte-commun.js aussi', () => {
     const src = 'functions/partage/porte';
     const dst = 'functions-plateforme/serveur/partage/porte';
     const fichiers = readdirSync(new URL(`../${src}`, import.meta.url)).sort();
-    assert.equal(fichiers.length, 12);
+    assert.equal(fichiers.length, 13); // dont actions-rdv.js (module Rendez-vous, 14/11/2026)
     assert.deepEqual(readdirSync(new URL(`../${dst}`, import.meta.url)).sort(), fichiers);
     for (const f of fichiers) assert.equal(lire(`${dst}/${f}`), lire(`${src}/${f}`), f);
     assert.equal(lire('functions-plateforme/serveur/src/coeur/porte-commun.js'), lire('functions/src/coeur/porte-commun.js'));

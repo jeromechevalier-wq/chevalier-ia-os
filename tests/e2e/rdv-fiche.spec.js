@@ -6,6 +6,12 @@ const CAPTURES = 'e2e/captures/rdv-fiche';
 const capture = (page, nom) => page.screenshot({ path: `${CAPTURES}/${nom}${estTelephone(page) ? '-telephone' : ''}.png`, animations: 'disabled' });
 test.beforeEach(async ({ context }) => {
   await context.route('https://apis.google.com/**', (route) => route.fulfill({ status: 200, body: '', headers: { 'Content-Type': 'text/javascript' } }));
+  // La fonction du serveur qui dit si l'envoi des SMS est branché : ici « pas branché » (l'envoi réel est essayé dans rdv-envoi.spec.js). Aucun appel réseau réel.
+  await context.route(/cloudfunctions\.net\/rdvEtat$/, (route) => {
+    const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+    return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { branche: false } }) });
+  });
 });
 
 const dansJours = (n, h = 10) => { const d = new Date(Date.now() + n * 86400000); d.setUTCHours(h - 1, 0, 0, 0); return d.toISOString(); };

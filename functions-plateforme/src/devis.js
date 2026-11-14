@@ -26,14 +26,14 @@ export function emailDe(auth) {
 }
 
 /** Contrôle de l'appelant d'une fonction de devis : e-mail vérifié, membre du client reçu avec un des `roles` (éditeur seulement par défaut), module « devis » actif. Rend { email, client } ou lève le refus neutre. */
-export async function controlerAppelant({ db, auth, client, roles = ['editeur'] }) {
+export async function controlerAppelant({ db, auth, client, roles = ['editeur'], module = MODULE_DEVIS }) {
   const email = emailDe(auth);
   if (typeof client !== 'string' || !MOTIF_IDENTIFIANT_CLIENT.test(client)) throw new Refus('invalid-argument', 'Demande invalide.');
   if (client === 'interne') throw REFUS_NEUTRE(); // « interne » est réservé à Jérôme : c'est l'espace dont les secrets n'ont pas de suffixe (n8n-sortie.js)
   const membre = await db.doc(`clients/${client}/membres/${email}`).get();
   if (!membre.exists || !roles.includes(membre.get('role'))) throw REFUS_NEUTRE();
   const fiche = await db.doc(`clients/${client}`).get();
-  if (!fiche.exists || fiche.get('modules')?.[MODULE_DEVIS] !== true) throw REFUS_NEUTRE();
+  if (!fiche.exists || fiche.get('modules')?.[module] !== true) throw REFUS_NEUTRE();
   return { email, client };
 }
 

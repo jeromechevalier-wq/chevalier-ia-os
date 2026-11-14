@@ -1,5 +1,5 @@
 // SEUL fichier du dépôt qui a le droit de faire un POST vers n8n (un test le borne : tests/devis-email-sortie.test.js).
-// Il sert à « Préparer l'e-mail » d'un devis : l'appli demande à n8n de créer un BROUILLON Gmail (avec le PDF) ; ni l'appli ni n8n n'envoient jamais l'e-mail.
+// Il sert à deux actions seulement : « Préparer l'e-mail » d'un devis, et « tirer maintenant » les SMS des rendez-vous (module Rendez-vous, ajouté le 14/11/2026 ; corps { action, espace, rendezVousId }, rien d'autre : l'envoi réel passe par la porte, rdv.aEnvoyer). Pour l'e-mail : l'appli demande à n8n de créer un BROUILLON Gmail (avec le PDF) ; ni l'appli ni n8n n'envoient jamais l'e-mail.
 //
 // Ce que ce fichier fait, et seulement cela :
 //  - lit l'adresse du webhook et le secret dans Secret Manager, À L'EXÉCUTION (jamais dans le dépôt, jamais dans la page) ;
@@ -9,10 +9,14 @@
 // Noms des secrets : N8N_DEVIS_EMAIL_URL et N8N_DEVIS_EMAIL_SECRET chez Jérôme ; chez un client, le nom du client est ajouté après un tiret bas
 // (N8N_DEVIS_EMAIL_URL_<client>) : un workflow et un secret par client, jamais partagés.
 export const ACTION_N8N = 'devis.preparerEmail';
+export const ACTION_N8N_RDV = 'rdv.tirerMaintenant';
 export const HOTE_N8N = 'n8n.chevalier-ia.fr';
 export const ENTETE_SECRET = 'X-Chevalier-Secret';
 export const SECRET_URL = 'N8N_DEVIS_EMAIL_URL';
 export const SECRET_CLE = 'N8N_DEVIS_EMAIL_SECRET';
+export const SECRET_RDV_URL = 'N8N_RDV_URL';
+export const SECRET_RDV_CLE = 'N8N_RDV_SECRET';
+const SECRETS = Object.freeze({ devis: [SECRET_URL, SECRET_CLE], rdv: [SECRET_RDV_URL, SECRET_RDV_CLE] });
 export const ESPACE_JEROME = 'interne';
 export const DELAI_MAX_MS = 25_000;
 export const DUREE_CACHE_MS = 60_000;
@@ -49,48 +53,62 @@ export function adresseSure(texte) {
  * Rend { branche(espace), demander(espace, { devisId, demandeId }) }.
  */
 export function creerSortieN8n({ lireSecret, fetchImpl = globalThis.fetch, maintenant = Date.now, delaiMs = DELAI_MAX_MS } = {}) {
-  const cache = new Map(); // espace -> { expire, config | null }
+  const cache = new Map(); // `${action}:${espace}` -> { expire, config | null }
 
-  async function configuration(espace) {
-    const vu = cache.get(espace);
+  async function configuration(espace, action) {
+    const cleCache = `${action}:${espace}`;
+    const vu = cache.get(cleCache);
     if (vu && vu.expire > maintenant()) return vu.config;
     let config = null;
     try {
-      const url = adresseSure(await lireSecret(nomDuSecret(SECRET_URL, espace)));
-      const secret = String(await lireSecret(nomDuSecret(SECRET_CLE, espace)) ?? '').trim();
+      const [secretUrl, secretCle] = SECRETS[action];
+      const url = adresseSure(await lireSecret(nomDuSecret(secretUrl, espace)));
+      const secret = String(await lireSecret(nomDuSecret(secretCle, espace)) ?? '').trim();
       if (url && secret && !/[\u0000-\u001f\u007f]/.test(secret) && secret.length <= 500) config = { url, secret };
     } catch { config = null; }
     if (cache.size > 100) cache.clear();
-    cache.set(espace, { expire: maintenant() + DUREE_CACHE_MS, config });
+    cache.set(cleCache, { expire: maintenant() + DUREE_CACHE_MS, config });
     return config;
   }
 
+  /** L'UNIQUE endroit qui parle à n8n : `corps` est un texte JSON FIXE construit par l'action (jamais une donnée libre). */
+  async function poster(espace, action, corps) {
+    const config = await configuration(espace, action);
+    if (!config) throw new ErreurSortieN8n('non_branche', MESSAGE_NON_BRANCHE);
+    const arret = new AbortController();
+    const minuteur = setTimeout(() => arret.abort(), delaiMs);
+    let reponse;
+    try {
+      reponse = await fetchImpl(config.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', [ENTETE_SECRET]: config.secret },
+        body: corps,
+        redirect: 'error',
+        signal: arret.signal,
+      });
+    } catch {
+      throw new ErreurSortieN8n('indisponible', 'n8n ne répond pas.');
+    } finally {
+      clearTimeout(minuteur);
+    }
+    if (reponse.status === 401 || reponse.status === 403) throw new ErreurSortieN8n('refuse', 'n8n a refusé la demande.');
+    if (!reponse.ok) throw new ErreurSortieN8n('indisponible', 'n8n a répondu une erreur.');
+  }
+
   return {
-    /** Vrai si l'adresse ET le secret existent et sont utilisables. Ne rend jamais leur valeur. */
-    async branche(espace) { return (await configuration(espace)) !== null; },
+    /** Vrai si l'adresse ET le secret de « Préparer l'e-mail » existent et sont utilisables. Ne rend jamais leur valeur. */
+    async branche(espace) { return (await configuration(espace, 'devis')) !== null; },
+    /** Même chose pour les SMS des rendez-vous (secrets N8N_RDV_URL et N8N_RDV_SECRET). */
+    async brancheRdv(espace) { return (await configuration(espace, 'rdv')) !== null; },
 
     /** Demande à n8n de préparer le brouillon. Réussit si n8n répond « 2xx » ; lève ErreurSortieN8n sinon. */
     async demander(espace, { devisId, demandeId }) {
-      const config = await configuration(espace);
-      if (!config) throw new ErreurSortieN8n('non_branche', MESSAGE_NON_BRANCHE);
-      const arret = new AbortController();
-      const minuteur = setTimeout(() => arret.abort(), delaiMs);
-      let reponse;
-      try {
-        reponse = await fetchImpl(config.url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', [ENTETE_SECRET]: config.secret },
-          body: JSON.stringify({ action: ACTION_N8N, espace, devisId, demandeId }),
-          redirect: 'error',
-          signal: arret.signal,
-        });
-      } catch {
-        throw new ErreurSortieN8n('indisponible', 'n8n ne répond pas.');
-      } finally {
-        clearTimeout(minuteur);
-      }
-      if (reponse.status === 401 || reponse.status === 403) throw new ErreurSortieN8n('refuse', 'n8n a refusé la demande.');
-      if (!reponse.ok) throw new ErreurSortieN8n('indisponible', 'n8n a répondu une erreur.');
+      await poster(espace, 'devis', JSON.stringify({ action: ACTION_N8N, espace, devisId, demandeId }));
+    },
+
+    /** Dit à n8n « tire maintenant » : le workflow appelle la porte (rdv.aEnvoyer) pour récupérer les SMS dus. Seul l'identifiant du rendez-vous voyage. */
+    async tirerRdv(espace, { rendezVousId }) {
+      await poster(espace, 'rdv', JSON.stringify({ action: ACTION_N8N_RDV, espace, rendezVousId }));
     },
   };
 }

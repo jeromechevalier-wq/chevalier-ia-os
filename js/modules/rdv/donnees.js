@@ -2,7 +2,8 @@
 // Écritures par `executer` (journal commun), jamais de setDoc direct. Aucun orderBy, aucun limit : le tri se fait dans le navigateur (règle D4).
 // Les participants sont des fiches Personnes du socle (lues et créées par js/modules/crm/donnees.js, démarré par la coque avec ou sans Affaires).
 import { collection, doc, getDoc, getDocs, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { db } from '../../os/firebase.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
+import { db, app } from '../../os/firebase.js';
 import { cheminCollection } from '../../os/chemins.js';
 import { executer } from '../../os/journal-donnees.js';
 import { avecModeTest } from '../../os/mode-test.js';
@@ -66,6 +67,7 @@ export function arreter() {
   desabonnements = [];
   Object.assign(etat, vierge());
   Object.assign(prets, { rendezVous: false, participants: false, messages: false, parametres: false });
+  oublierEtatEnvoi();
   base = '';
 }
 
@@ -220,4 +222,57 @@ export async function nouvelleSerie(rdvId, creneaux, maintenant = new Date()) {
 export async function annulerRendezVous(rdvId) {
   exigerEcriture();
   await executer([L.ecritureModifier('rdv_rendezvous', rdvId, { annule: true, archive: true }, MARQUES_MAJ)], 'annulerRendezVous');
+}
+
+// ---------------------------------------------------------------- envoi des SMS (fonctions du serveur, voir functions/src/rdv-appel.js)
+// L'écran ne parle jamais à n8n ni au fournisseur de SMS : il demande au serveur, qui note la demande puis dit à n8n « tire maintenant ». Rien ne part sans un clic explicite.
+
+const fonctions = () => getFunctions(app, 'europe-west9');
+const FONCTIONS = Object.freeze({ etat: 'rdvEtat', envoyer: 'rdvEnvoyer' });
+const CODES_LISIBLES = ['permission-denied', 'invalid-argument', 'failed-precondition', 'not-found', 'unauthenticated'];
+export const MESSAGE_RESEAU = 'Ça n’a pas abouti. Vérifie ta connexion internet, puis réessaie : rien n’a été perdu.';
+
+/** Erreur d'appel -> message à afficher (le SDK ajoute « [403] » en fin de message : on l'enlève). */
+export function messageDErreurAppel(e) {
+  const code = String(e?.code ?? '').replace('functions/', '');
+  const message = String(e?.message ?? '').replace(/\s*\[\d{3}\]$/, '').trim();
+  return CODES_LISIBLES.includes(code) && message && message !== code ? message : MESSAGE_RESEAU;
+}
+
+async function appeler(operation, demande) {
+  const base = CRM.cheminDeBase();
+  const client = base ? base.split('/')[1] : undefined;
+  try {
+    const r = await httpsCallable(fonctions(), FONCTIONS[operation])(client ? { client, ...demande } : demande);
+    return r.data;
+  } catch (e) {
+    console.warn('Rendez-vous : appel refusé', operation, e?.code);
+    throw new ErreurRdv(messageDErreurAppel(e));
+  }
+}
+
+let brancheSms = null; // null = pas encore su ; true / false = réponse du serveur (gardée pour la session)
+let brancheEnCours = null;
+/** « Envoyer » doit-il être actif ? Valeur connue (true / false) ou null tant que le serveur n'a pas répondu (le bouton reste grisé). Lance la question au premier appel et prévient les écrans à la réponse. */
+export function envoiBranche() {
+  if (brancheSms === null && !brancheEnCours) {
+    brancheEnCours = appeler('etat', {})
+      .then((r) => { brancheSms = r?.branche === true; })
+      .catch(() => { brancheSms = false; }) // fonction absente (espace pas encore déployé), compte sans droit : le bouton reste grisé
+      .finally(() => { brancheEnCours = null; notifier(); });
+  }
+  return brancheSms;
+}
+/** Réinitialise ce qui est su (changement de compte ou d'espace). */
+export function oublierEtatEnvoi() { brancheSms = null; brancheEnCours = null; }
+
+/** Envoie les premières propositions d'un rendez-vous (ou d'une nouvelle série). Rend { ok, declenche }. Lève une ErreurRdv lisible si refusé. */
+export async function envoyerPropositions(rendezVousId) {
+  exigerEcriture();
+  return appeler('envoyer', { action: 'propositions', rendezVousId });
+}
+/** Envoie un SMS écrit à la main (pluie ou annulation) à tous les participants. Rend { ok, nombre, declenche, caracteres, segments }. */
+export async function envoyerSmsManuel(rendezVousId, type, texte) {
+  exigerEcriture();
+  return appeler('envoyer', { action: 'sms', rendezVousId, type, texte });
 }
