@@ -104,7 +104,7 @@ export function rendreCreation(conteneur) {
   }
 
   let enCours = false;
-  async function enregistrer() {
+  async function enregistrer({ envoyer = false } = {}) {
     if (enCours) return;
     const nettoyes = lignes.map((l) => l.lire()).map((x) => {
       const nom = L.nettoyerEspaces(x.nom);
@@ -121,7 +121,10 @@ export function rendreCreation(conteneur) {
     boutonEnregistrer.disabled = true;
     try {
       const id = await D.creerRendezVous({ objet: champObjet.value, adresse: champAdresse.value, creneaux: creneaux(), participants: verdict.participants });
-      toast('Rendez-vous enregistré');
+      if (envoyer) {
+        // Le rendez-vous est enregistré d'abord : si l'envoi est refusé, rien n'est perdu et la fiche propose de le renvoyer.
+        try { await D.envoyerPropositions(id); toast('Propositions envoyées'); } catch (e) { console.warn(e); toast(`Rendez-vous enregistré, mais l’envoi n’a pas pu partir : ${D.messageErreur(e, 'réessaie depuis la fiche.')}`, { type: 'erreur', duree: 7000 }); }
+      } else toast('Rendez-vous enregistré');
       naviguer(cheminRdv(id));
     } catch (e) {
       console.warn(e);
@@ -130,8 +133,16 @@ export function rendreCreation(conteneur) {
     } finally { enCours = false; }
   }
 
-  const boutonEnvoyer = h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'envoyer-propositions', disabled: true, title: MESSAGE_ENVOI_NON_BRANCHE }, 'Envoyer les propositions');
-  const boutonEnregistrer = h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'enregistrer-rdv', onclick: enregistrer }, 'Enregistrer sans envoyer');
+  const boutonEnvoyer = h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'envoyer-propositions', disabled: true, title: MESSAGE_ENVOI_NON_BRANCHE, onclick: () => enregistrer({ envoyer: true }) }, 'Envoyer les propositions');
+  const boutonEnregistrer = h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'enregistrer-rdv', onclick: () => enregistrer() }, 'Enregistrer sans envoyer');
+  const phraseEnvoi = h('p', { class: 'aide', dataset: { role: 'envoi-non-branche' } }, MESSAGE_ENVOI_NON_BRANCHE);
+  /** « Envoyer » n'est actif que si le serveur dit que n8n est branché pour cet espace ; sinon il reste grisé avec sa phrase. */
+  function majEnvoi() {
+    const branche = D.envoiBranche() === true;
+    boutonEnvoyer.disabled = !branche;
+    boutonEnvoyer.title = branche ? '' : MESSAGE_ENVOI_NON_BRANCHE;
+    phraseEnvoi.hidden = branche;
+  }
   const boutonAnnuler = h('button', { type: 'button', class: 'bouton bouton-discret', 'data-action': 'annuler-rdv', onclick: () => naviguer('rdv/liste') }, 'Annuler');
 
   ajouterLigne();
@@ -147,9 +158,10 @@ export function rendreCreation(conteneur) {
     carte('Tes créneaux (1 à 3)', champsCreneaux.map((c, i) => h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: c.id }, `Créneau ${i + 1}`), c, libellesCreneaux[i]))),
     carte('Ce que chaque personne recevra', zoneApercu),
     erreurs,
-    h('p', { class: 'aide', dataset: { role: 'envoi-non-branche' } }, MESSAGE_ENVOI_NON_BRANCHE),
+    phraseEnvoi,
     h('div', { class: 'ligne-boutons' }, boutonEnvoyer, boutonEnregistrer, boutonAnnuler)));
   majApercu();
-  const arret = D.surChangement(() => majApercu());
+  majEnvoi();
+  const arret = D.surChangement(() => { majApercu(); majEnvoi(); });
   return () => arret();
 }

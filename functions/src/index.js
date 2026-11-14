@@ -31,6 +31,7 @@ import { creerAppelDocument, ligneDeJournalDocuments } from './documents/appel.j
 import { stockageDuProjet, bucketDuProjet } from './devis/stockage-projet.js';
 import { creerSortieN8n } from './coeur/n8n-sortie.js';
 import { creerAppelPreparerEmail, creerAppelEtatPreparerEmail } from './devis-email-appel.js';
+import { creerAppelRdvEtat, creerAppelRdvEnvoyer } from './rdv-appel.js';
 import { creerLecteurSecrets } from './securite/secrets.js';
 import { convertirHtmlEnPdf } from './devis/chromium.js';
 import { copieInterne, administrateur, Refus } from './automatisations/appels.js';
@@ -150,6 +151,17 @@ export const devisPreparerEmail = onCall(OPTIONS_DEVIS, (requete) => {
 export const devisPreparerEmailEtat = onCall(OPTIONS_DEVIS, (requete) => {
   if (!getApps().length) initializeApp();
   return creerAppelEtatPreparerEmail({ sortie: sortieN8nDevis })(requete);
+});
+
+// Module Rendez-vous (14/11/2026) : l'écran demande au serveur de faire PARTIR des SMS (« Envoyer les propositions », pluie, annulation). Le serveur dit à n8n « tire maintenant » (identifiants seulement)
+// et n8n vient chercher les SMS à envoyer par la porte (rdv.aEnvoyer). Secrets lus à l'exécution (N8N_RDV_URL, N8N_RDV_SECRET) : absents, « Envoyer » reste grisé (rdvEtat). Même compte de service que devis.
+export const rdvEtat = onCall(OPTIONS_DEVIS, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelRdvEtat({ sortie: sortieN8nDevis })(requete);
+});
+export const rdvEnvoyer = onCall(OPTIONS_DEVIS, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelRdvEnvoyer({ donnees: () => creerAccesFirestore(), sortie: sortieN8nDevis, journal: (e) => process.stdout.write(`${JSON.stringify({ fonction: 'rdv', ...e })}\n`) })(requete);
 });
 
 // PDF d'un devis (25/10/2026) : fabriqué PAR LE SERVEUR dès qu'un devis passe de brouillon à finalisé (déclencheur Firestore `devisPdfAuto`), jamais par le navigateur.

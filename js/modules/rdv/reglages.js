@@ -91,7 +91,16 @@ export function reglages(page) {
     } }, icone('plus', { taille: 16 }), 'Ajouter un numéro');
     return [numeros.length ? h('div', { class: 'pile' }, lignes) : h('p', { class: 'aide', dataset: { role: 'aucun-numero' } }, 'Aucun numéro pour l’instant : tu ne recevras aucune alerte.'),
       ajouter, ligne('Numéro donné aux participants', choix),
-      h('p', { class: 'aide' }, 'Vacances, téléphone perdu, collègue : coupe le numéro concerné avec son interrupteur.')];
+      h('p', { class: 'aide' }, 'Vacances, téléphone perdu, collègue : coupe le numéro concerné avec son interrupteur.'),
+      ligne('Numéro des SMS de test', h('input', { class: 'champ', type: 'tel', value: p.numeroTest ? R.afficherTelephone(p.numeroTest) : '', 'aria-label': 'Numéro des SMS de test', placeholder: '06 00 00 00 00',
+        onchange: (e) => {
+          const saisie = e.target.value.trim();
+          if (!saisie) { enregistrer({ numeroTest: '' }); return; }
+          const t = R.normaliserTelephone(saisie);
+          if (!t.ok) { toast(t.message, { type: 'erreur' }); e.target.value = p.numeroTest ? R.afficherTelephone(p.numeroTest) : ''; return; }
+          enregistrer({ numeroTest: t.telephone });
+        } })),
+      h('p', { class: 'aide' }, 'Un rendez-vous marqué comme test n’envoie ses SMS qu’à ce numéro, jamais à un participant. Sans ce numéro, un rendez-vous de test n’envoie rien.')];
   }));
 
   redessins.push(carte(page, 'reglages-rdv-nom', 'Ton nom dans les SMS', () => {

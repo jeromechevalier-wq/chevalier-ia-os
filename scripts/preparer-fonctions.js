@@ -64,12 +64,21 @@ console.log('functions/partage/devis-brouillon.js et devis-editeur.js mis à jou
 
 // La porte des workflows n8n (scripts/porte/) : la logique (clés, contrôles, actions de la veille, accès Firestore, lecteur n8n) est copiée telle quelle,
 // sans l'outil en ligne de commande (outil.js), qui reste sur le Mac de Jérôme. Même principe : un seul exemplaire du code, testé, utilisé par la fonction.
-const FICHIERS_PORTE = ['cles.js', 'validation.js', 'actions-veille.js', 'n8n.js', 'adaptateur.js', 'porte.js', 'cles-tableau.js', 'actions-tableaudebord.js', 'porte-tableau.js', 'saisie-tableaudebord.js', 'actions-automatisations.js', 'actions-devis.js'];
+const FICHIERS_PORTE = ['cles.js', 'validation.js', 'actions-veille.js', 'n8n.js', 'adaptateur.js', 'porte.js', 'cles-tableau.js', 'actions-tableaudebord.js', 'porte-tableau.js', 'saisie-tableaudebord.js', 'actions-automatisations.js', 'actions-devis.js', 'actions-rdv.js'];
 const destinationPorte = join(destination, 'porte');
 mkdirSync(destinationPorte, { recursive: true });
 // actions-automatisations.js importe le fichier pur des propositions par son chemin dans le dépôt ; dans functions/partage/ il est un dossier plus haut.
 const IMPORT_PROPOSITIONS = "from '../../js/modules/automatisations/propositions.js'";
+// Module Rendez-vous : les règles pures (js/modules/rdv/logique.js, sans import) sont copiées sous le nom rdv.js ; actions-rdv.js les importe un dossier plus haut que sa place d'origine.
+const IMPORT_RDV = "from '../../js/modules/rdv/logique.js'";
+copyFileSync(join(racine, 'js', 'modules', 'rdv', 'logique.js'), join(destination, 'rdv.js'));
 for (const f of FICHIERS_PORTE) {
+  if (f === 'actions-rdv.js') {
+    const texteRdv = readFileSync(join(racine, 'scripts', 'porte', f), 'utf8');
+    if (!texteRdv.includes(IMPORT_RDV)) throw new Error('scripts/porte/actions-rdv.js : import des règles des rendez-vous introuvable');
+    writeFileSync(join(destinationPorte, f), texteRdv.replaceAll(IMPORT_RDV, "from '../rdv.js'"));
+    continue;
+  }
   if (f !== 'actions-automatisations.js') { copyFileSync(join(racine, 'scripts', 'porte', f), join(destinationPorte, f)); continue; }
   const source = readFileSync(join(racine, 'scripts', 'porte', f), 'utf8');
   if (!source.includes(IMPORT_PROPOSITIONS)) throw new Error('scripts/porte/actions-automatisations.js : import des propositions introuvable');
@@ -113,7 +122,7 @@ mkdirSync(join(destinationServeur, 'src', 'devis'), { recursive: true });
 for (const f of ['pdf-service.js', 'pdf-declencheur.js', 'chromium.js', 'stockage.js']) copyFileSync(join(racine, 'functions', 'src', 'devis', f), join(destinationServeur, 'src', 'devis', f));
 copyFileSync(join(racine, 'functions', 'src', 'version.js'), join(destinationServeur, 'src', 'version.js'));
 copyFileSync(join(racine, 'functions', 'package.json'), join(destinationServeur, 'package.json')); // version.js lit la version du serveur ici
-for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'devis-document.js', 'devis-numeros.js', 'devis-vocabulaire.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'fichiers-regles.js', 'rs-logique.js', 'rs-idees.js', 'rs-inspirations.js', 'rs-pistes.js', 'propositions.js']) {
+for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'devis-document.js', 'devis-numeros.js', 'devis-vocabulaire.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'fichiers-regles.js', 'rs-logique.js', 'rs-idees.js', 'rs-inspirations.js', 'rs-pistes.js', 'propositions.js', 'rdv.js']) {
   mkdirSync(join(destinationServeur, 'partage'), { recursive: true });
   copyFileSync(join(destination, f), join(destinationServeur, 'partage', f));
 }

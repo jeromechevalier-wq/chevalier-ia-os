@@ -68,21 +68,45 @@ async function proposerAutresCreneaux(rdv) {
   return r === true;
 }
 
-/** Fenêtre de SMS écrit à la main (pluie ou annulation) : texte prérempli MODIFIABLE, compteur, « Envoyer ». Rien ne part sans ce clic ; l'envoi n'est pas encore branché. */
+/**
+ * Fenêtre de SMS écrit à la main (pluie ou annulation) : texte prérempli MODIFIABLE, compteur, « Envoyer ». Rien ne part sans ce clic.
+ * « Envoyer » est grisé tant que le serveur ne dit pas que n8n est branché pour cet espace (phrase affichée dans ce cas). Rend 'envoye', 'sans' (annulé sans prévenir), ou une autre valeur si fermée.
+ */
 async function fenetreSmsManuel(rdv, type, { titre, bouton2 = null } = {}) {
   const champ = h('textarea', { class: 'champ rdv-champ-multiligne', rows: '5', 'aria-label': 'Texte du SMS' });
   champ.value = R.texteSmsManuel(type, rdv, D.parametres());
   const compteur = compteurSms(champ.value);
   champ.addEventListener('input', () => compteur.maj(champ.value));
+  const erreur = h('p', { class: 'erreur', role: 'alert' });
+  const phrase = h('p', { class: 'aide', dataset: { role: 'envoi-non-branche' } }, MESSAGE_ENVOI_NON_BRANCHE);
   const boutons = [{ libelle: 'Fermer', valeur: false }];
   if (bouton2) boutons.push(bouton2);
-  boutons.push({ libelle: 'Envoyer', valeur: 'envoyer', style: 'principal', desactive: true });
-  return dialogue({
+  boutons.push({
+    libelle: 'Envoyer', valeur: 'envoye', style: 'principal', desactive: true,
+    avantFermeture: async () => {
+      try {
+        const r = await D.envoyerSmsManuel(rdv.id, type, champ.value);
+        toast(r.declenche ? 'SMS en cours d’envoi' : 'SMS enregistré : il partira dans quelques minutes');
+        return true;
+      } catch (e) { console.warn(e); erreur.textContent = D.messageErreur(e, 'Envoi impossible, réessaie.'); return false; }
+    },
+  });
+  // « Envoyer » suit la réponse du serveur (« n8n est branché ? ») même si elle arrive après l'ouverture de la fenêtre.
+  let arret = () => {};
+  const resultat = await dialogue({
     titre, classe: 'dialogue-formulaire',
     contenu: h('div', { class: 'pile' }, h('p', { class: 'aide' }, 'Ce texte est celui que recevront tous les participants. Tu peux le modifier : rien ne part sans ton clic sur « Envoyer ».'),
-      champ, compteur.element, h('p', { class: 'aide', dataset: { role: 'envoi-non-branche' } }, MESSAGE_ENVOI_NON_BRANCHE)),
+      champ, compteur.element, erreur, phrase),
     boutons,
+    auMontage: ({ boutons: elements }) => {
+      const envoyer = elements.at(-1);
+      const maj = () => { const ok = D.envoiBranche() === true; envoyer.disabled = !ok; phrase.hidden = ok; };
+      arret = D.surChangement(maj);
+      maj();
+    },
   });
+  arret();
+  return resultat;
 }
 
 async function annuler(rdv) {
@@ -90,7 +114,7 @@ async function annuler(rdv) {
     titre: 'Annuler le rendez-vous',
     bouton2: { libelle: 'Annuler sans prévenir', valeur: 'sans', style: 'danger', avantFermeture: async () => { try { await D.annulerRendezVous(rdv.id); toast('Rendez-vous annulé'); return true; } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Annulation impossible'), { type: 'erreur' }); return false; } } },
   });
-  if (r === 'sans') naviguer('rdv/archives');
+  if (r === 'sans' || r === 'envoye') naviguer('rdv/archives');
 }
 
 let confirmationEnCours = false;
@@ -145,6 +169,7 @@ export function rendreFiche(conteneur, id) {
   }
 
   function rendre() {
+    D.envoiBranche(); // la réponse du serveur (« n8n est branché ? ») arrive pendant qu'on lit la fiche : elle est connue quand on ouvre une fenêtre de SMS
     if (!(D.estPret() && CRM.estPret())) { remplir(zone, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }))); return; }
     const r = D.rendezVous(id);
     if (!r) { remplir(zone, h('div', { class: 'etat-vide' }, h('p', {}, 'Ce rendez-vous n’existe pas ou a été supprimé.'), h('a', { class: 'bouton bouton-secondaire', href: '#/rdv/liste' }, 'Retour aux rendez-vous'))); return; }
@@ -163,7 +188,15 @@ export function rendreFiche(conteneur, id) {
     ]) }, icone('ellipsis', { taille: 18 }));
 
     const boutons = [];
-    if (ouvert) {
+    const nonEnvoye = ouvert && !r.envoiDemandeLe && parts.length > 0;
+    if (nonEnvoye) {
+      // Pas encore envoyé : le bouton jaune est « Envoyer les propositions » (grisé tant que n8n n'est pas branché) ; « Confirmer » n'a aucun sens avant les premières réponses.
+      const branche = D.envoiBranche() === true;
+      boutons.push(h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'envoyer-propositions', disabled: !branche, title: branche ? '' : MESSAGE_ENVOI_NON_BRANCHE,
+        onclick: async (e) => { e.currentTarget.disabled = true; try { await D.envoyerPropositions(r.id); toast('Propositions envoyées'); } catch (err) { console.warn(err); toast(D.messageErreur(err, 'Envoi impossible'), { type: 'erreur' }); e.currentTarget.disabled = false; } } }, 'Envoyer les propositions'));
+      if (!branche) boutons.push(h('span', { class: 'aide', dataset: { role: 'envoi-non-branche' } }, MESSAGE_ENVOI_NON_BRANCHE));
+    }
+    if (ouvert && !nonEnvoye) {
       boutons.push(h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'confirmer-creneau', disabled: !propose,
         title: propose ? '' : 'Aucun créneau à venir à confirmer pour l’instant', 'aria-describedby': propose ? undefined : 'rdv-raison-confirmer',
         onclick: (e) => confirmerAvecFenetre(r, propose, bilan, e.currentTarget) },

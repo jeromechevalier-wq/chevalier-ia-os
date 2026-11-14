@@ -67,6 +67,11 @@ export function creerAdaptateur({ db }) {
       }
       await lot.commit();
     },
+    /** Documents d'une table dont UN champ vaut `valeur` (une seule condition d'égalité, aucun index composite) : { id, ...champs }. Le nom du champ est un segment simple. */
+    async listerPar(chemin, champ, valeur, { limite = 500 } = {}) {
+      const snap = await db.collection(sur(chemin)).where(sur(champ), '==', valeur).limit(limite).get();
+      return snap.docs.map((d) => ({ ...d.data(), id: d.id }));
+    },
     /** Documents d'une table : { id, ...champs }. Au plus une condition (`etat`) et une limite : aucun index composite. */
     async lister(chemin, { etat, limite = 100 } = {}) {
       let q = db.collection(sur(chemin));

@@ -158,7 +158,7 @@ describe('13 réponse non comprise : alerte et relances suspendues', () => {
   });
   test('13 la professionnelle peut saisir la réponse à la place : l’état devient « saisie » et compte dans le bilan', () => {
     const patch = L.saisirReponse(pers('1', { etatReponse: 'incomprise', reponse: 'bof' }), [3, 1, 1, 9]);
-    assert.deepEqual(patch, { etatReponse: 'saisie', creneauxOk: [1, 3], reponse: 'bof' });
+    assert.deepEqual(patch, { etatReponse: 'saisie', creneauxOk: [1, 3], reponse: 'bof', ambigu: false });
     const b = L.bilanReponses([{ ...pers('1'), ...patch }, pers('2', { etatReponse: 'comprise', creneauxOk: [1] })], 3);
     assert.deepEqual(b.communs, [1]);
   });
