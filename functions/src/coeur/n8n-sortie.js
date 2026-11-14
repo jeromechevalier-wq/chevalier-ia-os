@@ -1,5 +1,5 @@
 // SEUL fichier du dépôt qui a le droit de faire un POST vers n8n (un test le borne : tests/devis-email-sortie.test.js).
-// Il sert à deux actions seulement : « Préparer l'e-mail » d'un devis, et « tirer maintenant » les SMS des rendez-vous (module Rendez-vous, ajouté le 14/11/2026 ; corps { action, espace, rendezVousId }, rien d'autre : l'envoi réel passe par la porte, rdv.aEnvoyer). Pour l'e-mail : l'appli demande à n8n de créer un BROUILLON Gmail (avec le PDF) ; ni l'appli ni n8n n'envoient jamais l'e-mail.
+// Il sert à une seule action : « Préparer l'e-mail » d'un devis (l'appli demande à n8n de créer un BROUILLON Gmail avec le PDF ; ni l'appli ni n8n n'envoient jamais l'e-mail). Les SMS des rendez-vous ne passent plus par n8n depuis le 14/11/2026 : voir coeur/sms-direct.js.
 //
 // Ce que ce fichier fait, et seulement cela :
 //  - lit l'adresse du webhook et le secret dans Secret Manager, À L'EXÉCUTION (jamais dans le dépôt, jamais dans la page) ;
@@ -9,14 +9,11 @@
 // Noms des secrets : N8N_DEVIS_EMAIL_URL et N8N_DEVIS_EMAIL_SECRET chez Jérôme ; chez un client, le nom du client est ajouté après un tiret bas
 // (N8N_DEVIS_EMAIL_URL_<client>) : un workflow et un secret par client, jamais partagés.
 export const ACTION_N8N = 'devis.preparerEmail';
-export const ACTION_N8N_RDV = 'rdv.tirerMaintenant';
 export const HOTE_N8N = 'n8n.chevalier-ia.fr';
 export const ENTETE_SECRET = 'X-Chevalier-Secret';
 export const SECRET_URL = 'N8N_DEVIS_EMAIL_URL';
 export const SECRET_CLE = 'N8N_DEVIS_EMAIL_SECRET';
-export const SECRET_RDV_URL = 'N8N_RDV_URL';
-export const SECRET_RDV_CLE = 'N8N_RDV_SECRET';
-const SECRETS = Object.freeze({ devis: [SECRET_URL, SECRET_CLE], rdv: [SECRET_RDV_URL, SECRET_RDV_CLE] });
+const SECRETS = Object.freeze({ devis: [SECRET_URL, SECRET_CLE] });
 export const ESPACE_JEROME = 'interne';
 export const DELAI_MAX_MS = 25_000;
 export const DUREE_CACHE_MS = 60_000;
@@ -98,17 +95,10 @@ export function creerSortieN8n({ lireSecret, fetchImpl = globalThis.fetch, maint
   return {
     /** Vrai si l'adresse ET le secret de « Préparer l'e-mail » existent et sont utilisables. Ne rend jamais leur valeur. */
     async branche(espace) { return (await configuration(espace, 'devis')) !== null; },
-    /** Même chose pour les SMS des rendez-vous (secrets N8N_RDV_URL et N8N_RDV_SECRET). */
-    async brancheRdv(espace) { return (await configuration(espace, 'rdv')) !== null; },
 
     /** Demande à n8n de préparer le brouillon. Réussit si n8n répond « 2xx » ; lève ErreurSortieN8n sinon. */
     async demander(espace, { devisId, demandeId }) {
       await poster(espace, 'devis', JSON.stringify({ action: ACTION_N8N, espace, devisId, demandeId }));
-    },
-
-    /** Dit à n8n « tire maintenant » : le workflow appelle la porte (rdv.aEnvoyer) pour récupérer les SMS dus. Seul l'identifiant du rendez-vous voyage. */
-    async tirerRdv(espace, { rendezVousId }) {
-      await poster(espace, 'rdv', JSON.stringify({ action: ACTION_N8N_RDV, espace, rendezVousId }));
     },
   };
 }

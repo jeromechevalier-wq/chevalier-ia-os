@@ -2,7 +2,7 @@
 // Même code métier que chez Jérôme (serveur/src/coeur/rdv-envoi.js, copie de functions/src/coeur/rdv-envoi.js). Comme les fonctions de devis :
 //  - le client reçu est une CIBLE à vérifier : l'appelant doit être « editeur » du client (un lecteur est refusé) et le module « rdv » doit être actif sur sa fiche ;
 //  - UN SEUL refus neutre « Action non autorisée. » ; tout est lu et écrit sous clients/<client>/ ;
-//  - n8n : le webhook et le secret sont ceux DU client (N8N_RDV_URL_<client>, N8N_RDV_SECRET_<client>), lus par `sortie` (le SEUL fichier qui fait un POST vers n8n).
+//  - SMS : la connexion ClickSend est celle DU client (secret CLICKSEND_RDV_<client>), lue à l'exécution par `sortie` (serveur/src/coeur/sms-direct.js, le SEUL fichier qui parle à ClickSend) ; sans elle, « Envoyer » reste grisé.
 import { logger } from 'firebase-functions';
 import { creerAccesFirestore, avecBase } from '../serveur/src/coeur/donnees.js';
 import { etatEnvoi, envoyerPropositions, envoyerSms, ErreurRdvEnvoi } from '../serveur/src/coeur/rdv-envoi.js';
@@ -32,4 +32,26 @@ export async function envoyerRdv({ db, auth, donnees, sortie, maintenant = Date.
     logger.error('Rendez-vous : erreur inattendue', { code: String(e?.name ?? 'inconnue').slice(0, 30) });
     throw new Refus('internal', 'Une erreur est survenue.');
   }
+}
+
+/**
+ * Filet planifié (toutes les 15 minutes) : envoie les SMS dus de CHAQUE client dont le module « rdv » est actif et dont la connexion ClickSend existe.
+ * Un client en panne n'arrête pas les autres. Rend un bilan sans donnée sensible : { clients, branches, envoyes, echecs }.
+ */
+export async function tirerPourTous({ db, sortie, modulesActifs }) {
+  const bilan = { clients: 0, branches: 0, envoyes: 0, echecs: 0 };
+  for (const doc of (await db.collection('clients').get()).docs) {
+    bilan.clients += 1;
+    try {
+      if (!(await modulesActifs(doc.id)).includes(MODULE_RDV)) continue;
+      const r = await sortie.tirer(doc.id);
+      if (!r.branche) continue;
+      bilan.branches += 1;
+      bilan.envoyes += r.envoyes;
+      bilan.echecs += r.echecs;
+    } catch (e) {
+      logger.error('Rendez-vous : tir planifié en échec pour un client', { code: String(e?.name ?? 'inconnue').slice(0, 30) });
+    }
+  }
+  return bilan;
 }

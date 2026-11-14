@@ -225,7 +225,7 @@ export async function annulerRendezVous(rdvId) {
 }
 
 // ---------------------------------------------------------------- envoi des SMS (fonctions du serveur, voir functions/src/rdv-appel.js)
-// L'écran ne parle jamais à n8n ni au fournisseur de SMS : il demande au serveur, qui note la demande puis dit à n8n « tire maintenant ». Rien ne part sans un clic explicite.
+// L'écran ne parle jamais à n8n ni au fournisseur de SMS (ClickSend) : il demande au serveur, qui note la demande puis demande l'envoi (« tire maintenant »). Rien ne part sans un clic explicite.
 
 const fonctions = () => getFunctions(app, 'europe-west9');
 const FONCTIONS = Object.freeze({ etat: 'rdvEtat', envoyer: 'rdvEnvoyer' });

@@ -1,27 +1,69 @@
-# Rendez-vous : les SMS par la porte et n8n
+# Rendez-vous : les SMS par ClickSend (envoi direct)
 
-Écrit le 14/11/2026. Module « Rendez-vous » (`rdv`) : la plateforme décide de tout (qui reçoit quoi, quand, avec quel texte exact) ; **n8n ne fait qu'envoyer et recevoir** par ClickSend. Le dépôt ne parle jamais à ClickSend. Aucun secret, aucun numéro réel, aucun nom réel dans ce fichier (`<id>` = l'identifiant d'un client, donné hors dépôt).
+Écrit le 14/11/2026, remplace l'ancienne version qui passait par n8n. Module « Rendez-vous » (`rdv`) : la plateforme décide de tout (qui reçoit quoi, quand, avec quel texte exact) et **le serveur envoie lui-même par l'API de ClickSend**. Plus de workflow n8n pour ce module. Aucun secret, aucun numéro réel, aucun nom réel dans ce fichier (`<client>` = l'identifiant d'un client, donné hors dépôt).
 
 ## Le principe en une image
 
 ```
 Écran ──clic "Envoyer"──► fonction rdvEnvoyer ──note la demande──► Firestore (rdv_rendezvous.envoiDemandeLe)
                                    │
-                                   └─ « tire maintenant » (identifiants seulement) ──► n8n : workflow « envoyer les SMS »
-Toutes les 15 minutes ───────────────────────────────────────────► n8n : même workflow (filet de sécurité)
+                                   └─ « tire maintenant » ──► coeur/sms-direct.js
+Toutes les 15 minutes ─► fonction rdvEnvoiPlanifie ──────────────► coeur/sms-direct.js (filet de sécurité)
 
-n8n ──porte rdv.aEnvoyer──► [SMS dus : texte exact, numéro, messageId]  (chaque SMS est RÉSERVÉ 15 minutes)
-n8n ──ClickSend──► envoie
-n8n ──porte rdv.confirmerEnvoi──► « envoyé » (ou « échec »), rejouable
+coeur/sms-direct.js ──porte rdv.aEnvoyer──► [SMS dus : texte exact, numéro, messageId]  (chaque SMS est RÉSERVÉ 15 minutes)
+coeur/sms-direct.js ──API ClickSend──► envoie, un SMS par appel
+coeur/sms-direct.js ──porte rdv.confirmerEnvoi──► « envoyé » (ou « échec »), rejouable
 
-ClickSend ──règle « SMS entrants »──► n8n : workflow « recevoir une réponse » ──porte rdv.enregistrerReponse──► Firestore
+Participant répond ──ClickSend, règle « SMS entrants »──► fonction rdvReponseSms ──porte rdv.enregistrerReponse──► Firestore
 ```
 
-Un seul chemin d'envoi : **la porte**. L'appel « tire maintenant » ne porte que `{ action: "rdv.tirerMaintenant", espace, rendezVousId }` (jamais un numéro ni un texte). S'il échoue, le workflow planifié envoie quand même au tour suivant.
+Un seul chemin d'envoi : la porte. Un seul fichier parle à ClickSend : `functions/src/coeur/sms-direct.js` (un test le borne). Chez les clients, le même code est copié (`functions-plateforme/serveur/`), avec une connexion PAR CLIENT.
+
+## La connexion ClickSend (une fois par espace)
+
+Elle vit dans **Secret Manager**, jamais dans le dépôt, jamais dans Firestore (les réglages du module sont lisibles par le navigateur de tous les éditeurs, et le journal garde les valeurs pour toujours).
+
+| Espace | Projet | Nom du secret |
+|---|---|---|
+| Jérôme | `chevalier-ia-os` | `CLICKSEND_RDV` |
+| Un client | `chevalier-ia-app` | `CLICKSEND_RDV_<client>` |
+
+Contenu du secret (une seule valeur, au format JSON) :
+
+```json
+{ "identifiant": "<nom d'utilisateur ClickSend>", "cle": "<clé d'API ClickSend>", "jeton": "<texte aléatoire de 24 à 100 caractères : lettres, chiffres, _ et ->", "expediteur": "<facultatif : nom d'expéditeur enregistré chez ClickSend (11 caractères au plus) ou numéro>" }
+```
+
+1. Le jeton est le « mot de passe » de l'adresse des réponses. Pour en fabriquer un, dans le Terminal :
+
+```bash
+openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
+```
+
+2. Créer le secret : https://console.cloud.google.com/security/secret-manager?project=chevalier-ia-os (chez un client : `project=chevalier-ia-app`) > « Créer un secret » > nom ci-dessus > coller le JSON > Créer.
+3. Donner « Accesseur de secrets » (Secret Manager Secret Accessor) au compte de service qui exécute les fonctions : `porte-serveur@chevalier-ia-os.iam.gserviceaccount.com` chez Jérôme ; chez un client, le compte qui lit déjà les secrets du client (voir `docs/deploiement-client.md`).
+4. Le bouton « Envoyer » s'active tout seul (la fonction `rdvEtat` répond « branché » quand le secret existe et est lisible). Attendre une minute au plus (cache de 60 secondes).
+
+## L'adresse des réponses (une fois par espace)
+
+ClickSend doit appeler notre serveur quand quelqu'un répond. Dans la console Firebase > Functions, ouvrir `rdvReponseSms` et copier son adresse. L'adresse complète à donner à ClickSend est :
+- chez Jérôme : `<adresse de la fonction>/<jeton>` ;
+- chez un client : `<adresse de la fonction>/<client>/<jeton>`.
+
+Dans ClickSend, créer une règle « SMS entrants » (Inbound SMS rule) qui envoie chaque réponse vers cette adresse (action « URL », méthode POST). ClickSend ne signe pas ses envois : **la seule protection est le jeton**. Ne jamais le copier ailleurs que dans le secret et dans cette règle. Tout appel avec un mauvais jeton, un mauvais chemin ou une autre méthode reçoit le même 404, sans rien dire.
+
+## Tester avec le vrai ClickSend (dans cet ordre)
+
+1. Réglages > Rendez-vous : « Numéro des SMS de test » = TON mobile. Nom de l'entreprise réglé.
+2. Créer un rendez-vous, le marquer comme **test**, un participant (n'importe quel nom), « Envoyer les propositions » : le SMS arrive sur TON numéro de test seulement (un rendez-vous de test n'écrit jamais au participant).
+3. Répondre « 1 » : la fiche montre la réponse et la coche. Répondre « STOP » : plus aucun SMS ne part vers ce numéro et la professionnelle est prévenue.
+4. Seulement après : un vrai rendez-vous. **Jamais d'envoi à un tiers avant d'avoir vu un SMS arriver sur le numéro de test.**
+5. Si « Envoyer » reste grisé : le secret est absent, mal écrit (JSON invalide, jeton trop court) ou illisible par le compte de service ; le journal des fonctions ne dit rien de plus à dessein.
+6. Si ClickSend refuse la clé ou n'a plus de crédit, le tir s'arrête sans rien marquer d'échoué : les SMS reviennent seuls 15 minutes plus tard, une fois le problème réglé (journal de `rdvEnvoiPlanifie`, ligne `arret`).
 
 ## Les trois actions de la porte (module `rdv`)
 
-Appelées par POST sur `/porte` avec `{ module: "rdv", action, workflowId: {{ $workflow.id }}, donnees }` et la clé de l'espace. Mêmes contrôles que les autres modules (clé, plafond, module actif, intégrité du workflow : nom et étiquette).
+Depuis le 14/11/2026 elles sont appelées **directement par le serveur** (`functions/src/coeur/sms-direct.js`), sans réseau ni clé. Elles restent aussi disponibles par la porte HTTP (`/porte`, module `rdv`) avec les contrôles habituels, mais plus aucun workflow n8n ne les utilise.
 
 ### `rdv.aEnvoyer`
 - **Entrée** : `donnees: {}` ou `{ limite }` (1 à 40, 40 par défaut).
@@ -45,35 +87,18 @@ Appelées par POST sur `/porte` avec `{ module: "rdv", action, workflowId: {{ $w
 - Réponse comprise (« 1 », « 1 et 3 », « aucun »…) → participant mis à jour, état du rendez-vous recalculé. Réponse non comprise → participant « non compris », ses relances sont suspendues, alerte à la professionnelle. Numéro inconnu → message gardé comme « orphelin ».
 - **STOP** (et « arrêt », « désabonner »…) : jamais une réponse « non comprise » ordinaire. Le numéro est ajouté à la liste des désinscrits (`rdv_parametres/desinscrits`) : plus aucun SMS ne lui est envoyé ; la professionnelle est alertée.
 
-## Les workflows n8n (créés le 14/11/2026, **non publiés**)
-
-Nommage obligatoire (sinon la porte répond 403 `workflow_refuse`) : chez Jérôme `interne-rdv-…` + étiquette `interne` ; chez un client `client-<id>-rdv-…` + étiquette `client-<id>` (17 caractères au plus pour `<id>`). Chaque espace a SES workflows, SES secrets, jamais partagés.
-
-| Nom | Déclencheurs | Étapes |
-|---|---|---|
-| `interne-rdv-envoyer-les-sms` | webhook « tire maintenant » (POST) + toutes les 15 minutes | porte `rdv.aEnvoyer` → un SMS par ligne → ClickSend (`/v3/sms/send`) → si `SUCCESS` : porte `rdv.confirmerEnvoi` « ok » (avec l'identifiant ClickSend), sinon « echec » |
-| `interne-rdv-recevoir-une-reponse` | webhook (règle « SMS entrants » de ClickSend) | mise en forme (`from`, `body`, `message_id`, `timestamp`) → porte `rdv.enregistrerReponse` |
-
-### À brancher avant de publier (par Jérôme, une fois)
-1. **Secret du webhook « tire maintenant »** : dans n8n, créer un secret de type « en-tête » nommé « Webhook rendez-vous » (nom de l'en-tête `X-Chevalier-Secret`, valeur longue et aléatoire), le choisir dans le webhook, passer « Authentication » sur « Header Auth ». **Tant que ce n'est pas fait, ne pas publier** (le webhook serait ouvert à tous).
-2. **ClickSend** : créer dans n8n un secret « Basic Auth » (identifiant ClickSend + clé d'API) nommé « ClickSend (identifiant et clé API) » et le choisir dans l'étape « Envoyer par ClickSend ».
-3. **Secret Manager** (projet `chevalier-ia-os`) : `N8N_RDV_URL` (adresse « Production URL » du webhook, chemin `/webhook/…`, hôte `n8n.chevalier-ia.fr`) et `N8N_RDV_SECRET` (même valeur que le secret de l'étape 1). Donner « Accesseur de secrets » au compte de service des fonctions. Chez un client : `N8N_RDV_URL_<id>` et `N8N_RDV_SECRET_<id>`.
-4. **ClickSend, règle « SMS entrants »** : action « envoyer vers une adresse », adresse = « Production URL » du webhook de `interne-rdv-recevoir-une-reponse`. ClickSend ne signe pas ses envois : la seule protection est que l'adresse est longue, aléatoire et secrète (ne la copier nulle part ailleurs ; vérifier que la porte refuse tout ce qui n'est pas une réponse d'un numéro connu).
-5. **Test avec le numéro de test seulement** : `numeroTest` (Réglages > Rendez-vous, à ajouter) puis un rendez-vous marqué test. Jamais d'envoi à un tiers avant d'avoir vu un SMS arriver sur ce numéro.
-6. Publier les deux workflows. L'écran active « Envoyer » tout seul (la fonction `rdvEtat` répond « branché » quand les deux secrets de l'étape 3 existent).
-
 ## Garde-fous ajoutés après la relecture (14/11/2026)
 - La confirmation et le rappel de la veille partent bien (les rendez-vous confirmés sont lus tant que le rendez-vous n'est pas passé depuis plus de 2 jours).
 - Un SMS dont la confirmation d'envoi n'arrive jamais est repris au plus 3 fois, puis abandonné ; un SMS abandonné ne bloque plus les relances des autres et la professionnelle reçoit une alerte (« un SMS n'est pas parti vers … »).
 - Un SMS écrit à la main sur un rendez-vous de test ne part que vers le numéro de test, et rien si le rendez-vous a disparu. Le même SMS redemandé dans les 2 minutes n'est pas recréé.
 - Une réponse n'est rattachée qu'à un rendez-vous dont les propositions sont réellement parties ; un numéro présent dans plusieurs rendez-vous n'efface pas la réponse déjà donnée dans l'un d'eux.
-- Une confirmation d'envoi qui arrive après l'abandon (n8n lent) est acceptée : le SMS repasse à « envoyé ». Une confirmation d'une ancienne série (rejeu) ne change rien à la série courante.
+- Une confirmation d'envoi qui arrive après l'abandon (réponse lente) est acceptée : le SMS repasse à « envoyé ». Une confirmation d'une ancienne série (rejeu) ne change rien à la série courante.
 - Une réponse reçue APRÈS la confirmation (« empêchement », STOP…) est gardée sur le participant et alerte la professionnelle une seule fois.
 - Après « Envoyer », les SMS « créneaux » partent dans le même tir que la présentation (la demande est notée une minute en arrière).
 
 ## Limites connues (à décider avec Jérôme)
 - **Règles Firestore** : `rdv_messages`, `rdv_participants` et `rdv_parametres` sont inscriptibles par le navigateur d'un éditeur (règle joker, comme les autres tables de module). Un éditeur malveillant pourrait fabriquer un SMS « à envoyer » ; une PR de règles (liste d'arrêt : jamais sans accord) réserverait `rdv_messages` et `rdv_parametres/desinscrits` au serveur. Les rendez-vous eux-mêmes restent écrits par l'écran.
-- **Réponse de ClickSend rejouée** : l'adresse du webhook « réponse » n'est protégée que par son secret (ClickSend ne signe pas) ; qui la connaît peut forger une réponse ou un STOP. Piste : un jeton dans l'adresse, vérifié par un nœud du workflow.
+- **Adresse des réponses** : elle n'est protégée que par son jeton secret (ClickSend ne signe pas ses envois) ; qui connaît l'adresse complète peut forger une réponse ou un STOP. Le jeton est comparé en temps constant, jamais journalisé ; pour le changer, modifier `jeton` dans le secret puis mettre à jour la règle dans ClickSend.
 - **STOP simultanés** : deux STOP exactement en même temps peuvent n'en enregistrer qu'un dans `rdv_parametres/desinscrits` (rare ; le participant garde son repère).
 - **Plafond** : 500 rendez-vous non archivés par espace et 50 participants par rendez-vous sont lus à chaque tir.
 - **Piste** : ClickSend renvoie l'identifiant du message d'origine (`custom_string` = notre `messageId`) dans le SMS entrant ; cela lèverait l'ambiguïté du même numéro dans deux rendez-vous sans rien deviner (à vérifier sur un vrai envoi).
@@ -92,7 +117,8 @@ ClickSend a mis deux SMS d'essai en « CancelledAfterReview ». Sa page d'erreur
 Sources lues le 14/11/2026 (pages de fournisseurs, pas les textes officiels) : page d'erreurs de ClickSend, page « France » de ClickSend, guides France de Telnyx, LINK Mobility et Brevo. La page « Managing opt-outs » de ClickSend n'a pas pu être lue depuis la session (domaine non autorisé).
 
 ## Ce qui n'a pas pu être vérifié avec le vrai système
-- Aucun SMS réel n'a été envoyé ni reçu : les essais utilisent un faux n8n et une base en mémoire.
-- Le format exact de la réponse de ClickSend (`data.messages[0].status`, `message_id`) et du SMS entrant (`from`, `body`, `message_id`, `timestamp`) est celui de leur documentation, pas relevé sur un vrai envoi.
+- Aucun SMS réel n'a été envoyé ni reçu : les essais utilisent un faux ClickSend et une base en mémoire.
+- Le format exact de la réponse de ClickSend à un envoi (`data.messages[0].status`, `message_id`) et du SMS entrant (`from`, `message` ou `body`, `message_id`, `timestamp`, en JSON ou en formulaire) est celui de leur documentation, pas relevé sur un vrai envoi : si le premier test montre un autre champ, c'est `recevoir` ou `envoyerUn` qu'on ajuste.
 - 153 caractères par morceau au-delà de 160 : à confirmer au premier test.
 - Le déploiement chez les clients n'est pas fait (workflow manuel, avec Jérôme).
+- Le nom exact des menus de ClickSend (règle « SMS entrants ») n'a pas pu être vérifié depuis la session.
