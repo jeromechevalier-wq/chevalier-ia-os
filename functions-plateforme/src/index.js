@@ -15,8 +15,10 @@ import { creerMcpClients } from './mcp-clients.js';
 import { reglerEspace } from './espace.js';
 import { deciderClient } from './propositions.js';
 import { transitionDevis, preparerEmailDevis, etatPreparerEmail } from './devis.js';
-import { envoyerRdv, etatRdv, tirerPourTous } from './rdv.js';
-import { creerSmsDirect, creerGestionnaireReponses } from '../serveur/src/coeur/sms-direct.js';
+import { envoyerRdv, etatRdv, tirerPourTous, connexionRdv } from './rdv.js';
+import { creerSmsDirect, creerGestionnaireReponses, verifierConnexion } from '../serveur/src/coeur/sms-direct.js';
+import { creerConnexionSms } from '../serveur/src/coeur/connexion-sms.js';
+import { creerEcrivainSecrets } from '../serveur/src/securite/ecrire-secret.js';
 import { creerAdaptateur } from '../serveur/partage/porte/adaptateur.js';
 import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient } from './devis-pdf.js';
 import { appelDocument } from './documents.js';
@@ -150,6 +152,18 @@ export const rdvEnvoyer = onCall({ ...OPTIONS_DEVIS, timeoutSeconds: 120 }, asyn
 });
 export const rdvEtat = onCall(OPTIONS_DEVIS, async (requete) => {
   try { return await etatRdv({ db: db(), auth: requete.auth, donnees: requete.data, sortie: smsDirect }); } catch (e) { throw enHttps(e); }
+});
+// Saisie de la connexion ClickSend d'UN client depuis son écran Réglages > Rendez-vous : RÉSERVÉE à Jérôme (identité contrôlée à l'exécution, même pour un éditeur du client). La clé est vérifiée auprès de ClickSend
+// puis rangée dans Secret Manager (CLICKSEND_RDV_<client>) ; elle n'est jamais rendue ni journalisée. Le compte d'exécution doit pouvoir ajouter une version de secret (docs/rdv-sms-clicksend.md).
+const connexionSms = creerConnexionSms({
+  lireSecret: creerLecteurSecrets({ projet: 'chevalier-ia-app' }),
+  ecrireSecret: creerEcrivainSecrets({ projet: 'chevalier-ia-app' }),
+  verifier: verifierConnexion,
+  adresseDe: (client, jeton) => `https://europe-west9-chevalier-ia-app.cloudfunctions.net/rdvReponseSms/${client}/${jeton}`,
+  espaceRacine: null,
+});
+export const rdvConnexionSms = onCall(OPTIONS_DEVIS, async (requete) => {
+  try { return await connexionRdv({ auth: requete.auth, donnees: requete.data, connexion: connexionSms, modulesActifs: creerModulesActifs({ db: db() }) }); } catch (e) { throw enHttps(e); }
 });
 // Filet : toutes les 15 minutes, les SMS dus de chaque client branché (relances, rappel de la veille, confirmation…).
 export const rdvEnvoiPlanifie = onSchedule(

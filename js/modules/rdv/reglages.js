@@ -1,7 +1,7 @@
 // Réglages du module Rendez-vous, dans la page Réglages de la coque (sections `reglages-rdv-…`, déclarées dans le registre) :
-// relances, rappel la veille, plage d'envoi, numéros d'alerte, nom dans les SMS, rôles, modèles de SMS, sauvegarde.
+// relances, rappel la veille, plage d'envoi, numéros d'alerte, nom dans les SMS, nom de l'entreprise, connexion SMS (Jérôme seul), rôles, modèles de SMS, sauvegarde.
 // Chaque réglage s'enregistre tout seul à chaque changement (journal commun) ; un refus ou une panne affiche un message.
-import { h, icone, remplir, dialogue, toast, demanderTexte } from '../../os/ui.js';
+import { h, icone, remplir, dialogue, toast, demanderTexte, confirmer } from '../../os/ui.js';
 import * as L from '../crm/logique.js';
 import * as D from './donnees.js';
 import * as R from './logique.js';
@@ -122,6 +122,59 @@ export function reglages(page) {
       } })),
     h('p', { class: 'aide' }, `Chaque SMS envoyé à un participant se termine par « ${R.mentionStop(p)} » : le nom de l’entreprise et le moyen de se désabonner. Si quelqu’un répond STOP, il ne reçoit plus aucun SMS et tu es prévenue.`)];
   }));
+
+  // Connexion ClickSend : la saisie n'est montrée qu'à Jérôme (le serveur le dit : rdvEtat.peutConfigurer ; il refuse de toute façon tout autre compte). La clé part vers le serveur
+  // et n'est jamais gardée ici : le champ est vidé dès l'enregistrement, et le serveur ne la rend jamais. L'adresse des réponses (avec son jeton secret) n'est montrée que sur demande.
+  const connexion = { etat: null, charge: false, enCours: false, adresse: '', erreur: '' };
+  let redessinerConnexion = () => {};
+  function chargerConnexion() {
+    if (connexion.charge || connexion.enCours) return;
+    connexion.enCours = true;
+    D.connexionSms('etat').then((e) => { connexion.etat = e; connexion.erreur = ''; }).catch((e) => { connexion.erreur = e?.message || ''; }).finally(() => { connexion.charge = true; connexion.enCours = false; redessinerConnexion(); });
+  }
+  const copier = async (texte) => { try { await navigator.clipboard.writeText(texte); toast('Adresse copiée'); } catch (e) { console.warn(e); toast('Copie impossible : sélectionne l’adresse et copie-la à la main.', { type: 'erreur' }); } };
+  redessinerConnexion = carte(page, 'reglages-rdv-connexion', 'Connexion SMS (ClickSend)', () => {
+    const peut = D.peutConfigurerConnexion();
+    if (peut === null) return [h('p', { class: 'aide', 'data-role': 'connexion-chargement' }, 'Chargement…')];
+    if (!peut) {
+      return [h('p', { 'data-role': 'connexion-etat' }, D.envoiBranche() ? 'L’envoi des SMS est branché sur cet espace.' : 'L’envoi des SMS n’est pas encore branché sur cet espace.'),
+        h('p', { class: 'aide' }, 'La connexion au service d’envoi (ClickSend) est réglée par l’administrateur de la plateforme.')];
+    }
+    chargerConnexion();
+    const e = connexion.etat;
+    const identifiant = h('input', { class: 'champ', type: 'text', maxlength: '200', autocomplete: 'off', 'aria-label': 'Identifiant ClickSend', placeholder: 'Ton nom d’utilisateur ClickSend' });
+    const cle = h('input', { class: 'champ', type: 'password', maxlength: '200', autocomplete: 'new-password', 'aria-label': 'Clé d’API ClickSend', placeholder: e?.enregistre ? '•••••••• (enregistrée : colle une clé pour la remplacer)' : 'Colle ici la clé d’API' });
+    const expediteur = h('input', { class: 'champ', type: 'text', maxlength: '11', autocomplete: 'off', 'aria-label': 'Nom d’expéditeur (facultatif)', placeholder: 'Facultatif', value: e?.expediteur ?? '' });
+    const enregistrerConnexion = h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'enregistrer-connexion' }, 'Enregistrer la connexion');
+    enregistrerConnexion.onclick = async () => {
+      enregistrerConnexion.disabled = true;
+      try {
+        const r = await D.connexionSms('enregistrer', { identifiant: identifiant.value, cle: cle.value, expediteur: expediteur.value });
+        cle.value = ''; identifiant.value = ''; // la clé ne reste pas dans la page
+        connexion.etat = { enregistre: true, adresse: r.adresse, expediteur: expediteur.value.trim() };
+        connexion.adresse = r.adresseChangee ? r.adresse : '';
+        toast(r.adresseChangee ? 'Connexion enregistrée : copie maintenant l’adresse des réponses dans ClickSend' : 'Connexion enregistrée');
+        redessinerConnexion();
+      } catch (err) { console.warn(err); toast(D.messageErreur(err, 'Enregistrement impossible'), { type: 'erreur' }); enregistrerConnexion.disabled = false; }
+    };
+    const blocAdresse = connexion.adresse
+      ? h('div', { class: 'pile', 'data-role': 'adresse-reponses' },
+        h('p', { class: 'aide' }, 'À coller dans ClickSend : règle « SMS entrants », action « envoyer vers une adresse » (méthode POST). Garde cette adresse pour toi : elle sert de mot de passe.'),
+        h('input', { class: 'champ', type: 'text', readonly: 'true', value: connexion.adresse, 'aria-label': 'Adresse des réponses', onfocus: (ev) => ev.target.select() }),
+        h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'copier-adresse', onclick: () => copier(connexion.adresse) }, 'Copier l’adresse'))
+      : null;
+    const boutonsAdresse = e?.enregistre ? [
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'afficher-adresse', onclick: () => { connexion.adresse = connexion.adresse ? '' : (connexion.etat?.adresse ?? ''); redessinerConnexion(); } }, connexion.adresse ? 'Cacher l’adresse des réponses' : 'Afficher l’adresse des réponses'),
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'changer-adresse', onclick: async () => {
+        if (!(await confirmer('Changer l’adresse des réponses ?', 'L’ancienne adresse ne marchera plus : il faudra coller la nouvelle dans la règle « SMS entrants » de ClickSend.', { libelleOk: 'Changer l’adresse' }))) return;
+        try { const r = await D.connexionSms('regenerer'); connexion.etat = { ...connexion.etat, adresse: r.adresse }; connexion.adresse = r.adresse; toast('Adresse changée : colle-la dans ClickSend'); redessinerConnexion(); } catch (err) { console.warn(err); toast(D.messageErreur(err, 'Changement impossible'), { type: 'erreur' }); }
+      } }, 'Changer l’adresse des réponses')] : [];
+    return [h('p', { 'data-role': 'connexion-etat' }, connexion.erreur ? connexion.erreur : e?.enregistre ? 'Connexion enregistrée.' : 'Pas encore enregistrée : les SMS ne partent pas.'),
+      ligne('Identifiant ClickSend', identifiant), ligne('Clé d’API ClickSend', cle), ligne('Nom d’expéditeur', expediteur),
+      h('p', { class: 'aide' }, 'La clé est vérifiée auprès de ClickSend, puis rangée dans un coffre protégé du serveur : elle n’est jamais affichée ni gardée dans cette page. Le nom d’expéditeur est facultatif : laisse vide tant que ClickSend n’a pas validé le tien.'),
+      h('div', { class: 'ligne-boutons rdv-boutons-fiche' }, enregistrerConnexion, ...boutonsAdresse), blocAdresse];
+  }, { aide: '' });
+  redessins.push(redessinerConnexion);
 
   redessins.push(carte(page, 'reglages-rdv-roles', 'Rôles des participants', () => {
     const p = D.parametres();

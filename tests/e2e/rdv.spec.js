@@ -279,11 +279,11 @@ test('export : Réglages > Rendez-vous > Sauvegarde télécharge un JSON avec le
   await expect(page.locator('.toast')).toContainText('Sauvegarde téléchargée');
 });
 
-test('réglages : les neuf sections sont dans la page Réglages de la coque, dans l’ordre voulu', async ({ page }) => {
+test('réglages : les dix sections sont dans la page Réglages de la coque, dans l’ordre voulu', async ({ page }) => {
   await connecter(page);
   await allerA(page, 'Réglages');
   await ouvrirSectionReglages(page, 'Rendez-vous');
-  await expect(page.locator('section.carte-section h2')).toHaveText(['Relances', 'Rappel la veille', 'Plage d’envoi', 'Numéros qui reçoivent les alertes', 'Ton nom dans les SMS', 'Nom de l’entreprise dans les SMS', 'Rôles des participants', 'Modèles de SMS', 'Sauvegarde']);
+  await expect(page.locator('section.carte-section h2')).toHaveText(['Relances', 'Rappel la veille', 'Plage d’envoi', 'Numéros qui reçoivent les alertes', 'Ton nom dans les SMS', 'Nom de l’entreprise dans les SMS', 'Connexion SMS (ClickSend)', 'Rôles des participants', 'Modèles de SMS', 'Sauvegarde']);
   await page.getByLabel('Ton nom dans les SMS').fill('Mme Martin');
   await page.getByLabel('Ton nom dans les SMS').blur();
   await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.nomDansLesSms).toBe('Mme Martin');

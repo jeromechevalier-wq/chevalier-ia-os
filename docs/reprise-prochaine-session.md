@@ -13,8 +13,8 @@ Module `rdv` autonome (socle), même code chez Jérôme et chez les clients. Sp�
 | Règles Firestore : réserver `rdv_messages` et `rdv_parametres/desinscrits` au serveur | non faite | **liste d'arrêt** : jamais sans ton accord |
 
 **Ce que Jérôme fait pour tester (dans l'ordre, détail dans `docs/rdv-sms-clicksend.md`)** — les SMS partent maintenant DIRECTEMENT par ClickSend, plus de n8n pour ce module :
-1. Secret Manager (projet `chevalier-ia-os`) : créer `CLICKSEND_RDV` (JSON : identifiant, clé d'API, jeton aléatoire) et donner « Accesseur de secrets » à `porte-serveur@chevalier-ia-os.iam.gserviceaccount.com`.
-2. Après la fusion (le site et les fonctions de Jérôme se déploient tout seuls) : console Firebase > Functions > `rdvReponseSms` > copier l'adresse, ajouter `/<jeton>`, la mettre dans la règle « SMS entrants » de ClickSend.
+1. Droits (une fois) : console https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-os > le compte `porte-serveur@chevalier-ia-os.iam.gserviceaccount.com` > rôle « Administrateur Secret Manager » (l'écran range alors la clé tout seul).
+2. Réglages > Rendez-vous > « Connexion SMS (ClickSend) » : identifiant ClickSend + clé d'API > « Enregistrer la connexion » (la clé est vérifiée auprès de ClickSend, rangée dans un coffre du serveur, jamais affichée ni gardée dans la page ; seul ton compte voit cette carte). L'écran montre l'adresse des réponses : la copier dans la règle « SMS entrants » de ClickSend. (Secours sans écran : créer le secret `CLICKSEND_RDV` à la main, voir `docs/rdv-sms-clicksend.md`.)
 3. Réglages > Rendez-vous : numéro des SMS de test = ton mobile, nom de l'entreprise ; créer un rendez-vous marqué test et « Envoyer les propositions » : le SMS arrive sur ton numéro de test seulement.
 4. Répondre « 1 », puis « STOP » : vérifier la fiche et l'alerte.
 

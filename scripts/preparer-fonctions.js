@@ -138,3 +138,6 @@ mkdirSync(destinationAutom, { recursive: true });
 for (const f of ['n8n.js', 'etiquettes.js', 'synchro.js', 'libelle.js']) copyFileSync(join(racine, 'functions-plateforme', 'src', f), join(destinationAutom, f));
 copyFileSync(join(racine, 'js', 'os', 'administrateur.js'), join(destination, 'administrateur.js'));
 console.log('functions/partage/automatisations/ et administrateur.js mis à jour (copies de functions-plateforme/src/ et de js/os/)');
+// La liste des administrateurs (compte de Jérôme) sert aussi à la saisie de la connexion SMS chez les clients (functions-plateforme/src/rdv.js : connexionRdv).
+copyFileSync(join(destination, 'administrateur.js'), join(destinationServeur, 'partage', 'administrateur.js'));
+console.log('functions-plateforme/serveur/partage/administrateur.js mis à jour (copie de js/os/administrateur.js)');

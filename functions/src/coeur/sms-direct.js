@@ -30,8 +30,8 @@ export const STATUTS_ACCEPTES = Object.freeze(['SUCCESS', 'QUEUED', 'SCHEDULED']
 export const DUREE_CACHE_MS = 60_000;
 export const MESSAGE_NON_BRANCHE = 'L’envoi des SMS n’est pas encore branché sur cet espace.';
 const MOTIF_ESPACE = /^[a-z0-9][a-z0-9_-]{0,39}$/;
-const MOTIF_JETON = /^[A-Za-z0-9_-]{24,100}$/;
-const MOTIF_EXPEDITEUR = /^(?:[A-Za-z0-9]{1,11}|\+?\d{5,15})$/;
+export const MOTIF_JETON = /^[A-Za-z0-9_-]{24,100}$/;
+export const MOTIF_EXPEDITEUR = /^(?:[A-Za-z0-9]{1,11}|\+?\d{5,15})$/;
 const SANS_CONTROLE = /[\u0000-\u001f\u007f]/;
 
 /** genre : non_branche | indisponible */
@@ -47,6 +47,25 @@ export class ErreurSortieSms extends Error {
 export function nomDuSecret(espace, espaceRacine = ESPACE_JEROME) {
   if (typeof espace !== 'string' || !MOTIF_ESPACE.test(espace)) throw new ErreurSortieSms('non_branche', MESSAGE_NON_BRANCHE);
   return espace === espaceRacine ? SECRET_CLICKSEND : `${SECRET_CLICKSEND}_${espace}`;
+}
+
+/**
+ * Vérifie une clé auprès de ClickSend AVANT de l'enregistrer (GET /v3/account, aucun SMS, aucun frais). Rend { ok: true } | { ok: false, raison: 'refusee' | 'indisponible' }.
+ * Même règles que l'envoi : adresse fixe, aucune redirection, délai borné, rien n'est journalisé.
+ */
+export async function verifierConnexion({ identifiant, cle, fetchImpl = globalThis.fetch, delaiMs = 10_000 }) {
+  const arret = new AbortController();
+  const minuteur = setTimeout(() => arret.abort(), delaiMs);
+  try {
+    const r = await fetchImpl(`https://${HOTE_CLICKSEND}/v3/account`, {
+      method: 'GET',
+      headers: { Authorization: `Basic ${Buffer.from(`${identifiant}:${cle}`).toString('base64')}` },
+      redirect: 'error',
+      signal: arret.signal,
+    });
+    if (r.status === 401 || r.status === 403) return { ok: false, raison: 'refusee' };
+    return r.ok ? { ok: true } : { ok: false, raison: 'indisponible' };
+  } catch { return { ok: false, raison: 'indisponible' }; } finally { clearTimeout(minuteur); }
 }
 
 /** Le contenu du secret, contrôlé ; sinon null (on ne dit jamais pourquoi, ni ce qu'il contenait). */

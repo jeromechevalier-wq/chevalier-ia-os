@@ -228,7 +228,7 @@ export async function annulerRendezVous(rdvId) {
 // L'écran ne parle jamais à n8n ni au fournisseur de SMS (ClickSend) : il demande au serveur, qui note la demande puis demande l'envoi (« tire maintenant »). Rien ne part sans un clic explicite.
 
 const fonctions = () => getFunctions(app, 'europe-west9');
-const FONCTIONS = Object.freeze({ etat: 'rdvEtat', envoyer: 'rdvEnvoyer' });
+const FONCTIONS = Object.freeze({ etat: 'rdvEtat', envoyer: 'rdvEnvoyer', connexion: 'rdvConnexionSms' });
 const CODES_LISIBLES = ['permission-denied', 'invalid-argument', 'failed-precondition', 'not-found', 'unauthenticated'];
 export const MESSAGE_RESEAU = 'Ça n’a pas abouti. Vérifie ta connexion internet, puis réessaie : rien n’a été perdu.';
 
@@ -252,19 +252,36 @@ async function appeler(operation, demande) {
 }
 
 let brancheSms = null; // null = pas encore su ; true / false = réponse du serveur (gardée pour la session)
+let peutConfigurerSms = false; // le serveur dit si CE compte peut saisir la connexion SMS (Jérôme seul) ; faux tant qu'on ne sait pas
 let brancheEnCours = null;
 /** « Envoyer » doit-il être actif ? Valeur connue (true / false) ou null tant que le serveur n'a pas répondu (le bouton reste grisé). Lance la question au premier appel et prévient les écrans à la réponse. */
 export function envoiBranche() {
   if (brancheSms === null && !brancheEnCours) {
     brancheEnCours = appeler('etat', {})
-      .then((r) => { brancheSms = r?.branche === true; })
+      .then((r) => { brancheSms = r?.branche === true; peutConfigurerSms = r?.peutConfigurer === true; })
       .catch(() => { brancheSms = false; }) // fonction absente (espace pas encore déployé), compte sans droit : le bouton reste grisé
       .finally(() => { brancheEnCours = null; notifier(); });
   }
   return brancheSms;
 }
 /** Réinitialise ce qui est su (changement de compte ou d'espace). */
-export function oublierEtatEnvoi() { brancheSms = null; brancheEnCours = null; }
+export function oublierEtatEnvoi() { brancheSms = null; peutConfigurerSms = false; brancheEnCours = null; }
+
+/** Ce compte peut-il saisir la connexion SMS (clé ClickSend) ? null tant que le serveur n'a pas répondu. Le serveur refuse de toute façon tout autre compte que celui de Jérôme. */
+export function peutConfigurerConnexion() { envoiBranche(); return brancheSms === null && !peutConfigurerSms ? null : peutConfigurerSms; }
+
+/**
+ * Connexion ClickSend (réservée à Jérôme, voir functions/src/rdv-connexion-appel.js) :
+ *  - 'etat'                                                  -> { enregistre, adresse, expediteur } (jamais la clé) ;
+ *  - 'enregistrer', { identifiant, cle, expediteur?, regenererAdresse? } -> { ok, adresse, adresseChangee } ;
+ *  - 'regenerer'                                             -> { ok, adresse, adresseChangee }.
+ * La clé part vers le serveur et nulle part ailleurs : l'écran ne la garde pas. Lève une ErreurRdv lisible si refusé.
+ */
+export async function connexionSms(action, donnees = {}) {
+  const r = await appeler('connexion', { action, ...donnees });
+  if (action !== 'etat') { brancheSms = null; brancheEnCours = null; } // l'état « branché » est redemandé (le bouton « Envoyer » s'active tout seul) ; « peutConfigurer » est gardé : le formulaire ne clignote pas
+  return r;
+}
 
 /** Envoie les premières propositions d'un rendez-vous (ou d'une nouvelle série). Rend { ok, declenche }. Lève une ErreurRdv lisible si refusé. */
 export async function envoyerPropositions(rendezVousId) {
