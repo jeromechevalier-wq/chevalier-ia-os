@@ -20,6 +20,9 @@ export async function enregistrerLienFrequentation(texte) {
   const retrait = !String(texte ?? '').trim();
   const v = retrait ? { ok: true, lien: '' } : F.verifierLien(texte);
   if (!v.ok) throw new Error(v.message);
-  await executer([L.ecritureCreer(F.DOCUMENT_LIEN.collection, F.DOCUMENT_LIEN.id, { lien: v.lien })]);
+  const ref = doc(db, chemin(F.DOCUMENT_LIEN.collection), F.DOCUMENT_LIEN.id);
+  const existe = (await getDocFromServer(ref)).exists(); // « modifier » garde la copie « avant » dans le journal ; « creer » seulement la première fois
+  await executer([existe ? L.ecritureModifier(F.DOCUMENT_LIEN.collection, F.DOCUMENT_LIEN.id, { lien: v.lien })
+    : L.ecritureCreer(F.DOCUMENT_LIEN.collection, F.DOCUMENT_LIEN.id, { lien: v.lien })]);
   return v.lien;
 }

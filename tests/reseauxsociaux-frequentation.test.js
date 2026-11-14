@@ -81,7 +81,8 @@ describe('Q6 branchement', () => {
   test('Q6 le lien vit dans crm_parametres/frequentation_site (aucune nouvelle table) et s’écrit par le journal commun', () => {
     assert.deepEqual({ ...F.DOCUMENT_LIEN }, { collection: 'crm_parametres', id: 'frequentation_site' });
     const d = lire('js/modules/reseauxsociaux/frequentation-donnees.js');
-    assert.match(d, /executer\(\[L\.ecritureCreer\(F\.DOCUMENT_LIEN\.collection/);
+    assert.match(d, /executer\(\[existe \? L\.ecritureModifier\(F\.DOCUMENT_LIEN\.collection/);
+    assert.match(d, /: L\.ecritureCreer\(F\.DOCUMENT_LIEN\.collection/);
     assert.doesNotMatch(d, /setDoc\(doc\(db, chemin\(F\./);
   });
   test('Q6 l’écran est déclaré au registre (route reseauxsociaux/frequentation) et chargé à la demande', () => {
