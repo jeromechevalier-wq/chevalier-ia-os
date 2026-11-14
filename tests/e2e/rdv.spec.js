@@ -244,12 +244,12 @@ test('12 le nombre de caractères de chaque SMS est affiché, la règle des acce
   await section.locator('[data-action="modifier-modele-rappel"]').click();
   const champ = page.getByLabel('Modèle : Rappel de la veille');
   await champ.fill('Rappel : forêt {client} {heure}');
-  await expect(page.locator('.dialogue .compteur-sms')).toContainText('caractères sur 160 · 1 SMS');
+  await expect(page.locator('.dialogue .rdv-compteur-sms')).toContainText('caractères sur 160 · 1 SMS');
   await page.getByRole('button', { name: 'Enregistrer' }).click();
   await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.modeles?.rappel).toBe('Rappel : foret {client} {heure}');
   await capture(page, '12-modeles');
   await page.goto('/?emulateurs=1#/rdv/nouveau');
-  await expect(page.locator('[data-type="confiance"] .compteur-sms')).toContainText(/\d+ caractères sur 160 · 1 SMS/);
+  await expect(page.locator('[data-type="confiance"] .rdv-compteur-sms')).toContainText(/\d+ caractères sur 160 · 1 SMS/);
   await capture(page, '12-apercu-creation');
 });
 
@@ -282,4 +282,85 @@ test('réglages : les huit sections sont dans la page Réglages de la coque, dan
   await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.nomDansLesSms).toBe('Mme Martin');
   await expect(page.locator('#reglages-rdv-modeles .rdv-modele-texte').first()).toContainText('Mme Martin');
   await capture(page, 'reglages');
+});
+
+// ---------------------------------------------------------------- création : cas qui touchent les fiches Personnes (relecture Fable)
+
+async function remplirCreneau(page) { await page.getByLabel('Créneau 1').fill('2031-03-17T10:00'); }
+
+test('création : une personne NOUVELLE en première ligne reçoit l’adresse sur sa fiche (libellé « Chantier »), et la fiche est écrite en un seul lot avec le rendez-vous', async ({ page }) => {
+  await connecter(page, undefined, { route: 'rdv/nouveau' });
+  await page.getByLabel('Adresse du rendez-vous').fill('3 chemin des Vignes\n74000 Annecy');
+  const ligne = page.locator('[data-role="participant"]').first();
+  await ligne.getByPlaceholder('Nom (contact existant ou nouveau)').fill('Mme Neuve');
+  await ligne.getByLabel('Téléphone mobile').fill('06 00 00 00 09');
+  await remplirCreneau(page);
+  await page.getByRole('button', { name: 'Enregistrer sans envoyer' }).click();
+  await expect(page).toHaveURL(/#\/rdv\/liste\/.+/);
+  const fiche = (await listerDocuments('crm_personnes')).find((p) => p.nom === 'Mme Neuve');
+  expect(fiche.adresses.map((a) => [a.libelle, a.adresse])).toEqual([['Chantier', '3 chemin des Vignes\n74000 Annecy']]);
+  const lignes = (await listerDocuments('crm_audit')).filter((l) => ['crm_personnes', 'rdv_rendezvous', 'rdv_participants'].includes(l.collection));
+  expect(new Set(lignes.map((l) => l.operationId)).size, 'personne, rendez-vous et participants partagent la même opération du journal').toBe(1);
+  expect(lignes.length).toBe(3);
+});
+
+test('création : changer de contact change le numéro pré-rempli (pas de numéro de l’ancien contact sur le nouveau) ; un numéro retouché à la main est gardé', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'M. Durand', telephones: [{ valeur: '06 00 00 00 01', type: 'perso' }] });
+  await creerPersonne('p2', { nom: 'Mme Petit', telephones: [{ valeur: '07 00 00 00 02', type: 'perso' }] });
+  await connecter(page, undefined, { route: 'rdv/nouveau' });
+  const ligne = page.locator('[data-role="participant"]').first();
+  const nom = ligne.getByPlaceholder('Nom (contact existant ou nouveau)');
+  await nom.fill('M. Dur');
+  await page.getByRole('option', { name: /M\. Durand/ }).first().click();
+  await expect(ligne.getByLabel('Téléphone mobile')).toHaveValue('06 00 00 00 01');
+  await nom.fill('Mme Pet');
+  await page.getByRole('option', { name: /Mme Petit/ }).first().click();
+  await expect(ligne.getByLabel('Téléphone mobile')).toHaveValue('07 00 00 00 02');
+  await ligne.getByLabel('Téléphone mobile').fill('06 11 11 11 11'); // retouché à la main
+  await nom.fill('M. Dur');
+  await page.getByRole('option', { name: /M\. Durand/ }).first().click();
+  await expect(ligne.getByLabel('Téléphone mobile')).toHaveValue('06 11 11 11 11');
+});
+
+test('création : un nom tapé sans cliquer la suggestion, identique à une fiche existante, reprend cette fiche (aucune fiche en double) ; la même personne sur deux lignes est refusée', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'M. Durand', telephones: [{ valeur: '06 00 00 00 01', type: 'perso' }] });
+  await connecter(page, undefined, { route: 'rdv/nouveau' });
+  const ligne = page.locator('[data-role="participant"]').first();
+  await ligne.getByPlaceholder('Nom (contact existant ou nouveau)').fill('M. Durand');
+  await ligne.getByLabel('Téléphone mobile').fill('06 00 00 00 01');
+  await remplirCreneau(page);
+  await page.getByRole('button', { name: 'Enregistrer sans envoyer' }).click();
+  await expect(page).toHaveURL(/#\/rdv\/liste\/.+/);
+  expect(await listerDocuments('crm_personnes')).toHaveLength(1);
+  expect((await listerDocuments('rdv_participants'))[0].personneId).toBe('p1');
+});
+
+test('mode test : un rendez-vous créé avec le mode test allumé, ses participants et la fiche créée portent le repère « test »', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('chevalier-os.modeTest', '1'));
+  await connecter(page, undefined, { route: 'rdv/nouveau' });
+  const ligne = page.locator('[data-role="participant"]').first();
+  await ligne.getByPlaceholder('Nom (contact existant ou nouveau)').fill('Mme Test');
+  await ligne.getByLabel('Téléphone mobile').fill('06 00 00 00 05');
+  await remplirCreneau(page);
+  await page.getByRole('button', { name: 'Enregistrer sans envoyer' }).click();
+  await expect(page).toHaveURL(/#\/rdv\/liste\/.+/);
+  expect((await listerDocuments('rdv_rendezvous'))[0].test).toBe(true);
+  expect((await listerDocuments('rdv_participants'))[0].test).toBe(true);
+  expect((await listerDocuments('crm_personnes'))[0].test).toBe(true);
+});
+
+test('réglages : écrire un réglage ne remplace jamais le reste (modèles, numéros, rôles gardés quand on change un interrupteur)', async ({ page }) => {
+  await ecrireDocument('rdv_parametres/reglages', { nomDansLesSms: 'Mme Martin', roles: ['Client', 'Maçon'], numerosAlerte: [{ id: 'n1', libelle: 'Mon mobile', numero: '+33600000001', actif: true }], numeroAffiche: 'n1',
+    relances: { delaiHeures: 24, nombre: 3 }, rappel: { actif: true, heure: '19:00' }, plage: { debut: '08:00', fin: '20:30' }, modeles: { rappel: 'Demain {heure}' } });
+  await connecter(page);
+  await allerA(page, 'Réglages');
+  await ouvrirSectionReglages(page, 'Rendez-vous');
+  await expect(page.locator('#reglages-rdv-roles [data-nom="Maçon"]')).toBeVisible();
+  await page.locator('#reglages-rdv-rappel').getByRole('switch', { name: 'Envoyer un rappel la veille' }).click();
+  await expect.poll(async () => (await lireDocument('rdv_parametres/reglages')).rappel.actif).toBe(false);
+  const doc = await lireDocument('rdv_parametres/reglages');
+  expect(doc.nomDansLesSms).toBe('Mme Martin');
+  expect(doc.roles).toEqual(['Client', 'Maçon']);
+  expect(doc.numerosAlerte).toHaveLength(1);
+  expect(doc.modeles.rappel).toBe('Demain {heure}');
 });

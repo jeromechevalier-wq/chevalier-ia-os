@@ -32,6 +32,7 @@ const CLES_TRI = {
   client: (r) => L.normaliser(r.client),
   creation: T.cleCreation,
   commune: (r) => L.normaliser(r.commune),
+  reponses: (r) => D.participantsDe(r.id).filter((p) => p.etatReponse === 'comprise' || p.etatReponse === 'saisie').length,
   etat: (r) => R.ETATS.indexOf(r.etat || 'en_attente'),
 };
 
@@ -47,14 +48,14 @@ export function menuRdv(r) {
   return [
     { libelle: 'Ouvrir', icone: 'calendar-check', action: () => naviguer(cheminRdv(r.id)) },
     { libelle: r.archive ? 'Désarchiver' : 'Archiver', icone: r.archive ? 'archive-restore' : 'archive',
-      action: async () => { try { await D.archiver(r.id, !r.archive); toast(r.archive ? 'Rendez-vous désarchivé' : 'Rendez-vous archivé'); } catch (e) { console.warn(e); toast('Action impossible', { type: 'erreur' }); } } },
+      action: async () => { try { await D.archiver(r.id, !r.archive); toast(r.archive ? 'Rendez-vous désarchivé' : 'Rendez-vous archivé'); } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Action impossible'), { type: 'erreur' }); } } },
   ];
 }
 
 function carte(r, parts) {
   const menu = h('button', { type: 'button', class: 'bouton-icone carte-menu', 'aria-label': `Actions : ${r.client || 'rendez-vous'}`,
     onclick: (e) => { e.stopPropagation(); ouvrirMenu(e.currentTarget, menuRdv(r)); } }, icone('ellipsis', { taille: 16 }));
-  const el = h('article', { class: `carte-rdv carte-affaire etat-${r.etat || 'en_attente'}`, tabindex: '0', dataset: { rdv: r.id }, 'aria-label': r.client || 'Rendez-vous',
+  const el = h('article', { class: `carte-rdv carte-affaire rdv-etat-${r.etat || 'en_attente'}`, tabindex: '0', dataset: { rdv: r.id }, 'aria-label': r.client || 'Rendez-vous',
     onclick: (e) => { if (!e.target.closest('a, button')) naviguer(cheminRdv(r.id)); },
     onkeydown: (e) => { if (e.key === 'Enter' && e.target === el) naviguer(cheminRdv(r.id)); } },
   h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, r.client || 'Sans nom', badgeTest(r)), menu),
@@ -65,7 +66,7 @@ function carte(r, parts) {
 
 function colonne(etatId, rdvs, parParRdv) {
   return h('section', { class: 'colonne', dataset: { colonne: etatId }, 'aria-label': R.LIBELLES_ETATS[etatId] },
-    h('header', { class: 'colonne-tete' }, h('h2', {}, R.LIBELLES_ETATS[etatId]), h('span', { class: 'colonne-totaux' }, `${rdvs.length} ${rdvs.length > 1 ? 'rendez-vous' : 'rendez-vous'}`)),
+    h('header', { class: 'colonne-tete' }, h('h2', {}, R.LIBELLES_ETATS[etatId]), h('span', { class: 'colonne-totaux' }, `${rdvs.length} rendez-vous`)),
     h('div', { class: 'colonne-corps' }, rdvs.map((r) => carte(r, parParRdv[r.id] || []))));
 }
 
@@ -132,7 +133,7 @@ export function rendreListeRdv(conteneur, { archives: surArchives = false } = {}
     remplir(zone, h('div', { class: 'kanban kanban-rdv' }, R.ETATS.map((e) => colonne(e, rdvs.filter((r) => (r.etat || 'en_attente') === e), par))));
   }
 
-  const COLONNES = [{ id: 'client', libelle: 'Client' }, { id: 'commune', libelle: 'Commune' }, { id: 'date', libelle: 'Créneau' }, { id: null, libelle: 'Réponses' }, { id: 'etat', libelle: 'État' }];
+  const COLONNES = [{ id: 'client', libelle: 'Client' }, { id: 'commune', libelle: 'Commune' }, { id: 'date', libelle: 'Créneau' }, { id: 'reponses', libelle: 'Réponses' }, { id: 'etat', libelle: 'État' }];
 
   function rendreTableau(archives) {
     const par = participantsParRdv();
@@ -155,7 +156,7 @@ export function rendreListeRdv(conteneur, { archives: surArchives = false } = {}
         h('td', { dataset: { libelle: 'Commune' } }, r.commune || ''),
         h('td', { dataset: { libelle: 'Créneau' } }, Number.isFinite(date) ? R.formaterCreneau(date) : ''),
         h('td', { dataset: { libelle: 'Réponses' } }, `${b.reponses} sur ${b.total}`),
-        h('td', { dataset: { libelle: 'État' } }, h('span', { class: `pastille-statut etat-${r.etat || 'en_attente'}` }, nomEtat(r.etat || 'en_attente'))),
+        h('td', { dataset: { libelle: 'État' } }, h('span', { class: `pastille-statut rdv-etat-${r.etat || 'en_attente'}` }, nomEtat(r.etat || 'en_attente'))),
         h('td', { class: 'col-actions' }, h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Actions : ${r.client || 'rendez-vous'}`, onclick: (e) => ouvrirMenu(e.currentTarget, menuRdv(r)) }, icone('ellipsis', { taille: 18 }))));
     });
     remplir(zone, h('div', { class: 'zone-tableau' }, h('table', { class: 'tableau tableau-rdv' }, h('thead', {}, entete), h('tbody', {}, corps))));

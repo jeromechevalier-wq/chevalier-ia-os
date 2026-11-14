@@ -18,6 +18,7 @@ export const TYPES_MESSAGE = ['confiance', 'creneaux', 'relance', 'confirmation'
 export const ETATS_REPONSE = ['attente', 'comprise', 'incomprise', 'saisie'];
 export const ROLES_DEPART = ['Client', 'Terrassier', 'Architecte', 'Géomètre'];
 export const MAX_CRENEAUX = 3;
+export const MAX_PARTICIPANTS = 5;
 /** Délai fixe entre la dernière relance et l'alerte « relances terminées ». */
 export const DELAI_ALERTE_HEURES = 24;
 /** Prix indicatif d'un SMS de 160 caractères (affiché dans l'aide, jamais dans un calcul). */
@@ -756,10 +757,14 @@ export function validerNouveauRdv({ participants, creneaux, maintenant }) {
     if (!t.ok) erreurs.push(`Participant ${i + 1} : ${t.message}`);
     return { ...x, telephone: t.ok ? t.telephone : x.telephone };
   });
+  if (lignes.length > MAX_PARTICIPANTS) erreurs.push(`Un rendez-vous réunit ${MAX_PARTICIPANTS} personnes au plus.`);
   const vus = new Set();
+  const personnes = new Set();
   sortie.forEach((x, i) => {
     if (x.telephone && vus.has(x.telephone)) erreurs.push(`Participant ${i + 1} : ce numéro est déjà celui d’un autre participant de ce rendez-vous.`);
     vus.add(x.telephone);
+    if (x.personneId && personnes.has(x.personneId)) erreurs.push(`Participant ${i + 1} : cette personne est déjà dans la liste.`);
+    if (x.personneId) personnes.add(x.personneId);
   });
   const utiles = (creneaux || []).filter((c) => c !== '' && c != null);
   if (!utiles.length) erreurs.push('Ajoute au moins un créneau.');

@@ -32,7 +32,7 @@ export function rendreCreation(conteneur) {
   const erreurs = h('div', { class: 'erreur rdv-erreurs', role: 'alert', hidden: true });
 
   const champObjet = h('input', { class: 'champ', type: 'text', id: 'rdv-objet', autocomplete: 'off', 'aria-label': 'Objet de la visite', placeholder: 'Ex. visite avant terrassement' });
-  const champAdresse = h('textarea', { class: 'champ champ-multiligne', id: 'rdv-adresse', rows: '3', 'aria-label': 'Adresse du rendez-vous', placeholder: 'Rue\nCode postal et ville', oninput: () => majApercu() });
+  const champAdresse = h('textarea', { class: 'champ rdv-champ-multiligne', id: 'rdv-adresse', rows: '3', 'aria-label': 'Adresse du rendez-vous', placeholder: 'Rue\nCode postal et ville', oninput: () => majApercu() });
 
   function selectRole(valeur = '') {
     const sel = h('select', { class: 'champ', 'aria-label': 'Rôle' });
@@ -46,7 +46,7 @@ export function rendreCreation(conteneur) {
       const nom = await demanderTexte('Ajouter un rôle', { libelle: 'Nom du rôle' });
       const r = nom ? R.ajouterRole(roles(), nom) : null;
       if (r && !r.ok) toast(r.message, { type: 'erreur' });
-      if (r?.ok) { try { await D.majParametres({ roles: r.roles }); } catch (e) { console.warn(e); toast('Ajout impossible', { type: 'erreur' }); } }
+      if (r?.ok) { try { await D.majParametres({ roles: r.roles }); } catch (e) { console.warn(e); toast(D.messageErreur(e, e?.message || 'Ajout impossible'), { type: 'erreur' }); } }
       remplirOptions(r?.ok ? r.roles.at(-1) : '');
     });
     return sel;
@@ -54,13 +54,15 @@ export function rendreCreation(conteneur) {
 
   function ajouterLigne(depart = {}) {
     let choisie = null;
+    let prefill = ''; // dernier numéro posé par un choix de fiche : il suit le choix tant qu'on ne l'a pas retouché
     const champTel = h('input', { class: 'champ', type: 'tel', autocomplete: 'off', 'aria-label': 'Téléphone mobile', placeholder: '06 00 00 00 00', value: depart.telephone || '', oninput: () => majApercu() });
     const nom = champIntelligent({
       etiquette: 'Nom', placeholder: 'Nom (contact existant ou nouveau)', icone: 'user', libre: true,
       fournir: (saisie) => L.rechercherSuggestions(saisie, elementsPersonnes(), { creer: false }),
       surChoix: (el) => {
         choisie = el ? CRM.personne(el.id) : null;
-        if (choisie && !champTel.value) champTel.value = R.afficherTelephone(premierMobile(choisie));
+        const nouveau = choisie && premierMobile(choisie) ? R.afficherTelephone(premierMobile(choisie)) : '';
+        if (!champTel.value.trim() || champTel.value === prefill) { champTel.value = nouveau; prefill = nouveau; }
         majApercu();
       },
     });
@@ -104,8 +106,12 @@ export function rendreCreation(conteneur) {
   let enCours = false;
   async function enregistrer() {
     if (enCours) return;
-    const participants = lignes.map((l) => l.lire()).filter((x) => x.nom || x.telephone);
-    const nettoyes = participants.map((x) => ({ ...x, nom: L.nettoyerEspaces(x.nom) }));
+    const nettoyes = lignes.map((l) => l.lire()).map((x) => {
+      const nom = L.nettoyerEspaces(x.nom);
+      // Un nom tapé sans cliquer la suggestion qui est exactement celui d'une fiche existante : on prend cette fiche (pas de doublon).
+      const existante = !x.personneId && nom ? L.trouverDoublonsPersonne(CRM.etat.personnes.filter((p) => !p.archive), { nom })[0] : null;
+      return { ...x, nom: existante?.nom || nom, personneId: x.personneId || existante?.id || null };
+    }).filter((x) => x.nom || x.telephone);
     const verdict = R.validerNouveauRdv({ participants: nettoyes, creneaux: creneaux(), maintenant: new Date() });
     const problemes = [...verdict.erreurs];
     nettoyes.forEach((x, i) => { if (!x.nom) problemes.push(`Participant ${i + 1} : écris son nom.`); });
@@ -119,7 +125,7 @@ export function rendreCreation(conteneur) {
       naviguer(cheminRdv(id));
     } catch (e) {
       console.warn(e);
-      montrerErreurs(['Enregistrement impossible. Vérifie ta connexion, puis réessaie.']);
+      montrerErreurs([D.messageErreur(e, 'Enregistrement impossible. Vérifie ta connexion, puis réessaie.')]);
       boutonEnregistrer.disabled = false;
     } finally { enCours = false; }
   }

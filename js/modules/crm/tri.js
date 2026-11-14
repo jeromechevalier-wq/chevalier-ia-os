@@ -40,6 +40,7 @@ export const TRIS = {
       { id: 'client', libelle: 'Client', sens: 'asc' },
       { id: 'creation', libelle: 'Date de création', sens: 'desc' },
       { id: 'commune', libelle: 'Commune', sens: 'asc', menu: false },
+      { id: 'reponses', libelle: 'Réponses', sens: 'desc', menu: false },
       { id: 'etat', libelle: 'État', sens: 'asc', menu: false },
     ],
   },

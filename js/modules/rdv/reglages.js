@@ -9,7 +9,7 @@ import { interrupteur, champNombre, compteurSms, EXPLICATION_ACCENTS } from './c
 import { reglagesExportRdv } from './export.js';
 
 async function enregistrer(patch, message = 'Enregistré') {
-  try { await D.majParametres(patch); if (message) toast(message); return true; } catch (e) { console.warn(e); toast('Enregistrement impossible', { type: 'erreur' }); return false; }
+  try { await D.majParametres(patch); if (message) toast(message); return true; } catch (e) { console.warn(e); toast(D.messageErreur(e, e?.message || 'Enregistrement impossible'), { type: 'erreur' }); return false; }
 }
 
 /** Une carte de réglages : `corps()` est redessiné quand les données changent (sauf si on tape dedans). */
@@ -30,7 +30,7 @@ export function reglages(page) {
 
   redessins.push(carte(page, 'reglages-rdv-relances', 'Relances', () => {
     const p = D.parametres();
-    const delai = h('input', { class: 'champ champ-nombre', type: 'number', min: '1', max: '240', step: '1', value: String(p.relances.delaiHeures), 'aria-label': 'Délai entre deux relances, en heures',
+    const delai = h('input', { class: 'champ rdv-champ-nombre', type: 'number', min: '1', max: '240', step: '1', value: String(p.relances.delaiHeures), 'aria-label': 'Délai entre deux relances, en heures',
       onchange: (e) => { const n = Math.floor(Number(e.target.value)); if (n >= 1 && n <= 240) enregistrer({ relances: { ...D.parametres().relances, delaiHeures: n } }); else e.target.classList.add('invalide'); } });
     const nombre = champNombre({ valeur: p.relances.nombre, min: 0, max: 10, libelle: 'Nombre de relances', surChangement: (n) => enregistrer({ relances: { ...D.parametres().relances, nombre: n } }) });
     return [ligne('Délai entre deux relances (heures)', delai), ligne('Nombre de relances', nombre.element),
@@ -39,7 +39,7 @@ export function reglages(page) {
 
   redessins.push(carte(page, 'reglages-rdv-rappel', 'Rappel la veille', () => {
     const p = D.parametres();
-    const heure = h('input', { class: 'champ champ-heure', type: 'time', value: p.rappel.heure, disabled: !p.rappel.actif, 'aria-label': 'Heure du rappel',
+    const heure = h('input', { class: 'champ rdv-champ-heure', type: 'time', value: p.rappel.heure, disabled: !p.rappel.actif, 'aria-label': 'Heure du rappel',
       onchange: (e) => { if (/^\d{2}:\d{2}$/.test(e.target.value)) enregistrer({ rappel: { ...D.parametres().rappel, heure: e.target.value } }); } });
     const ligneHeure = ligne('Heure du rappel', heure);
     ligneHeure.classList.toggle('grisee', !p.rappel.actif);
@@ -55,7 +55,7 @@ export function reglages(page) {
 
   redessins.push(carte(page, 'reglages-rdv-plage', 'Plage d’envoi', () => {
     const p = D.parametres();
-    const champ = (cle, libelle) => h('input', { class: 'champ champ-heure', type: 'time', value: p.plage[cle], 'aria-label': libelle,
+    const champ = (cle, libelle) => h('input', { class: 'champ rdv-champ-heure', type: 'time', value: p.plage[cle], 'aria-label': libelle,
       onchange: (e) => {
         const prochain = { ...D.parametres().plage, [cle]: e.target.value };
         if (!/^\d{2}:\d{2}$/.test(prochain.debut) || !/^\d{2}:\d{2}$/.test(prochain.fin) || prochain.fin <= prochain.debut) { toast('La fin doit être après le début.', { type: 'erreur' }); e.target.value = p.plage[cle]; return; }
@@ -68,13 +68,14 @@ export function reglages(page) {
   redessins.push(carte(page, 'reglages-rdv-alertes', 'Numéros qui reçoivent les alertes', () => {
     const p = D.parametres();
     const numeros = p.numerosAlerte;
+    const frais = () => D.parametres().numerosAlerte; // la liste au moment du clic, jamais celle du dessin (deux clics de suite ne se défont pas)
     const maj = (liste, extra = {}) => enregistrer({ numerosAlerte: liste, ...extra });
     const lignes = numeros.map((n) => {
-      const bascule = interrupteur({ valeur: n.actif, libelle: `Alerter ${n.libelle || R.afficherTelephone(n.numero)}`, surChangement: async (v) => { if (!(await maj(numeros.map((x) => (x.id === n.id ? { ...x, actif: v } : x))))) bascule.definir(!v); } });
+      const bascule = interrupteur({ valeur: n.actif, libelle: `Alerter ${n.libelle || R.afficherTelephone(n.numero)}`, surChangement: async (v) => { if (!(await maj(frais().map((x) => (x.id === n.id ? { ...x, actif: v } : x))))) bascule.definir(!v); } });
       return h('div', { class: 'rdv-numero', dataset: { numero: n.id } },
         h('span', { class: 'rdv-numero-nom' }, n.libelle || 'Numéro'), h('span', { class: 'rdv-numero-tel' }, R.afficherTelephone(n.numero)), bascule.element,
         h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Supprimer le numéro ${n.libelle || R.afficherTelephone(n.numero)}`,
-          onclick: () => maj(numeros.filter((x) => x.id !== n.id), p.numeroAffiche === n.id ? { numeroAffiche: '' } : {}) }, icone('trash-2', { taille: 16 })));
+          onclick: () => maj(frais().filter((x) => x.id !== n.id), D.parametres().numeroAffiche === n.id ? { numeroAffiche: '' } : {}) }, icone('trash-2', { taille: 16 })));
     });
     const choix = h('select', { class: 'champ', 'aria-label': 'Numéro donné aux participants', onchange: (e) => enregistrer({ numeroAffiche: e.target.value }) },
       h('option', { value: '' }, numeros.length ? 'Le premier numéro actif' : 'Ajoute d’abord un numéro'),
@@ -86,7 +87,7 @@ export function reglages(page) {
       if (!saisie) return;
       const t = R.normaliserTelephone(saisie);
       if (!t.ok) { toast(t.message, { type: 'erreur' }); return; }
-      maj([...numeros, { id: L.idAleatoire().slice(0, 6), libelle: L.nettoyerEspaces(libelle), numero: t.telephone, actif: true }]);
+      maj([...frais(), { id: L.idAleatoire().slice(0, 6), libelle: L.nettoyerEspaces(libelle), numero: t.telephone, actif: true }]);
     } }, icone('plus', { taille: 16 }), 'Ajouter un numéro');
     return [numeros.length ? h('div', { class: 'pile' }, lignes) : h('p', { class: 'aide', dataset: { role: 'aucun-numero' } }, 'Aucun numéro pour l’instant : tu ne recevras aucune alerte.'),
       ajouter, ligne('Numéro donné aux participants', choix),
@@ -134,7 +135,7 @@ export function reglages(page) {
 
   async function modifierModele(type) {
     const p = D.parametres();
-    const champ = h('textarea', { class: 'champ champ-multiligne', rows: '6', 'aria-label': `Modèle : ${R.LIBELLES_MODELES[type]}` });
+    const champ = h('textarea', { class: 'champ rdv-champ-multiligne', rows: '6', 'aria-label': `Modèle : ${R.LIBELLES_MODELES[type]}` });
     champ.value = R.modeleDe(type, p);
     const compteur = compteurSms('');
     const maj = () => {

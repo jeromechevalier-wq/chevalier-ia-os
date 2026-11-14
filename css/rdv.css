@@ -6,15 +6,15 @@
 .page-rdv .lien-retour { display: inline-flex; align-items: center; gap: var(--esp-1); color: var(--texte2); text-decoration: none; margin-bottom: var(--esp-3); }
 .page-rdv .lien-retour:hover, .page-rdv .lien-retour:focus-visible { color: var(--texte); }
 .carte-rdv .carte-etat-rdv { color: var(--texte2); }
-.etat-en_attente { --couleur: var(--gris); }
-.etat-a_valider { --couleur: var(--violet); }
-.etat-confirme { --couleur: var(--succes); }
-.etat-a_reprendre { --couleur: var(--retard); }
+.rdv-etat-en_attente { --couleur: var(--gris); }
+.rdv-etat-a_valider { --couleur: var(--violet); }
+.rdv-etat-confirme { --couleur: var(--succes); }
+.rdv-etat-a_reprendre { --couleur: var(--retard); }
 .carte-rdv { border-left: 3px solid var(--couleur, var(--bordure)); }
-.pastille-statut.etat-en_attente, .pastille-statut.etat-a_valider, .pastille-statut.etat-confirme, .pastille-statut.etat-a_reprendre { --couleur: inherit; }
+.pastille-statut.rdv-etat-en_attente, .pastille-statut.rdv-etat-a_valider, .pastille-statut.rdv-etat-confirme, .pastille-statut.rdv-etat-a_reprendre { background: var(--panneau2); border-left: 3px solid var(--couleur); }
 
 /* Création */
-.champ-multiligne { width: 100%; min-height: 4.5em; resize: vertical; font: inherit; }
+.rdv-champ-multiligne { width: 100%; min-height: 4.5em; resize: vertical; font: inherit; }
 .rdv-ligne-participant { display: grid; grid-template-columns: 2fr 1.4fr 1.2fr auto; gap: var(--esp-4); align-items: end; padding-bottom: var(--esp-4); border-bottom: 1px solid var(--bordure); }
 .rdv-ligne-participant:last-child { border-bottom: 0; }
 .rdv-erreurs p { margin: 0 0 var(--esp-1); }
@@ -33,19 +33,19 @@
 .page-rdv .bulle-incomprise .bulle { border-color: var(--retard); }
 .page-rdv .bulle-texte { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .page-rdv .bulle-pied { color: var(--texte2); font-size: var(--fs-petit); }
-.compteur-sms { margin: 0; color: var(--texte2); font-size: var(--fs-petit); }
-.compteur-sms-long { color: var(--retard); }
+.rdv-compteur-sms { margin: 0; color: var(--texte2); font-size: var(--fs-petit); }
+.rdv-compteur-sms-long { color: var(--retard); }
 
 /* Réglages */
 .rdv-reglage-ligne { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--esp-4); }
 .rdv-reglage-ligne.grisee { opacity: .5; }
-.champ-nombre { width: 6rem; }
-.champ-heure { width: 8rem; }
-.interrupteur { position: relative; width: 2.6rem; height: 1.5rem; padding: 0; border: 1px solid var(--bordure-forte); border-radius: 999px; background: var(--panneau2); cursor: pointer; transition: background var(--transition); flex: none; }
-.interrupteur[aria-checked='true'] { background: var(--succes); border-color: var(--succes); }
-.interrupteur:disabled { opacity: .5; cursor: not-allowed; }
-.interrupteur-bouton { position: absolute; top: 2px; left: 2px; width: calc(1.5rem - 6px); height: calc(1.5rem - 6px); border-radius: 50%; background: var(--papier); transition: transform var(--transition); }
-.interrupteur[aria-checked='true'] .interrupteur-bouton { transform: translateX(1.1rem); }
+.rdv-champ-nombre { width: 6rem; }
+.rdv-champ-heure { width: 8rem; }
+.rdv-interrupteur { position: relative; width: 2.6rem; height: 1.5rem; padding: 0; border: 1px solid var(--bordure-forte); border-radius: 999px; background: var(--panneau2); cursor: pointer; transition: background var(--transition); flex: none; }
+.rdv-interrupteur[aria-checked='true'] { background: var(--succes); border-color: var(--succes); }
+.rdv-interrupteur:disabled { opacity: .5; cursor: not-allowed; }
+.rdv-interrupteur-bouton { position: absolute; top: 2px; left: 2px; width: calc(1.5rem - 6px); height: calc(1.5rem - 6px); border-radius: 50%; background: var(--papier); transition: transform var(--transition); }
+.rdv-interrupteur[aria-checked='true'] .rdv-interrupteur-bouton { transform: translateX(1.1rem); }
 .rdv-numero { display: flex; align-items: center; gap: var(--esp-5); }
 .rdv-numero-nom { flex: 1 1 auto; font-weight: var(--poids-moyen); }
 .rdv-numero-tel { color: var(--texte2); }
@@ -56,6 +56,6 @@
 .rdv-modele-tete strong { flex: 1 1 auto; }
 .rdv-modele-compte { color: var(--texte2); font-size: var(--fs-petit); }
 .rdv-modele-texte { margin: var(--esp-2) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; color: var(--texte2); }
-.info-tel { display: inline-flex; align-items: center; gap: var(--esp-1); }
-.info-tel .lien-tel { color: var(--texte2); display: inline-flex; }
+.rdv-info-tel { display: inline-flex; align-items: center; gap: var(--esp-1); }
+.rdv-info-tel .lien-tel { color: var(--texte2); display: inline-flex; }
 .rdv-adresse { white-space: pre-line; }

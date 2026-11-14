@@ -4,8 +4,8 @@ import * as R from './logique.js';
 
 /** Interrupteur (case à bascule). `surChangement(valeur)` est appelé à chaque clic. Renvoie { element, definir(valeur), valeur() }. */
 export function interrupteur({ valeur = false, libelle, surChangement = () => {}, desactive = false }) {
-  const bouton = h('button', { type: 'button', class: 'interrupteur', role: 'switch', 'aria-label': libelle, 'aria-checked': String(!!valeur), disabled: desactive,
-    onclick: () => { definir(bouton.getAttribute('aria-checked') !== 'true'); surChangement(valeur_()); } }, h('span', { class: 'interrupteur-bouton' }));
+  const bouton = h('button', { type: 'button', class: 'rdv-interrupteur', role: 'switch', 'aria-label': libelle, 'aria-checked': String(!!valeur), disabled: desactive,
+    onclick: () => { definir(bouton.getAttribute('aria-checked') !== 'true'); surChangement(valeur_()); } }, h('span', { class: 'rdv-interrupteur-bouton' }));
   const valeur_ = () => bouton.getAttribute('aria-checked') === 'true';
   function definir(v) { bouton.setAttribute('aria-checked', String(!!v)); }
   return { element: bouton, definir, valeur: valeur_ };
@@ -13,7 +13,7 @@ export function interrupteur({ valeur = false, libelle, surChangement = () => {}
 
 /** Champ nombre avec les deux petites flèches haute et basse (consigne 9). `surChangement(n)` à chaque changement valide. */
 export function champNombre({ valeur, min = 0, max = 10, libelle, surChangement = () => {} }) {
-  const champ = h('input', { class: 'champ champ-nombre', type: 'number', min: String(min), max: String(max), step: '1', value: String(valeur), 'aria-label': libelle,
+  const champ = h('input', { class: 'champ rdv-champ-nombre', type: 'number', min: String(min), max: String(max), step: '1', value: String(valeur), 'aria-label': libelle,
     onchange: () => envoyer() });
   function envoyer() {
     const n = Math.floor(Number(champ.value));
@@ -33,11 +33,11 @@ export function bulleSms({ sens, texte, qui = '', heure = '', caracteres = null,
 
 /** Compteur « n caractères sur 160 · 1 SMS » d'un texte de SMS (déjà normalisé ou non : le compteur compte ce qui partira). Renvoie { element, maj(texte) }. */
 export function compteurSms(texte = '') {
-  const el = h('p', { class: 'compteur-sms', 'aria-live': 'polite' });
+  const el = h('p', { class: 'rdv-compteur-sms', 'aria-live': 'polite' });
   function maj(t) {
     const p = R.preparerSms(t);
     el.textContent = R.libelleCompteur(t);
-    el.classList.toggle('compteur-sms-long', p.segments > 1);
+    el.classList.toggle('rdv-compteur-sms-long', p.segments > 1);
   }
   maj(texte);
   return { element: el, maj };
@@ -47,7 +47,7 @@ export function compteurSms(texte = '') {
 export function infoTelephone(telephone) {
   const affichage = R.afficherTelephone(telephone);
   const lien = R.lienTel(telephone);
-  return h('span', { class: 'info-tel' }, iconeInfo(affichage, 'Numéro de téléphone'),
+  return h('span', { class: 'rdv-info-tel' }, iconeInfo(affichage, 'Numéro de téléphone'),
     lien ? h('a', { class: 'lien-tel', href: lien, 'aria-label': `Appeler le ${affichage}` }, icone('phone', { taille: 14 })) : null);
 }
 
