@@ -275,7 +275,8 @@ describe('Lecture seule (garantie)', () => {
     // oauth/magasin.js : seulement sa propre collection fermée `mcp_oauth` (jetons OAuth) ; un test statique (D8) vérifie qu'il ne touche à aucune donnée du CRM.
     // coeur/devis.js : les quatre transitions des devis (finaliser, changer de statut, nouvelle version, archiver), UNE transaction chacune (numéro, devis, version remplacée et journal
     // ensemble) ; il tire des identifiants mais n'utilise ni appliquer ni mettreAJour, et seul lui (avec donnees.js) appelle `.transaction(`.
-    const autorises = ['coeur/donnees.js', 'coeur/ecriture.js', 'coeur/restaurer.js', 'securite/limites.js', 'securite/codes.js', 'oauth/magasin.js', 'coeur/propositions.js', 'coeur/devis.js', 'securite/mesure.js'];
+    const autorises = ['coeur/donnees.js', 'coeur/ecriture.js', 'coeur/restaurer.js', 'securite/limites.js', 'securite/codes.js', 'oauth/magasin.js', 'coeur/propositions.js', 'coeur/devis.js', 'securite/mesure.js', 'coeur/rdv-envoi.js'];
+    // coeur/rdv-envoi.js (14/11/2026) : l'envoi des SMS du module Rendez-vous demandé par l'écran : crée les SMS « a_envoyer » (rdv_messages) et note la demande sur le rendez-vous, en UN lot atomique, sans le moteur d'audit (tables propres au module, jamais celles du CRM) ; refus avant d'écrire si n8n n'est pas branché.
     // securite/mesure.js : passe-plat de la mesure (compte les lectures d'une requête), aucune écriture propre ; un contrôle plus bas vérifie qu'il n'a ni .set( ni batch(.
     // coeur/propositions.js : la décision d'une proposition (file « À valider »), une seule lecture-modification-écriture atomique, sans le moteur d'audit (voir functions/src/mcp/outils/propositions.js).
     for (const f of parcourir(dossier).filter((x) => /\.appliquer\(|\.mettreAJour\(/.test(readFileSync(x, 'utf8')))) {
