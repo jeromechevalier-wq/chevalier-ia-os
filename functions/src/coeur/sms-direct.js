@@ -24,7 +24,8 @@ export const ESSAIS_CONFIRMATION = 3;
 export const PAUSE_CONFIRMATION_MS = 300; // entre deux essais de confirmation (une panne de la base dure rarement moins)
 // Problèmes de COMPTE (jamais la faute d'un SMS) : le tir s'arrête et les SMS sont libérés sans compter d'essai (rien n'est abandonné pour un réglage à corriger). Tout AUTRE refus de ClickSend (numéro refusé, pays fermé,
 // statut inconnu, 4xx) est un échec de CE SMS seulement : compté (3 = abandon + alerte à la professionnelle), avec un délai de 10 minutes entre deux essais (côté porte) ; il ne bloque jamais les autres.
-export const STATUTS_COMPTE = Object.freeze(['INVALID_SENDER_ID', 'ACCOUNT_NOT_ACTIVATED', 'MISSING_CREDENTIALS', 'INVALID_CREDENTIALS', 'THROTTLED', 'INSUFFICIENT_CREDIT']);
+export const STATUTS_COMPTE = Object.freeze(['INVALID_SENDER_ID', 'ACCOUNT_NOT_ACTIVATED', 'MISSING_CREDENTIALS', 'INVALID_CREDENTIALS', 'THROTTLED', 'USAGE_LIMIT_EXCEEDED', 'INSUFFICIENT_CREDIT']);
+export const STATUTS_PANNE = Object.freeze(['INTERNAL_ERROR', 'SOMETHING_IS_WRONG']); // panne de ClickSend : le SMS est peut-être parti (douteux, jamais compté comme refus)
 export const STATUTS_ACCEPTES = Object.freeze(['SUCCESS', 'QUEUED', 'SCHEDULED']); // accepté par ClickSend
 export const DUREE_CACHE_MS = 60_000;
 export const MESSAGE_NON_BRANCHE = 'L’envoi des SMS n’est pas encore branché sur cet espace.';
@@ -99,7 +100,7 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
    *  { statut: 'ok', idFournisseur }      : accepté ;
    *  { statut: 'echec', message }         : refus de CE SMS (mauvais numéro, pays fermé, statut inconnu, 4xx) : compté, repris après 10 minutes, 3 échecs = abandon ;
    *  { statut: 'arret', raison, parti? }  : problème de COMPTE ou de service (clé refusée, crédit épuisé, limitation, expéditeur non enregistré, ClickSend en panne) : on arrête le tir. `parti: true`
-   *                                         (500 ou 504 : la passerelle a peut-être expiré APRÈS avoir accepté) : CE SMS reste réservé et compte comme douteux ; 502 et 503 : rien n'est parti ;
+   *                                         (500 ou 504, ou INTERNAL_ERROR : la passerelle a peut-être expiré APRÈS avoir accepté) : CE SMS reste réservé et compte comme douteux ; 502 et 503 : rien n'est parti ;
    *  { statut: 'incertain' }              : on ne sait pas si le SMS est parti (réseau coupé, délai dépassé, réponse 200 illisible) : rien n'est confirmé NI libéré, la réservation de 15 minutes
    *                                         expire puis la porte le reprend en comptant un essai (3 au plus, puis abandon).
    */
@@ -118,6 +119,7 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
       });
       try { j = await reponse.json(); } catch { /* corps illisible ou trop lent (le même délai couvre la lecture) */ }
     } catch { return { statut: 'incertain' }; } finally { clearTimeout(minuteur); }
+    if (reponse.status === 408) return { statut: 'incertain' };
     if (reponse.status === 401 || reponse.status === 403) return { statut: 'arret', raison: 'cle_refusee' };
     if (reponse.status === 429) return { statut: 'arret', raison: 'trop_de_requetes' };
     if (reponse.status === 502 || reponse.status === 503) return { statut: 'arret', raison: 'clicksend_indisponible' };
@@ -125,7 +127,9 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
     const m = j?.data?.messages?.[0];
     const statut = String(m?.status ?? '').toUpperCase();
     if (reponse.ok && STATUTS_ACCEPTES.includes(statut)) return { statut: 'ok', idFournisseur: String(m.message_id ?? '').toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 60) || undefined };
-    if (STATUTS_COMPTE.includes(statut) || /insufficient/i.test(String(j?.response_code ?? ''))) return { statut: 'arret', raison: statut === 'INSUFFICIENT_CREDIT' || !statut ? 'credit_epuise' : `compte_${statut.toLowerCase()}` };
+    if (STATUTS_PANNE.includes(statut)) return { statut: 'arret', raison: 'clicksend_indisponible', parti: true };
+    if (statut === 'INSUFFICIENT_CREDIT' || /insufficient/i.test(String(j?.response_code ?? ''))) return { statut: 'arret', raison: 'credit_epuise' };
+    if (STATUTS_COMPTE.includes(statut)) return { statut: 'arret', raison: `compte_${statut.toLowerCase()}` };
     if (statut) return { statut: 'echec', message: `ClickSend : ${statut.replace(/[^A-Z0-9_]/g, '').slice(0, 40)}` };
     if (reponse.status >= 400) return { statut: 'echec', message: `ClickSend : refus ${reponse.status}` };
     return { statut: 'incertain' };

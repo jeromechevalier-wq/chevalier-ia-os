@@ -338,7 +338,7 @@ describe('pannes passagères : rien n’est abandonné, rien n’est perdu', () 
   });
 
   test('un problème de COMPTE (expéditeur non enregistré, compte non activé, identifiants manquants, limitation) arrête le tir sans rien brûler, même après trois clics de suite', async () => {
-    for (const statut of ['INVALID_SENDER_ID', 'ACCOUNT_NOT_ACTIVATED', 'MISSING_CREDENTIALS', 'THROTTLED']) {
+    for (const statut of ['INVALID_SENDER_ID', 'ACCOUNT_NOT_ACTIVATED', 'MISSING_CREDENTIALS', 'THROTTLED', 'USAGE_LIMIT_EXCEEDED']) {
       const m = monde({ reponses: () => REPONSE_STATUT(statut) }); m.semer();
       for (let k = 0; k < 3; k += 1) { const b = await m.sms.tirer('interne'); assert.equal(b.arret, `compte_${statut.toLowerCase()}`); m.temps.t += 2000; }
       assert.ok(m.messages().every((x) => x.etatEnvoi === 'a_envoyer' && !x.essais), statut);
@@ -372,6 +372,20 @@ describe('pannes passagères : rien n’est abandonné, rien n’est perdu', () 
     assert.ok(m.messages().every((x) => x.etatEnvoi === 'echec' && x.essais === 1));
     for (let k = 0; k < 4; k += 1) { m.temps.t += 11 * 60_000; await m.sms.tirer('interne'); }
     assert.ok(m.messages().filter((x) => x.typeMessage !== 'alerte').every((x) => x.etatEnvoi === 'abandonne' && x.essais === 3));
+  });
+
+  test('panne de ClickSend annoncée en 200 (INTERNAL_ERROR) ou délai du serveur (408) : jamais compté comme refus du SMS ; le SMS peut être parti : douteux, borné à 3 tentatives', async () => {
+    for (const reponse of [() => REPONSE_STATUT('INTERNAL_ERROR'), () => ({ ok: false, status: 408, json: async () => ({}) })]) {
+      const m = monde({ reponses: reponse }); m.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
+      const b = await m.sms.tirer('interne');
+      assert.equal(b.echecs, 0);
+      assert.equal(m.messages()[0].etatEnvoi, 'reserve', 'ni échec compté ni libéré : douteux');
+    }
+  });
+
+  test('crédit signalé par le code de réponse (« insufficient ») avec un statut de message inattendu : raison « credit_epuise »', async () => {
+    const m = monde({ reponses: () => ({ ok: true, status: 200, json: async () => ({ response_code: 'INSUFFICIENT_CREDIT', data: { messages: [{ status: 'INVALID_RECIPIENT' }] } }) }) }); m.semer();
+    assert.equal((await m.sms.tirer('interne')).arret, 'credit_epuise');
   });
 
   test('« QUEUED » ou « SCHEDULED » avec succès HTTP : accepté (pas un échec, aucun renvoi)', async () => {

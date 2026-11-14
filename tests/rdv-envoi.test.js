@@ -43,7 +43,7 @@ describe('envoyerPropositions', () => {
     assert.equal(new Date((await donnees.document('rdv_rendezvous', 'r1')).envoiDemandeLe).getTime(), T0.getTime() - 60_000, 'notée une minute en arrière : les créneaux partent dans le même tir que la présentation');
   });
   test('un tir arrêté (crédit épuisé), incertain ou incomplet : `declenche: false` (l\'écran ne dit jamais « envoyé » quand rien n\'est parti), la demande reste notée', async () => {
-    for (const bilan of [{ branche: true, envoyes: 0, echecs: 0, incertains: 0, restants: 2, arret: 'credit_epuise' }, { branche: true, envoyes: 0, echecs: 0, incertains: 1, restants: 0 }, { branche: true, envoyes: 1, echecs: 0, incertains: 0, restants: 3 }]) {
+    for (const bilan of [{ branche: true, envoyes: 0, echecs: 0, incertains: 0, restants: 2, arret: 'credit_epuise' }, { branche: true, envoyes: 0, echecs: 0, incertains: 1, restants: 0 }, { branche: true, envoyes: 1, echecs: 0, incertains: 0, restants: 3 }, { branche: true, envoyes: 0, echecs: 2, incertains: 0, restants: 0 }]) {
       const donnees = creerAccesMemoire(base());
       const r = await envoyerPropositions({ donnees, ctx, espace: 'interne', sortie: fauxSortie({ bilan }), rendezVousId: 'r1' });
       assert.deepEqual([r.ok, r.declenche], [true, false], JSON.stringify(bilan));

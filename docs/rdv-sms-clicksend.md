@@ -83,7 +83,7 @@ Depuis le 14/11/2026 elles sont appelées **directement par le serveur** (`funct
 
 ### `rdv.libererEnvoi`
 - **Entrée** : `{ messageId }`. **Sortie** : `{ messageId, libere }`.
-- **Entrée** : `{ messageId }`. Rend un SMS **réservé** à « à envoyer » **sans compter d'essai** : l'appelant sait que rien n'est parti (clé refusée, crédit épuisé, limitation, budget de temps dépassé). Un SMS déjà envoyé, échoué ou abandonné n'est pas touché (`libere: false`). **Erreur** : 404 `message_inconnu`.
+- Rend un SMS **réservé** à « à envoyer » **sans compter d'essai** : l'appelant sait que rien n'est parti (clé refusée, crédit épuisé, limitation, budget de temps dépassé). Un SMS déjà envoyé, échoué ou abandonné n'est pas touché (`libere: false`). **Erreur** : 404 `message_inconnu`.
 
 ### `rdv.confirmerEnvoi`
 - **Entrée** : `{ messageId, statut: "ok" | "echec", idFournisseur?, message? }`.
@@ -109,6 +109,8 @@ Depuis le 14/11/2026 elles sont appelées **directement par le serveur** (`funct
 - Après « Envoyer », les SMS « créneaux » partent dans le même tir que la présentation (la demande est notée une minute en arrière).
 
 ## Limites connues (à décider avec Jérôme)
+- **Liste des statuts de ClickSend à vérifier sur un vrai envoi** : la plateforme connaît `SUCCESS`, `QUEUED`, `SCHEDULED` (accepté), `INVALID_RECIPIENT`, `BLACKLISTED`, `BLOCKED`, `OPTED_OUT`, `UNSUBSCRIBED` (refus du SMS), `INVALID_SENDER_ID`, `ACCOUNT_NOT_ACTIVATED`, `MISSING_CREDENTIALS`, `INVALID_CREDENTIALS`, `THROTTLED`, `USAGE_LIMIT_EXCEEDED`, `INSUFFICIENT_CREDIT` (problème de compte), `INTERNAL_ERROR`, `SOMETHING_IS_WRONG` (panne). Cette liste vient de ma mémoire de la documentation, pas d'un essai : elle n'a pas pu être vérifiée depuis la session. Tout autre statut est traité comme un refus de CE SMS (compté, repris après 10 minutes, abandonné au 3e échec avec alerte). **Un refus général non listé (erreur de réglage du compte) abandonne donc tous les SMS d'un espace en environ 30 minutes** : le garde-fou est l'essai sur le numéro de test (étape 2 ci-dessus) AVANT tout vrai rendez-vous ; on corrige alors la liste (`STATUTS_COMPTE` dans `sms-direct.js`).
+- **À décider** : un SMS « créneaux » ou « présentation » abandonné laisse-t-il quand même partir les relances de ce participant ? Aujourd'hui oui (un SMS abandonné compte comme « fait » pour le calendrier, règle ancienne) ; il n'y a pas non plus de bouton pour renvoyer un SMS abandonné (nouvelle série ou SMS écrit à la main).
 - **Le jeton de l'adresse des réponses apparaît dans les journaux de requêtes de Google** (Cloud Run enregistre l'adresse complète de chaque appel à `rdvReponseSms`, donc `/<jeton>`). C'est inhérent à un jeton placé dans le chemin (ClickSend ne signe pas ses envois). Les journaux de Google ne sont lisibles que par les comptes du projet. Si le jeton fuite : changer `jeton` dans le secret et mettre à jour la règle ClickSend. À décider : l'accepter, ou exclure ces journaux.
 - **La porte HTTP `rdv.aEnvoyer` reste ouverte** à un porteur de clé du module `rdv` (clés de la porte) : il pourrait réserver des SMS sans les envoyer ; la libération (`rdv.libererEnvoi`) ou l'expiration de la réservation les remet en circuit. Plus aucun workflow n'utilise ces actions : à fermer quand Jérôme le décide.
 - **Expéditeur** : un nom d'expéditeur alphanumérique que la France ne reconnaît pas donne `INVALID_SENDER_ID` chez ClickSend (le tir s'arrête sans rien abandonner) : laisser `expediteur` vide tant que ClickSend n'a pas validé le sien.

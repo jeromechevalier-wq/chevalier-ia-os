@@ -39,8 +39,8 @@ async function lireRendezVous(donnees, rendezVousId) {
 async function declencher(sortie, espace, rendezVousId) {
   try {
     const bilan = await sortie.tirerRdv(espace, { rendezVousId });
-    // Vrai seulement si le tir est allé au bout sans arrêt ni doute : sinon la demande reste notée et l'écran dit que l'envoi partira dans quelques minutes (jamais « envoyé » à tort).
-    return !bilan || (!bilan.arret && !bilan.incertains && !bilan.restants);
+    // Vrai seulement si le tir est allé au bout sans arrêt, doute ni refus : sinon la demande reste notée et l'écran dit que l'envoi partira dans quelques minutes (jamais « envoyé » à tort).
+    return !bilan || (!bilan.arret && !bilan.incertains && !bilan.restants && !bilan.echecs);
   } catch (e) {
     if (e instanceof ErreurSortieSms && e.genre !== 'non_branche') return false;
     throw e;
