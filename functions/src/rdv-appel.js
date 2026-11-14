@@ -1,12 +1,12 @@
 // Fonctions appelables du module Rendez-vous chez Jérôme (projet chevalier-ia-os) :
-//  - `rdvEtat()`                                  : { branche: true | false }, pour que l'écran grise « Envoyer » tant que n8n n'est pas branché ;
+//  - `rdvEtat()`                                  : { branche: true | false }, pour que l'écran grise « Envoyer » tant que l'envoi des SMS n'est pas branché ;
 //  - `rdvEnvoyer({ action: 'propositions', rendezVousId })`           : envoie les premières propositions de créneaux ;
 //  - `rdvEnvoyer({ action: 'sms', rendezVousId, type, texte })`       : SMS de pluie ou d'annulation écrit à la main (jamais retardé par la plage d'envoi).
 // Même accès que les autres fonctions de devis (compte Google vérifié parmi COMPTES_AUTORISES). Le journal Cloud ne reçoit ni numéro, ni texte, ni identifiant de rendez-vous.
 import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from './veille/appel.js';
 import { exigerCompteAutorise } from './devis-appel.js';
-import { ESPACE_JEROME } from './coeur/n8n-sortie.js';
+import { ESPACE_JEROME } from './coeur/sms-direct.js';
 import { etatEnvoi, envoyerPropositions, envoyerSms, ErreurRdvEnvoi } from './coeur/rdv-envoi.js';
 
 /** Erreur du service -> erreur d'appel lisible ; une panne inattendue devient une phrase neutre (jamais de détail technique). */

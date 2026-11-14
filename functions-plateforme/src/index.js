@@ -156,7 +156,7 @@ export const rdvEnvoiPlanifie = onSchedule(
   { region: REGION, schedule: '*/15 * * * *', timeZone: 'Europe/Paris', timeoutSeconds: 300, memory: '256MiB', maxInstances: 1 },
   async () => {
     const bilan = await tirerPourTous({ db: db(), sortie: smsDirect, modulesActifs: creerModulesActifs({ db: db() }) });
-    if (bilan.branches) logger.info('Rendez-vous : tir planifié', bilan);
+    if (bilan.branches || bilan.interrompu) logger.info('Rendez-vous : tir planifié', bilan);
   },
 );
 // Réponses par SMS : ClickSend appelle cette adresse (POST) avec « <client>/<jeton> » en chemin. Invocation publique côté Google ; la vraie porte est le jeton (sinon 404, sans rien dire).

@@ -59,9 +59,14 @@ Dans ClickSend, créer une règle « SMS entrants » (Inbound SMS rule) qui envo
 3. Répondre « 1 » : la fiche montre la réponse et la coche. Répondre « STOP » : plus aucun SMS ne part vers ce numéro et la professionnelle est prévenue.
 4. Seulement après : un vrai rendez-vous. **Jamais d'envoi à un tiers avant d'avoir vu un SMS arriver sur le numéro de test.**
 5. Si « Envoyer » reste grisé : le secret est absent, mal écrit (JSON invalide, jeton trop court) ou illisible par le compte de service ; le journal des fonctions ne dit rien de plus à dessein.
-6. Si ClickSend refuse la clé ou n'a plus de crédit, le tir s'arrête sans rien marquer d'échoué : les SMS reviennent seuls 15 minutes plus tard, une fois le problème réglé (journal de `rdvEnvoiPlanifie`, ligne `arret`).
+6. **Pannes et refus** (ce que fait le serveur) :
+   - clé refusée (401/403), crédit épuisé, limitation (429), ClickSend en panne (5xx), statut de compte (expéditeur non enregistré `INVALID_SENDER_ID`, pays fermé `COUNTRY_NOT_ENABLED`, compte non activé, tout statut inconnu) : le tir **s'arrête**, tous les SMS de ce tir sont **libérés sans compter d'essai** (`rdv.libererEnvoi`) et repartent au tir suivant, une fois le problème réglé. Rien n'est jamais abandonné pour une panne passagère. Le journal de `rdvEnvoiPlanifie` (chez Jérôme) ou des avertissements `arret` (chez les clients) donnent la raison, sans clé, sans numéro, sans nom de client ;
+   - refus propre au destinataire (`INVALID_RECIPIENT`, `BLACKLISTED`, `BLOCKED`, `OPTED_OUT`, `UNSUBSCRIBED`) : échec de CE SMS seulement ; au troisième échec il est abandonné et la professionnelle est alertée ;
+   - doute réel (réseau coupé, délai de 15 secondes dépassé, réponse 200 illisible) : rien n'est confirmé ni libéré ; la réservation de 15 minutes expire puis le SMS est repris en comptant un essai (3 au plus, puis abandon avec alerte) ;
+   - la confirmation « envoyé » est rejouée 3 fois de suite (un SMS parti dont la confirmation se perd serait renvoyé : double SMS réel) ;
+   - temps : « tire maintenant » dure au plus 45 secondes, le filet 200 secondes (300 pour la fonction) ; chez les clients, le temps total est partagé (270 s), les clients restants sont repris au tour suivant. Un envoi qui pourrait dépasser le budget n'est pas ouvert.
 
-## Les trois actions de la porte (module `rdv`)
+## Les quatre actions de la porte (module `rdv`)
 
 Depuis le 14/11/2026 elles sont appelées **directement par le serveur** (`functions/src/coeur/sms-direct.js`), sans réseau ni clé. Elles restent aussi disponibles par la porte HTTP (`/porte`, module `rdv`) avec les contrôles habituels, mais plus aucun workflow n8n ne les utilise.
 
@@ -72,6 +77,10 @@ Depuis le 14/11/2026 elles sont appelées **directement par le serveur** (`funct
 - **Réservation** : chaque SMS a un identifiant d'échéance déterministe, utilisé comme identifiant du document (`rdv_messages/<messageId>`). Un SMS déjà réservé depuis moins de 15 minutes, déjà envoyé ou abandonné n'est jamais rendu. Une réservation expirée ou un échec (moins de 3) redevient disponible, avec le même `messageId`.
 - Rendez-vous de test : le numéro est remplacé par `numeroTest` (réglage) ; sans `numeroTest`, aucun SMS. Numéro désinscrit (STOP) : aucun SMS, sauf les alertes à la professionnelle.
 - **Erreurs** : 400 `requete_invalide` (champ inconnu, `limite` hors bornes) ; les erreurs communes de la porte (401, 403, 429, 503).
+
+### `rdv.libererEnvoi`
+- **Entrée** : `{ messageId }`. **Sortie** : `{ messageId, libere }`.
+- Rend un SMS **réservé** à « à envoyer » **sans compter d'essai** : l'appelant sait que rien n'est parti (clé refusée, crédit épuisé, ClickSend indisponible, budget de temps dépassé). Un SMS déjà envoyé, échoué ou abandonné n'est pas touché (`libere: false`). **Erreur** : 404 `message_inconnu`.
 
 ### `rdv.confirmerEnvoi`
 - **Entrée** : `{ messageId, statut: "ok" | "echec", idFournisseur?, message? }`.
@@ -97,6 +106,9 @@ Depuis le 14/11/2026 elles sont appelées **directement par le serveur** (`funct
 - Après « Envoyer », les SMS « créneaux » partent dans le même tir que la présentation (la demande est notée une minute en arrière).
 
 ## Limites connues (à décider avec Jérôme)
+- **Le jeton de l'adresse des réponses apparaît dans les journaux de requêtes de Google** (Cloud Run enregistre l'adresse complète de chaque appel à `rdvReponseSms`, donc `/<jeton>`). C'est inhérent à un jeton placé dans le chemin (ClickSend ne signe pas ses envois). Les journaux de Google ne sont lisibles que par les comptes du projet. Si le jeton fuite : changer `jeton` dans le secret et mettre à jour la règle ClickSend. À décider : l'accepter, ou exclure ces journaux.
+- **La porte HTTP `rdv.aEnvoyer` reste ouverte** à un porteur de clé du module `rdv` (clés de la porte) : il pourrait réserver des SMS sans les envoyer ; la libération (`rdv.libererEnvoi`) ou l'expiration de la réservation les remet en circuit. Plus aucun workflow n'utilise ces actions : à fermer quand Jérôme le décide.
+- **Expéditeur** : un nom d'expéditeur alphanumérique que la France ne reconnaît pas donne `INVALID_SENDER_ID` chez ClickSend (le tir s'arrête sans rien abandonner) : laisser `expediteur` vide tant que ClickSend n'a pas validé le sien.
 - **Règles Firestore** : `rdv_messages`, `rdv_participants` et `rdv_parametres` sont inscriptibles par le navigateur d'un éditeur (règle joker, comme les autres tables de module). Un éditeur malveillant pourrait fabriquer un SMS « à envoyer » ; une PR de règles (liste d'arrêt : jamais sans accord) réserverait `rdv_messages` et `rdv_parametres/desinscrits` au serveur. Les rendez-vous eux-mêmes restent écrits par l'écran.
 - **Adresse des réponses** : elle n'est protégée que par son jeton secret (ClickSend ne signe pas ses envois) ; qui connaît l'adresse complète peut forger une réponse ou un STOP. Le jeton est comparé en temps constant, jamais journalisé ; pour le changer, modifier `jeton` dans le secret puis mettre à jour la règle dans ClickSend.
 - **STOP simultanés** : deux STOP exactement en même temps peuvent n'en enregistrer qu'un dans `rdv_parametres/desinscrits` (rare ; le participant garde son repère).

@@ -11,12 +11,12 @@ import { envoyerRdv, etatRdv } from '../functions-plateforme/src/rdv.js';
 const T0 = new Date('2026-11-16T10:00:00Z');
 const FUTUR = [new Date(T0.getTime() + 4 * 86400000).toISOString()];
 
-function fauxSortie({ branche = true, panne = false } = {}) {
+function fauxSortie({ branche = true, panne = false, bilan = undefined } = {}) {
   const appels = [];
   return {
     appels,
     brancheRdv: async () => branche,
-    tirerRdv: async (espace, params) => { if (panne) throw new ErreurSortieSms('indisponible', 'L’envoi n’a pas abouti.'); appels.push({ espace, params }); },
+    tirerRdv: async (espace, params) => { if (panne) throw new ErreurSortieSms('indisponible', 'L’envoi n’a pas abouti.'); appels.push({ espace, params }); return bilan; },
   };
 }
 const base = (extra = {}) => ({
@@ -41,6 +41,16 @@ describe('envoyerPropositions', () => {
     assert.deepEqual(r, { ok: true, declenche: true });
     assert.deepEqual(sortie.appels, [{ espace: 'interne', params: { rendezVousId: 'r1' } }]);
     assert.equal(new Date((await donnees.document('rdv_rendezvous', 'r1')).envoiDemandeLe).getTime(), T0.getTime() - 60_000, 'notée une minute en arrière : les créneaux partent dans le même tir que la présentation');
+  });
+  test('un tir arrêté (crédit épuisé), incertain ou incomplet : `declenche: false` (l\'écran ne dit jamais « envoyé » quand rien n\'est parti), la demande reste notée', async () => {
+    for (const bilan of [{ branche: true, envoyes: 0, echecs: 0, incertains: 0, restants: 2, arret: 'credit_epuise' }, { branche: true, envoyes: 0, echecs: 0, incertains: 1, restants: 0 }, { branche: true, envoyes: 1, echecs: 0, incertains: 0, restants: 3 }]) {
+      const donnees = creerAccesMemoire(base());
+      const r = await envoyerPropositions({ donnees, ctx, espace: 'interne', sortie: fauxSortie({ bilan }), rendezVousId: 'r1' });
+      assert.deepEqual([r.ok, r.declenche], [true, false], JSON.stringify(bilan));
+      assert.ok((await donnees.document('rdv_rendezvous', 'r1')).envoiDemandeLe);
+    }
+    const bon = await envoyerPropositions({ donnees: creerAccesMemoire(base()), ctx, espace: 'interne', sortie: fauxSortie({ bilan: { branche: true, envoyes: 2, echecs: 0, incertains: 0, restants: 0 } }), rendezVousId: 'r1' });
+    assert.equal(bon.declenche, true);
   });
   test('envoi pas branché : refus clair AVANT d\'écrire quoi que ce soit', async () => {
     const donnees = creerAccesMemoire(base());

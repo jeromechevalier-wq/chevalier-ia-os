@@ -401,3 +401,28 @@ describe('réponse reçue après la confirmation', () => {
     assert.match(alertes[0].texte, /après la confirmation/);
   });
 });
+
+describe('rdv.libererEnvoi', () => {
+  test('un SMS réservé redevient « à envoyer » SANS compter d’essai et revient au tir suivant avec le même identifiant ; sinon rien ne change', async () => {
+    const m = monde(); m.semer();
+    const premier = await m.action('rdv.aEnvoyer');
+    const { messageId } = premier.messages[0];
+    assert.equal(m.base.docs.get(`rdv_messages/${messageId}`).d.etatEnvoi, 'reserve');
+    assert.deepEqual(await m.action('rdv.libererEnvoi', { messageId }), { messageId, libere: true });
+    const doc = m.base.docs.get(`rdv_messages/${messageId}`).d;
+    assert.deepEqual([doc.etatEnvoi, doc.essais, doc.reserveJusqua], ['a_envoyer', 0, null]);
+    const second = await m.action('rdv.aEnvoyer');
+    assert.ok(second.messages.some((x) => x.messageId === messageId), 'le même SMS revient tout de suite');
+    assert.equal(m.base.docs.get(`rdv_messages/${messageId}`).d.essais, 0);
+    // déjà envoyé : on ne touche à rien
+    await m.action('rdv.confirmerEnvoi', { messageId, statut: 'ok' });
+    assert.deepEqual(await m.action('rdv.libererEnvoi', { messageId }), { messageId, libere: false });
+    assert.equal(m.base.docs.get(`rdv_messages/${messageId}`).d.etatEnvoi, 'envoye');
+  });
+  test('message inconnu ou entrant : 404', async () => {
+    const m = monde(); m.semer();
+    await assert.rejects(() => m.action('rdv.libererEnvoi', { messageId: 'inconnu' }), (e) => e.code === 'message_inconnu');
+    m.base.docs.set('rdv_messages/in_x', { v: 1, d: { sens: 'entrant', etatEnvoi: 'recu' } });
+    await assert.rejects(() => m.action('rdv.libererEnvoi', { messageId: 'in_x' }), (e) => e.code === 'message_inconnu');
+  });
+});

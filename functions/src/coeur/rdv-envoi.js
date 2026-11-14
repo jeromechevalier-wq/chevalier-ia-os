@@ -37,7 +37,11 @@ async function lireRendezVous(donnees, rendezVousId) {
 
 /** « Tire maintenant » : vrai si le tir a abouti. Une panne n'annule rien (la fonction planifiée enverra) ; « pas branché » est refusé avant. */
 async function declencher(sortie, espace, rendezVousId) {
-  try { await sortie.tirerRdv(espace, { rendezVousId }); return true; } catch (e) {
+  try {
+    const bilan = await sortie.tirerRdv(espace, { rendezVousId });
+    // Vrai seulement si le tir est allé au bout sans arrêt ni doute : sinon la demande reste notée et l'écran dit que l'envoi partira dans quelques minutes (jamais « envoyé » à tort).
+    return !bilan || (!bilan.arret && !bilan.incertains && !bilan.restants);
+  } catch (e) {
     if (e instanceof ErreurSortieSms && e.genre !== 'non_branche') return false;
     throw e;
   }

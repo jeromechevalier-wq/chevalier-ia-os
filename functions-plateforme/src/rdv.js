@@ -36,19 +36,26 @@ export async function envoyerRdv({ db, auth, donnees, sortie, maintenant = Date.
 
 /**
  * Filet planifié (toutes les 15 minutes) : envoie les SMS dus de CHAQUE client dont le module « rdv » est actif et dont la connexion ClickSend existe.
- * Un client en panne n'arrête pas les autres. Rend un bilan sans donnée sensible : { clients, branches, envoyes, echecs }.
+ * Un client en panne n'arrête pas les autres ; le temps total reste sous celui de la fonction (`dureeMaxMs`, 270 s sur 300 s) : chaque client reçoit un budget borné, et les clients restants
+ * sont repris au tour suivant. Rend un bilan sans donnée sensible : { clients, branches, envoyes, echecs, incertains, restants, arrets: [{ code }], interrompu }.
  */
-export async function tirerPourTous({ db, sortie, modulesActifs }) {
-  const bilan = { clients: 0, branches: 0, envoyes: 0, echecs: 0 };
+export async function tirerPourTous({ db, sortie, modulesActifs, maintenant = Date.now, dureeMaxMs = 270_000, budgetClientMs = 90_000, margeMs = 20_000 }) {
+  const bilan = { clients: 0, branches: 0, envoyes: 0, echecs: 0, incertains: 0, restants: 0, arrets: [], interrompu: false };
+  const debut = maintenant();
   for (const doc of (await db.collection('clients').get()).docs) {
+    const reste = dureeMaxMs - (maintenant() - debut);
+    if (reste < margeMs + 15_000) { bilan.interrompu = true; break; }
     bilan.clients += 1;
     try {
       if (!(await modulesActifs(doc.id)).includes(MODULE_RDV)) continue;
-      const r = await sortie.tirer(doc.id);
+      const r = await sortie.tirer(doc.id, { budgetMs: Math.min(budgetClientMs, reste - margeMs) });
       if (!r.branche) continue;
       bilan.branches += 1;
       bilan.envoyes += r.envoyes;
       bilan.echecs += r.echecs;
+      bilan.incertains += r.incertains;
+      bilan.restants += r.restants;
+      if (r.arret) { bilan.arrets.push({ code: r.arret }); logger.warn('Rendez-vous : tir arrêté pour un client', { code: r.arret }); } // jamais le nom du client dans le journal : le code suffit à savoir quoi corriger
     } catch (e) {
       logger.error('Rendez-vous : tir planifié en échec pour un client', { code: String(e?.name ?? 'inconnue').slice(0, 30) });
     }

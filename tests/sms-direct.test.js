@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, describe } from 'node:test';
+import { tirerPourTous } from '../functions-plateforme/src/rdv.js';
 import { creerSmsDirect, creerGestionnaireReponses, lireConnexion, nomDuSecret, memeJeton, ErreurSortieSms, URL_ENVOI, SECRET_CLICKSEND } from '../functions/src/coeur/sms-direct.js';
 import { PRECONDITION_ECHOUEE } from '../scripts/porte/adaptateur.js';
 
@@ -152,6 +153,7 @@ describe('tirer : envoi des SMS dus', () => {
     assert.equal(await m.sms.brancheRdv('demo'), false);
     assert.equal((await m.sms.tirer('demo')).branche, false);
     assert.equal(m.appels.length, 0);
+    assert.deepEqual(m.sms.nomsLus, [], 'le secret n’est même pas lu pour un espace dont le module est inactif (aucun appel à Secret Manager pour un nom inventé)');
   });
 
   test('clé refusée (401) : le tir s’arrête au premier SMS, rien n’est confirmé, rien n’est compté comme échec', async () => {
@@ -160,7 +162,7 @@ describe('tirer : envoi des SMS dus', () => {
     assert.equal(bilan.arret, 'cle_refusee');
     assert.deepEqual([bilan.envoyes, bilan.echecs, bilan.restants], [0, 0, 2]);
     assert.equal(m.appels.length, 1, 'on ne martèle pas ClickSend avec une clé refusée');
-    assert.ok(m.messages().every((x) => x.etatEnvoi === 'reserve' && !x.essais), 'les SMS restent réservés (repris après 15 minutes), aucun essai brûlé');
+    assert.ok(m.messages().every((x) => x.etatEnvoi === 'a_envoyer' && !x.essais), 'les SMS sont libérés tout de suite, aucun essai brûlé');
   });
 
   test('crédit épuisé : même arrêt, sans confirmer ni abandonner', async () => {
@@ -168,7 +170,7 @@ describe('tirer : envoi des SMS dus', () => {
     const bilan = await m.sms.tirer('interne');
     assert.equal(bilan.arret, 'credit_epuise');
     assert.equal(m.appels.length, 1);
-    assert.ok(m.messages().every((x) => x.etatEnvoi === 'reserve'));
+    assert.ok(m.messages().every((x) => x.etatEnvoi === 'a_envoyer' && !x.essais));
   });
 
   test('un numéro refusé par ClickSend : échec de CE SMS seulement, noté, les autres partent ; au troisième échec le SMS est abandonné', async () => {
@@ -182,8 +184,8 @@ describe('tirer : envoi des SMS dus', () => {
     assert.equal(msgs.filter((x) => x.etatEnvoi === 'envoye').length, 1);
   });
 
-  test('réseau coupé, 5xx ou réponse illisible : « incertain », rien n’est confirmé, le SMS reste réservé (jamais déclaré envoyé ni échoué)', async () => {
-    const cas = [() => { throw new Error('reseau'); }, () => ({ ok: false, status: 503, json: async () => ({}) }), () => ({ ok: true, status: 200, json: async () => { throw new Error('pas du json'); } })];
+  test('réseau coupé ou réponse 200 illisible : « incertain », rien n’est confirmé, le SMS reste réservé (jamais déclaré envoyé ni échoué)', async () => {
+    const cas = [() => { throw new Error('reseau'); }, () => ({ ok: true, status: 200, json: async () => { throw new Error('pas du json'); } })];
     for (const faux of cas) {
       const m = monde({ reponses: faux }); m.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
       const bilan = await m.sms.tirer('interne');
@@ -249,9 +251,9 @@ describe('recevoir : réponses par SMS', () => {
     assert.ok(!m.appels.some((a) => a.corps.messages[0].to === '+33600000001' && !/STOP|a répondu/.test(a.corps.messages[0].body)), 'aucun SMS ordinaire vers le numéro désinscrit');
   });
 
-  test('corps inutilisable (numéro, texte ou identifiant manquant, texte vide) : 400, rien d’écrit', async () => {
+  test('corps inutilisable (numéro manquant, texte vide) : 400, rien d’écrit', async () => {
     const m = monde(); m.semer();
-    for (const mauvais of [corps({ from: '' }), corps({ message: '   ' }), corps({ message_id: '' }), {}, null]) {
+    for (const mauvais of [corps({ from: '' }), corps({ message: '   ' }), {}, null]) {
       assert.deepEqual(await m.sms.recevoir({ espace: 'interne', jeton: JETON, corps: mauvais }), { statut: 400 });
     }
     assert.equal(m.messages().length, 0);
@@ -312,5 +314,144 @@ describe('ClickSend : un seul fichier du dépôt lui parle', () => {
     };
     for (const d of ['functions', 'functions-plateforme', 'js', 'scripts']) parcourir(join(racine, d));
     assert.deepEqual(trouves, ['functions/src/coeur/sms-direct.js']);
+  });
+});
+
+describe('pannes passagères : rien n’est abandonné, rien n’est perdu', () => {
+  test('crédit épuisé pendant 45 minutes puis rechargé : quatre tirs espacés de 15 minutes, aucun essai brûlé, les SMS partent dès que le crédit revient', async () => {
+    let credit = false;
+    const m = monde({ reponses: () => (credit ? REPONSE_OK('OK') : REPONSE_STATUT('INSUFFICIENT_CREDIT')) }); m.semer();
+    for (let k = 0; k < 4; k += 1) { const b = await m.sms.tirer('interne'); assert.equal(b.arret, 'credit_epuise'); m.temps.t += 15 * 60_000; }
+    assert.ok(m.messages().every((x) => x.etatEnvoi === 'a_envoyer' && !x.essais), 'après 4 tirs en panne : toujours « à envoyer », zéro essai');
+    credit = true;
+    const b = await m.sms.tirer('interne');
+    assert.equal(b.arret, undefined);
+    assert.equal(b.envoyes, m.messages().length, 'présentation et créneaux de chaque participant partent tous');
+    assert.ok(m.messages().every((x) => x.etatEnvoi === 'envoye' && !x.essais));
+  });
+
+  test('ClickSend limite (429) ou en panne (503) trois fois de suite : aucun SMS abandonné', async () => {
+    for (const statutHttp of [429, 503]) {
+      const m = monde({ reponses: () => ({ ok: false, status: statutHttp, json: async () => ({}) }) }); m.semer();
+      for (let k = 0; k < 4; k += 1) { await m.sms.tirer('interne'); m.temps.t += 15 * 60_000; }
+      assert.ok(m.messages().every((x) => x.etatEnvoi === 'a_envoyer' && !x.essais), String(statutHttp));
+    }
+  });
+
+  test('un refus de CONFIGURATION du compte (expéditeur non enregistré, pays fermé…) arrête le tir et ne brûle rien, même après trois clics de suite', async () => {
+    for (const statut of ['INVALID_SENDER_ID', 'COUNTRY_NOT_ENABLED', 'ACCOUNT_NOT_ACTIVATED', 'UN_STATUT_INCONNU']) {
+      const m = monde({ reponses: () => REPONSE_STATUT(statut) }); m.semer();
+      for (let k = 0; k < 3; k += 1) { const b = await m.sms.tirer('interne'); assert.equal(b.arret, `statut_${statut}`); m.temps.t += 2000; }
+      assert.ok(m.messages().every((x) => x.etatEnvoi === 'a_envoyer' && !x.essais), statut);
+      assert.equal(m.appels.length, 3, `${statut} : un appel par tir, on ne martèle pas`);
+    }
+  });
+
+  test('seuls les refus du DESTINATAIRE comptent : INVALID_RECIPIENT trois fois = abandon de ce SMS', async () => {
+    const m = monde({ reponses: () => REPONSE_STATUT('INVALID_RECIPIENT') }); m.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
+    for (let k = 0; k < 3; k += 1) { await m.sms.tirer('interne'); m.temps.t += 2000; }
+    const [x] = m.messages();
+    assert.equal(x.etatEnvoi, 'abandonne');
+    assert.equal(x.essais, 3);
+  });
+
+  test('SMS accepté par ClickSend mais confirmation en panne : confirmée au deuxième essai, jamais renvoyé ; si tout échoue, il reste réservé (aucun double SMS avant 15 minutes)', async () => {
+    const m = monde(); m.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
+    let pannes = 1;
+    const majDoc = m.base.majDoc;
+    m.base.majDoc = async (c, p, o) => { if (p.etatEnvoi === 'envoye' && pannes > 0) { pannes -= 1; throw new Error('panne Firestore'); } return majDoc(c, p, o); };
+    const b = await m.sms.tirer('interne');
+    assert.deepEqual([b.envoyes, b.incertains], [1, 0], 'la confirmation en panne est rejouée, le SMS n’est pas renvoyé');
+    assert.equal(m.messages()[0].etatEnvoi, 'envoye');
+    assert.equal(m.appels.length, 1);
+
+    const m2 = monde(); m2.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
+    const majDoc2 = m2.base.majDoc;
+    m2.base.majDoc = async (c, p, o) => { if (p.etatEnvoi === 'envoye') throw new Error('panne Firestore'); return majDoc2(c, p, o); };
+    const b2 = await m2.sms.tirer('interne');
+    assert.deepEqual([b2.envoyes, b2.incertains], [0, 1]);
+    assert.equal(m2.messages()[0].etatEnvoi, 'reserve');
+    m2.temps.t += 20_000; // avant l’échéance des « créneaux » (une minute après la présentation) : seul le SMS réservé pourrait être renvoyé
+    await m2.sms.tirer('interne');
+    assert.equal(m2.appels.length, 1, 'pas de renvoi tant que la réservation de 15 minutes court');
+  });
+
+  test('budget de temps : un tir n’ouvre jamais un envoi qui pourrait dépasser le budget ; les SMS restants sont libérés sans essai', async () => {
+    const parts = [1, 2, 3, 4, 5].map((n) => [`p${n}`, `Personne ${n}`, `+3360000000${n}`]);
+    const m = monde(); m.semer('r1', {}, parts);
+    // chaque envoi dure 14 s sur l'horloge de l'essai ; budget 30 s, délai maximal par SMS 15 s : 2 envois (0 + 15 <= 30, 14 + 15 <= 30), le 3e (28 + 15 > 30) n'est pas ouvert
+    const sms = creerSmsDirect({
+      lireSecret: async () => SECRET, donneesDe: () => ({ base: '', donnees: m.base }), maintenant: () => m.temps.t,
+      fetchImpl: async () => { m.temps.t += 14_000; return REPONSE_OK('B'); },
+    });
+    const b = await sms.tirer('interne', { budgetMs: 30_000 });
+    assert.equal(b.arret, 'budget_depasse');
+    assert.equal(b.envoyes, 2);
+    assert.equal(b.restants, 3);
+    const etats = m.messages().map((x) => x.etatEnvoi).sort();
+    assert.deepEqual(etats, ['a_envoyer', 'a_envoyer', 'a_envoyer', 'envoye', 'envoye']);
+    assert.ok(m.messages().every((x) => !x.essais));
+  });
+
+  test('l’heure de chaque envoi est celle de l’envoi, pas celle du début du tir', async () => {
+    const m = monde(); m.semer('r1', {}, [['p1', 'A', '+33600000001'], ['p2', 'B', '+33600000002']]);
+    const sms = creerSmsDirect({ lireSecret: async () => SECRET, donneesDe: () => ({ base: '', donnees: m.base }), maintenant: () => m.temps.t, fetchImpl: async () => { m.temps.t += 10_000; return REPONSE_OK('H'); } });
+    await sms.tirer('interne');
+    const heures = m.messages().map((x) => new Date(x.envoyeLe).getTime()).sort();
+    assert.ok(heures[1] > heures[0]);
+  });
+
+  test('tirerRdv rend le bilan (arrêt compris) : l’écran ne dit jamais « envoyé » quand rien n’est parti', async () => {
+    const m = monde({ reponses: () => ({ ok: false, status: 401, json: async () => ({}) }) }); m.semer();
+    const bilan = await m.sms.tirerRdv('interne');
+    assert.equal(bilan.arret, 'cle_refusee');
+  });
+});
+
+describe('réponses : identifiant et texte jamais perdus', () => {
+  const corpsSms = (extra = {}) => ({ from: '+33600000001', message: '1', message_id: 'IN-7', timestamp: String(Math.floor(T0 / 1000)), ...extra });
+  test('sans identifiant ClickSend (ou identifiant commençant par un tiret) : une empreinte le remplace, la réponse est enregistrée une seule fois', async () => {
+    for (const message_id of ['', '---', undefined, '_-_']) {
+      const m = monde(); m.semer();
+      assert.deepEqual(await m.sms.recevoir({ espace: 'interne', jeton: JETON, corps: corpsSms({ message_id }) }), { statut: 200 }, String(message_id));
+      const avant = m.messages().length;
+      assert.deepEqual(await m.sms.recevoir({ espace: 'interne', jeton: JETON, corps: corpsSms({ message_id }) }), { statut: 200 });
+      assert.equal(m.messages().length, avant, 'rejeu : pas de second message');
+      assert.deepEqual(m.base.docs.get('rdv_participants/r1-p1').d.creneauxOk, [1]);
+    }
+  });
+  test('un caractère de contrôle dans le texte est retiré, la réponse est comprise quand même', async () => {
+    const m = monde(); m.semer();
+    assert.deepEqual(await m.sms.recevoir({ espace: 'interne', jeton: JETON, corps: corpsSms({ message: '1\u0007\u0000' }) }), { statut: 200 });
+    assert.deepEqual(m.base.docs.get('rdv_participants/r1-p1').d.creneauxOk, [1]);
+  });
+});
+
+describe('filet planifié des clients (tirerPourTous)', () => {
+  const dbDe = (ids) => ({ collection: () => ({ get: async () => ({ docs: ids.map((id) => ({ id })) }) }) });
+  test('chaque client actif et branché est tiré ; un client en panne, sans module ou non branché n’arrête pas les autres ; le bilan ne nomme aucun client', async () => {
+    const appeles = [];
+    const sortie = { tirer: async (client, { budgetMs }) => {
+      appeles.push([client, budgetMs]);
+      if (client === 'panne') throw new Error('base en panne');
+      if (client === 'nonbranche') return { branche: false, envoyes: 0, echecs: 0, incertains: 0, restants: 0 };
+      if (client === 'credit') return { branche: true, envoyes: 0, echecs: 0, incertains: 0, restants: 4, arret: 'credit_epuise' };
+      return { branche: true, envoyes: 2, echecs: 1, incertains: 0, restants: 0 };
+    } };
+    const modulesActifs = async (client) => (client === 'sansmodule' ? ['devis'] : ['rdv', 'devis']);
+    const bilan = await tirerPourTous({ db: dbDe(['a', 'sansmodule', 'panne', 'nonbranche', 'credit', 'b']), sortie, modulesActifs });
+    assert.deepEqual(appeles.map(([c]) => c), ['a', 'panne', 'nonbranche', 'credit', 'b']);
+    assert.deepEqual([bilan.clients, bilan.branches, bilan.envoyes, bilan.echecs, bilan.restants, bilan.interrompu], [6, 3, 4, 2, 4, false]);
+    assert.deepEqual(bilan.arrets, [{ code: 'credit_epuise' }]);
+    assert.ok(!JSON.stringify(bilan).match(/panne|credit\b.*client|nonbranche/), 'aucun nom de client dans le bilan');
+    assert.ok(appeles.every(([, budget]) => budget > 0 && budget <= 90_000));
+  });
+  test('le temps total est borné : au-delà de la durée de la fonction, les clients restants sont laissés au tour suivant', async () => {
+    let t = 0;
+    const appeles = [];
+    const sortie = { tirer: async (client) => { appeles.push(client); t += 100_000; return { branche: true, envoyes: 1, echecs: 0, incertains: 0, restants: 0 }; } };
+    const bilan = await tirerPourTous({ db: dbDe(['a', 'b', 'c', 'd']), sortie, modulesActifs: async () => ['rdv'], maintenant: () => t, dureeMaxMs: 270_000 });
+    assert.equal(bilan.interrompu, true);
+    assert.ok(appeles.length >= 1 && appeles.length < 4);
   });
 });

@@ -19,7 +19,11 @@ export const URL_ENVOI = `https://${HOTE_CLICKSEND}/v3/sms/send`;
 export const SECRET_CLICKSEND = 'CLICKSEND_RDV';
 export const ESPACE_JEROME = 'interne';
 export const DELAI_SMS_MS = 15_000;
-export const BUDGET_TIR_MS = 120_000;
+export const BUDGET_TIR_MS = 45_000; // « tire maintenant » : l'écran attend (le navigateur abandonne à 70 s) ; le filet planifié passe un budget plus long
+export const ESSAIS_CONFIRMATION = 3;
+// Refus propres au DESTINATAIRE : seuls ceux-là comptent comme échec du SMS (3 échecs = abandon). Tout autre statut inconnu de ClickSend est traité comme un problème de COMPTE
+// (expéditeur non enregistré, pays fermé, compte non activé, limitation…) : le tir s'arrête et les SMS sont libérés sans compter d'essai, pour ne pas abandonner tout un espace en trois clics.
+export const STATUTS_DESTINATAIRE = Object.freeze(['INVALID_RECIPIENT', 'BLACKLISTED', 'BLOCKED', 'OPTED_OUT', 'UNSUBSCRIBED']);
 export const DUREE_CACHE_MS = 60_000;
 export const MESSAGE_NON_BRANCHE = 'L’envoi des SMS n’est pas encore branché sur cet espace.';
 const MOTIF_ESPACE = /^[a-z0-9][a-z0-9_-]{0,39}$/;
@@ -75,22 +79,27 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
   const instant = () => (typeof maintenant === 'function' ? maintenant() : maintenant);
 
   async function configuration(espace) {
+    // Le module est vérifié AVANT de toucher à Secret Manager et sans cache : un nom d'espace inventé (adresse des réponses, appel anonyme) ne coûte jamais un appel au secret ni ne chasse les vrais espaces du cache.
+    if (!(await moduleActif(espace))) return null;
     const vu = cache.get(espace);
     if (vu && vu.expire > instant()) return vu.config;
     let config = null;
     try { config = lireConnexion(await lireSecret(nomDuSecret(espace, espaceRacine))); } catch { config = null; }
-    if (config && !(await moduleActif(espace))) config = null;
     if (cache.size > 100) cache.clear();
     cache.set(espace, { expire: instant() + DUREE_CACHE_MS, config });
     return config;
   }
 
-  const contexte = (espace) => { const { base, donnees } = donneesDe(espace); return { base, donnees, auteur: 'sms-direct', maintenant: instant(), services: {} }; };
+  const contexte = (espace) => { const { base, donnees } = donneesDe(espace); return { base, donnees, auteur: 'sms-direct', maintenant: instant, services: {} }; }; // `maintenant` : la fonction (l'heure de chaque écriture est celle de l'écriture, pas celle du début du tir)
 
   /**
-   * UN SMS vers ClickSend. Rend { statut: 'ok', idFournisseur } | { statut: 'echec', message } (refus définitif de ce SMS : mauvais numéro, pays fermé…)
-   * | { statut: 'arret', raison } (clé refusée, crédit épuisé : on arrête le tir, rien n'est confirmé, le SMS reste réservé puis sera repris)
-   * | { statut: 'incertain' } (réseau, 5xx, réponse illisible : rien n'est confirmé).
+   * UN SMS vers ClickSend. Rend :
+   *  { statut: 'ok', idFournisseur }                    : accepté ;
+   *  { statut: 'echec', message }                       : refus définitif de CE SMS (mauvais numéro…) ;
+   *  { statut: 'arret', raison }                        : RIEN n'est parti et ce n'est pas la faute du SMS (clé refusée, crédit épuisé, limitation, ClickSend indisponible, statut inconnu) :
+   *                                                       on arrête le tir et on libère les SMS sans compter d'essai ;
+   *  { statut: 'incertain' }                            : on ne sait pas si le SMS est parti (réseau coupé, délai dépassé, réponse 200 illisible) : rien n'est confirmé NI libéré,
+   *                                                       la réservation de 15 minutes expire puis la porte le reprend en comptant un essai (3 au plus, puis abandon).
    */
   async function envoyerUn(config, { numero, texte }) {
     const arret = new AbortController();
@@ -106,36 +115,52 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
       });
     } catch { return { statut: 'incertain' }; } finally { clearTimeout(minuteur); }
     if (reponse.status === 401 || reponse.status === 403) return { statut: 'arret', raison: 'cle_refusee' };
-    if (reponse.status === 429 || reponse.status >= 500) return { statut: 'incertain' };
+    if (reponse.status === 429) return { statut: 'arret', raison: 'trop_de_requetes' };
+    if (reponse.status >= 500) return { statut: 'arret', raison: 'clicksend_indisponible' };
     let j = null;
     try { j = await reponse.json(); } catch { /* corps illisible */ }
     const m = j?.data?.messages?.[0];
     const statut = String(m?.status ?? '').toUpperCase();
     if (reponse.ok && statut === 'SUCCESS') return { statut: 'ok', idFournisseur: String(m.message_id ?? '').toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 60) || undefined };
     if (statut === 'INSUFFICIENT_CREDIT' || /insufficient/i.test(String(j?.response_code ?? ''))) return { statut: 'arret', raison: 'credit_epuise' };
-    if (statut) return { statut: 'echec', message: `ClickSend : ${statut}`.slice(0, 200) };
-    if (reponse.status >= 400 && reponse.status < 500) return { statut: 'echec', message: `ClickSend : refus ${reponse.status}` };
+    if (STATUTS_DESTINATAIRE.includes(statut)) return { statut: 'echec', message: `ClickSend : ${statut}`.slice(0, 200) };
+    if (statut) return { statut: 'arret', raison: `statut_${statut.replace(/[^A-Z0-9_]/g, '').slice(0, 40)}` };
+    if (reponse.status >= 400) return { statut: 'arret', raison: `refus_${reponse.status}` };
     return { statut: 'incertain' };
   }
 
-  /** Envoie tous les SMS dus de l'espace. Rend { branche, envoyes, echecs, incertains, restants, arret? }. */
-  async function tirer(espace) {
+  /** `confirmerEnvoi` est rejouable : on l'essaie 3 fois de suite (un SMS parti dont la confirmation se perd serait renvoyé 15 minutes plus tard : double SMS réel). Vrai si confirmé. */
+  async function confirmer(ctx, parametres) {
+    for (let k = 0; k < ESSAIS_CONFIRMATION; k += 1) {
+      try { await lancerAction(ACTIONS_RDV['rdv.confirmerEnvoi'], parametres, ctx); return true; } catch { /* nouvel essai */ }
+    }
+    return false;
+  }
+  const liberer = async (ctx, messageId) => { try { await lancerAction(ACTIONS_RDV['rdv.libererEnvoi'], { messageId }, ctx); } catch { /* il expirera seul : un essai de plus, jamais un SMS perdu */ } };
+
+  /**
+   * Envoie tous les SMS dus de l'espace, dans la limite de `budgetMs` (jamais plus que ce que la fonction appelante peut durer : un tir coupé en plein envoi laisserait un SMS parti sans confirmation).
+   * Rend { branche, envoyes, echecs, incertains, restants, arret? } (aucune donnée sensible : ni clé, ni numéro, ni texte).
+   */
+  async function tirer(espace, { budgetMs: budget = budgetMs } = {}) {
     const config = await configuration(espace);
-    if (!config) return { branche: false, envoyes: 0, echecs: 0, incertains: 0, restants: 0 };
+    const bilan = { branche: false, envoyes: 0, echecs: 0, incertains: 0, restants: 0 };
+    if (!config) return bilan;
+    bilan.branche = true;
     const ctx = contexte(espace);
     const { messages = [] } = await lancerAction(ACTIONS_RDV['rdv.aEnvoyer'], {}, ctx);
     const debut = instant();
-    const bilan = { branche: true, envoyes: 0, echecs: 0, incertains: 0, restants: 0 };
     for (const [i, m] of messages.entries()) {
-      if (bilan.arret || instant() - debut > budgetMs) { bilan.restants = messages.length - i; break; }
+      // On n'ouvre pas un envoi qui pourrait dépasser le budget (un SMS peut durer `delaiSmsMs`) : les SMS restants sont libérés, sans compter d'essai.
+      if (!bilan.arret && instant() - debut + delaiSmsMs > budget) bilan.arret = 'budget_depasse';
+      if (bilan.arret) { bilan.restants = messages.length - i; for (const reste of messages.slice(i)) await liberer(ctx, reste.messageId); break; }
       const r = await envoyerUn(config, m);
-      if (r.statut === 'arret') { bilan.arret = r.raison; bilan.restants = messages.length - i; break; }
+      if (r.statut === 'arret') { bilan.arret = r.raison; bilan.restants = messages.length - i; for (const reste of messages.slice(i)) await liberer(ctx, reste.messageId); break; }
       if (r.statut === 'incertain') { bilan.incertains += 1; continue; }
-      try {
-        await lancerAction(ACTIONS_RDV['rdv.confirmerEnvoi'], r.statut === 'ok'
-          ? { messageId: m.messageId, statut: 'ok', ...(r.idFournisseur ? { idFournisseur: r.idFournisseur } : {}) }
-          : { messageId: m.messageId, statut: 'echec', message: r.message }, ctx);
-      } catch { /* conflit : la porte reprendra ; le SMS est peut-être parti, jamais renvoyé avant la fin de sa réservation */ }
+      const confirme = await confirmer(ctx, r.statut === 'ok'
+        ? { messageId: m.messageId, statut: 'ok', ...(r.idFournisseur ? { idFournisseur: r.idFournisseur } : {}) }
+        : { messageId: m.messageId, statut: 'echec', message: r.message });
+      if (!confirme) { bilan.incertains += 1; continue; } // parti (ou refusé) mais non noté : la réservation expire, la porte reprendra (comptée comme un essai)
       if (r.statut === 'ok') bilan.envoyes += 1; else bilan.echecs += 1;
     }
     return bilan;
@@ -150,9 +175,11 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
     if (!config || typeof jeton !== 'string' || !memeJeton(jeton, config.jeton)) return { statut: 404 };
     const c = corps && typeof corps === 'object' ? corps : {};
     const numero = String(c.from ?? '').trim();
-    const texte = String(c.message ?? c.body ?? c.text ?? '');
-    const id = String(c.message_id ?? '').toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 60);
-    if (numero.length < 5 || numero.length > 30 || !texte.trim() || !id) return { statut: 400 };
+    const texte = String(c.message ?? c.body ?? c.text ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ''); // les caractères de contrôle (sauf retour à la ligne et tabulation) sont retirés : un SMS étrange n'est pas perdu
+    if (numero.length < 5 || numero.length > 30 || !texte.trim()) return { statut: 400 };
+    // Identifiant du message : celui de ClickSend, nettoyé (il doit commencer par une lettre ou un chiffre) ; à défaut, une empreinte (numéro + horodatage + texte) : un message sans identifiant n'est pas perdu.
+    const brut = String(c.message_id ?? '').toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/^[_-]+/, '').slice(0, 58);
+    const id = brut ? `m${brut}` : `h${createHash('sha256').update(`${numero}|${c.timestamp ?? ''}|${texte}`).digest('hex').slice(0, 40)}`;
     let recuLe = enISO(c.timestamp);
     if (recuLe && (Date.parse(recuLe) < Date.UTC(2000, 0, 1) || Date.parse(recuLe) > instant() + 86_400_000)) recuLe = undefined; // date absurde : on laisse la porte prendre l'heure d'arrivée
     try {
@@ -169,9 +196,9 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
     recevoir,
     /** Vrai si la connexion de l'espace existe et est utilisable (et, chez un client, si le module est allumé). Ne rend jamais la clé. */
     async brancheRdv(espace) { return (await configuration(espace)) !== null; },
-    /** Même interface que l'ancienne sortie : l'écran demande « tire maintenant » ; le tir passe par `tirer`. */
+    /** L'écran demande « tire maintenant » ; le tir passe par `tirer` (budget court) et le bilan remonte jusqu'à l'écran. */
     async tirerRdv(espace) {
-      try { await tirer(espace); } catch { throw new ErreurSortieSms('indisponible', 'L’envoi n’a pas abouti.'); }
+      try { return await tirer(espace); } catch { throw new ErreurSortieSms('indisponible', 'L’envoi n’a pas abouti.'); }
     },
   };
 }
