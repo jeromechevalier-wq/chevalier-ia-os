@@ -113,8 +113,7 @@ test('13 une réponse non comprise : bandeau rouge, SMS d’alerte, relances sus
   await page.getByRole('checkbox', { name: /Créneau 2/ }).check();
   await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer sa réponse' }).click();
   await expect(page.locator('[data-role="bandeau-incompris"]')).toHaveCount(0);
-  const p2 = await lireDocument('rdv_participants/p2');
-  expect(p2).toMatchObject({ etatReponse: 'saisie', creneauxOk: [2], reponse: 'plutôt jeudi' }); // la réponse exacte reçue reste visible
+  await expect.poll(async () => lireDocument('rdv_participants/p2')).toMatchObject({ etatReponse: 'saisie', creneauxOk: [2], reponse: 'plutôt jeudi' }); // la réponse exacte reçue reste visible
   await expect(page.locator('tr[data-participant="p2"] td[data-creneau="2"] [data-symbole]')).toHaveAttribute('data-symbole', 'oui');
   await expect(page.locator('[data-role="bandeau-creneau"]')).toHaveText('Le créneau 2 convient à tout le monde. Seul toi peux le confirmer.');
   await expect(page.locator('[data-action="confirmer-creneau"]')).toHaveText('Confirmer le créneau 2');
@@ -133,6 +132,7 @@ test('confirmer : bandeau violet « Pour l’instant… », bouton jaune, un cli
   await capture(page, 'confirmer-bandeau');
   await page.getByRole('button', { name: 'Confirmer le créneau 3' }).click();
   await expect(page.locator('[data-role="bandeau-confirme"]')).toBeVisible();
+  await expect.poll(async () => (await lireDocument('rdv_rendezvous/r1'))?.etat).toBe('confirme');
   const r = await lireDocument('rdv_rendezvous/r1');
   expect(r.etat).toBe('confirme');
   expect(new Date(r.creneauChoisi).getTime()).toBe(new Date((await lireDocument('rdv_rendezvous/r1')).creneaux[2]).getTime());
@@ -155,10 +155,11 @@ test('proposer d’autres créneaux : nouvelle série (tour 2), réponses remise
   await page.getByLabel('Nouveau créneau 1').fill('2031-04-02T09:30');
   await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer la nouvelle série' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect.poll(async () => (await lireDocument('rdv_rendezvous/r1'))?.tour).toBe(2);
   const r = await lireDocument('rdv_rendezvous/r1');
   expect(r.tour).toBe(2);
   expect(r.creneaux).toHaveLength(1);
-  expect(await lireDocument('rdv_participants/p1')).toMatchObject({ etatReponse: 'attente', creneauxOk: [], reponse: '' });
+  await expect.poll(async () => lireDocument('rdv_participants/p1')).toMatchObject({ etatReponse: 'attente', creneauxOk: [], reponse: '' });
   expect((await listerDocuments('rdv_messages')).map((m) => m.id)).toEqual(['m1']);
   await expect(page.locator('[data-role="historique"] .bulle-ligne')).toHaveCount(1);
   await expect(page.locator('table[data-role="qui-peut-quand"] thead th.rdv-col-creneau')).toHaveCount(1);
@@ -183,7 +184,7 @@ test('annuler et pluie : fenêtre avec texte prérempli MODIFIABLE et compteur ;
   await expect(page.getByRole('dialog').getByLabel('Texte du SMS')).toHaveValue(/est annulé\./);
   await page.getByRole('dialog').getByRole('button', { name: 'Annuler sans prévenir' }).click();
   await expect(page).toHaveURL(/#\/rdv\/archives$/);
-  expect(await lireDocument('rdv_rendezvous/r1')).toMatchObject({ annule: true, archive: true });
+  await expect.poll(async () => lireDocument('rdv_rendezvous/r1')).toMatchObject({ annule: true, archive: true });
   expect(await listerDocuments('rdv_messages')).toHaveLength(0); // rien n'est parti
 });
 
