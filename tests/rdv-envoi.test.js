@@ -78,10 +78,21 @@ describe('envoyerSms (pluie, annulation)', () => {
     const msgs = await donnees.liste('rdv_messages');
     assert.equal(msgs.length, 2);
     assert.ok(msgs.every((m) => m.manuel === true && m.etatEnvoi === 'a_envoyer' && m.typeMessage === 'pluie' && m.sens === 'sortant'));
-    assert.equal(msgs[0].texte, 'Pluie demain : RDV reporté à cause de la foret.', 'ê est remplacé par le serveur, même si l\'écran ne l\'avait pas fait');
+    assert.equal(msgs[0].texte, 'Pluie demain : RDV reporté à cause de la foret.\nChevalier IA - Répondez STOP pour vous désabonner.', 'ê est remplacé par le serveur, même si l\'écran ne l\'avait pas fait');
     assert.deepEqual(msgs.map((m) => m.numero).sort(), ['+33600000001', '+33600000002']);
     assert.equal(new Set(msgs.map((m) => m.id)).size, 2);
     assert.deepEqual(sortie.appels, [{ espace: 'interne', params: { rendezVousId: 'r1' } }]);
+  });
+  test('la ligne finale reprend le nom d\'entreprise des réglages de l\'espace, une seule fois, même si le client s\'appelle « Stop » ou si le texte la porte déjà', async () => {
+    const lignes = async (texte, rdv = {}) => {
+      const donnees = creerAccesMemoire({ ...base(rdv), rdv_parametres: [{ id: 'reglages', nomEntreprise: 'Géolucie' }] });
+      await envoyerSms({ donnees, ctx, espace: 'interne', sortie: fauxSortie(), rendezVousId: 'r1', type: 'pluie', texte });
+      return (await donnees.liste('rdv_messages'))[0].texte;
+    };
+    const fin = 'Géolucie - Répondez STOP pour vous désabonner.';
+    assert.equal(await lignes('Pluie demain.'), `Pluie demain.\n${fin}`);
+    assert.equal(await lignes('Chantier Garage Auto Stop : pluie demain.', { client: 'Garage Auto Stop' }), `Chantier Garage Auto Stop : pluie demain.\n${fin}`);
+    assert.equal(await lignes(`Pluie demain.\n${fin}`), `Pluie demain.\n${fin}`);
   });
   test('annulation : le rendez-vous est marqué annulé et archivé dans le même lot', async () => {
     const donnees = creerAccesMemoire(base());

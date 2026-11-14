@@ -170,6 +170,7 @@ describe('inventaire des textes d\'identité de Jérôme dans le code de l\'inte
     'js/modules/projets/fiche-projet.js': 'lanceurs masqués chez un client',
     'js/os/google-drive.js': 'nom du dossier parent créé tout seul : « Chevalier IA OS » à la racine, « Chevalier IA - <nom de l\'espace> » chez un client (voulu)',
     'js/modules/projets/projets.js': 'GitHub / célébration de clôture coupée chez un client',
+    'js/modules/rdv/logique.js': 'valeur de départ « Chevalier IA » du réglage « Nom de l’entreprise dans les SMS » (décision de Jérôme du 14/11/2026) : réglable par espace, à régler chez chaque client avant son premier envoi',
   };
   const MOTS = /Chevalier|Jérôme|Jerome|Charles|Hermes|Claude Code/;
   test('toute mention dans le code est connue et traitée (sinon : décider si elle doit être masquée chez un client)', () => {

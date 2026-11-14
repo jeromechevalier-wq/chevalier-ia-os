@@ -243,8 +243,8 @@ test('12 le nombre de caractères de chaque SMS est affiché, la règle des acce
   const section = page.locator('#reglages-rdv-modeles');
   await expect(section.locator('[data-modele]')).toHaveCount(6);
   for (const m of await section.locator('.rdv-modele-compte').allTextContents()) {
-    expect(m).toMatch(/^\d+ caractères · 1 SMS$/);
-    expect(Number(m.split(' ')[0])).toBeLessThan(160);
+    expect(m).toMatch(/^\d+ caractères · [12] SMS$/); // la ligne finale (entreprise + STOP) fait passer certains modèles à 2 SMS
+    expect(Number(m.split(' ')[0])).toBeLessThan(320);
   }
   await expect(section.locator('[data-role="explication-accents"]')).toContainText('ê devient e');
   await expect(section.locator('[data-role="explication-accents"]')).toContainText('70 caractères');
@@ -256,7 +256,7 @@ test('12 le nombre de caractères de chaque SMS est affiché, la règle des acce
   await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.modeles?.rappel).toBe('Rappel : foret {client} {heure}');
   await capture(page, '12-modeles');
   await page.goto('/?emulateurs=1#/rdv/nouveau');
-  await expect(page.locator('[data-type="confiance"] .rdv-compteur-sms')).toContainText(/\d+ caractères sur 160 · 1 SMS/);
+  await expect(page.locator('[data-type="confiance"] .rdv-compteur-sms')).toContainText(/\d+ caractères sur (160|306) · [12] SMS/);
   await capture(page, '12-apercu-creation');
 });
 
@@ -279,15 +279,22 @@ test('export : Réglages > Rendez-vous > Sauvegarde télécharge un JSON avec le
   await expect(page.locator('.toast')).toContainText('Sauvegarde téléchargée');
 });
 
-test('réglages : les huit sections sont dans la page Réglages de la coque, dans l’ordre voulu', async ({ page }) => {
+test('réglages : les neuf sections sont dans la page Réglages de la coque, dans l’ordre voulu', async ({ page }) => {
   await connecter(page);
   await allerA(page, 'Réglages');
   await ouvrirSectionReglages(page, 'Rendez-vous');
-  await expect(page.locator('section.carte-section h2')).toHaveText(['Relances', 'Rappel la veille', 'Plage d’envoi', 'Numéros qui reçoivent les alertes', 'Ton nom dans les SMS', 'Rôles des participants', 'Modèles de SMS', 'Sauvegarde']);
+  await expect(page.locator('section.carte-section h2')).toHaveText(['Relances', 'Rappel la veille', 'Plage d’envoi', 'Numéros qui reçoivent les alertes', 'Ton nom dans les SMS', 'Nom de l’entreprise dans les SMS', 'Rôles des participants', 'Modèles de SMS', 'Sauvegarde']);
   await page.getByLabel('Ton nom dans les SMS').fill('Mme Martin');
   await page.getByLabel('Ton nom dans les SMS').blur();
   await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.nomDansLesSms).toBe('Mme Martin');
   await expect(page.locator('#reglages-rdv-modeles .rdv-modele-texte').first()).toContainText('Mme Martin');
+  // Le nom de l'entreprise : « Chevalier IA » tant qu'il n'est pas réglé, réglable, et présent dans la dernière ligne de chaque modèle.
+  await expect(page.getByLabel('Nom de l’entreprise dans les SMS')).toHaveValue('Chevalier IA');
+  await expect(page.locator('#reglages-rdv-modeles .rdv-modele-texte').first()).toContainText('Chevalier IA - Répondez STOP pour vous désabonner.');
+  await page.getByLabel('Nom de l’entreprise dans les SMS').fill('Géolucie');
+  await page.getByLabel('Nom de l’entreprise dans les SMS').blur();
+  await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.nomEntreprise).toBe('Géolucie');
+  await expect(page.locator('#reglages-rdv-modeles .rdv-modele-texte').first()).toContainText('Géolucie - Répondez STOP pour vous désabonner.');
   await capture(page, 'reglages');
 });
 
