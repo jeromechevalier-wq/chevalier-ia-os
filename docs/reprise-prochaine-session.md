@@ -1,5 +1,30 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 14/11/2026 : module « Rendez-vous » (4 PR), prêt à brancher
+
+Module `rdv` autonome (socle), même code chez Jérôme et chez les clients. Spécification des SMS et de n8n : `docs/rdv-workflows-n8n.md`. Aucune donnée de Jérôme touchée, aucune règle Firestore touchée, rien déployé chez les clients.
+
+| Sujet | PR | État |
+|---|---|---|
+| Logique pure (créneaux, SMS, réponses, échéances) | 610 | fusionnée |
+| Module, liste Kanban/Liste/Archives, création, réglages, export | voir l'historique | fusionnée |
+| Fiche d'un rendez-vous | voir l'historique | fusionnée |
+| Serveur : porte `rdv.*`, fonctions `rdvEtat` / `rdvEnvoyer` (Jérôme ET clients), sortie n8n, écran | 613 | fusionnée (coche « Tests » verte, deux relectures Fable) |
+| Règles Firestore : réserver `rdv_messages` et `rdv_parametres/desinscrits` au serveur | non faite | **liste d'arrêt** : jamais sans ton accord |
+
+**Ce que Jérôme fait pour tester (dans l'ordre, détail dans `docs/rdv-workflows-n8n.md`)** :
+1. n8n : créer le secret « Webhook rendez-vous » (en-tête `X-Chevalier-Secret`) et le choisir dans le webhook de `interne-rdv-envoyer-les-sms` ; créer le secret ClickSend (Basic Auth) et le choisir dans l'étape d'envoi. **Ne pas publier avant.**
+2. Secret Manager (projet `chevalier-ia-os`) : `N8N_RDV_URL` et `N8N_RDV_SECRET`, avec « Accesseur de secrets » pour le compte de service des fonctions.
+3. ClickSend : règle « SMS entrants » vers l'adresse du workflow `interne-rdv-recevoir-une-reponse`.
+4. Réglages > Rendez-vous : « Numéro des SMS de test », puis un rendez-vous marqué test. Jamais d'envoi à un tiers avant d'avoir vu un SMS arriver sur ce numéro.
+5. Publier les deux workflows ; « Envoyer les propositions » devient actif tout seul.
+
+**Conformité des SMS (à traiter avant le premier envoi à un tiers)** : ClickSend a mis deux SMS d'essai en « CancelledAfterReview » (nom de l'entreprise dans chaque message, moyen simple de se désabonner). Les 6 modèles par défaut ne portent pas encore « Répondez STOP » ni le nom partout ; effet sur la limite de 160 caractères à décider avec Jérôme. Page à lire : « Managing opt-outs » de ClickSend.
+
+**Non vérifié avec le vrai système** : aucun SMS réel (faux n8n, base en mémoire) ; format exact des réponses et SMS entrants de ClickSend (documentation seulement) ; 153 caractères par morceau au-delà de 160 ; déploiement chez les clients (workflow manuel, avec Jérôme).
+
+**Limites connues** : `rdv_messages` inscriptible par le navigateur d'un éditeur (règle joker) ; webhook « réponse » protégé seulement par son adresse secrète ; deux STOP simultanés peuvent n'en noter qu'un ; 500 rendez-vous non archivés lus à chaque tir.
+
 ## Rapport du matin du 13/11/2026 : nuit sécurité
 
 Version 2.45.1 (cette PR, la seule de la nuit à toucher la version, `docs/` et `wiki/`). Suite de l'audit du 12/11/2026 (PR 597, brouillon). Aucun code d'appli ni règle touché par cette PR : version, docs, anonymisation de ce fichier. Rien n'est déployé chez les clients.
