@@ -252,6 +252,7 @@ async function appeler(operation, demande) {
 }
 
 let brancheSms = null; // null = pas encore su ; true / false = réponse du serveur (gardée pour la session)
+let reverifier = null; // nouvelle question au serveur, 65 secondes après l'enregistrement de la connexion
 let peutConfigurerSms = false; // le serveur dit si CE compte peut saisir la connexion SMS (Jérôme seul) ; faux tant qu'on ne sait pas
 let brancheEnCours = null;
 /** « Envoyer » doit-il être actif ? Valeur connue (true / false) ou null tant que le serveur n'a pas répondu (le bouton reste grisé). Lance la question au premier appel et prévient les écrans à la réponse. */
@@ -272,14 +273,21 @@ export function peutConfigurerConnexion() { envoiBranche(); return brancheSms ==
 
 /**
  * Connexion ClickSend (réservée à Jérôme, voir functions/src/rdv-connexion-appel.js) :
- *  - 'etat'                                                  -> { enregistre, adresse, expediteur } (jamais la clé) ;
+ *  - 'etat'                                                  -> { enregistre, expediteur } (jamais la clé) ;
+ *  - 'adresse'                                               -> { adresse } (l'adresse des réponses avec son jeton, sur demande seulement) ;
  *  - 'enregistrer', { identifiant, cle, expediteur?, regenererAdresse? } -> { ok, adresse, adresseChangee } ;
  *  - 'regenerer'                                             -> { ok, adresse, adresseChangee }.
  * La clé part vers le serveur et nulle part ailleurs : l'écran ne la garde pas. Lève une ErreurRdv lisible si refusé.
  */
 export async function connexionSms(action, donnees = {}) {
   const r = await appeler('connexion', { action, ...donnees });
-  if (action !== 'etat') { brancheSms = null; brancheEnCours = null; } // l'état « branché » est redemandé (le bouton « Envoyer » s'active tout seul) ; « peutConfigurer » est gardé : le formulaire ne clignote pas
+  if (action === 'enregistrer' || action === 'regenerer') {
+    // L'état « branché » est redemandé tout de suite, puis encore une fois après 65 secondes : le serveur garde la connexion en mémoire 60 secondes au plus par instance, donc « Envoyer » peut
+    // mettre jusqu'à une minute à s'activer. « peutConfigurer » est gardé : le formulaire ne clignote pas.
+    brancheSms = null; brancheEnCours = null;
+    clearTimeout(reverifier);
+    reverifier = setTimeout(() => { brancheSms = null; brancheEnCours = null; envoiBranche(); }, 65_000);
+  }
   return r;
 }
 

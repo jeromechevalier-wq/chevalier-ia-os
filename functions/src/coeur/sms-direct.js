@@ -229,6 +229,8 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
   return {
     tirer,
     recevoir,
+    /** Vide ce que cette instance sait de la connexion d'un espace (après un enregistrement) : « branché » et le jeton sont relus tout de suite. Les autres instances se rafraîchissent d'elles-mêmes en 60 secondes au plus. */
+    oublier(espace) { cache.delete(espace); },
     /** Vrai si la connexion de l'espace existe et est utilisable (et, chez un client, si le module est allumé). Ne rend jamais la clé. */
     async brancheRdv(espace) { return (await configuration(espace)) !== null; },
     /** L'écran demande « tire maintenant » ; le tir passe par `tirer` (budget court) et le bilan remonte jusqu'à l'écran. */

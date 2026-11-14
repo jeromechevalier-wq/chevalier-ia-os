@@ -125,7 +125,8 @@ export function reglages(page) {
 
   // Connexion ClickSend : la saisie n'est montrée qu'à Jérôme (le serveur le dit : rdvEtat.peutConfigurer ; il refuse de toute façon tout autre compte). La clé part vers le serveur
   // et n'est jamais gardée ici : le champ est vidé dès l'enregistrement, et le serveur ne la rend jamais. L'adresse des réponses (avec son jeton secret) n'est montrée que sur demande.
-  const connexion = { etat: null, charge: false, enCours: false, adresse: '', erreur: '' };
+  // `brouillon` garde l'identifiant et l'expéditeur déjà tapés quand la carte se redessine (jamais la clé).
+  const connexion = { etat: null, charge: false, enCours: false, adresse: '', erreur: '', brouillon: { identifiant: '', expediteur: undefined } };
   let redessinerConnexion = () => {};
   function chargerConnexion() {
     if (connexion.charge || connexion.enCours) return;
@@ -142,18 +143,19 @@ export function reglages(page) {
     }
     chargerConnexion();
     const e = connexion.etat;
-    const identifiant = h('input', { class: 'champ', type: 'text', maxlength: '200', autocomplete: 'off', 'aria-label': 'Identifiant ClickSend', placeholder: 'Ton nom d’utilisateur ClickSend' });
+    const identifiant = h('input', { class: 'champ', type: 'text', maxlength: '200', autocomplete: 'off', 'aria-label': 'Identifiant ClickSend', placeholder: 'Ton nom d’utilisateur ClickSend', value: connexion.brouillon.identifiant, oninput: (ev) => { connexion.brouillon.identifiant = ev.target.value; } });
     const cle = h('input', { class: 'champ', type: 'password', maxlength: '200', autocomplete: 'new-password', 'aria-label': 'Clé d’API ClickSend', placeholder: e?.enregistre ? '•••••••• (enregistrée : colle une clé pour la remplacer)' : 'Colle ici la clé d’API' });
-    const expediteur = h('input', { class: 'champ', type: 'text', maxlength: '11', autocomplete: 'off', 'aria-label': 'Nom d’expéditeur (facultatif)', placeholder: 'Facultatif', value: e?.expediteur ?? '' });
+    const expediteur = h('input', { class: 'champ', type: 'text', maxlength: '15', autocomplete: 'off', 'aria-label': 'Nom d’expéditeur (facultatif)', placeholder: 'Facultatif', value: connexion.brouillon.expediteur ?? e?.expediteur ?? '', oninput: (ev) => { connexion.brouillon.expediteur = ev.target.value; } });
     const enregistrerConnexion = h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'enregistrer-connexion' }, 'Enregistrer la connexion');
     enregistrerConnexion.onclick = async () => {
       enregistrerConnexion.disabled = true;
       try {
         const r = await D.connexionSms('enregistrer', { identifiant: identifiant.value, cle: cle.value, expediteur: expediteur.value });
         cle.value = ''; identifiant.value = ''; // la clé ne reste pas dans la page
-        connexion.etat = { enregistre: true, adresse: r.adresse, expediteur: expediteur.value.trim() };
+        connexion.brouillon = { identifiant: '', expediteur: undefined };
+        connexion.etat = { enregistre: true, expediteur: expediteur.value.trim() };
         connexion.adresse = r.adresseChangee ? r.adresse : '';
-        toast(r.adresseChangee ? 'Connexion enregistrée : copie maintenant l’adresse des réponses dans ClickSend' : 'Connexion enregistrée');
+        toast(r.adresseChangee ? 'Connexion enregistrée : copie maintenant l’adresse des réponses dans ClickSend (le bouton « Envoyer » s’active d’ici une minute)' : 'Connexion enregistrée (le bouton « Envoyer » peut mettre une minute à s’activer)');
         redessinerConnexion();
       } catch (err) { console.warn(err); toast(D.messageErreur(err, 'Enregistrement impossible'), { type: 'erreur' }); enregistrerConnexion.disabled = false; }
     };
@@ -164,10 +166,13 @@ export function reglages(page) {
         h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'copier-adresse', onclick: () => copier(connexion.adresse) }, 'Copier l’adresse'))
       : null;
     const boutonsAdresse = e?.enregistre ? [
-      h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'afficher-adresse', onclick: () => { connexion.adresse = connexion.adresse ? '' : (connexion.etat?.adresse ?? ''); redessinerConnexion(); } }, connexion.adresse ? 'Cacher l’adresse des réponses' : 'Afficher l’adresse des réponses'),
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'afficher-adresse', onclick: async () => {
+        if (connexion.adresse) { connexion.adresse = ''; redessinerConnexion(); return; }
+        try { connexion.adresse = (await D.connexionSms('adresse')).adresse; redessinerConnexion(); } catch (err) { console.warn(err); toast(D.messageErreur(err, 'Lecture impossible'), { type: 'erreur' }); }
+      } }, connexion.adresse ? 'Cacher l’adresse des réponses' : 'Afficher l’adresse des réponses'),
       h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'changer-adresse', onclick: async () => {
         if (!(await confirmer('Changer l’adresse des réponses ?', 'L’ancienne adresse ne marchera plus : il faudra coller la nouvelle dans la règle « SMS entrants » de ClickSend.', { libelleOk: 'Changer l’adresse' }))) return;
-        try { const r = await D.connexionSms('regenerer'); connexion.etat = { ...connexion.etat, adresse: r.adresse }; connexion.adresse = r.adresse; toast('Adresse changée : colle-la dans ClickSend'); redessinerConnexion(); } catch (err) { console.warn(err); toast(D.messageErreur(err, 'Changement impossible'), { type: 'erreur' }); }
+        try { const r = await D.connexionSms('regenerer'); connexion.adresse = r.adresse; toast('Adresse changée : colle-la dans ClickSend'); redessinerConnexion(); } catch (err) { console.warn(err); toast(D.messageErreur(err, 'Changement impossible'), { type: 'erreur' }); }
       } }, 'Changer l’adresse des réponses')] : [];
     return [h('p', { 'data-role': 'connexion-etat' }, connexion.erreur ? connexion.erreur : e?.enregistre ? 'Connexion enregistrée.' : 'Pas encore enregistrée : les SMS ne partent pas.'),
       ligne('Identifiant ClickSend', identifiant), ligne('Clé d’API ClickSend', cle), ligne('Nom d’expéditeur', expediteur),

@@ -161,6 +161,7 @@ const connexionSms = creerConnexionSms({
   verifier: verifierConnexion,
   adresseDe: (client, jeton) => `https://europe-west9-chevalier-ia-app.cloudfunctions.net/rdvReponseSms/${client}/${jeton}`,
   espaceRacine: null,
+  apresEcriture: (client) => smsDirect.oublier(client),
 });
 export const rdvConnexionSms = onCall(OPTIONS_DEVIS, async (requete) => {
   try { return await connexionRdv({ auth: requete.auth, donnees: requete.data, connexion: connexionSms, modulesActifs: creerModulesActifs({ db: db() }) }); } catch (e) { throw enHttps(e); }

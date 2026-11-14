@@ -20,7 +20,7 @@ async function simulerServeur(page, { branche = false, peutConfigurer = true, et
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
     const demande = JSON.parse(route.request().postData() ?? '{}').data;
     demandes.push(demande);
-    const r = demande.action === 'etat' ? { result: etatConnexion } : reponse(demande);
+    const r = demande.action === 'etat' ? { result: { enregistre: etatConnexion.enregistre, expediteur: etatConnexion.expediteur } } : demande.action === 'adresse' ? { result: { adresse: etatConnexion.adresse } } : reponse(demande);
     if (r.erreur) return route.fulfill({ status: 400, headers: CORS, contentType: 'application/json', body: JSON.stringify({ error: { status: r.erreur.status, message: r.erreur.message } }) });
     return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(r) });
   });
@@ -54,21 +54,25 @@ test('connexion : Jérôme enregistre l’identifiant et la clé ; la demande pa
   await expect(carte.getByRole('button', { name: 'Copier l’adresse' })).toBeVisible();
   await expect(carte.getByLabel('Clé d’API ClickSend')).toHaveValue('');
   await expect(carte.getByLabel('Identifiant ClickSend')).toHaveValue('');
+  const valeurs = await page.evaluate(() => [...document.querySelectorAll('input, textarea')].map((i) => i.value).join('|'));
+  expect(valeurs).not.toContain(CLE); // aucun champ de la page ne garde la clé
   expect(await page.content()).not.toContain(CLE);
   expect(demandes.filter((d) => d.action === 'enregistrer')).toEqual([{ action: 'enregistrer', identifiant: 'compte-test', cle: CLE, expediteur: '' }]);
   await expect(carte.locator('[data-role="connexion-etat"]')).toContainText('Connexion enregistrée.');
   await capture(page, 'enregistree');
 });
 
-test('connexion : déjà enregistrée, l’adresse des réponses reste cachée jusqu’à « Afficher » ; « Changer l’adresse » demande confirmation puis montre la nouvelle', async ({ page }) => {
+test('connexion : l’identifiant tapé n’est pas perdu quand on affiche l’adresse ; déjà enregistrée, l’adresse des réponses reste cachée jusqu’à « Afficher » ; « Changer l’adresse » demande confirmation puis montre la nouvelle', async ({ page }) => {
   const demandes = await simulerServeur(page, { branche: true, etatConnexion: { enregistre: true, adresse: ADRESSE_1, expediteur: 'Martin' }, reponse: () => ({ result: { ok: true, adresse: ADRESSE_2, adresseChangee: true } }) });
   const carte = await ouvrir(page);
   await expect(carte.locator('[data-role="connexion-etat"]')).toContainText('Connexion enregistrée.');
   await expect(carte.getByLabel('Nom d’expéditeur (facultatif)')).toHaveValue('Martin');
   await expect(carte.getByLabel('Clé d’API ClickSend')).toHaveAttribute('placeholder', /enregistrée/);
   await expect(carte.locator('[data-role="adresse-reponses"]')).toHaveCount(0);
+  expect(demandes.filter((d) => d.action === 'adresse')).toEqual([]); // l’adresse (avec son jeton) n’est demandée qu’au clic
   await carte.getByRole('button', { name: 'Afficher l’adresse des réponses' }).click();
   await expect(carte.locator('[data-role="adresse-reponses"] input')).toHaveValue(ADRESSE_1);
+  expect(demandes.filter((d) => d.action === 'adresse')).toEqual([{ action: 'adresse' }]);
   await carte.getByRole('button', { name: 'Cacher l’adresse des réponses' }).click();
   await expect(carte.locator('[data-role="adresse-reponses"]')).toHaveCount(0);
   await carte.getByRole('button', { name: 'Changer l’adresse des réponses' }).click();
@@ -91,5 +95,7 @@ test('connexion : ClickSend refuse la clé, ou le serveur refuse : le message du
   await expect(carte.locator('[data-role="adresse-reponses"]')).toHaveCount(0);
   await expect(carte.locator('[data-role="connexion-etat"]')).toContainText('Pas encore enregistrée');
   await expect(carte.getByRole('button', { name: 'Enregistrer la connexion' })).toBeEnabled();
+  await expect(carte.getByLabel('Identifiant ClickSend')).toHaveValue('compte-test'); // la saisie n’est pas perdue après un refus
+  await expect(carte.getByLabel('Clé d’API ClickSend')).toHaveValue(CLE);
   await capture(page, 'refus');
 });

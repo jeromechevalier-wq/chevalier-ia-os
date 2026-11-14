@@ -1,6 +1,8 @@
 // Saisie de la connexion ClickSend depuis l'écran (PR B) : droits (Jérôme seul, contrôlé côté serveur), vérification de la clé, rangement dans Secret Manager, jamais de clé rendue ni journalisée.
 // Tout en mémoire : faux Secret Manager, faux ClickSend, aucun réseau. Clés, identifiants et adresses ci-dessous sont inventés.
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { test, describe } from 'node:test';
 import { creerEcrivainSecrets, ErreurEcritureSecret } from '../functions/src/securite/ecrire-secret.js';
 import { creerConnexionSms, ErreurConnexionSms } from '../functions/src/coeur/connexion-sms.js';
@@ -15,18 +17,20 @@ const JEROME = { uid: 'j', token: { email: 'jerome.chevalier@gmail.com', email_v
 const adresseDe = (espace, jeton) => `https://exemple.test/rdv/${espace}/${jeton}`;
 
 /** Faux Secret Manager : une table nom -> texte. `erreurEcriture` : erreur à lever à l'écriture. */
-function monde({ verdict = { ok: true }, erreurEcriture = null } = {}) {
+function monde({ verdict = { ok: true }, erreurEcriture = null, erreurLecture = null } = {}) {
   const secrets = new Map();
   const ecritures = [];
+  const oublies = [];
   let n = 0;
   const connexion = creerConnexionSms({
-    lireSecret: async (nom) => { if (!secrets.has(nom)) throw new Error('absent'); return secrets.get(nom); },
+    lireSecret: async (nom) => { if (erreurLecture) throw erreurLecture; if (!secrets.has(nom)) throw Object.assign(new Error('absent'), { code: 5 }); return secrets.get(nom); },
     ecrireSecret: async (nom, texte) => { if (erreurEcriture) throw erreurEcriture; ecritures.push(nom); secrets.set(nom, texte); },
+    apresEcriture: (espace) => oublies.push(espace),
     verifier: async () => verdict,
     adresseDe,
     aleatoire: () => `jeton-aleatoire-numero-${++n}-abcdefghij`,
   });
-  return { secrets, ecritures, connexion };
+  return { secrets, ecritures, oublies, connexion };
 }
 
 describe('écrire un secret (Secret Manager)', () => {
@@ -92,7 +96,7 @@ describe('enregistrer la connexion', () => {
     await m.connexion.enregistrer('demo', { identifiant: ID, cle: CLE });
     assert.deepEqual(m.ecritures, ['CLICKSEND_RDV_demo']);
     const secrets = new Map();
-    const plateforme = creerConnexionSms({ lireSecret: async (n) => { if (!secrets.has(n)) throw new Error('absent'); return secrets.get(n); }, ecrireSecret: async (n, t) => secrets.set(n, t), verifier: async () => ({ ok: true }), adresseDe, espaceRacine: null });
+    const plateforme = creerConnexionSms({ lireSecret: async (n) => { if (!secrets.has(n)) throw Object.assign(new Error('absent'), { code: 5 }); return secrets.get(n); }, ecrireSecret: async (n, t) => secrets.set(n, t), verifier: async () => ({ ok: true }), adresseDe, espaceRacine: null });
     await plateforme.enregistrer('interne', { identifiant: ID, cle: CLE });
     assert.deepEqual([...secrets.keys()], ['CLICKSEND_RDV_interne']);
   });
@@ -116,13 +120,13 @@ describe('enregistrer la connexion', () => {
 
   test('champs invalides refusés AVANT tout appel à ClickSend ou à Secret Manager', async () => {
     let appelsClickSend = 0;
-    const m = monde();
-    const connexion = creerConnexionSms({ lireSecret: async () => { throw new Error('absent'); }, ecrireSecret: async () => { throw new Error('ne doit pas être appelé'); }, verifier: async () => { appelsClickSend += 1; return { ok: true }; }, adresseDe });
+    const ecritures = [];
+    const connexion = creerConnexionSms({ lireSecret: async () => { throw Object.assign(new Error('absent'), { code: 5 }); }, ecrireSecret: async (n) => { ecritures.push(n); throw new Error('ne doit pas être appelé'); }, verifier: async () => { appelsClickSend += 1; return { ok: true }; }, adresseDe });
     for (const mauvais of [{ identifiant: '', cle: CLE }, { identifiant: ID, cle: '   ' }, { identifiant: ID, cle: 'a\nb' }, { identifiant: 'x'.repeat(201), cle: CLE }, { identifiant: ID, cle: CLE, expediteur: 'trop long expediteur !' }, { identifiant: 5, cle: CLE }, {}, undefined]) {
       await assert.rejects(() => connexion.enregistrer('interne', mauvais), (e) => e instanceof ErreurConnexionSms && e.code === 'invalid-argument' && !e.message.includes(CLE));
     }
     assert.equal(appelsClickSend, 0);
-    assert.equal(m.ecritures.length, 0);
+    assert.equal(ecritures.length, 0);
   });
 
   test('clé refusée par ClickSend ou ClickSend indisponible : rien n’est enregistré, message clair sans la clé', async () => {
@@ -140,14 +144,46 @@ describe('enregistrer la connexion', () => {
     await assert.rejects(() => panne.connexion.enregistrer('interne', { identifiant: ID, cle: CLE }), (e) => e.code === 'failed-precondition' && !e.message.includes(CLE));
   });
 
-  test('l’état dit si la connexion est enregistrée et donne l’adresse des réponses, jamais la clé ; sans connexion : « pas enregistrée », aucune adresse', async () => {
+  test('l’état dit si la connexion est enregistrée, jamais la clé ni l’adresse ; l’adresse des réponses (avec son jeton) n’est rendue que sur demande', async () => {
     const m = monde();
-    assert.deepEqual(await m.connexion.etat('interne'), { enregistre: false, adresse: null, expediteur: '' });
+    assert.deepEqual(await m.connexion.etat('interne'), { enregistre: false, expediteur: '' });
+    await assert.rejects(() => m.connexion.adresse('interne'), (e) => e.code === 'failed-precondition');
     await m.connexion.enregistrer('interne', { identifiant: ID, cle: CLE, expediteur: 'Martin' });
     const e = await m.connexion.etat('interne');
-    assert.deepEqual([e.enregistre, e.expediteur], [true, 'Martin']);
-    assert.match(e.adresse, /jeton-aleatoire-numero-1/);
-    assert.ok(!JSON.stringify(e).includes(CLE) && !JSON.stringify(e).includes(ID));
+    assert.deepEqual(e, { enregistre: true, expediteur: 'Martin' });
+    assert.ok(!JSON.stringify(e).includes(CLE) && !JSON.stringify(e).includes(ID) && !JSON.stringify(e).includes('jeton'));
+    const a = await m.connexion.adresse('interne');
+    assert.match(a.adresse, /jeton-aleatoire-numero-1/);
+    assert.ok(!JSON.stringify(a).includes(CLE));
+  });
+
+  test('une panne de LECTURE du coffre (réseau, droits) n’est pas « pas de connexion » : erreur claire, rien n’est écrit, aucun nouveau jeton fabriqué ; seules l’absence vraie (5) et la version désactivée (9) valent « pas enregistrée »', async () => {
+    for (const code of [14, 7, undefined]) {
+      const m = monde({ erreurLecture: Object.assign(new Error(`panne ${CLE}`), { code }) });
+      for (const appel of [() => m.connexion.etat('interne'), () => m.connexion.adresse('interne'), () => m.connexion.regenererAdresse('interne'), () => m.connexion.enregistrer('interne', { identifiant: ID, cle: CLE })]) {
+        await assert.rejects(appel, (e) => e instanceof ErreurConnexionSms && e.code === 'failed-precondition' && !e.message.includes(CLE) && /rien n’a été modifié/i.test(e.message), String(code));
+      }
+      assert.equal(m.ecritures.length, 0);
+    }
+    for (const code of [5, 9]) assert.deepEqual(await monde({ erreurLecture: Object.assign(new Error('x'), { code }) }).connexion.etat('interne'), { enregistre: false, expediteur: '' });
+  });
+
+  test('après une écriture, l’instance oublie ce qu’elle savait de la connexion (« branché » relu tout de suite) ; l’expéditeur doit être un texte', async () => {
+    const m = monde();
+    await m.connexion.enregistrer('demo', { identifiant: ID, cle: CLE });
+    assert.deepEqual(m.oublies, ['demo']);
+    await m.connexion.regenererAdresse('demo');
+    assert.deepEqual(m.oublies, ['demo', 'demo']);
+    for (const mauvais of [5, {}, ['a']]) await assert.rejects(() => monde().connexion.enregistrer('interne', { identifiant: ID, cle: CLE, expediteur: mauvais }), (e) => e.code === 'invalid-argument');
+    const cache = creerSmsDirect({ lireSecret: async (n) => { if (!m.secrets.has(n)) throw new Error('absent'); return m.secrets.get(n); }, donneesDe: () => ({ base: '', donnees: {} }) });
+    const vide = monde();
+    const sms = creerSmsDirect({ lireSecret: async (n) => { if (!vide.secrets.has(n)) throw new Error('absent'); return vide.secrets.get(n); }, donneesDe: () => ({ base: '', donnees: {} }) });
+    assert.equal(await sms.brancheRdv('interne'), false);
+    await vide.connexion.enregistrer('interne', { identifiant: ID, cle: CLE });
+    assert.equal(await sms.brancheRdv('interne'), false, 'le « pas branché » est gardé 60 secondes');
+    sms.oublier('interne');
+    assert.equal(await sms.brancheRdv('interne'), true, 'après oublier(), relu tout de suite');
+    assert.equal(await cache.brancheRdv('demo'), true);
   });
 
   test('de bout en bout : la connexion saisie branche l’envoi (même secret, même format)', async () => {
@@ -176,9 +212,12 @@ describe('rdvConnexionSms chez Jérôme : Jérôme seul, contrôlé côté serve
       { token: { email: 'quelquun@exemple.test', email_verified: true } },
       { token: { email: 'jerome.chevalier@gmail.com', email_verified: false } },
       { token: { email: 'jerome.chevalier@gmail.com' } },
+      { token: { email: 'jerome.chevalier@gmail.com', email_verified: 'true' } },
+      { token: { email: ['jerome.chevalier@gmail.com'], email_verified: true } },
+      { token: { email: 'jerome.chevalier+x@gmail.com', email_verified: true } },
       { token: {} },
     ]) {
-      for (const d of [demande, { action: 'etat' }, { action: 'regenerer' }]) {
+      for (const d of [demande, { action: 'etat' }, { action: 'adresse' }, { action: 'regenerer' }]) {
         const { e, m } = await appeler(auth, d);
         assert.equal(e?.code, 'permission-denied', JSON.stringify(auth));
         assert.equal(e.message, 'Action non autorisée.');
@@ -194,8 +233,9 @@ describe('rdvConnexionSms chez Jérôme : Jérôme seul, contrôlé côté serve
     const a = await appeler(JEROME, demande, { m });
     assert.equal(a.r.ok, true);
     const etat = await appeler(JEROME, { action: 'etat' }, { m });
-    assert.equal(etat.r.enregistre, true);
-    assert.equal(etat.r.adresse, a.r.adresse);
+    assert.deepEqual(etat.r, { enregistre: true, expediteur: '' });
+    const adresse = await appeler(JEROME, { action: 'adresse' }, { m });
+    assert.equal(adresse.r.adresse, a.r.adresse);
     const reg = await appeler(JEROME, { action: 'regenerer' }, { m });
     assert.notEqual(reg.r.adresse, a.r.adresse);
     for (const mauvais of [{ action: 'supprimer' }, {}, null]) assert.equal((await appeler(JEROME, mauvais, { m })).e?.code, 'invalid-argument');
@@ -230,7 +270,7 @@ describe('rdvConnexionSms chez les clients : Jérôme seul, jamais un éditeur d
   });
   const modulesActifs = async (client) => (client === 'atelier' ? ['rdv', 'devis'] : ['devis']);
   const ED = { uid: 'e', token: { email: 'ed@exemple.test', email_verified: true } };
-  const utilise = (espaces) => ({ etat: async (e) => { espaces.push(['etat', e]); return { enregistre: false, adresse: null, expediteur: '' }; }, enregistrer: async (e) => { espaces.push(['enregistrer', e]); return { ok: true, adresse: 'x', adresseChangee: true }; }, regenererAdresse: async (e) => { espaces.push(['regenerer', e]); return { ok: true }; } });
+  const utilise = (espaces) => ({ etat: async (e) => { espaces.push(['etat', e]); return { enregistre: false, expediteur: '' }; }, adresse: async (e) => { espaces.push(['adresse', e]); return { adresse: 'x' }; }, enregistrer: async (e) => { espaces.push(['enregistrer', e]); return { ok: true, adresse: 'x', adresseChangee: true }; }, regenererAdresse: async (e) => { espaces.push(['regenerer', e]); return { ok: true }; } });
 
   test('un éditeur du client est refusé (le rôle ne suffit pas) ; Jérôme est accepté pour un client dont le module est actif, avec le secret DE CE client', async () => {
     const espaces = [];
@@ -241,6 +281,25 @@ describe('rdvConnexionSms chez les clients : Jérôme seul, jamais un éditeur d
     assert.equal(r.ok, true);
     await connexionRdv({ auth: JEROME, donnees: { client: 'atelier', action: 'etat' }, connexion, modulesActifs });
     assert.deepEqual(espaces, [['enregistrer', 'atelier'], ['etat', 'atelier']]);
+  });
+
+  test('chez les clients aussi : lecteur, compte d’assistant, e-mail non vérifié ou absent, « verified » en chaîne : refusés sur CHAQUE action (enregistrer, état, adresse, régénérer), rien d’appelé ; l’e-mail de Jérôme en majuscules est accepté', async () => {
+    const espaces = [];
+    for (const token of [
+      { email: 'lec@exemple.test', email_verified: true },
+      { email: 'jeromebot.chevalierbot@gmail.com', email_verified: true },
+      { email: 'jerome.chevalier@gmail.com', email_verified: false },
+      { email: 'jerome.chevalier@gmail.com', email_verified: 'true' },
+      { email: 'jerome.chevalier@gmail.com' },
+      {},
+    ]) {
+      for (const action of ['enregistrer', 'etat', 'adresse', 'regenerer']) {
+        await assert.rejects(() => connexionRdv({ auth: { uid: 'x', token }, donnees: { client: 'atelier', action, identifiant: ID, cle: CLE }, connexion: utilise(espaces), modulesActifs }), (e) => e.code === 'permission-denied' && e.message === 'Action non autorisée.', `${JSON.stringify(token)} ${action}`);
+      }
+    }
+    assert.deepEqual(espaces, []);
+    const ok = await connexionRdv({ auth: { uid: 'j', token: { email: ' Jerome.Chevalier@GMAIL.com ', email_verified: true } }, donnees: { client: 'atelier', action: 'etat' }, connexion: utilise(espaces), modulesActifs });
+    assert.equal(ok.enregistre, false);
   });
 
   test('un client sans le module, inconnu ou au nom douteux : le même refus neutre, rien d’appelé ; sans connexion : « connexion requise »', async () => {
@@ -270,5 +329,27 @@ describe('rdvConnexionSms chez les clients : Jérôme seul, jamais un éditeur d
     } catch (e) {
       assert.fail(`rdvEtat des clients : ${e.message} (le faux Firestore ne suffit pas ? voir tests/rdv-envoi.test.js)`);
     }
+  });
+});
+
+describe('verrous statiques', () => {
+  const lire = (chemin) => readFileSync(new URL(`../${chemin}`, import.meta.url), 'utf8');
+  test('seuls les deux index fabriquent l’écrivain de secrets (le service de connexion le reçoit en paramètre) ; la plateforme passe espaceRacine: null à la connexion ET à l’envoi (même nom de secret lu et écrit) ; l’adresse des réponses est propre à chaque projet', () => {
+    const importeurs = [];
+    const parcourir = (dossier) => {
+      for (const nom of readdirSync(dossier)) {
+        if (['node_modules', 'serveur', 'partage'].includes(nom)) continue;
+        const chemin = join(dossier, nom);
+        if (statSync(chemin).isDirectory()) parcourir(chemin);
+        else if (nom.endsWith('.js') && /creerEcrivainSecrets/.test(readFileSync(chemin, 'utf8'))) importeurs.push(chemin.replace(/^.*(functions(?:-plateforme)?\/src\/.*)$/, '$1'));
+      }
+    };
+    const racine = new URL('..', import.meta.url).pathname;
+    parcourir(join(racine, 'functions', 'src')); parcourir(join(racine, 'functions-plateforme', 'src'));
+    assert.deepEqual(importeurs.filter((f) => !f.endsWith('ecrire-secret.js')).sort(), ['functions-plateforme/src/index.js', 'functions/src/index.js']);
+    const plateforme = lire('functions-plateforme/src/index.js');
+    assert.equal((plateforme.match(/espaceRacine: null/g) ?? []).length, 2, 'connexion ET envoi');
+    assert.match(plateforme, /europe-west9-chevalier-ia-app\.cloudfunctions\.net\/rdvReponseSms\/\$\{client\}\/\$\{jeton\}/);
+    assert.match(lire('functions/src/index.js'), /europe-west9-chevalier-ia-os\.cloudfunctions\.net\/rdvReponseSms\/\$\{jeton\}/);
   });
 });
