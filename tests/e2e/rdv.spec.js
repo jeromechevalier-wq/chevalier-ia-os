@@ -48,6 +48,7 @@ test('1 vues Kanban | Liste | Archives ; menu « ⋯ » de la carte : Archiver, 
   await expect(page.locator('.bascule-vue')).toHaveText(['Kanban', 'Liste', 'Archives']);
   await expect(page.locator('.bascule-vue[data-vue="kanban"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText(/Actif|Archivé/)).toHaveCount(0);
+  await attendreCalme(page); // la liste se redessine à chaque lot de données : on agit une fois la page posée
   await menuCarte(page, 'M. Durand').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Ouvrir', 'Archiver']);
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Archiver' }).click();

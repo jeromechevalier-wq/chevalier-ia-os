@@ -799,7 +799,7 @@ export function filtrerRendezVous(rdvs, criteres, participantsParRdv = {}, { arc
   const c = { ...criteresVides(), ...criteres };
   const q = SANS_ACCENT(String(c.recherche || '').toLowerCase()).trim();
   return (rdvs || []).filter((r) => {
-    if (!!r.archive !== archives) return false;
+    if ((!!r.archive || !!r.annule) !== archives) return false; // un rendez-vous annulé est toujours dans les Archives
     if (c.etats.length && !c.etats.includes(r.etat || 'en_attente')) return false;
     if (c.tests === 'exclure' && r.test === true) return false;
     if (c.tests === 'seulement' && r.test !== true) return false;
@@ -823,4 +823,106 @@ export function nomFichierExportRdv(maintenant = new Date()) {
   const p = partiesParis(enMs(maintenant));
   const deux = (n) => String(n).padStart(2, '0');
   return `chevalier-ia-rendez-vous-${p.annee}-${deux(p.mois)}-${deux(p.jour)}.json`;
+}
+
+// ───────────────────────────── Fiche : bandeaux, confirmation, nouvelle série ─────────────────────────────
+
+/**
+ * Créneau à proposer à la confirmation : parmi les créneaux ENCORE À VENIR, le créneau commun s'il y en a un (le plus tôt), sinon celui qui convient au plus de monde
+ * (à égalité : le plus tôt en date) ; null s'il n'y en a aucun. C'est une PROPOSITION : seule la professionnelle confirme.
+ * `creneaux` et `maintenant` (facultatifs) écartent les créneaux déjà passés.
+ */
+export function creneauAConfirmer(bilan, { creneaux = null, maintenant = null } = {}) {
+  const avenir = (n) => !creneaux || !Number.isFinite(enMs(maintenant)) || enMs(creneaux[n - 1]) > enMs(maintenant);
+  const instant = (n) => (creneaux ? enMs(creneaux[n - 1]) : n);
+  const communs = (bilan?.communs || []).filter(avenir).sort((x, y) => instant(x) - instant(y));
+  if (communs.length) return communs[0];
+  const candidats = (bilan?.parCreneau || []).map((nombre, i) => ({ numero: i + 1, nombre })).filter((c) => c.nombre > 0 && avenir(c.numero));
+  candidats.sort((x, y) => y.nombre - x.nombre || instant(x.numero) - instant(y.numero));
+  return candidats[0]?.numero ?? null;
+}
+
+/** Bandeau violet de la fiche : { type: 'commun' | 'partiel' | 'aucun', creneau, texte }, ou null tant qu'il n'y a rien à dire. Mêmes options que `creneauAConfirmer` (créneaux passés écartés). */
+export function bandeauCreneau(bilan, options = {}) {
+  if (!bilan || !bilan.total) return null;
+  const c = creneauAConfirmer(bilan, options);
+  if (bilan.complet && bilan.communs.length && c && bilan.communs.includes(c)) return { type: 'commun', creneau: c, texte: `Le créneau ${c} convient à tout le monde. Seul toi peux le confirmer.` };
+  if (bilan.complet && !bilan.communs.length) return { type: 'aucun', creneau: null, texte: 'Aucun créneau ne convient à tout le monde. Tu peux proposer d’autres créneaux.' };
+  if (c) {
+    const n = bilan.parCreneau[c - 1];
+    return { type: 'partiel', creneau: c, texte: `Pour l’instant, le créneau ${c} convient à ${n} ${n > 1 ? 'personnes' : 'personne'} sur ${bilan.total}. Seul toi peux le confirmer.` };
+  }
+  if (bilan.complet) return { type: 'aucun', creneau: null, texte: 'Les créneaux qui conviennent sont passés. Tu peux proposer d’autres créneaux.' };
+  return null;
+}
+
+/** Texte du bandeau rouge (consigne 13) quand au moins une réponse n'est pas comprise. */
+export const TEXTE_REPONSE_INCOMPRISE = 'Cette personne a répondu quelque chose que le service ne comprend pas. Tu as reçu un SMS : appelle-la ou saisis sa réponse à sa place.';
+export const TEXTE_REPONSES_INCOMPRISES = 'Certaines personnes ont répondu quelque chose que le service ne comprend pas. Tu as reçu un SMS : appelle-les ou saisis leur réponse à leur place.';
+
+/** Changement à écrire sur le rendez-vous quand la professionnelle confirme le créneau `numero` (1 à 3). Refus si le rendez-vous n'est pas ouvert ou le créneau n'existe pas. */
+export function planConfirmer(rdv, numero, maintenant) {
+  if (!estOuvert(rdv)) return { erreur: 'Ce rendez-vous n’est plus à confirmer.' };
+  const creneau = (rdv.creneaux || [])[numero - 1];
+  if (!creneau) return { erreur: 'Ce créneau n’existe pas.' };
+  if (!(enMs(creneau) > enMs(maintenant))) return { erreur: 'Ce créneau est déjà passé : propose d’autres créneaux.' };
+  return { patch: { etat: 'confirme', creneauChoisi: versISO(enMs(creneau)), confirmeLe: versISO(enMs(maintenant)) } };
+}
+
+/**
+ * Nouvelle série de créneaux (aussi après une confirmation, par exemple à cause de la pluie : le créneau choisi est alors retiré) : l'historique des SMS est gardé (les messages ne sont jamais modifiés), le numéro de série `tour` augmente,
+ * les réponses des participants sont remises à zéro (la réponse tardive à l'ancienne série ne compte que dans l'historique) et les relances repartent.
+ * Rend { patchRdv, patchParticipant } ou { erreur }.
+ */
+export function planNouvelleSerie(rdv, creneaux, maintenant) {
+  if (!rdv || rdv.annule || rdv.archive) return { erreur: 'Ce rendez-vous n’est plus ouvert aux propositions.' };
+  const verdict = validerCreneaux(creneaux, maintenant);
+  if (verdict.erreurs.length) return { erreur: verdict.erreurs[0] };
+  return {
+    patchRdv: { creneaux: verdict.creneaux, tour: (rdv.tour || 1) + 1, etat: 'en_attente', creneauChoisi: null, confirmeLe: null, relancesFaites: 0, relancesTermineesLe: null, envoiDemandeLe: null },
+    patchParticipant: { etatReponse: 'attente', creneauxOk: [], reponse: '', reponseLe: null, idReponse: null },
+  };
+}
+
+/** Créneaux saisis : 1 à 3, futurs, sans doublon. Rend { creneaux: [ISO], erreurs }. */
+export function validerCreneaux(creneaux, maintenant) {
+  const erreurs = [];
+  const nowMs = enMs(maintenant);
+  const utiles = (creneaux || []).filter((c) => c !== '' && c != null);
+  if (!utiles.length) erreurs.push('Ajoute au moins un créneau.');
+  if (utiles.length > MAX_CRENEAUX) erreurs.push(`Tu peux proposer ${MAX_CRENEAUX} créneaux au plus.`);
+  const ms = utiles.map(enMs);
+  if (ms.some((m) => !Number.isFinite(m))) erreurs.push('Un créneau n’a pas une date et une heure valides.');
+  else if (Number.isFinite(nowMs) && ms.some((m) => m <= nowMs)) erreurs.push('Les créneaux doivent être dans le futur.');
+  if (new Set(ms).size !== ms.length) erreurs.push('Deux créneaux sont identiques.');
+  return { creneaux: ms.filter(Number.isFinite).map(versISO), erreurs };
+}
+
+/**
+ * Texte prérempli (modifiable) du SMS de pluie ou d'annulation. Jamais d'accolade visible : un nom ou une date qui manque est simplement omis.
+ * Pluie : le modèle réglé si toutes ses données existent, sinon une phrase simple.
+ */
+export function texteSmsManuel(type, rdv, parametres) {
+  const p = params(parametres);
+  const choisi = rdv?.creneauChoisi;
+  const date = choisi ? formaterCreneauSms(choisi).replace(/ \d{1,2}h(\d{2})?$/, '') : '';
+  const heure = choisi ? formaterHeure(choisi) : '';
+  const client = rdv?.client || rdv?.objet || '';
+  const signature = p.nomDansLesSms ? `${p.nomDansLesSms} : ` : '';
+  const quand = date ? ` du ${date} à ${heure}` : '';
+  const chantier = client ? ` chantier ${client}` : '';
+  if (type === 'annulation') return preparerSms(`${signature}le RDV${chantier}${quand} est annulé. Je vous recontacte pour une autre date.`).texte;
+  if (p.nomDansLesSms && client && date) {
+    const valeurs = { nom_pro: p.nomDansLesSms, client, creneaux: listeCreneauxSms(rdv?.creneaux), adresse: String(rdv?.adresse || '').replace(/\s*\n\s*/g, ', '), numero_pro: numeroPro(p) ? afficherTelephone(numeroPro(p)) : '', date, heure };
+    const sms = construireSms('pluie', valeurs, parametres);
+    if (!/\{[a-z_]+\}/.test(sms.texte)) return sms.texte;
+  }
+  return preparerSms(`${signature}le RDV${chantier ? ` (${chantier.trim()})` : ''}${quand} est annulé à cause de la pluie. Je vous propose une autre date très vite.`).texte;
+}
+
+/** Historique d'un rendez-vous : les messages par date, avec le nom de l'expéditeur ou du destinataire (retrouvé par le numéro). */
+export function historiqueMessages(messages, participants) {
+  const parNumero = new Map((participants || []).map((p) => [p.telephone, p]));
+  return [...(messages || [])].map((m) => ({ ...m, qui: parNumero.get(m.numero)?.nom || '' }))
+    .sort((a, b) => (enMs(a.envoyeLe ?? a.recuLe ?? a.creeLe) || 0) - (enMs(b.envoyeLe ?? b.recuLe ?? b.creeLe) || 0));
 }
