@@ -113,7 +113,11 @@ export function reglages(page) {
   redessins.push(carte(page, 'reglages-rdv-entreprise', 'Nom de l’entreprise dans les SMS', () => {
     const p = D.parametres();
     return [ligne('Nom de l’entreprise', h('input', { class: 'champ', type: 'text', maxlength: String(R.NOM_ENTREPRISE_MAX), value: p.nomEntreprise, 'aria-label': 'Nom de l’entreprise dans les SMS', placeholder: R.NOM_ENTREPRISE_DEFAUT,
-      onchange: (e) => enregistrer({ nomEntreprise: L.nettoyerEspaces(e.target.value).slice(0, R.NOM_ENTREPRISE_MAX) || R.NOM_ENTREPRISE_DEFAUT }) })),
+      onchange: (e) => {
+        const nom = L.nettoyerEspaces(e.target.value).slice(0, R.NOM_ENTREPRISE_MAX);
+        if (nom && R.compterSms(R.mentionStop({ nomEntreprise: nom })).encodage !== 'gsm7') { toast('Ce nom contient un caractère qui ne peut pas être envoyé par SMS : retire-le.', { type: 'erreur' }); e.target.value = p.nomEntreprise; return; }
+        enregistrer({ nomEntreprise: nom }); // vide : « Chevalier IA » est repris tout seul à l'affichage
+      } })),
     h('p', { class: 'aide' }, `Chaque SMS envoyé à un participant se termine par « ${R.mentionStop(p)} » : le nom de l’entreprise et le moyen de se désabonner. Si quelqu’un répond STOP, il ne reçoit plus aucun SMS et tu es prévenue.`)];
   }));
 

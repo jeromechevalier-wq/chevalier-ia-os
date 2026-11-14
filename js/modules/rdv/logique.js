@@ -34,7 +34,7 @@ const MOIS_LONGS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juil
 /** Nom de l'entreprise écrit dans les SMS (réglable dans Réglages > Rendez-vous ; « Chevalier IA » tant qu'il n'est pas réglé). */
 export const NOM_ENTREPRISE_DEFAUT = 'Chevalier IA';
 export const NOM_ENTREPRISE_MAX = 30;
-const nomEntrepriseDe = (p) => String(p?.nomEntreprise ?? '').replace(/\s+/g, ' ').trim().slice(0, NOM_ENTREPRISE_MAX) || NOM_ENTREPRISE_DEFAUT;
+const nomEntrepriseDe = (p) => normaliserSms(String(p?.nomEntreprise ?? '')).replace(/\s+/g, ' ').trim().slice(0, NOM_ENTREPRISE_MAX).trim() || NOM_ENTREPRISE_DEFAUT; // accents, €, guillemets… remplacés comme dans tout SMS
 
 export const PARAMETRES_DEFAUT = Object.freeze({
   relances: { delaiHeures: 24, nombre: 3 },
@@ -265,7 +265,9 @@ export function mentionStop(parametres) {
 }
 export function avecMentionStop(texte, parametres) {
   const t = String(texte ?? '').replace(/\s+$/, '');
-  if (!t || /\bSTOP\b/i.test(t)) return t;
+  if (!t) return t;
+  // On cherche la mention ELLE-MÊME (pas le mot « stop » : un client « Stop Fuites » ou une rue du Stop ne doit pas la faire sauter).
+  if (normaliserSms(t).includes(normaliserSms(mentionStop(parametres)))) return t;
   return `${t}\n${mentionStop(parametres)}`;
 }
 

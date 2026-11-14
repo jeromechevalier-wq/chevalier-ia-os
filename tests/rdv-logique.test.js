@@ -621,11 +621,11 @@ describe('M nom de l’entreprise et STOP dans chaque SMS', () => {
     assert.equal(L.mentionStop({ nomEntreprise: 'x'.repeat(80) }).split(' - ')[0].length, L.NOM_ENTREPRISE_MAX);
     assert.equal(L.PARAMETRES_DEFAUT.nomEntreprise, 'Chevalier IA');
   });
-  test('M la ligne est ajoutée une seule fois, jamais si le texte contient déjà STOP', () => {
+  test('M la ligne est ajoutée une seule fois, jamais si le texte porte déjà cette mention', () => {
     const un = L.avecMentionStop('Bonjour', { nomEntreprise: 'Géolucie' });
     assert.equal(un, 'Bonjour\nGéolucie - Répondez STOP pour vous désabonner.');
     assert.equal(L.avecMentionStop(un, { nomEntreprise: 'Géolucie' }), un);
-    assert.equal(L.avecMentionStop('Répondez STOP pour arrêter', {}), 'Répondez STOP pour arrêter');
+    assert.equal(L.avecMentionStop('Répondez STOP pour arrêter', {}), 'Répondez STOP pour arrêter\nChevalier IA - Répondez STOP pour vous désabonner.', 'un autre « STOP » écrit à la main ne remplace pas la mention complète');
     assert.equal(L.avecMentionStop('   ', {}), '');
   });
   test('M les six modèles portent le nom réglé ; les alertes à la professionnelle n’en portent pas', () => {
@@ -634,5 +634,19 @@ describe('M nom de l’entreprise et STOP dans chaque SMS', () => {
       assert.ok(sms.texte.endsWith('Géolucie - Répondez STOP pour vous désabonner.'), type);
     }
     assert.doesNotMatch(L.texteAlerte('incomprise', { client: 'M. Durand', nom: 'Terrassier', reponse: 'peut-etre' }).texte, /STOP/);
+  });
+  test('M un client, une rue ou un modèle qui contient « Stop » ne fait pas sauter la ligne (relecture Fable)', () => {
+    const fin = 'Chevalier IA - Répondez STOP pour vous désabonner.';
+    for (const client of ['Stop Fuites SARL', 'Garage Auto Stop', 'M. Stop', 'non-stop', 'Stop&Go']) {
+      const sms = L.construireSms('confirmation', { ...L.EXEMPLE_SMS, client });
+      assert.ok(sms.texte.endsWith(fin), client);
+      assert.equal(sms.texte.split('STOP pour vous').length, 2, `${client} : une seule ligne`);
+    }
+    assert.ok(L.texteSmsManuel('pluie', { client: 'Garage Auto Stop', creneauChoisi: '2031-03-17T09:00:00Z' }, { nomDansLesSms: 'Mme Martin' }).endsWith(fin));
+    assert.equal(L.avecMentionStop(`Bonjour\n${fin}`, {}), `Bonjour\n${fin}`, 'jamais deux fois');
+  });
+  test('M le nom de l’entreprise est normalisé comme un SMS (accents gardés si GSM-7, € remplacé, émojis retirés)', () => {
+    assert.match(L.mentionStop({ nomEntreprise: 'Bat Eco € 🚀' }), /^Bat Eco EUR - /);
+    assert.equal(L.compterSms(L.mentionStop({ nomEntreprise: 'Géolucie Étanchéité' })).encodage, 'gsm7');
   });
 });
