@@ -511,6 +511,13 @@ describe('L validation de la création', () => {
     assert.equal(r.ok, false);
     assert.match(r.erreurs[0], /Participant 2 : .*déjà/);
   });
+  test('L la même personne sur deux lignes est refusée, et un rendez-vous réunit 5 personnes au plus', () => {
+    const r = L.validerNouveauRdv({ participants: [{ personneId: 'p1', telephone: '06 00 00 00 01' }, { personneId: 'p1', telephone: '06 00 00 00 02' }], creneaux: futur, maintenant });
+    assert.match(r.erreurs[0], /Participant 2 : cette personne est déjà dans la liste/);
+    const six = Array.from({ length: 6 }, (_, i) => ({ personneId: `p${i}`, telephone: `06 00 00 00 0${i}` }));
+    assert.match(L.validerNouveauRdv({ participants: six, creneaux: futur, maintenant }).erreurs[0], /5 personnes au plus/);
+    assert.equal(L.validerNouveauRdv({ participants: six.slice(0, 5), creneaux: futur, maintenant }).ok, true);
+  });
   test('L les problèmes sont dits un par un', () => {
     assert.match(L.validerNouveauRdv({ participants: [], creneaux: futur, maintenant }).erreurs[0], /au moins un participant/);
     assert.match(L.validerNouveauRdv({ participants: [{ telephone: '01 00 00 00 00' }], creneaux: futur, maintenant }).erreurs[0], /Participant 1 : .*fixe/);

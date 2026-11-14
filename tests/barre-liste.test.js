@@ -17,6 +17,8 @@ const ECRANS = [
   'js/modules/automatisations/ecran.js', 'js/modules/automatisations/a-valider.js', 'js/modules/tableaudebord/ecran.js', 'js/modules/projets/modeles.js',
   // Réseaux sociaux (11/11/2026) : écran Posts (vues Kanban | Statistiques)
   'js/modules/reseauxsociaux/posts-ecran.js',
+  // Rendez-vous (14/11/2026) : liste Kanban | Liste | Archives
+  'js/modules/rdv/liste.js',
 ];
 
 test('les écrans de liste n\'écrivent pas leur recherche à la main (type search)', () => {

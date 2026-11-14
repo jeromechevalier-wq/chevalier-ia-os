@@ -33,6 +33,17 @@ export const TRIS = {
       { id: 'statut', libelle: 'Statut', sens: 'asc', menu: false },
     ],
   },
+  rdv: {
+    defaut: { critere: 'date', sens: 'asc' },
+    criteres: [
+      { id: 'date', libelle: 'Date du rendez-vous', sens: 'asc' },
+      { id: 'client', libelle: 'Client', sens: 'asc' },
+      { id: 'creation', libelle: 'Date de création', sens: 'desc' },
+      { id: 'commune', libelle: 'Commune', sens: 'asc', menu: false },
+      { id: 'reponses', libelle: 'Réponses', sens: 'desc', menu: false },
+      { id: 'etat', libelle: 'État', sens: 'asc', menu: false },
+    ],
+  },
   personnes: {
     defaut: { critere: 'nom', sens: 'asc' },
     criteres: [

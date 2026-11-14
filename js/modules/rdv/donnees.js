@@ -1,0 +1,173 @@
+// Données du module Rendez-vous : lecture en temps réel de rdv_rendezvous, rdv_participants, rdv_messages et rdv_parametres (document `reglages`).
+// Écritures par `executer` (journal commun), jamais de setDoc direct. Aucun orderBy, aucun limit : le tri se fait dans le navigateur (règle D4).
+// Les participants sont des fiches Personnes du socle (lues et créées par js/modules/crm/donnees.js, démarré par la coque avec ou sans Affaires).
+import { collection, doc, getDoc, getDocs, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { db } from '../../os/firebase.js';
+import { cheminCollection } from '../../os/chemins.js';
+import { executer } from '../../os/journal-donnees.js';
+import { avecModeTest } from '../../os/mode-test.js';
+import * as CRM from '../crm/donnees.js';
+import * as L from '../crm/logique.js';
+import * as R from './logique.js';
+
+export const COLLECTIONS = ['rdv_rendezvous', 'rdv_participants', 'rdv_messages', 'rdv_parametres'];
+export const DOC_REGLAGES = 'reglages';
+
+const vierge = () => ({ rendezVous: [], participants: [], messages: [], parametresDoc: null, parametresLus: false, pret: false });
+export const etat = vierge();
+let desabonnements = [];
+let base = '';
+const abonnes = new Set();
+const prets = { rendezVous: false, participants: false, messages: false, parametres: false };
+
+export const chemin = (nom) => cheminCollection(base, nom);
+export const rendezVous = (id) => etat.rendezVous.find((r) => r.id === id) || null;
+export const participantsDe = (rdvId) => etat.participants.filter((p) => p.rendezVousId === rdvId);
+export const messagesDe = (rdvId) => etat.messages.filter((m) => m.rendezVousId === rdvId);
+/** Réglages lus (valeurs par défaut pour tout ce qui manque). */
+export const parametres = () => ({ ...R.PARAMETRES_DEFAUT, ...(etat.parametresDoc || {}) });
+export const estPret = () => etat.pret;
+
+export function surChangement(rappel) {
+  abonnes.add(rappel);
+  return () => abonnes.delete(rappel);
+}
+const notifier = () => abonnes.forEach((f) => { try { f(); } catch (e) { console.warn(e); } });
+const verifierPret = () => { etat.pret = Object.values(prets).every(Boolean); };
+
+function suivre(nom, cle) {
+  desabonnements.push(onSnapshot(collection(db, chemin(nom)), (snap) => {
+    if (cle === 'parametres') {
+      const d = snap.docs.find((x) => x.id === DOC_REGLAGES);
+      etat.parametresDoc = d ? d.data({ serverTimestamps: 'estimate' }) : null;
+      etat.parametresLus = true; // lus avec succès : seulement alors on peut écrire un réglage (voir majParametres)
+    } else {
+      etat[cle] = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+    }
+    prets[cle] = true; verifierPret(); notifier();
+  }, (e) => {
+    // Table absente ou illisible : l'écran affiche « vide » (la table n'existe qu'à la première écriture).
+    console.warn(`${nom} indisponible`, e.code);
+    prets[cle] = true; verifierPret(); notifier();
+  }));
+}
+
+/** Chez Jérôme, cheminBase est '' (racine de la base 1) ; chez un client, clients/<client>. */
+export function demarrer(_compte, cheminBase = '') {
+  base = cheminBase;
+  suivre('rdv_rendezvous', 'rendezVous');
+  suivre('rdv_participants', 'participants');
+  suivre('rdv_messages', 'messages');
+  suivre('rdv_parametres', 'parametres');
+}
+
+export function arreter() {
+  desabonnements.forEach((f) => f());
+  desabonnements = [];
+  Object.assign(etat, vierge());
+  Object.assign(prets, { rendezVous: false, participants: false, messages: false, parametres: false });
+  base = '';
+}
+
+/** Les données du module pour l'export : une entrée par table, lues au chemin du module. Lecture seule. */
+export async function lireToutPourExport() {
+  const sortie = {};
+  for (const nom of COLLECTIONS) {
+    const snap = await getDocs(collection(db, chemin(nom)));
+    sortie[nom] = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+  }
+  return sortie;
+}
+
+// ---------------------------------------------------------------- écritures
+
+const MARQUES = L.MARQUES_CREATION;
+// Même adresse à la casse, aux accents et aux retours à la ligne près = un doublon (même règle que les fiches).
+const cleAdresse = (a) => L.nettoyerEspaces(a).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+export const MESSAGE_LECTURE = 'Ton compte est en lecture seule : tu ne peux pas modifier les rendez-vous.';
+/** Un lecteur d'un client ne modifie rien : message clair plutôt qu'un refus technique (l'erreur porte `lecture: true`). */
+function exigerEcriture() {
+  if (CRM.compteCourant()?.ecrit === false) { const e = new Error(MESSAGE_LECTURE); e.lecture = true; throw e; }
+}
+/** Message à montrer pour une erreur d'écriture : la phrase du lecteur, sinon `parDefaut`. */
+export const messageErreur = (e, parDefaut) => (e?.lecture ? e.message : parDefaut);
+
+/**
+ * Crée un rendez-vous avec ses participants, en UN seul lot (le journal garde chaque écriture) :
+ *  - une fiche Personne est créée pour chaque participant qui n'en a pas (téléphone sur la fiche) ;
+ *  - l'adresse du rendez-vous est proposée sur la fiche de la première personne de la liste (libellé « Chantier »), sans doublon exact ;
+ *  - une fiche existante change UNE seule fois dans le lot (téléphone et adresse dans le même patch : la copie « avant » du journal reste juste).
+ * `participants` : [{ personneId?, nom, telephone (+33…), role }] déjà validés (R.validerNouveauRdv). Renvoie l'identifiant du rendez-vous.
+ * Le rendez-vous et ses participants portent le repère « test » si le mode test est allumé ou si la première personne est une fiche de test.
+ */
+export async function creerRendezVous({ objet = '', adresse = '', creneaux, participants, ajouterAdresseFiche = true }) {
+  exigerEcriture();
+  const ctx = CRM.ctx();
+  const ecritures = [];
+  const patchs = new Map(); // personneId -> patch unique
+  const ajouterPatch = (id, patch) => patchs.set(id, { ...(patchs.get(id) || {}), ...patch });
+  const adresseNette = L.nettoyerAdresse(adresse);
+  const lignes = [];
+  for (const [i, x] of participants.entries()) {
+    let personneId = x.personneId || null;
+    const personne = personneId ? CRM.personne(personneId) : null;
+    const affichage = R.afficherTelephone(x.telephone);
+    const avecAdresse = ajouterAdresseFiche && adresseNette && i === 0;
+    if (!personneId) {
+      const valeurs = { nom: x.nom, telephones: [{ valeur: affichage, type: 'perso' }], ...(avecAdresse ? { adresses: [{ libelle: 'Chantier', adresse: adresseNette, parDefaut: true }] } : {}) };
+      const plan = L.planCreerPersonne(L.heriterTest(avecModeTest(valeurs), {}), ctx);
+      ecritures.push(...plan.ecritures);
+      personneId = plan.id;
+    } else if (personne) {
+      if (!(personne.telephones || []).some((t) => R.normaliserTelephone(t.valeur).telephone === x.telephone)) {
+        ajouterPatch(personneId, { telephones: L.sansDoublonsContacts('telephones', [...(personne.telephones || []), { valeur: affichage, type: 'perso' }]) });
+      }
+      if (avecAdresse) {
+        const existantes = L.adressesDe(personne);
+        if (!existantes.some((a) => cleAdresse(a.adresse) === cleAdresse(adresseNette))) {
+          const r = L.patchAdresses([...existantes, { id: L.nouvelIdAdresse(), libelle: 'Chantier', adresse: adresseNette, parDefaut: !existantes.length }]);
+          if (!r.erreur) ajouterPatch(personneId, r.patch);
+        }
+      }
+    }
+    lignes.push({ ...x, personneId, nom: x.nom || personne?.nom || '' });
+  }
+  for (const [id, patch] of patchs) ecritures.push(...L.planMajPersonne(id, patch).ecritures);
+  const parents = { personne: lignes[0] ? CRM.personne(lignes[0].personneId) : null };
+  const id = ctx.nouvelId('rdv_rendezvous');
+  const repere = L.heriterTest(avecModeTest({}), parents).test === true ? { test: true } : {};
+  ecritures.push(L.ecritureCreer('rdv_rendezvous', id, {
+    client: R.clientDe(lignes), objet: L.nettoyerEspaces(objet), adresse: adresseNette, commune: R.communeDe(adresseNette),
+    creneaux: creneaux.map((c) => R.versISO(R.enMs(c))), etat: 'en_attente', creneauChoisi: null, archive: false, tour: 1,
+    relancesFaites: 0, envoiDemandeLe: null, confirmeLe: null, annule: false, ...repere,
+  }, MARQUES));
+  for (const x of lignes) {
+    ecritures.push(L.ecritureCreer('rdv_participants', ctx.nouvelId('rdv_participants'), {
+      rendezVousId: id, personneId: x.personneId, nom: x.nom, role: x.role || '', telephone: x.telephone,
+      reponse: '', etatReponse: 'attente', creneauxOk: [], ...repere,
+    }, MARQUES));
+  }
+  await executer(ecritures, 'creerRendezVous');
+  return id;
+}
+
+export async function archiver(id, archive = true) {
+  exigerEcriture();
+  await executer([L.ecritureModifier('rdv_rendezvous', id, { archive: !!archive }, L.MARQUES_MODIFICATION)], archive ? 'archiverRendezVous' : 'desarchiverRendezVous');
+}
+
+/**
+ * Enregistre des réglages (clés de premier niveau : relances, rappel, plage, numerosAlerte, numeroAffiche, nomDansLesSms, roles, modeles).
+ * Refus tant que les réglages n'ont pas été lus avec succès (sinon on écraserait ce qui existe avec les valeurs par défaut).
+ * Le document est relu à l'instant de l'écriture : présent -> on change seulement ces clés ; absent -> on le crée avec les valeurs par défaut en dessous.
+ */
+export async function majParametres(patch) {
+  exigerEcriture();
+  if (!etat.parametresLus) throw new Error('Les réglages ne sont pas encore chargés : réessaie dans un instant.');
+  const existe = (await getDoc(doc(db, chemin('rdv_parametres'), DOC_REGLAGES))).exists();
+  const e = existe
+    ? L.ecritureModifier('rdv_parametres', DOC_REGLAGES, patch, L.MARQUES_MODIFICATION)
+    : L.ecritureCreer('rdv_parametres', DOC_REGLAGES, { ...R.PARAMETRES_DEFAUT, ...patch }, MARQUES);
+  await executer([e], 'majParametresRendezVous');
+}

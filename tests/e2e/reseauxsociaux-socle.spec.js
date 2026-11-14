@@ -36,7 +36,7 @@ const creneaux = (page) => page.evaluate(async () => {
 const onglets = (page) => page.getByRole('navigation', { name: 'Écrans des réseaux sociaux' }).getByRole('link');
 const ouvrirMenuSurTelephone = async (page) => { if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click(); };
 
-test('D1 le menu montre « Réseaux sociaux » entre Veille et Automatisations ; les quatre écrans sont des onglets  (Posts, Relations et Import ont leur propre spec)', async ({ page }) => {
+test('D1 le menu montre « Réseaux sociaux » entre Veille et Rendez-vous ; les quatre écrans sont des onglets  (Posts, Relations et Import ont leur propre spec)', async ({ page }) => {
   await simulerBuffer(page, () => reponseBuffer([]));
   await connecter(page);
   await ouvrirMenuSurTelephone(page);
@@ -44,7 +44,7 @@ test('D1 le menu montre « Réseaux sociaux » entre Veille et Automatisations ;
   const i = entrees.map((t) => t.trim()).indexOf('Réseaux sociaux');
   expect(i).toBeGreaterThan(0);
   expect(entrees[i - 1].trim()).toBe('Veille');
-  expect(entrees[i + 1].trim()).toBe('Automatisations');
+  expect(entrees[i + 1].trim()).toBe('Rendez-vous');
   await expect(page.locator('.menu .menu-entree[data-chemin="reseauxsociaux/aujourdhui"] .icone')).toHaveCount(1);
   if (estTelephone(page)) await page.keyboard.press('Escape');
   await page.evaluate(() => { location.hash = '#/reseauxsociaux'; }); // la route nue mène à Aujourd'hui

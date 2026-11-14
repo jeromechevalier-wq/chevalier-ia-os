@@ -18,6 +18,7 @@ export const TYPES_MESSAGE = ['confiance', 'creneaux', 'relance', 'confirmation'
 export const ETATS_REPONSE = ['attente', 'comprise', 'incomprise', 'saisie'];
 export const ROLES_DEPART = ['Client', 'Terrassier', 'Architecte', 'Géomètre'];
 export const MAX_CRENEAUX = 3;
+export const MAX_PARTICIPANTS = 5;
 /** Délai fixe entre la dernière relance et l'alerte « relances terminées ». */
 export const DELAI_ALERTE_HEURES = 24;
 /** Prix indicatif d'un SMS de 160 caractères (affiché dans l'aide, jamais dans un calcul). */
@@ -756,10 +757,14 @@ export function validerNouveauRdv({ participants, creneaux, maintenant }) {
     if (!t.ok) erreurs.push(`Participant ${i + 1} : ${t.message}`);
     return { ...x, telephone: t.ok ? t.telephone : x.telephone };
   });
+  if (lignes.length > MAX_PARTICIPANTS) erreurs.push(`Un rendez-vous réunit ${MAX_PARTICIPANTS} personnes au plus.`);
   const vus = new Set();
+  const personnes = new Set();
   sortie.forEach((x, i) => {
     if (x.telephone && vus.has(x.telephone)) erreurs.push(`Participant ${i + 1} : ce numéro est déjà celui d’un autre participant de ce rendez-vous.`);
     vus.add(x.telephone);
+    if (x.personneId && personnes.has(x.personneId)) erreurs.push(`Participant ${i + 1} : cette personne est déjà dans la liste.`);
+    if (x.personneId) personnes.add(x.personneId);
   });
   const utiles = (creneaux || []).filter((c) => c !== '' && c != null);
   if (!utiles.length) erreurs.push('Ajoute au moins un créneau.');
@@ -769,4 +774,53 @@ export function validerNouveauRdv({ participants, creneaux, maintenant }) {
   else if (Number.isFinite(nowMs) && ms.some((m) => m <= nowMs)) erreurs.push('Les créneaux doivent être dans le futur.');
   if (new Set(ms).size !== ms.length) erreurs.push('Deux créneaux sont identiques.');
   return { ok: erreurs.length === 0, erreurs, participants: sortie };
+}
+
+// ───────────────────────────── Fiche : client et commune ─────────────────────────────
+
+/** Commune d'une adresse multiligne : la dernière ligne non vide, sans code postal devant (« 69000 Lyon » -> « Lyon »). */
+export function communeDe(adresse) {
+  const lignes = String(adresse ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
+  if (!lignes.length) return '';
+  const derniere = lignes[lignes.length - 1].replace(/^\d{4,5}\s*/, '').replace(/\s+cedex.*$/i, '').trim();
+  return derniere || lignes[lignes.length - 1];
+}
+
+/** Nom affiché du client : la personne au rôle « Client », sinon la première. */
+export function clientDe(participants) {
+  const liste = participants || [];
+  const c = liste.find((x) => cleRole(x.role) === 'client') || liste[0];
+  return c?.nom ? String(c.nom).trim() : '';
+}
+
+/** Filtre de la liste : recherche (client, commune, objet, adresse, participants) + colonnes (états) + tests. */
+export function criteresVides() { return { recherche: '', etats: [], tests: 'inclure' }; }
+export function filtrerRendezVous(rdvs, criteres, participantsParRdv = {}, { archives = false } = {}) {
+  const c = { ...criteresVides(), ...criteres };
+  const q = SANS_ACCENT(String(c.recherche || '').toLowerCase()).trim();
+  return (rdvs || []).filter((r) => {
+    if (!!r.archive !== archives) return false;
+    if (c.etats.length && !c.etats.includes(r.etat || 'en_attente')) return false;
+    if (c.tests === 'exclure' && r.test === true) return false;
+    if (c.tests === 'seulement' && r.test !== true) return false;
+    if (!q) return true;
+    const texte = SANS_ACCENT([r.client, r.commune, r.objet, r.adresse, ...(participantsParRdv[r.id] || []).map((x) => x.nom)].join(' ').toLowerCase());
+    return texte.includes(q);
+  });
+}
+export const nombreFiltres = (criteres) => { const c = { ...criteresVides(), ...criteres }; return c.etats.length + (c.tests !== 'inclure' ? 1 : 0); };
+
+/** Premier créneau (instant) d'un rendez-vous, pour le tri « Date du rendez-vous » : le créneau choisi, sinon le plus proche. */
+export function dateDuRendezVous(r) {
+  const choisi = enMs(r?.creneauChoisi);
+  if (Number.isFinite(choisi)) return choisi;
+  const liste = (r?.creneaux || []).map(enMs).filter(Number.isFinite);
+  return liste.length ? Math.min(...liste) : null;
+}
+
+/** Nom du fichier de sauvegarde : chevalier-ia-rendez-vous-AAAA-MM-JJ.json (jour de Paris). */
+export function nomFichierExportRdv(maintenant = new Date()) {
+  const p = partiesParis(enMs(maintenant));
+  const deux = (n) => String(n).padStart(2, '0');
+  return `chevalier-ia-rendez-vous-${p.annee}-${deux(p.mois)}-${deux(p.jour)}.json`;
 }

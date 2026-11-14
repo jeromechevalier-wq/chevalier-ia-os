@@ -135,6 +135,7 @@ export async function demarrerEspace(racine) {
       import('./journal.js').then((m) => m.oublierFiltresJournal()).catch(() => {});
       import('../modules/veille/ecran.js').then((m) => m.oublierFiltresVeille()).catch(() => {});
       import('../modules/reseauxsociaux/index.js').then((m) => m.oublierFiltres()).catch(() => {});
+      import('../modules/rdv/index.js').then((m) => m.oublierFiltres()).catch(() => {});
       import('../modules/automatisations/ecran.js').then((m) => m.oublierFiltresAutomatisations()).catch(() => {});
       document.body.classList.add('page-espace');
       if (ev.etat === 'deconnecte') pageConnexion(racine, marque, { message: ev.refus ? MESSAGE_REFUS_ESPACE : '', surConnexion: seConnecter });
