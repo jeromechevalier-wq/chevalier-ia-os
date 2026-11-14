@@ -32,7 +32,7 @@ test('1 le gros « + » propose « Devis », crée un brouillon et ouvre l’éd
   await semer();
   await connecter(page);
   await plus(page).click();
-  await expect(page.getByRole('menuitem')).toHaveText(['Personne', 'Organisation', 'Affaire', 'Projet', 'Devis']);
+  await expect(page.getByRole('menuitem')).toHaveText(['Personne', 'Organisation', 'Affaire', 'Projet', 'Devis', 'Rendez-vous']);
   await page.getByRole('menuitem', { name: 'Devis' }).click();
   await expect(page).toHaveURL(/#\/devis\/editeur\/[^/]+$/);
   const id = page.url().split('/').pop();
