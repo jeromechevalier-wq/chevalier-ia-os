@@ -296,7 +296,7 @@ test('9 la croix du champ efface le client ET l’affaire ; la croix de la ligne
   expect(d.personneId ?? null).toBeNull();
   await expect(champClient(page)).toHaveValue('');
   await expect(champAffaire(page)).toHaveValue('');
-  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif : sans affaire'); // sans client : le sens d'avant
+  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif : à choisir si ce devis suit une affaire.'); // sans client : l'aide neutre
   await capturer(page, info, '9-croix-efface-tout');
 });
 

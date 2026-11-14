@@ -128,6 +128,14 @@ describe('C7-CA plateforme : choisir l’affaire d’un devis finalisé (08/11/2
     assert.equal(m.collections['clients/a/crm_audit'].filter((l) => l.outil === 'devisChoisirAffaire').length >= 1, true);
     assert.equal(espaceB(), avantB, 'l’autre espace n’est pas touché');
   });
+  test('2e chez un client de la plateforme : l’affaire d’un autre client est refusée (failed-precondition), rien n’est écrit, l’autre espace n’est pas touché', async () => {
+    const m = monde();
+    m.collections['clients/a/devis_devis'][0] = { ...m.collections['clients/a/devis_devis'][0], affaireId: null, statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-001', racineId: 'da', version: 1, organisationId: 'O1' };
+    m.collections['clients/a/crm_affaires'].push({ id: 'aff1', titre: 'Autre client', organisationId: 'O2' });
+    const avant = JSON.stringify(m.collections);
+    await refus(appeler(m, 'choisirAffaire', ALICE, { client: 'a', devisId: 'da', affaireId: 'aff1' }), 'failed-precondition');
+    assert.equal(JSON.stringify(m.collections), avant);
+  });
   test('C7-CA chez un client en Devis seul (pas d’affaire), la fonction répond « not-found » sans rien écrire', async () => {
     const m = monde();
     m.collections['clients/d/devis_devis'][0] = { ...m.collections['clients/d/devis_devis'][0], statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-002', racineId: 'dd', version: 1 };

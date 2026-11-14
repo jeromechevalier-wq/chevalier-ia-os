@@ -297,4 +297,28 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
     assert.deepEqual(lignes.map((l) => [l.outil, l.action]), [['creer_devis_depuis_modele', 'creer']]);
     await assert.rejects(annulerDerniereModificationDevis({ ...c, maintenant: new Date(MAINTENANT.getTime() + 2000) }, { id: r.id }), /vient d’être créé, rien à annuler : utilise supprimer_devis/);
   });
+
+  // Vrais Timestamp Firestore : la restauration d'un choix d'affaire compare `creeLe` d'une version absente de l'opération à la date du journal.
+  test('4d-3 choisir l’affaire, créer une version, restaurer : refusé (même avec forcer) ; sans nouvelle version : accepté', async () => {
+    await db.collection(C.affaires).doc('aff1').set({ titre: 'Rénovation' });
+    for (const avecVersion of [true, false]) {
+      await poser('v1', { affaireId: null });
+      await S.finaliser({ donnees, ctx: ctx(), devisId: 'v1' });
+      await S.changerStatut({ donnees, ctx: ctx(), devisId: 'v1', action: 'marquer_envoye' });
+      const r = await S.choisirAffaire({ donnees, ctx: ctx(), devisId: 'v1', affaireId: 'aff1' });
+      let nvId = null;
+      if (avecVersion) nvId = (await S.nouvelleVersion({ donnees, ctx: { ...ctx(), maintenant: new Date(MAINTENANT.getTime() + 3_600_000) }, devisId: 'v1' })).devis.id;
+      if (avecVersion) {
+        assert.ok((await brut(C.devis, nvId)).creeLe instanceof Timestamp, 'la date de création de la nouvelle version est un vrai Timestamp');
+        for (const forcer of [false, true]) {
+          await assert.rejects(() => restaurerOperation({ donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer }), (e) => e.code === 'restauration_refusee' && /version de ce devis a été créée depuis/.test(e.message));
+        }
+        assert.equal((await brut(C.devis, 'v1')).affaireId, 'aff1');
+      } else {
+        await restaurerOperation({ donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer: false });
+        assert.equal((await brut(C.devis, 'v1')).affaireId ?? null, null);
+      }
+      for (const nom of [C.devis, C.audit, C.auditAvant, C.devisCompteurs]) for (const d of (await db.collection(nom).get()).docs) await d.ref.delete();
+    }
+  });
 });

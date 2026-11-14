@@ -433,11 +433,36 @@ describe('N15 choisir l’affaire d’un devis finalisé sans affaire (08/11/202
     const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
     const m = await sansAffaire();
     const r = await choisir(m, 'd1');
-    await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    await S.nouvelleVersion({ donnees: m.donnees, ctx: { ...ctx(), maintenant: new Date(MAINTENANT.getTime() + 3_600_000) }, devisId: 'd1' });
     for (const forcer of [false, true]) {
       await assert.rejects(() => restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer }), (e) => e.code === 'restauration_refusee' && /version de ce devis a été créée depuis/.test(e.message));
     }
     assert.equal(leDevis(m, 'd1').affaireId, 'aff1');
+  });
+  test('4d-2 la date de création d’une version absente de l’opération est illisible : refus, même avec forcer (dans le doute, on refuse)', async () => {
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    const m = await sansAffaire();
+    const r = await choisir(m, 'd1');
+    const nv = await S.nouvelleVersion({ donnees: m.donnees, ctx: { ...ctx(), maintenant: new Date(MAINTENANT.getTime() + 3_600_000) }, devisId: 'd1' });
+    for (const illisible of [undefined, 'hier', null]) {
+      leDevis(m, nv.devis.id).creeLe = illisible;
+      for (const forcer of [false, true]) {
+        await assert.rejects(() => restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer }), (e) => e.code === 'restauration_refusee' && /version de ce devis a été créée depuis/.test(e.message));
+      }
+    }
+    assert.equal(leDevis(m, 'd1').affaireId, 'aff1');
+  });
+  test('4d-1 cas miroir : v1 finalisée sans affaire, v2 brouillon déjà sur l’affaire, puis choisir l’affaire sur v1 : la restauration est ACCEPTÉE (v1 sans affaire, v2 reste sur l’affaire)', async () => {
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    const m = await sansAffaire('v1');
+    const nv = await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'v1' });
+    leDevis(m, nv.devis.id).affaireId = 'aff1'; // la v2 (brouillon) est déjà posée sur l'affaire, avant le choix
+    const r = await S.choisirAffaire({ donnees: m.donnees, ctx: { ...ctx(), maintenant: new Date(MAINTENANT.getTime() + 3_600_000) }, devisId: 'v1', affaireId: 'aff1' });
+    assert.equal(r.versions, 1, 'seule v1 est écrite');
+    assert.equal(leDevis(m, 'v1').affaireId, 'aff1');
+    await restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer: false });
+    assert.equal(leDevis(m, 'v1').affaireId ?? null, null);
+    assert.equal(leDevis(m, nv.devis.id).affaireId, 'aff1');
   });
   test('N15-6 racine v1 déjà sur l’affaire + v2 sans affaire : choisir l’affaire sur v2 puis restaurer est ACCEPTÉ (v2 redevient sans affaire, v1 intacte, montant recalculé)', async () => {
     const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
@@ -448,7 +473,10 @@ describe('N15 choisir l’affaire d’un devis finalisé sans affaire (08/11/202
     await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: nv.devis.id });
     const r = await choisir(m, nv.devis.id);
     assert.equal(r.versions, 1, 'une seule ligne de devis au journal');
+    assert.equal(affaireDe(m).montantDevisHt, leDevis(m, nv.devis.id).totaux.ht, 'montant recalculé : la v2 proposée compte');
+    assert.equal(affaireDe(m).montantDevisNature, 'propose');
     await restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer: false });
+    assert.equal(affaireDe(m).montantDevisHt ?? null, null, 'après la restauration : la v1 « Remplacée » ne compte pas');
     assert.equal(leDevis(m, nv.devis.id).affaireId ?? null, null);
     assert.equal(leDevis(m, 'v1').affaireId, 'aff1');
   });
