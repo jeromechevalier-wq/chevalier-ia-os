@@ -151,7 +151,7 @@ describe('fonctions appelables de Jérôme', () => {
   });
   test('l\'état du branchement est réservé aux comptes autorisés', async () => {
     const etat = creerAppelRdvEtat({ sortie: fauxSortie({ branche: true }), comptes: COMPTES });
-    assert.deepEqual(await etat({ ...jeton('jerome@exemple.test') }), { branche: true });
+    assert.deepEqual(await etat({ ...jeton('jerome@exemple.test') }), { branche: true, peutConfigurer: false }, 'un compte autorisé qui n’est pas Jérôme ne peut pas configurer la connexion SMS');
     await assert.rejects(() => etat({ ...jeton('autre@exemple.test') }), (e) => e.code === 'permission-denied');
   });
 });
@@ -181,7 +181,7 @@ describe('fonctions appelables chez les clients', () => {
       await assert.rejects(() => envoyerRdv({ db, auth: auth(email), donnees: { client, action: 'propositions', rendezVousId: 'r1' }, sortie: fauxSortie(), creerDonnees: acces }), (e) => e.message === 'Action non autorisée.', `${email} ${client}`);
       await assert.rejects(() => etatRdv({ db, auth: auth(email), donnees: { client }, sortie: fauxSortie() }), (e) => e.message === 'Action non autorisée.', `état ${email} ${client}`);
     }
-    assert.deepEqual(await etatRdv({ db, auth: auth('ed@exemple.test'), donnees: { client: 'atelier' }, sortie: fauxSortie({ branche: false }) }), { branche: false });
+    assert.deepEqual(await etatRdv({ db, auth: auth('ed@exemple.test'), donnees: { client: 'atelier' }, sortie: fauxSortie({ branche: false }) }), { branche: false, peutConfigurer: false }, 'un éditeur du client ne peut pas configurer la connexion SMS');
   });
   test('une demande sans connexion vérifiée est refusée', async () => {
     await assert.rejects(() => envoyerRdv({ db, auth: undefined, donnees: { client: 'atelier', action: 'propositions', rendezVousId: 'r1' }, sortie: fauxSortie(), creerDonnees: acces }), (e) => e.code === 'unauthenticated');

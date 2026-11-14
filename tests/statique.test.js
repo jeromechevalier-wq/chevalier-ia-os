@@ -292,7 +292,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.equal((donneesDevis.match(/httpsCallable\(/g) || []).length, 1, 'un seul appel de fonction dans le fichier');
     // Module Rendez-vous (14/11/2026) : deux fonctions du serveur seulement (l'état du branchement, et l'envoi de SMS demandé par un clic) ; le navigateur ne parle jamais à n8n ni au fournisseur de SMS.
     const donneesRdv = lire('js/modules/rdv/donnees.js');
-    assert.deepEqual([...donneesRdv.matchAll(/'(rdv[A-Za-z]+)'/g)].map((m) => m[1]).sort(), ['rdvEnvoyer', 'rdvEtat']);
+    assert.deepEqual([...donneesRdv.matchAll(/'(rdv[A-Za-z]+)'/g)].map((m) => m[1]).sort(), ['rdvConnexionSms', 'rdvEnvoyer', 'rdvEtat']);
     assert.equal((donneesRdv.match(/httpsCallable\(/g) || []).length, 1, 'un seul appel de fonction dans le fichier');
     const appelsVeille = [...lire('js/modules/veille/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual(appelsVeille, ['veille']);

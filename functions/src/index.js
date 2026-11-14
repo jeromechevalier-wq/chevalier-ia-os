@@ -32,7 +32,10 @@ import { stockageDuProjet, bucketDuProjet } from './devis/stockage-projet.js';
 import { creerSortieN8n } from './coeur/n8n-sortie.js';
 import { creerAppelPreparerEmail, creerAppelEtatPreparerEmail } from './devis-email-appel.js';
 import { creerAppelRdvEtat, creerAppelRdvEnvoyer } from './rdv-appel.js';
-import { creerSmsDirect, creerGestionnaireReponses } from './coeur/sms-direct.js';
+import { creerSmsDirect, creerGestionnaireReponses, verifierConnexion } from './coeur/sms-direct.js';
+import { creerConnexionSms } from './coeur/connexion-sms.js';
+import { creerEcrivainSecrets } from './securite/ecrire-secret.js';
+import { creerAppelRdvConnexion } from './rdv-connexion-appel.js';
 import { creerLecteurSecrets } from './securite/secrets.js';
 import { convertirHtmlEnPdf } from './devis/chromium.js';
 import { copieInterne, administrateur, Refus } from './automatisations/appels.js';
@@ -168,6 +171,18 @@ export const rdvEtat = onCall(OPTIONS_DEVIS, (requete) => {
 export const rdvEnvoyer = onCall({ ...OPTIONS_DEVIS, timeoutSeconds: 120 }, (requete) => {
   if (!getApps().length) initializeApp();
   return creerAppelRdvEnvoyer({ donnees: () => creerAccesFirestore(), sortie: smsDirect, journal: journalRdv })(requete);
+});
+// Saisie de la connexion ClickSend depuis Réglages > Rendez-vous : RÉSERVÉE à Jérôme (identité contrôlée à l'exécution). La clé est vérifiée auprès de ClickSend puis rangée dans Secret Manager (CLICKSEND_RDV) ;
+// elle n'est jamais rendue ni journalisée. Le compte de service doit pouvoir ajouter une version de secret (docs/rdv-sms-clicksend.md).
+const connexionSms = creerConnexionSms({
+  lireSecret: creerLecteurSecrets(),
+  ecrireSecret: creerEcrivainSecrets(),
+  verifier: verifierConnexion,
+  adresseDe: (espace, jeton) => `https://europe-west9-chevalier-ia-os.cloudfunctions.net/rdvReponseSms/${jeton}`,
+});
+export const rdvConnexionSms = onCall(OPTIONS_DEVIS, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelRdvConnexion({ connexion: connexionSms, journal: journalRdv })(requete);
 });
 // Filet : toutes les 15 minutes, envoie les SMS dus (relances, rappel de la veille, confirmation…) même si personne n'a cliqué. Rien à faire si la connexion n'est pas branchée.
 export const rdvEnvoiPlanifie = onSchedule(
