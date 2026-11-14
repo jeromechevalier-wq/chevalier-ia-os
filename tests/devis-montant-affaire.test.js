@@ -452,6 +452,16 @@ describe('N15 choisir l’affaire d’un devis finalisé sans affaire (08/11/202
     }
     assert.equal(leDevis(m, 'd1').affaireId, 'aff1');
   });
+  test('4d-4 une version créée 30 secondes AVANT le choix : refus (marge de 2 minutes), même avec forcer', async () => {
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    const m = await sansAffaire();
+    const nv = await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    leDevis(m, nv.devis.id).affaireId = 'aff1';
+    const r = await S.choisirAffaire({ donnees: m.donnees, ctx: { ...ctx(), maintenant: new Date(MAINTENANT.getTime() + 30_000) }, devisId: 'd1', affaireId: 'aff1' });
+    for (const forcer of [false, true]) {
+      await assert.rejects(() => restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer }), (e) => e.code === 'restauration_refusee' && /version de ce devis a été créée depuis/.test(e.message));
+    }
+  });
   test('4d-1 cas miroir : v1 finalisée sans affaire, v2 brouillon déjà sur l’affaire, puis choisir l’affaire sur v1 : la restauration est ACCEPTÉE (v1 sans affaire, v2 reste sur l’affaire)', async () => {
     const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
     const m = await sansAffaire('v1');
@@ -468,6 +478,7 @@ describe('N15 choisir l’affaire d’un devis finalisé sans affaire (08/11/202
     const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
     const m = await sansAffaire('v1');
     await choisir(m, 'v1'); // v1 sur aff1
+    leDevis(m, 'v1').creeLe = new Date(MAINTENANT.getTime() - 3_600_000); // v1 est plus ancienne d'une heure que le choix sur v2 (marge de 2 minutes)
     const nv = await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'v1' });
     m.collections[C.devis].find((d) => d.id === nv.devis.id).affaireId = null; // la v2 n'a pas d'affaire
     await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: nv.devis.id });

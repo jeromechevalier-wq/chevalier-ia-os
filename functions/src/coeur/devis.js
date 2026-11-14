@@ -433,7 +433,7 @@ async function affaireDuClientDuDevis(tx, devis, affaire) {
  * Toutes les versions de la racine reçoivent l'affaire, le montant de l'affaire est recalculé DANS LA MÊME transaction, et le journal (`devisChoisirAffaire`) permet de défaire (restaurer.js).
  * Un `affaireId` qui ne désigne plus aucune affaire (affaire supprimée) compte comme « sans affaire » (décision D1). Déjà sur cette affaire : rien n'est écrit.
  * Ne touche ni l'organisation ni la personne du devis (D2). Le serveur refuse une affaire ARCHIVÉE (décision du 08/11/2026) et une affaire d'un AUTRE client (même règle que l'écran, `affaireDuClient` de client-devis.js :
- * affaire ou devis sans client = accepté ; l'organisation et ses personnes comptent comme le même client) ; le contrôle porte sur chaque version qui va recevoir l'affaire. Rien n'est écrit en cas de refus.
+ * affaire ou devis sans client = accepté ; l'organisation et ses personnes comptent comme le même client) ; le contrôle porte sur la version ouverte, comme l'écran ; les autres versions de la racine reçoivent l'affaire sans contrôle, comme avant. Rien n'est écrit en cas de refus.
  */
 export async function choisirAffaire({ donnees, ctx, devisId, affaireId }) {
   if (typeof affaireId !== 'string' || !affaireId || affaireId !== affaireId.trim() || affaireId.length > 200 || affaireId.includes('/')) throw new ErreurDevis('demande_invalide', "Identifiant d'affaire manquant ou invalide.");
@@ -450,10 +450,9 @@ export async function choisirAffaire({ donnees, ctx, devisId, affaireId }) {
     }
     if (affaire.archive === true) throw new ErreurDevis('transition_interdite', 'Cette affaire est archivée : désarchive-la d’abord, ou choisis-en une autre.');
     const aRecevoir = toutes.filter((v) => v.affaireId !== affaire.id);
-    for (const v of aRecevoir) {
-      if (!(await affaireDuClientDuDevis(tx, v, affaire))) {
-        throw new ErreurDevis('transition_interdite', v.id === devis.id ? 'Cette affaire est celle d’un autre client : choisis une affaire du client de ce devis.' : 'Une autre version de ce devis est pour un autre client que cette affaire : rien n’a été changé.');
-      }
+    // Comme l'écran : seule la version DEMANDÉE est contrôlée ; les autres versions de la racine reçoivent l'affaire sans contrôle.
+    if (aRecevoir.some((v) => v.id === devis.id) && !(await affaireDuClientDuDevis(tx, devis, affaire))) {
+      throw new ErreurDevis('transition_interdite', 'Cette affaire est celle d’un autre client : choisis une affaire du client de ce devis.');
     }
     const changements = aRecevoir.map((v) => modifier(v, { affaireId: affaire.id }));
     const montant = await montantDeLAffaire(tx, { ...devis, affaireId: affaire.id }, retouchesDe(changements), null, toutes.filter((v) => v.id !== devis.id).map((v) => ({ ...v, affaireId: affaire.id })));

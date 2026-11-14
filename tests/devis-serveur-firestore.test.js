@@ -321,4 +321,19 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
       for (const nom of [C.devis, C.audit, C.auditAvant, C.devisCompteurs]) for (const d of (await db.collection(nom).get()).docs) await d.ref.delete();
     }
   });
+
+  test('4d-5 cas miroir sur l’émulateur : v2 brouillon déjà sur l’affaire, créée une heure AVANT le choix sur v1 (vrais Timestamp) : restauration ACCEPTÉE, v1 sans affaire, v2 reste sur l’affaire', async () => {
+    await db.collection(C.affaires).doc('aff1').set({ titre: 'Rénovation' });
+    await poser('v1', { affaireId: null });
+    await S.finaliser({ donnees, ctx: ctx(), devisId: 'v1' });
+    await S.changerStatut({ donnees, ctx: ctx(), devisId: 'v1', action: 'marquer_envoye' });
+    const nv = await S.nouvelleVersion({ donnees, ctx: ctx(), devisId: 'v1' });
+    await db.collection(C.devis).doc(nv.devis.id).update({ affaireId: 'aff1' });
+    const r = await S.choisirAffaire({ donnees, ctx: { ...ctx(), maintenant: new Date(MAINTENANT.getTime() + 3_600_000) }, devisId: 'v1', affaireId: 'aff1' });
+    assert.equal(r.versions, 1, 'seule v1 est écrite');
+    assert.ok((await brut(C.devis, nv.devis.id)).creeLe instanceof Timestamp);
+    await restaurerOperation({ donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer: false });
+    assert.equal((await brut(C.devis, 'v1')).affaireId ?? null, null);
+    assert.equal((await brut(C.devis, nv.devis.id)).affaireId, 'aff1');
+  });
 });

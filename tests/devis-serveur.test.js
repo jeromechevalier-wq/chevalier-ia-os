@@ -794,14 +794,22 @@ describe('GF garde-fous de choisirAffaire (affaire archivée, affaire d’un aut
     Object.assign(leDevis(m2, 'v1'), { organisationId: null, personneId: null }); // ancien devis finalisé avant que le client soit exigé
     assert.equal((await choisir(m2, 'v1', 'aO2')).ok, true);
   });
-  test('2d une autre version est pour un autre client : refus avec le second message, rien d’écrit', async () => {
-    const m = await racine({ devis: { organisationId: 'O1' }, affaires: [{ id: 'aO1', organisationId: 'O1' }] });
-    await S.changerStatut({ donnees: m.donnees, ctx: ctx(), devisId: 'v1', action: 'marquer_envoye' });
-    const nv = await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'v1' });
-    leDevis(m, nv.devis.id).organisationId = 'O2'; // la v2 est passée à un autre client
-    await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: nv.devis.id });
-    const avant = photo(m);
-    await refuse(m, 'v1', 'aO1', /Une autre version de ce devis est pour un autre client/);
-    assert.equal(photo(m), avant);
+  test('2d une autre version est pour un autre client : le choix depuis la version demandée est ACCEPTÉ (toutes les versions reçoivent l’affaire), refusé seulement si la version demandée est d’un autre client que l’affaire', async () => {
+    const monde2d = async () => {
+      const m = await racine({ devis: { organisationId: 'O1' }, affaires: [{ id: 'aO1', organisationId: 'O1' }] });
+      await S.changerStatut({ donnees: m.donnees, ctx: ctx(), devisId: 'v1', action: 'marquer_envoye' });
+      const nv = await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'v1' });
+      leDevis(m, nv.devis.id).organisationId = 'O2'; // la v2 est passée à un autre client
+      await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: nv.devis.id });
+      return { m, v2: nv.devis.id };
+    };
+    const a = await monde2d();
+    const r = await choisir(a.m, 'v1', 'aO1'); // depuis v1 (client O1) : accepté, v2 reçoit l'affaire sans contrôle, comme l'écran
+    assert.equal(r.versions, 2);
+    assert.ok(a.m.collections[C.devis].every((d) => d.affaireId === 'aO1'));
+    const b = await monde2d();
+    const avant = photo(b.m);
+    await refuse(b.m, b.v2, 'aO1', /d’un autre client/); // depuis v2 (client O2) : refusé
+    assert.equal(photo(b.m), avant);
   });
 });

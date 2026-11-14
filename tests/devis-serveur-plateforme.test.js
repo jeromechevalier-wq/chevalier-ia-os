@@ -133,7 +133,7 @@ describe('C7-CA plateforme : choisir l’affaire d’un devis finalisé (08/11/2
     m.collections['clients/a/devis_devis'][0] = { ...m.collections['clients/a/devis_devis'][0], affaireId: null, statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-001', racineId: 'da', version: 1, organisationId: 'O1' };
     m.collections['clients/a/crm_affaires'].push({ id: 'aff1', titre: 'Autre client', organisationId: 'O2' });
     const avant = JSON.stringify(m.collections);
-    await refus(appeler(m, 'choisirAffaire', ALICE, { client: 'a', devisId: 'da', affaireId: 'aff1' }), 'failed-precondition');
+    await assert.rejects(() => appeler(m, 'choisirAffaire', ALICE, { client: 'a', devisId: 'da', affaireId: 'aff1' }), (e) => e.code === 'failed-precondition' && /autre client/.test(e.message));
     assert.equal(JSON.stringify(m.collections), avant);
   });
   test('C7-CA chez un client en Devis seul (pas d’affaire), la fonction répond « not-found » sans rien écrire', async () => {
