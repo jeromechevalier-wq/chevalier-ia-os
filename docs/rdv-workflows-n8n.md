@@ -67,6 +67,8 @@ Nommage obligatoire (sinon la porte répond 403 `workflow_refuse`) : chez Jérô
 - Un SMS dont la confirmation d'envoi n'arrive jamais est repris au plus 3 fois, puis abandonné ; un SMS abandonné ne bloque plus les relances des autres et la professionnelle reçoit une alerte (« un SMS n'est pas parti vers … »).
 - Un SMS écrit à la main sur un rendez-vous de test ne part que vers le numéro de test, et rien si le rendez-vous a disparu. Le même SMS redemandé dans les 2 minutes n'est pas recréé.
 - Une réponse n'est rattachée qu'à un rendez-vous dont les propositions sont réellement parties ; un numéro présent dans plusieurs rendez-vous n'efface pas la réponse déjà donnée dans l'un d'eux.
+- Une confirmation d'envoi qui arrive après l'abandon (n8n lent) est acceptée : le SMS repasse à « envoyé ». Une confirmation d'une ancienne série (rejeu) ne change rien à la série courante.
+- Une réponse reçue APRÈS la confirmation (« empêchement », STOP…) est gardée sur le participant et alerte la professionnelle une seule fois.
 - Après « Envoyer », les SMS « créneaux » partent dans le même tir que la présentation (la demande est notée une minute en arrière).
 
 ## Limites connues (à décider avec Jérôme)

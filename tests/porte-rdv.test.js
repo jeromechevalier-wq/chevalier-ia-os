@@ -383,3 +383,21 @@ describe('par la porte complète (module « rdv »)', () => {
     assert.ok(!JSON.stringify(journaux).match(/\+336|Bonjour|Mme Martin/), 'le journal de la porte ne reçoit ni numéro ni texte');
   });
 });
+
+describe('réponse reçue après la confirmation', () => {
+  test('« empêchement » après la confirmation : gardé sur le participant, rejeu idempotent, et la professionnelle est alertée une seule fois', async () => {
+    const m = monde();
+    m.semer('r1', { etat: 'confirme', creneauChoisi: iso(T0 + 3 * 86400000), confirmeLe: iso(T0 - 3600000) }, [['p1', 'M. Durand', '+33600000001']]);
+    const envoi = { numero: '+33600000001', texte: 'Empêchement demain', idFournisseur: 'tardif1', recuLe: iso(T0) };
+    const r = await m.action('rdv.enregistrerReponse', envoi);
+    assert.equal(r.rattache, 'confirme');
+    const p = m.base.docs.get('rdv_participants/r1-p1').d;
+    assert.match(p.reponseTardive, /Empêchement/);
+    const rejeu = await m.action('rdv.enregistrerReponse', envoi);
+    assert.equal(rejeu.deja, true);
+    const dus = await m.action('rdv.aEnvoyer', {});
+    const alertes = dus.messages.filter((x) => x.typeMessage === 'alerte');
+    assert.equal(alertes.length, 1);
+    assert.match(alertes[0].texte, /après la confirmation/);
+  });
+});

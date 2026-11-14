@@ -335,6 +335,7 @@ export function texteAlerte(sousType, ctx = {}) {
     'fin-relances': `RDV ${c} : relances terminées, il manque des réponses. Ouvre le rendez-vous dans l'appli.`,
     ambigu: `RDV ${c} : ce numéro est dans deux rendez-vous ouverts, réponse non rattachée. Tranche dans l'appli.`,
     'echec-envoi': `RDV ${c} : un SMS n'est pas parti vers ${ctx.nom || 'une personne'}. Appelle cette personne.`,
+    tardive: `RDV ${c} : ${ctx.nom || 'une personne'} a répondu après la confirmation${ctx.reponse ? ` : « ${String(ctx.reponse).replace(/\s+/g, ' ').trim().slice(0, 40)} »` : ''}. Appelle cette personne.`,
     desinscription: `RDV ${c} : ${ctx.nom || 'une personne'} a répondu STOP. Plus aucun SMS ne lui sera envoyé : appelle cette personne.`,
   }[sousType] || `RDV ${c} : à regarder dans l'appli.`;
   return preparerSms(brut);
@@ -688,9 +689,15 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
 
   // 4 bis. Un SMS abandonné (3 échecs d'envoi) : la professionnelle est prévenue, une seule fois par SMS.
   for (const m of messages) {
-    if (m.etatEnvoi !== 'abandonne' || m.sens === 'entrant' || m.typeMessage === 'alerte' || !m.id) continue;
+    if (m.etatEnvoi !== 'abandonne' || m.sens === 'entrant' || m.typeMessage === 'alerte' || !m.id || (m.tour ?? 1) !== tour) continue; // seulement la série courante : l'alerte d'une ancienne série ne repart pas
     const x = participants.find((y) => y.id === m.participantId);
     alerter('echec-envoi', `echec-${m.id}`, { instant: enMs(m.envoyeLe) || nowMs, nom: x?.nom });
+  }
+
+  // 4 ter. Une réponse arrivée APRÈS la confirmation (« empêchement », STOP…) : la professionnelle est alertée une seule fois par réponse.
+  for (const x of participants) {
+    if (!x.reponseTardive || !x.idReponseTardive) continue;
+    alerter(x.desinscrit ? 'desinscription' : 'tardive', `tardive-${x.id}-${x.idReponseTardive}`, { instant: enMs(x.reponseTardiveLe) || nowMs, nom: x.nom, reponse: x.reponseTardive });
   }
 
   // 5. Confirmation (jamais retardée par la plage) et rappel de la veille.
@@ -698,7 +705,7 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
     const confirmeLe = Number.isFinite(enMs(rdv.confirmeLe)) ? enMs(rdv.confirmeLe) : nowMs;
     {
       for (const x of participants) {
-        proposer({ idEcheance: idEcheance(rdv.id, tour, 'confirmation', x.id), typeMessage: 'confirmation', modele: 'confirmation', valeurs: valeursSms(rdv, p), numero: x.telephone, participantId: x.id, instant: confirmeLe, horsPlage: false });
+        proposer({ idEcheance: idEcheance(rdv.id, tour, 'confirmation', x.id), typeMessage: 'confirmation', modele: 'confirmation', valeurs: valeursSms(rdv, p), numero: x.telephone, participantId: x.id, instant: confirmeLe, horsPlage: false, avant: enMs(rdv.creneauChoisi) });
       }
       const choisi = enMs(rdv.creneauChoisi);
       if (p.rappel.actif && Number.isFinite(choisi)) {

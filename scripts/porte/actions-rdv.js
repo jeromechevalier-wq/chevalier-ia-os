@@ -71,7 +71,7 @@ async function reserver(ctx, docId, creation, maintenantMs) {
   if (expiree) {
     // Réservation expirée = le SMS est peut-être parti sans que sa confirmation soit arrivée : chaque reprise compte comme un essai, et après 3 on ne le renvoie plus jamais seul.
     const essais = (existant.essais ?? 0) + 1;
-    if (essais >= ESSAIS_MAX) { await donnees.majDoc(ch, { etatEnvoi: 'abandonne', essais, reserveJusqua: null, envoyeLe: new Date(maintenantMs), erreur: 'Confirmation d\'envoi jamais reçue' }); return null; }
+    if (essais >= ESSAIS_MAX) { await donnees.majDoc(ch, { etatEnvoi: 'abandonne', essais, reserveJusqua: null, envoyeLe: new Date(maintenantMs), erreur: 'Confirmation d\'envoi jamais reçue' }, { lastUpdateTime: existant.updateTime }); return null; }
     const r = await donnees.majDoc(ch, { ...reservation, essais }, { lastUpdateTime: existant.updateTime });
     return r === false || PRECONDITION(r) ? null : existant;
   }
@@ -88,7 +88,7 @@ async function appliquerSuites(ctx, m, maintenantMs) {
   const { base, donnees } = ctx;
   if (!m.rendezVousId) return;
   const rdv = await donnees.lireDoc(chemin(base, T.rdv, m.rendezVousId));
-  if (!rdv) return;
+  if (!rdv || (m.tour ?? 1) !== (rdv.tour ?? 1)) return; // un SMS d'une ancienne série (rejeu, nouvel essai du nœud) ne change rien à la série courante
   const patch = {};
   if (m.sousType === 'fin-relances' && !rdv.relancesTermineesLe) {
     patch.relancesTermineesLe = new Date(maintenantMs);
@@ -98,7 +98,6 @@ async function appliquerSuites(ctx, m, maintenantMs) {
   }
   const k = /:relance(\d+):/.exec(String(m.echeance))?.[1];
   if (k && Number(k) > (rdv.relancesFaites ?? 0)) patch.relancesFaites = Number(k);
-  if (!rdv.envoiDemandeLe && m.typeMessage === 'creneaux') patch.envoiDemandeLe = new Date(maintenantMs);
   if (Object.keys(patch).length) await donnees.majDoc(chemin(base, T.rdv, rdv.id), patch);
 }
 
@@ -158,7 +157,8 @@ export const ACTIONS_RDV = Object.freeze({
       const m = await donnees.lireDoc(ch);
       if (!m || m.sens === 'entrant') throw new ErreurAction('message_inconnu', 'Ce message n\'existe pas.', 404);
       if (m.etatEnvoi === 'envoye') { await appliquerSuites(ctx, m, maintenantMs); return { messageId: d.messageId, statut: 'ok', deja: true }; } // rejeu : on refait les suites (idempotentes) au cas où un plantage les aurait interrompues
-      if (m.etatEnvoi === 'abandonne') return { messageId: d.messageId, statut: 'echec', deja: true };
+      if (m.etatEnvoi === 'abandonne' && d.statut !== 'ok') return { messageId: d.messageId, statut: 'echec', deja: true };
+      // Un « ok » qui arrive APRÈS l'abandon (n8n lent : le SMS est bien parti) remet le SMS à « envoyé » et applique les suites.
       if (d.statut === 'ok') {
         const r = await donnees.majDoc(ch, { etatEnvoi: 'envoye', envoyeLe: new Date(maintenantMs), reserveJusqua: null, ...(d.idFournisseur ? { idFournisseur: d.idFournisseur } : {}) }, { lastUpdateTime: m.updateTime });
         if (PRECONDITION(r)) { const apres = await donnees.lireDoc(ch); if (apres?.etatEnvoi === 'envoye') return { messageId: d.messageId, statut: 'ok', deja: true }; throw new ErreurAction('conflit', 'Le message a changé : réessaie.', 409); }
@@ -196,6 +196,7 @@ export const ACTIONS_RDV = Object.freeze({
       const liste = await rendezVousAttendantUneReponse(ctx);
       const cible = R.rattacherReponse(numero, liste);
       const operations = [];
+      let rattache = cible.type;
       const parRdv = new Map(liste.map((x) => [x.rdv.id, x]));
       const creerMessage = (id, extra) => operations.push({ type: 'creer', chemin: chemin(base, T.msg, id), donnees: sansIndefini({ ...commun, ...extra }) });
       const appliquer = ({ rendezVousId, participantId }, { ambigu = false, idMessage }) => {
@@ -221,7 +222,16 @@ export const ACTIONS_RDV = Object.freeze({
         creerMessage(docId, { rendezVousId: cible.cibles[0].rendezVousId, comprise: false, ambigu: true, desinscription: stop || undefined, historique: true });
         for (const [i, c] of cible.cibles.entries()) appliquer(c, { ambigu: true, idMessage: docIdMessage(`in_${d.idFournisseur}_${i + 1}`) });
       } else {
-        creerMessage(docId, { rendezVousId: '', orphelin: true, comprise: false, desinscription: stop || undefined });
+        // Aucun rendez-vous OUVERT n'attend ce numéro : s'il est dans UN rendez-vous confirmé (pas encore passé de plus de 2 jours), la réponse est gardée dans son historique et la
+        // professionnelle est alertée (« empêchement », STOP…). Sinon : message orphelin (conservé, aucun écran ne l'affiche pour l'instant).
+        const confirmes = (await rendezVousPourEnvoi(ctx, maintenantMs)).filter((x) => !R.estOuvert(x.rdv))
+          .map(({ rdv, participants }) => ({ rdv, participant: participants.find((p) => R.normaliserTelephone(p.telephone).telephone === numero || p.telephone === numero) })).filter((x) => x.participant);
+        if (confirmes.length === 1) {
+          const { rdv, participant } = confirmes[0];
+          creerMessage(docId, { rendezVousId: rdv.id, participantId: participant.id, tour: rdv.tour ?? 1, comprise: false, apresConfirmation: true, desinscription: stop || undefined });
+          operations.push({ type: 'maj', chemin: chemin(base, T.part, participant.id), donnees: sansIndefini({ reponseTardive: d.texte.slice(0, 200), idReponseTardive: docId, reponseTardiveLe: recuLe, desinscrit: stop || undefined }) });
+          rattache = 'confirme';
+        } else creerMessage(docId, { rendezVousId: '', orphelin: true, comprise: false, desinscription: stop || undefined });
       }
       if (stop) {
         const existants = await donnees.lireDoc(chemin(base, T.param, 'desinscrits'));
@@ -236,7 +246,7 @@ export const ACTIONS_RDV = Object.freeze({
         if (e?.code === 6 || e?.code === 'already-exists' || e?.code === 'ALREADY_EXISTS') return { deja: true, messageId: docId }; // deux appels en même temps : un seul écrit
         throw e;
       }
-      return { deja: false, messageId: docId, rattache: cible.type, desinscription: stop, comprise: operations.find((o) => o.type === 'creer')?.donnees?.comprise ?? false };
+      return { deja: false, messageId: docId, rattache, desinscription: stop, comprise: operations.find((o) => o.type === 'creer')?.donnees?.comprise ?? false };
     },
   },
 });
