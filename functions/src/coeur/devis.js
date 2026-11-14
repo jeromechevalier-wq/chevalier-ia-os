@@ -413,11 +413,27 @@ export async function modifierDestinataires({ donnees, ctx, devisId, destinatair
   });
 }
 
+/** Identifiant de fiche lisible : chaîne non vide sans « / ». */
+const idFiche = (x) => (typeof x === 'string' && x && !x.includes('/') ? x : null);
+/** L'affaire est-elle celle du client de ce devis ? (règle de l'écran ; fiche de personne introuvable = pas de lien) */
+async function affaireDuClientDuDevis(tx, devis, affaire) {
+  if (!idFiche(affaire.organisationId) && !idFiche(affaire.personneId)) return true;
+  if (!idFiche(devis.organisationId) && !idFiche(devis.personneId)) return true;
+  if (idFiche(affaire.personneId) && affaire.personneId === devis.personneId) return true;
+  if (idFiche(devis.organisationId)) {
+    if (affaire.organisationId === devis.organisationId) return true;
+    const p = idFiche(affaire.personneId) ? await tx.document(C.personnes, affaire.personneId) : null;
+    return Boolean(p && p.organisationId === devis.organisationId);
+  }
+  const p = await tx.document(C.personnes, devis.personneId);
+  return Boolean(p && idFiche(p.organisationId) && affaire.organisationId === p.organisationId);
+}
 /**
  * Choisit l'affaire d'un devis FINALISÉ qui n'en a pas (PR 2 « Devis sans affaire », 08/11/2026) : UNIQUEMENT « sans affaire → affaire », jamais changer d'affaire ni la retirer.
  * Toutes les versions de la racine reçoivent l'affaire, le montant de l'affaire est recalculé DANS LA MÊME transaction, et le journal (`devisChoisirAffaire`) permet de défaire (restaurer.js).
  * Un `affaireId` qui ne désigne plus aucune affaire (affaire supprimée) compte comme « sans affaire » (décision D1). Déjà sur cette affaire : rien n'est écrit.
- * Ne touche ni l'organisation ni la personne du devis (D2) : l'écran ne propose que les affaires du client.
+ * Ne touche ni l'organisation ni la personne du devis (D2). Le serveur refuse une affaire ARCHIVÉE (décision du 08/11/2026) et une affaire d'un AUTRE client (même règle que l'écran, `affaireDuClient` de client-devis.js :
+ * affaire ou devis sans client = accepté ; l'organisation et ses personnes comptent comme le même client) ; le contrôle porte sur la version ouverte, comme l'écran ; les autres versions de la racine reçoivent l'affaire sans contrôle, comme avant. Rien n'est écrit en cas de refus.
  */
 export async function choisirAffaire({ donnees, ctx, devisId, affaireId }) {
   if (typeof affaireId !== 'string' || !affaireId || affaireId !== affaireId.trim() || affaireId.length > 200 || affaireId.includes('/')) throw new ErreurDevis('demande_invalide', "Identifiant d'affaire manquant ou invalide.");
@@ -432,7 +448,13 @@ export async function choisirAffaire({ donnees, ctx, devisId, affaireId }) {
     for (const id of new Set(toutes.map((v) => v.affaireId).filter((x) => typeof x === 'string' && x && x !== affaire.id && !x.includes('/')))) {
       if (await tx.document(C.affaires, id)) throw new ErreurDevis('transition_interdite', "Une version de ce devis a déjà une affaire : un devis finalisé ne change pas d'affaire.");
     }
-    const changements = toutes.filter((v) => v.affaireId !== affaire.id).map((v) => modifier(v, { affaireId: affaire.id }));
+    if (affaire.archive === true) throw new ErreurDevis('transition_interdite', 'Cette affaire est archivée : désarchive-la d’abord, ou choisis-en une autre.');
+    const aRecevoir = toutes.filter((v) => v.affaireId !== affaire.id);
+    // Comme l'écran : seule la version DEMANDÉE est contrôlée ; les autres versions de la racine reçoivent l'affaire sans contrôle.
+    if (aRecevoir.some((v) => v.id === devis.id) && !(await affaireDuClientDuDevis(tx, devis, affaire))) {
+      throw new ErreurDevis('transition_interdite', 'Cette affaire est celle d’un autre client : choisis une affaire du client de ce devis.');
+    }
+    const changements = aRecevoir.map((v) => modifier(v, { affaireId: affaire.id }));
     const montant = await montantDeLAffaire(tx, { ...devis, affaireId: affaire.id }, retouchesDe(changements), null, toutes.filter((v) => v.id !== devis.id).map((v) => ({ ...v, affaireId: affaire.id })));
     if (montant) changements.push(montant);
     const j = journal({ donnees, ctx, outil: 'devisChoisirAffaire', parametres: { devisId, affaireId: affaire.id }, changements });

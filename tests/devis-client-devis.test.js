@@ -70,10 +70,15 @@ describe('CD choix du client et de l’affaire', () => {
     assert.equal(emailDestinataire('', ''), '');
   });
   test('CD10 phrase sous la ligne Affaire : sans client, client sans affaire, rien sinon', () => {
-    assert.match(aideAffaire({ client: null, affaireId: null, nbAffaires: 0 }), /^Facultatif : sans affaire, le devis n'apparaîtra dans aucune fiche d'affaire ni dans son montant\.$/);
+    assert.match(aideAffaire({ client: null, affaireId: null, nbAffaires: 0 }), /^Facultatif : à choisir si ce devis suit une affaire\.$/);
     assert.equal(aideAffaire({ client: { organisationId: 'o1' }, affaireId: null, nbAffaires: 0 }), MESSAGE_SANS_AFFAIRE_CLIENT);
     assert.equal(aideAffaire({ client: { organisationId: 'o1' }, affaireId: null, nbAffaires: 2 }), '');
     assert.equal(aideAffaire({ client: { organisationId: 'o1' }, affaireId: 'a1', nbAffaires: 0 }), '');
+  });
+  test('3 aide neutre : la phrase sans client ne dit plus « aucune fiche d’affaire » (dite une seule fois, dans l’avertissement des totaux)', () => {
+    const aide = aideAffaire({ client: null, affaireId: null, nbAffaires: 0 });
+    assert.equal(aide, 'Facultatif : à choisir si ce devis suit une affaire.');
+    assert.doesNotMatch(aide, /aucune fiche d/);
   });
   test('CD11 personne archivée déjà posée : elle reste dans « à l’attention de »', () => {
     const toutes = [...personnes, { id: 'p9', nom: 'Archivée', organisationId: 'o2', archive: true }];

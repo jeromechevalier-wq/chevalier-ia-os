@@ -741,3 +741,75 @@ describe('CA devisChoisirAffaire (08/11/2026, PR 2) : choisir l’affaire d’un
     assert.ok(m.collections[C.devis].every((d) => d.affaireId !== undefined));
   });
 });
+
+describe('GF garde-fous de choisirAffaire (affaire archivée, affaire d’un autre client)', () => {
+  /** Racine finalisée sans affaire (une version), des affaires et des fiches à volonté. */
+  async function racine({ devis = {}, affaires = [], personnes = [] } = {}) {
+    const m = monde([brouillon('v1', { affaireId: null, ...devis })]);
+    m.collections[C.affaires] = [{ id: 'aff1', titre: 'Rénovation' }, ...affaires];
+    m.collections[C.personnes].push(...personnes);
+    await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'v1' });
+    return m;
+  }
+  const choisir = (m, devisId, affaireId) => S.choisirAffaire({ donnees: m.donnees, ctx: ctx(), devisId, affaireId });
+  const refuse = (m, devisId, affaireId, motif) => assert.rejects(() => choisir(m, devisId, affaireId), (e) => e.code === 'transition_interdite' && motif.test(e.message));
+  test('1 affaire archivée : refus, rien d’écrit ; déjà sur cette affaire archivée : { rien: true } ; devis déjà sur une autre affaire : « a déjà une affaire »', async () => {
+    const m = await racine({ affaires: [{ id: 'arch', titre: 'Ancienne', archive: true }, { id: 'aff2', titre: 'Autre' }] });
+    const avant = photo(m);
+    await refuse(m, 'v1', 'arch', /archivée/);
+    assert.equal(photo(m), avant);
+    leDevis(m, 'v1').affaireId = 'arch';
+    const encore = await choisir(m, 'v1', 'arch');
+    assert.deepEqual([encore.ok, encore.rien], [true, true]);
+    leDevis(m, 'v1').affaireId = 'aff2';
+    const avant2 = photo(m);
+    await refuse(m, 'v1', 'arch', /a déjà une affaire/);
+    assert.equal(photo(m), avant2);
+  });
+  test('2a affaire d’un autre client : devis de l’organisation O1 et affaire de O2, devis de la personne P1 seule et affaire de P2 : refus, rien d’écrit', async () => {
+    const m = await racine({ devis: { organisationId: 'O1' }, affaires: [{ id: 'aO2', organisationId: 'O2' }, { id: 'aP2', personneId: 'P2' }], personnes: [{ id: 'P2', nom: 'Autre', organisationId: 'O2' }] });
+    const avant = photo(m);
+    await refuse(m, 'v1', 'aO2', /d’un autre client/);
+    await refuse(m, 'v1', 'aP2', /d’un autre client/);
+    assert.equal(photo(m), avant);
+    const m2 = await racine({ devis: { personneId: 'P1' }, affaires: [{ id: 'aP2', personneId: 'P2' }, { id: 'aO2', organisationId: 'O2' }], personnes: [{ id: 'P1', nom: 'Un' }, { id: 'P2', nom: 'Deux', organisationId: 'O2' }] });
+    const avant2 = photo(m2);
+    await refuse(m2, 'v1', 'aP2', /d’un autre client/);
+    await refuse(m2, 'v1', 'aO2', /d’un autre client/); // P1 n'a pas d'organisation : « fiche sans lien » = refus
+    assert.equal(photo(m2), avant2);
+  });
+  test('2b même famille : même organisation, affaire d’une personne de l’organisation du devis, devis d’une personne seule + affaire de son organisation ou de cette personne : acceptés', async () => {
+    const personnes = [{ id: 'P1', nom: 'Un', organisationId: 'O1' }, { id: 'PX', nom: 'Collègue', organisationId: 'O1' }];
+    for (const [devis, affaire] of [[{ organisationId: 'O1' }, { id: 'a', organisationId: 'O1' }], [{ organisationId: 'O1' }, { id: 'a', personneId: 'PX' }], [{ personneId: 'P1' }, { id: 'a', organisationId: 'O1' }], [{ personneId: 'P1' }, { id: 'a', personneId: 'P1' }]]) {
+      const m = await racine({ devis, affaires: [affaire], personnes });
+      const r = await choisir(m, 'v1', 'a');
+      assert.equal(r.ok, true, JSON.stringify([devis, affaire]));
+      assert.equal(leDevis(m, 'v1').affaireId, 'a');
+    }
+  });
+  test('2c sans client : une affaire sans client est acceptée, un devis sans client aussi', async () => {
+    const m = await racine({ devis: { organisationId: 'O1' }, affaires: [{ id: 'sans', titre: 'Sans client' }] });
+    assert.equal((await choisir(m, 'v1', 'sans')).ok, true);
+    const m2 = await racine({ affaires: [{ id: 'aO2', organisationId: 'O2' }] });
+    Object.assign(leDevis(m2, 'v1'), { organisationId: null, personneId: null }); // ancien devis finalisé avant que le client soit exigé
+    assert.equal((await choisir(m2, 'v1', 'aO2')).ok, true);
+  });
+  test('2d une autre version est pour un autre client : le choix depuis la version demandée est ACCEPTÉ (toutes les versions reçoivent l’affaire), refusé seulement si la version demandée est d’un autre client que l’affaire', async () => {
+    const monde2d = async () => {
+      const m = await racine({ devis: { organisationId: 'O1' }, affaires: [{ id: 'aO1', organisationId: 'O1' }] });
+      await S.changerStatut({ donnees: m.donnees, ctx: ctx(), devisId: 'v1', action: 'marquer_envoye' });
+      const nv = await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'v1' });
+      leDevis(m, nv.devis.id).organisationId = 'O2'; // la v2 est passée à un autre client
+      await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: nv.devis.id });
+      return { m, v2: nv.devis.id };
+    };
+    const a = await monde2d();
+    const r = await choisir(a.m, 'v1', 'aO1'); // depuis v1 (client O1) : accepté, v2 reçoit l'affaire sans contrôle, comme l'écran
+    assert.equal(r.versions, 2);
+    assert.ok(a.m.collections[C.devis].every((d) => d.affaireId === 'aO1'));
+    const b = await monde2d();
+    const avant = photo(b.m);
+    await refuse(b.m, b.v2, 'aO1', /d’un autre client/); // depuis v2 (client O2) : refusé
+    assert.equal(photo(b.m), avant);
+  });
+});

@@ -24,7 +24,9 @@ test('1 « Nouveau devis » (liste vide, aucune affaire dans l’espace) crée l
   await expect(editeur(page)).toBeVisible();
   await expect(page.locator('.page-nouveau-devis')).toHaveCount(0); // plus de page intermédiaire « Nouveau devis » / « Créer le brouillon »
   await expect(page.locator('[data-action="creer-brouillon"]')).toHaveCount(0);
-  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif : sans affaire, le devis n\'apparaîtra dans aucune fiche d\'affaire ni dans son montant.');
+  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif : à choisir si ce devis suit une affaire.');
+  await expect(page.locator('[data-erreur="affaire"]')).not.toContainText('aucune fiche d’affaire'); // la phrase longue n'est dite qu'une fois, dans le panneau des totaux
+  await expect(page.locator('[data-zone="total"] [data-avertissement="sansAffaire"]')).toContainText('Ce devis n\'a pas d\'affaire');
   await expect(page.locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/);
   await page.locator('[data-champ="affaire"]').fill('Ré'); // cas vide : aucune affaire à proposer, la liste ne propose que de créer l'affaire au nom tapé
   await expect(page.locator('.entete-droite .suggestions:not([hidden]) .suggestion')).toHaveText([/\+ Créer l’affaire « Ré »/]);
