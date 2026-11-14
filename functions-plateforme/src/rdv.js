@@ -42,7 +42,11 @@ export async function envoyerRdv({ db, auth, donnees, sortie, maintenant = Date.
 export async function tirerPourTous({ db, sortie, modulesActifs, maintenant = Date.now, dureeMaxMs = 270_000, budgetClientMs = 90_000, margeMs = 20_000 }) {
   const bilan = { clients: 0, branches: 0, envoyes: 0, echecs: 0, incertains: 0, restants: 0, arrets: [], interrompu: false };
   const debut = maintenant();
-  for (const doc of (await db.collection('clients').get()).docs) {
+  // Rotation : le point de départ change à chaque quart d'heure, pour qu'un client lent ne prive jamais toujours les mêmes clients de leur tour.
+  const docs = (await db.collection('clients').get()).docs;
+  const depart = docs.length ? Math.floor(maintenant() / 900_000) % docs.length : 0;
+  for (let k = 0; k < docs.length; k += 1) {
+    const doc = docs[(depart + k) % docs.length];
     const reste = dureeMaxMs - (maintenant() - debut);
     if (reste < margeMs + 15_000) { bilan.interrompu = true; break; }
     bilan.clients += 1;

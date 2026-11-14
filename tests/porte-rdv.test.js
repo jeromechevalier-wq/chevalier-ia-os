@@ -419,6 +419,21 @@ describe('rdv.libererEnvoi', () => {
     assert.deepEqual(await m.action('rdv.libererEnvoi', { messageId }), { messageId, libere: false });
     assert.equal(m.base.docs.get(`rdv_messages/${messageId}`).d.etatEnvoi, 'envoye');
   });
+  test('« suspect » : libéré sans compter d’essai ordinaire, mais abandonné au cinquième refus sans raison claire', async () => {
+    const m = monde(); m.semer();
+    const { messageId } = (await m.action('rdv.aEnvoyer')).messages[0];
+    for (let k = 1; k <= 4; k += 1) {
+      assert.equal((await m.action('rdv.libererEnvoi', { messageId, suspect: true })).libere, true);
+      const doc = m.base.docs.get(`rdv_messages/${messageId}`).d;
+      assert.deepEqual([doc.etatEnvoi, doc.suspects, doc.essais], ['a_envoyer', k, 0]);
+      assert.ok((await m.action('rdv.aEnvoyer')).messages.some((x) => x.messageId === messageId));
+    }
+    const dernier = await m.action('rdv.libererEnvoi', { messageId, suspect: true });
+    assert.equal(dernier.abandonne, true);
+    const doc = m.base.docs.get(`rdv_messages/${messageId}`).d;
+    assert.deepEqual([doc.etatEnvoi, doc.suspects, doc.essais], ['abandonne', 5, 0]);
+    assert.ok(!(await m.action('rdv.aEnvoyer')).messages.some((x) => x.messageId === messageId), 'plus jamais redemandé');
+  });
   test('message inconnu ou entrant : 404', async () => {
     const m = monde(); m.semer();
     await assert.rejects(() => m.action('rdv.libererEnvoi', { messageId: 'inconnu' }), (e) => e.code === 'message_inconnu');

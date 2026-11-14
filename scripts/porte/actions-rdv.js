@@ -14,6 +14,7 @@ export const ESSAIS_MAX = 3;
 export const MAX_PAR_APPEL = 40;
 const LOT_MAX = 18; // une opération en moins que la limite de 20 de l'adaptateur : marge pour le repère « déjà vu »
 const T = { rdv: 'rdv_rendezvous', part: 'rdv_participants', msg: 'rdv_messages', param: 'rdv_parametres' };
+export const SUSPECTS_MAX = 5; // un SMS que ClickSend refuse seul, sans raison claire, est repris 5 fois au plus (jamais un renvoi sans fin si ClickSend l'avait en fait accepté)
 const PRECONDITION = (v) => v && typeof v === 'object' && v.preconditionEchouee === true;
 
 const chemin = (base, table, id) => `${base ? `${base}/` : ''}${table}${id === undefined ? '' : `/${id}`}`;
@@ -176,15 +177,21 @@ export const ACTIONS_RDV = Object.freeze({
   // Sans cela, chaque réservation expirée compterait comme un essai et trois pannes passagères abandonneraient le SMS pour toujours.
   'rdv.libererEnvoi': {
     ecrit: true,
-    schema: { messageId: { type: 'id', requis: true } },
+    schema: { messageId: { type: 'id', requis: true }, suspect: { type: 'booleen' } },
     async executer(ctx, d) {
       const { base, donnees } = ctx;
       const ch = chemin(base, T.msg, d.messageId);
       const m = await donnees.lireDoc(ch);
       if (!m || m.sens === 'entrant') throw new ErreurAction('message_inconnu', 'Ce message n\'existe pas.', 404);
       if (m.etatEnvoi !== 'reserve') return { messageId: d.messageId, libere: false };
-      const r = await donnees.majDoc(ch, { etatEnvoi: 'a_envoyer', reserveJusqua: null }, { lastUpdateTime: m.updateTime });
-      return { messageId: d.messageId, libere: !(r === false || PRECONDITION(r)) };
+      // `suspect` : ClickSend a refusé CE SMS sans raison claire. Il est libéré sans compter d'essai, mais un compteur à part le borne : au SUSPECTS_MAX-ième refus il est abandonné (alerte à la professionnelle).
+      const suspects = (m.suspects ?? 0) + (d.suspect ? 1 : 0);
+      const abandon = d.suspect && suspects >= SUSPECTS_MAX;
+      const patch = abandon
+        ? { etatEnvoi: 'abandonne', suspects, reserveJusqua: null, envoyeLe: new Date(instant(ctx.maintenant)), erreur: 'ClickSend refuse ce SMS sans raison claire' }
+        : { etatEnvoi: 'a_envoyer', reserveJusqua: null, ...(d.suspect ? { suspects } : {}) };
+      const r = await donnees.majDoc(ch, patch, { lastUpdateTime: m.updateTime });
+      return { messageId: d.messageId, libere: !(r === false || PRECONDITION(r)), ...(abandon ? { abandonne: true } : {}) };
     },
   },
 

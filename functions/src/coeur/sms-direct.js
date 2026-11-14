@@ -21,6 +21,7 @@ export const ESPACE_JEROME = 'interne';
 export const DELAI_SMS_MS = 15_000;
 export const BUDGET_TIR_MS = 45_000; // « tire maintenant » : l'écran attend (le navigateur abandonne à 70 s) ; le filet planifié passe un budget plus long
 export const ESSAIS_CONFIRMATION = 3;
+export const PAUSE_CONFIRMATION_MS = 300; // entre deux essais de confirmation (une panne de la base dure rarement moins)
 // Refus propres au DESTINATAIRE : seuls ceux-là comptent comme échec du SMS (3 échecs = abandon). Tout autre statut inconnu de ClickSend est traité comme un problème de COMPTE
 // (expéditeur non enregistré, pays fermé, compte non activé, limitation…) : le tir s'arrête et les SMS sont libérés sans compter d'essai, pour ne pas abandonner tout un espace en trois clics.
 export const STATUTS_DESTINATAIRE = Object.freeze(['INVALID_RECIPIENT', 'BLACKLISTED', 'BLOCKED', 'OPTED_OUT', 'UNSUBSCRIBED']);
@@ -74,7 +75,7 @@ function enISO(v) {
  * `clients/<client>` chez un client) ; `espaceRacine` : l'espace qui porte le secret sans suffixe (« interne » chez Jérôme, `null` sur la plateforme clients : un client nommé « interne » garde son suffixe) ; `moduleActif(espace)` (vrai par défaut : chez un client, le module « rdv » doit être allumé sur sa fiche) ;
  * `fetchImpl` : `fetch` (ou un faux ClickSend dans les essais).
  */
-export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () => true, espaceRacine = ESPACE_JEROME, fetchImpl = globalThis.fetch, maintenant = Date.now, delaiSmsMs = DELAI_SMS_MS, budgetMs = BUDGET_TIR_MS } = {}) {
+export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () => true, espaceRacine = ESPACE_JEROME, fetchImpl = globalThis.fetch, maintenant = Date.now, delaiSmsMs = DELAI_SMS_MS, budgetMs = BUDGET_TIR_MS, pauseConfirmationMs = PAUSE_CONFIRMATION_MS } = {}) {
   const cache = new Map(); // espace -> { expire, config | null }
   const instant = () => (typeof maintenant === 'function' ? maintenant() : maintenant);
 
@@ -94,17 +95,19 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
 
   /**
    * UN SMS vers ClickSend. Rend :
-   *  { statut: 'ok', idFournisseur }                    : accepté ;
-   *  { statut: 'echec', message }                       : refus définitif de CE SMS (mauvais numéro…) ;
-   *  { statut: 'arret', raison }                        : RIEN n'est parti et ce n'est pas la faute du SMS (clé refusée, crédit épuisé, limitation, ClickSend indisponible, statut inconnu) :
-   *                                                       on arrête le tir et on libère les SMS sans compter d'essai ;
-   *  { statut: 'incertain' }                            : on ne sait pas si le SMS est parti (réseau coupé, délai dépassé, réponse 200 illisible) : rien n'est confirmé NI libéré,
-   *                                                       la réservation de 15 minutes expire puis la porte le reprend en comptant un essai (3 au plus, puis abandon).
+   *  { statut: 'ok', idFournisseur }          : accepté ;
+   *  { statut: 'echec', message }             : refus définitif de CE SMS par ClickSend, propre au destinataire (STATUTS_DESTINATAIRE) ;
+   *  { statut: 'arret', raison, parti? }      : problème de COMPTE ou de service (clé refusée, crédit épuisé, limitation, ClickSend en panne) : on arrête le tir. `parti: true` (5xx : la passerelle a
+   *                                             peut-être expiré APRÈS avoir accepté) : CE SMS reste réservé et compte comme douteux ; les autres sont libérés sans essai ;
+   *  { statut: 'suspect', raison }            : refus que l'on ne sait pas classer (statut inconnu, 4xx) : on ne décide qu'avec la preuve des autres SMS du tir (voir `tirer`) ;
+   *  { statut: 'incertain' }                  : on ne sait pas si le SMS est parti (réseau coupé, délai dépassé, réponse 200 illisible) : rien n'est confirmé NI libéré, la réservation de 15 minutes
+   *                                             expire puis la porte le reprend en comptant un essai (3 au plus, puis abandon).
    */
   async function envoyerUn(config, { numero, texte }) {
     const arret = new AbortController();
     const minuteur = setTimeout(() => arret.abort(), delaiSmsMs);
     let reponse;
+    let j = null;
     try {
       reponse = await fetchImpl(URL_ENVOI, {
         method: 'POST',
@@ -113,56 +116,88 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
         redirect: 'error',
         signal: arret.signal,
       });
+      try { j = await reponse.json(); } catch { /* corps illisible ou trop lent (le même délai couvre la lecture) */ }
     } catch { return { statut: 'incertain' }; } finally { clearTimeout(minuteur); }
     if (reponse.status === 401 || reponse.status === 403) return { statut: 'arret', raison: 'cle_refusee' };
     if (reponse.status === 429) return { statut: 'arret', raison: 'trop_de_requetes' };
-    if (reponse.status >= 500) return { statut: 'arret', raison: 'clicksend_indisponible' };
-    let j = null;
-    try { j = await reponse.json(); } catch { /* corps illisible */ }
+    if (reponse.status >= 500) return { statut: 'arret', raison: 'clicksend_indisponible', parti: true };
     const m = j?.data?.messages?.[0];
     const statut = String(m?.status ?? '').toUpperCase();
     if (reponse.ok && statut === 'SUCCESS') return { statut: 'ok', idFournisseur: String(m.message_id ?? '').toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 60) || undefined };
     if (statut === 'INSUFFICIENT_CREDIT' || /insufficient/i.test(String(j?.response_code ?? ''))) return { statut: 'arret', raison: 'credit_epuise' };
     if (STATUTS_DESTINATAIRE.includes(statut)) return { statut: 'echec', message: `ClickSend : ${statut}`.slice(0, 200) };
-    if (statut) return { statut: 'arret', raison: `statut_${statut.replace(/[^A-Z0-9_]/g, '').slice(0, 40)}` };
-    if (reponse.status >= 400) return { statut: 'arret', raison: `refus_${reponse.status}` };
+    if (statut) return { statut: 'suspect', raison: `statut_${statut.replace(/[^A-Z0-9_]/g, '').slice(0, 40)}` };
+    if (reponse.status >= 400) return { statut: 'suspect', raison: `refus_${reponse.status}` };
     return { statut: 'incertain' };
   }
 
   /** `confirmerEnvoi` est rejouable : on l'essaie 3 fois de suite (un SMS parti dont la confirmation se perd serait renvoyé 15 minutes plus tard : double SMS réel). Vrai si confirmé. */
   async function confirmer(ctx, parametres) {
     for (let k = 0; k < ESSAIS_CONFIRMATION; k += 1) {
-      try { await lancerAction(ACTIONS_RDV['rdv.confirmerEnvoi'], parametres, ctx); return true; } catch { /* nouvel essai */ }
+      try { await lancerAction(ACTIONS_RDV['rdv.confirmerEnvoi'], parametres, ctx); return true; } catch { /* nouvel essai, après une courte pause */ }
+      if (pauseConfirmationMs > 0 && k < ESSAIS_CONFIRMATION - 1) await new Promise((fin) => setTimeout(fin, pauseConfirmationMs));
     }
     return false;
   }
-  const liberer = async (ctx, messageId) => { try { await lancerAction(ACTIONS_RDV['rdv.libererEnvoi'], { messageId }, ctx); } catch { /* il expirera seul : un essai de plus, jamais un SMS perdu */ } };
+  const liberer = async (ctx, messageId, { suspect = false } = {}) => { try { await lancerAction(ACTIONS_RDV['rdv.libererEnvoi'], { messageId, ...(suspect ? { suspect: true } : {}) }, ctx); } catch { /* il expirera seul : un essai de plus, jamais un SMS perdu */ } };
 
   /**
-   * Envoie tous les SMS dus de l'espace, dans la limite de `budgetMs` (jamais plus que ce que la fonction appelante peut durer : un tir coupé en plein envoi laisserait un SMS parti sans confirmation).
+   * Envoie tous les SMS dus de l'espace, dans la limite de `budgetMs` (compté depuis le tout début : lecture de la connexion et des SMS dus comprise ; jamais plus que ce que la fonction appelante peut durer).
    * Rend { branche, envoyes, echecs, incertains, restants, arret? } (aucune donnée sensible : ni clé, ni numéro, ni texte).
+   *
+   * Refus que l'on ne sait pas classer (« suspects ») : un seul SMS refusé ne doit jamais bloquer tout l'espace, et une erreur de COMPTE ne doit jamais abandonner tout l'espace. On décide donc PAR LA PREUVE du tir :
+   *  - un autre SMS du même tir a été accepté (ou refusé pour son destinataire) : le compte marche, le suspect a un problème propre : échec compté (3 = abandon + alerte), les autres partent ;
+   *  - deux suspects de même raison et aucun succès : problème de compte : on arrête le tir, tout est libéré SANS compter d'essai ;
+   *  - un suspect seul : libéré sans compter d'essai, avec un compteur à part (5 reprises au plus puis abandon) : il ne bloque personne.
    */
   async function tirer(espace, { budgetMs: budget = budgetMs } = {}) {
-    const config = await configuration(espace);
+    const debut = instant();
     const bilan = { branche: false, envoyes: 0, echecs: 0, incertains: 0, restants: 0 };
+    const config = await configuration(espace);
     if (!config) return bilan;
     bilan.branche = true;
     const ctx = contexte(espace);
     const { messages = [] } = await lancerAction(ACTIONS_RDV['rdv.aEnvoyer'], {}, ctx);
-    const debut = instant();
+    const suspects = [];
+    let reussites = 0; // SMS acceptés ou refusés pour leur destinataire : preuve que le compte fonctionne
+    const libererTous = (liste, options) => Promise.all(liste.map((x) => liberer(ctx, x.messageId, options)));
+    const trancher = async () => {
+      const liste = suspects.splice(0);
+      if (!liste.length) return;
+      if (reussites > 0) {
+        for (const x of liste) { await confirmer(ctx, { messageId: x.m.messageId, statut: 'echec', message: `ClickSend : ${x.raison}`.slice(0, 200) }); bilan.echecs += 1; }
+      } else if (liste.length === 1) await liberer(ctx, liste[0].m.messageId, { suspect: true });
+      else { await libererTous(liste.map((x) => x.m)); bilan.arret ??= liste[0].raison; }
+    };
+    const arreter = async (raison, aLiberer) => {
+      bilan.arret = raison;
+      await libererTous(suspects.splice(0).map((x) => x.m));
+      bilan.restants = aLiberer.length;
+      await libererTous(aLiberer);
+    };
     for (const [i, m] of messages.entries()) {
-      // On n'ouvre pas un envoi qui pourrait dépasser le budget (un SMS peut durer `delaiSmsMs`) : les SMS restants sont libérés, sans compter d'essai.
-      if (!bilan.arret && instant() - debut + delaiSmsMs > budget) bilan.arret = 'budget_depasse';
-      if (bilan.arret) { bilan.restants = messages.length - i; for (const reste of messages.slice(i)) await liberer(ctx, reste.messageId); break; }
+      // On n'ouvre pas un envoi qui pourrait dépasser le budget (un SMS peut durer `delaiSmsMs`) : on tranche les suspects, puis les SMS restants sont libérés sans compter d'essai.
+      if (instant() - debut + delaiSmsMs > budget) { await trancher(); bilan.arret ??= 'budget_depasse'; bilan.restants = messages.length - i; await libererTous(messages.slice(i)); break; }
       const r = await envoyerUn(config, m);
-      if (r.statut === 'arret') { bilan.arret = r.raison; bilan.restants = messages.length - i; for (const reste of messages.slice(i)) await liberer(ctx, reste.messageId); break; }
+      if (r.statut === 'arret') {
+        if (r.parti) bilan.incertains += 1; // ce SMS est peut-être parti : il reste réservé (essai compté à l'expiration), jamais libéré
+        await arreter(r.raison, messages.slice(r.parti ? i + 1 : i));
+        break;
+      }
       if (r.statut === 'incertain') { bilan.incertains += 1; continue; }
+      if (r.statut === 'suspect') {
+        suspects.push({ m, raison: r.raison });
+        if (reussites === 0 && suspects.length >= 2 && new Set(suspects.map((x) => x.raison)).size === 1) { await arreter(r.raison, messages.slice(i + 1)); break; }
+        continue;
+      }
+      reussites += 1;
       const confirme = await confirmer(ctx, r.statut === 'ok'
         ? { messageId: m.messageId, statut: 'ok', ...(r.idFournisseur ? { idFournisseur: r.idFournisseur } : {}) }
         : { messageId: m.messageId, statut: 'echec', message: r.message });
       if (!confirme) { bilan.incertains += 1; continue; } // parti (ou refusé) mais non noté : la réservation expire, la porte reprendra (comptée comme un essai)
       if (r.statut === 'ok') bilan.envoyes += 1; else bilan.echecs += 1;
     }
+    await trancher();
     return bilan;
   }
 
