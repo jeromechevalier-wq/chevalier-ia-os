@@ -59,11 +59,11 @@ Dans ClickSend, créer une règle « SMS entrants » (Inbound SMS rule) qui envo
 3. Répondre « 1 » : la fiche montre la réponse et la coche. Répondre « STOP » : plus aucun SMS ne part vers ce numéro et la professionnelle est prévenue.
 4. Seulement après : un vrai rendez-vous. **Jamais d'envoi à un tiers avant d'avoir vu un SMS arriver sur le numéro de test.**
 5. Si « Envoyer » reste grisé : le secret est absent, mal écrit (JSON invalide, jeton trop court) ou illisible par le compte de service ; le journal des fonctions ne dit rien de plus à dessein.
-6. **Pannes et refus** (ce que fait le serveur) :
-   - clé refusée (401/403), crédit épuisé, limitation (429) : le tir **s'arrête**, tous les SMS sont **libérés sans compter d'essai** (`rdv.libererEnvoi`) et repartent au tir suivant, une fois le problème réglé ;
-   - ClickSend en panne (5xx) : le tir s'arrête ; le SMS en cours est peut-être accepté (passerelle expirée après coup) : il reste **réservé** et compte comme douteux (jamais de renvoi sans fin : 3 tentatives au plus, puis abandon avec alerte) ; les autres sont libérés sans essai ;
-   - refus propre au destinataire (`INVALID_RECIPIENT`, `BLACKLISTED`, `BLOCKED`, `OPTED_OUT`, `UNSUBSCRIBED`) : échec de CE SMS seulement ; au troisième échec il est abandonné et la professionnelle est alertée ;
-   - **refus qu'on ne sait pas classer** (statut inconnu, par exemple `COUNTRY_NOT_ENABLED`, `INVALID_SENDER_ID`, `QUEUED`, ou refus 4xx) : on décide **par la preuve du tir**. Un autre SMS du même tir est accepté : le compte marche, le suspect a un problème propre, son échec est compté (3 = abandon + alerte) et les autres partent. Deux suspects de même raison et aucun succès : problème de compte, le tir s'arrête, tout est libéré sans compter. Un suspect seul : libéré sans compter d'essai mais avec un compteur à part : abandonné au 5e refus (alerte). Un seul numéro refusé ne bloque donc jamais tous les autres, et une erreur de configuration n'abandonne jamais tout l'espace ;
+6. **Pannes et refus** (ce que fait le serveur ; chaque SMS est traité SEUL) :
+   - **problème de compte** : clé refusée (401/403), crédit épuisé, limitation (429), expéditeur non enregistré (`INVALID_SENDER_ID`), compte non activé, identifiants manquants, ClickSend indisponible (502/503 : rien n'est parti) : le tir **s'arrête**, tous les SMS sont **libérés sans compter d'essai** (`rdv.libererEnvoi`) et repartent au tir suivant, une fois le problème réglé. Rien n'est abandonné pour un réglage à corriger ;
+   - **refus propre à un SMS** (mauvais numéro `INVALID_RECIPIENT`, pays fermé `COUNTRY_NOT_ENABLED`, statut inconnu, autre refus 4xx) : échec de CE SMS seulement, compté ; il n'est pas redemandé avant **10 minutes** (trois clics rapides ne brûlent donc jamais les trois essais) ; au troisième échec il est abandonné et la professionnelle est alertée. Il ne bloque jamais les autres SMS ;
+   - ClickSend accepte (`SUCCESS`, `QUEUED` ou `SCHEDULED`) : le SMS est « envoyé » ;
+   - ClickSend en panne avec doute (500 ou 504 : la passerelle a peut-être accepté avant d'expirer) : le tir s'arrête ; le SMS en cours reste **réservé** et compte comme douteux (3 tentatives au plus, puis abandon avec alerte, jamais de renvoi sans fin) ; les autres sont libérés sans essai ;
    - doute réel (réseau coupé, délai de 15 secondes dépassé, réponse 200 illisible) : rien n'est confirmé ni libéré ; la réservation de 15 minutes expire puis le SMS est repris en comptant un essai (3 au plus, puis abandon avec alerte) ;
    - la confirmation « envoyé » est rejouée 3 fois (avec une pause) : un SMS parti dont la confirmation se perd serait renvoyé (double SMS réel) ;
    - temps : « tire maintenant » dure au plus 45 secondes (lecture de la connexion et des SMS dus comprise), le filet 200 secondes (300 pour la fonction) ; chez les clients, le temps total est partagé (270 s), les clients sont parcourus en rotation (point de départ différent à chaque quart d'heure) et les restants sont repris au tour suivant. Un envoi qui pourrait dépasser le budget n'est pas ouvert.
@@ -83,13 +83,13 @@ Depuis le 14/11/2026 elles sont appelées **directement par le serveur** (`funct
 
 ### `rdv.libererEnvoi`
 - **Entrée** : `{ messageId }`. **Sortie** : `{ messageId, libere }`.
-- **Entrée** : `{ messageId, suspect? }`. Rend un SMS **réservé** à « à envoyer » **sans compter d'essai** : l'appelant sait que rien n'est parti (clé refusée, crédit épuisé, limitation, budget de temps dépassé). `suspect: true` (refus non classé d'un SMS seul) tient un compteur à part : abandon au 5e refus (`abandonne: true`). Un SMS déjà envoyé, échoué ou abandonné n'est pas touché (`libere: false`). **Erreur** : 404 `message_inconnu`.
+- **Entrée** : `{ messageId }`. Rend un SMS **réservé** à « à envoyer » **sans compter d'essai** : l'appelant sait que rien n'est parti (clé refusée, crédit épuisé, limitation, budget de temps dépassé). Un SMS déjà envoyé, échoué ou abandonné n'est pas touché (`libere: false`). **Erreur** : 404 `message_inconnu`.
 
 ### `rdv.confirmerEnvoi`
 - **Entrée** : `{ messageId, statut: "ok" | "echec", idFournisseur?, message? }`.
 - **Sortie** : `{ messageId, statut, deja }`. Rejouer un SMS déjà confirmé rend `deja: true` sans rien changer.
 - `ok` : le document passe à `envoye` avec `envoyeLe` ; suites : l'alerte « relances terminées » est notée sur le rendez-vous (`relancesTermineesLe`, colonne « À reprendre »), le compteur de relances avance.
-- `echec` : `essais + 1` ; au troisième échec le SMS est `abandonne` (plus jamais redemandé ; à regarder dans le Journal).
+- `echec` : `essais + 1` ; le SMS n'est pas redemandé avant 10 minutes (`reessaiApres`) ; au troisième échec il est `abandonne` (plus jamais redemandé ; alerte à la professionnelle ; à regarder dans le Journal).
 - **Erreurs** : 404 `message_inconnu` ; 409 `conflit` (le message a changé entre-temps : réessayer).
 
 ### `rdv.enregistrerReponse`

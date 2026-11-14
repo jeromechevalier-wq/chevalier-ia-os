@@ -337,58 +337,69 @@ describe('pannes passagères : rien n’est abandonné, rien n’est perdu', () 
     assert.ok(m.messages().every((x) => x.etatEnvoi === 'a_envoyer' && !x.essais));
   });
 
-  test('ClickSend en panne (5xx) : le SMS en cours est peut-être accepté (passerelle expirée après coup) : il reste réservé et compte comme douteux, jamais de renvoi sans fin ; les autres sont libérés', async () => {
+  test('un problème de COMPTE (expéditeur non enregistré, compte non activé, identifiants manquants, limitation) arrête le tir sans rien brûler, même après trois clics de suite', async () => {
+    for (const statut of ['INVALID_SENDER_ID', 'ACCOUNT_NOT_ACTIVATED', 'MISSING_CREDENTIALS', 'THROTTLED']) {
+      const m = monde({ reponses: () => REPONSE_STATUT(statut) }); m.semer();
+      for (let k = 0; k < 3; k += 1) { const b = await m.sms.tirer('interne'); assert.equal(b.arret, `compte_${statut.toLowerCase()}`); m.temps.t += 2000; }
+      assert.ok(m.messages().every((x) => x.etatEnvoi === 'a_envoyer' && !x.essais), statut);
+      assert.equal(m.appels.length, 3, `${statut} : un appel par tir, on ne martèle pas`);
+    }
+  });
+
+  test('un refus propre à UN SMS (pays fermé, statut inconnu, 4xx) : échec compté de CE SMS seulement, repris au plus tôt 10 minutes plus tard, 3 échecs = abandon ; les autres partent (jamais de blocage de tout l’espace)', async () => {
+    const m = monde({ reponses: (n, a) => (a.corps.messages[0].to === '+33600000001' ? REPONSE_STATUT('COUNTRY_NOT_ENABLED') : REPONSE_OK(`OK-${n}`)) });
+    m.semer('r1', {}, [['p1', 'Refuse', '+33600000001'], ['p2', 'B', '+33600000002'], ['p3', 'C', '+33600000003']]);
+    const b = await m.sms.tirer('interne');
+    assert.equal(b.arret, undefined, 'aucun arrêt : chaque SMS est traité seul');
+    assert.deepEqual([b.envoyes, b.echecs], [2, 1]);
+    const versRefuse = () => m.appels.filter((a) => a.corps.messages[0].to === '+33600000001').length;
+    assert.equal(versRefuse(), 1);
+    for (let k = 0; k < 3; k += 1) { m.temps.t += 2000; await m.sms.tirer('interne'); }
+    assert.equal(versRefuse(), 1, 'trois clics rapides : pas de nouvel essai avant 10 minutes');
+    for (let k = 0; k < 8; k += 1) { m.temps.t += 15 * 60_000; await m.sms.tirer('interne'); }
+    const msgs = m.messages();
+    const refuses = msgs.filter((x) => x.numero === '+33600000001' && x.typeMessage !== 'alerte');
+    assert.ok(refuses.length >= 2 && refuses.every((x) => x.etatEnvoi === 'abandonne' && x.essais === 3), 'présentation et créneaux du numéro refusé : abandonnés après 3 échecs (alerte à la professionnelle)');
+    assert.ok(versRefuse() <= 6, `3 essais au plus par SMS (2 SMS) : ${versRefuse()}`);
+    const autres = msgs.filter((x) => x.numero !== '+33600000001' && x.typeMessage !== 'alerte');
+    assert.ok(autres.length >= 4 && autres.every((x) => x.etatEnvoi === 'envoye'), 'les autres participants reçoivent tout (présentation et créneaux), à chaque tir');
+  });
+
+  test('statut inconnu pour TOUS les SMS (erreur de réglage de ClickSend) : trois clics rapides n’abandonnent rien ; ce n’est abandonné et signalé qu’après des échecs espacés de plus de 10 minutes', async () => {
+    const m = monde({ reponses: () => REPONSE_STATUT('UN_STATUT_INCONNU') }); m.semer();
+    for (let k = 0; k < 3; k += 1) { await m.sms.tirer('interne'); m.temps.t += 2000; }
+    assert.equal(m.appels.length, 2, 'un essai par SMS, puis le délai de 10 minutes s’applique');
+    assert.ok(m.messages().every((x) => x.etatEnvoi === 'echec' && x.essais === 1));
+    for (let k = 0; k < 4; k += 1) { m.temps.t += 11 * 60_000; await m.sms.tirer('interne'); }
+    assert.ok(m.messages().filter((x) => x.typeMessage !== 'alerte').every((x) => x.etatEnvoi === 'abandonne' && x.essais === 3));
+  });
+
+  test('« QUEUED » ou « SCHEDULED » avec succès HTTP : accepté (pas un échec, aucun renvoi)', async () => {
+    const m = monde({ reponses: () => REPONSE_STATUT('QUEUED') }); m.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
+    const b = await m.sms.tirer('interne');
+    assert.deepEqual([b.envoyes, b.echecs], [1, 0]);
+    assert.equal(m.messages()[0].etatEnvoi, 'envoye');
+  });
+
+  test('seuls les refus du destinataire ou du SMS comptent : INVALID_RECIPIENT trois fois, espacés de plus de 10 minutes = abandon de ce SMS', async () => {
+    const m = monde({ reponses: () => REPONSE_STATUT('INVALID_RECIPIENT') }); m.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
+    for (let k = 0; k < 3; k += 1) { await m.sms.tirer('interne'); m.temps.t += 11 * 60_000; }
+    const x = m.messages().find((y) => y.numero === '+33600000001' && y.typeMessage === 'confiance');
+    assert.equal(x.etatEnvoi, 'abandonne');
+    assert.equal(x.essais, 3);
+  });
+
+  test('ClickSend indisponible : 503 (rien n’est parti) libère tout sans essai ; 504 (la passerelle a peut-être accepté) laisse le SMS en cours réservé et douteux : au plus 3 tentatives par SMS, puis abandon et alerte', async () => {
+    const m503 = monde({ reponses: () => ({ ok: false, status: 503, json: async () => ({}) }) }); m503.semer();
+    for (let k = 0; k < 4; k += 1) { await m503.sms.tirer('interne'); m503.temps.t += 15 * 60_000; }
+    assert.ok(m503.messages().every((x) => x.etatEnvoi === 'a_envoyer' && !x.essais), '503 : rien brûlé');
     const m = monde({ reponses: () => ({ ok: false, status: 504, json: async () => ({}) }) }); m.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
     const premier = await m.sms.tirer('interne');
     assert.deepEqual([premier.arret, premier.incertains], ['clicksend_indisponible', 1]);
     assert.equal(m.messages().filter((x) => x.etatEnvoi === 'reserve').length, 1, 'le SMS en cours reste réservé (pas libéré)');
     for (let k = 0; k < 14; k += 1) { m.temps.t += 15 * 60_000; await m.sms.tirer('interne'); }
     assert.ok(m.appels.length <= 3 * m.messages().length, `chaque SMS est tenté 3 fois au plus : ${m.appels.length} appels pour ${m.messages().length} SMS`);
-    assert.ok(m.messages().some((x) => x.etatEnvoi === 'abandonne'), 'après 3 doutes, abandon (alerte à la professionnelle)');
     assert.ok(m.messages().every((x) => x.etatEnvoi === 'abandonne'), 'à la fin, plus rien n’est tenté : tout est abandonné et signalé');
-  });
-
-  test('un refus de CONFIGURATION du compte (expéditeur non enregistré, pays fermé…) arrête le tir et ne brûle rien, même après trois clics de suite', async () => {
-    for (const statut of ['INVALID_SENDER_ID', 'COUNTRY_NOT_ENABLED', 'ACCOUNT_NOT_ACTIVATED', 'UN_STATUT_INCONNU']) {
-      const m = monde({ reponses: () => REPONSE_STATUT(statut) }); m.semer();
-      for (let k = 0; k < 3; k += 1) { const b = await m.sms.tirer('interne'); assert.equal(b.arret, `statut_${statut}`); m.temps.t += 2000; }
-      assert.ok(m.messages().every((x) => x.etatEnvoi === 'a_envoyer' && !x.essais), statut);
-      assert.equal(m.appels.length, 6, `${statut} : deux appels par tir (deux refus identiques sans aucun succès = problème de compte), on ne martèle pas`);
-    }
-  });
-
-  test('UN numéro refusé par ClickSend avec un statut non classé, parmi des numéros acceptés : les autres partent, ce SMS-là est compté en échec (3 = abandon) et ne bloque personne', async () => {
-    const m = monde({ reponses: (n, a) => (a.corps.messages[0].to === '+33600000001' ? REPONSE_STATUT('COUNTRY_NOT_ENABLED') : REPONSE_OK(`OK-${n}`)) });
-    m.semer('r1', {}, [['p1', 'Refuse', '+33600000001'], ['p2', 'B', '+33600000002'], ['p3', 'C', '+33600000003']]);
-    const b = await m.sms.tirer('interne');
-    assert.equal(b.arret, undefined, 'pas d’arrêt : un autre SMS a prouvé que le compte marche');
-    assert.deepEqual([b.envoyes, b.echecs], [2, 1]);
-    const refuse1 = m.messages().find((x) => x.numero === '+33600000001');
-    assert.deepEqual([refuse1.etatEnvoi, refuse1.essais], ['echec', 1], 'échec compté, grâce à la preuve des autres SMS');
-    for (let k = 0; k < 8; k += 1) { m.temps.t += 2000; await m.sms.tirer('interne'); }
-    const msgs = m.messages();
-    const refuse = msgs.find((x) => x.numero === '+33600000001' && x.typeMessage === 'confiance');
-    assert.equal(refuse.etatEnvoi, 'abandonne', 'repris seul (borné à 5), puis abandonné');
-    assert.equal(msgs.filter((x) => x.etatEnvoi === 'envoye' && x.typeMessage === 'confiance' && x.numero !== '+33600000001').length, 2, 'les autres participants ne sont pas touchés');
-    assert.ok(m.appels.filter((a) => a.corps.messages[0].to === '+33600000001').length <= 7, 'jamais de martèlement');
-  });
-
-  test('un SMS refusé seul sans raison claire (statut inconnu) ne bloque personne, est repris 5 fois au plus puis abandonné : jamais de renvoi sans fin', async () => {
-    const m = monde({ reponses: () => REPONSE_STATUT('QUEUED') }); m.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
-    for (let k = 0; k < 8; k += 1) { await m.sms.tirer('interne'); m.temps.t += 2000; }
-    const versParticipant = m.appels.filter((a) => a.corps.messages[0].to === '+33600000001');
-    assert.equal(versParticipant.length, 5, 'cinq appels vers le participant puis plus rien');
-    const x = m.messages().find((y) => y.numero === '+33600000001');
-    assert.equal(x.etatEnvoi, 'abandonne');
-    assert.equal(x.essais ?? 0, 0, 'jamais compté comme essai ordinaire');
-  });
-
-  test('seuls les refus du DESTINATAIRE comptent : INVALID_RECIPIENT trois fois = abandon de ce SMS', async () => {
-    const m = monde({ reponses: () => REPONSE_STATUT('INVALID_RECIPIENT') }); m.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
-    for (let k = 0; k < 3; k += 1) { await m.sms.tirer('interne'); m.temps.t += 2000; }
-    const [x] = m.messages();
-    assert.equal(x.etatEnvoi, 'abandonne');
-    assert.equal(x.essais, 3);
   });
 
   test('SMS accepté par ClickSend mais confirmation en panne : confirmée au deuxième essai, jamais renvoyé ; si tout échoue, il reste réservé (aucun double SMS avant 15 minutes)', async () => {
