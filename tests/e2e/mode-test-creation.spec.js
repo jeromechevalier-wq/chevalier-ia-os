@@ -213,6 +213,7 @@ test('4 un seul point d’entrée (statique) : plans, constructeurs et écriture
     'modules/projets/logique.js': 'les constructeurs et les plans de projets et de tâches',
     'modules/devis/logique.js': 'nouveauDevis (constructeur pur)',
     'modules/devis/brouillon.js': 'planCreerBrouillon (plan pur)',
+    'modules/rdv/donnees.js': 'module Rendez-vous : écritures de ses propres tables ; le rendez-vous passe par avecModeTest et la fiche Personne créée par planCreerPersonne(avecModeTest(…))',
     'modules/devis/articles.js': 'le catalogue : jamais marqué test (décision du cadrage, point 9d)',
     'modules/devis/vocabulaire-plans.js': 'le catalogue (vocabulaire) : jamais marqué test (point 9d)',
     'modules/reseauxsociaux/idees-logique.js': 'plans purs du module Réseaux sociaux (tables propres au module, jamais marquées test ; l’écriture passe par donnees.js)',

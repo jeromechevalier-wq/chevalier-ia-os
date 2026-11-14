@@ -200,6 +200,34 @@ export const MODULES_DECLARES = geler([
     socle: true,
   },
   {
+    // Rendez-vous (14/11/2026) : proposer 1 à 3 créneaux de rendez-vous de chantier par SMS à 2 à 5 personnes, lire leurs réponses, relancer, trouver le créneau commun ;
+    // seule la professionnelle confirme. Participants = fiches Personnes du socle (aucun autre module requis). UN seul écran (la liste) ; la fiche d'un rendez-vous et la création
+    // s'ouvrent depuis elle. Réglages dans la page Réglages de la coque. Les SMS passeront par n8n (PR 4) : tant que l'envoi n'est pas branché, « Envoyer » reste grisé.
+    id: 'rdv',
+    nom: 'Rendez-vous',
+    libelleMenu: 'Rendez-vous',
+    iconeMenu: 'calendar-check',
+    prefixe: 'rdv',
+    reglages: { sections: [
+      { id: 'reglages-rdv-relances', libelle: 'Relances' },
+      { id: 'reglages-rdv-rappel', libelle: 'Rappel la veille' },
+      { id: 'reglages-rdv-plage', libelle: 'Plage d’envoi' },
+      { id: 'reglages-rdv-alertes', libelle: 'Numéros qui reçoivent les alertes' },
+      { id: 'reglages-rdv-nom', libelle: 'Ton nom dans les SMS' },
+      { id: 'reglages-rdv-roles', libelle: 'Rôles des participants' },
+      { id: 'reglages-rdv-modeles', libelle: 'Modèles de SMS' },
+      { id: 'reglages-export-rdv', libelle: 'Sauvegarde' },
+    ] },
+    entreeMenu: 'rdv/liste',
+    ecrans: [
+      { route: 'rdv/liste', libelle: 'Rendez-vous', icone: 'calendar-check' },
+    ],
+    collections: ['rdv_rendezvous', 'rdv_participants', 'rdv_messages', 'rdv_parametres'],
+    outilsMcp: [],
+    dependances: [],
+    socle: true,
+  },
+  {
     // Automatisations : historique des workflows n8n (chantier 14, anciennement le module « journal »). Présent chez Jérôme comme chez les clients.
     // Ses données (workflows, executions, sync) sont écrites par les fonctions du serveur seulement ; l'écran les lit.
     // Chez Jérôme (racine), rien ne les remplit encore (la copie de ses propres workflows n'est pas développée) : l'écran affiche un état vide.

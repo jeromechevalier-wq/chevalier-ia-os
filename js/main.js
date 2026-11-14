@@ -127,6 +127,7 @@ function fermerSession() {
   import('./os/journal.js').then((m) => m.oublierFiltresJournal()).catch(() => {});
   import('./modules/veille/ecran.js').then((m) => m.oublierFiltresVeille()).catch(() => {});
   import('./modules/reseauxsociaux/index.js').then((m) => m.oublierFiltres()).catch(() => {});
+  import('./modules/rdv/index.js').then((m) => m.oublierFiltres()).catch(() => {});
   import('./modules/automatisations/ecran.js').then((m) => m.oublierFiltresAutomatisations()).catch(() => {});
   session = null;
 }

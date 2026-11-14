@@ -1,0 +1,61 @@
+/* Module Rendez-vous : cartes du Kanban, création, réglages, bulles de SMS. Les boutons, cartes, pastilles et lignes de liste viennent de os.css et crm.css.
+   Tailles et poids de texte : toujours les variables de tokens.css. Les couleurs de sens (vert = ça convient, rouge = ça ne convient pas) restent celles de la palette. */
+.page-rdv { max-width: 1120px; }
+.page-rdv-creation, .page-rdv-fiche { max-width: 760px; margin-inline: auto; }
+.page-rdv .carte-section { margin-bottom: var(--esp-6); }
+.page-rdv .lien-retour { display: inline-flex; align-items: center; gap: var(--esp-1); color: var(--texte2); text-decoration: none; margin-bottom: var(--esp-3); }
+.page-rdv .lien-retour:hover, .page-rdv .lien-retour:focus-visible { color: var(--texte); }
+.carte-rdv .carte-etat-rdv { color: var(--texte2); }
+.etat-en_attente { --couleur: var(--gris); }
+.etat-a_valider { --couleur: var(--violet); }
+.etat-confirme { --couleur: var(--succes); }
+.etat-a_reprendre { --couleur: var(--retard); }
+.carte-rdv { border-left: 3px solid var(--couleur, var(--bordure)); }
+.pastille-statut.etat-en_attente, .pastille-statut.etat-a_valider, .pastille-statut.etat-confirme, .pastille-statut.etat-a_reprendre { --couleur: inherit; }
+
+/* Création */
+.champ-multiligne { width: 100%; min-height: 4.5em; resize: vertical; font: inherit; }
+.rdv-ligne-participant { display: grid; grid-template-columns: 2fr 1.4fr 1.2fr auto; gap: var(--esp-4); align-items: end; padding-bottom: var(--esp-4); border-bottom: 1px solid var(--bordure); }
+.rdv-ligne-participant:last-child { border-bottom: 0; }
+.rdv-erreurs p { margin: 0 0 var(--esp-1); }
+.rdv-libelle-creneau { display: block; min-height: 1.2em; }
+.rdv-apercu { display: grid; gap: var(--esp-5); }
+.rdv-apercu-sms { display: grid; gap: var(--esp-1); }
+@media (max-width: 700px) { .rdv-ligne-participant { grid-template-columns: 1fr; } }
+
+/* Bulles de SMS : ce qu'on envoie à gauche (violet), ce qu'on reçoit à droite (gris) */
+.page-rdv .bulle-ligne { display: flex; flex-direction: column; gap: var(--esp-1); max-width: 85%; }
+.page-rdv .bulle-sortant { align-items: flex-start; margin-right: auto; }
+.page-rdv .bulle-entrant { align-items: flex-end; margin-left: auto; }
+.page-rdv .bulle { padding: var(--esp-4) var(--esp-6); border-radius: var(--rayon-carte); border: 1px solid transparent; }
+.page-rdv .bulle-sortant .bulle { background: var(--violet-clair); color: var(--ink); border-bottom-left-radius: var(--rayon-petit); }
+.page-rdv .bulle-entrant .bulle { background: var(--panneau2); color: var(--texte); border-bottom-right-radius: var(--rayon-petit); }
+.page-rdv .bulle-incomprise .bulle { border-color: var(--retard); }
+.page-rdv .bulle-texte { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.page-rdv .bulle-pied { color: var(--texte2); font-size: var(--fs-petit); }
+.compteur-sms { margin: 0; color: var(--texte2); font-size: var(--fs-petit); }
+.compteur-sms-long { color: var(--retard); }
+
+/* Réglages */
+.rdv-reglage-ligne { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--esp-4); }
+.rdv-reglage-ligne.grisee { opacity: .5; }
+.champ-nombre { width: 6rem; }
+.champ-heure { width: 8rem; }
+.interrupteur { position: relative; width: 2.6rem; height: 1.5rem; padding: 0; border: 1px solid var(--bordure-forte); border-radius: 999px; background: var(--panneau2); cursor: pointer; transition: background var(--transition); flex: none; }
+.interrupteur[aria-checked='true'] { background: var(--succes); border-color: var(--succes); }
+.interrupteur:disabled { opacity: .5; cursor: not-allowed; }
+.interrupteur-bouton { position: absolute; top: 2px; left: 2px; width: calc(1.5rem - 6px); height: calc(1.5rem - 6px); border-radius: 50%; background: var(--papier); transition: transform var(--transition); }
+.interrupteur[aria-checked='true'] .interrupteur-bouton { transform: translateX(1.1rem); }
+.rdv-numero { display: flex; align-items: center; gap: var(--esp-5); }
+.rdv-numero-nom { flex: 1 1 auto; font-weight: var(--poids-moyen); }
+.rdv-numero-tel { color: var(--texte2); }
+.rdv-role { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-4); padding: var(--esp-2) 0; border-bottom: 1px solid var(--bordure); }
+.rdv-role-utilise { display: inline-flex; align-items: center; gap: var(--esp-1); color: var(--texte2); }
+.rdv-modele { padding-bottom: var(--esp-4); border-bottom: 1px solid var(--bordure); }
+.rdv-modele-tete { display: flex; flex-wrap: wrap; align-items: center; gap: var(--esp-4); }
+.rdv-modele-tete strong { flex: 1 1 auto; }
+.rdv-modele-compte { color: var(--texte2); font-size: var(--fs-petit); }
+.rdv-modele-texte { margin: var(--esp-2) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; color: var(--texte2); }
+.info-tel { display: inline-flex; align-items: center; gap: var(--esp-1); }
+.info-tel .lien-tel { color: var(--texte2); display: inline-flex; }
+.rdv-adresse { white-space: pre-line; }

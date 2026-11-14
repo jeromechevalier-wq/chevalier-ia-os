@@ -28,6 +28,7 @@ export const COLLECTIONS_CRM = [
   'documents_stockes',
   'veille_sources', 'veille_contenus', 'veille_resumes', 'veille_pages',
   'reseauxsociaux_posts', 'reseauxsociaux_imports', 'reseauxsociaux_idees', 'reseauxsociaux_inspirations', 'reseauxsociaux_exemples', 'reseauxsociaux_pistes',
+  'rdv_rendezvous', 'rdv_participants', 'rdv_messages', 'rdv_parametres',
 ];
 
 export const etat = {

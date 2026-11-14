@@ -14,6 +14,7 @@ const MONTAGES = {
   devis: () => import('../modules/devis/index.js'),
   veille: () => import('../modules/veille/index.js'),
   reseauxsociaux: () => import('../modules/reseauxsociaux/index.js'),
+  rdv: () => import('../modules/rdv/index.js'),
   automatisations: () => import('../modules/automatisations/index.js'),
   tableaudebord: () => import('../modules/tableaudebord/index.js'),
   mcp: () => import('../modules/mcp/index.js'),
