@@ -266,7 +266,7 @@ export function envoiBranche() {
   return brancheSms;
 }
 /** Réinitialise ce qui est su (changement de compte ou d'espace). */
-export function oublierEtatEnvoi() { brancheSms = null; peutConfigurerSms = false; brancheEnCours = null; }
+export function oublierEtatEnvoi() { brancheSms = null; peutConfigurerSms = false; brancheEnCours = null; clearTimeout(reverifier); }
 
 /** Ce compte peut-il saisir la connexion SMS (clé ClickSend) ? null tant que le serveur n'a pas répondu. Le serveur refuse de toute façon tout autre compte que celui de Jérôme. */
 export function peutConfigurerConnexion() { envoiBranche(); return brancheSms === null && !peutConfigurerSms ? null : peutConfigurerSms; }
@@ -286,7 +286,8 @@ export async function connexionSms(action, donnees = {}) {
     // mettre jusqu'à une minute à s'activer. « peutConfigurer » est gardé : le formulaire ne clignote pas.
     brancheSms = null; brancheEnCours = null;
     clearTimeout(reverifier);
-    reverifier = setTimeout(() => { brancheSms = null; brancheEnCours = null; envoiBranche(); }, 65_000);
+    // Une panne passagère à ce moment-là ne change rien à ce qu'on savait (« branché » n'est jamais écrasé par un échec de cette vérification).
+    reverifier = setTimeout(() => { appeler('etat', {}).then((r) => { brancheSms = r?.branche === true; peutConfigurerSms = r?.peutConfigurer === true; notifier(); }).catch(() => {}); }, 65_000);
   }
   return r;
 }

@@ -22,7 +22,7 @@ export class ErreurConnexionSms extends Error {
  * `lireSecret(nom)` / `ecrireSecret(nom, texte)` : Secret Manager ; `verifier({ identifiant, cle })` : verifierConnexion de sms-direct.js ;
  * `adresseDe(espace, jeton)` : l'adresse complète des réponses ; `espaceRacine` : voir creerSmsDirect.
  */
-export function creerConnexionSms({ lireSecret, ecrireSecret, verifier, adresseDe, espaceRacine = ESPACE_JEROME, aleatoire = () => randomBytes(32).toString('base64url'), apresEcriture = () => {} }) {
+export function creerConnexionSms({ lireSecret, ecrireSecret, verifier, adresseDe, espaceRacine = ESPACE_JEROME, aleatoire = () => randomBytes(32).toString('base64url') }) {
   // Seule une ABSENCE vraie (secret ou version introuvable, version désactivée) ou un contenu illisible veut dire « pas de connexion ». Toute autre panne de lecture (réseau, droits) est une erreur :
   // rien n'est écrit (sinon un nouveau jeton serait fabriqué et l'adresse collée dans ClickSend ne marcherait plus) et l'écran ne dit pas « pas enregistrée » à tort.
   const existant = async (espace) => {
@@ -36,7 +36,7 @@ export function creerConnexionSms({ lireSecret, ecrireSecret, verifier, adresseD
     return lireConnexion(texte);
   };
   const ecrire = async (espace, contenu) => {
-    try { await ecrireSecret(nomDuSecret(espace, espaceRacine), JSON.stringify(contenu)); apresEcriture(espace); } catch (e) {
+    try { await ecrireSecret(nomDuSecret(espace, espaceRacine), JSON.stringify(contenu)); } catch (e) {
       if (e instanceof ErreurEcritureSecret && e.genre === 'permission') throw new ErreurConnexionSms('failed-precondition', 'Le serveur n’a pas le droit d’enregistrer la connexion : voir docs/rdv-sms-clicksend.md (droits Secret Manager).');
       throw new ErreurConnexionSms('failed-precondition', 'L’enregistrement n’a pas abouti. Réessaie dans un instant.');
     }

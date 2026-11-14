@@ -179,7 +179,6 @@ const connexionSms = creerConnexionSms({
   ecrireSecret: creerEcrivainSecrets(),
   verifier: verifierConnexion,
   adresseDe: (espace, jeton) => `https://europe-west9-chevalier-ia-os.cloudfunctions.net/rdvReponseSms/${jeton}`,
-  apresEcriture: (espace) => smsDirect.oublier(espace),
 });
 export const rdvConnexionSms = onCall(OPTIONS_DEVIS, (requete) => {
   if (!getApps().length) initializeApp();

@@ -73,7 +73,7 @@ export async function tirerPourTous({ db, sortie, modulesActifs, maintenant = Da
 /**
  * Connexion ClickSend d'UN client (secret CLICKSEND_RDV_<client>), saisie depuis son écran Réglages > Rendez-vous. RÉSERVÉE à Jérôme : l'identité (e-mail Google vérifié, js/os/administrateur.js)
  * est contrôlée ici à l'exécution, même si l'appelant est éditeur du client (le rôle ne suffit pas). Le client ciblé doit exister, avoir une fiche de marque active et le module « rdv » allumé.
- * UN SEUL refus neutre « Action non autorisée. » pour tout le reste. `donnees` : { client, action: 'etat' | 'enregistrer' | 'regenerer', identifiant?, cle?, expediteur?, regenererAdresse? }.
+ * UN SEUL refus neutre « Action non autorisée. » pour tout le reste. `donnees` : { client, action: 'etat' | 'adresse' | 'enregistrer' | 'regenerer', identifiant?, cle?, expediteur?, regenererAdresse? }.
  * `connexion` : coeur/connexion-sms.js (jamais la clé en réponse ni dans le journal) ; `modulesActifs(client)` : liste des modules actifs du client (creerModulesActifs de porte.js).
  */
 export async function connexionRdv({ auth, donnees, connexion, modulesActifs }) {

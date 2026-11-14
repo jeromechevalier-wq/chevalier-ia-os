@@ -67,12 +67,16 @@ test('connexion : l’identifiant tapé n’est pas perdu quand on affiche l’a
   const carte = await ouvrir(page);
   await expect(carte.locator('[data-role="connexion-etat"]')).toContainText('Connexion enregistrée.');
   await expect(carte.getByLabel('Nom d’expéditeur (facultatif)')).toHaveValue('Martin');
+  await carte.getByLabel('Identifiant ClickSend').fill('compte-en-cours');
+  await carte.getByLabel('Nom d’expéditeur (facultatif)').fill('Autre');
   await expect(carte.getByLabel('Clé d’API ClickSend')).toHaveAttribute('placeholder', /enregistrée/);
   await expect(carte.locator('[data-role="adresse-reponses"]')).toHaveCount(0);
   expect(demandes.filter((d) => d.action === 'adresse')).toEqual([]); // l’adresse (avec son jeton) n’est demandée qu’au clic
   await carte.getByRole('button', { name: 'Afficher l’adresse des réponses' }).click();
   await expect(carte.locator('[data-role="adresse-reponses"] input')).toHaveValue(ADRESSE_1);
   expect(demandes.filter((d) => d.action === 'adresse')).toEqual([{ action: 'adresse' }]);
+  await expect(carte.getByLabel('Identifiant ClickSend')).toHaveValue('compte-en-cours'); // la carte s’est redessinée : ce qui était tapé est resté
+  await expect(carte.getByLabel('Nom d’expéditeur (facultatif)')).toHaveValue('Autre');
   await carte.getByRole('button', { name: 'Cacher l’adresse des réponses' }).click();
   await expect(carte.locator('[data-role="adresse-reponses"]')).toHaveCount(0);
   await carte.getByRole('button', { name: 'Changer l’adresse des réponses' }).click();

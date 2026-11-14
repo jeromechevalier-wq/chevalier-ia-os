@@ -20,17 +20,15 @@ const adresseDe = (espace, jeton) => `https://exemple.test/rdv/${espace}/${jeton
 function monde({ verdict = { ok: true }, erreurEcriture = null, erreurLecture = null } = {}) {
   const secrets = new Map();
   const ecritures = [];
-  const oublies = [];
   let n = 0;
   const connexion = creerConnexionSms({
     lireSecret: async (nom) => { if (erreurLecture) throw erreurLecture; if (!secrets.has(nom)) throw Object.assign(new Error('absent'), { code: 5 }); return secrets.get(nom); },
     ecrireSecret: async (nom, texte) => { if (erreurEcriture) throw erreurEcriture; ecritures.push(nom); secrets.set(nom, texte); },
-    apresEcriture: (espace) => oublies.push(espace),
     verifier: async () => verdict,
     adresseDe,
     aleatoire: () => `jeton-aleatoire-numero-${++n}-abcdefghij`,
   });
-  return { secrets, ecritures, oublies, connexion };
+  return { secrets, ecritures, connexion };
 }
 
 describe('écrire un secret (Secret Manager)', () => {
@@ -168,22 +166,8 @@ describe('enregistrer la connexion', () => {
     for (const code of [5, 9]) assert.deepEqual(await monde({ erreurLecture: Object.assign(new Error('x'), { code }) }).connexion.etat('interne'), { enregistre: false, expediteur: '' });
   });
 
-  test('après une écriture, l’instance oublie ce qu’elle savait de la connexion (« branché » relu tout de suite) ; l’expéditeur doit être un texte', async () => {
-    const m = monde();
-    await m.connexion.enregistrer('demo', { identifiant: ID, cle: CLE });
-    assert.deepEqual(m.oublies, ['demo']);
-    await m.connexion.regenererAdresse('demo');
-    assert.deepEqual(m.oublies, ['demo', 'demo']);
+  test('l’expéditeur doit être un texte', async () => {
     for (const mauvais of [5, {}, ['a']]) await assert.rejects(() => monde().connexion.enregistrer('interne', { identifiant: ID, cle: CLE, expediteur: mauvais }), (e) => e.code === 'invalid-argument');
-    const cache = creerSmsDirect({ lireSecret: async (n) => { if (!m.secrets.has(n)) throw new Error('absent'); return m.secrets.get(n); }, donneesDe: () => ({ base: '', donnees: {} }) });
-    const vide = monde();
-    const sms = creerSmsDirect({ lireSecret: async (n) => { if (!vide.secrets.has(n)) throw new Error('absent'); return vide.secrets.get(n); }, donneesDe: () => ({ base: '', donnees: {} }) });
-    assert.equal(await sms.brancheRdv('interne'), false);
-    await vide.connexion.enregistrer('interne', { identifiant: ID, cle: CLE });
-    assert.equal(await sms.brancheRdv('interne'), false, 'le « pas branché » est gardé 60 secondes');
-    sms.oublier('interne');
-    assert.equal(await sms.brancheRdv('interne'), true, 'après oublier(), relu tout de suite');
-    assert.equal(await cache.brancheRdv('demo'), true);
   });
 
   test('de bout en bout : la connexion saisie branche l’envoi (même secret, même format)', async () => {
@@ -336,17 +320,24 @@ describe('verrous statiques', () => {
   const lire = (chemin) => readFileSync(new URL(`../${chemin}`, import.meta.url), 'utf8');
   test('seuls les deux index fabriquent l’écrivain de secrets (le service de connexion le reçoit en paramètre) ; la plateforme passe espaceRacine: null à la connexion ET à l’envoi (même nom de secret lu et écrit) ; l’adresse des réponses est propre à chaque projet', () => {
     const importeurs = [];
+    const directs = [];
     const parcourir = (dossier) => {
       for (const nom of readdirSync(dossier)) {
         if (['node_modules', 'serveur', 'partage'].includes(nom)) continue;
         const chemin = join(dossier, nom);
         if (statSync(chemin).isDirectory()) parcourir(chemin);
-        else if (nom.endsWith('.js') && /creerEcrivainSecrets/.test(readFileSync(chemin, 'utf8'))) importeurs.push(chemin.replace(/^.*(functions(?:-plateforme)?\/src\/.*)$/, '$1'));
+        else if (nom.endsWith('.js')) {
+          const texte = readFileSync(chemin, 'utf8');
+          const court = chemin.replace(/^.*(functions(?:-plateforme)?\/src\/.*)$/, '$1');
+          if (/creerEcrivainSecrets/.test(texte)) importeurs.push(court);
+          if (/addSecretVersion|createSecret/.test(texte) && !court.endsWith('ecrire-secret.js')) directs.push(court);
+        }
       }
     };
     const racine = new URL('..', import.meta.url).pathname;
     parcourir(join(racine, 'functions', 'src')); parcourir(join(racine, 'functions-plateforme', 'src'));
     assert.deepEqual(importeurs.filter((f) => !f.endsWith('ecrire-secret.js')).sort(), ['functions-plateforme/src/index.js', 'functions/src/index.js']);
+    assert.deepEqual(directs, [], 'aucun autre fichier n’écrit dans Secret Manager (addSecretVersion / createSecret) que securite/ecrire-secret.js');
     const plateforme = lire('functions-plateforme/src/index.js');
     assert.equal((plateforme.match(/espaceRacine: null/g) ?? []).length, 2, 'connexion ET envoi');
     assert.match(plateforme, /europe-west9-chevalier-ia-app\.cloudfunctions\.net\/rdvReponseSms\/\$\{client\}\/\$\{jeton\}/);
