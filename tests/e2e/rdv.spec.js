@@ -307,7 +307,9 @@ test('création : une personne NOUVELLE en première ligne reçoit l’adresse s
 test('création : changer de contact change le numéro pré-rempli (pas de numéro de l’ancien contact sur le nouveau) ; un numéro retouché à la main est gardé', async ({ page }) => {
   await creerPersonne('p1', { nom: 'M. Durand', telephones: [{ valeur: '06 00 00 00 01', type: 'perso' }] });
   await creerPersonne('p2', { nom: 'Mme Petit', telephones: [{ valeur: '07 00 00 00 02', type: 'perso' }] });
-  await connecter(page, undefined, { route: 'rdv/nouveau' });
+  await connecter(page);
+  await ouvrirListe(page);
+  await page.getByRole('button', { name: 'Rendez-vous', exact: true }).click(); // par la liste : les fiches sont chargées quand on tape
   const ligne = page.locator('[data-role="participant"]').first();
   const nom = ligne.getByPlaceholder('Nom (contact existant ou nouveau)');
   await nom.fill('M. Dur');
