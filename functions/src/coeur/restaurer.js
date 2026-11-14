@@ -40,6 +40,9 @@ export const OUTILS_RESERVES_SUPER_ADMINS = Object.freeze(['modifier_reglages_de
 
 export const COLLECTIONS_RESERVEES_SUPER_ADMINS = Object.freeze([C.devisParametres]); // seul modifier_reglages_devis écrit cette collection côté serveur
 
+/** Date en millisecondes : `Date` (mémoire) ou Timestamp Firestore (`toMillis`) ; NaN si illisible. */
+const millisDe = (d) => (d instanceof Date ? d.getTime() : typeof d?.toMillis === 'function' ? d.toMillis() : NaN);
+
 export async function restaurerOperation({ donnees, ctx, operationId, apercu = true, forcer = false, reserver = null, outil = 'restaurer_depuis_audit', superAdmin = false }) {
   let lignesAudit = (await donnees.liste(C.audit, { champ: 'operationId', valeur: operationId }))
     .filter((l) => l.statut !== 'echec')
@@ -80,12 +83,11 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   // Choix d'une affaire : si une version de la même racine est apparue DEPUIS (nouvelle version), la défaire laisserait la racine à moitié rattachée : refusé, même avec forcer.
   const racinesChoix = new Set(lignesAudit.map((l, i) => (l.outil === 'devisChoisirAffaire' && l.collection === C.devis ? (copies[i]?.avant?.racineId ?? l.docId) : null)).filter(Boolean));
   if (racinesChoix.size) {
-    // Seules comptent les versions PLUS RÉCENTES que celles de l'opération (nouvelleVersion crée toujours version = max + 1) : une ancienne version déjà rattachée, donc absente de l'opération, ne bloque pas.
-    const indices = lignesAudit.map((l, i) => (l.collection === C.devis ? i : -1)).filter((i) => i >= 0);
-    const dansOperation = new Set(indices.map((i) => lignesAudit[i].docId));
-    const versionMax = Math.max(...indices.map((i) => copies[i]?.avant?.version ?? 1));
+    // Seules comptent les versions créées APRÈS l'opération (`creeLe` > date du journal) : une version absente de l'opération mais plus ancienne (un brouillon déjà posé sur l'affaire, par exemple) ne bloque pas. Date illisible : dans le doute, on refuse.
+    const dansOperation = new Set(lignesAudit.filter((l) => l.collection === C.devis).map((l) => l.docId));
+    const dateOperation = lignesAudit.map((l) => millisDe(l.date)).reduce((a, b) => (Number.isNaN(a) || Number.isNaN(b) ? NaN : Math.max(a, b)), -Infinity);
     for (const racine of racinesChoix) {
-      const depuis = (await donnees.liste(C.devis, { champ: 'racineId', valeur: racine })).find((v) => !dansOperation.has(v.id) && (v.version ?? 1) > versionMax);
+      const depuis = (await donnees.liste(C.devis, { champ: 'racineId', valeur: racine })).find((v) => !dansOperation.has(v.id) && !(millisDe(v.creeLe) <= dateOperation));
       if (depuis) throw new ErreurEcriture('restauration_refusee', 'Une version de ce devis a été créée depuis le choix de l’affaire : l’opération ne se défait plus avec le journal, même avec forcer.');
     }
   }
