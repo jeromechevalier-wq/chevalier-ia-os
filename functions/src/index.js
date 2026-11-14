@@ -32,6 +32,7 @@ import { stockageDuProjet, bucketDuProjet } from './devis/stockage-projet.js';
 import { creerSortieN8n } from './coeur/n8n-sortie.js';
 import { creerAppelPreparerEmail, creerAppelEtatPreparerEmail } from './devis-email-appel.js';
 import { creerAppelRdvEtat, creerAppelRdvEnvoyer } from './rdv-appel.js';
+import { creerSmsDirect, creerGestionnaireReponses } from './coeur/sms-direct.js';
 import { creerLecteurSecrets } from './securite/secrets.js';
 import { convertirHtmlEnPdf } from './devis/chromium.js';
 import { copieInterne, administrateur, Refus } from './automatisations/appels.js';
@@ -153,16 +154,34 @@ export const devisPreparerEmailEtat = onCall(OPTIONS_DEVIS, (requete) => {
   return creerAppelEtatPreparerEmail({ sortie: sortieN8nDevis })(requete);
 });
 
-// Module Rendez-vous (14/11/2026) : l'écran demande au serveur de faire PARTIR des SMS (« Envoyer les propositions », pluie, annulation). Le serveur dit à n8n « tire maintenant » (identifiants seulement)
-// et n8n vient chercher les SMS à envoyer par la porte (rdv.aEnvoyer). Secrets lus à l'exécution (N8N_RDV_URL, N8N_RDV_SECRET) : absents, « Envoyer » reste grisé (rdvEtat). Même compte de service que devis.
+// Module Rendez-vous (14/11/2026) : les SMS partent DIRECTEMENT par l'API de ClickSend (coeur/sms-direct.js), sans n8n. La connexion (identifiant, clé, jeton de l'adresse de réponse) est dans Secret Manager
+// (CLICKSEND_RDV), lue à l'exécution : absente, « Envoyer » reste grisé (rdvEtat). Le compte de service doit avoir « Accesseur de secrets » sur ce secret.
+const smsDirect = creerSmsDirect({
+  lireSecret: creerLecteurSecrets(),
+  donneesDe: () => { if (!getApps().length) initializeApp(); return { base: '', donnees: creerAdaptateur({ db: getFirestore() }) }; },
+});
+const journalRdv = (e) => process.stdout.write(`${JSON.stringify({ fonction: 'rdv', ...e })}\n`);
 export const rdvEtat = onCall(OPTIONS_DEVIS, (requete) => {
   if (!getApps().length) initializeApp();
-  return creerAppelRdvEtat({ sortie: sortieN8nDevis })(requete);
+  return creerAppelRdvEtat({ sortie: smsDirect })(requete);
 });
-export const rdvEnvoyer = onCall(OPTIONS_DEVIS, (requete) => {
+export const rdvEnvoyer = onCall({ ...OPTIONS_DEVIS, timeoutSeconds: 120 }, (requete) => {
   if (!getApps().length) initializeApp();
-  return creerAppelRdvEnvoyer({ donnees: () => creerAccesFirestore(), sortie: sortieN8nDevis, journal: (e) => process.stdout.write(`${JSON.stringify({ fonction: 'rdv', ...e })}\n`) })(requete);
+  return creerAppelRdvEnvoyer({ donnees: () => creerAccesFirestore(), sortie: smsDirect, journal: journalRdv })(requete);
 });
+// Filet : toutes les 15 minutes, envoie les SMS dus (relances, rappel de la veille, confirmation…) même si personne n'a cliqué. Rien à faire si la connexion n'est pas branchée.
+export const rdvEnvoiPlanifie = onSchedule(
+  { region: 'europe-west9', schedule: '*/15 * * * *', timeZone: 'Europe/Paris', timeoutSeconds: 300, memory: '256MiB', maxInstances: 1, serviceAccount: OPTIONS_DEVIS.serviceAccount },
+  async () => {
+    const bilan = await smsDirect.tirer('interne', { budgetMs: 200_000 }); // la fonction dure 300 s : le budget laisse de la marge (jamais coupée en plein envoi)
+    if (bilan.branche) journalRdv({ action: 'planifie', statut: bilan.arret ? 'arret' : 'ok', arret: bilan.arret, envoyes: bilan.envoyes, echecs: bilan.echecs, incertains: bilan.incertains, restants: bilan.restants });
+  },
+);
+// Réponses par SMS : ClickSend appelle cette adresse (POST) avec le jeton secret en dernier morceau du chemin. Invocation publique côté Google ; la vraie porte est le jeton (sinon 404, sans rien dire).
+export const rdvReponseSms = onRequest(
+  { region: 'europe-west9', invoker: 'public', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: OPTIONS_DEVIS.serviceAccount },
+  creerGestionnaireReponses({ sms: smsDirect, espaceFixe: 'interne', journal: journalRdv }),
+);
 
 // PDF d'un devis (25/10/2026) : fabriqué PAR LE SERVEUR dès qu'un devis passe de brouillon à finalisé (déclencheur Firestore `devisPdfAuto`), jamais par le navigateur.
 // Chromium est lancé dans la fonction (2 GiB de mémoire, un navigateur par appel) ; le PDF est rangé dans Cloud Storage du projet (devis/<affaire>/<devis>/…, jamais public),

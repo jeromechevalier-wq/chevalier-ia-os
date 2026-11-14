@@ -1,22 +1,22 @@
 // Module Rendez-vous, côté serveur : ce que l'écran demande pour faire PARTIR des SMS (functions/src/coeur/rdv-envoi.js, rdv-appel.js, functions-plateforme/src/rdv.js).
-// Tout en mémoire : ni Firebase ni réseau, ni n8n, ni ClickSend. La sortie vers n8n est remplacée par une fausse sortie qui note ce qu'elle reçoit.
+// Tout en mémoire : ni Firebase ni réseau, ni ClickSend. La sortie d'envoi (coeur/sms-direct.js, testé à part dans sms-direct.test.js) est remplacée par une fausse sortie qui note ce qu'elle reçoit.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { etatEnvoi, envoyerPropositions, envoyerSms, ErreurRdvEnvoi, MESSAGE_RDV_NON_BRANCHE } from '../functions/src/coeur/rdv-envoi.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
-import { creerSortieN8n, ErreurSortieN8n, SECRET_RDV_URL, SECRET_RDV_CLE, nomDuSecret, ACTION_N8N_RDV } from '../functions/src/coeur/n8n-sortie.js';
+import { ErreurSortieSms, nomDuSecret } from '../functions/src/coeur/sms-direct.js';
 import { creerAppelRdvEnvoyer, creerAppelRdvEtat } from '../functions/src/rdv-appel.js';
 import { envoyerRdv, etatRdv } from '../functions-plateforme/src/rdv.js';
 
 const T0 = new Date('2026-11-16T10:00:00Z');
 const FUTUR = [new Date(T0.getTime() + 4 * 86400000).toISOString()];
 
-function fauxSortie({ branche = true, panne = false } = {}) {
+function fauxSortie({ branche = true, panne = false, bilan = undefined } = {}) {
   const appels = [];
   return {
     appels,
     brancheRdv: async () => branche,
-    tirerRdv: async (espace, params) => { if (panne) throw new ErreurSortieN8n('indisponible', 'n8n ne répond pas.'); appels.push({ espace, params }); },
+    tirerRdv: async (espace, params) => { if (panne) throw new ErreurSortieSms('indisponible', 'L’envoi n’a pas abouti.'); appels.push({ espace, params }); return bilan; },
   };
 }
 const base = (extra = {}) => ({
@@ -34,7 +34,7 @@ describe('état du branchement', () => {
 });
 
 describe('envoyerPropositions', () => {
-  test('note la demande d\'envoi sur le rendez-vous et dit à n8n « tire maintenant » avec le seul identifiant du rendez-vous', async () => {
+  test('note la demande d\'envoi sur le rendez-vous et demande « tire maintenant »', async () => {
     const donnees = creerAccesMemoire(base());
     const sortie = fauxSortie();
     const r = await envoyerPropositions({ donnees, ctx, espace: 'interne', sortie, rendezVousId: 'r1' });
@@ -42,12 +42,22 @@ describe('envoyerPropositions', () => {
     assert.deepEqual(sortie.appels, [{ espace: 'interne', params: { rendezVousId: 'r1' } }]);
     assert.equal(new Date((await donnees.document('rdv_rendezvous', 'r1')).envoiDemandeLe).getTime(), T0.getTime() - 60_000, 'notée une minute en arrière : les créneaux partent dans le même tir que la présentation');
   });
-  test('n8n pas branché : refus clair AVANT d\'écrire quoi que ce soit', async () => {
+  test('un tir arrêté (crédit épuisé), incertain ou incomplet : `declenche: false` (l\'écran ne dit jamais « envoyé » quand rien n\'est parti), la demande reste notée', async () => {
+    for (const bilan of [{ branche: true, envoyes: 0, echecs: 0, incertains: 0, restants: 2, arret: 'credit_epuise' }, { branche: true, envoyes: 0, echecs: 0, incertains: 1, restants: 0 }, { branche: true, envoyes: 1, echecs: 0, incertains: 0, restants: 3 }, { branche: true, envoyes: 0, echecs: 2, incertains: 0, restants: 0 }]) {
+      const donnees = creerAccesMemoire(base());
+      const r = await envoyerPropositions({ donnees, ctx, espace: 'interne', sortie: fauxSortie({ bilan }), rendezVousId: 'r1' });
+      assert.deepEqual([r.ok, r.declenche], [true, false], JSON.stringify(bilan));
+      assert.ok((await donnees.document('rdv_rendezvous', 'r1')).envoiDemandeLe);
+    }
+    const bon = await envoyerPropositions({ donnees: creerAccesMemoire(base()), ctx, espace: 'interne', sortie: fauxSortie({ bilan: { branche: true, envoyes: 2, echecs: 0, incertains: 0, restants: 0 } }), rendezVousId: 'r1' });
+    assert.equal(bon.declenche, true);
+  });
+  test('envoi pas branché : refus clair AVANT d\'écrire quoi que ce soit', async () => {
     const donnees = creerAccesMemoire(base());
     await assert.rejects(() => envoyerPropositions({ donnees, ctx, espace: 'interne', sortie: fauxSortie({ branche: false }), rendezVousId: 'r1' }), (e) => e instanceof ErreurRdvEnvoi && e.code === 'failed-precondition' && e.message === MESSAGE_RDV_NON_BRANCHE);
     assert.equal((await donnees.document('rdv_rendezvous', 'r1')).envoiDemandeLe, null);
   });
-  test('n8n en panne : la demande est notée (le workflow planifié enverra quand même), `declenche: false`', async () => {
+  test('envoi en panne : la demande est notée (la fonction planifiée enverra quand même), `declenche: false`', async () => {
     const donnees = creerAccesMemoire(base());
     const r = await envoyerPropositions({ donnees, ctx, espace: 'interne', sortie: fauxSortie({ panne: true }), rendezVousId: 'r1' });
     assert.deepEqual(r, { ok: true, declenche: false });
@@ -162,9 +172,8 @@ describe('fonctions appelables chez les clients', () => {
     const r = await envoyerRdv({ db, auth: auth('ed@exemple.test'), donnees: { client: 'atelier', action: 'propositions', rendezVousId: 'r1' }, sortie, maintenant: T0.getTime(), creerDonnees: acces });
     assert.equal(r.ok, true);
     assert.deepEqual(sortie.appels, [{ espace: 'atelier', params: { rendezVousId: 'r1' } }]);
-    assert.equal(nomDuSecret(SECRET_RDV_URL, 'atelier'), 'N8N_RDV_URL_atelier');
-    assert.equal(nomDuSecret(SECRET_RDV_CLE, 'atelier'), 'N8N_RDV_SECRET_atelier');
-    assert.equal(nomDuSecret(SECRET_RDV_URL, 'interne'), 'N8N_RDV_URL');
+    assert.equal(nomDuSecret('atelier'), 'CLICKSEND_RDV_atelier');
+    assert.equal(nomDuSecret('interne'), 'CLICKSEND_RDV');
   });
   test('refus neutre pour un lecteur, un non-membre, un module inactif et l\'espace « interne » ; l\'état du branchement suit les mêmes règles', async () => {
     const essais = [['lec@exemple.test', 'atelier'], ['inconnu@exemple.test', 'atelier'], ['ed@exemple.test', 'sansrdv'], ['ed@exemple.test', 'interne'], ['ed@exemple.test', 'absent']];
@@ -176,40 +185,5 @@ describe('fonctions appelables chez les clients', () => {
   });
   test('une demande sans connexion vérifiée est refusée', async () => {
     await assert.rejects(() => envoyerRdv({ db, auth: undefined, donnees: { client: 'atelier', action: 'propositions', rendezVousId: 'r1' }, sortie: fauxSortie(), creerDonnees: acces }), (e) => e.code === 'unauthenticated');
-  });
-});
-
-describe('sortie vers n8n pour les rendez-vous', () => {
-  const URL = 'https://n8n.chevalier-ia.fr/webhook/essai-faux-rdv';
-  const sortie = (secrets, extra = {}) => {
-    const appels = [];
-    const s = creerSortieN8n({ lireSecret: async (nom) => { if (!(nom in secrets)) throw new Error('absent'); return secrets[nom]; }, fetchImpl: extra.fetchImpl ?? (async (url, options) => { appels.push({ url, options }); return { ok: true, status: 200 }; }), maintenant: extra.maintenant });
-    return { s, appels };
-  };
-  test('un seul corps fixe : action, espace, identifiant du rendez-vous (aucun numéro, aucun texte) ; en-tête secret ; aucune redirection', async () => {
-    const { s, appels } = sortie({ [SECRET_RDV_URL]: URL, [SECRET_RDV_CLE]: ' secret-essai ' });
-    assert.equal(await s.brancheRdv('interne'), true);
-    await s.tirerRdv('interne', { rendezVousId: 'r1', numero: '+33600000001', texte: 'ne doit pas partir' });
-    assert.equal(appels.length, 1);
-    assert.deepEqual(JSON.parse(appels[0].options.body), { action: ACTION_N8N_RDV, espace: 'interne', rendezVousId: 'r1' });
-    assert.equal(appels[0].options.headers['X-Chevalier-Secret'], 'secret-essai');
-    assert.equal(appels[0].options.redirect, 'error');
-    assert.equal(appels[0].url, URL);
-  });
-  test('les secrets de « Préparer l\'e-mail » ne branchent pas les rendez-vous, et inversement', async () => {
-    const devis = sortie({ N8N_DEVIS_EMAIL_URL: URL, N8N_DEVIS_EMAIL_SECRET: 's' });
-    assert.equal(await devis.s.branche('interne'), true);
-    assert.equal(await devis.s.brancheRdv('interne'), false);
-    await assert.rejects(() => devis.s.tirerRdv('interne', { rendezVousId: 'r1' }), (e) => e.genre === 'non_branche');
-    const rdv = sortie({ [SECRET_RDV_URL]: URL, [SECRET_RDV_CLE]: 's' });
-    assert.equal(await rdv.s.branche('interne'), false);
-  });
-  test('adresse hors de notre n8n ou secret illisible : pas branché ; n8n qui refuse ou ne répond pas : erreurs distinctes', async () => {
-    assert.equal(await sortie({ [SECRET_RDV_URL]: 'https://exemple.test/webhook/x', [SECRET_RDV_CLE]: 's' }).s.brancheRdv('interne'), false);
-    assert.equal(await sortie({ [SECRET_RDV_URL]: URL, [SECRET_RDV_CLE]: 'a\nb' }).s.brancheRdv('interne'), false);
-    const refuse = sortie({ [SECRET_RDV_URL]: URL, [SECRET_RDV_CLE]: 's' }, { fetchImpl: async () => ({ ok: false, status: 403 }) });
-    await assert.rejects(() => refuse.s.tirerRdv('interne', { rendezVousId: 'r1' }), (e) => e.genre === 'refuse');
-    const coupe = sortie({ [SECRET_RDV_URL]: URL, [SECRET_RDV_CLE]: 's' }, { fetchImpl: async () => { throw new Error('réseau'); } });
-    await assert.rejects(() => coupe.s.tirerRdv('interne', { rendezVousId: 'r1' }), (e) => e.genre === 'indisponible');
   });
 });
