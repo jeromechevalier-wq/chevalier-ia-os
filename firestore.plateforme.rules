@@ -54,6 +54,25 @@ service cloud.firestore {
       return collection in ['workflows', 'executions', 'sync', 'automatisations_propositions'];
     }
 
+    // Journal d'audit et codes de confirmation (audit du 12/11/2026, R1 et R2) : le joker ci-dessous ne les couvre PAS en écriture.
+    // crm_audit et crm_audit_avant : l'écran en CRÉE (dans le même lot que la donnée), jamais de modification ni de suppression ; mcp_codes : serveur seulement.
+    function collectionAuditOuCodes(collection) {
+      return collection in ['crm_audit', 'crm_audit_avant', 'mcp_codes'];
+    }
+    match /clients/{client}/crm_audit/{id} {
+      allow read: if roleDe(client) in ['editeur', 'lecteur'];
+      allow create: if roleDe(client) == 'editeur' && request.resource.data.get('via', '') == 'ecran' && request.resource.data.get('acteur', '') == request.auth.token.email.lower();
+      allow update, delete: if false;
+    }
+    match /clients/{client}/crm_audit_avant/{id} {
+      allow read: if roleDe(client) in ['editeur', 'lecteur'];
+      allow create: if roleDe(client) == 'editeur' && request.resource.data.get('expireAt', null) is timestamp;
+      allow update, delete: if false;
+    }
+    match /clients/{client}/mcp_codes/{id} {
+      allow read, write: if false;
+    }
+
     // Tableau de bord : lisible par les membres, écrit par le SERVEUR seulement (la porte des scripts GitHub et les fonctions de saisie), jamais par un navigateur,
     // même par un éditeur : sinon un éditeur pourrait se fabriquer un « vert ».
     function collectionDuTableauDeBord(collection) {
@@ -180,8 +199,8 @@ service cloud.firestore {
 
     // Les données du client (tout sauf les fiches d'appartenance, traitées ci-dessus).
     match /clients/{client}/{collection}/{reste=**} {
-      allow read: if collection != 'membres' && collection != 'devis_compteurs' && collection != 'crm_actions_lancements' && roleDe(client) in ['editeur', 'lecteur'];
-      allow write: if collection != 'membres' && !collectionDesDocuments(collection) && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && !collectionSansSuppression(collection) && !collectionDesDevis(collection) && roleDe(client) == 'editeur';
+      allow read: if collection != 'membres' && collection != 'mcp_codes' && collection != 'devis_compteurs' && collection != 'crm_actions_lancements' && roleDe(client) in ['editeur', 'lecteur'];
+      allow write: if collection != 'membres' && !collectionAuditOuCodes(collection) && !collectionDesDocuments(collection) && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && !collectionSansSuppression(collection) && !collectionDesDevis(collection) && roleDe(client) == 'editeur';
     }
 
     // Tout le reste (racine, autres collections) : refusé.
