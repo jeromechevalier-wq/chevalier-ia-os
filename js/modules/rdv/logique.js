@@ -258,7 +258,7 @@ export function preparerSms(texte) {
 
 /**
  * Ligne finale de tout SMS envoyé à un participant : le nom de l'entreprise et le moyen de se désabonner (demandés par ClickSend).
- * Les alertes à la professionnelle n'en portent pas. Si le texte contient déjà « STOP », rien n'est ajouté.
+ * Les alertes à la professionnelle n'en portent pas. Si le texte porte déjà cette mention (comparée après normalisation), rien n'est ajouté.
  */
 export function mentionStop(parametres) {
   return `${nomEntrepriseDe(parametres)} - Répondez STOP pour vous désabonner.`;

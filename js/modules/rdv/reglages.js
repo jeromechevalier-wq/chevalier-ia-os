@@ -114,9 +114,11 @@ export function reglages(page) {
     const p = D.parametres();
     return [ligne('Nom de l’entreprise', h('input', { class: 'champ', type: 'text', maxlength: String(R.NOM_ENTREPRISE_MAX), value: p.nomEntreprise, 'aria-label': 'Nom de l’entreprise dans les SMS', placeholder: R.NOM_ENTREPRISE_DEFAUT,
       onchange: (e) => {
-        const nom = L.nettoyerEspaces(e.target.value).slice(0, R.NOM_ENTREPRISE_MAX);
-        if (nom && R.compterSms(R.mentionStop({ nomEntreprise: nom })).encodage !== 'gsm7') { toast('Ce nom contient un caractère qui ne peut pas être envoyé par SMS : retire-le.', { type: 'erreur' }); e.target.value = p.nomEntreprise; return; }
-        enregistrer({ nomEntreprise: nom }); // vide : « Chevalier IA » est repris tout seul à l'affichage
+        const saisi = L.nettoyerEspaces(e.target.value);
+        const nom = R.preparerSms(saisi).texte.replace(/\s+/g, ' ').trim().slice(0, R.NOM_ENTREPRISE_MAX).trim(); // le nom enregistré est celui qui sera écrit dans les SMS
+        if (saisi && (!nom || R.compterSms(R.mentionStop({ nomEntreprise: nom })).encodage !== 'gsm7')) { toast('Ce nom contient un caractère qui ne peut pas être envoyé par SMS : retire-le.', { type: 'erreur' }); e.target.value = D.parametres().nomEntreprise; return; }
+        e.target.value = nom || R.NOM_ENTREPRISE_DEFAUT;
+        enregistrer({ nomEntreprise: nom }); // vide : « Chevalier IA » est repris tout seul
       } })),
     h('p', { class: 'aide' }, `Chaque SMS envoyé à un participant se termine par « ${R.mentionStop(p)} » : le nom de l’entreprise et le moyen de se désabonner. Si quelqu’un répond STOP, il ne reçoit plus aucun SMS et tu es prévenue.`)];
   }));

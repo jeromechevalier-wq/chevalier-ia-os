@@ -648,5 +648,7 @@ describe('M nom de l’entreprise et STOP dans chaque SMS', () => {
   test('M le nom de l’entreprise est normalisé comme un SMS (accents gardés si GSM-7, € remplacé, émojis retirés)', () => {
     assert.match(L.mentionStop({ nomEntreprise: 'Bat Eco € 🚀' }), /^Bat Eco EUR - /);
     assert.equal(L.compterSms(L.mentionStop({ nomEntreprise: 'Géolucie Étanchéité' })).encodage, 'gsm7');
+    assert.match(L.mentionStop({ nomEntreprise: 'Bâtiment Œuvre' }), /^Batiment OEuvre - /, 'accent non GSM-7 remplacé');
+    assert.match(L.mentionStop({ nomEntreprise: '🚀🚀' }), /^Chevalier IA - /, 'un nom fait seulement d\'émojis revient au nom de départ');
   });
 });
