@@ -1,28 +1,36 @@
 # À faire au début de la prochaine session
 
-## Rapport du matin du 14/11/2026 : module « Rendez-vous » (4 PR), prêt à brancher
+## Rapport du matin du 14/11/2026 : module « Rendez-vous » fusionné, prêt pour un vrai test
 
-Module `rdv` autonome (socle), même code chez Jérôme et chez les clients. Spécification des SMS : `docs/rdv-sms-clicksend.md`. Aucune donnée de Jérôme touchée, aucune règle Firestore touchée, rien déployé chez les clients.
+Module `rdv` autonome (socle), même code chez Jérôme et chez les clients. Les SMS partent **directement par l'API de ClickSend, sans n8n** (décision de Jérôme du 14/11) ; la clé vit dans Secret Manager, jamais dans Firestore, le dépôt, une page ni le journal. Spécification : `docs/rdv-sms-clicksend.md`. Aucune donnée de Jérôme touchée, aucune règle Firestore touchée, **rien déployé chez les clients** (workflow manuel, avec Jérôme).
 
 | Sujet | PR | État |
 |---|---|---|
 | Logique pure (créneaux, SMS, réponses, échéances) | 610 | fusionnée |
-| Module, liste Kanban/Liste/Archives, création, réglages, export | voir l'historique | fusionnée |
-| Fiche d'un rendez-vous | voir l'historique | fusionnée |
-| Serveur : porte `rdv.*`, fonctions `rdvEtat` / `rdvEnvoyer` (Jérôme ET clients), sortie n8n, écran | 613 | fusionnée (coche « Tests » verte, deux relectures Fable) |
+| Module, liste Kanban/Liste/Archives, création, réglages, export | 611 | fusionnée |
+| Fiche d'un rendez-vous | 612 | fusionnée |
+| Serveur : porte `rdv.*`, fonctions `rdvEtat` / `rdvEnvoyer` (Jérôme ET clients), premier envoi par n8n | 613 | fusionnée (deux relectures Fable) |
+| Nom de l'entreprise réglable + ligne « Répondez STOP » dans chaque SMS (conformité ClickSend) | 616 | fusionnée (deux relectures Fable) |
+| Envoi direct par ClickSend (sans n8n), filet toutes les 15 minutes, réponses reçues par une adresse à jeton, pannes sans SMS perdu ni doublon | 617 | fusionnée (quatre relectures Fable) |
+| Carte « Connexion SMS (ClickSend) » dans Réglages : clé vérifiée puis rangée dans Secret Manager, Jérôme seul (contrôle côté serveur) | 620 | fusionnée (deux relectures Fable) |
 | Règles Firestore : réserver `rdv_messages` et `rdv_parametres/desinscrits` au serveur | non faite | **liste d'arrêt** : jamais sans ton accord |
 
-**Ce que Jérôme fait pour tester (dans l'ordre, détail dans `docs/rdv-sms-clicksend.md`)** — les SMS partent maintenant DIRECTEMENT par ClickSend, plus de n8n pour ce module :
-1. Droits (une fois, version prudente) : créer le secret `CLICKSEND_RDV` à la main (valeur provisoire quelconque) dans https://console.cloud.google.com/security/secret-manager?project=chevalier-ia-os, puis sur ce secret donner à `porte-serveur@chevalier-ia-os.iam.gserviceaccount.com` les rôles « Accesseur de secrets » et « Ajouteur de versions de secret » (détail : `docs/rdv-sms-clicksend.md`).
-2. Réglages > Rendez-vous > « Connexion SMS (ClickSend) » : identifiant ClickSend + clé d'API > « Enregistrer la connexion » (la clé est vérifiée auprès de ClickSend, rangée dans un coffre du serveur, jamais affichée ni gardée dans la page ; seul ton compte voit cette carte). L'écran montre l'adresse des réponses : la copier dans la règle « SMS entrants » de ClickSend. (Secours sans écran : créer le secret `CLICKSEND_RDV` à la main, voir `docs/rdv-sms-clicksend.md`.)
-3. Réglages > Rendez-vous : numéro des SMS de test = ton mobile, nom de l'entreprise ; créer un rendez-vous marqué test et « Envoyer les propositions » : le SMS arrive sur ton numéro de test seulement.
-4. Répondre « 1 », puis « STOP » : vérifier la fiche et l'alerte.
+**État de la nuit GitHub** : « Tests de nuit » 149 vert (PR 616), 150 **rouge puis vert à la relance** (PR 617, étape `fonctions` du noyau : le journal ne nomme pas le test, vert aussi en local avec le fuseau de Paris : cause inconnue, à surveiller, un seul passage vert ne prouve rien), 152 vert (PR 620).
 
-**Conformité des SMS (à traiter avant le premier envoi à un tiers)** : ClickSend a mis deux SMS d'essai en « CancelledAfterReview » (nom de l'entreprise dans chaque message, moyen simple de se désabonner). Les 6 modèles par défaut ne portent pas encore « Répondez STOP » ni le nom partout ; effet sur la limite de 160 caractères à décider avec Jérôme. Page à lire : « Managing opt-outs » de ClickSend.
+**Ce que Jérôme fait pour tester (dans l'ordre, détail dans `docs/rdv-sms-clicksend.md`)** :
+1. Droits (une fois, version prudente) : créer le secret `CLICKSEND_RDV` à la main (valeur provisoire quelconque) dans https://console.cloud.google.com/security/secret-manager?project=chevalier-ia-os, puis sur ce secret donner à `porte-serveur@chevalier-ia-os.iam.gserviceaccount.com` les rôles « Accesseur de secrets » et « Ajouteur de versions de secret » (pas « Administrateur Secret Manager » sur tout le projet).
+2. Réglages > Rendez-vous > « Connexion SMS (ClickSend) » : identifiant ClickSend + clé d'API > « Enregistrer la connexion » (la clé est vérifiée auprès de ClickSend avant d'être rangée ; elle n'est jamais affichée ni gardée dans la page ; seul ton compte voit la saisie). L'écran montre l'adresse des réponses : la copier dans la règle « SMS entrants » de ClickSend. Attendre environ une minute : « Envoyer » s'active.
+3. Réglages > Rendez-vous : numéro des SMS de test = ton mobile, nom de l'entreprise ; créer un rendez-vous **marqué test** et « Envoyer les propositions » : le SMS arrive sur ton numéro de test seulement. **Jamais d'envoi à un tiers avant d'avoir vu un SMS arriver sur ce numéro.**
+4. Répondre « 1 », puis « STOP » : la fiche montre la réponse, plus aucun SMS ne part vers ce numéro, la professionnelle est prévenue.
+5. Provoquer une erreur (mauvaise clé, crédit vide) : rien n'est perdu, les SMS repartent seuls après correction (journal de `rdvEnvoiPlanifie`).
 
-**Non vérifié avec le vrai système** : aucun SMS réel (faux n8n, base en mémoire) ; format exact des réponses et SMS entrants de ClickSend (documentation seulement) ; 153 caractères par morceau au-delà de 160 ; déploiement chez les clients (workflow manuel, avec Jérôme).
+**À faire avec ClickSend (Jérôme leur pose la question, détail dans `docs/rdv-sms-clicksend.md`)** : un simple « Répondez STOP » suffit-il avec leur numéro d'envoi en France, la confirmation et le rappel doivent-ils aussi le porter, quel expéditeur utiliser, valident-ils les six modèles ? La page « Managing opt-outs » de ClickSend n'a pas pu être lue depuis la session.
 
-**Limites connues** : `rdv_messages` inscriptible par le navigateur d'un éditeur (règle joker) ; webhook « réponse » protégé seulement par son adresse secrète ; deux STOP simultanés peuvent n'en noter qu'un ; 500 rendez-vous non archivés lus à chaque tir.
+**À décider** : (1) un SMS « présentation » ou « créneaux » abandonné laisse-t-il quand même partir les relances de ce participant ? (règle ancienne : oui ; il n'y a pas de bouton pour renvoyer un SMS abandonné) ; (2) fermer les actions `rdv.*` de la porte HTTP, que plus aucun workflow n'utilise ; (3) archiver dans n8n les deux workflows `interne-rdv-…` créés plus tôt (jamais publiés) ; (4) le jeton de l'adresse des réponses apparaît dans les journaux de requêtes de Google (inhérent au jeton dans le chemin, ClickSend ne signe pas) : l'accepter ou le changer si besoin (« Changer l'adresse des réponses ») ; (5) avant le premier envoi chez Géolucie, changer le nom d'entreprise dans leurs réglages (rien ne l'impose : sans cela, leurs SMS partiraient signés « Chevalier IA »).
+
+**Non vérifié avec le vrai système** : aucun SMS réel envoyé ni reçu (faux ClickSend, faux Secret Manager, base en mémoire) ; la liste des statuts de ClickSend et le format de leurs réponses et SMS entrants viennent de leur documentation, de mémoire (un refus général non reconnu abandonnerait tous les SMS d'un espace en environ 30 minutes, avec alertes : d'où l'essai sur le numéro de test d'abord) ; `GET /v3/account` pour vérifier la clé et les codes d'erreur de lecture du coffre (5, 7, 9, 14) ; l'adresse des réponses de la forme `europe-west9-<projet>.cloudfunctions.net/rdvReponseSms/…` (si elle ne répond pas, prendre celle de la console Firebase) ; les noms de menus de ClickSend (règle « SMS entrants ») ; 153 caractères par morceau au-delà de 160 ; déploiement chez les clients.
+
+**Limites connues** : `rdv_messages` inscriptible par le navigateur d'un éditeur (règle joker) ; adresse des réponses protégée seulement par son jeton ; deux STOP simultanés peuvent n'en noter qu'un ; 500 rendez-vous non archivés lus à chaque tir ; chez un client, la carte de saisie n'apparaît que si le compte de Jérôme est aussi éditeur de cet espace (le serveur n'exige que son identité).
 
 ## Rapport du matin du 13/11/2026 : nuit sécurité
 
