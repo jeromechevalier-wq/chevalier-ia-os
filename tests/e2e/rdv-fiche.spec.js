@@ -140,7 +140,7 @@ test('confirmer : bandeau violet « Pour l’instant… », bouton jaune, un cli
   await expect(page.locator('[data-role="etat"]')).toHaveText('Confirmés');
   await expect(page.locator('[data-action="confirmer-creneau"]')).toHaveCount(0);
   await expect(page.locator('[data-action="prevenir-pluie"]')).toBeVisible();
-  await page.getByRole('link', { name: 'Rendez-vous', exact: true }).first().click();
+  await page.locator('.lien-retour').click();
   await expect(page.locator('.colonne[data-colonne="confirme"] .carte-rdv')).toHaveCount(1);
 });
 
@@ -178,7 +178,7 @@ test('annuler et pluie : fenêtre avec texte prérempli MODIFIABLE et compteur ;
   await expect(page.getByRole('dialog').getByRole('button', { name: 'Envoyer' })).toBeDisabled();
   await expect(page.getByRole('dialog').locator('[data-role="envoi-non-branche"]')).toBeVisible();
   await capture(page, 'pluie');
-  await page.getByRole('dialog').getByRole('button', { name: 'Fermer' }).click();
+  await page.locator('.dialogue-pied').getByRole('button', { name: 'Fermer' }).click();
   await page.getByRole('button', { name: 'Annuler le rendez-vous' }).click();
   await expect(page.getByRole('dialog').getByLabel('Texte du SMS')).toHaveValue(/est annulé\./);
   await page.getByRole('dialog').getByRole('button', { name: 'Annuler sans prévenir' }).click();
