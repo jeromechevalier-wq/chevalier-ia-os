@@ -576,13 +576,31 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
     const maintenant = new Date().toISOString();
     const creneaux = [futur(-1), futur(3), futur(2)];
     const tous = L.bilanReponses([p('a', 'comprise', [1, 2, 3]), p('bb', 'comprise', [1, 2, 3])], 3);
-    assert.equal(L.creneauAConfirmer(tous, { creneaux, maintenant }), 3, 'le 1 est passé ; entre 2 et 3, le plus tôt en date est le 3');
-    assert.equal(L.bandeauCreneau(tous, { creneaux, maintenant }).creneau, 3);
+    assert.deepEqual(L.creneauxAConfirmer(tous, { creneaux, maintenant }), [2, 3], 'le 1 est passé ; 2 et 3 conviennent à tous, dans l’ordre des numéros : aucun choix d’office');
+    assert.equal(L.creneauAConfirmer(tous, { creneaux, maintenant }), null, 'deux créneaux communs à venir : aucun n’est choisi à la place de la professionnelle');
+    assert.equal(L.bandeauCreneau(tous, { creneaux, maintenant }).texte, 'Les créneaux 2 et 3 conviennent à tout le monde. Seul toi peux en confirmer un.', 'le 1 passé n’est pas cité');
+    const unSeulAvenir = L.bilanReponses([p('a', 'comprise', [1, 3]), p('bb', 'comprise', [1, 3])], 3);
+    assert.equal(L.creneauAConfirmer(unSeulAvenir, { creneaux, maintenant }), 3, 'un seul créneau commun à venir : proposé tel quel');
+    assert.equal(L.bandeauCreneau(unSeulAvenir, { creneaux, maintenant }).texte, 'Le créneau 3 convient à tout le monde. Seul toi peux le confirmer.');
     const seulPasse = L.bilanReponses([p('a', 'comprise', [1]), p('bb', 'comprise', [1])], 3);
     assert.equal(L.creneauAConfirmer(seulPasse, { creneaux, maintenant }), null);
     assert.match(L.bandeauCreneau(seulPasse, { creneaux, maintenant }).texte, /sont passés/);
     const partiel = L.bilanReponses([p('a', 'comprise', [2]), p('bb', 'attente')], 3);
     assert.equal(L.creneauAConfirmer(partiel, { creneaux, maintenant }), 2);
+  });
+  test('A3 plusieurs créneaux conviennent à tous : le bandeau les cite tous, la liste de choix les donne dans l’ordre, aucun n’est choisi d’office', () => {
+    const tous = L.bilanReponses([p('a', 'comprise', [1, 2]), p('bb', 'comprise', [1, 2])], 3);
+    assert.deepEqual(tous.communs, [1, 2]);
+    assert.equal(L.creneauAConfirmer(tous), null);
+    assert.deepEqual(L.creneauxAConfirmer(tous), [1, 2]);
+    const b = L.bandeauCreneau(tous);
+    assert.deepEqual([b.type, b.creneau, b.creneaux], ['commun', null, [1, 2]]);
+    assert.equal(b.texte, 'Les créneaux 1 et 2 conviennent à tout le monde. Seul toi peux en confirmer un.');
+    assert.equal(L.bandeauCreneau(L.bilanReponses([p('a', 'comprise', [1, 2, 3]), p('bb', 'comprise', [1, 2, 3])], 3)).texte, 'Les créneaux 1, 2 et 3 conviennent à tout le monde. Seul toi peux en confirmer un.');
+    // un seul créneau commun, cas partiel et cas vide : inchangés
+    assert.deepEqual(L.creneauxAConfirmer(L.bilanReponses([p('a', 'comprise', [2]), p('bb', 'attente')], 3)), [2]);
+    assert.deepEqual(L.creneauxAConfirmer(L.bilanReponses([p('a', 'attente')], 3)), []);
+    assert.equal(L.creneauAConfirmer(L.bilanReponses([p('a', 'comprise', [1]), p('bb', 'comprise', [2])], 3)), 1, 'personne en commun : le créneau qui convient au plus de monde, le plus tôt à égalité');
   });
   test('L SMS de pluie et d’annulation sans nom ni date : aucune accolade visible', () => {
     for (const [type, rdv, params] of [['pluie', { client: 'M. Durand' }, {}], ['pluie', {}, {}], ['pluie', { client: 'M. Durand', etat: 'confirme' }, { nomDansLesSms: 'Mme Martin' }], ['annulation', {}, {}]]) {
