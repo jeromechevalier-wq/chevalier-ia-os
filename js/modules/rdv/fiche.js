@@ -118,10 +118,21 @@ async function annuler(rdv) {
 }
 
 let confirmationEnCours = false;
+/**
+ * Verdict de relecture avant d'écrire une confirmation ('ok', 'rendezvous' ou 'creneau', voir logique.js) : si la fiche a changé, un message le dit, la fiche est redessinée
+ * (les boutons et les créneaux proposés repartent de l'état d'aujourd'hui, sans rouvrir la même fenêtre périmée) et rien n'est écrit. Rend true quand on refuse.
+ */
+function refuserSiChange(verdict, redessiner) {
+  if (verdict === 'ok') return false;
+  toast(verdict === 'rendezvous' ? 'Ce rendez-vous a changé : rien n’a été enregistré.' : 'Le créneau a changé, choisis à nouveau.', { type: 'erreur' });
+  redessiner();
+  return true;
+}
 /** Confirmer un créneau est un acte qui prévient tout le monde par SMS (PR 4) : une fenêtre demande confirmation, avec ce que disent les réponses. */
-async function confirmerAvecFenetre(rdv, numero, bilan, bouton) {
+async function confirmerAvecFenetre(rdv, numero, bilan, bouton, redessiner = () => {}) {
   if (confirmationEnCours) return;
   const n = bilan.parCreneau[numero - 1];
+  const dateAffichee = rdv.creneaux[numero - 1]; // la date telle qu'elle est montrée dans la fenêtre
   const ok = await dialogue({
     titre: `Confirmer le créneau ${numero} ?`,
     contenu: h('div', { class: 'pile' }, h('p', {}, R.libelleCreneau(numero - 1, rdv.creneaux[numero - 1])),
@@ -129,6 +140,8 @@ async function confirmerAvecFenetre(rdv, numero, bilan, bouton) {
     boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: `Confirmer le créneau ${numero}`, valeur: true, style: 'principal' }],
   });
   if (ok !== true) return;
+  // La fiche a pu changer pendant que la fenêtre était ouverte : on relit avant d'écrire, comme pour le choix entre plusieurs créneaux.
+  if (refuserSiChange(R.verdictCreneauUnique(D.rendezVous(rdv.id), numero, dateAffichee, new Date().toISOString()), redessiner)) return;
   confirmationEnCours = true;
   bouton.disabled = true;
   try { await D.confirmerCreneau(rdv.id, numero); toast(`Créneau ${numero} confirmé`); } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Confirmation impossible'), { type: 'erreur' }); bouton.disabled = false; } finally { confirmationEnCours = false; }
@@ -138,7 +151,7 @@ async function confirmerAvecFenetre(rdv, numero, bilan, bouton) {
  * Plusieurs créneaux conviennent à tout le monde : la professionnelle choisit elle-même (aucun n'est coché d'office). Cette fenêtre est aussi la confirmation :
  * elle dit que tout le monde sera prévenu par SMS. Rien n'est écrit tant qu'aucun créneau n'est choisi.
  */
-async function choisirEtConfirmer(rdv, numeros, bouton) {
+async function choisirEtConfirmer(rdv, numeros, bouton, redessiner = () => {}) {
   if (confirmationEnCours) return;
   const erreur = h('p', { class: 'erreur', role: 'alert' });
   const radios = numeros.map((n) => h('label', { class: 'rdv-case' }, h('input', { type: 'radio', name: 'rdv-creneau-a-confirmer', value: String(n), 'aria-label': R.libelleCreneau(n - 1, rdv.creneaux[n - 1]) }), R.libelleCreneau(n - 1, rdv.creneaux[n - 1])));
@@ -160,8 +173,7 @@ async function choisirEtConfirmer(rdv, numeros, bouton) {
       } }],
   });
   if (!numero) return;
-  if (verdict === 'rendezvous') { toast('Ce rendez-vous a changé : rien n’a été enregistré.', { type: 'erreur' }); return; }
-  if (verdict === 'creneau') { toast('Le créneau a changé, choisis à nouveau.', { type: 'erreur' }); return; }
+  if (refuserSiChange(verdict, redessiner)) return;
   confirmationEnCours = true;
   bouton.disabled = true;
   try { await D.confirmerCreneau(rdv.id, numero); toast(`Créneau ${numero} confirmé`); } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Confirmation impossible'), { type: 'erreur' }); bouton.disabled = false; } finally { confirmationEnCours = false; }
@@ -238,7 +250,7 @@ export function rendreFiche(conteneur, id) {
       const plusieurs = choix.length > 1;
       boutons.push(h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'confirmer-creneau', disabled: !choix.length,
         title: choix.length ? '' : 'Aucun créneau à venir à confirmer pour l’instant', 'aria-describedby': choix.length ? undefined : 'rdv-raison-confirmer',
-        onclick: (e) => (plusieurs ? choisirEtConfirmer(r, choix, e.currentTarget) : confirmerAvecFenetre(r, propose, bilan, e.currentTarget)) },
+        onclick: (e) => (plusieurs ? choisirEtConfirmer(r, choix, e.currentTarget, rendre) : confirmerAvecFenetre(r, propose, bilan, e.currentTarget, rendre)) },
       propose ? `Confirmer le créneau ${propose}` : plusieurs ? 'Confirmer un créneau…' : 'Confirmer un créneau'));
       if (!choix.length) boutons.push(h('span', { id: 'rdv-raison-confirmer', class: 'aide', dataset: { role: 'raison-confirmer' } }, 'Aucun créneau à venir ne convient encore à quelqu’un : attends des réponses ou propose d’autres créneaux.'));
     }

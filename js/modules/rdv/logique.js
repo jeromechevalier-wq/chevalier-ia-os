@@ -1045,6 +1045,17 @@ export function verdictChoix(rdv, participants, numero, dateAffichee, maintenant
 }
 
 /**
+ * Même relecture pour la fenêtre d'UN seul créneau proposé (le commun, ou celui qui convient au plus de monde) : 'rendezvous' si le rendez-vous n'est plus à confirmer,
+ * 'creneau' si la date du créneau n'est plus celle qui était affichée ou si ce créneau est passé, 'ok' sinon.
+ */
+export function verdictCreneauUnique(rdv, numero, dateAffichee, maintenant) {
+  if (!rdv || !estOuvert(rdv)) return 'rendezvous';
+  const date = (rdv.creneaux || [])[numero - 1];
+  if (!(enMs(date) === enMs(dateAffichee)) || !(enMs(date) > enMs(maintenant))) return 'creneau';
+  return 'ok';
+}
+
+/**
  * Créneau à proposer à la confirmation quand il n'y en a QU'UN à proposer (le créneau commun, sinon celui qui convient au plus de monde) ; null s'il n'y en a aucun
  * ET quand plusieurs créneaux conviennent à tous : la professionnelle choisit alors elle-même (`creneauxAConfirmer`). C'est une PROPOSITION : seule la professionnelle confirme.
  */

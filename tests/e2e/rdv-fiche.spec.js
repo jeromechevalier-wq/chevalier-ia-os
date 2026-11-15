@@ -191,6 +191,26 @@ test('A3d le rendez-vous est confirmé ailleurs pendant que la fenêtre de choix
   expect(new Date(apres.creneauChoisi).getTime()).toBe(new Date(avant.creneaux[1]).getTime()); // le créneau confirmé ailleurs n'a pas été remplacé par le 1
 });
 
+test('A3e un seul créneau proposé : la date change pendant que la fenêtre est ouverte, « Le créneau a changé, choisis à nouveau. », rien n’est écrit, et la fenêtre rouverte montre la nouvelle date', async ({ page }) => {
+  await semer();
+  await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [3], '3');
+  await part('p2', 'Terrassier', 'Terrassier', '+33600000002');
+  await ouvrirFiche(page);
+  await page.getByRole('button', { name: 'Confirmer le créneau 3' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Confirmer le créneau 3 ?');
+  const avant = await lireDocument('rdv_rendezvous/r1');
+  await ecrireDocument('rdv_rendezvous/r1', { ...avant, creneaux: [avant.creneaux[0], avant.creneaux[1], '2031-03-07T09:00:00.000Z'] });
+  await expect(page.locator('table[data-role="qui-peut-quand"] thead th[data-creneau="3"] .rdv-col-date')).toContainText('7 mars'); // la fiche a pris le changement avant le clic
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirmer le créneau 3' }).click();
+  await expect(page.locator('.toast-erreur')).toContainText('Le créneau a changé, choisis à nouveau.');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const apres = await lireDocument('rdv_rendezvous/r1');
+  expect(apres.etat).toBe('en_attente');
+  expect(apres.creneauChoisi).toBeFalsy();
+  await page.getByRole('button', { name: 'Confirmer le créneau 3' }).click(); // la fenêtre rouverte repart de l'état d'aujourd'hui
+  await expect(page.getByRole('dialog')).toContainText('7 mars');
+});
+
 test('A2c une ligne « non comprise » garde son fond rouge sous le nom, et l’en-tête « Participant » est opaque', async ({ page }) => {
   await semer();
   await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [1], '1');

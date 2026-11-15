@@ -629,6 +629,18 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
     assert.equal(v({ ...rdv, archive: true }, parts, 2), 'rendezvous', 'archivé');
     assert.equal(v(null, parts, 2), 'rendezvous', 'supprimé');
   });
+  test('A3o la fenêtre d’UN seul créneau : refus si la date affichée a changé, si le créneau est passé ou si le rendez-vous n’est plus à confirmer', () => {
+    const rdv = { id: 'r', creneaux: [futur(2), futur(3), futur(4)], tour: 1 };
+    const maintenant = new Date().toISOString();
+    assert.equal(L.verdictCreneauUnique(rdv, 3, rdv.creneaux[2], maintenant), 'ok');
+    assert.equal(L.verdictCreneauUnique({ ...rdv, creneaux: [rdv.creneaux[0], rdv.creneaux[1], futur(9)] }, 3, rdv.creneaux[2], maintenant), 'creneau', 'date changée');
+    assert.equal(L.verdictCreneauUnique({ ...rdv, creneaux: [rdv.creneaux[0], rdv.creneaux[1]] }, 3, rdv.creneaux[2], maintenant), 'creneau', 'créneau retiré');
+    assert.equal(L.verdictCreneauUnique({ ...rdv, creneaux: [futur(-1), rdv.creneaux[1], rdv.creneaux[2]] }, 1, rdv.creneaux[0], maintenant), 'creneau', 'créneau passé');
+    assert.equal(L.verdictCreneauUnique({ ...rdv, etat: 'confirme', creneauChoisi: rdv.creneaux[0] }, 3, rdv.creneaux[2], maintenant), 'rendezvous');
+    assert.equal(L.verdictCreneauUnique({ ...rdv, annule: true }, 3, rdv.creneaux[2], maintenant), 'rendezvous');
+    assert.equal(L.verdictCreneauUnique({ ...rdv, archive: true }, 3, rdv.creneaux[2], maintenant), 'rendezvous');
+    assert.equal(L.verdictCreneauUnique(null, 3, rdv.creneaux[2], maintenant), 'rendezvous');
+  });
   test('L SMS de pluie et d’annulation sans nom ni date : aucune accolade visible', () => {
     for (const [type, rdv, params] of [['pluie', { client: 'M. Durand' }, {}], ['pluie', {}, {}], ['pluie', { client: 'M. Durand', etat: 'confirme' }, { nomDansLesSms: 'Mme Martin' }], ['annulation', {}, {}]]) {
       const t = L.texteSmsManuel(type, rdv, params);

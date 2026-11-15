@@ -137,4 +137,7 @@ test('A5b même bloc d’aide pour un compte qui ne configure pas, sans aucune a
   await aide.locator('summary').click();
   await expect(aide).toContainText('Opt-out contact');
   await expect(aide.locator('[data-role="aide-adresse"]')).toHaveCount(0);
+  await expect(aide.locator('[data-role="aide-adresse-absente"]')).toHaveText('L’administrateur de la plateforme te donne cette adresse.'); // pas de bouton « Afficher… » pour ce compte
+  await expect(aide).not.toContainText('Afficher l’adresse');
+  await expect(carte.getByRole('button', { name: 'Afficher l’adresse des réponses' })).toHaveCount(0);
 });
