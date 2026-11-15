@@ -86,6 +86,10 @@ Décision de Jérôme (02 au 06/11/2026) : il fait ses essais dans sa vraie base
 
 Vocabulaire : « test », jamais « essai ».
 
+## 6 ter. Les statistiques d'un module (à prévoir dès le début)
+
+Chaque module dit dès sa conception **ce qu'on veut mesurer** : les chiffres utiles (créés, terminés, délais, taux), **ce qui coûte de l'argent** (SMS, e-mails, appels payants : coût par unité facturée, jamais par message ; le prix est un **réglage** daté et modifiable, jamais une constante ; l'écran dit « estimation » avec la date du tarif) et l'exclusion des **tests** (§ 6 bis). Le cadre général des indicateurs (table `<module>_kpi`, déclaration pour l'Accueil) est « en discussion » : `docs/tables.md`. Exemple : `docs/roadmap.md`, « Statistiques du module Rendez-vous ».
+
 ## 7. La liste de contrôle (à cocher avant d'ouvrir la PR)
 
 1. Dossier `js/modules/<nom>/` avec `index.js` (contrat du §3), `donnees.js`, `logique.js` (règles pures, sans Firebase, testables par Node), `export.js`.
@@ -96,4 +100,5 @@ Vocabulaire : « test », jamais « essai ».
 6. Nom de fichier de sauvegarde : si `nomFichierExport` du CRM ne connaît pas ton module, fais le nom dans le module (comme `nomFichierExportReseauxSociaux`).
 7. Docs : cette fiche si une règle a changé, `docs/tables.md`, `docs/activer-desactiver-modules.md`, puis la nouvelle page dans `scripts/wiki/sommaire.json` et `node scripts/wiki/construire.js` (le test `tests/wiki.test.js:76` exige que `wiki/` soit identique à `docs/`).
 8. Mode test : les neuf points du § 6 bis (repère `test`, pastille, exclu des chiffres, aucun effet réel, menu « … », Mes tests, MCP, tests).
-9. Avant la PR : `npm run test:module <préfixe>`, `npm run test:rapide`, `npm run test:smoke` ; jamais la suite complète en session.
+9. Statistiques : le § 6 ter (ce qu'on mesure, le coût s'il y en a, les tests exclus).
+10. Avant la PR : `npm run test:module <préfixe>`, `npm run test:rapide`, `npm run test:smoke` ; jamais la suite complète en session.
