@@ -118,6 +118,34 @@ async function annuler(rdv) {
 }
 
 let confirmationEnCours = false;
+
+/** Ce qui partira si on confirme le créneau `numero` (règles dans logique.js, `previsionConfirmation`) : calculé sur les participants et les réglages d'AUJOURD'HUI. */
+const prevoir = (rdv, numero) => R.previsionConfirmation({ rdv, participants: D.participantsDe(rdv.id), parametres: D.parametres(), numero, maintenant: new Date().toISOString(), desinscrits: D.desinscrits() });
+
+/** Le bloc « Ce qui va partir par SMS » des fenêtres de confirmation : une ligne par personne, l'aperçu du vrai SMS de confirmation, le nombre de SMS et le coût estimé. */
+function blocPrevision(prev) {
+  const jourRappel = prev.rappelLe ? `${R.formaterCreneauSms(prev.rappelLe).replace(/ \d{1,2}h(\d{2})?$/, '')} à ${R.formaterHeure(prev.rappelLe)}` : '';
+  const ligne = (x) => {
+    let quoi;
+    if (x.statut === 'desinscrit') quoi = 'ne recevra rien : désinscrit (STOP)';
+    else if (x.statut === 'sans-telephone') quoi = 'ne recevra rien : pas de téléphone';
+    else if (x.statut === 'test-sans-numero') quoi = 'ne recevra rien : le numéro des SMS de test n’est pas réglé';
+    else quoi = `SMS de confirmation maintenant${prev.test ? ` vers le numéro de test (${prev.numeroTest})` : ''}${prev.rappelLe ? `, rappel le ${jourRappel}` : ''}`;
+    return h('li', { dataset: { participant: x.id, statut: x.statut } }, h('strong', {}, x.nom), x.telephone ? h('span', { class: 'rdv-prevision-tel' }, x.telephone) : null, h('span', { class: 'rdv-prevision-quoi' }, quoi));
+  };
+  const raison = prev.raisonAucun === 'test-sans-numero' ? 'le numéro des SMS de test n’est pas réglé (Réglages > Rendez-vous)' : 'aucun participant n’a de numéro joignable';
+  return h('div', { class: 'rdv-prevision', dataset: { role: 'prevision' } },
+    h('h3', { class: 'rdv-prevision-titre' }, 'Ce qui va partir par SMS'),
+    prev.test ? h('p', { class: 'aide', dataset: { role: 'note-test' } }, prev.numeroTest ? `Rendez-vous de test : les SMS partent vers le numéro de test (${prev.numeroTest}), pas vers les participants.` : 'Rendez-vous de test : le numéro des SMS de test n’est pas réglé, donc aucun SMS ne partira.') : null,
+    prev.personnes.length ? h('ul', { class: 'rdv-prevision-liste' }, prev.personnes.map(ligne)) : h('p', { class: 'aide' }, 'Aucun participant.'),
+    prev.aucun
+      ? h('p', { class: 'rdv-prevision-aucun', dataset: { role: 'aucun-sms' } }, `Aucun SMS ne partira : ${raison}. Tu peux quand même confirmer le créneau.`)
+      : h('div', { class: 'rdv-prevision-apercu', dataset: { role: 'apercu-confirmation' } },
+        h('p', { class: 'etiquette' }, 'SMS de confirmation (aperçu)'), h('pre', { class: 'rdv-prevision-texte' }, prev.confirmation.texte),
+        h('p', { class: 'aide' }, `${R.libelleCompteur(prev.confirmation.texte)} par personne`),
+        prev.confirmation.manque.length ? h('p', { class: 'erreur', dataset: { role: 'sms-incomplet' } }, `Ce SMS contient encore ${prev.confirmation.manque.map((m) => `{${m}}`).join(', ')} : complète tes réglages (Réglages > Rendez-vous) avant de confirmer.`) : null,
+        h('p', { class: 'rdv-prevision-cout', dataset: { role: 'cout-sms' } }, `${prev.segments} SMS facturés au total (${prev.segmentsConfirmation} de confirmation${prev.rappelLe ? ` + ${prev.segmentsRappel} de rappel` : ''}) · ≈ ${R.formaterEuros(prev.cout)} · estimation basée sur les tarifs ClickSend au ${prev.tarifsAu}`)));
+}
 /**
  * Verdict de relecture avant d'écrire une confirmation ('ok', 'rendezvous' ou 'creneau', voir logique.js) : si la fiche a changé, un message le dit, la fiche est redessinée
  * (les boutons et les créneaux proposés repartent de l'état d'aujourd'hui, sans rouvrir la même fenêtre périmée) et rien n'est écrit. Rend true quand on refuse.
@@ -136,12 +164,12 @@ async function confirmerAvecFenetre(rdv, numero, bilan, bouton, redessiner = () 
   const ok = await dialogue({
     titre: `Confirmer le créneau ${numero} ?`,
     contenu: h('div', { class: 'pile' }, h('p', {}, R.libelleCreneau(numero - 1, rdv.creneaux[numero - 1])),
-      h('p', { class: 'aide' }, `Il convient à ${n} ${n > 1 ? 'personnes' : 'personne'} sur ${bilan.total}. Une fois confirmé, tout le monde sera prévenu par SMS.`)),
+      h('p', { class: 'aide' }, `Il convient à ${n} ${n > 1 ? 'personnes' : 'personne'} sur ${bilan.total}. Une fois confirmé, tout le monde sera prévenu par SMS.`), blocPrevision(prevoir(rdv, numero))),
     boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: `Confirmer le créneau ${numero}`, valeur: true, style: 'principal' }],
   });
   if (ok !== true) return;
   // La fiche a pu changer pendant que la fenêtre était ouverte : on relit avant d'écrire, comme pour le choix entre plusieurs créneaux.
-  if (refuserSiChange(R.verdictCreneauUnique(D.rendezVous(rdv.id), numero, dateAffichee, new Date().toISOString()), redessiner)) return;
+  if (refuserSiChange(R.verdictCreneauUnique(D.rendezVous(rdv.id), D.participantsDe(rdv.id), numero, dateAffichee, new Date().toISOString()), redessiner)) return;
   confirmationEnCours = true;
   bouton.disabled = true;
   try { await D.confirmerCreneau(rdv.id, numero); toast(`Créneau ${numero} confirmé`); } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Confirmation impossible'), { type: 'erreur' }); bouton.disabled = false; } finally { confirmationEnCours = false; }
@@ -155,14 +183,17 @@ async function choisirEtConfirmer(rdv, numeros, bouton, redessiner = () => {}) {
   if (confirmationEnCours) return;
   const erreur = h('p', { class: 'erreur', role: 'alert' });
   const radios = numeros.map((n) => h('label', { class: 'rdv-case' }, h('input', { type: 'radio', name: 'rdv-creneau-a-confirmer', value: String(n), 'aria-label': R.libelleCreneau(n - 1, rdv.creneaux[n - 1]) }), R.libelleCreneau(n - 1, rdv.creneaux[n - 1])));
-  radios.forEach((l) => l.querySelector('input').addEventListener('change', () => { erreur.textContent = ''; }));
   const choisi = () => radios.map((l) => l.querySelector('input')).find((i) => i.checked)?.value;
+  const zonePrevision = h('div', { dataset: { role: 'zone-prevision' } });
+  const majPrevision = () => remplir(zonePrevision, choisi() ? blocPrevision(prevoir(rdv, Number(choisi()))) : h('p', { class: 'aide' }, 'Choisis un créneau : tu verras ici ce qui partira par SMS.')); // le rappel dépend du créneau choisi
+  radios.forEach((l) => l.querySelector('input').addEventListener('change', () => { erreur.textContent = ''; majPrevision(); }));
+  majPrevision();
   const affichees = Object.fromEntries(numeros.map((n) => [n, rdv.creneaux[n - 1]])); // les dates telles qu'elles sont montrées dans la fenêtre
   let verdict = 'ok';
   const numero = await dialogue({
     titre: 'Quel créneau confirmer ?', classe: 'dialogue-formulaire',
     contenu: h('div', { class: 'pile', dataset: { role: 'choix-creneau' } }, h('p', {}, 'Ces créneaux conviennent à tout le monde. Choisis celui que tu confirmes.'), ...radios, erreur,
-      h('p', { class: 'aide' }, 'Une fois confirmé, tout le monde sera prévenu par SMS.')),
+      h('p', { class: 'aide' }, 'Une fois confirmé, tout le monde sera prévenu par SMS.'), zonePrevision),
     boutons: [{ libelle: 'Annuler', valeur: null },
       { libelle: 'Confirmer ce créneau', valeur: () => Number(choisi()), style: 'principal', avantFermeture: () => {
         if (!choisi()) { erreur.textContent = 'Choisis un créneau pour continuer.'; return false; }
@@ -254,6 +285,8 @@ export function rendreFiche(conteneur, id) {
       propose ? `Confirmer le créneau ${propose}` : plusieurs ? 'Confirmer un créneau…' : 'Confirmer un créneau'));
       if (!choix.length) boutons.push(h('span', { id: 'rdv-raison-confirmer', class: 'aide', dataset: { role: 'raison-confirmer' } }, 'Aucun créneau à venir ne convient encore à quelqu’un : attends des réponses ou propose d’autres créneaux.'));
     }
+    // Une phrase toujours visible sous le bouton jaune : ce qui partira par SMS si on confirme (jamais de surprise).
+    const phraseConfirmer = ouvert && !nonEnvoye && choix.length ? R.phraseAvantConfirmer({ rdv: r, participants: parts, parametres: D.parametres(), numeros: choix, maintenant: options.maintenant, desinscrits: D.desinscrits() }) : '';
     if (modifiable) boutons.push(h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'autres-creneaux', onclick: () => proposerAutresCreneaux(r) }, 'Proposer d’autres créneaux'));
     if (confirme) boutons.push(h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'prevenir-pluie', onclick: () => fenetreSmsManuel(r, 'pluie', { titre: 'Prévenir de la pluie' }) }, 'Prévenir de la pluie'));
     if (!r.annule) boutons.push(h('button', { type: 'button', class: 'bouton rdv-bouton-danger', 'data-action': 'annuler-rdv', onclick: () => annuler(r) }, 'Annuler le rendez-vous'));
@@ -267,6 +300,7 @@ export function rendreFiche(conteneur, id) {
       bandeau ? h('div', { class: 'rdv-bandeau rdv-bandeau-violet', role: 'status', dataset: { role: 'bandeau-creneau', type: bandeau.type } }, bandeau.texte) : null,
       h('section', { class: 'carte-section' }, h('h2', {}, 'Qui peut quand'), parts.length ? tableau(r, parts, ouvert, ouvert ? R.creneauxCommunsAVenir(bilan, options) : []) : h('p', { class: 'aide' }, 'Aucun participant.'), legende()),
       h('div', { class: 'ligne-boutons rdv-boutons-fiche' }, boutons),
+      phraseConfirmer ? h('p', { class: 'aide rdv-avant-confirmer', dataset: { role: 'avant-confirmer' } }, phraseConfirmer) : null,
       h('section', { class: 'carte-section' }, h('h2', {}, 'Historique des SMS'), historique(r, parts)));
   }
 
