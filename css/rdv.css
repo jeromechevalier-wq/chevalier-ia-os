@@ -121,3 +121,10 @@
 .rdv-historique { display: flex; flex-direction: column; gap: var(--esp-4); }
 .rdv-case { display: flex; align-items: center; gap: var(--esp-3); padding: var(--esp-2) 0; }
 .page-rdv-fiche { max-width: 920px; }
+
+/* Réglages > Connexion SMS : bloc repliable d'aide pour configurer ClickSend */
+.rdv-aide-clicksend { margin-top: var(--esp-5); padding: var(--esp-4) var(--esp-5); border: 1px solid var(--bordure); border-radius: var(--rayon); background: var(--panneau2); }
+.rdv-aide-clicksend summary { cursor: pointer; font-weight: var(--poids-moyen); }
+.rdv-aide-etapes { margin: var(--esp-4) 0 var(--esp-3); padding-left: var(--esp-8); display: flex; flex-direction: column; gap: var(--esp-3); }
+.rdv-aide-etapes a { overflow-wrap: anywhere; }
+.rdv-aide-adresse { margin-top: var(--esp-2); overflow-wrap: anywhere; }

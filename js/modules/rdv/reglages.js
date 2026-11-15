@@ -8,6 +8,28 @@ import * as R from './logique.js';
 import { interrupteur, champNombre, compteurSms, EXPLICATION_ACCENTS } from './composants.js';
 import { reglagesExportRdv } from './export.js';
 
+const LIEN_REGLES_SMS_ENTRANTS = 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms';
+
+/**
+ * Bloc repliable « Comment configurer ClickSend pour recevoir les réponses et les STOP » : même texte chez Jérôme et chez les clients. L'adresse des réponses n'est écrite que si elle est
+ * déjà affichée dans la carte (`adresse`, rendue par le serveur, jamais en dur ici) : c'est un secret de fait, son code est la seule protection.
+ */
+let aideOuverte = false; // le bloc reste ouvert quand la carte se redessine (adresse affichée, enregistrement)
+export function aideClickSend(adresse = '') {
+  const bloc = h('details', { class: 'rdv-aide-clicksend', dataset: { role: 'aide-clicksend' } },
+    h('summary', {}, 'Comment configurer ClickSend pour recevoir les réponses et les STOP'),
+    h('ol', { class: 'rdv-aide-etapes' },
+      h('li', {}, 'Ouvre ', h('a', { href: LIEN_REGLES_SMS_ENTRANTS, target: '_blank', rel: 'noopener noreferrer' }, LIEN_REGLES_SMS_ENTRANTS), ' (menu « SMS », puis « Inbound Rules »).'),
+      h('li', {}, 'Désactive les deux règles que ClickSend crée d’office pour le mot « stop » : « Send to messenger » (action SEND_TO_MESSENGER) et « Opt-out contact » (action MOVE_CONTACT). Ouvre chacune et décoche « Enabled ». Sinon ClickSend garde le STOP pour lui et il n’arrive jamais chez nous.'),
+      h('li', {}, 'Crée une règle, ou transforme la « Default rule » : « Dedicated number » = ANY, « Action » = URL, méthode POST, « Action address » = l’adresse des réponses de cette carte, « Match for » vide, « Enabled » coché. Enregistre.',
+        adresse ? h('div', { class: 'rdv-aide-adresse', dataset: { role: 'aide-adresse' } }, 'Adresse à coller : ', h('code', {}, adresse)) : h('div', { class: 'aide', dataset: { role: 'aide-adresse-absente' } }, 'Pour la voir ici, clique sur « Afficher l’adresse des réponses ».')),
+      h('li', {}, 'Vérifie : envoie-toi un SMS puis réponds-y ; la réponse doit apparaître dans l’historique de la fiche en quelques secondes. Réponds ensuite STOP : le numéro doit apparaître désinscrit.')),
+    h('p', { class: 'aide' }, 'L’adresse des réponses est un secret de fait : son code est la seule protection. Ne la partage avec personne.'));
+  bloc.open = aideOuverte;
+  bloc.addEventListener('toggle', () => { aideOuverte = bloc.open; });
+  return bloc;
+}
+
 /** Une seule fenêtre « Nom + Numéro de mobile » : une erreur de numéro s'écrit dans la fenêtre, qui reste ouverte. Un numéro déjà dans la liste est refusé de la même façon. Rend { libelle, numero } ou null (annulé). */
 async function fenetreAjoutNumero(existants = []) {
   const nom = h('input', { type: 'text', class: 'champ', 'aria-label': 'Nom (ex. Mon mobile, Collègue)', maxlength: '40', autocomplete: 'off', autofocus: true });
@@ -167,7 +189,7 @@ export function reglages(page) {
     if (peut === null) return [h('p', { class: 'aide', 'data-role': 'connexion-chargement' }, 'Chargement…')];
     if (!peut) {
       return [h('p', { 'data-role': 'connexion-etat' }, D.envoiBranche() ? 'L’envoi des SMS est branché sur cet espace.' : 'L’envoi des SMS n’est pas encore branché sur cet espace.'),
-        h('p', { class: 'aide' }, 'La connexion au service d’envoi (ClickSend) est réglée par l’administrateur de la plateforme.')];
+        h('p', { class: 'aide' }, 'La connexion au service d’envoi (ClickSend) est réglée par l’administrateur de la plateforme.'), aideClickSend()];
     }
     chargerConnexion();
     const e = connexion.etat;
@@ -207,7 +229,7 @@ export function reglages(page) {
       ligne('Identifiant ClickSend', identifiant), ligne('Clé d’API ClickSend', cle), ligne('Nom d’expéditeur', expediteur),
       connexion.erreur ? h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'reessayer-connexion', onclick: () => { connexion.charge = false; connexion.erreur = ''; redessinerConnexion(); } }, 'Réessayer') : null,
       h('p', { class: 'aide' }, 'La clé est vérifiée auprès de ClickSend, puis rangée dans un coffre protégé du serveur : elle n’est jamais affichée ni gardée dans cette page (si la carte se redessine avant que tu enregistres, il faudra la recoller). Le nom d’expéditeur est facultatif : laisse vide tant que ClickSend n’a pas validé le tien.'),
-      h('div', { class: 'ligne-boutons rdv-boutons-fiche' }, enregistrerConnexion, ...boutonsAdresse), blocAdresse];
+      h('div', { class: 'ligne-boutons rdv-boutons-fiche' }, enregistrerConnexion, ...boutonsAdresse), blocAdresse, aideClickSend(connexion.adresse)];
   }, { aide: '' });
   redessins.push(redessinerConnexion);
 

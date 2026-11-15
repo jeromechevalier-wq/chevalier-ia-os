@@ -301,6 +301,8 @@ describe('adresse des réponses (traitement HTTP)', () => {
   });
 });
 
+// Seule exception : le lien d'aide vers le tableau de bord (Réglages > Rendez-vous), un lien affiché à l'utilisateur, jamais un appel. Toute autre adresse reste interdite.
+const LIEN_AIDE_TABLEAU_DE_BORD = 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms';
 describe('ClickSend : un seul fichier du dépôt lui parle', () => {
   test('l’adresse de ClickSend n’apparaît que dans functions/src/coeur/sms-direct.js (code exécutable, hors tests, docs et copies générées)', () => {
     const racine = new URL('..', import.meta.url).pathname;
@@ -310,7 +312,7 @@ describe('ClickSend : un seul fichier du dépôt lui parle', () => {
         if (['node_modules', '.git', 'tests', 'docs', 'wiki', 'partage', 'serveur'].includes(nom)) continue;
         const chemin = join(dossier, nom);
         if (statSync(chemin).isDirectory()) parcourir(chemin);
-        else if (/\.(js|mjs|html)$/.test(nom) && /clicksend\.com/i.test(readFileSync(chemin, 'utf8'))) trouves.push(chemin.slice(racine.length));
+        else if (/\.(js|mjs|html)$/.test(nom) && /clicksend\.com/i.test(readFileSync(chemin, 'utf8').replaceAll(LIEN_AIDE_TABLEAU_DE_BORD, ''))) trouves.push(chemin.slice(racine.length));
       }
     };
     for (const d of ['functions', 'functions-plateforme', 'js', 'scripts']) parcourir(join(racine, d));

@@ -90,6 +90,8 @@ describe('D2 Aucune ressource externe hors Google', () => {
         if (/^https:\/\/(github\.com\/jeromechevalier-wq\/chevalier-ia-os\/blob\/main\/docs\/|console\.cloud\.google\.com\/)/.test(url) && /deploiement\.js$/.test(f)) continue;
         // Module Réseaux sociaux (11/11/2026) : lien « Ouvrir Buffer » (nouvel onglet, rel noopener), jamais chargé.
         if (url === 'https://publish.buffer.com' && f === 'js/modules/reseauxsociaux/logique.js') continue;
+        // Module Rendez-vous (15/11/2026) : lien d'aide « Inbound Rules » du tableau de bord ClickSend (nouvel onglet, rel noopener), jamais chargé ni appelé.
+        if (url === 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms' && f === 'js/modules/rdv/reglages.js') continue;
         assert.match(url, autorise, `${f} : ${url}`);
       }
       assert.doesNotMatch(t, /fonts\.googleapis\.com|cdn\.jsdelivr|unpkg\.com|cdnjs/, f);
