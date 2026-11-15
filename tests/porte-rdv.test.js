@@ -326,6 +326,34 @@ describe('rdv.enregistrerReponse', () => {
     assert.match(alerte.texte, /a répondu STOP/);
     assert.equal(alerte.numero, '+33700000001');
   });
+  test('D1 STOP d\'un participant : les autres répondent, le rendez-vous passe « à valider » (le désinscrit ne bloque plus)', async () => {
+    const m = monde(); m.semer();
+    await recevoir(m, '+33600000001', 'STOP', 'cs-stop');
+    assert.equal(m.base.docs.get('rdv_rendezvous/r1').d.etat, 'en_attente', 'tant que l\'autre n\'a pas répondu');
+    await recevoir(m, '+33600000002', '1 et 2', 'cs-b');
+    assert.equal(m.base.docs.get('rdv_rendezvous/r1').d.etat, 'a_valider');
+    const parts = ['r1-p1', 'r1-p2'].map((i) => ({ id: i, ...m.base.docs.get(`rdv_participants/${i}`).d }));
+    const b = R.bilanReponses(parts, 2);
+    assert.deepEqual([b.complet, b.communs, b.incomprises, b.desinscrits], [true, [1, 2], 0, 1]);
+    const textes = (await m.action('rdv.aEnvoyer')).messages.filter((x) => x.typeMessage === 'alerte').map((x) => x.texte);
+    assert.ok(textes.some((t) => /tous dispos/.test(t)), 'l\'alerte « un créneau convient à tous » part sans attendre le désinscrit');
+    assert.ok(textes.some((t) => /a répondu STOP/.test(t)));
+  });
+  test('D1-4 après STOP, une réponse « 1 » puis une réponse tardive : le participant reste désinscrit et n\'est jamais « OK »', async () => {
+    const m = monde(); m.semer();
+    await recevoir(m, '+33600000001', 'STOP', 'cs-stop');
+    await recevoir(m, '+33600000001', '1', 'cs-un');
+    let p = m.base.docs.get('rdv_participants/r1-p1').d;
+    assert.deepEqual([p.desinscrit, p.etatReponse], [true, 'comprise']);
+    assert.deepEqual(R.bilanReponses([{ ...p, id: 'a' }], 2).communs, []);
+    await recevoir(m, '+33600000002', '1', 'cs-b');
+    const rdv = m.base.docs.get('rdv_rendezvous/r1');
+    m.base.docs.set('rdv_rendezvous/r1', { v: 9, d: { ...rdv.d, etat: 'confirme', creneauChoisi: rdv.d.creneaux[0] } });
+    await recevoir(m, '+33600000001', 'empêchement', 'cs-tard');
+    p = m.base.docs.get('rdv_participants/r1-p1').d;
+    assert.equal(p.desinscrit, true);
+    assert.equal(R.symboleCellule(p, 0), 'desinscrit');
+  });
   test('champs obligatoires et identifiant trop long refusés', async () => {
     const m = monde();
     await assert.rejects(() => m.action('rdv.enregistrerReponse', { numero: '+33600000001', texte: '1' }), (e) => e.code === 'requete_invalide');
