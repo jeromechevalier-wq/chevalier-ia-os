@@ -15,14 +15,14 @@ const LIEN_REGLES_SMS_ENTRANTS = 'https://dashboard.clicksend.com/messaging-sett
  * déjà affichée dans la carte (`adresse`, rendue par le serveur, jamais en dur ici) : c'est un secret de fait, son code est la seule protection.
  */
 let aideOuverte = false; // le bloc reste ouvert quand la carte se redessine (adresse affichée, enregistrement)
-export function aideClickSend(adresse = '', peutConfigurer = true) {
+export function aideClickSend(adresse = '', peutConfigurer = true, connexionEnregistree = true) {
   const bloc = h('details', { class: 'rdv-aide-clicksend', dataset: { role: 'aide-clicksend' } },
     h('summary', {}, 'Comment configurer ClickSend pour recevoir les réponses et les STOP'),
     h('ol', { class: 'rdv-aide-etapes' },
       h('li', {}, 'Ouvre ', h('a', { href: LIEN_REGLES_SMS_ENTRANTS, target: '_blank', rel: 'noopener noreferrer' }, LIEN_REGLES_SMS_ENTRANTS), ' (menu « SMS », puis « Inbound Rules »).'),
       h('li', {}, 'Désactive les deux règles que ClickSend crée d’office pour le mot « stop » : « Send to messenger » (action SEND_TO_MESSENGER) et « Opt-out contact » (action MOVE_CONTACT). Ouvre chacune et décoche « Enabled ». Sinon ClickSend garde le STOP pour lui et il n’arrive jamais chez nous.'),
       h('li', {}, 'Crée une règle, ou transforme la « Default rule » : « Dedicated number » = ANY, « Action » = URL, méthode POST, « Action address » = l’adresse des réponses de cette carte, « Match for » vide, « Enabled » coché. Enregistre.',
-        adresse ? h('div', { class: 'rdv-aide-adresse', dataset: { role: 'aide-adresse' } }, 'Adresse à coller : ', h('code', {}, adresse)) : h('div', { class: 'aide', dataset: { role: 'aide-adresse-absente' } }, peutConfigurer ? 'Pour la voir ici, clique sur « Afficher l’adresse des réponses ».' : 'L’administrateur de la plateforme te donne cette adresse.')),
+        adresse ? h('div', { class: 'rdv-aide-adresse', dataset: { role: 'aide-adresse' } }, 'Adresse à coller : ', h('code', {}, adresse)) : h('div', { class: 'aide', dataset: { role: 'aide-adresse-absente' } }, !peutConfigurer ? 'L’administrateur de la plateforme te donne cette adresse.' : connexionEnregistree ? 'Pour la voir ici, clique sur « Afficher l’adresse des réponses ».' : 'Enregistre d’abord la connexion : l’adresse des réponses apparaîtra ensuite.')),
       h('li', {}, 'Vérifie : envoie-toi un SMS puis réponds-y ; la réponse doit apparaître dans l’historique de la fiche en quelques secondes. Réponds ensuite STOP : le numéro doit apparaître désinscrit.')),
     h('p', { class: 'aide' }, 'L’adresse des réponses est un secret de fait : son code est la seule protection. Ne la partage avec personne.'));
   bloc.open = aideOuverte;
@@ -229,7 +229,7 @@ export function reglages(page) {
       ligne('Identifiant ClickSend', identifiant), ligne('Clé d’API ClickSend', cle), ligne('Nom d’expéditeur', expediteur),
       connexion.erreur ? h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'reessayer-connexion', onclick: () => { connexion.charge = false; connexion.erreur = ''; redessinerConnexion(); } }, 'Réessayer') : null,
       h('p', { class: 'aide' }, 'La clé est vérifiée auprès de ClickSend, puis rangée dans un coffre protégé du serveur : elle n’est jamais affichée ni gardée dans cette page (si la carte se redessine avant que tu enregistres, il faudra la recoller). Le nom d’expéditeur est facultatif : laisse vide tant que ClickSend n’a pas validé le tien.'),
-      h('div', { class: 'ligne-boutons rdv-boutons-fiche' }, enregistrerConnexion, ...boutonsAdresse), blocAdresse, aideClickSend(connexion.adresse)];
+      h('div', { class: 'ligne-boutons rdv-boutons-fiche' }, enregistrerConnexion, ...boutonsAdresse), blocAdresse, aideClickSend(connexion.adresse, true, !!e?.enregistre)];
   }, { aide: '' });
   redessins.push(redessinerConnexion);
 

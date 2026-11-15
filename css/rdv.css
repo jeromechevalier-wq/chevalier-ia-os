@@ -131,3 +131,17 @@
 
 /* Participant dont un SMS n'est pas parti : phrase et bouton « Renvoyer le SMS » (C2) */
 .rdv-sms-abandonne { display: inline-flex; flex-wrap: wrap; gap: var(--esp-2); align-items: center; }
+
+/* Fiche : phrase sous « Confirmer… » et bloc « Ce qui va partir par SMS » des fenêtres de confirmation */
+.rdv-boutons-fiche:has(+ .rdv-avant-confirmer) { margin-bottom: var(--esp-3); }
+.rdv-avant-confirmer { margin: 0 0 var(--esp-6); }
+.rdv-prevision { display: flex; flex-direction: column; gap: var(--esp-4); padding-top: var(--esp-4); border-top: 1px solid var(--bordure); }
+.rdv-prevision-titre { margin: 0; font-size: var(--fs-texte); font-weight: var(--poids-moyen); }
+.rdv-prevision-liste { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--esp-3); }
+.rdv-prevision-liste li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--esp-1) var(--esp-4); }
+.rdv-prevision-tel { color: var(--texte2); font-size: var(--fs-petit); }
+.rdv-prevision-quoi { flex-basis: 100%; color: var(--texte2); font-size: var(--fs-petit); }
+.rdv-prevision-liste li[data-statut="desinscrit"] .rdv-prevision-quoi, .rdv-prevision-liste li[data-statut="sans-telephone"] .rdv-prevision-quoi { color: var(--retard); }
+.rdv-prevision-texte { margin: 0; padding: var(--esp-4) var(--esp-5); border-radius: var(--rayon); background: var(--panneau2); border: 1px solid var(--bordure); white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.rdv-prevision-cout { margin: 0; color: var(--texte2); font-size: var(--fs-petit); }
+.rdv-prevision-aucun { margin: 0; padding: var(--esp-4) var(--esp-5); border-radius: var(--rayon); background: var(--retard-fond); border: 1px solid var(--retard); }
