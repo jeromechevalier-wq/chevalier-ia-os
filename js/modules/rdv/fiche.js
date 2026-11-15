@@ -350,6 +350,17 @@ export function rendreFiche(conteneur, id) {
 
   const legende = () => h('ul', { class: 'rdv-legende', dataset: { role: 'legende' } }, ['oui', 'non', 'inconnu', 'incompris', 'desinscrit'].map((n) => h('li', {}, symbole(n), h('span', {}, SYMBOLES[n].libelle))));
 
+  // SMS prévus mais pas encore partis (hors plage d'envoi, ou rendez-vous de test sans numéro de test) : on les montre et on dit pourquoi.
+  function smsPrevus(r, parts) {
+    const prevus = R.smsPrevus({ rdv: r, participants: parts, parametres: D.parametres(), messages: D.messagesDe(r.id), desinscrits: D.desinscrits(), maintenant: new Date().toISOString() });
+    const phrases = R.phrasesSmsPrevus(prevus);
+    if (!phrases.length) return null;
+    return h('div', { class: 'rdv-sms-prevus', dataset: { role: 'sms-prevus' } },
+      h('h3', {}, 'SMS prévus, pas encore partis'),
+      h('ul', { class: 'rdv-sms-prevus-liste' }, prevus.groupes.map((g) => h('li', { dataset: { role: 'sms-prevu' } }, h('strong', {}, g.libelle), g.noms.length ? ` : ${g.noms.join(', ')}` : ''))),
+      phrases.map((t) => h('p', { class: 'aide', dataset: { role: 'sms-prevus-raison' } }, t)));
+  }
+
   function historique(r, parts) {
     const msgs = R.historiqueMessages(D.messagesDe(r.id), parts);
     if (!msgs.length) return h('p', { class: 'aide', dataset: { role: 'historique-vide' } }, 'Aucun SMS pour l’instant. Les SMS envoyés et reçus apparaîtront ici.');
@@ -414,7 +425,7 @@ export function rendreFiche(conteneur, id) {
       h('section', { class: 'carte-section' }, h('h2', {}, 'Qui peut quand'), parts.length ? tableau(r, parts, ouvert, ouvert ? R.creneauxCommunsAVenir(bilan, options) : []) : h('p', { class: 'aide' }, 'Aucun participant.'), legende()),
       h('div', { class: 'ligne-boutons rdv-boutons-fiche' }, boutons),
       phraseConfirmer ? h('p', { class: 'aide rdv-avant-confirmer', dataset: { role: 'avant-confirmer' } }, phraseConfirmer) : null,
-      h('section', { class: 'carte-section' }, h('h2', {}, 'Historique des SMS'), historique(r, parts)));
+      h('section', { class: 'carte-section' }, h('h2', {}, 'Historique des SMS'), smsPrevus(r, parts), historique(r, parts)));
   }
 
   const planifie = planifier(rendre);

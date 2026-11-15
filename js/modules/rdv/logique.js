@@ -949,6 +949,62 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
   return dus.sort((a, b) => a.dueLe.localeCompare(b.dueLe) || a.idEcheance.localeCompare(b.idEcheance));
 }
 
+// ───────────────────────────── SMS prévus (affichage dans la fiche) ─────────────────────────────
+
+const heureDeMinutes = (m) => `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
+
+/**
+ * Les SMS de calendrier (présentation, créneaux, relances, confirmation, rappel) qui ne sont PAS encore partis, pour les montrer dans la fiche.
+ * Aucun envoi ici. On interroge `smsDus` à la prochaine ouverture de la plage d'envoi : ce qui y est dû est ce qui partira (tout de suite si on est dans la plage).
+ *  - `horsPlage` : on est en dehors de la plage d'envoi, ces SMS attendent l'ouverture (`ouvertureLe`, `heureOuverture`, `demain` si c'est le lendemain) ;
+ *  - `testSansNumero` : rendez-vous de test sans « numéro des SMS de test » : les SMS sont montrés mais ne partiront pas ;
+ *  - `groupes` : un par type de SMS, avec les noms des participants.
+ */
+export function smsPrevus({ rdv, participants = [], parametres, messages = [], desinscrits = [], maintenant }) {
+  const vide = { groupes: [], horsPlage: false, ouvertureLe: '', heureOuverture: '', demain: false, plage: '', testSansNumero: false };
+  const nowMs = enMs(maintenant);
+  if (!rdv?.id || !Number.isFinite(nowMs) || rdv.archive || rdv.annule) return vide;
+  const p = params(parametres);
+  const { debut, fin } = lirePlage(p.plage);
+  const instant = prochaineOuverture(nowMs, p.plage);
+  const testSansNumero = rdv.test === true && !p.numeroTest;
+  // Sans numéro de test, `smsDus` ne rend rien (aucun destinataire) : on lui donne un numéro de remplacement, jamais affiché ni utilisé, juste pour lister ce qui partirait.
+  const dus = smsDus({ rdv, participants, parametres: testSansNumero ? { ...(parametres || {}), numeroTest: '+33600000000' } : parametres, messages, maintenant: instant, desinscrits }).filter((d) => d.typeMessage !== 'alerte');
+  const parType = new Map();
+  for (const d of dus) {
+    const nom = participants.find((x) => x.id === d.participantId)?.nom || '';
+    const g = parType.get(d.typeMessage) || { typeMessage: d.typeMessage, libelle: LIBELLES_MODELES[d.typeMessage] || 'SMS', noms: [], dueLe: d.dueLe };
+    if (nom && !g.noms.includes(nom)) g.noms.push(nom);
+    parType.set(d.typeMessage, g);
+  }
+  const horsPlage = instant > nowMs;
+  const lendemain = jourParisPlusN(nowMs, 1);
+  const ouverture = partiesParis(instant);
+  return {
+    groupes: [...parType.values()],
+    horsPlage,
+    ouvertureLe: versISO(instant),
+    heureOuverture: heureDeMinutes(debut),
+    demain: horsPlage && ouverture.annee === lendemain.annee && ouverture.mois === lendemain.mois && ouverture.jour === lendemain.jour,
+    plage: `${heureDeMinutes(debut)} à ${heureDeMinutes(fin)}`,
+    testSansNumero: testSansNumero && dus.length > 0,
+  };
+}
+
+/** Phrases pour la fiche : pourquoi les SMS ne sont pas encore partis (une phrase par cause). [] s'il n'y a rien à dire. */
+export function phrasesSmsPrevus(prevus) {
+  if (!prevus || !prevus.groupes.length) return [];
+  const phrases = [];
+  if (prevus.testSansNumero) phrases.push('Rendez-vous de test : ces SMS ne partiront pas, parce que le « numéro des SMS de test » n’est pas réglé (Réglages > Rendez-vous). Tant qu’il est vide, aucun SMS d’un rendez-vous de test ne part.');
+  if (prevus.horsPlage) {
+    const quand = prevus.demain ? `demain matin à ${prevus.heureOuverture}` : formaterCreneau(prevus.ouvertureLe);
+    phrases.push(`Il est en dehors de la plage d’envoi (${prevus.plage}) : ${prevus.testSansNumero ? 'ils attendraient' : 'ces SMS partiront'} ${quand}.`);
+  } else if (!prevus.testSansNumero) {
+    phrases.push('Ces SMS partent dans les minutes qui viennent (le serveur passe toutes les 15 minutes).');
+  }
+  return phrases;
+}
+
 // ───────────────────────────── Même téléphone dans deux rendez-vous ─────────────────────────────
 
 /**

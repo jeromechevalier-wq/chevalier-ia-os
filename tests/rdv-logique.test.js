@@ -1458,3 +1458,48 @@ describe('D2 STOP : traces « bloque » et phrases', () => {
     assert.match(L.phraseApresSmsManuel({ nombre: 0, nombreBloques: 1, declenche: false }, 'pluie'), /^Aucun SMS n’est parti/);
   });
 });
+
+describe('S1 SMS prévus (fiche) : ce qui n’est pas encore parti, et pourquoi', () => {
+  const rdv = { id: 'r1', client: 'M. Durand', adresse: '12 rue des Lilas\nLyon', creneaux: [parisEnISO(2026, 11, 17, 23, 45)], tour: 1, envoiDemandeLe: parisEnISO(2026, 11, 15, 23, 30), etat: 'en_attente' };
+  const parts = [{ id: 'p1', nom: 'Jerome', telephone: '+33600000001' }, { id: 'p2', nom: 'Audrey', telephone: '+33600000002' }];
+  const base = { rdv, participants: parts, parametres: {}, messages: [], desinscrits: [] };
+  test('S1-1 en pleine nuit : les SMS sont listés et la phrase dit « demain matin à 8h00 »', () => {
+    const r = L.smsPrevus({ ...base, maintenant: parisEnISO(2026, 11, 15, 23, 35) });
+    assert.equal(r.horsPlage, true);
+    assert.equal(r.demain, true);
+    assert.deepEqual(r.groupes.map((g) => [g.typeMessage, g.noms]), [['confiance', ['Jerome', 'Audrey']], ['creneaux', ['Jerome', 'Audrey']]]);
+    assert.deepEqual(L.phrasesSmsPrevus(r), ['Il est en dehors de la plage d’envoi (8h00 à 20h30) : ces SMS partiront demain matin à 8h00.']);
+  });
+  test('S1-2 dans la plage d’envoi : ils partent dans les minutes qui viennent', () => {
+    const r = L.smsPrevus({ ...base, maintenant: parisEnISO(2026, 11, 16, 10, 0) });
+    assert.equal(r.horsPlage, false);
+    assert.equal(r.groupes.length, 2);
+    assert.match(L.phrasesSmsPrevus(r)[0], /dans les minutes qui viennent/);
+  });
+  test('S1-3 rendez-vous de test sans numéro de test : les SMS sont montrés et la raison est dite (en plus de la plage)', () => {
+    const r = L.smsPrevus({ ...base, rdv: { ...rdv, test: true }, maintenant: parisEnISO(2026, 11, 15, 23, 35) });
+    assert.equal(r.testSansNumero, true);
+    assert.equal(r.groupes.length, 2);
+    const t = L.phrasesSmsPrevus(r);
+    assert.equal(t.length, 2);
+    assert.match(t[0], /numéro des SMS de test/);
+    assert.match(t[1], /ils attendraient demain matin à 8h00/);
+    assert.equal(JSON.stringify(r).includes('33600000000'), false, 'le numéro de remplacement n’apparaît jamais');
+  });
+  test('S1-4 avec un numéro de test réglé : plus de phrase « test sans numéro »', () => {
+    const r = L.smsPrevus({ ...base, rdv: { ...rdv, test: true }, parametres: { numeroTest: '+33611111111' }, maintenant: parisEnISO(2026, 11, 16, 10, 0) });
+    assert.equal(r.testSansNumero, false);
+    assert.equal(r.groupes.length, 2);
+  });
+  test('S1-5 rien à montrer : propositions pas demandées, annulé ou archivé', () => {
+    const nuit = parisEnISO(2026, 11, 15, 23, 35);
+    assert.deepEqual(L.phrasesSmsPrevus(L.smsPrevus({ ...base, rdv: { ...rdv, envoiDemandeLe: null }, maintenant: nuit })), []);
+    assert.equal(L.smsPrevus({ ...base, rdv: { ...rdv, annule: true }, maintenant: nuit }).groupes.length, 0);
+    assert.equal(L.smsPrevus({ ...base, rdv: { ...rdv, archive: true }, maintenant: nuit }).groupes.length, 0);
+    assert.equal(L.phrasesSmsPrevus(null).length, 0);
+  });
+  test('S1-6 un désinscrit n’est pas listé comme destinataire', () => {
+    const r = L.smsPrevus({ ...base, desinscrits: ['+33600000002'], maintenant: parisEnISO(2026, 11, 16, 10, 0) });
+    assert.deepEqual(r.groupes[0].noms, ['Jerome']);
+  });
+});

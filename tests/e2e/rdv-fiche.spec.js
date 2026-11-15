@@ -468,6 +468,17 @@ test('8 historique en bulles : ce qu’on envoie à gauche (violet), ce que les 
   await capture(page, '8-bulles');
 });
 
+test('S1 les SMS prévus mais pas encore partis sont montrés avec la raison (plage d’envoi, ou rendez-vous de test sans numéro de test)', async ({ page }) => {
+  await semer('r1', { test: true }); await part('p1', 'M. Durand', 'Client', '+33600000001');
+  await ouvrirFiche(page);
+  const bloc = page.locator('[data-role="sms-prevus"]');
+  await expect(bloc).toBeVisible();
+  await expect(bloc.locator('[data-role="sms-prevu"]').first()).toContainText('M. Durand');
+  await expect(bloc).toContainText('numéro des SMS de test');
+  await expect(bloc.locator('[data-role="sms-prevus-raison"]').first()).toBeVisible();
+  await capture(page, 'S1-sms-prevus');
+});
+
 test('8 sans SMS : une phrase simple remplace l’historique', async ({ page }) => {
   await semer(); await part('p1', 'M. Durand', 'Client', '+33600000001');
   await ouvrirFiche(page);
