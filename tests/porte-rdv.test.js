@@ -715,11 +715,31 @@ describe('D2 STOP : trace des SMS bloqués', () => {
   });
   const manuel = (m, id, etat, extra = {}) => m.base.docs.set(`rdv_messages/${id}`, { d: { rendezVousId: 'r1', participantId: 'r1-p1', sens: 'sortant', manuel: true, typeMessage: 'pluie', numero: '+33600000001', texte: 'Pluie', caracteres: 5, segments: 1, etatEnvoi: etat, essais: 0, echeance: `r1:man:${id}:r1-p1`, ...extra }, v: 1 });
   const stopSemis = (m) => m.base.docs.set('rdv_parametres/desinscrits', { d: { numeros: ['+33600000001'] }, v: 1 });
-  test('D2-3b un message devenu « envoye » entre la liste et l’écriture reste « envoye » (le bloquage relit le message : la liste n’a pas d’updateTime)', async () => {
+  test('D2-3b un message devenu « envoye » entre la liste et l’écriture reste « envoye » (le blocage relit le message : la liste n’a pas d’updateTime)', async () => {
     const m = monde(); m.semer(); stopSemis(m); manuel(m, 'man_a', 'a_envoyer');
     const vrai = m.base.listerPar;
-    m.base.listerPar = async (...a) => { const r = await vrai(...a); const x = m.base.docs.get('rdv_messages/man_a'); if (x.d.etatEnvoi === 'a_envoyer') m.base.docs.set('rdv_messages/man_a', { d: { ...x.d, etatEnvoi: 'envoye' }, v: 50 }); return r; };
+    let dansLaListe = false;
+    // Bascule UNIQUEMENT après la liste « etatEnvoi == a_envoyer » où le message figure : c'est le moment « entre la liste et l'écriture ».
+    m.base.listerPar = async (chemin, champ, valeur, o) => {
+      const r = await vrai(chemin, champ, valeur, o);
+      if (champ === 'etatEnvoi' && valeur === 'a_envoyer' && r.some((x) => x.id === 'man_a')) { dansLaListe = true; m.base.docs.set('rdv_messages/man_a', { d: { ...m.base.docs.get('rdv_messages/man_a').d, etatEnvoi: 'envoye' }, v: 50 }); }
+      return r;
+    };
     await m.action('rdv.aEnvoyer');
+    assert.equal(dansLaListe, true, 'le message était bien dans la liste des SMS à envoyer');
+    assert.equal(m.base.docs.get('rdv_messages/man_a').d.etatEnvoi, 'envoye');
+  });
+  test('D2-3b un message qui change ENTRE la relecture et l’écriture (précondition en échec) reste « envoye » et le tir ne plante pas', async () => {
+    const m = monde(); m.semer(); stopSemis(m); manuel(m, 'man_a', 'a_envoyer');
+    const vrai = m.base.lireDoc;
+    let bascule = false;
+    m.base.lireDoc = async (c) => {
+      const lu = await vrai(c);
+      if (c === 'rdv_messages/man_a' && lu?.etatEnvoi === 'a_envoyer' && !bascule) { bascule = true; m.base.docs.set(c, { d: { ...m.base.docs.get(c).d, etatEnvoi: 'envoye' }, v: 60 }); }
+      return lu;
+    };
+    await m.action('rdv.aEnvoyer');
+    assert.equal(bascule, true);
     assert.equal(m.base.docs.get('rdv_messages/man_a').d.etatEnvoi, 'envoye');
   });
   test('D2-3b un SMS manuel « reserve » PÉRIMÉ est bloqué ; un « reserve » encore valide n’est pas touché', async () => {
