@@ -231,7 +231,7 @@ export async function modifierRendezVous(rdvId, cible, maintenant = new Date()) 
   exigerEcriture();
   const rdv = rendezVous(rdvId);
   const parts = participantsDe(rdvId);
-  const plan = R.planModifierRendezVous({ rdv, participants: parts, cible, maintenant });
+  const plan = R.planModifierRendezVous({ rdv, participants: parts, messages: messagesDe(rdvId), cible, maintenant });
   if (plan.erreur) throw new ErreurRdv(plan.erreur);
   const ctx = CRM.ctx();
   const ecritures = [];

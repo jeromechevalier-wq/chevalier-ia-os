@@ -151,7 +151,8 @@ describe('C2 renvoyerSms (SMS abandonné d\'un participant)', () => {
     assert.equal(msgs.length, 2);
     const neuf = msgs.find((m) => m.id !== 'm1');
     assert.deepEqual([neuf.manuel, neuf.renvoi, neuf.etatEnvoi, neuf.essais, neuf.participantId, neuf.numero, neuf.texte, neuf.typeMessage, neuf.tour, neuf.sens], [true, true, 'a_envoyer', 0, 'p1', '+33600000001', 'Quel créneau ? 1) mardi 2) mercredi', 'creneaux', 1, 'sortant']);
-    assert.equal(neuf.echeance, `renvoi-${T0.getTime()}`);
+    assert.equal(neuf.echeance, `r1:renvoi:${T0.getTime().toString(36)}:p1`);
+    assert.equal(neuf.id, 'ren_m1', 'identifiant fixe : le même ancien SMS ne donne jamais deux nouveaux SMS');
     assert.ok(!/:relance\d+:/.test(neuf.echeance), 'le calendrier des relances ne le lit pas');
     assert.ok((await donnees.document('rdv_messages', 'm1')).renvoyeLe, 'l\'ancien SMS est marqué : le bouton disparaît, pas de deuxième renvoi');
     assert.deepEqual(sortie.appels, [{ espace: 'interne', params: { rendezVousId: 'r1' } }]);
@@ -161,7 +162,7 @@ describe('C2 renvoyerSms (SMS abandonné d\'un participant)', () => {
     const rdv = { ...base({ envoiDemandeLe: new Date(T0.getTime() - 86400_000) }).rdv_rendezvous[0] };
     const parts = base().rdv_participants;
     const avant = [abandonne({ echeance: R.idEcheance('r1', 1, 'creneaux', 'p1') })];
-    const apres = [...avant, { ...abandonne({ id: 'm9', etatEnvoi: 'envoye', echeance: `renvoi-${T0.getTime()}`, manuel: true, renvoi: true }) }];
+    const apres = [...avant, { ...abandonne({ id: 'm9', etatEnvoi: 'envoye', echeance: `r1:renvoi:${T0.getTime().toString(36)}:p1`, manuel: true, renvoi: true }) }];
     const maintenant = T0.getTime() + 4 * 86400_000;
     const cles = (messages) => R.smsDus({ rdv, participants: parts, parametres, messages, maintenant }).map((d) => d.idEcheance).sort();
     assert.deepEqual(cles(apres), cles(avant));
@@ -172,6 +173,30 @@ describe('C2 renvoyerSms (SMS abandonné d\'un participant)', () => {
       await assert.rejects(() => renvoyer(donnees), (e) => e instanceof ErreurRdvEnvoi && e.code === 'failed-precondition' && /Aucun SMS abandonné/.test(e.message), JSON.stringify(extra));
       assert.equal((await donnees.liste('rdv_messages')).length, 1, 'rien n\'est écrit');
     }
+  });
+  test('C2 deux SMS abandonnés pour la personne : le plus récent est repris et TOUS sont marqués renvoyés', async () => {
+    const donnees = avec([abandonne({ id: 'm1', texte: 'Ancien', envoyeLe: new Date(T0.getTime() - 5000_000) }), abandonne({ id: 'm2', texte: 'Récent', envoyeLe: new Date(T0.getTime() - 1000_000), echeance: 'r1:t1:relance1:p1', typeMessage: 'relance' })]);
+    await renvoyer(donnees);
+    const neuf = (await donnees.liste('rdv_messages')).find((m) => m.renvoi === true);
+    assert.deepEqual([neuf.texte, neuf.typeMessage, neuf.renvoiDe], ['Récent', 'relance', 'm2']);
+    assert.ok((await donnees.document('rdv_messages', 'm1')).renvoyeLe && (await donnees.document('rdv_messages', 'm2')).renvoyeLe);
+  });
+  test('C2 deux appels simultanés : un seul SMS est créé (l\'autre est refusé)', async () => {
+    const donnees = avec([abandonne()]);
+    const resultats = await Promise.allSettled([renvoyer(donnees), renvoyer(donnees)]);
+    assert.equal(resultats.filter((r) => r.status === 'fulfilled').length, 1);
+    assert.ok(resultats.find((r) => r.status === 'rejected').reason instanceof ErreurRdvEnvoi);
+    assert.equal((await donnees.liste('rdv_messages')).filter((m) => m.renvoi === true).length, 1);
+  });
+  test('C2 présentation, créneaux, relance : refusés si le rendez-vous n\'est plus ouvert ou si tous les créneaux sont passés ; annulation et confirmation restent renvoyables', async () => {
+    const passes = [new Date(T0.getTime() - 86400000).toISOString()];
+    for (const type of ['confiance', 'creneaux', 'relance']) {
+      await assert.rejects(() => renvoyer(avec([abandonne({ typeMessage: type })], { etat: 'confirme', creneauChoisi: FUTUR[0] })), /n’a plus de sens|plus ouvert/, `${type} confirmé`);
+      await assert.rejects(() => renvoyer(avec([abandonne({ typeMessage: type })], { creneaux: passes })), /créneaux sont passés/, `${type} passé`);
+    }
+    assert.equal((await renvoyer(avec([abandonne({ typeMessage: 'annulation' })], { annule: true, archive: true }))).ok, true, 'le SMS d\'annulation se renvoie même si le rendez-vous est annulé');
+    assert.equal((await renvoyer(avec([abandonne({ typeMessage: 'confirmation' })], { etat: 'confirme', creneauChoisi: FUTUR[0] }))).ok, true);
+    await assert.rejects(() => renvoyer(avec([abandonne({ typeMessage: 'pluie' })], { archive: true })), /annulé ou archivé/);
   });
   test('C2 refusés : pas branché, rendez-vous annulé ou archivé, participant d\'un autre rendez-vous ou inconnu, identifiants piégés', async () => {
     await assert.rejects(() => renvoyer(avec([abandonne()]), { sortie: fauxSortie({ branche: false }) }), (e) => e.code === 'failed-precondition' && e.message === MESSAGE_RDV_NON_BRANCHE);
@@ -192,9 +217,9 @@ describe('C2 renvoyerSms (SMS abandonné d\'un participant)', () => {
     const donnees = avec([abandonne()]);
     await renvoyer(donnees);
     await assert.rejects(() => renvoyer(donnees), /vient déjà d’être renvoyé/);
-    const recent = avec([abandonne({ id: 'm1', renvoyeLe: T0 }), abandonne({ id: 'm2', renvoi: true, manuel: true, creeLe: new Date(T0.getTime() - 30_000), echeance: 'renvoi-1' })]);
+    const recent = avec([abandonne({ id: 'm1', renvoyeLe: T0 }), abandonne({ id: 'm2', renvoi: true, manuel: true, creeLe: new Date(T0.getTime() - 30_000), echeance: 'r1:renvoi:1:p1' })]);
     await assert.rejects(() => renvoyer(recent), /vient déjà d’être renvoyé/);
-    const ancien = avec([abandonne({ id: 'm1', renvoyeLe: T0 }), abandonne({ id: 'm2', renvoi: true, manuel: true, creeLe: new Date(T0.getTime() - 600_000), echeance: 'renvoi-1' })]);
+    const ancien = avec([abandonne({ id: 'm1', renvoyeLe: T0 }), abandonne({ id: 'm2', renvoi: true, manuel: true, creeLe: new Date(T0.getTime() - 600_000), echeance: 'r1:renvoi:1:p1' })]);
     assert.equal((await renvoyer(ancien)).ok, true);
   });
   test('C2 un rendez-vous de test garde son repère « test » sur le SMS renvoyé', async () => {

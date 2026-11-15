@@ -96,19 +96,23 @@ export async function envoyerSms({ donnees, ctx, espace, sortie, rendezVousId, t
 
 const DOUBLE_CLIC_MS = 120_000;
 const msDe = (v) => v?.toMillis?.() ?? new Date(v).getTime();
+// SMS qui n'ont plus de sens quand le rendez-vous n'est plus ouvert ou que tous les créneaux sont passés (le texte propose des créneaux) : jamais renvoyés alors.
+const TYPES_AVEC_CRENEAUX = ['confiance', 'creneaux', 'relance'];
 
 /**
  * Renvoie le SMS « abandonné » d'UN participant (série courante) : { ok, declenche }.
- * Crée un SMS manuel (`manuel: true`) avec le texte exact du SMS abandonné et une échéance neuve `renvoi-<horodatage>` : le calendrier des relances ne bouge pas (il lit `:relance<k>:`
- * dans l'échéance), et le SMS abandonné reçoit `renvoyeLe` (il n'est renvoyé qu'une fois ; si le renvoi est abandonné à son tour, il peut l'être à nouveau).
- * Refus : envoi pas branché, rendez-vous annulé ou archivé, participant d'un autre rendez-vous, participant désinscrit (STOP : aussi la liste `desinscrits`), aucun SMS abandonné, double clic (2 minutes).
+ * Crée un SMS manuel (`manuel: true`, `renvoi: true`) avec le texte exact du SMS abandonné et une échéance neuve `<rdv>:renvoi:<horodatage>:<participant>` : le calendrier des relances ne bouge pas
+ * (il lit `:relance<k>:` dans l'échéance). Le SMS repris est le plus récent ; TOUS les SMS abandonnés de ce participant reçoivent `renvoyeLe` (le bouton disparaît, pas de deuxième renvoi ;
+ * si le renvoi est abandonné à son tour, il peut l'être à nouveau). Le nouveau SMS a un identifiant fixe (`ren_<ancien>`) et l'écriture exige que l'ancien n'ait pas changé : deux appels
+ * simultanés ne créent qu'un SMS.
+ * Refus : envoi pas branché, participant d'un autre rendez-vous, participant désinscrit (STOP : aussi la liste `desinscrits`), aucun SMS abandonné, double clic (2 minutes), rendez-vous archivé ou annulé
+ * (sauf le SMS d'ANNULATION lui-même), rendez-vous plus ouvert ou sans créneau à venir pour les SMS de présentation, de créneaux et de relance.
  * Jamais le numéro ni le texte dans la réponse d'erreur. Les SMS « envoyés », « en échec » ou « réservés » ne se renvoient pas ici (la fonction planifiée les reprend seule).
  */
 export async function renvoyerSms({ donnees, ctx, espace, sortie, rendezVousId, participantId }) {
   if (typeof participantId !== 'string' || !MOTIF_ID.test(participantId)) throw new ErreurRdvEnvoi('invalid-argument', 'Participant invalide.');
   await exigerBranche(sortie, espace);
   const { rdv, participants } = await lireRendezVous(donnees, rendezVousId);
-  if (rdv.annule || rdv.archive) throw new ErreurRdvEnvoi('failed-precondition', 'Ce rendez-vous est annulé ou archivé : rien n’est renvoyé.');
   const p = participants.find((x) => x.id === participantId);
   if (!p) throw new ErreurRdvEnvoi('not-found', 'Ce participant n’est pas dans ce rendez-vous.');
   const liste = await donnees.document('rdv_parametres', 'desinscrits');
@@ -118,19 +122,30 @@ export async function renvoyerSms({ donnees, ctx, espace, sortie, rendezVousId, 
   if (messages.some((m) => m.renvoi === true && maintenantMs - msDe(m.creeLe) < DOUBLE_CLIC_MS)) throw new ErreurRdvEnvoi('failed-precondition', 'Ce SMS vient déjà d’être renvoyé : patiente deux minutes.');
   const abandonnes = messages.filter((m) => m.etatEnvoi === 'abandonne' && m.typeMessage !== 'alerte' && (m.tour ?? 1) === (rdv.tour ?? 1) && !m.renvoyeLe);
   if (!abandonnes.length) throw new ErreurRdvEnvoi('failed-precondition', 'Aucun SMS abandonné à renvoyer pour cette personne.');
-  const source = abandonnes.sort((a, b) => (msDe(b.envoyeLe ?? b.creeLe) || 0) - (msDe(a.envoyeLe ?? a.creeLe) || 0))[0];
+  const source = [...abandonnes].sort((a, b) => (msDe(b.envoyeLe ?? b.creeLe) || 0) - (msDe(a.envoyeLe ?? a.creeLe) || 0))[0];
   if (typeof source.texte !== 'string' || !source.texte.trim() || !p.telephone) throw new ErreurRdvEnvoi('failed-precondition', 'Ce SMS ne peut pas être renvoyé tel quel.');
+  const annulation = source.typeMessage === 'annulation';
+  if (!annulation && (rdv.annule || rdv.archive)) throw new ErreurRdvEnvoi('failed-precondition', 'Ce rendez-vous est annulé ou archivé : rien n’est renvoyé.');
+  if (TYPES_AVEC_CRENEAUX.includes(source.typeMessage ?? 'creneaux')) {
+    if (!R.estOuvert(rdv)) throw new ErreurRdvEnvoi('failed-precondition', 'Ce rendez-vous n’est plus ouvert : ce SMS n’a plus de sens.');
+    if (!(rdv.creneaux || []).some((c) => R.enMs(c) > maintenantMs)) throw new ErreurRdvEnvoi('failed-precondition', 'Tous les créneaux sont passés : ce SMS n’a plus de sens.');
+  }
   const suffixe = maintenantMs.toString(36);
-  await donnees.appliquer([
-    {
-      type: 'set', collection: T.msg, id: `ren_${rendezVousId}_${suffixe}_${participantId}`.slice(0, 150),
-      donnees: {
-        rendezVousId, participantId, tour: rdv.tour ?? 1, sens: 'sortant', manuel: true, renvoi: true, renvoiDe: source.id, typeMessage: source.typeMessage ?? 'creneaux', numero: p.telephone, texte: source.texte,
-        caracteres: source.caracteres, segments: source.segments, etatEnvoi: 'a_envoyer', essais: 0, echeance: `renvoi-${maintenantMs}`, creeLe: ctx.maintenant,
-        ...(rdv.test === true ? { test: true } : {}),
+  try {
+    await donnees.appliquer([
+      {
+        type: 'set', collection: T.msg, id: `ren_${source.id}`,
+        donnees: {
+          rendezVousId, participantId, tour: rdv.tour ?? 1, sens: 'sortant', manuel: true, renvoi: true, renvoiDe: source.id, typeMessage: source.typeMessage ?? 'creneaux', numero: p.telephone, texte: source.texte,
+          caracteres: source.caracteres, segments: source.segments, etatEnvoi: 'a_envoyer', essais: 0, echeance: `${rendezVousId}:renvoi:${suffixe}:${participantId}`, creeLe: ctx.maintenant,
+          ...(rdv.test === true ? { test: true } : {}),
+        },
       },
-    },
-    { type: 'update', collection: T.msg, id: source.id, donnees: { renvoyeLe: ctx.maintenant } },
-  ]);
+      ...abandonnes.map((m) => ({ type: 'update', collection: T.msg, id: m.id, donnees: { renvoyeLe: ctx.maintenant } })),
+    ], { attendus: [{ collection: T.msg, id: source.id, avant: source }] });
+  } catch (e) {
+    if (e?.name === 'ErreurConflit') throw new ErreurRdvEnvoi('failed-precondition', 'Ce SMS vient déjà d’être renvoyé.');
+    throw e;
+  }
   return { ok: true, declenche: await declencher(sortie, espace, rendezVousId) };
 }

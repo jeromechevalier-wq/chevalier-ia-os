@@ -147,7 +147,9 @@ async function modifierLeRendezVous(rdv, parts) {
     const role = h('select', { class: 'champ', 'aria-label': 'Rôle' }, h('option', { value: '' }, 'Rôle…'),
       [...new Set([...D.parametres().roles, depart.role].filter(Boolean))].map((r) => h('option', { value: r, selected: r === depart.role }, r)));
     if (depart.id) nom.readOnly = true; // le nom vient de la fiche Personne : il ne se change pas ici
-    const retirer = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Retirer ce participant', onclick: () => { el.remove(); lignes.splice(lignes.indexOf(l), 1); majAjout(); } }, icone('trash-2', { taille: 16 }));
+    const contacte = !!depart.id && R.participantContacte(rdv, depart, D.messagesDe(rdv.id)); // il a déjà reçu un SMS : ni retrait, ni nouveau numéro
+    if (contacte) tel.readOnly = true;
+    const retirer = contacte ? null : h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Retirer ce participant', onclick: () => { el.remove(); lignes.splice(lignes.indexOf(l), 1); majAjout(); } }, icone('trash-2', { taille: 16 }));
     const el = h('div', { class: 'rdv-ligne-participant', dataset: { role: 'participant' } },
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Nom'), nom), h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Téléphone'), tel),
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Rôle'), role), retirer);
@@ -158,22 +160,32 @@ async function modifierLeRendezVous(rdv, parts) {
   parts.forEach((p) => ligne(p));
   majAjout();
   const champsCreneaux = [0, 1, 2].map((i) => h('input', { class: 'champ', type: 'datetime-local', 'aria-label': `Créneau ${i + 1}`, value: champDepuisCreneau((rdv.creneaux || [])[i]) }));
+  const deLaReponse = parts.some((p) => p.etatReponse && p.etatReponse !== 'attente');
+  const dejaContactes = parts.some((p) => R.participantContacte(rdv, p, D.messagesDe(rdv.id)));
   const apresEnvoi = h('div', { class: 'pile', dataset: { role: 'modifier-apres-envoi' } },
     h('p', { class: 'aide' }, R.MESSAGE_PARTICIPANTS_APRES_ENVOI),
     h('ul', { class: 'aide' }, parts.map((p) => h('li', {}, `${p.nom || 'Sans nom'} · ${R.afficherTelephone(p.telephone)}`))),
     h('p', { class: 'aide' }, R.MESSAGE_CRENEAUX_APRES_ENVOI),
-    h('ul', { class: 'aide' }, (rdv.creneaux || []).map((c, i) => h('li', {}, R.libelleCreneau(i, c)))));
+    h('ul', { class: 'aide' }, (rdv.creneaux || []).map((c, i) => h('li', {}, R.libelleCreneau(i, c)))),
+    h('p', { class: 'aide', dataset: { role: 'ancien-texte' } }, 'Les personnes ont déjà reçu l’ancienne adresse et l’ancien objet : changer ici ne leur renvoie rien, et renvoyer un SMS garde l’ancien texte.'));
+  let enCours = false; // un double clic sur « Enregistrer » n'écrit qu'une fois
+  let boutonEnregistrer = null;
   const r = await dialogue({
     titre: 'Modifier le rendez-vous', classe: 'dialogue-formulaire',
+    auMontage: ({ boutons: elements }) => { boutonEnregistrer = elements.at(-1); },
     contenu: h('div', { class: 'pile', dataset: { role: 'modifier-rdv' } },
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Objet de la visite'), objet),
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Adresse du rendez-vous'), adresse),
-      avantEnvoi ? h('div', { class: 'pile' }, h('h3', {}, 'Participants'), zone, ajouter, h('h3', {}, 'Créneaux (1 à 3)'),
+      avantEnvoi ? h('div', { class: 'pile' }, h('h3', {}, 'Participants'), dejaContactes ? h('p', { class: 'aide', dataset: { role: 'deja-contactes' } }, R.MESSAGE_PARTICIPANT_DEJA_CONTACTE) : null, zone, ajouter, h('h3', {}, 'Créneaux (1 à 3)'),
+        deLaReponse ? h('p', { class: 'aide', dataset: { role: 'reponses-a-zero' } }, R.MESSAGE_REPONSES_REMISES_A_ZERO) : null,
         ...champsCreneaux.map((c, i) => h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, `Créneau ${i + 1}`), c))) : apresEnvoi,
       erreur),
     boutons: [{ libelle: 'Annuler', valeur: false }, ...(avantEnvoi ? [] : [{ libelle: 'Proposer d’autres créneaux', valeur: 'autres' }]), {
       libelle: 'Enregistrer', valeur: true, style: 'principal',
       avantFermeture: async () => {
+        if (enCours) return false;
+        enCours = true;
+        if (boutonEnregistrer) boutonEnregistrer.disabled = true;
         const cible = { objet: objet.value, adresse: adresse.value };
         if (avantEnvoi) {
           cible.creneaux = champsCreneaux.map((c) => creneauDepuisChamp(c.value)).filter(Boolean);
@@ -184,7 +196,7 @@ async function modifierLeRendezVous(rdv, parts) {
             return { ...x, nom: existante?.nom || nom, personneId: x.personneId || existante?.id || null };
           });
         }
-        try { await D.modifierRendezVous(rdv.id, cible); toast('Rendez-vous modifié'); return true; } catch (e) { console.warn(e); erreur.textContent = D.messageErreur(e, 'Enregistrement impossible, réessaie.'); return false; }
+        try { await D.modifierRendezVous(rdv.id, cible); toast('Rendez-vous modifié'); return true; } catch (e) { console.warn(e); erreur.textContent = D.messageErreur(e, 'Enregistrement impossible, réessaie.'); return false; } finally { enCours = false; if (boutonEnregistrer) boutonEnregistrer.disabled = false; }
       },
     }],
   });

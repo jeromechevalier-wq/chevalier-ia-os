@@ -25,6 +25,11 @@ async function simulerServeur(page, { reponseEnvoi = () => ({ result: { ok: true
 }
 test.beforeEach(async ({ context }) => {
   await context.route('https://apis.google.com/**', (route) => route.fulfill({ status: 200, body: '', headers: { 'Content-Type': 'text/javascript' } }));
+  // Jamais d'appel réel au serveur : « branché ? » est simulé pour tous les tests (simulerServeur le remplace quand un test regarde les demandes).
+  await context.route(/cloudfunctions\.net\/rdvEtat$/, (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+    return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { branche: true } }) });
+  });
 });
 
 async function semer(extra = {}) {
@@ -80,6 +85,23 @@ test('C1 les règles de la création s’appliquent : un numéro fixe est refus�
   expect((await lireDocument('rdv_participants/p1')).telephone).toBe('+33600000001');
 });
 
+test('C1 un participant qui a déjà reçu un SMS ne se retire pas et garde son numéro ; la phrase le dit ; l\'avertissement sur les réponses est montré', async ({ page }) => {
+  await semer();
+  await ecrireDocument('rdv_participants/p1', { rendezVousId: 'r1', personneId: null, nom: 'M. Durand', role: 'Client', telephone: '+33600000001', reponse: '1', etatReponse: 'comprise', creneauxOk: [1] });
+  await ecrireDocument('rdv_messages/m1', { rendezVousId: 'r1', participantId: 'p1', tour: 1, sens: 'sortant', numero: '+33600000001', texte: 'Bonjour', caracteres: 7, typeMessage: 'confiance', etatEnvoi: 'envoye' });
+  await ouvrirFiche(page);
+  await ouvrirMenu(page);
+  await page.getByRole('menuitem', { name: 'Modifier le rendez-vous' }).click();
+  const fenetre = page.getByRole('dialog');
+  const ligne1 = fenetre.locator('[data-role="participant"]').nth(0);
+  await expect(ligne1.getByLabel('Téléphone mobile')).toHaveJSProperty('readOnly', true);
+  await expect(ligne1.getByLabel('Retirer ce participant')).toHaveCount(0);
+  await expect(fenetre.locator('[data-role="participant"]').nth(1).getByLabel('Retirer ce participant')).toHaveCount(1);
+  await expect(fenetre.locator('[data-role="deja-contactes"]')).toContainText('déjà reçu des SMS');
+  await expect(fenetre.locator('[data-role="reponses-a-zero"]')).toContainText('repartent à zéro');
+  await capture(page, 'C1-deja-contacte');
+});
+
 test('C1 après le premier envoi : objet et adresse seulement ; les créneaux renvoient vers « Proposer d’autres créneaux »', async ({ page }) => {
   await semer({ envoiDemandeLe: '2031-01-01T09:00:00.000Z' });
   await ouvrirFiche(page);
@@ -132,7 +154,7 @@ test('C2 « Renvoyer le SMS » apparaît seulement pour un participant dont un S
   expect(demandes[0]).toEqual({ action: 'renvoyer', rendezVousId: 'r1', participantId: 'p1' });
 });
 
-test('C2 cas d’erreur : le serveur refuse, la phrase du serveur est montrée et le bouton reste disponible', async ({ page }) => {
+test('C2 cas d’erreur : le serveur refuse, la phrase du serveur est montrée et le bouton reste disponible', { annotation: { type: 'erreurs-reseau-attendues', description: 'Le serveur simulé répond 400 : le navigateur le note dans sa console, ce n’est pas une erreur de l’appli.' } }, async ({ page }) => {
   await simulerServeur(page, { reponseEnvoi: () => ({ erreur: { status: 'FAILED_PRECONDITION', message: 'Cette personne a répondu STOP : aucun SMS ne lui est envoyé.' } }) });
   await semer({ envoiDemandeLe: '2031-01-01T08:00:00.000Z' });
   await sms('m1');
