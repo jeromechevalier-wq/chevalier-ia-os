@@ -122,14 +122,20 @@ export async function renvoyerSms({ donnees, ctx, espace, sortie, rendezVousId, 
   if (messages.some((m) => m.renvoi === true && maintenantMs - msDe(m.creeLe) < DOUBLE_CLIC_MS)) throw new ErreurRdvEnvoi('failed-precondition', 'Ce SMS vient déjà d’être renvoyé : patiente deux minutes.');
   const abandonnes = messages.filter((m) => m.etatEnvoi === 'abandonne' && m.typeMessage !== 'alerte' && (m.tour ?? 1) === (rdv.tour ?? 1) && !m.renvoyeLe);
   if (!abandonnes.length) throw new ErreurRdvEnvoi('failed-precondition', 'Aucun SMS abandonné à renvoyer pour cette personne.');
-  const source = [...abandonnes].sort((a, b) => (msDe(b.envoyeLe ?? b.creeLe) || 0) - (msDe(a.envoyeLe ?? a.creeLe) || 0))[0];
-  if (typeof source.texte !== 'string' || !source.texte.trim() || !p.telephone) throw new ErreurRdvEnvoi('failed-precondition', 'Ce SMS ne peut pas être renvoyé tel quel.');
-  const annulation = source.typeMessage === 'annulation';
-  if (!annulation && (rdv.annule || rdv.archive)) throw new ErreurRdvEnvoi('failed-precondition', 'Ce rendez-vous est annulé ou archivé : rien n’est renvoyé.');
-  if (TYPES_AVEC_CRENEAUX.includes(source.typeMessage ?? 'creneaux')) {
-    if (!R.estOuvert(rdv)) throw new ErreurRdvEnvoi('failed-precondition', 'Ce rendez-vous n’est plus ouvert : ce SMS n’a plus de sens.');
-    if (!(rdv.creneaux || []).some((c) => R.enMs(c) > maintenantMs)) throw new ErreurRdvEnvoi('failed-precondition', 'Tous les créneaux sont passés : ce SMS n’a plus de sens.');
-  }
+  // Les types qui n'ont plus de sens sont écartés AVANT de prendre le plus récent : l'annulation abandonnée reste renvoyable même si un SMS « créneaux » abandonné est plus récent.
+  const aVenir = (rdv.creneaux || []).some((c) => R.enMs(c) > maintenantMs);
+  const sens = (m) => {
+    if (m.typeMessage !== 'annulation' && (rdv.annule || rdv.archive)) return 'Ce rendez-vous est annulé ou archivé : rien n’est renvoyé.';
+    if (TYPES_AVEC_CRENEAUX.includes(m.typeMessage ?? 'creneaux')) {
+      if (!R.estOuvert(rdv)) return 'Ce rendez-vous n’est plus ouvert : ce SMS n’a plus de sens.';
+      if (!aVenir) return 'Tous les créneaux sont passés : ce SMS n’a plus de sens.';
+    }
+    return null;
+  };
+  const renvoyables = abandonnes.filter((m) => !sens(m));
+  if (!renvoyables.length) throw new ErreurRdvEnvoi('failed-precondition', sens(abandonnes[0]));
+  const source = [...renvoyables].sort((a, b) => (msDe(b.envoyeLe ?? b.creeLe) || 0) - (msDe(a.envoyeLe ?? a.creeLe) || 0))[0];
+  if (typeof source.texte !== 'string' || !source.texte.trim() || !p.telephone || `ren_${source.id}`.length > 100) throw new ErreurRdvEnvoi('failed-precondition', 'Ce SMS ne peut pas être renvoyé tel quel.');
   const suffixe = maintenantMs.toString(36);
   try {
     await donnees.appliquer([

@@ -1195,15 +1195,15 @@ export const MESSAGE_PARTICIPANTS_APRES_ENVOI = 'Les propositions sont déjà pa
 export const MESSAGE_PARTICIPANT_DEJA_CONTACTE = 'Cette personne a déjà reçu des SMS : on ne la retire pas et on ne change pas son numéro.';
 export const MESSAGE_REPONSES_REMISES_A_ZERO = 'Des réponses sont déjà saisies : si tu changes ou retires un créneau, elles repartent à zéro (ajouter un créneau les garde).';
 
-/** Ce participant a-t-il déjà reçu ou envoyé un SMS (ou le rendez-vous est-il à sa deuxième série) ? Alors on ne le retire pas et on ne change pas son numéro. */
-export const participantContacte = (rdv, participant, messages) => (rdv?.tour || 1) > 1 || (messages || []).some((m) => m.participantId === participant?.id);
+/** Ce participant a-t-il un SMS dans l'historique (envoyé ou reçu) ? Alors on ne le retire pas et on ne change pas son numéro. Un participant ajouté à une série suivante, sans SMS, reste libre. */
+export const participantContacte = (participant, messages) => (messages || []).some((m) => m.participantId === participant?.id);
 
 /**
  * « Modifier le rendez-vous » (C1). `cible` : { objet, adresse, creneaux: [ISO], participants: [{ id?, personneId?, nom, telephone, role }] } (la liste COMPLÈTE voulue ; `id` = participant déjà là).
  *  - seulement sur un rendez-vous ouvert (ni annulé, ni archivé, ni confirmé) ;
  *  - si seuls l'objet ou l'adresse changent : aucune autre validation (un créneau passé ne bloque pas la correction d'une adresse) ;
  *  - avant le premier envoi (`envoiDemandeLe` vide) : participants ajoutés, retirés, changés et créneaux, avec les règles de la création (`validerNouveauRdv`, 5 personnes au plus) ;
- *    un participant qui a déjà un SMS dans l'historique (`messages`), ou tout participant dès la deuxième série, ne se retire pas et ne change pas de numéro ;
+ *    un participant qui a déjà un SMS dans l'historique (`messages`) ne se retire pas et ne change pas de numéro ;
  *    les réponses déjà saisies repartent à zéro seulement si un créneau EXISTANT change ou est retiré (en ajouter un les garde) ;
  *  - après l'envoi : objet et adresse seulement (participants et créneaux refusés avec la phrase qui renvoie vers « Proposer d'autres créneaux »).
  * Rend { erreur } ou { patchRdv, ajouts: [{ personneId, nom, telephone, role }], retraits: [id], majs: [{ id, patch }], remiseAZero } ; `patchRdv.etat` est recalculé (même lot).
@@ -1221,7 +1221,7 @@ export function planModifierRendezVous({ rdv, participants = [], messages = [], 
   const sortie = { patchRdv, ajouts: [], retraits: [], majs: [], remiseAZero: false };
   const memesCreneaux = creneauxApres.length === creneauxAvant.length && creneauxApres.every((c, i) => c === creneauxAvant[i]);
   const tel = (x) => normaliserTelephone(x.telephone).telephone;
-  const memesParticipants = demandes.length === participants.length && demandes.every((x) => { const avant = x.id ? participants.find((y) => y.id === x.id) : null; return avant && tel(x) === avant.telephone && (x.role || '') === (avant.role || ''); });
+  const memesParticipants = demandes.length === participants.length && demandes.every((x) => { const avant = x.id ? participants.find((y) => y.id === x.id) : null; return avant && (x.telephone === avant.telephone || tel(x) === avant.telephone) && (x.role || '') === (avant.role || ''); });
   if (memesCreneaux && memesParticipants) return sortie; // seuls l'objet et l'adresse changent
   if (!avantEnvoi) return { erreur: memesCreneaux ? MESSAGE_PARTICIPANTS_APRES_ENVOI : MESSAGE_CRENEAUX_APRES_ENVOI };
   const verdict = validerNouveauRdv({ participants: demandes, creneaux, maintenant });
@@ -1233,12 +1233,12 @@ export function planModifierRendezVous({ rdv, participants = [], messages = [], 
     if (!avant) { sortie.ajouts.push({ personneId: x.personneId || null, nom: String(x.nom ?? '').trim(), telephone: x.telephone, role: x.role || '' }); continue; }
     gardes.add(avant.id);
     const patch = {};
-    if (x.telephone !== avant.telephone) { if (participantContacte(rdv, avant, messages)) return { erreur: MESSAGE_PARTICIPANT_DEJA_CONTACTE }; patch.telephone = x.telephone; }
+    if (x.telephone !== avant.telephone) { if (participantContacte(avant, messages)) return { erreur: MESSAGE_PARTICIPANT_DEJA_CONTACTE }; patch.telephone = x.telephone; }
     if ((x.role || '') !== (avant.role || '')) patch.role = x.role || '';
     if (Object.keys(patch).length) sortie.majs.push({ id: avant.id, patch });
   }
   sortie.retraits = participants.filter((y) => !gardes.has(y.id)).map((y) => y.id);
-  if (participants.some((y) => sortie.retraits.includes(y.id) && participantContacte(rdv, y, messages))) return { erreur: MESSAGE_PARTICIPANT_DEJA_CONTACTE };
+  if (participants.some((y) => sortie.retraits.includes(y.id) && participantContacte(y, messages))) return { erreur: MESSAGE_PARTICIPANT_DEJA_CONTACTE };
   if (sortie.ajouts.some((a) => !a.nom)) return { erreur: 'Écris le nom de chaque participant.' };
   // Les réponses portent sur la POSITION des créneaux : elles repartent à zéro si un créneau existant change ou disparaît, pas si on en ajoute à la suite.
   sortie.remiseAZero = !creneauxAvant.every((c, i) => creneauxApres[i] === c);
@@ -1255,14 +1255,17 @@ const versISO0 = (v) => { const ms = enMs(v); return Number.isFinite(ms) ? versI
  * Le SMS « abandonné » que le bouton « Renvoyer le SMS » reprendrait pour ce participant (C2), ou null : même règle que le serveur (série courante, jamais une alerte, pas déjà renvoyé, pas de STOP ;
  * rendez-vous annulé ou archivé : seulement le SMS d'annulation ; présentation, créneaux et relance : seulement si le rendez-vous est ouvert avec un créneau à venir).
  */
-export function smsARenvoyer(rdv, participant, messages, maintenant = Date.now()) {
-  if (!rdv || !participant || participant.desinscrit === true) return null;
-  const liste = (messages || []).filter((m) => m.participantId === participant.id && m.sens !== 'entrant' && m.etatEnvoi === 'abandonne' && m.typeMessage !== 'alerte' && (m.tour ?? 1) === (rdv.tour ?? 1) && !m.renvoyeLe);
-  const source = liste.sort((a, b) => (enMs(b.envoyeLe ?? b.creeLe) || 0) - (enMs(a.envoyeLe ?? a.creeLe) || 0))[0] ?? null;
-  if (!source) return null;
-  if (source.typeMessage !== 'annulation' && (rdv.annule || rdv.archive)) return null;
-  if (['confiance', 'creneaux', 'relance'].includes(source.typeMessage ?? 'creneaux') && (!estOuvert(rdv) || !(rdv.creneaux || []).some((c) => enMs(c) > enMs(maintenant)))) return null;
-  return source;
+export function smsARenvoyer(rdv, participant, messages, { maintenant = Date.now(), desinscrits = [] } = {}) {
+  if (!rdv || !participant || participant.desinscrit === true || desinscrits.includes(participant.telephone)) return null;
+  const aVenir = (rdv.creneaux || []).some((c) => enMs(c) > enMs(maintenant));
+  // Les types qui n'ont plus de sens sont écartés AVANT de prendre le plus récent (l'annulation abandonnée reste renvoyable même si un SMS « créneaux » abandonné est plus récent).
+  const renvoyable = (m) => {
+    if (m.typeMessage !== 'annulation' && (rdv.annule || rdv.archive)) return false;
+    if (['confiance', 'creneaux', 'relance'].includes(m.typeMessage ?? 'creneaux') && (!estOuvert(rdv) || !aVenir)) return false;
+    return true;
+  };
+  const liste = (messages || []).filter((m) => m.participantId === participant.id && m.sens !== 'entrant' && m.etatEnvoi === 'abandonne' && m.typeMessage !== 'alerte' && (m.tour ?? 1) === (rdv.tour ?? 1) && !m.renvoyeLe && renvoyable(m));
+  return liste.sort((a, b) => (enMs(b.envoyeLe ?? b.creeLe) || 0) - (enMs(a.envoyeLe ?? a.creeLe) || 0))[0] ?? null;
 }
 
 /** Créneaux saisis : 1 à 3, futurs, sans doublon. Rend { creneaux: [ISO], erreurs }. */

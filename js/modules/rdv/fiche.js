@@ -147,7 +147,7 @@ async function modifierLeRendezVous(rdv, parts) {
     const role = h('select', { class: 'champ', 'aria-label': 'Rôle' }, h('option', { value: '' }, 'Rôle…'),
       [...new Set([...D.parametres().roles, depart.role].filter(Boolean))].map((r) => h('option', { value: r, selected: r === depart.role }, r)));
     if (depart.id) nom.readOnly = true; // le nom vient de la fiche Personne : il ne se change pas ici
-    const contacte = !!depart.id && R.participantContacte(rdv, depart, D.messagesDe(rdv.id)); // il a déjà reçu un SMS : ni retrait, ni nouveau numéro
+    const contacte = !!depart.id && R.participantContacte(depart, D.messagesDe(rdv.id)); // il a déjà reçu un SMS : ni retrait, ni nouveau numéro
     if (contacte) tel.readOnly = true;
     const retirer = contacte ? null : h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Retirer ce participant', onclick: () => { el.remove(); lignes.splice(lignes.indexOf(l), 1); majAjout(); } }, icone('trash-2', { taille: 16 }));
     const el = h('div', { class: 'rdv-ligne-participant', dataset: { role: 'participant' } },
@@ -161,7 +161,7 @@ async function modifierLeRendezVous(rdv, parts) {
   majAjout();
   const champsCreneaux = [0, 1, 2].map((i) => h('input', { class: 'champ', type: 'datetime-local', 'aria-label': `Créneau ${i + 1}`, value: champDepuisCreneau((rdv.creneaux || [])[i]) }));
   const deLaReponse = parts.some((p) => p.etatReponse && p.etatReponse !== 'attente');
-  const dejaContactes = parts.some((p) => R.participantContacte(rdv, p, D.messagesDe(rdv.id)));
+  const dejaContactes = parts.some((p) => R.participantContacte(p, D.messagesDe(rdv.id)));
   const apresEnvoi = h('div', { class: 'pile', dataset: { role: 'modifier-apres-envoi' } },
     h('p', { class: 'aide' }, R.MESSAGE_PARTICIPANTS_APRES_ENVOI),
     h('ul', { class: 'aide' }, parts.map((p) => h('li', {}, `${p.nom || 'Sans nom'} · ${R.afficherTelephone(p.telephone)}`))),
@@ -333,7 +333,7 @@ export function rendreFiche(conteneur, id) {
           p.etatReponse === 'saisie' ? h('span', { class: 'aide', dataset: { role: 'saisie-par-toi' } }, 'Coché par toi') : null,
           ouvert ? h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'saisir-reponse', onclick: () => saisirReponse(r, p) },
             p.etatReponse === 'comprise' || p.etatReponse === 'saisie' ? 'Corriger' : 'Saisir sa réponse') : null,
-          D.peutEcrire() && R.smsARenvoyer(r, p, D.messagesDe(r.id)) ? h('span', { class: 'rdv-sms-abandonne', dataset: { role: 'sms-abandonne' } }, h('span', { class: 'aide' }, 'Un SMS n’est pas parti.'),
+          D.peutEcrire() && R.smsARenvoyer(r, p, D.messagesDe(r.id), { desinscrits: D.desinscrits() }) ? h('span', { class: 'rdv-sms-abandonne', dataset: { role: 'sms-abandonne' } }, h('span', { class: 'aide' }, 'Un SMS n’est pas parti.'),
             h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'renvoyer-sms', onclick: (e) => renvoyerLeSms(r, p, e.currentTarget) }, 'Renvoyer le SMS')) : null));
     });
     return h('div', { class: 'zone-tableau rdv-zone-tableau' }, h('table', { class: 'tableau tableau-rdv-reponses', dataset: { role: 'qui-peut-quand' } }, groupe,

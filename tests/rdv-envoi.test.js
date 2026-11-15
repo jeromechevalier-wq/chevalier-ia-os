@@ -181,6 +181,17 @@ describe('C2 renvoyerSms (SMS abandonné d\'un participant)', () => {
     assert.deepEqual([neuf.texte, neuf.typeMessage, neuf.renvoiDe], ['Récent', 'relance', 'm2']);
     assert.ok((await donnees.document('rdv_messages', 'm1')).renvoyeLe && (await donnees.document('rdv_messages', 'm2')).renvoyeLe);
   });
+  test('C2 les types sans sens sont écartés avant de prendre le plus récent : sur un rendez-vous annulé, l\'annulation abandonnée est renvoyée même si un SMS « créneaux » plus récent est abandonné', async () => {
+    const donnees = avec([abandonne({ id: 'a', typeMessage: 'annulation', texte: 'Annulé', envoyeLe: new Date(T0.getTime() - 5000_000) }), abandonne({ id: 'b', typeMessage: 'creneaux', envoyeLe: new Date(T0.getTime() - 1000_000), echeance: 'r1:t1:creneaux:p1' })], { annule: true, archive: true });
+    await renvoyer(donnees);
+    const neuf = (await donnees.liste('rdv_messages')).find((m) => m.renvoi === true);
+    assert.deepEqual([neuf.renvoiDe, neuf.texte], ['a', 'Annulé']);
+  });
+  test('C2 un identifiant trop long (la porte refuse plus de 100 caractères) est refusé proprement', async () => {
+    const donnees = avec([abandonne({ id: 'x'.repeat(98) })]);
+    await assert.rejects(() => renvoyer(donnees), (e) => e instanceof ErreurRdvEnvoi && /tel quel/.test(e.message));
+    assert.equal((await donnees.liste('rdv_messages')).length, 1);
+  });
   test('C2 deux appels simultanés : un seul SMS est créé (l\'autre est refusé)', async () => {
     const donnees = avec([abandonne()]);
     const resultats = await Promise.allSettled([renvoyer(donnees), renvoyer(donnees)]);
