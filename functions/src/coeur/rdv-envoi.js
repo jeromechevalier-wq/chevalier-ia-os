@@ -27,6 +27,17 @@ export async function etatEnvoi({ sortie, espace }) {
   return { branche: (await sortie.brancheRdv(espace)) === true };
 }
 
+/**
+ * Le solde ClickSend de l'espace, pour le bilan « Prêt à passer en vrai ? » : { branche, solde: <nombre> | null, devise }. Lecture seule, cache de 60 s côté serveur, jamais stocké ;
+ * la clé n'en sort jamais. Non branché : { branche: false, solde: null } (jamais d'erreur). Qui a le droit de la demander est contrôlé par la fonction d'appel (compte autorisé, ou éditeur chez un client).
+ */
+export async function lireSoldeEnvoi({ sortie, espace }) {
+  try {
+    const r = await sortie.lireSolde(espace);
+    return { branche: r?.branche === true, solde: typeof r?.solde === 'number' ? r.solde : null, devise: typeof r?.devise === 'string' ? r.devise : '' };
+  } catch { return { branche: false, solde: null, devise: '' }; }
+}
+
 async function lireRendezVous(donnees, rendezVousId) {
   if (typeof rendezVousId !== 'string' || !MOTIF_ID.test(rendezVousId)) throw new ErreurRdvEnvoi('invalid-argument', 'Rendez-vous invalide.');
   const rdv = await donnees.document(T.rdv, rendezVousId);
