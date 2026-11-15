@@ -655,11 +655,12 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
     const parts = [
       { id: 'a', nom: 'M. Durand', telephone: '+33600000001', etatReponse: 'comprise', creneauxOk: [2] },
       { id: 'b', nom: 'Terrassier', telephone: '+33600000002', etatReponse: 'comprise', creneauxOk: [2] },
-      { id: 'c', nom: 'Architecte', telephone: '+33600000003', etatReponse: 'comprise', creneauxOk: [2], desinscrit: true },
+      { id: 'c', nom: 'Architecte', telephone: '+33600000003', etatReponse: 'comprise', creneauxOk: [2] },
       { id: 'd', nom: 'Sans numéro', telephone: '', etatReponse: 'comprise', creneauxOk: [2] },
     ];
     const reglages = { nomDansLesSms: 'Mme Martin', rappel: { actif: true, heure: '19:00' }, prixSms: 0.1, tarifsAu: '1er novembre 2026' };
-    const prevoir = (extra = {}) => L.previsionConfirmation({ rdv, participants: parts, parametres: reglages, numero: 2, maintenant, ...extra });
+    const STOP = ['+33600000003']; // la liste des numéros qui ont répondu STOP, tenue par le serveur (la seule que smsDus lit)
+    const prevoir = (extra = {}) => L.previsionConfirmation({ rdv, participants: parts, parametres: reglages, numero: 2, maintenant, desinscrits: STOP, ...extra });
     test('A6 le numéro masqué garde le début et la fin', () => {
       assert.equal(L.masquerTelephone('+33600000002'), '06 •• •• •• 02');
       assert.equal(L.masquerTelephone('0600000002'), '06 •• •• •• 02');
@@ -670,14 +671,14 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
       assert.deepEqual(r.personnes.map((x) => [x.nom, x.statut, x.telephone]), [['M. Durand', 'recoit', '06 •• •• •• 01'], ['Terrassier', 'recoit', '06 •• •• •• 02'], ['Architecte', 'desinscrit', '06 •• •• •• 03'], ['Sans numéro', 'sans-telephone', '']]);
       assert.equal(r.destinataires, 2);
       assert.equal(r.rappelLe, parisEnISO(2026, 11, 17, 19), 'la veille du mer. 18 nov., à 19h');
-      assert.equal(r.nbSms, 4, '2 confirmations + 2 rappels');
+      assert.deepEqual([r.messages, r.segments], [4, 4], '2 confirmations + 2 rappels, un segment chacun');
       assert.equal(r.aucun, false);
       assert.match(r.confirmation.texte, /^RDV confirmé : M\. Durand, mer\. 18 nov\. à 14h\./);
       assert.match(r.confirmation.texte, /STOP/, 'la mention STOP est dans le vrai texte');
       assert.deepEqual(r.confirmation.manque, []);
     });
     test('A6 un numéro dans la liste des désinscrits ne reçoit rien non plus', () => {
-      const r = prevoir({ desinscrits: ['+33600000002'] });
+      const r = prevoir({ desinscrits: [...STOP, '+33600000002'] });
       assert.equal(r.personnes[1].statut, 'desinscrit');
       assert.equal(r.destinataires, 1);
     });
@@ -689,32 +690,91 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
     });
     test('A6 pas de rappel si le rappel est coupé ou si la veille est déjà passée', () => {
       const coupe = prevoir({ parametres: { ...reglages, rappel: { actif: false, heure: '19:00' } } });
-      assert.equal(coupe.rappelLe, null); assert.equal(coupe.nbSms, 2);
+      assert.equal(coupe.rappelLe, null); assert.equal(coupe.messages, 2);
       const tard = prevoir({ maintenant: '2026-11-17T20:00:00Z' }); // le 17 à 21h Paris : la veille à 19h est passée
-      assert.equal(tard.rappelLe, null); assert.equal(tard.nbSms, 2);
+      assert.equal(tard.rappelLe, null); assert.equal(tard.messages, 2);
     });
     test('A6 aucun joignable : « Aucun SMS ne partira », coût zéro', () => {
-      const r = L.previsionConfirmation({ rdv, participants: [parts[2], parts[3]], parametres: reglages, numero: 2, maintenant });
-      assert.equal(r.aucun, true); assert.equal(r.nbSms, 0); assert.equal(r.cout, 0);
-      assert.equal(L.phraseAvantConfirmer({ rdv, participants: [parts[2], parts[3]], parametres: reglages, numeros: [2], maintenant }), 'Aucun SMS ne partira : aucun participant n’a de numéro joignable.');
+      const r = L.previsionConfirmation({ rdv, participants: [parts[2], parts[3]], parametres: reglages, numero: 2, maintenant, desinscrits: STOP });
+      assert.equal(r.aucun, true); assert.equal(r.messages, 0); assert.equal(r.segments, 0); assert.equal(r.cout, 0);
+      assert.equal(L.phraseAvantConfirmer({ rdv, participants: [parts[2], parts[3]], parametres: reglages, numeros: [2], maintenant, desinscrits: STOP }), 'Aucun SMS ne partira : aucun participant n’a de numéro joignable.');
       assert.equal(L.previsionConfirmation({ rdv, participants: [], parametres: reglages, numero: 2, maintenant }).aucun, true, 'aucun participant');
     });
     test('A6 rendez-vous de test : les SMS vont au numéro de test, jamais aux participants ; sans numéro de test rien ne part', () => {
-      const t = L.previsionConfirmation({ rdv: { ...rdv, test: true }, participants: parts, parametres: { ...reglages, numeroTest: '+33600000009' }, numero: 2, maintenant });
-      assert.equal(t.test, true); assert.equal(t.numeroTest, '06 •• •• •• 09'); assert.equal(t.destinataires, 2);
+      const t = L.previsionConfirmation({ rdv: { ...rdv, test: true }, participants: parts, parametres: { ...reglages, numeroTest: '+33600000009' }, numero: 2, maintenant, desinscrits: STOP });
+      assert.equal(t.test, true); assert.equal(t.numeroTest, '06 •• •• •• 09'); assert.equal(t.destinataires, 3, 'deux joignables + « Sans numéro » : en test, smsDus écrit aussi pour lui, au numéro de test'); assert.equal(t.personnes[2].statut, 'desinscrit');
       assert.match(L.phraseAvantConfirmer({ rdv: { ...rdv, test: true }, participants: parts, parametres: { ...reglages, numeroTest: '+33600000009' }, numeros: [2], maintenant }), /seulement vers le numéro de test \(06 •• •• •• 09\), jamais vers les participants/);
-      const sans = L.previsionConfirmation({ rdv: { ...rdv, test: true }, participants: parts, parametres: reglages, numero: 2, maintenant });
-      assert.equal(sans.aucun, true); assert.equal(sans.raisonAucun, 'test-sans-numero'); assert.equal(sans.nbSms, 0);
+      const sans = L.previsionConfirmation({ rdv: { ...rdv, test: true }, participants: parts, parametres: reglages, numero: 2, maintenant, desinscrits: STOP });
+      assert.equal(sans.aucun, true); assert.equal(sans.raisonAucun, 'test-sans-numero'); assert.equal(sans.messages, 0);
       assert.match(L.phraseAvantConfirmer({ rdv: { ...rdv, test: true }, participants: parts, parametres: reglages, numeros: [2], maintenant }), /aucun SMS ne partira \(le numéro des SMS de test n’est pas réglé\)/);
     });
     test('A6 la phrase sous le bouton : les chiffres viennent des vrais participants, le rappel n’est cité que s’il part pour tous les créneaux proposés', () => {
-      const phrase = (extra = {}) => L.phraseAvantConfirmer({ rdv, participants: parts, parametres: reglages, numeros: [2], maintenant, ...extra });
+      const phrase = (extra = {}) => L.phraseAvantConfirmer({ rdv, participants: parts, parametres: reglages, numeros: [2], maintenant, desinscrits: STOP, ...extra });
       assert.equal(phrase(), 'En confirmant : 2 personnes reçoivent un SMS de confirmation tout de suite, puis un rappel la veille à 19h. Les numéros désinscrits (STOP) ne reçoivent rien.');
       assert.equal(phrase({ participants: [parts[0]] }), 'En confirmant : 1 personne reçoit un SMS de confirmation tout de suite, puis un rappel la veille à 19h. Les numéros désinscrits (STOP) ne reçoivent rien.');
       assert.doesNotMatch(phrase({ parametres: { ...reglages, rappel: { actif: false, heure: '19:00' } } }), /rappel/);
       assert.match(phrase({ numeros: [1, 2] }), /rappel la veille à 19h/, 'deux créneaux à venir : le rappel part dans les deux cas');
       assert.doesNotMatch(phrase({ numeros: [1, 2], maintenant: '2026-11-16T20:30:00Z' }), /rappel/, 'la veille du 1er créneau est déjà passée : pas de rappel promis');
       assert.equal(phrase({ numeros: [] }), '');
+    });
+    test('A6 miroir exact du serveur : seul le numéro de la liste des STOP est exclu (le repère « desinscrit » d’une fiche n’y change rien, comme dans smsDus)', () => {
+      const flag = [{ ...parts[0], desinscrit: true }, parts[1]];
+      const r = L.previsionConfirmation({ rdv, participants: flag, parametres: reglages, numero: 2, maintenant, desinscrits: [] });
+      assert.deepEqual(r.personnes.map((x) => x.statut), ['recoit', 'recoit']);
+      const serveur = L.smsDus({ rdv: { ...rdv, etat: 'confirme', creneauChoisi: creneaux[1], confirmeLe: maintenant }, participants: flag, parametres: reglages, messages: [], maintenant, desinscrits: [] }).filter((x) => x.typeMessage === 'confirmation');
+      assert.equal(serveur.length, r.destinataires, 'même nombre de confirmations que smsDus');
+      const avecListe = L.previsionConfirmation({ rdv, participants: flag, parametres: reglages, numero: 2, maintenant, desinscrits: ['+33600000001'] });
+      assert.equal(avecListe.destinataires, 1);
+      assert.equal(L.smsDus({ rdv: { ...rdv, etat: 'confirme', creneauChoisi: creneaux[1], confirmeLe: maintenant }, participants: flag, parametres: reglages, messages: [], maintenant, desinscrits: ['+33600000001'] }).filter((x) => x.typeMessage === 'confirmation').length, 1);
+    });
+    test('A6 le rappel suit la plage d’envoi comme dans smsDus : décalé à l’ouverture, ou plus de rappel s’il tomberait le jour du rendez-vous', () => {
+      const avec = (heure, plage) => prevoir({ parametres: { ...reglages, rappel: { actif: true, heure }, ...(plage ? { plage } : {}) } });
+      assert.equal(avec('19:00').rappelLe, parisEnISO(2026, 11, 17, 19), 'dans la plage : à l’heure réglée');
+      assert.equal(avec('22:00').rappelLe, null, 'à 22h, hors de la plage 08:00-20:30 : le rappel attendrait le matin du rendez-vous, donc plus de rappel annoncé');
+      assert.equal(avec('22:00').messages, 2);
+      assert.equal(avec('07:00').rappelLe, parisEnISO(2026, 11, 17, 8), 'à 7h : le rappel part à l’ouverture, 8h la veille');
+      assert.equal(L.phraseAvantConfirmer({ rdv, participants: parts, parametres: { ...reglages, rappel: { actif: true, heure: '07:00' } }, numeros: [2], maintenant, desinscrits: STOP }).includes('un rappel la veille à 8h'), true, 'la phrase dit l’heure réelle');
+      assert.doesNotMatch(L.phraseAvantConfirmer({ rdv, participants: parts, parametres: { ...reglages, rappel: { actif: true, heure: '22:00' } }, numeros: [2], maintenant, desinscrits: STOP }), /rappel/);
+      // le serveur fait pareil : mêmes cas, aucun rappel dû avant le début du jour du rendez-vous
+      const rdvConfirme = { ...rdv, etat: 'confirme', creneauChoisi: creneaux[1], confirmeLe: maintenant };
+      const rappelsServeur = (heure) => L.smsDus({ rdv: rdvConfirme, participants: parts, parametres: { ...reglages, rappel: { actif: true, heure } }, messages: [], maintenant: '2026-11-17T20:00:00Z', desinscrits: STOP }).filter((x) => x.typeMessage === 'rappel');
+      assert.equal(rappelsServeur('22:00').length, 0, 'smsDus ne programme pas non plus ce rappel');
+    });
+    test('A6 SMS facturés = segments : une adresse longue double le compte, le détail confirmation / rappel porte ses propres segments', () => {
+      const longue = { ...rdv, adresse: `${'12 rue des Lilas '.repeat(9).trim()}\n69000 Lyon` };
+      const r = L.previsionConfirmation({ rdv: longue, participants: parts.slice(0, 2), parametres: reglages, numero: 2, maintenant });
+      assert.ok(r.confirmation.segments >= 2, `la confirmation tient en ${r.confirmation.segments} segments`);
+      const rappelSegments = L.construireSms('rappel', { nom_pro: 'Mme Martin', client: 'M. Durand', adresse: longue.adresse.replace(/\n/g, ', '), date: 'mer. 18 nov.', heure: '14h' }, reglages).segments;
+      assert.equal(r.segmentsConfirmation, r.confirmation.segments * 2);
+      assert.equal(r.segmentsRappel, rappelSegments * 2);
+      assert.equal(r.segments, r.segmentsConfirmation + r.segmentsRappel);
+      assert.ok(r.segments > r.messages, 'plus de SMS facturés que de messages');
+      assert.equal(r.cout, Math.round((L.coutSms(r.confirmation.texte, 0.1) * 2 + 0.1 * rappelSegments * 2) * 1e6) / 1e6, 'le coût suit les segments');
+    });
+    test('A6 un caractère spécial (Unicode) fait passer à 70 unités par SMS : le compte de segments le suit', () => {
+      const unicode = { ...rdv, client: 'M. Durand \u{1F600}' };
+      const r = L.previsionConfirmation({ rdv: unicode, participants: parts.slice(0, 1), parametres: reglages, numero: 2, maintenant });
+      assert.equal(r.confirmation.segments, L.preparerSms(r.confirmation.texte).segments);
+      assert.equal(r.segmentsConfirmation, r.confirmation.segments);
+    });
+    test('A6 rendez-vous de test : la cible vient de numeroCible comme dans smsDus ; un participant sans téléphone reçoit alors le SMS au numéro de test (comme le serveur)', () => {
+      const reg = { ...reglages, numeroTest: '+33600000009' };
+      const test = { ...rdv, test: true };
+      const sansTel = [{ id: 'z', nom: 'Sans numéro', telephone: '', etatReponse: 'comprise', creneauxOk: [2] }];
+      const r = L.previsionConfirmation({ rdv: test, participants: sansTel, parametres: reg, numero: 2, maintenant });
+      const serveur = L.smsDus({ rdv: { ...test, etat: 'confirme', creneauChoisi: creneaux[1], confirmeLe: maintenant }, participants: sansTel, parametres: reg, messages: [], maintenant, desinscrits: [] }).filter((x) => x.typeMessage === 'confirmation');
+      assert.equal(r.destinataires, serveur.length, 'même nombre que smsDus');
+    });
+    test('A6 mode test + numéro de test réglé + tous désinscrits : « Aucun SMS ne partira » passe avant la phrase du numéro de test', () => {
+      const reg = { ...reglages, numeroTest: '+33600000009' };
+      const tous = L.phraseAvantConfirmer({ rdv: { ...rdv, test: true }, participants: parts.slice(0, 2), parametres: reg, numeros: [2], maintenant, desinscrits: ['+33600000001', '+33600000002'] });
+      assert.equal(tous, 'Aucun SMS ne partira : aucun participant n’a de numéro joignable.');
+    });
+    test('A6 un numéro qui n’a pas la forme attendue est masqué en entier (jamais montré en clair)', () => {
+      assert.equal(L.masquerTelephone('abc12'), '•• •• •• •• ••');
+      assert.equal(L.masquerTelephone(''), '•• •• •• •• ••');
+      assert.equal(L.masquerTelephone('06 12 34 56 7'), '•• •• •• •• ••');
+      assert.equal(L.masquerTelephone('06 12 34 56 78'), '06 •• •• •• 78');
     });
     test('A6 un nom de professionnelle manquant est signalé (accolade restante) au lieu d’être caché', () => {
       const r = prevoir({ parametres: { ...reglages, nomDansLesSms: '' } });

@@ -212,8 +212,9 @@ test('A3e un seul créneau proposé : la date change pendant que la fenêtre est
 });
 
 const REGLAGES = { nomDansLesSms: 'Mme Martin', roles: ['Client'], numerosAlerte: [], numeroAffiche: '', relances: { delaiHeures: 24, nombre: 3 }, rappel: { actif: true, heure: '19:00' }, plage: { debut: '08:00', fin: '20:30' }, modeles: {}, prixSms: 0.1, tarifsAu: '1er novembre 2026' };
-/** Un participant qui a répondu STOP (le serveur pose `desinscrit` sur sa fiche). */
-const partStop = (id, nom, tel) => ecrireDocument(`rdv_participants/${id}`, { rendezVousId: 'r1', personneId: null, nom, role: 'Client', telephone: tel, reponse: 'STOP', etatReponse: 'incomprise', creneauxOk: [], desinscrit: true });
+/** Un participant qui a répondu STOP : sa réponse est dans l'historique ; le serveur range son numéro dans la liste `desinscrits` (la seule que lisent l'envoi et l'écran, `stop(...)`). */
+const partStop = (id, nom, tel) => ecrireDocument(`rdv_participants/${id}`, { rendezVousId: 'r1', personneId: null, nom, role: 'Client', telephone: tel, reponse: 'STOP', etatReponse: 'incomprise', creneauxOk: [] });
+const stop = (...numeros) => ecrireDocument('rdv_parametres/desinscrits', { numeros });
 
 test('A6 sous le bouton « Confirmer… », une phrase toujours visible dit ce qui partira : le nombre de personnes (vrais participants joignables), le rappel de la veille, les STOP', async ({ page }) => {
   await ecrireDocument('rdv_parametres/reglages', REGLAGES);
@@ -221,6 +222,7 @@ test('A6 sous le bouton « Confirmer… », une phrase toujours visible dit ce q
   await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [3], '3');
   await part('p2', 'Terrassier', 'Terrassier', '+33600000002');
   await partStop('p3', 'Architecte', '+33600000003');
+  await stop('+33600000003');
   await ouvrirFiche(page);
   const phrase = page.locator('[data-role="avant-confirmer"]');
   await expect(phrase).toHaveText('En confirmant : 2 personnes reçoivent un SMS de confirmation tout de suite, puis un rappel la veille à 19h. Les numéros désinscrits (STOP) ne reçoivent rien.');
@@ -237,7 +239,7 @@ test('A6 sous le bouton « Confirmer… », une phrase toujours visible dit ce q
 
 test('A6b la fenêtre « Confirmer le créneau N ? » liste chaque personne (numéro masqué, ce qu’elle reçoit), montre le vrai SMS de confirmation, le nombre de SMS et le coût estimé', async ({ page }) => {
   await ecrireDocument('rdv_parametres/reglages', REGLAGES);
-  await ecrireDocument('rdv_parametres/desinscrits', { numeros: ['+33600000002'] }); // le serveur tient la liste des numéros qui ont répondu STOP
+  await stop('+33600000002', '+33600000003'); // le serveur tient la liste des numéros qui ont répondu STOP
   await semer();
   await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [3], '3');
   await part('p2', 'Terrassier', 'Terrassier', '+33600000002');
@@ -250,11 +252,11 @@ test('A6b la fenêtre « Confirmer le créneau N ? » liste chaque personne (num
   await expect(bloc.locator('li[data-participant="p1"]')).toContainText('06 •• •• •• 01');
   await expect(bloc.locator('li[data-participant="p1"]')).toContainText('SMS de confirmation maintenant, rappel le');
   await expect(bloc.locator('li[data-participant="p2"]')).toContainText('ne recevra rien : désinscrit (STOP)'); // STOP lu dans la liste du serveur
-  await expect(bloc.locator('li[data-participant="p3"]')).toContainText('ne recevra rien : désinscrit (STOP)'); // STOP lu sur la fiche du participant
+  await expect(bloc.locator('li[data-participant="p3"]')).toContainText('ne recevra rien : désinscrit (STOP)'); // aussi dans la liste du serveur
   await expect(bloc.locator('li[data-participant="p4"]')).toContainText('ne recevra rien : pas de téléphone');
   await expect(bloc.locator('[data-role="apercu-confirmation"] pre')).toContainText('RDV confirmé : M. Durand, ');
   await expect(bloc.locator('[data-role="apercu-confirmation"] pre')).toContainText('STOP');
-  await expect(bloc.locator('[data-role="cout-sms"]')).toContainText('2 SMS au total (1 de confirmation + 1 de rappel) · ≈');
+  await expect(bloc.locator('[data-role="cout-sms"]')).toContainText('2 SMS facturés au total (1 de confirmation + 1 de rappel) · ≈');
   await expect(bloc.locator('[data-role="cout-sms"]')).toContainText('estimation basée sur les tarifs ClickSend au 1er novembre 2026');
   const texte = await fenetre.textContent();
   expect(texte, 'jamais un numéro en clair').not.toMatch(/06 00 00 00 0\d|\+336000000/);
@@ -268,6 +270,7 @@ test('A6c personne de joignable : « Aucun SMS ne partira » dans la phrase et d
   await ecrireDocument('rdv_parametres/reglages', REGLAGES);
   await semer();
   await partStop('p1', 'M. Durand', '+33600000001');
+  await stop('+33600000001');
   await part('p2', 'Sans numéro', 'Client', '', 'comprise', [3], '3');
   await ouvrirFiche(page);
   await expect(page.locator('[data-role="avant-confirmer"]')).toHaveText('Aucun SMS ne partira : aucun participant n’a de numéro joignable.');
@@ -296,6 +299,21 @@ test('A6d rendez-vous de test : la phrase et la fenêtre disent que le SMS part 
   await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
   await ecrireDocument('rdv_parametres/reglages', REGLAGES); // plus de numéro de test
   await expect(page.locator('[data-role="avant-confirmer"]')).toHaveText('Rendez-vous de test : aucun SMS ne partira (le numéro des SMS de test n’est pas réglé).');
+});
+
+test('A6f le total est en SMS facturés (segments) : une adresse longue fait plus de SMS que de messages, avec le détail confirmation / rappel', async ({ page }) => {
+  await ecrireDocument('rdv_parametres/reglages', REGLAGES);
+  await semer('r1', { adresse: `${'12 rue des Lilas '.repeat(9).trim()}\n69000 Lyon` });
+  await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [3], '3');
+  await ouvrirFiche(page);
+  await page.getByRole('button', { name: 'Confirmer le créneau 3' }).click();
+  const cout = page.getByRole('dialog').locator('[data-role="cout-sms"]');
+  await expect(cout).toContainText('SMS facturés au total (');
+  const texte = await cout.textContent();
+  const [, total, conf, rappel] = /^(\d+) SMS facturés au total \((\d+) de confirmation \+ (\d+) de rappel\)/.exec(texte);
+  expect(Number(total), 'une personne, deux messages, mais plus de deux SMS facturés').toBeGreaterThan(2);
+  expect(Number(total)).toBe(Number(conf) + Number(rappel));
+  await expect(page.getByRole('dialog').locator('[data-role="apercu-confirmation"] .aide').first()).toContainText('SMS');
 });
 
 test('A6e plusieurs créneaux communs : la fenêtre de choix montre ce qui partira pour le créneau choisi (rappel de SA veille) et rien tant qu’aucun n’est choisi', async ({ page }) => {

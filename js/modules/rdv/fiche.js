@@ -129,7 +129,7 @@ function blocPrevision(prev) {
     let quoi;
     if (x.statut === 'desinscrit') quoi = 'ne recevra rien : désinscrit (STOP)';
     else if (x.statut === 'sans-telephone') quoi = 'ne recevra rien : pas de téléphone';
-    else if (prev.test && !prev.numeroTest) quoi = 'ne recevra rien : le numéro des SMS de test n’est pas réglé';
+    else if (x.statut === 'test-sans-numero') quoi = 'ne recevra rien : le numéro des SMS de test n’est pas réglé';
     else quoi = `SMS de confirmation maintenant${prev.test ? ` vers le numéro de test (${prev.numeroTest})` : ''}${prev.rappelLe ? `, rappel le ${jourRappel}` : ''}`;
     return h('li', { dataset: { participant: x.id, statut: x.statut } }, h('strong', {}, x.nom), x.telephone ? h('span', { class: 'rdv-prevision-tel' }, x.telephone) : null, h('span', { class: 'rdv-prevision-quoi' }, quoi));
   };
@@ -142,9 +142,9 @@ function blocPrevision(prev) {
       ? h('p', { class: 'rdv-prevision-aucun', dataset: { role: 'aucun-sms' } }, `Aucun SMS ne partira : ${raison}. Tu peux quand même confirmer le créneau.`)
       : h('div', { class: 'rdv-prevision-apercu', dataset: { role: 'apercu-confirmation' } },
         h('p', { class: 'etiquette' }, 'SMS de confirmation (aperçu)'), h('pre', { class: 'rdv-prevision-texte' }, prev.confirmation.texte),
-        h('p', { class: 'aide' }, `${prev.confirmation.caracteres} caractères · ${prev.confirmation.segments} ${prev.confirmation.segments > 1 ? 'SMS' : 'SMS'} par personne`),
+        h('p', { class: 'aide' }, `${R.libelleCompteur(prev.confirmation.texte)} par personne`),
         prev.confirmation.manque.length ? h('p', { class: 'erreur', dataset: { role: 'sms-incomplet' } }, `Ce SMS contient encore ${prev.confirmation.manque.map((m) => `{${m}}`).join(', ')} : complète tes réglages (Réglages > Rendez-vous) avant de confirmer.`) : null,
-        h('p', { class: 'rdv-prevision-cout', dataset: { role: 'cout-sms' } }, `${prev.nbSms} SMS au total${prev.rappelLe ? ` (${prev.destinataires} de confirmation + ${prev.destinataires} de rappel)` : ''} · ≈ ${R.formaterEuros(prev.cout)} · estimation basée sur les tarifs ClickSend au ${prev.tarifsAu}`)));
+        h('p', { class: 'rdv-prevision-cout', dataset: { role: 'cout-sms' } }, `${prev.segments} SMS facturés au total (${prev.segmentsConfirmation} de confirmation${prev.rappelLe ? ` + ${prev.segmentsRappel} de rappel` : ''}) · ≈ ${R.formaterEuros(prev.cout)} · estimation basée sur les tarifs ClickSend au ${prev.tarifsAu}`)));
 }
 /**
  * Verdict de relecture avant d'écrire une confirmation ('ok', 'rendezvous' ou 'creneau', voir logique.js) : si la fiche a changé, un message le dit, la fiche est redessinée

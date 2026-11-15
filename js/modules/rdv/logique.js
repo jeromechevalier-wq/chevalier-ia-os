@@ -1095,20 +1095,21 @@ export const TEXTE_REPONSES_INCOMPRISES = 'Certaines personnes ont répondu quel
 
 // ───────────────────────────── Avant de confirmer : ce qui va partir par SMS ─────────────────────────────
 
-/** « 06 00 00 00 02 » → « 06 •• •• •• 02 » : seuls le début et la fin du numéro sont montrés. */
+/** « 06 00 00 00 02 » → « 06 •• •• •• 02 » : seuls le début et la fin du numéro sont montrés. Un numéro qui n'a pas la forme attendue (cinq groupes de deux chiffres) est masqué en entier. */
 export function masquerTelephone(tel) {
   const groupes = afficherTelephone(tel).split(' ').filter(Boolean);
-  if (groupes.length === 5) return `${groupes[0]} •• •• •• ${groupes[4]}`;
-  const t = String(tel ?? '').replace(/\s+/g, '');
-  return t.length > 4 ? `${t.slice(0, 2)} ${'•'.repeat(Math.max(2, t.length - 4))} ${t.slice(-2)}` : '••';
+  if (groupes.length === 5 && groupes.every((g) => /^\d{2}$/.test(g))) return `${groupes[0]} •• •• •• ${groupes[4]}`;
+  return '•• •• •• •• ••';
 }
 
 /**
- * Ce qui va se passer si la professionnelle confirme le créneau `numero` (aucun envoi ici) : qui reçoit quoi, le texte réel de la confirmation, le nombre de SMS et le coût estimé.
- * Mêmes règles que `smsDus` : confirmation tout de suite à chaque participant qui a un téléphone et n'a pas répondu STOP (`desinscrit`, ou numéro dans `desinscrits`) ;
- * rappel la veille à l'heure réglée seulement si le rappel est actif et si cette veille n'est pas déjà passée ; un rendez-vous de test n'écrit qu'au numéro de test
- * (rien s'il n'est pas réglé). Rend { creneau, test, numeroTest (masqué), personnes[{ id, nom, telephone (masqué), statut: 'recoit' | 'desinscrit' | 'sans-telephone' }],
- * destinataires, rappelLe, confirmation: { texte, caracteres, segments, manque }, nbSms, segments, cout, tarifsAu, aucun, raisonAucun }.
+ * Ce qui va se passer si la professionnelle confirme le créneau `numero` (aucun envoi ici) : qui reçoit quoi, le texte réel de la confirmation, le nombre de SMS FACTURÉS (segments) et le coût estimé.
+ * C'est le MIROIR EXACT de `smsDus` (même numéro cible via `numeroCible`, mêmes exclusions) :
+ *  - confirmation tout de suite à chaque participant dont le numéro n'est pas dans `desinscrits` (la liste tenue par le serveur : « STOP » reçu ; le repère `desinscrit` d'une fiche n'en fait pas partie) ;
+ *  - rappel la veille à l'heure réglée, passé par la plage d'envoi (`prochaineOuverture`), seulement si le rappel est actif, si cette veille n'est pas déjà passée et si l'instant obtenu reste avant le début du jour du rendez-vous ;
+ *  - un rendez-vous de test n'écrit qu'au numéro de test (rien s'il n'est pas réglé).
+ * Rend { creneau, test, numeroTest (masqué), personnes[{ id, nom, telephone (masqué), statut: 'recoit' | 'desinscrit' | 'sans-telephone' | 'test-sans-numero' }], destinataires, rappelLe,
+ * confirmation: { texte, caracteres, segments, manque }, messages, segmentsConfirmation, segmentsRappel, segments (total facturé), cout, tarifsAu, aucun, raisonAucun }.
  */
 export function previsionConfirmation({ rdv, participants = [], parametres, numero, maintenant, desinscrits = [] }) {
   const p = params(parametres);
@@ -1119,45 +1120,47 @@ export function previsionConfirmation({ rdv, participants = [], parametres, nume
   const valeurs = valeursSms(simule, p);
   const confirmation = construireSms('confirmation', valeurs, p);
   const rappelA = p.rappel.actif && Number.isFinite(choisiMs) ? instantRappelVeille(choisiMs, p.rappel.heure) : NaN;
-  const rappelPossible = Number.isFinite(rappelA) && rappelA >= nowMs && rappelA < debutDuJour(choisiMs); // comme dans smsDus : jamais après le début du jour du rendez-vous
+  const rappelReel = Number.isFinite(rappelA) ? prochaineOuverture(rappelA, p.plage) : NaN; // le rappel attend l'ouverture de la plage d'envoi, comme dans smsDus
+  const rappelPossible = Number.isFinite(rappelA) && rappelA >= nowMs && rappelReel < debutDuJour(choisiMs);
   const rappel = rappelPossible ? construireSms('rappel', valeurs, p) : null;
-  const personnes = (participants || []).map((x) => {
-    const tel = String(x.telephone ?? '').trim();
-    const statut = !tel ? 'sans-telephone' : (x.desinscrit === true || desinscrits.includes(x.telephone)) ? 'desinscrit' : 'recoit';
-    return { id: x.id, nom: x.nom || 'Sans nom', telephone: tel ? masquerTelephone(tel) : '', statut };
-  });
   const test = rdv?.test === true;
   const numeroTest = test ? p.numeroTest : '';
-  const joignables = personnes.filter((x) => x.statut === 'recoit').length;
-  const destinataires = test && !numeroTest ? 0 : joignables; // un rendez-vous de test ne part que vers le numéro de test (un SMS par personne joignable), ou nulle part
+  const personnes = (participants || []).map((x) => {
+    const tel = String(x.telephone ?? '').trim();
+    const cible = numeroCible(x.telephone, rdv, parametres); // le numéro où le SMS partirait vraiment (le numéro de test pour un rendez-vous de test)
+    const statut = !cible ? (test ? 'test-sans-numero' : 'sans-telephone') : desinscrits.includes(x.telephone) ? 'desinscrit' : 'recoit';
+    return { id: x.id, nom: x.nom || 'Sans nom', telephone: tel ? masquerTelephone(tel) : '', statut };
+  });
+  const destinataires = personnes.filter((x) => x.statut === 'recoit').length;
   const nbRappels = rappel ? destinataires : 0;
+  const segmentsConfirmation = confirmation.segments * destinataires;
+  const segmentsRappel = rappel ? rappel.segments * nbRappels : 0;
   const cout = Math.round((coutSms(confirmation.texte, p.prixSms) * destinataires + (rappel ? coutSms(rappel.texte, p.prixSms) * nbRappels : 0)) * 1e6) / 1e6;
   return {
     creneau, test, numeroTest: numeroTest ? masquerTelephone(numeroTest) : '', personnes, destinataires,
-    rappelLe: rappelPossible ? versISO(rappelA) : null,
+    rappelLe: rappelPossible ? versISO(rappelReel) : null,
     confirmation: { texte: confirmation.texte, caracteres: confirmation.caracteres, segments: confirmation.segments, manque: [...new Set([...confirmation.texte.matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]))] },
-    nbSms: destinataires + nbRappels,
-    segments: confirmation.segments * destinataires + (rappel ? rappel.segments * nbRappels : 0),
+    messages: destinataires + nbRappels, segmentsConfirmation, segmentsRappel, segments: segmentsConfirmation + segmentsRappel,
     cout, tarifsAu: p.tarifsAu,
     aucun: destinataires === 0,
-    raisonAucun: destinataires > 0 ? '' : test && !numeroTest && joignables > 0 ? 'test-sans-numero' : 'personne-joignable',
+    raisonAucun: destinataires > 0 ? '' : test && !numeroTest ? 'test-sans-numero' : 'personne-joignable',
   };
 }
 
 /**
  * Phrase d'aide toujours visible sous le bouton « Confirmer… » : ce qui partira si on confirme un des créneaux `numeros`.
- * Le rappel n'est cité que s'il part pour TOUS ces créneaux (la veille n'est pas passée) ; l'heure vient du réglage.
+ * Le rappel n'est cité que s'il part pour TOUS ces créneaux ; l'heure est celle où il partira vraiment (après la plage d'envoi).
  */
 export function phraseAvantConfirmer({ rdv, participants, parametres, numeros, maintenant, desinscrits = [] }) {
   const previsions = (numeros || []).map((numero) => previsionConfirmation({ rdv, participants, parametres, numero, maintenant, desinscrits }));
   if (!previsions.length) return '';
   const base = previsions[0];
-  if (base.test) {
-    return base.numeroTest
-      ? `Rendez-vous de test : le SMS de confirmation part seulement vers le numéro de test (${base.numeroTest}), jamais vers les participants.`
-      : 'Rendez-vous de test : aucun SMS ne partira (le numéro des SMS de test n’est pas réglé).';
+  if (base.aucun) { // « aucun SMS » passe avant le mode test : tous désinscrits avec un numéro de test réglé ne reçoivent rien non plus
+    return base.raisonAucun === 'test-sans-numero'
+      ? 'Rendez-vous de test : aucun SMS ne partira (le numéro des SMS de test n’est pas réglé).'
+      : 'Aucun SMS ne partira : aucun participant n’a de numéro joignable.';
   }
-  if (base.aucun) return 'Aucun SMS ne partira : aucun participant n’a de numéro joignable.';
+  if (base.test) return `Rendez-vous de test : le SMS de confirmation part seulement vers le numéro de test (${base.numeroTest}), jamais vers les participants.`;
   const n = base.destinataires;
   const rappel = previsions.every((x) => x.rappelLe) ? `, puis un rappel la veille à ${formaterHeure(base.rappelLe)}` : '';
   return `En confirmant : ${n} ${n > 1 ? 'personnes reçoivent' : 'personne reçoit'} un SMS de confirmation tout de suite${rappel}. Les numéros désinscrits (STOP) ne reçoivent rien.`;

@@ -28,9 +28,9 @@ export const clientCourant = () => /^clients\/([^/]+)/.exec(base)?.[1] ?? '';
 export const rendezVous = (id) => etat.rendezVous.find((r) => r.id === id) || null;
 export const participantsDe = (rdvId) => etat.participants.filter((p) => p.rendezVousId === rdvId);
 export const messagesDe = (rdvId) => etat.messages.filter((m) => m.rendezVousId === rdvId);
-/** Réglages lus (valeurs par défaut pour tout ce qui manque). */
-/** Numéros qui ont répondu STOP (aucun SMS ne leur est plus envoyé). */
+/** Numéros qui ont répondu STOP (aucun SMS ne leur est plus envoyé) : la liste tenue par le serveur, la même que celle de `smsDus`. */
 export const desinscrits = () => etat.desinscrits;
+/** Réglages lus (valeurs par défaut pour tout ce qui manque). */
 export const parametres = () => ({ ...R.PARAMETRES_DEFAUT, ...(etat.parametresDoc || {}) });
 export const estPret = () => etat.pret;
 
