@@ -7,6 +7,7 @@ import { test, describe } from 'node:test';
 import { tirerPourTous } from '../functions-plateforme/src/rdv.js';
 import { creerSmsDirect, creerGestionnaireReponses, lireConnexion, nomDuSecret, memeJeton, ErreurSortieSms, URL_ENVOI, SECRET_CLICKSEND } from '../functions/src/coeur/sms-direct.js';
 import { PRECONDITION_ECHOUEE } from '../scripts/porte/adaptateur.js';
+import { lienEcranRdv } from '../functions/src/coeur/liens.js';
 
 const T0 = Date.parse('2026-11-16T10:00:00Z'); // lundi 11 h à Paris : dans la plage d'envoi
 const iso = (ms) => new Date(ms).toISOString();
@@ -524,5 +525,48 @@ describe('filet planifié des clients (tirerPourTous)', () => {
     const bilan = await tirerPourTous({ db: dbDe(['a', 'b', 'c', 'd']), sortie, modulesActifs: async () => ['rdv'], maintenant: () => t, dureeMaxMs: 270_000 });
     assert.equal(bilan.interrompu, true);
     assert.ok(appeles.length >= 1 && appeles.length < 4);
+  });
+});
+
+describe('B2 lien du rendez-vous dans l’alerte « un créneau convient à tous »', () => {
+  const JEROME = 'https://chevalier-ia-os.web.app';
+  const PLATEFORME = 'https://chevalier-ia-app.web.app';
+
+  test('B2 lienEcranRdv : Jérôme sans espace, un client sous espace/<client>/ ; base non https, espace ou identifiant mal formés : pas de lien', () => {
+    assert.equal(lienEcranRdv({ baseLien: JEROME, client: '' }, 'abc123'), `${JEROME}/#/rdv/liste/abc123`);
+    assert.equal(lienEcranRdv({ baseLien: `${PLATEFORME}/`, client: 'demo' }, 'abc123'), `${PLATEFORME}/#/espace/demo/rdv/liste/abc123`);
+    for (const [base, client, id] of [['', '', 'a'], ['http://x.test', '', 'a'], [JEROME, 'Mauvais/../x', 'a'], [JEROME, '', ''], [JEROME, '', 'a/b'], [JEROME, '', 'a?b=1'], [JEROME, '', undefined], [`${JEROME}/chemin`, '', 'a']]) {
+      assert.equal(lienEcranRdv({ baseLien: base, client }, id), undefined, `${base} ${client} ${id}`);
+    }
+  });
+
+  test('B2 chez Jérôme : le SMS d’alerte porte l’adresse de l’appli, sur sa propre ligne, et rien de secret', async () => {
+    const m = monde();
+    m.semer('rdvAbc123');
+    for (const pid of ['p1', 'p2']) m.base.docs.set(`rdv_participants/rdvAbc123-${pid}`, { v: 2, d: { rendezVousId: 'rdvAbc123', nom: pid, telephone: pid === 'p1' ? '+33600000001' : '+33600000002', role: '', etatReponse: 'comprise', creneauxOk: [1], reponse: '1', reponseLe: iso(T0 - 3600_000) } });
+    const sms = creerSmsDirect({ lireSecret: async () => SECRET, donneesDe: () => ({ base: '', donnees: m.base }), maintenant: () => m.temps.t, fetchImpl: async (url, options) => { m.appels.push({ corps: JSON.parse(options.body) }); return REPONSE_OK('X'); }, pauseConfirmationMs: 0, baseLien: JEROME });
+    await sms.tirer('interne');
+    const alerte = m.appels.map((a) => a.corps.messages[0]).find((x) => x.to === '+33700000001');
+    assert.ok(alerte, 'une alerte est partie vers le numéro d’alerte');
+    assert.ok(alerte.body.endsWith(`\n${JEROME}/#/rdv/liste/rdvAbc123`), alerte.body);
+    assert.doesNotMatch(alerte.body, new RegExp(`${JETON}|${SECRET_CLICKSEND}|cle-de-test`));
+    const aucunLien = m.appels.map((a) => a.corps.messages[0]).filter((x) => x.to !== '+33700000001');
+    assert.ok(aucunLien.every((x) => !/https?:/.test(x.body)), 'aucun lien dans les SMS des participants');
+  });
+
+  test('B2 chez un client : adresse de la plateforme sous espace/<client>/ ; sans adresse de base (ancien branchement) : l’alerte part sans lien', async () => {
+    for (const [baseLien, attendu] of [[PLATEFORME, `${PLATEFORME}/#/espace/demo/rdv/liste/rdvAbc123`], ['', null]]) {
+      const m = monde();
+      m.semer('rdvAbc123');
+      for (const pid of ['p1', 'p2']) m.base.docs.set(`rdv_participants/rdvAbc123-${pid}`, { v: 2, d: { rendezVousId: 'rdvAbc123', nom: pid, telephone: pid === 'p1' ? '+33600000001' : '+33600000002', role: '', etatReponse: 'comprise', creneauxOk: [1], reponse: '1', reponseLe: iso(T0 - 3600_000) } });
+      const sms = creerSmsDirect({ lireSecret: async () => SECRET, donneesDe: () => ({ base: 'clients/demo', donnees: m.base }), maintenant: () => m.temps.t, fetchImpl: async (url, options) => { m.appels.push({ corps: JSON.parse(options.body) }); return REPONSE_OK('X'); }, pauseConfirmationMs: 0, baseLien, espaceRacine: null });
+      // la base en mémoire n'a pas de sous-dossier : on range les documents sous clients/demo
+      for (const [c, x] of [...m.base.docs]) if (!c.startsWith('clients/')) { m.base.docs.set(`clients/demo/${c}`, x); m.base.docs.delete(c); }
+      await sms.tirer('demo');
+      const alerte = m.appels.map((a) => a.corps.messages[0]).find((x) => x.to === '+33700000001');
+      assert.ok(alerte, 'une alerte est partie');
+      if (attendu) assert.ok(alerte.body.endsWith(`\n${attendu}`), alerte.body);
+      else assert.doesNotMatch(alerte.body, /https|\{|\n$/);
+    }
   });
 });

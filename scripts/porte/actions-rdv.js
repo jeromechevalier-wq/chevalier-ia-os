@@ -116,7 +116,7 @@ export const ACTIONS_RDV = Object.freeze({
         if (aEnvoyer.length >= limite) break;
         // « envoyé » ET « abandonné » comptent comme faits pour le calendrier (sinon un SMS abandonné bloquerait les relances de tout le rendez-vous) ; l'abandon déclenche une alerte (smsDus).
         const messages = (await ctx.donnees.listerPar(chemin(ctx.base, T.msg), 'rendezVousId', rdv.id, { limite: 1000 })).filter((m) => (m.etatEnvoi === 'envoye' || m.etatEnvoi === 'abandonne') && m.sens !== 'entrant');
-        const dus = R.smsDus({ rdv, participants, parametres, messages, maintenant: maintenantMs, desinscrits });
+        const dus = R.smsDus({ rdv, participants, parametres, messages, maintenant: maintenantMs, desinscrits, lien: ctx.lienRdv?.(rdv.id) ?? '' }); // `lienRdv` : l'adresse du rendez-vous, construite par le serveur (jamais de secret dedans)
         for (const du of dus) {
           if (aEnvoyer.length >= limite) break;
           const docId = docIdMessage(du.idEcheance);

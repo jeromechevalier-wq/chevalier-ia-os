@@ -19,3 +19,15 @@ export const lienEcranDepuisContexte = (c, devis) => lienEcranDevis({ baseLien: 
 
 /** `{ lienEcran }` ou `{}` : à étaler dans une réponse. */
 export const champLienEcran = (c, devis) => { const l = lienEcranDepuisContexte(c, devis); return l ? { lienEcran: l } : {}; };
+
+/**
+ * Adresse d'un rendez-vous dans l'appli (alertes « un créneau convient à tous » / « aucun créneau commun »), calculée par le serveur : l'espace est validé, l'identifiant ne porte que des caractères sûrs.
+ * `client` : '' chez Jérôme, l'identifiant du client sinon (chez un client : `#/espace/<client>/rdv/liste/<id>`). Rend undefined si la base n'est pas une adresse https ou si l'espace ou l'identifiant sont mal formés.
+ * Jamais de secret ni de jeton dans l'adresse : il faut être connecté à l'appli pour l'ouvrir.
+ */
+export function lienEcranRdv({ baseLien, client = '' }, rdvId) {
+  const base = String(baseLien ?? '').replace(/\/+$/, '');
+  if (!/^https:\/\/[^/\s]+$/.test(base) || !/^[A-Za-z0-9_-]{1,100}$/.test(String(rdvId ?? ''))) return undefined;
+  if (client && !FORMAT_CLIENT.test(client)) return undefined;
+  return `${base}/#/${client ? `espace/${client}/` : ''}rdv/liste/${rdvId}`;
+}

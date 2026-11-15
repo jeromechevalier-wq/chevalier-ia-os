@@ -149,7 +149,7 @@ export function rendreCreation(conteneur) {
   const carte = (titre, ...contenu) => h('section', { class: 'carte-section' }, h('h2', {}, titre), ...contenu);
   conteneur.append(h('div', { class: 'page page-rdv page-rdv-creation' },
     h('header', { class: 'page-tete' }, h('div', {}, h('a', { class: 'lien-retour', href: '#/rdv/liste' }, icone('chevron-left', { taille: 16 }), 'Rendez-vous'), h('h1', {}, 'Nouveau rendez-vous'))),
-    carte('Le chantier',
+    carte('Le rendez-vous',
       h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'rdv-objet' }, 'Objet de la visite'), champObjet),
       h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'rdv-adresse' }, 'Adresse du rendez-vous'), champAdresse,
         h('p', { class: 'aide' }, 'Elle sera aussi proposée sur la fiche de la première personne de la liste.'))),
