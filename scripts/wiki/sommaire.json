@@ -9,6 +9,6 @@
     { "titre": "Tests", "pages": ["tests", "acceleration-tests-mesures", "rapport-phase-1-tests"] },
     { "titre": "Vision, cahiers des charges et décisions", "pages": ["vision-chevalier-ia-os", "synthese-chevalier-ia-os", "cahier-des-charges", "cahier-des-charges-v2.0", "crm-decisions-entretien", "decisions-construction", "decisions-construction-v2", "PROMPT-CONSTRUCTION-v2.0"] },
     { "titre": "Rapports et journaux de chantier", "pages": ["rapport-construction", "rapport-construction-v2", "journal-chantier-6", "journal-chantier-7", "journal-chantier-13", "journal-chantier-14", "retours-ux-2026-10-04", "revue-conception-fable-2026-10-28"] },
-    { "titre": "Suivi et mode d'emploi", "pages": ["roadmap", "reprise-prochaine-session", "fonctionnement-du-travail", "wiki"] }
+    { "titre": "Suivi et mode d'emploi", "pages": ["roadmap", "reprise-prochaine-session", "fonctionnement-du-travail", "lecons-des-nuits", "wiki"] }
   ]
 }

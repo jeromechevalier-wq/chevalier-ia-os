@@ -73,6 +73,7 @@ Pousser sur `main`, déployer la plateforme clients (workflow manuel, que Jérô
 | Sujet | Page |
 |---|---|
 | Décisions permanentes et protocole de nuit | `CLAUDE.md` |
+| Leçons des nuits et des journées de codage | `docs/lecons-des-nuits.md` |
 | Règles d'interface | `docs/consignes-ui.md` |
 | Tests, quota, pièges | `docs/tests.md` |
 | Où reprendre la prochaine session | `docs/reprise-prochaine-session.md` |
