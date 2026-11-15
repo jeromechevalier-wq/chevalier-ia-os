@@ -379,7 +379,7 @@ export const VARIABLES_ALERTE = Object.freeze({
 });
 /** Pas de caractère hors GSM-7 (« À » s'écrit « A ») : le texte par défaut est déjà celui qui partira. */
 export const MODELES_ALERTE_DEFAUT = Object.freeze({
-  'alerte-commun': 'RDV {client} : un créneau convient à tous ({creneau}). A toi de confirmer dans l\'appli.\n{lien}',
+  'alerte-commun': 'RDV {client} : tous dispos le {creneau}. Confirme dans l\'appli.\n{lien}',
   'alerte-aucun': 'RDV {client} : aucun créneau commun. Propose d\'autres dates dans l\'appli.\n{lien}',
   'alerte-incomprise': 'RDV {client} : réponse non comprise de {nom} : "{reponse}". Appelle ou saisis sa réponse dans l\'appli.',
   'alerte-fin-relances': 'RDV {client} : relances terminées, il manque des réponses. Ouvre le rendez-vous dans l\'appli.',
@@ -393,8 +393,13 @@ export const TOUS_MODELES_DEFAUT = Object.freeze({ ...MODELES_DEFAUT, ...MODELES
 export const estModeleAlerte = (type) => Object.hasOwn(MODELES_ALERTE_DEFAUT, type);
 export const variablesDuModele = (type) => (estModeleAlerte(type) ? VARIABLES_ALERTE[type] : VARIABLES_SMS);
 export const libelleModele = (type) => LIBELLES_MODELES[type] ?? LIBELLES_ALERTES[type] ?? type;
-/** Adresse d'exemple (la forme réelle est construite par le serveur ; chez un client elle est un peu plus longue). */
-export const EXEMPLE_ALERTE = Object.freeze({ client: 'M. Durand', creneau: '2026-11-19T09:00:00Z', nom: 'M. Petit', reponse: 'plutot jeudi', lien: 'https://chevalier-ia-os.web.app/#/rdv/liste/aB3dE5gH7jK9mN1pQ3sT' });
+/** Adresses de l'appli (les mêmes que celles du serveur : `lienEcranRdv`) et identifiant d'exemple de 20 caractères (la longueur d'un identifiant Firestore). */
+export const BASE_LIEN_JEROME = 'https://chevalier-ia-os.web.app';
+export const BASE_LIEN_PLATEFORME = 'https://chevalier-ia-app.web.app';
+const ID_EXEMPLE = 'aB3dE5gH7jK9mN1pQ3sT';
+/** Adresse d'exemple d'un rendez-vous dans l'espace courant : `client` vide = chez Jérôme ; l'identifiant du client sinon. Sert à compter les SMS de l'aperçu avec la vraie longueur. */
+export const lienExempleRdv = (client = '') => (client ? `${BASE_LIEN_PLATEFORME}/#/espace/${client}/rdv/liste/${ID_EXEMPLE}` : `${BASE_LIEN_JEROME}/#/rdv/liste/${ID_EXEMPLE}`);
+export const EXEMPLE_ALERTE = Object.freeze({ client: 'M. Durand', creneau: '2026-11-19T09:00:00Z', nom: 'M. Petit', reponse: 'plutot jeudi', lien: lienExempleRdv('') });
 
 const abreger = (t) => String(t).replace(/\s+/g, ' ').trim().slice(0, 40);
 const NOM_PAR_DEFAUT = { incomprise: 'un participant' };
@@ -405,7 +410,7 @@ function valeursAlerte(sousType, ctx = {}) {
     creneau: (ctx.creneau && formaterCreneauSms(ctx.creneau)) || 'a confirmer',
     nom: ctx.nom || NOM_PAR_DEFAUT[sousType] || 'une personne',
     reponse: ctx.reponse ? abreger(ctx.reponse) || '(sans texte)' : '(sans texte)',
-    lien: ctx.lien || '',
+    lien: VARIABLES_ALERTE[cleAlerte(sousType)]?.includes('lien') ? (ctx.lien || '') : '', // jamais de lien pour une alerte qui ne le prévoit pas, même si un modèle stocké l'écrit
   };
 }
 
@@ -416,20 +421,40 @@ export function texteAlerte(sousType, ctx = {}, parametres = {}) {
   return preparerSms(remplirModele(modeleDe(cle, parametres), valeursAlerte(sousType, ctx)));
 }
 
-/** Aperçu des huit alertes avec des données d'exemple : texte avec le lien, et — pour celles qui le portent — le même texte sans lien (pour voir ce que le lien ajoute en SMS). */
-export function apercuAlertes(parametres) {
+/** Aperçu des huit alertes avec des données d'exemple : texte avec le lien, et — pour celles qui le portent — le même texte sans lien. `client` : l'identifiant de l'espace (vide chez Jérôme) pour compter avec l'adresse réelle. */
+export function apercuAlertes(parametres, { client = '' } = {}) {
+  const exemple = { ...EXEMPLE_ALERTE, lien: lienExempleRdv(client) };
   return SOUS_TYPES_ALERTE.map((sousType) => {
     const type = cleAlerte(sousType);
     const modele = modeleDe(type, parametres);
-    const avecLien = texteAlerte(sousType, EXEMPLE_ALERTE, parametres);
-    const aLien = /\{lien\}/.test(modele);
-    return { type, sousType, libelle: LIBELLES_ALERTES[type], modele, ...avecLien, aLien, sansLien: aLien ? texteAlerte(sousType, { ...EXEMPLE_ALERTE, lien: '' }, parametres) : null };
+    const avecLien = texteAlerte(sousType, exemple, parametres);
+    const aLien = /\{lien\}/.test(modele) && VARIABLES_ALERTE[type].includes('lien');
+    return { type, sousType, libelle: LIBELLES_ALERTES[type], modele, ...avecLien, aLien, sansLien: aLien ? texteAlerte(sousType, { ...exemple, lien: '' }, parametres) : null };
   });
+}
+
+/** Contrôle d'un modèle avant enregistrement : { ok, message }. Vide, variable inconnue pour CE modèle, ou `{lien}` écrit plus d'une fois sont refusés. */
+export function validerModele(modele, type) {
+  const texte = String(modele ?? '');
+  if (!texte.trim()) return { ok: false, message: 'Le modèle ne peut pas être vide.' };
+  const inconnues = variablesInconnues(texte, type);
+  if (inconnues.length) return { ok: false, message: `Variable inconnue ici : {${inconnues[0]}}. Variables permises : ${variablesDuModele(type).map((v) => `{${v}}`).join(', ')}` };
+  if ((texte.match(/\{lien\}/g) || []).length > 1) return { ok: false, message: 'Écris {lien} une seule fois : une adresse suffit, et chaque caractère compte dans un SMS.' };
+  return { ok: true, message: '' };
 }
 
 // ───────────────────────────── Prix d'un SMS (estimation) ─────────────────────────────
 
-export const prixSmsDe = (p) => { const n = Number(p?.prixSms); return Number.isFinite(n) && n > 0 && n <= 5 ? n : PRIX_SMS_DEFAUT; };
+export const PRIX_SMS_MIN = 0.001;
+export const PRIX_SMS_MAX = 5;
+export const prixSmsDe = (p) => { const n = p?.prixSms; return typeof n === 'number' && Number.isFinite(n) && n >= PRIX_SMS_MIN && n <= PRIX_SMS_MAX ? n : PRIX_SMS_DEFAUT; };
+/** Lit un prix tapé (« 0,0685 », « 0.1 ») : seulement des chiffres et une virgule ou un point décimal, entre 0,001 et 5 ; « 0x1 », « 1e-7 », « -1 » ou « abc » rendent null. */
+export function lirePrixSms(saisie) {
+  const t = String(saisie ?? '').trim();
+  if (!/^\d+(?:[.,]\d{1,6})?$/.test(t)) return null;
+  const n = Number(t.replace(',', '.'));
+  return n >= PRIX_SMS_MIN && n <= PRIX_SMS_MAX ? n : null;
+}
 export const tarifsAuDe = (p) => (typeof p?.tarifsAu === 'string' && p.tarifsAu.trim() ? p.tarifsAu.trim().slice(0, 40) : TARIFS_AU_DEFAUT);
 /** Coût estimé d'un texte : prix d'un segment × nombre de SMS facturés (`compterSms`). Rien n'est stocké : le coût se calcule à l'écran. */
 export function coutSms(texte, prix = PRIX_SMS_DEFAUT) {
@@ -735,7 +760,8 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
     const dueLe = def.horsPlage === false ? def.instant : prochaineOuverture(def.instant, p.plage);
     if (dueLe > nowMs) return;
     if (Number.isFinite(def.avant) && (dueLe >= def.avant || nowMs >= def.avant)) return;
-    const sms = def.texte ? preparerSms(def.texte) : construireSms(def.modele, def.valeurs, p);
+    const sms = def.texte !== undefined ? preparerSms(def.texte) : construireSms(def.modele, def.valeurs, p);
+    if (!sms.texte.trim()) return; // un modèle qui ne donne aucun texte (ex. `{lien}` seul, sans adresse) n'envoie rien
     dus.push({
       idEcheance: def.idEcheance, typeMessage: def.typeMessage, sousType: def.sousType || null, participantId: def.participantId || null,
       manque: [...new Set([...sms.texte.matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]))],
@@ -745,8 +771,9 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
   };
   const valeurs = valeursSms(rdv, p);
   const actifsAlerte = p.numerosAlerte.map((n, i) => (n ? { ...n, id: n.id || `n${i + 1}` } : n)).filter((n) => n && n.actif && n.numero);
-  const alerter = (sousType, nature, ctx) => {
+  const alerter = (sousType, nature, ctx, sauf = '') => {
     for (const n of actifsAlerte) {
+      if (sauf && deja.has(idEcheance(rdv.id, tour, `alerte-${sauf}`, n.id))) continue;
       proposer({
         idEcheance: idEcheance(rdv.id, tour, `alerte-${nature}`, n.id), typeMessage: 'alerte', sousType, numero: n.numero,
         instant: ctx.instant, avant: ctx.avant, texte: texteAlerte(sousType, { client: rdv.client, ...ctx }, p).texte,
@@ -787,11 +814,12 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
     const b = bilanReponses(participants, (rdv.creneaux || []).length || MAX_CRENEAUX);
     const dateDerniere = Math.max(0, ...participants.map((x) => enMs(x.reponseLe)).filter(Number.isFinite));
     const instantReponses = dateDerniere || nowMs;
-    // « Un créneau convient à tous » cite le premier créneau commun ENCORE À VENIR ; si tous les créneaux communs sont passés, rien n'est envoyé (confirmer une date passée n'a pas de sens).
+    // « Un créneau convient à tous » cite le premier créneau commun ENCORE À VENIR. Si tous les créneaux communs sont passés, la professionnelle reçoit « aucun créneau commun » (aucun créneau à venir ne convient),
+    // sauf si l'alerte « commun » lui a déjà été envoyée (sinon elle recevrait « aucun » juste après, quand son créneau passe).
     // `lien` (adresse du rendez-vous, construite par le serveur) n'est utilisé que par ces deux alertes ; une seule alerte par numéro et par série (l'identifiant d'échéance `alerte-commun` / `alerte-aucun`).
     const prochain = b.communs.map((i) => rdv.creneaux[i - 1]).find((c) => enMs(c) > nowMs);
     if (b.complet && prochain) alerter('commun', 'commun', { instant: instantReponses, creneau: prochain, lien });
-    if (b.complet && !b.communs.length) alerter('aucun', 'aucun', { instant: instantReponses, lien });
+    if (b.complet && !prochain) alerter('aucun', 'aucun', { instant: instantReponses, lien }, b.communs.length ? 'commun' : '');
     for (const x of participants.filter((y) => y.etatReponse === 'incomprise')) {
       alerter(x.desinscrit ? 'desinscription' : x.ambigu ? 'ambigu' : 'incomprise', `incomprise-${x.id}-${x.idReponse || 'r'}`, { instant: enMs(x.reponseLe) || nowMs, nom: x.nom, reponse: x.reponse });
     }

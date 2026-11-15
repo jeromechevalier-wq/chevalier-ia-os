@@ -445,7 +445,7 @@ describe('L échéances : liste des SMS dus', () => {
     const commun = L.smsDus({ rdv: base, participants: [rep('a', [1, 2]), rep('b', [2])], parametres: params, messages: [], maintenant });
     const alertes = commun.filter((d) => d.typeMessage === 'alerte');
     assert.equal(alertes.length, 2);
-    assert.match(alertes[0].texte, /un créneau convient à tous \(mer\. 18 nov\. 14h\)/);
+    assert.match(alertes[0].texte, /tous dispos le mer\. 18 nov\. 14h/);
     const aucun = L.smsDus({ rdv: base, participants: [rep('a', [1]), rep('b', [2])], parametres: params, messages: [], maintenant }).filter((d) => d.typeMessage === 'alerte');
     assert.match(aucun[0].texte, /aucun créneau commun/);
     assert.ok(!aucun.some((d) => d.numero === '+33700000003'), 'le numéro éteint ne reçoit rien');
@@ -745,12 +745,44 @@ describe('B2 le lien du rendez-vous dans les alertes « commun » et « aucun »
     const tour2 = alertes({ ...args, rdv: rdv({ tour: 2 }), messages: [envoye] });
     assert.equal(tour2.length, 1, 'une nouvelle série de propositions = une nouvelle alerte');
   });
-  test('B2 tous les créneaux communs sont passés : aucune alerte « un créneau convient » sur une date passée', () => {
+  test('B2 tous les créneaux communs sont passés : la professionnelle reçoit « aucun créneau commun » (aucun à venir ne convient), jamais « commun » sur une date passée', () => {
     const r = rdv({ creneaux: [parisEnISO(2026, 11, 13, 10), futur(3)] });
-    assert.equal(alertes({ rdv: r, participants: [rep('a', [1]), rep('b', [1])], lien: LIEN }).length, 0);
+    const toutPasse = alertes({ rdv: r, participants: [rep('a', [1]), rep('b', [1])], lien: LIEN });
+    assert.deepEqual(toutPasse.map((x) => x.sousType), ['aucun']);
+    assert.ok(toutPasse[0].texte.endsWith(LIEN));
     const mix = alertes({ rdv: r, participants: [rep('a', [1, 2]), rep('b', [1, 2])], lien: LIEN });
     assert.equal(mix.length, 1);
+    assert.equal(mix[0].sousType, 'commun');
     assert.match(mix[0].texte, /mar\. 17 nov\./, 'le premier créneau commun encore à venir (le 2e), pas le passé');
+  });
+  test('B2 si « commun » est déjà parti et que son créneau passe ensuite, « aucun » ne suit pas', () => {
+    const args = { rdv: rdv(), participants: [rep('a', [1]), rep('b', [1])], lien: LIEN };
+    const [premiere] = alertes(args);
+    const envoye = { id: 'm1', echeance: premiere.idEcheance, etatEnvoi: 'envoye', sens: 'sortant', tour: 1 };
+    const plusTard = L.smsDus({ ...args, parametres, messages: [envoye], maintenant: parisEnISO(2026, 11, 20, 12) }).filter((d) => d.typeMessage === 'alerte');
+    assert.equal(plusTard.length, 0, 'le créneau est passé, mais la pro a déjà été prévenue');
+  });
+  test('B2 un modèle stocké qui écrit {lien} pour une alerte qui ne le prévoit pas part sans lien', () => {
+    const p = { ...parametres, modeles: { 'alerte-incomprise': 'RDV {client} : {nom} {lien}' } };
+    const [a] = alertes({ rdv: rdv(), participants: [{ ...rep('a', []), etatReponse: 'incomprise', reponse: 'bof', reponseLe: parisEnISO(2026, 11, 14, 11), idReponse: 'x1' }], lien: LIEN, parametres: p });
+    assert.equal(a.texte, 'RDV M. Durand : a');
+    assert.doesNotMatch(a.texte, /https|\{/);
+  });
+  test('B2 un modèle qui ne donne aucun texte (« {lien} » seul, sans adresse) n’envoie aucune alerte', () => {
+    const p = { ...parametres, modeles: { 'alerte-commun': '{lien}' } };
+    assert.equal(alertes({ rdv: rdv(), participants: [rep('a', [1]), rep('b', [1])], parametres: p }).length, 0, 'sans adresse : texte vide, rien ne part');
+    assert.equal(alertes({ rdv: rdv(), participants: [rep('a', [1]), rep('b', [1])], parametres: p, lien: LIEN })[0].texte, LIEN, 'avec adresse : le texte est l’adresse');
+  });
+  test('B2 l’aperçu compte avec l’adresse réelle de l’espace : « commun » et « aucun » tiennent en 1 SMS chez Jérôme et chez un client (id jusqu’à 10 caractères), et le texte long en annonce 2', () => {
+    for (const client of ['', 'demo', 'clientdemo']) {
+      for (const a of L.apercuAlertes({}, { client }).filter((x) => x.aLien)) {
+        assert.equal(a.segments, 1, `${a.sousType} / ${client || 'Jérôme'} : ${a.caracteres} caractères`);
+        assert.ok(a.texte.includes(client ? `/#/espace/${client}/rdv/liste/` : '/#/rdv/liste/'));
+      }
+    }
+    const long = L.apercuAlertes({}, { client: 'un-espace-client-tres-long' }).find((x) => x.sousType === 'commun');
+    assert.equal(long.segments, 2);
+    assert.equal(long.sansLien.segments, 1);
   });
   test('B2 la longueur du lien est comptée : l’alerte avec lien peut passer à 2 SMS, et le compteur le dit', () => {
     const long = { client: 'Mme Dupont-Martin & Fils (maison)', creneau: '2031-03-17T09:00:00Z', lien: `https://chevalier-ia-app.web.app/#/espace/mon-espace/rdv/liste/${'a'.repeat(20)}` };
@@ -807,5 +839,33 @@ describe('B4 prix du SMS configurable', () => {
   });
   test('B4 un prix absent des réglages n’empêche rien : les SMS dus ne changent pas', () => {
     assert.equal(L.libelleCout('abc', {}), '≈ 0,0685 € · estimation basée sur les tarifs ClickSend au 1er novembre 2026');
+  });
+});
+
+describe('B1 contrôle d’un modèle avant enregistrement', () => {
+  test('B1 vide, variable inconnue pour ce modèle, ou {lien} plus d’une fois : refusés avec un message clair', () => {
+    assert.equal(L.validerModele('RDV {client} : {lien}', 'alerte-commun').ok, true);
+    assert.equal(L.validerModele('   ', 'alerte-commun').ok, false);
+    assert.match(L.validerModele('{nom}', 'alerte-commun').message, /Variable inconnue ici : \{nom\}.*\{client\}, \{creneau\}, \{lien\}/);
+    assert.match(L.validerModele('{lien}', 'alerte-incomprise').message, /Variable inconnue ici : \{lien\}/);
+    const deux = L.validerModele('{lien} et encore {lien}', 'alerte-aucun');
+    assert.equal(deux.ok, false);
+    assert.match(deux.message, /une seule fois/);
+    assert.equal(L.validerModele('Rappel {client} {heure}', 'rappel').ok, true);
+  });
+});
+
+describe('B4 lecture stricte du prix saisi', () => {
+  test('B4 virgule ou point décimal, entre 0,001 et 5 ; tout autre format (0x1, 1e-7, négatif, texte, vide) est refusé', () => {
+    assert.equal(L.lirePrixSms('0,0685'), 0.0685);
+    assert.equal(L.lirePrixSms(' 0.1 '), 0.1);
+    assert.equal(L.lirePrixSms('5'), 5);
+    assert.equal(L.lirePrixSms('0,001'), 0.001);
+    for (const mauvais of ['0x1', '1e-7', '1e0', '-1', '0', '0,0001', '5,01', '6', 'abc', '', ' ', '1,2,3', '0,1234567', 'Infinity', null, undefined]) assert.equal(L.lirePrixSms(mauvais), null, String(mauvais));
+  });
+  test('B4 un prix déjà stocké hors bornes (trop petit, trop grand) revient au prix de départ', () => {
+    assert.equal(L.prixSmsDe({ prixSms: 0.0001 }), 0.0685);
+    assert.equal(L.prixSmsDe({ prixSms: 0.001 }), 0.001);
+    assert.equal(L.prixSmsDe({ prixSms: '0.1' }), 0.0685, 'un texte stocké n’est pas un prix');
   });
 });

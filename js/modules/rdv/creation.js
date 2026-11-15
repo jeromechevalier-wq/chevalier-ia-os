@@ -1,4 +1,4 @@
-// Écran « Nouveau rendez-vous » : le chantier (objet, adresse multiligne), les participants (fiches Personnes du socle), 1 à 3 créneaux, aperçu des deux premiers SMS.
+// Écran « Nouveau rendez-vous » : le rendez-vous (objet, adresse multiligne), les participants (fiches Personnes du socle), 1 à 3 créneaux, aperçu des deux premiers SMS.
 // Rien ne part tant que l'envoi des SMS n'est pas branché : « Envoyer les propositions » reste grisé avec une phrase, « Enregistrer sans envoyer » crée le rendez-vous.
 import { h, icone, remplir, toast, demanderTexte, champIntelligent } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';

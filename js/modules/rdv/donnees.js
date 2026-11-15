@@ -22,6 +22,8 @@ const abonnes = new Set();
 const prets = { rendezVous: false, participants: false, messages: false, parametres: false };
 
 export const chemin = (nom) => cheminCollection(base, nom);
+/** Identifiant du client dont on lit les données (« clients/<client> »), vide chez Jérôme : sert à montrer la vraie adresse d'un rendez-vous dans l'aperçu des alertes. */
+export const clientCourant = () => /^clients\/([^/]+)/.exec(base)?.[1] ?? '';
 export const rendezVous = (id) => etat.rendezVous.find((r) => r.id === id) || null;
 export const participantsDe = (rdvId) => etat.participants.filter((p) => p.rendezVousId === rdvId);
 export const messagesDe = (rdvId) => etat.messages.filter((m) => m.rendezVousId === rdvId);
@@ -164,7 +166,7 @@ export async function archiver(id, archive = true) {
 }
 
 /**
- * Enregistre des réglages (clés de premier niveau : relances, rappel, plage, numerosAlerte, numeroAffiche, nomDansLesSms, roles, modeles).
+ * Enregistre des réglages (clés de premier niveau : relances, rappel, plage, numerosAlerte, numeroAffiche, nomDansLesSms, roles, modeles, prixSms, tarifsAu).
  * Refus tant que les réglages n'ont pas été lus avec succès (sinon on écraserait ce qui existe avec les valeurs par défaut).
  * Le document est relu à l'instant de l'écriture : présent -> on change seulement ces clés ; absent -> on le crée avec les valeurs par défaut en dessous.
  */

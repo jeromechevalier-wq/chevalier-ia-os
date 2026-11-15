@@ -257,7 +257,8 @@ test('12 le nombre de caractères de chaque SMS est affiché, la règle des acce
   await capture(page, '12-modeles');
   // B1 / B2 / B4 : les alertes sont des modèles réglables ; seul « commun » et « aucun » portent {lien} ; le coût est une estimation datée
   const commun = section.locator('[data-modele="alerte-commun"]');
-  await expect(commun.locator('.rdv-modele-texte')).toContainText('{lien}'.length ? 'https://' : '');
+  await expect(commun.locator('.rdv-modele-texte')).toContainText('https://chevalier-ia-os.web.app/#/rdv/liste/'); // l'adresse réelle de l'espace (ici : chez Jérôme)
+  await expect(commun.locator('.rdv-modele-compte')).toHaveText(/· 1 SMS$/); // le texte de départ tient en UN SMS avec l'adresse de cet espace
   await expect(commun.locator('.rdv-modele-sanslien')).toContainText('Sans le lien');
   await expect(commun.locator('.rdv-modele-cout')).toContainText('≈ 0,0685 € · estimation basée sur les tarifs ClickSend au 1er novembre 2026');
   await expect(section.locator('[data-modele="alerte-incomprise"] .rdv-modele-sanslien')).toHaveCount(0);
@@ -301,7 +302,7 @@ test('réglages : les onze sections sont dans la page Réglages de la coque, dan
   await expect(page.locator('section.carte-section h2')).toHaveText(['Relances', 'Rappel la veille', 'Plage d’envoi', 'Numéros qui reçoivent les alertes', 'Ton nom dans les SMS', 'Nom de l’entreprise dans les SMS', 'Connexion SMS (ClickSend)', 'Rôles des participants', 'Prix d’un SMS', 'Modèles de SMS', 'Sauvegarde']);
   // B4 : le prix d'un SMS est réglable, un prix absurde est refusé, l'estimation de l'aperçu suit (premier modèle = 2 SMS, donc 2 × 0,10 €)
   await expect(page.getByLabel('Prix d’un SMS, en euros')).toHaveValue('0,0685');
-  await page.getByLabel('Prix d’un SMS, en euros').fill('abc');
+  await page.getByLabel('Prix d’un SMS, en euros').fill('0x1');
   await page.getByLabel('Prix d’un SMS, en euros').blur();
   await expect(page.getByLabel('Prix d’un SMS, en euros')).toHaveValue('0,0685');
   await page.getByLabel('Prix d’un SMS, en euros').fill('0,1');

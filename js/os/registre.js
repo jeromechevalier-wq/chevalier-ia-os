@@ -200,7 +200,7 @@ export const MODULES_DECLARES = geler([
     socle: true,
   },
   {
-    // Rendez-vous (14/11/2026) : proposer 1 à 3 créneaux de rendez-vous de chantier par SMS à 2 à 5 personnes, lire leurs réponses, relancer, trouver le créneau commun ;
+    // Rendez-vous (14/11/2026) : proposer 1 à 3 créneaux de rendez-vous par SMS à 2 à 5 personnes, lire leurs réponses, relancer, trouver le créneau commun ;
     // seule la professionnelle confirme. Participants = fiches Personnes du socle (aucun autre module requis). UN seul écran (la liste) ; la fiche d'un rendez-vous et la création
     // s'ouvrent depuis elle. Réglages dans la page Réglages de la coque. Les SMS passeront par n8n (PR 4) : tant que l'envoi n'est pas branché, « Envoyer » reste grisé.
     id: 'rdv',
