@@ -1102,6 +1102,140 @@ describe('B4 lecture stricte du prix saisi', () => {
   });
 });
 
+describe('D1 désinscrit (STOP) : visible, et ne bloque personne', () => {
+  const rdv = { id: 'r1', client: 'M. Durand', creneaux: [parisEnISO(2026, 11, 17, 10), parisEnISO(2026, 11, 18, 14), parisEnISO(2026, 11, 19, 9)], tour: 1, envoiDemandeLe: parisEnISO(2026, 11, 14, 9) };
+  const pers = (id, extra = {}) => ({ id, nom: `Participant ${id}`, telephone: `+3360000000${id}`, etatReponse: 'attente', creneauxOk: [], ...extra });
+  const params = { nomDansLesSms: 'Mme Martin', numerosAlerte: [{ id: 'n1', libelle: 'Mobile', numero: '+33700000001', actif: true }], numeroAffiche: 'n1', relances: { nombre: 2, delaiHeures: 24 } };
+  const stop = (id, extra = {}) => pers(id, { etatReponse: 'incomprise', reponse: 'STOP', desinscrit: true, ...extra });
+  const bon = (id, ok) => pers(id, { etatReponse: 'comprise', creneauxOk: ok });
+
+  test('D1-1 « Désinscrit (STOP) » prime dans les 4 états de réponse ; un participant sans repère ne change pas', () => {
+    for (const etatReponse of ['attente', 'comprise', 'saisie', 'incomprise']) {
+      assert.equal(L.symboleCellule(pers('1', { desinscrit: true, etatReponse, creneauxOk: [1] }), 0), 'desinscrit', etatReponse);
+    }
+    assert.equal(L.symboleCellule(pers('1', { etatReponse: 'incomprise' }), 0), 'incompris');
+    assert.equal(L.symboleCellule(pers('1', { desinscrit: false, etatReponse: 'comprise', creneauxOk: [1] }), 0), 'oui');
+  });
+  test('D1-1 la phrase d’état dit « désinscrit (STOP) », jamais « réponse non comprise » ; le bilan ne compte plus un STOP comme réponse incomprise', () => {
+    const participants = [stop('1'), pers('2')];
+    const b = L.bilanReponses(participants, 3);
+    assert.deepEqual([b.incomprises, b.desinscrits, b.reponses, b.total], [0, 1, 0, 2]);
+    const phrase = L.ligneEtat({ rdv, participants, parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 15, 10) });
+    assert.match(phrase, /^1 désinscrit \(STOP\) · 0 réponse sur 2/);
+    assert.doesNotMatch(phrase, /non compris/);
+    assert.match(L.ligneEtat({ rdv, participants: [stop('1'), stop('2')], parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 15, 10) }), /^2 désinscrits \(STOP\)/);
+    // une vraie réponse non comprise d'un autre participant reste signalée
+    assert.equal(L.ligneEtat({ rdv, participants: [stop('1'), pers('2', { etatReponse: 'incomprise' })], parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 15, 10) }), 'Une réponse non comprise');
+  });
+  test('D1-2 règle : `complet` = tous les NON-désinscrits ont répondu ; `communs` calculés sur eux ; `total` inchangé ; un désinscrit n’est jamais « OK »', () => {
+    const participants = [bon('1', [1, 2]), bon('2', [1]), stop('3', { etatReponse: 'comprise', creneauxOk: [1, 2, 3] })];
+    const b = L.bilanReponses(participants, 3);
+    assert.equal(b.total, 3);
+    assert.equal(b.complet, true);
+    assert.deepEqual(b.communs, [1], 'le « 1 » reçu après STOP ne compte pas');
+    assert.deepEqual(b.parCreneau, [2, 1, 0]);
+    assert.equal(b.reponses, 2);
+    assert.equal(L.etatCalcule(rdv, participants), 'a_valider');
+    assert.equal(L.bandeauCreneau(b, { creneaux: rdv.creneaux, maintenant: parisEnISO(2026, 11, 15, 10) }).type, 'commun');
+    // un désinscrit qui n'a jamais répondu ne bloque pas non plus
+    assert.equal(L.bilanReponses([bon('1', [2]), stop('2')], 3).complet, true);
+    // tout le monde désinscrit : rien à confirmer, jamais « complet »
+    const tous = L.bilanReponses([stop('1'), stop('2')], 3);
+    assert.deepEqual([tous.complet, tous.communs, tous.total], [false, [], 2]);
+    // sans désinscrit, rien ne change
+    assert.equal(L.bilanReponses([bon('1', [1]), pers('2')], 3).complet, false);
+  });
+  test('D1-2 les alertes « commun » partent quand tous les non-désinscrits ont répondu, avec le créneau des seuls non-désinscrits', () => {
+    const participants = [bon('1', [2]), bon('2', [2, 3]), stop('3')].map((x) => ({ ...x, reponseLe: '2026-11-15T08:00:00Z' }));
+    const dus = L.smsDus({ rdv, participants, parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 15, 10), lien: 'https://exemple.test/#/rdv/liste/r1' });
+    const commun = dus.filter((d) => d.typeMessage === 'alerte' && d.sousType === 'commun');
+    assert.equal(commun.length, 1);
+    assert.ok(!dus.some((d) => d.sousType === 'aucun'));
+    assert.ok(dus.some((d) => d.sousType === 'desinscription'), 'l’alerte STOP existante est inchangée');
+  });
+  test('D1-2 la prévision de confirmation ne change pas : un STOP de la liste ou le repère seul', () => {
+    const participants = [bon('1', [1]), stop('2')];
+    const p = L.previsionConfirmation({ rdv, participants, parametres: params, numero: 1, maintenant: parisEnISO(2026, 11, 15, 10), desinscrits: ['+33600000002'] });
+    assert.deepEqual(p.personnes.map((x) => x.statut), ['recoit', 'desinscrit']);
+  });
+
+  // Après « Proposer d'autres créneaux » : etatReponse repasse à 'attente', desinscrit reste vrai.
+  const envoisDe = (participants, jusqua = 1) => participants.flatMap((x) => [
+    { sens: 'sortant', echeance: L.idEcheance('r1', 1, 'confiance', x.id), envoyeLe: rdv.envoiDemandeLe },
+    { sens: 'sortant', echeance: L.idEcheance('r1', 1, 'creneaux', x.id), envoyeLe: parisEnISO(2026, 11, 14, 9, 1) },
+  ]).concat(participants.filter((x) => x.desinscrit !== true).flatMap((x) => Array.from({ length: jusqua }, (_, k) => ({ sens: 'sortant', echeance: L.idEcheance('r1', 1, `relance${k + 1}`, x.id), envoyeLe: parisEnISO(2026, 11, 15 + k, 9, 30) }))));
+  test('D1-3 un désinscrit en « attente » (après de nouveaux créneaux) ne bloque ni les relances suivantes ni l’alerte de fin', () => {
+    const participants = [pers('1', { desinscrit: true }), pers('2')];
+    const messages = envoisDe(participants, 1);
+    const dus = L.smsDus({ rdv, participants, parametres: params, messages, maintenant: parisEnISO(2026, 11, 16, 12), desinscrits: ['+33600000001'] });
+    assert.deepEqual(dus.filter((d) => d.typeMessage === 'relance').map((d) => [d.participantId, d.idEcheance.split(':')[2]]), [['2', 'relance2']]);
+    const fin = L.smsDus({ rdv: { ...rdv, creneaux: [parisEnISO(2026, 11, 30, 10)] }, participants, parametres: params, messages: envoisDe(participants, 2), maintenant: parisEnISO(2026, 11, 18, 12), desinscrits: ['+33600000001'] });
+    assert.equal(fin.filter((d) => d.sousType === 'fin-relances').length, 1, 'l’alerte « relances terminées » part');
+    assert.equal(L.prochaineRelance({ rdv, participants, parametres: params, messages: envoisDe(participants, 2), desinscrits: [] }), null);
+  });
+  test('D1-3 un STOP reçu pour un autre rendez-vous (numéro dans la liste, aucun repère ici) ne bloque pas non plus', () => {
+    const participants = [pers('1'), pers('2')];
+    const messages = envoisDe(participants.slice(1), 1).concat(envoisDe(participants.slice(0, 1), 0).filter((m) => !/relance/.test(m.echeance)));
+    const sans = L.smsDus({ rdv, participants, parametres: params, messages, maintenant: parisEnISO(2026, 11, 16, 12), desinscrits: [] });
+    assert.equal(sans.filter((d) => d.typeMessage === 'relance').length, 1, 'sans liste : la relance 1 de la personne 1 est encore due (elle n’a pas été relancée)');
+    const avec = L.smsDus({ rdv, participants, parametres: params, messages, maintenant: parisEnISO(2026, 11, 16, 12), desinscrits: ['+33600000001'] });
+    assert.deepEqual(avec.filter((d) => d.typeMessage === 'relance').map((d) => [d.participantId, d.idEcheance.split(':')[2]]), [['2', 'relance2']], 'le calendrier de la personne 2 avance');
+    assert.ok(L.prochaineRelance({ rdv, participants, parametres: params, messages, desinscrits: ['+33600000001'] }));
+  });
+  test('D1-2 un désinscrit dont la professionnelle a SAISI la réponse compte comme les autres ; il reste affiché « Désinscrit (STOP) »', () => {
+    const participants = [bon('1', [1, 2]), stop('2', { etatReponse: 'saisie', creneauxOk: [2] })];
+    const b = L.bilanReponses(participants, 3);
+    assert.deepEqual([b.complet, b.communs, b.desinscrits, b.reponses, b.total], [true, [2], 1, 2, 2]);
+    assert.equal(L.symboleCellule(participants[1], 1), 'desinscrit');
+    assert.equal(L.bilanReponses([bon('1', [1, 2]), stop('2', { etatReponse: 'comprise', creneauxOk: [2] })], 3).reponses, 1, 'la réponse par SMS après STOP reste ignorée');
+  });
+  test('D1-1 la mention « désinscrit (STOP) » est aussi sur la phrase d’un rendez-vous complet', () => {
+    const phrase = L.ligneEtat({ rdv, participants: [bon('1', [1, 2]), bon('2', [1, 2]), stop('3')], parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 15, 10) });
+    assert.equal(phrase, '2 créneaux communs · 1 désinscrit (STOP)');
+  });
+  test('D1-5 borne d’âge : « aucun créneau commun » ne repart pas pour un rendez-vous dont tous les créneaux sont passés depuis plus de 7 jours', () => {
+    const ancien = { ...rdv, creneaux: [parisEnISO(2026, 9, 15, 10), parisEnISO(2026, 9, 16, 14), parisEnISO(2026, 9, 17, 9)], envoiDemandeLe: parisEnISO(2026, 9, 1, 9) };
+    const participants = [bon('1', [1]), bon('2', [2]), stop('3')].map((x) => ({ ...x, reponseLe: '2026-09-02T08:00:00Z' }));
+    const dus = L.smsDus({ rdv: ancien, participants, parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 15, 10) });
+    assert.deepEqual(dus.filter((d) => d.typeMessage === 'alerte' && (d.sousType === 'aucun' || d.sousType === 'commun')), []);
+    const recent = { ...ancien, creneaux: [parisEnISO(2026, 11, 13, 10), parisEnISO(2026, 11, 14, 14), parisEnISO(2026, 11, 14, 9)] };
+    const dus2 = L.smsDus({ rdv: recent, participants, parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 15, 10) });
+    assert.equal(dus2.filter((d) => d.sousType === 'aucun').length, 1, 'un rendez-vous récent est toujours alerté');
+  });
+  test('D1-4 un désinscrit dont la réponse a été SAISIE : aucun SMS de lui ne l\'efface (« 1 », nouveau STOP), trace seulement', () => {
+    const saisi = stop('2', { etatReponse: 'saisie', creneauxOk: [2], reponse: 'STOP' });
+    for (const texte of ['1', 'STOP', 'plutôt jeudi']) {
+      const r = L.appliquerReponse({ participant: saisi, rdv, texte, recuLe: '2026-11-15T10:00:00Z', idReponse: 'm5' });
+      assert.deepEqual([r.historiqueSeulement, r.patch, r.alerteIncomprise], [true, null, false], texte);
+    }
+    // le patch STOP d'un participant non saisi reste inchangé
+    assert.equal(L.appliquerReponse({ participant: pers('3'), rdv, texte: 'STOP' }).patch.desinscrit, true);
+  });
+  test('D1-4 verrous : aucune réponse ultérieure ne remet « désinscrit » à faux', () => {
+    const avant = stop('1');
+    const apres = (texte, extra = {}) => ({ ...avant, ...(L.appliquerReponse({ participant: avant, rdv, texte, recuLe: '2026-11-15T10:00:00Z', idReponse: 'm2', ...extra }).patch || {}) });
+    for (const texte of ['1', '1 et 2', 'aucun', 'plutôt jeudi']) {
+      const p = apres(texte);
+      assert.equal(p.desinscrit, true, texte);
+      assert.equal(L.symboleCellule(p, 0), 'desinscrit', texte);
+      assert.equal(L.bilanReponses([p, bon('2', [1])], 3).reponses, 1, `${texte} : jamais « OK »`);
+    }
+    assert.equal(apres('oui').etatReponse, 'incomprise', '« oui » n’est pas compris');
+    assert.equal(apres('1').etatReponse, 'comprise');
+  });
+});
+
+describe('D1 icônes de l’écran', () => {
+  test('D1-1 chaque icône des symboles de la fiche existe dans ICONES (une icône absente rend un svg vide sans erreur)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const fiche = readFileSync(new URL('../js/modules/rdv/fiche.js', import.meta.url), 'utf8');
+    const ui = readFileSync(new URL('../js/os/ui.js', import.meta.url), 'utf8');
+    const noms = [...fiche.slice(fiche.indexOf('const SYMBOLES'), fiche.indexOf('};', fiche.indexOf('const SYMBOLES'))).matchAll(/icone: '([a-z-]+)'/g)].map((m) => m[1]);
+    assert.ok(noms.includes('circle-x') && noms.length === 5, noms.join());
+    for (const n of noms) assert.ok(new RegExp(`["']${n}["']\\s*:`).test(ui), `${n} absent de ICONES`);
+  });
+});
+
 describe('E2 alerte « solde ClickSend bas » : modèle, variables, seuils', () => {
   test('E2-a modèle de départ : seulement {solde}, {seuil} et {lien} (aucun lien écrit en dur, aucune variable {client}), sans le mot « chantier », sans STOP', () => {
     const m = L.MODELES_ALERTE_DEFAUT['alerte-solde-bas'];

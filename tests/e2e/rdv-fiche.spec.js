@@ -65,9 +65,31 @@ test('6 grosse coche verte quand il peut, grosse croix rouge quand il ne peut pa
   await expect(page.locator('tr[data-participant="p3"] td[data-creneau] [data-symbole]')).toHaveCount(0);
   await expect(page.locator('tr[data-participant="p3"] th [data-symbole="incompris"]')).toHaveCount(1);
   expect((await cellule('p1', 1).boundingBox()).width).toBeGreaterThanOrEqual(30); // « grosse » coche
-  await expect(page.locator('[data-role="legende"] li')).toHaveText(['Peut', 'Ne peut pas', 'Pas de réponse', 'Réponse non comprise']);
+  await expect(page.locator('[data-role="legende"] li')).toHaveText(['Peut', 'Ne peut pas', 'Pas de réponse', 'Réponse non comprise', 'Désinscrit (STOP)']);
   await expect(page.locator('tr[data-participant="p1"] [data-role="reponse-exacte"]')).toHaveText('« 1 et 3 »');
   await capture(page, '6-symboles');
+});
+
+test('D1-1 un participant désinscrit s’affiche « Désinscrit (STOP) » (jamais « réponse non comprise ») et ne bloque pas les autres ; la carte le dit aussi', async ({ page }) => {
+  await semer();
+  await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [1, 3], '1 et 3');
+  await ecrireDocument('rdv_participants/p2', { rendezVousId: 'r1', personneId: null, nom: 'Terrassier', role: 'Terrassier', telephone: '+33600000002', reponse: 'STOP', etatReponse: 'incomprise', creneauxOk: [], desinscrit: true });
+  await ouvrirFiche(page);
+  const ligne = page.locator('tr[data-participant="p2"]');
+  await expect(ligne.locator('th [data-symbole="desinscrit"]')).toHaveCount(1);
+  await expect(ligne.locator('th [data-symbole="incompris"]')).toHaveCount(0);
+  await expect(ligne.locator('[data-role="desinscrit-texte"]')).toHaveText('Désinscrit (STOP) : ne reçoit plus de SMS');
+  await expect(ligne.locator('td[data-creneau] [data-symbole]')).toHaveCount(0);
+  await expect(ligne.locator('[data-action="saisir-reponse"]')).toHaveCount(1); // la professionnelle peut noter sa réponse après l'avoir appelé
+  await expect(page.locator('[data-role="bandeau-incompris"]')).toHaveCount(0);
+  await expect(page.locator('[data-role="bandeau-desinscrit"]')).toContainText('a répondu STOP');
+  // Le seul participant qui compte a répondu : le rendez-vous n'attend plus personne (créneaux 1 et 3 communs).
+  await expect(page.locator('[data-role="bandeau-creneau"]')).toBeVisible();
+  await expect(page.locator('[data-role="legende"] li')).toHaveCount(5);
+  await capture(page, 'D1-1-desinscrit');
+  await page.goBack();
+  await expect(page.locator('.carte-rdv').first()).not.toContainText('non comprise');
+  await expect(page.locator('.carte-rdv').first()).toContainText('2 créneaux communs · 1 désinscrit (STOP)'); // le STOP de p2 ne bloque pas : p1 est la seule à attendre
 });
 
 test('A2 « Qui peut quand » est une grille : pastilles de couleur, créneaux communs en évidence, réponse et « Corriger » alignés (et pas de défilement de la page sur téléphone)', async ({ page }) => {
@@ -223,7 +245,7 @@ test('A3e un seul créneau proposé : la date change pendant que la fenêtre est
 
 const REGLAGES = { nomDansLesSms: 'Mme Martin', roles: ['Client'], numerosAlerte: [], numeroAffiche: '', relances: { delaiHeures: 24, nombre: 3 }, rappel: { actif: true, heure: '19:00' }, plage: { debut: '08:00', fin: '20:30' }, modeles: {}, prixSms: 0.1, tarifsAu: '1er novembre 2026' };
 /** Un participant qui a répondu STOP : sa réponse est dans l'historique ; le serveur range son numéro dans la liste `desinscrits` (la seule que lisent l'envoi et l'écran, `stop(...)`). */
-const partStop = (id, nom, tel) => ecrireDocument(`rdv_participants/${id}`, { rendezVousId: 'r1', personneId: null, nom, role: 'Client', telephone: tel, reponse: 'STOP', etatReponse: 'incomprise', creneauxOk: [] });
+const partStop = (id, nom, tel) => ecrireDocument(`rdv_participants/${id}`, { rendezVousId: 'r1', personneId: null, nom, role: 'Client', telephone: tel, reponse: 'STOP', etatReponse: 'incomprise', creneauxOk: [], desinscrit: true }); // le serveur pose aussi le repère `desinscrit`
 const stop = (...numeros) => ecrireDocument('rdv_parametres/desinscrits', { numeros });
 
 test('A6 sous le bouton « Confirmer… », une phrase toujours visible dit ce qui partira : le nombre de personnes (vrais participants joignables), le rappel de la veille, les STOP', async ({ page }) => {
