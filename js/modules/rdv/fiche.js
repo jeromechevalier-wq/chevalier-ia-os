@@ -2,6 +2,7 @@
 // les boutons (Confirmer, Proposer d'autres créneaux, Annuler, Prévenir de la pluie) et l'historique des SMS en bulles.
 // Aucune règle métier ici (logique.js) ; les écritures sont dans donnees.js. Rien ne part par SMS tant que l'envoi n'est pas branché (PR 4) : les fenêtres de SMS gardent « Envoyer » grisé.
 import { h, icone, remplir, dialogue, toast, ouvrirMenu } from '../../os/ui.js';
+import * as L from '../crm/logique.js';
 import { naviguer } from '../../os/router.js';
 import * as CRM from '../crm/donnees.js';
 import { planifier, badgeTest } from '../crm/composants.js';
@@ -117,6 +118,94 @@ async function annuler(rdv) {
   if (r === 'sans' || r === 'envoye') naviguer('rdv/archives');
 }
 
+/** « 2026-11-17T10:00 » pour un champ date et heure, à l'heure de Paris (le contraire de creneauDepuisChamp). */
+function champDepuisCreneau(iso) {
+  const ms = R.enMs(iso);
+  if (!Number.isFinite(ms)) return '';
+  const p = R.partiesParis(ms);
+  const z = (n) => String(n).padStart(2, '0');
+  return `${p.annee}-${z(p.mois)}-${z(p.jour)}T${z(p.heure)}:${z(p.minute)}`;
+}
+
+/**
+ * « Modifier le rendez-vous » (C1) : objet et adresse toujours ; participants et créneaux seulement avant le premier envoi (ensuite : lecture seule, avec « Proposer d'autres créneaux »).
+ * Rend 'autres' si la professionnelle choisit de proposer d'autres créneaux, true si enregistré.
+ */
+async function modifierLeRendezVous(rdv, parts) {
+  const avantEnvoi = !rdv.envoiDemandeLe;
+  const objet = h('input', { class: 'champ', type: 'text', autocomplete: 'off', 'aria-label': 'Objet de la visite', value: rdv.objet || '' });
+  const adresse = h('textarea', { class: 'champ rdv-champ-multiligne', rows: '3', 'aria-label': 'Adresse du rendez-vous' });
+  adresse.value = rdv.adresse || '';
+  const erreur = h('p', { class: 'erreur', role: 'alert' });
+  const lignes = [];
+  const zone = h('div', { class: 'pile rdv-participants' });
+  const ajouter = h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'ajouter-personne', onclick: () => { ligne({}); majAjout(); } }, icone('plus', { taille: 16 }), 'Ajouter une personne');
+  const majAjout = () => { ajouter.disabled = lignes.length >= R.MAX_PARTICIPANTS; };
+  function ligne(depart) {
+    const nom = h('input', { class: 'champ', type: 'text', autocomplete: 'off', 'aria-label': 'Nom', value: depart.nom || '' });
+    const tel = h('input', { class: 'champ', type: 'tel', autocomplete: 'off', 'aria-label': 'Téléphone mobile', placeholder: '06 00 00 00 00', value: depart.telephone ? R.afficherTelephone(depart.telephone) : '' });
+    const role = h('select', { class: 'champ', 'aria-label': 'Rôle' }, h('option', { value: '' }, 'Rôle…'),
+      [...new Set([...D.parametres().roles, depart.role].filter(Boolean))].map((r) => h('option', { value: r, selected: r === depart.role }, r)));
+    if (depart.id) nom.readOnly = true; // le nom vient de la fiche Personne : il ne se change pas ici
+    const retirer = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Retirer ce participant', onclick: () => { el.remove(); lignes.splice(lignes.indexOf(l), 1); majAjout(); } }, icone('trash-2', { taille: 16 }));
+    const el = h('div', { class: 'rdv-ligne-participant', dataset: { role: 'participant' } },
+      h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Nom'), nom), h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Téléphone'), tel),
+      h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Rôle'), role), retirer);
+    const l = { lire: () => ({ id: depart.id, personneId: depart.personneId || null, nom: nom.value, telephone: tel.value, role: role.value }) };
+    lignes.push(l);
+    zone.append(el);
+  }
+  parts.forEach((p) => ligne(p));
+  majAjout();
+  const champsCreneaux = [0, 1, 2].map((i) => h('input', { class: 'champ', type: 'datetime-local', 'aria-label': `Créneau ${i + 1}`, value: champDepuisCreneau((rdv.creneaux || [])[i]) }));
+  const apresEnvoi = h('div', { class: 'pile', dataset: { role: 'modifier-apres-envoi' } },
+    h('p', { class: 'aide' }, R.MESSAGE_PARTICIPANTS_APRES_ENVOI),
+    h('ul', { class: 'aide' }, parts.map((p) => h('li', {}, `${p.nom || 'Sans nom'} · ${R.afficherTelephone(p.telephone)}`))),
+    h('p', { class: 'aide' }, R.MESSAGE_CRENEAUX_APRES_ENVOI),
+    h('ul', { class: 'aide' }, (rdv.creneaux || []).map((c, i) => h('li', {}, R.libelleCreneau(i, c)))));
+  const r = await dialogue({
+    titre: 'Modifier le rendez-vous', classe: 'dialogue-formulaire',
+    contenu: h('div', { class: 'pile', dataset: { role: 'modifier-rdv' } },
+      h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Objet de la visite'), objet),
+      h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Adresse du rendez-vous'), adresse),
+      avantEnvoi ? h('div', { class: 'pile' }, h('h3', {}, 'Participants'), zone, ajouter, h('h3', {}, 'Créneaux (1 à 3)'),
+        ...champsCreneaux.map((c, i) => h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, `Créneau ${i + 1}`), c))) : apresEnvoi,
+      erreur),
+    boutons: [{ libelle: 'Annuler', valeur: false }, ...(avantEnvoi ? [] : [{ libelle: 'Proposer d’autres créneaux', valeur: 'autres' }]), {
+      libelle: 'Enregistrer', valeur: true, style: 'principal',
+      avantFermeture: async () => {
+        const cible = { objet: objet.value, adresse: adresse.value };
+        if (avantEnvoi) {
+          cible.creneaux = champsCreneaux.map((c) => creneauDepuisChamp(c.value)).filter(Boolean);
+          cible.participants = lignes.map((l) => l.lire()).map((x) => {
+            const nom = L.nettoyerEspaces(x.nom);
+            // Un nom tapé qui est exactement celui d'une fiche existante : on prend cette fiche (pas de doublon), comme à la création.
+            const existante = !x.id && !x.personneId && nom ? L.trouverDoublonsPersonne(CRM.etat.personnes.filter((q) => !q.archive), { nom })[0] : null;
+            return { ...x, nom: existante?.nom || nom, personneId: x.personneId || existante?.id || null };
+          });
+        }
+        try { await D.modifierRendezVous(rdv.id, cible); toast('Rendez-vous modifié'); return true; } catch (e) { console.warn(e); erreur.textContent = D.messageErreur(e, 'Enregistrement impossible, réessaie.'); return false; }
+      },
+    }],
+  });
+  return r;
+}
+
+/** « Renvoyer le SMS » (C2) : demande confirmation, puis le serveur refait partir le SMS abandonné (mêmes mots, un seul participant). */
+async function renvoyerLeSms(rdv, participant, bouton) {
+  const ok = await dialogue({
+    titre: 'Renvoyer le SMS ?',
+    contenu: h('p', {}, `Le dernier SMS non parti pour ${participant.nom || 'cette personne'} sera renvoyé tel quel (mêmes mots). Les relances prévues ne changent pas.`),
+    boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Renvoyer le SMS', valeur: true, style: 'principal' }],
+  });
+  if (ok !== true) return;
+  bouton.disabled = true;
+  try {
+    const r = await D.renvoyerSmsParticipant(rdv.id, participant.id);
+    toast(r?.declenche ? 'SMS en cours d’envoi' : 'SMS enregistré : il partira dans quelques minutes');
+  } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Renvoi impossible'), { type: 'erreur' }); bouton.disabled = false; }
+}
+
 let confirmationEnCours = false;
 /**
  * Verdict de relecture avant d'écrire une confirmation ('ok', 'rendezvous' ou 'creneau', voir logique.js) : si la fiche a changé, un message le dit, la fiche est redessinée
@@ -200,7 +289,9 @@ export function rendreFiche(conteneur, id) {
           p.reponse ? h('span', { class: 'rdv-reponse-texte', dataset: { role: 'reponse-exacte' } }, `« ${p.reponse} »`) : null,
           p.etatReponse === 'saisie' ? h('span', { class: 'aide', dataset: { role: 'saisie-par-toi' } }, 'Coché par toi') : null,
           ouvert ? h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'saisir-reponse', onclick: () => saisirReponse(r, p) },
-            p.etatReponse === 'comprise' || p.etatReponse === 'saisie' ? 'Corriger' : 'Saisir sa réponse') : null));
+            p.etatReponse === 'comprise' || p.etatReponse === 'saisie' ? 'Corriger' : 'Saisir sa réponse') : null,
+          D.peutEcrire() && R.smsARenvoyer(r, p, D.messagesDe(r.id)) ? h('span', { class: 'rdv-sms-abandonne', dataset: { role: 'sms-abandonne' } }, h('span', { class: 'aide' }, 'Un SMS n’est pas parti.'),
+            h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'renvoyer-sms', onclick: (e) => renvoyerLeSms(r, p, e.currentTarget) }, 'Renvoyer le SMS')) : null));
     });
     return h('div', { class: 'zone-tableau rdv-zone-tableau' }, h('table', { class: 'tableau tableau-rdv-reponses', dataset: { role: 'qui-peut-quand' } }, groupe,
       h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Participant'), colonnes, h('th', { scope: 'col' }, 'Sa réponse'))), h('tbody', {}, lignes)));
@@ -234,6 +325,7 @@ export function rendreFiche(conteneur, id) {
     const modifiable = !r.annule && !r.archive;
 
     const menu = r.annule ? null : h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Actions du rendez-vous', onclick: (e) => ouvrirMenu(e.currentTarget, [
+      ...(ouvert ? [{ libelle: 'Modifier le rendez-vous', icone: 'pencil', action: async () => { if ((await modifierLeRendezVous(r, parts)) === 'autres') proposerAutresCreneaux(r); } }] : []),
       { libelle: r.archive ? 'Désarchiver' : 'Archiver', icone: r.archive ? 'archive-restore' : 'archive', action: async () => { try { await D.archiver(r.id, !r.archive); toast(r.archive ? 'Rendez-vous désarchivé' : 'Rendez-vous archivé'); } catch (err) { console.warn(err); toast(D.messageErreur(err, 'Action impossible'), { type: 'erreur' }); } } },
     ]) }, icone('ellipsis', { taille: 18 }));
 

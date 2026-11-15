@@ -1114,6 +1114,69 @@ export function planNouvelleSerie(rdv, creneaux, maintenant) {
   };
 }
 
+export const MESSAGE_CRENEAUX_APRES_ENVOI = 'Les propositions sont déjà parties : pour changer les créneaux, utilise « Proposer d’autres créneaux ».';
+export const MESSAGE_PARTICIPANTS_APRES_ENVOI = 'Les propositions sont déjà parties : on ne change plus les participants (seulement l’objet et l’adresse).';
+
+/**
+ * « Modifier le rendez-vous » (C1). `cible` : { objet, adresse, creneaux: [ISO], participants: [{ id?, personneId?, nom, telephone, role }] } (la liste COMPLÈTE voulue ; `id` = participant déjà là).
+ *  - seulement sur un rendez-vous ouvert (ni annulé, ni archivé, ni confirmé) ;
+ *  - avant le premier envoi (`envoiDemandeLe` vide) : tout se modifie (objet, adresse, participants ajoutés / retirés / numéro changé, créneaux) avec les règles de la création (`validerNouveauRdv`, 5 personnes au plus) ;
+ *    si les créneaux changent, les réponses déjà saisies repartent à zéro (elles portaient sur d'autres créneaux) ;
+ *  - après l'envoi : objet et adresse seulement (participants et créneaux refusés avec la phrase qui renvoie vers « Proposer d'autres créneaux »).
+ * Rend { erreur } ou { patchRdv, ajouts: [{ personneId, nom, telephone, role }], retraits: [id], majs: [{ id, patch }], remiseAZero } ; `patchRdv.etat` est recalculé (même lot).
+ */
+export function planModifierRendezVous({ rdv, participants = [], cible, maintenant }) {
+  if (!estOuvert(rdv)) return { erreur: 'Ce rendez-vous n’est plus ouvert : on ne peut plus le modifier.' };
+  const objet = String(cible?.objet ?? '').replace(/\s+/g, ' ').trim();
+  const adresse = String(cible?.adresse ?? '').split('\n').map((l) => l.replace(/[ \t]+/g, ' ').trim()).filter(Boolean).join('\n');
+  const avantEnvoi = !rdv.envoiDemandeLe;
+  const creneauxAvant = (rdv.creneaux || []).map(versISO0);
+  const demandes = (cible?.participants ?? participants.map((x) => ({ id: x.id, personneId: x.personneId, nom: x.nom, telephone: x.telephone, role: x.role })));
+  const creneaux = cible?.creneaux ?? rdv.creneaux ?? [];
+  const patchRdv = { objet, adresse, commune: communeDe(adresse) };
+  const sortie = { patchRdv, ajouts: [], retraits: [], majs: [], remiseAZero: false };
+  const memesCreneaux = creneaux.length === creneauxAvant.length && creneaux.every((c, i) => versISO0(c) === creneauxAvant[i]);
+  if (!avantEnvoi) {
+    if (!memesCreneaux) return { erreur: MESSAGE_CRENEAUX_APRES_ENVOI };
+    const idsAvant = participants.map((x) => x.id).sort().join('|');
+    const idsApres = demandes.map((x) => x.id || '').sort().join('|');
+    const numerosChanges = demandes.some((x) => { const avant = participants.find((y) => y.id === x.id); return !avant || normaliserTelephone(x.telephone).telephone !== avant.telephone; });
+    if (idsAvant !== idsApres || numerosChanges) return { erreur: MESSAGE_PARTICIPANTS_APRES_ENVOI };
+    return sortie;
+  }
+  const verdict = validerNouveauRdv({ participants: demandes, creneaux, maintenant });
+  if (!verdict.ok) return { erreur: verdict.erreurs[0] };
+  const gardes = new Set();
+  for (const x of verdict.participants) {
+    const avant = x.id ? participants.find((y) => y.id === x.id) : null;
+    if (x.id && !avant) return { erreur: 'Un participant a changé entre-temps : ferme cette fenêtre et recommence.' };
+    if (!avant) { sortie.ajouts.push({ personneId: x.personneId || null, nom: String(x.nom ?? '').trim(), telephone: x.telephone, role: x.role || '' }); continue; }
+    gardes.add(avant.id);
+    const patch = {};
+    if (x.telephone !== avant.telephone) patch.telephone = x.telephone;
+    if ((x.role || '') !== (avant.role || '')) patch.role = x.role || '';
+    if (Object.keys(patch).length) sortie.majs.push({ id: avant.id, patch });
+  }
+  sortie.retraits = participants.filter((y) => !gardes.has(y.id)).map((y) => y.id);
+  if (sortie.ajouts.some((a) => !a.nom)) return { erreur: 'Écris le nom de chaque participant.' };
+  sortie.remiseAZero = !memesCreneaux;
+  if (!memesCreneaux) patchRdv.creneaux = creneaux.map((c) => versISO(enMs(c)));
+  patchRdv.client = clientDe([...participants.filter((y) => gardes.has(y.id)).map((y) => ({ ...y, ...(sortie.majs.find((m) => m.id === y.id)?.patch ?? {}) })), ...sortie.ajouts]);
+  // État : sans réponse (nouveaux participants, ou créneaux changés) on repart de « en attente » ; sinon on recalcule d'après les réponses gardées.
+  const apres = [...participants.filter((y) => gardes.has(y.id)).map((y) => (sortie.remiseAZero ? { ...y, etatReponse: 'attente', creneauxOk: [] } : y)), ...sortie.ajouts.map((a, i) => ({ id: `nouveau${i}`, ...a, etatReponse: 'attente', creneauxOk: [] }))];
+  const etat = etatCalcule({ ...rdv, creneaux: patchRdv.creneaux ?? rdv.creneaux }, apres);
+  if (etat !== (rdv.etat || 'en_attente')) patchRdv.etat = etat;
+  return sortie;
+}
+const versISO0 = (v) => { const ms = enMs(v); return Number.isFinite(ms) ? versISO(ms) : String(v); };
+
+/** Le SMS « abandonné » que le bouton « Renvoyer le SMS » reprendrait pour ce participant (C2), ou null : même règle que le serveur (série courante, jamais une alerte, pas déjà renvoyé, pas de STOP). */
+export function smsARenvoyer(rdv, participant, messages) {
+  if (!rdv || rdv.annule || rdv.archive || !participant || participant.desinscrit === true) return null;
+  const liste = (messages || []).filter((m) => m.participantId === participant.id && m.sens !== 'entrant' && m.etatEnvoi === 'abandonne' && m.typeMessage !== 'alerte' && (m.tour ?? 1) === (rdv.tour ?? 1) && !m.renvoyeLe);
+  return liste.sort((a, b) => (enMs(b.envoyeLe ?? b.creeLe) || 0) - (enMs(a.envoyeLe ?? a.creeLe) || 0))[0] ?? null;
+}
+
 /** Créneaux saisis : 1 à 3, futurs, sans doublon. Rend { creneaux: [ISO], erreurs }. */
 export function validerCreneaux(creneaux, maintenant) {
   const erreurs = [];

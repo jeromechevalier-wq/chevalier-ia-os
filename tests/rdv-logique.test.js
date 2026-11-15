@@ -944,3 +944,86 @@ describe('B4 lecture stricte du prix saisi', () => {
     assert.equal(L.prixSmsDe({ prixSms: '0.1' }), 0.0685, 'un texte stocké n’est pas un prix');
   });
 });
+
+describe('C1 modifier le rendez-vous', () => {
+  const FUT = (j) => iso(Date.now() + j * 86400000);
+  const rdv = (extra = {}) => ({ id: 'r1', client: 'M. Durand', objet: 'Visite', adresse: '12 rue\n69000 Lyon', commune: 'Lyon', creneaux: [FUT(5), FUT(6)], etat: 'en_attente', archive: false, annule: false, tour: 1, envoiDemandeLe: null, ...extra });
+  const part = (id, nom, tel, extra = {}) => ({ id, rendezVousId: 'r1', nom, role: 'Client', telephone: tel, etatReponse: 'attente', creneauxOk: [], ...extra });
+  const deux = [part('p1', 'M. Durand', '+33600000001'), part('p2', 'Terrassier', '+33600000002')];
+  const cibleDe = (r, parts, extra = {}) => ({ objet: r.objet, adresse: r.adresse, creneaux: r.creneaux, participants: parts.map((p) => ({ id: p.id, nom: p.nom, telephone: p.telephone, role: p.role })), ...extra });
+  const maintenant = new Date();
+
+  test('C1 avant le premier envoi : objet, adresse, numéro, rôle, ajout, retrait et créneaux se changent ; l\'état et le client sont recalculés', () => {
+    const r = rdv();
+    const cible = cibleDe(r, deux, { objet: ' Autre   objet ', adresse: '3 impasse\n38000 Grenoble', creneaux: [FUT(8)] });
+    cible.participants = [{ ...cible.participants[0], telephone: '06 11 22 33 44', role: 'Architecte' }, { nom: 'Géomètre', telephone: '0699887766', role: 'Géomètre' }];
+    const plan = L.planModifierRendezVous({ rdv: r, participants: deux, cible, maintenant });
+    assert.equal(plan.erreur, undefined);
+    assert.equal(plan.patchRdv.objet, 'Autre objet');
+    assert.equal(plan.patchRdv.commune, 'Grenoble');
+    assert.deepEqual(plan.retraits, ['p2']);
+    assert.deepEqual(plan.ajouts.map((a) => [a.nom, a.telephone]), [['Géomètre', '+33699887766']]);
+    assert.deepEqual(plan.majs, [{ id: 'p1', patch: { telephone: '+33611223344', role: 'Architecte' } }]);
+    assert.equal(plan.remiseAZero, true);
+    assert.equal(plan.patchRdv.creneaux.length, 1);
+  });
+  test('C1 les règles de la création s\'appliquent : 5 personnes au plus, doublon de numéro, numéro fixe, créneau passé, aucun participant', () => {
+    const r = rdv();
+    const essai = (participants, creneaux = r.creneaux) => L.planModifierRendezVous({ rdv: r, participants: deux, cible: { objet: '', adresse: '', creneaux, participants }, maintenant }).erreur;
+    const six = Array.from({ length: 6 }, (_, i) => ({ nom: `P${i}`, telephone: `06000000${10 + i}` }));
+    assert.match(essai(six), /5 personnes au plus/);
+    assert.match(essai([{ nom: 'A', telephone: '0600000001' }, { nom: 'B', telephone: '+33600000001' }]), /déjà celui d’un autre/);
+    assert.ok(essai([{ nom: 'A', telephone: '0100000000' }]));
+    assert.match(essai([{ nom: 'A', telephone: '0600000001' }], [iso(Date.now() - 86400000)]), /futur/);
+    assert.match(essai([]), /au moins un participant/);
+    assert.match(essai([{ nom: '', telephone: '0600000009' }]), /nom/);
+  });
+  test('C1 après le premier envoi : objet et adresse seulement ; participants et créneaux refusés, la phrase renvoie vers « Proposer d\'autres créneaux »', () => {
+    const r = rdv({ envoiDemandeLe: iso(Date.now() - 3600000) });
+    const ok = L.planModifierRendezVous({ rdv: r, participants: deux, cible: { objet: 'Nouveau', adresse: 'Ailleurs' }, maintenant });
+    assert.equal(ok.erreur, undefined);
+    assert.deepEqual([ok.patchRdv.objet, ok.ajouts.length, ok.retraits.length, ok.majs.length], ['Nouveau', 0, 0, 0]);
+    const creneaux = L.planModifierRendezVous({ rdv: r, participants: deux, cible: cibleDe(r, deux, { creneaux: [FUT(9)] }), maintenant });
+    assert.match(creneaux.erreur, /Proposer d’autres créneaux/);
+    const retrait = L.planModifierRendezVous({ rdv: r, participants: deux, cible: cibleDe(r, [deux[0]]), maintenant });
+    assert.match(retrait.erreur, /plus les participants/);
+    const numero = L.planModifierRendezVous({ rdv: r, participants: deux, cible: cibleDe(r, [{ ...deux[0], telephone: '+33699999999' }, deux[1]]), maintenant });
+    assert.match(numero.erreur, /plus les participants/);
+    const memes = L.planModifierRendezVous({ rdv: r, participants: deux, cible: cibleDe(r, deux), maintenant });
+    assert.equal(memes.erreur, undefined, 'les mêmes participants et créneaux (écrits autrement) ne sont pas un changement');
+  });
+  test('C1 un rendez-vous annulé, archivé ou confirmé ne se modifie pas', () => {
+    for (const extra of [{ annule: true }, { archive: true }, { etat: 'confirme', creneauChoisi: FUT(5) }]) {
+      const r = rdv(extra);
+      assert.match(L.planModifierRendezVous({ rdv: r, participants: deux, cible: cibleDe(r, deux), maintenant }).erreur, /plus ouvert/, JSON.stringify(extra));
+    }
+  });
+  test('C1 retirer le seul participant sans réponse d\'un rendez-vous où tout le monde a répondu recalcule l\'état dans le même plan', () => {
+    const r = rdv();
+    const parts = [part('p1', 'A', '+33600000001', { etatReponse: 'comprise', creneauxOk: [1] }), part('p2', 'B', '+33600000002')];
+    const plan = L.planModifierRendezVous({ rdv: r, participants: parts, cible: cibleDe(r, [parts[0]]), maintenant });
+    assert.deepEqual(plan.retraits, ['p2']);
+    assert.equal(plan.patchRdv.etat, 'a_valider');
+    const ajout = L.planModifierRendezVous({ rdv: { ...r, etat: 'a_valider' }, participants: [parts[0]], cible: { ...cibleDe(r, [parts[0]]), participants: [{ id: 'p1', nom: 'A', telephone: '+33600000001', role: 'Client' }, { nom: 'C', telephone: '0600000003' }] }, maintenant });
+    assert.equal(ajout.patchRdv.etat, 'en_attente', 'un nouveau participant n\'a pas répondu');
+  });
+});
+
+describe('C2 SMS à renvoyer', () => {
+  const rdv = { id: 'r1', tour: 2 };
+  const p = { id: 'p1' };
+  const m = (extra = {}) => ({ id: 'm1', participantId: 'p1', sens: 'sortant', etatEnvoi: 'abandonne', typeMessage: 'creneaux', tour: 2, envoyeLe: '2026-11-16T10:00:00Z', ...extra });
+  test('C2 un SMS abandonné de la série courante se renvoie ; le plus récent est repris', () => {
+    assert.equal(L.smsARenvoyer(rdv, p, [m(), m({ id: 'm2', envoyeLe: '2026-11-16T11:00:00Z' })]).id, 'm2');
+  });
+  test('C2 jamais : SMS envoyé, en échec ou réservé (réessayés seuls), ancienne série, alerte, déjà renvoyé, entrant, autre participant', () => {
+    for (const extra of [{ etatEnvoi: 'envoye' }, { etatEnvoi: 'echec' }, { etatEnvoi: 'reserve' }, { tour: 1 }, { typeMessage: 'alerte' }, { renvoyeLe: '2026-11-16T12:00:00Z' }, { sens: 'entrant' }, { participantId: 'p9' }]) {
+      assert.equal(L.smsARenvoyer(rdv, p, [m(extra)]), null, JSON.stringify(extra));
+    }
+  });
+  test('C2 jamais pour un participant désinscrit ni sur un rendez-vous annulé ou archivé', () => {
+    assert.equal(L.smsARenvoyer(rdv, { id: 'p1', desinscrit: true }, [m()]), null);
+    assert.equal(L.smsARenvoyer({ ...rdv, annule: true }, p, [m()]), null);
+    assert.equal(L.smsARenvoyer({ ...rdv, archive: true }, p, [m()]), null);
+  });
+});

@@ -5,7 +5,7 @@
 //  - SMS : la connexion ClickSend est celle DU client (secret CLICKSEND_RDV_<client>), lue à l'exécution par `sortie` (serveur/src/coeur/sms-direct.js, le SEUL fichier qui parle à ClickSend) ; sans elle, « Envoyer » reste grisé.
 import { logger } from 'firebase-functions';
 import { creerAccesFirestore, avecBase } from '../serveur/src/coeur/donnees.js';
-import { etatEnvoi, envoyerPropositions, envoyerSms, ErreurRdvEnvoi } from '../serveur/src/coeur/rdv-envoi.js';
+import { etatEnvoi, envoyerPropositions, envoyerSms, renvoyerSms, ErreurRdvEnvoi } from '../serveur/src/coeur/rdv-envoi.js';
 import { estAdministrateur } from '../serveur/partage/administrateur.js';
 import { ErreurConnexionSms, executerConnexion, REFUS_NEUTRE } from '../serveur/src/coeur/connexion-sms.js';
 import { Refus } from './appels.js';
@@ -20,7 +20,7 @@ export async function etatRdv({ db, auth, donnees, sortie }) {
   return { ...(await etatEnvoi({ sortie, espace: client })), peutConfigurer: estAdministrateur(auth?.token?.email, auth?.token?.email_verified === true) };
 }
 
-/** `donnees` : { client, action: 'propositions' | 'sms', rendezVousId, type?, texte? }. `creerDonnees(client)` : pour les essais (accès en mémoire). */
+/** `donnees` : { client, action: 'propositions' | 'sms' | 'renvoyer', rendezVousId, type?, texte?, participantId? }. `creerDonnees(client)` : pour les essais (accès en mémoire). */
 export async function envoyerRdv({ db, auth, donnees, sortie, maintenant = Date.now, creerDonnees = null }) {
   const quand = new Date(typeof maintenant === 'function' ? maintenant() : maintenant);
   const { client } = await controlerAppelant({ db, auth, client: donnees?.client, module: MODULE_RDV });
@@ -28,6 +28,11 @@ export async function envoyerRdv({ db, auth, donnees, sortie, maintenant = Date.
   const commun = { donnees: acces, ctx: { maintenant: quand }, espace: client, sortie, rendezVousId: donnees.rendezVousId };
   try {
     if (donnees.action === 'propositions') return await envoyerPropositions(commun);
+    if (donnees.action === 'renvoyer') {
+      const r = await renvoyerSms({ ...commun, participantId: donnees.participantId });
+      logger.info('Rendez-vous : SMS abandonné renvoyé à la main', { action: 'rdvEnvoyer.renvoyer' }); // ni numéro, ni texte, ni identifiant : la ligne dit seulement qu'un renvoi a eu lieu
+      return r;
+    }
     if (donnees.action === 'sms') return await envoyerSms({ ...commun, type: donnees.type, texte: donnees.texte });
     throw new ErreurRdvEnvoi('invalid-argument', 'Action inconnue.');
   } catch (e) {

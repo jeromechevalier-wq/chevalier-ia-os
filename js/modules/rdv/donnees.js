@@ -94,6 +94,8 @@ export const MESSAGE_LECTURE = 'Ton compte est en lecture seule : tu ne peux pas
 function exigerEcriture() {
   if (CRM.compteCourant()?.ecrit === false) { const e = new Error(MESSAGE_LECTURE); e.lecture = true; throw e; }
 }
+/** Ce compte peut-il écrire ? (faux pour un lecteur d'un client : les boutons qui écrivent sont alors cachés). */
+export const peutEcrire = () => CRM.compteCourant()?.ecrit !== false;
 /** Erreur « métier » dont le message est écrit pour être lu tel quel (jamais un message technique de Firebase). */
 export class ErreurRdv extends Error {
   constructor(message) { super(message); this.name = 'ErreurRdv'; this.lisible = true; }
@@ -220,6 +222,54 @@ export async function nouvelleSerie(rdvId, creneaux, maintenant = new Date()) {
   await executer(ecritures, 'nouvelleSerieRendezVous');
 }
 
+/**
+ * « Modifier le rendez-vous » (C1) : la liste voulue (objet, adresse, créneaux, participants) devient l'état du rendez-vous, en UN seul lot (le journal garde chaque écriture).
+ * Les règles sont dans R.planModifierRendezVous (tout avant le premier envoi ; objet et adresse seulement après). Un participant ajouté reçoit une fiche Personne (téléphone dessus) si besoin ;
+ * un participant retiré disparaît du rendez-vous (sa fiche Personne reste). Rend rien ; lève une ErreurRdv lisible si refusé.
+ */
+export async function modifierRendezVous(rdvId, cible, maintenant = new Date()) {
+  exigerEcriture();
+  const rdv = rendezVous(rdvId);
+  const parts = participantsDe(rdvId);
+  const plan = R.planModifierRendezVous({ rdv, participants: parts, cible, maintenant });
+  if (plan.erreur) throw new ErreurRdv(plan.erreur);
+  const ctx = CRM.ctx();
+  const ecritures = [];
+  const patchsFiches = new Map(); // personneId -> téléphones à ajouter (une seule écriture par fiche)
+  const ajouterTelephone = (personneId, telephone) => {
+    const personne = personneId ? CRM.personne(personneId) : null;
+    if (!personne) return;
+    const deja = patchsFiches.get(personneId) ?? (personne.telephones || []);
+    if (deja.some((t) => R.normaliserTelephone(t.valeur).telephone === telephone)) return;
+    patchsFiches.set(personneId, L.sansDoublonsContacts('telephones', [...deja, { valeur: R.afficherTelephone(telephone), type: 'perso' }]));
+  };
+  for (const m of plan.majs) {
+    if (m.patch.telephone) ajouterTelephone(parts.find((x) => x.id === m.id)?.personneId, m.patch.telephone);
+    ecritures.push(L.ecritureModifier('rdv_participants', m.id, plan.remiseAZero ? { ...m.patch, ...PATCH_REPART_A_ZERO } : m.patch, MARQUES_MAJ));
+  }
+  if (plan.remiseAZero) {
+    const modifies = new Set(plan.majs.map((m) => m.id));
+    for (const p of parts) if (!plan.retraits.includes(p.id) && !modifies.has(p.id)) ecritures.push(L.ecritureModifier('rdv_participants', p.id, PATCH_REPART_A_ZERO, MARQUES_MAJ));
+  }
+  for (const id of plan.retraits) ecritures.push(L.ecritureSupprimer('rdv_participants', id));
+  const repere = rdv.test === true ? { test: true } : {};
+  for (const a of plan.ajouts) {
+    let personneId = a.personneId;
+    if (personneId && CRM.personne(personneId)) ajouterTelephone(personneId, a.telephone);
+    else {
+      const valeurs = { nom: a.nom, telephones: [{ valeur: R.afficherTelephone(a.telephone), type: 'perso' }] };
+      const creation = L.planCreerPersonne(L.heriterTest(avecModeTest(valeurs), repere), ctx);
+      ecritures.push(...creation.ecritures);
+      personneId = creation.id;
+    }
+    ecritures.push(L.ecritureCreer('rdv_participants', ctx.nouvelId('rdv_participants'), { rendezVousId: rdvId, personneId, nom: a.nom, role: a.role || '', telephone: a.telephone, reponse: '', etatReponse: 'attente', creneauxOk: [], ...repere }, MARQUES));
+  }
+  for (const [personneId, telephones] of patchsFiches) ecritures.push(...L.planMajPersonne(personneId, { telephones }).ecritures);
+  ecritures.push(L.ecritureModifier('rdv_rendezvous', rdvId, plan.patchRdv, MARQUES_MAJ));
+  await executer(ecritures, 'modifierRendezVous');
+}
+const PATCH_REPART_A_ZERO = { etatReponse: 'attente', creneauxOk: [], reponse: '', reponseLe: null, idReponse: null };
+
 /** Annule le rendez-vous (il passe dans les Archives, marqué « annulé »). Le SMS d'annulation éventuel est une autre action, écrite à la main. */
 export async function annulerRendezVous(rdvId) {
   exigerEcriture();
@@ -298,6 +348,11 @@ export async function connexionSms(action, donnees = {}) {
 export async function envoyerPropositions(rendezVousId) {
   exigerEcriture();
   return appeler('envoyer', { action: 'propositions', rendezVousId });
+}
+/** « Renvoyer le SMS » (C2) : refait partir le SMS abandonné d'un participant. Rend { ok, declenche }. Lève une ErreurRdv lisible si refusé. */
+export async function renvoyerSmsParticipant(rendezVousId, participantId) {
+  exigerEcriture();
+  return appeler('envoyer', { action: 'renvoyer', rendezVousId, participantId });
 }
 /** Envoie un SMS écrit à la main (pluie ou annulation) à tous les participants. Rend { ok, nombre, declenche, caracteres, segments }. */
 export async function envoyerSmsManuel(rendezVousId, type, texte) {

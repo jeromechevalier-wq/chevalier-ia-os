@@ -1,6 +1,7 @@
 // Fonctions appelables du module Rendez-vous chez Jérôme (projet chevalier-ia-os) :
 //  - `rdvEtat()`                                  : { branche: true | false, peutConfigurer }, pour que l'écran grise « Envoyer » tant que l'envoi des SMS n'est pas branché ;
 //  - `rdvEnvoyer({ action: 'propositions', rendezVousId })`           : envoie les premières propositions de créneaux ;
+//  - `rdvEnvoyer({ action: 'renvoyer', rendezVousId, participantId })` : refait partir le SMS abandonné d'un participant ;
 //  - `rdvEnvoyer({ action: 'sms', rendezVousId, type, texte })`       : SMS de pluie ou d'annulation écrit à la main (jamais retardé par la plage d'envoi).
 // Même accès que les autres fonctions de devis (compte Google vérifié parmi COMPTES_AUTORISES). Le journal Cloud ne reçoit ni numéro, ni texte, ni identifiant de rendez-vous.
 import { HttpsError } from 'firebase-functions/v2/https';
@@ -8,7 +9,7 @@ import { COMPTES_AUTORISES } from './veille/appel.js';
 import { exigerCompteAutorise } from './devis-appel.js';
 import { ESPACE_JEROME } from './coeur/sms-direct.js';
 import { estAdministrateur } from '../partage/administrateur.js';
-import { etatEnvoi, envoyerPropositions, envoyerSms, ErreurRdvEnvoi } from './coeur/rdv-envoi.js';
+import { etatEnvoi, envoyerPropositions, envoyerSms, renvoyerSms, ErreurRdvEnvoi } from './coeur/rdv-envoi.js';
 
 /** Erreur du service -> erreur d'appel lisible ; une panne inattendue devient une phrase neutre (jamais de détail technique). */
 export function enErreurRdv(e) {
@@ -34,6 +35,7 @@ export function creerAppelRdvEnvoyer({ donnees, sortie, comptes = COMPTES_AUTORI
     try {
       let r;
       if (d.action === 'propositions') r = await envoyerPropositions(commun);
+      else if (d.action === 'renvoyer') r = await renvoyerSms({ ...commun, participantId: d.participantId });
       else if (d.action === 'sms') r = await envoyerSms({ ...commun, type: d.type, texte: d.texte });
       else throw new ErreurRdvEnvoi('invalid-argument', 'Action inconnue.');
       journal({ action: `rdvEnvoyer.${d.action}`, statut: 'ok', dureeMs: maintenant() - debut });

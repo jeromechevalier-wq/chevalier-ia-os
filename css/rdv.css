@@ -128,3 +128,6 @@
 .rdv-aide-etapes { margin: var(--esp-4) 0 var(--esp-3); padding-left: var(--esp-8); display: flex; flex-direction: column; gap: var(--esp-3); }
 .rdv-aide-etapes a { overflow-wrap: anywhere; }
 .rdv-aide-adresse { margin-top: var(--esp-2); overflow-wrap: anywhere; }
+
+/* Participant dont un SMS n'est pas parti : phrase et bouton « Renvoyer le SMS » (C2) */
+.rdv-sms-abandonne { display: inline-flex; flex-wrap: wrap; gap: var(--esp-2); align-items: center; }
