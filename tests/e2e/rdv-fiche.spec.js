@@ -61,6 +61,177 @@ test('6 grosse coche verte quand il peut, grosse croix rouge quand il ne peut pa
   await capture(page, '6-symboles');
 });
 
+test('A2 « Qui peut quand » est une grille : pastilles de couleur, créneaux communs en évidence, réponse et « Corriger » alignés (et pas de défilement de la page sur téléphone)', async ({ page }) => {
+  await semer();
+  await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [1, 3], '1 et 3');
+  await part('p2', 'Terrassier', 'Terrassier', '+33600000002', 'comprise', [1, 3], '1 et 3');
+  await ouvrirFiche(page);
+  const table = page.locator('table[data-role="qui-peut-quand"]');
+  await expect(table).toBeVisible();
+  expect(await table.evaluate((t) => getComputedStyle(t).display), 'reste une vraie table, aussi sur téléphone').toBe('table');
+  // créneaux communs (1 et 3) : en-tête marqué, étiquette « Pour tous », colonne colorée ; le 2 n'est pas mis en évidence
+  const communs = table.locator('thead th.rdv-col-commun');
+  await expect(communs).toHaveCount(2);
+  await expect(communs.nth(0)).toHaveAttribute('data-creneau', '1');
+  await expect(communs.nth(1)).toHaveAttribute('data-creneau', '3');
+  await expect(communs.locator('.rdv-col-etiquette')).toHaveText(['Pour tous', 'Pour tous']);
+  await expect(table.locator('thead th[data-creneau="2"] .rdv-col-etiquette')).toHaveCount(0);
+  await expect(table.locator('col.rdv-col-commun')).toHaveCount(2);
+  const fond = (sel) => table.locator(sel).first().evaluate((e) => getComputedStyle(e).backgroundColor);
+  expect(await fond('thead th[data-creneau="1"]')).not.toBe(await fond('thead th[data-creneau="2"]'));
+  expect(await table.locator('col.rdv-col-commun').first().evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+  // pastilles de couleur : coche (verte) et croix (rouge) ont un fond, pas le même
+  const pastille = (p, c) => table.locator(`tr[data-participant="${p}"] td[data-creneau="${c}"] [data-symbole]`).evaluate((e) => getComputedStyle(e).backgroundColor);
+  const oui = await pastille('p1', 1); const non = await pastille('p1', 2);
+  expect(oui).not.toBe('rgba(0, 0, 0, 0)'); expect(non).not.toBe('rgba(0, 0, 0, 0)'); expect(oui).not.toBe(non);
+  // réponse exacte et « Corriger » : même bord gauche, l'un sous l'autre
+  const ligne = table.locator('tr[data-participant="p1"]');
+  const texte = await ligne.locator('[data-role="reponse-exacte"]').boundingBox();
+  const bouton = await ligne.locator('[data-action="saisir-reponse"]').boundingBox();
+  expect(Math.abs(texte.x - bouton.x), 'réponse et « Corriger » alignés à gauche').toBeLessThanOrEqual(1);
+  expect(bouton.y).toBeGreaterThan(texte.y);
+  await expect(ligne.locator('[data-action="saisir-reponse"]')).toHaveText('Corriger');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), 'pas de défilement horizontal de la page').toBe(true);
+  await capture(page, 'A2-grille');
+});
+
+test('A2b cas partiel : sans créneau commun, aucune colonne n’est mise en évidence', async ({ page }) => {
+  await semer();
+  await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [1], '1');
+  await part('p2', 'Terrassier', 'Terrassier', '+33600000002');
+  await ouvrirFiche(page);
+  await expect(page.locator('table[data-role="qui-peut-quand"] .rdv-col-commun')).toHaveCount(0);
+});
+
+test('A3 plusieurs créneaux conviennent à tous : le bandeau les cite, le bouton ouvre un choix, rien n’est coché d’office et rien n’est confirmé sans choix', async ({ page }) => {
+  await semer();
+  await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [1, 2], '1 et 2');
+  await part('p2', 'Terrassier', 'Terrassier', '+33600000002', 'comprise', [1, 2], '1 et 2');
+  await ouvrirFiche(page);
+  await expect(page.locator('[data-role="bandeau-creneau"]')).toHaveText('Les créneaux 1 et 2 conviennent à tout le monde. Seul toi peux en confirmer un.');
+  const bouton = page.locator('[data-action="confirmer-creneau"]');
+  await expect(bouton).toHaveText('Confirmer un créneau…');
+  await expect(bouton).toBeEnabled();
+  await expect(page.locator('.rdv-boutons-fiche .bouton-principal')).toHaveCount(1);
+  await bouton.click();
+  const fenetre = page.getByRole('dialog');
+  await expect(fenetre.getByRole('radio')).toHaveCount(2);
+  await expect(fenetre.getByRole('radio', { checked: true })).toHaveCount(0); // aucun choix d'office
+  await capture(page, 'A3-choix');
+  await fenetre.getByRole('button', { name: 'Confirmer ce créneau' }).click(); // cas d'erreur : rien de choisi
+  await expect(fenetre.locator('.erreur')).toContainText('Choisis un créneau');
+  await expect(fenetre).toBeVisible();
+  expect((await lireDocument('rdv_rendezvous/r1')).etat).toBe('en_attente');
+  await fenetre.getByRole('button', { name: 'Annuler' }).click();
+  expect((await lireDocument('rdv_rendezvous/r1')).etat).toBe('en_attente'); // un clic par erreur ne confirme rien
+  await bouton.click();
+  await page.getByRole('dialog').getByRole('radio').nth(1).check();
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirmer ce créneau' }).click();
+  await expect.poll(async () => (await lireDocument('rdv_rendezvous/r1'))?.etat).toBe('confirme');
+  const r = await lireDocument('rdv_rendezvous/r1');
+  expect(new Date(r.creneauChoisi).getTime()).toBe(new Date(r.creneaux[1]).getTime());
+  await expect(page.locator('[data-role="bandeau-confirme"]')).toBeVisible();
+});
+
+test('A3b un créneau commun déjà passé est écarté : seuls les créneaux à venir sont cités et proposés', async ({ page }) => {
+  await semer('r1', { creneaux: [dansJours(-2), CRENEAUX[1], CRENEAUX[2]] });
+  await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [1, 2, 3], '1, 2 et 3');
+  await part('p2', 'Terrassier', 'Terrassier', '+33600000002', 'comprise', [1, 2, 3], '1, 2 et 3');
+  await ouvrirFiche(page);
+  await expect(page.locator('[data-role="bandeau-creneau"]')).toHaveText('Les créneaux 2 et 3 conviennent à tout le monde. Seul toi peux en confirmer un.');
+  await page.locator('[data-action="confirmer-creneau"]').click();
+  await expect(page.getByRole('dialog').getByRole('radio')).toHaveCount(2);
+});
+
+test('A4b la pastille TEST est sur la fiche d’un rendez-vous de test (à côté du titre, jamais dans le nom) et absente d’un rendez-vous réel', async ({ page }) => {
+  await semer('r1', { test: true }); await part('p1', 'M. Durand', 'Client', '+33600000001');
+  await ouvrirFiche(page);
+  await expect(page.locator('h1 .badge-test')).toHaveText('[TEST]');
+  expect((await lireDocument('rdv_rendezvous/r1')).client).toBe('M. Durand');
+  await capture(page, 'A4-fiche-test');
+  await ecrireDocument('rdv_rendezvous/r1', { ...(await lireDocument('rdv_rendezvous/r1')), test: false });
+  await expect(page.locator('h1 .badge-test')).toHaveCount(0);
+});
+
+test('A3c le rendez-vous change pendant que la fenêtre de choix est ouverte : « Le créneau a changé, choisis à nouveau. » et rien n’est écrit', async ({ page }) => {
+  await semer();
+  await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [1, 2], '1 et 2');
+  await part('p2', 'Terrassier', 'Terrassier', '+33600000002', 'comprise', [1, 2], '1 et 2');
+  await ouvrirFiche(page);
+  await page.locator('[data-action="confirmer-creneau"]').click();
+  const fenetre = page.getByRole('dialog');
+  await fenetre.getByRole('radio').nth(1).check();
+  const avant = await lireDocument('rdv_rendezvous/r1');
+  await ecrireDocument('rdv_rendezvous/r1', { ...avant, creneaux: [avant.creneaux[0], '2031-03-05T13:00:00.000Z', avant.creneaux[2]] }); // la date du créneau 2 change ailleurs
+  await expect(page.locator('table[data-role="qui-peut-quand"] thead th[data-creneau="2"] .rdv-col-date')).toContainText('5 mars'); // la fiche a bien pris le changement avant le clic
+  await fenetre.getByRole('button', { name: 'Confirmer ce créneau' }).click();
+  await expect(page.locator('.toast-erreur')).toContainText('Le créneau a changé, choisis à nouveau.');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const apres = await lireDocument('rdv_rendezvous/r1');
+  expect(apres.etat).toBe('en_attente');
+  expect(apres.creneauChoisi).toBeFalsy();
+  await capture(page, 'A3c-creneau-change');
+});
+
+test('A3d le rendez-vous est confirmé ailleurs pendant que la fenêtre de choix est ouverte : « Ce rendez-vous a changé : rien n’a été enregistré. », aucun créneau n’est écrit par cette fenêtre', async ({ page }) => {
+  await semer();
+  await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [1, 2], '1 et 2');
+  await part('p2', 'Terrassier', 'Terrassier', '+33600000002', 'comprise', [1, 2], '1 et 2');
+  await ouvrirFiche(page);
+  await page.locator('[data-action="confirmer-creneau"]').click();
+  const fenetre = page.getByRole('dialog');
+  await fenetre.getByRole('radio').nth(0).check();
+  const avant = await lireDocument('rdv_rendezvous/r1');
+  await ecrireDocument('rdv_rendezvous/r1', { ...avant, etat: 'confirme', creneauChoisi: avant.creneaux[1], confirmeLe: '2031-01-01T09:00:00.000Z' }); // confirmé ailleurs, sur le créneau 2
+  await expect(page.locator('[data-role="bandeau-confirme"]')).toBeVisible(); // la fiche a pris le changement avant le clic
+  await fenetre.getByRole('button', { name: 'Confirmer ce créneau' }).click();
+  await expect(page.locator('.toast-erreur')).toContainText('Ce rendez-vous a changé : rien n’a été enregistré.');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const apres = await lireDocument('rdv_rendezvous/r1');
+  expect(new Date(apres.creneauChoisi).getTime()).toBe(new Date(avant.creneaux[1]).getTime()); // le créneau confirmé ailleurs n'a pas été remplacé par le 1
+});
+
+test('A3e un seul créneau proposé : la date change pendant que la fenêtre est ouverte, « Le créneau a changé, choisis à nouveau. », rien n’est écrit, et la fenêtre rouverte montre la nouvelle date', async ({ page }) => {
+  await semer();
+  await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [3], '3');
+  await part('p2', 'Terrassier', 'Terrassier', '+33600000002');
+  await ouvrirFiche(page);
+  await page.getByRole('button', { name: 'Confirmer le créneau 3' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Confirmer le créneau 3 ?');
+  const avant = await lireDocument('rdv_rendezvous/r1');
+  await ecrireDocument('rdv_rendezvous/r1', { ...avant, creneaux: [avant.creneaux[0], avant.creneaux[1], '2031-03-07T09:00:00.000Z'] });
+  await expect(page.locator('table[data-role="qui-peut-quand"] thead th[data-creneau="3"] .rdv-col-date')).toContainText('7 mars'); // la fiche a pris le changement avant le clic
+  await page.getByRole('dialog').getByRole('button', { name: 'Confirmer le créneau 3' }).click();
+  await expect(page.locator('.toast-erreur')).toContainText('Le créneau a changé, choisis à nouveau.');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const apres = await lireDocument('rdv_rendezvous/r1');
+  expect(apres.etat).toBe('en_attente');
+  expect(apres.creneauChoisi).toBeFalsy();
+  await page.getByRole('button', { name: 'Confirmer le créneau 3' }).click(); // la fenêtre rouverte repart de l'état d'aujourd'hui
+  await expect(page.getByRole('dialog')).toContainText('7 mars');
+});
+
+test('A2c une ligne « non comprise » garde son fond rouge sous le nom, et l’en-tête « Participant » est opaque', async ({ page }) => {
+  await semer();
+  await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [1], '1');
+  await part('p2', 'Architecte', 'Architecte', '+33600000003', 'incomprise', [], 'plutôt jeudi');
+  await ouvrirFiche(page);
+  const table = page.locator('table[data-role="qui-peut-quand"]');
+  const fond = (sel) => table.locator(sel).first().evaluate((e) => getComputedStyle(e).backgroundColor);
+  if (estTelephone(page)) { // sur téléphone le nom est collant (opaque) : il doit quand même montrer le fond rouge de sa ligne
+    expect(await fond('tr[data-participant="p2"] th')).not.toBe('rgba(0, 0, 0, 0)');
+    const calque = (p) => table.locator(`tr[data-participant="${p}"] th`).evaluate((e) => getComputedStyle(e).backgroundImage); // le fond rouge est un calque posé sur le fond opaque
+    expect(await calque('p2')).not.toBe('none');
+    expect(await calque('p1')).toBe('none');
+    expect(await fond('thead th:first-child')).not.toBe('rgba(0, 0, 0, 0)');
+  } else {
+    expect(await fond('tr[data-participant="p2"]')).not.toBe(await fond('tr[data-participant="p1"]')); // ordinateur : le fond rouge est sur la ligne
+  }
+  const trait = (sel) => table.locator(sel).first().evaluate((e) => getComputedStyle(e).borderLeftWidth);
+  expect(await trait('thead th.rdv-col-creneau')).toBe(await trait('tbody td.rdv-cellule'));
+  await capture(page, 'A2c-ligne-non-comprise');
+});
+
 test('7 un petit « i » à côté du nom donne le numéro de téléphone au survol, avec un lien pour appeler à côté', async ({ page }) => {
   await semer(); await part('p1', 'M. Durand', 'Client', '+33600000001');
   await ouvrirFiche(page);

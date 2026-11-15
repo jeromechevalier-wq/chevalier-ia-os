@@ -103,3 +103,41 @@ test('connexion : ClickSend refuse la clé, ou le serveur refuse : le message du
   await expect(carte.getByLabel('Clé d’API ClickSend')).toHaveValue(CLE);
   await capture(page, 'refus');
 });
+
+test('A5 aide « Comment configurer ClickSend… » : bloc repliable avec le lien du tableau de bord et les deux règles à désactiver ; l’adresse n’y est écrite que si elle est affichée ; aucun secret', async ({ page }) => {
+  await simulerServeur(page, { branche: true, etatConnexion: { enregistre: true, adresse: ADRESSE_1, expediteur: '' } });
+  const carte = await ouvrir(page);
+  const aide = carte.locator('[data-role="aide-clicksend"]');
+  await expect(aide).toHaveCount(1);
+  await expect(aide.locator('summary')).toHaveText('Comment configurer ClickSend pour recevoir les réponses et les STOP');
+  expect(await aide.evaluate((d) => d.open), 'replié au départ').toBe(false);
+  await aide.locator('summary').click();
+  await expect(aide).toContainText('Send to messenger');
+  await expect(aide).toContainText('SEND_TO_MESSENGER');
+  await expect(aide).toContainText('Opt-out contact');
+  await expect(aide).toContainText('MOVE_CONTACT');
+  await expect(aide.locator('a')).toHaveAttribute('href', 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms');
+  await expect(aide).toContainText('secret de fait');
+  await expect(aide.locator('[data-role="aide-adresse"]')).toHaveCount(0); // adresse pas encore affichée : jamais écrite
+  await expect(aide.locator('[data-role="aide-adresse-absente"]')).toBeVisible();
+  expect(await aide.textContent()).not.toContain('jeton-de-test');
+  await capture(page, 'A5-aide-ouverte');
+  await carte.getByRole('button', { name: 'Afficher l’adresse des réponses' }).click();
+  await expect(aide.locator('[data-role="aide-adresse"] code')).toHaveText(ADRESSE_1);
+  expect(await aide.evaluate((d) => d.open), 'reste ouvert quand la carte se redessine').toBe(true);
+  expect(await aide.textContent()).not.toContain(CLE);
+  await carte.getByRole('button', { name: 'Cacher l’adresse des réponses' }).click();
+  await expect(aide.locator('[data-role="aide-adresse"]')).toHaveCount(0);
+});
+
+test('A5b même bloc d’aide pour un compte qui ne configure pas, sans aucune adresse', async ({ page }) => {
+  await simulerServeur(page, { peutConfigurer: false, branche: true });
+  const carte = await ouvrir(page);
+  const aide = carte.locator('[data-role="aide-clicksend"]');
+  await aide.locator('summary').click();
+  await expect(aide).toContainText('Opt-out contact');
+  await expect(aide.locator('[data-role="aide-adresse"]')).toHaveCount(0);
+  await expect(aide.locator('[data-role="aide-adresse-absente"]')).toHaveText('L’administrateur de la plateforme te donne cette adresse.'); // pas de bouton « Afficher… » pour ce compte
+  await expect(aide).not.toContainText('Afficher l’adresse');
+  await expect(carte.getByRole('button', { name: 'Afficher l’adresse des réponses' })).toHaveCount(0);
+});

@@ -118,10 +118,21 @@ async function annuler(rdv) {
 }
 
 let confirmationEnCours = false;
+/**
+ * Verdict de relecture avant d'écrire une confirmation ('ok', 'rendezvous' ou 'creneau', voir logique.js) : si la fiche a changé, un message le dit, la fiche est redessinée
+ * (les boutons et les créneaux proposés repartent de l'état d'aujourd'hui, sans rouvrir la même fenêtre périmée) et rien n'est écrit. Rend true quand on refuse.
+ */
+function refuserSiChange(verdict, redessiner) {
+  if (verdict === 'ok') return false;
+  toast(verdict === 'rendezvous' ? 'Ce rendez-vous a changé : rien n’a été enregistré.' : 'Le créneau a changé, choisis à nouveau.', { type: 'erreur' });
+  redessiner();
+  return true;
+}
 /** Confirmer un créneau est un acte qui prévient tout le monde par SMS (PR 4) : une fenêtre demande confirmation, avec ce que disent les réponses. */
-async function confirmerAvecFenetre(rdv, numero, bilan, bouton) {
+async function confirmerAvecFenetre(rdv, numero, bilan, bouton, redessiner = () => {}) {
   if (confirmationEnCours) return;
   const n = bilan.parCreneau[numero - 1];
+  const dateAffichee = rdv.creneaux[numero - 1]; // la date telle qu'elle est montrée dans la fenêtre
   const ok = await dialogue({
     titre: `Confirmer le créneau ${numero} ?`,
     contenu: h('div', { class: 'pile' }, h('p', {}, R.libelleCreneau(numero - 1, rdv.creneaux[numero - 1])),
@@ -129,6 +140,40 @@ async function confirmerAvecFenetre(rdv, numero, bilan, bouton) {
     boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: `Confirmer le créneau ${numero}`, valeur: true, style: 'principal' }],
   });
   if (ok !== true) return;
+  // La fiche a pu changer pendant que la fenêtre était ouverte : on relit avant d'écrire, comme pour le choix entre plusieurs créneaux.
+  if (refuserSiChange(R.verdictCreneauUnique(D.rendezVous(rdv.id), numero, dateAffichee, new Date().toISOString()), redessiner)) return;
+  confirmationEnCours = true;
+  bouton.disabled = true;
+  try { await D.confirmerCreneau(rdv.id, numero); toast(`Créneau ${numero} confirmé`); } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Confirmation impossible'), { type: 'erreur' }); bouton.disabled = false; } finally { confirmationEnCours = false; }
+}
+
+/**
+ * Plusieurs créneaux conviennent à tout le monde : la professionnelle choisit elle-même (aucun n'est coché d'office). Cette fenêtre est aussi la confirmation :
+ * elle dit que tout le monde sera prévenu par SMS. Rien n'est écrit tant qu'aucun créneau n'est choisi.
+ */
+async function choisirEtConfirmer(rdv, numeros, bouton, redessiner = () => {}) {
+  if (confirmationEnCours) return;
+  const erreur = h('p', { class: 'erreur', role: 'alert' });
+  const radios = numeros.map((n) => h('label', { class: 'rdv-case' }, h('input', { type: 'radio', name: 'rdv-creneau-a-confirmer', value: String(n), 'aria-label': R.libelleCreneau(n - 1, rdv.creneaux[n - 1]) }), R.libelleCreneau(n - 1, rdv.creneaux[n - 1])));
+  radios.forEach((l) => l.querySelector('input').addEventListener('change', () => { erreur.textContent = ''; }));
+  const choisi = () => radios.map((l) => l.querySelector('input')).find((i) => i.checked)?.value;
+  const affichees = Object.fromEntries(numeros.map((n) => [n, rdv.creneaux[n - 1]])); // les dates telles qu'elles sont montrées dans la fenêtre
+  let verdict = 'ok';
+  const numero = await dialogue({
+    titre: 'Quel créneau confirmer ?', classe: 'dialogue-formulaire',
+    contenu: h('div', { class: 'pile', dataset: { role: 'choix-creneau' } }, h('p', {}, 'Ces créneaux conviennent à tout le monde. Choisis celui que tu confirmes.'), ...radios, erreur,
+      h('p', { class: 'aide' }, 'Une fois confirmé, tout le monde sera prévenu par SMS.')),
+    boutons: [{ libelle: 'Annuler', valeur: null },
+      { libelle: 'Confirmer ce créneau', valeur: () => Number(choisi()), style: 'principal', avantFermeture: () => {
+        if (!choisi()) { erreur.textContent = 'Choisis un créneau pour continuer.'; return false; }
+        // La fiche a pu changer pendant que la fenêtre était ouverte (réponse reçue, nouvelle série) : on relit avant d'écrire.
+        const n = Number(choisi());
+        verdict = R.verdictChoix(D.rendezVous(rdv.id), D.participantsDe(rdv.id), n, affichees[n], new Date().toISOString());
+        return true;
+      } }],
+  });
+  if (!numero) return;
+  if (refuserSiChange(verdict, redessiner)) return;
   confirmationEnCours = true;
   bouton.disabled = true;
   try { await D.confirmerCreneau(rdv.id, numero); toast(`Créneau ${numero} confirmé`); } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Confirmation impossible'), { type: 'erreur' }); bouton.disabled = false; } finally { confirmationEnCours = false; }
@@ -138,8 +183,12 @@ export function rendreFiche(conteneur, id) {
   const zone = h('div', { class: 'pile' });
   conteneur.append(h('div', { class: 'page page-rdv page-rdv-fiche' }, h('a', { class: 'lien-retour', href: '#/rdv/liste' }, icone('chevron-left', { taille: 16 }), 'Rendez-vous'), zone));
 
-  function tableau(r, parts, ouvert) {
-    const colonnes = (r.creneaux || []).map((c, i) => h('th', { scope: 'col', class: 'rdv-col-creneau', dataset: { creneau: String(i + 1) } }, h('span', { class: 'rdv-col-numero' }, `Créneau ${i + 1}`), h('span', { class: 'rdv-col-date' }, `${R.formaterJourLong(c)} à ${R.formaterHeure(c)}`)));
+  // `communs` : les numéros des créneaux (à venir) qui conviennent à tout le monde ; leur colonne est mise en évidence (en-tête, étiquette « Pour tous » et fond de colonne).
+  function tableau(r, parts, ouvert, communs = []) {
+    const estCommun = (i) => communs.includes(i + 1);
+    const colonnes = (r.creneaux || []).map((c, i) => h('th', { scope: 'col', class: `rdv-col-creneau${estCommun(i) ? ' rdv-col-commun' : ''}`, dataset: { creneau: String(i + 1), ...(estCommun(i) ? { commun: 'oui' } : {}) } },
+      h('span', { class: 'rdv-col-numero' }, `Créneau ${i + 1}`), h('span', { class: 'rdv-col-date' }, `${R.formaterJourLong(c)} à ${R.formaterHeure(c)}`), estCommun(i) ? h('span', { class: 'rdv-col-etiquette' }, 'Pour tous') : null));
+    const groupe = h('colgroup', {}, h('col', { class: 'rdv-colonne-personne' }), (r.creneaux || []).map((_, i) => h('col', { class: `rdv-colonne-creneau${estCommun(i) ? ' rdv-col-commun' : ''}` })), h('col', { class: 'rdv-colonne-reponse' }));
     const lignes = parts.map((p) => {
       const incompris = p.etatReponse === 'incomprise';
       return h('tr', { class: `rdv-ligne-reponse${incompris ? ' rdv-ligne-incomprise' : ''}`, dataset: { participant: p.id } },
@@ -153,7 +202,7 @@ export function rendreFiche(conteneur, id) {
           ouvert ? h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'saisir-reponse', onclick: () => saisirReponse(r, p) },
             p.etatReponse === 'comprise' || p.etatReponse === 'saisie' ? 'Corriger' : 'Saisir sa réponse') : null));
     });
-    return h('div', { class: 'zone-tableau' }, h('table', { class: 'tableau tableau-rdv-reponses', dataset: { role: 'qui-peut-quand' } },
+    return h('div', { class: 'zone-tableau rdv-zone-tableau' }, h('table', { class: 'tableau tableau-rdv-reponses', dataset: { role: 'qui-peut-quand' } }, groupe,
       h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Participant'), colonnes, h('th', { scope: 'col' }, 'Sa réponse'))), h('tbody', {}, lignes)));
   }
 
@@ -180,7 +229,8 @@ export function rendreFiche(conteneur, id) {
     const ouvert = R.estOuvert(r);
     const options = { creneaux: r.creneaux, maintenant: new Date().toISOString() };
     const bandeau = ouvert ? R.bandeauCreneau(bilan, options) : null;
-    const propose = ouvert ? R.creneauAConfirmer(bilan, options) : null;
+    const choix = ouvert ? R.creneauxAConfirmer(bilan, options) : [];
+    const propose = choix.length === 1 ? choix[0] : null; // un seul créneau à proposer : le bouton le nomme ; plusieurs créneaux communs : on choisit dans une fenêtre
     const modifiable = !r.annule && !r.archive;
 
     const menu = r.annule ? null : h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Actions du rendez-vous', onclick: (e) => ouvrirMenu(e.currentTarget, [
@@ -197,11 +247,12 @@ export function rendreFiche(conteneur, id) {
       if (!branche) boutons.push(h('span', { class: 'aide', dataset: { role: 'envoi-non-branche' } }, MESSAGE_ENVOI_NON_BRANCHE));
     }
     if (ouvert && !nonEnvoye) {
-      boutons.push(h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'confirmer-creneau', disabled: !propose,
-        title: propose ? '' : 'Aucun créneau à venir à confirmer pour l’instant', 'aria-describedby': propose ? undefined : 'rdv-raison-confirmer',
-        onclick: (e) => confirmerAvecFenetre(r, propose, bilan, e.currentTarget) },
-      propose ? `Confirmer le créneau ${propose}` : 'Confirmer un créneau'));
-      if (!propose) boutons.push(h('span', { id: 'rdv-raison-confirmer', class: 'aide', dataset: { role: 'raison-confirmer' } }, 'Aucun créneau à venir ne convient encore à quelqu’un : attends des réponses ou propose d’autres créneaux.'));
+      const plusieurs = choix.length > 1;
+      boutons.push(h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'confirmer-creneau', disabled: !choix.length,
+        title: choix.length ? '' : 'Aucun créneau à venir à confirmer pour l’instant', 'aria-describedby': choix.length ? undefined : 'rdv-raison-confirmer',
+        onclick: (e) => (plusieurs ? choisirEtConfirmer(r, choix, e.currentTarget, rendre) : confirmerAvecFenetre(r, propose, bilan, e.currentTarget, rendre)) },
+      propose ? `Confirmer le créneau ${propose}` : plusieurs ? 'Confirmer un créneau…' : 'Confirmer un créneau'));
+      if (!choix.length) boutons.push(h('span', { id: 'rdv-raison-confirmer', class: 'aide', dataset: { role: 'raison-confirmer' } }, 'Aucun créneau à venir ne convient encore à quelqu’un : attends des réponses ou propose d’autres créneaux.'));
     }
     if (modifiable) boutons.push(h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'autres-creneaux', onclick: () => proposerAutresCreneaux(r) }, 'Proposer d’autres créneaux'));
     if (confirme) boutons.push(h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'prevenir-pluie', onclick: () => fenetreSmsManuel(r, 'pluie', { titre: 'Prévenir de la pluie' }) }, 'Prévenir de la pluie'));
@@ -214,7 +265,7 @@ export function rendreFiche(conteneur, id) {
       confirme ? h('div', { class: 'rdv-bandeau rdv-bandeau-confirme', dataset: { role: 'bandeau-confirme' } }, `Rendez-vous confirmé : ${R.formaterCreneau(r.creneauChoisi)}.`) : null,
       bilan.incomprises ? h('div', { class: 'rdv-bandeau rdv-bandeau-rouge', role: 'alert', dataset: { role: 'bandeau-incompris' } }, icone('triangle-alert', { taille: 18 }), bilan.incomprises > 1 ? R.TEXTE_REPONSES_INCOMPRISES : R.TEXTE_REPONSE_INCOMPRISE) : null,
       bandeau ? h('div', { class: 'rdv-bandeau rdv-bandeau-violet', role: 'status', dataset: { role: 'bandeau-creneau', type: bandeau.type } }, bandeau.texte) : null,
-      h('section', { class: 'carte-section' }, h('h2', {}, 'Qui peut quand'), parts.length ? tableau(r, parts, ouvert) : h('p', { class: 'aide' }, 'Aucun participant.'), legende()),
+      h('section', { class: 'carte-section' }, h('h2', {}, 'Qui peut quand'), parts.length ? tableau(r, parts, ouvert, ouvert ? R.creneauxCommunsAVenir(bilan, options) : []) : h('p', { class: 'aide' }, 'Aucun participant.'), legende()),
       h('div', { class: 'ligne-boutons rdv-boutons-fiche' }, boutons),
       h('section', { class: 'carte-section' }, h('h2', {}, 'Historique des SMS'), historique(r, parts)));
   }

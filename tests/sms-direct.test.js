@@ -305,7 +305,39 @@ describe('adresse des réponses (traitement HTTP)', () => {
   });
 });
 
+// Seule exception : le lien d'aide vers le tableau de bord (Réglages > Rendez-vous), un lien affiché à l'utilisateur, jamais un appel. Toute autre adresse reste interdite.
+const LIEN_AIDE_TABLEAU_DE_BORD = 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms';
+const FICHIER_DU_LIEN_D_AIDE = 'js/modules/rdv/reglages.js';
+const LIEN_ECHAPPE = LIEN_AIDE_TABLEAU_DE_BORD.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Le lien est retiré seulement s'il n'est suivi d'aucun caractère d'adresse (espace, guillemet, parenthèse ou chevron ferme l'adresse) : un suffixe (/x, ?q, /../, .autre.domaine) le laisse en place.
+const LIEN_SEUL = new RegExp(`${LIEN_ECHAPPE}(?![^\\s'"\\x60)<>])`, 'g');
+/** Le fichier `chemin` (relatif à la racine du dépôt) parle-t-il à ClickSend ? Seul le fichier des Réglages Rendez-vous a le droit d'avoir le lien d'aide EXACT. */
+const parleAClickSend = (chemin, texte) => /clicksend\.com/i.test(chemin === FICHIER_DU_LIEN_D_AIDE ? texte.replace(LIEN_SEUL, '') : texte);
 describe('ClickSend : un seul fichier du dépôt lui parle', () => {
+  test('exception du lien d’aide : le lien exact seul, dans le seul fichier des Réglages, passe ; tout le reste (autre fichier, suffixe, autre adresse) est refusé', () => {
+    const lien = LIEN_AIDE_TABLEAU_DE_BORD;
+    const R = FICHIER_DU_LIEN_D_AIDE;
+    assert.equal(parleAClickSend(R, `h('a', { href: '${lien}' }, '${lien}')`), false, 'le lien exact, même répété, dans reglages.js : accepté');
+    assert.equal(parleAClickSend(R, `const L = '${lien}';\nh('a', { href: L }, L)`), false);
+    assert.equal(parleAClickSend(R, `(${lien})`), false, 'lien entre parenthèses');
+    // le même lien ailleurs : refusé
+    assert.equal(parleAClickSend('functions/src/coeur/zz.js', `const L = '${lien}';`), true, 'dans functions/ : refusé');
+    assert.equal(parleAClickSend('scripts/zz.js', `const L = '${lien}';`), true, 'dans scripts/ : refusé');
+    assert.equal(parleAClickSend('js/modules/rdv/fiche.js', `const L = '${lien}';`), true, 'dans un second fichier de js/ : refusé');
+    // dans le bon fichier, mais prolongé ou autre : refusé
+    assert.equal(parleAClickSend(R, `'${lien}/x'`), true, 'lien + /x');
+    assert.equal(parleAClickSend(R, `'${lien}?a=1'`), true, 'lien + ?a=1');
+    assert.equal(parleAClickSend(R, `'${lien}?q'`), true, 'lien + ?q');
+    assert.equal(parleAClickSend(R, `'${lien}/../../autre'`), true, 'lien + /../../autre');
+    assert.equal(parleAClickSend(R, `${lien}.evil.clicksend.com`), true, 'lien prolongé d’un autre domaine');
+    assert.equal(parleAClickSend(R, `${lien}#ancre`), true, 'lien + ancre');
+    assert.equal(parleAClickSend(R, `'${lien}' + 'https://rest.clicksend.com/v3/sms/send'`), true, 'l’API d’envoi à côté du lien');
+    assert.equal(parleAClickSend(R, 'https://rest.clicksend.com/v3/sms/send'), true, 'l’API d’envoi seule');
+    assert.equal(parleAClickSend(R, 'https://dashboard.clicksend.com/messaging-settings/sms/outbound-sms'), true, 'un autre chemin du tableau de bord');
+    assert.equal(parleAClickSend(R, 'https://dashboard.clicksend.com/'), true, 'le domaine seul');
+    assert.equal(parleAClickSend(R, lien.replace('https', 'http')), true, 'le même lien en http');
+    assert.equal(parleAClickSend(R, 'fetch("https://REST.ClickSend.com/v3/sms/send")'), true, 'la casse ne contourne pas la règle');
+  });
   test('l’adresse de ClickSend n’apparaît que dans functions/src/coeur/sms-direct.js (code exécutable, hors tests, docs et copies générées)', () => {
     const racine = new URL('..', import.meta.url).pathname;
     const trouves = [];
@@ -314,7 +346,7 @@ describe('ClickSend : un seul fichier du dépôt lui parle', () => {
         if (['node_modules', '.git', 'tests', 'docs', 'wiki', 'partage', 'serveur'].includes(nom)) continue;
         const chemin = join(dossier, nom);
         if (statSync(chemin).isDirectory()) parcourir(chemin);
-        else if (/\.(js|mjs|html)$/.test(nom) && /clicksend\.com/i.test(readFileSync(chemin, 'utf8'))) trouves.push(chemin.slice(racine.length));
+        else if (/\.(js|mjs|html)$/.test(nom) && parleAClickSend(chemin.slice(racine.length).replaceAll('\\', '/'), readFileSync(chemin, 'utf8'))) trouves.push(chemin.slice(racine.length));
       }
     };
     for (const d of ['functions', 'functions-plateforme', 'js', 'scripts']) parcourir(join(racine, d));

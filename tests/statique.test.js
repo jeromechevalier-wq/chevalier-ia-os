@@ -73,7 +73,21 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
   });
 });
 
+/** Seule exception ClickSend du code de l'appli : le lien d'aide du tableau de bord, EXACT, dans le seul fichier des Réglages Rendez-vous (lien affiché, jamais chargé ni appelé). */
+function lienAideClickSendAutorise(url, fichier) {
+  return url === 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms' && fichier === 'js/modules/rdv/reglages.js';
+}
+
 describe('D2 Aucune ressource externe hors Google', () => {
+  test('D2 exception du lien d’aide ClickSend : l’adresse exacte, dans un seul fichier ; ailleurs ou prolongée, elle reste refusée', () => {
+    const lien = 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms';
+    assert.equal(lienAideClickSendAutorise(lien, 'js/modules/rdv/reglages.js'), true);
+    assert.equal(lienAideClickSendAutorise(lien, 'js/modules/rdv/fiche.js'), false, 'même lien dans un second fichier');
+    assert.equal(lienAideClickSendAutorise(lien, 'js/modules/devis/logique.js'), false);
+    assert.equal(lienAideClickSendAutorise('https://rest.clicksend.com/v3/sms/send', 'js/modules/rdv/reglages.js'), false, 'l’API d’envoi, même dans le bon fichier');
+    assert.equal(lienAideClickSendAutorise(`${lien}/x`, 'js/modules/rdv/reglages.js'), false, 'lien prolongé');
+    assert.equal(lienAideClickSendAutorise('https://dashboard.clicksend.com/', 'js/modules/rdv/reglages.js'), false, 'autre page du tableau de bord');
+  });
   test('D2 seules les adresses gstatic.com (SDK Firebase 12.19.0) sont chargées par le code', () => {
     const autorise = /^https:\/\/(www\.gstatic\.com\/firebasejs\/12\.19\.0\/|[a-z0-9.-]*googleapis\.com|apis\.google\.com|accounts\.google\.com|lucide\.dev)/;
     for (const f of fichiersAppli().filter((x) => /\.(js|html|css|webmanifest)$/.test(x))) {
@@ -90,6 +104,8 @@ describe('D2 Aucune ressource externe hors Google', () => {
         if (/^https:\/\/(github\.com\/jeromechevalier-wq\/chevalier-ia-os\/blob\/main\/docs\/|console\.cloud\.google\.com\/)/.test(url) && /deploiement\.js$/.test(f)) continue;
         // Module Réseaux sociaux (11/11/2026) : lien « Ouvrir Buffer » (nouvel onglet, rel noopener), jamais chargé.
         if (url === 'https://publish.buffer.com' && f === 'js/modules/reseauxsociaux/logique.js') continue;
+        // Module Rendez-vous (15/11/2026) : lien d'aide « Inbound Rules » du tableau de bord ClickSend (nouvel onglet, rel noopener), jamais chargé ni appelé.
+        if (lienAideClickSendAutorise(url, f)) continue;
         assert.match(url, autorise, `${f} : ${url}`);
       }
       assert.doesNotMatch(t, /fonts\.googleapis\.com|cdn\.jsdelivr|unpkg\.com|cdnjs/, f);

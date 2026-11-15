@@ -624,14 +624,16 @@ export function etatCalcule(rdv, participants, params = {}) {
 /** Rendez-vous encore à traiter : ni archivé, ni annulé, ni confirmé. */
 export const estOuvert = (rdv) => !!rdv && !rdv.archive && !rdv.annule && rdv.etat !== 'confirme' && !rdv.creneauChoisi;
 
-/** Phrase d'état des cartes et du tableau : « 2 réponses sur 4 », « Relance 1 sur 3 demain », « Créneau commun : jeu. 19 nov. 10 h ». */
+/** Phrase d'état des cartes et du tableau : « 2 réponses sur 4 », « Relance 1 sur 3 demain », « Créneau commun : jeu. 19 nov. 10 h », « 2 créneaux communs ». */
 export function ligneEtat({ rdv, participants, parametres, messages, maintenant }) {
   const b = bilanReponses(participants, (rdv?.creneaux || []).length || MAX_CRENEAUX);
   if (rdv?.etat === 'confirme' || rdv?.creneauChoisi) return `Confirmé : ${formaterCreneau(rdv.creneauChoisi)}`;
   if (b.complet && b.communs.length) {
     // Tous les créneaux communs sont passés : l'écran dit comme l'alerte (« aucun créneau à venir ne convient »), jamais une date passée présentée comme créneau commun.
-    const aVenir = Number.isFinite(enMs(maintenant)) ? b.communs.map((i) => rdv.creneaux[i - 1]).find((c) => enMs(c) > enMs(maintenant)) : rdv.creneaux[b.communs[0] - 1];
-    return aVenir ? `Créneau commun : ${formaterCreneau(aVenir)}` : 'Aucun créneau commun à venir';
+    const avenir = creneauxCommunsAVenir(b, { creneaux: rdv.creneaux, maintenant });
+    if (!avenir.length) return 'Aucun créneau commun à venir';
+    if (avenir.length > 1) return `${avenir.length} créneaux communs`;
+    return `Créneau commun : ${formaterCreneau(rdv.creneaux[avenir[0] - 1])}`;
   }
   if (b.complet) return 'Aucun créneau commun';
   if (b.incomprises) return b.incomprises === 1 ? 'Une réponse non comprise' : `${b.incomprises} réponses non comprises`;
@@ -1004,32 +1006,83 @@ export function nomFichierExportRdv(maintenant = new Date()) {
 
 // ───────────────────────────── Fiche : bandeaux, confirmation, nouvelle série ─────────────────────────────
 
-/**
- * Créneau à proposer à la confirmation : parmi les créneaux ENCORE À VENIR, le créneau commun s'il y en a un (le plus tôt), sinon celui qui convient au plus de monde
- * (à égalité : le plus tôt en date) ; null s'il n'y en a aucun. C'est une PROPOSITION : seule la professionnelle confirme.
- * `creneaux` et `maintenant` (facultatifs) écartent les créneaux déjà passés.
- */
-export function creneauAConfirmer(bilan, { creneaux = null, maintenant = null } = {}) {
-  const avenir = (n) => !creneaux || !Number.isFinite(enMs(maintenant)) || enMs(creneaux[n - 1]) > enMs(maintenant);
-  const instant = (n) => (creneaux ? enMs(creneaux[n - 1]) : n);
-  const communs = (bilan?.communs || []).filter(avenir).sort((x, y) => instant(x) - instant(y));
-  if (communs.length) return communs[0];
-  const candidats = (bilan?.parCreneau || []).map((nombre, i) => ({ numero: i + 1, nombre })).filter((c) => c.nombre > 0 && avenir(c.numero));
-  candidats.sort((x, y) => y.nombre - x.nombre || instant(x.numero) - instant(y.numero));
-  return candidats[0]?.numero ?? null;
+/** Un créneau (numéro 1 à 3) est « à venir » si sa date est après `maintenant` ; sans `creneaux` ni `maintenant` valide, rien n'est écarté. */
+const creneauAVenir = ({ creneaux = null, maintenant = null } = {}) => (n) => !creneaux || !Number.isFinite(enMs(maintenant)) || enMs(creneaux[n - 1]) > enMs(maintenant);
+/** Instant d'un créneau (pour trier par date) ; sans `creneaux`, le numéro lui-même. */
+const instantCreneau = ({ creneaux = null } = {}) => (n) => (creneaux ? enMs(creneaux[n - 1]) : n);
+
+/** Créneaux communs à tous (réponses complètes) encore À VENIR, dans l'ordre des numéros (1, 2, 3). `creneaux` et `maintenant` (facultatifs) écartent les créneaux déjà passés. */
+export function creneauxCommunsAVenir(bilan, options = {}) {
+  return [...(bilan?.communs || [])].filter(creneauAVenir(options)).sort((x, y) => x - y);
 }
 
-/** Bandeau violet de la fiche : { type: 'commun' | 'partiel' | 'aucun', creneau, texte }, ou null tant qu'il n'y a rien à dire. Mêmes options que `creneauAConfirmer` (créneaux passés écartés). */
+/**
+ * Créneaux parmi lesquels la professionnelle choisit (tous ENCORE À VENIR), du plus tôt au plus tard (chacun garde son numéro) : les créneaux communs s'il y en a (un ou plusieurs),
+ * sinon le seul créneau qui convient au plus de monde (à égalité : le plus tôt en date) ; liste vide s'il n'y en a aucun. Jamais de choix d'office : seule la professionnelle confirme.
+ */
+export function creneauxAConfirmer(bilan, options = {}) {
+  const instant = instantCreneau(options);
+  const communs = creneauxCommunsAVenir(bilan, options).sort((x, y) => instant(x) - instant(y) || x - y);
+  if (communs.length) return communs;
+  const avenir = creneauAVenir(options);
+  const candidats = (bilan?.parCreneau || []).map((nombre, i) => ({ numero: i + 1, nombre })).filter((c) => c.nombre > 0 && avenir(c.numero));
+  candidats.sort((x, y) => y.nombre - x.nombre || instant(x.numero) - instant(y.numero));
+  return candidats.length ? [candidats[0].numero] : [];
+}
+
+/**
+ * Le créneau `numero` choisi dans la fenêtre « plusieurs créneaux conviennent à tous » est-il toujours valable au moment de confirmer ? Rend :
+ *  - 'ok' : sa date est celle qui était affichée (`dateAffichee`), tout le monde a répondu (réponses comprises) et il est toujours commun à tous et à venir ;
+ *  - 'rendezvous' : le rendez-vous n'est plus à confirmer (confirmé ailleurs, annulé, archivé ou supprimé) ;
+ *  - 'creneau' : la fiche a changé (date modifiée, participant ajouté, réponse corrigée ou non comprise…) : on refuse, sans rabattre sur « le créneau qui convient au plus de monde ».
+ */
+export function verdictChoix(rdv, participants, numero, dateAffichee, maintenant) {
+  if (!rdv || !estOuvert(rdv)) return 'rendezvous';
+  const creneaux = rdv.creneaux || [];
+  if (!(enMs(creneaux[numero - 1]) === enMs(dateAffichee))) return 'creneau';
+  const bilan = bilanReponses(participants, creneaux.length || MAX_CRENEAUX);
+  return bilan.complet && creneauxCommunsAVenir(bilan, { creneaux, maintenant }).includes(numero) ? 'ok' : 'creneau';
+}
+
+/**
+ * Même relecture pour la fenêtre d'UN seul créneau proposé (le commun, ou celui qui convient au plus de monde) : 'rendezvous' si le rendez-vous n'est plus à confirmer,
+ * 'creneau' si la date du créneau n'est plus celle qui était affichée ou si ce créneau est passé, 'ok' sinon.
+ */
+export function verdictCreneauUnique(rdv, numero, dateAffichee, maintenant) {
+  if (!rdv || !estOuvert(rdv)) return 'rendezvous';
+  const date = (rdv.creneaux || [])[numero - 1];
+  if (!(enMs(date) === enMs(dateAffichee)) || !(enMs(date) > enMs(maintenant))) return 'creneau';
+  return 'ok';
+}
+
+/**
+ * Créneau à proposer à la confirmation quand il n'y en a QU'UN à proposer (le créneau commun, sinon celui qui convient au plus de monde) ; null s'il n'y en a aucun
+ * ET quand plusieurs créneaux conviennent à tous : la professionnelle choisit alors elle-même (`creneauxAConfirmer`). C'est une PROPOSITION : seule la professionnelle confirme.
+ */
+export function creneauAConfirmer(bilan, options = {}) {
+  const choix = creneauxAConfirmer(bilan, options);
+  return choix.length === 1 ? choix[0] : null;
+}
+
+/** « 1 », « 1 et 2 », « 1, 2 et 3 » : les numéros de créneaux écrits en français. */
+const listeNumeros = (numeros) => (numeros.length > 1 ? `${numeros.slice(0, -1).join(', ')} et ${numeros.at(-1)}` : String(numeros[0]));
+
+/**
+ * Bandeau violet de la fiche : { type: 'commun' | 'partiel' | 'aucun', creneau, creneaux, texte }, ou null tant qu'il n'y a rien à dire. Mêmes options que `creneauAConfirmer` (créneaux passés écartés).
+ * Plusieurs créneaux communs : `creneau` vaut null, `creneaux` les liste et le texte les cite tous.
+ */
 export function bandeauCreneau(bilan, options = {}) {
   if (!bilan || !bilan.total) return null;
+  const communs = bilan.complet ? creneauxCommunsAVenir(bilan, options) : [];
+  if (communs.length > 1) return { type: 'commun', creneau: null, creneaux: communs, texte: `Les créneaux ${listeNumeros(communs)} conviennent à tout le monde. Seul toi peux en confirmer un.` };
+  if (communs.length === 1) return { type: 'commun', creneau: communs[0], creneaux: communs, texte: `Le créneau ${communs[0]} convient à tout le monde. Seul toi peux le confirmer.` };
+  if (bilan.complet && !bilan.communs.length) return { type: 'aucun', creneau: null, creneaux: [], texte: 'Aucun créneau ne convient à tout le monde. Tu peux proposer d’autres créneaux.' };
   const c = creneauAConfirmer(bilan, options);
-  if (bilan.complet && bilan.communs.length && c && bilan.communs.includes(c)) return { type: 'commun', creneau: c, texte: `Le créneau ${c} convient à tout le monde. Seul toi peux le confirmer.` };
-  if (bilan.complet && !bilan.communs.length) return { type: 'aucun', creneau: null, texte: 'Aucun créneau ne convient à tout le monde. Tu peux proposer d’autres créneaux.' };
   if (c) {
     const n = bilan.parCreneau[c - 1];
-    return { type: 'partiel', creneau: c, texte: `Pour l’instant, le créneau ${c} convient à ${n} ${n > 1 ? 'personnes' : 'personne'} sur ${bilan.total}. Seul toi peux le confirmer.` };
+    return { type: 'partiel', creneau: c, creneaux: [c], texte: `Pour l’instant, le créneau ${c} convient à ${n} ${n > 1 ? 'personnes' : 'personne'} sur ${bilan.total}. Seul toi peux le confirmer.` };
   }
-  if (bilan.complet) return { type: 'aucun', creneau: null, texte: 'Les créneaux qui conviennent sont passés. Tu peux proposer d’autres créneaux.' };
+  if (bilan.complet) return { type: 'aucun', creneau: null, creneaux: [], texte: 'Les créneaux qui conviennent sont passés. Tu peux proposer d’autres créneaux.' };
   return null;
 }
 

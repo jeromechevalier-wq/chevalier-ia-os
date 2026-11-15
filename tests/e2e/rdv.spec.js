@@ -214,17 +214,16 @@ test('11 plusieurs numéros d’alerte avec un interrupteur par numéro, et le c
   for (const [nom, tel] of [['Mon mobile', '06 00 00 00 01'], ['Collègue', '07 00 00 00 02']]) {
     await section.getByRole('button', { name: 'Ajouter un numéro' }).click();
     await page.getByLabel('Nom (ex. Mon mobile, Collègue)').fill(nom);
-    await page.getByRole('button', { name: 'Enregistrer' }).click();
-    await page.getByLabel('Numéro de mobile').fill(tel);
-    await page.getByRole('button', { name: 'Enregistrer' }).click();
+    await page.getByLabel('Numéro de mobile').fill(tel); // une seule fenêtre : le nom et le numéro sont là en même temps
+    await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
     await expect(section.locator('.rdv-numero', { hasText: nom })).toBeVisible();
   }
   await section.getByRole('button', { name: 'Ajouter un numéro' }).click();
   await page.getByLabel('Nom (ex. Mon mobile, Collègue)').fill('Fixe');
-  await page.getByRole('button', { name: 'Enregistrer' }).click();
   await page.getByLabel('Numéro de mobile').fill('01 00 00 00 00');
-  await page.getByRole('button', { name: 'Enregistrer' }).click();
-  await expect(page.locator('.toast-erreur')).toContainText('fixe');
+  await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.getByRole('dialog').locator('.erreur')).toContainText('fixe'); // l'erreur est dans la fenêtre, qui reste ouverte
+  await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
   await expect(section.locator('.rdv-numero')).toHaveCount(2);
   await section.getByRole('switch', { name: 'Alerter Mon mobile' }).click(); // vacances : on coupe ce numéro
   await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.numerosAlerte?.map((n) => n.actif)).toEqual([false, true]);
@@ -234,6 +233,81 @@ test('11 plusieurs numéros d’alerte avec un interrupteur par numéro, et le c
   await section.getByRole('button', { name: 'Supprimer le numéro Collègue' }).click();
   await expect(section.locator('.rdv-numero')).toHaveCount(1);
   expect((await lireDocument('rdv_parametres/reglages')).numeroAffiche).toBe('');
+});
+
+test('A1 « Ajouter un numéro » : UNE fenêtre avec Nom et Numéro de mobile ; une erreur reste dans la fenêtre, qui reste ouverte et garde ce qui est tapé', async ({ page }) => {
+  await connecter(page);
+  await allerA(page, 'Réglages');
+  await ouvrirSectionReglages(page, 'Rendez-vous');
+  const section = page.locator('#reglages-rdv-alertes');
+  await section.getByRole('button', { name: 'Ajouter un numéro' }).click();
+  const fenetre = page.getByRole('dialog');
+  await expect(fenetre.getByLabel('Nom (ex. Mon mobile, Collègue)')).toBeVisible();
+  await expect(fenetre.getByLabel('Numéro de mobile')).toBeVisible();
+  await fenetre.getByRole('button', { name: 'Enregistrer' }).click(); // cas vide
+  await expect(fenetre.locator('.erreur')).toContainText('nom');
+  await fenetre.getByLabel('Nom (ex. Mon mobile, Collègue)').fill('Bureau');
+  await fenetre.getByLabel('Numéro de mobile').fill('01 00 00 00 00');
+  await fenetre.getByRole('button', { name: 'Enregistrer' }).click(); // cas d'erreur : un fixe
+  await expect(fenetre.locator('.erreur')).toContainText('fixe');
+  await expect(fenetre).toBeVisible();
+  await expect(fenetre.getByLabel('Nom (ex. Mon mobile, Collègue)')).toHaveValue('Bureau');
+  await expect(page.locator('.toast-erreur')).toHaveCount(0);
+  await capture(page, 'A1-ajouter-numero-erreur');
+  await fenetre.getByLabel('Numéro de mobile').fill('06 00 00 00 03');
+  await expect(fenetre.locator('.erreur')).toHaveText('');
+  await fenetre.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(section.locator('.rdv-numero', { hasText: 'Bureau' })).toBeVisible();
+  await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.numerosAlerte?.map((n) => n.libelle)).toEqual(['Bureau']);
+});
+
+test('A4 la pastille TEST : sur la carte du Kanban, sur la ligne de la liste et dans la recherche du haut (qui comprend le mot « test »), jamais sur un rendez-vous réel', async ({ page }) => {
+  await semer('rT', { client: 'Mme Essai', test: true }, [{ nom: 'Mme Essai', role: 'Client' }]);
+  await semer('rR', { client: 'M. Réel' }, [{ nom: 'M. Réel', role: 'Client' }]);
+  await connecter(page);
+  await ouvrirListe(page);
+  await expect(page.locator('.carte-rdv .badge-test')).toHaveCount(1);
+  await expect(page.locator('.carte-rdv[data-rdv="rT"] .badge-test')).toHaveText('[TEST]');
+  await expect(page.locator('.carte-rdv[data-rdv="rR"] .badge-test')).toHaveCount(0);
+  await capture(page, 'A4-carte-test');
+  await page.locator('.bascule-vue[data-vue="liste"]').click();
+  await expect(page.locator('tr.ligne-liste .badge-test')).toHaveCount(1);
+  await expect(page.locator('tr.ligne-liste', { hasText: 'Mme Essai' }).locator('.badge-test')).toHaveText('[TEST]');
+  await expect(page.locator('tr.ligne-liste', { hasText: 'M. Réel' }).locator('.badge-test')).toHaveCount(0);
+  await capture(page, 'A4-ligne-test');
+  await page.evaluate(() => { location.hash = '#/crm/accueil'; }); // la barre du haut est absente de l'écran Rendez-vous (il a sa propre recherche) : on cherche depuis l'Accueil
+  if (estTelephone(page)) await page.locator('[data-role="ouvrir-recherche"]').click();
+  await page.locator('[data-role="recherche-globale"]').fill('test');
+  const liste = page.locator('ul.suggestions[aria-label="Suggestions : Rechercher"]');
+  await expect(liste.locator('.suggestion', { hasText: '[TEST] Mme Essai' })).toHaveCount(1);
+  await expect(liste).not.toContainText('M. Réel');
+  await capture(page, 'A4-recherche-test');
+});
+
+test('A1b un numéro déjà dans la liste est refusé dans la fenêtre, même écrit autrement (+33 / 06)', async ({ page }) => {
+  await connecter(page);
+  await allerA(page, 'Réglages');
+  await ouvrirSectionReglages(page, 'Rendez-vous');
+  const section = page.locator('#reglages-rdv-alertes');
+  await section.getByRole('button', { name: 'Ajouter un numéro' }).click();
+  await page.getByLabel('Nom (ex. Mon mobile, Collègue)').fill('Mon mobile');
+  await page.getByLabel('Numéro de mobile').fill('06 00 00 00 05');
+  await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(section.locator('.rdv-numero')).toHaveCount(1);
+  await section.getByRole('button', { name: 'Ajouter un numéro' }).click();
+  await page.getByLabel('Nom (ex. Mon mobile, Collègue)').fill('Doublon');
+  await page.getByLabel('Numéro de mobile').fill('+33 6 00 00 00 05');
+  await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.getByRole('dialog').locator('.erreur')).toContainText('déjà dans la liste (Mon mobile)');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  for (const autre of ['0033 6 00 00 00 05', '+33 (0)6 00 00 00 05']) { // d'autres façons d'écrire le même numéro
+    await page.getByLabel('Numéro de mobile').fill(autre);
+    await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
+    await expect(page.getByRole('dialog').locator('.erreur')).toContainText('déjà dans la liste (Mon mobile)');
+  }
+  await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
+  await expect(section.locator('.rdv-numero')).toHaveCount(1);
 });
 
 test('12 le nombre de caractères de chaque SMS est affiché, la règle des accents est expliquée, un caractère spécial est remplacé', async ({ page }) => {

@@ -8,6 +8,60 @@ import * as R from './logique.js';
 import { interrupteur, champNombre, compteurSms, EXPLICATION_ACCENTS } from './composants.js';
 import { reglagesExportRdv } from './export.js';
 
+const LIEN_REGLES_SMS_ENTRANTS = 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms';
+
+/**
+ * Bloc repliable « Comment configurer ClickSend pour recevoir les réponses et les STOP » : même texte chez Jérôme et chez les clients. L'adresse des réponses n'est écrite que si elle est
+ * déjà affichée dans la carte (`adresse`, rendue par le serveur, jamais en dur ici) : c'est un secret de fait, son code est la seule protection.
+ */
+let aideOuverte = false; // le bloc reste ouvert quand la carte se redessine (adresse affichée, enregistrement)
+export function aideClickSend(adresse = '', peutConfigurer = true) {
+  const bloc = h('details', { class: 'rdv-aide-clicksend', dataset: { role: 'aide-clicksend' } },
+    h('summary', {}, 'Comment configurer ClickSend pour recevoir les réponses et les STOP'),
+    h('ol', { class: 'rdv-aide-etapes' },
+      h('li', {}, 'Ouvre ', h('a', { href: LIEN_REGLES_SMS_ENTRANTS, target: '_blank', rel: 'noopener noreferrer' }, LIEN_REGLES_SMS_ENTRANTS), ' (menu « SMS », puis « Inbound Rules »).'),
+      h('li', {}, 'Désactive les deux règles que ClickSend crée d’office pour le mot « stop » : « Send to messenger » (action SEND_TO_MESSENGER) et « Opt-out contact » (action MOVE_CONTACT). Ouvre chacune et décoche « Enabled ». Sinon ClickSend garde le STOP pour lui et il n’arrive jamais chez nous.'),
+      h('li', {}, 'Crée une règle, ou transforme la « Default rule » : « Dedicated number » = ANY, « Action » = URL, méthode POST, « Action address » = l’adresse des réponses de cette carte, « Match for » vide, « Enabled » coché. Enregistre.',
+        adresse ? h('div', { class: 'rdv-aide-adresse', dataset: { role: 'aide-adresse' } }, 'Adresse à coller : ', h('code', {}, adresse)) : h('div', { class: 'aide', dataset: { role: 'aide-adresse-absente' } }, peutConfigurer ? 'Pour la voir ici, clique sur « Afficher l’adresse des réponses ».' : 'L’administrateur de la plateforme te donne cette adresse.')),
+      h('li', {}, 'Vérifie : envoie-toi un SMS puis réponds-y ; la réponse doit apparaître dans l’historique de la fiche en quelques secondes. Réponds ensuite STOP : le numéro doit apparaître désinscrit.')),
+    h('p', { class: 'aide' }, 'L’adresse des réponses est un secret de fait : son code est la seule protection. Ne la partage avec personne.'));
+  bloc.open = aideOuverte;
+  bloc.addEventListener('toggle', () => { aideOuverte = bloc.open; });
+  return bloc;
+}
+
+/** Une seule fenêtre « Nom + Numéro de mobile » : une erreur de numéro s'écrit dans la fenêtre, qui reste ouverte. Un numéro déjà dans la liste est refusé de la même façon. Rend { libelle, numero } ou null (annulé). */
+async function fenetreAjoutNumero(existants = []) {
+  const nom = h('input', { type: 'text', class: 'champ', 'aria-label': 'Nom (ex. Mon mobile, Collègue)', maxlength: '40', autocomplete: 'off', autofocus: true });
+  const tel = h('input', { type: 'tel', class: 'champ', 'aria-label': 'Numéro de mobile', placeholder: '06 00 00 00 00', autocomplete: 'off' });
+  const erreur = h('p', { class: 'erreur', role: 'alert' });
+  const effacer = () => { erreur.textContent = ''; };
+  nom.addEventListener('input', effacer); tel.addEventListener('input', effacer);
+  let resultat = null;
+  await dialogue({
+    titre: 'Ajouter un numéro', classe: 'dialogue-formulaire',
+    contenu: h('div', { class: 'pile' },
+      h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Nom (ex. Mon mobile, Collègue)'), nom),
+      h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Numéro de mobile'), tel), erreur),
+    boutons: [
+      { libelle: 'Annuler', valeur: null },
+      { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: () => {
+        const libelle = L.nettoyerEspaces(nom.value);
+        if (!libelle) { erreur.textContent = 'Écris un nom pour retrouver ce numéro.'; nom.focus(); return false; }
+        if (!tel.value.trim()) { erreur.textContent = 'Écris le numéro de mobile.'; tel.focus(); return false; }
+        const t = R.normaliserTelephone(tel.value);
+        if (!t.ok) { erreur.textContent = t.message; tel.focus(); return false; }
+        const deja = existants.find((n) => n && R.normaliserTelephone(n.numero).telephone === t.telephone); // le numéro déjà rangé est normalisé comme la saisie (06, +33, 0033…)
+        if (deja) { erreur.textContent = `Ce numéro est déjà dans la liste${deja.libelle ? ` (${deja.libelle})` : ''}.`; tel.focus(); return false; }
+        resultat = { libelle, numero: t.telephone };
+        return true;
+      } },
+    ],
+    auMontage: ({ boutons }) => { [nom, tel].forEach((c) => c.addEventListener('keydown', (e) => { if (e.key === 'Enter') boutons.at(-1).click(); })); },
+  });
+  return resultat;
+}
+
 async function enregistrer(patch, message = 'Enregistré') {
   try { await D.majParametres(patch); if (message) toast(message); return true; } catch (e) { console.warn(e); toast(D.messageErreur(e, e?.message || 'Enregistrement impossible'), { type: 'erreur' }); return false; }
 }
@@ -81,13 +135,9 @@ export function reglages(page) {
       h('option', { value: '' }, numeros.length ? 'Le premier numéro actif' : 'Ajoute d’abord un numéro'),
       numeros.map((n) => h('option', { value: n.id, selected: n.id === p.numeroAffiche }, `${n.libelle || 'Numéro'} · ${R.afficherTelephone(n.numero)}`)));
     const ajouter = h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'ajouter-numero', onclick: async () => {
-      const libelle = await demanderTexte('Ajouter un numéro', { libelle: 'Nom (ex. Mon mobile, Collègue)' });
-      if (!libelle) return;
-      const saisie = await demanderTexte('Ajouter un numéro', { libelle: 'Numéro de mobile' });
-      if (!saisie) return;
-      const t = R.normaliserTelephone(saisie);
-      if (!t.ok) { toast(t.message, { type: 'erreur' }); return; }
-      maj([...frais(), { id: L.idAleatoire().slice(0, 6), libelle: L.nettoyerEspaces(libelle), numero: t.telephone, actif: true }]);
+      const ajout = await fenetreAjoutNumero(frais());
+      if (!ajout) return;
+      maj([...frais(), { id: L.idAleatoire().slice(0, 6), libelle: ajout.libelle, numero: ajout.numero, actif: true }]);
     } }, icone('plus', { taille: 16 }), 'Ajouter un numéro');
     return [numeros.length ? h('div', { class: 'pile' }, lignes) : h('p', { class: 'aide', dataset: { role: 'aucun-numero' } }, 'Aucun numéro pour l’instant : tu ne recevras aucune alerte.'),
       ajouter, ligne('Numéro donné aux participants', choix),
@@ -139,7 +189,7 @@ export function reglages(page) {
     if (peut === null) return [h('p', { class: 'aide', 'data-role': 'connexion-chargement' }, 'Chargement…')];
     if (!peut) {
       return [h('p', { 'data-role': 'connexion-etat' }, D.envoiBranche() ? 'L’envoi des SMS est branché sur cet espace.' : 'L’envoi des SMS n’est pas encore branché sur cet espace.'),
-        h('p', { class: 'aide' }, 'La connexion au service d’envoi (ClickSend) est réglée par l’administrateur de la plateforme.')];
+        h('p', { class: 'aide' }, 'La connexion au service d’envoi (ClickSend) est réglée par l’administrateur de la plateforme.'), aideClickSend('', false)];
     }
     chargerConnexion();
     const e = connexion.etat;
@@ -179,7 +229,7 @@ export function reglages(page) {
       ligne('Identifiant ClickSend', identifiant), ligne('Clé d’API ClickSend', cle), ligne('Nom d’expéditeur', expediteur),
       connexion.erreur ? h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'reessayer-connexion', onclick: () => { connexion.charge = false; connexion.erreur = ''; redessinerConnexion(); } }, 'Réessayer') : null,
       h('p', { class: 'aide' }, 'La clé est vérifiée auprès de ClickSend, puis rangée dans un coffre protégé du serveur : elle n’est jamais affichée ni gardée dans cette page (si la carte se redessine avant que tu enregistres, il faudra la recoller). Le nom d’expéditeur est facultatif : laisse vide tant que ClickSend n’a pas validé le tien.'),
-      h('div', { class: 'ligne-boutons rdv-boutons-fiche' }, enregistrerConnexion, ...boutonsAdresse), blocAdresse];
+      h('div', { class: 'ligne-boutons rdv-boutons-fiche' }, enregistrerConnexion, ...boutonsAdresse), blocAdresse, aideClickSend(connexion.adresse)];
   }, { aide: '' });
   redessins.push(redessinerConnexion);
 
