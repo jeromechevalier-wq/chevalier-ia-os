@@ -865,11 +865,12 @@ describe('M nom de l’entreprise et STOP dans chaque SMS', () => {
   });
 });
 
-describe('B1 les huit alertes sont des modèles réglables', () => {
+describe('B1 les neuf alertes sont des modèles réglables', () => {
   const ctx = { client: 'M. Durand', creneau: '2031-03-17T09:00:00Z', nom: 'M. Petit', reponse: 'plutot jeudi' };
-  test('B1 les 14 modèles réglables : six pour les participants, huit alertes sous la clé alerte-<sous-type>', () => {
+  test('B1 les 15 modèles réglables : six pour les participants, neuf alertes sous la clé alerte-<sous-type>', () => {
     assert.deepEqual(Object.keys(L.TOUS_MODELES_DEFAUT), ['confiance', 'creneaux', 'relance', 'confirmation', 'rappel', 'pluie', ...L.SOUS_TYPES_ALERTE.map((t) => `alerte-${t}`)]);
-    assert.equal(L.SOUS_TYPES_ALERTE.length, 8);
+    assert.equal(L.SOUS_TYPES_ALERTE.length, 9);
+    assert.equal(L.SOUS_TYPES_ALERTE.at(-1), 'solde-bas');
     assert.deepEqual(Object.keys(L.MODELES_DEFAUT).length, 6, 'les six modèles des participants gardent leur liste');
   });
   test('B1 chaque alerte de départ est déjà sans caractère à remplacer, sans STOP, et chacune tient en un SMS avec des données d’exemple', () => {
@@ -879,7 +880,8 @@ describe('B1 les huit alertes sont des modèles réglables', () => {
       const sms = L.texteAlerte(t, L.EXEMPLE_ALERTE);
       assert.equal(sms.segments, 1, `${cle} : ${sms.caracteres} caractères`);
       assert.doesNotMatch(sms.texte, /Répondez STOP|\{[a-z_]+\}/, cle);
-      assert.ok(L.LIBELLES_ALERTES[cle] && L.VARIABLES_ALERTE[cle].includes('client'), cle);
+      // chaque alerte de rendez-vous a la variable {client} ; « solde bas » n'en a aucun (pas de rendez-vous) : elle a {solde} et {seuil}
+      assert.ok(L.LIBELLES_ALERTES[cle] && L.VARIABLES_ALERTE[cle].includes(t === 'solde-bas' ? 'solde' : 'client'), cle);
     }
   });
   test('B1 un modèle réglé remplace le texte de départ ; vide ou absent = texte de départ ; retour au défaut', () => {
@@ -904,10 +906,10 @@ describe('B1 les huit alertes sont des modèles réglables', () => {
     assert.equal(L.texteAlerte('inconnu', {}).texte, 'RDV (sans nom) : à regarder dans l\'appli.');
     assert.doesNotMatch(L.texteAlerte('incomprise', {}).texte, /chantier/i);
   });
-  test('B1 aperçu des huit alertes : « avec lien » et « sans lien » seulement pour commun et aucun', () => {
+  test('B1 aperçu des neuf alertes : « avec lien » et « sans lien » seulement pour commun, aucun et solde-bas', () => {
     const a = L.apercuAlertes({});
-    assert.equal(a.length, 8);
-    assert.deepEqual(a.filter((x) => x.aLien).map((x) => x.sousType), ['commun', 'aucun']);
+    assert.equal(a.length, 9);
+    assert.deepEqual(a.filter((x) => x.aLien).map((x) => x.sousType), ['commun', 'aucun', 'solde-bas']);
     assert.ok(a.every((x) => (x.aLien ? x.sansLien && x.caracteres > x.sansLien.caracteres : x.sansLien === null)));
   });
 });
@@ -1097,5 +1099,54 @@ describe('B4 lecture stricte du prix saisi', () => {
     assert.equal(L.prixSmsDe({ prixSms: 0.0001 }), 0.0685);
     assert.equal(L.prixSmsDe({ prixSms: 0.001 }), 0.001);
     assert.equal(L.prixSmsDe({ prixSms: '0.1' }), 0.0685, 'un texte stocké n’est pas un prix');
+  });
+});
+
+describe('E2 alerte « solde ClickSend bas » : modèle, variables, seuils', () => {
+  test('E2-a modèle de départ : seulement {solde}, {seuil} et {lien} (aucun lien écrit en dur, aucune variable {client}), sans le mot « chantier », sans STOP', () => {
+    const m = L.MODELES_ALERTE_DEFAUT['alerte-solde-bas'];
+    assert.deepEqual(L.VARIABLES_ALERTE['alerte-solde-bas'], ['solde', 'seuil', 'lien']);
+    assert.deepEqual([...m.matchAll(/\{([a-z]+)\}/g)].map((x) => x[1]).sort(), ['lien', 'seuil', 'solde']);
+    assert.doesNotMatch(m, /https?:|clicksend\.com|chantier|STOP|\{client\}/i);
+    assert.equal(L.TOUS_MODELES_DEFAUT['alerte-solde-bas'], m);
+    assert.equal(L.LIBELLES_ALERTES['alerte-solde-bas'], 'Alerte : solde ClickSend bas');
+    assert.equal(L.libelleModele('alerte-solde-bas'), 'Alerte : solde ClickSend bas');
+  });
+  test('E2-b le texte : solde et seuil en euros à la française, lien donné par l’appelant ; sans lien la ligne disparaît ; une variable de rendez-vous est refusée à l’enregistrement', () => {
+    const lien = 'https://exemple.test/recharge';
+    assert.equal(L.texteAlerte('solde-bas', { solde: 4.998, seuil: 5, lien }).texte, `ClickSend : solde bas, 5,00 EUR (seuil 5 EUR).\n${lien}`);
+    assert.equal(L.texteAlerte('solde-bas', { solde: 0, seuil: 2.5 }).texte, 'ClickSend : solde bas, 0,00 EUR (seuil 2,5 EUR).');
+    assert.equal(L.texteAlerte('solde-bas', { solde: -1.2, seuil: 2, lien }).texte.split('\n')[0], 'ClickSend : solde bas, -1,20 EUR (seuil 2 EUR).');
+    assert.deepEqual(L.variablesInconnues('{solde} {seuil} {lien}', 'alerte-solde-bas'), []);
+    assert.deepEqual(L.variablesInconnues('{client} {creneau}', 'alerte-solde-bas'), ['client', 'creneau']);
+    assert.equal(L.validerModele('Solde {solde} {lien} {lien}', 'alerte-solde-bas').ok, false, '{lien} une seule fois');
+    assert.equal(L.validerModele('Solde {solde}', 'alerte-solde-bas').ok, true);
+  });
+  test('E2-c aperçu : la page de recharge donnée par l’écran est celle qui compte ; sans elle, on compte avec l’adresse d’un rendez-vous ; l’exemple tient en un SMS', () => {
+    const RECHARGE = 'https://exemple.test/recharge';
+    const a = L.apercuAlertes({}, { lienRecharge: RECHARGE }).find((x) => x.sousType === 'solde-bas');
+    assert.ok(a.texte.endsWith(RECHARGE)); assert.equal(a.aLien, true); assert.equal(a.segments, 1);
+    assert.ok(a.sansLien.caracteres < a.caracteres);
+    const b = L.apercuAlertes({}).find((x) => x.sousType === 'solde-bas');
+    assert.ok(b.texte.includes('/#/rdv/liste/'), 'repli : l’adresse d’exemple d’un rendez-vous');
+    for (const x of L.apercuAlertes({}, { lienRecharge: RECHARGE }).filter((y) => y.sousType !== 'solde-bas' && y.aLien)) assert.ok(!x.texte.includes(RECHARGE), `${x.sousType} garde l’adresse du rendez-vous`);
+  });
+  test('E2-d seuils : trois, décroissants, de 0 à 1 000 € ; départ 10, 5 et 2 ; tout réglage faux retombe sur le départ', () => {
+    assert.deepEqual(L.SEUILS_SOLDE_DEFAUT, [10, 5, 2]);
+    assert.deepEqual(L.PARAMETRES_DEFAUT.seuilsSolde, [10, 5, 2]);
+    assert.deepEqual(L.seuilsSoldeDe({}), [10, 5, 2]);
+    assert.deepEqual(L.seuilsSoldeDe({ seuilsSolde: [100, 50, 0] }), [100, 50, 0]);
+    assert.deepEqual(L.seuilsSoldeDe({ seuilsSolde: [1000, 999.5, 0.25] }), [1000, 999.5, 0.25]);
+    for (const faux of [[5, 5, 2], [2, 5, 10], [10, 5], [10, 5, 2, 1], [1001, 5, 2], [10, 5, -1], ['10', 5, 2], [10, NaN, 2], 'x', null]) assert.deepEqual(L.seuilsSoldeDe({ seuilsSolde: faux }), [10, 5, 2], JSON.stringify(faux));
+    assert.equal(L.validerSeuilsSolde([10, 5, 2]).ok, true);
+    assert.equal(L.validerSeuilsSolde([5, 5, 2]).ok, false);
+    assert.match(L.validerSeuilsSolde([2, 5, 10]).message, /diminuer/);
+  });
+  test('E2-e saisie d’un seuil : comme le prix d’un SMS, chiffres et une virgule ou un point (2 décimales), de 0 à 1 000', () => {
+    for (const [saisie, n] of [['10', 10], [' 2,5 ', 2.5], ['0', 0], ['1000', 1000], ['0.25', 0.25]]) assert.equal(L.lireSeuilSolde(saisie), n, saisie);
+    for (const faux of ['', 'abc', '-1', '1001', '1e2', '0x10', '2,555', '1 000', '10 €', '.5', null, undefined]) assert.equal(L.lireSeuilSolde(faux), null, String(faux));
+  });
+  test('E2-f le texte du lien ne vit pas dans logique.js (copié côté serveur) : aucune adresse de ClickSend', () => {
+    assert.equal(/clicksend\.com|https?:\/\/dashboard/i.test(JSON.stringify(L.MODELES_ALERTE_DEFAUT)), false);
   });
 });

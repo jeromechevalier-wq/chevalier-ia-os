@@ -142,3 +142,12 @@
 .rdv-prevision-texte { margin: 0; padding: var(--esp-4) var(--esp-5); border-radius: var(--rayon); background: var(--panneau2); border: 1px solid var(--bordure); white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
 .rdv-prevision-cout { margin: 0; color: var(--texte2); font-size: var(--fs-petit); }
 .rdv-prevision-aucun { margin: 0; padding: var(--esp-4) var(--esp-5); border-radius: var(--rayon); background: var(--retard-fond); border: 1px solid var(--retard); }
+
+/* Réglages > Prêt à passer en vrai ? : une ligne par vérification, verte, rouge ou grise (jamais la couleur seule : l'icône et la phrase disent la même chose) */
+.rdv-bilan { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--esp-3); }
+.rdv-bilan-ligne { display: flex; align-items: flex-start; gap: var(--esp-3); }
+.rdv-bilan-ligne svg { flex: none; margin-top: var(--esp-1); }
+.rdv-bilan-ligne span { overflow-wrap: anywhere; }
+.rdv-bilan-ligne.vert svg { color: var(--succes); }
+.rdv-bilan-ligne.rouge svg { color: var(--retard); }
+.rdv-bilan-ligne.gris svg { color: var(--texte2); }

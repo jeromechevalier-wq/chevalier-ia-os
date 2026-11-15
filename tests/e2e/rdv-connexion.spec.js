@@ -16,6 +16,10 @@ async function simulerServeur(page, { branche = false, peutConfigurer = true, et
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
     return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { branche, peutConfigurer } }) });
   });
+  await page.route(/cloudfunctions\.net\/rdvEnvoyer$/, (route) => { // le bilan « Prêt à passer en vrai ? » demande le solde dès que la connexion est branchée
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+    return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { branche, solde: 25, devise: 'EUR' } }) });
+  });
   await page.route(/cloudfunctions\.net\/rdvConnexionSms$/, (route) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
     const demande = JSON.parse(route.request().postData() ?? '{}').data;

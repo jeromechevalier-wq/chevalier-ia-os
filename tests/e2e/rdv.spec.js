@@ -315,7 +315,7 @@ test('12 le nombre de caractères de chaque SMS est affiché, la règle des acce
   await allerA(page, 'Réglages');
   await ouvrirSectionReglages(page, 'Rendez-vous');
   const section = page.locator('#reglages-rdv-modeles');
-  await expect(section.locator('[data-modele]')).toHaveCount(14); // six modèles des participants + huit alertes (B1)
+  await expect(section.locator('[data-modele]')).toHaveCount(15); // six modèles des participants + neuf alertes (B1, plus « solde bas »)
   for (const m of await section.locator('.rdv-modele-compte').allTextContents()) {
     expect(m).toMatch(/^\d+ caractères · [12] SMS$/); // la ligne finale (entreprise + STOP) fait passer certains modèles à 2 SMS
     expect(Number(m.split(' ')[0])).toBeLessThan(320);
@@ -369,11 +369,11 @@ test('export : Réglages > Rendez-vous > Sauvegarde télécharge un JSON avec le
   await expect(page.locator('.toast')).toContainText('Sauvegarde téléchargée');
 });
 
-test('réglages : les onze sections sont dans la page Réglages de la coque, dans l’ordre voulu', async ({ page }) => {
+test('réglages : les treize sections sont dans la page Réglages de la coque, dans l’ordre voulu', async ({ page }) => {
   await connecter(page);
   await allerA(page, 'Réglages');
   await ouvrirSectionReglages(page, 'Rendez-vous');
-  await expect(page.locator('section.carte-section h2')).toHaveText(['Relances', 'Rappel la veille', 'Plage d’envoi', 'Numéros qui reçoivent les alertes', 'Ton nom dans les SMS', 'Nom de l’entreprise dans les SMS', 'Connexion SMS (ClickSend)', 'Rôles des participants', 'Prix d’un SMS', 'Modèles de SMS', 'Sauvegarde']);
+  await expect(page.locator('section.carte-section h2')).toHaveText(['Prêt à passer en vrai ?', 'Relances', 'Rappel la veille', 'Plage d’envoi', 'Numéros qui reçoivent les alertes', 'Ton nom dans les SMS', 'Nom de l’entreprise dans les SMS', 'Connexion SMS (ClickSend)', 'Solde ClickSend', 'Rôles des participants', 'Prix d’un SMS', 'Modèles de SMS', 'Sauvegarde']);
   // B4 : le prix d'un SMS est réglable, un prix absurde est refusé, l'estimation de l'aperçu suit (premier modèle = 2 SMS, donc 2 × 0,10 €)
   await expect(page.getByLabel('Prix d’un SMS, en euros')).toHaveValue('0,0685');
   await page.getByLabel('Prix d’un SMS, en euros').fill('0x1');

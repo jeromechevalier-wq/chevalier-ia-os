@@ -103,6 +103,84 @@ async function appliquerSuites(ctx, m, maintenantMs) {
   if (Object.keys(patch).length) await donnees.majDoc(chemin(base, T.rdv, rdv.id), patch);
 }
 
+// ───────────────────────────── Alerte de solde ClickSend bas (module Rendez-vous, 15/11/2026) ─────────────────────────────
+
+/** Une alerte de solde : message d'alerte sans rendez-vous. Écrit seulement par `alerterSoldeBas` (jamais par l'écran : la porte HTTP n'expose pas cette fonction). */
+const estAlerteSoldeBas = (m) => m?.typeMessage === 'alerte' && m?.sousType === 'solde-bas' && !m?.rendezVousId && typeof m?.numero === 'string' && m.numero !== '';
+const MOTIF_ID_SOLDE = /^solde_c(\d+)_s\d+_/;
+/** Numéro d'alerte ACTIF : même définition que `alerterSoldeBas` (un numéro sans « actif » écrit compte comme actif). */
+const numerosAlerteActifs = (reglages) => (Array.isArray(reglages?.numerosAlerte) ? reglages.numerosAlerte : []).filter((n) => n && n.actif !== false && typeof n.numero === 'string' && n.numero).map((n) => n.numero);
+/**
+ * Une alerte de solde née de `alerterSoldeBas` (identifiant `solde_c<cycle>_s…` ET échéance identique à l'identifiant) : un document forgé sans ces marques n'est jamais envoyé.
+ * Rend { forme: false } (pas une de nos alertes), ou { forme: true, partir, abandonner } : `abandonner` = le numéro n'est plus un numéro d'alerte actif, il a répondu STOP, ou la recharge a ouvert un
+ * nouveau cycle (une alerte « solde bas » de l'ancien cycle serait fausse : on ne l'envoie jamais) ; `partir` = on peut l'envoyer maintenant (dans la plage d'envoi).
+ */
+function jugerAlerteSolde(m, reglages, desinscrits, maintenantMs) {
+  const cycle = MOTIF_ID_SOLDE.exec(String(m?.id ?? ''));
+  if (!estAlerteSoldeBas(m) || !cycle || m.echeance !== m.id) return { forme: false };
+  const courant = Number.isInteger(reglages?.soldeAlerte?.cycle) ? reglages.soldeAlerte.cycle : 0;
+  const abandonner = Number(cycle[1]) !== courant || !numerosAlerteActifs(reglages).includes(m.numero) || desinscrits.includes(m.numero);
+  const plage = { ...R.PARAMETRES_DEFAUT.plage, ...(reglages?.plage || {}) };
+  return { forme: true, abandonner, partir: !abandonner && R.prochaineOuverture(maintenantMs, plage) === maintenantMs };
+}
+
+/**
+ * Le solde ClickSend vient d'être lu (`solde`, en euros) : crée au plus UN SMS d'alerte par numéro d'alerte actif et par franchissement de seuil. Appelée seulement par coeur/sms-direct.js (tir planifié) :
+ * volontairement HORS de ACTIONS_RDV, donc hors de la porte HTTP (un porteur de clé ne peut pas déclencher d'alerte avec un solde de son choix).
+ * L'état (réglages > `soldeAlerte` : { cycle, seuils }) garde les seuils déjà alertés dans le cycle courant :
+ *  - plusieurs seuils franchis d'un coup = UN SMS (le plus bas) et tous marqués ; un seuil déjà alerté ne repart pas tant que le solde n'est pas remonté ;
+ *  - solde remonté au-dessus du seuil le plus haut (recharge) = état remis à zéro, nouveau cycle ; solde illisible = rien ; solde à 0 ou négatif = alerte ;
+ *  - aucun numéro d'alerte actif = rien n'est créé NI marqué (l'alerte partira quand un numéro sera actif) ; réglages absents = rien (pas de numéro non plus) ;
+ *  - les seuils modifiés après une alerte ne changent pas l'état : il garde les valeurs alertées ;
+ *  - verrou : l'identifiant du message (`solde_c<cycle>_s<seuil en centimes>_<numéro>`, créé seulement s'il n'existe pas) ; l'état n'est écrit que s'il CHANGE.
+ * Rend { statut: 'aucune' | 'alerte' | 'recharge', crees } (`crees` : messages réellement créés ; ils partent par rdv.aEnvoyer, comme les autres).
+ */
+export async function alerterSoldeBas(ctx, { solde, lien = '' } = {}) {
+  const { base, donnees } = ctx;
+  if (typeof solde !== 'number' || !Number.isFinite(solde)) return { statut: 'aucune', crees: 0 };
+  const maintenantMs = instant(ctx.maintenant);
+  const chReglages = chemin(base, T.param, 'reglages');
+  let creesTotal = 0; // cumul des deux essais éventuels : un message créé au premier essai part quand même
+  const fin = (statut) => ({ statut: creesTotal ? 'alerte' : statut, crees: creesTotal });
+  for (let essai = 0; essai < 2; essai += 1) {
+    const reglages = await donnees.lireDoc(chReglages);
+    if (!reglages) return fin('aucune');
+    const seuils = R.seuilsSoldeDe(reglages);
+    const etat = reglages.soldeAlerte && typeof reglages.soldeAlerte === 'object' ? reglages.soldeAlerte : {};
+    const cycle = Number.isInteger(etat.cycle) && etat.cycle >= 0 ? etat.cycle : 0;
+    const dejaAlertes = Array.isArray(etat.seuils) ? etat.seuils.filter((n) => typeof n === 'number' && Number.isFinite(n)) : [];
+    const franchis = seuils.filter((s) => solde < s);
+    const ecrire = async (soldeAlerte) => {
+      const r = await donnees.majDoc(chReglages, { soldeAlerte }, { lastUpdateTime: reglages.updateTime });
+      return !(r === false || PRECONDITION(r)); // un autre appel a écrit entre-temps : on relit (une seule fois) ; les messages sont idempotents
+    };
+    if (!franchis.length) {
+      if (!dejaAlertes.length) return fin('aucune');
+      if (await ecrire({ cycle: cycle + 1, seuils: [] })) return fin('recharge');
+      continue;
+    }
+    const nouveaux = franchis.filter((s) => !dejaAlertes.some((d) => Math.abs(d - s) < 0.005));
+    if (!nouveaux.length) return fin('aucune');
+    const numeros = (Array.isArray(reglages.numerosAlerte) ? reglages.numerosAlerte : []).filter((n) => n && n.actif !== false && typeof n.numero === 'string' && n.numero);
+    if (!numeros.length) return fin('aucune');
+    const seuil = Math.min(...nouveaux); // un seul SMS : le plus bas franchi
+    const sms = R.texteAlerte('solde-bas', { solde, seuil, lien }, reglages);
+    let marquer = false;
+    for (const n of numeros) {
+      const id = docIdMessage(`solde_c${cycle}_s${Math.round(seuil * 100)}_${n.id ?? n.numero}`);
+      const cree = await donnees.creerSiAbsent(chemin(base, T.msg, id), sansIndefini({
+        rendezVousId: '', participantId: '', sens: 'sortant', numero: n.numero, texte: sms.texte, caracteres: sms.caracteres, segments: sms.segments,
+        typeMessage: 'alerte', sousType: 'solde-bas', echeance: id, etatEnvoi: 'a_envoyer', essais: 0, creeLe: new Date(maintenantMs),
+      }));
+      if (cree) { creesTotal += 1; marquer = true; } else if (['a_envoyer', 'reserve', 'echec', 'envoye'].includes((await donnees.lireDoc(chemin(base, T.msg, id)))?.etatEnvoi)) marquer = true; // état perdu : seuil déjà alerté (message en attente ou parti), on le re-marque ; un message abandonné ne marque rien
+    }
+    if (!marquer) return fin('aucune'); // aucun message créé ni trouvé en attente : rien n'est marqué (l'alerte ne devient jamais muette)
+    const tous = [...dejaAlertes, ...franchis.filter((s) => !dejaAlertes.some((d) => Math.abs(d - s) < 0.005))];
+    if (await ecrire({ cycle, seuils: tous })) return { statut: 'alerte', crees: creesTotal };
+  }
+  return fin('aucune');
+}
+
 export const ACTIONS_RDV = Object.freeze({
   'rdv.aEnvoyer': {
     ecrit: true,
@@ -131,10 +209,19 @@ export const ACTIONS_RDV = Object.freeze({
       for (const etatEnvoi of ['a_envoyer', 'echec', 'reserve']) {
         for (const m of await ctx.donnees.listerPar(chemin(ctx.base, T.msg), 'etatEnvoi', etatEnvoi, { limite: 200 })) {
           if (aEnvoyer.length >= limite) break;
-          if (m.manuel !== true || m.sens === 'entrant') continue;
+          if (m.sens === 'entrant') continue;
+          // Alerte de solde (aucun rendez-vous), créée par `alerterSoldeBas` : part vers le numéro d'alerte écrit dans le message (jamais détourné vers le numéro de test), seulement dans la plage d'envoi.
+          const alerte = m.manuel === true ? { forme: false } : jugerAlerteSolde(m, parametres, desinscrits, maintenantMs);
+          if (alerte.forme && alerte.abandonner) {
+            if (m.etatEnvoi !== 'reserve') await ctx.donnees.majDoc(chemin(ctx.base, T.msg, m.id), { etatEnvoi: 'abandonne', reserveJusqua: null, envoyeLe: new Date(maintenantMs), erreur: 'Alerte de solde abandonnée (recharge, numéro retiré ou STOP)' }, { lastUpdateTime: m.updateTime });
+            continue;
+          }
+          if (alerte.forme && !alerte.partir) continue; // hors plage d'envoi : elle attend l'ouverture
+          const soldeBas = alerte.forme;
+          if (m.manuel !== true && !soldeBas) continue;
           const rdv = m.rendezVousId ? await ctx.donnees.lireDoc(chemin(ctx.base, T.rdv, m.rendezVousId)) : null;
-          if (!rdv) continue; // rendez-vous introuvable : on n'envoie rien (jamais un SMS « test » vers un vrai numéro)
-          const numero = R.numeroCible(m.numero, { test: rdv.test === true || m.test === true }, parametres);
+          if (!rdv && !soldeBas) continue; // rendez-vous introuvable : on n'envoie rien (jamais un SMS « test » vers un vrai numéro)
+          const numero = soldeBas ? m.numero : R.numeroCible(m.numero, { test: rdv.test === true || m.test === true }, parametres);
           if (!numero || desinscrits.includes(m.numero)) continue;
           if (!(await reserver(ctx, m.id, null, maintenantMs))) continue;
           aEnvoyer.push({ messageId: m.id, rendezVousId: m.rendezVousId, numero, texte: m.texte, caracteres: m.caracteres, segments: m.segments, typeMessage: m.typeMessage });

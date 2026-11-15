@@ -2,20 +2,22 @@
 // Tout en mémoire : ni Firebase ni réseau, ni ClickSend. La sortie d'envoi (coeur/sms-direct.js, testé à part dans sms-direct.test.js) est remplacée par une fausse sortie qui note ce qu'elle reçoit.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
-import { etatEnvoi, envoyerPropositions, envoyerSms, ErreurRdvEnvoi, MESSAGE_RDV_NON_BRANCHE } from '../functions/src/coeur/rdv-envoi.js';
+import { lireSoldeEnvoi, etatEnvoi, envoyerPropositions, envoyerSms, ErreurRdvEnvoi, MESSAGE_RDV_NON_BRANCHE } from '../functions/src/coeur/rdv-envoi.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { ErreurSortieSms, nomDuSecret } from '../functions/src/coeur/sms-direct.js';
 import { creerAppelRdvEnvoyer, creerAppelRdvEtat } from '../functions/src/rdv-appel.js';
+import { ADMINISTRATEURS } from '../js/os/administrateur.js';
 import { envoyerRdv, etatRdv } from '../functions-plateforme/src/rdv.js';
 
 const T0 = new Date('2026-11-16T10:00:00Z');
 const FUTUR = [new Date(T0.getTime() + 4 * 86400000).toISOString()];
 
-function fauxSortie({ branche = true, panne = false, bilan = undefined } = {}) {
+function fauxSortie({ branche = true, panne = false, bilan = undefined, solde = 12.5, panneSolde = false } = {}) {
   const appels = [];
   return {
     appels,
     brancheRdv: async () => branche,
+    lireSolde: async (espace) => { if (panneSolde) throw new Error('boum'); appels.push({ espace, lecture: 'solde' }); return { branche, solde: branche ? solde : null, devise: branche ? 'EUR' : '', cle: 'jamais-rendue' }; },
     tirerRdv: async (espace, params) => { if (panne) throw new ErreurSortieSms('indisponible', 'L’envoi n’a pas abouti.'); appels.push({ espace, params }); return bilan; },
   };
 }
@@ -185,5 +187,46 @@ describe('fonctions appelables chez les clients', () => {
   });
   test('une demande sans connexion vérifiée est refusée', async () => {
     await assert.rejects(() => envoyerRdv({ db, auth: undefined, donnees: { client: 'atelier', action: 'propositions', rendezVousId: 'r1' }, sortie: fauxSortie(), creerDonnees: acces }), (e) => e.code === 'unauthenticated');
+  });
+});
+
+describe('solde ClickSend pour le bilan « Prêt à passer en vrai ? » (action « solde » de rdvEnvoyer)', () => {
+  const jeton = (email, verifie = true) => ({ auth: { uid: 'u', token: { email, email_verified: verifie } } });
+  test('E1-16 lireSoldeEnvoi : { branche, solde, devise } seulement (aucune autre clé de la sortie ne passe) ; non branché ou panne = « indisponible », jamais une erreur', async () => {
+    assert.deepEqual(await lireSoldeEnvoi({ sortie: fauxSortie({ solde: 4.5 }), espace: 'interne' }), { branche: true, solde: 4.5, devise: 'EUR' });
+    assert.deepEqual(await lireSoldeEnvoi({ sortie: fauxSortie({ branche: false }), espace: 'interne' }), { branche: false, solde: null, devise: '' });
+    assert.deepEqual(await lireSoldeEnvoi({ sortie: fauxSortie({ panneSolde: true }), espace: 'interne' }), { branche: false, solde: null, devise: '' });
+    assert.deepEqual(await lireSoldeEnvoi({ sortie: { lireSolde: async () => ({ branche: true, solde: 'beaucoup', devise: 7 }) }, espace: 'interne' }), { branche: true, solde: null, devise: '' });
+  });
+  test('E1-17 chez Jérôme : un compte autorisé lit le solde ; un autre compte, un compte non vérifié ou sans connexion sont refusés ; le journal ne reçoit ni le solde ni un identifiant', async () => {
+    const journaux = [];
+    const sortie = fauxSortie({ solde: 12.5 });
+    const appel = creerAppelRdvEnvoyer({ donnees: () => creerAccesMemoire(base()), sortie, comptes: ['jerome@exemple.test'], journal: (e) => journaux.push(e), maintenant: () => T0.getTime() });
+    assert.deepEqual(await appel({ ...jeton('jerome@exemple.test'), data: { action: 'solde' } }), { branche: true, solde: 12.5, devise: 'EUR' });
+    assert.deepEqual(sortie.appels, [{ espace: 'interne', lecture: 'solde' }]);
+    for (const requete of [jeton('autre@exemple.test'), jeton('jerome@exemple.test', false), {}]) await assert.rejects(() => appel({ ...requete, data: { action: 'solde' } }), (e) => ['permission-denied', 'unauthenticated'].includes(e.code));
+    assert.ok(!JSON.stringify(journaux).includes('12.5'), 'le journal ne reçoit pas le solde');
+    assert.equal(sortie.appels.length, 1, 'aucune lecture pour les comptes refusés');
+  });
+  test('E1-18 chez un client : un éditeur lit le solde DE SON espace ; un lecteur, un non-membre, un module inactif et « interne » : refus neutre, aucune lecture', async () => {
+    const fauxFirestore = (membres, fiches) => ({ doc: (chemin) => ({ get: async () => {
+      const m = /^clients\/([^/]+)\/membres\/(.+)$/.exec(chemin);
+      const donnee = m ? membres[`${m[1]}/${m[2]}`] : fiches[chemin.replace(/^clients\//, '')];
+      return { exists: Boolean(donnee), get: (champ) => donnee?.[champ] };
+    } }) });
+    const db = fauxFirestore({ 'atelier/ed@exemple.test': { role: 'editeur' }, 'atelier/lec@exemple.test': { role: 'lecteur' }, 'sansrdv/ed@exemple.test': { role: 'editeur' } }, { atelier: { modules: { rdv: true } }, sansrdv: { modules: { devis: true } } });
+    const auth = (email) => ({ uid: 'u', token: { email, email_verified: true } });
+    const sortie = fauxSortie({ solde: 33 });
+    assert.deepEqual(await envoyerRdv({ db, auth: auth('ed@exemple.test'), donnees: { client: 'atelier', action: 'solde' }, sortie }), { branche: true, solde: 33, devise: 'EUR' });
+    assert.deepEqual(sortie.appels, [{ espace: 'atelier', lecture: 'solde' }]);
+    for (const [email, client] of [['lec@exemple.test', 'atelier'], ['inconnu@exemple.test', 'atelier'], ['ed@exemple.test', 'sansrdv'], ['ed@exemple.test', 'interne'], ['ed@exemple.test', 'absent']]) {
+      await assert.rejects(() => envoyerRdv({ db, auth: auth(email), donnees: { client, action: 'solde' }, sortie }), (e) => e.message === 'Action non autorisée.', `${email} ${client}`);
+    }
+    assert.equal(sortie.appels.length, 1, 'aucune lecture pour les refusés');
+  });
+  test('E1-19 le solde ne passe PAS par rdvConnexionSms (réservé à Jérôme) : l’action « solde » y est refusée même pour lui', async () => {
+    const { connexionRdv } = await import('../functions-plateforme/src/rdv.js');
+    const JEROME = { uid: 'j', token: { email: ADMINISTRATEURS[0], email_verified: true } };
+    await assert.rejects(() => connexionRdv({ auth: JEROME, donnees: { client: 'atelier', action: 'solde' }, connexion: { etat: async () => { throw new Error('ne doit pas être appelé'); } }, modulesActifs: async () => ['rdv'] }), (e) => e.code !== undefined);
   });
 });
