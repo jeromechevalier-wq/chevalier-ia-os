@@ -37,6 +37,17 @@ Aujourd'hui « Préparer l'e-mail » fait créer par n8n un **brouillon Gmail** 
 3. Avant de construire A : un client Microsoft 365 réel (ou un compte d'essai) pour tester ; et savoir s'il accepte de donner l'autorisation une fois (OAuth) ou s'il faut un administrateur de chez lui.
 4. À vérifier plus tard sur notre n8n (pas faisable avec les outils de cette recherche) : les modules autorisés dans le nœud Code (piste D) et la présence de nœuds communautaires (piste F).
 
+## Décision de Jérôme du 15/11/2026 : boîte non-Gmail = envoi à soi-même par SMTP
+
+Test fait sur le n8n de Jérôme, avec une boîte Hostinger (SMTP `smtp.hostinger.com`, port 465, SSL/TLS) : le nœud natif **« Send Email »** envoie un mail avec un PDF joint, sans code ni réglage serveur. Le mail est arrivé dans la boîte avec le PDF.
+
+- **Ce qu'on retient pour un client sans Gmail ni Outlook** : n8n envoie le mail préparé **à la boîte du client lui-même** (jamais à son destinataire final). Le client le relit et le transfère. Ce n'est **pas un brouillon**, c'est un vrai message dans sa boîte de réception. Ce point précise la règle « l'appli n'envoie jamais » : l'envoi ne part que vers le client lui-même.
+- **Écartées par Jérôme** : le nœud Code avec une bibliothèque IMAP (piste D : modules refusés sur notre n8n, accès aux variables d'environnement bloqué, trop de réglages serveur pour un « presque code »), et la piste G (`.eml` / `mailto:`, « trop sortir de l'application »). La piste E (dépôt IMAP dans notre serveur, pour un vrai brouillon) reste possible plus tard, seulement si un client y tient.
+- **Vérifié le 15/11/2026 sur notre n8n** : les modules `imapflow` et `nodemailer` sont « disallowed » dans le nœud Code, et `$env` est refusé (« access to env vars denied »). Cela confirme que la piste D demande de toucher à la configuration du serveur n8n.
+- **Pas encore fait** : le vrai « Préparer l'e-mail » des clients n'a pas changé. Brancher cette voie = une copie du workflow actuel avec « Send Email » à la place du nœud Gmail, et un choix par client (Gmail, Outlook ou SMTP). Chantier à ouvrir quand un client non-Gmail en a besoin.
+- **À prévoir par client** : un identifiant SMTP créé dans n8n avec les réglages de SA boîte (le mot de passe reste dans n8n, jamais dans le dépôt). **Non testé : OVH** (serveur et port à lire dans l'espace OVH du client, souvent `ssl0.ovh.net`).
+- **Limite connue** : un mail envoyé d'une boîte vers elle-même peut finir en courrier indésirable chez certains fournisseurs.
+
 ## Rappels de sécurité
 
 - Les identifiants du client (connexion Microsoft, SMTP, IMAP) vivent **seulement dans les identifiants n8n** (ou Secret Manager pour un service à nous), **jamais dans le dépôt**.
