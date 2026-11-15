@@ -374,15 +374,18 @@ describe('sortie.lireSolde : cache de 60 secondes par espace', () => {
     assert.equal((await eteint.sms.lireSolde('demo')).branche, false);
     assert.equal(eteint.compte.appels.length, 0);
   });
-  test('E1-7 appels en même temps : une seule lecture ; ClickSend indisponible = solde null (mis en cache aussi : « Actualiser » ne martèle pas)', async () => {
+  test('E1-7 appels en même temps : une seule lecture ; une lecture ÉCHOUÉE n’est pas gardée (« Actualiser » juste après une panne passagère relit vraiment)', async () => {
     const m = monde(); m.compte.reponse = COMPTE_EUR('7.000000');
     const [a, b] = await Promise.all([m.sms.lireSolde('interne'), m.sms.lireSolde('interne')]);
     assert.equal(a.solde, 7); assert.equal(b.solde, 7);
     assert.equal(m.compte.appels.length, 1);
     const panne = monde();
     assert.deepEqual(await panne.sms.lireSolde('interne'), { branche: true, solde: null, devise: '' });
+    panne.compte.reponse = COMPTE_EUR('3.000000');
+    assert.equal((await panne.sms.lireSolde('interne')).solde, 3, 'la panne n’est pas restée en cache');
+    assert.equal(panne.compte.appels.length, 2);
     await panne.sms.lireSolde('interne');
-    assert.equal(panne.compte.appels.length, 1);
+    assert.equal(panne.compte.appels.length, 2, 'une lecture réussie, elle, reste en cache 60 s');
   });
 });
 
@@ -462,13 +465,29 @@ describe('tir planifié : lecture du solde et alerte', () => {
     assert.equal(b.envoyes, 1);
     assert.equal(b.alertesSolde, undefined);
   });
+  test('E1-16 la lecture du solde du tir est limitée au temps réservé dans le budget (DELAI_SOLDE_MS) ; l’écran garde le délai normal', async () => {
+    const source = readFileSync(new URL('../functions/src/coeur/sms-direct.js', import.meta.url), 'utf8');
+    assert.match(source, /lireSoldeEspace\(espace, \{ delaiMs: DELAI_SOLDE_MS \}\)/);
+    assert.match(source, /lireSoldeEspace\(espace, \{ delaiMs = 10_000 \} = \{\}\)/);
+    const m = monde(); m.compte.reponse = COMPTE_EUR('9.000000');
+    await plan(m);
+    assert.ok(m.compte.appels[0].options.signal, 'la lecture porte un signal d’abandon');
+  });
+  test('E1-17 le solde n’est lu qu’après un tir sans arrêt, ou arrêté par le crédit ou le temps : clé, compte non activé, expéditeur ou limitation = aucune lecture', async () => {
+    for (const statut of ['INVALID_CREDENTIALS', 'MISSING_CREDENTIALS', 'THROTTLED', 'ACCOUNT_NOT_ACTIVATED', 'INVALID_SENDER_ID', 'USAGE_LIMIT_EXCEEDED']) {
+      const m = monde({ reponses: () => REPONSE_STATUT(statut) }); m.compte.reponse = COMPTE_EUR('1.000000'); m.semer();
+      assert.ok((await plan(m)).arret, statut);
+      assert.equal(m.compte.appels.length, 0, statut);
+    }
+  });
   test('E1-15 les deux filets planifiés demandent le solde : functions/src/index.js et tirerPourTous (plateforme) passent avecSolde', async () => {
     const source = readFileSync(new URL('../functions/src/index.js', import.meta.url), 'utf8');
     assert.match(source, /smsDirect\.tirer\('interne', \{ budgetMs: 200_000, avecSolde: true \}\)/);
     const options = [];
-    const sortie = { tirer: async (client, o) => { options.push(o); return { branche: true, envoyes: 0, echecs: 0, incertains: 0, restants: 0 }; } };
+    const sortie = { tirer: async (client, o) => { options.push(o); return { branche: true, envoyes: 0, echecs: 0, incertains: 0, restants: 0, alertesSolde: 2 }; } };
     const db = { collection: () => ({ get: async () => ({ docs: [{ id: 'demo' }] }) }) };
-    await tirerPourTous({ db, sortie, modulesActifs: async () => ['rdv'], maintenant: () => T0 });
+    const bilan = await tirerPourTous({ db, sortie, modulesActifs: async () => ['rdv'], maintenant: () => T0 });
+    assert.equal(bilan.alertesSolde, 2, 'le bilan des clients compte les alertes de solde (sans secret)');
     assert.equal(options.length, 1); assert.equal(options[0].avecSolde, true);
   });
 });

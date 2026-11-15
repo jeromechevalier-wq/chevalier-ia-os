@@ -558,6 +558,59 @@ describe('alerte de solde ClickSend bas (alerterSoldeBas) : seuils, idempotence,
       assert.equal((await n.action('rdv.aEnvoyer')).nombre, 0, JSON.stringify(forge));
     }
   });
+  test('E2-13 une alerte FORGÉE (identifiant ou échéance sans les marques d’alerte-solde, ou numéro qui n’est pas un numéro d’alerte actif) n’est jamais envoyée', async () => {
+    const base = { v: 1, d: { sens: 'sortant', numero: '+33600000009', texte: 'Faux', caracteres: 4, segments: 1, typeMessage: 'alerte', sousType: 'solde-bas', rendezVousId: '', etatEnvoi: 'a_envoyer' } };
+    const m = monde();
+    m.base.docs.set('rdv_messages/forge1', { ...base });                                                                 // identifiant quelconque
+    m.base.docs.set('rdv_messages/solde_c0_s500_x', { v: 1, d: { ...base.d, echeance: 'autre' } });                        // échéance différente de l'identifiant
+    m.base.docs.set('rdv_messages/solde_c0_s500_y', { v: 1, d: { ...base.d, echeance: 'solde_c0_s500_y' } });              // bonne forme, numéro absent des numéros d'alerte
+    m.base.docs.set('rdv_messages/solde_c0_s500_z', { v: 1, d: { ...base.d, echeance: 'solde_c0_s500_z', numero: '+33700000001' } }); // la bonne forme ET un vrai numéro d'alerte : part
+    const r = await m.action('rdv.aEnvoyer');
+    assert.deepEqual(r.messages.map((x) => x.messageId), ['solde_c0_s500_z']);
+    assert.equal(m.base.docs.get('rdv_messages/forge1').d.etatEnvoi, 'a_envoyer', 'un faux sans marque est ignoré (rien de réécrit)');
+    assert.equal(m.base.docs.get('rdv_messages/solde_c0_s500_y').d.etatEnvoi, 'abandonne', 'numéro retiré des numéros d’alerte : abandonné proprement');
+  });
+  test('E2-14 alerte périmée : après la recharge (nouveau cycle), une alerte « solde bas » encore à envoyer n’est JAMAIS envoyée ; elle est abandonnée', async () => {
+    const m = monde();
+    await alerte(m, 0); // crédit épuisé : alerte créée, pas partie
+    assert.equal(messagesSolde(m).length, 1);
+    assert.equal((await alerte(m, 40)).statut, 'recharge');
+    const r = await m.action('rdv.aEnvoyer');
+    assert.equal(r.nombre, 0, 'aucun « solde bas 0,00 EUR » après la recharge');
+    assert.equal(messagesSolde(m)[0].etatEnvoi, 'abandonne');
+    await alerte(m, 4);
+    assert.equal((await m.action('rdv.aEnvoyer')).nombre, 1, 'la nouvelle baisse (cycle 1) part, elle');
+  });
+  test('E2-15 l’alerte respecte la plage d’envoi : à 3 h du matin elle attend, à l’ouverture elle part', async () => {
+    const m = monde();
+    m.temps.t = Date.parse('2026-11-16T02:00:00Z'); // 3 h à Paris
+    await alerte(m, 4);
+    assert.equal((await m.action('rdv.aEnvoyer')).nombre, 0);
+    assert.equal(messagesSolde(m)[0].etatEnvoi, 'a_envoyer', 'elle attend, rien n’est perdu');
+    m.temps.t = T0; // 11 h
+    assert.equal((await m.action('rdv.aEnvoyer')).nombre, 1);
+  });
+  test('E2-16 un numéro qui a répondu STOP : l’alerte est abandonnée proprement (elle ne reste pas « à envoyer » à vie)', async () => {
+    const m = monde();
+    await alerte(m, 4);
+    m.base.docs.set('rdv_parametres/desinscrits', { d: { numeros: ['+33700000001'] }, v: 1 });
+    assert.equal((await m.action('rdv.aEnvoyer')).nombre, 0);
+    assert.equal(messagesSolde(m)[0].etatEnvoi, 'abandonne');
+  });
+  test('E2-17 état perdu : le message existe déjà (en attente ou parti) : le seuil est re-marqué sans nouveau SMS ; message abandonné : rien n’est marqué', async () => {
+    const m = monde();
+    await alerte(m, 4);
+    delete m.base.docs.get('rdv_parametres/reglages').d.soldeAlerte; // l'état disparaît (écrasement du document de réglages)
+    assert.equal((await alerte(m, 4)).crees, 0);
+    assert.equal(messagesSolde(m).length, 1, 'pas de second SMS');
+    assert.ok(etat(m), 'le seuil est de nouveau marqué (le message existe, en attente ou parti)');
+    const n = monde();
+    await alerte(n, 4);
+    for (const [, x] of n.base.docs) if (x.d.sousType === 'solde-bas') x.d.etatEnvoi = 'abandonne';
+    delete n.base.docs.get('rdv_parametres/reglages').d.soldeAlerte;
+    assert.equal((await alerte(n, 4)).statut, 'aucune');
+    assert.equal(etat(n), undefined, 'message abandonné : rien n’est marqué');
+  });
   test('E2-12 l’alerte n’est PAS une action de la porte : un porteur de clé ne peut pas en déclencher une avec un solde de son choix', () => {
     assert.equal(Object.keys(ACTIONS_RDV).filter((k) => /solde/i.test(k)).length, 0);
     assert.deepEqual(Object.keys(ACTIONS_RDV).sort(), ['rdv.aEnvoyer', 'rdv.confirmerEnvoi', 'rdv.enregistrerReponse', 'rdv.libererEnvoi']);

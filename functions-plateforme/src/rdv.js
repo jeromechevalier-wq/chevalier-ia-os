@@ -41,10 +41,10 @@ export async function envoyerRdv({ db, auth, donnees, sortie, maintenant = Date.
 /**
  * Filet planifié (toutes les 15 minutes) : envoie les SMS dus de CHAQUE client dont le module « rdv » est actif et dont la connexion ClickSend existe.
  * Un client en panne n'arrête pas les autres ; le temps total reste sous celui de la fonction (`dureeMaxMs`, 270 s sur 300 s) : chaque client reçoit un budget borné, et les clients restants
- * sont repris au tour suivant. Rend un bilan sans donnée sensible : { clients, branches, envoyes, echecs, incertains, restants, arrets: [{ code }], interrompu }.
+ * sont repris au tour suivant. Rend un bilan sans donnée sensible : { clients, branches, envoyes, echecs, incertains, restants, alertesSolde, arrets: [{ code }], interrompu }.
  */
 export async function tirerPourTous({ db, sortie, modulesActifs, maintenant = Date.now, dureeMaxMs = 270_000, budgetClientMs = 90_000, margeMs = 20_000 }) {
-  const bilan = { clients: 0, branches: 0, envoyes: 0, echecs: 0, incertains: 0, restants: 0, arrets: [], interrompu: false };
+  const bilan = { clients: 0, branches: 0, envoyes: 0, echecs: 0, incertains: 0, restants: 0, alertesSolde: 0, arrets: [], interrompu: false };
   const debut = maintenant();
   // Rotation : le point de départ change à chaque quart d'heure, pour qu'un client lent ne prive jamais toujours les mêmes clients de leur tour.
   const docs = (await db.collection('clients').get()).docs;
@@ -62,6 +62,7 @@ export async function tirerPourTous({ db, sortie, modulesActifs, maintenant = Da
       bilan.envoyes += r.envoyes;
       bilan.echecs += r.echecs;
       bilan.incertains += r.incertains;
+      bilan.alertesSolde += r.alertesSolde ?? 0;
       bilan.restants += r.restants;
       if (r.arret) { bilan.arrets.push({ code: r.arret }); logger.warn('Rendez-vous : tir arrêté pour un client', { code: r.arret }); } // jamais le nom du client dans le journal : le code suffit à savoir quoi corriger
     } catch (e) {

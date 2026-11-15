@@ -82,6 +82,18 @@ function lienAideClickSendAutorise(url, fichier) {
   return Object.hasOwn(LIENS_CLICKSEND_AUTORISES, url) && LIENS_CLICKSEND_AUTORISES[url] === fichier;
 }
 
+describe('D2b les liens ClickSend de Réglages > Rendez-vous ne sont que des liens affichés', () => {
+  test('D2b reglages.js : aucun fetch( ni import( ; chaque constante de lien ne sert que dans lienExterne, l’aperçu des alertes ou l’exemple du modèle', () => {
+    const source = lire('js/modules/rdv/reglages.js');
+    assert.doesNotMatch(source, /\bfetch\s*\(|\bimport\s*\(|XMLHttpRequest|sendBeacon/);
+    for (const nom of ['LIEN_RECHARGE_CLICKSEND', 'LIEN_REGLES_SMS_ENTRANTS']) {
+      const usages = source.split('\n').filter((l) => l.includes(nom) && !new RegExp(`^(?:const|let) ${nom} =`).test(l.trim()) && !/^\s*\/\//.test(l));
+      assert.ok(usages.length > 0, nom);
+      for (const l of usages) assert.match(l, /lienExterne\(|lienRecharge: |lien: type === 'alerte-solde-bas'|\{ href: /, `${nom} : ${l.trim().slice(0, 120)}`);
+    }
+  });
+});
+
 describe('D2 Aucune ressource externe hors Google', () => {
   test('D2 exception du lien d’aide ClickSend : l’adresse exacte, dans un seul fichier ; ailleurs ou prolongée, elle reste refusée', () => {
     const lien = 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms';

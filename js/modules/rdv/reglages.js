@@ -102,44 +102,61 @@ export function reglages(page) {
   const lienExterne = (adresse, texte, role) => h('a', { href: adresse, target: '_blank', rel: 'noopener noreferrer', dataset: { role } }, texte);
   redessinerBilan = carte(page, 'reglages-rdv-bilan', 'Prêt à passer en vrai ?', () => {
     const p = D.parametres();
-    const branche = D.envoiBranche();
     const peutLire = !lecteur();
+    const branche = D.envoiBranche();
+    const panne = peutLire && D.etatEnvoiEnErreur(); // la question « branché ? » a échoué : on ne sait pas (ce n'est PAS « pas branché »)
     const seuilHaut = R.seuilsSoldeDe(p)[0];
     const grise = 'Indisponible avec ton compte (lecture seule).';
+    const impossible = 'Vérification impossible pour le moment. Clique sur « Actualiser ».';
     const manque = D.peutConfigurerConnexion() === false ? 'La connexion ClickSend n’est pas encore enregistrée : l’administrateur de la plateforme doit la saisir.' : 'Enregistre d’abord la connexion ClickSend.';
-    if (peutLire && branche === true && solde.etat === 'attente') chargerSolde();
+    if (peutLire && !panne && branche === true && solde.etat === 'attente') chargerSolde();
     const cases = [];
+    const enAttente = []; // cases en cours de lecture : pas de décompte provisoire
     // 1. connexion
-    if (!peutLire) cases.push(caseBilan('connexion', 'gris', grise));
-    else if (branche === null) cases.push(caseBilan('connexion', 'gris', 'Vérification de la connexion ClickSend…'));
-    else cases.push(branche ? caseBilan('connexion', 'vert', 'La connexion ClickSend est enregistrée.') : caseBilan('connexion', 'rouge', manque));
-    // 2. adresse des réponses (se déduit de « branché » : l'adresse contient un code secret, elle n'est jamais écrite ici)
-    if (!peutLire) cases.push(caseBilan('adresse', 'gris', grise));
-    else if (branche === null) cases.push(caseBilan('adresse', 'gris', 'Vérification de l’adresse des réponses…'));
-    else if (branche) cases.push(caseBilan('adresse', 'vert', 'L’adresse des réponses existe (elle est créée avec la connexion). À vérifier chez ClickSend : elle doit être collée dans la règle « SMS entrants ». ', lienExterne(LIEN_REGLES_SMS_ENTRANTS, 'Ouvrir les règles de ClickSend', 'bilan-lien-reponses')));
-    else cases.push(caseBilan('adresse', 'rouge', manque));
+    if (!peutLire) cases.push(caseBilan('connexion', 'gris', 'Connexion ClickSend : ', grise));
+    else if (panne) cases.push(caseBilan('connexion', 'gris', 'Connexion ClickSend : ', impossible));
+    else if (branche === null) { enAttente.push('connexion'); cases.push(caseBilan('connexion', 'gris', 'Connexion ClickSend : ', 'vérification…')); }
+    else cases.push(branche ? caseBilan('connexion', 'vert', 'Connexion ClickSend : ', 'enregistrée.') : caseBilan('connexion', 'rouge', 'Connexion ClickSend : ', manque));
+    // 2. adresse des réponses : se déduit de « branché » et ne vérifie RIEN de plus (elle se contrôle chez ClickSend) : jamais verte, ne compte pas dans « tout est vert ». Elle n'est jamais écrite ici (elle contient un code secret).
+    if (!peutLire) cases.push(caseBilan('adresse', 'gris', 'Adresse des réponses : ', grise));
+    else if (panne) cases.push(caseBilan('adresse', 'gris', 'Adresse des réponses : ', impossible));
+    else if (branche === null) { enAttente.push('adresse'); cases.push(caseBilan('adresse', 'gris', 'Adresse des réponses : ', 'vérification…')); }
+    else if (branche) cases.push(caseBilan('adresse', 'gris', 'Adresse des réponses : ', 'à vérifier chez ClickSend (elle est créée avec la connexion ; elle doit être collée dans la règle « SMS entrants »). ', lienExterne(LIEN_REGLES_SMS_ENTRANTS, 'Ouvrir les règles de ClickSend', 'bilan-lien-reponses')));
+    else cases.push(caseBilan('adresse', 'rouge', 'Adresse des réponses : ', manque));
     // 3. numéro de test
-    cases.push(p.numeroTest ? caseBilan('numero-test', 'vert', `Le numéro de test est renseigné (${R.afficherTelephone(p.numeroTest)}).`)
-      : caseBilan('numero-test', 'rouge', 'Aucun numéro de test : un rendez-vous de test n’enverrait rien. Renseigne-le dans « Numéros qui reçoivent les alertes ».'));
+    cases.push(p.numeroTest ? caseBilan('numero-test', 'vert', 'Numéro de test : ', `renseigné (${R.afficherTelephone(p.numeroTest)}).`)
+      : caseBilan('numero-test', 'rouge', 'Numéro de test : ', 'aucun, un rendez-vous de test n’enverrait rien. Renseigne-le dans « Numéros qui reçoivent les alertes ».'));
     // 4. mode test (celui de toute l'appli, par navigateur)
     cases.push(modeTestAllume()
-      ? caseBilan('mode-test', 'rouge', 'Le mode test est allumé : les SMS partent vers ton numéro de test. Éteins-le pour de vrais rendez-vous (menu, mode test). Les rendez-vous déjà marqués « test » le restent : ils n’enverront jamais rien à un vrai participant.')
-      : caseBilan('mode-test', 'vert', 'Le mode test est éteint : les nouveaux rendez-vous envoient aux vrais participants. Les rendez-vous déjà marqués « test » le restent.'));
+      ? caseBilan('mode-test', 'rouge', 'Mode test : ', 'allumé. Les rendez-vous créés pendant le mode test envoient leurs SMS vers ton numéro de test. Éteins-le pour de vrais rendez-vous. Les rendez-vous déjà marqués « test » restent en test ; les anciens rendez-vous non test envoient toujours aux vrais participants.')
+      : caseBilan('mode-test', 'vert', 'Mode test : ', 'éteint. Les nouveaux rendez-vous envoient aux vrais participants. Les rendez-vous déjà marqués « test » le restent.'));
     // 5. solde
-    if (!peutLire) cases.push(caseBilan('solde', 'gris', grise));
-    else if (branche === null || (branche && (solde.etat === 'attente' || solde.etat === 'chargement') && solde.valeur === null)) cases.push(caseBilan('solde', 'gris', 'Lecture du solde ClickSend…'));
-    else if (!branche) cases.push(caseBilan('solde', 'rouge', manque));
-    else if (solde.etat === 'indisponible' || typeof solde.valeur !== 'number') cases.push(caseBilan('solde', 'gris', 'Solde indisponible pour le moment (ClickSend n’a pas répondu, ou le compte n’est pas en euros). Regarde-le sur ton compte ClickSend.'));
-    else if (solde.valeur >= seuilHaut) cases.push(caseBilan('solde', 'vert', `Solde ClickSend : ${R.formaterEuros(solde.valeur)}, au-dessus de ton seuil le plus haut (${R.formaterSeuil(seuilHaut)} €).`));
-    else cases.push(caseBilan('solde', 'rouge', `Solde ClickSend : ${R.formaterEuros(solde.valeur)}, sous ton seuil le plus haut (${R.formaterSeuil(seuilHaut)} €). Recharge ton compte : `, lienExterne(LIEN_RECHARGE_CLICKSEND, 'Recharger sur ClickSend', 'bilan-lien-recharge')));
-    // 6. numéro d'alerte
-    const nbAlertes = p.numerosAlerte.filter((n) => n && n.actif && n.numero).length;
-    cases.push(nbAlertes ? caseBilan('alertes', 'vert', `${nbAlertes === 1 ? 'Un numéro reçoit' : `${nbAlertes} numéros reçoivent`} les alertes.`)
-      : caseBilan('alertes', 'rouge', 'Aucun numéro actif pour les alertes : tu ne seras pas prévenue (réponse non comprise, STOP, solde bas…).'));
-    const verts = cases.filter((c) => c.dataset.etat === 'vert').length;
-    const resume = cases.every((c) => c.dataset.etat === 'vert') ? 'Tout est vert : tu peux passer en vrai.' : `${verts} vérification${verts > 1 ? 's' : ''} sur ${cases.length} au vert.`;
-    const actualiser = peutLire && branche === true
-      ? h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'actualiser-bilan', disabled: solde.etat === 'chargement', onclick: () => { solde.etat = 'attente'; chargerSolde(); redessinerBilan(); } }, icone('refresh-cw', { taille: 16 }), 'Actualiser') : null;
+    if (!peutLire) cases.push(caseBilan('solde', 'gris', 'Solde : ', grise));
+    else if (panne) cases.push(caseBilan('solde', 'gris', 'Solde : ', impossible));
+    else if (branche === null || (branche && (solde.etat === 'attente' || solde.etat === 'chargement') && solde.valeur === null)) { enAttente.push('solde'); cases.push(caseBilan('solde', 'gris', 'Solde : ', 'lecture chez ClickSend…')); }
+    else if (!branche) cases.push(caseBilan('solde', 'rouge', 'Solde : ', manque));
+    else if (solde.etat === 'indisponible' || typeof solde.valeur !== 'number') cases.push(caseBilan('solde', 'gris', 'Solde : ', 'indisponible pour le moment (ClickSend n’a pas répondu, ou le compte n’est pas en euros). Regarde-le sur ton compte ClickSend.'));
+    else if (solde.valeur >= seuilHaut) cases.push(caseBilan('solde', 'vert', 'Solde : ', `${R.formaterEuros(solde.valeur)} chez ClickSend, au-dessus de ton seuil le plus haut (${R.formaterSeuil(seuilHaut)} €).`));
+    else cases.push(caseBilan('solde', 'rouge', 'Solde : ', `${R.formaterEuros(solde.valeur)} chez ClickSend, sous ton seuil le plus haut (${R.formaterSeuil(seuilHaut)} €). Recharge ton compte : `, lienExterne(LIEN_RECHARGE_CLICKSEND, 'Recharger sur ClickSend', 'bilan-lien-recharge')));
+    // 6. numéro d'alerte (même définition qu'au serveur : un numéro est actif tant que son interrupteur n'est pas coupé)
+    const nbAlertes = p.numerosAlerte.filter((n) => n && n.actif !== false && n.numero).length;
+    cases.push(nbAlertes ? caseBilan('alertes', 'vert', 'Alertes : ', `${nbAlertes === 1 ? 'un numéro les reçoit' : `${nbAlertes} numéros les reçoivent`}.`)
+      : caseBilan('alertes', 'rouge', 'Alertes : ', 'aucun numéro actif, tu ne recevras aucune alerte (réponse non comprise, STOP, solde bas…).'));
+    const etatDe = (c) => c.dataset.etat;
+    const verts = cases.filter((c) => etatDe(c) === 'vert').length;
+    const rouges = cases.filter((c) => etatDe(c) === 'rouge').length;
+    const grises = cases.filter((c) => etatDe(c) === 'gris').length;
+    const grisesHorsAdresse = cases.filter((c) => etatDe(c) === 'gris' && c.dataset.role !== 'bilan-adresse').length;
+    let resume;
+    if (enAttente.length) resume = 'Vérification en cours…';
+    else if (!rouges && !grisesHorsAdresse) resume = 'Tout est vert : tu peux passer en vrai. Il reste à vérifier chez ClickSend l’adresse des réponses.';
+    else if (!rouges) resume = `Rien de rouge, mais ${grisesHorsAdresse} vérification${grisesHorsAdresse > 1 ? 's' : ''} impossible${grisesHorsAdresse > 1 ? 's' : ''} pour le moment.`;
+    else resume = `${verts} sur ${cases.length - grises} vérifications au vert.`;
+    const actualiser = peutLire && (branche === true || panne)
+      ? h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'actualiser-bilan', disabled: solde.etat === 'chargement', onclick: () => {
+        if (D.etatEnvoiEnErreur()) D.reverifierEnvoi(); // après une panne : « branché ? » est redemandé au serveur
+        solde.etat = 'attente'; solde.valeur = null; redessinerBilan();
+      } }, icone('refresh-cw', { taille: 16 }), 'Actualiser') : null;
     return [h('p', { dataset: { role: 'bilan-resume' } }, resume), h('ul', { class: 'rdv-bilan' }, cases), actualiser,
       h('p', { class: 'aide' }, 'Cette liste ne change rien et n’envoie aucun SMS. Le solde est lu chez ClickSend (au plus une fois par minute).')];
   });
@@ -306,9 +323,9 @@ export function reglages(page) {
     const relire = () => { champs.forEach((c, i) => { c.value = String(R.seuilsSoldeDe(D.parametres())[i]).replace('.', ','); c.classList.remove('invalide'); }); };
     champs.forEach((c) => c.addEventListener('change', () => {
       const valeurs = champs.map((x) => R.lireSeuilSolde(x.value));
-      const v = valeurs.some((n) => n === null) ? { ok: false, message: 'Écris trois seuils en euros, entre 0 et 1 000 (ex. 10, 5 et 2).' } : R.validerSeuilsSolde(valeurs);
-      if (!v.ok) { toast(v.message, { type: 'erreur' }); relire(); return; }
-      enregistrer({ seuilsSolde: valeurs });
+      const v = valeurs.some((n) => n === null) ? { ok: false, message: 'Écris trois seuils en euros, entre 0 et 1 000 (ex. 10, 5 et 2).' } : R.validerSeuilsSolde(valeurs); // les trois ensemble
+      if (!v.ok) { toast(`${v.message} Pour tout baisser, change d’abord le dernier seuil ; pour tout monter, le premier.`, { type: 'erreur' }); relire(); return; }
+      enregistrer({ seuilsSolde: valeurs }).then((ok) => { if (!ok) relire(); }); // refus ou panne : le champ reprend la valeur enregistrée
     }));
     return [ligne('Premier seuil (€)', champs[0]), ligne('Deuxième seuil (€)', champs[1]), ligne('Troisième seuil (€)', champs[2]),
       h('p', { class: 'aide' }, 'Quand le solde de ton compte ClickSend passe sous un de ces seuils, tes numéros d’alerte reçoivent un SMS (un seul par seuil franchi). Le solde est vérifié toutes les 15 minutes. Le texte du SMS se règle dans « Modèles de SMS » (« Alerte : solde ClickSend bas »).'),
@@ -342,7 +359,7 @@ export function reglages(page) {
       onchange: (e) => {
         const n = R.lirePrixSms(e.target.value);
         if (n === null) { toast('Écris un prix en euros entre 0,001 et 5 (ex. 0,0685).', { type: 'erreur' }); e.target.value = String(R.prixSmsDe(D.parametres())).replace('.', ','); return; }
-        enregistrer({ prixSms: n });
+        enregistrer({ prixSms: n }).then((ok) => { if (!ok) e.target.value = String(R.prixSmsDe(D.parametres())).replace('.', ','); });
       } });
     const date = h('input', { class: 'champ', type: 'text', maxlength: '40', value: R.tarifsAuDe(p), 'aria-label': 'Date de ces tarifs', placeholder: R.TARIFS_AU_DEFAUT,
       onchange: (e) => { const t = L.nettoyerEspaces(e.target.value).slice(0, 40); e.target.value = t || R.TARIFS_AU_DEFAUT; enregistrer({ tarifsAu: t || R.TARIFS_AU_DEFAUT }); } });

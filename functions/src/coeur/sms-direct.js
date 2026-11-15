@@ -35,7 +35,7 @@ export const DELAI_SOLDE_MS = 5_000; // temps réservé à la lecture du solde, 
 // Page de recharge du compte ClickSend, écrite dans les alertes de solde bas (valeur de `{lien}`). Un lien AFFICHÉ dans un SMS, jamais appelé : il ne passe dans aucun `fetch` (un test le verrouille).
 // Adresse à faire vérifier par Jérôme : elle n'est confirmée ni par la doc du dépôt ni par celle de ClickSend.
 export const LIEN_RECHARGE_CLICKSEND = 'https://dashboard.clicksend.com/portal/billing#add-credit';
-export const TIRS_SANS_SOLDE = Object.freeze(['cle_refusee', 'clicksend_indisponible', 'trop_de_requetes']); // arrêts après lesquels on ne lit pas le solde (la clé ou le service posent problème)
+export const ARRETS_AVEC_SOLDE = Object.freeze(['credit_epuise', 'budget_depasse']); // le solde n'est lu qu'après un tir sans arrêt ou arrêté par le crédit (ou le temps) : tout autre arrêt (clé, compte, service, limitation) dit que ClickSend ne répond pas comme il faut
 export const MESSAGE_NON_BRANCHE = 'L’envoi des SMS n’est pas encore branché sur cet espace.';
 const MOTIF_ESPACE = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 export const MOTIF_JETON = /^[A-Za-z0-9_-]{24,100}$/;
@@ -85,7 +85,7 @@ function lireMontant(v) {
 /**
  * Lit le solde du compte (GET /v3/account, aucun SMS, aucun frais). Rend { ok, solde: <nombre> | null, devise } ; `ok: false` si ClickSend refuse ou ne répond pas.
  * TOLÉRANT : montant absent ou illisible = solde null (jamais une erreur) ; devise lisible et autre que l'euro = solde null (« indisponible », aucune alerte) ;
- * devise absente = on suppose l'euro (décision du 15/11/2026 : mieux vaut alerter que se taire). Mêmes règles que `verifierConnexion` : adresse fixe, aucune redirection, délai borné, rien n'est journalisé, aucun secret dans le résultat.
+ * devise absente ou illisible = on suppose l'euro (décision du 15/11/2026 : mieux vaut alerter que se taire). Mêmes règles que `verifierConnexion` : adresse fixe, aucune redirection, délai borné, rien n'est journalisé, aucun secret dans le résultat.
  */
 export async function lireSolde({ identifiant, cle, fetchImpl = globalThis.fetch, delaiMs = 10_000 }) {
   const arret = new AbortController();
@@ -207,15 +207,20 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
 
   // Solde du compte : cache de 60 s par espace (« Actualiser » et les tirs ne martèlent jamais ClickSend). Rend { branche, solde: <nombre> | null, devise }.
   const cacheSolde = new Map(); // espace -> { expire, promesse }
-  async function lireSoldeEspace(espace) {
+  async function lireSoldeEspace(espace, { delaiMs = 10_000 } = {}) {
     const config = await configuration(espace);
     if (!config) return { branche: false, solde: null, devise: '' };
     const vu = cacheSolde.get(espace);
     if (vu && vu.expire > instant()) return vu.promesse;
-    const promesse = lireSolde({ identifiant: config.identifiant, cle: config.cle, fetchImpl }).then((r) => ({ branche: true, solde: r.ok ? r.solde : null, devise: r.ok ? r.devise : '' }));
+    const entree = { expire: instant() + DUREE_CACHE_MS };
+    // Seules les lectures RÉUSSIES restent en cache : « Actualiser » juste après une panne passagère relit vraiment ; des appels en même temps partagent la lecture en cours.
+    entree.promesse = lireSolde({ identifiant: config.identifiant, cle: config.cle, fetchImpl, delaiMs }).then((r) => {
+      if (!r.ok && cacheSolde.get(espace) === entree) cacheSolde.delete(espace);
+      return { branche: true, solde: r.ok ? r.solde : null, devise: r.ok ? r.devise : '' };
+    });
     if (cacheSolde.size > 100) cacheSolde.clear();
-    cacheSolde.set(espace, { expire: instant() + DUREE_CACHE_MS, promesse });
-    return promesse;
+    cacheSolde.set(espace, entree);
+    return entree.promesse;
   }
 
   /**
@@ -259,9 +264,9 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
     const { messages = [] } = await lancerAction(ACTIONS_RDV['rdv.aEnvoyer'], {}, ctx);
     await envoyerListe(messages);
     // Solde ClickSend : lu APRÈS les SMS, seulement si le tir n'a pas buté sur un problème de clé ou de service et s'il reste du temps (la lecture dure au plus DELAI_SOLDE_MS). Une panne ici ne fait jamais échouer le tir.
-    if (avecSolde && !TIRS_SANS_SOLDE.includes(bilan.arret) && instant() - debut + DELAI_SOLDE_MS <= budget) {
+    if (avecSolde && (!bilan.arret || ARRETS_AVEC_SOLDE.includes(bilan.arret)) && instant() - debut + DELAI_SOLDE_MS <= budget) {
       try {
-        const s = await lireSoldeEspace(espace);
+        const s = await lireSoldeEspace(espace, { delaiMs: DELAI_SOLDE_MS }); // le délai de la lecture ne dépasse jamais le temps réservé dans le budget
         const r = typeof s.solde === 'number' ? await alerterSoldeBas(ctx, { solde: s.solde, lien: LIEN_RECHARGE_CLICKSEND }) : null;
         if (r?.crees > 0) {
           bilan.alertesSolde = r.crees; // seulement quand une alerte est créée : le bilan des tirs sans alerte garde sa forme

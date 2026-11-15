@@ -262,18 +262,23 @@ let brancheSms = null; // null = pas encore su ; true / false = réponse du serv
 let reverifier = null; // nouvelle question au serveur, 65 secondes après l'enregistrement de la connexion
 let peutConfigurerSms = false; // le serveur dit si CE compte peut saisir la connexion SMS (Jérôme seul) ; faux tant qu'on ne sait pas
 let brancheEnCours = null;
+let etatSmsEnErreur = false; // la dernière question « branché ? » a échoué (panne, réseau, refus) : on ne sait pas, ce n'est PAS « pas branché »
 /** « Envoyer » doit-il être actif ? Valeur connue (true / false) ou null tant que le serveur n'a pas répondu (le bouton reste grisé). Lance la question au premier appel et prévient les écrans à la réponse. */
 export function envoiBranche() {
   if (brancheSms === null && !brancheEnCours) {
     brancheEnCours = appeler('etat', {})
-      .then((r) => { brancheSms = r?.branche === true; peutConfigurerSms = r?.peutConfigurer === true; })
-      .catch(() => { brancheSms = false; }) // fonction absente (espace pas encore déployé), compte sans droit : le bouton reste grisé
+      .then((r) => { brancheSms = r?.branche === true; peutConfigurerSms = r?.peutConfigurer === true; etatSmsEnErreur = false; })
+      .catch(() => { brancheSms = false; etatSmsEnErreur = true; }) // fonction absente (espace pas encore déployé), compte sans droit : le bouton reste grisé
       .finally(() => { brancheEnCours = null; notifier(); });
   }
   return brancheSms;
 }
+/** Vrai si la dernière question « branché ? » a échoué : le bilan dit « vérification impossible », jamais « pas branché ». */
+export const etatEnvoiEnErreur = () => etatSmsEnErreur;
+/** Repose la question « branché ? » au serveur (bouton « Actualiser » du bilan après une panne). */
+export function reverifierEnvoi() { brancheSms = null; etatSmsEnErreur = false; brancheEnCours = null; return envoiBranche(); }
 /** Réinitialise ce qui est su (changement de compte ou d'espace). */
-export function oublierEtatEnvoi() { brancheSms = null; peutConfigurerSms = false; brancheEnCours = null; clearTimeout(reverifier); }
+export function oublierEtatEnvoi() { etatSmsEnErreur = false; brancheSms = null; peutConfigurerSms = false; brancheEnCours = null; clearTimeout(reverifier); }
 
 /** Ce compte peut-il saisir la connexion SMS (clé ClickSend) ? null tant que le serveur n'a pas répondu. Le serveur refuse de toute façon tout autre compte que celui de Jérôme. */
 export function peutConfigurerConnexion() { envoiBranche(); return brancheSms === null && !peutConfigurerSms ? null : peutConfigurerSms; }

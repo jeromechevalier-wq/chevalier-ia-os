@@ -817,7 +817,7 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
     });
   };
   const valeurs = valeursSms(rdv, p);
-  const actifsAlerte = p.numerosAlerte.map((n, i) => (n ? { ...n, id: n.id || `n${i + 1}` } : n)).filter((n) => n && n.actif && n.numero);
+  const actifsAlerte = p.numerosAlerte.map((n, i) => (n ? { ...n, id: n.id || `n${i + 1}` } : n)).filter((n) => n && n.actif !== false && n.numero);
   const alerter = (sousType, nature, ctx, sauf = '') => {
     for (const n of actifsAlerte) {
       if (sauf && deja.has(idEcheance(rdv.id, tour, `alerte-${sauf}`, n.id))) continue;
