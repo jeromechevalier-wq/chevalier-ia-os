@@ -308,12 +308,36 @@ test('A6f le total est en SMS facturés (segments) : une adresse longue fait plu
   await ouvrirFiche(page);
   await page.getByRole('button', { name: 'Confirmer le créneau 3' }).click();
   const cout = page.getByRole('dialog').locator('[data-role="cout-sms"]');
-  await expect(cout).toContainText('SMS facturés au total (');
-  const texte = await cout.textContent();
-  const [, total, conf, rappel] = /^(\d+) SMS facturés au total \((\d+) de confirmation \+ (\d+) de rappel\)/.exec(texte);
+  await expect(page.getByRole('dialog').locator('[data-role="apercu-confirmation"] .aide').first()).toContainText('· 2 SMS par personne'); // l'adresse longue fait passer la confirmation à 2 SMS
+  const texte = (await cout.textContent()) ?? '';
+  const m = /^(\d+) SMS facturés au total \((\d+) de confirmation \+ (\d+) de rappel\)/.exec(texte);
+  expect(m, `le coût doit annoncer la confirmation ET le rappel ; texte reçu : « ${texte} »`).not.toBeNull();
+  const [, total, conf, rappel] = m;
   expect(Number(total), 'une personne, deux messages, mais plus de deux SMS facturés').toBeGreaterThan(2);
   expect(Number(total)).toBe(Number(conf) + Number(rappel));
-  await expect(page.getByRole('dialog').locator('[data-role="apercu-confirmation"] .aide').first()).toContainText('SMS');
+  expect(Number(conf), 'la confirmation compte ses 2 SMS').toBe(2);
+});
+
+test('A6g rendez-vous de test : un participant sans téléphone reçoit le SMS au numéro de test (comme le serveur) ; sans numéro de test, il ne reçoit rien', async ({ page }) => {
+  await ecrireDocument('rdv_parametres/reglages', { ...REGLAGES, numeroTest: '+33600000009' });
+  await semer('r1', { test: true });
+  await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [3], '3');
+  await part('p2', 'Sans numéro', 'Client', '', 'comprise', [3], '3');
+  await ouvrirFiche(page);
+  await page.locator('[data-action="confirmer-creneau"]').click();
+  const bloc = page.getByRole('dialog').locator('[data-role="prevision"]');
+  const ligne = bloc.locator('li[data-participant="p2"]');
+  await expect(ligne).toHaveAttribute('data-statut', 'recoit');
+  await expect(ligne).toContainText('SMS de confirmation maintenant vers le numéro de test (06 •• •• •• 09), rappel le');
+  await expect(ligne.locator('.rdv-prevision-tel')).toHaveCount(0); // aucun numéro à montrer pour lui
+  await expect(bloc.locator('[data-role="cout-sms"]')).toContainText('4 SMS facturés au total (2 de confirmation + 2 de rappel)');
+  await capture(page, 'A6g-test-sans-telephone');
+  await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
+  await ecrireDocument('rdv_parametres/reglages', REGLAGES); // plus de numéro de test
+  await expect(page.locator('[data-role="avant-confirmer"]')).toHaveText('Rendez-vous de test : aucun SMS ne partira (le numéro des SMS de test n’est pas réglé).');
+  await page.locator('[data-action="confirmer-creneau"]').click();
+  await expect(page.getByRole('dialog').locator('li[data-participant="p2"]')).toHaveAttribute('data-statut', 'test-sans-numero');
+  await expect(page.getByRole('dialog').locator('li[data-participant="p2"]')).toContainText('ne recevra rien : le numéro des SMS de test n’est pas réglé');
 });
 
 test('A6e plusieurs créneaux communs : la fenêtre de choix montre ce qui partira pour le créneau choisi (rappel de SA veille) et rien tant qu’aucun n’est choisi', async ({ page }) => {

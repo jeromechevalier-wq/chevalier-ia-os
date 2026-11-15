@@ -1138,7 +1138,7 @@ export function previsionConfirmation({ rdv, participants = [], parametres, nume
   const cout = Math.round((coutSms(confirmation.texte, p.prixSms) * destinataires + (rappel ? coutSms(rappel.texte, p.prixSms) * nbRappels : 0)) * 1e6) / 1e6;
   return {
     creneau, test, numeroTest: numeroTest ? masquerTelephone(numeroTest) : '', personnes, destinataires,
-    rappelLe: rappelPossible ? versISO(rappelReel) : null,
+    rappelLe: rappelPossible && destinataires > 0 ? versISO(rappelReel) : null, // aucun destinataire : aucun rappel à annoncer
     confirmation: { texte: confirmation.texte, caracteres: confirmation.caracteres, segments: confirmation.segments, manque: [...new Set([...confirmation.texte.matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]))] },
     messages: destinataires + nbRappels, segmentsConfirmation, segmentsRappel, segments: segmentsConfirmation + segmentsRappel,
     cout, tarifsAu: p.tarifsAu,
