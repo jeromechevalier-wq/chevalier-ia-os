@@ -13,8 +13,9 @@ import * as R from './logique.js';
 
 export const COLLECTIONS = ['rdv_rendezvous', 'rdv_participants', 'rdv_messages', 'rdv_parametres'];
 export const DOC_REGLAGES = 'reglages';
+export const DOC_DESINSCRITS = 'desinscrits';
 
-const vierge = () => ({ rendezVous: [], participants: [], messages: [], parametresDoc: null, parametresLus: false, pret: false });
+const vierge = () => ({ rendezVous: [], participants: [], messages: [], parametresDoc: null, desinscrits: [], parametresLus: false, pret: false });
 export const etat = vierge();
 let desabonnements = [];
 let base = '';
@@ -28,6 +29,8 @@ export const rendezVous = (id) => etat.rendezVous.find((r) => r.id === id) || nu
 export const participantsDe = (rdvId) => etat.participants.filter((p) => p.rendezVousId === rdvId);
 export const messagesDe = (rdvId) => etat.messages.filter((m) => m.rendezVousId === rdvId);
 /** Réglages lus (valeurs par défaut pour tout ce qui manque). */
+/** Numéros qui ont répondu STOP (aucun SMS ne leur est plus envoyé). */
+export const desinscrits = () => etat.desinscrits;
 export const parametres = () => ({ ...R.PARAMETRES_DEFAUT, ...(etat.parametresDoc || {}) });
 export const estPret = () => etat.pret;
 
@@ -43,6 +46,8 @@ function suivre(nom, cle) {
     if (cle === 'parametres') {
       const d = snap.docs.find((x) => x.id === DOC_REGLAGES);
       etat.parametresDoc = d ? d.data({ serverTimestamps: 'estimate' }) : null;
+      const stop = snap.docs.find((x) => x.id === DOC_DESINSCRITS)?.data(); // numéros qui ont répondu STOP (écrits par le serveur) : l'écran dit qui ne recevra rien
+      etat.desinscrits = Array.isArray(stop?.numeros) ? stop.numeros.filter((n) => typeof n === 'string') : [];
       etat.parametresLus = true; // lus avec succès : seulement alors on peut écrire un réglage (voir majParametres)
     } else {
       etat[cle] = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));

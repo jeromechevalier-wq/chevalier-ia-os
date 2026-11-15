@@ -141,3 +141,13 @@ test('A5b même bloc d’aide pour un compte qui ne configure pas, sans aucune a
   await expect(aide).not.toContainText('Afficher l’adresse');
   await expect(carte.getByRole('button', { name: 'Afficher l’adresse des réponses' })).toHaveCount(0);
 });
+
+test('A5c avant l’enregistrement de la connexion, l’aide dit « Enregistre d’abord la connexion » au lieu de citer un bouton qui n’existe pas encore ; après, elle cite « Afficher l’adresse des réponses »', async ({ page }) => {
+  await simulerServeur(page, { branche: false, etatConnexion: { enregistre: false, adresse: null, expediteur: '' } });
+  const carte = await ouvrir(page);
+  const aide = carte.locator('[data-role="aide-clicksend"]');
+  await aide.locator('summary').click();
+  await expect(aide.locator('[data-role="aide-adresse-absente"]')).toHaveText('Enregistre d’abord la connexion : l’adresse des réponses apparaîtra ensuite.');
+  await expect(carte.getByRole('button', { name: 'Afficher l’adresse des réponses' })).toHaveCount(0);
+  await expect(aide).not.toContainText('Afficher l’adresse');
+});

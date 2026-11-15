@@ -1048,11 +1048,14 @@ export function verdictChoix(rdv, participants, numero, dateAffichee, maintenant
  * Même relecture pour la fenêtre d'UN seul créneau proposé (le commun, ou celui qui convient au plus de monde) : 'rendezvous' si le rendez-vous n'est plus à confirmer,
  * 'creneau' si la date du créneau n'est plus celle qui était affichée ou si ce créneau est passé, 'ok' sinon.
  */
-export function verdictCreneauUnique(rdv, numero, dateAffichee, maintenant) {
+export function verdictCreneauUnique(rdv, participants, numero, dateAffichee, maintenant) {
   if (!rdv || !estOuvert(rdv)) return 'rendezvous';
-  const date = (rdv.creneaux || [])[numero - 1];
+  const creneaux = rdv.creneaux || [];
+  const date = creneaux[numero - 1];
   if (!(enMs(date) === enMs(dateAffichee)) || !(enMs(date) > enMs(maintenant))) return 'creneau';
-  return 'ok';
+  // Les réponses ont pu changer : ce créneau doit rester LE créneau proposé (le commun, ou celui qui convient au plus de monde) ; sinon la fenêtre disait autre chose que la fiche.
+  const proposes = creneauxAConfirmer(bilanReponses(participants, creneaux.length || MAX_CRENEAUX), { creneaux, maintenant });
+  return proposes.length === 1 && proposes[0] === numero ? 'ok' : 'creneau';
 }
 
 /**
@@ -1089,6 +1092,76 @@ export function bandeauCreneau(bilan, options = {}) {
 /** Texte du bandeau rouge (consigne 13) quand au moins une réponse n'est pas comprise. */
 export const TEXTE_REPONSE_INCOMPRISE = 'Cette personne a répondu quelque chose que le service ne comprend pas. Tu as reçu un SMS : appelle-la ou saisis sa réponse à sa place.';
 export const TEXTE_REPONSES_INCOMPRISES = 'Certaines personnes ont répondu quelque chose que le service ne comprend pas. Tu as reçu un SMS : appelle-les ou saisis leur réponse à leur place.';
+
+// ───────────────────────────── Avant de confirmer : ce qui va partir par SMS ─────────────────────────────
+
+/** « 06 00 00 00 02 » → « 06 •• •• •• 02 » : seuls le début et la fin du numéro sont montrés. */
+export function masquerTelephone(tel) {
+  const groupes = afficherTelephone(tel).split(' ').filter(Boolean);
+  if (groupes.length === 5) return `${groupes[0]} •• •• •• ${groupes[4]}`;
+  const t = String(tel ?? '').replace(/\s+/g, '');
+  return t.length > 4 ? `${t.slice(0, 2)} ${'•'.repeat(Math.max(2, t.length - 4))} ${t.slice(-2)}` : '••';
+}
+
+/**
+ * Ce qui va se passer si la professionnelle confirme le créneau `numero` (aucun envoi ici) : qui reçoit quoi, le texte réel de la confirmation, le nombre de SMS et le coût estimé.
+ * Mêmes règles que `smsDus` : confirmation tout de suite à chaque participant qui a un téléphone et n'a pas répondu STOP (`desinscrit`, ou numéro dans `desinscrits`) ;
+ * rappel la veille à l'heure réglée seulement si le rappel est actif et si cette veille n'est pas déjà passée ; un rendez-vous de test n'écrit qu'au numéro de test
+ * (rien s'il n'est pas réglé). Rend { creneau, test, numeroTest (masqué), personnes[{ id, nom, telephone (masqué), statut: 'recoit' | 'desinscrit' | 'sans-telephone' }],
+ * destinataires, rappelLe, confirmation: { texte, caracteres, segments, manque }, nbSms, segments, cout, tarifsAu, aucun, raisonAucun }.
+ */
+export function previsionConfirmation({ rdv, participants = [], parametres, numero, maintenant, desinscrits = [] }) {
+  const p = params(parametres);
+  const creneau = (rdv?.creneaux || [])[numero - 1];
+  const choisiMs = enMs(creneau);
+  const nowMs = enMs(maintenant);
+  const simule = { ...rdv, etat: 'confirme', creneauChoisi: creneau };
+  const valeurs = valeursSms(simule, p);
+  const confirmation = construireSms('confirmation', valeurs, p);
+  const rappelA = p.rappel.actif && Number.isFinite(choisiMs) ? instantRappelVeille(choisiMs, p.rappel.heure) : NaN;
+  const rappelPossible = Number.isFinite(rappelA) && rappelA >= nowMs && rappelA < debutDuJour(choisiMs); // comme dans smsDus : jamais après le début du jour du rendez-vous
+  const rappel = rappelPossible ? construireSms('rappel', valeurs, p) : null;
+  const personnes = (participants || []).map((x) => {
+    const tel = String(x.telephone ?? '').trim();
+    const statut = !tel ? 'sans-telephone' : (x.desinscrit === true || desinscrits.includes(x.telephone)) ? 'desinscrit' : 'recoit';
+    return { id: x.id, nom: x.nom || 'Sans nom', telephone: tel ? masquerTelephone(tel) : '', statut };
+  });
+  const test = rdv?.test === true;
+  const numeroTest = test ? p.numeroTest : '';
+  const joignables = personnes.filter((x) => x.statut === 'recoit').length;
+  const destinataires = test && !numeroTest ? 0 : joignables; // un rendez-vous de test ne part que vers le numéro de test (un SMS par personne joignable), ou nulle part
+  const nbRappels = rappel ? destinataires : 0;
+  const cout = Math.round((coutSms(confirmation.texte, p.prixSms) * destinataires + (rappel ? coutSms(rappel.texte, p.prixSms) * nbRappels : 0)) * 1e6) / 1e6;
+  return {
+    creneau, test, numeroTest: numeroTest ? masquerTelephone(numeroTest) : '', personnes, destinataires,
+    rappelLe: rappelPossible ? versISO(rappelA) : null,
+    confirmation: { texte: confirmation.texte, caracteres: confirmation.caracteres, segments: confirmation.segments, manque: [...new Set([...confirmation.texte.matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]))] },
+    nbSms: destinataires + nbRappels,
+    segments: confirmation.segments * destinataires + (rappel ? rappel.segments * nbRappels : 0),
+    cout, tarifsAu: p.tarifsAu,
+    aucun: destinataires === 0,
+    raisonAucun: destinataires > 0 ? '' : test && !numeroTest && joignables > 0 ? 'test-sans-numero' : 'personne-joignable',
+  };
+}
+
+/**
+ * Phrase d'aide toujours visible sous le bouton « Confirmer… » : ce qui partira si on confirme un des créneaux `numeros`.
+ * Le rappel n'est cité que s'il part pour TOUS ces créneaux (la veille n'est pas passée) ; l'heure vient du réglage.
+ */
+export function phraseAvantConfirmer({ rdv, participants, parametres, numeros, maintenant, desinscrits = [] }) {
+  const previsions = (numeros || []).map((numero) => previsionConfirmation({ rdv, participants, parametres, numero, maintenant, desinscrits }));
+  if (!previsions.length) return '';
+  const base = previsions[0];
+  if (base.test) {
+    return base.numeroTest
+      ? `Rendez-vous de test : le SMS de confirmation part seulement vers le numéro de test (${base.numeroTest}), jamais vers les participants.`
+      : 'Rendez-vous de test : aucun SMS ne partira (le numéro des SMS de test n’est pas réglé).';
+  }
+  if (base.aucun) return 'Aucun SMS ne partira : aucun participant n’a de numéro joignable.';
+  const n = base.destinataires;
+  const rappel = previsions.every((x) => x.rappelLe) ? `, puis un rappel la veille à ${formaterHeure(base.rappelLe)}` : '';
+  return `En confirmant : ${n} ${n > 1 ? 'personnes reçoivent' : 'personne reçoit'} un SMS de confirmation tout de suite${rappel}. Les numéros désinscrits (STOP) ne reçoivent rien.`;
+}
 
 /** Changement à écrire sur le rendez-vous quand la professionnelle confirme le créneau `numero` (1 à 3). Refus si le rendez-vous n'est pas ouvert ou le créneau n'existe pas. */
 export function planConfirmer(rdv, numero, maintenant) {
