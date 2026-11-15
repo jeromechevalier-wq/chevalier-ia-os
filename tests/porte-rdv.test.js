@@ -106,7 +106,7 @@ describe('rdv.aEnvoyer : SMS dus et réservation', () => {
     m.semer('r1', { etat: 'confirme', creneauChoisi: iso(Date.parse('2026-11-18T09:00:00Z')), confirmeLe: iso(T0 - 60000) });
     const conf = (await m.action('rdv.aEnvoyer')).messages;
     assert.deepEqual(conf.map((x) => x.typeMessage), ['confirmation', 'confirmation']);
-    assert.match(conf[0].texte, /^RDV confirmé : chantier M\. Durand, mer\. 18 nov\. à 10h\./);
+    assert.match(conf[0].texte, /^RDV confirmé : M\. Durand, mer\. 18 nov\. à 10h\./);
     for (const x of conf) await m.action('rdv.confirmerEnvoi', { messageId: x.messageId, statut: 'ok' });
     m.temps.t = Date.parse('2026-11-17T17:59:00Z'); // 18 h 59 à Paris : trop tôt
     assert.equal((await m.action('rdv.aEnvoyer')).nombre, 0);

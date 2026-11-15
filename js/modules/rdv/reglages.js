@@ -1,5 +1,5 @@
 // Réglages du module Rendez-vous, dans la page Réglages de la coque (sections `reglages-rdv-…`, déclarées dans le registre) :
-// relances, rappel la veille, plage d'envoi, numéros d'alerte, nom dans les SMS, nom de l'entreprise, connexion SMS (Jérôme seul), rôles, modèles de SMS, sauvegarde.
+// relances, rappel la veille, plage d'envoi, numéros d'alerte, nom dans les SMS, nom de l'entreprise, connexion SMS (Jérôme seul), rôles, prix d'un SMS, modèles de SMS (participants et alertes), sauvegarde.
 // Chaque réglage s'enregistre tout seul à chaque changement (journal commun) ; un refus ou une panne affiche un message.
 import { h, icone, remplir, dialogue, toast, demanderTexte, confirmer } from '../../os/ui.js';
 import * as L from '../crm/logique.js';
@@ -204,33 +204,66 @@ export function reglages(page) {
     return [h('div', { class: 'pile' }, lignes), ajouter, h('p', { class: 'aide' }, 'Un rôle ne peut être supprimé que si aucun participant ne l’utilise, rendez-vous archivés compris (cadenas).')];
   }));
 
-  redessins.push(carte(page, 'reglages-rdv-modeles', 'Modèles de SMS', () => {
+  redessins.push(carte(page, 'reglages-rdv-tarif', 'Prix d’un SMS', () => {
     const p = D.parametres();
-    const lignes = R.apercuModeles(p).map((m) => h('div', { class: 'rdv-modele', dataset: { modele: m.type } },
+    const prix = h('input', { class: 'champ rdv-champ-nombre', type: 'text', inputmode: 'decimal', value: String(R.prixSmsDe(p)).replace('.', ','), 'aria-label': 'Prix d’un SMS, en euros',
+      onchange: (e) => {
+        const n = R.lirePrixSms(e.target.value);
+        if (n === null) { toast('Écris un prix en euros entre 0,001 et 5 (ex. 0,0685).', { type: 'erreur' }); e.target.value = String(R.prixSmsDe(D.parametres())).replace('.', ','); return; }
+        enregistrer({ prixSms: n });
+      } });
+    const date = h('input', { class: 'champ', type: 'text', maxlength: '40', value: R.tarifsAuDe(p), 'aria-label': 'Date de ces tarifs', placeholder: R.TARIFS_AU_DEFAUT,
+      onchange: (e) => { const t = L.nettoyerEspaces(e.target.value).slice(0, 40); e.target.value = t || R.TARIFS_AU_DEFAUT; enregistrer({ tarifsAu: t || R.TARIFS_AU_DEFAUT }); } });
+    return [ligne('Prix d’un SMS (en euros)', prix), ligne('Tarifs de ClickSend au', date),
+      h('p', { class: 'aide' }, 'Sert seulement à estimer ce que coûte un SMS dans l’aperçu des modèles (prix × nombre de SMS). Ce n’est jamais une facture : le prix réel est celui de ton compte ClickSend. Rien n’est enregistré par SMS.')];
+  }));
+
+  const ligneModele = (m) => {
+    const cout = R.libelleCout(m.texte, D.parametres());
+    return h('div', { class: 'rdv-modele', dataset: { modele: m.type } },
       h('div', { class: 'rdv-modele-tete' }, h('strong', {}, m.libelle), h('span', { class: 'rdv-modele-compte' }, `${m.caracteres} caractères · ${m.segments} SMS`),
         h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': `modifier-modele-${m.type}`, onclick: () => modifierModele(m.type) }, 'Modifier')),
-      h('pre', { class: 'rdv-modele-texte' }, m.texte)));
-    return [h('div', { class: 'pile' }, lignes),
+      h('pre', { class: 'rdv-modele-texte' }, m.texte),
+      m.aLien && m.sansLien ? h('p', { class: 'aide rdv-modele-sanslien' }, `Sans le lien : ${m.sansLien.caracteres} caractères · ${m.sansLien.segments} SMS. Avec le lien (l’adresse de ton espace) : ${m.caracteres} caractères · ${m.segments} SMS.`) : null,
+      h('p', { class: 'aide rdv-modele-cout' }, cout));
+  };
+
+  redessins.push(carte(page, 'reglages-rdv-modeles', 'Modèles de SMS', () => {
+    const p = D.parametres();
+    return [h('div', { class: 'pile' }, R.apercuModeles(p).map(ligneModele)),
       h('p', { class: 'aide', dataset: { role: 'explication-accents' } }, EXPLICATION_ACCENTS),
-      h('p', { class: 'aide' }, `Variables : ${R.VARIABLES_SMS.map((v) => `{${v}}`).join(', ')}. Les exemples ci-dessus utilisent des données fictives. La dernière ligne (nom de l’entreprise et « Répondez STOP ») est ajoutée toute seule à chaque SMS envoyé à un participant.`)];
+      h('p', { class: 'aide' }, `Variables : ${R.VARIABLES_SMS.map((v) => `{${v}}`).join(', ')}. Les exemples ci-dessus utilisent des données fictives. La dernière ligne (nom de l’entreprise et « Répondez STOP ») est ajoutée toute seule à chaque SMS envoyé à un participant.`),
+      h('h3', {}, 'Alertes que tu reçois'),
+      h('p', { class: 'aide' }, 'Ces SMS vont à tes numéros d’alerte, jamais aux participants : ils ne portent pas la ligne « Répondez STOP ». Chaque alerte accepte seulement ses propres variables (indiquées dans « Modifier »). {lien} est l’adresse du rendez-vous dans l’appli : supprime-la du texte si tu n’en veux pas.'),
+      h('div', { class: 'pile' }, R.apercuAlertes(p, { client: D.clientCourant() }).map(ligneModele))];
   }));
 
   async function modifierModele(type) {
     const p = D.parametres();
-    const champ = h('textarea', { class: 'champ rdv-champ-multiligne', rows: '6', 'aria-label': `Modèle : ${R.LIBELLES_MODELES[type]}` });
+    const variables = R.variablesDuModele(type);
+    const alerte = R.estModeleAlerte(type);
+    const exempleAlerte = { ...R.EXEMPLE_ALERTE, lien: R.lienExempleRdv(D.clientCourant()) };
+    const champ = h('textarea', { class: 'champ rdv-champ-multiligne', rows: '6', 'aria-label': `Modèle : ${R.libelleModele(type)}` });
     champ.value = R.modeleDe(type, p);
     const compteur = compteurSms('');
+    const sansLien = h('p', { class: 'aide', dataset: { role: 'sans-lien' }, hidden: true });
+    const cout = h('p', { class: 'aide', dataset: { role: 'cout' } });
     const maj = () => {
-      const sms = R.construireSms(type, R.EXEMPLE_SMS, { modeles: { [type]: champ.value }, nomEntreprise: p.nomEntreprise });
-      compteur.maj(sms.texte);
+      const etatP = { modeles: { [type]: champ.value }, nomEntreprise: p.nomEntreprise, prixSms: p.prixSms, tarifsAu: p.tarifsAu };
+      const texte = alerte ? R.texteAlerte(type.slice('alerte-'.length), exempleAlerte, etatP).texte : R.construireSms(type, R.EXEMPLE_SMS, etatP).texte;
+      compteur.maj(texte);
+      cout.textContent = R.libelleCout(texte, etatP);
+      const aLien = alerte && R.variablesDuModele(type).includes('lien') && /\{lien\}/.test(champ.value);
+      sansLien.hidden = !aLien;
+      if (aLien) { const c = R.texteAlerte(type.slice('alerte-'.length), { ...exempleAlerte, lien: '' }, etatP); sansLien.textContent = `Sans le lien, ce texte ferait ${c.caracteres} caractères · ${c.segments} SMS (le compteur ci-dessus compte avec l’adresse de ton espace).`; }
     };
     champ.addEventListener('input', maj);
     maj();
     const r = await dialogue({
-      titre: R.LIBELLES_MODELES[type], classe: 'dialogue-formulaire',
-      contenu: h('div', { class: 'pile' }, champ, compteur.element, h('p', { class: 'aide' }, `Variables : ${R.VARIABLES_SMS.map((v) => `{${v}}`).join(', ')}.`), h('p', { class: 'aide' }, EXPLICATION_ACCENTS)),
+      titre: R.libelleModele(type), classe: 'dialogue-formulaire',
+      contenu: h('div', { class: 'pile' }, champ, compteur.element, sansLien, cout, h('p', { class: 'aide' }, `Variables : ${variables.map((v) => `{${v}}`).join(', ')}.`), h('p', { class: 'aide' }, EXPLICATION_ACCENTS)),
       boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Rétablir le modèle de départ', valeur: 'defaut' }, { libelle: 'Enregistrer', valeur: true, style: 'principal',
-        avantFermeture: () => { const inconnues = R.variablesInconnues(champ.value); if (inconnues.length) { toast(`Variable inconnue : {${inconnues[0]}}`, { type: 'erreur' }); return false; } return champ.value.trim() ? true : (toast('Le modèle ne peut pas être vide.', { type: 'erreur' }), false); } }],
+        avantFermeture: () => { const v = R.validerModele(champ.value, type); if (!v.ok) toast(v.message, { type: 'erreur' }); return v.ok; } }],
     });
     if (r === true) await enregistrer({ modeles: { ...D.parametres().modeles, [type]: R.normaliserSms(champ.value) } });
     if (r === 'defaut') { const m = { ...D.parametres().modeles }; delete m[type]; await enregistrer({ modeles: m }, 'Modèle rétabli'); }

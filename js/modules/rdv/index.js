@@ -1,4 +1,4 @@
-// Module Rendez-vous (14/11/2026) : proposer 1 à 3 créneaux de rendez-vous de chantier par SMS, lire les réponses, trouver le créneau commun ; seule la professionnelle confirme.
+// Module Rendez-vous (14/11/2026) : proposer 1 à 3 créneaux de rendez-vous par SMS, lire les réponses, trouver le créneau commun ; seule la professionnelle confirme.
 // Routes : rdv/liste (Kanban | Liste), rdv/archives, rdv/nouveau, rdv/liste/<id> (fiche). Chez Jérôme, les tables sont à la racine de la base (rdv_rendezvous, rdv_participants,
 // rdv_messages, rdv_parametres) ; chez un client, sous clients/<client>/. Le module n'exige aucun autre module (les participants sont des fiches Personnes du socle).
 // Modèle : js/modules/veille/index.js. Mode d'emploi pour créer un module : docs/creer-un-module.md.

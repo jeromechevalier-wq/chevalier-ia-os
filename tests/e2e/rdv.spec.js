@@ -241,7 +241,7 @@ test('12 le nombre de caractères de chaque SMS est affiché, la règle des acce
   await allerA(page, 'Réglages');
   await ouvrirSectionReglages(page, 'Rendez-vous');
   const section = page.locator('#reglages-rdv-modeles');
-  await expect(section.locator('[data-modele]')).toHaveCount(6);
+  await expect(section.locator('[data-modele]')).toHaveCount(14); // six modèles des participants + huit alertes (B1)
   for (const m of await section.locator('.rdv-modele-compte').allTextContents()) {
     expect(m).toMatch(/^\d+ caractères · [12] SMS$/); // la ligne finale (entreprise + STOP) fait passer certains modèles à 2 SMS
     expect(Number(m.split(' ')[0])).toBeLessThan(320);
@@ -255,6 +255,22 @@ test('12 le nombre de caractères de chaque SMS est affiché, la règle des acce
   await page.getByRole('button', { name: 'Enregistrer' }).click();
   await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.modeles?.rappel).toBe('Rappel : foret {client} {heure}');
   await capture(page, '12-modeles');
+  // B1 / B2 / B4 : les alertes sont des modèles réglables ; seul « commun » et « aucun » portent {lien} ; le coût est une estimation datée
+  const commun = section.locator('[data-modele="alerte-commun"]');
+  await expect(commun.locator('.rdv-modele-texte')).toContainText('https://chevalier-ia-os.web.app/#/rdv/liste/'); // l'adresse réelle de l'espace (ici : chez Jérôme)
+  await expect(commun.locator('.rdv-modele-compte')).toHaveText(/· 1 SMS$/); // le texte de départ tient en UN SMS avec l'adresse de cet espace
+  await expect(commun.locator('.rdv-modele-sanslien')).toContainText('Sans le lien');
+  await expect(commun.locator('.rdv-modele-cout')).toContainText('≈ 0,0685 € · estimation basée sur les tarifs ClickSend au 1er novembre 2026');
+  await expect(section.locator('[data-modele="alerte-incomprise"] .rdv-modele-sanslien')).toHaveCount(0);
+  await section.locator('[data-action="modifier-modele-alerte-incomprise"]').click();
+  const champAlerte = page.getByLabel('Modèle : Alerte : réponse non comprise');
+  await champAlerte.fill('RDV {client} : {lien} ?');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.toast, [role="alert"]').filter({ hasText: 'Variable inconnue ici : {lien}' }).first()).toBeVisible();
+  await champAlerte.fill('RDV {client} : {nom} a dit "{reponse}"');
+  await expect(page.locator('.dialogue .rdv-compteur-sms')).toContainText('1 SMS');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.modeles?.['alerte-incomprise']).toBe('RDV {client} : {nom} a dit "{reponse}"');
   await page.goto('/?emulateurs=1#/rdv/nouveau');
   await expect(page.locator('[data-type="confiance"] .rdv-compteur-sms')).toContainText(/\d+ caractères sur (160|306) · [12] SMS/);
   await capture(page, '12-apercu-creation');
@@ -279,11 +295,20 @@ test('export : Réglages > Rendez-vous > Sauvegarde télécharge un JSON avec le
   await expect(page.locator('.toast')).toContainText('Sauvegarde téléchargée');
 });
 
-test('réglages : les dix sections sont dans la page Réglages de la coque, dans l’ordre voulu', async ({ page }) => {
+test('réglages : les onze sections sont dans la page Réglages de la coque, dans l’ordre voulu', async ({ page }) => {
   await connecter(page);
   await allerA(page, 'Réglages');
   await ouvrirSectionReglages(page, 'Rendez-vous');
-  await expect(page.locator('section.carte-section h2')).toHaveText(['Relances', 'Rappel la veille', 'Plage d’envoi', 'Numéros qui reçoivent les alertes', 'Ton nom dans les SMS', 'Nom de l’entreprise dans les SMS', 'Connexion SMS (ClickSend)', 'Rôles des participants', 'Modèles de SMS', 'Sauvegarde']);
+  await expect(page.locator('section.carte-section h2')).toHaveText(['Relances', 'Rappel la veille', 'Plage d’envoi', 'Numéros qui reçoivent les alertes', 'Ton nom dans les SMS', 'Nom de l’entreprise dans les SMS', 'Connexion SMS (ClickSend)', 'Rôles des participants', 'Prix d’un SMS', 'Modèles de SMS', 'Sauvegarde']);
+  // B4 : le prix d'un SMS est réglable, un prix absurde est refusé, l'estimation de l'aperçu suit (premier modèle = 2 SMS, donc 2 × 0,10 €)
+  await expect(page.getByLabel('Prix d’un SMS, en euros')).toHaveValue('0,0685');
+  await page.getByLabel('Prix d’un SMS, en euros').fill('0x1');
+  await page.getByLabel('Prix d’un SMS, en euros').blur();
+  await expect(page.getByLabel('Prix d’un SMS, en euros')).toHaveValue('0,0685');
+  await page.getByLabel('Prix d’un SMS, en euros').fill('0,1');
+  await page.getByLabel('Prix d’un SMS, en euros').blur();
+  await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.prixSms).toBe(0.1);
+  await expect(page.locator('#reglages-rdv-modeles .rdv-modele-cout').first()).toContainText('≈ 0,20 €');
   await page.getByLabel('Ton nom dans les SMS').fill('Mme Martin');
   await page.getByLabel('Ton nom dans les SMS').blur();
   await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.nomDansLesSms).toBe('Mme Martin');
