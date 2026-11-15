@@ -627,7 +627,9 @@ export const phraseDesinscritsSansSms = (n) => (!n ? '' : n === 1 ? '1 personne 
 export const nombreDesinscrits = (participants, desinscrits = []) => (participants || []).filter((p) => estDesinscrit(p, desinscrits)).length;
 
 /** Toast après « Envoyer les propositions » : « Propositions envoyées. 1 personne désinscrite (STOP) n’a rien reçu. » */
-export const phrasePropositionsEnvoyees = (nbDesinscrits) => `Propositions envoyées${nbDesinscrits ? `. ${phraseDesinscritsSansSms(nbDesinscrits)}` : ''}`;
+export const phrasePropositionsEnvoyees = (nbDesinscrits, total = Infinity) => (nbDesinscrits >= total && total > 0
+  ? 'Aucune proposition n’est partie : tous les participants sont désinscrits (STOP).'
+  : `Propositions envoyées${nbDesinscrits ? `. ${phraseDesinscritsSansSms(nbDesinscrits)}.` : ''}`);
 /** Toast après un SMS à la main (pluie ou annulation) : réponse du serveur { nombre, nombreBloques, declenche }. Tous bloqués : rien n'est parti (l'annulation, elle, est faite). */
 export function phraseApresSmsManuel(reponse, type) {
   const bloques = Number(reponse?.nombreBloques) || 0;

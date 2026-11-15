@@ -246,7 +246,12 @@ export const ACTIONS_RDV = Object.freeze({
           const rdv = m.rendezVousId ? await ctx.donnees.lireDoc(chemin(ctx.base, T.rdv, m.rendezVousId)) : null;
           if (!rdv && !soldeBas) continue; // rendez-vous introuvable : on n'envoie rien (jamais un SMS « test » vers un vrai numéro)
           const numero = soldeBas ? m.numero : R.numeroCible(m.numero, { test: rdv.test === true || m.test === true }, parametres);
-          if (!numero || desinscrits.includes(m.numero)) continue;
+          if (!numero) continue;
+          if (desinscrits.includes(m.numero)) {
+            // SMS à la main (ou renvoi) encore en attente alors que le numéro a répondu STOP : il passe « bloque » (jamais envoyé, même après « Réautoriser »). Un SMS « reserve » (envoi en cours) n'est pas touché.
+            if (m.manuel === true && m.etatEnvoi !== 'reserve') await ctx.donnees.majDoc(chemin(ctx.base, T.msg, m.id), { etatEnvoi: 'bloque', reserveJusqua: null, bloqueLe: new Date(maintenantMs) }, { lastUpdateTime: m.updateTime });
+            continue;
+          }
           if (!(await reserver(ctx, m.id, null, maintenantMs))) continue;
           aEnvoyer.push({ messageId: m.id, rendezVousId: m.rendezVousId, numero, texte: m.texte, caracteres: m.caracteres, segments: m.segments, typeMessage: m.typeMessage });
         }

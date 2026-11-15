@@ -123,7 +123,7 @@ export function rendreCreation(conteneur) {
       const id = await D.creerRendezVous({ objet: champObjet.value, adresse: champAdresse.value, creneaux: creneaux(), participants: verdict.participants });
       if (envoyer) {
         // Le rendez-vous est enregistré d'abord : si l'envoi est refusé, rien n'est perdu et la fiche propose de le renvoyer.
-        try { await D.envoyerPropositions(id); toast(R.phrasePropositionsEnvoyees(R.nombreDesinscrits(verdict.participants, D.desinscrits()))); } catch (e) { console.warn(e); toast(`Rendez-vous enregistré, mais l’envoi n’a pas pu partir : ${D.messageErreur(e, 'réessaie depuis la fiche.')}`, { type: 'erreur', duree: 7000 }); }
+        try { await D.envoyerPropositions(id); toast(R.phrasePropositionsEnvoyees(R.nombreDesinscrits(verdict.participants, D.desinscrits()), verdict.participants.length)); } catch (e) { console.warn(e); toast(`Rendez-vous enregistré, mais l’envoi n’a pas pu partir : ${D.messageErreur(e, 'réessaie depuis la fiche.')}`, { type: 'erreur', duree: 7000 }); }
       } else toast('Rendez-vous enregistré');
       naviguer(cheminRdv(id));
     } catch (e) {

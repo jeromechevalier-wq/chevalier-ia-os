@@ -386,7 +386,7 @@ export function rendreFiche(conteneur, id) {
       // Pas encore envoyé : le bouton jaune est « Envoyer les propositions » (grisé tant que l'envoi n'est pas branché) ; « Confirmer » n'a aucun sens avant les premières réponses.
       const branche = D.envoiBranche() === true;
       boutons.push(h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'envoyer-propositions', disabled: !branche, title: branche ? '' : MESSAGE_ENVOI_NON_BRANCHE,
-        onclick: async (e) => { e.currentTarget.disabled = true; try { await D.envoyerPropositions(r.id); toast(R.phrasePropositionsEnvoyees(R.nombreDesinscrits(D.participantsDe(r.id), D.desinscrits()))); } catch (err) { console.warn(err); toast(D.messageErreur(err, 'Envoi impossible'), { type: 'erreur' }); e.currentTarget.disabled = false; } } }, 'Envoyer les propositions'));
+        onclick: async (e) => { e.currentTarget.disabled = true; try { await D.envoyerPropositions(r.id); toast(R.phrasePropositionsEnvoyees(R.nombreDesinscrits(D.participantsDe(r.id), D.desinscrits()), D.participantsDe(r.id).length)); } catch (err) { console.warn(err); toast(D.messageErreur(err, 'Envoi impossible'), { type: 'erreur' }); e.currentTarget.disabled = false; } } }, 'Envoyer les propositions'));
       if (!branche) boutons.push(h('span', { class: 'aide', dataset: { role: 'envoi-non-branche' } }, MESSAGE_ENVOI_NON_BRANCHE));
     }
     if (ouvert && !nonEnvoye) {

@@ -1447,7 +1447,8 @@ describe('D2 STOP : traces « bloque » et phrases', () => {
     assert.equal(L.nombreDesinscrits(parts, ['+33600000002']), 2);
     assert.equal(L.nombreDesinscrits(parts, []), 1);
     assert.equal(L.phrasePropositionsEnvoyees(0), 'Propositions envoyées');
-    assert.equal(L.phrasePropositionsEnvoyees(1), 'Propositions envoyées. 1 personne désinscrite (STOP) n’a rien reçu');
+    assert.equal(L.phrasePropositionsEnvoyees(1, 3), 'Propositions envoyées. 1 personne désinscrite (STOP) n’a rien reçu.');
+    assert.equal(L.phrasePropositionsEnvoyees(2, 2), 'Aucune proposition n’est partie : tous les participants sont désinscrits (STOP).');
   });
   test('D2-3b phrase après un SMS à la main : partiel, tous bloqués (annulation faite quand même), aucun bloqué', () => {
     assert.equal(L.phraseApresSmsManuel({ nombre: 2, nombreBloques: 0, declenche: true }, 'pluie'), 'SMS en cours d’envoi');

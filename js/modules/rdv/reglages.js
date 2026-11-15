@@ -340,12 +340,12 @@ export function reglages(page) {
     const reautoriser = async (numero, nom, bouton) => {
       const ok = await dialogue({
         titre: 'Réautoriser ce numéro ?',
-        contenu: h('div', { class: 'pile' }, nom ? h('p', {}, nom) : null, h('p', {}, 'Cette personne a demandé de ne plus recevoir de SMS : ne la réautorise que si elle te l’a demandé.')),
+        contenu: h('div', { class: 'pile' }, h('p', {}, nom || R.masquerTelephone(numero)), h('p', {}, 'Cette personne a demandé de ne plus recevoir de SMS : ne la réautorise que si elle te l’a demandé.')),
         boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Réautoriser', valeur: true, style: 'principal' }],
       });
       if (ok !== true) return;
       bouton.disabled = true;
-      try { await D.reautoriserNumero(numero); toast('Numéro réautorisé : les prochains SMS prévus lui partiront'); } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Réautorisation impossible'), { type: 'erreur' }); bouton.disabled = false; }
+      try { await D.reautoriserNumero(numero); toast('Numéro réautorisé : les SMS automatiques encore dus lui partiront dans les 15 minutes au plus'); } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Réautorisation impossible'), { type: 'erreur' }); bouton.disabled = false; }
     };
     const liste = numeros.length
       ? h('div', { class: 'pile', dataset: { role: 'desinscrits' } }, numeros.map((n) => {
@@ -355,7 +355,7 @@ export function reglages(page) {
       }))
       : h('p', { class: 'aide', dataset: { role: 'desinscrits-vide' } }, 'Aucun numéro désinscrit');
     return [liste,
-      h('p', { class: 'aide' }, 'Ces personnes ont répondu STOP : plus aucun SMS ne leur part. « Réautoriser » les remet dans la liste des personnes qui reçoivent des SMS ; rien n’est envoyé tout de suite, et un SMS bloqué avant ne repart jamais tout seul.'),
+      h('p', { class: 'aide' }, 'Ces personnes ont répondu STOP : plus aucun SMS ne leur part. « Réautoriser » les remet dans la liste des personnes qui reçoivent des SMS ; rien n’est envoyé tout de suite. Les SMS écrits à la main (pluie, annulation) qui ont été bloqués ne repartent jamais ; les SMS automatiques du calendrier encore dus (propositions, relances) partiront au prochain passage du serveur, dans les 15 minutes au plus.'),
       h('p', { class: 'aide', dataset: { role: 'desinscrits-clicksend' } }, 'Attention : ClickSend garde aussi sa propre liste de désinscriptions et bloque de son côté les numéros qui y figurent. Après avoir réautorisé un numéro ici, ouvre ton compte ClickSend, cherche la liste des désinscriptions (« Opt-out ») et retire-y aussi ce numéro, sinon ClickSend refusera encore les SMS.')];
   }));
 

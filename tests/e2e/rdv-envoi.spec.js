@@ -167,6 +167,6 @@ test('D2-3c « Envoyer les propositions » avec un désinscrit : le message dit 
   await ecrireDocument('rdv_parametres/desinscrits', { numeros: ['+33600000002'] });
   await ouvrirFiche(page);
   await page.locator('[data-action="envoyer-propositions"]').click();
-  await expect(page.locator('.toast')).toContainText('Propositions envoyées. 1 personne désinscrite (STOP) n’a rien reçu');
+  await expect(page.locator('.toast')).toContainText('Propositions envoyées. 1 personne désinscrite (STOP) n’a rien reçu.');
   await capture(page, 'D2-3c-propositions-un-bloque');
 });

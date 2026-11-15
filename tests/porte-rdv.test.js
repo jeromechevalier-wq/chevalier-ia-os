@@ -698,4 +698,19 @@ describe('D2 STOP : trace des SMS bloqués', () => {
     assert.ok(!r.messages.some((x) => x.messageId === 'man_1'));
     assert.equal(m.base.docs.get('rdv_messages/man_1').d.etatEnvoi, 'bloque');
   });
+  test('D2-3b un SMS manuel créé AVANT le STOP : au tir suivant il passe « bloque » (jamais envoyé), et après STOP puis « Réautoriser » il ne repart PAS ; il ne compte ni dans `nombre` ni dans les messages', async () => {
+    const m = monde(); m.semer();
+    for (const [id, etat, extra] of [['man_a', 'a_envoyer', {}], ['man_b', 'echec', { reessaiApres: iso(T0 - 60_000) }], ['ren_c', 'a_envoyer', { renvoi: true }]]) {
+      m.base.docs.set(`rdv_messages/${id}`, { d: { rendezVousId: 'r1', participantId: 'r1-p1', sens: 'sortant', manuel: true, typeMessage: 'pluie', numero: '+33600000001', texte: 'Pluie', caracteres: 5, segments: 1, etatEnvoi: etat, essais: 0, echeance: `r1:man:${id}:r1-p1`, ...extra }, v: 1 });
+    }
+    await recevoir(m, '+33600000001', 'STOP', 'cs-stop');
+    const r = await m.action('rdv.aEnvoyer');
+    assert.ok(!r.messages.some((x) => ['man_a', 'man_b', 'ren_c'].includes(x.messageId)), 'rien ne part vers le désinscrit');
+    assert.equal(r.nombre, r.messages.length);
+    for (const id of ['man_a', 'man_b', 'ren_c']) assert.equal(m.base.docs.get(`rdv_messages/${id}`).d.etatEnvoi, 'bloque', id);
+    m.base.docs.set('rdv_parametres/desinscrits', { d: { numeros: [] }, v: 99 });
+    m.base.docs.set('rdv_participants/r1-p1', { d: { ...m.base.docs.get('rdv_participants/r1-p1').d, desinscrit: false }, v: 99 });
+    const apres = await m.action('rdv.aEnvoyer');
+    assert.ok(!apres.messages.some((x) => ['man_a', 'man_b', 'ren_c'].includes(x.messageId)), 'après « Réautoriser », le SMS manuel bloqué ne repart jamais');
+  });
 });
