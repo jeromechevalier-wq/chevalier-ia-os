@@ -70,6 +70,22 @@ Tout est dans `docs/consignes-ui.md`. L'essentiel pour un nouveau module :
 - **Téléphone** : tout nouvel écran se teste aussi en format téléphone (`node lancer-tout.js --e2e e2e/<fichier>.spec.js --project=telephone`, depuis `tests/`) ; pas de défilement horizontal de la page.
 - **Une action de Jérôme = un test dont le nom commence par le numéro du point + une capture** (`docs/consignes-ui.md:3`).
 
+## 6 bis. Le mode test dans un module (à prévoir dès le début)
+
+Décision de Jérôme (02 au 06/11/2026) : il fait ses essais dans sa vraie base ; **tout ce qu'un module crée peut être un « test »**, reconnaissable, exclu des chiffres et sans effet sur le monde réel. Cadrage complet : `docs/cadrage-mode-test.md`. Ce que doit faire un nouveau module (le module Rendez-vous l'a découvert après coup, 15/11/2026) :
+
+1. **Un champ `test: true` sur chaque document créé** (absent = réel, aucune migration). À la création, la valeur vient de `avecModeTest({})` (`js/os/mode-test.js`) et de l'**héritage** du parent (`heriterTest(valeurs, parents)`, `js/modules/crm/logique.js`) : un élément créé à partir d'une fiche de test est de test. Les écritures du repère utilisent `updateDoc` ou la fusion, jamais un `setDoc` sans fusion (il effacerait le champ sans bruit).
+2. **Un repère visible partout** : badge « TEST » calculé à l'affichage (`libelleAvecTest(nom, test)`, jamais écrit dans le nom) sur la **liste, la fiche et la recherche**, avec la recherche qui comprend le mot « test ».
+3. **Exclu des chiffres** : tout total, statistique ou filtre propose `tests` = `inclure` / `exclure` / `seulement`, et les statistiques les excluent par défaut.
+4. **Jamais d'effet réel** : un test n'envoie **aucun** message ni e-mail à un vrai destinataire (SMS : seulement vers le numéro de test, `numeroCible` du module Rendez-vous), ne consomme **aucun vrai numéro** (devis : `TEST-001`) et ne déclenche aucun appel extérieur facturé ou visible. Le serveur revérifie ; l'écran seul ne suffit pas.
+5. **Un menu « … » sur la fiche** : « Marquer comme test » / « Ce n'est plus un test », par une fonction du serveur partagée (chez Jérôme ET chez les clients), avec une ligne dans le journal (avant/après).
+6. **Réglages > Mes tests** : le module y est compté, et « Supprimer tous mes tests » le supprime (50 suppressions par jour et par document : plusieurs jours si besoin).
+7. **Assistant (MCP)** : si le module a des outils de création, un paramètre `test` (la consigne : « mets `true` si l'utilisateur parle d'un test, d'un essai, d'une démo ; ne devine jamais ») ; `marquer_test` et `demarquer_test` du socle (`SOCLE.outilsMcp`) couvrent les éléments du socle.
+8. **L'interrupteur « Mode test » (bandeau) ne change que les créations à venir** : le dire dans l'écran (info-bulle du bouton « Éteindre ») pour ne pas laisser croire qu'il transforme l'existant.
+9. **Tests** : un élément créé en mode test porte le repère ; un test n'envoie rien de réel ; il sort des chiffres ; la pastille s'affiche (liste et fiche) ; marquer et démarquer fonctionnent.
+
+Vocabulaire : « test », jamais « essai ».
+
 ## 7. La liste de contrôle (à cocher avant d'ouvrir la PR)
 
 1. Dossier `js/modules/<nom>/` avec `index.js` (contrat du §3), `donnees.js`, `logique.js` (règles pures, sans Firebase, testables par Node), `export.js`.
@@ -79,4 +95,5 @@ Tout est dans `docs/consignes-ui.md`. L'essentiel pour un nouveau module :
 5. Tests qui énumèrent les modules, à adapter : `tests/registre.test.js` (liste blanche des modules sans outil MCP `:25`, menu attendu `:220`, entrées `:379`, interrupteurs `:445`, modules `socle` `:122`), `tests/statique.test.js` (D4 : `AVEC_FONCTIONS` `:277`), `tests/ecarts-fonctions.test.js` (`RESERVEES_JEROME` `:26`), `tests/socle-donnees.test.js` (S5 `:65`), `tests/outil-client.test.js` (les listes `modules` d'une fiche client), les parcours dont une liste exacte contient le menu ou les Réglages (`tests/e2e/menu-coque.spec.js`, `menu-coque-modules.spec.js`, `devis-bordereau.spec.js`, `identite-crm.spec.js`, `mon-espace-racine.spec.js`) et la sauvegarde complète (`tests/e2e/parcours.spec.js:730`). Cherche par `grep` dans `tests/` le nom d'un module voisin (par exemple `veille`) : ce sont les mêmes endroits.
 6. Nom de fichier de sauvegarde : si `nomFichierExport` du CRM ne connaît pas ton module, fais le nom dans le module (comme `nomFichierExportReseauxSociaux`).
 7. Docs : cette fiche si une règle a changé, `docs/tables.md`, `docs/activer-desactiver-modules.md`, puis la nouvelle page dans `scripts/wiki/sommaire.json` et `node scripts/wiki/construire.js` (le test `tests/wiki.test.js:76` exige que `wiki/` soit identique à `docs/`).
-8. Avant la PR : `npm run test:module <préfixe>`, `npm run test:rapide`, `npm run test:smoke` ; jamais la suite complète en session.
+8. Mode test : les neuf points du § 6 bis (repère `test`, pastille, exclu des chiffres, aucun effet réel, menu « … », Mes tests, MCP, tests).
+9. Avant la PR : `npm run test:module <préfixe>`, `npm run test:rapide`, `npm run test:smoke` ; jamais la suite complète en session.
