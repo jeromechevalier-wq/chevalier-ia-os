@@ -735,10 +735,22 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
       assert.equal(avec('07:00').rappelLe, parisEnISO(2026, 11, 17, 8), 'à 7h : le rappel part à l’ouverture, 8h la veille');
       assert.equal(L.phraseAvantConfirmer({ rdv, participants: parts, parametres: { ...reglages, rappel: { actif: true, heure: '07:00' } }, numeros: [2], maintenant, desinscrits: STOP }).includes('un rappel la veille à 8h'), true, 'la phrase dit l’heure réelle');
       assert.doesNotMatch(L.phraseAvantConfirmer({ rdv, participants: parts, parametres: { ...reglages, rappel: { actif: true, heure: '22:00' } }, numeros: [2], maintenant, desinscrits: STOP }), /rappel/);
-      // le serveur fait pareil : mêmes cas, aucun rappel dû avant le début du jour du rendez-vous
+      // Le serveur fait pareil, évalué à l'instant où le rappel serait dû (c'est ce qui rend la borne « avant le début du jour du rendez-vous » de smsDus testable).
       const rdvConfirme = { ...rdv, etat: 'confirme', creneauChoisi: creneaux[1], confirmeLe: maintenant };
-      const rappelsServeur = (heure) => L.smsDus({ rdv: rdvConfirme, participants: parts, parametres: { ...reglages, rappel: { actif: true, heure } }, messages: [], maintenant: '2026-11-17T20:00:00Z', desinscrits: STOP }).filter((x) => x.typeMessage === 'rappel');
-      assert.equal(rappelsServeur('22:00').length, 0, 'smsDus ne programme pas non plus ce rappel');
+      const rappelsServeur = (heure, quand) => L.smsDus({ rdv: rdvConfirme, participants: parts, parametres: { ...reglages, rappel: { actif: true, heure } }, messages: [], maintenant: quand, desinscrits: STOP }).filter((x) => x.typeMessage === 'rappel');
+      assert.equal(rappelsServeur('22:00', parisEnISO(2026, 11, 18, 8, 5)).length, 0, 'rappel à 22h le 17, décalé à 8h le 18 (jour du rendez-vous) : smsDus le jette alors qu’il serait dû à 8h05 sans la borne');
+      assert.equal(rappelsServeur('22:00', parisEnISO(2026, 11, 17, 21)).length, 0, 'et rien n’est dû le soir même non plus');
+      const dus = rappelsServeur('07:00', parisEnISO(2026, 11, 17, 8, 5));
+      assert.equal(dus.length, 2, 'rappel à 7h le 17, décalé à 8h le 17 : dû à 8h05 pour les deux personnes joignables');
+      assert.ok(dus.every((x) => x.dueLe === avec('07:00').rappelLe), 'même instant que celui annoncé par la prévision');
+      assert.equal(rappelsServeur('07:00', parisEnISO(2026, 11, 17, 7, 30)).length, 0, 'pas dû avant l’ouverture de la plage (8h)');
+    });
+    test('A6 aucun destinataire : aucun rappel n’est annoncé (rappelLe vide) même si le rappel est actif et la veille à venir', () => {
+      const r = L.previsionConfirmation({ rdv, participants: [parts[0], parts[1]], parametres: reglages, numero: 2, maintenant, desinscrits: ['+33600000001', '+33600000002'] });
+      assert.equal(r.destinataires, 0);
+      assert.equal(r.rappelLe, null);
+      assert.equal(r.segments, 0);
+      assert.doesNotMatch(L.phraseAvantConfirmer({ rdv, participants: [parts[0], parts[1]], parametres: reglages, numeros: [2], maintenant, desinscrits: ['+33600000001', '+33600000002'] }), /rappel/);
     });
     test('A6 SMS facturés = segments : une adresse longue double le compte, le détail confirmation / rappel porte ses propres segments', () => {
       const longue = { ...rdv, adresse: `${'12 rue des Lilas '.repeat(9).trim()}\n69000 Lyon` };
@@ -763,7 +775,10 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
       const sansTel = [{ id: 'z', nom: 'Sans numéro', telephone: '', etatReponse: 'comprise', creneauxOk: [2] }];
       const r = L.previsionConfirmation({ rdv: test, participants: sansTel, parametres: reg, numero: 2, maintenant });
       const serveur = L.smsDus({ rdv: { ...test, etat: 'confirme', creneauChoisi: creneaux[1], confirmeLe: maintenant }, participants: sansTel, parametres: reg, messages: [], maintenant, desinscrits: [] }).filter((x) => x.typeMessage === 'confirmation');
+      assert.equal(serveur.length, 1, 'smsDus écrit bien un SMS pour ce participant, au numéro de test');
+      assert.equal(serveur[0].numero, '+33600000009');
       assert.equal(r.destinataires, serveur.length, 'même nombre que smsDus');
+      assert.equal(r.personnes[0].statut, 'recoit');
     });
     test('A6 mode test + numéro de test réglé + tous désinscrits : « Aucun SMS ne partira » passe avant la phrase du numéro de test', () => {
       const reg = { ...reglages, numeroTest: '+33600000009' };
