@@ -354,6 +354,21 @@ describe('rdv.enregistrerReponse', () => {
     assert.equal(p.desinscrit, true);
     assert.equal(R.symboleCellule(p, 0), 'desinscrit');
   });
+  test('D1-4 STOP puis réponse saisie par la professionnelle : un « 1 » ou un nouveau STOP du désinscrit ne l\'efface pas, sans nouvelle alerte', async () => {
+    const m = monde(); m.semer();
+    await recevoir(m, '+33600000001', 'STOP', 'cs-stop');
+    const saisie = { etatReponse: 'saisie', creneauxOk: [2], reponse: 'STOP', ambigu: false };
+    m.base.docs.set('rdv_participants/r1-p1', { v: 9, d: { ...m.base.docs.get('rdv_participants/r1-p1').d, ...saisie } });
+    for (const [texte, id] of [['1', 'cs-un'], ['STOP', 'cs-stop2']]) {
+      await recevoir(m, '+33600000001', texte, id);
+      const p = m.base.docs.get('rdv_participants/r1-p1').d;
+      assert.deepEqual([p.desinscrit, p.etatReponse, p.creneauxOk], [true, 'saisie', [2]], texte);
+    }
+    const msg = [...m.base.docs].filter(([c]) => c.startsWith('rdv_messages/in_cs-stop2')).map(([, x]) => x.d)[0];
+    assert.equal(msg.historique, true);
+    const alertes = (await m.action('rdv.aEnvoyer')).messages.filter((x) => x.typeMessage === 'alerte' && /STOP|incomprise|non compris/.test(x.texte));
+    assert.equal(alertes.length, 0, 'aucune alerte STOP ni « non comprise » (la saisie a remplacé l\'état du premier STOP)');
+  });
   test('champs obligatoires et identifiant trop long refusés', async () => {
     const m = monde();
     await assert.rejects(() => m.action('rdv.enregistrerReponse', { numero: '+33600000001', texte: '1' }), (e) => e.code === 'requete_invalide');

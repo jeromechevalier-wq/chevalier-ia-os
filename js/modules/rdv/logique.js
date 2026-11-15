@@ -552,6 +552,8 @@ export function estDesinscription(texte) {
 export function appliquerReponse({ participant, rdv, texte, recuLe, idReponse, tourReponse }) {
   const tour = Number.isFinite(tourReponse) ? tourReponse : (rdv?.tour ?? 1);
   if (tour < (rdv?.tour ?? 1)) return { historiqueSeulement: true, comprise: null, patch: null };
+  // Un désinscrit dont la professionnelle a SAISI la réponse (après l'avoir appelé) : aucun SMS reçu de lui ne l'efface (ni « 1 », ni un nouveau STOP, qui ne redemande pas d'alerte) ; trace seulement. `desinscrit` reste vrai.
+  if (participant?.desinscrit === true && participant?.etatReponse === 'saisie') return { historiqueSeulement: true, comprise: null, patch: null, alerteIncomprise: false };
   if (estDesinscription(texte)) {
     return { historiqueSeulement: false, comprise: false, desinscription: true, alerteIncomprise: true,
       patch: { reponse: String(texte ?? ''), etatReponse: 'incomprise', creneauxOk: [], reponseLe: recuLe ?? null, idReponse: idReponse ?? null, desinscrit: true } };

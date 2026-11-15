@@ -1200,6 +1200,15 @@ describe('D1 désinscrit (STOP) : visible, et ne bloque personne', () => {
     const dus2 = L.smsDus({ rdv: recent, participants, parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 15, 10) });
     assert.equal(dus2.filter((d) => d.sousType === 'aucun').length, 1, 'un rendez-vous récent est toujours alerté');
   });
+  test('D1-4 un désinscrit dont la réponse a été SAISIE : aucun SMS de lui ne l\'efface (« 1 », nouveau STOP), trace seulement', () => {
+    const saisi = stop('2', { etatReponse: 'saisie', creneauxOk: [2], reponse: 'STOP' });
+    for (const texte of ['1', 'STOP', 'plutôt jeudi']) {
+      const r = L.appliquerReponse({ participant: saisi, rdv, texte, recuLe: '2026-11-15T10:00:00Z', idReponse: 'm5' });
+      assert.deepEqual([r.historiqueSeulement, r.patch, r.alerteIncomprise], [true, null, false], texte);
+    }
+    // le patch STOP d'un participant non saisi reste inchangé
+    assert.equal(L.appliquerReponse({ participant: pers('3'), rdv, texte: 'STOP' }).patch.desinscrit, true);
+  });
   test('D1-4 verrous : aucune réponse ultérieure ne remet « désinscrit » à faux', () => {
     const avant = stop('1');
     const apres = (texte, extra = {}) => ({ ...avant, ...(L.appliquerReponse({ participant: avant, rdv, texte, recuLe: '2026-11-15T10:00:00Z', idReponse: 'm2', ...extra }).patch || {}) });
