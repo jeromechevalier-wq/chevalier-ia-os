@@ -163,6 +163,7 @@ test('A3c le rendez-vous change pendant que la fenêtre de choix est ouverte : �
   await fenetre.getByRole('radio').nth(1).check();
   const avant = await lireDocument('rdv_rendezvous/r1');
   await ecrireDocument('rdv_rendezvous/r1', { ...avant, creneaux: [avant.creneaux[0], '2031-03-05T13:00:00.000Z', avant.creneaux[2]] }); // la date du créneau 2 change ailleurs
+  await expect(page.locator('table[data-role="qui-peut-quand"] thead th[data-creneau="2"] .rdv-col-date')).toContainText('5 mars'); // la fiche a bien pris le changement avant le clic
   await fenetre.getByRole('button', { name: 'Confirmer ce créneau' }).click();
   await expect(page.locator('.toast-erreur')).toContainText('Le créneau a changé, choisis à nouveau.');
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -170,6 +171,24 @@ test('A3c le rendez-vous change pendant que la fenêtre de choix est ouverte : �
   expect(apres.etat).toBe('en_attente');
   expect(apres.creneauChoisi).toBeFalsy();
   await capture(page, 'A3c-creneau-change');
+});
+
+test('A3d le rendez-vous est confirmé ailleurs pendant que la fenêtre de choix est ouverte : « Ce rendez-vous a changé : rien n’a été enregistré. », aucun créneau n’est écrit par cette fenêtre', async ({ page }) => {
+  await semer();
+  await part('p1', 'M. Durand', 'Client', '+33600000001', 'comprise', [1, 2], '1 et 2');
+  await part('p2', 'Terrassier', 'Terrassier', '+33600000002', 'comprise', [1, 2], '1 et 2');
+  await ouvrirFiche(page);
+  await page.locator('[data-action="confirmer-creneau"]').click();
+  const fenetre = page.getByRole('dialog');
+  await fenetre.getByRole('radio').nth(0).check();
+  const avant = await lireDocument('rdv_rendezvous/r1');
+  await ecrireDocument('rdv_rendezvous/r1', { ...avant, etat: 'confirme', creneauChoisi: avant.creneaux[1], confirmeLe: '2031-01-01T09:00:00.000Z' }); // confirmé ailleurs, sur le créneau 2
+  await expect(page.locator('[data-role="bandeau-confirme"]')).toBeVisible(); // la fiche a pris le changement avant le clic
+  await fenetre.getByRole('button', { name: 'Confirmer ce créneau' }).click();
+  await expect(page.locator('.toast-erreur')).toContainText('Ce rendez-vous a changé : rien n’a été enregistré.');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const apres = await lireDocument('rdv_rendezvous/r1');
+  expect(new Date(apres.creneauChoisi).getTime()).toBe(new Date(avant.creneaux[1]).getTime()); // le créneau confirmé ailleurs n'a pas été remplacé par le 1
 });
 
 test('A2c une ligne « non comprise » garde son fond rouge sous le nom, et l’en-tête « Participant » est opaque', async ({ page }) => {

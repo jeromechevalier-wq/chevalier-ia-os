@@ -908,15 +908,17 @@ export function creneauxAConfirmer(bilan, options = {}) {
 }
 
 /**
- * Le créneau `numero` choisi dans la fenêtre est-il toujours valable au moment de confirmer ? Il faut que sa date soit celle qui était affichée (`dateAffichee`) et qu'il soit
- * toujours l'un des créneaux à confirmer (commun à tous et à venir, ou le seul proposé). Sinon la fiche a changé entre l'ouverture de la fenêtre et le clic : on refuse.
+ * Le créneau `numero` choisi dans la fenêtre « plusieurs créneaux conviennent à tous » est-il toujours valable au moment de confirmer ? Rend :
+ *  - 'ok' : sa date est celle qui était affichée (`dateAffichee`), tout le monde a répondu (réponses comprises) et il est toujours commun à tous et à venir ;
+ *  - 'rendezvous' : le rendez-vous n'est plus à confirmer (confirmé ailleurs, annulé, archivé ou supprimé) ;
+ *  - 'creneau' : la fiche a changé (date modifiée, participant ajouté, réponse corrigée ou non comprise…) : on refuse, sans rabattre sur « le créneau qui convient au plus de monde ».
  */
-export function choixToujoursValable(rdv, participants, numero, dateAffichee, maintenant) {
-  if (!rdv || !estOuvert(rdv)) return false;
+export function verdictChoix(rdv, participants, numero, dateAffichee, maintenant) {
+  if (!rdv || !estOuvert(rdv)) return 'rendezvous';
   const creneaux = rdv.creneaux || [];
-  if (!(enMs(creneaux[numero - 1]) === enMs(dateAffichee))) return false;
+  if (!(enMs(creneaux[numero - 1]) === enMs(dateAffichee))) return 'creneau';
   const bilan = bilanReponses(participants, creneaux.length || MAX_CRENEAUX);
-  return creneauxAConfirmer(bilan, { creneaux, maintenant }).includes(numero);
+  return bilan.complet && creneauxCommunsAVenir(bilan, { creneaux, maintenant }).includes(numero) ? 'ok' : 'creneau';
 }
 
 /**

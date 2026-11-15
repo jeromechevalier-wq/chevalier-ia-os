@@ -51,7 +51,7 @@ async function fenetreAjoutNumero(existants = []) {
         if (!tel.value.trim()) { erreur.textContent = 'Écris le numéro de mobile.'; tel.focus(); return false; }
         const t = R.normaliserTelephone(tel.value);
         if (!t.ok) { erreur.textContent = t.message; tel.focus(); return false; }
-        const deja = existants.find((n) => n && n.numero === t.telephone);
+        const deja = existants.find((n) => n && R.normaliserTelephone(n.numero).telephone === t.telephone); // le numéro déjà rangé est normalisé comme la saisie (06, +33, 0033…)
         if (deja) { erreur.textContent = `Ce numéro est déjà dans la liste${deja.libelle ? ` (${deja.libelle})` : ''}.`; tel.focus(); return false; }
         resultat = { libelle, numero: t.telephone };
         return true;

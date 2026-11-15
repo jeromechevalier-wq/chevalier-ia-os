@@ -145,7 +145,7 @@ async function choisirEtConfirmer(rdv, numeros, bouton) {
   radios.forEach((l) => l.querySelector('input').addEventListener('change', () => { erreur.textContent = ''; }));
   const choisi = () => radios.map((l) => l.querySelector('input')).find((i) => i.checked)?.value;
   const affichees = Object.fromEntries(numeros.map((n) => [n, rdv.creneaux[n - 1]])); // les dates telles qu'elles sont montrées dans la fenêtre
-  let change = false;
+  let verdict = 'ok';
   const numero = await dialogue({
     titre: 'Quel créneau confirmer ?', classe: 'dialogue-formulaire',
     contenu: h('div', { class: 'pile', dataset: { role: 'choix-creneau' } }, h('p', {}, 'Ces créneaux conviennent à tout le monde. Choisis celui que tu confirmes.'), ...radios, erreur,
@@ -155,12 +155,13 @@ async function choisirEtConfirmer(rdv, numeros, bouton) {
         if (!choisi()) { erreur.textContent = 'Choisis un créneau pour continuer.'; return false; }
         // La fiche a pu changer pendant que la fenêtre était ouverte (réponse reçue, nouvelle série) : on relit avant d'écrire.
         const n = Number(choisi());
-        if (!R.choixToujoursValable(D.rendezVous(rdv.id), D.participantsDe(rdv.id), n, affichees[n], new Date().toISOString())) change = true;
+        verdict = R.verdictChoix(D.rendezVous(rdv.id), D.participantsDe(rdv.id), n, affichees[n], new Date().toISOString());
         return true;
       } }],
   });
   if (!numero) return;
-  if (change) { toast('Le créneau a changé, choisis à nouveau.', { type: 'erreur' }); return; }
+  if (verdict === 'rendezvous') { toast('Ce rendez-vous a changé : rien n’a été enregistré.', { type: 'erreur' }); return; }
+  if (verdict === 'creneau') { toast('Le créneau a changé, choisis à nouveau.', { type: 'erreur' }); return; }
   confirmationEnCours = true;
   bouton.disabled = true;
   try { await D.confirmerCreneau(rdv.id, numero); toast(`Créneau ${numero} confirmé`); } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Confirmation impossible'), { type: 'erreur' }); bouton.disabled = false; } finally { confirmationEnCours = false; }

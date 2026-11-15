@@ -301,6 +301,11 @@ test('A1b un numéro déjà dans la liste est refusé dans la fenêtre, même é
   await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.getByRole('dialog').locator('.erreur')).toContainText('déjà dans la liste (Mon mobile)');
   await expect(page.getByRole('dialog')).toBeVisible();
+  for (const autre of ['0033 6 00 00 00 05', '+33 (0)6 00 00 00 05']) { // d'autres façons d'écrire le même numéro
+    await page.getByLabel('Numéro de mobile').fill(autre);
+    await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
+    await expect(page.getByRole('dialog').locator('.erreur')).toContainText('déjà dans la liste (Mon mobile)');
+  }
   await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
   await expect(section.locator('.rdv-numero')).toHaveCount(1);
 });
