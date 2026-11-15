@@ -14,6 +14,15 @@ test.beforeEach(async ({ context }) => {
   });
 });
 
+/**
+ * Lit des styles calculés en UN SEUL appel au navigateur. La fiche se redessine en entier à chaque notification de données (la réponse simulée de rdvEtat en déclenche une) :
+ * deux lectures séparées peuvent viser un nœud détaché (style vide). Une lecture atomique dans un `expect.poll` réessaie jusqu'à ce que la fiche soit posée.
+ * `selecteurs` : sélecteurs CSS (le premier élément de chacun) ; rend la valeur de `propriete` pour chacun (null si l'élément est absent).
+ */
+const stylesDe = (page, selecteurs, propriete) => page.evaluate(([sels, prop]) => sels.map((sel) => { const e = document.querySelector(sel); return e ? getComputedStyle(e)[prop] : null; }), [selecteurs, propriete]);
+const TABLE = 'table[data-role="qui-peut-quand"]';
+const TRANSPARENT = 'rgba(0, 0, 0, 0)';
+
 const dansJours = (n, h = 10) => { const d = new Date(Date.now() + n * 86400000); d.setUTCHours(h - 1, 0, 0, 0); return d.toISOString(); };
 // Créneaux à dates FIXES en hiver (Paris = UTC+1) : le test ne dépend plus de la saison où il tourne. 10h, 14h et 9h heure de Paris.
 const CRENEAUX = ['2031-02-18T09:00:00.000Z', '2031-02-19T13:00:00.000Z', '2031-02-20T08:00:00.000Z'];
@@ -68,7 +77,7 @@ test('A2 « Qui peut quand » est une grille : pastilles de couleur, créneaux c
   await ouvrirFiche(page);
   const table = page.locator('table[data-role="qui-peut-quand"]');
   await expect(table).toBeVisible();
-  expect(await table.evaluate((t) => getComputedStyle(t).display), 'reste une vraie table, aussi sur téléphone').toBe('table');
+  await expect.poll(async () => (await stylesDe(page, [TABLE], 'display'))[0], { message: 'reste une vraie table, aussi sur téléphone' }).toBe('table');
   // créneaux communs (1 et 3) : en-tête marqué, étiquette « Pour tous », colonne colorée ; le 2 n'est pas mis en évidence
   const communs = table.locator('thead th.rdv-col-commun');
   await expect(communs).toHaveCount(2);
@@ -77,19 +86,20 @@ test('A2 « Qui peut quand » est une grille : pastilles de couleur, créneaux c
   await expect(communs.locator('.rdv-col-etiquette')).toHaveText(['Pour tous', 'Pour tous']);
   await expect(table.locator('thead th[data-creneau="2"] .rdv-col-etiquette')).toHaveCount(0);
   await expect(table.locator('col.rdv-col-commun')).toHaveCount(2);
-  const fond = (sel) => table.locator(sel).first().evaluate((e) => getComputedStyle(e).backgroundColor);
-  expect(await fond('thead th[data-creneau="1"]')).not.toBe(await fond('thead th[data-creneau="2"]'));
-  expect(await table.locator('col.rdv-col-commun').first().evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+  await expect.poll(async () => { const [commun, normal] = await stylesDe(page, [`${TABLE} thead th[data-creneau="1"]`, `${TABLE} thead th[data-creneau="2"]`], 'backgroundColor'); return commun !== null && normal !== null && commun !== normal; }, { message: 'l’en-tête d’un créneau commun a un autre fond que les autres' }).toBe(true);
+  await expect.poll(async () => { const [col] = await stylesDe(page, [`${TABLE} col.rdv-col-commun`], 'backgroundColor'); return col !== null && col !== TRANSPARENT; }, { message: 'la colonne commune est colorée' }).toBe(true);
   // pastilles de couleur : coche (verte) et croix (rouge) ont un fond, pas le même
-  const pastille = (p, c) => table.locator(`tr[data-participant="${p}"] td[data-creneau="${c}"] [data-symbole]`).evaluate((e) => getComputedStyle(e).backgroundColor);
-  const oui = await pastille('p1', 1); const non = await pastille('p1', 2);
-  expect(oui).not.toBe('rgba(0, 0, 0, 0)'); expect(non).not.toBe('rgba(0, 0, 0, 0)'); expect(oui).not.toBe(non);
+  await expect.poll(async () => {
+    const [oui, non] = await stylesDe(page, [`${TABLE} tr[data-participant="p1"] td[data-creneau="1"] [data-symbole]`, `${TABLE} tr[data-participant="p1"] td[data-creneau="2"] [data-symbole]`], 'backgroundColor');
+    return oui !== null && non !== null && oui !== TRANSPARENT && non !== TRANSPARENT && oui !== non;
+  }, { message: 'pastille verte et pastille rouge : deux fonds colorés différents' }).toBe(true);
   // réponse exacte et « Corriger » : même bord gauche, l'un sous l'autre
   const ligne = table.locator('tr[data-participant="p1"]');
-  const texte = await ligne.locator('[data-role="reponse-exacte"]').boundingBox();
-  const bouton = await ligne.locator('[data-action="saisir-reponse"]').boundingBox();
-  expect(Math.abs(texte.x - bouton.x), 'réponse et « Corriger » alignés à gauche').toBeLessThanOrEqual(1);
-  expect(bouton.y).toBeGreaterThan(texte.y);
+  await expect.poll(() => page.evaluate((t) => { // une seule lecture des deux positions
+    const texte = document.querySelector(`${t} tr[data-participant="p1"] [data-role="reponse-exacte"]`)?.getBoundingClientRect();
+    const bouton = document.querySelector(`${t} tr[data-participant="p1"] [data-action="saisir-reponse"]`)?.getBoundingClientRect();
+    return texte && bouton ? { decalage: Math.abs(texte.x - bouton.x) <= 1, dessous: bouton.y > texte.y } : null;
+  }, TABLE), { message: 'réponse et « Corriger » alignés à gauche, l’un sous l’autre' }).toEqual({ decalage: true, dessous: true });
   await expect(ligne.locator('[data-action="saisir-reponse"]')).toHaveText('Corriger');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), 'pas de défilement horizontal de la page').toBe(true);
   await capture(page, 'A2-grille');
@@ -380,18 +390,20 @@ test('A2c une ligne « non comprise » garde son fond rouge sous le nom, et l’
   await part('p2', 'Architecte', 'Architecte', '+33600000003', 'incomprise', [], 'plutôt jeudi');
   await ouvrirFiche(page);
   const table = page.locator('table[data-role="qui-peut-quand"]');
-  const fond = (sel) => table.locator(sel).first().evaluate((e) => getComputedStyle(e).backgroundColor);
-  if (estTelephone(page)) { // sur téléphone le nom est collant (opaque) : il doit quand même montrer le fond rouge de sa ligne
-    expect(await fond('tr[data-participant="p2"] th')).not.toBe('rgba(0, 0, 0, 0)');
-    const calque = (p) => table.locator(`tr[data-participant="${p}"] th`).evaluate((e) => getComputedStyle(e).backgroundImage); // le fond rouge est un calque posé sur le fond opaque
-    expect(await calque('p2')).not.toBe('none');
-    expect(await calque('p1')).toBe('none');
-    expect(await fond('thead th:first-child')).not.toBe('rgba(0, 0, 0, 0)');
-  } else {
-    expect(await fond('tr[data-participant="p2"]')).not.toBe(await fond('tr[data-participant="p1"]')); // ordinateur : le fond rouge est sur la ligne
-  }
-  const trait = (sel) => table.locator(sel).first().evaluate((e) => getComputedStyle(e).borderLeftWidth);
-  expect(await trait('thead th.rdv-col-creneau')).toBe(await trait('tbody td.rdv-cellule'));
+  const telephone = estTelephone(page);
+  await expect.poll(() => page.evaluate(([t, tel]) => {
+    const lire = (sel, prop) => { const e = document.querySelector(`${t} ${sel}`); return e ? getComputedStyle(e)[prop] : null; };
+    const rien = 'rgba(0, 0, 0, 0)';
+    const trait = (sel) => lire(sel, 'borderLeftWidth');
+    const commun = trait('thead th.rdv-col-creneau') !== null && trait('thead th.rdv-col-creneau') === trait('tbody td.rdv-cellule');
+    if (tel) { // sur téléphone le nom est collant (opaque) : il doit quand même montrer le fond rouge de sa ligne (un calque posé sur le fond opaque)
+      const nomRouge = lire('tr[data-participant="p2"] th', 'backgroundImage');
+      return { nomOpaque: lire('tr[data-participant="p2"] th', 'backgroundColor') !== rien && lire('tr[data-participant="p2"] th', 'backgroundColor') !== null, calqueRouge: nomRouge !== null && nomRouge !== 'none', calqueAbsentAilleurs: lire('tr[data-participant="p1"] th', 'backgroundImage') === 'none', enteteOpaque: lire('thead th:first-child', 'backgroundColor') !== rien && lire('thead th:first-child', 'backgroundColor') !== null, traitContinu: commun };
+    }
+    const rouge = lire('tr[data-participant="p2"]', 'backgroundColor'); // ordinateur : le fond rouge est sur la ligne
+    return { ligneRouge: rouge !== null && rouge !== lire('tr[data-participant="p1"]', 'backgroundColor'), traitContinu: commun };
+  }, [TABLE, telephone]), { message: 'ligne non comprise : fond rouge visible, en-tête opaque, trait vertical continu' })
+    .toEqual(telephone ? { nomOpaque: true, calqueRouge: true, calqueAbsentAilleurs: true, enteteOpaque: true, traitContinu: true } : { ligneRouge: true, traitContinu: true });
   await capture(page, 'A2c-ligne-non-comprise');
 });
 
