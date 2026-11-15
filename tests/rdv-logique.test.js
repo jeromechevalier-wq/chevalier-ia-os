@@ -1233,6 +1233,8 @@ describe('D1 icônes de l’écran', () => {
     const noms = [...fiche.slice(fiche.indexOf('const SYMBOLES'), fiche.indexOf('};', fiche.indexOf('const SYMBOLES'))).matchAll(/icone: '([a-z-]+)'/g)].map((m) => m[1]);
     assert.ok(noms.includes('circle-x') && noms.length === 5, noms.join());
     for (const n of noms) assert.ok(new RegExp(`["']${n}["']\\s*:`).test(ui), `${n} absent de ICONES`);
+  });
+});
 
 describe('E2 alerte « solde ClickSend bas » : modèle, variables, seuils', () => {
   test('E2-a modèle de départ : seulement {solde}, {seuil} et {lien} (aucun lien écrit en dur, aucune variable {client}), sans le mot « chantier », sans STOP', () => {
