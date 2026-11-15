@@ -40,7 +40,7 @@ const CLES_TRI = {
 export const cheminRdv = (id) => `rdv/liste/${id}`;
 
 function phraseEtat(r, parts) {
-  const base = R.ligneEtat({ rdv: r, participants: parts, parametres: D.parametres(), messages: D.messagesDe(r.id), maintenant: new Date() });
+  const base = R.ligneEtat({ rdv: r, participants: parts, parametres: D.parametres(), messages: D.messagesDe(r.id), maintenant: new Date(), desinscrits: D.desinscrits() });
   return r.envoiDemandeLe || r.etat === 'confirme' ? base : `Pas encore envoyé · ${base}`;
 }
 
@@ -155,7 +155,7 @@ export function rendreListeRdv(conteneur, { archives: surArchives = false } = {}
         h('td', { dataset: { libelle: 'Client' } }, h('a', { class: 'cellule-nom', href: `#/${cheminRdv(r.id)}` }, h('span', {}, r.client || 'Sans nom'), badgeTest(r))),
         h('td', { dataset: { libelle: 'Commune' } }, r.commune || ''),
         h('td', { dataset: { libelle: 'Créneau' } }, Number.isFinite(date) ? R.formaterCreneau(date) : ''),
-        h('td', { dataset: { libelle: 'Réponses' } }, `${b.reponses} sur ${b.total}`),
+        h('td', { dataset: { libelle: 'Réponses' } }, `${b.reponses} sur ${b.total}${b.desinscrits ? ` · ${b.desinscrits} désinscrit${b.desinscrits > 1 ? 's' : ''} (STOP)` : ''}`),
         h('td', { dataset: { libelle: 'État' } }, h('span', { class: `pastille-statut rdv-etat-${r.etat || 'en_attente'}` }, nomEtat(r.etat || 'en_attente'))),
         h('td', { class: 'col-actions' }, h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Actions : ${r.client || 'rendez-vous'}`, onclick: (e) => ouvrirMenu(e.currentTarget, menuRdv(r)) }, icone('ellipsis', { taille: 18 }))));
     });

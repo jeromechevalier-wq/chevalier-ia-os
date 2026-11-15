@@ -54,6 +54,7 @@ export const PARAMETRES_DEFAUT = Object.freeze({
   modeles: {},                  // surcharges des modèles par défaut, par type (les six modèles des participants et `alerte-<sousType>`)
   prixSms: PRIX_SMS_DEFAUT,     // euros par segment de SMS (estimation affichée dans l'aperçu des modèles)
   tarifsAu: TARIFS_AU_DEFAUT,   // date des tarifs de ClickSend, écrite à côté de l'estimation
+  seuilsSolde: [10, 5, 2],      // euros : trois seuils décroissants du solde ClickSend, un SMS d'alerte à chaque franchissement (voir `seuilsSoldeDe`)
 });
 
 // ───────────────────────────── Instants et fuseau Europe/Paris ─────────────────────────────
@@ -355,8 +356,8 @@ export function apercuModeles(parametres) {
 
 // ───────────────────────────── Alertes à la professionnelle (modèles modifiables) ─────────────────────────────
 
-/** Les huit alertes. Chaque modèle est réglable comme ceux des participants, sous la clé `alerte-<sousType>` dans `modeles`. Aucune mention STOP (elles vont à la professionnelle). */
-export const SOUS_TYPES_ALERTE = ['commun', 'aucun', 'incomprise', 'fin-relances', 'ambigu', 'echec-envoi', 'tardive', 'desinscription'];
+/** Les neuf alertes (la dernière, « solde bas », ne concerne aucun rendez-vous). Chaque modèle est réglable comme ceux des participants, sous la clé `alerte-<sousType>` dans `modeles`. Aucune mention STOP (elles vont à la professionnelle). */
+export const SOUS_TYPES_ALERTE = ['commun', 'aucun', 'incomprise', 'fin-relances', 'ambigu', 'echec-envoi', 'tardive', 'desinscription', 'solde-bas'];
 export const cleAlerte = (sousType) => `alerte-${sousType}`;
 export const LIBELLES_ALERTES = Object.freeze({
   'alerte-commun': 'Alerte : un créneau convient à tous',
@@ -367,6 +368,7 @@ export const LIBELLES_ALERTES = Object.freeze({
   'alerte-echec-envoi': 'Alerte : un SMS n’est pas parti',
   'alerte-tardive': 'Alerte : réponse après la confirmation',
   'alerte-desinscription': 'Alerte : une personne a répondu STOP',
+  'alerte-solde-bas': 'Alerte : solde ClickSend bas',
 });
 /** Une liste de variables PAR alerte : seules celles-ci sont acceptées dans son modèle. `{lien}` : l'adresse du rendez-vous dans l'appli, seulement pour « un créneau convient » et « aucun créneau ». */
 export const VARIABLES_ALERTE = Object.freeze({
@@ -378,6 +380,7 @@ export const VARIABLES_ALERTE = Object.freeze({
   'alerte-echec-envoi': ['client', 'nom'],
   'alerte-tardive': ['client', 'nom', 'reponse'],
   'alerte-desinscription': ['client', 'nom'],
+  'alerte-solde-bas': ['solde', 'seuil', 'lien'], // `{lien}` : la page de recharge de ClickSend (aucun rendez-vous ici, donc pas de `{client}`)
 });
 /** Pas de caractère hors GSM-7 (« À » s'écrit « A ») : le texte par défaut est déjà celui qui partira. */
 export const MODELES_ALERTE_DEFAUT = Object.freeze({
@@ -389,8 +392,9 @@ export const MODELES_ALERTE_DEFAUT = Object.freeze({
   'alerte-echec-envoi': 'RDV {client} : un SMS n\'est pas parti vers {nom}. Appelle cette personne.',
   'alerte-tardive': 'RDV {client} : {nom} a répondu après la confirmation : "{reponse}". Appelle cette personne.',
   'alerte-desinscription': 'RDV {client} : {nom} a répondu STOP. Plus aucun SMS ne lui sera envoyé : appelle cette personne.',
+  'alerte-solde-bas': 'ClickSend : solde bas, {solde} EUR (seuil {seuil} EUR).\n{lien}',
 });
-/** Tous les modèles réglables : les six des participants, puis les huit alertes. */
+/** Tous les modèles réglables : les six des participants, puis les neuf alertes. */
 export const TOUS_MODELES_DEFAUT = Object.freeze({ ...MODELES_DEFAUT, ...MODELES_ALERTE_DEFAUT });
 export const estModeleAlerte = (type) => Object.hasOwn(MODELES_ALERTE_DEFAUT, type);
 export const variablesDuModele = (type) => (estModeleAlerte(type) ? VARIABLES_ALERTE[type] : VARIABLES_SMS);
@@ -401,7 +405,7 @@ export const BASE_LIEN_PLATEFORME = 'https://chevalier-ia-app.web.app';
 const ID_EXEMPLE = 'aB3dE5gH7jK9mN1pQ3sT';
 /** Adresse d'exemple d'un rendez-vous dans l'espace courant : `client` vide = chez Jérôme ; l'identifiant du client sinon. Sert à compter les SMS de l'aperçu avec la vraie longueur. */
 export const lienExempleRdv = (client = '') => (client ? `${BASE_LIEN_PLATEFORME}/#/espace/${client}/rdv/liste/${ID_EXEMPLE}` : `${BASE_LIEN_JEROME}/#/rdv/liste/${ID_EXEMPLE}`);
-export const EXEMPLE_ALERTE = Object.freeze({ client: 'M. Durand', creneau: '2026-11-19T09:00:00Z', nom: 'M. Petit', reponse: 'plutot jeudi', lien: lienExempleRdv('') });
+export const EXEMPLE_ALERTE = Object.freeze({ client: 'M. Durand', creneau: '2026-11-19T09:00:00Z', nom: 'M. Petit', reponse: 'plutot jeudi', lien: lienExempleRdv(''), solde: 4.5, seuil: 5 });
 
 const abreger = (t) => String(t).replace(/\s+/g, ' ').trim().slice(0, 40);
 const NOM_PAR_DEFAUT = { incomprise: 'un participant' };
@@ -412,6 +416,8 @@ function valeursAlerte(sousType, ctx = {}) {
     creneau: (ctx.creneau && formaterCreneauSms(ctx.creneau)) || 'a confirmer',
     nom: ctx.nom || NOM_PAR_DEFAUT[sousType] || 'une personne',
     reponse: ctx.reponse ? abreger(ctx.reponse) || '(sans texte)' : '(sans texte)',
+    solde: ctx.solde === undefined || ctx.solde === null ? '?' : formaterSolde(ctx.solde),
+    seuil: ctx.seuil === undefined || ctx.seuil === null ? '?' : formaterSeuil(ctx.seuil),
     lien: VARIABLES_ALERTE[cleAlerte(sousType)]?.includes('lien') ? (ctx.lien || '') : '', // jamais de lien pour une alerte qui ne le prévoit pas, même si un modèle stocké l'écrit
   };
 }
@@ -423,15 +429,19 @@ export function texteAlerte(sousType, ctx = {}, parametres = {}) {
   return preparerSms(remplirModele(modeleDe(cle, parametres), valeursAlerte(sousType, ctx)));
 }
 
-/** Aperçu des huit alertes avec des données d'exemple : texte avec le lien, et — pour celles qui le portent — le même texte sans lien. `client` : l'identifiant de l'espace (vide chez Jérôme) pour compter avec l'adresse réelle. */
-export function apercuAlertes(parametres, { client = '' } = {}) {
+/**
+ * Aperçu des neuf alertes avec des données d'exemple : texte avec le lien, et — pour celles qui le portent — le même texte sans lien. `client` : l'identifiant de l'espace (vide chez Jérôme) pour compter avec
+ * l'adresse réelle. `lienRecharge` : l'adresse de la page de recharge de ClickSend, donnée par l'écran des Réglages (jamais écrite ici) ; absente, l'exemple de « solde bas » compte avec l'adresse d'un rendez-vous.
+ */
+export function apercuAlertes(parametres, { client = '', lienRecharge = '' } = {}) {
   const exemple = { ...EXEMPLE_ALERTE, lien: lienExempleRdv(client) };
   return SOUS_TYPES_ALERTE.map((sousType) => {
     const type = cleAlerte(sousType);
     const modele = modeleDe(type, parametres);
-    const avecLien = texteAlerte(sousType, exemple, parametres);
+    const ex = sousType === 'solde-bas' && lienRecharge ? { ...exemple, lien: lienRecharge } : exemple;
+    const avecLien = texteAlerte(sousType, ex, parametres);
     const aLien = /\{lien\}/.test(modele) && VARIABLES_ALERTE[type].includes('lien');
-    return { type, sousType, libelle: LIBELLES_ALERTES[type], modele, ...avecLien, aLien, sansLien: aLien ? texteAlerte(sousType, { ...exemple, lien: '' }, parametres) : null };
+    return { type, sousType, libelle: LIBELLES_ALERTES[type], modele, ...avecLien, aLien, sansLien: aLien ? texteAlerte(sousType, { ...ex, lien: '' }, parametres) : null };
   });
 }
 
@@ -458,6 +468,34 @@ export function lirePrixSms(saisie) {
   return n >= PRIX_SMS_MIN && n <= PRIX_SMS_MAX ? n : null;
 }
 export const tarifsAuDe = (p) => (typeof p?.tarifsAu === 'string' && p.tarifsAu.trim() ? p.tarifsAu.trim().slice(0, 40) : TARIFS_AU_DEFAUT);
+// ───────────────────────────── Solde ClickSend : seuils d'alerte ─────────────────────────────
+
+export const SEUILS_SOLDE_DEFAUT = Object.freeze([10, 5, 2]);
+export const SEUIL_SOLDE_MAX = 1000;
+const estSeuil = (n) => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= SEUIL_SOLDE_MAX;
+/** Lit un seuil tapé (« 10 », « 2,5 ») : chiffres et une virgule ou un point décimal (2 décimales au plus), de 0 à 1 000 ; sinon null. */
+export function lireSeuilSolde(saisie) {
+  const t = String(saisie ?? '').trim();
+  if (!/^\d+(?:[.,]\d{1,2})?$/.test(t)) return null;
+  const n = Number(t.replace(',', '.'));
+  return estSeuil(n) ? n : null;
+}
+/** Trois seuils, strictement décroissants (le plus haut d'abord) ? { ok, message }. */
+export function validerSeuilsSolde(seuils) {
+  if (!Array.isArray(seuils) || seuils.length !== 3 || !seuils.every(estSeuil)) return { ok: false, message: 'Écris trois seuils en euros, entre 0 et 1 000 (ex. 10, 5 et 2).' };
+  if (!(seuils[0] > seuils[1] && seuils[1] > seuils[2])) return { ok: false, message: 'Les seuils doivent diminuer : le premier est le plus haut, le troisième le plus bas.' };
+  return { ok: true, message: '' };
+}
+/** Les trois seuils réglés, ou ceux de départ si le réglage est absent ou faux (jamais d'alerte avec des seuils absurdes). */
+export const seuilsSoldeDe = (p) => (validerSeuilsSolde(p?.seuilsSolde).ok ? [...p.seuilsSolde] : [...SEUILS_SOLDE_DEFAUT]);
+/** « 5 » ou « 2,5 » : un seuil sans décimales inutiles. */
+export const formaterSeuil = (n) => (Number.isFinite(Number(n)) ? String(Math.round(Number(n) * 100) / 100).replace('.', ',') : '?');
+/** « 4,50 » : un montant en euros, deux décimales, virgule française, sans espace insécable (le texte part par SMS). */
+export function formaterSolde(n) {
+  const v = Number(n);
+  return Number.isFinite(v) ? v.toFixed(2).replace('.', ',') : '?';
+}
+
 /** Coût estimé d'un texte : prix d'un segment × nombre de SMS facturés (`compterSms`). Rien n'est stocké : le coût se calcule à l'écran. */
 export function coutSms(texte, prix = PRIX_SMS_DEFAUT) {
   const segments = compterSms(normaliserSms(texte)).segments;
@@ -552,6 +590,8 @@ export function estDesinscription(texte) {
 export function appliquerReponse({ participant, rdv, texte, recuLe, idReponse, tourReponse }) {
   const tour = Number.isFinite(tourReponse) ? tourReponse : (rdv?.tour ?? 1);
   if (tour < (rdv?.tour ?? 1)) return { historiqueSeulement: true, comprise: null, patch: null };
+  // Un désinscrit dont la professionnelle a SAISI la réponse (après l'avoir appelé) : aucun SMS reçu de lui ne l'efface (ni « 1 », ni un nouveau STOP, qui ne redemande pas d'alerte) ; trace seulement. `desinscrit` reste vrai.
+  if (participant?.desinscrit === true && participant?.etatReponse === 'saisie') return { historiqueSeulement: true, comprise: null, patch: null, alerteIncomprise: false };
   if (estDesinscription(texte)) {
     return { historiqueSeulement: false, comprise: false, desinscription: true, alerteIncomprise: true,
       patch: { reponse: String(texte ?? ''), etatReponse: 'incomprise', creneauxOk: [], reponseLe: recuLe ?? null, idReponse: idReponse ?? null, desinscrit: true } };
@@ -580,8 +620,15 @@ export function saisirReponse(participant, creneauxOk, nbCreneaux = MAX_CRENEAUX
 
 const aRepondu = (p) => p.etatReponse === 'comprise' || p.etatReponse === 'saisie';
 
-/** Consigne 6 : 'oui' (coche verte), 'non' (croix rouge), 'inconnu' (point d'interrogation), 'incompris' (triangle rouge). */
+/**
+ * Cette personne a répondu STOP (repère `desinscrit` posé par `appliquerReponse`) : affichage et bilan. Le repère n'est JAMAIS remis à faux (même une réponse « 1 » reçue ensuite, ou « Proposer d'autres créneaux », le laisse).
+ * Un STOP reçu pour un autre rendez-vous (numéro dans la liste tenue par le serveur, sans repère ici) est pris en compte par `estDesinscrit` quand la liste est donnée.
+ */
+export const estDesinscrit = (participant, desinscrits = []) => participant?.desinscrit === true || (!!participant?.telephone && (desinscrits || []).includes(participant.telephone));
+
+/** Consigne 6 : 'oui' (coche verte), 'non' (croix rouge), 'inconnu' (point d'interrogation), 'incompris' (triangle rouge), 'desinscrit' (STOP : prime sur tout le reste, jamais « réponse non comprise »). */
 export function symboleCellule(participant, indexCreneau) {
+  if (participant?.desinscrit === true) return 'desinscrit';
   if (participant?.etatReponse === 'incomprise') return 'incompris';
   if (!participant || !aRepondu(participant)) return 'inconnu';
   return (participant.creneauxOk || []).includes(indexCreneau + 1) ? 'oui' : 'non';
@@ -593,22 +640,27 @@ export function symboleCellule(participant, indexCreneau) {
  * Bilan des réponses :
  *  - `parCreneau[i]` = nombre de personnes pour qui le créneau i+1 convient ;
  *  - `communs` = numéros (1 à 3) des créneaux qui conviennent à TOUT le monde (seulement quand tout le monde a répondu) ;
+ *  - RÈGLE « désinscrit (STOP) » : une personne désinscrite (`desinscrit === true`) ne bloque jamais les autres. `complet` = tous les NON-désinscrits ont répondu (et il y en a au moins un) ; un désinscrit dont la réponse a été SAISIE par la professionnelle compte comme les autres ;
+ *    `parCreneau`, `reponses` et `communs` ne comptent qu'eux ; `total` compte tout le monde ; un désinscrit n'est jamais « OK » (même avec une réponse « 1 » reçue après son STOP) ;
  *  - `meilleur` = le créneau qui convient au plus de monde { creneau, nombre } (ex-aequo : le plus tôt) ;
  *  - `complet` = tout le monde a répondu (compris ou saisi), `incomprises` = réponses non comprises à traiter.
  */
 export function bilanReponses(participants, nbCreneaux = MAX_CRENEAUX) {
   const liste = participants || [];
   const total = liste.length;
-  const repondants = liste.filter(aRepondu);
+  // Un désinscrit dont la professionnelle a SAISI la réponse (`saisie`, après l'avoir appelé) compte comme les autres ; sa réponse par SMS (« 1 » après STOP), une attente ou une réponse non comprise ne comptent jamais.
+  const actifs = liste.filter((p) => p.desinscrit !== true || p.etatReponse === 'saisie');
+  const repondants = actifs.filter(aRepondu);
   const parCreneau = Array.from({ length: nbCreneaux }, (_, i) => repondants.filter((p) => (p.creneauxOk || []).includes(i + 1)).length);
-  const complet = total > 0 && repondants.length === total;
-  const communs = complet ? parCreneau.map((n, i) => (n === total ? i + 1 : 0)).filter(Boolean) : [];
+  const complet = actifs.length > 0 && repondants.length === actifs.length;
+  const communs = complet ? parCreneau.map((n, i) => (n === actifs.length ? i + 1 : 0)).filter(Boolean) : [];
   let meilleur = null;
   parCreneau.forEach((n, i) => { if (n > 0 && (!meilleur || n > meilleur.nombre)) meilleur = { creneau: i + 1, nombre: n }; });
   return {
     total, reponses: repondants.length, complet, parCreneau, communs, meilleur,
-    incomprises: liste.filter((p) => p.etatReponse === 'incomprise').length,
-    enAttente: liste.filter((p) => !p.etatReponse || p.etatReponse === 'attente').length,
+    incomprises: actifs.filter((p) => p.etatReponse === 'incomprise').length,
+    desinscrits: liste.filter((p) => p.desinscrit === true).length,
+    enAttente: actifs.filter((p) => !p.etatReponse || p.etatReponse === 'attente').length,
   };
 }
 
@@ -625,20 +677,22 @@ export function etatCalcule(rdv, participants, params = {}) {
 export const estOuvert = (rdv) => !!rdv && !rdv.archive && !rdv.annule && rdv.etat !== 'confirme' && !rdv.creneauChoisi;
 
 /** Phrase d'état des cartes et du tableau : « 2 réponses sur 4 », « Relance 1 sur 3 demain », « Créneau commun : jeu. 19 nov. 10 h », « 2 créneaux communs ». */
-export function ligneEtat({ rdv, participants, parametres, messages, maintenant }) {
+export function ligneEtat({ rdv, participants, parametres, messages, maintenant, desinscrits = [] }) {
   const b = bilanReponses(participants, (rdv?.creneaux || []).length || MAX_CRENEAUX);
   if (rdv?.etat === 'confirme' || rdv?.creneauChoisi) return `Confirmé : ${formaterCreneau(rdv.creneauChoisi)}`;
+  const stop = b.desinscrits ? `${b.desinscrits} désinscrit${b.desinscrits > 1 ? 's' : ''} (STOP)` : '';
+  const avecStop = (t) => (stop ? `${t} · ${stop}` : t);
   if (b.complet && b.communs.length) {
     // Tous les créneaux communs sont passés : l'écran dit comme l'alerte (« aucun créneau à venir ne convient »), jamais une date passée présentée comme créneau commun.
     const avenir = creneauxCommunsAVenir(b, { creneaux: rdv.creneaux, maintenant });
-    if (!avenir.length) return 'Aucun créneau commun à venir';
-    if (avenir.length > 1) return `${avenir.length} créneaux communs`;
-    return `Créneau commun : ${formaterCreneau(rdv.creneaux[avenir[0] - 1])}`;
+    if (!avenir.length) return avecStop('Aucun créneau commun à venir');
+    if (avenir.length > 1) return avecStop(`${avenir.length} créneaux communs`);
+    return avecStop(`Créneau commun : ${formaterCreneau(rdv.creneaux[avenir[0] - 1])}`);
   }
-  if (b.complet) return 'Aucun créneau commun';
+  if (b.complet) return avecStop('Aucun créneau commun');
   if (b.incomprises) return b.incomprises === 1 ? 'Une réponse non comprise' : `${b.incomprises} réponses non comprises`;
-  const texte = `${b.reponses} ${b.reponses > 1 ? 'réponses' : 'réponse'} sur ${b.total}`;
-  const prochaine = prochaineRelance({ rdv, participants, parametres, messages });
+  const texte = stop ? `${stop} · ${b.reponses} ${b.reponses > 1 ? 'réponses' : 'réponse'} sur ${b.total}` : `${b.reponses} ${b.reponses > 1 ? 'réponses' : 'réponse'} sur ${b.total}`;
+  const prochaine = prochaineRelance({ rdv, participants, parametres, messages, desinscrits });
   if (prochaine && Number.isFinite(enMs(maintenant))) {
     const quand = enMs(prochaine.dueLe) <= enMs(maintenant) ? 'bientôt' : quandRelatif(prochaine.dueLe, maintenant);
     return `${texte} · Relance ${prochaine.numero} sur ${prochaine.sur} ${quand}`;
@@ -660,6 +714,7 @@ const params = (p) => ({
   modeles: p?.modeles || {},
   prixSms: prixSmsDe(p),
   tarifsAu: tarifsAuDe(p),
+  seuilsSolde: seuilsSoldeDe(p),
 });
 
 /** Identifiant déterministe d'un envoi : le même envoi a toujours le même identifiant (jamais deux SMS pour une échéance). */
@@ -704,10 +759,11 @@ const dernierCreneau = (rdv) => Math.max(...(rdv?.creneaux || []).map(enMs).filt
  *  - une relance enregistrée sans horodatage d'envoi arrête le calendrier (on ne devine pas) ;
  *  - `complet` : toutes les relances prévues sont faites (l'alerte de fin peut être due).
  */
-function calendrierRelances({ rdv, participants, p, deja }) {
+function calendrierRelances({ rdv, participants, p, deja, desinscrits = [] }) {
   const tour = rdv.tour || 1;
   const n = nombreRelances(p);
-  const joignables = (participants || []).filter((x) => x.telephone);
+  // Une personne désinscrite (repère OU numéro dans la liste du serveur) n'est jamais relancée et ne bloque pas le calendrier des autres.
+  const joignables = (participants || []).filter((x) => x.telephone && !estDesinscrit(x, desinscrits));
   const attentes = joignables.filter(enAttente);
   const envoiDe = (nature, x) => { const m = deja.get(idEcheance(rdv.id, tour, nature, x.id)); return m ? enMs(m.envoyeLe) : undefined; };
   const departs = joignables.map((x) => envoiDe('creneaux', x)).filter(Number.isFinite);
@@ -731,17 +787,17 @@ function calendrierRelances({ rdv, participants, p, deja }) {
 }
 
 /** Prochaine relance prévue (pour la carte) : { numero, sur, dueLe } ou null. */
-export function prochaineRelance({ rdv, participants, parametres, messages }) {
+export function prochaineRelance({ rdv, participants, parametres, messages, desinscrits = [] }) {
   const p = params(parametres);
   if (!nombreRelances(p) || !estOuvert(rdv) || !rdv?.id) return null;
-  const cal = calendrierRelances({ rdv, participants, p, deja: envoyes(messages) });
+  const cal = calendrierRelances({ rdv, participants, p, deja: envoyes(messages), desinscrits });
   const etape = cal.etapes.find((e) => e.cibles.length);
   return etape ? { numero: etape.k, sur: cal.n, dueLe: versISO(prochaineOuverture(etape.instant, p.plage)) } : null;
 }
 
 /** Le serveur a écrit `rdv.relancesTermineesLe` (alerte de fin envoyée) et il manque encore des réponses : colonne « À reprendre ». */
 export function relancesTerminees(rdv, participants, parametres) {
-  return !!rdv?.relancesTermineesLe && (participants || []).some((x) => !x.etatReponse || x.etatReponse === 'attente');
+  return !!rdv?.relancesTermineesLe && (participants || []).some((x) => x.desinscrit !== true && (!x.etatReponse || x.etatReponse === 'attente'));
 }
 
 /**
@@ -778,7 +834,7 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
     });
   };
   const valeurs = valeursSms(rdv, p);
-  const actifsAlerte = p.numerosAlerte.map((n, i) => (n ? { ...n, id: n.id || `n${i + 1}` } : n)).filter((n) => n && n.actif && n.numero);
+  const actifsAlerte = p.numerosAlerte.map((n, i) => (n ? { ...n, id: n.id || `n${i + 1}` } : n)).filter((n) => n && n.actif !== false && n.numero);
   const alerter = (sousType, nature, ctx, sauf = '') => {
     for (const n of actifsAlerte) {
       if (sauf && deja.has(idEcheance(rdv.id, tour, `alerte-${sauf}`, n.id))) continue;
@@ -805,7 +861,7 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
   const ouverts = estOuvert(rdv);
   const limite = dernierCreneau(rdv);
   if (ouverts && nowMs < limite) {
-    const cal = calendrierRelances({ rdv, participants, p, deja });
+    const cal = calendrierRelances({ rdv, participants, p, deja, desinscrits });
     for (const etape of cal.etapes) {
       for (const x of etape.cibles) {
         proposer({ idEcheance: idEcheance(rdv.id, tour, `relance${etape.k}`, x.id), typeMessage: 'relance', modele: 'relance', valeurs, numero: x.telephone, participantId: x.id, instant: etape.instant, avant: limite });
@@ -829,7 +885,9 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
     if (b.complet && prochain) alerter('commun', 'commun', { instant: instantReponses, creneau: prochain, lien });
     // Borne d'âge : si le dernier créneau commun est passé depuis plus de 7 jours, rien n'est envoyé (un vieux rendez-vous ne doit jamais déclencher un SMS au premier tir après un déploiement).
     const dernierCommun = Math.max(...b.communs.map((i) => enMs(rdv.creneaux[i - 1])).filter(Number.isFinite), -Infinity);
-    const tropVieux = b.communs.length > 0 && nowMs - dernierCommun > AGE_MAX_ALERTE_AUCUN_JOURS * 24 * HEURE_MS;
+    // Même borne pour « aucun créneau commun » : sans créneau commun, on regarde le dernier créneau proposé (tous passés depuis plus de 7 jours = plus d'alerte).
+    const reference = b.communs.length > 0 ? dernierCommun : dernierCreneau(rdv);
+    const tropVieux = Number.isFinite(reference) && nowMs - reference > AGE_MAX_ALERTE_AUCUN_JOURS * 24 * HEURE_MS;
     if (b.complet && !prochain && !tropVieux) alerter('aucun', 'aucun', { instant: instantReponses, lien }, b.communs.length ? 'commun' : '');
     for (const x of participants.filter((y) => y.etatReponse === 'incomprise')) {
       alerter(x.desinscrit ? 'desinscription' : x.ambigu ? 'ambigu' : 'incomprise', `incomprise-${x.id}-${x.idReponse || 'r'}`, { instant: enMs(x.reponseLe) || nowMs, nom: x.nom, reponse: x.reponse });
@@ -1093,6 +1151,10 @@ export function bandeauCreneau(bilan, options = {}) {
 export const TEXTE_REPONSE_INCOMPRISE = 'Cette personne a répondu quelque chose que le service ne comprend pas. Tu as reçu un SMS : appelle-la ou saisis sa réponse à sa place.';
 export const TEXTE_REPONSES_INCOMPRISES = 'Certaines personnes ont répondu quelque chose que le service ne comprend pas. Tu as reçu un SMS : appelle-les ou saisis leur réponse à leur place.';
 
+/** Texte du bandeau rouge quand au moins une personne a répondu STOP : elle ne reçoit plus rien, mais les autres ne sont pas bloqués. */
+export const TEXTE_DESINSCRIT = 'Cette personne a répondu STOP : elle ne reçoit plus aucun SMS. Les autres réponses comptent quand même. Appelle-la si besoin.';
+export const TEXTE_DESINSCRITS = 'Certaines personnes ont répondu STOP : elles ne reçoivent plus aucun SMS. Les autres réponses comptent quand même. Appelle-les si besoin.';
+
 // ───────────────────────────── Avant de confirmer : ce qui va partir par SMS ─────────────────────────────
 
 /** « 06 00 00 00 02 » → « 06 •• •• •• 02 » : seuls le début et la fin du numéro sont montrés. Un numéro qui n'a pas la forme attendue (cinq groupes de deux chiffres) est masqué en entier. */
@@ -1138,7 +1200,7 @@ export function previsionConfirmation({ rdv, participants = [], parametres, nume
   const cout = Math.round((coutSms(confirmation.texte, p.prixSms) * destinataires + (rappel ? coutSms(rappel.texte, p.prixSms) * nbRappels : 0)) * 1e6) / 1e6;
   return {
     creneau, test, numeroTest: numeroTest ? masquerTelephone(numeroTest) : '', personnes, destinataires,
-    rappelLe: rappelPossible ? versISO(rappelReel) : null,
+    rappelLe: rappelPossible && destinataires > 0 ? versISO(rappelReel) : null, // aucun destinataire : aucun rappel à annoncer
     confirmation: { texte: confirmation.texte, caracteres: confirmation.caracteres, segments: confirmation.segments, manque: [...new Set([...confirmation.texte.matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]))] },
     messages: destinataires + nbRappels, segmentsConfirmation, segmentsRappel, segments: segmentsConfirmation + segmentsRappel,
     cout, tarifsAu: p.tarifsAu,

@@ -16,9 +16,10 @@ const SYMBOLES = {
   non: { icone: 'x', libelle: 'Ne peut pas' },
   inconnu: { icone: 'circle-help', libelle: 'Pas de réponse' },
   incompris: { icone: 'triangle-alert', libelle: 'Réponse non comprise' },
+  desinscrit: { icone: 'circle-x', libelle: 'Désinscrit (STOP)' },
 };
 
-/** Grosse coche verte, grosse croix rouge, point d'interrogation gris ou triangle rouge. */
+/** Grosse coche verte, grosse croix rouge, point d'interrogation gris, triangle rouge (réponse non comprise) ou croix cerclée grise (désinscrit, STOP). */
 export function symbole(nom) {
   const s = SYMBOLES[nom];
   return h('span', { class: `rdv-symbole rdv-symbole-${nom}`, role: 'img', 'aria-label': s.libelle, title: s.libelle, dataset: { symbole: nom } }, icone(s.icone, { taille: 28 }));
@@ -322,12 +323,15 @@ export function rendreFiche(conteneur, id) {
       h('span', { class: 'rdv-col-numero' }, `Créneau ${i + 1}`), h('span', { class: 'rdv-col-date' }, `${R.formaterJourLong(c)} à ${R.formaterHeure(c)}`), estCommun(i) ? h('span', { class: 'rdv-col-etiquette' }, 'Pour tous') : null));
     const groupe = h('colgroup', {}, h('col', { class: 'rdv-colonne-personne' }), (r.creneaux || []).map((_, i) => h('col', { class: `rdv-colonne-creneau${estCommun(i) ? ' rdv-col-commun' : ''}` })), h('col', { class: 'rdv-colonne-reponse' }));
     const lignes = parts.map((p) => {
-      const incompris = p.etatReponse === 'incomprise';
-      return h('tr', { class: `rdv-ligne-reponse${incompris ? ' rdv-ligne-incomprise' : ''}`, dataset: { participant: p.id } },
+      const desinscrit = p.desinscrit === true; // « Désinscrit (STOP) » prime sur tous les états de réponse
+      const incompris = !desinscrit && p.etatReponse === 'incomprise';
+      const sansCellules = incompris || desinscrit;
+      return h('tr', { class: `rdv-ligne-reponse${incompris ? ' rdv-ligne-incomprise' : ''}${desinscrit ? ' rdv-ligne-desinscrit' : ''}`, dataset: { participant: p.id, ...(desinscrit ? { desinscrit: 'oui' } : {}) } },
         h('th', { scope: 'row', class: 'rdv-personne' },
-          h('div', { class: 'rdv-personne-nom' }, h('span', {}, p.nom || 'Sans nom'), infoTelephone(p.telephone), incompris ? symbole('incompris') : null),
+          h('div', { class: 'rdv-personne-nom' }, h('span', {}, p.nom || 'Sans nom'), infoTelephone(p.telephone), incompris ? symbole('incompris') : null, desinscrit ? symbole('desinscrit') : null),
+          desinscrit ? h('div', { class: 'aide', dataset: { role: 'desinscrit-texte' } }, 'Désinscrit (STOP) : ne reçoit plus de SMS') : null,
           p.role ? h('div', { class: 'aide rdv-personne-role' }, p.role) : null),
-        (r.creneaux || []).map((_, i) => h('td', { class: 'rdv-cellule', dataset: { creneau: String(i + 1) } }, incompris ? null : symbole(R.symboleCellule(p, i)))),
+        (r.creneaux || []).map((_, i) => h('td', { class: 'rdv-cellule', dataset: { creneau: String(i + 1) } }, sansCellules ? null : symbole(R.symboleCellule(p, i)))),
         h('td', { class: 'rdv-sa-reponse' },
           p.reponse ? h('span', { class: 'rdv-reponse-texte', dataset: { role: 'reponse-exacte' } }, `« ${p.reponse} »`) : null,
           p.etatReponse === 'saisie' ? h('span', { class: 'aide', dataset: { role: 'saisie-par-toi' } }, 'Coché par toi') : null,
@@ -340,7 +344,7 @@ export function rendreFiche(conteneur, id) {
       h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Participant'), colonnes, h('th', { scope: 'col' }, 'Sa réponse'))), h('tbody', {}, lignes)));
   }
 
-  const legende = () => h('ul', { class: 'rdv-legende', dataset: { role: 'legende' } }, ['oui', 'non', 'inconnu', 'incompris'].map((n) => h('li', {}, symbole(n), h('span', {}, SYMBOLES[n].libelle))));
+  const legende = () => h('ul', { class: 'rdv-legende', dataset: { role: 'legende' } }, ['oui', 'non', 'inconnu', 'incompris', 'desinscrit'].map((n) => h('li', {}, symbole(n), h('span', {}, SYMBOLES[n].libelle))));
 
   function historique(r, parts) {
     const msgs = R.historiqueMessages(D.messagesDe(r.id), parts);
@@ -401,6 +405,7 @@ export function rendreFiche(conteneur, id) {
       h('div', { class: 'page-actions' }, h('span', { class: `pastille-statut rdv-etat-${etat === 'annule' ? 'a_reprendre' : etat}`, dataset: { role: 'etat' } }, nomEtat(r)), menu)),
       confirme ? h('div', { class: 'rdv-bandeau rdv-bandeau-confirme', dataset: { role: 'bandeau-confirme' } }, `Rendez-vous confirmé : ${R.formaterCreneau(r.creneauChoisi)}.`) : null,
       bilan.incomprises ? h('div', { class: 'rdv-bandeau rdv-bandeau-rouge', role: 'alert', dataset: { role: 'bandeau-incompris' } }, icone('triangle-alert', { taille: 18 }), bilan.incomprises > 1 ? R.TEXTE_REPONSES_INCOMPRISES : R.TEXTE_REPONSE_INCOMPRISE) : null,
+      bilan.desinscrits ? h('div', { class: 'rdv-bandeau rdv-bandeau-rouge', role: 'alert', dataset: { role: 'bandeau-desinscrit' } }, icone('circle-x', { taille: 18 }), bilan.desinscrits > 1 ? R.TEXTE_DESINSCRITS : R.TEXTE_DESINSCRIT) : null,
       bandeau ? h('div', { class: 'rdv-bandeau rdv-bandeau-violet', role: 'status', dataset: { role: 'bandeau-creneau', type: bandeau.type } }, bandeau.texte) : null,
       h('section', { class: 'carte-section' }, h('h2', {}, 'Qui peut quand'), parts.length ? tableau(r, parts, ouvert, ouvert ? R.creneauxCommunsAVenir(bilan, options) : []) : h('p', { class: 'aide' }, 'Aucun participant.'), legende()),
       h('div', { class: 'ligne-boutons rdv-boutons-fiche' }, boutons),

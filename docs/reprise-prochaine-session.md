@@ -1,5 +1,39 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 15 au 16/11/2026 : nuit « Rendez-vous » (SMS, solde, STOP)
+
+Même code chez Jérôme et chez les clients. Rien n'est déployé chez les clients. Les règles Firestore ne sont pas publiées.
+
+| Sujet | PR | État |
+|---|---|---|
+| Alertes à la professionnelle en modèles modifiables, `{lien}` vers la fiche, prix du SMS réglable | 634 | fusionnée |
+| Une seule fenêtre « Ajouter un numéro », tableau « Qui peut quand », choix du créneau, aide ClickSend | 635 | fusionnée |
+| Prévision avant « Confirmer » (SMS prévus, segments, STOP, rappel) | 637 | fusionnée |
+| Tests de fiche (rappel, styles) | 639 | fusionnée |
+| Solde ClickSend, 3 alertes de solde bas (10 / 5 / 2 €), bilan « Prêt à passer en vrai ? » | 640 | fusionnée (deux relectures Fable) |
+| STOP visible : « Désinscrit (STOP) » partout, un désinscrit ne bloque plus les autres | 641 | fusionnée (trois relectures Fable) |
+| Modifier le rendez-vous, « Renvoyer le SMS », règles Firestore de `rdv_messages` et `rdv_parametres/desinscrits` | 638 | **ouverte, verte, étiquette `a-fusionner-par-jerome`** (liste d'arrêt : règles) |
+| Écran « Numéros désinscrits » + « Réautoriser » + retour quand un envoi est bloqué par STOP (D2) | non faite | attend la 638 (n'écrit plus par le navigateur) |
+
+**État de la nuit GitHub** : « Tests de nuit » 158 vert (après 640) ; celui lancé après 641 est lu au début de la prochaine session (voir le tableau de sa PR de docs).
+
+**Ce que Jérôme fait (dans l'ordre)** :
+1. Lire la PR 638 (fiche : https://github.com/jeromechevalier-wq/chevalier-ia-os/pull/638), puis la fusionner si OK (écrans : « Modifier le rendez-vous », « Renvoyer le SMS »).
+2. Après la fusion : publier les règles Firestore avec le workflow manuel « Publier les règles (CRM de Jérôme) » (https://github.com/jeromechevalier-wq/chevalier-ia-os/actions), puis dire à Claude de préparer « Déploiement plateforme clients » (regles + fonctions, un par un). Sans le déploiement des fonctions, « Renvoyer le SMS » répond « Action inconnue. » chez les clients.
+3. Réglages > Rendez-vous > « Connexion SMS » > « Vérifier la connexion », puis la carte « Prêt à passer en vrai ? » : le solde s'affiche si ClickSend renvoie `balance`.
+4. Vérifier le lien de recharge `https://dashboard.clicksend.com/portal/billing#add-credit` (il part dans un vrai SMS d'alerte de solde).
+
+**Décisions prises seul (à corriger si tu n'es pas d'accord)** : seuils de solde 10 / 5 / 2 € ; devise absente = euro, autre devise = solde indisponible (aucune alerte) ; plusieurs seuils franchis d'un coup = un SMS (le plus bas) ; alerte de solde abandonnée (jamais envoyée) si le numéro est retiré, a répondu STOP ou si le cycle est périmé ; « Renvoyer le SMS » crée un SMS manuel avec une nouvelle échéance ; un désinscrit dont la professionnelle a saisi la réponse compte comme les autres, mais un désinscrit n'est jamais « OK » sinon ; la borne de 7 jours d'âge vaut aussi pour l'alerte « aucun créneau commun ».
+
+**Limites connues (à traiter plus tard)** :
+- Solde : **recharge partielle = alertes muettes** (l'état ne se remet à zéro que si le solde repasse au-dessus du seuil le plus haut ; avec 50/20/5 € et une recharge de 20 €, plus d'alerte) ; les alertes de solde partent après les SMS de rendez-vous (à crédit presque nul elles peuvent sauter) ; une panne durable des alertes ne s'écrit pas dans le journal ; `n.actif !== false` s'applique à toutes les alertes (un ancien numéro sans champ `actif` en recevra) ; lien de recharge non vérifié ; deux tirs avec deux soldes différents peuvent donner deux SMS.
+- STOP : (a) un STOP venu d'un autre rendez-vous (numéro dans la liste, sans repère) laisse l'état « En attente » ; (b) tous les participants désinscrits : reste « En attente » (proposition : `a_reprendre`) ; (c) repère sans liste : `proposer` et `previsionConfirmation` lisent la liste seule ; (d) rendez-vous déjà confirmé : un désinscrit saisi qui renvoie STOP ou « 1 » déclenche encore l'alerte « a répondu STOP » ; (e) un STOP d'avant cette PR sans repère `desinscrit` reste « réponse non comprise ». **À trancher avec Jérôme : (a) et (b).**
+- Déploiement : la PR 641 change l'état calculé et les alertes ; chez les clients, écran et `functions-plateforme` partent ensemble, avec ton accord avant.
+
+**Non vérifié avec le vrai système** : `GET /v3/account` (champs `balance` et `_currency`) avec le compte de Jérôme ; le lien de recharge ; l'envoi réel d'une alerte de solde ; l'ouverture des liens `{lien}` dans l'appli déployée ; les préconditions Firestore réelles ; les parcours navigateur de la PR 640 en CI seulement au palier rapide.
+
+**Reste à coder** : D2 (écran « Numéros désinscrits », action `reautoriser` de `rdvEnvoyer`, ligne d'historique « SMS non envoyé : numéro désinscrit (STOP) », état « bloque » du SMS manuel, message après « Envoyer les propositions ») ; historique de série (« Nouvelle série… », table en lecture seule) ; statistiques avec le prix ; mode test complet ; relances après un SMS abandonné ; fermeture des actions `rdv.*` de la porte HTTP ; archivage des deux workflows n8n `interne-rdv-…`.
+
 ## Rapport du matin du 14/11/2026 : module « Rendez-vous » fusionné, prêt pour un vrai test
 
 Module `rdv` autonome (socle), même code chez Jérôme et chez les clients. Les SMS partent **directement par l'API de ClickSend, sans n8n** (décision de Jérôme du 14/11) ; la clé vit dans Secret Manager, jamais dans Firestore, le dépôt, une page ni le journal. Spécification : `docs/rdv-sms-clicksend.md`. Aucune donnée de Jérôme touchée, aucune règle Firestore touchée, **rien déployé chez les clients** (workflow manuel, avec Jérôme).

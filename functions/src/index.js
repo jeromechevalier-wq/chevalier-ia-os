@@ -189,8 +189,8 @@ export const rdvConnexionSms = onCall(OPTIONS_DEVIS, (requete) => {
 export const rdvEnvoiPlanifie = onSchedule(
   { region: 'europe-west9', schedule: '*/15 * * * *', timeZone: 'Europe/Paris', timeoutSeconds: 300, memory: '256MiB', maxInstances: 1, serviceAccount: OPTIONS_DEVIS.serviceAccount },
   async () => {
-    const bilan = await smsDirect.tirer('interne', { budgetMs: 200_000 }); // la fonction dure 300 s : le budget laisse de la marge (jamais coupée en plein envoi)
-    if (bilan.branche) journalRdv({ action: 'planifie', statut: bilan.arret ? 'arret' : 'ok', arret: bilan.arret, envoyes: bilan.envoyes, echecs: bilan.echecs, incertains: bilan.incertains, restants: bilan.restants });
+    const bilan = await smsDirect.tirer('interne', { budgetMs: 200_000, avecSolde: true }); // la fonction dure 300 s : le budget laisse de la marge (jamais coupée en plein envoi)
+    if (bilan.branche) journalRdv({ action: 'planifie', statut: bilan.arret ? 'arret' : 'ok', arret: bilan.arret, envoyes: bilan.envoyes, echecs: bilan.echecs, incertains: bilan.incertains, restants: bilan.restants, alertesSolde: bilan.alertesSolde ?? 0 });
   },
 );
 // Réponses par SMS : ClickSend appelle cette adresse (POST) avec le jeton secret en dernier morceau du chemin. Invocation publique côté Google ; la vraie porte est le jeton (sinon 404, sans rien dire).

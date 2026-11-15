@@ -66,6 +66,7 @@
 .rdv-symbole-non { color: var(--retard); }
 .rdv-symbole-inconnu { color: var(--gris); }
 .rdv-symbole-incompris { color: var(--retard); }
+.rdv-symbole-desinscrit { color: var(--texte2); }
 /* « Qui peut quand » : une vraie grille, des pastilles de couleur, la colonne des créneaux communs en évidence, la réponse et « Corriger » alignés à gauche. */
 .rdv-zone-tableau { overflow-x: auto; }
 .tableau-rdv-reponses { border-collapse: separate; border-spacing: 0; min-width: 34rem; }
@@ -84,10 +85,11 @@
 .rdv-cellule { text-align: center; }
 .rdv-symbole-oui { background: color-mix(in srgb, var(--succes) 18%, transparent); }
 .rdv-symbole-non, .rdv-symbole-incompris { background: color-mix(in srgb, var(--retard) 14%, transparent); }
-.rdv-symbole-inconnu { background: color-mix(in srgb, var(--gris) 16%, transparent); }
+.rdv-symbole-inconnu, .rdv-symbole-desinscrit { background: color-mix(in srgb, var(--gris) 16%, transparent); }
 .rdv-personne-nom { display: flex; align-items: center; gap: var(--esp-2); flex-wrap: wrap; font-weight: var(--poids-moyen); }
 .rdv-personne-role { margin-top: var(--esp-1); }
 .rdv-ligne-incomprise { background: var(--retard-fond); }
+.rdv-ligne-desinscrit { background: color-mix(in srgb, var(--gris) 8%, transparent); }
 .rdv-sa-reponse { min-width: 10rem; text-align: left; }
 .rdv-sa-reponse > * { display: block; }
 .rdv-sa-reponse .bouton { display: inline-flex; margin-top: var(--esp-2); }
@@ -145,3 +147,12 @@
 .rdv-prevision-texte { margin: 0; padding: var(--esp-4) var(--esp-5); border-radius: var(--rayon); background: var(--panneau2); border: 1px solid var(--bordure); white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
 .rdv-prevision-cout { margin: 0; color: var(--texte2); font-size: var(--fs-petit); }
 .rdv-prevision-aucun { margin: 0; padding: var(--esp-4) var(--esp-5); border-radius: var(--rayon); background: var(--retard-fond); border: 1px solid var(--retard); }
+
+/* Réglages > Prêt à passer en vrai ? : une ligne par vérification, verte, rouge ou grise (jamais la couleur seule : l'icône et la phrase disent la même chose) */
+.rdv-bilan { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--esp-3); }
+.rdv-bilan-ligne { display: flex; align-items: flex-start; gap: var(--esp-3); }
+.rdv-bilan-ligne svg { flex: none; margin-top: var(--esp-1); }
+.rdv-bilan-ligne span { overflow-wrap: anywhere; }
+.rdv-bilan-ligne.vert svg { color: var(--succes); }
+.rdv-bilan-ligne.rouge svg { color: var(--retard); }
+.rdv-bilan-ligne.gris svg { color: var(--texte2); }
