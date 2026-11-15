@@ -2,7 +2,7 @@
 // Tout en mémoire : ni Firebase ni réseau, ni ClickSend. La sortie d'envoi (coeur/sms-direct.js, testé à part dans sms-direct.test.js) est remplacée par une fausse sortie qui note ce qu'elle reçoit.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
-import { lireSoldeEnvoi, etatEnvoi, envoyerPropositions, envoyerSms, renvoyerSms, ErreurRdvEnvoi, MESSAGE_RDV_NON_BRANCHE } from '../functions/src/coeur/rdv-envoi.js';
+import { lireSoldeEnvoi, etatEnvoi, envoyerPropositions, envoyerSms, renvoyerSms, reautoriserNumero, ErreurRdvEnvoi, MESSAGE_RDV_NON_BRANCHE } from '../functions/src/coeur/rdv-envoi.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { ErreurSortieSms, nomDuSecret } from '../functions/src/coeur/sms-direct.js';
 import * as R from '../js/modules/rdv/logique.js';
@@ -357,5 +357,123 @@ describe('solde ClickSend pour le bilan « Prêt à passer en vrai ? » (action 
     const { connexionRdv } = await import('../functions-plateforme/src/rdv.js');
     const JEROME = { uid: 'j', token: { email: ADMINISTRATEURS[0], email_verified: true } };
     await assert.rejects(() => connexionRdv({ auth: JEROME, donnees: { client: 'atelier', action: 'solde' }, connexion: { etat: async () => { throw new Error('ne doit pas être appelé'); } }, modulesActifs: async () => ['rdv'] }), (e) => e.code !== undefined);
+  });
+});
+
+describe('D2 numéros désinscrits : « Réautoriser » et SMS manuel bloqué', () => {
+  const NUM = '+33600000001';
+  const monde = (extraParts = {}, { liste = [NUM], rdv = {} } = {}) => creerAccesMemoire({
+    ...base({ envoiDemandeLe: new Date(T0.getTime() - 3600_000), ...rdv }),
+    rdv_participants: [
+      { id: 'p1', rendezVousId: 'r1', nom: 'M. Durand', telephone: NUM, etatReponse: 'incomprise', reponse: 'STOP', creneauxOk: [], desinscrit: true, ...extraParts },
+      { id: 'p2', rendezVousId: 'r1', nom: 'Terrassier', telephone: '+33600000002', etatReponse: 'comprise', reponse: '1', creneauxOk: [1] },
+    ],
+    rdv_messages: [{ id: 'm1', rendezVousId: 'r1', participantId: 'p1', sens: 'sortant', etatEnvoi: 'abandonne', typeMessage: 'creneaux', numero: NUM, texte: 'x', echeance: 'r1:t1:creneaux:p1' }],
+    rdv_parametres: liste ? [{ id: 'desinscrits', numeros: liste }] : [],
+  });
+
+  test('D2-2 réautoriser : le numéro quitte la liste, la fiche perd le repère STOP, le STOP « incompris » revient à « en attente », l’état du rendez-vous est recalculé, AUCUN message n’est touché', async () => {
+    const donnees = monde();
+    const avantMsgs = JSON.stringify(await donnees.liste('rdv_messages'));
+    assert.equal((await donnees.document('rdv_rendezvous', 'r1')).etat, 'en_attente');
+    const r = await reautoriserNumero({ donnees, numero: NUM });
+    assert.deepEqual(r, { ok: true, reautorise: true });
+    assert.deepEqual((await donnees.document('rdv_parametres', 'desinscrits')).numeros, []);
+    const p1 = await donnees.document('rdv_participants', 'p1');
+    assert.deepEqual([p1.desinscrit, p1.etatReponse, p1.reponse, p1.creneauxOk], [false, 'attente', '', []]);
+    assert.equal((await donnees.document('rdv_participants', 'p2')).etatReponse, 'comprise', 'les autres fiches ne bougent pas');
+    assert.equal(JSON.stringify(await donnees.liste('rdv_messages')), avantMsgs, 'un SMS « bloqué » ou abandonné ne repart JAMAIS : aucun message touché');
+  });
+  test('D2-2 l’état est recalculé : tant que le STOP « bloquait » un rendez-vous où tous les autres avaient répondu, la réautorisation le repasse « en attente » (la personne doit encore répondre)', async () => {
+    const donnees = monde({}, { rdv: { etat: 'a_valider' } });
+    await reautoriserNumero({ donnees, numero: NUM });
+    assert.equal((await donnees.document('rdv_rendezvous', 'r1')).etat, 'en_attente');
+  });
+  test('D2-2 une réponse SAISIE par la professionnelle est gardée ; un rendez-vous confirmé, annulé ou archivé garde son état', async () => {
+    const saisie = monde({ etatReponse: 'saisie', creneauxOk: [2], reponse: '' });
+    await reautoriserNumero({ donnees: saisie, numero: NUM });
+    const p = await saisie.document('rdv_participants', 'p1');
+    assert.deepEqual([p.desinscrit, p.etatReponse, p.creneauxOk], [false, 'saisie', [2]]);
+    for (const rdv of [{ etat: 'confirme', creneauChoisi: FUTUR[0] }, { archive: true }, { annule: true }]) {
+      const donnees = monde({}, { rdv: { ...rdv, etat: rdv.etat ?? 'a_valider' } });
+      await reautoriserNumero({ donnees, numero: NUM });
+      assert.equal((await donnees.document('rdv_rendezvous', 'r1')).etat, rdv.etat ?? 'a_valider', JSON.stringify(rdv));
+      assert.equal((await donnees.document('rdv_participants', 'p1')).desinscrit, false);
+    }
+  });
+  test('D2-2 un STOP d’avant D1 (numéro dans la liste, aucun repère sur la fiche) : le numéro sort de la liste, la fiche reste intacte ; numéro inconnu : rien à faire', async () => {
+    const donnees = monde({ desinscrit: undefined, etatReponse: 'comprise', creneauxOk: [1] });
+    assert.equal((await reautoriserNumero({ donnees, numero: NUM })).reautorise, true);
+    assert.deepEqual((await donnees.document('rdv_parametres', 'desinscrits')).numeros, []);
+    assert.equal((await donnees.document('rdv_participants', 'p1')).etatReponse, 'comprise');
+    assert.deepEqual(await reautoriserNumero({ donnees, numero: NUM }), { ok: true, reautorise: false }, 'deux « Réautoriser » de suite : idempotents');
+    assert.deepEqual(await reautoriserNumero({ donnees: monde({}, { liste: null }), numero: '+33699999999' }), { ok: true, reautorise: false });
+  });
+  test('D2-2 le numéro est validé et normalisé ; seul ce numéro est retiré', async () => {
+    for (const numero of ['', 'abc', 42, undefined, null, '../x', '0600']) await assert.rejects(() => reautoriserNumero({ donnees: monde(), numero }), (e) => e instanceof ErreurRdvEnvoi && e.code === 'invalid-argument', String(numero));
+    const donnees = monde({}, { liste: [NUM, '+33600000009'] });
+    await reautoriserNumero({ donnees, numero: '06 00 00 00 01' });
+    assert.deepEqual((await donnees.document('rdv_parametres', 'desinscrits')).numeros, ['+33600000009']);
+    assert.equal((await donnees.document('rdv_participants', 'p1')).desinscrit, false);
+  });
+  test('D2-2 un STOP reçu pendant la demande (la liste a changé) : « réessaie », rien n’est écrit', async () => {
+    const donnees = monde();
+    const vrai = donnees.appliquer;
+    donnees.appliquer = async (...a) => { await vrai([{ type: 'update', collection: 'rdv_parametres', id: 'desinscrits', donnees: { numeros: [NUM, '+33600000007'] } }]); return vrai(...a); };
+    await assert.rejects(() => reautoriserNumero({ donnees, numero: NUM }), (e) => e.code === 'failed-precondition' && /réessaie/.test(e.message) && !e.message.includes('+336'));
+    assert.equal((await donnees.document('rdv_participants', 'p1')).desinscrit, true);
+  });
+  test('D2-2 la fonction de Jérôme : sans rendez-vous ni branchement, réservée aux comptes autorisés ; le journal ne reçoit pas le numéro', async () => {
+    const journaux = [];
+    const donnees = monde();
+    const sortie = fauxSortie({ branche: false });
+    const appel = creerAppelRdvEnvoyer({ donnees: () => donnees, sortie, comptes: ['jerome@exemple.test'], journal: (e) => journaux.push(e), maintenant: () => T0.getTime() });
+    const jeton = (email) => ({ auth: { uid: 'u', token: { email, email_verified: true } } });
+    await assert.rejects(() => appel({ ...jeton('autre@exemple.test'), data: { action: 'reautoriser', numero: NUM } }), (e) => e.code === 'permission-denied');
+    assert.equal((await donnees.document('rdv_participants', 'p1')).desinscrit, true, 'refusé : rien écrit');
+    await assert.rejects(() => appel({ ...jeton('jerome@exemple.test'), data: { action: 'reautoriser', numero: 'x' } }), (e) => e.code === 'invalid-argument');
+    assert.deepEqual(await appel({ ...jeton('jerome@exemple.test'), data: { action: 'reautoriser', numero: NUM } }), { ok: true, reautorise: true });
+    assert.deepEqual(sortie.appels, [], 'aucun envoi, aucune lecture du branchement');
+    assert.deepEqual(journaux.map((j) => [j.action, j.statut]), [['rdvEnvoyer.reautoriser', 'refus'], ['rdvEnvoyer.reautoriser', 'ok']]); // le compte refusé n'écrit pas au journal (refus avant l'action)
+    assert.ok(!JSON.stringify(journaux).match(/\+336|0600/));
+  });
+  test('D2-2 chez les clients : un éditeur avec le module réautorise (sans rendez-vous) ; un lecteur, un non-membre ou un module inactif sont refusés (« Action non autorisée. »)', async () => {
+    const membres = { 'atelier/ed@exemple.test': { role: 'editeur' }, 'atelier/lec@exemple.test': { role: 'lecteur' }, 'sansrdv/ed@exemple.test': { role: 'editeur' } };
+    const fiches = { atelier: { modules: { rdv: true } }, sansrdv: { modules: { devis: true } } };
+    const db = { doc: (chemin) => ({ get: async () => { const m = /^clients\/([^/]+)\/membres\/(.+)$/.exec(chemin); const d = m ? membres[`${m[1]}/${m[2]}`] : fiches[chemin.replace(/^clients\//, '')]; return { exists: Boolean(d), get: (c) => d?.[c] }; } }) };
+    const auth = (email) => ({ uid: 'u', token: { email, email_verified: true } });
+    const donnees = monde();
+    const sortie = fauxSortie({ branche: false });
+    const demande = (email, client) => envoyerRdv({ db, auth: auth(email), donnees: { client, action: 'reautoriser', numero: NUM }, sortie, maintenant: T0.getTime(), creerDonnees: () => donnees });
+    for (const [email, client] of [['lec@exemple.test', 'atelier'], ['inconnu@exemple.test', 'atelier'], ['ed@exemple.test', 'sansrdv']]) await assert.rejects(() => demande(email, client), (e) => e.message === 'Action non autorisée.', `${email} ${client}`);
+    assert.equal((await donnees.document('rdv_participants', 'p1')).desinscrit, true, 'refusés : rien n’est écrit');
+    assert.deepEqual(await demande('ed@exemple.test', 'atelier'), { ok: true, reautorise: true });
+    assert.equal((await donnees.document('rdv_participants', 'p1')).desinscrit, false);
+    assert.deepEqual(sortie.appels, []);
+    await assert.rejects(() => envoyerRdv({ db, auth: auth('ed@exemple.test'), donnees: { client: 'atelier', action: 'reautoriser', numero: '../x' }, sortie, creerDonnees: () => donnees }), (e) => e.code === 'invalid-argument');
+  });
+  test('D2-3b SMS manuel : un désinscrit (repère OU liste) reçoit un message « bloque » qui ne part pas ; `nombre` ne compte pas les bloqués ; « tire maintenant » seulement s’il reste quelqu’un', async () => {
+    for (const [extra, liste] of [[{}, []], [{ desinscrit: undefined }, [NUM]]]) {
+      const donnees = monde(extra, { liste, rdv: { etat: 'confirme', creneauChoisi: FUTUR[0] } });
+      const sortie = fauxSortie();
+      const r = await envoyerSms({ donnees, ctx, espace: 'interne', sortie, rendezVousId: 'r1', type: 'pluie', texte: 'Pluie demain.' });
+      assert.deepEqual([r.ok, r.nombre, r.nombreBloques, r.declenche], [true, 1, 1, true]);
+      const msgs = (await donnees.liste('rdv_messages')).filter((m) => m.manuel === true);
+      assert.deepEqual(msgs.map((m) => [m.participantId, m.etatEnvoi]).sort(), [['p1', 'bloque'], ['p2', 'a_envoyer']]);
+    }
+  });
+  test('D2-3b tous bloqués : rien n’est demandé à l’envoi ; l’annulation est quand même faite (annulé et archivé)', async () => {
+    const donnees = monde({}, { liste: [NUM, '+33600000002'], rdv: { etat: 'en_attente' } });
+    const sortie = fauxSortie();
+    const r = await envoyerSms({ donnees, ctx, espace: 'interne', sortie, rendezVousId: 'r1', type: 'annulation', texte: 'Rendez-vous annulé.' });
+    assert.deepEqual([r.nombre, r.nombreBloques, r.declenche], [0, 2, false]);
+    assert.deepEqual(sortie.appels, []);
+    const rdv = await donnees.document('rdv_rendezvous', 'r1');
+    assert.deepEqual([rdv.annule, rdv.archive], [true, true]);
+  });
+  test('D2-3b un participant non désinscrit : aucun changement (nombreBloques: 0)', async () => {
+    const donnees = creerAccesMemoire(base({ etat: 'confirme', creneauChoisi: FUTUR[0] }));
+    const r = await envoyerSms({ donnees, ctx, espace: 'interne', sortie: fauxSortie(), rendezVousId: 'r1', type: 'pluie', texte: 'Pluie demain.' });
+    assert.deepEqual([r.nombre, r.nombreBloques], [2, 0]);
   });
 });

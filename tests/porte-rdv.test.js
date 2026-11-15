@@ -657,5 +657,45 @@ describe('alerte de solde ClickSend bas (alerterSoldeBas) : seuils, idempotence,
   test('E2-12 l’alerte n’est PAS une action de la porte : un porteur de clé ne peut pas en déclencher une avec un solde de son choix', () => {
     assert.equal(Object.keys(ACTIONS_RDV).filter((k) => /solde/i.test(k)).length, 0);
     assert.deepEqual(Object.keys(ACTIONS_RDV).sort(), ['rdv.aEnvoyer', 'rdv.confirmerEnvoi', 'rdv.enregistrerReponse', 'rdv.libererEnvoi']);
+  });});
+
+describe('D2 STOP : trace des SMS bloqués', () => {
+  const recevoir = (m, numero, texte, idFournisseur = 'cs-in-1') => m.action('rdv.enregistrerReponse', { numero, texte, idFournisseur, recuLe: iso(T0) });
+  const traces = (m) => [...m.base.docs].filter(([c]) => c.startsWith('rdv_messages/stop_')).map(([c, x]) => ({ id: c.split('/')[1], ...x.d }));
+  test('D2-3a un SMS que STOP empêche de partir laisse UNE trace « bloque » (sans texte, numéro ni échéance), créée une seule fois, hors des SMS à envoyer et de leur nombre', async () => {
+    const m = monde(); m.semer();
+    await recevoir(m, '+33600000001', 'STOP', 'cs-stop');
+    const r = await m.action('rdv.aEnvoyer');
+    assert.ok(!r.messages.some((x) => x.numero === '+33600000001' && x.typeMessage !== 'alerte'), 'rien ne part vers le désinscrit');
+    const t = traces(m);
+    assert.equal(t.length, 1);
+    assert.deepEqual([t[0].etatEnvoi, t[0].sens, t[0].rendezVousId, t[0].participantId, t[0].tour, t[0].typeMessage], ['bloque', 'sortant', 'r1', 'r1-p1', 1, 'confiance']);
+    assert.ok(!('echeance' in t[0]) && !('texte' in t[0]) && !('numero' in t[0]), 'ni échéance (le calendrier ne la voit pas), ni texte, ni numéro');
+    assert.ok(!JSON.stringify(t).includes('+336'));
+    assert.ok(!r.messages.some((x) => x.messageId.startsWith('stop_')), 'la trace n\'entre jamais dans les messages à envoyer');
+    assert.equal(r.nombre, r.messages.length);
+    m.temps.t = T0 + 15 * 60_000;
+    await m.action('rdv.aEnvoyer'); // le SMS « créneaux » (dû une minute après la présentation) laisse sa propre trace
+    const apres = traces(m).map((x) => x.id).sort();
+    assert.deepEqual(apres, ['stop_r1_t1_confiance_r1-p1', 'stop_r1_t1_creneaux_r1-p1']);
+    await m.action('rdv.aEnvoyer');
+    assert.deepEqual(traces(m).map((x) => x.id).sort(), apres, 'le tir toutes les 15 minutes ne recrée rien');
+  });
+  test('D2-3a la trace ne bloque pas le vrai SMS : après « Réautoriser » (numéro retiré, repère levé), le SMS dû repart ; un participant non désinscrit n\'a aucune trace', async () => {
+    const m = monde(); m.semer();
+    await recevoir(m, '+33600000001', 'STOP', 'cs-stop');
+    await m.action('rdv.aEnvoyer');
+    assert.equal(traces(m).filter((x) => x.participantId === 'r1-p2').length, 0);
+    m.base.docs.set('rdv_parametres/desinscrits', { d: { numeros: [] }, v: 99 });
+    m.base.docs.set('rdv_participants/r1-p1', { d: { ...m.base.docs.get('rdv_participants/r1-p1').d, desinscrit: false, etatReponse: 'attente', reponse: '', creneauxOk: [] }, v: 99 });
+    const r = await m.action('rdv.aEnvoyer');
+    assert.ok(r.messages.some((x) => x.numero === '+33600000001' && x.typeMessage === 'confiance'), 'le SMS bloqué avant repart après la réautorisation');
+  });
+  test('D2-3a SMS manuel « bloque » : jamais envoyé par la porte, même après « Réautoriser »', async () => {
+    const m = monde(); m.semer();
+    m.base.docs.set('rdv_messages/man_1', { d: { rendezVousId: 'r1', participantId: 'r1-p1', sens: 'sortant', manuel: true, typeMessage: 'pluie', numero: '+33600000001', texte: 'Pluie', caracteres: 5, segments: 1, etatEnvoi: 'bloque', essais: 0, echeance: 'r1:man:x:r1-p1' }, v: 1 });
+    const r = await m.action('rdv.aEnvoyer');
+    assert.ok(!r.messages.some((x) => x.messageId === 'man_1'));
+    assert.equal(m.base.docs.get('rdv_messages/man_1').d.etatEnvoi, 'bloque');
   });
 });

@@ -218,6 +218,7 @@ export const MODULES_DECLARES = geler([
       { id: 'reglages-rdv-entreprise', libelle: 'Nom de l’entreprise dans les SMS' },
       { id: 'reglages-rdv-connexion', libelle: 'Connexion SMS (ClickSend)' },
       { id: 'reglages-rdv-solde', libelle: 'Solde ClickSend' },
+      { id: 'reglages-rdv-desinscrits', libelle: 'Numéros désinscrits (STOP)' },
       { id: 'reglages-rdv-roles', libelle: 'Rôles des participants' },
       { id: 'reglages-rdv-tarif', libelle: 'Prix d’un SMS' },
       { id: 'reglages-rdv-modeles', libelle: 'Modèles de SMS' },

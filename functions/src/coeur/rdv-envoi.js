@@ -4,6 +4,9 @@
 //    fabriqués et réservés par la porte (rdv.aEnvoyer) : un seul chemin d'envoi. Si l'envoi n'aboutit pas, la fonction planifiée (toutes les 15 minutes) enverra quand même ;
 //  - renvoyerSms         : refait partir UN SMS « abandonné » (3 échecs) vers UN participant, à la demande de la professionnelle (nouveau SMS à la main, mêmes mots, relances inchangées) ;
 //  - envoyerSms          : crée un SMS « a_envoyer » par participant avec le texte écrit à la main (normalisé et compté ici, par le serveur), puis demande « tire maintenant ».
+//                          Un participant désinscrit (STOP) reçoit un message « bloque » à la place : il ne part JAMAIS, même après « Réautoriser » (une réautorisation n'envoie rien d'ancien) ;
+//  - reautoriserNumero   : « Réautoriser » (Réglages > Rendez-vous > Numéros désinscrits) : retire le numéro de la liste des désinscrits et lève le repère STOP de ses fiches. Seule façon de
+//                          remettre `desinscrit` à faux (aucune réponse par SMS ne le fait). Ne touche à aucun message et n'exige pas que l'envoi soit branché.
 // Rien ne part si l'envoi n'est pas branché pour l'espace (secret CLICKSEND_RDV[_client] : coeur/sms-direct.js) : la demande est refusée AVANT d'écrire quoi que ce soit.
 import * as R from '../../partage/rdv.js';
 import { ErreurSortieSms } from './sms-direct.js';
@@ -75,7 +78,10 @@ export async function envoyerPropositions({ donnees, ctx, espace, sortie, rendez
   return { ok: true, declenche: await declencher(sortie, espace, rendezVousId) };
 }
 
-/** Crée un SMS à la main (pluie ou annulation) pour chaque participant : { ok, nombre, declenche, caracteres, segments }. */
+/** Ce participant a-t-il répondu STOP ? Repère de sa fiche OU numéro dans la liste `rdv_parametres/desinscrits` (même contrôle pour la création d'un SMS à la main et pour le renvoi). */
+const estBloque = (p, liste) => p.desinscrit === true || (Array.isArray(liste?.numeros) && liste.numeros.includes(p.telephone));
+
+/** Crée un SMS à la main (pluie ou annulation) pour chaque participant : { ok, nombre, nombreBloques, declenche, caracteres, segments }. `nombre` ne compte pas les désinscrits (STOP), comptés à part dans `nombreBloques`. */
 export async function envoyerSms({ donnees, ctx, espace, sortie, rendezVousId, type, texte }) {
   if (!TYPES_SMS_MANUEL.includes(type)) throw new ErreurRdvEnvoi('invalid-argument', 'Type de SMS inconnu.');
   if (typeof texte !== 'string' || !texte.trim() || texte.length > 1000) throw new ErreurRdvEnvoi('invalid-argument', 'Écris le texte du SMS (1 000 caractères au plus).');
@@ -88,21 +94,26 @@ export async function envoyerSms({ donnees, ctx, espace, sortie, rendezVousId, t
   const { rdv, participants } = await lireRendezVous(donnees, rendezVousId);
   if (rdv.archive && !rdv.annule) throw new ErreurRdvEnvoi('failed-precondition', 'Ce rendez-vous est archivé.');
   if (!participants.length) throw new ErreurRdvEnvoi('failed-precondition', 'Ce rendez-vous n’a aucun participant.');
+  const desinscrits = await donnees.document('rdv_parametres', 'desinscrits');
   // Anti-doublon : un SMS du même type demandé il y a moins de 2 minutes pour ce rendez-vous (deuxième onglet, clic refait après une réponse perdue) n'est pas recréé.
   const recents = (await donnees.liste(T.msg, { champ: 'rendezVousId', valeur: rendezVousId })).filter((m) => m.manuel === true && m.typeMessage === type && ctx.maintenant.getTime() - (m.creeLe?.toMillis?.() ?? new Date(m.creeLe).getTime()) < 120_000);
   if (recents.length) throw new ErreurRdvEnvoi('failed-precondition', 'Ce SMS vient déjà d’être demandé : patiente deux minutes avant de le renvoyer.');
   const suffixe = ctx.maintenant.getTime().toString(36);
+  // Un désinscrit (STOP) : le message est créé « bloque » (trace visible dans l'historique), il ne part jamais et ne repart pas après « Réautoriser ».
   const ecritures = participants.map((p, i) => ({
     type: 'set', collection: T.msg, id: `man_${rendezVousId}_${suffixe}_${i + 1}`,
     donnees: {
       rendezVousId, participantId: p.id, tour: rdv.tour ?? 1, sens: 'sortant', manuel: true, typeMessage: type, numero: p.telephone, texte: sms.texte,
-      caracteres: sms.caracteres, segments: sms.segments, etatEnvoi: 'a_envoyer', essais: 0, echeance: `${rendezVousId}:man:${suffixe}:${p.id}`, creeLe: ctx.maintenant,
+      caracteres: sms.caracteres, segments: sms.segments, etatEnvoi: estBloque(p, desinscrits) ? 'bloque' : 'a_envoyer', essais: 0, echeance: `${rendezVousId}:man:${suffixe}:${p.id}`, creeLe: ctx.maintenant,
       ...(rdv.test === true ? { test: true } : {}),
     },
   }));
+  const nombreBloques = participants.filter((p) => estBloque(p, desinscrits)).length;
+  const nombre = participants.length - nombreBloques;
   if (type === 'annulation') ecritures.push({ type: 'update', collection: T.rdv, id: rendezVousId, donnees: { annule: true, archive: true } });
   await donnees.appliquer(ecritures);
-  return { ok: true, nombre: participants.length, declenche: await declencher(sortie, espace, rendezVousId), caracteres: sms.caracteres, segments: sms.segments };
+  // Tous bloqués : rien à faire partir (le rendez-vous annulé est quand même annulé et archivé ci-dessus).
+  return { ok: true, nombre, nombreBloques, declenche: nombre > 0 ? await declencher(sortie, espace, rendezVousId) : false, caracteres: sms.caracteres, segments: sms.segments };
 }
 
 const DOUBLE_CLIC_MS = 120_000;
@@ -127,7 +138,7 @@ export async function renvoyerSms({ donnees, ctx, espace, sortie, rendezVousId, 
   const p = participants.find((x) => x.id === participantId);
   if (!p) throw new ErreurRdvEnvoi('not-found', 'Ce participant n’est pas dans ce rendez-vous.');
   const liste = await donnees.document('rdv_parametres', 'desinscrits');
-  if (p.desinscrit === true || (Array.isArray(liste?.numeros) && liste.numeros.includes(p.telephone))) throw new ErreurRdvEnvoi('failed-precondition', 'Cette personne a répondu STOP : aucun SMS ne lui est envoyé.');
+  if (estBloque(p, liste)) throw new ErreurRdvEnvoi('failed-precondition', 'Cette personne a répondu STOP : aucun SMS ne lui est envoyé.');
   const messages = (await donnees.liste(T.msg, { champ: 'rendezVousId', valeur: rendezVousId })).filter((m) => m.participantId === participantId && m.sens !== 'entrant');
   const maintenantMs = ctx.maintenant.getTime();
   if (messages.some((m) => m.renvoi === true && maintenantMs - msDe(m.creeLe) < DOUBLE_CLIC_MS)) throw new ErreurRdvEnvoi('failed-precondition', 'Ce SMS vient déjà d’être renvoyé : patiente deux minutes.');
@@ -165,4 +176,45 @@ export async function renvoyerSms({ donnees, ctx, espace, sortie, rendezVousId, 
     throw e;
   }
   return { ok: true, declenche: await declencher(sortie, espace, rendezVousId) };
+}
+
+/**
+ * « Réautoriser » : { ok, reautorise } pour UN numéro (entrée : le numéro seul, aucun rendez-vous). Le numéro est normalisé (R.normaliserTelephone).
+ *  (a) il est retiré de `rdv_parametres/desinscrits` (le document lu est dans `attendus` : si un STOP arrive en même temps, la demande échoue proprement « réessaie ») ;
+ *  (b) chaque fiche `rdv_participants` de ce numéro portant le repère STOP : `desinscrit` à faux ; si sa réponse était « incomprise » (le STOP lui-même), elle revient à « en attente » (jamais une réponse
+ *      saisie à la main) ;
+ *  (c) l'état de chaque rendez-vous OUVERT touché est recalculé dans le même lot ;
+ *  (d) AUCUN message n'est touché : un SMS « bloque » ne repart jamais, les prochains SMS dus partent normalement au prochain tir.
+ * Deux demandes simultanées sont sans danger : la seconde ne trouve plus rien à faire (ou refuse « réessaie »). Ne lit ni n'exige l'envoi branché. Jamais le numéro dans une erreur.
+ */
+export async function reautoriserNumero({ donnees, numero }) {
+  const tel = R.normaliserTelephone(numero);
+  if (typeof numero !== 'string' || !tel.ok) throw new ErreurRdvEnvoi('invalid-argument', 'Numéro invalide.');
+  const liste = await donnees.document('rdv_parametres', 'desinscrits');
+  const numeros = Array.isArray(liste?.numeros) ? liste.numeros : [];
+  const dansLaListe = numeros.includes(tel.telephone);
+  const fiches = (await donnees.liste(T.part, { champ: 'telephone', valeur: tel.telephone })).filter((p) => p.desinscrit === true);
+  const ecritures = [];
+  if (dansLaListe) ecritures.push({ type: 'update', collection: 'rdv_parametres', id: 'desinscrits', donnees: { numeros: numeros.filter((n) => n !== tel.telephone) } });
+  const patchs = new Map();
+  for (const p of fiches) {
+    const patch = { desinscrit: false, ...(p.etatReponse === 'incomprise' ? { etatReponse: 'attente', reponse: '', creneauxOk: [] } : {}) };
+    patchs.set(p.id, patch);
+    ecritures.push({ type: 'update', collection: T.part, id: p.id, donnees: patch });
+  }
+  for (const rendezVousId of new Set(fiches.map((p) => p.rendezVousId))) {
+    const rdv = await donnees.document(T.rdv, rendezVousId);
+    if (!rdv || !R.estOuvert(rdv)) continue;
+    const apres = (await donnees.liste(T.part, { champ: 'rendezVousId', valeur: rendezVousId })).map((p) => (patchs.has(p.id) ? { ...p, ...patchs.get(p.id) } : p));
+    const etat = R.etatCalcule(rdv, apres);
+    if (etat !== (rdv.etat || 'en_attente')) ecritures.push({ type: 'update', collection: T.rdv, id: rendezVousId, donnees: { etat } });
+  }
+  if (!ecritures.length) return { ok: true, reautorise: false };
+  try {
+    await donnees.appliquer(ecritures, { attendus: [{ collection: 'rdv_parametres', id: 'desinscrits', avant: liste }] });
+  } catch (e) {
+    if (e?.name === 'ErreurConflit') throw new ErreurRdvEnvoi('failed-precondition', 'La liste vient de changer : réessaie.');
+    throw e;
+  }
+  return { ok: true, reautorise: true };
 }

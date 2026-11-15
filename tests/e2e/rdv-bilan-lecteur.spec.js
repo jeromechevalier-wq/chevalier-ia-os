@@ -48,3 +48,21 @@ test('E3-7 un lecteur voit le bilan : cases du serveur grises « indisponible »
   expect(demandesSolde).toBe(0); // le lecteur ne demande jamais le solde
   if (!estTelephone(page)) await page.screenshot({ path: 'e2e/captures/rdv-bilan/lecteur.png', animations: 'disabled' });
 });
+
+test('D2-1 un lecteur voit la liste des numéros désinscrits (masqués) mais aucun bouton « Réautoriser »', async ({ page }, info) => {
+  info.annotations.push({ type: 'erreurs-reseau-attendues', description: 'rdvEtat refuse un lecteur (403)' });
+  await ecrireDocument('clients/atelier/rdv_parametres/desinscrits', { numeros: ['+33600000009'] });
+  await page.route(/cloudfunctions\.net\/rdvEtat$/, (route) => (route.request().method() === 'OPTIONS' ? route.fulfill({ status: 204, headers: CORS })
+    : route.fulfill({ status: 403, headers: CORS, contentType: 'application/json', body: '{}' })));
+  await page.goto('about:blank');
+  await page.goto(`${URL_APP}#/espace/atelier`);
+  await page.waitForFunction(() => !!window.__chevalierTest);
+  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), LEA);
+  await expect(page.locator('.coquille')).toBeVisible();
+  await choisirDansMenuUtilisateur(page, 'Réglages');
+  await ouvrirSectionReglages(page, 'Rendez-vous');
+  const carte = page.locator('#reglages-rdv-desinscrits');
+  await expect(carte.locator('[data-role="desinscrit"]')).toHaveCount(1);
+  await expect(carte).toContainText('06 •• •• •• 09');
+  await expect(carte.getByRole('button')).toHaveCount(0);
+});

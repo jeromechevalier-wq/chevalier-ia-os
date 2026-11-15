@@ -581,3 +581,20 @@ test('fiche : un identifiant inconnu donne une phrase simple et un retour à la 
   await expect(page).toHaveURL(/#\/rdv\/liste$/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), 'pas de défilement horizontal').toBe(true);
 });
+
+test('D2-3a un SMS que STOP a empêché de partir apparaît dans l’historique comme « SMS non envoyé : numéro désinscrit (STOP) », jamais comme une bulle ni avec l’état brut', async ({ page }) => {
+  await semer();
+  await part('p1', 'M. Durand', 'Client', '+33600000001');
+  await ecrireDocument('rdv_parametres/desinscrits', { numeros: ['+33600000001'] });
+  await ecrireDocument('rdv_messages/stop_r1_t1_confiance_p1', { rendezVousId: 'r1', participantId: 'p1', tour: 1, sens: 'sortant', typeMessage: 'confiance', etatEnvoi: 'bloque', creeLe: il(-1, 9) });
+  await ouvrirFiche(page);
+  const ligne = page.locator('[data-role="sms-bloque"]');
+  await expect(ligne).toHaveCount(1);
+  await expect(ligne).toContainText('SMS non envoyé : numéro désinscrit (STOP)');
+  await expect(ligne).toContainText('M. Durand');
+  await expect(page.locator('[data-role="historique"]')).not.toContainText('bloque');
+  await expect(page.locator('[data-role="historique"] .bulle')).toHaveCount(0);
+  await expect(page.locator('[data-role="historique-vide"]')).toHaveCount(0);
+  await page.locator('[data-role="historique"]').scrollIntoViewIfNeeded();
+  await page.locator('[data-role="historique"]').screenshot({ path: `${CAPTURES}/D2-3a-historique-bloque${estTelephone(page) ? '-telephone' : ''}.png`, animations: 'disabled' });
+});

@@ -181,6 +181,27 @@ export async function alerterSoldeBas(ctx, { solde, lien = '' } = {}) {
   return fin('aucune');
 }
 
+/**
+ * Trace des SMS que « STOP » a empêchés de partir. `smsDus` ne dit pas ce qu'il saute : on le rappelle sans liste de désinscrits, et les SMS dus en plus pour une personne dont le numéro est dans la liste
+ * sont les bloqués. Chacun laisse UN message d'état `stop_<échéance>` (créé une seule fois : le tir tourne toutes les 15 minutes) : `etatEnvoi: 'bloque'`, SANS `echeance` (le calendrier ne le voit
+ * pas : le vrai SMS peut repartir après « Réautoriser »), SANS texte ni numéro. Il n'entre jamais dans les SMS à envoyer ni dans leur nombre.
+ */
+async function tracerBloques(ctx, { rdv, participants, desinscrits, dus, dusSansStop, existants, maintenantMs }) {
+  const dejaDus = new Set(dus.map((d) => d.idEcheance));
+  const parId = new Map(participants.map((p) => [p.id, p]));
+  const ids = new Set(existants.map((m) => m.id));
+  for (const du of dusSansStop) {
+    if (dejaDus.has(du.idEcheance) || !du.participantId || du.typeMessage === 'alerte') continue;
+    const p = parId.get(du.participantId);
+    if (!p || !desinscrits.includes(p.telephone)) continue;
+    const docId = docIdMessage(`stop_${du.idEcheance}`);
+    if (ids.has(docId)) continue;
+    await ctx.donnees.creerSiAbsent(chemin(ctx.base, T.msg, docId), sansIndefini({
+      rendezVousId: rdv.id, participantId: p.id, tour: du.tour, sens: 'sortant', typeMessage: du.typeMessage, sousType: du.sousType || undefined, etatEnvoi: 'bloque', creeLe: new Date(maintenantMs),
+    }));
+  }
+}
+
 export const ACTIONS_RDV = Object.freeze({
   'rdv.aEnvoyer': {
     ecrit: true,
@@ -193,8 +214,11 @@ export const ACTIONS_RDV = Object.freeze({
       for (const { rdv, participants } of await rendezVousPourEnvoi(ctx, maintenantMs)) {
         if (aEnvoyer.length >= limite) break;
         // « envoyé » ET « abandonné » comptent comme faits pour le calendrier (sinon un SMS abandonné bloquerait les relances de tout le rendez-vous) ; l'abandon déclenche une alerte (smsDus).
-        const messages = (await ctx.donnees.listerPar(chemin(ctx.base, T.msg), 'rendezVousId', rdv.id, { limite: 1000 })).filter((m) => (m.etatEnvoi === 'envoye' || m.etatEnvoi === 'abandonne') && m.sens !== 'entrant');
-        const dus = R.smsDus({ rdv, participants, parametres, messages, maintenant: maintenantMs, desinscrits, lien: ctx.lienRdv?.(rdv.id) ?? '' }); // `lienRdv` : l'adresse du rendez-vous, construite par le serveur (jamais de secret dedans)
+        const tous = await ctx.donnees.listerPar(chemin(ctx.base, T.msg), 'rendezVousId', rdv.id, { limite: 1000 });
+        const messages = tous.filter((m) => (m.etatEnvoi === 'envoye' || m.etatEnvoi === 'abandonne') && m.sens !== 'entrant');
+        const entrees = { rdv, participants, parametres, messages, maintenant: maintenantMs, lien: ctx.lienRdv?.(rdv.id) ?? '' }; // `lienRdv` : l'adresse du rendez-vous, construite par le serveur (jamais de secret dedans)
+        const dus = R.smsDus({ ...entrees, desinscrits });
+        if (desinscrits.length) await tracerBloques(ctx, { rdv, participants, desinscrits, dus, dusSansStop: R.smsDus({ ...entrees, desinscrits: [] }), existants: tous, maintenantMs });
         for (const du of dus) {
           if (aEnvoyer.length >= limite) break;
           const docId = docIdMessage(du.idEcheance);
