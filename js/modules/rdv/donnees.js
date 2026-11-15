@@ -299,6 +299,15 @@ export async function connexionSms(action, donnees = {}) {
   return r;
 }
 
+/**
+ * Solde du compte ClickSend (bilan « Prêt à passer en vrai ? », lecture seule) : le nombre en euros, ou null (indisponible : pas branché, autre devise, ClickSend ne répond pas).
+ * Le serveur garde la réponse 60 secondes ; rien n'est stocké ici ni dans la base. Lève une ErreurRdv lisible si le compte n'a pas le droit (lecteur chez un client).
+ */
+export async function lireSoldeSms() {
+  const r = await appeler('envoyer', { action: 'solde' });
+  return r?.branche === true && typeof r.solde === 'number' ? r.solde : null;
+}
+
 /** Envoie les premières propositions d'un rendez-vous (ou d'une nouvelle série). Rend { ok, declenche }. Lève une ErreurRdv lisible si refusé. */
 export async function envoyerPropositions(rendezVousId) {
   exigerEcriture();

@@ -8,10 +8,12 @@
 //    les envoie un par un à ClickSend, puis confirme chaque envoi. La plateforme décide de tout (qui, quoi, quand) ; ce fichier ne fait qu'envoyer ;
 //  - « recevoir » : une réponse par SMS (webhook de ClickSend) est transmise à la porte (rdv.enregistrerReponse). ClickSend ne signe pas ses envois :
 //    la seule protection est le `jeton` secret dans l'adresse (comparé en temps constant ; adresse ou jeton faux = même 404, sans rien dire).
+//  - « lireSolde » : le solde du compte (GET /v3/account, aucun SMS) pour le bilan des Réglages (cache de 60 s) et, dans les deux tirs PLANIFIÉS seulement (`avecSolde`), pour les alertes « solde bas »
+//    (scripts/porte/actions-rdv.js, alerterSoldeBas : seuils, idempotence, état dans les réglages) ; la page de recharge n'est qu'un texte du SMS, jamais appelée ;
 //  - n'envoie qu'à https://rest.clicksend.com, ne suit aucune redirection, s'arrête au bout de 15 secondes par SMS, ne journalise ni clé, ni numéro, ni texte.
 // Un SMS dont l'envoi est incertain (réseau coupé, réponse illisible) n'est PAS confirmé : sa réservation de 15 minutes expire puis la porte le reprend (3 reprises au plus, puis abandon).
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { ACTIONS_RDV } from '../../partage/porte/actions-rdv.js';
+import { ACTIONS_RDV, alerterSoldeBas } from '../../partage/porte/actions-rdv.js';
 import { lienEcranRdv } from './liens.js';
 import { lancerAction } from '../../partage/porte/actions-veille.js';
 
@@ -29,6 +31,11 @@ export const STATUTS_COMPTE = Object.freeze(['INVALID_SENDER_ID', 'ACCOUNT_NOT_A
 export const STATUTS_PANNE = Object.freeze(['INTERNAL_ERROR', 'SOMETHING_IS_WRONG']); // panne de ClickSend : le SMS est peut-être parti (douteux, jamais compté comme refus)
 export const STATUTS_ACCEPTES = Object.freeze(['SUCCESS', 'QUEUED', 'SCHEDULED']); // accepté par ClickSend
 export const DUREE_CACHE_MS = 60_000;
+export const DELAI_SOLDE_MS = 5_000; // temps réservé à la lecture du solde, dans le budget d'un tir planifié
+// Page de recharge du compte ClickSend, écrite dans les alertes de solde bas (valeur de `{lien}`). Un lien AFFICHÉ dans un SMS, jamais appelé : il ne passe dans aucun `fetch` (un test le verrouille).
+// Adresse à faire vérifier par Jérôme : elle n'est confirmée ni par la doc du dépôt ni par celle de ClickSend.
+export const LIEN_RECHARGE_CLICKSEND = 'https://dashboard.clicksend.com/portal/billing#add-credit';
+export const TIRS_SANS_SOLDE = Object.freeze(['cle_refusee', 'clicksend_indisponible', 'trop_de_requetes']); // arrêts après lesquels on ne lit pas le solde (la clé ou le service posent problème)
 export const MESSAGE_NON_BRANCHE = 'L’envoi des SMS n’est pas encore branché sur cet espace.';
 const MOTIF_ESPACE = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 export const MOTIF_JETON = /^[A-Za-z0-9_-]{24,100}$/;
@@ -67,6 +74,38 @@ export async function verifierConnexion({ identifiant, cle, fetchImpl = globalTh
     if (r.status === 401 || r.status === 403) return { ok: false, raison: 'refusee' };
     return r.ok ? { ok: true } : { ok: false, raison: 'indisponible' };
   } catch { return { ok: false, raison: 'indisponible' }; } finally { clearTimeout(minuteur); }
+}
+
+const EST_EURO = /^(?:EUR|EUROS?|€)$/i;
+/** Un montant lu dans la réponse de ClickSend (texte « 4.998000 » ou nombre) ; null si absent ou illisible. */
+function lireMontant(v) {
+  const n = typeof v === 'number' ? v : (typeof v === 'string' && /^\s*-?\d+(?:\.\d+)?\s*$/.test(v) ? Number(v) : NaN);
+  return Number.isFinite(n) && Math.abs(n) < 1e9 ? n : null;
+}
+/**
+ * Lit le solde du compte (GET /v3/account, aucun SMS, aucun frais). Rend { ok, solde: <nombre> | null, devise } ; `ok: false` si ClickSend refuse ou ne répond pas.
+ * TOLÉRANT : montant absent ou illisible = solde null (jamais une erreur) ; devise lisible et autre que l'euro = solde null (« indisponible », aucune alerte) ;
+ * devise absente = on suppose l'euro (décision du 15/11/2026 : mieux vaut alerter que se taire). Mêmes règles que `verifierConnexion` : adresse fixe, aucune redirection, délai borné, rien n'est journalisé, aucun secret dans le résultat.
+ */
+export async function lireSolde({ identifiant, cle, fetchImpl = globalThis.fetch, delaiMs = 10_000 }) {
+  const arret = new AbortController();
+  const minuteur = setTimeout(() => arret.abort(), delaiMs);
+  try {
+    const r = await fetchImpl(`https://${HOTE_CLICKSEND}/v3/account`, {
+      method: 'GET',
+      headers: { Authorization: `Basic ${Buffer.from(`${identifiant}:${cle}`).toString('base64')}` },
+      redirect: 'error',
+      signal: arret.signal,
+    });
+    if (!r.ok) return { ok: false, solde: null, devise: '' };
+    let j = null;
+    try { j = await r.json(); } catch { /* corps illisible */ }
+    const brut = j?.data?._currency;
+    const code = typeof brut === 'string' ? brut : (brut && typeof brut === 'object' ? (brut.currency_name_short ?? brut.currency_prefix_d ?? '') : '');
+    const devise = typeof code === 'string' ? code.trim().toUpperCase().slice(0, 10) : '';
+    const solde = lireMontant(j?.data?.balance);
+    return { ok: true, solde: devise && !EST_EURO.test(devise) ? null : solde, devise };
+  } catch { return { ok: false, solde: null, devise: '' }; } finally { clearTimeout(minuteur); }
 }
 
 /** Le contenu du secret, contrôlé ; sinon null (on ne dit jamais pourquoi, ni ce qu'il contenait). */
@@ -166,39 +205,73 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
   }
   const liberer = async (ctx, messageId) => { try { await lancerAction(ACTIONS_RDV['rdv.libererEnvoi'], { messageId }, ctx); } catch { /* il expirera seul : un essai de plus, jamais un SMS perdu */ } };
 
+  // Solde du compte : cache de 60 s par espace (« Actualiser » et les tirs ne martèlent jamais ClickSend). Rend { branche, solde: <nombre> | null, devise }.
+  const cacheSolde = new Map(); // espace -> { expire, promesse }
+  async function lireSoldeEspace(espace) {
+    const config = await configuration(espace);
+    if (!config) return { branche: false, solde: null, devise: '' };
+    const vu = cacheSolde.get(espace);
+    if (vu && vu.expire > instant()) return vu.promesse;
+    const promesse = lireSolde({ identifiant: config.identifiant, cle: config.cle, fetchImpl }).then((r) => ({ branche: true, solde: r.ok ? r.solde : null, devise: r.ok ? r.devise : '' }));
+    if (cacheSolde.size > 100) cacheSolde.clear();
+    cacheSolde.set(espace, { expire: instant() + DUREE_CACHE_MS, promesse });
+    return promesse;
+  }
+
   /**
    * Envoie tous les SMS dus de l'espace, dans la limite de `budgetMs` (compté depuis le tout début : lecture de la connexion et des SMS dus comprise ; jamais plus que ce que la fonction appelante peut durer).
-   * Rend { branche, envoyes, echecs, incertains, restants, arret? } (aucune donnée sensible : ni clé, ni numéro, ni texte).
+   * Rend { branche, envoyes, echecs, incertains, restants, arret?, alertesSolde? } (aucune donnée sensible : ni clé, ni numéro, ni texte, ni solde).
    * Chaque SMS est traité SEUL : un refus propre à un SMS (échec compté, repris au plus tôt 10 minutes plus tard par la porte) ne bloque jamais les autres ; seuls les problèmes de COMPTE arrêtent le tir.
+   * `avecSolde` : SEULEMENT les deux filets planifiés le passent (jamais « tire maintenant », où l'écran attend) : après les SMS, le solde est lu et, s'il franchit un seuil, l'alerte part dans ce même tir.
    */
-  async function tirer(espace, { budgetMs: budget = budgetMs } = {}) {
+  async function tirer(espace, { budgetMs: budget = budgetMs, avecSolde = false } = {}) {
     const debut = instant();
     const bilan = { branche: false, envoyes: 0, echecs: 0, incertains: 0, restants: 0 };
     const config = await configuration(espace);
     if (!config) return bilan;
     bilan.branche = true;
     const ctx = contexte(espace);
-    const { messages = [] } = await lancerAction(ACTIONS_RDV['rdv.aEnvoyer'], {}, ctx);
     const arreter = async (raison, aLiberer) => {
       bilan.arret = raison;
-      bilan.restants = aLiberer.length;
+      bilan.restants += aLiberer.length;
       await Promise.all(aLiberer.map((x) => liberer(ctx, x.messageId)));
     };
-    for (const [i, m] of messages.entries()) {
-      // On n'ouvre pas un envoi qui pourrait dépasser le budget (un SMS peut durer `delaiSmsMs`) : les SMS restants sont libérés sans compter d'essai.
-      if (instant() - debut + delaiSmsMs > budget) { await arreter('budget_depasse', messages.slice(i)); break; }
-      const r = await envoyerUn(config, m);
-      if (r.statut === 'arret') {
-        if (r.parti) bilan.incertains += 1; // ce SMS est peut-être parti : il reste réservé (essai compté à l'expiration), jamais libéré
-        await arreter(r.raison, messages.slice(r.parti ? i + 1 : i));
-        break;
+    /** Envoie une liste de SMS réservés ; vrai si le tir doit s'arrêter. */
+    async function envoyerListe(messages) {
+      for (const [i, m] of messages.entries()) {
+        // On n'ouvre pas un envoi qui pourrait dépasser le budget (un SMS peut durer `delaiSmsMs`) : les SMS restants sont libérés sans compter d'essai.
+        if (instant() - debut + delaiSmsMs > budget) { await arreter('budget_depasse', messages.slice(i)); return true; }
+        const r = await envoyerUn(config, m);
+        if (r.statut === 'arret') {
+          if (r.parti) bilan.incertains += 1; // ce SMS est peut-être parti : il reste réservé (essai compté à l'expiration), jamais libéré
+          await arreter(r.raison, messages.slice(r.parti ? i + 1 : i));
+          return true;
+        }
+        if (r.statut === 'incertain') { bilan.incertains += 1; continue; }
+        const confirme = await confirmer(ctx, r.statut === 'ok'
+          ? { messageId: m.messageId, statut: 'ok', ...(r.idFournisseur ? { idFournisseur: r.idFournisseur } : {}) }
+          : { messageId: m.messageId, statut: 'echec', message: r.message });
+        if (!confirme) { bilan.incertains += 1; continue; } // parti (ou refusé) mais non noté : la réservation expire, la porte reprendra (comptée comme un essai)
+        if (r.statut === 'ok') bilan.envoyes += 1; else bilan.echecs += 1;
       }
-      if (r.statut === 'incertain') { bilan.incertains += 1; continue; }
-      const confirme = await confirmer(ctx, r.statut === 'ok'
-        ? { messageId: m.messageId, statut: 'ok', ...(r.idFournisseur ? { idFournisseur: r.idFournisseur } : {}) }
-        : { messageId: m.messageId, statut: 'echec', message: r.message });
-      if (!confirme) { bilan.incertains += 1; continue; } // parti (ou refusé) mais non noté : la réservation expire, la porte reprendra (comptée comme un essai)
-      if (r.statut === 'ok') bilan.envoyes += 1; else bilan.echecs += 1;
+      return false;
+    }
+    const { messages = [] } = await lancerAction(ACTIONS_RDV['rdv.aEnvoyer'], {}, ctx);
+    await envoyerListe(messages);
+    // Solde ClickSend : lu APRÈS les SMS, seulement si le tir n'a pas buté sur un problème de clé ou de service et s'il reste du temps (la lecture dure au plus DELAI_SOLDE_MS). Une panne ici ne fait jamais échouer le tir.
+    if (avecSolde && !TIRS_SANS_SOLDE.includes(bilan.arret) && instant() - debut + DELAI_SOLDE_MS <= budget) {
+      try {
+        const s = await lireSoldeEspace(espace);
+        const r = typeof s.solde === 'number' ? await alerterSoldeBas(ctx, { solde: s.solde, lien: LIEN_RECHARGE_CLICKSEND }) : null;
+        if (r?.crees > 0) {
+          bilan.alertesSolde = r.crees; // seulement quand une alerte est créée : le bilan des tirs sans alerte garde sa forme
+          // L'alerte part dans CE tir si le tir est allé au bout et s'il reste du temps ; après un arrêt (crédit épuisé…) ou faute de temps, elle part au tir suivant (elle est déjà créée, jamais perdue).
+          if (!bilan.arret && instant() - debut + delaiSmsMs <= budget) {
+            const { messages: alertes = [] } = await lancerAction(ACTIONS_RDV['rdv.aEnvoyer'], {}, ctx);
+            await envoyerListe(alertes);
+          }
+        }
+      } catch { /* le solde est un plus : la prochaine lecture reprendra */ }
     }
     return bilan;
   }
@@ -233,6 +306,8 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
     recevoir,
     /** Vrai si la connexion de l'espace existe et est utilisable (et, chez un client, si le module est allumé). Ne rend jamais la clé. */
     async brancheRdv(espace) { return (await configuration(espace)) !== null; },
+    /** Solde du compte ClickSend de l'espace : { branche, solde: <nombre> | null, devise }. Cache de 60 s ; ne rend jamais la clé. Réservé aux appelants que la fonction d'appel a contrôlés (jamais le tir « maintenant »). */
+    lireSolde: lireSoldeEspace,
     /** L'écran demande « tire maintenant » ; le tir passe par `tirer` (budget court) et le bilan remonte jusqu'à l'écran. */
     async tirerRdv(espace) {
       try { return await tirer(espace); } catch { throw new ErreurSortieSms('indisponible', 'L’envoi n’a pas abouti.'); }

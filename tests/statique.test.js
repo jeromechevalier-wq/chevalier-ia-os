@@ -73,9 +73,13 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
   });
 });
 
-/** Seule exception ClickSend du code de l'appli : le lien d'aide du tableau de bord, EXACT, dans le seul fichier des Réglages Rendez-vous (lien affiché, jamais chargé ni appelé). */
+/** Seules exceptions ClickSend du code de l'appli : deux liens du tableau de bord (aide « SMS entrants » et page de recharge), CHACUN exact et dans le seul fichier des Réglages Rendez-vous (liens affichés, jamais chargés ni appelés). */
+const LIENS_CLICKSEND_AUTORISES = Object.freeze({
+  'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms': 'js/modules/rdv/reglages.js',
+  'https://dashboard.clicksend.com/portal/billing#add-credit': 'js/modules/rdv/reglages.js',
+});
 function lienAideClickSendAutorise(url, fichier) {
-  return url === 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms' && fichier === 'js/modules/rdv/reglages.js';
+  return Object.hasOwn(LIENS_CLICKSEND_AUTORISES, url) && LIENS_CLICKSEND_AUTORISES[url] === fichier;
 }
 
 describe('D2 Aucune ressource externe hors Google', () => {
@@ -87,6 +91,11 @@ describe('D2 Aucune ressource externe hors Google', () => {
     assert.equal(lienAideClickSendAutorise('https://rest.clicksend.com/v3/sms/send', 'js/modules/rdv/reglages.js'), false, 'l’API d’envoi, même dans le bon fichier');
     assert.equal(lienAideClickSendAutorise(`${lien}/x`, 'js/modules/rdv/reglages.js'), false, 'lien prolongé');
     assert.equal(lienAideClickSendAutorise('https://dashboard.clicksend.com/', 'js/modules/rdv/reglages.js'), false, 'autre page du tableau de bord');
+    // lien de recharge (15/11/2026) : exact, dans le même fichier seulement
+    const recharge = 'https://dashboard.clicksend.com/portal/billing#add-credit';
+    assert.equal(lienAideClickSendAutorise(recharge, 'js/modules/rdv/reglages.js'), true);
+    for (const faux of [recharge.replace('#add-credit', ''), `${recharge}2`, `${recharge}/x`, `${recharge}?a=1`, recharge.replace('https', 'http'), recharge.replace('billing', 'billing2')]) assert.equal(lienAideClickSendAutorise(faux, 'js/modules/rdv/reglages.js'), false, faux);
+    for (const f of ['js/modules/rdv/fiche.js', 'js/modules/rdv/logique.js', 'functions/src/coeur/sms-direct.js']) assert.equal(lienAideClickSendAutorise(recharge, f), false, `recharge dans ${f}`);
   });
   test('D2 seules les adresses gstatic.com (SDK Firebase 12.19.0) sont chargées par le code', () => {
     const autorise = /^https:\/\/(www\.gstatic\.com\/firebasejs\/12\.19\.0\/|[a-z0-9.-]*googleapis\.com|apis\.google\.com|accounts\.google\.com|lucide\.dev)/;

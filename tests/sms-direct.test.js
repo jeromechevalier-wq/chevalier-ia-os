@@ -5,7 +5,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, describe } from 'node:test';
 import { tirerPourTous } from '../functions-plateforme/src/rdv.js';
-import { creerSmsDirect, creerGestionnaireReponses, lireConnexion, nomDuSecret, memeJeton, ErreurSortieSms, URL_ENVOI, SECRET_CLICKSEND } from '../functions/src/coeur/sms-direct.js';
+import { creerSmsDirect, creerGestionnaireReponses, lireConnexion, nomDuSecret, memeJeton, ErreurSortieSms, URL_ENVOI, SECRET_CLICKSEND, LIEN_RECHARGE_CLICKSEND, lireSolde } from '../functions/src/coeur/sms-direct.js';
 import { PRECONDITION_ECHOUEE } from '../scripts/porte/adaptateur.js';
 import { lienEcranRdv } from '../functions/src/coeur/liens.js';
 import { BASE_LIEN_JEROME as BASE_SERVEUR_JEROME } from '../functions/src/mcp/gestionnaire.js';
@@ -55,8 +55,13 @@ function monde({ secret = SECRET, reponses = null, moduleActif = true } = {}) {
   const base = creerBase();
   const temps = { t: T0 };
   const appels = [];
+  const compte = { appels: [], reponse: { ok: false, status: 503, json: async () => ({}) } };
   let n = 0;
   const fetchImpl = async (url, options) => {
+    if (options?.method === 'GET') { // lecture du compte (solde) : hors `appels` (qui ne compte que les SMS), « indisponible » par défaut
+      compte.appels.push({ url, options });
+      return typeof compte.reponse === 'function' ? compte.reponse() : compte.reponse;
+    }
     appels.push({ url, options, corps: JSON.parse(options.body) });
     if (typeof reponses === 'function') return reponses(appels.length, appels.at(-1));
     n += 1;
@@ -77,7 +82,7 @@ function monde({ secret = SECRET, reponses = null, moduleActif = true } = {}) {
     for (const [pid, nom, tel] of parts) base.docs.set(`rdv_participants/${id}-${pid}`, { v: 1, d: { rendezVousId: id, nom, telephone: tel, role: '', etatReponse: 'attente', creneauxOk: [], reponse: '' } });
   };
   const messages = () => [...base.docs].filter(([c]) => c.startsWith('rdv_messages/')).map(([c, x]) => ({ id: c.split('/')[1], ...x.d }));
-  return { base, sms, appels, temps, semer, messages };
+  return { base, sms, appels, compte, temps, semer, messages };
 }
 
 describe('connexion (secret)', () => {
@@ -305,14 +310,179 @@ describe('adresse des réponses (traitement HTTP)', () => {
   });
 });
 
-// Seule exception : le lien d'aide vers le tableau de bord (Réglages > Rendez-vous), un lien affiché à l'utilisateur, jamais un appel. Toute autre adresse reste interdite.
+// ───────────────────────────── Solde ClickSend (15/11/2026) ─────────────────────────────
+
+const COMPTE = (donnees, ok = true, status = 200) => ({ ok, status, json: async () => ({ http_code: status, data: donnees }) });
+const COMPTE_EUR = (balance = '4.998000') => COMPTE({ balance, _currency: { currency_name_short: 'EUR', currency_prefix_d: '€', currency_name_long: 'Euros' }, low_credit_amount: '1.000000' });
+
+describe('lireSolde : lecture tolérante du compte ClickSend', () => {
+  const lire = (reponse, options = {}) => { const appels = []; return lireSolde({ identifiant: 'compte-test', cle: 'cle-de-test-pas-un-vrai-secret', fetchImpl: async (url, o) => { appels.push({ url, o }); if (reponse instanceof Error) throw reponse; return reponse; }, ...options }).then((r) => ({ r, appels })); };
+  test('E1-1 le solde est lu sous data.balance (texte), en euros ; la requête est un GET sur l’adresse fixe, sans redirection, avec le compte', async () => {
+    const { r, appels } = await lire(COMPTE_EUR('4.998000'));
+    assert.deepEqual(r, { ok: true, solde: 4.998, devise: 'EUR' });
+    assert.equal(appels.length, 1);
+    assert.equal(appels[0].url, 'https://rest.clicksend.com/v3/account');
+    assert.equal(appels[0].o.method, 'GET'); assert.equal(appels[0].o.redirect, 'error'); assert.ok(appels[0].o.signal);
+    assert.equal(appels[0].o.headers.Authorization, `Basic ${Buffer.from('compte-test:cle-de-test-pas-un-vrai-secret').toString('base64')}`);
+    assert.ok(!JSON.stringify(r).includes('cle-de-test'));
+  });
+  test('E1-2 tolérant : devise en texte, balance numérique, négative ou nulle, zéros inutiles', async () => {
+    assert.deepEqual((await lire(COMPTE({ balance: 12.5, _currency: 'EUR' }))).r, { ok: true, solde: 12.5, devise: 'EUR' });
+    assert.equal((await lire(COMPTE({ balance: '-0.250000', _currency: 'eur' }))).r.solde, -0.25);
+    assert.equal((await lire(COMPTE({ balance: '0', _currency: { currency_name_short: 'EUR' } }))).r.solde, 0);
+  });
+  test('E1-3 montant absent ou illisible : « solde indisponible » (ok, solde null), jamais une erreur', async () => {
+    for (const donnees of [{}, { balance: null }, { balance: '' }, { balance: 'beaucoup' }, { balance: '1e9999' }, { balance: '4,5' }, { balance: {} }, { balance: [4] }, null, { balance: '99999999999' }]) {
+      const { r } = await lire(COMPTE(donnees));
+      assert.deepEqual([r.ok, r.solde], [true, null], JSON.stringify(donnees));
+    }
+    assert.deepEqual((await lire({ ok: true, status: 200, json: async () => { throw new Error('pas du json'); } })).r, { ok: true, solde: null, devise: '' });
+  });
+  test('E1-4 devise lisible et autre que l’euro : solde indisponible, aucune alerte ; devise absente : on suppose l’euro (décision écrite dans la PR)', async () => {
+    assert.deepEqual((await lire(COMPTE({ balance: '5.000000', _currency: { currency_name_short: 'USD' } }))).r, { ok: true, solde: null, devise: 'USD' });
+    assert.equal((await lire(COMPTE({ balance: '5.0', _currency: 'GBP' }))).r.solde, null);
+    assert.equal((await lire(COMPTE({ balance: '5.0', _currency: { currency_prefix_d: '$' } }))).r.solde, null, 'symbole autre que € = autre devise');
+    assert.equal((await lire(COMPTE({ balance: '5.0', _currency: { currency_prefix_d: '€' } }))).r.solde, 5);
+    assert.equal((await lire(COMPTE({ balance: '5.0' }))).r.solde, 5, 'devise absente : euro supposé');
+    assert.equal((await lire(COMPTE({ balance: '5.0', _currency: {} }))).r.solde, 5);
+  });
+  test('E1-5 refus (401, 403), panne (503), réseau coupé ou délai dépassé : ok false, sans rien de secret', async () => {
+    for (const rep of [COMPTE({}, false, 401), COMPTE({}, false, 403), COMPTE({}, false, 503), new Error('reseau coupé cle-de-test-pas-un-vrai-secret')]) {
+      const { r } = await lire(rep);
+      assert.deepEqual(r, { ok: false, solde: null, devise: '' });
+    }
+    const lent = await lireSolde({ identifiant: 'a', cle: 'b', delaiMs: 10, fetchImpl: (url, o) => new Promise((_, rejet) => o.signal.addEventListener('abort', () => rejet(new Error('abandon')))) });
+    assert.equal(lent.ok, false);
+  });
+});
+
+describe('sortie.lireSolde : cache de 60 secondes par espace', () => {
+  test('E1-6 deux lectures rapprochées = un seul appel à ClickSend ; au bout de 60 s, un nouvel appel ; un espace non branché ne touche pas ClickSend', async () => {
+    const m = monde(); m.compte.reponse = COMPTE_EUR('12.340000');
+    assert.deepEqual(await m.sms.lireSolde('interne'), { branche: true, solde: 12.34, devise: 'EUR' });
+    m.temps.t += 30_000;
+    await m.sms.lireSolde('interne');
+    assert.equal(m.compte.appels.length, 1);
+    m.compte.reponse = COMPTE_EUR('9.000000'); m.temps.t += 31_000;
+    assert.equal((await m.sms.lireSolde('interne')).solde, 9);
+    assert.equal(m.compte.appels.length, 2);
+    assert.equal(m.appels.length, 0, 'aucun SMS : la lecture du solde est en lecture seule');
+    const sans = monde({ secret: null });
+    assert.deepEqual(await sans.sms.lireSolde('interne'), { branche: false, solde: null, devise: '' });
+    assert.equal(sans.compte.appels.length, 0);
+    const eteint = monde({ moduleActif: false });
+    assert.equal((await eteint.sms.lireSolde('demo')).branche, false);
+    assert.equal(eteint.compte.appels.length, 0);
+  });
+  test('E1-7 appels en même temps : une seule lecture ; ClickSend indisponible = solde null (mis en cache aussi : « Actualiser » ne martèle pas)', async () => {
+    const m = monde(); m.compte.reponse = COMPTE_EUR('7.000000');
+    const [a, b] = await Promise.all([m.sms.lireSolde('interne'), m.sms.lireSolde('interne')]);
+    assert.equal(a.solde, 7); assert.equal(b.solde, 7);
+    assert.equal(m.compte.appels.length, 1);
+    const panne = monde();
+    assert.deepEqual(await panne.sms.lireSolde('interne'), { branche: true, solde: null, devise: '' });
+    await panne.sms.lireSolde('interne');
+    assert.equal(panne.compte.appels.length, 1);
+  });
+});
+
+describe('tir planifié : lecture du solde et alerte', () => {
+  const plan = (m, options = {}) => m.sms.tirer('interne', { budgetMs: 200_000, avecSolde: true, ...options });
+  const alertesParties = (m) => m.appels.filter((a) => /solde bas/.test(a.corps.messages[0].body));
+  test('E1-8 le tir planifié lit le solde APRÈS les SMS ; sous le premier seuil, l’alerte part dans CE tir vers le numéro d’alerte, avec la page de recharge', async () => {
+    const m = monde(); m.compte.reponse = COMPTE_EUR('4.998000');
+    m.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
+    const b = await plan(m);
+    assert.equal(b.envoyes, 2); assert.equal(b.alertesSolde, 1);
+    assert.equal(m.compte.appels.length, 1);
+    assert.match(m.appels[0].corps.messages[0].body, /^Bonjour, c'est/, 'le SMS du rendez-vous part AVANT la lecture du solde');
+    const a = alertesParties(m);
+    assert.equal(a.length, 1);
+    assert.equal(a[0].corps.messages[0].to, '+33700000001');
+    assert.equal(a[0].corps.messages[0].body, `ClickSend : solde bas, 5,00 EUR (seuil 5 EUR).\n${LIEN_RECHARGE_CLICKSEND}`);
+    assert.doesNotMatch(a[0].corps.messages[0].body, /STOP/);
+    const doc = m.messages().find((x) => x.sousType === 'solde-bas');
+    assert.equal(doc.etatEnvoi, 'envoye');
+    assert.equal(m.base.docs.get('rdv_parametres/reglages').d.soldeAlerte.seuils.length, 2);
+  });
+  test('E1-9 le tir suivant (15 minutes plus tard) avec le même solde : aucune alerte de plus, aucune écriture de réglages', async () => {
+    const m = monde(); m.compte.reponse = COMPTE_EUR('4.000000');
+    await plan(m);
+    const v = m.base.docs.get('rdv_parametres/reglages').v;
+    const avant = m.appels.length;
+    m.temps.t += 15 * 60_000;
+    const b = await plan(m);
+    assert.equal(b.alertesSolde, undefined);
+    assert.equal(m.appels.length, avant);
+    assert.equal(m.base.docs.get('rdv_parametres/reglages').v, v);
+    assert.equal(m.compte.appels.length, 2, 'le solde est relu à chaque tir planifié (le cache dure 60 s)');
+  });
+  test('E1-10 « tire maintenant » (tirerRdv) et un tir sans option ne lisent JAMAIS le solde : l’écran attend', async () => {
+    const m = monde(); m.compte.reponse = COMPTE_EUR('1.000000'); m.semer();
+    await m.sms.tirerRdv('interne');
+    await m.sms.tirer('interne');
+    await m.sms.tirer('interne', { budgetMs: 200_000 });
+    assert.equal(m.compte.appels.length, 0);
+    assert.equal(m.messages().filter((x) => x.sousType === 'solde-bas').length, 0);
+  });
+  test('E1-11 aucune lecture si le tir a buté sur une clé refusée, ClickSend en panne ou une limitation ; le crédit épuisé, lui, déclenche la lecture', async () => {
+    for (const [reponse, raison] of [[() => ({ ok: false, status: 401, json: async () => ({}) }), 'cle_refusee'], [() => ({ ok: false, status: 503, json: async () => ({}) }), 'clicksend_indisponible'], [() => ({ ok: false, status: 429, json: async () => ({}) }), 'trop_de_requetes']]) {
+      const m = monde({ reponses: reponse }); m.compte.reponse = COMPTE_EUR('1.000000'); m.semer();
+      assert.equal((await plan(m)).arret, raison);
+      assert.equal(m.compte.appels.length, 0, raison);
+    }
+    const m = monde({ reponses: () => REPONSE_STATUT('INSUFFICIENT_CREDIT') }); m.compte.reponse = COMPTE_EUR('0.000000'); m.semer();
+    const b = await plan(m);
+    assert.equal(b.arret, 'credit_epuise');
+    assert.equal(m.compte.appels.length, 1);
+    assert.equal(m.messages().filter((x) => x.sousType === 'solde-bas').length, 1, 'l’alerte est créée ; elle partira quand ClickSend acceptera de nouveau un SMS');
+  });
+  test('E1-12 pas assez de temps dans le budget pour lire le solde : on ne le lit pas (le tir ne dépasse jamais son budget)', async () => {
+    const m = monde(); m.compte.reponse = COMPTE_EUR('1.000000');
+    const b = await plan(m, { budgetMs: 4_000 });
+    assert.equal(m.compte.appels.length, 0);
+    assert.equal(b.alertesSolde, undefined);
+  });
+  test('E1-13 solde au-dessus du seuil, illisible ou en autre devise : aucune alerte, aucune erreur ; la recharge remet l’état à zéro', async () => {
+    for (const rep of [COMPTE_EUR('50.000000'), COMPTE({ balance: 'x', _currency: 'EUR' }), COMPTE({ balance: '1.0', _currency: 'USD' }), COMPTE({}, false, 500)]) {
+      const m = monde(); m.compte.reponse = rep;
+      const b = await plan(m);
+      assert.equal(b.alertesSolde, undefined);
+      assert.equal(m.messages().filter((x) => x.sousType === 'solde-bas').length, 0);
+    }
+    const m = monde(); m.compte.reponse = COMPTE_EUR('4.000000');
+    await plan(m);
+    m.compte.reponse = COMPTE_EUR('40.000000'); m.temps.t += 15 * 60_000;
+    await plan(m);
+    assert.deepEqual(m.base.docs.get('rdv_parametres/reglages').d.soldeAlerte, { cycle: 1, seuils: [] });
+  });
+  test('E1-14 une panne pendant la lecture ou l’alerte ne fait jamais échouer le tir', async () => {
+    const m = monde(); m.compte.reponse = () => { throw new Error('boum'); }; m.semer('r1', {}, [['p1', 'M. Durand', '+33600000001']]);
+    const b = await plan(m);
+    assert.equal(b.envoyes, 1);
+    assert.equal(b.alertesSolde, undefined);
+  });
+  test('E1-15 les deux filets planifiés demandent le solde : functions/src/index.js et tirerPourTous (plateforme) passent avecSolde', async () => {
+    const source = readFileSync(new URL('../functions/src/index.js', import.meta.url), 'utf8');
+    assert.match(source, /smsDirect\.tirer\('interne', \{ budgetMs: 200_000, avecSolde: true \}\)/);
+    const options = [];
+    const sortie = { tirer: async (client, o) => { options.push(o); return { branche: true, envoyes: 0, echecs: 0, incertains: 0, restants: 0 }; } };
+    const db = { collection: () => ({ get: async () => ({ docs: [{ id: 'demo' }] }) }) };
+    await tirerPourTous({ db, sortie, modulesActifs: async () => ['rdv'], maintenant: () => T0 });
+    assert.equal(options.length, 1); assert.equal(options[0].avecSolde, true);
+  });
+});
+
+// Seules exceptions : deux liens du tableau de bord (aide « SMS entrants » et page de recharge), affichés à l'utilisateur dans Réglages > Rendez-vous, jamais appelés. Toute autre adresse reste interdite.
 const LIEN_AIDE_TABLEAU_DE_BORD = 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms';
+const LIEN_RECHARGE = 'https://dashboard.clicksend.com/portal/billing#add-credit';
 const FICHIER_DU_LIEN_D_AIDE = 'js/modules/rdv/reglages.js';
-const LIEN_ECHAPPE = LIEN_AIDE_TABLEAU_DE_BORD.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-// Le lien est retiré seulement s'il n'est suivi d'aucun caractère d'adresse (espace, guillemet, parenthèse ou chevron ferme l'adresse) : un suffixe (/x, ?q, /../, .autre.domaine) le laisse en place.
-const LIEN_SEUL = new RegExp(`${LIEN_ECHAPPE}(?![^\\s'"\\x60)<>])`, 'g');
-/** Le fichier `chemin` (relatif à la racine du dépôt) parle-t-il à ClickSend ? Seul le fichier des Réglages Rendez-vous a le droit d'avoir le lien d'aide EXACT. */
-const parleAClickSend = (chemin, texte) => /clicksend\.com/i.test(chemin === FICHIER_DU_LIEN_D_AIDE ? texte.replace(LIEN_SEUL, '') : texte);
+const LIENS_AUTORISES = [[LIEN_AIDE_TABLEAU_DE_BORD, FICHIER_DU_LIEN_D_AIDE], [LIEN_RECHARGE, FICHIER_DU_LIEN_D_AIDE]];
+const echapper = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Chaque lien est retiré seulement s'il n'est suivi d'aucun caractère d'adresse (espace, guillemet, parenthèse ou chevron ferme l'adresse) : un suffixe (/x, ?q, #ancre, 2, /../, .autre.domaine) le laisse en place.
+const liensSeuls = (lien) => new RegExp(`${echapper(lien)}(?![^\\s'"\\x60)<>])`, 'g');
+/** Le fichier `chemin` (relatif à la racine du dépôt) parle-t-il à ClickSend ? Chaque lien exact n'est toléré que dans SON fichier. */
+const parleAClickSend = (chemin, texte) => /clicksend\.com/i.test(LIENS_AUTORISES.filter(([, f]) => f === chemin).reduce((t, [lien]) => t.replace(liensSeuls(lien), ''), texte));
 describe('ClickSend : un seul fichier du dépôt lui parle', () => {
   test('exception du lien d’aide : le lien exact seul, dans le seul fichier des Réglages, passe ; tout le reste (autre fichier, suffixe, autre adresse) est refusé', () => {
     const lien = LIEN_AIDE_TABLEAU_DE_BORD;
@@ -337,6 +507,25 @@ describe('ClickSend : un seul fichier du dépôt lui parle', () => {
     assert.equal(parleAClickSend(R, 'https://dashboard.clicksend.com/'), true, 'le domaine seul');
     assert.equal(parleAClickSend(R, lien.replace('https', 'http')), true, 'le même lien en http');
     assert.equal(parleAClickSend(R, 'fetch("https://REST.ClickSend.com/v3/sms/send")'), true, 'la casse ne contourne pas la règle');
+  });
+  test('lien de recharge : exact dans reglages.js seulement ; tout contournement (sans #add-credit, #add-credit2, /x, ?a=1, http, autre fichier) est refusé', () => {
+    const R = FICHIER_DU_LIEN_D_AIDE;
+    assert.equal(parleAClickSend(R, `const L = '${LIEN_RECHARGE}'; h('a', { href: L }, L)`), false, 'le lien de recharge exact : accepté');
+    assert.equal(parleAClickSend(R, `'${LIEN_AIDE_TABLEAU_DE_BORD}' '${LIEN_RECHARGE}'`), false, 'les deux liens exacts côte à côte : acceptés');
+    for (const faux of [LIEN_RECHARGE.replace('#add-credit', ''), `${LIEN_RECHARGE}2`, `${LIEN_RECHARGE}/x`, `${LIEN_RECHARGE}?a=1`, `${LIEN_RECHARGE}#autre`, LIEN_RECHARGE.replace('https', 'http'), LIEN_RECHARGE.replace('/portal/billing', '/portal/billing/x'), `${LIEN_RECHARGE}.autre.exemple.com`]) {
+      assert.equal(parleAClickSend(R, `'${faux}'`), true, faux);
+    }
+    for (const f of ['functions/src/coeur/zz.js', 'js/modules/rdv/fiche.js', 'js/modules/rdv/logique.js', 'scripts/porte/actions-rdv.js']) assert.equal(parleAClickSend(f, `const L = '${LIEN_RECHARGE}';`), true, `lien de recharge dans ${f}`);
+    assert.equal(parleAClickSend(R, `${LIEN_RECHARGE} + https://rest.clicksend.com/v3/account`), true, 'l’API à côté du lien');
+  });
+  test('côté serveur : la page de recharge est une constante de sms-direct.js, passée seulement comme valeur de {lien} ; elle ne va jamais dans un appel réseau', () => {
+    const source = readFileSync(new URL('../functions/src/coeur/sms-direct.js', import.meta.url), 'utf8');
+    assert.equal(LIEN_RECHARGE_CLICKSEND, LIEN_RECHARGE, 'la constante serveur est l’adresse exacte');
+    assert.equal([...source.matchAll(/portal\/billing/g)].length, 1, 'l’adresse n’est écrite qu’une fois dans le fichier');
+    const usages = source.split('\n').filter((l) => /LIEN_RECHARGE_CLICKSEND/.test(l) && !/^export const LIEN_RECHARGE_CLICKSEND/.test(l) && !/^\s*\/\//.test(l));
+    assert.equal(usages.length, 1, `un seul usage : ${usages.join(' | ')}`);
+    assert.match(usages[0], /alerterSoldeBas\(ctx, \{ solde: s\.solde, lien: LIEN_RECHARGE_CLICKSEND \}\)/);
+    assert.doesNotMatch(source, /fetchImpl\([^)]*LIEN_RECHARGE/);
   });
   test('l’adresse de ClickSend n’apparaît que dans functions/src/coeur/sms-direct.js (code exécutable, hors tests, docs et copies générées)', () => {
     const racine = new URL('..', import.meta.url).pathname;

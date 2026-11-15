@@ -5,7 +5,7 @@
 //  - SMS : la connexion ClickSend est celle DU client (secret CLICKSEND_RDV_<client>), lue à l'exécution par `sortie` (serveur/src/coeur/sms-direct.js, le SEUL fichier qui parle à ClickSend) ; sans elle, « Envoyer » reste grisé.
 import { logger } from 'firebase-functions';
 import { creerAccesFirestore, avecBase } from '../serveur/src/coeur/donnees.js';
-import { etatEnvoi, envoyerPropositions, envoyerSms, ErreurRdvEnvoi } from '../serveur/src/coeur/rdv-envoi.js';
+import { etatEnvoi, envoyerPropositions, envoyerSms, lireSoldeEnvoi, ErreurRdvEnvoi } from '../serveur/src/coeur/rdv-envoi.js';
 import { estAdministrateur } from '../serveur/partage/administrateur.js';
 import { ErreurConnexionSms, executerConnexion, REFUS_NEUTRE } from '../serveur/src/coeur/connexion-sms.js';
 import { Refus } from './appels.js';
@@ -29,6 +29,7 @@ export async function envoyerRdv({ db, auth, donnees, sortie, maintenant = Date.
   try {
     if (donnees.action === 'propositions') return await envoyerPropositions(commun);
     if (donnees.action === 'sms') return await envoyerSms({ ...commun, type: donnees.type, texte: donnees.texte });
+    if (donnees.action === 'solde') return await lireSoldeEnvoi(commun); // éditeurs seulement (controlerAppelant) ; jamais dans connexionRdv
     throw new ErreurRdvEnvoi('invalid-argument', 'Action inconnue.');
   } catch (e) {
     if (e instanceof ErreurRdvEnvoi) throw new Refus(e.code, e.message);
@@ -55,7 +56,7 @@ export async function tirerPourTous({ db, sortie, modulesActifs, maintenant = Da
     bilan.clients += 1;
     try {
       if (!(await modulesActifs(doc.id)).includes(MODULE_RDV)) continue;
-      const r = await sortie.tirer(doc.id, { budgetMs: Math.min(budgetClientMs, reste - margeMs) });
+      const r = await sortie.tirer(doc.id, { budgetMs: Math.min(budgetClientMs, reste - margeMs), avecSolde: true });
       if (!r.branche) continue;
       bilan.branches += 1;
       bilan.envoyes += r.envoyes;

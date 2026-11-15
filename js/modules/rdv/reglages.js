@@ -7,8 +7,12 @@ import * as D from './donnees.js';
 import * as R from './logique.js';
 import { interrupteur, champNombre, compteurSms, EXPLICATION_ACCENTS } from './composants.js';
 import { reglagesExportRdv } from './export.js';
+import * as CRM from '../crm/donnees.js';
+import { modeTestAllume, surModeTest } from '../../os/mode-test.js';
 
 const LIEN_REGLES_SMS_ENTRANTS = 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms';
+// Page de recharge du compte ClickSend : affichée comme lien (nouvel onglet) et comptée dans l'aperçu de l'alerte « solde bas », jamais appelée. Adresse à faire vérifier par Jérôme (15/11/2026).
+const LIEN_RECHARGE_CLICKSEND = 'https://dashboard.clicksend.com/portal/billing#add-credit';
 
 /**
  * Bloc repliable « Comment configurer ClickSend pour recevoir les réponses et les STOP » : même texte chez Jérôme et chez les clients. L'adresse des réponses n'est écrite que si elle est
@@ -81,6 +85,66 @@ const ligne = (libelle, ...controles) => h('div', { class: 'rdv-reglage-ligne' }
 
 export function reglages(page) {
   const redessins = [];
+
+  // ── Bilan « Prêt à passer en vrai ? » : six vérifications, en lecture seule (n'enregistre rien, n'envoie aucun SMS). Le solde est demandé au serveur (jamais gardé ici), « Actualiser » le relit (le serveur garde 60 s).
+  const solde = { etat: 'attente', valeur: null }; // etat : attente | chargement | ok | indisponible
+  let redessinerBilan = () => {};
+  function chargerSolde() {
+    if (solde.etat === 'chargement') return;
+    solde.etat = 'chargement';
+    D.lireSoldeSms().then((v) => { solde.valeur = v; solde.etat = typeof v === 'number' ? 'ok' : 'indisponible'; })
+      .catch((e) => { console.warn(e); solde.valeur = null; solde.etat = 'indisponible'; })
+      .finally(() => redessinerBilan());
+  }
+  const lecteur = () => CRM.compteCourant()?.ecrit === false; // un lecteur chez un client ne peut lire ni « branché » ni le solde : ces cases restent grises
+  const caseBilan = (id, etat, texte, ...extra) => h('li', { class: `rdv-bilan-ligne ${etat}`, dataset: { role: `bilan-${id}`, etat } },
+    icone(etat === 'vert' ? 'circle-check' : etat === 'rouge' ? 'circle-x' : 'circle-help', { taille: 18 }), h('span', {}, texte, ...extra));
+  const lienExterne = (adresse, texte, role) => h('a', { href: adresse, target: '_blank', rel: 'noopener noreferrer', dataset: { role } }, texte);
+  redessinerBilan = carte(page, 'reglages-rdv-bilan', 'Prêt à passer en vrai ?', () => {
+    const p = D.parametres();
+    const branche = D.envoiBranche();
+    const peutLire = !lecteur();
+    const seuilHaut = R.seuilsSoldeDe(p)[0];
+    const grise = 'Indisponible avec ton compte (lecture seule).';
+    const manque = D.peutConfigurerConnexion() === false ? 'La connexion ClickSend n’est pas encore enregistrée : l’administrateur de la plateforme doit la saisir.' : 'Enregistre d’abord la connexion ClickSend.';
+    if (peutLire && branche === true && solde.etat === 'attente') chargerSolde();
+    const cases = [];
+    // 1. connexion
+    if (!peutLire) cases.push(caseBilan('connexion', 'gris', grise));
+    else if (branche === null) cases.push(caseBilan('connexion', 'gris', 'Vérification de la connexion ClickSend…'));
+    else cases.push(branche ? caseBilan('connexion', 'vert', 'La connexion ClickSend est enregistrée.') : caseBilan('connexion', 'rouge', manque));
+    // 2. adresse des réponses (se déduit de « branché » : l'adresse contient un code secret, elle n'est jamais écrite ici)
+    if (!peutLire) cases.push(caseBilan('adresse', 'gris', grise));
+    else if (branche === null) cases.push(caseBilan('adresse', 'gris', 'Vérification de l’adresse des réponses…'));
+    else if (branche) cases.push(caseBilan('adresse', 'vert', 'L’adresse des réponses existe (elle est créée avec la connexion). À vérifier chez ClickSend : elle doit être collée dans la règle « SMS entrants ». ', lienExterne(LIEN_REGLES_SMS_ENTRANTS, 'Ouvrir les règles de ClickSend', 'bilan-lien-reponses')));
+    else cases.push(caseBilan('adresse', 'rouge', manque));
+    // 3. numéro de test
+    cases.push(p.numeroTest ? caseBilan('numero-test', 'vert', `Le numéro de test est renseigné (${R.afficherTelephone(p.numeroTest)}).`)
+      : caseBilan('numero-test', 'rouge', 'Aucun numéro de test : un rendez-vous de test n’enverrait rien. Renseigne-le dans « Numéros qui reçoivent les alertes ».'));
+    // 4. mode test (celui de toute l'appli, par navigateur)
+    cases.push(modeTestAllume()
+      ? caseBilan('mode-test', 'rouge', 'Le mode test est allumé : les SMS partent vers ton numéro de test. Éteins-le pour de vrais rendez-vous (menu, mode test). Les rendez-vous déjà marqués « test » le restent : ils n’enverront jamais rien à un vrai participant.')
+      : caseBilan('mode-test', 'vert', 'Le mode test est éteint : les nouveaux rendez-vous envoient aux vrais participants. Les rendez-vous déjà marqués « test » le restent.'));
+    // 5. solde
+    if (!peutLire) cases.push(caseBilan('solde', 'gris', grise));
+    else if (branche === null || (branche && (solde.etat === 'attente' || solde.etat === 'chargement') && solde.valeur === null)) cases.push(caseBilan('solde', 'gris', 'Lecture du solde ClickSend…'));
+    else if (!branche) cases.push(caseBilan('solde', 'rouge', manque));
+    else if (solde.etat === 'indisponible' || typeof solde.valeur !== 'number') cases.push(caseBilan('solde', 'gris', 'Solde indisponible pour le moment (ClickSend n’a pas répondu, ou le compte n’est pas en euros). Regarde-le sur ton compte ClickSend.'));
+    else if (solde.valeur >= seuilHaut) cases.push(caseBilan('solde', 'vert', `Solde ClickSend : ${R.formaterEuros(solde.valeur)}, au-dessus de ton seuil le plus haut (${R.formaterSeuil(seuilHaut)} €).`));
+    else cases.push(caseBilan('solde', 'rouge', `Solde ClickSend : ${R.formaterEuros(solde.valeur)}, sous ton seuil le plus haut (${R.formaterSeuil(seuilHaut)} €). Recharge ton compte : `, lienExterne(LIEN_RECHARGE_CLICKSEND, 'Recharger sur ClickSend', 'bilan-lien-recharge')));
+    // 6. numéro d'alerte
+    const nbAlertes = p.numerosAlerte.filter((n) => n && n.actif && n.numero).length;
+    cases.push(nbAlertes ? caseBilan('alertes', 'vert', `${nbAlertes === 1 ? 'Un numéro reçoit' : `${nbAlertes} numéros reçoivent`} les alertes.`)
+      : caseBilan('alertes', 'rouge', 'Aucun numéro actif pour les alertes : tu ne seras pas prévenue (réponse non comprise, STOP, solde bas…).'));
+    const verts = cases.filter((c) => c.dataset.etat === 'vert').length;
+    const resume = cases.every((c) => c.dataset.etat === 'vert') ? 'Tout est vert : tu peux passer en vrai.' : `${verts} vérification${verts > 1 ? 's' : ''} sur ${cases.length} au vert.`;
+    const actualiser = peutLire && branche === true
+      ? h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'actualiser-bilan', disabled: solde.etat === 'chargement', onclick: () => { solde.etat = 'attente'; chargerSolde(); redessinerBilan(); } }, icone('refresh-cw', { taille: 16 }), 'Actualiser') : null;
+    return [h('p', { dataset: { role: 'bilan-resume' } }, resume), h('ul', { class: 'rdv-bilan' }, cases), actualiser,
+      h('p', { class: 'aide' }, 'Cette liste ne change rien et n’envoie aucun SMS. Le solde est lu chez ClickSend (au plus une fois par minute).')];
+  });
+  redessins.push(redessinerBilan);
+  const arretModeTest = surModeTest(() => redessinerBilan());
 
   redessins.push(carte(page, 'reglages-rdv-relances', 'Relances', () => {
     const p = D.parametres();
@@ -233,6 +297,24 @@ export function reglages(page) {
   }, { aide: '' });
   redessins.push(redessinerConnexion);
 
+  redessins.push(carte(page, 'reglages-rdv-solde', 'Solde ClickSend', () => {
+    const p = D.parametres();
+    const seuils = R.seuilsSoldeDe(p);
+    const ro = lecteur();
+    const champs = seuils.map((v, i) => h('input', { class: 'champ rdv-champ-nombre', type: 'text', inputmode: 'decimal', disabled: ro, value: String(v).replace('.', ','), dataset: { seuil: String(i + 1) },
+      'aria-label': ['Premier seuil du solde, en euros (le plus haut)', 'Deuxième seuil du solde, en euros', 'Troisième seuil du solde, en euros (le plus bas)'][i] }));
+    const relire = () => { champs.forEach((c, i) => { c.value = String(R.seuilsSoldeDe(D.parametres())[i]).replace('.', ','); c.classList.remove('invalide'); }); };
+    champs.forEach((c) => c.addEventListener('change', () => {
+      const valeurs = champs.map((x) => R.lireSeuilSolde(x.value));
+      const v = valeurs.some((n) => n === null) ? { ok: false, message: 'Écris trois seuils en euros, entre 0 et 1 000 (ex. 10, 5 et 2).' } : R.validerSeuilsSolde(valeurs);
+      if (!v.ok) { toast(v.message, { type: 'erreur' }); relire(); return; }
+      enregistrer({ seuilsSolde: valeurs });
+    }));
+    return [ligne('Premier seuil (€)', champs[0]), ligne('Deuxième seuil (€)', champs[1]), ligne('Troisième seuil (€)', champs[2]),
+      h('p', { class: 'aide' }, 'Quand le solde de ton compte ClickSend passe sous un de ces seuils, tes numéros d’alerte reçoivent un SMS (un seul par seuil franchi). Le solde est vérifié toutes les 15 minutes. Le texte du SMS se règle dans « Modèles de SMS » (« Alerte : solde ClickSend bas »).'),
+      h('p', {}, lienExterne(LIEN_RECHARGE_CLICKSEND, 'Recharger mon compte ClickSend', 'lien-recharge'))];
+  }));
+
   redessins.push(carte(page, 'reglages-rdv-roles', 'Rôles des participants', () => {
     const p = D.parametres();
     const lignes = p.roles.map((r) => {
@@ -274,7 +356,7 @@ export function reglages(page) {
       h('div', { class: 'rdv-modele-tete' }, h('strong', {}, m.libelle), h('span', { class: 'rdv-modele-compte' }, `${m.caracteres} caractères · ${m.segments} SMS`),
         h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': `modifier-modele-${m.type}`, onclick: () => modifierModele(m.type) }, 'Modifier')),
       h('pre', { class: 'rdv-modele-texte' }, m.texte),
-      m.aLien && m.sansLien ? h('p', { class: 'aide rdv-modele-sanslien' }, `Sans le lien : ${m.sansLien.caracteres} caractères · ${m.sansLien.segments} SMS. Avec le lien (l’adresse de ton espace) : ${m.caracteres} caractères · ${m.segments} SMS.`) : null,
+      m.aLien && m.sansLien ? h('p', { class: 'aide rdv-modele-sanslien' }, `Sans le lien : ${m.sansLien.caracteres} caractères · ${m.sansLien.segments} SMS. Avec le lien (${m.sousType === 'solde-bas' ? 'la page de recharge de ClickSend' : 'l’adresse de ton espace'}) : ${m.caracteres} caractères · ${m.segments} SMS.`) : null,
       h('p', { class: 'aide rdv-modele-cout' }, cout));
   };
 
@@ -284,15 +366,15 @@ export function reglages(page) {
       h('p', { class: 'aide', dataset: { role: 'explication-accents' } }, EXPLICATION_ACCENTS),
       h('p', { class: 'aide' }, `Variables : ${R.VARIABLES_SMS.map((v) => `{${v}}`).join(', ')}. Les exemples ci-dessus utilisent des données fictives. La dernière ligne (nom de l’entreprise et « Répondez STOP ») est ajoutée toute seule à chaque SMS envoyé à un participant.`),
       h('h3', {}, 'Alertes que tu reçois'),
-      h('p', { class: 'aide' }, 'Ces SMS vont à tes numéros d’alerte, jamais aux participants : ils ne portent pas la ligne « Répondez STOP ». Chaque alerte accepte seulement ses propres variables (indiquées dans « Modifier »). {lien} est l’adresse du rendez-vous dans l’appli : supprime-la du texte si tu n’en veux pas.'),
-      h('div', { class: 'pile' }, R.apercuAlertes(p, { client: D.clientCourant() }).map(ligneModele))];
+      h('p', { class: 'aide' }, 'Ces SMS vont à tes numéros d’alerte, jamais aux participants : ils ne portent pas la ligne « Répondez STOP ». Chaque alerte accepte seulement ses propres variables (indiquées dans « Modifier »). {lien} est l’adresse du rendez-vous dans l’appli (pour « solde ClickSend bas » : la page de recharge de ClickSend) : supprime-la du texte si tu n’en veux pas.'),
+      h('div', { class: 'pile' }, R.apercuAlertes(p, { client: D.clientCourant(), lienRecharge: LIEN_RECHARGE_CLICKSEND }).map(ligneModele))];
   }));
 
   async function modifierModele(type) {
     const p = D.parametres();
     const variables = R.variablesDuModele(type);
     const alerte = R.estModeleAlerte(type);
-    const exempleAlerte = { ...R.EXEMPLE_ALERTE, lien: R.lienExempleRdv(D.clientCourant()) };
+    const exempleAlerte = { ...R.EXEMPLE_ALERTE, lien: type === 'alerte-solde-bas' ? LIEN_RECHARGE_CLICKSEND : R.lienExempleRdv(D.clientCourant()) };
     const champ = h('textarea', { class: 'champ rdv-champ-multiligne', rows: '6', 'aria-label': `Modèle : ${R.libelleModele(type)}` });
     champ.value = R.modeleDe(type, p);
     const compteur = compteurSms('');
@@ -305,7 +387,7 @@ export function reglages(page) {
       cout.textContent = R.libelleCout(texte, etatP);
       const aLien = alerte && R.variablesDuModele(type).includes('lien') && /\{lien\}/.test(champ.value);
       sansLien.hidden = !aLien;
-      if (aLien) { const c = R.texteAlerte(type.slice('alerte-'.length), { ...exempleAlerte, lien: '' }, etatP); sansLien.textContent = `Sans le lien, ce texte ferait ${c.caracteres} caractères · ${c.segments} SMS (le compteur ci-dessus compte avec l’adresse de ton espace).`; }
+      if (aLien) { const c = R.texteAlerte(type.slice('alerte-'.length), { ...exempleAlerte, lien: '' }, etatP); sansLien.textContent = `Sans le lien, ce texte ferait ${c.caracteres} caractères · ${c.segments} SMS (le compteur ci-dessus compte avec ${type === 'alerte-solde-bas' ? 'la page de recharge de ClickSend' : 'l’adresse de ton espace'}).`; }
     };
     champ.addEventListener('input', maj);
     maj();
@@ -321,5 +403,5 @@ export function reglages(page) {
 
   reglagesExportRdv(page);
   const arret = D.surChangement(() => redessins.forEach((f) => f()));
-  return () => arret();
+  return () => { arret(); arretModeTest(); };
 }

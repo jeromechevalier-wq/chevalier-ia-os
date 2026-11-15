@@ -209,6 +209,7 @@ export const MODULES_DECLARES = geler([
     iconeMenu: 'calendar-check',
     prefixe: 'rdv',
     reglages: { sections: [
+      { id: 'reglages-rdv-bilan', libelle: 'Prêt à passer en vrai ?' },
       { id: 'reglages-rdv-relances', libelle: 'Relances' },
       { id: 'reglages-rdv-rappel', libelle: 'Rappel la veille' },
       { id: 'reglages-rdv-plage', libelle: 'Plage d’envoi' },
@@ -216,6 +217,7 @@ export const MODULES_DECLARES = geler([
       { id: 'reglages-rdv-nom', libelle: 'Ton nom dans les SMS' },
       { id: 'reglages-rdv-entreprise', libelle: 'Nom de l’entreprise dans les SMS' },
       { id: 'reglages-rdv-connexion', libelle: 'Connexion SMS (ClickSend)' },
+      { id: 'reglages-rdv-solde', libelle: 'Solde ClickSend' },
       { id: 'reglages-rdv-roles', libelle: 'Rôles des participants' },
       { id: 'reglages-rdv-tarif', libelle: 'Prix d’un SMS' },
       { id: 'reglages-rdv-modeles', libelle: 'Modèles de SMS' },
