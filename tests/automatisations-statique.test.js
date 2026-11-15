@@ -95,7 +95,7 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
     const regles = lire('firestore.plateforme.rules');
     const liste = regles.match(/collection in \[([^\]]*)\]/)[1].match(/'([a-z_]+)'/g).map((x) => x.replace(/'/g, ''));
     assert.deepEqual([...liste].sort(), [...m.collections].sort());
-    assert.match(regles, /!collectionDuJournal\(collection\) && !collectionDuTableauDeBord\(collection\) && !collectionSansSuppression\(collection\) && !collectionDesDevis\(collection\) && roleDe\(client\) == 'editeur'/); // + les devis et leur compteur (24/10/2026, devis-regles.test.js) ; + le bordereau du module Devis (24/10/2026) : jamais supprimé
+    assert.match(regles, /!collectionDuRdv\(collection\) && !collectionDuJournal\(collection\) && !collectionDuTableauDeBord\(collection\) && !collectionSansSuppression\(collection\) && !collectionDesDevis\(collection\) && roleDe\(client\) == 'editeur'/); // + les devis et leur compteur (24/10/2026, devis-regles.test.js) ; + le bordereau du module Devis (24/10/2026) : jamais supprimé
   });
   test('les fonctions n\'écrivent que dans les collections déclarées (et le signalement du serveur)', () => {
     const m = moduleDeclare('automatisations');

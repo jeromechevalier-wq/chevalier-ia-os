@@ -395,3 +395,52 @@ describe('J. Journal des workflows : lecture seule pour tous les navigateurs', (
     await droitsComplets(ctx(ALICE), 'a', 'crm_personnes');
   });
 });
+
+// Module Rendez-vous (15/11/2026) : les SMS (rdv_messages) et la liste des désinscrits sont écrits par le SERVEUR seulement ; les réglages restent écrits par un éditeur.
+describe('C3 Rendez-vous : règles de la plateforme clients', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      const db = c.firestore();
+      for (const client of ['a', 'b']) {
+        await setDoc(doc(db, 'clients', client, 'rdv_messages', 'existant'), { valeur: 1 });
+        await setDoc(doc(db, 'clients', client, 'rdv_parametres', 'reglages'), { valeur: 1 });
+        await setDoc(doc(db, 'clients', client, 'rdv_parametres', 'desinscrits'), { numeros: ['+33600000000'] });
+        await setDoc(doc(db, 'clients', client, 'rdv_rendezvous', 'existant'), { valeur: 1 });
+      }
+    });
+  });
+  test('C3 un éditeur et un lecteur LISENT rdv_messages ; aucun navigateur n\'y écrit', async () => {
+    await lectureSeule(ctx(ALICE), 'a', 'rdv_messages');
+    await lectureSeule(ctx(LEA), 'a', 'rdv_messages');
+  });
+  test('C3 un autre client, un compte sans espace et un visiteur n\'ont aucun droit sur rdv_messages', async () => {
+    await aucunDroit(ctx(BOB), 'a', 'rdv_messages');
+    await aucunDroit(ctx(ZOE), 'a', 'rdv_messages');
+    await aucunDroit(env.unauthenticatedContext().firestore(), 'a', 'rdv_messages');
+  });
+  test('C3 un éditeur lit toute la collection rdv_parametres et écrit les réglages, jamais la liste des désinscrits', async () => {
+    const db = ctx(ALICE);
+    await assertSucceeds(getDocs(collection(db, 'clients', 'a', 'rdv_parametres')));
+    await assertSucceeds(getDoc(doc(db, 'clients', 'a', 'rdv_parametres', 'desinscrits')));
+    await assertSucceeds(updateDoc(doc(db, 'clients', 'a', 'rdv_parametres', 'reglages'), { valeur: 5 }));
+    await assertSucceeds(setDoc(doc(db, 'clients', 'a', 'rdv_parametres', 'reglages'), { valeur: 6 }));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'rdv_parametres', 'desinscrits'), { numeros: [] }));
+    await assertFails(updateDoc(doc(db, 'clients', 'a', 'rdv_parametres', 'desinscrits'), { numeros: [] }));
+    await assertFails(deleteDoc(doc(db, 'clients', 'a', 'rdv_parametres', 'desinscrits')));
+  });
+  test('C3 un lecteur lit rdv_parametres (réglages et désinscrits) mais n\'écrit rien', async () => {
+    const db = ctx(LEA);
+    await assertSucceeds(getDocs(collection(db, 'clients', 'a', 'rdv_parametres')));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'rdv_parametres', 'reglages'), { valeur: 5 }));
+    await assertFails(updateDoc(doc(db, 'clients', 'a', 'rdv_parametres', 'reglages'), { valeur: 5 }));
+    await assertFails(deleteDoc(doc(db, 'clients', 'a', 'rdv_parametres', 'reglages')));
+  });
+  test('C3 clara (éditrice chez A, lectrice chez B) écrit les réglages chez A seulement', async () => {
+    await assertSucceeds(updateDoc(doc(ctx(CLARA), 'clients', 'a', 'rdv_parametres', 'reglages'), { valeur: 5 }));
+    await assertFails(updateDoc(doc(ctx(CLARA), 'clients', 'b', 'rdv_parametres', 'reglages'), { valeur: 5 }));
+    await assertFails(updateDoc(doc(ctx(BOB), 'clients', 'a', 'rdv_parametres', 'reglages'), { valeur: 5 }));
+  });
+  test('C3 un éditeur garde tous ses droits sur les rendez-vous (le joker reste en place pour le reste)', async () => {
+    await droitsComplets(ctx(ALICE), 'a', 'rdv_rendezvous');
+  });
+});

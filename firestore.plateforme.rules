@@ -54,6 +54,12 @@ service cloud.firestore {
       return collection in ['workflows', 'executions', 'sync', 'automatisations_propositions'];
     }
 
+    // Module Rendez-vous (15/11/2026) : les SMS (rdv_messages) et la liste des désinscrits (rdv_parametres/desinscrits) sont écrits par le SERVEUR seulement ; l'écran les lit.
+    // Le document `reglages` de rdv_parametres reste écrit par les éditeurs (match dédié plus bas). Lecture : comme le reste des données du client.
+    function collectionDuRdv(collection) {
+      return collection in ['rdv_messages', 'rdv_parametres'];
+    }
+
     // Tableau de bord : lisible par les membres, écrit par le SERVEUR seulement (la porte des scripts GitHub et les fonctions de saisie), jamais par un navigateur,
     // même par un éditeur : sinon un éditeur pourrait se fabriquer un « vert ».
     function collectionDuTableauDeBord(collection) {
@@ -178,10 +184,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Rendez-vous : réglages écrits par les éditeurs, jamais la liste des désinscrits (serveur seulement). La lecture est celle du joker ci-dessous (collection entière écoutée par l'écran).
+    match /clients/{client}/rdv_parametres/{id} {
+      allow write: if id != 'desinscrits' && roleDe(client) == 'editeur';
+    }
+
     // Les données du client (tout sauf les fiches d'appartenance, traitées ci-dessus).
     match /clients/{client}/{collection}/{reste=**} {
       allow read: if collection != 'membres' && collection != 'devis_compteurs' && collection != 'crm_actions_lancements' && roleDe(client) in ['editeur', 'lecteur'];
-      allow write: if collection != 'membres' && !collectionDesDocuments(collection) && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && !collectionSansSuppression(collection) && !collectionDesDevis(collection) && roleDe(client) == 'editeur';
+      allow write: if collection != 'membres' && !collectionDesDocuments(collection) && !collectionDuRdv(collection) && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && !collectionSansSuppression(collection) && !collectionDesDevis(collection) && roleDe(client) == 'editeur';
     }
 
     // Tout le reste (racine, autres collections) : refusé.

@@ -177,3 +177,54 @@ describe('A. Règles de sécurité', () => {
     }
   });
 });
+
+// Module Rendez-vous (15/11/2026) : les SMS (rdv_messages) et les désinscrits (rdv_parametres/desinscrits) sont écrits par le SERVEUR seulement ; les réglages restent écrits par l'écran.
+describe('C3 Rendez-vous : règles chez Jérôme', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'rdv_messages', 'existant'), { valeur: 1 });
+      await setDoc(doc(db, 'rdv_parametres', 'reglages'), { valeur: 1 });
+      await setDoc(doc(db, 'rdv_parametres', 'desinscrits'), { numeros: ['+33600000000'] });
+      await setDoc(doc(db, 'rdv_rendezvous', 'existant'), { valeur: 1 });
+    });
+  });
+  for (const email of COMPTES) {
+    test(`C3 ${email} lit rdv_messages (l'historique des SMS) mais n'y écrit jamais : ni création, ni modification, ni suppression`, async () => {
+      const db = contexte(email);
+      await assertSucceeds(getDoc(doc(db, 'rdv_messages', 'existant')));
+      await assertSucceeds(getDocs(collection(db, 'rdv_messages')));
+      await assertFails(setDoc(doc(db, 'rdv_messages', 'nouveau'), { valeur: 2 }));
+      await assertFails(updateDoc(doc(db, 'rdv_messages', 'existant'), { valeur: 3 }));
+      await assertFails(deleteDoc(doc(db, 'rdv_messages', 'existant')));
+    });
+    test(`C3 ${email} lit toute la collection rdv_parametres (l'écran l'écoute) et écrit les réglages, mais jamais la liste des désinscrits`, async () => {
+      const db = contexte(email);
+      await assertSucceeds(getDocs(collection(db, 'rdv_parametres')));
+      await assertSucceeds(getDoc(doc(db, 'rdv_parametres', 'desinscrits')));
+      await assertSucceeds(updateDoc(doc(db, 'rdv_parametres', 'reglages'), { valeur: 5 }));
+      await assertSucceeds(setDoc(doc(db, 'rdv_parametres', 'reglages'), { valeur: 6 }));
+      await assertFails(setDoc(doc(db, 'rdv_parametres', 'desinscrits'), { numeros: [] }));
+      await assertFails(updateDoc(doc(db, 'rdv_parametres', 'desinscrits'), { numeros: [] }));
+      await assertFails(deleteDoc(doc(db, 'rdv_parametres', 'desinscrits')));
+    });
+    test(`C3 ${email} garde ses droits sur les rendez-vous et les participants (le joker reste en place)`, async () => {
+      await droitsComplets(contexte(email), 'rdv_rendezvous');
+    });
+  }
+  test('C3 un autre compte, un compte non vérifié et un visiteur : rien dans rdv_messages ni rdv_parametres', async () => {
+    for (const db of [contexte('quelquun.dautre@gmail.com'), contexte('jerome.chevalier@gmail.com', false), env.unauthenticatedContext().firestore()]) {
+      for (const c of ['rdv_messages', 'rdv_parametres']) {
+        await assertFails(getDoc(doc(db, c, 'existant')));
+        await assertFails(getDocs(collection(db, c)));
+      }
+      await assertFails(setDoc(doc(db, 'rdv_parametres', 'reglages'), { valeur: 9 }));
+      await assertFails(setDoc(doc(db, 'rdv_messages', 'x'), { valeur: 9 }));
+    }
+  });
+  test('C3 aucune sous-collection ouverte sous rdv_messages ni sous rdv_parametres/desinscrits', async () => {
+    const db = contexte(COMPTES[0]);
+    await assertFails(setDoc(doc(db, 'rdv_messages', 'x', 'sous', 'y'), { valeur: 1 }));
+    await assertFails(setDoc(doc(db, 'rdv_parametres', 'desinscrits', 'sous', 'y'), { valeur: 1 }));
+  });
+});

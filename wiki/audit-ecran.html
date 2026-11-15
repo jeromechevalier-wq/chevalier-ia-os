@@ -200,10 +200,23 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Module Rendez-vous (15/11/2026, décision prise seule : voir la PR) : les SMS (rdv_messages) sont écrits par le SERVEUR seulement (porte, tir ClickSend, renvoi) ; l'écran les LIT.
+    // Exclue du joker ci-dessous.
+    match /rdv_messages/{id} {
+      allow read: if compteAutorise();
+      allow write: if false;
+    }
+    // Réglages du module (document `reglages`, écrit par l'écran) et liste des désinscrits (`desinscrits`, écrite par le SERVEUR seulement : un STOP ne s'efface pas depuis un navigateur).
+    // L'écran écoute toute la collection : la lecture reste permise. Exclue du joker ci-dessous.
+    match /rdv_parametres/{id} {
+      allow read: if compteAutorise();
+      allow write: if compteAutorise() &amp;&amp; id != 'desinscrits';
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        &amp;&amp; !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures']);
+        &amp;&amp; !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures']);
     }
   }
 }</code></pre>
