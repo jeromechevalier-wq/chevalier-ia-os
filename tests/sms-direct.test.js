@@ -307,7 +307,22 @@ describe('adresse des réponses (traitement HTTP)', () => {
 
 // Seule exception : le lien d'aide vers le tableau de bord (Réglages > Rendez-vous), un lien affiché à l'utilisateur, jamais un appel. Toute autre adresse reste interdite.
 const LIEN_AIDE_TABLEAU_DE_BORD = 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms';
+/** Le texte parle-t-il à ClickSend, une fois retiré le lien d'aide EXACT (pas suivi d'un autre bout d'adresse) ? */
+const parleAClickSend = (texte) => /clicksend\.com/i.test(texte.replace(new RegExp(`${LIEN_AIDE_TABLEAU_DE_BORD.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w./?#%-])`, 'g'), ''));
 describe('ClickSend : un seul fichier du dépôt lui parle', () => {
+  test('exception du lien d’aide : le lien exact seul passe ; toute autre adresse de ClickSend, ou ce lien prolongé, reste refusée', () => {
+    const lien = LIEN_AIDE_TABLEAU_DE_BORD;
+    assert.equal(parleAClickSend(`h('a', { href: '${lien}' }, '${lien}')`), false, 'le lien exact, même répété, est accepté');
+    assert.equal(parleAClickSend(`const U = 'https://rest.clicksend.com/v3/sms/send'; // ${lien}`), true, 'l’API d’envoi reste refusée à côté du lien');
+    assert.equal(parleAClickSend('https://rest.clicksend.com/v3/sms/send'), true);
+    assert.equal(parleAClickSend('https://dashboard.clicksend.com/messaging-settings/sms/outbound-sms'), true, 'un autre chemin du même domaine est refusé');
+    assert.equal(parleAClickSend('https://dashboard.clicksend.com/'), true, 'le domaine seul est refusé');
+    assert.equal(parleAClickSend(`${lien}/../../v3/sms/send`), true, 'le lien prolongé d’un chemin est refusé');
+    assert.equal(parleAClickSend(`${lien}?x=1`), true, 'le lien avec une requête est refusé');
+    assert.equal(parleAClickSend(`${lien}.evil.clicksend.com`), true, 'le lien prolongé d’un autre domaine est refusé');
+    assert.equal(parleAClickSend(`${lien.replace('https', 'http')}`), true, 'le même lien en http est refusé');
+    assert.equal(parleAClickSend('fetch("https://REST.ClickSend.com/v3/sms/send")'), true, 'la casse ne contourne pas la règle');
+  });
   test('l’adresse de ClickSend n’apparaît que dans functions/src/coeur/sms-direct.js (code exécutable, hors tests, docs et copies générées)', () => {
     const racine = new URL('..', import.meta.url).pathname;
     const trouves = [];
@@ -316,7 +331,7 @@ describe('ClickSend : un seul fichier du dépôt lui parle', () => {
         if (['node_modules', '.git', 'tests', 'docs', 'wiki', 'partage', 'serveur'].includes(nom)) continue;
         const chemin = join(dossier, nom);
         if (statSync(chemin).isDirectory()) parcourir(chemin);
-        else if (/\.(js|mjs|html)$/.test(nom) && /clicksend\.com/i.test(readFileSync(chemin, 'utf8').replaceAll(LIEN_AIDE_TABLEAU_DE_BORD, ''))) trouves.push(chemin.slice(racine.length));
+        else if (/\.(js|mjs|html)$/.test(nom) && parleAClickSend(readFileSync(chemin, 'utf8'))) trouves.push(chemin.slice(racine.length));
       }
     };
     for (const d of ['functions', 'functions-plateforme', 'js', 'scripts']) parcourir(join(racine, d));
