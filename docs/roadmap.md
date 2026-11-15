@@ -4,6 +4,11 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Rendez-vous : suites des SMS (14-15/11/2026) : **à prévoir**
+Le module est fusionné et testé en faux (PR 610 à 620) ; état et étapes de test : `docs/reprise-prochaine-session.md`, spécification : `docs/rdv-sms-clicksend.md`.
+- **Retirer un numéro de la liste des désinscrits** (demandé par Jérôme le 15/11/2026) : quand quelqu'un répond « STOP », son numéro est ajouté à `rdv_parametres/desinscrits` et plus aucun SMS ordinaire ne lui part ; aujourd'hui il n'existe **aucun écran pour l'en retirer** (il faut effacer la ligne à la main dans la base). À prévoir : une carte « Numéros désinscrits (STOP) » dans Réglages > Rendez-vous, avec la liste (numéro, date) et un bouton « Réautoriser » avec confirmation (« Cette personne a demandé de ne plus recevoir de SMS : ne la réautorise que si elle te l'a demandé »). Le retrait passe par une fonction du serveur (chez Jérôme ET chez les clients, même PR), pas par le navigateur, et laisse une ligne dans le journal. Cas à traiter : son propre numéro désinscrit par erreur pendant un test.
+- Autres décisions en attente (détail dans le rapport du matin) : relances d'un participant dont un SMS est abandonné, bouton pour renvoyer un SMS abandonné, fermeture des actions `rdv.*` de la porte HTTP, règles Firestore réservant `rdv_messages` au serveur (liste d'arrêt).
+
 ## Vocabulaire configurable par client (24/10/2026) : **décidé**
 Chaque client choisit ses mots (affaire → vente, projet → chantier, etc.), partout dans l'écran, avec les accords. Plan et inventaire : `docs/vocabulaire-configurable.md`. Le remplacement se fait dans une session dédiée.
 
