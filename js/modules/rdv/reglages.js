@@ -253,9 +253,9 @@ export function reglages(page) {
       const texte = alerte ? R.texteAlerte(type.slice('alerte-'.length), exempleAlerte, etatP).texte : R.construireSms(type, R.EXEMPLE_SMS, etatP).texte;
       compteur.maj(texte);
       cout.textContent = R.libelleCout(texte, etatP);
-      const aLien = alerte && /\{lien\}/.test(champ.value);
+      const aLien = alerte && R.variablesDuModele(type).includes('lien') && /\{lien\}/.test(champ.value);
       sansLien.hidden = !aLien;
-      if (aLien) { const c = R.texteAlerte(type.slice('alerte-'.length), { ...exempleAlerte, lien: '' }, etatP); sansLien.textContent = `Sans le lien : ${c.caracteres} caractères · ${c.segments} SMS (avec l’adresse de ton espace).`; }
+      if (aLien) { const c = R.texteAlerte(type.slice('alerte-'.length), { ...exempleAlerte, lien: '' }, etatP); sansLien.textContent = `Sans le lien, ce texte ferait ${c.caracteres} caractères · ${c.segments} SMS (le compteur ci-dessus compte avec l’adresse de ton espace).`; }
     };
     champ.addEventListener('input', maj);
     maj();

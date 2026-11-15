@@ -21,6 +21,8 @@ export const MAX_CRENEAUX = 3;
 export const MAX_PARTICIPANTS = 5;
 /** Délai fixe entre la dernière relance et l'alerte « relances terminées ». */
 export const DELAI_ALERTE_HEURES = 24;
+/** « Aucun créneau à venir ne convient » : plus d'alerte si le dernier créneau commun est passé depuis plus de ce nombre de jours. */
+export const AGE_MAX_ALERTE_AUCUN_JOURS = 7;
 /** Taille d'un SMS en GSM-7 (160 unités) ; le prix d'un SMS est réglable (`prixSms`, voir `coutSms`). */
 export const SEUIL_SMS = 160;
 /** Prix d'un segment de SMS en euros et date de ces tarifs (réglables dans Réglages > Rendez-vous ; une estimation, jamais une facture). */
@@ -626,7 +628,11 @@ export const estOuvert = (rdv) => !!rdv && !rdv.archive && !rdv.annule && rdv.et
 export function ligneEtat({ rdv, participants, parametres, messages, maintenant }) {
   const b = bilanReponses(participants, (rdv?.creneaux || []).length || MAX_CRENEAUX);
   if (rdv?.etat === 'confirme' || rdv?.creneauChoisi) return `Confirmé : ${formaterCreneau(rdv.creneauChoisi)}`;
-  if (b.complet && b.communs.length) return `Créneau commun : ${formaterCreneau(rdv.creneaux[b.communs[0] - 1])}`;
+  if (b.complet && b.communs.length) {
+    // Tous les créneaux communs sont passés : l'écran dit comme l'alerte (« aucun créneau à venir ne convient »), jamais une date passée présentée comme créneau commun.
+    const aVenir = Number.isFinite(enMs(maintenant)) ? b.communs.map((i) => rdv.creneaux[i - 1]).find((c) => enMs(c) > enMs(maintenant)) : rdv.creneaux[b.communs[0] - 1];
+    return aVenir ? `Créneau commun : ${formaterCreneau(aVenir)}` : 'Aucun créneau commun à venir';
+  }
   if (b.complet) return 'Aucun créneau commun';
   if (b.incomprises) return b.incomprises === 1 ? 'Une réponse non comprise' : `${b.incomprises} réponses non comprises`;
   const texte = `${b.reponses} ${b.reponses > 1 ? 'réponses' : 'réponse'} sur ${b.total}`;
@@ -819,7 +825,10 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
     // `lien` (adresse du rendez-vous, construite par le serveur) n'est utilisé que par ces deux alertes ; une seule alerte par numéro et par série (l'identifiant d'échéance `alerte-commun` / `alerte-aucun`).
     const prochain = b.communs.map((i) => rdv.creneaux[i - 1]).find((c) => enMs(c) > nowMs);
     if (b.complet && prochain) alerter('commun', 'commun', { instant: instantReponses, creneau: prochain, lien });
-    if (b.complet && !prochain) alerter('aucun', 'aucun', { instant: instantReponses, lien }, b.communs.length ? 'commun' : '');
+    // Borne d'âge : si le dernier créneau commun est passé depuis plus de 7 jours, rien n'est envoyé (un vieux rendez-vous ne doit jamais déclencher un SMS au premier tir après un déploiement).
+    const dernierCommun = Math.max(...b.communs.map((i) => enMs(rdv.creneaux[i - 1])).filter(Number.isFinite), -Infinity);
+    const tropVieux = b.communs.length > 0 && nowMs - dernierCommun > AGE_MAX_ALERTE_AUCUN_JOURS * 24 * HEURE_MS;
+    if (b.complet && !prochain && !tropVieux) alerter('aucun', 'aucun', { instant: instantReponses, lien }, b.communs.length ? 'commun' : '');
     for (const x of participants.filter((y) => y.etatReponse === 'incomprise')) {
       alerter(x.desinscrit ? 'desinscription' : x.ambigu ? 'ambigu' : 'incomprise', `incomprise-${x.id}-${x.idReponse || 'r'}`, { instant: enMs(x.reponseLe) || nowMs, nom: x.nom, reponse: x.reponse });
     }

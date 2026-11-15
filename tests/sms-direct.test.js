@@ -8,6 +8,9 @@ import { tirerPourTous } from '../functions-plateforme/src/rdv.js';
 import { creerSmsDirect, creerGestionnaireReponses, lireConnexion, nomDuSecret, memeJeton, ErreurSortieSms, URL_ENVOI, SECRET_CLICKSEND } from '../functions/src/coeur/sms-direct.js';
 import { PRECONDITION_ECHOUEE } from '../scripts/porte/adaptateur.js';
 import { lienEcranRdv } from '../functions/src/coeur/liens.js';
+import { BASE_LIEN_JEROME as BASE_SERVEUR_JEROME } from '../functions/src/mcp/gestionnaire.js';
+import { BASE_LIEN_PLATEFORME as BASE_SERVEUR_PLATEFORME } from '../functions-plateforme/src/devis-pdf.js';
+import * as REGLES_RDV from '../js/modules/rdv/logique.js';
 
 const T0 = Date.parse('2026-11-16T10:00:00Z'); // lundi 11 h à Paris : dans la plage d'envoi
 const iso = (ms) => new Date(ms).toISOString();
@@ -532,6 +535,12 @@ describe('B2 lien du rendez-vous dans l’alerte « un créneau convient à tous
   const JEROME = 'https://chevalier-ia-os.web.app';
   const PLATEFORME = 'https://chevalier-ia-app.web.app';
 
+  test('B2 les adresses d’exemple de l’aperçu (logique.js) sont celles du serveur : si une adresse change, l’aperçu ne compte plus faux sans que ce test le dise', () => {
+    assert.equal(REGLES_RDV.BASE_LIEN_JEROME, BASE_SERVEUR_JEROME);
+    assert.equal(REGLES_RDV.BASE_LIEN_PLATEFORME, BASE_SERVEUR_PLATEFORME);
+    assert.equal(REGLES_RDV.lienExempleRdv('demo').replace(/aB3dE5gH7jK9mN1pQ3sT$/, 'x'), lienEcranRdv({ baseLien: BASE_SERVEUR_PLATEFORME, client: 'demo' }, 'x'));
+    assert.equal(REGLES_RDV.lienExempleRdv('').replace(/aB3dE5gH7jK9mN1pQ3sT$/, 'x'), lienEcranRdv({ baseLien: BASE_SERVEUR_JEROME, client: '' }, 'x'));
+  });
   test('B2 lienEcranRdv : Jérôme sans espace, un client sous espace/<client>/ ; base non https, espace ou identifiant mal formés : pas de lien', () => {
     assert.equal(lienEcranRdv({ baseLien: JEROME, client: '' }, 'abc123'), `${JEROME}/#/rdv/liste/abc123`);
     assert.equal(lienEcranRdv({ baseLien: `${PLATEFORME}/`, client: 'demo' }, 'abc123'), `${PLATEFORME}/#/espace/demo/rdv/liste/abc123`);

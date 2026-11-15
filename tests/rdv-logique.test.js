@@ -755,6 +755,24 @@ describe('B2 le lien du rendez-vous dans les alertes « commun » et « aucun »
     assert.equal(mix[0].sousType, 'commun');
     assert.match(mix[0].texte, /mar\. 17 nov\./, 'le premier créneau commun encore à venir (le 2e), pas le passé');
   });
+  test('B2 « aucun » après des créneaux communs passés : envoyé s’ils sont passés depuis 1 jour, jamais s’ils le sont depuis plus de 7 jours (vieux rendez-vous)', () => {
+    const r = rdv({ creneaux: [parisEnISO(2026, 11, 13, 10), futur(3)] });
+    const args = { rdv: r, participants: [rep('a', [1]), rep('b', [1])], lien: LIEN };
+    assert.deepEqual(alertes(args).map((x) => x.sousType), ['aucun'], 'passé depuis 1 jour');
+    const dixJours = L.smsDus({ ...args, parametres, messages: [], maintenant: parisEnISO(2026, 11, 23, 12) }).filter((d) => d.typeMessage === 'alerte');
+    assert.equal(dixJours.length, 0, 'passé depuis plus de 7 jours');
+    const cinqMois = L.smsDus({ ...args, rdv: rdv({ creneaux: [parisEnISO(2026, 6, 13, 10)] }), parametres, messages: [], maintenant }).filter((d) => d.typeMessage === 'alerte');
+    assert.equal(cinqMois.length, 0, 'passé depuis 5 mois');
+    const sansCommun = L.smsDus({ ...args, participants: [rep('a', [1]), rep('b', [2])], parametres, messages: [], maintenant }).filter((d) => d.typeMessage === 'alerte');
+    assert.deepEqual(sansCommun.map((x) => x.sousType), ['aucun'], 'le vrai « aucun créneau commun » n’est pas concerné par la borne');
+  });
+  test('B2 la carte et le tableau disent « Aucun créneau commun à venir » quand tous les communs sont passés (jamais une date passée)', () => {
+    const r = rdv({ creneaux: [parisEnISO(2026, 11, 13, 10), futur(3)] });
+    const etat = (participants, rd = r) => L.ligneEtat({ rdv: rd, participants, parametres, messages: [], maintenant });
+    assert.equal(etat([rep('a', [1]), rep('b', [1])]), 'Aucun créneau commun à venir');
+    assert.match(etat([rep('a', [1, 2]), rep('b', [1, 2])]), /^Créneau commun : .*17 nov/, 'un créneau commun encore à venir est cité');
+    assert.equal(etat([rep('a', [1]), rep('b', [2])]), 'Aucun créneau commun');
+  });
   test('B2 si « commun » est déjà parti et que son créneau passe ensuite, « aucun » ne suit pas', () => {
     const args = { rdv: rdv(), participants: [rep('a', [1]), rep('b', [1])], lien: LIEN };
     const [premiere] = alertes(args);
