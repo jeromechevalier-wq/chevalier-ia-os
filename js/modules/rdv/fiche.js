@@ -88,7 +88,7 @@ async function fenetreSmsManuel(rdv, type, { titre, bouton2 = null } = {}) {
     avantFermeture: async () => {
       try {
         const r = await D.envoyerSmsManuel(rdv.id, type, champ.value);
-        toast(r.declenche ? 'SMS en cours d’envoi' : 'SMS enregistré : il partira dans quelques minutes');
+        toast(R.phraseApresSmsManuel(r, type));
         return true;
       } catch (e) { console.warn(e); erreur.textContent = D.messageErreur(e, 'Envoi impossible, réessaie.'); return false; }
     },
@@ -344,12 +344,16 @@ export function rendreFiche(conteneur, id) {
       h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Participant'), colonnes, h('th', { scope: 'col' }, 'Sa réponse'))), h('tbody', {}, lignes)));
   }
 
+  // Un SMS que « STOP » a empêché de partir (message d'état « bloque ») : une ligne d'information, jamais une bulle ni l'état brut.
+  const smsBloque = (m) => h('div', { class: 'rdv-sms-bloque', dataset: { role: 'sms-bloque' } }, icone('circle-x', { taille: 16 }),
+    h('span', {}, R.TEXTE_SMS_BLOQUE, [m.qui, R.formaterCreneau(m.creeLe)].filter(Boolean).length ? ` · ${[m.qui, R.formaterCreneau(m.creeLe)].filter(Boolean).join(' · ')}` : ''));
+
   const legende = () => h('ul', { class: 'rdv-legende', dataset: { role: 'legende' } }, ['oui', 'non', 'inconnu', 'incompris', 'desinscrit'].map((n) => h('li', {}, symbole(n), h('span', {}, SYMBOLES[n].libelle))));
 
   function historique(r, parts) {
     const msgs = R.historiqueMessages(D.messagesDe(r.id), parts);
     if (!msgs.length) return h('p', { class: 'aide', dataset: { role: 'historique-vide' } }, 'Aucun SMS pour l’instant. Les SMS envoyés et reçus apparaîtront ici.');
-    return h('div', { class: 'rdv-historique', dataset: { role: 'historique' } }, msgs.map((m) => bulleSms({
+    return h('div', { class: 'rdv-historique', dataset: { role: 'historique' } }, msgs.map((m) => m.etatEnvoi === 'bloque' ? smsBloque(m) : bulleSms({
       sens: m.sens === 'entrant' ? 'entrant' : 'sortant', texte: m.texte, qui: m.qui,
       heure: R.formaterCreneau(m.envoyeLe ?? m.recuLe ?? m.creeLe), caracteres: m.sens === 'entrant' ? null : (m.caracteres ?? R.compterSms(m.texte).caracteres), incomprise: m.sens === 'entrant' && m.comprise === false,
     })));
@@ -382,7 +386,7 @@ export function rendreFiche(conteneur, id) {
       // Pas encore envoyé : le bouton jaune est « Envoyer les propositions » (grisé tant que l'envoi n'est pas branché) ; « Confirmer » n'a aucun sens avant les premières réponses.
       const branche = D.envoiBranche() === true;
       boutons.push(h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'envoyer-propositions', disabled: !branche, title: branche ? '' : MESSAGE_ENVOI_NON_BRANCHE,
-        onclick: async (e) => { e.currentTarget.disabled = true; try { await D.envoyerPropositions(r.id); toast('Propositions envoyées'); } catch (err) { console.warn(err); toast(D.messageErreur(err, 'Envoi impossible'), { type: 'erreur' }); e.currentTarget.disabled = false; } } }, 'Envoyer les propositions'));
+        onclick: async (e) => { e.currentTarget.disabled = true; try { await D.envoyerPropositions(r.id); toast(R.phrasePropositionsEnvoyees(R.nombreDesinscrits(D.participantsDe(r.id), D.desinscrits()), D.participantsDe(r.id).length)); } catch (err) { console.warn(err); toast(D.messageErreur(err, 'Envoi impossible'), { type: 'erreur' }); e.currentTarget.disabled = false; } } }, 'Envoyer les propositions'));
       if (!branche) boutons.push(h('span', { class: 'aide', dataset: { role: 'envoi-non-branche' } }, MESSAGE_ENVOI_NON_BRANCHE));
     }
     if (ouvert && !nonEnvoye) {

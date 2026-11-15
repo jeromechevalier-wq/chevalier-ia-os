@@ -29,8 +29,9 @@ function creerBase() {
       docs.set(c, { d: { ...docs.get(c).d, ...p }, v: ++version });
       return true;
     },
-    lister: async (chemin, { limite = 100 } = {}) => dansTable(chemin).slice(0, limite).map(([c]) => lire(c)),
-    listerPar: async (chemin, champ, valeur, { limite = 500 } = {}) => dansTable(chemin).filter(([, x]) => x.d[champ] === valeur).slice(0, limite).map(([c]) => lire(c)),
+    // Comme le vrai adaptateur (scripts/porte/adaptateur.js) : les LISTES rendent { ...champs, id } SANS `updateTime` (seul lireDoc le rend).
+    lister: async (chemin, { limite = 100 } = {}) => dansTable(chemin).slice(0, limite).map(([c]) => { const { updateTime, ...sans } = lire(c); return sans; }),
+    listerPar: async (chemin, champ, valeur, { limite = 500 } = {}) => dansTable(chemin).filter(([, x]) => x.d[champ] === valeur).slice(0, limite).map(([c]) => { const { updateTime, ...sans } = lire(c); return sans; }),
     ecrireLot: async (operations) => {
       for (const o of operations) {
         if (o.type === 'creer' && docs.has(o.chemin)) { const e = new Error('existe'); e.code = 6; throw e; }
@@ -657,5 +658,102 @@ describe('alerte de solde ClickSend bas (alerterSoldeBas) : seuils, idempotence,
   test('E2-12 l’alerte n’est PAS une action de la porte : un porteur de clé ne peut pas en déclencher une avec un solde de son choix', () => {
     assert.equal(Object.keys(ACTIONS_RDV).filter((k) => /solde/i.test(k)).length, 0);
     assert.deepEqual(Object.keys(ACTIONS_RDV).sort(), ['rdv.aEnvoyer', 'rdv.confirmerEnvoi', 'rdv.enregistrerReponse', 'rdv.libererEnvoi']);
+  });});
+
+describe('D2 STOP : trace des SMS bloqués', () => {
+  const recevoir = (m, numero, texte, idFournisseur = 'cs-in-1') => m.action('rdv.enregistrerReponse', { numero, texte, idFournisseur, recuLe: iso(T0) });
+  const traces = (m) => [...m.base.docs].filter(([c]) => c.startsWith('rdv_messages/stop_')).map(([c, x]) => ({ id: c.split('/')[1], ...x.d }));
+  test('D2-3a un SMS que STOP empêche de partir laisse UNE trace « bloque » (sans texte, numéro ni échéance), créée une seule fois, hors des SMS à envoyer et de leur nombre', async () => {
+    const m = monde(); m.semer();
+    await recevoir(m, '+33600000001', 'STOP', 'cs-stop');
+    const r = await m.action('rdv.aEnvoyer');
+    assert.ok(!r.messages.some((x) => x.numero === '+33600000001' && x.typeMessage !== 'alerte'), 'rien ne part vers le désinscrit');
+    const t = traces(m);
+    assert.equal(t.length, 1);
+    assert.deepEqual([t[0].etatEnvoi, t[0].sens, t[0].rendezVousId, t[0].participantId, t[0].tour, t[0].typeMessage], ['bloque', 'sortant', 'r1', 'r1-p1', 1, 'confiance']);
+    assert.ok(!('echeance' in t[0]) && !('texte' in t[0]) && !('numero' in t[0]), 'ni échéance (le calendrier ne la voit pas), ni texte, ni numéro');
+    assert.ok(!JSON.stringify(t).includes('+336'));
+    assert.ok(!r.messages.some((x) => x.messageId.startsWith('stop_')), 'la trace n\'entre jamais dans les messages à envoyer');
+    assert.equal(r.nombre, r.messages.length);
+    m.temps.t = T0 + 15 * 60_000;
+    await m.action('rdv.aEnvoyer'); // le SMS « créneaux » (dû une minute après la présentation) laisse sa propre trace
+    const apres = traces(m).map((x) => x.id).sort();
+    assert.deepEqual(apres, ['stop_r1_t1_confiance_r1-p1', 'stop_r1_t1_creneaux_r1-p1']);
+    await m.action('rdv.aEnvoyer');
+    assert.deepEqual(traces(m).map((x) => x.id).sort(), apres, 'le tir toutes les 15 minutes ne recrée rien');
+  });
+  test('D2-3a la trace ne bloque pas le vrai SMS : après « Réautoriser » (numéro retiré, repère levé), le SMS dû repart ; un participant non désinscrit n\'a aucune trace', async () => {
+    const m = monde(); m.semer();
+    await recevoir(m, '+33600000001', 'STOP', 'cs-stop');
+    await m.action('rdv.aEnvoyer');
+    assert.equal(traces(m).filter((x) => x.participantId === 'r1-p2').length, 0);
+    m.base.docs.set('rdv_parametres/desinscrits', { d: { numeros: [] }, v: 99 });
+    m.base.docs.set('rdv_participants/r1-p1', { d: { ...m.base.docs.get('rdv_participants/r1-p1').d, desinscrit: false, etatReponse: 'attente', reponse: '', creneauxOk: [] }, v: 99 });
+    const r = await m.action('rdv.aEnvoyer');
+    assert.ok(r.messages.some((x) => x.numero === '+33600000001' && x.typeMessage === 'confiance'), 'le SMS bloqué avant repart après la réautorisation');
+  });
+  test('D2-3a SMS manuel « bloque » : jamais envoyé par la porte, même après « Réautoriser »', async () => {
+    const m = monde(); m.semer();
+    m.base.docs.set('rdv_messages/man_1', { d: { rendezVousId: 'r1', participantId: 'r1-p1', sens: 'sortant', manuel: true, typeMessage: 'pluie', numero: '+33600000001', texte: 'Pluie', caracteres: 5, segments: 1, etatEnvoi: 'bloque', essais: 0, echeance: 'r1:man:x:r1-p1' }, v: 1 });
+    const r = await m.action('rdv.aEnvoyer');
+    assert.ok(!r.messages.some((x) => x.messageId === 'man_1'));
+    assert.equal(m.base.docs.get('rdv_messages/man_1').d.etatEnvoi, 'bloque');
+  });
+  test('D2-3b un SMS manuel créé AVANT le STOP : au tir suivant il passe « bloque » (jamais envoyé), et après STOP puis « Réautoriser » il ne repart PAS ; il ne compte ni dans `nombre` ni dans les messages', async () => {
+    const m = monde(); m.semer();
+    for (const [id, etat, extra] of [['man_a', 'a_envoyer', {}], ['man_b', 'echec', { reessaiApres: iso(T0 - 60_000) }], ['ren_c', 'a_envoyer', { renvoi: true }]]) {
+      m.base.docs.set(`rdv_messages/${id}`, { d: { rendezVousId: 'r1', participantId: 'r1-p1', sens: 'sortant', manuel: true, typeMessage: 'pluie', numero: '+33600000001', texte: 'Pluie', caracteres: 5, segments: 1, etatEnvoi: etat, essais: 0, echeance: `r1:man:${id}:r1-p1`, ...extra }, v: 1 });
+    }
+    await recevoir(m, '+33600000001', 'STOP', 'cs-stop');
+    const r = await m.action('rdv.aEnvoyer');
+    assert.ok(!r.messages.some((x) => ['man_a', 'man_b', 'ren_c'].includes(x.messageId)), 'rien ne part vers le désinscrit');
+    for (const id of ['man_a', 'man_b', 'ren_c']) assert.equal(m.base.docs.get(`rdv_messages/${id}`).d.etatEnvoi, 'bloque', id);
+    m.base.docs.set('rdv_parametres/desinscrits', { d: { numeros: [] }, v: 99 });
+    m.base.docs.set('rdv_participants/r1-p1', { d: { ...m.base.docs.get('rdv_participants/r1-p1').d, desinscrit: false }, v: 99 });
+    const apres = await m.action('rdv.aEnvoyer');
+    assert.ok(!apres.messages.some((x) => ['man_a', 'man_b', 'ren_c'].includes(x.messageId)), 'après « Réautoriser », le SMS manuel bloqué ne repart jamais');
+  });
+  const manuel = (m, id, etat, extra = {}) => m.base.docs.set(`rdv_messages/${id}`, { d: { rendezVousId: 'r1', participantId: 'r1-p1', sens: 'sortant', manuel: true, typeMessage: 'pluie', numero: '+33600000001', texte: 'Pluie', caracteres: 5, segments: 1, etatEnvoi: etat, essais: 0, echeance: `r1:man:${id}:r1-p1`, ...extra }, v: 1 });
+  const stopSemis = (m) => m.base.docs.set('rdv_parametres/desinscrits', { d: { numeros: ['+33600000001'] }, v: 1 });
+  test('D2-3b un message devenu « envoye » entre la liste et l’écriture reste « envoye » (le blocage relit le message : la liste n’a pas d’updateTime)', async () => {
+    const m = monde(); m.semer(); stopSemis(m); manuel(m, 'man_a', 'a_envoyer');
+    const vrai = m.base.listerPar;
+    let dansLaListe = false;
+    // Bascule UNIQUEMENT après la liste « etatEnvoi == a_envoyer » où le message figure : c'est le moment « entre la liste et l'écriture ».
+    m.base.listerPar = async (chemin, champ, valeur, o) => {
+      const r = await vrai(chemin, champ, valeur, o);
+      if (champ === 'etatEnvoi' && valeur === 'a_envoyer' && r.some((x) => x.id === 'man_a')) { dansLaListe = true; m.base.docs.set('rdv_messages/man_a', { d: { ...m.base.docs.get('rdv_messages/man_a').d, etatEnvoi: 'envoye' }, v: 50 }); }
+      return r;
+    };
+    await m.action('rdv.aEnvoyer');
+    assert.equal(dansLaListe, true, 'le message était bien dans la liste des SMS à envoyer');
+    assert.equal(m.base.docs.get('rdv_messages/man_a').d.etatEnvoi, 'envoye');
+  });
+  test('D2-3b un message qui change ENTRE la relecture et l’écriture (précondition en échec) reste « envoye » et le tir ne plante pas', async () => {
+    const m = monde(); m.semer(); stopSemis(m); manuel(m, 'man_a', 'a_envoyer');
+    const vrai = m.base.lireDoc;
+    let bascule = false;
+    m.base.lireDoc = async (c) => {
+      const lu = await vrai(c);
+      if (c === 'rdv_messages/man_a' && lu?.etatEnvoi === 'a_envoyer' && !bascule) { bascule = true; m.base.docs.set(c, { d: { ...m.base.docs.get(c).d, etatEnvoi: 'envoye' }, v: 60 }); }
+      return lu;
+    };
+    await m.action('rdv.aEnvoyer');
+    assert.equal(bascule, true);
+    assert.equal(m.base.docs.get('rdv_messages/man_a').d.etatEnvoi, 'envoye');
+  });
+  test('D2-3b un SMS manuel « reserve » PÉRIMÉ est bloqué ; un « reserve » encore valide n’est pas touché', async () => {
+    const m = monde(); m.semer(); stopSemis(m);
+    manuel(m, 'man_p', 'reserve', { reserveJusqua: iso(T0 - 60_000) });
+    manuel(m, 'man_v', 'reserve', { reserveJusqua: iso(T0 + 600_000) });
+    await m.action('rdv.aEnvoyer');
+    assert.equal(m.base.docs.get('rdv_messages/man_p').d.etatEnvoi, 'bloque');
+    assert.equal(m.base.docs.get('rdv_messages/man_v').d.etatEnvoi, 'reserve');
+  });
+  test('D2-3b un échec rejoué (confirmerEnvoi « echec ») ne remet pas un message « bloque » en « echec »', async () => {
+    const m = monde(); m.semer(); manuel(m, 'man_a', 'bloque');
+    const r = await m.action('rdv.confirmerEnvoi', { messageId: 'man_a', statut: 'echec' });
+    assert.equal(r.deja, true);
+    assert.equal(m.base.docs.get('rdv_messages/man_a').d.etatEnvoi, 'bloque');
   });
 });

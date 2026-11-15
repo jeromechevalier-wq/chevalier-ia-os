@@ -181,6 +181,42 @@ export async function alerterSoldeBas(ctx, { solde, lien = '' } = {}) {
   return fin('aucune');
 }
 
+/**
+ * Passe un SMS encore EN ATTENTE à un nouvel état (« bloque », « abandonne ») sans jamais écraser un envoi en cours ou fait. `m` vient d'une LISTE (le vrai adaptateur n'y met pas `updateTime`) :
+ * on relit le message juste avant d'écrire et on écrit avec CET `updateTime` ; il doit être « a_envoyer », « echec » ou « reserve » périmé (envoi planté entre réservation et confirmation).
+ * Rend vrai si l'écriture a eu lieu.
+ */
+async function figerSiEnAttente(ctx, m, patch, maintenantMs) {
+  const ch = chemin(ctx.base, T.msg, m.id);
+  const cur = await ctx.donnees.lireDoc(ch);
+  if (!cur) return false;
+  const enAttente = cur.etatEnvoi === 'a_envoyer' || cur.etatEnvoi === 'echec' || (cur.etatEnvoi === 'reserve' && enMs(cur.reserveJusqua) <= maintenantMs);
+  if (!enAttente) return false;
+  const r = await ctx.donnees.majDoc(ch, patch, { lastUpdateTime: cur.updateTime });
+  return !(r === false || PRECONDITION(r));
+}
+
+/**
+ * Trace des SMS que « STOP » a empêchés de partir. `smsDus` ne dit pas ce qu'il saute : on le rappelle sans liste de désinscrits, et les SMS dus en plus pour une personne dont le numéro est dans la liste
+ * sont les bloqués. Chacun laisse UN message d'état `stop_<échéance>` (créé une seule fois : le tir tourne toutes les 15 minutes) : `etatEnvoi: 'bloque'`, SANS `echeance` (le calendrier ne le voit
+ * pas : le vrai SMS peut repartir après « Réautoriser »), SANS texte ni numéro. Il n'entre jamais dans les SMS à envoyer ni dans leur nombre.
+ */
+async function tracerBloques(ctx, { rdv, participants, desinscrits, dus, dusSansStop, existants, maintenantMs }) {
+  const dejaDus = new Set(dus.map((d) => d.idEcheance));
+  const parId = new Map(participants.map((p) => [p.id, p]));
+  const ids = new Set(existants.map((m) => m.id));
+  for (const du of dusSansStop) {
+    if (dejaDus.has(du.idEcheance) || !du.participantId || du.typeMessage === 'alerte') continue;
+    const p = parId.get(du.participantId);
+    if (!p || !desinscrits.includes(p.telephone)) continue;
+    const docId = docIdMessage(`stop_${du.idEcheance}`);
+    if (ids.has(docId)) continue;
+    await ctx.donnees.creerSiAbsent(chemin(ctx.base, T.msg, docId), sansIndefini({
+      rendezVousId: rdv.id, participantId: p.id, tour: du.tour, sens: 'sortant', typeMessage: du.typeMessage, sousType: du.sousType || undefined, etatEnvoi: 'bloque', creeLe: new Date(maintenantMs),
+    }));
+  }
+}
+
 export const ACTIONS_RDV = Object.freeze({
   'rdv.aEnvoyer': {
     ecrit: true,
@@ -193,8 +229,11 @@ export const ACTIONS_RDV = Object.freeze({
       for (const { rdv, participants } of await rendezVousPourEnvoi(ctx, maintenantMs)) {
         if (aEnvoyer.length >= limite) break;
         // « envoyé » ET « abandonné » comptent comme faits pour le calendrier (sinon un SMS abandonné bloquerait les relances de tout le rendez-vous) ; l'abandon déclenche une alerte (smsDus).
-        const messages = (await ctx.donnees.listerPar(chemin(ctx.base, T.msg), 'rendezVousId', rdv.id, { limite: 1000 })).filter((m) => (m.etatEnvoi === 'envoye' || m.etatEnvoi === 'abandonne') && m.sens !== 'entrant');
-        const dus = R.smsDus({ rdv, participants, parametres, messages, maintenant: maintenantMs, desinscrits, lien: ctx.lienRdv?.(rdv.id) ?? '' }); // `lienRdv` : l'adresse du rendez-vous, construite par le serveur (jamais de secret dedans)
+        const tous = await ctx.donnees.listerPar(chemin(ctx.base, T.msg), 'rendezVousId', rdv.id, { limite: 1000 });
+        const messages = tous.filter((m) => (m.etatEnvoi === 'envoye' || m.etatEnvoi === 'abandonne') && m.sens !== 'entrant');
+        const entrees = { rdv, participants, parametres, messages, maintenant: maintenantMs, lien: ctx.lienRdv?.(rdv.id) ?? '' }; // `lienRdv` : l'adresse du rendez-vous, construite par le serveur (jamais de secret dedans)
+        const dus = R.smsDus({ ...entrees, desinscrits });
+        if (desinscrits.length) await tracerBloques(ctx, { rdv, participants, desinscrits, dus, dusSansStop: R.smsDus({ ...entrees, desinscrits: [] }), existants: tous, maintenantMs });
         for (const du of dus) {
           if (aEnvoyer.length >= limite) break;
           const docId = docIdMessage(du.idEcheance);
@@ -213,7 +252,7 @@ export const ACTIONS_RDV = Object.freeze({
           // Alerte de solde (aucun rendez-vous), créée par `alerterSoldeBas` : part vers le numéro d'alerte écrit dans le message (jamais détourné vers le numéro de test), seulement dans la plage d'envoi.
           const alerte = m.manuel === true ? { forme: false } : jugerAlerteSolde(m, parametres, desinscrits, maintenantMs);
           if (alerte.forme && alerte.abandonner) {
-            if (m.etatEnvoi !== 'reserve') await ctx.donnees.majDoc(chemin(ctx.base, T.msg, m.id), { etatEnvoi: 'abandonne', reserveJusqua: null, envoyeLe: new Date(maintenantMs), erreur: 'Alerte de solde abandonnée (recharge, numéro retiré ou STOP)' }, { lastUpdateTime: m.updateTime });
+            if (m.etatEnvoi !== 'reserve') await figerSiEnAttente(ctx, m, { etatEnvoi: 'abandonne', reserveJusqua: null, envoyeLe: new Date(maintenantMs), erreur: 'Alerte de solde abandonnée (recharge, numéro retiré ou STOP)' }, maintenantMs);
             continue;
           }
           if (alerte.forme && !alerte.partir) continue; // hors plage d'envoi : elle attend l'ouverture
@@ -222,7 +261,13 @@ export const ACTIONS_RDV = Object.freeze({
           const rdv = m.rendezVousId ? await ctx.donnees.lireDoc(chemin(ctx.base, T.rdv, m.rendezVousId)) : null;
           if (!rdv && !soldeBas) continue; // rendez-vous introuvable : on n'envoie rien (jamais un SMS « test » vers un vrai numéro)
           const numero = soldeBas ? m.numero : R.numeroCible(m.numero, { test: rdv.test === true || m.test === true }, parametres);
-          if (!numero || desinscrits.includes(m.numero)) continue;
+          if (!numero) continue;
+          if (desinscrits.includes(m.numero)) {
+            // SMS à la main (ou renvoi) encore en attente alors que le numéro a répondu STOP : il passe « bloque » (jamais envoyé, même après « Réautoriser »). Un SMS « reserve » encore valide (envoi en cours) n'est pas touché ;
+            // un « reserve » périmé (plantage) est bloqué aussi ; un message devenu « envoye » entre la liste et l'écriture reste « envoye » (figerSiEnAttente relit).
+            if (m.manuel === true) await figerSiEnAttente(ctx, m, { etatEnvoi: 'bloque', reserveJusqua: null, bloqueLe: new Date(maintenantMs) }, maintenantMs);
+            continue;
+          }
           if (!(await reserver(ctx, m.id, null, maintenantMs))) continue;
           aEnvoyer.push({ messageId: m.id, rendezVousId: m.rendezVousId, numero, texte: m.texte, caracteres: m.caracteres, segments: m.segments, typeMessage: m.typeMessage });
         }
@@ -246,6 +291,7 @@ export const ACTIONS_RDV = Object.freeze({
       const m = await donnees.lireDoc(ch);
       if (!m || m.sens === 'entrant') throw new ErreurAction('message_inconnu', 'Ce message n\'existe pas.', 404);
       if (m.etatEnvoi === 'envoye') { await appliquerSuites(ctx, m, maintenantMs); return { messageId: d.messageId, statut: 'ok', deja: true }; } // rejeu : on refait les suites (idempotentes) au cas où un plantage les aurait interrompues
+      if (m.etatEnvoi === 'bloque' && d.statut !== 'ok') return { messageId: d.messageId, statut: 'echec', deja: true }; // un SMS bloqué (STOP) ne redevient jamais « echec » par un échec rejoué
       if (m.etatEnvoi === 'abandonne' && d.statut !== 'ok') return { messageId: d.messageId, statut: 'echec', deja: true };
       // Un « ok » qui arrive APRÈS l'abandon (réponse lente : le SMS est bien parti) remet le SMS à « envoyé » et applique les suites.
       if (d.statut === 'ok') {

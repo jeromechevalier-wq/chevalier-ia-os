@@ -1425,3 +1425,36 @@ describe('E2 alerte « solde ClickSend bas » : modèle, variables, seuils', () 
     assert.equal(/clicksend\.com|https?:\/\/dashboard/i.test(JSON.stringify(L.MODELES_ALERTE_DEFAUT)), false);
   });
 });
+
+describe('D2 STOP : traces « bloque » et phrases', () => {
+  test('D2-3a une trace « bloque » ne compte pas comme « a déjà reçu un SMS » ; un vrai SMS, si', () => {
+    const p = { id: 'p1' };
+    const bloque = { id: 'stop_x', participantId: 'p1', sens: 'sortant', etatEnvoi: 'bloque' };
+    assert.equal(L.participantContacte(p, [bloque]), false);
+    assert.equal(L.participantContacte(p, [bloque, { id: 'm', participantId: 'p1', etatEnvoi: 'envoye' }]), true);
+  });
+  test('D2-3a l’historique retrouve le nom d’une trace « bloque » par le participant (elle n’a pas de numéro)', () => {
+    const parts = [{ id: 'p1', nom: 'Mme Dupont', telephone: '+33600000001' }];
+    const h = L.historiqueMessages([{ id: 'stop_x', participantId: 'p1', etatEnvoi: 'bloque', creeLe: '2026-11-16T10:00:00Z' }, { id: 'in', numero: '+33600000001', sens: 'entrant', recuLe: '2026-11-16T09:00:00Z' }], parts);
+    assert.deepEqual(h.map((m) => [m.id, m.qui]), [['in', 'Mme Dupont'], ['stop_x', 'Mme Dupont']]);
+    assert.equal(L.TEXTE_SMS_BLOQUE, 'SMS non envoyé : numéro désinscrit (STOP)');
+  });
+  test('D2-3c phrases : « 1 personne désinscrite (STOP) n’a rien reçu », pluriel, rien si zéro ; comptage par repère OU par liste', () => {
+    assert.equal(L.phraseDesinscritsSansSms(0), '');
+    assert.equal(L.phraseDesinscritsSansSms(1), '1 personne désinscrite (STOP) n’a rien reçu');
+    assert.equal(L.phraseDesinscritsSansSms(2), '2 personnes désinscrites (STOP) n’ont rien reçu');
+    const parts = [{ id: 'a', telephone: '+33600000001', desinscrit: true }, { id: 'b', telephone: '+33600000002' }, { id: 'c', telephone: '+33600000003' }];
+    assert.equal(L.nombreDesinscrits(parts, ['+33600000002']), 2);
+    assert.equal(L.nombreDesinscrits(parts, []), 1);
+    assert.equal(L.phrasePropositionsEnvoyees(0), 'Propositions envoyées');
+    assert.equal(L.phrasePropositionsEnvoyees(1, 3), 'Propositions envoyées. 1 personne désinscrite (STOP) n’a rien reçu.');
+    assert.equal(L.phrasePropositionsEnvoyees(2, 2), 'Aucune proposition n’est partie : tous les participants sont désinscrits (STOP).');
+  });
+  test('D2-3b phrase après un SMS à la main : partiel, tous bloqués (annulation faite quand même), aucun bloqué', () => {
+    assert.equal(L.phraseApresSmsManuel({ nombre: 2, nombreBloques: 0, declenche: true }, 'pluie'), 'SMS en cours d’envoi');
+    assert.equal(L.phraseApresSmsManuel({ nombre: 2, nombreBloques: 0, declenche: false }, 'pluie'), 'SMS enregistré : il partira dans quelques minutes');
+    assert.equal(L.phraseApresSmsManuel({ nombre: 1, nombreBloques: 1, declenche: true }, 'pluie'), 'SMS en cours d’envoi. 1 personne désinscrite (STOP) n’a rien reçu.');
+    assert.match(L.phraseApresSmsManuel({ nombre: 0, nombreBloques: 2, declenche: false }, 'annulation'), /^Rendez-vous annulé\. Aucun SMS n’est parti : tous les participants sont désinscrits \(STOP\)\.$/);
+    assert.match(L.phraseApresSmsManuel({ nombre: 0, nombreBloques: 1, declenche: false }, 'pluie'), /^Aucun SMS n’est parti/);
+  });
+});

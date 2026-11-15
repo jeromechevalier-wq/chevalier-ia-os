@@ -373,7 +373,12 @@ export async function renvoyerSmsParticipant(rendezVousId, participantId) {
   exigerEcriture();
   return appeler('envoyer', { action: 'renvoyer', rendezVousId, participantId });
 }
-/** Envoie un SMS écrit à la main (pluie ou annulation) à tous les participants. Rend { ok, nombre, declenche, caracteres, segments }. */
+/** « Réautoriser » un numéro désinscrit (STOP) : le serveur le retire de la liste et lève le repère sur les fiches. Rend { ok, reautorise }. Jamais de SMS envoyé par ce geste. */
+export async function reautoriserNumero(numero) {
+  exigerEcriture();
+  return appeler('envoyer', { action: 'reautoriser', numero });
+}
+/** Envoie un SMS écrit à la main (pluie ou annulation) à tous les participants. Rend { ok, nombre, nombreBloques, declenche, caracteres, segments } (`nombre` ne compte pas les désinscrits). */
 export async function envoyerSmsManuel(rendezVousId, type, texte) {
   exigerEcriture();
   return appeler('envoyer', { action: 'sms', rendezVousId, type, texte });

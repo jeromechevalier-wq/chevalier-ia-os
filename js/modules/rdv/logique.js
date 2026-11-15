@@ -618,10 +618,31 @@ export function saisirReponse(participant, creneauxOk, nbCreneaux = MAX_CRENEAUX
   return { etatReponse: 'saisie', creneauxOk: liste, reponse: participant?.reponse ?? '', ambigu: false };
 }
 
+/** Phrase de l'historique pour un SMS qui n'est jamais parti parce que la personne a répondu STOP (message d'état « bloque ») : jamais l'état brut à l'écran. */
+export const TEXTE_SMS_BLOQUE = 'SMS non envoyé : numéro désinscrit (STOP)';
+
+/** « 1 personne désinscrite (STOP) n’a rien reçu » (n = 0 : rien à dire). */
+export const phraseDesinscritsSansSms = (n) => (!n ? '' : n === 1 ? '1 personne désinscrite (STOP) n’a rien reçu' : `${n} personnes désinscrites (STOP) n’ont rien reçu`);
+/** Nombre de participants désinscrits (STOP) : repère de la fiche OU numéro dans la liste du serveur. */
+export const nombreDesinscrits = (participants, desinscrits = []) => (participants || []).filter((p) => estDesinscrit(p, desinscrits)).length;
+
+/** Toast après « Envoyer les propositions » : « Propositions envoyées. 1 personne désinscrite (STOP) n’a rien reçu. » */
+export const phrasePropositionsEnvoyees = (nbDesinscrits, total = Infinity) => (nbDesinscrits >= total && total > 0
+  ? 'Aucune proposition n’est partie : tous les participants sont désinscrits (STOP).'
+  : `Propositions envoyées${nbDesinscrits ? `. ${phraseDesinscritsSansSms(nbDesinscrits)}.` : ''}`);
+/** Toast après un SMS à la main (pluie ou annulation) : réponse du serveur { nombre, nombreBloques, declenche }. Tous bloqués : rien n'est parti (l'annulation, elle, est faite). */
+export function phraseApresSmsManuel(reponse, type) {
+  const bloques = Number(reponse?.nombreBloques) || 0;
+  const reste = type === 'annulation' ? 'Rendez-vous annulé. ' : '';
+  if (bloques && !(Number(reponse?.nombre) > 0)) return `${reste}Aucun SMS n’est parti : ${bloques > 1 ? 'tous les participants sont désinscrits (STOP)' : 'la personne est désinscrite (STOP)'}.`;
+  const base = reponse?.declenche ? 'SMS en cours d’envoi' : 'SMS enregistré : il partira dans quelques minutes';
+  return bloques ? `${base}. ${phraseDesinscritsSansSms(bloques)}.` : base;
+}
+
 const aRepondu = (p) => p.etatReponse === 'comprise' || p.etatReponse === 'saisie';
 
 /**
- * Cette personne a répondu STOP (repère `desinscrit` posé par `appliquerReponse`) : affichage et bilan. Le repère n'est JAMAIS remis à faux (même une réponse « 1 » reçue ensuite, ou « Proposer d'autres créneaux », le laisse).
+ * Cette personne a répondu STOP (repère `desinscrit` posé par `appliquerReponse`) : affichage et bilan. Le repère n'est remis à faux que par « Réautoriser » (Réglages > Rendez-vous > Numéros désinscrits : action `reautoriser` du serveur) ; aucune réponse par SMS ne le fait (même une réponse « 1 » reçue ensuite, ou « Proposer d'autres créneaux », le laisse).
  * Un STOP reçu pour un autre rendez-vous (numéro dans la liste tenue par le serveur, sans repère ici) est pris en compte par `estDesinscrit` quand la liste est donnée.
  */
 export const estDesinscrit = (participant, desinscrits = []) => participant?.desinscrit === true || (!!participant?.telephone && (desinscrits || []).includes(participant.telephone));
@@ -1258,7 +1279,7 @@ export const MESSAGE_PARTICIPANT_DEJA_CONTACTE = 'Cette personne a déjà reçu 
 export const MESSAGE_REPONSES_REMISES_A_ZERO = 'Des réponses sont déjà saisies : si tu changes ou retires un créneau, elles repartent à zéro (ajouter un créneau les garde).';
 
 /** Ce participant a-t-il un SMS dans l'historique (envoyé ou reçu) ? Alors on ne le retire pas et on ne change pas son numéro. Un participant ajouté à une série suivante, sans SMS, reste libre. */
-export const participantContacte = (participant, messages) => (messages || []).some((m) => m.participantId === participant?.id);
+export const participantContacte = (participant, messages) => (messages || []).some((m) => m.participantId === participant?.id && m.etatEnvoi !== 'bloque'); // un message « bloque » (STOP) n'est jamais parti : il ne compte pas
 
 /**
  * « Modifier le rendez-vous » (C1). `cible` : { objet, adresse, creneaux: [ISO], participants: [{ id?, personneId?, nom, telephone, role }] } (la liste COMPLÈTE voulue ; `id` = participant déjà là).
@@ -1366,9 +1387,10 @@ export function texteSmsManuel(type, rdv, parametres) {
   return preparerSms(avecMentionStop(`${signature}le RDV${client ? ` (${client})` : ''}${quand} est annulé à cause de la pluie. Je vous propose une autre date très vite.`, parametres)).texte;
 }
 
-/** Historique d'un rendez-vous : les messages par date, avec le nom de l'expéditeur ou du destinataire (retrouvé par le numéro). */
+/** Historique d'un rendez-vous : les messages par date, avec le nom de l'expéditeur ou du destinataire (retrouvé par le numéro ; par le participant pour une trace « bloque », qui n'a pas de numéro). */
 export function historiqueMessages(messages, participants) {
   const parNumero = new Map((participants || []).map((p) => [p.telephone, p]));
-  return [...(messages || [])].map((m) => ({ ...m, qui: parNumero.get(m.numero)?.nom || '' }))
+  const parId = new Map((participants || []).map((p) => [p.id, p]));
+  return [...(messages || [])].map((m) => ({ ...m, qui: (m.etatEnvoi === 'bloque' && !m.numero ? parId.get(m.participantId) : parNumero.get(m.numero))?.nom || '' }))
     .sort((a, b) => (enMs(a.envoyeLe ?? a.recuLe ?? a.creeLe) || 0) - (enMs(b.envoyeLe ?? b.recuLe ?? b.creeLe) || 0));
 }

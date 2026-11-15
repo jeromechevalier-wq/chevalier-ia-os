@@ -121,6 +121,8 @@
 .rdv-boutons-fiche { flex-wrap: wrap; margin-bottom: var(--esp-6); }
 .rdv-bouton-danger { color: var(--retard); background: transparent; border: 1px solid var(--bordure); }
 .rdv-historique { display: flex; flex-direction: column; gap: var(--esp-4); }
+.rdv-sms-bloque { display: flex; align-items: center; gap: var(--esp-2); color: var(--retard); font-size: var(--fs-texte); }
+.rdv-desinscrit { align-items: center; gap: var(--esp-3); flex-wrap: wrap; }
 .rdv-case { display: flex; align-items: center; gap: var(--esp-3); padding: var(--esp-2) 0; }
 .page-rdv-fiche { max-width: 920px; }
 

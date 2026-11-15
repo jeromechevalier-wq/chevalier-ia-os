@@ -369,11 +369,11 @@ test('export : Réglages > Rendez-vous > Sauvegarde télécharge un JSON avec le
   await expect(page.locator('.toast')).toContainText('Sauvegarde téléchargée');
 });
 
-test('réglages : les treize sections sont dans la page Réglages de la coque, dans l’ordre voulu', async ({ page }) => {
+test('réglages : les quatorze sections sont dans la page Réglages de la coque, dans l’ordre voulu', async ({ page }) => {
   await connecter(page);
   await allerA(page, 'Réglages');
   await ouvrirSectionReglages(page, 'Rendez-vous');
-  await expect(page.locator('section.carte-section h2')).toHaveText(['Prêt à passer en vrai ?', 'Relances', 'Rappel la veille', 'Plage d’envoi', 'Numéros qui reçoivent les alertes', 'Ton nom dans les SMS', 'Nom de l’entreprise dans les SMS', 'Connexion SMS (ClickSend)', 'Solde ClickSend', 'Rôles des participants', 'Prix d’un SMS', 'Modèles de SMS', 'Sauvegarde']);
+  await expect(page.locator('section.carte-section h2')).toHaveText(['Prêt à passer en vrai ?', 'Relances', 'Rappel la veille', 'Plage d’envoi', 'Numéros qui reçoivent les alertes', 'Ton nom dans les SMS', 'Nom de l’entreprise dans les SMS', 'Connexion SMS (ClickSend)', 'Solde ClickSend', 'Numéros désinscrits (STOP)', 'Rôles des participants', 'Prix d’un SMS', 'Modèles de SMS', 'Sauvegarde']);
   // B4 : le prix d'un SMS est réglable, un prix absurde est refusé, l'estimation de l'aperçu suit (premier modèle = 2 SMS, donc 2 × 0,10 €)
   await expect(page.getByLabel('Prix d’un SMS, en euros')).toHaveValue('0,0685');
   await page.getByLabel('Prix d’un SMS, en euros').fill('0x1');
@@ -496,4 +496,69 @@ test('réglages : le numéro des SMS de test est normalisé et enregistré ; un 
   await champ.fill('');
   await champ.blur();
   await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.numeroTest).toBe('');
+});
+
+test('D2-1 la carte « Numéros désinscrits (STOP) » : numéros masqués avec le nom, rappel ClickSend, « Réautoriser » avec confirmation (le serveur reçoit le numéro entier), aucun appel serveur à l’affichage', async ({ page }) => {
+  const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+  const demandes = [];
+  await page.route(/cloudfunctions\.net\/rdvEnvoyer$/, (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+    demandes.push(JSON.parse(route.request().postData() ?? '{}').data);
+    return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { ok: true, reautorise: true } }) });
+  });
+  await semer('r1', {}, [{ nom: 'Mme Dupont', telephone: '+33600000001' }, { nom: 'Terrassier', telephone: '+33600000002' }]);
+  await ecrireDocument('rdv_parametres/desinscrits', { numeros: ['+33600000001', '+33611223344'] });
+  await connecter(page);
+  await allerA(page, 'Réglages');
+  await ouvrirSectionReglages(page, 'Rendez-vous');
+  const carte = page.locator('#reglages-rdv-desinscrits');
+  await expect(carte.locator('h2')).toHaveText('Numéros désinscrits (STOP)');
+  const lignes = carte.locator('[data-role="desinscrit"]');
+  await expect(lignes).toHaveCount(2);
+  await expect(lignes.nth(0)).toContainText('Mme Dupont');
+  await expect(lignes.nth(0)).toContainText('06 •• •• •• 01');
+  await expect(lignes.nth(1)).toContainText('06 •• •• •• 44');
+  await expect(lignes.nth(1)).not.toContainText('Mme');
+  const texte = await carte.innerText();
+  expect(texte).not.toMatch(/06 00 00 00 01|\+33600000001|11 22 33/); // jamais le numéro en clair
+  await expect(carte.locator('[data-role="desinscrits-clicksend"]')).toContainText('liste de désinscriptions');
+  expect(demandes, 'aucun appel au serveur à l’affichage').toHaveLength(0);
+  await carte.scrollIntoViewIfNeeded();
+  await carte.screenshot({ path: `${CAPTURES}/D2-1-desinscrits${estTelephone(page) ? '-telephone' : ''}.png`, animations: 'disabled' });
+  // Annuler la confirmation : rien n'est demandé.
+  await lignes.nth(0).getByRole('button', { name: /Réautoriser/ }).click();
+  await expect(page.getByRole('dialog')).toContainText('Cette personne a demandé de ne plus recevoir de SMS : ne la réautorise que si elle te l’a demandé');
+  await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
+  expect(demandes).toHaveLength(0);
+  await lignes.nth(0).getByRole('button', { name: /Réautoriser/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Réautoriser' }).click();
+  await expect.poll(() => demandes.length).toBe(1);
+  expect(demandes[0]).toEqual({ action: 'reautoriser', numero: '+33600000001' });
+  await expect(page.locator('.toast')).toContainText('Numéro réautorisé');
+});
+
+test('D2-1 cas vide : « Aucun numéro désinscrit », pas de bouton', async ({ page }) => {
+  await connecter(page);
+  await allerA(page, 'Réglages');
+  await ouvrirSectionReglages(page, 'Rendez-vous');
+  const carte = page.locator('#reglages-rdv-desinscrits');
+  await expect(carte.locator('[data-role="desinscrits-vide"]')).toHaveText('Aucun numéro désinscrit');
+  await expect(carte.getByRole('button')).toHaveCount(0);
+  await carte.scrollIntoViewIfNeeded();
+  await carte.screenshot({ path: `${CAPTURES}/D2-1-desinscrits-vide${estTelephone(page) ? '-telephone' : ''}.png`, animations: 'disabled' });
+});
+
+test('D2-2 cas d’erreur : le serveur refuse « Réautoriser » : le message est montré, le bouton reste utilisable', { annotation: { type: 'erreurs-reseau-attendues', description: 'Le serveur simulé répond 400.' } }, async ({ page }) => {
+  const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+  await page.route(/cloudfunctions\.net\/rdvEnvoyer$/, (route) => (route.request().method() === 'OPTIONS' ? route.fulfill({ status: 204, headers: CORS })
+    : route.fulfill({ status: 400, headers: CORS, contentType: 'application/json', body: JSON.stringify({ error: { status: 'FAILED_PRECONDITION', message: 'La liste vient de changer : réessaie.' } }) })));
+  await ecrireDocument('rdv_parametres/desinscrits', { numeros: ['+33600000001'] });
+  await connecter(page);
+  await allerA(page, 'Réglages');
+  await ouvrirSectionReglages(page, 'Rendez-vous');
+  const bouton = page.locator('#reglages-rdv-desinscrits').getByRole('button', { name: /Réautoriser/ });
+  await bouton.click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Réautoriser' }).click();
+  await expect(page.locator('.toast')).toContainText('La liste vient de changer : réessaie.');
+  await expect(bouton).toBeEnabled();
 });

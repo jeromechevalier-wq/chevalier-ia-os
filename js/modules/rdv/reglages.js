@@ -332,6 +332,33 @@ export function reglages(page) {
       h('p', {}, lienExterne(LIEN_RECHARGE_CLICKSEND, 'Recharger mon compte ClickSend', 'lien-recharge'))];
   }));
 
+  redessins.push(carte(page, 'reglages-rdv-desinscrits', 'Numéros désinscrits (STOP)', () => {
+    // Lecture seule des données déjà chargées : cette carte n'appelle aucune fonction du serveur à l'affichage.
+    const numeros = D.desinscrits();
+    const peutReautoriser = D.peutEcrire();
+    const nomDe = (n) => D.etat.participants.find((p) => p.telephone === n)?.nom || '';
+    const reautoriser = async (numero, nom, bouton) => {
+      const ok = await dialogue({
+        titre: 'Réautoriser ce numéro ?',
+        contenu: h('div', { class: 'pile' }, h('p', {}, nom || R.masquerTelephone(numero)), h('p', {}, 'Cette personne a demandé de ne plus recevoir de SMS : ne la réautorise que si elle te l’a demandé.')),
+        boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Réautoriser', valeur: true, style: 'principal' }],
+      });
+      if (ok !== true) return;
+      bouton.disabled = true;
+      try { await D.reautoriserNumero(numero); toast('Numéro réautorisé : les SMS automatiques encore dus lui partiront au prochain passage du serveur (toutes les 15 minutes, dans la plage d’envoi)'); } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Réautorisation impossible'), { type: 'erreur' }); bouton.disabled = false; }
+    };
+    const liste = numeros.length
+      ? h('div', { class: 'pile', dataset: { role: 'desinscrits' } }, numeros.map((n) => {
+        const nom = nomDe(n);
+        const bouton = peutReautoriser ? h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'reautoriser', 'aria-label': `Réautoriser ${nom || R.masquerTelephone(n)}`, onclick: (e) => reautoriser(n, nom, e.currentTarget) }, 'Réautoriser') : null;
+        return h('div', { class: 'rdv-reglage-ligne rdv-desinscrit', dataset: { role: 'desinscrit' } }, h('span', {}, nom ? `${nom} · ` : '', h('span', { class: 'rdv-tel-masque' }, R.masquerTelephone(n))), bouton);
+      }))
+      : h('p', { class: 'aide', dataset: { role: 'desinscrits-vide' } }, 'Aucun numéro désinscrit');
+    return [liste,
+      h('p', { class: 'aide' }, 'Ces personnes ont répondu STOP : plus aucun SMS ne leur part. « Réautoriser » les remet dans la liste des personnes qui reçoivent des SMS ; rien n’est envoyé tout de suite. Les SMS écrits à la main (pluie, annulation) qui ont été bloqués ne repartent jamais ; les SMS automatiques du calendrier encore dus (propositions, relances) partiront au prochain passage du serveur (toutes les 15 minutes, dans la plage d’envoi).'),
+      h('p', { class: 'aide', dataset: { role: 'desinscrits-clicksend' } }, 'Attention : ClickSend garde aussi sa propre liste de désinscriptions et bloque de son côté les numéros qui y figurent. Après avoir réautorisé un numéro ici, ouvre ton compte ClickSend, cherche la liste des désinscriptions (« Opt-out ») et retire-y aussi ce numéro, sinon ClickSend refusera encore les SMS.')];
+  }));
+
   redessins.push(carte(page, 'reglages-rdv-roles', 'Rôles des participants', () => {
     const p = D.parametres();
     const lignes = p.roles.map((r) => {

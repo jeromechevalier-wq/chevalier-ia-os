@@ -139,3 +139,34 @@ test('annulation avec SMS : le serveur est appelé avec le type « annulation »
   expect(demandes).toHaveLength(1);
   expect(demandes[0]).toMatchObject({ action: 'sms', rendezVousId: 'r1', type: 'annulation' });
 });
+
+test('D2-3b pluie quand un participant est désinscrit : la phrase dit qu’une personne n’a rien reçu', async ({ page }) => {
+  await simulerServeur(page, { branche: true, reponseEnvoi: () => ({ result: { ok: true, nombre: 1, nombreBloques: 1, declenche: true, caracteres: 26, segments: 1 } }) });
+  await semer({ etat: 'confirme', creneauChoisi: CRENEAUX[0], confirmeLe: '2031-01-01T09:00:00.000Z', envoiDemandeLe: '2031-01-01T08:00:00.000Z' });
+  await ouvrirFiche(page);
+  await page.getByRole('button', { name: 'Prévenir de la pluie' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Envoyer' }).click();
+  await expect(page.locator('.toast')).toContainText('1 personne désinscrite (STOP) n’a rien reçu');
+  await capture(page, 'D2-3b-pluie-un-bloque');
+});
+
+test('D2-3b annulation quand tous sont désinscrits : « Aucun SMS n’est parti », le rendez-vous est annulé quand même (retour aux Archives)', async ({ page }) => {
+  await simulerServeur(page, { branche: true, reponseEnvoi: () => ({ result: { ok: true, nombre: 0, nombreBloques: 1, declenche: false, caracteres: 30, segments: 1 } }) });
+  await semer({ envoiDemandeLe: '2031-01-01T08:00:00.000Z' });
+  await ouvrirFiche(page);
+  await page.getByRole('button', { name: 'Annuler le rendez-vous' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Envoyer' }).click();
+  await expect(page).toHaveURL(/#\/rdv\/archives$/);
+  await expect(page.locator('.toast')).toContainText('Rendez-vous annulé. Aucun SMS n’est parti');
+});
+
+test('D2-3c « Envoyer les propositions » avec un désinscrit : le message dit « 1 personne désinscrite (STOP) n’a rien reçu »', async ({ page }) => {
+  await simulerServeur(page, { branche: true });
+  await semer();
+  await ecrireDocument('rdv_participants/p2', { rendezVousId: 'r1', personneId: null, nom: 'Terrassier', role: 'Terrassier', telephone: '+33600000002', reponse: 'STOP', etatReponse: 'incomprise', creneauxOk: [], desinscrit: true });
+  await ecrireDocument('rdv_parametres/desinscrits', { numeros: ['+33600000002'] });
+  await ouvrirFiche(page);
+  await page.locator('[data-action="envoyer-propositions"]').click();
+  await expect(page.locator('.toast')).toContainText('Propositions envoyées. 1 personne désinscrite (STOP) n’a rien reçu.');
+  await capture(page, 'D2-3c-propositions-un-bloque');
+});
