@@ -20,7 +20,7 @@ import { creerSmsDirect, creerGestionnaireReponses, verifierConnexion } from '..
 import { creerConnexionSms } from '../serveur/src/coeur/connexion-sms.js';
 import { creerEcrivainSecrets } from '../serveur/src/securite/ecrire-secret.js';
 import { creerAdaptateur } from '../serveur/partage/porte/adaptateur.js';
-import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient } from './devis-pdf.js';
+import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient, BASE_LIEN_PLATEFORME } from './devis-pdf.js';
 import { appelDocument } from './documents.js';
 import { verifierDeploiementClient } from './deploiement.js';
 import { VERSION_SERVEUR } from '../serveur/src/version.js';
@@ -146,6 +146,7 @@ const smsDirect = creerSmsDirect({
   donneesDe: (client) => ({ base: `clients/${client}`, donnees: creerAdaptateur({ db: db() }) }),
   moduleActif: async (client) => (await creerModulesActifs({ db: db() })(client)).includes('rdv'),
   espaceRacine: null, // sur la plateforme, tous les secrets portent le nom du client (un client nommé « interne » garde son suffixe)
+  baseLien: BASE_LIEN_PLATEFORME, // lien du rendez-vous dans les alertes (`#/espace/<client>/rdv/liste/<id>`)
 });
 export const rdvEnvoyer = onCall({ ...OPTIONS_DEVIS, timeoutSeconds: 120 }, async (requete) => {
   try { return await envoyerRdv({ db: db(), auth: requete.auth, donnees: requete.data, sortie: smsDirect }); } catch (e) { throw enHttps(e); }

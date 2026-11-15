@@ -1,4 +1,4 @@
-// Fiche d'un rendez-vous : le chantier, le tableau « qui peut quand » (coche verte, croix rouge, point d'interrogation, triangle rouge), les bandeaux,
+// Fiche d'un rendez-vous : l'objet et l'adresse, le tableau « qui peut quand » (coche verte, croix rouge, point d'interrogation, triangle rouge), les bandeaux,
 // les boutons (Confirmer, Proposer d'autres créneaux, Annuler, Prévenir de la pluie) et l'historique des SMS en bulles.
 // Aucune règle métier ici (logique.js) ; les écritures sont dans donnees.js. Rien ne part par SMS tant que l'envoi n'est pas branché (PR 4) : les fenêtres de SMS gardent « Envoyer » grisé.
 import { h, icone, remplir, dialogue, toast, ouvrirMenu } from '../../os/ui.js';

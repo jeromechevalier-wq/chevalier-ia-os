@@ -21,8 +21,13 @@ export const MAX_CRENEAUX = 3;
 export const MAX_PARTICIPANTS = 5;
 /** Délai fixe entre la dernière relance et l'alerte « relances terminées ». */
 export const DELAI_ALERTE_HEURES = 24;
-/** Prix indicatif d'un SMS de 160 caractères (affiché dans l'aide, jamais dans un calcul). */
+/** « Aucun créneau à venir ne convient » : plus d'alerte si le dernier créneau commun est passé depuis plus de ce nombre de jours. */
+export const AGE_MAX_ALERTE_AUCUN_JOURS = 7;
+/** Taille d'un SMS en GSM-7 (160 unités) ; le prix d'un SMS est réglable (`prixSms`, voir `coutSms`). */
 export const SEUIL_SMS = 160;
+/** Prix d'un segment de SMS en euros et date de ces tarifs (réglables dans Réglages > Rendez-vous ; une estimation, jamais une facture). */
+export const PRIX_SMS_DEFAUT = 0.0685;
+export const TARIFS_AU_DEFAUT = '1er novembre 2026';
 
 const HEURE_MS = 3600 * 1000;
 const MINUTE_MS = 60 * 1000;
@@ -46,7 +51,9 @@ export const PARAMETRES_DEFAUT = Object.freeze({
   nomDansLesSms: '',
   nomEntreprise: NOM_ENTREPRISE_DEFAUT, // nom de l'entreprise, écrit dans la ligne finale de chaque SMS envoyé à un participant
   roles: [...ROLES_DEPART],
-  modeles: {},                  // surcharges des modèles par défaut, par type
+  modeles: {},                  // surcharges des modèles par défaut, par type (les six modèles des participants et `alerte-<sousType>`)
+  prixSms: PRIX_SMS_DEFAUT,     // euros par segment de SMS (estimation affichée dans l'aperçu des modèles)
+  tarifsAu: TARIFS_AU_DEFAUT,   // date des tarifs de ClickSend, écrite à côté de l'estimation
 });
 
 // ───────────────────────────── Instants et fuseau Europe/Paris ─────────────────────────────
@@ -291,12 +298,12 @@ export const LIBELLES_MODELES = {
 };
 /** Six modèles génériques. Voir `EXEMPLE_SMS` pour les longueurs. Pas de caractère hors GSM-7 (règle des accents). */
 export const MODELES_DEFAUT = Object.freeze({
-  confiance: 'Bonjour, c\'est {nom_pro}. Je vais vous proposer des dates pour le rendez-vous de chantier {client}. Une question : {numero_pro}',
-  creneaux: '{nom_pro} : chantier {client}, quels créneaux ?\n{creneaux}\nRépondez par ex. 1 et 3, ou 0 si aucun.',
-  relance: '{nom_pro} : toujours sans réponse pour le chantier {client}.\n{creneaux}\nRépondez 1, 2, 3 ou 0 si aucun.',
-  confirmation: 'RDV confirmé : chantier {client}, {date} à {heure}.\n{adresse}\nMerci, {nom_pro}',
-  rappel: 'Rappel : demain {date} à {heure}, RDV chantier {client}.\n{adresse}\n{nom_pro}',
-  pluie: '{nom_pro} : RDV du {date} à {heure} (chantier {client}) annulé à cause de la pluie. Je vous propose une autre date très vite.',
+  confiance: 'Bonjour, c\'est {nom_pro}. Je vais vous proposer des dates pour le rendez-vous {client}. Une question : {numero_pro}',
+  creneaux: '{nom_pro} : rendez-vous {client}, quels créneaux ?\n{creneaux}\nRépondez par ex. 1 et 3, ou 0 si aucun.',
+  relance: '{nom_pro} : toujours sans réponse pour le rendez-vous {client}.\n{creneaux}\nRépondez 1, 2, 3 ou 0 si aucun.',
+  confirmation: 'RDV confirmé : {client}, {date} à {heure}.\n{adresse}\nMerci, {nom_pro}',
+  rappel: 'Rappel : demain {date} à {heure}, RDV {client}.\n{adresse}\n{nom_pro}',
+  pluie: '{nom_pro} : RDV du {date} à {heure} ({client}) annulé à cause de la pluie. Je vous propose une autre date très vite.',
 });
 export const EXEMPLE_SMS = Object.freeze({
   nom_pro: 'Mme Martin',
@@ -314,7 +321,7 @@ const typeDeModele = { confiance: 'confiance', creneaux: 'creneaux', relance: 'r
  * Remplace les variables `{nom}`. Une variable inconnue ou vide est laissée telle quelle (visible dans l'aperçu), sauf les
  * variables facultatives (`adresse`) : vides, elles disparaissent avec leur ligne.
  */
-export const VARIABLES_FACULTATIVES = ['adresse'];
+export const VARIABLES_FACULTATIVES = ['adresse', 'lien'];
 export function remplirModele(modele, valeurs = {}) {
   let retire = false;
   const texte = String(modele ?? '').replace(/\{([a-z_]+)\}/g, (tout, nom) => {
@@ -324,15 +331,16 @@ export function remplirModele(modele, valeurs = {}) {
   });
   return retire ? texte.replace(/[ \t]+\n/g, '\n').replace(/\n{2,}/g, '\n').replace(/\s+$/, '') : texte;
 }
-/** Variables d'un modèle qui ne sont pas dans la liste connue (pour refuser un modèle faux à l'enregistrement). */
-export function variablesInconnues(modele) {
+/** Variables d'un modèle qui ne sont pas dans la liste de SA famille (pour refuser un modèle faux à l'enregistrement). `type` : le modèle (« rappel », « alerte-commun »…) ; sans lui, la liste des six modèles des participants. */
+export function variablesInconnues(modele, type) {
+  const permises = type ? variablesDuModele(type) : VARIABLES_SMS;
   const trouvees = [...String(modele ?? '').matchAll(/\{([a-zA-Z_]*)\}/g)].map((m) => m[1]);
-  return [...new Set(trouvees.filter((v) => !VARIABLES_SMS.includes(v)))];
+  return [...new Set(trouvees.filter((v) => !permises.includes(v)))];
 }
 
 export function modeleDe(type, parametres) {
   const perso = parametres?.modeles?.[type];
-  return typeof perso === 'string' && perso.trim() ? perso : MODELES_DEFAUT[type];
+  return typeof perso === 'string' && perso.trim() ? perso : (MODELES_DEFAUT[type] ?? MODELES_ALERTE_DEFAUT[type]);
 }
 
 /** Texte exact d'un SMS : modèle rempli, puis normalisé et compté. */
@@ -345,21 +353,123 @@ export function apercuModeles(parametres) {
   return Object.keys(MODELES_DEFAUT).map((type) => ({ type, libelle: LIBELLES_MODELES[type], modele: modeleDe(type, parametres), ...construireSms(type, EXEMPLE_SMS, parametres) }));
 }
 
-/** Phrases d'alerte envoyées à la professionnelle (sans nom propre, sans accent hors GSM-7). */
-export function texteAlerte(sousType, ctx = {}) {
-  const c = ctx.client || 'ce chantier';
-  const creneau = ctx.creneau ? ` (${formaterCreneauSms(ctx.creneau)})` : '';
-  const brut = {
-    commun: `RDV ${c} : un créneau convient à tous${creneau}. À toi de confirmer dans l'appli.`,
-    aucun: `RDV ${c} : aucun créneau commun. Propose d'autres dates dans l'appli.`,
-    incomprise: `RDV ${c} : réponse non comprise de ${ctx.nom || 'un participant'}${ctx.reponse ? ` : « ${String(ctx.reponse).replace(/\s+/g, ' ').trim().slice(0, 40)} »` : ''}. Appelle ou saisis sa réponse dans l'appli.`,
-    'fin-relances': `RDV ${c} : relances terminées, il manque des réponses. Ouvre le rendez-vous dans l'appli.`,
-    ambigu: `RDV ${c} : ce numéro est dans deux rendez-vous ouverts, réponse non rattachée. Tranche dans l'appli.`,
-    'echec-envoi': `RDV ${c} : un SMS n'est pas parti vers ${ctx.nom || 'une personne'}. Appelle cette personne.`,
-    tardive: `RDV ${c} : ${ctx.nom || 'une personne'} a répondu après la confirmation${ctx.reponse ? ` : « ${String(ctx.reponse).replace(/\s+/g, ' ').trim().slice(0, 40)} »` : ''}. Appelle cette personne.`,
-    desinscription: `RDV ${c} : ${ctx.nom || 'une personne'} a répondu STOP. Plus aucun SMS ne lui sera envoyé : appelle cette personne.`,
-  }[sousType] || `RDV ${c} : à regarder dans l'appli.`;
-  return preparerSms(brut);
+// ───────────────────────────── Alertes à la professionnelle (modèles modifiables) ─────────────────────────────
+
+/** Les huit alertes. Chaque modèle est réglable comme ceux des participants, sous la clé `alerte-<sousType>` dans `modeles`. Aucune mention STOP (elles vont à la professionnelle). */
+export const SOUS_TYPES_ALERTE = ['commun', 'aucun', 'incomprise', 'fin-relances', 'ambigu', 'echec-envoi', 'tardive', 'desinscription'];
+export const cleAlerte = (sousType) => `alerte-${sousType}`;
+export const LIBELLES_ALERTES = Object.freeze({
+  'alerte-commun': 'Alerte : un créneau convient à tous',
+  'alerte-aucun': 'Alerte : aucun créneau commun',
+  'alerte-incomprise': 'Alerte : réponse non comprise',
+  'alerte-fin-relances': 'Alerte : relances terminées',
+  'alerte-ambigu': 'Alerte : numéro dans deux rendez-vous',
+  'alerte-echec-envoi': 'Alerte : un SMS n’est pas parti',
+  'alerte-tardive': 'Alerte : réponse après la confirmation',
+  'alerte-desinscription': 'Alerte : une personne a répondu STOP',
+});
+/** Une liste de variables PAR alerte : seules celles-ci sont acceptées dans son modèle. `{lien}` : l'adresse du rendez-vous dans l'appli, seulement pour « un créneau convient » et « aucun créneau ». */
+export const VARIABLES_ALERTE = Object.freeze({
+  'alerte-commun': ['client', 'creneau', 'lien'],
+  'alerte-aucun': ['client', 'lien'],
+  'alerte-incomprise': ['client', 'nom', 'reponse'],
+  'alerte-fin-relances': ['client'],
+  'alerte-ambigu': ['client'],
+  'alerte-echec-envoi': ['client', 'nom'],
+  'alerte-tardive': ['client', 'nom', 'reponse'],
+  'alerte-desinscription': ['client', 'nom'],
+});
+/** Pas de caractère hors GSM-7 (« À » s'écrit « A ») : le texte par défaut est déjà celui qui partira. */
+export const MODELES_ALERTE_DEFAUT = Object.freeze({
+  'alerte-commun': 'RDV {client} : tous dispos le {creneau}. Confirme dans l\'appli.\n{lien}',
+  'alerte-aucun': 'RDV {client} : aucun créneau commun. Propose d\'autres dates dans l\'appli.\n{lien}',
+  'alerte-incomprise': 'RDV {client} : réponse non comprise de {nom} : "{reponse}". Appelle ou saisis sa réponse dans l\'appli.',
+  'alerte-fin-relances': 'RDV {client} : relances terminées, il manque des réponses. Ouvre le rendez-vous dans l\'appli.',
+  'alerte-ambigu': 'RDV {client} : ce numéro est dans deux rendez-vous ouverts, réponse non rattachée. Tranche dans l\'appli.',
+  'alerte-echec-envoi': 'RDV {client} : un SMS n\'est pas parti vers {nom}. Appelle cette personne.',
+  'alerte-tardive': 'RDV {client} : {nom} a répondu après la confirmation : "{reponse}". Appelle cette personne.',
+  'alerte-desinscription': 'RDV {client} : {nom} a répondu STOP. Plus aucun SMS ne lui sera envoyé : appelle cette personne.',
+});
+/** Tous les modèles réglables : les six des participants, puis les huit alertes. */
+export const TOUS_MODELES_DEFAUT = Object.freeze({ ...MODELES_DEFAUT, ...MODELES_ALERTE_DEFAUT });
+export const estModeleAlerte = (type) => Object.hasOwn(MODELES_ALERTE_DEFAUT, type);
+export const variablesDuModele = (type) => (estModeleAlerte(type) ? VARIABLES_ALERTE[type] : VARIABLES_SMS);
+export const libelleModele = (type) => LIBELLES_MODELES[type] ?? LIBELLES_ALERTES[type] ?? type;
+/** Adresses de l'appli (les mêmes que celles du serveur : `lienEcranRdv`) et identifiant d'exemple de 20 caractères (la longueur d'un identifiant Firestore). */
+export const BASE_LIEN_JEROME = 'https://chevalier-ia-os.web.app';
+export const BASE_LIEN_PLATEFORME = 'https://chevalier-ia-app.web.app';
+const ID_EXEMPLE = 'aB3dE5gH7jK9mN1pQ3sT';
+/** Adresse d'exemple d'un rendez-vous dans l'espace courant : `client` vide = chez Jérôme ; l'identifiant du client sinon. Sert à compter les SMS de l'aperçu avec la vraie longueur. */
+export const lienExempleRdv = (client = '') => (client ? `${BASE_LIEN_PLATEFORME}/#/espace/${client}/rdv/liste/${ID_EXEMPLE}` : `${BASE_LIEN_JEROME}/#/rdv/liste/${ID_EXEMPLE}`);
+export const EXEMPLE_ALERTE = Object.freeze({ client: 'M. Durand', creneau: '2026-11-19T09:00:00Z', nom: 'M. Petit', reponse: 'plutot jeudi', lien: lienExempleRdv('') });
+
+const abreger = (t) => String(t).replace(/\s+/g, ' ').trim().slice(0, 40);
+const NOM_PAR_DEFAUT = { incomprise: 'un participant' };
+/** Valeurs des variables d'une alerte. Toutes sont données (jamais d'accolade qui reste) ; `lien` vide = la variable et sa ligne disparaissent. */
+function valeursAlerte(sousType, ctx = {}) {
+  return {
+    client: ctx.client || '(sans nom)',
+    creneau: (ctx.creneau && formaterCreneauSms(ctx.creneau)) || 'a confirmer',
+    nom: ctx.nom || NOM_PAR_DEFAUT[sousType] || 'une personne',
+    reponse: ctx.reponse ? abreger(ctx.reponse) || '(sans texte)' : '(sans texte)',
+    lien: VARIABLES_ALERTE[cleAlerte(sousType)]?.includes('lien') ? (ctx.lien || '') : '', // jamais de lien pour une alerte qui ne le prévoit pas, même si un modèle stocké l'écrit
+  };
+}
+
+/** Phrases d'alerte envoyées à la professionnelle (modèle réglé ou modèle de départ, sans mention STOP). `ctx.lien` : l'adresse du rendez-vous (construite par le serveur), utilisée seulement si le modèle contient `{lien}`. */
+export function texteAlerte(sousType, ctx = {}, parametres = {}) {
+  const cle = cleAlerte(sousType);
+  if (!estModeleAlerte(cle)) return preparerSms(`RDV ${ctx.client || '(sans nom)'} : à regarder dans l'appli.`);
+  return preparerSms(remplirModele(modeleDe(cle, parametres), valeursAlerte(sousType, ctx)));
+}
+
+/** Aperçu des huit alertes avec des données d'exemple : texte avec le lien, et — pour celles qui le portent — le même texte sans lien. `client` : l'identifiant de l'espace (vide chez Jérôme) pour compter avec l'adresse réelle. */
+export function apercuAlertes(parametres, { client = '' } = {}) {
+  const exemple = { ...EXEMPLE_ALERTE, lien: lienExempleRdv(client) };
+  return SOUS_TYPES_ALERTE.map((sousType) => {
+    const type = cleAlerte(sousType);
+    const modele = modeleDe(type, parametres);
+    const avecLien = texteAlerte(sousType, exemple, parametres);
+    const aLien = /\{lien\}/.test(modele) && VARIABLES_ALERTE[type].includes('lien');
+    return { type, sousType, libelle: LIBELLES_ALERTES[type], modele, ...avecLien, aLien, sansLien: aLien ? texteAlerte(sousType, { ...exemple, lien: '' }, parametres) : null };
+  });
+}
+
+/** Contrôle d'un modèle avant enregistrement : { ok, message }. Vide, variable inconnue pour CE modèle, ou `{lien}` écrit plus d'une fois sont refusés. */
+export function validerModele(modele, type) {
+  const texte = String(modele ?? '');
+  if (!texte.trim()) return { ok: false, message: 'Le modèle ne peut pas être vide.' };
+  const inconnues = variablesInconnues(texte, type);
+  if (inconnues.length) return { ok: false, message: `Variable inconnue ici : {${inconnues[0]}}. Variables permises : ${variablesDuModele(type).map((v) => `{${v}}`).join(', ')}` };
+  if ((texte.match(/\{lien\}/g) || []).length > 1) return { ok: false, message: 'Écris {lien} une seule fois : une adresse suffit, et chaque caractère compte dans un SMS.' };
+  return { ok: true, message: '' };
+}
+
+// ───────────────────────────── Prix d'un SMS (estimation) ─────────────────────────────
+
+export const PRIX_SMS_MIN = 0.001;
+export const PRIX_SMS_MAX = 5;
+export const prixSmsDe = (p) => { const n = p?.prixSms; return typeof n === 'number' && Number.isFinite(n) && n >= PRIX_SMS_MIN && n <= PRIX_SMS_MAX ? n : PRIX_SMS_DEFAUT; };
+/** Lit un prix tapé (« 0,0685 », « 0.1 ») : seulement des chiffres et une virgule ou un point décimal, entre 0,001 et 5 ; « 0x1 », « 1e-7 », « -1 » ou « abc » rendent null. */
+export function lirePrixSms(saisie) {
+  const t = String(saisie ?? '').trim();
+  if (!/^\d+(?:[.,]\d{1,6})?$/.test(t)) return null;
+  const n = Number(t.replace(',', '.'));
+  return n >= PRIX_SMS_MIN && n <= PRIX_SMS_MAX ? n : null;
+}
+export const tarifsAuDe = (p) => (typeof p?.tarifsAu === 'string' && p.tarifsAu.trim() ? p.tarifsAu.trim().slice(0, 40) : TARIFS_AU_DEFAUT);
+/** Coût estimé d'un texte : prix d'un segment × nombre de SMS facturés (`compterSms`). Rien n'est stocké : le coût se calcule à l'écran. */
+export function coutSms(texte, prix = PRIX_SMS_DEFAUT) {
+  const segments = compterSms(normaliserSms(texte)).segments;
+  return Math.round(segments * (Number(prix) || 0) * 1e6) / 1e6;
+}
+/** « 0,0685 € » (jusqu'à 4 décimales, au moins 2). */
+export function formaterEuros(n) {
+  return `${new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(Number(n) || 0).replace(/[\u00a0\u202f]/g, ' ')} €`;
+}
+/** « ≈ 0,0685 € · estimation basée sur les tarifs ClickSend au 1er novembre 2026 » (jamais présentée comme une facture). */
+export function libelleCout(texte, parametres) {
+  return `≈ ${formaterEuros(coutSms(texte, prixSmsDe(parametres)))} · estimation basée sur les tarifs ClickSend au ${tarifsAuDe(parametres)}`;
 }
 
 // ───────────────────────────── Téléphones ─────────────────────────────
@@ -519,9 +629,11 @@ export function ligneEtat({ rdv, participants, parametres, messages, maintenant 
   const b = bilanReponses(participants, (rdv?.creneaux || []).length || MAX_CRENEAUX);
   if (rdv?.etat === 'confirme' || rdv?.creneauChoisi) return `Confirmé : ${formaterCreneau(rdv.creneauChoisi)}`;
   if (b.complet && b.communs.length) {
+    // Tous les créneaux communs sont passés : l'écran dit comme l'alerte (« aucun créneau à venir ne convient »), jamais une date passée présentée comme créneau commun.
     const avenir = creneauxCommunsAVenir(b, { creneaux: rdv.creneaux, maintenant });
+    if (!avenir.length) return 'Aucun créneau commun à venir';
     if (avenir.length > 1) return `${avenir.length} créneaux communs`;
-    return `Créneau commun : ${formaterCreneau(rdv.creneaux[(avenir[0] || b.communs[0]) - 1])}`;
+    return `Créneau commun : ${formaterCreneau(rdv.creneaux[avenir[0] - 1])}`;
   }
   if (b.complet) return 'Aucun créneau commun';
   if (b.incomprises) return b.incomprises === 1 ? 'Une réponse non comprise' : `${b.incomprises} réponses non comprises`;
@@ -546,6 +658,8 @@ const params = (p) => ({
   nomDansLesSms: p?.nomDansLesSms || '',
   nomEntreprise: nomEntrepriseDe(p),
   modeles: p?.modeles || {},
+  prixSms: prixSmsDe(p),
+  tarifsAu: tarifsAuDe(p),
 });
 
 /** Identifiant déterministe d'un envoi : le même envoi a toujours le même identifiant (jamais deux SMS pour une échéance). */
@@ -639,7 +753,7 @@ export function relancesTerminees(rdv, participants, parametres) {
  *  - un rendez-vous de test ne vise que `numeroTest` (aucun SMS s'il n'est pas réglé).
  * Rend un tableau trié par date : { idEcheance, typeMessage, sousType?, participantId?, numero, texte, caracteres, segments, dueLe, tour }.
  */
-export function smsDus({ rdv, participants = [], parametres, messages = [], maintenant, desinscrits = [] }) {
+export function smsDus({ rdv, participants = [], parametres, messages = [], maintenant, desinscrits = [], lien = '' }) {
   const nowMs = enMs(maintenant);
   if (!rdv?.id || !Number.isFinite(nowMs) || rdv.archive || rdv.annule) return [];
   const p = params(parametres);
@@ -654,7 +768,8 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
     const dueLe = def.horsPlage === false ? def.instant : prochaineOuverture(def.instant, p.plage);
     if (dueLe > nowMs) return;
     if (Number.isFinite(def.avant) && (dueLe >= def.avant || nowMs >= def.avant)) return;
-    const sms = def.texte ? preparerSms(def.texte) : construireSms(def.modele, def.valeurs, p);
+    const sms = def.texte !== undefined ? preparerSms(def.texte) : construireSms(def.modele, def.valeurs, p);
+    if (!sms.texte.trim()) return; // un modèle qui ne donne aucun texte (ex. `{lien}` seul, sans adresse) n'envoie rien
     dus.push({
       idEcheance: def.idEcheance, typeMessage: def.typeMessage, sousType: def.sousType || null, participantId: def.participantId || null,
       manque: [...new Set([...sms.texte.matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]))],
@@ -664,11 +779,12 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
   };
   const valeurs = valeursSms(rdv, p);
   const actifsAlerte = p.numerosAlerte.map((n, i) => (n ? { ...n, id: n.id || `n${i + 1}` } : n)).filter((n) => n && n.actif && n.numero);
-  const alerter = (sousType, nature, ctx) => {
+  const alerter = (sousType, nature, ctx, sauf = '') => {
     for (const n of actifsAlerte) {
+      if (sauf && deja.has(idEcheance(rdv.id, tour, `alerte-${sauf}`, n.id))) continue;
       proposer({
         idEcheance: idEcheance(rdv.id, tour, `alerte-${nature}`, n.id), typeMessage: 'alerte', sousType, numero: n.numero,
-        instant: ctx.instant, avant: ctx.avant, texte: texteAlerte(sousType, { client: rdv.client, ...ctx }).texte,
+        instant: ctx.instant, avant: ctx.avant, texte: texteAlerte(sousType, { client: rdv.client, ...ctx }, p).texte,
       });
     }
   };
@@ -706,8 +822,15 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
     const b = bilanReponses(participants, (rdv.creneaux || []).length || MAX_CRENEAUX);
     const dateDerniere = Math.max(0, ...participants.map((x) => enMs(x.reponseLe)).filter(Number.isFinite));
     const instantReponses = dateDerniere || nowMs;
-    if (b.complet && b.communs.length) alerter('commun', 'commun', { instant: instantReponses, creneau: rdv.creneaux[b.communs[0] - 1] });
-    if (b.complet && !b.communs.length) alerter('aucun', 'aucun', { instant: instantReponses });
+    // « Un créneau convient à tous » cite le premier créneau commun ENCORE À VENIR. Si tous les créneaux communs sont passés, la professionnelle reçoit « aucun créneau commun » (aucun créneau à venir ne convient),
+    // sauf si l'alerte « commun » lui a déjà été envoyée (sinon elle recevrait « aucun » juste après, quand son créneau passe).
+    // `lien` (adresse du rendez-vous, construite par le serveur) n'est utilisé que par ces deux alertes ; une seule alerte par numéro et par série (l'identifiant d'échéance `alerte-commun` / `alerte-aucun`).
+    const prochain = b.communs.map((i) => rdv.creneaux[i - 1]).find((c) => enMs(c) > nowMs);
+    if (b.complet && prochain) alerter('commun', 'commun', { instant: instantReponses, creneau: prochain, lien });
+    // Borne d'âge : si le dernier créneau commun est passé depuis plus de 7 jours, rien n'est envoyé (un vieux rendez-vous ne doit jamais déclencher un SMS au premier tir après un déploiement).
+    const dernierCommun = Math.max(...b.communs.map((i) => enMs(rdv.creneaux[i - 1])).filter(Number.isFinite), -Infinity);
+    const tropVieux = b.communs.length > 0 && nowMs - dernierCommun > AGE_MAX_ALERTE_AUCUN_JOURS * 24 * HEURE_MS;
+    if (b.complet && !prochain && !tropVieux) alerter('aucun', 'aucun', { instant: instantReponses, lien }, b.communs.length ? 'commun' : '');
     for (const x of participants.filter((y) => y.etatReponse === 'incomprise')) {
       alerter(x.desinscrit ? 'desinscription' : x.ambigu ? 'ambigu' : 'incomprise', `incomprise-${x.id}-${x.idReponse || 'r'}`, { instant: enMs(x.reponseLe) || nowMs, nom: x.nom, reponse: x.reponse });
     }
@@ -1006,14 +1129,14 @@ export function texteSmsManuel(type, rdv, parametres) {
   const client = rdv?.client || rdv?.objet || '';
   const signature = p.nomDansLesSms ? `${p.nomDansLesSms} : ` : '';
   const quand = date ? ` du ${date} à ${heure}` : '';
-  const chantier = client ? ` chantier ${client}` : '';
-  if (type === 'annulation') return preparerSms(avecMentionStop(`${signature}le RDV${chantier}${quand} est annulé. Je vous recontacte pour une autre date.`, parametres)).texte;
+  const sujet = client ? ` ${client}` : '';
+  if (type === 'annulation') return preparerSms(avecMentionStop(`${signature}le RDV${sujet}${quand} est annulé. Je vous recontacte pour une autre date.`, parametres)).texte;
   if (p.nomDansLesSms && client && date) {
     const valeurs = { nom_pro: p.nomDansLesSms, client, creneaux: listeCreneauxSms(rdv?.creneaux), adresse: String(rdv?.adresse || '').replace(/\s*\n\s*/g, ', '), numero_pro: numeroPro(p) ? afficherTelephone(numeroPro(p)) : '', date, heure };
     const sms = construireSms('pluie', valeurs, parametres);
     if (!/\{[a-z_]+\}/.test(sms.texte)) return sms.texte;
   }
-  return preparerSms(avecMentionStop(`${signature}le RDV${chantier ? ` (${chantier.trim()})` : ''}${quand} est annulé à cause de la pluie. Je vous propose une autre date très vite.`, parametres)).texte;
+  return preparerSms(avecMentionStop(`${signature}le RDV${client ? ` (${client})` : ''}${quand} est annulé à cause de la pluie. Je vous propose une autre date très vite.`, parametres)).texte;
 }
 
 /** Historique d'un rendez-vous : les messages par date, avec le nom de l'expéditeur ou du destinataire (retrouvé par le numéro). */

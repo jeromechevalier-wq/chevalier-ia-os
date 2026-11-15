@@ -342,7 +342,7 @@ test('annuler et pluie : fenêtre avec texte prérempli MODIFIABLE et compteur ;
   await ouvrirFiche(page);
   await page.getByRole('button', { name: 'Prévenir de la pluie' }).click();
   const champ = page.getByRole('dialog').getByLabel('Texte du SMS');
-  await expect(champ).toHaveValue(/^Mme Martin : RDV du .* \(chantier M\. Durand\) annulé à cause de la pluie\./);
+  await expect(champ).toHaveValue(/^Mme Martin : RDV du .* \(M\. Durand\) annulé à cause de la pluie\./);
   await champ.fill('Pluie demain, RDV reporté.');
   await expect(page.getByRole('dialog').locator('.rdv-compteur-sms')).toHaveText('26 caractères sur 160 · 1 SMS');
   await expect(page.getByRole('dialog').getByRole('button', { name: 'Envoyer' })).toBeDisabled();

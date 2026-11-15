@@ -5,7 +5,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { creerGestionnaire } from './mcp/gestionnaire.js';
+import { creerGestionnaire, BASE_LIEN_JEROME } from './mcp/gestionnaire.js';
 import { creerAccesFirestore } from './coeur/donnees.js';
 import { creerMagasin } from './securite/jetons.js';
 import { creerLimiteur } from './securite/limites.js';
@@ -162,6 +162,7 @@ export const devisPreparerEmailEtat = onCall(OPTIONS_DEVIS, (requete) => {
 const smsDirect = creerSmsDirect({
   lireSecret: creerLecteurSecrets(),
   donneesDe: () => { if (!getApps().length) initializeApp(); return { base: '', donnees: creerAdaptateur({ db: getFirestore() }) }; },
+  baseLien: BASE_LIEN_JEROME, // lien du rendez-vous dans les alertes « un créneau convient à tous » / « aucun créneau commun » (jamais de secret dedans)
 });
 const journalRdv = (e) => process.stdout.write(`${JSON.stringify({ fonction: 'rdv', ...e })}\n`);
 export const rdvEtat = onCall(OPTIONS_DEVIS, (requete) => {
