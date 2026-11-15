@@ -182,6 +182,21 @@ export async function alerterSoldeBas(ctx, { solde, lien = '' } = {}) {
 }
 
 /**
+ * Passe un SMS encore EN ATTENTE à un nouvel état (« bloque », « abandonne ») sans jamais écraser un envoi en cours ou fait. `m` vient d'une LISTE (le vrai adaptateur n'y met pas `updateTime`) :
+ * on relit le message juste avant d'écrire et on écrit avec CET `updateTime` ; il doit être « a_envoyer », « echec » ou « reserve » périmé (envoi planté entre réservation et confirmation).
+ * Rend vrai si l'écriture a eu lieu.
+ */
+async function figerSiEnAttente(ctx, m, patch, maintenantMs) {
+  const ch = chemin(ctx.base, T.msg, m.id);
+  const cur = await ctx.donnees.lireDoc(ch);
+  if (!cur) return false;
+  const enAttente = cur.etatEnvoi === 'a_envoyer' || cur.etatEnvoi === 'echec' || (cur.etatEnvoi === 'reserve' && enMs(cur.reserveJusqua) <= maintenantMs);
+  if (!enAttente) return false;
+  const r = await ctx.donnees.majDoc(ch, patch, { lastUpdateTime: cur.updateTime });
+  return !(r === false || PRECONDITION(r));
+}
+
+/**
  * Trace des SMS que « STOP » a empêchés de partir. `smsDus` ne dit pas ce qu'il saute : on le rappelle sans liste de désinscrits, et les SMS dus en plus pour une personne dont le numéro est dans la liste
  * sont les bloqués. Chacun laisse UN message d'état `stop_<échéance>` (créé une seule fois : le tir tourne toutes les 15 minutes) : `etatEnvoi: 'bloque'`, SANS `echeance` (le calendrier ne le voit
  * pas : le vrai SMS peut repartir après « Réautoriser »), SANS texte ni numéro. Il n'entre jamais dans les SMS à envoyer ni dans leur nombre.
@@ -237,7 +252,7 @@ export const ACTIONS_RDV = Object.freeze({
           // Alerte de solde (aucun rendez-vous), créée par `alerterSoldeBas` : part vers le numéro d'alerte écrit dans le message (jamais détourné vers le numéro de test), seulement dans la plage d'envoi.
           const alerte = m.manuel === true ? { forme: false } : jugerAlerteSolde(m, parametres, desinscrits, maintenantMs);
           if (alerte.forme && alerte.abandonner) {
-            if (m.etatEnvoi !== 'reserve') await ctx.donnees.majDoc(chemin(ctx.base, T.msg, m.id), { etatEnvoi: 'abandonne', reserveJusqua: null, envoyeLe: new Date(maintenantMs), erreur: 'Alerte de solde abandonnée (recharge, numéro retiré ou STOP)' }, { lastUpdateTime: m.updateTime });
+            if (m.etatEnvoi !== 'reserve') await figerSiEnAttente(ctx, m, { etatEnvoi: 'abandonne', reserveJusqua: null, envoyeLe: new Date(maintenantMs), erreur: 'Alerte de solde abandonnée (recharge, numéro retiré ou STOP)' }, maintenantMs);
             continue;
           }
           if (alerte.forme && !alerte.partir) continue; // hors plage d'envoi : elle attend l'ouverture
@@ -248,8 +263,9 @@ export const ACTIONS_RDV = Object.freeze({
           const numero = soldeBas ? m.numero : R.numeroCible(m.numero, { test: rdv.test === true || m.test === true }, parametres);
           if (!numero) continue;
           if (desinscrits.includes(m.numero)) {
-            // SMS à la main (ou renvoi) encore en attente alors que le numéro a répondu STOP : il passe « bloque » (jamais envoyé, même après « Réautoriser »). Un SMS « reserve » (envoi en cours) n'est pas touché.
-            if (m.manuel === true && m.etatEnvoi !== 'reserve') await ctx.donnees.majDoc(chemin(ctx.base, T.msg, m.id), { etatEnvoi: 'bloque', reserveJusqua: null, bloqueLe: new Date(maintenantMs) }, { lastUpdateTime: m.updateTime });
+            // SMS à la main (ou renvoi) encore en attente alors que le numéro a répondu STOP : il passe « bloque » (jamais envoyé, même après « Réautoriser »). Un SMS « reserve » encore valide (envoi en cours) n'est pas touché ;
+            // un « reserve » périmé (plantage) est bloqué aussi ; un message devenu « envoye » entre la liste et l'écriture reste « envoye » (figerSiEnAttente relit).
+            if (m.manuel === true) await figerSiEnAttente(ctx, m, { etatEnvoi: 'bloque', reserveJusqua: null, bloqueLe: new Date(maintenantMs) }, maintenantMs);
             continue;
           }
           if (!(await reserver(ctx, m.id, null, maintenantMs))) continue;
@@ -275,6 +291,7 @@ export const ACTIONS_RDV = Object.freeze({
       const m = await donnees.lireDoc(ch);
       if (!m || m.sens === 'entrant') throw new ErreurAction('message_inconnu', 'Ce message n\'existe pas.', 404);
       if (m.etatEnvoi === 'envoye') { await appliquerSuites(ctx, m, maintenantMs); return { messageId: d.messageId, statut: 'ok', deja: true }; } // rejeu : on refait les suites (idempotentes) au cas où un plantage les aurait interrompues
+      if (m.etatEnvoi === 'bloque' && d.statut !== 'ok') return { messageId: d.messageId, statut: 'echec', deja: true }; // un SMS bloqué (STOP) ne redevient jamais « echec » par un échec rejoué
       if (m.etatEnvoi === 'abandonne' && d.statut !== 'ok') return { messageId: d.messageId, statut: 'echec', deja: true };
       // Un « ok » qui arrive APRÈS l'abandon (réponse lente : le SMS est bien parti) remet le SMS à « envoyé » et applique les suites.
       if (d.statut === 'ok') {

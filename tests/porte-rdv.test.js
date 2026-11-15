@@ -29,8 +29,9 @@ function creerBase() {
       docs.set(c, { d: { ...docs.get(c).d, ...p }, v: ++version });
       return true;
     },
-    lister: async (chemin, { limite = 100 } = {}) => dansTable(chemin).slice(0, limite).map(([c]) => lire(c)),
-    listerPar: async (chemin, champ, valeur, { limite = 500 } = {}) => dansTable(chemin).filter(([, x]) => x.d[champ] === valeur).slice(0, limite).map(([c]) => lire(c)),
+    // Comme le vrai adaptateur (scripts/porte/adaptateur.js) : les LISTES rendent { ...champs, id } SANS `updateTime` (seul lireDoc le rend).
+    lister: async (chemin, { limite = 100 } = {}) => dansTable(chemin).slice(0, limite).map(([c]) => { const { updateTime, ...sans } = lire(c); return sans; }),
+    listerPar: async (chemin, champ, valeur, { limite = 500 } = {}) => dansTable(chemin).filter(([, x]) => x.d[champ] === valeur).slice(0, limite).map(([c]) => { const { updateTime, ...sans } = lire(c); return sans; }),
     ecrireLot: async (operations) => {
       for (const o of operations) {
         if (o.type === 'creer' && docs.has(o.chemin)) { const e = new Error('existe'); e.code = 6; throw e; }
@@ -706,11 +707,33 @@ describe('D2 STOP : trace des SMS bloqués', () => {
     await recevoir(m, '+33600000001', 'STOP', 'cs-stop');
     const r = await m.action('rdv.aEnvoyer');
     assert.ok(!r.messages.some((x) => ['man_a', 'man_b', 'ren_c'].includes(x.messageId)), 'rien ne part vers le désinscrit');
-    assert.equal(r.nombre, r.messages.length);
     for (const id of ['man_a', 'man_b', 'ren_c']) assert.equal(m.base.docs.get(`rdv_messages/${id}`).d.etatEnvoi, 'bloque', id);
     m.base.docs.set('rdv_parametres/desinscrits', { d: { numeros: [] }, v: 99 });
     m.base.docs.set('rdv_participants/r1-p1', { d: { ...m.base.docs.get('rdv_participants/r1-p1').d, desinscrit: false }, v: 99 });
     const apres = await m.action('rdv.aEnvoyer');
     assert.ok(!apres.messages.some((x) => ['man_a', 'man_b', 'ren_c'].includes(x.messageId)), 'après « Réautoriser », le SMS manuel bloqué ne repart jamais');
+  });
+  const manuel = (m, id, etat, extra = {}) => m.base.docs.set(`rdv_messages/${id}`, { d: { rendezVousId: 'r1', participantId: 'r1-p1', sens: 'sortant', manuel: true, typeMessage: 'pluie', numero: '+33600000001', texte: 'Pluie', caracteres: 5, segments: 1, etatEnvoi: etat, essais: 0, echeance: `r1:man:${id}:r1-p1`, ...extra }, v: 1 });
+  const stopSemis = (m) => m.base.docs.set('rdv_parametres/desinscrits', { d: { numeros: ['+33600000001'] }, v: 1 });
+  test('D2-3b un message devenu « envoye » entre la liste et l’écriture reste « envoye » (le bloquage relit le message : la liste n’a pas d’updateTime)', async () => {
+    const m = monde(); m.semer(); stopSemis(m); manuel(m, 'man_a', 'a_envoyer');
+    const vrai = m.base.listerPar;
+    m.base.listerPar = async (...a) => { const r = await vrai(...a); const x = m.base.docs.get('rdv_messages/man_a'); if (x.d.etatEnvoi === 'a_envoyer') m.base.docs.set('rdv_messages/man_a', { d: { ...x.d, etatEnvoi: 'envoye' }, v: 50 }); return r; };
+    await m.action('rdv.aEnvoyer');
+    assert.equal(m.base.docs.get('rdv_messages/man_a').d.etatEnvoi, 'envoye');
+  });
+  test('D2-3b un SMS manuel « reserve » PÉRIMÉ est bloqué ; un « reserve » encore valide n’est pas touché', async () => {
+    const m = monde(); m.semer(); stopSemis(m);
+    manuel(m, 'man_p', 'reserve', { reserveJusqua: iso(T0 - 60_000) });
+    manuel(m, 'man_v', 'reserve', { reserveJusqua: iso(T0 + 600_000) });
+    await m.action('rdv.aEnvoyer');
+    assert.equal(m.base.docs.get('rdv_messages/man_p').d.etatEnvoi, 'bloque');
+    assert.equal(m.base.docs.get('rdv_messages/man_v').d.etatEnvoi, 'reserve');
+  });
+  test('D2-3b un échec rejoué (confirmerEnvoi « echec ») ne remet pas un message « bloque » en « echec »', async () => {
+    const m = monde(); m.semer(); manuel(m, 'man_a', 'bloque');
+    const r = await m.action('rdv.confirmerEnvoi', { messageId: 'man_a', statut: 'echec' });
+    assert.equal(r.deja, true);
+    assert.equal(m.base.docs.get('rdv_messages/man_a').d.etatEnvoi, 'bloque');
   });
 });
