@@ -107,7 +107,7 @@ Depuis le 14/11/2026 elles sont appelées **directement par le serveur** (`funct
 - **Sortie** : `{ deja, messageId, rattache: "unique" | "ambigu" | "inconnu", comprise, desinscription }`.
 - La porte déduit l'espace de la clé. Le numéro est rattaché à UN participant d'un rendez-vous ouvert (`rattacherReponse`). **Même numéro dans plusieurs rendez-vous ouverts : jamais deviné** → « non comprise » pour chacun, une trace par rendez-vous, alerte, la professionnelle tranche.
 - Réponse comprise (« 1 », « 1 et 3 », « aucun »…) → participant mis à jour, état du rendez-vous recalculé. Réponse non comprise → participant « non compris », ses relances sont suspendues, alerte à la professionnelle. Numéro inconnu → message gardé comme « orphelin ».
-- **STOP** (et « arrêt », « désabonner »…) : jamais une réponse « non comprise » ordinaire. Le numéro est ajouté à la liste des désinscrits (`rdv_parametres/desinscrits`) : plus aucun SMS ne lui est envoyé ; la professionnelle est alertée.
+- **STOP** (et « arrêt », « désabonner »…) : jamais une réponse « non comprise » ordinaire ; la fiche affiche « Désinscrit (STOP) » (PR 641) : un désinscrit ne bloque ni la confirmation ni les relances des autres, et n'est jamais « OK » (sauf si la professionnelle a saisi sa réponse à sa place). Le numéro est ajouté à la liste des désinscrits (`rdv_parametres/desinscrits`) : plus aucun SMS ne lui est envoyé ; la professionnelle est alertée.
 
 ## Garde-fous ajoutés après la relecture (14/11/2026)
 - La confirmation et le rappel de la veille partent bien (les rendez-vous confirmés sont lus tant que le rendez-vous n'est pas passé depuis plus de 2 jours).
@@ -150,3 +150,11 @@ Sources lues le 14/11/2026 (pages de fournisseurs, pas les textes officiels) : p
 - 153 caractères par morceau au-delà de 160 : à confirmer au premier test.
 - Le déploiement chez les clients n'est pas fait (workflow manuel, avec Jérôme).
 - Le nom exact des menus de ClickSend (règle « SMS entrants ») n'a pas pu être vérifié depuis la session.
+
+## Solde ClickSend et alertes de solde bas (PR 640, 15/11/2026)
+
+- `lireSolde` (`functions/src/coeur/sms-direct.js`, seul fichier qui parle à ClickSend) lit `GET /v3/account` : `data.balance` (texte) et `data._currency` ; champ absent ou illisible = « solde indisponible », jamais une erreur ; devise absente = euro, autre devise = indisponible.
+- Lecture : dans les deux tirs planifiés seulement (après les SMS, jamais après une clé refusée), cache de 60 s ; à la demande par l'action `solde` de `rdvEnvoyer` (compte autorisé chez Jérôme, éditeurs chez un client). Le solde n'est jamais stocké ; seul l'état d'alerte (`soldeAlerte` dans `rdv_parametres/reglages`) l'est.
+- Trois seuils réglables (défauts 10, 5 et 2 €, décroissants, de 0 à 1 000 €) : un SMS par seuil franchi (strictement inférieur), jamais deux fois le même tant que le solde n'est pas remonté au-dessus du seuil le plus haut. Modèle modifiable `alerte-solde-bas` (`{solde}`, `{seuil}`, `{lien}` de recharge `https://dashboard.clicksend.com/portal/billing#add-credit`, **à vérifier**).
+- Limites : recharge partielle = alertes muettes ; alertes après les SMS de rendez-vous ; panne non journalisée (détail : `docs/reprise-prochaine-session.md`).
+- Le bilan « Prêt à passer en vrai ? » (première carte de Réglages > Rendez-vous) ne stocke rien et n'envoie aucun SMS.
