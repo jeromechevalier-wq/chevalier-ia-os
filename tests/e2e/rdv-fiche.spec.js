@@ -80,7 +80,7 @@ test('D1-1 un participant désinscrit s’affiche « Désinscrit (STOP) » (jama
   await expect(ligne.locator('th [data-symbole="incompris"]')).toHaveCount(0);
   await expect(ligne.locator('[data-role="desinscrit-texte"]')).toHaveText('Désinscrit (STOP) : ne reçoit plus de SMS');
   await expect(ligne.locator('td[data-creneau] [data-symbole]')).toHaveCount(0);
-  await expect(ligne.locator('[data-action="saisir-reponse"]')).toHaveCount(0);
+  await expect(ligne.locator('[data-action="saisir-reponse"]')).toHaveCount(1); // la professionnelle peut noter sa réponse après l'avoir appelé
   await expect(page.locator('[data-role="bandeau-incompris"]')).toHaveCount(0);
   await expect(page.locator('[data-role="bandeau-desinscrit"]')).toContainText('a répondu STOP');
   // Le seul participant qui compte a répondu : le rendez-vous n'attend plus personne (créneaux 1 et 3 communs).
@@ -89,7 +89,7 @@ test('D1-1 un participant désinscrit s’affiche « Désinscrit (STOP) » (jama
   await capture(page, 'D1-1-desinscrit');
   await page.goBack();
   await expect(page.locator('.carte-rdv').first()).not.toContainText('non comprise');
-  await expect(page.locator('.carte-rdv').first()).toContainText('créneaux communs'); // le STOP de p2 ne bloque pas : p1 est la seule à attendre
+  await expect(page.locator('.carte-rdv').first()).toContainText('2 créneaux communs · 1 désinscrit (STOP)'); // le STOP de p2 ne bloque pas : p1 est la seule à attendre
 });
 
 test('A2 « Qui peut quand » est une grille : pastilles de couleur, créneaux communs en évidence, réponse et « Corriger » alignés (et pas de défilement de la page sur téléphone)', async ({ page }) => {
@@ -245,7 +245,7 @@ test('A3e un seul créneau proposé : la date change pendant que la fenêtre est
 
 const REGLAGES = { nomDansLesSms: 'Mme Martin', roles: ['Client'], numerosAlerte: [], numeroAffiche: '', relances: { delaiHeures: 24, nombre: 3 }, rappel: { actif: true, heure: '19:00' }, plage: { debut: '08:00', fin: '20:30' }, modeles: {}, prixSms: 0.1, tarifsAu: '1er novembre 2026' };
 /** Un participant qui a répondu STOP : sa réponse est dans l'historique ; le serveur range son numéro dans la liste `desinscrits` (la seule que lisent l'envoi et l'écran, `stop(...)`). */
-const partStop = (id, nom, tel) => ecrireDocument(`rdv_participants/${id}`, { rendezVousId: 'r1', personneId: null, nom, role: 'Client', telephone: tel, reponse: 'STOP', etatReponse: 'incomprise', creneauxOk: [] });
+const partStop = (id, nom, tel) => ecrireDocument(`rdv_participants/${id}`, { rendezVousId: 'r1', personneId: null, nom, role: 'Client', telephone: tel, reponse: 'STOP', etatReponse: 'incomprise', creneauxOk: [], desinscrit: true }); // le serveur pose aussi le repère `desinscrit`
 const stop = (...numeros) => ecrireDocument('rdv_parametres/desinscrits', { numeros });
 
 test('A6 sous le bouton « Confirmer… », une phrase toujours visible dit ce qui partira : le nombre de personnes (vrais participants joignables), le rappel de la veille, les STOP', async ({ page }) => {

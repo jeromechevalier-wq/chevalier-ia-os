@@ -600,7 +600,7 @@ export function symboleCellule(participant, indexCreneau) {
  * Bilan des réponses :
  *  - `parCreneau[i]` = nombre de personnes pour qui le créneau i+1 convient ;
  *  - `communs` = numéros (1 à 3) des créneaux qui conviennent à TOUT le monde (seulement quand tout le monde a répondu) ;
- *  - RÈGLE « désinscrit (STOP) » : une personne désinscrite (`desinscrit === true`) ne bloque jamais les autres. `complet` = tous les NON-désinscrits ont répondu (et il y en a au moins un) ;
+ *  - RÈGLE « désinscrit (STOP) » : une personne désinscrite (`desinscrit === true`) ne bloque jamais les autres. `complet` = tous les NON-désinscrits ont répondu (et il y en a au moins un) ; un désinscrit dont la réponse a été SAISIE par la professionnelle compte comme les autres ;
  *    `parCreneau`, `reponses` et `communs` ne comptent qu'eux ; `total` compte tout le monde ; un désinscrit n'est jamais « OK » (même avec une réponse « 1 » reçue après son STOP) ;
  *  - `meilleur` = le créneau qui convient au plus de monde { creneau, nombre } (ex-aequo : le plus tôt) ;
  *  - `complet` = tout le monde a répondu (compris ou saisi), `incomprises` = réponses non comprises à traiter.
@@ -608,7 +608,8 @@ export function symboleCellule(participant, indexCreneau) {
 export function bilanReponses(participants, nbCreneaux = MAX_CRENEAUX) {
   const liste = participants || [];
   const total = liste.length;
-  const actifs = liste.filter((p) => p.desinscrit !== true);
+  // Un désinscrit dont la professionnelle a SAISI la réponse (`saisie`, après l'avoir appelé) compte comme les autres ; sa réponse par SMS (« 1 » après STOP), une attente ou une réponse non comprise ne comptent jamais.
+  const actifs = liste.filter((p) => p.desinscrit !== true || p.etatReponse === 'saisie');
   const repondants = actifs.filter(aRepondu);
   const parCreneau = Array.from({ length: nbCreneaux }, (_, i) => repondants.filter((p) => (p.creneauxOk || []).includes(i + 1)).length);
   const complet = actifs.length > 0 && repondants.length === actifs.length;
@@ -618,7 +619,7 @@ export function bilanReponses(participants, nbCreneaux = MAX_CRENEAUX) {
   return {
     total, reponses: repondants.length, complet, parCreneau, communs, meilleur,
     incomprises: actifs.filter((p) => p.etatReponse === 'incomprise').length,
-    desinscrits: total - actifs.length,
+    desinscrits: liste.filter((p) => p.desinscrit === true).length,
     enAttente: actifs.filter((p) => !p.etatReponse || p.etatReponse === 'attente').length,
   };
 }
@@ -639,16 +640,17 @@ export const estOuvert = (rdv) => !!rdv && !rdv.archive && !rdv.annule && rdv.et
 export function ligneEtat({ rdv, participants, parametres, messages, maintenant, desinscrits = [] }) {
   const b = bilanReponses(participants, (rdv?.creneaux || []).length || MAX_CRENEAUX);
   if (rdv?.etat === 'confirme' || rdv?.creneauChoisi) return `Confirmé : ${formaterCreneau(rdv.creneauChoisi)}`;
+  const stop = b.desinscrits ? `${b.desinscrits} désinscrit${b.desinscrits > 1 ? 's' : ''} (STOP)` : '';
+  const avecStop = (t) => (stop ? `${t} · ${stop}` : t);
   if (b.complet && b.communs.length) {
     // Tous les créneaux communs sont passés : l'écran dit comme l'alerte (« aucun créneau à venir ne convient »), jamais une date passée présentée comme créneau commun.
     const avenir = creneauxCommunsAVenir(b, { creneaux: rdv.creneaux, maintenant });
-    if (!avenir.length) return 'Aucun créneau commun à venir';
-    if (avenir.length > 1) return `${avenir.length} créneaux communs`;
-    return `Créneau commun : ${formaterCreneau(rdv.creneaux[avenir[0] - 1])}`;
+    if (!avenir.length) return avecStop('Aucun créneau commun à venir');
+    if (avenir.length > 1) return avecStop(`${avenir.length} créneaux communs`);
+    return avecStop(`Créneau commun : ${formaterCreneau(rdv.creneaux[avenir[0] - 1])}`);
   }
-  if (b.complet) return 'Aucun créneau commun';
+  if (b.complet) return avecStop('Aucun créneau commun');
   if (b.incomprises) return b.incomprises === 1 ? 'Une réponse non comprise' : `${b.incomprises} réponses non comprises`;
-  const stop = b.desinscrits ? `${b.desinscrits} désinscrit${b.desinscrits > 1 ? 's' : ''} (STOP)` : '';
   const texte = stop ? `${stop} · ${b.reponses} ${b.reponses > 1 ? 'réponses' : 'réponse'} sur ${b.total}` : `${b.reponses} ${b.reponses > 1 ? 'réponses' : 'réponse'} sur ${b.total}`;
   const prochaine = prochaineRelance({ rdv, participants, parametres, messages, desinscrits });
   if (prochaine && Number.isFinite(enMs(maintenant))) {
@@ -842,7 +844,9 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
     if (b.complet && prochain) alerter('commun', 'commun', { instant: instantReponses, creneau: prochain, lien });
     // Borne d'âge : si le dernier créneau commun est passé depuis plus de 7 jours, rien n'est envoyé (un vieux rendez-vous ne doit jamais déclencher un SMS au premier tir après un déploiement).
     const dernierCommun = Math.max(...b.communs.map((i) => enMs(rdv.creneaux[i - 1])).filter(Number.isFinite), -Infinity);
-    const tropVieux = b.communs.length > 0 && nowMs - dernierCommun > AGE_MAX_ALERTE_AUCUN_JOURS * 24 * HEURE_MS;
+    // Même borne pour « aucun créneau commun » : sans créneau commun, on regarde le dernier créneau proposé (tous passés depuis plus de 7 jours = plus d'alerte).
+    const reference = b.communs.length > 0 ? dernierCommun : dernierCreneau(rdv);
+    const tropVieux = Number.isFinite(reference) && nowMs - reference > AGE_MAX_ALERTE_AUCUN_JOURS * 24 * HEURE_MS;
     if (b.complet && !prochain && !tropVieux) alerter('aucun', 'aucun', { instant: instantReponses, lien }, b.communs.length ? 'commun' : '');
     for (const x of participants.filter((y) => y.etatReponse === 'incomprise')) {
       alerter(x.desinscrit ? 'desinscription' : x.ambigu ? 'ambigu' : 'incomprise', `incomprise-${x.id}-${x.idReponse || 'r'}`, { instant: enMs(x.reponseLe) || nowMs, nom: x.nom, reponse: x.reponse });

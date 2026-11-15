@@ -89,6 +89,7 @@
 .rdv-personne-nom { display: flex; align-items: center; gap: var(--esp-2); flex-wrap: wrap; font-weight: var(--poids-moyen); }
 .rdv-personne-role { margin-top: var(--esp-1); }
 .rdv-ligne-incomprise { background: var(--retard-fond); }
+.rdv-ligne-desinscrit { background: color-mix(in srgb, var(--gris) 8%, transparent); }
 .rdv-sa-reponse { min-width: 10rem; text-align: left; }
 .rdv-sa-reponse > * { display: block; }
 .rdv-sa-reponse .bouton { display: inline-flex; margin-top: var(--esp-2); }

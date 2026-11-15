@@ -1180,6 +1180,26 @@ describe('D1 désinscrit (STOP) : visible, et ne bloque personne', () => {
     assert.deepEqual(avec.filter((d) => d.typeMessage === 'relance').map((d) => [d.participantId, d.idEcheance.split(':')[2]]), [['2', 'relance2']], 'le calendrier de la personne 2 avance');
     assert.ok(L.prochaineRelance({ rdv, participants, parametres: params, messages, desinscrits: ['+33600000001'] }));
   });
+  test('D1-2 un désinscrit dont la professionnelle a SAISI la réponse compte comme les autres ; il reste affiché « Désinscrit (STOP) »', () => {
+    const participants = [bon('1', [1, 2]), stop('2', { etatReponse: 'saisie', creneauxOk: [2] })];
+    const b = L.bilanReponses(participants, 3);
+    assert.deepEqual([b.complet, b.communs, b.desinscrits, b.reponses, b.total], [true, [2], 1, 2, 2]);
+    assert.equal(L.symboleCellule(participants[1], 1), 'desinscrit');
+    assert.equal(L.bilanReponses([bon('1', [1, 2]), stop('2', { etatReponse: 'comprise', creneauxOk: [2] })], 3).reponses, 1, 'la réponse par SMS après STOP reste ignorée');
+  });
+  test('D1-1 la mention « désinscrit (STOP) » est aussi sur la phrase d’un rendez-vous complet', () => {
+    const phrase = L.ligneEtat({ rdv, participants: [bon('1', [1, 2]), bon('2', [1, 2]), stop('3')], parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 15, 10) });
+    assert.equal(phrase, '2 créneaux communs · 1 désinscrit (STOP)');
+  });
+  test('D1-5 borne d’âge : « aucun créneau commun » ne repart pas pour un rendez-vous dont tous les créneaux sont passés depuis plus de 7 jours', () => {
+    const ancien = { ...rdv, creneaux: [parisEnISO(2026, 9, 15, 10), parisEnISO(2026, 9, 16, 14), parisEnISO(2026, 9, 17, 9)], envoiDemandeLe: parisEnISO(2026, 9, 1, 9) };
+    const participants = [bon('1', [1]), bon('2', [2]), stop('3')].map((x) => ({ ...x, reponseLe: '2026-09-02T08:00:00Z' }));
+    const dus = L.smsDus({ rdv: ancien, participants, parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 15, 10) });
+    assert.deepEqual(dus.filter((d) => d.typeMessage === 'alerte' && (d.sousType === 'aucun' || d.sousType === 'commun')), []);
+    const recent = { ...ancien, creneaux: [parisEnISO(2026, 11, 13, 10), parisEnISO(2026, 11, 14, 14), parisEnISO(2026, 11, 14, 9)] };
+    const dus2 = L.smsDus({ rdv: recent, participants, parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 15, 10) });
+    assert.equal(dus2.filter((d) => d.sousType === 'aucun').length, 1, 'un rendez-vous récent est toujours alerté');
+  });
   test('D1-4 verrous : aucune réponse ultérieure ne remet « désinscrit » à faux', () => {
     const avant = stop('1');
     const apres = (texte, extra = {}) => ({ ...avant, ...(L.appliquerReponse({ participant: avant, rdv, texte, recuLe: '2026-11-15T10:00:00Z', idReponse: 'm2', ...extra }).patch || {}) });

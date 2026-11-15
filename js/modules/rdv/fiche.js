@@ -18,7 +18,7 @@ const SYMBOLES = {
   desinscrit: { icone: 'circle-x', libelle: 'Désinscrit (STOP)' },
 };
 
-/** Grosse coche verte, grosse croix rouge, point d'interrogation gris ou triangle rouge. */
+/** Grosse coche verte, grosse croix rouge, point d'interrogation gris, triangle rouge (réponse non comprise) ou croix cerclée grise (désinscrit, STOP). */
 export function symbole(nom) {
   const s = SYMBOLES[nom];
   return h('span', { class: `rdv-symbole rdv-symbole-${nom}`, role: 'img', 'aria-label': s.libelle, title: s.libelle, dataset: { symbole: nom } }, icone(s.icone, { taille: 28 }));
@@ -234,7 +234,7 @@ export function rendreFiche(conteneur, id) {
         h('td', { class: 'rdv-sa-reponse' },
           p.reponse ? h('span', { class: 'rdv-reponse-texte', dataset: { role: 'reponse-exacte' } }, `« ${p.reponse} »`) : null,
           p.etatReponse === 'saisie' ? h('span', { class: 'aide', dataset: { role: 'saisie-par-toi' } }, 'Coché par toi') : null,
-          ouvert && !desinscrit ? h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'saisir-reponse', onclick: () => saisirReponse(r, p) },
+          ouvert ? h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'saisir-reponse', onclick: () => saisirReponse(r, p) },
             p.etatReponse === 'comprise' || p.etatReponse === 'saisie' ? 'Corriger' : 'Saisir sa réponse') : null));
     });
     return h('div', { class: 'zone-tableau rdv-zone-tableau' }, h('table', { class: 'tableau tableau-rdv-reponses', dataset: { role: 'qui-peut-quand' } }, groupe,
