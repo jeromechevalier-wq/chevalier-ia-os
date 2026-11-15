@@ -285,6 +285,26 @@ test('A4 la pastille TEST : sur la carte du Kanban, sur la ligne de la liste et 
   await capture(page, 'A4-recherche-test');
 });
 
+test('A1b un numéro déjà dans la liste est refusé dans la fenêtre, même écrit autrement (+33 / 06)', async ({ page }) => {
+  await connecter(page);
+  await allerA(page, 'Réglages');
+  await ouvrirSectionReglages(page, 'Rendez-vous');
+  const section = page.locator('#reglages-rdv-alertes');
+  await section.getByRole('button', { name: 'Ajouter un numéro' }).click();
+  await page.getByLabel('Nom (ex. Mon mobile, Collègue)').fill('Mon mobile');
+  await page.getByLabel('Numéro de mobile').fill('06 00 00 00 05');
+  await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(section.locator('.rdv-numero')).toHaveCount(1);
+  await section.getByRole('button', { name: 'Ajouter un numéro' }).click();
+  await page.getByLabel('Nom (ex. Mon mobile, Collègue)').fill('Doublon');
+  await page.getByLabel('Numéro de mobile').fill('+33 6 00 00 00 05');
+  await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.getByRole('dialog').locator('.erreur')).toContainText('déjà dans la liste (Mon mobile)');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
+  await expect(section.locator('.rdv-numero')).toHaveCount(1);
+});
+
 test('12 le nombre de caractères de chaque SMS est affiché, la règle des accents est expliquée, un caractère spécial est remplacé', async ({ page }) => {
   await connecter(page);
   await allerA(page, 'Réglages');

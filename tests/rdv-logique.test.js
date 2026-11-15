@@ -576,7 +576,7 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
     const maintenant = new Date().toISOString();
     const creneaux = [futur(-1), futur(3), futur(2)];
     const tous = L.bilanReponses([p('a', 'comprise', [1, 2, 3]), p('bb', 'comprise', [1, 2, 3])], 3);
-    assert.deepEqual(L.creneauxAConfirmer(tous, { creneaux, maintenant }), [2, 3], 'le 1 est passé ; 2 et 3 conviennent à tous, dans l’ordre des numéros : aucun choix d’office');
+    assert.deepEqual(L.creneauxAConfirmer(tous, { creneaux, maintenant }), [3, 2], 'le 1 est passé ; 2 et 3 conviennent à tous, proposés du plus tôt (le 3) au plus tard, chacun garde son numéro : aucun choix d’office');
     assert.equal(L.creneauAConfirmer(tous, { creneaux, maintenant }), null, 'deux créneaux communs à venir : aucun n’est choisi à la place de la professionnelle');
     assert.equal(L.bandeauCreneau(tous, { creneaux, maintenant }).texte, 'Les créneaux 2 et 3 conviennent à tout le monde. Seul toi peux en confirmer un.', 'le 1 passé n’est pas cité');
     const unSeulAvenir = L.bilanReponses([p('a', 'comprise', [1, 3]), p('bb', 'comprise', [1, 3])], 3);
@@ -588,7 +588,7 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
     const partiel = L.bilanReponses([p('a', 'comprise', [2]), p('bb', 'attente')], 3);
     assert.equal(L.creneauAConfirmer(partiel, { creneaux, maintenant }), 2);
   });
-  test('A3 plusieurs créneaux conviennent à tous : le bandeau les cite tous, la liste de choix les donne dans l’ordre, aucun n’est choisi d’office', () => {
+  test('A3l plusieurs créneaux conviennent à tous : le bandeau les cite tous, la liste de choix les donne dans l’ordre, aucun n’est choisi d’office', () => {
     const tous = L.bilanReponses([p('a', 'comprise', [1, 2]), p('bb', 'comprise', [1, 2])], 3);
     assert.deepEqual(tous.communs, [1, 2]);
     assert.equal(L.creneauAConfirmer(tous), null);
@@ -601,6 +601,25 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
     assert.deepEqual(L.creneauxAConfirmer(L.bilanReponses([p('a', 'comprise', [2]), p('bb', 'attente')], 3)), [2]);
     assert.deepEqual(L.creneauxAConfirmer(L.bilanReponses([p('a', 'attente')], 3)), []);
     assert.equal(L.creneauAConfirmer(L.bilanReponses([p('a', 'comprise', [1]), p('bb', 'comprise', [2])], 3)), 1, 'personne en commun : le créneau qui convient au plus de monde, le plus tôt à égalité');
+  });
+  test('A3m carte Kanban : plusieurs créneaux communs à venir sont comptés, un seul reste nommé, un créneau commun passé est écarté', () => {
+    const creneaux = [parisEnISO(2026, 11, 17, 10), parisEnISO(2026, 11, 18, 14), parisEnISO(2026, 11, 19, 9)];
+    const rdv = { id: 'r', creneaux, tour: 1 };
+    const ligne = (participants, maintenant = '2026-11-14T10:00:00Z') => L.ligneEtat({ rdv, participants, parametres: {}, messages: [], maintenant });
+    assert.equal(ligne([p('a', 'comprise', [1, 2]), p('b', 'comprise', [1, 2])]), '2 créneaux communs');
+    assert.equal(ligne([p('a', 'comprise', [1, 2, 3]), p('b', 'comprise', [1, 2, 3])]), '3 créneaux communs');
+    assert.equal(ligne([p('a', 'comprise', [1, 2]), p('b', 'comprise', [1, 2])], '2026-11-17T12:00:00Z'), 'Créneau commun : mer. 18 nov. 14 h', 'le 1 (mar. 17 nov. 10 h) est passé : un seul reste');
+  });
+  test('A3n le choix fait dans la fenêtre n’est valable que si la date affichée n’a pas changé et si le créneau est toujours commun et à venir', () => {
+    const rdv = { id: 'r', creneaux: [futur(2), futur(3), futur(4)], tour: 1 };
+    const parts = [p('a', 'comprise', [1, 2]), p('bb', 'comprise', [1, 2])];
+    const maintenant = new Date().toISOString();
+    assert.equal(L.choixToujoursValable(rdv, parts, 2, rdv.creneaux[1], maintenant), true);
+    assert.equal(L.choixToujoursValable({ ...rdv, creneaux: [rdv.creneaux[0], futur(5), rdv.creneaux[2]] }, parts, 2, rdv.creneaux[1], maintenant), false, 'la date du créneau 2 a changé');
+    assert.equal(L.choixToujoursValable(rdv, [p('a', 'comprise', [1, 2]), p('bb', 'comprise', [1])], 2, rdv.creneaux[1], maintenant), false, 'le créneau 2 n’est plus commun');
+    assert.equal(L.choixToujoursValable({ ...rdv, creneaux: [futur(-1), rdv.creneaux[1], rdv.creneaux[2]] }, parts, 1, rdv.creneaux[0], maintenant), false, 'le créneau 1 est passé');
+    assert.equal(L.choixToujoursValable({ ...rdv, etat: 'confirme' }, parts, 2, rdv.creneaux[1], maintenant), false, 'déjà confirmé');
+    assert.equal(L.choixToujoursValable(null, parts, 2, rdv.creneaux[1], maintenant), false);
   });
   test('L SMS de pluie et d’annulation sans nom ni date : aucune accolade visible', () => {
     for (const [type, rdv, params] of [['pluie', { client: 'M. Durand' }, {}], ['pluie', {}, {}], ['pluie', { client: 'M. Durand', etat: 'confirme' }, { nomDansLesSms: 'Mme Martin' }], ['annulation', {}, {}]]) {

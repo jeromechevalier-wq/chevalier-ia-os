@@ -8,8 +8,8 @@ import * as R from './logique.js';
 import { interrupteur, champNombre, compteurSms, EXPLICATION_ACCENTS } from './composants.js';
 import { reglagesExportRdv } from './export.js';
 
-/** Une seule fenêtre « Nom + Numéro de mobile » : une erreur de numéro s'écrit dans la fenêtre, qui reste ouverte. Rend { libelle, numero } ou null (annulé). */
-async function fenetreAjoutNumero() {
+/** Une seule fenêtre « Nom + Numéro de mobile » : une erreur de numéro s'écrit dans la fenêtre, qui reste ouverte. Un numéro déjà dans la liste est refusé de la même façon. Rend { libelle, numero } ou null (annulé). */
+async function fenetreAjoutNumero(existants = []) {
   const nom = h('input', { type: 'text', class: 'champ', 'aria-label': 'Nom (ex. Mon mobile, Collègue)', maxlength: '40', autocomplete: 'off', autofocus: true });
   const tel = h('input', { type: 'tel', class: 'champ', 'aria-label': 'Numéro de mobile', placeholder: '06 00 00 00 00', autocomplete: 'off' });
   const erreur = h('p', { class: 'erreur', role: 'alert' });
@@ -29,6 +29,8 @@ async function fenetreAjoutNumero() {
         if (!tel.value.trim()) { erreur.textContent = 'Écris le numéro de mobile.'; tel.focus(); return false; }
         const t = R.normaliserTelephone(tel.value);
         if (!t.ok) { erreur.textContent = t.message; tel.focus(); return false; }
+        const deja = existants.find((n) => n && n.numero === t.telephone);
+        if (deja) { erreur.textContent = `Ce numéro est déjà dans la liste${deja.libelle ? ` (${deja.libelle})` : ''}.`; tel.focus(); return false; }
         resultat = { libelle, numero: t.telephone };
         return true;
       } },
@@ -111,7 +113,7 @@ export function reglages(page) {
       h('option', { value: '' }, numeros.length ? 'Le premier numéro actif' : 'Ajoute d’abord un numéro'),
       numeros.map((n) => h('option', { value: n.id, selected: n.id === p.numeroAffiche }, `${n.libelle || 'Numéro'} · ${R.afficherTelephone(n.numero)}`)));
     const ajouter = h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'ajouter-numero', onclick: async () => {
-      const ajout = await fenetreAjoutNumero();
+      const ajout = await fenetreAjoutNumero(frais());
       if (!ajout) return;
       maj([...frais(), { id: L.idAleatoire().slice(0, 6), libelle: ajout.libelle, numero: ajout.numero, actif: true }]);
     } }, icone('plus', { taille: 16 }), 'Ajouter un numéro');

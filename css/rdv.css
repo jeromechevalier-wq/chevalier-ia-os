@@ -100,9 +100,12 @@
   .rdv-zone-tableau .tableau-rdv-reponses tbody { display: table-row-group; }
   .rdv-zone-tableau .tableau-rdv-reponses tr, .rdv-zone-tableau .tableau-rdv-reponses thead tr { display: table-row; overflow: visible; padding: 0; }
   .rdv-zone-tableau .tableau-rdv-reponses th, .rdv-zone-tableau .tableau-rdv-reponses td, .rdv-zone-tableau .tableau-rdv-reponses td:empty { display: table-cell; }
-  .rdv-zone-tableau .tableau-rdv-reponses thead th { border: 0; border-radius: 0; background: var(--panneau2); }
+  .rdv-zone-tableau .tableau-rdv-reponses thead th { border: 0; border-bottom: 1px solid var(--bordure); border-radius: 0; background: var(--panneau2); }
+  .rdv-zone-tableau .tableau-rdv-reponses thead th.rdv-col-creneau { border-left: 1px solid var(--bordure); } /* le trait vertical des cellules continue dans l'en-tête */
   .rdv-zone-tableau .tableau-rdv-reponses thead th.rdv-col-commun { background: color-mix(in srgb, var(--violet-clair) 35%, var(--panneau2)); }
+  .rdv-zone-tableau .tableau-rdv-reponses thead th:first-child { position: sticky; left: 0; z-index: 1; } /* « Participant » reste en place comme les noms */
   .rdv-zone-tableau .tableau-rdv-reponses tbody th { border: 0; border-bottom: 1px solid var(--bordure); border-radius: 0; background: var(--panneau); position: sticky; left: 0; }
+  .rdv-zone-tableau .tableau-rdv-reponses tbody tr.rdv-ligne-incomprise th { background: linear-gradient(var(--retard-fond), var(--retard-fond)) var(--panneau); } /* le nom collant garde le fond rouge de la ligne */
   .rdv-zone-tableau .tableau-rdv-reponses tbody tr:last-child th { border-bottom: 0; }
   .rdv-zone-tableau .tableau-rdv-reponses td { padding: var(--esp-4) var(--esp-5); }
 }

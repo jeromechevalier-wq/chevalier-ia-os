@@ -144,14 +144,23 @@ async function choisirEtConfirmer(rdv, numeros, bouton) {
   const radios = numeros.map((n) => h('label', { class: 'rdv-case' }, h('input', { type: 'radio', name: 'rdv-creneau-a-confirmer', value: String(n), 'aria-label': R.libelleCreneau(n - 1, rdv.creneaux[n - 1]) }), R.libelleCreneau(n - 1, rdv.creneaux[n - 1])));
   radios.forEach((l) => l.querySelector('input').addEventListener('change', () => { erreur.textContent = ''; }));
   const choisi = () => radios.map((l) => l.querySelector('input')).find((i) => i.checked)?.value;
+  const affichees = Object.fromEntries(numeros.map((n) => [n, rdv.creneaux[n - 1]])); // les dates telles qu'elles sont montrées dans la fenêtre
+  let change = false;
   const numero = await dialogue({
     titre: 'Quel créneau confirmer ?', classe: 'dialogue-formulaire',
     contenu: h('div', { class: 'pile', dataset: { role: 'choix-creneau' } }, h('p', {}, 'Ces créneaux conviennent à tout le monde. Choisis celui que tu confirmes.'), ...radios, erreur,
       h('p', { class: 'aide' }, 'Une fois confirmé, tout le monde sera prévenu par SMS.')),
     boutons: [{ libelle: 'Annuler', valeur: null },
-      { libelle: 'Confirmer ce créneau', valeur: () => Number(choisi()), style: 'principal', avantFermeture: () => { if (choisi()) return true; erreur.textContent = 'Choisis un créneau pour continuer.'; return false; } }],
+      { libelle: 'Confirmer ce créneau', valeur: () => Number(choisi()), style: 'principal', avantFermeture: () => {
+        if (!choisi()) { erreur.textContent = 'Choisis un créneau pour continuer.'; return false; }
+        // La fiche a pu changer pendant que la fenêtre était ouverte (réponse reçue, nouvelle série) : on relit avant d'écrire.
+        const n = Number(choisi());
+        if (!R.choixToujoursValable(D.rendezVous(rdv.id), D.participantsDe(rdv.id), n, affichees[n], new Date().toISOString())) change = true;
+        return true;
+      } }],
   });
   if (!numero) return;
+  if (change) { toast('Le créneau a changé, choisis à nouveau.', { type: 'erreur' }); return; }
   confirmationEnCours = true;
   bouton.disabled = true;
   try { await D.confirmerCreneau(rdv.id, numero); toast(`Créneau ${numero} confirmé`); } catch (e) { console.warn(e); toast(D.messageErreur(e, 'Confirmation impossible'), { type: 'erreur' }); bouton.disabled = false; } finally { confirmationEnCours = false; }

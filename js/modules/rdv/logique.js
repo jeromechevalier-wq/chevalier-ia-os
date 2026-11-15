@@ -514,11 +514,15 @@ export function etatCalcule(rdv, participants, params = {}) {
 /** Rendez-vous encore à traiter : ni archivé, ni annulé, ni confirmé. */
 export const estOuvert = (rdv) => !!rdv && !rdv.archive && !rdv.annule && rdv.etat !== 'confirme' && !rdv.creneauChoisi;
 
-/** Phrase d'état des cartes et du tableau : « 2 réponses sur 4 », « Relance 1 sur 3 demain », « Créneau commun : jeu. 19 nov. 10 h ». */
+/** Phrase d'état des cartes et du tableau : « 2 réponses sur 4 », « Relance 1 sur 3 demain », « Créneau commun : jeu. 19 nov. 10 h », « 2 créneaux communs ». */
 export function ligneEtat({ rdv, participants, parametres, messages, maintenant }) {
   const b = bilanReponses(participants, (rdv?.creneaux || []).length || MAX_CRENEAUX);
   if (rdv?.etat === 'confirme' || rdv?.creneauChoisi) return `Confirmé : ${formaterCreneau(rdv.creneauChoisi)}`;
-  if (b.complet && b.communs.length) return `Créneau commun : ${formaterCreneau(rdv.creneaux[b.communs[0] - 1])}`;
+  if (b.complet && b.communs.length) {
+    const avenir = creneauxCommunsAVenir(b, { creneaux: rdv.creneaux, maintenant });
+    if (avenir.length > 1) return `${avenir.length} créneaux communs`;
+    return `Créneau commun : ${formaterCreneau(rdv.creneaux[(avenir[0] || b.communs[0]) - 1])}`;
+  }
   if (b.complet) return 'Aucun créneau commun';
   if (b.incomprises) return b.incomprises === 1 ? 'Une réponse non comprise' : `${b.incomprises} réponses non comprises`;
   const texte = `${b.reponses} ${b.reponses > 1 ? 'réponses' : 'réponse'} sur ${b.total}`;
@@ -879,25 +883,40 @@ export function nomFichierExportRdv(maintenant = new Date()) {
 
 // ───────────────────────────── Fiche : bandeaux, confirmation, nouvelle série ─────────────────────────────
 
+/** Un créneau (numéro 1 à 3) est « à venir » si sa date est après `maintenant` ; sans `creneaux` ni `maintenant` valide, rien n'est écarté. */
+const creneauAVenir = ({ creneaux = null, maintenant = null } = {}) => (n) => !creneaux || !Number.isFinite(enMs(maintenant)) || enMs(creneaux[n - 1]) > enMs(maintenant);
+/** Instant d'un créneau (pour trier par date) ; sans `creneaux`, le numéro lui-même. */
+const instantCreneau = ({ creneaux = null } = {}) => (n) => (creneaux ? enMs(creneaux[n - 1]) : n);
+
 /** Créneaux communs à tous (réponses complètes) encore À VENIR, dans l'ordre des numéros (1, 2, 3). `creneaux` et `maintenant` (facultatifs) écartent les créneaux déjà passés. */
-export function creneauxCommunsAVenir(bilan, { creneaux = null, maintenant = null } = {}) {
-  const avenir = (n) => !creneaux || !Number.isFinite(enMs(maintenant)) || enMs(creneaux[n - 1]) > enMs(maintenant);
-  return [...(bilan?.communs || [])].filter(avenir).sort((x, y) => x - y);
+export function creneauxCommunsAVenir(bilan, options = {}) {
+  return [...(bilan?.communs || [])].filter(creneauAVenir(options)).sort((x, y) => x - y);
 }
 
 /**
- * Créneaux parmi lesquels la professionnelle choisit (tous ENCORE À VENIR) : les créneaux communs s'il y en a (un ou plusieurs, dans l'ordre des numéros), sinon le seul créneau
- * qui convient au plus de monde (à égalité : le plus tôt en date) ; liste vide s'il n'y en a aucun. Jamais de choix d'office : seule la professionnelle confirme.
+ * Créneaux parmi lesquels la professionnelle choisit (tous ENCORE À VENIR), du plus tôt au plus tard (chacun garde son numéro) : les créneaux communs s'il y en a (un ou plusieurs),
+ * sinon le seul créneau qui convient au plus de monde (à égalité : le plus tôt en date) ; liste vide s'il n'y en a aucun. Jamais de choix d'office : seule la professionnelle confirme.
  */
 export function creneauxAConfirmer(bilan, options = {}) {
-  const communs = creneauxCommunsAVenir(bilan, options);
+  const instant = instantCreneau(options);
+  const communs = creneauxCommunsAVenir(bilan, options).sort((x, y) => instant(x) - instant(y) || x - y);
   if (communs.length) return communs;
-  const { creneaux = null, maintenant = null } = options;
-  const avenir = (n) => !creneaux || !Number.isFinite(enMs(maintenant)) || enMs(creneaux[n - 1]) > enMs(maintenant);
-  const instant = (n) => (creneaux ? enMs(creneaux[n - 1]) : n);
+  const avenir = creneauAVenir(options);
   const candidats = (bilan?.parCreneau || []).map((nombre, i) => ({ numero: i + 1, nombre })).filter((c) => c.nombre > 0 && avenir(c.numero));
   candidats.sort((x, y) => y.nombre - x.nombre || instant(x.numero) - instant(y.numero));
   return candidats.length ? [candidats[0].numero] : [];
+}
+
+/**
+ * Le créneau `numero` choisi dans la fenêtre est-il toujours valable au moment de confirmer ? Il faut que sa date soit celle qui était affichée (`dateAffichee`) et qu'il soit
+ * toujours l'un des créneaux à confirmer (commun à tous et à venir, ou le seul proposé). Sinon la fiche a changé entre l'ouverture de la fenêtre et le clic : on refuse.
+ */
+export function choixToujoursValable(rdv, participants, numero, dateAffichee, maintenant) {
+  if (!rdv || !estOuvert(rdv)) return false;
+  const creneaux = rdv.creneaux || [];
+  if (!(enMs(creneaux[numero - 1]) === enMs(dateAffichee))) return false;
+  const bilan = bilanReponses(participants, creneaux.length || MAX_CRENEAUX);
+  return creneauxAConfirmer(bilan, { creneaux, maintenant }).includes(numero);
 }
 
 /**
