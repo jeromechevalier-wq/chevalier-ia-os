@@ -136,9 +136,9 @@ ClickSend a mis deux SMS d'essai en « CancelledAfterReview ». Sa page d'erreur
 
 **Décidé et fait** :
 - **Chaque SMS envoyé à un participant se termine par une ligne** « `<nom de l'entreprise>` - Répondez STOP pour vous désabonner. » (présentation, créneaux, relances, confirmation, rappel, pluie, annulation, SMS écrits à la main : ajoutée par le serveur si la professionnelle l'a effacée ; jamais deux fois si le texte porte déjà exactement cette ligne ; le mot « stop » dans un nom de client ne la fait pas sauter). Les alertes à la professionnelle n'en portent pas.
-- **Le nom de l'entreprise est un réglage** (Réglages > Rendez-vous > « Nom de l'entreprise dans les SMS », 30 caractères, `nomEntreprise`). Valeur de départ : « Chevalier IA ». Au déploiement chez Géolucie : le changer dans ses réglages (aucun changement de code).
+- **Le nom de l'entreprise est un réglage** (Réglages > Rendez-vous > « Nom de l'entreprise dans les SMS », 30 caractères, `nomEntreprise`). Valeur de départ : « Mon entreprise ». Au déploiement chez Géolucie : le changer dans ses réglages (aucun changement de code).
 - **STOP** : on le propose simplement ; si quelqu'un répond STOP, la plateforme n'envoie plus aucun SMS vers ce numéro (`rdv_parametres/desinscrits`) et **prévient la professionnelle** (alerte « a répondu STOP »).
-- Effet sur la longueur : la ligne ajoute 51 caractères avec « Chevalier IA » (jusqu'à 69 avec un nom de 30 caractères) ; certains modèles passent à 2 SMS (compté et affiché dans Réglages).
+- Effet sur la longueur : la ligne ajoute 52 caractères avec « Mon entreprise » (jusqu'à 69 avec un nom de 30 caractères) ; certains modèles passent à 2 SMS (compté et affiché dans Réglages).
 
 **À demander à ClickSend (Jérôme leur pose la question)** : (1) avec leur numéro court ou notre nom d'expéditeur, un simple « Répondez STOP » suffit-il, ou faut-il citer un numéro (« STOP au 3xxxx ») ? (2) les messages de service (confirmation, rappel de rendez-vous) doivent-ils eux aussi porter STOP ? (3) quel expéditeur utiliser en France (nom alphanumérique enregistré ou numéro court) et quelles pièces fournir ? (4) valident-ils les six modèles ? Selon leur réponse, seul le texte de `mentionStop` (`js/modules/rdv/logique.js`) change.
 
