@@ -1343,6 +1343,14 @@ describe('D1 désinscrit (STOP) : visible, et ne bloque personne', () => {
     const dus2 = L.smsDus({ rdv: recent, participants, parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 15, 10) });
     assert.equal(dus2.filter((d) => d.sousType === 'aucun').length, 1, 'un rendez-vous récent est toujours alerté');
   });
+  test('P1 aucun SMS pour une date passée : quand tous les créneaux sont passés, ni la présentation ni les créneaux ne sont dus (même après « Réautoriser » ou une panne) ; les relances ont leur propre borne', () => {
+    const passe = { ...rdv, creneaux: [parisEnISO(2026, 11, 10, 10), parisEnISO(2026, 11, 11, 14), parisEnISO(2026, 11, 12, 9)], envoiDemandeLe: parisEnISO(2026, 11, 1, 9) };
+    const parts = [pers('1'), pers('2')];
+    const types = (r, maintenant) => L.smsDus({ rdv: r, participants: parts, parametres: params, messages: [], maintenant }).map((d) => d.typeMessage);
+    assert.deepEqual(types(passe, parisEnISO(2026, 11, 15, 10)).filter((t) => ['confiance', 'creneaux', 'relance'].includes(t)), [], 'tous les créneaux sont passés : rien ne part');
+    const avenir = types(passe, parisEnISO(2026, 11, 11, 10));
+    assert.ok(avenir.includes('creneaux'), 'un créneau reste à venir : les SMS dus partent toujours');
+  });
   test('D1-4 un désinscrit dont la réponse a été SAISIE : aucun SMS de lui ne l\'efface (« 1 », nouveau STOP), trace seulement', () => {
     const saisi = stop('2', { etatReponse: 'saisie', creneauxOk: [2], reponse: 'STOP' });
     for (const texte of ['1', 'STOP', 'plutôt jeudi']) {
