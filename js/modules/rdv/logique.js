@@ -868,9 +868,11 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
 
   const envoiDemande = enMs(rdv.envoiDemandeLe);
   const confirme = rdv.etat === 'confirme' || !!rdv.creneauChoisi;
+  const limite = dernierCreneau(rdv);
+  const toutPasse = Number.isFinite(limite) && nowMs >= limite; // aucun SMS pour une date passée (décision de Jérôme, 16/11/2026) : ni présentation, ni créneaux, ni relances
 
   // 1. Premiers SMS (présentation, puis créneaux une minute après pour garder l'ordre).
-  if (Number.isFinite(envoiDemande) && !confirme) {
+  if (Number.isFinite(envoiDemande) && !confirme && !toutPasse) {
     for (const x of participants) {
       if (tour === 1) proposer({ idEcheance: idEcheance(rdv.id, tour, 'confiance', x.id), typeMessage: 'confiance', modele: 'confiance', valeurs, numero: x.telephone, participantId: x.id, instant: envoiDemande });
       proposer({ idEcheance: idEcheance(rdv.id, tour, 'creneaux', x.id), typeMessage: 'creneaux', modele: 'creneaux', valeurs, numero: x.telephone, participantId: x.id, instant: envoiDemande + MINUTE_MS });
@@ -880,7 +882,6 @@ export function smsDus({ rdv, participants = [], parametres, messages = [], main
   // 2. Relances : seulement les personnes joignables en attente (une réponse non comprise suspend leurs relances),
   //    et plus du tout quand tous les créneaux sont passés.
   const ouverts = estOuvert(rdv);
-  const limite = dernierCreneau(rdv);
   if (ouverts && nowMs < limite) {
     const cal = calendrierRelances({ rdv, participants, p, deja, desinscrits });
     for (const etape of cal.etapes) {
