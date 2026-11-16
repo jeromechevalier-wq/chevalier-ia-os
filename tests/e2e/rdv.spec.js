@@ -387,9 +387,9 @@ test('réglages : les quatorze sections sont dans la page Réglages de la coque,
   await page.getByLabel('Ton nom dans les SMS').blur();
   await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.nomDansLesSms).toBe('Mme Martin');
   await expect(page.locator('#reglages-rdv-modeles .rdv-modele-texte').first()).toContainText('Mme Martin');
-  // Le nom de l'entreprise : « Chevalier IA » tant qu'il n'est pas réglé, réglable, et présent dans la dernière ligne de chaque modèle.
-  await expect(page.getByLabel('Nom de l’entreprise dans les SMS')).toHaveValue('Chevalier IA');
-  await expect(page.locator('#reglages-rdv-modeles .rdv-modele-texte').first()).toContainText('Chevalier IA - Répondez STOP pour vous désabonner.');
+  // Le nom de l'entreprise : « Mon entreprise » tant qu'il n'est pas réglé, réglable, et présent dans la dernière ligne de chaque modèle.
+  await expect(page.getByLabel('Nom de l’entreprise dans les SMS')).toHaveValue('Mon entreprise');
+  await expect(page.locator('#reglages-rdv-modeles .rdv-modele-texte').first()).toContainText('Mon entreprise - Répondez STOP pour vous désabonner.');
   await page.getByLabel('Nom de l’entreprise dans les SMS').fill('Géolucie');
   await page.getByLabel('Nom de l’entreprise dans les SMS').blur();
   await expect.poll(async () => (await lireDocument('rdv_parametres/reglages'))?.nomEntreprise).toBe('Géolucie');
