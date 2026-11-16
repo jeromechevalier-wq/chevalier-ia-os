@@ -36,6 +36,13 @@ service cloud.firestore {
            ];
     }
 
+    // Compte de Jérôme seul (module Console, 16/11/2026) : le compte du bot n'y est pas.
+    function compteJeromeSeul() {
+      return request.auth != null
+        &amp;&amp; request.auth.token.email_verified == true
+        &amp;&amp; request.auth.token.email == &quot;jerome.chevalier@gmail.com&quot;;
+    }
+
     // Journal d'audit : lisible depuis l'appli. L'appli peut y AJOUTER les lignes de ses propres actions (canal « ecran », à son
     // nom), jamais les modifier ni les supprimer. Le serveur MCP écrit avec le SDK d'administration, qui contourne les règles.
     match /crm_audit/{id} {
@@ -213,10 +220,15 @@ service cloud.firestore {
       allow write: if compteAutorise() &amp;&amp; id != 'desinscrits';
     }
 
+    // Console (16/11/2026) : les vérifications du filet de sécurité sont lues et écrites par le compte de Jérôme seul (exclue du joker ci-dessous).
+    match /console_filet/{id} {
+      allow read, write: if compteJeromeSeul();
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        &amp;&amp; !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures']);
+        &amp;&amp; !(collection in ['console_filet', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures']);
     }
   }
 }</code></pre>
