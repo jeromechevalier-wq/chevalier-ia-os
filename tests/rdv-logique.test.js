@@ -1343,7 +1343,7 @@ describe('D1 désinscrit (STOP) : visible, et ne bloque personne', () => {
     const dus2 = L.smsDus({ rdv: recent, participants, parametres: params, messages: [], maintenant: parisEnISO(2026, 11, 15, 10) });
     assert.equal(dus2.filter((d) => d.sousType === 'aucun').length, 1, 'un rendez-vous récent est toujours alerté');
   });
-  test('P1 aucun SMS pour une date passée : quand tous les créneaux sont passés, ni présentation, ni créneaux, ni relances ne partent (même après « Réautoriser »)', () => {
+  test('P1 aucun SMS pour une date passée : quand tous les créneaux sont passés, ni la présentation ni les créneaux ne sont dus (même après « Réautoriser » ou une panne) ; les relances ont leur propre borne', () => {
     const passe = { ...rdv, creneaux: [parisEnISO(2026, 11, 10, 10), parisEnISO(2026, 11, 11, 14), parisEnISO(2026, 11, 12, 9)], envoiDemandeLe: parisEnISO(2026, 11, 1, 9) };
     const parts = [pers('1'), pers('2')];
     const types = (r, maintenant) => L.smsDus({ rdv: r, participants: parts, parametres: params, messages: [], maintenant }).map((d) => d.typeMessage);
