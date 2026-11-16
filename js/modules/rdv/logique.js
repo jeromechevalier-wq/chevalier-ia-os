@@ -36,8 +36,8 @@ const JOURS_LONGS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendred
 const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 const MOIS_LONGS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
-/** Nom de l'entreprise écrit dans les SMS (réglable dans Réglages > Rendez-vous ; « Chevalier IA » tant qu'il n'est pas réglé). */
-export const NOM_ENTREPRISE_DEFAUT = 'Chevalier IA';
+/** Nom de l'entreprise écrit dans les SMS (réglable dans Réglages > Rendez-vous ; « Mon entreprise » tant qu'il n'est pas réglé). */
+export const NOM_ENTREPRISE_DEFAUT = 'Mon entreprise';
 export const NOM_ENTREPRISE_MAX = 30;
 const nomEntrepriseDe = (p) => normaliserSms(String(p?.nomEntreprise ?? '')).replace(/\s+/g, ' ').trim().slice(0, NOM_ENTREPRISE_MAX).trim() || NOM_ENTREPRISE_DEFAUT; // accents, €, guillemets… remplacés comme dans tout SMS
 

@@ -125,7 +125,7 @@ describe('tirer : envoi des SMS dus', () => {
       assert.equal(a.options.headers.Authorization, `Basic ${Buffer.from('compte-test:cle-de-test-pas-un-vrai-secret').toString('base64')}`);
       assert.equal(a.corps.messages.length, 1);
       assert.match(a.corps.messages[0].body, /^Bonjour, c'est Mme Martin\./);
-      assert.match(a.corps.messages[0].body, /Chevalier IA - Répondez STOP pour vous désabonner\.$/);
+      assert.match(a.corps.messages[0].body, /Mon entreprise - Répondez STOP pour vous désabonner\.$/);
       assert.equal('from' in a.corps.messages[0], false, 'sans expéditeur réglé, ClickSend choisit le sien');
     }
     assert.deepEqual(m.appels.map((a) => a.corps.messages[0].to).sort(), ['+33600000001', '+33600000002']);
