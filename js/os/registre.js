@@ -293,9 +293,30 @@ export const MODULES_DECLARES = geler([
     outilsMcp: [],
     dependances: [],
   },
+  {
+    // Console (16/11/2026) : outil d'exploitation de Jérôme (espaces, modules actifs, activité, secrets, filet de sécurité). RÉSERVÉ à Jérôme par exception écrite
+    // (CLAUDE.md, docs/console.md) : `seulJerome` = jamais dans IDS_MODULES (un client ne peut ni l'activer ni le nommer), jamais dans MODULES_CLIENT, et caché à tout
+    // autre compte que le sien à la racine. La vraie barrière est la fonction `consoleEtat` du serveur (identité contrôlée à chaque appel).
+    id: 'console',
+    nom: 'Console',
+    libelleMenu: 'Console',
+    iconeMenu: 'shield-check',
+    prefixe: 'console',
+    seulJerome: true,
+    reglages: { sections: [{ id: 'reglages-export-console', libelle: 'Sauvegarde' }] },
+    entreeMenu: 'console/vue',
+    ecrans: [
+      { route: 'console/vue', libelle: 'Vue d\'ensemble', icone: 'layout-dashboard' },
+      { route: 'console/filet', libelle: 'Filet de sécurité', icone: 'shield-check' },
+    ],
+    collections: ['console_filet'],
+    outilsMcp: [],
+    dependances: [],
+  },
 ]);
 
-export const IDS_MODULES = geler(MODULES_DECLARES.map((m) => m.id));
+// Les modules `seulJerome` (Console) n'y figurent pas : un client ne peut ni les activer ni les nommer (« Module inconnu »).
+export const IDS_MODULES = geler(MODULES_DECLARES.filter((m) => !m.seulJerome).map((m) => m.id));
 
 /**
  * Groupes du menu : plusieurs modules techniques montrés comme UN seul bloc dans le menu et dans les Réglages.
@@ -406,6 +427,7 @@ export function verifierActivation(demandes) {
   const erreurs = [];
   for (const m of MODULES_DECLARES) {
     if (!demandes_.has(m.id)) continue;
+    if (m.seulJerome) { erreurs.push(`Le module « ${m.nom} » est réservé à Jérôme : il ne peut pas être activé chez un client.`); continue; }
     const manquantes = m.dependances.filter((d) => !actifs.includes(d));
     if (manquantes.length) {
       const noms = manquantes.map((d) => moduleDeclare(d).nom).join(', ');
@@ -420,7 +442,7 @@ export function verifierActivation(demandes) {
 /** Modules actifs d'un client d'après sa fiche `clients/<client>` (peut être null) : { actifs, erreurs }. Aucun champ = aucun module actif. */
 export function modulesActifsDuClient(fiche) {
   const lu = lireModulesDemandes(fiche);
-  const v = verifierActivation(lu.demandes);
+  const v = verifierActivation(lu.demandes.filter((id) => !moduleDeclare(id)?.seulJerome));
   return { actifs: v.actifs, erreurs: [...lu.erreurs, ...v.erreurs] };
 }
 
@@ -562,6 +584,7 @@ export function interrupteursDuClient(actifs) {
   const vus = new Set();
   const lignes = [];
   for (const m of MODULES_DECLARES) {
+    if (m.seulJerome) continue; // jamais un interrupteur : la Console n'est pas activable chez un client
     const groupe = groupeDuModule(m.id);
     const id = groupe ? groupe.id : m.id;
     if (vus.has(id)) continue;
