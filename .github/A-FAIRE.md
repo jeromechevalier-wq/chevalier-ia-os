@@ -2,6 +2,14 @@
 
 Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de session) ; avant : 08/11/2026 (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Mise à jour du 16/11/2026 (module Console, phase 0)
+
+| | Sujet | État | Qui |
+|---|---|---|---|
+| 🟢 | Module Console (réservé à Jérôme) : Vue d'ensemble et Filet de sécurité ; fonction `consoleEtat` **absente chez les clients** (raison : outil d'exploitation de Jérôme, décision du 16/11/2026, `RESERVEES_JEROME`) | à fusionner | Claude |
+| 🟡 | Phase 1 : lecture des espaces, des modules actifs et de l'activité ; passer `consoleEtat` au compte `console-serveur` (lecture seule) avec son autorisation de déploiement | à faire | Claude, puis Jérôme (jeton d'une heure) |
+| 🟡 | Phases 2 à 4 de `docs/console.md` (secrets, versions, écritures en PR séparées relues par Fable) | à faire | Claude |
+
 ## Mise à jour du 15/11/2026 (e-mail d'un client sans Gmail)
 
 | | Sujet | État | Qui |

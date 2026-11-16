@@ -7,7 +7,8 @@ import { estRouteEspace } from './os/marque.js';
 import { blocIntrouvablePortail } from './os/portail-introuvable.js';
 import { actionsDuPortail } from './os/portail-actions.js';
 import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe, ecranSocleDeRoute } from './os/portail.js';
-import { MODULES } from './os/modules.js';
+import { MODULES as MODULES_TOUS } from './os/modules.js';
+import { peutVoirConsole } from './modules/console/acces.js';
 import { demarrerObjectifs, arreterObjectifs } from './os/objectifs.js';
 import { monterReglages } from './os/reglages.js';
 import { rendreJournal } from './os/journal.js';
@@ -71,8 +72,12 @@ function afficherChargement() {
   remplir(racine, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement')));
 }
 
+// Modules de la session : la Console (`seulJerome`) n'existe que pour le compte de Jérôme (le serveur recontrôle l'identité à chaque appel).
+let MODULES = MODULES_TOUS;
+
 async function ouvrirSession(compte) {
   fermerSession();
+  MODULES = MODULES_TOUS.filter((m) => !m.seulJerome || peutVoirConsole(compte));
   afficherChargement();
   const apis = new Map();
   for (const m of MODULES) {

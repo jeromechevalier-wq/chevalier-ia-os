@@ -42,6 +42,7 @@ import { copieInterne, administrateur, Refus } from './automatisations/appels.js
 import { creerLecteurN8n } from '../partage/automatisations/n8n.js';
 import { creerAppelDeploiement, ligneDeJournalDeploiement } from './deploiement-appel.js';
 import { VERSION_SERVEUR } from './version.js';
+import { creerAppelConsole, ligneDeJournalConsole } from './console/appel.js';
 
 const magasin = creerMagasin({ lire: lireSecretJetons() });
 const donnees = creerAccesFirestore();
@@ -103,6 +104,14 @@ export const tableaudebordSaisir = onCall(
     if (!getApps().length) initializeApp();
     return creerAppelSaisie({ donnees: creerAdaptateur({ db: getFirestore() }), journal: (e) => process.stdout.write(`${ligneDeJournalSaisie(e)}\n`) })(requete);
   },
+);
+
+// `consoleEtat` : appelée par la Console (module réservé à Jérôme, exception du 16/11/2026). Contrôle l'identité à chaque appel (un seul compte) ; phase 0 : ne lit aucune base ni aucun secret.
+// Absente de la plateforme (RESERVEES_JEROME). Compte de service de la porte pour l'instant : le compte `console-serveur` (lecture seule) prendra le relais en phase 1, avec l'autorisation de
+// déploiement à lui donner en même temps.
+export const consoleEtat = onCall(
+  { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com' },
+  (requete) => creerAppelConsole({ version: VERSION_SERVEUR, journal: (e) => process.stdout.write(`${ligneDeJournalConsole(e)}\n`) })(requete),
 );
 
 // `automatisationsDecider` : appelée par l'écran « À valider » du module Automatisations (valider, refuser ou relancer une proposition). Contrôle l'appelant (mêmes comptes que `veille`),

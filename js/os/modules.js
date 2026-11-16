@@ -18,6 +18,7 @@ const MONTAGES = {
   automatisations: () => import('../modules/automatisations/index.js'),
   tableaudebord: () => import('../modules/tableaudebord/index.js'),
   mcp: () => import('../modules/mcp/index.js'),
+  console: () => import('../modules/console/index.js'),
 };
 
 const versModule = (d) => ({
@@ -25,6 +26,7 @@ const versModule = (d) => ({
   libelle: d.libelleMenu,
   icone: d.iconeMenu,
   entrees: d.ecrans.map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone })), // sous entrées du menu (et routes principales)
+  ...(d.seulJerome ? { seulJerome: true } : {}), // module réservé à Jérôme (Console) : js/main.js ne le monte que pour son compte
   prefixe: d.prefixe, // préfixe des routes gérées par le module (#/crm/...)
   monter: MONTAGES[d.id],
 });
@@ -34,4 +36,5 @@ const versModule = (d) => ({
 // le 18/10/2026 : sa page ne lit rien dans la base à la racine.
 export const MODULES = MODULES_DECLARES.map(versModule);
 // Espace d'un client de la plateforme : tous les modules possibles (espace-modules.js ne garde que ses modules actifs).
-export const MODULES_CLIENT = MODULES_DECLARES.map(versModule);
+// La Console (`seulJerome`) n'y est jamais : décision du 16/11/2026.
+export const MODULES_CLIENT = MODULES_DECLARES.filter((d) => !d.seulJerome).map(versModule);

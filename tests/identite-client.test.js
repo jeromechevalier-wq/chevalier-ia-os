@@ -170,6 +170,8 @@ describe('inventaire des textes d\'identité de Jérôme dans le code de l\'inte
     'js/modules/projets/fiche-projet.js': 'lanceurs masqués chez un client',
     'js/os/google-drive.js': 'nom du dossier parent créé tout seul : « Chevalier IA OS » à la racine, « Chevalier IA - <nom de l\'espace> » chez un client (voulu)',
     'js/modules/projets/projets.js': 'GitHub / célébration de clôture coupée chez un client',
+    'js/modules/console/logique.js': 'module Console réservé à Jérôme (16/11/2026) : jamais monté ni activable chez un client ; la liste du filet cite « Jérôme indisponible »',
+    'js/os/modules.js': 'champ `seulJerome` de la Console (module réservé à Jérôme, jamais dans MODULES_CLIENT)',
   };
   const MOTS = /Chevalier|Jérôme|Jerome|Charles|Hermes|Claude Code/;
   test('toute mention dans le code est connue et traitée (sinon : décider si elle doit être masquée chez un client)', () => {

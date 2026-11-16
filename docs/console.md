@@ -31,7 +31,7 @@ Ces rôles ne permettent pas de lire la valeur d'un secret (seulement son nom, s
 
 | Onglet | Contenu | Phase |
 |---|---|---|
-| Vue d'ensemble | Sélecteur de plateforme en haut à gauche (première entrée « Toutes les plateformes »), nombre d'espaces, version déployée, alertes ouvertes, état des sauvegardes | 0 (squelette), 1 |
+| Vue d'ensemble | Sélecteur de plateforme (première entrée « Toutes les plateformes », la plateforme est dans l'adresse), résumé du filet, réponse du serveur ; plus tard nombre d'espaces, version déployée, alertes | 0, 1 |
 | Espaces et modules | Tableau espaces × modules (champ `modules` de chaque espace), dépendances manquantes en alerte | 1 |
 | Activité | Écritures du journal par jour, par module et par espace ; espaces silencieux depuis 7 jours | 1 |
 | Secrets | Carte : nom, rôle, projet, dernière version, comptes ayant accès ; alertes manquant, orphelin, droit absent | 2 |
@@ -53,7 +53,7 @@ Ces rôles ne permettent pas de lire la valeur d'un secret (seulement son nom, s
 
 ## 6. Phases (chacune utile seule)
 
-0. **Cadre** : exception écrite, accès verrouillé et testé, squelette des écrans, Filet de sécurité tenu à la main par Jérôme (table `console_filet`).
+0. **Cadre (fait le 16/11/2026)** : exception écrite, accès verrouillé et testé (fonction `consoleEtat`, menu et montage cachés aux autres comptes), deux écrans (Vue d'ensemble avec sélecteur de plateforme, Filet de sécurité de 7 vérifications que Jérôme date à la main dans la table `console_filet`), export des données. `consoleEtat` tourne avec le compte de service de la porte tant qu'elle ne lit rien : elle passera au compte `console-serveur` en phase 1, avec l'autorisation de déploiement à lui donner en même temps (un compte sans cette autorisation ferait échouer le déploiement des fonctions).
 1. **Lecture** : espaces, modules actifs, activité (lecture seule des deux projets, par `console-serveur`).
 2. **Secrets, versions, cercles** : carte des secrets avec ses trois alertes, version par espace.
 3. **Écritures** : activer ou désactiver un module chez un espace, lancer un déploiement par bouton (workflow GitHub). PR séparée, Fable obligatoire.

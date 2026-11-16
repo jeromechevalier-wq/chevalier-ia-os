@@ -22,7 +22,7 @@ describe('registre : déclarations', () => {
     for (const m of MODULES_DECLARES) {
       assert.match(m.id, /^[a-z]+$/);
       assert.ok(m.nom && m.libelleMenu && m.iconeMenu && m.prefixe, m.id);
-      assert.ok(m.ecrans.length > 0 && (m.collections.length > 0 || m.id === 'mcp') && (m.outilsMcp.length > 0 || ['automatisations', 'veille', 'reseauxsociaux', 'rdv', 'tableaudebord', 'mcp'].includes(m.id)), m.id); // « mcp » n'a ni données ni outil à lui : il allume le lien du client
+      assert.ok(m.ecrans.length > 0 && (m.collections.length > 0 || m.id === 'mcp') && (m.outilsMcp.length > 0 || ['automatisations', 'veille', 'reseauxsociaux', 'rdv', 'tableaudebord', 'mcp', 'console'].includes(m.id)), m.id); // « mcp » n'a ni données ni outil à lui : il allume le lien du client
       for (const e of m.ecrans) {
         assert.ok(e.route.startsWith(`${m.prefixe}/`) && e.libelle && e.icone, `${m.id} ${e.route}`);
       }
@@ -49,7 +49,8 @@ describe('registre : déclarations', () => {
   test('les collections déclarées sont exactement celles que le code du CRM et de Projets lit (sauvegarde complète)', () => {
     // Exception voulue (16/10/2026) : le module Automatisations ne copie que l'historique de n8n (refaisable depuis n8n, volumineux) ; ses collections
     // (workflows, executions, sync) ne sont pas dans l'export JSON du CRM. À reprendre si Jérôme veut les sauvegarder.
-    const SANS_SAUVEGARDE = ['automatisations', 'tableaudebord']; // tableaudebord (17/10/2026) : relevés refaits chaque jour par les scripts de surveillance
+    // console (16/11/2026) : le module a son propre bouton « Exporter mes données » (Réglages > Console) ; sa table `console_filet` (dates de vérification à la main) n'est pas dans l'export complet du CRM.
+    const SANS_SAUVEGARDE = ['automatisations', 'tableaudebord', 'console']; // tableaudebord (17/10/2026) : relevés refaits chaque jour par les scripts de surveillance
     const declarees = MODULES_DECLARES.filter((m) => !SANS_SAUVEGARDE.includes(m.id)).flatMap((m) => m.collections).sort();
     const source = lire('js/modules/crm/donnees.js');
     const bloc = source.match(/COLLECTIONS_CRM = \[([\s\S]*?)\]/)[1];
@@ -241,6 +242,11 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
     // Ajout voulu (PR B, 18/10/2026) : « Connecter mon ChatGPT » est chez Jérôme aussi (il s'ouvre depuis le menu utilisateur, pas depuis le menu principal).
     { id: 'mcp', libelle: 'Connecter mon ChatGPT', icone: 'link', prefixe: 'mcp', entrees: [
       { chemin: 'mcp/infos', libelle: 'Connexion', icone: 'link' },
+    ] },
+    // Ajout voulu (16/11/2026) : la Console, réservée à Jérôme (seulJerome : js/main.js ne la monte que pour son compte, jamais chez un client).
+    { id: 'console', libelle: 'Console', icone: 'shield-check', prefixe: 'console', seulJerome: true, entrees: [
+      { chemin: 'console/vue', libelle: 'Vue d\'ensemble', icone: 'layout-dashboard' },
+      { chemin: 'console/filet', libelle: 'Filet de sécurité', icone: 'shield-check' },
     ] },
   ];
   test('MODULES (menu, routes, libellés, icônes, ordre) est identique à celui d\'avant', () => {
