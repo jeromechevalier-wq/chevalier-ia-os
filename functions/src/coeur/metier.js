@@ -681,8 +681,8 @@ export async function supprimerActivite(c, args) {
 }
 
 // ---------------------------------------------------------------- fichiers de l'onglet « Documents » (28/10/2026)
-// Un assistant ne peut PAS envoyer un fichier du chat (aucun outil MCP n'accepte des octets, et il ne peut pas les écrire à la main) : il dépose du TEXTE (txt, md, csv, 64 Ko au plus).
-// Les PDF, images et autres fichiers se déposent à l'écran, dans l'onglet « Documents » de l'affaire ou du projet. Le code du dépôt, des contrôles et de la suppression est celui des fonctions de l'écran (documents.js).
+// Deux entrées pour un assistant : contenuTexte (txt, md, csv, 64 Ko) ou contenuBase64 (tout autre fichier). Un assistant ne doit jamais composer lui-même le base64 d'un fichier : c'est l'application (qui lit le fichier sur l'ordinateur de l'utilisateur,
+// après son approbation) qui remplace la référence « sha256:… » par le contenu. Si elle ne le fait pas, le dépôt est refusé avec un message clair (essai du 16/11/2026). Le code du dépôt, des contrôles et de la suppression est celui des fonctions de l'écran (documents.js).
 
 /** Erreur du service des fichiers -> refus métier lisible par l'assistant. */
 function refusDocument(e) {
@@ -691,10 +691,26 @@ function refusDocument(e) {
   refuser(code, e.message);
 }
 
-export async function deposerDocumentTexte(c, args) {
+/** Un assistant dépose au plus 5 Mo (la fonction MCP n'a que 256 Mo de mémoire : le corps base64 est tenu plusieurs fois en mémoire) ; l'écran, lui, va jusqu'à 20 Mo. */
+const MCP_BINAIRE_MAX_OCTETS = 5 * 1024 * 1024;
+
+export async function deposerDocumentMcp(c, args) {
   try {
     const { cibleType, cibleId } = DOC.lireCible(args);
-    const octets = DOC.octetsDeTexte(args.nom, args.contenuTexte);
+    const texte = args.contenuTexte !== undefined;
+    const binaire = args.contenuBase64 !== undefined;
+    if (texte === binaire) refuser('saisie_invalide', 'Donner contenuTexte (fichier texte) OU contenuBase64 (autre fichier), un seul des deux.');
+    let octets;
+    if (texte) octets = DOC.octetsDeTexte(args.nom, args.contenuTexte);
+    else {
+      const brut = args.contenuBase64.replace(/\s+/g, '');
+      if (/^sha256:/i.test(brut)) {
+        refuser('saisie_invalide', 'La référence de fichier n\'a pas été remplacée par le contenu du fichier : cette application ne la fournit pas pour cet outil. Rien n\'a été enregistré. L\'utilisateur peut cliquer « Ajouter un fichier » dans l\'onglet « Documents » de l\'affaire ou du projet.');
+      }
+      if (Math.floor(brut.length * 3 / 4) > MCP_BINAIRE_MAX_OCTETS) refuser('saisie_invalide', `Fichier trop gros pour cet outil (${MCP_BINAIRE_MAX_OCTETS / 1024 / 1024} Mo au plus) : l'utilisateur clique « Ajouter un fichier » dans l'onglet « Documents » de l'affaire ou du projet.`);
+      octets = DOC.decoderBase64(brut, await DOC.lireReglageTaille(c.donnees));
+      await c.reserverEcriture?.(); // plafond d'écriture réservé AVANT d'envoyer le fichier au stockage : sinon un jeton au plafond laisserait des fichiers sans fiche, hors quota
+    }
     const r = await DOC.deposerDocument({
       donnees: c.donnees, stockage: c.stockage?.() ?? null, espace: c.espace ?? '', ctx: { acteur: c.acteur, maintenant: c.maintenant },
       ecrire: (operations, parametres) => c.ecrire({ operations, parametres }), cibleType, cibleId, nom: args.nom, octets,

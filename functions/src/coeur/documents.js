@@ -156,12 +156,12 @@ export function decoderBase64(contenu, reglage) {
   return Buffer.from(contenu, 'base64');
 }
 
-/** MCP : seulement du TEXTE (un assistant ne peut pas émettre les octets d'un PDF). Rend le Buffer UTF-8 ; refuse tout type qui n'est pas du texte. */
+/** MCP, champ contenuTexte : seulement du TEXTE (les autres fichiers passent par contenuBase64). Rend le Buffer UTF-8 ; refuse tout type qui n'est pas du texte. */
 export function octetsDeTexte(nom, contenuTexte) {
   if (typeof contenuTexte !== 'string' || !contenuTexte) throw new ErreurDocument('demande_invalide', 'contenuTexte est manquant.');
   const ext = /\.([A-Za-z0-9]{1,10})$/.exec(String(nom ?? ''))?.[1]?.toLowerCase();
   if (!['txt', 'md', 'csv'].includes(ext)) {
-    throw new ErreurDocument('refuse', `Par cet outil, seuls les fichiers texte (.txt, .md, .csv) peuvent être déposés. Pour un PDF, une image ou un autre fichier (${TYPES_ACCEPTES_TEXTE}) : onglet « Documents » de l'affaire ou du projet, à l'écran.`);
+    throw new ErreurDocument('refuse', `Par contenuTexte, seuls les fichiers texte (.txt, .md, .csv) peuvent être déposés. Pour un PDF, une image ou un autre fichier (${TYPES_ACCEPTES_TEXTE}) : contenuBase64, ou l'onglet « Documents » de l'affaire ou du projet, à l'écran.`);
   }
   const octets = Buffer.from(contenuTexte, 'utf8');
   if (octets.length > TEXTE_MCP_MAX_OCTETS) throw new ErreurDocument('refuse', `Texte trop long (${octets.length} octets, maximum ${TEXTE_MCP_MAX_OCTETS / 1024} Ko) : pour un gros fichier, onglet « Documents » de l'écran.`);

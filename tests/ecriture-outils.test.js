@@ -1318,6 +1318,33 @@ describe('R. deposer_document, supprimer_document_stocke, lister_documents (fich
     refuse(await droit.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'x.txt', contenuTexte: 'a' }), /pas le droit/);
     assert.equal((droit.collections.documents_stockes ?? []).length, 0);
   });
+  test('R2b contenuBase64 : un PDF et une image se déposent (octets exacts, type, journal sans le contenu) ; les deux champs ensemble ou aucun sont refusés', async () => {
+    const st = fauxStockage();
+    const s = await demarrer({ stockage: st });
+    const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n', 'latin1');
+    const r = ok(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'pièce.pdf', contenuBase64: pdf.toString('base64') }));
+    assert.equal(r.taille, pdf.length);
+    const fiche = s.doc('documents_stockes', r.id);
+    assert.equal(fiche.typeMime, 'application/pdf');
+    assert.deepEqual([...st.objets.get(fiche.chemin).octets], [...pdf], 'octets identiques');
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xd9]);
+    const avecRetours = jpeg.toString('base64').replace(/(.{8})/g, '$1\n'); // une application peut couper les lignes
+    const j = ok(await s.appeler('biblio', 'deposer_document', { affaireId: 'a2', nom: 'photo.jpg', contenuBase64: avecRetours }));
+    assert.equal(j.taille, jpeg.length);
+    assert.ok(!JSON.stringify(s.collections.crm_audit).includes(pdf.toString('base64')), 'le contenu du fichier n’entre pas dans le journal');
+    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'x.txt', contenuTexte: 'a', contenuBase64: 'YQ==' }), /un seul des deux/);
+    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'x.txt' }), /un seul des deux/);
+  });
+  test('R2c contenuBase64 refusé : référence « sha256: » non remplacée (message clair), base64 faux, contenu qui ne correspond pas à l’extension, type interdit, trop gros, lecteur', async () => {
+    const s = await demarrer({ stockage: fauxStockage() });
+    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'p.pdf', contenuBase64: `sha256:${'a'.repeat(64)}:/Users/x/Downloads/p.pdf` }), /n'a pas été remplacée/);
+    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'p.pdf', contenuBase64: 'pas du base64 !' }), /n'est pas valide/);
+    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'p.pdf', contenuBase64: Buffer.from('ceci n’est pas un PDF').toString('base64') }), /ne correspond pas à son extension/);
+    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'x.exe', contenuBase64: Buffer.from('MZ').toString('base64') }));
+    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'gros.pdf', contenuBase64: Buffer.alloc(Math.round(5.1 * 1024 * 1024), 65).toString('base64') }), /trop gros pour cet outil \(5 Mo/);
+    refuse(await s.appeler('lecteur', 'deposer_document', { affaireId: 'a1', nom: 'p.pdf', contenuBase64: Buffer.from('%PDF-1.4').toString('base64') }));
+    assert.equal((s.collections.documents_stockes ?? []).length, 0, 'rien n’est écrit après un refus');
+  });
   test('R3 supprimer_document_stocke : aperçu puis code, corbeille logique (fichier intact), restaurable ; retirer_document n’y touche pas', async () => {
     const st = fauxStockage();
     const s = await demarrer({ stockage: st });

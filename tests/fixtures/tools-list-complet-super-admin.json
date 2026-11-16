@@ -4520,7 +4520,7 @@
  },
  {
   "name": "deposer_document",
-  "description": "Dépose un fichier TEXTE (.txt, .md ou .csv, 64 Ko au plus, UTF-8) dans l'onglet « Documents » d'une affaire (affaireId) ou d'un projet (projetId), un seul des deux : le fichier est rangé chez nous (stockage de l'espace), visible de tous les membres. contenuTexte = le texte lui-même. LIMITE : cet outil ne peut PAS déposer un PDF, une image ni un fichier reçu dans la conversation (un assistant ne peut pas transmettre les octets d'un fichier) : pour cela, l'utilisateur ouvre l'onglet « Documents » de l'affaire ou du projet et clique « Ajouter un fichier ». Pour un simple lien (Drive, site), utiliser joindre_lien. Récupérable avec restaurer_depuis_audit (la fiche disparaît ; le fichier reste en réserve).",
+  "description": "Dépose un fichier dans l'onglet « Documents » d'une affaire (affaireId) ou d'un projet (projetId), un seul des deux : le fichier est rangé chez nous (stockage de l'espace), visible de tous les membres. Deux façons, une seule à la fois. (1) Un fichier TEXTE (.txt, .md, .csv ; 64 Ko au plus, UTF-8) : contenuTexte = le texte lui-même. (2) Tout autre fichier (PDF, image, Office…) : contenuBase64 = le contenu du fichier, tel que l'application le fournit : quand le fichier est sur l'ordinateur de l'utilisateur, mettre dans contenuBase64 la référence « sha256:<empreinte SHA-256 du fichier en 64 caractères hexadécimaux minuscules>:<chemin absolu du fichier, avec / entre les dossiers> » et donner le nom du fichier dans nom (avec son extension) : l'application remplace la référence par le contenu réel après l'approbation de l'utilisateur. N'écris JAMAIS toi-même le contenu d'un fichier en base64 (une seule erreur le corrompt) ; si l'application ne remplace pas la référence, le dépôt est refusé (« n'a pas été remplacée ») : dis-le à l'utilisateur, qui peut alors cliquer « Ajouter un fichier » dans l'onglet « Documents ». Types refusés : exécutables, scripts, HTML, SVG, types inconnus ; taille maximale par cet outil : 5 Mo (au-delà, l'utilisateur passe par « Ajouter un fichier »). Pour un simple lien (Drive, site), utiliser joindre_lien. Un document d'identité (carte, passeport) est visible de tous les membres de l'espace : ne le dépose que si l'utilisateur le demande. Récupérable avec restaurer_depuis_audit (la fiche disparaît ; le fichier reste en réserve).",
   "inputSchema": {
    "$schema": "http://json-schema.org/draft-07/schema#",
    "type": "object",
@@ -4539,18 +4539,24 @@
      "type": "string",
      "minLength": 1,
      "maxLength": 120,
-     "description": "Nom du fichier AVEC son extension : .txt, .md ou .csv (ex. « compte-rendu-reunion.md »)."
+     "description": "Nom du fichier AVEC son extension (ex. « compte-rendu-reunion.md », « devis-signe.pdf »)."
     },
     "contenuTexte": {
+     "description": "Fichier texte seulement (.txt, .md, .csv) : le contenu, en texte (UTF-8, 64 Ko au plus). Ne pas combiner avec contenuBase64.",
      "type": "string",
      "minLength": 1,
-     "maxLength": 70000,
-     "description": "Le contenu du fichier, en texte (UTF-8, 64 Ko au plus)."
+     "maxLength": 70000
+    },
+    "contenuBase64": {
+     "description": "Autre fichier (PDF, image…) : son contenu encodé en base64, ou la référence « sha256:<64 hexa>:<chemin absolu> » que l'application remplace par le contenu. Ne pas combiner avec contenuTexte.",
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 7200000,
+     "format": "byte"
     }
    },
    "required": [
-    "nom",
-    "contenuTexte"
+    "nom"
    ]
   },
   "annotations": {
