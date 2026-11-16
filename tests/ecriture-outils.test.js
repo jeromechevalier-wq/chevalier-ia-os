@@ -1341,7 +1341,7 @@ describe('R. deposer_document, supprimer_document_stocke, lister_documents (fich
     refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'p.pdf', contenuBase64: 'pas du base64 !' }), /n'est pas valide/);
     refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'p.pdf', contenuBase64: Buffer.from('ceci n’est pas un PDF').toString('base64') }), /ne correspond pas à son extension/);
     refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'x.exe', contenuBase64: Buffer.from('MZ').toString('base64') }));
-    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'gros.pdf', contenuBase64: Buffer.alloc(21 * 1024 * 1024, 65).toString('base64') }), /trop gros|Mo/i);
+    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'gros.pdf', contenuBase64: Buffer.alloc(Math.round(5.1 * 1024 * 1024), 65).toString('base64') }), /trop gros pour cet outil \(5 Mo/);
     refuse(await s.appeler('lecteur', 'deposer_document', { affaireId: 'a1', nom: 'p.pdf', contenuBase64: Buffer.from('%PDF-1.4').toString('base64') }));
     assert.equal((s.collections.documents_stockes ?? []).length, 0, 'rien n’est écrit après un refus');
   });

@@ -691,6 +691,9 @@ function refusDocument(e) {
   refuser(code, e.message);
 }
 
+/** Un assistant dépose au plus 5 Mo (la fonction MCP n'a que 256 Mo de mémoire : le corps base64 est tenu plusieurs fois en mémoire) ; l'écran, lui, va jusqu'à 20 Mo. */
+const MCP_BINAIRE_MAX_OCTETS = 5 * 1024 * 1024;
+
 export async function deposerDocumentMcp(c, args) {
   try {
     const { cibleType, cibleId } = DOC.lireCible(args);
@@ -704,7 +707,9 @@ export async function deposerDocumentMcp(c, args) {
       if (/^sha256:/i.test(brut)) {
         refuser('saisie_invalide', 'La référence de fichier n\'a pas été remplacée par le contenu du fichier : cette application ne la fournit pas pour cet outil. Rien n\'a été enregistré. L\'utilisateur peut cliquer « Ajouter un fichier » dans l\'onglet « Documents » de l\'affaire ou du projet.');
       }
+      if (Math.floor(brut.length * 3 / 4) > MCP_BINAIRE_MAX_OCTETS) refuser('saisie_invalide', `Fichier trop gros pour cet outil (${MCP_BINAIRE_MAX_OCTETS / 1024 / 1024} Mo au plus) : l'utilisateur clique « Ajouter un fichier » dans l'onglet « Documents » de l'affaire ou du projet.`);
       octets = DOC.decoderBase64(brut, await DOC.lireReglageTaille(c.donnees));
+      await c.reserverEcriture?.(); // plafond d'écriture réservé AVANT d'envoyer le fichier au stockage : sinon un jeton au plafond laisserait des fichiers sans fiche, hors quota
     }
     const r = await DOC.deposerDocument({
       donnees: c.donnees, stockage: c.stockage?.() ?? null, espace: c.espace ?? '', ctx: { acteur: c.acteur, maintenant: c.maintenant },
