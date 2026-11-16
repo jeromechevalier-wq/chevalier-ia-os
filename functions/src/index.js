@@ -107,7 +107,7 @@ export const tableaudebordSaisir = onCall(
 );
 
 // `consoleEtat` : appelée par la Console (module réservé à Jérôme, exception du 16/11/2026). Contrôle l'identité à chaque appel (un seul compte) ; phase 0 : ne lit aucune base ni aucun secret.
-// Absente de la plateforme (RESERVEES_JEROME). Compte de service de la porte pour l'instant : le compte `console-serveur` (lecture seule) prendra le relais en phase 1, avec l'autorisation de
+// Absente de la plateforme (RESERVEES_JEROME). Compte de service de la porte pour l'instant : un compte dédié en lecture seule prendra le relais en phase 1, avec l'autorisation de
 // déploiement à lui donner en même temps.
 export const consoleEtat = onCall(
   { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com' },

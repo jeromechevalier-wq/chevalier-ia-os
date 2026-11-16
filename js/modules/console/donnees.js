@@ -5,7 +5,7 @@ import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/
 import { db, app } from '../../os/firebase.js';
 import { cheminCollection } from '../../os/chemins.js';
 import { executer } from '../../os/journal-donnees.js';
-import { ecritureCreer } from '../crm/logique.js';
+import { ecritureCreer, ecritureModifier } from '../crm/logique.js';
 import { LIGNES_FILET } from './logique.js';
 
 export const etat = { filet: [], pret: false, erreur: false };
@@ -37,15 +37,33 @@ export function arreter() {
   base = '';
 }
 
-/** Date une vérification du filet (aujourd'hui, ou la date donnée) avec une note facultative. Lève une erreur au message lisible. */
-export async function verifierLigne(id, { note = '', date = new Date() } = {}) {
+/**
+ * Date une vérification du filet (aujourd'hui, ou la date donnée) ; `note` facultative : sans note, une note existante est gardée.
+ * Une fiche déjà là est MODIFIÉE (le journal garde la copie « avant », l'opération se défait) ; sinon elle est créée. Lève une erreur au message lisible.
+ */
+export async function verifierLigne(id, { note, date = new Date() } = {}) {
   if (!LIGNES_FILET.some((l) => l.id === id)) throw new Error('Cette vérification n\'existe pas.');
+  const existe = etat.filet.some((f) => f.id === id);
+  const verifieLe = Timestamp.fromDate(date);
+  const marques = { horodater: ['majLe'], signer: ['majPar'] };
+  const champNote = typeof note === 'string' ? { note: note.slice(0, 500) } : {};
   try {
-    await executer([ecritureCreer('console_filet', id, { verifieLe: Timestamp.fromDate(date), note: String(note).slice(0, 500) }, { horodater: ['majLe'], signer: ['majPar'] })], 'consoleVerifierLigne');
+    await executer([existe ? ecritureModifier('console_filet', id, { verifieLe, ...champNote }, marques)
+      : ecritureCreer('console_filet', id, { verifieLe, note: champNote.note ?? '' }, marques)], 'consoleVerifierLigne');
   } catch (e) {
     console.warn(e);
     throw new Error('La vérification n\'a pas pu être enregistrée.');
   }
+}
+
+/** Relance l'écoute des données (bouton « Réessayer » après une erreur de lecture). */
+export function reessayer() {
+  const cheminBase = base;
+  desabonnement?.();
+  desabonnement = null;
+  Object.assign(etat, { filet: [], pret: false, erreur: false });
+  notifier();
+  demarrer(null, cheminBase);
 }
 
 /** Les données du module pour l'export : { console_filet }. */

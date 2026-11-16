@@ -7,7 +7,7 @@ Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08
 | | Sujet | État | Qui |
 |---|---|---|---|
 | 🟢 | Module Console (réservé à Jérôme) : Vue d'ensemble et Filet de sécurité ; fonction `consoleEtat` **absente chez les clients** (raison : outil d'exploitation de Jérôme, décision du 16/11/2026, `RESERVEES_JEROME`) | à fusionner | Claude |
-| 🟡 | Phase 1 : lecture des espaces, des modules actifs et de l'activité ; passer `consoleEtat` au compte `console-serveur` (lecture seule) avec son autorisation de déploiement | à faire | Claude, puis Jérôme (jeton d'une heure) |
+| 🟡 | Phase 1 : lecture des espaces, des modules actifs et de l'activité ; passer `consoleEtat` à un compte dédié en lecture seule avec son autorisation de déploiement | à faire | Claude, puis Jérôme (jeton d'une heure) |
 | 🟡 | Phases 2 à 4 de `docs/console.md` (secrets, versions, écritures en PR séparées relues par Fable) | à faire | Claude |
 
 ## Mise à jour du 15/11/2026 (e-mail d'un client sans Gmail)

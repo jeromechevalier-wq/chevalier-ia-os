@@ -24,7 +24,7 @@ export function rendreVue(conteneur, segs = []) {
 
   function dessiner() {
     if (!D.etat.pret) { remplir(zone, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement'))); return; }
-    if (D.etat.erreur) { remplir(zone, erreur(() => dessiner())); return; }
+    if (D.etat.erreur) { remplir(zone, erreur(() => D.reessayer())); return; }
     const r = L.resumeFilet(L.lignesAvecEtat(D.etat.filet));
     remplir(zone, h('section', { class: 'carte-section', dataset: { bloc: 'resume-filet' } },
       h('h2', {}, icone('shield-check', { taille: 18 }), 'Filet de sécurité'),
@@ -58,7 +58,7 @@ export function rendreFilet(conteneur) {
   }
   function dessiner() {
     if (!D.etat.pret) { remplir(liste, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement'))); return; }
-    if (D.etat.erreur) { remplir(liste, erreur(dessiner)); return; }
+    if (D.etat.erreur) { remplir(liste, erreur(() => D.reessayer())); return; }
     const lignes = L.lignesAvecEtat(D.etat.filet);
     remplir(liste, ...(D.etat.filet.length === 0 ? [h('p', { class: 'aide', dataset: { vide: '1' } }, 'Aucune vérification enregistrée.')] : []), ...lignes.map((l) => h('section', { class: 'carte-section', dataset: { ligne: l.id, etat: l.etat } },
       h('h2', {}, l.titre), h('p', { class: 'aide' }, l.aide),

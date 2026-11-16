@@ -178,6 +178,37 @@ describe('A. Règles de sécurité', () => {
   });
 });
 
+// Module Console (16/11/2026) : `console_filet` est lue et écrite par le compte de Jérôme seul ; le compte du bot, un autre compte, un compte non vérifié et un visiteur n'y ont aucun droit.
+describe('C4 Console : règles de console_filet', () => {
+  const JEROME = 'jerome.chevalier@gmail.com';
+  const BOT = 'jeromebot.chevalierbot@gmail.com';
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'console_filet', 'budget'), { note: 'x' }); });
+  });
+  test('C4 Jérôme lit, écrit, modifie et supprime une vérification du filet', async () => {
+    const db = contexte(JEROME);
+    await assertSucceeds(getDoc(doc(db, 'console_filet', 'budget')));
+    await assertSucceeds(getDocs(collection(db, 'console_filet')));
+    await assertSucceeds(setDoc(doc(db, 'console_filet', 'restauration'), { note: 'y' }));
+    await assertSucceeds(updateDoc(doc(db, 'console_filet', 'budget'), { note: 'z' }));
+    await assertSucceeds(deleteDoc(doc(db, 'console_filet', 'budget')));
+  });
+  test('C4 le compte du bot ne lit ni n\'écrit console_filet (le joker ne la couvre plus)', async () => {
+    const db = contexte(BOT);
+    await assertFails(getDoc(doc(db, 'console_filet', 'budget')));
+    await assertFails(getDocs(collection(db, 'console_filet')));
+    await assertFails(setDoc(doc(db, 'console_filet', 'nouveau'), { note: 'y' }));
+    await assertFails(updateDoc(doc(db, 'console_filet', 'budget'), { note: 'z' }));
+    await assertFails(deleteDoc(doc(db, 'console_filet', 'budget')));
+  });
+  test('C4 un autre compte, un compte non vérifié et un visiteur : rien', async () => {
+    for (const db of [contexte('intrus@exemple.test'), contexte(JEROME, false), env.unauthenticatedContext().firestore()]) {
+      await assertFails(getDoc(doc(db, 'console_filet', 'budget')));
+      await assertFails(setDoc(doc(db, 'console_filet', 'nouveau'), { note: 'y' }));
+    }
+  });
+});
+
 // Module Rendez-vous (15/11/2026) : les SMS (rdv_messages) et les désinscrits (rdv_parametres/desinscrits) sont écrits par le SERVEUR seulement ; les réglages restent écrits par l'écran.
 describe('C3 Rendez-vous : règles chez Jérôme', () => {
   beforeEach(async () => {

@@ -129,6 +129,14 @@ describe('Console : Filet de sécurité (C5, C6, C8)', () => {
     assert.equal(plateformeValide(undefined), 'toutes');
   });
 
+  test('le bouton « Réessayer » relance l\'écoute et une vérification déjà datée est modifiée (copie « avant » du journal), pas recréée', () => {
+    const donnees = readFileSync(new URL('../js/modules/console/donnees.js', import.meta.url), 'utf8');
+    assert.match(donnees, /export function reessayer\(\)/);
+    assert.match(donnees, /existe \? ecritureModifier\('console_filet'/);
+    const ecran = readFileSync(new URL('../js/modules/console/ecran.js', import.meta.url), 'utf8');
+    assert.equal((ecran.match(/D\.reessayer\(\)/g) || []).length, 2);
+  });
+
   test('C9 l\'export du module est déclaré (Réglages > Sauvegarde) et lit la table du filet', () => {
     const c = MODULES_DECLARES.find((m) => m.id === 'console');
     assert.ok(c.reglages.sections.some((s) => s.id === 'reglages-export-console'));
@@ -137,7 +145,10 @@ describe('Console : Filet de sécurité (C5, C6, C8)', () => {
     assert.match(donnees, /lireToutPourExport/);
   });
 
-  test('aucune description de l\'infrastructure dans le code de la Console (dépôt public)', () => {
+  test('aucune description de l\'infrastructure dans le code ni dans les docs de la Console (dépôt public)', () => {
+    for (const f of ['../docs/console.md', '../functions/src/index.js', '../.github/A-FAIRE.md']) {
+      assert.doesNotMatch(readFileSync(new URL(f, import.meta.url), 'utf8'), /console-serveur|claude-lecture/, f);
+    }
     for (const f of ['../js/modules/console/logique.js', '../js/modules/console/ecran.js', '../js/modules/console/donnees.js', '../functions/src/console/appel.js']) {
       const t = readFileSync(new URL(f, import.meta.url), 'utf8');
       assert.doesNotMatch(t, /iam\.gserviceaccount\.com|projects\/[a-z0-9-]+\/secrets|AIza[0-9A-Za-z_-]{20,}/, f);

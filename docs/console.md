@@ -19,13 +19,9 @@ Le code de la Console est dans le dépôt commun, mais **seul Jérôme y a accè
 5. **Aucune description de l'infrastructure dans le code** (le dépôt est public) : noms de secrets, comptes, projets clients sont lus en direct par le serveur, jamais écrits dans un fichier du dépôt.
 6. **Les fonctions de la Console existent seulement chez Jérôme** : chacune est déclarée dans `RESERVEES_JEROME` (`tests/ecarts-fonctions.test.js`) avec la raison « normal : outil d'exploitation de Jérôme, réservé par décision du 16/11/2026 », et une ligne dans `.github/A-FAIRE.md`. Le module n'a pas d'interrupteur chez un client : `modules.console` est refusé par le registre pour tout espace client.
 
-## 3. Les droits Google (déjà accordés le 16/11/2026)
+## 3. Les droits Google
 
-Deux comptes de service dédiés, **en lecture seule**, sur `chevalier-ia-app` et sur `chevalier-ia-os` (lecture de la base, des informations des secrets, des journaux et des métriques) :
-- `console-serveur` : fait tourner les fonctions de la Console ;
-- `claude-lecture` : utilisé par Claude, avec un jeton d'environ une heure donné par Jérôme dans le formulaire sécurisé de la session.
-
-Ces rôles ne permettent pas de lire la valeur d'un secret (seulement son nom, ses versions et ses droits). Le rôle de consultation des secrets de `console-serveur` sur `chevalier-ia-app` a demandé une seconde tentative ; la politique à jour a été renvoyée sans erreur.
+Le serveur de la Console lira les autres projets avec des **comptes dédiés en lecture seule** (base, informations des secrets, journaux, métriques), jamais avec un droit d'écriture ni de lecture de la valeur d'un secret. Leurs noms, leurs rôles et la façon de les utiliser sont écrits dans le second cerveau, pas ici : le dépôt est public (garde-fou 5).
 
 ## 4. Les écrans (onglets)
 
@@ -53,8 +49,8 @@ Ces rôles ne permettent pas de lire la valeur d'un secret (seulement son nom, s
 
 ## 6. Phases (chacune utile seule)
 
-0. **Cadre (fait le 16/11/2026)** : exception écrite, accès verrouillé et testé (fonction `consoleEtat`, menu et montage cachés aux autres comptes), deux écrans (Vue d'ensemble avec sélecteur de plateforme, Filet de sécurité de 7 vérifications que Jérôme date à la main dans la table `console_filet`), export des données. `consoleEtat` tourne avec le compte de service de la porte tant qu'elle ne lit rien : elle passera au compte `console-serveur` en phase 1, avec l'autorisation de déploiement à lui donner en même temps (un compte sans cette autorisation ferait échouer le déploiement des fonctions).
-1. **Lecture** : espaces, modules actifs, activité (lecture seule des deux projets, par `console-serveur`).
+0. **Cadre (fait le 16/11/2026)** : exception écrite, accès verrouillé et testé (fonction `consoleEtat`, menu et montage cachés aux autres comptes), deux écrans (Vue d'ensemble avec sélecteur de plateforme, Filet de sécurité de 7 vérifications que Jérôme date à la main dans la table `console_filet`), export des données. `consoleEtat` tourne avec le compte de service de la porte tant qu'elle ne lit rien : elle passera à un compte dédié en lecture seule en phase 1, avec l'autorisation de déploiement à lui donner en même temps (un compte sans cette autorisation ferait échouer le déploiement des fonctions).
+1. **Lecture** : espaces, modules actifs, activité (lecture seule des deux projets, par un compte dédié en lecture seule).
 2. **Secrets, versions, cercles** : carte des secrets avec ses trois alertes, version par espace.
 3. **Écritures** : activer ou désactiver un module chez un espace, lancer un déploiement par bouton (workflow GitHub). PR séparée, Fable obligatoire.
 4. **Création d'un espace client en une commande, sauvegardes et restauration pilotées, export planifié.**
@@ -65,8 +61,8 @@ Budget **normal** (décision du 16/11/2026) : `npm run test:module console`, pui
 
 ## 8. Ce qui reste à faire par Jérôme
 
-Rien pour la phase 0. Pour tester la phase 1 sur de vrais espaces : le jeton d'une heure de `claude-lecture` (une commande, que Claude donnera à ce moment-là).
+Rien pour la phase 0. Pour tester la phase 1 sur de vrais espaces : un jeton d'une heure (une commande, que Claude donnera à ce moment-là).
 
 ## 9. Non vérifié
 
-Le nom exact des collections lues en phase 1 (`clients/<id>` et son champ `modules`) vient de `js/os/registre.js` et n'a pas été relu sur la vraie base ; la lecture d'une base depuis un autre projet Google par `console-serveur` n'a pas encore été essayée.
+Le nom exact des collections lues en phase 1 (`clients/<id>` et son champ `modules`) vient de `js/os/registre.js` et n'a pas été relu sur la vraie base ; la lecture d'une base depuis un autre projet Google par un compte dédié n’a pas encore été essayée.

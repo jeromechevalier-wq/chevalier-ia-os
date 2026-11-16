@@ -1,7 +1,8 @@
 // Module Console (phase 0, 16/11/2026) : accès réservé à Jérôme, Filet de sécurité, sélecteur de plateforme. Un test par critère (le nom commence par son numéro).
 // Captures dans tests/e2e/captures/console/ (une par état, nommée avec le projet : bureau ou téléphone).
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, allerA, attendreCalme, ecrireDocument, lireDocument, CHARLES } from './outils.js';
+import { readFile } from 'node:fs/promises';
+import { test, expect, connecter, allerA, attendreCalme, ecrireDocument, lireDocument, listerDocuments, ouvrirSectionReglages, CHARLES } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/console/', import.meta.url));
 async function capturer(page, info, nom) {
@@ -51,6 +52,7 @@ test('C5 « Vérifié aujourd\'hui » date la ligne, la passe à jour et laisse 
   await page.locator('section[data-ligne="restauration"] [data-action="verifier"]').click();
   await expect(page.locator('section[data-ligne="restauration"]')).toHaveAttribute('data-etat', 'ok');
   await expect.poll(() => lireDocument('console_filet/restauration'), { timeout: 10_000 }).toBeTruthy(); // l'écran se met à jour avant la fin de l'écriture : on attend le document
+  await expect.poll(async () => (await listerDocuments('crm_audit')).some((d) => d.collection === 'console_filet' && d.docId === 'restauration' && d.outil === 'consoleVerifierLigne'), { timeout: 10_000 }).toBe(true); // la trace du journal
 });
 
 test('C6 cas vide : sans aucune fiche, l\'écran dit « Aucune vérification enregistrée » et propose chaque ligne', async ({ page }, info) => {
@@ -81,4 +83,30 @@ test('C10 les deux écrans tiennent sans défilement horizontal de la page', asy
   await page.goto('/?emulateurs=1#/console/filet');
   await attendreCalme(page);
   expect(await sansDefilementHorizontal(page)).toBe(true);
+});
+
+test('C5 une 2e vérification MODIFIE la fiche (le journal garde l\'ancienne date) et ne supprime pas la note', async ({ page }) => {
+  await ecrireDocument('console_filet/budget', { verifieLe: new Date(Date.now() - 100 * 86_400_000), note: 'Alerte à 50 %' });
+  await connecter(page, undefined, { route: 'console/filet' });
+  await attendreCalme(page);
+  await expect(page.locator('section[data-ligne="budget"]')).toHaveAttribute('data-etat', 'ancien');
+  await page.locator('section[data-ligne="budget"] [data-action="verifier"]').click();
+  await expect(page.locator('section[data-ligne="budget"]')).toHaveAttribute('data-etat', 'ok');
+  await expect.poll(async () => (await listerDocuments('crm_audit')).some((d) => d.collection === 'console_filet' && d.docId === 'budget' && d.action === 'modifier'), { timeout: 10_000 }).toBe(true);
+  expect((await lireDocument('console_filet/budget')).note).toBe('Alerte à 50 %');
+});
+
+test('C9 le bouton « Exporter mes données » (Réglages > Console) télécharge un JSON des vérifications du filet', async ({ page }) => {
+  await ecrireDocument('console_filet/budget', { verifieLe: new Date(), note: 'Alerte à 50 %' });
+  await simulerServeur(page);
+  await connecter(page);
+  await allerA(page, 'Réglages');
+  await ouvrirSectionReglages(page, 'Console');
+  const bouton = page.locator('#reglages-export-console [data-action="exporter-console"]');
+  await expect(bouton).toHaveText('Exporter mes données');
+  const [dl] = await Promise.all([page.waitForEvent('download'), bouton.click()]);
+  expect(dl.suggestedFilename()).toMatch(/^chevalier-ia-console-\d{4}-\d{2}-\d{2}\.json$/);
+  const json = JSON.parse(await readFile(await dl.path(), 'utf8'));
+  expect(Object.keys(json.collections)).toEqual(['console_filet']);
+  expect(json.collections.console_filet.map((f) => f.id)).toEqual(['budget']);
 });
