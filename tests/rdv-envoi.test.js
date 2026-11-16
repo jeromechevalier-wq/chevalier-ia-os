@@ -91,7 +91,7 @@ describe('envoyerSms (pluie, annulation)', () => {
     const msgs = await donnees.liste('rdv_messages');
     assert.equal(msgs.length, 2);
     assert.ok(msgs.every((m) => m.manuel === true && m.etatEnvoi === 'a_envoyer' && m.typeMessage === 'pluie' && m.sens === 'sortant'));
-    assert.equal(msgs[0].texte, 'Pluie demain : RDV reporté à cause de la foret.\nChevalier IA - Répondez STOP pour vous désabonner.', 'ê est remplacé par le serveur, même si l\'écran ne l\'avait pas fait');
+    assert.equal(msgs[0].texte, 'Pluie demain : RDV reporté à cause de la foret.\nMon entreprise - Répondez STOP pour vous désabonner.', 'ê est remplacé par le serveur, même si l\'écran ne l\'avait pas fait');
     assert.deepEqual(msgs.map((m) => m.numero).sort(), ['+33600000001', '+33600000002']);
     assert.equal(new Set(msgs.map((m) => m.id)).size, 2);
     assert.deepEqual(sortie.appels, [{ espace: 'interne', params: { rendezVousId: 'r1' } }]);
