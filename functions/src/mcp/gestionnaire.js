@@ -79,7 +79,7 @@ export function erreurLisible(e) {
   return e.name === 'Error' && e.code === undefined && e.errno === undefined && e.syscall === undefined;
 }
 
-export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = null, stockage = null, sortieEmail = null, baseLien = BASE_LIEN_JEROME, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
+export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = null, stockage = null, sortieEmail = null, baseLien = BASE_LIEN_JEROME, lienDepot = false, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
   const noterDemarrage = creerSuiviDemarrage();
   return async function gestionnaire(req, res) {
     const debut = maintenant();
@@ -114,7 +114,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
     Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil }, descriptionAppel(req.body, outils));
     infos.dureeAuthMs = maintenant() - debut;
 
-    return servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, stockage, sortieEmail, baseLien });
+    return servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, stockage, sortieEmail, baseLien, lienDepot });
   };
 }
 
@@ -130,7 +130,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
  */
 export const estSuperAdmin = ({ jeton }) => estSuperAdminEmail(jeton?.email);
 
-export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM, stockage = null, sortieEmail = null, baseLien = BASE_LIEN_JEROME }) {
+export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM, stockage = null, sortieEmail = null, baseLien = BASE_LIEN_JEROME, lienDepot = false }) {
   const limites = limitesDuJeton(jeton);
   // Mesure : lectures de base faites par CETTE requête (hors authentification et plafonds). Aucune erreur de mesure ne casse l'appel.
   const compteur = { lectures: 0 };
@@ -191,6 +191,8 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
         restaurer,
         // Stockage des fichiers (onglet « Documents ») : fonction qui rend le stockage, ou null s'il est introuvable. `espace` : '' chez Jérôme, 'clients/<client>/' chez un client.
         stockage: () => (typeof stockage === 'function' ? stockage() : stockage) ?? null,
+        // Lien d'envoi temporaire (17/11/2026) : adresse de base de la page d'envoi, ou null là où le serveur n'en publie pas (les espaces clients, pour l'instant).
+        lienDepot: lienDepot ? `${baseLien}/depot` : null,
         espace: donnees.base ? `${donnees.base}/` : '',
         // « Préparer le brouillon d'e-mail » (n8n, coeur/n8n-sortie.js) : fonction qui rend la sortie, ou null si elle n'est pas branchée. `espaceN8n` : 'interne' chez Jérôme, l'identifiant du client sinon (un workflow et des secrets par client).
         sortieEmail: () => (typeof sortieEmail === 'function' ? sortieEmail() : sortieEmail) ?? null,

@@ -28,6 +28,7 @@ import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { creerAppelDevisPdf, creerAppelDevisPdfLien, ligneDeJournalDevisPdf } from './devis/pdf-appel.js';
 import { creerDeclencheurPdf } from './devis/pdf-declencheur.js';
 import { creerAppelDocument, ligneDeJournalDocuments } from './documents/appel.js';
+import { creerGestionnaireDepot } from './coeur/depot-lien.js';
 import { stockageDuProjet, bucketDuProjet } from './devis/stockage-projet.js';
 import { creerSortieN8n } from './coeur/n8n-sortie.js';
 import { creerAppelPreparerEmail, creerAppelEtatPreparerEmail } from './devis-email-appel.js';
@@ -63,7 +64,7 @@ export const mcp = onRequest(
     // Compte dédié : « Utilisateur Cloud Datastore » (Firestore), « Accesseur de secrets » sur MCP_JETONS et sur les deux secrets du brouillon d'e-mail (N8N_DEVIS_EMAIL_*), « Créateur d'objets Storage » (dépôt de texte) ; « Lecteur des objets Storage » et « Créateur de jetons du compte de service » sur lui-même sont À DONNER pour le lien signé du PDF officiel (docs/securite-et-pannes.md, section 12), sans quoi l'outil rend seulement le lien du devis.
     serviceAccount: 'mcp-serveur@chevalier-ia-os.iam.gserviceaccount.com',
   },
-  creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet, sortieEmail: sortieN8nDevis }),
+  creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet, sortieEmail: sortieN8nDevis, lienDepot: true }),
 );
 
 export const porte = onRequest(
@@ -252,6 +253,18 @@ const appelDocument = (operation, options) => onCall(options, (requete) => {
 export const documentDeposer = appelDocument('deposer', OPTIONS_DOCUMENT_DEPOT);
 export const documentLien = appelDocument('lien', OPTIONS_DEVIS);
 export const documentSupprimer = appelDocument('supprimer', OPTIONS_DEVIS);
+// Lien d'envoi temporaire (17/11/2026) : l'assistant demande un lien (outil MCP `demander_lien_depot`), le fichier arrive ICI (adresse /depot/<lien> du site, réécrite par firebase.json vers ce service ; le nom du
+// service est le nom de la fonction en minuscules). Invocation publique côté Google : la vraie porte est le lien (256 bits, 10 minutes, un seul usage, une seule fiche) ; sans lien valable, rien n'est dit.
+// Même compte et mêmes contrôles que `documentDeposer` ; le contenu et le lien ne sont jamais écrits dans les journaux. Absent des espaces de la plateforme pour l'instant (tests/ecarts-fonctions.test.js).
+let gestionnaireDepot = null;
+export const depotdocument = onRequest(
+  { ...OPTIONS_DOCUMENT_DEPOT, invoker: 'public', cors: false },
+  (req, res) => {
+    if (!getApps().length) initializeApp();
+    gestionnaireDepot ??= creerGestionnaireDepot({ donnees: () => creerAccesFirestore(), stockage: stockageDevis, journal: (e) => process.stdout.write(`${JSON.stringify({ evenement: 'depot_lien', ...e })}\n`) });
+    return gestionnaireDepot(req, res);
+  },
+);
 
 // `deploiementVerifier` (25/10/2026) : contrôles du serveur pour la page Réglages > Déploiement (« les fonctions répondent », « les personnes autorisées »).
 // Mêmes comptes que les devis ; même région, limites et compte de service ; AUCUN secret déclaré (un secret absent ferait échouer tout le déploiement), rien n'est écrit.

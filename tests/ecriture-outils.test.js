@@ -21,7 +21,7 @@ const arrets = [];
 afterEach(async () => { while (arrets.length) await arrets.pop()(); });
 
 /** Démarre un serveur MCP complet (jetons, plafonds, moteur d'écriture) sur des données fraîches. */
-async function demarrer({ limites = {}, jetonsExtra = {}, stockage = null } = {}) {
+async function demarrer({ limites = {}, jetonsExtra = {}, stockage = null, lienDepot = false } = {}) {
   const collections = structuredClone(base);
   collections.crm_parametres.push(structuredClone(REGLAGES), { id: 'offres', items: [{ id: 'o1', nom: 'Site vitrine', ordre: 1 }] });
   const donnees = creerAccesMemoire(collections);
@@ -34,7 +34,7 @@ async function demarrer({ limites = {}, jetonsExtra = {}, stockage = null } = {}
   ]);
   const magasin = creerMagasin({ lire: async () => secret, dureeCacheMs: 0 });
   const limiteur = creerLimiteur({ donnees, maintenant: () => horloge.t });
-  const gestionnaire = creerGestionnaire({ magasin, donnees, limiteur, stockage, maintenant: () => horloge.t, journal: (e) => lignesJournal.push(e) });
+  const gestionnaire = creerGestionnaire({ magasin, donnees, limiteur, stockage, lienDepot, maintenant: () => horloge.t, journal: (e) => lignesJournal.push(e) });
   const serveur = createServer((req, res) => {
     const m = [];
     req.on('data', (x) => m.push(x));
@@ -1337,13 +1337,35 @@ describe('R. deposer_document, supprimer_document_stocke, lister_documents (fich
   });
   test('R2c contenuBase64 refusé : référence « sha256: » non remplacée (message clair), base64 faux, contenu qui ne correspond pas à l’extension, type interdit, trop gros, lecteur', async () => {
     const s = await demarrer({ stockage: fauxStockage() });
-    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'p.pdf', contenuBase64: `sha256:${'a'.repeat(64)}:/Users/x/Downloads/p.pdf` }), /n'a pas été remplacée/);
+    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'p.pdf', contenuBase64: `sha256:${'a'.repeat(64)}:/Users/x/Downloads/p.pdf` }), /aucune application ne la remplace/);
     refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'p.pdf', contenuBase64: 'pas du base64 !' }), /n'est pas valide/);
     refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'p.pdf', contenuBase64: Buffer.from('ceci n’est pas un PDF').toString('base64') }), /ne correspond pas à son extension/);
     refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'x.exe', contenuBase64: Buffer.from('MZ').toString('base64') }));
     refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'gros.pdf', contenuBase64: Buffer.alloc(Math.round(5.1 * 1024 * 1024), 65).toString('base64') }), /trop gros pour cet outil \(5 Mo/);
     refuse(await s.appeler('lecteur', 'deposer_document', { affaireId: 'a1', nom: 'p.pdf', contenuBase64: Buffer.from('%PDF-1.4').toString('base64') }));
     assert.equal((s.collections.documents_stockes ?? []).length, 0, 'rien n’est écrit après un refus');
+  });
+  test('R2d demander_lien_depot : lien secret à usage unique rangé par empreinte, adresse du site, commande curl ; refusé sans lien publié (espace client), cible inconnue, lecteur', async () => {
+    const s = await demarrer({ stockage: fauxStockage(), lienDepot: true });
+    const r = ok(await s.appeler('biblio', 'demander_lien_depot', { affaireId: 'a1', nom: 'carte é.pdf' }));
+    assert.match(r.url, /^https:\/\/chevalier-ia-os\.web\.app\/depot\/[A-Za-z0-9_-]{43}$/);
+    assert.equal(r.valideMinutes, 10);
+    assert.equal(r.usageUnique, true);
+    assert.equal(r.affaireId, 'a1');
+    assert.ok(r.commandeAvecTerminal.includes(`${r.url}?nom=carte%20%C3%A9.pdf`) && r.commandeAvecTerminal.includes('CHEMIN_DU_FICHIER'));
+    assert.ok(r.commandeAvecTerminal.includes('-H "Content-Type: application/octet-stream"'), 'sans cet en-tête, curl annonce un formulaire que la plateforme refuse au-delà de 1000 « & »');
+    const jeton = r.url.split('/').pop();
+    const fiches = s.collections.mcp_codes.filter((d) => d.genre === 'depot');
+    assert.equal(fiches.length, 1);
+    assert.ok(!JSON.stringify(s.collections.mcp_codes).includes(jeton), 'le lien lui-même n’est jamais stocké, seulement son empreinte');
+    assert.equal(fiches[0].cibleId, 'a1');
+    assert.ok(!JSON.stringify(s.lignesJournal).includes(jeton), 'ni dans le journal du serveur');
+    refuse(await s.appeler('biblio', 'demander_lien_depot', { affaireId: 'inconnue' }), /introuvable/i);
+    refuse(await s.appeler('biblio', 'demander_lien_depot', {}), /affaireId ou projetId/);
+    refuse(await s.appeler('lecteur', 'demander_lien_depot', { affaireId: 'a1' }));
+    const client = await demarrer({ stockage: fauxStockage() }); // espace sans lien publié (comme les espaces clients)
+    refuse(await client.appeler('biblio', 'demander_lien_depot', { affaireId: 'a1' }), /n'existe pas dans cet espace/);
+    assert.equal((client.collections.mcp_codes ?? []).length, 0);
   });
   test('R3 supprimer_document_stocke : aperçu puis code, corbeille logique (fichier intact), restaurable ; retirer_document n’y touche pas', async () => {
     const st = fauxStockage();

@@ -273,6 +273,7 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
     'modifier_destinataires_devis', // + destinataire d'un devis finalisé (29/10/2026)
     'preparer_email', // + brouillon d'e-mail d'un devis, jamais d'envoi (garantie « aucun e-mail ne part tout seul », 29/10/2026)
     'deposer_document', // + dépôt d'un fichier texte dans l'onglet « Documents » (28/10/2026)
+    'demander_lien_depot', // + lien d'envoi temporaire d'un fichier (17/11/2026)
     'creer_source_inspiration', 'modifier_source_inspiration', 'ajouter_pistes', 'modifier_piste', 'retenir_piste', 'enregistrer_exemple', 'creer_idee', 'modifier_idee', // + 8 outils d'écriture du module Réseaux sociaux (13/11/2026), aucun de suppression
     'marquer_test', 'demarquer_test']; // + mode test : marquer ou démarquer un essai (PR 2, 05/11/2026)
   const FINALISATION = ['finaliser_devis', 'changer_statut_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles']; // écritures sensibles (figent le devis, ne se défont pas avec le journal, confirmation par code) : Claude Code seulement ; modifier_reglages_devis (09/11/2026) n'est PAS dans cette liste : réservé aux super admins (identité vérifiée) (e-mail OAuth vérifié), il n'apparaît jamais pour un jeton statique, même complet

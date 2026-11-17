@@ -33,6 +33,7 @@ const RESERVEES_JEROME = {
   veille: 'ÉCART connu : ajout de lien et résumé du module Veille (passe par n8n), absent chez les clients',
   reseauxsociauxBuffer: 'ÉCART connu : lecture Buffer, clé personnelle de Jérôme, absente chez les clients (une clé par client demanderait un secret par client)',
   reseauxsociauxMesuresHebdo: 'ÉCART connu : relevé hebdomadaire (lundi 06:00) des chiffres des posts LinkedIn de Jérôme dans `reseauxsociaux_mesures`, même raison que `reseauxsociauxBuffer` (clé Buffer personnelle)',
+  depotdocument: 'ÉCART connu (17/11/2026) : lien d\'envoi temporaire d\'un fichier par l\'assistant (outil `demander_lien_depot`), d\'abord chez Jérôme ; chez les clients il faudrait le brancher dans functions-plateforme/ avec une adresse par client (voir .github/A-FAIRE.md)',
   consoleEtat: 'normal : outil d\'exploitation de Jérôme, réservé par décision du 16/11/2026 (module Console, docs/console.md)',
   reseauxsociauxReleverMesures: 'ÉCART connu : même relevé lancé à la main par Jérôme, absent chez les clients pour la même raison',
 };

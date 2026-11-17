@@ -2,6 +2,14 @@
 
 Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de session) ; avant : 08/11/2026 (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Mise à jour du 17/11/2026 (lien d'envoi temporaire des fichiers)
+
+| | Sujet | État | Qui |
+|---|---|---|---|
+| 🟡 | Lien d'envoi temporaire (`demander_lien_depot`, fonction `depotdocument`) **absent chez les clients** : leur outil répond « n'existe pas dans cet espace ». Raison : l'adresse `/depot/<lien>` doit désigner le client (une réécriture et une fonction dans `functions-plateforme/`, un déploiement par Jérôme). À brancher quand Jérôme valide le lien chez lui (essai réel : un PDF de test déposé par commande `curl`, puis par la page) | à faire | Claude, puis Jérôme (déploiement) |
+| 🟡 | Mesurer la taille maximale réelle d'un envoi par le lien (plafond de 10 Mo posé par prudence, jamais mesuré sur le vrai service) et la consommation mémoire de `depotdocument` | à faire | Claude |
+| 🟡 | Ligne « Lien d'envoi » dans Réglages > Déploiement (comme les lignes des fonctions de documents) | à faire | Claude |
+
 ## Mise à jour du 16/11/2026 (module Console, phase 0)
 
 | | Sujet | État | Qui |

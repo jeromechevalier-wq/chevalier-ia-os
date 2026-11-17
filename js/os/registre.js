@@ -104,7 +104,7 @@ export const MODULES_DECLARES = geler([
       'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_activites', 'lister_documents', 'lire_reglages', 'lire_audit',
       'creer_personne', 'creer_organisation', 'creer_affaire', 'creer_activite', 'ajouter_note', 'joindre_lien',
       'modifier_personne', 'modifier_organisation', 'modifier_affaire', 'modifier_note', 'changer_etape', 'terminer_activite',
-      'marquer_perdue', 'rouvrir_affaire', 'retirer_document', 'deposer_document', 'marquer_test', 'demarquer_test',
+      'marquer_perdue', 'rouvrir_affaire', 'retirer_document', 'deposer_document', 'demander_lien_depot', 'marquer_test', 'demarquer_test',
       'supprimer_personne', 'supprimer_organisation', 'supprimer_affaire', 'supprimer_activite', 'supprimer_note', 'supprimer_document_stocke', 'supprimer_tous_les_tests', 'restaurer_depuis_audit',
     ],
     dependances: [],
