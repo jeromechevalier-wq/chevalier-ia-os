@@ -179,7 +179,7 @@ describe('7 consigne dans les descriptions', () => {
     assert.deepEqual(OUTILS.filter((o) => o.description.includes(CONSIGNE_LIEN_ECRAN)).map((o) => o.nom).sort(), [...AVEC_LIEN].sort(), 'seuls ces outils portent la consigne');
     for (const o of OUTILS.filter((x) => x.description.includes(GARANTIE_PAS_D_ENVOI))) assert.ok(o.description.endsWith(GARANTIE_PAS_D_ENVOI), `${o.nom} : la règle d’envoi reste en dernière position`);
     assert.doesNotMatch(CONSIGNE_LIEN_ECRAN, /Jérôme|Audit|Accompagnement|lancement|decouverte|cloture|gagne|premier_contact|rdv_fixe|proposition_envoyee|jerome\.chevalier|\.web\.app|https?:/i);
-    assert.equal(OUTILS.length, 97); // 97 : + 12 outils du module Réseaux sociaux (13/11/2026), aucun ne rend lienEcran
+    assert.equal(OUTILS.length, 98); // 98 : + demander_lien_depot (17/11/2026) ; 97 : + 12 outils du module Réseaux sociaux (13/11/2026), aucun ne rend lienEcran
   });
 });
 

@@ -4221,7 +4221,7 @@
  },
  {
   "name": "deposer_document",
-  "description": "Dépose un fichier dans l'onglet « Documents » d'une affaire (affaireId) ou d'un projet (projetId), un seul des deux : le fichier est rangé chez nous (stockage de l'espace), visible de tous les membres. Deux façons, une seule à la fois. (1) Un fichier TEXTE (.txt, .md, .csv ; 64 Ko au plus, UTF-8) : contenuTexte = le texte lui-même. (2) Tout autre fichier (PDF, image, Office…) : contenuBase64 = le contenu du fichier, tel que l'application le fournit : quand le fichier est sur l'ordinateur de l'utilisateur, mettre dans contenuBase64 la référence « sha256:<empreinte SHA-256 du fichier en 64 caractères hexadécimaux minuscules>:<chemin absolu du fichier, avec / entre les dossiers> » et donner le nom du fichier dans nom (avec son extension) : l'application remplace la référence par le contenu réel après l'approbation de l'utilisateur. N'écris JAMAIS toi-même le contenu d'un fichier en base64 (une seule erreur le corrompt) ; si l'application ne remplace pas la référence, le dépôt est refusé (« n'a pas été remplacée ») : dis-le à l'utilisateur, qui peut alors cliquer « Ajouter un fichier » dans l'onglet « Documents ». Types refusés : exécutables, scripts, HTML, SVG, types inconnus ; taille maximale par cet outil : 5 Mo (au-delà, l'utilisateur passe par « Ajouter un fichier »). Pour un simple lien (Drive, site), utiliser joindre_lien. Un document d'identité (carte, passeport) est visible de tous les membres de l'espace : ne le dépose que si l'utilisateur le demande. Récupérable avec restaurer_depuis_audit (la fiche disparaît ; le fichier reste en réserve).",
+  "description": "Dépose un fichier dans l'onglet « Documents » d'une affaire (affaireId) ou d'un projet (projetId), un seul des deux : le fichier est rangé chez nous (stockage de l'espace), visible de tous les membres. Deux façons, une seule à la fois. (1) Un fichier TEXTE (.txt, .md, .csv ; 64 Ko au plus, UTF-8) : contenuTexte = le texte lui-même. (2) Un autre fichier de 5 Mo au plus : contenuBase64 = son contenu en base64, seulement si tu l'as déjà sous cette forme (n'écris JAMAIS toi-même le base64 d'un fichier : une seule erreur le corrompt) ; aucune application ne remplace une référence « sha256: » ou un chemin pour cet outil. Pour un PDF ou une photo qui se trouve sur l'ordinateur de l'utilisateur : demander_lien_depot. Types refusés : exécutables, scripts, HTML, SVG, types inconnus ; taille maximale par cet outil : 5 Mo. Pour tout autre fichier, le plus fiable : demander_lien_depot. Pour un simple lien (Drive, site), utiliser joindre_lien. Un document d'identité (carte, passeport) est visible de tous les membres de l'espace : ne le dépose que si l'utilisateur le demande. Récupérable avec restaurer_depuis_audit (la fiche disparaît ; le fichier reste en réserve).",
   "inputSchema": {
    "$schema": "http://json-schema.org/draft-07/schema#",
    "type": "object",
@@ -4249,7 +4249,7 @@
      "maxLength": 70000
     },
     "contenuBase64": {
-     "description": "Autre fichier (PDF, image…) : son contenu encodé en base64, ou la référence « sha256:<64 hexa>:<chemin absolu> » que l'application remplace par le contenu. Ne pas combiner avec contenuTexte.",
+     "description": "Autre fichier (5 Mo au plus) : son contenu encodé en base64, déjà disponible sous cette forme (jamais écrit à la main). Ne pas combiner avec contenuTexte.",
      "type": "string",
      "minLength": 1,
      "maxLength": 7200000,
@@ -4259,6 +4259,41 @@
    "required": [
     "nom"
    ]
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "demander_lien_depot",
+  "description": "Rend un LIEN D'ENVOI temporaire pour déposer un fichier (PDF, photo, Office…) dans l'onglet « Documents » d'une affaire (affaireId) ou d'un projet (projetId), un seul des deux : à utiliser quand le fichier se trouve sur l'ordinateur de l'utilisateur ou dans la conversation et que deposer_document ne peut pas le transmettre. Le lien est à usage unique, valable 10 minutes, limité à cette fiche, 10 Mo au plus ; mêmes contrôles de type, de taille et de quota que l'écran ; le dépôt est journalisé comme un dépôt normal. Deux façons de s'en servir : (1) tu as un terminal sur l'ordinateur de l'utilisateur : lance la commande rendue (commandeAvecTerminal) avec le vrai chemin du fichier ; (2) sinon donne l'adresse à l'utilisateur, qui l'ouvre et choisit le fichier. Le lien est un secret : ne l'écris dans aucune note, aucun fichier, aucune page. Un document d'identité (carte, passeport) est visible de tous les membres de l'espace : ne le dépose que si l'utilisateur le demande. nom (facultatif) : nom du fichier avec son extension, pour préremplir la commande.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "affaireId": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200
+    },
+    "projetId": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200
+    },
+    "nom": {
+     "description": "Nom du fichier AVEC son extension (ex. « devis-signe.pdf »), pour préremplir la commande.",
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 120
+    }
+   }
   },
   "annotations": {
    "readOnlyHint": false,

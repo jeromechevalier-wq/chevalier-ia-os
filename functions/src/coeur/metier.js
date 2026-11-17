@@ -18,6 +18,7 @@ import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.j
 import { canonique, sansId, egal } from './canonique.js';
 import { lireReglagesDevis } from './lecture.js';
 import * as DOC from './documents.js';
+import * as DEPOT from './depot-lien.js';
 import { structureCourte, phraseTotaux } from './recapitulatif.js';
 import * as DL from './devis-lignes.js';
 import { derniereLigneDuJournal, refusDeLaDerniereLigne, phraseAnnulation, resumeDuDevis } from './devis-annulation.js';
@@ -705,7 +706,7 @@ export async function deposerDocumentMcp(c, args) {
     else {
       const brut = args.contenuBase64.replace(/\s+/g, '');
       if (/^sha256:/i.test(brut)) {
-        refuser('saisie_invalide', 'La référence de fichier n\'a pas été remplacée par le contenu du fichier : cette application ne la fournit pas pour cet outil. Rien n\'a été enregistré. L\'utilisateur peut cliquer « Ajouter un fichier » dans l\'onglet « Documents » de l\'affaire ou du projet.');
+        refuser('saisie_invalide', 'Ceci est une référence de fichier, pas son contenu : aucune application ne la remplace pour cet outil. Rien n\'a été enregistré. Utiliser demander_lien_depot (lien d\'envoi temporaire), ou l\'utilisateur clique « Ajouter un fichier » dans l\'onglet « Documents » de l\'affaire ou du projet.');
       }
       if (Math.floor(brut.length * 3 / 4) > MCP_BINAIRE_MAX_OCTETS) refuser('saisie_invalide', `Fichier trop gros pour cet outil (${MCP_BINAIRE_MAX_OCTETS / 1024 / 1024} Mo au plus) : l'utilisateur clique « Ajouter un fichier » dans l'onglet « Documents » de l'affaire ou du projet.`);
       octets = DOC.decoderBase64(brut, await DOC.lireReglageTaille(c.donnees));
@@ -716,6 +717,24 @@ export async function deposerDocumentMcp(c, args) {
       ecrire: (operations, parametres) => c.ecrire({ operations, parametres }), cibleType, cibleId, nom: args.nom, octets,
     });
     return { operationId: r.operationId, id: r.id, nom: r.nom, taille: r.taille, [cibleType === 'affaire' ? 'affaireId' : 'projetId']: cibleId, restaurable: 'restaurer_depuis_audit' };
+  } catch (e) { return refusDocument(e); }
+}
+
+/** Lien d'envoi temporaire (17/11/2026) : à usage unique, 10 minutes, une affaire ou un projet. Seulement là où le serveur en publie un (chez Jérôme ; c.lienDepot = adresse de base). */
+export async function demanderLienDepot(c, args) {
+  if (!c.lienDepot) refuser('stockage_indisponible', 'Le lien d\'envoi n\'existe pas dans cet espace : l\'utilisateur clique « Ajouter un fichier » dans l\'onglet « Documents » de l\'affaire ou du projet.');
+  try {
+    const { cibleType, cibleId } = DOC.lireCible(args);
+    if (!(await c.donnees.document(DOC.CIBLES[cibleType], cibleId))) refuser('introuvable', `${cibleType === 'affaire' ? 'Affaire' : 'Projet'} introuvable : ${cibleId}`);
+    await c.reserverEcriture?.(); // chaque lien compte comme une écriture dans le plafond du jeton (pas de stock de liens)
+    const jeton = await DEPOT.emettreLienDepot({ donnees: c.donnees, cibleType, cibleId, acteur: c.acteur, maintenant: new Date(c.maintenant).getTime() });
+    const url = `${c.lienDepot}/${jeton}`;
+    const nom = args.nom ?? 'fichier.pdf';
+    return {
+      url, valideMinutes: DEPOT.DUREE_DEPOT_MS / 60_000, usageUnique: true, tailleMaxMo: DEPOT.TAILLE_DEPOT_MAX_OCTETS / 1024 / 1024, [cibleType === 'affaire' ? 'affaireId' : 'projetId']: cibleId,
+      commandeAvecTerminal: `curl -sS -X PUT --data-binary @"CHEMIN_DU_FICHIER" "${url}?nom=${encodeURIComponent(nom)}"`,
+      consigne: 'Avec un terminal sur l\'ordinateur de l\'utilisateur : remplace CHEMIN_DU_FICHIER par le chemin réel du fichier et lance la commande ; la réponse est {"ok":true,…} ou une erreur à lire à l\'utilisateur. Sans terminal : donne l\'adresse (url) à l\'utilisateur, qui l\'ouvre et choisit le fichier. Le lien est un secret qui ne sert qu\'une fois : ne l\'écris dans aucune note, aucun fichier ni aucune page.',
+    };
   } catch (e) { return refusDocument(e); }
 }
 
