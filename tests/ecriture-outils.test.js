@@ -1353,6 +1353,7 @@ describe('R. deposer_document, supprimer_document_stocke, lister_documents (fich
     assert.equal(r.usageUnique, true);
     assert.equal(r.affaireId, 'a1');
     assert.ok(r.commandeAvecTerminal.includes(`${r.url}?nom=carte%20%C3%A9.pdf`) && r.commandeAvecTerminal.includes('CHEMIN_DU_FICHIER'));
+    assert.ok(r.commandeAvecTerminal.includes('-H "Content-Type: application/octet-stream"'), 'sans cet en-tête, curl annonce un formulaire que la plateforme refuse au-delà de 1000 « & »');
     const jeton = r.url.split('/').pop();
     const fiches = s.collections.mcp_codes.filter((d) => d.genre === 'depot');
     assert.equal(fiches.length, 1);

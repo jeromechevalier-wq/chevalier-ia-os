@@ -3,6 +3,7 @@
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { createRequire } from 'node:module';
 import { creerGestionnaireDepot, emettreLienDepot, DUREE_DEPOT_MS, TAILLE_DEPOT_MAX_OCTETS } from '../functions/src/coeur/depot-lien.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
@@ -11,7 +12,25 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n', 'latin1');
 const arrets = [];
 afterEach(async () => { while (arrets.length) await arrets.pop()(); });
 
-async function demarrer({ refusStockage = null } = {}) {
+const requireFonctions = createRequire(new URL('../functions/package.json', import.meta.url));
+
+/** Serveur qui lit le corps COMME LE FAIT la plateforme (functions-framework 5 : json, text, urlencoded puis raw sur tous les types, `rawBody` posé par ces lecteurs ; limite 1024 Mo). */
+function serveurAvecLecteursDeLaPlateforme(gestionnaire) {
+  const express = requireFonctions('express');
+  const bodyParser = requireFonctions('body-parser');
+  const app = express();
+  const verify = (req, res, buf) => { req.rawBody = buf; };
+  const limit = '1024mb';
+  app.use(bodyParser.json({ type: 'application/cloudevents+json', limit, verify }));
+  app.use(bodyParser.json({ limit, verify }));
+  app.use(bodyParser.text({ limit, verify }));
+  app.use(bodyParser.urlencoded({ limit, verify, extended: true }));
+  app.use(bodyParser.raw({ limit, verify, type: '*/*' }));
+  app.use((req, res) => gestionnaire(req, res));
+  return createServer(app);
+}
+
+async function demarrer({ refusStockage = null, lecteursPlateforme = false } = {}) {
   const collections = structuredClone(base);
   const donnees = creerAccesMemoire(collections);
   const objets = new Map();
@@ -19,7 +38,7 @@ async function demarrer({ refusStockage = null } = {}) {
   const horloge = { t: MAINTENANT.getTime() };
   const journal = [];
   const gestionnaire = creerGestionnaireDepot({ donnees: () => donnees, stockage, journal: (e) => journal.push(e), maintenant: () => horloge.t });
-  const serveur = createServer((req, res) => {
+  const serveur = lecteursPlateforme ? serveurAvecLecteursDeLaPlateforme(gestionnaire) : createServer((req, res) => {
     const morceaux = [];
     req.on('data', (x) => morceaux.push(x));
     req.on('end', () => { req.rawBody = Buffer.concat(morceaux); gestionnaire(req, res); });
@@ -28,8 +47,8 @@ async function demarrer({ refusStockage = null } = {}) {
   arrets.push(() => new Promise((ok) => serveur.close(ok)));
   const racine = `http://127.0.0.1:${serveur.address().port}`;
   const lien = async (cibleType = 'affaire', cibleId = 'a1') => emettreLienDepot({ donnees, cibleType, cibleId, acteur: 'claude-ai-essai', maintenant: horloge.t });
-  const envoyer = async (jeton, nom, octets, methode = 'PUT') => {
-    const r = await fetch(`${racine}/depot/${jeton}${nom === null ? '' : `?nom=${encodeURIComponent(nom)}`}`, { method: methode, body: octets });
+  const envoyer = async (jeton, nom, octets, methode = 'PUT', entetes = {}) => {
+    const r = await fetch(`${racine}/depot/${jeton}${nom === null ? '' : `?nom=${encodeURIComponent(nom)}`}`, { method: methode, body: octets, headers: entetes });
     return { statut: r.status, corps: await r.json().catch(() => null) };
   };
   return { collections, objets, horloge, journal, lien, envoyer, racine, page: (jeton) => fetch(`${racine}/depot/${jeton}`) };
@@ -133,5 +152,30 @@ describe('Lien d’envoi temporaire (depotdocument)', () => {
     assert.match(await apres.text(), /n'est plus valable/);
     assert.ok(!JSON.stringify(s.journal).includes(jeton));
     assert.ok(s.journal.some((e) => e.action === 'depot_lien' && e.statut === 'ok'));
+  });
+
+  test('8 avec les VRAIS lecteurs de corps de la plateforme : un PDF de 2 Mo plein d’octets « & » passe avec l’en-tête de la commande rendue et celui de la page ; type PDF, image ou inconnu aussi', async () => {
+    const s = await demarrer({ lecteursPlateforme: true });
+    const gros = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(2 * 1024 * 1024, 0x26)]); // 0x26 = « & » : lu comme un formulaire, il dépasserait 1000 paramètres
+    for (const entetes of [{ 'Content-Type': 'application/octet-stream' }, { 'Content-Type': 'application/pdf' }]) {
+      const r = await s.envoyer(await s.lien(), 'gros.pdf', gros, 'PUT', entetes);
+      assert.equal(r.statut, 200, JSON.stringify(r.corps));
+      assert.equal(r.corps.taille, gros.length);
+    }
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xd9]);
+    assert.equal((await s.envoyer(await s.lien(), 'photo.jpg', jpeg, 'PUT', { 'Content-Type': 'image/jpeg' })).statut, 200);
+    assert.equal((await s.envoyer(await s.lien(), 'notes.md', Buffer.from('# Titre\n'), 'PUT', { 'Content-Type': 'application/octet-stream' })).statut, 200);
+    const sansEntete = await s.envoyer(await s.lien(), 'gros.pdf', gros); // curl sans -H : formulaire, refusé par la plateforme avant notre code : c'est pourquoi la commande rendue porte l'en-tête
+    assert.notEqual(sansEntete.statut, 200);
+  });
+
+  test('9 les liens périmés jamais utilisés sont effacés à la création du lien suivant, et le journal d’audit garde le jeton du demandeur', async () => {
+    const s = await demarrer();
+    await s.lien(); await s.lien();
+    assert.equal(s.collections.mcp_codes.filter((d) => d.genre === 'depot').length, 2);
+    s.horloge.t += DUREE_DEPOT_MS + 1;
+    const jeton = await s.lien();
+    assert.equal(s.collections.mcp_codes.filter((d) => d.genre === 'depot').length, 1, 'les deux liens périmés sont partis');
+    assert.equal((await s.envoyer(jeton, 'x.pdf', PDF)).statut, 200);
   });
 });

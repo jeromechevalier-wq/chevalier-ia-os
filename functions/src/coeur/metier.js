@@ -727,12 +727,12 @@ export async function demanderLienDepot(c, args) {
     const { cibleType, cibleId } = DOC.lireCible(args);
     if (!(await c.donnees.document(DOC.CIBLES[cibleType], cibleId))) refuser('introuvable', `${cibleType === 'affaire' ? 'Affaire' : 'Projet'} introuvable : ${cibleId}`);
     await c.reserverEcriture?.(); // chaque lien compte comme une écriture dans le plafond du jeton (pas de stock de liens)
-    const jeton = await DEPOT.emettreLienDepot({ donnees: c.donnees, cibleType, cibleId, acteur: c.acteur, maintenant: new Date(c.maintenant).getTime() });
+    const jeton = await DEPOT.emettreLienDepot({ donnees: c.donnees, cibleType, cibleId, acteur: c.acteur, jeton: c.jeton, maintenant: new Date(c.maintenant).getTime() });
     const url = `${c.lienDepot}/${jeton}`;
     const nom = args.nom ?? 'fichier.pdf';
     return {
       url, valideMinutes: DEPOT.DUREE_DEPOT_MS / 60_000, usageUnique: true, tailleMaxMo: DEPOT.TAILLE_DEPOT_MAX_OCTETS / 1024 / 1024, [cibleType === 'affaire' ? 'affaireId' : 'projetId']: cibleId,
-      commandeAvecTerminal: `curl -sS -X PUT --data-binary @"CHEMIN_DU_FICHIER" "${url}?nom=${encodeURIComponent(nom)}"`,
+      commandeAvecTerminal: `curl -sS -X PUT -H "Content-Type: application/octet-stream" --data-binary @"CHEMIN_DU_FICHIER" "${url}?nom=${encodeURIComponent(nom)}"`,
       consigne: 'Avec un terminal sur l\'ordinateur de l\'utilisateur : remplace CHEMIN_DU_FICHIER par le chemin réel du fichier et lance la commande ; la réponse est {"ok":true,…} ou une erreur à lire à l\'utilisateur. Sans terminal : donne l\'adresse (url) à l\'utilisateur, qui l\'ouvre et choisit le fichier. Le lien est un secret qui ne sert qu\'une fois : ne l\'écris dans aucune note, aucun fichier ni aucune page.',
     };
   } catch (e) { return refusDocument(e); }

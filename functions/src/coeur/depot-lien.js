@@ -4,7 +4,7 @@
 //  - à usage unique : il est « réclamé » par une suppression atomique AVANT l'écriture (deux envois en même temps : un seul passe) ; si le fichier est refusé (type, taille), le lien est remis pour un nouvel essai ;
 //  - il ne vise qu'UNE affaire ou UN projet, fixé à la création, et garde l'acteur de l'assistant qui l'a demandé (le journal dit qui) ;
 //  - le dépôt est celui de l'écran et du MCP (documents.js) : mêmes contrôles (extension, type, premiers octets, taille, quota), même journal, jamais le contenu dans le journal ;
-//  - le lien n'est JAMAIS écrit dans un journal ni dans une réponse d'erreur.
+//  - le lien n'est JAMAIS écrit dans NOS journaux ni dans une réponse d'erreur (l'adresse peut figurer dans les journaux de la plateforme Google, mais elle ne vaut qu'une fois et 10 minutes).
 import { createHash, randomBytes } from 'node:crypto';
 import { COLLECTIONS as C } from './donnees.js';
 import { sansId } from './canonique.js';
@@ -17,11 +17,20 @@ const MOTIF_CHEMIN = /^\/depot\/([A-Za-z0-9_-]{43})\/?$/;
 
 const idDe = (jeton) => `depot_${createHash('sha256').update(jeton).digest('hex').slice(0, 40)}`;
 
-/** Crée un lien pour une affaire ou un projet. Rend le jeton (à mettre dans l'adresse, une seule fois). `maintenant` : millisecondes. */
-export async function emettreLienDepot({ donnees, cibleType, cibleId, acteur, maintenant, aleatoire = () => randomBytes(32).toString('base64url') }) {
+/** Crée un lien pour une affaire ou un projet. Rend le jeton (à mettre dans l'adresse, une seule fois). `maintenant` : millisecondes. `jeton` : identifiant du jeton MCP du demandeur (pour le journal). */
+export async function emettreLienDepot({ donnees, cibleType, cibleId, acteur, jeton: jetonMcp = acteur, maintenant, aleatoire = () => randomBytes(32).toString('base64url') }) {
+  await nettoyerLiensPerimes(donnees, maintenant);
   const jeton = aleatoire();
-  await donnees.appliquer([{ type: 'set', collection: C.codes, id: idDe(jeton), donnees: { genre: 'depot', cibleType, cibleId, acteur, valideJusqua: maintenant + DUREE_DEPOT_MS } }]);
+  await donnees.appliquer([{ type: 'set', collection: C.codes, id: idDe(jeton), donnees: { genre: 'depot', cibleType, cibleId, acteur, jetonMcp, valideJusqua: maintenant + DUREE_DEPOT_MS } }]);
   return jeton;
+}
+
+/** Ménage au passage : les liens périmés jamais utilisés sont effacés (20 au plus par demande ; une panne du ménage ne bloque jamais la création). */
+async function nettoyerLiensPerimes(donnees, maintenant) {
+  try {
+    const perimes = (await donnees.liste(C.codes)).filter((d) => d.genre === 'depot' && maintenant > d.valideJusqua).slice(0, 20);
+    if (perimes.length) await donnees.appliquer(perimes.map((d) => ({ type: 'delete', collection: C.codes, id: d.id })));
+  } catch { /* ménage seulement */ }
 }
 
 /** Lit un lien sans le consommer (la page d'envoi). null si absent, périmé ou d'un autre genre. */
@@ -79,7 +88,7 @@ button:disabled{opacity:.5;cursor:default}
     var fichier = f.files[0];
     if (!fichier) return;
     b.disabled = true; f.disabled = true; dire('Envoi en cours…');
-    fetch(location.pathname + '?nom=' + encodeURIComponent(fichier.name), { method: 'PUT', body: fichier })
+    fetch(location.pathname + '?nom=' + encodeURIComponent(fichier.name), { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: fichier })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok && j.ok, j: j }; }); })
       .then(function (r) {
         if (r.ok) { dire('C\\u2019est envoy\\u00e9 : ' + r.j.nom + '. Tu peux fermer cette page.', 'ok'); return; }
@@ -135,7 +144,7 @@ export function creerGestionnaireDepot({ donnees, stockage, espace = '', journal
     try { lien = await reclamerLien(base, jeton, t); } catch { lien = null; }
     if (!lien) return json(res, 404, { ok: false, erreur: 'Ce lien n\'est plus valable (expiré ou déjà utilisé). Demandez-en un nouveau.' });
 
-    const ctx = { acteur: lien.acteur, jeton: lien.acteur, via: 'mcp', maintenant: new Date(t) };
+    const ctx = { acteur: lien.acteur, jeton: lien.jetonMcp ?? lien.acteur, via: 'mcp', maintenant: new Date(t) };
     try {
       const r = await DOC.deposerDocument({
         donnees: base, stockage: typeof stockage === 'function' ? stockage() : stockage, espace, ctx,
