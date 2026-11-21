@@ -320,7 +320,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
       assert.doesNotMatch(t, /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
     }
     // Onglet « Documents » (28/10/2026) : trois fonctions seulement, jamais Cloud Storage (le navigateur n'y accède pas) ; leur nom est écrit en dur dans le fichier.
-    assert.deepEqual([...lire('js/modules/crm/fichiers-donnees.js').matchAll(/appeler\('([A-Za-z]+)'/g)].map((m) => m[1]).sort(), ['documentDeposer', 'documentLien', 'documentSupprimer']);
+    assert.deepEqual([...lire('js/modules/crm/fichiers-donnees.js').matchAll(/appeler\('([A-Za-z]+)'/g)].map((m) => m[1]).sort(), ['documentDeposer', 'documentLien', 'documentRenommer', 'documentSupprimer']);
     const appels = [...lire('js/modules/automatisations/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual([...new Set(appels)].sort(), ['automatisationsAdmin', 'automatisationsDecider', 'automatisationsRafraichir', 'automatisationsRenommer']); // Admin : compte de Jérôme seulement (vue de tous les propriétaires) ; Decider : valider, refuser ou relancer une proposition de l'écran « À valider » (le serveur revérifie tout)
     // Module Devis (24/10/2026) : les transitions d'un devis (finaliser, changer de statut, nouvelle version, archiver, supprimer) et l'historique des envois passent par le serveur ; le seul httpsCallable du fichier lit son nom dans une table fixe.

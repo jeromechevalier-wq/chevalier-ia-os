@@ -1,5 +1,5 @@
 // Onglet « Documents » des fiches affaire et projet : fichiers rangés chez nous (Cloud Storage), déposés par l'écran. Un test par point (le nom commence par le numéro du point).
-// Captures dans tests/e2e/captures/documents-stockes/ (ordinateur ET téléphone). Le serveur (documentDeposer, documentLien, documentSupprimer) n'existe pas dans l'émulateur du navigateur :
+// Captures dans tests/e2e/captures/documents-stockes/ (ordinateur ET téléphone). Le serveur (documentDeposer, documentLien, documentRenommer, documentSupprimer) n'existe pas dans l'émulateur du navigateur :
 // il est SIMULÉ par page.route, et il écrit la fiche dans Firestore comme le vrai. Le vrai stockage (Cloud Storage) est impossible ici : rien n'est vérifié avec le vrai système.
 import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -53,6 +53,12 @@ async function simulerServeur(page, appels, reponses = {}) {
     return { statut: 200, corps: { result: { id, nom: d.nom, taille: 10, typeMime: 'application/pdf' } } };
   }));
   await page.route('**/documentLien', (route) => repondre(route, 'documentLien', async () => ({ statut: 200, corps: { result: { url: URL_FICHIER, expireDans: 300, nom: 'Plan.pdf' } } })));
+  await page.route('**/documentRenommer', (route) => repondre(route, 'documentRenommer', async (d) => {
+    if (reponses.renommer) return reponses.renommer(d);
+    const actuel = await lireDocument(`documents_stockes/${d.documentId}`);
+    await ecrireDocument(`documents_stockes/${d.documentId}`, { ...actuel, nom: d.nom });
+    return { statut: 200, corps: { result: { id: d.documentId, nom: d.nom } } };
+  }));
   await page.route('**/documentSupprimer', (route) => repondre(route, 'documentSupprimer', async (d) => {
     const actuel = await lireDocument(`documents_stockes/${d.documentId}`);
     await ecrireDocument(`documents_stockes/${d.documentId}`, { ...actuel, supprimeLe: new Date(), supprimePar: JEROME });
@@ -181,6 +187,52 @@ test('5 retirer un fichier : fenêtre de confirmation ; « Annuler » ne supprim
   expect(appels).toEqual([['documentSupprimer', { documentId: 'f1' }]]);
   expect((await lireDocument('documents_stockes/f1')).supprimeLe).toBeTruthy(); // la fiche reste (corbeille logique) : le journal peut la restaurer
   await capturer(page, info, '5-apres-retrait');
+});
+
+test('14 renommer un fichier : le crayon ouvre une fenêtre avec le nom sans l’extension ; « Annuler » ne change rien ; « Renommer » garde l’extension, appelle le serveur et la liste montre le nouveau nom', async ({ page }, info) => {
+  const appels = [];
+  await fiche('f1', { nom: '5033842879837545388.jpg', typeMime: 'image/jpeg' });
+  await ouvrirAffaire(page);
+  await simulerServeur(page, appels);
+  await ouvrirOnglet(page);
+  const ligne = page.locator('[data-fichier="f1"]');
+  await expect(ligne.locator('[data-action="renommer-fichier"]')).toHaveAttribute('title', 'Renommer');
+  await ligne.locator('[data-action="renommer-fichier"]').click();
+  const dialogue = page.getByRole('dialog');
+  await expect(dialogue).toContainText('Renommer le fichier');
+  await expect(dialogue).toContainText('l’extension .jpg est conservée');
+  const champ = dialogue.getByRole('textbox');
+  await expect(champ).toHaveValue('5033842879837545388');
+  await capturer(page, info, '14-renommer');
+  await dialogue.getByRole('button', { name: 'Annuler' }).click();
+  await expect(dialogue).toHaveCount(0);
+  expect(appels).toHaveLength(0);
+  await ligne.locator('[data-action="renommer-fichier"]').click();
+  await page.getByRole('dialog').getByRole('textbox').fill('Carte nationale d’identité Samuel');
+  await page.getByRole('dialog').getByRole('button', { name: 'Renommer' }).click();
+  await expect(ligne.locator('[data-action="ouvrir-fichier"]')).toHaveText('Carte nationale d’identité Samuel.jpg');
+  expect(appels).toEqual([['documentRenommer', { documentId: 'f1', nom: 'Carte nationale d’identité Samuel.jpg' }]]);
+  expect((await lireDocument('documents_stockes/f1')).nom).toBe('Carte nationale d’identité Samuel.jpg');
+  await capturer(page, info, '14-apres-renommage');
+});
+
+test('14 renommer : une erreur du serveur affiche son message et le nom ne change pas ; sans changement de nom, aucun appel', { annotation: { type: 'erreurs-reseau-attendues', description: 'réponse d’erreur simulée' } }, async ({ page }) => {
+  const appels = [];
+  await fiche('f1', { nom: 'Plan.pdf' });
+  await ouvrirAffaire(page);
+  await simulerServeur(page, appels, { renommer: () => erreurServeur(400, 'INVALID_ARGUMENT', 'Les fichiers « .exe » ne sont pas acceptés.') });
+  await ouvrirOnglet(page);
+  const ligne = page.locator('[data-fichier="f1"]');
+  await ligne.locator('[data-action="renommer-fichier"]').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Renommer' }).click(); // même nom : rien n'est envoyé
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(appels).toHaveLength(0);
+  await ligne.locator('[data-action="renommer-fichier"]').click();
+  await page.getByRole('dialog').getByRole('textbox').fill('virus');
+  await page.getByRole('dialog').getByRole('button', { name: 'Renommer' }).click();
+  await expect(page.getByText('Les fichiers « .exe » ne sont pas acceptés.')).toBeVisible();
+  await expect(ligne.locator('[data-action="ouvrir-fichier"]')).toHaveText('Plan.pdf');
+  expect(appels).toEqual([['documentRenommer', { documentId: 'f1', nom: 'virus.pdf' }]]);
 });
 
 test('6 cas vide : « Aucun fichier » avec une phrase d’aide, le bouton d’ajout et la taille maximale', async ({ page }, info) => {
@@ -319,6 +371,7 @@ test.describe('9 lecteur d’un espace client', () => {
     await expect(panneau.locator('[data-fichier="f1"]')).toContainText('Cahier des charges.pdf');
     await expect(panneau.getByRole('button', { name: 'Ajouter un fichier' })).toHaveCount(0);
     await expect(panneau.locator('[data-action="retirer-fichier"]')).toHaveCount(0);
+    await expect(panneau.locator('[data-action="renommer-fichier"]')).toHaveCount(0);
     await expect(panneau.locator('[data-role="aide-fichiers"]')).toContainText('seul un éditeur peut en ajouter');
     await capturer(page, info, '9-lecteur');
     await Promise.all([page.waitForEvent('popup'), panneau.locator('[data-action="ouvrir-fichier"]').click()]);
@@ -334,5 +387,6 @@ test.describe('9 lecteur d’un espace client', () => {
     const panneau = await ouvrirOnglet(page);
     await expect(panneau.getByRole('button', { name: 'Ajouter un fichier' })).toBeVisible();
     await expect(panneau.locator('[data-action="retirer-fichier"]')).toHaveCount(1);
+    await expect(panneau.locator('[data-action="renommer-fichier"]')).toHaveCount(1);
   });
 });

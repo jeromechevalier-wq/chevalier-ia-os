@@ -452,6 +452,51 @@ describe('R fichiers déposés : dépôt, lien, suppression (faux Cloud Storage,
     await m.a('lien')(requete({ documentId: r.id }));
   });
 
+  test('R5b renommer : seule la fiche change (le fichier ne bouge pas), extension gardée, doublon numéroté, journal avec la copie « avant », restaurable', async () => {
+    const m = mondeDocs();
+    const img = await depot(m, { nom: '5033842879837545388.jpg', contenuBase64: b64(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3])), typeMime: 'image/jpeg' });
+    const autre = await depot(m, { nom: 'Carte identité Samuel.jpg', contenuBase64: b64(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 4])), typeMime: 'image/jpeg' });
+    const chemin = m.collections[C.documentsStockes].find((f) => f.id === img.id).chemin;
+    await assert.rejects(() => m.a('renommer')({ data: {} }), (e) => e.code === 'unauthenticated');
+    await assert.rejects(() => m.a('renommer')(requete({ documentId: img.id, nom: 'x.jpg' }, 'intrus@exemple.test')), (e) => e.code === 'permission-denied');
+    // un nom libre : la fiche prend le nouveau nom, le chemin et le fichier restent
+    const barre = await m.a('renommer')(requete({ documentId: img.id, nom: 'Facture 12/11/2026.jpg' })); // une barre oblique tapée ne fait pas perdre le début du nom
+    assert.equal(barre.nom, 'Facture 12-11-2026.jpg');
+    const r = await m.a('renommer')(requete({ documentId: img.id, nom: '../CNI Samuel.jpg' })); // jamais de chemin dans un nom
+    assert.ok(!/[\\/]/.test(r.nom) && r.nom.endsWith('CNI Samuel.jpg'), r.nom);
+    await m.a('renommer')(requete({ documentId: img.id, nom: 'CNI Samuel.jpg' }));
+    const fiche = m.collections[C.documentsStockes].find((f) => f.id === img.id);
+    assert.equal(fiche.nom, 'CNI Samuel.jpg');
+    assert.equal(fiche.chemin, chemin);
+    assert.equal(m.objets.size, 2);
+    const ligne = m.collections[C.audit].find((l) => l.outil === 'documentRenommer');
+    assert.equal(ligne.action, 'modifier');
+    assert.deepEqual([...ligne.champsModifies], ['nom']);
+    // le lien signé porte le nouveau nom
+    await m.a('lien')(requete({ documentId: img.id }));
+    assert.equal(m.signes.at(-1).nomAffiche, 'CNI Samuel.jpg');
+    // extension : jamais changée ; extension dangereuse, nom vide, identifiant inconnu, rôle : refus
+    for (const nom of ['CNI.pdf', 'CNI', 'CNI.exe.jpg', '   .jpg', '']) await assert.rejects(() => m.a('renommer')(requete({ documentId: img.id, nom })), (e) => e.code === 'invalid-argument', nom);
+    await assert.rejects(() => m.a('renommer')(requete({ documentId: 'nexistepas', nom: 'a.jpg' })), (e) => e.code === 'not-found');
+    assert.equal(m.collections[C.documentsStockes].find((f) => f.id === img.id).nom, 'CNI Samuel.jpg', 'les refus n’ont rien écrit');
+    // même nom : rien n'est écrit ; nom pris par un autre fichier de la fiche : « (2) »
+    const avant = m.collections[C.audit].length;
+    assert.equal((await m.a('renommer')(requete({ documentId: img.id, nom: 'CNI Samuel.jpg' }))).nom, 'CNI Samuel.jpg');
+    assert.equal(m.collections[C.audit].length, avant);
+    const pris = await m.a('renommer')(requete({ documentId: img.id, nom: 'carte identité samuel.JPG' }));
+    assert.equal(pris.nom, 'carte identité samuel (2).JPG');
+    void autre;
+    // un fichier supprimé ne compte pas pour les doublons, et on ne peut plus renommer un fichier retiré
+    const sup = await m.a('supprimer')(requete({ documentId: autre.id }));
+    assert.equal(sup.id, autre.id);
+    await assert.rejects(() => m.a('renommer')(requete({ documentId: autre.id, nom: 'z.jpg' })), (e) => e.code === 'not-found');
+    // restaurer remet l'ancien nom
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    const derniere = [...m.collections[C.audit]].reverse().find((l) => l.outil === 'documentRenommer' && l.operationId);
+    await restaurerOperation({ donnees: m.donnees, ctx: { acteur: ACTEUR, via: 'mcp', maintenant: MAINTENANT }, operationId: derniere.operationId, apercu: false });
+    assert.equal(m.collections[C.documentsStockes].find((f) => f.id === img.id).nom, 'CNI Samuel.jpg');
+  });
+
   test('R6 stockage introuvable ou sans droit : message clair, rien n’est écrit', async () => {
     const m = mondeDocs();
     const sans = m.a('deposer', { stockage: null });

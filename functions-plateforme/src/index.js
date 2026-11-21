@@ -211,6 +211,7 @@ const appelDoc = (operation, options) => onCall(options, async (requete) => {
 });
 export const documentDeposer = appelDoc('deposer', OPTIONS_DOCUMENT_DEPOT);
 export const documentLien = appelDoc('lien', OPTIONS_DOCUMENT);
+export const documentRenommer = appelDoc('renommer', OPTIONS_DOCUMENT);
 export const documentSupprimer = appelDoc('supprimer', OPTIONS_DOCUMENT);
 
 // Déclencheur : ne réagit qu'au passage brouillon -> finalisé (l'écriture de `pdf` ne le relance donc jamais), ne fabrique que si le module « devis » est actif chez ce client, ne lève jamais d'erreur.
