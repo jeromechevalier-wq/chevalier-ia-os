@@ -72,7 +72,7 @@ node scripts/cles.js creer --projet plateforme --proprietaire audrey --ecrire
 Dans n8n : *Credentials* > *Add credential* > **Header Auth**.
 - Nom (*Name*) : `Authorization`
 - Valeur (*Value*) : **colle telle quelle** ce que l'outil a copié : c'est déjà `Bearer ` (avec une espace) suivi de la clé. Ne retape rien.
-- Nom du credential : `Clé n8n - <client>` (par exemple `Clé n8n - Audrey`).
+- Nom du credential : `client-<identifiant> - porte - clé n8n (SENSIBLE)` (par exemple `client-dupont - porte - clé n8n (SENSIBLE)`) ; pour toi : `interne - porte - clé n8n (SENSIBLE)`. L'outil `cles.js creer` affiche ce nom. **L'ancien nom `Clé n8n - <client>` reste reconnu pour toujours** (les nœuds déjà enregistrés le gardent) ; aucun code à changer pour un nouveau client (voir `automatisations-n8n.md`, partie 10).
 
 **Un seul credential par client**, utilisé par **tous** ses workflows. Pour changer la clé plus tard, on ne modifie que ce credential.
 
@@ -222,7 +222,7 @@ Décisions plus larges (une base pour Jérôme, une pour les clients, un site d�
 
 ## 11. Lien avec les Automatisations (2.7.0)
 
-Le credential « Clé n8n - <propriétaire> » (section 4) sert aussi à **reconnaître le propriétaire d'un workflow** pour l'écran Automatisations : étiquette + nom + clé doivent concorder (détails et tolérance sur le nom dans `automatisations-n8n.md`, partie 10). Pour toi : étiquette `interne`, nom `interne-…`, credential « Clé n8n - interne ». À vérifier avec toi : le nom exact de ce credential dans ton n8n.
+Le credential « <propriétaire> - porte - clé n8n (SENSIBLE) » (section 4 ; l'ancien nom « Clé n8n - <propriétaire> » reste reconnu) sert aussi à **reconnaître le propriétaire d'un workflow** pour l'écran Automatisations : étiquette + nom + clé doivent concorder (détails et tolérance sur le nom dans `automatisations-n8n.md`, partie 10). Pour toi : étiquette `interne`, nom `interne-…`, credential « interne - porte - clé n8n (SENSIBLE) ».
 
 ## 12. Module Automatisations : les propositions (2.24.0, 22/10/2026)
 

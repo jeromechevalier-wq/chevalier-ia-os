@@ -39,6 +39,106 @@ const liste = async (db, chemin) => (await db.collection(chemin).get()).docs.map
 const refus = async (p) => { try { await p; } catch (e) { assert.ok(e instanceof Refus, String(e)); return e; } assert.fail('un refus était attendu'); };
 const wf = (id, name, tags, cles = []) => ({ id, name, active: true, tags, cles });
 
+describe('K. Nom de la clé de la porte : « <propriétaire> - porte - clé n8n (SENSIBLE) » (identifiants inventés : le dépôt est public)', () => {
+  const NOUVEAU_INTERNE = 'interne - porte - clé n8n (SENSIBLE)';
+  const nouveau = (id) => `client-${id} - porte - clé n8n (SENSIBLE)`;
+  test('K1 le nouveau format désigne le bon propriétaire (casse, accents, tiret long, marqueur facultatif)', () => {
+    for (const nom of [NOUVEAU_INTERNE, 'interne - porte - cle n8n', 'INTERNE – PORTE – CLÉ N8N (sensible)', 'interne - porte - clé n8n (SENSIBLE) ']) assert.equal(E.proprietaireDeLaCle(nom), 'interne', nom);
+    assert.equal(E.proprietaireDeLaCle(nouveau('dupont')), 'dupont');
+    assert.equal(E.proprietaireDeLaCle('CLIENT-dupont – PORTE – CLÉ N8N (sensible)'), 'dupont');
+  });
+  test('K2 nouveau client (« dupont ») : étiquette + nom + clé au nouveau format, SANS aucun identifiant écrit dans le code : copié', () => {
+    const ctx = { connus: new Set(['dupont']), actifs: new Set(['dupont']) };
+    const r = E.classer([wf('1', 'client-dupont-rapport', ['client-dupont'], [nouveau('dupont')])], ctx);
+    assert.deepEqual(r.parClient.get('dupont').map((w) => w.id), ['1']);
+    assert.deepEqual(r.signalements, []);
+    assert.deepEqual(Object.keys(E.IDENTIFIANTS_CLES), ['interne'], 'seul « interne » est reconnu par identifiant : pas de PR par client');
+  });
+  test('K3 compatibilité : l\'ancien nom « Clé n8n - <propriétaire> » reste reconnu (les nœuds déjà enregistrés le gardent)', () => {
+    assert.equal(E.proprietaireDeLaCle('Clé n8n - Interne'), 'interne');
+    assert.equal(E.proprietaireDeLaCle('Clé n8n - dupont'), 'dupont');
+    const ctx = { connus: new Set(['dupont']), actifs: new Set(['dupont']) };
+    assert.equal(E.classer([wf('1', 'client-dupont-x', ['client-dupont'], ['Clé n8n - dupont'])], ctx).parClient.get('dupont').length, 1);
+    assert.deepEqual(E.classerInterne([wf('2', 'interne-x', ['interne'], ['Clé n8n - Interne'])]).retenus.map((w) => w.id), ['2']);
+  });
+  test('K4 identifiant à tirets : « client-cabinet-martin - porte - clé n8n (SENSIBLE) » désigne cabinet-martin', () => {
+    assert.equal(E.proprietaireDeLaCle(nouveau('cabinet-martin')), 'cabinetmartin');
+    const ctx = { connus: new Set(['cabinet-martin', 'cabinet']), actifs: new Set(['cabinet-martin', 'cabinet']) };
+    const r = E.classer([wf('1', 'client-cabinet-martin-x', ['client-cabinet-martin'], [nouveau('cabinet-martin')])], ctx);
+    assert.deepEqual(r.parClient.get('cabinet-martin').map((w) => w.id), ['1']);
+    assert.equal(r.parClient.has('cabinet'), false);
+  });
+  test('K5 nom ambigu (« client-a - porte - clé n8n - b ») : jamais ignoré en silence, le workflow n\'est pas copié et le message le dit', () => {
+    const ambigu = 'client-a - porte - clé n8n - b';
+    assert.equal(E.proprietaireDeLaCle(ambigu), E.CLE_ILLISIBLE);
+    const ctx = { connus: new Set(['a']), actifs: new Set(['a']) };
+    const r = E.classer([wf('1', 'client-a-x', ['client-a'], [ambigu])], ctx);
+    assert.equal(r.parClient.size, 0);
+    assert.equal(r.signalements[0].raison, 'signes-differents');
+    assert.match(r.signalements[0].message, /ne se lit pas/);
+    const i = E.classerInterne([wf('2', 'interne-x', ['interne'], ['interne - porte - clé n8n (NE PAS TOUCHER)'])]);
+    assert.deepEqual(i.retenus, []);
+    assert.equal(i.signalements[0].raison, 'signes-differents');
+  });
+  test('K6 la clé d\'un AUTRE client au nouveau format : refusé (pas de fuite entre clients), et chez Jérôme aussi', () => {
+    const ctx = { connus: new Set(['audrey', 'dupont']), actifs: new Set(['audrey', 'dupont']) };
+    const r = E.classer([wf('1', 'client-audrey-x', ['client-audrey'], [nouveau('dupont')])], ctx);
+    assert.equal(r.parClient.size, 0);
+    assert.equal(r.signalements[0].raison, 'signes-differents');
+    assert.equal(E.classerInterne([wf('2', 'interne-x', ['interne'], [nouveau('dupont')])]).retenus.length, 0);
+    assert.equal(E.classer([wf('3', 'client-dupont-x', ['client-dupont'], [NOUVEAU_INTERNE])], ctx).parClient.size, 0);
+  });
+  test('K7 l\'identifiant du credential interne l\'emporte sur n\'importe quel nom lu dans le nœud', () => {
+    const w = { id: '1', name: 'interne-x', active: true, tags: ['interne'], cles: [nouveau('dupont')], clesIds: [E.IDENTIFIANTS_CLES.interne[0]] };
+    assert.deepEqual(E.classerInterne([w]).retenus.map((x) => x.id), ['1']);
+  });
+  test('K8 un suffixe collé à l\'ANCIEN nom (« Clé n8n - x (NE PAS TOUCHER) ») reste refusé : verrou contre cette idée', () => {
+    assert.notEqual(E.proprietaireDeLaCle('Clé n8n - interne (NE PAS TOUCHER)'), 'interne');
+    assert.equal(E.classerInterne([wf('1', 'interne-x', ['interne'], ['Clé n8n - interne (NE PAS TOUCHER)'])]).retenus.length, 0);
+  });
+  test('K9 le nom attendu affiché à Jérôme est le nouveau nom', () => {
+    assert.equal(E.nomCleDe('interne'), 'interne - porte - clé n8n (SENSIBLE)');
+    assert.equal(E.nomCleDe('dupont'), 'client-dupont - porte - clé n8n (SENSIBLE)');
+    assert.equal(E.proprietaireDeLaCle(E.nomCleDe('mon-client')), 'monclient');
+  });
+  test('K10 les formes collées ou mal espacées du nouveau nom ne sont JAMAIS ignorées en silence : refus avec message', () => {
+    const ctx = { connus: new Set(['audrey']), actifs: new Set(['audrey']) };
+    for (const nom of ['client-dupont-porte-clé n8n', 'client-dupont - porte -clé n8n', 'client-dupont - porte-clé-n8n']) {
+      assert.equal(E.proprietaireDeLaCle(nom), E.CLE_ILLISIBLE, nom);
+      const r = E.classer([wf('1', 'client-audrey-x', ['client-audrey'], [nom])], ctx);
+      assert.equal(r.parClient.size, 0, nom);
+      assert.equal(r.signalements[0].raison, 'signes-differents', nom);
+    }
+  });
+  test('K11 « client-interne » (réservé) n\'est pas la clé de Jérôme : illisible, jamais retenu chez lui', () => {
+    for (const nom of ['client-interne - porte - clé n8n (SENSIBLE)', 'client-in-terne - porte - clé n8n']) {
+      assert.equal(E.proprietaireDeLaCle(nom), E.CLE_ILLISIBLE, nom);
+      assert.equal(E.classerInterne([wf('1', 'interne-x', ['interne'], [nom])]).retenus.length, 0, nom);
+    }
+  });
+  test('K12 clé illisible : sans étiquette, rien n\'est copié ni signalé à tort ; avec la bonne clé en plus, le workflow d\'un client est refusé', () => {
+    const ctx = { connus: new Set(['audrey']), actifs: new Set(['audrey']) };
+    const sans = E.classer([wf('1', 'x', [], ['client-a - porte - clé n8n - b'])], ctx);
+    assert.deepEqual(sans, { parClient: new Map(), signalements: [] });
+    const deux = E.classer([wf('2', 'client-audrey-x', ['client-audrey'], [nouveau('audrey'), 'client-a - porte - clé n8n - b'])], ctx);
+    assert.equal(deux.parClient.size, 0);
+    assert.equal(deux.signalements[0].raison, 'signes-differents');
+  });
+  test('K13 la ligne « Clé de la porte » dit les credentials lus quand la clé est illisible', () => {
+    const lu = 'interne - porte - clé n8n (NE PAS TOUCHER)';
+    const [s] = E.classerInterne([wf('1', 'interne-x', ['interne'], [lu])]).signalements;
+    assert.equal(s.lignes[2].ok, false);
+    assert.ok(s.lignes[2].texte.includes(lu), s.lignes[2].texte);
+    assert.match(s.message, /ne se lit pas/);
+  });
+  test('K14 identifiants limites : « _ », 40 caractères, « client-client-x »', () => {
+    assert.equal(E.proprietaireDeLaCle('client-ma_boite - porte - clé n8n (SENSIBLE)'), 'maboite');
+    assert.equal(E.proprietaireDeLaCle(nouveau('a'.repeat(40))), 'a'.repeat(40));
+    assert.equal(E.proprietaireDeLaCle(nouveau('a')), 'a');
+    assert.equal(E.proprietaireDeLaCle(E.nomCleDe('client-x')), 'clientx');
+  });
+});
+
 describe('R. Reconnaissance du propriétaire : trois signes', () => {
   const connus = new Set(['audrey', 'cabinet-martin']);
   test('R1 le nom du credential est reconnu malgré la casse, les accents, les espaces et les tirets', () => {
@@ -56,8 +156,8 @@ describe('R. Reconnaissance du propriétaire : trois signes', () => {
     const cas = [
       [wf('a', 'interne-x', [], [CLE_INTERNE]), 'étiquette'],
       [wf('b', 'veille-x', ['interne'], [CLE_INTERNE]), 'interne-'],
-      [wf('c', 'interne-x', ['interne'], ['Google']), 'Clé n8n - interne'],
-      [wf('d', 'interne-x', ['interne'], []), 'Clé n8n - interne'],
+      [wf('c', 'interne-x', ['interne'], ['Google']), 'interne - porte - clé n8n (SENSIBLE)'],
+      [wf('d', 'interne-x', ['interne'], []), 'interne - porte - clé n8n (SENSIBLE)'],
     ];
     for (const [w, mot] of cas) {
       const r = E.classerInterne([w], { connus });
@@ -304,7 +404,7 @@ describe('N. Explications précises, identifiant du credential, catégories', ()
     assert.equal(s.proprietaire, 'interne');
     assert.deepEqual(s.lignes.map((l) => [l.signe, l.ok]), [['Étiquette', true], ['Nom', true], ['Clé de la porte', false]]);
     assert.match(s.lignes[2].texte, /« Clé n8n - Jérôme »/);
-    assert.match(s.lignes[2].texte, /« Clé n8n - interne »/);
+    assert.match(s.lignes[2].texte, /« interne - porte - clé n8n \(SENSIBLE\) »/);
   });
   test('N3 étiquette absente et nom différent : les lignes le disent, avec les étiquettes réellement présentes', () => {
     const [s] = E.classerInterne([wfc('2', 'veille-x', ['marketing'], ['Clé n8n - interne'], ['c1'])]).signalements;
