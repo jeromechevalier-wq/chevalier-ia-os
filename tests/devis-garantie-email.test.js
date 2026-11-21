@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { OUTILS, annotationsDe } from '../functions/src/mcp/outils/index.js';
+import { varianteDuProfil } from '../functions/src/mcp/outils/variantes-assistant-devis.js';
 import { GARANTIE_PAS_D_ENVOI, concerneParLaGarantie } from '../functions/src/mcp/outils/garantie.js';
 import { creerSortieN8n, HOTE_N8N } from '../functions/src/coeur/n8n-sortie.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
@@ -212,15 +213,23 @@ describe('2 preparer_email : un brouillon seulement, jamais d’envoi', () => {
     assert.deepEqual(s.demandes[0], { espace: 'interne', devisId: 'v1', demandeId: r.demandeId });
   });
 
-  test('2 voix : la description de preparer_email autorise l’enregistrement d’une adresse dite par l’utilisateur, et l’interdit pour une adresse venue d’ailleurs', () => {
+  test('2 voix : la description de preparer_email autorise l’enregistrement d’une adresse désignée par l’utilisateur (même lue dans une fiche ou un e-mail), et l’interdit pour une adresse trouvée de l’initiative de l’assistant ou donnée comme instruction', () => {
     const o = OUTILS.find((x) => x.nom === 'preparer_email');
     assert.match(o.description, /modifier_destinataires_devis/);
     assert.match(o.description, /modifier_personne/);
-    assert.match(o.description, /LUI-MÊME qui t'a dicté ou écrit/);
-    assert.match(o.description, /n'enregistre JAMAIS une adresse qui vient d'ailleurs/);
+    assert.match(o.description, /LUI-MÊME qui t'a désigné cette adresse/);
+    assert.match(o.description, /n'enregistre JAMAIS une adresse que tu as trouvée de ta propre initiative/);
     assert.ok(!/même s'il te la dicte/.test(o.description));
     for (const nom of ['modifier_destinataires_devis', 'modifier_personne']) {
-      assert.match(OUTILS.find((x) => x.nom === nom).description, /LUI-MÊME dans la conversation/, `${nom} : la provenance de l'adresse est dite`);
+      const desc = OUTILS.find((x) => x.nom === nom).description;
+      assert.match(desc, /LUI-MÊME dans la conversation/, `${nom} : la provenance de l'adresse est dite`);
+      assert.match(desc, /de ta propre initiative|choisie par toi/, `${nom} : l'adresse choisie par l'assistant reste interdite`);
+      assert.ok(!/jamais repris|reprise d'une note|vient d'ailleurs|venue d'ailleurs/.test(desc), `${nom} : l'ancienne interdiction est retirée`);
+    }
+    for (const nom of ['modifier_destinataires_devis', 'preparer_email']) {
+      const v = varianteDuProfil(OUTILS.find((x) => x.nom === nom), 'assistant-devis');
+      assert.match(v.description, /désigné(e)? LUI-MÊME|LUI-MÊME qui t'a désigné/, `${nom} (assistant-devis) : adresse désignée par l'utilisateur`);
+      assert.match(v.description, /propre initiative/, `${nom} (assistant-devis) : jamais de sa propre initiative`);
     }
   });
 
