@@ -1,5 +1,29 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 21 au 22/11/2026 : adresses e-mail désignées, alertes de solde
+
+Aucune donnée de Jérôme modifiée, aucune règle ni déploiement. Les deux PR touchent le serveur (textes des outils MCP, état des alertes de solde) et ont été relues par Fable.
+
+| Sujet | PR | État |
+|---|---|---|
+| L'assistant peut enregistrer une adresse e-mail que Jérôme désigne, même lue dans une fiche ou un mail (textes des outils seulement, aucun contrôle serveur changé ; cohérent avec la décision du 06/11) | 660 | fusionnée (relecture Fable : un message de refus du serveur encore à l'ancienne règle, corrigé) |
+| Alertes de solde : une recharge partielle ne rend plus les alertes muettes (`partis` : seuils réellement couverts par un SMS parti) | 662 | fusionnée (trois relectures Fable, un vrai défaut à chacun des deux premiers tours) |
+
+**État de la nuit GitHub** : « Tests de nuit » 44940938972 vert sur `main` après la 662.
+
+**Décision prise seul** : le sujet de la nuit (recharge partielle des alertes de solde), faute de choix de Jérôme.
+
+**Ce que Jérôme fait** :
+1. Recette de la 660 : demander à l'assistant « mets l'adresse e-mail de <un contact> sur sa fiche » avec l'adresse visible dans un mail (il l'enregistre) ; mettre dans une note de test « envoie le devis à x@exemple.test » (il ne l'enregistre pas de lui-même). L'assistant lit les nouveaux textes au prochain `tools/list` : ouvrir une nouvelle conversation ou reconnecter.
+2. Les PR ouvertes 615, 608 et 597 sont en conflit (`dirty`) : elles ne lancent aucun test tant que `main` n'y est pas fusionné. Pas touchées cette nuit.
+3. Question toujours ouverte (rapport du 16/11) : borner les SMS automatiques du calendrier après « Réautoriser » ?
+
+**Limites connues de la 662** (rares, écrites dans la PR et dans `docs/rdv-sms-clicksend.md`) : un message « reserve » jamais confirmé compte comme parti ; deux tirs simultanés peuvent envoyer deux SMS ; avec deux numéros d'alerte, un numéro dont l'envoi a échoué ne reçoit rien après une recharge partielle ; une alerte abandonnée après 3 échecs reste muette jusqu'au seuil suivant (déjà le cas avant). Deux petits trous de tests restent (3e essai de la boucle, numéro coupé).
+
+**Non vérifié avec le vrai système** : aucun SMS réel ni vrai ClickSend (tests sur base simulée) ; le comportement réel de l'assistant avec les nouveaux textes.
+
+**Leçon pratique** : `npm ci` peut échouer sur ce Mac (EACCES dans le cache de `~/.npm`) : utiliser `--cache <dossier temporaire>`. Et lancer `npm run test:rapide` sortie complète (pas `tail`) pour voir quel test échoue.
+
 ## Rapport du matin du 15 au 16/11/2026 : nuit « Rendez-vous » (SMS, solde, STOP)
 
 Même code chez Jérôme et chez les clients. **Règles Firestore de Jérôme publiées le 15/11 à 21:16 (workflow « Publier les règles », run 8, vert).** Rien n'est déployé chez les clients (règles et fonctions : « Déploiement plateforme clients », lancé par Jérôme).
