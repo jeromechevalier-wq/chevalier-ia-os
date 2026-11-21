@@ -142,7 +142,7 @@ export async function alerterSoldeBas(ctx, { solde, lien = '' } = {}) {
   const chReglages = chemin(base, T.param, 'reglages');
   let creesTotal = 0; // cumul des deux essais éventuels : un message créé au premier essai part quand même
   const fin = (statut) => ({ statut: creesTotal ? 'alerte' : statut, crees: creesTotal });
-  for (let essai = 0; essai < 2; essai += 1) {
+  for (let essai = 0; essai < 3; essai += 1) {
     const reglages = await donnees.lireDoc(chReglages);
     if (!reglages) return fin('aucune');
     const seuils = R.seuilsSoldeDe(reglages);
@@ -152,32 +152,35 @@ export async function alerterSoldeBas(ctx, { solde, lien = '' } = {}) {
     // Recharge partielle : un seuil déjà alerté que le solde ne franchit plus (solde >= seuil) est oublié, il pourra alerter à nouveau si le solde rebaisse. Un seuil encore franchi garde son alerte (pas de doublon).
     const dejaAlertes = alertesEtat.filter((d) => solde < d);
     const remonte = dejaAlertes.length < alertesEtat.length;
-    const cycleCourant = cycle;
     const franchis = seuils.filter((s) => solde < s);
     const ecrire = async (soldeAlerte) => {
       const r = await donnees.majDoc(chReglages, { soldeAlerte }, { lastUpdateTime: reglages.updateTime });
       return !(r === false || PRECONDITION(r)); // un autre appel a écrit entre-temps : on relit (une seule fois) ; les messages sont idempotents
     };
-    // Un seuil oublié ouvre un nouveau cycle : les identifiants des messages changent (la nouvelle alerte ne tombe pas sur l'ancienne) et une alerte encore en attente de l'ancien cycle est abandonnée.
-    const cycleSuivant = remonte ? cycleCourant + 1 : cycleCourant;
-    if (!franchis.length) {
-      if (!remonte) return fin('aucune');
-      if (await ecrire({ cycle: cycleSuivant, seuils: [] })) return fin('recharge');
-      continue;
+    // Un seuil oublié ouvre un nouveau cycle : l'état est écrit AVANT de créer le moindre message (un `rdv.aEnvoyer` en même temps ne voit alors jamais une alerte neuve d'un cycle non enregistré), puis relu.
+    // Les anciens seuils ne sont gardés (« déjà alertés ») que si une alerte de l'ancien cycle est réellement PARTIE ; sinon l'ancienne alerte, jamais envoyée, serait abandonnée et rien ne repartirait : tout est oublié et le passage suivant crée UNE alerte au solde courant.
+    if (remonte) {
+      const numerosCycle = (Array.isArray(reglages.numerosAlerte) ? reglages.numerosAlerte : []).filter((n) => n && typeof n.numero === 'string' && n.numero);
+      let partie = etat.partie === true; // `partie` : une alerte de ce cycle ou d'un cycle précédent (gardée par une recharge partielle) est réellement partie
+      for (const d of alertesEtat) for (const n of numerosCycle) {
+        if (partie) break;
+        partie = (await donnees.lireDoc(chemin(base, T.msg, docIdMessage(`solde_c${cycle}_s${Math.round(d * 100)}_${n.id ?? n.numero}`))))?.etatEnvoi === 'envoye';
+      }
+      const ecrit = await ecrire(partie && dejaAlertes.length ? { cycle: cycle + 1, seuils: dejaAlertes, partie: true } : { cycle: cycle + 1, seuils: [] });
+      if (ecrit && !franchis.length) return fin('recharge');
+      if (ecrit && partie && !franchis.some((s) => !dejaAlertes.some((d) => Math.abs(d - s) < 0.005))) return fin('recharge'); // remontée partielle sans nouveau franchissement : aucun SMS
+      continue; // relecture : le cycle enregistré est celui des nouveaux messages
     }
+    if (!franchis.length) return fin('aucune');
     const nouveaux = franchis.filter((s) => !dejaAlertes.some((d) => Math.abs(d - s) < 0.005));
-    if (!nouveaux.length) {
-      if (!remonte) return fin('aucune');
-      if (await ecrire({ cycle: cycleSuivant, seuils: dejaAlertes })) return fin('recharge'); // remontée partielle sans nouveau franchissement : l'état se réajuste, aucun SMS
-      continue;
-    }
+    if (!nouveaux.length) return fin('aucune');
     const numeros = (Array.isArray(reglages.numerosAlerte) ? reglages.numerosAlerte : []).filter((n) => n && n.actif !== false && typeof n.numero === 'string' && n.numero);
     if (!numeros.length) return fin('aucune');
     const seuil = Math.min(...nouveaux); // un seul SMS : le plus bas franchi
     const sms = R.texteAlerte('solde-bas', { solde, seuil, lien }, reglages);
     let marquer = false;
     for (const n of numeros) {
-      const id = docIdMessage(`solde_c${cycleSuivant}_s${Math.round(seuil * 100)}_${n.id ?? n.numero}`);
+      const id = docIdMessage(`solde_c${cycle}_s${Math.round(seuil * 100)}_${n.id ?? n.numero}`);
       const cree = await donnees.creerSiAbsent(chemin(base, T.msg, id), sansIndefini({
         rendezVousId: '', participantId: '', sens: 'sortant', numero: n.numero, texte: sms.texte, caracteres: sms.caracteres, segments: sms.segments,
         typeMessage: 'alerte', sousType: 'solde-bas', echeance: id, etatEnvoi: 'a_envoyer', essais: 0, creeLe: new Date(maintenantMs),
@@ -186,7 +189,7 @@ export async function alerterSoldeBas(ctx, { solde, lien = '' } = {}) {
     }
     if (!marquer) return fin('aucune'); // aucun message créé ni trouvé en attente : rien n'est marqué (l'alerte ne devient jamais muette)
     const tous = [...dejaAlertes, ...franchis.filter((s) => !dejaAlertes.some((d) => Math.abs(d - s) < 0.005))];
-    if (await ecrire({ cycle: cycleSuivant, seuils: tous })) return { statut: 'alerte', crees: creesTotal };
+    if (await ecrire(etat.partie === true ? { cycle, seuils: tous, partie: true } : { cycle, seuils: tous })) return { statut: 'alerte', crees: creesTotal };
   }
   return fin('aucune');
 }

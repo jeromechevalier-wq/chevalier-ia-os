@@ -538,20 +538,23 @@ describe('alerte de solde ClickSend bas (alerterSoldeBas) : seuils, idempotence,
     assert.deepEqual(await alerte(m, 4), { statut: 'alerte', crees: 1 });
     assert.deepEqual(messagesSolde(m).map((x) => x.id).sort(), ['solde_c0_s500_n1', 'solde_c1_s500_n1']);
   });
-  test('E2-18 recharge partielle (50/20/5, solde 3 puis 12) : les seuils 20 et 50 sont oubliés, 5 aussi ; une nouvelle baisse sous 20 alerte à nouveau', async () => {
+  // Envoie (et confirme) toutes les alertes en attente : l'alerte « est partie ».
+  const envoyerTout = async (m) => { const r = await m.action('rdv.aEnvoyer'); for (const x of r.messages) await m.action('rdv.confirmerEnvoi', { messageId: x.messageId, statut: 'ok', idFournisseur: 'abc' }); return r.nombre; };
+  test('E2-18 recharge partielle (50/20/5, alerte partie à 3 € puis solde 12) : 5 est oublié, 50 et 20 restent (déjà alertés) ; une nouvelle baisse sous 5 alerte à nouveau', async () => {
     const m = monde({ reglages: { ...REGLAGES, seuilsSolde: [50, 20, 5] } });
     assert.deepEqual(await alerte(m, 3), { statut: 'alerte', crees: 1 });
     assert.deepEqual(etat(m), { cycle: 0, seuils: [50, 20, 5] });
+    assert.equal(await envoyerTout(m), 1);
     assert.deepEqual(await alerte(m, 12), { statut: 'recharge', crees: 0 }, 'recharge de 9 € : solde 12, sous 20 et 50 seulement');
-    assert.deepEqual(etat(m), { cycle: 1, seuils: [50, 20] }, 'le seuil 5 n’est plus franchi : oublié ; 50 et 20 restent (déjà alertés, pas de doublon)');
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [50, 20], partie: true }, 'le seuil 5 n’est plus franchi : oublié ; 50 et 20 restent (alerte partie, pas de doublon)');
     assert.deepEqual(await alerte(m, 11), { statut: 'aucune', crees: 0 }, 'rejeu : rien de plus');
     assert.deepEqual(await alerte(m, 4), { statut: 'alerte', crees: 1 }, 'le solde rebaisse sous 5 : alerte à nouveau');
-    assert.deepEqual(etat(m), { cycle: 1, seuils: [50, 20, 5] });
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [50, 20, 5], partie: true });
     assert.equal(messagesSolde(m).length, 2);
   });
   test('E2-19 recharge partielle puis rebaisse : un seuil encore franchi ne repart pas (pas de doublon), un seuil situé au-dessus du nouveau solde repart', async () => {
     const m = monde({ reglages: { ...REGLAGES, seuilsSolde: [50, 20, 5] } });
-    await alerte(m, 3); // alerté à 50, 20, 5 (un seul SMS, seuil 5)
+    await alerte(m, 3); await envoyerTout(m); // alerté à 50, 20, 5 (un seul SMS, seuil 5), parti
     assert.equal((await alerte(m, 12)).statut, 'recharge');
     // le solde remonte à 30 (sous 50 seulement) : 20 et 5 oubliés, 50 garde son alerte
     assert.deepEqual(await alerte(m, 30), { statut: 'recharge', crees: 0 });
@@ -560,28 +563,41 @@ describe('alerte de solde ClickSend bas (alerterSoldeBas) : seuils, idempotence,
     assert.deepEqual(await alerte(m, 19), { statut: 'alerte', crees: 1 }, '19 franchit 20, de nouveau possible');
     assert.match(messagesSolde(m).at(-1).texte, /\(seuil 20 EUR\)/);
   });
-  test('E2-20 recharge partielle puis baisse sur plusieurs seuils d’un coup = UN SMS (le plus bas) ; une alerte restée en attente de l’ancien cycle est abandonnée', async () => {
+  test('E2-20 recharge partielle avec une alerte JAMAIS PARTIE : l’ancienne est abandonnée et UN SMS « seuil 20 » est créé au solde courant (jamais zéro)', async () => {
     const m = monde({ reglages: { ...REGLAGES, seuilsSolde: [50, 20, 5] } });
-    await alerte(m, 3); // SMS à envoyer, seuil 5, cycle 0
-    assert.equal((await alerte(m, 12)).statut, 'recharge');
-    assert.equal((await m.action('rdv.aEnvoyer')).nombre, 0, 'l’alerte « solde bas 3 EUR » de l’ancien cycle n’est jamais envoyée');
-    assert.equal(messagesSolde(m)[0].etatEnvoi, 'abandonne');
-    assert.deepEqual(await alerte(m, 2), { statut: 'alerte', crees: 1 }, 'un seul SMS pour le seuil 5 (50 et 20 déjà alertés)');
-    assert.equal(messagesSolde(m).length, 2);
-    // cas où plusieurs seuils sont franchis d'un coup après un oubli complet
+    await alerte(m, 3); // SMS seuil 5 créé, mais pas parti (nuit, échec, crédit épuisé)
+    assert.deepEqual(await alerte(m, 12), { statut: 'alerte', crees: 1 });
+    assert.match(messagesSolde(m).at(-1).texte, /\(seuil 20 EUR\)/);
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [50, 20] });
+    assert.equal(messagesSolde(m).find((x) => x.id.startsWith('solde_c0_')).etatEnvoi, 'a_envoyer', 'à ce stade l’ancienne alerte n’est pas encore jugée');
+    assert.equal(await envoyerTout(m), 1, 'seule la nouvelle alerte part');
+    assert.equal(messagesSolde(m).find((x) => x.id.startsWith('solde_c0_')).etatEnvoi, 'abandonne');
+    assert.equal(messagesSolde(m).filter((x) => x.etatEnvoi === 'envoye').length, 1);
+    // après un oubli complet, plusieurs seuils franchis d'un coup = un seul SMS (le plus bas)
     const n = monde({ reglages: { ...REGLAGES, seuilsSolde: [50, 20, 5] } });
-    await alerte(n, 3); await alerte(n, 60);
+    await alerte(n, 3); await envoyerTout(n); await alerte(n, 60);
     assert.deepEqual(await alerte(n, 1), { statut: 'alerte', crees: 1 });
     assert.match(messagesSolde(n).at(-1).texte, /\(seuil 5 EUR\)/);
   });
+  test('E2-22 l’état est écrit AVANT les messages du nouveau cycle : un rdv.aEnvoyer glissé entre la création et la fin envoie l’alerte neuve au lieu de l’abandonner', async () => {
+    const m = monde();
+    await alerte(m, 4); await envoyerTout(m); // alerté à 10 et 5, parti
+    m.base.docs.get('rdv_parametres/reglages').d.seuilsSolde = [8, 4, 1];
+    let glisse = null;
+    const creer = m.base.creerSiAbsent;
+    m.base.creerSiAbsent = async (...a) => { const r = await creer(...a); if (!glisse) glisse = await m.action('rdv.aEnvoyer'); return r; };
+    assert.deepEqual(await alerte(m, 6), { statut: 'alerte', crees: 1 }, '5 oublié (6 > 5), 8 franchi et jamais alerté');
+    assert.equal(glisse.nombre, 1, 'l’alerte neuve est envoyable dès sa création');
+    assert.equal(messagesSolde(m).find((x) => x.id.startsWith('solde_c1_')).etatEnvoi, 'reserve');
+  });
   test('E2-21 recharge partielle avec seuils par défaut (10/5/2) : solde 1 puis 6 oublie 2 seul ; 6 puis 1 relance l’alerte du seuil 2', async () => {
     const m = monde();
-    await alerte(m, 1);
+    await alerte(m, 1); await envoyerTout(m);
     assert.deepEqual(await alerte(m, 6), { statut: 'recharge', crees: 0 });
-    assert.deepEqual(etat(m), { cycle: 1, seuils: [10] });
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [10], partie: true });
     assert.deepEqual(await alerte(m, 1), { statut: 'alerte', crees: 1 });
     assert.match(messagesSolde(m).at(-1).texte, /\(seuil 2 EUR\)/);
-    assert.deepEqual(etat(m), { cycle: 1, seuils: [10, 5, 2] });
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [10, 5, 2], partie: true });
   });
   test('E2-6 solde illisible, absent ou non numérique : aucune alerte, rien d’écrit ; 0 et négatif alertent ; juste au seuil (10) n’alerte pas', async () => {
     const m = monde();
