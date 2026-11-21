@@ -54,7 +54,8 @@ describe('propositions : transitions', () => {
     assert.equal(apres.expireLe, horodatage);
     assert.equal(estPerimee(apres, T0 + 31 * JOUR), true, 'la péremption reste détectée après une transition');
     // Sans date fournie, la date du jour est prise ; une date illisible est refusée.
-    assert.ok(valider(base(), { par: 'a@b.c', canal: 'interface' }).proposition.valideeLe instanceof Date);
+    // La proposition doit rester valable à l'horloge RÉELLE (ici la date du jour est prise) : une échéance fixe (T0 + 30 jours = 21/11/2026) rendait ce test rouge à partir de cette date.
+    assert.ok(valider(base('a_valider', { expireLe: new Date(Date.now() + 30 * JOUR) }), { par: 'a@b.c', canal: 'interface' }).proposition.valideeLe instanceof Date);
     assert.equal(valider(base(), { par: 'a@b.c', canal: 'interface', maintenant: 'n’importe quoi' }).code, 'champs_invalides');
     // relancer pose relanceeLe (l'alerte des 30 minutes se calcule dessus).
     assert.equal(relancer(base('echec'), { maintenant: T0 }).proposition.relanceeLe.getTime(), T0);
