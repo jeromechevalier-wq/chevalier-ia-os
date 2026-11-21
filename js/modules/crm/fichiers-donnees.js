@@ -48,6 +48,8 @@ export function ecouterFichiers(cibleType, cibleId, surDonnees, surErreur) {
 export const deposerFichier = (cible, { nom, contenuBase64, typeMime }) => appeler('documentDeposer', { ...cible, nom, contenuBase64, typeMime }, { timeout: DELAI_DEPOT_MS });
 /** Lien de lecture signé de 5 minutes : { url, expireDans, nom }. */
 export const lienFichier = (documentId, { telecharger = false } = {}) => appeler('documentLien', { documentId, ...(telecharger ? { telecharger: true } : {}) });
+/** Renomme le fichier (l'extension ne change jamais ; le serveur contrôle). Rend { id, nom } : le nom peut recevoir « (2) » si un autre fichier de la fiche le porte déjà. */
+export const renommerFichier = (documentId, nom) => appeler('documentRenommer', { documentId, nom });
 /** Met le fichier à la corbeille (le journal des modifications peut le restaurer). */
 export const supprimerFichier = (documentId) => appeler('documentSupprimer', { documentId });
 

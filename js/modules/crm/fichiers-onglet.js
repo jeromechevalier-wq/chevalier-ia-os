@@ -1,16 +1,16 @@
 // Onglet « Documents » d'une affaire ou d'un projet : les fichiers rangés chez nous (Cloud Storage), visibles de tous les membres de l'espace.
 // (L'onglet « G-Drive » garde les liens et documents Google Drive : il n'est pas touché.)
-// - la liste, du plus récent au plus ancien : icône de type, nom (un clic ouvre le fichier dans un nouvel onglet), taille, date, qui l'a déposé, croix pour retirer ;
+// - la liste, du plus récent au plus ancien : icône de type, nom (un clic ouvre le fichier dans un nouvel onglet), taille, date, qui l'a déposé, crayon pour renommer (l'extension reste), croix pour retirer ;
 // - « Ajouter un fichier » (sélecteur) ou glisser-déposer ; un contrôle immédiat de la taille et du type (les mêmes règles que le serveur, qui revérifie tout) ;
 // - retirer = fenêtre de confirmation, puis le fichier va à la corbeille (le journal des modifications peut le restaurer) ;
 // - un lecteur d'un espace client voit et ouvre les fichiers, sans bouton d'ajout ni croix.
 // Le composant est créé une fois par fiche (`creerOngletFichiers`) et fournit l'onglet à `panneauActivite` par `onglet()` (même forme que les onglets des autres modules : { id, libelle, icone, element, compteur }).
-import { h, icone, remplir, toast, confirmer } from '../../os/ui.js';
+import { h, icone, remplir, toast, confirmer, demanderTexte } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
-import { ecouterFichiers, deposerFichier, lienFichier, supprimerFichier, lireEnBase64, MESSAGE_RESEAU_FICHIERS } from './fichiers-donnees.js';
+import { ecouterFichiers, deposerFichier, lienFichier, renommerFichier, supprimerFichier, lireEnBase64, MESSAGE_RESEAU_FICHIERS } from './fichiers-donnees.js';
 import {
-  ACCEPT_HTML, TYPES_ACCEPTES_TEXTE, PLAFOND_APPEL_MO, controlerFichier, familleDe, libelleTaille, limiteEffectiveMo, limiteReglageMo,
+  ACCEPT_HTML, TYPES_ACCEPTES_TEXTE, PLAFOND_APPEL_MO, controlerFichier, extensionDe, familleDe, libelleTaille, limiteEffectiveMo, limiteReglageMo, nomRenomme, nomSansExtension,
 } from './fichiers-regles.js';
 
 export const ID_ONGLET_FICHIERS = 'fichiers';
@@ -62,6 +62,20 @@ export function creerOngletFichiers({ cibleType, cibleId, surChangement = () => 
     }
   }
 
+  async function renommer(fiche) {
+    const ext = extensionDe(fiche.nom);
+    const saisi = await demanderTexte('Renommer le fichier', { libelle: ext ? `Nom du fichier (l’extension .${ext} est conservée)` : 'Nom du fichier', valeur: nomSansExtension(fiche.nom), libelleOk: 'Renommer' });
+    if (saisi === null) return;
+    const nouveau = nomRenomme(fiche.nom, saisi);
+    if (!nouveau || nouveau === fiche.nom) return;
+    try {
+      const r = await renommerFichier(fiche.id, nouveau);
+      toast(`Fichier renommé : « ${r?.nom || nouveau} »`);
+    } catch (e) {
+      toast(e?.message || MESSAGE_RESEAU_FICHIERS, { type: 'erreur', duree: 8000 });
+    }
+  }
+
   async function deposer(fichiers) {
     if (!peutEcrire() || !fichiers.length) return;
     for (const fichier of fichiers) {
@@ -99,6 +113,7 @@ export function creerOngletFichiers({ cibleType, cibleId, surChangement = () => 
       h('div', { class: 'fichier-texte' },
         h('button', { type: 'button', class: 'fichier-nom', title: 'Ouvrir dans un nouvel onglet', 'data-action': 'ouvrir-fichier', onclick: () => ouvrir(fiche) }, fiche.nom),
         h('span', { class: 'fichier-meta' }, meta)),
+      peutEcrire() ? h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Renommer le fichier ${fiche.nom}`, title: 'Renommer', 'data-action': 'renommer-fichier', onclick: () => renommer(fiche) }, icone('pencil', { taille: 16 })) : null,
       peutEcrire() ? h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer le fichier ${fiche.nom}`, title: 'Retirer', 'data-action': 'retirer-fichier', onclick: () => retirer(fiche) }, icone('x', { taille: 16 })) : null);
   }
 

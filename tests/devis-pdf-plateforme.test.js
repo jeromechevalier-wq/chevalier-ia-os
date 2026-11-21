@@ -454,6 +454,22 @@ describe('R plateforme : fichiers déposés, rôles et cloisonnement entre clien
     assert.ok(m.collections['clients/a/crm_audit'].some((l) => l.outil === 'documentSupprimer'));
   });
 
+  test('R9b renommer : éditeurs seulement (lecteur, non-membre, autre client refusés), seule la fiche de CE client change, journal chez ce client', async () => {
+    const m = mondeDocs();
+    const r = await m.appel('deposer', ALICE, depot);
+    for (const email of [LEA, BOB, ZOE, 'inconnu@exemple.test']) {
+      await assert.rejects(() => m.appel('renommer', email, { client: 'a', documentId: r.id, nom: 'Nouveau.pdf' }), (e) => e instanceof Refus && e.message === 'Action non autorisée.', email);
+    }
+    assert.equal(m.collections['clients/a/documents_stockes'][0].nom, 'Plan.pdf');
+    const ok = await m.appel('renommer', ALICE, { client: 'a', documentId: r.id, nom: 'Plan de masse.pdf' });
+    assert.equal(ok.nom, 'Plan de masse.pdf');
+    assert.equal(m.collections['clients/a/documents_stockes'][0].nom, 'Plan de masse.pdf');
+    assert.ok(m.collections['clients/a/crm_audit'].some((l) => l.outil === 'documentRenommer'));
+    await assert.rejects(() => m.appel('renommer', ALICE, { client: 'a', documentId: r.id, nom: 'Plan.png' }), (e) => e.code === 'invalid-argument');
+    await assert.rejects(() => m.appel('renommer', BOB, { client: 'b', documentId: r.id, nom: 'x.pdf' }), (e) => e.code === 'not-found');
+    assert.equal(m.collections['clients/b/documents_stockes'].length, 0);
+  });
+
   test('R10 le dépôt exige un module Affaires ou Projets actif ; erreurs métier traduites en refus lisibles', async () => {
     const m = mondeDocs();
     FICHES['clients/c'] = { modules: { devis: true } };

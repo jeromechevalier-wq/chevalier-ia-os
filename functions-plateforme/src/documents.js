@@ -7,7 +7,7 @@
 //  - tout est rangé sous clients/<client>/documents/… et lu depuis clients/<client>/ : un autre client est hors d'atteinte (cheminDocumentAppartientALEspace avant de signer).
 import { logger } from 'firebase-functions';
 import { creerAccesFirestore, avecBase } from '../serveur/src/coeur/donnees.js';
-import { operationDeposer, operationLien, operationSupprimer, versErreurAppel } from '../serveur/src/coeur/documents.js';
+import { operationDeposer, operationLien, operationRenommer, operationSupprimer, versErreurAppel } from '../serveur/src/coeur/documents.js';
 import { Refus } from './appels.js';
 import { MOTIF_IDENTIFIANT_CLIENT } from './etiquettes.js';
 import { emailDe } from './devis.js';
@@ -33,6 +33,7 @@ export async function controlerMembreDocuments({ db, auth, client, roles }) {
 const OPERATIONS = {
   deposer: { faire: operationDeposer, roles: ['editeur'] },
   lien: { faire: operationLien, roles: ['editeur', 'lecteur'] },
+  renommer: { faire: operationRenommer, roles: ['editeur'] },
   supprimer: { faire: operationSupprimer, roles: ['editeur'] },
 };
 

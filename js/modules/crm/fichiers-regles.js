@@ -183,6 +183,18 @@ export function signatureCoherente(extension, octets) {
   }
 }
 
+/** Renommage à l'écran : l'utilisateur ne change que le nom, l'extension d'origine est remise toujours (« Carte identité » + « .jpg »). S'il a tapé l'extension lui-même, elle n'est pas doublée. Rend le nom complet. */
+export function nomRenomme(ancien, saisi) {
+  const ext = extensionDe(ancien);
+  const texte = String(saisi ?? '').trim();
+  if (!ext) return texte;
+  const fin = `.${ext}`;
+  return texte.toLowerCase().endsWith(fin) ? texte.slice(0, -fin.length).trim() + fin : texte + fin;
+}
+
+/** Nom (sans l'extension) proposé dans la fenêtre « Renommer ». */
+export const nomSansExtension = (nom) => { const ext = extensionDe(nom); return ext ? String(nom).slice(0, -(ext.length + 1)) : String(nom ?? ''); };
+
 /** Nom affiché quand un autre fichier de la même fiche porte déjà ce nom : « rapport.pdf » -> « rapport (2).pdf ». `pris` : noms déjà utilisés. */
 export function nomSansDoublon(nom, pris) {
   const utilises = new Set([...pris].map((p) => String(p).toLowerCase()));

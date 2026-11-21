@@ -11,7 +11,7 @@ import { COLLECTIONS as C } from './donnees.js';
 import { executerEcritures } from './ecriture.js';
 import { cheminDocument, cheminDocumentAppartientALEspace, DUREE_LIEN_MINUTES } from '../devis/stockage.js';
 import {
-  controlerFichier, messageTropGros, signatureCoherente, nomSansDoublon, limiteEffectiveMo, enOctets, TYPES, TEXTE_MCP_MAX_OCTETS, TYPES_ACCEPTES_TEXTE, encodageTexte,
+  controlerFichier, messageTropGros, signatureCoherente, nomSansDoublon, limiteEffectiveMo, enOctets, TYPES, TEXTE_MCP_MAX_OCTETS, TYPES_ACCEPTES_TEXTE, encodageTexte, extensionDe,
 } from '../../partage/fichiers-regles.js';
 
 /** code : demande_invalide | introuvable | refuse (type, taille, nom) | non_configure | stockage_droit | stockage_erreur */
@@ -135,6 +135,27 @@ export async function supprimerDocument({ donnees, ctx, ecrire, documentId }) {
   return { id: fiche.id, nom: fiche.nom, operationId: r?.operationId ?? null };
 }
 
+/**
+ * Renomme un fichier (21/11/2026) : seule la fiche change (`nom`), le fichier rangé dans le stockage ne bouge pas (le lien signé affiche le nom de la fiche ; le chemin ne sert qu'à retrouver l'octet).
+ * Garde-fous : le nouveau nom passe les mêmes contrôles qu'au dépôt (nettoyage, extensions dangereuses) ; l'EXTENSION reste celle d'origine (le contenu a été vérifié pour ce type : on ne change pas un .jpg en .pdf) ;
+ * un nom déjà pris par un autre fichier de la même fiche devient « nom (2).ext ». Même nom qu'avant : rien n'est écrit. Une ligne de journal avec la copie « avant » (restaurer_depuis_audit remet l'ancien nom).
+ * Rend { id, nom, ancienNom, operationId }.
+ */
+export async function renommerDocument({ donnees, ctx, ecrire, documentId, nom }) {
+  const fiche = await ficheVisible(donnees, documentId);
+  const controle = controlerFichier({ nom, typeMime: '', taille: 1 }); // seul le NOM est contrôlé ici : le type et la taille ont été contrôlés au dépôt
+  if (!controle.ok) throw new ErreurDocument('refuse', controle.erreur);
+  const extensionAvant = extensionDe(fiche.nom);
+  if (controle.extension !== extensionAvant) {
+    throw new ErreurDocument('refuse', `L'extension du fichier ne peut pas changer (un .${extensionAvant || '?'} reste un .${extensionAvant || '?'}) : le contenu a été contrôlé pour ce type.`);
+  }
+  if (controle.nom === fiche.nom) return { id: fiche.id, nom: fiche.nom, ancienNom: fiche.nom, operationId: null };
+  const autres = (await donnees.liste(C.documentsStockes, { champ: 'cibleId', valeur: fiche.cibleId })).filter((f) => f.cibleType === fiche.cibleType && !f.supprimeLe && f.id !== fiche.id);
+  const nomFinal = nomSansDoublon(controle.nom, autres.map((f) => f.nom));
+  const r = await ecrire([{ type: 'modifier', collection: C.documentsStockes, id: fiche.id, patch: { nom: nomFinal } }], { id: fiche.id, cibleType: fiche.cibleType, cibleId: fiche.cibleId, nom: nomFinal, ancienNom: fiche.nom });
+  return { id: fiche.id, nom: nomFinal, ancienNom: fiche.nom, operationId: r?.operationId ?? null };
+}
+
 /** Les fichiers (non supprimés) d'une affaire ou d'un projet, du plus récent au plus ancien. */
 export async function listerFichiers(donnees, { cibleType, cibleId }) {
   const fiches = (await donnees.liste(C.documentsStockes, { champ: 'cibleId', valeur: cibleId })).filter((f) => f.cibleType === cibleType && !f.supprimeLe);
@@ -201,6 +222,14 @@ export async function operationLien({ donnees, stockage, espace = '', demande })
   const d = demande && typeof demande === 'object' ? demande : {};
   if (d.telecharger !== undefined && typeof d.telecharger !== 'boolean') throw new ErreurDocument('demande_invalide', 'Demande invalide.');
   return lienDocument({ donnees, stockage, espace, documentId: d.documentId, telecharger: d.telecharger === true });
+}
+
+/** Renommage : { documentId, nom }. Rend { id, nom } (le nom peut recevoir un « (2) » si un autre fichier de la fiche porte déjà ce nom). */
+export async function operationRenommer({ donnees, ctx, demande }) {
+  const d = demande && typeof demande === 'object' ? demande : {};
+  if (!texteCourt(d.nom, 400)) throw new ErreurDocument('demande_invalide', 'Le nouveau nom du fichier est manquant ou trop long.');
+  const r = await renommerDocument({ donnees, ctx, ecrire: ecritureEcran({ donnees, ctx, outil: 'documentRenommer' }), documentId: d.documentId, nom: d.nom });
+  return { id: r.id, nom: r.nom };
 }
 
 /** Suppression : { documentId }. Rend { id, nom }. */

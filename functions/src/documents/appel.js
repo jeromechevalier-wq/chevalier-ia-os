@@ -5,7 +5,7 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from '../veille/appel.js';
 import { exigerCompteAutorise } from '../devis-appel.js';
-import { operationDeposer, operationLien, operationSupprimer, versErreurAppel } from '../coeur/documents.js';
+import { operationDeposer, operationLien, operationRenommer, operationSupprimer, versErreurAppel } from '../coeur/documents.js';
 
 const CHAMPS_JOURNAL = ['action', 'statut', 'code', 'dureeMs'];
 export const MESSAGE_GENERIQUE = 'Une erreur est survenue. Réessayez.';
@@ -24,7 +24,7 @@ const stockageDe = (s) => (typeof s === 'function' ? s() : s) ?? null;
 
 /** `operation` : 'deposer' | 'lien' | 'supprimer'. `donnees()` : accès aux données ; `espace` : '' chez Jérôme ; `stockage` : stockage.js (ou fonction qui le rend, ou null). */
 export function creerAppelDocument(operation, { donnees, espace = '', comptes = COMPTES_AUTORISES, stockage, journal = () => {}, maintenant = Date.now }) {
-  const faire = { deposer: operationDeposer, lien: operationLien, supprimer: operationSupprimer }[operation];
+  const faire = { deposer: operationDeposer, lien: operationLien, renommer: operationRenommer, supprimer: operationSupprimer }[operation];
   if (!faire) throw new Error(`Opération de document inconnue : ${operation}`);
   return async function appel(requete) {
     const debut = maintenant();

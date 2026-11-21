@@ -252,6 +252,7 @@ const appelDocument = (operation, options) => onCall(options, (requete) => {
 });
 export const documentDeposer = appelDocument('deposer', OPTIONS_DOCUMENT_DEPOT);
 export const documentLien = appelDocument('lien', OPTIONS_DEVIS);
+export const documentRenommer = appelDocument('renommer', OPTIONS_DEVIS);
 export const documentSupprimer = appelDocument('supprimer', OPTIONS_DEVIS);
 // Lien d'envoi temporaire (17/11/2026) : l'assistant demande un lien (outil MCP `demander_lien_depot`), le fichier arrive ICI (adresse /depot/<lien> du site, réécrite par firebase.json vers ce service ; le nom du
 // service est le nom de la fonction en minuscules). Invocation publique côté Google : la vraie porte est le lien (256 bits, 10 minutes, un seul usage, une seule fiche) ; sans lien valable, rien n'est dit.

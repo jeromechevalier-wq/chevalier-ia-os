@@ -19,7 +19,7 @@ const PARTAGEES = [
   'devisFinaliser', 'devisChangerStatut', 'devisNouvelleVersion', 'devisArchiver', 'devisSupprimer', 'devisEnregistrerEnvoi',
   'devisModifierDestinataires', 'devisChoisirAffaire', 'modeTestSupprimer', 'devisMarquerTest',
   'devisPreparerEmail', 'devisPreparerEmailEtat', 'devisPdf', 'devisPdfLien', 'devisPdfAuto',
-  'documentDeposer', 'documentLien', 'documentSupprimer',
+  'documentDeposer', 'documentLien', 'documentRenommer', 'documentSupprimer',
   'rdvEtat', 'rdvEnvoyer', 'rdvEnvoiPlanifie', 'rdvReponseSms', 'rdvConnexionSms', // module Rendez-vous (14/11/2026) : l'envoi des SMS par ClickSend (demandé par l'écran, filet toutes les 15 minutes, réponses reçues), même code des deux côtés
 ];
 
