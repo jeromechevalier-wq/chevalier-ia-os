@@ -124,18 +124,20 @@ async function creer(projet, proprietaire, options, ctx) {
   }
   const cle = tableau ? genererCleTableau(proprietaire) : genererCle(proprietaire);
   const enregistrement = (tableau ? enregistrementTableau : enregistrementDe)(cle, proprietaire, new Date(maintenant()));
+  const nomCredential = proprietaire === 'interne' ? 'interne - porte - clé n8n (SENSIBLE)' : `client-${proprietaire} - porte - clé n8n (SENSIBLE)`; // même nom que nomCleDe() de functions-plateforme/src/etiquettes.js
   const remise = tableau ? cle : `Bearer ${cle}`; // le script GitHub ajoute « Bearer » lui-même ; le credential n8n, lui, le veut dans sa valeur
   // La clé est remise AVANT d'être enregistrée : si la remise échoue, rien n'existe côté base ; si l'enregistrement échoue, la clé remise ne marche pas (elle est refusée).
   if (options.afficher) {
     sortie(`\nVoici la valeur complète. Elle ne sera plus jamais affichée ; copie-la maintenant ${tableau ? 'dans le secret GitHub CLE_TABLEAU_DE_BORD du dépôt interne-sauvegardes' : 'dans le champ Value du credential n8n du client'} :\n`);
     sortie(`  ${remise}\n`);
+    if (!tableau) sortie(`Nom du credential n8n à créer : « ${nomCredential} ».`);
   } else if (!copier(remise)) {
     sortie('✖ Impossible de copier la clé dans le presse-papiers. Rien n\'a été créé. Relance avec --afficher pour la voir à l\'écran.');
     return 1;
   } else {
     sortie(tableau
       ? '\nLa clé est copiée dans le presse-papiers (elle n\'est pas affichée). Colle-la maintenant, telle quelle, comme valeur du secret GitHub CLE_TABLEAU_DE_BORD du dépôt interne-sauvegardes : elle ne pourra plus être retrouvée.'
-      : '\nLa valeur complète (« Bearer » + la clé) est copiée dans le presse-papiers (elle n\'est pas affichée). Colle-la maintenant, telle quelle, dans le champ Value du credential n8n du client : elle ne pourra plus être retrouvée.');
+      : '\nLa valeur complète (« Bearer » + la clé) est copiée dans le presse-papiers (elle n\'est pas affichée). Colle-la maintenant, telle quelle, dans le champ Value du credential n8n du client (nom du credential : « ' + nomCredential + ' ») : elle ne pourra plus être retrouvée.');
   }
   await store.ecrireCle(enregistrement.id, enregistrement.donnees);
   const relu = await store.lireCle(enregistrement.id);

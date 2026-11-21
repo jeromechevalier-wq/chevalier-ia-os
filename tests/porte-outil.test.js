@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { executer, lireArguments } from '../scripts/porte/outil.js';
 import { analyserCle, empreinte, verifierCle } from '../scripts/porte/cles.js';
+import { nomCleDe } from '../functions-plateforme/src/etiquettes.js';
 
 const T0 = Date.parse('2026-10-14T10:00:00Z');
 
@@ -74,6 +75,7 @@ describe('outil des clés : créer', () => {
     const cle = m.presse.contenu.replace(/^Bearer /, '');
     assert.deepEqual(analyserCle(cle), { proprietaire: 'audrey' });
     assert.ok(!m.texte().includes(cle) && !m.texte().includes(cle.split('.')[2]), 'la clé n\'est pas affichée');
+    assert.ok(m.texte().includes(nomCleDe('audrey')), 'le nom du credential n8n à créer est dit, identique à celui que le code reconnaît (nomCleDe)');
     assert.equal(m.docs.size, 1);
     assert.ok(m.docs.has(empreinte(cle)));
     assert.ok(!JSON.stringify([...m.docs]).includes(cle.split('.')[2]), 'aucune partie secrète en base');
@@ -86,6 +88,7 @@ describe('outil des clés : créer', () => {
     const trouvee = m.texte().match(/cle-n8n\.interne\.[A-Za-z0-9_-]{43}/);
     assert.ok(trouvee);
     assert.match(m.texte(), /Bearer cle-n8n\.interne\./, 'la valeur complète est affichée');
+    assert.ok(m.texte().includes(nomCleDe('interne')), 'le nom du credential n8n à créer est aussi dit avec --afficher');
     assert.equal(m.presse.contenu, null);
     assert.ok(m.docs.has(empreinte(trouvee[0])));
   });

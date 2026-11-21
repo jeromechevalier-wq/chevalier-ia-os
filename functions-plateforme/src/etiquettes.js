@@ -3,8 +3,10 @@
 //  (a) l'ÉTIQUETTE n8n : « client-<identifiant> » pour un client, « interne » pour Jérôme ;
 //  (b) le NOM du workflow commence par le même mot-clé : « interne-… » pour Jérôme, « client-<identifiant>-… » pour un client (exigé depuis le 18/10/2026,
 //      comme la porte : un nom « audrey-… » ou « PROD - … » est signalé « nom-different ») ;
-//  (c) la CLÉ DE LA PORTE : le credential n8n « Clé n8n - <propriétaire> » (voir docs/porte-cles.md) utilisé par les nœuds. Pour Jérôme : « Clé n8n - interne ».
-//      La comparaison est tolérante (majuscules, accents, espaces, tirets : « CLÉ N8N – Interne » = « Clé n8n - interne »).
+//  (c) la CLÉ DE LA PORTE : le credential n8n « <propriétaire> - porte - clé n8n (SENSIBLE) » (voir docs/porte-cles.md) utilisé par les nœuds :
+//      « interne - porte - clé n8n (SENSIBLE) » pour Jérôme, « client-<identifiant> - porte - clé n8n (SENSIBLE) » pour un client. L'ancien nom
+//      « Clé n8n - <propriétaire> » reste reconnu POUR TOUJOURS (les nœuds déjà enregistrés gardent l'ancien nom). Un nom qui se lit mal est un désaccord, jamais ignoré.
+//      Comparaison tolérante sur la casse, les accents et les tirets longs ; pour l'ANCIEN nom aussi sur les espaces (« CLÉ N8N – Interne » = « Clé n8n - interne »), pas pour le nouveau (espaces autour des tirets exigés).
 // Règles :
 //  - aucun signe : le workflow est ignoré, sans bruit (c'est le cas normal d'un workflow qui ne relève d'aucun propriétaire) ;
 //  - Jérôme (« interne ») : les TROIS signes sont exigés ; un manquant ou un désaccord = jamais copié et signalé (« À vérifier ») ;
@@ -62,15 +64,40 @@ export function nomClientOk(nom, client) {
   return String(nom ?? '').toLowerCase().startsWith(`${PREFIXE_ETIQUETTE}${String(client).toLowerCase()}-`);
 }
 
-/** Nom du credential n8n attendu pour un propriétaire (pour les messages). */
-export const nomCleDe = (proprietaire) => `Clé n8n - ${proprietaire}`;
+/**
+ * Nom du credential n8n attendu pour un propriétaire (messages, outil de création des clés) : « interne - porte - clé n8n (SENSIBLE) »
+ * ou « client-<identifiant> - porte - clé n8n (SENSIBLE) » (décision de Jérôme, 21/11/2026 : même règle que les autres connexions,
+ * propriétaire - domaine - détail). L'ancien nom « Clé n8n - <propriétaire> » reste reconnu pour toujours (voir proprietaireDeLaCle).
+ */
+export const nomCleDe = (proprietaire) => `${proprietaire === PROPRIETAIRE_INTERNE ? PROPRIETAIRE_INTERNE : `${PREFIXE_ETIQUETTE}${proprietaire}`} - porte - clé n8n (SENSIBLE)`;
+
+/** Valeur spéciale : un nom qui ressemble à une clé de la porte (« … porte - clé n8n ») mais ne se lit pas. Elle ne désigne aucun propriétaire : elle compte comme un désaccord (fermeture par défaut). */
+export const CLE_ILLISIBLE = '(illisible)';
+/** Une clé de la porte désignée par `p`, dite en français pour un message. */
+const libelleCle = (p) => (p === CLE_ILLISIBLE ? 'une clé de la porte dont le nom ne se lit pas' : `celle de « ${p} »`);
+
+// Nouveau format, strict, sur le nom normalisé : « interne - porte - clé n8n (SENSIBLE) » ou « client-<identifiant> - porte - clé n8n (SENSIBLE) ». Le marqueur est facultatif.
+const MOTIF_CLE_NOUVEAU = /^(?:(interne)|client-([a-z0-9][a-z0-9-]{0,39})) - porte - cle n8n(?: \(sensible\))?$/;
 
 /**
- * Propriétaire désigné par UN nom de credential : « Clé n8n - Audrey » -> 'audrey' (réduit) ; autre credential (Google, OpenAI…) -> null.
- * Tolérant : casse, accents, espaces, tiret ou deux-points (« Cle n8n : interne », « CLÉ N8N – Interne »).
+ * Propriétaire désigné par UN nom de credential, réduit aux lettres et chiffres ; autre credential (Google, OpenAI…) -> null.
+ *  1. Nouveau format, strict : « client-dupont - porte - clé n8n (SENSIBLE) » -> 'dupont', « interne - porte - clé n8n (SENSIBLE) » -> 'interne'.
+ *  2. Un nom qui contient « porte - clé n8n » sans respecter ce format (« client-a - porte - clé n8n - b ») -> CLE_ILLISIBLE : jamais ignoré en silence.
+ *  3. Ancien format, gardé POUR TOUJOURS (n8n recopie dans chaque nœud le nom du credential au moment où on l'a choisi) : « Clé n8n - Audrey » -> 'audrey'.
+ * Tolérant : casse, accents, espaces, tirets longs (« CLÉ N8N – Interne »).
  */
 export function proprietaireDeLaCle(nomCredential) {
-  const m = normaliser(nomCredential).match(/^cle n8n\s*[-:]?\s*(.+)$/);
+  const nom = normaliser(nomCredential);
+  const n = nom.match(MOTIF_CLE_NOUVEAU);
+  if (n) {
+    const proprio = reduit(n[1] ?? n[2]);
+    // « client-interne » : « interne » est un identifiant réservé, jamais un client ; ce ne peut être qu'une faute de frappe, donc illisible (pas la clé de Jérôme).
+    if (n[2] !== undefined && proprio === reduit(PROPRIETAIRE_INTERNE)) return CLE_ILLISIBLE;
+    return proprio || null;
+  }
+  // Sur la forme RÉDUITE (lettres et chiffres seuls) : les formes collées (« client-x-porte-clé n8n ») ne passent pas inaperçues.
+  if (reduit(nom).includes('porteclen8n')) return CLE_ILLISIBLE;
+  const m = nom.match(/^cle n8n\s*[-:]?\s*(.+)$/);
   const r = m ? reduit(m[1]) : '';
   return r || null;
 }
@@ -186,7 +213,7 @@ export function classer(workflows, { connus, actifs, idsCles = IDENTIFIANTS_CLES
     const autres = [];
     if (s.tagInterne) autres.push('l’étiquette « interne »');
     if (s.nom && s.nom !== moi) autres.push(`le nom (« ${w.name} »)`);
-    if (s.cles.some((c) => c !== moi)) autres.push(`la clé de la porte (« ${nomCleDe(s.cles.find((c) => c !== moi))} »)`);
+    if (s.cles.some((c) => c !== moi)) autres.push(`la clé de la porte (${libelleCle(s.cles.find((c) => c !== moi))})`);
     if (autres.length) { signalements.push(signal(w, 'signes-differents', `Ce workflow a l’étiquette « ${etiquettes[0]} » mais ${autres.join(' et ')} désigne${autres.length > 1 ? 'nt' : ''} quelqu’un d’autre. Il n’est pas copié tant que les signes ne concordent pas.`, etiquettes, visee(id))); continue; }
     if (!parClient.has(id)) parClient.set(id, []);
     parClient.get(id).push(w);
@@ -214,7 +241,7 @@ export function classerSansEtiquette(workflows) {
 
 /**
  * Workflows de Jérôme (propriétaire « interne »). Les TROIS signes sont exigés : étiquette « interne », nom commençant par « interne- »,
- * clé de la porte « Clé n8n - interne » (reconnue par son identifiant, sinon par son nom) parmi les credentials des nœuds.
+ * clé de la porte « interne - porte - clé n8n (SENSIBLE) » ou l'ancien « Clé n8n - interne » (reconnue par son identifiant, sinon par son nom) parmi les credentials des nœuds.
  * Renvoie { retenus: [workflow], signalements: [...] }.
  * Un workflow qui ne relève pas de Jérôme (aucun signe « interne ») est ignoré sans bruit : le dossier d'une cliente n'est jamais copié chez lui.
  * Raisons : 'identifiant-invalide', 'signes-differents' (un signe désigne quelqu'un d'autre), 'signe-manquant' (l'un des trois manque).
@@ -232,7 +259,7 @@ export function classerInterne(workflows, { connus = new Set(), idsCles = IDENTI
     const autres = [];
     if (s.tagsClient.length) autres.push(`l’étiquette « ${PREFIXE_ETIQUETTE}${s.tagsClient[0]} »`);
     if (s.nom && s.nom !== moi) autres.push(`le nom (« ${w.name} »)`);
-    if (s.cles.some((c) => c !== moi)) autres.push(`la clé de la porte (« ${nomCleDe(s.cles.find((c) => c !== moi))} »)`);
+    if (s.cles.some((c) => c !== moi)) autres.push(`la clé de la porte (${libelleCle(s.cles.find((c) => c !== moi))})`);
     if (autres.length) { signalements.push(signal(w, 'signes-differents', `Ce workflow est lié à « interne » mais ${autres.join(' et ')} désigne${autres.length > 1 ? 'nt' : ''} quelqu’un d’autre. Il n’est pas copié.`, [], visee)); continue; }
     const manque = [];
     if (!s.tagInterne) manque.push('l’étiquette « interne »');
