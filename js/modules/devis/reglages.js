@@ -116,11 +116,11 @@ export function reglages(page) {
     const cle = 'entreprise.couleur';
     const choix = h('input', { type: 'color', class: 'champ champ-couleur', id: `devis-${cle}`, value: couleurAffichee(), dataset: { champ: cle },
       oninput: (e) => { ecrireEnt(['couleur'], e.target.value); etat.textContent = 'Couleur choisie.'; } });
-    const etat = h('span', { class: 'discret' }, brouillon.entreprise.couleur ? 'Couleur choisie.' : 'Couleur par défaut (bleu marine).');
+    const etat = h('span', { class: 'discret' }, brouillon.entreprise.couleur ? 'Couleur choisie.' : 'Couleur par défaut (violet).');
     const defaut = h('button', { type: 'button', class: 'bouton', dataset: { action: 'couleur-par-defaut' },
-      onclick: () => { ecrireEnt(['couleur'], ''); choix.value = COULEUR_DEVIS_DEFAUT; etat.textContent = 'Couleur par défaut (bleu marine).'; } }, 'Remettre la couleur par défaut');
+      onclick: () => { ecrireEnt(['couleur'], ''); choix.value = COULEUR_DEVIS_DEFAUT; etat.textContent = 'Couleur par défaut (violet).'; } }, 'Remettre la couleur par défaut');
     return h('div', { class: 'bloc-champ', dataset: { reglage: cle } },
-      h('label', { class: 'etiquette', for: `devis-${cle}` }, 'Couleur du tableau', iconeInfo('La couleur des titres et des traits du tableau de ton devis. Sans choix, le devis est en bleu marine.', 'Couleur du tableau')),
+      h('label', { class: 'etiquette', for: `devis-${cle}` }, 'Couleur du tableau', iconeInfo('La couleur des titres et des traits du tableau de ton devis. Sans choix, le devis est en violet.', 'Couleur du tableau')),
       h('div', { class: 'ligne-boutons' }, choix, etat, defaut),
       h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: cle } }));
   }
