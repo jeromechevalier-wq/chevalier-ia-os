@@ -57,7 +57,7 @@ h1 { font-size: 30pt; font-weight: normal; letter-spacing: 1.2mm; text-transform
 .parties { display: flex; justify-content: space-between; align-items: flex-start; gap: 10mm; margin-bottom: 5mm; }
 .emetteur { max-width: 90mm; line-height: 1.4; font-size: 8.5pt; color: #444; }
 .emetteur .nom { font-size: 11pt; font-weight: bold; color: #1b1b1b; }
-.destinataire { width: 82mm; background: #eef3f8; border-radius: 1.5mm; padding: 4mm 5mm; line-height: 1.4; }
+.destinataire { width: 82mm; background: #f3eff8; border-radius: 1.5mm; padding: 4mm 5mm; line-height: 1.4; }
 .destinataire .etiquette { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.4pt; color: var(--accent-clair); font-weight: bold; margin-bottom: 1mm; }
 .destinataire .nom { font-weight: bold; font-size: 10.5pt; }
 .infos { margin-bottom: 5mm; line-height: 1.5; }
@@ -74,8 +74,8 @@ h1 { font-size: 30pt; font-weight: normal; letter-spacing: 1.2mm; text-transform
 .bas { display: flex; justify-content: space-between; gap: 10mm; margin-top: 6mm; page-break-inside: avoid; break-inside: avoid; }
 .taux { width: 85mm; align-self: flex-start; }
 .taux th, .taux td { padding: 1.2mm 2mm; border-bottom: 0.2mm solid #cfd6dd; font-size: 8.5pt; }
-.taux th { background: #eef3f8; text-align: left; }
-.totaux { width: 80mm; margin-left: auto; background: #eef3f8; }
+.taux th { background: #f3eff8; text-align: left; }
+.totaux { width: 80mm; margin-left: auto; background: #f3eff8; }
 .totaux td { padding: 1.3mm 2.5mm; border-bottom: 0.2mm solid #d9e1e8; }
 .totaux .d { text-align: right; white-space: nowrap; }
 .totaux .net td { background: var(--accent-clair); color: #fff; font-weight: bold; font-size: 12pt; border: 0; padding: 2mm 2.5mm; }
@@ -101,16 +101,16 @@ h1 { font-size: 30pt; font-weight: normal; letter-spacing: 1.2mm; text-transform
 
 // Mise en forme des sous-sections : ajoutée seulement quand le devis en a (un devis sans sous-section produit exactement le même document qu'avant).
 const CSS_SOUS_SECTIONS = `
-.lignes .sous-bandeau td { background: #eef3f8; color: var(--accent); border-top: 0.2mm solid #cfd6dd; }
+.lignes .sous-bandeau td { background: #f3eff8; color: var(--accent); border-top: 0.2mm solid #cfd6dd; }
 .lignes .sous-total-sous td { font-size: 8.5pt; border-bottom: 0.2mm solid #bbb; }
 `;
 
 const GRIS = '#666666';
-/** Couleur principale du devis quand l'entreprise n'en a pas choisi (bleu marine) et son pendant clair (bleu eau). */
-export const COULEUR_DEVIS_DEFAUT = '#1B2A4A';
-const CLAIR_DEFAUT = '#2A8FD8';
+/** Couleur principale du devis quand l'entreprise n'en a pas choisi (violet Chevalier IA) et son pendant clair. */
+export const COULEUR_DEVIS_DEFAUT = '#341363';
+const CLAIR_DEFAUT = '#5B2D9E';
 const melanger = (hex, avec, t) => `#${[1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - t) + parseInt(avec.slice(i, i + 2), 16) * t).toString(16).padStart(2, '0')).join('')}`;
-/** Palette du devis : la couleur choisie (« Couleur du tableau ») est la couleur principale, son clair en est tiré ; sans choix, marine et bleu eau. */
+/** Palette du devis : la couleur choisie (« Couleur du tableau ») est la couleur principale, son clair en est tiré ; sans choix, violet Chevalier IA et violet clair. */
 export function paletteDevis(couleur) {
   const choisie = typeof couleur === 'string' && /^#[0-9a-fA-F]{6}$/.test(couleur.trim()) ? couleur.trim().toLowerCase() : null;
   return choisie ? { principale: choisie, claire: melanger(choisie, '#ffffff', 0.25) } : { principale: COULEUR_DEVIS_DEFAUT, claire: CLAIR_DEFAUT };

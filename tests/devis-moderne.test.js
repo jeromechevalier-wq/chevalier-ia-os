@@ -73,11 +73,11 @@ describe('2 logo : écran et PDF', () => {
 });
 
 describe('4 la couleur du tableau suit « Mon entreprise »', () => {
-  test('4 sans couleur ou couleur invalide : bleu marine ; avec une couleur : elle devient la couleur principale', () => {
-    assert.equal(COULEUR_DEVIS_DEFAUT, '#1B2A4A');
+  test('4 sans couleur ou couleur invalide : violet Chevalier IA ; avec une couleur : elle devient la couleur principale', () => {
+    assert.equal(COULEUR_DEVIS_DEFAUT, '#341363');
     for (const couleur of [undefined, '', 'red', '#12', 'url(x)', '#1a73e8; background:url(x)']) {
-      assert.deepEqual(paletteDevis(couleur), { principale: '#1B2A4A', claire: '#2A8FD8' }, String(couleur));
-      assert.match(devisHtml(vue(), { emetteur: { ...EMETTEUR_ESSAI, couleur } }), /--accent: #1B2A4A; --accent-clair: #2A8FD8;/);
+      assert.deepEqual(paletteDevis(couleur), { principale: '#341363', claire: '#5B2D9E' }, String(couleur));
+      assert.match(devisHtml(vue(), { emetteur: { ...EMETTEUR_ESSAI, couleur } }), /--accent: #341363; --accent-clair: #5B2D9E;/);
     }
     const p = paletteDevis('#AA1122');
     assert.equal(p.principale, '#aa1122');

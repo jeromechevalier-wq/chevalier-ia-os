@@ -136,7 +136,7 @@ describe('Chantier et émetteur du devis', () => {
     assert.ok(h.includes('&lt;script&gt;'));
   });
 
-  test('H6 aucune ressource externe sans logo fourni ; logo https accepté ; couleur invalide donne le bleu marine par défaut', () => {
+  test('H6 aucune ressource externe sans logo fourni ; logo https accepté ; couleur invalide donne le violet Chevalier IA par défaut', () => {
     const h = html(fige({ chantier: chantierComplet }), emetteurComplet);
     assert.ok(!/<img|<link|<script|url\(|@import|src=|href=/i.test(h));
     assert.ok(h.includes('--accent: #1a73e8'));
@@ -149,7 +149,7 @@ describe('Chantier et émetteur du devis', () => {
     }
     for (const couleur of ['red', '#12', 'url(x)', '#12345g', '#1a73e8; background:url(http://x)', undefined]) {
       const c = html(fige(), { ...emetteurComplet, couleur });
-      assert.ok(c.includes('--accent: #1B2A4A'), String(couleur));
+      assert.ok(c.includes('--accent: #341363'), String(couleur));
       assert.ok(!c.includes('url('), String(couleur));
     }
   });
@@ -187,11 +187,11 @@ describe('Chantier et émetteur du devis', () => {
     assert.equal(v2.statut, 'brouillon');
   });
 
-  test('H10 régressions : adresse {texte}, titre bleu marine par défaut, délai 0', () => {
+  test('H10 régressions : adresse {texte}, titre violet Chevalier IA par défaut, délai 0', () => {
     const devis = fige({});
     const h = html(devis, { nom: 'Atelier Test', adresse: { texte: '3 rue Z\n69001 Lyon' } });
     assert.ok(h.includes('3 rue Z') && h.includes('69001 Lyon'));
-    assert.match(h, /--accent: #1B2A4A/);
+    assert.match(h, /--accent: #341363/);
     assert.match(html(devis, { nom: 'A', couleur: '#aa1122' }), /--accent: #aa1122/);
     assert.ok(html(devis, { nom: 'A', paiement: { delaiJours: 0 } }).includes('Paiement à réception'));
   });
