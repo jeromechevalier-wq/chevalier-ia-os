@@ -546,10 +546,10 @@ describe('alerte de solde ClickSend bas (alerterSoldeBas) : seuils, idempotence,
     assert.deepEqual(etat(m), { cycle: 0, seuils: [50, 20, 5] });
     assert.equal(await envoyerTout(m), 1);
     assert.deepEqual(await alerte(m, 12), { statut: 'recharge', crees: 0 }, 'recharge de 9 € : solde 12, sous 20 et 50 seulement');
-    assert.deepEqual(etat(m), { cycle: 1, seuils: [50, 20], partie: true }, 'le seuil 5 n’est plus franchi : oublié ; 50 et 20 restent (alerte partie, pas de doublon)');
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [50, 20], partis: [50, 20] }, 'le seuil 5 n’est plus franchi : oublié ; 50 et 20 restent (alerte partie, pas de doublon)');
     assert.deepEqual(await alerte(m, 11), { statut: 'aucune', crees: 0 }, 'rejeu : rien de plus');
     assert.deepEqual(await alerte(m, 4), { statut: 'alerte', crees: 1 }, 'le solde rebaisse sous 5 : alerte à nouveau');
-    assert.deepEqual(etat(m), { cycle: 1, seuils: [50, 20, 5], partie: true });
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [50, 20, 5], partis: [50, 20] });
     assert.equal(messagesSolde(m).length, 2);
   });
   test('E2-19 recharge partielle puis rebaisse : un seuil encore franchi ne repart pas (pas de doublon), un seuil situé au-dessus du nouveau solde repart', async () => {
@@ -594,10 +594,38 @@ describe('alerte de solde ClickSend bas (alerterSoldeBas) : seuils, idempotence,
     const m = monde();
     await alerte(m, 1); await envoyerTout(m);
     assert.deepEqual(await alerte(m, 6), { statut: 'recharge', crees: 0 });
-    assert.deepEqual(etat(m), { cycle: 1, seuils: [10], partie: true });
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [10], partis: [10] });
     assert.deepEqual(await alerte(m, 1), { statut: 'alerte', crees: 1 });
     assert.match(messagesSolde(m).at(-1).texte, /\(seuil 2 EUR\)/);
-    assert.deepEqual(etat(m), { cycle: 1, seuils: [10, 5, 2], partie: true });
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [10, 5, 2], partis: [10] });
+  });
+  test('E2-23 le seuil gardé doit être couvert par un SMS parti : 10/5/2, 4 (parti) puis 6, 4 et 1 (non partis), recharge partielle à 3 : UN SMS « seuil 5 », pas zéro', async () => {
+    const m = monde();
+    await alerte(m, 4); await envoyerTout(m);
+    assert.deepEqual(await alerte(m, 6), { statut: 'recharge', crees: 0 });
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [10], partis: [10] });
+    await alerte(m, 4); await alerte(m, 1); // créés, jamais partis (nuit, échec, crédit épuisé)
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [10, 5, 2], partis: [10] });
+    assert.deepEqual(await alerte(m, 3), { statut: 'alerte', crees: 1 }, 'le seuil 5 n’a jamais été couvert par un SMS parti : il alerte');
+    assert.match(messagesSolde(m).at(-1).texte, /\(seuil 5 EUR\)/);
+    assert.deepEqual(etat(m), { cycle: 2, seuils: [10, 5], partis: [10] });
+    assert.equal(await envoyerTout(m), 1);
+  });
+  test('E2-24 seuils changés (état [10] partis [10], seuils 50/20/5), solde 6 puis 12 : les seuils 50/20, jamais couverts par un SMS parti, alertent à nouveau', async () => {
+    const m = monde();
+    await alerte(m, 4); await envoyerTout(m); await alerte(m, 6);
+    m.base.docs.get('rdv_parametres/reglages').d.seuilsSolde = [50, 20, 5];
+    assert.deepEqual(await alerte(m, 6), { statut: 'alerte', crees: 1 }, 'seuils 50 et 20 franchis, jamais alertés : UN SMS (le plus bas : 20)');
+    assert.match(messagesSolde(m).at(-1).texte, /\(seuil 20 EUR\)/);
+    assert.deepEqual(await alerte(m, 12), { statut: 'alerte', crees: 1 }, 'les seuils 50 et 20 jamais partis ne sont pas gardés : le solde courant alerte au seuil 20');
+    assert.match(messagesSolde(m).at(-1).texte, /\(seuil 20 EUR\)/);
+  });
+  test('E2-25 un message « reserve » (envoi en cours) compte comme parti : la recharge partielle garde son seuil, sans doublon', async () => {
+    const m = monde();
+    await alerte(m, 4);
+    assert.equal((await m.action('rdv.aEnvoyer')).nombre, 1); // réservé, pas confirmé
+    assert.deepEqual(await alerte(m, 6), { statut: 'recharge', crees: 0 });
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [10], partis: [10] });
   });
   test('E2-6 solde illisible, absent ou non numérique : aucune alerte, rien d’écrit ; 0 et négatif alertent ; juste au seuil (10) n’alerte pas', async () => {
     const m = monde();
