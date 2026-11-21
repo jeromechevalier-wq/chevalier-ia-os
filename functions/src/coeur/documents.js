@@ -143,7 +143,8 @@ export async function supprimerDocument({ donnees, ctx, ecrire, documentId }) {
  */
 export async function renommerDocument({ donnees, ctx, ecrire, documentId, nom }) {
   const fiche = await ficheVisible(donnees, documentId);
-  const controle = controlerFichier({ nom, typeMime: '', taille: 1 }); // seul le NOM est contrôlé ici : le type et la taille ont été contrôlés au dépôt
+  // Un nom TAPÉ peut contenir « / » (« Facture 12/11/2026 ») : contrairement à un chemin de dépôt, on ne garde pas le dernier morceau, on remplace par « - ».
+  const controle = controlerFichier({ nom: String(nom ?? '').replace(/[\\/]+/g, '-'), typeMime: '', taille: 1 }); // seul le NOM est contrôlé ici : le type et la taille ont été contrôlés au dépôt
   if (!controle.ok) throw new ErreurDocument('refuse', controle.erreur);
   const extensionAvant = extensionDe(fiche.nom);
   if (controle.extension !== extensionAvant) {

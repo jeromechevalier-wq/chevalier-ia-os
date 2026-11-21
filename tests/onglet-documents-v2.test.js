@@ -37,6 +37,13 @@ describe('R5c renommer un fichier à l\'écran : le nom saisi + l\'extension d\'
     assert.equal(nomRenomme('photo.jpg', 'CNI Samuel.JPG'), 'CNI Samuel.jpg');
     assert.equal(nomRenomme('photo.jpg', '  CNI  '), 'CNI.jpg');
     assert.equal(nomRenomme('archive.tar.zip', 'x'), 'x.zip');
+    // extension en majuscules (photos de téléphone) : reprise telle quelle, donc « Renommer » sans rien changer rend exactement l'ancien nom
+    assert.equal(nomRenomme('IMG_1234.JPG', 'IMG_1234'), 'IMG_1234.JPG');
+    assert.equal(nomRenomme('IMG_1234.JPG', 'Chantier.jpg'), 'Chantier.JPG');
+    // rien de tapé, ou seulement l'extension : pas de nom (l'écran n'appelle pas le serveur)
+    assert.equal(nomRenomme('photo.jpg', ''), '');
+    assert.equal(nomRenomme('photo.jpg', '   '), '');
+    assert.equal(nomRenomme('photo.jpg', '.jpg'), '');
   });
   test('R5c la fenêtre propose le nom sans l\'extension', () => {
     assert.equal(nomSansExtension('5033842879837545388.jpg'), '5033842879837545388');

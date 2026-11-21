@@ -185,11 +185,11 @@ export function signatureCoherente(extension, octets) {
 
 /** Renommage à l'écran : l'utilisateur ne change que le nom, l'extension d'origine est remise toujours (« Carte identité » + « .jpg »). S'il a tapé l'extension lui-même, elle n'est pas doublée. Rend le nom complet. */
 export function nomRenomme(ancien, saisi) {
-  const ext = extensionDe(ancien);
   const texte = String(saisi ?? '').trim();
-  if (!ext) return texte;
-  const fin = `.${ext}`;
-  return texte.toLowerCase().endsWith(fin) ? texte.slice(0, -fin.length).trim() + fin : texte + fin;
+  const fin = /\.[A-Za-z0-9]{1,10}$/.exec(String(ancien ?? ''))?.[0] ?? ''; // l'extension telle qu'elle est écrite (IMG_1234.JPG reste .JPG : « Renommer » sans rien changer ne renomme rien)
+  if (!fin) return texte;
+  const base = (texte.toLowerCase().endsWith(fin.toLowerCase()) ? texte.slice(0, -fin.length) : texte).trim();
+  return base ? base + fin : ''; // rien de tapé (ou seulement l'extension) : pas de nom
 }
 
 /** Nom (sans l'extension) proposé dans la fenêtre « Renommer ». */

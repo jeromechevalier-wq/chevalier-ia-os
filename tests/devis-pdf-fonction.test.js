@@ -460,8 +460,11 @@ describe('R fichiers déposés : dépôt, lien, suppression (faux Cloud Storage,
     await assert.rejects(() => m.a('renommer')({ data: {} }), (e) => e.code === 'unauthenticated');
     await assert.rejects(() => m.a('renommer')(requete({ documentId: img.id, nom: 'x.jpg' }, 'intrus@exemple.test')), (e) => e.code === 'permission-denied');
     // un nom libre : la fiche prend le nouveau nom, le chemin et le fichier restent
-    const r = await m.a('renommer')(requete({ documentId: img.id, nom: '../CNI Samuel.jpg' }));
-    assert.equal(r.nom, 'CNI Samuel.jpg');
+    const barre = await m.a('renommer')(requete({ documentId: img.id, nom: 'Facture 12/11/2026.jpg' })); // une barre oblique tapée ne fait pas perdre le début du nom
+    assert.equal(barre.nom, 'Facture 12-11-2026.jpg');
+    const r = await m.a('renommer')(requete({ documentId: img.id, nom: '../CNI Samuel.jpg' })); // jamais de chemin dans un nom
+    assert.ok(!/[\\/]/.test(r.nom) && r.nom.endsWith('CNI Samuel.jpg'), r.nom);
+    await m.a('renommer')(requete({ documentId: img.id, nom: 'CNI Samuel.jpg' }));
     const fiche = m.collections[C.documentsStockes].find((f) => f.id === img.id);
     assert.equal(fiche.nom, 'CNI Samuel.jpg');
     assert.equal(fiche.chemin, chemin);
