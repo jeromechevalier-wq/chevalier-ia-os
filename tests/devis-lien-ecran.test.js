@@ -174,12 +174,12 @@ describe('6 aucun secret dans un lien', () => {
 
 describe('7 consigne dans les descriptions', () => {
   const AVEC_LIEN = ['creer_devis_brouillon', 'modifier_devis_brouillon', 'modifier_lignes_devis', 'creer_devis_depuis_modele', 'annuler_derniere_modification_devis', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'modifier_destinataires_devis', 'changer_statut_devis', 'lister_devis', 'lire_devis', 'obtenir_pdf_officiel_devis'];
-  test('7 chaque outil qui rend lienEcran porte la consigne ; elle n’a aucun mot réservé ni nom de domaine ; 97 outils', () => {
+  test('7 chaque outil qui rend lienEcran porte la consigne ; elle n’a aucun mot réservé ni nom de domaine ; 99 outils', () => {
     for (const nom of AVEC_LIEN) assert.ok(OUTILS.find((o) => o.nom === nom)?.description.includes(CONSIGNE_LIEN_ECRAN), nom);
     assert.deepEqual(OUTILS.filter((o) => o.description.includes(CONSIGNE_LIEN_ECRAN)).map((o) => o.nom).sort(), [...AVEC_LIEN].sort(), 'seuls ces outils portent la consigne');
     for (const o of OUTILS.filter((x) => x.description.includes(GARANTIE_PAS_D_ENVOI))) assert.ok(o.description.endsWith(GARANTIE_PAS_D_ENVOI), `${o.nom} : la règle d’envoi reste en dernière position`);
     assert.doesNotMatch(CONSIGNE_LIEN_ECRAN, /Jérôme|Audit|Accompagnement|lancement|decouverte|cloture|gagne|premier_contact|rdv_fixe|proposition_envoyee|jerome\.chevalier|\.web\.app|https?:/i);
-    assert.equal(OUTILS.length, 98); // 98 : + demander_lien_depot (17/11/2026) ; 97 : + 12 outils du module Réseaux sociaux (13/11/2026), aucun ne rend lienEcran
+    assert.equal(OUTILS.length, 99); // 99 : + obtenir_fichier (21/11/2026) ; 98 : + demander_lien_depot (17/11/2026) ; 97 : + 12 outils du module Réseaux sociaux (13/11/2026), aucun ne rend lienEcran
   });
 });
 

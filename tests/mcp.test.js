@@ -264,6 +264,7 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
     'diagnostiquer_fichiers', // outil d'essai temporaire (26/10/2026), à retirer après l'essai
     'lister_devis', 'lire_devis', 'lire_reglages_devis', 'rechercher_article_par_phrase', // + 2 outils de lecture du bordereau, + 2 de lecture des devis (module Devis, 24/10/2026), + la recherche par phrase (28/10/2026)
     'lister_sources_inspiration', 'lire_source_inspiration', 'lister_pistes', 'lister_idees', // + 4 outils de lecture du module Réseaux sociaux (13/11/2026)
+    'obtenir_fichier', // + le lien de téléchargement court d'un fichier de l'onglet « Documents » (21/11/2026)
     'obtenir_pdf_officiel_devis']; // + le PDF officiel d'un devis finalisé, seul PDF à utiliser (garantie « aucun e-mail ne part tout seul », 29/10/2026)
   const ECRITURE = ['refuser_proposition', 'valider_proposition', 'abandonner_facture', 'ajouter_facture', 'ajouter_note', 'ajouter_livrable_projet', 'archiver_projet', 'changer_etape', 'changer_phase_projet', 'creer_activite', 'creer_affaire', 'creer_organisation', 'creer_personne', 'creer_projet', 'creer_projet_depuis_affaire', 'joindre_lien', 'marquer_facture_payee', 'marquer_perdue', 'modifier_affaire', 'modifier_note', 'modifier_organisation', 'modifier_personne', 'modifier_projet', 'retirer_document', 'rouvrir_affaire', 'rouvrir_projet', 'terminer_activite', 'terminer_projet', 'terminer_livrable_projet',
     'creer_article', 'modifier_article', 'desactiver_article',
