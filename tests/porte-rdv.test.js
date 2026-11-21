@@ -538,6 +538,51 @@ describe('alerte de solde ClickSend bas (alerterSoldeBas) : seuils, idempotence,
     assert.deepEqual(await alerte(m, 4), { statut: 'alerte', crees: 1 });
     assert.deepEqual(messagesSolde(m).map((x) => x.id).sort(), ['solde_c0_s500_n1', 'solde_c1_s500_n1']);
   });
+  test('E2-18 recharge partielle (50/20/5, solde 3 puis 12) : les seuils 20 et 50 sont oubliés, 5 aussi ; une nouvelle baisse sous 20 alerte à nouveau', async () => {
+    const m = monde({ reglages: { ...REGLAGES, seuilsSolde: [50, 20, 5] } });
+    assert.deepEqual(await alerte(m, 3), { statut: 'alerte', crees: 1 });
+    assert.deepEqual(etat(m), { cycle: 0, seuils: [50, 20, 5] });
+    assert.deepEqual(await alerte(m, 12), { statut: 'recharge', crees: 0 }, 'recharge de 9 € : solde 12, sous 20 et 50 seulement');
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [50, 20] }, 'le seuil 5 n’est plus franchi : oublié ; 50 et 20 restent (déjà alertés, pas de doublon)');
+    assert.deepEqual(await alerte(m, 11), { statut: 'aucune', crees: 0 }, 'rejeu : rien de plus');
+    assert.deepEqual(await alerte(m, 4), { statut: 'alerte', crees: 1 }, 'le solde rebaisse sous 5 : alerte à nouveau');
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [50, 20, 5] });
+    assert.equal(messagesSolde(m).length, 2);
+  });
+  test('E2-19 recharge partielle puis rebaisse : un seuil encore franchi ne repart pas (pas de doublon), un seuil situé au-dessus du nouveau solde repart', async () => {
+    const m = monde({ reglages: { ...REGLAGES, seuilsSolde: [50, 20, 5] } });
+    await alerte(m, 3); // alerté à 50, 20, 5 (un seul SMS, seuil 5)
+    assert.equal((await alerte(m, 12)).statut, 'recharge');
+    // le solde remonte à 30 (sous 50 seulement) : 20 et 5 oubliés, 50 garde son alerte
+    assert.deepEqual(await alerte(m, 30), { statut: 'recharge', crees: 0 });
+    assert.deepEqual(etat(m).seuils, [50]);
+    assert.deepEqual(await alerte(m, 25), { statut: 'aucune', crees: 0 }, '25 est encore sous 50 : pas de doublon');
+    assert.deepEqual(await alerte(m, 19), { statut: 'alerte', crees: 1 }, '19 franchit 20, de nouveau possible');
+    assert.match(messagesSolde(m).at(-1).texte, /\(seuil 20 EUR\)/);
+  });
+  test('E2-20 recharge partielle puis baisse sur plusieurs seuils d’un coup = UN SMS (le plus bas) ; une alerte restée en attente de l’ancien cycle est abandonnée', async () => {
+    const m = monde({ reglages: { ...REGLAGES, seuilsSolde: [50, 20, 5] } });
+    await alerte(m, 3); // SMS à envoyer, seuil 5, cycle 0
+    assert.equal((await alerte(m, 12)).statut, 'recharge');
+    assert.equal((await m.action('rdv.aEnvoyer')).nombre, 0, 'l’alerte « solde bas 3 EUR » de l’ancien cycle n’est jamais envoyée');
+    assert.equal(messagesSolde(m)[0].etatEnvoi, 'abandonne');
+    assert.deepEqual(await alerte(m, 2), { statut: 'alerte', crees: 1 }, 'un seul SMS pour le seuil 5 (50 et 20 déjà alertés)');
+    assert.equal(messagesSolde(m).length, 2);
+    // cas où plusieurs seuils sont franchis d'un coup après un oubli complet
+    const n = monde({ reglages: { ...REGLAGES, seuilsSolde: [50, 20, 5] } });
+    await alerte(n, 3); await alerte(n, 60);
+    assert.deepEqual(await alerte(n, 1), { statut: 'alerte', crees: 1 });
+    assert.match(messagesSolde(n).at(-1).texte, /\(seuil 5 EUR\)/);
+  });
+  test('E2-21 recharge partielle avec seuils par défaut (10/5/2) : solde 1 puis 6 oublie 2 seul ; 6 puis 1 relance l’alerte du seuil 2', async () => {
+    const m = monde();
+    await alerte(m, 1);
+    assert.deepEqual(await alerte(m, 6), { statut: 'recharge', crees: 0 });
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [10] });
+    assert.deepEqual(await alerte(m, 1), { statut: 'alerte', crees: 1 });
+    assert.match(messagesSolde(m).at(-1).texte, /\(seuil 2 EUR\)/);
+    assert.deepEqual(etat(m), { cycle: 1, seuils: [10, 5, 2] });
+  });
   test('E2-6 solde illisible, absent ou non numérique : aucune alerte, rien d’écrit ; 0 et négatif alertent ; juste au seuil (10) n’alerte pas', async () => {
     const m = monde();
     const v = versionReglages(m);
