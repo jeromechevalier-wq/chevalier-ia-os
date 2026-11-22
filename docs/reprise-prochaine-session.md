@@ -1,5 +1,25 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 22 au 23/11/2026 : classer les posts LinkedIn par l'assistant
+
+Données de Jérôme modifiées avec son accord écrit du 22/11 : un seul post a reçu son classement (pilier, format, service), par l'outil lui-même. Aucune règle Firestore, aucun déploiement chez les clients.
+
+| Sujet | PR | État |
+|---|---|---|
+| Module Réseaux sociaux : outils MCP `lister_classements_posts` et `classer_post` (classement d'un post Buffer : pilier, format, services) | 666 | fusionnée (tests verts, relecture Fable faite, fonctions déployées par « Déploiement Firebase Hosting ») |
+| Classement réel du post vidéo « factures fournisseurs » | aucune PR (données) | fait : cas concrets, vidéo, finance ; relu avec `lister_classements_posts` (37 posts classés, les 36 autres inchangés d'après la session qui l'a fait) |
+
+**État de la nuit GitHub** : « Tests de nuit » 44996075498 vert sur `main` (22/11 au matin, avant la 666). Pas relancé après la 666.
+
+**Ce que Jérôme fait** :
+1. Regarder l'écran Posts du module Réseaux sociaux : le post du mardi 24/11 à 6 h 08 doit apparaître en Cas concrets, Vidéo, Finance.
+2. Supprimer l'audio `~/outils-youtube/TEMP/demo-factures-voix.mp3` (Claude ne supprime jamais un fichier).
+3. Les PR ouvertes 615, 608 et 597 sont toujours ouvertes (non touchées).
+
+**Leçon pratique** : une session déjà ouverte ne voit pas les outils MCP ajoutés ensuite (liste figée au démarrage, reconnecter ne change rien tant que le serveur est « connecté ») : pour utiliser un outil neuf, lancer une session neuve.
+
+**Non vérifié** : l'affichage à l'écran du classement ; « Tests de nuit » après la 666.
+
 ## Rapport du matin du 21 au 22/11/2026 : adresses e-mail désignées, alertes de solde
 
 Aucune donnée de Jérôme modifiée, aucune règle ni déploiement. Les deux PR touchent le serveur (textes des outils MCP, état des alertes de solde) et ont été relues par Fable.
