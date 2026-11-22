@@ -1075,5 +1075,51 @@
   "execution": {
    "taskSupport": "forbidden"
   }
+ },
+ {
+  "name": "lister_classements_posts",
+  "description": "Liste le classement des posts LinkedIn faits dans Buffer (pilier, format, services) : un classement par identifiant de post Buffer. Jamais le texte, la date ni les chiffres du post. Filtres : pilier, format. 200 lignes au plus. Un ancien pilier « pme » est rendu « cas_concrets ».",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "pilier": {
+     "type": "string",
+     "enum": [
+      "cas_concrets",
+      "pedagogie",
+      "actu_ia",
+      "demarche_offre"
+     ],
+     "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+    },
+    "format": {
+     "type": "string",
+     "enum": [
+      "texte",
+      "image",
+      "carrousel",
+      "animation",
+      "video"
+     ],
+     "description": "Format : texte, image, carrousel, animation, video."
+    },
+    "limite": {
+     "description": "Nombre maximal de lignes (défaut et plafond : 200).",
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 200
+    }
+   }
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
  }
 ]
