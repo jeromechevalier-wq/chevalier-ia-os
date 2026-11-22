@@ -1281,9 +1281,11 @@ describe('O9 outils du bordereau : un ouvrage se crée avec ses composants et se
 
 // ---------------------------------------------------------------- R : fichiers de l'onglet « Documents » par le MCP (texte seulement)
 describe('R. deposer_document, supprimer_document_stocke, lister_documents (fichiers)', () => {
-  const fauxStockage = ({ refus = null } = {}) => {
+  const fauxStockage = ({ refus = null, refusLien = null } = {}) => {
     const objets = new Map();
-    return { objets, deposer: async (chemin, octets, type) => { if (refus) throw refus; objets.set(chemin, { octets, type }); }, supprimer: async (c) => { objets.delete(c); } };
+    const liens = [];
+    return { objets, liens, deposer: async (chemin, octets, type) => { if (refus) throw refus; objets.set(chemin, { octets, type }); }, supprimer: async (c) => { objets.delete(c); },
+      lienSigne: async (chemin, options) => { if (refusLien) throw refusLien; liens.push({ chemin, ...options }); return 'https://stockage.exemple.test/signe?x=SECRET'; } };
   };
   test('R1 dépôt d’un texte : fiche + fichier sous l’espace, journal, listé, jamais de chemin dans la réponse', async () => {
     const st = fauxStockage();
@@ -1366,6 +1368,84 @@ describe('R. deposer_document, supprimer_document_stocke, lister_documents (fich
     const client = await demarrer({ stockage: fauxStockage() }); // espace sans lien publié (comme les espaces clients)
     refuse(await client.appeler('biblio', 'demander_lien_depot', { affaireId: 'a1' }), /n'existe pas dans cet espace/);
     assert.equal((client.collections.mcp_codes ?? []).length, 0);
+  });
+  test('R4 obtenir_fichier : lien court d’un fichier d’affaire ET de projet, lecture seule, aucun champ chemin ; lecteur autorisé', async () => {
+    const st = fauxStockage();
+    const s = await demarrer({ stockage: st });
+    const projet = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Chantier', personneId: 'p1' }));
+    const f1 = ok(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'kbis é.md', contenuTexte: '# Kbis' }));
+    const f2 = ok(await s.appeler('biblio', 'deposer_document', { projetId: projet.id, nom: 'plan.txt', contenuTexte: 'plan' }));
+    const lignesAvant = s.collections.crm_audit.length;
+    for (const jeton of ['biblio', 'lecteur', 'code']) {
+      const r = ok(await s.appeler(jeton, 'obtenir_fichier', { id: f1.id }));
+      assert.deepEqual([r.id, r.nom, r.affaireId, r.valableMinutes, r.projetId], [f1.id, 'kbis é.md', 'a1', 5, undefined]);
+      assert.equal(r.typeMime, 'text/markdown');
+      assert.equal(r.lien, 'https://stockage.exemple.test/signe?x=SECRET');
+      assert.ok(!('chemin' in r) && !JSON.stringify(Object.keys(r)).includes('chemin'), 'le chemin du stockage n’est pas rendu comme champ');
+      assert.match(r.consigne, /DONNÉE/);
+    }
+    const p = ok(await s.appeler('biblio', 'obtenir_fichier', { id: f2.id }));
+    assert.deepEqual([p.projetId, p.affaireId, p.nom], [projet.id, undefined, 'plan.txt']);
+    const dernier = st.liens.at(-1);
+    assert.equal(dernier.chemin, s.doc('documents_stockes', f2.id).chemin);
+    assert.equal(dernier.minutes, 5);
+    assert.equal(dernier.nomAffiche, 'plan.txt');
+    assert.equal(dernier.telecharger, true);
+    assert.match(dernier.typeMime, /^text\/plain; charset=/);
+    assert.equal(s.collections.crm_audit.length, lignesAvant, 'lecture seule : aucune écriture, aucune ligne de journal d’écriture');
+    const outil = (await (await s.brut('lecteur', 'tools/list', {})).json()).result.tools.find((t) => t.name === 'obtenir_fichier');
+    assert.deepEqual([outil.annotations.readOnlyHint, outil.annotations.destructiveHint], [true, false]);
+  });
+  test('R5 obtenir_fichier refus : id inconnu ou absent, fichier à la corbeille, chemin d’une autre fiche, d’un autre espace ou avec « .. », extension non permise, stockage absent ou en panne', async () => {
+    const st = fauxStockage();
+    const s = await demarrer({ stockage: st });
+    const f = ok(await s.appeler('code', 'deposer_document', { affaireId: 'a1', nom: 'n.txt', contenuTexte: 'bonjour' }));
+    refuse(await s.appeler('biblio', 'obtenir_fichier', { id: 'inconnu' }), /introuvable/i);
+    refuse(await s.appeler('biblio', 'obtenir_fichier', {}), /id/i);
+    refuse(await s.appeler('biblio', 'obtenir_fichier', { id: '../x' }), /invalide/i);
+    // chemin qui ne correspond plus à l'espace et à la cible : rien n'est signé
+    s.doc('documents_stockes', f.id).chemin = 'documents/affaire/AUTRE/uuid-n.txt';
+    refuse(await s.appeler('biblio', 'obtenir_fichier', { id: f.id }), /pas accessible/);
+    for (const mauvais of ['clients/autre/documents/affaire/a1/uuid-n.txt', 'documents/affaire/a1/../x/uuid-n.txt']) {
+      s.doc('documents_stockes', f.id).chemin = mauvais;
+      refuse(await s.appeler('biblio', 'obtenir_fichier', { id: f.id }), /pas accessible/);
+    }
+    s.doc('documents_stockes', f.id).chemin = `documents/affaire/a1/uuid-n.txt`;
+    s.doc('documents_stockes', f.id).nom = 'n.exe';
+    refuse(await s.appeler('biblio', 'obtenir_fichier', { id: f.id }), /pas accessible/);
+    assert.equal(st.liens.length, 0, 'aucun lien signé pour un mauvais chemin ou une extension non permise');
+    const g = ok(await s.appeler('code', 'deposer_document', { affaireId: 'a1', nom: 'g.txt', contenuTexte: 'x' }));
+    const a = ok(await s.appeler('code', 'supprimer_document_stocke', { id: g.id }));
+    ok(await s.appeler('code', 'supprimer_document_stocke', { id: g.id, codeConfirmation: a.code }));
+    refuse(await s.appeler('biblio', 'obtenir_fichier', { id: g.id }), /introuvable/i);
+    const sansStockage = await demarrer({ stockage: null });
+    sansStockage.collections.documents_stockes = [{ id: 'd1', cibleType: 'affaire', cibleId: 'a1', nom: 'n.txt', typeMime: 'text/plain', taille: 1, chemin: 'documents/affaire/a1/u-n.txt', supprimeLe: null }];
+    refuse(await sansStockage.appeler('biblio', 'obtenir_fichier', { id: 'd1' }), /stockage/i);
+    const enPanne = await demarrer({ stockage: fauxStockage({ refusLien: new Error('panne signature') }) });
+    const h = ok(await enPanne.appeler('code', 'deposer_document', { affaireId: 'a1', nom: 'h.txt', contenuTexte: 'x' }));
+    const r = await enPanne.appeler('biblio', 'obtenir_fichier', { id: h.id });
+    refuse(r, /ARRÊTE-TOI/);
+    assert.ok(!r.texte.includes('panne signature'), 'le détail technique n’est pas donné à l’assistant');
+  });
+  test('R6 aller-retour réel : déposer, demander le lien par le protocole MCP, TÉLÉCHARGER l’adresse rendue et retrouver exactement les octets déposés', async () => {
+    const st = fauxStockage();
+    // Un petit serveur web local tient lieu de Cloud Storage : l'adresse signée rendue par l'outil est une vraie adresse que l'on télécharge.
+    const web = createServer((req, res) => {
+      const chemin = decodeURIComponent(new URL(req.url, 'http://x').pathname.slice(1));
+      const o = st.objets.get(chemin);
+      if (!o) { res.writeHead(404).end(); return; }
+      res.writeHead(200, { 'Content-Type': o.type }).end(o.octets);
+    });
+    await new Promise((fini) => web.listen(0, '127.0.0.1', fini));
+    arrets.push(() => new Promise((fini) => web.close(fini)));
+    st.lienSigne = async (chemin) => `http://127.0.0.1:${web.address().port}/${encodeURIComponent(chemin)}?signature=essai`;
+    const s = await demarrer({ stockage: st });
+    const texte = '# Extrait Kbis\nSociété DG-Concept — accents é à ç\n';
+    const d = ok(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'extrait kbis.md', contenuTexte: texte }));
+    const r = ok(await s.appeler('lecteur', 'obtenir_fichier', { id: d.id }));
+    const rep = await fetch(r.lien);
+    assert.equal(rep.status, 200);
+    assert.equal(await rep.text(), texte, 'le fichier téléchargé est identique au fichier déposé');
   });
   test('R3 supprimer_document_stocke : aperçu puis code, corbeille logique (fichier intact), restaurable ; retirer_document n’y touche pas', async () => {
     const st = fauxStockage();

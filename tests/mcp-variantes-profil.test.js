@@ -40,9 +40,9 @@ describe('1 invariance : tout profil autre qu\'assistant-devis reçoit exactemen
     });
   }
   test('1 les nombres de référence : 96 outils pour un jeton fixe complet, 97 pour un super admin OAuth (avec modifier_reglages_devis ; 12 outils du module Réseaux sociaux ajoutés le 13/11/2026)', () => {
-    assert.equal(JSON.parse(lireFixture('complet')).length, 97); // 97 : + demander_lien_depot (17/11/2026)
+    assert.equal(JSON.parse(lireFixture('complet')).length, 98); // 98 : + obtenir_fichier (21/11/2026) ; 97 : + demander_lien_depot (17/11/2026)
     const superAdmin = JSON.parse(lireFixture('complet-super-admin'));
-    assert.equal(superAdmin.length, 98);
+    assert.equal(superAdmin.length, 99);
     assert.ok(superAdmin.some((t) => t.name === 'modifier_reglages_devis'));
   });
   test('1 varianteDuProfil rend l\'outil LUI-MÊME (même objet) pour tout profil autre qu\'assistant-devis', () => {
