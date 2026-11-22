@@ -45,11 +45,12 @@ export const COLLECTIONS = {
   workflows: 'workflows',
   documentsStockes: 'documents_stockes', // fiches des fichiers de l'onglet « Documents » (écrites par le serveur seulement ; le fichier est dans Cloud Storage)
   actionsLancements: 'crm_actions_lancements', // journal des demandes faites à n8n depuis un écran (une ligne par demande, jamais le contenu d'un e-mail)
-  // Module Réseaux sociaux (13/11/2026) : sources (inspirations), pistes, exemples et idées, écrits par les outils MCP du module. Les posts et les imports restent écrits par l'écran seulement.
+  // Module Réseaux sociaux (13/11/2026) : sources (inspirations), pistes, exemples et idées, écrits par les outils MCP du module. Les imports restent écrits par l'écran seulement ; le classement des posts s'écrit aussi par classer_post (14/11 → 22/11/2026).
   reseauxIdees: 'reseauxsociaux_idees',
   reseauxInspirations: 'reseauxsociaux_inspirations', // les sources
   reseauxExemples: 'reseauxsociaux_exemples',
   reseauxPistes: 'reseauxsociaux_pistes',
+  reseauxPosts: 'reseauxsociaux_posts', // classement (pilier, format, services) d'un post Buffer, clé = identifiant Buffer ; jamais le texte ni un chiffre de Buffer (écrit par classer_post)
 };
 
 /** Erreur de contrôle de concurrence : un document a changé entre la lecture et l'écriture. */

@@ -1,4 +1,4 @@
-// Outils du module Réseaux sociaux (13/11/2026) : sources d'inspiration, pistes de posts, exemples et idées. 12 outils : 4 de lecture, 8 d'écriture, AUCUN de suppression
+// Outils du module Réseaux sociaux (13/11/2026) : sources d'inspiration, pistes de posts, exemples et idées. 14 outils : 5 de lecture, 9 d'écriture, AUCUN de suppression
 // (une piste se met « écartée », une idée « abandonnée » : tout est gardé). Chacun valide sa saisie (zod, listes de champs fermées : aucun champ `extrait`, jamais le texte
 // d'un post tiers), puis délègue à coeur/reseauxsociaux.js, qui applique les plans purs du module (les mêmes que l'écran) ; l'écriture est journalisée par le moteur.
 // Lecture : profils lecture, ecriture et complet. Écriture : ecriture et complet seulement (jamais agent-devis ni assistant-devis).
@@ -75,6 +75,9 @@ export const OUTILS_RESEAUX_LECTURE = [
   outil('lister_idees', LECTURE, `Liste les idées de posts (les pistes retenues et les idées libres). Filtres : etat (${ids(I.ETATS_IDEE)}), pilier. Le texte d'un brouillon est rendu ; les mots d'un tiers saisis à l'écran (extrait) ne le sont jamais.`, {
     etat: z.enum(I.ETATS_IDEE.map((x) => x.id)).optional(), pilier: pilier.optional(), limite,
   }, RS.listerIdees),
+  outil('lister_classements_posts', LECTURE, `Liste le classement des posts LinkedIn faits dans Buffer (pilier, format, services) : un classement par identifiant de post Buffer. Jamais le texte, la date ni les chiffres du post. Filtres : pilier, format. ${MAX_LIGNES} lignes au plus. Un ancien pilier « pme » est rendu « cas_concrets ».`, {
+    pilier: pilier.optional(), format: format.optional(), limite,
+  }, RS.listerClassementsPosts),
 ];
 
 export const OUTILS_RESEAUX_ECRITURE = [
@@ -111,4 +114,8 @@ export const OUTILS_RESEAUX_ECRITURE = [
     id: id.describe("Identifiant de l'idée."), ...Object.fromEntries(Object.entries(champsIdee).map(([k, v]) => [k, k === 'angle' ? v.optional() : v])),
     effacerLeTexte: z.boolean().optional().describe('true : confirmer que le texte peut s’effacer du module (il est déjà dans Buffer).'),
   }, RS.modifierIdee),
+  outil('classer_post', ECRITURE, "Classe un post LinkedIn de Buffer : pilier, format, services. Crée le classement s'il manque, sinon ne change que les champs donnés (les autres restent ; pilier ou format à null le vide). id = identifiant du post dans Buffer, recopié tel quel (le serveur ne peut pas vérifier qu'il existe). services : liste (vide = post général). Un pilier, format ou service hors liste refuse l'appel (la liste permise est donnée). Ne touche jamais au texte, à la date ni aux chiffres du post.", {
+    id: z.string().min(1).max(100).describe('Identifiant du post dans Buffer (lettres, chiffres, tiret, tiret bas).'),
+    pilier: pilier.nullable().optional(), format: format.nullable().optional(), services: z.array(service).max(R.SERVICES.length).optional().describe('Services concernés ; liste vide = post général.'),
+  }, RS.classerPost),
 ];

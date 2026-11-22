@@ -1077,6 +1077,52 @@
   }
  },
  {
+  "name": "lister_classements_posts",
+  "description": "Liste le classement des posts LinkedIn faits dans Buffer (pilier, format, services) : un classement par identifiant de post Buffer. Jamais le texte, la date ni les chiffres du post. Filtres : pilier, format. 200 lignes au plus. Un ancien pilier « pme » est rendu « cas_concrets ».",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "pilier": {
+     "type": "string",
+     "enum": [
+      "cas_concrets",
+      "pedagogie",
+      "actu_ia",
+      "demarche_offre"
+     ],
+     "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+    },
+    "format": {
+     "type": "string",
+     "enum": [
+      "texte",
+      "image",
+      "carrousel",
+      "animation",
+      "video"
+     ],
+     "description": "Format : texte, image, carrousel, animation, video."
+    },
+    "limite": {
+     "description": "Nombre maximal de lignes (défaut et plafond : 200).",
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 200
+    }
+   }
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
   "name": "creer_personne",
   "description": "Crée une personne (seul le nom est obligatoire), avec son événement dans le fil. Refuse un doublon (même nom, accents et casse ignorés, ou même e-mail) sauf forcer: true. Le propriétaire est, par défaut, la personne connectée si on n'en donne pas.",
   "inputSchema": {
@@ -5436,6 +5482,85 @@
     "effacerLeTexte": {
      "description": "true : confirmer que le texte peut s’effacer du module (il est déjà dans Buffer).",
      "type": "boolean"
+    }
+   },
+   "required": [
+    "id"
+   ]
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false
+  },
+  "execution": {
+   "taskSupport": "forbidden"
+  }
+ },
+ {
+  "name": "classer_post",
+  "description": "Classe un post LinkedIn de Buffer : pilier, format, services. Crée le classement s'il manque, sinon ne change que les champs donnés (les autres restent ; pilier ou format à null le vide). id = identifiant du post dans Buffer, recopié tel quel (le serveur ne peut pas vérifier qu'il existe). services : liste (vide = post général). Un pilier, format ou service hors liste refuse l'appel (la liste permise est donnée). Ne touche jamais au texte, à la date ni aux chiffres du post.",
+  "inputSchema": {
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 100,
+     "description": "Identifiant du post dans Buffer (lettres, chiffres, tiret, tiret bas)."
+    },
+    "pilier": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "cas_concrets",
+        "pedagogie",
+        "actu_ia",
+        "demarche_offre"
+       ],
+       "description": "Pilier : cas_concrets, pedagogie, actu_ia, demarche_offre."
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "format": {
+     "anyOf": [
+      {
+       "type": "string",
+       "enum": [
+        "texte",
+        "image",
+        "carrousel",
+        "animation",
+        "video"
+       ],
+       "description": "Format : texte, image, carrousel, animation, video."
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "services": {
+     "description": "Services concernés ; liste vide = post général.",
+     "maxItems": 5,
+     "type": "array",
+     "items": {
+      "type": "string",
+      "enum": [
+       "administratif_rh",
+       "finance",
+       "production",
+       "commercial",
+       "direction"
+      ],
+      "description": "Service : administratif_rh, finance, production, commercial, direction."
+     }
     }
    },
    "required": [

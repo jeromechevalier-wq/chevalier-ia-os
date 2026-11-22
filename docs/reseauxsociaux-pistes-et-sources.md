@@ -25,9 +25,9 @@ Chaque ligne de source s'ouvre sur **10 à 30 idées prêtes à servir de post**
 
 Un clic sur « Carte » d'une source ouvre la carte : la source au centre, une branche par pilier, les pistes au bout des branches. Au-delà de 30 pistes, la carte se replie. Elle ne fait que lire, elle n'écrit rien. Un clic sur une piste ramène à la liste, remise à zéro pour que la piste se voie.
 
-## 4. Les 12 outils MCP
+## 4. Les 14 outils MCP
 
-Claude peut faire la même chose sans écran. 4 outils de lecture : `lister_sources_inspiration`, `lire_source_inspiration`, `lister_pistes`, `lister_idees`. 8 outils d'écriture : `creer_source_inspiration`, `modifier_source_inspiration`, `ajouter_pistes`, `modifier_piste`, `retenir_piste`, `enregistrer_exemple`, `creer_idee`, `modifier_idee`. **Aucun outil de suppression** : une piste s'écarte, une idée s'abandonne. Ils servent à saisir les données (pistes de HeraHub, profils, résumés de veille) après ton accord.
+Claude peut faire la même chose sans écran. 5 outils de lecture : `lister_sources_inspiration`, `lire_source_inspiration`, `lister_pistes`, `lister_idees`, `lister_classements_posts` (22/11/2026). 9 outils d'écriture : `classer_post` (22/11/2026 : pilier, format et services d'un post Buffer, document `reseauxsociaux_posts/<identifiant Buffer>`, crée ou ne change que les champs donnés, jamais le texte ni les chiffres du post ; valeurs hors liste refusées), `creer_source_inspiration`, `modifier_source_inspiration`, `ajouter_pistes`, `modifier_piste`, `retenir_piste`, `enregistrer_exemple`, `creer_idee`, `modifier_idee`. **Aucun outil de suppression** : une piste s'écarte, une idée s'abandonne. Ils servent à saisir les données (pistes de HeraHub, profils, résumés de veille) après ton accord.
 
 ## 5. Les garde-fous
 
