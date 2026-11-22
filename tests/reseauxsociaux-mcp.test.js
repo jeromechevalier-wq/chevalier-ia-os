@@ -1,4 +1,4 @@
-// Outils MCP du module Réseaux sociaux (13/11/2026) : 12 outils (4 de lecture, 8 d'écriture, aucun de suppression), de bout en bout par le protocole MCP,
+// Outils MCP du module Réseaux sociaux (13/11/2026) : 14 outils (5 de lecture, 9 d'écriture, aucun de suppression), de bout en bout par le protocole MCP,
 // sur des données fictives en mémoire. Piège connu (leçon du 10/11) : le SDK retire sans erreur un champ inconnu ; on teste donc « pas écrit », jamais « refusé ».
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,6 +11,7 @@ import { OUTILS, outilsAutorises } from '../functions/src/mcp/outils/index.js';
 import { COLLECTIONS_ECRITES } from '../functions/src/coeur/ecriture.js';
 import { outilsDesModules } from '../functions/src/clients/gestionnaire.js';
 import { MODULES_DECLARES } from '../js/os/registre.js';
+import { fusionnerPosts } from '../js/modules/reseauxsociaux/posts-logique.js';
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
 
 const JETONS = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, agent: `cia_${'A'.repeat(43)}`, code: `cia_${'C'.repeat(43)}` };
@@ -18,9 +19,9 @@ const entree = (jeton, nom, profil) => ({ jeton: nom, acteur: nom, profil, empre
 const arrets = [];
 afterEach(async () => { while (arrets.length) await arrets.pop()(); });
 
-const LECTURE = ['lister_sources_inspiration', 'lire_source_inspiration', 'lister_pistes', 'lister_idees'];
-const ECRITURE = ['creer_source_inspiration', 'modifier_source_inspiration', 'ajouter_pistes', 'modifier_piste', 'retenir_piste', 'enregistrer_exemple', 'creer_idee', 'modifier_idee'];
-const TABLES = ['reseauxsociaux_idees', 'reseauxsociaux_inspirations', 'reseauxsociaux_exemples', 'reseauxsociaux_pistes'];
+const LECTURE = ['lister_sources_inspiration', 'lire_source_inspiration', 'lister_pistes', 'lister_idees', 'lister_classements_posts'];
+const ECRITURE = ['creer_source_inspiration', 'modifier_source_inspiration', 'ajouter_pistes', 'modifier_piste', 'retenir_piste', 'enregistrer_exemple', 'creer_idee', 'modifier_idee', 'classer_post'];
+const TABLES = ['reseauxsociaux_idees', 'reseauxsociaux_inspirations', 'reseauxsociaux_exemples', 'reseauxsociaux_pistes', 'reseauxsociaux_posts'];
 const CHAMPS_PISTE = ['accroche', 'brouillon', 'piliers', 'visuel', 'angle', 'ancre', 'auteur', 'creeLe', 'ideeId', 'etat', 'exempleId', 'format', 'lot', 'modifieLe', 'note', 'pilier', 'service', 'sourceId', 'sourceTitre', 'sourceType', 'url', 'via'];
 const LINKEDIN = 'https://www.linkedin.com/in/graffeuil';
 
@@ -58,7 +59,7 @@ async function demarrer({ racine = null, tables = {} } = {}) {
   };
   const outils = async (jeton) => (await rpc(jeton, 'tools/list', {})).result.tools.map((t) => t.name);
   const table = (t) => collections[`${prefixe}${t}`];
-  return { collections, appeler, outils, table, pistes: () => table('reseauxsociaux_pistes'), sources: () => table('reseauxsociaux_inspirations'), idees: () => table('reseauxsociaux_idees'), exemples: () => table('reseauxsociaux_exemples') };
+  return { collections, appeler, outils, table, pistes: () => table('reseauxsociaux_pistes'), sources: () => table('reseauxsociaux_inspirations'), idees: () => table('reseauxsociaux_idees'), exemples: () => table('reseauxsociaux_exemples'), posts: () => table('reseauxsociaux_posts') };
 }
 const ok = (r) => { assert.equal(r.isError, false, r.texte); return r.data; };
 const refuse = (r, motif) => { assert.equal(r.isError, true, `devait être refusé : ${r.texte}`); if (motif) assert.match(r.texte, motif); };
@@ -66,8 +67,8 @@ const piste = (angle, extra = {}) => ({ angle, note: `Pourquoi : ${angle}`, ancr
 const SITE = { type: 'site', nom: 'HeraHub', url: 'https://herahub.example.test', pourquoi: 'Un site de référence' };
 async function avecSite(s) { return ok(await s.appeler('biblio', 'creer_source_inspiration', SITE)).id; }
 
-describe('RS1 les 12 outils, les profils, aucune suppression', () => {
-  test('RS1 le profil lecture voit les 4 outils de lecture ; écriture et complet voient les 12 ; agent-devis aucun ; aucun outil du module ne supprime', async () => {
+describe('RS1 les 14 outils, les profils, aucune suppression', () => {
+  test('RS1 le profil lecture voit les 5 outils de lecture ; écriture et complet voient les 14 ; agent-devis aucun ; aucun outil du module ne supprime', async () => {
     const s = await demarrer();
     const vus = async (p) => (await s.outils(p)).filter((n) => [...LECTURE, ...ECRITURE].includes(n)).sort();
     assert.deepEqual(await vus('lecteur'), [...LECTURE].sort());
@@ -75,18 +76,18 @@ describe('RS1 les 12 outils, les profils, aucune suppression', () => {
     assert.deepEqual(await vus('code'), [...LECTURE, ...ECRITURE].sort());
     assert.deepEqual(await vus('agent'), []);
     const duModule = OUTILS.filter((o) => [...LECTURE, ...ECRITURE].includes(o.nom));
-    assert.equal(duModule.length, 12);
+    assert.equal(duModule.length, 14);
     assert.equal(duModule.filter((o) => /supprimer|effacer|retirer|detruire/.test(o.nom)).length, 0);
     assert.equal(outilsAutorises('assistant-devis').filter((o) => duModule.includes(o)).length, 0);
-    // Le registre des modules déclare exactement ces 12 outils pour Réseaux sociaux, et un client qui a le module les reçoit.
+    // Le registre des modules déclare exactement ces 14 outils pour Réseaux sociaux, et un client qui a le module les reçoit.
     const declares = MODULES_DECLARES.find((m) => m.id === 'reseauxsociaux').outilsMcp;
     assert.deepEqual([...declares].sort(), [...LECTURE, ...ECRITURE].sort());
     const chezClient = outilsDesModules(['reseauxsociaux'], OUTILS).map((o) => o.nom);
     for (const n of [...LECTURE, ...ECRITURE]) assert.ok(chezClient.includes(n), n);
   });
-  test('RS1b les quatre tables du module sont écrivables par le serveur (sans elles : « Collection non écrivable »), les posts et les imports ne le sont pas', () => {
+  test('RS1b les cinq tables du module sont écrivables par le serveur (sans elles : « Collection non écrivable »), les imports ne le sont pas', () => {
     for (const t of TABLES) assert.ok(COLLECTIONS_ECRITES.includes(t), t);
-    assert.ok(!COLLECTIONS_ECRITES.includes('reseauxsociaux_posts') && !COLLECTIONS_ECRITES.includes('reseauxsociaux_imports'));
+    assert.ok(!COLLECTIONS_ECRITES.includes('reseauxsociaux_imports'));
   });
   test('RS2 le profil lecture ne peut écrire aucun outil du module : refusé, rien n\'est écrit', async () => {
     const s = await demarrer();
@@ -445,5 +446,107 @@ describe('RS17 corrections de la relecture', () => {
     s.collections.reseauxsociaux_idees[0].texte = 'modifié entre-temps à l\'écran';
     await assert.rejects(executerEcritures({ donnees, ctx: { acteur: 'a', jeton: 'j', maintenant: new Date() }, outil: 'modifier_idee', operations: recu }), /changé pendant la préparation/);
     assert.equal(s.collections.reseauxsociaux_idees[0].texte, 'modifié entre-temps à l\'écran');
+  });
+});
+
+describe('RS-P classement des posts (classer_post, lister_classements_posts)', () => {
+  test('RS-P1 profils : lecture voit lister_classements_posts seulement ; écriture et complet les deux ; agent-devis et assistant-devis aucun ; un client qui a le module les reçoit', async () => {
+    const s = await demarrer();
+    const deux = ['lister_classements_posts', 'classer_post'];
+    const vus = async (p) => (await s.outils(p)).filter((n) => deux.includes(n)).sort();
+    assert.deepEqual(await vus('lecteur'), ['lister_classements_posts']);
+    assert.deepEqual(await vus('biblio'), [...deux].sort());
+    assert.deepEqual(await vus('code'), [...deux].sort());
+    assert.deepEqual(await vus('agent'), []);
+    assert.equal(outilsAutorises('assistant-devis').filter((o) => deux.includes(o.nom)).length, 0);
+    const chezClient = outilsDesModules(['reseauxsociaux'], OUTILS).map((o) => o.nom);
+    for (const n of deux) assert.ok(chezClient.includes(n), n);
+  });
+  test('RS-P2 création : le document porte pilier, format, services, creeLe et modifieLe ; une ligne de journal (outil classer_post)', async () => {
+    const s = await demarrer();
+    ok(await s.appeler('biblio', 'classer_post', { id: 'post-fictif-1', pilier: 'cas_concrets', format: 'video', services: ['finance'] }));
+    assert.equal(s.posts().length, 1);
+    const d = s.posts()[0];
+    assert.equal(d.id, 'post-fictif-1');
+    assert.equal(d.pilier, 'cas_concrets'); assert.equal(d.format, 'video'); assert.deepEqual(d.services, ['finance']);
+    assert.ok(d.creeLe && d.modifieLe);
+    assert.equal(s.collections.crm_audit.filter((l) => l.collection === 'reseauxsociaux_posts' && l.outil === 'classer_post').length, 1);
+  });
+  test('RS-P3 reclassement partiel : { id, format } garde pilier et services, creeLe inchangé, un seul document', async () => {
+    const s = await demarrer();
+    ok(await s.appeler('biblio', 'classer_post', { id: 'post-fictif-1', pilier: 'pedagogie', format: 'texte', services: ['commercial', 'finance'] }));
+    const creeLe = JSON.stringify(s.posts()[0].creeLe);
+    ok(await s.appeler('biblio', 'classer_post', { id: 'post-fictif-1', format: 'carrousel' }));
+    assert.equal(s.posts().length, 1);
+    const d = s.posts()[0];
+    assert.equal(d.format, 'carrousel'); assert.equal(d.pilier, 'pedagogie'); assert.deepEqual(d.services, ['finance', 'commercial'].sort((a, b) => ['administratif_rh', 'finance', 'production', 'commercial', 'direction'].indexOf(a) - ['administratif_rh', 'finance', 'production', 'commercial', 'direction'].indexOf(b)));
+    assert.equal(JSON.stringify(d.creeLe), creeLe);
+  });
+  test('RS-P4 refus : id invalide, pilier « pme », format inconnu, aucun champ, profil lecture : rien n\'est écrit', async () => {
+    const s = await demarrer();
+    refuse(await s.appeler('biblio', 'classer_post', { id: 'a/b', format: 'texte' }), /invalide|Identifiant/i);
+    refuse(await s.appeler('biblio', 'classer_post', { id: 'post-fictif-1', pilier: 'pme' }));
+    refuse(await s.appeler('biblio', 'classer_post', { id: 'post-fictif-1', format: 'podcast' }));
+    refuse(await s.appeler('biblio', 'classer_post', { id: 'post-fictif-1', services: ['cuisine'] }));
+    refuse(await s.appeler('biblio', 'classer_post', { id: 'post-fictif-1' }), /Aucun champ/);
+    refuse(await s.appeler('lecteur', 'classer_post', { id: 'post-fictif-1', format: 'texte' }), /not found/i);
+    assert.equal(s.posts().length, 0);
+    assert.equal((s.collections.crm_audit ?? []).filter((l) => l.collection === 'reseauxsociaux_posts').length, 0);
+  });
+  test('RS-P5 champ inconnu (texte, statut) : pas écrit', async () => {
+    const s = await demarrer();
+    ok(await s.appeler('biblio', 'classer_post', { id: 'post-fictif-1', format: 'texte', texte: 'Un texte', statut: 'publie' }));
+    const d = s.posts()[0];
+    assert.equal(d.texte, undefined); assert.equal(d.statut, undefined);
+    assert.deepEqual(Object.keys(d).sort(), ['creeLe', 'format', 'id', 'modifieLe', 'pilier', 'services', 'via']);
+  });
+  test('RS-P6 chez un client : écrit sous clients/a/, rien à la racine', async () => {
+    const s = await demarrer({ racine: 'clients/a' });
+    ok(await s.appeler('biblio', 'classer_post', { id: 'post-fictif-1', pilier: 'actu_ia' }));
+    assert.equal(s.posts().length, 1);
+    assert.equal((s.collections.reseauxsociaux_posts ?? []).length, 0);
+    assert.ok(s.collections['clients/a/crm_audit'].some((l) => l.collection === 'reseauxsociaux_posts'));
+  });
+  test('RS-P7 l\'écran Posts relit le document : fusionnerPosts donne classe: true et le bon classement', async () => {
+    const s = await demarrer();
+    ok(await s.appeler('biblio', 'classer_post', { id: 'post-fictif-1', pilier: 'cas_concrets', format: 'video', services: ['finance'] }));
+    const [p] = fusionnerPosts([{ id: 'post-fictif-1', texte: 'Un post fictif' }], s.posts());
+    assert.equal(p.classe, true);
+    assert.deepEqual(p.classement, { pilier: 'cas_concrets', format: 'video', services: ['finance'] });
+  });
+  test('RS-P8 lister_classements_posts : rend les documents, un ancien « pme » lu « cas_concrets », filtres et limite ; vide : liste vide', async () => {
+    const vide = await demarrer();
+    const r0 = ok(await vide.appeler('lecteur', 'lister_classements_posts', {}));
+    assert.equal(r0.total, 0); assert.deepEqual(r0.classements, []);
+    const s = await demarrer({ tables: { reseauxsociaux_posts: [
+      { id: 'p1', pilier: 'pme', format: 'texte', services: [] }, { id: 'p2', pilier: 'pedagogie', format: 'video', services: ['finance'] }, { id: 'p3', pilier: 'cas_concrets', format: 'video', services: [] },
+    ] } });
+    const tous = ok(await s.appeler('lecteur', 'lister_classements_posts', {}));
+    assert.equal(tous.total, 3);
+    assert.equal(tous.classements.find((c) => c.id === 'p1').pilier, 'cas_concrets');
+    assert.deepEqual(ok(await s.appeler('lecteur', 'lister_classements_posts', { pilier: 'cas_concrets' })).classements.map((c) => c.id), ['p1', 'p3']);
+    assert.deepEqual(ok(await s.appeler('lecteur', 'lister_classements_posts', { format: 'video' })).classements.map((c) => c.id), ['p2', 'p3']);
+    const un = ok(await s.appeler('lecteur', 'lister_classements_posts', { limite: 1 }));
+    assert.equal(un.classements.length, 1); assert.equal(un.tronque, true);
+  });
+  test('RS-P9 une modification faite à l\'écran entre la lecture et l\'écriture n\'est pas écrasée (exigerAvant)', async () => {
+    const s = await demarrer({ tables: { reseauxsociaux_posts: [{ id: 'post-fictif-1', pilier: 'pedagogie', format: 'texte', services: [] }] } });
+    const { executerEcritures } = await import('../functions/src/coeur/ecriture.js');
+    const { classerPost } = await import('../functions/src/coeur/reseauxsociaux.js');
+    const donnees = creerAccesMemoire(s.collections);
+    let recu;
+    await classerPost({ donnees, ecrire: async ({ operations }) => { recu = operations; return { operationId: null, ecritures: [] }; } }, { id: 'post-fictif-1', format: 'video' });
+    assert.ok(recu[0].exigerAvant);
+    s.posts()[0].pilier = 'actu_ia'; // changé à l'écran entre-temps
+    await assert.rejects(executerEcritures({ donnees, ctx: { acteur: 'a', jeton: 'j', maintenant: new Date() }, outil: 'classer_post', operations: recu }), /changé pendant la préparation/);
+    assert.equal(s.posts()[0].pilier, 'actu_ia'); assert.equal(s.posts()[0].format, 'texte');
+  });
+  test('RS-P10 pilier: null vide le pilier et garde le reste ; un ancien « pme » reclassé en partie est réécrit « cas_concrets »', async () => {
+    const s = await demarrer({ tables: { reseauxsociaux_posts: [{ id: 'a', pilier: 'pedagogie', format: 'texte', services: ['finance'] }, { id: 'b', pilier: 'pme', format: 'texte', services: [] }] } });
+    ok(await s.appeler('biblio', 'classer_post', { id: 'a', pilier: null }));
+    const a = s.posts().find((d) => d.id === 'a');
+    assert.equal(a.pilier, null); assert.equal(a.format, 'texte'); assert.deepEqual(a.services, ['finance']);
+    ok(await s.appeler('biblio', 'classer_post', { id: 'b', format: 'image' }));
+    assert.equal(s.posts().find((d) => d.id === 'b').pilier, 'cas_concrets');
   });
 });

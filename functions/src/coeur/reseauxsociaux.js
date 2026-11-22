@@ -1,4 +1,4 @@
-// Actions du module Réseaux sociaux pour les outils MCP (13/11/2026) : lire et écrire les sources, pistes, exemples et idées.
+// Actions du module Réseaux sociaux pour les outils MCP (13/11/2026) : lire et écrire les sources, pistes, exemples et idées, et (22/11/2026) le classement des posts Buffer.
 // Mêmes règles que l'écran : les PLANS purs de js/modules/reseauxsociaux/ (copiés dans functions/partage/rs-*.js) fabriquent les écritures, le moteur d'écriture les journalise.
 // Principes (cahier des charges, docs/cahier-des-charges-inspirations.md) :
 //  - lien et analyse seulement : jamais le texte d'un post tiers. Aucun outil n'a de champ `extrait` ; les lectures ne le rendent pas non plus ;
@@ -85,6 +85,15 @@ export async function listerIdees(c, { etat, pilier, limite }) {
   const triees = L.trier(idees, (i) => String(i.angle ?? '').toLowerCase());
   const { total, tronque, elements } = borne(triees, limite);
   return serialiser({ total, tronque, idees: elements.map(ideeLue) });
+}
+
+export async function listerClassementsPosts(c, { pilier, format, limite }) {
+  let docs = (await c.donnees.liste(C.reseauxPosts)).map((d) => ({ id: d.id, ...R.normaliserClassement(d), creeLe: d.creeLe ?? null, modifieLe: d.modifieLe ?? null }));
+  if (pilier) docs = docs.filter((d) => d.pilier === pilier);
+  if (format) docs = docs.filter((d) => d.format === format);
+  const triees = L.trier(docs, (d) => d.id);
+  const { total, tronque, elements } = borne(triees, limite);
+  return serialiser({ total, tronque, classements: elements });
 }
 
 // ---------------------------------------------------------------- sources
@@ -256,4 +265,20 @@ export async function modifierIdee(c, args) {
   }
   const p = plan(() => I.planEnregistrerIdee(existante, valeurs, { id }));
   return sortie(await c.ecrire({ operations: siInchange(p.ecritures, C.reseauxIdees, id, existante), parametres: args }), { id });
+}
+
+// ---------------------------------------------------------------- classement d'un post
+
+/** Classe un post Buffer (pilier, format, services) : crée le document s'il manque, sinon ne change que les champs donnés. Jamais le texte, la date, le statut ni un chiffre de Buffer. */
+export async function classerPost(c, args) {
+  const { id } = args;
+  if (!R.idPostValide(id)) refuser('saisie_invalide', 'Identifiant de post invalide : lettres, chiffres, tiret et tiret bas seulement, 100 caractères au plus.');
+  const valeurs = choisir(args, ['pilier', 'format', 'services']);
+  if (!Object.keys(valeurs).length) refuser('saisie_invalide', 'Aucun champ à modifier.');
+  const existant = await c.donnees.document(C.reseauxPosts, id);
+  // Le plan remplace les trois champs : on part du classement actuel pour que seuls les champs donnés changent.
+  const fusion = { ...(existant ? R.normaliserClassement(existant) : {}), ...valeurs };
+  const p = plan(() => R.planClasserPost(existant, fusion, { id }));
+  const ecritures = existant ? siInchange(p.ecritures, C.reseauxPosts, id, existant) : p.ecritures;
+  return sortie(await c.ecrire({ operations: ecritures, parametres: args }), { id });
 }
