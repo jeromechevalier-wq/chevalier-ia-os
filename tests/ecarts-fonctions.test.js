@@ -35,6 +35,8 @@ const RESERVEES_JEROME = {
   reseauxsociauxMesuresHebdo: 'ÉCART connu : relevé hebdomadaire (lundi 06:00) des chiffres des posts LinkedIn de Jérôme dans `reseauxsociaux_mesures`, même raison que `reseauxsociauxBuffer` (clé Buffer personnelle)',
   depotdocument: 'ÉCART connu (17/11/2026) : lien d\'envoi temporaire d\'un fichier par l\'assistant (outil `demander_lien_depot`), d\'abord chez Jérôme ; chez les clients il faudrait le brancher dans functions-plateforme/ avec une adresse par client (voir .github/A-FAIRE.md)',
   consoleEtat: 'normal : outil d\'exploitation de Jérôme, réservé par décision du 16/11/2026 (module Console, docs/console.md)',
+  pilotageLire: 'ÉCART connu (23/11/2026) : tableaux du module Pilotage lus dans le Postgres du client ; le module est d\'abord essayé chez Jérôme. Avant de l\'ouvrir aux clients : version plateforme, secret par client `SUPABASE_INDICATEURS_<client>` (modèle `nomDuSecret` de coeur/sms-direct.js), contrôle d\'appartenance à l\'espace côté serveur sans jamais croire un `cheminBase` envoyé par le navigateur, et règle de `firestore.plateforme.rules` interdisant l\'écriture directe de `pilotage_parametres`',
+  pilotageEnregistrerReglages: 'ÉCART connu (23/11/2026) : enregistrement du réglage des tableaux (Jérôme seul), même raison et mêmes conditions que `pilotageLire`',
   reseauxsociauxReleverMesures: 'ÉCART connu : même relevé lancé à la main par Jérôme, absent chez les clients pour la même raison',
 };
 

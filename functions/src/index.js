@@ -44,6 +44,9 @@ import { creerLecteurN8n } from '../partage/automatisations/n8n.js';
 import { creerAppelDeploiement, ligneDeJournalDeploiement } from './deploiement-appel.js';
 import { VERSION_SERVEUR } from './version.js';
 import { creerAppelConsole, ligneDeJournalConsole } from './console/appel.js';
+import { creerAppelPilotageLire, creerAppelPilotageEnregistrer, ligneDeJournalPilotage } from './pilotage/appel.js';
+import { creerServicePilotage } from './pilotage/service.js';
+import { creerConnecteurPostgres } from './pilotage/postgres.js';
 
 const magasin = creerMagasin({ lire: lireSecretJetons() });
 const donnees = creerAccesFirestore();
@@ -194,6 +197,24 @@ const connexionSms = creerConnexionSms({
 export const rdvConnexionSms = onCall(OPTIONS_DEVIS, (requete) => {
   if (!getApps().length) initializeApp();
   return creerAppelRdvConnexion({ connexion: connexionSms, journal: journalRdv })(requete);
+});
+// Module Pilotage (étape 1, 23/11/2026, d'abord chez Jérôme seulement : RESERVEES_JEROME) : tableaux de bord lus dans le Postgres du client. La connexion (hôte, base, utilisateur, mot de passe, certificat) est dans
+// Secret Manager (SUPABASE_INDICATEURS, JSON), lue à l'exécution et jamais liée au déploiement : absente, les tuiles répondent « n'a pas pu être lue ». Le compte de service doit avoir « Accesseur de secrets » sur ce secret.
+// Le seul fichier qui parle à Postgres est pilotage/postgres.js (un test le borne). Le réglage (pilotage_parametres/reglages) n'est lu et écrit que par le serveur (règles Firestore : tout refusé).
+const journalPilotage = (e) => process.stdout.write(`${ligneDeJournalPilotage(e)}\n`);
+const servicePilotage = creerServicePilotage({
+  donnees: () => { if (!getApps().length) initializeApp(); return creerAccesFirestore(); },
+  connecter: creerConnecteurPostgres({ lireSecret: creerLecteurSecrets() }),
+  journalErreur: (type, etat) => journalPilotage({ action: 'lecture', statut: 'erreur', type, etat }),
+});
+const OPTIONS_PILOTAGE = { ...OPTIONS_DEVIS, maxInstances: 2 };
+export const pilotageLire = onCall(OPTIONS_PILOTAGE, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelPilotageLire({ service: servicePilotage, journal: journalPilotage })(requete);
+});
+export const pilotageEnregistrerReglages = onCall(OPTIONS_PILOTAGE, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelPilotageEnregistrer({ service: servicePilotage, journal: journalPilotage })(requete);
 });
 // Filet : toutes les 15 minutes, envoie les SMS dus (relances, rappel de la veille, confirmation…) même si personne n'a cliqué. Rien à faire si la connexion n'est pas branchée.
 export const rdvEnvoiPlanifie = onSchedule(
