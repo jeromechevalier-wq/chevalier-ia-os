@@ -9,12 +9,12 @@ Un écran « Pilotage » qui montre des graphiques (Apache ECharts 6.1.0, fichie
 ## Qui fait quoi
 
 1. Le **serveur** (fonction `pilotageLire`, région `europe-west9`) lit le réglage (table `pilotage_parametres`, serveur seulement), interroge la base de données, et répond avec les lignes de chaque tuile.
-2. Le **navigateur** (`js/modules/pilotage/`) ne lit ni n'écrit jamais Firestore pour ce module. Il appelle `pilotageLire` **une seule fois** par affichage (ou par clic sur « Actualiser » / « Réessayer »), sans cache, injecte les lignes dans l'option ECharts de chaque tuile et dessine.
+2. Le **navigateur** (`js/modules/pilotage/`) ne lit ni n'écrit jamais Firestore pour ce module. Il appelle `pilotageLire` **une seule fois** par affichage (ou par clic sur « Actualiser » / « Réessayer »), sans cache côté navigateur (le serveur garde 60 secondes, clé comprenant les valeurs de filtre ; jamais pour l'aperçu), injecte les lignes dans l'option ECharts de chaque tuile et dessine.
 3. L'option reçue est une **donnée** : elle n'est jamais exécutée comme du code, elle est passée à `setOption`. L'infobulle est forcée en mode texte (jamais de HTML venu des données).
 
 ## Le contrat avec le serveur
 
-Réponse de `pilotageLire({})` :
+Réponse de `pilotageLire({})` (sans argument ; avec `{ onglet?, filtres? }` voir plus bas) :
 
 ```json
 {
@@ -56,7 +56,7 @@ Le fichier (1,1 Mo environ) est chargé par `import()` dans l'écran, au premier
 
 ## Tableau de bord, partie A (23/11/2026, version 2.47.0)
 
-Le réglage décrit maintenant des **onglets**, des **sections** et cinq **types de tuile**. Un ancien réglage (sans `type`, sans `onglets`) marche exactement comme avant : une page unique de graphiques. Les exemples sont fictifs (`v_exemple_…`). Les **filtres** viennent dans une partie B ultérieure : une tuile garde `vue`, `tri` et `limite`.
+Le réglage décrit maintenant des **onglets**, des **sections** et cinq **types de tuile**. Un ancien réglage (sans `type`, sans `onglets`) marche exactement comme avant : une page unique de graphiques. Les exemples sont fictifs (`v_exemple_…`). Les **filtres** sont décrits plus bas (partie B1, serveur) : une tuile garde `vue`, `tri` et `limite`.
 
 ### Onglets et sections
 
@@ -129,3 +129,66 @@ Habillage commun (`logique.js`, `habillage.js`) : police et couleurs du thème, 
 ### Déploiement
 
 Le serveur change (validation du réglage, lecture par onglet) : **le déploiement des fonctions de Jérôme est à lancer**. Rien chez les clients (écart déjà listé dans `tests/ecarts-fonctions.test.js` ; `scripts/preparer-fonctions.js` ne copie pas ce module).
+
+## Tableau de bord, partie B1 : les filtres, côté serveur (23/11/2026, version 2.48.0)
+
+Le serveur sait filtrer, croiser et agréger ; l'écran des filtres (partie B2) vient après. L'écran actuel marche sans changement : sans filtre demandé, la requête et la réponse sont celles d'avant. Exemples fictifs (`v_exemple_…`). **Absent chez les clients** (inchangé). Le déploiement des fonctions de Jérôme part à la fusion.
+
+### Le réglage
+
+```json
+{ "tableau": {
+  "filtres": [
+    { "id": "periode", "libelle": "Période", "type": "periode", "defaut": { "raccourci": "12_mois" } },
+    { "id": "lieu", "libelle": "Lieu", "type": "liste", "multiple": true, "valeurs": { "vue": "v_exemple_lieux", "colonne": "nom" } },
+    { "id": "etat", "libelle": "État", "type": "liste", "choix": [{ "valeur": "ouvert", "libelle": "Ouvert" }, { "valeur": "clos", "libelle": "Clos" }] },
+    { "id": "montant", "libelle": "Montant", "type": "intervalle" },
+    { "id": "alerte", "libelle": "Avec alerte", "type": "oui_non" } ],
+  "onglets": [{ "id": "suivi", "titre": "Suivi", "filtres": ["periode", "lieu"], "tuiles": ["ventes", "classe"] }],
+  "tuiles": [
+    { "id": "ventes", "type": "graphique", "vue": "v_exemple_ventes", "tri": { "colonne": "date_piece", "sens": "asc" }, "option": "…",
+      "filtres": { "periode": { "colonne": "date_piece" }, "lieu": { "colonne": "lieu" } }, "croisement": { "filtre": "lieu", "colonne": "lieu" } },
+    { "id": "classe", "type": "tableau", "vue": "v_exemple_detail", "colonnes": [{ "colonne": "lieu" }, { "colonne": "total" }],
+      "grouper": ["lieu"], "mesures": [{ "colonne": "montant", "calcul": "somme", "nom": "total" }, { "calcul": "nombre", "nom": "lignes" }],
+      "tri": { "colonne": "total", "sens": "desc" }, "limite": 10, "filtres": { "periode": { "colonne": "date_piece" } },
+      "mentionNonFiltre": "Non filtré par le lieu." } ] } }
+```
+
+- **Déclaration** : `tableau.filtres` (20 au plus) ; type `periode`, `liste` (`multiple?`, **soit** `valeurs: { vue, colonne }` lues dans une vue `v_…`, **soit** `choix: [{ valeur, libelle }]` fermés, 50 au plus), `intervalle` (min et/ou max), `oui_non`. `defaut?` doit convenir au type. `visiblePour?` comme pour une tuile (adresses ou groupes ; groupe inconnu ou liste vide = personne).
+- **Où ils s'affichent** : `onglets[].filtres: [ids]` (un id inexistant est refusé). Sans onglets, tous les filtres déclarés par une tuile visible sont proposés (décision prise seul).
+- **Ce qu'une tuile reçoit** : seulement les filtres de SA liste `filtres: { <idFiltre>: { colonne } }` (colonne de la vue de la tuile, motif `^[a-z_][a-z0-9_]*$`, 63 caractères, jamais de texte libre dans le SQL). Une tuile sans la clé d'un filtre n'est pas filtrée par lui ; `mentionNonFiltre` (120 caractères, mêmes motifs interdits que les autres textes) est rendu à l'écran pour le dire (carte de budget, par exemple). Un texte n'a ni `filtres`, ni `croisement`, ni agrégation.
+- **Croisement** : `croisement: { filtre, colonne }` : le filtre est de type `liste`, listé dans l'onglet de la tuile ; l'écran (B2) règle ce filtre au clic sur la barre ou la part. La réponse ne rend que `{ filtre }`, jamais la colonne.
+
+### La requête du navigateur
+
+`pilotageLire({ onglet?, filtres? })` ; `filtres` ne porte que des VALEURS : `{ periode: { raccourci } | { du, au }, <liste>: [valeurs], <intervalle>: { min?, max? }, <oui_non>: true | false }`. Chaque valeur est validée contre la déclaration (50 valeurs par liste, texte de 200 caractères au plus ou nombre fini, dates `AAAA-MM-JJ` réelles de 1900 à 2100, `du <= au`, `min <= max`, une seule valeur si pas `multiple`). Filtre inconnu, hors de l'onglet lu, interdit à l'appelant ou valeur du mauvais type : **la même** erreur `invalid-argument` « Filtre invalide. » avec `details: { code, raison: "filtre" }` (le client distingue ainsi « filtre refusé » de « Onglet inconnu. »), sans jamais répéter la valeur. Une liste vide ou absente = pas de clause. Une valeur de liste absente de la vue n'est pas refusée (zéro ligne : aucun moyen de deviner ce qui existe). `apercu` + `filtres` : permis pour l'administrateur, sans cache.
+
+**Défaut** : appliqué par le SERVEUR quand la clé du filtre est absente de la requête ; la réponse rend la valeur appliquée (dates résolues) ; « tout » s'envoie explicitement (`{ raccourci: "tout" }`).
+
+**Raccourcis de période** (bornes incluses, jour calculé à Paris, `Europe/Paris`) : `ce_mois` = du 1er au dernier jour du mois en cours ; `mois_dernier` = du 1er au dernier jour du mois précédent ; `3_mois`, `6_mois`, `12_mois` = glissants, d'il y a N mois (même jour, ramené au dernier jour du mois s'il n'existe pas) jusqu'à aujourd'hui ; `annee` = du 1er janvier au 31 décembre de l'année civile en cours ; `tout` = aucune clause. Fuseau d'une colonne `timestamptz` : la comparaison à une date se fait au fuseau de la session Postgres : **non vérifié** (à essayer sur la vraie base).
+
+### Le SQL (requête paramétrée)
+
+`construireRequete(tuile, clauses) -> { sql, valeurs }` (`reglages.js`) ; `construireSql(tuile)` en rend le texte sans filtre, **identique** à avant pour une tuile simple. Identifiants entre guillemets doubles, revalidés ; valeurs en `$1…`, jamais dans le texte ; opérateurs en liste fermée :
+
+```sql
+select * from "v_exemple_ventes" where "date_piece" >= $1::date and "date_piece" < ($2::date + 1) and "lieu" = any($3) order by "date_piece" asc limit 200
+-- valeurs : ['2026-01-01', '2026-01-31', ['Lieu A']]   (intervalle : "c" >= $n et/ou "c" <= $n ; oui_non : "c" = $n)
+```
+
+**Agrégation déclarée** (`grouper` 0 à 6 colonnes, `mesures` 1 à 6 `{ colonne?, calcul: somme | nombre | moyenne | min | max, nom }`) pour qu'un filtre agisse sur un classement ou un Pareto calculé depuis une vue de détail (le cumul en % d'un Pareto reste dans les vues de la base) :
+
+```sql
+select "lieu", sum("montant") as "total", count(*) as "lignes" from "v_exemple_detail" where "date_piece" >= $1::date and "date_piece" < ($2::date + 1) group by "lieu" order by "total" desc limit 10
+```
+
+`nombre` sans colonne = `count(*)`. `nom` : même motif de colonne, unique, différent des colonnes de `grouper`. Le `tri`, la `valeur` et la `variation` d'un chiffre, les `colonnes` d'un tableau ou de phrases et le `croisement` doivent viser une colonne de `grouper` ou un `nom` ; `periodeColonne` doit être dans `grouper` ; une `limite` sans `tri` est refusée ; les filtres sont dans le `where` (avant le regroupement), la colonne d'un filtre n'a pas à être groupée. Compatible avec graphique, tableau, chiffre et phrases.
+
+**`postgres.js`** : `interroger(sql, valeurs?)` appelle `client.query(sql, valeurs)` seulement s'il y a des valeurs, sinon `client.query(sql)` comme avant ; jamais d'objet `{ name }` (pas de requête préparée nommée). **Non vérifié** : le protocole étendu (valeurs liées) à travers le pooler en mode transaction n'est pas testable en session ; la session principale doit l'essayer sur la vraie base.
+
+### Droits et réponse
+
+- `tuileVisible` passe en premier. Un filtre n'est appliqué qu'aux tuiles visibles et qui le déclarent ; un filtre est proposé (liste de l'onglet, racine de la réponse) s'il est visible pour l'appelant **et** déclaré par au moins une tuile visible de l'onglet lu ; sinon ni son id, ni son libellé, ni ses valeurs ne sortent et sa liste de valeurs n'est pas lue. Un filtre interdit est refusé comme un filtre inexistant. `croisement` est retiré d'une tuile dont le filtre est invisible. En aperçu, tout est visible (Jérôme règle les droits du brouillon).
+- **Liste de valeurs** d'un filtre `liste` à `valeurs` : `select distinct "<col>" from "<vue>" where "<col>" is not null order by 1 limit 201`, seulement pour l'onglet lu, sur la même connexion et dans le même budget de 40 s. 200 valeurs au plus rendues, `tronquee: true` au-delà ; valeurs nulles, trop longues ou d'un autre type écartées. Liste en panne : le filtre est rendu sans `valeurs`, sans message de la base, les tuiles se lisent quand même.
+- **Réponse** : racine `filtres: [{ id, libelle, type, multiple?, choix?, valeurs?, tronquee?, applique? }]` (seulement ceux de l'onglet lu ; absent s'il n'y en a pas) ; par onglet `filtres: [ids]` (filtrée) ; par tuile `filtresAppliques: [ids]`, `croisement: { filtre }`, `mentionNonFiltre`. Aucun nom de colonne ni de vue de filtre ne sort. Un ancien client ignore ces champs ; un réglage sans filtres donne la réponse d'avant.
+- **Cache serveur** : clé = SQL + valeurs (dates résolues) ; 60 variantes au plus ; jamais pour l'aperçu ; une seule requête par SQL et valeurs identiques dans un même appel.

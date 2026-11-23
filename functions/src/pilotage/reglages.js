@@ -35,13 +35,25 @@ export const LIMITE_DEFAUT = 200;
 export const LIMITE_MAX = 500;
 export const PROFONDEUR_OPTION_MAX = 12;
 export const REGLAGE_MAX = 300_000; // taille du réglage entier, sérialisé
+export const FILTRES_MAX = 20; // filtres déclarés dans le réglage
+export const TYPES_FILTRE = Object.freeze(['periode', 'liste', 'intervalle', 'oui_non']);
+export const RACCOURCIS_PERIODE = Object.freeze(['ce_mois', 'mois_dernier', '3_mois', '6_mois', '12_mois', 'annee', 'tout']);
+export const VALEURS_LISTE_MAX = 50; // valeurs reçues pour un filtre « liste » (et choix déclarés)
+export const TEXTE_VALEUR_MAX = 200; // longueur d'une valeur de liste
+export const LISTE_VALEURS_MAX = 200; // valeurs rendues à l'écran pour un filtre « liste » lu dans une vue
+export const CALCULS = Object.freeze({ somme: 'sum', nombre: 'count', moyenne: 'avg', min: 'min', max: 'max' });
+export const GROUPER_MAX = 6;
+export const MESURES_MAX = 6;
+export const ANNEE_MIN = 1900;
+export const ANNEE_MAX = 2100;
 
 /** Erreur du module : `code` = code d'erreur d'appel (invalid-argument…), `message` = phrase lisible à afficher telle quelle. */
 export class ErreurPilotage extends Error {
-  constructor(code, message) {
+  constructor(code, message, raison) {
     super(message);
     this.name = 'ErreurPilotage';
     this.code = code;
+    if (raison) this.raison = raison; // précision pour le client (« filtre » : un filtre a été refusé), jamais une valeur reçue
   }
 }
 const refuser = (message) => { throw new ErreurPilotage('invalid-argument', message); };
@@ -254,7 +266,18 @@ export function liensDuTexte(texte, chemin = 'Texte') {
   return ids;
 }
 
-function validerTuile(brute, rang, ids, tolerant) {
+/** « visiblePour » d'une tuile ou d'un filtre : liste d'adresses e-mail ou de noms de groupes, en minuscules ; undefined s'il est absent. */
+function visiblePourSur(v, etiquette) {
+  if (v === undefined || v === null) return undefined;
+  if (!Array.isArray(v) || v.length > MEMBRES_MAX) refuser(`${etiquette} : « visiblePour » doit être une liste d'adresses e-mail ou de noms de groupes (${MEMBRES_MAX} au plus).`);
+  return v.map((x) => {
+    const m = typeof x === 'string' ? x.trim().toLowerCase() : '';
+    if (!(m.length <= 200 && MOTIF_EMAIL.test(m)) && !MOTIF_GROUPE.test(m)) refuser(`${etiquette} : « visiblePour » contient une valeur qui n'est ni une adresse e-mail ni un nom de groupe.`);
+    return m;
+  });
+}
+
+function validerTuile(brute, rang, ids, tolerant, filtresDeclares = new Map()) {
   const e = `Tuile ${rang + 1}`;
   if (!estObjet(brute)) refuser(`${e} : format invalide.`);
   const id = typeof brute.id === 'string' ? brute.id : '';
@@ -305,19 +328,176 @@ function validerTuile(brute, rang, ids, tolerant) {
       else validerPhrases(brute, etiquette, tuile);
     }
   }
-  if (brute.visiblePour !== undefined && brute.visiblePour !== null) {
-    if (!Array.isArray(brute.visiblePour) || brute.visiblePour.length > MEMBRES_MAX) refuser(`${etiquette} : « visiblePour » doit être une liste d'adresses e-mail ou de noms de groupes (${MEMBRES_MAX} au plus).`);
-    tuile.visiblePour = brute.visiblePour.map((x) => {
-      const v = typeof x === 'string' ? x.trim().toLowerCase() : '';
-      if (!(v.length <= 200 && MOTIF_EMAIL.test(v)) && !MOTIF_GROUPE.test(v)) refuser(`${etiquette} : « visiblePour » contient une valeur qui n'est ni une adresse e-mail ni un nom de groupe.`);
-      return v;
-    });
+  const mention = texteSur(brute.mentionNonFiltre, `${etiquette} (mentionNonFiltre)`, 120);
+  if (mention) tuile.mentionNonFiltre = mention;
+  if (type === 'texte') {
+    for (const k of ['filtres', 'croisement', 'grouper', 'mesures']) if (brute[k] !== undefined && brute[k] !== null) refuser(`${etiquette} : un texte ne lit rien en base : retire « ${k} ».`);
+  } else {
+    validerAgregation(brute, etiquette, tuile);
+    validerFiltresDeTuile(brute, etiquette, tuile, filtresDeclares);
   }
+  const vp = visiblePourSur(brute.visiblePour, etiquette);
+  if (vp) tuile.visiblePour = vp;
   return tuile;
 }
 
+// ───────────────────────── Filtres du tableau de bord (B1) ─────────────────────────
+const estDateReelle = (t) => {
+  if (typeof t !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(t)) return false;
+  const [a, m, j] = t.split('-').map(Number);
+  if (a < ANNEE_MIN || a > ANNEE_MAX) return false;
+  const d = new Date(Date.UTC(a, m - 1, j));
+  return d.getUTCFullYear() === a && d.getUTCMonth() === m - 1 && d.getUTCDate() === j;
+};
+const nombreSur = (v) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 1e15;
+const valeurDeListeSure = (v) => (typeof v === 'string' && v.length >= 1 && v.length <= TEXTE_VALEUR_MAX && !/[\u0000-\u001f\u007f]/.test(v)) || nombreSur(v);
+
+/**
+ * Valide UNE valeur de filtre contre sa déclaration (type, plafonds) : sert au `defaut` du réglage ET à la requête du navigateur.
+ * Rend { ok: true, valeur } (forme normalisée : période { raccourci } ou { du, au } ; liste = tableau ; intervalle { min?, max? } ; oui_non = booléen) ou { ok: false }. Ne lève jamais et ne répète jamais la valeur reçue.
+ */
+export function valeurFiltre(decl, brut) {
+  const non = { ok: false };
+  if (!decl || typeof decl !== 'object') return non;
+  if (decl.type === 'periode') {
+    if (!estObjet(brut)) return non;
+    const cles = Object.keys(brut);
+    if (cles.length === 1 && cles[0] === 'raccourci') return RACCOURCIS_PERIODE.includes(brut.raccourci) ? { ok: true, valeur: { raccourci: brut.raccourci } } : non;
+    if (cles.length === 2 && cles.includes('du') && cles.includes('au')) return estDateReelle(brut.du) && estDateReelle(brut.au) && brut.du <= brut.au ? { ok: true, valeur: { du: brut.du, au: brut.au } } : non;
+    return non;
+  }
+  if (decl.type === 'liste') {
+    if (!Array.isArray(brut) || brut.length > VALEURS_LISTE_MAX || (!decl.multiple && brut.length > 1)) return non;
+    return brut.every(valeurDeListeSure) ? { ok: true, valeur: [...brut] } : non;
+  }
+  if (decl.type === 'intervalle') {
+    if (!estObjet(brut) || Object.keys(brut).some((k) => k !== 'min' && k !== 'max')) return non;
+    const v = {};
+    for (const k of ['min', 'max']) if (brut[k] !== undefined && brut[k] !== null) { if (!nombreSur(brut[k])) return non; v[k] = brut[k]; }
+    return v.min !== undefined && v.max !== undefined && v.min > v.max ? non : { ok: true, valeur: v };
+  }
+  if (decl.type === 'oui_non') return typeof brut === 'boolean' ? { ok: true, valeur: brut } : non;
+  return non;
+}
+
+function validerFiltres(brut) {
+  if (brut === undefined || brut === null) return [];
+  if (!Array.isArray(brut)) refuser('Les filtres doivent être une liste.');
+  if (brut.length > FILTRES_MAX) refuser(`Trop de filtres (${FILTRES_MAX} au plus).`);
+  const ids = new Set();
+  return brut.map((f, i) => {
+    const c = `Filtre ${i + 1}`;
+    if (!estObjet(f)) refuser(`${c} : format invalide.`);
+    if (typeof f.id !== 'string' || !MOTIF_ID.test(f.id) || CLES_INTERDITES.has(f.id)) refuser(`${c} : l'identifiant doit faire 1 à 40 caractères : lettres minuscules sans accent, chiffres, tiret et tiret bas.`);
+    if (ids.has(f.id)) refuser(`${c} : l'identifiant « ${f.id} » est déjà pris par un autre filtre.`);
+    ids.add(f.id);
+    const nom = `Filtre « ${f.id} »`;
+    if (!TYPES_FILTRE.includes(f.type)) refuser(`${nom} : type inconnu. Types permis : ${TYPES_FILTRE.join(', ')}.`);
+    const decl = { id: f.id, libelle: texteSur(f.libelle, `${nom} (libellé)`, 60, { obligatoire: true }), type: f.type };
+    if (f.multiple !== undefined && f.multiple !== null) {
+      if (typeof f.multiple !== 'boolean') refuser(`${nom} : « multiple » doit être vrai ou faux.`);
+      if (f.type !== 'liste') refuser(`${nom} : « multiple » ne vaut que pour une liste.`);
+      if (f.multiple) decl.multiple = true;
+    }
+    const aValeurs = f.valeurs !== undefined && f.valeurs !== null;
+    const aChoix = f.choix !== undefined && f.choix !== null;
+    if (f.type === 'liste') {
+      if (aValeurs === aChoix) refuser(`${nom} : une liste a soit « valeurs » ({ vue, colonne } : les valeurs sont lues dans une vue), soit « choix » (liste fermée), pas les deux ni aucun.`);
+      if (aValeurs) {
+        if (!estObjet(f.valeurs)) refuser(`${nom} : « valeurs » doit être { vue, colonne }.`);
+        const vue = typeof f.valeurs.vue === 'string' ? f.valeurs.vue : '';
+        if (!MOTIF_VUE.test(vue) || vue.length > LONGUEUR_VUE_MAX) refuser(`${nom} : le nom de la vue des valeurs doit commencer par « v_ » et ne contenir que des lettres minuscules sans accent, des chiffres et des tirets bas.`);
+        decl.valeurs = { vue, colonne: colonneSure(f.valeurs.colonne, `${nom} (valeurs)`) };
+      } else {
+        if (!Array.isArray(f.choix) || f.choix.length < 1 || f.choix.length > VALEURS_LISTE_MAX) refuser(`${nom} : « choix » doit être une liste de 1 à ${VALEURS_LISTE_MAX} éléments { valeur, libelle }.`);
+        decl.choix = f.choix.map((x, k) => {
+          const cc = `${nom} (choix ${k + 1})`;
+          if (!estObjet(x) || !valeurDeListeSure(x.valeur)) refuser(`${cc} : « valeur » doit être un court texte ou un nombre.`);
+          return { valeur: x.valeur, libelle: texteSur(x.libelle, `${cc} (libellé)`, 60, { obligatoire: true }) };
+        });
+      }
+    } else if (aValeurs || aChoix) refuser(`${nom} : « valeurs » et « choix » ne valent que pour une liste.`);
+    if (f.defaut !== undefined && f.defaut !== null) {
+      const r = valeurFiltre(decl, f.defaut);
+      if (!r.ok) refuser(`${nom} : la valeur par défaut ne convient pas à ce type de filtre.`);
+      decl.defaut = r.valeur;
+    }
+    const vp = visiblePourSur(f.visiblePour, nom);
+    if (vp) decl.visiblePour = vp;
+    return decl;
+  });
+}
+
+/** Agrégation déclarée : { grouper: [colonnes] (0 à 6), mesures: [{ colonne?, calcul, nom }] (1 à 6) } ; les colonnes lues par la tuile doivent exister dans le résultat (groupe ou nom de mesure). */
+function validerAgregation(brute, e, tuile) {
+  const aG = brute.grouper !== undefined && brute.grouper !== null;
+  const aM = brute.mesures !== undefined && brute.mesures !== null;
+  if (!aG && !aM) return;
+  if (!aM) refuser(`${e} : « grouper » demande aussi « mesures » (1 à ${MESURES_MAX}).`);
+  const grouper = [];
+  if (aG) {
+    if (!Array.isArray(brute.grouper) || brute.grouper.length > GROUPER_MAX) refuser(`${e} : « grouper » doit être une liste de ${GROUPER_MAX} colonnes au plus.`);
+    for (const [i, c] of brute.grouper.entries()) {
+      const col = colonneSure(c, `${e} (grouper ${i + 1})`);
+      if (grouper.includes(col)) refuser(`${e} : la colonne « ${col} » est écrite deux fois dans « grouper ».`);
+      grouper.push(col);
+    }
+  }
+  if (!Array.isArray(brute.mesures) || brute.mesures.length < 1 || brute.mesures.length > MESURES_MAX) refuser(`${e} : « mesures » doit être une liste de 1 à ${MESURES_MAX} mesures.`);
+  const noms = [];
+  const mesures = brute.mesures.map((m, i) => {
+    const c = `${e} (mesure ${i + 1})`;
+    if (!estObjet(m)) refuser(`${c} : format invalide.`);
+    if (typeof m.calcul !== 'string' || !Object.hasOwn(CALCULS, m.calcul)) refuser(`${c} : « calcul » doit être l'un de : ${Object.keys(CALCULS).join(', ')}.`);
+    const nom = colonneSure(m.nom, `${c} (nom)`);
+    if (noms.includes(nom)) refuser(`${c} : le nom « ${nom} » est déjà pris par une autre mesure.`);
+    if (grouper.includes(nom)) refuser(`${c} : le nom « ${nom} » est déjà celui d'une colonne de « grouper ».`);
+    noms.push(nom);
+    const mesure = { calcul: m.calcul, nom };
+    if (m.colonne !== undefined && m.colonne !== null) mesure.colonne = colonneSure(m.colonne, `${c} (colonne)`);
+    else if (m.calcul !== 'nombre') refuser(`${c} : « colonne » est obligatoire (seul « nombre » peut s'en passer : il compte les lignes).`);
+    return mesure;
+  });
+  tuile.grouper = grouper;
+  tuile.mesures = mesures;
+  const dispo = new Set([...grouper, ...noms]);
+  const dans = (col, chemin) => { if (col !== undefined && !dispo.has(col)) refuser(`${e} : ${chemin} « ${col} » n'est ni une colonne de « grouper » ni le nom d'une mesure.`); };
+  if (tuile.tri) dans(tuile.tri.colonne, 'la colonne du tri');
+  if (tuile.limite !== undefined && !tuile.tri) refuser(`${e} : une limite sur des lignes regroupées demande un « tri » (sinon les lignes gardées seraient au hasard).`);
+  if (tuile.type === 'chiffre') {
+    dans(tuile.valeur.colonne, 'la colonne de la valeur');
+    if (tuile.variation) {
+      dans(tuile.variation.colonne, 'la colonne de la variation');
+      if (!grouper.includes(tuile.variation.periodeColonne)) refuser(`${e} : la colonne de période de la variation doit être dans « grouper ».`);
+    }
+  } else if (tuile.type === 'tableau') for (const col of tuile.colonnes) dans(col.colonne, 'la colonne');
+  else if (tuile.type === 'phrases') for (const col of tuile.colonnes) dans(col, 'la colonne');
+}
+
+/** `filtres: { <idFiltre>: { colonne } }` (la colonne de la vue de la tuile que ce filtre contraint) et `croisement: { filtre, colonne }`. */
+function validerFiltresDeTuile(brute, e, tuile, declares) {
+  if (brute.filtres !== undefined && brute.filtres !== null) {
+    if (!estObjet(brute.filtres)) refuser(`${e} : « filtres » doit être { <identifiant du filtre>: { colonne } }.`);
+    const f = {};
+    for (const [id, x] of Object.entries(brute.filtres)) {
+      if (CLES_INTERDITES.has(id) || !MOTIF_ID.test(id) || !declares.has(id)) refuser(`${e} : le filtre « ${id.slice(0, 40)} » n'existe pas dans le réglage.`);
+      if (!estObjet(x)) refuser(`${e} (filtre « ${id} »)  : doit être { colonne }.`);
+      f[id] = { colonne: colonneSure(x.colonne, `${e} (filtre « ${id} »)`) };
+    }
+    if (Object.keys(f).length) tuile.filtres = f;
+  }
+  if (brute.croisement !== undefined && brute.croisement !== null) {
+    const x = brute.croisement;
+    if (!estObjet(x) || typeof x.filtre !== 'string' || !declares.has(x.filtre)) refuser(`${e} : « croisement » doit être { filtre, colonne } avec un filtre qui existe dans le réglage.`);
+    if (declares.get(x.filtre) !== 'liste') refuser(`${e} : le croisement ne vaut que pour un filtre de type liste.`);
+    const colonne = colonneSure(x.colonne, `${e} (croisement)`);
+    if (tuile.mesures && !tuile.grouper.includes(colonne) && !tuile.mesures.some((m) => m.nom === colonne)) refuser(`${e} (croisement) : la colonne « ${colonne} » n'est ni une colonne de « grouper » ni le nom d'une mesure.`);
+    tuile.croisement = { filtre: x.filtre, colonne };
+  }
+}
+
 /** Onglets : { id, titre, intro?, tuiles: [ids], sections?: [{ id, titre, intro?, tuiles: [ids] }] }. Chaque tuile est placée UNE fois ; au plus TUILES_MAX tuiles par onglet. Pas de sous-onglets : des sections d'un même onglet. */
-function validerOnglets(brut, tuiles) {
+function validerOnglets(brut, tuiles, filtresDeclares = new Map()) {
   if (brut === undefined || brut === null) return undefined;
   if (!Array.isArray(brut)) refuser('Les onglets doivent être une liste.');
   if (!brut.length) return undefined;
@@ -346,6 +526,16 @@ function validerOnglets(brut, tuiles) {
     const onglet = { id: o.id, titre: texteSur(o.titre, `${nom} (titre)`, 60, { obligatoire: true }) };
     const intro = texteSur(o.intro, `${nom} (intro)`, 500);
     if (intro) onglet.intro = intro;
+    if (o.filtres !== undefined && o.filtres !== null) {
+      if (!Array.isArray(o.filtres) || o.filtres.length > FILTRES_MAX) refuser(`${nom} : « filtres » doit être une liste d'identifiants de filtres (${FILTRES_MAX} au plus).`);
+      const vus = new Set();
+      for (const id of o.filtres) {
+        if (typeof id !== 'string' || !filtresDeclares.has(id)) refuser(`${nom} : le filtre « ${String(id).slice(0, 40)} » n'existe pas dans le réglage.`);
+        if (vus.has(id)) refuser(`${nom} : le filtre « ${id} » est écrit deux fois.`);
+        vus.add(id);
+      }
+      if (vus.size) onglet.filtres = [...vus];
+    }
     onglet.tuiles = placer(o.tuiles, nom);
     if (o.sections !== undefined && o.sections !== null) {
       if (!Array.isArray(o.sections) || o.sections.length > SECTIONS_MAX) refuser(`${nom} : « sections » doit être une liste de ${SECTIONS_MAX} sections au plus.`);
@@ -384,6 +574,16 @@ function verifierLiens(tuiles, onglets) {
   }
 }
 
+/** Le filtre d'un croisement doit être affiché dans l'onglet de sa tuile (le clic sur un graphique n'est jamais le seul moyen : la liste des filtres existe). Sans onglets : tous les filtres sont affichés. */
+function verifierCroisements(tuiles, onglets) {
+  if (!onglets) return;
+  for (const t of tuiles) {
+    if (!t.croisement) continue;
+    const o = onglets.find((x) => x.tuiles.includes(t.id) || (x.sections ?? []).some((sec) => sec.tuiles.includes(t.id)));
+    if (!o || !(o.filtres ?? []).includes(t.croisement.filtre)) refuser(`Tuile « ${t.id} » : le filtre du croisement doit être dans la liste « filtres » de l'onglet de la tuile.`);
+  }
+}
+
 /**
  * Valide un réglage COMPLET reçu (enregistrement ou aperçu) et rend la forme normalisée { groupes, tableau: { titre, tuiles, onglets? } } (sans version ni date : le serveur les pose).
  * Les clés inconnues sont ignorées. Lance `ErreurPilotage('invalid-argument', message)`.
@@ -400,12 +600,16 @@ export function validerReglages(brut, { tolerant = false } = {}) {
   const plafond = avecOnglets ? TUILES_TOTAL_MAX : TUILES_MAX;
   if (tuilesBrutes.length > plafond) refuser(`Trop de tuiles (${plafond} au plus${avecOnglets ? `, et ${TUILES_MAX} par onglet` : ''}).`);
   const ids = new Set();
-  const tuiles = tuilesBrutes.map((x, i) => validerTuile(x, i, ids, tolerant));
-  const onglets = validerOnglets(t.onglets, tuiles);
+  const filtres = validerFiltres(t.filtres);
+  const filtresDeclares = new Map(filtres.map((f) => [f.id, f.type]));
+  const tuiles = tuilesBrutes.map((x, i) => validerTuile(x, i, ids, tolerant, filtresDeclares));
+  const onglets = validerOnglets(t.onglets, tuiles, filtresDeclares);
   verifierLiens(tuiles, onglets);
+  verifierCroisements(tuiles, onglets);
   const titreTableau = texteCourt(t.titre, 120); // tronqué comme avant, jamais refusé pour sa longueur
   if (!tolerant && titreTableau) verifierChaine(titreTableau, 'Titre du tableau', CONTEXTE_TEXTE);
   const tableau = { titre: titreTableau, tuiles };
+  if (filtres.length) tableau.filtres = filtres;
   if (onglets) tableau.onglets = onglets;
   const valide = { groupes, tableau };
   if (JSON.stringify(valide).length > REGLAGE_MAX) refuser(`Le réglage est trop volumineux (${REGLAGE_MAX} caractères au plus, toutes tuiles et tous groupes ensemble). Retire une tuile ou raccourcis une option.`);
@@ -435,12 +639,48 @@ export function limiteDe(tuile) {
   return tuile?.type === 'tableau' ? LIMITE_MAX : LIMITE_DEFAUT;
 }
 
+const identifiantSur = (c, message) => {
+  if (typeof c !== 'string' || !MOTIF_COLONNE.test(c) || c.length > LONGUEUR_VUE_MAX || CLES_INTERDITES.has(c)) throw new ErreurPilotage('invalid-argument', message);
+  return `"${c}"`;
+};
+
 /**
- * Requête d'une tuile : `select * from "<vue>" [order by "<col>" asc|desc] limit <n>`. Revalide la vue, la colonne et la limite (défense en profondeur : le texte SQL ne vient que d'ici).
- * Sans tri demandé : pas de `order by` (l'ordre des lignes n'est alors pas garanti) ; le réglage doit donc porter un `tri` quand l'ordre compte (courbe dans le temps, classement…).
- * Un grand chiffre AVEC variation : `order by "<periodeColonne>" desc limit 2` (les deux dernières périodes ; l'écran remet dans l'ordre) ; SANS variation : `limit 1` en respectant `tri`.
+ * Une clause de filtre -> texte SQL AVEC paramètres `$n` (les valeurs sont poussées dans `valeurs`, jamais écrites dans le texte). Opérateurs en liste fermée :
+ * période `"c" >= $1::date and "c" < ($2::date + 1)` (bornes incluses) ; liste `"c" = any($n)` (liste vide : aucune clause) ; intervalle `>=` / `<=` ; oui_non `= $n`.
+ * `clause` = { colonne, type, ... } construit par le service à partir du réglage VALIDÉ ; la colonne est revalidée ici.
  */
-export function construireSql(tuile) {
+function clauseSql(clause, valeurs) {
+  const col = identifiantSur(clause?.colonne, 'Filtre invalide.');
+  const p = (v) => { valeurs.push(v); return `$${valeurs.length}`; };
+  if (clause.type === 'periode') {
+    if (!estDateReelle(clause.du) || !estDateReelle(clause.au)) throw new ErreurPilotage('invalid-argument', 'Filtre invalide.', 'filtre');
+    const du = p(clause.du);
+    const au = p(clause.au);
+    return `${col} >= ${du}::date and ${col} < (${au}::date + 1)`;
+  }
+  if (clause.type === 'liste') {
+    if (!Array.isArray(clause.valeurs) || !clause.valeurs.length) return null;
+    return `${col} = any(${p(clause.valeurs)})`;
+  }
+  if (clause.type === 'intervalle') {
+    const morceaux = [];
+    if (clause.min !== undefined) morceaux.push(`${col} >= ${p(clause.min)}`);
+    if (clause.max !== undefined) morceaux.push(`${col} <= ${p(clause.max)}`);
+    return morceaux.length ? morceaux.join(' and ') : null;
+  }
+  if (clause.type === 'oui_non') return `${col} = ${p(clause.valeur === true)}`;
+  throw new ErreurPilotage('invalid-argument', 'Filtre invalide.', 'filtre');
+}
+
+/**
+ * Requête d'une tuile : { sql, valeurs }.
+ *  - tuile simple : `select * from "<vue>" [where <filtres>] [order by "<col>" asc|desc] limit <n>` ;
+ *  - tuile AGRÉGÉE (`grouper` / `mesures`) : `select "<g>", sum("<c>") as "<nom>" from "<vue>" [where <filtres>] [group by "<g>"] [order by …] limit <n>` (calculs sum, count, avg, min, max ; `nombre` sans colonne = `count(*)`).
+ * Revalide la vue, les colonnes et la limite (défense en profondeur : le texte SQL ne vient que d'ici ; aucune valeur n'y entre, elles sont dans `valeurs`).
+ * Sans tri demandé : pas de `order by` (l'ordre des lignes n'est alors pas garanti) ; le réglage doit donc porter un `tri` quand l'ordre compte (courbe dans le temps, classement…).
+ * Un grand chiffre AVEC variation : `order by "<periodeColonne>" desc nulls last limit 2` ; SANS variation : `limit 1` en respectant `tri`.
+ */
+export function construireRequete(tuile, clauses = []) {
   if (typeof tuile?.vue !== 'string' || !MOTIF_VUE.test(tuile.vue) || tuile.vue.length > LONGUEUR_VUE_MAX) throw new ErreurPilotage('invalid-argument', 'Vue invalide.');
   const limite = limiteDe(tuile);
   if (!Number.isInteger(limite) || limite < 1 || limite > LIMITE_MAX) throw new ErreurPilotage('invalid-argument', 'Limite invalide.');
@@ -452,5 +692,35 @@ export function construireSql(tuile) {
     if (typeof colonne !== 'string' || !MOTIF_COLONNE.test(colonne) || colonne.length > LONGUEUR_VUE_MAX || CLES_INTERDITES.has(colonne) || (sens !== 'asc' && sens !== 'desc')) throw new ErreurPilotage('invalid-argument', 'Tri invalide.');
     tri = ` order by "${colonne}" ${sens}${tuile.type === 'chiffre' && tuile.variation ? ' nulls last' : ''}`; // une ligne sans période (un total) ne passe jamais devant les vraies périodes
   }
-  return `select * from "${tuile.vue}"${tri} limit ${limite}`;
+  const valeurs = [];
+  const morceaux = (Array.isArray(clauses) ? clauses : []).map((c) => clauseSql(c, valeurs)).filter(Boolean);
+  const ou = morceaux.length ? ` where ${morceaux.join(' and ')}` : '';
+  let selection = '*';
+  let regroupe = '';
+  if (tuile.mesures !== undefined) {
+    const grouper = Array.isArray(tuile.grouper) ? tuile.grouper : [];
+    const mesures = tuile.mesures;
+    if (!Array.isArray(mesures) || mesures.length < 1 || mesures.length > MESURES_MAX || grouper.length > GROUPER_MAX) throw new ErreurPilotage('invalid-argument', 'Agrégation invalide.');
+    const g = grouper.map((c) => identifiantSur(c, 'Agrégation invalide.'));
+    const m = mesures.map((x) => {
+      if (typeof x?.calcul !== 'string' || !Object.hasOwn(CALCULS, x.calcul)) throw new ErreurPilotage('invalid-argument', 'Agrégation invalide.');
+      const arg = x.colonne === undefined && x.calcul === 'nombre' ? '*' : identifiantSur(x.colonne, 'Agrégation invalide.');
+      return `${CALCULS[x.calcul]}(${arg}) as ${identifiantSur(x.nom, 'Agrégation invalide.')}`;
+    });
+    selection = [...g, ...m].join(', ');
+    if (g.length) regroupe = ` group by ${g.join(', ')}`;
+  }
+  return { sql: `select ${selection} from "${tuile.vue}"${ou}${regroupe}${tri} limit ${limite}`, valeurs };
+}
+
+/** Requête SANS filtre (texte SQL seul). Même sortie qu'avant les filtres pour une tuile simple. */
+export function construireSql(tuile) {
+  return construireRequete(tuile).sql;
+}
+
+/** Valeurs distinctes d'un filtre « liste » lu dans une vue : `select distinct "<col>" from "<vue>" where "<col>" is not null order by 1 limit 201` (201 = « liste tronquée » : le service en rend 200 et le dit). */
+export function construireRequeteValeurs(valeurs) {
+  if (typeof valeurs?.vue !== 'string' || !MOTIF_VUE.test(valeurs.vue) || valeurs.vue.length > LONGUEUR_VUE_MAX) throw new ErreurPilotage('invalid-argument', 'Vue invalide.');
+  const col = identifiantSur(valeurs.colonne, 'Filtre invalide.');
+  return `select distinct ${col} from "${valeurs.vue}" where ${col} is not null order by 1 limit ${LISTE_VALEURS_MAX + 1}`;
 }

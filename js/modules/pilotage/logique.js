@@ -170,12 +170,34 @@ function lireOnglets(brut) {
   return (Array.isArray(brut) ? brut : []).filter((o) => estObjet(o) && idSur(o.id)).map((o) => ({
     id: texte(o.id), titre: texte(o.titre) || texte(o.id), intro: texte(o.intro), tuiles: listeTextes(o.tuiles),
     sections: (Array.isArray(o.sections) ? o.sections : []).filter((x) => estObjet(x) && idSur(x.id)).map((x) => ({ id: texte(x.id), titre: texte(x.titre), intro: texte(x.intro), tuiles: listeTextes(x.tuiles) })),
+    ...(Array.isArray(o.filtres) && o.filtres.some(idSur) ? { filtres: o.filtres.filter(idSur) } : {}), // identifiants des filtres que cet onglet affiche (B1)
+  }));
+}
+
+export const TYPES_FILTRE = Object.freeze(['periode', 'liste', 'intervalle', 'oui_non']);
+const valeurListe = (v) => (typeof v === 'string' && v.length <= 200) || (typeof v === 'number' && Number.isFinite(v));
+/** Valeur appliquée d'un filtre, telle que le serveur la rend : période { raccourci?, du?, au? }, liste (tableau), intervalle { min?, max? }, oui_non (booléen) ; autre chose = rien. */
+function lireApplique(type, v) {
+  if (type === 'periode' && estObjet(v)) return { ...(typeof v.raccourci === 'string' ? { raccourci: v.raccourci } : {}), ...(typeof v.du === 'string' ? { du: v.du } : {}), ...(typeof v.au === 'string' ? { au: v.au } : {}) };
+  if (type === 'liste' && Array.isArray(v)) return v.filter(valeurListe);
+  if (type === 'intervalle' && estObjet(v)) return { ...(Number.isFinite(v.min) ? { min: v.min } : {}), ...(Number.isFinite(v.max) ? { max: v.max } : {}) };
+  if (type === 'oui_non' && typeof v === 'boolean') return v;
+  return undefined;
+}
+/** Filtres de l'onglet lu (racine de la réponse) : [{ id, libelle, type, multiple, choix: [{ valeur, libelle }], valeurs?, tronquee, applique? }]. Un filtre de type inconnu est ignoré. */
+export function lireFiltres(brut) {
+  return (Array.isArray(brut) ? brut : []).filter((f) => estObjet(f) && idSur(f.id) && TYPES_FILTRE.includes(f.type)).map((f) => ({
+    id: f.id, libelle: texte(f.libelle) || f.id, type: f.type, multiple: f.multiple === true,
+    choix: (Array.isArray(f.choix) ? f.choix : []).filter((c) => estObjet(c) && valeurListe(c.valeur)).map((c) => ({ valeur: c.valeur, libelle: texte(c.libelle) || String(c.valeur) })),
+    ...(Array.isArray(f.valeurs) ? { valeurs: f.valeurs.filter(valeurListe) } : {}), tronquee: f.tronquee === true,
+    ...(lireApplique(f.type, f.applique) !== undefined ? { applique: lireApplique(f.type, f.applique) } : {}),
   }));
 }
 
 /**
  * Réponse du serveur nettoyée : { titre, tuiles, erreurs, onglets, onglet, vide }. Tolère les champs manquants ET l'ANCIEN serveur (ni `type`, ni `onglets`, ni `largeur` : graphique, page unique).
- * Tuile : { id, titre, type, largeur, aide, option, lignes, lignesInvalides, valeur?, seuils?, variation?, colonnes?, parPage?, formats?, texte?, lien? }.
+ * Tuile : { id, titre, type, largeur, aide, option, lignes, lignesInvalides, valeur?, seuils?, variation?, colonnes?, parPage?, formats?, texte?, lien?, filtresAppliques?, croisement?, mentionNonFiltre? }.
+ * `filtres` (racine, seulement s'il y en a) : voir `lireFiltres`. Une réponse sans filtres est identique à celle d'avant les filtres.
  */
 export function lireReponse(r) {
   const d = estObjet(r) ? r : {};
@@ -191,10 +213,15 @@ export function lireReponse(r) {
       valeur: estObjet(t.valeur) ? copier(t.valeur) : undefined, seuils: listeObjets(t.seuils), variation: estObjet(t.variation) ? copier(t.variation) : undefined,
       colonnes: type === 'phrases' ? listeTextes(t.colonnes) : listeObjets(t.colonnes), parPage: Number.isInteger(t.parPage) && t.parPage > 0 ? t.parPage : 20, limite: Number.isInteger(t.limite) && t.limite > 0 ? t.limite : null,
       formats: estObjet(t.formats) ? copier(t.formats) : undefined, texte: texte(t.texte), lien: lienOnglet(t.lien),
+      // B1 : filtres qui agissent sur la tuile, filtre réglé par un clic sur le graphique, mention « non filtré par … » (champs absents = comme avant)
+      ...(Array.isArray(t.filtresAppliques) && t.filtresAppliques.some(idSur) ? { filtresAppliques: t.filtresAppliques.filter(idSur) } : {}),
+      ...(estObjet(t.croisement) && idSur(t.croisement.filtre) ? { croisement: { filtre: t.croisement.filtre } } : {}),
+      ...(texte(t.mentionNonFiltre) ? { mentionNonFiltre: texte(t.mentionNonFiltre) } : {}),
     };
   });
   const erreurs = (Array.isArray(d.erreurs) ? d.erreurs : []).filter(estObjet).map((e) => ({ id: texte(e.id), message: texte(e.message) }));
-  return { titre: texte(d.titre).trim(), tuiles, erreurs, onglets: lireOnglets(d.onglets), onglet: idSur(d.onglet) ? d.onglet : null, vide: tuiles.length === 0 && erreurs.length === 0 && !(Array.isArray(d.onglets) && d.onglets.length) };
+  const filtres = lireFiltres(d.filtres);
+  return { titre: texte(d.titre).trim(), tuiles, erreurs, onglets: lireOnglets(d.onglets), onglet: idSur(d.onglet) ? d.onglet : null, ...(filtres.length ? { filtres } : {}), vide: tuiles.length === 0 && erreurs.length === 0 && !(Array.isArray(d.onglets) && d.onglets.length) };
 }
 
 /**

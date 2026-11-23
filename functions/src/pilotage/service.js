@@ -8,8 +8,12 @@
 //  - contrat étendu (PR « Tableau de bord A ») : par tuile `type`, `largeur`, `aide` et la config validée du type (valeur, seuils, variation, colonnes, parPage, formats, texte, lien) ;
 //    à la racine `onglets` (structure FILTRÉE : ids interdits retirés, sections et onglets vides retirés) et `onglet` (l'onglet lu). `pilotageLire({ onglet })` ne lit que cet onglet ;
 //  - pour chiffre, tableau et phrases, seules les colonnes DÉCLARÉES dans le réglage sortent du serveur (filtrage après lecture) ; un texte ne lit rien en base ;
-//  - l'aperçu (brouillon de Jérôme) montre toutes les tuiles du brouillon (c'est lui qui règle les droits) et n'utilise pas le cache.
-import { analyserOption, construireSql, limiteDe, tuileVisible, validerReglages, ErreurPilotage, MOTIF_ID, LIEN_TEXTE_SOURCE } from './reglages.js';
+//  - l'aperçu (brouillon de Jérôme) montre toutes les tuiles du brouillon (c'est lui qui règle les droits) et n'utilise pas le cache ;
+//  - filtres (PR « Tableau de bord B1 ») : `pilotageLire({ onglet, filtres })` ; chaque valeur est validée contre la déclaration du filtre (filtres.js), le SQL est paramétré (reglages.js, `construireRequete`) ;
+//    un filtre n'est proposé et appliqué que s'il est visible pour l'appelant ET déclaré par une tuile visible de l'onglet lu ; la liste de valeurs d'un filtre « liste » n'est lue que dans ce cas ;
+//    la clé du cache contient les valeurs de filtre (jamais un filtre ne montre les chiffres d'un autre) ; la réponse ne contient aucun nom de colonne ni de vue des filtres.
+import { analyserOption, construireRequete, construireRequeteValeurs, limiteDe, tuileVisible, validerReglages, ErreurPilotage, MOTIF_ID, LIEN_TEXTE_SOURCE, LISTE_VALEURS_MAX, TEXTE_VALEUR_MAX } from './reglages.js';
+import { resoudreFiltres, clausesDeTuile } from './filtres.js';
 import { ErreurPostgres, avecDelai, DELAI_FERMETURE_MS } from './postgres.js';
 
 export const COLLECTION_PILOTAGE = 'pilotage_parametres';
@@ -63,26 +67,29 @@ export const filtrerColonnes = (t, lignes) => {
 /** Identifiants de toutes les tuiles placées dans un onglet (tuiles directes, puis sections). */
 export const idsDeOnglet = (o) => new Set([...(o.tuiles ?? []), ...(o.sections ?? []).flatMap((x) => x.tuiles)]);
 
-/** Structure des onglets telle que l'appelant peut la voir : ids de tuiles interdits retirés, section ou onglet sans tuile visible retiré. Rien de ce qui est interdit n'y reste (pas même un titre de section vide). */
-export function filtrerOnglets(onglets, idsVisibles) {
+/** Structure des onglets telle que l'appelant peut la voir : ids de tuiles et de filtres interdits retirés, section ou onglet sans tuile visible retiré. Rien de ce qui est interdit n'y reste (pas même un titre de section vide). */
+export function filtrerOnglets(onglets, idsVisibles, filtresParOnglet = new Map()) {
   if (!Array.isArray(onglets)) return undefined;
   const sortie = [];
   for (const o of onglets) {
     const sections = (o.sections ?? []).map((x) => ({ ...x, tuiles: x.tuiles.filter((id) => idsVisibles.has(id)) })).filter((x) => x.tuiles.length);
     const tuiles = o.tuiles.filter((id) => idsVisibles.has(id));
     if (!tuiles.length && !sections.length) continue;
-    const { sections: _s, ...reste } = o;
-    sortie.push({ ...reste, tuiles, ...(sections.length ? { sections } : {}) });
+    const { sections: _s, filtres: _f, ...reste } = o;
+    const filtres = filtresParOnglet.get(o.id) ?? []; // seulement les filtres que l'appelant voit ET qu'une tuile visible de l'onglet déclare : aucun identifiant interdit ne sort
+    sortie.push({ ...reste, tuiles, ...(sections.length ? { sections } : {}), ...(filtres.length ? { filtres } : {}) });
   }
   return sortie;
 }
 
 /** Tête d'une tuile renvoyée à l'écran : identité, type, largeur, aide et configuration du type ; un lien vers un onglet invisible est retiré, un lien de texte vers un onglet invisible redevient du texte simple. */
-function enteteTuile(t, ongletsVisibles) {
+function enteteTuile(t, ongletsVisibles, extra = {}) {
   const ok = (l) => (l && ongletsVisibles?.has(l.onglet) ? l : undefined);
   const e = { id: t.id, titre: t.titre, type: t.type };
   if (t.largeur) e.largeur = t.largeur;
   if (t.aide) e.aide = t.aide;
+  if (t.mentionNonFiltre) e.mentionNonFiltre = t.mentionNonFiltre;
+  Object.assign(e, extra); // filtresAppliques, croisement : décidés par `lire` (droits et onglet lu)
   if (t.type === 'chiffre') {
     e.valeur = t.valeur;
     if (t.seuils) e.seuils = t.seuils;
@@ -106,7 +113,7 @@ function enteteTuile(t, ongletsVisibles) {
  * `donnees` : fonction qui rend l'accès Firestore (creerAccesFirestore) ; `connecter` : `ouvrir()` de postgres.js ; `journalErreur` : (type, etat) pour le journal du serveur (jamais de valeur).
  */
 export function creerServicePilotage({ donnees, connecter, maintenant = Date.now, dureeCacheMs = DUREE_CACHE_MS, budgetMs = BUDGET_LECTURE_MS, delaiFermetureMs = DELAI_FERMETURE_MS, journalErreur = () => {} }) {
-  const cache = new Map(); // sql -> { jusqua, lignes }
+  const cache = new Map(); // JSON([sql, valeurs]) -> { jusqua, lignes } : les valeurs de filtre font partie de la clé
 
   async function lireReglagesEnregistres({ tolerant = false } = {}) {
     const doc = await donnees().document(COLLECTION_PILOTAGE, DOCUMENT_REGLAGES);
@@ -114,51 +121,62 @@ export function creerServicePilotage({ donnees, connecter, maintenant = Date.now
     try { return { ...doc, ...validerReglages(doc, { tolerant: true }) }; } catch { if (tolerant) return { ...doc, invalide: true }; throw new ErreurPilotage('failed-precondition', 'Le réglage enregistré est invalide : enregistre-le à nouveau depuis les réglages de Pilotage.'); }
   }
 
-  async function lireTuiles(tuiles, { avecCache, ongletsVisibles }) {
+  async function lireTuiles(tuiles, { avecCache, ongletsVisibles, clausesDe = () => [], extrasDe = () => ({}), listes = [] }) {
     const erreurs = [];
     let connexion = null; // une seule connexion par appel, ouverte à la première lecture nécessaire
     const obtenir = () => { connexion ??= connecter(); return connexion; };
-    const dejaDemandees = new Map(); // sql -> promesse des lignes : une seule requête par SQL identique dans un même appel
+    const dejaDemandees = new Map(); // JSON([sql, valeurs]) -> promesse des lignes : une seule requête par SQL et valeurs identiques dans un même appel
     let minuteur;
     const TEMPS = Symbol('budget');
     const fin = new Promise((ok) => { minuteur = setTimeout(() => ok(TEMPS), budgetMs); }); // budget global : après lui, tout ce qui reste est en erreur
-    const enErreur = (t, option) => { erreurs.push({ id: t.id, message: MESSAGE_TUILE }); return { ...enteteTuile(t, ongletsVisibles), ...(t.type === 'graphique' ? { option } : {}), lignes: [] }; };
-    const lignesDe = (sql) => {
+    const enErreur = (t, option) => { erreurs.push({ id: t.id, message: MESSAGE_TUILE }); return { ...enteteTuile(t, ongletsVisibles, extrasDe(t)), ...(t.type === 'graphique' ? { option } : {}), lignes: [] }; };
+    const lignesDe = (sql, valeurs = []) => {
+      const cle = JSON.stringify([sql, valeurs]);
       if (avecCache) {
-        const c = cache.get(sql);
+        const c = cache.get(cle);
         if (c && c.jusqua > maintenant()) return Promise.resolve(c.lignes);
       }
-      if (!dejaDemandees.has(sql)) {
-        dejaDemandees.set(sql, (async () => {
-          const brut = await Promise.race([(async () => (await obtenir()).interroger(sql))(), fin]);
+      if (!dejaDemandees.has(cle)) {
+        dejaDemandees.set(cle, (async () => {
+          const brut = await Promise.race([(async () => { const c = await obtenir(); return valeurs.length ? c.interroger(sql, valeurs) : c.interroger(sql); })(), fin]);
           if (brut === TEMPS) return TEMPS;
           const lignes = nettoyerLignes(brut);
           if (avecCache) {
             if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
-            cache.set(sql, { jusqua: maintenant() + dureeCacheMs, lignes });
+            cache.set(cle, { jusqua: maintenant() + dureeCacheMs, lignes });
           }
           return lignes;
         })());
       }
-      return dejaDemandees.get(sql);
+      return dejaDemandees.get(cle);
     };
     const lireUne = async (t) => {
       if (t.type === 'texte') return { ...enteteTuile(t, ongletsVisibles), lignes: [] }; // un texte ne lit jamais la base
       let option;
-      let sql;
-      try { if (t.type === 'graphique') option = analyserOption(t.option, 'option', { tolerant: true }); sql = construireSql(t); } catch { return enErreur(t, {}); }
+      let requete;
+      try { if (t.type === 'graphique') option = analyserOption(t.option, 'option', { tolerant: true }); requete = construireRequete(t, clausesDe(t)); } catch { return enErreur(t, {}); }
       try {
-        const lignes = await lignesDe(sql);
+        const lignes = await lignesDe(requete.sql, requete.valeurs);
         if (lignes === TEMPS) { journalErreur('budget'); return enErreur(t, option); }
-        return { ...enteteTuile(t, ongletsVisibles), ...(t.type === 'graphique' ? { option } : {}), lignes: filtrerColonnes(t, lignes) };
+        return { ...enteteTuile(t, ongletsVisibles, extrasDe(t)), ...(t.type === 'graphique' ? { option } : {}), lignes: filtrerColonnes(t, lignes) };
       } catch (e) {
         journalErreur(e instanceof ErreurPostgres ? e.type : 'inconnue', e?.etat);
         return enErreur(t, option);
       }
     };
+    // Liste de valeurs d'un filtre : même connexion, même file, même budget ; en panne, le filtre est rendu sans valeurs (jamais de message de la base).
+    const lireListe = async ({ id, sql }) => {
+      try {
+        const lignes = await lignesDe(sql);
+        return [id, lignes === TEMPS ? null : lignes];
+      } catch (e) {
+        journalErreur(e instanceof ErreurPostgres ? e.type : 'inconnue', e?.etat);
+        return [id, null];
+      }
+    };
     try {
-      const resultat = await Promise.all(tuiles.map(lireUne));
-      return { tuiles: resultat, erreurs };
+      const [resultat, lues] = await Promise.all([Promise.all(tuiles.map(lireUne)), Promise.all(listes.map(lireListe))]);
+      return { tuiles: resultat, erreurs, listes: new Map(lues) };
     } finally {
       clearTimeout(minuteur);
       // fermeture garantie et bornée : même si une lecture a échoué ou si le budget est dépassé ; une connexion en cours d'ouverture est fermée dès qu'elle arrive, sans qu'on l'attende au-delà du délai
@@ -166,8 +184,8 @@ export function creerServicePilotage({ donnees, connecter, maintenant = Date.now
     }
   }
 
-  /** `{ email, apercu?, exporter?, onglet? }` : les droits de `apercu` et `exporter` sont contrôlés par l'appel (Jérôme seul). `onglet` = identifiant d'un onglet du réglage (jamais un nom de vue) : seul cet onglet est lu. */
-  async function lire({ email, apercu, exporter, onglet } = {}) {
+  /** `{ email, apercu?, exporter?, onglet?, filtres? }` : les droits de `apercu` et `exporter` sont contrôlés par l'appel (Jérôme seul). `onglet` = identifiant d'un onglet du réglage (jamais un nom de vue) : seul cet onglet est lu. */
+  async function lire({ email, apercu, exporter, onglet, filtres } = {}) {
     if (exporter === true) {
       const doc = await lireReglagesEnregistres({ tolerant: true });
       if (!doc) return { reglages: null };
@@ -184,7 +202,17 @@ export function creerServicePilotage({ donnees, connecter, maintenant = Date.now
       if (!reglages) return { titre: '', tuiles: [], erreurs: [] };
       visibles = reglages.tableau.tuiles.filter((t) => tuileVisible(t, reglages.groupes, email));
     }
-    const structure = filtrerOnglets(reglages.tableau.onglets, new Set(visibles.map((t) => t.id)));
+    const declares = new Map((reglages.tableau.filtres ?? []).map((f) => [f.id, f]));
+    const filtreVisible = (f) => (apercu !== undefined && apercu !== null) || tuileVisible(f, reglages.groupes, email); // l'aperçu montre tout (Jérôme règle les droits du brouillon)
+    const utilises = (tuiles) => new Set(tuiles.flatMap((t) => Object.keys(t.filtres ?? {})));
+    // filtres d'un onglet : visibles pour l'appelant ET déclarés par au moins une tuile visible de cet onglet (sinon ni id, ni libellé, ni valeur ne sortent)
+    const filtresParOnglet = new Map();
+    for (const o of reglages.tableau.onglets ?? []) {
+      const ids = idsDeOnglet(o);
+      const util = utilises(visibles.filter((t) => ids.has(t.id)));
+      filtresParOnglet.set(o.id, (o.filtres ?? []).filter((id) => declares.has(id) && filtreVisible(declares.get(id)) && util.has(id)));
+    }
+    const structure = filtrerOnglets(reglages.tableau.onglets, new Set(visibles.map((t) => t.id)), filtresParOnglet);
     const ongletsVisibles = structure ? new Set(structure.map((o) => o.id)) : null;
     let aLire = visibles;
     let actif;
@@ -195,8 +223,36 @@ export function creerServicePilotage({ donnees, connecter, maintenant = Date.now
       if (demande !== undefined && !cible) throw new ErreurPilotage('invalid-argument', 'Onglet inconnu.');
       if (cible) { const ids = idsDeOnglet(cible); aLire = visibles.filter((t) => ids.has(t.id)); actif = cible.id; } else aLire = [];
     }
-    const { tuiles, erreurs } = await lireTuiles(aLire, { avecCache: apercu === undefined || apercu === null, ongletsVisibles });
-    return { titre: reglages.tableau.titre ?? '', tuiles, erreurs, ...(structure ? { onglets: structure, onglet: actif ?? null } : {}) };
+    // portée des filtres : ceux de l'onglet lu (sans onglets : tous ceux que l'appelant voit et qu'une tuile visible déclare)
+    let idsPortee;
+    if (structure) idsPortee = actif ? (filtresParOnglet.get(actif) ?? []) : [];
+    else { const util = utilises(aLire); idsPortee = [...declares.keys()].filter((id) => util.has(id) && filtreVisible(declares.get(id))); }
+    const portee = new Map(idsPortee.map((id) => [id, declares.get(id)]));
+    const resolus = resoudreFiltres({ portee, demandes: filtres, maintenant: maintenant() });
+    const extras = new Map(aLire.map((t) => {
+      const extra = {};
+      const appliquees = Object.keys(t.filtres ?? {}).filter((id) => portee.has(id));
+      if (appliquees.length) extra.filtresAppliques = appliquees;
+      if (t.croisement && portee.has(t.croisement.filtre)) extra.croisement = { filtre: t.croisement.filtre }; // jamais la colonne
+      return [t.id, extra];
+    }));
+    const listes = [];
+    for (const f of portee.values()) if (f.type === 'liste' && f.valeurs) { try { listes.push({ id: f.id, sql: construireRequeteValeurs(f.valeurs) }); } catch { /* filtre rendu sans valeurs */ } }
+    const { tuiles, erreurs, listes: lues } = await lireTuiles(aLire, { avecCache: apercu === undefined || apercu === null, ongletsVisibles, clausesDe: (t) => clausesDeTuile(t, portee, resolus), extrasDe: (t) => extras.get(t.id) ?? {}, listes });
+    const descripteurs = [...portee.values()].map((f) => {
+      const d = { id: f.id, libelle: f.libelle, type: f.type };
+      if (f.multiple) d.multiple = true;
+      if (f.choix) d.choix = f.choix;
+      const brutes = f.valeurs ? lues.get(f.id) : null;
+      if (Array.isArray(brutes)) {
+        const valeurs = brutes.map((l) => l?.[f.valeurs.colonne]).filter((v) => (typeof v === 'string' && v.length <= TEXTE_VALEUR_MAX) || (typeof v === 'number' && Number.isFinite(v)));
+        d.valeurs = valeurs.slice(0, LISTE_VALEURS_MAX);
+        if (brutes.length > LISTE_VALEURS_MAX) d.tronquee = true;
+      }
+      if (resolus.has(f.id)) d.applique = resolus.get(f.id);
+      return d;
+    });
+    return { titre: reglages.tableau.titre ?? '', tuiles, erreurs, ...(structure ? { onglets: structure, onglet: actif ?? null } : {}), ...(descripteurs.length ? { filtres: descripteurs } : {}) };
   }
 
   /** Enregistre le réglage complet : valide, incrémente `version`, écrit le document ET sa ligne de journal (crm_audit, sans aucune valeur du réglage et sans copie « avant ») dans la même transaction. */
