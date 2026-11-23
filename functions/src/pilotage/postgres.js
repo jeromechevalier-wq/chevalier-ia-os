@@ -10,6 +10,15 @@
 export const NOM_SECRET_PILOTAGE = 'SUPABASE_INDICATEURS';
 export const DELAI_REQUETE_MS = 10_000;
 export const DELAI_CONNEXION_MS = 8_000;
+export const DELAI_FERMETURE_MS = 2_000; // fermer une connexion ne bloque jamais la réponse plus longtemps
+
+/** Attend `promesse` au plus `ms` ; ne lève jamais (une fermeture qui échoue ou traîne est abandonnée). */
+export async function avecDelai(travail, ms) {
+  let minuteur;
+  try {
+    await Promise.race([Promise.resolve().then(travail).catch(() => {}), new Promise((ok) => { minuteur = setTimeout(ok, ms); })]);
+  } finally { clearTimeout(minuteur); }
+}
 
 /** `type` : 'secret' (introuvable ou illisible) | 'connexion' | 'requete'. Le message est fixe : jamais de détail technique. `etat` = code SQLSTATE à 5 caractères s'il y en a un (pour le journal du serveur). */
 export class ErreurPostgres extends Error {
@@ -64,7 +73,7 @@ async function chargerPg() {
  * Rend `ouvrir()` : lit le secret, ouvre UNE connexion TLS et rend `{ interroger(sql) -> lignes, fermer() }`.
  * Toute panne (secret, réseau, certificat, requête) lève une `ErreurPostgres` sans détail.
  */
-export function creerConnecteurPostgres({ lireSecret, clientPg = chargerPg, nomSecret = NOM_SECRET_PILOTAGE }) {
+export function creerConnecteurPostgres({ lireSecret, clientPg = chargerPg, nomSecret = NOM_SECRET_PILOTAGE, delaiFermetureMs = DELAI_FERMETURE_MS, delaiConnexionMs = DELAI_CONNEXION_MS + 2_000 }) {
   return async function ouvrir() {
     let config;
     try { config = lireConnexion(await lireSecret(nomSecret)); } catch { throw new ErreurPostgres('secret'); }
@@ -81,21 +90,27 @@ export function creerConnecteurPostgres({ lireSecret, clientPg = chargerPg, nomS
         types: creerTypes(pg.types),
       });
       client.on('error', () => {}); // une coupure en cours de route ne doit pas faire tomber la fonction ; l'erreur est rendue par la requête en cours
-      await client.connect();
+      let minuteur;
+      try {
+        // le délai propre de `pg` (connectionTimeoutMillis) peut ne pas jouer si le serveur laisse la connexion ouverte sans répondre : course avec un minuteur
+        await Promise.race([client.connect(), new Promise((_, non) => { minuteur = setTimeout(() => non(new Error('délai')), delaiConnexionMs); })]);
+      } finally { clearTimeout(minuteur); }
     } catch (e) {
-      try { await client?.end(); } catch { /* déjà fermé */ }
+      if (client) await avecDelai(() => client.end(), delaiFermetureMs); // un client à moitié ouvert ne doit pas bloquer l'échec
       throw new ErreurPostgres('connexion', e?.code);
     }
+    let ferme = false;
     let file = Promise.resolve(); // une seule requête à la fois sur la connexion (pg 9 refusera d'en empiler) ; les appels restent lancés « en parallèle » par le service
     return {
       interroger(sql) {
         const p = file.then(async () => {
+          if (ferme) throw new ErreurPostgres('requete');
           try { return (await client.query(sql)).rows; } catch (e) { throw new ErreurPostgres('requete', e?.code); }
         });
         file = p.catch(() => {});
         return p;
       },
-      async fermer() { try { await client.end(); } catch { /* déjà fermé */ } },
+      async fermer() { ferme = true; await avecDelai(() => client.end(), delaiFermetureMs); },
     };
   };
 }

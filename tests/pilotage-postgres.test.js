@@ -53,7 +53,7 @@ describe('1 connexion', () => {
       assert.equal(vus.configs.length, 0);
     }
   });
-  test('1.4 aucune valeur du secret dans le code source du fichier ni de rejectUnauthorized à false', () => {
+  test('1.4 le code source ne désactive jamais la vérification TLS (pas de rejectUnauthorized à false) et la garde à true', () => {
     const src = readFileSync(new URL('../functions/src/pilotage/postgres.js', import.meta.url), 'utf8');
     assert.ok(!/rejectUnauthorized:\s*false/.test(src));
     assert.match(src, /rejectUnauthorized: true/);
@@ -102,6 +102,42 @@ describe('2 convertisseurs de types', () => {
     const { pg, vus } = fauxPg();
     await creerConnecteurPostgres({ lireSecret: async () => JSON.stringify(SECRET), clientPg: pg })();
     assert.equal(vus.configs[0].types.getTypeParser(1700, 'text')('3'), 3);
+  });
+});
+
+describe('4 une requête à la fois, délais bornés', () => {
+  test('4.1 plusieurs lectures lancées ensemble passent en file : jamais deux requêtes en même temps sur la connexion', async () => {
+    let enCours = 0;
+    let maximum = 0;
+    class Client {
+      on() {}
+      async connect() {}
+      async query() { enCours += 1; maximum = Math.max(maximum, enCours); await new Promise((ok) => setTimeout(ok, 15)); enCours -= 1; return { rows: [{ a: 1 }] }; }
+      async end() {}
+    }
+    const c = await creerConnecteurPostgres({ lireSecret: async () => JSON.stringify(SECRET), clientPg: { Client, types: typesPg } })();
+    const r = await Promise.all([c.interroger('select 1'), c.interroger('select 2'), c.interroger('select 3')]);
+    assert.equal(r.length, 3);
+    assert.equal(maximum, 1);
+  });
+  test('4.2 fermer() ne bloque jamais plus que le délai, même si client.end() ne répond pas ; ensuite plus aucune requête', async () => {
+    class Client { on() {} async connect() {} async query() { return { rows: [] }; } end() { return new Promise(() => {}); } }
+    const c = await creerConnecteurPostgres({ lireSecret: async () => JSON.stringify(SECRET), clientPg: { Client, types: typesPg }, delaiFermetureMs: 40 })();
+    const t0 = Date.now();
+    await c.fermer();
+    assert.ok(Date.now() - t0 < 1000);
+    await assert.rejects(c.interroger('select 1'), (e) => e instanceof ErreurPostgres);
+  });
+  test('4.3 un connect() qui ne répond jamais : échec générique dans le délai, la fermeture du client à moitié ouvert est bornée elle aussi', async () => {
+    class Client { on() {} connect() { return new Promise(() => {}); } end() { return new Promise(() => {}); } }
+    const ouvrir = creerConnecteurPostgres({ lireSecret: async () => JSON.stringify(SECRET), clientPg: { Client, types: typesPg }, delaiConnexionMs: 40, delaiFermetureMs: 40 });
+    const t0 = Date.now();
+    await assert.rejects(ouvrir(), (e) => e instanceof ErreurPostgres && e.type === 'connexion');
+    assert.ok(Date.now() - t0 < 1000);
+  });
+  test('4.4 un connect() qui échoue et un end() qui lève ne bloquent ni ne fuient', async () => {
+    class Client { on() {} async connect() { throw new Error(`échec ${SECRET.hote}`); } end() { throw new Error('boum'); } }
+    await assert.rejects(creerConnecteurPostgres({ lireSecret: async () => JSON.stringify(SECRET), clientPg: { Client, types: typesPg } })(), (e) => e instanceof ErreurPostgres && !e.message.includes(SECRET.hote));
   });
 });
 

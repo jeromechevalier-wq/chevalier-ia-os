@@ -5,7 +5,6 @@
 // Le filtre « qui voit quelle tuile » est appliqué par le service, côté serveur. Le journal Cloud ne reçoit ni adresse, ni nom de vue, ni ligne de données, ni valeur du secret.
 import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from '../veille/appel.js';
-import { exigerCompteAutorise } from '../devis-appel.js';
 import { estAdministrateur } from '../../partage/administrateur.js';
 import { ErreurPilotage } from './reglages.js';
 
@@ -27,7 +26,12 @@ function exigerAdministrateur(requete, estAdmin) {
 export function creerAppelPilotageLire({ service, comptes = COMPTES_AUTORISES, estAdmin = estAdministrateur, journal = () => {}, maintenant = Date.now }) {
   return async function appel(requete) {
     const debut = maintenant();
-    const jeton = exigerCompteAutorise(requete, comptes); // sans connexion : unauthenticated ; e-mail non vérifié ou compte inconnu : permission-denied
+    const jeton = requete.auth?.token;
+    if (!jeton) throw new HttpsError('unauthenticated', 'Connexion nécessaire.');
+    if (jeton.email_verified !== true || typeof jeton.email !== 'string' || !comptes.includes(jeton.email)) {
+      journal({ action: 'lire', statut: 'refus', dureeMs: maintenant() - debut }); // jamais l'adresse
+      throw new HttpsError('permission-denied', 'Ce compte n\'a pas accès au Pilotage.');
+    }
     const d = requete.data && typeof requete.data === 'object' && !Array.isArray(requete.data) ? requete.data : {};
     const demandeApercu = d.apercu !== undefined && d.apercu !== null;
     const demandeExport = d.exporter === true;

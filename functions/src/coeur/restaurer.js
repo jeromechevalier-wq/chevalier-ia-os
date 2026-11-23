@@ -38,7 +38,8 @@ const RAISONS = {
 /** Outils dont l'opération ne se défait que par un super admin (09/11/2026) : sinon la restauration contournerait la réservation de l'outil. */
 export const OUTILS_RESERVES_SUPER_ADMINS = Object.freeze(['modifier_reglages_devis']);
 
-export const COLLECTIONS_RESERVEES_SUPER_ADMINS = Object.freeze([C.devisParametres]); // seul modifier_reglages_devis écrit cette collection côté serveur
+// pilotage_parametres : le réglage des tableaux (qui voit quelle tuile) ne s'écrit que par pilotageEnregistrerReglages (Jérôme) ; son journal ne garde d'ailleurs aucune valeur, donc rien à restaurer.
+export const COLLECTIONS_RESERVEES_SUPER_ADMINS = Object.freeze([C.devisParametres, 'pilotage_parametres']); // seul modifier_reglages_devis écrit la première côté serveur
 
 /** Marge : une version absente de l'opération ne la laisse passer que si elle est antérieure de plus de 2 minutes (égalité, quasi-simultané et date illisible = refus). */
 const MARGE_CREATION_MS = 120_000;

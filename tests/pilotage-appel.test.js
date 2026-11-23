@@ -8,6 +8,7 @@ import { creerConnecteurPostgres, ErreurPostgres } from '../functions/src/pilota
 import { ADMINISTRATEURS } from '../functions/partage/administrateur.js';
 import { COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
+import { restaurerOperation, COLLECTIONS_RESERVEES_SUPER_ADMINS } from '../functions/src/coeur/restaurer.js';
 
 const JEROME = ADMINISTRATEURS[0]; // l'administrateur du dépôt (js/os/administrateur.js) : lu depuis la source, jamais recopié ici
 const BOT = COMPTES_AUTORISES.find((c) => !ADMINISTRATEURS.includes(c)); // le compte d'assistant : autorisé, mais pas administrateur
@@ -21,14 +22,15 @@ const jeton = (email, verifie = true) => ({ auth: { token: { email, email_verifi
 const code = (promesse) => promesse.then(() => null, (e) => e.code);
 
 /** Faux Postgres : enregistre chaque ouverture, chaque requête et chaque fermeture. */
-function fauxPostgres({ lignes = (sql) => [{ sql_vue: sql.length }], echoue = () => false, ouvertureEchoue = false } = {}) {
+function fauxPostgres({ lignes = (sql) => [{ sql_vue: sql.length }], echoue = () => false, delaiMs = 0 } = {}) {
   const etat = { ouvertures: 0, fermetures: 0, requetes: [] };
+  let file = Promise.resolve();
   const connecter = async () => {
     etat.ouvertures += 1;
-    if (ouvertureEchoue) throw new ErreurPostgres('connexion');
     return {
       async interroger(sql) {
         etat.requetes.push(sql);
+        if (delaiMs) { file = file.then(() => new Promise((ok) => setTimeout(ok, delaiMs))); await file; } // lecture lente, une à la fois comme sur la vraie connexion
         if (echoue(sql)) throw new ErreurPostgres('requete', '42P01');
         return lignes(sql);
       },
@@ -62,8 +64,12 @@ describe('1 accès à pilotageLire', () => {
   });
   test('1.3 compte inconnu : refusé, même pour une lecture simple', async () => {
     const m = await monter({ reglages: reglagesDe([tuile('a')]) });
-    assert.equal(await code(m.lire({ ...jeton('intrus@example.test'), data: {} })), 'permission-denied');
+    await assert.rejects(m.lire({ ...jeton('intrus@example.test'), data: {} }), (e) => e.code === 'permission-denied' && e.message === 'Ce compte n\'a pas accès au Pilotage.');
     assert.equal(m.pg.etat.requetes.length, 0);
+    const refus = m.journal.find((l) => l.statut === 'refus');
+    assert.ok(refus, 'une ligne de journal du serveur est laissée');
+    assert.ok(!/example\.test|intrus/.test(JSON.stringify(refus)), 'sans adresse');
+    assert.ok(!/example\.test|intrus/.test(ligneDeJournalPilotage(refus)));
   });
   test('1.4 le compte du bot lit les tuiles visibles de tous, mais n\'a pas apercu ni exporter ni l\'enregistrement', async () => {
     const m = await monter({ reglages: reglagesDe([tuile('a')]) });
@@ -75,10 +81,11 @@ describe('1 accès à pilotageLire', () => {
   });
   test('1.5 inconnu, e-mail non vérifié de Jérôme et visiteur : apercu, exporter et enregistrement refusés', async () => {
     const m = await monter({ reglages: reglagesDe([tuile('a')]) });
-    for (const requete of [jeton('intrus@example.test'), jeton(JEROME, false), {}]) {
-      assert.notEqual(await code(m.lire({ ...requete, data: { exporter: true } })), null);
-      assert.notEqual(await code(m.lire({ ...requete, data: { apercu: reglagesDe([tuile('a')]) } })), null);
-      assert.notEqual(await code(m.enregistrer({ ...requete, data: { reglages: reglagesDe([tuile('a')]) } })), null);
+    const attendu = [['permission-denied', jeton('intrus@example.test')], ['permission-denied', jeton(JEROME, false)], ['unauthenticated', {}]];
+    for (const [codeAttendu, requete] of attendu) {
+      assert.equal(await code(m.lire({ ...requete, data: { exporter: true } })), codeAttendu);
+      assert.equal(await code(m.lire({ ...requete, data: { apercu: reglagesDe([tuile('a')]) } })), codeAttendu);
+      assert.equal(await code(m.enregistrer({ ...requete, data: { reglages: reglagesDe([tuile('a')]) } })), codeAttendu);
     }
     assert.equal(m.pg.etat.requetes.length, 0);
     assert.equal(m.collections.pilotage_parametres[0].version, 1); // rien d'écrit
@@ -262,7 +269,7 @@ describe('5 pilotageEnregistrerReglages', () => {
     assert.equal(audit[0].collection, 'pilotage_parametres');
     assert.equal(audit[0].outil, 'pilotageEnregistrerReglages');
     assert.equal(audit[1].action, 'modifier');
-    assert.equal(m.collections.crm_audit_avant.length, 2);
+    assert.equal(m.collections.crm_audit_avant, undefined); // aucune copie « avant » : le réglage n'entre jamais dans le journal
   });
   test('5.2 réglage invalide : invalid-argument, message lisible, rien écrit ; la version ne bouge pas', async () => {
     const m = await monter({ reglages: reglagesDe([tuile('a')]) });
@@ -279,5 +286,73 @@ describe('5 pilotageEnregistrerReglages', () => {
   test('5.4 sans connexion : unauthenticated', async () => {
     const m = await monter({});
     assert.equal(await code(m.enregistrer({ data: { reglages: reglagesDe([]) } })), 'unauthenticated');
+  });
+});
+
+describe('6 journal sans valeur et restauration refusée', () => {
+  const sensible = reglagesDe([tuile('secret_vue', { visiblePour: ['confident@example.test', 'cercle'], titre: 'Titre confidentiel' })], { cercle: ['membre-prive@example.test'] });
+  test('6.1 la ligne de journal ne contient aucune valeur du réglage (adresse, groupe, vue, titre, option) et il n\'y a aucune copie « avant »', async () => {
+    const m = await monter({});
+    await m.enregistrer({ ...jeton(JEROME), data: { reglages: sensible } });
+    await m.enregistrer({ ...jeton(JEROME), data: { reglages: sensible } });
+    assert.equal(m.collections.crm_audit_avant, undefined);
+    const tout = JSON.stringify(m.collections.crm_audit);
+    for (const v of ['confident@example.test', 'membre-prive', 'cercle', 'secret_vue', 'Titre confidentiel', 'xAxis']) assert.ok(!tout.includes(v), `fuite de ${v} dans le journal`);
+    const l = m.collections.crm_audit[1];
+    assert.equal(l.versionAvant, 1);
+    assert.equal(l.versionApres, 2);
+    assert.equal(l.nombreTuiles, 1);
+    assert.ok(l.operationId);
+    assert.equal(l.outil, 'pilotageEnregistrerReglages');
+  });
+  test('6.2 restaurer_depuis_audit ne peut pas rétablir le réglage : refusé sans compte super admin, rien d\'écrit', async () => {
+    const m = await monter({});
+    await m.enregistrer({ ...jeton(JEROME), data: { reglages: sensible } });
+    const donnees = creerAccesMemoire(m.collections);
+    const operationId = m.collections.crm_audit[0].operationId;
+    const avant = JSON.stringify(m.collections.pilotage_parametres);
+    const ctx = { acteur: BOT, via: 'mcp', maintenant: new Date() };
+    await assert.rejects(restaurerOperation({ donnees, ctx, operationId, apercu: false, forcer: true }), (e) => e.code === 'restauration_refusee');
+    await assert.rejects(restaurerOperation({ donnees, ctx, operationId, apercu: true }), (e) => e.code === 'restauration_refusee');
+    assert.equal(JSON.stringify(m.collections.pilotage_parametres), avant);
+    assert.ok(COLLECTIONS_RESERVEES_SUPER_ADMINS.includes('pilotage_parametres'));
+  });
+});
+
+describe('7 exporter avec un réglage devenu invalide', () => {
+  test('7.1 le document brut est rendu avec invalide: true (au lieu d\'une erreur) ; la lecture normale reste en failed-precondition', async () => {
+    const m = await monter({ reglages: reglagesDe([tuile('a', { vue: 'pg_catalog.pg_user' })]) });
+    const r = await m.lire({ ...jeton(JEROME), data: { exporter: true } });
+    assert.equal(r.invalide, true);
+    assert.equal(r.reglages.tableau.tuiles[0].vue, 'pg_catalog.pg_user');
+    assert.equal(r.reglages.version, 1);
+    assert.equal(await code(m.lire({ ...jeton(JEROME), data: {} })), 'failed-precondition');
+  });
+  test('7.2 un réglage valide : pas de drapeau invalide', async () => {
+    const m = await monter({ reglages: reglagesDe([tuile('a')]) });
+    assert.equal('invalide' in (await m.lire({ ...jeton(JEROME), data: { exporter: true } })), false);
+  });
+});
+
+describe('8 budget de temps global', () => {
+  test('8.1 passé le budget, les tuiles restantes sont en erreur générique, la connexion est fermée et la réponse part avec ce qui est lu', async () => {
+    // faux client lent : chaque lecture dure 60 ms, budget de 100 ms pour 5 tuiles lues en série
+    const pg = fauxPostgres({ delaiMs: 60 });
+    const donnees = creerAccesMemoire({ pilotage_parametres: [{ id: 'reglages', ...reglagesDe(['a', 'b', 'c', 'd', 'e'].map((i) => tuile(i))), version: 1 }] });
+    const service = creerServicePilotage({ donnees: () => donnees, connecter: pg.connecter, budgetMs: 100, delaiFermetureMs: 50 });
+    const t0 = Date.now();
+    const r = await creerAppelPilotageLire({ service })({ ...jeton(BOT), data: {} });
+    assert.ok(Date.now() - t0 < 1000);
+    assert.equal(r.tuiles.length, 5);
+    assert.deepEqual(r.erreurs.map((e) => e.id).sort(), r.tuiles.filter((t) => t.lignes.length === 0).map((t) => t.id).sort());
+    assert.ok(r.erreurs.length >= 1 && r.erreurs.length < 5, 'certaines tuiles lues, les autres en erreur');
+    assert.ok(r.erreurs.every((e) => e.message === MESSAGE_TUILE));
+    assert.equal(pg.etat.ouvertures, 1);
+    assert.equal(pg.etat.fermetures, 1);
+  });
+  test('8.2 un budget non dépassé ne change rien', async () => {
+    const m = await monter({ reglages: reglagesDe([tuile('a'), tuile('b')]) });
+    const r = await m.lire({ ...jeton(BOT), data: {} });
+    assert.deepEqual(r.erreurs, []);
   });
 });

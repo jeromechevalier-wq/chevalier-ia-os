@@ -18,6 +18,7 @@ export const MEMBRES_MAX = 100;
 export const LIMITE_DEFAUT = 200;
 export const LIMITE_MAX = 500;
 export const PROFONDEUR_OPTION_MAX = 12;
+export const REGLAGE_MAX = 300_000; // taille du réglage entier, sérialisé
 
 /** Erreur du module : `code` = code d'erreur d'appel (invalid-argument…), `message` = phrase lisible à afficher telle quelle. */
 export class ErreurPilotage extends Error {
@@ -37,11 +38,15 @@ export const CLES_OPTION = Object.freeze([
   'stateAnimation', 'darkMode', 'useUTC', 'media', 'baseOption', 'options', 'blendMode', 'hoverLayerThreshold', 'legendHoverLink', 'transform',
 ]);
 const CLES_INTERDITES = new Set(['__proto__', 'constructor', 'prototype']);
-// Aucune requête externe, aucune image tirée d'une adresse, aucun script : refusé dans toute chaîne de l'option (clés comprises).
-const MOTIFS_INTERDITS = [/http:\/\//i, /https:\/\//i, /image:\/\//i, /javascript:/i, /data:/i];
+// Aucune requête externe, aucune image tirée d'une adresse, aucun script, aucun HTML : refusé dans toute chaîne de l'option (clés comprises).
+// Les caractères de contrôle (tabulation, retour à la ligne…) sont retirés AVANT le test : « java<tab>script: » est refusé comme « javascript: ».
+// `data:` n'est refusé qu'en début de chaîne ou après une espace ou un guillemet : « Metadata: » reste permis.
+const MOTIFS_INTERDITS = [/http:\/\//i, /https:\/\//i, /image:\/\//i, /javascript:/i, /(^|[\s"'`])data:/i, /^\s*\/\//, /</];
+const sansControle = (s) => s.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\ufeff]/g, '');
 
-function verifierChaine(s, chemin) {
-  if (MOTIFS_INTERDITS.some((m) => m.test(s))) refuser(`${chemin} : une adresse web, une image externe ou un script (« http:// », « https:// », « image:// », « javascript: », « data: ») est refusé dans une option de graphique. Retire-le.`);
+function verifierChaine(brute, chemin) {
+  const s = sansControle(brute);
+  if (MOTIFS_INTERDITS.some((m) => m.test(s))) refuser(`${chemin} : une adresse web, une image externe, un script ou du HTML (« http:// », « https:// », « image:// », « javascript: », « data: », « // » en début de texte, « < ») est refusé dans une option de graphique. Retire-le.`);
 }
 function parcourir(valeur, chemin, profondeur) {
   if (profondeur > PROFONDEUR_OPTION_MAX) refuser(`${chemin} : l'option est imbriquée sur trop de niveaux (${PROFONDEUR_OPTION_MAX} au plus). Simplifie-la.`);
@@ -83,6 +88,7 @@ function validerGroupes(brut) {
   if (noms.length > GROUPES_MAX) refuser(`Trop de groupes (${GROUPES_MAX} au plus).`);
   const groupes = {};
   for (const nom of noms) {
+    if (CLES_INTERDITES.has(nom)) refuser(`Nom de groupe « ${nom} » refusé : réservé.`);
     if (!MOTIF_GROUPE.test(nom)) refuser(`Nom de groupe « ${nom.slice(0, 40)} » refusé : lettres minuscules sans accent, chiffres, tiret et tiret bas seulement (40 au plus).`);
     const liste = brut[nom];
     if (!Array.isArray(liste)) refuser(`Le groupe « ${nom} » doit être une liste d'adresses e-mail.`);
@@ -149,7 +155,9 @@ export function validerReglages(brut) {
   if (tuilesBrutes.length > TUILES_MAX) refuser(`Trop de tuiles (${TUILES_MAX} au plus).`);
   const ids = new Set();
   const tuiles = tuilesBrutes.map((x, i) => validerTuile(x, i, ids));
-  return { groupes, tableau: { titre: texteCourt(t.titre, 120), tuiles } };
+  const valide = { groupes, tableau: { titre: texteCourt(t.titre, 120), tuiles } };
+  if (JSON.stringify(valide).length > REGLAGE_MAX) refuser(`Le réglage est trop volumineux (${REGLAGE_MAX} caractères au plus, toutes tuiles et tous groupes ensemble). Retire une tuile ou raccourcis une option.`);
+  return valide;
 }
 
 /** Vrai si l'appelant (e-mail DÉJÀ vérifié par l'appel) voit la tuile. Sans `visiblePour` : tout le monde. Liste vide ou groupe inconnu : personne. */

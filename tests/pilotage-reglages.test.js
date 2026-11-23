@@ -2,7 +2,7 @@
 // Noms fictifs partout (v_exemple, colonnes inventées, adresses @example.test).
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
-import { validerReglages, analyserOption, tuileVisible, construireSql, ErreurPilotage, OPTION_MAX, TUILES_MAX } from '../functions/src/pilotage/reglages.js';
+import { REGLAGE_MAX, validerReglages, analyserOption, tuileVisible, construireSql, ErreurPilotage, OPTION_MAX, TUILES_MAX } from '../functions/src/pilotage/reglages.js';
 
 const OPTION = JSON.stringify({ xAxis: { type: 'category' }, yAxis: { type: 'value' }, series: [{ type: 'bar', encode: { x: 'mois', y: 'total' } }] });
 const tuile = (en = {}) => ({ id: 't1', titre: 'Ventes', vue: 'v_exemple', option: OPTION, ...en });
@@ -77,6 +77,46 @@ describe('2 option ECharts', () => {
   });
   test('2.5 l\'option invalide d\'une tuile fait refuser tout le réglage, en nommant la tuile', () => {
     refus(() => validerReglages(reglage([tuile({ option: '{"title":{"text":"https://x.test"}}' })])), /Tuile « t1 »/);
+  });
+});
+
+describe('2 bis option ECharts : liste noire renforcée', () => {
+  test('2.6 une chaîne qui commence par « // » (adresse sans protocole) est refusée ; « // » au milieu d\'un texte reste permis', () => {
+    refus(() => analyserOption(JSON.stringify({ title: { text: '//cdn.example.test/x.js' } })), /refusé/);
+    refus(() => analyserOption(JSON.stringify({ title: { text: '  //cdn.example.test' } })), /refusé/);
+    assert.ok(analyserOption(JSON.stringify({ title: { text: 'ratio 3 // 4' } })));
+  });
+  test('2.7 tout « < » (HTML) est refusé, dans une valeur comme dans une clé', () => {
+    refus(() => analyserOption(JSON.stringify({ title: { text: '<b>gras</b>' } })), /refusé/);
+    refus(() => analyserOption(JSON.stringify({ title: { text: 'a < b' } })), /refusé/);
+    refus(() => analyserOption(JSON.stringify({ series: [{ '<x': 1 }] })), /refusé/);
+  });
+  test('2.8 les caractères de contrôle sont retirés avant le test : « java<tab>script: » et « ht<retour>tps:// » sont refusés', () => {
+    refus(() => analyserOption(JSON.stringify({ title: { text: 'java\tscript:alert(1)' } })), /refusé/);
+    refus(() => analyserOption(JSON.stringify({ title: { text: 'ht\ntps://exemple.test' } })), /refusé/);
+    refus(() => analyserOption(JSON.stringify({ title: { text: 'da\u0000ta:text/html,x' } })), /refusé/);
+  });
+  test('2.9 « data: » est refusé en début de chaîne ou après une espace ou un guillemet, mais pas « Metadata: »', () => {
+    refus(() => analyserOption(JSON.stringify({ title: { text: 'data:text/plain,x' } })), /refusé/);
+    refus(() => analyserOption(JSON.stringify({ title: { text: 'voir "data:x"' } })), /refusé/);
+    refus(() => analyserOption(JSON.stringify({ title: { text: 'voir data:x' } })), /refusé/);
+    assert.ok(analyserOption(JSON.stringify({ title: { text: 'Metadata: 100' } })));
+  });
+});
+
+describe('2 ter taille du réglage et noms de groupes', () => {
+  test('2.10 plafond global de 300 000 caractères pour le réglage sérialisé, message clair', () => {
+    const gros = JSON.stringify({ title: { text: 'x'.repeat(19_000) } });
+    const tuiles = Array.from({ length: 17 }, (_, i) => tuile({ id: `t${i}`, option: gros }));
+    assert.ok(JSON.stringify(tuiles).length > REGLAGE_MAX);
+    refus(() => validerReglages(reglage(tuiles)), /trop volumineux/);
+    assert.ok(validerReglages(reglage(tuiles.slice(0, 5)))); // en dessous du plafond : accepté
+  });
+  test('2.11 noms de groupes __proto__, constructor, prototype refusés (et jamais utilisés comme groupe par tuileVisible)', () => {
+    for (const nom of ['__proto__', 'constructor', 'prototype']) {
+      refus(() => validerReglages(reglage([], JSON.parse(`{"${nom}": ["a@example.test"]}`))), /réservé/);
+    }
+    assert.equal(tuileVisible({ visiblePour: ['__proto__'] }, {}, 'a@example.test'), false);
   });
 });
 
