@@ -1,5 +1,26 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 23/11/2026 (nuit) : module Pilotage (tableau de bord par client, ECharts)
+
+Nom de travail « Pilotage » (« Indicateurs » est déjà pris dans le registre). Chez Jérôme seulement pour l'instant (écart connu, `.github/A-FAIRE.md`). Aucun nom de client, aucun secret, aucun nom de compte ou de vue dans ce fichier (dépôt public).
+
+| Sujet | PR | État |
+|---|---|---|
+| Serveur : lecture et enregistrement du réglage du tableau, règle Firestore fermée (serveur seul), paquet `pg` | 669 | fusionnée le 23/11 (tests verts, deux relectures Fable : 2 bloquants trouvés et corrigés) ; fonctions déployées ; règles publiées (workflow réussi) |
+| Écran : module Pilotage, ECharts 6.1.0 figé dans `assets/vendor/echarts/`, trois états, téléphone | 670 | fusionnée le 23/11, version 2.46.0 (deux relectures Fable) ; déploiement du site relancé une fois après un 503 Google, réussi |
+| Compte de lecture seule côté base du client, et son secret dans Secret Manager | aucune PR (infrastructure) | fait et vérifié (lecture OK, écriture refusée, TLS vérifié) |
+| Premier tableau d'un client (3 tuiles sur les factures) | aucune PR (données) | chargé par script d'administration, SANS ligne de journal ; fichier source hors dépôt |
+
+**État de la nuit GitHub** : « Tests de nuit » (run 45182490866) vert sur `main` après la 670.
+
+**Non vérifié avec le vrai système** : l'écran n'a pas été ouvert avec un vrai jeton de Jérôme ; la fonction n'a jamais été appelée depuis un navigateur ; le droit du compte de service sur le secret n'a pas été essayé depuis la fonction déployée. Première preuve : Jérôme ouvre « Pilotage » (sinon lire les journaux du serveur).
+
+**Ce que Jérôme fait** : 1. ouvrir « Pilotage » et dire ce qu'il voit (une tuile sur les prix d'articles sera vide : aucun article de référence rapproché) ; 2. changer le mot de passe du compte de lecture de Metabase, affiché par erreur dans la console de la session de nuit (Claude le change et met Metabase à jour sur son « oui ») ; 3. choisir le nom du menu : « Pilotage » ou « KPI ».
+
+**Décisions prises seul** : table `pilotage_parametres` fermée aux règles (serveur seul) ; nom « Pilotage » ; exception de test pour le fichier ECharts figé, verrouillée par empreinte SHA-256 (test D2c) ; version 2.46.0 ; un texte « CA:12k » est refusé dans une option (écrire « CA: 12k ») ; une fonction absente chez un client apparaît comme une panne ordinaire avec « Réessayer ».
+
+**À faire plus tard** : version plateforme (secret par client, contrôle d'appartenance, règle `firestore.plateforme.rules` interdisant l'écriture de `pilotage_parametres`, avec le « oui » de Jérôme) ; durcir `restaurer.js` (nom de collection avec barre oblique en trop) ; blocage par personne à la source ; trésorerie ; écran d'édition du réglage si besoin.
+
 ## Rapport du matin du 22 au 23/11/2026 : classer les posts LinkedIn par l'assistant
 
 Données de Jérôme modifiées avec son accord écrit du 22/11 : un seul post a reçu son classement (pilier, format, service), par l'outil lui-même. Aucune règle Firestore, aucun déploiement chez les clients.
