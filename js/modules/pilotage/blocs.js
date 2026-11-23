@@ -1,6 +1,6 @@
 // Blocs du Tableau de bord qui ne sont pas des graphiques : grand chiffre, tableau, texte, phrases. Tout ce qui vient du serveur est posé avec du TEXTE (jamais de HTML) ;
 // un lien ne mène qu'à un onglet du tableau (adresse fabriquée par le routeur, jamais à partir d'une valeur de la base).
-import { h } from '../../os/ui.js';
+import { h, icone } from '../../os/ui.js';
 import { lien } from '../../os/router.js';
 import * as F from './formats.js';
 
@@ -58,8 +58,8 @@ export function rendreChiffre(tuile) {
   return h('div', { class: 'pilotage-chiffre' }, ...enfants);
 }
 
-/** Bloc « tableau » : tri au clic, pagination, compteur de lignes ; sur téléphone, une fiche par ligne (CSS). Les couleurs viennent des règles de chaque colonne (la première règle vraie gagne). */
-export function rendreTableau(tuile) {
+/** Bloc « tableau » : tri au clic, pagination, compteur de lignes, bouton « Exporter en CSV » (`exporter(colonnes, lignes)` : les lignes déjà lues, dans l'ordre affiché ; sans lui, pas de bouton) ; sur téléphone, une fiche par ligne (CSS). Les couleurs viennent des règles de chaque colonne (la première règle vraie gagne). */
+export function rendreTableau(tuile, { exporter = null } = {}) {
   const colonnes = tuile.colonnes.filter((c) => c && typeof c.colonne === 'string');
   let tri = null; // { colonne, sens }
   let page = 1;
@@ -106,7 +106,10 @@ export function rendreTableau(tuile) {
         h('span', { dataset: { role: 'page' }, 'aria-live': 'polite' }, `Page ${p.page} sur ${p.pages}`),
         h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'page-suivante' }, disabled: p.page >= p.pages, 'aria-label': 'Page suivante', onclick: () => { page += 1; dessiner(); } }, 'Suivante'))
       : null;
-    pied.replaceChildren(compteur, ...(pager ? [pager] : []));
+    const csv = exporter && tuile.lignes.length
+      ? h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', dataset: { action: 'exporter-csv' }, onclick: () => exporter(colonnes, lignes) }, icone('download', { taille: 14 }), 'Exporter en CSV')
+      : null;
+    pied.replaceChildren(compteur, ...(pager ? [pager] : []), ...(csv ? [csv] : []));
   }
   dessiner();
   return h('div', { class: 'pilotage-tableau' }, choixTri,

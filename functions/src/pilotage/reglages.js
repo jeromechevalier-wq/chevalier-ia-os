@@ -24,7 +24,7 @@ export const PAR_PAGE_MAX = 100;
 export const TEXTE_MAX = 2000;
 export const TYPES_TUILE = Object.freeze(['graphique', 'chiffre', 'tableau', 'texte', 'phrases']);
 export const LARGEURS = Object.freeze(['tiers', 'moitie', 'deux-tiers', 'pleine']);
-export const FORMATS = Object.freeze(['euros0', 'euros2', 'euros_abrege', 'pourcent0', 'pourcent1', 'entier', 'jours', 'date', 'date_heure', 'mois_annee']);
+export const FORMATS = Object.freeze(['euros0', 'euros2', 'euros4', 'euros_abrege', 'pourcent0', 'pourcent1', 'entier', 'jours', 'date', 'date_heure', 'mois_annee']);
 export const COULEURS = Object.freeze(['bon', 'attention', 'mauvais', 'neutre']);
 export const OPERATEURS = Object.freeze(['>=', '>', '<=', '<', '=']); // liste fermée : jamais testé par verifierChaine (« < » y est interdit)
 export const HAUSSES = Object.freeze(['bon', 'mauvais']);
