@@ -1,6 +1,7 @@
 /* Module Tableau de bord (Pilotage) : grille de 12 colonnes (tiers 4, moitié 6, deux tiers 8, pleine 12), 1 colonne sur téléphone sauf les grands chiffres (2 par ligne).
    Aucune taille de texte en dur : variables de css/tokens.css. Couleurs nommées du réglage : bon = --succes, attention = --attention, mauvais = --retard, neutre = --texte2. */
 .page-pilotage { max-width: 1200px; }
+.page-pilotage > * { flex-shrink: 0; } /* en plein écran (colonne de hauteur fixe), la barre d'onglets et la zone ne se réduisent pas à rien */
 .pilotage-zone { margin-top: var(--esp-7); }
 .pilotage-navigation:empty { display: none; }
 .pilotage-navigation { margin-top: var(--esp-5); overflow-x: auto; }
@@ -19,7 +20,7 @@
 .pilotage-l-deux-tiers { grid-column: span 8; }
 .pilotage-l-pleine { grid-column: span 12; }
 .pilotage-carte-tete { display: flex; align-items: center; gap: var(--esp-3); }
-.pilotage-carte-tete > h2 { margin: 0; font-size: var(--fs-section); overflow-wrap: anywhere; }
+.pilotage-carte-tete > h2, .pilotage-carte-tete > h3 { margin: 0; font-size: var(--fs-section); overflow-wrap: anywhere; }
 .pilotage-corps { min-height: 60px; margin-top: var(--esp-4); }
 .pilotage-graphique { height: 320px; width: 100%; }
 .pilotage-bandeau { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--esp-4) var(--esp-7); margin-bottom: var(--esp-7); padding: var(--esp-5) var(--esp-7); border: 1px solid var(--retard); border-radius: var(--rayon-carte); background: var(--retard-fond); font-size: var(--fs-texte); }

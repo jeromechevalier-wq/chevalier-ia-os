@@ -27,9 +27,10 @@ export function elementsDeTexte(texte) {
 export const rendreTexte = (tuile) => h('p', { class: 'pilotage-texte' }, ...elementsDeTexte(tuile.texte));
 
 /** Bloc « phrases » : une ligne par phrase prête de la vue (une par ligne, une par colonne déclarée). */
+export const PHRASES_MAX = 50;
 export function rendrePhrases(tuile) {
   const phrases = tuile.lignes.flatMap((l) => tuile.colonnes.map((c) => l[c])).filter((v) => !F.estVide(v)).map(String);
-  return h('div', { class: 'pilotage-phrases' }, ...phrases.map((p) => h('p', { class: 'pilotage-phrase' }, p)));
+  return h('div', { class: 'pilotage-phrases' }, ...phrases.slice(0, PHRASES_MAX).map((p) => h('p', { class: 'pilotage-phrase' }, p)), phrases.length > PHRASES_MAX ? h('p', { class: 'pilotage-phrase', dataset: { role: 'phrases-suite' } }, '…') : null);
 }
 
 /** Bloc « chiffre » : la valeur en grand, sa couleur de seuil, son libellé, la variation entre les deux dernières périodes, et un lien éventuel vers un onglet. */
@@ -51,7 +52,7 @@ export function rendreChiffre(tuile) {
       enfants.push(h('p', { class: `pilotage-chiffre-variation ${classeCouleur(vr.couleur)}`.trim(), dataset: { role: 'chiffre-variation', sens: vr.sens, couleur: vr.couleur } },
         h('span', { 'aria-hidden': 'true' }, fleche), h('span', { class: 'sr-only' }, vr.sens === 'hausse' ? 'En hausse ' : (vr.sens === 'baisse' ? 'En baisse ' : 'Stable ')),
         ` ${F.texteVariation(vr.pourcent)}`, periode ? ` par rapport à ${periode}` : '', avant ? ` (${avant})` : ''));
-    } else enfants.push(h('p', { class: 'pilotage-chiffre-variation couleur-neutre', dataset: { role: 'chiffre-variation', sens: '' } }, 'Pas de période précédente à comparer.'));
+    } else enfants.push(h('p', { class: 'pilotage-chiffre-variation couleur-neutre', dataset: { role: 'chiffre-variation', sens: '' } }, vr.precedenteNulle ? 'Variation non calculable (période précédente à 0).' : 'Pas de période précédente à comparer.'));
   }
   if (tuile.lien) enfants.push(h('a', { class: 'pilotage-lien pilotage-chiffre-lien', href: adresseOnglet(tuile.lien.onglet), dataset: { role: 'chiffre-lien' } }, 'Voir le détail'));
   return h('div', { class: 'pilotage-chiffre' }, ...enfants);
@@ -98,7 +99,7 @@ export function rendreTableau(tuile) {
       bouton.querySelector('.pilotage-tri-fleche').textContent = actif ? (tri.sens === 'asc' ? '▲' : '▼') : '';
     }
     choixTri.value = tri ? `${tri.colonne}:${tri.sens}` : '';
-    const compteur = h('span', { class: 'pilotage-compteur', dataset: { role: 'compteur' } }, `${lignes.length} ${lignes.length > 1 ? 'lignes' : 'ligne'}`);
+    const compteur = h('span', { class: 'pilotage-compteur', dataset: { role: 'compteur' } }, tuile.limite && lignes.length >= tuile.limite ? `${lignes.length} premières lignes` : `${lignes.length} ${lignes.length > 1 ? 'lignes' : 'ligne'}`); // la lecture s'arrête à la limite : on le dit
     const pager = p.pages > 1
       ? h('span', { class: 'pilotage-pager' },
         h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'page-precedente' }, disabled: p.page <= 1, 'aria-label': 'Page précédente', onclick: () => { page -= 1; dessiner(); } }, 'Précédente'),

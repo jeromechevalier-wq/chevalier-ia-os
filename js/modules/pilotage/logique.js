@@ -162,12 +162,14 @@ export const LARGEURS = Object.freeze(['tiers', 'moitie', 'deux-tiers', 'pleine'
 const LARGEUR_PAR_TYPE = Object.freeze({ graphique: 'moitie', chiffre: 'tiers', tableau: 'pleine', texte: 'pleine', phrases: 'pleine' });
 const listeObjets = (v) => (Array.isArray(v) ? v.filter(estObjet).map(copier) : []);
 const listeTextes = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []);
-const lienOnglet = (v) => (estObjet(v) && typeof v.onglet === 'string' ? { onglet: v.onglet } : undefined);
+const MOTIF_ID = /^[a-z0-9_-]{1,40}$/; // même forme d'identifiant que le serveur : rien d'autre ne sert à fabriquer une adresse
+const idSur = (v) => typeof v === 'string' && MOTIF_ID.test(v);
+const lienOnglet = (v) => (estObjet(v) && idSur(v.onglet) ? { onglet: v.onglet } : undefined);
 
 function lireOnglets(brut) {
-  return (Array.isArray(brut) ? brut : []).filter((o) => estObjet(o) && texte(o.id)).map((o) => ({
+  return (Array.isArray(brut) ? brut : []).filter((o) => estObjet(o) && idSur(o.id)).map((o) => ({
     id: texte(o.id), titre: texte(o.titre) || texte(o.id), intro: texte(o.intro), tuiles: listeTextes(o.tuiles),
-    sections: (Array.isArray(o.sections) ? o.sections : []).filter((x) => estObjet(x) && texte(x.id)).map((x) => ({ id: texte(x.id), titre: texte(x.titre), intro: texte(x.intro), tuiles: listeTextes(x.tuiles) })),
+    sections: (Array.isArray(o.sections) ? o.sections : []).filter((x) => estObjet(x) && idSur(x.id)).map((x) => ({ id: texte(x.id), titre: texte(x.titre), intro: texte(x.intro), tuiles: listeTextes(x.tuiles) })),
   }));
 }
 
@@ -187,12 +189,12 @@ export function lireReponse(r) {
       // Contrat : `lignes` = tableau d'OBJETS. Autre chose n'est pas jeté en silence : la tuile est dite « pas dessinable ».
       lignes: lignesValides ? t.lignes : [], lignesInvalides: t.lignes !== undefined && !lignesValides,
       valeur: estObjet(t.valeur) ? copier(t.valeur) : undefined, seuils: listeObjets(t.seuils), variation: estObjet(t.variation) ? copier(t.variation) : undefined,
-      colonnes: type === 'phrases' ? listeTextes(t.colonnes) : listeObjets(t.colonnes), parPage: Number.isInteger(t.parPage) && t.parPage > 0 ? t.parPage : 20,
+      colonnes: type === 'phrases' ? listeTextes(t.colonnes) : listeObjets(t.colonnes), parPage: Number.isInteger(t.parPage) && t.parPage > 0 ? t.parPage : 20, limite: Number.isInteger(t.limite) && t.limite > 0 ? t.limite : null,
       formats: estObjet(t.formats) ? copier(t.formats) : undefined, texte: texte(t.texte), lien: lienOnglet(t.lien),
     };
   });
   const erreurs = (Array.isArray(d.erreurs) ? d.erreurs : []).filter(estObjet).map((e) => ({ id: texte(e.id), message: texte(e.message) }));
-  return { titre: texte(d.titre).trim(), tuiles, erreurs, onglets: lireOnglets(d.onglets), onglet: texte(d.onglet) || null, vide: tuiles.length === 0 && erreurs.length === 0 && !(Array.isArray(d.onglets) && d.onglets.length) };
+  return { titre: texte(d.titre).trim(), tuiles, erreurs, onglets: lireOnglets(d.onglets), onglet: idSur(d.onglet) ? d.onglet : null, vide: tuiles.length === 0 && erreurs.length === 0 && !(Array.isArray(d.onglets) && d.onglets.length) };
 }
 
 /**

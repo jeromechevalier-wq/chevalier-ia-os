@@ -205,7 +205,7 @@ describe('A6 service : lecture par onglet et contrat étendu', () => {
     assert.equal(r.onglet, 'resume');
     assert.deepEqual(r.tuiles.map((t) => t.id), ['c1', 'x1']);
     assert.deepEqual(r.onglets.map((o) => o.id), ['resume', 'detail']);
-    assert.deepEqual(m.pg.etat.requetes, ['select * from "v_exemple_c1" limit 200']); // le texte ne lit rien, l'autre onglet n'est pas lu
+    assert.deepEqual(m.pg.etat.requetes, ['select * from "v_exemple_c1" limit 1']); // un grand chiffre sans variation lit 1 ligne ; le texte ne lit rien, l'autre onglet n'est pas lu
   });
   test('A6.2 « onglet » demandé : seul cet onglet est lu (tuiles directes puis sections)', async () => {
     const m = await monter(deuxOnglets());
@@ -249,7 +249,7 @@ describe('A6 service : lecture par onglet et contrat étendu', () => {
     for (const id of ['c', 't', 'p']) assert.ok(!JSON.stringify(par[id]).includes('a-ne-pas-sortir'), id);
   });
   test('A6.7 une seule requête par SQL identique dans un même appel (deux tuiles sur la même vue, même tri, même limite)', async () => {
-    const m = await monter(reglage([chiffre('a', { vue: 'v_exemple_commune' }), tableau('b', { vue: 'v_exemple_commune' }), graphique('c', { vue: 'v_exemple_commune' })], [{ id: 'o', titre: 'O', tuiles: ['a', 'b', 'c'] }]));
+    const m = await monter(reglage([graphique('a', { vue: 'v_exemple_commune' }), tableau('b', { vue: 'v_exemple_commune', limite: 200 }), graphique('c', { vue: 'v_exemple_commune' })], [{ id: 'o', titre: 'O', tuiles: ['a', 'b', 'c'] }]));
     const r = await m.lire({ ...jeton(BOT), data: {} });
     assert.equal(r.tuiles.length, 3);
     assert.equal(m.pg.etat.requetes.length, 1);
@@ -340,5 +340,51 @@ describe('A6 aucune fuite par la structure (tuiles interdites)', () => {
     assert.deepEqual(r.tuiles.map((t) => t.id).sort(), ['cache2', 'sec_a']);
     assert.deepEqual(r.onglets.map((o) => o.id), ['public', 'secret']);
     assert.equal(await code(m.lire({ ...jeton(BOT), data: { apercu: brouillon } })), 'permission-denied');
+  });
+});
+
+describe('A7 relecture Fable : tolérance, SQL du chiffre, limites, liens, colonnes', () => {
+  test('A7.1 un réglage ENREGISTRÉ avec un titre « Marge:taux » ou « < 20 % » reste lu ; strict à l\'enregistrement', async () => {
+    const reg = reglage([chiffre('a', { titre: 'Marge:taux' }), chiffre('b', { titre: '< 20 %' })], [{ id: 'o', titre: 'O', tuiles: ['a', 'b'] }]);
+    reg.tableau.titre = 'Durée (h:mm)';
+    const m = await monter(reg);
+    const r = await m.lire({ ...jeton(BOT), data: {} });
+    assert.deepEqual(r.tuiles.map((t) => t.titre), ['Marge:taux', '< 20 %']);
+    assert.equal(r.titre, 'Durée (h:mm)');
+    refus(() => validerReglages(reg));
+  });
+  test('A7.2 grand chiffre : avec variation « order by période desc limit 2 » ; sans variation « limit 1 » et respecte le tri ; au plus 2 lignes rendues', async () => {
+    const avec = chiffre('c', { variation: { colonne: 'total', periodeColonne: 'mois', hausse: 'bon' } });
+    const sans = chiffre('d', { tri: { colonne: 'total', sens: 'asc' } });
+    const m = await monter(reglage([avec, sans], [{ id: 'o', titre: 'O', tuiles: ['c', 'd'] }]), fauxPostgres((sql) => [{ total: 1, mois: 'a' }, { total: 2, mois: 'b' }, { total: 3, mois: 'c' }].slice(0, Number(/limit (\d+)$/.exec(sql)[1]))));
+    const r = await m.lire({ ...jeton(BOT), data: {} });
+    assert.ok(m.pg.etat.requetes.includes('select * from "v_exemple_c" order by "mois" desc limit 2'));
+    assert.ok(m.pg.etat.requetes.includes('select * from "v_exemple_d" order by "total" asc limit 1'));
+    for (const t of r.tuiles) assert.ok(t.lignes.length <= 2, t.id);
+  });
+  test('A7.3 tableau : 500 lignes par défaut et la limite appliquée est renvoyée', async () => {
+    const m = await monter(reglage([tableau('t'), tableau('u', { limite: 50 })], [{ id: 'o', titre: 'O', tuiles: ['t', 'u'] }]));
+    const r = await m.lire({ ...jeton(BOT), data: {} });
+    assert.ok(m.pg.etat.requetes.includes('select * from "v_exemple_t" limit 500'));
+    const par = Object.fromEntries(r.tuiles.map((t) => [t.id, t]));
+    assert.equal(par.t.limite, 500);
+    assert.equal(par.u.limite, 50);
+  });
+  test('A7.4 lien de texte : « voir [a]b](#secret) » est refusé ; un lien complet reste permis', () => {
+    refus(() => validerReglages(reglage([texte('x', 'voir [a]b](#secret)')])));
+    refus(() => validerReglages(reglage([texte('x', 'voir [a](https://x.fr)')])));
+    assert.doesNotThrow(() => validerReglages(reglage([texte('x', 'Voir [le détail](#detail).'), texte('y')], [{ id: 'detail', titre: 'D', tuiles: ['y'] }, { id: 'o', titre: 'O', tuiles: ['x'] }])));
+  });
+  test('A7.5 colonnes « __proto__ », « constructor », « prototype » refusées (colonne, tri) ; « hasOwn » filtre les colonnes', async () => {
+    for (const c of ['__proto__', 'constructor', 'prototype']) {
+      refus(() => validerReglages(reglage([tableau('t', { colonnes: [{ colonne: c, titre: 'X' }] })])));
+      refus(() => validerReglages(reglage([graphique('g', { tri: { colonne: c, sens: 'asc' } })])));
+    }
+    const m = await monter(reglage([chiffre('c')]), fauxPostgres(() => [Object.assign(Object.create({ total: 'herite' }), { mois: 'x' })]));
+    const r = await m.lire({ ...jeton(BOT), data: {} });
+    assert.ok(!('total' in r.tuiles[0].lignes[0]));
+  });
+  test('A7.6 texte multi-lignes : « Note:\\nSuite » n\'est pas refusé', () => {
+    assert.doesNotThrow(() => validerReglages(reglage([texte('x', 'Note:\nSuite')])));
   });
 });

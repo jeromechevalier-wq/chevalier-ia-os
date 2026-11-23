@@ -36,19 +36,20 @@ const DATE_SEULE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MOIS_SEUL = /^(\d{4})-(\d{2})$/;
 const SANS_FUSEAU = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/;
 const deux = (n) => String(n).padStart(2, '0');
+const jourValide = (a, m, j) => m >= 1 && m <= 12 && j >= 1 && j <= new Date(Date.UTC(a, m, 0)).getUTCDate(); // « 2026-02-31 » est refusé
 const CALENDRIER = typeof Intl !== 'undefined' ? new Intl.DateTimeFormat('fr-FR', { timeZone: FUSEAU, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) : null;
 
 /** { a, m, j, h, mi } d'une date : « AAAA-MM-JJ » et « AAAA-MM » sont lues telles quelles (aucun fuseau) ; un instant (ISO avec Z ou décalage, Date) est mis à l'heure de Paris. null si illisible. */
 export function partiesDate(v) {
   if (typeof v === 'string') {
     let m = DATE_SEULE.exec(v.trim());
-    if (m) return { a: +m[1], m: +m[2], j: +m[3], h: null, mi: null };
+    if (m) return jourValide(+m[1], +m[2], +m[3]) ? { a: +m[1], m: +m[2], j: +m[3], h: null, mi: null } : null;
     m = MOIS_SEUL.exec(v.trim());
     if (m) return { a: +m[1], m: +m[2], j: null, h: null, mi: null };
     m = SANS_FUSEAU.exec(v.trim());
-    if (m) return { a: +m[1], m: +m[2], j: +m[3], h: +m[4], mi: +m[5] };
+    if (m) return jourValide(+m[1], +m[2], +m[3]) && +m[4] < 24 && +m[5] < 60 ? { a: +m[1], m: +m[2], j: +m[3], h: +m[4], mi: +m[5] } : null;
   }
-  const d = v instanceof Date ? v : (typeof v === 'string' ? new Date(v) : null);
+  const d = v instanceof Date ? v : (typeof v === 'string' ? new Date(v) : (typeof v === 'number' && Math.abs(v) >= 1e11 ? new Date(v) : null)); // un nombre de millisecondes (instant) est une date, pas un nombre brut
   if (!d || Number.isNaN(d.getTime()) || !CALENDRIER) return null;
   const p = Object.fromEntries(CALENDRIER.formatToParts(d).map((x) => [x.type, x.value]));
   return { a: +p.year, m: +p.month, j: +p.day, h: +p.hour, mi: +p.minute };
@@ -56,6 +57,8 @@ export function partiesDate(v) {
 
 /** Texte d'une valeur selon un format nommé. Valeur vide : ''. Format absent ou inconnu : la valeur telle quelle (nombre à la française). Jamais d'exception. */
 export function formater(format, valeur) {
+  if (valeur === true) return 'oui';
+  if (valeur === false) return 'non';
   if (estVide(valeur)) return '';
   if (format === 'date' || format === 'date_heure' || format === 'mois_annee') {
     const p = partiesDate(valeur);
@@ -131,7 +134,7 @@ export function calculerVariation(lignes, { colonne, periodeColonne, hausse } = 
   const precedente = nombre(avant[colonne]);
   if (actuelle === null || precedente === null) return { ...vide, periodePrecedente: avant[periodeColonne] };
   const base = { ...vide, precedente, periodePrecedente: avant[periodeColonne] };
-  if (precedente === 0) return base;
+  if (precedente === 0) return { ...base, precedenteNulle: true }; // pas de pourcentage : l'écran dit « Variation non calculable »
   const pourcent = ((actuelle - precedente) / Math.abs(precedente)) * 100;
   const arrondi = Math.round(pourcent * 10) / 10;
   const sens = arrondi === 0 ? 'stable' : (arrondi > 0 ? 'hausse' : 'baisse');
@@ -148,17 +151,19 @@ export function ligneDuChiffre(lignes, variation) {
 }
 
 /** « +12,3 % » ou « -4,0 % » (une décimale, signe toujours écrit). */
-export const texteVariation = (pourcent) => `${pourcent > 0 ? '+' : ''}${groupes(pourcent, 1)}${ESPACE_INSECABLE}%`;
+export const texteVariation = (pourcent) => { const a = Math.round(pourcent * 10) / 10; return `${a > 0 ? '+' : ''}${groupes(a, 1)}${ESPACE_INSECABLE}%`; }; // l'arrondi affiché, sans signe à 0
 
 // ---------- Texte : balisage minimal (gras **, italique *, retour à la ligne, lien interne [libellé](#onglet)) ----------
-const JETON = /(\*\*(?!\s)[^*\n]+?(?<!\s)\*\*|\*(?!\s)[^*\n]+?(?<!\s)\*|\[[^\]\n]+\]\(#[a-z0-9_-]+\))/;
+// Même expression de lien que la validation du serveur (functions/src/pilotage/reglages.js, LIEN_TEXTE_SOURCE) : un test verrouille l'égalité. Pas de lookbehind (Safari avant 16.4).
+export const LIEN_TEXTE_SOURCE = '\\[[^\\]\\n]+\\]\\(#[a-z0-9_-]{1,40}\\)';
+const JETON = new RegExp(`(\\*\\*(?!\\s)(?:[^*\\n]*[^*\\s])\\*\\*|\\*(?!\\s)(?:[^*\\n]*[^*\\s])\\*|${LIEN_TEXTE_SOURCE})`);
 
 /** Texte -> lignes de segments { texte, gras?, italique?, onglet? }. Jamais de HTML : l'écran pose chaque segment avec textContent. */
 export function analyserTexte(texte) {
   return String(texte ?? '').split('\n').map((ligne) => ligne.split(JETON).filter((x) => x !== '').map((p) => {
     if (p.startsWith('**') && p.endsWith('**') && p.length > 4) return { texte: p.slice(2, -2), gras: true };
     if (p.startsWith('*') && p.endsWith('*') && p.length > 2) return { texte: p.slice(1, -1), italique: true };
-    const m = /^\[([^\]]+)\]\(#([a-z0-9_-]+)\)$/.exec(p);
+    const m = /^\[([^\]]+)\]\(#([a-z0-9_-]{1,40})\)$/.exec(p);
     return m ? { texte: m[1], onglet: m[2] } : { texte: p };
   }));
 }

@@ -66,17 +66,17 @@ function verifierChaine(brute, chemin, contexte = 'une option de graphique') {
   const s = sansControle(brute);
   if (MOTIFS_INTERDITS.some((m) => m.test(s))) refuser(`${chemin} : ce texte est refusé dans ${contexte} : une adresse web ou un schéma d'adresse collé à son texte (« http:// », « https:// », « ftp:// », « image:// », « javascript: », « data: », ou tout « mot:texte » sans espace après les deux-points), « // » en début de texte, « url( », le signe « < » (HTML) et le signe « \ » (barre oblique inverse) n'ont pas le droit d'y figurer. Retire-le (« Ventes: 100 », avec une espace après les deux-points, est permis).`);
 }
-function parcourir(valeur, chemin, profondeur) {
+function parcourir(valeur, chemin, profondeur, tolerant = false) {
   if (profondeur > PROFONDEUR_OPTION_MAX) refuser(`${chemin} : l'option est imbriquée sur trop de niveaux (${PROFONDEUR_OPTION_MAX} au plus). Simplifie-la.`);
   if (typeof valeur === 'string') {
     verifierChaine(valeur, chemin);
-    if (valeur.startsWith('@') && !COULEURS.includes(valeur.slice(1))) refuser(`${chemin} : « ${valeur.slice(0, 20)} » n'est pas une couleur nommée connue (@bon, @attention, @mauvais ou @neutre).`);
-  } else if (Array.isArray(valeur)) valeur.forEach((v, i) => parcourir(v, `${chemin}[${i}]`, profondeur + 1));
+    if (!tolerant && valeur.startsWith('@') && !COULEURS.includes(valeur.slice(1))) refuser(`${chemin} : « ${valeur.slice(0, 20)} » n'est pas une couleur nommée connue (@bon, @attention, @mauvais ou @neutre).`);
+  } else if (Array.isArray(valeur)) valeur.forEach((v, i) => parcourir(v, `${chemin}[${i}]`, profondeur + 1, tolerant));
   else if (valeur && typeof valeur === 'object') {
     for (const [k, v] of Object.entries(valeur)) {
       if (CLES_INTERDITES.has(k)) refuser(`${chemin} : la clé « ${k} » est refusée.`);
       verifierChaine(k, chemin);
-      parcourir(v, `${chemin}.${k}`, profondeur + 1);
+      parcourir(v, `${chemin}.${k}`, profondeur + 1, tolerant);
     }
   }
 }
@@ -85,7 +85,7 @@ function parcourir(valeur, chemin, profondeur) {
  * Parse et valide l'option ECharts d'une tuile (chaîne JSON). Rend l'objet. `etiquette` = texte qui situe l'erreur (ex. « Tuile 2 »).
  * Refuse : pas une chaîne, trop longue, JSON invalide, pas un objet, clé de haut niveau inconnue, adresse ou script dans une chaîne, imbrication trop profonde.
  */
-export function analyserOption(texte, etiquette = 'Option') {
+export function analyserOption(texte, etiquette = 'Option', { tolerant = false } = {}) {
   if (typeof texte !== 'string' || !texte.trim()) refuser(`${etiquette} : l'option du graphique est vide. Colle une option ECharts au format JSON.`);
   if (texte.length > OPTION_MAX) refuser(`${etiquette} : l'option est trop longue (${OPTION_MAX} caractères au plus).`);
   let objet;
@@ -95,7 +95,7 @@ export function analyserOption(texte, etiquette = 'Option') {
     if (CLES_INTERDITES.has(k)) refuser(`${etiquette} : la clé « ${k} » est refusée.`);
     if (!CLES_OPTION.includes(k)) refuser(`${etiquette} : la clé « ${k.slice(0, 40)} » n'est pas une option de graphique connue. Vérifie l'orthographe.`);
   }
-  parcourir(objet, etiquette, 0);
+  parcourir(objet, etiquette, 0, tolerant);
   return objet;
 }
 
@@ -136,11 +136,11 @@ function texteSur(valeur, chemin, max, { obligatoire = false } = {}) {
   if (typeof valeur !== 'string') refuser(`${chemin} : doit être un texte.`);
   const t = valeur.trim();
   if (t.length > max) refuser(`${chemin} : trop long (${max} caractères au plus).`);
-  verifierChaine(t, chemin, CONTEXTE_TEXTE);
+  for (const ligne of t.split(/\r?\n/)) verifierChaine(ligne, chemin, CONTEXTE_TEXTE); // ligne par ligne : « Note:\nSuite » n'est pas une adresse
   return t;
 }
 function colonneSure(v, chemin) {
-  if (typeof v !== 'string' || !MOTIF_COLONNE.test(v) || v.length > LONGUEUR_VUE_MAX) refuser(`${chemin} : le nom de colonne doit être en lettres minuscules sans accent, chiffres et tirets bas (il ne commence pas par un chiffre).`);
+  if (typeof v !== 'string' || !MOTIF_COLONNE.test(v) || v.length > LONGUEUR_VUE_MAX || CLES_INTERDITES.has(v)) refuser(`${chemin} : le nom de colonne doit être en lettres minuscules sans accent, chiffres et tirets bas (il ne commence pas par un chiffre).`);
   return v;
 }
 function formatSur(v, chemin, { obligatoire = false } = {}) {
@@ -244,18 +244,17 @@ function validerFormatsGraphique(brut, e, tuile) {
   if (Object.keys(formats).length) tuile.formats = formats;
 }
 
-const LIEN_TEXTE = /\]\(([^)]*)\)/g;
+// Expression PARTAGÉE (validation, service, formats.js du navigateur) : un lien complet « [libellé](#identifiant) ». Un test verrouille l'égalité des trois.
+export const LIEN_TEXTE_SOURCE = '\\[[^\\]\\n]+\\]\\(#[a-z0-9_-]{1,40}\\)';
 /** Les adresses internes d'un texte : « [libellé](#onglet) » ; toute autre cible de lien est refusée. Rend la liste des identifiants d'onglets cités. */
 export function liensDuTexte(texte, chemin = 'Texte') {
   const ids = [];
-  for (const m of String(texte).matchAll(LIEN_TEXTE)) {
-    if (!/^#[a-z0-9_-]{1,40}$/.test(m[1])) refuser(`${chemin} : seuls les liens vers un onglet sont permis, écrits [texte](#identifiant-de-l-onglet).`);
-    ids.push(m[1].slice(1));
-  }
+  const reste = String(texte).replace(new RegExp(LIEN_TEXTE_SOURCE, 'g'), (m) => { ids.push(m.slice(m.lastIndexOf('(#') + 2, -1)); return ''; });
+  if (reste.includes('](')) refuser(`${chemin} : seuls les liens vers un onglet sont permis, écrits [texte](#identifiant-de-l-onglet).`);
   return ids;
 }
 
-function validerTuile(brute, rang, ids) {
+function validerTuile(brute, rang, ids, tolerant) {
   const e = `Tuile ${rang + 1}`;
   if (!estObjet(brute)) refuser(`${e} : format invalide.`);
   const id = typeof brute.id === 'string' ? brute.id : '';
@@ -265,7 +264,7 @@ function validerTuile(brute, rang, ids) {
   const etiquette = `Tuile « ${id} »`;
   const titre = texteCourt(brute.titre, 120);
   if (!titre) refuser(`${etiquette} : le titre est obligatoire (120 caractères au plus).`);
-  verifierChaine(titre, `${etiquette} (titre)`, CONTEXTE_TEXTE);
+  if (!tolerant) verifierChaine(titre, `${etiquette} (titre)`, CONTEXTE_TEXTE); // à la relecture d'un réglage enregistré, les anciens titres (« Marge:taux ») restent permis
   const type = brute.type === undefined || brute.type === null ? 'graphique' : brute.type;
   if (!TYPES_TUILE.includes(type)) refuser(`${etiquette} : type inconnu. Types permis : ${TYPES_TUILE.join(', ')}.`);
   const tuile = { id, titre, type };
@@ -287,7 +286,7 @@ function validerTuile(brute, rang, ids) {
     if (brute.tri !== undefined && brute.tri !== null) {
       const t = brute.tri;
       if (!t || typeof t !== 'object' || Array.isArray(t)) refuser(`${etiquette} : le tri doit être { colonne, sens }.`);
-      if (typeof t.colonne !== 'string' || !MOTIF_COLONNE.test(t.colonne) || t.colonne.length > LONGUEUR_VUE_MAX) refuser(`${etiquette} : la colonne de tri doit être en lettres minuscules sans accent, chiffres et tirets bas (elle ne commence pas par un chiffre).`);
+      if (typeof t.colonne !== 'string' || !MOTIF_COLONNE.test(t.colonne) || t.colonne.length > LONGUEUR_VUE_MAX || CLES_INTERDITES.has(t.colonne)) refuser(`${etiquette} : la colonne de tri doit être en lettres minuscules sans accent, chiffres et tirets bas (elle ne commence pas par un chiffre).`);
       if (t.sens !== 'asc' && t.sens !== 'desc') refuser(`${etiquette} : le sens du tri doit être « asc » ou « desc ».`);
       tuile.tri = { colonne: t.colonne, sens: t.sens };
     }
@@ -296,7 +295,7 @@ function validerTuile(brute, rang, ids) {
       tuile.limite = brute.limite;
     }
     if (type === 'graphique') {
-      analyserOption(brute.option, etiquette); // validée ici ; stockée en chaîne
+      analyserOption(brute.option, etiquette, { tolerant }); // validée ici ; stockée en chaîne
       tuile.option = brute.option;
       validerFormatsGraphique(brute.formats, etiquette, tuile);
     } else {
@@ -388,8 +387,9 @@ function verifierLiens(tuiles, onglets) {
 /**
  * Valide un réglage COMPLET reçu (enregistrement ou aperçu) et rend la forme normalisée { groupes, tableau: { titre, tuiles, onglets? } } (sans version ni date : le serveur les pose).
  * Les clés inconnues sont ignorées. Lance `ErreurPilotage('invalid-argument', message)`.
+ * `tolerant` (relecture du document DÉJÀ enregistré) : les titres et les `@couleur` ne sont pas filtrés (un ancien réglage valide ne devient jamais « invalide ») ; strict pour l'enregistrement et l'aperçu.
  */
-export function validerReglages(brut) {
+export function validerReglages(brut, { tolerant = false } = {}) {
   if (!brut || typeof brut !== 'object' || Array.isArray(brut)) refuser('Le réglage est vide ou mal formé.');
   const groupes = validerGroupes(brut.groupes);
   const t = brut.tableau;
@@ -400,10 +400,12 @@ export function validerReglages(brut) {
   const plafond = avecOnglets ? TUILES_TOTAL_MAX : TUILES_MAX;
   if (tuilesBrutes.length > plafond) refuser(`Trop de tuiles (${plafond} au plus${avecOnglets ? `, et ${TUILES_MAX} par onglet` : ''}).`);
   const ids = new Set();
-  const tuiles = tuilesBrutes.map((x, i) => validerTuile(x, i, ids));
+  const tuiles = tuilesBrutes.map((x, i) => validerTuile(x, i, ids, tolerant));
   const onglets = validerOnglets(t.onglets, tuiles);
   verifierLiens(tuiles, onglets);
-  const tableau = { titre: texteSur(t.titre, 'Titre du tableau', 120) ?? '', tuiles };
+  const titreTableau = texteCourt(t.titre, 120); // tronqué comme avant, jamais refusé pour sa longueur
+  if (!tolerant && titreTableau) verifierChaine(titreTableau, 'Titre du tableau', CONTEXTE_TEXTE);
+  const tableau = { titre: titreTableau, tuiles };
   if (onglets) tableau.onglets = onglets;
   const valide = { groupes, tableau };
   if (JSON.stringify(valide).length > REGLAGE_MAX) refuser(`Le réglage est trop volumineux (${REGLAGE_MAX} caractères au plus, toutes tuiles et tous groupes ensemble). Retire une tuile ou raccourcis une option.`);
@@ -424,17 +426,30 @@ export function tuileVisible(tuile, groupes, email) {
 }
 
 /**
+ * Nombre de lignes lues pour une tuile : un grand chiffre n'en lit que 2 (avec variation) ou 1 ; un tableau, 500 par défaut (le plafond) ; le reste, 200 par défaut ; `limite` du réglage sinon.
+ * L'écran reçoit cette limite pour dire « 500 premières lignes » quand elle est atteinte.
+ */
+export function limiteDe(tuile) {
+  if (tuile?.type === 'chiffre') return tuile.variation ? 2 : 1;
+  if (tuile?.limite !== undefined && tuile?.limite !== null) return tuile.limite;
+  return tuile?.type === 'tableau' ? LIMITE_MAX : LIMITE_DEFAUT;
+}
+
+/**
  * Requête d'une tuile : `select * from "<vue>" [order by "<col>" asc|desc] limit <n>`. Revalide la vue, la colonne et la limite (défense en profondeur : le texte SQL ne vient que d'ici).
  * Sans tri demandé : pas de `order by` (l'ordre des lignes n'est alors pas garanti) ; le réglage doit donc porter un `tri` quand l'ordre compte (courbe dans le temps, classement…).
+ * Un grand chiffre AVEC variation : `order by "<periodeColonne>" desc limit 2` (les deux dernières périodes ; l'écran remet dans l'ordre) ; SANS variation : `limit 1` en respectant `tri`.
  */
 export function construireSql(tuile) {
   if (typeof tuile?.vue !== 'string' || !MOTIF_VUE.test(tuile.vue) || tuile.vue.length > LONGUEUR_VUE_MAX) throw new ErreurPilotage('invalid-argument', 'Vue invalide.');
-  const limite = tuile.limite === undefined || tuile.limite === null ? LIMITE_DEFAUT : tuile.limite;
+  const limite = limiteDe(tuile);
   if (!Number.isInteger(limite) || limite < 1 || limite > LIMITE_MAX) throw new ErreurPilotage('invalid-argument', 'Limite invalide.');
+  let ordre = tuile.tri;
+  if (tuile.type === 'chiffre' && tuile.variation) ordre = { colonne: tuile.variation.periodeColonne, sens: 'desc' };
   let tri = '';
-  if (tuile.tri) {
-    const { colonne, sens } = tuile.tri;
-    if (typeof colonne !== 'string' || !MOTIF_COLONNE.test(colonne) || colonne.length > LONGUEUR_VUE_MAX || (sens !== 'asc' && sens !== 'desc')) throw new ErreurPilotage('invalid-argument', 'Tri invalide.');
+  if (ordre) {
+    const { colonne, sens } = ordre;
+    if (typeof colonne !== 'string' || !MOTIF_COLONNE.test(colonne) || colonne.length > LONGUEUR_VUE_MAX || CLES_INTERDITES.has(colonne) || (sens !== 'asc' && sens !== 'desc')) throw new ErreurPilotage('invalid-argument', 'Tri invalide.');
     tri = ` order by "${colonne}" ${sens}`;
   }
   return `select * from "${tuile.vue}"${tri} limit ${limite}`;

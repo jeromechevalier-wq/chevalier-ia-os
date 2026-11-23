@@ -60,9 +60,9 @@ const TABLEAU = { id: 't_chantiers', type: 'tableau', titre: 'Chantiers en cours
 
 // Exemples de graphiques (les mêmes sont dans docs/pilotage.md). Lignes de données fictives ci-dessous.
 const EXEMPLES = {
-  pareto: { option: { dataset: { dimensions: ['fournisseur', 'achats', 'cumul'] }, grid: { right: 48 }, tooltip: { trigger: 'axis' }, legend: {}, xAxis: { type: 'category', axisLabel: { rotate: 30 } }, yAxis: [{ type: 'value' }, { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value} %' } }], series: [{ type: 'bar', name: 'Achats', encode: { x: 'fournisseur', y: 'achats' } }, { type: 'line', name: 'Cumul (%)', yAxisIndex: 1, encode: { x: 'fournisseur', y: 'cumul' }, markLine: { silent: true, symbol: 'none', data: [{ yAxis: 80 }], lineStyle: { type: 'dashed', color: '@attention' }, label: { formatter: '80 %', position: 'insideStartTop' } } }] },
+  pareto: { option: { dataset: { dimensions: ['fournisseur', 'achats', 'cumul'] }, tooltip: { trigger: 'axis' }, legend: {}, xAxis: [{ type: 'value' }, { type: 'value', min: 0, max: 100, position: 'top', axisLabel: { formatter: '{value} %' } }], yAxis: { type: 'category', inverse: true }, series: [{ type: 'bar', name: 'Achats', encode: { x: 'achats', y: 'fournisseur' } }, { type: 'line', name: 'Cumul (%)', xAxisIndex: 1, encode: { x: 'cumul', y: 'fournisseur' }, markLine: { silent: true, symbol: 'none', data: [{ xAxis: 80 }], lineStyle: { type: 'dashed', color: '@attention' }, label: { formatter: '80 %', position: 'insideEndTop' } } }] },
     lignes: [{ fournisseur: 'Fournisseur A (nom très très long pour tester)', achats: 500, cumul: 50 }, { fournisseur: 'Fournisseur B', achats: 300, cumul: 80 }, { fournisseur: 'Fournisseur C', achats: 120, cumul: 92 }, { fournisseur: 'Autres (4)', achats: 80, cumul: 100 }] },
-  puce: { option: { dataset: { dimensions: ['chantier', 'consomme'] }, tooltip: { trigger: 'axis' }, xAxis: { type: 'value', max: 120, axisLabel: { formatter: '{value} %' } }, yAxis: { type: 'category', inverse: true }, series: [{ type: 'bar', name: 'Budget consommé', barWidth: 14, encode: { x: 'consomme', y: 'chantier' }, itemStyle: { color: '@neutre' }, markLine: { silent: true, symbol: 'none', data: [{ xAxis: 100 }], lineStyle: { color: '@mauvais', width: 2, type: 'solid' }, label: { formatter: 'Objectif' } } }] },
+  puce: { option: { dataset: { dimensions: ['chantier', 'consomme'] }, tooltip: { trigger: 'axis' }, xAxis: { type: 'value', max: 120, axisLabel: { formatter: '{value} %' } }, yAxis: { type: 'category', inverse: true }, series: [{ type: 'bar', name: 'Budget consommé', barWidth: 14, encode: { x: 'consomme', y: 'chantier' }, itemStyle: { color: '@neutre' }, markLine: { silent: true, symbol: 'none', data: [{ xAxis: 100 }], lineStyle: { color: '@mauvais', width: 2, type: 'solid' }, label: { formatter: 'Objectif', position: 'start' } } }] },
     lignes: [{ chantier: 'Chantier A', consomme: 70 }, { chantier: 'Chantier B', consomme: 95 }, { chantier: 'Chantier C', consomme: 110 }] },
   empile: { option: { dataset: { dimensions: ['chantier', 'accepte', 'attente'] }, tooltip: { trigger: 'axis' }, legend: {}, xAxis: { type: 'category' }, yAxis: { type: 'value' }, series: [{ type: 'bar', name: 'Accepté', stack: 'total', encode: { x: 'chantier', y: 'accepte' }, itemStyle: { color: '@bon' } }, { type: 'bar', name: 'En attente', stack: 'total', encode: { x: 'chantier', y: 'attente' }, itemStyle: { color: '@attention' } }] },
     lignes: [{ chantier: 'Chantier A', accepte: 100, attente: 30 }, { chantier: 'Chantier B', accepte: 60, attente: 50 }, { chantier: 'Chantier C', accepte: 80, attente: 0 }] },
@@ -315,10 +315,10 @@ test('A5 habillage : légende défilante, libellé long raccourci (infobulle pou
     const e = await import('/assets/vendor/echarts/echarts.esm.min.js');
     const o = e.getInstanceByDom(document.querySelector('[data-tuile="g_pareto"] .pilotage-graphique')).getOption();
     const puce = e.getInstanceByDom(document.querySelector('[data-tuile="g_puce"] .pilotage-graphique')).getOption();
-    return { legende: o.legend?.[0]?.type, overflow: o.xAxis?.[0]?.axisLabel?.overflow, couleurObjectif: puce.series?.[0]?.markLine?.lineStyle?.color, ligne80: o.series?.[1]?.markLine?.lineStyle?.color, racine: getComputedStyle(document.documentElement).getPropertyValue('--retard').trim() };
+    return { legende: o.legend?.[0]?.type, overflow: o.yAxis?.[0]?.axisLabel?.overflow, couleurObjectif: puce.series?.[0]?.markLine?.lineStyle?.color, ligne80: o.series?.[1]?.markLine?.lineStyle?.color, racine: getComputedStyle(document.documentElement).getPropertyValue('--retard').trim() };
   });
   expect(r.legende).toBe('scroll');
-  expect(r.overflow).toBe('truncate');
+  expect(r.overflow).toBe('truncate'); // sur l'axe des catégories (vertical dans le Pareto horizontal)
   expect(r.couleurObjectif).toBe(r.racine); // « @mauvais » = --retard
   expect(r.ligne80).not.toMatch(/^@/);
 });
@@ -361,4 +361,33 @@ test('A5 thème : au changement de thème, les graphiques sont redessinés sans 
   await page.evaluate(() => { document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'clair' ? 'sombre' : 'clair'; });
   await expect.poll(() => pixelsDessines(page, 'g_courbe'), { timeout: 10_000 }).toBeGreaterThan(500);
   expect(appels.length).toBe(avant);
+});
+
+test('A11 plein écran : un clic sur « Détail » reste en plein écran, la barre d\'onglets reste visible (ordinateur ET téléphone)', async ({ page }, info) => {
+  await page.addInitScript(() => { Object.defineProperty(Element.prototype, 'requestFullscreen', { value: undefined, configurable: true }); }); // repli CSS : même chemin partout
+  await simulerServeur(page, (c) => ok(reponseOnglets(c)));
+  await ouvrir(page);
+  await page.locator('[data-action="plein-ecran"]').click();
+  const racine = page.locator('.page-pilotage');
+  await expect(racine).toHaveClass(/pilotage-plein/);
+  const barre = page.locator('nav.pilotage-onglets');
+  await expect(barre).toBeVisible();
+  expect((await barre.boundingBox()).height).toBeGreaterThan(20);
+  await barre.locator('a[data-onglet="detail"]').click();
+  await expect(page.locator('[data-tuile="t_chantiers"]')).toBeVisible();
+  await expect(page.locator('.page-pilotage')).toHaveClass(/pilotage-plein/);
+  await expect(page.locator('nav.pilotage-onglets')).toBeVisible();
+  await expect(page.locator('nav.pilotage-onglets a.onglet[aria-current="page"]')).toHaveText('Détail');
+  await capturer(page, info, 'A11-plein-ecran-onglet-detail');
+});
+
+test('A11 tableau : « N premières lignes » quand la limite est atteinte ; phrases : 50 paragraphes puis « … »', async ({ page }) => {
+  const lignes = Array.from({ length: 500 }, (_, i) => ({ nom: `Ligne ${i}`, taux: 50 }));
+  const tab = { ...TABLEAU, id: 't_gros', parPage: 10, limite: 500, lignes };
+  const phr = { ...PHRASES, id: 'p_beaucoup', lignes: Array.from({ length: 60 }, (_, i) => ({ [PHRASES.colonnes[0]]: `Phrase ${i}` })) };
+  await simulerServeur(page, () => ok({ titre: 'T', tuiles: [tab, phr], erreurs: [] }));
+  await ouvrir(page);
+  await expect(page.locator('[data-tuile="t_gros"]')).toContainText('500 premières lignes');
+  await expect(page.locator('[data-tuile="p_beaucoup"] .pilotage-phrase')).toHaveCount(51);
+  await expect(page.locator('[data-role="phrases-suite"]')).toHaveText('…');
 });

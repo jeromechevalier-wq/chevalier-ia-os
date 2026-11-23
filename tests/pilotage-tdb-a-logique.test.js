@@ -279,3 +279,28 @@ describe('A4 plein écran et A9 contrôles statiques', () => {
     assert.match(lire('js/modules/pilotage/index.js'), /segs\[1\]/);
   });
 });
+
+describe('A10 relecture Fable : formats, ids, expression partagée', () => {
+  test('A10.1 booléen oui/non ; jour invalide rendu tel quel ; instant en millisecondes mis en forme', () => {
+    assert.equal(F.formater('entier', true), 'oui');
+    assert.equal(F.formater('entier', false), 'non');
+    assert.equal(F.formater('date', '2026-02-31'), '2026-02-31');
+    assert.notEqual(F.formater('date', 1767225600000), '1767225600000');
+  });
+  test('A10.2 grand chiffre sans format : séparateur de milliers français', () => {
+    assert.equal(F.formater(undefined, 1234567), `1${N}234${N}567`);
+  });
+  test('A10.3 variation arrondie à 0 : sans signe ; période précédente à 0 : marquée', () => {
+    assert.equal(F.texteVariation(0.04), `0,0${B}%`);
+    assert.equal(F.texteVariation(2.5), `+2,5${B}%`);
+    assert.equal(F.calculerVariation([{ m: '2026-09-01', t: 0 }, { m: '2026-10-01', t: 10 }], { colonne: 't', periodeColonne: 'm' }).precedenteNulle, true);
+  });
+  test('A10.4 texte : l\'expression de lien est la MÊME que celle du serveur', async () => {
+    const S = await import('../functions/src/pilotage/reglages.js');
+    assert.equal(F.LIEN_TEXTE_SOURCE, S.LIEN_TEXTE_SOURCE);
+  });
+  test('A10.5 ids d\'onglet hors du motif : ignorés par la lecture de la réponse', () => {
+    const r = L.lireReponse({ tuiles: [], onglets: [{ id: 'ok', titre: 'A', tuiles: [] }, { id: 'MAUVAIS ID', titre: 'B', tuiles: [] }] });
+    assert.deepEqual(r.onglets.map((o) => o.id), ['ok']);
+  });
+});

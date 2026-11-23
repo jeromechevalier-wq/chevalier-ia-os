@@ -33,6 +33,8 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
   let ferme = false;
   let plein = false;
 
+  const sectionsParId = new Map(); // id de section -> élément (pour les pastilles)
+  const sortirNatif = () => { try { document.exitFullscreen()?.catch?.(() => {}); } catch (e) { console.warn(e); } };
   const liberer = () => { graphiques.forEach((g) => { try { g.instance.dispose(); } catch (e) { console.warn(e); } }); graphiques = []; };
   const redimensionner = () => graphiques.forEach((g) => { try { g.instance.resize(); } catch (e) { console.warn(e); } });
 
@@ -53,7 +55,7 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
   function sortirPleinEcran() {
     if (!plein) return;
     plein = false;
-    if (document.fullscreenElement === racine) { try { document.exitFullscreen(); } catch (e) { console.warn(e); } }
+    if (document.fullscreenElement === racine) sortirNatif();
     majPleinEcran();
   }
   // Échap en plein écran natif ne déclenche pas « keydown » : c'est `fullscreenchange` qui prévient. En repli CSS, c'est « keydown ».
@@ -79,7 +81,7 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
       nonBranche ? null : h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'reessayer' }, onclick: () => lancer() }, 'Réessayer')));
   }
 
-  function carteDe(c) {
+  function carteDe(c, titreDe = 'h2') {
     const t = c.tuile;
     const corps = h('div', { class: 'pilotage-corps' });
     let aDessiner = false;
@@ -94,7 +96,7 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     const aide = t?.aide ? iconeInfo(t.aide, c.titre) : null;
     const type = t?.type ?? 'graphique';
     const section = h('section', { class: `carte-section pilotage-carte pilotage-l-${t?.largeur ?? 'moitie'} pilotage-t-${type}`, dataset: { tuile: c.id, genre: c.genre, type } },
-      h('div', { class: 'pilotage-carte-tete' }, h('h2', {}, c.titre), aide), corps);
+      h('div', { class: 'pilotage-carte-tete' }, h(titreDe, {}, c.titre), aide), corps);
     return { section, corps, aDessiner, c };
   }
 
@@ -112,7 +114,7 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     if (sections.length < 2) return null;
     return h('nav', { class: 'pilotage-pastilles', 'aria-label': 'Aller à une section' }, ...sections.map((b) => h('button', {
       type: 'button', class: 'pilotage-pastille', dataset: { section: b.section.id },
-      onclick: () => zone.querySelector(`[data-section-bloc="${b.section.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      onclick: () => sectionsParId.get(b.section.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
     }, b.section.titre)));
   }
 
@@ -124,16 +126,19 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     const p = L.plan(r);
     barre(p);
     const aDessiner = [];
+    sectionsParId.clear();
     const blocs = p.blocs.map((b) => {
       const grille = h('div', { class: 'pilotage-grille' });
       for (const c of b.cartes) {
-        const carte = carteDe(c);
+        const carte = carteDe(c, b.section ? 'h3' : 'h2'); // sous un titre de section (h2), les titres de cartes sont des h3
         if (carte.aDessiner) aDessiner.push({ c, corps: carte.corps });
         grille.append(carte.section);
       }
       if (!b.section) return grille;
-      return h('section', { class: 'pilotage-section', dataset: { sectionBloc: b.section.id } },
+      const el = h('section', { class: 'pilotage-section', dataset: { sectionBloc: b.section.id } },
         h('h2', { class: 'pilotage-section-titre' }, b.section.titre), b.section.intro ? h('p', { class: 'aide pilotage-intro' }, b.section.intro) : null, grille);
+      sectionsParId.set(b.section.id, el);
+      return el;
     });
     const bandeau = p.blocs.some((b) => b.cartes.some((c) => c.genre === 'erreur'))
       ? h('div', { class: 'pilotage-bandeau', role: 'alert' }, h('span', {}, 'Certaines tuiles n\'ont pas pu être lues.'), h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'reessayer' }, onclick: () => lancer() }, 'Réessayer'))
@@ -201,11 +206,15 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
   }
 
   lancer();
-  return () => {
+  const liberation = () => {
     ferme = true; numero += 1; dessin += 1;
     document.removeEventListener('fullscreenchange', surChangementPleinEcran);
     document.removeEventListener('keydown', surTouche);
-    if (document.fullscreenElement === racine) { try { document.exitFullscreen(); } catch (e) { console.warn(e); } }
+    if (document.fullscreenElement === racine) sortirNatif();
     observateurTaille?.disconnect(); observateurTheme?.disconnect(); liberer();
   };
+  /** Un autre onglet (l'adresse a changé) : une nouvelle lecture de CET onglet, sans quitter l'écran (le plein écran reste). */
+  liberation.changerOnglet = (id) => { if ((id || null) === ongletDemande) return; ongletDemande = id || null; lancer(); };
+  liberation.monte = () => !ferme && racine.isConnected;
+  return liberation;
 }

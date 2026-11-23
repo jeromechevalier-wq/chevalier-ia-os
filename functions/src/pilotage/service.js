@@ -9,7 +9,7 @@
 //    à la racine `onglets` (structure FILTRÉE : ids interdits retirés, sections et onglets vides retirés) et `onglet` (l'onglet lu). `pilotageLire({ onglet })` ne lit que cet onglet ;
 //  - pour chiffre, tableau et phrases, seules les colonnes DÉCLARÉES dans le réglage sortent du serveur (filtrage après lecture) ; un texte ne lit rien en base ;
 //  - l'aperçu (brouillon de Jérôme) montre toutes les tuiles du brouillon (c'est lui qui règle les droits) et n'utilise pas le cache.
-import { analyserOption, construireSql, tuileVisible, validerReglages, ErreurPilotage, MOTIF_ID } from './reglages.js';
+import { analyserOption, construireSql, limiteDe, tuileVisible, validerReglages, ErreurPilotage, MOTIF_ID, LIEN_TEXTE_SOURCE } from './reglages.js';
 import { ErreurPostgres, avecDelai, DELAI_FERMETURE_MS } from './postgres.js';
 
 export const COLLECTION_PILOTAGE = 'pilotage_parametres';
@@ -57,7 +57,7 @@ export function colonnesDeclarees(t) {
 const filtrerColonnes = (t, lignes) => {
   const cols = colonnesDeclarees(t);
   if (!cols) return lignes;
-  return lignes.map((l) => Object.fromEntries(cols.filter((c) => c in l).map((c) => [c, l[c]])));
+  return lignes.map((l) => Object.fromEntries(cols.filter((c) => Object.hasOwn(l, c)).map((c) => [c, l[c]])));
 };
 
 /** Identifiants de toutes les tuiles placées dans un onglet (tuiles directes, puis sections). */
@@ -92,9 +92,13 @@ function enteteTuile(t, ongletsVisibles) {
   } else if (t.type === 'tableau') {
     e.colonnes = t.colonnes.map(({ lien, ...c }) => (ok(lien) ? { ...c, lien } : c));
     e.parPage = t.parPage;
+    e.limite = limiteDe(t); // l'écran dit « N premières lignes » quand le nombre de lignes atteint cette limite
   } else if (t.type === 'phrases') e.colonnes = t.colonnes;
   else if (t.type === 'graphique' && t.formats) e.formats = t.formats;
-  else if (t.type === 'texte') e.texte = t.texte.replace(/\[([^\]]*)\]\(#([a-z0-9_-]+)\)/g, (m, libelle, id) => (ongletsVisibles?.has(id) ? m : libelle));
+  else if (t.type === 'texte') {
+    // même expression que la validation : tout lien complet vers un onglet invisible redevient du texte simple
+    e.texte = t.texte.replace(new RegExp(LIEN_TEXTE_SOURCE, 'g'), (m) => (ongletsVisibles?.has(m.slice(m.lastIndexOf('(#') + 2, -1)) ? m : m.slice(1, m.indexOf(']('))));
+  }
   return e;
 }
 
@@ -107,7 +111,7 @@ export function creerServicePilotage({ donnees, connecter, maintenant = Date.now
   async function lireReglagesEnregistres({ tolerant = false } = {}) {
     const doc = await donnees().document(COLLECTION_PILOTAGE, DOCUMENT_REGLAGES);
     if (!doc) return null;
-    try { return { ...doc, ...validerReglages(doc) }; } catch { if (tolerant) return { ...doc, invalide: true }; throw new ErreurPilotage('failed-precondition', 'Le réglage enregistré est invalide : enregistre-le à nouveau depuis les réglages de Pilotage.'); }
+    try { return { ...doc, ...validerReglages(doc, { tolerant: true }) }; } catch { if (tolerant) return { ...doc, invalide: true }; throw new ErreurPilotage('failed-precondition', 'Le réglage enregistré est invalide : enregistre-le à nouveau depuis les réglages de Pilotage.'); }
   }
 
   async function lireTuiles(tuiles, { avecCache, ongletsVisibles }) {
@@ -142,7 +146,7 @@ export function creerServicePilotage({ donnees, connecter, maintenant = Date.now
       if (t.type === 'texte') return { ...enteteTuile(t, ongletsVisibles), lignes: [] }; // un texte ne lit jamais la base
       let option;
       let sql;
-      try { if (t.type === 'graphique') option = analyserOption(t.option, 'option'); sql = construireSql(t); } catch { return enErreur(t, {}); }
+      try { if (t.type === 'graphique') option = analyserOption(t.option, 'option', { tolerant: true }); sql = construireSql(t); } catch { return enErreur(t, {}); }
       try {
         const lignes = await lignesDe(sql);
         if (lignes === TEMPS) { journalErreur('budget'); return enErreur(t, option); }

@@ -47,6 +47,8 @@ export function afficher(conteneur, segs) {
     return quitter;
   }
   ajouterFeuille();
+  // Seul l'onglet change (même écran, même conteneur) : on ne remonte pas l'écran, pour rester en plein écran.
+  if (montee?.monte?.()) { montee.changerOnglet(segs[1] || null); return quitter; }
   quitter();
   vider(conteneur);
   montee = rendreEcran(conteneur, { onglet: segs[1] || null }); // #/pilotage/pilotage/<onglet> : l'onglet est dans l'adresse (le routeur ne connaît pas « ? »)
