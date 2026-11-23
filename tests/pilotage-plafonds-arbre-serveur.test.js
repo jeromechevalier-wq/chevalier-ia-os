@@ -29,6 +29,13 @@ describe('P1 repères : lignes pointillées d\'un graphique', () => {
     refus(() => validerReglages(reglage([graphique({ reperes: [] })])), /1 à 6/);
     refus(() => validerReglages(reglage([{ id: 'c', type: 'chiffre', titre: 'C', vue: 'v_exemple_c', valeur: { colonne: 'total' }, reperes: [{ valeur: 1 }] }])), /graphique/);
   });
+  test('P1.2b refus : libellé de plus de 40 caractères, valeur infinie, première série ni barres ni courbe', () => {
+    refus(() => validerReglages(reglage([graphique({ reperes: [{ valeur: 80, libelle: 'x'.repeat(41) }] })])), /trop long/);
+    refus(() => validerReglages(reglage([graphique({ reperes: [{ valeur: Infinity }] })])), /nombre/);
+    refus(() => validerReglages(reglage([graphique({ reperes: [{ valeur: 1 }], option: JSON.stringify({ series: [{ type: 'pie' }] }) })])), /première série/);
+    refus(() => validerReglages(reglage([graphique({ reperes: [{ valeur: 1 }], option: JSON.stringify({ xAxis: {} }) })])), /première série/);
+    assert.ok(validerReglages(reglage([graphique({ reperes: [{ valeur: 1 }], option: JSON.stringify({ series: [{ type: 'line' }] }) })])));
+  });
   test('P1.3 le serveur rend les repères avec la tuile', async () => {
     const donnees = creerAccesMemoire({ pilotage_parametres: [{ id: 'reglages', ...reglage([graphique({ reperes: [{ valeur: 100, libelle: 'Plafond' }] })]), version: 1, modifieLe: new Date(0) }] });
     const requetes = [];
@@ -54,6 +61,15 @@ describe('P2 arbre : à qui, puis où, puis module', () => {
     refus(() => validerReglages(reglage([arbre({ option: OPTION })])), /pas d'option/);
     refus(() => validerReglages(reglage([arbre({ valeur: { colonne: 'cout', format: 'bizarre' } })])), /format/);
     refus(() => validerReglages(reglage([arbre({ mesures: undefined })])), /mesures/);
+  });
+  test('P2.2b refus : racine avec HTML ou adresse, valeur en moyenne/min/max, limite sous 10, croisement', () => {
+    refus(() => validerReglages(reglage([arbre({ racine: '<b>Tout</b>' })])), /refusé/);
+    refus(() => validerReglages(reglage([arbre({ racine: 'https://exemple.test' })])), /refusé/);
+    for (const calcul of ['moyenne', 'min', 'max']) refus(() => validerReglages(reglage([arbre({ mesures: [{ colonne: 'cout_eur', calcul, nom: 'cout' }] })])), /somme/);
+    assert.ok(validerReglages(reglage([arbre({ mesures: [{ calcul: 'nombre', nom: 'cout' }] })])));
+    refus(() => validerReglages(reglage([arbre({ limite: 5 })])), /au moins 10/);
+    assert.ok(validerReglages(reglage([arbre({ limite: 10 })])));
+    refus(() => validerReglages(reglage([arbre({ croisement: { filtre: 'f', colonne: 'a_qui' } })])), /croisement/);
   });
   test('P2.3 la requête somme par niveau avec tri et limite de 500 ; le serveur ne rend que les niveaux et la valeur (pas les autres colonnes)', async () => {
     const donnees = creerAccesMemoire({ pilotage_parametres: [{ id: 'reglages', ...reglage([arbre()]), version: 1, modifieLe: new Date(0) }] });

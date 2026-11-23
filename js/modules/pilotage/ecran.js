@@ -11,7 +11,7 @@ import { creerBarreFiltres } from './filtres-ecran.js';
 import { exporterTableauCsv } from './export.js';
 import { creerGraphique, lireCouleursNommees } from './habillage.js';
 import { appliquerReperes } from './reperes.js';
-import { optionArbre } from './arbre.js';
+import { optionArbre, totalPartiel } from './arbre.js';
 
 const chargerEcharts = () => import('../../../assets/vendor/echarts/echarts.esm.min.js');
 const ROUTE_ECRAN = 'pilotage/pilotage';
@@ -122,9 +122,10 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     const type = t?.type ?? 'graphique';
     const filtree = (t?.filtresAppliques ?? []).some((id) => actifs.has(id)); // petit repère : au moins un filtre actif agit sur cette tuile
     const repere = filtree ? h('span', { class: 'pilotage-repere', title: 'Filtrée', dataset: { role: 'repere-filtre' } }, icone('funnel', { taille: 14 }), h('span', { class: 'sr-only' }, 'Filtrée')) : null;
+    const partiel = c.genre === 'arbre' && totalPartiel(t) ? h('p', { class: 'aide pilotage-mention', dataset: { role: 'total-partiel' } }, totalPartiel(t)) : null;
     const mention = t?.mentionNonFiltre ? h('p', { class: 'aide pilotage-mention', dataset: { role: 'mention-non-filtre' } }, t.mentionNonFiltre) : null;
     const section = h('section', { class: `carte-section pilotage-carte pilotage-l-${t?.largeur ?? 'moitie'} pilotage-t-${type}`, dataset: { tuile: c.id, genre: c.genre, type, ...(filtree ? { filtree: '1' } : {}) } },
-      h('div', { class: 'pilotage-carte-tete' }, h(titreDe, {}, c.titre), repere, aide), mention, corps);
+      h('div', { class: 'pilotage-carte-tete' }, h(titreDe, {}, c.titre), repere, aide), mention, partiel, corps);
     return { section, corps, aDessiner, c };
   }
 

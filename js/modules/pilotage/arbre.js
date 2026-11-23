@@ -55,3 +55,9 @@ export function optionArbre(tuile, { couleurs = {} } = {}) {
   });
 }
 const couleurOu = (couleurs, nom) => (typeof couleurs?.[nom] === 'string' ? couleurs[nom] : undefined);
+
+/** Phrase d'avertissement quand la lecture s'est arrêtée à la limite : le total de l'arbre est alors partiel (rien n'est tronqué en silence). Chaîne vide sinon. */
+export function totalPartiel(tuile) {
+  const n = Array.isArray(tuile?.lignes) ? tuile.lignes.length : 0;
+  return Number.isInteger(tuile?.limite) && tuile.limite > 0 && n >= tuile.limite ? `Total partiel : ${n} premières lignes.` : '';
+}

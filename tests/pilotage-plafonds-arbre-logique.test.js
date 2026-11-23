@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { appliquerReperes } from '../js/modules/pilotage/reperes.js';
-import { construireArbre, optionArbre, ENFANTS_MAX, VIDE } from '../js/modules/pilotage/arbre.js';
-import { lireReponse, cartes, optionFinale } from '../js/modules/pilotage/logique.js';
+import { construireArbre, optionArbre, totalPartiel, ENFANTS_MAX, VIDE } from '../js/modules/pilotage/arbre.js';
+import { lireReponse, cartes, optionFinale, forcerInfobulleTexte } from '../js/modules/pilotage/logique.js';
 
 const COULEURS = { bon: '#0a0', attention: '#fa0', mauvais: '#d00', neutre: '#888' };
 
@@ -42,6 +42,16 @@ describe('P1 repères : lignes pointillées', () => {
     assert.equal(d.lineStyle.color, '#d00');
     assert.equal(d.lineStyle.type, 'dashed');
     assert.deepEqual(final.dataset.source, [{ cle: 'a', part: 50 }]);
+  });
+  test('P1.4b sans max dans l\'option, l\'axe est étiré jusqu\'au plus grand repère ; un max du réglage est respecté ; un axe de catégories n\'est pas touché', () => {
+    const o = appliquerReperes(option(), [{ valeur: 80 }, { valeur: 100 }]);
+    assert.equal(o.yAxis.max({ max: 40 }), 100); // toutes les barres sous le plafond : la ligne reste visible
+    assert.equal(o.yAxis.max({ max: 130 }), 130); // une barre au-dessus : l'axe ne la coupe pas
+    assert.equal(o.xAxis.max, undefined);
+    const fixe = option(); fixe.yAxis.max = 120;
+    assert.equal(appliquerReperes(fixe, [{ valeur: 100 }]).yAxis.max, 120);
+    const couche = { xAxis: { type: 'value' }, yAxis: { type: 'category' }, series: [{ type: 'bar' }] };
+    assert.equal(appliquerReperes(couche, [{ valeur: 100, axe: 'x' }]).xAxis.max({ max: 10 }), 100);
   });
   test('P1.5 la réponse du serveur : les repères sont lus (objets seulement) ; absents = comme avant', () => {
     const r = lireReponse({ tuiles: [{ id: 'g', titre: 'G', option: {}, lignes: [{ a: 1 }], reperes: [{ valeur: 100 }, 'x'] }, { id: 'h', titre: 'H', option: {}, lignes: [{ a: 1 }] }] });
@@ -96,7 +106,16 @@ describe('P2 arbre : à qui, puis où, puis module', () => {
     assert.equal(s.data[0].children[0].name, 'client-a');
     assert.equal(s.lineStyle.color, '#888');
     assert.equal(s.label.formatter({ data: s.data[0].children[0] }), `client-a · ${s.data[0].children[0].texteValeur}`);
-    assert.equal(o.tooltip.formatter({ data: { name: '<b>x</b>', texteValeur: '1' } }), '<b>x</b> : 1'); // texte brut : renderMode richText, jamais interprété comme HTML
+    assert.equal(o.tooltip.renderMode, 'richText'); // texte brut, jamais interprété comme HTML
+    assert.equal(o.tooltip.formatter({ data: { name: '<b>x</b>', texteValeur: '1' } }), '<b>x</b> : 1'); // le nom reste du texte
+    assert.equal(forcerInfobulleTexte(o).tooltip.renderMode, 'richText');
+  });
+  test('P2.4b total partiel : la phrase apparaît quand le nombre de lignes atteint la limite, jamais avant', () => {
+    const lignes = (n) => Array.from({ length: n }, (_, i) => ({ a: `x${i}`, v: 1 }));
+    assert.equal(totalPartiel({ limite: 500, lignes: lignes(500) }), 'Total partiel : 500 premières lignes.');
+    assert.equal(totalPartiel({ limite: 500, lignes: lignes(499) }), '');
+    assert.equal(totalPartiel({ lignes: lignes(500) }), '');
+    assert.equal(totalPartiel(null), '');
   });
   test('P2.5 racine par défaut « Total » ; arbre vide = une racine à 0', () => {
     const o = optionArbre({ valeur: { colonne: 'c' }, niveaux: ['a'], lignes: [] });

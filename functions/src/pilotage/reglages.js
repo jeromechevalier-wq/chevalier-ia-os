@@ -25,6 +25,7 @@ export const TEXTE_MAX = 2000;
 export const TYPES_TUILE = Object.freeze(['graphique', 'chiffre', 'tableau', 'texte', 'phrases', 'arbre']);
 export const REPERES_MAX = 6; // lignes pointillées d'un graphique
 export const NIVEAUX_ARBRE_MIN = 2;
+export const LIMITE_ARBRE_MIN = 10;
 export const NIVEAUX_ARBRE_MAX = 4;
 export const LARGEURS = Object.freeze(['tiers', 'moitie', 'deux-tiers', 'pleine']);
 export const FORMATS = Object.freeze(['euros0', 'euros2', 'euros4', 'euros_abrege', 'pourcent0', 'pourcent1', 'entier', 'jours', 'date', 'date_heure', 'mois_annee']);
@@ -273,8 +274,10 @@ function validerFormatsGraphique(brut, e, tuile) {
 }
 
 /** Repères d'un graphique : lignes pointillées horizontales ou verticales à une valeur donnée (plafond, seuils d'alerte). `[{ valeur, axe?: "x"|"y", libelle?, couleur? }]`. */
-function validerReperes(brut, e, tuile) {
+function validerReperes(brut, e, tuile, option) {
   if (brut === undefined || brut === null) return;
+  const premiere = Array.isArray(option?.series) ? option.series[0] : option?.series;
+  if (!estObjet(premiere) || (premiere.type !== 'bar' && premiere.type !== 'line')) refuser(`${e} : « reperes » demande que la première série de l'option soit des barres (« bar ») ou une courbe (« line »).`);
   if (!Array.isArray(brut) || brut.length < 1 || brut.length > REPERES_MAX) refuser(`${e} : « reperes » doit être une liste de 1 à ${REPERES_MAX} lignes.`);
   tuile.reperes = brut.map((x, i) => {
     const c = `${e} (repère ${i + 1})`;
@@ -351,15 +354,18 @@ function validerTuile(brute, rang, ids, tolerant, filtresDeclares = new Map()) {
       tuile.limite = brute.limite;
     }
     if (type === 'graphique') {
-      analyserOption(brute.option, etiquette, { tolerant }); // validée ici ; stockée en chaîne
+      const optionAnalysee = analyserOption(brute.option, etiquette, { tolerant }); // validée ici ; stockée en chaîne
       tuile.option = brute.option;
       validerFormatsGraphique(brute.formats, etiquette, tuile);
-      validerReperes(brute.reperes, etiquette, tuile);
+      validerReperes(brute.reperes, etiquette, tuile, optionAnalysee);
     } else {
       if (brute.option !== undefined && brute.option !== null) refuser(`${etiquette} : ce type de tuile n'a pas d'option de graphique : retire « option ».`);
       if (brute.reperes !== undefined && brute.reperes !== null) refuser(`${etiquette} : « reperes » ne vaut que pour un graphique.`);
       if (type === 'chiffre') validerChiffre(brute, etiquette, tuile);
-      else if (type === 'arbre') validerArbre(brute, etiquette, tuile);
+      else if (type === 'arbre') {
+        if (brute.croisement !== undefined && brute.croisement !== null) refuser(`${etiquette} : un arbre n'écrit aucun filtre : retire « croisement ».`);
+        validerArbre(brute, etiquette, tuile);
+      }
       else if (type === 'tableau') validerTableau(brute, etiquette, tuile);
       else validerPhrases(brute, etiquette, tuile);
     }
@@ -515,6 +521,9 @@ function validerAgregation(brute, e, tuile) {
     dans(tuile.valeur.colonne, 'la colonne de la valeur');
     if (!tuile.mesures.some((m) => m.nom === tuile.valeur.colonne)) refuser(`${e} : la colonne de la valeur d'un arbre doit être le nom d'une mesure.`);
     dans(tuile.tri.colonne, 'la colonne du tri');
+    const mesureValeur = tuile.mesures.find((m) => m.nom === tuile.valeur.colonne);
+    if (mesureValeur.calcul !== 'somme' && mesureValeur.calcul !== 'nombre') refuser(`${e} : la valeur d'un arbre doit être une « somme » ou un « nombre » (une moyenne, un minimum ou un maximum additionnés donneraient un total faux).`);
+    if (tuile.limite !== undefined && tuile.limite < LIMITE_ARBRE_MIN) refuser(`${e} : la limite d'un arbre doit être d'au moins ${LIMITE_ARBRE_MIN} lignes.`);
   } else if (tuile.type === 'tableau') for (const col of tuile.colonnes) dans(col.colonne, 'la colonne');
   else if (tuile.type === 'phrases') for (const col of tuile.colonnes) dans(col, 'la colonne');
 }

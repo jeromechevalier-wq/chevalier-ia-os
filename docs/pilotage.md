@@ -208,13 +208,13 @@ L'écran lit le contrat de la partie B1 (ci-dessus) et ne change rien au serveur
 - **Format `euros4`** : quatre décimales (`0,0009 €`), pour les coûts minuscules (un appel d'IA) ; ajouté à la liste fermée des formats, côté écran (`formats.js`) et côté serveur (`reglages.js`).
 - **Pas de nom réel dans le dépôt** : tous les exemples sont fictifs (`v_exemple_…`, « Nord / Sud / Est »).
 
-## Plafond mensuel (ligne pointillée) et arbre des coûts (24/11/2026, version 2.50.0)
+## Plafond mensuel (ligne pointillée) et arbre des coûts (23/11/2026)
 
 Deux ajouts au réglage, **absents chez les clients** (comme tout Pilotage). Exemples fictifs ; les vues réelles (plafonds de clés, coûts par étiquette) sont décrites dans le dépôt de la base, pas ici.
 
 ### Repères : lignes pointillées sur un graphique (`reperes`)
 
-Champ facultatif d'une tuile **graphique** : `reperes: [{ valeur, axe?, libelle?, couleur? }]` (1 à 6). `valeur` = nombre ; `axe: "y"` (défaut) = ligne **horizontale** à cette valeur de l'axe vertical, `axe: "x"` = ligne verticale (barres couchées) ; `libelle` = texte affiché au bout de la ligne (40 caractères, mêmes interdits que les autres textes) ; `couleur` = `bon`, `attention`, `mauvais` ou `neutre` (défaut). L'écran ajoute les lignes à la **première série** (`js/modules/pilotage/reperes.js`, `appliquerReperes`) : toujours pointillées, silencieuses (pas d'infobulle), et celles que l'option contient déjà sont conservées. Le serveur valide et rend `reperes` avec la tuile.
+Champ facultatif d'une tuile **graphique** : `reperes: [{ valeur, axe?, libelle?, couleur? }]` (1 à 6). `valeur` = nombre ; `axe: "y"` (défaut) = ligne **horizontale** à cette valeur de l'axe vertical, `axe: "x"` = ligne verticale (barres couchées) ; `libelle` = texte affiché au bout de la ligne (40 caractères, mêmes interdits que les autres textes) ; `couleur` = `bon`, `attention`, `mauvais` ou `neutre` (défaut). L'écran ajoute les lignes à la **première série** (`js/modules/pilotage/reperes.js`, `appliquerReperes`) : toujours pointillées, silencieuses (pas d'infobulle), et celles que l'option contient déjà sont conservées. Sans `max` dans l'option, l'axe est étiré jusqu'au plus grand repère. Le serveur valide, exige que la première série soit `bar` ou `line`, et rend `reperes` avec la tuile.
 
 Exemple « dépense du mois contre plafond mensuel », une barre par clé (la vue donne la part du plafond en %, déjà rangée en trois colonnes de couleur : normal, à surveiller dès 80 %, atteint dès 100 %), avec les seuils à 80 % et 90 % et le plafond à 100 % :
 
@@ -228,7 +228,7 @@ Pourquoi des pourcentages : chaque clé a son propre plafond ; en pourcentage, u
 
 ### Tuile « arbre » : à qui, puis où, puis module
 
-Type `arbre` (nouveau, largeur par défaut `pleine`) : `vue`, `grouper` (**2 à 4 colonnes = les niveaux, dans l'ordre**), `mesures` (au moins la somme de coût), `valeur: { colonne, format? }` (le nom d'une mesure), `tri` (obligatoire), `racine?` (nom du nœud de départ, « Total » par défaut), `limite?` (500 par défaut et au plus). Pas d'`option` : l'écran fabrique le graphique (`js/modules/pilotage/arbre.js`).
+Type `arbre` (nouveau, largeur par défaut `pleine`) : `vue`, `grouper` (**2 à 4 colonnes = les niveaux, dans l'ordre**), `mesures` (au moins la somme de coût), `valeur: { colonne, format? }` (le nom d'une mesure), `tri` (obligatoire), `racine?` (nom du nœud de départ, « Total » par défaut), `limite?` (10 à 500, 500 par défaut). La valeur doit être une `somme` ou un `nombre` ; pas de `croisement`. Si la lecture atteint la limite, l'écran écrit « Total partiel : N premières lignes. ». Pas d'`option` : l'écran fabrique le graphique (`js/modules/pilotage/arbre.js`).
 
 - Le serveur lit `select <niveaux>, sum(...) from <vue> group by <niveaux> order by <tri> limit 500` et ne rend que les niveaux et la valeur.
 - L'écran bâtit la hiérarchie (somme de chaque nœud, plus chers d'abord, 30 enfants au plus par nœud puis « Autres (n) » qui garde la somme), puis dessine une série ECharts `tree` : **seul le premier niveau est ouvert**, un clic sur un nom ouvre ses enfants (« à qui » -> « où » -> « module »). **Pas de vue inverse** (décision de Jérôme). Étiquettes et infobulles en texte brut (« nom · 1 234,00 € »), jamais de HTML.

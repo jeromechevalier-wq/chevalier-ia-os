@@ -20,6 +20,14 @@ export function appliquerReperes(option, reperes) {
   });
   const avant = premiere.markLine && typeof premiere.markLine === 'object' ? premiere.markLine : {};
   premiere.markLine = { ...avant, silent: true, symbol: 'none', animation: false, data: [...(Array.isArray(avant.data) ? avant.data : []), ...donnees] };
+  // Sans `max` fixé par le réglage, l'axe est étiré jusqu'au plus grand repère : la ligne de plafond ne disparaît pas quand toutes les barres sont plus basses.
+  for (const cle of ['xAxis', 'yAxis']) {
+    const haut = Math.max(...liste.filter((r) => (r.axe === 'x' ? 'xAxis' : 'yAxis') === cle).map((r) => r.valeur));
+    if (!Number.isFinite(haut)) continue;
+    const axes = Array.isArray(sortie[cle]) ? sortie[cle] : (sortie[cle] && typeof sortie[cle] === 'object' ? [sortie[cle]] : []);
+    const axe = axes.find((a) => a && typeof a === 'object' && a.type !== 'category' && a.type !== 'time' && a.type !== 'log');
+    if (axe && axe.max === undefined) axe.max = (v) => Math.max(v.max, haut);
+  }
   sortie.series = series; // un objet seul devient une liste à une série
   return sortie;
 }
