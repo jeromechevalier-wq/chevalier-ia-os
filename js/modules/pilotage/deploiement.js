@@ -5,6 +5,6 @@ import { DOCS } from '../../os/deploiement.js';
 const geler = (liste) => Object.freeze(liste.map((e) => Object.freeze(e)));
 
 export const ETAPES_DEPLOIEMENT_PILOTAGE = geler([
-  { id: 'pilotage-plateforme', groupe: 'avant', module: 'pilotage', type: 'manuel', libelle: 'Pilotage : absent chez les clients',
-    reparation: 'Absent chez les clients : version plateforme du Pilotage à faire (secret par client, contrôle d’appartenance, règle plateforme). Tant que ce n’est pas fait, n’active pas ce module chez un client.', lien: `${DOCS}pilotage.md` },
+  { id: 'pilotage-plateforme', groupe: 'avant', module: 'pilotage', type: 'manuel', libelle: 'Tableau de bord : absent chez les clients',
+    reparation: 'Absent chez les clients : version plateforme du tableau de bord à faire (secret par client, contrôle d’appartenance, règle plateforme). Tant que ce n’est pas fait, n’active pas ce module chez un client.', lien: `${DOCS}pilotage.md` },
 ]);

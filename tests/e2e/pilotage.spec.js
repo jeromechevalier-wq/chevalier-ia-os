@@ -68,7 +68,7 @@ test('P1 un graphique de barres est dessiné avec des données fictives, sous le
   await expect(page.locator('h1')).toHaveText('Mes chiffres');
   await expect(page.locator('[data-tuile="v_exemple_a"] h2')).toHaveText('Ventes par mois');
   await expect.poll(() => pixelsDessines(page, 'v_exemple_a'), { timeout: 10_000 }).toBeGreaterThan(500);
-  await expect(page.locator('.menu .menu-entree[aria-current="page"], .menu .menu-entree.actif').first()).toContainText('Pilotage');
+  await expect(page.locator('.menu .menu-entree[aria-current="page"], .menu .menu-entree.actif').first()).toContainText('Tableau de bord');
   expect(appels).toEqual([{}]); // un seul appel au serveur par affichage
   await capturer(page, info, 'P1-barres');
 });
@@ -93,7 +93,7 @@ test('P3 cas vide : aucun réglage, « Aucun tableau n\'est encore réglé pour 
   await simulerServeur(page, () => ok({ titre: '', tuiles: [], erreurs: [] }));
   await ouvrir(page);
   await expect(page.locator('[data-etat="vide"]')).toHaveText('Aucun tableau n\'est encore réglé pour cet espace.');
-  await expect(page.locator('h1')).toHaveText('Pilotage');
+  await expect(page.locator('h1')).toHaveText('Tableau de bord');
   await expect(page.locator('canvas')).toHaveCount(0);
   await capturer(page, info, 'P3-vide');
 });
@@ -139,13 +139,13 @@ test('P7 l\'Accueil ne télécharge pas ECharts ; l\'ouverture de l\'écran Pilo
   await connecter(page); // arrive sur l'Accueil
   await attendreCalme(page);
   expect(vus).toEqual([]);
-  await allerA(page, 'Pilotage');
+  await allerA(page, 'Tableau de bord');
   await expect.poll(() => pixelsDessines(page, 'v_exemple_a'), { timeout: 10_000 }).toBeGreaterThan(500);
   expect(vus).toHaveLength(1);
   expect(vus[0]).toMatch(/\/assets\/vendor\/echarts\/echarts\.esm\.min\.js$/);
   await allerA(page, 'Accueil');
   await attendreCalme(page);
-  await allerA(page, 'Pilotage'); // on revient sur l'écran : le fichier est déjà en mémoire, pas de nouveau téléchargement
+  await allerA(page, 'Tableau de bord'); // on revient sur l'écran : le fichier est déjà en mémoire, pas de nouveau téléchargement
   await expect.poll(() => pixelsDessines(page, 'v_exemple_a'), { timeout: 10_000 }).toBeGreaterThan(500);
   await attendreCalme(page);
   expect(vus).toHaveLength(1);
@@ -158,7 +158,7 @@ test('P8 « Exporter mes données » (Réglages > Pilotage) télécharge le rég
     : ok(REPONSE)));
   await connecter(page);
   await allerA(page, 'Réglages');
-  await ouvrirSectionReglages(page, 'Pilotage');
+  await ouvrirSectionReglages(page, 'Tableau de bord');
   const bouton = page.locator('#reglages-export-pilotage [data-action="exporter-pilotage"]');
   await expect(bouton).toHaveText('Exporter mes données');
   await expect(page.locator('#reglages-export-pilotage')).toContainText('se modifie par Claude');
@@ -226,7 +226,7 @@ test('P5b le serveur répond lui-même `not-found` : « pas encore branché », 
   await simulerServeur(page, () => erreurServeur(404, 'NOT_FOUND', 'NOT_FOUND'));
   await ouvrir(page);
   const zone = page.locator('[data-etat="non-branche"]');
-  await expect(zone).toHaveText('Le Pilotage n\'est pas encore branché sur cet espace.');
+  await expect(zone).toHaveText('Le tableau de bord n\'est pas encore branché sur cet espace.');
   await expect(zone.locator('[data-action="reessayer"]')).toHaveCount(0);
 });
 

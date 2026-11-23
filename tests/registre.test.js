@@ -236,8 +236,8 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
       { chemin: 'automatisations/a-valider', libelle: 'À valider', icone: 'inbox' }, // file des propositions des workflows (nuit du 22/10/2026) : après l'Historique
     ] },
     // Ajout voulu (23/11/2026) : le module Pilotage (graphiques ECharts, un seul écran), juste avant Maintenance.
-    { id: 'pilotage', libelle: 'Pilotage', icone: 'chart-column', prefixe: 'pilotage', entrees: [
-      { chemin: 'pilotage/pilotage', libelle: 'Pilotage', icone: 'chart-column' },
+    { id: 'pilotage', libelle: 'Tableau de bord', icone: 'chart-column', prefixe: 'pilotage', entrees: [
+      { chemin: 'pilotage/pilotage', libelle: 'Tableau de bord', icone: 'chart-column' },
     ] },
     // Ajout voulu (17/10/2026) : le module Tableau de bord (écrans en lecture seule) est chez Jérôme dès le départ ; ses onglets Finance et Stocks ne sont pas dans le menu.
     { id: 'tableaudebord', libelle: 'Maintenance', icone: 'layout-dashboard', prefixe: 'tableaudebord', entrees: [
@@ -403,7 +403,7 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
     assert.deepEqual(horsMenu('automatisations'), ['automatisations/a-valider']);
     assert.deepEqual(horsMenu('tableaudebord'), [], 'Maintenance : un seul écran, plus aucune route déclarée hors menu (technique, finance, stocks, historique sont servies par le module)');
     // Menu complet : une entrée par module, dans l'ordre.
-    assert.deepEqual(blocs.flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Devis', 'Veille', 'Réseaux sociaux', 'Rendez-vous', 'Automatisations', 'Pilotage', 'Maintenance']);
+    assert.deepEqual(blocs.flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Devis', 'Veille', 'Réseaux sociaux', 'Rendez-vous', 'Automatisations', 'Tableau de bord', 'Maintenance']);
     // Chez un client sans le module : pas d'entrée.
     assert.deepEqual(blocsDuMenu(['affaires', 'projets', 'veille']).flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille']);
     // La route d'arrivée de l'entrée est un écran du module, et le préfixe est celui du module.

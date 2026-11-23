@@ -98,14 +98,14 @@ describe('réponse du serveur', () => {
     const r = L.lireReponse({ titre: 'Chiffres', tuiles: [{ id: 'a', titre: 'A', lignes: LIGNES }, { id: 'b', titre: 'B', lignes: [] }, { id: 'c', titre: 'C', lignes: LIGNES }], erreurs: [{ id: 'c', message: 'x' }, { id: 'd', message: 'y' }] });
     assert.deepEqual(L.cartes(r).map((c) => [c.id, c.titre, c.genre]), [['a', 'A', 'graphique'], ['b', 'B', 'vide'], ['c', 'C', 'erreur'], ['d', 'd', 'erreur']]);
     assert.equal(L.titreDePage(r), 'Chiffres');
-    assert.equal(L.titreDePage({ titre: '' }), 'Pilotage');
+    assert.equal(L.titreDePage({ titre: '' }), 'Tableau de bord');
   });
 });
 
 describe('messages d\'erreur d\'appel', () => {
   test('fonction absente (seulement not-found et unimplemented, avec ou sans préfixe) : « pas encore branché »', () => {
     for (const e of [{ code: 'functions/not-found', message: 'NOT_FOUND' }, { code: 'not-found' }, { code: 'unimplemented', message: 'x' }, { code: 'functions/unimplemented' }]) {
-      assert.deepEqual(L.classerErreurAppel(e), { nonBranche: true, message: 'Le Pilotage n\'est pas encore branché sur cet espace.' }, JSON.stringify(e));
+      assert.deepEqual(L.classerErreurAppel(e), { nonBranche: true, message: 'Le tableau de bord n\'est pas encore branché sur cet espace.' }, JSON.stringify(e));
     }
   });
   test('une vraie panne n\'est JAMAIS dite « pas encore branché » : le vrai INTERNAL du SDK, unavailable, deadline-exceeded, réseau', () => {
@@ -197,7 +197,7 @@ describe('Réglages > Déploiement', () => {
 describe('contrôles statiques du module', () => {
   test('le registre déclare Pilotage : un écran, autonome, sans outil MCP, icône connue', () => {
     const m = MODULES_DECLARES.find((x) => x.id === 'pilotage');
-    assert.equal(m.libelleMenu, 'Pilotage');
+    assert.equal(m.libelleMenu, 'Tableau de bord');
     assert.equal(m.entreeMenu, 'pilotage/pilotage');
     assert.equal(m.ecrans.length, 1);
     assert.deepEqual(m.dependances, []);
