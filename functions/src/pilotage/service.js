@@ -54,7 +54,7 @@ export function colonnesDeclarees(t) {
   if (t.type === 'phrases') return t.colonnes;
   return null;
 }
-const filtrerColonnes = (t, lignes) => {
+export const filtrerColonnes = (t, lignes) => {
   const cols = colonnesDeclarees(t);
   if (!cols) return lignes;
   return lignes.map((l) => Object.fromEntries(cols.filter((c) => Object.hasOwn(l, c)).map((c) => [c, l[c]])));

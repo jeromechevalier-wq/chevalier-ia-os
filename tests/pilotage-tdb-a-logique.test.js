@@ -285,7 +285,13 @@ describe('A10 relecture Fable : formats, ids, expression partagée', () => {
     assert.equal(F.formater('entier', true), 'oui');
     assert.equal(F.formater('entier', false), 'non');
     assert.equal(F.formater('date', '2026-02-31'), '2026-02-31');
-    assert.notEqual(F.formater('date', 1767225600000), '1767225600000');
+    assert.equal(F.formater('date', 1767225600000), '01/01/2026');
+  });
+  test('A10.6 grand chiffre avec variation : la ligne sans période (un total) n\'est jamais celle affichée', () => {
+    const v = { colonne: 't', periodeColonne: 'm' };
+    const lignes = [{ m: null, t: 999 }, { m: '2026-10', t: 10 }];
+    assert.equal(F.ligneDuChiffre(lignes, v).t, 10);
+    assert.equal(F.calculerVariation(lignes, v).actuelle, 10);
   });
   test('A10.2 grand chiffre sans format : séparateur de milliers français', () => {
     assert.equal(F.formater(undefined, 1234567), `1${N}234${N}567`);

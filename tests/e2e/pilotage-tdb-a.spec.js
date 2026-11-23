@@ -379,6 +379,9 @@ test('A11 plein écran : un clic sur « Détail » reste en plein écran, la bar
   await expect(page.locator('nav.pilotage-onglets')).toBeVisible();
   await expect(page.locator('nav.pilotage-onglets a.onglet[aria-current="page"]')).toHaveText('Détail');
   await capturer(page, info, 'A11-plein-ecran-onglet-detail');
+  await page.goBack(); // retour au premier onglet : toujours en plein écran, onglet actif à jour
+  await expect(page.locator('nav.pilotage-onglets a.onglet[aria-current="page"]')).toHaveText('Résumé');
+  await expect(page.locator('.page-pilotage')).toHaveClass(/pilotage-plein/);
 });
 
 test('A11 tableau : « N premières lignes » quand la limite est atteinte ; phrases : 50 paragraphes puis « … »', async ({ page }) => {

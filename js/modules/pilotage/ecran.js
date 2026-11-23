@@ -214,7 +214,13 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     observateurTaille?.disconnect(); observateurTheme?.disconnect(); liberer();
   };
   /** Un autre onglet (l'adresse a changé) : une nouvelle lecture de CET onglet, sans quitter l'écran (le plein écran reste). */
-  liberation.changerOnglet = (id) => { if ((id || null) === ongletDemande) return; ongletDemande = id || null; lancer(); };
+  liberation.changerOnglet = (id) => {
+    const voulu = id || null;
+    if (voulu === ongletDemande || (voulu && voulu === reponse?.onglet)) return; // déjà affiché (y compris l'onglet par défaut) : pas d'appel inutile
+    ongletDemande = voulu;
+    racine.scrollTop = 0; conteneur.scrollTop = 0; // un autre onglet commence en haut
+    lancer();
+  };
   liberation.monte = () => !ferme && racine.isConnected;
   return liberation;
 }

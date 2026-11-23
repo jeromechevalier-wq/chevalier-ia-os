@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { validerReglages, ErreurPilotage, TUILES_MAX, TUILES_TOTAL_MAX, REGLAGE_MAX } from '../functions/src/pilotage/reglages.js';
-import { creerServicePilotage } from '../functions/src/pilotage/service.js';
+import { creerServicePilotage, filtrerColonnes } from '../functions/src/pilotage/service.js';
 import { creerAppelPilotageLire } from '../functions/src/pilotage/appel.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { ADMINISTRATEURS } from '../functions/partage/administrateur.js';
@@ -358,7 +358,7 @@ describe('A7 relecture Fable : tolérance, SQL du chiffre, limites, liens, colon
     const sans = chiffre('d', { tri: { colonne: 'total', sens: 'asc' } });
     const m = await monter(reglage([avec, sans], [{ id: 'o', titre: 'O', tuiles: ['c', 'd'] }]), fauxPostgres((sql) => [{ total: 1, mois: 'a' }, { total: 2, mois: 'b' }, { total: 3, mois: 'c' }].slice(0, Number(/limit (\d+)$/.exec(sql)[1]))));
     const r = await m.lire({ ...jeton(BOT), data: {} });
-    assert.ok(m.pg.etat.requetes.includes('select * from "v_exemple_c" order by "mois" desc limit 2'));
+    assert.ok(m.pg.etat.requetes.includes('select * from "v_exemple_c" order by "mois" desc nulls last limit 2'));
     assert.ok(m.pg.etat.requetes.includes('select * from "v_exemple_d" order by "total" asc limit 1'));
     for (const t of r.tuiles) assert.ok(t.lignes.length <= 2, t.id);
   });
@@ -380,9 +380,8 @@ describe('A7 relecture Fable : tolérance, SQL du chiffre, limites, liens, colon
       refus(() => validerReglages(reglage([tableau('t', { colonnes: [{ colonne: c, titre: 'X' }] })])));
       refus(() => validerReglages(reglage([graphique('g', { tri: { colonne: c, sens: 'asc' } })])));
     }
-    const m = await monter(reglage([chiffre('c')]), fauxPostgres(() => [Object.assign(Object.create({ total: 'herite' }), { mois: 'x' })]));
-    const r = await m.lire({ ...jeton(BOT), data: {} });
-    assert.ok(!('total' in r.tuiles[0].lignes[0]));
+    const sortie = filtrerColonnes(chiffre('c'), [Object.assign(Object.create({ total: 'herite' }), { mois: 'x' })]);
+    assert.ok(!('total' in sortie[0]));
   });
   test('A7.6 texte multi-lignes : « Note:\\nSuite » n\'est pas refusé', () => {
     assert.doesNotThrow(() => validerReglages(reglage([texte('x', 'Note:\nSuite')])));

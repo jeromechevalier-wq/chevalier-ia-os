@@ -244,7 +244,7 @@ function validerFormatsGraphique(brut, e, tuile) {
   if (Object.keys(formats).length) tuile.formats = formats;
 }
 
-// Expression PARTAGÉE (validation, service, formats.js du navigateur) : un lien complet « [libellé](#identifiant) ». Un test verrouille l'égalité des trois.
+// Expression PARTAGÉE (validation, service, formats.js du navigateur) : un lien complet « [libellé](#identifiant) ». Un test verrouille l'égalité des deux constantes (ici et dans formats.js).
 export const LIEN_TEXTE_SOURCE = '\\[[^\\]\\n]+\\]\\(#[a-z0-9_-]{1,40}\\)';
 /** Les adresses internes d'un texte : « [libellé](#onglet) » ; toute autre cible de lien est refusée. Rend la liste des identifiants d'onglets cités. */
 export function liensDuTexte(texte, chemin = 'Texte') {
@@ -286,7 +286,7 @@ function validerTuile(brute, rang, ids, tolerant) {
     if (brute.tri !== undefined && brute.tri !== null) {
       const t = brute.tri;
       if (!t || typeof t !== 'object' || Array.isArray(t)) refuser(`${etiquette} : le tri doit être { colonne, sens }.`);
-      if (typeof t.colonne !== 'string' || !MOTIF_COLONNE.test(t.colonne) || t.colonne.length > LONGUEUR_VUE_MAX || CLES_INTERDITES.has(t.colonne)) refuser(`${etiquette} : la colonne de tri doit être en lettres minuscules sans accent, chiffres et tirets bas (elle ne commence pas par un chiffre).`);
+      if (typeof t.colonne !== 'string' || !MOTIF_COLONNE.test(t.colonne) || t.colonne.length > LONGUEUR_VUE_MAX || (!tolerant && CLES_INTERDITES.has(t.colonne))) refuser(`${etiquette} : la colonne de tri doit être en lettres minuscules sans accent, chiffres et tirets bas (elle ne commence pas par un chiffre).`);
       if (t.sens !== 'asc' && t.sens !== 'desc') refuser(`${etiquette} : le sens du tri doit être « asc » ou « desc ».`);
       tuile.tri = { colonne: t.colonne, sens: t.sens };
     }
@@ -450,7 +450,7 @@ export function construireSql(tuile) {
   if (ordre) {
     const { colonne, sens } = ordre;
     if (typeof colonne !== 'string' || !MOTIF_COLONNE.test(colonne) || colonne.length > LONGUEUR_VUE_MAX || CLES_INTERDITES.has(colonne) || (sens !== 'asc' && sens !== 'desc')) throw new ErreurPilotage('invalid-argument', 'Tri invalide.');
-    tri = ` order by "${colonne}" ${sens}`;
+    tri = ` order by "${colonne}" ${sens}${tuile.type === 'chiffre' && tuile.variation ? ' nulls last' : ''}`; // une ligne sans période (un total) ne passe jamais devant les vraies périodes
   }
   return `select * from "${tuile.vue}"${tri} limit ${limite}`;
 }

@@ -154,7 +154,7 @@ export function ligneDuChiffre(lignes, variation) {
 export const texteVariation = (pourcent) => { const a = Math.round(pourcent * 10) / 10; return `${a > 0 ? '+' : ''}${groupes(a, 1)}${ESPACE_INSECABLE}%`; }; // l'arrondi affiché, sans signe à 0
 
 // ---------- Texte : balisage minimal (gras **, italique *, retour à la ligne, lien interne [libellé](#onglet)) ----------
-// Même expression de lien que la validation du serveur (functions/src/pilotage/reglages.js, LIEN_TEXTE_SOURCE) : un test verrouille l'égalité. Pas de lookbehind (Safari avant 16.4).
+// Même expression de lien que la validation du serveur (functions/src/pilotage/reglages.js, LIEN_TEXTE_SOURCE) : un test verrouille l'égalité des deux constantes. Pas de lookbehind (Safari avant 16.4).
 export const LIEN_TEXTE_SOURCE = '\\[[^\\]\\n]+\\]\\(#[a-z0-9_-]{1,40}\\)';
 const JETON = new RegExp(`(\\*\\*(?!\\s)(?:[^*\\n]*[^*\\s])\\*\\*|\\*(?!\\s)(?:[^*\\n]*[^*\\s])\\*|${LIEN_TEXTE_SOURCE})`);
 
