@@ -257,7 +257,7 @@ export const MODULES_DECLARES = geler([
   {
     // Pilotage (23/11/2026) : des graphiques (Apache ECharts) alimentés par une base de données, décrits par un réglage que Claude modifie à la demande de Jérôme.
     // UN SEUL écran. Le navigateur ne lit ni n'écrit la table `pilotage_parametres` (serveur seulement) : tout passe par la fonction `pilotageLire`, qui n'existe pas encore
-    // chez les clients : l'écran y affiche l'erreur normale avec « Réessayer » ; la mention « pas encore branché » n'apparaît que si le serveur répond `not-found`. Module autonome, sans outil MCP. « Indicateurs » est déjà pris : le libellé est « Pilotage ».
+    // chez les clients : l'écran y affiche l'erreur normale avec « Réessayer » ; la mention « pas encore branché » n'apparaît que si le serveur répond `not-found`. Module autonome ; deux outils MCP de lecture seule pour Jérôme (lister_tableau_de_bord, lire_tableau_de_bord). « Indicateurs » est déjà pris : le libellé est « Pilotage ».
     id: 'pilotage',
     nom: 'Tableau de bord',
     libelleMenu: 'Tableau de bord',
@@ -269,7 +269,8 @@ export const MODULES_DECLARES = geler([
       { route: 'pilotage/pilotage', libelle: 'Tableau de bord', icone: 'chart-column' },
     ],
     collections: ['pilotage_parametres'],
-    outilsMcp: [],
+    // Deux outils de LECTURE SEULE (23/11/2026), réservés au super admin par son identité (comme modifier_reglages_devis) : même code chez Jérôme et chez les clients, mais jamais visibles ni exécutables par un client ; chez un client le serveur répond « pas branché ».
+    outilsMcp: ['lister_tableau_de_bord', 'lire_tableau_de_bord'],
     dependances: [],
   },
   {

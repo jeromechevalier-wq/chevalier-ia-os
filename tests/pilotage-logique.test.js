@@ -195,13 +195,13 @@ describe('Réglages > Déploiement', () => {
 });
 
 describe('contrôles statiques du module', () => {
-  test('le registre déclare Pilotage : un écran, autonome, sans outil MCP, icône connue', () => {
+  test('le registre déclare Pilotage : un écran, autonome, deux outils MCP de lecture (réservés au super admin), icône connue', () => {
     const m = MODULES_DECLARES.find((x) => x.id === 'pilotage');
     assert.equal(m.libelleMenu, 'Tableau de bord');
     assert.equal(m.entreeMenu, 'pilotage/pilotage');
     assert.equal(m.ecrans.length, 1);
     assert.deepEqual(m.dependances, []);
-    assert.deepEqual(m.outilsMcp, []);
+    assert.deepEqual(m.outilsMcp, ['lister_tableau_de_bord', 'lire_tableau_de_bord']); // lecture seule, réservés aux super admins (23/11/2026)
     assert.ok(!m.socle);
     assert.match(lire('js/os/ui.js'), /"chart-column":/);
   });

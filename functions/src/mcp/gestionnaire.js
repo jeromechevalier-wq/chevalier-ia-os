@@ -1,5 +1,6 @@
 // Point d'entrée HTTP du serveur MCP : origine, méthode, jeton, puis protocole MCP « Streamable HTTP » sans session
 // (chaque appel est indépendant). Ne dépend d'aucun service Google : le magasin de jetons est injecté (testable).
+import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { extraireBearer, trouverJeton } from '../securite/jetons.js';
@@ -67,6 +68,7 @@ function messageEcriture(e) {
  * vérifie que index.js en fournit un).
  * `oauth` (oauth/routeur.js) : seconde porte, la connexion Google de claude.ai et du téléphone ; sans lui, seuls les jetons « cia_… » entrent.
  * `stockage` : le stockage des fichiers déposés (stockage.js, ou fonction qui le rend) ; sans lui, les outils de dépôt répondent « stockage introuvable ».
+ * `pilotage` : l'assistant du Tableau de bord (pilotage/assistant.js, ou fonction qui le rend, car il est défini après le serveur dans index.js) pour les outils lister_tableau_de_bord et lire_tableau_de_bord ; sans lui (espaces clients), ils répondent « pas branché ». Lecture seule, super admin seulement.
  * `sortieEmail` : la sortie vers n8n (coeur/n8n-sortie.js, ou fonction qui la rend) pour préparer un BROUILLON d'e-mail ; sans elle, l'outil répond « pas branché ». Rien n'envoie jamais l'e-mail.
  */
 /**
@@ -79,7 +81,7 @@ export function erreurLisible(e) {
   return e.name === 'Error' && e.code === undefined && e.errno === undefined && e.syscall === undefined;
 }
 
-export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = null, stockage = null, sortieEmail = null, baseLien = BASE_LIEN_JEROME, lienDepot = false, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
+export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = null, stockage = null, sortieEmail = null, pilotage = null, baseLien = BASE_LIEN_JEROME, lienDepot = false, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
   const noterDemarrage = creerSuiviDemarrage();
   return async function gestionnaire(req, res) {
     const debut = maintenant();
@@ -114,7 +116,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
     Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil }, descriptionAppel(req.body, outils));
     infos.dureeAuthMs = maintenant() - debut;
 
-    return servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, stockage, sortieEmail, baseLien, lienDepot });
+    return servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, stockage, sortieEmail, pilotage, baseLien, lienDepot });
   };
 }
 
@@ -130,7 +132,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
  */
 export const estSuperAdmin = ({ jeton }) => estSuperAdminEmail(jeton?.email);
 
-export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM, stockage = null, sortieEmail = null, baseLien = BASE_LIEN_JEROME, lienDepot = false }) {
+export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM, stockage = null, sortieEmail = null, pilotage = null, baseLien = BASE_LIEN_JEROME, lienDepot = false }) {
   const limites = limitesDuJeton(jeton);
   // Mesure : lectures de base faites par CETTE requête (hors authentification et plafonds). Aucune erreur de mesure ne casse l'appel.
   const compteur = { lectures: 0 };
@@ -182,7 +184,7 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
   for (const outil of permis) {
     // Ce que le profil VOIT (description, schéma annoncé et validé) : la variante allégée pour assistant-devis, l'outil lui-même pour tous les autres. L'exécution reste celle de l'outil d'origine.
     const annonce = varianteDuProfil(outil, jeton.profil);
-    serveur.registerTool(outil.nom, { description: annonce.description, annotations: annotationsDe(outil), ...(outil.meta ? { _meta: outil.meta } : {}), ...(annonce.schema ? { inputSchema: annonce.schema } : {}) }, async (argsRecus) => {
+    serveur.registerTool(outil.nom, { description: annonce.description, annotations: annotationsDe(outil), ...(outil.meta ? { _meta: outil.meta } : {}), ...(annonce.schema ? { inputSchema: annonce.stricte ? z.strictObject(annonce.schema) : annonce.schema } : {}) }, async (argsRecus) => {
       // Variante à schéma souple : tout champ non annoncé est retiré avant l'exécution (comme le faisait le schéma d'origine).
       const args = annonce.champsAcceptes ? Object.fromEntries(Object.entries(argsRecus ?? {}).filter(([c]) => annonce.champsAcceptes.includes(c))) : argsRecus;
       const contexte = {
@@ -196,6 +198,8 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
         espace: donnees.base ? `${donnees.base}/` : '',
         // « Préparer le brouillon d'e-mail » (n8n, coeur/n8n-sortie.js) : fonction qui rend la sortie, ou null si elle n'est pas branchée. `espaceN8n` : 'interne' chez Jérôme, l'identifiant du client sinon (un workflow et des secrets par client).
         sortieEmail: () => (typeof sortieEmail === 'function' ? sortieEmail() : sortieEmail) ?? null,
+        // Tableau de bord (Pilotage) : l'assistant qui lit le service de l'écran, ou null là où il n'est pas branché (les espaces clients). Réservé aux super admins par les outils eux-mêmes.
+        pilotage: () => (typeof pilotage === 'function' ? pilotage() : pilotage) ?? null,
         baseLien, // adresse de l'application (liens rendus à l'assistant : jamais de secret, jamais de lien signé)
         espaceN8n: donnees.base ? donnees.base.split('/')[1] : ESPACE_JEROME,
         noterOperation: (operationId) => { if (operationId) infos.operationId = operationId; },

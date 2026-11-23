@@ -46,6 +46,7 @@ import { VERSION_SERVEUR } from './version.js';
 import { creerAppelConsole, ligneDeJournalConsole } from './console/appel.js';
 import { creerAppelPilotageLire, creerAppelPilotageEnregistrer, ligneDeJournalPilotage } from './pilotage/appel.js';
 import { creerServicePilotage } from './pilotage/service.js';
+import { creerAssistantPilotage } from './pilotage/assistant.js';
 import { creerConnecteurPostgres } from './pilotage/postgres.js';
 
 const magasin = creerMagasin({ lire: lireSecretJetons() });
@@ -64,10 +65,10 @@ export const mcp = onRequest(
     timeoutSeconds: 120,
     invoker: 'public',
     cors: false,
-    // Compte dédié : « Utilisateur Cloud Datastore » (Firestore), « Accesseur de secrets » sur MCP_JETONS et sur les deux secrets du brouillon d'e-mail (N8N_DEVIS_EMAIL_*), « Créateur d'objets Storage » (dépôt de texte) ; « Lecteur des objets Storage » et « Créateur de jetons du compte de service » sur lui-même sont À DONNER pour le lien signé du PDF officiel (docs/securite-et-pannes.md, section 12), sans quoi l'outil rend seulement le lien du devis.
+    // Compte dédié : « Utilisateur Cloud Datastore » (Firestore), « Accesseur de secrets » sur MCP_JETONS et sur les deux secrets du brouillon d'e-mail (N8N_DEVIS_EMAIL_*), « Créateur d'objets Storage » (dépôt de texte) ; « Lecteur des objets Storage » et « Créateur de jetons du compte de service » sur lui-même sont À DONNER pour le lien signé du PDF officiel (docs/securite-et-pannes.md, section 12), sans quoi l'outil rend seulement le lien du devis. Tableau de bord (outils lister_tableau_de_bord et lire_tableau_de_bord, lecture seule, super admin seulement) : « Accesseur de secrets » sur SUPABASE_INDICATEURS est À DONNER à ce compte par Jérôme (docs/securite-et-pannes.md), sans quoi toutes les tuiles répondent « n'a pas pu être lue ».
     serviceAccount: 'mcp-serveur@chevalier-ia-os.iam.gserviceaccount.com',
   },
-  creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet, sortieEmail: sortieN8nDevis, lienDepot: true }),
+  creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet, sortieEmail: sortieN8nDevis, pilotage: () => assistantPilotage, lienDepot: true }), // `assistantPilotage` est défini plus bas (Pilotage) : fonction paresseuse, sinon ReferenceError au démarrage
 );
 
 export const porte = onRequest(
@@ -207,6 +208,8 @@ const servicePilotage = creerServicePilotage({
   connecter: creerConnecteurPostgres({ lireSecret: creerLecteurSecrets() }),
   journalErreur: (type, etat) => journalPilotage({ action: 'lecture', statut: 'erreur', type, etat }),
 });
+// Les outils MCP du Tableau de bord (lecture seule, super admin) lisent ce MÊME service ; `mcp` a son propre cache de 60 s (par processus) : un écart de 60 s au plus avec l'écran est normal.
+const assistantPilotage = creerAssistantPilotage({ service: servicePilotage });
 const OPTIONS_PILOTAGE = { ...OPTIONS_DEVIS, maxInstances: 2 };
 export const pilotageLire = onCall(OPTIONS_PILOTAGE, (requete) => {
   if (!getApps().length) initializeApp();

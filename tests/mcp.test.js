@@ -18,6 +18,8 @@ const LISTE_AGENT = ['qui_suis_je', 'chercher', 'lire_personne', 'lire_organisat
 // Liste blanche EXACTE du profil assistant-devis (09/11/2026), écrite à la main : les 21 outils d'agent-devis + modifier les lignes, annuler la dernière modification, nouvelle version. 24 outils.
 const LISTE_ASSISTANT = [...LISTE_AGENT, 'modifier_lignes_devis', 'annuler_derniere_modification_devis', 'nouvelle_version_devis'];
 
+// Outils réservés au super admin (identité Google vérifiée) : un jeton statique ne les voit jamais, même en profil complet.
+const RESERVES_SUPER_ADMIN = ['modifier_reglages_devis', 'lister_tableau_de_bord', 'lire_tableau_de_bord'];
 const nomsPour = (profil) => outilsAutorises(profil).map((o) => o.nom).sort();
 
 const JETON = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, agent: `cia_${'A'.repeat(43)}`, assistant: `cia_${'S'.repeat(43)}`, code: `cia_${'C'.repeat(43)}`, revoque: `cia_${'R'.repeat(43)}` };
@@ -116,7 +118,7 @@ describe('Protocole MCP et droits par profil', () => {
     await biblio.close();
     const code = await client(JETON.code);
     // Un jeton statique n'a pas d'e-mail vérifié : modifier_reglages_devis (réservé à Jérôme, par son identité) n'est jamais listé, même en profil complet.
-    assert.deepEqual((await code.listTools()).tools.map((t) => t.name).sort(), [...nomsPour('complet').filter((n) => n !== 'modifier_reglages_devis'), 'outil_reserve'].sort());
+    assert.deepEqual((await code.listTools()).tools.map((t) => t.name).sort(), [...nomsPour('complet').filter((n) => !RESERVES_SUPER_ADMIN.includes(n)), 'outil_reserve'].sort());
     assert.equal(JSON.parse((await code.callTool({ name: 'outil_reserve', arguments: {} })).content[0].text).ok, true);
     await code.close();
   });
@@ -293,8 +295,8 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
       const recus = (await c.listTools()).tools.map((t) => t.name).filter((n) => n !== OUTIL_RESERVE.nom).sort();
       await c.close();
       // Jeton statique : jamais d'e-mail vérifié, donc jamais modifier_reglages_devis (réservé aux super admins (identité vérifiée)), même en profil complet.
-      assert.deepEqual(recus, liste.filter((n) => n !== 'modifier_reglages_devis'));
-      assert.deepEqual(nomsPour(profil === 'biblio' ? 'ecriture' : profil === 'code' ? 'complet' : profil === 'agent' ? 'agent-devis' : profil === 'assistant' ? 'assistant-devis' : 'lecture').filter((n) => n !== 'modifier_reglages_devis'), liste.filter((n) => n !== 'modifier_reglages_devis'));
+      assert.deepEqual(recus, liste.filter((n) => !RESERVES_SUPER_ADMIN.includes(n)));
+      assert.deepEqual(nomsPour(profil === 'biblio' ? 'ecriture' : profil === 'code' ? 'complet' : profil === 'agent' ? 'agent-devis' : profil === 'assistant' ? 'assistant-devis' : 'lecture').filter((n) => !RESERVES_SUPER_ADMIN.includes(n)), liste.filter((n) => !RESERVES_SUPER_ADMIN.includes(n)));
     });
   }
 });
