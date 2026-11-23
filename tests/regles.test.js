@@ -209,6 +209,31 @@ describe('C4 Console : règles de console_filet', () => {
   });
 });
 
+// Module Pilotage (étape 1) : `pilotage_parametres` (réglage des tableaux) est lue et écrite par le SERVEUR seulement ; aucun compte de navigateur n'y touche, pas même Jérôme.
+describe('P1 Pilotage : règles de pilotage_parametres', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'pilotage_parametres', 'reglages'), { version: 1 }); });
+  });
+  test('P1 les deux comptes autorisés ne lisent ni n\'écrivent pilotage_parametres', async () => {
+    for (const email of COMPTES) {
+      const db = contexte(email);
+      await assertFails(getDoc(doc(db, 'pilotage_parametres', 'reglages')));
+      await assertFails(getDocs(collection(db, 'pilotage_parametres')));
+      await assertFails(setDoc(doc(db, 'pilotage_parametres', 'reglages'), { version: 2 }));
+      await assertFails(setDoc(doc(db, 'pilotage_parametres', 'autre'), { version: 2 }));
+      await assertFails(updateDoc(doc(db, 'pilotage_parametres', 'reglages'), { version: 3 }));
+      await assertFails(deleteDoc(doc(db, 'pilotage_parametres', 'reglages')));
+      await assertFails(setDoc(doc(db, 'pilotage_parametres', 'reglages', 'sous', 'x'), { v: 1 }));
+    }
+  });
+  test('P1 un autre compte, un compte non vérifié et un visiteur : rien non plus', async () => {
+    for (const db of [contexte('intrus@exemple.test'), contexte(COMPTES[0], false), env.unauthenticatedContext().firestore()]) {
+      await assertFails(getDoc(doc(db, 'pilotage_parametres', 'reglages')));
+      await assertFails(setDoc(doc(db, 'pilotage_parametres', 'nouveau'), { v: 1 }));
+    }
+  });
+});
+
 // Module Rendez-vous (15/11/2026) : les SMS (rdv_messages) et les désinscrits (rdv_parametres/desinscrits) sont écrits par le SERVEUR seulement ; les réglages restent écrits par l'écran.
 describe('C3 Rendez-vous : règles chez Jérôme', () => {
   beforeEach(async () => {

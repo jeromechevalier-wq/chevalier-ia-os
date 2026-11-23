@@ -572,10 +572,16 @@ service cloud.firestore {
       allow read, write: if compteJeromeSeul();
     }
 
+    // Module Pilotage (étape 1, serveur) : le réglage des tableaux (document `reglages`) est lu et écrit par le SERVEUR seulement (fonctions pilotageLire et pilotageEnregistrerReglages, firebase-admin ignore les règles).
+    // Aucun navigateur n'y touche : la liste « qui voit quelle tuile » est appliquée par le serveur. Exclue du joker ci-dessous.
+    match /pilotage_parametres/{id} {
+      allow read, write: if false;
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['console_filet', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures']);
+        && !(collection in ['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures']);
     }
   }
 }
