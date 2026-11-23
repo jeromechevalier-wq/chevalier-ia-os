@@ -2,7 +2,7 @@
 // La connexion (hôte, port, base, utilisateur, mot de passe, certificat racine `ca`) vit dans Secret Manager (JSON), lue À L'EXÉCUTION : un secret absent ne fait jamais échouer un déploiement.
 // Garde-fous :
 //  - TLS vérifié (`rejectUnauthorized: true` avec le certificat `ca` du secret) ; jamais de repli sans vérification ;
-//  - compte en lecture seule qui ne voit que des vues `v_*` (réglé côté base) ; pooler en mode transaction : requêtes simples, jamais de requête préparée nommée ;
+//  - compte en lecture seule qui ne voit que des vues `v_*` (réglé côté base) ; pooler en mode transaction : requêtes simples, ou paramétrées ANONYMES (`$1…` + tableau de valeurs, seulement quand des filtres sont appliqués), jamais de requête préparée nommée ;
 //  - `statement_timeout` de 10 s, UNE connexion par appel, fermeture garantie par l'appelant (`fermer`) ;
 //  - aucune valeur du secret ni aucun message de `pg` (qui peut citer l'hôte ou l'utilisateur) ne sort d'ici : toute panne devient une `ErreurPostgres` au message fixe.
 // `clientPg` est INJECTÉ (`{ Client, types }`, ou une fonction qui le rend) : les tests n'ont pas besoin du vrai paquet.
@@ -70,7 +70,7 @@ async function chargerPg() {
 }
 
 /**
- * Rend `ouvrir()` : lit le secret, ouvre UNE connexion TLS et rend `{ interroger(sql) -> lignes, fermer() }`.
+ * Rend `ouvrir()` : lit le secret, ouvre UNE connexion TLS et rend `{ interroger(sql, valeurs?) -> lignes, fermer() }`.
  * Toute panne (secret, réseau, certificat, requête) lève une `ErreurPostgres` sans détail.
  */
 export function creerConnecteurPostgres({ lireSecret, clientPg = chargerPg, nomSecret = NOM_SECRET_PILOTAGE, delaiFermetureMs = DELAI_FERMETURE_MS, delaiConnexionMs = DELAI_CONNEXION_MS + 2_000 }) {
@@ -102,10 +102,11 @@ export function creerConnecteurPostgres({ lireSecret, clientPg = chargerPg, nomS
     let ferme = false;
     let file = Promise.resolve(); // une seule requête à la fois sur la connexion (pg 9 refusera d'en empiler) ; les appels restent lancés « en parallèle » par le service
     return {
-      interroger(sql) {
+      interroger(sql, valeurs) {
         const p = file.then(async () => {
           if (ferme) throw new ErreurPostgres('requete');
-          try { return (await client.query(sql)).rows; } catch (e) { throw new ErreurPostgres('requete', e?.code); }
+          // requête simple s'il n'y a pas de valeurs (comme avant) ; sinon requête paramétrée ANONYME (jamais d'objet { name } : pas de requête préparée nommée, pooler en mode transaction)
+          try { return (await (valeurs?.length ? client.query(sql, valeurs) : client.query(sql))).rows; } catch (e) { throw new ErreurPostgres('requete', e?.code); }
         });
         file = p.catch(() => {});
         return p;

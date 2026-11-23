@@ -1,5 +1,5 @@
 // Fonctions appelables du module Pilotage chez Jérôme (projet chevalier-ia-os) :
-//  - `pilotageLire({ apercu?, exporter?, onglet? })` : { titre, tuiles: [{ id, titre, type, largeur?, aide?, …config du type, option?, lignes }], erreurs: [{ id, message }], onglets?, onglet? } pour l'écran (voir docs/pilotage.md). Compte autorisé de la racine (Jérôme, son compte d'assistant) ;
+//  - `pilotageLire({ apercu?, exporter?, onglet?, filtres? })` : { titre, tuiles: [{ id, titre, type, largeur?, aide?, …config du type, option?, lignes }], erreurs: [{ id, message }], onglets?, onglet? } pour l'écran (voir docs/pilotage.md). Compte autorisé de la racine (Jérôme, son compte d'assistant) ;
 //                                                    `apercu` (brouillon de réglage) et `exporter` (le document enregistré) sont RÉSERVÉS à Jérôme (permission-denied sinon) ;
 //  - `pilotageEnregistrerReglages({ reglages })`   : RÉSERVÉ à Jérôme (identité contrôlée ICI, à l'exécution, par js/os/administrateur.js) ; valide, incrémente la version, écrit et journalise.
 // Le filtre « qui voit quelle tuile » est appliqué par le service, côté serveur. Le journal Cloud ne reçoit ni adresse, ni nom de vue, ni ligne de données, ni valeur du secret.
@@ -12,7 +12,7 @@ const REFUS_ADMIN = 'Cette action est réservée à l\'administrateur.';
 
 /** Erreur du module -> erreur d'appel lisible ; null si ce n'en est pas une (une panne inattendue devient une phrase neutre, sans détail). */
 export function enErreurPilotage(e) {
-  if (e instanceof ErreurPilotage || e?.name === 'ErreurPilotage') return new HttpsError(e.code, e.message, { code: e.code });
+  if (e instanceof ErreurPilotage || e?.name === 'ErreurPilotage') return new HttpsError(e.code, e.message, { code: e.code, ...(e.raison ? { raison: e.raison } : {}) }); // `raison: 'filtre'` : un filtre a été refusé (jamais sa valeur)
   return null;
 }
 
@@ -41,8 +41,8 @@ export function creerAppelPilotageLire({ service, comptes = COMPTES_AUTORISES, e
     }
     const action = demandeExport ? 'exporter' : demandeApercu ? 'apercu' : 'lire';
     try {
-      // Seuls `apercu`, `exporter` et `onglet` sont transmis ; `onglet` est un identifiant d'onglet vérifié par le service contre le réglage : un nom de vue passé librement par le navigateur n'est jamais lu.
-      const r = await service.lire({ email: jeton.email, apercu: demandeApercu ? d.apercu : undefined, exporter: demandeExport, onglet: d.onglet });
+      // Seuls `apercu`, `exporter`, `onglet` et `filtres` sont transmis ; `onglet` est un identifiant d'onglet et `filtres` des VALEURS de filtres déclarés, tous deux vérifiés par le service contre le réglage : un nom de vue ou de colonne passé librement par le navigateur n'est jamais lu.
+      const r = await service.lire({ email: jeton.email, apercu: demandeApercu ? d.apercu : undefined, exporter: demandeExport, onglet: d.onglet, filtres: d.filtres });
       journal({ action, statut: 'ok', dureeMs: maintenant() - debut, tuiles: r.tuiles?.length, erreurs: r.erreurs?.length });
       return r;
     } catch (e) {
