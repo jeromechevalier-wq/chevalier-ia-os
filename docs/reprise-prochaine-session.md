@@ -1,5 +1,28 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 23/11/2026 (fin de nuit) : module Tableau de bord, bilan complet
+
+Suite du rapport « Pilotage » ci-dessous : le module s'appelle maintenant « Tableau de bord » (libellé seulement, identifiants inchangés). Chez Jérôme seulement (ligne dans `.github/A-FAIRE.md`). Aucun nom de vue, de colonne, de client ou de compte dans ce fichier (dépôt public) ; l'état technique est dans `docs/pilotage.md`.
+
+| Sujet | PR | État |
+|---|---|---|
+| Serveur : lecture et enregistrement du réglage | 669 | fusionnée, déployée |
+| Écran : premier module, ECharts figé | 670 | fusionnée, déployée |
+| Renommage du menu en « Tableau de bord » | 672 | fusionnée |
+| Écran à onglets, grands chiffres, tableaux, formats français, plein écran (v2.47.0) | 673 | fusionnée, déployée |
+| Serveur des filtres, croisement, agrégation (v2.48.0) | 675 | fusionnée, déployée |
+| Écran des filtres, croisement, export CSV, format `euros4` (v2.49.0) | 676 | fusionnée, déployée |
+| Côté base de Jérôme (autre dépôt, privé) : vues du tableau de bord (28) et des dépenses d'IA (11, en euros, plus aucun dollar) | aucune PR | appliquées à la main |
+| Réglage Firestore chargé (version 5 : 5 onglets, 60 tuiles, 17 filtres) | aucune PR (données) | chargé par script d'administration, donc SANS ligne de journal |
+
+**Décisions prises seul** : sections au lieu de sous-onglets (`docs/consignes-ui.md`) ; tests exclus des totaux ; fuseau de Paris ; 20 tuiles au plus par onglet ; lecture par onglet ; filtres gardés en mémoire du module (aucun stockage du navigateur), effacés à la déconnexion ; jauge et anneau à centre reportés ; citation du jour et maquette de démonstration abandonnées ; appels d'IA des factures de test comptés dans les totaux mais exclus des vues par facture.
+
+**Non vérifié** : le rendu à l'écran n'a jamais été vu ; l'export CSV n'a pas été ouvert dans Excel ; aucun passage par la vraie fonction serveur avec le jeton de Jérôme ; les droits par personne ne sont testés qu'en unitaire ; les clics de croisement sur les anneaux et les points ne sont pas essayés.
+
+**Limites connues** : le tableau du coût par workflow et par étape n'a pas les colonnes « Part » et « Sans coût » ; le filtre de période sur les vues mensuelles compare au 1er du mois ; le filtre client sert peu (presque aucune facture n'a de client) ; le délai médian affiche 0 jour (valeur de la base, pas étudiée) ; les barres de budget sont plafonnées à 150 % ; les données d'IA ne couvrent qu'une seule journée.
+
+**À signaler** : 1. un mot de passe d'un compte de lecture de la base a été affiché par erreur dans la session : proposer à Jérôme d'en changer (Claude le fait sur son « oui ») ; 2. les PR 615, 608 et 597 sont en conflit (pas de cette session, non touchées) ; 3. module absent chez les clients (déjà noté dans `.github/A-FAIRE.md`) ; 4. exception de test pour la somme de contrôle du fichier ECharts figé (inchangée).
+
 ## Rapport du matin du 23/11/2026 (nuit) : module Pilotage (tableau de bord par client, ECharts)
 
 Nom de travail « Pilotage » (« Indicateurs » est déjà pris dans le registre). Chez Jérôme seulement pour l'instant (écart connu, `.github/A-FAIRE.md`). Aucun nom de client, aucun secret, aucun nom de compte ou de vue dans ce fichier (dépôt public).
