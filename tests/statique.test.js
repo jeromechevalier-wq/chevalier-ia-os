@@ -2,17 +2,27 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const RACINE = fileURLToPath(new URL('../', import.meta.url));
 const lire = (chemin) => readFileSync(join(RACINE, chemin), 'utf8');
 const json = (chemin) => JSON.parse(lire(chemin));
 
+/**
+ * Décision prise seul (23/11/2026) : exception de test pour le fichier ECharts figé, verrouillée par empreinte.
+ * Ce fichier minifié (code d'un tiers, Apache 2.0) contient des adresses http(s) et des mots comme `limit(` : il est écarté des contrôles de texte
+ * (D2, D4), mais le test « D2c » échoue si son contenu change (empreinte SHA-256) ou si un autre fichier JavaScript prend sa place dans son dossier.
+ */
+const FICHIER_ECHARTS = 'assets/vendor/echarts/echarts.esm.min.js';
+const EMPREINTE_ECHARTS = '28515f26aa57f87eb1e4ed4eb446927eaf329b5f5e02b4bfd4b0264fea40d1da';
+
 /** Fichiers de l'appli publiée (hors tests, docs, ressources, dépôt). */
 function fichiersAppli(dossier = '', liste = []) {
   for (const nom of readdirSync(join(RACINE, dossier))) {
     const rel = join(dossier, nom);
+    if (rel.split(sep).join('/') === FICHIER_ECHARTS) continue;
     if (/^(\.|node_modules$|tests$|docs$|wiki$|ressources$|outils$|scripts$|functions$|functions-plateforme$)/.test(nom)) continue;
     if (statSync(join(RACINE, rel)).isDirectory()) fichiersAppli(rel, liste);
     else liste.push(rel);
@@ -60,10 +70,10 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (2.45.1)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.46.0)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.45.1');
+    assert.equal(v, '2.46.0');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
@@ -91,6 +101,17 @@ describe('D2b les liens ClickSend de Réglages > Rendez-vous ne sont que des lie
       assert.ok(usages.length > 0, nom);
       for (const l of usages) assert.match(l, /lienExterne\(|lienRecharge: |lien: type === 'alerte-solde-bas'|\{ href: /, `${nom} : ${l.trim().slice(0, 120)}`);
     }
+  });
+});
+
+describe('D2c exception ECharts figée', () => {
+  test('D2c le fichier ECharts est exactement celui verrouillé par son empreinte, et seul ce fichier JavaScript est dans son dossier', () => {
+    const octets = readFileSync(join(RACINE, FICHIER_ECHARTS));
+    assert.equal(createHash('sha256').update(octets).digest('hex'), EMPREINTE_ECHARTS);
+    assert.ok(lire('assets/vendor/echarts/LISEZMOI.txt').includes(EMPREINTE_ECHARTS), 'LISEZMOI.txt doit citer la même empreinte');
+    assert.deepEqual(readdirSync(join(RACINE, 'assets/vendor/echarts')).filter((n) => /\.m?js$/.test(n)), ['echarts.esm.min.js']);
+    for (const f of ['LICENSE', 'NOTICE', 'LICENSE-d3']) assert.ok(existsSync(join(RACINE, 'assets/vendor/echarts', f)), f);
+    assert.ok(!fichiersAppli().includes(FICHIER_ECHARTS));
   });
 });
 
@@ -314,7 +335,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     // Exceptions : le module Devis (quatre fonctions de transition), le module Automatisations (n8n) appelle trois fonctions du serveur (rafraîchir, renommer, décider d'une proposition), et la veille en appelle une seule,
     // `veille` (ajouter un lien collé, lancer un résumé : 2026-10-15), et le tableau de bord en appelle une seule, `tableaudebordSaisir`
     // (saisir une date ou une valeur : le serveur contrôle, écrit et journalise) ; aucun Cloud Storage.
-    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/reseauxsociaux/donnees.js', 'js/modules/reseauxsociaux/import-actions.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js', 'js/modules/devis/donnees.js', 'js/os/deploiement-ecran.js', 'js/os/mode-test-donnees.js', 'js/modules/crm/fichiers-donnees.js', 'js/modules/rdv/donnees.js', 'js/modules/console/donnees.js'];
+    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/reseauxsociaux/donnees.js', 'js/modules/reseauxsociaux/import-actions.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js', 'js/modules/devis/donnees.js', 'js/os/deploiement-ecran.js', 'js/os/mode-test-donnees.js', 'js/modules/crm/fichiers-donnees.js', 'js/modules/rdv/donnees.js', 'js/modules/console/donnees.js', 'js/modules/pilotage/donnees.js'];
     for (const f of fichiersAppli().filter((x) => /\.js$/.test(x))) {
       const t = AVEC_FONCTIONS.includes(f) ? lire(f).replaceAll(/getFunctions|httpsCallable|firebase-functions\.js/g, '') : lire(f);
       assert.doesNotMatch(t, /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
@@ -338,6 +359,10 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     const appelsTableau = [...lire('js/modules/tableaudebord/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual(appelsTableau, ['tableaudebordSaisir']); // saisir une date ou une valeur à l'écran : le serveur contrôle, écrit et journalise
     assert.deepEqual([...lire('js/modules/reseauxsociaux/import-actions.js').matchAll(/httpsCallable\(getFunctions\(app, 'europe-west9'\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['reseauxsociauxBoite']); // Réseaux sociaux, écran Import (11/11/2026) : l'état de la boîte mail (arrivé ou non + lien), lecture seule côté serveur
+    const donneesPilotage = lire('js/modules/pilotage/donnees.js'); // Pilotage (23/11/2026) : une seule fonction du serveur, `pilotageLire` (lecture, et export des réglages) ; l'écran n'appelle jamais `pilotageEnregistrerReglages`
+    assert.deepEqual([...donneesPilotage.matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['pilotageLire']);
+    assert.doesNotMatch(donneesPilotage, /pilotageEnregistrerReglages/);
+    assert.equal((donneesPilotage.match(/httpsCallable\(/g) || []).length, 1, 'un seul appel de fonction dans le fichier');
     const appelsEspace = [...lire('js/os/mon-espace-donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual([...lire('js/os/deploiement-ecran.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['deploiementVerifier']); // Réglages > Déploiement (25/10/2026) : contrôles du serveur, lecture seule
     assert.deepEqual([...lire('js/os/mode-test-donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['modeTestSupprimer']); // Réglages > Mes tests (mode test, PR 4) : aperçu et suppression des éléments de test, par le serveur

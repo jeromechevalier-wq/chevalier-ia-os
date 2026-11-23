@@ -255,6 +255,24 @@ export const MODULES_DECLARES = geler([
     dependances: [],
   },
   {
+    // Pilotage (23/11/2026) : des graphiques (Apache ECharts) alimentés par une base de données, décrits par un réglage que Claude modifie à la demande de Jérôme.
+    // UN SEUL écran. Le navigateur ne lit ni n'écrit la table `pilotage_parametres` (serveur seulement) : tout passe par la fonction `pilotageLire`, qui n'existe pas encore
+    // chez les clients : l'écran y affiche l'erreur normale avec « Réessayer » ; la mention « pas encore branché » n'apparaît que si le serveur répond `not-found`. Module autonome, sans outil MCP. « Indicateurs » est déjà pris : le libellé est « Pilotage ».
+    id: 'pilotage',
+    nom: 'Pilotage',
+    libelleMenu: 'Pilotage',
+    iconeMenu: 'chart-column',
+    prefixe: 'pilotage',
+    reglages: { sections: [{ id: 'reglages-export-pilotage', libelle: 'Sauvegarde' }] },
+    entreeMenu: 'pilotage/pilotage',
+    ecrans: [
+      { route: 'pilotage/pilotage', libelle: 'Pilotage', icone: 'chart-column' },
+    ],
+    collections: ['pilotage_parametres'],
+    outilsMcp: [],
+    dependances: [],
+  },
+  {
     // Tableau de bord (étape 2 : écrans en lecture seule) : état des indicateurs de surveillance (clés, plus tard sauvegardes, finances, stocks).
     // Les indicateurs sont écrits par la porte des scripts de surveillance (tableaudebord_indicateurs) ; l'écran les lit. UN SEUL écran, sans onglets ni sous-onglets
     // (23/10/2026) : les routes tableaudebord/technique, finance, stocks et historique restent SERVIES par le module (signets) et ouvrent ce même écran, au bloc concerné.
