@@ -350,7 +350,7 @@ const estDateReelle = (t) => {
   return d.getUTCFullYear() === a && d.getUTCMonth() === m - 1 && d.getUTCDate() === j;
 };
 const nombreSur = (v) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 1e15;
-const valeurDeListeSure = (v) => (typeof v === 'string' && v.length >= 1 && v.length <= TEXTE_VALEUR_MAX && !/[\u0000-\u001f\u007f]/.test(v)) || nombreSur(v);
+export const valeurDeListeSure = (v) => (typeof v === 'string' && v.length >= 1 && v.length <= TEXTE_VALEUR_MAX && !/[\u0000-\u001f\u007f]/.test(v)) || nombreSur(v);
 
 /**
  * Valide UNE valeur de filtre contre sa déclaration (type, plafonds) : sert au `defaut` du réglage ET à la requête du navigateur.
@@ -368,7 +368,11 @@ export function valeurFiltre(decl, brut) {
   }
   if (decl.type === 'liste') {
     if (!Array.isArray(brut) || brut.length > VALEURS_LISTE_MAX || (!decl.multiple && brut.length > 1)) return non;
-    return brut.every(valeurDeListeSure) ? { ok: true, valeur: [...brut] } : non;
+    if (!brut.every(valeurDeListeSure)) return non;
+    // normalisée (doublons retirés, triée) : « A,B » et « B,A,A » donnent la même clé de cache et le même SQL
+    const vus = new Map();
+    for (const v of brut) if (!vus.has(String(v))) vus.set(String(v), v);
+    return { ok: true, valeur: [...vus.keys()].sort().map((k) => vus.get(k)) };
   }
   if (decl.type === 'intervalle') {
     if (!estObjet(brut) || Object.keys(brut).some((k) => k !== 'min' && k !== 'max')) return non;
@@ -465,6 +469,7 @@ function validerAgregation(brute, e, tuile) {
   if (tuile.tri) dans(tuile.tri.colonne, 'la colonne du tri');
   if (tuile.limite !== undefined && !tuile.tri) refuser(`${e} : une limite sur des lignes regroupées demande un « tri » (sinon les lignes gardées seraient au hasard).`);
   if (tuile.type === 'chiffre') {
+    if (grouper.length && !tuile.variation && !tuile.tri) refuser(`${e} : un chiffre regroupé sans variation demande un « tri » (sinon la ligne gardée serait au hasard).`);
     dans(tuile.valeur.colonne, 'la colonne de la valeur');
     if (tuile.variation) {
       dans(tuile.variation.colonne, 'la colonne de la variation');
@@ -584,6 +589,18 @@ function verifierCroisements(tuiles, onglets) {
   }
 }
 
+/** Cohérence onglet / tuiles : une tuile ne déclare que des filtres que son onglet liste (sinon le filtre ne l'atteindrait jamais), et un onglet ne liste que des filtres qu'une de ses tuiles déclare. Sans onglets : rien à vérifier. */
+function verifierFiltresDesOnglets(tuiles, onglets) {
+  if (!onglets) return;
+  for (const o of onglets) {
+    const ids = new Set([...o.tuiles, ...(o.sections ?? []).flatMap((x) => x.tuiles)]);
+    const siens = tuiles.filter((t) => ids.has(t.id));
+    const listes = new Set(o.filtres ?? []);
+    for (const t of siens) for (const id of Object.keys(t.filtres ?? {})) if (!listes.has(id)) refuser(`Tuile « ${t.id} » : le filtre « ${id} » n'est pas dans la liste « filtres » de son onglet « ${o.id} ».`);
+    for (const id of listes) if (!siens.some((t) => Object.hasOwn(t.filtres ?? {}, id))) refuser(`Onglet « ${o.id} » : le filtre « ${id} » n'est déclaré par aucune de ses tuiles.`);
+  }
+}
+
 /**
  * Valide un réglage COMPLET reçu (enregistrement ou aperçu) et rend la forme normalisée { groupes, tableau: { titre, tuiles, onglets? } } (sans version ni date : le serveur les pose).
  * Les clés inconnues sont ignorées. Lance `ErreurPilotage('invalid-argument', message)`.
@@ -606,6 +623,7 @@ export function validerReglages(brut, { tolerant = false } = {}) {
   const onglets = validerOnglets(t.onglets, tuiles, filtresDeclares);
   verifierLiens(tuiles, onglets);
   verifierCroisements(tuiles, onglets);
+  verifierFiltresDesOnglets(tuiles, onglets);
   const titreTableau = texteCourt(t.titre, 120); // tronqué comme avant, jamais refusé pour sa longueur
   if (!tolerant && titreTableau) verifierChaine(titreTableau, 'Titre du tableau', CONTEXTE_TEXTE);
   const tableau = { titre: titreTableau, tuiles };
@@ -646,7 +664,7 @@ const identifiantSur = (c, message) => {
 
 /**
  * Une clause de filtre -> texte SQL AVEC paramètres `$n` (les valeurs sont poussées dans `valeurs`, jamais écrites dans le texte). Opérateurs en liste fermée :
- * période `"c" >= $1::date and "c" < ($2::date + 1)` (bornes incluses) ; liste `"c" = any($n)` (liste vide : aucune clause) ; intervalle `>=` / `<=` ; oui_non `= $n`.
+ * période `"c" >= $1::date and "c" < ($2::date + 1)` (bornes incluses ; la colonne doit être de type `date`) ; liste `"c"::text = any($n::text[])` (liste vide : aucune clause) ; intervalle `>= $n::numeric` / `<= $n::numeric` ; oui_non `= $n`.
  * `clause` = { colonne, type, ... } construit par le service à partir du réglage VALIDÉ ; la colonne est revalidée ici.
  */
 function clauseSql(clause, valeurs) {
@@ -660,12 +678,12 @@ function clauseSql(clause, valeurs) {
   }
   if (clause.type === 'liste') {
     if (!Array.isArray(clause.valeurs) || !clause.valeurs.length) return null;
-    return `${col} = any(${p(clause.valeurs)})`;
+    return `${col}::text = any(${p(clause.valeurs.map(String))}::text[])`; // comparaison en texte : une valeur d'un autre type que la colonne donne zéro ligne, jamais une erreur
   }
   if (clause.type === 'intervalle') {
     const morceaux = [];
-    if (clause.min !== undefined) morceaux.push(`${col} >= ${p(clause.min)}`);
-    if (clause.max !== undefined) morceaux.push(`${col} <= ${p(clause.max)}`);
+    if (clause.min !== undefined) morceaux.push(`${col} >= ${p(clause.min)}::numeric`);
+    if (clause.max !== undefined) morceaux.push(`${col} <= ${p(clause.max)}::numeric`);
     return morceaux.length ? morceaux.join(' and ') : null;
   }
   if (clause.type === 'oui_non') return `${col} = ${p(clause.valeur === true)}`;

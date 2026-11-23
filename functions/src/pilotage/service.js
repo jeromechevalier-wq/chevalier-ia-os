@@ -12,7 +12,7 @@
 //  - filtres (PR « Tableau de bord B1 ») : `pilotageLire({ onglet, filtres })` ; chaque valeur est validée contre la déclaration du filtre (filtres.js), le SQL est paramétré (reglages.js, `construireRequete`) ;
 //    un filtre n'est proposé et appliqué que s'il est visible pour l'appelant ET déclaré par une tuile visible de l'onglet lu ; la liste de valeurs d'un filtre « liste » n'est lue que dans ce cas ;
 //    la clé du cache contient les valeurs de filtre (jamais un filtre ne montre les chiffres d'un autre) ; la réponse ne contient aucun nom de colonne ni de vue des filtres.
-import { analyserOption, construireRequete, construireRequeteValeurs, limiteDe, tuileVisible, validerReglages, ErreurPilotage, MOTIF_ID, LIEN_TEXTE_SOURCE, LISTE_VALEURS_MAX, TEXTE_VALEUR_MAX } from './reglages.js';
+import { analyserOption, construireRequete, construireRequeteValeurs, limiteDe, tuileVisible, validerReglages, ErreurPilotage, MOTIF_ID, LIEN_TEXTE_SOURCE, LISTE_VALEURS_MAX, valeurDeListeSure } from './reglages.js';
 import { resoudreFiltres, clausesDeTuile } from './filtres.js';
 import { ErreurPostgres, avecDelai, DELAI_FERMETURE_MS } from './postgres.js';
 
@@ -88,8 +88,7 @@ function enteteTuile(t, ongletsVisibles, extra = {}) {
   const e = { id: t.id, titre: t.titre, type: t.type };
   if (t.largeur) e.largeur = t.largeur;
   if (t.aide) e.aide = t.aide;
-  if (t.mentionNonFiltre) e.mentionNonFiltre = t.mentionNonFiltre;
-  Object.assign(e, extra); // filtresAppliques, croisement : décidés par `lire` (droits et onglet lu)
+  Object.assign(e, extra); // filtresAppliques, croisement, mentionNonFiltre : décidés par `lire` (droits et onglet lu)
   if (t.type === 'chiffre') {
     e.valeur = t.valeur;
     if (t.seuils) e.seuils = t.seuils;
@@ -151,7 +150,7 @@ export function creerServicePilotage({ donnees, connecter, maintenant = Date.now
       return dejaDemandees.get(cle);
     };
     const lireUne = async (t) => {
-      if (t.type === 'texte') return { ...enteteTuile(t, ongletsVisibles), lignes: [] }; // un texte ne lit jamais la base
+      if (t.type === 'texte') return { ...enteteTuile(t, ongletsVisibles, extrasDe(t)), lignes: [] }; // un texte ne lit jamais la base
       let option;
       let requete;
       try { if (t.type === 'graphique') option = analyserOption(t.option, 'option', { tolerant: true }); requete = construireRequete(t, clausesDe(t)); } catch { return enErreur(t, {}); }
@@ -233,6 +232,7 @@ export function creerServicePilotage({ donnees, connecter, maintenant = Date.now
       const extra = {};
       const appliquees = Object.keys(t.filtres ?? {}).filter((id) => portee.has(id));
       if (appliquees.length) extra.filtresAppliques = appliquees;
+      if (t.mentionNonFiltre && portee.size) extra.mentionNonFiltre = t.mentionNonFiltre; // la mention n'a de sens que s'il y a des filtres à l'écran
       if (t.croisement && portee.has(t.croisement.filtre)) extra.croisement = { filtre: t.croisement.filtre }; // jamais la colonne
       return [t.id, extra];
     }));
@@ -245,7 +245,7 @@ export function creerServicePilotage({ donnees, connecter, maintenant = Date.now
       if (f.choix) d.choix = f.choix;
       const brutes = f.valeurs ? lues.get(f.id) : null;
       if (Array.isArray(brutes)) {
-        const valeurs = brutes.map((l) => l?.[f.valeurs.colonne]).filter((v) => (typeof v === 'string' && v.length <= TEXTE_VALEUR_MAX) || (typeof v === 'number' && Number.isFinite(v)));
+        const valeurs = brutes.map((l) => l?.[f.valeurs.colonne]).filter(valeurDeListeSure); // seulement des valeurs que le serveur acceptera en retour
         d.valeurs = valeurs.slice(0, LISTE_VALEURS_MAX);
         if (brutes.length > LISTE_VALEURS_MAX) d.tronquee = true;
       }

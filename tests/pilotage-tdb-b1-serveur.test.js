@@ -34,7 +34,7 @@ const classement = (en = {}) => ({
 });
 const reglage = (tuiles = [ventes(), budget(), classement()], onglets, filtres = FILTRES(), groupes = {}) => ({
   groupes,
-  tableau: { titre: 'Tableau test', filtres, tuiles, onglets: onglets ?? [{ id: 'suivi', titre: 'Suivi', filtres: ['periode', 'lieu', 'etat', 'montant', 'alerte'], tuiles: tuiles.map((t) => t.id) }] },
+  tableau: { titre: 'Tableau test', filtres, tuiles, onglets: onglets ?? [{ id: 'suivi', titre: 'Suivi', filtres: filtres.map((f) => f.id).filter((id) => tuiles.some((t) => Object.hasOwn(t.filtres ?? {}, id))), tuiles: tuiles.map((t) => t.id) }] },
 });
 
 describe('B1.1 le réglage sans filtres reste valide', () => {
@@ -133,6 +133,11 @@ describe('B1.3 valeurs de filtre reçues (validation par type)', () => {
 });
 
 describe('B1.4 SQL paramétré exact', () => {
+  test('B1.4.0 liste : valeurs passées en TEXTE et comparées en texte (un nombre devient « 7 » ; une valeur d\'un autre type donne zéro ligne, jamais une erreur de conversion)', () => {
+    const r = construireRequete({ vue: 'v_exemple_a', type: 'tableau', colonnes: [] }, [{ colonne: 'n', type: 'liste', valeurs: [7, 'x'] }]);
+    assert.equal(r.sql, 'select * from "v_exemple_a" where "n"::text = any($1::text[]) limit 500');
+    assert.deepEqual(r.valeurs, [['7', 'x']]);
+  });
   test('B1.4.1 sans filtre, la sortie est EXACTEMENT celle d\'avant (construireSql et construireRequete)', () => {
     assert.equal(construireSql({ vue: 'v_exemple_a', type: 'graphique' }), 'select * from "v_exemple_a" limit 200');
     assert.equal(construireSql({ vue: 'v_exemple_a', type: 'graphique', tri: { colonne: 'mois', sens: 'asc' }, limite: 12 }), 'select * from "v_exemple_a" order by "mois" asc limit 12');
@@ -141,15 +146,15 @@ describe('B1.4 SQL paramétré exact', () => {
   test('B1.4.2 période + liste : opérateurs fermés, valeurs en paramètres, jamais dans le texte', () => {
     const t = validerReglages(reglage()).tableau.tuiles[0];
     const r = construireRequete(t, [{ colonne: 'date_piece', type: 'periode', du: '2026-01-01', au: '2026-01-31' }, { colonne: 'lieu', type: 'liste', valeurs: ['Lieu A', "L'autre"] }]);
-    assert.equal(r.sql, 'select * from "v_exemple_ventes" where "date_piece" >= $1::date and "date_piece" < ($2::date + 1) and "lieu" = any($3) order by "date_piece" asc limit 200');
+    assert.equal(r.sql, 'select * from "v_exemple_ventes" where "date_piece" >= $1::date and "date_piece" < ($2::date + 1) and "lieu"::text = any($3::text[]) order by "date_piece" asc limit 200');
     assert.deepEqual(r.valeurs, ['2026-01-01', '2026-01-31', ['Lieu A', "L'autre"]]);
     assert.ok(!r.sql.includes('Lieu A') && !r.sql.includes('2026-01-01'));
   });
   test('B1.4.3 intervalle (min, max, ou les deux) et oui_non (vrai et faux) ; liste vide et intervalle vide : aucune clause', () => {
     const t = { vue: 'v_exemple_a', type: 'tableau', colonnes: [] };
-    assert.equal(construireRequete(t, [{ colonne: 'montant', type: 'intervalle', min: 10, max: 99.5 }]).sql, 'select * from "v_exemple_a" where "montant" >= $1 and "montant" <= $2 limit 500');
+    assert.equal(construireRequete(t, [{ colonne: 'montant', type: 'intervalle', min: 10, max: 99.5 }]).sql, 'select * from "v_exemple_a" where "montant" >= $1::numeric and "montant" <= $2::numeric limit 500');
     assert.deepEqual(construireRequete(t, [{ colonne: 'montant', type: 'intervalle', min: 10, max: 99.5 }]).valeurs, [10, 99.5]);
-    assert.equal(construireRequete(t, [{ colonne: 'montant', type: 'intervalle', max: 5 }]).sql, 'select * from "v_exemple_a" where "montant" <= $1 limit 500');
+    assert.equal(construireRequete(t, [{ colonne: 'montant', type: 'intervalle', max: 5 }]).sql, 'select * from "v_exemple_a" where "montant" <= $1::numeric limit 500');
     assert.deepEqual(construireRequete(t, [{ colonne: 'alerte', type: 'oui_non', valeur: false }]), { sql: 'select * from "v_exemple_a" where "alerte" = $1 limit 500', valeurs: [false] });
     assert.deepEqual(construireRequete(t, [{ colonne: 'alerte', type: 'oui_non', valeur: true }]).valeurs, [true]);
     assert.deepEqual(construireRequete(t, [{ colonne: 'lieu', type: 'liste', valeurs: [] }, { colonne: 'montant', type: 'intervalle' }]), { sql: 'select * from "v_exemple_a" limit 500', valeurs: [] });
@@ -163,7 +168,7 @@ describe('B1.4 SQL paramétré exact', () => {
   });
   test('B1.4.5 chiffre avec variation : l\'ordre « periodeColonne desc nulls last » est gardé après le where', () => {
     const t = { vue: 'v_exemple_a', type: 'chiffre', valeur: { colonne: 'total' }, variation: { colonne: 'total', periodeColonne: 'mois', hausse: 'bon' } };
-    assert.equal(construireRequete(t, [{ colonne: 'lieu', type: 'liste', valeurs: ['A'] }]).sql, 'select * from "v_exemple_a" where "lieu" = any($1) order by "mois" desc nulls last limit 2');
+    assert.equal(construireRequete(t, [{ colonne: 'lieu', type: 'liste', valeurs: ['A'] }]).sql, 'select * from "v_exemple_a" where "lieu"::text = any($1::text[]) order by "mois" desc nulls last limit 2');
   });
   test('B1.4.6 requête des valeurs d\'un filtre : distinct, sans null, triée, 201 lignes lues ; vue et colonne revalidées', () => {
     assert.equal(construireRequeteValeurs({ vue: 'v_exemple_lieux', colonne: 'nom' }), 'select distinct "nom" from "v_exemple_lieux" where "nom" is not null order by 1 limit 201');
@@ -176,7 +181,7 @@ describe('B1.5 agrégation déclarée', () => {
   const agreg = () => validerReglages(reglage()).tableau.tuiles[2];
   test('B1.5.1 SQL exact : group by, somme et nombre, tri et limite, filtres dans le where (avant le regroupement)', () => {
     const r = construireRequete(agreg(), [{ colonne: 'date_piece', type: 'periode', du: '2026-01-01', au: '2026-03-31' }, { colonne: 'etat', type: 'liste', valeurs: ['ouvert'] }]);
-    assert.equal(r.sql, 'select "lieu", sum("montant") as "total", count(*) as "lignes" from "v_exemple_detail" where "date_piece" >= $1::date and "date_piece" < ($2::date + 1) and "etat" = any($3) group by "lieu" order by "total" desc limit 10');
+    assert.equal(r.sql, 'select "lieu", sum("montant") as "total", count(*) as "lignes" from "v_exemple_detail" where "date_piece" >= $1::date and "date_piece" < ($2::date + 1) and "etat"::text = any($3::text[]) group by "lieu" order by "total" desc limit 10');
     assert.deepEqual(r.valeurs, ['2026-01-01', '2026-03-31', ['ouvert']]);
     assert.equal(construireSql(agreg()), 'select "lieu", sum("montant") as "total", count(*) as "lignes" from "v_exemple_detail" group by "lieu" order by "total" desc limit 10');
   });
@@ -265,8 +270,8 @@ describe('B1.7 service : filtres appliqués par le serveur', () => {
     const r = await m.lire({ ...jeton(BOT), data: { filtres: { periode: { du: '2026-01-01', au: '2026-01-31' }, lieu: ['Lieu A'] } } });
     const appels = sansListes(m.pg.etat.appels);
     const parVue = (v) => appels.find(([sql]) => sql.includes(`"${v}"`));
-    assert.deepEqual(parVue('v_exemple_ventes'), ['select * from "v_exemple_ventes" where "date_piece" >= $1::date and "date_piece" < ($2::date + 1) and "lieu" = any($3) order by "date_piece" asc limit 200', ['2026-01-01', '2026-01-31', ['Lieu A']]]);
-    assert.deepEqual(parVue('v_exemple_budget'), ['select * from "v_exemple_budget" where "lieu" = any($1) limit 1', [['Lieu A']]]); // pas filtré par la période : non déclarée sur cette tuile
+    assert.deepEqual(parVue('v_exemple_ventes'), ['select * from "v_exemple_ventes" where "date_piece" >= $1::date and "date_piece" < ($2::date + 1) and "lieu"::text = any($3::text[]) order by "date_piece" asc limit 200', ['2026-01-01', '2026-01-31', ['Lieu A']]]);
+    assert.deepEqual(parVue('v_exemple_budget'), ['select * from "v_exemple_budget" where "lieu"::text = any($1::text[]) limit 1', [['Lieu A']]]); // pas filtré par la période : non déclarée sur cette tuile
     assert.ok(parVue('v_exemple_detail')[0].startsWith('select "lieu", sum("montant") as "total", count(*) as "lignes" from "v_exemple_detail" where "date_piece" >= $1::date and "date_piece" < ($2::date + 1) group by'), 'la tuile agrégée n\'a pas le filtre « lieu »');
     assert.deepEqual(r.filtres.find((f) => f.id === 'periode').applique, { du: '2026-01-01', au: '2026-01-31' });
     assert.deepEqual(r.filtres.find((f) => f.id === 'lieu').applique, ['Lieu A']);
@@ -275,7 +280,7 @@ describe('B1.7 service : filtres appliqués par le serveur', () => {
     const m = await monter(reglage());
     await m.lire({ ...jeton(BOT), data: { filtres: { periode: { raccourci: 'tout' }, etat: ['clos'], montant: { min: 100 }, alerte: false } } });
     const [sql, valeurs] = sansListes(m.pg.etat.appels).find(([s]) => s.includes('v_exemple_detail'));
-    assert.equal(sql, 'select "lieu", sum("montant") as "total", count(*) as "lignes" from "v_exemple_detail" where "etat" = any($1) and "montant" >= $2 and "alerte" = $3 group by "lieu" order by "total" desc limit 10');
+    assert.equal(sql, 'select "lieu", sum("montant") as "total", count(*) as "lignes" from "v_exemple_detail" where "etat"::text = any($1::text[]) and "montant" >= $2::numeric and "alerte" = $3 group by "lieu" order by "total" desc limit 10');
     assert.deepEqual(valeurs, [['clos'], 100, false]);
   });
   test('B1.7.3 le « defaut » s\'applique quand la clé est absente et la réponse rend la valeur résolue ; « tout » explicite le supprime', async () => {
@@ -532,5 +537,58 @@ describe('B1.13 appel et connexion', () => {
     assert.deepEqual(vus, [['select 1'], ['select 2'], ['select * from "v_a" where "x" = $1', [5]]]);
     assert.ok(vus.every((a) => typeof a[0] === 'string'));
     await c.fermer();
+  });
+});
+
+describe('B1.14 corrections de relecture', () => {
+  test('B1.14.1 oui_non avec défaut : « null » explicite = aucune clause et le défaut ne s\'applique pas ; absent = défaut', async () => {
+    const r = reglage(); r.tableau.filtres[4].defaut = true;
+    const m = await monter(r);
+    const detail = () => sansListes(m.pg.etat.appels).filter(([s]) => s.includes('v_exemple_detail')).at(-1);
+    await m.lire({ ...jeton(BOT), data: { filtres: { alerte: null } } });
+    assert.ok(!detail()[0].includes('"alerte"'));
+    const lu = await m.lire({ ...jeton(BOT), data: { filtres: {} } });
+    assert.ok(detail()[0].includes('"alerte" = $'));
+    assert.equal(lu.filtres.find((f) => f.id === 'alerte').applique, true);
+    const n = await m.lire({ ...jeton(BOT), data: { filtres: { alerte: null } } });
+    assert.equal(n.filtres.find((f) => f.id === 'alerte').applique, undefined);
+    assert.equal((await filtreRefuse(m.lire({ ...jeton(BOT), data: { filtres: { montant: null } } }))).code, 'invalid-argument'); // null n'est permis que pour oui_non
+  });
+  test('B1.14.2 les listes sont normalisées (doublons retirés, triées) : même valeur, même SQL, même clé de cache', async () => {
+    const [, lieu] = validerReglages(reglage()).tableau.filtres;
+    assert.deepEqual(valeurFiltre(lieu, ['B', 'A', 'B', 7, '7']).valeur, [7, 'A', 'B']);
+    const m = await monter(reglage());
+    const compte = () => sansListes(m.pg.etat.appels).filter(([s]) => s.includes('v_exemple_ventes')).length;
+    await m.lire({ ...jeton(BOT), data: { filtres: { lieu: ['B', 'A'] } } });
+    await m.lire({ ...jeton(BOT), data: { filtres: { lieu: ['A', 'B', 'A'] } } });
+    assert.equal(compte(), 1);
+    assert.deepEqual(sansListes(m.pg.etat.appels).find(([s]) => s.includes('v_exemple_ventes'))[1][2], ['A', 'B']);
+  });
+  test('B1.14.3 la liste de valeurs rendue ne contient que des valeurs que le serveur accepte en retour (200 caractères au plus, caractères de contrôle écartés)', async () => {
+    const m = await monter(reglage(), fauxPostgres((sql) => (sql.includes('select distinct') ? [{ nom: 'ok' }, { nom: 'a\nb' }, { nom: '' }, { nom: 'x'.repeat(200) }, { nom: 'x'.repeat(201) }] : [])));
+    const f = (await m.lire({ ...jeton(BOT), data: {} })).filtres.find((x) => x.id === 'lieu');
+    assert.deepEqual(f.valeurs, ['ok', 'x'.repeat(200)]);
+    assert.equal(valeurFiltre(validerReglages(reglage()).tableau.filtres[1], f.valeurs).ok, true);
+  });
+  test('B1.14.4 mentionNonFiltre n\'est rendu que si l\'onglet a des filtres à l\'écran pour cet appelant', async () => {
+    const r = reglage([budget()], undefined, FILTRES().map((f) => (f.id === 'lieu' ? { ...f, visiblePour: [JEROME] } : f)));
+    const m = await monter(r);
+    assert.equal((await m.lire({ ...jeton(BOT), data: {} })).tuiles[0].mentionNonFiltre, undefined);
+    assert.equal((await m.lire({ ...jeton(JEROME), data: {} })).tuiles[0].mentionNonFiltre, 'Non filtré par la période.');
+  });
+  test('B1.14.5 enregistrement : une tuile ne déclare que des filtres listés par son onglet ; un onglet ne liste que des filtres qu\'une de ses tuiles déclare ; sans onglets, rien à vérifier', () => {
+    const a = reglage(); a.tableau.onglets[0].filtres = a.tableau.onglets[0].filtres.filter((id) => id !== 'montant');
+    refus(() => validerReglages(a), /n'est pas dans la liste « filtres » de son onglet/);
+    const b = reglage([ventes({ croisement: undefined })]); b.tableau.onglets[0].filtres = ['periode', 'lieu', 'etat'];
+    refus(() => validerReglages(b), /n'est déclaré par aucune de ses tuiles/);
+    assert.ok(validerReglages({ groupes: {}, tableau: { titre: 'T', filtres: FILTRES(), tuiles: [ventes()] } }));
+  });
+  test('B1.14.6 un chiffre regroupé sans variation demande un tri ; avec tri, ou avec variation, ou sans groupe : accepté', () => {
+    const c = (en) => ({ id: 'c', type: 'chiffre', titre: 'C', vue: 'v_exemple_a', valeur: { colonne: 'total' }, mesures: [{ colonne: 'x', calcul: 'somme', nom: 'total' }], ...en });
+    const o = [{ id: 'o', titre: 'O', tuiles: ['c'] }];
+    refus(() => validerReglages(reglage([c({ grouper: ['mois'] })], o, [])), /demande un « tri »/);
+    assert.ok(validerReglages(reglage([c({ grouper: ['mois'], tri: { colonne: 'mois', sens: 'desc' } })], o, [])));
+    assert.ok(validerReglages(reglage([c({ grouper: ['mois'], variation: { colonne: 'total', periodeColonne: 'mois', hausse: 'bon' } })], o, [])));
+    assert.ok(validerReglages(reglage([c({ grouper: [] })], o, [])));
   });
 });

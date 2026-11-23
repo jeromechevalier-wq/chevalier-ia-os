@@ -65,6 +65,7 @@ export function resoudreFiltres({ portee, demandes, maintenant }) {
   for (const [id, decl] of portee) {
     let norm;
     if (cles.includes(id)) {
+      if (demandes[id] === null && decl.type === 'oui_non') continue; // « null » explicite : aucune clause, et le défaut ne s'applique pas
       const r = valeurFiltre(decl, demandes[id]);
       if (!r.ok) throw refus();
       norm = r.valeur;
