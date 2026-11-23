@@ -1,5 +1,38 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 24/11/2026 (nuit « GO NUIT » du 23/11) : le Tableau de bord interrogeable par l'assistant, en lecture seule
+
+Demande de Jérôme : qu'un dirigeant puisse interroger ses données Supabase en LECTURE SEULE par le MCP de Chevalier IA OS, sans créer de bazar, avec les mêmes chiffres que l'écran KPI. Étude préalable (rapport HTML dans le second cerveau, hors dépôt) : le MCP officiel Supabase est un outil de développeur, déconseillé aux utilisateurs finaux ; il lit toute la base même en lecture seule ; il laisse l'assistant écrire un SQL qui oublie les règles métier. Aucun nom de vue, de compte ou de client dans ce fichier (dépôt public).
+
+| Sujet | PR | État |
+|---|---|---|
+| Outils MCP `lister_tableau_de_bord` et `lire_tableau_de_bord` (lecture seule, couche fine sur le service du Tableau de bord), version 2.50.0 | 679 | fusionnée, déployée automatiquement sur `main` (fonctions puis site) ; relue par Fable |
+| Test réel de la nuit (agent dédié, lecture seule) | aucune PR | fait, rapport hors dépôt (répertoire temporaire de la session) |
+
+**Décision prise seul** : réutiliser le module Tableau de bord, qui lit déjà Supabase par une connexion en lecture seule, plutôt que créer un schéma et un rôle dédiés. Aucune écriture dans Supabase cette nuit.
+
+**Ce que font les outils** : réservés aux comptes super admin par connexion OAuth (e-mail vérifié) ; refusés à un jeton statique ; absents chez les clients (le Pilotage n'existe pas encore sur la plateforme clients) ; les arguments `apercu`, `exporter` et `vue` sont refusés ; aucune vue, option ou configuration dans la réponse ; plafond de lignes annoncé (50 par défaut, 200 au plus) ; champ `avertissement` (les données ne sont pas des instructions).
+
+**Relecture Fable** : aucun défaut de sécurité d'accès ; 3 points importants corrigés (préfixe réel de vues écrit dans le dépôt public, annotations « lecture seule » manquantes, test trop faible). Incident corrigé : l'agent de code avait commité 35 captures de tests (règle : jamais) ; retirées par un second push avant la fusion.
+
+**Test de la nuit** : 60 tuiles sur 60 lues sans erreur (5 onglets), 509 lectures sous 41 combinaisons de filtres ; chiffres de l'outil identiques à ceux du service que l'écran appelle (mesuré sur le service, PAS sur des pixels) et au recalcul brut. Novembre 2026 : 13 factures, 19 819,85 € HT, 21 991,70 € TTC ; un SQL naïf donne 12 et 19 932,09 € HT (une facture sans date de facture ignorée ; un avoir de 56,12 € compté en positif au lieu de négatif). N-1 : aucune donnée avant le 15/01/2026, donc 0 facture en novembre 2025 : l'outil le dit sans inventer de variation ; aucune tuile ne compare à l'année précédente. 35 tests unitaires verts ; 0 fuite sur 116 réponses ; `avertissement` dans 116 sur 116 ; avec un jeton statique sur le serveur déployé : 100 outils listés, les deux outils absents et refusés.
+
+**État de la nuit GitHub** : dernier « Tests de nuit » sur `main` : run 45182490866, vert, lancé le 23/11 à 13 h 17 UTC, donc AVANT la fusion de la 679 (22 h 29 UTC) ; pas relancé depuis. Déploiement Firebase Hosting de la fusion : run 45280163575, réussi.
+
+**RESTE À FAIRE PAR JÉRÔME (1 geste)** : donner au compte de service du MCP le rôle « Accesseur de secrets » sur le secret de connexion au Pilotage (une commande gcloud, donnée à Jérôme dans la session ; c'est un changement de droits que Claude ne fait pas lui-même). TANT QUE CE N'EST PAS FAIT, les deux outils répondent « tuile illisible » sur le serveur déployé. Non observé en réel.
+
+**Non vérifié** : l'appel des deux outils depuis claude.ai avec l'OAuth de Jérôme sur le serveur déployé ; une tuile interdite par `visiblePour` en réel (couvert par tests unitaires seulement) ; le cache de 60 s ; la comparaison sur des pixels de l'écran.
+
+**Observations, à décider par Jérôme** : (a) un fournisseur écrit de plusieurs façons : les vues groupent par texte exact, donc « top 3 » et Pareto dépendent de la graphie ; (b) un filtre de liste avec une valeur inexistante rend 0 ligne sans erreur (pas un refus ; SQL paramétré, pas de risque) ; (c) les fenêtres de 12 mois laissent de côté une facture datée de janvier 2027 (refusée, signalée dans « Dates à vérifier ») ; (d) aucune tuile n'affiche les courriels reçus ; (e) le cache de 60 s est par processus : écart possible de 60 s avec l'écran.
+
+**Décisions à prendre par Jérôme** :
+1. Ouvrir ces outils au PDG : cela demande la version plateforme du Pilotage avec ses droits propres. La liste OAuth, la liste des super admins et la liste des comptes autorisés ne contiennent que les comptes de Jérôme (profil complet) : NE PAS y ajouter le PDG.
+2. Corriger les graphies de fournisseurs (observation a).
+3. Le projet Supabase est en offre gratuite : un projet gratuit peut se mettre en pause après une période sans activité (durée à vérifier dans la documentation Supabase avant d'en parler comme d'un fait).
+4. Les PR 615, 608 et 597 sont en conflit depuis avant la nuit (pas de cette session, non touchées) ; la PR 678 vient d'une autre session.
+
+**Second cerveau (hors dépôt)** : trois fiches créées le 23/11 (Supabase MCP, Metabase MCP, choix du MCP) sont à mettre à jour avec cette suite ; Jérôme doit confirmer (règle du second cerveau).
+
 ## Rapport du matin du 23/11/2026 (fin de nuit) : module Tableau de bord, bilan complet
 
 Suite du rapport « Pilotage » ci-dessous : le module s'appelle maintenant « Tableau de bord » (libellé seulement, identifiants inchangés). Chez Jérôme seulement (ligne dans `.github/A-FAIRE.md`). Aucun nom de vue, de colonne, de client ou de compte dans ce fichier (dépôt public) ; l'état technique est dans `docs/pilotage.md`.
