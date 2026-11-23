@@ -1,5 +1,7 @@
 // Règles pures du module Pilotage (sans Firebase ni DOM, testées par Node) : injection des lignes dans une option ECharts, habillage non destructif,
-// lecture de la réponse du serveur et messages d'erreur. L'option reçue du serveur est une DONNÉE : on la copie, on la complète, on la passe à `setOption` ; jamais exécutée.
+// lecture de la réponse du serveur, plan des onglets et des sections, messages d'erreur. Les formats, seuils et règles sont dans formats.js. L'option reçue du serveur est une DONNÉE : on la copie, on la complète, on la passe à `setOption` ; jamais exécutée.
+
+import { appliquerFormats, resoudreCouleurs } from './formats.js';
 
 export const TITRE_PAGE = 'Tableau de bord';
 export const MESSAGE_VIDE = 'Aucun tableau n\'est encore réglé pour cet espace.';
@@ -60,6 +62,7 @@ export const BASE_HABILLAGE = Object.freeze({
   animationDurationUpdate: 200,
   tooltip: { renderMode: 'richText', confine: true },
   aria: { enabled: true },
+  grid: { containLabel: true, left: 8, right: 16, top: 32, bottom: 8 },
 });
 
 const CLES_RETIREES = new Set(['link', 'sublink', 'toolbox']);
@@ -92,9 +95,23 @@ export function nettoyerOption(option) {
   return nettoyer(option, false, '');
 }
 
-/** Option finale d'une tuile : les lignes injectées, l'option nettoyée (avant l'injection : les lignes ne sont jamais nettoyées), l'habillage de base sous l'option du réglage (qui gagne), l'infobulle en texte. */
-export function optionFinale(option, lignes) {
-  return forcerInfobulleTexte(fusionner(BASE_HABILLAGE, injecterLignes(nettoyerOption(option), lignes)));
+/** Légende : défilante par défaut (jamais tronquée) et en haut (elle ne recouvre pas les axes), sauf si le réglage choisit un type ou une position. */
+function legendesDefilantes(option) {
+  if (option.legend === undefined) return option;
+  const poser = (l) => ({ ...(l !== null && typeof l === 'object' && !Array.isArray(l) ? l : {}), ...(l?.type ? {} : { type: 'scroll' }), ...(l?.top === undefined && l?.bottom === undefined ? { top: 0 } : {}) });
+  return { ...option, legend: Array.isArray(option.legend) ? option.legend.map(poser) : poser(option.legend) };
+}
+
+/**
+ * Option finale d'une tuile : l'option nettoyée (avant l'injection : les lignes ne sont jamais nettoyées), les couleurs nommées (« @bon »…) résolues, les formats nommés posés,
+ * les lignes injectées, l'habillage de base sous l'option du réglage (qui gagne), la légende défilante, l'infobulle en texte.
+ * `contexte` = { formats, couleurs } (facultatif : sans lui, ce que faisait la version précédente).
+ */
+export function optionFinale(option, lignes, { formats, couleurs } = {}) {
+  let o = nettoyerOption(option);
+  if (couleurs) o = resoudreCouleurs(o, couleurs);
+  if (formats) o = appliquerFormats(o, formats);
+  return forcerInfobulleTexte(legendesDefilantes(fusionner(BASE_HABILLAGE, injecterLignes(o, lignes))));
 }
 
 /**
@@ -103,13 +120,19 @@ export function optionFinale(option, lignes) {
  */
 export function construireTheme(v) {
   const axe = { axisLine: { lineStyle: { color: v.traitFort } }, axisTick: { lineStyle: { color: v.traitFort } }, axisLabel: { color: v.texte2 }, nameTextStyle: { color: v.texte2 }, splitLine: { lineStyle: { color: v.trait } } };
+  const categorie = { ...axe, splitLine: { show: false }, axisLabel: { ...axe.axisLabel, width: 110, overflow: 'truncate', hideOverlap: true } }; // libellés longs raccourcis : l'infobulle donne le texte entier
   return {
     color: v.palette,
     backgroundColor: 'transparent',
     textStyle: { color: v.texte, fontFamily: v.police, fontSize: v.taille },
     title: { textStyle: { color: v.texte } },
-    legend: { textStyle: { color: v.texte2 } },
-    categoryAxis: axe, valueAxis: axe, timeAxis: axe, logAxis: axe,
+    legend: { textStyle: { color: v.texte2 }, pageTextStyle: { color: v.texte2 }, pageIconColor: v.texte2, pageIconInactiveColor: v.traitFort },
+    tooltip: { backgroundColor: v.panneau ?? v.fond ?? 'transparent', borderColor: v.traitFort, textStyle: { color: v.texte, fontSize: v.taille }, axisPointer: { lineStyle: { color: v.traitFort }, crossStyle: { color: v.traitFort }, shadowStyle: { color: v.trait } } },
+    bar: { itemStyle: { borderRadius: 4 }, label: { color: v.texte, fontSize: v.taille } },
+    line: { smooth: false, symbolSize: 6, lineStyle: { width: 2 }, label: { color: v.texte, fontSize: v.taille } },
+    pie: { itemStyle: { borderColor: v.fond ?? 'transparent', borderWidth: 2 }, label: { color: v.texte, fontSize: v.taille } },
+    categoryAxis: categorie, valueAxis: axe, timeAxis: axe, logAxis: axe,
+    markLine: { label: { color: v.texte2, fontSize: v.taille }, lineStyle: { color: v.texte2 } },
   };
 }
 
@@ -134,28 +157,76 @@ export function messageErreurExport(e) {
 }
 
 const texte = (v) => (typeof v === 'string' ? v : '');
+export const TYPES = Object.freeze(['graphique', 'chiffre', 'tableau', 'texte', 'phrases']);
+export const LARGEURS = Object.freeze(['tiers', 'moitie', 'deux-tiers', 'pleine']);
+const LARGEUR_PAR_TYPE = Object.freeze({ graphique: 'moitie', chiffre: 'tiers', tableau: 'pleine', texte: 'pleine', phrases: 'pleine' });
+const listeObjets = (v) => (Array.isArray(v) ? v.filter(estObjet).map(copier) : []);
+const listeTextes = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []);
+const lienOnglet = (v) => (estObjet(v) && typeof v.onglet === 'string' ? { onglet: v.onglet } : undefined);
 
-/** Réponse du serveur nettoyée : { titre, tuiles: [{ id, titre, option, lignes }], erreurs: [{ id, message }], vide }. Tolère les champs manquants. */
+function lireOnglets(brut) {
+  return (Array.isArray(brut) ? brut : []).filter((o) => estObjet(o) && texte(o.id)).map((o) => ({
+    id: texte(o.id), titre: texte(o.titre) || texte(o.id), intro: texte(o.intro), tuiles: listeTextes(o.tuiles),
+    sections: (Array.isArray(o.sections) ? o.sections : []).filter((x) => estObjet(x) && texte(x.id)).map((x) => ({ id: texte(x.id), titre: texte(x.titre), intro: texte(x.intro), tuiles: listeTextes(x.tuiles) })),
+  }));
+}
+
+/**
+ * Réponse du serveur nettoyée : { titre, tuiles, erreurs, onglets, onglet, vide }. Tolère les champs manquants ET l'ANCIEN serveur (ni `type`, ni `onglets`, ni `largeur` : graphique, page unique).
+ * Tuile : { id, titre, type, largeur, aide, option, lignes, lignesInvalides, valeur?, seuils?, variation?, colonnes?, parPage?, formats?, texte?, lien? }.
+ */
 export function lireReponse(r) {
   const d = estObjet(r) ? r : {};
-  const tuiles = (Array.isArray(d.tuiles) ? d.tuiles : []).filter(estObjet).map((t, i) => ({
-    id: texte(t.id) || `tuile-${i + 1}`, titre: texte(t.titre), option: estObjet(t.option) ? t.option : {},
-    // Contrat : `lignes` = tableau d'OBJETS. Autre chose n'est pas jeté en silence : la tuile est dite « pas dessinable ».
-    lignes: Array.isArray(t.lignes) && t.lignes.every(estObjet) ? t.lignes : [], lignesInvalides: t.lignes !== undefined && !(Array.isArray(t.lignes) && t.lignes.every(estObjet)),
-  }));
+  const tuiles = (Array.isArray(d.tuiles) ? d.tuiles : []).filter(estObjet).map((t, i) => {
+    const type = t.type === undefined || t.type === null ? 'graphique' : (TYPES.includes(t.type) ? t.type : 'inconnu');
+    const lignesValides = Array.isArray(t.lignes) && t.lignes.every(estObjet);
+    return {
+      id: texte(t.id) || `tuile-${i + 1}`, titre: texte(t.titre), type,
+      largeur: LARGEURS.includes(t.largeur) ? t.largeur : LARGEUR_PAR_TYPE[type] ?? 'pleine', aide: texte(t.aide),
+      option: estObjet(t.option) ? t.option : {},
+      // Contrat : `lignes` = tableau d'OBJETS. Autre chose n'est pas jeté en silence : la tuile est dite « pas dessinable ».
+      lignes: lignesValides ? t.lignes : [], lignesInvalides: t.lignes !== undefined && !lignesValides,
+      valeur: estObjet(t.valeur) ? copier(t.valeur) : undefined, seuils: listeObjets(t.seuils), variation: estObjet(t.variation) ? copier(t.variation) : undefined,
+      colonnes: type === 'phrases' ? listeTextes(t.colonnes) : listeObjets(t.colonnes), parPage: Number.isInteger(t.parPage) && t.parPage > 0 ? t.parPage : 20,
+      formats: estObjet(t.formats) ? copier(t.formats) : undefined, texte: texte(t.texte), lien: lienOnglet(t.lien),
+    };
+  });
   const erreurs = (Array.isArray(d.erreurs) ? d.erreurs : []).filter(estObjet).map((e) => ({ id: texte(e.id), message: texte(e.message) }));
-  return { titre: texte(d.titre).trim(), tuiles, erreurs, vide: tuiles.length === 0 && erreurs.length === 0 };
+  return { titre: texte(d.titre).trim(), tuiles, erreurs, onglets: lireOnglets(d.onglets), onglet: texte(d.onglet) || null, vide: tuiles.length === 0 && erreurs.length === 0 && !(Array.isArray(d.onglets) && d.onglets.length) };
 }
 
 /**
  * Cartes à montrer, dans l'ordre : chaque tuile, puis les erreurs. Une erreur dont l'identifiant est celui d'une tuile prend sa place (la tuile n'est pas dessinée) ;
- * le titre d'une erreur sans tuile est son identifiant. Genre : 'graphique' | 'vide' | 'invalide' (lignes qui ne sont pas des objets) | 'erreur'.
+ * le titre d'une erreur sans tuile est son identifiant. Genre : 'erreur' | 'invalide' (lignes qui ne sont pas des objets, type inconnu) | 'vide' (aucune ligne ; jamais pour un texte) | le type de la tuile ('graphique', 'chiffre', 'tableau', 'texte', 'phrases').
  */
 export function cartes(reponse) {
   const enErreur = new Set(reponse.erreurs.map((e) => e.id));
-  const liste = reponse.tuiles.map((t) => ({ id: t.id, titre: t.titre || t.id, genre: enErreur.has(t.id) ? 'erreur' : (t.lignesInvalides ? 'invalide' : (t.lignes.length ? 'graphique' : 'vide')), tuile: t }));
+  const genre = (t) => {
+    if (enErreur.has(t.id)) return 'erreur';
+    if (t.lignesInvalides || t.type === 'inconnu') return 'invalide';
+    if (t.type !== 'texte' && !t.lignes.length) return 'vide';
+    return t.type;
+  };
+  const liste = reponse.tuiles.map((t) => ({ id: t.id, titre: t.titre || t.id, genre: genre(t), tuile: t }));
   for (const e of reponse.erreurs) if (!reponse.tuiles.some((t) => t.id === e.id)) liste.push({ id: e.id, titre: e.id || 'Tuile', genre: 'erreur', tuile: null });
   return liste;
+}
+
+/**
+ * Ce que l'écran montre : { onglets, actif, intro, blocs: [{ section: { id, titre, intro } | null, cartes }] }.
+ * Sans onglets (ancien serveur ou réglage sans onglets) : une page unique, un seul bloc. Avec onglets : l'onglet lu, ses tuiles directes puis ses sections.
+ */
+export function plan(reponse) {
+  const toutes = cartes(reponse);
+  if (!reponse.onglets.length) return { onglets: [], actif: null, intro: '', blocs: toutes.length ? [{ section: null, cartes: toutes }] : [] };
+  const parId = new Map(toutes.map((c) => [c.id, c]));
+  const actif = reponse.onglets.find((o) => o.id === reponse.onglet) ?? reponse.onglets[0];
+  const prendre = (ids) => ids.map((id) => parId.get(id)).filter(Boolean);
+  const blocs = [];
+  const directes = prendre(actif.tuiles);
+  if (directes.length) blocs.push({ section: null, cartes: directes });
+  for (const s of actif.sections) { const c = prendre(s.tuiles); if (c.length) blocs.push({ section: { id: s.id, titre: s.titre, intro: s.intro }, cartes: c }); }
+  return { onglets: reponse.onglets, actif, intro: actif.intro, blocs };
 }
 
 export const titreDePage = (reponse) => reponse?.titre || TITRE_PAGE;

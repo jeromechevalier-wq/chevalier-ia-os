@@ -83,14 +83,14 @@ describe('habillage non destructif', () => {
 
 describe('réponse du serveur', () => {
   test('cas vide : aucun tableau réglé', () => {
-    assert.deepEqual(L.lireReponse({ titre: '', tuiles: [], erreurs: [] }), { titre: '', tuiles: [], erreurs: [], vide: true });
+    assert.deepEqual(L.lireReponse({ titre: '', tuiles: [], erreurs: [] }), { titre: '', tuiles: [], erreurs: [], onglets: [], onglet: null, vide: true });
     assert.equal(L.lireReponse(undefined).vide, true);
     assert.equal(L.lireReponse('n\'importe quoi').vide, true);
   });
   test('une réponse partielle est tolérée (champs manquants ou de mauvais type)', () => {
     const r = L.lireReponse({ titre: 3, tuiles: [{ titre: 'T', lignes: 'x', option: [] }, 'bof', null], erreurs: [{ id: 'z', message: 5 }] });
     assert.equal(r.titre, '');
-    assert.deepEqual(r.tuiles, [{ id: 'tuile-1', titre: 'T', option: {}, lignes: [], lignesInvalides: true }]);
+    assert.deepEqual(r.tuiles.map(({ id, titre, type, option, lignes, lignesInvalides }) => ({ id, titre, type, option, lignes, lignesInvalides })), [{ id: 'tuile-1', titre: 'T', type: 'graphique', option: {}, lignes: [], lignesInvalides: true }]);
     assert.deepEqual(r.erreurs, [{ id: 'z', message: '' }]);
     assert.equal(r.vide, false);
   });
@@ -206,15 +206,15 @@ describe('contrôles statiques du module', () => {
     assert.match(lire('js/os/ui.js'), /"chart-column":/);
   });
   test('ECharts n\'est jamais importé statiquement (ni dans index.js ni ailleurs) : seulement par import() dans l\'écran', () => {
-    for (const f of ['index.js', 'donnees.js', 'logique.js', 'habillage.js', 'export.js']) assert.doesNotMatch(lire(`js/modules/pilotage/${f}`), /echarts\.esm|vendor\/echarts/, f);
+    for (const f of ['index.js', 'donnees.js', 'logique.js', 'habillage.js', 'export.js', 'blocs.js', 'formats.js']) assert.doesNotMatch(lire(`js/modules/pilotage/${f}`), /echarts\.esm|vendor\/echarts/, f);
     assert.match(lire('js/modules/pilotage/ecran.js'), /=> import\('\.\.\/\.\.\/\.\.\/assets\/vendor\/echarts\/echarts\.esm\.min\.js'\)/);
     assert.doesNotMatch(lire('js/modules/pilotage/ecran.js'), /^import .*echarts/m);
   });
   test('le navigateur ne lit ni n\'écrit Firestore pour ce module (aucun onSnapshot, getDocs, setDoc, executer)', () => {
-    for (const f of ['index.js', 'donnees.js', 'ecran.js', 'export.js', 'habillage.js']) assert.doesNotMatch(lire(`js/modules/pilotage/${f}`), /firebase-firestore|onSnapshot|getDocs|setDoc|updateDoc|executer\(/, f);
+    for (const f of ['index.js', 'donnees.js', 'ecran.js', 'export.js', 'habillage.js', 'blocs.js', 'formats.js']) assert.doesNotMatch(lire(`js/modules/pilotage/${f}`), /firebase-firestore|onSnapshot|getDocs|setDoc|updateDoc|executer\(/, f);
   });
   test('l\'option reçue n\'est jamais exécutée comme du code', () => {
-    for (const f of ['ecran.js', 'logique.js', 'habillage.js', 'donnees.js']) assert.doesNotMatch(lire(`js/modules/pilotage/${f}`), /\beval\s*\(|new Function|innerHTML/, f);
+    for (const f of ['ecran.js', 'logique.js', 'habillage.js', 'donnees.js', 'blocs.js', 'formats.js']) assert.doesNotMatch(lire(`js/modules/pilotage/${f}`), /\beval\s*\(|new Function|innerHTML/, f);
   });
   test('css/pilotage.css : aucune taille de texte ni poids en dur', () => {
     assert.doesNotMatch(lire('css/pilotage.css'), /font-size:\s*\d|font-weight:\s*\d/);

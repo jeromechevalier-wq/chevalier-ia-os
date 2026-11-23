@@ -1,5 +1,5 @@
 // Module Pilotage : des graphiques (Apache ECharts) alimentés par une base de données, décrits par un réglage que Claude modifie à la demande de Jérôme.
-// Un seul écran (pilotage/pilotage). Aucune donnée lue ni écrite par le navigateur : tout passe par la fonction `pilotageLire` du serveur (absente chez les clients pour l'instant).
+// Un seul écran (pilotage/pilotage, puis /<onglet> si le réglage a des onglets). Aucune donnée lue ni écrite par le navigateur : tout passe par la fonction `pilotageLire` du serveur (absente chez les clients pour l'instant).
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import { rendreEcran } from './ecran.js';
@@ -49,7 +49,7 @@ export function afficher(conteneur, segs) {
   ajouterFeuille();
   quitter();
   vider(conteneur);
-  montee = rendreEcran(conteneur);
+  montee = rendreEcran(conteneur, { onglet: segs[1] || null }); // #/pilotage/pilotage/<onglet> : l'onglet est dans l'adresse (le routeur ne connaît pas « ? »)
   conteneur.scrollTop = 0;
   return quitter;
 }

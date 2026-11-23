@@ -7,13 +7,16 @@ import { classerErreurAppel, lireReponse } from './logique.js';
 const fonctions = () => getFunctions(app, 'europe-west9');
 const appeler = (donnees) => httpsCallable(fonctions(), 'pilotageLire')(donnees);
 
-/** Lit le tableau : { titre, tuiles, erreurs, vide }. Lève une erreur au message lisible (`nonBranche` = vrai si la fonction n'existe pas sur cet espace). */
-export async function lireTableau() {
+/**
+ * Lit le tableau : { titre, tuiles, erreurs, onglets, onglet, vide }. `onglet` = identifiant de l'onglet à lire (le serveur ne lit que celui-là) ; sans lui : le premier.
+ * Lève une erreur au message lisible (`nonBranche` = vrai si la fonction n'existe pas sur cet espace ; `ongletInconnu` = vrai si le serveur ne connaît pas l'onglet demandé).
+ */
+export async function lireTableau({ onglet } = {}) {
   try {
-    return lireReponse((await appeler({})).data);
+    return lireReponse((await appeler(onglet ? { onglet } : {})).data);
   } catch (e) {
     const { nonBranche, message } = classerErreurAppel(e);
-    throw Object.assign(new Error(message), { nonBranche });
+    throw Object.assign(new Error(message), { nonBranche, ongletInconnu: Boolean(onglet) && String(e?.code ?? '').endsWith('invalid-argument') });
   }
 }
 

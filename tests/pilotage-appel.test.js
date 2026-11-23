@@ -153,7 +153,7 @@ describe('3 lecture : cas vide, forme, cache, connexion unique', () => {
     const m = await monter({ reglages: reglagesDe([tuile('a', { tri: { colonne: 'mois', sens: 'asc' } })]), pg });
     const r = await m.lire({ ...jeton(BOT), data: {} });
     assert.equal(r.titre, 'Tableau test');
-    assert.deepEqual(r.tuiles[0], { id: 'a', titre: 'Titre a', option: JSON.parse(OPTION), lignes: [{ mois: '2026-01-01', total: 100, vide: null, d: '2026-02-03T00:00:00.000Z' }] });
+    assert.deepEqual(r.tuiles[0], { id: 'a', titre: 'Titre a', type: 'graphique', option: JSON.parse(OPTION), lignes: [{ mois: '2026-01-01', total: 100, vide: null, d: '2026-02-03T00:00:00.000Z' }] });
     assert.deepEqual(r.erreurs, []);
     assert.equal(pg.etat.requetes[0], 'select * from "v_a" order by "mois" asc limit 200');
   });
