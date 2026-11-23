@@ -2,6 +2,14 @@
 
 Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de session) ; avant : 08/11/2026 (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Mise à jour du 23/11/2026 (module Pilotage, étape 1 : serveur)
+
+| | Sujet | État | Qui |
+|---|---|---|---|
+| 🟡 | Fonctions `pilotageLire` et `pilotageEnregistrerReglages` **absentes chez les clients** (`RESERVEES_JEROME`). Raison : le module est d'abord essayé chez Jérôme. Avant de l'ouvrir aux clients : version plateforme (`functions-plateforme/`), secret par client `SUPABASE_INDICATEURS_<client>` (modèle `nomDuSecret` de `coeur/sms-direct.js`), contrôle d'appartenance à l'espace côté serveur sans jamais croire un `cheminBase` envoyé par le navigateur, et règle de `firestore.plateforme.rules` interdisant l'écriture directe de `pilotage_parametres` | à faire | Claude |
+| 🟡 | Ligne « Pilotage » dans Réglages > Déploiement : à ajouter par l'écran du module (PR 2) avec `controlesDeploiement()` de son module (secret `SUPABASE_INDICATEURS` présent et lisible, fonctions publiées) | à faire | Claude |
+| 🟡 | Déploiement des fonctions chez Jérôme (workflow de déploiement du serveur de Jérôme) et règles Firestore (`pilotage_parametres` « tout refusé », workflow « Publier les règles (CRM de Jérôme) ») : à lancer après la fusion, avant d'utiliser l'écran | à faire | Claude |
+
 ## Mise à jour du 17/11/2026 (lien d'envoi temporaire des fichiers)
 
 | | Sujet | État | Qui |
