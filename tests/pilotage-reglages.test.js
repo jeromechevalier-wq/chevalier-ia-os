@@ -104,6 +104,27 @@ describe('2 bis option ECharts : liste noire renforcée', () => {
   });
 });
 
+describe('2 quater schémas d\'adresse, barre oblique inverse, url(', () => {
+  const texte = (t) => () => analyserOption(JSON.stringify({ title: { text: t } }));
+  test('2.12 chaque forme d\'adresse est refusée, avec un message qui dit ce qui est refusé', () => {
+    for (const t of ['/\\hote/x', '\\\\hote/x', 'https:\\\\hote', 'http:/hote', 'ftp://hote', 'url(data:x)', 'url (x)', '(data:x', 'mailto:a@example.test', 'blob:x']) {
+      refus(texte(t), /refusé/);
+    }
+    refus(texte('a \\ b'), /barre oblique inverse/);
+    refus(texte('a < b'), /« < »|signe « < »/);
+  });
+  test('2.13 un texte ordinaire reste permis : « Metadata: ventes », « Ventes: {c} », une heure, un rapport', () => {
+    for (const t of ['Metadata: ventes', 'Ventes: {c}', '{b}: {c}', 'Total 12:30', 'ratio 3/4', 'Chiffre d\'affaires (HT)']) assert.ok(texte(t)(), t);
+  });
+  test('2.14 adresse e-mail adverse de 80 000 caractères : refusée en moins de 50 ms (longueur testée avant l\'expression)', () => {
+    const adverse = `${'a@'.repeat(40_000)}`;
+    const t0 = performance.now();
+    refus(() => validerReglages(reglage([tuile({ visiblePour: [adverse] })])), /visiblePour/);
+    refus(() => validerReglages(reglage([], { equipe: [adverse] })), /invalide/);
+    assert.ok(performance.now() - t0 < 50, `${performance.now() - t0} ms`);
+  });
+});
+
 describe('2 ter taille du réglage et noms de groupes', () => {
   test('2.10 plafond global de 300 000 caractères pour le réglage sérialisé, message clair', () => {
     const gros = JSON.stringify({ title: { text: 'x'.repeat(19_000) } });

@@ -117,7 +117,7 @@ export function creerServicePilotage({ donnees, connecter, maintenant = Date.now
     return { titre: reglages.tableau.titre ?? '', tuiles, erreurs };
   }
 
-  /** Enregistre le réglage complet : valide, incrémente `version`, écrit le document ET sa ligne de journal (crm_audit + copie avant/après) dans la même transaction. */
+  /** Enregistre le réglage complet : valide, incrémente `version`, écrit le document ET sa ligne de journal (crm_audit, sans aucune valeur du réglage et sans copie « avant ») dans la même transaction. */
   async function enregistrer({ reglages, acteur, ctx = {} }) {
     const valide = validerReglages(reglages);
     const maintenantDate = new Date(maintenant());

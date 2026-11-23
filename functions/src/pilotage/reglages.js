@@ -41,12 +41,14 @@ const CLES_INTERDITES = new Set(['__proto__', 'constructor', 'prototype']);
 // Aucune requête externe, aucune image tirée d'une adresse, aucun script, aucun HTML : refusé dans toute chaîne de l'option (clés comprises).
 // Les caractères de contrôle (tabulation, retour à la ligne…) sont retirés AVANT le test : « java<tab>script: » est refusé comme « javascript: ».
 // `data:` n'est refusé qu'en début de chaîne ou après une espace ou un guillemet : « Metadata: » reste permis.
-const MOTIFS_INTERDITS = [/http:\/\//i, /https:\/\//i, /image:\/\//i, /javascript:/i, /(^|[\s"'`])data:/i, /^\s*\/\//, /</];
+const MOTIFS_INTERDITS = [/http:\/\//i, /https:\/\//i, /image:\/\//i, /javascript:/i, /(^|[\s"'`])data:/i, /^\s*\/\//, /</, /\\/, /url\s*\(/i,
+  // un schéma d'adresse quelconque (ftp:, http:/, data:…) collé à son texte, en début de chaîne ou après espace, guillemet ou parenthèse : « Metadata: ventes » (espace après les deux-points) reste permis
+  /(^|[\s"'`(])[a-z][a-z0-9+.-]*:\S/i];
 const sansControle = (s) => s.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\ufeff]/g, '');
 
 function verifierChaine(brute, chemin) {
   const s = sansControle(brute);
-  if (MOTIFS_INTERDITS.some((m) => m.test(s))) refuser(`${chemin} : une adresse web, une image externe, un script ou du HTML (« http:// », « https:// », « image:// », « javascript: », « data: », « // » en début de texte, « < ») est refusé dans une option de graphique. Retire-le.`);
+  if (MOTIFS_INTERDITS.some((m) => m.test(s))) refuser(`${chemin} : ce texte est refusé dans une option de graphique : une adresse web ou un schéma d'adresse collé à son texte (« http:// », « https:// », « ftp:// », « image:// », « javascript: », « data: », ou tout « mot:texte » sans espace après les deux-points), « // » en début de texte, « url( », le signe « < » (HTML) et le signe « \ » (barre oblique inverse) n'ont pas le droit d'y figurer. Retire-le (« Ventes: 100 », avec une espace après les deux-points, est permis).`);
 }
 function parcourir(valeur, chemin, profondeur) {
   if (profondeur > PROFONDEUR_OPTION_MAX) refuser(`${chemin} : l'option est imbriquée sur trop de niveaux (${PROFONDEUR_OPTION_MAX} au plus). Simplifie-la.`);
@@ -96,7 +98,7 @@ function validerGroupes(brut) {
     const vus = new Set();
     for (const a of liste) {
       const adresse = typeof a === 'string' ? a.trim().toLowerCase() : '';
-      if (!MOTIF_EMAIL.test(adresse) || adresse.length > 200) refuser(`Le groupe « ${nom} » contient une adresse e-mail invalide.`);
+      if (adresse.length > 200 || !MOTIF_EMAIL.test(adresse)) refuser(`Le groupe « ${nom} » contient une adresse e-mail invalide.`);
       vus.add(adresse);
     }
     groupes[nom] = [...vus];
@@ -134,7 +136,7 @@ function validerTuile(brute, rang, ids) {
     if (!Array.isArray(brute.visiblePour) || brute.visiblePour.length > MEMBRES_MAX) refuser(`${etiquette} : « visiblePour » doit être une liste d'adresses e-mail ou de noms de groupes (${MEMBRES_MAX} au plus).`);
     tuile.visiblePour = brute.visiblePour.map((x) => {
       const v = typeof x === 'string' ? x.trim().toLowerCase() : '';
-      if (!(MOTIF_EMAIL.test(v) && v.length <= 200) && !MOTIF_GROUPE.test(v)) refuser(`${etiquette} : « visiblePour » contient une valeur qui n'est ni une adresse e-mail ni un nom de groupe.`);
+      if (!(v.length <= 200 && MOTIF_EMAIL.test(v)) && !MOTIF_GROUPE.test(v)) refuser(`${etiquette} : « visiblePour » contient une valeur qui n'est ni une adresse e-mail ni un nom de groupe.`);
       return v;
     });
   }

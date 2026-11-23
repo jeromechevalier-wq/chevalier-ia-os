@@ -9,6 +9,7 @@ import { ADMINISTRATEURS } from '../functions/partage/administrateur.js';
 import { COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { restaurerOperation, COLLECTIONS_RESERVEES_SUPER_ADMINS } from '../functions/src/coeur/restaurer.js';
+import { COLLECTIONS_ECRITES } from '../functions/src/coeur/ecriture.js';
 
 const JEROME = ADMINISTRATEURS[0]; // l'administrateur du dépôt (js/os/administrateur.js) : lu depuis la source, jamais recopié ici
 const BOT = COMPTES_AUTORISES.find((c) => !ADMINISTRATEURS.includes(c)); // le compte d'assistant : autorisé, mais pas administrateur
@@ -316,6 +317,17 @@ describe('6 journal sans valeur et restauration refusée', () => {
     await assert.rejects(restaurerOperation({ donnees, ctx, operationId, apercu: true }), (e) => e.code === 'restauration_refusee');
     assert.equal(JSON.stringify(m.collections.pilotage_parametres), avant);
     assert.ok(COLLECTIONS_RESERVEES_SUPER_ADMINS.includes('pilotage_parametres'));
+  });
+  test('6.3 même un super admin, avec une ligne de journal et une copie forgées et forcer: true : plan_invalide, document inchangé ; la table n\'est pas écrivable par le moteur', async () => {
+    const m = await monter({ reglages: reglagesDe([tuile('a')]) });
+    const actuel = m.collections.pilotage_parametres[0];
+    m.collections.crm_audit = [{ id: 'forge1', operationId: 'op_forgee', ordre: 1, date: new Date(), acteur: BOT, jeton: BOT, via: 'mcp', outil: 'autre_outil', collection: 'pilotage_parametres', docId: 'reglages', action: 'modifier', statut: 'succes', champsModifies: ['tableau'] }];
+    m.collections.crm_audit_avant = [{ id: 'forge1', operationId: 'op_forgee', collection: 'pilotage_parametres', docId: 'reglages', avant: reglagesDe([tuile('pirate', { visiblePour: ['intrus@example.test'] })]), apres: actuel, expireAt: new Date(Date.now() + 1e9) }];
+    const avant = JSON.stringify(m.collections.pilotage_parametres);
+    const donnees = creerAccesMemoire(m.collections);
+    await assert.rejects(restaurerOperation({ donnees, ctx: { acteur: JEROME, via: 'mcp', maintenant: new Date() }, operationId: 'op_forgee', apercu: false, forcer: true, superAdmin: true }), (e) => e.code === 'plan_invalide');
+    assert.equal(JSON.stringify(m.collections.pilotage_parametres), avant);
+    assert.ok(!COLLECTIONS_ECRITES.includes('pilotage_parametres'));
   });
 });
 
