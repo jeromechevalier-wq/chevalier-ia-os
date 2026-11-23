@@ -1,13 +1,78 @@
-/* Module Pilotage : grille de cartes, une par tuile. 2 colonnes sur ordinateur, 1 sur téléphone. Aucune taille de texte en dur : variables de css/tokens.css. */
+/* Module Tableau de bord (Pilotage) : grille de 12 colonnes (tiers 4, moitié 6, deux tiers 8, pleine 12), 1 colonne sur téléphone sauf les grands chiffres (2 par ligne).
+   Aucune taille de texte en dur : variables de css/tokens.css. Couleurs nommées du réglage : bon = --succes, attention = --attention, mauvais = --retard, neutre = --texte2. */
 .page-pilotage { max-width: 1200px; }
+.page-pilotage > * { flex-shrink: 0; } /* en plein écran (colonne de hauteur fixe), la barre d'onglets et la zone ne se réduisent pas à rien */
 .pilotage-zone { margin-top: var(--esp-7); }
-.pilotage-grille { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--esp-7); }
-.pilotage-carte { min-width: 0; margin: 0; }
-.pilotage-carte > h2 { font-size: var(--fs-section); overflow-wrap: anywhere; }
-.pilotage-corps { min-height: 60px; }
+.pilotage-navigation:empty { display: none; }
+.pilotage-navigation { margin-top: var(--esp-5); overflow-x: auto; }
+.pilotage-actions { display: flex; flex-wrap: wrap; gap: var(--esp-4); }
+.pilotage-grille { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--esp-7); }
+.pilotage-section { margin-bottom: var(--esp-9, var(--esp-7)); scroll-margin-top: var(--esp-7); }
+.pilotage-section + .pilotage-section, .pilotage-grille + .pilotage-section { margin-top: var(--esp-9, var(--esp-7)); }
+.pilotage-section-titre { margin: 0 0 var(--esp-3); font-size: var(--fs-section); }
+.pilotage-intro { margin: 0 0 var(--esp-5); }
+.pilotage-pastilles { display: flex; flex-wrap: wrap; gap: var(--esp-3); margin-bottom: var(--esp-7); }
+.pilotage-pastille { padding: var(--esp-2) var(--esp-5); border: 1px solid var(--bordure-forte); border-radius: 999px; background: transparent; color: var(--texte2); font: inherit; font-size: var(--fs-menu); cursor: pointer; }
+.pilotage-pastille:hover, .pilotage-pastille:focus-visible { color: var(--texte); border-color: var(--texte2); }
+.pilotage-carte { min-width: 0; margin: 0; grid-column: span 6; }
+.pilotage-l-tiers { grid-column: span 4; }
+.pilotage-l-moitie { grid-column: span 6; }
+.pilotage-l-deux-tiers { grid-column: span 8; }
+.pilotage-l-pleine { grid-column: span 12; }
+.pilotage-carte-tete { display: flex; align-items: center; gap: var(--esp-3); }
+.pilotage-carte-tete > h2, .pilotage-carte-tete > h3 { margin: 0; font-size: var(--fs-section); overflow-wrap: anywhere; }
+.pilotage-corps { min-height: 60px; margin-top: var(--esp-4); }
 .pilotage-graphique { height: 320px; width: 100%; }
 .pilotage-bandeau { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--esp-4) var(--esp-7); margin-bottom: var(--esp-7); padding: var(--esp-5) var(--esp-7); border: 1px solid var(--retard); border-radius: var(--rayon-carte); background: var(--retard-fond); font-size: var(--fs-texte); }
-@media (max-width: 767px) {
-  .pilotage-grille { grid-template-columns: minmax(0, 1fr); }
-  .pilotage-graphique { height: 260px; }
+
+/* couleurs nommées */
+.couleur-bon { color: var(--succes); }
+.couleur-attention { color: var(--attention); }
+.couleur-mauvais { color: var(--retard); }
+.couleur-neutre { color: var(--texte2); }
+
+/* grand chiffre */
+.pilotage-chiffre { display: flex; flex-direction: column; gap: var(--esp-2); }
+.pilotage-chiffre p { margin: 0; }
+.pilotage-chiffre-valeur { font-size: calc(var(--fs-chiffre) * 1.6); font-weight: var(--poids-moyen); line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pilotage-chiffre-libelle, .pilotage-chiffre-variation { font-size: var(--fs-menu); }
+.pilotage-lien { color: var(--texte); text-decoration: underline; text-underline-offset: 2px; }
+.pilotage-chiffre-lien { font-size: var(--fs-menu); margin-top: var(--esp-2); }
+
+/* texte et phrases */
+.pilotage-texte, .pilotage-phrase { margin: 0 0 var(--esp-3); font-size: var(--fs-texte); line-height: 1.5; overflow-wrap: anywhere; }
+.pilotage-phrases { display: flex; flex-direction: column; }
+
+/* tableau */
+.pilotage-table { width: 100%; border-collapse: collapse; font-size: var(--fs-texte); }
+.pilotage-table th, .pilotage-table td { padding: var(--esp-3) var(--esp-4); border-bottom: 1px solid var(--bordure); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.pilotage-table td { font-variant-numeric: tabular-nums; }
+.pilotage-tri { display: inline-flex; align-items: center; gap: var(--esp-2); padding: 0; border: 0; background: transparent; color: var(--texte2); font: inherit; font-size: var(--fs-menu); font-weight: var(--poids-moyen); cursor: pointer; }
+.pilotage-tri:hover, .pilotage-tri:focus-visible { color: var(--texte); }
+.pilotage-tri-fleche { min-width: 1em; }
+.pilotage-tri-mobile { display: none; width: 100%; margin-bottom: var(--esp-4); padding: var(--esp-3) var(--esp-4); border: 1px solid var(--bordure-forte); border-radius: var(--rayon-petit); background: var(--panneau); color: var(--texte); font: inherit; font-size: var(--fs-menu); }
+.pilotage-tableau-pied { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--esp-4); margin-top: var(--esp-4); font-size: var(--fs-menu); color: var(--texte2); }
+.pilotage-pager { display: inline-flex; align-items: center; gap: var(--esp-4); }
+
+@media (max-width: 1023px) {
+  .pilotage-l-tiers { grid-column: span 6; }
+  .pilotage-l-moitie, .pilotage-l-deux-tiers { grid-column: span 12; }
 }
+@media (max-width: 767px) {
+  .pilotage-grille { gap: var(--esp-5); }
+  .pilotage-carte { grid-column: span 12; }
+  .pilotage-t-chiffre.pilotage-l-tiers { grid-column: span 6; } /* 2 grands chiffres par ligne */
+  .pilotage-graphique { height: 260px; }
+  .pilotage-chiffre-valeur { font-size: calc(var(--fs-chiffre) * 1.3); }
+  /* tableau en fiches : une carte par ligne, l'intitulé de chaque colonne devant sa valeur, jamais de colonne coupée */
+  .pilotage-tri-mobile { display: block; }
+  .pilotage-table, .pilotage-table tbody, .pilotage-table tr, .pilotage-table td { display: block; width: 100%; }
+  .pilotage-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .pilotage-table tr { margin-bottom: var(--esp-4); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); padding: var(--esp-2) var(--esp-4); }
+  .pilotage-table td { display: flex; justify-content: space-between; gap: var(--esp-4); border-bottom: 0; padding: var(--esp-2) 0; text-align: right; }
+  .pilotage-table td::before { content: attr(data-label); color: var(--texte2); font-size: var(--fs-menu); text-align: left; }
+}
+
+/* plein écran : l'API native ou, à défaut, tout l'écran par le CSS */
+.pilotage-plein { position: fixed; inset: 0; z-index: 2000; max-width: none; margin: 0; overflow: auto; background: var(--fond); }
+.pilotage-plein .pilotage-graphique { height: 42vh; }

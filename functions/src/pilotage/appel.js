@@ -1,5 +1,5 @@
 // Fonctions appelables du module Pilotage chez Jérôme (projet chevalier-ia-os) :
-//  - `pilotageLire({ apercu?, exporter? })`        : { titre, tuiles: [{ id, titre, option, lignes }], erreurs: [{ id, message }] } pour l'écran. Compte autorisé de la racine (Jérôme, son compte d'assistant) ;
+//  - `pilotageLire({ apercu?, exporter?, onglet? })` : { titre, tuiles: [{ id, titre, type, largeur?, aide?, …config du type, option?, lignes }], erreurs: [{ id, message }], onglets?, onglet? } pour l'écran (voir docs/pilotage.md). Compte autorisé de la racine (Jérôme, son compte d'assistant) ;
 //                                                    `apercu` (brouillon de réglage) et `exporter` (le document enregistré) sont RÉSERVÉS à Jérôme (permission-denied sinon) ;
 //  - `pilotageEnregistrerReglages({ reglages })`   : RÉSERVÉ à Jérôme (identité contrôlée ICI, à l'exécution, par js/os/administrateur.js) ; valide, incrémente la version, écrit et journalise.
 // Le filtre « qui voit quelle tuile » est appliqué par le service, côté serveur. Le journal Cloud ne reçoit ni adresse, ni nom de vue, ni ligne de données, ni valeur du secret.
@@ -41,8 +41,8 @@ export function creerAppelPilotageLire({ service, comptes = COMPTES_AUTORISES, e
     }
     const action = demandeExport ? 'exporter' : demandeApercu ? 'apercu' : 'lire';
     try {
-      // Seuls `apercu` et `exporter` sont transmis : un nom de vue passé librement par le navigateur n'est jamais lu.
-      const r = await service.lire({ email: jeton.email, apercu: demandeApercu ? d.apercu : undefined, exporter: demandeExport });
+      // Seuls `apercu`, `exporter` et `onglet` sont transmis ; `onglet` est un identifiant d'onglet vérifié par le service contre le réglage : un nom de vue passé librement par le navigateur n'est jamais lu.
+      const r = await service.lire({ email: jeton.email, apercu: demandeApercu ? d.apercu : undefined, exporter: demandeExport, onglet: d.onglet });
       journal({ action, statut: 'ok', dureeMs: maintenant() - debut, tuiles: r.tuiles?.length, erreurs: r.erreurs?.length });
       return r;
     } catch (e) {
