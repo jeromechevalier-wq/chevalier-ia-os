@@ -42,8 +42,10 @@ describe('1 invariance : tout profil autre qu\'assistant-devis reçoit exactemen
   test('1 les nombres de référence : 96 outils pour un jeton fixe complet, 97 pour un super admin OAuth (avec modifier_reglages_devis ; 12 outils du module Réseaux sociaux ajoutés le 13/11/2026)', () => {
     assert.equal(JSON.parse(lireFixture('complet')).length, 100); // 100 : + lister_classements_posts et classer_post (22/11/2026) ; 98 : + obtenir_fichier (21/11/2026) ; 97 : + demander_lien_depot (17/11/2026)
     const superAdmin = JSON.parse(lireFixture('complet-super-admin'));
-    assert.equal(superAdmin.length, 101);
+    assert.equal(superAdmin.length, 103); // 103 : + lister_tableau_de_bord et lire_tableau_de_bord (Tableau de bord, lecture seule, super admin seulement, 23/11/2026)
     assert.ok(superAdmin.some((t) => t.name === 'modifier_reglages_devis'));
+    assert.ok(superAdmin.some((t) => t.name === 'lister_tableau_de_bord') && superAdmin.some((t) => t.name === 'lire_tableau_de_bord'));
+    assert.ok(!JSON.parse(lireFixture('complet')).some((t) => /tableau_de_bord/.test(t.name)), 'un jeton fixe complet ne voit pas les outils du Tableau de bord');
   });
   test('1 varianteDuProfil rend l\'outil LUI-MÊME (même objet) pour tout profil autre qu\'assistant-devis', () => {
     for (const profil of ['lecture', 'ecriture', 'agent-devis', 'complet']) for (const o of OUTILS) assert.equal(varianteDuProfil(o, profil), o, `${profil} / ${o.nom}`);
