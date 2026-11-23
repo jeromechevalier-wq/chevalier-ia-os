@@ -10,6 +10,12 @@ const normaliser = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g,
 const MOTIF_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const PLAGE = 'plage';
 const NOMBRE_RECHERCHE = 8; // au-delà, un champ de recherche dans la liste à cocher
+// Plafonds du serveur, contrôlés ici AVANT l'envoi (un refus du serveur vide les filtres de l'onglet : on ne le provoque jamais)
+const VALEURS_MAX = 50;
+const ANNEE_MIN = 1900;
+const ANNEE_MAX = 2100;
+const NOMBRE_MAX = 1e15;
+const anneeValide = (d) => { const a = Number(d.slice(0, 4)); return a >= ANNEE_MIN && a <= ANNEE_MAX; };
 
 /** Options d'un filtre `liste` : choix fermés, sinon valeurs lues par le serveur ; une valeur déjà appliquée mais absente de la liste est ajoutée (elle reste visible et décochable). */
 function optionsDe(d) {
@@ -38,6 +44,7 @@ function controle(d) {
         if (choix.value !== PLAGE) return { ok: true, valeur: { raccourci: choix.value } };
         if (!MOTIF_DATE.test(du.value) || !MOTIF_DATE.test(au.value)) return { ok: false, message: `${d.libelle} : choisis les deux dates.` };
         if (du.value > au.value) return { ok: false, message: `${d.libelle} : la première date doit venir avant la seconde.` };
+        if (!anneeValide(du.value) || !anneeValide(au.value)) return { ok: false, message: `${d.libelle} : les années vont de ${ANNEE_MIN} à ${ANNEE_MAX}.` };
         return { ok: true, valeur: { du: du.value, au: au.value } };
       },
     };
@@ -62,7 +69,10 @@ function controle(d) {
       : null;
     return {
       element: h('fieldset', { class: 'groupe-cases' }, h('legend', { class: 'etiquette' }, d.libelle), recherche, h('div', { class: 'cases pilotage-cases' }, ...lignes.map((l) => l.label)), note),
-      lire: () => ({ ok: true, valeur: cases.filter(({ entree }) => entree.checked).map(({ o }) => o.valeur) }),
+      lire: () => {
+        const prises2 = cases.filter(({ entree }) => entree.checked).map(({ o }) => o.valeur);
+        return prises2.length > VALEURS_MAX ? { ok: false, message: `${d.libelle} : ${VALEURS_MAX} valeurs au plus (${prises2.length} cochées).` } : { ok: true, valeur: prises2 };
+      },
     };
   }
   if (d.type === 'intervalle') {
@@ -76,7 +86,7 @@ function controle(d) {
         for (const [cle, el] of [['min', min], ['max', max]]) {
           if (el.value.trim() === '') continue;
           const n = Number(el.value);
-          if (!Number.isFinite(n)) return { ok: false, message: `${d.libelle} : ce n'est pas un nombre.` };
+          if (!Number.isFinite(n) || Math.abs(n) > NOMBRE_MAX) return { ok: false, message: `${d.libelle} : ce n'est pas un nombre acceptable (au plus 1 000 000 000 000 000).` };
           v[cle] = n;
         }
         if (v.min !== undefined && v.max !== undefined && v.min > v.max) return { ok: false, message: `${d.libelle} : le minimum dépasse le maximum.` };
@@ -123,20 +133,23 @@ export async function fenetreFiltresPilotage(decls) {
  */
 export function creerBarreFiltres({ surChoix, ouvrirFenetre = fenetreFiltresPilotage }) {
   let decls = [];
+  let rendreFocus = false; // après une croix ou « Effacer tout », la barre est redessinée : le focus revient au bouton « Filtres »
   const bouton = boutonFiltres({ auClic: () => ouvrir() });
-  const bascule = h('button', { type: 'button', class: 'bouton bouton-discret pilotage-filtres-bascule', 'aria-expanded': 'false', dataset: { action: 'replier-filtres' }, onclick: () => {
+  const bascule = h('button', { type: 'button', class: 'bouton bouton-discret pilotage-filtres-bascule', 'aria-expanded': 'false', 'aria-controls': 'pilotage-filtres-actifs', dataset: { action: 'replier-filtres' }, onclick: () => {
     const ouvert = element.classList.toggle('pilotage-filtres-ouvert');
     bascule.setAttribute('aria-expanded', String(ouvert));
   } });
-  const actifs = h('div', { class: 'pilotage-filtres-actifs', dataset: { role: 'filtres-actifs' } });
+  const actifs = h('div', { id: 'pilotage-filtres-actifs', class: 'pilotage-filtres-actifs', dataset: { role: 'filtres-actifs' } });
   const note = h('p', { class: 'aide pilotage-filtres-note', role: 'status', hidden: true, dataset: { role: 'note-filtres' } });
   const element = h('div', { class: 'pilotage-filtres', hidden: true }, h('div', { class: 'pilotage-filtres-ligne' }, bouton.element, bascule), actifs, note);
 
   async function ouvrir() {
     if (!decls.length) return;
-    const r = await ouvrirFenetre(decls);
-    if (r === 'effacer') surChoix((m) => FL.toutEffacer(m, decls));
-    else if (r?.editions) surChoix((m) => FL.fusionner(m, decls, r.editions));
+    const ds = decls; // figé à l'ouverture : la fenêtre porte sur CES filtres
+    const r = await ouvrirFenetre(ds);
+    if (decls !== ds) return; // l'onglet a changé (ou la barre a été vidée) pendant que la fenêtre était ouverte : le choix ne vaut plus pour l'onglet affiché
+    if (r === 'effacer') surChoix((m) => FL.toutEffacer(m, ds));
+    else if (r?.editions) surChoix((m) => FL.fusionner(m, ds, r.editions));
   }
 
   function afficher(liste, { message = '' } = {}) {
@@ -150,10 +163,11 @@ export function creerBarreFiltres({ surChoix, ouvrirFenetre = fenetreFiltresPilo
     if (!ps.length) { element.classList.remove('pilotage-filtres-ouvert'); bascule.setAttribute('aria-expanded', 'false'); }
     remplir(actifs,
       ...ps.map((p) => h('span', { class: 'pastille-filtre pilotage-filtre-pastille', dataset: { filtre: p.id, cle: p.cle } }, p.texte,
-        h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer le filtre : ${p.texte}`, dataset: { action: 'retirer-filtre' }, onclick: () => surChoix((m) => FL.retirerPastille(m, decls, p)) }, icone('x', { taille: 12 })))),
-      ps.length > 1 ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'effacer-filtres' }, onclick: () => surChoix((m) => FL.toutEffacer(m, decls)) }, 'Effacer tout') : null);
+        h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer le filtre : ${p.texte}`, dataset: { action: 'retirer-filtre' }, onclick: () => { rendreFocus = true; surChoix((m) => FL.retirerPastille(m, decls, p)); } }, icone('x', { taille: 12 })))),
+      ps.length > 1 ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'effacer-filtres' }, onclick: () => { rendreFocus = true; surChoix((m) => FL.toutEffacer(m, decls)); } }, 'Effacer tout') : null);
     note.textContent = message;
     note.hidden = !message;
+    if (rendreFocus) { rendreFocus = false; bouton.element.focus(); }
   }
 
   const vider = () => { decls = []; element.hidden = true; remplir(actifs); note.hidden = true; };

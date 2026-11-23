@@ -109,14 +109,15 @@ describe('B2.5 croisement : un clic sur un graphique règle un filtre', () => {
     assert.equal(FL.lireValeurClic({ name: { a: 1 } }), undefined);
     assert.equal(FL.lireValeurClic(null), undefined);
   });
-  test('B2.5b la valeur est validée contre le type : liste fermée ou liste complète -> doit en faire partie (forme du choix) ; liste tronquée -> acceptée', () => {
+  test('B2.5b la valeur est validée contre le type : liste fermée ou liste complète -> doit en faire partie (forme du choix) ; liste tronquée ou sans valeurs -> refusée', () => {
     assert.equal(FL.valeurDeCroisement(LIEU, 'Nord'), 'Nord');
     assert.equal(FL.valeurDeCroisement(LIEU, 'Ouest'), undefined);
     assert.equal(FL.valeurDeCroisement(ETAT, 'clos'), 'clos');
-    assert.equal(FL.valeurDeCroisement({ ...LIEU, tronquee: true }, 'Ouest'), 'Ouest');
+    assert.equal(FL.valeurDeCroisement({ ...LIEU, tronquee: true }, 'Ouest'), undefined); // liste tronquée : valeur non validable, clic ignoré
+    assert.equal(FL.valeurDeCroisement({ ...LIEU, valeurs: undefined }, 'Nord'), undefined); // aucune valeur connue
     assert.equal(FL.valeurDeCroisement({ ...LIEU, valeurs: [3, 4] }, '3'), 3); // la forme de la liste fait foi (le nom du graphique est un texte)
     assert.equal(FL.valeurDeCroisement(MONTANT, 'x'), undefined); // pas une liste
-    assert.equal(FL.valeurDeCroisement({ ...LIEU, valeurs: undefined }, 'x'.repeat(201)), undefined);
+    assert.equal(FL.valeurDeCroisement({ ...LIEU, valeurs: ['x'.repeat(201)] }, 'x'.repeat(201)), undefined);
   });
   test('B2.5c un clic règle le filtre ; un second clic sur la même valeur le retire ; une valeur inconnue est ignorée', () => {
     const premier = FL.appliquerCroisement({}, LIEU, 'Nord');
@@ -136,6 +137,7 @@ describe('B2.5 croisement : un clic sur un graphique règle un filtre', () => {
   });
   test('B2.5e le gestionnaire est générique : posé dans ecran.js, jamais décrit dans le réglage', () => {
     assert.match(lire('js/modules/pilotage/ecran.js'), /instance\.on\('click'/);
+    assert.match(lire('js/modules/pilotage/ecran.js'), /params\?\.componentType !== 'series'/); // seuls les clics sur une donnée comptent
     assert.doesNotMatch(lire('js/modules/pilotage/logique.js'), /on\('click'/);
   });
 });
@@ -160,7 +162,7 @@ describe('B2.8 export CSV', () => {
   const COLS = [{ colonne: 'nom', titre: 'Nom' }, { colonne: 'montant', titre: 'Montant' }, { colonne: 'note' }];
   test('B2.8a point-virgule, BOM UTF-8, fin de ligne CRLF, en-têtes = titres de colonnes, nombres à la française', () => {
     const csv = FL.construireCsv(COLS, [{ nom: 'Chantier A', montant: 1234.5, note: 'ok' }, { nom: 'B', montant: '12.30', note: null }]);
-    assert.equal(csv, '﻿Nom;Montant;note\r\nChantier A;1234,5;ok\r\nB;12,30;\r\n');
+    assert.equal(csv, '\uFEFFNom;Montant;note\r\nChantier A;1234,5;ok\r\nB;12,30;\r\n');
   });
   test('B2.8b guillemets, point-virgule, retour à la ligne : cellule entre guillemets, guillemets doublés', () => {
     assert.equal(FL.celluleCsv('a;b'), '"a;b"');

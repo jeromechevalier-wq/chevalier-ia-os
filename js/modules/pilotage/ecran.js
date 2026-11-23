@@ -96,6 +96,7 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     dessin += 1;
     liberer();
     titre.textContent = L.TITRE_PAGE;
+    noteFiltres = '';
     remplir(navigation);
     barreFiltres.vider();
     remplir(zone, h('div', { class: 'etat-vide', role: 'alert', dataset: { etat: nonBranche ? 'non-branche' : 'erreur' } },
@@ -190,6 +191,7 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
         if (decl) {
           corps.dataset.croisement = decl.id;
           instance.on('click', (params) => {
+            if (params?.componentType !== 'series') return; // légende, axe, titre : pas une donnée
             const r2 = FL.appliquerCroisement(choixDeLOnglet() ?? {}, decls.find((d) => d.id === decl.id) ?? decl, FL.lireValeurClic(params));
             if (r2) changerFiltres(() => r2.memoire);
           });
@@ -273,6 +275,7 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     const voulu = id || null;
     if (voulu === ongletDemande || (voulu && voulu === reponse?.onglet)) return; // déjà affiché (y compris l'onglet par défaut) : pas d'appel inutile
     ongletDemande = voulu;
+    barreFiltres.vider(); // la barre de l'ancien onglet ne reste pas utilisable pendant la lecture du nouveau
     racine.scrollTop = 0; conteneur.scrollTop = 0; // un autre onglet commence en haut
     lancer();
   };

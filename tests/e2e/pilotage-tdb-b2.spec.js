@@ -46,7 +46,7 @@ function appliquePeriode(v) {
   return { du: v.du, au: v.au };
 }
 /** Un serveur de poche : refuse un filtre hors de l'onglet lu (comme le vrai), applique le défaut de la période, filtre les lignes par lieu / alerte / montant. */
-function serveur(corps, { sansFiltres = false, tronquee = false, extra = {} } = {}) {
+function serveur(corps, { sansFiltres = false, tronquee = false, nombreLieux = 0, extra = {} } = {}) {
   const onglet = corps.onglet ?? 'suivi';
   if (!ONGLETS.some((o) => o.id === onglet)) return refuseOnglet();
   const ids = onglet === 'suivi' ? IDS_SUIVI : IDS_AUTRE;
@@ -59,7 +59,7 @@ function serveur(corps, { sansFiltres = false, tronquee = false, extra = {} } = 
   const lignes = LIGNES.filter((l) => (!lieux || lieux.includes(l.lieu)) && (alerte === null || l.alerte === alerte) && (!montant || ((montant.min === undefined || l.montant >= montant.min) && (montant.max === undefined || l.montant <= montant.max))));
   const decls = [
     { id: 'periode', libelle: 'Période', type: 'periode', applique: periode },
-    { id: 'lieu', libelle: 'Lieu', type: 'liste', multiple: true, valeurs: LIEUX, ...(tronquee ? { tronquee: true } : {}), ...(lieux ? { applique: lieux } : {}) },
+    { id: 'lieu', libelle: 'Lieu', type: 'liste', multiple: true, valeurs: nombreLieux ? Array.from({ length: nombreLieux }, (_, i) => `Lieu ${String(i + 1).padStart(2, '0')}`) : LIEUX, ...(tronquee ? { tronquee: true } : {}), ...(lieux ? { applique: lieux } : {}) },
     { id: 'etat', libelle: 'État', type: 'liste', choix: [{ valeur: 'ouvert', libelle: 'Ouvert' }, { valeur: 'clos', libelle: 'Clos' }], ...(Array.isArray(f.etat) && f.etat.length ? { applique: f.etat } : {}) },
     { id: 'montant', libelle: 'Montant', type: 'intervalle', ...(montant ? { applique: montant } : {}) },
     { id: 'alerte', libelle: 'Avec alerte', type: 'oui_non', ...(alerte !== null ? { applique: alerte } : {}) },
@@ -120,21 +120,57 @@ test('B2.1 la barre de filtres sous les onglets : bouton « Filtres », fenêtre
   await capturer(page, info, 'B2.1-barre');
 });
 
-test('B2.1 la recherche de la liste à cocher, la liste tronquée signalée, une plage de dates incohérente refusée dans la fenêtre', async ({ page }) => {
-  const appels = await simulerServeur(page, (c) => serveur(c, { tronquee: true }));
+test('B2.1 la recherche de la liste à cocher (plus de 8 valeurs), la liste tronquée signalée, les plafonds et dates incohérentes refusés dans la fenêtre sans rien envoyer', async ({ page }) => {
+  const appels = await simulerServeur(page, (c) => serveur(c, { tronquee: true, nombreLieux: 60 }));
   await ouvrir(page);
   const f = await ouvrirFenetre(page);
   await expect(f.locator('[data-role="liste-tronquee"]')).toBeVisible();
+  const visibles = () => f.locator('.pilotage-cases label:not([hidden])').count();
+  expect(await visibles()).toBe(60);
+  await f.locator('input[data-role="recherche"]').fill('lieu 07');
+  await expect.poll(visibles).toBe(1); // la recherche masque les autres lignes
+  await f.locator('input[data-role="recherche"]').fill('');
+  await expect.poll(visibles).toBe(60);
+  // plafond du serveur : 51 valeurs cochées refusées avec un message (sinon le serveur refuserait et vider les filtres)
+  await f.locator('input[data-filtre="lieu"][type="checkbox"]').evaluateAll((els) => els.slice(0, 51).forEach((e) => { e.checked = true; }));
+  await appliquer(page);
+  await expect(f.locator('[data-role="erreur-filtres"]')).toContainText('50 valeurs au plus');
+  await f.locator('input[data-filtre="lieu"][type="checkbox"]').evaluateAll((els) => els.forEach((e) => { e.checked = false; }));
   await f.locator('select[data-role="raccourci"]').selectOption('plage');
   await f.locator('input[data-role="du"]').fill('2026-05-10');
   await f.locator('input[data-role="au"]').fill('2026-05-01');
   await appliquer(page);
   await expect(f.locator('[data-role="erreur-filtres"]')).toContainText('avant la seconde'); // la fenêtre reste ouverte
+  await f.locator('input[data-role="du"]').fill('1850-01-01');
+  await f.locator('input[data-role="au"]').fill('2026-05-01');
+  await appliquer(page);
+  await expect(f.locator('[data-role="erreur-filtres"]')).toContainText('1900 à 2100');
+  await f.locator('input[data-role="min"]').fill('1e16');
+  await f.locator('select[data-role="raccourci"]').selectOption('tout');
+  await appliquer(page);
+  await expect(f.locator('[data-role="erreur-filtres"]')).toContainText('pas un nombre acceptable');
   expect(appels).toEqual([{}]);
+  await f.locator('input[data-role="min"]').fill('');
+  await f.locator('select[data-role="raccourci"]').selectOption('plage');
+  await f.locator('input[data-role="du"]').fill('2026-05-10');
   await f.locator('input[data-role="au"]').fill('2026-05-31');
   await appliquer(page);
   await expect.poll(() => appels.length).toBe(2);
   expect(appels[1]).toEqual({ filtres: { periode: { du: '2026-05-10', au: '2026-05-31' } } });
+});
+
+test('B2.3 course : la fenêtre ouverte pendant un changement d\'onglet ne règle pas l\'autre onglet', async ({ page }) => {
+  const appels = await simulerServeur(page, (c) => serveur(c));
+  await ouvrir(page);
+  const f = await ouvrirFenetre(page);
+  await f.locator('input[data-filtre="lieu"][data-i="0"]').check();
+  await page.evaluate(() => { location.hash = '#/pilotage/pilotage/autre'; }); // l'adresse change, la fenêtre reste ouverte
+  await expect(page.locator('[data-tuile="autre_nombre"]')).toBeVisible();
+  await appliquer(page);
+  await page.waitForTimeout(500);
+  expect(appels.every((c) => !c.filtres)).toBe(true); // jamais de filtre « lieu » envoyé à l'onglet « autre » (le vrai serveur le refuserait)
+  await expect(page.locator('[data-etat="erreur"]')).toHaveCount(0);
+  await expect(page.locator('[data-role="note-filtres"]')).toBeHidden();
 });
 
 test('B2.2 sans filtre : requête sans clé `filtres` ; « Tout » s\'envoie explicitement ; la valeur appliquée est affichée', async ({ page }, info) => {

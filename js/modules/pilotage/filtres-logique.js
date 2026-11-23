@@ -137,13 +137,13 @@ export const nombreActifs = (decls) => decls.filter((d) => !estNeutre(d.type, d.
 
 // ---------- Croisement : un clic sur un graphique règle un filtre `liste` ----------
 
-/** Une valeur acceptable pour ce filtre `liste` : un texte (200 caractères au plus) ou un nombre fini ; si le filtre a des choix fermés ou une liste complète de valeurs, la valeur doit en faire partie (la forme du choix fait foi). Sinon `undefined`. */
+/** Une valeur acceptable pour ce filtre `liste` : un texte (200 caractères au plus) ou un nombre fini ET faisant partie des choix fermés ou de la liste COMPLÈTE de valeurs (la forme du choix fait foi). Liste tronquée ou sans valeurs : `undefined`. */
 export function valeurDeCroisement(decl, brut) {
   if (!decl || decl.type !== 'liste') return undefined;
   const ok = (typeof brut === 'string' && brut !== '' && brut.length <= 200) || (typeof brut === 'number' && Number.isFinite(brut));
   if (!ok) return undefined;
   const connues = decl.choix?.length ? decl.choix.map((c) => c.valeur) : (decl.valeurs && !decl.tronquee ? decl.valeurs : null);
-  if (!connues) return brut;
+  if (!connues) return undefined; // liste tronquée ou sans valeurs : rien ne permet de valider un libellé lu dans un graphique, le clic est ignoré (la fenêtre reste possible)
   return connues.find((v) => String(v) === String(brut));
 }
 
@@ -204,7 +204,7 @@ export function construireCsv(colonnes, lignes) {
   const cols = (Array.isArray(colonnes) ? colonnes : []).filter((c) => estObjet(c) && typeof c.colonne === 'string');
   const entete = cols.map((c) => celluleCsv(c.titre || c.colonne)).join(';');
   const corps = (Array.isArray(lignes) ? lignes : []).map((l) => cols.map((c) => celluleCsv(estObjet(l) ? l[c.colonne] : '')).join(';'));
-  return `﻿${[entete, ...corps].join('\r\n')}\r\n`;
+  return `\uFEFF${[entete, ...corps].join('\r\n')}\r\n`;
 }
 
 /** Nom du fichier : l'identifiant de la tuile (motif sûr du réglage) et la date du jour, jamais une donnée du tableau. */
