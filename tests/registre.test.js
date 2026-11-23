@@ -22,7 +22,7 @@ describe('registre : déclarations', () => {
     for (const m of MODULES_DECLARES) {
       assert.match(m.id, /^[a-z]+$/);
       assert.ok(m.nom && m.libelleMenu && m.iconeMenu && m.prefixe, m.id);
-      assert.ok(m.ecrans.length > 0 && (m.collections.length > 0 || m.id === 'mcp') && (m.outilsMcp.length > 0 || ['automatisations', 'veille', 'reseauxsociaux', 'rdv', 'tableaudebord', 'mcp', 'console'].includes(m.id)), m.id); // « mcp » n'a ni données ni outil à lui : il allume le lien du client
+      assert.ok(m.ecrans.length > 0 && (m.collections.length > 0 || m.id === 'mcp') && (m.outilsMcp.length > 0 || ['automatisations', 'veille', 'reseauxsociaux', 'rdv', 'pilotage', 'tableaudebord', 'mcp', 'console'].includes(m.id)), m.id); // « mcp » n'a ni données ni outil à lui : il allume le lien du client
       for (const e of m.ecrans) {
         assert.ok(e.route.startsWith(`${m.prefixe}/`) && e.libelle && e.icone, `${m.id} ${e.route}`);
       }
@@ -50,7 +50,7 @@ describe('registre : déclarations', () => {
     // Exception voulue (16/10/2026) : le module Automatisations ne copie que l'historique de n8n (refaisable depuis n8n, volumineux) ; ses collections
     // (workflows, executions, sync) ne sont pas dans l'export JSON du CRM. À reprendre si Jérôme veut les sauvegarder.
     // console (16/11/2026) : le module a son propre bouton « Exporter mes données » (Réglages > Console) ; sa table `console_filet` (dates de vérification à la main) n'est pas dans l'export complet du CRM.
-    const SANS_SAUVEGARDE = ['automatisations', 'tableaudebord', 'console']; // tableaudebord (17/10/2026) : relevés refaits chaque jour par les scripts de surveillance
+    const SANS_SAUVEGARDE = ['automatisations', 'tableaudebord', 'console', 'pilotage']; // pilotage (23/11/2026) : ses réglages vivent côté serveur, export par le bouton du module ; tableaudebord (17/10/2026) : relevés refaits chaque jour par les scripts de surveillance
     const declarees = MODULES_DECLARES.filter((m) => !SANS_SAUVEGARDE.includes(m.id)).flatMap((m) => m.collections).sort();
     const source = lire('js/modules/crm/donnees.js');
     const bloc = source.match(/COLLECTIONS_CRM = \[([\s\S]*?)\]/)[1];
@@ -235,6 +235,10 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
       { chemin: 'automatisations/historique', libelle: 'Historique', icone: 'activity' },
       { chemin: 'automatisations/a-valider', libelle: 'À valider', icone: 'inbox' }, // file des propositions des workflows (nuit du 22/10/2026) : après l'Historique
     ] },
+    // Ajout voulu (23/11/2026) : le module Pilotage (graphiques ECharts, un seul écran), juste avant Maintenance.
+    { id: 'pilotage', libelle: 'Pilotage', icone: 'chart-column', prefixe: 'pilotage', entrees: [
+      { chemin: 'pilotage/pilotage', libelle: 'Pilotage', icone: 'chart-column' },
+    ] },
     // Ajout voulu (17/10/2026) : le module Tableau de bord (écrans en lecture seule) est chez Jérôme dès le départ ; ses onglets Finance et Stocks ne sont pas dans le menu.
     { id: 'tableaudebord', libelle: 'Maintenance', icone: 'layout-dashboard', prefixe: 'tableaudebord', entrees: [
       { chemin: 'tableaudebord/general', libelle: 'Maintenance', icone: 'layout-dashboard' }, // un seul écran, sans onglets (23/10/2026) ; les autres routes restent servies par le module
@@ -399,7 +403,7 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
     assert.deepEqual(horsMenu('automatisations'), ['automatisations/a-valider']);
     assert.deepEqual(horsMenu('tableaudebord'), [], 'Maintenance : un seul écran, plus aucune route déclarée hors menu (technique, finance, stocks, historique sont servies par le module)');
     // Menu complet : une entrée par module, dans l'ordre.
-    assert.deepEqual(blocs.flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Devis', 'Veille', 'Réseaux sociaux', 'Rendez-vous', 'Automatisations', 'Maintenance']);
+    assert.deepEqual(blocs.flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Devis', 'Veille', 'Réseaux sociaux', 'Rendez-vous', 'Automatisations', 'Pilotage', 'Maintenance']);
     // Chez un client sans le module : pas d'entrée.
     assert.deepEqual(blocsDuMenu(['affaires', 'projets', 'veille']).flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille']);
     // La route d'arrivée de l'entrée est un écran du module, et le préfixe est celui du module.
@@ -455,7 +459,7 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
   });
   test('l\'interface déclare un interrupteur par bloc (CRM = affaires + projets)', () => {
     const lignes = interrupteursDuClient(['affaires', 'projets', 'mcp']);
-    assert.deepEqual(lignes.map((l) => [l.id, l.actif, l.complet]), [['crm', true, true], ['devis', false, false], ['veille', false, false], ['reseauxsociaux', false, false], ['rdv', false, false], ['automatisations', false, false], ['tableaudebord', false, false], ['mcp', true, true]]);
+    assert.deepEqual(lignes.map((l) => [l.id, l.actif, l.complet]), [['crm', true, true], ['devis', false, false], ['veille', false, false], ['reseauxsociaux', false, false], ['rdv', false, false], ['automatisations', false, false], ['pilotage', false, false], ['tableaudebord', false, false], ['mcp', true, true]]);
     assert.deepEqual(interrupteursDuClient(['affaires']).find((l) => l.id === 'crm'), { id: 'crm', libelle: 'Affaires et projets', modules: ['affaires', 'projets'], actif: true, complet: false });
     assert.deepEqual(interrupteursDuClient([]).filter((l) => l.actif), []);
   });

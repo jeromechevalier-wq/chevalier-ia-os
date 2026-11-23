@@ -1,0 +1,13 @@
+/* Module Pilotage : grille de cartes, une par tuile. 2 colonnes sur ordinateur, 1 sur téléphone. Aucune taille de texte en dur : variables de css/tokens.css. */
+.page-pilotage { max-width: 1200px; }
+.pilotage-zone { margin-top: var(--esp-7); }
+.pilotage-grille { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--esp-7); }
+.pilotage-carte { min-width: 0; margin: 0; }
+.pilotage-carte > h2 { font-size: var(--fs-section); overflow-wrap: anywhere; }
+.pilotage-corps { min-height: 60px; }
+.pilotage-graphique { height: 320px; width: 100%; }
+.pilotage-bandeau { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--esp-4) var(--esp-7); margin-bottom: var(--esp-7); padding: var(--esp-5) var(--esp-7); border: 1px solid var(--retard); border-radius: var(--rayon-carte); background: var(--retard-fond); font-size: var(--fs-texte); }
+@media (max-width: 767px) {
+  .pilotage-grille { grid-template-columns: minmax(0, 1fr); }
+  .pilotage-graphique { height: 260px; }
+}

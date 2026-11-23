@@ -16,6 +16,7 @@ const MONTAGES = {
   reseauxsociaux: () => import('../modules/reseauxsociaux/index.js'),
   rdv: () => import('../modules/rdv/index.js'),
   automatisations: () => import('../modules/automatisations/index.js'),
+  pilotage: () => import('../modules/pilotage/index.js'),
   tableaudebord: () => import('../modules/tableaudebord/index.js'),
   mcp: () => import('../modules/mcp/index.js'),
   console: () => import('../modules/console/index.js'),

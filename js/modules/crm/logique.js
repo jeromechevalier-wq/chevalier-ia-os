@@ -2977,6 +2977,7 @@ export function nomFichierExport(maintenant = new Date(), type = 'complet') {
     automatisations: ['chevalier-ia-automatisations', 'json'],
     veille: ['chevalier-ia-veille', 'json'],
     console: ['chevalier-ia-console', 'json'],
+    pilotage: ['chevalier-ia-pilotage', 'json'],
     contacts: ['chevalier-ia-contacts', 'vcf'],
     vocabulaire: ['chevalier-ia-vocabulaire', 'csv'],
   };

@@ -83,7 +83,8 @@ describe('règles du dépôt appliquées au module', () => {
 describe('R1 branchement dans la coque', () => {
   test('R1 le module est déclaré juste après automatisations, avec ses trois collections, sans réservation aux clients', () => {
     const ids = MODULES_DECLARES.map((m) => m.id);
-    assert.equal(ids.indexOf('tableaudebord'), ids.indexOf('automatisations') + 1);
+    assert.equal(ids.indexOf('tableaudebord'), ids.indexOf('pilotage') + 1); // Pilotage (23/11/2026) s'insère entre les deux
+    assert.equal(ids.indexOf('pilotage'), ids.indexOf('automatisations') + 1);
     const m = moduleDeclare('tableaudebord');
     assert.equal(m.nom, 'Maintenance');
     assert.equal(m.reserveAuxClients, undefined);
