@@ -143,7 +143,9 @@ describe('PM1 droits : seul Jérôme (identité vérifiée) voit et appelle les 
     for (const o of OUTILS_PILOTAGE) {
       assert.equal(o.reserveAuxSuperAdmins, true);
       assert.deepEqual(o.profils, ['complet']);
-      assert.equal(annotationsDe(o).destructiveHint, false);
+      const a = annotationsDe(o);
+      assert.deepEqual([a.readOnlyHint, a.destructiveHint, a.idempotentHint], [true, false, true]);
+      assert.ok(!o.profils.includes('lecture'), 'jamais ouvert au profil lecture');
     }
   });
 });
@@ -301,6 +303,16 @@ describe('PM7 plafond de lignes : jamais de coupure silencieuse', () => {
     assert.equal(tout.lignes.length, 200);
     refuse(await s.appeler('jerome', LIRE, { tuile: 'detail', lignesMax: 201 }));
     refuse(await s.appeler('jerome', LIRE, { tuile: 'detail', lignesMax: 0 }));
+  });
+  test('PM7.3 tuile elle-même plafonnée (limite de la tuile atteinte) : la note ne présente pas le nombre lu comme un total réel', async () => {
+    const r = REGLAGES();
+    r.tableau.tuiles.find((t) => t.id === 'detail').limite = 120;
+    const s = await demarrer({ reglages: r, pg: fauxPostgres({ nbDetail: 120 }) });
+    const d = ok(await s.appeler('jerome', LIRE, { tuile: 'detail' })).tuiles[0];
+    assert.equal(d.lignes.length, 50);
+    assert.equal(d.total, undefined);
+    assert.equal(d.totalLu, 120);
+    assert.equal(d.note, '50 premières lignes ; la tuile ne lit que les 120 premières');
   });
   test('PM7.2 sous le plafond : pas de note', async () => {
     const s = await demarrer();
@@ -464,5 +476,21 @@ describe('PM17 la copie des formats pour le serveur', () => {
     assert.equal(lire('functions/partage/pilotage-formats.js'), lire('js/modules/pilotage/formats.js'));
     assert.doesNotMatch(lire('js/modules/pilotage/formats.js'), /^import /m);
     assert.equal(F.formater('euros0', 1234.5), FECRAN.formater('euros0', 1234.5));
+  });
+});
+
+describe('PM18 extraction visibiliteDe : `lire` ne change pas', () => {
+  test('PM18.1 réponse de lire figée (écrite à partir du comportement d\'origine) pour deux comptes', async () => {
+    const { service } = monterService();
+    const a = await service.lire({ email: JEROME, onglet: 'suivi' });
+    assert.deepEqual(a.tuiles.map((t) => t.id), ['ca', 'detail']);
+    assert.deepEqual(a.onglets.map((o) => o.id), ['suivi', 'autres']);
+    assert.deepEqual(a.filtres.map((f) => f.id), ['periode', 'etat', 'lieu']);
+    assert.equal(a.onglet, 'suivi');
+    assert.deepEqual(a.erreurs, []);
+    const b = await service.lire({ email: AUTRE, onglet: 'prive' });
+    assert.deepEqual(b.tuiles.map((t) => t.id), ['secret', 'secret2']);
+    assert.deepEqual(b.onglets.map((o) => o.id), ['suivi', 'autres', 'prive']);
+    assert.equal(b.filtres, undefined);
   });
 });

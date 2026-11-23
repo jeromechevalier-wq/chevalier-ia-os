@@ -1132,9 +1132,9 @@
    "additionalProperties": false
   },
   "annotations": {
-   "readOnlyHint": false,
+   "readOnlyHint": true,
    "destructiveHint": false,
-   "idempotentHint": false,
+   "idempotentHint": true,
    "openWorldHint": false
   },
   "execution": {
@@ -1181,9 +1181,9 @@
    "additionalProperties": false
   },
   "annotations": {
-   "readOnlyHint": false,
+   "readOnlyHint": true,
    "destructiveHint": false,
-   "idempotentHint": false,
+   "idempotentHint": true,
    "openWorldHint": false
   },
   "execution": {

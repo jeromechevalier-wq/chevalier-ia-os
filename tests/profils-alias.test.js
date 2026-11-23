@@ -95,7 +95,7 @@ describe('profils de droits du serveur MCP', () => {
     assert.deepEqual(outilsAutorises('bibliothecaire', OUTILS), []);
     assert.deepEqual(outilsAutorises('claude-code', OUTILS), []);
     assert.deepEqual(outilsAutorises('root', OUTILS), []);
-    for (const o of OUTILS) assert.equal(annotationsDe(o).readOnlyHint, lecture.includes(o.nom), o.nom);
+    for (const o of OUTILS) assert.equal(annotationsDe(o).readOnlyHint, lecture.includes(o.nom) || o.lectureSeule === true, o.nom); // lectureSeule : outils du Tableau de bord (super admin), lecture seule sans être au profil lecture
   });
 
   for (const [titre, secret] of [['ANCIENS noms dans le secret', SECRET_ANCIEN], ['NOUVEAUX noms dans le secret', SECRET_NOUVEAU]]) {

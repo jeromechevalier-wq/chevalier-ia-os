@@ -32,7 +32,7 @@ export const outilsAutorises = (profil, outils = OUTILS) => outils.filter((o) =>
  * Aucun outil ne sort du CRM : openWorldHint toujours faux.
  */
 export function annotationsDe(outil) {
-  const lecture = outil.profils.includes('lecture');
+  const lecture = outil.lectureSeule === true || outil.profils.includes('lecture'); // lectureSeule : outil de lecture qui n'est PAS ouvert au profil lecture (Tableau de bord, super admin) ; le filtre par profil reste `profils`
   const destructif = /^supprimer_/.test(outil.nom) || OUTILS_DESTRUCTIFS.includes(outil.nom);
   return { readOnlyHint: lecture, destructiveHint: !lecture && destructif, idempotentHint: lecture, openWorldHint: false };
 }

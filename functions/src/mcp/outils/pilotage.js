@@ -20,6 +20,7 @@ function service(contexte) {
 export const lister_tableau_de_bord = {
   nom: 'lister_tableau_de_bord',
   profils: PROFILS,
+  lectureSeule: true,
   reserveAuxSuperAdmins: true,
   description: `Dit ce que contient le Tableau de bord (module Pilotage) que ce compte peut voir, SANS lire de chiffres : les onglets (id, titre), les tuiles visibles de chaque onglet (id, titre, type chiffre / tableau / graphique / phrases / texte, aide) et les filtres proposés (id, libellé, type, choix d'une liste fixe). À appeler d'abord, pour connaître les identifiants à donner à lire_tableau_de_bord. Une tuile que ce compte n'a pas le droit de voir n'apparaît pas. Lecture seule. ${CONSIGNE_DONNEES}`,
   schema: {},
@@ -30,6 +31,7 @@ export const lister_tableau_de_bord = {
 export const lire_tableau_de_bord = {
   nom: 'lire_tableau_de_bord',
   profils: PROFILS,
+  lectureSeule: true,
   reserveAuxSuperAdmins: true,
   description: `Lit les chiffres du Tableau de bord (module Pilotage), EXACTEMENT comme l'écran : mêmes vues, mêmes filtres, mêmes droits par tuile, mêmes formats (euros, pourcentages, dates) et même variation du grand chiffre. Lecture seule : rien n'est écrit, aucune requête libre. Sans argument : le premier onglet (ou la page unique). \`onglet\` : l'identifiant d'un onglet (voir lister_tableau_de_bord). \`tuile\` : une seule tuile (son onglet est retrouvé tout seul). \`filtres\` : des valeurs de filtres proposés pour l'onglet, par identifiant (période : { raccourci: "ce_mois" | "mois_dernier" | "3_mois" | "6_mois" | "12_mois" | "annee" | "tout" } ou { du: "AAAA-MM-JJ", au: "AAAA-MM-JJ" } ; liste : TOUJOURS une liste de textes (une seule valeur si le filtre n'est pas multiple) ; intervalle : { min, max } ; oui_non : true ou false) ; un filtre inconnu ou une valeur invalide est refusé. \`lignesMax\` : lignes au plus par tuile (défaut 50, plafond 200) ; quand elles sont coupées, la réponse dit « N premières lignes ». Réponse : par tuile, un grand chiffre (valeur, texte formaté, état, période, variation), un tableau (colonnes et lignes déjà formatées), des phrases, un graphique (lignes lues) ou un texte ; une tuile qui n'a pas pu être lue porte \`erreur\`. ${CONSIGNE_DONNEES} Ne redonne jamais d'adresse ni de nom technique : ils ne sont pas dans la réponse.`,
   stricte: true, // un argument inconnu (apercu, exporter, vue…) est REFUSÉ, pas ignoré (gestionnaire.js)

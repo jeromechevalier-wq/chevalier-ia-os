@@ -37,9 +37,10 @@ function limiter(liste, max, limiteTuile) {
   const total = liste.length;
   const gardees = liste.slice(0, max);
   let note;
-  if (total > max) note = `${max} premières lignes sur ${total}`;
-  else if (limiteTuile && total >= limiteTuile) note = `${total} premières lignes (limite de la tuile)`; // même phrase que l'écran : la lecture s'arrête à la limite
-  return { gardees, total, ...(note ? { note } : {}) };
+  const plafonnee = Boolean(limiteTuile) && total >= limiteTuile; // la lecture s'arrête à la limite de la tuile : `total` n'est alors pas un total réel
+  if (plafonnee) note = total > max ? `${max} premières lignes ; la tuile ne lit que les ${limiteTuile} premières` : `${total} premières lignes (limite de la tuile)`;
+  else if (total > max) note = `${max} premières lignes sur ${total}`;
+  return { gardees, ...(plafonnee ? { totalLu: total } : { total }), ...(note ? { note } : {}) };
 }
 
 /** Une tuile lue par le service -> ce que l'assistant reçoit (jamais de nom de vue ni de réglage). */
@@ -74,17 +75,17 @@ function resumerTuile(t, { max, enErreur }) {
     const colonnes = (t.colonnes ?? []).filter((c) => c && typeof c.colonne === 'string');
     const noms = new Set();
     const titres = colonnes.map((c) => ({ c, nom: unique(noms, borner(c.titre || c.colonne)) }));
-    const { gardees, total, note } = limiter(lignes, max, t.limite);
-    return { ...base, colonnes: titres.map((x) => x.nom), lignes: gardees.map((l) => Object.fromEntries(titres.map(({ c, nom }) => [nom, borner(F.formater(c.format, l?.[c.colonne]) || '—')]))), total, ...(note ? { note } : {}) };
+    const { gardees, note, ...totaux } = limiter(lignes, max, t.limite);
+    return { ...base, colonnes: titres.map((x) => x.nom), lignes: gardees.map((l) => Object.fromEntries(titres.map(({ c, nom }) => [nom, borner(F.formater(c.format, l?.[c.colonne]) || '—')]))), ...totaux, ...(note ? { note } : {}) };
   }
   if (t.type === 'phrases') {
     const phrases = lignes.flatMap((l) => (t.colonnes ?? []).map((c) => l?.[c])).filter((v) => !F.estVide(v)).map(String);
-    const { gardees, total, note } = limiter(phrases, max);
-    return { ...base, phrases: gardees.map((p) => borner(p)), total, ...(note ? { note } : {}) };
+    const { gardees, note, ...totaux } = limiter(phrases, max);
+    return { ...base, phrases: gardees.map((p) => borner(p)), ...totaux, ...(note ? { note } : {}) };
   }
   // graphique : les colonnes lues par la vue (l'option du graphique, elle, ne sort pas)
-  const { gardees, total, note } = limiter(lignes, max);
-  return { ...base, lignes: gardees.map((l) => Object.fromEntries(Object.entries(l ?? {}).map(([k, v]) => [borner(k, 80), brute(v)]))), total, ...(note ? { note } : {}) };
+  const { gardees, note, ...totaux } = limiter(lignes, max);
+  return { ...base, lignes: gardees.map((l) => Object.fromEntries(Object.entries(l ?? {}).map(([k, v]) => [borner(k, 80), brute(v)]))), ...totaux, ...(note ? { note } : {}) };
 }
 
 /** Un descripteur de filtre rendu par `lire` : libellé, type, choix ou valeurs possibles (bornées), valeur appliquée ; jamais de colonne ni de vue. */
