@@ -101,7 +101,7 @@ test('4 chez Jérôme : « Espace complet » du menu du compte mène à l\'espac
   await depuisCompte(page, 'Espace complet');
   await expect(page).toHaveURL(/#\/devis\/liste$/);
   await expect(page.locator('.page-liste-devis')).toBeVisible();
-  await expect.poll(() => page.locator('.menu .menu-entree').count()).toBe(12); // menu complet (12 entrées, dont Réseaux sociaux, Rendez-vous et la Console de Jérôme) : la page a bien rechargé
+  await expect.poll(() => page.locator('.menu .menu-entree').count()).toBe(13); // menu complet (13 entrées, dont Réseaux sociaux, Rendez-vous, Pilotage et la Console de Jérôme) : la page a bien rechargé
   await attendreCalme(page);
   await ouvrirMenuUtilisateur(page); // hors portail : plus aucune des deux entrées
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Exporter mes données|Espace complet/ })).toHaveCount(0);
