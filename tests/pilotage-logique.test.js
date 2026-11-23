@@ -206,15 +206,15 @@ describe('contrôles statiques du module', () => {
     assert.match(lire('js/os/ui.js'), /"chart-column":/);
   });
   test('ECharts n\'est jamais importé statiquement (ni dans index.js ni ailleurs) : seulement par import() dans l\'écran', () => {
-    for (const f of ['index.js', 'donnees.js', 'logique.js', 'habillage.js', 'export.js', 'blocs.js', 'formats.js']) assert.doesNotMatch(lire(`js/modules/pilotage/${f}`), /echarts\.esm|vendor\/echarts/, f);
+    for (const f of ['index.js', 'donnees.js', 'logique.js', 'habillage.js', 'export.js', 'blocs.js', 'formats.js', 'filtres-logique.js', 'filtres-ecran.js']) assert.doesNotMatch(lire(`js/modules/pilotage/${f}`), /echarts\.esm|vendor\/echarts/, f);
     assert.match(lire('js/modules/pilotage/ecran.js'), /=> import\('\.\.\/\.\.\/\.\.\/assets\/vendor\/echarts\/echarts\.esm\.min\.js'\)/);
     assert.doesNotMatch(lire('js/modules/pilotage/ecran.js'), /^import .*echarts/m);
   });
   test('le navigateur ne lit ni n\'écrit Firestore pour ce module (aucun onSnapshot, getDocs, setDoc, executer)', () => {
-    for (const f of ['index.js', 'donnees.js', 'ecran.js', 'export.js', 'habillage.js', 'blocs.js', 'formats.js']) assert.doesNotMatch(lire(`js/modules/pilotage/${f}`), /firebase-firestore|onSnapshot|getDocs|setDoc|updateDoc|executer\(/, f);
+    for (const f of ['index.js', 'donnees.js', 'ecran.js', 'export.js', 'habillage.js', 'blocs.js', 'formats.js', 'filtres-logique.js', 'filtres-ecran.js']) assert.doesNotMatch(lire(`js/modules/pilotage/${f}`), /firebase-firestore|onSnapshot|getDocs|setDoc|updateDoc|executer\(/, f);
   });
   test('l\'option reçue n\'est jamais exécutée comme du code', () => {
-    for (const f of ['ecran.js', 'logique.js', 'habillage.js', 'donnees.js', 'blocs.js', 'formats.js']) assert.doesNotMatch(lire(`js/modules/pilotage/${f}`), /\beval\s*\(|new Function|innerHTML/, f);
+    for (const f of ['ecran.js', 'logique.js', 'habillage.js', 'donnees.js', 'blocs.js', 'formats.js', 'filtres-logique.js', 'filtres-ecran.js', 'export.js']) assert.doesNotMatch(lire(`js/modules/pilotage/${f}`), /\beval\s*\(|new Function|innerHTML/, f);
   });
   test('css/pilotage.css : aucune taille de texte ni poids en dur', () => {
     assert.doesNotMatch(lire('css/pilotage.css'), /font-size:\s*\d|font-weight:\s*\d/);

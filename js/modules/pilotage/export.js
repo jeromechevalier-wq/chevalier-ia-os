@@ -5,6 +5,7 @@ import { telecharger } from '../crm/composants.js';
 import * as L from '../crm/logique.js';
 import * as D from './donnees.js';
 import { messageErreurExport } from './logique.js';
+import { construireCsv, nomFichierCsv } from './filtres-logique.js';
 
 /** Télécharge le réglage du Pilotage. `lire` se remplace dans les tests. Renvoie true si le fichier est parti. */
 export async function exporterPilotage({ lire = D.lireReglagesPourExport } = {}) {
@@ -17,6 +18,19 @@ export async function exporterPilotage({ lire = D.lireReglagesPourExport } = {})
   } catch (e) {
     console.warn(e);
     toast(messageErreurExport(e), { type: 'erreur' });
+    return false;
+  }
+}
+
+/** Télécharge un tableau en CSV (point-virgule, BOM UTF-8, formules neutralisées) : les lignes sont celles déjà lues par l'écran, donc déjà filtrées. Le nom du fichier ne porte que l'identifiant de la tuile. */
+export function exporterTableauCsv(idTuile, colonnes, lignes) {
+  try {
+    telecharger(nomFichierCsv(idTuile), construireCsv(colonnes, lignes), 'text/csv;charset=utf-8');
+    toast('Tableau téléchargé');
+    return true;
+  } catch (e) {
+    console.warn(e);
+    toast('L\'export n\'a pas abouti : réessaie dans un instant.', { type: 'erreur' });
     return false;
   }
 }

@@ -6,10 +6,20 @@ import { barreOnglets } from '../../os/onglets.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import * as B from './blocs.js';
+import * as FL from './filtres-logique.js';
+import { creerBarreFiltres } from './filtres-ecran.js';
+import { exporterTableauCsv } from './export.js';
 import { creerGraphique, lireCouleursNommees } from './habillage.js';
 
 const chargerEcharts = () => import('../../../assets/vendor/echarts/echarts.esm.min.js');
 const ROUTE_ECRAN = 'pilotage/pilotage';
+
+// Mémoire des filtres : en mémoire du module (jamais dans le navigateur ni dans l'adresse), un jeu de choix par onglet, remise à zéro à la déconnexion (`oublierFiltresPilotage`, appelée par main.js).
+// Chaque jeu est de la forme « requête » (voir filtres-logique.js). `premierConnu` = identifiant du premier onglet, pour que « sans onglet dans l'adresse » et « le premier onglet » partagent la même mémoire.
+let memoireFiltres = new Map();
+let defautsFiltres = new Map(); // par onglet : ce que le serveur applique quand rien n'est envoyé (valeur appliquée relevée quand le filtre n'avait aucun choix de l'utilisateur)
+let premierConnu = null;
+export function oublierFiltresPilotage() { memoireFiltres = new Map(); defautsFiltres = new Map(); premierConnu = null; }
 
 const chargement = () => h('div', { class: 'chargement-bloc', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement'));
 
@@ -19,8 +29,9 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
   const actualiser = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'actualiser' }, onclick: () => lancer() }, icone('refresh-cw', { taille: 16 }), 'Actualiser');
   const pleinEcran = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'plein-ecran' }, 'aria-pressed': 'false', onclick: () => basculerPleinEcran() }, icone('maximize', { taille: 16 }), 'Plein écran');
   const navigation = h('div', { class: 'pilotage-navigation' });
+  const barreFiltres = creerBarreFiltres({ surChoix: (transformer) => changerFiltres(transformer) });
   const zone = h('div', { class: 'pilotage-zone', 'aria-live': 'polite' });
-  const racine = h('div', { class: 'page page-pilotage' }, h('header', { class: 'page-tete' }, titre, h('div', { class: 'pilotage-actions' }, actualiser, pleinEcran)), navigation, zone);
+  const racine = h('div', { class: 'page page-pilotage' }, h('header', { class: 'page-tete' }, titre, h('div', { class: 'pilotage-actions' }, actualiser, pleinEcran)), navigation, barreFiltres.element, zone);
   conteneur.append(racine);
 
   let graphiques = []; // [{ instance, element, tuile }]
@@ -32,6 +43,16 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
   let echartsCharge = false;
   let ferme = false;
   let plein = false;
+  let noteFiltres = ''; // « Filtres réinitialisés » : affiché une fois, après une relecture déclenchée par un filtre refusé
+  const cleOnglet = () => ongletDemande || premierConnu || '_';
+  const choixDeLOnglet = () => memoireFiltres.get(cleOnglet());
+  /** Un choix de l'utilisateur (fenêtre, pastille, clic sur un graphique) : la mémoire de CET onglet change, puis l'onglet est relu (jamais à chaque frappe : seulement à l'application). */
+  function changerFiltres(transformer) {
+    if (ferme || appelEnCours) return;
+    const suivant = transformer(choixDeLOnglet() ?? {});
+    if (Object.keys(suivant).length) memoireFiltres.set(cleOnglet(), suivant); else memoireFiltres.delete(cleOnglet());
+    lancer();
+  }
 
   const sectionsParId = new Map(); // id de section -> élément (pour les pastilles)
   const sortirNatif = () => { try { document.exitFullscreen()?.catch?.(() => {}); } catch (e) { console.warn(e); } };
@@ -76,12 +97,13 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     liberer();
     titre.textContent = L.TITRE_PAGE;
     remplir(navigation);
+    barreFiltres.vider();
     remplir(zone, h('div', { class: 'etat-vide', role: 'alert', dataset: { etat: nonBranche ? 'non-branche' : 'erreur' } },
       h('p', {}, message),
       nonBranche ? null : h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'reessayer' }, onclick: () => lancer() }, 'Réessayer')));
   }
 
-  function carteDe(c, titreDe = 'h2') {
+  function carteDe(c, titreDe = 'h2', actifs = new Set()) {
     const t = c.tuile;
     const corps = h('div', { class: 'pilotage-corps' });
     let aDessiner = false;
@@ -90,13 +112,16 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     else if (c.genre === 'vide') corps.append(h('p', { class: 'aide' }, L.MESSAGE_TUILE_VIDE));
     else if (c.genre === 'graphique') { corps.classList.add('pilotage-graphique'); aDessiner = true; }
     else if (c.genre === 'chiffre') corps.append(B.rendreChiffre(t));
-    else if (c.genre === 'tableau') corps.append(B.rendreTableau(t));
+    else if (c.genre === 'tableau') corps.append(B.rendreTableau(t, { exporter: (colonnes, lignes) => exporterTableauCsv(t.id, colonnes, lignes) }));
     else if (c.genre === 'phrases') corps.append(B.rendrePhrases(t));
     else if (c.genre === 'texte') corps.append(B.rendreTexte(t));
     const aide = t?.aide ? iconeInfo(t.aide, c.titre) : null;
     const type = t?.type ?? 'graphique';
-    const section = h('section', { class: `carte-section pilotage-carte pilotage-l-${t?.largeur ?? 'moitie'} pilotage-t-${type}`, dataset: { tuile: c.id, genre: c.genre, type } },
-      h('div', { class: 'pilotage-carte-tete' }, h(titreDe, {}, c.titre), aide), corps);
+    const filtree = (t?.filtresAppliques ?? []).some((id) => actifs.has(id)); // petit repère : au moins un filtre actif agit sur cette tuile
+    const repere = filtree ? h('span', { class: 'pilotage-repere', title: 'Filtrée', dataset: { role: 'repere-filtre' } }, icone('funnel', { taille: 14 }), h('span', { class: 'sr-only' }, 'Filtrée')) : null;
+    const mention = t?.mentionNonFiltre ? h('p', { class: 'aide pilotage-mention', dataset: { role: 'mention-non-filtre' } }, t.mentionNonFiltre) : null;
+    const section = h('section', { class: `carte-section pilotage-carte pilotage-l-${t?.largeur ?? 'moitie'} pilotage-t-${type}`, dataset: { tuile: c.id, genre: c.genre, type, ...(filtree ? { filtree: '1' } : {}) } },
+      h('div', { class: 'pilotage-carte-tete' }, h(titreDe, {}, c.titre), repere, aide), mention, corps);
     return { section, corps, aDessiner, c };
   }
 
@@ -122,15 +147,20 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     const mon = ++dessin;
     liberer();
     titre.textContent = L.titreDePage(r);
-    if (r.vide) { remplir(navigation); remplir(zone, h('div', { class: 'etat-vide', dataset: { etat: 'vide' } }, h('p', {}, L.MESSAGE_VIDE))); return; }
+    if (r.vide) { remplir(navigation); barreFiltres.vider(); remplir(zone, h('div', { class: 'etat-vide', dataset: { etat: 'vide' } }, h('p', {}, L.MESSAGE_VIDE))); return; }
     const p = L.plan(r);
     barre(p);
+    const defauts = defautsFiltres.get(cleOnglet()) ?? {};
+    const decls = (r.filtres ?? []).map((d) => (defauts[d.id] !== undefined ? { ...d, defaut: defauts[d.id] } : d));
+    barreFiltres.afficher(decls, { message: noteFiltres });
+    noteFiltres = '';
+    const actifs = new Set(decls.filter((d) => !FL.estNeutre(d.type, d.applique)).map((d) => d.id));
     const aDessiner = [];
     sectionsParId.clear();
     const blocs = p.blocs.map((b) => {
       const grille = h('div', { class: 'pilotage-grille' });
       for (const c of b.cartes) {
-        const carte = carteDe(c, b.section ? 'h3' : 'h2'); // sous un titre de section (h2), les titres de cartes sont des h3
+        const carte = carteDe(c, b.section ? 'h3' : 'h2', actifs); // sous un titre de section (h2), les titres de cartes sont des h3
         if (carte.aDessiner) aDessiner.push({ c, corps: carte.corps });
         grille.append(carte.section);
       }
@@ -154,7 +184,16 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
       try {
         const instance = creerGraphique(echarts, corps);
         graphiques.push({ instance, element: corps, tuile: c.id });
-        instance.setOption(L.optionFinale(c.tuile.option, c.tuile.lignes, { formats: c.tuile.formats, couleurs }));
+        const decl = c.tuile.croisement ? decls.find((d) => d.id === c.tuile.croisement.filtre && d.type === 'liste') : null; // croisement : seulement si le filtre est à l'écran
+        const option = L.optionFinale(c.tuile.option, c.tuile.lignes, { formats: c.tuile.formats, couleurs });
+        instance.setOption(decl ? FL.rendreCliquable(option) : option);
+        if (decl) {
+          corps.dataset.croisement = decl.id;
+          instance.on('click', (params) => {
+            const r2 = FL.appliquerCroisement(choixDeLOnglet() ?? {}, decls.find((d) => d.id === decl.id) ?? decl, FL.lireValeurClic(params));
+            if (r2) changerFiltres(() => r2.memoire);
+          });
+        }
       } catch (e) {
         console.warn('tuile non dessinée', c.id, e?.message);
         const g = graphiques.find((x) => x.element === corps);
@@ -184,8 +223,15 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     remplir(zone, chargement());
     try {
       let r;
-      try { r = await lire(ongletDemande ? { onglet: ongletDemande } : undefined); } catch (e) {
+      try { r = await lire(FL.argumentsDeLecture(ongletDemande, choixDeLOnglet())); } catch (e) {
         if (mon !== numero || ferme) return;
+        if (e?.filtreRefuse && choixDeLOnglet()) { // un filtre mémorisé n'existe plus ou n'est plus permis : on les oublie pour cet onglet et on relit UNE fois
+          memoireFiltres.delete(cleOnglet());
+          noteFiltres = FL.MESSAGE_FILTRES_REINITIALISES;
+          appelEnCours = false;
+          lancer();
+          return;
+        }
         if (e?.ongletInconnu && ongletDemande) { // adresse périmée (onglet retiré du réglage) : on rouvre le premier onglet
           ongletDemande = null;
           appelEnCours = false;
@@ -198,6 +244,15 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
       }
       if (mon !== numero || ferme) return;
       reponse = r;
+      if (r.onglets.length) premierConnu = r.onglets[0].id;
+      const choix = memoireFiltres.get(cleOnglet());
+      const defauts = defautsFiltres.get(cleOnglet()) ?? {};
+      for (const d of r.filtres ?? []) if (!(d.id in defauts) && !(choix && d.id in choix)) defauts[d.id] = d.applique; // aucun choix envoyé pour ce filtre : l'appliqué est le défaut du serveur
+      defautsFiltres.set(cleOnglet(), defauts);
+      if (choix) { // un filtre mémorisé que la réponse ne connaît plus est ignoré
+        const reste = FL.purger(choix, r.filtres ?? []);
+        if (Object.keys(reste).length) memoireFiltres.set(cleOnglet(), reste); else memoireFiltres.delete(cleOnglet());
+      }
       appelEnCours = false;
       await dessinerEnSecurite(r);
     } finally {

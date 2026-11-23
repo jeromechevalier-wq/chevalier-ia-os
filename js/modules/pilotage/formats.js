@@ -2,7 +2,7 @@
 // balisage minimal d'un texte, tri et pagination d'un tableau, fonctions de format et couleurs nommées pour ECharts.
 // Le réglage ne contient JAMAIS de fonction : il nomme un format (liste fermée) et c'est ce fichier, code de l'appli, qui le met en œuvre.
 
-export const FORMATS = Object.freeze(['euros0', 'euros2', 'euros_abrege', 'pourcent0', 'pourcent1', 'entier', 'jours', 'date', 'date_heure', 'mois_annee']);
+export const FORMATS = Object.freeze(['euros0', 'euros2', 'euros4', 'euros_abrege', 'pourcent0', 'pourcent1', 'entier', 'jours', 'date', 'date_heure', 'mois_annee']);
 export const COULEURS = Object.freeze(['bon', 'attention', 'mauvais', 'neutre']);
 export const ESPACE_MILLIERS = ' '; // espace fine insécable
 export const ESPACE_INSECABLE = ' '; // avant « € », « % » et les unités
@@ -73,6 +73,7 @@ export function formater(format, valeur) {
   switch (format) {
     case 'euros0': return `${groupes(n, 0)}${ESPACE_INSECABLE}€`;
     case 'euros2': return `${groupes(n, 2)}${ESPACE_INSECABLE}€`;
+    case 'euros4': return `${groupes(n, 4)}${ESPACE_INSECABLE}€`; // les petits coûts (un appel d'IA : 0,0009 €)
     case 'euros_abrege': return eurosAbrege(n);
     case 'pourcent0': return `${groupes(n, 0)}${ESPACE_INSECABLE}%`;
     case 'pourcent1': return `${groupes(n, 1)}${ESPACE_INSECABLE}%`;

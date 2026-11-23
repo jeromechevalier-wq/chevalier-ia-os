@@ -54,6 +54,28 @@
 .pilotage-tableau-pied { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--esp-4); margin-top: var(--esp-4); font-size: var(--fs-menu); color: var(--texte2); }
 .pilotage-pager { display: inline-flex; align-items: center; gap: var(--esp-4); }
 
+/* filtres (partie B2) : bouton « Filtres » commun, pastilles des filtres actifs, panneau repliable sur téléphone */
+.pilotage-filtres { margin-top: var(--esp-5); }
+.pilotage-filtres[hidden] { display: none; }
+.pilotage-filtres-ligne { display: flex; flex-wrap: wrap; align-items: center; gap: var(--esp-4); }
+.pilotage-filtres-bascule { display: none; }
+.pilotage-filtres-actifs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--esp-3); margin-top: var(--esp-4); }
+.pilotage-filtres-actifs:empty { display: none; }
+.pilotage-filtres-note { margin: var(--esp-3) 0 0; }
+.pilotage-filtre-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--esp-4); margin-top: var(--esp-3); }
+.pilotage-filtre-dates[hidden] { display: none; }
+.pilotage-cases { max-height: 240px; overflow: auto; }
+.pilotage-filtre-erreur { margin: 0; color: var(--retard); font-size: var(--fs-menu); }
+.pilotage-filtre-erreur[hidden] { display: none; }
+.pilotage-repere { display: inline-flex; align-items: center; color: var(--texte2); }
+.pilotage-mention { margin: var(--esp-2) 0 0; font-size: var(--fs-menu); }
+.pilotage-graphique[data-croisement] { cursor: pointer; }
+@media (max-width: 600px) {
+  .pilotage-filtres-bascule { display: inline-flex; align-items: center; gap: var(--esp-2); }
+  .pilotage-filtres:not(.pilotage-filtres-ouvert) .pilotage-filtres-actifs { display: none; }
+  .pilotage-filtre-dates { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 1023px) {
   .pilotage-l-tiers { grid-column: span 6; }
   .pilotage-l-moitie, .pilotage-l-deux-tiers { grid-column: span 12; }
