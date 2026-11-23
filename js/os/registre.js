@@ -259,14 +259,14 @@ export const MODULES_DECLARES = geler([
     // UN SEUL écran. Le navigateur ne lit ni n'écrit la table `pilotage_parametres` (serveur seulement) : tout passe par la fonction `pilotageLire`, qui n'existe pas encore
     // chez les clients : l'écran y affiche l'erreur normale avec « Réessayer » ; la mention « pas encore branché » n'apparaît que si le serveur répond `not-found`. Module autonome, sans outil MCP. « Indicateurs » est déjà pris : le libellé est « Pilotage ».
     id: 'pilotage',
-    nom: 'Pilotage',
-    libelleMenu: 'Pilotage',
+    nom: 'Tableau de bord',
+    libelleMenu: 'Tableau de bord',
     iconeMenu: 'chart-column',
     prefixe: 'pilotage',
     reglages: { sections: [{ id: 'reglages-export-pilotage', libelle: 'Sauvegarde' }] },
     entreeMenu: 'pilotage/pilotage',
     ecrans: [
-      { route: 'pilotage/pilotage', libelle: 'Pilotage', icone: 'chart-column' },
+      { route: 'pilotage/pilotage', libelle: 'Tableau de bord', icone: 'chart-column' },
     ],
     collections: ['pilotage_parametres'],
     outilsMcp: [],

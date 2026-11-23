@@ -1,9 +1,9 @@
 // Règles pures du module Pilotage (sans Firebase ni DOM, testées par Node) : injection des lignes dans une option ECharts, habillage non destructif,
 // lecture de la réponse du serveur et messages d'erreur. L'option reçue du serveur est une DONNÉE : on la copie, on la complète, on la passe à `setOption` ; jamais exécutée.
 
-export const TITRE_PAGE = 'Pilotage';
+export const TITRE_PAGE = 'Tableau de bord';
 export const MESSAGE_VIDE = 'Aucun tableau n\'est encore réglé pour cet espace.';
-export const MESSAGE_NON_BRANCHE = 'Le Pilotage n\'est pas encore branché sur cet espace.';
+export const MESSAGE_NON_BRANCHE = 'Le tableau de bord n\'est pas encore branché sur cet espace.';
 export const MESSAGE_TUILE_ERREUR = 'Cette tuile n\'a pas pu être lue.';
 export const MESSAGE_TUILE_VIDE = 'Pas encore de données.';
 export const MESSAGE_TUILE_INVALIDE = 'Cette tuile n\'a pas pu être dessinée.';
@@ -121,7 +121,7 @@ export function construireTheme(v) {
 export function classerErreurAppel(e) {
   const code = String(e?.code ?? '').replace(/^functions\//, '');
   if (code === 'not-found' || code === 'unimplemented') return { nonBranche: true, message: MESSAGE_NON_BRANCHE };
-  if (code === 'permission-denied' || code === 'unauthenticated') return { nonBranche: false, message: 'Ce compte n\'a pas accès au Pilotage. Reconnecte-toi si besoin.' };
+  if (code === 'permission-denied' || code === 'unauthenticated') return { nonBranche: false, message: 'Ce compte n\'a pas accès au tableau de bord. Reconnecte-toi si besoin.' };
   return { nonBranche: false, message: MESSAGE_LECTURE };
 }
 
