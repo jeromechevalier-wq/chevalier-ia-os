@@ -111,6 +111,13 @@ console.log('functions/partage/ : registre.js, marque.js, chemins.js, membres.js
 copyFileSync(join(racine, 'js', 'modules', 'automatisations', 'propositions.js'), join(destination, 'propositions.js'));
 console.log('functions/partage/propositions.js mis à jour (copie exacte de js/modules/automatisations/propositions.js)');
 
+// Tableau de bord (module Pilotage) pour l'assistant : les formats, la variation et les seuils du grand chiffre sont écrits une seule fois (js/modules/pilotage/formats.js, fichier pur sans import) :
+// l'outil MCP lire_tableau_de_bord (functions/src/pilotage/assistant.js) rend EXACTEMENT les mêmes textes que l'écran. Copie ajoutée seulement à functions/partage/ : elle n'est PAS dans la liste copiée vers functions-plateforme (le Pilotage est absent chez les clients).
+const formatsPilotage = readFileSync(join(racine, 'js', 'modules', 'pilotage', 'formats.js'), 'utf8');
+if (/^import /m.test(formatsPilotage)) throw new Error('js/modules/pilotage/formats.js : ce fichier doit rester sans import (il est copié tel quel dans functions/partage/)');
+writeFileSync(join(destination, 'pilotage-formats.js'), formatsPilotage);
+console.log('functions/partage/pilotage-formats.js mis à jour (copie exacte de js/modules/pilotage/formats.js)');
+
 // Le même serveur tourne aussi sur la plateforme clients (projet chevalier-ia-app, codebase « plateforme ») : on y copie le code du serveur tel quel, à côté de ses fonctions.
 // Le déploiement n'envoie que le dossier functions-plateforme/ ; les imports relatifs (../../partage/…) restent valables dans la copie. Dossier ignoré par git.
 const destinationServeur = join(racine, 'functions-plateforme', 'serveur');

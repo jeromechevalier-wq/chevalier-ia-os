@@ -8,8 +8,9 @@ import { OUTILS_SUPPRESSION } from './suppression.js';
 import { avecGarantie } from './garantie.js';
 import { OUTILS_PROPOSITIONS_LECTURE, OUTILS_PROPOSITIONS_ECRITURE } from './propositions.js';
 import { OUTILS_RESEAUX_LECTURE, OUTILS_RESEAUX_ECRITURE } from './reseauxsociaux.js';
+import { OUTILS_PILOTAGE } from './pilotage.js';
 
-export const OUTILS = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE, ...OUTILS_RESEAUX_LECTURE, ...OUTILS_ECRITURE, ...OUTILS_PROPOSITIONS_ECRITURE, ...OUTILS_RESEAUX_ECRITURE, ...OUTILS_SUPPRESSION].map(avecGarantie); // la règle « aucun e-mail ne part tout seul » est ajoutée aux outils des devis
+export const OUTILS = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE, ...OUTILS_RESEAUX_LECTURE, ...OUTILS_PILOTAGE, ...OUTILS_ECRITURE, ...OUTILS_PROPOSITIONS_ECRITURE, ...OUTILS_RESEAUX_ECRITURE, ...OUTILS_SUPPRESSION].map(avecGarantie); // la règle « aucun e-mail ne part tout seul » est ajoutée aux outils des devis
 
 /** Écritures qui ne sont pas annulables par restaurer_depuis_audit. */
 export const OUTILS_NON_ANNULABLES = Object.freeze(['valider_proposition', 'refuser_proposition']);
@@ -31,7 +32,7 @@ export const outilsAutorises = (profil, outils = OUTILS) => outils.filter((o) =>
  * Aucun outil ne sort du CRM : openWorldHint toujours faux.
  */
 export function annotationsDe(outil) {
-  const lecture = outil.profils.includes('lecture');
+  const lecture = outil.lectureSeule === true || outil.profils.includes('lecture'); // lectureSeule : outil de lecture qui n'est PAS ouvert au profil lecture (Tableau de bord, super admin) ; le filtre par profil reste `profils`
   const destructif = /^supprimer_/.test(outil.nom) || OUTILS_DESTRUCTIFS.includes(outil.nom);
   return { readOnlyHint: lecture, destructiveHint: !lecture && destructif, idempotentHint: lecture, openWorldHint: false };
 }

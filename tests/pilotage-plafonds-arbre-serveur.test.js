@@ -5,6 +5,7 @@ import { test, describe } from 'node:test';
 import { validerReglages, ErreurPilotage } from '../functions/src/pilotage/reglages.js';
 import { creerServicePilotage } from '../functions/src/pilotage/service.js';
 import { creerAppelPilotageLire } from '../functions/src/pilotage/appel.js';
+import { creerAssistantPilotage } from '../functions/src/pilotage/assistant.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { ADMINISTRATEURS } from '../functions/partage/administrateur.js';
 
@@ -84,5 +85,24 @@ describe('P2 arbre : à qui, puis où, puis module', () => {
     assert.deepEqual(t.lignes, [{ a_qui: 'interne', ou: 'os', module: 'devis', cout: 3.5 }]);
     assert.equal(t.limite, 500);
     assert.equal(t.option, undefined);
+  });
+});
+
+describe('P3 assistant : un arbre et un graphique à repères sont lus sans plantage', () => {
+  test('P3.1 l\'arbre est rendu (type, lignes lues) ; les repères et l\'option ne sont pas renvoyés', async () => {
+    const reglages = reglage([arbre({ limite: 10 }), graphique({ reperes: [{ valeur: 100, libelle: 'Ligne-maison' }] })]);
+    const donnees = creerAccesMemoire({ pilotage_parametres: [{ id: 'reglages', ...reglages, version: 1, modifieLe: new Date(0) }] });
+    const dix = Array.from({ length: 10 }, (_, i) => ({ a_qui: `q${i}`, ou: 'os', module: 'devis', cout: i + 1, secret: 'non' }));
+    const service = creerServicePilotage({ donnees: () => donnees, maintenant: () => 1_000_000,
+      connecter: async () => ({ interroger: async (sql) => (sql.includes('v_exemple_arbre') ? dix : [{ cle_nom: 'a', part_pct: 50 }]), fermer: async () => {} }) });
+    const r = await creerAssistantPilotage({ service }).lire({ email: JEROME });
+    const a = r.tuiles.find((t) => t.id === 'a');
+    assert.equal(a.type, 'arbre');
+    assert.equal(a.lignes.length, 10);
+    assert.equal(a.lignes[0].secret, undefined); // seules les colonnes déclarées sortent
+    const g = r.tuiles.find((t) => t.id === 'g');
+    assert.deepEqual(g.lignes, [{ cle_nom: 'a', part_pct: 50 }]);
+    const json = JSON.stringify(r);
+    for (const interdit of ['reperes', 'Ligne-maison', 'option', 'v_exemple_arbre', 'markLine']) assert.ok(!json.includes(interdit), interdit);
   });
 });

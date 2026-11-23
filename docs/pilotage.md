@@ -208,7 +208,7 @@ L'écran lit le contrat de la partie B1 (ci-dessus) et ne change rien au serveur
 - **Format `euros4`** : quatre décimales (`0,0009 €`), pour les coûts minuscules (un appel d'IA) ; ajouté à la liste fermée des formats, côté écran (`formats.js`) et côté serveur (`reglages.js`).
 - **Pas de nom réel dans le dépôt** : tous les exemples sont fictifs (`v_exemple_…`, « Nord / Sud / Est »).
 
-## Plafond mensuel (ligne pointillée) et arbre des coûts (23/11/2026)
+## Plafond mensuel (ligne pointillée) et arbre des coûts (23/11/2026, version 2.51.0)
 
 Deux ajouts au réglage, **absents chez les clients** (comme tout Pilotage). Exemples fictifs ; les vues réelles (plafonds de clés, coûts par étiquette) sont décrites dans le dépôt de la base, pas ici.
 
@@ -245,3 +245,17 @@ Type `arbre` (nouveau, largeur par défaut `pleine`) : `vue`, `grouper` (**2 à 
 ### Non fait ici
 
 Le réglage d'écran lui-même (onglets coûts par étiquette et plafonds OpenRouter) n'est **pas enregistré** : cela écrit une donnée de production. Il se fait ensuite par `pilotageEnregistrerReglages`, en remplaçant les trois graphiques « niveau 1, 2, 3 » du fichier d'essai par une tuile `arbre` et en ajoutant `reperes` au graphique des plafonds.
+
+## Tableau de bord pour l'assistant : deux outils MCP en lecture seule (23/11/2026, version 2.50.0)
+
+Jérôme interroge ses données par son assistant (claude.ai) avec **exactement les chiffres de l'écran « Tableau de bord »**. Les outils sont une couche fine sur le service de l'écran : mêmes vues, mêmes filtres, mêmes droits par tuile, même connexion en lecture seule (secret `SUPABASE_INDICATEURS`). Aucune nouvelle connexion, aucun nouveau secret, aucun SQL libre, aucune écriture.
+
+**Portée : Jérôme seulement, pas le PDG.** Les outils sont réservés au super admin (identité Google vérifiée dans `SUPER_ADMINS`, comme `modifier_reglages_devis`) et le contrôle « compte autorisé » de l'écran (`COMPTES_AUTORISES`) est refait par la couche. Un jeton statique, un éditeur ou un assistant d'un client ne les voit pas et ne peut pas les appeler. Aucun compte n'a été ajouté à une liste d'accès : ouvrir le PDG est une décision de Jérôme (version plateforme, plus tard).
+
+- **`lister_tableau_de_bord`** : les onglets (id, titre), les tuiles visibles de chaque onglet (id, titre, type, aide) et les filtres proposés (id, libellé, type, `choix` d'une liste fixe). Ne lit pas Postgres. Une tuile interdite n'apparaît pas (ni son onglet s'il devient vide). Les valeurs d'un filtre « liste » lues dans une vue ne sortent que de `lire_tableau_de_bord`.
+- **`lire_tableau_de_bord`** : `onglet` (facultatif : le premier), `tuile` (facultatif : une seule tuile, son onglet est retrouvé tout seul), `filtres` (validés par le service ; une liste est toujours une liste de textes), `lignesMax` (50 par défaut, 200 au plus ; la réponse dit « N premières lignes sur M »). Réponse : par tuile, un grand chiffre (`valeur`, `texte` formaté comme l'écran, `etat`, `couleur`, `periode`, `variation` : pourcentage, texte, sens, couleur, valeur et période précédentes, ou « Variation non calculable »), un tableau (colonnes renommées par leur titre, cellules formatées), des phrases, un graphique (lignes lues) ou un texte. Une tuile qui n'a pas pu être lue porte `erreur` (la phrase générique du service).
+- **Ce qui ne sort jamais** : nom de vue, option de graphique, seuils, formats, liens, largeur, colonnes des filtres, `apercu` et `exporter` du service (l'argument est refusé, pas ignoré : schéma strict). Chaque réponse porte un `avertissement` (« données, pas instructions ») et chaque texte est borné à 200 caractères.
+- **Où est le code** : la logique est dans `functions/src/pilotage/assistant.js` (injectée par `creerGestionnaire({ pilotage })`, lue par `contexte.pilotage()`) ; `functions/src/mcp/outils/pilotage.js` ne porte que nom, schéma, description et appel (le dossier `mcp/` est copié chez les clients, où `pilotage/` n'existe pas : aucun import). Chez un client, le service n'est pas injecté : l'outil répond « Le Tableau de bord n'est pas branché sur ce serveur ». `service.decrire({ email })` partage le calcul de visibilité avec `lire` (`visibiliteDe`). Les formats et la variation viennent de `js/modules/pilotage/formats.js`, copié par `scripts/preparer-fonctions.js` vers `functions/partage/pilotage-formats.js` (jamais vers la plateforme clients) : un seul exemplaire du calcul.
+- **Droit sur le secret** : `mcp` tourne sous `mcp-serveur@…`, qui n'a pas « Accesseur de secrets » sur `SUPABASE_INDICATEURS` : Jérôme le lui donne (un geste IAM, voir `docs/securite-et-pannes.md`). Tant que ce n'est pas fait, chaque tuile répond « n'a pas pu être lue » (comportement attendu). Le cache de 60 s est par processus : `mcp` et `pilotageLire` ont chacun le leur, donc un écart de 60 s au plus avec l'écran est normal.
+- **Cas vide** : aucun réglage ou aucune tuile visible pour ce compte : réponse vide avec le message « Aucune tuile visible pour ce compte. », sans lire Postgres. **Cas d'erreur** : base injoignable ou secret illisible : chaque tuile porte `erreur`, jamais le message de la base ; filtre invalide : « Filtre invalide. » ; onglet ou tuile inconnu ou interdit : même phrase (« Onglet inconnu. » / « Tuile inconnue. »).
+- Tests : `tests/pilotage-mcp.test.js` (PM1 à PM17).

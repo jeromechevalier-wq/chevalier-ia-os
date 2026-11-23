@@ -111,6 +111,27 @@ function enteteTuile(t, ongletsVisibles, extra = {}) {
 }
 
 /**
+ * Qui voit quoi, calculé UNE fois pour `lire` et `decrire` (même code, donc mêmes droits) : tuiles visibles, filtres déclarés et visibles, filtres de chaque onglet (visibles ET déclarés par une tuile visible de l'onglet), structure filtrée.
+ * `enApercu` : le brouillon de Jérôme montre tout (c'est lui qui règle les droits du brouillon).
+ */
+function visibiliteDe(reglages, email, enApercu) {
+  const visibles = enApercu ? reglages.tableau.tuiles : reglages.tableau.tuiles.filter((t) => tuileVisible(t, reglages.groupes, email));
+  const declares = new Map((reglages.tableau.filtres ?? []).map((f) => [f.id, f]));
+  const filtreVisible = (f) => enApercu || tuileVisible(f, reglages.groupes, email);
+  const utilises = (tuiles) => new Set(tuiles.flatMap((t) => Object.keys(t.filtres ?? {})));
+  // filtres d'un onglet : visibles pour l'appelant ET déclarés par au moins une tuile visible de cet onglet (sinon ni id, ni libellé, ni valeur ne sortent)
+  const filtresParOnglet = new Map();
+  for (const o of reglages.tableau.onglets ?? []) {
+    const ids = idsDeOnglet(o);
+    const util = utilises(visibles.filter((t) => ids.has(t.id)));
+    filtresParOnglet.set(o.id, (o.filtres ?? []).filter((id) => declares.has(id) && filtreVisible(declares.get(id)) && util.has(id)));
+  }
+  const structure = filtrerOnglets(reglages.tableau.onglets, new Set(visibles.map((t) => t.id)), filtresParOnglet);
+  const ongletsVisibles = structure ? new Set(structure.map((o) => o.id)) : null;
+  return { visibles, declares, filtreVisible, utilises, filtresParOnglet, structure, ongletsVisibles };
+}
+
+/**
  * `donnees` : fonction qui rend l'accès Firestore (creerAccesFirestore) ; `connecter` : `ouvrir()` de postgres.js ; `journalErreur` : (type, etat) pour le journal du serveur (jamais de valeur).
  */
 export function creerServicePilotage({ donnees, connecter, maintenant = Date.now, dureeCacheMs = DUREE_CACHE_MS, budgetMs = BUDGET_LECTURE_MS, delaiFermetureMs = DELAI_FERMETURE_MS, journalErreur = () => {} }) {
@@ -193,28 +214,14 @@ export function creerServicePilotage({ donnees, connecter, maintenant = Date.now
       const { invalide, ...brut } = doc;
       return invalide ? { reglages: documentPublic(brut), invalide: true } : { reglages: documentPublic(brut) };
     }
+    const enApercu = apercu !== undefined && apercu !== null;
     let reglages;
-    let visibles;
-    if (apercu !== undefined && apercu !== null) {
-      reglages = validerReglages(apercu);
-      visibles = reglages.tableau.tuiles;
-    } else {
+    if (enApercu) reglages = validerReglages(apercu);
+    else {
       reglages = await lireReglagesEnregistres();
       if (!reglages) return { titre: '', tuiles: [], erreurs: [] };
-      visibles = reglages.tableau.tuiles.filter((t) => tuileVisible(t, reglages.groupes, email));
     }
-    const declares = new Map((reglages.tableau.filtres ?? []).map((f) => [f.id, f]));
-    const filtreVisible = (f) => (apercu !== undefined && apercu !== null) || tuileVisible(f, reglages.groupes, email); // l'aperçu montre tout (Jérôme règle les droits du brouillon)
-    const utilises = (tuiles) => new Set(tuiles.flatMap((t) => Object.keys(t.filtres ?? {})));
-    // filtres d'un onglet : visibles pour l'appelant ET déclarés par au moins une tuile visible de cet onglet (sinon ni id, ni libellé, ni valeur ne sortent)
-    const filtresParOnglet = new Map();
-    for (const o of reglages.tableau.onglets ?? []) {
-      const ids = idsDeOnglet(o);
-      const util = utilises(visibles.filter((t) => ids.has(t.id)));
-      filtresParOnglet.set(o.id, (o.filtres ?? []).filter((id) => declares.has(id) && filtreVisible(declares.get(id)) && util.has(id)));
-    }
-    const structure = filtrerOnglets(reglages.tableau.onglets, new Set(visibles.map((t) => t.id)), filtresParOnglet);
-    const ongletsVisibles = structure ? new Set(structure.map((o) => o.id)) : null;
+    const { visibles, declares, filtreVisible, utilises, filtresParOnglet, structure, ongletsVisibles } = visibiliteDe(reglages, email, enApercu);
     let aLire = visibles;
     let actif;
     if (structure) {
@@ -257,6 +264,31 @@ export function creerServicePilotage({ donnees, connecter, maintenant = Date.now
     return { titre: reglages.tableau.titre ?? '', tuiles, erreurs, ...(structure ? { onglets: structure, onglet: actif ?? null } : {}), ...(descripteurs.length ? { filtres: descripteurs } : {}) };
   }
 
+  /**
+   * `{ email }` : ce que l'appelant PEUT demander, sans toucher à Postgres : onglets (id, titre), tuiles visibles (id, titre, type, aide) et filtres proposés (id, libellé, type, `choix` d'une liste fixe seulement).
+   * Même calcul de visibilité que `lire` (visibiliteDe) : une tuile ou un filtre interdit n'apparaît jamais. Les valeurs d'un filtre « liste » lues dans une vue ne sortent que de `lire`.
+   * Avec des onglets : tout est dans `onglets` (`tuiles` et `filtres` de la racine restent vides). Sans onglets dans le réglage : `onglets` est vide et `tuiles` / `filtres` sont à la racine. Réglage absent : tout est vide.
+   */
+  async function decrire({ email } = {}) {
+    const reglages = await lireReglagesEnregistres();
+    if (!reglages) return { titre: '', onglets: [], tuiles: [], filtres: [] };
+    const { visibles, declares, filtreVisible, utilises, filtresParOnglet, structure } = visibiliteDe(reglages, email, false);
+    const parId = new Map(visibles.map((t) => [t.id, t]));
+    const resumeTuile = (t) => ({ id: t.id, titre: t.titre, type: t.type, ...(t.aide ? { aide: t.aide } : {}) });
+    const resumeFiltre = (f) => ({ id: f.id, libelle: f.libelle, type: f.type, ...(f.multiple ? { multiple: true } : {}), ...(f.choix ? { choix: f.choix } : {}) });
+    const titre = reglages.tableau.titre ?? '';
+    if (structure) {
+      const onglets = structure.map((o) => ({
+        id: o.id, titre: o.titre,
+        tuiles: [...o.tuiles, ...(o.sections ?? []).flatMap((x) => x.tuiles)].filter((id) => parId.has(id)).map((id) => resumeTuile(parId.get(id))),
+        filtres: (filtresParOnglet.get(o.id) ?? []).map((id) => resumeFiltre(declares.get(id))),
+      }));
+      return { titre, onglets, tuiles: [], filtres: [] }; // `tuiles` et `filtres` de la racine restent vides : tout est dans les onglets
+    }
+    const util = utilises(visibles);
+    return { titre, onglets: [], tuiles: visibles.map(resumeTuile), filtres: [...declares.values()].filter((f) => util.has(f.id) && filtreVisible(f)).map(resumeFiltre) };
+  }
+
   /** Enregistre le réglage complet : valide, incrémente `version`, écrit le document ET sa ligne de journal (crm_audit, sans aucune valeur du réglage et sans copie « avant ») dans la même transaction. */
   async function enregistrer({ reglages, acteur, ctx = {} }) {
     const valide = validerReglages(reglages);
@@ -281,5 +313,5 @@ export function creerServicePilotage({ donnees, connecter, maintenant = Date.now
     return { ok: true, version: resultat.version, tuiles: resultat.tuiles };
   }
 
-  return { lire, enregistrer };
+  return { lire, decrire, enregistrer };
 }

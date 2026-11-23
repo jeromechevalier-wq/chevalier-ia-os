@@ -70,10 +70,10 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (2.49.0)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.51.0)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.49.0');
+    assert.equal(v, '2.51.0');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
@@ -582,7 +582,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   test('D6 étape 4 : la fonction branche les plafonds de débit (sans eux, aucun frein) et passe par le moteur d’écriture avec audit', () => {
     const index = lire('functions/src/index.js');
     assert.match(index, /creerLimiteur\(\{ donnees \}\)/);
-    assert.match(index, /creerGestionnaire\(\{ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet, sortieEmail: sortieN8nDevis, lienDepot: true \}\)/); // stockage : dépôt de texte de l'onglet Documents (28/10/2026) ; supprimer un brouillon ne touche jamais aux fichiers
+    assert.match(index, /creerGestionnaire\(\{ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet, sortieEmail: sortieN8nDevis, pilotage: \(\) => assistantPilotage, lienDepot: true \}\)/); // stockage : dépôt de texte de l'onglet Documents (28/10/2026) ; supprimer un brouillon ne touche jamais aux fichiers
     assert.match(index, /creerRouteurOauth\(\{ donnees, verifierIdToken: creerVerificateurIdentite\(\) \}\)/);
     const g = lire('functions/src/mcp/gestionnaire.js');
     assert.match(g, /executerEcritures/);
