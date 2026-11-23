@@ -207,3 +207,41 @@ L'écran lit le contrat de la partie B1 (ci-dessus) et ne change rien au serveur
 - **Export CSV** : bouton « Exporter en CSV » sur chaque tuile `tableau` ; il exporte les lignes **déjà lues** (donc filtrées), dans l'ordre affiché (tri compris), avec les titres de colonnes. Séparateur point-virgule, BOM UTF-8, fin de ligne CRLF, guillemets doublés, nombres avec virgule décimale ; une cellule qui commence par `=`, `+`, `-`, `@`, tabulation ou retour chariot est précédée d'une apostrophe (un nombre négatif seul reste un nombre). Nom : `tableau-<id de la tuile>-AAAA-MM-JJ.csv`, jamais une donnée du tableau. Téléchargement par la fonction `telecharger` de l'appli.
 - **Format `euros4`** : quatre décimales (`0,0009 €`), pour les coûts minuscules (un appel d'IA) ; ajouté à la liste fermée des formats, côté écran (`formats.js`) et côté serveur (`reglages.js`).
 - **Pas de nom réel dans le dépôt** : tous les exemples sont fictifs (`v_exemple_…`, « Nord / Sud / Est »).
+
+## Plafond mensuel (ligne pointillée) et arbre des coûts (24/11/2026, version 2.50.0)
+
+Deux ajouts au réglage, **absents chez les clients** (comme tout Pilotage). Exemples fictifs ; les vues réelles (plafonds de clés, coûts par étiquette) sont décrites dans le dépôt de la base, pas ici.
+
+### Repères : lignes pointillées sur un graphique (`reperes`)
+
+Champ facultatif d'une tuile **graphique** : `reperes: [{ valeur, axe?, libelle?, couleur? }]` (1 à 6). `valeur` = nombre ; `axe: "y"` (défaut) = ligne **horizontale** à cette valeur de l'axe vertical, `axe: "x"` = ligne verticale (barres couchées) ; `libelle` = texte affiché au bout de la ligne (40 caractères, mêmes interdits que les autres textes) ; `couleur` = `bon`, `attention`, `mauvais` ou `neutre` (défaut). L'écran ajoute les lignes à la **première série** (`js/modules/pilotage/reperes.js`, `appliquerReperes`) : toujours pointillées, silencieuses (pas d'infobulle), et celles que l'option contient déjà sont conservées. Le serveur valide et rend `reperes` avec la tuile.
+
+Exemple « dépense du mois contre plafond mensuel », une barre par clé (la vue donne la part du plafond en %, déjà rangée en trois colonnes de couleur : normal, à surveiller dès 80 %, atteint dès 100 %), avec les seuils à 80 % et 90 % et le plafond à 100 % :
+
+```json
+{ "id": "plafonds", "titre": "Dépense du mois contre plafond mensuel", "type": "graphique", "largeur": "pleine", "vue": "v_exemple_plafonds",
+  "option": "{\"dataset\":{\"dimensions\":[\"cle_nom\",\"part_normal\",\"part_attention\",\"part_atteint\"]},\"tooltip\":{\"trigger\":\"axis\"},\"legend\":{},\"xAxis\":{\"type\":\"category\"},\"yAxis\":{\"type\":\"value\",\"max\":120,\"axisLabel\":{\"formatter\":\"{value} %\"}},\"series\":[{\"type\":\"bar\",\"stack\":\"p\",\"name\":\"Normal\",\"encode\":{\"x\":\"cle_nom\",\"y\":\"part_normal\"},\"itemStyle\":{\"color\":\"@bon\"}},{\"type\":\"bar\",\"stack\":\"p\",\"name\":\"À surveiller (dès 80 %)\",\"encode\":{\"x\":\"cle_nom\",\"y\":\"part_attention\"},\"itemStyle\":{\"color\":\"@attention\"}},{\"type\":\"bar\",\"stack\":\"p\",\"name\":\"Plafond atteint\",\"encode\":{\"x\":\"cle_nom\",\"y\":\"part_atteint\"},\"itemStyle\":{\"color\":\"@mauvais\"}}]}",
+  "reperes": [ { "valeur": 80, "libelle": "80 %", "couleur": "attention" }, { "valeur": 90, "libelle": "90 %", "couleur": "attention" }, { "valeur": 100, "libelle": "Plafond mensuel", "couleur": "mauvais" } ] }
+```
+
+Pourquoi des pourcentages : chaque clé a son propre plafond ; en pourcentage, une seule ligne à 100 % marque « le plafond » pour toutes. Les colonnes de la vue (`part_*`) doivent être relues dans la dernière migration de la base avant d'enregistrer le réglage.
+
+### Tuile « arbre » : à qui, puis où, puis module
+
+Type `arbre` (nouveau, largeur par défaut `pleine`) : `vue`, `grouper` (**2 à 4 colonnes = les niveaux, dans l'ordre**), `mesures` (au moins la somme de coût), `valeur: { colonne, format? }` (le nom d'une mesure), `tri` (obligatoire), `racine?` (nom du nœud de départ, « Total » par défaut), `limite?` (500 par défaut et au plus). Pas d'`option` : l'écran fabrique le graphique (`js/modules/pilotage/arbre.js`).
+
+- Le serveur lit `select <niveaux>, sum(...) from <vue> group by <niveaux> order by <tri> limit 500` et ne rend que les niveaux et la valeur.
+- L'écran bâtit la hiérarchie (somme de chaque nœud, plus chers d'abord, 30 enfants au plus par nœud puis « Autres (n) » qui garde la somme), puis dessine une série ECharts `tree` : **seul le premier niveau est ouvert**, un clic sur un nom ouvre ses enfants (« à qui » -> « où » -> « module »). **Pas de vue inverse** (décision de Jérôme). Étiquettes et infobulles en texte brut (« nom · 1 234,00 € »), jamais de HTML.
+- Exemple : `{ "id": "arbre", "type": "arbre", "titre": "Coûts : à qui, où, module", "vue": "v_exemple_arbre", "grouper": ["a_qui", "ou", "module"], "mesures": [{ "colonne": "cout_eur", "calcul": "somme", "nom": "cout" }], "valeur": { "colonne": "cout", "format": "euros2" }, "tri": { "colonne": "cout", "sens": "desc" }, "racine": "Tous les coûts", "filtres": { "periode": { "colonne": "jour" } } }`.
+- Les filtres d'onglet (période, à qui, où, module) s'appliquent comme aux autres tuiles (`filtres` de la tuile). Pas de `croisement` : l'arbre n'écrit aucun filtre.
+
+### Cas vide et cas d'erreur
+
+1. Plafonds sans ligne ou arbre sans ligne : « Pas encore de données. »
+2. Tuile en erreur de lecture : « Cette tuile n'a pas pu être lue. » et « Réessayer ».
+3. Option ou lignes refusées par ECharts : « Cette tuile n'a pas pu être dessinée. »
+4. Réglage refusé à l'enregistrement (repère sans nombre, arbre à un seul niveau ou sans tri…) : message en français qui dit quoi corriger.
+
+### Non fait ici
+
+Le réglage d'écran lui-même (onglets coûts par étiquette et plafonds OpenRouter) n'est **pas enregistré** : cela écrit une donnée de production. Il se fait ensuite par `pilotageEnregistrerReglages`, en remplaçant les trois graphiques « niveau 1, 2, 3 » du fichier d'essai par une tuile `arbre` et en ajoutant `reperes` au graphique des plafonds.

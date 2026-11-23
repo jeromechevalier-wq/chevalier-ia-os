@@ -10,6 +10,8 @@ import * as FL from './filtres-logique.js';
 import { creerBarreFiltres } from './filtres-ecran.js';
 import { exporterTableauCsv } from './export.js';
 import { creerGraphique, lireCouleursNommees } from './habillage.js';
+import { appliquerReperes } from './reperes.js';
+import { optionArbre } from './arbre.js';
 
 const chargerEcharts = () => import('../../../assets/vendor/echarts/echarts.esm.min.js');
 const ROUTE_ECRAN = 'pilotage/pilotage';
@@ -111,7 +113,7 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     if (c.genre === 'erreur') corps.append(h('p', { class: 'aide', role: 'alert' }, L.MESSAGE_TUILE_ERREUR));
     else if (c.genre === 'invalide') corps.append(h('p', { class: 'aide', role: 'alert' }, L.MESSAGE_TUILE_INVALIDE));
     else if (c.genre === 'vide') corps.append(h('p', { class: 'aide' }, L.MESSAGE_TUILE_VIDE));
-    else if (c.genre === 'graphique') { corps.classList.add('pilotage-graphique'); aDessiner = true; }
+    else if (c.genre === 'graphique' || c.genre === 'arbre') { corps.classList.add('pilotage-graphique'); aDessiner = true; }
     else if (c.genre === 'chiffre') corps.append(B.rendreChiffre(t));
     else if (c.genre === 'tableau') corps.append(B.rendreTableau(t, { exporter: (colonnes, lignes) => exporterTableauCsv(t.id, colonnes, lignes) }));
     else if (c.genre === 'phrases') corps.append(B.rendrePhrases(t));
@@ -186,7 +188,12 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
         const instance = creerGraphique(echarts, corps);
         graphiques.push({ instance, element: corps, tuile: c.id });
         const decl = c.tuile.croisement ? decls.find((d) => d.id === c.tuile.croisement.filtre && d.type === 'liste') : null; // croisement : seulement si le filtre est à l'écran
-        const option = L.optionFinale(c.tuile.option, c.tuile.lignes, { formats: c.tuile.formats, couleurs });
+        if (c.tuile.type === 'arbre') { // l'arbre se construit à partir des lignes : jamais d'option venue du serveur
+          instance.setOption(L.forcerInfobulleTexte(L.fusionner(L.BASE_HABILLAGE, optionArbre(c.tuile, { couleurs }))));
+          corps.dataset.arbre = '1';
+          continue;
+        }
+        const option = L.optionFinale(c.tuile.reperes ? appliquerReperes(c.tuile.option, c.tuile.reperes) : c.tuile.option, c.tuile.lignes, { formats: c.tuile.formats, couleurs });
         instance.setOption(decl ? FL.rendreCliquable(option) : option);
         if (decl) {
           corps.dataset.croisement = decl.id;

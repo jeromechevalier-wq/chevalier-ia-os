@@ -23,6 +23,7 @@
 .pilotage-carte-tete > h2, .pilotage-carte-tete > h3 { margin: 0; font-size: var(--fs-section); overflow-wrap: anywhere; }
 .pilotage-corps { min-height: 60px; margin-top: var(--esp-4); }
 .pilotage-graphique { height: 320px; width: 100%; }
+.pilotage-t-arbre .pilotage-graphique { height: 440px; }
 .pilotage-bandeau { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--esp-4) var(--esp-7); margin-bottom: var(--esp-7); padding: var(--esp-5) var(--esp-7); border: 1px solid var(--retard); border-radius: var(--rayon-carte); background: var(--retard-fond); font-size: var(--fs-texte); }
 
 /* couleurs nommées */

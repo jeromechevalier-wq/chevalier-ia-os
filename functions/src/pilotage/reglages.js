@@ -22,7 +22,10 @@ export const REGLES_MAX = 6; // par colonne de tableau
 export const PAR_PAGE_DEFAUT = 20;
 export const PAR_PAGE_MAX = 100;
 export const TEXTE_MAX = 2000;
-export const TYPES_TUILE = Object.freeze(['graphique', 'chiffre', 'tableau', 'texte', 'phrases']);
+export const TYPES_TUILE = Object.freeze(['graphique', 'chiffre', 'tableau', 'texte', 'phrases', 'arbre']);
+export const REPERES_MAX = 6; // lignes pointillées d'un graphique
+export const NIVEAUX_ARBRE_MIN = 2;
+export const NIVEAUX_ARBRE_MAX = 4;
 export const LARGEURS = Object.freeze(['tiers', 'moitie', 'deux-tiers', 'pleine']);
 export const FORMATS = Object.freeze(['euros0', 'euros2', 'euros4', 'euros_abrege', 'pourcent0', 'pourcent1', 'entier', 'jours', 'date', 'date_heure', 'mois_annee']);
 export const COULEURS = Object.freeze(['bon', 'attention', 'mauvais', 'neutre']);
@@ -174,6 +177,19 @@ function listeDeColonnes(v, chemin, max) {
   return v;
 }
 
+/** Arbre des coûts : `grouper` donne les niveaux dans l'ordre (2 à 4), `valeur` la mesure sommée ; la première colonne de `grouper` est la racine. Un `tri` est obligatoire (la lecture est limitée). */
+function validerArbre(brute, e, tuile) {
+  const v = brute.valeur;
+  if (!estObjet(v)) refuser(`${e} : « valeur » doit être { colonne, format }.`);
+  tuile.valeur = { colonne: colonneSure(v.colonne, `${e} (valeur)`) };
+  const f = formatSur(v.format, `${e} (valeur)`);
+  if (f) tuile.valeur.format = f;
+  if (!Array.isArray(brute.grouper) || brute.grouper.length < NIVEAUX_ARBRE_MIN || brute.grouper.length > NIVEAUX_ARBRE_MAX) refuser(`${e} : un arbre demande « grouper » avec ${NIVEAUX_ARBRE_MIN} à ${NIVEAUX_ARBRE_MAX} colonnes (un niveau par colonne, dans l'ordre).`);
+  if (!estObjet(brute.tri)) refuser(`${e} : un arbre demande un « tri » (par exemple sur la mesure, du plus grand au plus petit).`);
+  const racine = texteSur(brute.racine, `${e} (racine)`, 60);
+  if (racine) tuile.racine = racine;
+}
+
 function validerChiffre(brute, e, tuile) {
   const v = brute.valeur;
   if (!estObjet(v)) refuser(`${e} : « valeur » doit être { colonne, format }.`);
@@ -256,6 +272,23 @@ function validerFormatsGraphique(brut, e, tuile) {
   if (Object.keys(formats).length) tuile.formats = formats;
 }
 
+/** Repères d'un graphique : lignes pointillées horizontales ou verticales à une valeur donnée (plafond, seuils d'alerte). `[{ valeur, axe?: "x"|"y", libelle?, couleur? }]`. */
+function validerReperes(brut, e, tuile) {
+  if (brut === undefined || brut === null) return;
+  if (!Array.isArray(brut) || brut.length < 1 || brut.length > REPERES_MAX) refuser(`${e} : « reperes » doit être une liste de 1 à ${REPERES_MAX} lignes.`);
+  tuile.reperes = brut.map((x, i) => {
+    const c = `${e} (repère ${i + 1})`;
+    if (!estObjet(x)) refuser(`${c} : format invalide.`);
+    if (typeof x.valeur !== 'number' || !Number.isFinite(x.valeur)) refuser(`${c} : « valeur » doit être un nombre.`);
+    const r = { valeur: x.valeur };
+    if (x.axe !== undefined && x.axe !== null) { if (x.axe !== 'x' && x.axe !== 'y') refuser(`${c} : « axe » doit être « y » (ligne horizontale) ou « x » (ligne verticale).`); r.axe = x.axe; }
+    const l = texteSur(x.libelle, `${c} (libellé)`, 40);
+    if (l) r.libelle = l;
+    if (x.couleur !== undefined && x.couleur !== null) r.couleur = couleurSure(x.couleur, c);
+    return r;
+  });
+}
+
 // Expression PARTAGÉE (validation, service, formats.js du navigateur) : un lien complet « [libellé](#identifiant) ». Un test verrouille l'égalité des deux constantes (ici et dans formats.js).
 export const LIEN_TEXTE_SOURCE = '\\[[^\\]\\n]+\\]\\(#[a-z0-9_-]{1,40}\\)';
 /** Les adresses internes d'un texte : « [libellé](#onglet) » ; toute autre cible de lien est refusée. Rend la liste des identifiants d'onglets cités. */
@@ -321,9 +354,12 @@ function validerTuile(brute, rang, ids, tolerant, filtresDeclares = new Map()) {
       analyserOption(brute.option, etiquette, { tolerant }); // validée ici ; stockée en chaîne
       tuile.option = brute.option;
       validerFormatsGraphique(brute.formats, etiquette, tuile);
+      validerReperes(brute.reperes, etiquette, tuile);
     } else {
       if (brute.option !== undefined && brute.option !== null) refuser(`${etiquette} : ce type de tuile n'a pas d'option de graphique : retire « option ».`);
+      if (brute.reperes !== undefined && brute.reperes !== null) refuser(`${etiquette} : « reperes » ne vaut que pour un graphique.`);
       if (type === 'chiffre') validerChiffre(brute, etiquette, tuile);
+      else if (type === 'arbre') validerArbre(brute, etiquette, tuile);
       else if (type === 'tableau') validerTableau(brute, etiquette, tuile);
       else validerPhrases(brute, etiquette, tuile);
     }
@@ -475,6 +511,10 @@ function validerAgregation(brute, e, tuile) {
       dans(tuile.variation.colonne, 'la colonne de la variation');
       if (!grouper.includes(tuile.variation.periodeColonne)) refuser(`${e} : la colonne de période de la variation doit être dans « grouper ».`);
     }
+  } else if (tuile.type === 'arbre') {
+    dans(tuile.valeur.colonne, 'la colonne de la valeur');
+    if (!tuile.mesures.some((m) => m.nom === tuile.valeur.colonne)) refuser(`${e} : la colonne de la valeur d'un arbre doit être le nom d'une mesure.`);
+    dans(tuile.tri.colonne, 'la colonne du tri');
   } else if (tuile.type === 'tableau') for (const col of tuile.colonnes) dans(col.colonne, 'la colonne');
   else if (tuile.type === 'phrases') for (const col of tuile.colonnes) dans(col, 'la colonne');
 }
@@ -654,7 +694,7 @@ export function tuileVisible(tuile, groupes, email) {
 export function limiteDe(tuile) {
   if (tuile?.type === 'chiffre') return tuile.variation ? 2 : 1;
   if (tuile?.limite !== undefined && tuile?.limite !== null) return tuile.limite;
-  return tuile?.type === 'tableau' ? LIMITE_MAX : LIMITE_DEFAUT;
+  return tuile?.type === 'tableau' || tuile?.type === 'arbre' ? LIMITE_MAX : LIMITE_DEFAUT;
 }
 
 const identifiantSur = (c, message) => {

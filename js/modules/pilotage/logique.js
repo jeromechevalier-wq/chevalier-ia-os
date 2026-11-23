@@ -157,9 +157,9 @@ export function messageErreurExport(e) {
 }
 
 const texte = (v) => (typeof v === 'string' ? v : '');
-export const TYPES = Object.freeze(['graphique', 'chiffre', 'tableau', 'texte', 'phrases']);
+export const TYPES = Object.freeze(['graphique', 'chiffre', 'tableau', 'texte', 'phrases', 'arbre']);
 export const LARGEURS = Object.freeze(['tiers', 'moitie', 'deux-tiers', 'pleine']);
-const LARGEUR_PAR_TYPE = Object.freeze({ graphique: 'moitie', chiffre: 'tiers', tableau: 'pleine', texte: 'pleine', phrases: 'pleine' });
+const LARGEUR_PAR_TYPE = Object.freeze({ graphique: 'moitie', chiffre: 'tiers', tableau: 'pleine', texte: 'pleine', phrases: 'pleine', arbre: 'pleine' });
 const listeObjets = (v) => (Array.isArray(v) ? v.filter(estObjet).map(copier) : []);
 const listeTextes = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []);
 const MOTIF_ID = /^[a-z0-9_-]{1,40}$/; // même forme d'identifiant que le serveur : rien d'autre ne sert à fabriquer une adresse
@@ -213,6 +213,8 @@ export function lireReponse(r) {
       valeur: estObjet(t.valeur) ? copier(t.valeur) : undefined, seuils: listeObjets(t.seuils), variation: estObjet(t.variation) ? copier(t.variation) : undefined,
       colonnes: type === 'phrases' ? listeTextes(t.colonnes) : listeObjets(t.colonnes), parPage: Number.isInteger(t.parPage) && t.parPage > 0 ? t.parPage : 20, limite: Number.isInteger(t.limite) && t.limite > 0 ? t.limite : null,
       formats: estObjet(t.formats) ? copier(t.formats) : undefined, texte: texte(t.texte), lien: lienOnglet(t.lien),
+      ...(Array.isArray(t.reperes) && t.reperes.length ? { reperes: listeObjets(t.reperes) } : {}), // lignes pointillées d'un graphique
+      ...(type === 'arbre' ? { niveaux: listeTextes(t.niveaux), racine: texte(t.racine) } : {}), // arbre : un niveau par colonne
       // B1 : filtres qui agissent sur la tuile, filtre réglé par un clic sur le graphique, mention « non filtré par … » (champs absents = comme avant)
       ...(Array.isArray(t.filtresAppliques) && t.filtresAppliques.some(idSur) ? { filtresAppliques: t.filtresAppliques.filter(idSur) } : {}),
       ...(estObjet(t.croisement) && idSur(t.croisement.filtre) ? { croisement: { filtre: t.croisement.filtre } } : {}),
@@ -226,7 +228,7 @@ export function lireReponse(r) {
 
 /**
  * Cartes à montrer, dans l'ordre : chaque tuile, puis les erreurs. Une erreur dont l'identifiant est celui d'une tuile prend sa place (la tuile n'est pas dessinée) ;
- * le titre d'une erreur sans tuile est son identifiant. Genre : 'erreur' | 'invalide' (lignes qui ne sont pas des objets, type inconnu) | 'vide' (aucune ligne ; jamais pour un texte) | le type de la tuile ('graphique', 'chiffre', 'tableau', 'texte', 'phrases').
+ * le titre d'une erreur sans tuile est son identifiant. Genre : 'erreur' | 'invalide' (lignes qui ne sont pas des objets, type inconnu) | 'vide' (aucune ligne ; jamais pour un texte) | le type de la tuile ('graphique', 'chiffre', 'tableau', 'texte', 'phrases', 'arbre').
  */
 export function cartes(reponse) {
   const enErreur = new Set(reponse.erreurs.map((e) => e.id));
