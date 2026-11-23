@@ -56,6 +56,7 @@ export function colonnesDeclarees(t) {
   if (t.type === 'chiffre') return [t.valeur.colonne, t.variation?.colonne, t.variation?.periodeColonne].filter(Boolean);
   if (t.type === 'tableau') return t.colonnes.map((c) => c.colonne);
   if (t.type === 'phrases') return t.colonnes;
+  if (t.type === 'arbre') return [...t.grouper, t.valeur.colonne];
   return null;
 }
 export const filtrerColonnes = (t, lignes) => {
@@ -100,7 +101,8 @@ function enteteTuile(t, ongletsVisibles, extra = {}) {
     e.parPage = t.parPage;
     e.limite = limiteDe(t); // l'écran dit « N premières lignes » quand le nombre de lignes atteint cette limite
   } else if (t.type === 'phrases') e.colonnes = t.colonnes;
-  else if (t.type === 'graphique' && t.formats) e.formats = t.formats;
+  else if (t.type === 'arbre') { e.valeur = t.valeur; e.niveaux = t.grouper; if (t.racine) e.racine = t.racine; e.limite = limiteDe(t); }
+  else if (t.type === 'graphique') { if (t.formats) e.formats = t.formats; if (t.reperes) e.reperes = t.reperes; }
   else if (t.type === 'texte') {
     // même expression que la validation : tout lien complet vers un onglet invisible redevient du texte simple
     e.texte = t.texte.replace(new RegExp(LIEN_TEXTE_SOURCE, 'g'), (m) => (ongletsVisibles?.has(m.slice(m.lastIndexOf('(#') + 2, -1)) ? m : m.slice(1, m.indexOf(']('))));
