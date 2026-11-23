@@ -32,6 +32,8 @@ Réponse de `pilotageLire({})` :
 ```
 
 - Injection des lignes (`injecterLignes`, `js/modules/pilotage/logique.js`) : si `option.dataset` est un objet, `dataset.source = lignes` ; si c'est un tableau, `dataset[0].source = lignes` (les autres jeux, par exemple un `transform`, renvoient à lui par `fromDatasetIndex` ou `fromDatasetId`) ; sans `dataset`, `dataset: { source: lignes }`. Les séries utilisent `encode` par nom de colonne.
+- `lignes` est un tableau d'**objets** `{ colonne: valeur }` et rien d'autre. Si `lignes` contient autre chose, la tuile n'est pas dessinée : « Cette tuile n'a pas pu être dessinée. » (rien n'est jeté en silence).
+- Défense en profondeur : avant `setOption`, `nettoyerOption` (`logique.js`) retire de l'option les clés `link`, `sublink`, `toolbox`, les éléments `graphic` de type image, et les `backgroundColor` / `symbol` qui sont des adresses (`image://…` ou `://`). L'option reçue n'est pas modifiée.
 - `pilotageLire({ exporter: true })` renvoie `{ reglages: <objet> }` (administrateur seulement : le serveur refuse les autres avec `permission-denied`). C'est ce qu'utilise le bouton « Exporter mes données » (Réglages > Pilotage > Sauvegarde).
 
 ## Ajouter une tuile
@@ -43,7 +45,7 @@ Rien à coder dans le navigateur : on ajoute une tuile au réglage (par Claude, 
 1. Chargement : le rond de chargement.
 2. Aucun réglage (`tuiles` et `erreurs` vides) : « Aucun tableau n'est encore réglé pour cet espace. »
 3. Erreur d'appel : un message lisible (jamais de détail technique) et « Réessayer ».
-4. Fonction absente (`not-found`, `unimplemented`, `internal` sans détail, ou réseau, comme chez un client) : « Le Pilotage n'est pas encore branché sur cet espace. », sans « Réessayer ».
+4. Fonction absente (seulement les codes `not-found` et `unimplemented`, comme chez un client) : « Le Pilotage n'est pas encore branché sur cet espace. », sans « Réessayer ». Une vraie panne (`internal`, `unavailable`, `deadline-exceeded`, coupure réseau) n'est jamais dite « pas encore branché » : message « Ça n'a pas abouti. Réessaie dans un instant. » avec « Réessayer ».
 5. Une tuile dans `erreurs` : sa carte dit « Cette tuile n'a pas pu être lue. » et un bouton « Réessayer » commun relance l'appel.
 6. Une tuile sans ligne : « Pas encore de données. »
 7. Une option que ECharts refuse : « Cette tuile n'a pas pu être dessinée. » ; les autres tuiles s'affichent.

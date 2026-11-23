@@ -4,6 +4,7 @@ import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import { rendreEcran } from './ecran.js';
 import { reglagesExportPilotage } from './export.js';
+import { ETAPES_DEPLOIEMENT_PILOTAGE } from './deploiement.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
 function ajouterFeuille() {
@@ -13,6 +14,11 @@ function ajouterFeuille() {
   l.href = new URL('../../../css/pilotage.css', import.meta.url).href;
   l.dataset.pilotage = '1';
   document.head.append(l);
+}
+
+/** Page Réglages > Déploiement : la ligne qui dit que le Pilotage n'existe pas encore chez les clients. */
+export function controlesDeploiement() {
+  return { etapes: ETAPES_DEPLOIEMENT_PILOTAGE, verifier: null };
 }
 
 export const actionsRapides = []; // rien à créer depuis l'écran : le tableau se lit

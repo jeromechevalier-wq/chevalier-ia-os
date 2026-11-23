@@ -7,7 +7,7 @@ export const MESSAGE_NON_BRANCHE = 'Le Pilotage n\'est pas encore branché sur c
 export const MESSAGE_TUILE_ERREUR = 'Cette tuile n\'a pas pu être lue.';
 export const MESSAGE_TUILE_VIDE = 'Pas encore de données.';
 export const MESSAGE_TUILE_INVALIDE = 'Cette tuile n\'a pas pu être dessinée.';
-const MESSAGE_LECTURE = 'Le tableau ne se charge pas pour l\'instant.';
+const MESSAGE_LECTURE = 'Ça n\'a pas abouti. Réessaie dans un instant.';
 
 const estObjet = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -62,9 +62,32 @@ export const BASE_HABILLAGE = Object.freeze({
   aria: { enabled: true },
 });
 
-/** Option finale d'une tuile : les lignes injectées, l'habillage de base sous l'option du réglage (qui gagne), l'infobulle en texte. */
+const CLES_RETIREES = new Set(['link', 'sublink', 'toolbox']);
+const adresseExterne = (v) => typeof v === 'string' && (v.startsWith('image://') || v.includes('://'));
+const estImageGraphique = (x) => estObjet(x) && String(x.type).toLowerCase() === 'image';
+
+/**
+ * Défense en profondeur sur l'option reçue (avant `setOption`) : retire, récursivement, les clés `link`, `sublink` et `toolbox`, les éléments `graphic` de type image,
+ * et les clés `backgroundColor` et `symbol` dont la valeur est une adresse (`image://…` ou contenant `://`). Ne modifie pas l'entrée.
+ */
+export function nettoyerOption(option) {
+  const nettoyer = (v, dansGraphic) => {
+    if (Array.isArray(v)) return v.filter((x) => !(dansGraphic && estImageGraphique(x))).map((x) => nettoyer(x, dansGraphic));
+    if (!estObjet(v)) return v;
+    const sortie = {};
+    for (const [k, x] of Object.entries(v)) {
+      if (CLES_RETIREES.has(k)) continue;
+      if ((k === 'backgroundColor' || k === 'symbol') && adresseExterne(x)) continue;
+      sortie[k] = nettoyer(x, dansGraphic || k === 'graphic');
+    }
+    return sortie;
+  };
+  return nettoyer(option, false);
+}
+
+/** Option finale d'une tuile : les lignes injectées, l'option nettoyée, l'habillage de base sous l'option du réglage (qui gagne), l'infobulle en texte. */
 export function optionFinale(option, lignes) {
-  return forcerInfobulleTexte(fusionner(BASE_HABILLAGE, injecterLignes(option, lignes)));
+  return forcerInfobulleTexte(fusionner(BASE_HABILLAGE, nettoyerOption(injecterLignes(option, lignes))));
 }
 
 /**
@@ -83,22 +106,24 @@ export function construireTheme(v) {
   };
 }
 
-/** Nature d'une erreur d'appel au serveur et texte à montrer (jamais de détail technique) : { nonBranche, message }. */
+/**
+ * Nature d'une erreur d'appel au serveur et texte à montrer (jamais de détail technique) : { nonBranche, message }.
+ * « Non branché » seulement si la fonction n'existe pas (`not-found`, `unimplemented`, avec ou sans préfixe `functions/`) : une vraie panne (`internal`, `unavailable`,
+ * `deadline-exceeded`, coupure réseau) n'est JAMAIS dite « pas encore branché » et propose « Réessayer ».
+ */
 export function classerErreurAppel(e) {
   const code = String(e?.code ?? '').replace(/^functions\//, '');
-  const message = String(e?.message ?? '').trim().toLowerCase();
-  const fonctionAbsente = code === 'not-found' || code === 'unimplemented' || (code === 'internal' && (message === '' || message === 'internal')) || (code === '' && /failed to fetch|network|load failed/.test(message));
-  if (fonctionAbsente) return { nonBranche: true, message: MESSAGE_NON_BRANCHE };
+  if (code === 'not-found' || code === 'unimplemented') return { nonBranche: true, message: MESSAGE_NON_BRANCHE };
   if (code === 'permission-denied' || code === 'unauthenticated') return { nonBranche: false, message: 'Ce compte n\'a pas accès au Pilotage. Reconnecte-toi si besoin.' };
   return { nonBranche: false, message: MESSAGE_LECTURE };
 }
 
-/** Message d'un export refusé ou raté (compte non administrateur : lisible, pas technique). */
+/** Message d'un export refusé ou raté (compte non administrateur : lisible, pas technique). Même règle « non branché » que l'écran. */
 export function messageErreurExport(e) {
   const { nonBranche, message } = classerErreurAppel(e);
   if (nonBranche) return MESSAGE_NON_BRANCHE;
   if (String(e?.code ?? '').endsWith('permission-denied')) return 'Seul l\'administrateur de cet espace peut exporter ces données.';
-  return message === MESSAGE_LECTURE ? 'L\'export a échoué : réessaie dans un instant.' : message;
+  return message === MESSAGE_LECTURE ? 'L\'export n\'a pas abouti : réessaie dans un instant.' : message;
 }
 
 const texte = (v) => (typeof v === 'string' ? v : '');
@@ -107,7 +132,9 @@ const texte = (v) => (typeof v === 'string' ? v : '');
 export function lireReponse(r) {
   const d = estObjet(r) ? r : {};
   const tuiles = (Array.isArray(d.tuiles) ? d.tuiles : []).filter(estObjet).map((t, i) => ({
-    id: texte(t.id) || `tuile-${i + 1}`, titre: texte(t.titre), option: estObjet(t.option) ? t.option : {}, lignes: Array.isArray(t.lignes) ? t.lignes.filter(estObjet) : [],
+    id: texte(t.id) || `tuile-${i + 1}`, titre: texte(t.titre), option: estObjet(t.option) ? t.option : {},
+    // Contrat : `lignes` = tableau d'OBJETS. Autre chose n'est pas jeté en silence : la tuile est dite « pas dessinable ».
+    lignes: Array.isArray(t.lignes) && t.lignes.every(estObjet) ? t.lignes : [], lignesInvalides: t.lignes !== undefined && !(Array.isArray(t.lignes) && t.lignes.every(estObjet)),
   }));
   const erreurs = (Array.isArray(d.erreurs) ? d.erreurs : []).filter(estObjet).map((e) => ({ id: texte(e.id), message: texte(e.message) }));
   return { titre: texte(d.titre).trim(), tuiles, erreurs, vide: tuiles.length === 0 && erreurs.length === 0 };
@@ -115,11 +142,11 @@ export function lireReponse(r) {
 
 /**
  * Cartes à montrer, dans l'ordre : chaque tuile, puis les erreurs. Une erreur dont l'identifiant est celui d'une tuile prend sa place (la tuile n'est pas dessinée) ;
- * le titre d'une erreur sans tuile est son identifiant. Genre : 'graphique' | 'vide' | 'erreur'.
+ * le titre d'une erreur sans tuile est son identifiant. Genre : 'graphique' | 'vide' | 'invalide' (lignes qui ne sont pas des objets) | 'erreur'.
  */
 export function cartes(reponse) {
   const enErreur = new Set(reponse.erreurs.map((e) => e.id));
-  const liste = reponse.tuiles.map((t) => ({ id: t.id, titre: t.titre || t.id, genre: enErreur.has(t.id) ? 'erreur' : (t.lignes.length ? 'graphique' : 'vide'), tuile: t }));
+  const liste = reponse.tuiles.map((t) => ({ id: t.id, titre: t.titre || t.id, genre: enErreur.has(t.id) ? 'erreur' : (t.lignesInvalides ? 'invalide' : (t.lignes.length ? 'graphique' : 'vide')), tuile: t }));
   for (const e of reponse.erreurs) if (!reponse.tuiles.some((t) => t.id === e.id)) liste.push({ id: e.id, titre: e.id || 'Tuile', genre: 'erreur', tuile: null });
   return liste;
 }

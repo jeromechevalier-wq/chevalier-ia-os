@@ -40,6 +40,18 @@ const pixelsDessines = (page, id) => page.evaluate((i) => {
   return n;
 }, id);
 
+/** Lit, dans le navigateur, les lignes que le graphique de la tuile utilise vraiment (même module ECharts que l'écran : le fichier est déjà en mémoire). */
+const lignesDuGraphique = (page, id) => page.evaluate(async (i) => {
+  const e = await import('/assets/vendor/echarts/echarts.esm.min.js');
+  const el = document.querySelector(`[data-tuile="${i}"] .pilotage-graphique`);
+  const donnees = e.getInstanceByDom(el).getModel().getSeriesByIndex(0).getData();
+  return Array.from({ length: donnees.count() }, (_, k) => donnees.getRawDataItem(k));
+}, id);
+const identifiantInstance = (page, id) => page.evaluate(async (i) => {
+  const e = await import('/assets/vendor/echarts/echarts.esm.min.js');
+  return e.getInstanceByDom(document.querySelector(`[data-tuile="${i}"] .pilotage-graphique`))?.id ?? null;
+}, id);
+
 async function ouvrir(page) {
   await connecter(page, undefined, { route: 'pilotage/pilotage' });
   await attendreCalme(page);
@@ -82,11 +94,11 @@ test('P3 cas vide : aucun réglage, « Aucun tableau n\'est encore réglé pour 
 });
 
 test('P4 erreur d\'appel : message lisible sans détail technique, puis « Réessayer » affiche le graphique', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 500 au premier appel' } }, async ({ page }, info) => {
-  await simulerServeur(page, (_c, n) => (n === 1 ? erreurServeur(500, 'INTERNAL', 'Panne : mot de passe x') : ok(REPONSE)));
+  await simulerServeur(page, (_c, n) => (n === 1 ? erreurServeur(500, 'INTERNAL', 'INTERNAL') : ok(REPONSE)));
   await ouvrir(page);
   const zone = page.locator('[data-etat="erreur"]');
-  await expect(zone).toContainText('Le tableau ne se charge pas pour l\'instant.');
-  await expect(zone).not.toContainText('mot de passe');
+  await expect(zone).toContainText('Ça n\'a pas abouti. Réessaie dans un instant.');
+  await expect(zone).not.toContainText('branché'); // une vraie panne n'est jamais dite « pas encore branché »
   await capturer(page, info, 'P4-erreur');
   await zone.locator('[data-action="reessayer"]').click();
   await expect.poll(() => pixelsDessines(page, 'v_exemple_a'), { timeout: 10_000 }).toBeGreaterThan(500);
@@ -94,7 +106,7 @@ test('P4 erreur d\'appel : message lisible sans détail technique, puis « Rées
 });
 
 test('P5 fonction absente (comme chez un client) : « Le Pilotage n\'est pas encore branché sur cet espace. », sans bouton « Réessayer »', { annotation: { type: 'erreurs-reseau-attendues', description: 'la fonction n\'existe pas : 404' } }, async ({ page }, info) => {
-  await simulerServeur(page, () => erreurServeur(404, 'NOT_FOUND', 'Not Found'));
+  await simulerServeur(page, () => erreurServeur(404, 'NOT_FOUND', 'NOT_FOUND')); // comme Firebase pour une fonction qui n'existe pas : 404, corps JSON, en-têtes CORS
   await ouvrir(page);
   const zone = page.locator('[data-etat="non-branche"]');
   await expect(zone).toHaveText('Le Pilotage n\'est pas encore branché sur cet espace.');
@@ -174,7 +186,8 @@ test('P10 un dataset en tableau (avec transform) reçoit bien les lignes : seule
   await simulerServeur(page, () => ok({ titre: 'Mes chiffres', tuiles: [{ id: 'v_exemple_a', titre: 'Ventes filtrées', option, lignes: LIGNES }], erreurs: [] }));
   await ouvrir(page);
   await expect.poll(() => pixelsDessines(page, 'v_exemple_a'), { timeout: 10_000 }).toBeGreaterThan(500);
-  await expect(page.locator('[data-tuile="v_exemple_a"] [data-genre]')).toHaveCount(0);
+  const lignes = await lignesDuGraphique(page, 'v_exemple_a');
+  expect(lignes).toEqual([{ mois: 'Févr.', montant: 150 }, { mois: 'Mars', montant: 200 }]); // seules les lignes filtrées sont dessinées
   await expect(page.locator('[data-tuile="v_exemple_a"]')).toHaveAttribute('data-genre', 'graphique');
   await capturer(page, info, 'P10-dataset-tableau');
 });
@@ -187,4 +200,39 @@ test('P11 une tuile sans ligne dit « Pas encore de données. » et le bouton «
   await expect.poll(() => pixelsDessines(page, 'v_exemple_a'), { timeout: 10_000 }).toBeGreaterThan(500);
   expect(appels).toHaveLength(2);
   await expect(page.locator('[data-action="actualiser"]')).not.toHaveClass(/bouton-principal/);
+});
+
+test('P12 le changement de thème redessine les graphiques avec les couleurs relues, sans nouvel appel au serveur', async ({ page }) => {
+  const appels = await simulerServeur(page, () => ok(REPONSE));
+  await ouvrir(page);
+  await expect.poll(() => pixelsDessines(page, 'v_exemple_a'), { timeout: 10_000 }).toBeGreaterThan(500);
+  const avant = await identifiantInstance(page, 'v_exemple_a');
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme') === 'clair' ? 'sombre' : 'clair'));
+  await expect.poll(() => identifiantInstance(page, 'v_exemple_a'), { timeout: 10_000 }).not.toBe(avant); // nouvelle instance = redessiné
+  await expect.poll(() => pixelsDessines(page, 'v_exemple_a'), { timeout: 10_000 }).toBeGreaterThan(500);
+  expect(appels).toHaveLength(1);
+});
+
+test('P13 quitter l\'écran pendant l\'appel ne plante pas : la réponse tardive est ignorée', async ({ page }) => {
+  const appels = [];
+  await page.route('**/pilotageLire', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: ENTETES });
+    appels.push(1);
+    await new Promise((r) => setTimeout(r, 1500));
+    return route.fulfill(ok(REPONSE)).catch(() => {});
+  });
+  await connecter(page, undefined, { route: 'pilotage/pilotage' });
+  await expect(page.locator('.pilotage-zone .rond-chargement')).toBeVisible();
+  await allerA(page, 'Accueil');
+  await page.waitForTimeout(2500);
+  await expect(page.locator('.pilotage-zone')).toHaveCount(0);
+  await expect(page.locator('.pilotage-grille')).toHaveCount(0);
+  expect(appels).toHaveLength(1);
+});
+
+test('P14 des lignes qui ne sont pas des objets : la tuile dit « Cette tuile n\'a pas pu être dessinée. », l\'autre s\'affiche', async ({ page }) => {
+  await simulerServeur(page, () => ok({ titre: 'Mes chiffres', tuiles: [tuile('v_exemple_a', 'Ventes par mois'), tuile('v_exemple_b', 'Encaissements', { lignes: [{ mois: 'Janv.', montant: 100 }, 5] })], erreurs: [] }));
+  await ouvrir(page);
+  await expect.poll(() => pixelsDessines(page, 'v_exemple_a'), { timeout: 10_000 }).toBeGreaterThan(500);
+  await expect(page.locator('[data-tuile="v_exemple_b"]')).toContainText('Cette tuile n\'a pas pu être dessinée.');
 });

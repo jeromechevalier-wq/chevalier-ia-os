@@ -19,7 +19,10 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
 
   let graphiques = []; // [{ instance, element, tuile }]
   let reponse = null;
-  let numero = 0; // une réponse tardive d'un ancien appel est ignorée
+  let numero = 0; // un compteur par APPEL au serveur : la réponse tardive d'un ancien appel est ignorée
+  let dessin = 0; // un compteur par DESSIN : un dessin plus ancien (import d'ECharts en cours) s'arrête quand un nouveau commence
+  let appelEnCours = false;
+  let echartsCharge = false;
   let ferme = false;
 
   const liberer = () => { graphiques.forEach((g) => { try { g.instance.dispose(); } catch (e) { console.warn(e); } }); graphiques = []; };
@@ -27,10 +30,12 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
   const observateurTaille = typeof ResizeObserver === 'function' ? new ResizeObserver(() => graphiques.forEach((g) => { try { g.instance.resize(); } catch (e) { console.warn(e); } })) : null;
   observateurTaille?.observe(zone);
   // Le canvas ne lit pas le CSS : au changement de thème (ou de couleur de marque), les graphiques sont redessinés avec les couleurs relues, sans nouvel appel.
-  const observateurTheme = typeof MutationObserver === 'function' ? new MutationObserver(() => { if (reponse && !ferme) dessiner(reponse); }) : null;
+  // Ignoré pendant un appel en cours et tant qu'ECharts n'est pas chargé (le dessin en attente utilisera de toute façon les couleurs du moment).
+  const observateurTheme = typeof MutationObserver === 'function' ? new MutationObserver(() => { if (reponse && !ferme && !appelEnCours && echartsCharge) dessiner(reponse); }) : null;
   observateurTheme?.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-marque'] });
 
   function erreur(message, nonBranche) {
+    dessin += 1;
     liberer();
     titre.textContent = L.TITRE_PAGE;
     remplir(zone, h('div', { class: 'etat-vide', role: 'alert', dataset: { etat: nonBranche ? 'non-branche' : 'erreur' } },
@@ -39,7 +44,7 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
   }
 
   async function dessiner(r) {
-    const mon = numero;
+    const mon = ++dessin;
     liberer();
     titre.textContent = L.titreDePage(r);
     if (r.vide) { remplir(zone, h('div', { class: 'etat-vide', dataset: { etat: 'vide' } }, h('p', {}, L.MESSAGE_VIDE))); return; }
@@ -49,6 +54,7 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     for (const c of liste) {
       const corps = h('div', { class: 'pilotage-corps' });
       if (c.genre === 'erreur') corps.append(h('p', { class: 'aide', role: 'alert' }, L.MESSAGE_TUILE_ERREUR));
+      else if (c.genre === 'invalide') corps.append(h('p', { class: 'aide', role: 'alert' }, L.MESSAGE_TUILE_INVALIDE));
       else if (c.genre === 'vide') corps.append(h('p', { class: 'aide' }, L.MESSAGE_TUILE_VIDE));
       else { corps.classList.add('pilotage-graphique'); aDessiner.push({ c, corps }); }
       grille.append(h('section', { class: 'carte-section pilotage-carte', dataset: { tuile: c.id, genre: c.genre } }, h('h2', {}, c.titre), corps));
@@ -59,8 +65,9 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     remplir(zone, bandeau, grille);
     if (!aDessiner.length) return;
     let echarts;
-    try { echarts = await charger(); } catch (e) { console.warn(e); if (mon === numero && !ferme) erreur('Les graphiques ne se chargent pas pour l\'instant.', false); return; }
-    if (mon !== numero || ferme) return;
+    try { echarts = await charger(); } catch (e) { console.warn(e); if (mon === dessin && !ferme) erreur('Les graphiques ne se chargent pas pour l\'instant.', false); return; }
+    echartsCharge = true;
+    if (mon !== dessin || ferme) return;
     for (const { c, corps } of aDessiner) {
       try {
         const instance = creerGraphique(echarts, corps);
@@ -80,22 +87,25 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
 
   async function lancer() {
     const mon = ++numero;
+    dessin += 1; // un dessin en cours d'un ancien appel s'arrête
+    appelEnCours = true;
     actualiser.disabled = true;
     remplir(zone, chargement());
     try {
       const r = await lire();
       if (mon !== numero || ferme) return;
       reponse = r;
+      appelEnCours = false;
       await dessiner(r);
     } catch (e) {
       if (mon !== numero || ferme) return;
       reponse = null;
-      erreur(e?.message || 'Le tableau ne se charge pas pour l\'instant.', !!e?.nonBranche);
+      erreur(e?.message || 'Ça n\'a pas abouti. Réessaie dans un instant.', !!e?.nonBranche);
     } finally {
-      if (mon === numero) actualiser.disabled = false;
+      if (mon === numero) { appelEnCours = false; actualiser.disabled = false; }
     }
   }
 
   lancer();
-  return () => { ferme = true; numero += 1; observateurTaille?.disconnect(); observateurTheme?.disconnect(); liberer(); };
+  return () => { ferme = true; numero += 1; dessin += 1; observateurTaille?.disconnect(); observateurTheme?.disconnect(); liberer(); };
 }

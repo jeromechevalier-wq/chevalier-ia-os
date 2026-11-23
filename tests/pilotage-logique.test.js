@@ -90,7 +90,7 @@ describe('réponse du serveur', () => {
   test('une réponse partielle est tolérée (champs manquants ou de mauvais type)', () => {
     const r = L.lireReponse({ titre: 3, tuiles: [{ titre: 'T', lignes: 'x', option: [] }, 'bof', null], erreurs: [{ id: 'z', message: 5 }] });
     assert.equal(r.titre, '');
-    assert.deepEqual(r.tuiles, [{ id: 'tuile-1', titre: 'T', option: {}, lignes: [] }]);
+    assert.deepEqual(r.tuiles, [{ id: 'tuile-1', titre: 'T', option: {}, lignes: [], lignesInvalides: true }]);
     assert.deepEqual(r.erreurs, [{ id: 'z', message: '' }]);
     assert.equal(r.vide, false);
   });
@@ -103,23 +103,66 @@ describe('réponse du serveur', () => {
 });
 
 describe('messages d\'erreur d\'appel', () => {
-  test('fonction absente (not-found, unimplemented, internal sans détail, réseau) : « pas encore branché »', () => {
-    for (const e of [{ code: 'functions/not-found', message: 'x' }, { code: 'unimplemented', message: 'x' }, { code: 'functions/internal', message: 'internal' }, { code: 'functions/internal', message: '' }, { message: 'Failed to fetch' }]) {
+  test('fonction absente (seulement not-found et unimplemented, avec ou sans préfixe) : « pas encore branché »', () => {
+    for (const e of [{ code: 'functions/not-found', message: 'NOT_FOUND' }, { code: 'not-found' }, { code: 'unimplemented', message: 'x' }, { code: 'functions/unimplemented' }]) {
       assert.deepEqual(L.classerErreurAppel(e), { nonBranche: true, message: 'Le Pilotage n\'est pas encore branché sur cet espace.' }, JSON.stringify(e));
     }
+  });
+  test('une vraie panne n\'est JAMAIS dite « pas encore branché » : le vrai INTERNAL du SDK, unavailable, deadline-exceeded, réseau', () => {
+    for (const e of [{ code: 'functions/internal', message: 'INTERNAL' }, { code: 'functions/internal', message: 'internal' }, { code: 'functions/internal', message: '' }, { code: 'functions/unavailable', message: 'x' }, { code: 'functions/deadline-exceeded', message: 'x' }, { message: 'Failed to fetch' }, {}, undefined]) {
+      assert.deepEqual(L.classerErreurAppel(e), { nonBranche: false, message: 'Ça n\'a pas abouti. Réessaie dans un instant.' }, JSON.stringify(e));
+    }
+    assert.doesNotMatch(L.messageErreurExport({ code: 'functions/internal', message: 'INTERNAL' }), /branché/);
   });
   test('compte refusé et panne du serveur : messages lisibles, jamais le détail technique', () => {
     const refus = L.classerErreurAppel({ code: 'functions/permission-denied', message: 'detail secret' });
     assert.equal(refus.nonBranche, false);
     assert.match(refus.message, /n'a pas accès/);
     const panne = L.classerErreurAppel({ code: 'functions/internal', message: 'La base a plante : mot de passe x' });
-    assert.deepEqual(panne, { nonBranche: false, message: 'Le tableau ne se charge pas pour l\'instant.' });
     assert.doesNotMatch(JSON.stringify(panne), /mot de passe/);
   });
-  test('export refusé : message pour un compte non administrateur', () => {
+  test('export refusé : message pour un compte non administrateur ; fonction absente : pas encore branché ; panne : réessaie', () => {
     assert.match(L.messageErreurExport({ code: 'functions/permission-denied', message: 'x' }), /administrateur/);
     assert.match(L.messageErreurExport({ code: 'functions/not-found' }), /pas encore branché/);
     assert.match(L.messageErreurExport({ code: 'functions/unavailable', message: 'x' }), /réessaie/);
+  });
+});
+
+describe('défense en profondeur sur l\'option reçue', () => {
+  test('retire récursivement link, sublink, toolbox, graphic de type image, backgroundColor et symbol qui sont des adresses', () => {
+    const option = {
+      title: { text: 'T', link: 'https://exemple.test/x', sublink: 'https://exemple.test/y', backgroundColor: 'image://data:abc' },
+      toolbox: { feature: { saveAsImage: {} } },
+      graphic: { elements: [{ type: 'image', style: { image: 'https://exemple.test/i.png' } }, { type: 'text', style: { text: 'ok' } }] },
+      series: [{ type: 'scatter', symbol: 'image://x.png', data: [{ symbol: 'https://exemple.test/s.png', value: 1, label: { link: 'x' } }, { symbol: 'circle', value: 2 }] }, { type: 'bar', symbol: 'circle', backgroundColor: '#fff' }],
+    };
+    const avant = JSON.stringify(option);
+    const n = L.nettoyerOption(option);
+    assert.equal(JSON.stringify(option), avant, 'l\'entrée n\'est pas modifiée');
+    assert.deepEqual(n.title, { text: 'T' });
+    assert.equal(n.toolbox, undefined);
+    assert.deepEqual(n.graphic.elements, [{ type: 'text', style: { text: 'ok' } }]);
+    assert.equal(n.series[0].symbol, undefined);
+    assert.deepEqual(n.series[0].data, [{ value: 1, label: {} }, { symbol: 'circle', value: 2 }]);
+    assert.deepEqual(n.series[1], { type: 'bar', symbol: 'circle', backgroundColor: '#fff' });
+    assert.equal(L.optionFinale(option, []).title.link, undefined);
+  });
+});
+
+describe('lignes qui ne sont pas des objets', () => {
+  test('la tuile est « invalide » (jamais jetée en silence) ; les lignes valides restent « graphique »', () => {
+    const r = L.lireReponse({ tuiles: [{ id: 'a', lignes: [{ x: 1 }, 5] }, { id: 'b', lignes: 'oups' }, { id: 'c', lignes: [{ x: 1 }] }, { id: 'd' }] });
+    assert.deepEqual(L.cartes(r).map((c) => [c.id, c.genre]), [['a', 'invalide'], ['b', 'invalide'], ['c', 'graphique'], ['d', 'vide']]);
+  });
+});
+
+describe('Réglages > Déploiement', () => {
+  test('le module déclare une étape « absent chez les clients » qui n\'existe que si le module est actif', async () => {
+    const { ETAPES_DEPLOIEMENT_PILOTAGE: e } = await import('../js/modules/pilotage/deploiement.js');
+    assert.equal(e.length, 1);
+    assert.equal(e[0].module, 'pilotage');
+    assert.match(e[0].reparation, /Absent chez les clients/);
+    assert.match(lire('js/modules/pilotage/index.js'), /export function controlesDeploiement/);
   });
 });
 

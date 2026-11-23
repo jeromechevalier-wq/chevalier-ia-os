@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
@@ -22,7 +22,7 @@ const EMPREINTE_ECHARTS = '28515f26aa57f87eb1e4ed4eb446927eaf329b5f5e02b4bfd4b02
 function fichiersAppli(dossier = '', liste = []) {
   for (const nom of readdirSync(join(RACINE, dossier))) {
     const rel = join(dossier, nom);
-    if (rel === FICHIER_ECHARTS) continue;
+    if (rel.split(sep).join('/') === FICHIER_ECHARTS) continue;
     if (/^(\.|node_modules$|tests$|docs$|wiki$|ressources$|outils$|scripts$|functions$|functions-plateforme$)/.test(nom)) continue;
     if (statSync(join(RACINE, rel)).isDirectory()) fichiersAppli(rel, liste);
     else liste.push(rel);
@@ -70,10 +70,10 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (2.45.2)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.46.0)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.45.2');
+    assert.equal(v, '2.46.0');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
