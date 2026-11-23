@@ -33,6 +33,21 @@ Demande de Jérôme : qu'un dirigeant puisse interroger ses données Supabase en
 
 **Second cerveau (hors dépôt)** : trois fiches créées le 23/11 (Supabase MCP, Metabase MCP, choix du MCP) sont à mettre à jour avec cette suite ; Jérôme doit confirmer (règle du second cerveau).
 
+## Rapport du matin du 24/11/2026 (nuit « GO NUIT » du 23/11) : Tableau de bord, plafonds et favoris de la démo BTP
+
+| Sujet | PR | État |
+|---|---|---|
+| Tableau de bord : lignes de repères (pointillés, ex. plafond mensuel) et arbre des coûts, version 2.51.0 | 678 | fusionnée après tests complets verts, relue par Fable |
+| Application BTP (dépôt `btp-assistant-mvp`) : favoris par étoile sur chantiers et agences, par personne | btp 40 | fusionnée, relue par Fable (2 défauts corrigés avant fusion), démo déployée à la main |
+| Application BTP : filtres du Pilotage alignés, plafonds OpenRouter, plein écran | btp 33, 34, 35 | fusionnées et déployées |
+| Bouton « + Facture » | btp 37 | verte, NON fusionnée (hors périmètre de la nuit, workflow n8n 08 à importer) |
+
+**Décision prise seul (à valider par Jérôme)** : les favoris s'écrivent par deux fonctions de la base appelées depuis le navigateur, alors que la règle de ce projet est « écriture uniquement par n8n ». Risque jugé faible par Fable : chaque personne ne touche que ses propres étoiles.
+
+**Non vérifié** : aucun rendu à l'écran des favoris ni de l'arbre des coûts ; aucun clic réel avec une vraie connexion ; la configuration Pilotage des plafonds n'est pas enregistrée dans Firestore (aucune écriture de données cette nuit).
+
+**Reste à faire** : défauts mineurs des favoris (étoile au clavier, surbrillance) dans `docs/a-faire.md` du dépôt BTP ; filtre Fournisseur de Metabase à resynchroniser ; description GitHub de la PR 679 inexacte ; PR 597, 608 et 615 toujours ouvertes (hors périmètre).
+
 ## Rapport du matin du 23/11/2026 (fin de nuit) : module Tableau de bord, bilan complet
 
 Suite du rapport « Pilotage » ci-dessous : le module s'appelle maintenant « Tableau de bord » (libellé seulement, identifiants inchangés). Chez Jérôme seulement (ligne dans `.github/A-FAIRE.md`). Aucun nom de vue, de colonne, de client ou de compte dans ce fichier (dépôt public) ; l'état technique est dans `docs/pilotage.md`.
