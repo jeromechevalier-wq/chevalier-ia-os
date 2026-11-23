@@ -47,6 +47,11 @@ const lignesDuGraphique = (page, id) => page.evaluate(async (i) => {
   const donnees = e.getInstanceByDom(el).getModel().getSeriesByIndex(0).getData();
   return Array.from({ length: donnees.count() }, (_, k) => donnees.getRawDataItem(k));
 }, id);
+const couleurLibelles = (page, id) => page.evaluate(async (i) => {
+  const e = await import('/assets/vendor/echarts/echarts.esm.min.js');
+  const o = e.getInstanceByDom(document.querySelector(`[data-tuile="${i}"] .pilotage-graphique`)).getOption();
+  return JSON.stringify(o.xAxis?.[0]?.axisLabel?.color ?? o.textStyle?.color ?? null);
+}, id);
 const identifiantInstance = (page, id) => page.evaluate(async (i) => {
   const e = await import('/assets/vendor/echarts/echarts.esm.min.js');
   return e.getInstanceByDom(document.querySelector(`[data-tuile="${i}"] .pilotage-graphique`))?.id ?? null;
@@ -105,12 +110,14 @@ test('P4 erreur d\'appel : message lisible sans détail technique, puis « Rées
   await expect(page.locator('[data-etat="erreur"]')).toHaveCount(0);
 });
 
-test('P5 fonction absente (comme chez un client) : « Le Pilotage n\'est pas encore branché sur cet espace. », sans bouton « Réessayer »', { annotation: { type: 'erreurs-reseau-attendues', description: 'la fonction n\'existe pas : 404' } }, async ({ page }, info) => {
-  await simulerServeur(page, () => erreurServeur(404, 'NOT_FOUND', 'NOT_FOUND')); // comme Firebase pour une fonction qui n'existe pas : 404, corps JSON, en-têtes CORS
+test('P5 fonction absente chez un client (réponse 404 sans en-têtes CORS : le navigateur bloque) : erreur normale avec « Réessayer », jamais « pas encore branché »', { annotation: { type: 'erreurs-reseau-attendues', description: 'la fonction n\'existe pas : la requête est bloquée' } }, async ({ page }, info) => {
+  await page.route('**/pilotageLire', (route) => route.abort('failed')); // cas réel : cloudfunctions.net répond une page 404 sans CORS, le navigateur la bloque, le SDK rend `internal`
   await ouvrir(page);
-  const zone = page.locator('[data-etat="non-branche"]');
-  await expect(zone).toHaveText('Le Pilotage n\'est pas encore branché sur cet espace.');
-  await expect(zone.locator('[data-action="reessayer"]')).toHaveCount(0);
+  const zone = page.locator('[data-etat="erreur"]');
+  await expect(zone).toContainText('Ça n\'a pas abouti. Réessaie dans un instant.');
+  await expect(zone).not.toContainText('branché');
+  await expect(zone.locator('[data-action="reessayer"]')).toHaveCount(1);
+  await expect(page.locator('[data-etat="non-branche"]')).toHaveCount(0);
   await capturer(page, info, 'P5-non-branche');
 });
 
@@ -207,10 +214,20 @@ test('P12 le changement de thème redessine les graphiques avec les couleurs rel
   await ouvrir(page);
   await expect.poll(() => pixelsDessines(page, 'v_exemple_a'), { timeout: 10_000 }).toBeGreaterThan(500);
   const avant = await identifiantInstance(page, 'v_exemple_a');
+  const couleurAvant = await couleurLibelles(page, 'v_exemple_a');
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme') === 'clair' ? 'sombre' : 'clair'));
   await expect.poll(() => identifiantInstance(page, 'v_exemple_a'), { timeout: 10_000 }).not.toBe(avant); // nouvelle instance = redessiné
   await expect.poll(() => pixelsDessines(page, 'v_exemple_a'), { timeout: 10_000 }).toBeGreaterThan(500);
+  expect(await couleurLibelles(page, 'v_exemple_a')).not.toBe(couleurAvant); // les couleurs du thème sont relues (texte de l'axe)
   expect(appels).toHaveLength(1);
+});
+
+test('P5b le serveur répond lui-même `not-found` : « pas encore branché », sans « Réessayer »', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 404' } }, async ({ page }) => {
+  await simulerServeur(page, () => erreurServeur(404, 'NOT_FOUND', 'NOT_FOUND'));
+  await ouvrir(page);
+  const zone = page.locator('[data-etat="non-branche"]');
+  await expect(zone).toHaveText('Le Pilotage n\'est pas encore branché sur cet espace.');
+  await expect(zone.locator('[data-action="reessayer"]')).toHaveCount(0);
 });
 
 test('P13 quitter l\'écran pendant l\'appel ne plante pas : la réponse tardive est ignorée', async ({ page }) => {
@@ -221,6 +238,8 @@ test('P13 quitter l\'écran pendant l\'appel ne plante pas : la réponse tardive
     await new Promise((r) => setTimeout(r, 1500));
     return route.fulfill(ok(REPONSE)).catch(() => {});
   });
+  const vus = [];
+  page.on('request', (r) => { if (/echarts/i.test(r.url())) vus.push(r.url()); });
   await connecter(page, undefined, { route: 'pilotage/pilotage' });
   await expect(page.locator('.pilotage-zone .rond-chargement')).toBeVisible();
   await allerA(page, 'Accueil');
@@ -228,6 +247,8 @@ test('P13 quitter l\'écran pendant l\'appel ne plante pas : la réponse tardive
   await expect(page.locator('.pilotage-zone')).toHaveCount(0);
   await expect(page.locator('.pilotage-grille')).toHaveCount(0);
   expect(appels).toHaveLength(1);
+  expect(vus).toEqual([]); // la réponse tardive a été ignorée : ECharts n'a jamais été chargé ni aucun graphique créé
+  expect(await page.locator('canvas').count()).toBe(0);
 });
 
 test('P14 des lignes qui ne sont pas des objets : la tuile dit « Cette tuile n\'a pas pu être dessinée. », l\'autre s\'affiche', async ({ page }) => {

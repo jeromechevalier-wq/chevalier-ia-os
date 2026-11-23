@@ -52,6 +52,7 @@ test('1 Réglages > Déploiement chez Jérôme : une ligne par étape avec pasti
   // Toutes les lignes automatiques sont vertes, les manuelles grises « À vérifier à la main » : 6 sur 23 (1 du serveur, 1 des Affaires, 2 du Devis + 2 du PDF ; 17 manuelles (dont 1 du Pilotage),
   // dont « Personnes autorisées », case à cocher à la racine : les comptes y sont écrits dans le code)
   await expect(page.locator('.deploiement-ligne')).toHaveCount(23);
+  await expect(ligne(page, 'pilotage-plateforme')).toContainText('Pilotage : absent chez les clients');
   await expect(page.locator('.deploiement-ligne[data-type="auto"][data-couleur="vert"]')).toHaveCount(6);
   await expect(resume(page)).toHaveText('6 sur 23 vertes');
   await expect(ligne(page, 'membres')).toHaveAttribute('data-type', 'manuel');

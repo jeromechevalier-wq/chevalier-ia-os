@@ -257,7 +257,7 @@ export const MODULES_DECLARES = geler([
   {
     // Pilotage (23/11/2026) : des graphiques (Apache ECharts) alimentés par une base de données, décrits par un réglage que Claude modifie à la demande de Jérôme.
     // UN SEUL écran. Le navigateur ne lit ni n'écrit la table `pilotage_parametres` (serveur seulement) : tout passe par la fonction `pilotageLire`, qui n'existe pas encore
-    // chez les clients (l'écran le dit : « pas encore branché »). Module autonome, sans outil MCP. « Indicateurs » est déjà pris : le libellé est « Pilotage ».
+    // chez les clients : l'écran y affiche l'erreur normale avec « Réessayer » ; la mention « pas encore branché » n'apparaît que si le serveur répond `not-found`. Module autonome, sans outil MCP. « Indicateurs » est déjà pris : le libellé est « Pilotage ».
     id: 'pilotage',
     nom: 'Pilotage',
     libelleMenu: 'Pilotage',

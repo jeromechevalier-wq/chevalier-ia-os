@@ -65,29 +65,36 @@ export const BASE_HABILLAGE = Object.freeze({
 const CLES_RETIREES = new Set(['link', 'sublink', 'toolbox']);
 const adresseExterne = (v) => typeof v === 'string' && (v.startsWith('image://') || v.includes('://'));
 const estImageGraphique = (x) => estObjet(x) && String(x.type).toLowerCase() === 'image';
+const contientImage = (x) => estObjet(x) && 'image' in x;
+const estCleIcone = (k) => k === 'icon' || k === 'handleIcon' || /Icon$/.test(k);
 
 /**
- * Défense en profondeur sur l'option reçue (avant `setOption`) : retire, récursivement, les clés `link`, `sublink` et `toolbox`, les éléments `graphic` de type image,
- * et les clés `backgroundColor` et `symbol` dont la valeur est une adresse (`image://…` ou contenant `://`). Ne modifie pas l'entrée.
+ * Défense en profondeur sur l'option reçue (avant `setOption`), à appliquer à l'OPTION seule, jamais aux lignes de données : retire, récursivement,
+ * les clés `link`, `sublink` et `toolbox` (sauf `axisPointer.link`, légitime), les éléments `graphic` de type image (objet seul ou liste), les `backgroundColor` / `color`
+ * qui sont des motifs d'image, les `backgroundColor` / `symbol` qui sont des adresses (`image://…` ou `://`) et toute clé `icon`, `handleIcon` ou `*Icon` valant `image://…`.
+ * Ne modifie pas l'entrée.
  */
 export function nettoyerOption(option) {
-  const nettoyer = (v, dansGraphic) => {
-    if (Array.isArray(v)) return v.filter((x) => !(dansGraphic && estImageGraphique(x))).map((x) => nettoyer(x, dansGraphic));
+  const nettoyer = (v, dansGraphic, parent) => {
+    if (Array.isArray(v)) return v.filter((x) => !(dansGraphic && estImageGraphique(x))).map((x) => nettoyer(x, dansGraphic, parent));
     if (!estObjet(v)) return v;
     const sortie = {};
     for (const [k, x] of Object.entries(v)) {
-      if (CLES_RETIREES.has(k)) continue;
+      if (CLES_RETIREES.has(k) && !(k === 'link' && parent === 'axisPointer')) continue;
+      if (k === 'graphic' && estImageGraphique(x)) continue;
       if ((k === 'backgroundColor' || k === 'symbol') && adresseExterne(x)) continue;
-      sortie[k] = nettoyer(x, dansGraphic || k === 'graphic');
+      if ((k === 'backgroundColor' || k === 'color') && contientImage(x)) continue;
+      if (estCleIcone(k) && typeof x === 'string' && x.startsWith('image://')) continue;
+      sortie[k] = k === 'color' && Array.isArray(x) ? x.filter((c) => !contientImage(c)).map((c) => nettoyer(c, dansGraphic, k)) : nettoyer(x, dansGraphic || k === 'graphic', k);
     }
     return sortie;
   };
-  return nettoyer(option, false);
+  return nettoyer(option, false, '');
 }
 
-/** Option finale d'une tuile : les lignes injectées, l'option nettoyée, l'habillage de base sous l'option du réglage (qui gagne), l'infobulle en texte. */
+/** Option finale d'une tuile : les lignes injectées, l'option nettoyée (avant l'injection : les lignes ne sont jamais nettoyées), l'habillage de base sous l'option du réglage (qui gagne), l'infobulle en texte. */
 export function optionFinale(option, lignes) {
-  return forcerInfobulleTexte(fusionner(BASE_HABILLAGE, nettoyerOption(injecterLignes(option, lignes))));
+  return forcerInfobulleTexte(fusionner(BASE_HABILLAGE, injecterLignes(nettoyerOption(option), lignes)));
 }
 
 /**

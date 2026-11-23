@@ -149,6 +149,34 @@ describe('défense en profondeur sur l\'option reçue', () => {
   });
 });
 
+describe('nettoyage : lignes intactes, cas supplémentaires', () => {
+  test('une colonne nommée link (valeur https://…) ou symbol reste dans les lignes : seul l\'option est nettoyée', () => {
+    const lignes = [{ mois: 'Janv.', link: 'https://exemple.test/a', symbol: 'image://x', toolbox: 1, montant: 100 }];
+    const o = L.optionFinale({ title: { link: 'https://exemple.test/b' }, series: [{ type: 'bar' }] }, lignes);
+    assert.deepEqual(o.dataset.source, lignes);
+    assert.equal(o.title.link, undefined);
+  });
+  test('graphic en objet seul de type image, motifs d\'image en backgroundColor ou color, icônes image://, axisPointer.link conservé', () => {
+    const n = L.nettoyerOption({
+      graphic: { type: 'image', style: { image: 'x' } },
+      backgroundColor: { image: 'https://exemple.test/p.png', repeat: 'repeat' },
+      color: ['#111', { image: 'https://exemple.test/p.png' }, '#222'],
+      legend: { icon: 'image://x.png', selectorIcon: 'circle' },
+      dataZoom: [{ handleIcon: 'image://h.png' }],
+      axisPointer: { link: [{ xAxisIndex: 'all' }] },
+      title: { link: 'https://exemple.test/b' },
+    });
+    assert.equal(n.graphic, undefined);
+    assert.equal(n.backgroundColor, undefined);
+    assert.deepEqual(n.color, ['#111', '#222']);
+    assert.deepEqual(n.legend, { selectorIcon: 'circle' });
+    assert.deepEqual(n.dataZoom, [{}]);
+    assert.deepEqual(n.axisPointer, { link: [{ xAxisIndex: 'all' }] });
+    assert.deepEqual(n.title, {});
+    assert.equal(L.nettoyerOption({ legend: { selectorIcon: 'image://z.png' } }).legend.selectorIcon, undefined);
+  });
+});
+
 describe('lignes qui ne sont pas des objets', () => {
   test('la tuile est « invalide » (jamais jetée en silence) ; les lignes valides restent « graphique »', () => {
     const r = L.lireReponse({ tuiles: [{ id: 'a', lignes: [{ x: 1 }, 5] }, { id: 'b', lignes: 'oups' }, { id: 'c', lignes: [{ x: 1 }] }, { id: 'd' }] });

@@ -31,7 +31,7 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
   observateurTaille?.observe(zone);
   // Le canvas ne lit pas le CSS : au changement de thème (ou de couleur de marque), les graphiques sont redessinés avec les couleurs relues, sans nouvel appel.
   // Ignoré pendant un appel en cours et tant qu'ECharts n'est pas chargé (le dessin en attente utilisera de toute façon les couleurs du moment).
-  const observateurTheme = typeof MutationObserver === 'function' ? new MutationObserver(() => { if (reponse && !ferme && !appelEnCours && echartsCharge) dessiner(reponse); }) : null;
+  const observateurTheme = typeof MutationObserver === 'function' ? new MutationObserver(() => { if (reponse && !ferme && !appelEnCours && echartsCharge) dessinerEnSecurite(reponse); }) : null;
   observateurTheme?.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-marque'] });
 
   function erreur(message, nonBranche) {
@@ -85,6 +85,14 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     }
   }
 
+  /** Dessine sans jamais laisser une exception sortir ni afficher un texte technique : message générique avec « Réessayer ». */
+  async function dessinerEnSecurite(r) {
+    try { await dessiner(r); } catch (e) {
+      console.warn('Pilotage : dessin impossible', e?.message);
+      if (!ferme) erreur('Cette tuile n\'a pas pu être dessinée.', false);
+    }
+  }
+
   async function lancer() {
     const mon = ++numero;
     dessin += 1; // un dessin en cours d'un ancien appel s'arrête
@@ -92,15 +100,17 @@ export function rendreEcran(conteneur, { lire = D.lireTableau, charger = charger
     actualiser.disabled = true;
     remplir(zone, chargement());
     try {
-      const r = await lire();
+      let r;
+      try { r = await lire(); } catch (e) {
+        if (mon !== numero || ferme) return;
+        reponse = null;
+        erreur(e?.message || 'Ça n\'a pas abouti. Réessaie dans un instant.', !!e?.nonBranche);
+        return;
+      }
       if (mon !== numero || ferme) return;
       reponse = r;
       appelEnCours = false;
-      await dessiner(r);
-    } catch (e) {
-      if (mon !== numero || ferme) return;
-      reponse = null;
-      erreur(e?.message || 'Ça n\'a pas abouti. Réessaie dans un instant.', !!e?.nonBranche);
+      await dessinerEnSecurite(r);
     } finally {
       if (mon === numero) { appelEnCours = false; actualiser.disabled = false; }
     }
