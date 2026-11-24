@@ -14,6 +14,8 @@ import { creerRouteurOauth } from './oauth/routeur.js';
 import { creerVerificateurIdentite } from './oauth/identite-google.js';
 import { creerGestionnairePorteCrm } from './porte.js';
 import { creerGestionnaireTableauCrm } from './tableaudebord.js';
+import { creerAppelAccorderAcces, ligneDeJournalBase } from './base/acces-appel.js';
+import { getAuth } from 'firebase-admin/auth';
 import { creerAppelSaisie, ligneDeJournalSaisie } from './tableaudebord-saisie.js';
 import { creerAppelDecider, ligneDeJournalDecision } from './automatisations/decider-appel.js';
 import { creerAppelRenommer, ligneDeJournalRenommer } from './automatisations/renommer-appel.js';
@@ -117,6 +119,16 @@ export const tableaudebordSaisir = onCall(
 export const consoleEtat = onCall(
   { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com' },
   (requete) => creerAppelConsole({ version: VERSION_SERVEUR, journal: (e) => process.stdout.write(`${ligneDeJournalConsole(e)}\n`) })(requete),
+);
+
+// `baseAccorderAcces` : appelée par Réglages > Connexion à la base (Jérôme seul). Pose ou retire, pour UN compte, les deux mentions Firebase (`role`, `espace_base`) qui ouvrent la base d'un espace.
+// Absente de la plateforme (RESERVEES_JEROME). Même compte de service que la porte : il doit avoir le droit de modifier les comptes Firebase (non vérifié, voir .github/A-FAIRE.md).
+export const baseAccorderAcces = onCall(
+  { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com' },
+  (requete) => {
+    if (!getApps().length) initializeApp();
+    return creerAppelAccorderAcces({ auth: getAuth(), journal: (e) => process.stdout.write(`${ligneDeJournalBase(e)}\n`) })(requete);
+  },
 );
 
 // `automatisationsDecider` : appelée par l'écran « À valider » du module Automatisations (valider, refuser ou relancer une proposition). Contrôle l'appelant (mêmes comptes que `veille`),

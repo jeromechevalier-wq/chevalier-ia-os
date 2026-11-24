@@ -2,6 +2,15 @@
 
 Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de session) ; avant : 08/11/2026 (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Mise à jour du 24/11/2026 (accès à la base des modules Achats)
+
+| | Sujet | État | Qui |
+|---|---|---|---|
+| 🟡 | Fonction `baseAccorderAcces` **absente chez les clients** (`RESERVEES_JEROME`) : elle pose les mentions Firebase `role` et `espace_base` sur UN compte, Jérôme seul. Avant de l'ouvrir aux clients : connexion de leur base au projet Firebase des clients, règles de la plateforme, écran de réglages par client | à faire plus tard | Claude |
+| 🟡 | **Droit IAM manquant** : le compte `porte-serveur` n'a ni `firebaseauth.users.get` ni `firebaseauth.users.update`. Cela ne casse PAS le déploiement des fonctions : seul l'APPEL de `baseAccorderAcces` échoue (« Lecture du compte impossible »). Il faut ajouter ce droit AVANT de donner le premier badge. Recommandation : un compte de service dédié à cette fonction plutôt que d'élargir `porte-serveur`, qui sert aussi des fonctions ouvertes sur Internet | à faire avant le premier badge | Claude |
+| 🟡 | Limites à connaître : le retrait agit à l'expiration du jeton (1 h au plus) et ne désactive pas le compte ; un compte n'a qu'UN `espace_base` à la fois (pas deux bases clients pour le même compte) | noté | Claude |
+| 🟡 | Bouton d'appel dans Réglages (PR suivante) et ligne dans Réglages > Déploiement | à faire | Claude |
+
 ## Mise à jour du 23/11/2026 (module Pilotage, étape 1 : serveur)
 
 | | Sujet | État | Qui |
