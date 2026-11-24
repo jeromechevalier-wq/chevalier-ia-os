@@ -290,6 +290,16 @@ describe('PM6 filtres : validés par le service, appliqués comme à l\'écran',
 });
 
 describe('PM7 plafond de lignes : jamais de coupure silencieuse', () => {
+  test('PM7.0 un onglet entier : 15 lignes par défaut par tuile (réponse lisible d\'un coup) ; lignesMax ou une seule tuile en donnent plus', async () => {
+    const s = await demarrer({ pg: fauxPostgres({ nbDetail: 300 }) });
+    const onglet = ok(await s.appeler('jerome', LIRE, {})).tuiles.find((t) => t.id === 'detail');
+    assert.equal(onglet.lignes.length, 15);
+    assert.equal(onglet.note, '15 premières lignes sur 300');
+    const trente = ok(await s.appeler('jerome', LIRE, { lignesMax: 30 })).tuiles.find((t) => t.id === 'detail');
+    assert.equal(trente.lignes.length, 30);
+    const seule = ok(await s.appeler('jerome', LIRE, { tuile: 'detail' })).tuiles[0];
+    assert.equal(seule.lignes.length, 50);
+  });
   test('PM7.1 50 lignes par défaut, « N premières lignes sur M » ; lignesMax le règle ; au-delà de 200 refusé', async () => {
     const s = await demarrer({ pg: fauxPostgres({ nbDetail: 300 }) });
     const d = ok(await s.appeler('jerome', LIRE, { tuile: 'detail' })).tuiles[0];
