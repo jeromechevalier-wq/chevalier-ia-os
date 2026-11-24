@@ -13,6 +13,8 @@ import { boutonTheme } from './shell.js';
 import { sectionMonEspace, sectionMembresEditable } from './mon-espace.js';
 import { sectionDeploiement } from './deploiement-ecran.js';
 import { sectionMesTests } from './mes-tests-ecran.js';
+import { sectionConnexionBase } from './base-reglages-ecran.js';
+import { compteReserve } from './acces-reserve.js';
 import { reglagesDesModules, sectionsEspaceVisibles, interrupteursDuClient, cibleReglages, moduleDeclare } from './registre.js';
 
 const LIBELLES_ROLE = Object.freeze({ editeur: 'Éditeur : consulte et modifie', lecteur: 'Lecteur : consulte seulement' });
@@ -98,7 +100,7 @@ function sectionModules(ctx) {
     })))];
 }
 
-const SECTIONS_ESPACE_RENDU = { espace: sectionEspace, membres: sectionMembres, modules: sectionModules, deploiement: (ctx, etat) => [sectionDeploiement(ctx, etat)], tests: (ctx, etat) => [sectionMesTests(ctx, etat)] };
+const SECTIONS_ESPACE_RENDU = { espace: sectionEspace, membres: sectionMembres, modules: sectionModules, deploiement: (ctx, etat) => [sectionDeploiement(ctx, etat)], tests: (ctx, etat) => [sectionMesTests(ctx, etat)], base: (ctx, etat) => [sectionConnexionBase(ctx, etat)] };
 
 // ---------------------------------------------------------------- réglages d'un module (ou d'un groupe de modules)
 
@@ -165,7 +167,7 @@ export function monterReglages(conteneur, segs, ctx) {
   const editeur = ctx.editeur !== false && compteEcrit(ctx.compte);
   const c = { ...ctx, editeur };
   const items = reglagesDesModules(c.actifs);
-  const espaces = sectionsEspaceVisibles({ chezClient: !!c.chezClient, editeur });
+  const espaces = sectionsEspaceVisibles({ chezClient: !!c.chezClient, editeur, jerome: compteReserve(c.compte) }); // « Connexion à la base » : Jérôme seul, à la racine
   const cible = cibleReglages(segs, { espaces, modules: items });
   if (!cible) { naviguer('reglages', { remplacer: true }); return arreterCourant; } // section inconnue (ou réservée aux éditeurs) : retour à la page d'arrivée
 

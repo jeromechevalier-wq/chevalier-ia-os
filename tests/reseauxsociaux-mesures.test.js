@@ -293,7 +293,7 @@ describe('M6 branchement du serveur', () => {
   test('M6 règles Firestore : reseauxsociaux_mesures lecture seule et sortie du joker', () => {
     const regles = lire('firestore.rules');
     assert.match(regles, /match \/reseauxsociaux_mesures\/\{id\} \{\s*allow read: if compteAutorise\(\);\s*allow write: if false;/);
-    assert.match(regles, /collection in \[[^\]]*'reseauxsociaux_mesures'\]/);
+    assert.match(regles, /collection in \[[^\]]*'reseauxsociaux_mesures'(, 'base_parametres')?\]/);
   });
   test('M6 aucune mutation Buffer dans le relevé', () => {
     for (const f of ['functions/src/reseauxsociaux/mesures.js', 'functions/src/reseauxsociaux/service.js']) {
