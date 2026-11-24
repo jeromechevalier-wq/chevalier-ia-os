@@ -4,7 +4,7 @@
 
 /** Les quatre états possibles de l'accès (voir js/os/base-reglages.js > evaluerAcces) et ce que l'écran en dit. */
 export const TEXTES_ACCES = Object.freeze({
-  connecte: 'Connecté à la base',
+  connecte: 'Accès prêt (badge à jour)',
   'non-regle': 'Connexion à la base non réglée : Réglages > Connexion à la base',
   reconnexion: 'Reconnecte-toi : ton accès à la base n’est pas à jour. Déconnecte-toi puis reconnecte-toi ; si cela ne suffit pas, ton compte n’a pas encore reçu l’accès.',
   illisible: 'Lecture des réglages impossible, réessaie',

@@ -28,7 +28,6 @@ describe('A1 déclaration : cinq modules réservés à un seul compte, jamais ch
       const m = moduleDeclare(id);
       assert.ok(m, id);
       assert.equal(m.seulJerome, true, id);
-      assert.equal(m.groupe, 'achats', id);
       assert.equal(m.prefixe, id);
       assert.deepEqual(m.collections, [], id);
       assert.deepEqual(m.outilsMcp, [], id);
@@ -97,7 +96,7 @@ describe('A2 menu : un seul bloc « Achats »', () => {
 
 describe('A3 l\'état de l\'accès : textes fixes, sans secret ni nom', () => {
   test('A3 les quatre états disent ce qu\'il faut, et un état inconnu n\'est jamais muet', () => {
-    assert.equal(TEXTES_ACCES.connecte, 'Connecté à la base');
+    assert.equal(TEXTES_ACCES.connecte, 'Accès prêt (badge à jour)');
     assert.match(TEXTES_ACCES['non-regle'], /Connexion à la base non réglée.*Réglages > Connexion à la base/);
     assert.match(TEXTES_ACCES.reconnexion, /^Reconnecte-toi/);
     assert.match(TEXTES_ACCES.illisible, /réessaie/);

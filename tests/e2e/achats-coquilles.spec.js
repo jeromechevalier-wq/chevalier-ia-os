@@ -1,6 +1,6 @@
 // Modules Achats, étape « coquilles » (24/11/2026, PR 4) : un test par critère (le nom commence par son numéro).
 //  A1 le bloc « Achats » du menu (cinq entrées, un seul bloc) existe pour Jérôme seul ; A2 « Connexion à la base non réglée » (cas vide) avec le lien vers le réglage ;
-//  A3 « Connecté à la base » (faux réseau et badge simulés, émulateurs seulement : aucun appel réseau réel) ; A4 « Reconnecte-toi » (badge sans la mention d'accès) ;
+//  A3 « Accès prêt (badge à jour) » (faux réseau et badge simulés, émulateurs seulement : aucun appel réseau réel) ; A4 « Reconnecte-toi » (badge sans la mention d'accès) ;
 //  A5 cas d'erreur : réglages illisibles + « Réessayer » ; A6 chaque module affiche son titre ; A7 pas de défilement horizontal ; A8 Réglages > « Achats ».
 // Captures dans tests/e2e/captures/achats-coquilles/ (non commitées), une par état, nommée avec le projet : ordinateur ou telephone.
 // Adresses : construites dans le test (aucune adresse d'exemple n'est écrite dans le code de l'appli).
@@ -62,12 +62,12 @@ test('A2 cas vide : connexion non réglée : le texte exact et le lien vers Rég
   await expect(page).toHaveURL(/#\/reglages\/base$/);
 });
 
-test('A3 connecté : réglages enregistrés et badge portant la mention d\'accès pour le bon espace : « Connecté à la base » sur les cinq écrans', async ({ page }, info) => {
+test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'accès pour le bon espace : « Accès prêt (badge à jour) » sur les cinq écrans', async ({ page }, info) => {
   await ecrireDocument('base_parametres/connexion', FICHE());
   await simulerBadge(page);
   await connecter(page, undefined, { route: MODULES[0].route });
   await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
-  await expect(page.locator('[data-role="achats-etat-texte"]')).toHaveText('Connecté à la base');
+  await expect(page.locator('[data-role="achats-etat-texte"]')).toHaveText('Accès prêt (badge à jour)');
   await capturer(page, info, 'A3-connecte');
   for (const m of MODULES.slice(1)) {
     await page.evaluate((r) => { location.hash = `#/${r}`; }, m.route);

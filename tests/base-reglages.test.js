@@ -89,13 +89,25 @@ describe('B2 contrat de lireConnexion', () => {
   });
 });
 
-describe('B2 changement d\'hôte : seulement un hôte DÉJÀ enregistré remplacé par un autre', () => {
-  test('B2 premier enregistrement (formulaire vide) : aucun changement ; même hôte : aucun ; champ vidé ou rempli pour la première fois : aucun', () => {
-    assert.deepEqual(hotesChanges({}, valides()), []);
-    assert.deepEqual(hotesChanges(null, valides()), []);
+describe('B2 changement d\'hôte : tout hôte (nom et port) différent de celui enregistré est à confirmer', () => {
+  test('B2 même hôte (autre chemin) : rien ; champ vidé : rien ; rien de saisi : rien', () => {
     assert.deepEqual(hotesChanges(valides(), { ...valides(), adresseBase: https('base.exemple.test', '/autre-chemin') }), []);
     assert.deepEqual(hotesChanges(valides(), { ...valides(), webhooks: { ...valides().webhooks, actions: '' } }), []);
-    assert.deepEqual(hotesChanges({ ...valides(), webhooks: {} }, valides()), []);
+    assert.deepEqual(hotesChanges({}, {}), []);
+  });
+  test('B2 premier enregistrement : la base et chaque adresse d\'automatisation saisies sont à confirmer (le badge et les tickets partent vers elles)', () => {
+    assert.deepEqual(hotesChanges({}, valides()).map((x) => [x.champ, x.avant, x.apres]), [
+      ['adresseBase', '', 'base.exemple.test'], ['webhooks.validation', '', 'auto.exemple.test'], ['webhooks.actions', '', 'auto.exemple.test'],
+      ['webhooks.suggestions', '', 'auto.exemple.test'], ['webhooks.ajoutFacture', '', 'auto.exemple.test'],
+    ]);
+    assert.deepEqual(hotesChanges(null, { ...valides(), webhooks: {} }).map((x) => x.champ), ['adresseBase']);
+  });
+  test('B2 adresse d\'automatisation vidée puis remplie avec un autre hôte : à confirmer', () => {
+    assert.deepEqual(hotesChanges({ ...valides(), webhooks: {} }, valides()).map((x) => x.champ), ['webhooks.validation', 'webhooks.actions', 'webhooks.suggestions', 'webhooks.ajoutFacture']);
+  });
+  test('B2 le port compte : même nom d\'hôte, autre port = autre hôte', () => {
+    const r = hotesChanges(valides(), { ...valides(), adresseBase: https('base.exemple.test:8443') });
+    assert.deepEqual(r.map((x) => [x.avant, x.apres]), [['base.exemple.test', 'base.exemple.test:8443']]);
   });
   test('B2 un hôte déjà réglé remplacé : la base et l\'automatisation concernée sont rendues, avec l\'ancien et le nouvel hôte', () => {
     const apres = { ...valides(), adresseBase: https('autre-base.exemple.test'), webhooks: { ...valides().webhooks, suggestions: https('autre-auto.exemple.test', '/c') } };
@@ -115,15 +127,19 @@ describe('B2 état de l\'accès (écrans des modules Achats)', () => {
   test('B2 non réglée : rien d\'enregistré (la lecture a réussi mais la connexion est vide)', async () => {
     assert.deepEqual(await evaluerAcces({ charger: async () => definirConnexion(null), obtenirBadge: async () => bonBadge }), { etat: 'non-regle' });
   });
-  test('B2 « Reconnecte-toi » : badge sans la mention, ou avec un autre espace ; un rafraîchissement est tenté UNE fois et suffit s\'il apporte la mention', async () => {
+  test('B2 « Reconnecte-toi » : badge sans la mention, ou avec un autre espace ; le badge n\'est rafraîchi (forcer) que sur demande : jamais à l\'ouverture d\'un écran', async () => {
     const demandes = [];
     const sans = async (forcer) => { demandes.push(Boolean(forcer)); return { jeton: 'j', claims: {} }; };
     assert.deepEqual(await evaluerAcces({ charger: async () => definirConnexion(valides()), obtenirBadge: sans }), { etat: 'reconnexion' });
-    assert.deepEqual(demandes, [false, true]);
+    assert.deepEqual(demandes, [false], 'ouverture d\'un écran : aucun rafraîchissement forcé');
+    demandes.length = 0;
+    assert.deepEqual(await evaluerAcces({ charger: async () => definirConnexion(valides()), obtenirBadge: sans, forcer: true }), { etat: 'reconnexion' });
+    assert.deepEqual(demandes, [false, true], '« Revérifier » : un badge neuf est demandé, une fois');
     const autre = async () => ({ jeton: 'j', claims: { role: 'authenticated', espace_base: 'autre-espace' } });
     assert.deepEqual(await evaluerAcces({ charger: async () => definirConnexion(valides()), obtenirBadge: autre }), { etat: 'reconnexion' });
     const apresRafraichissement = async (forcer) => (forcer ? bonBadge : { jeton: 'j', claims: {} });
-    assert.deepEqual(await evaluerAcces({ charger: async () => definirConnexion(valides()), obtenirBadge: apresRafraichissement }), { etat: 'connecte' });
+    assert.deepEqual(await evaluerAcces({ charger: async () => definirConnexion(valides()), obtenirBadge: apresRafraichissement }), { etat: 'reconnexion' });
+    assert.deepEqual(await evaluerAcces({ charger: async () => definirConnexion(valides()), obtenirBadge: apresRafraichissement, forcer: true }), { etat: 'connecte' });
     assert.deepEqual(await evaluerAcces({ charger: async () => definirConnexion(valides()), obtenirBadge: async () => { throw new Error('pas de session'); } }), { etat: 'reconnexion' });
   });
   test('B2 réglages illisibles : la lecture échoue', async () => {

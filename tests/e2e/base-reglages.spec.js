@@ -1,5 +1,5 @@
 // Réglages > « Connexion à la base » (24/11/2026, modules Achats, PR 2) : un test par critère (le nom commence par son numéro).
-//  E1 la section n'existe que pour Jérôme, à la racine ; E2 cas vide ; E3 cas d'erreur (adresse non https : rien n'est écrit) ; E4 enregistrement (premier enregistrement sans confirmation ; un hôte déjà réglé qui change demande confirmation) ;
+//  E1 la section n'existe que pour Jérôme, à la racine ; E2 cas vide ; E3 cas d'erreur (adresse non https : rien n'est écrit) ; E4 enregistrement (tout hôte nouveau ou changé demande confirmation, premier enregistrement compris) ;
 //  E5 « Tester la connexion » : essaie les valeurs SAISIES par la vraie couche d'accès (js/os/acces-base.js) avec un faux réseau et un badge simulés (crochet `window.__accesBase`, émulateurs seulement : aucun appel réseau réel) ; E6 « Donner l'accès à un compte » (fonction du serveur simulée) ; E7 pas de défilement horizontal.
 // Captures dans tests/e2e/captures/base-reglages/ (non commitées), une par état, nommée avec le projet : ordinateur ou telephone.
 // Adresses : construites dans le test (aucune adresse d'exemple n'est écrite dans le code de l'appli).
@@ -83,8 +83,12 @@ test('E4 enregistrer : le document est écrit (champs, auteur, date), le message
   await page.locator('[data-champ="espace"]').fill(f.espace);
   for (const n of Object.keys(f.webhooks)) await page.locator(`[data-champ="webhooks.${n}"]`).fill(f.webhooks[n]);
   await page.locator('[data-action="enregistrer"]').click();
+  // Premier enregistrement : la base et les automatisations saisies sont de nouveaux hôtes (le badge et les tickets partent vers eux) : confirmation demandée.
+  const premiere = page.getByRole('dialog');
+  await expect(premiere).toContainText('base.exemple.test');
+  await expect(premiere).toContainText('auto.exemple.test');
+  await premiere.getByRole('button', { name: 'Continuer' }).click();
   await expect(page.locator('[data-role="base-message"]')).toHaveText('Réglages enregistrés.');
-  await expect(page.getByRole('dialog')).toHaveCount(0); // premier enregistrement depuis un formulaire vide : aucun hôte déjà réglé, donc aucune confirmation
   await expect.poll(() => lireDocument('base_parametres/connexion'), { timeout: 10_000 }).toBeTruthy();
   const d = await lireDocument('base_parametres/connexion');
   expect(d.adresseBase).toBe(f.adresseBase);
@@ -101,7 +105,7 @@ test('E4 enregistrer : le document est écrit (champs, auteur, date), le message
   await expect(page.locator('[data-role="base-vide"]')).toHaveCount(0);
 });
 
-test('E4 un hôte DÉJÀ enregistré qui change : la fenêtre montre l\'ancien et le nouvel hôte ; « Annuler » n\'écrit rien, « Continuer » enregistre ; un même hôte (autre chemin) ne demande rien', async ({ page }, info) => {
+test('E4 un hôte (nom ou port) qui change : la fenêtre montre l\'ancien et le nouvel hôte ; « Annuler » n\'écrit rien, « Continuer » enregistre ; un même hôte (autre chemin) ne demande rien', async ({ page }, info) => {
   const f = FICHE();
   await ecrireDocument('base_parametres/connexion', f);
   await connecter(page, undefined, { route: 'reglages/base' });

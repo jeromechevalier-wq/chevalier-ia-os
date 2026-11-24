@@ -59,7 +59,7 @@ export async function testerAvec(connexion) {
   return { message: 'Ça marche : la base répond et ton accès est bon.' };
 }
 
-/** État de l'accès pour l'écran d'un module : 'connecte' | 'non-regle' | 'reconnexion' | 'illisible' (sans appel à la base). */
-export function verifierAcces() {
-  return evaluerAcces({ charger: connexionPrete, obtenirBadge });
+/** État de l'accès pour l'écran d'un module (`forcer` : bouton « Revérifier » seulement, demande un badge neuf) : 'connecte' | 'non-regle' | 'reconnexion' | 'illisible' (sans appel à la base). */
+export function verifierAcces(forcer = false) {
+  return evaluerAcces({ charger: connexionPrete, obtenirBadge, forcer });
 }

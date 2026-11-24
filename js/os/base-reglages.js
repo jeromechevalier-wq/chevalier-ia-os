@@ -120,18 +120,19 @@ export function messageErreurAcces(e) {
 
 // ---------------------------------------------------------------- hôtes (adresse de la base, adresses d'automatisations)
 
-const hoteDe = (v) => { try { return new URL(String(v)).hostname.toLowerCase(); } catch { return ''; } };
+const hoteDe = (v) => { try { return new URL(String(v)).host.toLowerCase(); } catch { return ''; } };
 
 /**
- * Hôtes DÉJÀ enregistrés qui changent : [{ champ, libelle, avant, apres }]. Un premier enregistrement (rien d'enregistré avant), un champ vidé
- * ou un champ rempli pour la première fois ne comptent pas : on ne demande confirmation que lorsqu'un nom d'hôte déjà réglé est remplacé par un autre.
+ * Hôtes (nom ET port) à confirmer : [{ champ, libelle, avant, apres }]. Dès qu'une adresse remplie a un hôte différent de celui enregistré
+ * (premier hôte saisi, hôte remplacé, adresse vidée puis remplie avec un autre hôte), on demande confirmation : le badge part vers l'adresse de la base,
+ * un ticket vers chaque adresse d'automatisation. Même hôte (autre chemin) ou champ vidé : rien à confirmer. `avant` est vide pour un premier hôte.
  */
 export function hotesChanges(avant, apres) {
   const a = normaliserConnexion(avant);
   const b = normaliserConnexion(apres);
   const lignes = [{ champ: 'adresseBase', libelle: 'Adresse de la base', avant: a.adresseBase, apres: b.adresseBase },
     ...NOMS_WEBHOOKS.map((n) => ({ champ: `webhooks.${n}`, libelle: LIBELLES_WEBHOOKS[n], avant: a.webhooks[n], apres: b.webhooks[n] }))];
-  return lignes.map((l) => ({ ...l, avant: hoteDe(l.avant), apres: hoteDe(l.apres) })).filter((l) => l.avant && l.apres && l.avant !== l.apres);
+  return lignes.map((l) => ({ ...l, avant: hoteDe(l.avant), apres: hoteDe(l.apres) })).filter((l) => l.apres && l.avant !== l.apres);
 }
 
 // ---------------------------------------------------------------- état de l'accès (écrans des modules Achats)
@@ -139,17 +140,17 @@ export function hotesChanges(avant, apres) {
 /**
  * État de l'accès à la base, sans aucun appel à la base elle-même : { etat: 'connecte' | 'non-regle' | 'reconnexion' | 'illisible' }.
  * `charger()` remplit la mémoire (lève si la lecture échoue) ; `obtenirBadge(forcer)` rend { jeton, claims }. Le badge doit porter la mention
- * `role` = authenticated ET `espace_base` = l'espace réglé ; sinon un rafraîchissement est tenté une fois, puis « reconnexion ».
+ * `role` = authenticated ET `espace_base` = l'espace réglé ; sinon « reconnexion » ; un badge neuf n'est demandé (`forcer`) que par le bouton « Revérifier », jamais à chaque ouverture d'écran.
  * Pur : testable sans navigateur.
  */
-export async function evaluerAcces({ charger, obtenirBadge }) {
+export async function evaluerAcces({ charger, obtenirBadge, forcer = false }) {
   try { await charger(); } catch { return { etat: 'illisible' }; }
   let c;
   try { c = lireConnexion(); } catch { return { etat: 'non-regle' }; }
   const bon = (b) => Boolean(b && b.jeton && b.claims && b.claims.role === 'authenticated' && b.claims.espace_base === c.espace);
   try {
     let b = await obtenirBadge(false);
-    if (!bon(b)) b = await obtenirBadge(true);
+    if (forcer && !bon(b)) b = await obtenirBadge(true);
     return { etat: bon(b) ? 'connecte' : 'reconnexion' };
   } catch {
     return { etat: 'reconnexion' };
