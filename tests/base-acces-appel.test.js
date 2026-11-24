@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { creerAppelAccorderAcces, COMPTES_BASE, EFFET } from '../functions/src/base/acces-appel.js';
+import { creerAppelAccorderAcces, ligneDeJournalBase, COMPTES_BASE, EFFET, REMARQUE_RETRAIT } from '../functions/src/base/acces-appel.js';
 
 const JEROME = COMPTES_BASE[0];
 const demande = (token, data = { email: 'cible@client-fictif.example', espace: 'espace-test' }) => ({ auth: token === undefined ? undefined : { token }, data });
@@ -64,7 +64,7 @@ describe('baseAccorderAcces : poser et retirer', () => {
   test('retirer : ne retire que ces deux clés', async () => {
     const auth = fauxAuth(compteCible({ customClaims: { autre: 'garde', role: 'authenticated', espace_base: 'espace-test' } }));
     const r = await creerAppelAccorderAcces({ auth })(demande(jeromeOk, { email: 'cible@client-fictif.example', retirer: true }));
-    assert.deepEqual(r, { ok: true, effetAu: EFFET });
+    assert.deepEqual(r, { ok: true, effetAu: EFFET, remarque: REMARQUE_RETRAIT });
     assert.deepEqual(auth.ecritures[0].claims, { autre: 'garde' });
   });
 
@@ -109,7 +109,27 @@ describe('baseAccorderAcces : refus de la cible et des entrées', () => {
     const auth = fauxAuth(compteCible());
     const r = await creerAppelAccorderAcces({ auth, journal: (e) => lignes.push(JSON.stringify(e)) })(demande(jeromeOk));
     assert.deepEqual(Object.keys(r).sort(), ['effetAu', 'ok']);
-    assert.ok(![JSON.stringify(r), ...lignes].some((t) => /@/.test(t)));
+    assert.ok(![JSON.stringify(r), ...lignes.map(ligneDeJournalBase)].some((t) => /@/.test(t)));
+  });
+
+  test('le journal garde l\'uid et l\'espace du compte, jamais l\'e-mail', async () => {
+    const lignes = [];
+    const auth = fauxAuth(compteCible());
+    await creerAppelAccorderAcces({ auth, journal: (e) => lignes.push(e) })(demande(jeromeOk));
+    const l = JSON.parse(ligneDeJournalBase(lignes.at(-1)));
+    assert.equal(l.message, 'base don ok');
+    assert.equal(l.uid, 'u1');
+    assert.equal(l.espace, 'espace-test');
+    assert.doesNotMatch(JSON.stringify(l), /@/);
+  });
+
+  test('les mentions sont relues juste avant l\'écriture (une mention posée entre-temps est gardée)', async () => {
+    const auth = fauxAuth(compteCible());
+    let lectures = 0;
+    const lire = auth.getUserByEmail.bind(auth);
+    auth.getUserByEmail = async (e) => { const c = await lire(e); lectures += 1; return lectures >= 2 ? { ...c, customClaims: { ...c.customClaims, ajoutee: 1 } } : c; };
+    await creerAppelAccorderAcces({ auth })(demande(jeromeOk));
+    assert.equal(auth.ecritures[0].claims.ajoutee, 1);
   });
 });
 

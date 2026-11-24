@@ -11,6 +11,8 @@ export const CLE_ESPACE = 'espace_base';
 export const VALEUR_ROLE = 'authenticated';
 export const EFFET = 'dans l\'heure au plus';
 
+export const REMARQUE_RETRAIT = 'Le retrait agit à l\'expiration du jeton (1 h au plus) ; il ne désactive pas le compte.';
+
 const ESPACE = /^[a-z0-9-]{1,40}$/;
 const EMAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 
@@ -41,7 +43,15 @@ export function creerAppelAccorderAcces({ auth, comptes = COMPTES_BASE, journal 
     }
     if (!retirer && compte.emailVerified !== true) throw new HttpsError('failed-precondition', 'L\'adresse e-mail de ce compte n\'est pas vérifiée.');
 
-    const mentions = { ...(compte.customClaims ?? {}) };
+    // Relecture au plus près de l'écriture : on fusionne avec les mentions du moment, pas avec celles lues plus haut.
+    let frais;
+    try {
+      frais = await auth.getUserByEmail(email);
+    } catch {
+      journal({ action, statut: 'erreur' });
+      throw new HttpsError('internal', 'Lecture du compte impossible.');
+    }
+    const mentions = { ...(frais.customClaims ?? {}) };
     if (retirer) {
       delete mentions[CLE_ROLE];
       delete mentions[CLE_ESPACE];
@@ -50,17 +60,18 @@ export function creerAppelAccorderAcces({ auth, comptes = COMPTES_BASE, journal 
       mentions[CLE_ESPACE] = espace;
     }
     try {
-      await auth.setCustomUserClaims(compte.uid, mentions);
+      await auth.setCustomUserClaims(frais.uid, mentions);
     } catch {
       journal({ action, statut: 'erreur' });
       throw new HttpsError('internal', 'Écriture impossible : le compte de service n\'a peut-être pas le droit de modifier les comptes.');
     }
-    journal({ action, statut: 'ok' });
-    return { ok: true, effetAu: EFFET };
+    journal({ action, statut: 'ok', uid: frais.uid, ...(retirer ? {} : { espace }) });
+    return retirer ? { ok: true, effetAu: EFFET, remarque: REMARQUE_RETRAIT } : { ok: true, effetAu: EFFET };
   };
 }
 
 /** Une ligne de journal du serveur : seulement l'action et le statut, jamais d'e-mail ni de valeur. */
-export function ligneDeJournalBase({ action, statut }) {
-  return JSON.stringify({ severity: statut === 'ok' ? 'INFO' : 'WARNING', message: `base ${action} ${statut}` });
+// L'identifiant du compte (uid) et l'espace sont gardés pour la trace ; jamais l'e-mail.
+export function ligneDeJournalBase({ action, statut, uid, espace }) {
+  return JSON.stringify({ severity: statut === 'ok' ? 'INFO' : 'WARNING', message: `base ${action} ${statut}`, ...(uid ? { uid: String(uid).slice(0, 128) } : {}), ...(espace ? { espace: String(espace).slice(0, 40) } : {}) });
 }
