@@ -40,9 +40,19 @@ export function creerActions({ lireConnexion, demanderTicket, fetchImpl, modeEmu
     try { return adresseHttps(brute, `L’adresse du service « ${usage} »`).toString(); } catch (e) { throw new ErreurAction(e.message, 'config'); }
   }
 
+  /** Ticket neuf ; toute erreur de la demande (plafond par minute, reconnexion…) sort en ErreurAction, avec son code et son détail. */
+  async function ticketNeuf(usage) {
+    try { return await demanderTicket(usage); } catch (e) {
+      if (e instanceof ErreurAction) throw e;
+      const a = new ErreurAction(e && e.message ? e.message : 'Ticket impossible à obtenir, réessaie.', (e && e.code) || 'ticket');
+      a.detail = (e && e.detail) || null;
+      throw a;
+    }
+  }
+
   async function envoyer(url, ticket, corps) {
     try {
-      return await reseau(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ticket}` }, body: JSON.stringify(corps) });
+      return await reseau(url, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ticket}` }, body: JSON.stringify(corps) });
     } catch { throw new ErreurAction('Connexion impossible, réessaie.', 'reseau'); }
   }
 
@@ -50,9 +60,9 @@ export function creerActions({ lireConnexion, demanderTicket, fetchImpl, modeEmu
   async function appelerWebhook(usage, corpsEnvoye) {
     const url = adresse(usage);
     if (!reseau) throw new ErreurAction('Mode test : aucun appel réseau réel.', 'mode_test');
-    let rep = await envoyer(url, await demanderTicket(usage), corpsEnvoye);
+    let rep = await envoyer(url, await ticketNeuf(usage), corpsEnvoye);
     // Un 401 : le ticket a pu expirer ou être déjà pris. UN seul nouvel essai avec un ticket NEUF, puis l'erreur.
-    if (rep.status === 401) rep = await envoyer(url, await demanderTicket(usage), corpsEnvoye);
+    if (rep.status === 401) rep = await envoyer(url, await ticketNeuf(usage), corpsEnvoye);
     const corps = await rep.json().catch(() => ({}));
     if (rep.status === 401) throw new ErreurAction(MESSAGE_REFUS_SERVEUR, 'refus_serveur');
     if (!rep.ok) throw new ErreurAction(messageServeur(rep.status, corps), (corps && corps.code) ?? null);

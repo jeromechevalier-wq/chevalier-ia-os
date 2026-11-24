@@ -57,6 +57,15 @@ describe('401 : un seul nouvel essai avec un ticket neuf', () => {
 });
 
 describe('erreurs en français', () => {
+  test('redirections refusées ; une erreur de la demande de ticket (plafond par minute) sort en ErreurAction, rien n’est envoyé', async () => {
+    const m = monter({ repondre: () => ok });
+    await m.a.demanderSuggestions();
+    assert.equal(m.appels[0].init.redirect, 'error');
+    const appels = [];
+    const a = creerActions({ lireConnexion: connexion, fetchImpl: async (...x) => { appels.push(x); return {}; }, demanderTicket: async () => { const e = new Error('Trop de demandes, réessaie dans une minute.'); e.code = 'refus'; e.detail = 'ticket_trop_de_demandes'; throw e; } });
+    await assert.rejects(a.demanderSuggestions(), (e) => e instanceof ErreurAction && e.detail === 'ticket_trop_de_demandes' && /Trop de demandes/.test(e.message));
+    assert.equal(appels.length, 0);
+  });
   test('un 200 sans « ok: true » n’est pas un succès (corps vide, ok faux, texte illisible)', async () => {
     for (const rep of [{ status: 200, corps: {} }, { status: 200, corps: { ok: false } }, { status: 200, corps: { ok: 'true' } }, { status: 200, corps: null }, { status: 200, illisible: true }]) {
       const { a } = monter({ repondre: () => rep });

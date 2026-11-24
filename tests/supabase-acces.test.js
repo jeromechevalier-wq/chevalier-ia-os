@@ -14,7 +14,7 @@ function fauxReseau(repondre) {
   const f = async (url, init) => {
     appels.push({ url: new URL(url), init });
     const r = await repondre(new URL(url), init, appels.length);
-    return { ok: r.status >= 200 && r.status < 300, status: r.status, json: async () => r.corps };
+    return { ok: r.status >= 200 && r.status < 300, status: r.status, headers: { get: (n) => (r.entetes && r.entetes[n]) || null }, json: async () => r.corps };
   };
   f.appels = appels;
   return f;
@@ -48,14 +48,14 @@ describe('lecture', () => {
   });
   test('page par page : s’arrête à la première page non pleine', async () => {
     const { f, c } = client((u) => ({ status: 200, corps: Number(u.searchParams.get('offset')) === 0 ? Array.from({ length: 3 }, (_, i) => ({ i })) : [{ i: 99 }] }));
-    const r = await c.lire('t', { colonnes: ['i'], tailleLot: 3 });
+    const r = await c.lire('t', { colonnes: ['i'], tailleLot: 3, tri: ['i'] });
     assert.equal(r.lignes.length, 4);
     assert.equal(r.tronque, false);
     assert.deepEqual(f.appels.map((a) => a.url.searchParams.get('offset')), ['0', '3']);
   });
   test('plafond de 20 pages DIT à voix haute (jamais une liste coupée en silence)', async () => {
     const { f, c } = client(() => ({ status: 200, corps: Array.from({ length: TAILLE_PAGE }, (_, i) => ({ i })) }));
-    const r = await c.lire('t', { colonnes: ['i'] });
+    const r = await c.lire('t', { colonnes: ['i'], tri: ['i'] });
     assert.equal(f.appels.length, PAGES_MAX);
     assert.equal(r.lignes.length, PAGES_MAX * TAILLE_PAGE);
     assert.equal(r.tronque, true);
@@ -83,7 +83,7 @@ describe('badge, reconnexion et erreurs', () => {
   test('mention absente puis présente après rafraîchissement : ça passe', async () => {
     let n = 0;
     const f = fauxReseau(() => ({ status: 200, corps: [] }));
-    const c = creerClient({ lireConnexion: connexion, obtenirBadge: async (forcer) => ({ jeton: forcer ? 'neuf' : 'vieux', claims: forcer ? { role: 'authenticated' } : {} }), fetchImpl: f });
+    const c = creerClient({ lireConnexion: connexion, obtenirBadge: async (forcer) => ({ jeton: forcer ? 'neuf' : 'vieux', claims: forcer ? { role: 'authenticated', espace_base: 'essai' } : {} }), fetchImpl: f });
     await c.lire('t', { colonnes: ['i'] });
     assert.equal(f.appels[0].init.headers.Authorization, 'Bearer neuf');
     assert.equal(n, 0);
@@ -106,6 +106,55 @@ describe('badge, reconnexion et erreurs', () => {
   test('MODE_EMULATEURS : aucun appel réseau réel sans faux réseau explicite', async () => {
     const c = creerClient({ lireConnexion: connexion, obtenirBadge: badgeBon, modeEmulateurs: true });
     await assert.rejects(c.lire('t', { colonnes: ['i'] }), (e) => e.code === 'mode_test');
+  });
+});
+
+describe('corrections de la relecture', () => {
+  test('badge d’un autre espace (ou sans espace) : « Reconnecte-toi », rien n’est envoyé', async () => {
+    for (const claims of [{ role: 'authenticated', espace_base: 'autre' }, { role: 'authenticated' }]) {
+      const f = fauxReseau(() => ({ status: 200, corps: [] }));
+      const c = creerClient({ lireConnexion: connexion, obtenirBadge: async () => ({ jeton: 'j', claims }), fetchImpl: f });
+      await assert.rejects(c.lire('t', { colonnes: ['i'] }), (e) => e.code === 'reconnexion');
+      assert.equal(f.appels.length, 0);
+    }
+  });
+  test('refus SQL 400 « acces_base_refuse » : « Reconnecte-toi » ; autres détails exposés dans `detail`', async () => {
+    await assert.rejects(client(() => ({ status: 400, corps: { details: 'acces_base_refuse' } })).c.appeler('f'), (e) => e.code === 'reconnexion' && e.detail === 'acces_base_refuse');
+    for (const d of ['ticket_trop_de_demandes', 'favori_cle_inconnue']) {
+      await assert.rejects(client(() => ({ status: 400, corps: { message: 'm', details: d } })).c.appeler('f'), (e) => e.code === 'refus' && e.detail === d);
+    }
+  });
+  test('2e page sans tri : refusée ; avec tri : lue', async () => {
+    const pleine = (u) => ({ status: 200, corps: Array.from({ length: 2 }, (_, i) => ({ i })) });
+    await assert.rejects(client(pleine).c.lire('t', { colonnes: ['i'], tailleLot: 2 }), /sans tri/);
+    const { f, c } = client((u) => ({ status: 200, corps: Number(u.searchParams.get('offset')) ? [{ i: 9 }] : [{ i: 1 }, { i: 2 }] }));
+    assert.equal((await c.lire('t', { colonnes: ['i'], tailleLot: 2, tri: ['i'] })).lignes.length, 3);
+    assert.equal(f.appels[0].init.headers.Prefer, 'count=exact');
+  });
+  test('tailleLot borné à 1000 ; arrêt d’après Content-Range (total atteint)', async () => {
+    const { f, c } = client(() => ({ status: 200, corps: Array.from({ length: 1000 }, (_, i) => ({ i })), entetes: { 'Content-Range': '0-999/1000' } }));
+    const r = await c.lire('t', { colonnes: ['i'], tailleLot: 5000 });
+    assert.equal(f.appels.length, 1);
+    assert.equal(f.appels[0].url.searchParams.get('limit'), '1000');
+    assert.equal(r.tronque, false);
+  });
+  test('noms réservés refusés comme colonnes ; null et undefined refusés comme valeurs de filtre ; « * » littéral dans like', async () => {
+    const { f, c } = client(() => ({ status: 200, corps: [] }));
+    for (const nom of ['select', 'order', 'limit', 'offset', 'and', 'or', 'not']) {
+      await assert.rejects(c.lire('t', { colonnes: [nom] }), /réservé/, nom);
+      await assert.rejects(c.lire('t', { colonnes: ['i'], filtres: [[nom, 'eq', 1]] }), /réservé/, nom);
+    }
+    await assert.rejects(c.lire('t', { colonnes: ['i'], filtres: [['i', 'eq', null]] }), /valeur/);
+    await assert.rejects(c.lire('t', { colonnes: ['i'], filtres: [['i', 'eq', undefined]] }), /valeur/);
+    assert.equal(f.appels.length, 0);
+    await c.lire('t', { colonnes: ['i'], filtres: [['i', 'is', null], ['n', 'ilike', 'a*b']] });
+    assert.equal(f.appels[0].url.searchParams.get('i'), 'is.null');
+    assert.equal(f.appels[0].url.searchParams.get('n'), 'ilike.a\\*b');
+  });
+  test('les appels refusent les redirections', async () => {
+    const { f, c } = client(() => ({ status: 200, corps: [] }));
+    await c.appeler('f');
+    assert.equal(f.appels[0].init.redirect, 'error');
   });
 });
 
@@ -142,7 +191,7 @@ describe('fonctions, ticket, lien de PDF, test de connexion', () => {
     const { f, c } = client(() => ({ status: 200, corps: 'ticket-inventé' }));
     assert.equal(await c.demanderTicket('actions'), 'ticket-inventé');
     assert.equal(f.appels[0].url.pathname, '/rest/v1/rpc/demander_ticket_n8n');
-    assert.deepEqual(JSON.parse(f.appels[0].init.body), { usage: 'actions' });
+    assert.deepEqual(JSON.parse(f.appels[0].init.body), { p_usage: 'actions' });
     await assert.rejects(client(() => ({ status: 200, corps: null })).c.demanderTicket('actions'), (e) => e.code === 'reponse');
   });
   test('lienPdf : lien signé relatif complété avec l’adresse de la base ; chemins douteux refusés ; lien d’une autre origine refusé', async () => {
@@ -157,10 +206,12 @@ describe('fonctions, ticket, lien de PDF, test de connexion', () => {
     await assert.rejects(autre.lienPdf('factures', 'a.pdf'), /refusé/);
     await assert.rejects(client(() => ({ status: 200, corps: {} })).c.lienPdf('factures', 'a.pdf'), (e) => e.code === 'reponse');
   });
-  test('tester : lit une seule ligne', async () => {
+  test('tester : appelle lister_favoris_os (une liste vide ne suffit pas à dire « ça marche » : un refus est une erreur)', async () => {
     const { f, c } = client(() => ({ status: 200, corps: [] }));
-    assert.deepEqual(await c.tester('factures', 'id'), { ok: true });
-    assert.equal(f.appels[0].url.searchParams.get('limit'), '1');
+    assert.deepEqual(await c.tester(), { ok: true });
+    assert.equal(f.appels[0].url.pathname, '/rest/v1/rpc/lister_favoris_os');
+    const refus = client(() => ({ status: 400, corps: { message: 'refus', details: 'acces_base_refuse' } })).c;
+    await assert.rejects(refus.tester(), (e) => e.code === 'reconnexion');
   });
 });
 
