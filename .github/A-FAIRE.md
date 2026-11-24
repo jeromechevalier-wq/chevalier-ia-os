@@ -9,6 +9,15 @@ Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08
 | 🟡 | Réglages > « Connexion à la base » et règle Firestore `base_parametres` **absents chez les clients** : la section est `jeromeSeulement` (registre) et la règle n'est que dans `firestore.rules`. **`firestore.plateforme.rules` n'est pas touché** : le joker `clients/<client>/<collection>` de la plateforme laisserait un éditeur client écrire dans une collection `base_parametres` de son espace (aucun écran ni code ne la lit chez les clients aujourd'hui, donc sans effet) : **avant d'ouvrir les modules Achats aux clients**, la fermer par une règle de la plateforme (PR séparée, accord de Jérôme). Pour ouvrir aux clients : écran de réglages par client, règle de la plateforme en PR séparée, connexion de la base au projet Firebase des clients | à faire (plus tard) | Claude |
 | 🟡 | Le bouton « Donner l'accès à un compte » appelle la fonction `baseAccorderAcces` (PR 1, serveur de Jérôme) : sans elle déployée, il répond « Ça n'a pas abouti ». Le bouton « Tester la connexion » répond « pas encore branché » tant que la couche d'accès (PR 3) n'est pas branchée par la PR 4 | à brancher | Claude |
 
+## Mise à jour du 24/11/2026 (accès à la base des modules Achats)
+
+| | Sujet | État | Qui |
+|---|---|---|---|
+| 🟡 | Fonction `baseAccorderAcces` **absente chez les clients** (`RESERVEES_JEROME`) : elle pose les mentions Firebase `role` et `espace_base` sur UN compte, Jérôme seul. Avant de l'ouvrir aux clients : connexion de leur base au projet Firebase des clients, règles de la plateforme, écran de réglages par client | à faire plus tard | Claude |
+| 🟡 | **Droit IAM manquant** : le compte `porte-serveur` n'a ni `firebaseauth.users.get` ni `firebaseauth.users.update`. Cela ne casse PAS le déploiement des fonctions : seul l'APPEL de `baseAccorderAcces` échoue (« Lecture du compte impossible »). Il faut ajouter ce droit AVANT de donner le premier badge. Recommandation : un compte de service dédié à cette fonction plutôt que d'élargir `porte-serveur`, qui sert aussi des fonctions ouvertes sur Internet | à faire avant le premier badge | Claude |
+| 🟡 | Limites à connaître : le retrait agit à l'expiration du jeton (1 h au plus) et ne désactive pas le compte ; un compte n'a qu'UN `espace_base` à la fois (pas deux bases clients pour le même compte) | noté | Claude |
+| 🟡 | Bouton d'appel dans Réglages (PR suivante) et ligne dans Réglages > Déploiement | à faire | Claude |
+
 ## Mise à jour du 23/11/2026 (module Pilotage, étape 1 : serveur)
 
 | | Sujet | État | Qui |
