@@ -2,12 +2,21 @@
 
 Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de session) ; avant : 08/11/2026 (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Mise à jour du 24/11/2026 (modules Achats : coquilles, PR 4)
+
+| | Sujet | État | Qui |
+|---|---|---|---|
+| 🟡 | Les cinq modules Achats (`achatsfournisseurs`, `achatschantiers`, `achatsarticles`, `achatsfactures`, `tableauachats`) sont **absents chez les clients** (`seulJerome` : jamais activables ni nommables, jamais dans le menu d'un client ; la vraie barrière est la base elle-même, qui ne répond rien sans le badge posé par `baseAccorderAcces`). Ligne « Modules Achats : absents chez les clients » dans Réglages > Déploiement (une seule, portée par le premier module). **Pour les ouvrir aux clients** : relier la base de chaque espace au projet de connexion, écran de réglages de la connexion par client, règle de `firestore.plateforme.rules` pour `base_parametres`, retirer `seulJerome` module par module, version plateforme de la fonction `baseAccorderAcces` | à faire plus tard | Claude |
+| 🟡 | **Bouton « Exporter mes données » : à faire dans la PR de chaque module** (règle du 27/10/2026), pas de section `reglages-export-*` dans les coquilles : Fournisseurs, Chantiers, Articles, Factures, Tableau de bord 2 | à faire (PR 5 à 9) | Claude |
+| 🟡 | Sauter dans cette PR : `docs/tables.md` et `docs/activer-desactiver-modules.md` (la PR de documentation finale, PR 10, s'en charge) | à faire (PR 10) | Claude |
+| 🟡 | Le bouton « Tester la connexion » et la couche d'accès sont branchés (fichier `js/os/acces-base.js`) : le test essaie les valeurs saisies. Vérifié seulement avec un faux réseau et un badge simulé ; **jamais essayé avec la vraie base** (il faut d'abord le badge : droit IAM ci-dessous, puis « Donner l'accès »). L'écran de chaque module dit « Connecté à la base » sans interroger la base : il lit le badge, pas la base | à vérifier avec la vraie base | Jérôme (badge), Claude |
+
 ## Mise à jour du 24/11/2026 (modules Achats : réglages de la connexion à la base, PR 2)
 
 | | Sujet | État | Qui |
 |---|---|---|---|
 | 🟡 | Réglages > « Connexion à la base » et règle Firestore `base_parametres` **absents chez les clients** : la section est `jeromeSeulement` (registre) et la règle n'est que dans `firestore.rules`. **`firestore.plateforme.rules` n'est pas touché** : le joker `clients/<client>/<collection>` de la plateforme laisserait un éditeur client écrire dans une collection `base_parametres` de son espace (aucun écran ni code ne la lit chez les clients aujourd'hui, donc sans effet) : **avant d'ouvrir les modules Achats aux clients**, la fermer par une règle de la plateforme (PR séparée, accord de Jérôme). Pour ouvrir aux clients : écran de réglages par client, règle de la plateforme en PR séparée, connexion de la base au projet Firebase des clients | à faire (plus tard) | Claude |
-| 🟡 | Le bouton « Donner l'accès à un compte » appelle la fonction `baseAccorderAcces` (PR 1, serveur de Jérôme) : sans elle déployée, il répond « Ça n'a pas abouti ». Le bouton « Tester la connexion » répond « pas encore branché » tant que la couche d'accès (PR 3) n'est pas branchée par la PR 4 | à brancher | Claude |
+| 🟡 | Le bouton « Donner l'accès à un compte » appelle la fonction `baseAccorderAcces` (PR 1, serveur de Jérôme) : sans elle déployée, il répond « Ça n'a pas abouti ». Le bouton « Tester la connexion » est branché sur la couche d'accès par la PR 4 (voir la mise à jour ci-dessus) | fait (PR 4) | Claude |
 
 ## Mise à jour du 24/11/2026 (accès à la base des modules Achats)
 

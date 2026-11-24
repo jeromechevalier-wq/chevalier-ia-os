@@ -292,6 +292,96 @@ export const MODULES_DECLARES = geler([
     outilsMcp: [],
     dependances: [],
   },
+  // Modules Achats (24/11/2026, décision de Jérôme : ces cinq modules n'existent que chez lui pour commencer ; PR 4 = « coquilles » : déclaration, menu, écran d'état de l'accès à la base, aucune donnée métier).
+  // `seulJerome` (modèle : la Console) = jamais dans IDS_MODULES (un client ne peut ni les activer ni les nommer), jamais dans MODULES_CLIENT, montés par js/main.js pour son seul compte.
+  // La vraie barrière est la base elle-même : sans le badge posé par la fonction `baseAccorderAcces` (Jérôme seul), elle ne répond rien. Un seul bloc de menu « Achats » (GROUPES_MENU, id `achats`).
+  // Aucune donnée dans Firebase : `collections` est vide (les données vivent dans la base de l'espace) ; aucun outil d'assistant ; chaque module est vendable seul (aucune dépendance).
+  // Export des données : à faire dans la PR de chaque module (règle du 27/10/2026) ; pas de section « Sauvegarde » dans cette étape.
+  {
+    id: 'achatsfournisseurs',
+    nom: 'Fournisseurs',
+    libelleMenu: 'Fournisseurs',
+    iconeMenu: 'building-2',
+    prefixe: 'achatsfournisseurs',
+    groupe: 'achats',
+    seulJerome: true,
+    reglages: { sections: [], resume: 'Les fournisseurs se lisent dans la base de l’espace. La connexion se règle dans Réglages > Connexion à la base.' },
+    entreeMenu: 'achatsfournisseurs/liste',
+    ecrans: [
+      { route: 'achatsfournisseurs/liste', libelle: 'Fournisseurs', icone: 'building-2' },
+    ],
+    collections: [],
+    outilsMcp: [],
+    dependances: [],
+  },
+  {
+    id: 'achatschantiers',
+    nom: 'Chantiers',
+    libelleMenu: 'Chantiers',
+    iconeMenu: 'folder-kanban',
+    prefixe: 'achatschantiers',
+    groupe: 'achats',
+    seulJerome: true,
+    reglages: { sections: [], resume: 'Les chantiers se lisent dans la base de l’espace. La connexion se règle dans Réglages > Connexion à la base.' },
+    entreeMenu: 'achatschantiers/liste',
+    ecrans: [
+      { route: 'achatschantiers/liste', libelle: 'Chantiers', icone: 'folder-kanban' },
+    ],
+    collections: [],
+    outilsMcp: [],
+    dependances: [],
+  },
+  {
+    id: 'achatsarticles',
+    nom: 'Articles',
+    libelleMenu: 'Articles',
+    iconeMenu: 'tag',
+    prefixe: 'achatsarticles',
+    groupe: 'achats',
+    seulJerome: true,
+    reglages: { sections: [], resume: 'Les articles se lisent dans la base de l’espace. La connexion se règle dans Réglages > Connexion à la base.' },
+    entreeMenu: 'achatsarticles/liste',
+    ecrans: [
+      { route: 'achatsarticles/liste', libelle: 'Articles', icone: 'tag' },
+    ],
+    collections: [],
+    outilsMcp: [],
+    dependances: [],
+  },
+  {
+    id: 'achatsfactures',
+    nom: 'Factures',
+    libelleMenu: 'Factures',
+    iconeMenu: 'file-text',
+    prefixe: 'achatsfactures',
+    groupe: 'achats',
+    seulJerome: true,
+    reglages: { sections: [], resume: 'Les factures se lisent dans la base de l’espace. La connexion se règle dans Réglages > Connexion à la base.' },
+    entreeMenu: 'achatsfactures/liste',
+    ecrans: [
+      { route: 'achatsfactures/liste', libelle: 'Factures', icone: 'file-text' },
+    ],
+    collections: [],
+    outilsMcp: [],
+    dependances: [],
+  },
+  {
+    id: 'tableauachats',
+    nom: 'Tableau de bord 2',
+    libelleMenu: 'Tableau de bord 2',
+    iconeMenu: 'chart-column',
+    prefixe: 'tableauachats',
+    groupe: 'achats',
+    seulJerome: true,
+    reglages: { sections: [], resume: 'Le tableau de bord des achats se lit dans la base de l’espace. La connexion se règle dans Réglages > Connexion à la base.' },
+    entreeMenu: 'tableauachats/tableau',
+    ecrans: [
+      { route: 'tableauachats/tableau', libelle: 'Tableau de bord 2', icone: 'chart-column' },
+    ],
+    collections: [],
+    outilsMcp: [],
+    dependances: [],
+  },
   {
     // Accès MCP (chantier 9 et 11) : un assistant (Claude, ChatGPT) se connecte à l'espace du client par un lien (…/mcp/<client>) et ses outils sont ceux des
     // modules actifs. Allumé ou éteint par client comme les autres modules ; éteint = le lien ne répond plus. Le module n'a qu'une page d'information
@@ -359,6 +449,17 @@ export const GROUPES_MENU = geler([
       'reglages-etapes', 'reglages-phases', 'reglages-options', 'reglages-modeles-affaire', 'reglages-modeles-projets', 'reglages-objectifs',
       'reglages-offres', 'reglages-secteurs', 'reglages-sources', 'reglages-etiquettes', 'reglages-filtres', 'reglages-debut', 'reglages-projets', 'reglages-fichiers', 'reglages-export-projets', 'reglages-export',
     ],
+  },
+  {
+    // Achats (24/11/2026) : cinq modules techniques réservés à Jérôme, UN seul bloc de menu. Aucune section de Réglages à ranger (leurs réglages sont vides pour l'instant).
+    id: 'achats',
+    nom: 'Achats',
+    libelleMenu: 'Achats',
+    iconeMenu: 'euro',
+    modules: ['achatsfournisseurs', 'achatschantiers', 'achatsarticles', 'achatsfactures', 'tableauachats'],
+    ordreMenu: ['achatsfournisseurs/liste', 'achatschantiers/liste', 'achatsarticles/liste', 'achatsfactures/liste', 'tableauachats/tableau'],
+    sectionsMenu: [['achatsfournisseurs/liste', 'achatschantiers/liste', 'achatsarticles/liste', 'achatsfactures/liste', 'tableauachats/tableau']],
+    ordreReglages: [],
   },
 ]);
 

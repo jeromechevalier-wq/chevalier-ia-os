@@ -5,7 +5,7 @@
 // Aucune adresse n'est écrite ici : tout vient de ce que Jérôme saisit.
 import { doc, getDocFromServer, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
-import { db, app, MODE_EMULATEURS } from './firebase.js';
+import { db, app } from './firebase.js';
 import { controlerConnexion, definirConnexion, messageErreurAcces } from './base-reglages.js';
 
 const fonctions = () => getFunctions(app, 'europe-west9');
@@ -30,16 +30,6 @@ export async function enregistrerConnexion(valeurs, compte) {
     throw new Error('L’enregistrement n’a pas abouti. Vérifie ta connexion internet, puis réessaie : ce que tu as saisi est conservé.');
   }
   definirConnexion(r.connexion);
-}
-
-/**
- * Test de la connexion, par défaut. La couche d'accès à la base (js/os/supabase.js) n'est branchée qu'à l'étape suivante : sans elle, le test le dit en clair.
- * L'écran reçoit en pratique un `testerConnexion` injecté ; en mode émulateurs seulement, un crochet de test peut le remplacer (jamais d'appel réseau réel dans les tests).
- */
-export async function testerConnexionParDefaut() {
-  const crochet = MODE_EMULATEURS ? window.__testerConnexionBase : null;
-  if (typeof crochet === 'function') return crochet();
-  throw new Error('Le test n’est pas encore branché : la couche d’accès à la base arrive à l’étape suivante.');
 }
 
 /** Donne (retirer = false) ou retire l'accès d'un compte à la base. Renvoie la réponse du serveur ; lève une Error au message lisible. */

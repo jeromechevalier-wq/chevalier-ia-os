@@ -49,12 +49,13 @@ test('1 Réglages > Déploiement chez Jérôme : une ligne par étape avec pasti
   await ouvrirRacine(page);
   await expect(page.locator('.reglages-menu-lien[data-reglage="deploiement"]')).toHaveText('Déploiement');
   await expect(page.locator('.deploiement-groupe h3')).toHaveText(['Avant la séance', 'Pendant la séance', 'Réglages Google du projet', 'Après la séance']);
-  // Toutes les lignes automatiques sont vertes, les manuelles grises « À vérifier à la main » : 6 sur 23 (1 du serveur, 1 des Affaires, 2 du Devis + 2 du PDF ; 17 manuelles (dont 1 du Pilotage),
+  // Toutes les lignes automatiques sont vertes, les manuelles grises « À vérifier à la main » : 6 sur 24 (1 du serveur, 1 des Affaires, 2 du Devis + 2 du PDF ; 18 manuelles (dont 1 du Pilotage et 1 des modules Achats),
   // dont « Personnes autorisées », case à cocher à la racine : les comptes y sont écrits dans le code)
-  await expect(page.locator('.deploiement-ligne')).toHaveCount(23);
+  await expect(page.locator('.deploiement-ligne')).toHaveCount(24);
   await expect(ligne(page, 'pilotage-plateforme')).toContainText('Tableau de bord : absent chez les clients');
+  await expect(ligne(page, 'achats-plateforme')).toContainText('Modules Achats : absents chez les clients'); // une seule ligne pour les cinq modules Achats (PR 4)
   await expect(page.locator('.deploiement-ligne[data-type="auto"][data-couleur="vert"]')).toHaveCount(6);
-  await expect(resume(page)).toHaveText('6 sur 23 vertes');
+  await expect(resume(page)).toHaveText('6 sur 24 vertes');
   await expect(ligne(page, 'membres')).toHaveAttribute('data-type', 'manuel');
   await expect(page.locator('#reglages-deploiement')).not.toContainText('Jérôme');
   await expect(page.locator('#reglages-deploiement')).toContainText('Chaque case s’enregistre toute seule.');
@@ -123,7 +124,7 @@ test('3 plus d’étape « CORS » : la page ne lit plus le stockage, le groupe 
   await simuler(page);
   await toutRegler();
   await ouvrirRacine(page);
-  await expect(page.locator('.deploiement-ligne')).toHaveCount(23);
+  await expect(page.locator('.deploiement-ligne')).toHaveCount(24);
   await expect(ligne(page, 'devis-cors')).toHaveCount(0);
   await expect(page.locator('#reglages-deploiement')).not.toContainText('CORS');
   for (const id of ['devis-entreprise', 'devis-catalogue']) await expect(ligne(page, id)).toHaveAttribute('data-couleur', 'vert');
@@ -144,7 +145,7 @@ test('4 « C’est fait » : la case manuelle devient verte avec la date, compte
   const date = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' }).format(new Date());
   await expect(ligne(page, 'bienvenue')).toHaveAttribute('data-couleur', 'vert');
   await expect(ligne(page, 'bienvenue').locator('[data-role="etat"]')).toHaveText(`Fait le ${date}`);
-  await expect(resume(page)).toHaveText('7 sur 23 vertes');
+  await expect(resume(page)).toHaveText('7 sur 24 vertes');
   await expect.poll(async () => (await lireDocument('crm_parametres/deploiement'))?.bienvenue?.fait).toBe(true);
   expect(Object.keys((await lireDocument('crm_parametres/deploiement')).bienvenue).sort()).toEqual(['fait', 'le']);
   await page.reload();

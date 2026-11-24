@@ -3,8 +3,9 @@
 // (`base_parametres/connexion`, voir base-reglages-donnees.js). La couche d'accès (js/os/supabase.js, PR suivante) reçoit `lireConnexion` par injection.
 //
 // Contrat figé : lireConnexion() -> { adresseBase, clePublique, espace, webhooks: { validation, actions, suggestions, ajoutFacture } }
-// ou lève une erreur lisible « Connexion à la base non réglée ». Elle est synchrone : elle lit la mémoire, remplie par `definirConnexion`
-// (chargée au démarrage par base-reglages-donnees.js > chargerConnexion).
+// ou lève une erreur lisible « Connexion à la base non réglée ». Elle est synchrone : elle lit la mémoire, remplie par `definirConnexion`.
+// La mémoire est remplie AVANT le premier usage (pas seulement depuis l'écran des réglages) : js/os/acces-base.js (`connexionPrete`) appelle
+// base-reglages-donnees.js > chargerConnexion avant tout accès à la base ; les écrans des modules Achats l'attendent.
 
 export const MESSAGE_NON_REGLEE = 'Connexion à la base non réglée';
 export const NOMS_WEBHOOKS = Object.freeze(['validation', 'actions', 'suggestions', 'ajoutFacture']);
@@ -64,12 +65,17 @@ export function controlerConnexion(brut) {
 
 let enMemoire = null;
 
-/** Pose (ou efface, avec null) la connexion lue dans Firestore. Un document incomplet ou invalide compte comme « non réglée ». */
+/**
+ * Pose (ou efface, avec null) la connexion lue dans Firestore. Un document incomplet ou invalide compte comme « non réglée ».
+ * Une adresse d'automatisation invalide (pas en https) est VIDÉE en mémoire : elle n'est jamais gardée ni utilisée.
+ */
 export function definirConnexion(brut) {
   const r = brut ? controlerConnexion(brut) : null;
   const obligatoires = r && !r.erreurs.adresseBase && !r.erreurs.clePublique && !r.erreurs.espace;
-  enMemoire = obligatoires ? r.connexion : null;
-  return enMemoire !== null;
+  if (!obligatoires) { enMemoire = null; return false; }
+  const webhooks = Object.fromEntries(NOMS_WEBHOOKS.map((n) => [n, r.erreurs[`webhooks.${n}`] ? '' : r.connexion.webhooks[n]]));
+  enMemoire = { ...r.connexion, webhooks };
+  return true;
 }
 
 /** La connexion réglée, ou une erreur lisible. Renvoie une copie : personne ne modifie la mémoire. */
@@ -97,11 +103,55 @@ export function controlerDemandeAcces({ email, espace } = {}) {
 export const MESSAGE_ACCES_DONNE = 'C’est noté : l’effet arrive dans l’heure au plus. La personne doit se reconnecter.';
 export const MESSAGE_ACCES_RETIRE = 'C’est noté : le retrait prend effet dans l’heure au plus. La personne doit se reconnecter.';
 export const MESSAGE_ACCES_RESEAU = 'Ça n’a pas abouti. Vérifie ta connexion internet, puis réessaie.';
-const CODES_LISIBLES = ['permission-denied', 'invalid-argument', 'failed-precondition', 'not-found', 'unauthenticated', 'resource-exhausted'];
+export const MESSAGE_ACCES_INTERNE = 'Le serveur a rencontré un souci : réessaie dans un instant. Si cela continue, l’accès n’est peut-être pas encore possible côté serveur.';
+const CODES_LISIBLES = ['permission-denied', 'invalid-argument', 'failed-precondition', 'not-found', 'unauthenticated', 'resource-exhausted', 'internal'];
 
-/** Erreur d'appel -> message à montrer (le SDK ajoute « [403] » en fin de message : on l'enlève). */
+/**
+ * Erreur d'appel -> message à montrer (le SDK ajoute « [403] » en fin de message : on l'enlève). Un message qui répète seulement le code
+ * (« internal », « INTERNAL ») n'apprend rien : on compare sans tenir compte de la casse. Le serveur n'écrit dans ses messages aucun secret.
+ */
 export function messageErreurAcces(e) {
-  const code = String(e?.code ?? '').replace('functions/', '');
+  const code = String(e?.code ?? '').replace('functions/', '').toLowerCase();
   const message = String(e?.message ?? '').replace(/\s*\[\d{3}\]$/, '').trim();
-  return CODES_LISIBLES.includes(code) && message && message !== code ? message : MESSAGE_ACCES_RESEAU;
+  if (!CODES_LISIBLES.includes(code)) return MESSAGE_ACCES_RESEAU;
+  if (message && message.toLowerCase() !== code) return message;
+  return code === 'internal' ? MESSAGE_ACCES_INTERNE : MESSAGE_ACCES_RESEAU;
+}
+
+// ---------------------------------------------------------------- hôtes (adresse de la base, adresses d'automatisations)
+
+const hoteDe = (v) => { try { return new URL(String(v)).hostname.toLowerCase(); } catch { return ''; } };
+
+/**
+ * Hôtes DÉJÀ enregistrés qui changent : [{ champ, libelle, avant, apres }]. Un premier enregistrement (rien d'enregistré avant), un champ vidé
+ * ou un champ rempli pour la première fois ne comptent pas : on ne demande confirmation que lorsqu'un nom d'hôte déjà réglé est remplacé par un autre.
+ */
+export function hotesChanges(avant, apres) {
+  const a = normaliserConnexion(avant);
+  const b = normaliserConnexion(apres);
+  const lignes = [{ champ: 'adresseBase', libelle: 'Adresse de la base', avant: a.adresseBase, apres: b.adresseBase },
+    ...NOMS_WEBHOOKS.map((n) => ({ champ: `webhooks.${n}`, libelle: LIBELLES_WEBHOOKS[n], avant: a.webhooks[n], apres: b.webhooks[n] }))];
+  return lignes.map((l) => ({ ...l, avant: hoteDe(l.avant), apres: hoteDe(l.apres) })).filter((l) => l.avant && l.apres && l.avant !== l.apres);
+}
+
+// ---------------------------------------------------------------- état de l'accès (écrans des modules Achats)
+
+/**
+ * État de l'accès à la base, sans aucun appel à la base elle-même : { etat: 'connecte' | 'non-regle' | 'reconnexion' | 'illisible' }.
+ * `charger()` remplit la mémoire (lève si la lecture échoue) ; `obtenirBadge(forcer)` rend { jeton, claims }. Le badge doit porter la mention
+ * `role` = authenticated ET `espace_base` = l'espace réglé ; sinon un rafraîchissement est tenté une fois, puis « reconnexion ».
+ * Pur : testable sans navigateur.
+ */
+export async function evaluerAcces({ charger, obtenirBadge }) {
+  try { await charger(); } catch { return { etat: 'illisible' }; }
+  let c;
+  try { c = lireConnexion(); } catch { return { etat: 'non-regle' }; }
+  const bon = (b) => Boolean(b && b.jeton && b.claims && b.claims.role === 'authenticated' && b.claims.espace_base === c.espace);
+  try {
+    let b = await obtenirBadge(false);
+    if (!bon(b)) b = await obtenirBadge(true);
+    return { etat: bon(b) ? 'connecte' : 'reconnexion' };
+  } catch {
+    return { etat: 'reconnexion' };
+  }
 }

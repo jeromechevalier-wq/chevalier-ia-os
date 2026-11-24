@@ -1,16 +1,18 @@
 // Écran Réglages > « Connexion à la base » (24/11/2026) : visible par Jérôme seul, à la racine (jamais chez un client : registre.js, `jeromeSeulement`).
 // Deux blocs : (1) les réglages de la connexion (adresse de la base, clé publique, nom de l'espace, quatre adresses d'automatisations) avec « Enregistrer » et « Tester la connexion » ;
 // (2) « Donner l'accès à un compte » (appelle la fonction serveur `baseAccorderAcces`, qui revérifie que l'appelant est Jérôme).
-// Le test de la connexion est INJECTÉ (`deps.testerConnexion`) : la couche d'accès à la base n'existe pas encore dans cette étape. Rien de secret : la clé est la clé PUBLIQUE.
+// Le test de la connexion essaie les valeurs SAISIES (js/os/acces-base.js > testerAvec, seul chemin de ce dossier vers la couche d'accès) ; il peut être injecté (`deps.testerConnexion`) dans les tests.
+// Rien de secret : la clé est la clé PUBLIQUE.
 // Aucune adresse d'exemple n'est écrite ici (ni dans un champ, ni dans l'aide).
 import { h, icone, remplir, toast, confirmer } from './ui.js';
 import {
-  controlerConnexion, controlerDemandeAcces, normaliserConnexion, NOMS_WEBHOOKS, LIBELLES_WEBHOOKS, MAX_ADRESSE, MAX_CLE,
+  controlerConnexion, controlerDemandeAcces, normaliserConnexion, hotesChanges, NOMS_WEBHOOKS, LIBELLES_WEBHOOKS, MAX_ADRESSE, MAX_CLE,
   MESSAGE_ACCES_DONNE, MESSAGE_ACCES_RETIRE,
 } from './base-reglages.js';
-import { chargerConnexion, enregistrerConnexion, testerConnexionParDefaut, accorderAcces } from './base-reglages-donnees.js';
+import { chargerConnexion, enregistrerConnexion, accorderAcces } from './base-reglages-donnees.js';
+import { testerAvec } from './acces-base.js';
 
-const DEPS_PAR_DEFAUT = { charger: chargerConnexion, enregistrer: enregistrerConnexion, testerConnexion: testerConnexionParDefaut, accorder: accorderAcces };
+const DEPS_PAR_DEFAUT = { charger: chargerConnexion, enregistrer: enregistrerConnexion, testerConnexion: testerAvec, accorder: accorderAcces };
 
 const champ = (etiquette, id, ...contenu) => h('div', { class: 'bloc-champ mon-espace-champ' }, h('label', { class: 'etiquette', for: id }, etiquette), ...contenu);
 
@@ -54,6 +56,7 @@ export function sectionConnexionBase(ctx, etat, deps = {}) {
 function formulaire(depart, vide, d, ctx) {
   const entrees = {};
   const erreurs = {};
+  let enregistre = depart; // ce qui est déjà enregistré : sert à repérer un hôte qui change
   const creer = (nom, etiquette, { type = 'text', max = MAX_ADRESSE, placeholder = '', aide = null } = {}) => {
     const id = `base-${nom.replace('.', '-')}`;
     const valeur = nom.startsWith('webhooks.') ? depart.webhooks[nom.slice(9)] : depart[nom];
@@ -80,6 +83,12 @@ function formulaire(depart, vide, d, ctx) {
     const premier = Object.keys(entrees).find((n) => r.erreurs[n]);
     if (premier) entrees[premier].focus();
   };
+  // Le badge de connexion part vers l'adresse de la base (enregistrement comme test) : si un hôte DÉJÀ enregistré change, on le montre et on demande confirmation.
+  async function confirmerHotes(connexion) {
+    const changes = hotesChanges(enregistre, connexion);
+    if (!changes.length) return true;
+    return confirmer('Changer l’adresse ?', `${changes.map((c) => `${c.libelle} : ${c.avant} devient ${c.apres}`).join(' ; ')}. Ta connexion sera envoyée à ce nouvel hôte : vérifie qu’il est bien le tien.`, { libelleOk: 'Continuer', danger: true });
+  }
   const occupe = (oui) => { boutonEnregistrer.disabled = oui; boutonTester.disabled = oui; };
 
   async function enregistrer(e) {
@@ -88,9 +97,11 @@ function formulaire(depart, vide, d, ctx) {
     const r = controlerConnexion(valeurs());
     afficherErreurs(r);
     if (!r.ok) { message.dataset.etat = 'erreur'; montrer(message, 'Des champs sont à corriger.'); return; }
+    if (!(await confirmerHotes(r.connexion))) return;
     occupe(true);
     try {
       await d.enregistrer(r.connexion, ctx?.compte);
+      enregistre = r.connexion;
       message.dataset.etat = 'ok';
       montrer(message, 'Réglages enregistrés.');
       toast('Réglages enregistrés', { type: 'succes' });
@@ -107,6 +118,7 @@ function formulaire(depart, vide, d, ctx) {
     const r = controlerConnexion(valeurs());
     afficherErreurs(r);
     if (!r.ok) { resultatTest.dataset.etat = 'erreur'; montrer(resultatTest, 'Corrige d’abord les champs signalés : le test a besoin de réglages valables.'); return; }
+    if (!(await confirmerHotes(r.connexion))) return;
     occupe(true);
     resultatTest.dataset.etat = 'attente';
     montrer(resultatTest, 'Test en cours…');
@@ -155,7 +167,7 @@ function blocAcces(espaceDepart, d) {
     montrer(message, '');
     const r = lire();
     if (!r.ok) return;
-    if (enRetrait && !(await confirmer('Retirer l’accès ?', `Le compte ${r.demande.email} ne pourra plus lire la base de l’espace « ${r.demande.espace} » (dans l’heure au plus).`, { libelleOk: 'Retirer', danger: true }))) return;
+    if (enRetrait && !(await confirmer('Retirer l’accès ?', `Le compte ${r.demande.email} ne pourra plus lire la base (dans l’heure au plus).`, { libelleOk: 'Retirer', danger: true }))) return;
     donner.disabled = true; retirer.disabled = true;
     try {
       await d.accorder({ ...r.demande, retirer: enRetrait });
