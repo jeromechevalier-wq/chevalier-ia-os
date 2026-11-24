@@ -578,10 +578,16 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Connexion à la base des modules Achats (24/11/2026) : adresse, clé publique et adresses des automatisations de l'espace (document `connexion`). Lecture : les comptes autorisés (l'écran et la couche d'accès en ont besoin) ; écriture : le compte de Jérôme seul. Aucun secret ici (clé publique seulement). Exclue du joker ci-dessous.
+    match /base_parametres/{id} {
+      allow read: if compteAutorise();
+      allow write: if compteJeromeSeul();
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures']);
+        && !(collection in ['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres']);
     }
   }
 }

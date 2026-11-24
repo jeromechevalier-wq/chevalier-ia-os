@@ -2,6 +2,13 @@
 
 Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de session) ; avant : 08/11/2026 (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Mise à jour du 24/11/2026 (modules Achats : réglages de la connexion à la base, PR 2)
+
+| | Sujet | État | Qui |
+|---|---|---|---|
+| 🟡 | Réglages > « Connexion à la base » et règle Firestore `base_parametres` **absents chez les clients** : la section est `jeromeSeulement` (registre) et la règle n'est que dans `firestore.rules`. **`firestore.plateforme.rules` n'est pas touché** : le joker `clients/<client>/<collection>` de la plateforme laisserait un éditeur client écrire dans une collection `base_parametres` de son espace (aucun écran ni code ne la lit chez les clients aujourd'hui, donc sans effet) : **avant d'ouvrir les modules Achats aux clients**, la fermer par une règle de la plateforme (PR séparée, accord de Jérôme). Pour ouvrir aux clients : écran de réglages par client, règle de la plateforme en PR séparée, connexion de la base au projet Firebase des clients | à faire (plus tard) | Claude |
+| 🟡 | Le bouton « Donner l'accès à un compte » appelle la fonction `baseAccorderAcces` (PR 1, serveur de Jérôme) : sans elle déployée, il répond « Ça n'a pas abouti ». Le bouton « Tester la connexion » répond « pas encore branché » tant que la couche d'accès (PR 3) n'est pas branchée par la PR 4 | à brancher | Claude |
+
 ## Mise à jour du 23/11/2026 (module Pilotage, étape 1 : serveur)
 
 | | Sujet | État | Qui |

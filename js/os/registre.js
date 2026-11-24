@@ -582,6 +582,7 @@ export function reglagesDesModules(actifs) {
  *  modules : modules allumés (éditeurs seulement ; chez Jérôme, tous le sont) ;
  *  deploiement : étapes d'un déploiement et leur état dans l'espace (éditeurs seulement : les contrôles du serveur leur sont réservés).
  * `editeursSeulement` : un lecteur ne voit pas la section (adresse introuvable). `clientSeulement` : n'existe pas à la racine.
+ *  base : connexion à la base des modules Achats (Jérôme seul : `jeromeSeulement`, à la racine seulement ; le serveur et les règles Firestore recontrôlent).
  */
 export const SECTIONS_ESPACE = geler([
   { id: 'espace', libelle: 'Mon espace', icone: 'house', editeursSeulement: false, clientSeulement: false },
@@ -591,11 +592,13 @@ export const SECTIONS_ESPACE = geler([
   { id: 'deploiement', libelle: 'Déploiement', icone: 'shield-check', editeursSeulement: true, clientSeulement: false },
   // Mes tests (mode test, PR 4) : aperçu et suppression de tous les éléments marqués test ; éditeurs seulement, chez Jérôme comme chez les clients.
   { id: 'tests', libelle: 'Mes tests', icone: 'flask-conical', editeursSeulement: true, clientSeulement: false },
+  // Connexion à la base (24/11/2026, modules Achats) : adresse, clé publique et adresses d'automatisations ; Jérôme seul, à la racine seulement (`jeromeSeulement` : jamais chez un client, même pour lui).
+  { id: 'base', libelle: 'Connexion à la base', icone: 'link', editeursSeulement: true, clientSeulement: false, jeromeSeulement: true },
 ]);
 
-/** Sections d'espace visibles : `chezClient` (plateforme) ou racine ; `editeur` = le compte peut écrire (à la racine, toujours vrai). */
-export function sectionsEspaceVisibles({ chezClient, editeur }) {
-  return SECTIONS_ESPACE.filter((s) => (chezClient || !s.clientSeulement) && (editeur || !s.editeursSeulement));
+/** Sections d'espace visibles : `chezClient` (plateforme) ou racine ; `editeur` = le compte peut écrire (à la racine, toujours vrai) ; `jerome` = le compte est celui de Jérôme (sections `jeromeSeulement` : à la racine seulement, jamais chez un client). */
+export function sectionsEspaceVisibles({ chezClient, editeur, jerome = false }) {
+  return SECTIONS_ESPACE.filter((s) => (chezClient || !s.clientSeulement) && (editeur || !s.editeursSeulement) && (!s.jeromeSeulement || (jerome === true && !chezClient)));
 }
 
 /** Interrupteurs montrés dans « Modules actifs » : un par bloc du menu (CRM = affaires + projets), allumé si son premier module l'est. */

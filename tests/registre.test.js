@@ -509,11 +509,17 @@ describe('Réglages à menu latéral (2.6.0) : ce que chaque module déclare', (
     assert.deepEqual(reglagesDesModules([]), []);
   });
   test('réglages de l\'espace : « Mon espace » pour tous, membres et modules réservés aux éditeurs, membres seulement chez un client', () => {
-    assert.deepEqual(SECTIONS_ESPACE.map((s) => s.id), ['espace', 'membres', 'modules', 'deploiement', 'tests']);
+    assert.deepEqual(SECTIONS_ESPACE.map((s) => s.id), ['espace', 'membres', 'modules', 'deploiement', 'tests', 'base']);
     const ids = (o) => sectionsEspaceVisibles(o).map((s) => s.id);
     assert.deepEqual(ids({ chezClient: true, editeur: true }), ['espace', 'membres', 'modules', 'deploiement', 'tests']);
     assert.deepEqual(ids({ chezClient: true, editeur: false }), ['espace'], 'un lecteur ne voit pas les sections réservées aux éditeurs');
     assert.deepEqual(ids({ chezClient: false, editeur: true }), ['espace', 'modules', 'deploiement', 'tests'], 'à la racine il n\'y a pas de membres à gérer ; le Déploiement existe chez Jérôme comme chez un client');
+    // « Connexion à la base » (24/11/2026) : Jérôme seul, à la racine seulement (jamais dans un espace client, jamais pour un lecteur)
+    assert.deepEqual(ids({ chezClient: false, editeur: true, jerome: true }), ['espace', 'modules', 'deploiement', 'tests', 'base']);
+    assert.deepEqual(ids({ chezClient: false, editeur: true, jerome: false }), ['espace', 'modules', 'deploiement', 'tests'], 'un autre compte de la racine ne la voit pas');
+    assert.deepEqual(ids({ chezClient: true, editeur: true, jerome: true }), ['espace', 'membres', 'modules', 'deploiement', 'tests'], 'dans un espace client : jamais');
+    assert.deepEqual(ids({ chezClient: false, editeur: false, jerome: true }), ['espace'], 'un lecteur ne la voit pas');
+    assert.ok(!ids({ chezClient: false, editeur: true, jerome: 'oui' }).includes('base'), 'seul le booléen vrai compte');
   });
   test('cibleReglages : arrivée sur la première section d\'espace ; section inconnue ou interdite = null', () => {
     const espaces = sectionsEspaceVisibles({ chezClient: true, editeur: false });

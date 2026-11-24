@@ -209,6 +209,39 @@ describe('C4 Console : règles de console_filet', () => {
   });
 });
 
+// Connexion à la base des modules Achats (24/11/2026) : `base_parametres` est LUE par les comptes autorisés et ÉCRITE par le compte de Jérôme seul ; exclue du joker.
+describe('B5 Connexion à la base : règles de base_parametres', () => {
+  const JEROME = 'jerome.chevalier@gmail.com';
+  const BOT = 'jeromebot.chevalierbot@gmail.com';
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'base_parametres', 'connexion'), { espace: 'essai' }); });
+  });
+  test('B5 Jérôme lit, écrit, modifie et supprime les réglages', async () => {
+    const db = contexte(JEROME);
+    await assertSucceeds(getDoc(doc(db, 'base_parametres', 'connexion')));
+    await assertSucceeds(setDoc(doc(db, 'base_parametres', 'connexion'), { espace: 'autre' }));
+    await assertSucceeds(updateDoc(doc(db, 'base_parametres', 'connexion'), { espace: 'encore' }));
+    await assertSucceeds(deleteDoc(doc(db, 'base_parametres', 'connexion')));
+  });
+  test('B5 le compte du bot lit mais n\'écrit, ne modifie ni ne supprime rien', async () => {
+    const db = contexte(BOT);
+    await assertSucceeds(getDoc(doc(db, 'base_parametres', 'connexion')));
+    await assertFails(setDoc(doc(db, 'base_parametres', 'connexion'), { espace: 'autre' }));
+    await assertFails(setDoc(doc(db, 'base_parametres', 'nouveau'), { espace: 'autre' }));
+    await assertFails(updateDoc(doc(db, 'base_parametres', 'connexion'), { espace: 'encore' }));
+    await assertFails(deleteDoc(doc(db, 'base_parametres', 'connexion')));
+  });
+  test('B5 un autre compte, un compte non vérifié et un visiteur : ni lecture ni écriture', async () => {
+    for (const db of [contexte('intrus@exemple.test'), contexte(JEROME, false), env.unauthenticatedContext().firestore()]) {
+      await assertFails(getDoc(doc(db, 'base_parametres', 'connexion')));
+      await assertFails(setDoc(doc(db, 'base_parametres', 'connexion'), { espace: 'autre' }));
+    }
+  });
+  test('B5 aucune sous-collection n\'est ouverte (le joker ne la couvre plus)', async () => {
+    await assertFails(setDoc(doc(contexte(JEROME), 'base_parametres', 'connexion', 'sous', 'x'), { v: 1 }));
+  });
+});
+
 // Module Pilotage (étape 1) : `pilotage_parametres` (réglage des tableaux) est lue et écrite par le SERVEUR seulement ; aucun compte de navigateur n'y touche, pas même Jérôme.
 describe('P1 Pilotage : règles de pilotage_parametres', () => {
   beforeEach(async () => {
