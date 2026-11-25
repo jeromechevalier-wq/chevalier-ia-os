@@ -93,7 +93,7 @@ test('K5 Réglages à menu latéral chez Jérôme : l\'espace d\'abord, puis les
   await allerA(page, 'Réglages');
   await expect(page).toHaveURL(/#\/reglages$/);
   await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
-  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Modules actifs', 'Déploiement', 'Mes tests', 'Connexion à la base', 'Affaires et projets', 'Devis', 'Veille', 'Réseaux sociaux', 'Rendez-vous', 'Automatisations', 'Tableau de bord', 'Maintenance', 'Connecter mon ChatGPT', 'Console']); // pas de « Membres et rôles » à la racine (les comptes sont dans les règles)
+  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Modules actifs', 'Déploiement', 'Mes tests', 'Connexion à la base', 'Affaires et projets', 'Devis', 'Veille', 'Réseaux sociaux', 'Rendez-vous', 'Automatisations', 'Tableau de bord', 'Maintenance', 'Achats', 'Connecter mon ChatGPT', 'Console']); // pas de « Membres et rôles » à la racine (les comptes sont dans les règles)
   await expect(page.locator('.reglages-menu-lien[aria-current="page"]')).toHaveText('Mon espace');
   await expect(page.locator('[data-info="nom"]')).toContainText('Chevalier IA OS');
   await expect(page.locator('#reglages-theme')).toBeVisible();

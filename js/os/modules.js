@@ -20,6 +20,12 @@ const MONTAGES = {
   tableaudebord: () => import('../modules/tableaudebord/index.js'),
   mcp: () => import('../modules/mcp/index.js'),
   console: () => import('../modules/console/index.js'),
+  // Modules Achats (24/11/2026, chez Jérôme seulement : `seulJerome`) : coquilles sans donnée métier.
+  achatsfournisseurs: () => import('../modules/achatsfournisseurs/index.js'),
+  achatschantiers: () => import('../modules/achatschantiers/index.js'),
+  achatsarticles: () => import('../modules/achatsarticles/index.js'),
+  achatsfactures: () => import('../modules/achatsfactures/index.js'),
+  tableauachats: () => import('../modules/tableauachats/index.js'),
 };
 
 const versModule = (d) => ({
@@ -27,7 +33,7 @@ const versModule = (d) => ({
   libelle: d.libelleMenu,
   icone: d.iconeMenu,
   entrees: d.ecrans.map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone })), // sous entrées du menu (et routes principales)
-  ...(d.seulJerome ? { seulJerome: true } : {}), // module réservé à Jérôme (Console) : js/main.js ne le monte que pour son compte
+  ...(d.seulJerome ? { seulJerome: true } : {}), // module réservé à Jérôme (Console, modules Achats) : js/main.js ne le monte que pour son compte
   prefixe: d.prefixe, // préfixe des routes gérées par le module (#/crm/...)
   monter: MONTAGES[d.id],
 });

@@ -107,7 +107,7 @@ test.describe('chez Jérôme', () => {
     await expect(page).toHaveURL(/#\/devis\/liste$/);
     await expect(page.locator('.page-liste-devis')).toBeVisible();
     await ouvrirMenu(page);
-    await expect.poll(() => entreesMenu(page).then((t) => t.length).catch(() => 0)).toBe(13); // menu complet : 13 entrées (dont Réseaux sociaux, Rendez-vous, Pilotage et la Console de Jérôme)
+    await expect.poll(() => entreesMenu(page).then((t) => t.length).catch(() => 0)).toBe(18); // menu complet : 18 entrées (dont Réseaux sociaux, Rendez-vous, Pilotage, les cinq modules Achats et la Console de Jérôme)
   });
 
   test('9 un module hors portail : « Page introuvable » avec « Retour à l\'accueil » et « Ouvrir dans l\'espace complet » ; les Réglages s\'ouvrent dans le portail', async ({ page }, info) => {
@@ -124,7 +124,7 @@ test.describe('chez Jérôme', () => {
     await page.locator('[data-action="ouvrir-espace-complet"]').click();
     await expect(page).toHaveURL(/#\/crm\/affaires$/); // hors portail : page rechargée, menu complet
     await ouvrirMenu(page);
-    await expect.poll(() => entreesMenu(page).then((t) => t.length).catch(() => 0)).toBe(13); // page rechargée, menu complet (13 entrées, dont Réseaux sociaux, Rendez-vous, Pilotage et la Console de Jérôme)
+    await expect.poll(() => entreesMenu(page).then((t) => t.length).catch(() => 0)).toBe(18); // page rechargée, menu complet (18 entrées, dont Réseaux sociaux, Rendez-vous, Pilotage, les cinq modules Achats et la Console de Jérôme)
     await page.evaluate(() => { location.hash = '#/portail-devis/reglages'; });
     await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
     await expect(page).toHaveURL(/#\/portail-devis\/reglages$/);

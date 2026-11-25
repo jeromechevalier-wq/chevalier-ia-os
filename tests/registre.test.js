@@ -15,6 +15,7 @@ import { badgeDe, definirBadge, reinitialiserBadges, surBadge, texteBadge, phras
 import { MODULES } from '../js/os/modules.js';
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
+const ACHATS = ['achatsfournisseurs', 'achatschantiers', 'achatsarticles', 'achatsfactures', 'tableauachats']; // modules « coquilles » Achats (24/11/2026), chez Jérôme seulement
 const lire = (f) => readFileSync(join(RACINE, f), 'utf8');
 
 describe('registre : déclarations', () => {
@@ -22,7 +23,7 @@ describe('registre : déclarations', () => {
     for (const m of MODULES_DECLARES) {
       assert.match(m.id, /^[a-z]+$/);
       assert.ok(m.nom && m.libelleMenu && m.iconeMenu && m.prefixe, m.id);
-      assert.ok(m.ecrans.length > 0 && (m.collections.length > 0 || m.id === 'mcp') && (m.outilsMcp.length > 0 || ['automatisations', 'veille', 'reseauxsociaux', 'rdv', 'pilotage', 'tableaudebord', 'mcp', 'console'].includes(m.id)), m.id); // « mcp » n'a ni données ni outil à lui : il allume le lien du client
+      assert.ok(m.ecrans.length > 0 && (m.collections.length > 0 || ['mcp', ...ACHATS].includes(m.id)) && (m.outilsMcp.length > 0 || ['automatisations', 'veille', 'reseauxsociaux', 'rdv', 'pilotage', 'tableaudebord', 'mcp', 'console', ...ACHATS].includes(m.id)), m.id); // « mcp » n'a ni données ni outil à lui : il allume le lien du client ; les cinq modules Achats (24/11/2026) n'ont aucune donnée dans Firebase (elles vivent dans la base de l'espace) ni outil d'assistant
       for (const e of m.ecrans) {
         assert.ok(e.route.startsWith(`${m.prefixe}/`) && e.libelle && e.icone, `${m.id} ${e.route}`);
       }
@@ -243,6 +244,12 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
     { id: 'tableaudebord', libelle: 'Maintenance', icone: 'layout-dashboard', prefixe: 'tableaudebord', entrees: [
       { chemin: 'tableaudebord/general', libelle: 'Maintenance', icone: 'layout-dashboard' }, // un seul écran, sans onglets (23/10/2026) ; les autres routes restent servies par le module
     ] },
+    // Ajout voulu (24/11/2026) : les cinq modules Achats (coquilles), chez Jérôme seulement (`seulJerome`), un seul bloc de menu « Achats » (GROUPES_MENU), entre Maintenance et « Connecter mon ChatGPT ».
+    { id: 'achatsfournisseurs', libelle: 'Fournisseurs', icone: 'building-2', prefixe: 'achatsfournisseurs', seulJerome: true, entrees: [{ chemin: 'achatsfournisseurs/liste', libelle: 'Fournisseurs', icone: 'building-2' }] },
+    { id: 'achatschantiers', libelle: 'Chantiers', icone: 'folder-kanban', prefixe: 'achatschantiers', seulJerome: true, entrees: [{ chemin: 'achatschantiers/liste', libelle: 'Chantiers', icone: 'folder-kanban' }] },
+    { id: 'achatsarticles', libelle: 'Articles', icone: 'tag', prefixe: 'achatsarticles', seulJerome: true, entrees: [{ chemin: 'achatsarticles/liste', libelle: 'Articles', icone: 'tag' }] },
+    { id: 'achatsfactures', libelle: 'Factures', icone: 'file-text', prefixe: 'achatsfactures', seulJerome: true, entrees: [{ chemin: 'achatsfactures/liste', libelle: 'Factures', icone: 'file-text' }] },
+    { id: 'tableauachats', libelle: 'Tableau de bord 2', icone: 'chart-column', prefixe: 'tableauachats', seulJerome: true, entrees: [{ chemin: 'tableauachats/tableau', libelle: 'Tableau de bord 2', icone: 'chart-column' }] },
     // Ajout voulu (PR B, 18/10/2026) : « Connecter mon ChatGPT » est chez Jérôme aussi (il s'ouvre depuis le menu utilisateur, pas depuis le menu principal).
     { id: 'mcp', libelle: 'Connecter mon ChatGPT', icone: 'link', prefixe: 'mcp', entrees: [
       { chemin: 'mcp/infos', libelle: 'Connexion', icone: 'link' },
@@ -365,7 +372,7 @@ describe('renommage « journal » -> « automatisations » : compatibilité des 
 describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux modules techniques', () => {
   const LIBELLES = (b) => b.entrees.map((e) => e.libelle);
   test('affaires et projets restent deux modules techniques, réunis dans le groupe « crm » ; les autres modules ont leur propre bloc', () => {
-    assert.deepEqual(GROUPES_MENU.map((g) => g.id), ['crm']);
+    assert.deepEqual(GROUPES_MENU.map((g) => g.id), ['crm', 'achats']);
     assert.deepEqual(GROUPES_MENU[0].modules, ['affaires', 'projets']);
     assert.equal(moduleDeclare('affaires').groupe, 'crm');
     assert.equal(moduleDeclare('projets').groupe, 'crm');
