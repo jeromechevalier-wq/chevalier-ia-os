@@ -292,9 +292,12 @@ async function modifierNom(page, id, nom) {
 
 test('C14 une lecture lente et ancienne ne remplace pas une lecture plus récente (réponse tardive ignorée)', async ({ page }) => {
   await ouvrir(page);
+  await expect(carte(page, 'c1')).toBeVisible(); // la première lecture est finie : le retard ne touchera que la relecture suivante
   await page.evaluate(() => { window.__faux.retardProchaineLecture = true; });
   await modifierNom(page, 'c1', 'Premier nom'); // sa relecture reste en attente, avec « Premier nom »
   await expect(page.locator('[data-role="formulaire-chantier"]')).toHaveCount(0);
+  await expect(page.locator('.toast', { hasText: 'Chantier modifié' })).toBeVisible();
+  await page.waitForFunction(() => !document.querySelector('dialog[open], .dialogue-fond, [role="dialog"]'));
   await modifierNom(page, 'c1', 'Second nom'); // sa relecture répond tout de suite
   await expect(carte(page, 'c1')).toContainText('Second nom');
   await page.evaluate(() => window.__liberer()); // la vieille réponse arrive enfin
