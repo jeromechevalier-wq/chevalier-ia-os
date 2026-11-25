@@ -1,0 +1,39 @@
+/* Module Achats « Chantiers » (24/11/2026, PR 6) : styles propres à l'écran (le Kanban, les cartes, la barre de liste et les fenêtres viennent de crm.css et os.css).
+   Aucune taille ni couleur écrite en dur : seulement les variables de tokens.css (thèmes clair et sombre, téléphone). La couleur du trait de chaque colonne arrive en `--couleur` depuis le code. */
+.page-achats-chantiers .zone-affaires { min-width: 0; }
+.formulaire-chantier { display: flex; flex-direction: column; gap: var(--esp-4); }
+.formulaire-chantier .groupe-deux { display: grid; grid-template-columns: 1fr 1fr; gap: var(--esp-4); }
+.formulaire-chantier .aide, .formulaire-chantier .erreur { margin: 0; }
+.formulaire-chantier .obligatoire { color: var(--retard); }
+@media (max-width: 560px) { .formulaire-chantier .groupe-deux { grid-template-columns: 1fr; } }
+
+/* Tableau : montants à droite sur ordinateur, à gauche sur téléphone (le tableau devient une pile de cartes dans crm.css). */
+.tableau-chantiers th { white-space: nowrap; }
+.tableau-chantiers .col-code { white-space: nowrap; }
+.tableau-chantiers td { vertical-align: middle; }
+.tableau-chantiers .col-montant, .tableau-chantiers td.montant { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; padding-right: var(--esp-6); }
+.tableau-chantiers td.col-actions, .tableau-chantiers th.col-actions { width: 88px; text-align: right; white-space: nowrap; }
+.tableau-chantiers .cellule-nom { font-weight: var(--poids-moyen); }
+.tableau-chantiers tr.ligne-liste { cursor: default; }
+.tableau-chantiers tr.ligne-liste:hover { background: transparent; }
+@media (max-width: 767px) {
+  .tableau-chantiers thead { display: none; } /* le tri passe par la barre */
+  .tableau-chantiers td.montant { text-align: left; padding-right: 0; }
+  .tableau-chantiers td.col-actions { width: auto; }
+}
+
+/* Cartes du Kanban : l'étoile et le menu « … » côte à côte, sans pousser le titre hors de la carte. */
+.page-achats-chantiers .carte-affaire .carte-ligne .bouton-icone { flex: none; }
+.page-achats-chantiers .carte-affaire:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Fenêtre d'un chantier : les chiffres du budget (la base les calcule, l'écran ne recalcule rien). */
+.chantier-chiffres { display: flex; flex-direction: column; gap: var(--esp-3); padding: var(--esp-4) var(--esp-5); border: 1px solid var(--bordure); border-radius: var(--rayon); background: var(--panneau2); }
+.chantier-chiffres-liste { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--esp-3) var(--esp-5); margin: 0; }
+.chantier-chiffre { min-width: 0; }
+.chantier-chiffre dt { color: var(--texte2); font-size: var(--fs-petit); }
+.chantier-chiffre dd { margin: 0; font-weight: var(--poids-moyen); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.chantier-chiffres .aide { margin: 0; }
+.chantier-barre { height: 8px; border-radius: 999px; background: var(--survol); overflow: hidden; }
+.chantier-barre-remplie { display: block; height: 100%; border-radius: 999px; background: var(--succes); }
+.chantier-barre-remplie.niveau-a_surveiller { background: var(--attention); }
+.chantier-barre-remplie.niveau-depasse { background: var(--retard); }
