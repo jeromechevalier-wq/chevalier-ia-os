@@ -72,7 +72,9 @@ test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'ac
   for (const m of MODULES.slice(1)) {
     await page.evaluate((r) => { location.hash = `#/${r}`; }, m.route);
     await expect(page.getByRole('heading', { name: m.titre, level: 1 })).toBeVisible();
-    await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
+    // Articles a son vrai écran : quand l'accès est prêt, il charge sa liste au lieu de la carte d'état.
+    if (m.id === 'achatsarticles') await expect(page.locator('[data-etat="erreur"], [data-etat="vide"], [data-article]').first()).toBeVisible();
+    else await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
   }
   expect(await sansDefilementHorizontal(page)).toBe(true);
 });
@@ -89,7 +91,7 @@ test('A4 « Reconnecte-toi » : le badge n\'a pas la mention d\'accès (ou celle
   // Le badge reçoit la mention (simulé) : « Revérifier » le voit, sans recharger la page.
   await page.evaluate(() => { window.__accesBase.claims = { role: 'authenticated', espace_base: 'espace-essai' }; });
   await page.locator('[data-action="reessayer"]').click();
-  await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
+  await expect(page.locator('[data-etat="erreur"], [data-etat="vide"], [data-article]').first()).toBeVisible(); // Articles a son vrai écran : la carte disparaît et la liste se charge
 });
 
 test('A5 cas d\'erreur : la lecture des réglages échoue : message clair et « Réessayer » qui relance', async ({ page, context }, info) => {
@@ -118,7 +120,14 @@ test('A8 Réglages : un élément « Achats » sans réglage propre : le résum�
   await connecter(page, undefined, { route: 'reglages' });
   await attendreCalme(page);
   await ouvrirSectionReglages(page, 'Achats');
-  await expect(page.locator('[data-role="aucun-reglage"]')).toContainText('Réglages > Connexion à la base');
-  await expect(page.getByRole('link', { name: 'Ouvrir Achats' })).toHaveAttribute('href', /#\/achatsfournisseurs\/liste$/);
+  // Seules des sections « Sauvegarde » (export des données) peuvent s'y trouver : sans aucune, le résumé et le lien ; avec, au moins une section d'export et jamais d'autre réglage.
+  await expect(page.locator('[data-role="aucun-reglage"], [data-action="exporter-achatsarticles"]').first()).toBeVisible();
+  const sauvegardes = await page.locator('[data-action="exporter-achatsarticles"]').count();
+  if (sauvegardes === 0) {
+    await expect(page.locator('[data-role="aucun-reglage"]')).toContainText('Réglages > Connexion à la base');
+    await expect(page.getByRole('link', { name: 'Ouvrir Achats' })).toHaveAttribute('href', /#\/achatsfournisseurs\/liste$/);
+  } else {
+    await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
+  }
   await capturer(page, info, 'A8-reglages');
 });

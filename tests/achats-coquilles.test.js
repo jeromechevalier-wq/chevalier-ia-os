@@ -83,7 +83,8 @@ describe('A2 menu : un seul bloc « Achats »', () => {
     const [item] = reglagesDesModules(ACHATS);
     assert.equal(item.id, 'achats');
     assert.equal(item.libelle, 'Achats');
-    assert.deepEqual(item.sections, []);
+    // Les sections d'export (`reglages-export-*`, une par module qui a reçu son bouton « Exporter ») ne sont pas des réglages : il n'y a aucun autre réglage.
+    assert.deepEqual(item.sections.filter((s) => !s.id.startsWith('reglages-export-')), []);
     assert.match(item.resume, /Réglages > Connexion à la base/);
     assert.equal(item.ouvrir, 'achatsfournisseurs/liste');
   });
@@ -150,7 +151,8 @@ describe('A5 verrous du code', () => {
           const cible = m[1];
           if (!cible.startsWith('.')) continue;
           const resolu = join('/', dossier, cible).slice(1);
-          if (resolu.startsWith('js/modules/')) assert.ok(resolu.startsWith(`${dossier}/`) || resolu.startsWith('js/modules/achatscommun/'), `${f} importe ${cible}`);
+          // Exception : la barre de liste commune (js/modules/crm/barre-liste.js, qui n'importe que js/os/ui.js : aucune donnée, aucun Firebase).
+          if (resolu.startsWith('js/modules/')) assert.ok(resolu.startsWith(`${dossier}/`) || resolu.startsWith('js/modules/achatscommun/') || resolu === 'js/modules/crm/barre-liste.js', `${f} importe ${cible}`);
         }
         assert.doesNotMatch(lire(f), /pilotage/i, f);
       }
