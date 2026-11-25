@@ -2,6 +2,18 @@
 
 Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de session) ; avant : 08/11/2026 (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Mise à jour du 25/11/2026 (fin de nuit : chantier 0 et plan de la base, PR 695 et 696)
+
+| | Sujet | État | Qui |
+|---|---|---|---|
+| 🟡 | **Chantier 0, partie navigateur (`js/`)** : retirer du code du navigateur tout ce qui est propre à une maison, lu dans les documents `reglages_maison/ecran` et `reglages_maison/public` ; PR de jour, relecture Fable obligatoire | à faire | Claude |
+| 🟡 | **Droit de lecture de la fiche `reglages_maison/maison` pour le compte `base-acces@`** : seule exception restante du chantier 0 (`functions/src/base/acces-appel.js`) ; changement de droits, il faut l'accord de Jérôme | à décider | Jérôme |
+| 🔴 | **Créer la fiche `reglages_maison/maison` dans `chevalier-ia-app` AVANT le prochain déploiement manuel de la plateforme clients** : sans elle, tout y est refusé | à faire avant le déploiement | Claude (avec Jérôme) |
+| 🟡 | **Vérifications à l'écran après la PR 696** : connexion au CRM, Console, `qui_suis_je` sur claude.ai, un devis finalisé et son PDF, Veille « Ajouter et résumer » | à vérifier | Jérôme |
+| 🟡 | **Base (`outils/base/`)** : points « À valider par Jérôme » de `outils/base/REGLES.md` ; tests de simultanéité ; brancher `outils/base/tester.js` dans la coche GitHub « Tests » | à faire | Jérôme (choix), Claude |
+| 🟡 | **SCAB 04 (rendez-vous lundi 30/11/2026)** : boîte e-mail dédiée, projet Google, compte n8n Cloud ; porte option A à concevoir (Cloud Functions entre le navigateur et Cloud SQL) | à préparer | Claude, Jérôme |
+| 🟢 | Déploiement : permission `artifactregistry.repositories.update` refusée (réglage de nettoyage des anciennes images) ; sans gravité, le déploiement réussit quand même | à surveiller | Claude |
+
 ## Mise à jour du 24/11/2026 (modules Achats : coquilles, PR 4)
 
 | | Sujet | État | Qui |
