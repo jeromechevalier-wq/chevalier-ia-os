@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { expect, espion } from './_expect-achatsfactures.js';
 import { construireCorps, alerteNomFournisseur, comparerNomFournisseur, offreLiaison, offreRouverture, corpsLiaison, corpsRouverture, motifValide, CODES_LIAISON_PERIMEE } from '../js/modules/achatsfactures/decision.js';
 import { filtrerOptions, preselectionAgence, verifierChampsAgence, corpsCreationAgence, champsAgenceDepuis, optionsAgences, chantierAcceptable, phraseChantierFerme } from '../js/modules/achatsfactures/agences.js';
-import { verifierMetadonnees, verifierContenu, envoyerFacture, ErreurUpload, TAILLE_MAX_OCTETS, MESSAGE_INCERTAIN } from '../js/modules/achatsfactures/upload.js';
+import { verifierMetadonnees, verifierContenu, envoyerFacture, suivreSelection, ErreurUpload, TAILLE_MAX_OCTETS, MESSAGE_INCERTAIN } from '../js/modules/achatsfactures/upload.js';
 import { EXPLICATIONS, ACTIFS, BIENTOT } from '../js/modules/achatsfactures/explications.js';
 import { PART_DEFAUT, bornerPart, partDepuisPosition, lirePartMemorisee } from '../js/modules/achatsfactures/separateur.js';
 import { IDENT } from './_donnees-achatsfactures.js';
@@ -102,14 +102,31 @@ describe('« + Facture » : contrôles et envoi', () => {
     expect(verifierContenu(o('%PDF-1.7'), o('abc'))).toMatch(/abîmé/);
   });
   const vrai = () => new File([new TextEncoder().encode('%PDF-1.7\n'), new Uint8Array(200), new TextEncoder().encode('\n%%EOF')], 'facture.pdf', { type: 'application/pdf' });
-  test('envoi : un seul appel JSON {nom_fichier, type, fichier_base64}, résultat lu dans la réponse', async () => {
+  test('envoi : un seul appel multipart, le fichier dans le champ « fichier », résultat lu dans la réponse', async () => {
     const ajouterFacture = espion(async () => ({ facture_id: 'nouvelle', lecture: 'reussie', lignes_ecrites: true }));
     const r = await envoyerFacture(vrai(), { actions: { ajouterFacture } });
     expect(r).toEqual({ factureId: 'nouvelle', lectureReussie: true, lignesEcrites: true });
     expect(ajouterFacture).toHaveBeenCalledTimes(1);
     const corps = ajouterFacture.appels[0][0];
-    expect(Object.keys(corps).sort()).toEqual(['fichier_base64', 'nom_fichier', 'type']);
-    expect(corps.nom_fichier).toBe('facture.pdf');
+    expect(corps instanceof FormData).toBe(true);
+    expect([...corps.keys()]).toEqual(['fichier']);
+    expect(corps.get('fichier').name).toBe('facture.pdf');
+  });
+  test('lecture à compléter et lignes non écrites sont dites', async () => {
+    const r = await envoyerFacture(vrai(), { actions: { ajouterFacture: async () => ({ facture_id: 'n', lecture: 'a_completer', lignes_ecrites: false }) } });
+    expect(r).toEqual({ factureId: 'n', lectureReussie: false, lignesEcrites: false });
+  });
+  test('doublon : l\'identifiant de la fiche existante est gardé s\'il est dans la réponse', async () => {
+    const e = await envoyerFacture(vrai(), { actions: { ajouterFacture: async () => { throw Object.assign(new Error('x'), { code: 'doublon', facture_id: 'ancienne' }); } } }).then(() => null, (x) => x);
+    expect(e.code).toBe('doublon');
+    expect(e.factureId).toBe('ancienne');
+  });
+  test('sélection : la vérification d\'un fichier plus ancien est ignorée', () => {
+    const s = suivreSelection();
+    const premier = s.nouveau();
+    const second = s.nouveau();
+    expect(s.estCourant(premier)).toBe(false);
+    expect(s.estCourant(second)).toBe(true);
   });
   test('erreurs : message du serveur dit tel quel, réseau = « peut-être en cours de lecture », session expirée, doublon', async () => {
     const echec = (code, message) => ({ ajouterFacture: async () => { throw Object.assign(new Error(message), { code }); } });

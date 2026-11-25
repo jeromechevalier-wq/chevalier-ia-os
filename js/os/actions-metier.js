@@ -52,7 +52,10 @@ export function creerActions({ lireConnexion, demanderTicket, fetchImpl, modeEmu
 
   async function envoyer(url, ticket, corps) {
     try {
-      return await reseau(url, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ticket}` }, body: JSON.stringify(corps) });
+      // Un FormData (envoi d'un fichier) part tel quel et SANS Content-Type : le navigateur pose lui-même le type avec sa frontière. Tout autre corps part en JSON.
+      const multipart = typeof FormData !== 'undefined' && corps instanceof FormData;
+      const entetes = multipart ? { Authorization: `Bearer ${ticket}` } : { 'Content-Type': 'application/json', Authorization: `Bearer ${ticket}` };
+      return await reseau(url, { method: 'POST', redirect: 'error', headers: entetes, body: multipart ? corps : JSON.stringify(corps) });
     } catch { throw new ErreurAction('Connexion impossible, réessaie.', 'reseau'); }
   }
 

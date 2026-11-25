@@ -60,7 +60,9 @@ async function poserFauxReseau(page, options = {}) {
     }));
     const fetchImpl = async (url, init = {}) => {
       const u = new URL(url);
-      const corps = init.body ? JSON.parse(init.body) : null;
+      const envoi = typeof FormData !== 'undefined' && init.body instanceof FormData ? init.body : null;
+      const corps = envoi ? { champs: [...envoi.keys()], fichier: { nom: envoi.get('fichier')?.name, type: envoi.get('fichier')?.type, taille: envoi.get('fichier')?.size }, contentType: Object.keys(init.headers ?? {}).filter((k) => k.toLowerCase() === 'content-type') }
+        : init.body ? JSON.parse(init.body) : null;
       window.__appels.push({ methode: init.method, chemin: u.pathname, corps });
       if (u.pathname === '/rest/v1/factures') {
         if (faux.lectureEnPanne) return rep({ message: 'panne' }, 500);
@@ -281,7 +283,7 @@ test('E7c chantiers et agences illisibles : refuser reste possible, accepter non
   await expect(decision.locator('[data-action="refuser"]')).toBeEnabled();
 });
 
-test('E8 « + Facture » : un fichier qui n\'est pas un PDF est refusé avant l\'envoi ; un PDF part en JSON par les actions', async ({ page }, info) => {
+test('E8 « + Facture » : un fichier qui n\'est pas un PDF est refusé avant l\'envoi ; un PDF part en multipart (champ « fichier ») par les actions', async ({ page }, info) => {
   await ouvrirListe(page);
   await page.locator('[data-action="ajouter-facture"]').click();
   const fenetre = page.getByRole('dialog');
@@ -296,8 +298,11 @@ test('E8 « + Facture » : un fichier qui n\'est pas un PDF est refusé avant l\
   await expect(page.locator('.toast')).toContainText('Facture ajoutée');
   const corps = await appelsVers(page, '/ajout');
   expect(corps).toHaveLength(1);
-  expect(Object.keys(corps[0]).sort()).toEqual(['fichier_base64', 'nom_fichier', 'type']);
-  expect(corps[0].nom_fichier).toBe('facture.pdf');
+  // Multipart : un seul champ « fichier », aucun Content-Type posé à la main (le navigateur met la frontière), aucun base64.
+  expect(corps[0].champs).toEqual(['fichier']);
+  expect(corps[0].contentType).toEqual([]);
+  expect(corps[0].fichier).toMatchObject({ nom: 'facture.pdf', type: 'application/pdf' });
+  expect(corps[0].fichier.taille).toBeGreaterThan(100);
 });
 
 test('E9 une page à la fois sur téléphone, thème sombre, jamais de défilement horizontal', async ({ page }, info) => {

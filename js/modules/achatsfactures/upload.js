@@ -1,7 +1,7 @@
 // Ajout d'une facture reçue par courrier (« + Facture », PR 8b), portée de l'appli BTP (lib/upload-facture.ts). Le navigateur n'écrit jamais en base : le fichier part à n8n par `actions.ajouterFacture`
 // (ticket neuf à usage unique), n8n revérifie tout (type, taille, « %PDF- », ticket) et crée la fiche « À valider ».
-// ÉCART avec l'appli d'origine : elle envoyait le fichier en multipart (FormData) avec le jeton de la personne. La couche des actions de l'OS envoie du JSON : le fichier part donc en base64 dans un corps JSON
-// (`{ nom_fichier, type, fichier_base64 }`). Le workflow n8n d'ajout doit accepter ce corps (écrit dans la PR et dans .github/A-FAIRE.md). Aucun appel réseau n'est écrit ici.
+// Le fichier part en multipart (FormData, champ `fichier`) comme dans l'appli d'origine ; la couche des actions de l'OS le transmet tel quel, sans Content-Type (le navigateur pose la frontière), avec le ticket en Bearer.
+// Le délai de 120 s ne COUPE PAS l'envoi (la couche des actions n'a pas de signal d'annulation) : il dit seulement « peut-être en cours de lecture » ; l'envoi continue et le doublon par empreinte protège d'un second envoi. Aucun appel réseau n'est écrit ici.
 
 /** Taille maximale d'un PDF : 10 Mo (même valeur côté serveur). */
 export const TAILLE_MAX_OCTETS = 10 * 1024 * 1024;
@@ -12,7 +12,7 @@ export const DELAI_MS = 120_000;
 export const MESSAGE_INCERTAIN = 'La facture est peut-être en cours de lecture : regarde dans « À valider » avant de réessayer.';
 
 export class ErreurUpload extends Error {
-  constructor(message, code) { super(message); this.name = 'ErreurUpload'; this.code = code; }
+  constructor(message, code, factureId = null) { super(message); this.name = 'ErreurUpload'; this.code = code; this.factureId = factureId; }
 }
 
 /** « 2,4 Mo » (virgule française, sans passer par le formatage du navigateur). */
@@ -65,17 +65,17 @@ export const MESSAGES = {
 };
 const MESSAGE_PAR_DEFAUT = 'Une erreur est survenue, réessaie dans un instant.';
 
-/** Fichier → base64 (par morceaux : pas de dépassement de pile sur un gros fichier). */
-export async function enBase64(f) {
-  const octets = new Uint8Array(await f.arrayBuffer());
-  let texte = '';
-  for (let i = 0; i < octets.length; i += 0x8000) texte += String.fromCharCode(...octets.subarray(i, i + 0x8000));
-  return btoa(texte);
+/** Numéro de sélection : chaque nouveau fichier choisi prend un numéro, et la vérification d'un fichier plus ancien (qui finit après coup) est ignorée. */
+export function suivreSelection() {
+  let courant = 0;
+  return { nouveau: () => ++courant, estCourant: (n) => n === courant };
 }
 
-/** Corps JSON envoyé au webhook d'ajout : le nom, le type et le contenu. Aucune identité (elle vient du ticket). */
-export async function corpsAjout(f) {
-  return { nom_fichier: f.name, type: 'application/pdf', fichier_base64: await enBase64(f) };
+/** Corps multipart envoyé au webhook d'ajout : le fichier dans le champ `fichier` (comme l'appli d'origine). Aucune identité : elle vient du ticket. */
+export function corpsAjout(f) {
+  const corps = new FormData();
+  corps.append('fichier', f, f.name);
+  return corps;
 }
 
 /**
@@ -85,7 +85,7 @@ export async function corpsAjout(f) {
 export async function envoyerFacture(f, { actions, delaiMs = DELAI_MS, signal } = {}) {
   if (!actions || typeof actions.ajouterFacture !== 'function') throw new ErreurUpload('L’ajout de facture n’est pas encore branché : préviens le support.', 'non_configure');
   if (signal?.aborted) throw new ErreurUpload('Envoi annulé.', 'annule');
-  const corps = await corpsAjout(f);
+  const corps = corpsAjout(f);
   if (signal?.aborted) throw new ErreurUpload('Envoi annulé.', 'annule');
   let minuteur;
   const coupure = new Promise((_, rejeter) => {
@@ -99,7 +99,7 @@ export async function envoyerFacture(f, { actions, delaiMs = DELAI_MS, signal } 
     if (e instanceof ErreurUpload) throw e;
     const code = e?.code ?? null;
     if (code === 'reseau') throw new ErreurUpload(MESSAGE_INCERTAIN, 'reseau');
-    if (code === 'doublon') throw new ErreurUpload('Cette facture a déjà été ajoutée.', 'doublon');
+    if (code === 'doublon') throw new ErreurUpload('Cette facture a déjà été ajoutée.', 'doublon', typeof e?.facture_id === 'string' ? e.facture_id : typeof e?.detail?.facture_id === 'string' ? e.detail.facture_id : null);
     if (code === 'non_autorise' || code === 'refus_serveur' || code === 'reconnexion' || code === 'ticket') throw new ErreurUpload(MESSAGES.non_autorise, 'session');
     if (code === 'reponse_inattendue') throw new ErreurUpload('Réponse inattendue du serveur : la facture n’est peut-être pas ajoutée. Vérifie la liste, sinon réessaie.', 'reponse_inattendue');
     throw new ErreurUpload((code && MESSAGES[code]) || (e instanceof Error && e.message) || MESSAGE_PAR_DEFAUT, code ?? 'erreur');

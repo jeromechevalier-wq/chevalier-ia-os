@@ -121,3 +121,34 @@ describe('adresses des webhooks : réglées et en https, sinon rien ne part', ()
     await assert.rejects(a.appelerActionMetier('x', {}), (e) => e.code === 'mode_test');
   });
 });
+
+describe('envoi d’un fichier (FormData) : multipart, sans Content-Type posé à la main', () => {
+  test('le corps FormData part tel quel, sans Content-Type, avec le ticket en Bearer ; un ticket neuf par appel', async () => {
+    const { appels, tickets, a } = monter({ repondre: () => ok });
+    const corps = new FormData();
+    corps.append('fichier', new Blob(['%PDF-1.7 essai %%EOF'], { type: 'application/pdf' }), 'facture.pdf');
+    await a.ajouterFacture(corps);
+    await a.ajouterFacture(corps);
+    assert.deepEqual(tickets, ['ajoutFacture', 'ajoutFacture']);
+    assert.equal(appels[0].init.body, corps);
+    assert.equal(Object.keys(appels[0].init.headers).some((k) => k.toLowerCase() === 'content-type'), false);
+    assert.deepEqual(appels.map((c) => c.init.headers.Authorization), ['Bearer ticket-1', 'Bearer ticket-2']);
+    assert.equal(appels[0].init.method, 'POST');
+    assert.equal(appels[0].init.redirect, 'error');
+  });
+  test('un corps JSON ordinaire garde son Content-Type et part en texte', async () => {
+    const { appels, a } = monter({ repondre: () => ok });
+    await a.ajouterFacture({ x: 1 });
+    assert.equal(appels[0].init.headers['Content-Type'], 'application/json');
+    assert.equal(appels[0].init.body, JSON.stringify({ x: 1 }));
+  });
+  test('401 sur un envoi de fichier : un seul nouvel essai avec un ticket neuf, le même corps', async () => {
+    const { appels, tickets, a } = monter({ repondre: (n) => (n === 1 ? { status: 401, corps: {} } : ok) });
+    const corps = new FormData();
+    corps.append('fichier', new Blob(['x']), 'f.pdf');
+    await a.ajouterFacture(corps);
+    assert.equal(tickets.length, 2);
+    assert.equal(appels[1].init.body, corps);
+    assert.equal(Object.keys(appels[1].init.headers).some((k) => k.toLowerCase() === 'content-type'), false);
+  });
+});
