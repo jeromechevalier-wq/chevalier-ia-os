@@ -3,7 +3,7 @@
 // (verrou : tests/supabase-acces.test.js) et n'écrit aucune adresse : tout vient des réglages saisis dans Réglages > « Connexion à la base ».
 //
 // Mode émulateurs (tests) : aucun appel réseau réel. Un crochet de test `window.__accesBase` = { fetchImpl?, jeton?, claims? } peut fournir le faux réseau ET un badge simulé
-// (mêmes mentions que le vrai : `role` = authenticated, `espace_base` = nom de l'espace). Hors émulateurs, le crochet est ignoré (comme window.__emulateurs, js/os/firebase.js).
+// (mêmes mentions que le vrai : `role` = authenticated, `espace_base` = nom de l'espace). Hors émulateurs, le crochet est ignoré (comme le réglage des émulateurs de js/os/firebase.js).
 //
 // Qui l'importe : les écrans des modules Achats (état de l'accès, lectures et actions des PR suivantes) et, pour « Tester la connexion », base-reglages-ecran.js (`testerAvec`) seul.
 import { auth, MODE_EMULATEURS } from './firebase.js';
