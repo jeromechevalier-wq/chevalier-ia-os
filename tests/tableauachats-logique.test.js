@@ -249,28 +249,28 @@ describe('G : listes de valeurs et un seul fournisseur par entreprise', () => {
   it('G1 valeurs triées dans l’ordre logique, sans tenir compte des majuscules ni des accents, sans doublon de casse', () => {
     expect(valeursDistinctes(['zèbre', 'Étoile', 'abeille', 'Abri', 'étoile', ' ', ''])).toEqual(['abeille', 'Abri', 'Étoile', 'zèbre'])
     expect(valeursDistinctes(['Refusée', 'Acceptée', 'À valider'])).toEqual(['À valider', 'Acceptée', 'Refusée'])
-    expect(normaliser('  BÉTON   Provence ')).toBe('beton provence')
+    expect(normaliser('  BÉTON   Exemple ')).toBe('beton exemple')
   })
   it('G2 filtre Fournisseur : le nom enregistré remplace le nom écrit ; deux écritures d’une même entreprise = un seul fournisseur', () => {
     const l = [
-      F({ facture_id: '1', fournisseur: 'BÉTON PROVENCE EXPRESS', fournisseur_affiche: 'Béton Provence Express SAS', siret_agence: '46859693784931' }),
-      F({ facture_id: '2', fournisseur: 'Béton Provence Express SAS', fournisseur_affiche: 'Béton Provence Express SAS', siret_agence: '46859693784931' }),
-      F({ facture_id: '3', fournisseur: 'BETON PROVENCE EXPRESS SAS', fournisseur_affiche: null, siret_agence: null }), // sans agence : même nom sans accents ni casse
+      F({ facture_id: '1', fournisseur: 'BÉTON EXEMPLE', fournisseur_affiche: 'Béton Exemple SARL', siret_agence: '99900011100011' }),
+      F({ facture_id: '2', fournisseur: 'Béton Exemple SARL', fournisseur_affiche: 'Béton Exemple SARL', siret_agence: '99900011100011' }),
+      F({ facture_id: '3', fournisseur: 'BETON EXEMPLE SARL', fournisseur_affiche: null, siret_agence: null }), // sans agence : même nom sans accents ni casse
       F({ facture_id: '4', fournisseur: 'Autre SA', fournisseur_affiche: 'Autre SA', siret_agence: '1' }),
     ]
-    expect(valeursDistinctes(l.map(nomFournisseur))).toEqual(['Autre SA', 'Béton Provence Express SAS'])
+    expect(valeursDistinctes(l.map(nomFournisseur))).toEqual(['Autre SA', 'Béton Exemple SARL'])
     expect(new Set(l.map(cleFournisseur)).size).toBe(2)
-    expect(filtrerFactures(l, { fournisseur: { type: 'liste', choix: ['Béton Provence Express SAS'] } }).map((x) => x.facture_id)).toEqual(['1', '2', '3'])
+    expect(filtrerFactures(l, { fournisseur: { type: 'liste', choix: ['Béton Exemple SARL'] } }).map((x) => x.facture_id)).toEqual(['1', '2', '3'])
     expect(nomFournisseur(F({ fournisseur: 'Écrit', fournisseur_affiche: '  ' }))).toBe('Écrit') // rien d'enregistré : le nom de la facture
   })
   it('G3 Pareto des fournisseurs : une seule ligne par entreprise, nom enregistré affiché', () => {
     const l = [
-      F({ facture_id: '1', fournisseur: 'BÉTON PROVENCE EXPRESS', fournisseur_affiche: 'Béton Provence Express SAS', montant_ht: 100 }),
-      F({ facture_id: '2', fournisseur: 'Béton Provence Express SAS', fournisseur_affiche: 'Béton Provence Express SAS', montant_ht: 200 }),
-      F({ facture_id: '3', fournisseur: 'beton provence express sas', montant_ht: 50 }),
+      F({ facture_id: '1', fournisseur: 'BÉTON EXEMPLE', fournisseur_affiche: 'Béton Exemple SARL', montant_ht: 100 }),
+      F({ facture_id: '2', fournisseur: 'Béton Exemple SARL', fournisseur_affiche: 'Béton Exemple SARL', montant_ht: 200 }),
+      F({ facture_id: '3', fournisseur: 'beton exemple sarl', montant_ht: 50 }),
     ]
     const p = K.pareto(l, 'fournisseurs')
-    expect(p.length).toBe(1); expect(p[0]).toMatchObject({ nom: 'Béton Provence Express SAS', montant_ht: 350 })
+    expect(p.length).toBe(1); expect(p[0]).toMatchObject({ nom: 'Béton Exemple SARL', montant_ht: 350 })
   })
 })
 // Les tests H1 et H2 (hauteur du cadre Metabase) ne sont pas portés : l'écran Metabase n'existe pas dans l'OS (les graphiques sont dessinés par ECharts, sans cadre).

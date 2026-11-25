@@ -47,7 +47,7 @@ describe('Lignes et articles : vues supplémentaires', () => {
   it('3 : par article de référence : fournisseurs, prix le plus bas et le plus haut (prix × coefficient), écart, dépense ; les achats sans référence forment une ligne « Sans référence »', () => {
     const ref = { rapproche: true, article_reference_id: 'r1', libelle_reference: 'Sac de ciment 25 kg', unite_reference: 'sac', origine_rapprochement: 'valide'          }
     const ls = achats([
-      L({ ...ref, fournisseur: 'Point P', quantite: 10, montant_ht: 80, coefficient: 1 }), // 8 € le sac
+      L({ ...ref, fournisseur: 'Négoce Fictif', quantite: 10, montant_ht: 80, coefficient: 1 }), // 8 € le sac
       L({ ...ref, fournisseur: 'Brico', article_fournisseur_id: 'a2', quantite: 4, montant_ht: 40, coefficient: 25 / 35, origine_rapprochement: 'automatique' }), // 10 € le sac de 35 kg → 7,142857 € le sac de 25 kg
       L({ ...ref, fournisseur: 'Brico', article_fournisseur_id: 'a2', quantite: 2, montant_ht: 30, coefficient: 1 }), // 15 €
       L({ fournisseur: 'Négoce Démo', montant_ht: 120, article_fournisseur_id: 'z1' }),

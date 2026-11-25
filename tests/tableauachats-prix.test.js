@@ -42,7 +42,7 @@ describe('Prix et hausses : calculs', () => {
     expect(filtrerLignesPrix(lignes, { periode: { type: 'periode', libelle: 'x', du: '2030-01-01', au: null } })).toEqual([])
   })
   it('4 : filtre Fournisseur par nom (sans casse ni accents) et filtre Agence', () => {
-    const lignes = [L({}), L({ fournisseur: 'BÉTON  Provence', article_fournisseur_id: 'a2' }), L({ etablissement_id: 'e2', nom_agence: 'Agence Sud', ville: 'Ville B' }), L({ etablissement_id: null, nom_agence: null, ville: null })]
+    const lignes = [L({}), L({ fournisseur: 'BÉTON  Exemple', article_fournisseur_id: 'a2' }), L({ etablissement_id: 'e2', nom_agence: 'Agence Sud', ville: 'Ville B' }), L({ etablissement_id: null, nom_agence: null, ville: null })]
     expect(filtrerLignesPrix(lignes, {}, { fournisseurs: ['béton provence'] }).length).toBe(1)
     expect(filtrerLignesPrix(lignes, {}, { fournisseurs: [] }).length).toBe(4)
     expect(agenceDe(lignes[2])).toBe('Agence Sud (Ville B)'); expect(agenceDe(lignes[3])).toBe('Sans agence')

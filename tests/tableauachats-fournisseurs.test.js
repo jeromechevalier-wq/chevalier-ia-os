@@ -12,12 +12,12 @@ const FICHES                     = [
   { fournisseur_id: 'beta', fournisseur: 'Bêta Location', siren: null, nb_agences: 0 },
 ]
 const AGENCES                      = [
-  { etablissement_id: 'e1', fournisseur_id: 'alpha', nom_agence: 'Alpha Manosque', ville: 'Manosque', siret: '90030001300011' },
-  { etablissement_id: 'e2', fournisseur_id: 'alpha', nom_agence: 'Dépôt', ville: 'Digne', siret: null },
+  { etablissement_id: 'e1', fournisseur_id: 'alpha', nom_agence: 'Alpha Ville A', ville: 'Ville A', siret: '99900099900011' },
+  { etablissement_id: 'e2', fournisseur_id: 'alpha', nom_agence: 'Dépôt', ville: 'Ville B', siret: null },
   { etablissement_id: 'e9', fournisseur_id: 'autre', nom_agence: 'Ailleurs', ville: 'Loin', siret: null },
 ]
 let m = 0
-const L = (o                    )            => ({ ligne_id: `l${String(++m).padStart(4, '0')}`, facture_id: 'f1', numero: 'F-1', date_prix: '2026-06-01', fournisseur: 'Négoce Alpha', etablissement_id: 'e1', nom_agence: 'Alpha Manosque', ville: 'Manosque',
+const L = (o                    )            => ({ ligne_id: `l${String(++m).padStart(4, '0')}`, facture_id: 'f1', numero: 'F-1', date_prix: '2026-06-01', fournisseur: 'Négoce Alpha', etablissement_id: 'e1', nom_agence: 'Alpha Ville A', ville: 'Ville A',
   chantier_id: 'c1', chantier: 'Maison', article_fournisseur_id: 'a1', reference_fournisseur: 'CIM', designation: 'Ciment', unite: 'sac', unite_normalisee: 'sac', quantite: 1, montant_ht: 100, prix_net: 100,
   article_reference_id: null, libelle_reference: null, unite_reference: null, coefficient: null, prix_unite_reference: null, rapproche: false, origine_rapprochement: null, ...o })
 
@@ -67,7 +67,7 @@ describe('Fournisseurs et agences : calculs', () => {
     const fs = [F({ montant_ht: 600, date_ref: '2026-03-01' }), F({ montant_ht: 200, date_ref: '2026-04-01' }), F({ etablissement_id: null, montant_ht: 150, date_ref: '2026-05-01' }), F({ etablissement_id: 'e-fusion-ailleurs', montant_ht: 50, date_ref: '2026-06-01' })]
     const a = agencesDuFournisseur('alpha', AGENCES, fs)
     expect(a.map((x) => [x.nom, x.ville, x.siret, x.nb_factures, x.total_ht, x.derniere_facture, x.part_pct])).toEqual([
-      ['Alpha Manosque', 'Manosque', '90030001300011', 2, 800, '2026-04-01', 80], [SANS_AGENCE, '', '', 2, 200, '2026-06-01', 20], ['Dépôt', 'Digne', '', 0, 0, null, 0]])
+      ['Alpha Ville A', 'Ville A', '99900099900011', 2, 800, '2026-04-01', 80], [SANS_AGENCE, '', '', 2, 200, '2026-06-01', 20], ['Dépôt', 'Ville B', '', 0, 0, null, 0]])
     expect(a.find((x) => x.sans_agence)?.cle).toBe('sans-agence')
     expect(agencesDuFournisseur('alpha', AGENCES, [F({})]).some((x) => x.sans_agence)).toBe(false) // pas de ligne « Sans agence » sans facture hors agence
     expect(agencesDuFournisseur(null, AGENCES, [F({ etablissement_id: null })]).map((x) => x.nom)).toEqual([SANS_AGENCE]) // fournisseur sans fiche : aucune agence
@@ -75,8 +75,8 @@ describe('Fournisseurs et agences : calculs', () => {
   })
   it('6 : graphique des dépenses par agence : seulement les totaux positifs, nom avec la ville si elle n’y est pas déjà', () => {
     const a = agencesDuFournisseur('alpha', AGENCES, [F({ montant_ht: 300 }), F({ etablissement_id: 'e2', montant_ht: -40, type_document: 'avoir' })])
-    expect(barresAgences(a)).toEqual([{ nom: 'Alpha Manosque', valeur: 300 }])
-    expect(nomAgence({ nom: 'Dépôt', ville: 'Digne' })).toBe('Dépôt (Digne)'); expect(nomAgence({ nom: 'Alpha MANOSQUE', ville: 'Manosque' })).toBe('Alpha MANOSQUE'); expect(nomAgence({ nom: SANS_AGENCE, ville: '' })).toBe(SANS_AGENCE)
+    expect(barresAgences(a)).toEqual([{ nom: 'Alpha Ville A', valeur: 300 }])
+    expect(nomAgence({ nom: 'Dépôt', ville: 'Ville B' })).toBe('Dépôt (Ville B)'); expect(nomAgence({ nom: 'Alpha VILLE A', ville: 'Ville A' })).toBe('Alpha VILLE A'); expect(nomAgence({ nom: SANS_AGENCE, ville: '' })).toBe(SANS_AGENCE)
   })
   it('7 : recherche sur le nom (sans casse ni accents) et sur le SIREN (espaces ignorés)', () => {
     const t = tableauFournisseurs(FICHES, [])
