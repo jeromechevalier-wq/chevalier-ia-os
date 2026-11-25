@@ -83,7 +83,7 @@ describe('A2 menu : un seul bloc « Achats »', () => {
     const [item] = reglagesDesModules(ACHATS);
     assert.equal(item.id, 'achats');
     assert.equal(item.libelle, 'Achats');
-    assert.deepEqual(item.sections, []);
+    assert.deepEqual(item.sections.filter((e) => !e.id.startsWith('reglages-export-')), []); // seules les sections « Sauvegarde » des modules (PR 5 à 9) y figurent
     assert.match(item.resume, /Réglages > Connexion à la base/);
     assert.equal(item.ouvrir, 'achatsfournisseurs/liste');
   });
@@ -150,7 +150,7 @@ describe('A5 verrous du code', () => {
           const cible = m[1];
           if (!cible.startsWith('.')) continue;
           const resolu = join('/', dossier, cible).slice(1);
-          if (resolu.startsWith('js/modules/')) assert.ok(resolu.startsWith(`${dossier}/`) || resolu.startsWith('js/modules/achatscommun/'), `${f} importe ${cible}`);
+          if (resolu.startsWith('js/modules/')) assert.ok(resolu.startsWith(`${dossier}/`) || resolu.startsWith('js/modules/achatscommun/') || resolu === 'js/modules/crm/barre-liste.js', `${f} importe ${cible}`); // la barre commune des listes est partagée (règle du 05/11/2026)
         }
         assert.doesNotMatch(lire(f), /pilotage/i, f);
       }

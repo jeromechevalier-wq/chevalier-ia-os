@@ -352,7 +352,7 @@ export const MODULES_DECLARES = geler([
     iconeMenu: 'file-text',
     prefixe: 'achatsfactures',
     seulJerome: true,
-    reglages: { sections: [], resume: 'Les factures se lisent dans la base de l’espace. La connexion se règle dans Réglages > Connexion à la base.' },
+    reglages: { sections: [{ id: 'reglages-export-achatsfactures', libelle: 'Sauvegarde des factures' }], resume: 'Les factures se lisent dans la base de l’espace. La connexion se règle dans Réglages > Connexion à la base.' },
     entreeMenu: 'achatsfactures/liste',
     ecrans: [
       { route: 'achatsfactures/liste', libelle: 'Factures', icone: 'file-text' },
