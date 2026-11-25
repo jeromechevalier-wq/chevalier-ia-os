@@ -23,7 +23,8 @@ const MODULES = [
 ];
 // Un module devenu un vrai écran (Fournisseurs PR 5, Chantiers PR 6, …) n'affiche plus le bandeau d'accès quand l'accès est prêt (voir son propre fichier de tests) : les coquilles sont repérées PAR NOM, jamais par position.
 const ECRANS_REELS = ['achatsfournisseurs', 'achatschantiers', 'achatsarticles'];
-const COQUILLES = MODULES.filter((m) => !ECRANS_REELS.includes(m.id));
+// Factures (PR 8a) lit ses données par le réseau : son écran a son propre test (tests/e2e/achatsfactures.spec.js) ; on l'exclut des coquilles par son NOM.
+const COQUILLES = MODULES.filter((m) => !ECRANS_REELS.includes(m.id) && m.id !== 'achatsfactures');
 const etat = (page) => page.locator('[data-role="achats-etat"]');
 
 // Badge simulé (crochet d'émulateurs, voir js/os/acces-base.js) : portant, ou non, la mention d'accès. Aucun appel réseau réel.
@@ -101,7 +102,7 @@ test('A5 cas d\'erreur : la lecture des réglages échoue : message clair et « 
   await simulerBadge(page);
   await connecter(page);
   await context.setOffline(true);
-  await page.evaluate(() => { location.hash = '#/achatsfactures/liste'; });
+  await page.evaluate(() => { location.hash = '#/tableauachats/tableau'; });
   await expect(etat(page)).toHaveAttribute('data-etat', 'illisible', { timeout: 30_000 });
   await expect(page.locator('[data-role="achats-etat-texte"]')).toHaveText('Lecture des réglages impossible, réessaie');
   expect(await sansDefilementHorizontal(page)).toBe(true);
@@ -123,6 +124,7 @@ test('A8 Réglages : l\'élément « Achats » réunit les sections des modules 
   await ouvrirSectionReglages(page, 'Achats');
   await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
   await expect(page.locator('#reglages-export-achatsfournisseurs')).toBeVisible();
+  await expect(page.locator('#reglages-export-achatsfactures')).toBeVisible(); // PR 8a
   await expect(page.locator('#reglages-export-achatschantiers')).toBeVisible();
   await expect(page.locator('#reglages-export-achatsarticles')).toBeVisible();
   await capturer(page, info, 'A8-reglages');
