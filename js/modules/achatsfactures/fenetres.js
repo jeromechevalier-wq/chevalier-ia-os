@@ -2,13 +2,12 @@
 // Règle commune : une fenêtre qui écrit reste OUVERTE si le serveur refuse (le message du serveur est dit dans la fenêtre, la saisie est gardée) ; elle ne se ferme que si l'écriture a réussi.
 // Aucune écriture n'est faite ici : chaque fenêtre reçoit une fonction `executer` fournie par la page (qui passe par la couche des actions métier).
 import { h, dialogue, champIntelligent } from '../../os/ui.js';
-import { lien } from '../../os/router.js';
 import { preparerMessage, tailleLisible, typeLisible, lirePiecesJointes, champOuTiret } from './courriel.js';
 import { dateHeureFr } from './logique.js';
 import { EXPLICATIONS, BIENTOT, ACTIFS, AVERTISSEMENT_LONG, INFO_COMPTE } from './explications.js';
 import { MOTIF_MIN, MOTIF_MAX, motifValide } from './decision.js';
 import { verifierChampsAgence } from './agences.js';
-import { verifierFichierPdf, envoyerFacture, suivreSelection, ErreurUpload, TAILLE_MAX_OCTETS, tailleLisibleMo } from './upload.js';
+import { verifierFichierPdf, envoyerFacture, suivreSelection, TAILLE_MAX_OCTETS, tailleLisibleMo } from './upload.js';
 
 export const MESSAGE_PAR_DEFAUT = 'Une erreur est survenue, réessaie dans un instant.';
 const messageDe = (e) => (e instanceof Error && e.message ? e.message : MESSAGE_PAR_DEFAUT);
@@ -23,14 +22,14 @@ export function fenetreAction({ titre, classe = 'dialogue-formulaire', contenu, 
   let resultat = null;
   let occupe = false;
   const majBouton = () => { if (bouton) bouton.disabled = occupe || (pret ? !pret() : false); };
-  const dire = (m, lienFiche = null) => { erreur.textContent = m ?? ''; if (m && lienFiche) erreur.append(' ', h('a', { href: lienFiche, dataset: { action: 'ouvrir-fiche' } }, 'Ouvrir la fiche')); erreur.hidden = !m; };
+  const dire = (m) => { erreur.textContent = m ?? ''; erreur.hidden = !m; };
   const p = dialogue({
     titre, classe, contenu: h('div', { class: 'pile' }, contenu(majBouton, dire), erreur),
     peutFermer: () => !occupe,
     boutons: [{ libelle: 'Annuler', valeur: null }, { libelle, valeur: 'ok', style, avantFermeture: async () => {
       if (occupe) return false;
       occupe = true; dire(null); majBouton();
-      try { resultat = await executer(); } catch (e) { occupe = false; dire(messageDe(e), e?.lienFiche ?? null); majBouton(); return false; }
+      try { resultat = await executer(); } catch (e) { occupe = false; dire(messageDe(e)); majBouton(); return false; }
       return true;
     } }],
     auMontage: ({ boutons }) => { bouton = boutons[1]; majBouton(); apres?.({ majBouton, dire }); },
@@ -156,11 +155,6 @@ export function fenetreAjout({ actions }) {
     titre: 'Ajouter une facture', libelle: 'Envoyer',
     contenu: (majBouton) => { majBoutonRef = majBouton; return [h('p', {}, `Choisis le PDF de la facture (${tailleLisibleMo(TAILLE_MAX_OCTETS)} au plus). Elle arrivera dans « À valider » après lecture.`), entree, nom, probleme]; },
     pret: () => !!fichier,
-    executer: async () => {
-      try { return await envoyerFacture(fichier, { actions }); } catch (e) {
-        if (e instanceof ErreurUpload && e.code === 'doublon' && e.factureId) e.lienFiche = lien(`achatsfactures/examiner/${e.factureId}`);
-        throw e;
-      }
-    },
+    executer: () => envoyerFacture(fichier, { actions }),
   });
 }

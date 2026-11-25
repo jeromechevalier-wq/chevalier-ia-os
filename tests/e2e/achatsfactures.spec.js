@@ -27,7 +27,7 @@ const LIGNES_TABLE = () => {
   lignes.push({ ...modele, id: 'av1', numero: 'AV-1', numero_normalise: 'AV-1', type_document: 'avoir', montant_ht: 16.67, montant_tva: 3.33, montant_ttc: 20, fournisseur: 'Bricolo Dépôt', date_facture: '2026-11-21', extraction: null });
   return lignes;
 };
-const CHANTIERS = [{ id: 'c1', nom: 'Villa Dupont' }, { id: 'c2', nom: 'Atelier Martin' }];
+const CHANTIERS = [{ id: 'c1', nom: 'Villa Orvaline' }, { id: 'c2', nom: 'Atelier Lorvan' }];
 const NB_LIGNES = { a1: 3, a12: 1 };
 
 /**
@@ -223,7 +223,7 @@ test('F6 favoris : l\'étoile de la fenêtre « Filtres » met un fournisseur en
   await expect(fournisseurs.locator('.favori-sep')).toHaveCount(1);
   await expect(fournisseurs.locator('.ligne-favori', { hasText: 'Ferronnerie du Verdon' }).locator('.bouton-etoile')).toHaveAttribute('aria-label', /Retirer .* des favoris/);
   // Le chantier mis en favori avant l'ouverture est déjà en tête de sa liste.
-  await expect(page.locator('[data-filtre="chantiers"] .ligne-favori').first()).toContainText('Atelier Martin');
+  await expect(page.locator('[data-filtre="chantiers"] .ligne-favori').first()).toContainText('Atelier Lorvan');
   const bascules = (await appels(page)).filter((a) => a.chemin === '/rest/v1/rpc/basculer_favori_os');
   expect(bascules.map((b) => b.corps)).toEqual([{ p_genre: 'entreprise', p_cle: '500000021' }]);
   await capturer(page, info, 'F6-favoris');

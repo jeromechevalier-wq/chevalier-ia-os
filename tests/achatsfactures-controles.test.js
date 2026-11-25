@@ -101,7 +101,7 @@ describe('Vérification 3 : destinataire', () => {
   test('rouge : une autre entreprise (autre SIREN)', () =>
     expect(dest(extr({ destinataire: { ...vide, nom: 'ENTREPRISE TEST', siren: '123456789' } })).etat).toBe('anomalie'))
   test('rouge : un autre nom sans numéro', () =>
-    expect(dest(extr({ destinataire: { ...vide, nom: 'Jean Dupont', adresse: '2 rue X, Paris' } })).etat).toBe('anomalie'))
+    expect(dest(extr({ destinataire: { ...vide, nom: 'Jean Orvaline', adresse: '2 rue X, Paris' } })).etat).toBe('anomalie'))
   test('gris : destinataire non lu', () => expect(dest(extr({ destinataire: { ...vide } })).etat).toBe('indisponible'))
 })
 

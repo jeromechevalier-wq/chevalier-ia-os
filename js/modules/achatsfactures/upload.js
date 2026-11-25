@@ -12,7 +12,7 @@ export const DELAI_MS = 120_000;
 export const MESSAGE_INCERTAIN = 'La facture est peut-être en cours de lecture : regarde dans « À valider » avant de réessayer.';
 
 export class ErreurUpload extends Error {
-  constructor(message, code, factureId = null) { super(message); this.name = 'ErreurUpload'; this.code = code; this.factureId = factureId; }
+  constructor(message, code) { super(message); this.name = 'ErreurUpload'; this.code = code; }
 }
 
 /** « 2,4 Mo » (virgule française, sans passer par le formatage du navigateur). */
@@ -99,7 +99,7 @@ export async function envoyerFacture(f, { actions, delaiMs = DELAI_MS, signal } 
     if (e instanceof ErreurUpload) throw e;
     const code = e?.code ?? null;
     if (code === 'reseau') throw new ErreurUpload(MESSAGE_INCERTAIN, 'reseau');
-    if (code === 'doublon') throw new ErreurUpload('Cette facture a déjà été ajoutée.', 'doublon', typeof e?.facture_id === 'string' ? e.facture_id : typeof e?.detail?.facture_id === 'string' ? e.detail.facture_id : null);
+    if (code === 'doublon') throw new ErreurUpload('Cette facture a déjà été ajoutée.', 'doublon');
     if (code === 'non_autorise' || code === 'refus_serveur' || code === 'reconnexion' || code === 'ticket') throw new ErreurUpload(MESSAGES.non_autorise, 'session');
     if (code === 'reponse_inattendue') throw new ErreurUpload('Réponse inattendue du serveur : la facture n’est peut-être pas ajoutée. Vérifie la liste, sinon réessaie.', 'reponse_inattendue');
     throw new ErreurUpload((code && MESSAGES[code]) || (e instanceof Error && e.message) || MESSAGE_PAR_DEFAUT, code ?? 'erreur');

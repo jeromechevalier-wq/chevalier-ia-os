@@ -142,10 +142,10 @@ describe('chantiers : seuls les chantiers ouverts se choisissent', () => {
     expect(phraseChantierFerme(ch('a', 'en_cours'))).toBeNull()
   })
   test('filtre sur le nom, le code et le client', () => {
-    const o = optionsChantiers([ch('a', 'en_cours', { nom: 'Maison Dupont', code: 'CH-001', client: 'Famille Durand' }), ch('b', 'en_cours', { nom: 'Garage', code: 'CH-002', client: 'Martin SARL' })])
-    expect(filtrerOptions(o, 'dup').options.map((x) => x.id)).toEqual(['a'])
+    const o = optionsChantiers([ch('a', 'en_cours', { nom: 'Maison Orvaline', code: 'CH-001', client: 'Famille Brevin' }), ch('b', 'en_cours', { nom: 'Garage', code: 'CH-002', client: 'Lorvan SARL' })])
+    expect(filtrerOptions(o, 'orvali').options.map((x) => x.id)).toEqual(['a'])
     expect(filtrerOptions(o, 'ch-002').options.map((x) => x.id)).toEqual(['b'])
-    expect(filtrerOptions(o, 'martin').options.map((x) => x.id)).toEqual(['b'])
+    expect(filtrerOptions(o, 'lorvan').options.map((x) => x.id)).toEqual(['b'])
   })
 })
 
@@ -185,8 +185,8 @@ describe('création d’une agence', () => {
 describe('recherche d’un chantier (nom, code, client, adresse, ville)', () => {
   const ch = (id, statut, extra = {}) => ({ id, nom: `Chantier ${id}`, statut, ...extra })
   const o = optionsChantiers([
-    ch('a', 'en_cours', { nom: 'Villa Lefèvre', code: 'CH-0007', client: 'M. Lefèvre', adresse: 'Lotissement Les Restanques, 99560 Valmoran' }),
-    ch('b', 'en_cours', { nom: 'Garage', code: 'CH-0002', client: 'Martin SARL', adresse: 'ZA Les Essarts, 99210 Brevelle' }),
+    ch('a', 'en_cours', { nom: 'Villa Mèlinot', code: 'CH-0007', client: 'M. Mèlinot', adresse: 'Lotissement Les Essartines, 99560 Valmoran' }),
+    ch('b', 'en_cours', { nom: 'Garage', code: 'CH-0002', client: 'Lorvan SARL', adresse: 'ZA Les Essarts, 99210 Brevelle' }),
     ch('c', 'en_cours', { nom: 'Sans adresse', code: 'CH-0003', client: null, adresse: null }),
   ])
   const ids = (q) => filtrerOptions(o, q).options.map((x) => x.id)
@@ -194,38 +194,38 @@ describe('recherche d’un chantier (nom, code, client, adresse, ville)', () => 
     expect(ids('Valm')).toEqual(['a']); expect(ids('VALMORAN')).toEqual(['a']); expect(ids('valm oran')).toEqual(['a']); expect(ids('brevelle')).toEqual(['b'])
   })
   test('par l’adresse, le code et le client', () => {
-    expect(ids('restanques')).toEqual(['a']); expect(ids('CH-0002')).toEqual(['b']); expect(ids('martin')).toEqual(['b']); expect(ids('lefevre')).toEqual(['a'])
+    expect(ids('essartines')).toEqual(['a']); expect(ids('CH-0002')).toEqual(['b']); expect(ids('lorvan')).toEqual(['b']); expect(ids('melinot')).toEqual(['a'])
   })
   test('tous les mots doivent être présents', () => {
-    expect(ids('restanques brevelle')).toEqual([]); expect(ids('les restanques valmo')).toEqual(['a'])
+    expect(ids('essartines brevelle')).toEqual([]); expect(ids('les essartines valmo')).toEqual(['a'])
   })
   test('aucun résultat', () => expect(ids('zzzzz')).toEqual([]))
   test('moins de 3 lettres : toute la liste', () => expect(ids('gi').sort()).toEqual(['a', 'b', 'c']))
   test('la ligne montre code · client · adresse ; sans adresse elle reste comme avant', () => {
-    expect(o.find((x) => x.id === 'a').detail).toBe('CH-0007 · M. Lefèvre · Lotissement Les Restanques, 99560 Valmoran')
+    expect(o.find((x) => x.id === 'a').detail).toBe('CH-0007 · M. Mèlinot · Lotissement Les Essartines, 99560 Valmoran')
     expect(o.find((x) => x.id === 'c').detail).toBe('CH-0003')
   })
 })
 
 describe('ville du chantier et mise en évidence', () => {
   test('ville : après le code postal, sinon dernier segment après la virgule, sinon rien', () => {
-    expect(villeChantier('Lotissement Les Restanques, 99560 Valmoran')).toBe('Valmoran')
-    expect(villeChantier('Lotissement Les Restanques, Valmoran')).toBe('Valmoran')
+    expect(villeChantier('Lotissement Les Essartines, 99560 Valmoran')).toBe('Valmoran')
+    expect(villeChantier('Lotissement Les Essartines, Valmoran')).toBe('Valmoran')
     expect(villeChantier('12 rue des Oliviers')).toBeNull()
     expect(villeChantier('Chemin X, 12')).toBeNull()
     expect(villeChantier(null)).toBeNull()
     expect(villeChantier('')).toBeNull()
   })
   test('première ligne : « Nom · Ville » ; sans adresse, le nom seul', () => {
-    expect(libelleChantier({ nom: 'Villa Lefèvre', adresse: 'Lotissement Les Restanques, Valmoran' })).toBe('Villa Lefèvre · Valmoran')
-    expect(libelleChantier({ nom: 'Villa Lefèvre', adresse: null })).toBe('Villa Lefèvre')
+    expect(libelleChantier({ nom: 'Villa Mèlinot', adresse: 'Lotissement Les Essartines, Valmoran' })).toBe('Villa Mèlinot · Valmoran')
+    expect(libelleChantier({ nom: 'Villa Mèlinot', adresse: null })).toBe('Villa Mèlinot')
   })
   test('mise en évidence sans accents ni casse, en morceaux, plusieurs mots', () => {
     const t = (txt, q) => decouperSurligne(txt, q).filter((s) => s.trouve).map((s) => s.texte)
-    expect(t('Villa Lefèvre · Valmoran', 'valm')).toEqual(['Valm'])
-    expect(t('Villa Lefèvre · Valmoran', 'VALM ran')).toEqual(['Valm', 'ran'])
-    expect(t('Villa Lefèvre', 'lefevre')).toEqual(['Lefèvre'])
-    expect(t('Villa Lefèvre', 'xx')).toEqual([])
+    expect(t('Villa Mèlinot · Valmoran', 'valm')).toEqual(['Valm'])
+    expect(t('Villa Mèlinot · Valmoran', 'VALM ran')).toEqual(['Valm', 'ran'])
+    expect(t('Villa Mèlinot', 'melinot')).toEqual(['Mèlinot'])
+    expect(t('Villa Mèlinot', 'xx')).toEqual([])
     expect(decouperSurligne('Villa', 'vi')).toEqual([{ texte: 'Villa', trouve: false }])
     expect(decouperSurligne('Villa', 'zzz')).toEqual([{ texte: 'Villa', trouve: false }])
     expect(decouperSurligne('Villa', 'villa').map((s) => s.texte).join('')).toBe('Villa')
@@ -254,8 +254,8 @@ describe('ville du chantier : cas particuliers', () => {
     expect(decouperSurligne('Villa de Valmoran', 'valm d').filter((s) => s.trouve).map((s) => s.texte)).toEqual(['Valm'])
   })
   test('texte déjà décomposé (NFD) : le surlignage tient', () => {
-    const t = 'Lefèvre'.normalize('NFD')
-    expect(decouperSurligne(t, 'lefevre').filter((s) => s.trouve).map((s) => s.texte).join('')).toBe('Lefèvre'.normalize('NFC'))
+    const t = 'Mèlinot'.normalize('NFD')
+    expect(decouperSurligne(t, 'melinot').filter((s) => s.trouve).map((s) => s.texte).join('')).toBe('Mèlinot'.normalize('NFC'))
   })
 })
 

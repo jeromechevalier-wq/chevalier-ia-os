@@ -32,11 +32,11 @@ function pdfFictif() {
 }
 
 const SIRET_PP = '50000000500008';
-const AGENCE_PP = { id: 'ag1', fournisseur_id: 'fo1', siret: SIRET_PP, nom_agence: 'Agence Nord', ville: 'Lacroix', actif: true, fusionne_dans: null };
+const AGENCE_PP = { id: 'ag1', fournisseur_id: 'fo1', siret: SIRET_PP, nom_agence: 'Agence Nord', ville: 'Valmoran', actif: true, fusionne_dans: null };
 const FOURNISSEURS = [{ id: 'fo1', siren: SIRET_PP.slice(0, 9), nom: 'Point Q Matériaux', statut: 'actif' }, { id: 'fo2', siren: '500000013', nom: 'Loxbel Location', statut: 'actif' }];
-const AGENCES = [AGENCE_PP, { id: 'ag2', fournisseur_id: 'fo2', siret: '50000001300002', nom_agence: 'Agence Centre', ville: 'Moreau', actif: true, fusionne_dans: null }];
-const CHANTIERS = [{ id: 'c1', nom: 'Villa Dupont', client: 'Client fictif', adresse: '1 rue des essais 75000 Lacroix', statut: 'en_cours', code: 'CH-1', archive: false },
-  { id: 'c2', nom: 'Atelier Martin', client: null, adresse: null, statut: 'termine', code: 'CH-2', archive: false }];
+const AGENCES = [AGENCE_PP, { id: 'ag2', fournisseur_id: 'fo2', siret: '50000001300002', nom_agence: 'Agence Centre', ville: 'Orvaleine', actif: true, fusionne_dans: null }];
+const CHANTIERS = [{ id: 'c1', nom: 'Villa Orvaline', client: 'Client fictif', adresse: '1 rue des essais 75000 Valmoran', statut: 'en_cours', code: 'CH-1', archive: false },
+  { id: 'c2', nom: 'Atelier Lorvan', client: null, adresse: null, statut: 'termine', code: 'CH-2', archive: false }];
 const COURRIEL = { id: 'm1', recu_le: '2026-11-20T08:00:00Z', date_courriel: '2026-11-20T07:59:00Z', expediteur: 'compta@pointq.example', sujet: 'Votre facture FA-2026-0412', corps_texte: 'Bonjour,\n\nVeuillez trouver ci-joint la facture du mois.\n\n<b>Cordialement</b>', pieces_jointes: [{ nom: 'facture.pdf', type: 'application/pdf', taille: 2048 }], boite: 'factures', destinataire: 'factures@espace.example', resultat: 'cree' };
 const LIGNES_A1 = [1, 2, 3].map((p) => ({ position: p, reference_fournisseur: `REF-${p}`, designation: `Article fictif ${p}`, quantite: p, unite: 'u', prix_unitaire_ht: 100, remise_pct: 0, montant_ht: 100 * p, taux_tva: 20 }));
 
@@ -221,11 +221,11 @@ test('E6 facture décidée : relier à un chantier, puis rouvrir avec un motif',
   const fenetre = page.getByRole('dialog');
   await expect(fenetre.getByRole('button', { name: 'Relier', exact: true })).toBeDisabled();
   await fenetre.getByRole('combobox', { name: 'Chantier' }).click();
-  await fenetre.getByRole('option', { name: /Atelier Martin/ }).click(); // chantier terminé : refusé avec sa phrase
+  await fenetre.getByRole('option', { name: /Atelier Lorvan/ }).click(); // chantier terminé : refusé avec sa phrase
   await expect(fenetre).toContainText('terminé');
   await expect(fenetre.getByRole('button', { name: 'Relier', exact: true })).toBeDisabled();
   await fenetre.getByRole('combobox', { name: 'Chantier' }).click();
-  await fenetre.getByRole('option', { name: /Villa Dupont/ }).click();
+  await fenetre.getByRole('option', { name: /Villa Orvaline/ }).click();
   await fenetre.getByRole('button', { name: 'Relier', exact: true }).click();
   await expect(page.locator('.toast')).toContainText('Facture reliée au chantier');
   expect((await appelsVers(page, '/actions')).at(-1)).toEqual({ facture_id: 'h1', chantier_id: 'c1', action: 'relier_chantier' });

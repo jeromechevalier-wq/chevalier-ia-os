@@ -59,15 +59,11 @@ describe('envoyerFacture (couche des actions de l’OS, faux réseau)', () => {
     const r = await envoyerFacture(pdf(), { actions: monter(() => reponse(200, { ok: true, facture_id: 'abc', lecture: 'a_completer' })) })
     expect(r.lectureReussie).toBe(false)
   })
-  test('doublon : erreur « doublon » ; l’identifiant de la fiche existante est gardé quand l’erreur le porte', async () => {
-    const e = await envoyerFacture(pdf(), { actions: fausseAction(() => Promise.reject(Object.assign(new ErreurAction('x', 'doublon'), { facture_id: 'vieille' }))) }).catch((x) => x)
+  test('doublon : erreur « doublon » avec son message (l’identifiant de la fiche existante n’est pas porté par ErreurAction : voir .github/A-FAIRE.md)', async () => {
+    const e = await envoyerFacture(pdf(), { actions: monter(() => reponse(409, { ok: false, code: 'doublon', facture_id: 'vieille' })) }).catch((x) => x)
     expect(e instanceof ErreurUpload).toBe(true)
     expect(e.code).toBe('doublon')
-    expect(e.factureId).toBe('vieille')
-    // Par la vraie couche, ErreurAction ne garde que le message et le code : l'identifiant n'arrive pas (voir .github/A-FAIRE.md).
-    const reel = await envoyerFacture(pdf(), { actions: monter(() => reponse(409, { ok: false, code: 'doublon', facture_id: 'vieille' })) }).catch((x) => x)
-    expect(reel.code).toBe('doublon')
-    expect(reel.factureId).toBeNull()
+    expect(e.message).toBe('Cette facture a déjà été ajoutée.')
   })
   test('401 : message de session expirée', async () => {
     const e = await envoyerFacture(pdf(), { actions: monter(() => reponse(401, { ok: false, code: 'non_autorise' })) }).catch((x) => x)

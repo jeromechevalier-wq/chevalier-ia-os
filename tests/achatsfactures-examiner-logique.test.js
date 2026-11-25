@@ -11,7 +11,7 @@ import { IDENT } from './_donnees-achatsfactures.js';
 
 const SIRET = IDENT.siret;
 const SIREN = IDENT.siren;
-const agence = (o = {}) => ({ id: 'ag1', fournisseur_id: 'fo1', siret: SIRET, nom_agence: 'Agence Nord', ville: 'Lacroix', actif: true, fusionne_dans: null, fournisseur: { id: 'fo1', siren: SIREN, nom: 'Point Q Matériaux' }, ...o });
+const agence = (o = {}) => ({ id: 'ag1', fournisseur_id: 'fo1', siret: SIRET, nom_agence: 'Agence Nord', ville: 'Valmoran', actif: true, fusionne_dans: null, fournisseur: { id: 'fo1', siren: SIREN, nom: 'Point Q Matériaux' }, ...o });
 
 describe('décision : corps envoyé au serveur', () => {
   test('accepter sans alerte : agence obligatoire, chantier null si aucun, aucun motif', () => {
@@ -57,16 +57,16 @@ describe('relier et rouvrir', () => {
 
 describe('agences', () => {
   test('liste filtrable : sous 3 lettres toute la liste, ensuite chaque mot doit se trouver', () => {
-    const o = optionsAgences([agence(), agence({ id: 'ag2', siret: null, nom_agence: 'Agence Sud', ville: 'Moreau' })]);
+    const o = optionsAgences([agence(), agence({ id: 'ag2', siret: null, nom_agence: 'Agence Sud', ville: 'Orvaleine' })]);
     expect(filtrerOptions(o, 'ag').options).toHaveLength(2);
-    expect(filtrerOptions(o, 'sud moreau').options.map((x) => x.id)).toEqual(['ag2']);
-    expect(filtrerOptions(o, 'LACROIX').options.map((x) => x.id)).toEqual(['ag1']);
+    expect(filtrerOptions(o, 'sud orvaleine').options.map((x) => x.id)).toEqual(['ag2']);
+    expect(filtrerOptions(o, 'VALMORAN').options.map((x) => x.id)).toEqual(['ag1']);
   });
   test('agence proposée : le SIRET d\'abord, sinon la seule agence du SIREN, sinon rien ; une agence inactive n\'est jamais proposée', () => {
     const lu = { fournisseur: { siret: SIRET, nom: 'Point Q' } };
     expect(preselectionAgence(lu, [agence()])).toBe('ag1');
     expect(preselectionAgence({ fournisseur: { siren: SIREN } }, [agence({ siret: null })])).toBe('ag1');
-    expect(preselectionAgence({ fournisseur: { siren: SIREN } }, [agence({ siret: null }), agence({ id: 'ag2', siret: null, ville: 'Moreau' })])).toBeNull();
+    expect(preselectionAgence({ fournisseur: { siren: SIREN } }, [agence({ siret: null }), agence({ id: 'ag2', siret: null, ville: 'Orvaleine' })])).toBeNull();
     expect(preselectionAgence(lu, [agence({ actif: false })])).toBeNull();
     expect(preselectionAgence({ fournisseur: {} }, [agence()])).toBeNull();
   });
@@ -115,11 +115,6 @@ describe('« + Facture » : contrôles et envoi', () => {
   test('lecture à compléter et lignes non écrites sont dites', async () => {
     const r = await envoyerFacture(vrai(), { actions: { ajouterFacture: async () => ({ facture_id: 'n', lecture: 'a_completer', lignes_ecrites: false }) } });
     expect(r).toEqual({ factureId: 'n', lectureReussie: false, lignesEcrites: false });
-  });
-  test('doublon : l\'identifiant de la fiche existante est gardé s\'il est dans la réponse', async () => {
-    const e = await envoyerFacture(vrai(), { actions: { ajouterFacture: async () => { throw Object.assign(new Error('x'), { code: 'doublon', facture_id: 'ancienne' }); } } }).then(() => null, (x) => x);
-    expect(e.code).toBe('doublon');
-    expect(e.factureId).toBe('ancienne');
   });
   test('sélection : la vérification d\'un fichier plus ancien est ignorée', () => {
     const s = suivreSelection();
