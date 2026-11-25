@@ -6,6 +6,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import { estChezClient } from '../../os/contexte.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
+import { personneMaison, personnesMaison } from '../../os/comptes-maison.js';
 
 // ---------------------------------------------------------------- liens et pastilles
 
@@ -176,9 +177,12 @@ export function etatVide(message, { action = null } = {}) {
     h('p', {}, message), action);
 }
 
+/** Nom affiché d'un auteur : celui de reglages_maison/ecran (lu à la connexion), sinon celui du compte connecté, sinon l'adresse (jamais de plantage). */
 export function nomCompte(email) {
-  if (email === 'jeromebot.chevalierbot@gmail.com') return 'Charles';
-  if (email === 'jerome.chevalier@gmail.com') return 'Jérôme';
+  const p = personneMaison(email);
+  if (p) return p.nom;
+  const courant = D.compteCourant();
+  if (email && courant?.nom && typeof courant.email === 'string' && courant.email.toLowerCase() === String(email).toLowerCase()) return courant.nom;
   return email || '';
 }
 
@@ -562,10 +566,8 @@ export function carteAffaireMini(a) {
 
 // ---------------------------------------------------------------- éléments communs des fiches
 
-export const COMPTES = [
-  { email: 'jerome.chevalier@gmail.com', nom: 'Jérôme' },
-  { email: 'jeromebot.chevalierbot@gmail.com', nom: 'Charles' },
-];
+/** Comptes proposés comme propriétaire (CRM) : les personnes de reglages_maison/ecran, lues à la connexion. */
+export const comptesProprietaires = () => personnesMaison().map(({ email, nom }) => ({ email, nom }));
 
 /** Donne au champ la largeur de son texte (mesuré avec un span caché de même police). Sans effet tant que le champ n'est pas dans la page. */
 function ajusterLargeurTitre(champ) {
@@ -609,7 +611,8 @@ export function selectProprietaire({ valeur, surChoix }) {
   if (estChezClient()) {
     return valeur ? h('div', { class: 'prop', dataset: { prop: 'proprietaire' } }, h('span', { class: 'prop-libelle' }, 'Propriétaire'), h('div', { class: 'prop-valeur' }, valeur)) : null;
   }
-  const options = (!valeur || COMPTES.some((c) => c.email === valeur) ? COMPTES : [...COMPTES, { email: valeur, nom: valeur }]).map((c) => ({ valeur: c.email, libelle: c.nom }));
+  const comptes = comptesProprietaires();
+  const options = (!valeur || comptes.some((c) => c.email === valeur) ? comptes : [...comptes, { email: valeur, nom: valeur }]).map((c) => ({ valeur: c.email, libelle: c.nom }));
   // Même comportement que la Source et la Priorité : valeur en texte + crayon, un clic ouvre la liste, le choix s'enregistre.
   // Sans propriétaire : « — » s'affiche et n'est pas un choix (on n'écrit jamais de propriétaire vide).
   const champ = champPropriete({ libelle: 'Propriétaire', type: 'select', valeur: valeur || '', options, sansVide: true,

@@ -1,13 +1,14 @@
 // Module Console (phase 0, 16/11/2026) : accès réservé à Jérôme (C1 à C4), jamais de valeur de secret (C7), Filet de sécurité (C5, C6), sélecteur (C8), export (C9).
 // Les écrans (C5, C6, C8, C10) sont aussi vus dans un navigateur : tests/e2e/console.spec.js. Ici : tout ce qui se vérifie sans navigateur.
 import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
-import { avecProjet } from './_reglages-maison-essai.js';
+import { avecProjet, ECRAN_ESSAI } from './_reglages-maison-essai.js';
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { creerAppelConsole, COMPTES_CONSOLE as LIRE_COMPTES_CONSOLE } from '../functions/src/console/appel.js';
 const COMPTES_CONSOLE = await LIRE_COMPTES_CONSOLE(); // chantier 0 : liste lue dans la fiche reglages_maison/maison (celle des essais : _fiche-essai.js)
-import { peutVoirConsole, COMPTES_CONSOLE as COMPTES_ECRAN } from '../js/modules/console/acces.js';
+import { peutVoirConsole } from '../js/modules/console/acces.js';
+import { remplirComptesMaison, viderComptesMaison } from '../js/os/comptes-maison.js';
 import { LIGNES_FILET, etatLigne, lignesAvecEtat, resumeFilet, texteEtat, PLATEFORMES, plateformeValide } from '../js/modules/console/logique.js';
 import { IDS_MODULES, MODULES_DECLARES, modulesActifsDuClient, verifierActivation, interrupteursDuClient, moduleDeRoute } from '../js/os/registre.js';
 import { MODULES, MODULES_CLIENT } from '../js/os/modules.js';
@@ -39,7 +40,7 @@ describe('Console : accès côté serveur (C1 à C3, C7)', () => {
 
   test('C3 la liste de l\'écran et celle du serveur ne contiennent que Jérôme', () => {
     assert.deepEqual([...COMPTES_CONSOLE], [JEROME]);
-    assert.deepEqual([...COMPTES_ECRAN], [JEROME]);
+    assert.deepEqual([...ECRAN_ESSAI.comptes_jerome_seul], [JEROME]); // chantier 0, navigateur : la liste de l'écran vient de reglages_maison/ecran
   });
 
   test('C7 la réponse et le journal ne contiennent aucune valeur de secret ni d\'e-mail', async () => {
@@ -54,6 +55,10 @@ describe('Console : accès côté serveur (C1 à C3, C7)', () => {
 
 describe('Console : accès côté écran et registre (C4)', () => {
   test('C4 le menu n\'est montré qu\'au compte de Jérôme', () => {
+    // Chantier 0, navigateur : la liste vient de reglages_maison/ecran, lue à la connexion. Pas encore lue = personne ne voit la Console.
+    viderComptesMaison();
+    assert.equal(peutVoirConsole({ email: JEROME }), false, 'liste pas encore lue : jamais d\'ouverture par défaut');
+    remplirComptesMaison(ECRAN_ESSAI);
     assert.equal(peutVoirConsole({ email: JEROME }), true);
     assert.equal(peutVoirConsole({ email: JEROME.toUpperCase() }), true);
     for (const c of [null, undefined, {}, { email: 'jeromebot.chevalierbot@gmail.com' }, { email: 'editeur@client-fictif.example' }, { email: 42 }]) assert.equal(peutVoirConsole(c), false);

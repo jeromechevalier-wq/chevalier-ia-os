@@ -119,7 +119,7 @@ describe('V4 écran : contrôles statiques', () => {
     assert.match(P.construirePromptPistes({ source: source('s1'), auteur: 'Alice Exemple' }), /pour Alice Exemple à partir/);
     // Le compte connecté porte son nom dans `nom` (auth.js chez Jérôme, membres.js chez un client), pas `displayName` : sans cela le prompt dirait toujours « moi ».
     assert.match(lire('js/modules/reseauxsociaux/donnees.js'), /compte\?\.nom/);
-    assert.match(lire('js/os/firebase-config.js'), /nom: "/);
+    assert.match(lire('js/os/comptes-maison.js'), /compte: \{ email: p\.email, uid: user\.uid, nom: p\.nom, avatar: p\.avatar \}/); // chantier 0 : le nom vient de reglages_maison/ecran
     assert.match(lire('js/os/membres.js'), /nom: membre\.nom/);
   });
   test('V4f la carte « Inspirations » d’Aujourd’hui ne montre que les profils', () => {

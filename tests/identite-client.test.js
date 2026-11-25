@@ -151,7 +151,6 @@ describe('inventaire des textes d\'identité de Jérôme dans le code de l\'inte
     'js/main.js': 'CRM de Jérôme seulement (Réglages, connexion)',
     'js/os/shell.js': 'marque de Jérôme à la racine ; chez un client : nom du client (option client)',
     'js/os/celebrations.js': 'option du CRM (allumée par défaut chez un client, réglable), message neutre, prénom et image en réglage',
-    'js/os/firebase-config.js': 'comptes autorisés du CRM de Jérôme (vide dans la plateforme)',
     'js/os/registre.js': 'menu « CRM » (mot du métier)',
     'js/modules/mcp/index.js': 'texte des Réglages de l’assistant à la racine seulement : « les comptes autorisés sont fixés par Jérôme » (jamais montré chez un client)',
     'js/modules/mcp/logique.js': 'phrase de la page « Connecter mon ChatGPT » à la racine seulement : « Les comptes autorisés sont fixés par Jérôme » (jamais montrée chez un client)',

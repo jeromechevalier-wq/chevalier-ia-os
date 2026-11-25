@@ -1,7 +1,7 @@
 // Verrou du chantier 0 (25/11/2026) : aucun nom de projet, adresse de fonction, réserve de fichiers, compte de service, adresse de n8n ni compte de Jérôme
 // n'est écrit en dur dans le code qui tourne côté serveur et dans les règles. Le même code doit pouvoir s'installer dans N projets Google (« maisons »).
-// Périmètre : functions/src, functions-plateforme/src, scripts/porte (copié dans le serveur), firestore*.rules, storage*.rules.
-// Le navigateur (js/) n'est pas encore dans le périmètre : il garde sa configuration (js/os/firebase-config.js…) jusqu'à la PR « navigateur » du chantier 0.
+// Périmètre : functions/src, functions-plateforme/src, scripts/porte (copié dans le serveur), firestore*.rules, storage*.rules, et le navigateur js/ (partie navigateur,
+// 26/11/2026 : configuration lue dans /__/firebase/init.json, comptes et noms lus dans reglages_maison/ecran et /public).
 // Les commentaires sont ignorés (ils peuvent citer un exemple d'adresse). Les motifs sont précis : un nom de projet seul (nom du serveur MCP vu par les
 // assistants, functions/src/mcp/gestionnaire.js et mcp/outils/identite.js ; source des SMS, coeur/sms-direct.js) n'est PAS visé, il ne désigne aucune adresse.
 import { test, describe } from 'node:test';
@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url';
 import { COMPTE_JEROME, COMPTE_BOT, HOTE_N8N_ESSAI } from './_reglages-maison-essai.js';
 
 const RACINE = fileURLToPath(new URL('..', import.meta.url));
-const DOSSIERS = ['functions/src', 'functions-plateforme/src', 'scripts/porte'];
+const DOSSIERS = ['functions/src', 'functions-plateforme/src', 'scripts/porte', 'js'];
+const DOSSIERS_SERVEUR = DOSSIERS.filter((d) => d !== 'js');
 const REGLES = readdirSync(RACINE).filter((f) => /^(firestore|storage).*\.rules$/.test(f));
 
 function fichiers(dossier) {
@@ -42,7 +43,8 @@ export function sansCommentaires(texte) {
 const echapper = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 export const MOTIFS_INTERDITS = [
   { nom: 'adresse dérivée d\'un nom de projet', motif: /chevalier-ia-(os|app)\.(web\.app|firebaseapp\.com|firebasestorage\.app|iam\.gserviceaccount\.com|cloudfunctions\.net|appspot\.com)/ },
-  { nom: 'projet écrit en dur (projectId / projet)', motif: /\b(projectId|projet)\s*:\s*['"`][a-z]/ },
+  // Dans js/, « projet: » est un mot de l'écran (« ce projet ») : seul « projectId: » y est visé (motifJs).
+  { nom: 'projet écrit en dur (projectId / projet)', motif: /\b(projectId|projet)\s*:\s*['"`][a-z]/, motifJs: /\bprojectId\s*:\s*['"`][a-z]/ },
   { nom: 'projet par défaut', motif: /\|\|\s*['"`]chevalier-ia-/ },
   { nom: 'compte de Jérôme', motif: new RegExp(echapper(COMPTE_JEROME), 'i') },
   { nom: 'compte du bot', motif: new RegExp(echapper(COMPTE_BOT), 'i') },
@@ -60,20 +62,30 @@ export const EXCEPTIONS = [
   // sa liste « Jérôme seul » écrite dans le code, comme sur main, en attente de l'accord de Jérôme pour le droit de lecture de base-acces@ (fiche reglages_maison).
   ['functions/src/base/acces-appel.js', 'compte de Jérôme', COMPTE_JEROME, 'en attente de l\'accord de Jérôme pour le droit de lecture de base-acces@'],
   ['functions/src/base/acces-appel.js', 'adresse Gmail', COMPTE_JEROME, 'en attente de l\'accord de Jérôme pour le droit de lecture de base-acces@'],
+  // Navigateur (26/11/2026). Fichiers partagés avec le serveur (copiés par scripts/preparer-fonctions.js) : on n'y touche pas la nuit, PR de jour.
+  ['js/modules/crm/logique.js', 'compte de Jérôme', COMPTE_JEROME, 'fichier partagé avec le serveur, PR de jour (MEMBRES_JEROME, noms du journal)'],
+  ['js/modules/crm/logique.js', 'compte du bot', COMPTE_BOT, 'fichier partagé avec le serveur, PR de jour (MEMBRES_JEROME, noms du journal)'],
+  ['js/modules/crm/logique.js', 'adresse Gmail', COMPTE_JEROME, 'fichier partagé avec le serveur, PR de jour (MEMBRES_JEROME, noms du journal)'],
+  ['js/modules/crm/logique.js', 'adresse Gmail', COMPTE_BOT, 'fichier partagé avec le serveur, PR de jour (MEMBRES_JEROME)'],
+  ['js/modules/crm/logique.js', 'adresse Gmail', `GoogleDrive-${COMPTE_JEROME}`, 'fichier partagé avec le serveur, PR de jour (ancien chemin Drive, plus utilisé)'],
+  ['js/modules/rdv/logique.js', 'adresse dérivée d\'un nom de projet', 'chevalier-ia-os.web.app', 'fichier partagé avec le serveur, PR de jour (adresse d\'exemple des SMS)'],
+  ['js/modules/rdv/logique.js', 'adresse dérivée d\'un nom de projet', 'chevalier-ia-app.web.app', 'fichier partagé avec le serveur, PR de jour (adresse d\'exemple des SMS)'],
+  ['js/os/mon-espace.js', 'adresse Gmail', 'prenom@gmail.com', 'exemple d\'adresse dans l\'aide de « Mon espace » (« par exemple prenom@gmail.com »)'],
 ];
 
 const aVerifier = [...DOSSIERS.flatMap(fichiers), ...REGLES];
 
 describe('Chantier 0 : rien de propre à une maison dans le code du serveur et dans les règles', () => {
   test('MV1 aucun motif interdit (adresse de projet, projet en dur, projet par défaut, comptes de Jérôme, Gmail, n8n, compte de service complet)', () => {
-    assert.ok(aVerifier.length > 100, `périmètre trop petit : ${aVerifier.length} fichiers`);
+    assert.ok(aVerifier.length > 300, `périmètre trop petit : ${aVerifier.length} fichiers`);
+    assert.ok(aVerifier.some((f) => f.startsWith('js/')), 'le navigateur est dans le périmètre');
     const trouves = [];
     const exceptionsVues = new Set();
     for (const f of aVerifier) {
       const lignes = sansCommentaires(readFileSync(join(RACINE, f), 'utf8')).split('\n');
       lignes.forEach((ligne, i) => {
-        for (const { nom, motif } of MOTIFS_INTERDITS) {
-          const m = ligne.match(motif);
+        for (const { nom, motif, motifJs } of MOTIFS_INTERDITS) {
+          const m = ligne.match(f.startsWith('js/') && motifJs ? motifJs : motif);
           if (!m) continue;
           const exception = EXCEPTIONS.find(([fe, ne, texte]) => fe === f && ne === nom && ligne.includes(texte) && m[0] === texte);
           if (exception) { exceptionsVues.add(exception); continue; }
@@ -98,6 +110,11 @@ describe('Chantier 0 : rien de propre à une maison dans le code du serveur et d
     assert.deepEqual(vus("const s = 'a // https://chevalier-ia-os.web.app';"), ['adresse dérivée d\'un nom de projet'], 'un « // » dans une chaîne n\'est pas un commentaire');
     assert.deepEqual(vus("export const NOM_SERVEUR_CRM = 'chevalier-ia-os';"), [], 'le nom du serveur MCP (vu par les assistants) reste permis');
     assert.deepEqual(vus("initializeApp({ projectId: projet }, 'plateforme');"), [], 'un projet lu dans une variable est permis');
+    // Navigateur (26/11/2026) : dans js/, seul « projectId: » compte comme projet écrit en dur (« projet: 'ce projet' » est un texte de l'écran).
+    const motifProjet = MOTIFS_INTERDITS.find((m) => m.motifJs);
+    assert.ok(motifProjet.motifJs.test('export const firebaseConfig = { projectId: "un-projet" };'));
+    assert.ok(!motifProjet.motifJs.test("const GENRE = { affaire: 'cette affaire', projet: 'ce projet' };"));
+    assert.ok(motifProjet.motif.test("const GENRE = { projet: 'ce projet' };"), 'côté serveur, le motif large reste');
   });
 
   test('MV3 comptes de service : calculés par compteDeService(\'nom\') (adresse complète dans le projet courant), jamais écrits en dur ni en raccourci « nom@ »', () => {
@@ -114,7 +131,7 @@ describe('Chantier 0 : rien de propre à une maison dans le code du serveur et d
   });
 
   test('MV4 la source « pour les essais » de la fiche n\'est jamais appelée par le serveur ; le serveur ne lit plus js/os/administrateur.js', () => {
-    for (const f of DOSSIERS.flatMap(fichiers)) {
+    for (const f of DOSSIERS_SERVEUR.flatMap(fichiers)) {
       const t = readFileSync(join(RACINE, f), 'utf8');
       if (f === 'functions/src/securite/reglages-maison.js') continue;
       assert.doesNotMatch(t, /remplacerSourcePourEssais/, f);

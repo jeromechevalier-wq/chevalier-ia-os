@@ -104,7 +104,15 @@ test("E4 refus IDENTIQUE pour un compte inconnu et pour un membre d'un autre cli
 });
 
 test("E5 le CRM de Jérôme à la racine n'est pas touché : sans lien /espace/, l'écran de connexion habituel s'affiche", { tag: '@sans-telephone' }, async ({ page }) => {
-  await page.goto(`${URL_APP}#/crm/accueil`);
-  await expect(page.getByRole('heading', { name: 'Chevalier IA OS' })).toBeVisible();
-  await expect(page.locator('img.espace-fond')).toHaveCount(0);
+  // Chantier 0 (navigateur) : le CRM sait qu'il est le CRM en lisant reglages_maison/public, que seules les règles
+  // du CRM laissent lire (sur la plateforme, ce document est illisible et la racine montre la page sans espace).
+  // Ce parcours vérifie le CRM de Jérôme : on charge donc ses règles le temps du parcours.
+  await chargerRegles('firestore.rules');
+  try {
+    await page.goto(`${URL_APP}#/crm/accueil`);
+    await expect(page.getByRole('heading', { name: 'Chevalier IA OS' })).toBeVisible();
+    await expect(page.locator('img.espace-fond')).toHaveCount(0);
+  } finally {
+    await chargerRegles('firestore.plateforme.rules');
+  }
 });

@@ -34,11 +34,13 @@ test('8 écran de connexion de Jérôme et de l’espace client : lisibles, sans
   await ecrireDocument(`clients/studio/membres/${ALICE}`, { role: 'editeur' });
   await ecrireDocument('clients/studio/crm_personnes/p1', { nom: 'Camille Dubois', prenom: 'Camille', nomFamille: 'Dubois', organisationId: null, telephones: [], emails: [], emailsNormalises: [], etiquettes: [], ville: '', linkedin: '', siteWeb: '', source: '', oppositionProspection: false, dateOpposition: null, archive: false, ...base });
   await ecrireDocument('clients/studio/crm_affaires/a1', { titre: 'Audit du lac', personneId: 'p1', organisationId: null, etape: 'etape_3', statut: 'ouverte', priorite: 'tiede', montant: 1200, offreId: null, dureeJours: null, source: '', besoin: '', dateEntreeEtape: maintenant, datesEtapes: { proposition_envoyee: maintenant }, raisonPerdue: '', raisonPerdueDetail: '', dateReveil: null, encaissements: [], documents: [], projetId: null, archive: false, ...base });
-  // connexion de Jérôme (racine)
+  // connexion de Jérôme (racine) : sur les règles du CRM (chantier 0, 26/11/2026 : la racine lit reglages_maison/public, illisible sur les règles de la plateforme)
+  await chargerRegles('firestore.rules');
   await page.goto(`${URL_APP}#/crm/accueil`);
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
   expect(await sansDebordement(page)).toBe(true);
   await capture(page, '8-connexion-racine');
+  await chargerRegles('firestore.plateforme.rules');
   // espace client : connexion puis liste des affaires
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/studio/crm/affaires`);

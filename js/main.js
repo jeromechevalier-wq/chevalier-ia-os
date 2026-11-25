@@ -1,7 +1,8 @@
 // Démarrage de Chevalier IA OS.
 import { demarrerPwa } from './os/pwa.js';
 import { appliquerTheme, afficherConnexion, monterCoquille, ESPACE_RACINE } from './os/shell.js';
-import { surveillerCompte, connecter, deconnecter, crmDisponible, MESSAGE_REFUS } from './os/auth.js';
+import { surveillerCompte, connecter, deconnecter, preparerCrm, MESSAGE_REFUS } from './os/auth.js';
+import { MESSAGE_PUBLIC_ABSENT, MESSAGE_PANNE_REGLAGES } from './os/comptes-maison.js';
 import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace } from './os/marque.js';
 import { blocIntrouvablePortail } from './os/portail-introuvable.js';
@@ -41,11 +42,14 @@ if (estRouteEspace(routeDepuisHash(location.hash))) {
   demarrerCrm();
 }
 
-function demarrerCrm() {
+async function demarrerCrm() {
   afficherChargement();
-  // Plateforme clients : pas de CRM de Jérôme ici. Une adresse sans route d'espace (signet, onglet restauré) n'écoute pas la connexion
-  // et ne déconnecte jamais personne (la connexion est partagée entre les onglets, dont l'espace d'un client).
-  if (!crmDisponible()) { import('./os/espace.js').then((m) => m.pageSansEspace(racine)); return; }
+  // Plateforme clients : pas de CRM de Jérôme ici (reglages_maison/public illisible). Une adresse sans route d'espace (signet, onglet restauré) n'écoute pas
+  // la connexion et ne déconnecte jamais personne (la connexion est partagée entre les onglets, dont l'espace d'un client).
+  // Chantier 0 (26/11/2026) : le document « public » dit si le CRM existe ; absent = message clair (jamais la page de la plateforme) ; panne = « Recharger ».
+  const depart = await preparerCrm();
+  if (depart.etat === 'plateforme') { import('./os/espace.js').then((m) => m.pageSansEspace(racine)); return; }
+  if (depart.etat !== 'crm') { afficherPanne(depart.etat === 'absent' ? MESSAGE_PUBLIC_ABSENT : MESSAGE_PANNE_REGLAGES); return; }
   surveillerCompte(async (ev) => {
     if (ev.etat === 'connecte') {
       if (session?.compte.email === ev.compte.email) return;
@@ -54,9 +58,17 @@ function demarrerCrm() {
       fermerSession();
       afficherConnexion(racine, { message: ev.refus ? MESSAGE_REFUS : '', surConnexion: lancerConnexion });
     } else if (ev.etat === 'erreur') {
+      if (ev.recharger && !session) { afficherPanne(ev.message); return; } // lecture de reglages_maison/ecran impossible : le compte reste connecté, on propose de recharger
       toast(ev.message, { type: 'erreur' });
     }
   });
+}
+
+/** Message de panne au démarrage (avant toute session), avec « Recharger » : jamais de déconnexion. */
+function afficherPanne(message) {
+  remplir(racine, h('div', { class: 'chargement-panne', role: 'alert', dataset: { role: 'panne-demarrage' } },
+    h('p', {}, message),
+    h('button', { type: 'button', class: 'bouton', onclick: () => location.reload() }, 'Recharger')));
 }
 
 async function lancerConnexion() {

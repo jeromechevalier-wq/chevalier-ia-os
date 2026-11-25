@@ -9,9 +9,9 @@ import {
   signInWithCredential,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { auth, db, MODE_EMULATEURS } from './firebase.js';
-import { COMPTES_AUTORISES } from './firebase-config.js';
-import { cheminMembre, lireCompteAvecReprises, MESSAGE_CONNEXION_IMPOSSIBLE, crmOuvertAuxComptes, suiviGenerations } from './membres.js';
+import { auth, db, MODE_EMULATEURS, CROCHETS_TEST } from './firebase.js';
+import { cheminMembre, lireCompteAvecReprises, MESSAGE_CONNEXION_IMPOSSIBLE, suiviGenerations } from './membres.js';
+import { lirePublic, lireEcran, crmOuvert, definirModeCrm, viderComptesMaison, MESSAGE_ECRAN_ABSENT } from './comptes-maison.js';
 
 export const MESSAGE_REFUS = "Accès refusé : ce compte n'est pas autorisé";
 
@@ -22,12 +22,46 @@ export function utiliserRedirection() {
   return installee || mobile;
 }
 
-/** Compte autorisé : email vérifié et présent dans la liste. */
-export function compteAutorise(user) {
-  if (!user || !user.email || user.emailVerified !== true) return null;
-  const email = user.email.toLowerCase();
-  const profil = COMPTES_AUTORISES[email];
-  return profil ? { email, uid: user.uid, ...profil } : null;
+// Chantier 0 (26/11/2026) : aucun compte n'est écrit dans le code. Le CRM lit reglages_maison/public avant la connexion (le CRM existe-t-il ici ?) et
+// reglages_maison/ecran après (comptes, noms, portraits), voir js/os/comptes-maison.js. Les règles Firestore restent la vraie protection.
+const DOC_PUBLIC = ['reglages_maison', 'public'];
+const DOC_ECRAN = ['reglages_maison', 'ecran'];
+const lireDocument = (chemin) => async () => {
+  const fiche = await getDoc(doc(db, ...chemin));
+  return fiche.exists() ? fiche.data() : null;
+};
+
+/**
+ * Compte du CRM : e-mail vérifié, lecture de reglages_maison/ecran permise par les règles (compte de la fiche serveur) et présent dans ses personnes.
+ * Rend { etat: 'ok', compte: { email, uid, nom, avatar } } | { etat: 'refus' } | { etat: 'absent' } | { etat: 'erreur' } (voir lireEcran).
+ */
+export async function compteAutorise(user) {
+  const test = MODE_EMULATEURS ? window.__chevalierTest : null; // crochets de test (émulateurs seulement)
+  return lireEcran({
+    user,
+    attentes: test?.attentesMembre,
+    lire: async () => {
+      if (test?.echecsEcran > 0) { test.echecsEcran--; throw Object.assign(new Error('échec simulé'), { code: 'unavailable' }); }
+      return lireDocument(DOC_ECRAN)();
+    },
+  });
+}
+
+/**
+ * Démarrage du CRM, avant toute connexion : lit reglages_maison/public. Rend { etat: 'crm' | 'plateforme' | 'absent' | 'erreur' } (voir lirePublic).
+ * Test : ?emulateurs=1&sansComptes=1 simule la plateforme (aucune lecture).
+ */
+export async function preparerCrm() {
+  if (MODE_EMULATEURS && new URLSearchParams(location.search).has('sansComptes')) { definirModeCrm(false); return { etat: 'plateforme' }; }
+  const test = MODE_EMULATEURS ? CROCHETS_TEST : null; // crochet posé avant le chargement (addInitScript, lu par firebase.js) : panne simulée de la lecture
+  let echecs = Number(test?.echecsPublic) || 0;
+  return lirePublic({
+    attentes: test?.attentesPublic,
+    lire: async () => {
+      if (echecs > 0) { echecs--; throw Object.assign(new Error('échec simulé'), { code: 'unavailable' }); }
+      return lireDocument(DOC_PUBLIC)();
+    },
+  });
 }
 
 /**
@@ -49,10 +83,10 @@ export async function compteDuClient(user, client) {
   });
 }
 
-/** Faux sur la plateforme clients (liste vide) : pas de démarrage « CRM de Jérôme », donc jamais de signOut par refus. Test : ?emulateurs=1&sansComptes=1. */
+/** Faux sur la plateforme clients (reglages_maison/public illisible) ou tant que preparerCrm() n'a pas lu le document : jamais de signOut par refus. */
 export function crmDisponible() {
   if (MODE_EMULATEURS && new URLSearchParams(location.search).has('sansComptes')) return false;
-  return crmOuvertAuxComptes(COMPTES_AUTORISES);
+  return crmOuvert();
 }
 
 function fournisseur() {
@@ -90,7 +124,7 @@ export async function deconnecter() {
  * Surveille le compte connecté. Le rappel reçoit :
  *  { etat: 'connecte', compte } | { etat: 'deconnecte', refus: boolean } | { etat: 'erreur', message, recharger? }
  * Un compte non autorisé est déconnecté immédiatement, avant toute lecture de données.
- * Sans option : CRM de Jérôme (liste fixe, racine). Avec { client } : plateforme clients (appartenance lue dans Firestore).
+ * Sans option : CRM de Jérôme (reglages_maison/ecran, racine). Avec { client } : plateforme clients (appartenance lue dans Firestore).
  */
 export function surveillerCompte(rappel, { client = null } = {}) {
   if (!client && !crmDisponible()) return () => {}; // plateforme sans route d'espace : on n'écoute rien et on ne déconnecte personne
@@ -108,6 +142,7 @@ export function surveillerCompte(rappel, { client = null } = {}) {
     const g = generations.nouvelle();
     const perime = () => generations.perimee(g) || (user && auth.currentUser?.uid !== user.uid); // état changé pendant une attente : on se tait
     if (!user) {
+      if (!client) viderComptesMaison();
       rappel({ etat: 'deconnecte', refus });
       refus = false;
       return;
@@ -119,7 +154,11 @@ export function surveillerCompte(rappel, { client = null } = {}) {
       if (lu.etat === 'erreur') { rappel({ etat: 'erreur', message: MESSAGE_CONNEXION_IMPOSSIBLE, recharger: true }); return; } // jamais de signOut sur une panne
       compte = lu.compte ?? null;
     } else {
-      compte = compteAutorise(user);
+      const lu = await compteAutorise(user);
+      if (perime()) return;
+      if (lu.etat === 'erreur') { rappel({ etat: 'erreur', message: MESSAGE_CONNEXION_IMPOSSIBLE, recharger: true }); return; } // panne : jamais de signOut
+      if (lu.etat === 'absent') { rappel({ etat: 'erreur', message: MESSAGE_ECRAN_ABSENT, recharger: true }); return; } // fiche manquante : message clair, sans signOut
+      compte = lu.compte ?? null;
     }
     if (!compte) {
       if (perime()) return;
@@ -137,6 +176,7 @@ export function surveillerCompte(rappel, { client = null } = {}) {
 if (MODE_EMULATEURS) {
   window.__chevalierTest = {
     echecsMembre: 0, // nombre de lectures de la fiche d'appartenance à faire échouer (test de la panne passagère)
+    echecsEcran: 0, // idem pour reglages_maison/ecran (CRM)
     attentesMembre: undefined, // attentes entre reprises (ms), pour accélérer les tests
     connecter(email, emailVerifie = true) {
       const jeton = JSON.stringify({ sub: `test-${email}`, email, email_verified: emailVerifie });

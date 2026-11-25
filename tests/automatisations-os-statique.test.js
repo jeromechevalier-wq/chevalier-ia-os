@@ -15,8 +15,9 @@ describe('Chevalier IA OS : copie de tes workflows et vue administrateur (2.7.0)
   const OS = (f) => lire(`functions/src/automatisations/${f}`).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '');
   test('l\'accès administrateur vient d\'un seul fichier, le même pour l\'écran et le serveur ; le compte d\'assistant n\'y est pas', () => {
     const a = lire('js/os/administrateur.js');
-    assert.match(a, /ADMINISTRATEURS = Object\.freeze\(\['jerome\.chevalier@gmail\.com'\]\)/);
-    assert.ok(!/jeromebot/.test(a));
+    // Chantier 0, navigateur (26/11/2026) : l'écran lit la liste dans reglages_maison/ecran (comptes_jerome_seul), plus aucune adresse dans le fichier.
+    assert.match(a, /estCompteTitulaire\(email\)/);
+    assert.ok(!/@|jeromebot/.test(a.replace(/^\s*\/\/.*$/gm, '')));
     // Chantier 0 (25/11/2026) : côté serveur, « Jérôme seul » se lit dans la fiche reglages_maison/maison (comptes_jerome_seul), plus dans une copie de ce fichier.
     assert.match(OS('appels.js'), /estJeromeSeul\(jeton\.email, jeton\.email_verified === true\)/);
     assert.match(readFileSync(join(RACINE, 'scripts/preparer-fonctions.js'), 'utf8'), /rmSync\(join\(destination, 'administrateur\.js'\)/);

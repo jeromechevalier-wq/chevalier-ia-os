@@ -7,8 +7,10 @@ import {
   adresseHttpsValide, normaliserConnexion, controlerConnexion, definirConnexion, lireConnexion, controlerDemandeAcces, messageErreurAcces, hotesChanges, evaluerAcces,
   MESSAGE_NON_REGLEE, NOMS_WEBHOOKS, MESSAGE_ACCES_RESEAU, MESSAGE_ACCES_INTERNE,
 } from '../js/os/base-reglages.js';
-import { compteReserve, COMPTES_RESERVES } from '../js/os/acces-reserve.js';
-import { COMPTES_CONSOLE } from '../js/modules/console/acces.js';
+import { compteReserve } from '../js/os/acces-reserve.js';
+import { peutVoirConsole } from '../js/modules/console/acces.js';
+import { remplirComptesMaison, viderComptesMaison } from '../js/os/comptes-maison.js';
+import { ECRAN_ESSAI, COMPTE_JEROME, COMPTE_BOT } from './_reglages-maison-essai.js';
 
 const lire = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
 // Valeurs fictives : construites ici pour que le test n'écrive aucune adresse « en dur » comme exemple.
@@ -166,8 +168,12 @@ describe('B3 donner ou retirer l\'accès', () => {
     assert.doesNotMatch(MESSAGE_ACCES_INTERNE, /AIza|https?:|@|token|jeton/i, 'aucun secret ni adresse dans le message');
   });
   test('B3 la liste de l\'écran est celle de la Console : Jérôme seul', () => {
-    assert.deepEqual([...COMPTES_RESERVES], [...COMPTES_CONSOLE]);
-    assert.equal(compteReserve({ email: COMPTES_RESERVES[0].toUpperCase() }), true);
+    // Chantier 0, navigateur : les deux lisent comptes_jerome_seul de reglages_maison/ecran (lu à la connexion) ; pas encore lu = personne.
+    viderComptesMaison();
+    assert.equal(compteReserve({ email: COMPTE_JEROME }), false);
+    remplirComptesMaison(ECRAN_ESSAI);
+    for (const email of [COMPTE_JEROME, COMPTE_BOT, 'editeur@client-fictif.example']) assert.equal(compteReserve({ email }), peutVoirConsole({ email }), email);
+    assert.equal(compteReserve({ email: COMPTE_JEROME.toUpperCase() }), true);
     for (const c of [null, undefined, {}, { email: 'jeromebot.chevalierbot@gmail.com' }, { email: 'editeur@client-fictif.example' }, { email: 42 }]) assert.equal(compteReserve(c), false);
   });
 });

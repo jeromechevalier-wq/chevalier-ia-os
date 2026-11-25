@@ -1,7 +1,7 @@
 // Construction du paquet de déploiement (Hosting) d'un projet Firebase. Aucune dépendance, ne contacte aucun serveur.
 //
-// Principe : le CRM de Jérôme (projet chevalier-ia-os) est publié tel quel, depuis la racine du dépôt, avec js/os/firebase-config.js
-// qui reste son fichier de configuration. Pour un autre projet (la plateforme clients, chevalier-ia-app), on construit un dossier
+// Principe : le CRM de Jérôme (projet chevalier-ia-os) est publié tel quel, depuis la racine du dépôt ; son js/os/firebase-config.js est vide
+// (chantier 0, 26/11/2026 : le navigateur lit /__/firebase/init.json, voir js/os/firebase-init.js). Pour un autre projet (la plateforme clients, chevalier-ia-app), on construit un dossier
 // dist/<projet>/ : copie exacte des fichiers du site, SAUF js/os/firebase-config.js (et js/os/google-config.js), remplacés par des fichiers générés depuis
 // scripts/projets/<projet>.json. Le même code, la même version (version.json et js/os/version.js sont copiés tels quels),
 // une configuration par projet choisie au moment de construire, jamais devinée dans le navigateur.

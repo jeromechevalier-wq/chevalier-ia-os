@@ -354,19 +354,13 @@ Source : le site chevalier-ia.fr (`styles.css`, `tally-merci.html`, dossier `ass
 2. **Hébergement** : Firebase Hosting, projet `chevalier-ia-os`, adresse `https://chevalier-ia-os.web.app`. Dépôt GitHub privé `jeromechevalier-wq/chevalier-ia-os`, branche `main` ; action GitHub officielle `FirebaseExtended/action-hosting-deploy` à chaque push sur `main` (canal `live`, secret `FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS`). Version 2.0 sur plan gratuit Spark (aucune Cloud Function, aucun Cloud Storage) ; **depuis l'étape 2 du serveur MCP (03/10/2026), forfait Blaze avec budget d'alerte de 5 € par mois et une Cloud Function `mcp`** (dossier `functions/`, jamais publié avec le site ; voir `plan-mcp.md`). L'appli elle-même n'utilise toujours ni Cloud Function ni Cloud Storage.
 3. **Configuration Firebase** (`js/os/firebase-config.js`) :
    ```js
-   export const firebaseConfig = {
-     apiKey: "AIzaSyAa04eaHNaBJwGAUwMrDampugAn1aralXc",
-     authDomain: "chevalier-ia-os.web.app",
-     projectId: "chevalier-ia-os",
-     storageBucket: "chevalier-ia-os.firebasestorage.app",
-     messagingSenderId: "96526036520",
-     appId: "1:96526036520:web:d09f8ac76597dffaad0f1d"
-   };
-   export const COMPTES_AUTORISES = {
-     "jerome.chevalier@gmail.com": { nom: "Jérôme", avatar: "assets/jerome-portrait.png" },
-     "jeromebot.chevalierbot@gmail.com": { nom: "Charles", avatar: "assets/charles-portrait.png" }
-   };
+   // Configuration Firebase de la maison (chantier 0, 26/11/2026) : plus rien d'écrit ici pour le CRM.
+   // À la racine du dépôt (CRM de Jérôme), l'objet est vide : js/os/firebase.js le remplit avec la configuration servie par Firebase Hosting
+   // (/__/firebase/init.json, même projet que le site) avant d'initialiser Firebase. Les comptes et leurs noms sont lus dans reglages_maison/ecran.
+   // Sur la plateforme des clients, ce fichier est REMPLACÉ à la construction du paquet (scripts/hebergement.js) par un fichier complet, de même forme.
+   export const firebaseConfig = {};
    ```
+   Depuis le chantier 0 (partie navigateur, 26/11/2026), aucune clé, aucun projet et aucun compte n'est écrit dans `js/` : `js/os/firebase-init.js` lit `/__/firebase/init.json` (adresse réservée de Firebase Hosting) ; les comptes autorisés, leurs noms et portraits sont dans le document Firestore `reglages_maison/ecran` (lu après la connexion), et `reglages_maison/public` (`{ mode_crm }`, sans e-mail) dit avant la connexion si le CRM existe sur ce site. En mode test (`?emulateurs=1`), la configuration est factice et locale.
    `authDomain` est volontairement le domaine d'hébergement (au lieu de `firebaseapp.com`) pour que la connexion par redirection fonctionne sur iPhone. Connexion par fenêtre surgissante sur ordinateur, par redirection sur téléphone et en mode appli installée.
 4. **Règles Firestore** (`firestore.rules`). Inchangées de la version 1.0.0 à la version 2.0 ; **étendues le 03/10/2026 (étape 4 du serveur MCP, `plan-mcp.md` 5.5), puis le 04/10/2026 (audit des actions de l'écran, `audit-ecran.md`)** : les trois collections du serveur (`crm_audit`, `crm_audit_avant`, `mcp_limites`) sont sorties du joker ; l'appli lit le journal et ses copies et peut y **ajouter** les lignes de ses propres actions, sans jamais les modifier ni les supprimer. Pour toutes les autres collections, le comportement est identique à celui d'avant. Le serveur écrit avec le SDK d'administration, qui contourne les règles : il n'en dépend pas. Un nouvel utilisateur s'ajoute à `compteAutorise()` ici **et** dans `COMPTES_AUTORISES` (section suivante), puis les règles sont republiées par Jérôme dans la console (elles ne se déploient pas avec la fusion).
    ```

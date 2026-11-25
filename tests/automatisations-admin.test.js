@@ -15,7 +15,9 @@ const { creerLecteurN8n } = await import('../functions/partage/automatisations/n
 const E = await import('../functions/partage/automatisations/etiquettes.js');
 const { copieInterne, administrateur, lireVueAdministrateur, Refus } = await import('../functions/src/automatisations/appels.js');
 const { copieHoraire } = await import('../functions-plateforme/src/appels.js');
-const { estAdministrateur, ADMINISTRATEURS } = await import('../js/os/administrateur.js');
+const { estAdministrateur } = await import('../js/os/administrateur.js');
+const { remplirComptesMaison, viderComptesMaison } = await import('../js/os/comptes-maison.js');
+const { ECRAN_ESSAI } = await import('./_reglages-maison-essai.js');
 
 const appOs = getApps().find((a) => a.name === '[DEFAULT]') ?? initializeApp({ projectId: 'demo-chevalier-ia-os' });
 const appApp = initializeApp({ projectId: 'demo-chevalier-ia-app' }, 'plateforme-essai');
@@ -321,7 +323,11 @@ describe('A. Vue administrateur : accès réservé, lecture seule', () => {
   const appel = (auth, donnees) => administrateur({ db: dbOs, dbPlateforme: dbApp, n8n, auth, donnees, maintenant: T0 });
 
   test('A1 le compte de Jérôme est le seul administrateur (e-mail vérifié obligatoire) ; son compte d\'assistant ne l\'est pas', () => {
-    assert.deepEqual([...ADMINISTRATEURS], ['jerome.chevalier@gmail.com']);
+    // Chantier 0, navigateur : l'écran lit la liste dans reglages_maison/ecran (comptes_jerome_seul) ; pas encore lue = personne n'est administrateur.
+    viderComptesMaison();
+    assert.equal(estAdministrateur('jerome.chevalier@gmail.com', true), false);
+    remplirComptesMaison(ECRAN_ESSAI);
+    assert.deepEqual([...ECRAN_ESSAI.comptes_jerome_seul], ['jerome.chevalier@gmail.com']);
     assert.equal(estAdministrateur('Jerome.Chevalier@gmail.com', true), true);
     assert.equal(estAdministrateur('jerome.chevalier@gmail.com', false), false);
     assert.equal(estAdministrateur('jeromebot.chevalierbot@gmail.com', true), false);
