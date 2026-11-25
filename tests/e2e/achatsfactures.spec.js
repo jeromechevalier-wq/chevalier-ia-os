@@ -1,7 +1,7 @@
 // Module Achats « Factures » (25/11/2026, PR 8a, la LISTE seulement) : un test par critère (le nom commence par son numéro). Aucun appel réseau réel : la base et le webhook sont un faux réseau
 // posé par le crochet de test `window.__accesBase` (émulateurs seulement, voir js/os/acces-base.js), qui garde ses données en mémoire dans la page. Fausses données : tests/_donnees-achatsfactures.js (aucune vraie identité).
 //  F1 Kanban (3 colonnes, totaux avec avoir soustrait, étiquette Avoir) ; F2 pastilles de contrôle (couleur, forme, infobulle, jamais vert sans l'identité de l'espace) ; F3 vue Liste : tri par en-tête, recherche, filtres ;
-//  F4 menu « … » : Examiner (bientôt disponible), Archiver absent d'une facture à valider ; F5 archiver (confirmation, « Annuler » 8 s), Archives, désarchiver ; F6 favoris dans Filtres ;
+//  F4 menu « … » : Examiner (ouvre la page), Archiver absent d'une facture à valider ; F5 archiver (confirmation, « Annuler » 8 s), Archives, désarchiver ; F6 favoris dans Filtres ;
 //  F7 cas vide ; F8 cas d'erreur + « Réessayer » ; F9 export ; F10 connexion non réglée ; F11 refus du serveur ; F12 Réglages > Achats > Sauvegarde ; F13 pas de défilement horizontal ;
 //  F14 liste incomplète et analyses non lues dites à l'écran ; F15 aucune écriture hors des actions « archiver » et « desarchiver ».
 // Captures dans tests/e2e/captures/achatsfactures/ (non commitées), une par état, nommée avec le projet : ordinateur ou telephone.
@@ -166,20 +166,21 @@ test('F3 vue Liste : le tableau, le tri par en-tête, la recherche sans accents 
   await capturer(page, info, 'F3-liste-filtree');
 });
 
-test('F4 menu « … » : « Examiner » dit « bientôt disponible » (sans erreur) ; « Archiver » n\'existe pas pour une facture à valider', async ({ page }, info) => {
+test('F4 menu « … » : « Examiner » ouvre la page de la facture ; « Archiver » n\'existe pas pour une facture à valider', async ({ page }, info) => {
   await ouvrir(page);
   await carte(page, 'a1').locator('[data-action="menu-facture"]').click();
-  await expect(page.getByRole('menuitem')).toHaveText(['Examiner (bientôt disponible)']);
+  await expect(page.getByRole('menuitem')).toHaveText(['Examiner']);
   await page.getByRole('menuitem', { name: /Examiner/ }).click();
-  await expect(page.locator('.toast')).toContainText('Examiner : bientôt disponible');
-  await expect(page.locator('.toast-erreur')).toHaveCount(0);
+  await expect(page).toHaveURL(/achatsfactures\/examiner\/a1$/);
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Factures', level: 1 })).toBeVisible();
   await carte(page, 'h1').locator('[data-action="menu-facture"]').click();
-  await expect(page.getByRole('menuitem')).toHaveText(['Examiner (bientôt disponible)', 'Archiver']);
+  await expect(page.getByRole('menuitem')).toHaveText(['Examiner', 'Archiver']);
   await page.keyboard.press('Escape');
-  // Un clic sur la carte dit la même chose.
+  // Un clic sur la carte ouvre la même page.
   await carte(page, 'a2').click({ position: { x: 20, y: 40 } });
-  await expect(page.locator('.toast').last()).toContainText('Examiner : bientôt disponible');
-  await capturer(page, info, 'F4-examiner-bientot');
+  await expect(page).toHaveURL(/achatsfactures\/examiner\/a2$/);
+  await capturer(page, info, 'F4-examiner-ouvert');
 });
 
 test('F5 archiver : confirmation, puis « Annuler » ; la facture passe dans Archives ; désarchiver la remet', async ({ page }, info) => {
@@ -202,7 +203,7 @@ test('F5 archiver : confirmation, puis « Annuler » ; la facture passe dans Arc
   await expect(ligne(page, 'h2')).toBeVisible();
   await capturer(page, info, 'F5-archives');
   await ligne(page, 'h2').locator('[data-action="menu-facture"]').click();
-  await expect(page.getByRole('menuitem')).toHaveText(['Examiner (bientôt disponible)', 'Désarchiver']);
+  await expect(page.getByRole('menuitem')).toHaveText(['Examiner', 'Désarchiver']);
   await page.getByRole('menuitem', { name: 'Désarchiver' }).click();
   await expect(page.locator('.toast').last()).toContainText('Facture désarchivée');
   await expect(ligne(page, 'h2')).toHaveCount(0);

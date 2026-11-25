@@ -176,7 +176,7 @@ describe('verrous du module', () => {
   test('les écritures passent seulement par les actions métier : aucune écriture directe, aucun appel de la base hors du fichier des données et de l’écran', () => {
     for (const [nom, texte] of Object.entries(code)) {
       expect(/\.(insert|update|delete|upsert)\s*\(/.test(sansCommentaires(texte)) ? `${nom} : écriture directe` : '').toBe('')
-      if (nom !== 'donnees.js') expect(/appelerActionMetier|\.appeler\(/.test(sansCommentaires(texte)) ? `${nom} : appel hors des données` : '').toBe('')
+      if (nom !== 'donnees.js' && nom !== 'donnees-examiner.js') expect(/appelerActionMetier|\.appeler\(/.test(sansCommentaires(texte)) ? `${nom} : appel hors des données` : '').toBe('')
     }
   })
   test('la feuille de style n’a aucune couleur écrite en dur', () => {
@@ -186,9 +186,9 @@ describe('verrous du module', () => {
   test('l’export CSV ne contient jamais de coordonnées bancaires', () => {
     expect(/iban/i.test(sansCommentaires(code['export-csv.js']))).toBe(false)
   })
-  test('« Examiner » : le message « bientôt disponible » est dit, et « + Facture » n’existe pas encore (étape 8b)', () => {
-    expect(code['ecran.js']).toContain('MESSAGE_EXAMINER_BIENTOT')
-    expect(code['logique.js']).toContain('Examiner : bientôt disponible')
-    expect(/\+ ?Facture|Ajouter une facture/.test(sansCommentaires(code['ecran.js']))).toBe(false)
+  test('« Examiner » ouvre la page de la facture (étape 8b) et « + Facture » est dans la barre', () => {
+    expect(code['ecran.js']).toContain('achatsfactures/examiner/')
+    expect(code['ecran.js']).toContain('ajouter-facture')
+    expect(sansCommentaires(code['ecran.js'])).not.toContain('Examiner (bientôt disponible)')
   })
 })

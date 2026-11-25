@@ -1,0 +1,11 @@
+pdf.js (Mozilla) 6.4.299, bibliothèque de lecture de PDF.
+Origine : paquet npm officiel « pdfjs-dist@6.4.299 » (version exacte, la même que celle de l'application d'origine des factures, épinglée le 22/11/2026).
+Fichiers : legacy/build/pdf.min.mjs copié sous le nom pdf.min.js, legacy/build/pdf.worker.min.mjs copié sous le nom pdf.worker.min.js. Contenu copié sans modification ; seul le nom change (.mjs devient .js) pour que tout serveur les envoie comme du JavaScript.
+Pourquoi la version « legacy » : elle embarque les compléments de langage qui manquent à certains navigateurs. La version standard plantait (« getOrInsertComputed is not a function ») dans le Chromium des tests, et planterait dans tout navigateur un peu ancien.
+Date de l'ajout : 25/11/2026. Les empreintes ont été comparées le 25/11/2026 à celles des mêmes fichiers de deux installations du paquet (deux dossiers du Mac) : identiques. La date de publication de la version 6.4.299 sur npm n'a pas pu être vérifiée (le registre n'a pas répondu).
+Empreinte SHA-256 de pdf.min.js : bccc24ea711db8e44503629519904a5292d73b9daaa214bbe7cdcc282b0f4259
+Empreinte SHA-256 de pdf.worker.min.js : 145d2dd3ab0c86151011dba95acfa2d5336e2accd59388ea43dbee0efddaaec6
+Licence : Apache 2.0 (fichier LICENSE, copié du paquet).
+Ces fichiers sont chargés à la demande par la page Examiner du module Factures (js/modules/achatsfactures/pdf-lecteur.js), jamais depuis un CDN. Le lecteur n'utilise ni les polices standard, ni les décodeurs d'images en WebAssembly, ni les tables de caractères du paquet (non copiés : comme dans l'application d'origine).
+À savoir : le fichier contient des adresses http(s) écrites comme texte (sa propre documentation) ; le lecteur ne les appelle pas. Le PDF lui-même est lu depuis le lien temporaire donné par la base de l'espace.
+Un test (tests/statique.test.js, D2d) verrouille ces fichiers par leur empreinte : pour les mettre à jour, changer les empreintes dans le test ET ici.

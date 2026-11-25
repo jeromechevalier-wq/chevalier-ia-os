@@ -18,11 +18,21 @@ const json = (chemin) => JSON.parse(lire(chemin));
 const FICHIER_ECHARTS = 'assets/vendor/echarts/echarts.esm.min.js';
 const EMPREINTE_ECHARTS = '28515f26aa57f87eb1e4ed4eb446927eaf329b5f5e02b4bfd4b0264fea40d1da';
 
+/**
+ * Décision prise seul (25/11/2026, PR 8b) : même exception pour la bibliothèque pdf.js (lecteur de PDF de la page Examiner des factures), figée par empreinte.
+ * Deux fichiers JavaScript minifiés d'un tiers (Apache 2.0), copiés sans modification depuis le paquet npm officiel « pdfjs-dist@6.4.299 » (renommés de .mjs en .js : tout serveur les sert comme du JavaScript).
+ * Ils contiennent des adresses http(s) écrites comme texte : écartés des contrôles de texte (D2, D4), mais le test « D2d » échoue si leur contenu change ou si un autre fichier JavaScript s'ajoute dans leur dossier.
+ */
+const FICHIERS_PDFJS = {
+  'assets/vendor/pdfjs/pdf.min.js': 'bccc24ea711db8e44503629519904a5292d73b9daaa214bbe7cdcc282b0f4259',
+  'assets/vendor/pdfjs/pdf.worker.min.js': '145d2dd3ab0c86151011dba95acfa2d5336e2accd59388ea43dbee0efddaaec6',
+};
+
 /** Fichiers de l'appli publiée (hors tests, docs, ressources, dépôt). */
 function fichiersAppli(dossier = '', liste = []) {
   for (const nom of readdirSync(join(RACINE, dossier))) {
     const rel = join(dossier, nom);
-    if (rel.split(sep).join('/') === FICHIER_ECHARTS) continue;
+    if (rel.split(sep).join('/') === FICHIER_ECHARTS || Object.hasOwn(FICHIERS_PDFJS, rel.split(sep).join('/'))) continue;
     if (/^(\.|node_modules$|tests$|docs$|wiki$|ressources$|outils$|scripts$|functions$|functions-plateforme$)/.test(nom)) continue;
     if (statSync(join(RACINE, rel)).isDirectory()) fichiersAppli(rel, liste);
     else liste.push(rel);
@@ -112,6 +122,19 @@ describe('D2c exception ECharts figée', () => {
     assert.deepEqual(readdirSync(join(RACINE, 'assets/vendor/echarts')).filter((n) => /\.m?js$/.test(n)), ['echarts.esm.min.js']);
     for (const f of ['LICENSE', 'NOTICE', 'LICENSE-d3']) assert.ok(existsSync(join(RACINE, 'assets/vendor/echarts', f)), f);
     assert.ok(!fichiersAppli().includes(FICHIER_ECHARTS));
+  });
+});
+
+describe('D2d exception pdf.js figée', () => {
+  test('D2d les deux fichiers pdf.js sont exactement ceux verrouillés par leur empreinte, seuls fichiers JavaScript de leur dossier, avec licence et note de version', () => {
+    for (const [chemin, empreinte] of Object.entries(FICHIERS_PDFJS)) {
+      assert.equal(createHash('sha256').update(readFileSync(join(RACINE, chemin))).digest('hex'), empreinte, chemin);
+      assert.ok(lire('assets/vendor/pdfjs/LISEZMOI.txt').includes(empreinte), `LISEZMOI.txt doit citer l'empreinte de ${chemin}`);
+    }
+    assert.deepEqual(readdirSync(join(RACINE, 'assets/vendor/pdfjs')).filter((n) => /\.m?js$/.test(n)).sort(), ['pdf.min.js', 'pdf.worker.min.js']);
+    assert.ok(existsSync(join(RACINE, 'assets/vendor/pdfjs/LICENSE')));
+    assert.match(lire('assets/vendor/pdfjs/LISEZMOI.txt'), /pdfjs-dist@6\.4\.299/);
+    for (const f of fichiersAppli()) assert.ok(!Object.hasOwn(FICHIERS_PDFJS, f), f);
   });
 });
 
