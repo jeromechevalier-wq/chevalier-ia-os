@@ -155,7 +155,9 @@ describe('A5 verrous du code', () => {
           // Exception écrite (règle du 05/11/2026, docs/consignes-ui.md) : tout écran de liste utilise js/modules/crm/barre-liste.js (il n'importe que js/os/ui.js : aucune donnée du CRM).
           if (resolu.startsWith('js/modules/')) assert.ok(resolu.startsWith(`${dossier}/`) || resolu.startsWith('js/modules/achatscommun/') || resolu === 'js/modules/crm/barre-liste.js', `${f} importe ${cible}`);
         }
-        assert.doesNotMatch(lire(f), /pilotage/i, f);
+        // Le Tableau de bord 2 a un onglet « Pilotage » (le mot est le sien) : pour lui, on exclut par NOM l'import du module Pilotage, pas le mot.
+        if (dossier === 'js/modules/tableauachats') assert.doesNotMatch(lire(f), /modules\/pilotage|from '[^']*\/pilotage\//, f);
+        else assert.doesNotMatch(lire(f), /pilotage/i, f);
       }
     }
     assert.ok(statSync(join(RACINE, 'js/modules/achatscommun')).isDirectory());

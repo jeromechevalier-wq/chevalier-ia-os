@@ -69,7 +69,7 @@ test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'ac
   await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
   await expect(page.locator('[data-role="achats-etat-texte"]')).toHaveText('Accès prêt (badge à jour)');
   await capturer(page, info, 'A3-connecte');
-  for (const m of MODULES.slice(2)) {
+  for (const m of MODULES.slice(2).filter((x) => x.id !== 'tableauachats')) { // le Tableau de bord 2 a son propre écran (tests/e2e/tableauachats.spec.js)
     await page.evaluate((r) => { location.hash = `#/${r}`; }, m.route);
     await expect(page.getByRole('heading', { name: m.titre, level: 1 })).toBeVisible();
     await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
