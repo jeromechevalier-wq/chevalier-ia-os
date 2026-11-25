@@ -10,7 +10,7 @@ do $$
 declare
   v_siren text := pg_temp.siren('7300001');
   v_qui_id uuid := gen_random_uuid();
-  v_f uuid; v_f2 uuid; v_f3 uuid; v_ag uuid; v_four uuid; v_ch uuid; f public.factures%rowtype; v_n int;
+  v_f uuid; v_f2 uuid; v_f3 uuid; v_statut public.statut_facture; v_ag uuid; v_four uuid; v_ch uuid; f public.factures%rowtype; v_n int;
 begin
   -- 1er scan (par un courriel).
   insert into public.factures (fournisseur, numero, montant_ht, montant_tva, montant_ttc, email_message_id, fichier_path, extraction)
@@ -61,6 +61,11 @@ begin
   select a.agence_id, a.entreprise_id into v_ag, v_four from public.creer_agence_et_fournisseur(v_siren || '00027', null, 'Matériaux Exemple', 'Agence Nord', 'Lyon', 'alice') a;
   v_ch := public.creer_chantier('Maison Exemple', null, 'Client Exemple', null, 5000, 'en_cours', null, null, 'alice');
   perform public.remplacer_lignes_facture(v_f, '[{"designation":"Sable","quantite":1,"unite":"t","prix_unitaire_ht":105,"montant_ht":105}]', 'alice');
+  -- Une ligne lue ne se modifie pas, même en la glissant dans un archivage.
+  perform pg_temp.doit_echouer(format('update public.lignes_facture_lues set designation = %L, archive_le = now() where facture_id = %L', 'Autre', v_f), 'ajout_seul');
+  perform pg_temp.doit_echouer(format('update public.lignes_facture_lues set designation = %L where facture_id = %L', 'Autre', v_f), 'ajout_seul');
+  -- Un chantier ne naît pas archivé.
+  perform pg_temp.doit_echouer('insert into public.chantiers (nom, code, archive) values (''Né archivé'', ''CH-NA'', true)', 'archivage_a_la_creation');
   update public.factures set statut = 'acceptee', etablissement_id = v_ag, chantier_id = v_ch, decide_par = 'alice', decide_par_id = v_qui_id where id = v_f;
   select * into f from public.factures where id = v_f;
   perform pg_temp.egal(f.statut, 'acceptee'::public.statut_facture, 'statut accepté');
@@ -79,7 +84,8 @@ begin
 
   -- Archiver puis sortir des archives (avec trace au journal).
   perform public.archiver_facture(v_f, 'alice');
-  perform pg_temp.egal((select archivee_par from public.factures where id = v_f), 'alice', 'archivée par');
+  -- La personne qui archive est celle de la requête (app.utilisateur), pas le nom envoyé.
+  perform pg_temp.egal((select archivee_par from public.factures where id = v_f), 'alice@exemple.test', 'archivée par');
   perform public.desarchiver_facture(v_f, 'alice');
   perform pg_temp.egal((select archivee_le from public.factures where id = v_f), null::timestamptz, 'désarchivée');
 
@@ -96,6 +102,33 @@ begin
   -- Elle peut être acceptée de nouveau.
   update public.factures set statut = 'acceptee', etablissement_id = v_ag, decide_par = 'alice', decide_par_id = v_qui_id where id = v_f;
   perform pg_temp.egal((select statut from public.factures where id = v_f), 'acceptee'::public.statut_facture, 'acceptée de nouveau');
+
+  -- Écritures DIRECTES dans les tables (sans passer par la vue factures) : les mêmes garde-fous tiennent.
+  perform pg_temp.doit_echouer(format('update public.factures_identite set fournisseur_id = null where id = %L', v_f), 'facture_decidee_figee');
+  perform pg_temp.doit_echouer(format('update public.factures_identite set numero_normalise = %L where id = %L', 'AUTRE', v_f), 'facture_decidee_figee');
+  perform pg_temp.doit_echouer(format('update public.factures_identite set etablissement_id = null where id = %L', v_f), 'facture_decidee_figee');
+  perform pg_temp.doit_echouer(format('update public.factures_identite set chantier_id = %L where id = %L', v_ch, v_f), 'facture_decidee_figee');
+  perform pg_temp.doit_echouer(format('insert into public.factures_decisions (facture_id, decision, decide_par, decide_par_id) values (%L, %L, %L, %L)', v_f, 'accepter', 'alice', v_qui_id), 'facture_decidee_figee');
+  -- v_f2 est encore à valider : pas d'archivage, pas d'acceptation sans agence ni sans décideur, pas de « rouverte ».
+  perform pg_temp.doit_echouer(format('update public.factures_identite set archive_le = now() where id = %L', v_f2), 'archivage_facture_non_decidee');
+  perform pg_temp.doit_echouer(format('insert into public.factures_decisions (facture_id, decision, decide_par, decide_par_id) values (%L, %L, %L, %L)', v_f2, 'accepter', 'alice', v_qui_id), 'agence_obligatoire');
+  perform pg_temp.doit_echouer(format('insert into public.factures_decisions (facture_id, decision, decide_par) values (%L, %L, %L)', v_f2, 'accepter', 'alice'), 'decideur_manquant');
+  perform pg_temp.doit_echouer(format('insert into public.factures_decisions (facture_id, decision, decide_par, motif) values (%L, %L, %L, %L)', v_f2, 'rouverte', 'alice', 'motif'), 'facture_non_decidee');
+  -- Agence désactivée : acceptation directe refusée.
+  update public.factures_identite set etablissement_id = v_ag where id = v_f2;
+  perform public.desactiver_agence(v_ag, 'alice');
+  perform pg_temp.doit_echouer(format('insert into public.factures_decisions (facture_id, decision, decide_par, decide_par_id) values (%L, %L, %L, %L)', v_f2, 'accepter', 'alice', v_qui_id), 'agence_inactive');
+
+  -- Une facture REFUSÉE renvoyée par le fournisseur : le scan rejoint la facture, qui reste refusée (elle ne disparaît pas),
+  -- et le scan tardif se voit dans v_factures_scans_apres_decision.
+  update public.factures set statut = 'refusee', motif_refus = 'Montant faux', decide_par = 'alice', decide_par_id = v_qui_id where id = v_f2;
+  insert into public.factures (numero, montant_ht, email_message_id, extraction)
+  values ('FA-0043', 50, '<c9@exemple.test>', jsonb_build_object('fournisseur', jsonb_build_object('siren', v_siren)))
+  returning id, statut into v_f3, v_statut;
+  perform pg_temp.egal(v_f3, v_f2, 'le renvoi rejoint la facture refusée');
+  perform pg_temp.egal(v_statut, 'refusee'::public.statut_facture, 'statut rendu au robot');
+  perform pg_temp.egal((select statut from public.factures where id = v_f2), 'refusee'::public.statut_facture, 'la facture reste refusée et visible');
+  perform pg_temp.egal((select count(*)::int from public.v_factures_scans_apres_decision where facture_id = v_f2), 1, 'renvoi signalé');
 
   -- Une facture ne naît pas décidée.
   perform pg_temp.doit_echouer('insert into public.factures (numero, statut) values (''X-1'', ''acceptee'')', 'facture_creation_statut');

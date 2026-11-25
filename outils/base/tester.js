@@ -19,11 +19,10 @@ const { spawnSync } = require('child_process');
 const ICI = __dirname;
 const AVEC_A_ACTIVER = process.argv.includes('--avec-a-activer');
 
-if (process.env.PGHOST || process.env.DATABASE_URL) {
-  console.error('Refus : PGHOST ou DATABASE_URL est défini. Ce script ne joue que sur une base jetable : retire ces variables.');
+if (process.env.PGHOST || process.env.PGHOSTADDR || process.env.DATABASE_URL) {
+  console.error('Refus : PGHOST, PGHOSTADDR ou DATABASE_URL est défini. Ce script ne joue que sur une base jetable : retire ces variables.');
   process.exit(2);
 }
-for (const v of ['PGPORT', 'PGUSER', 'PGDATABASE', 'PGPASSWORD', 'PGSERVICE', 'PGSERVICEFILE', 'PGPASSFILE']) delete process.env[v];
 
 const BIN = process.env.PG_BIN || path.join(os.homedir(), 'Applications/Postgres.app/Contents/Versions/17/bin');
 const outil = (nom) => path.join(BIN, nom);
@@ -34,8 +33,11 @@ for (const nom of ['initdb', 'pg_ctl', 'psql']) {
   }
 }
 
-function lancer(nom, args, options = {}) {
-  const r = spawnSync(outil(nom), args, { encoding: 'utf8', ...options });
+// Environnement PROPRE pour les programmes de PostgreSQL : aucune variable PG* ni réglage hérité du terminal.
+const ENV_PROPRE = { PATH: process.env.PATH || '/usr/bin:/bin', HOME: os.homedir(), TMPDIR: os.tmpdir(), LC_ALL: 'C' };
+
+function lancer(nom, args, plus = {}) {
+  const r = spawnSync(outil(nom), args, { encoding: 'utf8', env: { ...ENV_PROPRE, ...plus } });
   if (r.error) throw r.error;
   return r;
 }
@@ -69,23 +71,54 @@ async function principal() {
   const journal = path.join(racine, 'serveur.log');
   let demarre = false;
   let code = 0;
+  let nettoye = false;
+  // Arrêt de LA base jetable (pg_ctl stop -D, jamais de kill) puis effacement de CE seul dossier temporaire.
+  const nettoyer = () => {
+    if (nettoye) return;
+    nettoye = true;
+    let arrete = true;
+    if (demarre) {
+      const arret = lancer('pg_ctl', ['stop', '-D', donnees, '-m', 'fast', '-w']);
+      if (arret.status !== 0) {
+        console.error(`Arrêt difficile : ${arret.stderr}`);
+        arrete = false;
+        code = code || 1;
+      }
+    }
+    if (process.argv.includes('--garder') || !arrete) {
+      console.log(`Dossier gardé : ${racine}`);
+    } else {
+      fs.rmSync(racine, { recursive: true, force: true });   // seulement le dossier temporaire créé ci-dessus
+    }
+  };
+  // Ctrl-C ou arrêt demandé : on nettoie avant de sortir.
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.on(signal, () => {
+      console.error(`\nInterrompu (${signal}) : arrêt de la base jetable.`);
+      code = 130;
+      nettoyer();
+      process.exit(130);
+    });
+  }
   try {
     const init = lancer('initdb', ['-D', donnees, '-U', 'plan_admin', '--auth=trust', '-E', 'UTF8', '--locale=C', '--no-instructions']);
     if (init.status !== 0) throw new Error(`initdb a échoué :\n${init.stderr}`);
     const port = await choisirPort(racine);
-    const opts = `-k ${racine} -p ${port} -c listen_addresses='' -c fsync=off -c log_min_messages=warning`;
+    const opts = `-k "${racine}" -p ${port} -c listen_addresses='' -c fsync=off -c log_min_messages=warning`;
     const dem = lancer('pg_ctl', ['start', '-D', donnees, '-w', '-t', '60', '-l', journal, '-o', opts]);
     if (dem.status !== 0) throw new Error(`Démarrage refusé :\n${dem.stderr}\n${fs.existsSync(journal) ? fs.readFileSync(journal, 'utf8') : ''}`);
     demarre = true;
     console.log(`Base jetable démarrée (PostgreSQL ${BIN.includes('/17/') ? '17' : '?'}, prise locale ${racine}, port ${port}).`);
 
     const psql = (base, fichier) => lancer('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-h', racine, '-p', String(port),
-      '-U', 'plan_admin', '-d', base, '-f', fichier], { env: { ...process.env, PGOPTIONS: '-c client_min_messages=warning' } });
+      '-U', 'plan_admin', '-d', base, '-f', fichier], { PGOPTIONS: '-c client_min_messages=warning' });
     const commande = (base, sql) => lancer('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-h', racine, '-p', String(port),
       '-U', 'plan_admin', '-d', base, '-c', sql]);
 
-    const jouer = (base, fichiers, etiquette) => {
+    // Entre deux fichiers, on laisse passer un tour : un Ctrl-C (SIGINT) est alors traité tout de suite (arrêt propre).
+    const jouer = async (base, fichiers, etiquette) => {
       for (const f of fichiers) {
+        await new Promise((ok) => setImmediate(ok));
         const r = psql(base, f);
         if (r.status !== 0) {
           throw new Error(`ÉCHEC ${etiquette} ${path.relative(ICI, f)}\n${r.stderr}${r.stdout}`);
@@ -100,28 +133,28 @@ async function principal() {
 
     let r = commande('postgres', 'create database plan');
     if (r.status !== 0) throw new Error(r.stderr);
-    jouer('plan', migrations, 'migration');
+    await jouer('plan', migrations, 'migration');
     // Les migrations se rejouent sans erreur (create or replace, if not exists).
-    jouer('plan', migrations, 'migration (2e passage)');
+    await jouer('plan', migrations, 'migration (2e passage)');
     // Chaque fichier de test part d'une copie neuve de la base migrée (les données d'un test ne gênent pas le suivant).
-    const testerChacun = (modele, fichiers, etiquette) => {
-      fichiers.forEach((f, i) => {
+    const testerChacun = async (modele, fichiers, etiquette) => {
+      for (const [i, f] of fichiers.entries()) {
         const base = `${modele}_t${i}`;
         const c = commande('postgres', `create database ${base} template ${modele}`);
         if (c.status !== 0) throw new Error(c.stderr);
-        jouer(base, [f], etiquette);
-      });
+        await jouer(base, [f], etiquette);
+      }
     };
-    testerChacun('plan', tests, 'test');
+    await testerChacun('plan', tests, 'test');
     let total = tests.length;
 
     if (AVEC_A_ACTIVER) {
       r = commande('postgres', 'create database plan_a_activer');
       if (r.status !== 0) throw new Error(r.stderr);
-      jouer('plan_a_activer', migrations, 'migration');
-      jouer('plan_a_activer', fichiersSql(path.join(ICI, 'a-activer')), 'à activer');
+      await jouer('plan_a_activer', migrations, 'migration');
+      await jouer('plan_a_activer', fichiersSql(path.join(ICI, 'a-activer')), 'à activer');
       const testsA = fichiersSql(path.join(ICI, 'tests', 'a-activer'));
-      testerChacun('plan_a_activer', testsA, 'test (à activer)');
+      await testerChacun('plan_a_activer', testsA, 'test (à activer)');
       total += testsA.length;
     } else {
       console.log('  (fichiers de a-activer/ non testés : relancer avec --avec-a-activer)');
@@ -131,20 +164,7 @@ async function principal() {
     console.error(`\n${e.message}`);
     code = 1;
   } finally {
-    let arrete = true;
-    if (demarre) {
-      const arret = lancer('pg_ctl', ['stop', '-D', donnees, '-m', 'fast', '-w']);
-      if (arret.status !== 0) {
-        console.error(`Arrêt difficile : ${arret.stderr}`);
-        arrete = false;
-        code = code || 1;
-      }
-    }
-    if (process.argv.includes('--garder') || !arrete) {
-      console.log(`Dossier gardé : ${racine}`);
-    } else if (arrete) {
-      fs.rmSync(racine, { recursive: true, force: true });   // seulement le dossier temporaire créé ci-dessus
-    }
+    nettoyer();
   }
   process.exit(code);
 }

@@ -22,7 +22,7 @@ begin
       execute format('grant select, insert, update on public.%I to porte, robot_reflets', t.relname);
       -- Décision prise seul (à valider par Jérôme) : indicateurs lit les TABLES entières de son espace et non plus colonne par colonne
       -- (les vues sont en security_invoker : elles lisent avec ses droits). Les favoris et les tickets ne le regardent pas.
-      if t.relname not in ('favoris', 'favoris_os', 'tickets_n8n', 'tickets_n8n_demandes') then
+      if t.relname not in ('favoris', 'favoris_os', 'tickets_n8n', 'tickets_n8n_demandes', 'journal_modifications') then
         execute format('grant select on public.%I to indicateurs', t.relname);
       end if;
     end if;
@@ -50,7 +50,7 @@ grant execute on all functions in schema public to porte, robot_reflets, indicat
 revoke execute on function public.poser_socle(text, boolean, boolean) from porte, robot_reflets, indicateurs;
 revoke execute on function public.poser_reflet(text) from porte, robot_reflets, indicateurs;
 -- Les nouvelles fonctions et tables ne reçoivent AUCUN droit par défaut : chaque migration future les donne elle-même.
-alter default privileges in schema public revoke execute on functions from public;
+alter default privileges revoke execute on functions from public;
 
 -- ------------------------------------------------------------------ Registre (règle 2)
 insert into public.registre_tables (nom_table, nature, verite_ou, robot, a_valider_par_jerome, explication) values

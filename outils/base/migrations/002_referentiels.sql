@@ -243,7 +243,10 @@ begin
     new.date_fin_reelle := (now() at time zone 'Europe/Paris')::date;
   end if;
   -- « archive » et archive_le vont ensemble (le déclencheur commun aa_socle_* passe avant et remplit l'heure et la personne).
-  if (tg_op = 'UPDATE' and new.archive is distinct from old.archive) or (tg_op = 'INSERT' and new.archive) then
+  if tg_op = 'INSERT' and new.archive then
+    raise exception 'Un chantier ne naît pas archivé' using errcode = 'P0001', detail = 'archivage_a_la_creation';
+  end if;
+  if tg_op = 'UPDATE' and new.archive is distinct from old.archive then
     if new.archive then
       new.archive_le := now();
       new.archive_par := public.utilisateur_obligatoire();

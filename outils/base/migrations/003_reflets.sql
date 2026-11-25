@@ -19,7 +19,7 @@ end $$;
 create or replace function public.reflet_copie_le() returns trigger
 language plpgsql as $$
 begin
-  new.copie_le := now();
+  new.copie_le := clock_timestamp();   -- heure réelle de la réception (même dans une longue transaction) : sert à dire si un scan est arrivé avant ou après une décision
   return new;
 end $$;
 

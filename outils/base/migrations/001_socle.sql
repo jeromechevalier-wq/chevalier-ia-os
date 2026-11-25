@@ -65,7 +65,7 @@ end $$;
 
 -- 3. Déclencheurs communs.
 -- « Qui et quand » : espace_id, cree_le, cree_par, modifie_le, modifie_par, archive_le et archive_par sont TOUJOURS remplis par la base,
--- jamais par la requête (ce que la requête envoie dans ces colonnes est écrasé).
+-- jamais par la requête (ce que la requête envoie dans ces colonnes est écrasé, archive_par compris : c'est toujours app.utilisateur).
 create or replace function public.socle_qui_et_quand() returns trigger
 language plpgsql as $$
 declare
@@ -92,7 +92,7 @@ begin
     -- Archivage : l'heure et la personne viennent de la base. Désarchiver remet les deux à vide.
     if old.archive_le is null and new.archive_le is not null then
       new.archive_le := now();
-      new.archive_par := coalesce(nullif(btrim(coalesce(new.archive_par, '')), ''), v_qui);
+      new.archive_par := v_qui;   -- toujours la personne de la requête (app.utilisateur), jamais un nom envoyé
     elsif old.archive_le is not null and new.archive_le is null then
       new.archive_par := null;
     else

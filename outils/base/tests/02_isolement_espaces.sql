@@ -3,6 +3,17 @@
 \ir aides.inc
 set role porte;
 create temp table ids_a as select * from pg_temp.peupler('espace-a', 'MARQA', '7000001');
+-- Photo de CHAQUE vue vue depuis A, AVANT que B existe : remplir B ne doit rien y changer (même empreinte après).
+create temp table photo_a (vue text primary key, empreinte text);
+do $$
+declare r record; v text;
+begin
+  perform pg_temp.entrer('espace-a', 'alice-marqa@exemple.test');
+  for r in select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'v' order by 1 loop
+    execute format('select md5(coalesce(string_agg(t::text, %L order by t::text), %L)) from public.%I t', '|', '', r.relname) into v;
+    insert into photo_a values (r.relname, v);
+  end loop;
+end $$;
 -- Même SIREN et même numéro de facture dans B : permis (l'unicité est PAR espace).
 create temp table ids_b as select * from pg_temp.peupler('espace-b', 'MARQB', '7000001');
 create temp table ids_b_textes as
@@ -29,6 +40,7 @@ begin
     foreach v_nom in array array['fournisseurs', 'etablissements_fournisseur', 'chantiers', 'factures_identite', 'factures_scans', 'factures_decisions',
                                  'lignes_facture_lues', 'lignes_facture_articles', 'articles_fournisseur', 'articles_reference', 'rapprochements_articles_tous',
                                  'ibans_confirmes', 'courriels_recus', 'couts_ia', 'n8n_executions', 'openrouter_cles_releves', 'journal_modifications'] loop
+      continue when not has_table_privilege(v_role, ('public.' || v_nom)::regclass, 'SELECT');
       execute format('select count(*) from public.%I', v_nom) into v_n;
       if v_n = 0 then raise exception '[%] la table % est vide dans A : le test ne prouverait rien', v_role, v_nom; end if;
     end loop;
@@ -49,9 +61,19 @@ begin
   end loop;
 end $$;
 
--- Fonctions de lecture : seulement A.
+-- Les photos des vues prises avant B sont identiques après B.
 set role porte;
 select pg_temp.entrer('espace-a', 'alice-marqa@exemple.test');
+do $$
+declare r record; v text;
+begin
+  for r in select * from photo_a loop
+    execute format('select md5(coalesce(string_agg(t::text, %L order by t::text), %L)) from public.%I t', '|', '', r.vue) into v;
+    if v is distinct from r.empreinte then raise exception 'La vue % a changé (vue depuis A) quand l''espace B a été rempli', r.vue; end if;
+  end loop;
+end $$;
+
+-- Fonctions de lecture : seulement A.
 do $$
 declare v_n int;
 begin
@@ -74,9 +96,11 @@ select pg_temp.doit_echouer(format('select public.archiver_facture(%L, %L)', (se
 select pg_temp.doit_echouer(format('select public.relier_facture_chantier(%L, %L, %L)', (select facture_id from ids_b), (select chantier_id from ids_a), 'alice'), 'facture_introuvable');
 select pg_temp.doit_echouer(format('select public.modifier_chantier(%L, %L, %L)', (select chantier_id from ids_b), '{"nom":"vol"}', 'alice'), 'chantier_introuvable');
 select pg_temp.doit_echouer(format('select public.confirmer_iban(%L, %L, %L, %L, %L)', (select fournisseur_id from ids_b), 'FR7630006000011234567890189', (select facture_id from ids_a), 'appel', 'alice'), 'fournisseur_introuvable');
-select pg_temp.doit_echouer(format('select public.valider_rapprochement(%L, %L, 1, %L)', (select article_id from ids_a), (select reference_id from ids_b), 'alice'), null);
+select pg_temp.doit_echouer(format('select public.valider_rapprochement(%L, %L, 1, %L)', (select article_id from ids_a), (select reference_id from ids_b), 'alice'), 'MESSAGE:violates foreign key constraint');
 select pg_temp.doit_echouer(format('select public.basculer_favori_os(%L, %L)', 'chantier', (select chantier_id from ids_b)), 'favori_cle_inconnue');
 select pg_temp.doit_echouer(format('select public.dissocier_rapprochement(%L, %L)', (select article_id from ids_b), 'alice'), 'rapprochement_introuvable');
+select pg_temp.doit_echouer(format('select public.refuser_suggestion(%L, %L)', (select article_id from ids_b), 'alice'), 'suggestion_introuvable');
+select pg_temp.doit_echouer(format('select public.reprendre_suggestion(%L, %L)', (select article_id from ids_b), 'alice'), 'refus_introuvable');
 select pg_temp.doit_echouer(format('select public.renommer_reference(%L, %L, %L)', (select reference_id from ids_b), 'vol', 'alice'), 'reference_introuvable');
 -- Écrire avec l'espace de B dans la requête : la base remet l'espace de la requête (A) ; modifier une ligne de B ne touche rien.
 do $$
@@ -92,11 +116,11 @@ begin
   perform pg_temp.egal(v_n, 0, 'modification d''une facture de B depuis A');
 end $$;
 -- Une clé étrangère ne peut pas viser une ligne d'un autre espace (clés composites espace_id + id).
-select pg_temp.doit_echouer(format('insert into public.etablissements_fournisseur (fournisseur_id, nom_agence) values (%L, %L)', (select fournisseur_id from ids_b), 'vol'), null);
+select pg_temp.doit_echouer(format('insert into public.etablissements_fournisseur (fournisseur_id, nom_agence) values (%L, %L)', (select fournisseur_id from ids_b), 'vol'), 'MESSAGE:violates foreign key constraint');
 
 -- Sans espace (absent, vide, blanc) : rien n'est visible, rien ne s'écrit.
 do $$
-declare r record; v_n bigint; v_esp text;
+declare r record; v_n bigint; v_esp text; v_cles text; v_tout text := '';
 begin
   foreach v_esp in array array['', '   '] loop
     perform set_config('app.espace_id', v_esp, false);
@@ -107,13 +131,42 @@ begin
     for r in select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'v' loop
       execute format('select count(*) from public.%I t where t::text ~ %L', r.relname, 'MARQ[AB]') into v_n;
       if v_n > 0 then raise exception 'Sans espace, la vue % montre des données', r.relname; end if;
+      -- Aucun nombre non nul (un total, un compte, un montant) : sans espace, tout est vide ou à zéro.
+      execute format('select string_agg(distinct e.key, %L) from public.%I t, jsonb_each(to_jsonb(t)) e where jsonb_typeof(e.value) = %L and e.value::text::numeric <> 0 and e.key not in (%L, %L)',
+                     ',', r.relname, 'number', 'ordre', 'periode_jours') into v_cles;   -- constantes écrites dans les vues (ordre des tranches, période)
+      if v_cles is not null then v_tout := v_tout || r.relname || ':' || v_cles || ' '; end if;
     end loop;
     perform pg_temp.doit_echouer('select public.creer_chantier(''X'', null, null, null, 0, null, null, null, ''alice'')', 'espace_manquant');
     perform pg_temp.doit_echouer('select * from public.lister_favoris_os()', 'acces_base_refuse');
   end loop;
+  if v_tout <> '' then raise exception 'Sans espace, nombres non nuls : %', v_tout; end if;
   -- Un espace inconnu ne montre rien non plus.
   perform set_config('app.espace_id', 'espace-inconnu', false);
   select count(*) into v_n from public.factures;
   perform pg_temp.egal(v_n, 0::bigint, 'espace inconnu');
+end $$;
+reset role;
+
+-- app.espace_id JAMAIS posé (nouvelle connexion, comme une connexion neuve du pool) : rien n'est visible, rien ne s'écrit.
+\c
+set role porte;
+select set_config('app.utilisateur', 'alice@exemple.test', false);
+do $$
+declare r record; v_n bigint;
+begin
+  if current_setting('app.espace_id', true) is not null and current_setting('app.espace_id', true) <> '' then
+    raise exception 'app.espace_id ne devrait pas être posé';
+  end if;
+  for r in select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname <> 'registre_tables'
+             and has_table_privilege('porte', c.oid, 'SELECT') loop
+    execute format('select count(*) from public.%I', r.relname) into v_n;
+    if v_n > 0 then raise exception 'Espace jamais posé : la table % montre % ligne(s)', r.relname, v_n; end if;
+  end loop;
+  begin
+    insert into public.chantiers (nom, code) values ('X', 'CH-X');
+    raise exception 'Espace jamais posé : un ajout a été accepté';
+  exception when others then
+    if sqlerrm like 'Espace jamais posé%' then raise; end if;
+  end;
 end $$;
 reset role;

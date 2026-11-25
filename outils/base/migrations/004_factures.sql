@@ -11,6 +11,8 @@
 --   factures, journal_decisions, lignes_facture, rapprochements_articles, suggestions_refusees.
 -- Les robots d'aujourd'hui écrivent encore « insert into factures » et « update factures set statut = … » : la vue factures a des déclencheurs
 -- « à la place de » (INSTEAD OF) qui rangent chaque écriture dans la bonne table, avec les mêmes contrôles que le dépôt BTP (008 à 013).
+-- Les garde-fous essentiels sont AUSSI posés sur les tables elles-mêmes (la porte peut les écrire en direct) : identité figée dès que la
+-- facture est décidée, archivage seulement d'une facture décidée, décision « accepter » seulement avec une agence active et un décideur.
 --
 -- Un même document peut arriver plusieurs fois (re-scanné avec des notes à la main pour relier les bons de livraison) :
 -- un nouveau scan au même SIREN + numéro s'AJOUTE à la même facture, il ne crée pas de doublon. Un désaccord entre deux scans est signalé
@@ -128,7 +130,7 @@ create trigger factures_decisions_ajout_seul before update on public.factures_de
 create or replace function public.factures_decisions_heure() returns trigger
 language plpgsql as $$
 begin
-  new.decide_le := now();
+  new.decide_le := clock_timestamp();   -- heure réelle (comparée à copie_le des scans)
   return new;
 end $$;
 drop trigger if exists ab_decision_heure on public.factures_decisions;
@@ -400,7 +402,8 @@ begin
   if public.statut_de_facture(new.facture_id) <> 'a_valider' then
     raise exception 'Facture déjà décidée : ses lignes ne peuvent plus changer (% refusé)', tg_op using errcode = 'P0001', detail = 'facture_decidee_figee';
   end if;
-  if tg_op = 'UPDATE' and (new.archive_le is not distinct from old.archive_le) then
+  if tg_op = 'UPDATE' and (new.archive_le is not distinct from old.archive_le
+       or (to_jsonb(new) - '{archive_le,archive_par,modifie_le,modifie_par}'::text[]) <> (to_jsonb(old) - '{archive_le,archive_par,modifie_le,modifie_par}'::text[])) then
     raise exception 'Une ligne lue ne se modifie pas : on remplace les lignes (remplacer_lignes_facture)' using errcode = 'P0001', detail = 'ajout_seul';
   end if;
   if tg_op = 'INSERT' then
@@ -571,6 +574,74 @@ cross join lateral public.cles_lues_facture(i.id) k
 join public.factures_identite autre on autre.id <> i.id and autre.fournisseur_siren = k.siren and autre.numero_normalise = k.numero_normalise
 where (i.fournisseur_siren, i.numero_normalise) is distinct from (k.siren, k.numero_normalise);
 
+-- Scans arrivés APRÈS la dernière décision (ex. une facture refusée renvoyée par le fournisseur) : gardés, mais sans effet sur ce qui
+-- s'affiche ; cette vue les montre pour qu'une personne regarde (à valider par Jérôme : faut-il rouvrir la facture automatiquement ?).
+create or replace view public.v_factures_scans_apres_decision with (security_invoker = true) as
+select s.facture_id, s.id as scan_id, s.copie_le, s.source_nom, s.source_ref, s.email_message_id, s.montant_ht, s.montant_ttc,
+       d.decision as derniere_decision, d.decide_le as decide_le
+from public.factures_scans s
+join lateral (
+  select d0.decision, d0.decide_le from public.factures_decisions d0 where d0.facture_id = s.facture_id order by d0.rang desc limit 1
+) d on true
+where d.decision in ('accepter', 'refuser') and s.copie_le > d.decide_le;
+
+-- ===================================================================================================================
+-- Garde-fous sur les TABLES (et pas seulement sur la vue factures) : la porte peut écrire les tables en direct.
+-- ===================================================================================================================
+create or replace function public.factures_identite_garde() returns trigger
+language plpgsql
+set search_path = public, pg_temp as $$
+declare v_statut public.statut_facture := public.statut_de_facture(old.id); v_lien boolean;
+begin
+  v_lien := coalesce(nullif(current_setting('app.lien_chantier_facture', true), ''), '') = old.id::text;
+  if v_statut <> 'a_valider' then
+    if (new.fournisseur_siren, new.numero_normalise, new.fournisseur_id, new.etablissement_id)
+       is distinct from (old.fournisseur_siren, old.numero_normalise, old.fournisseur_id, old.etablissement_id)
+       or (new.chantier_id is distinct from old.chantier_id and not v_lien) then
+      raise exception 'Facture déjà décidée : son identité (fournisseur, numéro, agence, chantier) ne change plus (la réouverture passe par rouvrir_facture)'
+        using errcode = 'P0001', detail = 'facture_decidee_figee';
+    end if;
+  elsif new.archive_le is distinct from old.archive_le then
+    raise exception 'Archivage refusé : seule une facture déjà acceptée ou refusée peut être archivée'
+      using errcode = 'P0001', detail = 'archivage_facture_non_decidee';
+  end if;
+  return new;
+end $$;
+drop trigger if exists ac_identite_garde on public.factures_identite;
+create trigger ac_identite_garde before update on public.factures_identite for each row execute function public.factures_identite_garde();
+
+create or replace function public.factures_decisions_garde() returns trigger
+language plpgsql
+set search_path = public, pg_temp as $$
+declare v_statut public.statut_facture; v_ag uuid; v_actif boolean;
+begin
+  perform 1 from public.factures_identite where id = new.facture_id for update;
+  v_statut := public.statut_de_facture(new.facture_id);
+  if new.decision in ('accepter', 'refuser') then
+    if v_statut <> 'a_valider' then
+      raise exception 'Facture déjà décidée : la réouverture passe par rouvrir_facture' using errcode = 'P0001', detail = 'facture_decidee_figee';
+    end if;
+    if new.decide_par_id is null then
+      raise exception 'Décision refusée : identifiant du décideur manquant' using errcode = 'P0001', detail = 'decideur_manquant';
+    end if;
+  elsif v_statut = 'a_valider' then
+    raise exception 'Réouverture refusée : la facture n''est pas encore décidée' using errcode = 'P0001', detail = 'facture_non_decidee';
+  end if;
+  if new.decision = 'accepter' then
+    select i.etablissement_id into v_ag from public.factures_identite i where i.id = new.facture_id;
+    if v_ag is null then
+      raise exception 'Acceptation refusée : choisissez l''agence du fournisseur (agence obligatoire)' using errcode = 'P0001', detail = 'agence_obligatoire';
+    end if;
+    select e.actif into v_actif from public.etablissements_fournisseur e where e.id = v_ag;
+    if v_actif is not true then
+      raise exception 'Acceptation refusée : cette agence est désactivée' using errcode = 'P0001', detail = 'agence_inactive';
+    end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists ac_decision_garde on public.factures_decisions;
+create trigger ac_decision_garde before insert on public.factures_decisions for each row execute function public.factures_decisions_garde();
+
 -- ===================================================================================================================
 -- Écritures des robots d'aujourd'hui dans la vue factures : rangées dans les bonnes tables
 -- ===================================================================================================================
@@ -601,7 +672,8 @@ begin
     and (new.chantier_id is not null or new.etablissement_id is not null or new.fournisseur_id is not null)
     and public.statut_de_facture(i.id) = 'a_valider';
   new.id := v_scan.facture_id;
-  new.statut := 'a_valider';
+  -- Le statut rendu est le VRAI statut de la facture rejointe (une facture refusée renvoyée reste refusée, et se voit dans v_factures_scans_apres_decision).
+  new.statut := public.statut_de_facture(v_scan.facture_id);
   new.fournisseur_siren := v_scan.fournisseur_siren;
   new.numero_normalise := v_scan.numero_normalise;
   new.iban_normalise := v_scan.iban_normalise;
@@ -678,7 +750,8 @@ begin
           raise exception 'Archivage refusé : la personne qui archive est obligatoire (archivee_par)'
             using errcode = 'P0001', detail = 'archivage_sans_auteur';
         end if;
-        update public.factures_identite set archive_le = now(), archive_par = btrim(new.archivee_par) where id = old.id;
+        -- La personne qui archive est celle de la requête (le socle remplit archive_par) ; archivee_par ne sert qu'au libellé du journal.
+        update public.factures_identite set archive_le = now() where id = old.id;
         v_qui_id := nullif(current_setting('app.archive_qui_id', true), '')::uuid;
         perform public.journaliser_modification('factures', old.id, 'archiver', btrim(new.archivee_par), v_qui_id, null,
           (select jsonb_build_object('archivee_le', i.archive_le, 'archivee_par', i.archive_par) from public.factures_identite i where i.id = old.id));

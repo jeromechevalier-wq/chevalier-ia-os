@@ -5,7 +5,8 @@ begin
   perform set_config('app.espace_id', coalesce(p_espace, ''), false);
   perform set_config('app.utilisateur', coalesce(p_qui, ''), false);
 end $$;
--- doit_echouer(requête, detail attendu) : la requête DOIT échouer ; si detail est donné, l'erreur doit porter ce detail.
+-- doit_echouer(requête, detail attendu) : la requête DOIT échouer ; si detail est donné, l'erreur doit porter ce detail
+-- (ou, s'il commence par « MESSAGE: », son message doit contenir la suite).
 create or replace function pg_temp.doit_echouer(p_sql text, p_detail text) returns void language plpgsql as $$
 declare v_detail text; v_msg text;
 begin
@@ -13,7 +14,11 @@ begin
     execute p_sql;
   exception when others then
     get stacked diagnostics v_detail = pg_exception_detail, v_msg = message_text;
-    if p_detail is not null and coalesce(v_detail, '') <> p_detail then
+    if p_detail like 'MESSAGE:%' then
+      if strpos(v_msg, substr(p_detail, 9)) = 0 then
+        raise exception 'Message attendu contenant « % » mais reçu « % » pour : %', substr(p_detail, 9), v_msg, p_sql;
+      end if;
+    elsif p_detail is not null and coalesce(v_detail, '') <> p_detail then
       raise exception 'Erreur attendue « % » mais reçue « % » (%) pour : %', p_detail, v_detail, v_msg, p_sql;
     end if;
     return;
@@ -79,4 +84,11 @@ begin
   insert into public.n8n_executions (workflow_id, workflow_nom, execution_id, resultat) values ('wf-' || p_marque, 'Lecture ' || p_marque, 'ex-' || p_marque, 'ok');
   insert into public.openrouter_cles_releves (cle_nom, depense_jour_eur) values ('cle-' || p_marque, 1);
   return query select v_four, v_ag, v_ch, v_f, v_f2, v_art, v_ref, v_c;
+end $$;
+
+-- La base retire le droit d'exécuter par défaut (007) : on le redonne aux aides des tests, et à elles seules.
+do $$ declare f record; begin
+  for f in select p.oid::regprocedure as sig from pg_proc p where p.pronamespace = pg_my_temp_schema() loop
+    execute format('grant execute on function %s to public', f.sig);
+  end loop;
 end $$;

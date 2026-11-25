@@ -27,7 +27,7 @@ begin
   if v.cree_le < now() - interval '1 minute' then raise exception 'cree_le a été écrasé'; end if;
 
   -- Archiver : la base met l'heure et la personne (l'heure envoyée est ignorée).
-  update public.chantiers set archive_le = timestamptz '2000-01-01' where id = v.id;
+  update public.chantiers set archive_le = timestamptz '2000-01-01', archive_par = 'pirate' where id = v.id;
   select * into v from public.chantiers where id = v.id;
   perform pg_temp.egal(v.archive_par, 'bob@exemple.test', 'archive_par');
   if v.archive_le < now() - interval '1 minute' then raise exception 'archive_le ne vient pas de la base'; end if;

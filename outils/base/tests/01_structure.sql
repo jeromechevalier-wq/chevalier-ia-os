@@ -40,6 +40,11 @@ begin
     if not exists (select 1 from pg_trigger g where g.tgrelid = r.oid and g.tgname = 'aa_socle_pas_de_suppression') then
       raise exception 'Règle 6 : % n''a pas le déclencheur qui refuse DELETE', r.relname;
     end if;
+    -- Règle 7 : chaque table a son journal automatique (sauf le journal lui-même et le registre, qui change par migration).
+    if r.relname not in ('journal_modifications', 'registre_tables')
+       and not exists (select 1 from pg_trigger g where g.tgrelid = r.oid and g.tgname = 'zz_socle_journal') then
+      raise exception 'Règle 7 : % n''a pas le déclencheur du journal', r.relname;
+    end if;
   end loop;
 
   -- Règle 1 : toute unicité d'une table à espace commence par espace_id (sauf la clé primaire uuid, unique partout).
@@ -49,6 +54,13 @@ begin
      and c.relname <> 'registre_tables'
      and (select a.attname from pg_attribute a where a.attrelid = c.oid and a.attnum = i.indkey[0]) is distinct from 'espace_id';
   if v_liste is not null then raise exception 'Règle 1 : unicités sans espace_id en tête : %', v_liste; end if;
+
+  -- Règle 1 : chaque clé étrangère contient espace_id (un lien ne peut pas viser une ligne d'un autre espace).
+  select string_agg(k.conrelid::regclass::text || '.' || k.conname, ', ') into v_liste
+    from pg_constraint k
+   where k.contype = 'f' and k.connamespace = 'public'::regnamespace
+     and not exists (select 1 from pg_attribute a where a.attrelid = k.conrelid and a.attname = 'espace_id' and a.attnum = any (k.conkey));
+  if v_liste is not null then raise exception 'Règle 1 : clés étrangères sans espace_id : %', v_liste; end if;
 
   -- C2 : sécurité par ligne activée ET forcée sur toutes les tables à espace ; une règle « espace_courant » sur chacune.
   select string_agg(c.relname, ', ') into v_liste from pg_class c

@@ -55,6 +55,7 @@ node outils/base/tester.js --avec-a-activer
 
 - Trois rôles : `porte` (la future porte des Cloud Functions), `robot_reflets` (les robots qui recopient), `indicateurs` (le Pilotage, lecture seule). Aucun n'est superutilisateur, aucun n'a le droit de passer outre la sécurité par ligne (`bypassrls`).
 - À chaque requête, la porte dira « je suis dans l'espace X, pour la personne Y » (`app.espace_id` et `app.utilisateur`). La base ne montre et n'écrit **que** les lignes de l'espace X.
+- **Important pour la porte** : elle pose ces deux réglages avec `set_config(…, true)` **à l'intérieur d'une transaction** (`begin` … `commit`). Ainsi ils disparaissent à la fin de la transaction. Sinon, avec un pool de connexions (des connexions réutilisées d'un client à l'autre), l'espace du client précédent pourrait rester posé sur la connexion.
 - **Sans espace (absent, vide ou blanc), rien n'est visible et rien ne s'écrit.**
 - Sécurité par ligne **forcée** sur toutes les tables (même pour leur propriétaire), toutes les vues lisent avec les droits de celui qui demande (`security_invoker`), **aucune** fonction ne passe outre (`security definer` : zéro).
 - Le test `02` remplit deux espaces A et B, puis vérifie depuis A, avec chacun des 3 rôles : chaque table, **chaque vue** (les 74) et chaque fonction de lecture ; et que les fonctions d'écriture ne trouvent pas les lignes de B.
@@ -97,6 +98,8 @@ node outils/base/tester.js --avec-a-activer
 | `rapprochements_articles` | `rapprochements_articles_tous` (avec les liens archivés) | `rapprochements_articles` (seulement ceux en cours) |
 | `suggestions_refusees` | `suggestions_refusees_tous` | `suggestions_refusees` |
 
+Les garde-fous des factures ne tiennent pas seulement par la vue : ils sont **aussi posés sur les tables** (la porte peut les écrire en direct). Une facture décidée a son identité figée (fournisseur, numéro, agence ; le chantier seulement par `relier_facture_chantier`) ; seule une facture décidée s'archive ; une décision « accepter » exige une agence active et l'identifiant du décideur ; on ne décide pas deux fois sans rouvrir. Le test `07` le vérifie par des écritures directes.
+
 Il n'y a **pas** de table des bons de livraison. Une facture re-scannée (avec des notes à la main) est un **2e scan de la même facture** : même SIREN + même numéro = même facture, jamais un doublon. Si deux scans ne disent pas la même chose (montant, date, IBAN), la vue `v_factures_desaccords` le montre ; le robot ne tranche pas.
 
 ## Ce qui a été enlevé de Supabase, et pourquoi
@@ -124,7 +127,7 @@ Les nouvelles colonnes s'appellent `cree_le`, `modifie_le`, `archive_le`, etc. C
 | `factures.decide_par`, `decide_par_id` | `factures_decisions.decide_par`, `decide_par_id` (dernière décision) |
 | `factures.date_decision` | `factures_decisions.decide_le` |
 | `factures.statut`, `motif_refus`, `motif_acceptation`, `alertes_a_la_decision`, `acceptee_malgre_alerte` | `factures_decisions` (dernière décision) |
-| `factures.archivee_le`, `archivee_par` | `factures_identite.archive_le`, `archive_par` |
+| `factures.archivee_le`, `archivee_par` | `factures_identite.archive_le`, `archive_par`. La personne qui archive est **toujours** celle de la requête (`app.utilisateur`) : le nom envoyé dans `archivee_par` ne sert plus qu'au libellé du journal. |
 | `factures.montant_ht`, `numero`, `date_facture`… | Dernière correction si elle existe, sinon dernier scan reçu avant la décision |
 | `lignes_facture.created_at` | `lignes_facture_lues.cree_le` |
 | `lignes_facture.article_fournisseur_id` | `lignes_facture_articles` (lien en cours) |
@@ -139,19 +142,22 @@ Le test `05` vérifie, sur le schéma d'aujourd'hui relevé automatiquement : le
 1. **Où vivront les PDF des factures** (Google Cloud Storage ?). Le plan garde seulement le chemin du fichier.
 2. **Tickets n8n** (`tickets_n8n`, `tickets_n8n_demandes`, `demander_ticket_n8n`, `consommer_ticket`) : gardés, mais sans doute inutiles quand la porte existera. Les supprimer ?
 3. **La règle « doublon refusé avec motif »** : aujourd'hui, une 2e facture au même fournisseur + numéro est refusée par la personne avec un motif. Demain, un 2e scan **rejoint** la même facture (pas de doublon du tout). Le seul cas qui reste : une correction de numéro qui tomberait sur une autre facture ; elle est **refusée** (pas de fusion automatique) et la vue `v_factures_doublons_possibles` montre les deux factures. Comment fusionner deux factures à la main : à décider.
-4. **La clé de la facture** : le plan dit « une facture = SIREN lu + numéro dans l'espace » (le robot lit un SIREN, pas notre fiche) **et** « une facture = fiche fournisseur + numéro » dès que la fiche est connue (correction C3). Les deux règles existent ensemble.
+4. **La clé de la facture** : le plan dit « une facture = SIREN lu + numéro dans l'espace » (le robot lit un SIREN, pas notre fiche) **et** « une facture = fiche fournisseur + numéro » dès que la fiche est connue (correction C3). Les deux règles existent ensemble. À savoir : tant qu'une facture est à valider, l'arrivée d'un nouveau scan peut **réécrire** `factures_identite.fournisseur_siren` et `numero_normalise` (la base les recale sur la dernière lecture, sauf si une autre facture les porte déjà). Une fois décidée, l'identité est figée (garde-fou posé sur la table elle-même, pas seulement sur la vue).
 5. **Un scan qui arrive sans facture** (`factures_scans.facture_id` vide) : la base le range tout de suite dans la facture qui a le même SIREN + numéro, ou en crée une nouvelle (à identifier). D'accord ?
 6. **Une facture décidée est entièrement figée**, y compris ce qui a été lu (aujourd'hui, une nouvelle lecture pouvait encore changer certaines valeurs). Un scan arrivé après la décision est gardé mais ne change pas ce qui s'affiche.
 7. **`rapprochements_articles_tous` classée source** alors qu'elle contient aussi des suggestions de l'IA (une suggestion est une proposition, la vérité est la validation par une personne).
 8. **Le registre n'a pas d'espace** (il décrit la structure, commune à tous).
 9. **Le journal garde un compteur** (`bigint`) au lieu d'un uuid, pour garder l'ordre exact des écritures.
 10. **Le code automatique des chantiers (CH-0001) est compté par espace** (chaque client commence à CH-0001).
-11. **`indicateurs` lit les tables entières de son espace**, et non plus colonne par colonne (obligatoire avec les vues `security_invoker`).
+11. **`indicateurs` lit les tables entières de son espace**, et non plus colonne par colonne (obligatoire avec les vues `security_invoker`). Il ne lit ni le journal, ni les favoris, ni les tickets.
 12. **`decide_par_id` reste obligatoire** pour décider (comme aujourd'hui).
 13. **Coûts de l'IA sans identifiant d'appel** : la base fabrique une référence unique ; il vaudrait mieux que n8n envoie l'identifiant de l'appel chez OpenRouter. Même chose pour une exécution n8n sans numéro.
 14. **L'heure `cree_le` des reflets** (`couts_ia`, `n8n_executions`, `openrouter_cles_releves`) est l'heure de la base : si un robot envoyait l'heure de l'événement dans `cree_le`, elle est ignorée. Faut-il une colonne « heure de l'événement » à part ?
-15. **La porte peut écrire dans le journal** (les fonctions l'écrivent avec ses droits) : elle ne peut ni le modifier ni l'effacer, et l'heure vient de la base, mais elle pourrait y ajouter une ligne inventée. Plus tard : une écriture du journal réservée (fonction filtrée par espace).
+15. **Des noms viennent encore de la requête, pas de `app.utilisateur`** : `journal_modifications.qui` (écrit par les fonctions métier avec `p_qui`), `factures_decisions.decide_par`, `rapprochements.valide_par`, `suggestions_refusees.refuse_par`, `ibans_confirmes.confirme_par` (tous venant de `p_qui`). Et la porte peut ajouter une ligne au journal (elle ne peut ni la modifier ni l'effacer, l'heure vient de la base). Plus tard : prendre ces noms dans `app.utilisateur`, et réserver l'écriture du journal (fonction filtrée par espace). En revanche `cree_par`, `modifie_par` et `archive_par` viennent toujours de `app.utilisateur`.
 16. **Les favoris de l'appli BTP** (`favoris`, `basculer_favori`, `lister_favoris`) : gardés tant que l'appli BTP existe.
+17. **Une facture déjà décidée qui revient** (ex. refusée, puis renvoyée par le fournisseur avec le même numéro) : le nouveau scan rejoint la facture, qui **garde** sa décision (elle reste refusée et visible ; le robot reçoit le vrai statut). Le scan est montré dans la vue `v_factures_scans_apres_decision` pour qu'une personne regarde. Faut-il plutôt rouvrir la facture toute seule ?
+18. **Compteurs communs à tous les espaces** : le numéro du journal (`journal_modifications.id`) et les rangs (`rang`) des scans, décisions et corrections sont des compteurs de toute la base, pas un par espace. Ils ne servent qu'à ranger dans l'ordre ; un client pourrait seulement deviner, aux trous dans les numéros, que d'autres écritures existent. D'accord ?
+19. **Heure réelle pour les scans et les décisions** : `copie_le` et `decide_le` prennent l'heure exacte (`clock_timestamp()`), pas l'heure du début de la transaction, pour savoir sans erreur si un scan est arrivé avant ou après une décision.
 
 ## Plus tard
 
