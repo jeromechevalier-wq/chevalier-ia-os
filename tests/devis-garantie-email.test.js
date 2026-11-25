@@ -5,6 +5,7 @@
 //  1 obtenir_pdf_officiel_devis : lien court vers le PDF d'un devis finalisé, jamais d'un brouillon, jamais fabriqué ; 2 preparer_email : brouillon seulement ;
 //  3 la règle est dans la description de TOUS les outils des devis ; 4 enregistrer_envoi_devis distingue « depuis le brouillon du logiciel » et « hors logiciel » ;
 //  5 aucune portée ni appel d'envoi Gmail dans le code du serveur ni des outils ; 6 rejeu : finalisé -> PDF officiel -> brouillon, aucune voie d'envoi.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -15,7 +16,9 @@ import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { OUTILS, annotationsDe } from '../functions/src/mcp/outils/index.js';
 import { varianteDuProfil } from '../functions/src/mcp/outils/variantes-assistant-devis.js';
 import { GARANTIE_PAS_D_ENVOI, concerneParLaGarantie } from '../functions/src/mcp/outils/garantie.js';
-import { creerSortieN8n, HOTE_N8N } from '../functions/src/coeur/n8n-sortie.js';
+import { creerSortieN8n, hoteN8nMaison } from '../functions/src/coeur/n8n-sortie.js';
+import { adresseSite } from '../functions/src/securite/maison.js';
+import { HOTE_N8N_ESSAI as HOTE_N8N } from './_reglages-maison-essai.js'; // chantier 0 : l'hôte vient de la fiche de la maison (ici celle des essais)
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerAccesMemoire, avecBase } from '../functions/src/coeur/donnees.js';
 import { creerLimiteur } from '../functions/src/securite/limites.js';
@@ -93,7 +96,7 @@ describe('1 obtenir_pdf_officiel_devis : le seul PDF, un lien court, jamais fabr
     const r = ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'f1' }));
     assert.equal(r.lien, `https://stockage.exemple.test/${CHEMIN}?X-Goog-Expires=300`);
     assert.equal(r.valableMinutes, 5);
-    assert.equal(r.lienApplication, 'https://chevalier-ia-os.web.app/#/devis/voir/f1');
+    assert.equal(r.lienApplication, `${adresseSite()}/#/devis/voir/f1`); // chantier 0 : adresse du site de la maison (projet courant) ; chez Jérôme, https://chevalier-ia-os.web.app (reglages-maison.test.js RM9)
     assert.equal(r.numero, 'DEV-2026-10-01-001');
     assert.equal(r.nom, PDF_OK.nom);
     assert.equal(r.avertissement, undefined, 'un devis en attente d’envoi, lien direct disponible : aucun avertissement');
@@ -454,10 +457,10 @@ describe('5 aucune portée ni appel d’envoi Gmail dans le code du serveur ni d
     assert.deepEqual(trouves, [], `à vérifier : ${trouves.join(', ')}`);
   });
 
-  test('5 le seul POST vers n8n part de coeur/n8n-sortie.js et le corps est fixe : action, espace, devisId, demandeId (aucun contenu d’e-mail)', () => {
+  test('5 le seul POST vers n8n part de coeur/n8n-sortie.js et le corps est fixe : action, espace, devisId, demandeId (aucun contenu d’e-mail)', async () => {
     const source = readFileSync(join(racine, 'functions/src/coeur/n8n-sortie.js'), 'utf8');
     assert.match(source, /JSON\.stringify\(\{ action: ACTION_N8N, espace, devisId, demandeId \}\)/);
-    assert.equal(HOTE_N8N, 'n8n.chevalier-ia.fr');
+    assert.equal(await hoteN8nMaison(), HOTE_N8N, 'hôte accepté = celui de la fiche reglages_maison/maison');
   });
 
   test('5 les secrets lus pour la préparation sont ceux du brouillon (adresse du webhook et clé), aucun identifiant de messagerie', () => {
@@ -478,7 +481,7 @@ describe('6 rejeu : devis finalisé -> PDF officiel -> brouillon d’e-mail, auc
     const s = await demarrer({ devis: [finalise('f1')], fetchImpl });
     const pdf = ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'f1' }));
     assert.match(pdf.lien, /^https:\/\/stockage\.exemple\.test\//);
-    assert.match(pdf.lienApplication, /^https:\/\/chevalier-ia-os\.web\.app\/#\/devis\/voir\/f1$/);
+    assert.equal(pdf.lienApplication, `${adresseSite()}/#/devis/voir/f1`);
     const prep = ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1' }));
     assert.equal(prep.envoye, false);
     assert.equal(appelsSortants.length, 1, 'une seule demande sortante');

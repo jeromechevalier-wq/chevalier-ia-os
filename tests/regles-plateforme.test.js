@@ -444,3 +444,23 @@ describe('C3 Rendez-vous : règles de la plateforme clients', () => {
     await droitsComplets(ctx(ALICE), 'a', 'rdv_rendezvous');
   });
 });
+
+// Chantier 0 (25/11/2026) : la fiche reglages_maison (comptes, n8n, projet lié) existe aussi dans le projet de la plateforme ; aucune règle ne l'ouvre :
+// elle tombe dans le refus par défaut (firestore.plateforme.rules n'est pas modifié), seul le SDK d'administration du serveur la lit.
+describe('Chantier 0 : reglages_maison fermée au navigateur sur la plateforme', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      for (const id of ['maison', 'ecran', 'public']) await setDoc(doc(c.firestore(), 'reglages_maison', id), { comptes_autorises: ['admin@exemple.test'] });
+    });
+  });
+  test('RM-P1 personne ne lit, ne liste ni n\'écrit reglages_maison (éditrice, lecteur, visiteur, compte cité dans la fiche)', async () => {
+    for (const db of [ctx(ALICE), ctx(LEA), ctx('admin@exemple.test'), env.unauthenticatedContext().firestore()]) {
+      for (const id of ['maison', 'ecran', 'public']) {
+        await assertFails(getDoc(doc(db, 'reglages_maison', id)));
+        await assertFails(setDoc(doc(db, 'reglages_maison', id), { comptes_autorises: ['intrus@exemple.test'] }));
+        await assertFails(deleteDoc(doc(db, 'reglages_maison', id)));
+      }
+      await assertFails(getDocs(collection(db, 'reglages_maison')));
+    }
+  });
+});

@@ -1,5 +1,6 @@
 // L'assemblage RÉEL de la porte du CRM (functions/src/porte.js, creerPorteCrm) expose bien le module « devis » avec son service : clé, module actif, contrôle d'intégrité du workflow (faux n8n),
 // lecture de l'e-mail puis note du résultat. Sans émulateur : une fausse base Firestore en mémoire (juste ce que les accès du serveur utilisent) et un faux stockage.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { creerPorteCrm } from '../functions/src/porte.js';

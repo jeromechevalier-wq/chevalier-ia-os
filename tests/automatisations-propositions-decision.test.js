@@ -1,6 +1,7 @@
 // File « À valider » côté serveur : la décision (functions/src/coeur/propositions.js), la fonction appelable `automatisationsDecider`
 // (functions/src/automatisations/decider-appel.js) et les 5 outils MCP du module Automatisations. Base en mémoire, aucune donnée réelle, aucun réseau.
 // Les numéros 1 à 6 sont ceux des critères d'acceptation du brief.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -9,7 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { creerAccesMemoire, avecBase, COLLECTIONS } from '../functions/src/coeur/donnees.js';
 import { decider, ErreurDecision, controlerDemande } from '../functions/src/coeur/propositions.js';
 import { creerAppelDecider, ligneDeJournalDecision } from '../functions/src/automatisations/decider-appel.js';
-import { COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
+import { COMPTES_AUTORISES as LIRE_COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
+const COMPTES_AUTORISES = await LIRE_COMPTES_AUTORISES(); // chantier 0 : liste lue dans la fiche reglages_maison/maison (celle des essais : _fiche-essai.js)
 import { OUTILS, outilsAutorises, annotationsDe, OUTILS_NON_ANNULABLES } from '../functions/src/mcp/outils/index.js';
 import { lister_propositions, lire_proposition, lister_automatisations, valider_proposition, refuser_proposition, AVERTISSEMENT } from '../functions/src/mcp/outils/propositions.js';
 import { outilsDesModules } from '../functions/src/clients/gestionnaire.js';
@@ -336,7 +338,7 @@ describe('déclaration et déploiement', () => {
     assert.match(bloc, /onCall\(/);
     assert.match(bloc, /region: 'europe-west9'/);
     assert.match(bloc, /maxInstances: 3/);
-    assert.match(bloc, /serviceAccount: 'porte-serveur@chevalier-ia-os\.iam\.gserviceaccount\.com'/);
+    assert.match(bloc, /serviceAccount: 'porte-serveur@'/);
     assert.doesNotMatch(bloc, /secrets:|defineSecret/);
   });
   test('la copie du serveur pour la plateforme clients reçoit le même code de décision (et le fichier partagé)', () => {

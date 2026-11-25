@@ -1,12 +1,14 @@
 // Module Pilotage : les deux fonctions appelables (accès, visibilité des tuiles, cache, secret absent, aucune fuite) et le service. Tout en mémoire : faux Postgres, base en mémoire, aucun réseau.
 // Adresses @example.test et noms de vues fictifs ; les « secrets » ci-dessous sont de fausses valeurs.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { creerAppelPilotageLire, creerAppelPilotageEnregistrer, ligneDeJournalPilotage } from '../functions/src/pilotage/appel.js';
 import { creerServicePilotage, MESSAGE_TUILE } from '../functions/src/pilotage/service.js';
 import { creerConnecteurPostgres, ErreurPostgres } from '../functions/src/pilotage/postgres.js';
-import { ADMINISTRATEURS } from '../functions/partage/administrateur.js';
-import { COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
+import { ADMINISTRATEURS } from '../js/os/administrateur.js';
+import { COMPTES_AUTORISES as LIRE_COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
+const COMPTES_AUTORISES = await LIRE_COMPTES_AUTORISES(); // chantier 0 : liste lue dans la fiche reglages_maison/maison (celle des essais : _fiche-essai.js)
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { restaurerOperation, COLLECTIONS_RESERVEES_SUPER_ADMINS } from '../functions/src/coeur/restaurer.js';
 import { COLLECTIONS_ECRITES } from '../functions/src/coeur/ecriture.js';

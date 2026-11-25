@@ -1,5 +1,6 @@
 // Tests du point d'entrée HTTP du serveur MCP (étape 2) : origine, méthode, jeton, droits par profil, journaux sans secret.
 // Un vrai client MCP (SDK officiel) appelle le gestionnaire sur un serveur HTTP local ; aucun service Google n'est touché.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -10,6 +11,9 @@ import { OUTILS, outilsAutorises } from '../functions/src/mcp/outils/index.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { collections, MAINTENANT } from './_donnees-essai.js';
+// Chantier 0 (25/11/2026) : les adresses se déduisent du projet Google (GCLOUD_PROJECT). Ces essais (tout en mémoire, aucun émulateur) tournent « dans » le projet de Jérôme :
+// ils prouvent que chaque adresse rendue reste exactement celle d'avant.
+process.env.GCLOUD_PROJECT = 'chevalier-ia-os';
 
 // Liste blanche EXACTE du profil agent-devis (décision de Jérôme, 07/11/2026), écrite à la main : créer le client et le devis, le finaliser (aperçu + code), préparer l'e-mail. 21 outils.
 const LISTE_AGENT = ['qui_suis_je', 'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_devis', 'lire_devis', 'lire_reglages_devis', 'chercher_article', 'lister_articles', 'rechercher_article_par_phrase', 'obtenir_pdf_officiel_devis',

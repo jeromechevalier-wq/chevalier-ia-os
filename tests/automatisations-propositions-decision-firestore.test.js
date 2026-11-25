@@ -1,6 +1,7 @@
 // La décision d'une proposition contre l'ÉMULATEUR Firestore (SDK d'administration réel : transactions, Timestamps).
 // Prouve la vraie course : deux décisions lancées en même temps, une seule gagne, l'autre reçoit « Déjà décidée par … ».
 // Ignoré si l'émulateur n'est pas démarré. Projet de démonstration, jamais de données réelles.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { initializeApp, deleteApp } from '../functions/node_modules/firebase-admin/lib/esm/app/index.js';
@@ -8,7 +9,8 @@ import { getFirestore, Timestamp } from '../functions/node_modules/firebase-admi
 import { creerAccesFirestore } from '../functions/src/coeur/donnees.js';
 import { decider } from '../functions/src/coeur/propositions.js';
 import { valider_proposition, lire_proposition } from '../functions/src/mcp/outils/propositions.js';
-import { COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
+import { COMPTES_AUTORISES as LIRE_COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
+const COMPTES_AUTORISES = await LIRE_COMPTES_AUTORISES(); // chantier 0 : liste lue dans la fiche reglages_maison/maison (celle des essais : _fiche-essai.js)
 
 const emulateur = process.env.FIRESTORE_EMULATOR_HOST;
 const PROJET = 'demo-chevalier-propositions';

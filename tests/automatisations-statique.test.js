@@ -1,6 +1,8 @@
 // Contrôles sans réseau ni émulateur du module Automatisations (chantier 14) : lecture seule vers n8n, aucun secret, cohérence entre
 // le registre, les règles Firestore, les fonctions et la configuration de déploiement.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
+import { compteDeployeDans } from './_reglages-maison-essai.js';
 import { test, describe } from 'node:test';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -37,9 +39,10 @@ describe('Lecture seule vers n8n : seulement des requêtes GET', () => {
     const chemins = [...n8n.matchAll(/(?:lire|parcourir)\(\s*[`'"](\/[a-z/${}A-Z.]*)/g)].map((m) => m[1].replace(/\$\{[^}]*\}/g, ':id'));
     assert.deepEqual([...new Set(chemins)].sort(), ['/executions', '/executions/${encodeURIComponent', '/workflows']); // lecture de la liste des exécutions, d'une exécution, des workflows
   });
-  test('l\'adresse de n8n est celle de la production en https ; index.js n\'en passe pas d\'autre', () => {
-    assert.match(code('n8n.js'), /URL_N8N = 'https:\/\/n8n\.chevalier-ia\.fr'/);
-    assert.ok(!/url\s*:/.test(code('index.js')));
+  test('l\'adresse de n8n est celle de la fiche de la maison (chantier 0, 25/11/2026 : https://hôte vérifié par reglages-maison.js) ; index.js n\'en passe pas d\'autre', () => {
+    assert.ok(!/https?:\/\//.test(code('n8n.js').replace(/\/\/.*$/gm, '')), 'aucune adresse écrite dans n8n.js');
+    assert.match(code('n8n.js'), /if \(!u\) throw new ErreurN8n\('injoignable'/, 'adresse absente : refus (n8n injoignable), jamais une adresse par défaut');
+    assert.deepEqual(code('index.js').match(/\burl\s*:[^,}]*/g).map((x) => x.trim()), ["url: () => texteDe('n8n_url')"]);
   });
 });
 
@@ -47,7 +50,7 @@ describe('Aucun secret dans le dépôt', () => {
   test('la clé n8n n\'est lue que par defineSecret, au moment d\'un appel, et jamais écrite ni affichée', () => {
     const index = code('index.js');
     assert.match(index, /defineSecret\('N8N_API_KEY'\)/);
-    assert.match(index, /const lecteur = \(\) => creerLecteurN8n\(\{ cle: CLE_N8N\.value\(\) \}\)/);
+    assert.match(index, /const lecteur = \(\) => creerLecteurN8n\(\{ cle: CLE_N8N\.value\(\), url: \(\) => texteDe\('n8n_url'\) \}\)/);
     // Deux lectures : le lecteur des automatisations et la porte des workflows (lireSecret, au moment d'un appel).
     assert.equal((index.match(/CLE_N8N\.value\(\)/g) || []).length, 2);
     for (const f of fichiers) assert.ok(!/console\.|logger\.\w+\([^)]*\bcle\b/.test(code(f)), `${f} n'affiche pas la clé`);
@@ -141,11 +144,11 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
     const po = m.porte.__endpoint;
     assert.ok(po.httpsTrigger, 'fonction HTTPS');
     assert.deepEqual(po.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
-    assert.equal(po.serviceAccountEmail, 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com');
+    assert.equal(compteDeployeDans(po.serviceAccountEmail, 'chevalier-ia-app'), 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com'); // chantier 0 : « devis-pdf@ », complété avec le projet au déploiement
     assert.equal(po.maxInstances, 3);
     // Mon espace (2.10.0) : compte dédié (à créer avant le déploiement), 5 instances au plus, aucun secret
     const e = m.espaceReglages.__endpoint;
-    assert.equal(e.serviceAccountEmail, 'espace-reglages@chevalier-ia-app.iam.gserviceaccount.com');
+    assert.equal(compteDeployeDans(e.serviceAccountEmail, 'chevalier-ia-app'), 'espace-reglages@chevalier-ia-app.iam.gserviceaccount.com');
     assert.equal(e.maxInstances, 5);
     assert.equal(e.secretEnvironmentVariables, undefined);
     assert.ok(e.callableTrigger, 'fonction appelable');
@@ -160,7 +163,7 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
     // PDF des devis chez les clients : compte de service dédié (à créer avant le déploiement : docs/pdf-clients.md), AUCUN secret déclaré, 2 instances au plus pour la fabrication.
     for (const nom of ['devisPdf', 'devisPdfLien', 'devisPdfAuto']) {
       const d = m[nom].__endpoint;
-      assert.equal(d.serviceAccountEmail, 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com', nom);
+      assert.equal(compteDeployeDans(d.serviceAccountEmail, 'chevalier-ia-app'), 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com', nom);
       assert.equal(d.secretEnvironmentVariables, undefined, `${nom} : aucun secret`);
     }
     assert.ok(m.devisPdf.__endpoint.callableTrigger && m.devisPdfLien.__endpoint.callableTrigger, 'devisPdf et devisPdfLien : fonctions appelables');
@@ -168,7 +171,7 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
     for (const nom of ['documentDeposer', 'documentLien', 'documentRenommer', 'documentSupprimer']) {
       const d = m[nom].__endpoint;
       assert.ok(d.callableTrigger, `${nom} : fonction appelable`);
-      assert.equal(d.serviceAccountEmail, 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com', nom);
+      assert.equal(compteDeployeDans(d.serviceAccountEmail, 'chevalier-ia-app'), 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com', nom);
       assert.equal(d.secretEnvironmentVariables, undefined, `${nom} : aucun secret`);
     }
     assert.equal(m.documentDeposer.__endpoint.availableMemoryMb, 1024);

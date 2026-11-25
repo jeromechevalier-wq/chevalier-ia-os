@@ -1,9 +1,12 @@
 // Module Console (phase 0, 16/11/2026) : accès réservé à Jérôme (C1 à C4), jamais de valeur de secret (C7), Filet de sécurité (C5, C6), sélecteur (C8), export (C9).
 // Les écrans (C5, C6, C8, C10) sont aussi vus dans un navigateur : tests/e2e/console.spec.js. Ici : tout ce qui se vérifie sans navigateur.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
+import { avecProjet } from './_reglages-maison-essai.js';
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { creerAppelConsole, COMPTES_CONSOLE } from '../functions/src/console/appel.js';
+import { creerAppelConsole, COMPTES_CONSOLE as LIRE_COMPTES_CONSOLE } from '../functions/src/console/appel.js';
+const COMPTES_CONSOLE = await LIRE_COMPTES_CONSOLE(); // chantier 0 : liste lue dans la fiche reglages_maison/maison (celle des essais : _fiche-essai.js)
 import { peutVoirConsole, COMPTES_CONSOLE as COMPTES_ECRAN } from '../js/modules/console/acces.js';
 import { LIGNES_FILET, etatLigne, lignesAvecEtat, resumeFilet, texteEtat, PLATEFORMES, plateformeValide } from '../js/modules/console/logique.js';
 import { IDS_MODULES, MODULES_DECLARES, modulesActifsDuClient, verifierActivation, interrupteursDuClient, moduleDeRoute } from '../js/os/registre.js';
@@ -20,7 +23,8 @@ describe('Console : accès côté serveur (C1 à C3, C7)', () => {
   });
 
   test('C2 le compte de Jérôme (e-mail vérifié) est accepté ; le même e-mail non vérifié est refusé', async () => {
-    assert.deepEqual(await appel(demande({ email: JEROME, email_verified: true })), { version: '9.9.9', serveur: 'ok', plateforme: 'chevalier-ia-os' });
+    // Chantier 0 : « plateforme » = le projet Google où tourne la fonction (chez Jérôme : chevalier-ia-os, comme avant).
+    assert.deepEqual(await avecProjet('chevalier-ia-os', () => appel(demande({ email: JEROME, email_verified: true }))), { version: '9.9.9', serveur: 'ok', plateforme: 'chevalier-ia-os' });
     await refus(demande({ email: JEROME, email_verified: false }), 'permission-denied');
     await refus(demande({ email: JEROME }), 'permission-denied');
   });

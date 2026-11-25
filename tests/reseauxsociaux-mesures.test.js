@@ -1,4 +1,5 @@
 // Relevé hebdomadaire des chiffres des posts (module Réseaux sociaux) : semaine ISO à Paris, pagination, idempotence, métrique absente, accès. Buffer et la base sont simulés. Données fictives uniquement.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -293,7 +294,7 @@ describe('M6 branchement du serveur', () => {
   test('M6 règles Firestore : reseauxsociaux_mesures lecture seule et sortie du joker', () => {
     const regles = lire('firestore.rules');
     assert.match(regles, /match \/reseauxsociaux_mesures\/\{id\} \{\s*allow read: if compteAutorise\(\);\s*allow write: if false;/);
-    assert.match(regles, /collection in \[[^\]]*'reseauxsociaux_mesures'(, 'base_parametres')?\]/);
+    assert.match(regles, /collection in \[[^\]]*'reseauxsociaux_mesures'(, 'base_parametres')?(, 'reglages_maison')?\]/);
   });
   test('M6 aucune mutation Buffer dans le relevé', () => {
     for (const f of ['functions/src/reseauxsociaux/mesures.js', 'functions/src/reseauxsociaux/service.js']) {

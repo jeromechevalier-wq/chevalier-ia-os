@@ -1,5 +1,6 @@
 // Tests Q (module Devis, fonction appelable devisPdf) : contrôle de l'appelant, brouillon refusé (sauf PDF « brouillon » à la demande), « PDF non configuré », chemin heureux
 // avec FAUX convertisseur et FAUX Cloud Storage (aucun appel réseau), vue client sans prix d'achat ni marge, options de devisHtml, nom du fichier. node --test.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { creerAccesMemoire, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';

@@ -7,6 +7,7 @@ import { creerGestionnaire } from '../../functions/src/mcp/gestionnaire.js';
 import { creerRouteurOauth } from '../../functions/src/oauth/routeur.js';
 import { creerMagasin } from '../../functions/src/securite/jetons.js';
 import { creerAccesMemoire } from '../../functions/src/coeur/donnees.js';
+import { remplacerSourcePourEssais } from '../../functions/src/securite/reglages-maison.js';
 import { collections } from '../_donnees-essai.js';
 
 const APPLI = 'https://chevalier-ia-os.web.app';
@@ -28,8 +29,17 @@ export const signInWithRedirect = connecter;
 export const getRedirectResult = async () => null;
 export const signOut = async () => { user = null; ecouteurs.forEach((f) => f(null)); };`;
 
+// Chantier 0 (25/11/2026) : l'émetteur se déduit du projet Google et les comptes autorisés viennent de la fiche reglages_maison/maison.
+// Ici, le serveur tourne « dans » le projet de Jérôme avec une fiche en mémoire (les deux comptes d'avant) ; tout est remis en place après.
+const FICHE = { comptes_autorises: [IDENTITES['ID-JEROME'].email, 'jeromebot.chevalierbot@gmail.com'], comptes_jerome_seul: [IDENTITES['ID-JEROME'].email], super_admins: [], comptes_oauth_autorises: [IDENTITES['ID-JEROME'].email, 'jeromebot.chevalierbot@gmail.com'] };
+// La page lit la configuration du site qui la sert (/__/firebase/init.json) : une configuration factice suffit (le SDK est une doublure).
+const INIT_JSON = JSON.stringify({ projectId: 'chevalier-ia-os', apiKey: 'cle-factice', appId: 'app-factice' });
+const PROJET_AVANT = process.env.GCLOUD_PROJECT;
+
 let serveur, local;
 test.beforeAll(async () => {
+  process.env.GCLOUD_PROJECT = 'chevalier-ia-os';
+  remplacerSourcePourEssais(async () => structuredClone(FICHE));
   const donnees = creerAccesMemoire(structuredClone(collections));
   const oauth = creerRouteurOauth({ donnees, verifierIdToken: async (j) => { const i = IDENTITES[j]; if (!i) throw new Error('non'); return i; }, limitePostParMinute: 1_000_000 });
   const gestionnaire = creerGestionnaire({ magasin: creerMagasin({ lire: async () => '[]', dureeCacheMs: 0 }), donnees, oauth, journal: () => {} });
@@ -45,7 +55,11 @@ test.beforeAll(async () => {
   await new Promise((ok) => serveur.listen(0, '127.0.0.1', ok));
   local = `http://127.0.0.1:${serveur.address().port}`;
 });
-test.afterAll(() => serveur.close());
+test.afterAll(() => {
+  serveur.close();
+  remplacerSourcePourEssais();
+  if (PROJET_AVANT === undefined) delete process.env.GCLOUD_PROJECT; else process.env.GCLOUD_PROJECT = PROJET_AVANT;
+});
 
 async function preparer(page, compte) {
   await page.addInitScript((c) => { window.__compte = c; }, compte);
@@ -54,6 +68,7 @@ async function preparer(page, compte) {
     const u = new URL(route.request().url());
     await route.fulfill({ response: await route.fetch({ url: `${local}${u.pathname}${u.search}` }) });
   });
+  await page.route(`${APPLI}/__/firebase/init.json`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: INIT_JSON }));
   await page.route('https://www.gstatic.com/firebasejs/**', (route) => route.fulfill({
     status: 200, contentType: 'text/javascript', body: route.request().url().endsWith('firebase-app.js') ? FAUX_APP : FAUX_AUTH,
   }));

@@ -1,6 +1,7 @@
 // Tests R (module Devis, PDF fabriqué par le serveur à la finalisation) : déclencheur Firestore (ignoré hors passage brouillon -> finalisé, idempotent, sans boucle),
 // états du PDF (en_cours, ok, echec), 3 tentatives automatiques au plus, réessai à la demande, brouillon qui remplace le brouillon, aucune écriture dans l'affaire (27/10/2026), lien signé court.
 // FAUX convertisseur et FAUX Cloud Storage : aucun appel réseau. node --test.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { creerAccesMemoire, avecBase, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';

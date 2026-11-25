@@ -1,6 +1,7 @@
 // Tests de la connexion OAuth du serveur MCP (téléphone, claude.ai) : métadonnées, enregistrement, page de consentement, code + PKCE,
 // renouvellement avec rotation, révocation, et surtout : les jetons « cia_… » (Hermes, Claude Code) continuent de fonctionner comme avant.
 // Un vrai client MCP (SDK officiel) appelle le gestionnaire sur un serveur HTTP local ; Google est remplacé par un vérificateur factice.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -17,13 +18,21 @@ import { empreinte, creerMagasin, trouverJeton } from '../functions/src/securite
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { creerRouteurOauth, validerDemande } from '../functions/src/oauth/routeur.js';
 import { acteurDuCompte } from '../functions/src/oauth/magasin.js';
-import { COMPTES_AUTORISES, DUREES, EMETTEUR, RESSOURCE } from '../functions/src/oauth/config.js';
-import { CONFIG_FIREBASE, pageAutorisation } from '../functions/src/oauth/page.js';
+import { COMPTES_AUTORISES, DUREES, emetteur, ressource } from '../functions/src/oauth/config.js';
+import { ADRESSE_CONFIG_HEBERGEMENT, pageAutorisation } from '../functions/src/oauth/page.js';
+import { FICHE_ESSAI } from './_reglages-maison-essai.js';
 import { collections } from './_donnees-essai.js';
 
 const RACINE = new URL('../', import.meta.url);
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback';
+// Chantier 0 (25/11/2026) : l'émetteur et la ressource se déduisent du projet Google (GCLOUD_PROJECT). Ces essais tournent « dans » le projet de Jérôme
+// (tout est en mémoire ici, aucun émulateur) : ils prouvent que l'émetteur OAuth reste EXACTEMENT celui d'avant, sans quoi les connexions claude.ai tomberaient.
+process.env.GCLOUD_PROJECT = 'chevalier-ia-os';
 const APPLI = 'https://chevalier-ia-os.web.app';
+const EMETTEUR = emetteur();
+const RESSOURCE = ressource();
+assert.equal(EMETTEUR, APPLI);
+assert.equal(RESSOURCE, `${APPLI}/mcp`);
 const JERO = 'jerome.chevalier@gmail.com';
 const HERMES = `cia_${'H'.repeat(43)}`;
 
@@ -267,8 +276,15 @@ describe('Page d’autorisation (GET /oauth/authorize)', () => {
     execFileSync(process.execPath, ['--check', join(dossier, 'page.mjs')]);
   });
   test('la configuration Firebase de la page est celle de l’appli (même projet, même domaine de connexion)', () => {
+    // Chantier 0 : la page lit la configuration du site qui la sert (/__/firebase/init.json, même projet que l'appli) et force le domaine de connexion
+    // <projet>.web.app, comme js/os/firebase-config.js ; aucune clé ni aucun projet n'est écrit dans la page.
+    const html = pageAutorisation({ client_id: 'c', redirect_uri: CALLBACK, code_challenge: 'x'.repeat(43) });
+    assert.equal(ADRESSE_CONFIG_HEBERGEMENT, '/__/firebase/init.json');
+    assert.ok(html.includes(`fetch(${JSON.stringify(ADRESSE_CONFIG_HEBERGEMENT)}, { cache: 'no-store' })`));
+    assert.ok(html.includes("authDomain: config.projectId + '.web.app'"));
+    assert.doesNotMatch(html, /AIza|chevalier-ia-(os|app)|appId: "/);
     const appli = readFileSync(new URL('js/os/firebase-config.js', RACINE), 'utf8');
-    for (const [cle, valeur] of Object.entries(CONFIG_FIREBASE)) assert.ok(appli.includes(`${cle}: "${valeur}"`), cle);
+    assert.match(appli, /authDomain: "chevalier-ia-os\.web\.app"/, 'l’appli de Jérôme se connecte bien sur <projet>.web.app');
   });
 });
 
@@ -513,11 +529,14 @@ describe('Journaux et secrets', () => {
 });
 
 describe('Cohérence avec le reste du dépôt', () => {
-  test('les comptes autorisés du serveur sont exactement ceux de compteAutorise() dans firestore.rules', () => {
+  test('les comptes autorisés du serveur sont exactement ceux de compteAutorise() dans firestore.rules', async () => {
+    // Chantier 0 : les deux lisent la fiche reglages_maison/maison (comptes_oauth_autorises côté serveur, comptes_autorises côté règles) ;
+    // la fiche de Jérôme donne aux deux la même liste qu'avant (FICHE_ESSAI, reprise de l'écran).
     const regles = readFileSync(new URL('firestore.rules', RACINE), 'utf8');
-    const bloc = /request\.auth\.token\.email in \[([\s\S]*?)\]/.exec(regles)[1];
-    const dansRegles = [...bloc.matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort();
-    assert.deepEqual([...COMPTES_AUTORISES].sort(), dansRegles);
+    assert.match(regles, /request\.auth\.token\.email in reglagesMaison\(\)\.get\('comptes_autorises', \[\]\)/);
+    assert.equal(typeof COMPTES_AUTORISES, 'function');
+    assert.deepEqual([...(await COMPTES_AUTORISES())].sort(), [...FICHE_ESSAI.comptes_oauth_autorises].sort());
+    assert.deepEqual([...FICHE_ESSAI.comptes_oauth_autorises].sort(), [...FICHE_ESSAI.comptes_autorises].sort());
   });
   test('frein : au-delà de la limite de requêtes POST par minute et par instance, 429', async () => {
     const oauth = creerRouteurOauth({ donnees, verifierIdToken: async () => { throw new Error('non'); }, limitePostParMinute: 3 });

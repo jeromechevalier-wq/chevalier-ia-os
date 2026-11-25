@@ -1,5 +1,6 @@
 // Fonction `reseauxsociauxBuffer` (lecture seule des posts LinkedIn dans Buffer), sans réseau : Buffer est simulé. Données fictives uniquement.
 // Critères C1 à C6 du sujet C (cahier des charges du module Réseaux sociaux).
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe, mock } from 'node:test';
 import { readFileSync, readdirSync, statSync } from 'node:fs';

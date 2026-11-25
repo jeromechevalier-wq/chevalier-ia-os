@@ -1,6 +1,7 @@
 // D (plateforme clients) : le PDF des devis chez un client (functions-plateforme/src/devis-pdf.js) : déclencheur `devisPdfAuto`, appels `devisPdf` et `devisPdfLien`.
 // `db` est une FAUSSE base (seules les fiches de membre et du client sont lues), l'accès aux données est en MÉMOIRE, le convertisseur et Cloud Storage sont FAUX :
 // aucun émulateur, aucun réseau, aucun vrai Chromium. node --test.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test, describe } from 'node:test';
@@ -10,8 +11,8 @@ import { lienStablePdf, LOGO_OCTETS_MAX } from '../functions/src/devis/pdf-servi
 import { nouveauDevis } from '../functions/partage/devis.js';
 import { EMETTEUR_ESSAI, completerPourFinaliser } from './jeu-finalisation.js';
 
-process.env.GCLOUD_PROJECT = 'demo-chevalier-ia-os';
-const { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient, BASE_LIEN_PLATEFORME } = await import('../functions-plateforme/src/devis-pdf.js');
+process.env.GCLOUD_PROJECT = 'chevalier-ia-app'; // chantier 0 : adresses et réserve déduites du projet ; ici celui de la plateforme (tout est en mémoire), pour prouver qu'elles ne changent pas
+const { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient, baseLienPlateforme } = await import('../functions-plateforme/src/devis-pdf.js');
 const { Refus } = await import('../functions-plateforme/src/appels.js');
 const { appelDocument } = await import('../functions-plateforme/src/documents.js');
 
@@ -313,6 +314,7 @@ describe('D5 un échec de fabrication ne touche jamais le devis', () => {
 
 describe('D6 adresse stable du PDF par client', () => {
   test('D6 lien = https://chevalier-ia-app.web.app/#/espace/a/devis/pdf/d1 (le hash porte le client), jamais …/espace/<client>/#/…', () => {
+    const BASE_LIEN_PLATEFORME = baseLienPlateforme(); // chantier 0 : déduite du projet (ici celui de la plateforme)
     assert.equal(BASE_LIEN_PLATEFORME, 'https://chevalier-ia-app.web.app');
     assert.equal(lienStablePdf(BASE_LIEN_PLATEFORME, 'd1', false, 'espace/a'), 'https://chevalier-ia-app.web.app/#/espace/a/devis/pdf/d1');
     assert.equal(lienStablePdf(`${BASE_LIEN_PLATEFORME}/`, 'd1', true, 'espace/b'), 'https://chevalier-ia-app.web.app/#/espace/b/devis/pdf/d1/brouillon');
@@ -361,10 +363,10 @@ describe('D7 branchement (lecture du code) : comptes, options, copie, secrets', 
   const section = index.slice(index.indexOf('PDF des devis chez les clients'), index.indexOf('La porte des workflows n8n des clients'));
   test('D7 index.js exporte devisPdf, devisPdfLien et devisPdfAuto, avec le compte dédié et les options attendues', () => {
     for (const nom of ['devisPdf', 'devisPdfLien', 'devisPdfAuto']) assert.match(index, new RegExp(`export const ${nom} = `));
-    assert.match(section, /const COMPTE_PDF = 'devis-pdf@chevalier-ia-app\.iam\.gserviceaccount\.com'/);
+    assert.match(section, /const COMPTE_PDF = 'devis-pdf@';/); // chantier 0 : « nom@ », complété avec le projet visé au déploiement (porte-plateforme.test.js le prouve)
     assert.match(section, /document: 'clients\/\{client\}\/devis_devis\/\{devisId\}', region: REGION, memory: '2GiB', timeoutSeconds: 540, concurrency: 1, maxInstances: 2, retry: false, serviceAccount: COMPTE_PDF/);
     assert.match(section, /OPTIONS_PDF = \{ region: REGION, memory: '2GiB', timeoutSeconds: 120, concurrency: 1, maxInstances: 2, serviceAccount: COMPTE_PDF \}/);
-    assert.match(index, /BUCKET = 'chevalier-ia-app\.firebasestorage\.app'/);
+    assert.match(index, /const bucketMarques = \(\) => reserveParDefaut\(\);/); // chantier 0 : la réserve par défaut du projet (chez la plateforme : chevalier-ia-app.firebasestorage.app)
     assert.doesNotMatch(section, /compute@developer|appspot\.gserviceaccount|chevalier-ia-os/);
   });
   test('D7 aucun secret déclaré pour le PDF (un secret absent ferait échouer le déploiement de toutes les fonctions)', () => {
@@ -559,7 +561,7 @@ describe('3 logo de l’espace : le serveur le lit lui-même dans le stockage (j
     const appel = readFileSync(new URL('../functions/src/devis/pdf-appel.js', import.meta.url), 'utf8');
     assert.ok(!/lireLogo/.test(appel), 'pdf-appel.js (Jérôme) ne branche pas de logo d’espace');
     assert.match(readFileSync(new URL('../functions-plateforme/src/devis-pdf.js', import.meta.url), 'utf8'), /lireLogo: creerLireLogoEspace/);
-    assert.match(readFileSync(new URL('../functions-plateforme/src/index.js', import.meta.url), 'utf8'), /nomBucket: BUCKET/);
+    assert.match(readFileSync(new URL('../functions-plateforme/src/index.js', import.meta.url), 'utf8'), /nomBucket: bucketMarques\(\)/); // chantier 0 : la réserve par défaut du projet, lue à l'appel
   });
   test('M4 emetteurSansLogoExterne : une data: URL de plus de 1 500 000 caractères est retirée, le PDF se fait sans logo', async () => {
     const { emetteurSansLogoExterne, LOGO_TAILLE_MAX } = await import('../functions/src/devis/pdf-service.js');

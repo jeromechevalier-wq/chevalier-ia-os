@@ -1,5 +1,6 @@
 // Saisie de la connexion ClickSend depuis l'écran (PR B) : droits (Jérôme seul, contrôlé côté serveur), vérification de la clé, rangement dans Secret Manager, jamais de clé rendue ni journalisée.
 // Tout en mémoire : faux Secret Manager, faux ClickSend, aucun réseau. Clés, identifiants et adresses ci-dessous sont inventés.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -318,7 +319,7 @@ describe('rdvConnexionSms chez les clients : Jérôme seul, jamais un éditeur d
 
 describe('verrous statiques', () => {
   const lire = (chemin) => readFileSync(new URL(`../${chemin}`, import.meta.url), 'utf8');
-  test('seuls les deux index fabriquent l’écrivain de secrets (le service de connexion le reçoit en paramètre) ; la plateforme passe espaceRacine: null à la connexion ET à l’envoi (même nom de secret lu et écrit) ; l’adresse des réponses est propre à chaque projet', () => {
+  test('seuls les deux index fabriquent l’écrivain de secrets (le service de connexion le reçoit en paramètre) ; la plateforme passe espaceRacine: null à la connexion ET à l’envoi (même nom de secret lu et écrit) ; l’adresse des réponses est propre à chaque projet', async () => {
     const importeurs = [];
     const directs = [];
     const parcourir = (dossier) => {
@@ -340,7 +341,11 @@ describe('verrous statiques', () => {
     assert.deepEqual(directs, [], 'aucun autre fichier n’écrit dans Secret Manager (addSecretVersion / createSecret) que securite/ecrire-secret.js');
     const plateforme = lire('functions-plateforme/src/index.js');
     assert.equal((plateforme.match(/espaceRacine: null/g) ?? []).length, 2, 'connexion ET envoi');
-    assert.match(plateforme, /europe-west9-chevalier-ia-app\.cloudfunctions\.net\/rdvReponseSms\/\$\{client\}\/\$\{jeton\}/);
-    assert.match(lire('functions/src/index.js'), /europe-west9-chevalier-ia-os\.cloudfunctions\.net\/rdvReponseSms\/\$\{jeton\}/);
+    // Chantier 0 (25/11/2026) : l'adresse de la fonction se déduit du projet (securite/maison.js) ; dans chaque projet, elle reste celle d'avant.
+    assert.match(plateforme, /\$\{adresseFonction\('rdvReponseSms'\)\}\/\$\{client\}\/\$\{jeton\}/);
+    assert.match(lire('functions/src/index.js'), /\$\{adresseFonction\('rdvReponseSms'\)\}\/\$\{jeton\}/);
+    const { adresseFonction } = await import('../functions/src/securite/maison.js');
+    assert.equal(adresseFonction('rdvReponseSms', 'chevalier-ia-app'), 'https://europe-west9-chevalier-ia-app.cloudfunctions.net/rdvReponseSms');
+    assert.equal(adresseFonction('rdvReponseSms', 'chevalier-ia-os'), 'https://europe-west9-chevalier-ia-os.cloudfunctions.net/rdvReponseSms');
   });
 });

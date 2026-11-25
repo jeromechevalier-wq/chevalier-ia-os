@@ -3,6 +3,7 @@
 //  1 brouillon créé -> editeur (Jérôme) ; 2 lister_devis / lire_devis (complet et récapitulatif) : editeur pour un brouillon, voir sinon, même expiré ;
 //  3 chez un client : plateforme + espace/<client>/ ; 4 finaliser (aperçu puis final) et nouvelle version ; 5 base inconnue ou espace mal formé : champ absent ;
 //  6 jamais de jeton, code, e-mail ni « ? » dans un lien ; 7 consigne dans la description des outils, sans mot du verrou, 97 outils ; 8 obtenir_pdf_officiel_devis garde lienApplication ; 9 un refus d'écriture ne porte jamais lienEcran.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -15,6 +16,9 @@ import { creerAccesMemoire, avecBase } from '../functions/src/coeur/donnees.js';
 import { creerLimiteur } from '../functions/src/securite/limites.js';
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
 import { EMETTEUR_ESSAI } from './jeu-finalisation.js';
+// Chantier 0 (25/11/2026) : les adresses se déduisent du projet Google (GCLOUD_PROJECT). Ces essais (tout en mémoire, aucun émulateur) tournent « dans » le projet de Jérôme :
+// ils prouvent que chaque adresse rendue reste exactement celle d'avant.
+process.env.GCLOUD_PROJECT = 'chevalier-ia-os';
 
 const JETONS = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, code: `cia_${'C'.repeat(43)}` };
 const entree = (jeton, nom, profil) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif: true });

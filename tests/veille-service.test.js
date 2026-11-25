@@ -1,9 +1,13 @@
 // Module Veille, côté serveur : ajout d'un lien collé (épisode ou chaîne) et lancement d'un résumé (functions/src/veille/), sans réseau ni Firebase :
 // la base, YouTube et n8n sont simulés. Les tables sont celles de la porte (veille_sources, veille_contenus).
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { creerServiceVeille, ErreurVeille, ADRESSE_RESUMER } from '../functions/src/veille/service.js';
+import { creerServiceVeille, ErreurVeille, CHEMIN_RESUMER, adresseResumerMaison } from '../functions/src/veille/service.js';
+import { HOTE_N8N_ESSAI } from './_reglages-maison-essai.js';
+// Chantier 0 (25/11/2026) : l'adresse du n8n vient de la fiche reglages_maison/maison (ici celle des essais, branchée par _fiche-essai.js).
+const ADRESSE_RESUMER = `https://${HOTE_N8N_ESSAI}${CHEMIN_RESUMER}`;
 import { creerAppelVeille } from '../functions/src/veille/appel.js';
 
 const ID = 'dQw4w9WgXcQ';
@@ -195,6 +199,15 @@ describe('appel (fonction appelable)', () => {
 });
 
 describe('sécurité du code', () => {
+  test('chantier 0 : l\'adresse du résumé est celle du n8n de la fiche de la maison ; sans adresse (fiche illisible), le résumé est refusé, l\'épisode reste ajouté', async () => {
+    assert.equal(await adresseResumerMaison(), ADRESSE_RESUMER);
+    const appels = [];
+    const service = creerServiceVeille({ donnees: monde().base, fetchImpl: async (u) => { appels.push(String(u)); if (String(u).includes('oembed')) return new Response(JSON.stringify({ title: 'T', author_name: 'A' })); throw new Error(`appel inattendu : ${u}`); }, adresseResumer: async () => '', lireJeton: async () => 'jeton-essai' });
+    const r = await service.ajouterLien({ url: `https://youtu.be/${ID}`, lancerResume: true, auteur: 'a' });
+    assert.equal(r.crees, 1);
+    assert.equal(r.resume.lance, false);
+    assert.equal(appels.some((u) => u.includes('/webhook/')), false, 'aucun appel sans adresse');
+  });
   test('le jeton n\'est écrit nulle part dans le dépôt de l\'appli (ni page, ni service) et le secret est déclaré dans la fonction', () => {
     const idx = readFileSync(new URL('../functions/src/index.js', import.meta.url), 'utf8');
     assert.match(idx, /defineSecret\('VEILLE_JETON_RESUMER'\)/);

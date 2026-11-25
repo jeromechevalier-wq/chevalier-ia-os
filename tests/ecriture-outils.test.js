@@ -1,5 +1,6 @@
 // Tests des outils d'écriture, de suppression et de restauration, de bout en bout par le protocole MCP (étape 4, plan-mcp.md 5.9 : tests 3, 4, 5, 6, 9,
 // 10, 11, 13, 14, 16). Chaque test démarre son propre serveur sur des données fictives fraîches (mémoire) : aucun service Google, aucune donnée réelle.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -12,6 +13,9 @@ import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerLimiteur, LIMITES_PAR_DEFAUT } from '../functions/src/securite/limites.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
+// Chantier 0 (25/11/2026) : les adresses se déduisent du projet Google (GCLOUD_PROJECT). Ces essais (tout en mémoire, aucun émulateur) tournent « dans » le projet de Jérôme :
+// ils prouvent que chaque adresse rendue reste exactement celle d'avant.
+process.env.GCLOUD_PROJECT = 'chevalier-ia-os';
 
 const JETONS = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, code: `cia_${'C'.repeat(43)}` };
 const entree = (jeton, nom, profil, extra = {}) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif: true, ...extra });
@@ -109,14 +113,15 @@ describe('Propriétaire par défaut (points 2 et 4)', () => {
     const p = ok(await s.appeler('code', 'creer_personne', { nom: 'Fiche Par Jeton Code' }));
     assert.equal(s.doc('crm_personnes', p.id).proprietaire, 'jerome.chevalier@gmail.com');
   });
-  test('P4 chez un client (accès avec base) sans e-mail de jeton : propriétaire vide, jamais Jérôme ; sur le serveur de Jérôme, Jérôme', () => {
+  test('P4 chez un client (accès avec base) sans e-mail de jeton : propriétaire vide, jamais Jérôme ; sur le serveur de Jérôme, Jérôme', async () => {
     const chezClient = { donnees: { base: 'clients/a' } };
-    assert.equal(proprietaireParDefaut(chezClient, undefined), '');
-    assert.equal(proprietaireParDefaut({ ...chezClient, email: '   ' }, ''), '');
-    assert.equal(proprietaireParDefaut({ ...chezClient, email: 'alice@exemple.test' }, undefined), 'alice@exemple.test');
-    assert.equal(proprietaireParDefaut({ ...chezClient, email: 'alice@exemple.test' }, 'autre@exemple.test'), 'autre@exemple.test');
-    assert.equal(proprietaireParDefaut({ donnees: {} }, undefined), 'jerome.chevalier@gmail.com');
-    assert.equal(proprietaireParDefaut({ donnees: {}, email: 'charles@exemple.test' }, undefined), 'charles@exemple.test');
+    assert.equal(await proprietaireParDefaut(chezClient, undefined), '');
+    assert.equal(await proprietaireParDefaut({ ...chezClient, email: '   ' }, ''), '');
+    assert.equal(await proprietaireParDefaut({ ...chezClient, email: 'alice@exemple.test' }, undefined), 'alice@exemple.test');
+    assert.equal(await proprietaireParDefaut({ ...chezClient, email: 'alice@exemple.test' }, 'autre@exemple.test'), 'autre@exemple.test');
+    assert.equal(await proprietaireParDefaut({ donnees: {} }, undefined), 'jerome.chevalier@gmail.com'); // chantier 0 : lu dans la fiche reglages_maison/maison (proprietaire_par_defaut)
+    assert.equal(await proprietaireParDefaut({ donnees: {} }, undefined, async () => ''), '', 'fiche sans propriétaire (ou illisible : proprietaireMaison rend "") : aucun propriétaire, jamais un compte écrit dans le code');
+    assert.equal(await proprietaireParDefaut({ donnees: {}, email: 'charles@exemple.test' }, undefined), 'charles@exemple.test');
   });
 });
 

@@ -1,5 +1,6 @@
 // Module « Accès MCP » : déclaration au registre, logique de la page d'information, réglages de la plateforme (réécritures, fonction, configuration
 // Firebase, règles) et garde-fous (le MCP de Jérôme ne change pas). Sans réseau, sans émulateur.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
@@ -8,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { MODULES_DECLARES, IDS_MODULES, modulesActifsDuClient, verifierActivation, ecransActifs, moduleAccessible } from '../js/os/registre.js';
 import { MODULES, MODULES_CLIENT } from '../js/os/modules.js';
 import * as L from '../js/modules/mcp/logique.js';
-import { CONFIG_FIREBASE_PLATEFORME, PROFIL_PAR_ROLE, FORMAT_CLIENT, EMETTEUR_PLATEFORME, adressesClient } from '../functions/src/clients/config.js';
+import { PROFIL_PAR_ROLE, FORMAT_CLIENT, emetteurPlateforme, adressesClient } from '../functions/src/clients/config.js';
+import { avecProjet } from './_reglages-maison-essai.js';
 import { ROLES } from '../js/os/membres.js';
 import { normaliserMarque } from '../js/os/marque.js';
 
@@ -46,11 +48,11 @@ describe('registre : le module « mcp »', () => {
 });
 
 describe('page d\'information : logique', () => {
-  test('lien de connexion : <origine>/mcp/<client>, identifiant validé', () => {
+  test('lien de connexion : <origine>/mcp/<client>, identifiant validé', async () => {
     assert.equal(L.lienConnexion('https://chevalier-ia-app.web.app', 'cabinet-martin'), 'https://chevalier-ia-app.web.app/mcp/cabinet-martin');
     assert.equal(L.lienConnexion('https://chevalier-ia-app.web.app/', 'a'), 'https://chevalier-ia-app.web.app/mcp/a');
     for (const mauvais of ['A', '../x', 'a/b', '', 'x'.repeat(41)]) assert.throws(() => L.lienConnexion('https://x.test', mauvais));
-    assert.equal(L.lienConnexion('https://chevalier-ia-app.web.app', 'abc'), adressesClient('abc').ressource, 'même adresse que celle du serveur');
+    assert.equal(L.lienConnexion('https://chevalier-ia-app.web.app', 'abc'), await avecProjet('chevalier-ia-app', () => adressesClient('abc').ressource), 'même adresse que celle du serveur (dans le projet de la plateforme)');
   });
   test('sans client (espace de Jérôme) : <origine>/mcp, sans adresse écrite en dur', () => {
     assert.equal(L.lienConnexion('https://exemple.test'), 'https://exemple.test/mcp');
@@ -94,7 +96,7 @@ describe('plateforme : fonction, adresses, configuration, règles', () => {
   test('la fonction « mcpclients » est exportée par les fonctions de la plateforme (Paris, publique, sans CORS) et jamais par celles du CRM', () => {
     const idx = lire('functions-plateforme/src/index.js');
     assert.match(idx, /export const mcpclients = onRequest\(/);
-    assert.match(idx, /region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false, serviceAccount: 'mcp-clients@chevalier-ia-app\.iam\.gserviceaccount\.com'/);
+    assert.match(idx, /region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false, serviceAccount: 'mcp-clients@'/); // chantier 0 : « nom@ », complété avec le projet visé au déploiement
     assert.doesNotMatch(idx, /compute@developer|appspot\.gserviceaccount/); // jamais le compte par défaut du projet (rôle « Éditeur »)
     assert.match(lire('functions-plateforme/src/mcp-clients.js'), /creerGestionnaireClients/);
     assert.doesNotMatch(lire('functions/src/index.js'), /clients|mcpclients/);
@@ -117,11 +119,13 @@ describe('plateforme : fonction, adresses, configuration, règles', () => {
       }
     }
   });
-  test('la configuration Firebase de l\'écran d\'autorisation est celle de la plateforme (scripts/projets/plateforme.json), pas celle de Jérôme', () => {
+  test('la configuration Firebase de l\'écran d\'autorisation est celle de la plateforme (scripts/projets/plateforme.json), pas celle de Jérôme', async () => {
+    // Chantier 0 (25/11/2026) : plus de configuration écrite dans le serveur ; l'écran la lit sur le site qui le sert (/__/firebase/init.json),
+    // et l'émetteur se déduit du projet : dans le projet de la plateforme, il reste exactement celui d'avant.
     const p = json('scripts/projets/plateforme.json').firebaseConfig;
-    for (const cle of Object.keys(CONFIG_FIREBASE_PLATEFORME)) assert.equal(CONFIG_FIREBASE_PLATEFORME[cle], p[cle], cle);
-    assert.equal(CONFIG_FIREBASE_PLATEFORME.projectId, 'chevalier-ia-app');
-    assert.equal(EMETTEUR_PLATEFORME, `https://${p.authDomain}`);
+    assert.equal(p.projectId, 'chevalier-ia-app');
+    assert.equal(await avecProjet(p.projectId, () => emetteurPlateforme()), `https://${p.authDomain}`);
+    assert.doesNotMatch(lire('functions/src/clients/config.js').replace(/\/\/.*$/gm, ''), /apiKey|appId|AIza/);
     assert.doesNotMatch(lire('functions/src/clients/config.js').replace(/\/\/.*$/gm, ''), /chevalier-ia-os/);
   });
   test('le format d\'identifiant de client est celui de la plateforme (marque.js), en minuscules', () => {

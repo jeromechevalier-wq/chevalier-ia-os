@@ -1,5 +1,6 @@
 // Mode test, PR 3 : numéro TEST-NNN séparé, finalisation qui revérifie, « démarquer » refusé pour un TEST- finalisé, restauration, fonction appelable de l'écran.
 // Accès aux données EN MÉMOIRE (modèle : devis-serveur.test.js). Les finalisations simultanées sur l'émulateur sont dans devis-serveur-firestore.test.js.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { creerAccesMemoire, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';

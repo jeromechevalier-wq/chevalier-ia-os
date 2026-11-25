@@ -1,5 +1,6 @@
 // Envoi direct des SMS du module Rendez-vous par ClickSend (functions/src/coeur/sms-direct.js). Tout en mémoire : faux ClickSend, base en mémoire, aucun réseau,
 // aucun vrai SMS. Les clés et numéros ci-dessous sont inventés.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -8,8 +9,12 @@ import { tirerPourTous } from '../functions-plateforme/src/rdv.js';
 import { creerSmsDirect, creerGestionnaireReponses, lireConnexion, nomDuSecret, memeJeton, ErreurSortieSms, URL_ENVOI, SECRET_CLICKSEND, LIEN_RECHARGE_CLICKSEND, lireSolde } from '../functions/src/coeur/sms-direct.js';
 import { PRECONDITION_ECHOUEE } from '../scripts/porte/adaptateur.js';
 import { lienEcranRdv } from '../functions/src/coeur/liens.js';
-import { BASE_LIEN_JEROME as BASE_SERVEUR_JEROME } from '../functions/src/mcp/gestionnaire.js';
-import { BASE_LIEN_PLATEFORME as BASE_SERVEUR_PLATEFORME } from '../functions-plateforme/src/devis-pdf.js';
+import { baseLienMaison } from '../functions/src/mcp/gestionnaire.js';
+import { baseLienPlateforme } from '../functions-plateforme/src/devis-pdf.js';
+import { avecProjet } from './_reglages-maison-essai.js';
+// Chantier 0 (25/11/2026) : le serveur calcule l'adresse du site à partir du projet ; dans les projets de Jérôme et de la plateforme, ce sont celles d'avant.
+const BASE_SERVEUR_JEROME = await avecProjet('chevalier-ia-os', () => baseLienMaison());
+const BASE_SERVEUR_PLATEFORME = await avecProjet('chevalier-ia-app', () => baseLienPlateforme());
 import * as REGLES_RDV from '../js/modules/rdv/logique.js';
 
 const T0 = Date.parse('2026-11-16T10:00:00Z'); // lundi 11 h à Paris : dans la plage d'envoi

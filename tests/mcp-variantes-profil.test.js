@@ -2,6 +2,7 @@
 // 1 invariance octet par octet des autres profils ; 2 alias ; 3 noms inchangés ; 4 garde-fous lisibles ; 5 champs obligatoires ; 6 refus de lignes et sections ; 7 poids plafonné ; 8 textes sans mot propre à Jérôme.
 // ATTENTION : l'octet par octet dépend des versions FIGÉES de @modelcontextprotocol/sdk (1.32.0) et de zod (4.6.7) : une mise à jour d'une de ces dépendances change la forme du JSON Schema et rend le test rouge sans que rien d'autre n'ait bougé.
 // Les listes de référence ont été créées à partir de main AVANT le changement. Pour les régénérer (seulement quand une description d'un autre profil change volontairement) : node tests/outils/figer-tools-list.js
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

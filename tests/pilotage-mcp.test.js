@@ -2,6 +2,7 @@
 // De bout en bout par le protocole MCP, avec un faux Postgres en mémoire (aucun réseau, aucun secret). Noms de vues, de colonnes et adresses fictifs (v_exemple_…, @exemple.test).
 // Le nom de chaque test commence par le numéro du point du brief (PM1 droits, PM2 compte, PM3 lister, PM4 lire, PM5 variation, PM6 filtres, PM7 plafond, PM8 fuites, PM9 arguments refusés,
 // PM10 lecture seule, PM11 avertissement et erreurs, PM12 chargement de index.js, PM13 chez un client, PM14 cas vide, PM15 équivalence avec l'écran, PM16 une tuile, PM17 copie des formats).
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -15,7 +16,8 @@ import { creerAssistantPilotage, AVERTISSEMENT, MESSAGE_VIDE, TEXTE_MAX } from '
 import { ErreurPilotage } from '../functions/src/pilotage/reglages.js';
 import * as F from '../functions/partage/pilotage-formats.js';
 import * as FECRAN from '../js/modules/pilotage/formats.js';
-import { SUPER_ADMINS } from '../functions/src/securite/super-admins.js';
+import { SUPER_ADMINS as LIRE_SUPER_ADMINS } from '../functions/src/securite/super-admins.js';
+const SUPER_ADMINS = await LIRE_SUPER_ADMINS(); // chantier 0 : liste lue dans la fiche reglages_maison/maison (celle des essais : _fiche-essai.js)
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
 
 const lire = (chemin) => readFileSync(fileURLToPath(new URL(`../${chemin}`, import.meta.url)), 'utf8');
