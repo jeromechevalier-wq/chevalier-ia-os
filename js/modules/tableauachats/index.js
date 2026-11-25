@@ -4,7 +4,6 @@ import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import { rendreEcran } from './ecran.js';
 import { reglagesExportTableauAchats } from './export.js';
-import { ETAPES_DEPLOIEMENT_ACHATS } from '../achatscommun/deploiement.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
 function ajouterFeuille() {
@@ -14,11 +13,6 @@ function ajouterFeuille() {
   l.href = new URL('../../../css/tableauachats.css', import.meta.url).href;
   l.dataset.tableauachats = '1';
   document.head.append(l);
-}
-
-/** Page Réglages > Déploiement : la ligne qui dit que les modules Achats n'existent pas chez les clients (une seule ligne pour les cinq modules, portée par le module Fournisseurs). */
-export function controlesDeploiement() {
-  return { etapes: ETAPES_DEPLOIEMENT_ACHATS, verifier: null };
 }
 
 export const actionsRapides = []; // rien à créer depuis l'écran
