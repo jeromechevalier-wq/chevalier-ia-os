@@ -70,6 +70,7 @@ export function rendreEcran(conteneur) {
   let lecture = 'chargement'; // chargement | ok | erreur
   let avertissement = '';
   let occupe = false;
+  let numeroLecture = 0;
   let criteres = { ...CRITERES_CHANTIERS_VIDES };
   let vue = lireVueChantiers(lirePreference('vue.achatschantiers', ''));
   let tri = lireTriChantiers(lirePreference('tri.achatschantiers', ''));
@@ -112,10 +113,11 @@ export function rendreEcran(conteneur) {
 
   /** Lit les chantiers (obligatoire), puis les chiffres du budget et les favoris (facultatifs : leur échec ne bloque pas la liste). `silencieux` : relecture après une écriture (pas d'écran de chargement). */
   async function charger(silencieux) {
+    const numero = ++numeroLecture; // une lecture plus récente rend celle-ci caduque : sa réponse tardive est ignorée
     if (!silencieux) { lecture = 'chargement'; rendre(); }
     const d = donnees();
     const [c, ch, fa] = await Promise.allSettled([d.chargerChantiers(), d.chargerChiffres(), d.chargerFavoris()]);
-    if (!vivant) return;
+    if (!vivant || numero !== numeroLecture) return;
     if (c.status === 'fulfilled') {
       chantiers = c.value.chantiers; lecture = 'ok';
       avertissement = c.value.tronque ? c.value.message : '';
@@ -125,10 +127,10 @@ export function rendreEcran(conteneur) {
       console.warn('Chantiers : lecture impossible', c.reason?.code ?? c.reason?.message);
       lecture = 'erreur';
     }
-    chiffres = ch.status === 'fulfilled' ? ch.value.chiffres : null;
+    // Relecture silencieuse (après une écriture) : si la vue des chiffres ou les favoris échouent, on garde ce qui était déjà affiché.
+    if (ch.status === 'fulfilled') chiffres = ch.value.chiffres; else if (!silencieux) chiffres = null;
     if (ch.status === 'fulfilled' && ch.value.tronque) avertissement = avertissement || ch.value.message;
-    favorisDispo = fa.status === 'fulfilled';
-    if (favorisDispo) favoris.charger(fa.value);
+    if (fa.status === 'fulfilled') { favorisDispo = true; favoris.charger(fa.value); } else if (!silencieux) favorisDispo = false;
     rendre();
   }
 

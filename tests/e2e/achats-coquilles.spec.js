@@ -21,6 +21,12 @@ const MODULES = [
   { id: 'achatsfactures', route: 'achatsfactures/liste', titre: 'Factures' },
   { id: 'tableauachats', route: 'tableauachats/tableau', titre: 'Tableau de bord 2' },
 ];
+// Un module devenu un vrai écran (PR 6 et suivantes) n'affiche plus le bandeau d'accès quand l'accès est prêt : on le repère PAR SON NOM, jamais par sa position dans la liste.
+const ZONE_ECRAN_REEL = { achatschantiers: '[data-role="chantiers-zone"]' };
+async function verifierAccesPret(page, m) {
+  if (ZONE_ECRAN_REEL[m.id]) await expect(page.locator(ZONE_ECRAN_REEL[m.id])).toBeVisible();
+  else await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
+}
 const etat = (page) => page.locator('[data-role="achats-etat"]');
 
 // Badge simulé (crochet d'émulateurs, voir js/os/acces-base.js) : portant, ou non, la mention d'accès. Aucun appel réseau réel.
@@ -69,12 +75,11 @@ test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'ac
   await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
   await expect(page.locator('[data-role="achats-etat-texte"]')).toHaveText('Accès prêt (badge à jour)');
   await capturer(page, info, 'A3-connecte');
-  for (const m of MODULES.slice(1)) {
+  for (const m of MODULES.filter((x) => x.id !== MODULES[0].id)) { // le premier est déjà ouvert
     await page.evaluate((r) => { location.hash = `#/${r}`; }, m.route);
     await expect(page.getByRole('heading', { name: m.titre, level: 1 })).toBeVisible();
     // « Chantiers » est un vrai écran depuis la PR 6 : accès prêt = pas de bandeau d'accès, sa zone de liste prend la place (voir achatschantiers.spec.js).
-    if (m.id === 'achatschantiers') await expect(page.locator('[data-role="chantiers-zone"]')).toBeVisible();
-    else await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
+    await verifierAccesPret(page, m);
   }
   expect(await sansDefilementHorizontal(page)).toBe(true);
 });

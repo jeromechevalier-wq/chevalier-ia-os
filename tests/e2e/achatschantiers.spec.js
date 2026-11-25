@@ -43,7 +43,16 @@ async function poserFauxReseau(page, options = {}) {
       window.__appels.push({ methode: init.method, chemin: u.pathname, corps });
       if (u.pathname === '/rest/v1/chantiers') {
         if (faux.lectureEnPanne) return rep({ message: 'panne' }, 500);
+        if (faux.retardProchaineLecture) { // la PROCHAINE lecture garde l'état d'aujourd'hui et ne répond que quand le test la libère
+          faux.retardProchaineLecture = false;
+          const instantane = structuredClone(faux.chantiers);
+          await new Promise((r) => { window.__liberer = r; });
+          return rep(instantane, 200, { 'Content-Range': `0-${Math.max(0, instantane.length - 1)}/${instantane.length}` });
+        }
         return rep(faux.chantiers, 200, { 'Content-Range': `0-${Math.max(0, faux.chantiers.length - 1)}/${faux.chantiers.length}` });
+      }
+      if (u.pathname === '/rest/v1/v_td_chantiers') {
+        if (faux.chiffresEnPanne) return rep({ message: 'panne' }, 500);
       }
       if (u.pathname === '/rest/v1/v_td_chantiers') return rep(faux.chiffres, 200, { 'Content-Range': `0-${Math.max(0, faux.chiffres.length - 1)}/${faux.chiffres.length}` });
       if (u.pathname === '/rest/v1/rpc/lister_favoris_os') return rep(faux.favoris);
@@ -272,4 +281,37 @@ test('C13 pas de défilement horizontal, dans les trois vues', async ({ page }) 
   await page.getByRole('button', { name: 'Archives' }).click();
   expect(await sansDefilementHorizontal(page)).toBe(true);
   if (estTelephone(page)) await expect(page.locator('.tableau-chantiers thead')).toBeHidden();
+});
+
+async function modifierNom(page, id, nom) {
+  await carte(page, id).locator('[data-action="menu-chantier"]').click();
+  await page.getByRole('menuitem', { name: 'Modifier' }).click();
+  await champ(page, 'nom').fill(nom);
+  await page.locator('[data-action="enregistrer-chantier"]').click();
+}
+
+test('C14 une lecture lente et ancienne ne remplace pas une lecture plus récente (réponse tardive ignorée)', async ({ page }) => {
+  await ouvrir(page);
+  await page.evaluate(() => { window.__faux.retardProchaineLecture = true; });
+  await modifierNom(page, 'c1', 'Premier nom'); // sa relecture reste en attente, avec « Premier nom »
+  await expect(page.locator('[data-role="formulaire-chantier"]')).toHaveCount(0);
+  await modifierNom(page, 'c1', 'Second nom'); // sa relecture répond tout de suite
+  await expect(carte(page, 'c1')).toContainText('Second nom');
+  await page.evaluate(() => window.__liberer()); // la vieille réponse arrive enfin
+  await page.waitForTimeout(300);
+  await expect(carte(page, 'c1')).toContainText('Second nom');
+  await expect(carte(page, 'c1')).not.toContainText('Premier nom');
+});
+
+test('C15 relecture silencieuse : si la vue des chiffres échoue, les chiffres déjà affichés restent', async ({ page }) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'la lecture des chiffres échoue exprès (erreur 500)' });
+  await ouvrir(page);
+  await expect(carte(page, 'c1').locator('[data-valeur="part-budget"]')).toContainText('42,5 %');
+  await page.evaluate(() => { window.__faux.chiffresEnPanne = true; });
+  await modifierNom(page, 'c1', 'Nom bis');
+  await expect(carte(page, 'c1')).toContainText('Nom bis');
+  await expect(carte(page, 'c1').locator('[data-valeur="part-budget"]')).toContainText('42,5 %'); // gardés
+  await carte(page, 'c1').locator('[data-action="menu-chantier"]').click();
+  await page.getByRole('menuitem', { name: 'Modifier' }).click();
+  await expect(page.locator('[data-role="chantier-chiffres"]')).toHaveAttribute('data-etat', 'ok');
 });
