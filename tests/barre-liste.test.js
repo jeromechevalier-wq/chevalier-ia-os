@@ -19,6 +19,8 @@ const ECRANS = [
   'js/modules/reseauxsociaux/posts-ecran.js',
   // Rendez-vous (14/11/2026) : liste Kanban | Liste | Archives
   'js/modules/rdv/liste.js',
+  // Achats (PR 5, 25/11/2026) : liste des fournisseurs (barre commune, sans boutons de vue)
+  'js/modules/achatsfournisseurs/ecran.js',
 ];
 
 test('les écrans de liste n\'écrivent pas leur recherche à la main (type search)', () => {

@@ -1,26 +1,57 @@
-// Module Achats « Fournisseurs » (24/11/2026) : réservé à un seul compte (`seulJerome`, js/os/registre.js), étape « coquille » : l'état de l'accès à la base, aucune donnée métier.
-// Route : achatsfournisseurs/liste. Pas de section de Réglages ni d'export des données dans cette étape (à faire avec les données du module).
-import { creerCoquille } from '../achatscommun/ecran-etat.js';
-import { TITRE, AIDE } from './ecran.js';
+// Module Achats « Fournisseurs » (24/11/2026) : réservé à un seul compte (`seulJerome`, js/os/registre.js). Les fournisseurs et leurs IBAN sont LUS dans la base de l'espace ;
+// confirmer ou révoquer un IBAN passe par les actions métier (ticket à usage unique). Route : achatsfournisseurs/liste. Aucune donnée dans Firebase.
+import { vider } from '../../os/ui.js';
+import { naviguer } from '../../os/router.js';
+import { rendreEcran } from './ecran.js';
+import { reglagesExportFournisseurs } from './export.js';
 import { ETAPES_DEPLOIEMENT_ACHATS } from '../achatscommun/deploiement.js';
+
+// Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
+function ajouterFeuille() {
+  if (document.querySelector('link[data-achatsfournisseurs]')) return;
+  const l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = new URL('../../../css/achatsfournisseurs.css', import.meta.url).href;
+  l.dataset.achatsfournisseurs = '1';
+  document.head.append(l);
+}
 
 /** Page Réglages > Déploiement : la ligne qui dit que les modules Achats n'existent pas chez les clients (une seule ligne pour les cinq modules, portée par celui-ci). */
 export function controlesDeploiement() {
   return { etapes: ETAPES_DEPLOIEMENT_ACHATS, verifier: null };
 }
 
-const coquille = creerCoquille({ route: 'achatsfournisseurs/liste', titre: TITRE, aide: AIDE });
+export const actionsRapides = []; // rien à créer depuis l'écran : les fournisseurs naissent des factures lues
 
-export const actionsRapides = []; // rien à créer depuis l'écran
+/** Réglages du module : une seule section, « Sauvegarde » (export de la liste). */
+export function reglages(page) {
+  reglagesExportFournisseurs(page);
+}
 
-export function demarrer() { /* aucune donnée à écouter dans cette étape */ }
+let montee = null;
+
+export function demarrer() { /* aucune donnée à écouter : tout est lu dans la base à l'ouverture de l'écran */ }
 
 export function arreter() {
-  coquille.arreter();
+  quitter();
+}
+
+function quitter() {
+  montee?.();
+  montee = null;
 }
 
 export function afficher(conteneur, segs) {
-  return coquille.afficher(conteneur, segs);
+  if (segs[0] !== 'liste') {
+    naviguer('achatsfournisseurs/liste', { remplacer: true });
+    return quitter;
+  }
+  quitter();
+  vider(conteneur);
+  ajouterFeuille();
+  montee = rendreEcran(conteneur);
+  conteneur.scrollTop = 0;
+  return quitter;
 }
 
 /** Pas de recherche globale pour ce module. */

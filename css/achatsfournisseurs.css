@@ -1,0 +1,29 @@
+/* Module Achats « Fournisseurs » : un seul tableau (une ligne par fournisseur + IBAN). Aucune couleur ni taille écrite en dur : variables de tokens.css (thème clair et sombre). */
+.page-fournisseurs .titre-avec-aide { display: flex; align-items: center; gap: var(--esp-2); }
+.tableau-fournisseurs .cellule-nom { display: inline; min-width: 0; font-weight: var(--poids-moyen); }
+.tableau-fournisseurs .col-iban { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tableau-fournisseurs td.col-factures { font-variant-numeric: tabular-nums; }
+.tableau-fournisseurs .detail-etat { display: block; margin-top: var(--esp-1); font-size: var(--fs-petit); color: var(--texte2); }
+.tableau-fournisseurs .detail-etat.erreur { color: var(--retard); }
+.tableau-fournisseurs td.col-actions, .tableau-fournisseurs th.col-actions { width: 44px; text-align: right; }
+.tableau-fournisseurs .iban-complet, .formulaire-iban .iban-complet { font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Pastille d'état : texte ET couleur (jamais la couleur seule). Le jaune plein reste réservé au bouton principal. */
+.etat-fournisseur { display: inline-block; padding: var(--esp-1) var(--esp-3); border-radius: var(--rayon-petit); font-size: var(--fs-petit); font-weight: var(--poids-moyen); background: var(--survol); color: var(--texte); }
+.etat-fournisseur.etat-attention { background: color-mix(in srgb, var(--attention) 22%, var(--panneau)); color: var(--attention); }
+.etat-fournisseur.etat-retard { background: var(--retard-fond); color: var(--retard); }
+.etat-fournisseur.etat-succes { background: color-mix(in srgb, var(--succes) 18%, var(--panneau)); color: var(--succes); }
+/* Lignes non cliquables : la classe ligne-liste reste (cartes sur téléphone) mais sans curseur ni survol. */
+.tableau-fournisseurs tr.ligne-liste { cursor: default; }
+.tableau-fournisseurs tr.ligne-liste:hover { background: transparent; }
+.tableau-fournisseurs tr.ligne-saisie > td { padding: var(--esp-3) var(--esp-5); }
+.formulaire-iban { display: flex; flex-direction: column; gap: var(--esp-4); }
+.formulaire-iban p { margin: 0; }
+.formulaire-iban .champ-etiquette { display: flex; flex-direction: column; gap: var(--esp-2); }
+@media (max-width: 767px) {
+  .tableau-fournisseurs thead { display: none; } /* les en-têtes ne trient pas ici : le tri passe par la barre, pas de pastilles trompeuses */
+  .tableau-fournisseurs .col-iban { grid-column: 1 / -1; white-space: normal; overflow-wrap: anywhere; }
+  .tableau-fournisseurs .iban-complet, .formulaire-iban .iban-complet { white-space: normal; overflow-wrap: anywhere; }
+  .tableau-fournisseurs tr.ligne-saisie, .tableau-fournisseurs tr.ligne-saisie > td { display: block; }
+  .tableau-fournisseurs tr.ligne-saisie > td { padding: 0; }
+  .tableau-fournisseurs td.col-actions { position: absolute; top: var(--esp-3); right: var(--esp-3); width: auto; }
+}
