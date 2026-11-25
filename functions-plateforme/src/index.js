@@ -1,5 +1,5 @@
 // Fonctions Firebase de la plateforme clients (codebase « plateforme »), région de Paris. Chantier 0 (25/11/2026) : aucun nom de projet ici ; il vient de Google
-// (GCLOUD_PROJECT : serveur/src/securite/maison.js), les comptes de service s'écrivent « nom@ » (complétés au déploiement), l'adresse de n8n est dans la fiche reglages_maison/maison.
+// (GCLOUD_PROJECT : serveur/src/securite/maison.js), les comptes de service se calculent avec compteDeService (projet courant), l'adresse de n8n est dans la fiche reglages_maison/maison.
 // Module Automatisations (workflows n8n, chantier 14). NON déployées par le workflow du CRM ; voir docs/automatisations-n8n.md.
 // La clé d'API de n8n est dans Secret Manager (nom : N8N_API_KEY), déposée par Jérôme ; elle n'est lue qu'au moment d'un appel.
 import { initializeApp, getApps } from 'firebase-admin/app';
@@ -22,7 +22,7 @@ import { creerConnexionSms } from '../serveur/src/coeur/connexion-sms.js';
 import { creerEcrivainSecrets } from '../serveur/src/securite/ecrire-secret.js';
 import { creerAdaptateur } from '../serveur/partage/porte/adaptateur.js';
 import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient, baseLienPlateforme } from './devis-pdf.js';
-import { adresseFonction, reserveParDefaut } from '../serveur/src/securite/maison.js';
+import { adresseFonction, reserveParDefaut, compteDeService } from '../serveur/src/securite/maison.js';
 import { texteDe } from '../serveur/src/securite/reglages-maison.js';
 import { appelDocument } from './documents.js';
 import { verifierDeploiementClient } from './deploiement.js';
@@ -75,7 +75,7 @@ export const automatisationsRenommer = onCall(
 // Le nom « mcpclients » est celui du service Cloud Run visé par les réécritures de firebase.plateforme.json. Code : functions/src/clients/ (copié dans serveur/ au déploiement).
 // Compte dédié `mcp-clients@` : Firestore, « Créateur d'objets Storage » (dépôt de texte), secrets du brouillon d'e-mail, et (à donner, docs/securite-et-pannes.md section 12) la lecture du stockage + la signature de ses liens.
 export const mcpclients = onRequest(
-  { region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false, serviceAccount: 'mcp-clients@' },
+  { region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false, serviceAccount: compteDeService('mcp-clients') },
   creerMcpClients(),
 );
 
@@ -83,7 +83,7 @@ export const mcpclients = onRequest(
 // Les règles Firestore et Storage ne changent pas : c'est cette fonction, avec son compte dédié, qui écrit marques/<client> et les membres, après avoir vérifié que l'appelant est éditeur.
 // Aucun secret. Compte dédié : « Utilisateur Cloud Datastore » et, sur Storage, « Administrateur des objets » limité aux fichiers marques/. À créer AVANT le déploiement (docs/mon-espace.md), sinon le déploiement échoue.
 export const espaceReglages = onCall(
-  { region: REGION, timeoutSeconds: 60, memory: '512MiB', maxInstances: 5, serviceAccount: 'espace-reglages@' },
+  { region: REGION, timeoutSeconds: 60, memory: '512MiB', maxInstances: 5, serviceAccount: compteDeService('espace-reglages') },
   async (requete) => {
     try { return await reglerEspace({ db: db(), bucket: getStorage().bucket(bucketMarques()), nomBucket: bucketMarques(), auth: requete.auth, donnees: requete.data }); } catch (e) { throw enHttps(e); }
   },
@@ -187,7 +187,7 @@ export const rdvReponseSms = onRequest(
 // (2 GiB) ; le PDF est rangé dans Cloud Storage sous clients/<client>/devis/… (jamais public) et lu par un lien signé de 5 minutes (`devisPdfLien`, éditeurs ET lecteurs).
 // AUCUN secret déclaré (un secret absent ferait échouer le déploiement de toutes les fonctions). Compte de service dédié, à créer AVANT le déploiement (docs/pdf-clients.md) :
 // sans lui, le déploiement de TOUTES les fonctions de la plateforme échoue. Déployées seulement par le workflow MANUEL de la plateforme, avec Jérôme.
-const COMPTE_PDF = 'devis-pdf@'; // « nom@ » : firebase-tools le complète avec le projet visé au déploiement (lib/gcp/proto.js, formatServiceAccount)
+const COMPTE_PDF = compteDeService('devis-pdf'); // adresse complète dans le projet courant (securite/maison.js)
 const OPTIONS_PDF = { region: REGION, memory: '2GiB', timeoutSeconds: 120, concurrency: 1, maxInstances: 2, serviceAccount: COMPTE_PDF };
 const stockagePdf = () => creerStockage({ bucket: getStorage().bucket(bucketMarques()) });
 const journalPdf = (e) => {

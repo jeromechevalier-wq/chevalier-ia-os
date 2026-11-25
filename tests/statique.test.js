@@ -469,12 +469,12 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.match(bloc, /maxInstances: 3/);
     assert.match(bloc, /invoker: 'public'/);
     assert.match(bloc, /cors: false/);
-    assert.match(bloc, /serviceAccount: 'porte-serveur@'/); // chantier 0 : « nom@ », complété avec le projet visé au déploiement (porte-serveur@chevalier-ia-os…)
+    assert.match(bloc, /serviceAccount: compteDeService\('porte-serveur'\)/); // B1 : adresse complète dans le projet courant ; valeurs exactes de chevalier-ia-os / -app : maison-comptes-de-service.test.js
     assert.match(bloc, /creerGestionnairePorteCrm\(\)/);
   });
   test('D5 la fonction tourne avec un compte de service dédié, jamais avec le compte par défaut du projet', () => {
     const t = lire('functions/src/index.js');
-    assert.match(t, /serviceAccount: 'mcp-serveur@'/); // chantier 0 : « nom@ », complété avec le projet visé au déploiement (mcp-serveur@chevalier-ia-os…)
+    assert.match(t, /serviceAccount: compteDeService\('mcp-serveur'\)/); // B1 : adresse complète dans le projet courant ; valeurs exactes de chevalier-ia-os / -app : maison-comptes-de-service.test.js
     assert.doesNotMatch(t, /compute@developer|appspot\.gserviceaccount/);
   });
   test('D5 /mcp est réécrit vers le service Cloud Run « mcp » de Paris, et functions/ n’est pas publié', () => {

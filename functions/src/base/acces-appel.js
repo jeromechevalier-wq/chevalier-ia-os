@@ -4,10 +4,8 @@
 // L'identité de l'appelant est contrôlée à chaque appel, côté serveur : cacher le bouton ne suffit pas.
 // Jamais en lot, jamais automatique. Aucun secret lu, la réponse ne contient que { ok, effetAu }.
 import { HttpsError } from 'firebase-functions/v2/https';
-import { comptesJeromeSeul, emailDans } from '../securite/reglages-maison.js';
 
-/** Jérôme seul : la liste comptes_jerome_seul de la fiche de la maison. Un tableau peut être passé pour les essais. */
-export const COMPTES_BASE = comptesJeromeSeul;
+export const COMPTES_BASE = Object.freeze(['jerome.chevalier@gmail.com']);
 export const CLE_ROLE = 'role';
 export const CLE_ESPACE = 'espace_base';
 export const VALEUR_ROLE = 'authenticated';
@@ -23,7 +21,7 @@ export function creerAppelAccorderAcces({ auth, comptes = COMPTES_BASE, journal 
   return async function appel(requete) {
     const jeton = requete.auth?.token;
     if (!jeton) throw new HttpsError('unauthenticated', 'Connexion nécessaire.');
-    if (jeton.email_verified !== true || !(await emailDans(comptes, String(jeton.email ?? ''), 'minuscules'))) {
+    if (jeton.email_verified !== true || !comptes.includes(String(jeton.email ?? '').toLowerCase())) {
       journal({ action: 'acces', statut: 'refus' });
       throw new HttpsError('permission-denied', 'Ce compte ne peut pas donner l\'accès à la base.');
     }

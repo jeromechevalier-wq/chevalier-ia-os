@@ -56,7 +56,10 @@ export const MOTIFS_INTERDITS = [
  * Une exception qui ne sert plus fait échouer le test (elle doit être retirée).
  */
 export const EXCEPTIONS = [
-  ['functions-plateforme/src/espace.js', 'adresse Gmail', 'prenom@gmail.com', 'exemple d\'adresse dans un message d\'erreur montré au client (« par exemple prenom@gmail.com »)'],
+  ['functions-plateforme/src/espace.js', 'adresse Gmail', 'prenom@gmail.com', 'exemple d\'adresse dans un message d\'erreur montré au client (« par exemple prenom@gmail.com »)'],  // Seule exception de la nuit du 25/11/2026 : baseAccorderAcces tourne sous base-acces@, qui n'a aucun droit de lecture Firestore ; elle garde donc
+  // sa liste « Jérôme seul » écrite dans le code, comme sur main, en attente de l'accord de Jérôme pour le droit de lecture de base-acces@ (fiche reglages_maison).
+  ['functions/src/base/acces-appel.js', 'compte de Jérôme', COMPTE_JEROME, 'en attente de l\'accord de Jérôme pour le droit de lecture de base-acces@'],
+  ['functions/src/base/acces-appel.js', 'adresse Gmail', COMPTE_JEROME, 'en attente de l\'accord de Jérôme pour le droit de lecture de base-acces@'],
 ];
 
 const aVerifier = [...DOSSIERS.flatMap(fichiers), ...REGLES];
@@ -97,12 +100,16 @@ describe('Chantier 0 : rien de propre à une maison dans le code du serveur et d
     assert.deepEqual(vus("initializeApp({ projectId: projet }, 'plateforme');"), [], 'un projet lu dans une variable est permis');
   });
 
-  test('MV3 comptes de service : écrits « nom@ » (complétés avec le projet visé par firebase-tools au déploiement), jamais en entier', () => {
+  test('MV3 comptes de service : calculés par compteDeService(\'nom\') (adresse complète dans le projet courant), jamais écrits en dur ni en raccourci « nom@ »', () => {
     for (const f of ['functions/src/index.js', 'functions-plateforme/src/index.js']) {
       const t = sansCommentaires(readFileSync(join(RACINE, f), 'utf8'));
-      const valeurs = [...t.matchAll(/(?:serviceAccount:|const COMPTE_[A-Z_]+ =)\s*'([^']*)'/g)].map((m) => m[1]);
-      assert.ok(valeurs.length >= 3, `${f} : comptes de service introuvables`);
-      for (const v of valeurs) assert.match(v, /^[a-z][a-z0-9-]{4,28}@$/, `${f} : ${v}`);
+      const declarations = [...t.matchAll(/(?:serviceAccount:|const COMPTE_[A-Z_]+ =)\s*([^,}\n;]+)/g)].map((m) => m[1].trim());
+      assert.ok(declarations.length >= 3, `${f} : comptes de service introuvables`);
+      for (const d of declarations) {
+        if (/^(COMPTE_[A-Z_]+|[A-Z_]+\.serviceAccount)$/.test(d)) continue; // renvoi à une constante ou à des options, elles-mêmes vérifiées ici
+        assert.match(d, /^compteDeService\('[a-z][a-z0-9-]{4,28}'\)$/, `${f} : ${d}`);
+      }
+      assert.doesNotMatch(t, /'[a-z][a-z0-9-]*@'/, `${f} : raccourci « nom@ » interdit (firebase-tools ne le complète pas pour les secrets ni Cloud Scheduler)`);
     }
   });
 

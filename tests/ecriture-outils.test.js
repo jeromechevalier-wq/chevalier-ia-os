@@ -7,7 +7,8 @@ import { createServer } from 'node:http';
 import * as L from '../functions/partage/logique.js';
 import * as PL from '../functions/partage/projets.js';
 import { OUTILS_ECRITURE } from '../functions/src/mcp/outils/ecriture.js';
-import { proprietaireParDefaut } from '../functions/src/coeur/metier.js';
+import { proprietaireParDefaut, proprietaireMaison } from '../functions/src/coeur/metier.js';
+import { ReglagesMaisonIndisponibles } from '../functions/src/securite/reglages-maison.js';
 import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerLimiteur, LIMITES_PAR_DEFAUT } from '../functions/src/securite/limites.js';
@@ -120,8 +121,15 @@ describe('Propriétaire par défaut (points 2 et 4)', () => {
     assert.equal(await proprietaireParDefaut({ ...chezClient, email: 'alice@exemple.test' }, undefined), 'alice@exemple.test');
     assert.equal(await proprietaireParDefaut({ ...chezClient, email: 'alice@exemple.test' }, 'autre@exemple.test'), 'autre@exemple.test');
     assert.equal(await proprietaireParDefaut({ donnees: {} }, undefined), 'jerome.chevalier@gmail.com'); // chantier 0 : lu dans la fiche reglages_maison/maison (proprietaire_par_defaut)
-    assert.equal(await proprietaireParDefaut({ donnees: {} }, undefined, async () => ''), '', 'fiche sans propriétaire (ou illisible : proprietaireMaison rend "") : aucun propriétaire, jamais un compte écrit dans le code');
+    assert.equal(await proprietaireParDefaut({ donnees: {} }, undefined, async () => ''), '', 'fiche sans propriétaire : aucun propriétaire, jamais un compte écrit dans le code');
     assert.equal(await proprietaireParDefaut({ donnees: {}, email: 'charles@exemple.test' }, undefined), 'charles@exemple.test');
+  });
+  test('P4b (relecture Fable I2) fiche reglages_maison illisible : proprietaireMaison lève, l\'outil échoue (jamais une fiche créée sans propriétaire) ; champ vide = ""', async () => {
+    const illisible = async () => { throw new ReglagesMaisonIndisponibles('fiche absente'); };
+    await assert.rejects(proprietaireMaison(illisible), ReglagesMaisonIndisponibles);
+    await assert.rejects(proprietaireParDefaut({ donnees: {} }, undefined, () => proprietaireMaison(illisible)), ReglagesMaisonIndisponibles);
+    assert.equal(await proprietaireMaison(async () => ({ proprietaire_par_defaut: '' })), '');
+    assert.equal(await proprietaireMaison(async () => ({ proprietaire_par_defaut: 'admin@exemple.test' })), 'admin@exemple.test');
   });
 });
 

@@ -1,10 +1,8 @@
 // Fonction `baseAccorderAcces` (24/11/2026) : réservée à Jérôme par son identité, un compte à la fois, fusion des mentions Firebase.
-import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { creerAppelAccorderAcces, ligneDeJournalBase, COMPTES_BASE as LIRE_COMPTES_BASE, EFFET, REMARQUE_RETRAIT } from '../functions/src/base/acces-appel.js';
-const COMPTES_BASE = await LIRE_COMPTES_BASE(); // chantier 0 : liste lue dans la fiche reglages_maison/maison (celle des essais : _fiche-essai.js)
+import { creerAppelAccorderAcces, ligneDeJournalBase, COMPTES_BASE, EFFET, REMARQUE_RETRAIT } from '../functions/src/base/acces-appel.js';
 
 const JEROME = COMPTES_BASE[0];
 const demande = (token, data = { email: 'cible@client-fictif.example', espace: 'espace-test' }) => ({ auth: token === undefined ? undefined : { token }, data });
@@ -145,6 +143,6 @@ describe('baseAccorderAcces : branchement', () => {
   test('tourne sous le compte de service dédié base-acces (droit du badge), jamais sous porte-serveur', () => {
     const jerome = readFileSync(new URL('../functions/src/index.js', import.meta.url), 'utf8');
     const bloc = jerome.split('export const baseAccorderAcces = onCall(')[1].split('\n')[1];
-    assert.match(bloc, /serviceAccount: 'base-acces@/);
+    assert.match(bloc, /serviceAccount: compteDeService\('base-acces'\)/); // B1 : adresse complète dans le projet courant (maison-comptes-de-service.test.js)
   });
 });

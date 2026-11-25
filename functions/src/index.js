@@ -1,14 +1,14 @@
 // Fonctions Cloud (2e génération, Paris). `mcp` : serveur MCP, joint par https://<projet>.web.app/mcp
 // (réécriture Hosting). `porte` : porte des workflows n8n, jointe par https://<projet>.web.app/porte (réécriture Hosting).
-// Chantier 0 (25/11/2026) : aucun nom de projet ni compte dans ce fichier. Le projet vient de Google (GCLOUD_PROJECT, securite/maison.js) ; les comptes de service s'écrivent
-// « nom@ » (firebase-tools les complète avec le projet visé au déploiement) ; comptes, adresse de n8n et projet lié sont dans la fiche reglages_maison/maison (securite/reglages-maison.js). L'invocation est publique côté Google : la porte est le jeton « cia_… » (securite/jetons.js) ou la connexion Google (oauth/).
+// Chantier 0 (25/11/2026) : aucun nom de projet ni compte dans ce fichier. Le projet vient de Google (GCLOUD_PROJECT, securite/maison.js) ; les comptes de service se calculent
+// avec compteDeService (projet courant, posé par firebase-tools à la découverte) ; comptes, adresse de n8n et projet lié sont dans la fiche reglages_maison/maison (securite/reglages-maison.js). L'invocation est publique côté Google : la porte est le jeton « cia_… » (securite/jetons.js) ou la connexion Google (oauth/).
 import { onRequest, onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { creerGestionnaire, baseLienMaison } from './mcp/gestionnaire.js';
-import { adresseFonction, adresseSite } from './securite/maison.js';
+import { adresseFonction, adresseSite, compteDeService } from './securite/maison.js';
 import { texteDe } from './securite/reglages-maison.js';
 import { creerAccesFirestore } from './coeur/donnees.js';
 import { creerMagasin } from './securite/jetons.js';
@@ -72,7 +72,7 @@ export const mcp = onRequest(
     invoker: 'public',
     cors: false,
     // Compte dédié : « Utilisateur Cloud Datastore » (Firestore), « Accesseur de secrets » sur MCP_JETONS et sur les deux secrets du brouillon d'e-mail (N8N_DEVIS_EMAIL_*), « Créateur d'objets Storage » (dépôt de texte) ; « Lecteur des objets Storage » et « Créateur de jetons du compte de service » sur lui-même sont À DONNER pour le lien signé du PDF officiel (docs/securite-et-pannes.md, section 12), sans quoi l'outil rend seulement le lien du devis. Tableau de bord (outils lister_tableau_de_bord et lire_tableau_de_bord, lecture seule, super admin seulement) : « Accesseur de secrets » sur SUPABASE_INDICATEURS est À DONNER à ce compte par Jérôme (docs/securite-et-pannes.md), sans quoi toutes les tuiles répondent « n'a pas pu être lue ».
-    serviceAccount: 'mcp-serveur@',
+    serviceAccount: compteDeService('mcp-serveur'),
   },
   creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet, sortieEmail: sortieN8nDevis, pilotage: () => assistantPilotage, lienDepot: true }), // `assistantPilotage` est défini plus bas (Pilotage) : fonction paresseuse, sinon ReferenceError au démarrage
 );
@@ -86,7 +86,7 @@ export const porte = onRequest(
     invoker: 'public',
     cors: false,
     // Compte dédié : seulement « Utilisateur Cloud Datastore » (Firestore) et « Accesseur de secrets » sur N8N_API_KEY.
-    serviceAccount: 'porte-serveur@',
+    serviceAccount: compteDeService('porte-serveur'),
   },
   creerGestionnairePorteCrm(),
 );
@@ -102,7 +102,7 @@ export const tableaudebord = onRequest(
     timeoutSeconds: 60,
     invoker: 'public',
     cors: false,
-    serviceAccount: 'porte-serveur@',
+    serviceAccount: compteDeService('porte-serveur'),
   },
   creerGestionnaireTableauCrm(),
 );
@@ -110,7 +110,7 @@ export const tableaudebord = onRequest(
 // `tableaudebordSaisir` : appelée par l'écran Tableau de bord (saisir une date d'échéance ou une valeur). Contrôle l'appelant (mêmes comptes que `veille`), puis écrit
 // l'indicateur ET la ligne d'historique en un seul lot. Même région et mêmes limites que `veille` ; même compte de service que la porte (il a déjà les droits Firestore, aucun secret lu).
 export const tableaudebordSaisir = onCall(
-  { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: 'porte-serveur@' },
+  { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: compteDeService('porte-serveur') },
   (requete) => {
     if (!getApps().length) initializeApp();
     return creerAppelSaisie({ donnees: creerAdaptateur({ db: getFirestore() }), journal: (e) => process.stdout.write(`${ligneDeJournalSaisie(e)}\n`) })(requete);
@@ -121,7 +121,7 @@ export const tableaudebordSaisir = onCall(
 // Absente de la plateforme (RESERVEES_JEROME). Compte de service de la porte pour l'instant : un compte dédié en lecture seule prendra le relais en phase 1, avec l'autorisation de
 // déploiement à lui donner en même temps.
 export const consoleEtat = onCall(
-  { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: 'porte-serveur@' },
+  { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: compteDeService('porte-serveur') },
   (requete) => creerAppelConsole({ version: VERSION_SERVEUR, journal: (e) => process.stdout.write(`${ligneDeJournalConsole(e)}\n`) })(requete),
 );
 
@@ -129,7 +129,7 @@ export const consoleEtat = onCall(
 // Absente de la plateforme (RESERVEES_JEROME). Compte de service DÉDIÉ `base-acces` (accord de Jérôme du 25/11/2026) : un rôle sur mesure avec seulement
 // `firebaseauth.users.get` et `firebaseauth.users.update`, rien d'autre (le journal ne passe que par la sortie standard). `porte-serveur` n'a pas ce droit et ne le reçoit pas.
 export const baseAccorderAcces = onCall(
-  { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: 'base-acces@' },
+  { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: compteDeService('base-acces') },
   (requete) => {
     if (!getApps().length) initializeApp();
     return creerAppelAccorderAcces({ auth: getAuth(), journal: (e) => process.stdout.write(`${ligneDeJournalBase(e)}\n`) })(requete);
@@ -140,7 +140,7 @@ export const baseAccorderAcces = onCall(
 // puis décide en une lecture-modification-écriture atomique (functions/src/coeur/propositions.js, le même code que les outils MCP). Même région, mêmes limites et même compte
 // de service que `tableaudebordSaisir` : aucun droit de plus, aucun secret lu, rien de nouveau à créer avant le déploiement.
 export const automatisationsDecider = onCall(
-  { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: 'porte-serveur@' },
+  { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: compteDeService('porte-serveur') },
   (requete) => {
     if (!getApps().length) initializeApp();
     return creerAppelDecider({ donnees: creerAccesFirestore(), journal: (e) => process.stdout.write(`${ligneDeJournalDecision(e)}\n`) })(requete);
@@ -150,7 +150,7 @@ export const automatisationsDecider = onCall(
 // `automatisationsRenommer` : icône « Renommer » du module Automatisations chez Jérôme (même nom que la fonction de la plateforme, même code de contrôle du nom : partage/automatisations/libelle.js).
 // Écrit le seul champ « libelle » d'un document de la collection racine `workflows` ; contrôle de l'appelant comme `automatisationsDecider` ; mêmes région, limites et compte de service ; aucun secret, n8n n'est pas appelé.
 export const automatisationsRenommer = onCall(
-  { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: 'porte-serveur@' },
+  { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: compteDeService('porte-serveur') },
   (requete) => {
     if (!getApps().length) initializeApp();
     return creerAppelRenommer({ db: () => getFirestore(), effacer: FieldValue.delete(), journal: (e) => process.stdout.write(`${ligneDeJournalRenommer(e)}\n`) })(requete);
@@ -159,7 +159,7 @@ export const automatisationsRenommer = onCall(
 
 // Module Devis (24/10/2026) : les quatre transitions d'un devis se font ICI, jamais depuis le navigateur (les règles Firestore ne laissent écrire qu'un brouillon).
 // Contrôle de l'appelant comme `automatisationsDecider` ; mêmes région, limites et compte de service ; aucun secret, aucun appel à n8n dans cette version.
-const OPTIONS_DEVIS = { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: 'porte-serveur@' };
+const OPTIONS_DEVIS = { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: compteDeService('porte-serveur') };
 const appelDevis = (operation) => onCall(OPTIONS_DEVIS, (requete) => {
   if (!getApps().length) initializeApp();
   return creerAppelDevis(operation, { donnees: () => creerAccesFirestore(), journal: (e) => process.stdout.write(`${ligneDeJournalDevis(e)}\n`) })(requete);
@@ -272,7 +272,7 @@ export const devisPdfLien = onCall(OPTIONS_DEVIS, (requete) => {
 });
 // Déclencheur : ne réagit qu'au passage brouillon -> finalisé (l'écriture de `pdf` ne le relance donc jamais) et ne lève jamais d'erreur (pas de rejeu).
 export const devisPdfAuto = onDocumentUpdated(
-  { document: 'devis_devis/{devisId}', region: 'europe-west9', memory: '2GiB', timeoutSeconds: 540, concurrency: 1, maxInstances: 2, retry: false, serviceAccount: 'porte-serveur@' },
+  { document: 'devis_devis/{devisId}', region: 'europe-west9', memory: '2GiB', timeoutSeconds: 540, concurrency: 1, maxInstances: 2, retry: false, serviceAccount: compteDeService('porte-serveur') },
   (evenement) => {
     if (!getApps().length) initializeApp();
     return creerDeclencheurPdf({
@@ -393,7 +393,7 @@ export const reseauxsociauxReleverMesures = onCall(
 export const AUTOMATISATIONS_EN_SERVICE = true;
 // Compte dédié : « Utilisateur Cloud Datastore » sur le projet du CRM (écrire TES copies), « Accesseur de secrets » sur N8N_API_KEY, et SEULEMENT « Lecteur Cloud Datastore » sur le projet lié
 // (champ projet_plateforme_lie de la fiche reglages_maison/maison : lecture de l'autre base, le compte ne peut pas y écrire, même par erreur).
-const COMPTE_AUTOMATISATIONS = 'automatisations-serveur@';
+const COMPTE_AUTOMATISATIONS = compteDeService('automatisations-serveur'); // adresse complète dans le projet courant (securite/maison.js)
 const dbOs = () => { if (!getApps().length) initializeApp(); return getFirestore(); };
 /**
  * Base du projet lié (la plateforme) : une 2e application nommée, mêmes identifiants du compte de service, en lecture seule (droits IAM).

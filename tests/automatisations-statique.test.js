@@ -2,7 +2,7 @@
 // le registre, les règles Firestore, les fonctions et la configuration de déploiement.
 import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
-import { compteDeployeDans } from './_reglages-maison-essai.js';
+import { compteDeService } from '../functions/src/securite/maison.js';
 import { test, describe } from 'node:test';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -144,11 +144,11 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
     const po = m.porte.__endpoint;
     assert.ok(po.httpsTrigger, 'fonction HTTPS');
     assert.deepEqual(po.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
-    assert.equal(compteDeployeDans(po.serviceAccountEmail, 'chevalier-ia-app'), 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com'); // chantier 0 : « devis-pdf@ », complété avec le projet au déploiement
+    assert.equal(po.serviceAccountEmail, compteDeService('devis-pdf')); // chantier 0 : « devis-pdf@ », complété avec le projet au déploiement
     assert.equal(po.maxInstances, 3);
     // Mon espace (2.10.0) : compte dédié (à créer avant le déploiement), 5 instances au plus, aucun secret
     const e = m.espaceReglages.__endpoint;
-    assert.equal(compteDeployeDans(e.serviceAccountEmail, 'chevalier-ia-app'), 'espace-reglages@chevalier-ia-app.iam.gserviceaccount.com');
+    assert.equal(e.serviceAccountEmail, compteDeService('espace-reglages'));
     assert.equal(e.maxInstances, 5);
     assert.equal(e.secretEnvironmentVariables, undefined);
     assert.ok(e.callableTrigger, 'fonction appelable');
@@ -163,7 +163,7 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
     // PDF des devis chez les clients : compte de service dédié (à créer avant le déploiement : docs/pdf-clients.md), AUCUN secret déclaré, 2 instances au plus pour la fabrication.
     for (const nom of ['devisPdf', 'devisPdfLien', 'devisPdfAuto']) {
       const d = m[nom].__endpoint;
-      assert.equal(compteDeployeDans(d.serviceAccountEmail, 'chevalier-ia-app'), 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com', nom);
+      assert.equal(d.serviceAccountEmail, compteDeService('devis-pdf'), nom);
       assert.equal(d.secretEnvironmentVariables, undefined, `${nom} : aucun secret`);
     }
     assert.ok(m.devisPdf.__endpoint.callableTrigger && m.devisPdfLien.__endpoint.callableTrigger, 'devisPdf et devisPdfLien : fonctions appelables');
@@ -171,7 +171,7 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
     for (const nom of ['documentDeposer', 'documentLien', 'documentRenommer', 'documentSupprimer']) {
       const d = m[nom].__endpoint;
       assert.ok(d.callableTrigger, `${nom} : fonction appelable`);
-      assert.equal(compteDeployeDans(d.serviceAccountEmail, 'chevalier-ia-app'), 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com', nom);
+      assert.equal(d.serviceAccountEmail, compteDeService('devis-pdf'), nom);
       assert.equal(d.secretEnvironmentVariables, undefined, `${nom} : aucun secret`);
     }
     assert.equal(m.documentDeposer.__endpoint.availableMemoryMb, 1024);

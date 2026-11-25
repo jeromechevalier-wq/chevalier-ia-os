@@ -363,7 +363,7 @@ describe('D7 branchement (lecture du code) : comptes, options, copie, secrets', 
   const section = index.slice(index.indexOf('PDF des devis chez les clients'), index.indexOf('La porte des workflows n8n des clients'));
   test('D7 index.js exporte devisPdf, devisPdfLien et devisPdfAuto, avec le compte dédié et les options attendues', () => {
     for (const nom of ['devisPdf', 'devisPdfLien', 'devisPdfAuto']) assert.match(index, new RegExp(`export const ${nom} = `));
-    assert.match(section, /const COMPTE_PDF = 'devis-pdf@';/); // chantier 0 : « nom@ », complété avec le projet visé au déploiement (porte-plateforme.test.js le prouve)
+    assert.match(section, /const COMPTE_PDF = compteDeService\('devis-pdf'\);/); // B1 : adresse complète dans le projet courant ; valeurs exactes de chevalier-ia-os / -app : maison-comptes-de-service.test.js
     assert.match(section, /document: 'clients\/\{client\}\/devis_devis\/\{devisId\}', region: REGION, memory: '2GiB', timeoutSeconds: 540, concurrency: 1, maxInstances: 2, retry: false, serviceAccount: COMPTE_PDF/);
     assert.match(section, /OPTIONS_PDF = \{ region: REGION, memory: '2GiB', timeoutSeconds: 120, concurrency: 1, maxInstances: 2, serviceAccount: COMPTE_PDF \}/);
     assert.match(index, /const bucketMarques = \(\) => reserveParDefaut\(\);/); // chantier 0 : la réserve par défaut du projet (chez la plateforme : chevalier-ia-app.firebasestorage.app)

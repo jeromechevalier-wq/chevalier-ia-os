@@ -1,6 +1,7 @@
 // C2, C3, C5, C6 sur l'ÉMULATEUR Firestore (SDK d'administration réel : vraies transactions, Timestamps) : les numéros restent uniques même
 // quand dix finalisations partent en même temps, et les dates des devis restent des dates (Timestamp) après chaque transition.
 // Lancé avec les émulateurs (npm run test:module devis) ; ignoré si l'émulateur n'est pas démarré. Projet de démonstration, jamais de données réelles.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (propriétaire par défaut des fiches créées sans e-mail), branchée en mémoire sur le serveur
 import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { initializeApp, deleteApp } from '../functions/node_modules/firebase-admin/lib/esm/app/index.js';

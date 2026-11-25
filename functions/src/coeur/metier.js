@@ -32,10 +32,11 @@ import { texteDe } from '../securite/reglages-maison.js';
 
 /**
  * Propriétaire des fiches créées par un jeton « cia_… » (sans e-mail) sur le serveur de Jérôme, sauf si l'appel en donne un autre (plan-mcp.md, écart 11, réglé en 2.16.1 pour les connexions Google et les clients).
- * Lu dans la fiche reglages_maison/maison (champ proprietaire_par_defaut, chantier 0) : fiche illisible ou champ vide = aucun propriétaire (jamais une adresse écrite dans le code).
+ * Lu dans la fiche reglages_maison/maison (champ proprietaire_par_defaut, chantier 0) : champ vide = aucun propriétaire (jamais une adresse écrite dans le code) ;
+ * fiche illisible = ReglagesMaisonIndisponibles levée telle quelle : l'outil échoue au lieu de créer une fiche sans propriétaire (relecture Fable, I2).
  */
-export async function proprietaireMaison() {
-  try { return await texteDe('proprietaire_par_defaut'); } catch { return ''; }
+export async function proprietaireMaison(lire) {
+  return texteDe('proprietaire_par_defaut', lire);
 }
 
 export { ditHorsTaxes };

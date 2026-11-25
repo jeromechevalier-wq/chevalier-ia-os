@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { creerPortePlateforme, creerGestionnairePortePlateforme, bucketPlateforme } from '../functions-plateforme/src/porte.js';
-import { avecProjet, compteDeployeDans } from './_reglages-maison-essai.js';
+import { avecProjet } from './_reglages-maison-essai.js';
 import { genererCle, enregistrementDe, TABLE_CLES } from '../scripts/porte/cles.js';
 
 const lire = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
@@ -120,8 +120,7 @@ describe('P2 déclaration de la fonction « porte » et contexte', () => {
   test('P2 index.js déclare porte avec les réglages attendus', () => {
     assert.match(section, /region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, invoker: 'public', cors: false, secrets: \[CLE_N8N\], serviceAccount: COMPTE_PDF/);
     assert.match(section, /creerGestionnairePortePlateforme\(\{ lireSecret: async \(\) => CLE_N8N\.value\(\) \}\)/);
-    const compte = index.match(/const COMPTE_PDF = '([^']*)'/)[1]; // chantier 0 : « devis-pdf@ », complété avec le projet visé au déploiement
-    assert.equal(compteDeployeDans(compte, 'chevalier-ia-app'), 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com');
+    assert.match(index, /const COMPTE_PDF = compteDeService\('devis-pdf'\);/); // B1 : adresse complète dans le projet courant ; valeurs exactes de chevalier-ia-os / -app : maison-comptes-de-service.test.js
     assert.ok(index.indexOf("const COMPTE_PDF") < index.indexOf('export const porte = '), 'le compte est défini avant la porte');
     assert.match(index, /const CLE_N8N = defineSecret\('N8N_API_KEY'\)/);
   });

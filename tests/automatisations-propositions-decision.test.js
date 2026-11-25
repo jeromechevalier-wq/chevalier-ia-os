@@ -338,7 +338,7 @@ describe('déclaration et déploiement', () => {
     assert.match(bloc, /onCall\(/);
     assert.match(bloc, /region: 'europe-west9'/);
     assert.match(bloc, /maxInstances: 3/);
-    assert.match(bloc, /serviceAccount: 'porte-serveur@'/);
+    assert.match(bloc, /serviceAccount: compteDeService\('porte-serveur'\)/);
     assert.doesNotMatch(bloc, /secrets:|defineSecret/);
   });
   test('la copie du serveur pour la plateforme clients reçoit le même code de décision (et le fichier partagé)', () => {

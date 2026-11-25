@@ -154,6 +154,6 @@ export async function texteDe(champ, lire = lireReglagesMaison) {
  * « Jérôme seul » (Console, connexion à la base, clé ClickSend, réglages du Pilotage, vue administrateur des automatisations) : e-mail VÉRIFIÉ et dans comptes_jerome_seul.
  * Remplace côté serveur js/os/administrateur.js (le serveur ne lit plus aucune liste écrite dans le code). Fiche illisible = faux (refus).
  */
-export async function estJeromeSeul(email, emailVerifie = true, comptes = comptesJeromeSeul) {
+export async function estJeromeSeul(email, emailVerifie, comptes = comptesJeromeSeul) { // emailVerifie sans défaut : chaque appelant passe « email_verified === true »
   return emailVerifie === true && emailDans(comptes, email, 'normalisee');
 }

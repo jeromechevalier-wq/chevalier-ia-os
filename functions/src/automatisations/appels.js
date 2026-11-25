@@ -31,7 +31,7 @@ const REFUS_NEUTRE = () => new Refus('permission-denied', 'Action non autorisée
 export async function exigerAdministrateur(auth) {
   const jeton = auth?.token;
   if (!auth?.uid || !jeton) throw new Refus('unauthenticated', 'Connexion requise.');
-  if (!(await estJeromeSeul(jeton.email, jeton.email_verified))) throw REFUS_NEUTRE();
+  if (!(await estJeromeSeul(jeton.email, jeton.email_verified === true))) throw REFUS_NEUTRE();
   return jeton.email.toLowerCase();
 }
 

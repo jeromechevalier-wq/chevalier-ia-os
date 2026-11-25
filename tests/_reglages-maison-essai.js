@@ -47,13 +47,6 @@ import { semerFicheEmulateur as semer } from './_fiche-emulateur.js';
 /** Écrit la fiche dans l'émulateur Firestore (API REST, jeton « owner » : passe outre les règles). `fiche` null : la supprime. Par défaut : FICHE_ESSAI. */
 export const semerFicheEmulateur = ({ fiche = FICHE_ESSAI, ...reste } = {}) => semer({ fiche, ...reste });
 
-/**
- * Compte de service tel que firebase-tools l'écrit au déploiement (lib/gcp/proto.js, formatServiceAccount) : « nom@ » est complété avec le projet visé
- * (`firebase deploy --project <projet>`). Sert à prouver, caractère pour caractère, que le compte déployé chez Jérôme ne change pas.
- */
-import { createRequire } from 'node:module';
-const exiger = createRequire(import.meta.url);
-export const compteDeployeDans = (valeur, projet) => exiger('firebase-tools/lib/gcp/proto.js').formatServiceAccount(valeur, projet, true);
 
 /** Exécute `fn` comme dans le projet Google `projet` (GCLOUD_PROJECT, et FIREBASE_CONFIG sans réserve), puis remet l'environnement. Rend ce que rend `fn`. */
 export async function avecProjet(projet, fn) {

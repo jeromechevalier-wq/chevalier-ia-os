@@ -96,7 +96,7 @@ describe('plateforme : fonction, adresses, configuration, règles', () => {
   test('la fonction « mcpclients » est exportée par les fonctions de la plateforme (Paris, publique, sans CORS) et jamais par celles du CRM', () => {
     const idx = lire('functions-plateforme/src/index.js');
     assert.match(idx, /export const mcpclients = onRequest\(/);
-    assert.match(idx, /region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false, serviceAccount: 'mcp-clients@'/); // chantier 0 : « nom@ », complété avec le projet visé au déploiement
+    assert.match(idx, /region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false, serviceAccount: compteDeService\('mcp-clients'\) \}/); // B1 : adresse complète dans le projet courant ; valeurs exactes de chevalier-ia-os / -app : maison-comptes-de-service.test.js
     assert.doesNotMatch(idx, /compute@developer|appspot\.gserviceaccount/); // jamais le compte par défaut du projet (rôle « Éditeur »)
     assert.match(lire('functions-plateforme/src/mcp-clients.js'), /creerGestionnaireClients/);
     assert.doesNotMatch(lire('functions/src/index.js'), /clients|mcpclients/);

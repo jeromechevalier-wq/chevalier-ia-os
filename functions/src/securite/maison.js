@@ -36,3 +36,11 @@ export function reserveParDefaut() {
   } catch { /* configuration illisible : nom calculé ci-dessous */ }
   return `${projetCourant()}.firebasestorage.app`;
 }
+
+/**
+ * Adresse complète d'un compte de service du projet courant : `<nom>@<projet>.iam.gserviceaccount.com`. À utiliser pour tout `serviceAccount:` des fonctions.
+ * Le raccourci « nom@ » NE SUFFIT PAS : firebase-tools ne le complète que pour les invocateurs, pas pour l'accès aux secrets ni pour Cloud Scheduler
+ * (relecture Fable du 25/11/2026). GCLOUD_PROJECT est posé par firebase-tools pendant la découverte des fonctions (lib/deploy/functions/prepare.js) ;
+ * sans projet (chargement hors Google), on rend « nom@ » au lieu de lever, pour que le chargement du fichier ne casse jamais.
+ */
+export const compteDeService = (nom) => (process.env.GCLOUD_PROJECT ? `${nom}@${process.env.GCLOUD_PROJECT}.iam.gserviceaccount.com` : `${nom}@`);
