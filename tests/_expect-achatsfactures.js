@@ -14,6 +14,15 @@ function verifs(valeur, nie) {
     toBeNull: () => ok(valeur === null, `${nie ? 'ne devait pas être' : 'devait être'} null, reçu ${montrer(valeur)}`),
     toContain: (v) => ok(Array.isArray(valeur) || typeof valeur === 'string' ? valeur.includes(v) : false, `${nie ? 'ne devait pas contenir' : 'devait contenir'} ${montrer(v)}, reçu ${montrer(valeur)}`),
     toHaveLength: (n) => ok(valeur.length === n, `longueur attendue ${n}, reçue ${valeur.length}`),
+    toThrow: (m) => {
+      let erreur = null;
+      try { valeur(); } catch (e) { erreur = e; }
+      const msg = erreur ? String(erreur.message ?? erreur) : '';
+      const bon = erreur !== null && (m === undefined || (m instanceof RegExp ? m.test(msg) : msg.includes(m)));
+      ok(bon, `${nie ? 'ne devait pas lever' : 'devait lever'} ${m === undefined ? 'une erreur' : String(m)}, reçu ${erreur ? montrer(msg) : 'aucune erreur'}`);
+    },
+    toBeFalsy: () => ok(!valeur, 'devait être faux'),
+    toBeGreaterThanOrEqual: (n) => ok(valeur >= n, `${valeur} devait être >= ${n}`),
     toBeTruthy: () => ok(Boolean(valeur), 'devait être vrai'),
     toBeUndefined: () => ok(valeur === undefined, 'devait être indéfini'),
     toBeLessThan: (n) => ok(valeur < n, `${valeur} devait être < ${n}`),

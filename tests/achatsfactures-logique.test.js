@@ -17,12 +17,12 @@ const f = (o = {}) => ({
 })
 
 describe('recherche sans casse ni accents', () => {
-  const liste = [f({ id: 'a', fournisseur: 'Électro Services', numero: 'ES-3071' }), f({ id: 'b', fournisseur: 'Würzel', chantiers: { nom: 'Maison Dupont, rénovation' } }), f({ id: 'c', fournisseur: null, numero: null })]
+  const liste = [f({ id: 'a', fournisseur: 'Électro Services', numero: 'ES-3071' }), f({ id: 'b', fournisseur: 'Würzel', chantiers: { nom: 'Maison Orvaline, rénovation' } }), f({ id: 'c', fournisseur: null, numero: null })]
   test('trouve « electro » dans « Électro »', () => expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'electro' }).map((x) => x.id)).toEqual(['a']))
   test('trouve « ÉLECTRO » en majuscules accentuées', () => expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'ÉLECTRO' }).map((x) => x.id)).toEqual(['a']))
   test('cherche aussi dans le numéro et le chantier', () => {
     expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'es-30' }).map((x) => x.id)).toEqual(['a'])
-    expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'renovation dupont' }).map((x) => x.id)).toEqual(['b'])
+    expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'renovation orvaline' }).map((x) => x.id)).toEqual(['b'])
   })
   test('« wurzel » trouve « Würzel »', () => expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'wurzel' }).map((x) => x.id)).toEqual(['b']))
   test('recherche vide ou d’espaces : tout, y compris la facture sans fournisseur ni numéro', () => expect(filtrer(liste, { ...CRITERES_VIDES, recherche: '   ' })).toHaveLength(3))

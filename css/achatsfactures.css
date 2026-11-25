@@ -56,3 +56,66 @@
 .score-remplissage { display: block; height: 100%; border-radius: 999px; background: var(--succes); }
 .score-orange .score-remplissage { background: var(--attention); }
 .score-rouge .score-remplissage { background: var(--retard); }
+
+/* Page « Examiner » (PR 8b) : le PDF à gauche, les vérifications à droite ; sur téléphone, une page à la fois (deux onglets). Aucune couleur ni taille en dur : seulement les variables de tokens.css. */
+.page-examiner { min-width: 0; }
+.page-examiner .retour-liste { margin-right: var(--esp-2); vertical-align: middle; }
+.page-examiner .page-tete h1 { display: inline; }
+.examiner { display: grid; grid-template-columns: var(--part-facture, 60%) 12px minmax(0, 1fr); align-items: start; min-width: 0; }
+.examiner-pdf { min-width: 0; position: sticky; top: var(--esp-4); height: calc(100vh - 160px); min-height: 360px; border: 1px solid var(--bordure); border-radius: var(--rayon); background: var(--panneau2); overflow: hidden; }
+.examiner-separateur { align-self: stretch; cursor: col-resize; position: relative; touch-action: none; }
+.examiner-separateur::after { content: ''; position: absolute; top: 0; bottom: 0; left: 5px; width: 2px; border-radius: 2px; background: var(--bordure-forte); }
+.examiner-separateur:hover::after, .examiner-separateur:focus-visible::after { background: var(--accent-trait); }
+.examiner-separateur:focus-visible { outline: 2px solid var(--accent-trait); outline-offset: -2px; }
+.examiner-panneau { display: flex; flex-direction: column; gap: var(--esp-5); min-width: 0; }
+.examiner-onglets { display: none; }
+.examiner-bloc h2 { margin: 0 0 var(--esp-3); font-size: var(--fs-section); }
+.examiner-bloc h3 { margin: var(--esp-3) 0 var(--esp-1); font-size: var(--fs-texte); }
+.champs-lus { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--esp-3) var(--esp-5); }
+.champ-lu { display: flex; flex-direction: column; min-width: 0; }
+.champ-lu .valeur-lue { overflow-wrap: anywhere; }
+.examiner-bloc .zone-tableau { overflow-x: auto; }
+.tableau-lignes td.montant { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.message-extrait, .message-courriel { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 var(--esp-3); }
+.message-courriel { max-height: 50vh; overflow-y: auto; padding: var(--esp-3); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau2); }
+.ligne-info { display: flex; flex-direction: column; gap: var(--esp-1); min-width: 0; }
+.ligne-info .valeur-info { overflow-wrap: anywhere; }
+.liste-pieces { margin: 0; padding-left: var(--esp-6); }
+.liste-controles { list-style: none; margin: 0 0 var(--esp-3); padding: 0; display: flex; flex-direction: column; gap: var(--esp-3); }
+.controle { display: flex; gap: var(--esp-3); align-items: flex-start; }
+.controle-icone { flex: none; display: inline-flex; margin-top: 1px; }
+.controle-texte { display: flex; flex-wrap: wrap; column-gap: var(--esp-1); min-width: 0; }
+.controle-phrase { flex-basis: 100%; color: var(--texte2); font-size: var(--fs-menu); overflow-wrap: anywhere; }
+.controle-ok .controle-icone { color: var(--succes); }
+.controle-alerte .controle-icone { color: var(--attention); }
+.controle-anomalie .controle-icone { color: var(--retard); }
+.controle-indisponible .controle-icone, .controle-bientot { color: var(--texte2); }
+.controle-explique { padding: var(--esp-3) 0; border-top: 1px solid var(--bordure); }
+.controle-explique p { margin: var(--esp-1) 0; }
+.dialogue-controles .dialogue-corps, .dialogue-courriel .dialogue-corps { max-height: 70vh; overflow-y: auto; }
+.actions-decision { display: flex; flex-wrap: wrap; gap: var(--esp-3); margin-top: var(--esp-3); }
+.alertes-decision ul { margin: var(--esp-2) 0; padding-left: var(--esp-6); }
+.alertes-decision textarea, .dialogue-formulaire textarea.champ { width: 100%; box-sizing: border-box; }
+
+/* Lecteur de PDF (pdf-lecteur.js) : la feuille défile dans sa zone, jamais la page. */
+.pdf-zone { display: flex; flex-direction: column; height: 100%; min-width: 0; }
+.pdf-visionneuse { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.pdf-outils { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--esp-2); padding: var(--esp-2) var(--esp-3); border-bottom: 1px solid var(--bordure); }
+.pdf-lien { display: inline-flex; align-items: center; gap: var(--esp-1); color: var(--lien); font-size: var(--fs-menu); }
+.pdf-zoom { display: inline-flex; align-items: center; gap: var(--esp-2); font-variant-numeric: tabular-nums; }
+.pdf-defilement { flex: 1; min-height: 0; overflow: auto; padding: var(--esp-3); cursor: grab; }
+.pdf-pages { display: flex; flex-direction: column; align-items: center; gap: var(--esp-3); }
+.pdf-page { display: block; max-width: none; background: var(--panneau); box-shadow: var(--ombre); }
+.pdf-indispo { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--esp-2); height: 100%; padding: var(--esp-6); text-align: center; color: var(--texte2); }
+
+@media (max-width: 767px) {
+  .examiner { display: block; }
+  .examiner-separateur { display: none; }
+  .examiner-onglets { display: flex; gap: var(--esp-2); }
+  .examiner-onglet { flex: 1; min-height: var(--h-ctrl); border: 1px solid var(--bordure); border-radius: var(--rayon); background: var(--panneau); color: var(--texte); font: inherit; cursor: pointer; }
+  .examiner-onglet.actif { background: var(--accent); border-color: var(--accent); color: var(--sur-accent); font-weight: var(--poids-moyen); }
+  .examiner[data-onglet='facture'] .examiner-panneau, .examiner[data-onglet='verifications'] .examiner-pdf { display: none; }
+  .examiner-pdf { position: static; height: calc(100vh - 220px); min-height: 320px; }
+  .champs-lus { grid-template-columns: 1fr; }
+  .page-examiner { overflow-x: clip; }
+}

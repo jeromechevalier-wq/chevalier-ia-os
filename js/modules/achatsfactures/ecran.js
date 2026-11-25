@@ -1,15 +1,16 @@
 // Écran « Factures » du module Achats (25/11/2026, PR 8a) : titre + compteur, « Exporter », barre commune (recherche, Filtres, Kanban | Liste | Archives, tri),
 // puis le Kanban (trois colonnes toujours présentes) ou le tableau. Chaque carte ou ligne porte la pastille des contrôles automatiques et un menu « … » (Examiner, Archiver / Désarchiver).
-// « Examiner » (la page d'une facture, le lecteur de PDF) arrive à l'étape suivante (PR 8b) : d'ici là, un clic dit « Examiner : bientôt disponible ».
-// Pas de glisser-déposer : le statut d'une facture se décide sur la page Examiner. Pas de « + Facture » ici non plus (8b).
+// « Examiner » (la page d'une facture, le lecteur de PDF : examiner.js, PR 8b) s'ouvre par un clic sur la carte ou la ligne, ou par le menu « … ».
+// Pas de glisser-déposer : le statut d'une facture se décide sur la page Examiner. « + Facture » (bouton jaune de la barre) envoie un PDF par les actions métier (fenetres.js).
 // LECTURES : seulement par le client de la base ; ÉCRITURES (archiver, désarchiver) : seulement par les actions métier (n8n garde les règles) ; la liste est relue après chaque écriture.
 // Les trois cas de l'écran : chargement, cas vide (aucune facture), cas d'erreur (lecture impossible, accès à renouveler, connexion non réglée), tous avec leur bouton.
 import { h, icone, remplir, dialogue, confirmer, toast, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
-import { lien } from '../../os/router.js';
+import { lien, naviguer } from '../../os/router.js';
 import { clientBase, actionsBase, verifierAcces } from '../../os/acces-base.js';
 import { enteteListe, barreListe, basculeVues } from '../crm/barre-liste.js';
 import { texteAcces } from '../achatscommun/etat.js';
 import { creerDonnees } from './donnees.js';
+import { fenetreAjout } from './fenetres.js';
 import { creerMagasinFavoris, favorisDeListe, clesParNom, cleEntreprise, ordonnerAvecFavoris, GENRE_CHANTIER, GENRE_ENTREPRISE } from './favoris.js';
 import { facturesCsv, nomFichierExport, TEXTE_RIEN_A_EXPORTER } from './export-csv.js';
 import { calculerPastilles, PASTILLE_INCONNUE } from './pastilles.js';
@@ -18,7 +19,7 @@ import {
   CRITERES_TRI, CRITERES_VIDES, LIBELLE_STATUT, SANS_CHANTIER, SANS_FOURNISSEUR, STATUTS, VUES,
   actionArchivage, archiverPuisRelire, annulerArchivage, criteresActifs, dateFr, dateHeureFr, dateJourFichier, eurosFacture, filtrer, lireTri, lireVue,
   nomChantier, nomFournisseur, nombreFiltres, pastillesCarte, pastillesFiltres, regrouper, retirerCritere, selonVue, texteCompteur, texteTete, texteTri, textesArchivage,
-  totaux, trier, triApresClicColonne, valeursDeFiltre, DUREE_ANNULATION, DUREE_MESSAGE, MESSAGE_ANALYSES_NON_LUES, MESSAGE_PEUT_ETRE_ANCIENNE, MESSAGE_EXAMINER_BIENTOT, MESSAGE_LISTE_INCOMPLETE, MESSAGE_REMIS,
+  totaux, trier, triApresClicColonne, valeursDeFiltre, DUREE_ANNULATION, DUREE_MESSAGE, MESSAGE_ANALYSES_NON_LUES, MESSAGE_PEUT_ETRE_ANCIENNE, MESSAGE_LISTE_INCOMPLETE, MESSAGE_REMIS,
   MESSAGE_ERREUR_PAR_DEFAUT,
 } from './logique.js';
 
@@ -35,7 +36,7 @@ const COLONNES = [
 ];
 
 /** Montre l'état de l'accès quand il n'est pas bon (connexion non réglée, badge à renouveler, réglages illisibles), avec le bouton qui convient. */
-function dessinerEtatAcces(zone, etat, relancer) {
+export function dessinerEtatAcces(zone, etat, relancer) {
   const alerte = etat !== 'non-regle';
   const bouton = (libelle, forcer) => h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'reessayer' }, onclick: () => relancer(forcer) }, icone('refresh-cw', { taille: 16 }), libelle);
   remplir(zone, h('section', { class: 'carte-section', role: alerte ? 'alert' : 'status', dataset: { role: 'achats-etat', etat } },
@@ -119,6 +120,7 @@ export function rendreEcran(conteneur) {
   const filtres = boutonFiltres({ auClic: ouvrirFiltres });
   const choixTri = selecteurTri({ options: CRITERES_TRI, valeur: tri.critere, sens: tri.sens, surChangement: (t) => changerTri({ critere: t.critere, sens: t.sens }) });
   const boutonExport = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'exporter-factures' }, onclick: () => exporter() }, icone('download', { taille: 16 }), 'Exporter');
+  const boutonAjout = h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'ajouter-facture' }, onclick: () => ajouterFacture() }, icone('plus', { taille: 16 }), 'Facture');
   const barre = barreListe({
     recherche: { placeholder: 'Rechercher une facture', libelleAria: 'Rechercher une facture', valeur: criteres.recherche, surSaisie: (v) => { criteres = { ...criteres, recherche: v }; rendre(); } },
     elements: { filtres: filtres.element, vues: bascule, pastilles: zonePastilles }, tri: choixTri.element,
@@ -127,7 +129,7 @@ export function rendreEcran(conteneur) {
   boutonExport.disabled = true;
 
   conteneur.replaceChildren(h('div', { class: 'page page-liste page-affaires page-achats-factures', dataset: { module: 'achats' } },
-    enteteListe({ titre: TITRE, compteur, actions: [boutonExport] }),
+    enteteListe({ titre: TITRE, compteur, actions: [boutonExport, boutonAjout] }),
     barre.element, alerteListe, avis, erreurAction, zone));
 
   const montrerErreurAction = (message) => { erreurAction.textContent = message ?? ''; erreurAction.hidden = !message; };
@@ -169,8 +171,8 @@ export function rendreEcran(conteneur) {
   }
 
   // ------------------------------------------------------------ dessin
-  const montrerExaminer = () => toast(MESSAGE_EXAMINER_BIENTOT, { duree: DUREE_MESSAGE });
-  const surOuverture = (e) => { if (e.type === 'click' ? !e.target.closest('a, button') : (e.key === 'Enter' && e.target === e.currentTarget)) montrerExaminer(); };
+  const ouvrirExaminer = (f) => naviguer(`achatsfactures/examiner/${f.id}`);
+  const surOuverture = (f) => (e) => { if (e.type === 'click' ? !e.target.closest('a, button') : (e.key === 'Enter' && e.target === e.currentTarget)) ouvrirExaminer(f); };
 
   function boutonMenu(f) {
     const titre = nomFournisseur(f);
@@ -180,7 +182,7 @@ export function rendreEcran(conteneur) {
       onclick: (e) => {
         e.stopPropagation();
         ouvrirMenu(e.currentTarget, [
-          { libelle: 'Examiner (bientôt disponible)', icone: 'file-text', action: montrerExaminer },
+          { libelle: 'Examiner', icone: 'file-text', action: () => ouvrirExaminer(f) },
           ...(archivage ? [{ libelle: archivage === 'archiver' ? 'Archiver' : 'Désarchiver', icone: archivage === 'archiver' ? 'archive' : 'archive-restore', action: () => archiver(f) }] : []),
         ]);
       },
@@ -196,7 +198,7 @@ export function rendreEcran(conteneur) {
     const p = pastilles[f.id] ?? PASTILLE_INCONNUE;
     return h('article', {
       class: 'carte-affaire', tabIndex: 0, dataset: { facture: f.id }, 'aria-label': `Examiner la facture : ${titre}. ${p.texte}`,
-      onclick: surOuverture, onkeydown: surOuverture,
+      onclick: surOuverture(f), onkeydown: surOuverture(f),
     },
     h('div', { class: 'carte-ligne' }, h('strong', { class: `carte-titre${nom ? '' : ' nom-inconnu'}` }, titre), boutonMenu(f)),
     h('span', { class: 'carte-sous' }, icone('file-text', { taille: 12 }), `N° ${f.numero ?? '—'}`, etiquetteAvoir(f), ` · ${dateFr(f.date_facture)}`),
@@ -220,7 +222,7 @@ export function rendreEcran(conteneur) {
         c.libelle, tri.critere === c.id ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null)));
     const lignes = liste.map((f) => {
       const nom = f.fournisseur?.trim() || SANS_FOURNISSEUR;
-      return h('tr', { class: 'ligne-liste', tabIndex: 0, dataset: { facture: f.id }, 'aria-label': `Examiner la facture : ${nom}`, onclick: surOuverture, onkeydown: surOuverture },
+      return h('tr', { class: 'ligne-liste', tabIndex: 0, dataset: { facture: f.id }, 'aria-label': `Examiner la facture : ${nom}`, onclick: surOuverture(f), onkeydown: surOuverture(f) },
         h('td', {}, h('span', { class: `cellule-nom${f.fournisseur?.trim() ? '' : ' nom-inconnu'}` }, nom)),
         h('td', { dataset: { libelle: 'N°' } }, f.numero ?? '—', etiquetteAvoir(f)),
         h('td', { dataset: { libelle: 'Date' } }, dateFr(f.date_facture)),
@@ -241,6 +243,7 @@ export function rendreEcran(conteneur) {
   let dernier = { affiches: [] };
   function rendre() {
     if (!vivant) return;
+    boutonAjout.disabled = etatAcces !== 'connecte';
     remplir(bascule, basculeVues({ vues: VUES, courante: vue, surChangement: changerVue }));
     const pret = etatAcces === 'connecte' && lecture === 'ok';
     barre.element.hidden = !(pret && toutes.length > 0);
@@ -337,6 +340,15 @@ export function rendreEcran(conteneur) {
       const r = await annulerArchivage(() => donnees().desarchiver(f.id), () => charger(true));
       if (vivant) toast(r.ok ? MESSAGE_REMIS : r.message, { type: r.ok ? 'info' : 'erreur', duree: r.ok ? DUREE_MESSAGE : 6000 });
     } } });
+  }
+
+  /** « + Facture » : fenêtre d'envoi d'un PDF ; la facture arrive « À valider » après lecture. Le message du serveur reste dans la fenêtre si l'envoi échoue. */
+  async function ajouterFacture() {
+    if (occupe) return;
+    const r = await fenetreAjout({ actions: actionsBase() });
+    if (!vivant || !r?.ok) return;
+    toast(r.resultat.lectureReussie ? 'Facture ajoutée : elle est dans « À valider »' : 'Facture ajoutée : la lecture automatique est à compléter', { duree: DUREE_MESSAGE });
+    await charger(true);
   }
 
   function exporter() {
