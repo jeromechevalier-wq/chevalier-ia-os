@@ -86,6 +86,7 @@ describe('A2 menu : un seul bloc « Achats »', () => {
     // PR 5 : Fournisseurs a sa section « Sauvegarde » ; les autres modules ajoutent la leur dans leur PR (règle du 27/10/2026) : on ne fige donc pas la liste entière.
     assert.ok(item.sections.every((x) => /^reglages-export-/.test(x.id)), 'seulement des sections de sauvegarde');
     assert.ok(item.sections.some((x) => x.id === 'reglages-export-achatsfournisseurs'));
+    assert.ok(item.sections.some((x) => x.id === 'reglages-export-achatsfactures')); // PR 8a
     assert.match(item.resume, /Réglages > Connexion à la base/);
     assert.equal(item.ouvrir, 'achatsfournisseurs/liste');
   });

@@ -234,6 +234,8 @@ export function rendreEcran(conteneur, { lire = lireDonnees, lireLesPrix = lireP
     const avis = [];
     if (s.erreur) avis.push(alerte('L’actualisation a échoué : les chiffres affichés datent de la lecture précédente.'));
     if (s.donnees.message) avis.push(h('p', { class: 'ta-alerte', role: 'status', dataset: { role: 'plafond' } }, s.donnees.message));
+    // Fournisseurs lit aussi les lignes de prix : si cette lecture a touché le plafond, on le dit aussi (une seule fois si c'est le même message).
+    if (onglet === 'fournisseurs' && prix.donnees && prix.donnees.message && prix.donnees.message !== s.donnees.message) avis.push(h('p', { class: 'ta-alerte', role: 'status', dataset: { role: 'plafond-prix' } }, prix.donnees.message));
     // Un onglet de prix ou de fournisseurs a besoin des factures ou des prix pour ses filtres : ils se relisent à part (erreur à part).
     const corpsOnglet = onglet === 'prix' ? rendrePrix(ctx, prix.donnees, filtres)
       : onglet === 'lignes' ? rendreLignes(ctx, prix.donnees, filtres)
@@ -249,11 +251,16 @@ export function rendreEcran(conteneur, { lire = lireDonnees, lireLesPrix = lireP
   // Thème clair ou sombre : les couleurs des graphiques sont relues dans les variables CSS à chaque dessin ; on redessine quand le thème change.
   const observateur = new MutationObserver(() => { if (donnees || prix.donnees || fourn.donnees) majContenu(); });
   observateur.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  // Thème « comme le système » : pas d'attribut data-theme, mais le réglage de l'appareil peut changer.
+  const systemeSombre = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  const surSysteme = () => { if (donnees || prix.donnees || fourn.donnees) majContenu(); };
+  systemeSombre?.addEventListener?.('change', surSysteme);
 
   demarrer();
   return () => {
     vivant = false;
     observateur.disconnect();
+    systemeSombre?.removeEventListener?.('change', surSysteme);
     document.removeEventListener('keydown', surTouche);
     document.body.classList.remove('ta-plein-actif');
     ctx.libererGraphiques();

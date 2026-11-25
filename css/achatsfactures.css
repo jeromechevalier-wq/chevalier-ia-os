@@ -1,0 +1,58 @@
+/* Module Achats « Factures » (25/11/2026, PR 8a) : styles propres à l'écran (le Kanban, les cartes, la barre de liste et les fenêtres viennent de crm.css et os.css).
+   Aucune couleur ni taille écrite en dur : seulement les variables de tokens.css (thèmes clair et sombre, téléphone). La couleur du trait de chaque colonne arrive en `--couleur` depuis le code. */
+.page-achats-factures .zone-affaires { min-width: 0; }
+.page-achats-factures .page-actions { display: flex; align-items: center; gap: var(--esp-2); flex-wrap: wrap; }
+.page-achats-factures .carte-affaire .carte-ligne .bouton-icone { flex: none; }
+.page-achats-factures .carte-affaire:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.page-achats-factures .colonne-vide { margin: 0; padding: var(--esp-6) var(--esp-4); text-align: center; color: var(--texte2); font-size: var(--fs-menu); }
+.page-achats-factures .nom-inconnu { color: var(--texte2); font-style: italic; font-weight: var(--poids-normal); }
+
+/* Étiquettes de statut et d'avertissement. */
+.page-achats-factures .badge-attention { background: color-mix(in srgb, var(--attention) 20%, transparent); color: var(--attention); }
+.page-achats-factures .badge-succes { background: color-mix(in srgb, var(--succes) 20%, transparent); color: var(--succes); }
+.etiquette-avoir { margin-left: var(--esp-2); }
+
+/* Tableau : montants à droite sur ordinateur, à gauche sur téléphone (le tableau devient une pile de cartes dans crm.css). */
+.tableau-factures th[aria-sort='ascending'] .tri, .tableau-factures th[aria-sort='descending'] .tri { color: var(--texte); }
+.tableau-factures .col-montant, .tableau-factures td.montant { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tableau-factures th.col-montant .tri { justify-content: flex-end; }
+.tableau-factures td.col-actions, .tableau-factures th.col-actions { width: 44px; text-align: right; }
+.tableau-factures td.col-pastille, .tableau-factures th.col-pastille { width: 44px; text-align: center; }
+.tableau-factures .cellule-nom { font-weight: var(--poids-moyen); }
+.tableau-factures tbody tr:focus-visible { outline: 2px solid var(--accent-trait); outline-offset: -2px; }
+@media (max-width: 767px) {
+  /* Le texte caché de l'en-tête « Contrôles » (sr-only, position absolue) doit rester dans la rangée défilante, sinon il élargit la page. */
+  .tableau-factures thead th { position: relative; }
+  .tableau-factures td.montant { text-align: left; }
+  .tableau-factures th.col-montant .tri { justify-content: flex-start; }
+  .tableau-factures td.col-actions, .tableau-factures td.col-pastille { width: auto; }
+  .tableau-factures td.col-pastille { text-align: left; }
+}
+
+/* Pastille des contrôles automatiques (cartes du Kanban et colonne de la Liste). Jamais la couleur seule : la forme de l'icône et l'infobulle disent la même chose. */
+.pastille-controles { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; border: 1px solid currentColor; cursor: default; }
+.pastille-ok { color: var(--succes); background: color-mix(in srgb, var(--succes) 18%, transparent); }
+.pastille-neutre { color: var(--texte2); background: color-mix(in srgb, var(--texte2) 12%, transparent); }
+.pastille-danger-orange { color: var(--attention); background: color-mix(in srgb, var(--attention) 20%, transparent); }
+.pastille-danger-rouge { color: var(--retard); background: color-mix(in srgb, var(--retard) 20%, transparent); }
+.carte-pied .pastille-controles { margin-left: auto; }
+.pastille-tiret { display: block; width: 10px; height: 2px; border-radius: 2px; background: currentColor; }
+
+/* Fenêtre « Filtres » : listes à cocher avec étoile de favori, trait fin entre favoris et autres, période. */
+.filtre-liste { display: flex; flex-direction: column; gap: var(--esp-1); max-height: 180px; overflow-y: auto; padding: var(--esp-2) var(--esp-3); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau2); }
+.filtre-periode { display: grid; grid-template-columns: 1fr 1fr; gap: var(--esp-5); }
+.favori-sep { list-style: none; margin: var(--esp-1) 0; padding: 0; border: 0; border-top: 1px solid var(--bordure); height: 0; }
+.ligne-favori { display: flex; align-items: center; }
+.ligne-favori .case { flex: 1; min-width: 0; }
+.favori-erreur { margin: var(--esp-1) 0 0; }
+@media (max-width: 767px) { .filtre-periode { grid-template-columns: 1fr; } }
+
+/* Barre du score de confiance (affichée par la page Examiner, étape 8b ; le composant est porté ici avec ses tests). */
+.score-barre { display: grid; gap: var(--esp-2); width: 100%; padding: var(--esp-5) var(--esp-6); border: 1px solid var(--bordure); border-radius: var(--rayon); background: var(--panneau2); color: var(--texte); text-align: left; cursor: pointer; font: inherit; }
+.score-barre .score-valeur { font-size: var(--fs-chiffre); font-weight: var(--poids-moyen); font-variant-numeric: tabular-nums; }
+.score-barre .score-phrase, .score-barre .score-pied { color: var(--texte2); font-size: var(--fs-menu); }
+.score-barre .score-pied { display: flex; justify-content: space-between; gap: var(--esp-4); flex-wrap: wrap; }
+.score-rail { display: block; height: 8px; border-radius: 999px; background: var(--survol); overflow: hidden; }
+.score-remplissage { display: block; height: 100%; border-radius: 999px; background: var(--succes); }
+.score-orange .score-remplissage { background: var(--attention); }
+.score-rouge .score-remplissage { background: var(--retard); }
