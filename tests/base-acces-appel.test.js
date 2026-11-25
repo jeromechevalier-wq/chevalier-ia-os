@@ -140,4 +140,9 @@ describe('baseAccorderAcces : branchement', () => {
     assert.match(jerome, /^export const baseAccorderAcces = onCall\(/m);
     assert.doesNotMatch(clients, /baseAccorderAcces/);
   });
+  test('tourne sous le compte de service dédié base-acces (droit du badge), jamais sous porte-serveur', () => {
+    const jerome = readFileSync(new URL('../functions/src/index.js', import.meta.url), 'utf8');
+    const bloc = jerome.split('export const baseAccorderAcces = onCall(')[1].split('\n')[1];
+    assert.match(bloc, /serviceAccount: 'base-acces@/);
+  });
 });
