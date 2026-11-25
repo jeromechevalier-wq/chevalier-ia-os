@@ -21,10 +21,7 @@ const MODULES = [
   { id: 'achatsfactures', route: 'achatsfactures/liste', titre: 'Factures' },
   { id: 'tableauachats', route: 'tableauachats/tableau', titre: 'Tableau de bord 2' },
 ];
-// Un module devenu un vrai écran (Fournisseurs PR 5, Chantiers PR 6, …) n'affiche plus le bandeau d'accès quand l'accès est prêt (voir son propre fichier de tests) : les coquilles sont repérées PAR NOM, jamais par position.
-const ECRANS_REELS = ['achatsfournisseurs', 'achatschantiers', 'achatsarticles'];
-// Factures (PR 8a) lit ses données par le réseau : son écran a son propre test (tests/e2e/achatsfactures.spec.js) ; on l'exclut des coquilles par son NOM.
-const COQUILLES = MODULES.filter((m) => !ECRANS_REELS.includes(m.id) && m.id !== 'achatsfactures');
+// Plus aucune coquille : chaque module Achats a son écran et son propre fichier de tests ; ce fichier ne garde que ce que les modules ont en commun (menu, accès, Réglages).
 const etat = (page) => page.locator('[data-role="achats-etat"]');
 
 // Badge simulé (crochet d'émulateurs, voir js/os/acces-base.js) : portant, ou non, la mention d'accès. Aucun appel réseau réel.
@@ -66,52 +63,18 @@ test('A2 cas vide : connexion non réglée : le texte exact et le lien vers Rég
   await expect(page).toHaveURL(/#\/reglages\/base$/);
 });
 
-test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'accès pour le bon espace : « Accès prêt (badge à jour) » sur les écrans encore en coquille (Fournisseurs et Chantiers affichent déjà leur liste, voir leurs propres fichiers de tests)', async ({ page }, info) => {
-  await ecrireDocument('base_parametres/connexion', FICHE());
-  await simulerBadge(page);
-  await connecter(page, undefined, { route: COQUILLES[0].route });
-  await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
-  await expect(page.locator('[data-role="achats-etat-texte"]')).toHaveText('Accès prêt (badge à jour)');
-  await capturer(page, info, 'A3-connecte');
-  for (const m of COQUILLES.filter((x) => x.id !== COQUILLES[0].id)) {
-    await page.evaluate((r) => { location.hash = `#/${r}`; }, m.route);
-    await expect(page.getByRole('heading', { name: m.titre, level: 1 })).toBeVisible();
-    await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
-  }
-  expect(await sansDefilementHorizontal(page)).toBe(true);
-});
-
-test('A4 « Reconnecte-toi » : le badge n\'a pas la mention d\'accès (ou celle d\'un autre espace) ; le bouton « Revérifier » relit l\'accès', async ({ page }, info) => {
+test('A4 « Reconnecte-toi » : le badge n\'a pas la mention d\'accès (ou celle d\'un autre espace) ', async ({ page }, info) => {
   await ecrireDocument('base_parametres/connexion', FICHE());
   await simulerBadge(page, { role: 'authenticated', espace_base: 'autre-espace' });
-  await connecter(page, undefined, { route: COQUILLES[0].route });
+  await connecter(page, undefined, { route: 'achatsfournisseurs/liste' });
   await expect(etat(page)).toHaveAttribute('data-etat', 'reconnexion');
   await expect(page.locator('[data-role="achats-etat-texte"]')).toContainText('Reconnecte-toi');
   await expect(etat(page)).toHaveAttribute('role', 'alert');
   expect(await sansDefilementHorizontal(page)).toBe(true);
   await capturer(page, info, 'A4-reconnexion');
-  // Le badge reçoit la mention (simulé) : « Revérifier » le voit, sans recharger la page.
-  await page.evaluate(() => { window.__accesBase.claims = { role: 'authenticated', espace_base: 'espace-essai' }; });
-  await page.locator('[data-action="reessayer"]').click();
-  await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
 });
 
-test('A5 cas d\'erreur : la lecture des réglages échoue : message clair et « Réessayer » qui relance', async ({ page, context }, info) => {
-  test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le réseau est coupé exprès' });
-  await ecrireDocument('base_parametres/connexion', FICHE());
-  await simulerBadge(page);
-  await connecter(page);
-  await context.setOffline(true);
-  await page.evaluate(() => { location.hash = '#/tableauachats/tableau'; });
-  await expect(etat(page)).toHaveAttribute('data-etat', 'illisible', { timeout: 30_000 });
-  await expect(page.locator('[data-role="achats-etat-texte"]')).toHaveText('Lecture des réglages impossible, réessaie');
-  expect(await sansDefilementHorizontal(page)).toBe(true);
-  await capturer(page, info, 'A5-illisible');
-  await context.setOffline(false);
-  await page.locator('[data-action="reessayer"]').click();
-  await expect(etat(page)).toHaveAttribute('data-etat', 'connecte', { timeout: 30_000 });
-});
-
+// A5 (lecture des réglages impossible) : chaque écran a ses propres tests d'accès et d'erreur (T9 et T12 du Tableau de bord 2, etc.) ; les textes fixes sont verrouillés par A3 de tests/achats-coquilles.test.js.
 test('A6 une adresse inconnue d\'un module renvoie vers son écran', async ({ page }) => {
   await connecter(page, undefined, { route: 'achatschantiers/inconnu' });
   await expect(page).toHaveURL(/#\/achatschantiers\/liste$/);

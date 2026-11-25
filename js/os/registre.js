@@ -369,7 +369,8 @@ export const MODULES_DECLARES = geler([
     iconeMenu: 'chart-column',
     prefixe: 'tableauachats',
     seulJerome: true,
-    reglages: { sections: [], resume: 'Le tableau de bord des achats se lit dans la base de l’espace. La connexion se règle dans Réglages > Connexion à la base.' },
+    // Sauvegarde (PR 9, règle du 27/10/2026) : la liste des factures lues se télécharge en fichier ; les données vivent dans la base de l'espace (pas dans Firebase), donc `collections` reste vide.
+    reglages: { sections: [{ id: 'reglages-export-tableauachats', libelle: 'Sauvegarde du tableau de bord' }], resume: 'Le tableau de bord des achats se lit dans la base de l’espace. La connexion se règle dans Réglages > Connexion à la base.' },
     entreeMenu: 'tableauachats/tableau',
     ecrans: [
       { route: 'tableauachats/tableau', libelle: 'Tableau de bord 2', icone: 'chart-column' },
