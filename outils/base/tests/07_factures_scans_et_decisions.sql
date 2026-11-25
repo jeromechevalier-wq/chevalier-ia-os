@@ -60,7 +60,11 @@ begin
 
   select a.agence_id, a.entreprise_id into v_ag, v_four from public.creer_agence_et_fournisseur(v_siren || '00027', null, 'Matériaux Exemple', 'Agence Nord', 'Lyon', 'alice') a;
   v_ch := public.creer_chantier('Maison Exemple', null, 'Client Exemple', null, 5000, 'en_cours', null, null, 'alice');
+  perform public.remplacer_lignes_facture(v_f, '[{"designation":"Gravier","quantite":1,"unite":"t","prix_unitaire_ht":105,"montant_ht":105}]', 'alice');
+  -- Remplacer les lignes une 2e fois : les nouvelles se voient, les anciennes sont archivées (jamais effacées).
   perform public.remplacer_lignes_facture(v_f, '[{"designation":"Sable","quantite":1,"unite":"t","prix_unitaire_ht":105,"montant_ht":105}]', 'alice');
+  perform pg_temp.egal((select string_agg(designation, ',') from public.lignes_facture where facture_id = v_f), 'Sable', 'la vue montre la nouvelle ligne');
+  perform pg_temp.egal((select count(*)::int from public.lignes_facture_lues where facture_id = v_f and designation = 'Gravier' and archive_le is not null), 1, 'ancienne ligne archivée');
   -- Une ligne lue ne se modifie pas, même en la glissant dans un archivage.
   perform pg_temp.doit_echouer(format('update public.lignes_facture_lues set designation = %L, archive_le = now() where facture_id = %L', 'Autre', v_f), 'ajout_seul');
   perform pg_temp.doit_echouer(format('update public.lignes_facture_lues set designation = %L where facture_id = %L', 'Autre', v_f), 'ajout_seul');
@@ -114,6 +118,18 @@ begin
   perform pg_temp.doit_echouer(format('insert into public.factures_decisions (facture_id, decision, decide_par, decide_par_id) values (%L, %L, %L, %L)', v_f2, 'accepter', 'alice', v_qui_id), 'agence_obligatoire');
   perform pg_temp.doit_echouer(format('insert into public.factures_decisions (facture_id, decision, decide_par) values (%L, %L, %L)', v_f2, 'accepter', 'alice'), 'decideur_manquant');
   perform pg_temp.doit_echouer(format('insert into public.factures_decisions (facture_id, decision, decide_par, motif) values (%L, %L, %L, %L)', v_f2, 'rouverte', 'alice', 'motif'), 'facture_non_decidee');
+  -- Chantier suspendu : acceptation directe refusée (même contrôle que la vue).
+  update public.factures_identite set etablissement_id = v_ag, chantier_id = v_ch where id = v_f2;
+  perform public.modifier_chantier(v_ch, '{"statut":"suspendu"}', 'alice');
+  perform pg_temp.doit_echouer(format('insert into public.factures_decisions (facture_id, decision, decide_par, decide_par_id) values (%L, %L, %L, %L)', v_f2, 'accepter', 'alice', v_qui_id), 'chantier_suspendu');
+  perform public.modifier_chantier(v_ch, '{"statut":"en_cours"}', 'alice');
+  update public.factures_identite set chantier_id = null where id = v_f2;
+  -- Le drapeau de relier_facture_chantier ne permet pas de CHANGER un chantier déjà posé : on relie v_f (acceptée, sans chantier), puis on essaie.
+  perform public.relier_facture_chantier(v_f, v_ch, 'alice');
+  perform pg_temp.egal((select chantier_id from public.factures where id = v_f), v_ch, 'chantier relié après coup');
+  perform set_config('app.lien_chantier_facture', v_f::text, true);
+  perform pg_temp.doit_echouer(format('update public.factures_identite set chantier_id = null where id = %L', v_f), 'facture_decidee_figee');
+  perform set_config('app.lien_chantier_facture', '', true);
   -- Agence désactivée : acceptation directe refusée.
   update public.factures_identite set etablissement_id = v_ag where id = v_f2;
   perform public.desactiver_agence(v_ag, 'alice');

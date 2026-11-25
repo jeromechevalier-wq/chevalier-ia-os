@@ -402,8 +402,10 @@ begin
   if public.statut_de_facture(new.facture_id) <> 'a_valider' then
     raise exception 'Facture déjà décidée : ses lignes ne peuvent plus changer (% refusé)', tg_op using errcode = 'P0001', detail = 'facture_decidee_figee';
   end if;
+  -- designation_normalisee et unite_normalisee sont des colonnes calculées : encore vides dans NEW à ce moment (déclencheur « before »),
+  -- elles ne comptent pas dans la comparaison.
   if tg_op = 'UPDATE' and (new.archive_le is not distinct from old.archive_le
-       or (to_jsonb(new) - '{archive_le,archive_par,modifie_le,modifie_par}'::text[]) <> (to_jsonb(old) - '{archive_le,archive_par,modifie_le,modifie_par}'::text[])) then
+       or (to_jsonb(new) - '{archive_le,archive_par,modifie_le,modifie_par,designation_normalisee,unite_normalisee}'::text[]) <> (to_jsonb(old) - '{archive_le,archive_par,modifie_le,modifie_par,designation_normalisee,unite_normalisee}'::text[])) then
     raise exception 'Une ligne lue ne se modifie pas : on remplace les lignes (remplacer_lignes_facture)' using errcode = 'P0001', detail = 'ajout_seul';
   end if;
   if tg_op = 'INSERT' then
@@ -593,7 +595,8 @@ language plpgsql
 set search_path = public, pg_temp as $$
 declare v_statut public.statut_facture := public.statut_de_facture(old.id); v_lien boolean;
 begin
-  v_lien := coalesce(nullif(current_setting('app.lien_chantier_facture', true), ''), '') = old.id::text;
+  -- relier_facture_chantier : seulement pour poser un chantier sur une facture qui n'en a pas (comme la vue).
+  v_lien := coalesce(nullif(current_setting('app.lien_chantier_facture', true), ''), '') = old.id::text and old.chantier_id is null;
   if v_statut <> 'a_valider' then
     if (new.fournisseur_siren, new.numero_normalise, new.fournisseur_id, new.etablissement_id)
        is distinct from (old.fournisseur_siren, old.numero_normalise, old.fournisseur_id, old.etablissement_id)
@@ -613,7 +616,7 @@ create trigger ac_identite_garde before update on public.factures_identite for e
 create or replace function public.factures_decisions_garde() returns trigger
 language plpgsql
 set search_path = public, pg_temp as $$
-declare v_statut public.statut_facture; v_ag uuid; v_actif boolean;
+declare v_statut public.statut_facture; v_ag uuid; v_actif boolean; v_ch uuid; v_ch_statut public.statut_chantier; v_ch_archive boolean;
 begin
   perform 1 from public.factures_identite where id = new.facture_id for update;
   v_statut := public.statut_de_facture(new.facture_id);
@@ -628,7 +631,18 @@ begin
     raise exception 'Réouverture refusée : la facture n''est pas encore décidée' using errcode = 'P0001', detail = 'facture_non_decidee';
   end if;
   if new.decision = 'accepter' then
-    select i.etablissement_id into v_ag from public.factures_identite i where i.id = new.facture_id;
+    select i.etablissement_id, i.chantier_id into v_ag, v_ch from public.factures_identite i where i.id = new.facture_id;
+    if v_ch is not null then
+      select c.statut, c.archive into v_ch_statut, v_ch_archive from public.chantiers c where c.id = v_ch for share;
+      if v_ch_statut = 'termine' then
+        raise exception 'Acceptation refusée : le chantier est terminé' using errcode = 'P0001', detail = 'chantier_termine';
+      elsif v_ch_statut = 'suspendu' then
+        raise exception 'Acceptation refusée : le chantier est suspendu' using errcode = 'P0001', detail = 'chantier_suspendu';
+      end if;
+      if v_ch_archive then
+        raise exception 'Acceptation refusée : le chantier est archivé' using errcode = 'P0001', detail = 'chantier_archive';
+      end if;
+    end if;
     if v_ag is null then
       raise exception 'Acceptation refusée : choisissez l''agence du fournisseur (agence obligatoire)' using errcode = 'P0001', detail = 'agence_obligatoire';
     end if;
