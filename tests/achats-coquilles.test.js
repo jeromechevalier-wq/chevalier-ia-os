@@ -79,11 +79,11 @@ describe('A2 menu : un seul bloc « Achats »', () => {
       assert.deepEqual(blocs[0].sections.flat().map((e) => e.chemin), [ROUTES[id]], id);
     }
   });
-  test('A2 Réglages : un élément « Achats » sans section (résumé affiché), qui ouvre le premier écran', () => {
+  test('A2 Réglages : un élément « Achats » sans réglage propre (résumé affiché, sauvegarde seulement), qui ouvre le premier écran', () => {
     const [item] = reglagesDesModules(ACHATS);
     assert.equal(item.id, 'achats');
     assert.equal(item.libelle, 'Achats');
-    assert.deepEqual(item.sections, []);
+    assert.deepEqual(item.sections.filter((s) => !s.id.startsWith('reglages-export-achats')), []); // seules les sections de sauvegarde des modules (Réglages > Sauvegarde) sont permises
     assert.match(item.resume, /Réglages > Connexion à la base/);
     assert.equal(item.ouvrir, 'achatsfournisseurs/liste');
   });
@@ -150,7 +150,7 @@ describe('A5 verrous du code', () => {
           const cible = m[1];
           if (!cible.startsWith('.')) continue;
           const resolu = join('/', dossier, cible).slice(1);
-          if (resolu.startsWith('js/modules/')) assert.ok(resolu.startsWith(`${dossier}/`) || resolu.startsWith('js/modules/achatscommun/'), `${f} importe ${cible}`);
+          if (resolu.startsWith('js/modules/')) assert.ok(resolu.startsWith(`${dossier}/`) || resolu.startsWith('js/modules/achatscommun/') || resolu === 'js/modules/crm/barre-liste.js', `${f} importe ${cible}`); // la barre commune des listes (aucune donnée, que de l'affichage) est la seule exception
         }
         assert.doesNotMatch(lire(f), /pilotage/i, f);
       }

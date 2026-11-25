@@ -1,7 +1,7 @@
 // Modules Achats, étape « coquilles » (24/11/2026, PR 4) : un test par critère (le nom commence par son numéro).
 //  A1 le bloc « Achats » du menu (cinq entrées, un seul bloc) existe pour Jérôme seul ; A2 « Connexion à la base non réglée » (cas vide) avec le lien vers le réglage ;
 //  A3 « Accès prêt (badge à jour) » (faux réseau et badge simulés, émulateurs seulement : aucun appel réseau réel) ; A4 « Reconnecte-toi » (badge sans la mention d'accès) ;
-//  A5 cas d'erreur : réglages illisibles + « Réessayer » ; A6 chaque module affiche son titre ; A7 pas de défilement horizontal ; A8 Réglages > « Achats ».
+//  A5 cas d'erreur : réglages illisibles + « Réessayer » ; A6 chaque module affiche son titre ; A7 pas de défilement horizontal ; A8 Réglages > « Achats » (section Sauvegarde des chantiers).
 // Captures dans tests/e2e/captures/achats-coquilles/ (non commitées), une par état, nommée avec le projet : ordinateur ou telephone.
 // Adresses : construites dans le test (aucune adresse d'exemple n'est écrite dans le code de l'appli).
 import { fileURLToPath } from 'node:url';
@@ -72,7 +72,9 @@ test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'ac
   for (const m of MODULES.slice(1)) {
     await page.evaluate((r) => { location.hash = `#/${r}`; }, m.route);
     await expect(page.getByRole('heading', { name: m.titre, level: 1 })).toBeVisible();
-    await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
+    // « Chantiers » est un vrai écran depuis la PR 6 : accès prêt = pas de bandeau d'accès, sa zone de liste prend la place (voir achatschantiers.spec.js).
+    if (m.id === 'achatschantiers') await expect(page.locator('[data-role="chantiers-zone"]')).toBeVisible();
+    else await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
   }
   expect(await sansDefilementHorizontal(page)).toBe(true);
 });
@@ -114,11 +116,11 @@ test('A6 une adresse inconnue d\'un module renvoie vers son écran', async ({ pa
   await expect(page.getByRole('heading', { name: 'Chantiers', level: 1 })).toBeVisible();
 });
 
-test('A8 Réglages : un élément « Achats » sans réglage propre : le résumé et un lien vers le premier écran', async ({ page }, info) => {
+test('A8 Réglages : l\'élément « Achats » montre la section « Sauvegarde » du module Chantiers (la seule qui a un réglage propre pour l\'instant)', async ({ page }, info) => {
   await connecter(page, undefined, { route: 'reglages' });
   await attendreCalme(page);
   await ouvrirSectionReglages(page, 'Achats');
-  await expect(page.locator('[data-role="aucun-reglage"]')).toContainText('Réglages > Connexion à la base');
-  await expect(page.getByRole('link', { name: 'Ouvrir Achats' })).toHaveAttribute('href', /#\/achatsfournisseurs\/liste$/);
+  await expect(page.locator('#reglages-export-achatschantiers')).toBeVisible();
+  await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
   await capturer(page, info, 'A8-reglages');
 });
