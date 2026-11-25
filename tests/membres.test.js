@@ -40,11 +40,13 @@ describe('membres : appartenance par client', () => {
   });
   test('auth.js : sans option, le CRM de Jérôme garde sa liste fixe ; avec { client }, on lit l\'appartenance', () => {
     const auth = lire('js/os/auth.js');
-    assert.match(auth, /export function compteAutorise\(user\)/);
-    assert.match(auth, /COMPTES_AUTORISES\[email\]/);
+    // Chantier 0, navigateur (26/11/2026) : plus de liste fixe dans le code ; le compte du CRM est lu dans reglages_maison/ecran (comptes-maison.js).
+    assert.match(auth, /export async function compteAutorise\(user\)/);
+    assert.match(auth, /return lireEcran\(\{/);
+    assert.doesNotMatch(auth, /COMPTES_AUTORISES/);
     assert.match(auth, /surveillerCompte\(rappel, \{ client = null \} = \{\}\)/);
     assert.match(auth, /await compteDuClient\(user, client\)/);
-    assert.match(auth, /compte = compteAutorise\(user\)/);
+    assert.match(auth, /const lu = await compteAutorise\(user\);/);
     assert.match(lire('js/main.js'), /surveillerCompte\(async \(ev\) => \{/); // l'appel de la coque ne change pas
   });
   test('firestore.rules (CRM) ne parle pas des clients ; firestore.plateforme.rules refuse tout le reste', () => {
@@ -114,7 +116,8 @@ describe('lecture de la fiche d\'appartenance : une panne ne déconnecte jamais'
     assert.equal(crmOuvertAuxComptes({ 'a@b.test': { nom: 'A' } }), true);
     const auth = lire('js/os/auth.js');
     assert.match(auth, /if \(!client && !crmDisponible\(\)\) return \(\) => \{\};/); // aucun écouteur, aucun signOut
-    assert.match(lire('js/main.js'), /if \(!crmDisponible\(\)\) \{[^\n]*pageSansEspace/);
+    // Chantier 0, navigateur : sur la plateforme, reglages_maison/public est illisible → preparerCrm() rend « plateforme » → page sans espace, comme avant.
+    assert.match(lire('js/main.js'), /if \(depart\.etat === 'plateforme'\) \{[^\n]*pageSansEspace/);
   });
   test('AUTH4 un rappel d\'auth devenu périmé (autre état reçu pendant l\'attente) se tait', () => {
     const s = suiviGenerations();
@@ -124,6 +127,6 @@ describe('lecture de la fiche d\'appartenance : une panne ne déconnecte jamais'
     assert.equal(s.perimee(g1), true);
     assert.equal(s.perimee(g2), false);
     const auth = lire('js/os/auth.js');
-    assert.equal((auth.match(/if \(perime\(\)\) return;/g) || []).length, 3); // après la lecture, avant signOut, avant « connecté »
+    assert.equal((auth.match(/if \(perime\(\)\) return;/g) || []).length, 4); // après la lecture (client ; CRM : reglages_maison/ecran, chantier 0), avant signOut, avant « connecté »
   });
 });

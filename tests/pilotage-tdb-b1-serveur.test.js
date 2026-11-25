@@ -10,7 +10,8 @@ import { creerAppelPilotageLire, enErreurPilotage } from '../functions/src/pilot
 import { resoudrePeriode, resoudreFiltres, clausesDeTuile, dateParis } from '../functions/src/pilotage/filtres.js';
 import { creerConnecteurPostgres } from '../functions/src/pilotage/postgres.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
-import { ADMINISTRATEURS } from '../js/os/administrateur.js';
+import { COMPTE_JEROME } from './_reglages-maison-essai.js'; // chantier 0, navigateur : la source des adresses des essais (js/ n'en contient plus)
+const ADMINISTRATEURS = [COMPTE_JEROME];
 import { COMPTES_AUTORISES as LIRE_COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
 const COMPTES_AUTORISES = await LIRE_COMPTES_AUTORISES(); // chantier 0 : liste lue dans la fiche reglages_maison/maison (celle des essais : _fiche-essai.js)
 

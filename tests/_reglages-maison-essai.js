@@ -1,14 +1,14 @@
-// Fiche « réglages de la maison » des essais (chantier 0, 25/11/2026). Le serveur et les règles ne connaissent plus aucun compte : ils lisent reglages_maison/maison.
-// Les essais qui reprennent les comptes du CRM (écrits dans les tests existants) les retrouvent ici, recopiés depuis l'écran (js/os/), jamais réécrits à la main.
+// Fiche « réglages de la maison » des essais (chantier 0, 25/11/2026). Le serveur, les règles et l'écran ne connaissent plus aucun compte : ils lisent reglages_maison/*.
+// Ce fichier est LA source des deux adresses des essais (chantier 0, partie navigateur, 26/11/2026 : js/ n'en contient plus) ; elles sont écrites ici une seule fois.
+// Les tests existants qui les citent encore sont acceptés ; tout NOUVEAU test utilise des adresses inventées (FICHE_INVENTEE, ECRAN_INVENTE).
 //  - brancherFicheEssai(chemin, fiche) : branche la fiche en mémoire sur une copie du serveur (functions/src ou functions-plateforme/serveur/src) ;
-//  - semerFicheEmulateur({ projet, fiche }) : écrit la fiche dans l'émulateur Firestore (règles, parcours du navigateur, serveur sur émulateur) ;
-//  - FICHE_ESSAI : la fiche qui reproduit le comportement d'avant le chantier 0.
-import { COMPTES_AUTORISES as COMPTES_ECRAN } from '../js/os/firebase-config.js';
-import { ADMINISTRATEURS } from '../js/os/administrateur.js';
+//  - semerFicheEmulateur({ projet, fiche, document }) : écrit un document reglages_maison dans l'émulateur Firestore (règles, parcours du navigateur, serveur sur émulateur) ;
+//  - FICHE_ESSAI, ECRAN_ESSAI, PUBLIC_ESSAI : les trois documents qui reproduisent le comportement d'avant le chantier 0.
 
-const comptesCrm = Object.keys(COMPTES_ECRAN);
-export const COMPTE_JEROME = ADMINISTRATEURS[0];
-export const COMPTE_BOT = comptesCrm.find((e) => e !== COMPTE_JEROME);
+export const COMPTE_JEROME = 'jerome.chevalier@gmail.com';
+export const COMPTE_BOT = 'jeromebot.chevalierbot@gmail.com';
+const comptesCrm = [COMPTE_JEROME, COMPTE_BOT];
+const ADMINISTRATEURS = [COMPTE_JEROME];
 
 /** Hôte du n8n des essais (le même que celui des tests existants). */
 export const HOTE_N8N_ESSAI = ['n8n', 'chevalier-ia', 'fr'].join('.');
@@ -21,6 +21,24 @@ export const FICHE_ESSAI = Object.freeze({
   proprietaire_par_defaut: COMPTE_JEROME,
   n8n_url: `https://${HOTE_N8N_ESSAI}`,
   projet_plateforme_lie: '',
+});
+
+/** reglages_maison/ecran (lu par l'écran après la connexion) : les noms et portraits d'avant (ancien js/os/firebase-config.js), Jérôme seul pour la Console. */
+export const ECRAN_ESSAI = Object.freeze({
+  personnes: [
+    { email: COMPTE_JEROME, nom: 'Jérôme', portrait: 'assets/jerome-portrait.png' },
+    { email: COMPTE_BOT, nom: 'Charles', portrait: 'assets/charles-portrait.png' },
+  ],
+  comptes_jerome_seul: [...ADMINISTRATEURS],
+});
+
+/** reglages_maison/public (lu avant la connexion, aucun e-mail) : le CRM existe dans cette maison. */
+export const PUBLIC_ESSAI = Object.freeze({ mode_crm: true });
+
+/** reglages_maison/ecran avec des adresses inventées (nouveaux tests). */
+export const ECRAN_INVENTE = Object.freeze({
+  personnes: [{ email: 'admin@exemple.test', nom: 'Admin', portrait: 'assets/admin.png' }, { email: 'bot@exemple.test', nom: 'Robot', portrait: '' }],
+  comptes_jerome_seul: ['admin@exemple.test'],
 });
 
 /** Fiche « de démonstration » avec des adresses inventées (nouveaux tests). */

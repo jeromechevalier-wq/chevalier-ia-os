@@ -222,6 +222,7 @@ describe('verrou réseau : un appel au réseau n’existe que dans les deux fich
   const AUTORISES = ['js/os/supabase.js', 'js/os/actions-metier.js'];
   // Décision prise seul : js/os/pwa.js lit déjà « version.json » (adresse relative, même site) pour détecter une nouvelle version : exception exacte, verrouillée ci-dessous.
   const EXCEPTION_PWA = 'js/os/pwa.js';
+  const EXCEPTION_INIT = 'js/os/firebase-init.js'; // chantier 0, navigateur (26/11/2026) : configuration Firebase lue dans /__/firebase/init.json (adresse relative du site)
   const fichiers = (dossier, sortie = []) => {
     for (const nom of readdirSync(dossier)) {
       const chemin = join(dossier, nom);
@@ -231,7 +232,7 @@ describe('verrou réseau : un appel au réseau n’existe que dans les deux fich
     return sortie;
   };
   test('aucun autre fichier de js/ ne contient fetch(, XMLHttpRequest, sendBeacon, WebSocket ou EventSource', () => {
-    const trouves = fichiers(join(racine, 'js')).filter((f) => !AUTORISES.includes(f) && f !== EXCEPTION_PWA && MOTS.test(readFileSync(join(racine, f), 'utf8')));
+    const trouves = fichiers(join(racine, 'js')).filter((f) => !AUTORISES.includes(f) && f !== EXCEPTION_PWA && f !== EXCEPTION_INIT && MOTS.test(readFileSync(join(racine, f), 'utf8')));
     assert.deepEqual(trouves, []);
   });
   test('exception de pwa.js : un seul fetch( relatif vers version.json, aucun autre mot réseau', () => {
@@ -239,6 +240,13 @@ describe('verrou réseau : un appel au réseau n’existe que dans les deux fich
     assert.equal([...s.matchAll(/\bfetch\s*\(/g)].length, 1);
     assert.match(s, /fetch\(`version\.json\?t=/);
     assert.doesNotMatch(s, /XMLHttpRequest|sendBeacon|\bWebSocket\b|\bEventSource\b/);
+  });
+  test('exception de firebase-init.js : un seul fetch(, vers l\'adresse relative /__/firebase/init.json, aucun autre mot réseau ni adresse http', () => {
+    const s = readFileSync(join(racine, EXCEPTION_INIT), 'utf8');
+    assert.equal([...s.matchAll(/\bfetch\s*\(/g)].length, 1);
+    assert.match(s, /export const ADRESSE_CONFIG_HEBERGEMENT = '\/__\/firebase\/init\.json';/);
+    assert.match(s, /await charger\(ADRESSE_CONFIG_HEBERGEMENT, \{ cache: 'no-store' \}\)/);
+    assert.doesNotMatch(s, /XMLHttpRequest|sendBeacon|\bWebSocket\b|\bEventSource\b|https?:\/\//);
   });
   test('les deux fichiers de la couche ne contiennent aucune adresse en dur (ni http, ni https)', () => {
     for (const f of AUTORISES) assert.doesNotMatch(readFileSync(join(racine, f), 'utf8'), /https?:\/\//, f);

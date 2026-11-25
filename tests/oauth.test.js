@@ -283,8 +283,9 @@ describe('Page d’autorisation (GET /oauth/authorize)', () => {
     assert.ok(html.includes(`fetch(${JSON.stringify(ADRESSE_CONFIG_HEBERGEMENT)}, { cache: 'no-store' })`));
     assert.ok(html.includes("authDomain: config.projectId + '.web.app'"));
     assert.doesNotMatch(html, /AIza|chevalier-ia-(os|app)|appId: "/);
-    const appli = readFileSync(new URL('js/os/firebase-config.js', RACINE), 'utf8');
-    assert.match(appli, /authDomain: "chevalier-ia-os\.web\.app"/, 'l’appli de Jérôme se connecte bien sur <projet>.web.app');
+    const appli = readFileSync(new URL('js/os/firebase-init.js', RACINE), 'utf8'); // chantier 0, navigateur : l'appli lit aussi init.json
+    assert.match(appli, /export const ADRESSE_CONFIG_HEBERGEMENT = '\/__\/firebase\/init\.json';/);
+    assert.match(appli, /config\.authDomain = `\$\{projet\}\.web\.app`;/, 'l’appli de Jérôme se connecte bien sur <projet>.web.app');
   });
 });
 

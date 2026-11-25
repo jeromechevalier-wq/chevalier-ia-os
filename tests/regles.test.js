@@ -1,5 +1,6 @@
 // Tests A : règles de sécurité Firestore (émulateur, projet demo-chevalier-ia-os).
 import { test, describe, before, after, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
@@ -364,6 +365,27 @@ describe('Chantier 0 : les comptes viennent de la fiche reglages_maison/maison',
     await assertFails(getDoc(doc(contexte('intrus@exemple.test'), 'reglages_maison', 'ecran')));
     await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'reglages_maison', 'ecran')));
     await assertFails(getDoc(doc(contexte(JEROME), 'reglages_maison', 'autre')));
+  });
+  test('RM-R6 (navigateur, 26/11/2026) « public » et « ecran » absents se lisent quand même (document inexistant, pas un refus) ; « ecran » : e-mail non vérifié ou compte retiré de la fiche refusé ; aucune modification de « ecran » ni de « public », même par Jérôme (adresses inventées)', async () => {
+    const ADMIN = 'admin@exemple.test';
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'reglages_maison', 'maison'), { ...FICHE_ESSAI, comptes_autorises: [ADMIN] });
+    });
+    // Documents absents : la lecture est permise (le navigateur distingue « absent » de « refusé »).
+    const pub = await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'reglages_maison', 'public')));
+    assert.equal(pub.exists(), false);
+    const ecr = await assertSucceeds(getDoc(doc(contexte(ADMIN), 'reglages_maison', 'ecran')));
+    assert.equal(ecr.exists(), false);
+    await assertFails(getDoc(doc(contexte(ADMIN, false), 'reglages_maison', 'ecran')));
+    await assertFails(getDoc(doc(contexte(JEROME), 'reglages_maison', 'ecran')), 'compte retiré de la fiche : refusé');
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'reglages_maison', 'public'), { mode_crm: true });
+      await setDoc(doc(ctx.firestore(), 'reglages_maison', 'ecran'), { personnes: [{ email: ADMIN, nom: 'Admin', portrait: '' }], comptes_jerome_seul: [ADMIN] });
+    });
+    for (const id of ['public', 'ecran']) {
+      await assertFails(updateDoc(doc(contexte(ADMIN), 'reglages_maison', id), { mode_crm: false }));
+      await assertFails(updateDoc(doc(env.unauthenticatedContext().firestore(), 'reglages_maison', id), { mode_crm: false }));
+    }
   });
   test('RM-R5 le bot reste refusé là où il l\'était (Console, connexion à la base) : comptes_jerome_seul ne contient que Jérôme', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {

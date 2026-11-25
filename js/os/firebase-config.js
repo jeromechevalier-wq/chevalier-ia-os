@@ -1,12 +1,5 @@
-export const firebaseConfig = {
-  apiKey: "AIzaSyAa04eaHNaBJwGAUwMrDampugAn1aralXc",
-  authDomain: "chevalier-ia-os.web.app",
-  projectId: "chevalier-ia-os",
-  storageBucket: "chevalier-ia-os.firebasestorage.app",
-  messagingSenderId: "96526036520",
-  appId: "1:96526036520:web:d09f8ac76597dffaad0f1d"
-};
-export const COMPTES_AUTORISES = {
-  "jerome.chevalier@gmail.com": { nom: "Jérôme", avatar: "assets/jerome-portrait.png" },
-  "jeromebot.chevalierbot@gmail.com": { nom: "Charles", avatar: "assets/charles-portrait.png" }
-};
+// Configuration Firebase de la maison (chantier 0, 26/11/2026) : plus rien d'écrit ici pour le CRM.
+// À la racine du dépôt (CRM de Jérôme), l'objet est vide : js/os/firebase.js le remplit avec la configuration servie par Firebase Hosting
+// (/__/firebase/init.json, même projet que le site) avant d'initialiser Firebase. Les comptes et leurs noms sont lus dans reglages_maison/ecran.
+// Sur la plateforme des clients, ce fichier est REMPLACÉ à la construction du paquet (scripts/hebergement.js) par un fichier complet, de même forme.
+export const firebaseConfig = {};

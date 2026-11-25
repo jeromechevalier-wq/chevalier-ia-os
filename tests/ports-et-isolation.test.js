@@ -60,7 +60,11 @@ describe('Ports des tests (TESTS_DECALAGE)', () => {
 describe('A6 production inchangée : js/os/firebase.js', () => {
   const src = lire('js/os/firebase.js');
   test('sans window.__emulateurs, le projet et les ports restent ceux d\'avant (demo-chevalier-ia-os, 127.0.0.1, 9099, 8080)', () => {
-    assert.match(src, /EMU\.projet \|\| 'demo-chevalier-ia-os'/);
+    // Chantier 0, navigateur (26/11/2026) : la configuration des émulateurs (factice, locale) est construite par js/os/firebase-init.js avec le projet des tests.
+    assert.match(src, /configurationDeLaMaison\(\{ modeEmulateurs: MODE_EMULATEURS, projetEmulateurs: EMU\.projet, fichier: firebaseConfig \}\)/);
+    const init = lire('js/os/firebase-init.js');
+    assert.match(init, /export const PROJET_EMULATEURS_PAR_DEFAUT = 'demo-chevalier-ia-os';/);
+    assert.match(init, /if \(modeEmulateurs\) return \{ \.\.\.CONFIG_EMULATEURS, projectId: projetEmulateurs \|\| PROJET_EMULATEURS_PAR_DEFAUT \};/);
     assert.match(src, /EMU\.auth\?\.hote \|\| '127\.0\.0\.1'/);
     assert.match(src, /EMU\.auth\?\.port \|\| 9099/);
     assert.match(src, /EMU\.firestore\?\.hote \|\| '127\.0\.0\.1'/);
@@ -70,7 +74,7 @@ describe('A6 production inchangée : js/os/firebase.js', () => {
     assert.match(src, /const EMU = \(MODE_EMULATEURS && window\.__emulateurs\) \|\| \{\};/);
     assert.equal((src.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n').match(/window\.__emulateurs/g) || []).length, 1);
     assert.match(src, /if \(MODE_EMULATEURS\) \{\s*connectAuthEmulator/);
-    assert.match(src, /MODE_EMULATEURS \? \{ \.\.\.firebaseConfig, projectId: EMU\.projet \|\| 'demo-chevalier-ia-os' \} : firebaseConfig/);
+    assert.match(src, /export const CROCHETS_TEST = EMU;/, 'les autres fichiers lisent les crochets de test par firebase.js, jamais window.__emulateurs');
   });
   test('aucun autre fichier de l\'appli ne connaît window.__emulateurs', () => {
     const r = spawnSync('git', ['grep', '-l', '__emulateurs', '--', 'js', 'index.html', 'espace'], { cwd: RACINE, encoding: 'utf8' });

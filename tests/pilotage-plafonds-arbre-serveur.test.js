@@ -8,7 +8,8 @@ import { creerServicePilotage } from '../functions/src/pilotage/service.js';
 import { creerAppelPilotageLire } from '../functions/src/pilotage/appel.js';
 import { creerAssistantPilotage } from '../functions/src/pilotage/assistant.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
-import { ADMINISTRATEURS } from '../js/os/administrateur.js';
+import { COMPTE_JEROME } from './_reglages-maison-essai.js'; // chantier 0, navigateur : la source des adresses des essais (js/ n'en contient plus)
+const ADMINISTRATEURS = [COMPTE_JEROME];
 
 const JEROME = ADMINISTRATEURS[0];
 const OPTION = JSON.stringify({ dataset: { dimensions: ['cle_nom', 'part_pct'] }, xAxis: { type: 'category' }, yAxis: { type: 'value', max: 120 }, series: [{ type: 'bar', encode: { x: 'cle_nom', y: 'part_pct' } }] });

@@ -27,6 +27,12 @@ const FICHE_PARCOURS = Object.freeze({
   proprietaire_par_defaut: JEROME, n8n_url: `https://${['n8n', 'chevalier-ia', 'fr'].join('.')}`, projet_plateforme_lie: '',
 });
 
+/** reglages_maison/ecran des parcours : les noms et portraits d'avant le chantier 0. */
+export const ECRAN_PARCOURS = Object.freeze({
+  personnes: [{ email: JEROME, nom: 'Jérôme', portrait: 'assets/jerome-portrait.png' }, { email: CHARLES, nom: 'Charles', portrait: 'assets/charles-portrait.png' }],
+  comptes_jerome_seul: [JEROME],
+});
+
 const DOSSIER_FIREBASE = fileURLToPath(new URL('../node_modules/firebase/', import.meta.url));
 
 // ---------------------------------------------------------------- émulateurs
@@ -42,6 +48,9 @@ export async function reinitialiser({ viderAuth = true } = {}) {
   if (!r1.ok || !r2.ok) throw new Error('Réinitialisation des émulateurs impossible');
   // Chantier 0 (25/11/2026) : les règles lisent les comptes dans reglages_maison/maison ; sans elle, tout est refusé. Recréée tout de suite après l'effacement.
   await semerFicheEmulateur({ projet: PROJET, hote: HOTE_FIRESTORE, fiche: FICHE_PARCOURS });
+  // Partie navigateur (26/11/2026) : l'écran lit « public » avant la connexion et « ecran » (noms, portraits, Jérôme seul) après.
+  await semerFicheEmulateur({ projet: PROJET, hote: HOTE_FIRESTORE, document: 'ecran', fiche: ECRAN_PARCOURS });
+  await semerFicheEmulateur({ projet: PROJET, hote: HOTE_FIRESTORE, document: 'public', fiche: { mode_crm: true } });
 }
 
 function versValeur(v) {

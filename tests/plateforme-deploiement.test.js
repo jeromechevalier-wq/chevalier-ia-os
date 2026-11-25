@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url';
 import {
   RACINE, ELEMENTS_PUBLIES, PROJETS, MODELE_ACCUEIL, FICHIER_APPLICATION, lireConfigProjet, contenuConfigFirebase, construire, listerFichiers,
 } from '../scripts/hebergement.js';
+import { configDepuisInit, configurationDeLaMaison } from '../js/os/firebase-init.js';
 
 const lire = (f) => readFileSync(join(RACINE, f), 'utf8');
 const json = (f) => JSON.parse(lire(f));
@@ -46,14 +47,19 @@ async function charger(chemin) {
 }
 
 describe('Le CRM garde exactement sa configuration', () => {
-  test('js/os/firebase-config.js du dépôt = les six valeurs du CRM, ses deux comptes', async () => {
+  test('js/os/firebase-config.js du dépôt : vide (chantier 0) ; la configuration lue chez Firebase Hosting redonne exactement les six valeurs du CRM', async () => {
     const m = await charger(join(RACINE, 'js/os/firebase-config.js'));
-    assert.deepEqual(m.firebaseConfig, CONFIG_CRM);
-    assert.deepEqual(Object.keys(m.COMPTES_AUTORISES), COMPTES_CRM);
+    assert.deepEqual(m.firebaseConfig, {});
+    assert.equal(m.COMPTES_AUTORISES, undefined, 'les comptes et leurs noms sont lus dans reglages_maison/ecran');
+    // /__/firebase/init.json donne <projet>.firebaseapp.com et un databaseURL vide : on garde les six clés et on force <projet>.web.app, comme avant.
+    const init = { ...CONFIG_CRM, authDomain: 'chevalier-ia-os.firebaseapp.com', databaseURL: '' };
+    assert.deepEqual(configDepuisInit(init), CONFIG_CRM);
+    const lu = await configurationDeLaMaison({ modeEmulateurs: false, fichier: m.firebaseConfig, charger: async () => ({ ok: true, json: async () => init }), attentes: [] });
+    assert.deepEqual(lu, CONFIG_CRM);
   });
   test('la construction de la plateforme ne modifie aucun fichier du dépôt', () => {
     assert.ok(!existsSync(join(RACINE, 'js/os/firebase-config.js.bak')));
-    assert.match(lire('js/os/firebase-config.js'), /chevalier-ia-os/);
+    assert.ok(!sansCommentaires(lire('js/os/firebase-config.js')).includes('chevalier-ia-os'), 'plus aucun projet écrit dans le fichier du dépôt');
     assert.ok(!lire('js/os/firebase-config.js').includes('chevalier-ia-app'));
   });
   test('firebase.json (CRM) : public ".", fonctions, réécritures MCP et OAuth, règles Firestore du CRM, dist/ non publié', () => {
@@ -93,6 +99,10 @@ describe('La plateforme prend sa propre configuration', () => {
   test('le paquet contient firebase-config.js généré : config de la plateforme, liste de comptes vide', async () => {
     const m = await charger(join(paquet, 'js/os/firebase-config.js'));
     assert.deepEqual(m.firebaseConfig, CONFIG_PLATEFORME);
+    // Chantier 0 (26/11/2026) : ce fichier généré RESTE ; avec lui, le navigateur de la plateforme n'appelle jamais /__/firebase/init.json.
+    let appels = 0;
+    assert.deepEqual(await configurationDeLaMaison({ modeEmulateurs: false, fichier: m.firebaseConfig, charger: async () => { appels++; throw new Error('jamais'); } }), CONFIG_PLATEFORME);
+    assert.equal(appels, 0);
     assert.deepEqual(m.COMPTES_AUTORISES, {});
     assert.match(readFileSync(join(paquet, 'js/os/firebase-config.js'), 'utf8'), /FICHIER GÉNÉRÉ/);
   });

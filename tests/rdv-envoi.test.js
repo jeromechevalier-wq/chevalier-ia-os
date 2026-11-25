@@ -7,7 +7,8 @@ import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { ErreurSortieSms, nomDuSecret } from '../functions/src/coeur/sms-direct.js';
 import * as R from '../js/modules/rdv/logique.js';
 import { creerAppelRdvEnvoyer, creerAppelRdvEtat } from '../functions/src/rdv-appel.js';
-import { ADMINISTRATEURS } from '../js/os/administrateur.js';
+import { COMPTE_JEROME } from './_reglages-maison-essai.js'; // chantier 0, navigateur : la source des adresses des essais (js/ n'en contient plus)
+const ADMINISTRATEURS = [COMPTE_JEROME];
 import { envoyerRdv, etatRdv } from '../functions-plateforme/src/rdv.js';
 
 const T0 = new Date('2026-11-16T10:00:00Z');
