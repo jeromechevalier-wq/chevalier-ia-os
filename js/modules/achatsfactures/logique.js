@@ -274,5 +274,6 @@ export async function annulerArchivage(defaire, relire) {
 
 /** Message d'état de la liste quand elle est incomplète ou que les analyses n'ont pas pu être lues (dit à l'écran, jamais en silence). */
 export const MESSAGE_LISTE_INCOMPLETE = 'Liste incomplète : les totaux et la recherche ne portent pas sur toutes les factures.';
+export const MESSAGE_PEUT_ETRE_ANCIENNE = 'La liste n’a pas pu être relue : elle n’est peut-être pas à jour. Recharge la page pour la rafraîchir.';
 export const MESSAGE_ANALYSES_NON_LUES = 'Les contrôles automatiques n’ont pas pu être lus : ouvre chaque facture pour les voir.';
 export const MESSAGE_EXAMINER_BIENTOT = 'Examiner : bientôt disponible';

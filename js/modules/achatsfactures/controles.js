@@ -24,11 +24,14 @@ export function luhnValide(chiffres) {
   return somme % 10 === 0;
 }
 
-/** SIRET valide : 14 chiffres et clé de Luhn (exception : les SIRET de La Poste, qui commencent par 356000000, n'y répondent pas). */
+/** Début des SIRET de La Poste : règle publique, ils ne répondent pas à la clé de Luhn. */
+export const PREFIXE_SIRET_EXCEPTION = '356000000';
+
+/** SIRET valide : 14 chiffres et clé de Luhn (exception : les SIRET de La Poste n'y répondent pas). */
 export function siretValide(siret) {
   const s = siret.replace(/\s/g, '');
   if (!/^\d{14}$/.test(s)) return false;
-  if (s.startsWith('356000000')) return true;
+  if (s.startsWith(PREFIXE_SIRET_EXCEPTION)) return true;
   return luhnValide(s);
 }
 

@@ -12,19 +12,19 @@ import { clesABasculer, creerMagasinFavoris, clesParNom, cleDeFavori, favorisDeL
 {
 let n = 0
 const f = (o = {}) => ({
-  id: `f${++n}`, fournisseur: 'Point P', numero: 'FA-1', date_facture: '2026-11-10', montant_ht: 100, montant_tva: 20, montant_ttc: 120, statut: 'a_valider',
+  id: `f${++n}`, fournisseur: 'Point Q', numero: 'FA-1', date_facture: '2026-11-10', montant_ht: 100, montant_tva: 20, montant_ttc: 120, statut: 'a_valider',
   motif_refus: null, date_decision: null, decide_par: null, created_at: '2026-11-10T08:00:00Z', extraction_erreur: null, acceptee_malgre_alerte: false, chantiers: null, extraction: null, fournisseur_siren: null, numero_normalise: null, iban_normalise: null, email_expediteur: null, ...o,
 })
 
 describe('recherche sans casse ni accents', () => {
-  const liste = [f({ id: 'a', fournisseur: 'Électro Services', numero: 'ES-3071' }), f({ id: 'b', fournisseur: 'Würth', chantiers: { nom: 'Maison Dupont, rénovation' } }), f({ id: 'c', fournisseur: null, numero: null })]
+  const liste = [f({ id: 'a', fournisseur: 'Électro Services', numero: 'ES-3071' }), f({ id: 'b', fournisseur: 'Würzel', chantiers: { nom: 'Maison Dupont, rénovation' } }), f({ id: 'c', fournisseur: null, numero: null })]
   test('trouve « electro » dans « Électro »', () => expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'electro' }).map((x) => x.id)).toEqual(['a']))
   test('trouve « ÉLECTRO » en majuscules accentuées', () => expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'ÉLECTRO' }).map((x) => x.id)).toEqual(['a']))
   test('cherche aussi dans le numéro et le chantier', () => {
     expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'es-30' }).map((x) => x.id)).toEqual(['a'])
     expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'renovation dupont' }).map((x) => x.id)).toEqual(['b'])
   })
-  test('« wurth » trouve « Würth »', () => expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'wurth' }).map((x) => x.id)).toEqual(['b']))
+  test('« wurzel » trouve « Würzel »', () => expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'wurzel' }).map((x) => x.id)).toEqual(['b']))
   test('recherche vide ou d’espaces : tout, y compris la facture sans fournisseur ni numéro', () => expect(filtrer(liste, { ...CRITERES_VIDES, recherche: '   ' })).toHaveLength(3))
   test('sans résultat : liste vide', () => expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'zzz' })).toEqual([]))
   test('normaliser gère null', () => expect(normaliser(null)).toBe(''))
@@ -32,12 +32,12 @@ describe('recherche sans casse ni accents', () => {
 
 describe('filtres fournisseur, chantier, période', () => {
   const liste = [
-    f({ id: 'a', fournisseur: 'Loxam', chantiers: { nom: 'Garage' }, date_facture: '2026-11-01' }),
-    f({ id: 'b', fournisseur: 'Loxam', chantiers: null, date_facture: '2026-11-15' }),
+    f({ id: 'a', fournisseur: 'Loxbel', chantiers: { nom: 'Garage' }, date_facture: '2026-11-01' }),
+    f({ id: 'b', fournisseur: 'Loxbel', chantiers: null, date_facture: '2026-11-15' }),
     f({ id: 'c', fournisseur: null, chantiers: { nom: 'Garage' }, date_facture: null }),
   ]
   test('par fournisseur, y compris « Fournisseur inconnu »', () => {
-    expect(filtrer(liste, { ...CRITERES_VIDES, fournisseurs: ['Loxam'] }).map((x) => x.id)).toEqual(['a', 'b'])
+    expect(filtrer(liste, { ...CRITERES_VIDES, fournisseurs: ['Loxbel'] }).map((x) => x.id)).toEqual(['a', 'b'])
     expect(filtrer(liste, { ...CRITERES_VIDES, fournisseurs: ['Fournisseur inconnu'] }).map((x) => x.id)).toEqual(['c'])
   })
   test('par chantier, y compris « Chantier non affecté »', () => {
@@ -49,15 +49,15 @@ describe('filtres fournisseur, chantier, période', () => {
     expect(filtrer(liste, { ...CRITERES_VIDES, du: '2026-11-02' }).map((x) => x.id)).toEqual(['b'])
     expect(filtrer(liste, { ...CRITERES_VIDES, au: '2026-11-01' }).map((x) => x.id)).toEqual(['a'])
   })
-  test('les filtres se cumulent avec la recherche', () => expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'loxam', chantiers: ['Garage'] }).map((x) => x.id)).toEqual(['a']))
+  test('les filtres se cumulent avec la recherche', () => expect(filtrer(liste, { ...CRITERES_VIDES, recherche: 'loxbel', chantiers: ['Garage'] }).map((x) => x.id)).toEqual(['a']))
   test('valeurs proposées : sans doublon, triées sans accents', () => {
-    const v = valeursDeFiltre([f({ fournisseur: 'Würth' }), f({ fournisseur: 'Zinc' }), f({ fournisseur: 'Würth' }), f({ fournisseur: 'Électro' }), f({ fournisseur: null })])
-    expect(v.fournisseurs).toEqual(['Électro', 'Fournisseur inconnu', 'Würth', 'Zinc'])
+    const v = valeursDeFiltre([f({ fournisseur: 'Würzel' }), f({ fournisseur: 'Zinc' }), f({ fournisseur: 'Würzel' }), f({ fournisseur: 'Électro' }), f({ fournisseur: null })])
+    expect(v.fournisseurs).toEqual(['Électro', 'Fournisseur inconnu', 'Würzel', 'Zinc'])
   })
   test('pastilles et retrait d’un filtre', () => {
-    const c = { ...CRITERES_VIDES, fournisseurs: ['Loxam'], du: '2026-11-01' }
+    const c = { ...CRITERES_VIDES, fournisseurs: ['Loxbel'], du: '2026-11-01' }
     const p = pastillesFiltres(c, (v) => v.split('-').reverse().join('/'))
-    expect(p.map((x) => x.libelle)).toEqual(['Fournisseur : Loxam', 'Depuis le 01/11/2026'])
+    expect(p.map((x) => x.libelle)).toEqual(['Fournisseur : Loxbel', 'Depuis le 01/11/2026'])
     expect(nombreFiltres(c)).toBe(2)
     expect(nombreFiltres(retirerCritere(retirerCritere(c, p[0]), p[1]))).toBe(0)
   })
@@ -203,9 +203,9 @@ describe('archivage avec confirmation puis « Annuler » 8 s', () => {
   })
 
   test('A2 : la confirmation tutoie et accorde le texte (facture au féminin)', () => {
-    const f = textesArchivage('Point P')
+    const f = textesArchivage('Point Q')
     expect(f.titre).toBe('Archiver cette facture ?')
-    expect(f.message).toBe('« Point P » ira dans les archives. Tu pourras la désarchiver quand tu veux.')
+    expect(f.message).toBe('« Point Q » ira dans les archives. Tu pourras la désarchiver quand tu veux.')
     expect(f.fait).toBe('Facture archivée')
     const c = textesArchivage('')
     expect(c.message).toBe('Elle ira dans les archives. Tu pourras la désarchiver quand tu veux.')
@@ -244,7 +244,7 @@ describe('archivage avec confirmation puis « Annuler » 8 s', () => {
 {
 
 const f = (o = {}) => ({
-  id: '1', fournisseur: 'Point P', numero: 'F-1', date_facture: '2026-11-05', montant_ht: 100, montant_tva: 20, montant_ttc: 120, statut: 'acceptee', motif_refus: null,
+  id: '1', fournisseur: 'Point Q', numero: 'F-1', date_facture: '2026-11-05', montant_ht: 100, montant_tva: 20, montant_ttc: 120, statut: 'acceptee', motif_refus: null,
   date_decision: '2026-11-06T10:00:00Z', decide_par: 'a@b.fr', created_at: '2026-11-05T08:00:00Z', extraction_erreur: null, acceptee_malgre_alerte: false, chantiers: { nom: 'Villa' },
   type_document: 'facture', archivee_le: null, extraction: null, fournisseur_siren: '123456789', numero_normalise: 'f1', iban_normalise: 'FR7612345678901234567890123', email_expediteur: 'x@y.fr', lignes_etat: null, lignes_somme_ht: null, ...o,
 })
@@ -284,7 +284,7 @@ describe('5 : fichier', () => {
   })
   test('5 : une facture sort avec ses colonnes, sans IBAN', () => {
     const csv = facturesCsv([f()])
-    expect(csv.split('\r\n')[1]).toBe('F-1;Point P;123456789;05/11/2026;100,00;20,00;120,00;Facture;Acceptée;a@b.fr;06/11/2026;;Villa')
+    expect(csv.split('\r\n')[1]).toBe('F-1;Point Q;123456789;05/11/2026;100,00;20,00;120,00;Facture;Acceptée;a@b.fr;06/11/2026;;Villa')
     expect(csv).not.toMatch(/FR76|iban|IBAN|alerte|agence/i)
     expect(ENTETES_FACTURES).toEqual(['Numéro', 'Fournisseur', 'SIREN', 'Date de la facture', 'HT', 'TVA', 'TTC', 'Type', 'Statut', 'Décideur', 'Date de décision', 'Motif de refus', 'Chantier'])
   })
@@ -380,11 +380,11 @@ describe('F3. bascule clé par clé : un clic ne touche que sa clé (jamais une 
   })
   test('F3g. un nom qui regroupe deux agences : un clic = 2 appels ; si un seul échoue, seule cette agence revient', async () => {
     const sv = serveurSimule(); const m = creerMagasinFavoris(sv.appel)
-    const cles = clesParNom([{ nom: 'Béton Provence', cle: '1' }, { nom: 'Béton Provence', cle: '2' }])
+    const cles = clesParNom([{ nom: 'Bétonnerie Fictive', cle: '1' }, { nom: 'Bétonnerie Fictive', cle: '2' }])
     const liste = favorisDeListe('agence', cles, { est: (g, c) => m.lire().has(cleDeFavori(g, c)), basculer: (g, c) => m.basculer(g, c), erreur: null })
-    liste.basculer('Béton Provence')
+    liste.basculer('Bétonnerie Fictive')
     expect(Object.keys(sv.attentes).sort()).toEqual(['agence:1', 'agence:2'])
-    expect(liste.est('Béton Provence')).toBe(true)
+    expect(liste.est('Bétonnerie Fictive')).toBe(true)
     sv.attentes['agence:1'].ok(true); sv.attentes['agence:2'].ko(); await tick()
     expect([...m.lire()]).toEqual(['agence:1'])
     expect(m.lireErreur()?.genre).toBe('agence')
@@ -419,11 +419,11 @@ describe('F4. étoile accessible', () => {
 
 describe('F5. fournisseur = entreprise (SIREN) ; sans SIREN connu, pas d’étoile', () => {
   const m = clesParNom([
-    { nom: 'Béton Provence', cle: '111111111' }, { nom: 'BETON PROVENCE', cle: '111111111' }, { nom: 'Béton Provence', cle: '111111111' },
+    { nom: 'Bétonnerie Fictive', cle: '111111111' }, { nom: 'BETONNERIE FICTIVE', cle: '111111111' }, { nom: 'Bétonnerie Fictive', cle: '111111111' },
     { nom: 'Écrit sans siren', cle: null }, { nom: '  ', cle: '333333333' },
   ])
   test('F5a. même nom (sans casse ni accents) = une seule entrée, sans doublon de clé', () => {
-    expect(m.get('beton provence')).toEqual(['111111111'])
+    expect(m.get('betonnerie fictive')).toEqual(['111111111'])
   })
   test('F5b. pas de SIREN ou pas de nom : aucune entrée', () => {
     expect(m.has('ecrit sans siren')).toBe(false); expect(m.size).toBe(1)
@@ -435,18 +435,18 @@ describe('F5. fournisseur = entreprise (SIREN) ; sans SIREN connu, pas d’étoi
   test('F5d. favorisDeListe(entreprise) : « peut » seulement avec une clé ; « est » si l’entreprise l’est ; basculer appelle le genre entreprise avec le SIREN', () => {
     const basculer = espion(async () => {})
     const f = favorisDeListe('entreprise', m, { est: (g, c) => g === 'entreprise' && c === '111111111', basculer, erreur: null })
-    expect(f.peut('Écrit sans siren')).toBe(false); expect(f.peut('béton provence')).toBe(true)
-    expect(f.est('Béton Provence')).toBe(true)
-    f.basculer('Béton Provence')
+    expect(f.peut('Écrit sans siren')).toBe(false); expect(f.peut('bétonnerie fictive')).toBe(true)
+    expect(f.est('Bétonnerie Fictive')).toBe(true)
+    f.basculer('Bétonnerie Fictive')
     expect(basculer).toHaveBeenCalledTimes(1); expect(basculer).toHaveBeenCalledWith('entreprise', '111111111')
   })
   test('F5e. le genre « chantier » ne se mélange pas avec « entreprise » ni avec l’ancien « agence »', () => {
     const f = favorisDeListe('chantier', m, { est: (g) => g === 'entreprise' || g === 'agence', basculer: async () => {}, erreur: null })
-    expect(f.est('Béton Provence')).toBe(false)
+    expect(f.est('Bétonnerie Fictive')).toBe(false)
   })
   test('F5f. un favori « agence » d’avant ne rend pas l’entreprise favorite', () => {
     const f = favorisDeListe('entreprise', m, { est: (g) => g === 'agence', basculer: async () => {}, erreur: null })
-    expect(f.est('Béton Provence')).toBe(false)
+    expect(f.est('Bétonnerie Fictive')).toBe(false)
   })
 })
 

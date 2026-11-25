@@ -99,7 +99,7 @@ test('A5 cas d\'erreur : la lecture des réglages échoue : message clair et « 
   await simulerBadge(page);
   await connecter(page);
   await context.setOffline(true);
-  await page.evaluate(() => { location.hash = '#/achatsarticles/liste'; });
+  await page.evaluate(() => { location.hash = '#/tableauachats/tableau'; });
   await expect(etat(page)).toHaveAttribute('data-etat', 'illisible', { timeout: 30_000 });
   await expect(page.locator('[data-role="achats-etat-texte"]')).toHaveText('Lecture des réglages impossible, réessaie');
   expect(await sansDefilementHorizontal(page)).toBe(true);

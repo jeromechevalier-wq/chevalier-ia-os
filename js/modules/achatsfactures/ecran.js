@@ -18,7 +18,7 @@ import {
   CRITERES_TRI, CRITERES_VIDES, LIBELLE_STATUT, SANS_CHANTIER, SANS_FOURNISSEUR, STATUTS, VUES,
   actionArchivage, archiverPuisRelire, annulerArchivage, criteresActifs, dateFr, dateHeureFr, dateJourFichier, eurosFacture, filtrer, lireTri, lireVue,
   nomChantier, nomFournisseur, nombreFiltres, pastillesCarte, pastillesFiltres, regrouper, retirerCritere, selonVue, texteCompteur, texteTete, texteTri, textesArchivage,
-  totaux, trier, triApresClicColonne, valeursDeFiltre, DUREE_ANNULATION, DUREE_MESSAGE, MESSAGE_ANALYSES_NON_LUES, MESSAGE_EXAMINER_BIENTOT, MESSAGE_LISTE_INCOMPLETE, MESSAGE_REMIS,
+  totaux, trier, triApresClicColonne, valeursDeFiltre, DUREE_ANNULATION, DUREE_MESSAGE, MESSAGE_ANALYSES_NON_LUES, MESSAGE_PEUT_ETRE_ANCIENNE, MESSAGE_EXAMINER_BIENTOT, MESSAGE_LISTE_INCOMPLETE, MESSAGE_REMIS,
   MESSAGE_ERREUR_PAR_DEFAUT,
 } from './logique.js';
 
@@ -100,6 +100,8 @@ export function rendreEcran(conteneur) {
   let favorisDispo = false;
   let lecture = 'chargement'; // chargement | ok | erreur
   let messageLecture = '';
+  let numeroLecture = 0; // chaque lecture prend un numéro ; une lecture plus récente rend la précédente caduque (sa réponse tardive est ignorée)
+  let peutEtreAncienne = false; // une relecture silencieuse (après archivage) a échoué : la liste affichée peut ne pas être à jour
   let occupe = false;
   let criteres = { ...CRITERES_VIDES };
   let vue = lireVue(lirePreference('vue.achatsfactures', ''));
@@ -143,19 +145,23 @@ export function rendreEcran(conteneur) {
 
   /** Lit les factures (obligatoire), puis le nombre de lignes, les IBAN confirmés et les favoris (facultatifs : leur échec ne bloque pas la liste). `silencieux` : relecture après une écriture. */
   async function charger(silencieux) {
+    const numero = ++numeroLecture;
     if (!silencieux) { lecture = 'chargement'; rendre(); }
     const d = donnees();
     let lue;
     try { lue = await d.chargerFactures(); } catch (e) {
-      if (!vivant) return;
+      if (!vivant || numero !== numeroLecture) return;
       if (e?.code === 'reconnexion') { etatAcces = 'reconnexion'; rendre(); return; }
-      if (!silencieux) { console.warn('Factures : lecture impossible', e?.code ?? e?.message); lecture = 'erreur'; rendre(); }
+      console.warn('Factures : lecture impossible', e?.code ?? e?.message);
+      if (silencieux) { peutEtreAncienne = true; rendre(); return; } // on garde ce qui était affiché, avec un avis
+      lecture = 'erreur'; rendre();
       return;
     }
+    if (!vivant || numero !== numeroLecture) return;
     const [nb, ib, fa] = await Promise.allSettled([d.chargerNombreLignes(lue.liste), d.chargerIbansConfirmes(), d.chargerFavoris()]);
-    if (!vivant) return;
+    if (!vivant || numero !== numeroLecture) return;
     toutes = lue.liste; complete = lue.complete; analysesLues = lue.analysesLues; messageLecture = lue.complete ? '' : lue.message;
-    lecture = 'ok';
+    lecture = 'ok'; peutEtreAncienne = false;
     pastilles = calculerPastilles(toutes, nb.status === 'fulfilled' ? nb.value : null, complete, analysesLues, ib.status === 'fulfilled' ? ib.value : null, null);
     favorisDispo = fa.status === 'fulfilled';
     if (favorisDispo) favoris.charger(fa.value);
@@ -242,6 +248,7 @@ export function rendreEcran(conteneur) {
     alerteListe.textContent = pret && !complete ? [MESSAGE_LISTE_INCOMPLETE, messageLecture].filter(Boolean).join(' ') : '';
     const mots = [];
     if (pret && !analysesLues) mots.push(MESSAGE_ANALYSES_NON_LUES);
+    if (pret && peutEtreAncienne) mots.push(MESSAGE_PEUT_ETRE_ANCIENNE);
     if (pret && !favorisDispo) mots.push('Les favoris ne sont pas disponibles pour l’instant.');
     avis.hidden = mots.length === 0;
     avis.textContent = mots.join(' ');

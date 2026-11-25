@@ -4,6 +4,7 @@
 import { test, describe } from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { expect, espion } from './_expect-achatsfactures.js';
+import { PREFIXE_SIRET_EXCEPTION } from '../js/modules/achatsfactures/controles.js';
 import {
   creerDonnees, fusionnerExtractions, rattacher, COLONNES_FACTURES, COLONNES_ANALYSES, COLONNES_CHANTIERS, COLONNES_AGENCES, COLONNES_LIGNES, PAQUET_LIGNES, TABLE_FACTURES, TABLE_CHANTIERS, TABLE_AGENCES, TABLE_LIGNES, TABLE_IBANS,
 } from '../js/modules/achatsfactures/donnees.js';
@@ -24,7 +25,7 @@ function fauxClient(reponses = {}) {
   return { client: { lire, appeler }, appels, rpc };
 }
 const ok = (lignes, extra = {}) => ({ lignes, tronque: false, message: '', ...extra });
-const fact = (o = {}) => ({ id: 'f1', fournisseur: 'Point P', statut: 'acceptee', chantier_id: null, etablissement_id: null, ...o });
+const fact = (o = {}) => ({ id: 'f1', fournisseur: 'Point Q', statut: 'acceptee', chantier_id: null, etablissement_id: null, ...o });
 const erreur = (code) => Object.assign(new Error('lecture'), { code });
 const resultat = (promesse) => promesse.then(() => 'ok', (e) => e.code);
 
@@ -159,7 +160,7 @@ describe('verrous du module', () => {
   })
   test('aucun numéro d’entreprise (SIREN de 9 chiffres, SIRET de 14 chiffres) ni IBAN écrit en dur dans le module : l’identité de l’espace vient toujours de l’appelant', () => {
     for (const [nom, texte] of Object.entries(code)) {
-      expect(/(?<![\d.])\d{9}(?![\d])|(?<![\d.])\d{14}(?![\d])/.test(texte.replaceAll('356000000', '')) ? `${nom} : numéro en dur` : '').toBe('')
+      expect(/(?<![\d.])\d{9}(?![\d])|(?<![\d.])\d{14}(?![\d])/.test(texte.replaceAll(PREFIXE_SIRET_EXCEPTION, '')) ? `${nom} : numéro en dur` : '').toBe('')
       expect(/\bFR\d{2}\s?\d{4}/.test(texte) ? `${nom} : IBAN en dur` : '').toBe('')
     }
   })

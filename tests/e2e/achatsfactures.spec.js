@@ -24,7 +24,7 @@ const LIGNES_TABLE = () => {
   const lignes = listeComplete().map((f) => { const { chantiers, etablissements_fournisseur, ...r } = f; return { ...r, chantier_id: CHANTIER_DE[f.id] ?? null, etablissement_id: null }; });
   const modele = lignes.find((l) => l.id === 'h1');
   // Un avoir accepté de 20 € : il se SOUSTRAIT dans le total de la colonne « Acceptées ».
-  lignes.push({ ...modele, id: 'av1', numero: 'AV-1', numero_normalise: 'AV-1', type_document: 'avoir', montant_ht: 16.67, montant_tva: 3.33, montant_ttc: 20, fournisseur: 'Brico Dépôt', date_facture: '2026-11-21', extraction: null });
+  lignes.push({ ...modele, id: 'av1', numero: 'AV-1', numero_normalise: 'AV-1', type_document: 'avoir', montant_ht: 16.67, montant_tva: 3.33, montant_ttc: 20, fournisseur: 'Bricolo Dépôt', date_facture: '2026-11-21', extraction: null });
   return lignes;
 };
 const CHANTIERS = [{ id: 'c1', nom: 'Villa Dupont' }, { id: 'c2', nom: 'Atelier Martin' }];
@@ -89,6 +89,7 @@ async function ouvrir(page, options) {
   await poserFauxReseau(page, options);
   await connecter(page, undefined, { route: ROUTE });
   await expect(page.getByRole('heading', { name: 'Factures', level: 1 })).toBeVisible();
+  await expect(page.locator('[data-etat="chargement"]')).toHaveCount(0); // la première lecture est finie avant d'agir (sinon une panne posée trop tôt la fait échouer)
 }
 const colonne = (page, statut) => page.locator(`[data-colonne="${statut}"]`);
 const carte = (page, id) => page.locator(`article[data-facture="${id}"]`);
@@ -128,7 +129,7 @@ test('F2 pastille de contrôle : forme, couleur, texte et infobulle ; jamais ver
   await expect(page.locator('.pastille-controles[data-niveau="ok"]')).toHaveCount(0);
   await expect(pastille('a12')).toHaveAttribute('data-niveau', 'neutre');
   // Une carte qui ouvre l'Examiner a un nom accessible qui cite la pastille.
-  await expect(carte(page, 'a14')).toHaveAttribute('aria-label', /Examiner la facture : Point P Matériaux\. Anomalie/);
+  await expect(carte(page, 'a14')).toHaveAttribute('aria-label', /Examiner la facture : Point Q Matériaux\. Anomalie/);
   await capturer(page, info, 'F2-pastilles');
 });
 
@@ -145,6 +146,8 @@ test('F3 vue Liste : le tableau, le tri par en-tête, la recherche sans accents 
   await expect(page.locator('tr[data-facture]')).toHaveCount(2);
   await expect(page.locator('.compteur-liste')).toHaveText('2 sur 14 factures');
   await page.getByLabel('Rechercher une facture').fill('');
+  await expect(page.locator('tr[data-facture]')).toHaveCount(14); // état stable avant d'enchaîner
+  await expect(page.locator('.compteur-liste')).toHaveText('14 factures');
   // Clic sur l'en-tête « Montant TTC » : plus grand d'abord (l'avoir négatif en dernier), puis l'autre sens.
   await page.locator('[data-tri="montant"]').click();
   await expect(page.locator('th[aria-sort="descending"]')).toContainText('Montant TTC');
@@ -154,10 +157,12 @@ test('F3 vue Liste : le tableau, le tri par en-tête, la recherche sans accents 
   await expect(page.locator('tr[data-facture]').first()).toHaveAttribute('data-facture', 'av1');
   // Filtre par fournisseur.
   await page.locator('[data-action="filtres"]').click();
-  await page.locator('[data-filtre="fournisseurs"]').getByRole('checkbox', { name: 'Loxam Location' }).check();
-  await page.getByRole('button', { name: 'Appliquer' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.locator('[data-filtre="fournisseurs"]').getByRole('checkbox', { name: 'Loxbel Location' }).check();
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Appliquer' })).toBeEnabled();
+  await page.getByRole('dialog').getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.locator('tr[data-facture]')).toHaveCount(1);
-  await expect(page.locator('.pastille-filtre')).toContainText('Fournisseur : Loxam Location');
+  await expect(page.locator('.pastille-filtre')).toContainText('Fournisseur : Loxbel Location');
   await capturer(page, info, 'F3-liste-filtree');
 });
 
@@ -246,7 +251,7 @@ test('F9 export : le fichier part avec le nom du jour, ne contient que ce qui es
   const [fichier] = await Promise.all([page.waitForEvent('download'), page.locator('[data-action="exporter-factures"]').click()]);
   expect(fichier.suggestedFilename()).toMatch(/^factures-\d{4}-\d{2}-\d{2}\.csv$/);
   const texte = await (await import('node:fs/promises')).readFile(await fichier.path(), 'utf8');
-  expect(texte).toContain('Point P Matériaux');
+  expect(texte).toContain('Point Q Matériaux');
   expect(texte).not.toContain('Électro Services'); // archivée : pas dans la vue affichée
   expect(texte).not.toMatch(/FR76|FR14/);
   expect(texte).toContain(';-20,00;Avoir;'.replace(';-20,00;', ';-16,67;-3,33;-20,00;')); // l'avoir sort en négatif
@@ -314,4 +319,15 @@ test('F15 la liste n\'écrit rien : seules les actions « archiver » et « desa
   await page.getByLabel('Rechercher une facture').fill('point');
   const ecritures = (await appels(page)).filter((a) => a.methode && a.methode !== 'GET' && !a.chemin.includes('/rpc/'));
   expect(ecritures).toEqual([]);
+});
+
+test('F16 si la relecture après un archivage échoue, un avis dit que la liste n\'est peut-être pas à jour', async ({ page }) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'la relecture du faux réseau échoue exprès (erreur 500)' });
+  await ouvrir(page);
+  await page.evaluate(() => { window.__faux.lectureEnPanne = true; });
+  await carte(page, 'h1').locator('[data-action="menu-facture"]').click();
+  await page.getByRole('menuitem', { name: 'Archiver' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Archiver' }).click();
+  await expect(page.locator('[data-role="factures-avis"]')).toContainText('n’a pas pu être relue');
+  await expect(page.locator('[data-etat="erreur"]')).toHaveCount(0); // l'écran garde ce qui était affiché
 });

@@ -48,7 +48,7 @@ describe('niveau de la pastille', () => {
 
 describe('6. SIRET : annuaire indisponible', () => {
   test('6 : pastille orange (danger non rouge), jamais verte, avec « n’a pas été fait »', () => {
-    const x = { fournisseur: { nom: 'Point P', siret: '50000000500008', siren: null, adresse: null }, annuaire: { interroge: false } }
+    const x = { fournisseur: { nom: 'Point Q', siret: '50000000500008', siren: null, adresse: null }, annuaire: { interroge: false } }
     const siret = controleSiret(x)
     expect(siret.etat).toBe('indisponible'); expect(siret.aConfirmer).toBe(true)
     const p = niveauPastille([...neufs().slice(1), siret], AV)

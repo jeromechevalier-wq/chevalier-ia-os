@@ -47,8 +47,8 @@ function facture(id, nom, siret, o = {}) {
 export function listeComplete() {
   return [
     // À valider
-    facture('a1', 'Point P Matériaux', SIRET_PP, { numero: 'FA-2026-0412', montant_ht: 1284.5, montant_tva: 256.9, montant_ttc: 1541.4, lignes_etat: 'lues', lignes_somme_ht: 1284.5 }), // sans IBAN : gris
-    facture('a2', 'Loxam Location', '50000001300002', { numero: 'L-88213', extr: { annuaire: { ...annuaireOk('Autre nom'), denomination: 'AUTRE NOM' } } }), // nom différent : orange
+    facture('a1', 'Point Q Matériaux', SIRET_PP, { numero: 'FA-2026-0412', montant_ht: 1284.5, montant_tva: 256.9, montant_ttc: 1541.4, lignes_etat: 'lues', lignes_somme_ht: 1284.5 }), // sans IBAN : gris
+    facture('a2', 'Loxbel Location', '50000001300002', { numero: 'L-88213', extr: { annuaire: { ...annuaireOk('Autre nom'), denomination: 'AUTRE NOM' } } }), // nom différent : orange
     facture('a3', null, null, { numero: null, montant_ht: 96.25, montant_tva: 19.25, montant_ttc: 125.5, sansAnalyse: true, extraction: { ...extraction('Entreprise fictive', '12345678901234', { numero: null, montant_ht: 96.25, montant_tva: 19.25, montant_ttc: 125.5, destinataire: { ...vide, nom: 'SARL Autre Société Fictive', siret: '98765432100012', siren: '987654321' } }) } }), // total faux, SIRET invalide, autre destinataire : rouge
     facture('a4', 'Ancienne facture sans analyse', null, { numero: 'D-1', sansAnalyse: true }), // sans analyse : gris
     facture('a5', 'Gros PDF fictif', null, { numero: 'G-9', montant_ht: null, montant_tva: null, montant_ttc: null, sansAnalyse: true, extraction_erreur: 'pdf_trop_gros' }), // illisible : gris
@@ -57,12 +57,12 @@ export function listeComplete() {
     // Même IBAN que le titulaire mais SIREN différent : jamais vert.
     facture('a13', 'Serrurerie Express', SIRET_SERRURIER, { numero: 'SE-5', iban_normalise: IBAN_E, email_expediteur: 'contact@serrurerie.example', extr: { iban: IBAN_E } }),
     // Doublon d'une facture déjà acceptée du même fournisseur : rouge.
-    facture('a14', 'Point P Matériaux', SIRET_PP, { numero: 'FA-2026-0300', extr: { iban: null } }),
+    facture('a14', 'Point Q Matériaux', SIRET_PP, { numero: 'FA-2026-0300', extr: { iban: null } }),
     // Décidées
-    facture('h1', 'Brico Dépôt', '50000003900007', { numero: 'BD-55102', statut: 'acceptee', date_decision: '2026-11-12T10:00:00Z', decide_par: 'test@exemple.fr' }),
+    facture('h1', 'Bricolo Dépôt', '50000003900007', { numero: 'BD-55102', statut: 'acceptee', date_decision: '2026-11-12T10:00:00Z', decide_par: 'test@exemple.example' }),
     facture('h2', 'Électro Services', '50000004700018', { numero: 'ES-3071', statut: 'refusee', motif_refus: 'Doublon.', date_decision: '2026-11-09T16:20:00Z', archivee_le: '2026-11-15T09:00:00Z' }),
     facture('h8', 'Ferronnerie du Verdon', SIRET_FERRO, { numero: 'FQ-099', statut: 'acceptee', iban_normalise: IBAN_D, email_expediteur: 'contact@ferronnerie.example', date_decision: '2026-10-21T09:00:00Z', extr: { iban: IBAN_D } }),
-    facture('h9', 'Point P Matériaux', SIRET_PP, { numero: 'FA-2026-0300', statut: 'acceptee', date_decision: '2026-10-22T09:00:00Z' }),
+    facture('h9', 'Point Q Matériaux', SIRET_PP, { numero: 'FA-2026-0300', statut: 'acceptee', date_decision: '2026-10-22T09:00:00Z' }),
     // Facture piège REFUSÉE : l'IBAN du fournisseur « Ferronnerie » sur la facture d'un autre SIREN (elle ne doit pas accuser le vrai titulaire, a12).
     facture('h11', 'Fournisseur piège', SIRET_PIEGE, { numero: 'PIEGE-1', statut: 'refusee', motif_refus: 'IBAN suspect.', iban_normalise: IBAN_D, extr: { iban: IBAN_D }, date_decision: '2026-11-02T09:00:00Z' }),
     // Autre piège REFUSÉ avec IBAN_E : un nouveau fournisseur (a13) qui présente le même IBAN n'a pas de titulaire connu.

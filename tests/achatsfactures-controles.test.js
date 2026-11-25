@@ -4,6 +4,7 @@
 import { test, describe } from 'node:test';
 import { expect } from './_expect-achatsfactures.js';
 import {
+  PREFIXE_SIRET_EXCEPTION,
   controleAdresseEnvoi, controleIban, controleIbanHistorique, controleIbanPartage, ibanValide, normaliserIban, synthese, CONTROLES_BIENTOT, controleDestinataire as controleDestinataireBrut,
   controleDoublon, numeroNormalise, sirenDe, controleSiret, controleTotaux, controleLignes, controlerFacture as controlerFactureBrut, luhnValide, siretValide, nomsCoherents, alertesAffichees,
 } from '../js/modules/achatsfactures/controles.js';
@@ -14,10 +15,10 @@ const controler = (f, a, b, c, d) => controlerFactureBrut(f, a, b, c, d, IDENT);
 
 const vide = { nom: null, siret: null, siren: null, adresse: null }
 const extr = (o = {}) => ({
-  fournisseur: { ...vide, nom: 'Point P Matériaux', siret: '12345678200010' },
+  fournisseur: { ...vide, nom: 'Point Q Matériaux', siret: '12345678200010' },
   destinataire: { ...vide, nom: 'ENTREPRISE TEST', siret: IDENT.siret, siren: IDENT.siren },
   numero: 'F1', date_facture: '2026-11-18', montant_ht: 100, montant_tva: 20, montant_ttc: 120, devise: 'EUR',
-  annuaire: { interroge: true, disponible: true, trouve: true, actif: true, denomination: 'POINT P MATERIAUX' },
+  annuaire: { interroge: true, disponible: true, trouve: true, actif: true, denomination: 'POINT Q MATERIAUX' },
   ...o,
 })
 
@@ -31,20 +32,21 @@ describe('Luhn et SIRET', () => {
     expect(siretValide('1234567820001')).toBe(false)
     expect(siretValide('abc')).toBe(false)
   })
-  test('SIRET : exception La Poste (356000000…)', () => {
-    expect(luhnValide('35600000012345')).toBe(false)
-    expect(siretValide('35600000012345')).toBe(true)
-    expect(siretValide('35700000012345')).toBe(false)
+  test('SIRET : exception de la règle publique (préfixe exporté par le module)', () => {
+    const exception = `${PREFIXE_SIRET_EXCEPTION}12345`
+    expect(luhnValide(exception)).toBe(false)
+    expect(siretValide(exception)).toBe(true)
+    expect(siretValide(`${PREFIXE_SIRET_EXCEPTION.replace('356', '357')}12345`)).toBe(false)
   })
 })
 
 describe('Comparaison de noms', () => {
   test('ignore majuscules, accents et forme juridique', () => {
-    expect(nomsCoherents('Point P Matériaux SAS', 'POINT P MATERIAUX')).toBe(true)
+    expect(nomsCoherents('Point Q Matériaux SAS', 'POINT Q MATERIAUX')).toBe(true)
   })
   test('accepte un nom contenu dans l’autre, refuse deux noms différents', () => {
     expect(nomsCoherents('LA POSTE - TEST FICTIF', 'LA POSTE')).toBe(true)
-    expect(nomsCoherents('Brico Dépôt', 'Loxam Location')).toBe(false)
+    expect(nomsCoherents('Bricolo Dépôt', 'Loxbel Location')).toBe(false)
   })
   test('accepte une petite faute de frappe', () => {
     expect(nomsCoherents('Electro Services', 'Electro Servises')).toBe(true)
@@ -64,13 +66,13 @@ describe('Vérification 1 : totaux', () => {
 describe('Vérification 2 : SIRET du fournisseur', () => {
   test('vert : valide, actif, nom cohérent', () => expect(controleSiret(extr()).etat).toBe('ok'))
   test('orange : nom différent de l’annuaire', () => {
-    const x = extr({ annuaire: { interroge: true, disponible: true, trouve: true, actif: true, denomination: 'LOXAM' } })
+    const x = extr({ annuaire: { interroge: true, disponible: true, trouve: true, actif: true, denomination: 'LOXBEL' } })
     expect(controleSiret(x).etat).toBe('alerte')
   })
   test('rouge : SIRET absent', () => expect(controleSiret(extr({ fournisseur: { ...vide, nom: 'X' } })).etat).toBe('anomalie'))
   test('rouge : SIRET invalide', () => expect(controleSiret(extr({ fournisseur: { ...vide, nom: 'X', siret: '12345678901234' } })).etat).toBe('anomalie'))
   test('rouge : inconnu dans l’annuaire', () => expect(controleSiret(extr({ annuaire: { interroge: true, disponible: true, trouve: false } })).etat).toBe('anomalie'))
-  test('rouge : entreprise fermée', () => expect(controleSiret(extr({ annuaire: { interroge: true, disponible: true, trouve: true, actif: false, denomination: 'POINT P' } })).etat).toBe('anomalie'))
+  test('rouge : entreprise fermée', () => expect(controleSiret(extr({ annuaire: { interroge: true, disponible: true, trouve: true, actif: false, denomination: 'POINT Q' } })).etat).toBe('anomalie'))
   test('gris : annuaire indisponible', () => expect(controleSiret(extr({ annuaire: { interroge: true, disponible: false } })).etat).toBe('indisponible'))
   test('gris : pas d’extraction', () => expect(controleSiret(null).etat).toBe('indisponible'))
   test('4a. ni SIREN ni SIRET lisibles : rouge, phrase dédiée', () => {
@@ -78,7 +80,7 @@ describe('Vérification 2 : SIRET du fournisseur', () => {
     expect(c.etat).toBe('anomalie'); expect(c.phrase).toBe('Aucun SIREN ni SIRET du fournisseur trouvé sur la facture.')
   })
   test('4b. SIREN valide sans SIRET : orange (agence non identifiée), phrase dédiée', () => {
-    const c = controleSiret(extr({ fournisseur: { ...vide, nom: 'Point P', siren: '123456782' } }))
+    const c = controleSiret(extr({ fournisseur: { ...vide, nom: 'Point Q', siren: '123456782' } }))
     expect(c.etat).toBe('alerte'); expect(c.phrase).toContain('ne donne que le SIREN')
   })
   test('4c. SIREN invalide sans SIRET : rouge', () => {
