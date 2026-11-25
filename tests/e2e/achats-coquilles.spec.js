@@ -22,7 +22,7 @@ const MODULES = [
   { id: 'tableauachats', route: 'tableauachats/tableau', titre: 'Tableau de bord 2' },
 ];
 // Un module devenu un vrai écran (Fournisseurs PR 5, Chantiers PR 6, …) n'affiche plus le bandeau d'accès quand l'accès est prêt (voir son propre fichier de tests) : les coquilles sont repérées PAR NOM, jamais par position.
-const ECRANS_REELS = ['achatsfournisseurs', 'achatschantiers'];
+const ECRANS_REELS = ['achatsfournisseurs', 'achatschantiers', 'achatsarticles'];
 const COQUILLES = MODULES.filter((m) => !ECRANS_REELS.includes(m.id));
 const etat = (page) => page.locator('[data-role="achats-etat"]');
 
@@ -83,7 +83,7 @@ test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'ac
 test('A4 « Reconnecte-toi » : le badge n\'a pas la mention d\'accès (ou celle d\'un autre espace) ; le bouton « Revérifier » relit l\'accès', async ({ page }, info) => {
   await ecrireDocument('base_parametres/connexion', FICHE());
   await simulerBadge(page, { role: 'authenticated', espace_base: 'autre-espace' });
-  await connecter(page, undefined, { route: MODULES[2].route });
+  await connecter(page, undefined, { route: COQUILLES[0].route });
   await expect(etat(page)).toHaveAttribute('data-etat', 'reconnexion');
   await expect(page.locator('[data-role="achats-etat-texte"]')).toContainText('Reconnecte-toi');
   await expect(etat(page)).toHaveAttribute('role', 'alert');
@@ -124,5 +124,6 @@ test('A8 Réglages : l\'élément « Achats » réunit les sections des modules 
   await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
   await expect(page.locator('#reglages-export-achatsfournisseurs')).toBeVisible();
   await expect(page.locator('#reglages-export-achatschantiers')).toBeVisible();
+  await expect(page.locator('#reglages-export-achatsarticles')).toBeVisible();
   await capturer(page, info, 'A8-reglages');
 });
