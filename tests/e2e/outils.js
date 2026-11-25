@@ -3,6 +3,7 @@ import { test as base, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { portsCourants } from '../ports.js';
+import { semerFicheEmulateur } from '../_fiche-emulateur.js';
 
 // Un projet Firebase par worker Playwright (sur le même émulateur) : deux workers ne voient jamais les données l'un de l'autre.
 // Hors Playwright (TEST_PARALLEL_INDEX absent), le projet d'avant.
@@ -20,6 +21,11 @@ export const EMULATEURS_APPLI = { projet: PROJET, auth: separer(HOTE_AUTH), fire
 export const JEROME = 'jerome.chevalier@gmail.com';
 export const CHARLES = 'jeromebot.chevalierbot@gmail.com';
 export const URL_APP = '/?emulateurs=1';
+/** Fiche reglages_maison/maison des parcours (chantier 0) : les mêmes comptes qu'avant (Jérôme et Charles ; Jérôme seul pour la Console et la base). */
+const FICHE_PARCOURS = Object.freeze({
+  comptes_autorises: [JEROME, CHARLES], comptes_jerome_seul: [JEROME], super_admins: [JEROME, CHARLES], comptes_oauth_autorises: [JEROME, CHARLES],
+  proprietaire_par_defaut: JEROME, n8n_url: `https://${['n8n', 'chevalier-ia', 'fr'].join('.')}`, projet_plateforme_lie: '',
+});
 
 const DOSSIER_FIREBASE = fileURLToPath(new URL('../node_modules/firebase/', import.meta.url));
 
@@ -34,6 +40,8 @@ export async function reinitialiser({ viderAuth = true } = {}) {
   const r1 = await fetch(`${FIRESTORE}/emulator/v1/projects/${PROJET}/databases/(default)/documents`, { method: 'DELETE' });
   const r2 = viderAuth ? await fetch(`${AUTH}/emulator/v1/projects/${PROJET_DE_BASE}/accounts`, { method: 'DELETE' }) : { ok: true };
   if (!r1.ok || !r2.ok) throw new Error('Réinitialisation des émulateurs impossible');
+  // Chantier 0 (25/11/2026) : les règles lisent les comptes dans reglages_maison/maison ; sans elle, tout est refusé. Recréée tout de suite après l'effacement.
+  await semerFicheEmulateur({ projet: PROJET, hote: HOTE_FIRESTORE, fiche: FICHE_PARCOURS });
 }
 
 function versValeur(v) {

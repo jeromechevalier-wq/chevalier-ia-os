@@ -12,14 +12,14 @@ import { ErreurOauth, creerMagasinOauth } from '../oauth/magasin.js';
 import { ENTETES_PAGE, pageErreur } from '../oauth/page.js';
 import { adresseRetour, creerFenetre, objet, repondre, texte, validerDemande } from '../oauth/routeur.js';
 import {
-  FORMAT_CLIENT, ORIGINES_PLATEFORME, EMETTEUR_PLATEFORME, PROFIL_PAR_ROLE, acteurClient, adressesClient, assistantDeRedirection, redirectionAutorisee,
+  FORMAT_CLIENT, originesPlateforme, emetteurPlateforme, PROFIL_PAR_ROLE, acteurClient, adressesClient, assistantDeRedirection, redirectionAutorisee,
 } from './config.js';
 import { ESPACE_JEROME } from '../coeur/n8n-sortie.js';
 import { pageAutorisationClient } from './page.js';
 import { MESSAGE_REFUS_ESPACE } from '../../partage/marque.js';
 import { emailNormalise } from '../../partage/membres.js';
 
-const OPTIONS_DEMANDE = Object.freeze({ redirectionAutorisee, origine: EMETTEUR_PLATEFORME, messageRedirection: "Adresse de retour non autorisée : seuls Claude et ChatGPT peuvent se connecter." });
+const optionsDemande = () => Object.freeze({ redirectionAutorisee, origine: emetteurPlateforme(), messageRedirection: "Adresse de retour non autorisée : seuls Claude et ChatGPT peuvent se connecter." });
 const MESSAGE_INDISPONIBLE = "Ce lien de connexion n'est pas disponible.";
 const motifs = [
   [/^\/\.well-known\/oauth-protected-resource\/mcp\/([^/]+)$/, 'ressource'],
@@ -49,9 +49,9 @@ export function creerRouteurOauthClients({ donnees, verifierIdToken, espaces, ma
 
   async function approuver(client, req, res, infos) {
     const origine = req.headers.origin;
-    if (!ORIGINES_PLATEFORME.includes(origine)) { infos.code = 'oauth_origine'; return repondre(res, 403, { error: 'origine_refusee' }); }
+    if (!originesPlateforme().includes(origine)) { infos.code = 'oauth_origine'; return repondre(res, 403, { error: 'origine_refusee' }); }
     const corps = objet(req.body);
-    const { demande, erreur } = validerDemande({ ...corps, response_type: 'code', code_challenge_method: 'S256' }, OPTIONS_DEMANDE);
+    const { demande, erreur } = validerDemande({ ...corps, response_type: 'code', code_challenge_method: 'S256' }, optionsDemande());
     if (!demande) { infos.code = 'oauth_demande'; return repondre(res, 400, { error: 'invalid_request', message: erreur }); }
     if (corps.decision === 'deny') { infos.code = 'oauth_refus'; return repondre(res, 200, { redirect: adresseRetour(demande, { error: 'access_denied' }) }); }
     if (corps.decision !== 'allow') { infos.code = 'oauth_demande'; return repondre(res, 400, { error: 'invalid_request' }); }
@@ -120,7 +120,7 @@ export function creerRouteurOauthClients({ donnees, verifierIdToken, espaces, ma
   }
 
   async function page(client, req, res, infos) {
-    const { demande, erreur } = validerDemande(Object.fromEntries(new URL(req.url || '/', 'http://local').searchParams), OPTIONS_DEMANDE);
+    const { demande, erreur } = validerDemande(Object.fromEntries(new URL(req.url || '/', 'http://local').searchParams), optionsDemande());
     const espace = demande ? await espaces.charger(client) : null;
     infos.code = espace ? 'oauth_page' : 'oauth_demande';
     res.writeHead(espace ? 200 : 400, ENTETES_PAGE);

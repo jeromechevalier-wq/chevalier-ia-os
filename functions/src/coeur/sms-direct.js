@@ -134,7 +134,7 @@ function enISO(v) {
 /**
  * Options : `lireSecret(nom)` (promesse du texte, lève si absent) ; `donneesDe(espace)` -> { base, donnees } (accès Firestore de la porte : base '' chez Jérôme,
  * `clients/<client>` chez un client) ; `espaceRacine` : l'espace qui porte le secret sans suffixe (« interne » chez Jérôme, `null` sur la plateforme clients : un client nommé « interne » garde son suffixe) ; `moduleActif(espace)` (vrai par défaut : chez un client, le module « rdv » doit être allumé sur sa fiche) ;
- * `baseLien` : adresse de l'appli (https), pour le lien du rendez-vous dans les alertes ; vide : pas de lien ;
+ * `baseLien` : adresse de l'appli (https), ou une fonction qui la rend (calculée à l'appel : le projet n'est connu qu'à l'exécution), pour le lien du rendez-vous dans les alertes ; vide : pas de lien ;
  * `fetchImpl` : `fetch` (ou un faux ClickSend dans les essais).
  */
 export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () => true, espaceRacine = ESPACE_JEROME, baseLien = '', fetchImpl = globalThis.fetch, maintenant = Date.now, delaiSmsMs = DELAI_SMS_MS, budgetMs = BUDGET_TIR_MS, pauseConfirmationMs = PAUSE_CONFIRMATION_MS } = {}) {
@@ -153,7 +153,7 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
     return config;
   }
 
-  const contexte = (espace) => { const { base, donnees } = donneesDe(espace); const client = espace === espaceRacine ? '' : espace; return { base, donnees, auteur: 'sms-direct', maintenant: instant, services: {}, lienRdv: (id) => lienEcranRdv({ baseLien, client }, id) }; }; // `maintenant` : la fonction (l'heure de chaque écriture est celle de l'écriture, pas celle du début du tir)
+  const contexte = (espace) => { const { base, donnees } = donneesDe(espace); const client = espace === espaceRacine ? '' : espace; return { base, donnees, auteur: 'sms-direct', maintenant: instant, services: {}, lienRdv: (id) => lienEcranRdv({ baseLien: typeof baseLien === 'function' ? baseLien() : baseLien, client }, id) }; }; // `maintenant` : la fonction (l'heure de chaque écriture est celle de l'écriture, pas celle du début du tir)
 
   /**
    * UN SMS vers ClickSend. Rend :

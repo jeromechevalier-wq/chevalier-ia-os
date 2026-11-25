@@ -4,6 +4,7 @@
 // Le journal Cloud ne reçoit jamais le contenu d'un devis, ni l'identifiant du devis, ni l'adresse de l'appelant.
 import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from './veille/appel.js';
+import { emailDans } from './securite/reglages-maison.js';
 import { ErreurDevis, OPERATIONS, reponsePublique } from './coeur/devis.js';
 import { OPERATIONS_TEST } from './coeur/mode-test.js';
 
@@ -27,11 +28,11 @@ export function enErreurAppel(e) {
   return new HttpsError(code, e.message, { code: e.code });
 }
 
-/** Contrôle de l'appelant (compte Google vérifié, parmi `comptes`) : rend le jeton, ou lève l'erreur d'accès. Partagé par devisPdf. */
-export function exigerCompteAutorise(requete, comptes = COMPTES_AUTORISES) {
+/** Contrôle de l'appelant (compte Google vérifié, parmi `comptes` : tableau ou liste lue dans la fiche de la maison) : rend le jeton, ou lève l'erreur d'accès. Partagé par devisPdf. */
+export async function exigerCompteAutorise(requete, comptes = COMPTES_AUTORISES) {
   const jeton = requete.auth?.token;
   if (!jeton) throw new HttpsError('unauthenticated', 'Connexion nécessaire.');
-  if (jeton.email_verified !== true || typeof jeton.email !== 'string' || !comptes.includes(jeton.email)) {
+  if (jeton.email_verified !== true || typeof jeton.email !== 'string' || !(await emailDans(comptes, jeton.email))) {
     throw new HttpsError('permission-denied', 'Ce compte n\'a pas accès aux devis.');
   }
   return jeton;
@@ -42,7 +43,7 @@ export function creerAppelDevis(operation, { donnees, comptes = COMPTES_AUTORISE
   if (!executer) throw new Error(`Opération de devis inconnue : ${operation}`);
   return async function appel(requete) {
     const debut = maintenant();
-    const jeton = exigerCompteAutorise(requete, comptes);
+    const jeton = await exigerCompteAutorise(requete, comptes);
     const demande = requete.data && typeof requete.data === 'object' ? requete.data : {};
     try {
       const base = { donnees: donnees(), ctx: { acteur: jeton.email.toLowerCase(), via: 'ecran', maintenant: new Date(maintenant()) },

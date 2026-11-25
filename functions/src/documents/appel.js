@@ -28,7 +28,7 @@ export function creerAppelDocument(operation, { donnees, espace = '', comptes = 
   if (!faire) throw new Error(`Opération de document inconnue : ${operation}`);
   return async function appel(requete) {
     const debut = maintenant();
-    const jeton = exigerCompteAutorise(requete, comptes);
+    const jeton = await exigerCompteAutorise(requete, comptes);
     const ctx = { acteur: String(jeton.email).toLowerCase(), via: 'ecran', maintenant: new Date(maintenant()) };
     try {
       const r = await faire({ donnees: donnees(), stockage: stockageDe(stockage), espace, ctx, demande: requete.data });

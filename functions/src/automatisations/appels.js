@@ -8,7 +8,7 @@
 import { classer, classerInterne, classerSansEtiquette, moduleActif, MOTIF_IDENTIFIANT_CLIENT, PROPRIETAIRE_INTERNE, ETIQUETTE_INTERNE } from '../../partage/automatisations/etiquettes.js';
 import { synchroniserClient, marquerInjoignable } from '../../partage/automatisations/synchro.js';
 import { ErreurN8n } from '../../partage/automatisations/n8n.js';
-import { estAdministrateur } from '../../partage/administrateur.js';
+import { estJeromeSeul } from '../securite/reglages-maison.js';
 
 export const NB_MAX_EXECUTIONS = 300; // comme l'écran d'un client : les plus récentes
 /** Journal Google Cloud (une ligne JSON ; « severity » est lue par Cloud Logging). Champs choisis un par un : jamais de contenu, d'en-tête ni de clé. */
@@ -27,11 +27,11 @@ export class Refus extends Error {
 }
 const REFUS_NEUTRE = () => new Refus('permission-denied', 'Action non autorisée.');
 
-/** Administrateur : e-mail vérifié ET dans la liste (js/os/administrateur.js). Même message pour tous les refus d'accès. */
-export function exigerAdministrateur(auth) {
+/** Administrateur : e-mail vérifié ET dans comptes_jerome_seul (fiche reglages_maison/maison). Même message pour tous les refus d'accès. */
+export async function exigerAdministrateur(auth) {
   const jeton = auth?.token;
   if (!auth?.uid || !jeton) throw new Refus('unauthenticated', 'Connexion requise.');
-  if (!estAdministrateur(jeton.email, jeton.email_verified)) throw REFUS_NEUTRE();
+  if (!(await estJeromeSeul(jeton.email, jeton.email_verified === true))) throw REFUS_NEUTRE();
   return jeton.email.toLowerCase();
 }
 
@@ -152,7 +152,7 @@ export async function lireVueAdministrateur({ db, dbPlateforme, proprietaire = '
  * Seul ton compte (administrateur) passe ; les autres reçoivent le même refus neutre.
  */
 export async function administrateur({ db, dbPlateforme, n8n, auth, donnees, maintenant = Date.now() }) {
-  exigerAdministrateur(auth);
+  await exigerAdministrateur(auth);
   const d = donnees && typeof donnees === 'object' && !Array.isArray(donnees) ? donnees : {};
   const action = d.action ?? 'lire';
   if (action === 'rafraichir') {

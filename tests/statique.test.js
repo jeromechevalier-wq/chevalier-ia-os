@@ -1,4 +1,6 @@
 // Tests D : contrôles statiques (manifeste, icônes, service worker, versions, domaines, firebase.json).
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
+import { avecProjet } from './_reglages-maison-essai.js';
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
@@ -323,9 +325,14 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.doesNotMatch(r, /match \/\{document=\*\*\}/, 'plus de joker nu : il couvrirait aussi les collections du serveur');
     assert.equal((r.match(/function compteAutorise/g) || []).length, 1);
     assert.match(r, /email_verified == true/);
-    assert.match(r, /jerome\.chevalier@gmail\.com/);
-    assert.match(r, /jeromebot\.chevalierbot@gmail\.com/);
-    assert.match(r, /!\(collection in \['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres'\]\)/); // + le réglage du module Pilotage (serveur seulement, placé juste après console_filet), les SMS et les réglages du module Rendez-vous (15/11/2026, match dédiés : tests de règles C3), les relevés des posts (12/11/2026), les fiches des fichiers de l'onglet « Documents » (28/10/2026), les devis, leur compteur et le bordereau (24/10/2026), le journal des demandes d'e-mail (25/10/2026) : règles propres, voir devis-regles.test.js
+    // Chantier 0 (25/11/2026) : les comptes ne sont plus écrits dans les règles, ils sont lus dans la fiche reglages_maison/maison (un seul get(), dans une fonction d'aide).
+    assert.match(r, /function reglagesMaison\(\) \{\s+return get\(\/databases\/\$\(database\)\/documents\/reglages_maison\/maison\)\.data;\s+\}/);
+    assert.equal((r.match(/\bget\(\/databases\//g) || []).length, 1, 'une seule lecture de document dans tout le fichier : celle de reglagesMaison()');
+    assert.match(r, /return get\(\/databases\/\$\(database\)\/documents\/reglages_maison\/maison\)\.data;/);
+    assert.match(r, /request\.auth\.token\.email in reglagesMaison\(\)\.get\('comptes_autorises', \[\]\)/);
+    assert.match(r, /request\.auth\.token\.email in reglagesMaison\(\)\.get\('comptes_jerome_seul', \[\]\)/);
+    assert.doesNotMatch(r.replace(/\/\/.*$/gm, ''), /@/, 'aucune adresse e-mail dans les règles');
+    assert.match(r, /!\(collection in \['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres', 'reglages_maison'\]\)/); // + la fiche des réglages de la maison (chantier 0, 25/11/2026 : jamais lue ni écrite par le joker) // + le réglage du module Pilotage (serveur seulement, placé juste après console_filet), les SMS et les réglages du module Rendez-vous (15/11/2026, match dédiés : tests de règles C3), les relevés des posts (12/11/2026), les fiches des fichiers de l'onglet « Documents » (28/10/2026), les devis, leur compteur et le bordereau (24/10/2026), le journal des demandes d'e-mail (25/10/2026) : règles propres, voir devis-regles.test.js
     for (const t of ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions']) {
       assert.match(r, new RegExp(`match /${t}/\\{id\\} \\{\\s+allow read: if compteAutorise\\(\\);\\s+allow write: if false;`), `${t} : lecture seule pour l'écran`);
     }
@@ -462,12 +469,12 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.match(bloc, /maxInstances: 3/);
     assert.match(bloc, /invoker: 'public'/);
     assert.match(bloc, /cors: false/);
-    assert.match(bloc, /serviceAccount: 'porte-serveur@chevalier-ia-os\.iam\.gserviceaccount\.com'/);
+    assert.match(bloc, /serviceAccount: compteDeService\('porte-serveur'\)/); // B1 : adresse complète dans le projet courant ; valeurs exactes de chevalier-ia-os / -app : maison-comptes-de-service.test.js
     assert.match(bloc, /creerGestionnairePorteCrm\(\)/);
   });
   test('D5 la fonction tourne avec un compte de service dédié, jamais avec le compte par défaut du projet', () => {
     const t = lire('functions/src/index.js');
-    assert.match(t, /serviceAccount: 'mcp-serveur@chevalier-ia-os\.iam\.gserviceaccount\.com'/);
+    assert.match(t, /serviceAccount: compteDeService\('mcp-serveur'\)/); // B1 : adresse complète dans le projet courant ; valeurs exactes de chevalier-ia-os / -app : maison-comptes-de-service.test.js
     assert.doesNotMatch(t, /compute@developer|appspot\.gserviceaccount/);
   });
   test('D5 /mcp est réécrit vers le service Cloud Run « mcp » de Paris, et functions/ n’est pas publié', () => {
@@ -551,7 +558,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.equal(c.PROFIL_OAUTH, 'complet');
     assert.deepEqual({ ...c.DUREES }, { codeS: 60, accesS: 3600, connexionJours: 30 });
     assert.deepEqual(c.REDIRECTIONS_AUTORISEES, ['https://claude.ai/api/mcp/auth_callback', 'https://claude.com/api/mcp/auth_callback']);
-    assert.equal(c.RESSOURCE, 'https://chevalier-ia-os.web.app/mcp');
+    assert.equal(await avecProjet('chevalier-ia-os', () => c.ressource()), 'https://chevalier-ia-os.web.app/mcp'); // chantier 0 : déduite du projet, identique chez Jérôme
   });
   test('D5 le code des fonctions n’enregistre jamais de jeton, d’en-tête ni de paramètre (aucun console.log direct, journal à liste blanche)', () => {
     for (const f of fichiersFonctions()) {

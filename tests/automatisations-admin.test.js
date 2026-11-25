@@ -1,6 +1,7 @@
 // Automatisations de Jérôme et vue administrateur (2.7.0) : reconnaissance par trois signes, copie vers SA base, lecture seule des clients.
 // FAUX n8n + ÉMULATEUR Firestore. Chevalier IA OS = projet « demo-chevalier-ia-os », Chevalier IA APP = projet « demo-chevalier-ia-app » (deux bases bien séparées).
 // Lancé par « npm run test:automatisations » (après « npm run preparer », qui copie le code partagé dans functions/partage/).
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe, before, after, beforeEach } from 'node:test';
 import { createRequire } from 'node:module';

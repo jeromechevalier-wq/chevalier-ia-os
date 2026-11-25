@@ -28,9 +28,16 @@ import { MESSAGE_NON_BRANCHE } from './n8n-sortie.js';
 import { champLienEcran, lienEcranDepuisContexte } from './liens.js';
 import { ditHorsTaxes, ditPourAssistant, MARGE_IMPOSSIBLE } from './voix.js';
 import { cheminAppartientALEspace, DUREE_LIEN_MINUTES } from '../devis/stockage.js';
+import { texteDe } from '../securite/reglages-maison.js';
 
-/** Propriétaire des fiches créées par un jeton « cia_… » (sans e-mail) sur le serveur de Jérôme, sauf si l'appel en donne un autre (plan-mcp.md, écart 11, réglé en 2.16.1 pour les connexions Google et les clients). */
-export const PROPRIETAIRE_PAR_DEFAUT = 'jerome.chevalier@gmail.com';
+/**
+ * Propriétaire des fiches créées par un jeton « cia_… » (sans e-mail) sur le serveur de Jérôme, sauf si l'appel en donne un autre (plan-mcp.md, écart 11, réglé en 2.16.1 pour les connexions Google et les clients).
+ * Lu dans la fiche reglages_maison/maison (champ proprietaire_par_defaut, chantier 0) : champ vide = aucun propriétaire (jamais une adresse écrite dans le code) ;
+ * fiche illisible = ReglagesMaisonIndisponibles levée telle quelle : l'outil échoue au lieu de créer une fiche sans propriétaire (relecture Fable, I2).
+ */
+export async function proprietaireMaison(lire) {
+  return texteDe('proprietaire_par_defaut', lire);
+}
 
 export { ditHorsTaxes };
 
@@ -52,17 +59,17 @@ const lireConfig = (c) => lireConfigEspace(c.donnees, { racine: c.racine, membre
  * Propriétaire d'une fiche créée par un outil : celui qu'on donne (écrit tel quel), sinon l'e-mail de la personne connectée (connexion Google, `c.email`,
  * jamais déduit de l'acteur), sinon Jérôme SEULEMENT sur son serveur (accès sans base : jetons « cia_… »). Chez un client sans e-mail : vide, jamais Jérôme.
  */
-export function proprietaireParDefaut(c, donne) {
+export async function proprietaireParDefaut(c, donne, lireProprietaire = proprietaireMaison) {
   if (donne) return donne;
   if (typeof c.email === 'string' && c.email.trim()) return c.email.trim();
-  return c.donnees.base ? '' : PROPRIETAIRE_PAR_DEFAUT;
+  return c.donnees.base ? '' : lireProprietaire();
 }
 
 async function contexte(c, proprietaire) {
   return {
     maintenant: c.maintenant,
     auteur: c.acteur,
-    proprietaire: proprietaireParDefaut(c, proprietaire),
+    proprietaire: await proprietaireParDefaut(c, proprietaire),
     aujourdhui: L.aujourdhuiParis(c.maintenant),
     config: await lireConfig(c),
     nouvelId: (nom) => c.donnees.nouvelId(nom),

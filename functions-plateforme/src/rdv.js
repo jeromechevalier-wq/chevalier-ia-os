@@ -6,7 +6,7 @@
 import { logger } from 'firebase-functions';
 import { creerAccesFirestore, avecBase } from '../serveur/src/coeur/donnees.js';
 import { etatEnvoi, envoyerPropositions, envoyerSms, renvoyerSms, reautoriserNumero, lireSoldeEnvoi, ErreurRdvEnvoi } from '../serveur/src/coeur/rdv-envoi.js';
-import { estAdministrateur } from '../serveur/partage/administrateur.js';
+import { estJeromeSeul } from '../serveur/src/securite/reglages-maison.js';
 import { ErreurConnexionSms, executerConnexion, REFUS_NEUTRE } from '../serveur/src/coeur/connexion-sms.js';
 import { Refus } from './appels.js';
 import { controlerAppelant } from './devis.js';
@@ -17,7 +17,7 @@ export const MODULE_RDV = 'rdv';
 export async function etatRdv({ db, auth, donnees, sortie }) {
   const { client } = await controlerAppelant({ db, auth, client: donnees?.client, module: MODULE_RDV });
   // `peutConfigurer` : l'écran montre la saisie de la connexion SMS seulement à Jérôme (le serveur la refuse de toute façon à tout autre compte : connexionRdv).
-  return { ...(await etatEnvoi({ sortie, espace: client })), peutConfigurer: estAdministrateur(auth?.token?.email, auth?.token?.email_verified === true) };
+  return { ...(await etatEnvoi({ sortie, espace: client })), peutConfigurer: await estJeromeSeul(auth?.token?.email, auth?.token?.email_verified === true) };
 }
 
 /** `donnees` : { client, action: 'propositions' | 'sms' | 'renvoyer' | 'reautoriser', rendezVousId?, type?, texte?, participantId?, numero? }. `creerDonnees(client)` : pour les essais (accès en mémoire). */
@@ -83,7 +83,7 @@ export async function tirerPourTous({ db, sortie, modulesActifs, maintenant = Da
 }
 
 /**
- * Connexion ClickSend d'UN client (secret CLICKSEND_RDV_<client>), saisie depuis son écran Réglages > Rendez-vous. RÉSERVÉE à Jérôme : l'identité (e-mail Google vérifié, js/os/administrateur.js)
+ * Connexion ClickSend d'UN client (secret CLICKSEND_RDV_<client>), saisie depuis son écran Réglages > Rendez-vous. RÉSERVÉE à Jérôme : l'identité (e-mail Google vérifié, liste comptes_jerome_seul de la fiche reglages_maison/maison de la plateforme)
  * est contrôlée ici à l'exécution, même si l'appelant est éditeur du client (le rôle ne suffit pas). Le client ciblé doit exister, avoir une fiche de marque active et le module « rdv » allumé.
  * UN SEUL refus neutre « Action non autorisée. » pour tout le reste. `donnees` : { client, action: 'etat' | 'adresse' | 'enregistrer' | 'regenerer', identifiant?, cle?, expediteur?, regenererAdresse? }.
  * `connexion` : coeur/connexion-sms.js (jamais la clé en réponse ni dans le journal) ; `modulesActifs(client)` : liste des modules actifs du client (creerModulesActifs de porte.js).
@@ -91,7 +91,7 @@ export async function tirerPourTous({ db, sortie, modulesActifs, maintenant = Da
 export async function connexionRdv({ auth, donnees, connexion, modulesActifs }) {
   if (!auth?.token) throw new Refus('unauthenticated', 'Connexion requise.');
   const client = donnees?.client;
-  if (!estAdministrateur(auth.token.email, auth.token.email_verified === true)) throw new Refus('permission-denied', REFUS_NEUTRE);
+  if (!(await estJeromeSeul(auth.token.email, auth.token.email_verified === true))) throw new Refus('permission-denied', REFUS_NEUTRE);
   if (typeof client !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,39}$/.test(client) || !(await modulesActifs(client)).includes(MODULE_RDV)) throw new Refus('permission-denied', REFUS_NEUTRE);
   try {
     return await executerConnexion(connexion, client, donnees);

@@ -3,6 +3,7 @@
 // Le journal ne reçoit jamais le contenu d'une proposition (titre, résumé, champs, raison, identifiant) ni l'adresse de l'appelant.
 import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from '../veille/appel.js';
+import { emailDans } from '../securite/reglages-maison.js';
 import { decider, ErreurDecision } from '../coeur/propositions.js';
 
 const CHAMPS_JOURNAL = ['action', 'statut', 'code', 'decision', 'dureeMs'];
@@ -23,7 +24,7 @@ export function creerAppelDecider({ donnees, comptes = COMPTES_AUTORISES, journa
     const debut = maintenant();
     const jeton = requete.auth?.token;
     if (!jeton) throw new HttpsError('unauthenticated', 'Connexion nécessaire.');
-    if (jeton.email_verified !== true || typeof jeton.email !== 'string' || !comptes.includes(jeton.email)) {
+    if (jeton.email_verified !== true || typeof jeton.email !== 'string' || !(await emailDans(comptes, jeton.email))) {
       throw new HttpsError('permission-denied', 'Ce compte n\'a pas accès à la file À valider.');
     }
     const demande = requete.data;

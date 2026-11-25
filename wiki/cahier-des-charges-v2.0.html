@@ -121,20 +121,33 @@ export const COMPTES_AUTORISES = {
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Réglages de la maison (chantier 0, 25/11/2026) : les comptes ne sont plus écrits ici. Ils sont lus dans la fiche reglages_maison/maison, que seul le SDK
+    // d'administration écrit (aucun navigateur ne la lit ni ne l'écrit, voir plus bas). Fiche absente ou illisible : get() échoue, donc la règle REFUSE (jamais d'ouverture).
+    // Un seul get() par requête évaluée : Firestore ne facture qu'une lecture pour le même document, même appelé par plusieurs fonctions. L'appel n'a lieu
+    // qu'après les contrôles de connexion (un visiteur non connecté ne coûte aucune lecture).
+    function reglagesMaison() {
+      return get(/databases/$(database)/documents/reglages_maison/maison).data;
+    }
+
+    // Comptes du CRM (Jérôme et son bot) : champ comptes_autorises de la fiche.
     function compteAutorise() {
       return request.auth != null
         &amp;&amp; request.auth.token.email_verified == true
-        &amp;&amp; request.auth.token.email in [
-             &quot;jerome.chevalier@gmail.com&quot;,
-             &quot;jeromebot.chevalierbot@gmail.com&quot;
-           ];
+        &amp;&amp; request.auth.token.email in reglagesMaison().get('comptes_autorises', []);
     }
 
-    // Compte de Jérôme seul (module Console, 16/11/2026) : le compte du bot n'y est pas.
+    // Compte de Jérôme seul (module Console, 16/11/2026) : champ comptes_jerome_seul de la fiche ; le compte du bot n'y est pas.
     function compteJeromeSeul() {
       return request.auth != null
         &amp;&amp; request.auth.token.email_verified == true
-        &amp;&amp; request.auth.token.email == &quot;jerome.chevalier@gmail.com&quot;;
+        &amp;&amp; request.auth.token.email in reglagesMaison().get('comptes_jerome_seul', []);
+    }
+
+    // La fiche elle-même : `maison` n'est lisible ni modifiable par AUCUN navigateur (Jérôme compris) ; `ecran` (noms et portraits des personnes, pour l'écran) est lisible
+    // par les comptes autorisés ; `public` (aucun e-mail : seulement { mode_crm }) est lisible avant la connexion. Aucune écriture depuis un navigateur. Exclue du joker ci-dessous.
+    match /reglages_maison/{id} {
+      allow get: if id == 'public' || (id == 'ecran' &amp;&amp; compteAutorise());
+      allow list, write: if false;
     }
 
     // Journal d'audit : lisible depuis l'appli. L'appli peut y AJOUTER les lignes de ses propres actions (canal « ecran », à son
@@ -331,10 +344,10 @@ service cloud.firestore {
       allow write: if compteJeromeSeul();
     }
 
-    // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
+    // Tout le reste : comme avant (les comptes autorisés de la fiche de la maison), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        &amp;&amp; !(collection in ['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres']);
+        &amp;&amp; !(collection in ['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres', 'reglages_maison']);
     }
   }
 }</code></pre></li><li><strong>Contrôle dans l'interface</strong> : après connexion, si l'email n'est pas dans <code>COMPTES_AUTORISES</code> ou n'est pas vérifié, déconnexion immédiate et message d'accès refusé ; aucune donnée n'est demandée avant ce contrôle.</li><li><strong>Pas de mode hors ligne en version 2.0</strong> : cache Firestore en mémoire (réglage par défaut, pas de cache persistant). Sans réseau, bandeau &quot;Hors ligne : reconnecte toi pour continuer&quot; ; aucune modification n'est promise hors ligne.</li><li><strong>Lectures économes</strong> : un écouteur <code>onSnapshot</code> par collection de listes pour toute la session, filtrage et calculs côté navigateur ; requêtes ciblées à l'ouverture d'une fiche pour notes, événements et activités faites (section 3.1.6) ; aucune requête composite, donc aucun index à publier.</li><li><strong>PWA sans service worker</strong> : <code>manifest.webmanifest</code> (nom &quot;Chevalier IA OS&quot;, nom court &quot;Chevalier OS&quot;, <code>display: standalone</code>, couleurs du thème sombre, icônes 192, 512, maskable, apple touch à partir de la baguette) et balises Apple pour l'installation sur iPhone. <strong>Aucun service worker, aucune mise en cache de fichiers par l'appli.</strong> Version : fichier <code>version.json</code> (<code>{&quot;version&quot;: &quot;2.0.0&quot;}</code>) ; la version chargée est inscrite dans <code>js/os/version.js</code> ; à l'ouverture et à chaque retour sur l'onglet, l'appli lit <code>version.json</code> (sans cache) et, si elle diffère, affiche le bandeau &quot;Nouvelle version disponible&quot; avec &quot;Recharger&quot;. Chaque livraison augmente la version dans les deux fichiers.</li><li><strong>En têtes</strong> (<code>firebase.json</code>) : <code>X-Robots-Tag: noindex, nofollow</code>, <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code>, <code>Permissions-Policy</code> restrictive ; <code>Cache-Control: no-cache</code> pour tous les fichiers <code>.html</code>, <code>.js</code>, <code>.css</code>, <code>.json</code> et le manifeste (revalidation à chaque chargement, rien de périmé) ; cache long uniquement pour les polices et les images. <code>robots.txt</code> interdit tout. <code>&lt;meta name=&quot;robots&quot; content=&quot;noindex&quot;&gt;</code>.</li><li><strong>Routage</strong> par ancre : voir la section 7.2 (<code>#/crm/accueil</code> par défaut).</li><li><strong>Organisation modulaire</strong> : la coquille (<code>js/os/</code>) ne connaît les modules que par la liste <code>js/os/modules.js</code> (id, libellé, icône, routes, fonction de montage). Ajouter un module = un dossier <code>js/modules/&lt;nom&gt;/</code> + une entrée dans cette liste.</li><li><strong>Mode test</strong> : si l'appli est servie sur <code>localhost</code> avec <code>?emulateurs=1</code>, elle se connecte aux émulateurs Firebase (Auth 9099, Firestore 8080) au lieu de la production.</li></ol>

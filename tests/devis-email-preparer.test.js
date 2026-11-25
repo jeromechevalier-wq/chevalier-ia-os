@@ -1,5 +1,6 @@
 // « Préparer l'e-mail » d'un devis (serveur) : la fonction appelable (faux n8n local, jamais le vrai), les deux actions de la porte (devis.lireEmail, devis.noterEmailPrepare),
 // le journal des demandes, la porte de la plateforme clients. Accès aux données EN MÉMOIRE ; aucune base, aucun réseau. Le nom d'un test commence par le numéro du critère.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { creerAccesMemoire, avecBase, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';

@@ -1,5 +1,6 @@
 // Pilotage : lignes pointillées de plafond (repères) et arbre des coûts, côté serveur. Tout en mémoire : faux Postgres, aucun réseau. Vues fictives (v_exemple_…).
 // P1 : repères d'un graphique ; P2 : tuile « arbre » (validation, requête, colonnes rendues).
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { validerReglages, ErreurPilotage } from '../functions/src/pilotage/reglages.js';
@@ -7,7 +8,7 @@ import { creerServicePilotage } from '../functions/src/pilotage/service.js';
 import { creerAppelPilotageLire } from '../functions/src/pilotage/appel.js';
 import { creerAssistantPilotage } from '../functions/src/pilotage/assistant.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
-import { ADMINISTRATEURS } from '../functions/partage/administrateur.js';
+import { ADMINISTRATEURS } from '../js/os/administrateur.js';
 
 const JEROME = ADMINISTRATEURS[0];
 const OPTION = JSON.stringify({ dataset: { dimensions: ['cle_nom', 'part_pct'] }, xAxis: { type: 'category' }, yAxis: { type: 'value', max: 120 }, series: [{ type: 'bar', encode: { x: 'cle_nom', y: 'part_pct' } }] });

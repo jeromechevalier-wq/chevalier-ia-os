@@ -1,5 +1,6 @@
 // Le moteur d'écriture et l'audit contre l'ÉMULATEUR Firestore (SDK d'administration réel : Timestamps, lots, transactions).
 // Lancé par « npm test » (émulateurs) ; ignoré si l'émulateur n'est pas démarré. Projet de démonstration, jamais de données réelles.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { initializeApp, deleteApp } from '../functions/node_modules/firebase-admin/lib/esm/app/index.js';

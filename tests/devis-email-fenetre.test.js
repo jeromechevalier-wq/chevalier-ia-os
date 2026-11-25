@@ -1,6 +1,7 @@
 // « Préparer l'e-mail » avec contenu personnalisé (01/11/2026) : règles pures (écran ET serveur) et serveur (accès en mémoire, faux n8n). Le nom d'un test commence par le numéro du critère.
 //  F1 la fenêtre est préremplie avec les textes standard EXACTS ; F2 ajouter/retirer des adresses, validation, maximum, doublons ; F3 cas vide ; F4 seuls les champs changés partent ;
 //  F5 le serveur revérifie et nettoie ; F6 le texte vit côté serveur et n8n ne reçoit que des identifiants ; F7 sans champ, comportement inchangé ; F8 le devis n'est jamais modifié ; F9 à F12 relance (07/11/2026) : texte de relance envoyé même sans modification, texte modifié = le sien, champ vidé refusé, objet tronqué à MAX_OBJET.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { creerAccesMemoire, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';

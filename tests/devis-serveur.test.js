@@ -1,6 +1,7 @@
 // C2 à C7 : les transitions des devis côté serveur (functions/src/coeur/devis.js) et leur porte d'entrée chez Jérôme (functions/src/devis-appel.js).
 // Accès aux données EN MÉMOIRE (aucune base) : les transactions y passent l'une après l'autre, comme Firestore qui relance la perdante.
 // Le vrai test de concurrence sur l'émulateur est dans devis-serveur-firestore.test.js. La porte de la plateforme clients est dans devis-serveur-plateforme.test.js.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { creerAccesMemoire, avecBase, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';

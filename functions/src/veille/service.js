@@ -2,8 +2,15 @@
 // Aucune dépendance en dur : la base (`donnees`, voir partage/porte/adaptateur.js), le réseau (`fetchImpl`), l'horloge et le jeton du bouton Résumer sont injectés,
 // pour tout tester sans réseau. Les tables sont celles de la porte : veille_sources, veille_contenus (à la racine chez Jérôme, `base` pour un client).
 import { analyserLien, idChaineDansPage, lireFluxChaine, urlFluxChaine, NB_EPISODES_CHAINE } from '../../partage/veille-lien.js';
+import { texteDe } from '../securite/reglages-maison.js';
 
-export const ADRESSE_RESUMER = 'https://n8n.chevalier-ia.fr/webhook/veille-resumer-porte';
+/** Chemin du webhook « résumer » sur le n8n de la maison (l'hôte vient de la fiche reglages_maison/maison, champ n8n_url). */
+export const CHEMIN_RESUMER = '/webhook/veille-resumer-porte';
+/** Adresse complète du webhook, lue à l'appel ; '' si la fiche n'a pas d'adresse n8n (le bouton répond alors « pas configuré »). */
+export async function adresseResumerMaison() {
+  const base = await texteDe('n8n_url');
+  return base ? `${base}${CHEMIN_RESUMER}` : '';
+}
 export const SOURCE_MANUELLE = Object.freeze({ id: 'ajouts-manuels', nom: 'Ajouts manuels' });
 const DELAI_RESEAU_MS = 15_000;
 const DELAI_RESUMER_MS = 25_000;
@@ -22,7 +29,7 @@ export class ErreurVeille extends Error {
 const chemin = (base, table, id) => `${base ? `${base}/` : ''}${table}${id === undefined ? '' : `/${id}`}`;
 const sansIndefini = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ''));
 
-export function creerServiceVeille({ donnees, fetchImpl = fetch, maintenant = Date.now, adresseResumer = ADRESSE_RESUMER, lireJeton }) {
+export function creerServiceVeille({ donnees, fetchImpl = fetch, maintenant = Date.now, adresseResumer = adresseResumerMaison, lireJeton }) {
   async function chercher(url, { delai = DELAI_RESEAU_MS, entetes = {} } = {}) {
     const ctrl = new AbortController();
     const minuteur = setTimeout(() => ctrl.abort(), delai);
@@ -99,9 +106,12 @@ export function creerServiceVeille({ donnees, fetchImpl = fetch, maintenant = Da
     let jeton;
     try { jeton = String(await lireJeton()).trim(); } catch { jeton = ''; }
     if (!jeton) throw new ErreurVeille('jeton_absent', 'Le bouton Résumer n\'est pas encore configuré côté serveur (jeton manquant).');
+    let adresse;
+    try { adresse = typeof adresseResumer === 'function' ? await adresseResumer() : adresseResumer; } catch { adresse = ''; }
+    if (!adresse) throw new ErreurVeille('jeton_absent', 'Le bouton Résumer n\'est pas encore configuré côté serveur (adresse du service manquante).');
     let r;
     try {
-      r = await chercher(`${adresseResumer}?video_id=${encodeURIComponent(contenuId)}&token=${encodeURIComponent(jeton)}`, { delai: DELAI_RESUMER_MS });
+      r = await chercher(`${adresse}?video_id=${encodeURIComponent(contenuId)}&token=${encodeURIComponent(jeton)}`, { delai: DELAI_RESUMER_MS });
     } catch {
       throw new ErreurVeille('n8n_injoignable', 'Le service de résumé ne répond pas. Réessayer dans un instant.');
     }

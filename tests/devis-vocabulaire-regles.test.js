@@ -6,6 +6,7 @@ import { test, describe, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
+import { FICHE_ESSAI } from './_reglages-maison-essai.js'; // chantier 0 : les règles lisent les comptes dans reglages_maison/maison
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, setLogLevel } from 'firebase/firestore';
 
 setLogLevel('error');
@@ -32,6 +33,7 @@ function lesCas({ nom, projet, fichier, preparer, ref, habitudes, usage, ecrivai
       await env.clearFirestore();
       await env.withSecurityRulesDisabled(async (ctx) => {
         const db = ctx.firestore();
+        await setDoc(doc(db, 'reglages_maison', 'maison'), { ...FICHE_ESSAI }); // chantier 0 : fiche de la maison (comptes d'avant), effacée par clearFirestore
         await preparer(db);
         await setDoc(ref(db, 'prise_double'), manuelle());
         await setDoc(ref(db, 'tableau'), apprise({ cle: 'tableau', expression: 'tableau' }));
@@ -241,8 +243,8 @@ describe('V4 Cohérence des deux jeux de règles', () => {
       assert.match(t, /hasOnly\(\['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'modifieLe', 'modifiePar', 'via', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe', 'cibles'\]\)/);
       assert.match(t, /match \/(?:clients\/\{client\}\/)?devis_vocabulaire\/\{id\} \{[^}]*allow delete: if false;/s);
     }
-    assert.match(j, /'crm_actions_lancements', 'devis_vocabulaire'(, 'documents_stockes')?(, 'devis_habitudes')?(, 'devis_usage_articles')?(, 'reseauxsociaux_mesures')?(, 'base_parametres')?\]\)/);
-    assert.match(j, /'devis_habitudes', 'devis_usage_articles'(, 'reseauxsociaux_mesures')?(, 'base_parametres')?\]\)/); // K23 : la collection d'usage est exclue du joker de Jérôme
+    assert.match(j, /'crm_actions_lancements', 'devis_vocabulaire'(, 'documents_stockes')?(, 'devis_habitudes')?(, 'devis_usage_articles')?(, 'reseauxsociaux_mesures')?(, 'base_parametres')?(, 'reglages_maison')?\]\)/);
+    assert.match(j, /'devis_habitudes', 'devis_usage_articles'(, 'reseauxsociaux_mesures')?(, 'base_parametres')?(, 'reglages_maison')?\]\)/); // K23 : la collection d'usage est exclue du joker de Jérôme
     assert.match(j, /match \/devis_usage_articles\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow write: if false;/);
     assert.match(p, /\['documents_stockes', 'devis_habitudes', 'devis_usage_articles'\];/); // K23 : exclue du joker d'écriture des clients
     assert.match(p, /match \/clients\/\{client\}\/devis_usage_articles\/\{id\} \{[^}]*allow write: if false;/s);

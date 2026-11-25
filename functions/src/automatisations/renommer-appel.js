@@ -4,6 +4,7 @@
 // L'écran n'écrit JAMAIS lui-même ce champ. Le journal ne reçoit ni le nom saisi, ni l'identifiant du workflow, ni l'adresse de l'appelant.
 import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from '../veille/appel.js';
+import { emailDans } from '../securite/reglages-maison.js';
 import { controlerRenommage, champLibelle } from '../../partage/automatisations/libelle.js';
 
 const CHAMPS_JOURNAL = ['action', 'statut', 'code', 'dureeMs'];
@@ -25,7 +26,7 @@ export function creerAppelRenommer({ db, effacer, comptes = COMPTES_AUTORISES, j
     const debut = maintenant();
     const jeton = requete.auth?.token;
     if (!jeton) throw new HttpsError('unauthenticated', 'Connexion nécessaire.');
-    if (jeton.email_verified !== true || typeof jeton.email !== 'string' || !comptes.includes(jeton.email)) {
+    if (jeton.email_verified !== true || typeof jeton.email !== 'string' || !(await emailDans(comptes, jeton.email))) {
       throw new HttpsError('permission-denied', 'Action non autorisée.');
     }
     const controle = controlerRenommage(requete.data);

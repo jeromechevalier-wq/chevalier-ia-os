@@ -2,6 +2,7 @@
 // actifs, et surtout l'ÉTANCHÉITÉ entre clients (plan M1 à M15 de docs/mcp-multi-clients-en-reserve.md).
 // Un vrai client MCP (SDK officiel) appelle le gestionnaire sur un serveur HTTP local ; la base est en mémoire ; Google est remplacé par un vérificateur factice.
 // Deux clients de test, « a » et « b », avec des données reconnaissables (noms inventés) ; « sans-mcp » a le module éteint, « dormant » est désactivé.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -18,11 +19,17 @@ import { creerRouteurOauthClients } from '../functions/src/clients/routeur-oauth
 import { creerGestionnaireClients, outilsDesModules, outilsSelonOptions, OUTILS_PAR_OPTION, NOM_SERVEUR_CLIENT } from '../functions/src/clients/gestionnaire.js';
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
 import { varianteDuProfil } from '../functions/src/mcp/outils/variantes-assistant-devis.js';
-import { EMETTEUR_PLATEFORME as EMETTEUR } from '../functions/src/clients/config.js';
+import { emetteurPlateforme } from '../functions/src/clients/config.js';
+import { avecProjet, FICHE_ESSAI } from './_reglages-maison-essai.js';
 import { collections } from './_donnees-essai.js';
 import { EMETTEUR_ESSAI, CHANTIER_ESSAI } from './jeu-finalisation.js';
 import { moduleDeclare } from '../js/os/registre.js';
 
+// Chantier 0 (25/11/2026) : l'émetteur se déduit du projet Google. Ces essais (tout en mémoire, aucun émulateur) tournent « dans » le projet de la plateforme :
+// ils prouvent que les adresses des espaces clients restent exactement celles d'avant (https://chevalier-ia-app.web.app/…).
+process.env.GCLOUD_PROJECT = 'chevalier-ia-app';
+const EMETTEUR = emetteurPlateforme();
+assert.equal(EMETTEUR, 'https://chevalier-ia-app.web.app');
 const CLAUDE = 'https://claude.ai/api/mcp/auth_callback';
 const CHATGPT = 'https://chatgpt.com/connector/oauth/abc123_DEF-456';
 const ALICE = 'alice@exemple.test'; // éditrice chez A
@@ -869,7 +876,7 @@ describe('Écran d\'autorisation : aux couleurs du client, neutre pour tout ce q
     assert.match(t, /#336699/);
     assert.match(t, /https:\/\/exemple\.test\/alpha\.png/);
     assert.match(t, /\/oauth\/a\/approve/);
-    assert.match(t, /chevalier-ia-app/);
+    assert.ok(t.includes("fetch(\"/__/firebase/init.json\""), 'chantier 0 : la page lit la configuration du site qui la sert (plateforme), aucune configuration écrite');
     assert.ok(!t.includes('Chevalier IA OS') && !t.includes('chevalier-ia-os') && !t.includes('et <strong>supprimer</strong>') && /éditeur<\/strong> : les consulter, en créer, les modifier et les <strong>supprimer<\/strong> \(récupérable\)/.test(t) && !/jamais supprimer/.test(t));
     const tb = await (await autoriser('b')).text();
     assert.match(tb, /Atelier Bravo/);
@@ -991,9 +998,10 @@ describe('Propriétaire par défaut : la personne connectée, jamais Jérôme ch
 describe('Jérôme : son serveur ne change pas', () => {
   test('le serveur de Jérôme garde ses adresses, sa liste de comptes et son profil unique', async () => {
     const c = await import('../functions/src/oauth/config.js');
-    assert.equal(c.RESSOURCE, 'https://chevalier-ia-os.web.app/mcp');
+    assert.equal(await avecProjet('chevalier-ia-os', () => c.ressource()), 'https://chevalier-ia-os.web.app/mcp'); // chantier 0 : déduite du projet, identique
     assert.equal(c.PROFIL_OAUTH, 'complet');
-    assert.deepEqual(c.COMPTES_AUTORISES, ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com']);
+    assert.deepEqual([...(await c.COMPTES_AUTORISES())], ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com']); // chantier 0 : lus dans la fiche reglages_maison/maison
+    assert.deepEqual([...(await c.COMPTES_AUTORISES())], [...FICHE_ESSAI.comptes_oauth_autorises]);
     const { pageAutorisation } = await import('../functions/src/oauth/page.js');
     const p = pageAutorisation({ client_id: 'x', redirect_uri: 'https://claude.ai/api/mcp/auth_callback', code_challenge: 'c'.repeat(43) });
     assert.match(p, /Autoriser Claude à accéder à Chevalier IA OS \?/);

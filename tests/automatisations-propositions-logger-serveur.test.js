@@ -1,11 +1,13 @@
 // Le « Logger » côté serveur : la fonction appelable `automatisationsDecider` (décision `abandonner`, refus `pas_prete` / `abandonnee`)
 // et les outils MCP (états et étapes visibles, décisions refusées en préparation). Base en mémoire, aucune donnée réelle. Critère 5 de la PR 5.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { creerAccesMemoire, COLLECTIONS } from '../functions/src/coeur/donnees.js';
 import { decider, ErreurDecision, controlerDemande, DECISIONS, MESSAGE_ABANDON_ECRAN } from '../functions/src/coeur/propositions.js';
 import { creerAppelDecider } from '../functions/src/automatisations/decider-appel.js';
-import { COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
+import { COMPTES_AUTORISES as LIRE_COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
+const COMPTES_AUTORISES = await LIRE_COMPTES_AUTORISES(); // chantier 0 : liste lue dans la fiche reglages_maison/maison (celle des essais : _fiche-essai.js)
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
 import { lister_propositions, lire_proposition, valider_proposition, refuser_proposition, AVERTISSEMENT } from '../functions/src/mcp/outils/propositions.js';
 import { z } from '../functions/node_modules/zod/index.js';

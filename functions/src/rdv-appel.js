@@ -10,7 +10,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from './veille/appel.js';
 import { exigerCompteAutorise } from './devis-appel.js';
 import { ESPACE_JEROME } from './coeur/sms-direct.js';
-import { estAdministrateur } from '../partage/administrateur.js';
+import { estJeromeSeul } from './securite/reglages-maison.js';
 import { etatEnvoi, envoyerPropositions, envoyerSms, renvoyerSms, reautoriserNumero, lireSoldeEnvoi, ErreurRdvEnvoi } from './coeur/rdv-envoi.js';
 
 /** Erreur du service -> erreur d'appel lisible ; une panne inattendue devient une phrase neutre (jamais de détail technique). */
@@ -21,17 +21,17 @@ export function enErreurRdv(e) {
 
 export function creerAppelRdvEtat({ sortie, comptes = COMPTES_AUTORISES }) {
   return async function appel(requete) {
-    exigerCompteAutorise(requete, comptes);
+    await exigerCompteAutorise(requete, comptes);
     const t = requete.auth?.token;
     // `peutConfigurer` : l'écran montre la saisie de la connexion SMS seulement à Jérôme (le serveur la refuse de toute façon à tout autre compte : rdvConnexionSms).
-    return { ...(await etatEnvoi({ sortie, espace: ESPACE_JEROME })), peutConfigurer: estAdministrateur(t?.email, t?.email_verified === true) };
+    return { ...(await etatEnvoi({ sortie, espace: ESPACE_JEROME })), peutConfigurer: await estJeromeSeul(t?.email, t?.email_verified === true) };
   };
 }
 
 export function creerAppelRdvEnvoyer({ donnees, sortie, comptes = COMPTES_AUTORISES, journal = () => {}, maintenant = Date.now }) {
   return async function appel(requete) {
     const debut = maintenant();
-    exigerCompteAutorise(requete, comptes);
+    await exigerCompteAutorise(requete, comptes);
     const d = requete.data && typeof requete.data === 'object' ? requete.data : {};
     const commun = { donnees: donnees(), ctx: { maintenant: new Date(maintenant()) }, espace: ESPACE_JEROME, sortie, rendezVousId: d.rendezVousId };
     try {

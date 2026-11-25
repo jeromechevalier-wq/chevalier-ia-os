@@ -8,6 +8,7 @@ import {
   assertFails,
 } from '@firebase/rules-unit-testing';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, setLogLevel } from 'firebase/firestore';
+import { FICHE_ESSAI } from './_reglages-maison-essai.js'; // chantier 0 : les règles lisent les comptes dans reglages_maison/maison
 
 setLogLevel('error');
 
@@ -50,6 +51,7 @@ beforeEach(async () => {
   // Un document existant par collection, écrit sans règles, pour les lectures et suppressions.
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
+    await setDoc(doc(db, 'reglages_maison', 'maison'), { ...FICHE_ESSAI }); // chantier 0 : fiche de la maison (comptes d'avant), effacée par clearFirestore
     for (const c of [...COLLECTIONS, ...COLLECTIONS_SERVEUR, ...COLLECTIONS_TABLEAU, ...COLLECTIONS_AUTOMATISATIONS, 'crm_autre']) {
       await setDoc(doc(db, c, 'existant'), { valeur: 1 });
     }
@@ -315,5 +317,66 @@ describe('C3 Rendez-vous : règles chez Jérôme', () => {
     const db = contexte(COMPTES[0]);
     await assertFails(setDoc(doc(db, 'rdv_messages', 'x', 'sous', 'y'), { valeur: 1 }));
     await assertFails(setDoc(doc(db, 'rdv_parametres', 'desinscrits', 'sous', 'y'), { valeur: 1 }));
+  });
+});
+
+// ---------------------------------------------------------------- Chantier 0 (25/11/2026) : la fiche reglages_maison
+describe('Chantier 0 : les comptes viennent de la fiche reglages_maison/maison', () => {
+  const [JEROME, BOT] = COMPTES;
+  const ecrireFiche = (fiche) => env.withSecurityRulesDisabled(async (ctx) => {
+    const ref = doc(ctx.firestore(), 'reglages_maison', 'maison');
+    if (fiche === null) await deleteDoc(ref); else await setDoc(ref, fiche);
+  });
+
+  test('RM-R1 fiche absente : tout est refusé, même pour Jérôme (jamais d\'ouverture par défaut)', async () => {
+    await ecrireFiche(null);
+    for (const email of COMPTES) {
+      await assertFails(getDoc(doc(contexte(email), 'crm_personnes', 'existant')));
+      await assertFails(setDoc(doc(contexte(email), 'crm_personnes', 'nouveau'), { valeur: 2 }));
+    }
+  });
+  test('RM-R2 un compte ajouté dans la fiche est admis, un compte retiré est refusé (adresses inventées)', async () => {
+    await ecrireFiche({ ...FICHE_ESSAI, comptes_autorises: ['admin@exemple.test'], comptes_jerome_seul: ['admin@exemple.test'] });
+    await assertSucceeds(getDoc(doc(contexte('admin@exemple.test'), 'crm_personnes', 'existant')));
+    await assertFails(getDoc(doc(contexte('admin@exemple.test', false), 'crm_personnes', 'existant')), 'e-mail non vérifié');
+    await assertFails(getDoc(doc(contexte(JEROME), 'crm_personnes', 'existant')), 'retiré de la fiche : refusé');
+  });
+  test('RM-R3 la fiche « maison » ne se lit ni ne s\'écrit depuis un navigateur, même par Jérôme ; aucun document reglages_maison ne s\'écrit ; la liste est refusée', async () => {
+    const jerome = contexte(JEROME);
+    await assertFails(getDoc(doc(jerome, 'reglages_maison', 'maison')));
+    for (const id of ['maison', 'ecran', 'public', 'autre']) {
+      await assertFails(setDoc(doc(jerome, 'reglages_maison', id), { comptes_autorises: [JEROME, 'intrus@exemple.test'] }));
+      await assertFails(deleteDoc(doc(jerome, 'reglages_maison', id)));
+    }
+    await assertFails(updateDoc(doc(jerome, 'reglages_maison', 'maison'), { comptes_autorises: [JEROME, 'intrus@exemple.test'] }));
+    await assertFails(getDocs(collection(jerome, 'reglages_maison')));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'reglages_maison', 'maison')));
+  });
+  test('RM-R4 « public » se lit par tous (même sans connexion) ; « ecran » seulement par les comptes de la fiche ; « autre » par personne', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'reglages_maison', 'public'), { mode_crm: true });
+      await setDoc(doc(ctx.firestore(), 'reglages_maison', 'ecran'), { personnes: {} });
+      await setDoc(doc(ctx.firestore(), 'reglages_maison', 'autre'), { x: 1 });
+    });
+    await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'reglages_maison', 'public')));
+    await assertSucceeds(getDoc(doc(contexte('intrus@exemple.test'), 'reglages_maison', 'public')));
+    for (const email of COMPTES) await assertSucceeds(getDoc(doc(contexte(email), 'reglages_maison', 'ecran')));
+    await assertFails(getDoc(doc(contexte('intrus@exemple.test'), 'reglages_maison', 'ecran')));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'reglages_maison', 'ecran')));
+    await assertFails(getDoc(doc(contexte(JEROME), 'reglages_maison', 'autre')));
+  });
+  test('RM-R5 le bot reste refusé là où il l\'était (Console, connexion à la base) : comptes_jerome_seul ne contient que Jérôme', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'console_filet', 'budget'), { note: 'x' });
+      await setDoc(doc(ctx.firestore(), 'base_parametres', 'connexion'), { espace: 'essai' });
+    });
+    // Console : ni lecture ni écriture pour le bot ; connexion à la base : le bot lit (comme avant), seul Jérôme écrit.
+    await assertFails(getDoc(doc(contexte(BOT), 'console_filet', 'budget')), 'console_filet : bot refusé');
+    await assertSucceeds(getDoc(doc(contexte(BOT), 'base_parametres', 'connexion')), 'base_parametres : le bot lit, comme avant');
+    for (const [c, id] of [['console_filet', 'budget'], ['base_parametres', 'connexion']]) {
+      await assertFails(setDoc(doc(contexte(BOT), c, id), { note: 'y' }), `${c} : bot refusé en écriture`);
+      await assertSucceeds(getDoc(doc(contexte(JEROME), c, id)), `${c} : Jérôme lit`);
+      await assertSucceeds(setDoc(doc(contexte(JEROME), c, id), { note: 'z' }), `${c} : Jérôme écrit`);
+    }
   });
 });

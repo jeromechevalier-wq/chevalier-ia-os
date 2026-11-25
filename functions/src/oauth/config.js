@@ -1,17 +1,23 @@
-// Réglages de la connexion OAuth du serveur MCP (téléphone, claude.ai). Aucune dépendance : importé par les tests et les contrôles statiques.
+// Réglages de la connexion OAuth du serveur MCP (téléphone, claude.ai). Importé par les tests et les contrôles statiques : rien n'est calculé à l'import.
 // Principe : le client (Claude) obtient un jeton d'accès en prouvant qu'un compte Google AUTORISÉ a dit « oui » sur l'écran de consentement.
 // Les jetons « cia_… » en en-tête (Hermes, Claude Code) ne changent pas : c'est l'autre porte, qui reste en place.
 
-/** Adresse publique : l'émetteur OAuth et la ressource protégée (doit être identique à l'adresse saisie dans Claude, chemin compris). */
-export const EMETTEUR = 'https://chevalier-ia-os.web.app';
-export const RESSOURCE = `${EMETTEUR}/mcp`;
-export const URL_METADONNEES_RESSOURCE = `${EMETTEUR}/.well-known/oauth-protected-resource/mcp`;
+import { adresseSite, originesSite } from '../securite/maison.js';
+import { comptesOauthAutorises } from '../securite/reglages-maison.js';
 
 /**
- * Comptes Google autorisés : la MÊME liste que `compteAutorise()` dans firestore.rules (un test compare les deux).
- * Le compte doit aussi avoir une adresse vérifiée par Google.
+ * Adresse publique : l'émetteur OAuth et la ressource protégée (doit être identique à l'adresse saisie dans Claude, chemin compris).
+ * Calculée à partir du projet Google (chantier 0, 25/11/2026) : https://<projet>.web.app, soit pour le CRM de Jérôme exactement l'adresse d'avant (un test le verrouille).
  */
-export const COMPTES_AUTORISES = ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com'];
+export const emetteur = () => adresseSite();
+export const ressource = () => `${emetteur()}/mcp`;
+export const urlMetadonneesRessource = () => `${emetteur()}/.well-known/oauth-protected-resource/mcp`;
+
+/**
+ * Comptes Google qui peuvent connecter un assistant par l'écran de consentement : la liste comptes_oauth_autorises de la fiche reglages_maison/maison
+ * (lue par le serveur seul, cache de 60 s ; fiche illisible = personne). Le compte doit aussi avoir une adresse vérifiée par Google.
+ */
+export const COMPTES_AUTORISES = comptesOauthAutorises;
 
 /** Décision de Jérôme (09/10/2026) : le téléphone reçoit tous les droits, comme le profil complet (suppression et restauration comprises). */
 export const PROFIL_OAUTH = 'complet';
@@ -43,4 +49,4 @@ export const DUREES = Object.freeze({
 export const COLLECTION_OAUTH = 'mcp_oauth';
 
 /** Origines de navigateur acceptées (la page de connexion tourne sur l'appli). Les clients MCP et OAuth serveur à serveur n'envoient pas d'en-tête Origin. */
-export const ORIGINES_AUTORISEES = ['https://chevalier-ia-os.web.app', 'https://chevalier-ia-os.firebaseapp.com'];
+export const originesAutorisees = () => originesSite();

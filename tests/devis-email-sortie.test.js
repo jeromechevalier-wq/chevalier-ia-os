@@ -1,5 +1,6 @@
 // L'appel sortant vers n8n de « Préparer l'e-mail » : UN SEUL fichier (functions/src/coeur/n8n-sortie.js) a le droit de faire un POST vers n8n, vers une adresse de NOTRE n8n, au chemin « /webhook/… ».
 // Ces tests ne lancent rien : ils lisent le code (borne) et font parler la sortie avec un faux n8n.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -28,12 +29,13 @@ describe('S1 un seul fichier fait un POST vers n8n', () => {
     const posteurs = TOUS.filter((f) => /method\s*:\s*['"`]POST['"`]|\.post\s*\(/i.test(code(lire(f))) && /n8n/i.test(code(lire(f))));
     assert.deepEqual(posteurs, [FICHIER_SORTIE]);
   });
-  test('S1 ce fichier : un seul point de sortie réseau, un seul POST, aucun autre verbe, hôte et chemin fixés, aucune variable d’environnement, rien d’écrit dans les journaux', () => {
+  test('S1 ce fichier : un seul point de sortie réseau, un seul POST, aucun autre verbe, hôte (celui de la fiche de la maison) et chemin fixés, aucune variable d’environnement, rien d’écrit dans les journaux', () => {
     const c = code(lire(FICHIER_SORTIE));
     assert.equal((c.match(/\bfetchImpl\s*\(/g) || []).length, 1);
     assert.deepEqual([...c.matchAll(/method\s*:\s*['"`]([A-Za-z]+)['"`]/g)].map((m) => m[1]), ['POST']);
     assert.ok(!/['"`](PUT|PATCH|DELETE|GET|HEAD)['"`]/.test(c));
-    assert.match(c, /HOTE_N8N = 'n8n\.chevalier-ia\.fr'/);
+    assert.ok(!/n8n\.chevalier-ia\.fr/.test(c), 'chantier 0 : hôte lu dans la fiche de la maison (n8n_url), jamais écrit ici');
+    assert.match(c, /u\.hostname !== hote/);
     assert.match(c, /redirect: 'error'/);
     assert.ok(!/process\.env|console\.|logger\./.test(c));
     assert.ok(!/\/run|\/activate|\/deactivate|\/credentials|\/users|\/variables|api\/v1/.test(c), 'jamais l’API d’administration de n8n');
@@ -67,13 +69,16 @@ describe('S2 la sortie : ce qu’elle accepte et ce qu’elle envoie', () => {
     return { s, appels, lectures };
   };
   test('S2 seule une adresse https de NOTRE n8n, au chemin « /webhook/… », sans identifiant ni paramètre, est acceptée', () => {
-    assert.equal(N.adresseSure(URL), URL);
-    assert.equal(N.adresseSure(`  ${URL}\n`), URL);
+    const HOTE = 'n8n.chevalier-ia.fr'; // chantier 0 : l'hôte accepté est passé par l'appelant (celui de la fiche de la maison)
+    assert.equal(N.adresseSure(URL, HOTE), URL);
+    assert.equal(N.adresseSure(`  ${URL}\n`, HOTE), URL);
+    assert.equal(N.adresseSure(URL, ''), null, 'hôte inconnu (fiche illisible) : aucune adresse acceptée');
+    assert.equal(N.adresseSure(URL, undefined), null);
     for (const mauvaise of [
       'http://n8n.chevalier-ia.fr/webhook/x', 'https://autre.exemple.test/webhook/x', 'https://n8n.chevalier-ia.fr.evil.test/webhook/x', 'https://n8n.chevalier-ia.fr:8443/webhook/x',
       'https://user:mdp@n8n.chevalier-ia.fr/webhook/x', 'https://n8n.chevalier-ia.fr/webhook/x?a=1', 'https://n8n.chevalier-ia.fr/webhook/x#y', 'https://n8n.chevalier-ia.fr/rest/workflows',
       'https://n8n.chevalier-ia.fr/api/v1/workflows', 'https://n8n.chevalier-ia.fr/webhook/', 'https://n8n.chevalier-ia.fr/webhook/../rest/login', 'https://n8n.chevalier-ia.fr/webhook/a b', '', 'webhook', null, undefined,
-    ]) assert.equal(N.adresseSure(mauvaise), null, String(mauvaise));
+    ]) assert.equal(N.adresseSure(mauvaise, HOTE), null, String(mauvaise));
   });
   test('S2 le POST : adresse du secret, en-tête secret, corps JSON fixe { action, espace, devisId, demandeId }, aucune redirection suivie', async () => {
     const { s, appels } = sortie({ [N.SECRET_URL]: URL, [N.SECRET_CLE]: ' mon-secret \n' });

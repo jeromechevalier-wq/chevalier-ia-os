@@ -1,4 +1,4 @@
-// La porte des workflows n8n pour les espaces clients (base 2, projet chevalier-ia-app) : la MÊME logique que celle du CRM de Jérôme (serveur/partage/porte/, copie de scripts/porte/),
+// La porte des workflows n8n pour les espaces clients (base 2, la plateforme des clients) : la MÊME logique que celle du CRM de Jérôme (serveur/partage/porte/, copie de scripts/porte/),
 // avec le contexte « plateforme » : le client vient de la CLÉ seulement (jamais d'un paramètre), les écritures vont sous clients/<client>/, et un workflow n'est accepté que s'il est
 // étiqueté et nommé « client-<client> ». Les clés sont retrouvées par leur empreinte dans la collection racine `plateforme_cles` (aucune règle Firestore : le serveur seul y accède).
 // La clé d'API n8n est lue dans Secret Manager (N8N_API_KEY) au moment d'un appel. Voir docs/porte-cles.md.
@@ -11,9 +11,10 @@ import { ligneDeJournal, creerN8nDepuisSecret, creerServiceDevis } from '../serv
 import { creerStockage } from '../serveur/src/devis/stockage.js';
 import { normaliserMarque } from '../serveur/partage/marque.js';
 import { modulesActifsDuClient } from '../serveur/partage/registre.js';
+import { reserveParDefaut } from '../serveur/src/securite/maison.js';
 
-/** Même bucket que `BUCKET` de index.js (un test vérifie l'égalité des deux textes). */
-export const BUCKET_PLATEFORME = 'chevalier-ia-app.firebasestorage.app';
+/** Même réserve que index.js : celle du projet courant (serveur/src/securite/maison.js), lue à l'appel. */
+export const bucketPlateforme = () => reserveParDefaut();
 
 /**
  * Modules que la porte peut servir pour ce client : seulement si sa fiche de marque est active ET si le module est allumé sur sa fiche.
@@ -42,7 +43,7 @@ export function creerPortePlateforme({ db, lireSecret, urlN8n, fetchImpl, stocka
     donnees: creerAdaptateur({ db }),
     n8n: creerN8nDepuisSecret({ lireSecret, urlN8n, fetchImpl }),
     modulesActifs: creerModulesActifs({ db }),
-    services: { devis: creerServiceDevis({ db, stockage: stockage ?? (() => creerStockage({ bucket: getStorage().bucket(BUCKET_PLATEFORME) })) }) },
+    services: { devis: creerServiceDevis({ db, stockage: stockage ?? (() => creerStockage({ bucket: getStorage().bucket(bucketPlateforme()) })) }) },
     journal: (entree) => sortie(ligneDeJournal(entree)),
     ...(maintenant ? { maintenant } : {}),
   });

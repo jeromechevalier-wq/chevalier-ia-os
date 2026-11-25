@@ -1,5 +1,6 @@
 // Outil MCP `modifier_reglages_devis` (09/11/2026) : l'assistant d'un éditeur (profil complet) règle le module Devis d'un espace.
 // De bout en bout par le protocole MCP, sur des données fictives en mémoire. Les numéros RG1 à RG8 suivent les critères d'acceptation du brief.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -281,20 +282,21 @@ describe('RG10 réservé aux super admins (décision du 09/11/2026) : le profil 
   test('RG10 la liste SUPER_ADMINS (configuration du serveur) contient exactement les deux comptes de Jérôme, tous deux dans COMPTES_AUTORISES', async () => {
     const { SUPER_ADMINS } = await import('../functions/src/securite/super-admins.js');
     const { COMPTES_AUTORISES } = await import('../functions/src/oauth/config.js');
-    assert.deepEqual([...SUPER_ADMINS], ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com']);
-    for (const e of SUPER_ADMINS) assert.ok(COMPTES_AUTORISES.includes(e), `${e} peut se connecter`);
+    // Chantier 0 (25/11/2026) : les deux listes sont lues dans la fiche reglages_maison/maison (ici celle des essais, reprise de l'écran).
+    assert.deepEqual([...(await SUPER_ADMINS())], ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com']);
+    for (const e of await SUPER_ADMINS()) assert.ok((await COMPTES_AUTORISES()).includes(e), `${e} peut se connecter`);
   });
   test('RG10 estSuperAdmin : chacun des deux comptes = oui, casse et espaces ignorés ; un autre compte, le profil, l’espace, un jeton statique = non', async () => {
     const { estSuperAdmin } = await import('../functions/src/mcp/gestionnaire.js');
-    assert.equal(estSuperAdmin({ jeton: { profil: 'complet', email: 'jerome.chevalier@gmail.com' } }), true);
-    assert.equal(estSuperAdmin({ jeton: { profil: 'complet', email: 'jeromebot.chevalierbot@gmail.com' } }), true);
-    assert.equal(estSuperAdmin({ jeton: { profil: 'complet', email: ' JEROME.CHEVALIER@gmail.com ' } }), true, 'casse et espaces normalisés');
-    assert.equal(estSuperAdmin({ jeton: { profil: 'complet', email: 'autre@exemple.test', role: 'editeur', client: 'a' } }), false, 'éditeur client en profil complet');
-    assert.equal(estSuperAdmin({ jeton: { profil: 'complet', email: 'jerome.chevalier@gmail.com.evil.test' } }), false, 'pas de correspondance partielle');
-    assert.equal(estSuperAdmin({ jeton: { profil: 'lecture', role: 'lecteur', email: 'lea@exemple.test' } }), false);
-    assert.equal(estSuperAdmin({ jeton: { profil: 'complet' } }), false, 'jeton statique sans e-mail');
-    assert.equal(estSuperAdmin({ jeton: { profil: 'agent-devis', email: 42 } }), false);
-    assert.equal(estSuperAdmin({}), false);
+    assert.equal(await estSuperAdmin({ jeton: { profil: 'complet', email: 'jerome.chevalier@gmail.com' } }), true);
+    assert.equal(await estSuperAdmin({ jeton: { profil: 'complet', email: 'jeromebot.chevalierbot@gmail.com' } }), true);
+    assert.equal(await estSuperAdmin({ jeton: { profil: 'complet', email: ' JEROME.CHEVALIER@gmail.com ' } }), true, 'casse et espaces normalisés');
+    assert.equal(await estSuperAdmin({ jeton: { profil: 'complet', email: 'autre@exemple.test', role: 'editeur', client: 'a' } }), false, 'éditeur client en profil complet');
+    assert.equal(await estSuperAdmin({ jeton: { profil: 'complet', email: 'jerome.chevalier@gmail.com.evil.test' } }), false, 'pas de correspondance partielle');
+    assert.equal(await estSuperAdmin({ jeton: { profil: 'lecture', role: 'lecteur', email: 'lea@exemple.test' } }), false);
+    assert.equal(await estSuperAdmin({ jeton: { profil: 'complet' } }), false, 'jeton statique sans e-mail');
+    assert.equal(await estSuperAdmin({ jeton: { profil: 'agent-devis', email: 42 } }), false);
+    assert.equal(await estSuperAdmin({}), false);
   });
   test('RG10 deuxième verrou : l’action refuse à l’exécution si l’appelant n’est pas un super admin, sans rien lire ni écrire', async () => {
     const metier = await import('../functions/src/coeur/metier.js');

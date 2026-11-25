@@ -1,9 +1,11 @@
 // Fonction appelable `tableaudebordSaisir` (functions/src/tableaudebord-saisie.js) : contrôle de l'appelant, demande mal formée, traduction des erreurs en phrases fixes
 // et ligne de journal sans donnée personnelle (S4 du brief « saisie »). La base et l'horloge sont simulées ; rien ne touche Firebase ni le réseau.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { creerAppelSaisie, ligneDeJournalSaisie } from '../functions/src/tableaudebord-saisie.js';
-import { COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
+import { COMPTES_AUTORISES as LIRE_COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
+const COMPTES_AUTORISES = await LIRE_COMPTES_AUTORISES(); // chantier 0 : liste lue dans la fiche reglages_maison/maison (celle des essais : _fiche-essai.js)
 
 const T0 = Date.parse('2026-10-17T10:00:00Z');
 const MAIL = COMPTES_AUTORISES[0];

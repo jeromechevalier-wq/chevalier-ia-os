@@ -1,18 +1,12 @@
-// Réglages du MCP des clients (plateforme clients, projet Firebase « chevalier-ia-app »). Aucune dépendance : importé par les tests et les contrôles statiques.
-// Un lien par client : https://chevalier-ia-app.web.app/mcp/<client>. Le client est lu DANS L'ADRESSE (jamais dans un paramètre envoyé par l'assistant),
+// Réglages du MCP des clients (plateforme clients). Importé par les tests et les contrôles statiques : rien n'est calculé à l'import (chantier 0, 25/11/2026).
+// Un lien par client : https://<projet>.web.app/mcp/<client> (le projet est lu auprès de Google, securite/maison.js). Le client est lu DANS L'ADRESSE (jamais dans un paramètre envoyé par l'assistant),
 // puis écrit dans la connexion OAuth ; chaque appel est revérifié contre sa fiche (membre, module « mcp » allumé, client actif).
-// Le serveur MCP de Jérôme (functions/src/oauth/config.js, base chevalier-ia-os) n'est pas concerné.
+// Le serveur MCP de Jérôme (functions/src/oauth/config.js) n'est pas concerné.
+import { adresseSite, originesSite } from '../securite/maison.js';
 
-export const EMETTEUR_PLATEFORME = 'https://chevalier-ia-app.web.app';
-export const ORIGINES_PLATEFORME = ['https://chevalier-ia-app.web.app', 'https://chevalier-ia-app.firebaseapp.com'];
-
-/** Configuration Firebase WEB de la plateforme (publique par nature) : la MÊME que scripts/projets/plateforme.json (un test les compare). */
-export const CONFIG_FIREBASE_PLATEFORME = Object.freeze({
-  apiKey: 'AIzaSyBozQGcRbt3sOUr3K2pygTUFdCZKcvxTtI',
-  authDomain: 'chevalier-ia-app.web.app',
-  projectId: 'chevalier-ia-app',
-  appId: '1:192468914925:web:4f459f0606689e22c572e4',
-});
+/** Adresse publique de la plateforme (émetteur OAuth des clients) et ses origines de navigateur : calculées à partir du projet, à la demande. */
+export const emetteurPlateforme = () => adresseSite();
+export const originesPlateforme = () => originesSite();
 
 /** Identifiant de client : le même format que partout (js/os/marque.js), en MINUSCULES seulement. Une majuscule dans le lien = lien inconnu. */
 export const FORMAT_CLIENT = /^[a-z0-9][a-z0-9_-]{0,39}$/;
@@ -53,7 +47,7 @@ export function acteurClient(assistant, email) {
 }
 
 /** Toutes les adresses d'un client. Le client est supposé valide (FORMAT_CLIENT). */
-export function adressesClient(client, emetteur = EMETTEUR_PLATEFORME) {
+export function adressesClient(client, emetteur = emetteurPlateforme()) {
   const ressource = `${emetteur}/mcp/${client}`;
   return {
     ressource,

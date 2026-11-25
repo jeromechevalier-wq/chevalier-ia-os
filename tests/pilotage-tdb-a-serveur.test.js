@@ -1,14 +1,16 @@
 // Tableau de bord, partie A : validation du réglage (onglets, sections, types, formats, couleurs, règles, liens, textes) et service (lecture PAR ONGLET, aucune fuite par la structure,
 // colonnes déclarées seulement, une requête par SQL identique, un texte ne lit pas la base). Tout en mémoire : faux Postgres, aucun réseau. Noms de vues et adresses fictifs (@example.test).
 // Un test par critère ; le nom commence par le numéro du point du brief : A1 onglets et sections, A2 types de tuile, A3 formats et couleurs nommés, A5 graphiques, A6 serveur.
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { validerReglages, ErreurPilotage, TUILES_MAX, TUILES_TOTAL_MAX, REGLAGE_MAX } from '../functions/src/pilotage/reglages.js';
 import { creerServicePilotage, filtrerColonnes } from '../functions/src/pilotage/service.js';
 import { creerAppelPilotageLire } from '../functions/src/pilotage/appel.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
-import { ADMINISTRATEURS } from '../functions/partage/administrateur.js';
-import { COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
+import { ADMINISTRATEURS } from '../js/os/administrateur.js';
+import { COMPTES_AUTORISES as LIRE_COMPTES_AUTORISES } from '../functions/src/veille/appel.js';
+const COMPTES_AUTORISES = await LIRE_COMPTES_AUTORISES(); // chantier 0 : liste lue dans la fiche reglages_maison/maison (celle des essais : _fiche-essai.js)
 
 const JEROME = ADMINISTRATEURS[0];
 const BOT = COMPTES_AUTORISES.find((c) => !ADMINISTRATEURS.includes(c));

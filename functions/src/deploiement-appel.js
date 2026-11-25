@@ -4,6 +4,7 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from './veille/appel.js';
 import { exigerCompteAutorise } from './devis-appel.js';
+import { listeDeComptes } from './securite/reglages-maison.js';
 import { verifierDeploiement, stockageRepond } from './coeur/deploiement.js';
 
 /**
@@ -14,7 +15,7 @@ export function creerAppelDeploiement({ version, comptes = COMPTES_AUTORISES, pd
   return async function appel(requete) {
     const debut = maintenant();
     try {
-      exigerCompteAutorise(requete, comptes);
+      await exigerCompteAutorise(requete, comptes);
     } catch (e) {
       journal({ action: 'deploiementVerifier', statut: 'refus', dureeMs: maintenant() - debut });
       if (e?.code === 'unauthenticated') throw e;
@@ -24,7 +25,7 @@ export function creerAppelDeploiement({ version, comptes = COMPTES_AUTORISES, pd
       version,
       controles: {
         fonctions: async () => true, // si l'on arrive ici, les fonctions du serveur sont publiées et répondent
-        membres: async () => Array.isArray(comptes) && comptes.length > 0, // chez Jérôme, les personnes autorisées sont la liste du code (COMPTES_AUTORISES)
+        membres: async () => (await listeDeComptes(comptes)).length > 0, // chez Jérôme, les personnes autorisées sont celles de la fiche de la maison (comptes_autorises)
         ...(pdf ? { 'pdf-stockage': async () => stockageRepond(pdf.bucket()), 'pdf-fonctions': async () => pdf.fonctions() === true } : {}),
       },
     });

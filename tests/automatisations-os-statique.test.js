@@ -1,8 +1,10 @@
 // Contrôles sans réseau du module Automatisations côté Chevalier IA OS (2.7.0) : accès administrateur, lecture seule des clients, interrupteur de mise en service.
 // Lancé après « npm run preparer » (il lit les copies générées dans functions/partage/).
+import './_fiche-essai.js'; // chantier 0 : fiche reglages_maison des essais (comptes d'avant), branchée en mémoire sur le serveur
 import assert from 'node:assert/strict';
+import { compteDeService } from '../functions/src/securite/maison.js';
 import { test, describe } from 'node:test';
-import { readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,8 +17,9 @@ describe('Chevalier IA OS : copie de tes workflows et vue administrateur (2.7.0)
     const a = lire('js/os/administrateur.js');
     assert.match(a, /ADMINISTRATEURS = Object\.freeze\(\['jerome\.chevalier@gmail\.com'\]\)/);
     assert.ok(!/jeromebot/.test(a));
-    assert.match(OS('appels.js'), /estAdministrateur\(jeton\.email, jeton\.email_verified\)/);
-    assert.match(readFileSync(join(RACINE, 'scripts/preparer-fonctions.js'), 'utf8'), /administrateur\.js/);
+    // Chantier 0 (25/11/2026) : côté serveur, « Jérôme seul » se lit dans la fiche reglages_maison/maison (comptes_jerome_seul), plus dans une copie de ce fichier.
+    assert.match(OS('appels.js'), /estJeromeSeul\(jeton\.email, jeton\.email_verified === true\)/);
+    assert.match(readFileSync(join(RACINE, 'scripts/preparer-fonctions.js'), 'utf8'), /rmSync\(join\(destination, 'administrateur\.js'\)/);
   });
   test('la base de Chevalier IA APP n\'est jamais écrite par ce code : aucune écriture sur `dbPlateforme`', () => {
     const c = OS('appels.js');
@@ -28,7 +31,7 @@ describe('Chevalier IA OS : copie de tes workflows et vue administrateur (2.7.0)
   });
   test('les copies partagées sont identiques aux fichiers d\'origine (après « npm run preparer »)', () => {
     for (const f of ['n8n.js', 'etiquettes.js', 'synchro.js', 'libelle.js']) assert.equal(lire(`functions/partage/automatisations/${f}`), lire(`functions-plateforme/src/${f}`), f);
-    assert.equal(lire('functions/partage/administrateur.js'), lire('js/os/administrateur.js'));
+    assert.ok(!existsSync(join(RACINE, 'functions/partage/administrateur.js')), 'chantier 0 : plus de copie de js/os/administrateur.js côté serveur');
   });
   test('interrupteur allumé (17/10/2026, secret et comptes en place) : les deux fonctions sont celles décrites par le guide', async () => {
     process.env.GCLOUD_PROJECT ??= 'demo-chevalier-ia-os';
@@ -38,7 +41,7 @@ describe('Chevalier IA OS : copie de tes workflows et vue administrateur (2.7.0)
     for (const f of [m.automatisationsAdmin, m.automatisationsInterneHoraire]) {
       assert.deepEqual(f.__endpoint.region, ['europe-west9']);
       assert.deepEqual(f.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
-      assert.equal(f.__endpoint.serviceAccountEmail, 'automatisations-serveur@chevalier-ia-os.iam.gserviceaccount.com');
+      assert.equal(f.__endpoint.serviceAccountEmail, compteDeService('automatisations-serveur')); // B1 : adresse complète dans le projet courant ; valeurs exactes de chevalier-ia-os / -app : maison-comptes-de-service.test.js
     }
     assert.equal(m.automatisationsInterneHoraire.__endpoint.scheduleTrigger.schedule, '0 * * * *');
   });
@@ -130,7 +133,7 @@ describe('4. Renommer chez Jérôme : fonction automatisationsRenommer (collecti
     process.env.GCLOUD_PROJECT ??= 'demo-chevalier-ia-os';
     const m = await import('../functions/src/index.js');
     assert.deepEqual(m.automatisationsRenommer.__endpoint.region, ['europe-west9']);
-    assert.equal(m.automatisationsRenommer.__endpoint.serviceAccountEmail, 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com');
+    assert.equal(m.automatisationsRenommer.__endpoint.serviceAccountEmail, compteDeService('porte-serveur')); // B1 : adresse complète dans le projet courant ; valeurs exactes de chevalier-ia-os / -app : maison-comptes-de-service.test.js
     assert.equal(m.automatisationsRenommer.__endpoint.secretEnvironmentVariables, undefined);
     const pur = lire('functions-plateforme/src/libelle.js').replace(/\/\/.*$/gm, '');
     assert.deepEqual([...pur.matchAll(/^import .* from '(.*)'/gm)].map((x) => x[1]), ['./etiquettes.js']);

@@ -374,20 +374,33 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Réglages de la maison (chantier 0, 25/11/2026) : les comptes ne sont plus écrits ici. Ils sont lus dans la fiche reglages_maison/maison, que seul le SDK
+    // d'administration écrit (aucun navigateur ne la lit ni ne l'écrit, voir plus bas). Fiche absente ou illisible : get() échoue, donc la règle REFUSE (jamais d'ouverture).
+    // Un seul get() par requête évaluée : Firestore ne facture qu'une lecture pour le même document, même appelé par plusieurs fonctions. L'appel n'a lieu
+    // qu'après les contrôles de connexion (un visiteur non connecté ne coûte aucune lecture).
+    function reglagesMaison() {
+      return get(/databases/$(database)/documents/reglages_maison/maison).data;
+    }
+
+    // Comptes du CRM (Jérôme et son bot) : champ comptes_autorises de la fiche.
     function compteAutorise() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email in [
-             "jerome.chevalier@gmail.com",
-             "jeromebot.chevalierbot@gmail.com"
-           ];
+        && request.auth.token.email in reglagesMaison().get('comptes_autorises', []);
     }
 
-    // Compte de Jérôme seul (module Console, 16/11/2026) : le compte du bot n'y est pas.
+    // Compte de Jérôme seul (module Console, 16/11/2026) : champ comptes_jerome_seul de la fiche ; le compte du bot n'y est pas.
     function compteJeromeSeul() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email == "jerome.chevalier@gmail.com";
+        && request.auth.token.email in reglagesMaison().get('comptes_jerome_seul', []);
+    }
+
+    // La fiche elle-même : `maison` n'est lisible ni modifiable par AUCUN navigateur (Jérôme compris) ; `ecran` (noms et portraits des personnes, pour l'écran) est lisible
+    // par les comptes autorisés ; `public` (aucun e-mail : seulement { mode_crm }) est lisible avant la connexion. Aucune écriture depuis un navigateur. Exclue du joker ci-dessous.
+    match /reglages_maison/{id} {
+      allow get: if id == 'public' || (id == 'ecran' && compteAutorise());
+      allow list, write: if false;
     }
 
     // Journal d'audit : lisible depuis l'appli. L'appli peut y AJOUTER les lignes de ses propres actions (canal « ecran », à son
@@ -584,10 +597,10 @@ service cloud.firestore {
       allow write: if compteJeromeSeul();
     }
 
-    // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
+    // Tout le reste : comme avant (les comptes autorisés de la fiche de la maison), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres']);
+        && !(collection in ['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres', 'reglages_maison']);
     }
   }
 }

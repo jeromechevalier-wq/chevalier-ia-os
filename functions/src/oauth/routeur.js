@@ -8,23 +8,24 @@
 // Sécurité du client : le `client_id` n'est pas un secret et n'est PAS stocké. La protection repose sur : adresse de retour exactement dans
 // la liste (claude.ai / claude.com) ou de la forme de ChatGPT (voir config.js), PKCE S256 obligatoire, compte Google autorisé revérifié côté serveur, consentement explicite.
 import { randomBytes } from 'node:crypto';
-import { EMETTEUR, ORIGINES_AUTORISEES, RESSOURCE, assistantDeRedirection, redirectionAutorisee as redirectionDeJerome } from './config.js';
+import { emetteur, originesAutorisees, ressource, assistantDeRedirection, redirectionAutorisee as redirectionDeJerome } from './config.js';
 import { ErreurOauth, compteAutorise, creerMagasinOauth } from './magasin.js';
 import { ENTETES_PAGE, pageAutorisation, pageErreur } from './page.js';
 
 const ENTETES_JSON = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', Pragma: 'no-cache', 'X-Content-Type-Options': 'nosniff' };
 export const repondre = (res, statut, corps, entetes = {}) => { res.writeHead(statut, { ...ENTETES_JSON, ...entetes }); res.end(JSON.stringify(corps)); };
 
-export const METADONNEES_RESSOURCE = Object.freeze({
-  resource: RESSOURCE,
-  authorization_servers: [EMETTEUR],
+// Calculées à la demande (le projet n'est connu qu'à l'exécution) : mêmes valeurs qu'avant le chantier 0 pour le CRM de Jérôme.
+export const metadonneesRessource = () => Object.freeze({
+  resource: ressource(),
+  authorization_servers: [emetteur()],
   bearer_methods_supported: ['header'],
 });
-export const METADONNEES_SERVEUR = Object.freeze({
-  issuer: EMETTEUR,
-  authorization_endpoint: `${EMETTEUR}/oauth/authorize`,
-  token_endpoint: `${EMETTEUR}/oauth/token`,
-  registration_endpoint: `${EMETTEUR}/oauth/register`,
+export const metadonneesServeur = () => Object.freeze({
+  issuer: emetteur(),
+  authorization_endpoint: `${emetteur()}/oauth/authorize`,
+  token_endpoint: `${emetteur()}/oauth/token`,
+  registration_endpoint: `${emetteur()}/oauth/register`,
   response_types_supported: ['code'],
   response_modes_supported: ['query'],
   grant_types_supported: ['authorization_code', 'refresh_token'],
@@ -35,12 +36,12 @@ export const METADONNEES_SERVEUR = Object.freeze({
 
 const FORMAT_CLIENT = /^[A-Za-z0-9._:/-]{1,200}$/;
 const FORMAT_CHALLENGE = /^[A-Za-z0-9_-]{43,128}$/;
-const sameOrigin = (u, origine = EMETTEUR) => { try { return new URL(u).origin === origine; } catch { return false; } };
+const sameOrigin = (u, origine = emetteur()) => { try { return new URL(u).origin === origine; } catch { return false; } };
 export const objet = (x) => (x && typeof x === 'object' && !Array.isArray(x) ? x : {});
 export const texte = (x) => (typeof x === 'string' ? x : undefined);
 
 /** Valide une demande d'autorisation. Renvoie { demande } ou { erreur } (message pour la page, jamais de détail interne). */
-export function validerDemande(p, { redirectionAutorisee = redirectionDeJerome, origine = EMETTEUR, messageRedirection = 'Adresse de retour non autorisée : seuls Claude et ChatGPT peuvent se connecter.' } = {}) {
+export function validerDemande(p, { redirectionAutorisee = redirectionDeJerome, origine = emetteur(), messageRedirection = 'Adresse de retour non autorisée : seuls Claude et ChatGPT peuvent se connecter.' } = {}) {
   const q = objet(p);
   if (q.response_type !== 'code') return { erreur: 'Type de réponse non pris en charge.' };
   if (!texte(q.client_id) || !FORMAT_CLIENT.test(q.client_id)) return { erreur: 'Client inconnu.' };
@@ -102,7 +103,7 @@ export function creerRouteurOauth({ donnees, verifierIdToken, maintenant = () =>
 
   async function approuver(req, res, infos) {
     const origine = req.headers.origin;
-    if (!ORIGINES_AUTORISEES.includes(origine)) { infos.code = 'oauth_origine'; return repondre(res, 403, { error: 'origine_refusee' }); }
+    if (!originesAutorisees().includes(origine)) { infos.code = 'oauth_origine'; return repondre(res, 403, { error: 'origine_refusee' }); }
     const corps = objet(req.body);
     // La page n'envoie que la demande déjà validée (sans response_type ni méthode) : S256 est la seule méthode que le serveur accepte et vérifie au jeton.
     const { demande, erreur } = validerDemande({ ...corps, response_type: 'code', code_challenge_method: 'S256' });
@@ -116,7 +117,7 @@ export function creerRouteurOauth({ donnees, verifierIdToken, maintenant = () =>
       infos.code = 'oauth_identite';
       return repondre(res, 401, { error: 'identite_refusee', message: 'Connexion Google non reconnue. Reconnecte-toi.' });
     }
-    if (!identite?.emailVerifie || identite.fournisseur !== 'google.com' || !compteAutorise(identite.email)) {
+    if (!identite?.emailVerifie || identite.fournisseur !== 'google.com' || !(await compteAutorise(identite.email))) {
       infos.code = 'oauth_compte_refuse';
       return repondre(res, 403, { error: 'compte_non_autorise', message: "Ce compte Google n'est pas autorisé." });
     }
@@ -183,11 +184,11 @@ export function creerRouteurOauth({ donnees, verifierIdToken, maintenant = () =>
         return false;
       };
       if (chemin === '/.well-known/oauth-protected-resource' || chemin === '/.well-known/oauth-protected-resource/mcp') {
-        if (bien('GET')) { infos.code = 'oauth_metadonnees'; repondre(res, 200, METADONNEES_RESSOURCE); }
+        if (bien('GET')) { infos.code = 'oauth_metadonnees'; repondre(res, 200, metadonneesRessource()); }
         return true;
       }
       if (chemin === '/.well-known/oauth-authorization-server' || chemin === '/.well-known/oauth-authorization-server/mcp') {
-        if (bien('GET')) { infos.code = 'oauth_metadonnees'; repondre(res, 200, METADONNEES_SERVEUR); }
+        if (bien('GET')) { infos.code = 'oauth_metadonnees'; repondre(res, 200, metadonneesServeur()); }
         return true;
       }
       if (!chemin.startsWith('/oauth/')) return false;

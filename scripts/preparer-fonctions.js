@@ -139,12 +139,10 @@ console.log('functions-plateforme/serveur/partage/porte/ mis à jour (copie de f
 console.log('functions-plateforme/serveur/ mis à jour (copie du serveur MCP pour la plateforme clients)');
 
 // Module Automatisations vu par le projet du CRM (chevalier-ia-os) : la copie des workflows de Jérôme et la vue administrateur réutilisent le MÊME code que la plateforme clients
-// (lecture de n8n, reconnaissance des propriétaires, copie vers Firestore) et la liste des administrateurs de l'écran. Copies générées dans functions/partage/, ignorées par git.
+// (lecture de n8n, reconnaissance des propriétaires, copie vers Firestore). Copies générées dans functions/partage/, ignorées par git.
+// Le serveur ne copie plus js/os/administrateur.js (chantier 0, 25/11/2026) : « Jérôme seul » se lit dans la fiche reglages_maison/maison (functions/src/securite/reglages-maison.js).
 const destinationAutom = join(destination, 'automatisations');
 mkdirSync(destinationAutom, { recursive: true });
 for (const f of ['n8n.js', 'etiquettes.js', 'synchro.js', 'libelle.js']) copyFileSync(join(racine, 'functions-plateforme', 'src', f), join(destinationAutom, f));
-copyFileSync(join(racine, 'js', 'os', 'administrateur.js'), join(destination, 'administrateur.js'));
-console.log('functions/partage/automatisations/ et administrateur.js mis à jour (copies de functions-plateforme/src/ et de js/os/)');
-// La liste des administrateurs (compte de Jérôme) sert aussi à la saisie de la connexion SMS chez les clients (functions-plateforme/src/rdv.js : connexionRdv).
-copyFileSync(join(destination, 'administrateur.js'), join(destinationServeur, 'partage', 'administrateur.js'));
-console.log('functions-plateforme/serveur/partage/administrateur.js mis à jour (copie de js/os/administrateur.js)');
+rmSync(join(destination, 'administrateur.js'), { force: true }); // ancienne copie d'avant le chantier 0 (dossier ignoré par git)
+console.log('functions/partage/automatisations/ mis à jour (copies de functions-plateforme/src/)');
