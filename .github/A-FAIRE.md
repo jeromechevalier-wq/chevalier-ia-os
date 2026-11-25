@@ -26,7 +26,7 @@ Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08
 | | Sujet | État | Qui |
 |---|---|---|---|
 | 🟡 | Fonction `baseAccorderAcces` **absente chez les clients** (`RESERVEES_JEROME`) : elle pose les mentions Firebase `role` et `espace_base` sur UN compte, Jérôme seul. Avant de l'ouvrir aux clients : connexion de leur base au projet Firebase des clients, règles de la plateforme, écran de réglages par client | à faire plus tard | Claude |
-| 🟡 | **Droit IAM manquant** : le compte `porte-serveur` n'a ni `firebaseauth.users.get` ni `firebaseauth.users.update`. Cela ne casse PAS le déploiement des fonctions : seul l'APPEL de `baseAccorderAcces` échoue (« Lecture du compte impossible »). Il faut ajouter ce droit AVANT de donner le premier badge. Recommandation : un compte de service dédié à cette fonction plutôt que d'élargir `porte-serveur`, qui sert aussi des fonctions ouvertes sur Internet | à faire avant le premier badge | Claude |
+| 🟢 | **Droit IAM du badge : fait le 25/11/2026** (accord de Jérôme) : compte de service dédié `base-acces`, rôle sur mesure `baseAccesComptes` (seulement `firebaseauth.users.get` et `firebaseauth.users.update`) ; `baseAccorderAcces` tourne sous ce compte ; `porte-serveur` n'a pas reçu ce droit. Reste : premier badge et essai de bout en bout avec la vraie base | fait (droit) ; essai à faire | Jérôme (badge), Claude |
 | 🟡 | Limites à connaître : le retrait agit à l'expiration du jeton (1 h au plus) et ne désactive pas le compte ; un compte n'a qu'UN `espace_base` à la fois (pas deux bases clients pour le même compte) | noté | Claude |
 | 🟡 | Bouton d'appel dans Réglages (PR suivante) et ligne dans Réglages > Déploiement | à faire | Claude |
 

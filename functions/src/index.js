@@ -122,9 +122,10 @@ export const consoleEtat = onCall(
 );
 
 // `baseAccorderAcces` : appelée par Réglages > Connexion à la base (Jérôme seul). Pose ou retire, pour UN compte, les deux mentions Firebase (`role`, `espace_base`) qui ouvrent la base d'un espace.
-// Absente de la plateforme (RESERVEES_JEROME). Même compte de service que la porte : il doit avoir le droit de modifier les comptes Firebase (non vérifié, voir .github/A-FAIRE.md).
+// Absente de la plateforme (RESERVEES_JEROME). Compte de service DÉDIÉ `base-acces` (accord de Jérôme du 25/11/2026) : un rôle sur mesure avec seulement
+// `firebaseauth.users.get` et `firebaseauth.users.update`, rien d'autre (le journal ne passe que par la sortie standard). `porte-serveur` n'a pas ce droit et ne le reçoit pas.
 export const baseAccorderAcces = onCall(
-  { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com' },
+  { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: 'base-acces@chevalier-ia-os.iam.gserviceaccount.com' },
   (requete) => {
     if (!getApps().length) initializeApp();
     return creerAppelAccorderAcces({ auth: getAuth(), journal: (e) => process.stdout.write(`${ligneDeJournalBase(e)}\n`) })(requete);
