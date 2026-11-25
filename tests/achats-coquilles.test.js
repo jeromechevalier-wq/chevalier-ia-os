@@ -79,11 +79,13 @@ describe('A2 menu : un seul bloc « Achats »', () => {
       assert.deepEqual(blocs[0].sections.flat().map((e) => e.chemin), [ROUTES[id]], id);
     }
   });
-  test('A2 Réglages : un élément « Achats » sans réglage propre (résumé affiché, sauvegarde seulement), qui ouvre le premier écran', () => {
+  test('A2 Réglages : un élément « Achats » (sections de sauvegarde seulement), qui ouvre le premier écran', () => {
     const [item] = reglagesDesModules(ACHATS);
     assert.equal(item.id, 'achats');
     assert.equal(item.libelle, 'Achats');
-    assert.deepEqual(item.sections.filter((s) => !s.id.startsWith('reglages-export-achats')), []); // seules les sections de sauvegarde des modules (Réglages > Sauvegarde) sont permises
+    // PR 5 : Fournisseurs a sa section « Sauvegarde » ; les autres modules ajoutent la leur dans leur PR (règle du 27/10/2026) : on ne fige donc pas la liste entière.
+    assert.ok(item.sections.every((x) => /^reglages-export-/.test(x.id)), 'seulement des sections de sauvegarde');
+    assert.ok(item.sections.some((x) => x.id === 'reglages-export-achatsfournisseurs'));
     assert.match(item.resume, /Réglages > Connexion à la base/);
     assert.equal(item.ouvrir, 'achatsfournisseurs/liste');
   });
@@ -143,14 +145,15 @@ describe('A5 verrous du code', () => {
       assert.doesNotMatch(code, /Chevalier|Jérôme|Jerome|Charles|Hermes|Claude Code/, f);
     }
   });
-  test('A5 aucun module Achats n\'importe un autre module (ni Pilotage) : seulement achatscommun et la coque', () => {
+  test('A5 aucun module Achats n\'importe un autre module (ni Pilotage) : seulement achatscommun, la coque et la barre commune des listes (composant d\'interface sans donnée)', () => {
     for (const dossier of DOSSIERS) {
       for (const f of fichiersDe(dossier)) {
         for (const m of lire(f).matchAll(/from '([^']+)'/g)) {
           const cible = m[1];
           if (!cible.startsWith('.')) continue;
           const resolu = join('/', dossier, cible).slice(1);
-          if (resolu.startsWith('js/modules/')) assert.ok(resolu.startsWith(`${dossier}/`) || resolu.startsWith('js/modules/achatscommun/') || resolu === 'js/modules/crm/barre-liste.js', `${f} importe ${cible}`); // la barre commune des listes (aucune donnée, que de l'affichage) est la seule exception
+          // Exception écrite (règle du 05/11/2026, docs/consignes-ui.md) : tout écran de liste utilise js/modules/crm/barre-liste.js (il n'importe que js/os/ui.js : aucune donnée du CRM).
+          if (resolu.startsWith('js/modules/')) assert.ok(resolu.startsWith(`${dossier}/`) || resolu.startsWith('js/modules/achatscommun/') || resolu === 'js/modules/crm/barre-liste.js', `${f} importe ${cible}`);
         }
         assert.doesNotMatch(lire(f), /pilotage/i, f);
       }

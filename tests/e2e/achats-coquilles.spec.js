@@ -21,12 +21,9 @@ const MODULES = [
   { id: 'achatsfactures', route: 'achatsfactures/liste', titre: 'Factures' },
   { id: 'tableauachats', route: 'tableauachats/tableau', titre: 'Tableau de bord 2' },
 ];
-// Un module devenu un vrai écran (PR 6 et suivantes) n'affiche plus le bandeau d'accès quand l'accès est prêt : on le repère PAR SON NOM, jamais par sa position dans la liste.
-const ZONE_ECRAN_REEL = { achatschantiers: '[data-role="chantiers-zone"]' };
-async function verifierAccesPret(page, m) {
-  if (ZONE_ECRAN_REEL[m.id]) await expect(page.locator(ZONE_ECRAN_REEL[m.id])).toBeVisible();
-  else await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
-}
+// Un module devenu un vrai écran (Fournisseurs PR 5, Chantiers PR 6, …) n'affiche plus le bandeau d'accès quand l'accès est prêt (voir son propre fichier de tests) : les coquilles sont repérées PAR NOM, jamais par position.
+const ECRANS_REELS = ['achatsfournisseurs', 'achatschantiers'];
+const COQUILLES = MODULES.filter((m) => !ECRANS_REELS.includes(m.id));
 const etat = (page) => page.locator('[data-role="achats-etat"]');
 
 // Badge simulé (crochet d'émulateurs, voir js/os/acces-base.js) : portant, ou non, la mention d'accès. Aucun appel réseau réel.
@@ -68,18 +65,17 @@ test('A2 cas vide : connexion non réglée : le texte exact et le lien vers Rég
   await expect(page).toHaveURL(/#\/reglages\/base$/);
 });
 
-test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'accès pour le bon espace : « Accès prêt (badge à jour) » sur les cinq écrans', async ({ page }, info) => {
+test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'accès pour le bon espace : « Accès prêt (badge à jour) » sur les écrans encore en coquille (Fournisseurs et Chantiers affichent déjà leur liste, voir leurs propres fichiers de tests)', async ({ page }, info) => {
   await ecrireDocument('base_parametres/connexion', FICHE());
   await simulerBadge(page);
-  await connecter(page, undefined, { route: MODULES[0].route });
+  await connecter(page, undefined, { route: COQUILLES[0].route });
   await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
   await expect(page.locator('[data-role="achats-etat-texte"]')).toHaveText('Accès prêt (badge à jour)');
   await capturer(page, info, 'A3-connecte');
-  for (const m of MODULES.filter((x) => x.id !== MODULES[0].id)) { // le premier est déjà ouvert
+  for (const m of COQUILLES.filter((x) => x.id !== COQUILLES[0].id)) {
     await page.evaluate((r) => { location.hash = `#/${r}`; }, m.route);
     await expect(page.getByRole('heading', { name: m.titre, level: 1 })).toBeVisible();
-    // « Chantiers » est un vrai écran depuis la PR 6 : accès prêt = pas de bandeau d'accès, sa zone de liste prend la place (voir achatschantiers.spec.js).
-    await verifierAccesPret(page, m);
+    await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
   }
   expect(await sansDefilementHorizontal(page)).toBe(true);
 });
@@ -121,11 +117,12 @@ test('A6 une adresse inconnue d\'un module renvoie vers son écran', async ({ pa
   await expect(page.getByRole('heading', { name: 'Chantiers', level: 1 })).toBeVisible();
 });
 
-test('A8 Réglages : l\'élément « Achats » montre la section « Sauvegarde » du module Chantiers (la seule qui a un réglage propre pour l\'instant)', async ({ page }, info) => {
+test('A8 Réglages : l\'élément « Achats » réunit les sections des modules du groupe (Fournisseurs et Chantiers : sauvegarde)', async ({ page }, info) => {
   await connecter(page, undefined, { route: 'reglages' });
   await attendreCalme(page);
   await ouvrirSectionReglages(page, 'Achats');
-  await expect(page.locator('#reglages-export-achatschantiers')).toBeVisible();
   await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
+  await expect(page.locator('#reglages-export-achatsfournisseurs')).toBeVisible();
+  await expect(page.locator('#reglages-export-achatschantiers')).toBeVisible();
   await capturer(page, info, 'A8-reglages');
 });
