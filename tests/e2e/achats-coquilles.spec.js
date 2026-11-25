@@ -62,14 +62,14 @@ test('A2 cas vide : connexion non réglée : le texte exact et le lien vers Rég
   await expect(page).toHaveURL(/#\/reglages\/base$/);
 });
 
-test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'accès pour le bon espace : « Accès prêt (badge à jour) » sur les cinq écrans', async ({ page }, info) => {
+test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'accès pour le bon espace : « Accès prêt (badge à jour) » sur les quatre écrans encore en coquille (Fournisseurs affiche déjà sa liste, voir achatsfournisseurs.spec.js)', async ({ page }, info) => {
   await ecrireDocument('base_parametres/connexion', FICHE());
   await simulerBadge(page);
-  await connecter(page, undefined, { route: MODULES[0].route });
+  await connecter(page, undefined, { route: MODULES[1].route });
   await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
   await expect(page.locator('[data-role="achats-etat-texte"]')).toHaveText('Accès prêt (badge à jour)');
   await capturer(page, info, 'A3-connecte');
-  for (const m of MODULES.slice(1)) {
+  for (const m of MODULES.slice(2)) {
     await page.evaluate((r) => { location.hash = `#/${r}`; }, m.route);
     await expect(page.getByRole('heading', { name: m.titre, level: 1 })).toBeVisible();
     await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
@@ -114,11 +114,11 @@ test('A6 une adresse inconnue d\'un module renvoie vers son écran', async ({ pa
   await expect(page.getByRole('heading', { name: 'Chantiers', level: 1 })).toBeVisible();
 });
 
-test('A8 Réglages : un élément « Achats » sans réglage propre : le résumé et un lien vers le premier écran', async ({ page }, info) => {
+test('A8 Réglages : l\'élément « Achats » réunit les sections des modules du groupe (Fournisseurs : sauvegarde)', async ({ page }, info) => {
   await connecter(page, undefined, { route: 'reglages' });
   await attendreCalme(page);
   await ouvrirSectionReglages(page, 'Achats');
-  await expect(page.locator('[data-role="aucun-reglage"]')).toContainText('Réglages > Connexion à la base');
-  await expect(page.getByRole('link', { name: 'Ouvrir Achats' })).toHaveAttribute('href', /#\/achatsfournisseurs\/liste$/);
+  await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
+  await expect(page.locator('#reglages-export-achatsfournisseurs')).toBeVisible();
   await capturer(page, info, 'A8-reglages');
 });

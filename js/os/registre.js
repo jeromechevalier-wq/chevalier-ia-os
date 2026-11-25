@@ -304,7 +304,8 @@ export const MODULES_DECLARES = geler([
     iconeMenu: 'building-2',
     prefixe: 'achatsfournisseurs',
     seulJerome: true,
-    reglages: { sections: [], resume: 'Les fournisseurs se lisent dans la base de l’espace. La connexion se règle dans Réglages > Connexion à la base.' },
+    // Sauvegarde (PR 5, règle du 27/10/2026) : la liste des fournisseurs se télécharge en fichier ; les données vivent dans la base de l'espace (pas dans Firebase), donc `collections` reste vide.
+    reglages: { sections: [{ id: 'reglages-export-achatsfournisseurs', libelle: 'Sauvegarde des fournisseurs' }], resume: 'Les fournisseurs se lisent dans la base de l’espace. La connexion se règle dans Réglages > Connexion à la base.' },
     entreeMenu: 'achatsfournisseurs/liste',
     ecrans: [
       { route: 'achatsfournisseurs/liste', libelle: 'Fournisseurs', icone: 'building-2' },
