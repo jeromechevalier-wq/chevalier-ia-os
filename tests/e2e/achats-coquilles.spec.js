@@ -69,11 +69,12 @@ test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'ac
   await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
   await expect(page.locator('[data-role="achats-etat-texte"]')).toHaveText('Accès prêt (badge à jour)');
   await capturer(page, info, 'A3-connecte');
+  const SANS_COQUILLE = ['achatsarticles']; // modules qui ont leur vrai écran (plus la carte d'état seule)
   for (const m of MODULES.slice(1)) {
     await page.evaluate((r) => { location.hash = `#/${r}`; }, m.route);
     await expect(page.getByRole('heading', { name: m.titre, level: 1 })).toBeVisible();
     // Articles a son vrai écran : quand l'accès est prêt, il charge sa liste au lieu de la carte d'état.
-    if (m.id === 'achatsarticles') await expect(page.locator('[data-etat="erreur"], [data-etat="vide"], [data-article]').first()).toBeVisible();
+    if (SANS_COQUILLE.includes(m.id)) await expect(page.locator('[data-etat="erreur"], [data-etat="vide"], [data-article]').first()).toBeVisible();
     else await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
   }
   expect(await sansDefilementHorizontal(page)).toBe(true);
@@ -82,7 +83,7 @@ test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'ac
 test('A4 « Reconnecte-toi » : le badge n\'a pas la mention d\'accès (ou celle d\'un autre espace) ; le bouton « Revérifier » relit l\'accès', async ({ page }, info) => {
   await ecrireDocument('base_parametres/connexion', FICHE());
   await simulerBadge(page, { role: 'authenticated', espace_base: 'autre-espace' });
-  await connecter(page, undefined, { route: MODULES[2].route });
+  await connecter(page, undefined, { route: MODULES.find((m) => m.id === 'achatsarticles').route });
   await expect(etat(page)).toHaveAttribute('data-etat', 'reconnexion');
   await expect(page.locator('[data-role="achats-etat-texte"]')).toContainText('Reconnecte-toi');
   await expect(etat(page)).toHaveAttribute('role', 'alert');

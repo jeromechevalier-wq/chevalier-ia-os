@@ -266,10 +266,18 @@ export function rendreEcran(conteneur, { lire = lireDonnees, lireLesVilles = lir
 
   function ecrireErreurAction(texte) { erreurAction = texte; blocErreurAction.hidden = !texte; blocErreurAction.textContent = texte; }
 
+  let numeroLecture = 0; // une réponse tardive d'une lecture plus ancienne est ignorée
   async function charger(silencieux = false) {
+    const mien = ++numeroLecture;
     if (!silencieux) { chargement = true; maj(); }
-    try { donnees = await lire(); erreur = null; } catch (e) { if (!silencieux) erreur = messageLecture(e); else if (e?.code === 'reconnexion') console.warn('Articles : accès à la base à renouveler'); }
+    let reconnexion = false;
+    try { const lues = await lire(); if (mien !== numeroLecture || !vivant) return; donnees = lues; erreur = null; } catch (e) {
+      if (mien !== numeroLecture || !vivant) return;
+      if (e?.code === 'reconnexion') reconnexion = true;
+      else if (!silencieux) erreur = messageLecture(e);
+    }
     chargement = false;
+    if (reconnexion) { donnees = null; carteEtat(zoneEtat, 'reconnexion', demarrer); }
     maj();
   }
 

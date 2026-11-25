@@ -78,7 +78,7 @@ export async function exporterTout({ lire, telecharger = telechargerCsv, mainten
 
 export function reglagesExportArticles(page, { lire }) {
   page.append(h('section', { class: 'carte-section', id: 'reglages-export-achatsarticles' },
-    h('h2', {}, icone('download', { taille: 18 }), 'Sauvegarde'),
+    h('h2', {}, icone('download', { taille: 18 }), 'Sauvegarde des articles'),
     h('p', { class: 'aide' }, 'Télécharge tous les articles, avec leur rapprochement et leur coefficient, dans un fichier lisible dans Excel.'),
     h('div', { class: 'ligne-boutons' },
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'exporter-achatsarticles' }, onclick: () => exporterTout({ lire }) }, icone('download', { taille: 16 }), 'Exporter mes données'))));

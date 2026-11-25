@@ -70,12 +70,12 @@ describe('V3 imports : seuls le module, le code commun des Achats, la coque et l
 });
 
 describe('V4 déclaration, réglages et export', () => {
-  test('V4 le module est réservé à un seul compte, sans donnée Firebase ni dépendance ; une seule section de réglages : « Sauvegarde »', () => {
+  test('V4 le module est réservé à un seul compte, sans donnée Firebase ni dépendance ; une seule section de réglages : « Sauvegarde des articles »', () => {
     const m = MODULES_DECLARES.find((x) => x.id === 'achatsarticles');
     assert.equal(m.seulJerome, true);
     assert.deepEqual(m.collections, []);
     assert.deepEqual(m.dependances, []);
-    assert.deepEqual(m.reglages.sections, [{ id: 'reglages-export-achatsarticles', libelle: 'Sauvegarde' }]);
+    assert.deepEqual(m.reglages.sections, [{ id: 'reglages-export-achatsarticles', libelle: 'Sauvegarde des articles' }]);
     const [achats] = reglagesDesModules(['achatsarticles']);
     assert.deepEqual(achats.sections.map((s) => s.id), ['reglages-export-achatsarticles']);
   });

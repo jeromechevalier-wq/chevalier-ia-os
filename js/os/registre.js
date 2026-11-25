@@ -336,7 +336,7 @@ export const MODULES_DECLARES = geler([
     iconeMenu: 'tag',
     prefixe: 'achatsarticles',
     seulJerome: true,
-    reglages: { sections: [{ id: 'reglages-export-achatsarticles', libelle: 'Sauvegarde' }], resume: 'Les articles se lisent dans la base de l’espace. La connexion se règle dans Réglages > Connexion à la base.' },
+    reglages: { sections: [{ id: 'reglages-export-achatsarticles', libelle: 'Sauvegarde des articles' }], resume: 'Les articles se lisent dans la base de l’espace. La connexion se règle dans Réglages > Connexion à la base.' },
     entreeMenu: 'achatsarticles/liste',
     ecrans: [
       { route: 'achatsarticles/liste', libelle: 'Articles', icone: 'tag' },
