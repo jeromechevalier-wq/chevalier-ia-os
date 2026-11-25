@@ -24,11 +24,11 @@ export function exporterLignes(lignes) {
 /** Réglages > Achats > Sauvegarde : lit tous les fournisseurs dans la base de l'espace puis télécharge le fichier. `lire` se remplace dans les tests. Renvoie true si le fichier est parti. */
 export async function exporterFournisseurs({ lire = lireFournisseurs } = {}) {
   try {
-    const { file, confirmations } = await lire();
+    const { file, confirmations, message } = await lire();
     const lignes = fusionner(file, confirmations);
     if (!lignes.length) { toast(TEXTE_RIEN_A_EXPORTER); return false; }
     exporterLignes(lignes);
-    toast('Sauvegarde téléchargée');
+    toast(message ? `Sauvegarde téléchargée. ${message}` : 'Sauvegarde téléchargée');
     return true;
   } catch (e) {
     console.warn('Export des fournisseurs impossible', e?.code ?? e?.message);

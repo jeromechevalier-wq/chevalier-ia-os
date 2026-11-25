@@ -137,7 +137,7 @@ export function rendreEcran(conteneur, { lire = lireFournisseurs, confirmer = co
   }
 
   // ---- la page (après une lecture réussie)
-  let zone = null; let compteur = null; let boutonExport = null; let zonePastilles = null; let boutonFiltres = null; let barre = null; let avis = null; let champRecherche = null;
+  let zone = null; let compteur = null; let boutonExport = null; let zonePastilles = null; let boutonFiltres = null; let barre = null; let avis = null; let avisErreur = null; let champRecherche = null;
 
   function majFiltres() {
     const n = nombreFiltresFournisseurs(criteres);
@@ -192,7 +192,7 @@ export function rendreEcran(conteneur, { lire = lireFournisseurs, confirmer = co
 
   async function envoyer() {
     if (!saisie || !formulaire || enCours) return;
-    enCours = true; formulaire.erreur.textContent = ''; majFormulaire();
+    enCours = true; formulaire.erreur.textContent = ''; if (avisErreur) { avisErreur.textContent = ''; avisErreur.hidden = true; } majFormulaire();
     const { type, cle } = saisie;
     const texte = formulaire.champ.value;
     try {
@@ -212,7 +212,9 @@ export function rendreEcran(conteneur, { lire = lireFournisseurs, confirmer = co
     } catch (e) {
       enCours = false;
       if (!vivant) return;
-      if (formulaire) { formulaire.erreur.textContent = e instanceof Error && e.message ? e.message : 'Une erreur est survenue, réessaie dans un instant.'; majFormulaire(); }
+      const texteErreur = e instanceof Error && e.message ? e.message : 'Une erreur est survenue, réessaie dans un instant.';
+      if (avisErreur) { avisErreur.textContent = texteErreur; avisErreur.hidden = false; } // reste affiché même si la ligne disparaît à la relecture
+      if (formulaire) { formulaire.erreur.textContent = texteErreur; majFormulaire(); }
       charger(true); // un autre utilisateur a pu agir entre-temps : on relit, la saisie reste
     }
   }
@@ -282,8 +284,9 @@ export function rendreEcran(conteneur, { lire = lireFournisseurs, confirmer = co
       elements: { filtres: boutonFiltres, pastilles: zonePastilles }, tri: choixTri,
     });
     barre = b.element; champRecherche = b.champ;
+    avisErreur = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { role: 'erreur-envoi' } });
     zone = h('div', { class: 'zone-affaires' });
-    remplir(page, entete(compteur, [boutonExport]), avis, barre, zone);
+    remplir(page, entete(compteur, [boutonExport]), avis, avisErreur, barre, zone);
     dessinerZone();
   }
 

@@ -242,6 +242,7 @@ test('F7 cas d\'erreur : le serveur refuse la confirmation : son message s\'affi
   await formulaire.getByRole('textbox').fill('Appel au numéro connu');
   await formulaire.getByRole('button', { name: 'Confirmer cet IBAN' }).click();
   await expect(formulaire.locator('[data-role="erreur-action"]')).toHaveText('Cet IBAN est déjà confirmé pour un autre fournisseur.');
+  await expect(page.locator('[data-role="erreur-envoi"]')).toHaveText('Cet IBAN est déjà confirmé pour un autre fournisseur.');
   await expect(formulaire.getByRole('textbox')).toHaveValue('Appel au numéro connu');
   await expect(formulaire.getByRole('button', { name: 'Confirmer cet IBAN' })).toBeEnabled();
   await expect(ligne(page, CLE_ACIERS).locator('[data-role="etat"]')).toHaveText('À vérifier');
