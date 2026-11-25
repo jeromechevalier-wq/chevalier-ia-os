@@ -4,6 +4,9 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Modules Achats portés dans l'OS (25/11/2026) : **fait, réservés au propriétaire**
+Fournisseurs, Chantiers, Articles, Factures et Tableau de bord 2 (PR 683 à 692), voir `docs/modules-achats.md`. Reste : essai avec un vrai badge, droit d'accès du compte de service dédié, pastille « Destinataire », identifiant du doublon de facture, favoris OS, ouverture aux clients (chantier séparé). Détail : `docs/reprise-prochaine-session.md`.
+
 ## Rendez-vous : suites des SMS (14-15/11/2026) : **à prévoir**
 > **État au 16/11/2026** : faits (PR 634, 635, 637, 639, 640, 641) : alertes modifiables avec `{lien}`, prix du SMS réglable, mot « chantier » retiré, « Ajouter un numéro » en une fenêtre, tableau « Qui peut quand », choix du créneau, prévision avant confirmation, solde ClickSend et alertes de solde, bilan « Prêt à passer en vrai ? », STOP visible. En attente de Jérôme : PR 638 (modifier le rendez-vous, renvoyer le SMS, règles de `rdv_messages` et `desinscrits`). Après la 638 : écran « Numéros désinscrits » (ci-dessous, avec l'action serveur `reautoriser`, jamais une écriture du navigateur) et le retour quand un envoi est bloqué par STOP. Restent ouverts : historique de série, statistiques, mode test, limites de la nuit (`docs/reprise-prochaine-session.md`). Les puces suivantes décrivent les demandes d'origine : celles déjà fusionnées sont à retirer à la prochaine révision.
 

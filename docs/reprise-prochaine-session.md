@@ -1,5 +1,40 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 25/11/2026 : les modules Achats portés dans l'OS
+
+Les cinq modules Achats de l'ancienne appli BTP (Fournisseurs, Chantiers, Articles, Factures, Tableau de bord 2) vivent maintenant dans Chevalier IA OS, visibles du propriétaire seul. Mode d'emploi : `docs/modules-achats.md`.
+
+| Sujet | PR | État |
+|---|---|---|
+| Couche base et actions | 683 | fusionnée |
+| Fonction du badge | 684 | fusionnée |
+| Réglages de connexion | 685 | fusionnée |
+| Coquilles Achats | 686 | fusionnée |
+| Fournisseurs | 687 | fusionnée |
+| Chantiers | 688 | fusionnée |
+| Articles | 689 | fusionnée |
+| Factures (liste) | 690 | fusionnée |
+| Tableau de bord 2 | 691 | fusionnée |
+| Factures (Examiner, lecteur PDF, + Facture) | 692 | fusionnée |
+| Docs, version 2.52.0, wiki, rapport | cette PR | à fusionner (docs seulement : relecture Fable non requise) |
+| Côté dépôt BTP : migration 034 (accès Firebase), appliquée à la vraie base | 74 | fusionnée |
+| Côté dépôt BTP : workflows n8n 02, 03, 05, 08 acceptent le ticket à usage unique, en ligne aussi | 75 | fusionnée |
+
+**Ce qui n'a pas pu être vérifié avec le vrai système** : tout a été testé avec un faux réseau. Jamais fait avec un vrai badge : lecture, action n8n de test, favoris. « + Facture » jamais essayé avec le vrai webhook ni un vrai PDF. Non testé : le refus d'un badge Firebase par l'ancienne voie JWT des workflows n8n.
+
+**Ce qui reste à Jérôme** :
+1. Droit d'accès du compte de service dédié à la fonction qui donne le badge : non accordé par Claude (réglage de sécurité), il faut le oui de Jérôme.
+2. Premier badge pour le compte de Jérôme, puis l'essai de bout en bout avec un vrai badge (lecture, une action n8n de test, favoris) : jamais fait, tout a été testé avec un faux réseau.
+3. Vérifier qu'un badge Firebase est REFUSÉ par l'ancienne voie JWT des workflows n8n (adresse de vérification de l'ancien jeton) : non testé faute de badge.
+4. Choix de Jérôme : table favoris_os (nouvelle) ou anciennes étoiles ; les 6 anciennes étoiles sont à refaire ; réglage « inscription » de la base à vérifier ; garder ou purger vite l'historique des exécutions n8n des 4 workflows (les tickets y sont lisibles 60 s).
+5. Pastille « Destinataire » des factures : reste « indisponible » (donc aucune pastille verte) tant que l'identité de l'espace n'est pas branchée sur les réglages de l'espace.
+6. Doublon à l'ajout d'une facture : le lien « Ouvrir la fiche » n'existe pas encore (ErreurAction ne porte pas l'identifiant).
+7. « + Facture » : le workflow 08 attend un fichier joint (multipart) ; l'OS l'envoie ainsi depuis la PR 692 ; jamais essayé avec le vrai webhook ni un vrai PDF.
+8. Le dépôt BTP est en avance sur n8n pour 2 messages d'erreur du workflow 02 (réaligner à la prochaine modification).
+9. Tests contenant des noms courants ou une commune réelle (dans `tests/achatschantiers-logique.test.js`, et des noms courants dans d'autres tests) : à nettoyer ou laisser. Les noms ne sont pas recopiés ici (dépôt public).
+10. PR 615 en conflit, anciennes PR 597 et 608 : hors de ce chantier, non touchées.
+11. Rien n'a été déployé chez les clients : les modules Achats sont réservés au propriétaire (`seulJerome`) ; ouvrir aux clients = chantier séparé (`.github/A-FAIRE.md`).
+
 ## Rapport du matin du 24/11/2026 (nuit « GO NUIT » du 23/11) : le Tableau de bord interrogeable par l'assistant, en lecture seule
 
 Demande de Jérôme : qu'un dirigeant puisse interroger ses données Supabase en LECTURE SEULE par le MCP de Chevalier IA OS, sans créer de bazar, avec les mêmes chiffres que l'écran KPI. Étude préalable (rapport HTML dans le second cerveau, hors dépôt) : le MCP officiel Supabase est un outil de développeur, déconseillé aux utilisateurs finaux ; il lit toute la base même en lecture seule ; il laisse l'assistant écrire un SQL qui oublie les règles métier. Aucun nom de vue, de compte ou de client dans ce fichier (dépôt public).
