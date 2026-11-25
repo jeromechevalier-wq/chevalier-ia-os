@@ -4,6 +4,9 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Base des maisons et chantier 0 (25/11/2026) : **plan fait, chantier 0 serveur fait**
+Plan de la future base Google Cloud SQL (PostgreSQL 17, sans Supabase) dans `outils/base/` (PR 695, règles : `outils/base/REGLES.md`), aucune base réelle touchée. Chantier 0, partie serveur (PR 696) : plus rien de propre à une maison dans `functions/` ni `firestore.rules` (projet lu par `GCLOUD_PROJECT`, le reste dans `reglages_maison/maison`). Reste : la partie navigateur (`js/`), la fiche dans `chevalier-ia-app`, la porte option A pour SCAB 04 (rendez-vous du 30/11/2026). Détail : `docs/reprise-prochaine-session.md`.
+
 ## Modules Achats portés dans l'OS (25/11/2026) : **fait, réservés au propriétaire**
 Fournisseurs, Chantiers, Articles, Factures et Tableau de bord 2 (PR 683 à 692), voir `docs/modules-achats.md`. Reste : essai avec un vrai badge, droit d'accès du compte de service dédié, pastille « Destinataire », identifiant du doublon de facture, favoris OS, ouverture aux clients (chantier séparé). Détail : `docs/reprise-prochaine-session.md`.
 

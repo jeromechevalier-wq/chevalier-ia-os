@@ -1,5 +1,28 @@
 # À faire au début de la prochaine session
 
+## Rapport de fin de nuit du 25/11/2026 (soir) : plan de la base et chantier 0
+
+| Sujet | PR | État |
+|---|---|---|
+| Plan de la future base Google Cloud SQL (PostgreSQL 17, sans Supabase) dans `outils/base/` (règles : `outils/base/REGLES.md`) ; aucune base réelle touchée | 695 | fusionnée, relue deux fois par Fable |
+| Chantier 0 : serveur et `firestore.rules` sans aucun nom de projet, adresse, compte de service, adresse n8n ni compte du propriétaire ; projet lu par `GCLOUD_PROJECT`, le reste dans la fiche Firestore `reglages_maison/maison` (créée dans chevalier-ia-os avant la fusion, avec l'accord écrit de Jérôme) | 696 | fusionnée à 20 h 51, relue deux fois par Fable ; règles publiées (workflow réussi), déploiement réussi |
+| « Tests de nuit » sur `main` (relancés à 20 h 55) | aucune | en cours, à lire |
+| Docs, décisions du 25/11, version 2.53.0, wiki, ce rapport | cette PR | à fusionner (docs et version : relecture Fable non requise) |
+
+**Vérifié après la PR 696** : le site et le MCP répondent, l'émetteur OAuth est inchangé, aucune erreur « Réglages de la maison illisibles ». Une erreur sans gravité au déploiement : permission `artifactregistry.repositories.update` refusée (réglage de nettoyage des anciennes images) ; le déploiement a réussi quand même.
+
+**Non vérifié** : le résultat des « Tests de nuit » lancés à 20 h 55 ; les écrans du CRM à la main (voir ci-dessous).
+
+### Ce qui reste
+
+1. **Chantier 0, partie navigateur (`js/`)** : PR de jour, relecture Fable obligatoire (documents `reglages_maison/ecran` et `reglages_maison/public`).
+2. **Accord de Jérôme** : donner au compte `base-acces@` le droit de lire la fiche `reglages_maison/maison` (seule exception restante du chantier 0, `functions/src/base/acces-appel.js`).
+3. **Plateforme clients** : créer la fiche `reglages_maison/maison` dans `chevalier-ia-app` AVANT le prochain déploiement manuel de la plateforme clients (sinon tout y est refusé).
+4. **Vérifications à l'écran pour Jérôme** : connexion au CRM ; la Console ; `qui_suis_je` sur claude.ai ; un devis finalisé et son PDF ; Veille « Ajouter et résumer ».
+5. **Base** : trancher les points « À valider par Jérôme » de `outils/base/REGLES.md` ; écrire les tests de simultanéité ; brancher `outils/base/tester.js` dans la coche GitHub « Tests ».
+6. **SCAB 04** : rendez-vous client le lundi 30/11/2026. À préparer : boîte e-mail dédiée, projet Google, compte n8n Cloud ; la porte option A (Cloud Functions entre le navigateur et Cloud SQL) est à concevoir.
+7. **Fable** : environ 85 % de la semaine utilisés le 25/11 au soir ; remise à zéro le 27/11. Garder le reste pour le serveur, les règles et les briefs.
+
 ## Rapport du matin du 25/11/2026 : les modules Achats portés dans l'OS
 
 Les cinq modules Achats de l'ancienne appli BTP (Fournisseurs, Chantiers, Articles, Factures, Tableau de bord 2) vivent maintenant dans Chevalier IA OS, visibles du propriétaire seul. Mode d'emploi : `docs/modules-achats.md`.
