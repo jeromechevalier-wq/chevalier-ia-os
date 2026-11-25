@@ -3,19 +3,20 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { ErreurBuffer, LIMITE_DEFAUT } from './service.js';
 import { COMPTES_AUTORISES } from '../veille/appel.js';
+import { emailDans } from '../securite/reglages-maison.js';
 
 const ACTIONS = ['lirePosts'];
 
-function exigerCompte(requete, comptes) {
+async function exigerCompte(requete, comptes) {
   const jeton = requete.auth?.token;
   if (!jeton) throw new HttpsError('unauthenticated', 'Connexion nécessaire.');
-  if (jeton.email_verified !== true || !comptes.includes(jeton.email)) throw new HttpsError('permission-denied', 'Ce compte n\'a pas accès aux réseaux sociaux.');
+  if (jeton.email_verified !== true || !(await emailDans(comptes, jeton.email))) throw new HttpsError('permission-denied', 'Ce compte n\'a pas accès aux réseaux sociaux.');
 }
 
 /** Fonction appelable `reseauxsociauxReleverMesures` : le relevé de la semaine, à la main (mêmes contrôles d'accès que la lecture). `relever` = releverMesures déjà branchée. */
 export function creerAppelReleve({ relever, comptes = COMPTES_AUTORISES, journal = () => {} }) {
   return async function appel(requete) {
-    exigerCompte(requete, comptes);
+    await exigerCompte(requete, comptes);
     const d = requete.data;
     if (d === null || typeof d !== 'object' || Array.isArray(d) || d.action !== 'relever') throw new HttpsError('invalid-argument', 'Demande inconnue.');
     try {
@@ -33,7 +34,7 @@ export function creerAppelReleve({ relever, comptes = COMPTES_AUTORISES, journal
 
 export function creerAppelBuffer({ service, comptes = COMPTES_AUTORISES, journal = () => {} }) {
   return async function appel(requete) {
-    exigerCompte(requete, comptes);
+    await exigerCompte(requete, comptes);
     const d = requete.data;
     if (d === null || typeof d !== 'object' || Array.isArray(d) || !ACTIONS.includes(d.action)) throw new HttpsError('invalid-argument', 'Demande inconnue.');
     const limite = d.limite === undefined ? LIMITE_DEFAUT : d.limite;

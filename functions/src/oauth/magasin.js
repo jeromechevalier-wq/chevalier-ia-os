@@ -7,6 +7,7 @@
 // Couper une connexion = mettre `revoque: true` ou supprimer son document `connexion_…` (dans la console Firestore) : agit tout de suite.
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { COLLECTION_OAUTH as COL, COMPTES_AUTORISES, DUREES, PROFIL_OAUTH } from './config.js';
+import { emailDans } from '../securite/reglages-maison.js';
 
 export const FORMATS = Object.freeze({
   code: /^cia_c_[A-Za-z0-9_-]{43}$/,
@@ -37,7 +38,8 @@ export function acteurDuCompte(email, assistant = 'claude-ai') {
   return `${assistant === 'chatgpt' ? 'chatgpt' : 'claude-ai'}-${local || 'compte'}`;
 }
 
-export const compteAutorise = (email) => typeof email === 'string' && COMPTES_AUTORISES.includes(email.toLowerCase());
+/** Asynchrone : la liste vient de la fiche de la maison (comptes_oauth_autorises). `comptes` : tableau pour les essais. */
+export const compteAutorise = async (email, comptes = COMPTES_AUTORISES) => typeof email === 'string' && emailDans(comptes, email, 'minuscules');
 
 /** Vérification PKCE S256 : base64url(SHA-256(verifier)) doit valoir le `code_challenge` donné à l'autorisation. */
 export const pkceValide = (verifier, challenge) => typeof verifier === 'string' && /^[A-Za-z0-9._~-]{43,128}$/.test(verifier)
@@ -51,7 +53,7 @@ export const pkceValide = (verifier, challenge) => typeof verifier === 'string' 
  *    Appelé à l'échange du code, à chaque renouvellement et à chaque appel : retirer un membre ou éteindre le module coupe l'accès tout de suite.
  */
 export function creerMagasinOauth({ donnees, maintenant = () => Date.now(), client = null, controleCompte = null }) {
-  const controle = controleCompte ?? (async (email, doc) => (compteAutorise(email) ? { acteur: acteurDuCompte(email, doc?.assistant), profil: PROFIL_OAUTH, email: email.toLowerCase() } : null));
+  const controle = controleCompte ?? (async (email, doc) => (await compteAutorise(email) ? { acteur: acteurDuCompte(email, doc?.assistant), profil: PROFIL_OAUTH, email: email.toLowerCase() } : null));
   const marque = client ? { client } : {};
   const memeClient = (doc) => !client || doc.client === client;
   const ecrire = (ecritures) => donnees.appliquer(ecritures);

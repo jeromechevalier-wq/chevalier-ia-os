@@ -1,4 +1,5 @@
-// Fonctions Firebase de la plateforme clients (projet chevalier-ia-app, codebase « plateforme »), région de Paris.
+// Fonctions Firebase de la plateforme clients (codebase « plateforme »), région de Paris. Chantier 0 (25/11/2026) : aucun nom de projet ici ; il vient de Google
+// (GCLOUD_PROJECT : serveur/src/securite/maison.js), les comptes de service s'écrivent « nom@ » (complétés au déploiement), l'adresse de n8n est dans la fiche reglages_maison/maison.
 // Module Automatisations (workflows n8n, chantier 14). NON déployées par le workflow du CRM ; voir docs/automatisations-n8n.md.
 // La clé d'API de n8n est dans Secret Manager (nom : N8N_API_KEY), déposée par Jérôme ; elle n'est lue qu'au moment d'un appel.
 import { initializeApp, getApps } from 'firebase-admin/app';
@@ -20,7 +21,9 @@ import { creerSmsDirect, creerGestionnaireReponses, verifierConnexion } from '..
 import { creerConnexionSms } from '../serveur/src/coeur/connexion-sms.js';
 import { creerEcrivainSecrets } from '../serveur/src/securite/ecrire-secret.js';
 import { creerAdaptateur } from '../serveur/partage/porte/adaptateur.js';
-import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient, BASE_LIEN_PLATEFORME } from './devis-pdf.js';
+import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient, baseLienPlateforme } from './devis-pdf.js';
+import { adresseFonction, reserveParDefaut } from '../serveur/src/securite/maison.js';
+import { texteDe } from '../serveur/src/securite/reglages-maison.js';
 import { appelDocument } from './documents.js';
 import { verifierDeploiementClient } from './deploiement.js';
 import { VERSION_SERVEUR } from '../serveur/src/version.js';
@@ -34,9 +37,9 @@ if (!getApps().length) initializeApp();
 const db = () => getFirestore();
 const CLE_N8N = defineSecret('N8N_API_KEY');
 const REGION = 'europe-west9';
-const BUCKET = 'chevalier-ia-app.firebasestorage.app'; // images des marques (même bucket que storage.plateforme.rules)
+const bucketMarques = () => reserveParDefaut(); // images des marques : la réserve par défaut du projet (celle de storage.plateforme.rules), lue à l'appel
 
-const lecteur = () => creerLecteurN8n({ cle: CLE_N8N.value() });
+const lecteur = () => creerLecteurN8n({ cle: CLE_N8N.value(), url: () => texteDe('n8n_url') }); // adresse du n8n : fiche de la maison
 
 /** Traduit un refus interne en erreur Firebase (le message est écrit pour être lu par l'utilisateur). */
 function enHttps(e) {
@@ -67,12 +70,12 @@ export const automatisationsRenommer = onCall(
   },
 );
 
-// MCP des clients : un lien par client (https://chevalier-ia-app.web.app/mcp/<client>), comptes lus dans les membres, profil déduit du rôle.
+// MCP des clients : un lien par client (https://<projet>.web.app/mcp/<client>), comptes lus dans les membres, profil déduit du rôle.
 // Invocation publique côté Google (comme le MCP de Jérôme) : la vraie porte est la connexion Google + la fiche de membre, revérifiées à chaque appel.
 // Le nom « mcpclients » est celui du service Cloud Run visé par les réécritures de firebase.plateforme.json. Code : functions/src/clients/ (copié dans serveur/ au déploiement).
 // Compte dédié `mcp-clients@` : Firestore, « Créateur d'objets Storage » (dépôt de texte), secrets du brouillon d'e-mail, et (à donner, docs/securite-et-pannes.md section 12) la lecture du stockage + la signature de ses liens.
 export const mcpclients = onRequest(
-  { region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false, serviceAccount: 'mcp-clients@chevalier-ia-app.iam.gserviceaccount.com' },
+  { region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false, serviceAccount: 'mcp-clients@' },
   creerMcpClients(),
 );
 
@@ -80,9 +83,9 @@ export const mcpclients = onRequest(
 // Les règles Firestore et Storage ne changent pas : c'est cette fonction, avec son compte dédié, qui écrit marques/<client> et les membres, après avoir vérifié que l'appelant est éditeur.
 // Aucun secret. Compte dédié : « Utilisateur Cloud Datastore » et, sur Storage, « Administrateur des objets » limité aux fichiers marques/. À créer AVANT le déploiement (docs/mon-espace.md), sinon le déploiement échoue.
 export const espaceReglages = onCall(
-  { region: REGION, timeoutSeconds: 60, memory: '512MiB', maxInstances: 5, serviceAccount: 'espace-reglages@chevalier-ia-app.iam.gserviceaccount.com' },
+  { region: REGION, timeoutSeconds: 60, memory: '512MiB', maxInstances: 5, serviceAccount: 'espace-reglages@' },
   async (requete) => {
-    try { return await reglerEspace({ db: db(), bucket: getStorage().bucket(BUCKET), nomBucket: BUCKET, auth: requete.auth, donnees: requete.data }); } catch (e) { throw enHttps(e); }
+    try { return await reglerEspace({ db: db(), bucket: getStorage().bucket(bucketMarques()), nomBucket: bucketMarques(), auth: requete.auth, donnees: requete.data }); } catch (e) { throw enHttps(e); }
   },
 );
 
@@ -121,7 +124,7 @@ export const deploiementVerifier = onCall({ ...OPTIONS_DEVIS, timeoutSeconds: 30
   try { return await verifierDeploiementClient({
     db: db(), auth: requete.auth, donnees: requete.data, version: VERSION_SERVEUR,
     // Lignes « PDF » : le stockage répond ; les trois fonctions du PDF sont déclarées dans CE serveur (un serveur plus ancien ne connaît pas ces lignes : elles restent orange jusqu'au déploiement « fonctions »).
-    pdf: { bucket: () => getStorage().bucket(BUCKET), fonctions: () => [devisPdf, devisPdfLien, devisPdfAuto].every((f) => f) },
+    pdf: { bucket: () => getStorage().bucket(bucketMarques()), fonctions: () => [devisPdf, devisPdfLien, devisPdfAuto].every((f) => f) },
   }); } catch (e) { throw enHttps(e); }
 });
 
@@ -129,7 +132,7 @@ export const deploiementVerifier = onCall({ ...OPTIONS_DEVIS, timeoutSeconds: 30
 // L'adresse du webhook et son secret sont dans Secret Manager, UN couple PAR CLIENT (N8N_DEVIS_EMAIL_URL_<client>, N8N_DEVIS_EMAIL_SECRET_<client>), lus au moment de l'appel : sans eux,
 // l'écran du client ne montre pas le bouton (devisPreparerEmailEtat). Le compte de service de la fonction doit avoir « Accesseur de secrets » sur ces secrets (docs/ajouter-un-bouton-workflow.md).
 // Déployée seulement par le workflow MANUEL de la plateforme, avec Jérôme ; le résultat revient par la porte du client (devis.lireEmail, devis.noterEmailPrepare).
-const sortieN8nDevis = creerSortieN8n({ lireSecret: creerLecteurSecrets({ projet: 'chevalier-ia-app' }) });
+const sortieN8nDevis = creerSortieN8n({ lireSecret: creerLecteurSecrets() });
 export const devisPreparerEmail = onCall(OPTIONS_DEVIS, async (requete) => {
   try { return await preparerEmailDevis({ db: db(), auth: requete.auth, donnees: requete.data, sortie: sortieN8nDevis }); } catch (e) { throw enHttps(e); }
 });
@@ -142,11 +145,11 @@ export const devisPreparerEmailEtat = onCall(OPTIONS_DEVIS, async (requete) => {
 // de l'appel : sans lui, « Envoyer » reste grisé. AUCUN secret déclaré (un secret absent ferait échouer le déploiement de toutes les fonctions). Éditeurs seulement, module « rdv » actif exigé.
 // Déployées seulement par le workflow MANUEL de la plateforme, avec Jérôme.
 const smsDirect = creerSmsDirect({
-  lireSecret: creerLecteurSecrets({ projet: 'chevalier-ia-app' }),
+  lireSecret: creerLecteurSecrets(),
   donneesDe: (client) => ({ base: `clients/${client}`, donnees: creerAdaptateur({ db: db() }) }),
   moduleActif: async (client) => (await creerModulesActifs({ db: db() })(client)).includes('rdv'),
   espaceRacine: null, // sur la plateforme, tous les secrets portent le nom du client (un client nommé « interne » garde son suffixe)
-  baseLien: BASE_LIEN_PLATEFORME, // lien du rendez-vous dans les alertes (`#/espace/<client>/rdv/liste/<id>`)
+  baseLien: baseLienPlateforme, // lien du rendez-vous dans les alertes (`#/espace/<client>/rdv/liste/<id>`)
 });
 export const rdvEnvoyer = onCall({ ...OPTIONS_DEVIS, timeoutSeconds: 120 }, async (requete) => {
   try { return await envoyerRdv({ db: db(), auth: requete.auth, donnees: requete.data, sortie: smsDirect }); } catch (e) { throw enHttps(e); }
@@ -157,10 +160,10 @@ export const rdvEtat = onCall(OPTIONS_DEVIS, async (requete) => {
 // Saisie de la connexion ClickSend d'UN client depuis son écran Réglages > Rendez-vous : RÉSERVÉE à Jérôme (identité contrôlée à l'exécution, même pour un éditeur du client). La clé est vérifiée auprès de ClickSend
 // puis rangée dans Secret Manager (CLICKSEND_RDV_<client>) ; elle n'est jamais rendue ni journalisée. Le compte d'exécution doit pouvoir ajouter une version de secret (docs/rdv-sms-clicksend.md).
 const connexionSms = creerConnexionSms({
-  lireSecret: creerLecteurSecrets({ projet: 'chevalier-ia-app' }),
-  ecrireSecret: creerEcrivainSecrets({ projet: 'chevalier-ia-app' }),
+  lireSecret: creerLecteurSecrets(),
+  ecrireSecret: creerEcrivainSecrets(),
   verifier: verifierConnexion,
-  adresseDe: (client, jeton) => `https://europe-west9-chevalier-ia-app.cloudfunctions.net/rdvReponseSms/${client}/${jeton}`,
+  adresseDe: (client, jeton) => `${adresseFonction('rdvReponseSms')}/${client}/${jeton}`,
   espaceRacine: null,
 });
 export const rdvConnexionSms = onCall(OPTIONS_DEVIS, async (requete) => {
@@ -184,15 +187,15 @@ export const rdvReponseSms = onRequest(
 // (2 GiB) ; le PDF est rangé dans Cloud Storage sous clients/<client>/devis/… (jamais public) et lu par un lien signé de 5 minutes (`devisPdfLien`, éditeurs ET lecteurs).
 // AUCUN secret déclaré (un secret absent ferait échouer le déploiement de toutes les fonctions). Compte de service dédié, à créer AVANT le déploiement (docs/pdf-clients.md) :
 // sans lui, le déploiement de TOUTES les fonctions de la plateforme échoue. Déployées seulement par le workflow MANUEL de la plateforme, avec Jérôme.
-const COMPTE_PDF = 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com';
+const COMPTE_PDF = 'devis-pdf@'; // « nom@ » : firebase-tools le complète avec le projet visé au déploiement (lib/gcp/proto.js, formatServiceAccount)
 const OPTIONS_PDF = { region: REGION, memory: '2GiB', timeoutSeconds: 120, concurrency: 1, maxInstances: 2, serviceAccount: COMPTE_PDF };
-const stockagePdf = () => creerStockage({ bucket: getStorage().bucket(BUCKET) });
+const stockagePdf = () => creerStockage({ bucket: getStorage().bucket(bucketMarques()) });
 const journalPdf = (e) => {
   const ligne = { action: e.action, statut: e.statut, code: e.code, dureeMs: e.dureeMs };
   if (e.statut === 'erreur') logger.error('devisPdf', ligne); else logger.info('devisPdf', ligne);
 };
 export const devisPdf = onCall(OPTIONS_PDF, async (requete) => {
-  try { return await fabriquerPdfClient({ db: db(), auth: requete.auth, donnees: requete.data, convertir: (html, options) => convertirHtmlEnPdf(html, options), stockage: stockagePdf, nomBucket: BUCKET, journal: journalPdf }); } catch (e) { throw enHttps(e); }
+  try { return await fabriquerPdfClient({ db: db(), auth: requete.auth, donnees: requete.data, convertir: (html, options) => convertirHtmlEnPdf(html, options), stockage: stockagePdf, nomBucket: bucketMarques(), journal: journalPdf }); } catch (e) { throw enHttps(e); }
 });
 export const devisPdfLien = onCall({ region: REGION, memory: '256MiB', timeoutSeconds: 60, maxInstances: 5, serviceAccount: COMPTE_PDF }, async (requete) => {
   try { return await lienPdfClient({ db: db(), auth: requete.auth, donnees: requete.data, stockage: stockagePdf, journal: journalPdf }); } catch (e) { throw enHttps(e); }
@@ -217,7 +220,7 @@ export const documentSupprimer = appelDoc('supprimer', OPTIONS_DOCUMENT);
 // Déclencheur : ne réagit qu'au passage brouillon -> finalisé (l'écriture de `pdf` ne le relance donc jamais), ne fabrique que si le module « devis » est actif chez ce client, ne lève jamais d'erreur.
 export const devisPdfAuto = onDocumentUpdated(
   { document: 'clients/{client}/devis_devis/{devisId}', region: REGION, memory: '2GiB', timeoutSeconds: 540, concurrency: 1, maxInstances: 2, retry: false, serviceAccount: COMPTE_PDF },
-  (evenement) => creerDeclencheurPdfClient({ db: db(), convertir: (html, options) => convertirHtmlEnPdf(html, options), stockage: stockagePdf, nomBucket: BUCKET, journal: journalPdf })(evenement),
+  (evenement) => creerDeclencheurPdfClient({ db: db(), convertir: (html, options) => convertirHtmlEnPdf(html, options), stockage: stockagePdf, nomBucket: bucketMarques(), journal: journalPdf })(evenement),
 );
 
 // La porte des workflows n8n des clients (31/10/2026) : les workflows d'un client (ex. « préparer l'e-mail d'un devis ») rappellent le serveur par HTTPS avec une clé PAR CLIENT

@@ -1,11 +1,11 @@
 // Fonctions appelables du module Pilotage chez Jérôme (projet chevalier-ia-os) :
 //  - `pilotageLire({ apercu?, exporter?, onglet?, filtres? })` : { titre, tuiles: [{ id, titre, type, largeur?, aide?, …config du type, option?, lignes }], erreurs: [{ id, message }], onglets?, onglet? } pour l'écran (voir docs/pilotage.md). Compte autorisé de la racine (Jérôme, son compte d'assistant) ;
 //                                                    `apercu` (brouillon de réglage) et `exporter` (le document enregistré) sont RÉSERVÉS à Jérôme (permission-denied sinon) ;
-//  - `pilotageEnregistrerReglages({ reglages })`   : RÉSERVÉ à Jérôme (identité contrôlée ICI, à l'exécution, par js/os/administrateur.js) ; valide, incrémente la version, écrit et journalise.
+//  - `pilotageEnregistrerReglages({ reglages })`   : RÉSERVÉ à Jérôme (identité contrôlée ICI, à l'exécution : comptes_jerome_seul de la fiche reglages_maison/maison) ; valide, incrémente la version, écrit et journalise.
 // Le filtre « qui voit quelle tuile » est appliqué par le service, côté serveur. Le journal Cloud ne reçoit ni adresse, ni nom de vue, ni ligne de données, ni valeur du secret.
 import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from '../veille/appel.js';
-import { estAdministrateur } from '../../partage/administrateur.js';
+import { emailDans, estJeromeSeul } from '../securite/reglages-maison.js';
 import { ErreurPilotage } from './reglages.js';
 
 const REFUS_ADMIN = 'Cette action est réservée à l\'administrateur.';
@@ -16,26 +16,26 @@ export function enErreurPilotage(e) {
   return null;
 }
 
-function exigerAdministrateur(requete, estAdmin) {
+async function exigerAdministrateur(requete, estAdmin) {
   const jeton = requete.auth?.token;
   if (!jeton) throw new HttpsError('unauthenticated', 'Connexion nécessaire.');
-  if (!estAdmin(jeton.email, jeton.email_verified === true)) throw new HttpsError('permission-denied', REFUS_ADMIN);
+  if (!(await estAdmin(jeton.email, jeton.email_verified === true))) throw new HttpsError('permission-denied', REFUS_ADMIN);
   return jeton;
 }
 
-export function creerAppelPilotageLire({ service, comptes = COMPTES_AUTORISES, estAdmin = estAdministrateur, journal = () => {}, maintenant = Date.now }) {
+export function creerAppelPilotageLire({ service, comptes = COMPTES_AUTORISES, estAdmin = estJeromeSeul, journal = () => {}, maintenant = Date.now }) {
   return async function appel(requete) {
     const debut = maintenant();
     const jeton = requete.auth?.token;
     if (!jeton) throw new HttpsError('unauthenticated', 'Connexion nécessaire.');
-    if (jeton.email_verified !== true || typeof jeton.email !== 'string' || !comptes.includes(jeton.email)) {
+    if (jeton.email_verified !== true || typeof jeton.email !== 'string' || !(await emailDans(comptes, jeton.email))) {
       journal({ action: 'lire', statut: 'refus', dureeMs: maintenant() - debut }); // jamais l'adresse
       throw new HttpsError('permission-denied', 'Ce compte n\'a pas accès au Pilotage.');
     }
     const d = requete.data && typeof requete.data === 'object' && !Array.isArray(requete.data) ? requete.data : {};
     const demandeApercu = d.apercu !== undefined && d.apercu !== null;
     const demandeExport = d.exporter === true;
-    if ((demandeApercu || demandeExport) && !estAdmin(jeton.email, jeton.email_verified === true)) {
+    if ((demandeApercu || demandeExport) && !(await estAdmin(jeton.email, jeton.email_verified === true))) {
       journal({ action: demandeExport ? 'exporter' : 'apercu', statut: 'refus', dureeMs: maintenant() - debut });
       throw new HttpsError('permission-denied', REFUS_ADMIN);
     }
@@ -54,11 +54,11 @@ export function creerAppelPilotageLire({ service, comptes = COMPTES_AUTORISES, e
   };
 }
 
-export function creerAppelPilotageEnregistrer({ service, estAdmin = estAdministrateur, journal = () => {}, maintenant = Date.now }) {
+export function creerAppelPilotageEnregistrer({ service, estAdmin = estJeromeSeul, journal = () => {}, maintenant = Date.now }) {
   return async function appel(requete) {
     const debut = maintenant();
     let jeton;
-    try { jeton = exigerAdministrateur(requete, estAdmin); } catch (e) { journal({ action: 'enregistrer', statut: 'refus', dureeMs: maintenant() - debut }); throw e; }
+    try { jeton = await exigerAdministrateur(requete, estAdmin); } catch (e) { journal({ action: 'enregistrer', statut: 'refus', dureeMs: maintenant() - debut }); throw e; }
     const d = requete.data && typeof requete.data === 'object' && !Array.isArray(requete.data) ? requete.data : {};
     try {
       const r = await service.enregistrer({ reglages: d.reglages, acteur: String(jeton.email).trim().toLowerCase() });

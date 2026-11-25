@@ -44,7 +44,7 @@ export function creerAppelDevisPdf({ donnees, espace = '', baseLien = '', compte
   const faireConvertir = convertir ?? ((html, options) => convertirHtmlEnPdf(html, options));
   return async function appel(requete) {
     const debut = maintenant();
-    const jeton = exigerCompteAutorise(requete, comptes);
+    const jeton = await exigerCompteAutorise(requete, comptes);
     const refuser = (code, erreur) => { journal({ action: 'pdf', statut: 'refus', code, dureeMs: maintenant() - debut }); return erreur; };
     const demande = lireDemande(requete);
     if (!demande) throw refuser('demande_invalide', new HttpsError('invalid-argument', 'Identifiant de devis manquant ou invalide.'));
@@ -80,7 +80,7 @@ export function creerAppelDevisPdf({ donnees, espace = '', baseLien = '', compte
 export function creerAppelDevisPdfLien({ donnees, espace = '', comptes = COMPTES_AUTORISES, stockage, journal = () => {}, maintenant = Date.now }) {
   return async function appel(requete) {
     const debut = maintenant();
-    exigerCompteAutorise(requete, comptes);
+    await exigerCompteAutorise(requete, comptes);
     const refuser = (code, erreur) => { journal({ action: 'pdf_lien', statut: 'refus', code, dureeMs: maintenant() - debut }); return erreur; };
     const demande = lireDemande(requete);
     if (!demande) throw refuser('demande_invalide', new HttpsError('invalid-argument', 'Identifiant de devis manquant ou invalide.'));

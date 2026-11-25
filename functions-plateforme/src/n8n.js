@@ -6,7 +6,6 @@
 // Le contenu des données, la définition des workflows et les réglages sensibles sont lus au passage puis JETÉS ici même.
 // La clé d'API n'est jamais écrite dans un journal, un message d'erreur ni une adresse : elle voyage dans un en-tête.
 
-export const URL_N8N = 'https://n8n.chevalier-ia.fr';
 const DELAI_MS = 20000; // au-delà, n8n est considéré comme injoignable
 const PAGES_MAX = 50; // garde-fou : jamais de boucle sans fin
 
@@ -41,15 +40,23 @@ const date = (v) => {
 };
 
 /**
- * Crée le lecteur n8n. `cle` : la clé d'API (jamais affichée). `url` : toujours l'adresse de n8n ci-dessus en production
- * (un autre serveur ne sert qu'aux essais, avec un faux n8n). `fetchImpl` : remplaçable pour les essais.
+ * Crée le lecteur n8n. `cle` : la clé d'API (jamais affichée). `url` : l'adresse du n8n de la maison (texte, ou fonction asynchrone qui la rend :
+ * en production, le champ n8n_url de la fiche reglages_maison/maison, lu par index.js ; un faux n8n dans les essais). Aucune adresse écrite dans ce fichier :
+ * sans adresse, n8n est « injoignable ». `fetchImpl` : remplaçable pour les essais.
  */
-export function creerLecteurN8n({ cle, url = URL_N8N, fetchImpl = globalThis.fetch, delaiMs = DELAI_MS } = {}) {
+export function creerLecteurN8n({ cle, url, fetchImpl = globalThis.fetch, delaiMs = DELAI_MS } = {}) {
   if (!cle) throw new ErreurN8n('refuse', MESSAGES.refuse);
+
+  async function base() {
+    let u;
+    try { u = typeof url === 'function' ? await url() : url; } catch { u = ''; }
+    if (!u) throw new ErreurN8n('injoignable', `${MESSAGES.injoignable} (adresse inconnue)`);
+    return u;
+  }
 
   /** Unique point de sortie vers n8n : un GET, rien d'autre. */
   async function lire(chemin, params = {}) {
-    const adresse = new URL(`/api/v1${chemin}`, url);
+    const adresse = new URL(`/api/v1${chemin}`, await base());
     for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null) adresse.searchParams.set(k, String(v));
     let reponse;
     try {

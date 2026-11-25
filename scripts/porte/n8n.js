@@ -3,7 +3,6 @@
 // aucune désactivation de workflow dans n8n, jamais (un test fait échouer la suite si un autre verbe apparaît).
 // Il ne garde que le nom et les étiquettes du workflow ; le reste de la réponse (nœuds, identifiants, données) est jeté ici même.
 // La clé d'API n'est jamais écrite dans un journal, un message ni une adresse : elle voyage dans un en-tête, uniquement vers n8n.
-export const URL_N8N = 'https://n8n.chevalier-ia.fr';
 const DELAI_MS = 10_000;
 const MOTIF_ID_WORKFLOW = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -16,15 +15,19 @@ export class ErreurN8n extends Error {
   }
 }
 
-export function creerLecteurWorkflows({ cle, url = URL_N8N, fetchImpl = globalThis.fetch, delaiMs = DELAI_MS } = {}) {
+/** `url` : l'adresse du n8n de la maison (texte, ou fonction asynchrone qui la rend : le champ n8n_url de la fiche reglages_maison/maison, lu par le serveur). Aucune adresse écrite ici. */
+export function creerLecteurWorkflows({ cle, url, fetchImpl = globalThis.fetch, delaiMs = DELAI_MS } = {}) {
   if (!cle) throw new ErreurN8n('refuse', 'clé d\'API n8n absente');
   return {
     /** { id, nom, etiquettes: [noms] } d'un workflow. */
     async lireWorkflow(id) {
       if (typeof id !== 'string' || !MOTIF_ID_WORKFLOW.test(id)) throw new ErreurN8n('introuvable', 'identifiant de workflow invalide');
+      let base;
+      try { base = typeof url === 'function' ? await url() : url; } catch { base = ''; }
+      if (!base) throw new ErreurN8n('injoignable', 'adresse de n8n inconnue');
       let reponse;
       try {
-        reponse = await fetchImpl(new URL(`/api/v1/workflows/${encodeURIComponent(id)}`, url), {
+        reponse = await fetchImpl(new URL(`/api/v1/workflows/${encodeURIComponent(id)}`, base), {
           method: 'GET',
           headers: { 'X-N8N-API-KEY': cle, Accept: 'application/json' },
           signal: AbortSignal.timeout(delaiMs),

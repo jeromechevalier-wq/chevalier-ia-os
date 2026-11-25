@@ -1,16 +1,18 @@
 // Fonction appelable `veille` (depuis l'appli) : contrôle qui appelle, puis passe la main au service. Même règle d'accès que les règles Firestore
-// (compteAutorise) : un compte Google vérifié, parmi ceux de Jérôme. Les messages d'erreur sont écrits pour être affichés tels quels.
+// (compteAutorise) : un compte Google vérifié, parmi les comptes autorisés de la fiche reglages_maison/maison (securite/reglages-maison.js). Les messages d'erreur sont écrits pour être affichés tels quels.
 import { HttpsError } from 'firebase-functions/v2/https';
 import { ErreurVeille } from './service.js';
+import { comptesAutorises, emailDans } from '../securite/reglages-maison.js';
 
-export const COMPTES_AUTORISES = Object.freeze(['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com']);
+/** Les comptes autorisés du CRM : lus dans la fiche de la maison (plus aucune adresse dans le code). Les fabriques acceptent aussi un tableau (essais). */
+export const COMPTES_AUTORISES = comptesAutorises;
 const ACTIONS = ['ajouterLien', 'resumer'];
 
 export function creerAppelVeille({ service, comptes = COMPTES_AUTORISES, journal = () => {} }) {
   return async function appel(requete) {
     const jeton = requete.auth?.token;
     if (!jeton) throw new HttpsError('unauthenticated', 'Connexion nécessaire.');
-    if (jeton.email_verified !== true || !comptes.includes(jeton.email)) throw new HttpsError('permission-denied', 'Ce compte n\'a pas accès à la veille.');
+    if (jeton.email_verified !== true || !(await emailDans(comptes, jeton.email))) throw new HttpsError('permission-denied', 'Ce compte n\'a pas accès à la veille.');
     const d = requete.data;
     if (d === null || typeof d !== 'object' || Array.isArray(d) || !ACTIONS.includes(d.action)) throw new HttpsError('invalid-argument', 'Demande inconnue.');
     try {

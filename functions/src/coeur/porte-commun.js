@@ -2,6 +2,7 @@
 // journal sans donnée sensible, lecteur n8n (clé d'API lue dans Secret Manager) et service « devis ». Ce dossier (coeur/) est copié chez les clients :
 // aucun import des comptes ou du stockage propres à Jérôme ici (devis/stockage-projet.js, devis/pdf-appel.js) ; le stockage est toujours fourni par l'appelant.
 import { creerLecteurWorkflows, ErreurN8n } from '../../partage/porte/n8n.js';
+import { texteDe } from '../securite/reglages-maison.js';
 import { creerAccesFirestore, avecBase } from './donnees.js';
 import { creerServiceDevisPorte } from './devis-email.js';
 import { cheminAppartientALEspace } from '../devis/stockage.js';
@@ -27,7 +28,7 @@ export function creerN8nDepuisSecret({ lireSecret, urlN8n, fetchImpl, maintenant
     if (cache && cache.expire > maintenant()) return cache.lecteur;
     let cle;
     try { cle = (await lireSecret()).trim(); } catch { throw new ErreurN8n('refuse', 'clé d\'API n8n illisible'); }
-    const l = creerLecteurWorkflows({ cle, ...(urlN8n ? { url: urlN8n } : {}), ...(fetchImpl ? { fetchImpl } : {}) }); // urlN8n : réservé aux essais (faux n8n)
+    const l = creerLecteurWorkflows({ cle, url: urlN8n ?? (() => texteDe('n8n_url')), ...(fetchImpl ? { fetchImpl } : {}) }); // urlN8n : réservé aux essais (faux n8n) ; sinon l'adresse de la fiche de la maison
     cache = { lecteur: l, expire: maintenant() + DUREE_CLE_EN_MEMOIRE_MS };
     return l;
   }

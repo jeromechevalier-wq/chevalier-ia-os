@@ -11,15 +11,17 @@ import { executerEcritures, ErreurEcriture } from '../coeur/ecriture.js';
 import { restaurerOperation } from '../coeur/restaurer.js';
 import { ESPACE_JEROME } from '../coeur/n8n-sortie.js';
 
-export const BASE_LIEN_JEROME = 'https://chevalier-ia-os.web.app';
+/** Adresse du site de la maison (liens vers l'écran) : https://<projet>.web.app, calculée à la demande (chantier 0). */
+export const baseLienMaison = () => adresseSite();
 import { OUTILS, outilsAutorises, annotationsDe } from './outils/index.js';
 import { varianteDuProfil } from './outils/variantes-assistant-devis.js';
 import { VERSION_SERVEUR } from '../version.js';
-import { ORIGINES_AUTORISEES as ORIGINES, URL_METADONNEES_RESSOURCE } from '../oauth/config.js';
+import { originesAutorisees, urlMetadonneesRessource } from '../oauth/config.js';
 import { estSuperAdminEmail } from '../securite/super-admins.js';
+import { adresseSite } from '../securite/maison.js';
 
-// Les clients MCP (Hermes, Claude Code) n'envoient pas d'en-tête Origin. Un navigateur, si : on n'accepte que l'appli.
-export const ORIGINES_AUTORISEES = ORIGINES;
+// Les clients MCP (Hermes, Claude Code) n'envoient pas d'en-tête Origin. Un navigateur, si : on n'accepte que l'appli (origines calculées à partir du projet).
+export const ORIGINES_AUTORISEES = originesAutorisees;
 
 export const refuser = (res, statut, erreur, entetes = {}) => {
   res.writeHead(statut, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...entetes });
@@ -81,7 +83,7 @@ export function erreurLisible(e) {
   return e.name === 'Error' && e.code === undefined && e.errno === undefined && e.syscall === undefined;
 }
 
-export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = null, stockage = null, sortieEmail = null, pilotage = null, baseLien = BASE_LIEN_JEROME, lienDepot = false, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
+export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = null, stockage = null, sortieEmail = null, pilotage = null, baseLien = null, lienDepot = false, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
   const noterDemarrage = creerSuiviDemarrage();
   return async function gestionnaire(req, res) {
     const debut = maintenant();
@@ -90,7 +92,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
     res.on('finish', () => journal({ ...infos, dureeMs: maintenant() - debut, statut: res.statusCode }));
 
     const origine = req.headers.origin;
-    if (origine !== undefined && !ORIGINES_AUTORISEES.includes(origine)) { infos.code = 'origine'; return refuser(res, 403, 'origine_refusee'); }
+    if (origine !== undefined && !ORIGINES_AUTORISEES().includes(origine)) { infos.code = 'origine'; return refuser(res, 403, 'origine_refusee'); }
     if (oauth && await oauth.traiter(req, res, infos)) return; // routes OAuth (métadonnées, autorisation, jetons) : traitées à part
     if (req.method !== 'POST') { infos.code = 'methode'; return refuser(res, 405, 'methode_refusee', { Allow: 'POST' }); }
 
@@ -112,7 +114,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
       }
     }
     // 401 : même réponse pour tout refus ; l'en-tête dit à claude.ai où se connecter (RFC 9728).
-    if (!jeton) { infos.code = 'jeton'; return refuser(res, 401, 'non_autorise', { 'WWW-Authenticate': oauth ? `Bearer resource_metadata="${URL_METADONNEES_RESSOURCE}"` : 'Bearer' }); }
+    if (!jeton) { infos.code = 'jeton'; return refuser(res, 401, 'non_autorise', { 'WWW-Authenticate': oauth ? `Bearer resource_metadata="${urlMetadonneesRessource()}"` : 'Bearer' }); }
     Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil }, descriptionAppel(req.body, outils));
     infos.dureeAuthMs = maintenant() - debut;
 
@@ -130,9 +132,10 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
  * Cet e-mail vient de l'identité Google vérifiée à la connexion OAuth (jamais d'une saisie ni d'une donnée du client) ; un jeton statique (agent-devis, assistant-devis, lecture, ecriture, claude-code) n'en a pas : refusé.
  * Le profil ne compte pas : un éditeur client ou un assistant OAuth d'un client a le profil `complet` sans être super admin.
  */
-export const estSuperAdmin = ({ jeton }) => estSuperAdminEmail(jeton?.email);
+export const estSuperAdmin = async ({ jeton }, comptes) => estSuperAdminEmail(jeton?.email, comptes);
 
-export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM, stockage = null, sortieEmail = null, pilotage = null, baseLien = BASE_LIEN_JEROME, lienDepot = false }) {
+export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM, stockage = null, sortieEmail = null, pilotage = null, baseLien = null, lienDepot = false }) {
+  baseLien ??= baseLienMaison(); // sans adresse donnée (serveur de Jérôme) : le site de la maison, calculé à partir du projet
   const limites = limitesDuJeton(jeton);
   // Mesure : lectures de base faites par CETTE requête (hors authentification et plafonds). Aucune erreur de mesure ne casse l'appel.
   const compteur = { lectures: 0 };
@@ -147,7 +150,7 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
   }
 
   // Les outils marqués `reserveAuxSuperAdmins` n'existent (liste, qui_suis_je, exécution) que pour un super admin (identité vérifiée), quel que soit le profil.
-  const superAdmin = estSuperAdmin({ jeton });
+  const superAdmin = await estSuperAdmin({ jeton });
   const permis = outilsAutorises(jeton.profil, outils).filter((o) => !o.reserveAuxSuperAdmins || superAdmin);
   const serveur = new McpServer({ name: nomServeur, version: VERSION_SERVEUR });
   // Contexte d'écriture de CET appel : acteur du jeton, canal « mcp », heure du serveur. Les plafonds d'écriture sont réservés ici, juste avant d'écrire.

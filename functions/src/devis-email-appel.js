@@ -13,7 +13,7 @@ import { ESPACE_JEROME } from './coeur/n8n-sortie.js';
 export function creerAppelPreparerEmail({ donnees, sortie, comptes = COMPTES_AUTORISES, journal = () => {}, maintenant = Date.now, genererId }) {
   return async function appel(requete) {
     const debut = maintenant();
-    const jeton = exigerCompteAutorise(requete, comptes);
+    const jeton = await exigerCompteAutorise(requete, comptes);
     const d = requete.data && typeof requete.data === 'object' ? requete.data : {};
     try {
       const r = await demanderPreparation({
@@ -36,7 +36,7 @@ export function creerAppelPreparerEmail({ donnees, sortie, comptes = COMPTES_AUT
 
 export function creerAppelEtatPreparerEmail({ sortie, comptes = COMPTES_AUTORISES }) {
   return async function appel(requete) {
-    exigerCompteAutorise(requete, comptes);
+    await exigerCompteAutorise(requete, comptes);
     return { branche: (await sortie.branche(ESPACE_JEROME)) === true };
   };
 }

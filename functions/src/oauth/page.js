@@ -1,14 +1,12 @@
 // Page d'autorisation OAuth (GET /oauth/authorize) : connexion Google (la même que l'appli, via Firebase Auth), puis écran de consentement.
 // Le serveur ne fait confiance qu'à ce qu'il revérifie (POST /oauth/approve : jeton d'identité Google contrôlé, compte autorisé, demande revalidée).
-// Rien de ce que contient la page n'est un secret : la configuration Firebase du navigateur est publique (comme dans js/os/firebase-config.js).
+// Rien de ce que contient la page n'est un secret. La configuration Firebase du navigateur n'est plus écrite ici (chantier 0, 25/11/2026) : la page la lit à l'adresse
+// réservée de Firebase Hosting, /__/firebase/init.json, sur le site même qui la sert (le CRM de Jérôme ou la plateforme), et force authDomain = <projet>.web.app
+// (comme l'appli : init.json donne <projet>.firebaseapp.com).
 
 const FIREBASE = 'https://www.gstatic.com/firebasejs/12.19.0';
-export const CONFIG_FIREBASE = Object.freeze({
-  apiKey: 'AIzaSyAa04eaHNaBJwGAUwMrDampugAn1aralXc',
-  authDomain: 'chevalier-ia-os.web.app',
-  projectId: 'chevalier-ia-os',
-  appId: '1:96526036520:web:d09f8ac76597dffaad0f1d',
-});
+/** Adresse réservée de Firebase Hosting qui donne la configuration web du projet du site. */
+export const ADRESSE_CONFIG_HEBERGEMENT = '/__/firebase/init.json';
 
 /** En-têtes de la page : pas d'encadrement (clic piégé), pas de mise en cache, pas de lien de retour. */
 export const ENTETES_PAGE = Object.freeze({
@@ -46,7 +44,7 @@ export function pageErreur(message) {
 
 /** `demande` : { client_id, redirect_uri, code_challenge, state?, resource? }, déjà validée par le serveur. */
 /**
- * `options` (MCP des clients, clients/page.js) : { titre, titreOnglet, droits (HTML déjà sûr), pied (texte), urlApprouver, configFirebase, styleEnPlus, entete (HTML déjà sûr) }.
+ * `options` (MCP des clients, clients/page.js) : { titre, titreOnglet, droits (HTML déjà sûr), pied (texte), urlApprouver, styleEnPlus, entete (HTML déjà sûr) }.
  * Sans options : la page de Jérôme, inchangée.
  */
 export function pageAutorisation(demande, options = {}) {
@@ -57,7 +55,6 @@ export function pageAutorisation(demande, options = {}) {
     <p>lire, créer, modifier et <strong>supprimer</strong> des fiches, des notes et des projets dans ta base, comme Claude Code sur ton Mac.</p>`,
     pied = 'Tu peux couper cet accès à tout moment (voir docs/securite-et-pannes.md).',
     urlApprouver = '/oauth/approve',
-    configFirebase = CONFIG_FIREBASE,
     styleEnPlus = '',
     entete = '',
   } = options;
@@ -82,14 +79,23 @@ export function pageAutorisation(demande, options = {}) {
 <p id="message" class="alerte" role="alert" hidden></p>
 <p class="discret">${echapper(pied)}</p>
 <script type="application/json" id="demande">${jsonSur(demande)}</script>
-<script type="application/json" id="config">${jsonSur(configFirebase)}</script>
 <script type="module">
 import { initializeApp } from '${FIREBASE}/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from '${FIREBASE}/firebase-auth.js';
 const lire = (id) => JSON.parse(document.getElementById(id).textContent);
 const demande = lire('demande');
-const auth = getAuth(initializeApp(lire('config')));
 const $ = (id) => document.getElementById(id);
+let config;
+try {
+  const r = await fetch(${jsonSur(ADRESSE_CONFIG_HEBERGEMENT)}, { cache: 'no-store' });
+  config = await r.json();
+  if (!r.ok || typeof config?.projectId !== 'string' || !config.projectId) throw new Error('configuration');
+} catch {
+  $('message').textContent = 'Connexion impossible pour le moment (configuration du site introuvable). Réessaie.';
+  $('message').hidden = false;
+  throw new Error('configuration du site introuvable');
+}
+const auth = getAuth(initializeApp({ apiKey: config.apiKey, authDomain: config.projectId + '.web.app', projectId: config.projectId, appId: config.appId }));
 const montrer = (etat) => { $('etat-connexion').hidden = etat !== 'connexion'; $('etat-consentement').hidden = etat !== 'consentement'; };
 const dire = (texte) => { $('message').textContent = texte || ''; $('message').hidden = !texte; };
 $('destination').textContent = new URL(demande.redirect_uri).host;

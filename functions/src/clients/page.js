@@ -1,7 +1,7 @@
 // Écran « Autoriser … à accéder à … » d'un client : la page de Jérôme (oauth/page.js) avec le nom, le logo et la couleur du client.
 // La marque arrive déjà nettoyée (js/os/marque.js : couleur #rrggbb, logo en https seulement) ; rien d'autre n'entre dans la feuille de style.
 import { pageAutorisation, echapper } from '../oauth/page.js';
-import { CONFIG_FIREBASE_PLATEFORME, adressesClient, assistantDeRedirection } from './config.js';
+import { adressesClient, assistantDeRedirection } from './config.js';
 import { texteSur } from '../../partage/marque.js';
 
 /** `demande` : demande OAuth déjà validée ; `espace` : { client, marque }. */
@@ -17,7 +17,6 @@ export function pageAutorisationClient(demande, espace) {
     entete: logo,
     styleEnPlus: style,
     urlApprouver: adressesClient(client).approuver,
-    configFirebase: CONFIG_FIREBASE_PLATEFORME,
     droits: `<p><strong>Cette application va pouvoir, selon ton rôle dans cet espace :</strong></p>
     <p>si tu es <strong>lecteur</strong> : consulter les fiches, notes et projets ;<br>si tu es <strong>éditeur</strong> : les consulter, en créer, les modifier et les <strong>supprimer</strong> (récupérable).</p>`,
     pied: `Pour couper cet accès, retire le connecteur dans ${assistant.nom}, ou demande à la personne qui gère ton espace de le couper.`,

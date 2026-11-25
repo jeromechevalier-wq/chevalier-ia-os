@@ -4,6 +4,7 @@
 // (propriétaire « interne », données à la racine) ; le paramètre `base` est prévu pour le rôle éditeur d'un client, mais rien n'est déployé pour la plateforme.
 import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from './veille/appel.js';
+import { emailDans } from './securite/reglages-maison.js';
 import { saisir, ErreurSaisie } from '../partage/porte/saisie-tableaudebord.js';
 
 const CHAMPS_JOURNAL = ['action', 'statut', 'code', 'indicateurId', 'dureeMs'];
@@ -24,7 +25,7 @@ export function creerAppelSaisie({ donnees, comptes = COMPTES_AUTORISES, journal
     const debut = maintenant();
     const jeton = requete.auth?.token;
     if (!jeton) throw new HttpsError('unauthenticated', 'Connexion nécessaire.');
-    if (jeton.email_verified !== true || !comptes.includes(jeton.email)) throw new HttpsError('permission-denied', 'Ce compte n\'a pas accès à la maintenance.');
+    if (jeton.email_verified !== true || !(await emailDans(comptes, jeton.email))) throw new HttpsError('permission-denied', 'Ce compte n\'a pas accès à la maintenance.');
     const d = requete.data;
     // L'identifiant n'est journalisé que s'il a la forme d'un identifiant d'indicateur (jamais un texte quelconque collé par erreur).
     const indicateurId = typeof d?.indicateurId === 'string' && /^[a-z0-9][a-z0-9_-]{0,79}$/.test(d.indicateurId) ? d.indicateurId : undefined;

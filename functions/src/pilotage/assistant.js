@@ -8,6 +8,7 @@
 //  - une tuile en erreur : la phrase générique du service, jamais le message de la base ; une tuile interdite n'est jamais mentionnée ;
 //  - les valeurs viennent de la base : un champ `avertissement` constant le rappelle, et chaque texte est borné en longueur ; les lignes sont plafonnées et la réponse le dit (« N premières lignes »).
 import { COMPTES_AUTORISES } from '../veille/appel.js';
+import { emailDans } from '../securite/reglages-maison.js';
 import { ErreurPilotage, MOTIF_ID } from './reglages.js';
 import { MESSAGE_TUILE } from './service.js';
 import * as F from '../../partage/pilotage-formats.js';
@@ -106,13 +107,13 @@ function resumerFiltre(f) {
  */
 export function creerAssistantPilotage({ service, comptes = COMPTES_AUTORISES }) {
   // L'e-mail vient de l'identité Google vérifiée de la connexion ; la casse ne compte pas (même règle que la liste des super admins).
-  const exiger = (email) => {
-    if (typeof email !== 'string' || !comptes.includes(email.trim().toLowerCase())) throw new ErreurPilotage('permission-denied', MESSAGE_REFUS);
+  const exiger = async (email) => {
+    if (typeof email !== 'string' || !(await emailDans(comptes, email, 'normalisee'))) throw new ErreurPilotage('permission-denied', MESSAGE_REFUS);
   };
   return {
     /** Ce que le compte peut demander : onglets, tuiles et filtres visibles (sans lire la base). */
     async decrire({ email } = {}) {
-      exiger(email);
+      await exiger(email);
       const d = await service.decrire({ email });
       const nette = (o) => ({ ...o, titre: borner(o.titre), ...(o.tuiles ? { tuiles: o.tuiles.map((t) => ({ ...t, titre: borner(t.titre), ...(t.aide ? { aide: borner(t.aide) } : {}) })) } : {}) });
       const sortie = { avertissement: AVERTISSEMENT, ...nette(d), onglets: d.onglets.map(nette) };
@@ -122,7 +123,7 @@ export function creerAssistantPilotage({ service, comptes = COMPTES_AUTORISES })
     },
     /** Lit un onglet (le premier si `onglet` est absent) ou une seule tuile, avec les filtres demandés ; mêmes chiffres que l'écran. */
     async lire({ email, onglet, filtres, tuile, lignesMax } = {}) {
-      exiger(email);
+      await exiger(email);
       const max = lignesMaxDe(lignesMax, tuile !== undefined);
       if (tuile !== undefined && (typeof tuile !== 'string' || !MOTIF_ID.test(tuile))) throw new ErreurPilotage('invalid-argument', 'Tuile inconnue.');
       let ongletLu = onglet;

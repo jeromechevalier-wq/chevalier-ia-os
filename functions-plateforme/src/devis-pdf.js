@@ -1,4 +1,4 @@
-// PDF des devis chez un client (projet chevalier-ia-app) : les deux fonctions appelables `devisPdf` et `devisPdfLien`, et le déclencheur `devisPdfAuto`.
+// PDF des devis chez un client (plateforme des clients) : les deux fonctions appelables `devisPdf` et `devisPdfLien`, et le déclencheur `devisPdfAuto`.
 // Séparé de index.js pour pouvoir l'essayer sans Cloud Functions (comme devis.js) : `db`, `convertir` et `stockage` sont injectés. Le travail est dans serveur/src/devis/
 // (copie de functions/src/devis/, le MÊME code que chez Jérôme). On n'importe JAMAIS pdf-appel.js (il porte les comptes autorisés de Jérôme) : les contrôles d'accès sont ceux d'ICI.
 //  - le client reçu est une CIBLE à vérifier, jamais une confiance : e-mail vérifié, membre de clients/<client>/membres/<e-mail>, module « devis » actif ;
@@ -16,9 +16,10 @@ import { cheminDeUrl } from './espace.js';
 import { Refus } from './appels.js';
 import { MOTIF_IDENTIFIANT_CLIENT } from './etiquettes.js';
 import { controlerAppelant, MODULE_DEVIS } from './devis.js';
+import { adresseSite } from '../serveur/src/securite/maison.js';
 
-/** Adresse de l'application de la plateforme ; les routes d'un client y sont sous `#/espace/<client>/…` (js/os/router.js). */
-export const BASE_LIEN_PLATEFORME = 'https://chevalier-ia-app.web.app';
+/** Adresse de l'application de la plateforme (https://<projet>.web.app, calculée à l'appel) ; les routes d'un client y sont sous `#/espace/<client>/…` (js/os/router.js). */
+export const baseLienPlateforme = () => adresseSite();
 export const MESSAGE_PDF_NON_CONFIGURE = 'PDF non configuré : l\'espace de stockage des PDF est introuvable.';
 const espaceDe = (client) => `clients/${client}/`;
 const routeDe = (client) => `espace/${client}`;
@@ -71,7 +72,7 @@ export async function fabriquerPdfClient({ db, auth, donnees, convertir, stockag
   try {
     const ctx = { acteur: email, via: 'ecran', maintenant: new Date(maintenant()) };
     const r = await fabriquerPdfDevis({
-      donnees: accesDe({ db, creerDonnees }, client), espace: espaceDe(client), baseLien: BASE_LIEN_PLATEFORME, prefixeRoute: routeDe(client),
+      donnees: accesDe({ db, creerDonnees }, client), espace: espaceDe(client), baseLien: baseLienPlateforme(), prefixeRoute: routeDe(client),
       devisId: demande.devisId, brouillon: demande.brouillon, explicite: true, ctx, convertir, stockage: rangement,
       lireLogo: creerLireLogoEspace({ db, client, nomBucket, stockage: rangement }), ...(delaiLogoMs ? { delaiLogoMs } : {}),
     });
@@ -153,7 +154,7 @@ export function creerDeclencheurPdfClient({ db, convertir, stockage, nomBucket =
         return { suite: 'ignore' };
       }
       return await creerDeclencheurPdf({
-        donnees: () => accesDe({ db, creerDonnees }, client), espace: espaceDe(client), baseLien: BASE_LIEN_PLATEFORME, prefixeRoute: routeDe(client),
+        donnees: () => accesDe({ db, creerDonnees }, client), espace: espaceDe(client), baseLien: baseLienPlateforme(), prefixeRoute: routeDe(client),
         convertir, stockage, journal, maintenant, lireLogo: creerLireLogoEspace({ db, client, nomBucket, stockage }),
       })(evenement);
     } catch (e) {

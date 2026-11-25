@@ -12,13 +12,12 @@ import { ESPACE_JEROME } from '../coeur/n8n-sortie.js';
 import { lireConfig } from '../coeur/config.js';
 import { OUTILS } from '../mcp/outils/index.js';
 import { descriptionAppel, creerSuiviDemarrage, refuser, servirMcp } from '../mcp/gestionnaire.js';
-import { EMETTEUR_PLATEFORME, FORMAT_CLIENT, ORIGINES_PLATEFORME, adressesClient } from './config.js';
+import { emetteurPlateforme, FORMAT_CLIENT, originesPlateforme, adressesClient } from './config.js';
 import { MODULES_DECLARES, OUTILS_COMMUNS, outilsMcpActifs } from '../../partage/registre.js';
 import { cheminBaseClient } from '../../partage/chemins.js';
 
 /** Nom de serveur neutre : le client ne voit pas le nom interne du CRM de Jérôme. */
 export const NOM_SERVEUR_CLIENT = 'espace-client';
-const BASE_LIEN_PLATEFORME = EMETTEUR_PLATEFORME; // même domaine pour tous les clients
 const MOTIF_LIEN = /^\/mcp\/([^/]+)$/;
 
 /** Outils proposés à un client : les outils communs et ceux des modules actifs (le profil du membre filtre ensuite). */
@@ -51,7 +50,7 @@ export function creerGestionnaireClients({ donnees, oauth, magasinJetons = null,
     res.on('finish', () => journal({ ...infos, dureeMs: maintenant() - debut, statut: res.statusCode }));
 
     const origine = req.headers.origin;
-    if (origine !== undefined && !ORIGINES_PLATEFORME.includes(origine)) { infos.code = 'origine'; return refuser(res, 403, 'origine_refusee'); }
+    if (origine !== undefined && !originesPlateforme().includes(origine)) { infos.code = 'origine'; return refuser(res, 403, 'origine_refusee'); }
     if (await oauth.traiter(req, res, infos)) return;
     const { pathname } = new URL(req.url || '/', 'http://local');
     const lien = MOTIF_LIEN.exec(pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname);
@@ -98,6 +97,6 @@ export function creerGestionnaireClients({ donnees, oauth, magasinJetons = null,
     const proposes = outilsSelonOptions(outilsDesModules(jeton.actifs ?? [], outils), options);
     Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil, role: jeton.role }, descriptionAppel(req.body, proposes));
     infos.dureeAuthMs = maintenant() - debut;
-    return servirMcp({ req, res, infos, jeton, outils: proposes, donnees: donneesClient, limiteur, maintenant, nomServeur: NOM_SERVEUR_CLIENT, stockage, sortieEmail, baseLien: BASE_LIEN_PLATEFORME });
+    return servirMcp({ req, res, infos, jeton, outils: proposes, donnees: donneesClient, limiteur, maintenant, nomServeur: NOM_SERVEUR_CLIENT, stockage, sortieEmail, baseLien: emetteurPlateforme() }); // même domaine pour tous les clients
   };
 }

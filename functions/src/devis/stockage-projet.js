@@ -3,11 +3,12 @@
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import { creerStockage } from './stockage.js';
+import { reserveParDefaut } from '../securite/maison.js';
 
 /** Le bucket par défaut du projet (ou celui de `<projet>.firebasestorage.app`). Lève si le stockage est introuvable. */
 export function bucketDuProjet() {
   if (!getApps().length) initializeApp();
-  try { return getStorage().bucket(); } catch { return getStorage().bucket(`${process.env.GCLOUD_PROJECT}.firebasestorage.app`); }
+  try { return getStorage().bucket(); } catch { return getStorage().bucket(reserveParDefaut()); }
 }
 
 export function stockageDuProjet() {
