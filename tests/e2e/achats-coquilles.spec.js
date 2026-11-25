@@ -1,7 +1,7 @@
 // Modules Achats, étape « coquilles » (24/11/2026, PR 4) : un test par critère (le nom commence par son numéro).
 //  A1 le bloc « Achats » du menu (cinq entrées, un seul bloc) existe pour Jérôme seul ; A2 « Connexion à la base non réglée » (cas vide) avec le lien vers le réglage ;
 //  A3 « Accès prêt (badge à jour) » (faux réseau et badge simulés, émulateurs seulement : aucun appel réseau réel) ; A4 « Reconnecte-toi » (badge sans la mention d'accès) ;
-//  A5 cas d'erreur : réglages illisibles + « Réessayer » ; A6 chaque module affiche son titre ; A7 pas de défilement horizontal ; A8 Réglages > « Achats ».
+//  A5 cas d'erreur : réglages illisibles + « Réessayer » ; A6 chaque module affiche son titre ; A7 pas de défilement horizontal ; A8 Réglages > « Achats » (section Sauvegarde des chantiers).
 // Captures dans tests/e2e/captures/achats-coquilles/ (non commitées), une par état, nommée avec le projet : ordinateur ou telephone.
 // Adresses : construites dans le test (aucune adresse d'exemple n'est écrite dans le code de l'appli).
 import { fileURLToPath } from 'node:url';
@@ -21,6 +21,9 @@ const MODULES = [
   { id: 'achatsfactures', route: 'achatsfactures/liste', titre: 'Factures' },
   { id: 'tableauachats', route: 'tableauachats/tableau', titre: 'Tableau de bord 2' },
 ];
+// Un module devenu un vrai écran (Fournisseurs PR 5, Chantiers PR 6, …) n'affiche plus le bandeau d'accès quand l'accès est prêt (voir son propre fichier de tests) : les coquilles sont repérées PAR NOM, jamais par position.
+const ECRANS_REELS = ['achatsfournisseurs', 'achatschantiers'];
+const COQUILLES = MODULES.filter((m) => !ECRANS_REELS.includes(m.id));
 const etat = (page) => page.locator('[data-role="achats-etat"]');
 
 // Badge simulé (crochet d'émulateurs, voir js/os/acces-base.js) : portant, ou non, la mention d'accès. Aucun appel réseau réel.
@@ -62,14 +65,14 @@ test('A2 cas vide : connexion non réglée : le texte exact et le lien vers Rég
   await expect(page).toHaveURL(/#\/reglages\/base$/);
 });
 
-test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'accès pour le bon espace : « Accès prêt (badge à jour) » sur les quatre écrans encore en coquille (Fournisseurs affiche déjà sa liste, voir achatsfournisseurs.spec.js)', async ({ page }, info) => {
+test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'accès pour le bon espace : « Accès prêt (badge à jour) » sur les écrans encore en coquille (Fournisseurs et Chantiers affichent déjà leur liste, voir leurs propres fichiers de tests)', async ({ page }, info) => {
   await ecrireDocument('base_parametres/connexion', FICHE());
   await simulerBadge(page);
-  await connecter(page, undefined, { route: MODULES[1].route });
+  await connecter(page, undefined, { route: COQUILLES[0].route });
   await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
   await expect(page.locator('[data-role="achats-etat-texte"]')).toHaveText('Accès prêt (badge à jour)');
   await capturer(page, info, 'A3-connecte');
-  for (const m of MODULES.slice(2)) {
+  for (const m of COQUILLES.filter((x) => x.id !== COQUILLES[0].id)) {
     await page.evaluate((r) => { location.hash = `#/${r}`; }, m.route);
     await expect(page.getByRole('heading', { name: m.titre, level: 1 })).toBeVisible();
     await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
@@ -114,11 +117,12 @@ test('A6 une adresse inconnue d\'un module renvoie vers son écran', async ({ pa
   await expect(page.getByRole('heading', { name: 'Chantiers', level: 1 })).toBeVisible();
 });
 
-test('A8 Réglages : l\'élément « Achats » réunit les sections des modules du groupe (Fournisseurs : sauvegarde)', async ({ page }, info) => {
+test('A8 Réglages : l\'élément « Achats » réunit les sections des modules du groupe (Fournisseurs et Chantiers : sauvegarde)', async ({ page }, info) => {
   await connecter(page, undefined, { route: 'reglages' });
   await attendreCalme(page);
   await ouvrirSectionReglages(page, 'Achats');
   await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
   await expect(page.locator('#reglages-export-achatsfournisseurs')).toBeVisible();
+  await expect(page.locator('#reglages-export-achatschantiers')).toBeVisible();
   await capturer(page, info, 'A8-reglages');
 });
