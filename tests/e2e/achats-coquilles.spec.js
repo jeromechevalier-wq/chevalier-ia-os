@@ -1,7 +1,7 @@
 // Modules Achats, étape « coquilles » (24/11/2026, PR 4) : un test par critère (le nom commence par son numéro).
 //  A1 le bloc « Achats » du menu (cinq entrées, un seul bloc) existe pour Jérôme seul ; A2 « Connexion à la base non réglée » (cas vide) avec le lien vers le réglage ;
 //  A3 « Accès prêt (badge à jour) » (faux réseau et badge simulés, émulateurs seulement : aucun appel réseau réel) ; A4 « Reconnecte-toi » (badge sans la mention d'accès) ;
-//  A5 cas d'erreur : réglages illisibles + « Réessayer » ; A6 chaque module affiche son titre ; A7 pas de défilement horizontal ; A8 Réglages > « Achats ».
+//  A5 cas d'erreur : réglages illisibles + « Réessayer » ; A6 chaque module affiche son titre ; A7 pas de défilement horizontal ; A8 Réglages > « Achats » (section Sauvegarde des chantiers).
 // Captures dans tests/e2e/captures/achats-coquilles/ (non commitées), une par état, nommée avec le projet : ordinateur ou telephone.
 // Adresses : construites dans le test (aucune adresse d'exemple n'est écrite dans le code de l'appli).
 import { fileURLToPath } from 'node:url';
@@ -21,6 +21,9 @@ const MODULES = [
   { id: 'achatsfactures', route: 'achatsfactures/liste', titre: 'Factures' },
   { id: 'tableauachats', route: 'tableauachats/tableau', titre: 'Tableau de bord 2' },
 ];
+// Un module devenu un vrai écran (Fournisseurs PR 5, Chantiers PR 6, …) n'affiche plus le bandeau d'accès quand l'accès est prêt (voir son propre fichier de tests) : les coquilles sont repérées PAR NOM, jamais par position.
+const ECRANS_REELS = ['achatsfournisseurs', 'achatschantiers', 'achatsarticles'];
+const COQUILLES = MODULES.filter((m) => !ECRANS_REELS.includes(m.id));
 const etat = (page) => page.locator('[data-role="achats-etat"]');
 
 // Badge simulé (crochet d'émulateurs, voir js/os/acces-base.js) : portant, ou non, la mention d'accès. Aucun appel réseau réel.
@@ -62,20 +65,17 @@ test('A2 cas vide : connexion non réglée : le texte exact et le lien vers Rég
   await expect(page).toHaveURL(/#\/reglages\/base$/);
 });
 
-test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'accès pour le bon espace : « Accès prêt (badge à jour) » sur les cinq écrans', async ({ page }, info) => {
+test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'accès pour le bon espace : « Accès prêt (badge à jour) » sur les écrans encore en coquille (Fournisseurs et Chantiers affichent déjà leur liste, voir leurs propres fichiers de tests)', async ({ page }, info) => {
   await ecrireDocument('base_parametres/connexion', FICHE());
   await simulerBadge(page);
-  await connecter(page, undefined, { route: MODULES[0].route });
+  await connecter(page, undefined, { route: COQUILLES[0].route });
   await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
   await expect(page.locator('[data-role="achats-etat-texte"]')).toHaveText('Accès prêt (badge à jour)');
   await capturer(page, info, 'A3-connecte');
-  const SANS_COQUILLE = ['achatsarticles']; // modules qui ont leur vrai écran (plus la carte d'état seule)
-  for (const m of MODULES.slice(1)) {
+  for (const m of COQUILLES.filter((x) => x.id !== COQUILLES[0].id)) {
     await page.evaluate((r) => { location.hash = `#/${r}`; }, m.route);
     await expect(page.getByRole('heading', { name: m.titre, level: 1 })).toBeVisible();
-    // Articles a son vrai écran : quand l'accès est prêt, il charge sa liste au lieu de la carte d'état.
-    if (SANS_COQUILLE.includes(m.id)) await expect(page.locator('[data-etat="erreur"], [data-etat="vide"], [data-article]').first()).toBeVisible();
-    else await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
+    await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
   }
   expect(await sansDefilementHorizontal(page)).toBe(true);
 });
@@ -83,7 +83,7 @@ test('A3 accès prêt : réglages enregistrés et badge portant la mention d\'ac
 test('A4 « Reconnecte-toi » : le badge n\'a pas la mention d\'accès (ou celle d\'un autre espace) ; le bouton « Revérifier » relit l\'accès', async ({ page }, info) => {
   await ecrireDocument('base_parametres/connexion', FICHE());
   await simulerBadge(page, { role: 'authenticated', espace_base: 'autre-espace' });
-  await connecter(page, undefined, { route: MODULES.find((m) => m.id === 'achatsarticles').route });
+  await connecter(page, undefined, { route: COQUILLES[0].route });
   await expect(etat(page)).toHaveAttribute('data-etat', 'reconnexion');
   await expect(page.locator('[data-role="achats-etat-texte"]')).toContainText('Reconnecte-toi');
   await expect(etat(page)).toHaveAttribute('role', 'alert');
@@ -92,7 +92,7 @@ test('A4 « Reconnecte-toi » : le badge n\'a pas la mention d\'accès (ou celle
   // Le badge reçoit la mention (simulé) : « Revérifier » le voit, sans recharger la page.
   await page.evaluate(() => { window.__accesBase.claims = { role: 'authenticated', espace_base: 'espace-essai' }; });
   await page.locator('[data-action="reessayer"]').click();
-  await expect(page.locator('[data-etat="erreur"], [data-etat="vide"], [data-article]').first()).toBeVisible(); // Articles a son vrai écran : la carte disparaît et la liste se charge
+  await expect(etat(page)).toHaveAttribute('data-etat', 'connecte');
 });
 
 test('A5 cas d\'erreur : la lecture des réglages échoue : message clair et « Réessayer » qui relance', async ({ page, context }, info) => {
@@ -117,18 +117,13 @@ test('A6 une adresse inconnue d\'un module renvoie vers son écran', async ({ pa
   await expect(page.getByRole('heading', { name: 'Chantiers', level: 1 })).toBeVisible();
 });
 
-test('A8 Réglages : un élément « Achats » sans réglage propre : le résumé et un lien vers le premier écran', async ({ page }, info) => {
+test('A8 Réglages : l\'élément « Achats » réunit les sections des modules du groupe (Fournisseurs et Chantiers : sauvegarde)', async ({ page }, info) => {
   await connecter(page, undefined, { route: 'reglages' });
   await attendreCalme(page);
   await ouvrirSectionReglages(page, 'Achats');
-  // Seules des sections « Sauvegarde » (export des données) peuvent s'y trouver : sans aucune, le résumé et le lien ; avec, au moins une section d'export et jamais d'autre réglage.
-  await expect(page.locator('[data-role="aucun-reglage"], [data-action="exporter-achatsarticles"]').first()).toBeVisible();
-  const sauvegardes = await page.locator('[data-action="exporter-achatsarticles"]').count();
-  if (sauvegardes === 0) {
-    await expect(page.locator('[data-role="aucun-reglage"]')).toContainText('Réglages > Connexion à la base');
-    await expect(page.getByRole('link', { name: 'Ouvrir Achats' })).toHaveAttribute('href', /#\/achatsfournisseurs\/liste$/);
-  } else {
-    await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
-  }
+  await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
+  await expect(page.locator('#reglages-export-achatsfournisseurs')).toBeVisible();
+  await expect(page.locator('#reglages-export-achatschantiers')).toBeVisible();
+  await expect(page.locator('#reglages-export-achatsarticles')).toBeVisible();
   await capturer(page, info, 'A8-reglages');
 });
