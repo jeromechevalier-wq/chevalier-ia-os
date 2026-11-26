@@ -160,3 +160,9 @@
 .rdv-bilan-ligne.vert svg { color: var(--succes); }
 .rdv-bilan-ligne.rouge svg { color: var(--retard); }
 .rdv-bilan-ligne.gris svg { color: var(--texte2); }
+
+/* Mise en route de l'envoi des SMS : étapes dépliables */
+.rdv-mise-etape { border: 1px solid var(--bordure); border-radius: var(--rayon); background: var(--panneau2); padding: var(--esp-3) var(--esp-4); }
+.rdv-mise-etape summary { cursor: pointer; display: flex; align-items: center; gap: var(--esp-3); font-weight: var(--poids-moyen); }
+.rdv-mise-etape.vert summary svg { color: var(--succes, currentColor); }
+.rdv-mise-corps a { overflow-wrap: anywhere; }

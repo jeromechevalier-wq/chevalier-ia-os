@@ -210,6 +210,7 @@ export const MODULES_DECLARES = geler([
     prefixe: 'rdv',
     reglages: { sections: [
       { id: 'reglages-rdv-bilan', libelle: 'Prêt à passer en vrai ?' },
+      { id: 'reglages-rdv-mise-en-route', libelle: 'Mise en route de l’envoi des SMS' },
       { id: 'reglages-rdv-relances', libelle: 'Relances' },
       { id: 'reglages-rdv-rappel', libelle: 'Rappel la veille' },
       { id: 'reglages-rdv-plage', libelle: 'Plage d’envoi' },
