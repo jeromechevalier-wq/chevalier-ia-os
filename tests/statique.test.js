@@ -85,7 +85,7 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
   test('D1 versions identiques dans version.json et js/os/version.js (2.55.0)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.54.0');
+    assert.equal(v, '2.55.0');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
