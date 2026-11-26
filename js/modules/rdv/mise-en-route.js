@@ -3,11 +3,6 @@
 // qui peut régler la connexion, les autres lisent « réglée par l'administrateur de la plateforme ». Aucun nom de projet ni de compte de service n'est écrit ici (dépôt public).
 import { h, icone } from '../../os/ui.js';
 
-export const LIEN_CLICKSEND = 'https://dashboard.clicksend.com';
-export const LIEN_REGLES_ENTRANTES = 'https://dashboard.clicksend.com/messaging-settings/sms/inbound-sms';
-export const LIEN_SECRETS_GOOGLE = 'https://console.cloud.google.com/security/secret-manager';
-
-const lien = (adresse, texte) => h('a', { href: adresse, target: '_blank', rel: 'noopener noreferrer' }, texte);
 
 /**
  * Une étape : titre avec un voyant (`etat` : 'vert' fait, 'gris' à faire ou inconnu), corps dépliable.
@@ -36,7 +31,7 @@ export function miseEnRoute({ peutConfigurer = null, branche = null, numeroTest 
     h('p', { class: 'aide' }, 'Quatre étapes, dans l’ordre. Chaque étape se déplie. Le voyant vert veut dire « fait ».'),
     etape(1, 'le compte ClickSend', fait2 ? 'vert' : 'gris', premiere === 1,
       h('ol', { class: 'rdv-aide-etapes' },
-        h('li', {}, 'Ouvre le compte ClickSend de l’entreprise (', lien(LIEN_CLICKSEND, LIEN_CLICKSEND), '). C’est avec lui que partent les SMS.'),
+        h('li', {}, 'Ouvre le compte ClickSend de l’entreprise (dashboard.clicksend.com). C’est avec lui que partent les SMS.'),
         h('li', {}, 'Regarde le crédit : « Balance » en haut de la page. Un compte neuf a peu de crédit d’essai ; recharge-le si besoin.'),
         h('li', {}, 'Note le « Username » (le nom d’utilisateur de l’API, souvent l’adresse e-mail du compte) et repère la clé d’API : menu « Developers » puis « API Credentials », ou « Account settings » puis « Subaccounts », colonne « API key » (bouton œil).'),
         h('li', {}, 'Copie la clé avec son bouton de copie. Le mot de passe du compte ne sert à rien ici : ne le saisis nulle part dans l’application.'),
@@ -45,14 +40,14 @@ export function miseEnRoute({ peutConfigurer = null, branche = null, numeroTest 
       peutConfigurer === false
         ? h('p', { class: 'aide' }, 'La connexion au service d’envoi est réglée par l’administrateur de la plateforme.')
         : h('ol', { class: 'rdv-aide-etapes' },
-          h('li', {}, 'Une seule fois par espace, dans la console Google (', lien(LIEN_SECRETS_GOOGLE, 'Secret Manager'), ') : vérifie le nom du projet en haut de la page, puis « Créer un secret ». Nom : « CLICKSEND_RDV » (pour l’espace d’un client : « CLICKSEND_RDV_ » suivi de l’identifiant de l’espace). Valeur : « a » (provisoire, elle sera remplacée).'),
+          h('li', {}, 'Une seule fois par espace, dans la console Google (', 'Secret Manager', ') : vérifie le nom du projet en haut de la page, puis « Créer un secret ». Nom : « CLICKSEND_RDV » (pour l’espace d’un client : « CLICKSEND_RDV_ » suivi de l’identifiant de l’espace). Valeur : « a » (provisoire, elle sera remplacée).'),
           h('li', {}, 'Ouvre ce secret, onglet « Autorisations », « Accorder l’accès » : choisis le compte « Compute Engine par défaut » du projet (adresse qui se termine par « -compute@developer.gserviceaccount.com ») avec deux rôles seulement : « Accesseur de secrets » et « Ajouteur de versions de secret ». Jamais « Administrateur », ni au niveau du projet. Enregistre.'),
           h('li', {}, 'Reviens à la carte « Connexion SMS (ClickSend) » plus bas : écris l’identifiant, colle la clé, puis « Enregistrer la connexion ». La clé est vérifiée auprès de ClickSend avant d’être rangée ; une mauvaise clé n’est jamais enregistrée.'),
           h('li', {}, 'Si l’écran répond « Le serveur n’a pas le droit… », un des deux premiers gestes manque : rien n’a été modifié, recolle la clé et réessaie. Le bouton « Envoyer » met jusqu’à une minute à s’activer.'))),
     etape(3, 'les réponses et les STOP', 'gris', false,
       h('ol', { class: 'rdv-aide-etapes' },
         h('li', {}, 'Dans la carte « Connexion SMS (ClickSend) », clique sur « Afficher l’adresse des réponses ». Cette adresse est un secret de fait : son code est sa seule protection. Ne la colle que dans ClickSend.'),
-        h('li', {}, 'Ouvre ', lien(LIEN_REGLES_ENTRANTES, LIEN_REGLES_ENTRANTES), ' (menu « SMS », puis « Inbound Rules »).'),
+        h('li', {}, 'Ouvre ', 'dashboard.clicksend.com', ' (menu « SMS », puis « Inbound Rules »).'),
         h('li', {}, 'Désactive les deux règles que ClickSend crée d’office pour le mot « stop » : « Send to messenger » et « Opt-out contact ». Ouvre chacune et décoche « Enabled ». Sinon le STOP reste chez ClickSend et n’arrive jamais ici.'),
         h('li', {}, 'Crée une règle (ou transforme la « Default rule ») : « Dedicated number » = ANY, « Action » = URL, méthode POST, « Action address » = l’adresse des réponses, « Match for » vide, « Enabled » coché. Enregistre.'))),
     etape(4, 'le premier test', fait4 ? 'vert' : 'gris', premiere === 4,
