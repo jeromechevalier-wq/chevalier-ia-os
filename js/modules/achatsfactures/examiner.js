@@ -30,8 +30,14 @@ const TEXTE_ETAT = { ok: 'Tout va bien', alerte: 'À vérifier', anomalie: 'Anom
 const messageDe = (e) => (e instanceof Error && e.message ? e.message : MESSAGE_PAR_DEFAUT);
 const nombre = (n) => (typeof n === 'number' && Number.isFinite(n) ? n.toLocaleString('fr-FR', { maximumFractionDigits: 3 }) : '—');
 
-/** Monte la page dans `conteneur` pour la facture `factureId`. Renvoie la fonction d'arrêt. */
-export function rendreExaminer(conteneur, factureId) {
+/**
+ * Monte la page dans `conteneur` pour la facture `factureId`. Renvoie la fonction d'arrêt.
+ * `options` (vue « Valider à la suite », pile.js) : `actionsTete` = éléments ajoutés à droite de l'en-tête (compteur, « Passer ») ;
+ * `surDecision()` = appelée après une acceptation ou un refus RÉUSSI, à la place de la relecture de la page (la pile montre alors la facture suivante).
+ * Un échec garde la page telle quelle, avec son message, comme sans `options`.
+ */
+export function rendreExaminer(conteneur, factureId, options = {}) {
+  const { actionsTete = [], surDecision = null } = options;
   let vivant = true;
   let etatAcces = 'chargement'; // chargement | connecte | non-regle | reconnexion | illisible
   let lecture = 'chargement'; // chargement | ok | introuvable | erreur
@@ -270,6 +276,15 @@ export function rendreExaminer(conteneur, factureId) {
   }
 
   // ------------------------------------------------------------ actions (écritures par la couche des actions ; la page est relue après)
+  /** Acceptation ou refus réussi : dans la pile, on passe à la facture suivante (aucune relecture) ; sinon la page est relue. */
+  async function decisionFaite(message) {
+    if (!surDecision) { await apresEcriture(message); return; }
+    occupe = false; erreurDecision = '';
+    if (!vivant) return;
+    toast(message, { duree: DUREE_MESSAGE });
+    surDecision();
+  }
+
   async function apresEcriture(message) {
     occupe = false; erreurDecision = '';
     await charger(true);
@@ -297,7 +312,7 @@ export function rendreExaminer(conteneur, factureId) {
     occupe = true; erreurDecision = ''; majDecision();
     try { await actionsBase().validerFacture(corps); } catch (e) { await refusServeur(e); return; }
     motifAccept = ''; choixChantier = null; choixAgence = null; agenceDevinee = false;
-    await apresEcriture('Facture acceptée');
+    await decisionFaite('Facture acceptée');
   }
 
   async function refuser(motifInitial) {
@@ -310,7 +325,8 @@ export function rendreExaminer(conteneur, factureId) {
       },
     });
     if (!vivant || !r?.ok) return;
-    await finEcriture(r, 'Facture refusée');
+    if (r.resultat?.perime) { await finEcriture(r, ''); return; }
+    await decisionFaite('Facture refusée');
   }
 
   async function rouvrir() {
@@ -394,7 +410,7 @@ export function rendreExaminer(conteneur, factureId) {
   function rendre() {
     if (!vivant) return;
     const titre = d ? nomFournisseur(d.f) : 'Facture';
-    const tete = enteteListe({ titre: h('h1', {}, titre), retour,
+    const tete = enteteListe({ titre: h('h1', {}, titre), retour, actions: actionsTete,
       compteur: d ? h('span', { class: 'compteur-liste' }, h('span', { class: `badge ${CLASSE_STATUT[d.f.statut] ?? ''}`, dataset: { role: 'statut' } }, LIBELLE_STATUT[d.f.statut] ?? d.f.statut), d.f.numero ? ` N° ${d.f.numero}` : '') : null });
     if (etatAcces === 'chargement' || (etatAcces === 'connecte' && lecture === 'chargement')) { remplir(racine, tete, chargementListe()); return; }
     if (etatAcces !== 'connecte') { const z = h('div', {}); dessinerEtatAcces(z, etatAcces, (forcer) => verifier(forcer)); remplir(racine, tete, z); return; }
