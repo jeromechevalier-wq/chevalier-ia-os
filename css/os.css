@@ -696,3 +696,16 @@ body.page-espace { background: #241b2e; color: #fff; }
 .onglet:hover { color: var(--texte); }
 .onglet[aria-current='page'] { color: var(--texte); border-bottom-color: var(--accent); }
 .onglet:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Accueil « village » d'une maison (26/11/2026, js/os/village-ecran.js) : le dessin seul, qui remplit la zone sous la barre (prairie jusqu'aux bords, aucun grand vide). */
+.page-village { display: flex; flex-direction: column; flex: 1; }
+.village-cadre { flex: 1; display: flex; min-height: 0; }
+.village-scene { display: block; width: 100%; height: 100vh; height: 100dvh; min-height: 320px; background: #A9C46E; }
+.village-batiment { cursor: pointer; outline: none; }
+.village-batiment .village-lever { transition: transform .28s cubic-bezier(.3, 1.4, .5, 1); transform-box: fill-box; transform-origin: 50% 100%; }
+.village-batiment .village-halo { opacity: 0; transition: opacity .25s; }
+.village-batiment:hover .village-lever, .village-batiment:focus-visible .village-lever { transform: translateY(-6px) scale(1.04); }
+.village-batiment:hover .village-halo, .village-batiment:focus-visible .village-halo { opacity: 1; }
+.village-batiment:focus-visible .village-etiquette rect { stroke: var(--accent); stroke-width: 3; stroke-opacity: 1; }
+@media (max-width: 767px) { .village-scene { height: calc(100vh - 56px); height: calc(100dvh - 56px); } }
+@media (prefers-reduced-motion: reduce) { .village-batiment .village-lever, .village-batiment .village-halo { transition: none; } }
