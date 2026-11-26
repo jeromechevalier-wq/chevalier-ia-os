@@ -14,6 +14,7 @@ import {
 import { db } from '../../os/firebase.js';
 import { normaliserBase, cheminCollection } from '../../os/chemins.js';
 import { configurerCelebrations } from '../../os/celebrations.js';
+import { configurationNeutre, personnesMaison } from '../../os/comptes-maison.js';
 import * as L from './logique.js';
 import { avecModeTest } from '../../os/mode-test.js';
 import { executer, lireJournal, lireCopieJournal } from '../../os/journal-donnees.js';
@@ -57,6 +58,19 @@ let equipe = null;
 let nomEspace = '';
 /** Vrai à la racine : le CRM de Jérôme (ses valeurs historiques). Un espace client démarre sur un jeu neutre. */
 const estRacine = () => cheminBase === '';
+/**
+ * Vrai si l'écran prend la configuration de Jérôme (ses étapes, phases, réglages, Jérôme et Charles comme membres, image de Charles) : à la racine,
+ * SAUF si la maison demande la configuration neutre (reglages_maison/ecran.configuration_crm === 'neutre', maison d'un client). Sans ce champ : comme avant.
+ */
+const configJerome = () => estRacine() && !configurationNeutre();
+/** Le même choix pour les autres modules qui écrivent des valeurs de départ (ex. modèles de projet) : vrai = valeurs de Jérôme. */
+export const configHistorique = () => configJerome();
+/** Membres à qui une tâche peut être confiée : chez un client de la plateforme, son équipe ; dans une maison neutre, les personnes de reglages_maison/ecran ; sinon Jérôme et Charles. */
+const membresEspace = () => {
+  if (!estRacine()) return membresDeEquipe(equipe);
+  if (configurationNeutre()) return personnesMaison().map((p) => ({ id: p.email, libelle: p.nom, email: p.email }));
+  return L.MEMBRES_JEROME;
+};
 /** Chemin complet d'une collection du module (préfixe de base compris). */
 export const chemin = (nom) => cheminCollection(cheminBase, nom);
 let desabonnements = [];
@@ -215,9 +229,9 @@ function ecouterParametres() {
     etat.filtres = docs.filtres?.version === 2 ? tri(docs.filtres.items) : [];
     etat.modelesAffaire = tri(docs.modeles_affaire?.items);
     etat.reglages = { ...reglagesDepart(), ...(docs.reglages || {}) };
-    etat.config = L.construireConfig({ ...docs, reglages: etat.reglages }, { racine: estRacine(), membres: estRacine() ? L.MEMBRES_JEROME : membresDeEquipe(equipe) });
-    // Chez un client : jamais l'image de Charles (réservée à Jérôme) ; le logo de l'espace sert d'image tant que la case n'est pas décochée (2.8.0).
-    const imageCharles = !estRacine() && etat.reglages.imageCelebration === L.IMAGE_CELEBRATION_JEROME;
+    etat.config = L.construireConfig({ ...docs, reglages: etat.reglages }, { racine: configJerome(), membres: membresEspace() });
+    // Chez un client (plateforme ou maison neutre) : jamais l'image de Charles (réservée à Jérôme) ; le logo de l'espace sert d'image tant que la case n'est pas décochée (2.8.0).
+    const imageCharles = !configJerome() && etat.reglages.imageCelebration === L.IMAGE_CELEBRATION_JEROME;
     configurerCelebrations({
       actif: etat.config.options.celebrations, prenom: etat.reglages.prenomCelebration,
       image: imageCharles ? '' : etat.reglages.imageCelebration, logo: !estRacine() && etat.reglages.logoCelebration !== false,
@@ -272,10 +286,10 @@ export function arreter() {
  * Réglages de départ : à la racine, ceux de Jérôme ; chez un client, un jeu neutre (pas de compte GitHub ni de dossier, options éteintes,
  * début d'activité = ce mois-ci).
  */
-const reglagesDepart = () => (estRacine() ? L.REGLAGES_JEROME : { ...L.REGLAGES_NEUTRES, debutActivite: L.moisCourant() });
+const reglagesDepart = () => (configJerome() ? L.REGLAGES_JEROME : { ...L.REGLAGES_NEUTRES, debutActivite: L.moisCourant() });
 
 /** Valeurs de départ de tous les documents de paramètres de cet espace. */
-const parametresDepart = () => L.parametresDepart({ racine: estRacine(), moisCourant: L.moisCourant() });
+const parametresDepart = () => L.parametresDepart({ racine: configJerome(), moisCourant: L.moisCourant() });
 
 /**
  * Premier lancement : crée les documents de paramètres manquants (ou périmés) avec les valeurs de départ de l'espace (Jérôme à la racine, jeu neutre

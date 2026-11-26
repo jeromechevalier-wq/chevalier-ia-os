@@ -91,7 +91,8 @@ async function initialiserModeles() {
     if ((await getDoc(doc(db, chemin('crm_parametres'), 'modeles_projet'))).exists()) return;
     const email = CRM.compteCourant()?.email || '';
     const lot = writeBatch(db);
-    for (const e of P.planInitialiserModeles({ racine: CRM.cheminDeBase() === '' }).ecritures) {
+    // Maison neutre (reglages_maison/ecran.configuration_crm === 'neutre') : modèles neutres, jamais ceux de la racine.
+    for (const e of P.planInitialiserModeles({ racine: CRM.configHistorique() }).ecritures) {
       lot.set(doc(db, chemin(e.collection), e.id), { ...e.donnees, creeLe: serverTimestamp(), modifieLe: serverTimestamp(), creePar: email, modifiePar: email });
     }
     lot.set(doc(db, chemin('crm_parametres'), 'modeles_projet'), { depart: true });

@@ -2,7 +2,7 @@
 import { demarrerPwa } from './os/pwa.js';
 import { appliquerTheme, afficherConnexion, monterCoquille, ESPACE_RACINE } from './os/shell.js';
 import { surveillerCompte, connecter, deconnecter, preparerCrm, MESSAGE_REFUS } from './os/auth.js';
-import { MESSAGE_PUBLIC_ABSENT, MESSAGE_PANNE_REGLAGES } from './os/comptes-maison.js';
+import { MESSAGE_PUBLIC_ABSENT, MESSAGE_PANNE_REGLAGES, configurationNeutre } from './os/comptes-maison.js';
 import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace } from './os/marque.js';
 import { blocIntrouvablePortail } from './os/portail-introuvable.js';
@@ -15,6 +15,7 @@ import { monterReglages } from './os/reglages.js';
 import { rendreJournal } from './os/journal.js';
 import { demarrerJournal, arreterJournal } from './os/journal-donnees.js';
 import { demarrer as demarrerSocle, arreter as arreterSocle } from './modules/crm/donnees.js';
+import { objectifsDepart as objectifsNeutres, CONFIG_NEUTRE } from './modules/crm/logique.js';
 import { h, lirePreference, vider, remplir, toast } from './os/ui.js';
 
 appliquerTheme(lirePreference('theme', 'sombre'));
@@ -96,7 +97,8 @@ async function ouvrirSession(compte) {
     const api = await m.monter();
     apis.set(m.id, api);
   }
-  const objectifsDepart = [...apis.values()].flatMap((api) => api.objectifsDepart || []);
+  // Maison d'un client (reglages_maison/ecran.configuration_crm === 'neutre') : les objectifs neutres d'un nouvel espace, jamais ceux de Jérôme (« Flyers »…).
+  const objectifsDepart = configurationNeutre() ? objectifsNeutres(CONFIG_NEUTRE) : [...apis.values()].flatMap((api) => api.objectifsDepart || []);
   demarrerObjectifs(compte, objectifsDepart);
   demarrerJournal(compte, ''); // le journal commun démarre avant le socle et les modules : tout ce qui écrit passe par lui
   demarrerSocle(compte, '', { noyau: true }); // socle commun, racine ; le module Affaires démarre par-dessus en complet (cinq écouteurs, aucun doublon)
