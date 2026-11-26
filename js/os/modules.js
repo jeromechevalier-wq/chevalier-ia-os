@@ -33,7 +33,7 @@ const versModule = (d) => ({
   libelle: d.libelleMenu,
   icone: d.iconeMenu,
   entrees: d.ecrans.map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone })), // sous entrées du menu (et routes principales)
-  ...(d.seulJerome ? { seulJerome: true } : {}), // module réservé à Jérôme (Console, modules Achats) : js/main.js ne le monte que pour son compte
+  ...(d.seulJerome ? { seulJerome: true } : {}), // module réservé à Jérôme (Console, modules Achats) : js/main.js ne le monte que pour son compte (sauf réglage `modules` d'une maison : js/os/maison-modules.js)
   prefixe: d.prefixe, // préfixe des routes gérées par le module (#/crm/...)
   monter: MONTAGES[d.id],
 });

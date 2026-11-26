@@ -2,8 +2,9 @@
 import { demarrerPwa } from './os/pwa.js';
 import { appliquerTheme, afficherConnexion, monterCoquille, ESPACE_RACINE } from './os/shell.js';
 import { surveillerCompte, connecter, deconnecter, preparerCrm, MESSAGE_REFUS } from './os/auth.js';
-import { MESSAGE_PUBLIC_ABSENT, MESSAGE_PANNE_REGLAGES, configurationNeutre } from './os/comptes-maison.js';
-import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, ROUTE_DEFAUT } from './os/router.js';
+import { MESSAGE_PUBLIC_ABSENT, MESSAGE_PANNE_REGLAGES, configurationNeutre, modulesEcranBrut } from './os/comptes-maison.js';
+import { modulesDeLaMaison } from './os/maison-modules.js';
+import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, lien, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace } from './os/marque.js';
 import { blocIntrouvablePortail } from './os/portail-introuvable.js';
 import { actionsDuPortail } from './os/portail-actions.js';
@@ -16,7 +17,7 @@ import { rendreJournal } from './os/journal.js';
 import { demarrerJournal, arreterJournal } from './os/journal-donnees.js';
 import { demarrer as demarrerSocle, arreter as arreterSocle } from './modules/crm/donnees.js';
 import { objectifsDepart as objectifsNeutres, CONFIG_NEUTRE } from './modules/crm/logique.js';
-import { h, lirePreference, vider, remplir, toast } from './os/ui.js';
+import { h, icone, lirePreference, vider, remplir, toast } from './os/ui.js';
 
 appliquerTheme(lirePreference('theme', 'sombre'));
 demarrerPwa();
@@ -86,11 +87,17 @@ function afficherChargement() {
 }
 
 // Modules de la session : la Console (`seulJerome`) n'existe que pour le compte de Jérôme (le serveur recontrôle l'identité à chaque appel).
+// Réglage `modules` de reglages_maison/ecran (27/11/2026, js/os/maison-modules.js) : absent = comme avant (tout ; Console et Achats pour le titulaire seul) ;
+// présent = seuls les modules listés, pour tous les comptes de la maison, et la Console en plus pour le titulaire seul. `accueilMaison` : null sans réglage.
 let MODULES = MODULES_TOUS;
+let accueilMaison = null;
 
 async function ouvrirSession(compte) {
   fermerSession();
-  MODULES = MODULES_TOUS.filter((m) => !m.seulJerome || peutVoirConsole(compte));
+  const choix = modulesDeLaMaison(MODULES_TOUS, { titulaire: peutVoirConsole(compte), brut: modulesEcranBrut() });
+  for (const a of choix.avertissements) console.warn(a);
+  MODULES = choix.modules;
+  accueilMaison = choix.accueil;
   afficherChargement();
   const apis = new Map();
   for (const m of MODULES) {
@@ -105,7 +112,7 @@ async function ouvrirSession(compte) {
   for (const api of apis.values()) api.demarrer({ compte, cheminBase: '' }); // '' = racine (CRM de Jérôme) ; chez un client : cheminBaseClient(client)
   let modulesCoquille = MODULES;
   let apisCoquille = apis;
-  let options = {};
+  let options = accueilMaison ? { accueil: accueilMaison } : {}; // logo et « Retour à l'accueil » : le premier écran du réglage (jamais crm/accueil d'un CRM éteint)
   if (portail) {
     const ids = modulesDuPortail(portail.id, MODULES.map((m) => m.id));
     modulesCoquille = MODULES.filter((m) => ids.includes(m.id));
@@ -153,6 +160,8 @@ function fermerSession() {
 }
 
 const lienDuPortail = (chemin) => `#/${portail.id}/${chemin}`;
+/** L'adresse n'a aucune route (#, #/ ou rien) : le router la lit comme ROUTE_DEFAUT (crm/accueil). */
+const adresseVide = () => !String(location.hash ?? '').replace(/^#\/?/, '').replace(/\/+$/, '');
 
 function afficherRoute(route) {
   if (!session) return;
@@ -201,6 +210,18 @@ function afficherRoute(route) {
     afficher = () => rendreJournal(coquille.contenu);
   } else {
     const m = MODULES.find((x) => x.prefixe === segs[0]);
+    if (!m && accueilMaison) { // maison avec réglage `modules` : adresse vide = premier écran ; module éteint ou inconnu = « Page introuvable » (comme sur la plateforme)
+      if (adresseVide()) { naviguer(accueilMaison, { remplacer: true }); return; }
+      session.vue?.quitter?.();
+      session.vue = { cle: 'introuvable', quitter: null };
+      vider(coquille.contenu);
+      coquille.contenu.append(h('div', { class: 'page-introuvable', dataset: { role: 'page-introuvable' } },
+        h('h1', {}, 'Page introuvable'),
+        h('p', { class: 'aide' }, "Cette page n'existe pas ou n'est pas disponible dans cet espace."),
+        h('a', { class: 'bouton bouton-principal', href: lien(accueilMaison) }, icone('house', { taille: 16 }), "Retour à l'accueil")));
+      coquille.activer('');
+      return;
+    }
     if (!m) { naviguer(ROUTE_DEFAUT, { remplacer: true }); return; }
     cle = `module:${m.id}`;
     const api = apis.get(m.id);
