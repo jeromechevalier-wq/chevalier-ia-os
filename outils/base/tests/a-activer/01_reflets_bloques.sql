@@ -15,8 +15,9 @@ begin
   insert into public.n8n_executions (workflow_id, workflow_nom, resultat) values ('wf', 'Lecture', 'ok');
   create temp table la_facture as select v_f as id;
 end $$;
-reset role;
+-- Donné par robot_reflets, propriétaire de la table temporaire (le compte d'administration n'est pas forcément superutilisateur).
 grant select on la_facture to porte;
+reset role;
 
 set role porte;
 select pg_temp.entrer('espace-a', 'alice@exemple.test');

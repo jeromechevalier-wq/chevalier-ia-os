@@ -6,6 +6,9 @@
 //   - arrête le serveur avec « pg_ctl stop -D <dossier> » (jamais de kill).
 // Utilisation : node outils/base/tester.js            (migrations + tests)
 //               node outils/base/tester.js --avec-a-activer   (en plus : une 2e base avec les fichiers de a-activer/ et leurs tests)
+//               node outils/base/tester.js --comme-cloudsql   (migrations et tests joués par un compte d'administration
+//                 NON superutilisateur, comme « postgres » dans Cloud SQL : CREATEROLE et CREATEDB, sans SUPERUSER ni BYPASSRLS ;
+//                 il crée la base et les rôles, il en est propriétaire, et la sécurité par ligne forcée s'applique à lui)
 // Binaires : ~/Applications/Postgres.app/Contents/Versions/17/bin (PostgreSQL 17), ou le dossier donné par PG_BIN.
 // S'arrête en erreur au premier échec.
 'use strict';
@@ -18,6 +21,10 @@ const { spawnSync } = require('child_process');
 
 const ICI = __dirname;
 const AVEC_A_ACTIVER = process.argv.includes('--avec-a-activer');
+const COMME_CLOUDSQL = process.argv.includes('--comme-cloudsql');
+// Le compte qui joue les migrations et les tests. plan_admin = le superutilisateur créé par initdb (il passe outre la sécurité
+// par ligne) ; admin_cloudsql = un compte ordinaire qui a seulement les pouvoirs de « postgres » dans Cloud SQL.
+const ADMIN = COMME_CLOUDSQL ? 'admin_cloudsql' : 'plan_admin';
 
 if (process.env.PGHOST || process.env.PGHOSTADDR || process.env.DATABASE_URL) {
   console.error('Refus : PGHOST, PGHOSTADDR ou DATABASE_URL est défini. Ce script ne joue que sur une base jetable : retire ces variables.');
@@ -111,9 +118,28 @@ async function principal() {
     console.log(`Base jetable démarrée (PostgreSQL ${BIN.includes('/17/') ? '17' : '?'}, prise locale ${racine}, port ${port}).`);
 
     const psql = (base, fichier) => lancer('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-h', racine, '-p', String(port),
-      '-U', 'plan_admin', '-d', base, '-f', fichier], { PGOPTIONS: '-c client_min_messages=warning' });
-    const commande = (base, sql) => lancer('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-h', racine, '-p', String(port),
-      '-U', 'plan_admin', '-d', base, '-c', sql]);
+      '-U', ADMIN, '-d', base, '-f', fichier], { PGOPTIONS: '-c client_min_messages=warning' });
+    const commandeEn = (qui, base, sql) => lancer('psql', ['-X', '-q', '-t', '-A', '-v', 'ON_ERROR_STOP=1', '-h', racine, '-p', String(port),
+      '-U', qui, '-d', base, '-c', sql]);
+    const commande = (base, sql) => commandeEn(ADMIN, base, sql);
+
+    // Le plan vise PostgreSQL 17 (comme Cloud SQL) : une version plus ancienne n'a pas les mêmes règles (ex. rôles en 16).
+    const ver = commandeEn('plan_admin', 'postgres', 'show server_version_num');
+    if (ver.status !== 0 || !(Number(ver.stdout.trim()) >= 170000)) {
+      throw new Error(`PostgreSQL 17 ou plus récent est exigé (server_version_num = ${ver.stdout.trim() || '?'}) : donne le bon dossier dans PG_BIN.`);
+    }
+
+    if (COMME_CLOUDSQL) {
+      // Comme Cloud SQL : « postgres » n'est pas superutilisateur. Il peut créer des rôles et des bases, rien de plus.
+      const c = commandeEn('plan_admin', 'postgres',
+        `create role ${ADMIN} login createrole createdb nosuperuser nobypassrls noreplication`);
+      if (c.status !== 0) throw new Error(c.stderr);
+      const v = commande('postgres', 'select rolsuper::text || rolbypassrls::text from pg_roles where rolname = current_user');
+      if (v.status !== 0 || v.stdout.trim() !== 'falsefalse') {
+        throw new Error(`Le compte ${ADMIN} devrait être ni superutilisateur ni BYPASSRLS : ${v.stdout}${v.stderr}`);
+      }
+      console.log(`Mode « comme Cloud SQL » : tout est joué par ${ADMIN} (ni superutilisateur, ni BYPASSRLS).`);
+    }
 
     // Entre deux fichiers, on laisse passer un tour : un Ctrl-C (SIGINT) est alors traité tout de suite (arrêt propre).
     const jouer = async (base, fichiers, etiquette) => {
@@ -136,6 +162,13 @@ async function principal() {
     await jouer('plan', migrations, 'migration');
     // Les migrations se rejouent sans erreur (create or replace, if not exists).
     await jouer('plan', migrations, 'migration (2e passage)');
+    if (COMME_CLOUDSQL) {
+      // Pour les TESTS seulement (« set role porte ») : depuis PostgreSQL 16, celui qui crée un rôle sans être superutilisateur
+      // en devient administrateur mais ne peut pas « devenir » ce rôle. Il se donne ce droit (SET), sans hériter de ses droits.
+      // Les migrations, elles, sont déjà jouées SANS ce droit.
+      const g = commande('plan', 'grant porte, robot_reflets, indicateurs to current_user with set true, inherit false');
+      if (g.status !== 0) throw new Error(`Droit SET sur les rôles refusé :\n${g.stderr}`);
+    }
     // Chaque fichier de test part d'une copie neuve de la base migrée (les données d'un test ne gênent pas le suivant).
     const testerChacun = async (modele, fichiers, etiquette) => {
       for (const [i, f] of fichiers.entries()) {
@@ -159,7 +192,7 @@ async function principal() {
     } else {
       console.log('  (fichiers de a-activer/ non testés : relancer avec --avec-a-activer)');
     }
-    console.log(`\nTout est vert : ${migrations.length} migrations, ${total} fichiers de tests.`);
+    console.log(`\nTout est vert : ${migrations.length} migrations, ${total} fichiers de tests${COMME_CLOUDSQL ? ' (comme Cloud SQL, sans superutilisateur)' : ''}.`);
   } catch (e) {
     console.error(`\n${e.message}`);
     code = 1;

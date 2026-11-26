@@ -11,11 +11,13 @@ Aujourd'hui, les données des achats (factures, fournisseurs, chantiers, article
 ```
 node outils/base/tester.js
 node outils/base/tester.js --avec-a-activer
+node outils/base/tester.js --comme-cloudsql
 ```
 
 - La 1re commande joue les migrations deux fois (pour prouver qu'on peut les rejouer), puis chaque fichier de `tests/` sur une copie neuve.
 - La 2e fait la même chose, puis essaie en plus le fichier « à activer » (le blocage des reflets).
-- Il faut Postgres.app (PostgreSQL 17) sur le Mac, ou le dossier des programmes dans `PG_BIN`.
+- La 3e joue tout **comme dans Cloud SQL** : le compte qui installe la base n'y est **pas** superutilisateur (le compte `postgres` de Cloud SQL, membre de `cloudsqlsuperuser`, peut créer des rôles et des bases ; il peut aussi créer les extensions permises par Google et des déclencheurs d'événements, ce que `admin_cloudsql` ne peut pas : ce mode est donc **plus strict** que Cloud SQL). Ici, un compte `admin_cloudsql` (sans superutilisateur ni `BYPASSRLS`) crée la base et les rôles, joue les migrations, puis les tests ; la sécurité par ligne forcée s'applique donc aussi à lui. Pour les tests seulement, il se donne le droit de « devenir » `porte`, `robot_reflets` et `indicateurs` (`set role`), sans hériter de leurs droits. Se combine avec `--avec-a-activer`.
+- Il faut Postgres.app (PostgreSQL 17) sur le Mac, ou le dossier des programmes dans `PG_BIN`. Le programme refuse une version plus ancienne que 17.
 - Le programme **refuse de démarrer** si `PGHOST` ou `DATABASE_URL` existe (signe qu'une vraie base est réglée dans le terminal). Il ne parle qu'à la base qu'il vient de créer, par une prise locale, jamais par le réseau, et l'arrête avec `pg_ctl stop`.
 - Pas encore branché à la coche « Tests » de GitHub (à brancher plus tard).
 
@@ -30,6 +32,7 @@ node outils/base/tester.js --avec-a-activer
 | `migrations/005_fonctions_metier.sql` | Toutes les fonctions d'aujourd'hui, mêmes noms, mêmes paramètres. |
 | `migrations/006_vues.sql` | Les 67 vues des tableaux de bord et du Pilotage, recopiées à l'identique. |
 | `migrations/007_droits_et_registre.sql` | Qui a le droit de faire quoi, et la liste des tables (source ou reflet). |
+| `migrations/008_porte.sql` | `consommer_ticket_porte` : comme `consommer_ticket` (mêmes paramètres, mêmes colonnes), mais l'identifiant de la personne est un uuid stable tiré de `app.utilisateur` (l'e-mail posé par la porte) : `md5('chevalier-ia-os:personne:' \|\| lower(e-mail))::uuid` (le préfixe évite l'empreinte Gravatar, retrouvable par dictionnaire), car les workflows n8n exigent un uuid. La fonction tourne avec les droits de l'appelant : **la porte doit poser `app.espace_id` et une personne (`app.utilisateur`) avant l'appel**, dans la transaction. L'espace vient de la configuration de la porte (secret propre à l'espace, côté serveur), jamais de la requête reçue. Droits : `porte` et `robot_reflets` ; `indicateurs` ne peut plus ni demander ni consommer de ticket. |
 | `a-activer/001_bloquer_reflets.sql` | **Pas appliqué.** Réserve l'écriture des reflets aux robots. |
 | `tests/*.sql` | Les vérifications (voir plus bas). |
 | `tester.js` | Le programme qui essaie tout sur une base jetable. |
@@ -158,6 +161,7 @@ Le test `05` vérifie, sur le schéma d'aujourd'hui relevé automatiquement : le
 17. **Une facture déjà décidée qui revient** (ex. refusée, puis renvoyée par le fournisseur avec le même numéro) : le nouveau scan rejoint la facture, qui **garde** sa décision (elle reste refusée et visible ; le robot reçoit le vrai statut). Le scan est montré dans la vue `v_factures_scans_apres_decision` pour qu'une personne regarde. Faut-il plutôt rouvrir la facture toute seule ?
 18. **Compteurs communs à tous les espaces** : le numéro du journal (`journal_modifications.id`) et les rangs (`rang`) des scans, décisions et corrections sont des compteurs de toute la base, pas un par espace. Ils ne servent qu'à ranger dans l'ordre ; un client pourrait seulement deviner, aux trous dans les numéros, que d'autres écritures existent. D'accord ?
 19. **Heure réelle pour les scans et les décisions** : `copie_le` et `decide_le` prennent l'heure exacte (`clock_timestamp()`), pas l'heure du début de la transaction, pour savoir sans erreur si un scan est arrivé avant ou après une décision.
+20. **Deux uuid pour la même personne, avant et après la bascule** : les données reprises de Supabase gardent l'uuid Supabase de la personne (`factures_decisions.decide_par_id`, `journal_modifications.qui_id`, `ibans_confirmes.confirme_par_id` et `revoque_par_id`), alors que les nouvelles décisions portent l'uuid de `consommer_ticket_porte` (tiré de l'e-mail). Choix : accepter la coupure (l'e-mail, lui, reste le même dans `decide_par` / `qui`), ou une table de correspondance ancien uuid → nouvel uuid appliquée à la reprise.
 
 ## Plus tard
 
