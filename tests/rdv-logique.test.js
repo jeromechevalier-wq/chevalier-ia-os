@@ -819,6 +819,32 @@ describe('fiche : bandeaux, confirmation, nouvelle série', () => {
     }
     assert.match(L.texteSmsManuel('annulation', { client: 'M. Durand' }, {}), /est annulé\./);
   });
+  test('Q1 historique : un SMS envoyé dit « à <nom> » retrouvé par le participant, même si tous les SMS partent au même numéro', () => {
+    const parts = [{ id: 'p1', nom: 'M. Durand', telephone: '+33600000001' }, { id: 'p2', nom: 'Terrassier', telephone: '+33600000002' }];
+    const h = L.historiqueMessages([
+      { id: 'a', participantId: 'p1', numero: '+33699999999', sens: 'sortant', envoyeLe: '2031-03-17T09:00:00Z' },
+      { id: 'b', participantId: 'p2', numero: '+33699999999', sens: 'sortant', envoyeLe: '2031-03-17T09:01:00Z' },
+    ], parts, { test: false });
+    assert.deepEqual(h.map((m) => m.destinataire), ['à M. Durand', 'à Terrassier']);
+  });
+  test('Q2 historique : rendez-vous de test, « (envoyé au numéro de test) » est ajouté', () => {
+    const h = L.historiqueMessages([{ id: 'a', participantId: 'p1', numero: '+33699999999', sens: 'sortant', envoyeLe: '2031-03-17T09:00:00Z' }], [{ id: 'p1', nom: 'M. Durand', telephone: '+33600000001' }], { test: true });
+    assert.equal(h[0].destinataire, 'à M. Durand (envoyé au numéro de test)');
+  });
+  test('Q3 historique : ancien message sans participantId, repli sur le numéro ; un message reçu garde « qui » et n’a pas de destinataire', () => {
+    const parts = [{ id: 'p1', nom: 'M. Durand', telephone: '+33600000001' }];
+    const h = L.historiqueMessages([{ id: 'a', numero: '+33600000001', sens: 'sortant', envoyeLe: '2031-03-17T09:00:00Z' }, { id: 'b', numero: '+33600000001', sens: 'entrant', recuLe: '2031-03-17T10:00:00Z' }], parts, {});
+    assert.equal(h[0].destinataire, 'à M. Durand');
+    assert.equal(h[1].qui, 'M. Durand');
+    assert.equal(h[1].destinataire, undefined);
+  });
+  test('Q4 historique : participant supprimé ou introuvable, « à un participant supprimé », sans numéro ; historique vide inchangé', () => {
+    const h = L.historiqueMessages([{ id: 'a', participantId: 'disparu', numero: '+33600000001', sens: 'sortant', envoyeLe: '2031-03-17T09:00:00Z' }], [], { test: true });
+    assert.equal(h[0].destinataire, 'à un participant supprimé (envoyé au numéro de test)');
+    assert.doesNotMatch(h[0].destinataire, /\d/);
+    assert.deepEqual(L.historiqueMessages([], []), []);
+    assert.deepEqual(L.historiqueMessages(undefined, undefined), []);
+  });
   test('L historique : les messages par date, avec le nom retrouvé par le numéro', () => {
     const h = L.historiqueMessages([{ id: 'b', numero: '+33600000002', recuLe: '2031-03-17T11:00:00Z', sens: 'entrant' }, { id: 'a', numero: '+33600000001', envoyeLe: '2031-03-17T09:00:00Z', sens: 'sortant' }], [{ telephone: '+33600000001', nom: 'M. Durand' }, { telephone: '+33600000002', nom: 'Terrassier' }]);
     assert.deepEqual(h.map((m) => [m.id, m.qui]), [['a', 'M. Durand'], ['b', 'Terrassier']]);
