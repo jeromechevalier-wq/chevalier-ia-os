@@ -38,8 +38,8 @@ export function configurationEcran(fiche) {
 // `valeur` : la dernière fiche lue avec succès (« fiche absente » est un succès) ; `expire` : fin de sa fraîcheur.
 let cache = null;
 
-/** RÉSERVÉ AUX ESSAIS (tests/) : oublie la fiche gardée en mémoire. */
-export function viderCacheConfigurationMaison() { cache = null; }
+/** RÉSERVÉ AUX ESSAIS (tests/) : oublie les fiches gardées en mémoire (configuration et modules). */
+export function viderCacheConfigurationMaison() { cache = null; cacheModules = null; }
 
 /**
  * La maison demande-t-elle la configuration neutre ? Lecture par `donnees` (sans base), cache de 60 s pour tout le processus.
@@ -66,6 +66,26 @@ export async function choixConfiguration(donnees, { racine, membres = null } = {
   if (donnees.base) return { racine: false, membres };
   const maison = await lireConfigurationMaison(donnees);
   return maison.neutre ? { racine: false, membres: membres ?? maison.membres } : { racine: true, membres };
+}
+
+// Modules de la maison pour le serveur MCP (26/11/2026, chantier « Achats par l'assistant ») : la valeur BRUTE du champ `modules` de reglages_maison/ecran,
+// lue INDÉPENDAMMENT de `configuration_crm` (une maison « Achats seulement » n'est pas forcément neutre). Même fiche, même cache de 60 s par processus, mais un cache à part :
+// trois cas distincts, `absent` (pas de fiche, ou fiche sans le champ : comportement d'avant, tous les outils), `present` (le champ existe, quelle que soit sa valeur)
+// et `indisponible` (lecture en échec SANS valeur connue : l'appelant refuse, il ne devine jamais). Sur une erreur de lecture, la dernière valeur connue sert, même expirée.
+// Jamais lu avec une base (plateforme des clients) : `absent`.
+let cacheModules = null;
+
+/** Rend `{ etat: 'absent' | 'present' | 'indisponible', brut }` (brut : la valeur du champ quand il est présent). */
+export async function lireModulesEcran(donnees, { maintenant = Date.now } = {}) {
+  if (!donnees || donnees.base) return { etat: 'absent', brut: undefined };
+  const t = maintenant();
+  if (cacheModules && cacheModules.expire > t) return cacheModules.valeur;
+  let fiche;
+  try { fiche = await donnees.document(COLLECTION_REGLAGES_MAISON, DOCUMENT_ECRAN); } catch { return cacheModules ? cacheModules.valeur : { etat: 'indisponible', brut: undefined }; }
+  const brut = fiche && typeof fiche === 'object' ? fiche.modules : undefined;
+  const valeur = brut === undefined || brut === null ? { etat: 'absent', brut: undefined } : { etat: 'present', brut };
+  cacheModules = { valeur, expire: t + DUREE_CACHE_ECRAN_MS };
+  return valeur;
 }
 
 export async function lireConfig(donnees, { racine, membres = null } = {}) {
