@@ -60,6 +60,9 @@ test.describe('maison et racine (règles de Jérôme)', () => {
     await capturer(page, info, '2-client-journal-introuvable');
     await page.locator('[data-role="page-introuvable"] a', { hasText: 'Retour à l' }).click();
     await expect(page).toHaveURL(/#\/crm\/accueil$/);
+    await taper(page, 'crm/journal'); // ancienne adresse du Journal (module Affaires) : cachée aussi
+    await expect(page.locator('[data-role="page-introuvable"] h1')).toHaveText('Page introuvable');
+    await expect(page.getByRole('heading', { name: 'Journal des modifications' })).toHaveCount(0);
   });
 
   test('3 maison d’un client, compte titulaire : tout reste visible (sections techniques et Journal)', async ({ page }, info) => {
@@ -75,6 +78,9 @@ test.describe('maison et racine (règles de Jérôme)', () => {
     await page.keyboard.press('Escape');
     await taper(page, 'journal');
     await expect(page.getByRole('heading', { name: 'Journal des modifications', level: 1 })).toBeVisible();
+    await taper(page, 'crm/journal');
+    await expect(page).toHaveURL(/#\/crm\/journal$/);
+    await expect(page.getByRole('heading', { name: 'Journal des modifications', level: 1 })).toBeVisible();
   });
 
   test('4a chez Jérôme (maison sans champ neutre) : inchangé — un autre compte voit encore Modules actifs, Déploiement, Mes tests et le Journal', async ({ page }, info) => {
@@ -85,6 +91,9 @@ test.describe('maison et racine (règles de Jérôme)', () => {
     await taper(page, 'journal');
     await expect(page.getByRole('heading', { name: 'Journal des modifications', level: 1 })).toBeVisible();
     await capturer(page, info, '4a-chez-jerome-journal');
+    await taper(page, 'crm/journal');
+    await expect(page).toHaveURL(/#\/crm\/journal$/);
+    await expect(page.getByRole('heading', { name: 'Journal des modifications', level: 1 })).toBeVisible();
     expect(await entreesMenuCompte(page)).toContain('Voir le journal des modifications');
   });
 

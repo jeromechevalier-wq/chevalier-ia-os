@@ -47,7 +47,8 @@ test('2 maison d’un client, compte non titulaire : une adresse de section cach
 
 test('2 le Journal est refusé dans js/main.js et caché dans le menu du compte (js/os/shell.js) et la page ChatGPT (js/modules/mcp/ecran.js)', () => {
   const main = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
-  assert.match(main, /segs\[0\] === 'journal'[^\n]*\n\s*if \(pagesTechniquesCachees\(session\.compte\)\) \{ afficherIntrouvable\(/);
+  assert.match(main, /const estRouteJournal = \(segs\) => \(segs\[0\] === 'journal' && segs\.length === 1\) \|\| \(segs\[0\] === 'crm' && segs\[1\] === 'journal'\);/);
+  assert.match(main, /if \(estRouteJournal\(segs\) && pagesTechniquesCachees\(session\.compte\)\) \{ afficherIntrouvable\(/);
   const shell = readFileSync(new URL('../js/os/shell.js', import.meta.url), 'utf8');
   assert.match(shell, /!\(racineDeJerome && pagesTechniquesCachees\(compte\)\) \? \[\{ libelle: 'Voir le journal des modifications'/);
   const mcp = readFileSync(new URL('../js/modules/mcp/ecran.js', import.meta.url), 'utf8');

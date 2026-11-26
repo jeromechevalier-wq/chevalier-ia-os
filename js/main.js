@@ -173,6 +173,9 @@ function afficherIntrouvable(accueil) {
   coquille.activer('');
 }
 
+/** Route du Journal des modifications : #/journal (écran de la coque) ou #/crm/journal (ancienne adresse, servie par le module Affaires). */
+const estRouteJournal = (segs) => (segs[0] === 'journal' && segs.length === 1) || (segs[0] === 'crm' && segs[1] === 'journal');
+
 const lienDuPortail = (chemin) => `#/${portail.id}/${chemin}`;
 /** L'adresse n'a aucune route (#, #/ ou rien) : le router la lit comme ROUTE_DEFAUT (crm/accueil). */
 const adresseVide = () => !String(location.hash ?? '').replace(/^#\/?/, '').replace(/\/+$/, '');
@@ -212,6 +215,9 @@ function afficherRoute(route) {
       return;
     }
   }
+  // Maison d'un client, compte non titulaire : le Journal (#/journal et l'ancienne adresse #/crm/journal du module Affaires) est une page technique cachée.
+  // La plateforme des clients a son propre routeur (js/os/espace-modules.js) : #/espace/<client>/crm/journal y reste servi.
+  if (estRouteJournal(segs) && pagesTechniquesCachees(session.compte)) { afficherIntrouvable(accueilMaison || ROUTE_DEFAUT); return; }
   let cle;
   let afficher;
   if (segs[0] === 'reglages') {
@@ -220,7 +226,6 @@ function afficherRoute(route) {
       apis, actifs: MODULES.map((m) => m.id), chezClient: false, nomEspace: 'Chevalier IA OS', marque: null, fiche: null, compte: session.compte,
     });
   } else if (segs[0] === 'journal' && segs.length === 1) { // Journal des modifications : écran de la coque, servi même sans le module Affaires
-    if (pagesTechniquesCachees(session.compte)) { afficherIntrouvable(accueilMaison || ROUTE_DEFAUT); return; } // maison d'un client, compte non titulaire : page technique cachée
     cle = 'journal';
     afficher = () => rendreJournal(coquille.contenu);
   } else {
