@@ -29,7 +29,7 @@ const config = (page) => page.evaluate(async () => {
   return { etapes: D.etat.config.etapes.map((e) => e.libelle), phases: D.etat.config.phases.map((p) => p.libelle), membres: D.etat.config.membres, reglages: D.etat.reglages, bravo: C.messageBravo() };
 });
 
-test('1a maison neutre, accueil : aucune trace de Charles ni de Jérôme, objectifs neutres', async ({ page }, info) => {
+test('1a maison neutre, accueil : pas de « Charles » ni de « Jérôme » écrits à l’accueil, pas de portrait de Charles, 3 objectifs sans Flyers ; réglages et modèles de projet neutres en base', async ({ page }, info) => {
   await semerEcran(ECRAN_NEUTRE);
   await ouvrir(page);
   await expect(page.locator('.grille-objectifs .objectif')).toHaveCount(3);
@@ -41,7 +41,9 @@ test('1a maison neutre, accueil : aucune trace de Charles ni de Jérôme, object
   const c = await config(page);
   expect(c.bravo).toBe('Bravo !'); // célébration sans le prénom « Jérôme »
   expect(c.reglages).toMatchObject({ prenomCelebration: '', imageCelebration: '', cheminProjets: '', proprietaireGithub: '' });
-  expect(await lireDocument('crm_parametres/reglages')).toMatchObject({ prenomCelebration: '', imageCelebration: '' });
+  expect(await lireDocument('crm_parametres/reglages')).toMatchObject({ prenomCelebration: '', imageCelebration: '', cheminProjets: '', proprietaireGithub: '' });
+  await expect.poll(async () => !!(await lireDocument('projets_modeles/projet-type'))).toBe(true); // modèles de projet neutres écrits au premier lancement
+  expect(await lireDocument('projets_modeles/audit')).toBeFalsy(); // jamais les modèles de Jérôme
   await capturer(page, info, '1a-accueil-neutre');
 });
 
@@ -82,6 +84,9 @@ test('2 maison sans le champ (cas de Jérôme) : étapes, Charles et célébrati
   expect(c.bravo).toBe('Bravo Jérôme !');
   expect(c.reglages).toMatchObject({ prenomCelebration: 'Jérôme', imageCelebration: 'assets/charles-portrait.png', debutActivite: '2026-10' });
   await expect(page.locator('.coquille')).toContainText('Rendez vous fixé');
+  expect(await lireDocument('crm_parametres/reglages')).toMatchObject({ prenomCelebration: 'Jérôme', imageCelebration: 'assets/charles-portrait.png', debutActivite: '2026-10' }); // relu en base
+  await expect.poll(async () => !!(await lireDocument('projets_modeles/audit'))).toBe(true); // modèles de Jérôme, comme avant
+  expect(await lireDocument('projets_modeles/projet-type')).toBeFalsy();
   await capturer(page, info, '2-jerome-inchange');
 });
 

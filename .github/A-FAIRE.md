@@ -2,6 +2,14 @@
 
 Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de session) ; avant : 08/11/2026 (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Mise à jour du 26/11/2026 (maison d'un client : écran neutre, PR 700)
+
+Le champ `configuration_crm: 'neutre'` de `reglages_maison/ecran` rend l'écran neutre (étapes, phases, réglages, objectifs, modèles de projet, membres). Il doit être posé AVANT la toute première ouverture de la maison (les paramètres de départ sont écrits à ce moment-là). Reste à faire :
+- [ ] Serveur MCP : le brancher sur le même drapeau (lu dans `reglages_maison/maison`). Aujourd'hui `functions/src/coeur/config.js` (l. 9), `lecture.js` (l. 251) et `metier.js` (l. 56) prennent `racine` = config de Jérôme et recollent par position ses étapes même quand les documents neutres existent.
+- [ ] Textes et écrans conditionnés par `estChezClient()`, faux dans une maison : rappel de sauvegarde (`js/modules/crm/accueil.js` l. 101), libellés du journal (`js/os/journal.js` l. 136 et 215), ajout de liens de la Veille (`js/modules/veille/ecran.js` l. 98 et 119), message d'import des Réseaux sociaux (`js/modules/reseauxsociaux/import-actions.js` l. 32), page MCP (`js/modules/mcp/logique.js` l. 43).
+- [ ] Page de connexion (`js/os/shell.js` l. 71-73 : portrait de Charles, « L'espace de travail de Jérôme et Charles ») : affichée avant la lecture de `ecran`, il faut un champ dans `reglages_maison/public`.
+- [ ] Nom d'espace « Chevalier IA OS » dans une maison (coquille, dossier Drive créé tout seul : `js/modules/crm/lanceurs.js` l. 31).
+
 ## Mise à jour du 25/11/2026 (fin de nuit : chantier 0 et plan de la base, PR 695 et 696)
 
 | | Sujet | État | Qui |

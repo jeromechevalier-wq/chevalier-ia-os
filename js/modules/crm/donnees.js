@@ -63,6 +63,8 @@ const estRacine = () => cheminBase === '';
  * SAUF si la maison demande la configuration neutre (reglages_maison/ecran.configuration_crm === 'neutre', maison d'un client). Sans ce champ : comme avant.
  */
 const configJerome = () => estRacine() && !configurationNeutre();
+/** Le même choix pour les autres modules qui écrivent des valeurs de départ (ex. modèles de projet) : vrai = valeurs de Jérôme. */
+export const configHistorique = () => configJerome();
 /** Membres à qui une tâche peut être confiée : chez un client de la plateforme, son équipe ; dans une maison neutre, les personnes de reglages_maison/ecran ; sinon Jérôme et Charles. */
 const membresEspace = () => {
   if (!estRacine()) return membresDeEquipe(equipe);

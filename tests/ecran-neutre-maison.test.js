@@ -37,6 +37,8 @@ test('1c l’écran du CRM passe par la maison pour choisir la configuration : �
   assert.match(donnees, /L\.parametresDepart\(\{ racine: configJerome\(\),/);
   assert.match(donnees, /if \(configurationNeutre\(\)\) return personnesMaison\(\)/);
   assert.match(lire('js/main.js'), /configurationNeutre\(\) \? objectifsNeutres\(CONFIG_NEUTRE\)/);
+  assert.match(lire('js/modules/projets/donnees.js'), /P\.planInitialiserModeles\(\{ racine: CRM\.configHistorique\(\) \}\)/);
+  assert.doesNotMatch(lire('js/modules/projets/donnees.js'), /racine: CRM\.cheminDeBase\(\) === ''/);
 });
 
 test('2a champ absent (maison de Jérôme) : configuration de Jérôme, comme avant', () => {
