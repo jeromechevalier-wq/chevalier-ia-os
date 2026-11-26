@@ -33,8 +33,12 @@ export const DELAI_REQUETE_MS = 10_000;
 /** Une transaction ouverte puis abandonnée (fonction coupée en plein travail) est fermée par la base au bout de 60 s, sans bloquer de verrou plus longtemps. */
 export const DELAI_TRANSACTION_INACTIVE_MS = 60_000;
 
-/** Rôle Postgres et identité de chaque voie : écrits ici, jamais lus dans la requête. */
-export const ROLES = Object.freeze({ navigateur: 'porte', n8n: 'robot_reflets' });
+/**
+ * Rôle Postgres et identité de chaque voie : écrits ici, jamais lus dans la requête.
+ * `assistant` (26/11/2026) : le serveur MCP d'une maison ouvre la base DANS SON PROPRE PROCESSUS (base/assistant-achats.js, par creerAccesBase), avec le rôle du navigateur
+ * (lecture, plus la fonction demander_ticket_n8n) : aucune nouvelle entrée publique. L'utilisateur est l'e-mail VÉRIFIÉ de la connexion Google de l'assistant.
+ */
+export const ROLES = Object.freeze({ navigateur: 'porte', n8n: 'robot_reflets', assistant: 'porte' });
 export const UTILISATEUR_N8N = 'n8n';
 /** Les seules fonctions de la base que le navigateur peut appeler (relevé des écrans Achats, plan du 26/11/2026). */
 export const RPC_NAVIGATEUR = Object.freeze(['lister_favoris_os', 'basculer_favori_os', 'demander_ticket_n8n']);
@@ -50,6 +54,13 @@ export const LECTURES_NAVIGATEUR = Object.freeze([
   'v_td_chantiers', 'v_td_factures', 'v_td_fournisseurs_agences', 'v_td_fournisseurs_factures', 'v_td_fournisseurs_fiches',
   'v_td_prix_evolution', 'v_td_prix_lignes', 'v_td_prix_ponts',
 ]);
+/**
+ * Tables que l'ASSISTANT (serveur MCP d'une maison) peut lire : sous-ensemble strict de LECTURES_NAVIGATEUR (verrouillé par un test). Jamais : tickets, favoris, journal.
+ * Colonnes nommées et tri obligatoire (base/assistant-achats.js) ; aucun outil « requête libre ».
+ */
+export const LECTURES_ASSISTANT = Object.freeze(['factures', 'chantiers', 'etablissements_fournisseur', 'fournisseurs', 'lignes_facture', 'ibans_confirmes']);
+/** La seule fonction de la base que l'assistant appelle : un ticket neuf à usage unique pour UN appel à n8n (toute écriture passe par n8n). */
+export const RPC_ASSISTANT = Object.freeze(['demander_ticket_n8n']);
 /** Fonctions d'installation de la base : jamais par la porte, même pour n8n. */
 export const RPC_INTERDITES_N8N = Object.freeze(['poser_socle', 'poser_reflet']);
 /** Dossiers de stockage connus (un seul : les PDF des factures). */
@@ -225,17 +236,12 @@ export function ligneDeJournalPorte({ voie, action, statut, code, severite }) {
 // ————— Le gestionnaire —————
 
 /**
- * Fabrique le gestionnaire HTTP `(req, res)`. Tout est injecté :
- *  - lireConfiguration : async → configuration validée (lève ConfigurationAbsente) ;
- *  - lireCleN8n : async → clé de n8n (lève si absente) ;
- *  - verifierJeton(jeton) : async → mentions décodées du jeton Firebase (lève s'il est invalide, expiré ou révoqué) ;
- *  - estCompteAutorise(email) : async → vrai si l'e-mail (minuscules) est dans comptes_autorises de reglages_maison/maison (fiche illisible = faux) ;
- *  - ouvrirConnexion(config) : async → { interroger(sql, valeurs) → { rows, rowCount }, liberer(casse) } ;
- *  - stockage : { ecrire, lire } ; maintenant : horloge (ms) ; journal(evenement).
+ * Accès à la base partagé (26/11/2026) : la transaction et le catalogue de la porte, utilisés par le gestionnaire HTTP (basePorte) ET par l'assistant du serveur MCP
+ * d'une maison (base/assistant-achats.js), dans son propre processus. Rend `{ dansTransaction(config, appelant, lectureSeule, travail) }` :
+ * `appelant` = { voie: 'navigateur' | 'n8n' | 'assistant', utilisateur } ; le rôle vient de ROLES, jamais de la requête ; `travail(cx, catalogue)`.
  */
-export function creerGestionnaireBasePorte({ lireConfiguration, lireCleN8n, verifierJeton, estCompteAutorise, ouvrirConnexion, stockage, originesParDefaut = originesDuSite, maintenant = Date.now, journal = () => {} }) {
+export function creerAccesBase({ ouvrirConnexion, maintenant = Date.now }) {
   const catalogues = new Map(); // rôle → { valeur, expire }
-  let dernierAvisNonBranchee = -Infinity; // « pas branchée » journalisé une fois par période de cache au plus
 
   async function catalogue(cx, role) {
     const c = catalogues.get(role);
@@ -268,6 +274,22 @@ export function creerGestionnaireBasePorte({ lireConfiguration, lireCleN8n, veri
       cx.liberer(casse);
     }
   }
+
+  return { dansTransaction };
+}
+
+/**
+ * Fabrique le gestionnaire HTTP `(req, res)`. Tout est injecté :
+ *  - lireConfiguration : async → configuration validée (lève ConfigurationAbsente) ;
+ *  - lireCleN8n : async → clé de n8n (lève si absente) ;
+ *  - verifierJeton(jeton) : async → mentions décodées du jeton Firebase (lève s'il est invalide, expiré ou révoqué) ;
+ *  - estCompteAutorise(email) : async → vrai si l'e-mail (minuscules) est dans comptes_autorises de reglages_maison/maison (fiche illisible = faux) ;
+ *  - ouvrirConnexion(config) : async → { interroger(sql, valeurs) → { rows, rowCount }, liberer(casse) } ;
+ *  - stockage : { ecrire, lire } ; maintenant : horloge (ms) ; journal(evenement).
+ */
+export function creerGestionnaireBasePorte({ lireConfiguration, lireCleN8n, verifierJeton, estCompteAutorise, ouvrirConnexion, stockage, originesParDefaut = originesDuSite, maintenant = Date.now, journal = () => {} }) {
+  const { dansTransaction } = creerAccesBase({ ouvrirConnexion, maintenant });
+  let dernierAvisNonBranchee = -Infinity; // « pas branchée » journalisé une fois par période de cache au plus
 
   /** Qui appelle ? { voie: 'n8n' | 'navigateur', utilisateur }. Lève ErreurPorte 401/403. */
   async function identifier(req, config) {

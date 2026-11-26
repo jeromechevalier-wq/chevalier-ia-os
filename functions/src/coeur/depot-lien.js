@@ -5,6 +5,9 @@
 //  - il ne vise qu'UNE affaire ou UN projet, fixé à la création, et garde l'acteur de l'assistant qui l'a demandé (le journal dit qui) ;
 //  - le dépôt est celui de l'écran et du MCP (documents.js) : mêmes contrôles (extension, type, premiers octets, taille, quota), même journal, jamais le contenu dans le journal ;
 //  - le lien n'est JAMAIS écrit dans NOS journaux ni dans une réponse d'erreur (l'adresse peut figurer dans les journaux de la plateforme Google, mais elle ne vaut qu'une fois et 10 minutes).
+// 2e genre (26/11/2026) : `depot_achat`, une facture d'achat en PDF pour une maison (outil MCP ajouter_facture_achat). Pas de fiche cible : le lien garde l'e-mail VÉRIFIÉ du compte qui l'a demandé ;
+// le fichier n'est pas rangé ici, il est passé à `deposerAchat` (injecté depuis index.js : base/assistant-achats.js), qui le fait suivre à n8n avec un ticket neuf. Sans `deposerAchat`
+// (plateforme des clients, ou serveur qui ne l'a pas branché), un tel lien répond « plus valable ». Aucun import de base/ ici (ce dossier est copié chez les clients).
 import { createHash, randomBytes } from 'node:crypto';
 import { COLLECTIONS as C } from './donnees.js';
 import { sansId } from './canonique.js';
@@ -16,19 +19,29 @@ export const TAILLE_DEPOT_MAX_OCTETS = 10 * 1024 * 1024;
 const MOTIF_CHEMIN = /^\/depot\/([A-Za-z0-9_-]{43})\/?$/;
 
 const idDe = (jeton) => `depot_${createHash('sha256').update(jeton).digest('hex').slice(0, 40)}`;
+/** Genres de liens d'envoi : un document d'une fiche (onglet « Documents ») ou une facture d'achat (PDF transmis au service des achats). */
+export const GENRES_DEPOT = Object.freeze(['depot', 'depot_achat']);
 
-/** Crée un lien pour une affaire ou un projet. Rend le jeton (à mettre dans l'adresse, une seule fois). `maintenant` : millisecondes. `jeton` : identifiant du jeton MCP du demandeur (pour le journal). */
-export async function emettreLienDepot({ donnees, cibleType, cibleId, acteur, jeton: jetonMcp = acteur, maintenant, aleatoire = () => randomBytes(32).toString('base64url') }) {
+/**
+ * Crée un lien. Rend le jeton (à mettre dans l'adresse, une seule fois). `maintenant` : millisecondes. `jeton` : identifiant du jeton MCP du demandeur (pour le journal).
+ * genre `depot` (défaut) : pour une affaire ou un projet (`cibleType`, `cibleId`) ; genre `depot_achat` : pour une facture d'achat, avec `email` (compte vérifié du demandeur, recontrôlé au dépôt).
+ */
+export async function emettreLienDepot({ donnees, genre = 'depot', cibleType, cibleId, email, acteur, jeton: jetonMcp = acteur, maintenant, aleatoire = () => randomBytes(32).toString('base64url') }) {
+  if (!GENRES_DEPOT.includes(genre)) throw new Error(`genre de lien inconnu : ${genre}`);
+  if (genre === 'depot_achat' && (typeof email !== 'string' || !email)) throw new Error('lien d\'achat sans compte');
   await nettoyerLiensPerimes(donnees, maintenant);
   const jeton = aleatoire();
-  await donnees.appliquer([{ type: 'set', collection: C.codes, id: idDe(jeton), donnees: { genre: 'depot', cibleType, cibleId, acteur, jetonMcp, valideJusqua: maintenant + DUREE_DEPOT_MS } }]);
+  const contenu = genre === 'depot_achat'
+    ? { genre, email: email.toLowerCase(), acteur, jetonMcp, valideJusqua: maintenant + DUREE_DEPOT_MS }
+    : { genre, cibleType, cibleId, acteur, jetonMcp, valideJusqua: maintenant + DUREE_DEPOT_MS };
+  await donnees.appliquer([{ type: 'set', collection: C.codes, id: idDe(jeton), donnees: contenu }]);
   return jeton;
 }
 
 /** Ménage au passage : les liens périmés jamais utilisés sont effacés (20 au plus par demande ; une panne du ménage ne bloque jamais la création). */
 async function nettoyerLiensPerimes(donnees, maintenant) {
   try {
-    const perimes = (await donnees.liste(C.codes)).filter((d) => d.genre === 'depot' && maintenant > d.valideJusqua).slice(0, 20);
+    const perimes = (await donnees.liste(C.codes)).filter((d) => GENRES_DEPOT.includes(d.genre) && maintenant > d.valideJusqua).slice(0, 20);
     if (perimes.length) await donnees.appliquer(perimes.map((d) => ({ type: 'delete', collection: C.codes, id: d.id })));
   } catch { /* ménage seulement */ }
 }
@@ -36,7 +49,7 @@ async function nettoyerLiensPerimes(donnees, maintenant) {
 /** Lit un lien sans le consommer (la page d'envoi). null si absent, périmé ou d'un autre genre. */
 async function lireLien(donnees, jeton, maintenant) {
   const trouve = await donnees.document(C.codes, idDe(jeton));
-  if (!trouve || trouve.genre !== 'depot' || maintenant > trouve.valideJusqua) return null;
+  if (!trouve || !GENRES_DEPOT.includes(trouve.genre) || maintenant > trouve.valideJusqua) return null;
   return sansId(trouve);
 }
 
@@ -44,7 +57,7 @@ async function lireLien(donnees, jeton, maintenant) {
 async function reclamerLien(donnees, jeton, maintenant) {
   const id = idDe(jeton);
   const trouve = await donnees.document(C.codes, id);
-  if (!trouve || trouve.genre !== 'depot') return null;
+  if (!trouve || !GENRES_DEPOT.includes(trouve.genre)) return null;
   const avant = sansId(trouve);
   try {
     await donnees.appliquer([{ type: 'delete', collection: C.codes, id }], { attendus: [{ collection: C.codes, id, avant }] });
@@ -99,6 +112,15 @@ button:disabled{opacity:.5;cursor:default}
 })();
 </script></body></html>`;
 
+/** Page d'envoi d'une facture d'achat : PDF seulement (même script que la page des documents). */
+const PAGE_ACHAT = PAGE
+  .replace('<title>Envoyer un fichier</title>', '<title>Ajouter une facture</title>')
+  .replace('<h1>Envoyer un fichier</h1>', '<h1>Ajouter une facture (PDF)</h1>')
+  .replace('<p>Le fichier sera rangé dans l\'onglet « Documents » de la fiche. Ce lien ne sert qu\'une fois et expire au bout de quelques minutes.</p>',
+    '<p>Le PDF sera ajouté aux factures à valider. PDF seulement, 10 Mo au plus. Ce lien ne sert qu\'une fois et expire au bout de quelques minutes.</p>')
+  .replace('<input type="file" id="f" aria-label="Choisir le fichier">', '<input type="file" id="f" accept="application/pdf,.pdf" aria-label="Choisir la facture en PDF">')
+  .replace("'C\\u2019est envoy\\u00e9 : ' + r.j.nom + '. Tu peux fermer cette page.'", "(r.j.message || 'Facture ajout\\u00e9e.') + ' Tu peux fermer cette page.'");
+
 const PAGE_EXPIREE = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Lien expiré</title></head>
 <body style="font:16px/1.5 system-ui,sans-serif;max-width:30rem;margin:2rem auto;padding:0 1rem"><h1 style="font-size:1.4rem">Ce lien n'est plus valable</h1><p>Il a expiré ou il a déjà servi. Demande un nouveau lien à l'assistant.</p></body></html>`;
 
@@ -106,7 +128,7 @@ const PAGE_EXPIREE = `<!doctype html><html lang="fr"><head><meta charset="utf-8"
  * Gestionnaire HTTP du lien : GET = la page, PUT ou POST = le fichier (corps brut, nom dans ?nom=).
  * `stockage` : stockage.js ou fonction qui le rend. `espace` : '' chez Jérôme. `journal(ligne)` : jamais le lien ni le contenu.
  */
-export function creerGestionnaireDepot({ donnees, stockage, espace = '', journal = () => {}, maintenant = () => Date.now() }) {
+export function creerGestionnaireDepot({ donnees, stockage, espace = '', journal = () => {}, maintenant = () => Date.now(), deposerAchat = null }) {
   const repondre = (res, code, type, corps) => {
     res.statusCode = code;
     res.setHeader('Content-Type', type);
@@ -127,7 +149,9 @@ export function creerGestionnaireDepot({ donnees, stockage, espace = '', journal
     if (req.method === 'GET') {
       let lien = null;
       try { lien = await lireLien(donnees(), jeton, t); } catch { /* base indisponible : page « expiré » */ }
-      return lien ? repondre(res, 200, 'text/html; charset=utf-8', PAGE) : repondre(res, 404, 'text/html; charset=utf-8', PAGE_EXPIREE);
+      if (lien?.genre === 'depot_achat' && !deposerAchat) lien = null; // service des achats pas branché ici : « plus valable »
+      if (!lien) return repondre(res, 404, 'text/html; charset=utf-8', PAGE_EXPIREE);
+      return repondre(res, 200, 'text/html; charset=utf-8', lien.genre === 'depot_achat' ? PAGE_ACHAT : PAGE);
     }
     if (req.method !== 'PUT' && req.method !== 'POST') { res.setHeader('Allow', 'GET, PUT, POST'); return json(res, 405, { ok: false, erreur: 'Méthode non permise.' }); }
 
@@ -136,13 +160,26 @@ export function creerGestionnaireDepot({ donnees, stockage, espace = '', journal
     const octets = Buffer.isBuffer(req.rawBody) ? req.rawBody : Buffer.isBuffer(req.body) ? req.body : null;
     if (!octets || !octets.length) return json(res, 400, { ok: false, erreur: 'Le fichier est vide ou n\'a pas été reçu.' });
     if (octets.length > TAILLE_DEPOT_MAX_OCTETS) {
+      let apercu = null;
+      try { apercu = await lireLien(donnees(), jeton, t); } catch { apercu = null; } // le lien n'est pas consommé : un nouvel essai reste possible
+      if (apercu?.genre === 'depot_achat') return json(res, 413, { ok: false, erreur: 'Ce PDF est trop gros (10 Mo au plus). Réduis-le ou scanne-le en moins haute qualité.' });
       return json(res, 413, { ok: false, erreur: `Fichier trop gros pour ce lien (${TAILLE_DEPOT_MAX_OCTETS / 1024 / 1024} Mo au plus) : onglet « Documents » de la fiche, bouton « Ajouter un fichier ».` });
     }
 
     const base = donnees();
     let lien;
     try { lien = await reclamerLien(base, jeton, t); } catch { lien = null; }
+    if (lien?.genre === 'depot_achat' && !deposerAchat) { await restituerLien(base, jeton, lien); lien = null; }
     if (!lien) return json(res, 404, { ok: false, erreur: 'Ce lien n\'est plus valable (expiré ou déjà utilisé). Demandez-en un nouveau.' });
+
+    if (lien.genre === 'depot_achat') {
+      // Facture d'achat : le service contrôle le compte, la taille, le PDF et l'adresse, puis l'envoie à n8n (ticket neuf). Il dit si le lien peut resservir (rien n'a été envoyé).
+      let r;
+      try { r = await deposerAchat({ octets, nom, email: lien.email }); } catch { r = { statut: 500, corps: { ok: false, erreur: 'La facture n\'a pas pu être envoyée. Réessayez.' }, rendreLien: true }; }
+      if (r.rendreLien) await restituerLien(base, jeton, lien);
+      journal({ action: 'depot_achat', statut: r.statut === 200 ? 'ok' : 'refus', http: r.statut });
+      return json(res, r.statut, r.corps);
+    }
 
     const ctx = { acteur: lien.acteur, jeton: lien.jetonMcp ?? lien.acteur, via: 'mcp', maintenant: new Date(t) };
     try {

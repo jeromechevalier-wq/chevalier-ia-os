@@ -19,6 +19,8 @@ import { VERSION_SERVEUR } from '../version.js';
 import { originesAutorisees, urlMetadonneesRessource } from '../oauth/config.js';
 import { estSuperAdminEmail } from '../securite/super-admins.js';
 import { adresseSite } from '../securite/maison.js';
+import { lireModulesEcran } from '../coeur/config.js';
+import { outilsDeLaMaison } from './outils-maison.js';
 
 // Les clients MCP (Hermes, Claude Code) n'envoient pas d'en-tête Origin. Un navigateur, si : on n'accepte que l'appli (origines calculées à partir du projet).
 export const ORIGINES_AUTORISEES = originesAutorisees;
@@ -72,6 +74,11 @@ function messageEcriture(e) {
  * `stockage` : le stockage des fichiers déposés (stockage.js, ou fonction qui le rend) ; sans lui, les outils de dépôt répondent « stockage introuvable ».
  * `pilotage` : l'assistant du Tableau de bord (pilotage/assistant.js, ou fonction qui le rend, car il est défini après le serveur dans index.js) pour les outils lister_tableau_de_bord et lire_tableau_de_bord ; sans lui (espaces clients), ils répondent « pas branché ». Lecture seule, super admin seulement.
  * `sortieEmail` : la sortie vers n8n (coeur/n8n-sortie.js, ou fonction qui la rend) pour préparer un BROUILLON d'e-mail ; sans elle, l'outil répond « pas branché ». Rien n'envoie jamais l'e-mail.
+ * `outilsAchats` (26/11/2026) : catalogue À PART des outils Achats (mcp/outils/achats.js), proposé seulement dans une maison dont reglages_maison/ecran liste `achatsfactures`
+ *   (mcp/outils-maison.js) ; `achats` : le service qui parle à la base de la maison (base/assistant-achats.js, ou fonction qui le rend : il est défini après le serveur dans index.js),
+ *   lu par `contexte.achats()` ; sans lui, les outils Achats répondent « pas branché ».
+ * Tri par module (26/11/2026) : sans champ `modules` dans reglages_maison/ecran, `outils` est proposé tel quel (comportement d'avant) ; avec le champ, seulement les outils des modules listés.
+ * Fiche illisible sans valeur connue : 503 (jamais « tous les outils » par défaut dans une maison qu'on n'a pas pu lire).
  */
 /**
  * Une erreur d'outil dont le message est écrit par nous (classes maison `Erreur…`, erreurs d'écriture marquées `lisible`, `throw new Error('…')` simples
@@ -83,7 +90,7 @@ export function erreurLisible(e) {
   return e.name === 'Error' && e.code === undefined && e.errno === undefined && e.syscall === undefined;
 }
 
-export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = null, stockage = null, sortieEmail = null, pilotage = null, baseLien = null, lienDepot = false, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
+export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = null, stockage = null, sortieEmail = null, pilotage = null, achats = null, baseLien = null, lienDepot = false, outils = OUTILS, outilsAchats = [], journal = journaliser, maintenant = () => Date.now() }) {
   const noterDemarrage = creerSuiviDemarrage();
   return async function gestionnaire(req, res) {
     const debut = maintenant();
@@ -115,10 +122,14 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
     }
     // 401 : même réponse pour tout refus ; l'en-tête dit à claude.ai où se connecter (RFC 9728).
     if (!jeton) { infos.code = 'jeton'; return refuser(res, 401, 'non_autorise', { 'WWW-Authenticate': oauth ? `Bearer resource_metadata="${urlMetadonneesRessource()}"` : 'Bearer' }); }
-    Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil }, descriptionAppel(req.body, outils));
+    // Outils de CETTE maison (modules de reglages_maison/ecran, cache de 60 s) : lus après l'authentification, jamais pour un appel refusé.
+    const reglage = await lireModulesEcran(donnees);
+    if (reglage.etat === 'indisponible') { infos.code = 'modules_illisibles'; return refuser(res, 503, 'indisponible'); }
+    const outilsMaison = outilsDeLaMaison({ outils, outilsAchats, reglage });
+    Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil }, descriptionAppel(req.body, outilsMaison));
     infos.dureeAuthMs = maintenant() - debut;
 
-    return servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, stockage, sortieEmail, pilotage, baseLien, lienDepot });
+    return servirMcp({ req, res, infos, jeton, outils: outilsMaison, donnees, limiteur, maintenant, stockage, sortieEmail, pilotage, achats, baseLien, lienDepot });
   };
 }
 
@@ -134,7 +145,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
  */
 export const estSuperAdmin = async ({ jeton }, comptes) => estSuperAdminEmail(jeton?.email, comptes);
 
-export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM, stockage = null, sortieEmail = null, pilotage = null, baseLien = null, lienDepot = false }) {
+export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM, stockage = null, sortieEmail = null, pilotage = null, achats = null, baseLien = null, lienDepot = false }) {
   baseLien ??= baseLienMaison(); // sans adresse donnée (serveur de Jérôme) : le site de la maison, calculé à partir du projet
   const limites = limitesDuJeton(jeton);
   // Mesure : lectures de base faites par CETTE requête (hors authentification et plafonds). Aucune erreur de mesure ne casse l'appel.
@@ -203,6 +214,8 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
         sortieEmail: () => (typeof sortieEmail === 'function' ? sortieEmail() : sortieEmail) ?? null,
         // Tableau de bord (Pilotage) : l'assistant qui lit le service de l'écran, ou null là où il n'est pas branché (les espaces clients). Réservé aux super admins par les outils eux-mêmes.
         pilotage: () => (typeof pilotage === 'function' ? pilotage() : pilotage) ?? null,
+        // Achats d'une maison (base de la maison, par la bibliothèque de la porte) : le service, ou null là où il n'est pas branché (chez Jérôme sans réglage, les espaces clients).
+        achats: () => (typeof achats === 'function' ? achats() : achats) ?? null,
         baseLien, // adresse de l'application (liens rendus à l'assistant : jamais de secret, jamais de lien signé)
         espaceN8n: donnees.base ? donnees.base.split('/')[1] : ESPACE_JEROME,
         noterOperation: (operationId) => { if (operationId) infos.operationId = operationId; },

@@ -22,12 +22,19 @@ function fichiersJs(dossier, sortie = []) {
   return sortie;
 }
 const FICHIER_SORTIE = 'functions/src/coeur/n8n-sortie.js';
+const FICHIER_ACHATS = 'functions/src/base/assistant-achats.js';
 const TOUS = ['functions/src', 'functions-plateforme/src', 'scripts', 'js'].flatMap((d) => fichiersJs(d));
 
 describe('S1 un seul fichier fait un POST vers n8n', () => {
   test('S1 parmi tout le code (fonctions, plateforme, scripts, appli), seul n8n-sortie.js envoie un POST et parle de n8n', () => {
     const posteurs = TOUS.filter((f) => /method\s*:\s*['"`]POST['"`]|\.post\s*\(/i.test(code(lire(f))) && /n8n/i.test(code(lire(f))));
-    assert.deepEqual(posteurs, [FICHIER_SORTIE]);
+    // 2e sortie autorisée (26/11/2026) : les écritures des achats d'une maison par l'assistant (webhooks de base_parametres/connexion, hôte EXACT de n8n_url,
+    // ticket neuf, redirect: 'error') : functions/src/base/assistant-achats.js, verrouillé par tests/mcp-achats-decision.test.js (C5, C9) et ci-dessous.
+    assert.deepEqual(posteurs, [FICHIER_ACHATS, FICHIER_SORTIE]);
+    const achats = code(lire(FICHIER_ACHATS));
+    assert.match(achats, /redirect: 'error'/);
+    assert.match(achats, /u\.host !== reference\.host/);
+    assert.ok(!/process\.env|console\.|logger\./.test(achats));
   });
   test('S1 ce fichier : un seul point de sortie réseau, un seul POST, aucun autre verbe, hôte (celui de la fiche de la maison) et chemin fixés, aucune variable d’environnement, rien d’écrit dans les journaux', () => {
     const c = code(lire(FICHIER_SORTIE));

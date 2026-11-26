@@ -110,9 +110,15 @@ describe('lire_reglages : configuration de Jérôme ou neutre selon reglages_mai
     const texte = JSON.stringify(r);
     for (const mot of ['Jérôme', 'Charles', 'jerome', 'charles', 'premier_contact', 'lancement']) assert.ok(!texte.includes(mot), `« ${mot} » ne doit pas apparaître`);
   });
-  test('5. fiche ecran illisible (panne de lecture) : configuration de Jérôme, comme avant, sans erreur', async () => {
+  test('5. fiche ecran illisible (panne de lecture) : configuration de Jérôme, comme avant, sans erreur ; le serveur MCP refuse à froid (503) plutôt que de deviner les outils', async () => {
     const envelopper = (d) => ({ ...d, async document(nom, id) { if (nom === 'reglages_maison') throw new Error('panne simulée'); return d.document(nom, id); } });
-    attendreJerome(ok(await (await demarrer({ ecran: ECRAN_NEUTRE, envelopper })).appeler('lire_reglages')));
+    // La configuration seule : comportement d'avant (configuration de Jérôme), sans erreur.
+    const pannee = envelopper(creerAccesMemoire(structuredClone(base)));
+    assert.deepEqual(await lireConfigurationMaison(pannee), { neutre: false, membres: [] });
+    assert.deepEqual(await choixConfiguration(pannee, {}), { racine: true, membres: null });
+    // Le serveur MCP (26/11/2026, outils triés par module) : sans fiche connue, il ne propose rien (503 « indisponible »), jamais tous les outils par défaut.
+    const r = await (await demarrer({ ecran: ECRAN_NEUTRE, envelopper })).appeler('lire_reglages');
+    assert.equal(r.isError, true, 'refus à froid');
   });
 });
 

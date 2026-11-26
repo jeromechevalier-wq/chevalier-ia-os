@@ -105,8 +105,9 @@ copyFileSync(join(racine, 'js', 'modules', 'crm', 'fichiers-regles.js'), join(de
 console.log('functions/partage/fichiers-regles.js mis à jour (copie exacte de js/modules/crm/fichiers-regles.js)');
 // Le MCP des clients (functions/src/clients/) lit le registre des modules (modules actifs d'un client, outils de chaque module), les règles de la fiche de marque
 // (couleurs de l'écran d'autorisation) et les rôles des membres : mêmes fichiers que l'appli, copiés à plat dans functions/partage/ (aucun n'importe autre chose que ses voisins).
-for (const f of ['registre.js', 'marque.js', 'chemins.js', 'membres.js']) copyFileSync(join(racine, 'js', 'os', f), join(destination, f));
-console.log('functions/partage/ : registre.js, marque.js, chemins.js, membres.js copiés de js/os/');
+// maison-modules.js (26/11/2026) : le champ `modules` de reglages_maison/ecran, lu par le serveur MCP d'une maison (mcp/outils-maison.js) avec la MÊME règle que l'écran. Il n'importe que registre.js, son voisin.
+for (const f of ['registre.js', 'marque.js', 'chemins.js', 'membres.js', 'maison-modules.js']) copyFileSync(join(racine, 'js', 'os', f), join(destination, f));
+console.log('functions/partage/ : registre.js, marque.js, chemins.js, membres.js, maison-modules.js copiés de js/os/');
 // États et transitions de la file « À valider » (module Automatisations) : fichier pur, le même pour l'écran et pour le serveur.
 copyFileSync(join(racine, 'js', 'modules', 'automatisations', 'propositions.js'), join(destination, 'propositions.js'));
 console.log('functions/partage/propositions.js mis à jour (copie exacte de js/modules/automatisations/propositions.js)');
@@ -117,6 +118,18 @@ const formatsPilotage = readFileSync(join(racine, 'js', 'modules', 'pilotage', '
 if (/^import /m.test(formatsPilotage)) throw new Error('js/modules/pilotage/formats.js : ce fichier doit rester sans import (il est copié tel quel dans functions/partage/)');
 writeFileSync(join(destination, 'pilotage-formats.js'), formatsPilotage);
 console.log('functions/partage/pilotage-formats.js mis à jour (copie exacte de js/modules/pilotage/formats.js)');
+
+// Outils Achats de l'assistant d'une maison (26/11/2026) : le serveur (functions/src/base/assistant-achats.js) recalcule les alertes d'une facture, fabrique les corps envoyés à n8n
+// et contrôle un PDF avec EXACTEMENT les fonctions de l'écran (js/modules/achatsfactures/). Copies « achats-… » à plat dans functions/partage/, imports réécrits entre elles.
+// Elles ne sont PAS copiées vers la plateforme clients (functions/src/base/ n'y existe pas ; aucun fichier de mcp/ ni de coeur/ ne les importe : un test le verrouille).
+const dossierAchats = join(racine, 'js', 'modules', 'achatsfactures');
+const COPIES_ACHATS = [['logique.js', 'achats-logique.js'], ['controles.js', 'achats-controles.js'], ['decision.js', 'achats-decision.js'], ['agences.js', 'achats-agences.js'], ['pastilles.js', 'achats-pastilles.js'], ['upload.js', 'achats-upload.js']];
+for (const [source, copie] of COPIES_ACHATS) {
+  const texte = readFileSync(join(dossierAchats, source), 'utf8');
+  if (/^import .*from '(?!\.\/(logique|controles)\.js')/m.test(texte)) throw new Error(`js/modules/achatsfactures/${source} : import inattendu (seuls logique.js et controles.js du module sont copiés)`);
+  writeFileSync(join(destination, copie), texte.replaceAll("from './logique.js'", "from './achats-logique.js'").replaceAll("from './controles.js'", "from './achats-controles.js'"));
+}
+console.log('functions/partage/achats-logique.js, achats-controles.js, achats-decision.js, achats-agences.js, achats-pastilles.js et achats-upload.js mis à jour (copies de js/modules/achatsfactures/, imports réécrits)');
 
 // Le même serveur tourne aussi sur la plateforme clients (projet chevalier-ia-app, codebase « plateforme ») : on y copie le code du serveur tel quel, à côté de ses fonctions.
 // Le déploiement n'envoie que le dossier functions-plateforme/ ; les imports relatifs (../../partage/…) restent valables dans la copie. Dossier ignoré par git.
@@ -129,7 +142,7 @@ mkdirSync(join(destinationServeur, 'src', 'devis'), { recursive: true });
 for (const f of ['pdf-service.js', 'pdf-declencheur.js', 'chromium.js', 'stockage.js']) copyFileSync(join(racine, 'functions', 'src', 'devis', f), join(destinationServeur, 'src', 'devis', f));
 copyFileSync(join(racine, 'functions', 'src', 'version.js'), join(destinationServeur, 'src', 'version.js'));
 copyFileSync(join(racine, 'functions', 'package.json'), join(destinationServeur, 'package.json')); // version.js lit la version du serveur ici
-for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'devis-document.js', 'devis-numeros.js', 'devis-vocabulaire.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'fichiers-regles.js', 'rs-logique.js', 'rs-idees.js', 'rs-inspirations.js', 'rs-pistes.js', 'rdv.js', 'propositions.js']) {
+for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'devis-document.js', 'devis-numeros.js', 'devis-vocabulaire.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'maison-modules.js', 'fichiers-regles.js', 'rs-logique.js', 'rs-idees.js', 'rs-inspirations.js', 'rs-pistes.js', 'rdv.js', 'propositions.js']) {
   mkdirSync(join(destinationServeur, 'partage'), { recursive: true });
   copyFileSync(join(destination, f), join(destinationServeur, 'partage', f));
 }
