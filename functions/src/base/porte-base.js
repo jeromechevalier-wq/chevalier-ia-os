@@ -19,6 +19,9 @@ import {
   LIGNES_MAX_ECRITURE,
 } from './porte-requetes.js';
 import { ErreurConnexionBase } from './cloudsql.js';
+import { originesSite } from '../securite/maison.js';
+
+const originesDuSite = () => originesSite();
 
 export const NOM_SECRET_PORTE = 'BASE_PORTE';
 export const NOM_SECRET_N8N = 'BASE_PORTE_N8N';
@@ -27,12 +30,26 @@ export const DUREE_CACHE_CATALOGUE_MS = 300_000;
 export const DUREE_LIEN_MAX_S = 600;
 export const TAILLE_FICHIER_MAX = 20 * 1024 * 1024;
 export const DELAI_REQUETE_MS = 10_000;
+/** Une transaction ouverte puis abandonnée (fonction coupée en plein travail) est fermée par la base au bout de 60 s, sans bloquer de verrou plus longtemps. */
+export const DELAI_TRANSACTION_INACTIVE_MS = 60_000;
 
 /** Rôle Postgres et identité de chaque voie : écrits ici, jamais lus dans la requête. */
 export const ROLES = Object.freeze({ navigateur: 'porte', n8n: 'robot_reflets' });
 export const UTILISATEUR_N8N = 'n8n';
 /** Les seules fonctions de la base que le navigateur peut appeler (relevé des écrans Achats, plan du 26/11/2026). */
 export const RPC_NAVIGATEUR = Object.freeze(['lister_favoris_os', 'basculer_favori_os', 'demander_ticket_n8n']);
+/**
+ * Tables et vues que le NAVIGATEUR peut lire (relecture Fable du 26/11/2026 : sans cette liste, il lisait tout ce que le rôle `porte` voit, par exemple
+ * les favoris ou les tickets d'un autre compte). Relevé exact des lectures des écrans (grep de `.lire(` dans les dossiers js/modules/achats… et js/modules/tableauachats/,
+ * origin/main du 26/11/2026). Jamais : tickets_n8n, tickets_n8n_demandes, journal_modifications, favoris, favoris_os (verrouillé par un test).
+ * Un nouvel écran qui lit une autre table l'ajoute ici, dans la même PR. La voie n8n n'a pas de liste (rôle robot_reflets).
+ */
+export const LECTURES_NAVIGATEUR = Object.freeze([
+  'articles_fournisseur', 'articles_reference', 'chantiers', 'courriels_recus', 'etablissements_fournisseur', 'factures', 'fournisseurs',
+  'fournisseurs_a_verifier', 'ibans_confirmes', 'lignes_facture', 'rapprochements_articles', 'suggestions_refusees',
+  'v_td_chantiers', 'v_td_factures', 'v_td_fournisseurs_agences', 'v_td_fournisseurs_factures', 'v_td_fournisseurs_fiches',
+  'v_td_prix_evolution', 'v_td_prix_lignes', 'v_td_prix_ponts',
+]);
 /** Fonctions d'installation de la base : jamais par la porte, même pour n8n. */
 export const RPC_INTERDITES_N8N = Object.freeze(['poser_socle', 'poser_reflet']);
 /** Dossiers de stockage connus (un seul : les PDF des factures). */
@@ -80,28 +97,42 @@ export function validerConfiguration(texte) {
   });
 }
 
-/** Lecteur avec cache court (un succès seulement). `lireSecret(nom)` : async → texte. */
+/**
+ * Lecteur avec cache court. `lireSecret(nom)` : async → texte. Un ÉCHEC est aussi gardé `dureeMs` (cache négatif, relecture Fable du 26/11/2026) :
+ * dans une maison sans base (le secret n'existe pas), la fonction est publique et ne doit pas interroger Secret Manager à chaque requête.
+ */
 export function creerLecteurConfiguration({ lireSecret, maintenant = Date.now, dureeMs = DUREE_CACHE_CONFIG_MS }) {
-  let cache = null;
+  let cache = null; // { valeur } ou { erreur }, avec expire
   return async function lire() {
     const t = maintenant();
-    if (cache && cache.expire > t) return cache.valeur;
-    let texte;
-    try { texte = await lireSecret(NOM_SECRET_PORTE); } catch { cache = null; throw new ConfigurationAbsente('secret introuvable'); }
-    const valeur = validerConfiguration(texte);
-    cache = { valeur, expire: t + dureeMs };
-    return valeur;
+    if (cache && cache.expire > t) { if (cache.erreur) throw cache.erreur; return cache.valeur; }
+    try {
+      let texte;
+      try { texte = await lireSecret(NOM_SECRET_PORTE); } catch { throw new ConfigurationAbsente('secret introuvable'); }
+      const valeur = validerConfiguration(texte);
+      cache = { valeur, expire: t + dureeMs };
+      return valeur;
+    } catch (e) {
+      const erreur = e instanceof ConfigurationAbsente ? e : new ConfigurationAbsente('secret illisible');
+      cache = { erreur, expire: t + dureeMs };
+      throw erreur;
+    }
   };
 }
 
 /** Clé de n8n (secret BASE_PORTE_N8N) avec le même cache. Clé absente ou trop courte : lève (n8n est alors refusé). */
 export function creerLecteurCleN8n({ lireSecret, maintenant = Date.now, dureeMs = DUREE_CACHE_CONFIG_MS }) {
-  let cache = null;
+  let cache = null; // succès ou échec, gardé dureeMs (cache négatif)
   return async function lire() {
     const t = maintenant();
-    if (cache && cache.expire > t) return cache.valeur;
-    const valeur = String(await lireSecret(NOM_SECRET_N8N)).trim();
-    if (valeur.length < 32) throw new ConfigurationAbsente('clé n8n trop courte');
+    if (cache && cache.expire > t) { if (cache.erreur) throw cache.erreur; return cache.valeur; }
+    let valeur;
+    try { valeur = String(await lireSecret(NOM_SECRET_N8N)).trim(); } catch { valeur = ''; }
+    if (valeur.length < 32) {
+      const erreur = new ConfigurationAbsente('clé n8n absente ou trop courte');
+      cache = { erreur, expire: t + dureeMs };
+      throw erreur;
+    }
     cache = { valeur, expire: t + dureeMs };
     return valeur;
   };
@@ -187,8 +218,8 @@ const entete = (req, nom) => {
 };
 
 /** Une ligne du journal du serveur : la voie, l'action, le statut, un code ; jamais d'e-mail, de valeur, ni de texte de `pg`. */
-export function ligneDeJournalPorte({ voie, action, statut, code }) {
-  return JSON.stringify({ severity: statut >= 500 ? 'ERROR' : (statut >= 400 ? 'WARNING' : 'INFO'), message: `basePorte ${voie ?? '-'} ${action ?? '-'} ${statut}`, ...(code ? { code: String(code).slice(0, 40) } : {}) });
+export function ligneDeJournalPorte({ voie, action, statut, code, severite }) {
+  return JSON.stringify({ severity: severite ?? (statut >= 500 ? 'ERROR' : (statut >= 400 ? 'WARNING' : 'INFO')), message: `basePorte ${voie ?? '-'} ${action ?? '-'} ${statut}`, ...(code ? { code: String(code).slice(0, 40) } : {}) });
 }
 
 // ————— Le gestionnaire —————
@@ -202,8 +233,9 @@ export function ligneDeJournalPorte({ voie, action, statut, code }) {
  *  - ouvrirConnexion(config) : async → { interroger(sql, valeurs) → { rows, rowCount }, liberer(casse) } ;
  *  - stockage : { ecrire, lire } ; maintenant : horloge (ms) ; journal(evenement).
  */
-export function creerGestionnaireBasePorte({ lireConfiguration, lireCleN8n, verifierJeton, estCompteAutorise, ouvrirConnexion, stockage, maintenant = Date.now, journal = () => {} }) {
+export function creerGestionnaireBasePorte({ lireConfiguration, lireCleN8n, verifierJeton, estCompteAutorise, ouvrirConnexion, stockage, originesParDefaut = originesDuSite, maintenant = Date.now, journal = () => {} }) {
   const catalogues = new Map(); // rôle → { valeur, expire }
+  let dernierAvisNonBranchee = -Infinity; // « pas branchée » journalisé une fois par période de cache au plus
 
   async function catalogue(cx, role) {
     const c = catalogues.get(role);
@@ -223,8 +255,8 @@ export function creerGestionnaireBasePorte({ lireConfiguration, lireCleN8n, veri
       await cx.interroger(lectureSeule ? 'begin read only' : 'begin');
       await cx.interroger(`set local role ${ROLES[appelant.voie]}`); // nom constant (ROLES), jamais lu dans la requête
       await cx.interroger(
-        "select set_config('app.espace_id', $1, true), set_config('app.utilisateur', $2, true), set_config('statement_timeout', $3, true)",
-        [config.espace, appelant.utilisateur, String(DELAI_REQUETE_MS)],
+        "select set_config('app.espace_id', $1, true), set_config('app.utilisateur', $2, true), set_config('statement_timeout', $3, true), set_config('idle_in_transaction_session_timeout', $4, true)",
+        [config.espace, appelant.utilisateur, String(DELAI_REQUETE_MS), String(DELAI_TRANSACTION_INACTIVE_MS)],
       );
       const resultat = await travail(cx, await catalogue(cx, ROLES[appelant.voie]));
       await cx.interroger('commit');
@@ -265,6 +297,7 @@ export function creerGestionnaireBasePorte({ lireConfiguration, lireCleN8n, veri
     if (route.type === 'table') {
       if (!['GET', 'POST', 'PATCH'].includes(methode)) throw new ErreurPorte(405, 'methode_refusee', 'Méthode refusée.');
       if (nav && methode !== 'GET') throw new ErreurPorte(403, 'ecriture_refusee', 'Écriture directe refusée : passe par l\'action prévue.');
+      if (nav && !LECTURES_NAVIGATEUR.includes(route.nom)) throw new ErreurPorte(403, 'lecture_refusee', 'Lecture refusée pour cette table.');
     } else if (route.type === 'rpc') {
       if (methode !== 'POST') throw new ErreurPorte(405, 'methode_refusee', 'Méthode refusée.');
       if (nav && !RPC_NAVIGATEUR.includes(route.nom)) throw new ErreurPorte(403, 'fonction_refusee', 'Fonction refusée.');
@@ -405,16 +438,26 @@ export function creerGestionnaireBasePorte({ lireConfiguration, lireCleN8n, veri
     const route = analyserRoute(methode, cheminDe(req));
     let voie = null;
     try {
+      const origine = entete(req, 'origin');
+      const corsPour = (origines) => {
+        const ok = typeof origine === 'string' && origines.includes(origine);
+        return { ok, entetes: ok ? { 'Access-Control-Allow-Origin': origine, Vary: 'Origin', 'Access-Control-Expose-Headers': ENTETES_EXPOSES } : { Vary: 'Origin' } };
+      };
       let config;
       try { config = await lireConfiguration(); } catch (e) {
-        journal({ voie, action: route.type, statut: 503, code: e instanceof ConfigurationAbsente ? 'configuration' : 'secret' });
-        return envoyerJson(res, 503, { code: 'porte_non_branchee', message: 'La base n\'est pas encore branchée.', details: null, hint: null });
+        // Sans configuration, les origines connues sont celles du site de la maison (https://<projet>.web.app) : l'écran peut lire le 503 et dire « pas branchée ».
+        const t = maintenant();
+        if (t - dernierAvisNonBranchee >= DUREE_CACHE_CONFIG_MS) {
+          dernierAvisNonBranchee = t;
+          journal({ voie, action: route.type, statut: 503, code: e instanceof ConfigurationAbsente ? 'pas_branchee' : 'secret', severite: 'WARNING' });
+        }
+        let parDefaut = [];
+        try { parDefaut = originesParDefaut(); } catch { parDefaut = []; }
+        return envoyerJson(res, 503, { code: 'porte_non_branchee', message: 'La base n\'est pas encore branchée.', details: null, hint: null }, corsPour(parDefaut).entetes);
       }
 
       // CORS : seulement pour les origines de la configuration (le site de la maison) ; jamais « * ».
-      const origine = entete(req, 'origin');
-      const origineOk = typeof origine === 'string' && config.origines.includes(origine);
-      const cors = origineOk ? { 'Access-Control-Allow-Origin': origine, Vary: 'Origin', 'Access-Control-Expose-Headers': ENTETES_EXPOSES } : { Vary: 'Origin' };
+      const { ok: origineOk, entetes: cors } = corsPour(config.origines);
       if (methode === 'OPTIONS') {
         if (!origineOk) return envoyerVide(res, 403);
         return envoyerVide(res, 204, { ...cors, 'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS', 'Access-Control-Allow-Headers': ENTETES_CORS, 'Access-Control-Max-Age': '600' });

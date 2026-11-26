@@ -267,9 +267,11 @@ export function analyserSelect(brut, cols, nomRelation) {
   return noms.map((n) => { colonne(cols, n, nomRelation); return n; });
 }
 
-function entierBorne(brut, max, nom) {
+/** Entier positif. `plafonner` : au-delà de `max`, on ramène à `max` (limit, comme PostgREST) ; sinon on REFUSE (offset). */
+function entierBorne(brut, max, nom, plafonner) {
   const t = String(brut);
   if (!/^\d{1,9}$/.test(t)) throw refus('pagination_refusee', `« ${nom} » doit être un entier positif.`);
+  if (Number(t) > max && !plafonner) throw refus('pagination_refusee', `« ${nom} » dépasse ${max}.`);
   return Math.min(Number(t), max);
 }
 
@@ -286,9 +288,11 @@ export function analyserRequete(paires, catalogue, nomRelation) {
       if (vus.has(cle)) throw refus('reglage_double', `Réglage « ${cle} » donné deux fois.`);
       vus.add(cle);
       if (cle === 'select') r.colonnes = analyserSelect(valeur, cols, nomRelation);
-      else if (cle === 'limit') r.limit = entierBorne(valeur, LIMITE_MAX, 'limit');
-      else if (cle === 'offset') r.offset = entierBorne(valeur, OFFSET_MAX, 'offset');
+      else if (cle === 'limit') r.limit = entierBorne(valeur, LIMITE_MAX, 'limit', true);
+      else if (cle === 'offset') r.offset = entierBorne(valeur, OFFSET_MAX, 'offset', false);
       else if (cle === 'order') r.tri = analyserOrdre(valeur, cols, nomRelation);
+      // on_conflict : noms validés puis ignorés (aucun ON CONFLICT n'est émis : le doublon est avalé par le SAVEPOINT de porte-base.js, avec resolution=ignore-duplicates).
+      // Sur un PATCH, order, limit et offset sont acceptés mais ignorés (la mise à jour porte sur toutes les lignes des filtres).
       else if (cle === 'on_conflict') r.onConflict = String(valeur).split(',').map((c) => { colonne(cols, c.trim(), nomRelation); return c.trim(); });
       else if (cle === 'columns') throw refus('reglage_refuse', 'Le réglage « columns » n\'est pas compris.');
       continue;
@@ -437,5 +441,6 @@ export function reponseErreur(e) {
   if (code === '23505') return { statut: 409, corps: { code, message: 'Doublon refusé par la base.', details: null, hint: null } };
   if (code === '42501') return { statut: 403, corps: { code, message: 'Accès refusé par la base.', details: null, hint: null } };
   if (/^2[23][0-9A-Z]{3}$/.test(code)) return { statut: 400, corps: { code, message: 'Valeur refusée par la base.', details: null, hint: null } };
+  if (/^42[0-9A-Z]{3}$/.test(code)) return { statut: 400, corps: { code, message: 'Demande refusée par la base.', details: null, hint: null } }; // ex. 42883 (fonction sans cette signature), 42804 (type)
   return { statut: 500, corps: { code: 'erreur_base', message: 'La base a un souci, réessaie dans un instant.', details: null, hint: null } };
 }

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   creerGestionnaireBasePorte, validerConfiguration, creerLecteurConfiguration, creerLecteurCleN8n, ConfigurationAbsente, jetonLien, jetonLienValide,
-  egalTempsConstant, ligneDeJournalPorte, RPC_NAVIGATEUR, NOM_SECRET_PORTE, NOM_SECRET_N8N,
+  egalTempsConstant, ligneDeJournalPorte, RPC_NAVIGATEUR, NOM_SECRET_PORTE, NOM_SECRET_N8N, LECTURES_NAVIGATEUR, DELAI_TRANSACTION_INACTIVE_MS,
 } from '../functions/src/base/porte-base.js';
 import { creerOuvreurCloudSql, ErreurConnexionBase } from '../functions/src/base/cloudsql.js';
 import { SQL_CATALOGUE_RELATIONS, SQL_CATALOGUE_FONCTIONS } from '../functions/src/base/porte-requetes.js';
@@ -20,8 +20,9 @@ const CONFIG = validerConfiguration(JSON.stringify({
 }));
 
 const RELATIONS = [
-  ...['id:uuid', 'numero:text', 'statut:text', 'email_message_id:text', 'donnees:jsonb'].map((c) => ({ relation: 'factures', colonne: c.split(':')[0], type: c.split(':')[1] })),
+  ...['id:uuid', 'numero:text', 'statut:text', 'email_message_id:text', 'donnees:jsonb', 'espace_id:text'].map((c) => ({ relation: 'factures', colonne: c.split(':')[0], type: c.split(':')[1] })),
   { relation: 'chantiers', colonne: 'id', type: 'uuid' }, { relation: 'chantiers', colonne: 'nom', type: 'text' },
+  { relation: 'favoris_os', colonne: 'utilisateur', type: 'text' }, { relation: 'favoris_os', colonne: 'cle', type: 'text' },
 ];
 const FONCTIONS = [
   { nom: 'lister_favoris_os', ensemble: true, composite: false, vide: false, noms: [], modes: [], types: [] },
@@ -56,7 +57,7 @@ const JETONS = {
   inconnu: { email: 'intrus@exemple.fr', email_verified: true, role: 'authenticated', espace_base: ESPACE },
 };
 
-function porte({ base = fausseBase(), stockage, config = async () => CONFIG, cle = async () => CLE_N8N, maintenant = () => 1_800_000_000_000, comptes = ['lea@exemple.fr'] } = {}) {
+function porte({ base = fausseBase(), stockage, config = async () => CONFIG, cle = async () => CLE_N8N, maintenant = () => 1_800_000_000_000, comptes = ['lea@exemple.fr'], originesParDefaut = () => [ORIGINE] } = {}) {
   const evenements = [];
   const fichiers = new Map();
   const stock = stockage ?? {
@@ -73,6 +74,7 @@ function porte({ base = fausseBase(), stockage, config = async () => CONFIG, cle
     verifierJeton: async (j) => { if (!JETONS[j]) throw new Error('jeton invalide'); return JETONS[j]; },
     estCompteAutorise: async (email) => comptes.includes(email),
     ouvrirConnexion: base.ouvrir,
+    originesParDefaut,
     stockage: stock,
     maintenant,
     journal: (e) => evenements.push(e),
@@ -141,10 +143,15 @@ describe('1 qui appelle (contrôlé côté serveur à chaque appel)', () => {
     assert.equal(egalTempsConstant('abc', 'abc'), true);
     assert.equal(egalTempsConstant('abc', 'abd'), false);
   });
-  test('1.6 l\'espace vient de la configuration, JAMAIS de la requête (paramètre, en-tête ou corps)', async () => {
+  test('1.6 l\'espace vient de la configuration, JAMAIS de la requête : un filtre espace_id n\'est qu\'un filtre, ni l\'en-tête ni le corps ne changent app.espace_id', async () => {
     const p = porte({ base: fausseBase(() => ({ rows: [] })) });
     const r = await appeler(p, 'GET', '/rest/v1/factures?select=id&espace_id=eq.autre', { entetes: { ...NAV, 'X-Espace': 'autre' } });
-    assert.equal(r.statut, 400); // espace_id n'est pas une colonne connue du catalogue : refusé
+    assert.equal(r.statut, 200); // espace_id est une vraie colonne : le filtre passe, en paramètre, dans le WHERE…
+    const lecture = p.base.journal.find((j) => j.sql.startsWith('select "id" from public."factures"'));
+    assert.match(lecture.sql, /where "espace_id" = \$1/);
+    assert.equal(lecture.valeurs[0], 'autre');
+    const pose1 = p.base.journal.find((j) => j.sql.startsWith("select set_config('app.espace_id'"));
+    assert.equal(pose1.valeurs[0], ESPACE); // …mais l'espace posé pour la sécurité par ligne reste celui de la configuration (le filtre ne rend donc rien de plus)
     const p2 = porte();
     await appeler(p2, 'POST', '/rest/v1/rpc/lister_favoris_os', { entetes: { ...NAV, 'X-Espace': 'autre' }, corps: { espace: 'autre' } });
     const pose = p2.base.journal.find((j) => j.sql.startsWith("select set_config('app.espace_id'"));
@@ -161,6 +168,22 @@ describe('1 qui appelle (contrôlé côté serveur à chaque appel)', () => {
     assert.equal(r.json().code, 'porte_non_branchee');
     assert.equal(p.base.journal.length, 0);
   });
+  test('1.9 « pas branchée » : 503 avec les en-têtes CORS du site, journalisé en WARNING une fois par période de 60 s au plus', async () => {
+    let t = 1_800_000_000_000;
+    const p = porte({ config: async () => { throw new ConfigurationAbsente('secret introuvable'); }, maintenant: () => t });
+    const r = await appeler(p, 'GET', '/rest/v1/factures', { entetes: NAV });
+    assert.equal(r.entetes['Access-Control-Allow-Origin'], ORIGINE);
+    await appeler(p, 'GET', '/rest/v1/factures', { entetes: NAV });
+    t += 59_000;
+    await appeler(p, 'GET', '/rest/v1/factures', { entetes: NAV });
+    assert.equal(p.evenements.length, 1);
+    t += 2_000;
+    await appeler(p, 'GET', '/rest/v1/factures', { entetes: NAV });
+    assert.equal(p.evenements.length, 2);
+    assert.equal(JSON.parse(ligneDeJournalPorte(p.evenements[0])).severity, 'WARNING');
+    const autre = await appeler(p, 'GET', '/rest/v1/factures', { entetes: { ...NAV, Origin: 'https://pirate.example' } });
+    assert.equal(autre.entetes['Access-Control-Allow-Origin'], undefined);
+  });
 });
 
 describe('2 transaction', () => {
@@ -173,7 +196,8 @@ describe('2 transaction', () => {
     const s = base.sqls();
     assert.equal(s[0], 'begin read only');
     assert.equal(s[1], 'set local role porte');
-    assert.match(s[2], /set_config\('app\.espace_id', \$1, true\), set_config\('app\.utilisateur', \$2, true\)/);
+    assert.match(s[2], /set_config\('app\.espace_id', \$1, true\), set_config\('app\.utilisateur', \$2, true\), set_config\('statement_timeout', \$3, true\), set_config\('idle_in_transaction_session_timeout', \$4, true\)/);
+    assert.deepEqual(base.journal[2].valeurs.slice(2), ['10000', String(DELAI_TRANSACTION_INACTIVE_MS)]);
     assert.equal(s.at(-1), 'commit');
     assert.deepEqual(base.liberes, [false]);
   });
@@ -190,6 +214,24 @@ describe('2 transaction', () => {
     assert.ok(!r.corps.includes('10.0.0.1'));
     assert.ok(base.sqls().includes('rollback'));
     assert.ok(!base.sqls().includes('commit'));
+  });
+  test('2.3b le rollback lui-même échoue → la connexion est détruite (liberer(true)), jamais rendue au pool', async () => {
+    const journal = [];
+    const liberes = [];
+    const base = { ouvrir: async () => ({
+      async interroger(sql) {
+        journal.push(sql);
+        if (sql === 'rollback') throw new Error('connexion coupée');
+        if (sql === SQL_CATALOGUE_RELATIONS) return { rows: RELATIONS };
+        if (sql === SQL_CATALOGUE_FONCTIONS) return { rows: FONCTIONS };
+        if (sql.startsWith('select "id"')) throw Object.assign(new Error('x'), { code: 'XX000' });
+        return { rows: [] };
+      },
+      liberer(casse) { liberes.push(casse); },
+    }) };
+    const r = await appeler(porte({ base }), 'GET', '/rest/v1/factures?select=id', { entetes: NAV });
+    assert.equal(r.statut, 500);
+    assert.deepEqual(liberes, [true]);
   });
   test('2.4 base injoignable → 503 sans détail', async () => {
     const p = porte({ base: { ouvrir: async () => { throw new ErreurConnexionBase('08006'); } } });
@@ -217,6 +259,25 @@ describe('3 ce que chaque voie peut faire', () => {
       assert.equal(r.json().code, 'ecriture_refusee');
       assert.equal(p.base.journal.length, 0);
     }
+  });
+  test('3.1b navigateur : seulement les tables et vues lues par les écrans Achats ; favoris_os d\'un autre compte → 403 ; n8n inchangé', async () => {
+    const p = porte();
+    const r = await appeler(p, 'GET', '/rest/v1/favoris_os?select=utilisateur,cle', { entetes: NAV });
+    assert.equal(r.statut, 403);
+    assert.equal(r.json().code, 'lecture_refusee');
+    assert.equal(p.base.journal.length, 0);
+    assert.equal((await appeler(porte(), 'GET', '/rest/v1/chantiers?select=id,nom', { entetes: NAV })).statut, 200);
+    assert.equal((await appeler(porte(), 'GET', '/rest/v1/favoris_os?select=cle', { entetes: N8N })).statut, 200);
+    for (const interdit of ['tickets_n8n', 'tickets_n8n_demandes', 'journal_modifications', 'favoris', 'favoris_os']) assert.ok(!LECTURES_NAVIGATEUR.includes(interdit), interdit);
+  });
+  test('3.1c chaque table de la liste blanche est bien lue par un écran (nom écrit entre guillemets dans js/modules/achats… ou tableauachats)', async () => {
+    const { readdirSync } = await import('node:fs');
+    const racine = new URL('../js/modules/', import.meta.url);
+    let texte = '';
+    for (const d of readdirSync(racine).filter((n) => n.startsWith('achats') || n === 'tableauachats')) {
+      for (const f of readdirSync(new URL(`${d}/`, racine)).filter((n) => n.endsWith('.js'))) texte += readFileSync(new URL(`${d}/${f}`, racine), 'utf8');
+    }
+    for (const nom of LECTURES_NAVIGATEUR) assert.match(texte, new RegExp(`['"]${nom}['"]|\\b${nom}:`), nom);
   });
   test('3.2 navigateur : seulement les 3 fonctions de la liste ; toute autre → 403', async () => {
     assert.deepEqual([...RPC_NAVIGATEUR].sort(), ['basculer_favori_os', 'demander_ticket_n8n', 'lister_favoris_os']);
@@ -372,16 +433,28 @@ describe('7 configuration, journal, connecteur', () => {
     }
     assert.throws(() => validerConfiguration('pas du json'), ConfigurationAbsente);
   });
-  test('7.2 lecteurs de secrets : noms BASE_PORTE et BASE_PORTE_N8N, cache du succès seulement, erreur sans valeur', async () => {
+  test('7.2 lecteurs de secrets : noms BASE_PORTE et BASE_PORTE_N8N ; succès ET échec gardés 60 s (cache négatif), relus ensuite', async () => {
     const lus = [];
     let fois = 0;
-    const lire = creerLecteurConfiguration({ lireSecret: async (n) => { lus.push(n); fois += 1; if (fois === 1) throw new Error('absent'); return JSON.stringify({ instance: 'projet-essai:europe-west9:base', base: 'achats', utilisateur: 'porte_fn', mot_de_passe: 'm', espace: ESPACE, bucket: 'reserve-essai', cle_liens: 'k'.repeat(32) }); }, maintenant: () => 0 });
+    let t = 0;
+    const lire = creerLecteurConfiguration({ lireSecret: async (n) => { lus.push(n); fois += 1; if (fois === 1) throw new Error('absent'); return JSON.stringify({ instance: 'projet-essai:europe-west9:base', base: 'achats', utilisateur: 'porte_fn', mot_de_passe: 'm', espace: ESPACE, bucket: 'reserve-essai', cle_liens: 'k'.repeat(32) }); }, maintenant: () => t });
     await assert.rejects(lire(), ConfigurationAbsente);
+    await assert.rejects(lire(), ConfigurationAbsente); // échec gardé : Secret Manager n'est pas relu
+    assert.equal(lus.length, 1);
+    t = 60_001;
     assert.equal((await lire()).espace, ESPACE);
     await lire();
     assert.deepEqual(lus, [NOM_SECRET_PORTE, NOM_SECRET_PORTE]);
-    const cle = creerLecteurCleN8n({ lireSecret: async (n) => { assert.equal(n, NOM_SECRET_N8N); return 'court'; } });
+    let lectures = 0;
+    let tc = 0;
+    const cle = creerLecteurCleN8n({ lireSecret: async (n) => { assert.equal(n, NOM_SECRET_N8N); lectures += 1; if (lectures === 1) throw new Error('absent'); return lectures === 2 ? 'court' : CLE_N8N; }, maintenant: () => tc });
     await assert.rejects(cle());
+    await assert.rejects(cle());
+    assert.equal(lectures, 1);
+    tc = 60_001;
+    await assert.rejects(cle()); // trop courte
+    tc = 120_002;
+    assert.equal(await cle(), CLE_N8N);
   });
   test('7.3 journal : ni e-mail, ni clé, ni valeur ; un refus est journalisé', async () => {
     const p = porte();

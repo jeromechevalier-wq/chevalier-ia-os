@@ -66,8 +66,9 @@ describe('2 filtres', () => {
     const b = sqlLecture('factures', analyserRequete([['statut', 'not.eq.refusee']], CATALOGUE, 'factures'));
     assert.match(b.sql, /where not \("statut" = \$1\)/);
   });
-  test('2.3 is : null, true, false seulement ; rien d\'autre', () => {
+  test('2.3 is : null, true, false, unknown seulement ; rien d\'autre', () => {
     assert.match(sqlLecture('factures', analyserRequete([['archivee_le', 'is.null']], CATALOGUE, 'factures')).sql, /"archivee_le" is null/);
+    assert.equal(analyserFiltre('is.unknown').valeur, 'unknown');
     refuse(() => analyserFiltre('is.drop'), 'filtre_refuse');
   });
   test('2.4 in : liste avec guillemets, virgule et \\" échappés (format de js/os/supabase.js) → = any($1)', () => {
@@ -150,6 +151,8 @@ describe('4 lecture, pagination, comptage', () => {
     assert.deepEqual(l.valeurs, [1000, 2000]);
     refuse(() => analyserRequete([['limit', '-1']], CATALOGUE, 'factures'), 'pagination_refusee');
     refuse(() => analyserRequete([['offset', '1;drop']], CATALOGUE, 'factures'), 'pagination_refusee');
+    refuse(() => analyserRequete([['offset', '1000001']], CATALOGUE, 'factures'), 'pagination_refusee'); // offset au-delà du plafond : refusé, jamais ramené en silence
+    assert.equal(analyserRequete([['offset', '1000000']], CATALOGUE, 'factures').offset, 1_000_000);
     refuse(() => analyserRequete([['order', 'id.sideways']], CATALOGUE, 'factures'), 'ordre_refuse');
   });
   test('4.3 Prefer: count=exact → COUNT des mêmes filtres ; Content-Range à la manière de PostgREST', () => {
@@ -212,6 +215,11 @@ describe('6 erreurs de la base', () => {
     assert.deepEqual(reponseErreur({ code: 'P0001', message: 'Facture déjà décidée', detail: 'facture_deja_decidee' }), { statut: 400, corps: { code: 'P0001', message: 'Facture déjà décidée', details: 'facture_deja_decidee', hint: null } });
     assert.equal(reponseErreur({ code: '23505', message: 'duplicate key value violates unique constraint "x" on host 10.0.0.1' }).statut, 409);
     assert.equal(reponseErreur({ code: '42501' }).statut, 403);
+    for (const code of ['42883', '42804', '42703']) {
+      const r = reponseErreur({ code, message: 'function x(integer) does not exist' });
+      assert.equal(r.statut, 400, code);
+      assert.equal(r.corps.message, 'Demande refusée par la base.');
+    }
   });
   test('6.2 toute autre erreur : message FIXE, jamais le texte de pg (qui peut citer la base ou l\'hôte)', () => {
     for (const e of [{ code: '22P02', message: 'invalid input syntax for type uuid: "secret"' }, { code: '42P01', message: 'relation "x" does not exist' }, new Error('connect ECONNREFUSED 10.1.2.3:5432')]) {
