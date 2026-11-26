@@ -2,8 +2,10 @@
 import { demarrerPwa } from './os/pwa.js';
 import { appliquerTheme, afficherConnexion, monterCoquille, ESPACE_RACINE } from './os/shell.js';
 import { surveillerCompte, connecter, deconnecter, preparerCrm, MESSAGE_REFUS } from './os/auth.js';
-import { MESSAGE_PUBLIC_ABSENT, MESSAGE_PANNE_REGLAGES, configurationNeutre, modulesEcranBrut } from './os/comptes-maison.js';
+import { MESSAGE_PUBLIC_ABSENT, MESSAGE_PANNE_REGLAGES, configurationNeutre, modulesEcranBrut, besoinsEcranBrut } from './os/comptes-maison.js';
 import { modulesDeLaMaison } from './os/maison-modules.js';
+import { lireBesoinsMaison, ROUTE_VILLAGE } from './os/maison-village.js';
+import { monterVillage } from './os/village-ecran.js';
 import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, lien, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace } from './os/marque.js';
 import { blocIntrouvablePortail } from './os/portail-introuvable.js';
@@ -92,13 +94,18 @@ function afficherChargement() {
 // présent = seuls les modules listés, pour tous les comptes de la maison, et la Console en plus pour le titulaire seul. `accueilMaison` : null sans réglage.
 let MODULES = MODULES_TOUS;
 let accueilMaison = null;
+// Accueil « village » (26/11/2026, js/os/maison-village.js) : champ facultatif `besoins` de reglages_maison/ecran ; liste vide = accueil d'avant (jamais dans le portail devis).
+let besoinsVillage = [];
 
 async function ouvrirSession(compte) {
   fermerSession();
   const choix = modulesDeLaMaison(MODULES_TOUS, { titulaire: peutVoirConsole(compte), brut: modulesEcranBrut() });
   for (const a of choix.avertissements) console.warn(a);
   MODULES = choix.modules;
-  accueilMaison = choix.accueil;
+  const village = portail ? { besoins: [], avertissements: [] } : lireBesoinsMaison(besoinsEcranBrut());
+  for (const a of village.avertissements) console.warn(a);
+  besoinsVillage = village.besoins;
+  accueilMaison = besoinsVillage.length ? ROUTE_VILLAGE : choix.accueil; // logo, « Retour à l'accueil » et adresse vide : le village
   afficherChargement();
   const apis = new Map();
   for (const m of MODULES) {
@@ -158,6 +165,7 @@ function fermerSession() {
   import('./modules/rdv/index.js').then((m) => m.oublierFiltres()).catch(() => {});
   import('./modules/automatisations/ecran.js').then((m) => m.oublierFiltresAutomatisations()).catch(() => {});
   session = null;
+  besoinsVillage = [];
 }
 
 /** « Page introuvable » (maison : module éteint, ou page technique cachée à un compte non titulaire), avec « Retour à l'accueil » vers `accueil`. */
@@ -218,9 +226,13 @@ function afficherRoute(route) {
   // Maison d'un client, compte non titulaire : le Journal (#/journal et l'ancienne adresse #/crm/journal du module Affaires) est une page technique cachée.
   // La plateforme des clients a son propre routeur (js/os/espace-modules.js) : #/espace/<client>/crm/journal y reste servi.
   if (estRouteJournal(segs) && pagesTechniquesCachees(session.compte)) { afficherIntrouvable(accueilMaison || ROUTE_DEFAUT); return; }
+  if (besoinsVillage.length && adresseVide()) { naviguer(ROUTE_VILLAGE, { remplacer: true }); return; } // maison avec `besoins` : l'adresse vide ouvre le village
   let cle;
   let afficher;
-  if (segs[0] === 'reglages') {
+  if (besoinsVillage.length && segs.length === 1 && segs[0] === ROUTE_VILLAGE) { // accueil village : le dessin seul (ni journal, ni carrés)
+    cle = 'village';
+    afficher = () => { session.vue.quitter?.(); vider(coquille.contenu); return monterVillage(coquille.contenu, besoinsVillage, { aller: (cible) => naviguer(cible) }); };
+  } else if (segs[0] === 'reglages') {
     cle = 'reglages';
     afficher = () => monterReglages(coquille.contenu, segs, {
       apis, actifs: MODULES.map((m) => m.id), chezClient: false, nomEspace: 'Chevalier IA OS', marque: null, fiche: null, compte: session.compte,

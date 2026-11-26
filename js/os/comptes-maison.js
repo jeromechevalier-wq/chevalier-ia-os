@@ -4,6 +4,7 @@
 //  - reglages_maison/ecran : lu APRÈS la connexion, par les seuls comptes de la fiche serveur (règle firestore.rules) :
 //    { personnes: [{ email, nom, portrait }], comptes_jerome_seul: [e-mails], configuration_crm?: 'neutre' }.
 //    modules (27/11/2026, facultatif) : liste d'identifiants de modules allumés dans cette maison (js/os/maison-modules.js) ; ABSENT = comportement d'avant.
+//    besoins (26/11/2026, facultatif) : 1 à 3 besoins du client, dessinés en village à l'accueil (js/os/maison-village.js) ; ABSENT = accueil d'avant.
 //    configuration_crm (26/11/2026) : 'neutre' = la maison d'un client (étapes, phases, réglages et membres neutres, comme un espace de la plateforme) ;
 //    champ ABSENT ou toute autre valeur = la configuration de Jérôme (sa maison n'a pas ce champ : rien ne change chez lui).
 // Ce fichier n'importe rien (pas de Firebase) : il se teste seul. Il ne fait que montrer ou cacher : les vraies barrières sont les règles et le serveur.
@@ -15,6 +16,7 @@ let personnes = []; // [{ email, nom, avatar }]
 let titulaires = []; // e-mails
 let modeCrm = false;
 let configurationCrm = ''; // valeur du champ configuration_crm de `ecran` ('' tant que rien n'est lu)
+let besoinsBrut; // valeur brute du champ `besoins` de `ecran` (undefined = champ absent) : rangée et vérifiée par js/os/maison-village.js
 let modulesBrut; // valeur brute du champ `modules` de `ecran` (undefined = champ absent) : rangée et vérifiée par js/os/maison-modules.js
 
 /** Range en mémoire le document `ecran` (données lues dans Firestore). Les entrées mal formées sont ignorées. */
@@ -26,7 +28,10 @@ export function remplirComptesMaison(ecran) {
   titulaires = (Array.isArray(ecran?.comptes_jerome_seul) ? ecran.comptes_jerome_seul : []).map(norm).filter(Boolean);
   configurationCrm = typeof ecran?.configuration_crm === 'string' ? ecran.configuration_crm : ''; // valeur exacte : seul 'neutre' change quelque chose
   modulesBrut = Array.isArray(ecran?.modules) ? [...ecran.modules] : ecran?.modules ?? undefined; // copie : rien ne remonte vers le document lu
+  besoinsBrut = Array.isArray(ecran?.besoins) ? ecran.besoins.map(copieFiche) : ecran?.besoins ?? undefined;
 }
+
+const copieFiche = (b) => (b && typeof b === 'object' && !Array.isArray(b) ? { ...b } : b);
 
 /** Oublie les listes (déconnexion, essais). */
 export function viderComptesMaison() {
@@ -34,7 +39,11 @@ export function viderComptesMaison() {
   titulaires = [];
   configurationCrm = '';
   modulesBrut = undefined;
+  besoinsBrut = undefined;
 }
+
+/** Valeur brute du champ `besoins` de `ecran` (copie ; undefined = champ absent ou null). Lue par js/os/maison-village.js. */
+export const besoinsEcranBrut = () => (Array.isArray(besoinsBrut) ? besoinsBrut.map(copieFiche) : besoinsBrut);
 
 /** Valeur brute du champ `modules` de `ecran` (copie d'une liste ; undefined = champ absent ou null). Lue par js/os/maison-modules.js. */
 export const modulesEcranBrut = () => (Array.isArray(modulesBrut) ? [...modulesBrut] : modulesBrut);
