@@ -166,7 +166,7 @@ export function reglages(page) {
 
   // ── Mise en route : quatre étapes dépliables (texte seulement ; le voyant lit « branché » et le numéro de test déjà connus de l'écran)
   redessins.push(carte(page, 'reglages-rdv-mise-en-route', 'Mise en route de l’envoi des SMS', () => miseEnRoute({
-    peutConfigurer: D.peutConfigurerConnexion(), branche: D.envoiBranche(), numeroTest: D.parametres().numeroTest || '',
+    peutConfigurer: D.peutConfigurerConnexion(), branche: D.envoiBranche(), numeroTest: D.parametres().numeroTest || '', plage: D.parametres().plage,
   })));
 
   redessins.push(carte(page, 'reglages-rdv-relances', 'Relances', () => {

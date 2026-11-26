@@ -376,10 +376,10 @@ test('M1 réglages : la carte « Mise en route » donne les quatre étapes (comp
   const carte = page.locator('#reglages-rdv-mise-en-route');
   await expect(carte.locator('h2')).toHaveText('Mise en route de l’envoi des SMS');
   await expect(carte.locator('details.rdv-mise-etape summary')).toHaveText(['Étape 1 : le compte ClickSend', 'Étape 2 : brancher la connexion', 'Étape 3 : les réponses et les STOP', 'Étape 4 : le premier test']);
-  await expect(carte.locator('[data-role="mise-etape-1"]')).toContainText('Username');
-  await expect(carte.locator('[data-role="mise-etape-1"]')).toContainText('mot de passe du compte ne sert à rien ici');
-  await expect(carte.locator('[data-role="mise-etape-3"]')).toContainText('Opt-out contact');
-  await expect(carte.locator('[data-role="mise-etape-3"]')).toContainText('Action address');
+  // sans réponse du serveur (ici, rien n'est simulé), le détail de la console Google n'est jamais montré : les étapes 1 à 3 renvoient à l'administrateur (le détail se teste dans rdv-connexion.spec.js, M2)
+  await expect(carte.locator('[data-role="mise-etape-1"]')).toContainText('gérés par l’administrateur de la plateforme');
+  await expect(carte.locator('[data-role="mise-etape-2"]')).not.toContainText('Secret Manager');
+  await expect(carte.locator('[data-role="mise-etape-4"]')).toContainText('plage d’envoi réglée (8h00 à 20h30');
   await expect(carte.locator('[data-role="mise-etape-4"]')).toContainText('STOP');
   await expect(carte.locator('[data-role="mise-etape-4"]')).toContainText('deux participants, deux SMS identiques');
   // un clic sur l'en-tête déplie l'étape et son choix survit au redessin de la carte

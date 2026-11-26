@@ -155,3 +155,28 @@ test('A5c avant l’enregistrement de la connexion, l’aide dit « Enregistre d
   await expect(carte.getByRole('button', { name: 'Afficher l’adresse des réponses' })).toHaveCount(0);
   await expect(aide).not.toContainText('Afficher l’adresse');
 });
+
+test('M2 mise en route : le compte qui peut configurer voit le détail des étapes 1 à 3 (console Google comprise) ; les autres seulement « réglée par l’administrateur »', async ({ page }) => {
+  await simulerServeur(page, { peutConfigurer: true, branche: false });
+  await ouvrir(page);
+  const carte = page.locator('#reglages-rdv-mise-en-route');
+  await expect(carte.locator('[data-role="mise-etape-1"]')).toContainText('Username');
+  await expect(carte.locator('[data-role="mise-etape-1"]')).toContainText('mot de passe du compte ne sert à rien ici');
+  await expect(carte.locator('[data-role="mise-etape-2"]')).toContainText('Secret Manager');
+  await expect(carte.locator('[data-role="mise-etape-2"]')).toContainText('CLICKSEND_RDV');
+  await expect(carte.locator('[data-role="mise-etape-3"]')).toContainText('Opt-out contact');
+  await expect(carte.locator('[data-role="mise-etape-3"]')).toContainText('Action address');
+  // l'étape à faire en premier (1, envoi pas branché) est ouverte d'office ; un clic la referme et ce choix reste
+  await expect(carte.locator('[data-role="mise-etape-1"]')).toHaveAttribute('open', '');
+  await carte.locator('[data-role="mise-etape-1"] summary').click();
+  await expect(carte.locator('[data-role="mise-etape-1"]')).not.toHaveAttribute('open', '');
+});
+test('M2 mise en route : un compte qui ne peut pas configurer ne voit ni Secret Manager ni la clé à copier', async ({ page }) => {
+  await simulerServeur(page, { peutConfigurer: false, branche: false });
+  await ouvrir(page);
+  const carte = page.locator('#reglages-rdv-mise-en-route');
+  await expect(carte.locator('[data-role="mise-etape-2"]')).toContainText('réglée par l’administrateur de la plateforme');
+  await expect(carte).not.toContainText('Secret Manager');
+  await expect(carte).not.toContainText('CLICKSEND_RDV');
+  await expect(carte).not.toContainText('API key');
+});
