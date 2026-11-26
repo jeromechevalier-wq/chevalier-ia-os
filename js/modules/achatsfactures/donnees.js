@@ -109,8 +109,17 @@ export function creerDonnees({ client, actions }) {
   }
 
   /** Archive une facture déjà décidée (le serveur refuse une facture « à valider »). Corps : `{ action, facture_id }`, rien d'autre. */
+  /**
+   * Nombre de factures « à valider » non archivées (accueil « village » d'une maison, compteur `factures_a_valider` : js/os/village-compteurs.js).
+   * Même lecture que la liste (table `factures`, colonnes nommées) ; renvoie null si la lecture est incomplète (jamais de chiffre inventé). Une erreur de lecture est levée.
+   */
+  async function compterFacturesAValider() {
+    const lue = await valeur(client).lire(TABLE_FACTURES, { colonnes: ['id'], filtres: [['statut', 'eq', 'a_valider'], ['archivee_le', 'is', null]], tri: ['id'] });
+    return lue.tronque ? null : lue.lignes.length;
+  }
+
   const archiver = (id) => valeur(actions).appelerActionMetier('archiver', { facture_id: id });
   const desarchiver = (id) => valeur(actions).appelerActionMetier('desarchiver', { facture_id: id });
 
-  return { chargerFactures, chargerNombreLignes, chargerIbansConfirmes, chargerFavoris, basculerFavori, archiver, desarchiver };
+  return { chargerFactures, chargerNombreLignes, chargerIbansConfirmes, chargerFavoris, basculerFavori, compterFacturesAValider, archiver, desarchiver };
 }
