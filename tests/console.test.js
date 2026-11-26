@@ -93,7 +93,7 @@ describe('Console : accès côté écran et registre (C4)', () => {
 
   test('C4 la coque ne monte la Console que pour le compte de Jérôme', () => {
     const main = readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
-    assert.match(main, /MODULES_TOUS\.filter\(\(m\) => !m\.seulJerome \|\| peutVoirConsole\(compte\)\)/);
+    assert.match(main, /modulesDeLaMaison\(MODULES_TOUS, \{ titulaire: peutVoirConsole\(compte\), brut: modulesEcranBrut\(\) \}\)/);
   });
 });
 

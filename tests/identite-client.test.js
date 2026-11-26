@@ -171,6 +171,7 @@ describe('inventaire des textes d\'identité de Jérôme dans le code de l\'inte
     'js/modules/projets/projets.js': 'GitHub / célébration de clôture coupée chez un client',
     'js/modules/console/logique.js': 'module Console réservé à Jérôme (16/11/2026) : jamais monté ni activable chez un client ; la liste du filet cite « Jérôme indisponible »',
     'js/os/modules.js': 'champ `seulJerome` de la Console (module réservé à Jérôme, jamais dans MODULES_CLIENT)',
+    'js/os/maison-modules.js': 'champ `seulJerome` lu pour le filtre des modules d\'une maison (Console et Achats au titulaire seul sans réglage `modules`) ; aucun texte affiché',
     'js/os/base-reglages-ecran.js': 'écran Réglages > Connexion à la base (24/11/2026) : texte « Réservé à Jérôme », section `jeromeSeulement` jamais montrée chez un client (registre.js)',
   };
   const MOTS = /Chevalier|Jérôme|Jerome|Charles|Hermes|Claude Code/;

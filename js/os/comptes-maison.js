@@ -3,6 +3,7 @@
 //    Sur la plateforme des clients, ce document est illisible (règles de la plateforme : tout est refusé) : c'est le signe « pas de CRM ici ».
 //  - reglages_maison/ecran : lu APRÈS la connexion, par les seuls comptes de la fiche serveur (règle firestore.rules) :
 //    { personnes: [{ email, nom, portrait }], comptes_jerome_seul: [e-mails], configuration_crm?: 'neutre' }.
+//    modules (27/11/2026, facultatif) : liste d'identifiants de modules allumés dans cette maison (js/os/maison-modules.js) ; ABSENT = comportement d'avant.
 //    configuration_crm (26/11/2026) : 'neutre' = la maison d'un client (étapes, phases, réglages et membres neutres, comme un espace de la plateforme) ;
 //    champ ABSENT ou toute autre valeur = la configuration de Jérôme (sa maison n'a pas ce champ : rien ne change chez lui).
 // Ce fichier n'importe rien (pas de Firebase) : il se teste seul. Il ne fait que montrer ou cacher : les vraies barrières sont les règles et le serveur.
@@ -14,6 +15,7 @@ let personnes = []; // [{ email, nom, avatar }]
 let titulaires = []; // e-mails
 let modeCrm = false;
 let configurationCrm = ''; // valeur du champ configuration_crm de `ecran` ('' tant que rien n'est lu)
+let modulesBrut; // valeur brute du champ `modules` de `ecran` (undefined = champ absent) : rangée et vérifiée par js/os/maison-modules.js
 
 /** Range en mémoire le document `ecran` (données lues dans Firestore). Les entrées mal formées sont ignorées. */
 export function remplirComptesMaison(ecran) {
@@ -23,6 +25,7 @@ export function remplirComptesMaison(ecran) {
     .map((p) => ({ email: norm(p.email), nom: typeof p.nom === 'string' && p.nom.trim() ? p.nom.trim() : norm(p.email), avatar: typeof p.portrait === 'string' ? p.portrait : '' }));
   titulaires = (Array.isArray(ecran?.comptes_jerome_seul) ? ecran.comptes_jerome_seul : []).map(norm).filter(Boolean);
   configurationCrm = typeof ecran?.configuration_crm === 'string' ? ecran.configuration_crm : ''; // valeur exacte : seul 'neutre' change quelque chose
+  modulesBrut = Array.isArray(ecran?.modules) ? [...ecran.modules] : ecran?.modules ?? undefined; // copie : rien ne remonte vers le document lu
 }
 
 /** Oublie les listes (déconnexion, essais). */
@@ -30,7 +33,11 @@ export function viderComptesMaison() {
   personnes = [];
   titulaires = [];
   configurationCrm = '';
+  modulesBrut = undefined;
 }
+
+/** Valeur brute du champ `modules` de `ecran` (copie d'une liste ; undefined = champ absent ou null). Lue par js/os/maison-modules.js. */
+export const modulesEcranBrut = () => (Array.isArray(modulesBrut) ? [...modulesBrut] : modulesBrut);
 
 /** Vrai si `ecran` demande la configuration neutre (configuration_crm: 'neutre'). Champ absent ou autre valeur : faux (configuration de Jérôme, inchangée). */
 export const configurationNeutre = () => configurationCrm === 'neutre';

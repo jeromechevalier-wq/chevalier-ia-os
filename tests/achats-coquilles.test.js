@@ -53,10 +53,10 @@ describe('A1 déclaration : cinq modules réservés à un seul compte, jamais ch
     assert.ok(!blocsDuMenu(IDS_MODULES).some((b) => b.id === 'achats'), 'jamais dans le menu d\'un client');
     assert.ok(!reglagesDesModules(IDS_MODULES).some((r) => r.id === 'achats'), 'jamais dans les Réglages d\'un client');
   });
-  test('A1 le montage existe pour chaque module (sinon la coque planterait) et js/main.js reste celui d\'avant : la Console et les Achats passent par le même filtre', () => {
+  test('A1 le montage existe pour chaque module (sinon la coque planterait) et js/main.js : la Console et les Achats passent par le même filtre (js/os/maison-modules.js, sans réglage : `!seulJerome || titulaire`)', () => {
     const montages = sansComm(lire('js/os/modules.js'));
     for (const id of ACHATS) assert.match(montages, new RegExp(`${id}: \\(\\) => import\\('\\.\\./modules/${id}/index\\.js'\\)`), id);
-    assert.match(lire('js/main.js'), /MODULES_TOUS\.filter\(\(m\) => !m\.seulJerome \|\| peutVoirConsole\(compte\)\)/);
+    assert.match(lire('js/main.js'), /modulesDeLaMaison\(MODULES_TOUS, \{ titulaire: peutVoirConsole\(compte\), brut: modulesEcranBrut\(\) \}\)/);
   });
 });
 

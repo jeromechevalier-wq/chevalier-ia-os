@@ -294,6 +294,7 @@ export const MODULES_DECLARES = geler([
   },
   // Modules Achats (24/11/2026, décision de Jérôme : ces cinq modules n'existent que chez lui pour commencer ; PR 4 = « coquilles » : déclaration, menu, écran d'état de l'accès à la base, aucune donnée métier).
   // `seulJerome` (modèle : la Console) = jamais dans IDS_MODULES (un client ne peut ni les activer ni les nommer), jamais dans MODULES_CLIENT, montés par js/main.js pour son seul compte.
+  // Exception (27/11/2026) : dans une maison dont reglages_maison/ecran a le champ `modules` qui les liste, ils s'ouvrent à tous les comptes de la maison (js/os/maison-modules.js).
   // La vraie barrière est la base elle-même : sans le badge posé par la fonction `baseAccorderAcces` (Jérôme seul), elle ne répond rien. Un seul bloc de menu « Achats » (GROUPES_MENU, id `achats`).
   // Aucune donnée dans Firebase : `collections` est vide (les données vivent dans la base de l'espace) ; aucun outil d'assistant ; chaque module est vendable seul (aucune dépendance).
   // Export des données : à faire dans la PR de chaque module (règle du 27/10/2026) ; pas de section « Sauvegarde » dans cette étape.
@@ -537,14 +538,16 @@ export function lireModulesDemandes(fiche) {
  * Vérifie une liste de modules demandés. Renvoie { ok, actifs, erreurs } :
  * `actifs` = ceux qui peuvent vraiment être activés (dans l'ordre de démarrage) ; `erreurs` = pourquoi les autres sont refusés.
  * Un module dont une dépendance n'est pas active est refusé (et ceux qui en dépendent, en cascade).
+ * `maison` (27/11/2026, js/os/maison-modules.js) : réglage `modules` d'une maison (déploiement à part d'un client) ; les modules `seulJerome` y sont permis
+ * (modules Achats), SAUF la Console, jamais activable. Sans cette option (plateforme des clients) : rien ne change, tout module `seulJerome` est refusé.
  */
-export function verifierActivation(demandes) {
+export function verifierActivation(demandes, { maison = false } = {}) {
   const demandes_ = new Set(demandes);
   const actifs = [];
   const erreurs = [];
   for (const m of MODULES_DECLARES) {
     if (!demandes_.has(m.id)) continue;
-    if (m.seulJerome) { erreurs.push(`Le module « ${m.nom} » est réservé à Jérôme : il ne peut pas être activé chez un client.`); continue; }
+    if (m.seulJerome && (!maison || m.id === 'console')) { erreurs.push(`Le module « ${m.nom} » est réservé à Jérôme : il ne peut pas être activé chez un client.`); continue; }
     const manquantes = m.dependances.filter((d) => !actifs.includes(d));
     if (manquantes.length) {
       const noms = manquantes.map((d) => moduleDeclare(d).nom).join(', ');
