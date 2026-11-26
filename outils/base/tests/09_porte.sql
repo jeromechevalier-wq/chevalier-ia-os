@@ -20,6 +20,10 @@ do $$ begin
   if has_function_privilege('indicateurs', 'public.consommer_ticket_porte(text, text)', 'execute') then
     raise exception 'indicateurs ne doit pas pouvoir consommer un ticket';
   end if;
+  if has_function_privilege('indicateurs', 'public.consommer_ticket(text, text)', 'execute')
+     or has_function_privilege('indicateurs', 'public.demander_ticket_n8n(text)', 'execute') then
+    raise exception 'indicateurs ne doit ni demander ni consommer de ticket (consommer_ticket, demander_ticket_n8n)';
+  end if;
   if exists (select 1 from information_schema.routine_privileges
              where routine_name = 'consommer_ticket_porte' and grantee = 'PUBLIC') then
     raise exception 'consommer_ticket_porte ne doit pas être ouverte à tous (PUBLIC)';
@@ -45,11 +49,12 @@ begin
   select count(*) into v_nb from public.consommer_ticket_porte(v_t1, 'actions');
   perform pg_temp.egal(v_nb, 0, 'ticket « validation » consommé pour « actions »');
 
-  -- Bon usage : une ligne, uuid = md5(lower(e-mail)).
+  -- Bon usage : une ligne, uuid = md5(préfixe || lower(e-mail)), jamais l'empreinte md5 brute de l'e-mail (Gravatar).
   select * into r from public.consommer_ticket_porte(v_t1, 'validation');
   perform pg_temp.egal(r.courriel, 'alice@exemple.test', 'courriel rendu');
   perform pg_temp.egal(r.espace, 'espace-a', 'espace rendu');
-  perform pg_temp.egal(r.utilisateur, md5('alice@exemple.test')::uuid::text, 'utilisateur = md5(lower(e-mail))::uuid');
+  perform pg_temp.egal(r.utilisateur, md5('chevalier-ia-os:personne:alice@exemple.test')::uuid::text, 'utilisateur = md5(préfixe || lower(e-mail))::uuid');
+  if r.utilisateur = md5('alice@exemple.test')::uuid::text then raise exception 'uuid = md5 brut de l''e-mail'; end if;
   if r.utilisateur !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'utilisateur n''a pas la forme d''un uuid : %', r.utilisateur;
   end if;
@@ -60,7 +65,7 @@ begin
 
   -- Le 2e ticket de la même personne donne le MÊME uuid (stable).
   perform pg_temp.egal((select c.utilisateur from public.consommer_ticket_porte(v_t2, 'actions') c),
-                       md5('alice@exemple.test')::uuid::text, 'uuid stable d''un ticket à l''autre');
+                       md5('chevalier-ia-os:personne:alice@exemple.test')::uuid::text, 'uuid stable d''un ticket à l''autre');
 
   -- Ticket inconnu, vide ou nul : rien.
   select count(*) into v_nb from public.consommer_ticket_porte('inconnu', 'validation');
@@ -80,8 +85,8 @@ declare r record;
 begin
   select * into r from public.consommer_ticket_porte((select t1 from t_tickets where t2 is null), 'validation');
   perform pg_temp.egal(r.courriel, 'bob@exemple.test', 'courriel de Bob');
-  perform pg_temp.egal(r.utilisateur, md5('bob@exemple.test')::uuid::text, 'uuid de Bob');
-  if r.utilisateur = md5('alice@exemple.test')::uuid::text then raise exception 'Alice et Bob ont le même uuid'; end if;
+  perform pg_temp.egal(r.utilisateur, md5('chevalier-ia-os:personne:bob@exemple.test')::uuid::text, 'uuid de Bob');
+  if r.utilisateur = md5('chevalier-ia-os:personne:alice@exemple.test')::uuid::text then raise exception 'Alice et Bob ont le même uuid'; end if;
 end $$;
 reset role;
 
@@ -89,4 +94,33 @@ reset role;
 set role indicateurs;
 select pg_temp.entrer('espace-a', 'n8n');
 select pg_temp.doit_echouer($q$select * from public.consommer_ticket_porte('x', 'validation')$q$, 'MESSAGE:permission denied');
+select pg_temp.doit_echouer($q$select * from public.consommer_ticket('x', 'validation')$q$, 'MESSAGE:permission denied');
+select pg_temp.doit_echouer($q$select public.demander_ticket_n8n('validation')$q$, 'MESSAGE:permission denied');
+reset role;
+
+-- Ticket expiré : refusé. robot_reflets peut consommer un ticket valide.
+set role porte;
+select pg_temp.entrer('espace-a', 'carole@exemple.test');
+create temp table t_tickets2 as
+  select public.demander_ticket_n8n('suggestions') as perime, public.demander_ticket_n8n('ajoutFacture') as pour_robot;
+update public.tickets_n8n set expire_le = now() - interval '1 second' where usage = 'suggestions' and archive_le is null;
+grant select on t_tickets2 to robot_reflets;
+select pg_temp.entrer('espace-a', 'n8n');
+do $$
+declare v_nb int;
+begin
+  select count(*) into v_nb from public.consommer_ticket_porte((select perime from t_tickets2), 'suggestions');
+  perform pg_temp.egal(v_nb, 0, 'ticket expiré consommé');
+end $$;
+reset role;
+
+set role robot_reflets;
+select pg_temp.entrer('espace-a', 'n8n');
+do $$
+declare r record;
+begin
+  select * into r from public.consommer_ticket_porte((select pour_robot from t_tickets2), 'ajoutFacture');
+  perform pg_temp.egal(r.courriel, 'carole@exemple.test', 'robot_reflets consomme le ticket');
+  perform pg_temp.egal(r.utilisateur, md5('chevalier-ia-os:personne:carole@exemple.test')::uuid::text, 'uuid rendu au robot');
+end $$;
 reset role;

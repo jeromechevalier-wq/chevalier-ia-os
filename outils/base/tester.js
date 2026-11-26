@@ -123,6 +123,12 @@ async function principal() {
       '-U', qui, '-d', base, '-c', sql]);
     const commande = (base, sql) => commandeEn(ADMIN, base, sql);
 
+    // Le plan vise PostgreSQL 17 (comme Cloud SQL) : une version plus ancienne n'a pas les mêmes règles (ex. rôles en 16).
+    const ver = commandeEn('plan_admin', 'postgres', 'show server_version_num');
+    if (ver.status !== 0 || !(Number(ver.stdout.trim()) >= 170000)) {
+      throw new Error(`PostgreSQL 17 ou plus récent est exigé (server_version_num = ${ver.stdout.trim() || '?'}) : donne le bon dossier dans PG_BIN.`);
+    }
+
     if (COMME_CLOUDSQL) {
       // Comme Cloud SQL : « postgres » n'est pas superutilisateur. Il peut créer des rôles et des bases, rien de plus.
       const c = commandeEn('plan_admin', 'postgres',
