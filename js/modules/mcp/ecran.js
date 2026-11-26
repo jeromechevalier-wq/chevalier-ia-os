@@ -4,6 +4,7 @@ import { h, icone, remplir, toast } from '../../os/ui.js';
 import { lien } from '../../os/router.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
+import { maisonNeutre } from '../../os/identite-maison.js';
 
 async function copier(texte, champ) {
   try {
@@ -29,11 +30,11 @@ function rendreInfosRacine(conteneur) {
         h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => copier(adresse, champ) }, icone('copy', { taille: 16 }), 'Copier le lien'))),
     h('section', { class: 'mcp-bloc' },
       h('h2', {}, 'Comment l\'utiliser'),
-      h('ol', { class: 'mcp-etapes' }, L.MODE_EMPLOI_RACINE.map((e) => h('li', {}, h('strong', {}, e.titre), ' : ', e.texte))),
+      h('ol', { class: 'mcp-etapes' }, (maisonNeutre() ? L.MODE_EMPLOI_MAISON : L.MODE_EMPLOI_RACINE).map((e) => h('li', {}, h('strong', {}, e.titre), ' : ', e.texte))),
       h('p', { class: 'aide discret', dataset: { role: 'aussi-claude' } }, L.PHRASE_AUSSI)),
     h('section', { class: 'mcp-bloc' },
       h('h2', {}, 'Qui peut se connecter'),
-      h('p', { class: 'aide' }, L.PHRASE_COMPTES_RACINE)),
+      h('p', { class: 'aide', dataset: { role: 'comptes-racine' } }, maisonNeutre() ? L.PHRASE_COMPTES_MAISON : L.PHRASE_COMPTES_RACINE)),
     h('section', { class: 'mcp-bloc' },
       h('h2', {}, 'Suivre ce que fait ChatGPT'),
       h('p', { class: 'aide' }, 'Chaque modification faite par ChatGPT apparaît dans le Journal des modifications, avec son nom.'),

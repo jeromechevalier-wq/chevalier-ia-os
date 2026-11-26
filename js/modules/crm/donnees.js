@@ -15,6 +15,7 @@ import { db } from '../../os/firebase.js';
 import { normaliserBase, cheminCollection } from '../../os/chemins.js';
 import { configurerCelebrations } from '../../os/celebrations.js';
 import { configurationNeutre, personnesMaison } from '../../os/comptes-maison.js';
+import { nomEspaceRacine } from '../../os/identite-maison.js';
 import * as L from './logique.js';
 import { avecModeTest } from '../../os/mode-test.js';
 import { executer, lireJournal, lireCopieJournal } from '../../os/journal-donnees.js';
@@ -152,7 +153,7 @@ export function cheminDeBase() {
 
 /** Nom de l'espace : « Chevalier IA OS » à la racine (CRM de Jérôme), le nom de la marque chez un client. */
 export function nomDeLEspace() {
-  return estRacine() ? 'Chevalier IA OS' : (nomEspace || 'Mon espace');
+  return estRacine() ? nomEspaceRacine('Chevalier IA OS') : (nomEspace || 'Mon espace');
 }
 
 export function compteCourant() {

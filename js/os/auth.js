@@ -12,6 +12,7 @@ import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase
 import { auth, db, MODE_EMULATEURS, CROCHETS_TEST } from './firebase.js';
 import { cheminMembre, lireCompteAvecReprises, MESSAGE_CONNEXION_IMPOSSIBLE, suiviGenerations } from './membres.js';
 import { lirePublic, lireEcran, crmOuvert, definirModeCrm, viderComptesMaison, MESSAGE_ECRAN_ABSENT } from './comptes-maison.js';
+import { retenirPublic } from './identite-maison.js';
 
 export const MESSAGE_REFUS = "Accès refusé : ce compte n'est pas autorisé";
 
@@ -59,7 +60,9 @@ export async function preparerCrm() {
     attentes: test?.attentesPublic,
     lire: async () => {
       if (echecs > 0) { echecs--; throw Object.assign(new Error('échec simulé'), { code: 'unavailable' }); }
-      return lireDocument(DOC_PUBLIC)();
+      const donnees = await lireDocument(DOC_PUBLIC)();
+      retenirPublic(donnees); // nom_espace / connexion_neutre (facultatifs) : identité d'une maison de client, absente chez Jérôme
+      return donnees;
     },
   });
 }

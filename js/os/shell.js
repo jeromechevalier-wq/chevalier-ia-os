@@ -6,6 +6,7 @@ import { badgeDe, definirBadge, surBadge, texteBadge, phraseBadge } from './badg
 import { naviguer, lien } from './router.js';
 import { modulesDuPortail } from './portail.js';
 import { modeTestAllume, definirModeTest, surModeTest } from './mode-test.js';
+import { connexionNeutre, maisonNeutre, nomAfficheMaison } from './identite-maison.js';
 
 // Routes sans entrée de menu -> entrée allumée à leur place (l'écran principal de leur module).
 /** Écrans qui gardent la barre de recherche et le bouton « + » du haut (les autres : Veille, Automatisations, Maintenance, réglages, journal, assistant…). */
@@ -63,15 +64,28 @@ export function afficherConnexion(racine, { message = '', surConnexion, enCours 
     bouton.disabled = true;
     try { await surConnexion(); } finally { bouton.disabled = false; }
   } }, icone('log-in', { taille: 18 }), 'Se connecter avec Google');
+  const marque = h('div', { class: 'connexion-marque' }, h('img', { src: 'assets/logo/marque-inverse.svg', alt: '', width: '28', height: '28' }), h('span', {}, 'Chevalier IA'));
+  const refus = message ? h('p', { class: 'message-refus', role: 'alert' }, icone('triangle-alert', { taille: 16 }), message) : null;
+  if (connexionNeutre()) {
+    // Maison d'un client (reglages_maison/public : nom_espace ou connexion_neutre) : ni Charles, ni Jérôme, ni « Chevalier IA OS ».
+    nommerOnglet(nomAfficheMaison());
+    racine.append(h('div', { class: 'connexion', dataset: { connexion: 'neutre' } },
+      marque,
+      h('h1', {}, nomAfficheMaison()),
+      h('p', { class: 'connexion-lead' }, 'Accès réservé aux comptes autorisés.'),
+      refus,
+      bouton));
+    return;
+  }
   racine.append(h('div', { class: 'connexion' },
-    h('div', { class: 'connexion-marque' }, h('img', { src: 'assets/logo/marque-inverse.svg', alt: '', width: '28', height: '28' }), h('span', {}, 'Chevalier IA')),
+    marque,
     h('div', { class: 'scene' },
       h('div', { class: 'orbite o1' }),
       h('div', { class: 'orbite o2' }),
       h('div', { class: 'charles-flottant' }, h('img', { src: 'assets/charles-portrait.png', alt: 'Charles, l’assistant IA, te salue', width: '512', height: '384' }))),
     h('h1', {}, 'Chevalier IA OS'),
     h('p', { class: 'connexion-lead' }, 'L’espace de travail de Jérôme et Charles.'),
-    message ? h('p', { class: 'message-refus', role: 'alert' }, icone('triangle-alert', { taille: 16 }), message) : null,
+    refus,
     bouton,
     h('p', { class: 'connexion-pied' }, 'Accès réservé aux comptes autorisés.')));
 }
@@ -80,6 +94,17 @@ export function afficherConnexion(racine, { message = '', surConnexion, enCours 
 
 /** Espace de Jérôme (racine) : même forme que l'identité d'un client, `logo` = la baguette (fonction qui fabrique l'image à la taille voulue). */
 export const ESPACE_RACINE = Object.freeze({ nom: 'Chevalier IA OS', logo: baguette, accent: 'OS' });
+
+/** Titre de l'onglet (et nom court de l'appli sur l'écran d'accueil d'un iPhone) d'une maison neutre. Chez Jérôme, jamais appelé : index.html reste tel quel. */
+function nommerOnglet(nom) {
+  document.title = nom;
+  document.head.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', [...nom].slice(0, 12).join(''));
+}
+
+/** Identité affichée de l'espace racine : celle de Jérôme (ESPACE_RACINE), sauf dans une maison neutre (nom de la maison, logo Chevalier IA, sans le « OS »). */
+export function espaceRacineAffiche() {
+  return maisonNeutre() ? { nom: nomAfficheMaison(), logo: baguette } : ESPACE_RACINE;
+}
 
 /** Nom d'un espace ; `accent` (facultatif) = dernier mot mis en valeur (le « OS » jaune de la marque de Jérôme). */
 function nomEspace(c) {
@@ -114,6 +139,7 @@ const poserLargeur = (n) => document.documentElement.style.setProperty('--menu-l
 export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(), modules = MODULES, client = ESPACE_RACINE, accueil = 'crm/accueil', retour = null, actionsRetour = [], menu: entreesPortail = null, supplements = [] }) {
   vider(racine);
   document.body.classList.remove('page-connexion');
+  if (client === ESPACE_RACINE && maisonNeutre()) { client = espaceRacineAffiche(); nommerOnglet(client.nom); } // maison d'un client : son nom, jamais « Chevalier IA OS »
   const elargi = lirePreference('menu', 'replie') === 'elargi';
   const idsModules = modules.map((x) => x.id);
 

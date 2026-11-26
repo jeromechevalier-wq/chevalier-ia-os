@@ -15,6 +15,7 @@ import { sectionDeploiement } from './deploiement-ecran.js';
 import { sectionMesTests } from './mes-tests-ecran.js';
 import { sectionConnexionBase } from './base-reglages-ecran.js';
 import { compteReserve } from './acces-reserve.js';
+import { nomEspaceRacine } from './identite-maison.js';
 import { reglagesDesModules, sectionsEspaceVisibles, interrupteursDuClient, cibleReglages, moduleDeclare } from './registre.js';
 
 const LIBELLES_ROLE = Object.freeze({ editeur: 'Éditeur : consulte et modifie', lecteur: 'Lecteur : consulte seulement' });
@@ -165,7 +166,7 @@ function contenuModule(item, ctx, arrets) {
 export function monterReglages(conteneur, segs, ctx) {
   arreterCourant();
   const editeur = ctx.editeur !== false && compteEcrit(ctx.compte);
-  const c = { ...ctx, editeur };
+  const c = { ...ctx, editeur, nomEspace: ctx.chezClient ? ctx.nomEspace : nomEspaceRacine(ctx.nomEspace) }; // maison d'un client : son nom, jamais « Chevalier IA OS »
   const items = reglagesDesModules(c.actifs);
   const espaces = sectionsEspaceVisibles({ chezClient: !!c.chezClient, editeur, jerome: compteReserve(c.compte) }); // « Connexion à la base » : Jérôme seul, à la racine
   const cible = cibleReglages(segs, { espaces, modules: items });
