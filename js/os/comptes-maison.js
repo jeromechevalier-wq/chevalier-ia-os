@@ -2,7 +2,9 @@
 //  - reglages_maison/public : lu AVANT la connexion, sans aucun e-mail : { mode_crm: true|false } (le CRM de Jérôme existe-t-il dans cette maison ?).
 //    Sur la plateforme des clients, ce document est illisible (règles de la plateforme : tout est refusé) : c'est le signe « pas de CRM ici ».
 //  - reglages_maison/ecran : lu APRÈS la connexion, par les seuls comptes de la fiche serveur (règle firestore.rules) :
-//    { personnes: [{ email, nom, portrait }], comptes_jerome_seul: [e-mails] }.
+//    { personnes: [{ email, nom, portrait }], comptes_jerome_seul: [e-mails], configuration_crm?: 'neutre' }.
+//    configuration_crm (26/11/2026) : 'neutre' = la maison d'un client (étapes, phases, réglages et membres neutres, comme un espace de la plateforme) ;
+//    champ ABSENT ou toute autre valeur = la configuration de Jérôme (sa maison n'a pas ce champ : rien ne change chez lui).
 // Ce fichier n'importe rien (pas de Firebase) : il se teste seul. Il ne fait que montrer ou cacher : les vraies barrières sont les règles et le serveur.
 // Les listes sont gardées en mémoire (remplies à la connexion) pour que les fonctions de l'écran restent synchrones ; vide = personne (jamais d'ouverture par défaut).
 
@@ -11,6 +13,7 @@ const norm = (email) => (typeof email === 'string' ? email.trim().toLowerCase() 
 let personnes = []; // [{ email, nom, avatar }]
 let titulaires = []; // e-mails
 let modeCrm = false;
+let configurationCrm = ''; // valeur du champ configuration_crm de `ecran` ('' tant que rien n'est lu)
 
 /** Range en mémoire le document `ecran` (données lues dans Firestore). Les entrées mal formées sont ignorées. */
 export function remplirComptesMaison(ecran) {
@@ -19,13 +22,18 @@ export function remplirComptesMaison(ecran) {
     .filter((p) => p && typeof p === 'object' && norm(p.email))
     .map((p) => ({ email: norm(p.email), nom: typeof p.nom === 'string' && p.nom.trim() ? p.nom.trim() : norm(p.email), avatar: typeof p.portrait === 'string' ? p.portrait : '' }));
   titulaires = (Array.isArray(ecran?.comptes_jerome_seul) ? ecran.comptes_jerome_seul : []).map(norm).filter(Boolean);
+  configurationCrm = typeof ecran?.configuration_crm === 'string' ? ecran.configuration_crm : ''; // valeur exacte : seul 'neutre' change quelque chose
 }
 
 /** Oublie les listes (déconnexion, essais). */
 export function viderComptesMaison() {
   personnes = [];
   titulaires = [];
+  configurationCrm = '';
 }
+
+/** Vrai si `ecran` demande la configuration neutre (configuration_crm: 'neutre'). Champ absent ou autre valeur : faux (configuration de Jérôme, inchangée). */
+export const configurationNeutre = () => configurationCrm === 'neutre';
 
 /** Les personnes de la maison (copies) : [{ email, nom, avatar }]. */
 export const personnesMaison = () => personnes.map((p) => ({ ...p }));
