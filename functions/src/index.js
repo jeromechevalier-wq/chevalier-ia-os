@@ -8,6 +8,7 @@ import { defineSecret } from 'firebase-functions/params';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { creerGestionnaire, baseLienMaison } from './mcp/gestionnaire.js';
+import { OUTILS_ACHATS } from './mcp/outils/achats.js';
 import { adresseFonction, adresseSite, compteDeService } from './securite/maison.js';
 import { texteDe, comptesAutorises, emailDans } from './securite/reglages-maison.js';
 import { creerAccesFirestore } from './coeur/donnees.js';
@@ -21,6 +22,7 @@ import { creerGestionnaireTableauCrm } from './tableaudebord.js';
 import { creerAppelAccorderAcces, ligneDeJournalBase } from './base/acces-appel.js';
 import { creerGestionnaireBasePorte, creerLecteurConfiguration, creerLecteurCleN8n, creerStockageGcs, ligneDeJournalPorte } from './base/porte-base.js';
 import { creerOuvreurCloudSql } from './base/cloudsql.js';
+import { creerAssistantAchats } from './base/assistant-achats.js';
 import { getAuth } from 'firebase-admin/auth';
 import { creerAppelSaisie, ligneDeJournalSaisie } from './tableaudebord-saisie.js';
 import { creerAppelDecider, ligneDeJournalDecision } from './automatisations/decider-appel.js';
@@ -76,7 +78,8 @@ export const mcp = onRequest(
     // Compte dédié : « Utilisateur Cloud Datastore » (Firestore), « Accesseur de secrets » sur MCP_JETONS et sur les deux secrets du brouillon d'e-mail (N8N_DEVIS_EMAIL_*), « Créateur d'objets Storage » (dépôt de texte) ; « Lecteur des objets Storage » et « Créateur de jetons du compte de service » sur lui-même sont À DONNER pour le lien signé du PDF officiel (docs/securite-et-pannes.md, section 12), sans quoi l'outil rend seulement le lien du devis. Tableau de bord (outils lister_tableau_de_bord et lire_tableau_de_bord, lecture seule, super admin seulement) : « Accesseur de secrets » sur SUPABASE_INDICATEURS est À DONNER à ce compte par Jérôme (docs/securite-et-pannes.md), sans quoi toutes les tuiles répondent « n'a pas pu être lue ».
     serviceAccount: compteDeService('mcp-serveur'),
   },
-  creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet, sortieEmail: sortieN8nDevis, pilotage: () => assistantPilotage, lienDepot: true }), // `assistantPilotage` est défini plus bas (Pilotage) : fonction paresseuse, sinon ReferenceError au démarrage
+  // Outils Achats : proposés seulement dans une maison dont reglages_maison/ecran liste « achatsfactures » (sans ce champ, chez Jérôme, rien ne change).
+  creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet, sortieEmail: sortieN8nDevis, pilotage: () => assistantPilotage, achats: () => assistantAchats, outilsAchats: OUTILS_ACHATS, lienDepot: true }), // `assistantPilotage` et `assistantAchats` sont définis plus bas : fonctions paresseuses, sinon ReferenceError au démarrage
 );
 
 export const porte = onRequest(
@@ -166,6 +169,23 @@ export const basePorte = onRequest(
     journal: (e) => process.stdout.write(`${ligneDeJournalPorte(e)}\n`),
   }),
 );
+
+// Service des achats d'une maison pour l'assistant (outils MCP *_facture_achat, et dépôt d'une facture par lien d'envoi) : il ouvre lui-même la base (rôle `porte`, voie interne,
+// même configuration que la porte ci-dessus) et passe par n8n pour toute écriture (ticket neuf, webhooks de base_parametres/connexion sur l'hôte de n8n_url). Inerte sans base
+// (« pas branchée »). Droits du compte `mcp-serveur` À DONNER dans la maison qui a la base : « Client Cloud SQL » et « Accesseur de secrets » sur le secret de configuration de la porte.
+// Le compte du dépôt (`depotdocument`) a déjà ces droits (même compte que la porte). Aucune valeur n'est écrite dans les journaux (action, statut, code seulement).
+const assistantAchats = creerAssistantAchats({
+  lireConfiguration: creerLecteurConfiguration({ lireSecret: lecteurSecretsPorte }),
+  ouvrirConnexion: creerOuvreurCloudSql(),
+  estCompteAutorise: (email) => emailDans(comptesAutorises, email, 'minuscules'),
+  lireConnexion: async () => {
+    if (!getApps().length) initializeApp();
+    const doc = await getFirestore().collection('base_parametres').doc('connexion').get();
+    return doc.exists ? doc.data() : null;
+  },
+  lireAdresseN8n: () => texteDe('n8n_url'),
+  journal: (e) => process.stdout.write(`${JSON.stringify({ evenement: 'achats_assistant', action: e?.action, statut: e?.statut, code: e?.code })}\n`),
+});
 
 // `automatisationsDecider` : appelée par l'écran « À valider » du module Automatisations (valider, refuser ou relancer une proposition). Contrôle l'appelant (mêmes comptes que `veille`),
 // puis décide en une lecture-modification-écriture atomique (functions/src/coeur/propositions.js, le même code que les outils MCP). Même région, mêmes limites et même compte
@@ -334,7 +354,10 @@ export const depotdocument = onRequest(
   { ...OPTIONS_DOCUMENT_DEPOT, invoker: 'public', cors: false },
   (req, res) => {
     if (!getApps().length) initializeApp();
-    gestionnaireDepot ??= creerGestionnaireDepot({ donnees: () => creerAccesFirestore(), stockage: stockageDevis, journal: (e) => process.stdout.write(`${JSON.stringify({ evenement: 'depot_lien', ...e })}\n`) });
+    gestionnaireDepot ??= creerGestionnaireDepot({
+      donnees: () => creerAccesFirestore(), stockage: stockageDevis, journal: (e) => process.stdout.write(`${JSON.stringify({ evenement: 'depot_lien', ...e })}\n`),
+      deposerAchat: (demande) => assistantAchats.deposerFacture(demande), // lien d'une facture d'achat (outil ajouter_facture_achat)
+    });
     return gestionnaireDepot(req, res);
   },
 );
