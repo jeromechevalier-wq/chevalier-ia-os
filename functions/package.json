@@ -7,6 +7,7 @@
   "main": "src/index.js",
   "engines": { "node": "22" },
   "dependencies": {
+    "@google-cloud/cloud-sql-connector": "1.13.0",
     "@google-cloud/secret-manager": "7.1.1",
     "@modelcontextprotocol/sdk": "1.32.0",
     "@sparticuz/chromium": "153.0.0",

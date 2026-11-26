@@ -19,6 +19,7 @@ const AVANT_OS = Object.freeze({
   automatisationsInterneHoraire: "automatisations-serveur@chevalier-ia-os.iam.gserviceaccount.com",
   automatisationsRenommer: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
   baseAccorderAcces: "base-acces@chevalier-ia-os.iam.gserviceaccount.com",
+  basePorte: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com", // ajoutée le 26/11/2026 (porte de la base), compte déjà existant
   consoleEtat: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
   deploiementVerifier: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
   depotdocument: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",

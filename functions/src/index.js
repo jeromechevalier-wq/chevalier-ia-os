@@ -9,7 +9,7 @@ import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { creerGestionnaire, baseLienMaison } from './mcp/gestionnaire.js';
 import { adresseFonction, adresseSite, compteDeService } from './securite/maison.js';
-import { texteDe } from './securite/reglages-maison.js';
+import { texteDe, comptesAutorises, emailDans } from './securite/reglages-maison.js';
 import { creerAccesFirestore } from './coeur/donnees.js';
 import { creerMagasin } from './securite/jetons.js';
 import { creerLimiteur } from './securite/limites.js';
@@ -19,6 +19,8 @@ import { creerVerificateurIdentite } from './oauth/identite-google.js';
 import { creerGestionnairePorteCrm } from './porte.js';
 import { creerGestionnaireTableauCrm } from './tableaudebord.js';
 import { creerAppelAccorderAcces, ligneDeJournalBase } from './base/acces-appel.js';
+import { creerGestionnaireBasePorte, creerLecteurConfiguration, creerLecteurCleN8n, creerStockageGcs, ligneDeJournalPorte } from './base/porte-base.js';
+import { creerOuvreurCloudSql } from './base/cloudsql.js';
 import { getAuth } from 'firebase-admin/auth';
 import { creerAppelSaisie, ligneDeJournalSaisie } from './tableaudebord-saisie.js';
 import { creerAppelDecider, ligneDeJournalDecision } from './automatisations/decider-appel.js';
@@ -134,6 +136,35 @@ export const baseAccorderAcces = onCall(
     if (!getApps().length) initializeApp();
     return creerAppelAccorderAcces({ auth: getAuth(), journal: (e) => process.stdout.write(`${ligneDeJournalBase(e)}\n`) })(requete);
   },
+);
+
+// `basePorte` (26/11/2026, décision « porte option A ») : la seule entrée vers la base Cloud SQL de la maison, pour les écrans Achats et pour n8n, au format PostgREST
+// (functions/src/base/porte-requetes.js). Navigateur : jeton Firebase vérifié (révocation comprise) + mentions role/espace_base + comptes_autorises de reglages_maison/maison,
+// lecture seule et 3 fonctions ; n8n : en-tête X-Porte-Cle (secret BASE_PORTE_N8N) comparé en temps constant. L'espace vient du secret BASE_PORTE, jamais de la requête.
+// Secrets lus À L'EXÉCUTION (jamais defineSecret) : dans une maison sans Cloud SQL (le CRM de Jérôme aujourd'hui), la fonction se déploie et répond 503, inerte.
+// Compte `porte-serveur` (déjà présent dans chaque maison : rien de nouveau à créer pour que le déploiement passe). Pour servir vraiment, il lui faut, dans la maison qui a la base :
+// « Client Cloud SQL », « Accesseur de secrets » sur BASE_PORTE et BASE_PORTE_N8N, « Administrateur des objets Storage » sur la réserve des factures, et le droit de lire les comptes
+// Firebase (révocation du jeton). Absente de la plateforme (RESERVEES_JEROME, .github/A-FAIRE.md). Le seul fichier qui charge le connecteur et `pg` : base/cloudsql.js.
+const lecteurSecretsPorte = creerLecteurSecrets();
+export const basePorte = onRequest(
+  {
+    region: 'europe-west9',
+    maxInstances: 3,
+    memory: '256MiB',
+    timeoutSeconds: 120,
+    invoker: 'public',
+    cors: false, // CORS géré par la porte elle-même : seulement les origines du secret, jamais « * »
+    serviceAccount: compteDeService('porte-serveur'),
+  },
+  creerGestionnaireBasePorte({
+    lireConfiguration: creerLecteurConfiguration({ lireSecret: lecteurSecretsPorte }),
+    lireCleN8n: creerLecteurCleN8n({ lireSecret: lecteurSecretsPorte }),
+    verifierJeton: (jeton) => { if (!getApps().length) initializeApp(); return getAuth().verifyIdToken(jeton, true); },
+    estCompteAutorise: (email) => emailDans(comptesAutorises, email, 'minuscules'),
+    ouvrirConnexion: creerOuvreurCloudSql(),
+    stockage: creerStockageGcs(),
+    journal: (e) => process.stdout.write(`${ligneDeJournalPorte(e)}\n`),
+  }),
 );
 
 // `automatisationsDecider` : appelée par l'écran « À valider » du module Automatisations (valider, refuser ou relancer une proposition). Contrôle l'appelant (mêmes comptes que `veille`),

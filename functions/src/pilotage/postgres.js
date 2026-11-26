@@ -1,4 +1,4 @@
-// Module Pilotage : LE SEUL fichier du dépôt qui parle à Postgres (paquet `pg`, chargé à la demande ; un test le borne, modèle coeur/sms-direct.js).
+// Module Pilotage : LE SEUL fichier du Pilotage qui parle à Postgres (paquet `pg`, chargé à la demande ; un test borne la liste, modèle coeur/sms-direct.js ; l'autre fichier permis est base/cloudsql.js, la porte de la base).
 // La connexion (hôte, port, base, utilisateur, mot de passe, certificat racine `ca`) vit dans Secret Manager (JSON), lue À L'EXÉCUTION : un secret absent ne fait jamais échouer un déploiement.
 // Garde-fous :
 //  - TLS vérifié (`rejectUnauthorized: true` avec le certificat `ca` du secret) ; jamais de repli sans vérification ;
