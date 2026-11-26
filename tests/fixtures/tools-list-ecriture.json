@@ -1417,7 +1417,7 @@
  },
  {
   "name": "creer_organisation",
-  "description": "Crée une organisation (seul le nom est obligatoire ; emails et telephones : listes de { valeur, type }, 10 au plus ; adresses : liste d'adresses enregistrées), avec son événement dans le fil. Refuse un doublon de nom sauf forcer: true.",
+  "description": "Crée une organisation (seul le nom est obligatoire ; emails et telephones : listes de { valeur, type }, 10 au plus ; adresses : liste d'adresses enregistrées), avec son événement dans le fil. siret : 14 chiffres (espaces permis) ; le SIREN (9 premiers chiffres) est calculé, jamais saisi ; numeroTva : n° de TVA intracommunautaire (2 lettres puis lettres et chiffres, ex. FR12345678901). Refuse un doublon de nom sauf forcer: true.",
   "inputSchema": {
    "$schema": "http://json-schema.org/draft-07/schema#",
    "type": "object",
@@ -1438,6 +1438,14 @@
     "secteur": {
      "type": "string",
      "maxLength": 300
+    },
+    "siret": {
+     "type": "string",
+     "maxLength": 40
+    },
+    "numeroTva": {
+     "type": "string",
+     "maxLength": 40
     },
     "emails": {
      "maxItems": 10,
@@ -1554,7 +1562,7 @@
  },
  {
   "name": "modifier_organisation",
-  "description": "Modifie des champs d'une organisation : nom, adresse, ville, siteWeb, adresses (liste d'adresses enregistrées, qui REMPLACE l'actuelle ; les champs adresse et ville ne bougent pas), emails et telephones (listes { valeur, type } de 10 au plus, qui REMPLACENT la liste actuelle ; [] la vide), secteur, taille (Solo, 2 à 10, 11 à 50, Plus de 50, ou vide), etiquettes, archive. Les anciens champs texte email et telephone sont gardés : une valeur donnée est AJOUTÉE à la liste (jamais perdue ; pour vider, passer emails: []). Ne supprime jamais.",
+  "description": "Modifie des champs d'une organisation : nom, adresse, ville, siteWeb, adresses (liste d'adresses enregistrées, qui REMPLACE l'actuelle ; les champs adresse et ville ne bougent pas), emails et telephones (listes { valeur, type } de 10 au plus, qui REMPLACENT la liste actuelle ; [] la vide), secteur, taille (Solo, 2 à 10, 11 à 50, Plus de 50, ou vide), siret (14 chiffres, espaces permis ; le SIREN, ses 9 premiers chiffres, est recalculé, jamais saisi ; '' efface les deux), numeroTva (n° de TVA intracommunautaire, ex. FR12345678901 ; '' l'efface), etiquettes, archive. Les anciens champs texte email et telephone sont gardés : une valeur donnée est AJOUTÉE à la liste (jamais perdue ; pour vider, passer emails: []). Ne supprime jamais.",
   "inputSchema": {
    "$schema": "http://json-schema.org/draft-07/schema#",
    "type": "object",
@@ -1672,6 +1680,14 @@
     "taille": {
      "type": "string",
      "maxLength": 20
+    },
+    "siret": {
+     "type": "string",
+     "maxLength": 40
+    },
+    "numeroTva": {
+     "type": "string",
+     "maxLength": 40
     },
     "etiquettes": {
      "maxItems": 30,

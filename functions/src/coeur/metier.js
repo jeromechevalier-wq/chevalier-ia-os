@@ -185,7 +185,8 @@ export async function modifierPersonne(c, args) {
 // ---------------------------------------------------------------- organisations
 
 export async function creerOrganisation(c, args) {
-  const { forcer, proprietaire, ...valeurs } = args;
+  const { forcer, proprietaire, siren: _siren, ...valeurs } = args; // le SIREN n'est jamais saisi : il est déduit du SIRET
+  identifiantsOuRefuser(valeurs);
   verifierMessages(L.validerOrganisation(valeurs));
   await verifierEtiquettes(c, valeurs.etiquettes);
   if (!forcer) refuserDoublons(L.trouverDoublonsOrganisation(await c.donnees.liste(C.organisations), valeurs.nom), 'Organisation', 'une autre organisation');
@@ -219,6 +220,17 @@ function lienWebOuRefuser(valeur, nom) {
   return v;
 }
 
+/** SIRET (et SIREN, toujours déduit) et n° de TVA d'une organisation : même règle que l'écran (L.identifiantsOrganisation), refus `saisie_invalide` sinon. */
+function identifiantsOuRefuser({ siret, numeroTva }) {
+  for (const [nom, v] of [['siret', siret], ['numeroTva', numeroTva]]) if (v !== undefined && typeof v !== 'string') refuser('saisie_invalide', `${nom} : un texte est attendu.`);
+  try {
+    return L.identifiantsOrganisation({ siret, numeroTva });
+  } catch (e) {
+    if (e?.saisie) refuser('saisie_invalide', e.message);
+    throw e;
+  }
+}
+
 export async function modifierOrganisation(c, args) {
   const { id, forcer, ...champs } = args;
   const o = await lire(c, C.organisations, id, 'Organisation');
@@ -226,6 +238,7 @@ export async function modifierOrganisation(c, args) {
   if (champs.nom !== undefined) { verifierMessages(L.validerOrganisation({ nom: champs.nom })); patch.nom = texte(champs.nom); }
   for (const cle of ['adresse', 'ville', 'secteur']) if (champs[cle] !== undefined) patch[cle] = texte(champs[cle]);
   if (champs.siteWeb !== undefined) patch.siteWeb = lienWebOuRefuser(champs.siteWeb, 'Site web');
+  Object.assign(patch, identifiantsOuRefuser(champs)); // siret (avec siren déduit) et numeroTva, s'ils sont donnés ; '' efface
   if (champs.adresses !== undefined) { verifierMessages(L.validerOrganisation({ nom: 'x', adresses: champs.adresses })); Object.assign(patch, L.patchAdresses(champs.adresses).patch); } // liste complète remplaçante ; `adresse` et `ville` restent comme ils sont
   Object.assign(patch, contactsOrganisationModifies(o, champs));
   if (champs.taille !== undefined) {

@@ -65,7 +65,12 @@ export function rendreFicheOrganisation(conteneur, id) {
         : champPropriete({ libelle: 'Secteur', valeur: o.secteur || '', type: 'intelligent', fournir: fournisseurTexte(() => [...D.etat.secteurs, ...D.etat.organisations.map((x) => x.secteur)]),
           surEnregistrer: async (v) => { if (v) await D.ajouterValeurListe('secteurs', v); await D.majOrganisation(o.id, { secteur: v }); } }).element,
         champPropriete({ libelle: 'Taille', valeur: o.taille || '', type: 'select', options: L.TAILLES.map((t) => ({ valeur: t, libelle: t })), surEnregistrer: (v) => D.majOrganisation(o.id, { taille: v }) }).element,
-        prop('Ville', 'ville', { type: 'intelligent', fournir: fournisseurVilles() })),
+        prop('Ville', 'ville', { type: 'intelligent', fournir: fournisseurVilles() }),
+        // SIRET et n° de TVA (26/11/2026) : contrôlés par L.identifiantsOrganisation (une saisie refusée montre son message et n'enregistre rien) ; le SIREN est déduit du SIRET, jamais saisi.
+        prop('SIRET', 'siret', { placeholder: '14 chiffres', formater: L.formaterSiret, surEnregistrer: (v) => D.majOrganisation(o.id, L.identifiantsOrganisation({ siret: v })) }),
+        h('div', { class: 'prop', dataset: { prop: 'siren' }, title: 'Calculé d’après le SIRET (ses 9 premiers chiffres)' },
+          h('span', { class: 'prop-libelle' }, 'SIREN'), h('div', { class: 'prop-valeur' }, h('span', { 'data-valeur': 'siren' }, o.siren ? L.formaterSiren(o.siren) : '—'))),
+        prop('N° de TVA', 'numeroTva', { placeholder: 'FR12345678901', formater: (v) => String(v).replace(/[\s.]/g, '').toUpperCase(), surEnregistrer: (v) => D.majOrganisation(o.id, L.identifiantsOrganisation({ numeroTva: v })) })),
     });
     const sectionPersonnes = sectionRepliable({
       id: 'organisation-personnes', titre: 'Personnes', compteur: personnes.length,
