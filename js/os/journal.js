@@ -11,6 +11,10 @@ import { etatVide } from '../modules/crm/composants.js';
 import { boutonFiltres, fenetreFiltres } from '../modules/crm/filtres.js';
 import { barreListe, enteteListe } from '../modules/crm/barre-liste.js';
 import { estChezClient } from './contexte.js';
+import { maisonNeutre } from './identite-maison.js';
+
+/** Textes du client (ChatGPT) : chez un client de la plateforme et dans la maison neutre d'un client ; ceux de Jérôme (Claude Code, Hermes) sinon. */
+const textesClient = () => estChezClient() || maisonNeutre();
 
 const TAILLE_PAGE = 200;
 const CHEMINS = { crm_personnes: 'personnes', crm_organisations: 'organisations', crm_affaires: 'affaires' };
@@ -133,7 +137,7 @@ export function rendreJournal(conteneur) {
 
   async function ouvrirFiltres() {
     // Toujours proposés (même journal vide, en chargement ou en erreur) : les deux canaux et la case « À vérifier seulement ».
-    const libelleMcp = estChezClient() ? 'ChatGPT (MCP)' : 'MCP (Claude Code, Hermes)';
+    const libelleMcp = textesClient() ? 'ChatGPT (MCP)' : 'MCP (Claude Code, Hermes)';
     const controles = [
       { cle: 'canaux', libelle: 'Canal', type: 'cases', options: [{ valeur: 'ecran', libelle: 'Appli' }, { valeur: 'mcp', libelle: libelleMcp }] },
       { cle: 'aVerifier', libelle: 'À vérifier seulement', type: 'oui' },
@@ -212,7 +216,7 @@ export function rendreJournal(conteneur) {
   }).element;
   const entete = enteteListe({ titre: 'Journal des modifications', compteur, retour: h('p', { class: 'etiquette' }, 'Lecture seule'), actions: [boutonActualiser] });
   conteneur.append(h('div', { class: 'page page-liste page-journal' }, entete,
-    h('p', { class: 'aide' }, estChezClient()
+    h('p', { class: 'aide' }, textesClient()
       ? 'Chaque création, modification ou suppression faite dans l’appli ou par ChatGPT laisse une ligne ici, avec une copie du document avant et après (gardée sans limite de durée).'
       : 'Chaque création, modification ou suppression faite dans l’appli ou par Claude Code laisse une ligne ici, avec une copie du document avant et après (gardée sans limite de durée). Pour défaire une opération, demande-le à Claude Code (restaurer_depuis_audit).'),
     barre, zone, pied));

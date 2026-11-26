@@ -37,10 +37,15 @@ export const MODE_EMPLOI_RACINE = Object.freeze([
   { titre: 'Autorise', texte: 'Clique sur « Autoriser » : ChatGPT peut alors consulter et modifier tes fiches. Retirer le connecteur dans ChatGPT ne coupe pas l\'autorisation côté serveur : demande à Jérôme de la couper.' },
 ]);
 
+/** Le même mode d'emploi dans la maison neutre d'un client (identite-maison.js) : « l'administrateur » au lieu de Jérôme. */
+export const MODE_EMPLOI_MAISON = Object.freeze(MODE_EMPLOI_RACINE.map((e) => Object.freeze({ ...e, texte: e.texte.replace('demande à Jérôme', 'demande à l’administrateur') })));
+
 /** Ligne discrète sous le mode d'emploi. */
 export const PHRASE_AUSSI = 'Ça marche aussi avec Claude ou Gemini.';
 
 export const PHRASE_COMPTES_RACINE = 'Les comptes autorisés sont fixés par Jérôme.';
+/** La même phrase dans la maison neutre d'un client (identite-maison.js) : jamais le prénom de Jérôme. */
+export const PHRASE_COMPTES_MAISON = 'Les comptes autorisés sont fixés par l’administrateur.';
 
 /** Membres rangés par adresse, avec le libellé de leur rôle ; un rôle inconnu est écarté (le serveur le refuserait aussi). */
 export function lignesMembres(documents, emailCourant = '') {

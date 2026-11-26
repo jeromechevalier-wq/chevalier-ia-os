@@ -4,6 +4,7 @@ import { vider, h, icone } from '../../os/ui.js';
 import { naviguer, lien } from '../../os/router.js';
 import * as D from './donnees.js';
 import { rendreInfos } from './ecran.js';
+import { maisonNeutre } from '../../os/identite-maison.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage.
 function ajouterFeuille() {
@@ -51,7 +52,7 @@ export function afficher(conteneur, segs) {
 export function reglages(page, { chezClient = true } = {}) {
   page.append(h('section', { class: 'carte-section', id: 'reglages-mcp' },
     h('h2', {}, icone('link', { taille: 18 }), 'Connexion de ChatGPT'),
-    h('p', { class: 'aide' }, 'Ce module n’a pas de réglage à toi : il s’allume ou s’éteint pour ton espace. ' + (chezClient ? 'Le lien de connexion, le mode d’emploi et la liste des membres autorisés sont sur la page Connexion.' : 'L’adresse de connexion et le mode d’emploi sont sur la page Connexion ; les comptes autorisés sont fixés par Jérôme.')),
+    h('p', { class: 'aide' }, 'Ce module n’a pas de réglage à toi : il s’allume ou s’éteint pour ton espace. ' + (chezClient ? 'Le lien de connexion, le mode d’emploi et la liste des membres autorisés sont sur la page Connexion.' : 'L’adresse de connexion et le mode d’emploi sont sur la page Connexion ; les comptes autorisés sont fixés par ' + (maisonNeutre() ? 'l’administrateur.' : 'Jérôme.'))),
     h('a', { class: 'bouton bouton-secondaire', href: lien('mcp/infos') }, icone('link', { taille: 16 }), 'Ouvrir la page Connexion')));
   return null;
 }

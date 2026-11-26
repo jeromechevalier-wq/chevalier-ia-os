@@ -10,6 +10,7 @@ import * as PD from '../projets/donnees.js';
 import { iconeInfo, boutonAjouter } from './composants.js';
 import { googleDisponible, preparerGoogle, obtenirJeton, oublierJeton, ouvrirFenetreGoogle } from '../../os/google-picker.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
+import { maisonNeutre } from '../../os/identite-maison.js'; // maison d'un client : dossier Drive à son nom, jamais « Chevalier IA OS »
 import { creerArborescence, nettoyerNomDossier, idDossierDrive, trouverDossierDeMemeNom, adresseDossierDrive, preparerDossierParent, nomDossierParentAuto } from '../../os/google-drive.js';
 
 function boutonPetit(libelle, nomIcone, action, onclick) {
@@ -28,7 +29,7 @@ export async function creerRepertoireDrive({ nom }) {
   try { jeton = await obtenirJeton({ email: D.compteCourant()?.email || '' }); } catch (e) { throw Object.assign(e, { saisie: e.annule === true }); }
   try {
     // Où ranger : le parent choisi dans les Réglages, sinon un dossier « Chevalier IA - <espace> » créé UNE FOIS tout seul (et recréé s'il a été supprimé).
-    const prepare = await preparerDossierParent({ jeton, parent: reglages.dossierParentDrive, nomAuto: nomDossierParentAuto(D.nomDeLEspace(), D.cheminDeBase() === '') });
+    const prepare = await preparerDossierParent({ jeton, parent: reglages.dossierParentDrive, nomAuto: maisonNeutre() ? D.nomDeLEspace() : nomDossierParentAuto(D.nomDeLEspace(), D.cheminDeBase() === '') });
     // Un dossier de ce nom créé par l'appli (ou montré à l'appli) existe déjà : on ne crée pas de doublon. (Un dossier créé à la main dans Drive n'est pas visible avec la portée drive.file.)
     const existant = await trouverDossierDeMemeNom({ jeton, nom: propre, parentId: prepare.parentId });
     if (existant) throw Object.assign(new Error('Un dossier de ce nom existe déjà. Utilise « Lier un dossier Google Drive existant ».'), { saisie: true, dejaLa: true });

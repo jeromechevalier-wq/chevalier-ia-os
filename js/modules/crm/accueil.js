@@ -9,6 +9,7 @@ import { devisDesModules, surChangementPastilles } from './pastilles-externes.js
 import { ligneActivite, faireActivite, dialogueActivite } from './activites.js';
 import { exporterToutesLesDonnees } from './export.js';
 import { estChezClient } from '../../os/contexte.js';
+import { maisonNeutre } from '../../os/identite-maison.js';
 import * as PD from '../projets/donnees.js';
 import * as P from '../projets/logique.js';
 import { ligneTachePointsCles } from '../projets/taches.js';
@@ -180,7 +181,7 @@ function rendrePointsCles(zone) {
   }
   const nombreRetard = pc.enRetard.length + tp.enRetard.length;
   const duJour = pc.aujourdhui.length + tp.aujourdhui.length;
-  if (!nombreRetard && !duJour) zone.append(etatVide(D.etat.reglages.imageCelebration ? 'Aucune relance aujourd’hui, Charles veille' : 'Aucune relance aujourd’hui.'));
+  if (!nombreRetard && !duJour) zone.append(etatVide(D.etat.reglages.imageCelebration && !maisonNeutre() ? 'Aucune relance aujourd’hui, Charles veille' : 'Aucune relance aujourd’hui.'));
   if (nombreRetard) {
     zone.append(groupe('En retard', 'retard', nombreRetard, h('ul', { class: 'liste-activites' }, lignesMelees(pc.enRetard, tp.enRetard, aujourdhui)), 'groupe-retard'));
   }
