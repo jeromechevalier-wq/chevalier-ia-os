@@ -63,6 +63,13 @@ export function exporterListe(liste, { telecharger = telechargerCsv, maintenant 
   }
 }
 
+/** Lit tous les articles et fabrique le fichier de sauvegarde, sans le télécharger : { nom, contenu, message }. Lève l'erreur de lecture.
+ *  Sert à la sauvegarde complète des achats (.zip) : même contenu et mêmes colonnes que le bouton ci-dessous. */
+export async function fichierArticles({ lire, maintenant = new Date() } = {}) {
+  const donnees = await lire();
+  return { nom: nomFichier(maintenant), contenu: articlesCsv(listeDepuisDonnees(donnees)), message: donnees.tronque ? 'La liste des articles est trop longue pour être lue en entier : le fichier est incomplet.' : '' };
+}
+
 /** Réglages > Articles > « Sauvegarde » : relit tous les articles puis les exporte. `lire` se remplace dans les tests. */
 export async function exporterTout({ lire, telecharger = telechargerCsv, maintenant = new Date(), prevenir = toast } = {}) {
   try {

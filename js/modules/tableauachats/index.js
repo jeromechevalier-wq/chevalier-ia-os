@@ -3,7 +3,8 @@
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import { rendreEcran } from './ecran.js';
-import { reglagesExportTableauAchats } from './export.js';
+import { reglagesExportTableauAchats, fichierSauvegarde } from './export.js';
+import { zoneSauvegardesAchats } from '../achatscommun/sauvegarde.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
 function ajouterFeuille() {
@@ -18,8 +19,8 @@ function ajouterFeuille() {
 export const actionsRapides = []; // rien à créer depuis l'écran
 
 /** Réglages du module : une seule section, « Sauvegarde » (export des factures lues). */
-export function reglages(page) {
-  reglagesExportTableauAchats(page);
+export function reglages(page, ctx) {
+  reglagesExportTableauAchats(zoneSauvegardesAchats(page, { module: 'tableauachats', table: 'Tableau de bord', fabriquer: () => fichierSauvegarde() }, ctx));
 }
 
 let montee = null;

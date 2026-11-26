@@ -3,7 +3,8 @@
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import { rendreEcran } from './ecran.js';
-import { reglagesExportFournisseurs } from './export.js';
+import { reglagesExportFournisseurs, fichierFournisseurs } from './export.js';
+import { zoneSauvegardesAchats } from '../achatscommun/sauvegarde.js';
 import { ETAPES_DEPLOIEMENT_ACHATS } from '../achatscommun/deploiement.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
@@ -23,9 +24,9 @@ export function controlesDeploiement() {
 
 export const actionsRapides = []; // rien à créer depuis l'écran : les fournisseurs naissent des factures lues
 
-/** Réglages du module : une seule section, « Sauvegarde » (export de la liste). */
-export function reglages(page) {
-  reglagesExportFournisseurs(page);
+/** Réglages du module : sa table dans la « Sauvegarde complète des achats » (.zip) et sa propre section d'export, repliée sous « Sauvegardes séparées ». */
+export function reglages(page, ctx) {
+  reglagesExportFournisseurs(zoneSauvegardesAchats(page, { module: 'achatsfournisseurs', table: 'Fournisseurs', fabriquer: () => fichierFournisseurs() }, ctx));
 }
 
 let montee = null;

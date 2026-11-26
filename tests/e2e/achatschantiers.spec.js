@@ -264,6 +264,7 @@ test('C12 Réglages > Achats > Sauvegarde des chantiers : un bouton d\'export de
   await page.evaluate(() => { location.hash = '#/reglages'; });
   await attendreCalme(page);
   await ouvrirSectionReglages(page, 'Achats');
+  await page.locator('[data-role="sauvegardes-separees"]').click(); // depuis le 26/11/2026, la sauvegarde de chaque module est repliée sous « Sauvegardes séparées »
   await expect(page.locator('#reglages-export-achatschantiers')).toBeVisible();
   const [fichier] = await Promise.all([page.waitForEvent('download'), page.locator('[data-action="exporter-chantiers-tous"]').click()]);
   expect(fichier.suggestedFilename()).toMatch(/^chantiers-\d{4}-\d{2}-\d{2}\.csv$/);
