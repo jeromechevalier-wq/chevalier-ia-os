@@ -465,7 +465,26 @@ test('8 historique en bulles : ce qu’on envoie à gauche (violet), ce que les 
   expect(d.x + d.width, 'reçu à droite').toBeGreaterThan(g.x + g.width);
   expect(await bulles.nth(2).locator('.bulle').evaluate((e) => getComputedStyle(e).borderTopColor)).not.toBe('rgba(0, 0, 0, 0)');
   await expect(bulles.nth(1).locator('.bulle-pied')).toContainText('M. Durand');
+  await expect(bulles.nth(0).locator('.bulle-pied')).toContainText('à M. Durand');
   await capture(page, '8-bulles');
+});
+
+test('Q5 historique : chaque SMS envoyé dit « à <nom> » (participant retrouvé par son identifiant), et « (envoyé au numéro de test) » dans un rendez-vous de test', async ({ page }) => {
+  await semer('r1', { test: true });
+  await part('p1', 'M. Durand', 'Client', '+33600000001');
+  await part('p2', 'Architecte', 'Architecte', '+33600000003');
+  await sms('m1', 'sortant', '+33699999999', 'Premier SMS identique', { participantId: 'p1', envoyeLe: il(-1, 9) });
+  await sms('m2', 'sortant', '+33699999999', 'Premier SMS identique', { participantId: 'p2', envoyeLe: il(-1, 10) });
+  await sms('m3', 'sortant', '+33699999999', 'SMS à quelqu’un de supprimé', { participantId: 'disparu', envoyeLe: il(-1, 11) });
+  await ouvrirFiche(page);
+  const pieds = page.locator('[data-role="historique"] .bulle-pied');
+  await expect(pieds).toHaveCount(3);
+  await expect(pieds.nth(0)).toContainText('à M. Durand (envoyé au numéro de test)');
+  await expect(pieds.nth(1)).toContainText('à Architecte (envoyé au numéro de test)');
+  await expect(pieds.nth(2)).toContainText('à un participant supprimé');
+  await expect(page.locator('[data-role="historique"]')).not.toContainText('+33');
+  await page.locator('[data-role="historique"]').scrollIntoViewIfNeeded();
+  await page.locator('[data-role="historique"]').screenshot({ path: `${CAPTURES}/Q5-historique-destinataire${estTelephone(page) ? '-telephone' : ''}.png`, animations: 'disabled' });
 });
 
 test('S1 les SMS prévus mais pas encore partis sont montrés avec la raison (plage d’envoi, ou rendez-vous de test sans numéro de test)', async ({ page }) => {

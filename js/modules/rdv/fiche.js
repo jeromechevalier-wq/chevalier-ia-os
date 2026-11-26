@@ -362,10 +362,10 @@ export function rendreFiche(conteneur, id) {
   }
 
   function historique(r, parts) {
-    const msgs = R.historiqueMessages(D.messagesDe(r.id), parts);
+    const msgs = R.historiqueMessages(D.messagesDe(r.id), parts, r);
     if (!msgs.length) return h('p', { class: 'aide', dataset: { role: 'historique-vide' } }, 'Aucun SMS pour l’instant. Les SMS envoyés et reçus apparaîtront ici.');
     return h('div', { class: 'rdv-historique', dataset: { role: 'historique' } }, msgs.map((m) => m.etatEnvoi === 'bloque' ? smsBloque(m) : bulleSms({
-      sens: m.sens === 'entrant' ? 'entrant' : 'sortant', texte: m.texte, qui: m.qui,
+      sens: m.sens === 'entrant' ? 'entrant' : 'sortant', texte: m.texte, qui: m.sens === 'entrant' ? m.qui : (m.destinataire || m.qui),
       heure: R.formaterCreneau(m.envoyeLe ?? m.recuLe ?? m.creeLe), caracteres: m.sens === 'entrant' ? null : (m.caracteres ?? R.compterSms(m.texte).caracteres), incomprise: m.sens === 'entrant' && m.comprise === false,
     })));
   }

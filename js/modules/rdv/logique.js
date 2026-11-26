@@ -1444,10 +1444,22 @@ export function texteSmsManuel(type, rdv, parametres) {
   return preparerSms(avecMentionStop(`${signature}le RDV${client ? ` (${client})` : ''}${quand} est annulé à cause de la pluie. Je vous propose une autre date très vite.`, parametres)).texte;
 }
 
-/** Historique d'un rendez-vous : les messages par date, avec le nom de l'expéditeur ou du destinataire (retrouvé par le numéro ; par le participant pour une trace « bloque », qui n'a pas de numéro). */
-export function historiqueMessages(messages, participants) {
+/** Libellé du destinataire d'un SMS sortant : « à <nom> » (retrouvé par `participantId`, repli sur le numéro pour les anciens messages), « à un participant supprimé » s'il est introuvable ; dans un rendez-vous de test on ajoute « (envoyé au numéro de test) ». Jamais de numéro en clair. */
+export function libelleDestinataire(message, participants, rdv) {
+  const parts = participants || [];
+  const p = (message?.participantId && parts.find((x) => x.id === message.participantId)) || (message?.numero ? parts.find((x) => x.telephone === message.numero) : null);
+  const nom = p ? (String(p.nom || '').trim() || 'un participant sans nom') : 'un participant supprimé';
+  return `à ${nom}${rdv?.test ? ' (envoyé au numéro de test)' : ''}`;
+}
+
+/** Historique d'un rendez-vous : les messages par date. `qui` = l'expéditeur d'un message reçu (retrouvé par le numéro) ; pour un SMS envoyé, `destinataire` = « à <nom> » (retrouvé par le participant, voir `libelleDestinataire`). */
+export function historiqueMessages(messages, participants, rdv) {
   const parNumero = new Map((participants || []).map((p) => [p.telephone, p]));
   const parId = new Map((participants || []).map((p) => [p.id, p]));
-  return [...(messages || [])].map((m) => ({ ...m, qui: (m.etatEnvoi === 'bloque' && !m.numero ? parId.get(m.participantId) : parNumero.get(m.numero))?.nom || '' }))
+  return [...(messages || [])].map((m) => ({
+    ...m,
+    qui: (m.etatEnvoi === 'bloque' && !m.numero ? parId.get(m.participantId) : parNumero.get(m.numero))?.nom || '',
+    ...(m.sens === 'entrant' || m.etatEnvoi === 'bloque' ? {} : { destinataire: libelleDestinataire(m, participants, rdv) }),
+  }))
     .sort((a, b) => (enMs(a.envoyeLe ?? a.recuLe ?? a.creeLe) || 0) - (enMs(b.envoyeLe ?? b.recuLe ?? b.creeLe) || 0));
 }
