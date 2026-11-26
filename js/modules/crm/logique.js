@@ -935,7 +935,57 @@ export function validerOrganisation(v) {
     if (nettoyerEspaces(e.valeur) && !emailValide(e.valeur)) erreurs.emails = "Cette adresse email n'est pas valide."; // une valeur blanche est ignorée, comme à l'écran
   }
   if (v.adresses !== undefined) { const { erreur } = patchAdresses(v.adresses); if (erreur) erreurs.adresses = erreur; }
+  Object.assign(erreurs, erreursIdentifiantsOrganisation(v));
   return erreurs;
+}
+
+// ---------------------------------------------------------------- SIRET, SIREN et n° de TVA d'une organisation (décision de Jérôme du 26/11/2026)
+
+export const MESSAGE_SIRET_INVALIDE = 'Le SIRET doit faire 14 chiffres.';
+export const MESSAGE_TVA_INVALIDE = 'Le numéro de TVA commence par 2 lettres (le pays), suivies de 2 à 13 lettres ou chiffres (ex. FR12345678901).';
+export const MESSAGE_TVA_FR_INVALIDE = 'Un numéro de TVA français fait 13 caractères : FR, 2 caractères, puis les 9 chiffres du SIREN (ex. FR12345678901).';
+
+const erreurSaisie = (message, champ) => Object.assign(new Error(message), { saisie: true, champ });
+
+/**
+ * SIRET, SIREN et n° de TVA prêts à enregistrer (écran ET serveur). Seuls les champs donnés sont rendus :
+ * `siret` donné → `siret` (14 chiffres, ou '') ET `siren` (9 premiers chiffres, ou '') ; `numeroTva` donné → majuscules sans espaces ni points, ou ''.
+ * Le SIREN n'est jamais saisi : il est toujours déduit du SIRET. Saisie refusée → erreur marquée `saisie` (message affiché tel quel), `champ` = siret ou numeroTva.
+ */
+export function identifiantsOrganisation({ siret, numeroTva } = {}) {
+  const sortie = {};
+  if (siret !== undefined && siret !== null) {
+    const s = String(siret).replace(/[\s.-]/g, '');
+    if (s && !/^\d{14}$/.test(s)) throw erreurSaisie(MESSAGE_SIRET_INVALIDE, 'siret');
+    sortie.siret = s;
+    sortie.siren = s.slice(0, 9);
+  }
+  if (numeroTva !== undefined && numeroTva !== null) {
+    const t = String(numeroTva).replace(/[\s.-]/g, '').toUpperCase();
+    if (t && !/^[A-Z]{2}[0-9A-Z]{2,13}$/.test(t)) throw erreurSaisie(MESSAGE_TVA_INVALIDE, 'numeroTva');
+    if (t.startsWith('FR') && !/^FR[0-9A-Z]{2}\d{9}$/.test(t)) throw erreurSaisie(MESSAGE_TVA_FR_INVALIDE, 'numeroTva');
+    sortie.numeroTva = t;
+  }
+  return sortie;
+}
+
+/** Erreurs de saisie du SIRET et du n° de TVA, au format de validerOrganisation ({ siret?, numeroTva? }). */
+export function erreursIdentifiantsOrganisation(v) {
+  const erreurs = {};
+  for (const champ of ['siret', 'numeroTva']) {
+    try { identifiantsOrganisation({ [champ]: v?.[champ] }); } catch (e) { if (!e.saisie) throw e; erreurs[champ] = e.message; }
+  }
+  return erreurs;
+}
+
+/** Affichage : SIRET « 123 456 789 00012 », SIREN « 123 456 789 ». Une valeur qui n'a pas la bonne longueur est rendue telle quelle. */
+export function formaterSiret(v) {
+  const s = String(v ?? '').replace(/[\s.-]/g, '');
+  return /^\d{14}$/.test(s) ? `${s.slice(0, 3)} ${s.slice(3, 6)} ${s.slice(6, 9)} ${s.slice(9)}` : String(v ?? '');
+}
+export function formaterSiren(v) {
+  const s = String(v ?? '').replace(/[\s.-]/g, '');
+  return /^\d{9}$/.test(s) ? `${s.slice(0, 3)} ${s.slice(3, 6)} ${s.slice(6)}` : String(v ?? '');
 }
 
 function contactsPropres(liste) {
@@ -996,6 +1046,7 @@ export function nouvelleOrganisation(valeurs, ctx) {
     ...(valeurs.adresses?.length ? patchAdresses(valeurs.adresses).patch : {}),
     secteur: valeurs.secteur || '',
     taille: '',
+    ...identifiantsOrganisation({ siret: valeurs.siret ?? '', numeroTva: valeurs.numeroTva ?? '' }), // siret, siren (déduit), numeroTva ; une saisie invalide est refusée avant (validerOrganisation)
     etiquettes: [...(valeurs.etiquettes || [])],
     archive: false,
     proprietaire: ctx?.proprietaire ?? ctx?.auteur ?? '',
