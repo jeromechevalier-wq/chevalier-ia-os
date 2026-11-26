@@ -1,5 +1,53 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 26-27/11/2026 : la maison SCAB 04 mise en service, Achats sur Cloud SQL
+
+« GO NUIT » reçu le 26/11/2026 vers 12 h 10, avec les accords écrits de Jérôme pour la maison SCAB 04 (plan du site, publication depuis le Mac, Cloud SQL avec alerte de budget, copie des données de démo, workflows n8n de lecture des factures, plus de Supabase pour SCAB 04).
+
+| Sujet | PR | État |
+|---|---|---|
+| Fiche Organisation : SIRET et n° de TVA intracommunautaire, SIREN calculé (écran et MCP, une seule règle) | 699 | fusionnée, relue par Fable, corrections appliquées |
+| Maison d'un client : écran neutre (champ `reglages_maison/ecran.configuration_crm = 'neutre'` : aucune configuration de Jérôme, modèles de projets neutres) | 700 | fusionnée, relue par Fable (1 bloquant corrigé) |
+| Base Cloud SQL : migration 008 (ticket à usage unique de la porte) et essai sans superutilisateur | 701 | fusionnée, relue par Fable, corrections appliquées |
+| La porte de la base (`basePorte`) entre les écrans, n8n et Cloud SQL | 702 | fusionnée, relue par Fable (aucun bloquant, 8 corrections appliquées) |
+| Mise en service de la maison SCAB 04 (hors dépôt : commandes et Chrome) | aucune | faite, voir ci-dessous |
+| Études Cloud SQL et « une maison par client », décisions du 26/11, version 2.54.0, wiki, ce rapport | cette PR | à fusionner (docs et version : relecture Fable non requise) |
+
+**Maison SCAB 04, ce qui marche (essayé en réel le 26/11 au soir)** :
+- Projet Google du client : Firestore en Europe (retour à un instant donné, protection contre la suppression, sauvegarde quotidienne), règles publiées, connexion Google, stockage en Europe, clés du navigateur restreintes aux adresses du site.
+- Fonctions du serveur : **43 sur 43 actives** (deux passages de déploiement, voir point 15).
+- Site publié depuis le Mac ; réglages de la maison écrits (`public`, `ecran`, `maison`), écran neutre posé **avant** la première ouverture.
+- Cloud SQL (PostgreSQL 17, la plus petite instance, aucun réseau ouvert, SSL obligatoire, sauvegardes et retour à un instant donné, protection contre la suppression, alerte de budget à 30 € par mois) ; migrations 001 à 008 jouées ; la porte déployée et réglée dans Réglages > Connexion à la base.
+- Données de démo copiées depuis Supabase (données de test faites par Jérôme, accord écrit) : fournisseurs, chantiers, articles, factures et leurs PDF.
+- Workflows n8n Achats importés dans le n8n de SCAB 04, relus par Fable, corrigés puis **activés** ; ils écrivent par la porte.
+- **Essai complet réussi depuis l'écran** (mode test) : connexion de Jérôme, écran neutre, liste des factures, « + Facture » avec un PDF fictif, lecture par l'IA, facture rangée « à valider » avec son PDF et des alertes justes, puis **refus** et **archivage** de 3 fiches d'essai (workflows de refus et d'archivage essayés pour de vrai).
+- « Tests de nuit » sur `main` après les fusions : verts ; déploiements de `main` verts.
+
+**Non vérifié** : la connexion d'un autre compte que Jérôme (le client n'est pas encore ajouté, voir point 12) ; une restauration de sauvegarde Cloud SQL ; la vitesse de la porte au premier chargement (non mesurée).
+
+### Pour Jérôme au matin
+
+1. **Compte de calcul par défaut du projet SCAB 04 avec le rôle « éditeur »** : laissé tel quel cette nuit (le retirer peut casser la construction des fonctions). Décision à prendre : le garder ou le réduire (essai à faire de jour).
+2. **Deux identifiants pour une même personne avant et après la bascule** (relevé par Fable sur la PR 701) : accepter la coupure, ou créer une table de correspondance.
+3. **Dates des données copiées** : « créé le » et « décidé le » valent toutes le 26/11/2026 (la base impose la date du jour). À accepter pour des données de démo, ou à corriger.
+4. **Le script de copie Supabase vers Cloud SQL n'a pas été relu par Fable** (resté hors dépôt). Les coûts d'IA, favoris et tickets n'ont pas été copiés.
+5. **Page de connexion** : elle montre encore « Jérôme et Charles » et le portrait, avant la lecture des réglages de l'écran. À rendre neutre.
+6. **Serveur MCP** : sans réglages, il recolle les étapes de Jérôme (configuration par défaut). À rendre neutre comme l'écran.
+7. **Textes `estChezClient`** à revoir (relevé par Fable sur la PR 700).
+8. **Nom « Chevalier IA OS » affiché** dans la maison du client : à remplacer par le nom réglé.
+9. **Workflows n8n de SCAB 04 sans étiquettes** (à qui / où / module) : à poser.
+10. **Clé API n8n dédiée au journal** : à créer (aujourd'hui une seule clé).
+11. **OpenRouter : compte provisoire.** Crédit ajouté par Jérôme le 26/11 (la lecture IA échouait faute de crédit) ; à basculer sur le compte du client lundi.
+12. **PR 3 « ouvrir Achats aux comptes de la maison » pas faite** : nécessaire **avant que le client se connecte lundi 30/11** (aujourd'hui seul le propriétaire voit les modules Achats).
+13. **Un PDF déjà connu sur une fiche déjà décidée** met l'exécution n8n en erreur (les lignes sont refusées par la base, comportement voulu, mais l'erreur n'est pas rattrapée proprement) : à traiter.
+14. **Procédure d'installation d'une maison** (écrite dans `docs/etude-une-maison-par-client.md`, section 4.4) : poser `reglages_maison/ecran.configuration_crm = 'neutre'` **avant toute première ouverture** du site ; le rôle sur mesure `baseAccesComptes` manquait (créé à la main cette nuit) ; adresse Cloud Run directe de la porte dans Réglages > Connexion à la base.
+15. **Premier déploiement des fonctions d'une maison neuve : deux passages nécessaires** (ratés de création du stockage et de Cloud Run au premier). À prévoir dans la procédure.
+16. **Anciennes PR 615, 608 et 597 en conflit**, d'avant la nuit, non touchées : à reprendre ou fermer.
+17. **Vieille fiche du second cerveau sur l'ancienne adresse d'outils de SCAB 04** à corriger (avec l'accord de Jérôme).
+18. **Fiches d'essai** : la liste montre 1 facture « à valider » (une donnée de démo copiée) ; les 3 fiches d'essai de la nuit sont refusées et archivées.
+
+**Budget à la fin de la nuit** : tous modèles 84 % de la semaine, Fable 93 % (remise à zéro le 27/11 à 6 h).
+
 ## Rapport de fin de nuit du 25/11/2026 (soir) : plan de la base et chantier 0
 
 | Sujet | PR | État |
