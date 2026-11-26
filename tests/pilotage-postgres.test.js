@@ -142,7 +142,7 @@ describe('4 une requête à la fois, délais bornés', () => {
 });
 
 describe('3 le paquet pg n\'est importé qu\'à un seul endroit', () => {
-  test('3.1 seul functions/src/pilotage/postgres.js importe `pg` (code exécutable, hors tests, docs et copies générées)', () => {
+  test('3.1 seuls functions/src/pilotage/postgres.js et functions/src/base/cloudsql.js (porte de la base, 26/11/2026) importent `pg` (code exécutable, hors tests, docs et copies générées)', () => {
     const racine = new URL('..', import.meta.url).pathname;
     const trouves = [];
     const parcourir = (dossier) => {
@@ -154,7 +154,7 @@ describe('3 le paquet pg n\'est importé qu\'à un seul endroit', () => {
       }
     };
     for (const d of ['functions', 'functions-plateforme', 'js', 'scripts']) parcourir(join(racine, d));
-    assert.deepEqual(trouves, ['functions/src/pilotage/postgres.js']);
+    assert.deepEqual(trouves, ['functions/src/base/cloudsql.js', 'functions/src/pilotage/postgres.js']);
   });
   test('3.2 `pg` est chargé à la demande (import dynamique), jamais en tête de fichier', () => {
     const src = readFileSync(new URL('../functions/src/pilotage/postgres.js', import.meta.url), 'utf8');
