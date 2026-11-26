@@ -2,6 +2,15 @@
 
 Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de session) ; avant : 08/11/2026 (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Mise à jour du 26/11/2026 (les achats d'une maison par l'assistant IA, serveur MCP)
+
+Outils `*_facture_achat` (lister, lire, valider, refuser, archiver, relier à un chantier, ajouter un PDF par lien d'envoi), proposés seulement dans une maison dont `reglages_maison/ecran.modules` liste `achatsfactures`.
+
+- [ ] Pas dans ce chantier : rouvrir une facture, la désarchiver, créer une agence, alertes de prix (à l'écran seulement pour l'instant).
+- [ ] Absents chez Jérôme (ses modules Achats lisent une autre base) et sur la plateforme des clients (pas de `base/` ni de `deposerAchat` : un lien d'achat y répond « plus valable »), décision du 26/11/2026.
+- [ ] Docs à écrire (pas faites par la session de code de nuit, qui n'avait pas le droit de toucher `docs/`) : section « L'assistant » de `docs/modules-achats.md`, `docs/portes-et-droits-mcp.md`, version et wiki.
+- [ ] À essayer en vrai : multipart du serveur accepté par le workflow n8n d'ajout, codes exacts de n8n (doublon, trop gros), taille réelle qui passe jusqu'à `depotdocument`, envoi d'un PDF par Claude ou ChatGPT sans terminal.
+
 ## Mise à jour du 26/11/2026 (maison d'un client : écran neutre, PR 700)
 
 Le champ `configuration_crm: 'neutre'` de `reglages_maison/ecran` rend l'écran neutre (étapes, phases, réglages, objectifs, modèles de projet, membres). Il doit être posé AVANT la toute première ouverture de la maison (les paramètres de départ sont écrits à ce moment-là). Reste à faire :
