@@ -7,6 +7,7 @@ import * as D from './donnees.js';
 import * as R from './logique.js';
 import { interrupteur, champNombre, compteurSms, EXPLICATION_ACCENTS } from './composants.js';
 import { reglagesExportRdv } from './export.js';
+import { miseEnRoute } from './mise-en-route.js';
 import * as CRM from '../crm/donnees.js';
 import { modeTestAllume, surModeTest } from '../../os/mode-test.js';
 
@@ -162,6 +163,11 @@ export function reglages(page) {
   });
   redessins.push(redessinerBilan);
   const arretModeTest = surModeTest(() => redessinerBilan());
+
+  // ── Mise en route : quatre étapes dépliables (texte seulement ; le voyant lit « branché » et le numéro de test déjà connus de l'écran)
+  redessins.push(carte(page, 'reglages-rdv-mise-en-route', 'Mise en route de l’envoi des SMS', () => miseEnRoute({
+    peutConfigurer: D.peutConfigurerConnexion(), branche: D.envoiBranche(), numeroTest: D.parametres().numeroTest || '', plage: D.parametres().plage,
+  })));
 
   redessins.push(carte(page, 'reglages-rdv-relances', 'Relances', () => {
     const p = D.parametres();
