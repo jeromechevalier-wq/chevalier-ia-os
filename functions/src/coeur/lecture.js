@@ -10,7 +10,7 @@ import { COLLECTIONS as C } from './donnees.js';
 import { lireUsages } from './usage-articles.js';
 import { serialiser } from './serialisation.js';
 import { ditHorsTaxes, ditPourAssistant, sansModeMarge } from './voix.js';
-import { lireConfig } from './config.js';
+import { lireConfig, choixConfiguration } from './config.js';
 import { structureCourte, phraseTotaux } from './recapitulatif.js';
 
 export const MAX_LIGNES = 200;
@@ -241,6 +241,7 @@ export async function listerModelesProjet(donnees) {
 
 export async function lireReglages(donnees, espace = {}) {
   const config = await lireConfig(donnees, espace);
+  const { racine } = await choixConfiguration(donnees, espace); // maison neutre : réglages de départ neutres, comme l'écran (config.js)
   const docs = Object.fromEntries((await donnees.liste(C.parametres)).map((d) => [d.id, d]));
   const tri = (items) => [...(items || [])].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
   return serialiser({
@@ -248,7 +249,7 @@ export async function lireReglages(donnees, espace = {}) {
     secteurs: docs.listes?.secteurs || [],
     sources: docs.listes?.sources || [],
     etiquettes: tri(docs.etiquettes?.items),
-    reglages: L.reglagesEffectifs(docs.reglages, { racine: espace.racine ?? !donnees.base }),
+    reglages: L.reglagesEffectifs(docs.reglages, { racine }),
     // Configuration de l'espace : étapes de vente et phases de projet (six emplacements, actifs ou non), rôles, options (interrupteurs).
     configuration: {
       etapes: config.etapes.map(({ id, libelle, description, actif, action }) => ({ id, libelle, description, actif, action, roleGagnee: id === config.roleGagnee })),
