@@ -117,6 +117,7 @@ Depuis le 14/11/2026 elles sont appelées **directement par le serveur** (`funct
 - Une confirmation d'envoi qui arrive après l'abandon (réponse lente) est acceptée : le SMS repasse à « envoyé ». Une confirmation d'une ancienne série (rejeu) ne change rien à la série courante.
 - Une réponse reçue APRÈS la confirmation (« empêchement », STOP…) est gardée sur le participant et alerte la professionnelle une seule fois.
 - Après « Envoyer », les SMS « créneaux » partent dans le même tir que la présentation (la demande est notée une minute en arrière).
+- **Ordre d'un tir (26/11/2026)** : quand un tir a plusieurs sortes de SMS à envoyer, toutes les présentations partent d'abord (tous les participants), puis une pause de 10 secondes, puis les autres (créneaux, relances…). La pause n'a lieu que si une présentation est partie et s'il reste d'autres SMS ; elle ne dépasse jamais le temps du tir (sinon les autres SMS sont libérés et partent au tir suivant). Un arrêt de compte pendant les présentations libère aussi les autres.
 
 ## Limites connues (à décider avec Jérôme)
 - **Réautoriser un numéro** : par la carte « Numéros désinscrits (STOP) » (PR 648). Elle ne touche pas à la liste d'opt-out de ClickSend (à vider à la main chez eux). Même effet pour ton propre numéro si tu réponds « STOP » pendant un test.

@@ -24,6 +24,7 @@ export const ESPACE_JEROME = 'interne';
 export const DELAI_SMS_MS = 15_000;
 export const BUDGET_TIR_MS = 45_000; // « tire maintenant » : l'écran attend (le navigateur abandonne à 70 s) ; le filet planifié passe un budget plus long
 export const ESSAIS_CONFIRMATION = 3;
+export const PAUSE_APRES_PRESENTATION_MS = 10_000; // entre les SMS de présentation (« confiance ») et les autres : le participant lit la présentation avant les créneaux
 export const PAUSE_CONFIRMATION_MS = 300; // entre deux essais de confirmation (une panne de la base dure rarement moins)
 // Problèmes de COMPTE (jamais la faute d'un SMS) : le tir s'arrête et les SMS sont libérés sans compter d'essai (rien n'est abandonné pour un réglage à corriger). Tout AUTRE refus de ClickSend (numéro refusé, pays fermé,
 // statut inconnu, 4xx) est un échec de CE SMS seulement : compté (3 = abandon + alerte à la professionnelle), avec un délai de 10 minutes entre deux essais (côté porte) ; il ne bloque jamais les autres.
@@ -137,7 +138,7 @@ function enISO(v) {
  * `baseLien` : adresse de l'appli (https), ou une fonction qui la rend (calculée à l'appel : le projet n'est connu qu'à l'exécution), pour le lien du rendez-vous dans les alertes ; vide : pas de lien ;
  * `fetchImpl` : `fetch` (ou un faux ClickSend dans les essais).
  */
-export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () => true, espaceRacine = ESPACE_JEROME, baseLien = '', fetchImpl = globalThis.fetch, maintenant = Date.now, delaiSmsMs = DELAI_SMS_MS, budgetMs = BUDGET_TIR_MS, pauseConfirmationMs = PAUSE_CONFIRMATION_MS } = {}) {
+export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () => true, espaceRacine = ESPACE_JEROME, baseLien = '', fetchImpl = globalThis.fetch, maintenant = Date.now, delaiSmsMs = DELAI_SMS_MS, budgetMs = BUDGET_TIR_MS, pauseConfirmationMs = PAUSE_CONFIRMATION_MS, pausePresentationMs = PAUSE_APRES_PRESENTATION_MS, attendre = (ms) => new Promise((fin) => setTimeout(fin, ms)) } = {}) {
   const cache = new Map(); // espace -> { expire, config | null }
   const instant = () => (typeof maintenant === 'function' ? maintenant() : maintenant);
 
@@ -262,7 +263,19 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
       return false;
     }
     const { messages = [] } = await lancerAction(ACTIONS_RDV['rdv.aEnvoyer'], {}, ctx);
-    await envoyerListe(messages);
+    // Les SMS de présentation (« confiance », tous les participants) partent AVANT les autres, puis une pause : le participant reçoit la présentation avant les créneaux. L'ordre reste stable dans chaque groupe.
+    const premiers = messages.filter((m) => m.typeMessage === 'confiance');
+    const reste = premiers.length ? messages.filter((m) => m.typeMessage !== 'confiance') : [];
+    if (!premiers.length) await envoyerListe(messages);
+    else if (await envoyerListe(premiers)) await arreter(bilan.arret, reste); // arrêt (compte, budget) : les autres sont libérés, jamais laissés « réservés »
+    else if (reste.length) {
+      const pause = bilan.envoyes > 0 ? pausePresentationMs : 0;
+      if (instant() - debut + pause + delaiSmsMs > budget) await arreter('budget_depasse', reste); // la pause ne fait jamais dépasser le budget : les autres partent au tir suivant
+      else {
+        if (pause > 0) await attendre(pause);
+        await envoyerListe(reste);
+      }
+    }
     // Solde ClickSend : lu APRÈS les SMS, seulement si le tir n'a pas buté sur un problème de clé ou de service et s'il reste du temps (la lecture dure au plus DELAI_SOLDE_MS). Une panne ici ne fait jamais échouer le tir.
     if (avecSolde && (!bilan.arret || ARRETS_AVEC_SOLDE.includes(bilan.arret)) && instant() - debut + DELAI_SOLDE_MS <= budget) {
       try {
