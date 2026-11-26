@@ -2,10 +2,11 @@
 // Les besoins (1 à 4) arrivent déjà vérifiés par js/os/maison-village.js (lireBesoinsMaison) et occupent les parcelles dans l'ordre fixe haut, gauche, droite, bas ;
 // les parcelles libres sont décorées (lavande, bosquet, potager) et ne sont ni cliquables ni atteignables au clavier (aria-hidden). Textes posés par textContent, jamais innerHTML.
 // Sous chaque bâtiment, une étiquette permanente : le nom seul. Au survol ou au focus clavier, une BULLE (carte blanche avec une petite flèche) : le nom, la phrase,
-// la pastille du compteur s'il y en a un (js/os/village-compteurs.js ; illisible = pas de pastille) et « Cliquez pour entrer ».
+// la pastille du compteur s'il y en a un (js/os/village-compteurs.js ; « Compte en cours » pendant la lecture, illisible = pas de pastille) et « Cliquez pour entrer ».
+// Aucun `title` ni <title> SVG (infobulle grise du navigateur en double avec la bulle) : le nom accessible est l'aria-label du bâtiment.
 // Ordinateur : un clic, Entrée ou Espace sur un bâtiment ouvre sa cible (une route interne « #/… »).
 // Téléphone (moins de 768 px) : le même terrain réduit à la largeur de l'écran ; un premier toucher montre la bulle, un second toucher ouvre la cible.
-import { planVillage, dessinBatiment, decorParcelle, formesTerrain, textePastille, ETIQUETTE_Y } from './maison-village.js';
+import { planVillage, dessinBatiment, decorParcelle, formesTerrain, pastilleBulle, ETIQUETTE_Y } from './maison-village.js';
 import { lireCompteur } from './village-compteurs.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -63,10 +64,7 @@ function etiquette(besoin, x, y, telephone) {
  */
 function batiment(besoin, place, i, ctx) {
   const g = el('g', { class: 'village-batiment', tabindex: 0, role: 'link', 'data-role': 'batiment', 'data-batiment': besoin.batiment, 'data-cible': besoin.cible, 'data-parcelle': place.nom });
-  g.setAttribute('aria-label', besoin.phrase ? `${besoin.nom} : ${besoin.phrase}` : besoin.nom);
-  const titre = el('title');
-  titre.textContent = besoin.phrase ? `${besoin.nom} : ${besoin.phrase}` : besoin.nom;
-  g.append(titre);
+  g.setAttribute('aria-label', besoin.phrase ? `${besoin.nom} : ${besoin.phrase}` : besoin.nom); // pas de <title> : il ferait une infobulle grise en plus de la bulle
   g.append(el('ellipse', { class: 'village-halo', cx: r1(place.x), cy: r1(place.y - 40), rx: 96, ry: 84, fill: 'url(#village-halo)' }));
   const lever = el('g', { class: 'village-lever' });
   for (const f of dessinBatiment(besoin.batiment)) lever.append(forme(f, place.x, place.y));
@@ -145,7 +143,7 @@ function dessiner(besoins, ctx) {
 
 /**
  * La bulle (HTML, au-dessus du dessin) : nom, phrase, pastille du compteur (si lu), « Cliquez pour entrer » (« Touchez encore pour entrer » sur téléphone).
- * `compteurs[i]` : nombre lu pour le besoin i (undefined = pas encore lu ou pas de compteur ; null = illisible).
+ * `compteurs[i]` : nombre lu pour le besoin i (undefined = lecture en cours, ou pas de compteur ; null = illisible ou trop lent). Le nombre reste connu pour les survols suivants.
  */
 function creerBulle(cadre, besoins, compteurs) {
   const bulle = document.createElement('div');
@@ -168,12 +166,12 @@ function creerBulle(cadre, besoins, compteurs) {
       phrase.textContent = b.phrase;
       enfants.push(phrase);
     }
-    const texte = b.compteur ? textePastille(b.compteur, compteurs[rang]) : null;
-    if (texte) {
+    const etat = b.compteur ? pastilleBulle(b.compteur, compteurs[rang]) : null;
+    if (etat) {
       const pastille = document.createElement('span');
-      pastille.dataset.role = 'bulle-pastille';
-      pastille.className = compteurs[rang] === 0 ? 'village-pastille-zero' : '';
-      pastille.textContent = texte;
+      pastille.dataset.role = etat.attente ? 'bulle-attente' : 'bulle-pastille';
+      pastille.className = etat.attente ? 'village-pastille-attente' : (etat.zero ? 'village-pastille-zero' : '');
+      pastille.textContent = etat.texte;
       enfants.push(pastille);
     }
     const aide = document.createElement('small');
@@ -233,6 +231,7 @@ export function monterVillage(conteneur, besoins, { aller }) {
   const fermer = (e) => { if (!e.target.closest?.('.village-batiment, .village-lien-etiquette')) bulle.cacher(); };
   cadre.addEventListener('click', fermer);
   let monte = true;
+  // Une seule lecture par compteur et par affichage du village, lancée tout de suite (pas au survol) ; la bulle ouverte se met à jour quand le nombre arrive.
   besoins.forEach((b, i) => {
     if (!b.compteur) return;
     lireCompteur(b.compteur).catch(() => null).then((n) => {

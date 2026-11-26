@@ -47,7 +47,7 @@ async function ouvrirBulle(page, nom) {
 // ---------------------------------------------------------------- faux réseau de la base de l'espace (compteur `factures_a_valider`)
 const https = (hote, chemin = '') => `${['https', ''].join(':')}//${hote}${chemin}`;
 const CONNEXION = () => ({ adresseBase: https('base.exemple.test'), clePublique: 'cle-publique-fictive', espace: 'espace-essai', webhooks: { actions: https('hooks.exemple.test', '/actions') } });
-/** `mode` : 'ok' (12 factures à valider non archivées), 'panne' (erreur 500) ou 'lente' (réponse après 6 s). Les adresses lues sont gardées dans window.__lectures. */
+/** `mode` : 'ok' (12 factures à valider non archivées), 'panne' (erreur 500) ou 'lente' (réponse après 5 s, comme une base qui se réveille). Les adresses lues sont gardées dans window.__lectures. */
 async function poserBase(page, mode = 'ok') {
   await ecrireDocument('base_parametres/connexion', CONNEXION());
   await page.addInitScript((m) => {
@@ -58,7 +58,7 @@ async function poserBase(page, mode = 'ok') {
       window.__lectures.push(`${u.pathname}${u.search}`);
       if (u.pathname !== '/rest/v1/factures') return rep({ message: 'inconnu' }, 404);
       if (m === 'panne') return rep({ message: 'panne' }, 500);
-      if (m === 'lente') await new Promise((r) => { setTimeout(r, 6000); });
+      if (m === 'lente') await new Promise((r) => { setTimeout(r, 5000); });
       // seules les factures « à valider » non archivées sont comptées : la lecture doit porter les deux filtres
       if (u.searchParams.get('statut') !== 'eq.a_valider' || u.searchParams.get('archivee_le') !== 'is.null') return rep({ message: 'filtre attendu' }, 400);
       const lignes = Array.from({ length: 12 }, (_, i) => ({ id: `f${i + 1}` }));
@@ -289,23 +289,18 @@ test.describe('accueil village d’une maison', () => {
     }
   });
 
-  for (const mode of ['panne', 'lente']) {
-    test(`V25 lecture ${mode === 'panne' ? 'en panne' : 'trop lente (plus de 3 s)'} : la bulle s’affiche sans pastille (jamais de chiffre inventé, jamais « 0 »)`, async ({ page }) => {
-      await semer({ besoins: AVEC_COMPTEUR });
-      await poserBase(page, mode);
-      await ouvrir(page);
-      await expect.poll(() => page.evaluate(() => window.__lectures.length)).toBeGreaterThanOrEqual(1);
-      if (mode === 'lente') await page.waitForTimeout(3500); // le délai de 3 s est passé, la réponse (6 s) n'est pas encore arrivée
-      await ouvrirBulle(page, 'haut');
-      await expect(bulle(page).locator('[data-role="bulle-nom"]')).toHaveText('Factures');
-      await expect(bulle(page).locator('[data-role="bulle-pastille"]')).toHaveCount(0);
-      await expect(bulle(page)).not.toContainText(/\d/);
-      if (mode === 'lente') { // même quand la réponse finit par arriver, elle est ignorée
-        await page.waitForTimeout(3000);
-        await expect(bulle(page).locator('[data-role="bulle-pastille"]')).toHaveCount(0);
-      }
-    });
-  }
+  test('V25 lecture en panne : l’indicateur d’attente disparaît, la bulle s’affiche sans pastille (jamais de chiffre inventé, jamais « 0 »)', async ({ page }) => {
+    await semer({ besoins: AVEC_COMPTEUR });
+    await poserBase(page, 'panne');
+    await ouvrir(page);
+    await expect.poll(() => page.evaluate(() => window.__lectures.length)).toBeGreaterThanOrEqual(1);
+    await ouvrirBulle(page, 'haut');
+    await expect(bulle(page).locator('[data-role="bulle-nom"]')).toHaveText('Factures');
+    await expect(bulle(page).locator('[data-role="bulle-attente"]')).toHaveCount(0);
+    await expect(bulle(page).locator('[data-role="bulle-pastille"]')).toHaveCount(0);
+    await expect(bulle(page)).not.toContainText(/\d/);
+  });
+
   test('V27 catalogue : chaque bâtiment se dessine dans le navigateur sans erreur, même empreinte et même lumière (capture assemblée par le test)', async ({ page }, info) => {
     test.skip(estTelephone(page), 'capture du catalogue : format ordinateur');
     await semer({ besoins: [FACTURES] });
@@ -344,5 +339,54 @@ test.describe('accueil village d’une maison', () => {
       expect(b.width, id).toBeGreaterThan(40);
     }
     await capturer(page, info, 'V27-catalogue');
+  });
+  test('V28 V29 base lente (réponse après 5 s) : la bulle s’ouvre tout de suite avec « Compte en cours », puis la pastille arrive dans la bulle ouverte', async ({ page }, info) => {
+    test.skip(estTelephone(page), 'captures de la bulle : format ordinateur');
+    await semer({ besoins: AVEC_COMPTEUR });
+    await poserBase(page, 'lente');
+    await ouvrir(page);
+    // la lecture démarre dès l'affichage du village, avant tout survol
+    await expect.poll(() => page.evaluate(() => window.__lectures.length)).toBe(1);
+    await ouvrirBulle(page, 'haut');
+    const attente = bulle(page).locator('[data-role="bulle-attente"]');
+    await expect(attente).toBeVisible();
+    await expect(attente).toHaveText('Compte en cours');
+    await expect(bulle(page).locator('[data-role="bulle-pastille"]')).toHaveCount(0);
+    await expect(bulle(page)).not.toContainText(/\d/);
+    await capturer(page, info, 'V29-bulle-compte-en-cours');
+    // plus de 3 s (l'ancien délai) puis la réponse de 5 s : la pastille apparaît sans rien toucher
+    await expect(bulle(page).locator('[data-role="bulle-pastille"]')).toHaveText('12 à valider', { timeout: 10000 });
+    await expect(attente).toHaveCount(0);
+    await capturer(page, info, 'V28-bulle-pastille-arrivee');
+    // le nombre reste connu pour les survols suivants
+    await batiment(page, 'gauche').hover();
+    await expect(bulle(page).locator('[data-role="bulle-nom"]')).toHaveText('Achats');
+    await batiment(page, 'haut').hover();
+    await expect(bulle(page).locator('[data-role="bulle-pastille"]')).toHaveText('12 à valider');
+    await expect(bulle(page).locator('[data-role="bulle-attente"]')).toHaveCount(0);
+  });
+
+  test('V30 une seule lecture du compteur par affichage du village, même après plusieurs survols', async ({ page }) => {
+    await semer({ besoins: AVEC_COMPTEUR });
+    await poserBase(page, 'ok');
+    await ouvrir(page);
+    await expect.poll(() => page.evaluate(() => window.__lectures.length)).toBe(1);
+    for (const nom of ['haut', 'gauche', 'haut', 'gauche', 'haut']) {
+      if (estTelephone(page)) { await page.mouse.click(2, 2); await batiment(page, nom).click(); } else await batiment(page, nom).hover();
+      await expect(bulle(page)).toBeVisible();
+    }
+    await expect(bulle(page).locator('[data-role="bulle-pastille"]')).toHaveText('12 à valider');
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => window.__lectures.length)).toBe(1);
+  });
+
+  test('V31 aucun title ni <title> SVG sur les bâtiments et les étiquettes (pas d’infobulle grise en double) ; chaque bâtiment garde son aria-label', async ({ page }) => {
+    await semer({ besoins: QUATRE });
+    await ouvrir(page);
+    await expect(batiments(page)).toHaveCount(4);
+    expect(await page.locator('[data-role="village"] title, [data-role="village"] [title], [data-role="page-village"] [title]').count()).toBe(0);
+    const etiquettes = await batiments(page).evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
+    expect(etiquettes).toEqual(QUATRE.map((b) => `${b.nom} : ${b.phrase}`));
+    await expect(page.getByRole('link', { name: 'Factures : Valider mes factures fournisseurs' })).toHaveCount(1);
   });
 });

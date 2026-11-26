@@ -26,6 +26,27 @@ export function textePastille(id, n) {
   return String(n);
 }
 
+/**
+ * Ce que la bulle montre pour un compteur selon l'état de sa lecture (26/11/2026, base parfois lente à se réveiller) :
+ * `undefined` = lecture en cours : indicateur gris « Compte en cours » ; un nombre valable : la pastille ; `null` ou autre (erreur, délai dépassé) : rien.
+ */
+export function pastilleBulle(id, n) {
+  if (n === undefined) return { attente: true, texte: 'Compte en cours' };
+  const texte = textePastille(id, n);
+  return texte ? { attente: false, texte, zero: n === 0 } : null;
+}
+
+/** Résultat de `lire()` (une fonction qui rend une promesse), ou null s'il n'est pas arrivé au bout de `delai` ms. Une erreur de `lire` remonte telle quelle. */
+export async function avecDelai(lire, delai) {
+  let minuteur;
+  const trop = new Promise((r) => { minuteur = setTimeout(() => r(null), delai); });
+  try {
+    return await Promise.race([lire(), trop]);
+  } finally {
+    clearTimeout(minuteur);
+  }
+}
+
 const CIBLE = /^#\/[A-Za-z0-9][A-Za-z0-9_-]*(?:\/[A-Za-z0-9_-]+)*$/;
 
 /** Vrai si `cible` est une route interne de l'appli (« #/achatsfactures/liste »). Tout le reste (javascript:, http, //, espaces, ?…) est refusé. */
