@@ -161,6 +161,50 @@ describe('1 qui appelle (contrôlé côté serveur à chaque appel)', () => {
     assert.equal((await appeler(porte(), 'GET', '/auth/v1/user', { entetes: N8N })).statut, 401);
     assert.equal((await appeler(porte(), 'GET', '/auth/v1/user', { entetes: NAV })).statut, 401);
   });
+  test('1.7 bis /auth/v1/user → 401 quels que soient les en-têtes (vrai jeton Firebase simulé, bonne clé X-Porte-Cle, les deux, rien), AVANT toute ouverture de base ni contrôle de l’appelant', async () => {
+    const appels = { jeton: 0, cle: 0, compte: 0 };
+    const base = fausseBase();
+    let ouvertures = 0;
+    const gestionnaire = creerGestionnaireBasePorte({
+      lireConfiguration: async () => CONFIG,
+      lireCleN8n: async () => { appels.cle += 1; return CLE_N8N; },
+      verifierJeton: async (j) => { appels.jeton += 1; if (!JETONS[j]) throw new Error('jeton invalide'); return JETONS[j]; },
+      estCompteAutorise: async () => { appels.compte += 1; return true; },
+      ouvrirConnexion: async (c) => { ouvertures += 1; return base.ouvrir(c); },
+      originesParDefaut: () => [ORIGINE],
+      stockage: { async ecrire() { throw new Error('jamais'); }, async lire() { throw new Error('jamais'); } },
+      maintenant: () => 1_800_000_000_000,
+      journal: () => {},
+    });
+    const jwtFirebase = ['eyJhbGciOiJSUzI1NiJ9', 'eyJlbWFpbCI6ImxlYUBleGVtcGxlLmZyIn0', 'c2lnbmF0dXJl'].join('.');
+    const cas = {
+      'jeton Firebase accepté par le vérificateur': { Authorization: 'Bearer bon', Origin: ORIGINE },
+      'jeton au format JWT': { Authorization: `Bearer ${jwtFirebase}`, apikey: 'cle-publique' },
+      'bonne clé X-Porte-Cle': { 'X-Porte-Cle': CLE_N8N },
+      'clé ET jeton': { 'X-Porte-Cle': CLE_N8N, Authorization: 'Bearer bon', Origin: ORIGINE },
+      'aucun en-tête': {},
+    };
+    for (const [nom, entetes] of Object.entries(cas)) {
+      for (const [methode, url] of [['GET', '/auth/v1/user'], ['GET', '/auth/v1/user?select=*'], ['POST', '/auth/v1/user'], ['GET', '/auth/v1/user/'], ['GET', '/baseporte/auth/v1/user']]) {
+        const res = reponse();
+        await gestionnaire(requete(methode, url, { entetes }), res);
+        assert.equal(res.statut, 401, `${nom} ${methode} ${url}`);
+        assert.equal(res.json().code, 'non_authentifie', `${nom} ${methode} ${url}`);
+      }
+    }
+    assert.equal(ouvertures, 0, 'aucune connexion à la base');
+    assert.equal(base.journal.length, 0, 'aucune requête pg');
+    assert.deepEqual(appels, { jeton: 0, cle: 0, compte: 0 }, 'ni jeton vérifié, ni clé lue, ni compte contrôlé');
+  });
+  test('1.7 ter /auth/v1/user sans configuration (porte pas branchée) : 503 « pas branchée », jamais 200, aucune requête pg', async () => {
+    const p = porte({ config: async () => { throw new ConfigurationAbsente('secret introuvable'); } });
+    for (const entetes of [N8N, NAV, {}]) {
+      const r = await appeler(p, 'GET', '/auth/v1/user', { entetes });
+      assert.equal(r.statut, 503);
+      assert.equal(r.json().code, 'porte_non_branchee');
+    }
+    assert.equal(p.base.journal.length, 0);
+  });
   test('1.8 secret BASE_PORTE absent ou mal formé → 503 « pas branchée », rien n\'est ouvert', async () => {
     const p = porte({ config: async () => { throw new ConfigurationAbsente('secret introuvable'); } });
     const r = await appeler(p, 'GET', '/rest/v1/factures', { entetes: NAV });
