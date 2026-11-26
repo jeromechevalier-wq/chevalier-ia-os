@@ -58,6 +58,7 @@ export function rendreFicheOrganisation(conteneur, id) {
           champContacts({ libelle: 'Email', genre: 'email', valeurs: L.contactsOrganisation(o, 'emails'), surEnregistrer: (liste) => D.majOrganisation(o.id, L.patchContactsOrganisation('emails', liste)) }).element,
           selectProprietaire({ valeur: o.proprietaire, surChoix: (v) => D.majOrganisation(o.id, { proprietaire: v }) }))),
     });
+    const celluleSiren = h('span', { 'data-valeur': 'siren' }, o.siren ? L.formaterSiren(o.siren) : '—');
     const details = sectionRepliable({
       id: 'organisation-details', titre: 'Détails',
       contenu: h('div', { class: 'proprietes' },
@@ -67,9 +68,13 @@ export function rendreFicheOrganisation(conteneur, id) {
         champPropriete({ libelle: 'Taille', valeur: o.taille || '', type: 'select', options: L.TAILLES.map((t) => ({ valeur: t, libelle: t })), surEnregistrer: (v) => D.majOrganisation(o.id, { taille: v }) }).element,
         prop('Ville', 'ville', { type: 'intelligent', fournir: fournisseurVilles() }),
         // SIRET et n° de TVA (26/11/2026) : contrôlés par L.identifiantsOrganisation (une saisie refusée montre son message et n'enregistre rien) ; le SIREN est déduit du SIRET, jamais saisi.
-        prop('SIRET', 'siret', { placeholder: '14 chiffres', formater: L.formaterSiret, surEnregistrer: (v) => D.majOrganisation(o.id, L.identifiantsOrganisation({ siret: v })) }),
+        prop('SIRET', 'siret', { placeholder: '14 chiffres', formater: L.formaterSiret, surEnregistrer: async (v) => {
+          const ids = L.identifiantsOrganisation({ siret: v });
+          await D.majOrganisation(o.id, ids);
+          celluleSiren.textContent = ids.siren ? L.formaterSiren(ids.siren) : '—'; // sans attendre que toute la fiche se redessine
+        } }),
         h('div', { class: 'prop', dataset: { prop: 'siren' }, title: 'Calculé d’après le SIRET (ses 9 premiers chiffres)' },
-          h('span', { class: 'prop-libelle' }, 'SIREN'), h('div', { class: 'prop-valeur' }, h('span', { 'data-valeur': 'siren' }, o.siren ? L.formaterSiren(o.siren) : '—'))),
+          h('span', { class: 'prop-libelle' }, 'SIREN'), h('div', { class: 'prop-valeur' }, celluleSiren)),
         prop('N° de TVA', 'numeroTva', { placeholder: 'FR12345678901', formater: (v) => String(v).replace(/[\s.-]/g, '').toUpperCase(), surEnregistrer: (v) => D.majOrganisation(o.id, L.identifiantsOrganisation({ numeroTva: v })) })),
     });
     const sectionPersonnes = sectionRepliable({
