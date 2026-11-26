@@ -2,14 +2,14 @@
 // le serveur prend la configuration neutre (étapes, phases, réglages de départ) et les membres de la maison, jamais ceux de Jérôme.
 // Champ absent, autre valeur, fiche absente ou illisible : configuration de Jérôme, comme avant. Tout en mémoire : aucun service Google, adresses inventées.
 import './_fiche-essai.js'; // fiche reglages_maison/maison des essais, branchée en mémoire (propriétaire par défaut des jetons « cia_… »)
-import { test, describe, afterEach } from 'node:test';
+import { test, describe, afterEach, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerLimiteur } from '../functions/src/securite/limites.js';
 import { creerAccesMemoire, avecBase } from '../functions/src/coeur/donnees.js';
-import { lireConfig, lireConfigurationMaison, choixConfiguration, configurationEcran, DUREE_CACHE_ECRAN_MS } from '../functions/src/coeur/config.js';
+import { lireConfig, lireConfigurationMaison, choixConfiguration, configurationEcran, DUREE_CACHE_ECRAN_MS, viderCacheConfigurationMaison } from '../functions/src/coeur/config.js';
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
 
 process.env.GCLOUD_PROJECT = process.env.GCLOUD_PROJECT || 'demo-maison-essai';
@@ -24,9 +24,11 @@ const ECRAN_SANS_CHAMP = Object.freeze({ personnes: [{ email: 'admin@exemple.tes
 
 const arrets = [];
 afterEach(async () => { while (arrets.length) await arrets.pop()(); });
+beforeEach(() => viderCacheConfigurationMaison()); // le cache vit dans le processus : chaque essai part d'une maison jamais lue
 
 /** Serveur MCP complet sur des données fraîches. `ecran` : le document reglages_maison/ecran (absent si non donné). `envelopper(donnees)` : pannes injectées. */
 async function demarrer({ ecran, envelopper = (d) => d } = {}) {
+  viderCacheConfigurationMaison(); // une nouvelle « maison » : le cache du processus repart de zéro
   const collections = structuredClone(base);
   if (ecran) collections.reglages_maison = [{ id: 'ecran', ...structuredClone(ecran) }];
   const donnees = envelopper(creerAccesMemoire(collections));
@@ -183,7 +185,7 @@ describe('Lecture de la fiche ecran par le serveur (config.js)', () => {
     let t = 1_000;
     const maintenant = () => t;
     panne = true;
-    assert.equal((await lireConfigurationMaison(donnees, { maintenant })).neutre, false, 'panne = comportement d’avant');
+    assert.equal((await lireConfigurationMaison(donnees, { maintenant })).neutre, false, 'panne sans valeur connue = comportement d’avant');
     panne = false;
     assert.equal((await lireConfigurationMaison(donnees, { maintenant })).neutre, true, 'la panne n’a pas été gardée');
     assert.equal(lectures, 2);
@@ -193,6 +195,22 @@ describe('Lecture de la fiche ecran par le serveur (config.js)', () => {
     t += 2;
     await lireConfigurationMaison(donnees, { maintenant });
     assert.equal(lectures, 3, 'après la minute : relue');
+  });
+  test('12 bis. panne APRÈS une lecture réussie : la dernière valeur connue (même expirée) est gardée, la maison neutre reste neutre ; la panne n’est pas mise en cache', async () => {
+    let lectures = 0;
+    let panne = false;
+    const donnees = { async document(nom) { if (nom !== 'reglages_maison') return null; lectures += 1; if (panne) throw new Error('panne'); return { configuration_crm: 'neutre', personnes: [{ email: 'admin@exemple.test', nom: 'Admin' }] }; } };
+    let t = 1_000;
+    const maintenant = () => t;
+    assert.equal((await lireConfigurationMaison(donnees, { maintenant })).neutre, true);
+    panne = true;
+    t += DUREE_CACHE_ECRAN_MS + 10; // expirée
+    const pendantPanne = await lireConfigurationMaison(donnees, { maintenant });
+    assert.equal(pendantPanne.neutre, true, 'dernière valeur connue');
+    assert.deepEqual(pendantPanne.membres.map((m) => m.id), ['admin@exemple.test']);
+    await lireConfigurationMaison(donnees, { maintenant });
+    assert.equal(lectures, 3, 'la panne n’est pas gardée : chaque appel retente la lecture');
+    assert.equal((await choixConfiguration(donnees, {})).racine, false, 'pendant la panne, toujours la configuration neutre');
   });
   test('13. avec une base (plateforme des clients) : la fiche n’est JAMAIS lue, configuration neutre comme avant', async () => {
     const collections = { reglages_maison: [{ id: 'ecran', configuration_crm: 'autre' }] };
@@ -211,5 +229,15 @@ describe('Lecture de la fiche ecran par le serveur (config.js)', () => {
     assert.deepEqual(await choixConfiguration(donnees, { racine: false }), { racine: false, membres: null });
     assert.equal(lue, false);
     assert.equal((await choixConfiguration(donnees, {})).racine, false, 'sans racine donnée : la maison neutre décide');
+  });
+  test('15. deux requêtes MCP (un nouvel accès compté par requête) : UNE seule lecture de reglages_maison/ecran grâce au cache', async () => {
+    let lecturesEcran = 0;
+    const envelopper = (d) => ({ ...d, async document(nom, id) { if (nom === 'reglages_maison') lecturesEcran += 1; return d.document(nom, id); } });
+    const s = await demarrer({ ecran: ECRAN_NEUTRE, envelopper });
+    const r1 = ok(await s.appeler('lire_reglages'));
+    const r2 = ok(await s.appeler('lire_reglages'));
+    assert.equal(r1.configuration.etapes[0].id, 'etape_1');
+    assert.equal(r2.configuration.etapes[0].id, 'etape_1');
+    assert.equal(lecturesEcran, 1, 'une seule lecture pour les deux requêtes (et un seul choix par lire_reglages)');
   });
 });

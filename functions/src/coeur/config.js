@@ -8,7 +8,7 @@
 // (données à la racine, sans base). La fiche reglages_maison/ecran y porte `configuration_crm: 'neutre'` : comme l'écran (js/modules/crm/donnees.js, configJerome()),
 // le serveur prend alors la configuration NEUTRE (étapes, phases, réglages de départ neutres) et les membres de la maison (personnes de la fiche `ecran`),
 // jamais ceux de Jérôme. Champ absent, autre valeur, fiche absente ou illisible : comportement d'avant (configuration de Jérôme), inchangé chez lui.
-// La fiche est lue par le même accès aux données (SDK d'administration, racine du projet), avec un cache court par accès ; elle n'est jamais lue avec une base
+// La fiche est lue par le même accès aux données (SDK d'administration, racine du projet), avec un cache court par processus ; elle n'est jamais lue avec une base
 // (plateforme des clients : la configuration y est déjà neutre, par espace).
 import * as L from '../../partage/logique.js';
 import { COLLECTIONS as C } from './donnees.js';
@@ -33,18 +33,27 @@ export function configurationEcran(fiche) {
   return { neutre: true, membres };
 }
 
-const caches = new WeakMap(); // accès aux données -> { valeur, expire } (un succès seulement ; « fiche absente » est un succès)
+// Cache du PROCESSUS (une instance de fonction sert une seule maison, et l'accès sans base est toujours la racine de son projet) : un nouvel objet `donnees`
+// est fabriqué à chaque requête (compterLectures du MCP, creerAccesFirestore de la porte), il ne peut donc pas servir de clé (relecture Fable de la PR 704).
+// `valeur` : la dernière fiche lue avec succès (« fiche absente » est un succès) ; `expire` : fin de sa fraîcheur.
+let cache = null;
 
-/** La maison demande-t-elle la configuration neutre ? Lecture par `donnees` (sans base), cache de 60 s. Erreur de lecture : comportement d'avant, jamais gardé. */
+/** RÉSERVÉ AUX ESSAIS (tests/) : oublie la fiche gardée en mémoire. */
+export function viderCacheConfigurationMaison() { cache = null; }
+
+/**
+ * La maison demande-t-elle la configuration neutre ? Lecture par `donnees` (sans base), cache de 60 s pour tout le processus.
+ * Erreur de lecture : la DERNIÈRE valeur connue, même expirée (une maison neutre reste neutre pendant une panne) ; sans valeur connue, comportement d'avant.
+ * Une erreur n'est jamais gardée : la lecture est retentée au prochain appel.
+ */
 export async function lireConfigurationMaison(donnees, { maintenant = Date.now } = {}) {
   if (!donnees || donnees.base) return { neutre: false, membres: [] };
   const t = maintenant();
-  const vu = caches.get(donnees);
-  if (vu && vu.expire > t) return vu.valeur;
+  if (cache && cache.expire > t) return cache.valeur;
   let fiche;
-  try { fiche = await donnees.document(COLLECTION_REGLAGES_MAISON, DOCUMENT_ECRAN); } catch { return { neutre: false, membres: [] }; }
+  try { fiche = await donnees.document(COLLECTION_REGLAGES_MAISON, DOCUMENT_ECRAN); } catch { return cache ? cache.valeur : { neutre: false, membres: [] }; }
   const valeur = configurationEcran(fiche);
-  caches.set(donnees, { valeur, expire: t + DUREE_CACHE_ECRAN_MS });
+  cache = { valeur, expire: t + DUREE_CACHE_ECRAN_MS };
   return valeur;
 }
 
