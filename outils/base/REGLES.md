@@ -11,10 +11,12 @@ Aujourd'hui, les données des achats (factures, fournisseurs, chantiers, article
 ```
 node outils/base/tester.js
 node outils/base/tester.js --avec-a-activer
+node outils/base/tester.js --comme-cloudsql
 ```
 
 - La 1re commande joue les migrations deux fois (pour prouver qu'on peut les rejouer), puis chaque fichier de `tests/` sur une copie neuve.
 - La 2e fait la même chose, puis essaie en plus le fichier « à activer » (le blocage des reflets).
+- La 3e joue tout **comme dans Cloud SQL** : le compte qui installe la base n'y est **pas** superutilisateur (le compte `postgres` de Cloud SQL peut créer des rôles et des bases, rien de plus). Ici, un compte `admin_cloudsql` (sans superutilisateur ni `BYPASSRLS`) crée la base et les rôles, joue les migrations, puis les tests ; la sécurité par ligne forcée s'applique donc aussi à lui. Pour les tests seulement, il se donne le droit de « devenir » `porte`, `robot_reflets` et `indicateurs` (`set role`), sans hériter de leurs droits. Se combine avec `--avec-a-activer`.
 - Il faut Postgres.app (PostgreSQL 17) sur le Mac, ou le dossier des programmes dans `PG_BIN`.
 - Le programme **refuse de démarrer** si `PGHOST` ou `DATABASE_URL` existe (signe qu'une vraie base est réglée dans le terminal). Il ne parle qu'à la base qu'il vient de créer, par une prise locale, jamais par le réseau, et l'arrête avec `pg_ctl stop`.
 - Pas encore branché à la coche « Tests » de GitHub (à brancher plus tard).
@@ -30,6 +32,7 @@ node outils/base/tester.js --avec-a-activer
 | `migrations/005_fonctions_metier.sql` | Toutes les fonctions d'aujourd'hui, mêmes noms, mêmes paramètres. |
 | `migrations/006_vues.sql` | Les 67 vues des tableaux de bord et du Pilotage, recopiées à l'identique. |
 | `migrations/007_droits_et_registre.sql` | Qui a le droit de faire quoi, et la liste des tables (source ou reflet). |
+| `migrations/008_porte.sql` | `consommer_ticket_porte` : comme `consommer_ticket`, mais l'identifiant de la personne est un uuid stable tiré de son e-mail (`md5(lower(e-mail))::uuid`), car les workflows n8n exigent un uuid. Droits : `porte` et `robot_reflets`. |
 | `a-activer/001_bloquer_reflets.sql` | **Pas appliqué.** Réserve l'écriture des reflets aux robots. |
 | `tests/*.sql` | Les vérifications (voir plus bas). |
 | `tester.js` | Le programme qui essaie tout sur une base jetable. |

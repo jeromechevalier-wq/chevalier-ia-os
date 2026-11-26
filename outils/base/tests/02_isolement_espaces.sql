@@ -19,8 +19,9 @@ create temp table ids_b as select * from pg_temp.peupler('espace-b', 'MARQB', '7
 create temp table ids_b_textes as
   select v.x from ids_b, lateral (values (fournisseur_id::text), (agence_id::text), (chantier_id::text), (facture_id::text),
                                          (facture_refusee_id::text), (article_id::text), (reference_id::text), (courriel_id::text)) v(x);
-reset role;
+-- Donné par porte, propriétaire de ces tables temporaires (le compte d'administration n'est pas forcément superutilisateur).
 grant select on ids_a, ids_b, ids_b_textes to robot_reflets, indicateurs;
+reset role;
 
 do $$
 declare r record; v_n bigint; v_role text; v_nom text;
