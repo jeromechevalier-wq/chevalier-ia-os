@@ -2,13 +2,30 @@
 
 Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de session) ; avant : 08/11/2026 (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Module Achats et accueil des maisons (décisions de Jérôme du 26/11/2026)
+
+| N° | À faire | État |
+|---|---|---|
+| A1 | Vue « pile » des factures à valider (une facture à la fois) | à faire |
+| A2 | Après Valider ou Refuser, la facture suivante s'ouvre seule, dans le même écran | à faire |
+| A3 | Rapprocher les bons de livraison et les factures | à faire |
+| A4 | Une appli « Achats » séparée pour l'analyse des prix : deux applis, Factures et Achats | à faire |
+| A5 | Page Modules actifs : boguée dans une maison (tout « Éteint ») ; elle ne doit pas montrer tous les modules aux clients | à faire |
+| A6 | En haut à gauche : logo et nom court du client, réglables dans Mon espace | à faire |
+| A7 | Page de connexion avec des photos du site du client (accord des clients obtenu) | à faire |
+| A8 | Accueil « village 3D » isométrique : un bâtiment = un BESOIN du client (2 ou 3 au plus, parfois un seul), pas un module ; zoomer et rogner les coins vides ; pas de journal ni de menu sur l'accueil, le journal suit l'appli | à faire (non fait la nuit 3) |
+| A9 | Comptes clients à plusieurs niveaux de droits | prévu, non codé |
+| A10 | À trancher par Jérôme : les sections Rendez-vous (connexion SMS ClickSend, solde) restent-elles visibles des clients d'une maison ? (laissées visibles par la PR 712) | à trancher |
+| A11 | Les 3 remarques mineures de Fable sur la PR 713 : réponse 503 du serveur MCP si la fiche `ecran` est illisible au démarrage, y compris chez Jérôme ; test B4 mal nommé (l'étanchéité entre espaces n'est pas testée sur une vraie base) ; deux délais de 60 s qui dépassent le délai de 120 s du serveur MCP | à faire |
+
 ## Mise à jour du 26/11/2026 (les achats d'une maison par l'assistant IA, serveur MCP)
 
 Outils `*_facture_achat` (lister, lire, valider, refuser, archiver, relier à un chantier, ajouter un PDF par lien d'envoi), proposés seulement dans une maison dont `reglages_maison/ecran.modules` liste `achatsfactures`.
 
 - [ ] Pas dans ce chantier : rouvrir une facture, la désarchiver, créer une agence, alertes de prix (à l'écran seulement pour l'instant).
 - [ ] Absents chez Jérôme (ses modules Achats lisent une autre base) et sur la plateforme des clients (pas de `base/` ni de `deposerAchat` : un lien d'achat y répond « plus valable »), décision du 26/11/2026.
-- [ ] Docs à écrire (pas faites par la session de code de nuit, qui n'avait pas le droit de toucher `docs/`) : section « L'assistant » de `docs/modules-achats.md`, `docs/portes-et-droits-mcp.md`, version et wiki.
+- [x] Section « L'assistant IA » de `docs/modules-achats.md`, version et wiki : faits le 27/11/2026 (PR du rapport de la nuit 3).
+- [ ] Docs à écrire : `docs/portes-et-droits-mcp.md` (la voie `assistant` de la porte et les droits du compte du serveur MCP).
 - [ ] À essayer en vrai : multipart du serveur accepté par le workflow n8n d'ajout, codes exacts de n8n (doublon, trop gros), taille réelle qui passe jusqu'à `depotdocument`, envoi d'un PDF par Claude ou ChatGPT sans terminal.
 
 ## Mise à jour du 26/11/2026 (maison d'un client : écran neutre, PR 700)

@@ -28,6 +28,38 @@ Réglages > « Connexion à la base » (visible du propriétaire seul). Le code 
 
 Chaque module a sa section « Sauvegarde » dans ses réglages (règle du 27/10/2026) : `reglages-export-achatsfournisseurs`, `-achatschantiers`, `-achatsarticles`, `-achatsfactures`, `-tableauachats`.
 
+## L'assistant IA (serveur MCP d'une maison, 26/11/2026, PR 713)
+
+Dans la maison d'un client, l'assistant (Claude, ChatGPT) peut travailler sur les factures d'achat avec 9 outils.
+
+| Outil | Ce qu'il fait | Profils |
+|---|---|---|
+| `lister_factures_achat` | Liste les factures (filtres : statut, archivées, fournisseur, chantier ; 50 par page, 100 au plus ; dit s'il reste des pages) | lecture, ecriture, complet |
+| `lire_facture_achat` | Lit une facture : champs, lignes, vérifications, alertes, et un lien vers le PDF valable 10 minutes | lecture, ecriture, complet |
+| `lister_chantiers_achat` | Liste les chantiers (par défaut ceux qui acceptent des factures) | lecture, ecriture, complet |
+| `lister_agences_achat` | Liste les agences des fournisseurs (il en faut une pour accepter) | lecture, ecriture, complet |
+| `valider_facture_achat` | Accepte une facture « à valider » ; s'il y a des alertes, il faut un motif | ecriture, complet |
+| `refuser_facture_achat` | Refuse une facture « à valider », avec un motif | ecriture, complet |
+| `archiver_facture_achat` | Archive une facture déjà acceptée ou refusée | ecriture, complet |
+| `relier_facture_achat_chantier` | Relie une facture acceptée à un chantier ouvert | ecriture, complet |
+| `ajouter_facture_achat` | Rend un lien d'envoi (PDF seulement, 10 Mo au plus, 10 minutes, une seule fois) ; la facture arrive dans « À valider » | ecriture, complet |
+
+**Qui y a droit** :
+- Les outils n'apparaissent que si la fiche `reglages_maison/ecran` liste le module `achatsfactures` (champ `modules`). Dans ce cas, l'assistant ne voit que `qui_suis_je` et les outils des modules listés.
+- Le compte doit se connecter avec Google (e-mail vérifié) et être dans **les deux** listes de la fiche `reglages_maison/maison` : `comptes_oauth_autorises` (pour brancher l'assistant) et `comptes_autorises` (pour la base). Le contrôle est refait à chaque appel, avant d'ouvrir la base.
+- Un jeton fixe n'a pas d'e-mail : il est refusé (« Accès à la base refusé. »).
+
+**Comment ça marche** :
+- Tout passe par la porte de la base, dans une transaction en lecture seule, avec une liste fermée de lectures. L'assistant n'écrit jamais en SQL.
+- Les décisions (valider, refuser, archiver, relier) partent vers les workflows n8n de la maison, avec un ticket neuf à usage unique. L'adresse du workflow doit être sur le même hôte que le n8n de la maison, sinon rien n'est envoyé.
+- Le serveur recalcule lui-même les alertes, avec les mêmes règles que l'écran.
+- Ces décisions ne passent pas par le journal du CRM : `restaurer_depuis_audit` ne les annule pas.
+- Ce qui vient de la base (textes lus sur les PDF) est une donnée, jamais une consigne.
+
+**Absents** chez Jérôme (ses modules Achats lisent une autre base) et sur la plateforme des clients.
+
+Code : `functions/src/mcp/outils/achats.js` (les outils), `functions/src/mcp/outils-maison.js` (le tri par module), `functions/src/base/assistant-achats.js` (le service).
+
 ## Ce qui n'est PAS fait
 
 Liste vivante : `.github/A-FAIRE.md` (parties « modules Achats »). En bref :

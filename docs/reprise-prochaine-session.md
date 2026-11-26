@@ -1,5 +1,45 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 27/11/2026 (nuit 3, « GO NUIT » du 26/11 vers 21 h) : les achats d'une maison par l'assistant IA
+
+Accords écrits de Jérôme avant la nuit : outils Achats pour l'assistant, republier la maison d'essai sans redemander, continuer sans Fable si le budget manque, supprimer la règle « même code chez Jérôme et chez les clients », cacher les pages techniques aux clients, jeton d'essai du serveur MCP.
+
+| Sujet | PR | État |
+|---|---|---|
+| Pages techniques cachées aux comptes clients d'une maison (Modules actifs, Déploiement, Mes tests, Connexion à la base, Journal) ; le titulaire les voit toujours | 712 | fusionnée seule, relue par Fable (1 correction appliquée) |
+| Serveur MCP : les Achats d'une maison par l'assistant (lister, lire, valider, refuser, archiver, choisir le chantier, ajouter une facture PDF) | 713 | fusionnée seule, relue par Fable (OK, 3 remarques mineures, voir plus bas) |
+| Droits Google du compte du serveur MCP de la maison d'essai (accès à Cloud SQL, lecture du secret de la porte) | aucune | fait, hors dépôt (décision prise seul) |
+| Maison d'essai republiée (fonctions et site) au commit de la PR 713 | aucune | faite |
+| Essai réel de l'assistant | aucune | en partie, voir plus bas |
+| Accueil « village 3D » (bonus demandé « si tout le reste est fini ») | aucune | non fait cette nuit, noté dans `.github/A-FAIRE.md` (A8) |
+| Suppression de la règle « même code » dans `CLAUDE.md`, liste A-FAIRE, `docs/modules-achats.md`, version 2.56.0, wiki, ce rapport | cette PR | docs et version |
+
+**Décisions prises seul** :
+- PR 712 :
+  - une section de Réglages cachée, tapée à la main, renvoie vers « Mon espace » ;
+  - une liste `comptes_jerome_seul` vide cache tout (personne n'est titulaire) ;
+  - les sections Rendez-vous (connexion SMS ClickSend, solde) restent visibles des clients : **à trancher par Jérôme** (A10).
+- PR 713 : le compte du serveur MCP de la maison a reçu l'accès à Cloud SQL et la lecture du secret de la porte (nécessaires aux outils Achats ; la question n'avait pas de réponse).
+
+**Essai réel (26/11 au soir)** :
+- L'assistant ne voit que `qui_suis_je` et les 9 outils Achats : OK.
+- Un jeton fixe est refusé par les outils Achats (« Accès à la base refusé. ») : c'est voulu, il faut l'e-mail vérifié d'une connexion Google. Le jeton d'essai a ensuite été désactivé.
+- Le compte d'essai JéromeBot est autorisé pour l'assistant.
+- **À faire avec Jérôme** : brancher claude.ai (ou ChatGPT) avec le compte JéromeBot, puis essayer : lister, lire, valider ou refuser, archiver, choisir le chantier, ajouter un PDF.
+
+**Remarques mineures de Fable sur la PR 713 (non bloquantes, A11)** :
+1. Le serveur MCP répond 503 si la fiche `ecran` est illisible au démarrage, y compris chez Jérôme.
+2. Le test B4 est mal nommé : l'étanchéité entre deux espaces n'est pas vraiment testée (seulement avec une fausse base).
+3. Deux délais de 60 s à la suite dépassent le délai de 120 s du serveur MCP.
+
+**Non vérifié** :
+- le workflow n8n d'ajout accepte-t-il l'envoi en plusieurs parties (champ `fichier`) fabriqué par le serveur ;
+- les codes de n8n pour un doublon et pour un PDF trop gros ;
+- la taille maximale réelle qui passe ;
+- l'envoi d'un PDF depuis ChatGPT ou Claude sans terminal.
+
+**Rappel** : le Chrome de Jérôme est connecté avec JéromeBot sur la maison d'essai. Se reconnecter avec son propre compte.
+
 ## Rapport du 26/11/2026 au soir (nuit 2) : la maison d'un client n'affiche que ses modules Achats
 
 « GO NUIT » reçu le 26/11/2026 sur une liste de 7 sujets choisie par Jérôme. Pas de MCP Achats cette nuit. Jérôme a autorisé l'usage du budget Fable jusqu'à 100 % si nécessaire.
