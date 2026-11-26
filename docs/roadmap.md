@@ -4,6 +4,20 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Architecture des données (26/11/2026) : **décidé**
+Décisions de Jérôme après l'étude `docs/etude-cloud-sql-dossiers.md` (avec l'étude du 25/11 `docs/etude-une-maison-par-client.md`) :
+- **Firestore est gardé pour les réglages** (modules, vocabulaire, modèles d'affaires et de projets, réglages de la maison) ; **les données métier vont dans Cloud SQL** (PostgreSQL), toujours par nos fonctions serveur (la « porte »), jamais directement depuis le navigateur ; n8n écrit aussi par la porte.
+- **Plus de Supabase pour les nouveaux clients.** L'appli BTP séparée reste sur Supabase tant qu'elle sert.
+- **Une seule table « dossiers »** pour les affaires et les projets, avec un « type » (`affaire`, `projet` : noms techniques gardés, le client voit son mot) ; un seul niveau de parent, plusieurs projets par affaire possibles dans la base (l'écran reste à « une affaire → un projet » tant que le besoin ne se présente pas) ; les chantiers des Achats deviennent des projets ; identifiants actuels des fiches gardés ; noms des outils MCP gardés.
+- **Le vocabulaire par client passe avant** tout écran « dossiers » chez un client.
+- **`espace_id` sur chaque ligne, partout**, même dans une maison à un seul client : 3 à 8 caractères, minuscules et chiffres, lisible (nom court du client), choisi à la création, jamais changé ni réutilisé ; les espaces actuels aux noms longs reçoivent leur code court au déménagement (table de correspondance).
+- **Une base Cloud SQL par bâtiment** : une maison = un client ; l'immeuble = la plateforme clients (plusieurs clients dans la même base). Le client rendez-vous et la cliente CRM restent dans l'immeuble ; le client BTP a sa propre maison.
+- **Qui paie** : chaque maison est payée par son client ; la base de l'immeuble est payée par Jérôme (clients partenaires gratuits pour l'instant).
+- **Ordre** : Achats d'abord (essai de la porte), le CRM de Jérôme en dernier, avec son accord écrit.
+- **Ce qui remettrait l'architecture en cause** (étude, section G.2) : une porte trop lente à l'écran ; le vocabulaire pas en place chez le client ; aucune restauration Cloud SQL essayée pour de vrai ; pour le CRM de Jérôme, un gain qui ne vaut pas le risque (à trancher après les clients) ; un coût fixe par client supérieur à ce que le client paie.
+
+**Première maison en service (26/11/2026)** : SCAB 04, modules Achats sur Cloud SQL par la porte (PR 700 à 702), essai complet réussi depuis l'écran. Reste avant la venue du client le 30/11 : ouvrir Achats aux comptes de la maison (PR 3), page de connexion et serveur MCP neutres. Détail : `docs/reprise-prochaine-session.md`.
+
 ## Base des maisons et chantier 0 (25/11/2026) : **plan fait, chantier 0 serveur fait**
 Plan de la future base Google Cloud SQL (PostgreSQL 17, sans Supabase) dans `outils/base/` (PR 695, règles : `outils/base/REGLES.md`), aucune base réelle touchée. Chantier 0, partie serveur (PR 696) : plus rien de propre à une maison dans `functions/` ni `firestore.rules` (projet lu par `GCLOUD_PROJECT`, le reste dans `reglages_maison/maison`). Reste : la partie navigateur (`js/`), la fiche dans `chevalier-ia-app`, la porte option A pour SCAB 04 (rendez-vous du 30/11/2026). Détail : `docs/reprise-prochaine-session.md`.
 
