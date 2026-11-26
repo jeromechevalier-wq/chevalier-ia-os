@@ -1,5 +1,46 @@
 # À faire au début de la prochaine session
 
+## Rapport du 26/11/2026 au soir (nuit 2) : la maison d'un client n'affiche que ses modules Achats
+
+« GO NUIT » reçu le 26/11/2026 sur une liste de 7 sujets choisie par Jérôme. Pas de MCP Achats cette nuit. Jérôme a autorisé l'usage du budget Fable jusqu'à 100 % si nécessaire.
+
+| Sujet | PR | État |
+|---|---|---|
+| 1. Réglage `reglages_maison/ecran.modules` : seuls les modules listés s'affichent dans la maison (SCAB 04 : les 5 modules Achats) | 707 | fusionnée, relue par Fable (OK) |
+| 2-3. Page de connexion neutre et nom de l'espace (`reglages_maison/public.nom_espace`) dans une maison | 705 | fusionnée, relue par Fable (OK) |
+| 4. Serveur MCP : configuration neutre dans une maison (plus d'étapes de Jérôme chez un client) | 704 | fusionnée, relue deux fois par Fable (3 défauts corrigés : cache, panne de lecture, choix fait deux fois) |
+| 5. Étiquettes `client-scab04`, `os` et `module-achats` sur les 5 workflows n8n du client | aucune | faite, hors dépôt |
+| 6. Test : la porte de la base répond toujours 401 sur `/auth/v1/user` | 706 | fusionnée, relue par Fable (OK) |
+| 7. Republier le site et les fonctions du client depuis le Mac, puis essai dans Chrome | aucune | site et fonctions republiés ; essai réussi |
+| Version 2.55.0, wiki, ce rapport | cette PR | docs et version |
+
+**Essai réel dans Chrome (26/11 au soir)** :
+- La page de connexion affiche « Chevalier IA - SCAB 04 », sans Charles.
+- Le menu ne montre que Fournisseurs, Chantiers, Articles, Factures et Tableau de bord 2, plus la Console pour Jérôme seul.
+- L'arrivée se fait directement sur Factures (131 factures).
+- L'adresse d'un module éteint (`#/crm/affaires`) affiche « Page introuvable ».
+
+**Décisions prises seul** :
+- L'étiquette `client-scab04` sur les workflows n8n suit la grille des étiquettes du 23/11.
+- Sujet 1 :
+  - une valeur de `modules` qui n'est pas une liste n'allume aucun module ;
+  - le menu garde l'ordre du bloc Achats ;
+  - une liste vide mène à Réglages ou à la Console.
+- Les briefs des agents de cette nuit n'ont pas été relus par Fable : le budget était bas au lancement. Le code, lui, a été relu.
+
+**Points ouverts relevés par Fable (non bloquants)** :
+1. `#/journal` et `#/reglages` s'ouvrent encore par leur adresse dans une maison sans module CRM. À trancher : laisser, ou les rendre introuvables.
+2. Le parcours navigateur `tests/e2e/maison-modules.spec.js` n'a tourné qu'en local, car la PR n'avait pas l'étiquette `tests-complets`. « Tests de nuit » sur `main` le couvre.
+3. Si un réglage liste `affaires` sans le mettre en premier, une adresse vide ouvre l'accueil CRM au lieu du premier module listé.
+4. Serveur MCP : si la fiche `ecran` devient durablement illisible, l'ancienne valeur reste en mémoire jusqu'au redémarrage de l'instance.
+
+**À faire par Jérôme ou avec lui** :
+1. Donner l'accès à la base à chaque compte du client, un par un (Réglages > Connexion à la base). La liste des comptes autorisés est écrite en dur côté serveur : à revoir.
+2. Lundi 30/11 :
+   - les trois décisions techniques : rôle « éditeur » du compte de calcul, deux identifiants pour une même personne, script de copie non relu par Fable ;
+   - le compte OpenRouter et le paiement n8n du client.
+3. Les anciennes PR 615, 608 et 597, d'avant la nuit, sont en conflit. Je n'y ai pas touché.
+
 ## Rapport du matin du 26-27/11/2026 : la maison SCAB 04 mise en service, Achats sur Cloud SQL
 
 « GO NUIT » reçu le 26/11/2026 vers 12 h 10, avec les accords écrits de Jérôme pour la maison SCAB 04 (plan du site, publication depuis le Mac, Cloud SQL avec alerte de budget, copie des données de démo, workflows n8n de lecture des factures, plus de Supabase pour SCAB 04).
