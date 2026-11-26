@@ -269,10 +269,10 @@ export function creerSmsDirect({ lireSecret, donneesDe, moduleActif = async () =
     if (!premiers.length) await envoyerListe(messages);
     else if (await envoyerListe(premiers)) await arreter(bilan.arret, reste); // arrêt (compte, budget) : les autres sont libérés, jamais laissés « réservés »
     else if (reste.length) {
-      const pause = bilan.envoyes > 0 ? pausePresentationMs : 0;
+      const pause = bilan.envoyes + bilan.incertains > 0 ? pausePresentationMs : 0; // une présentation acceptée OU peut-être partie (incertaine) : on laisse le temps de la lire
       if (instant() - debut + pause + delaiSmsMs > budget) await arreter('budget_depasse', reste); // la pause ne fait jamais dépasser le budget : les autres partent au tir suivant
       else {
-        if (pause > 0) await attendre(pause);
+        try { if (pause > 0) await attendre(pause); } catch { await arreter('attente_interrompue', reste); return bilan; } // une attente qui plante ne laisse jamais un SMS « réservé »
         await envoyerListe(reste);
       }
     }

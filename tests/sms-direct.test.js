@@ -61,6 +61,7 @@ function monde({ secret = SECRET, reponses = null, moduleActif = true, pausePres
   const temps = { t: T0 };
   const appels = [];
   const pauses = [];
+  const envoisAvantPause = [];
   const compte = { appels: [], reponse: { ok: false, status: 503, json: async () => ({}) } };
   let n = 0;
   const fetchImpl = async (url, options) => {
@@ -81,7 +82,7 @@ function monde({ secret = SECRET, reponses = null, moduleActif = true, pausePres
     maintenant: () => temps.t,
     pauseConfirmationMs: 0,
     pausePresentationMs,
-    attendre: async (ms) => { pauses.push(ms); temps.t += ms; },
+    attendre: async (ms) => { pauses.push(ms); envoisAvantPause.push(appels.length); temps.t += ms; },
     ...(budgetMs ? { budgetMs } : {}),
   });
   sms.nomsLus = [];
@@ -91,7 +92,7 @@ function monde({ secret = SECRET, reponses = null, moduleActif = true, pausePres
     for (const [pid, nom, tel] of parts) base.docs.set(`rdv_participants/${id}-${pid}`, { v: 1, d: { rendezVousId: id, nom, telephone: tel, role: '', etatReponse: 'attente', creneauxOk: [], reponse: '' } });
   };
   const messages = () => [...base.docs].filter(([c]) => c.startsWith('rdv_messages/')).map(([c, x]) => ({ id: c.split('/')[1], ...x.d }));
-  return { base, sms, appels, pauses, compte, temps, semer, messages };
+  return { base, sms, appels, pauses, envoisAvantPause, compte, temps, semer, messages };
 }
 
 describe('connexion (secret)', () => {
@@ -694,7 +695,7 @@ describe('pannes passagères : rien n’est abandonné, rien n’est perdu', () 
     const parts = [1, 2, 3, 4, 5].map((n) => [`p${n}`, `Personne ${n}`, `+3360000000${n}`]);
     const m = monde(); m.semer('r1', {}, parts);
     // chaque envoi dure 14 s sur l'horloge de l'essai ; budget 30 s, délai maximal par SMS 15 s : 2 envois (0 + 15 <= 30, 14 + 15 <= 30), le 3e (28 + 15 > 30) n'est pas ouvert
-    const sms = creerSmsDirect({
+    const sms = creerSmsDirect({ pausePresentationMs: 0,
       lireSecret: async () => SECRET, donneesDe: () => ({ base: '', donnees: m.base }), maintenant: () => m.temps.t,
       fetchImpl: async () => { m.temps.t += 14_000; return REPONSE_OK('B'); },
     });
@@ -709,7 +710,7 @@ describe('pannes passagères : rien n’est abandonné, rien n’est perdu', () 
 
   test('l’heure de chaque envoi est celle de l’envoi, pas celle du début du tir', async () => {
     const m = monde(); m.semer('r1', {}, [['p1', 'A', '+33600000001'], ['p2', 'B', '+33600000002']]);
-    const sms = creerSmsDirect({ lireSecret: async () => SECRET, donneesDe: () => ({ base: '', donnees: m.base }), maintenant: () => m.temps.t, fetchImpl: async () => { m.temps.t += 10_000; return REPONSE_OK('H'); } });
+    const sms = creerSmsDirect({ pausePresentationMs: 0, lireSecret: async () => SECRET, donneesDe: () => ({ base: '', donnees: m.base }), maintenant: () => m.temps.t, fetchImpl: async () => { m.temps.t += 10_000; return REPONSE_OK('H'); } });
     await sms.tirer('interne');
     const heures = m.messages().map((x) => new Date(x.envoyeLe).getTime()).sort();
     assert.ok(heures[1] > heures[0]);
@@ -802,7 +803,7 @@ describe('B2 lien du rendez-vous dans l’alerte « un créneau convient à tous
     const m = monde();
     m.semer('rdvAbc123');
     for (const pid of ['p1', 'p2']) m.base.docs.set(`rdv_participants/rdvAbc123-${pid}`, { v: 2, d: { rendezVousId: 'rdvAbc123', nom: pid, telephone: pid === 'p1' ? '+33600000001' : '+33600000002', role: '', etatReponse: 'comprise', creneauxOk: [1], reponse: '1', reponseLe: iso(T0 - 3600_000) } });
-    const sms = creerSmsDirect({ lireSecret: async () => SECRET, donneesDe: () => ({ base: '', donnees: m.base }), maintenant: () => m.temps.t, fetchImpl: async (url, options) => { m.appels.push({ corps: JSON.parse(options.body) }); return REPONSE_OK('X'); }, pauseConfirmationMs: 0, baseLien: JEROME });
+    const sms = creerSmsDirect({ pausePresentationMs: 0, lireSecret: async () => SECRET, donneesDe: () => ({ base: '', donnees: m.base }), maintenant: () => m.temps.t, fetchImpl: async (url, options) => { m.appels.push({ corps: JSON.parse(options.body) }); return REPONSE_OK('X'); }, pauseConfirmationMs: 0, baseLien: JEROME });
     await sms.tirer('interne');
     const alerte = m.appels.map((a) => a.corps.messages[0]).find((x) => x.to === '+33700000001');
     assert.ok(alerte, 'une alerte est partie vers le numéro d’alerte');
@@ -817,7 +818,7 @@ describe('B2 lien du rendez-vous dans l’alerte « un créneau convient à tous
       const m = monde();
       m.semer('rdvAbc123');
       for (const pid of ['p1', 'p2']) m.base.docs.set(`rdv_participants/rdvAbc123-${pid}`, { v: 2, d: { rendezVousId: 'rdvAbc123', nom: pid, telephone: pid === 'p1' ? '+33600000001' : '+33600000002', role: '', etatReponse: 'comprise', creneauxOk: [1], reponse: '1', reponseLe: iso(T0 - 3600_000) } });
-      const sms = creerSmsDirect({ lireSecret: async () => SECRET, donneesDe: () => ({ base: 'clients/demo', donnees: m.base }), maintenant: () => m.temps.t, fetchImpl: async (url, options) => { m.appels.push({ corps: JSON.parse(options.body) }); return REPONSE_OK('X'); }, pauseConfirmationMs: 0, baseLien, espaceRacine: null });
+      const sms = creerSmsDirect({ pausePresentationMs: 0, lireSecret: async () => SECRET, donneesDe: () => ({ base: 'clients/demo', donnees: m.base }), maintenant: () => m.temps.t, fetchImpl: async (url, options) => { m.appels.push({ corps: JSON.parse(options.body) }); return REPONSE_OK('X'); }, pauseConfirmationMs: 0, baseLien, espaceRacine: null });
       // la base en mémoire n'a pas de sous-dossier : on range les documents sous clients/demo
       for (const [c, x] of [...m.base.docs]) if (!c.startsWith('clients/')) { m.base.docs.set(`clients/demo/${c}`, x); m.base.docs.delete(c); }
       await sms.tirer('demo');
@@ -845,6 +846,7 @@ describe('tirer : les présentations avant les créneaux', () => {
     const m = monde({ pausePresentationMs: 10_000 }); m.semer('r1', {}, []); poser(m, mixte);
     await m.sms.tirer('interne');
     assert.deepEqual(m.pauses, [10_000]);
+    assert.deepEqual(m.envoisAvantPause, [2], 'la pause vient après les 2 présentations et avant les 2 créneaux');
   });
 
   test('O3 pas de pause s’il n’y a que des présentations ou que des créneaux', async () => {
@@ -871,5 +873,34 @@ describe('tirer : les présentations avant les créneaux', () => {
     assert.equal(m.appels.length, 1);
     assert.deepEqual(m.pauses, []);
     assert.ok(['mA', 'mB', 'mC', 'mD'].every((id) => m.base.docs.get(`rdv_messages/${id}`).d.etatEnvoi === 'a_envoyer'));
+  });
+
+  test('O6 présentation incertaine (peut-être partie) : la pause a quand même lieu avant les créneaux', async () => {
+    const m = monde({ pausePresentationMs: 10_000, reponses: (n) => { if (n <= 2) throw new Error('réseau coupé'); return REPONSE_OK(`I-${n}`); } }); m.semer('r1', {}, []); poser(m, mixte);
+    const bilan = await m.sms.tirer('interne');
+    assert.deepEqual([bilan.incertains, bilan.envoyes, m.pauses, m.envoisAvantPause], [2, 2, [10_000], [2]]);
+  });
+
+  test('O7 comportement ACTUEL, à décider par Jérôme : une présentation refusée (échec) n’empêche pas les créneaux de partir ; la reprise de la présentation vient 10 minutes plus tard', async () => {
+    const m = monde({ pausePresentationMs: 10_000, reponses: (n) => (n === 1 ? REPONSE_STATUT('INVALID_RECIPIENT') : REPONSE_OK(`E-${n}`)) }); m.semer('r1', {}, []); poser(m, mixte);
+    const bilan = await m.sms.tirer('interne');
+    assert.deepEqual([bilan.echecs, bilan.envoyes, bilan.restants, m.appels.length], [1, 3, 0, 4]);
+    assert.deepEqual(textes(m), ['texte mB', 'texte mC', 'texte mA', 'texte mD']);
+  });
+
+  test('O8 arrêt « parti » (504) pendant une présentation : incertain +1, le reste libéré, pas de pause', async () => {
+    const m = monde({ pausePresentationMs: 10_000, reponses: () => ({ ok: false, status: 504, json: async () => ({}) }) }); m.semer('r1', {}, []); poser(m, mixte);
+    const bilan = await m.sms.tirer('interne');
+    assert.deepEqual([bilan.incertains, bilan.restants, bilan.arret, m.appels.length, m.pauses], [1, 3, 'clicksend_indisponible', 1, []]);
+    assert.equal(m.base.docs.get('rdv_messages/mB').d.etatEnvoi, 'reserve', 'la présentation douteuse reste réservée');
+    assert.ok(['mC', 'mA', 'mD'].every((id) => m.base.docs.get(`rdv_messages/${id}`).d.etatEnvoi === 'a_envoyer'));
+  });
+
+  test('O9 une attente qui plante libère les créneaux, jamais « réservés »', async () => {
+    const m = monde({ pausePresentationMs: 10_000 }); m.semer('r1', {}, []); poser(m, mixte);
+    const sms = creerSmsDirect({ lireSecret: async () => SECRET, donneesDe: () => ({ base: '', donnees: m.base }), maintenant: () => m.temps.t, fetchImpl: async (u, o) => { m.appels.push({ corps: JSON.parse(o.body) }); return REPONSE_OK('Z'); }, pauseConfirmationMs: 0, attendre: async () => { throw new Error('minuteur cassé'); } });
+    const bilan = await sms.tirer('interne');
+    assert.deepEqual([bilan.envoyes, bilan.restants, m.appels.length], [2, 2, 2]);
+    assert.ok(['mA', 'mD'].every((id) => m.base.docs.get(`rdv_messages/${id}`).d.etatEnvoi === 'a_envoyer'));
   });
 });
