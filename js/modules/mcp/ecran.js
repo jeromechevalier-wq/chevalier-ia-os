@@ -5,6 +5,7 @@ import { lien } from '../../os/router.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { maisonNeutre } from '../../os/identite-maison.js';
+import { pagesTechniquesCachees } from '../../os/acces-reserve.js';
 
 async function copier(texte, champ) {
   try {
@@ -38,7 +39,7 @@ function rendreInfosRacine(conteneur) {
     h('section', { class: 'mcp-bloc' },
       h('h2', {}, 'Suivre ce que fait ChatGPT'),
       h('p', { class: 'aide' }, 'Chaque modification faite par ChatGPT apparaît dans le Journal des modifications, avec son nom.'),
-      h('p', { class: 'aide' }, h('a', { href: lien('journal') }, icone('history', { taille: 14 }), ' Journal des modifications')))));
+      pagesTechniquesCachees(D.compteCourant()) ? null : h('p', { class: 'aide' }, h('a', { href: lien('journal') }, icone('history', { taille: 14 }), ' Journal des modifications'))))); // maison d'un client : le Journal est réservé au titulaire
   return () => {};
 }
 

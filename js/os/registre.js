@@ -689,18 +689,20 @@ export function reglagesDesModules(actifs) {
 export const SECTIONS_ESPACE = geler([
   { id: 'espace', libelle: 'Mon espace', icone: 'house', editeursSeulement: false, clientSeulement: false },
   { id: 'membres', libelle: 'Membres et rôles', icone: 'users', editeursSeulement: true, clientSeulement: true },
-  { id: 'modules', libelle: 'Modules actifs', icone: 'layout-dashboard', editeursSeulement: true, clientSeulement: false },
+  { id: 'modules', libelle: 'Modules actifs', icone: 'layout-dashboard', editeursSeulement: true, clientSeulement: false, technique: true },
   // Déploiement (25/10/2026) : la liste des étapes d'un déploiement et leur état dans CET espace (js/os/deploiement.js) ; chez Jérôme comme chez chaque client.
-  { id: 'deploiement', libelle: 'Déploiement', icone: 'shield-check', editeursSeulement: true, clientSeulement: false },
+  { id: 'deploiement', libelle: 'Déploiement', icone: 'shield-check', editeursSeulement: true, clientSeulement: false, technique: true },
   // Mes tests (mode test, PR 4) : aperçu et suppression de tous les éléments marqués test ; éditeurs seulement, chez Jérôme comme chez les clients.
-  { id: 'tests', libelle: 'Mes tests', icone: 'flask-conical', editeursSeulement: true, clientSeulement: false },
+  { id: 'tests', libelle: 'Mes tests', icone: 'flask-conical', editeursSeulement: true, clientSeulement: false, technique: true },
   // Connexion à la base (24/11/2026, modules Achats) : adresse, clé publique et adresses d'automatisations ; Jérôme seul, à la racine seulement (`jeromeSeulement` : jamais chez un client, même pour lui).
-  { id: 'base', libelle: 'Connexion à la base', icone: 'link', editeursSeulement: true, clientSeulement: false, jeromeSeulement: true },
+  { id: 'base', libelle: 'Connexion à la base', icone: 'link', editeursSeulement: true, clientSeulement: false, jeromeSeulement: true, technique: true },
+  // `technique` (27/11/2026) : page technique, cachée à un compte non titulaire dans la maison d'un client (js/os/acces-reserve.js, pagesTechniquesCachees).
 ]);
 
-/** Sections d'espace visibles : `chezClient` (plateforme) ou racine ; `editeur` = le compte peut écrire (à la racine, toujours vrai) ; `jerome` = le compte est celui de Jérôme (sections `jeromeSeulement` : à la racine seulement, jamais chez un client). */
-export function sectionsEspaceVisibles({ chezClient, editeur, jerome = false }) {
-  return SECTIONS_ESPACE.filter((s) => (chezClient || !s.clientSeulement) && (editeur || !s.editeursSeulement) && (!s.jeromeSeulement || (jerome === true && !chezClient)));
+/** Sections d'espace visibles : `chezClient` (plateforme) ou racine ; `editeur` = le compte peut écrire (à la racine, toujours vrai) ; `jerome` = le compte est celui de Jérôme (sections `jeromeSeulement` : à la racine seulement, jamais chez un client).
+ *  `techniques` (27/11/2026) : faux = sections `technique` cachées (maison d'un client, compte non titulaire) ; vrai par défaut : rien ne change ailleurs. */
+export function sectionsEspaceVisibles({ chezClient, editeur, jerome = false, techniques = true }) {
+  return SECTIONS_ESPACE.filter((s) => (chezClient || !s.clientSeulement) && (editeur || !s.editeursSeulement) && (!s.jeromeSeulement || (jerome === true && !chezClient)) && (techniques !== false || !s.technique));
 }
 
 /** Interrupteurs montrés dans « Modules actifs » : un par bloc du menu (CRM = affaires + projets), allumé si son premier module l'est. */

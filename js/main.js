@@ -11,6 +11,7 @@ import { actionsDuPortail } from './os/portail-actions.js';
 import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe, ecranSocleDeRoute } from './os/portail.js';
 import { MODULES as MODULES_TOUS } from './os/modules.js';
 import { peutVoirConsole } from './modules/console/acces.js';
+import { pagesTechniquesCachees } from './os/acces-reserve.js';
 import { demarrerObjectifs, arreterObjectifs } from './os/objectifs.js';
 import { monterReglages } from './os/reglages.js';
 import { rendreJournal } from './os/journal.js';
@@ -159,6 +160,19 @@ function fermerSession() {
   session = null;
 }
 
+/** « Page introuvable » (maison : module éteint, ou page technique cachée à un compte non titulaire), avec « Retour à l'accueil » vers `accueil`. */
+function afficherIntrouvable(accueil) {
+  const { coquille } = session;
+  session.vue?.quitter?.();
+  session.vue = { cle: 'introuvable', quitter: null };
+  vider(coquille.contenu);
+  coquille.contenu.append(h('div', { class: 'page-introuvable', dataset: { role: 'page-introuvable' } },
+    h('h1', {}, 'Page introuvable'),
+    h('p', { class: 'aide' }, "Cette page n'existe pas ou n'est pas disponible dans cet espace."),
+    h('a', { class: 'bouton bouton-principal', href: lien(accueil) }, icone('house', { taille: 16 }), "Retour à l'accueil")));
+  coquille.activer('');
+}
+
 const lienDuPortail = (chemin) => `#/${portail.id}/${chemin}`;
 /** L'adresse n'a aucune route (#, #/ ou rien) : le router la lit comme ROUTE_DEFAUT (crm/accueil). */
 const adresseVide = () => !String(location.hash ?? '').replace(/^#\/?/, '').replace(/\/+$/, '');
@@ -206,20 +220,14 @@ function afficherRoute(route) {
       apis, actifs: MODULES.map((m) => m.id), chezClient: false, nomEspace: 'Chevalier IA OS', marque: null, fiche: null, compte: session.compte,
     });
   } else if (segs[0] === 'journal' && segs.length === 1) { // Journal des modifications : écran de la coque, servi même sans le module Affaires
+    if (pagesTechniquesCachees(session.compte)) { afficherIntrouvable(accueilMaison || ROUTE_DEFAUT); return; } // maison d'un client, compte non titulaire : page technique cachée
     cle = 'journal';
     afficher = () => rendreJournal(coquille.contenu);
   } else {
     const m = MODULES.find((x) => x.prefixe === segs[0]);
     if (!m && accueilMaison) { // maison avec réglage `modules` : adresse vide = premier écran ; module éteint ou inconnu = « Page introuvable » (comme sur la plateforme)
       if (adresseVide()) { naviguer(accueilMaison, { remplacer: true }); return; }
-      session.vue?.quitter?.();
-      session.vue = { cle: 'introuvable', quitter: null };
-      vider(coquille.contenu);
-      coquille.contenu.append(h('div', { class: 'page-introuvable', dataset: { role: 'page-introuvable' } },
-        h('h1', {}, 'Page introuvable'),
-        h('p', { class: 'aide' }, "Cette page n'existe pas ou n'est pas disponible dans cet espace."),
-        h('a', { class: 'bouton bouton-principal', href: lien(accueilMaison) }, icone('house', { taille: 16 }), "Retour à l'accueil")));
-      coquille.activer('');
+      afficherIntrouvable(accueilMaison);
       return;
     }
     if (!m) { naviguer(ROUTE_DEFAUT, { remplacer: true }); return; }

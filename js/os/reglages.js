@@ -14,7 +14,7 @@ import { sectionMonEspace, sectionMembresEditable } from './mon-espace.js';
 import { sectionDeploiement } from './deploiement-ecran.js';
 import { sectionMesTests } from './mes-tests-ecran.js';
 import { sectionConnexionBase } from './base-reglages-ecran.js';
-import { compteReserve } from './acces-reserve.js';
+import { compteReserve, pagesTechniquesCachees } from './acces-reserve.js';
 import { nomEspaceRacine } from './identite-maison.js';
 import { reglagesDesModules, sectionsEspaceVisibles, interrupteursDuClient, cibleReglages, moduleDeclare } from './registre.js';
 
@@ -168,7 +168,9 @@ export function monterReglages(conteneur, segs, ctx) {
   const editeur = ctx.editeur !== false && compteEcrit(ctx.compte);
   const c = { ...ctx, editeur, nomEspace: ctx.chezClient ? ctx.nomEspace : nomEspaceRacine(ctx.nomEspace) }; // maison d'un client : son nom, jamais « Chevalier IA OS »
   const items = reglagesDesModules(c.actifs);
-  const espaces = sectionsEspaceVisibles({ chezClient: !!c.chezClient, editeur, jerome: compteReserve(c.compte) }); // « Connexion à la base » : Jérôme seul, à la racine
+  // « Connexion à la base » : Jérôme seul, à la racine. Maison d'un client, compte non titulaire : ni Modules actifs, ni Déploiement, ni Mes tests, ni Connexion à la base
+  // (une adresse cachée tapée à la main ramène à « Mon espace », comme toute section inconnue). Plateforme des clients (chezClient) : inchangé.
+  const espaces = sectionsEspaceVisibles({ chezClient: !!c.chezClient, editeur, jerome: compteReserve(c.compte), techniques: !!c.chezClient || !pagesTechniquesCachees(c.compte) });
   const cible = cibleReglages(segs, { espaces, modules: items });
   if (!cible) { naviguer('reglages', { remplacer: true }); return arreterCourant; } // section inconnue (ou réservée aux éditeurs) : retour à la page d'arrivée
 

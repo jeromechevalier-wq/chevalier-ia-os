@@ -7,6 +7,7 @@ import { naviguer, lien } from './router.js';
 import { modulesDuPortail } from './portail.js';
 import { modeTestAllume, definirModeTest, surModeTest } from './mode-test.js';
 import { connexionNeutre, maisonNeutre, nomAfficheMaison } from './identite-maison.js';
+import { pagesTechniquesCachees } from './acces-reserve.js';
 
 // Routes sans entrée de menu -> entrée allumée à leur place (l'écran principal de leur module).
 /** Écrans qui gardent la barre de recherche et le bouton « + » du haut (les autres : Veille, Automatisations, Maintenance, réglages, journal, assistant…). */
@@ -139,6 +140,7 @@ const poserLargeur = (n) => document.documentElement.style.setProperty('--menu-l
 export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(), modules = MODULES, client = ESPACE_RACINE, accueil = 'crm/accueil', retour = null, actionsRetour = [], menu: entreesPortail = null, supplements = [] }) {
   vider(racine);
   document.body.classList.remove('page-connexion');
+  const racineDeJerome = client === ESPACE_RACINE; // CRM racine (chez Jérôme ou dans une maison), jamais un espace de la plateforme des clients
   if (client === ESPACE_RACINE && maisonNeutre()) { client = espaceRacineAffiche(); nommerOnglet(client.nom); } // maison d'un client : son nom, jamais « Chevalier IA OS »
   const elargi = lirePreference('menu', 'replie') === 'elargi';
   const idsModules = modules.map((x) => x.id);
@@ -223,7 +225,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
       // Portail devis seul : « Exporter mes données » et « Espace complet » vivent ici, plus dans le menu latéral (décision de Jérôme du 10/11/2026).
       ...actionsRetour.map((x) => ({ libelle: x.libelle, icone: x.icone, action: x.surClic })),
       ...(retour && /^#\//.test(retour.href) ? [{ libelle: retour.libelle, icone: 'layout-dashboard', action: () => { if (estTelephone()) ouvrirMobile(false); location.hash = retour.href; } }] : []), // adresse construite par la coque (jamais saisie) ; hors du préfixe client, comme l'ancien lien data-hors-prefixe
-      ...(idsModules.length ? [{ libelle: 'Voir le journal des modifications', icone: 'history', action: allerDepuisMenu('journal') }] : []), // dès qu'un module est actif : le Journal est un écran de la coque
+      ...(idsModules.length && !(racineDeJerome && pagesTechniquesCachees(compte)) ? [{ libelle: 'Voir le journal des modifications', icone: 'history', action: allerDepuisMenu('journal') }] : []), // dès qu'un module est actif : le Journal est un écran de la coque ; maison d'un client : titulaire seul
       ...(idsModules.includes('mcp') ? [{ libelle: 'Connecter mon ChatGPT', icone: 'link', action: allerDepuisMenu('mcp/infos') }] : []),
       { noeud: boutonTheme('menu-pop-entree') },
       { noeud: boutonModeTest },
