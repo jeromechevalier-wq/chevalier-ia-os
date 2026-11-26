@@ -70,7 +70,7 @@ export function rendreFicheOrganisation(conteneur, id) {
         prop('SIRET', 'siret', { placeholder: '14 chiffres', formater: L.formaterSiret, surEnregistrer: (v) => D.majOrganisation(o.id, L.identifiantsOrganisation({ siret: v })) }),
         h('div', { class: 'prop', dataset: { prop: 'siren' }, title: 'Calculé d’après le SIRET (ses 9 premiers chiffres)' },
           h('span', { class: 'prop-libelle' }, 'SIREN'), h('div', { class: 'prop-valeur' }, h('span', { 'data-valeur': 'siren' }, o.siren ? L.formaterSiren(o.siren) : '—'))),
-        prop('N° de TVA', 'numeroTva', { placeholder: 'FR12345678901', formater: (v) => String(v).replace(/[\s.]/g, '').toUpperCase(), surEnregistrer: (v) => D.majOrganisation(o.id, L.identifiantsOrganisation({ numeroTva: v })) })),
+        prop('N° de TVA', 'numeroTva', { placeholder: 'FR12345678901', formater: (v) => String(v).replace(/[\s.-]/g, '').toUpperCase(), surEnregistrer: (v) => D.majOrganisation(o.id, L.identifiantsOrganisation({ numeroTva: v })) })),
     });
     const sectionPersonnes = sectionRepliable({
       id: 'organisation-personnes', titre: 'Personnes', compteur: personnes.length,

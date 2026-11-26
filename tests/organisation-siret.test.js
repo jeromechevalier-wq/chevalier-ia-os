@@ -114,7 +114,7 @@ describe('Outils MCP', () => {
     const avant = structuredClone(s.doc('crm_organisations', 'org1'));
     refuse(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', siret: '1234567890001' }), /SIRET doit faire 14 chiffres/);
     refuse(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', siret: '1234567890001A', ville: 'Paris' }), /SIRET doit faire 14 chiffres/);
-    refuse(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', numeroTva: '12345' }), /numéro de TVA doit commencer par 2 lettres/);
+    refuse(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', numeroTva: '12345' }), /numéro de TVA commence par 2 lettres/);
     refuse(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', numeroTva: 'FR123' }), /TVA/);
     assert.deepEqual(s.doc('crm_organisations', 'org1'), avant, 'rien n’est écrit après un refus');
     // Un « siren » envoyé quand même est ignoré (pas dans le schéma) : le SIREN reste celui du SIRET.

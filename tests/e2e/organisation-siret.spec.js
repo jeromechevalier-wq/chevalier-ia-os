@@ -69,10 +69,12 @@ test('3 SIRET de 13 chiffres, SIRET avec lettres, TVA « 12345 » ou « FR123 »
   await expect(page.locator('.toast').filter({ hasText: 'Le SIRET doit faire 14 chiffres.' })).toBeVisible();
   await expect(prop(page, 'SIRET').locator('.prop-valeur span').first()).toHaveText('123 456 789 00012'); // valeur inchangée
   await capturer(page, info, '3-siret-refuse', { pleine: false });
+  // Le message identique remplacerait le premier : on attend qu'il parte pour prouver le 2e refus.
+  await expect(page.locator('.toast').filter({ hasText: 'Le SIRET doit faire 14 chiffres.' })).toHaveCount(0, { timeout: 10000 });
   await saisir(page, 'SIRET', '1234567890001A');
-  await expect(page.locator('.toast').filter({ hasText: 'Le SIRET doit faire 14 chiffres.' }).first()).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Le SIRET doit faire 14 chiffres.' })).toBeVisible();
   await saisir(page, 'N° de TVA', '12345');
-  await expect(page.locator('.toast').filter({ hasText: 'Le numéro de TVA doit commencer par 2 lettres (ex. FR12345678901).' })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Le numéro de TVA commence par 2 lettres (le pays)' })).toBeVisible();
   await saisir(page, 'N° de TVA', 'FR123');
   await expect(page.locator('.toast').filter({ hasText: /numéro de TVA français fait 13 caractères/ })).toBeVisible();
   await expect(prop(page, 'N° de TVA').locator('.prop-valeur span').first()).toHaveText('FR12123456789');

@@ -942,7 +942,7 @@ export function validerOrganisation(v) {
 // ---------------------------------------------------------------- SIRET, SIREN et n° de TVA d'une organisation (décision de Jérôme du 26/11/2026)
 
 export const MESSAGE_SIRET_INVALIDE = 'Le SIRET doit faire 14 chiffres.';
-export const MESSAGE_TVA_INVALIDE = 'Le numéro de TVA doit commencer par 2 lettres (ex. FR12345678901).';
+export const MESSAGE_TVA_INVALIDE = 'Le numéro de TVA commence par 2 lettres (le pays), suivies de 2 à 13 lettres ou chiffres (ex. FR12345678901).';
 export const MESSAGE_TVA_FR_INVALIDE = 'Un numéro de TVA français fait 13 caractères : FR, 2 caractères, puis les 9 chiffres du SIREN (ex. FR12345678901).';
 
 const erreurSaisie = (message, champ) => Object.assign(new Error(message), { saisie: true, champ });
@@ -961,7 +961,7 @@ export function identifiantsOrganisation({ siret, numeroTva } = {}) {
     sortie.siren = s.slice(0, 9);
   }
   if (numeroTva !== undefined && numeroTva !== null) {
-    const t = String(numeroTva).replace(/[\s.]/g, '').toUpperCase();
+    const t = String(numeroTva).replace(/[\s.-]/g, '').toUpperCase();
     if (t && !/^[A-Z]{2}[0-9A-Z]{2,13}$/.test(t)) throw erreurSaisie(MESSAGE_TVA_INVALIDE, 'numeroTva');
     if (t.startsWith('FR') && !/^FR[0-9A-Z]{2}\d{9}$/.test(t)) throw erreurSaisie(MESSAGE_TVA_FR_INVALIDE, 'numeroTva');
     sortie.numeroTva = t;
