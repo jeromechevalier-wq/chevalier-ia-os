@@ -11,6 +11,7 @@ import { actionsDuPortail } from './os/portail-actions.js';
 import { PORTAILS, portailDeRoute, modulesDuPortail, cleEntreeDe, ecranSocleDeRoute } from './os/portail.js';
 import { MODULES as MODULES_TOUS } from './os/modules.js';
 import { peutVoirConsole } from './modules/console/acces.js';
+import { pagesTechniquesCachees } from './os/acces-reserve.js';
 import { demarrerObjectifs, arreterObjectifs } from './os/objectifs.js';
 import { monterReglages } from './os/reglages.js';
 import { rendreJournal } from './os/journal.js';
@@ -159,6 +160,22 @@ function fermerSession() {
   session = null;
 }
 
+/** « Page introuvable » (maison : module éteint, ou page technique cachée à un compte non titulaire), avec « Retour à l'accueil » vers `accueil`. */
+function afficherIntrouvable(accueil) {
+  const { coquille } = session;
+  session.vue?.quitter?.();
+  session.vue = { cle: 'introuvable', quitter: null };
+  vider(coquille.contenu);
+  coquille.contenu.append(h('div', { class: 'page-introuvable', dataset: { role: 'page-introuvable' } },
+    h('h1', {}, 'Page introuvable'),
+    h('p', { class: 'aide' }, "Cette page n'existe pas ou n'est pas disponible dans cet espace."),
+    h('a', { class: 'bouton bouton-principal', href: lien(accueil) }, icone('house', { taille: 16 }), "Retour à l'accueil")));
+  coquille.activer('');
+}
+
+/** Route du Journal des modifications : #/journal (écran de la coque) ou #/crm/journal (ancienne adresse, servie par le module Affaires). */
+const estRouteJournal = (segs) => (segs[0] === 'journal' && segs.length === 1) || (segs[0] === 'crm' && segs[1] === 'journal');
+
 const lienDuPortail = (chemin) => `#/${portail.id}/${chemin}`;
 /** L'adresse n'a aucune route (#, #/ ou rien) : le router la lit comme ROUTE_DEFAUT (crm/accueil). */
 const adresseVide = () => !String(location.hash ?? '').replace(/^#\/?/, '').replace(/\/+$/, '');
@@ -198,6 +215,9 @@ function afficherRoute(route) {
       return;
     }
   }
+  // Maison d'un client, compte non titulaire : le Journal (#/journal et l'ancienne adresse #/crm/journal du module Affaires) est une page technique cachée.
+  // La plateforme des clients a son propre routeur (js/os/espace-modules.js) : #/espace/<client>/crm/journal y reste servi.
+  if (estRouteJournal(segs) && pagesTechniquesCachees(session.compte)) { afficherIntrouvable(accueilMaison || ROUTE_DEFAUT); return; }
   let cle;
   let afficher;
   if (segs[0] === 'reglages') {
@@ -212,14 +232,7 @@ function afficherRoute(route) {
     const m = MODULES.find((x) => x.prefixe === segs[0]);
     if (!m && accueilMaison) { // maison avec réglage `modules` : adresse vide = premier écran ; module éteint ou inconnu = « Page introuvable » (comme sur la plateforme)
       if (adresseVide()) { naviguer(accueilMaison, { remplacer: true }); return; }
-      session.vue?.quitter?.();
-      session.vue = { cle: 'introuvable', quitter: null };
-      vider(coquille.contenu);
-      coquille.contenu.append(h('div', { class: 'page-introuvable', dataset: { role: 'page-introuvable' } },
-        h('h1', {}, 'Page introuvable'),
-        h('p', { class: 'aide' }, "Cette page n'existe pas ou n'est pas disponible dans cet espace."),
-        h('a', { class: 'bouton bouton-principal', href: lien(accueilMaison) }, icone('house', { taille: 16 }), "Retour à l'accueil")));
-      coquille.activer('');
+      afficherIntrouvable(accueilMaison);
       return;
     }
     if (!m) { naviguer(ROUTE_DEFAUT, { remplacer: true }); return; }

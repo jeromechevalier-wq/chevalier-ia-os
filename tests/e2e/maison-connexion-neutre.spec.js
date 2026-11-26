@@ -90,7 +90,7 @@ test('5 maison de Jérôme après la connexion : « Chevalier IA OS » partout, 
 
 test('6 maison neutre : Journal et page « Connecter mon ChatGPT » sans Jérôme ni Claude Code', async ({ page }, info) => {
   await semer('public', { mode_crm: true, nom_espace: NOM });
-  await semer('ecran', ECRAN_NEUTRE);
+  await semer('ecran', { ...ECRAN_NEUTRE, comptes_jerome_seul: [JEROME] }); // le Journal d'une maison neutre est réservé au titulaire (tests/e2e/maison-pages-techniques.spec.js)
   await ouvrirMaison(page, 'mcp/infos');
   await expect(page.locator('[data-role="comptes-racine"]')).toHaveText('Les comptes autorisés sont fixés par l’administrateur.');
   await sansTraceDeJerome(page);

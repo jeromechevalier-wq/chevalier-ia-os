@@ -122,9 +122,9 @@ describe('journal commun : écran et routes (A3, A4, A5)', () => {
     assert.ok(espace.indexOf("segs[0] === 'journal'") < espace.indexOf('ecranSocleDeRoute(segs)'), 'servie avant le socle et avant les modules');
     assert.ok(espace.includes("route === 'journal' ? route : routeModernisee(route)"), 'l’ancienne redirection journal -> automatisations ne touche plus la route seule');
   });
-  test('A4 l’entrée « Voir le journal des modifications » apparaît dès qu’un module est actif et mène à #/journal', () => {
+  test('A4 l’entrée « Voir le journal des modifications » apparaît dès qu’un module est actif et mène à #/journal (maison d’un client : titulaire seul, tests/maison-pages-techniques.test.js)', () => {
     const shell = lire('js/os/shell.js');
-    assert.match(shell, /idsModules\.length \? \[\{ libelle: 'Voir le journal des modifications', icone: 'history', action: allerDepuisMenu\('journal'\) \}\] : \[\]/);
+    assert.match(shell, /idsModules\.length && !\(racineDeJerome && pagesTechniquesCachees\(compte\)\) \? \[\{ libelle: 'Voir le journal des modifications', icone: 'history', action: allerDepuisMenu\('journal'\) \}\] : \[\]/);
     assert.ok(!shell.includes("allerDepuisMenu('crm/journal')"));
     assert.ok(!lire('js/modules/mcp/ecran.js').includes("lien('crm/journal')"));
     assert.ok(!lire('js/modules/mcp/ecran.js').includes("actifs.includes('affaires')"), 'le lien du Journal ne dépend plus du module Affaires');
