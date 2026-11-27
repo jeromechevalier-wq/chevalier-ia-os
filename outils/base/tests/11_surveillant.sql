@@ -40,7 +40,8 @@ create or replace function pg_temp.colonnes_libres() returns table(colonne text)
     ('lignes_facture_lues', 'unite', 'lue sur la facture'),
     ('lignes_facture_lues', 'unite_normalisee', 'calculée à partir de l''unité lue'),
     ('articles_fournisseur', 'unite', 'recopiée de l''unité lue sur la facture'),
-    ('articles_fournisseur', 'unite_normalisee', 'calculée à partir de l''unité lue'))
+    ('articles_fournisseur', 'unite_normalisee', 'calculée à partir de l''unité lue'),
+    ('mode_emploi_champs', 'champ', 'nom d''une vraie colonne : le test 14 vérifie qu''elle existe'))
   select s.table_nom || '.' || s.col from surveillees s
    where not pg_temp.colonne_fermee(s.t, s.attnum)
      and not exists (select 1 from exceptions e where e.table_nom = s.table_nom and e.col = s.col)

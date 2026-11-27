@@ -71,7 +71,7 @@ begin
    where c.relnamespace = 'public'::regnamespace and not g.tgisinternal and g.tgenabled <> 'O';
   if v is not null then raise exception 'Déclencheurs restés coupés : %', v; end if;
   select string_agg(c.relname, ', ') into v from pg_class c
-   where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname <> 'registre_tables' and not c.relforcerowsecurity;
+   where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname not in ('registre_tables', 'mode_emploi_objets', 'mode_emploi_champs') and not c.relforcerowsecurity;
   if v is not null then raise exception 'Sécurité par ligne plus forcée sur : %', v; end if;
 end $$;
 -- Le journal est toujours en ajout seul.

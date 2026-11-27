@@ -16,7 +16,7 @@ begin
   for t in select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
            where n.nspname = 'public' and c.relkind in ('r', 'p') loop
     execute format('revoke all on public.%I from porte, robot_reflets, indicateurs', t.relname);
-    if t.relname = 'registre_tables' then
+    if t.relname in ('registre_tables', 'mode_emploi_objets', 'mode_emploi_champs') then   -- structure : lecture seule (013)
       execute format('grant select on public.%I to porte, robot_reflets, indicateurs', t.relname);
     else
       execute format('grant select, insert, update on public.%I to porte, robot_reflets', t.relname);
