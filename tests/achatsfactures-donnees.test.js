@@ -174,9 +174,10 @@ describe('verrous du module', () => {
     }
   })
   test('les écritures passent seulement par les actions métier : aucune écriture directe, aucun appel de la base hors du fichier des données et de l’écran', () => {
+    // Fichiers des données : donnees.js (liste), donnees-examiner.js (page Examiner), donnees-appli.js (application Factures, 27/11/2026). Aucun écran n'appelle une action lui-même.
     for (const [nom, texte] of Object.entries(code)) {
       expect(/\.(insert|update|delete|upsert)\s*\(/.test(sansCommentaires(texte)) ? `${nom} : écriture directe` : '').toBe('')
-      if (nom !== 'donnees.js' && nom !== 'donnees-examiner.js') expect(/appelerActionMetier|\.appeler\(/.test(sansCommentaires(texte)) ? `${nom} : appel hors des données` : '').toBe('')
+      if (nom !== 'donnees.js' && nom !== 'donnees-examiner.js' && nom !== 'donnees-appli.js') expect(/appelerActionMetier|\.appeler\(/.test(sansCommentaires(texte)) ? `${nom} : appel hors des données` : '').toBe('')
     }
   })
   test('la feuille de style n’a aucune couleur écrite en dur', () => {
