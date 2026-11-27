@@ -86,7 +86,7 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
    * (il s'appliquera au prochain dessin). Aucun message en cas d'échec : `lireModeEmploi` rend null et l'écran reste comme avant.
    */
   async function chargerModeEmploi() {
-    if (modeEmploiFini || modeEmploiEnCours || modeEmploiEssais >= 3) return;
+    if (!vivant || modeEmploiFini || modeEmploiEnCours || modeEmploiEssais >= 3) return;
     let d = null;
     try { d = donnees(); } catch { d = null; }
     if (typeof d?.lireModeEmploi !== 'function') return;
@@ -103,7 +103,7 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
   }
   const plus = (quoi) => plusSelonModeEmploi(modeEmploi, OBJET_DU_VOLET[quoi], quoi === 'fournisseurs'); // seul « + Fournisseur » existe à l'écran
   /** Pas de « + » parce que la base ne le permet pas : à sa place, la phrase de la base (gris et « i », règle « limite » de docs/consignes-ui.md). */
-  const sansPlus = (quoi) => { const p = plus(quoi); return !p.montrer && p.phrase ? h('span', { class: 'af-sans-plus aide', dataset: { role: 'sans-plus' } }, 'Pas d’ajout ici', iconeInfo(p.phrase, 'Pas d’ajout ici')) : null; };
+  const sansPlus = (quoi) => { if (quoi !== 'fournisseurs') return null; const p = plus(quoi); return !p.montrer && p.phrase ? h('span', { class: 'af-sans-plus aide', dataset: { role: 'sans-plus' } }, 'Pas d’ajout ici', iconeInfo(p.phrase, 'Pas d’ajout ici')) : null; };
   const selonBase = (quoi, lignes) => lignesSelonModeEmploi(modeEmploi, OBJET_DU_VOLET[quoi], lignes);
 
   /** Une fiche est en cours de modification : une lecture qui finit ne la redessine pas (la saisie serait perdue). */

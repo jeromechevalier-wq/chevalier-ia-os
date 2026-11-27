@@ -63,9 +63,9 @@ export function creerDonneesAppli({ client, actions }) {
       if (o.tronque || ch.tronque) return rendre(null, false);
       return rendre(preparerModeEmploi(o.lignes, ch.lignes), true);
     } catch (e) {
-      // 403 (porte pas republiée), 404 / 400 (table ou colonne inconnue : ancienne base, migrations pas appliquées) : définitif ; le reste (réseau…) : passager.
+      // 403 (porte pas republiée), 404 / 400 (table ou colonne inconnue : ancienne base, migrations pas appliquées) : définitif ; le reste (réseau, 401…) : passager.
       const statut = e?.statut ?? e?.status ?? null;
-      return rendre(null, statut !== null && statut >= 400 && statut < 500);
+      return rendre(null, [400, 403, 404].includes(statut)); // 401 (badge périmé), 408, 429 : passagers
     }
   }
 

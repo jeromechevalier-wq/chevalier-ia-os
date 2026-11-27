@@ -364,6 +364,7 @@ describe('Mode d’emploi de la base (PR 2b)', () => {
     assert.deepEqual(await essai(() => { throw erreur(404); }), { mode: null, definitif: true });
     assert.deepEqual(await essai(() => ({ lignes: [], tronque: false })), { mode: null, definitif: true });
     assert.deepEqual(await essai(() => { throw new Error('réseau'); }), { mode: null, definitif: false });
+    assert.deepEqual(await essai(() => { throw erreur(401); }), { mode: null, definitif: false }, 'badge périmé : passager');
     assert.deepEqual(await essai(() => ({ lignes: OBJETS, tronque: true })), { mode: null, definitif: false });
   });
 

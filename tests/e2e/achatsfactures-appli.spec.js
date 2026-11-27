@@ -1120,7 +1120,7 @@ test('C1 bis message avec « Annuler » : un clic pendant le fondu de sortie (25
 // MD2 : mode d'emploi présent ; MD3 : sans mode d'emploi (ancienne base de la maison de Jérôme, migrations pas appliquées, porte pas republiée qui répond 403), l'écran reste comme avant.
 const PHRASE_NOM = 'Phrase fictive : le nom du chantier vient du logiciel de chantier.';
 const MODE_ESSAI = {
-  objets: [{ objet: 'fournisseurs', creer: false, phrase_sans_creer: 'Phrase fictive : les fournisseurs naissent des factures.' }, { objet: 'chantiers', creer: true, phrase_sans_creer: null }],
+  objets: [{ objet: 'fournisseurs', creer: false, phrase_sans_creer: 'Phrase fictive : les fournisseurs naissent des factures.' }, { objet: 'chantiers', creer: true, phrase_sans_creer: null }, { objet: 'articles_fournisseur', creer: false, phrase_sans_creer: 'Phrase fictive : les articles naissent des lignes.' }],
   champs: [
     { objet: 'chantiers', champ: 'nom', modifiable: 'non', phrase_cadenas: PHRASE_NOM, archive_le: null },
     { objet: 'chantiers', champ: 'code', modifiable: 'oui', phrase_cadenas: null, archive_le: null },
@@ -1142,6 +1142,9 @@ test('MD2 mode d\'emploi de la base : « + Fournisseur » retiré si la base ne 
   await expect(volet(page).locator('[data-action="nouveau-fournisseur"]')).toHaveCount(0); // la base dit : on ne crée pas de fournisseur ici
   await expect(volet(page).locator('[data-role="sans-plus"] [data-role="info"]')).toHaveAttribute('aria-label', /les fournisseurs naissent des factures/); // à la place, la phrase de la base
   await capturer(page, info, 'MD2-liste-sans-plus');
+  await volet(page).locator('[data-role="volet-onglets"] button').nth(2).click();
+  await expect(volet(page).locator('[data-role="sans-plus"]')).toHaveCount(0); // une liste qui n'a jamais eu de « + » ne change pas
+  await volet(page).locator('[data-role="volet-onglets"] button').nth(0).click();
   const lectures = () => page.evaluate(() => window.__appels.filter((a) => a.chemin.startsWith('/rest/v1/mode_emploi_')).length);
   expect(await lectures()).toBe(2); // lu une fois, par la porte
   await volet(page).locator('[data-action="fermer-volet"]').click();
