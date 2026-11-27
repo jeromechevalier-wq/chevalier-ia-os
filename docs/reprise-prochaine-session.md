@@ -1,5 +1,48 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 28/11/2026 (nuit 5, « go nuit » du 27/11) : l'accueil en village
+
+Accords écrits de Jérôme avant la nuit : fusionner seul les PR du village qui touchent les règles de la plateforme clients (y compris l'or et 3c-bis), coder l'or cette nuit, allumer le village dans l'espace de Jérôme.
+
+| Sujet | PR | État |
+|---|---|---|
+| Dessins du jeu (enclos, champ en 4 étapes, décorations) | 726 | fusionnée |
+| Roue dentée de l'accueil, Mairie (réglages) et Console en bâtiments | 727 | fusionnée |
+| Chacun range son village : damier 8 × 8, glisser-déposer, double clic (appui long au téléphone) = réglages | 731 | fusionnée, relue par Fable |
+| Règles du village par utilisateur chez les clients (3a-bis) | 735 | fusionnée seule (accord de Jérôme), relue deux fois par Fable |
+| Maison « lien » vers un autre site (nouvel onglet) | 738 | fusionnée, relue par Fable |
+| Pièces d'or gagnées en travaillant (facture validée 10, payée 20, devis signé 50), par le serveur | 740 | fusionnée seule (accord), relue deux fois par Fable |
+| Petites maisons « vue filtrée » + adresse d'un chantier | 743 | fusionnée, relue par Fable |
+| Boutique : décorations (20) et parcelles (500), achat par le serveur | 748 | fusionnée seule (accord), relue par Fable |
+| Petites maisons automatiques des projets, cacher une petite maison, 12 au plus par grande maison | 751 | fusionnée seule (accord), relue par Fable (brief et code) |
+| Champs (100) et enclos à cochons (200), récolte d'or (action `ramasser` du serveur) | 752 | auto-merge armé ; relue deux fois par Fable (3 points importants corrigés) ; règles inchangées |
+| Console : schéma d'architecture figé dans Vue d'ensemble, décisions dans `docs/console.md` (§10), version 2.58.0, wiki, ce rapport | cette PR | relue par Fable |
+
+**État GitHub** : « Tests de nuit » verts sur `main` après la PR 751 (run 46059723660). Le passage après la PR 752 est à relire.
+
+**Mise en ligne** :
+- Chez Jérôme : automatique à chaque fusion (site et fonctions) ; règles du CRM publiées après chaque PR qui les changeait.
+- SCAB 04 : republié par sa session pendant la nuit. Après la PR 752, la fonction `villageOr` (nouvelle action `ramasser`) doit être republiée : la session SCAB 04 est prévenue.
+- **Plateforme clients (CRM d'Ingrid) : pas déployée** (c'est toi qui la lances). Tant qu'elle ne l'est pas, le village des clients n'a ni l'or, ni la boutique, ni la récolte.
+
+**Décisions prises seul** :
+- Enclos : 5 pièces par jour, réserve de 20 au plus (la question n'a pas été posée la nuit).
+- Récolte possible au clavier (Tab puis Entrée ou Espace).
+- Bulle d'une petite maison au téléphone : une ligne d'aide au lieu d'un bouton.
+- Au plus 50 petites maisons cachées par personne ; les petites maisons automatiques des projets suivent l'ordre des projets actifs ; une petite maison cachée dont le projet a disparu reste listée dans « Petites maisons cachées ».
+- Schéma de la Console générique : ni hébergeur, ni identifiant de projet, ni nom de client (le dépôt est public, garde-fou 5 de `docs/console.md`). « Maison client 1 » et « Appartement 1, 2, 3 » remplacent les vrais noms. Les maquettes d'origine avec les vrais noms sont gardées en privé sur ton Mac, hors du dépôt.
+
+**Ce qui reste à Jérôme** :
+1. Lancer le déploiement de la plateforme clients quand tu veux que tes clients aient le village complet.
+2. Essayer le village chez toi (liste de tests donnée dans la discussion).
+3. Console, étape B : les vrais noms et les vraies informations de chaque bâtiment, lus par le serveur, visibles par toi seul (à décider quand tu veux).
+
+**Non vérifié** :
+- Tout a été testé avec les émulateurs, pas avec la vraie base ; pas sur un vrai téléphone.
+- La pousse sur plusieurs jours (le temps a été simulé dans les tests).
+- Limites connues de la PR 752 : Échap pendant un glisser puis bouton relâché tard peut récolter ; une horloge d'ordinateur décalée peut afficher « prêt » à tort.
+- Test instable à surveiller : `mairie 1.7` (403 parfois en local, vert sur GitHub) ; `village-or 7.7a` (10 récoltes en même temps).
+
 ## Rapport du matin du 27/11/2026 (nuit 4) : appli Factures, sauvegarde .zip, photos de connexion, applications dans la coque
 
 | Sujet | PR | État |

@@ -904,10 +904,12 @@ body.page-espace { background: #241b2e; color: #fff; }
 .village-choix-deja { flex: 0 0 auto; color: var(--texte2); font-size: var(--fs-petit); }
 
 /* ---------------------------------------------------------------- Console > Vue d'ensemble : schéma d'architecture figé (27/11/2026) */
-/* Deux dessins : large (une rangée) et étroit (deux rangées, sous 760 px) ; un seul est montré. Couleurs des thèmes (tokens.css). */
+/* Deux dessins : large (une rangée) et étroit (deux rangées) ; un seul est montré, selon la largeur de la SECTION (le menu latéral
+   compte) : sous 900 px de contenu, le dessin large (880 unités) rendrait ses textes sous 12 px. Couleurs des thèmes (tokens.css). */
+.console-schema-cadre { container-type: inline-size; }
 .console-schema { display: block; width: 100%; height: auto; margin: var(--esp-4) auto; }
 .console-schema-etroit { display: none; max-width: 480px; }
-@media (max-width: 759px) {
+@container (max-width: 900px) {
   .console-schema-large { display: none; }
   .console-schema-etroit { display: block; }
 }
