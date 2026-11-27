@@ -139,7 +139,7 @@ export function parcellesConnues() {
 }
 
 /**
- * Achat dans la boutique (6b) : { etat: 'ok', or, parcelles, objet? } | { etat: 'refus', raison, manque? } | { etat: 'erreur' }. Jamais d'exception.
+ * Achat dans la boutique (6b) : { etat: 'ok', or, parcelles, objet? } | { etat: 'refus', raison, manque?, or, parcelles } (le solde connu) | { etat: 'erreur' }. Jamais d'exception.
  * Le serveur décide (solde, case, limites) ; quand il rend le portefeuille (même sur un refus), le solde connu suit et les abonnés sont prévenus.
  */
 export async function acheterOr({ article, modele, c, l } = {}) {
@@ -164,7 +164,7 @@ export async function acheterOr({ article, modele, c, l } = {}) {
     }
     const raison = typeof d.raison === 'string' ? d.raison : 'demande';
     console.warn('Village : achat refusé', raison);
-    return { etat: 'refus', raison, manque: entier(d.manque) ?? undefined };
+    return { etat: 'refus', raison, manque: entier(d.manque) ?? undefined, or: solde, parcelles };
   } catch (e) {
     console.warn('Village : achat non abouti', String(e?.code ?? 'inconnu'));
     return { etat: 'erreur' };

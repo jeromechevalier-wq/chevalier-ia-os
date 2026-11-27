@@ -582,7 +582,7 @@ describe('Or du village (27/11/2026)', () => {
   const AUTRE = 'quelquun.dautre@gmail.com';
   const porte = (db, email) => doc(db, 'village_utilisateurs', `uid-${email}`);
   const objet = (db, email, id) => doc(db, 'village_utilisateurs', `uid-${email}`, 'batiments', id);
-  const CHAMP = { sorte: 'champ', c: 4, l: 4, depuis: new Date('2026-11-26T10:00:00Z'), acheteLe: new Date('2026-11-26T10:00:00Z') };
+  const CHAMP = { sorte: 'champ', c: 4, l: 4, depuis: new Date('2026-11-26T10:00:00Z'), acheteLe: new Date('2026-11-26T10:00:00Z'), modifieLe: new Date('2026-11-26T10:00:00Z') };
   const semer = (chemin, donnees) => env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), ...chemin), donnees); });
 
   test('6.R1 le propriétaire lit son portefeuille ; un autre compte autorisé, un compte non autorisé, un non connecté : refusés', async () => {
@@ -620,7 +620,9 @@ describe('Or du village (27/11/2026)', () => {
     await semer(['village_utilisateurs', `uid-${J}`, 'batiments', 'o-abc'], CHAMP);
     const db = contexte(J);
     await assertSucceeds(getDoc(objet(db, J, 'o-abc')));
-    await assertSucceeds(updateDoc(objet(db, J, 'o-abc'), { c: 6, l: 2 }));
+    // l'objet porte déjà modifieLe (écrit par le serveur) : un déplacement le renouvelle toujours, sinon il est refusé
+    await assertFails(updateDoc(objet(db, J, 'o-abc'), { c: 6, l: 2 }));
+    await assertSucceeds(updateDoc(objet(db, J, 'o-abc'), { c: 6, l: 2, modifieLe: serverTimestamp() }));
     await assertSucceeds(updateDoc(objet(db, J, 'o-abc'), { c: 7, modifieLe: serverTimestamp() }));
     const relu = (await getDoc(objet(db, J, 'o-abc'))).data();
     await assertSucceeds(setDoc(objet(db, J, 'o-abc'), { ...relu, c: 1, l: 1, modifieLe: serverTimestamp() })); // l'écran écrit le document entier

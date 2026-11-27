@@ -518,6 +518,9 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
     }
     for (const client of ['../a', '', undefined, 'A B']) await assert.rejects(appel(ALICE, { client, action: 'gain', source: 'devis-signe', id: 'd1' }), (e) => e instanceof Refus && e.code === 'invalid-argument');
     await assert.rejects(appel(ALICE, { client: 'a', action: 'ramasser' }), (e) => e instanceof Refus && e.code === 'invalid-argument');
+    // 6b : Alice n'est pas membre du client b : elle n'y achète rien (refus neutre, rien n'est écrit)
+    await assert.rejects(appel(ALICE, { client: 'b', action: 'acheter', article: 'parcelle' }), (e) => e instanceof Refus && e.code === 'permission-denied' && e.message === 'Action non autorisée.');
+    assert.equal(await portefeuille('u-alice', 'clients/b/'), null);
     await assert.rejects(appel(ALICE, { client: 'a', action: 'gain' }, false), (e) => e instanceof Refus && e.code === 'unauthenticated');
     assert.equal(await portefeuille('u-lea', 'clients/a/'), null);
   });
@@ -546,8 +549,9 @@ describe('6.A appels et vérificateur (sans émulateur)', () => {
     appels.length = 0;
     assert.deepEqual(await appel(requete({ data: { action: 'acheter', article: 'parcelle', uid: 'quelquun-dautre' } })), { ok: true, achete: true, or: 0, parcelles: 1, version: 2 });
     assert.deepEqual(appels, [{ email: 'lea@exemple.test', achat: true, uid: 'u1', article: 'parcelle', modele: undefined, c: undefined, l: undefined }]);
-    const enPanne = creerAppelVillage({ service: () => ({ gain: async () => { throw new TypeError('boum'); } }), comptes: ['lea@exemple.test'], journal: (e) => journal.push(e) });
+    const enPanne = creerAppelVillage({ service: () => ({ gain: async () => { throw new TypeError('boum'); }, acheter: async () => { throw new TypeError('boum'); } }), comptes: ['lea@exemple.test'], journal: (e) => journal.push(e) });
     await assert.rejects(enPanne(requete()), (e) => e.code === 'internal' && e.message === 'Une erreur est survenue. Réessaie.');
+    await assert.rejects(enPanne(requete({ data: { action: 'acheter', article: 'parcelle' } })), (e) => e.code === 'internal' && e.message === 'Une erreur est survenue. Réessaie.');
     assert.ok(journal.length >= 2);
     for (const e of journal) {
       const ligne = JSON.parse(ligneDeJournalVillage({ ...e, uid: 'u1', email: 'lea@exemple.test', id: 'd1', projetId: 'p1' }));

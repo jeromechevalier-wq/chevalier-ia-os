@@ -4,7 +4,7 @@
 // (portefeuille, objet acheté). Un test par critère (le nom commence par son numéro) ; captures dans tests/e2e/captures/village-or-boutique/ (non commitées),
 // nommées avec le projet. Données d'exemple neutres.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, lireDocument, estTelephone, JEROME, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
+import { test, expect, connecter, ecrireDocument, lireDocument, listerDocuments, estTelephone, JEROME, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/village-or-boutique/', import.meta.url));
@@ -95,7 +95,8 @@ async function pointBloc(page, c, l, taille = 1, dz = 0) {
     return { x: p.x, y: p.y };
   }, [c, l, taille, dz, cote]);
 }
-/** Glisser à la souris (ordinateur) ou au doigt (téléphone) d'un point à un autre ; `relacher` faux : le bouton reste enfoncé (souris seulement). */
+/** Glisser à la souris (ordinateur) ou au doigt (téléphone) d'un point à un autre ; `relacher` faux : le bouton (ou le doigt) reste posé, `lacher` le lève. */
+const doigtsEnCours = new WeakMap(); // page → session CDP du doigt encore posé (le toucher vit dans sa session)
 async function glisser(page, depart, arrivee, { relacher = true } = {}) {
   if (estTelephone(page)) {
     const cdp = await page.context().newCDPSession(page);
@@ -105,7 +106,8 @@ async function glisser(page, depart, arrivee, { relacher = true } = {}) {
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: point({ x: depart.x + ((arrivee.x - depart.x) * i) / 10, y: depart.y + ((arrivee.y - depart.y) * i) / 10 }) });
       await page.waitForTimeout(16);
     }
-    if (relacher) await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    if (!relacher) { doigtsEnCours.set(page, cdp); return; } // le doigt reste posé : la même session le lève (lacher)
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await cdp.detach();
     return;
   }
@@ -113,6 +115,23 @@ async function glisser(page, depart, arrivee, { relacher = true } = {}) {
   await page.mouse.down();
   for (let i = 1; i <= 8; i++) await page.mouse.move(depart.x + ((arrivee.x - depart.x) * i) / 8, depart.y + ((arrivee.y - depart.y) * i) / 8);
   if (relacher) await page.mouse.up();
+}
+/** Relâche le bouton de la souris, ou lève le doigt (téléphone). */
+async function lacher(page) {
+  if (!estTelephone(page)) { await page.mouse.up(); return; }
+  const cdp = doigtsEnCours.get(page);
+  if (!cdp) return;
+  doigtsEnCours.delete(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+/** Appui long au doigt (700 ms sans bouger). */
+async function appuiLong(page, p) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: Math.round(p.x), y: Math.round(p.y), id: 1 }] });
+  await page.waitForTimeout(700);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
 }
 const caseDe = async (locator) => (await locator.getAttribute('data-case')).split('-').map(Number);
 /** Un point de l'écran où l'objet est vraiment touché (aucune étiquette ni maison par-dessus), ou une erreur. */
@@ -161,7 +180,7 @@ test.describe('accueil village : la boutique (étape 6b)', () => {
     await boutonBoutique(page).click();
     await expect(fenetre(page)).toBeVisible();
     await expect(ligne(page, 'parcelle')).toContainText('Parcelle de terrain');
-    await expect(ligne(page, 'parcelle')).toContainText('2 cases de plus de chaque côté.');
+    await expect(ligne(page, 'parcelle')).toContainText('Ton terrain gagne 2 cases en largeur et en profondeur.');
     await expect(ligne(page, 'parcelle')).toContainText('500 pièces d’or');
     await capturer(page, info, '6.4-boutique');
     await ligne(page, 'parcelle').locator('[data-role="acheter"]').click();
@@ -213,6 +232,12 @@ test.describe('accueil village : la boutique (étape 6b)', () => {
     await expect(ligne(page, 'decoration', 'arbre').locator('[data-role="acheter"]')).toBeDisabled();
     await expect(fenetre(page)).toBeVisible();
     await expect(or(page)).toHaveText('10 pièces d’or');
+    // toutes les lignes sont revues avec le solde du serveur (10) : les autres décorations grisées, la parcelle « Encore 490 pièces. »
+    for (const modele of ['fleurs', 'banc', 'cloture', 'brouette']) {
+      await expect(ligne(page, 'decoration', modele).locator('[data-role="acheter"]')).toBeDisabled();
+      await expect(ligne(page, 'decoration', modele).locator('[data-role="manque"]')).toHaveText('Encore 10 pièces.');
+    }
+    await expect(parcelle.locator('[data-role="manque"]')).toHaveText('Encore 490 pièces.');
     expect(demandes.length).toBe(1);
     await capturer(page, info, '6.5-refus-serveur');
   });
@@ -252,16 +277,17 @@ test.describe('accueil village : la boutique (étape 6b)', () => {
     await page.waitForTimeout(500);
     expect(await page.evaluate(() => location.hash)).toBe('#/accueil');
     await expect(page.locator('[data-role="bulle"]')).toBeHidden();
+    // double clic (ordinateur) ou appui long (téléphone) sur l'objet : aucune fenêtre ne s'ouvre
+    if (estTelephone(page)) await appuiLong(page, await pointSurObjet(arbre)); else await page.mouse.dblclick(surObjet.x, surObjet.y);
+    await page.waitForTimeout(800);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(await page.evaluate(() => location.hash)).toBe('#/accueil');
     // glisser sur une maison : repère rouge, il revient
     const [mc, ml] = await caseDe(page.locator('[data-role="batiment"]').first());
-    if (!estTelephone(page)) {
-      await glisserObjet(page, arbre, [d.c, d.l], [mc, ml], { relacher: false });
-      await expect(page.locator('[data-role="cible-rangement"]')).toHaveAttribute('data-libre', 'non');
-      await capturer(page, info, '6.6-sur-une-maison');
-      await page.mouse.up();
-    } else {
-      await glisserObjet(page, arbre, [d.c, d.l], [mc, ml]);
-    }
+    await glisserObjet(page, arbre, [d.c, d.l], [mc, ml], { relacher: false });
+    await expect(page.locator('[data-role="cible-rangement"]')).toHaveAttribute('data-libre', 'non');
+    await capturer(page, info, '6.6-sur-une-maison');
+    await lacher(page);
     await expect(arbre).toHaveAttribute('data-case', `${d.c}-${d.l}`);
     // glisser sur une case libre (le coin du devant)
     await page.waitForTimeout(600); // le retour de l'objet (animation) se termine
@@ -272,6 +298,45 @@ test.describe('accueil village : la boutique (étape 6b)', () => {
     await capturer(page, info, '6.6-glisse');
     await rouvrir(page);
     await expect(page.locator('[data-role="objet"][data-modele="arbre"]')).toHaveAttribute('data-case', '4-7');
+  });
+
+  test('6.6e refus définitifs du serveur : « Ton terrain est au plus grand. » ; lecture seule : « Ton accès est en lecture seule : tu ne peux pas acheter. » (sans « Réessaie »)', async ({ page }, info) => {
+    await semer({ besoins: [FACTURES] });
+    let reponse = { result: { ok: true, achete: false, raison: 'maximum', or: 900, parcelles: 8, version: 5 } };
+    const demandes = await simulerOr(page, async (d) => (d.action === 'acheter' ? reponse : { result: { ok: true, gagne: 0, raison: 'deja' } }));
+    await ouvrirVillage(page, (u) => porteMonnaie(u, 900, 7));
+    await boutonBoutique(page).click();
+    await ligne(page, 'parcelle').locator('[data-role="acheter"]').click();
+    const message = fenetre(page).locator('[data-role="boutique-message"]');
+    await expect(message).toHaveText('Ton terrain est au plus grand.');
+    await expect(fenetre(page)).toBeVisible();
+    await expect(ligne(page, 'parcelle').locator('[data-role="manque"]')).toHaveText('Ton terrain est au plus grand.'); // les 8 parcelles du serveur grisent la ligne
+    reponse = { result: { ok: true, achete: false, raison: 'lecture_seule' } };
+    await ligne(page, 'decoration', 'banc').locator('[data-role="acheter"]').click();
+    await expect(message).toHaveText('Ton accès est en lecture seule : tu ne peux pas acheter.');
+    await expect(message).not.toContainText('Réessaie');
+    expect(demandes.filter((d) => d.action === 'acheter').length).toBe(2);
+    await capturer(page, info, '6.6e-lecture-seule');
+  });
+
+  test('6.4c le portefeuille arrive après le rangement : le damier grandit, aucun document n’est réécrit', async ({ page }, info) => {
+    await semer({ besoins: [FACTURES, ACHATS_B] });
+    await simulerOr(page, async () => ({ result: { ok: true, gagne: 0, raison: 'deja' } }));
+    const uid = await ouvrirVillage(page, async (u) => {
+      await porteMonnaie(u, 50, 2);
+      await maisonRangee(u, 'achatsfactures-liste', 2, 2);
+      await decoration(u, 'o-tot', 'banc', 7, 7);
+      await page.evaluate(() => { window.__chevalierTest.pannesOr = { lenteur: 2500 }; });
+    });
+    const avant = await listerDocuments(`village_utilisateurs/${uid}/batiments`);
+    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '8'); // le rangement est fait avant le portefeuille
+    await expect(or(page)).toHaveText('50 pièces d’or', { timeout: 10000 });
+    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '12');
+    await expect(page.locator('[data-role="batiment"][data-maison="b-achatsfactures-liste"]')).toHaveAttribute('data-case', '2-2');
+    await expect(page.locator('[data-role="objet"][data-maison="o-tot"]')).toHaveAttribute('data-case', '7-7');
+    await page.waitForTimeout(800);
+    expect(await listerDocuments(`village_utilisateurs/${uid}/batiments`)).toEqual(avant);
+    await capturer(page, info, '6.4c-portefeuille-en-retard');
   });
 
   test('6.6b double clic sur « Acheter » : une seule demande', async ({ page }) => {

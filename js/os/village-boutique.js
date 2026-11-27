@@ -30,7 +30,7 @@ function refusAvant(article, { or, parcelles, objets, caseLibre }) {
 
 /**
  * Ouvre la boutique. `or`, `parcelles`, `objets` : nombres connus ; `caseLibre()` : une case { c, l } libre pour une décoration, ou null ;
- * `dessin(id)` : la vignette SVG d'un article ; `surAcheter(article, modele)` : Promise { ok: true } | { ok: false, message?, manque? }.
+ * `dessin(id)` : la vignette SVG d'un article ; `surAcheter(article, modele)` : Promise { ok: true } | { ok: false, or?, parcelles?, message?, manque? } (`or`, `parcelles` : ce qui est connu après le refus).
  */
 export function ouvrirBoutique({ or, parcelles, objets, caseLibre, dessin, surAcheter }) {
   const etat = { or: Number.isInteger(or) ? or : 0, parcelles: Number.isInteger(parcelles) ? parcelles : 0, objets: Number.isInteger(objets) ? objets : 0, caseLibre };
@@ -41,7 +41,7 @@ export function ouvrirBoutique({ or, parcelles, objets, caseLibre, dessin, surAc
 
   const articles = [
     ...MODELES_DECORATION.map((modele) => ({ article: 'decoration', modele, nom: DESSINS_JEU[modele]?.nom ?? modele, phrase: '', prix: PRIX.decoration })),
-    { article: 'parcelle', modele: '', nom: 'Parcelle de terrain', phrase: '2 cases de plus de chaque côté.', prix: PRIX.parcelle },
+    { article: 'parcelle', modele: '', nom: 'Parcelle de terrain', phrase: 'Ton terrain gagne 2 cases en largeur et en profondeur.', prix: PRIX.parcelle },
   ];
 
   /** Grise (ou non) une ligne, avec sa phrase. */
@@ -64,6 +64,10 @@ export function ouvrirBoutique({ or, parcelles, objets, caseLibre, dessin, surAc
     try { r = await surAcheter(ligne.article, ligne.modele || undefined); } catch { r = { ok: false }; }
     occupe = false;
     if (r?.ok) { fermerFenetre?.(true, true); return; }
+    // le solde du serveur a pu changer (dépensé ailleurs) : toutes les lignes sont revues avec lui, pas seulement celle-ci
+    if (Number.isInteger(r?.or) && r.or >= 0) etat.or = r.or;
+    if (Number.isInteger(r?.parcelles) && r.parcelles > etat.parcelles) etat.parcelles = r.parcelles;
+    for (const l of lignes) poserRefus(l, refusAvant(l.article, etat));
     if (Number.isInteger(r?.manque) && r.manque > 0) poserRefus(ligne, texteManque(r.manque));
     else { message.textContent = r?.message || ECHEC_ACHAT; message.hidden = false; }
     majBoutons();

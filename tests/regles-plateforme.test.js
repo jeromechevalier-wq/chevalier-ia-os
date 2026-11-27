@@ -592,14 +592,17 @@ describe('Village par utilisateur sur la plateforme (27/11/2026)', () => {
 
   test('P-V7 (6b) objet acheté chez le client a : l’éditrice et la lectrice déplacent le leur (c, l) ; tout le reste est refusé ; un autre membre, un autre client : rien', async () => {
     const quand = new Date('2026-11-26T10:00:00Z');
-    const OBJET = { sorte: 'decoration', modele: 'arbre', c: 4, l: 4, depuis: quand, acheteLe: quand };
+    const OBJET = { sorte: 'decoration', modele: 'arbre', c: 4, l: 4, depuis: quand, acheteLe: quand, modifieLe: quand };
     await env.withSecurityRulesDisabled(async (c) => {
       for (const email of [ALICE, LEA]) await setDoc(chemin(c.firestore(), 'a', email, 'o-abc'), OBJET);
+      await setDoc(chemin(c.firestore(), 'b', ALICE, 'o-abc'), OBJET); // le même objet existe chez b : le refus vient bien de l'appartenance, pas d'un document absent
     });
     for (const email of [ALICE, LEA]) {
       const db = ctx(email);
       await assertSucceeds(getDoc(chemin(db, 'a', email, 'o-abc')));
-      await assertSucceeds(updateDoc(chemin(db, 'a', email, 'o-abc'), { c: 6, l: 2 }));
+      // l'objet porte déjà modifieLe (écrit par le serveur) : un déplacement le renouvelle toujours, sinon il est refusé
+      await assertFails(updateDoc(chemin(db, 'a', email, 'o-abc'), { c: 6, l: 2 }));
+      await assertSucceeds(updateDoc(chemin(db, 'a', email, 'o-abc'), { c: 6, l: 2, modifieLe: serverTimestamp() }));
       await assertSucceeds(updateDoc(chemin(db, 'a', email, 'o-abc'), { c: 7, modifieLe: serverTimestamp() }));
       for (const modif of [{ depuis: new Date('2026-11-20T10:00:00Z') }, { acheteLe: new Date() }, { sorte: 'enclos' }, { modele: 'banc' }, { prix: 0 }, { c: 24 }, { c: 'deux' }]) {
         await assertFails(updateDoc(chemin(db, 'a', email, 'o-abc'), modif));
