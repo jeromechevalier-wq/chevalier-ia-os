@@ -350,3 +350,25 @@ export function lignesChiffres(ch) {
 
 /** Largeur de la barre de budget (0 à 100) : jamais au-delà, jamais de barre sans budget. */
 export const largeurBarre = (ch) => (ch && ch.budget_renseigne && typeof ch.pct_budget_consomme === 'number' ? Math.max(0, Math.min(100, ch.pct_budget_consomme)) : null);
+
+// ---------------------------------------------------------------- village de l'accueil (petites maisons « vue filtrée », 27/11/2026)
+
+const ID_ELEMENT = /^[A-Za-z0-9_-]{1,100}$/;
+
+/**
+ * Les chantiers vus par le village de l'accueil : { id, nom, sousTitre, cible, automatique, archive } ; la cible ouvre l'écran sur ce seul chantier.
+ * `automatique` : un chantier en cours et non archivé reçoit une petite maison sans rien faire. Un identifiant mal formé est ignoré.
+ */
+export function elementsVillage(chantiers) {
+  return (Array.isArray(chantiers) ? chantiers : []).filter((c) => c && ID_ELEMENT.test(String(c.id ?? ''))).map((c) => ({
+    id: String(c.id),
+    nom: String(c.nom ?? '').trim() || String(c.id),
+    sousTitre: [c.code, libelleStatutChantier(c.statut)].filter(Boolean).join(' · '),
+    cible: `#/achatschantiers/liste/${c.id}`,
+    automatique: c.statut === 'en_cours' && !estArchive(c),
+    archive: estArchive(c),
+  }));
+}
+
+/** Un seul chantier (adresse « achatschantiers/liste/<id> »), archivé ou non ; liste vide s'il n'est plus là. */
+export const chantierSeul = (chantiers, id) => chantiers.filter((c) => String(c.id) === String(id));

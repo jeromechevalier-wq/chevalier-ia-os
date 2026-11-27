@@ -299,7 +299,7 @@ test('1.4 la Mairie des réglages et la Console : dessins hors catalogue, dans l
 
 test('1.4 2.13 les îlots Mairie et Console ne sont pas des bâtiments de besoin ; la Console suit le même contrôle que le menu', () => {
   const ecran = lire('js/os/village-ecran.js');
-  assert.match(ecran, /export function monterVillage\(conteneur, besoins, \{ aller, console: avecConsole = false, donnees = null, or = null \}\)/); // étape 2 : + `donnees` (rangement) ; 6a : + `or` (compteur d'or)
+  assert.match(ecran, /export function monterVillage\(conteneur, besoins, \{ aller, console: avecConsole = false, donnees = null, or = null, petites = null \}\)/); // étape 2 : + `donnees` (rangement) ; 6a : + `or` (compteur d'or) ; 3c : + `petites`
   assert.match(ecran, /const enfants = \[defile, bulle\.element, \.\.\.fixes, /); // étape 2 : le dessin est dans `defile` (seul à défiler sur téléphone)
   const ilot = ecran.slice(ecran.indexOf('function ilot('), ecran.indexOf('export function monterVillage'));
   assert.ok(!/'batiment'|'etiquette'|'batiment-nom'|data-parcelle|dataset\.parcelle|data-maison|dataset\.maison/.test(ilot));
@@ -434,7 +434,7 @@ test('pannes lireBatiments : un document mal formé est ignoré (mêmes contrôl
 });
 
 test('sûreté aucun innerHTML ni son dans les fichiers du village ; village-damier.js n’importe aucun module métier ; seul village-donnees.js parle à Firestore', () => {
-  const fichiers = ['js/os/village-damier.js', 'js/os/village-donnees.js', 'js/os/village-glisser.js', 'js/os/village-liste.js', 'js/os/village-reglages.js', 'js/os/village-ecran.js'];
+  const fichiers = ['js/os/village-damier.js', 'js/os/village-donnees.js', 'js/os/village-glisser.js', 'js/os/village-liste.js', 'js/os/village-reglages.js', 'js/os/village-ecran.js', 'js/os/village-petites.js', 'js/os/village-petites-lecture.js']; // 3c : + les petites maisons
   for (const f of fichiers) {
     const code = lire(f).replace(/^\s*\/\/.*$/gm, '');
     assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(code), `${f} : HTML injecté`);
@@ -442,6 +442,14 @@ test('sûreté aucun innerHTML ni son dans les fichiers du village ; village-dam
     if (f !== 'js/os/village-donnees.js') assert.ok(!/firebase-firestore|setDoc|writeBatch|getDocs/.test(code), `${f} : Firestore`);
   }
   assert.ok(!/modules\//.test(lire('js/os/village-damier.js').replace(/^\s*\/\/.*$/gm, '')));
+  // 3c : village-petites.js n'a ni module ni Firebase ; village-petites-lecture.js ne charge un module que par import() dynamique, pannes sous MODE_EMULATEURS seulement
+  const petites = lire('js/os/village-petites.js').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/modules\/|firebase/i.test(petites));
+  const lecture = lire('js/os/village-petites-lecture.js').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/from '[^']*modules\//.test(lecture), 'aucun import statique d’un module');
+  assert.match(lecture, /import\('\.\.\/modules\/achatschantiers\/donnees\.js'\)/);
+  assert.match(lecture, /if \(!MODE_EMULATEURS\) return false;/);
+  for (const f of ['js/os/village-ecran.js', 'js/os/village-glisser.js', 'js/os/village-reglages.js', 'js/os/village-liste.js']) assert.ok(!/modules\//.test(lire(f).replace(/^\s*\/\/.*$/gm, '')), f);
   const donnees = lire('js/os/village-donnees.js');
   assert.match(donnees, /if \(!MODE_EMULATEURS\) return false;/); // pannes simulées : émulateurs seulement
   assert.match(donnees, /modifieLe: serverTimestamp\(\)/);
@@ -556,4 +564,132 @@ test('3a-bis les fonctions du village sont identiques dans firestore.rules et fi
   };
   assert.equal(bloc('firestore.plateforme.rules'), bloc('firestore.rules'));
   assert.match(lire('firestore.plateforme.rules'), /match \/clients\/\{client\}\/village_utilisateurs\/\{uid\}\/batiments\/\{id\} \{\n\s+allow read, delete: if connecte\(\) && request\.auth\.uid == uid && roleDe\(client\) in \['editeur', 'lecteur'\];\n\s+allow create, update: if connecte\(\) && request\.auth\.uid == uid && roleDe\(client\) in \['editeur', 'lecteur'\] && villageBatimentValide\(id\);\n\s+\}/);
+});
+
+// ---------------------------------------------------------------- étape 4 : petites maisons « vue filtrée » (étape 3c, 27/11/2026, js/os/village-petites.js)
+// Parcours dans le navigateur : tests/e2e/maison-village-petites.spec.js (captures dans tests/e2e/captures/maison-village-petites/).
+const P = await import('../js/os/village-petites.js');
+const LC = await import('../js/modules/achatschantiers/logique.js');
+const LP = await import('../js/modules/projets/logique.js');
+const CHANTIERS_B = { nom: 'Chantiers', phrase: '', batiment: 'grue', cible: '#/achatschantiers/liste' };
+const chantier = (id, statut, archive = false, nom = `Chantier ${id}`) => ({ id, nom, code: `CH-${id}`, statut, archive });
+const lus = (chantiers) => new Map([['achatschantiers', { etat: 'ok', liste: LC.elementsVillage(chantiers) }]]);
+const docP = (parent, cible, nom = 'Petite') => ({ sorte: 'petite', parent, nom, cible });
+const ranger4 = ({ besoins = [FACTURES, CHANTIERS_B], batiments = new Map(), elements = new Map(), modules = ['achatschantiers', 'projets'] } = {}) => {
+  const { maisons } = rangerVillage({ besoins, batiments });
+  return { maisons, ...P.rangerPetites({ maisons, batiments, elements, modules }) };
+};
+const voisine = (grande, p) => P.casesVoisines(grande.c, grande.l).some(({ c, l }) => c === p.c && l === p.l);
+
+test('4.1 docPetite et rangerPetites : une petite manuelle se pose sur une case voisine libre (1 x 1), dans l’ordre fixe ; le document passe batimentValable ; 12 au plus', () => {
+  const d = P.docPetite({ parent: 'b-achatschantiers-liste', nom: '  Atelier   B ', cible: '#/achatschantiers/liste/c2' });
+  assert.deepEqual(d, { sorte: 'petite', parent: 'b-achatschantiers-liste', nom: 'Atelier B', cible: '#/achatschantiers/liste/c2' });
+  assert.ok(batimentValable('p-abc-1234', d));
+  assert.equal(P.docPetite({ parent: 'b-x', nom: 'x', cible: `https://${HOTE_ESSAI}` }), null);
+  assert.equal(P.docPetite({ parent: 'b-x', nom: 'x', cible: 'javascript:alert(1)' }), null);
+  assert.equal(P.docPetite({ parent: 'l-abc', nom: 'x', cible: '#/achatschantiers/liste/c2' }), null);
+  assert.equal(P.docPetite({ parent: 'b-x', nom: '', cible: '#/achatschantiers/liste/c2' }).nom, 'Petite maison');
+  // 12 cases voisines, toutes différentes, toutes autour du bloc 2 x 2, aucune dans le bloc
+  const v = P.casesVoisines(3, 3);
+  assert.equal(new Set(v.map(({ c, l }) => `${c}-${l}`)).size, 12);
+  for (const { c, l } of v) assert.ok(c >= 2 && c <= 5 && l >= 2 && l <= 5 && !(c >= 3 && c <= 4 && l >= 3 && l <= 4));
+  const batiments = new Map([['p-a', docP('b-achatschantiers-liste', '#/achatschantiers/liste/c2', 'Atelier B')]]);
+  const r = ranger4({ batiments, elements: lus([chantier('c2', 'en_preparation')]) });
+  const grande = r.maisons.find((m) => m.id === 'b-achatschantiers-liste');
+  assert.equal(r.petites.length, 1);
+  const [p] = r.petites;
+  assert.equal(p.taille, 1);
+  assert.equal(p.auto, false);
+  assert.equal(p.parent, grande.id);
+  const premiere = P.casesVoisines(grande.c, grande.l).find(({ c, l }) => dansDamier(c, l, 1));
+  assert.deepEqual([p.c, p.l], [premiere.c, premiere.l]); // la première case voisine libre, dans l'ordre fixe
+  // 12 au plus : seules les manuelles réellement rangées comptent
+  const douze = new Map(Array.from({ length: 12 }, (_, i) => [`p-${String(i).padStart(2, '0')}`, docP('b-achatschantiers-liste', `#/achatschantiers/liste/c${i}`)]));
+  const r12 = ranger4({ batiments: douze, elements: lus(Array.from({ length: 12 }, (_, i) => chantier(`c${i}`, 'termine'))) });
+  assert.equal(P.nombreManuelles(r12), 12);
+  assert.equal(P.peutAjouterPetite(r12), false);
+  assert.equal(P.PETITES_MAX, 12);
+  assert.equal(P.peutAjouterPetite(ranger4({ batiments: douze, elements: lus([]) })), true); // éléments disparus : ils ne comptent pas, les documents restent
+});
+
+test('4.2 les adresses : chantier → #/achatschantiers/liste/<id>, projet → #/projets/projets/<id> ; un identifiant mal formé est ignoré ; toutes passent cibleValide', () => {
+  const ch = LC.elementsVillage([chantier('c1', 'en_cours'), { id: 'mal formé', nom: 'X', statut: 'en_cours' }, { id: 'c9', nom: 'Sans code', code: null, statut: 'suspendu', archive: true }]);
+  assert.deepEqual(ch, [
+    { id: 'c1', nom: 'Chantier c1', sousTitre: 'CH-c1 · En cours', cible: '#/achatschantiers/liste/c1', automatique: true, archive: false },
+    { id: 'c9', nom: 'Sans code', sousTitre: 'Suspendu', cible: '#/achatschantiers/liste/c9', automatique: false, archive: true },
+  ]);
+  const pr = LP.elementsVillage([{ id: 'pr1', titre: 'Projet essai', statut: 'actif' }, { id: 'pr2', titre: 'Fini', statut: 'termine', archive: true }, { id: '../x', titre: 'X' }]);
+  assert.deepEqual(pr.map((e) => [e.cible, e.automatique, e.archive, e.sousTitre]), [['#/projets/projets/pr1', false, false, 'Actif'], ['#/projets/projets/pr2', false, true, 'Terminé']]);
+  for (const e of [...ch, ...pr]) assert.ok(cibleValide(e.cible), e.cible);
+  assert.deepEqual(LC.chantierSeul([chantier('c1', 'en_cours'), chantier('c2', 'termine', true)], 'c2').map((c) => c.id), ['c2']);
+  assert.deepEqual(LC.chantierSeul([chantier('c1', 'en_cours')], 'zz'), []);
+  assert.equal(P.moduleDeCible('#/achatschantiers/liste/c1'), 'achatschantiers');
+  assert.equal(P.sourcePour({ sorte: 'besoin', besoin: CHANTIERS_B }).un, 'ce chantier');
+  assert.equal(P.sourcePour({ sorte: 'besoin', besoin: FACTURES }), null);
+  assert.equal(P.sourcePour({ sorte: 'lien', besoin: { nom: 'x' } }), null);
+});
+
+test('4.3 la grande maison change de place : ses petites sont recalculées autour de la nouvelle place ; une petite ne bloque jamais une grande', () => {
+  const docs = new Map([['p-a', docP('b-achatschantiers-liste', '#/achatschantiers/liste/c2')]]);
+  const elements = lus([chantier('c1', 'en_cours'), chantier('c2', 'en_preparation')]);
+  const avant = ranger4({ batiments: docs, elements });
+  const deplace = new Map(docs).set('b-achatschantiers-liste', { sorte: 'besoin', c: 4, l: 4 });
+  const apres = ranger4({ batiments: deplace, elements });
+  const grandeAvant = avant.maisons.find((m) => m.id === 'b-achatschantiers-liste');
+  const grandeApres = apres.maisons.find((m) => m.id === 'b-achatschantiers-liste');
+  assert.notDeepEqual([grandeAvant.c, grandeAvant.l], [grandeApres.c, grandeApres.l]);
+  assert.equal(avant.petites.length, 2);
+  assert.equal(apres.petites.length, 2);
+  for (const p of avant.petites) assert.ok(voisine(grandeAvant, p));
+  for (const p of apres.petites) assert.ok(voisine(grandeApres, p));
+  // une grande peut toujours aller sur la case d'une petite : la place des grandes ne regarde que les grandes
+  const grandes = occupation(apres.maisons);
+  for (const p of apres.petites) {
+    assert.ok(!grandes.has(`${p.c}-${p.l}`));
+    assert.ok(blocLibre(grandes, p.c, p.l, 1));
+  }
+  // aucune petite ne partage une case avec une grande ni avec une autre petite
+  const toutes = occupation([...apres.maisons, ...apres.petites]);
+  assert.equal(toutes.size, apres.maisons.length * 4 + apres.petites.length);
+});
+
+test('4.4 un chantier en cours a sa petite maison automatique à côté de la maison des chantiers ; 6 au plus ; maison des chantiers cachée : aucune', () => {
+  const r = ranger4({ elements: lus([chantier('c1', 'en_cours'), chantier('c2', 'en_preparation')]) });
+  assert.deepEqual(r.petites.map((p) => [p.id, p.auto, p.parent, p.cible]), [['a-achatschantiers-c1', true, 'b-achatschantiers-liste', '#/achatschantiers/liste/c1']]);
+  assert.equal(r.petites[0].donnees, null); // jamais un document
+  assert.ok(voisine(r.maisons.find((m) => m.id === 'b-achatschantiers-liste'), r.petites[0]));
+  const huit = ranger4({ elements: lus(Array.from({ length: 8 }, (_, i) => chantier(`c${i}`, 'en_cours'))) });
+  assert.equal(huit.petites.length + huit.sansPlace.length, P.AUTO_MAX);
+  assert.equal(P.AUTO_MAX, 6);
+  const cachee = ranger4({ batiments: new Map([['b-achatschantiers-liste', { sorte: 'besoin', cache: true }]]), elements: lus([chantier('c1', 'en_cours')]) });
+  assert.deepEqual(cachee.petites, []);
+  // module Chantiers éteint : aucune
+  assert.deepEqual(ranger4({ elements: lus([chantier('c1', 'en_cours')]), modules: ['projets'] }).petites, []);
+  // projets : jamais d'automatique (P4)
+  const projets = ranger4({ besoins: [{ nom: 'Projets', phrase: '', batiment: 'atelier', cible: '#/projets/projets' }], elements: new Map([['projets', { etat: 'ok', liste: LP.elementsVillage([{ id: 'pr1', titre: 'P', statut: 'actif' }]) }]]) });
+  assert.deepEqual(projets.petites, []);
+});
+
+test('4.5 chantier terminé, suspendu ou archivé : plus d’automatique ; la manuelle reste (archivé compris) ; pas de doublon manuelle/automatique', () => {
+  for (const c of [chantier('c1', 'termine'), chantier('c1', 'suspendu'), chantier('c1', 'en_preparation'), chantier('c1', 'en_cours', true)]) {
+    assert.deepEqual(ranger4({ elements: lus([c]) }).petites, [], JSON.stringify(c));
+    const r = ranger4({ batiments: new Map([['p-a', docP('b-achatschantiers-liste', '#/achatschantiers/liste/c1')]]), elements: lus([c]) });
+    assert.deepEqual(r.petites.map((p) => [p.id, p.auto]), [['p-a', false]]);
+  }
+  // en cours avec une manuelle : la manuelle seule
+  const r = ranger4({ batiments: new Map([['p-a', docP('b-achatschantiers-liste', '#/achatschantiers/liste/c1')]]), elements: lus([chantier('c1', 'en_cours')]) });
+  assert.deepEqual(r.petites.map((p) => p.id), ['p-a']);
+});
+
+test('4.6 élément absent d’une lecture réussie : la manuelle n’est pas montrée ; lecture en panne : aucune automatique, toutes les manuelles ; lecture en cours : rien', () => {
+  const docs = new Map([['p-a', docP('b-achatschantiers-liste', '#/achatschantiers/liste/c9')], ['p-b', docP('b-achatschantiers-liste', '#/achatschantiers/liste/c2')]]);
+  const ok = ranger4({ batiments: docs, elements: lus([chantier('c1', 'en_cours'), chantier('c2', 'termine')]) });
+  assert.deepEqual(ok.petites.map((p) => p.id).sort(), ['a-achatschantiers-c1', 'p-b']);
+  const panne = ranger4({ batiments: docs, elements: new Map([['achatschantiers', { etat: 'erreur' }]]) });
+  assert.deepEqual(panne.petites.map((p) => p.id), ['p-a', 'p-b']);
+  assert.ok(panne.petites.every((p) => !p.auto));
+  assert.deepEqual(ranger4({ batiments: docs }).petites, []); // lecture en cours
+  // une manuelle dont la grande est cachée n'est pas montrée et ne compte pas
+  const cachee = ranger4({ batiments: new Map([...docs, ['b-achatschantiers-liste', { sorte: 'besoin', cache: true }]]), elements: new Map([['achatschantiers', { etat: 'erreur' }]]) });
+  assert.equal(P.nombreManuelles(cachee), 0);
 });

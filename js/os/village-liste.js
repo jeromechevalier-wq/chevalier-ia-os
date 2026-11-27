@@ -3,6 +3,8 @@
 // pastille du compteur. Le bouton « Liste » / « Village » (téléphone seulement) bascule ; le choix est gardé sur l'appareil (préférence `accueil-vue`).
 // Textes posés par h() (nœuds texte), jamais par innerHTML. Un lien externe (étape 3b) : un vrai <a target="_blank" rel="noopener noreferrer"> vers son adresse,
 // avec la marque « lien externe » ; une adresse refusée : une ligne sans lien.
+// Étape 3c (27/11/2026) : sous la ligne d'une grande maison, ses petites maisons (vrais liens vers « ce chantier seulement », en retrait), y compris
+// celles qui n'ont pas trouvé de case libre autour d'elle dans le dessin.
 import { h, icone, lirePreference, ecrirePreference } from './ui.js';
 import { lien } from './router.js';
 import { BATIMENTS_FIXES } from './village-batiments.js';
@@ -26,9 +28,9 @@ export function boutonVue(vue, surChoix) {
 
 /**
  * La liste des maisons. `dessin(batiment)` : fabrique d'une petite vignette SVG (fournie par l'écran) ; `compteurs` : Map(id de maison → nombre lu) ;
- * `fixes` : [{ id, route }] des îlots montrés (Mairie, Console).
+ * `fixes` : [{ id, route }] des îlots montrés (Mairie, Console) ; `petites` : les petites maisons (posées ou sans place), chacune avec `parent`.
  */
-export function listeMaisons({ maisons, fixes, compteurs, dessin, dessinFixe }) {
+export function listeMaisons({ maisons, petites = [], fixes, compteurs, dessin, dessinFixe }) {
   const ligne = (href, vignette, nom, phrase, pastille, role, externe = null) => h('li', {},
     h(externe?.invalide ? 'span' : 'a', {
       href: externe?.invalide ? null : href, class: 'village-liste-lien', dataset: externe ? { role, sorte: 'lien' } : { role },
@@ -49,6 +51,12 @@ export function listeMaisons({ maisons, fixes, compteurs, dessin, dessinFixe }) 
     const etat = m.besoin.compteur ? pastilleBulle(m.besoin.compteur, compteurs.get(m.id)) : null;
     const pastille = etat && !etat.attente ? h('span', { class: `village-liste-pastille${etat.zero ? ' village-pastille-zero' : ''}` }, etat.texte) : null;
     lignes.push(ligne(lien(m.besoin.cible), dessin(m.besoin.batiment), m.nom, m.besoin.phrase, pastille, 'liste-maison'));
+    for (const p of petites.filter((x) => x.parent === m.id)) {
+      lignes.push(h('li', { class: 'village-liste-petite', dataset: { role: 'liste-petite', maison: p.id, auto: p.auto ? 'oui' : 'non' } },
+        h('a', { href: lien(p.cible), class: 'village-liste-lien' },
+          h('span', { class: 'village-liste-vignette', 'aria-hidden': 'true' }, dessin(p.batiment)),
+          h('span', { class: 'village-liste-textes' }, h('strong', {}, p.nom), p.sousTitre ? h('small', {}, p.sousTitre) : null))));
+    }
   }
   return h('ul', { class: 'village-liste', dataset: { role: 'liste-maisons' } }, lignes);
 }

@@ -1,6 +1,6 @@
 // Module Achats « Chantiers » (24/11/2026, PR 6) : réservé à un seul compte (`seulJerome`, js/os/registre.js). Liste et Kanban des chantiers lus dans la base de l'espace,
 // fenêtre d'un chantier (budget, accepté, en attente, part du budget), création, modification, archivage et réouverture (par les actions métier), favoris, export.
-// Route : achatschantiers/liste. Les données vivent dans la base de l'espace (pas dans Firebase) : `demarrer` n'écoute rien.
+// Routes : achatschantiers/liste, et achatschantiers/liste/<id> (ce seul chantier, ouvert depuis une petite maison du village de l'accueil). Les données vivent dans la base de l'espace (pas dans Firebase) : `demarrer` n'écoute rien.
 import { naviguer } from '../../os/router.js';
 import { rendreEcran } from './ecran.js';
 import { reglagesExportChantiers, fichierChantiers } from './export.js';
@@ -40,7 +40,7 @@ export function afficher(conteneur, segs) {
   if (segs[0] !== 'liste') { naviguer('achatschantiers/liste', { remplacer: true }); return quitter; }
   quitter();
   ajouterFeuille();
-  montee = rendreEcran(conteneur);
+  montee = rendreEcran(conteneur, { seul: segs[1] ?? null });
   conteneur.scrollTop = 0;
   return quitter;
 }
