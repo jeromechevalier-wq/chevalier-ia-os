@@ -82,7 +82,7 @@ Toutes les mesures sont en **unités du dessin SVG** (« px du dessin »), avant
 | Bulle : fond / phrase / aide | `#FFFCF7` / `#6E5A63` / `#8A7680` |
 | Halo au survol | `#FFF3B0` |
 
-Couleurs de murs déjà prises (la couleur claire, celle du dessus) : banque `#F8EAD0`, marché `#EADBC3` (socle), poste `#FBD778`, phare `#DBD9D3`, grue (cabane) `#EBDABF` et acier `#F3AC50`, radio `#CD94BE`, beffroi `#DBCDEB`, maison des clients `#F4A593`, garage `#B7C9A8`, école `#F4C99B`, archives `#E8B98A`, maison commune `#9CC3D1`. Toits : rouge `#D9603B` ou `#CE5B38`, bleu `#4D86B7`, ardoise `#2F5D73`, violet `#563B85`, prune `#844A5C`.
+Couleurs de murs déjà prises (la couleur claire, celle du dessus) : banque `#F8EAD0`, marché `#EADBC3` (socle), poste `#FBD778`, phare `#DBD9D3`, grue (cabane) `#EBDABF` et acier `#F3AC50`, radio `#CD94BE`, beffroi `#DBCDEB`, maison des clients `#F4A593`, garage `#B7C9A8`, école `#F4C99B`, archives `#E8B98A`, maison commune `#9CC3D1`, Mairie des réglages `#D6E2EF` (bâtiment fixe), Console `#A9B4C4` (bâtiment fixe). Toits : rouge `#D9603B` ou `#CE5B38`, bleu `#4D86B7`, ardoise `#2F5D73`, violet `#563B85`, prune `#844A5C`.
 
 **Règle des faces (une seule lumière, venue de la gauche)** : pour chaque volume, on part de la couleur claire.
 
@@ -125,6 +125,19 @@ La fonction `teintes('#RRGGBB')` de `js/os/village-batiments.js` fait ce calcul 
 Capture de tout le catalogue : `tests/e2e/captures/maison-village/V27-catalogue-ordinateur.png` (planche assemblée par le test V27).
 
 **Choisir un bâtiment existant plutôt que d'en créer un** : lis la colonne « Besoin typique ». Si le besoin du client ressemble à l'un d'eux (même idée, même geste : compter de l'argent, recevoir et envoyer, suivre un chantier, surveiller), prends ce bâtiment. On ne crée un bâtiment que si aucun ne se reconnaît en une seconde pour ce besoin, et s'il pourra servir à d'autres clients (pas de bâtiment pour un seul client).
+
+## 6 bis. Bâtiments fixes (27/11/2026)
+
+Deux bâtiments du village ne sont pas des besoins : ils sont toujours au même endroit et ne viennent pas du champ `besoins` (étape 1 de `docs/accueil-village.md`).
+
+| Identifiant | Nom | Ouvre | Qui le voit | Accessoires | Murs |
+|---|---|---|---|---|---|
+| `mairie-reglages` | Mairie | la page Réglages de l'application (`#/reglages`) | tous les comptes de la maison | deux ailes basses, perron de deux marches, toit rouge `#CE5B38`, médaillon « roue dentée » jaune `#F7C548` | `#D6E2EF` |
+| `console` | Console | la Console (`#/console/vue`) | le titulaire seul (le même contrôle que le menu ; le serveur recontrôle) | salle vitrée large en haut, trois écrans verts `#6FA24A`, voyant rouge | `#A9B4C4` |
+
+- **Hors catalogue** : ils sont dans `BATIMENTS_FIXES` (`dessinBatimentFixe(id)`) de `js/os/village-batiments.js`, jamais dans `CATALOGUE`. Un besoin ne peut donc pas les choisir dans son champ `batiment`.
+- **Différents de la Maison commune** (`mairie`, besoin « Organiser mon équipe » : murs bleus `#9CC3D1`, toit ardoise, drapeau turquoise) : la Mairie des réglages a deux ailes, un toit rouge et une roue dentée jaune.
+- **Position** : en îlot, hors du terrain (HTML, pas dans le dessin du terrain), dans les coins vides autour du losange : la Mairie en bas à gauche, la Console en bas à droite. Chaque îlot montre un petit losange d'herbe avec sa place pavée, le bâtiment, son nom et un sous-titre (« Réglages », « Espaces »). La roue dentée des réglages de l'accueil est en haut à droite.
 
 ## 7. Recette : ajouter un bâtiment, pas à pas
 
