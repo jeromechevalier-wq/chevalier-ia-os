@@ -15,6 +15,8 @@ export const DAMIER_DEPART = Object.freeze({ colonnes: 8, lignes: 8 });
 export const TAILLE_GRANDE = 2;
 export const TAILLE_PETITE = 1;
 export const COORD_MAX = 23;
+/** Liens externes au plus par utilisateur (étape 3b, décision L1). */
+export const LIENS_MAX = 6;
 
 // ---------------------------------------------------------------- géométrie
 
@@ -111,6 +113,34 @@ export function batimentValable(id, donnees) {
   return nomValable(d) && typeof d.parent === 'string' && RE_PARENT.test(d.parent) && typeof d.cible === 'string' && d.cible.length <= 200 && RE_CIBLE.test(d.cible);
 }
 
+// ---------------------------------------------------------------- liens externes (étape 3b, 27/11/2026)
+
+const PROTOCOLE = /^([a-z][a-z0-9+.-]*):/i;
+// Caractères refusés par RE_URL_LIEN que le navigateur laisse tels quels dans le chemin : ils sont encodés (même adresse pour le site).
+const A_ENCODER = /['"<>`\\[\]]/g;
+
+/**
+ * Contrôle d'une adresse saisie pour un lien externe : { ok: true, url } ou { ok: false, message }. « monsite.fr » reçoit https:// tout seul ;
+ * tout autre protocole que https (http, javascript, data, ftp…) est refusé ; pas d'identifiants ; un hôte avec un point ; 300 caractères au plus ;
+ * puis la même expression que les règles (RE_URL_LIEN).
+ */
+export function adresseExterne(saisie) {
+  const brut = typeof saisie === 'string' ? saisie.trim() : '';
+  if (!brut) return { ok: false, message: 'Écris l’adresse du site.' };
+  const proto = brut.match(PROTOCOLE);
+  // « monsite.fr:8080 » n'a pas de protocole (un point avant les deux-points) ; « javascript: », « http: » en ont un.
+  const texte = proto && !proto[1].includes('.') ? brut : `https://${brut.replace(/^\/+/, '')}`;
+  let url;
+  try { url = new URL(texte); } catch { return { ok: false, message: 'Cette adresse n’est pas valable. Exemple : monsite.fr' }; }
+  if (url.protocol !== 'https:') return { ok: false, message: 'L’adresse doit commencer par https://' };
+  if (url.username || url.password) return { ok: false, message: 'L’adresse ne doit contenir ni nom d’utilisateur ni mot de passe.' };
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(url.hostname)) return { ok: false, message: 'Cette adresse n’est pas valable. Exemple : monsite.fr' };
+  const href = url.origin + url.href.slice(url.origin.length).replace(A_ENCODER, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`);
+  if (href.length > 300) return { ok: false, message: 'L’adresse est trop longue (300 caractères au plus).' };
+  if (!RE_URL_LIEN.test(href)) return { ok: false, message: 'Cette adresse n’est pas valable. Exemple : monsite.fr' };
+  return { ok: true, url: href };
+}
+
 /**
  * Range les documents lus (`[{ id, ...donnees }]`) : { parId: Map(id → données sans `modifieLe`), avertissements, ignores: Set(id) } ; un document mal formé est
  * ignoré, et son identifiant noté : l'écran ne le réécrit jamais d'office.
@@ -181,6 +211,8 @@ export function premierBlocLibre(occupees, taille, damier = DAMIER_DEPART, saufI
  *  - `besoins` : les besoins de la maison (déjà filtrés) ; `batiments` : Map(id → données) lue par `lireBatiments` ;
  *  - une maison = { id, sorte: 'besoin', cle, besoin, nom, c, l, taille: 2, enregistree, donnees } (`donnees` : le document enregistré, ou {}) ;
  *  - `cachees` = besoins non visibles { id, cle, besoin, donnees, raison: 'cache' | 'depart' } ; `sansPlace` = visibles mais sans bloc libre.
+ *  - les liens externes (documents `lien` de `batiments`, étape 3b) : { id, sorte: 'lien', besoin: { nom, batiment }, nom, url, invalide, c, l, taille: 2, … },
+ *    après les besoins, dans l'ordre de leurs identifiants (l'heure de création) ; `invalide` : l'adresse ne passe plus `adresseExterne` (jamais ouverte).
  */
 export function rangerVillage({ besoins, batiments = new Map(), damier = DAMIER_DEPART }) {
   const cles = clesBesoins(besoins);
@@ -207,6 +239,17 @@ export function rangerVillage({ besoins, batiments = new Map(), damier = DAMIER_
     const { c, l } = e.donnees;
     if (Number.isInteger(c) && Number.isInteger(l) && blocLibre(prises, c, l, TAILLE_GRANDE, damier)) poser(e, c, l, true);
   }
+  // 1 bis. les liens externes à leur place enregistrée (sinon, plus bas, au premier bloc libre)
+  const liens = [...batiments].filter(([, d]) => d?.sorte === 'lien').sort(([u], [v]) => (u < v ? -1 : 1)).map(([id, d]) => ({ id, donnees: d }));
+  const poserLien = (e, c, l, enregistree) => {
+    maisons.push({
+      id: e.id, sorte: 'lien', besoin: { nom: e.donnees.nom, batiment: batimentConnu(e.donnees.batiment) }, nom: e.donnees.nom, url: e.donnees.url,
+      invalide: !adresseExterne(e.donnees.url).ok, c, l, taille: TAILLE_GRANDE, enregistree, donnees: e.donnees,
+    });
+    prises = occupation(maisons);
+    placees.add(e.id);
+  };
+  for (const e of liens) if (blocLibre(prises, e.donnees.c, e.donnees.l, TAILLE_GRANDE, damier)) poserLien(e, e.donnees.c, e.donnees.l, true);
   // 2. les autres, dans l'ordre des besoins : la place d'office de leur rang si elle est libre, sinon le premier bloc libre
   const sansPlace = [];
   const n = visibles.length;
@@ -219,7 +262,13 @@ export function rangerVillage({ besoins, batiments = new Map(), damier = DAMIER_
     if (libre) poser(e, libre.c, libre.l, false);
     else sansPlace.push(e);
   });
-  const rang = new Map(visibles.map((e, i) => [e.id, i]));
+  for (const e of liens) {
+    if (placees.has(e.id)) continue;
+    const libre = premierBlocLibre(prises, TAILLE_GRANDE, damier);
+    if (libre) poserLien(e, libre.c, libre.l, false);
+    else sansPlace.push(e);
+  }
+  const rang = new Map([...visibles, ...liens].map((e, i) => [e.id, i]));
   maisons.sort((u, v) => rang.get(u.id) - rang.get(v.id));
   return { maisons, cachees, sansPlace };
 }
@@ -317,16 +366,32 @@ export function docCacher(maison, cache) {
   return { ...garder(maison), cache: Boolean(cache) };
 }
 
+/** Nom nettoyé (espaces) et coupé selon le contrat de nomValable et des règles (.length <= 40, en unités UTF-16), jamais au milieu d'un emoji. */
+export function nomCourt(nom) {
+  const propre = typeof nom === 'string' ? nom.replace(/\s+/g, ' ').trim() : '';
+  let court = '';
+  for (const car of propre) { if ((court + car).length > 40) break; court += car; }
+  return court;
+}
+
 /** Document d'une maison renommée ; nom vide ou égal au nom du besoin : le champ `nom` disparaît (le nom d'origine revient). */
 export function docRenommer(maison, nom) {
   const d = garder(maison);
-  const propre = typeof nom === 'string' ? nom.replace(/\s+/g, ' ').trim() : '';
-  // Même contrat que nomValable et les règles (.length <= 40, en unités UTF-16) : on ajoute les caractères entiers tant que ça tient (jamais un emoji coupé).
-  let court = '';
-  for (const car of propre) { if ((court + car).length > 40) break; court += car; }
+  const court = nomCourt(nom);
   if (!court || court === maison.besoin?.nom) delete d.nom;
   else d.nom = court;
   return d;
+}
+
+/**
+ * Document d'un lien externe (étape 3b) : { sorte: 'lien', nom, url, batiment, c, l }. `url` doit déjà sortir de `adresseExterne` ; un bâtiment inconnu
+ * devient le bureau. Rend null si le nom est vide ou l'adresse refusée.
+ */
+export function docLien({ nom, url, batiment, c, l }) {
+  const court = nomCourt(nom);
+  const adresse = adresseExterne(url);
+  if (!court || !adresse.ok) return null;
+  return { sorte: 'lien', nom: court, url: adresse.url, batiment: batimentConnu(batiment), c, l };
 }
 
 /** Dessin d'un bâtiment du catalogue (bureau si inconnu) : réexporté pour les petites vignettes de la roue et de la liste. */

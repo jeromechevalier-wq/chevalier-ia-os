@@ -7,6 +7,7 @@ import { lireBesoinsMaison, cibleValide, dessinBatiment, terrainCoins, couperEnL
 import {
   CASE, DAMIER_DEPART, TAILLE_GRANDE, COORD_MAX, centreBloc, ecranVersGrille, blocSousPoint, dansDamier, casesDuBloc, clesBesoins, besoinsServis, lireBatiments, batimentValable,
   rangerVillage, occupation, blocLibre, premierBlocLibre, vueVillage, formesDamier, lignesDamier, decorLibre, docDeplacement, docCacher, docRenommer, RE_URL_LIEN,
+  adresseExterne, docLien, LIENS_MAX,
 } from '../js/os/village-damier.js';
 import { teintes } from '../js/os/village-batiments.js';
 import { remplirComptesMaison, viderComptesMaison, besoinsEcranBrut } from '../js/os/comptes-maison.js';
@@ -478,6 +479,73 @@ test('F G D un document mal formé est noté comme ignoré ; un nom se coupe à 
   assert.ok(batimentValable('b-a', { sorte: 'besoin', c: 1, l: 1, nom: docRenommer(maison, '😀'.repeat(30)).nom })); // 20 emojis = 40 unités : accepté
   for (const fin of ['a"b', "a'b", '<b>', 'a`b', 'a\\b', 'a[0]']) assert.equal(RE_URL_LIEN.test(`https://exemple.test/${fin}`), false, fin);
   assert.equal(RE_URL_LIEN.test('https://exemple.test/a-b_c.d?e=1&f=(2)*+,;:@$!#x~%20^|{}'), true);
+});
+
+// ---------------------------------------------------------------- étape 3b : liens externes (27/11/2026)
+
+test('3.2 adresseExterne : « monsite.fr » reçoit https:// ; http, javascript, data, ftp, identifiants et hôte sans point sont refusés avec un message ; le résultat passe les règles', () => {
+  const ok = (saisie, attendu) => { const r = adresseExterne(saisie); assert.equal(r.ok, true, saisie); assert.equal(r.url, attendu, saisie); assert.ok(RE_URL_LIEN.test(r.url), saisie); };
+  ok('monsite.fr', 'https://monsite.fr/');
+  ok('  https://exemple.test/page?x=1#a  ', 'https://exemple.test/page?x=1#a');
+  ok('www.café.fr', 'https://www.xn--caf-dma.fr/');
+  ok('monsite.fr:8080/x', 'https://monsite.fr:8080/x');
+  ok("https://exemple.test/l'atelier <b>", 'https://exemple.test/l%27atelier%20%3Cb%3E'); // encodés, jamais refusés en silence
+  const non = (saisie, message) => { const r = adresseExterne(saisie); assert.equal(r.ok, false, saisie); assert.equal('url' in r, false); assert.match(r.message, message, saisie); };
+  non('http://monsite.fr', /doit commencer par https:\/\//);
+  non('javascript:alert(1)', /doit commencer par https:\/\//);
+  non('JaVaScRiPt:alert(1)', /doit commencer par https:\/\//);
+  non('data:text/html,<b>x</b>', /doit commencer par https:\/\//);
+  non('ftp://monsite.fr', /doit commencer par https:\/\//);
+  non('https://moi:secret@monsite.fr', /ni nom d’utilisateur ni mot de passe/);
+  non('https://localhost', /pas valable/);
+  non('https://monsite.fr:99999', /pas valable/);
+  non('', /Écris l’adresse/);
+  non(`https://monsite.fr/${'x'.repeat(300)}`, /300 caractères/);
+  assert.equal(adresseExterne(undefined).ok, false);
+});
+
+test('3.1 docLien et rangerVillage : un lien est une grande maison rangée après les besoins ; sa place enregistrée est gardée ; sans place libre, au premier bloc libre', () => {
+  const d = docLien({ nom: '  Mon   site ', url: 'monsite.fr', batiment: 'inconnu', c: 3, l: 3 });
+  assert.deepEqual(d, { sorte: 'lien', nom: 'Mon site', url: 'https://monsite.fr/', batiment: 'bureau', c: 3, l: 3 });
+  assert.ok(batimentValable('l-abc', d));
+  assert.equal(docLien({ nom: '', url: 'monsite.fr', batiment: 'banque', c: 0, l: 0 }), null);
+  assert.equal(docLien({ nom: 'A', url: 'http://monsite.fr', batiment: 'banque', c: 0, l: 0 }), null);
+  const batiments = new Map([['l-b', { ...d, c: 1, l: 1 }], ['l-a', { sorte: 'lien', nom: 'Fournisseur', url: 'https://f.test/', batiment: 'entrepot', c: 6, l: 6 }]]);
+  const { maisons } = rangerVillage({ besoins: [FACTURES], batiments });
+  assert.deepEqual(maisons.map((m) => m.id), ['b-achatsfactures-liste', 'l-a', 'l-b']); // besoins d'abord, puis les liens par identifiant (heure de création)
+  const lien = maisons.find((m) => m.id === 'l-b');
+  assert.equal(lien.sorte, 'lien');
+  assert.equal(lien.url, 'https://monsite.fr/');
+  assert.equal(lien.invalide, false);
+  assert.deepEqual([lien.c, lien.l, lien.taille, lien.enregistree], [1, 1, TAILLE_GRANDE, true]);
+  assert.equal(maisons.find((m) => m.id === 'b-achatsfactures-liste').enregistree, false); // la place d'office (1-1) était prise : premier bloc libre
+  assert.equal(new Set(maisons.flatMap((m) => casesDuBloc(m.c, m.l, m.taille))).size, 12); // aucune case partagée
+  // le déplacement d'un lien garde tous ses champs
+  assert.deepEqual(docDeplacement(lien, 4, 4), { ...d, c: 4, l: 4 });
+  assert.equal(LIENS_MAX, 6);
+});
+
+test('3.2 un lien dont l’adresse passe les règles mais plus le contrôle est marqué invalide (jamais ouvert) ; un document refusé par les règles est ignoré', () => {
+  const batiments = new Map([['l-x', { sorte: 'lien', nom: 'Local', url: 'https://localhost/', batiment: 'banque', c: 0, l: 0 }]]);
+  assert.equal(rangerVillage({ besoins: [], batiments }).maisons[0].invalide, true);
+  const { parId, ignores } = lireBatiments([{ id: 'l-y', sorte: 'lien', nom: 'Piège', url: 'javascript:alert(1)', batiment: 'banque', c: 0, l: 0 }]);
+  assert.equal(parId.size, 0);
+  assert.deepEqual([...ignores], ['l-y']);
+});
+
+test('3.3 3.4 3.5 3.6 sûreté des liens : nouvel onglet sans lien avec l’appli, adresse par textContent ou setAttribute, image du catalogue seulement, aucun envoi de fichier', () => {
+  const ecran = lire('js/os/village-ecran.js').replace(/^\s*\/\/.*$/gm, '');
+  assert.match(ecran, /window\.open\(maison\.url, '_blank', 'noopener,noreferrer'\)/);
+  assert.match(ecran, /g\.setAttribute\('rel', 'noopener noreferrer'\)/);
+  assert.match(ecran, /g\.setAttribute\('target', '_blank'\)/);
+  assert.match(ecran, /adresse\.textContent = /);
+  assert.ok(!/location\.(href|assign|replace)/.test(ecran));
+  const liste = lire('js/os/village-liste.js');
+  assert.match(liste, /rel: externe && !externe\.invalide \? 'noopener noreferrer'/);
+  const reglages = lire('js/os/village-reglages.js').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/type: 'file'|type="file"|FileReader|showOpenFilePicker/.test(reglages), 'aucun envoi de fichier');
+  assert.match(reglages, /BATIMENTS\.map\(\(id\)/); // les vignettes viennent du catalogue, rien d'autre
+  assert.match(lire('js/os/village-glisser.js'), /e\.preventDefault\(\); \/\/ la maison d'un lien externe/);
 });
 
 test('3a-bis les fonctions du village sont identiques dans firestore.rules et firestore.plateforme.rules', () => {
