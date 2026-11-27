@@ -63,6 +63,7 @@ import { dessinPiece } from './village-fete.js';
 const NS = 'http://www.w3.org/2000/svg';
 const TROP_DE_LIENS = `${LIENS_MAX} liens au plus : retire un lien pour en ajouter un.`;
 const VILLAGE_PLEIN = 'Ton village est plein : cache une maison pour faire de la place.';
+export const CASE_OBJET_CACHE = 'Cette place est occupée par un objet caché (pièces d’or éteintes).';
 const TROP_DE_CACHEES = `${CACHEES_MAX} petites maisons cachées au plus : remontre-en une avec la roue dentée.`;
 const PLUS_DE_PLACE = 'Plus de place autour de cette maison : déplace-la ou retire une petite maison.';
 const TELEPHONE = '(max-width: 767px)';
@@ -968,6 +969,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
         surOuvrir: (m) => { if (!estSorteJeu(m.sorte)) { toucher(m, ctx); return; } bulle.cacher(); if (SORTES_RECOLTE.includes(m.sorte)) recolter(m); },
         surReglages: reglagesMaison,
         surDepose: deposer,
+        surCaseCachee: () => toast(CASE_OBJET_CACHE),
         surDebut: () => { page.dataset.rangement = 'oui'; bulle.cacher(); },
         surFin: () => {
           page.dataset.rangement = 'non';

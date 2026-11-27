@@ -205,18 +205,22 @@ export function estTelephone(page) {
  * puis on lit son état par de petites lectures synchrones. Une connexion refusée échoue toujours, avec son message.
  */
 /**
- * Interrupteurs « Mon accueil » imposés pour un parcours (crochet window.__chevalierTest.preferencesAccueil, émulateurs seulement, js/os/village-preferences.js) :
- * remplace la lecture du document. À poser AVANT d'ouvrir la page. `window.__chevalierTest` est créé par js/os/auth.js au chargement : on attend cette affectation
- * pour y ajouter le réglage (jamais un objet posé plus tôt, que la connexion de test prendrait pour le sien).
+ * Crochets de test ajoutés à window.__chevalierTest (émulateurs seulement), à poser AVANT d'ouvrir la page (valables à chaque chargement). `window.__chevalierTest` est créé
+ * par js/os/auth.js au chargement : on attend cette affectation pour y ajouter `champs` (jamais un objet posé plus tôt, que la connexion de test prendrait pour le sien).
  */
-export async function imposerPreferencesAccueil(page, preferences) {
-  await page.addInitScript((p) => {
+export async function poserCrochetsDeTest(page, champs) {
+  await page.addInitScript((c) => {
     Object.defineProperty(window, '__chevalierTest', {
       configurable: true,
       get: () => undefined,
-      set: (v) => { Object.defineProperty(window, '__chevalierTest', { value: Object.assign(v, { preferencesAccueil: p }), writable: true, configurable: true }); },
+      set: (v) => { Object.defineProperty(window, '__chevalierTest', { value: Object.assign(v, structuredClone(c)), writable: true, configurable: true }); },
     });
-  }, preferences);
+  }, champs);
+}
+
+/** Interrupteurs « Mon accueil » imposés pour un parcours (crochet preferencesAccueil, js/os/village-preferences.js) : remplace la lecture du document. */
+export async function imposerPreferencesAccueil(page, preferences) {
+  await poserCrochetsDeTest(page, { preferencesAccueil: preferences });
 }
 
 export async function connecterCompte(page, email, emailVerifie = true, reglages = null) {

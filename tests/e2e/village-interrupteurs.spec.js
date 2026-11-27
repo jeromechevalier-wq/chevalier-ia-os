@@ -4,7 +4,7 @@
 // preferencesAccueil, réservé aux parcours de l'or). La fonction `villageOr` est simulée dans le navigateur (aucune fonction ne tourne dans les tests).
 // Un test par critère (le nom commence par son numéro), captures dans tests/e2e/captures/village-interrupteurs/ (non commitées), nommées avec le projet. Données neutres.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, lireDocument, estTelephone, CHARLES, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
+import { test, expect, connecter, ecrireDocument, lireDocument, estTelephone, poserCrochetsDeTest, CHARLES, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/village-interrupteurs/', import.meta.url));
@@ -113,13 +113,17 @@ test.describe('Mon accueil : interrupteurs par personne', () => {
     await glisser(page, 'Factures', 5, 5);
     await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '5-5');
     await expect(page.locator('[data-role="objet"]')).toHaveCount(0);
+    // lâchée sur la case de l'objet caché (bloc 9-9 : il couvre 10-10) : refusée, avec le message qui dit pourquoi
+    await glisser(page, 'Factures', 9, 9);
+    await expect(page.getByText('Cette place est occupée par un objet caché (pièces d’or éteintes).')).toBeVisible();
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '5-5');
   });
 
   test('I4 accueil classique : l’adresse vide, l’adresse du village et le logo mènent à l’écran classique ; pas de « Retour au village » dans les Réglages', async ({ page }, info) => {
     await semer({ besoins: [FACTURES, ACHATS_B] });
     await ouvrir(page, '', (uid) => ecrireDocument(prefsDe(uid), { jeu: true, accueil: 'classique', modifieLe: new Date() }));
-    await expect(page).not.toHaveURL(/#\/accueil$/);
-    await expect(page).not.toHaveURL(/#\/?$/);
+    // on attend un état positif : l'écran d'un module (jamais l'adresse vide ni celle du village)
+    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/[a-z]+\/[a-z]/);
     const classique = new URL(page.url()).hash;
     await expect(village(page)).toHaveCount(0);
     await expect(page.locator('[data-role="page-introuvable"]')).toHaveCount(0);
@@ -130,12 +134,20 @@ test.describe('Mon accueil : interrupteurs par personne', () => {
     await expect(village(page)).toHaveCount(0);
     await expect(page.locator('[data-role="page-introuvable"]')).toHaveCount(0);
     // le logo (barre du haut) mène au même écran
-    const logo = await page.locator('.barre-haut-marque').getAttribute('href');
-    expect(logo).not.toBe('#/accueil');
     await page.evaluate(() => { location.hash = '#/reglages'; });
-    await page.evaluate((h) => { location.hash = h; }, logo);
+    await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
+    // le logo de la barre du haut (visible sur téléphone ; sur ordinateur la barre est cachée : clic par le DOM sur le même lien)
+    if (estTelephone(page)) await page.locator('.barre-haut-marque').click();
+    else await page.locator('.barre-haut-marque').evaluate((a) => a.click());
     await expect.poll(() => new URL(page.url()).hash).toBe(classique);
     await expect(village(page)).toHaveCount(0);
+    // retour arrière : les Réglages, puis encore arrière : jamais le village ni « Page introuvable »
+    await page.goBack();
+    await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
+    await page.goBack();
+    await expect(village(page)).toHaveCount(0);
+    await expect(page.locator('[data-role="page-introuvable"]')).toHaveCount(0);
+    await page.goForward();
     // Réglages : pas de « Retour au village »
     await page.evaluate(() => { location.hash = '#/reglages'; });
     await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
@@ -190,6 +202,7 @@ test.describe('Mon accueil : interrupteurs par personne', () => {
     await expect(carte(page)).toBeVisible();
     await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false');
     await expect(page.locator('[data-action="retour-village"]')).toHaveCount(0);
+    await expect(page.locator('[data-role="jeu-sans-effet"]')).toHaveText('Sans effet tant que l’accueil est le menu classique.');
     const lu = await lireDocument(prefsDe(uid));
     expect([lu.jeu, lu.accueil]).toEqual([true, 'classique']);
     // « Pièces d'or et boutique » éteint : écriture, rechargement
@@ -204,6 +217,7 @@ test.describe('Mon accueil : interrupteurs par personne', () => {
     await expect(page.getByText('Le réglage n’a pas été enregistré. Réessaie.')).toBeVisible();
     await expect(interJeu(page)).toHaveAttribute('aria-checked', 'false');
     await expect(interJeu(page)).toBeEnabled();
+    await expect(interJeu(page)).toBeFocused(); // le focus revient sur l'interrupteur touché
     expect(await page.evaluate(() => window.__pasRecharge)).toBe(true);
     await capturer(page, info, 'I6-erreur-ecriture');
   });
@@ -220,6 +234,23 @@ test.describe('Mon accueil : interrupteurs par personne', () => {
     await expect(carte(page)).toBeVisible();
     await expect(interVillage(page)).toHaveAttribute('aria-checked', 'true');
     await expect(interJeu(page)).toHaveAttribute('aria-checked', 'false');
+  });
+
+  test('I8 lecture en panne à l’ouverture : le dernier réglage mémorisé sur l’appareil s’applique ; un clic relit le document et ne change que l’interrupteur touché', async ({ page }) => {
+    await semer({ besoins: [FACTURES] });
+    // 1. une ouverture normale mémorise « classique, jeu éteint » sur l'appareil
+    const uid = await ouvrir(page, 'reglages/espace', (u) => ecrireDocument(prefsDe(u), { jeu: false, accueil: 'classique', modifieLe: new Date() }));
+    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false');
+    // 2. ailleurs, le jeu a été rallumé ; ici, la prochaine lecture à l'ouverture tombe en panne
+    await ecrireDocument(prefsDe(uid), { jeu: true, accueil: 'classique', modifieLe: new Date() });
+    await poserCrochetsDeTest(page, { pannesPreferences: { lecture: 1 } });
+    await page.reload();
+    await expect(carte(page)).toBeVisible();
+    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false'); // le mémorisé (classique), jamais le village par défaut
+    await expect(interJeu(page)).toHaveAttribute('aria-checked', 'false'); // le mémorisé
+    // 3. on rallume le village : le document est relu (jeu allumé) et seul l'accueil change
+    await Promise.all([page.waitForEvent('load'), interVillage(page).click()]);
+    await expect.poll(async () => { const d = await lireDocument(prefsDe(uid)); return d && [d.jeu, d.accueil]; }).toEqual([true, 'village']);
   });
 
   test('I-bis maison sans village : la carte « Mon accueil » s’affiche, interrupteurs désactivés, avec « Le village n’est pas activé pour cet espace. »', async ({ page }) => {

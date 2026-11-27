@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { defauts, preferencesAppliquees, preferencesValables, ACCUEILS } from '../js/os/village-preferences-logique.js';
+import { defauts, preferencesAppliquees, preferencesValables, preferencesMemorisees, apresClic, ACCUEILS } from '../js/os/village-preferences-logique.js';
 
 const lire = (f) => readFileSync(fileURLToPath(new URL(`../${f}`, import.meta.url)), 'utf8');
 
@@ -34,13 +34,33 @@ test('I2-bis câblage : l’or est branché à chaque session hors portail (visi
   assert.match(main, /if \(!portail\) arretOr = activerOr\(\{ base: '', uid: compte\.uid, visible: besoinsVillage\.length > 0 && preferencesAccueil\.jeu \}\)/);
   assert.match(main, /if \(preferencesAccueil\.accueil === 'classique'\) besoinsVillage = \[\];/);
   assert.match(main, /preferencesAccueil\.accueil === 'classique' && segs\.length === 1 && segs\[0\] === ROUTE_VILLAGE\) \{ naviguer\(accueilClassique, \{ remplacer: true \}\); return; \}/);
-  assert.match(main, /preferencesAccueil = portail \? defautsAccueil\(\) : await lirePreferences\(/);
+  // lecture seulement avec un village, lancée avant le montage des modules, attendue après, puis arrêt si la session a changé
+  assert.match(main, /const lecturePreferences = !portail && besoinsMaison\.length \? lirePreferences\(\{ uid: compte\.uid \}\) : null;/);
+  assert.ok(main.indexOf('const lecturePreferences') < main.indexOf('await m.monter()') && main.indexOf('await m.monter()') < main.indexOf('await lecturePreferences'));
+  assert.match(main, /if \(generation !== generationSession\) return;/);
+  assert.match(main, /function fermerSession\(\) \{\n  generationSession \+= 1;\n  preferencesAccueil = defautsAccueil\(\);\n  accueilClassique = ROUTE_DEFAUT;/);
   const or = lire('js/os/village-or.js');
   assert.equal((or.match(/if \(moi\.visible\) feterOr\(/g) ?? []).length, 2); // gain et récolte : jamais de fête en silence
   assert.ok(!/[^.]feterOr\(d\./.test(or.replace(/if \(moi\.visible\) feterOr\(/g, '')));
   const prefs = lire('js/os/village-preferences.js');
   assert.match(prefs, /DELAI_LECTURE_MS = 2000/);
+  assert.match(prefs, /DELAI_ECRITURE_MS = 8000/);
   assert.match(prefs, /setDoc\(document_\(uid\), \{ jeu, accueil, modifieLe: serverTimestamp\(\) \}\)/);
   // la plateforme des clients n'est pas touchée (pas de village, .github/A-FAIRE.md A12)
   assert.ok(!/preferences/.test(lire('firestore.plateforme.rules')));
+});
+
+test('I8 réglage mémorisé sur l’appareil (lecture lente ou en panne) et clic : seul l’interrupteur touché change', () => {
+  assert.deepEqual(preferencesMemorisees(JSON.stringify({ jeu: false, accueil: 'classique' })), { jeu: false, accueil: 'classique' });
+  for (const t of [null, '', 'pas du json', JSON.stringify({ jeu: 'oui', accueil: 'village' }), JSON.stringify([])]) assert.equal(preferencesMemorisees(t), null, String(t));
+  // relu dans la base : jeu allumé, accueil classique ; on rallume le village : le jeu ne bouge pas
+  assert.deepEqual(apresClic({ jeu: true, accueil: 'classique', sur: true }, 'accueil', true), { jeu: true, accueil: 'village' });
+  assert.deepEqual(apresClic({ jeu: true, accueil: 'classique' }, 'jeu', false), { jeu: false, accueil: 'classique' });
+  const prefs = lire('js/os/village-preferences.js');
+  assert.match(prefs, /memoriser\(uid, p\);\n    return \{ \.\.\.p, sur: true \};/); // lecture réussie : mémorisée
+  assert.match(prefs, /memoriser\(uid, \{ jeu, accueil \}\);\n    return true;/); // écriture réussie : mémorisée
+  assert.match(prefs, /preferencesMemorisees\(lirePreference\(cleAppareil\(uid\)\)\) \?\? defauts\(\{ neutre \}\)\), sur: false/); // panne : le mémorisé, sinon les défauts
+  const reglages = lire('js/os/reglages.js');
+  assert.match(reglages, /if \(prefs\.sur === false\) \{\n\s+const relu = await ctx\.accueil\.relire\(\);/);
+  assert.match(reglages, /ctx\.accueil\.ecrire\(apresClic\(base, touche, inter\.valeur\(\)\)\)/);
 });

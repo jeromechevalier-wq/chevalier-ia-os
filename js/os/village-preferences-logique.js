@@ -20,3 +20,17 @@ export function preferencesValables(d) {
 export function preferencesAppliquees(d, { neutre = false } = {}) {
   return preferencesValables(d) ? { jeu: d.jeu, accueil: d.accueil } : defauts({ neutre });
 }
+
+/** Le réglage mémorisé sur l'appareil (texte JSON) : { jeu, accueil } s'il est bien formé, sinon null. */
+export function preferencesMemorisees(texte) {
+  if (typeof texte !== 'string' || !texte) return null;
+  try { const d = JSON.parse(texte); return preferencesValables(d) ? { jeu: d.jeu, accueil: d.accueil } : null; } catch { return null; }
+}
+
+/** Ce qu'on écrit après un clic : le réglage `base` (relu dans la base) où SEUL l'interrupteur touché change. `touche` : 'jeu' ou 'accueil'. */
+export function apresClic(base, touche, valeur) {
+  const r = { jeu: base.jeu, accueil: base.accueil };
+  if (touche === 'jeu') r.jeu = Boolean(valeur);
+  if (touche === 'accueil') r.accueil = valeur ? 'village' : 'classique';
+  return r;
+}

@@ -10,7 +10,7 @@ import { besoinsServis } from './os/village-damier.js';
 import { creerDonneesVillage } from './os/village-donnees.js';
 import { creerPetitesVillage } from './os/village-petites-lecture.js';
 import { activerOr, lireOr, surOr, orConnu, acheterOr, parcellesConnues, ramasserOr } from './os/village-or.js';
-import { lirePreferences, ecrirePreferences } from './os/village-preferences.js';
+import { lirePreferences, ecrirePreferences, preferencesParDefaut } from './os/village-preferences.js';
 import { defauts as defautsAccueil } from './os/village-preferences-logique.js';
 import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, lien, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace } from './os/marque.js';
@@ -111,9 +111,12 @@ let accueilClassique = ROUTE_DEFAUT;
 // Or du village (27/11/2026, js/os/village-or.js) : branché à CHAQUE session hors portail devis (interrupteurs du 27/11/2026) : l'or se compte toujours ;
 // la fête et le compteur ne se montrent que village allumé, jeu allumé et accueil village (sinon : en silence).
 let arretOr = null;
+// Génération de session : +1 à chaque ouverture et fermeture ; une ouverture qui revient d'une attente (lecture des préférences) après un changement de compte s'arrête.
+let generationSession = 0;
 
 async function ouvrirSession(compte) {
   fermerSession();
+  const generation = ++generationSession;
   const choix = modulesDeLaMaison(MODULES_TOUS, { titulaire: peutVoirConsole(compte), brut: modulesEcranBrut() });
   for (const a of choix.avertissements) console.warn(a);
   MODULES = choix.modules;
@@ -123,16 +126,20 @@ async function ouvrirSession(compte) {
   besoinsVillage = besoinsServis(village.besoins, [...MODULES.map((m) => m.prefixe), 'reglages']); // étape 2 (27/11/2026) : un besoin dont le module n'est pas allumé pour ce compte n'a jamais de maison
   besoinsMaison = besoinsVillage;
   afficherChargement();
-  // Interrupteurs « Mon accueil » : une lecture, 2 s au plus (défauts : jeu allumé chez Jérôme, éteint dans la maison d'un client ; accueil village).
-  preferencesAccueil = portail ? defautsAccueil() : await lirePreferences({ uid: compte.uid });
-  if (preferencesAccueil.accueil === 'classique') besoinsVillage = []; // accueil classique : comme une maison sans village (l'or se compte quand même)
-  accueilClassique = choix.accueil || ROUTE_DEFAUT;
-  accueilMaison = besoinsVillage.length ? ROUTE_VILLAGE : choix.accueil; // logo, « Retour à l'accueil » et adresse vide : le village
+  // Interrupteurs « Mon accueil » : lus seulement si la maison a un village (2 s au plus ; défauts : jeu allumé chez Jérôme, éteint dans la maison d'un client ; accueil village).
+  // La lecture part AVANT le montage des modules et n'est attendue qu'après : elle ne rallonge pas l'ouverture.
+  const lecturePreferences = !portail && besoinsMaison.length ? lirePreferences({ uid: compte.uid }) : null;
   const apis = new Map();
   for (const m of MODULES) {
     const api = await m.monter();
     apis.set(m.id, api);
   }
+  const preferencesLues = lecturePreferences ? await lecturePreferences : (portail ? { ...defautsAccueil(), sur: true } : preferencesParDefaut());
+  if (generation !== generationSession) return; // session fermée ou autre compte pendant l'attente
+  preferencesAccueil = preferencesLues;
+  if (preferencesAccueil.accueil === 'classique') besoinsVillage = []; // accueil classique : comme une maison sans village (l'or se compte quand même)
+  accueilClassique = choix.accueil || ROUTE_DEFAUT;
+  accueilMaison = besoinsVillage.length ? ROUTE_VILLAGE : choix.accueil; // logo, « Retour à l'accueil » et adresse vide : le village
   // Maison d'un client (reglages_maison/ecran.configuration_crm === 'neutre') : les objectifs neutres d'un nouvel espace, jamais ceux de Jérôme (« Flyers »…).
   const objectifsDepart = configurationNeutre() ? objectifsNeutres(CONFIG_NEUTRE) : [...apis.values()].flatMap((api) => api.objectifsDepart || []);
   demarrerObjectifs(compte, objectifsDepart);
@@ -167,6 +174,9 @@ async function ouvrirSession(compte) {
 }
 
 function fermerSession() {
+  generationSession += 1;
+  preferencesAccueil = defautsAccueil();
+  accueilClassique = ROUTE_DEFAUT;
   if (!session) return;
   arretRoute?.();
   arretRoute = null;
@@ -264,7 +274,7 @@ function afficherRoute(route) {
     afficher = () => monterReglages(coquille.contenu, segs, {
       apis, actifs: MODULES.map((m) => m.id), chezClient: false, nomEspace: 'Chevalier IA OS', marque: null, fiche: null, compte: session.compte,
       retourVillage: besoinsVillage.length ? ROUTE_VILLAGE : null, // maison avec village : « Retour au village » en haut des Réglages (la Mairie y mène) ; accueil classique : pas de lien
-      accueil: portail ? null : { village: besoinsMaison.length > 0, preferences: preferencesAccueil, ecrire: (p) => ecrirePreferences({ uid: session.compte.uid, ...p }) }, // carte « Mon accueil »
+      accueil: portail ? null : { village: besoinsMaison.length > 0, preferences: preferencesAccueil, ecrire: (p) => ecrirePreferences({ uid: session.compte.uid, ...p }), relire: () => lirePreferences({ uid: session.compte.uid }) }, // carte « Mon accueil »
       surMarque: () => { coquille.majClient(espaceRacineAffiche()); nommerOngletMaison(); }, // Mon espace d'une maison : le nom et le logo enregistrés s'affichent tout de suite (menu, barre du haut, onglet)
     });
   } else if (segs[0] === 'journal' && segs.length === 1) { // Journal des modifications : écran de la coque, servi même sans le module Affaires
