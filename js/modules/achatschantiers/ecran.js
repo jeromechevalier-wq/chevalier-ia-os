@@ -191,7 +191,10 @@ export function rendreEcran(conteneur, { seul = null } = {}) {
   let dernier = { archives: false, affiches: [] };
   function rendre() {
     if (!vivant) return;
-    remplir(bascule, basculeVues({ vues: [['kanban', 'Kanban', 'square-kanban'], ['liste', 'Liste', 'list'], ['archives', 'Archives', 'archive']], courante: vue, surChangement: changerVue }));
+    // un seul chantier (adresse « liste/<id> ») : pas de bouton « Archives » (il montrerait d'autres chantiers) ; archivé, il est montré en tableau, donc « Liste » est cochée
+    const seulArchive = seul !== null && chantierSeul(chantiers, seul).some((c) => c.archive === true);
+    const vuesPossibles = [['kanban', 'Kanban', 'square-kanban'], ['liste', 'Liste', 'list'], ...(seul !== null ? [] : [['archives', 'Archives', 'archive']])];
+    remplir(bascule, basculeVues({ vues: vuesPossibles, courante: seulArchive && vue === 'kanban' ? 'liste' : vue, surChangement: changerVue }));
     const pret = etatAcces === 'connecte' && lecture === 'ok';
     boutonNouveau.disabled = !pret;
     barre.element.hidden = !(pret && chantiers.length > 0);
@@ -267,6 +270,7 @@ export function rendreEcran(conteneur, { seul = null } = {}) {
     });
     if (!ok || !vivant) return;
     toast(message, { duree: DUREE_MESSAGE });
+    if (!c && seul !== null) { naviguer(ROUTE); return; } // créé depuis la vue d'un seul chantier : la liste complète, pour le voir
     await charger(true);
     if (c) refocaliser(c.id, 'menu-chantier');
   }

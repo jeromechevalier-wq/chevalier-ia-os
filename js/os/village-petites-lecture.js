@@ -60,9 +60,16 @@ export function creerPetitesVillage({ modules = [], delai = DELAI_COMPTEUR } = {
     try {
       if (pannePosee()) throw new Error('panne simulée');
       let arret = null;
-      // trop lent : null ; la lecture des projets se désabonne à l'arrivée comme au délai
-      const liste = await avecDelai(() => LECTURES[module]((f) => { arret = f; }), delai);
-      arret?.();
+      let fini = false;
+      // trop lent : null ; la lecture des projets se désabonne à l'arrivée comme au délai, même si son abonnement arrive APRÈS le délai
+      const poserArret = (f) => { if (fini) f(); else arret = f; };
+      let liste;
+      try {
+        liste = await avecDelai(() => LECTURES[module](poserArret), delai);
+      } finally {
+        fini = true;
+        arret?.();
+      }
       return Array.isArray(liste) ? { etat: 'ok', liste } : { etat: 'erreur' };
     } catch (e) {
       console.warn('Accueil : éléments des petites maisons illisibles', module, e?.code ?? e?.message);

@@ -868,6 +868,7 @@ body.page-espace { background: #241b2e; color: #fff; }
 /* Petites maisons « vue filtrée » (étape 3c, 27/11/2026, js/os/village-petites.js) : une case, sans étiquette ; elles ne se glissent pas (curseur de lien, jamais de main
    de rangement) ; dans la vue Liste, en retrait sous leur grande ; fenêtre de choix : une ligne-bouton par élément, zone tactile de 44 px. */
 .village-petite, .page-village[data-rangement="oui"] .village-petite { cursor: pointer; }
+.village-petite .village-halo { pointer-events: none; } /* sa lueur ne prend jamais le pointeur à une voisine (relecture Fable B1) */
 .village-liste-petite { margin-left: var(--esp-9); }
 .village-liste-petite .village-liste-lien { min-height: 44px; }
 .village-liste-petite .village-liste-vignette { width: 32px; height: 32px; }

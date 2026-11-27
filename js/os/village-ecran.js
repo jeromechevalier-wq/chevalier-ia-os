@@ -36,7 +36,7 @@ import {
   lireBatiments, rangerVillage, docDeplacement, docCacher, docRenommer, docLien, nomCourt, LIENS_MAX,
 } from './village-damier.js';
 import { rangerPetites, sourcePour, docPetite, peutAjouterPetite, moduleDeCible, PETITES_MAX } from './village-petites.js';
-import { brancherGestes } from './village-glisser.js';
+import { brancherGestes, groupeSous } from './village-glisser.js';
 import { listeMaisons, boutonVue, vueChoisie } from './village-liste.js';
 import { lien } from './router.js';
 import { toast, icone } from './ui.js';
@@ -137,15 +137,14 @@ function batiment(maison, place, ctx) {
   const lever = el('g', { class: 'village-lever' });
   for (const f of dessinBatiment(besoin.batiment)) lever.append(forme(f, place.x, place.y));
   g.append(lever);
-  g.addEventListener('click', (e) => { e.preventDefault(); toucher(maison, ctx); });
+  g.addEventListener('click', (e) => { e.preventDefault(); toucher(ctx.maisonSous?.(e) ?? maison, ctx); });
   g.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     e.preventDefault();
     ouvrir(maison, ctx);
   });
   // Survol et focus : seulement sur ordinateur (sur téléphone, un toucher déclenche aussi le survol et le focus : la bulle y suit les touchers).
-  g.addEventListener('mouseenter', () => { if (!ctx.telephone && !ctx.rangementEnCours()) ctx.bulle.montrer(maison); });
-  g.addEventListener('mouseleave', () => { if (!ctx.telephone) ctx.bulle.cacher(maison.id); });
+  // le survol (souris) est suivi par le dessin entier (dessiner) : la lueur d'une voisine ne vole pas la bulle (3c, Fable B1)
   g.addEventListener('focus', () => { if (!ctx.telephone) ctx.bulle.montrer(maison); });
   g.addEventListener('blur', () => { if (!ctx.telephone) ctx.bulle.cacher(maison.id); });
   return g;
@@ -167,14 +166,12 @@ function petiteMaison(petite, place, ctx) {
   for (const f of dessinBatiment(petite.batiment)) reduit.append(forme(f));
   lever.append(reduit);
   g.append(lever);
-  g.addEventListener('click', (e) => { e.preventDefault(); toucher(petite, ctx); });
+  g.addEventListener('click', (e) => { e.preventDefault(); toucher(ctx.maisonSous?.(e) ?? petite, ctx); });
   g.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     e.preventDefault();
     ouvrir(petite, ctx);
   });
-  g.addEventListener('mouseenter', () => { if (!ctx.telephone && !ctx.rangementEnCours()) ctx.bulle.montrer(petite); });
-  g.addEventListener('mouseleave', () => { if (!ctx.telephone) ctx.bulle.cacher(petite.id); });
   g.addEventListener('focus', () => { if (!ctx.telephone) ctx.bulle.montrer(petite); });
   g.addEventListener('blur', () => { if (!ctx.telephone) ctx.bulle.cacher(petite.id); });
   return g;
@@ -197,8 +194,12 @@ function lienEtiquette(maison, place, b, ctx) {
   return g;
 }
 
-function dessiner(maisons, ctx, petites = []) {
+function dessiner(maisons, ctxRendu, petites = []) {
   const damier = DAMIER_DEPART;
+  const parId = new Map([...maisons, ...petites].map((m) => [m.id, m]));
+  /** La maison (grande ou petite) sous le pointeur, lueurs des voisines écartées (village-glisser.js, groupeSous). */
+  const maisonSous = (e) => { const r = groupeSous(e); return r ? parId.get(r.groupe.getAttribute('data-maison')) ?? null : null; };
+  const ctx = { ...ctxRendu, maisonSous };
   const vue = vueVillage(damier);
   const svg = el('svg', {
     class: 'village-scene', viewBox: `${r1(vue.x)} ${r1(vue.y)} ${r1(vue.largeur)} ${r1(vue.hauteur)}`, preserveAspectRatio: 'xMidYMid meet',
@@ -251,6 +252,19 @@ function dessiner(maisons, ctx, petites = []) {
   const calque = el('g', { class: 'village-etiquettes' });
   for (const m of maisons) calque.append(lienEtiquette(m, places.get(m.id), noeuds.get(m.id), ctx));
   svg.append(calque);
+  // Survol à la souris : la bulle de la maison dont le CORPS est sous le pointeur (une lueur seule n'en change pas). Les étiquettes gardent leurs écoutes.
+  let survolee = null;
+  const quitter = () => { if (survolee) ctx.bulle.cacher(survolee); survolee = null; };
+  svg.addEventListener('mousemove', (e) => {
+    if (ctx.telephone || ctx.rangementEnCours()) return;
+    const r = groupeSous(e);
+    if (r?.groupe.classList.contains('village-lien-etiquette')) { survolee = null; return; } // l'étiquette montre la bulle elle-même
+    const id = r ? r.groupe.getAttribute('data-maison') : null;
+    if (id === survolee) return;
+    quitter();
+    if (id && parId.has(id)) { survolee = id; ctx.bulle.montrer(parId.get(id)); }
+  });
+  svg.addEventListener('mouseleave', () => { if (!ctx.telephone) quitter(); });
   return { svg, noeuds };
 }
 
@@ -460,16 +474,49 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
       const source = sourcePour(m);
       if (!source || !petites.sources.includes(source.module) || lancesPetites.has(source.module)) continue;
       lancesPetites.add(source.module);
-      petites.lire(source.module).catch(() => ({ etat: 'erreur' })).then((r) => {
-        if (!monte) return;
-        const avant = signaturePetites();
-        elements.set(source.module, r);
-        ranger();
-        if (signaturePetites() === avant) return; // rien ne change à l'écran (aucun chantier en cours, par exemple) : pas de redessin, qui couperait un geste du doigt en cours
-        if (page.dataset.rangement === 'oui') redessinAttendu = true;
-        else rendre();
-      });
+      lireElements(source.module);
     }
+    majSignal();
+  }
+
+  /** UNE lecture en cours par module (la fenêtre de choix réutilise celle des petites maisons) ; un résultat « ok » n'est jamais remplacé par une erreur. */
+  const enCours = new Map();
+  function lireElements(module) {
+    if (elements.get(module)?.etat === 'ok') return Promise.resolve(elements.get(module));
+    if (enCours.has(module)) return enCours.get(module);
+    const promesse = petites.lire(module).catch(() => ({ etat: 'erreur' })).then((r) => {
+      enCours.delete(module);
+      if (!monte) return r;
+      if (elements.get(module)?.etat === 'ok' && r?.etat !== 'ok') { majSignal(); return elements.get(module); }
+      const avant = signaturePetites();
+      elements.set(module, r?.etat === 'ok' ? r : { etat: 'erreur' });
+      ranger();
+      // rien ne change à l'écran (aucun chantier en cours, par exemple) : pas de redessin, qui couperait un geste du doigt en cours
+      if (signaturePetites() !== avant) redessinerQuandLibre();
+      majSignal();
+      return r;
+    });
+    enCours.set(module, promesse);
+    majSignal();
+    return promesse;
+  }
+
+  /** Redessin des petites maisons : après un glisser (surFin), et jamais pendant qu'un clic attend son délai (double clic) ni sous une bulle ouverte. */
+  let minuteurRedessin = null;
+  function redessinerQuandLibre() {
+    clearTimeout(minuteurRedessin);
+    minuteurRedessin = null;
+    if (!monte) return;
+    if (page.dataset.rangement === 'oui') { redessinAttendu = true; majSignal(); return; }
+    // téléphone : la bulle ouverte (premier toucher) attend le second toucher ; ordinateur : la bulle du survol se rouvre au mouvement suivant
+    if (debrancher?.occupe?.() || (Boolean(media?.matches) && !bulle.element.hidden)) { minuteurRedessin = setTimeout(redessinerQuandLibre, 300); majSignal(); return; }
+    rendre();
+  }
+
+  /** Signal pour les tests et l'accessibilité : data-petites-lues="oui" quand plus aucune lecture ni redessin des petites maisons n'attend. */
+  function majSignal() {
+    const fini = lecture !== 'attente' && enCours.size === 0 && !minuteurRedessin && !redessinAttendu;
+    page.dataset.petitesLues = fini ? 'oui' : 'non';
   }
 
   // Une seule lecture par compteur et par affichage du village, lancée dès que la maison est montrée (jamais au survol) ; la bulle ouverte se met à jour quand le nombre arrive.
@@ -594,12 +641,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   }
 
   /** Les éléments d'un module pour la fenêtre de choix : la lecture de l'affichage si elle a réussi, sinon une nouvelle lecture (bouton « Réessayer »). */
-  async function elementsPour(module) {
-    if (elements.get(module)?.etat === 'ok') return elements.get(module);
-    const r = await petites.lire(module).catch(() => ({ etat: 'erreur' }));
-    if (monte && r?.etat === 'ok') { elements.set(module, r); ranger(); rendre(); }
-    return r;
-  }
+  const elementsPour = (module) => lireElements(module);
 
   /** Nouvelle petite maison manuelle sous `grande` (non optimiste) ; refus expliqué : 12 atteint, aucune case voisine libre. */
   function ajouterPetite(grande, element) {
@@ -725,10 +767,11 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
         surDebut: () => { page.dataset.rangement = 'oui'; bulle.cacher(); },
         surFin: () => {
           page.dataset.rangement = 'non';
-          if (redessinAttendu) { redessinAttendu = false; setTimeout(() => { if (monte) rendre(); }, 0); } // les éléments arrivés pendant le glisser
+          if (redessinAttendu) { redessinAttendu = false; setTimeout(redessinerQuandLibre, 0); } // les éléments arrivés pendant le glisser
         },
       });
     }
+    majSignal();
   };
 
   async function lire() {

@@ -140,7 +140,17 @@ export function fenetreMaison(maison, { surRenommer, surCacher, surMontrer, surA
   // étape 3c : seulement pour une grande maison d'un module qui sait montrer un seul élément, et quand le rangement est possible
   const ajouter = surAjouterPetite ? h('button', {
     type: 'button', class: 'bouton bouton-secondaire', dataset: { role: 'ajouter-petite' },
-    onclick: () => { fermerFenetre?.(null, true); surAjouterPetite(); },
+    onclick: async () => {
+      // un nom en cours de saisie est d'abord enregistré (sinon il serait perdu en fermant la fenêtre) ; refusé : la fenêtre reste, avec son message
+      if (champ.value !== maison.nom) {
+        ajouter.disabled = true;
+        const ok = await surRenommer(champ.value);
+        ajouter.disabled = false;
+        if (!ok) { erreur.hidden = false; return; }
+      }
+      fermerFenetre?.(null, true);
+      surAjouterPetite();
+    },
   }, icone('plus'), 'Ajouter une petite maison') : null;
   const contenu = h('div', { class: 'reglages-maison-village' },
     h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Nom'), champ),

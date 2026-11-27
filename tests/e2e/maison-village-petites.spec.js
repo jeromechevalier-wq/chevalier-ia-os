@@ -61,6 +61,8 @@ async function ouvrirApres(page, { besoins = [FACTURES, CHANTIERS], modules = AC
   await expect(page.locator('[data-role="village"]')).toBeVisible();
   return uid;
 }
+/** Fin des lectures des petites maisons (signal posé par l'écran : plus aucune lecture ni redessin en attente). */
+const lues = (page) => expect(page.locator('[data-role="page-village"]')).toHaveAttribute('data-petites-lues', 'oui');
 const semerPetite = (uid, id, cible, nom = 'Petite', parent = PARENT) => ecrireDocument(`village_utilisateurs/${uid}/batiments/${id}`, { sorte: 'petite', parent, nom, cible });
 const docsPetites = async (uid) => (await listerDocuments(`village_utilisateurs/${uid}/batiments`)).filter((d) => d.id.startsWith('p-'));
 const maison = (page, nom) => page.locator(`[data-role="village"] [data-role="batiment"][aria-label^="${nom} :"]`);
@@ -291,9 +293,81 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
     const huit = Array.from({ length: 8 }, (_, i) => ({ ...CHANTIERS_ESSAI[0], id: `e${i}`, nom: `Essai ${i + 1}`, code: `CH-10${i}` }));
     await ouvrirApres(page, { reseau: { chantiers: huit } });
     await expect(petites(page)).toHaveCount(6);
+    await lues(page);
     const etiquette = await page.locator('[data-role="etiquette"][data-maison="b-achatschantiers-liste"]').boundingBox();
     expect(etiquette).not.toBeNull();
     await capturer(page, info, '4.4-six-petites-maisons');
+    // relecture Fable B1 : les lueurs se recouvrent ; CHAQUE petite se clique (ou se touche) à son point et ouvre SON chantier
+    const ids = await petites(page).evaluateAll((els) => els.map((e) => e.dataset.maison));
+    expect(ids).toHaveLength(6);
+    for (const id of ids) {
+      const loc = page.locator(`[data-role="petite-maison"][data-maison="${id}"]`);
+      const cible = await loc.getAttribute('data-cible');
+      const nom = (await loc.getAttribute('aria-label')).split(' : ')[0];
+      if (estTelephone(page)) await centrer(loc);
+      const p = await pointPetite(loc);
+      if (estTelephone(page)) {
+        await page.mouse.click(p.x, p.y); // premier toucher : la bulle de CETTE petite
+        await expect(bulle(page)).toContainText(nom);
+      } else {
+        await page.mouse.move(p.x, p.y); // survol : la bulle de CETTE petite
+        await expect(bulle(page)).toContainText(nom);
+      }
+      await page.mouse.click(p.x, p.y);
+      await expect.poll(() => page.evaluate(() => location.hash)).toBe(cible); // …/liste/<son id>
+      await page.evaluate(() => { location.hash = '#/accueil'; });
+      await expect(petites(page)).toHaveCount(6);
+      await lues(page);
+    }
+  });
+
+  test('4.4 la grande maison se clique et se glisse près d’une petite de devant (les lueurs ne prennent pas le pointeur)', async ({ page }, info) => {
+    const huit = Array.from({ length: 8 }, (_, i) => ({ ...CHANTIERS_ESSAI[0], id: `e${i}`, nom: `Essai ${i + 1}`, code: `CH-10${i}` }));
+    await ouvrirApres(page, { reseau: { chantiers: huit } });
+    await expect(petites(page)).toHaveCount(6);
+    await lues(page);
+    const [c, l] = await caseDe(maison(page, 'Chantiers'));
+    if (estTelephone(page)) await centrer(maison(page, 'Chantiers'));
+    // le bas du corps de la grande, au-dessus de ses petites de devant
+    const bas = await pointBloc(page, c, l, 2, 8);
+    const sous = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-maison]')?.dataset.maison ?? null, bas);
+    expect(sous).toBe(PARENT);
+    await page.mouse.click(bas.x, bas.y);
+    if (estTelephone(page)) {
+      await expect(bulle(page)).toContainText('Chantiers');
+      await page.mouse.click(bas.x, bas.y);
+    }
+    await expect(page).toHaveURL(/#\/achatschantiers\/liste$/);
+    await page.evaluate(() => { location.hash = '#/accueil'; });
+    await expect(petites(page)).toHaveCount(6);
+    await lues(page);
+    if (estTelephone(page)) await centrer(maison(page, 'Chantiers'));
+    const depart = await pointBloc(page, c, l, 2, 8);
+    const arrivee = await pointBloc(page, 4, 4, 2, 8);
+    if (estTelephone(page)) await glisserAuDoigt(page, depart, arrivee);
+    else {
+      await page.mouse.move(depart.x, depart.y);
+      await page.mouse.down();
+      for (let i = 1; i <= 8; i++) await page.mouse.move(depart.x + ((arrivee.x - depart.x) * i) / 8, depart.y + ((arrivee.y - depart.y) * i) / 8);
+      await page.mouse.up();
+    }
+    await expect(maison(page, 'Chantiers')).toHaveAttribute('data-case', '4-4');
+    await capturer(page, info, '4.4-grande-glissee-pres-des-petites');
+  });
+
+  test('4.4 12 petites maisons manuelles au plus : la 13e est refusée avec sa phrase, rien n’est écrit', async ({ page }, info) => {
+    const treize = Array.from({ length: 13 }, (_, i) => ({ ...CHANTIERS_ESSAI[1], id: `j${i}`, nom: `Lot ${i + 1}`, code: `CH-2${String(i).padStart(2, '0')}` }));
+    const uid = await ouvrirApres(page, {
+      reseau: { chantiers: treize },
+      avant: async (u) => { for (let i = 0; i < 12; i++) await semerPetite(u, `p-lot-${String(i).padStart(2, '0')}`, `#/achatschantiers/liste/j${i}`, `Lot ${i + 1}`); },
+    });
+    await lues(page);
+    await ouvrirFenetreMaison(page, 'Chantiers');
+    await fenetreMaison(page).getByRole('button', { name: 'Ajouter une petite maison' }).click();
+    await fenetreChoix(page).getByRole('button', { name: /Lot 13/ }).click();
+    await expect(fenetreChoix(page).locator('[data-role="erreur-petite"]')).toHaveText('12 petites maisons au plus : retire-en une pour en ajouter une.');
+    await capturer(page, info, '4.4-douze-atteint');
+    expect(await docsPetites(uid)).toHaveLength(12);
   });
 
   test('4.5 un chantier terminé perd sa petite maison automatique ; la manuelle reste', async ({ page }, info) => {
@@ -317,7 +391,7 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
     await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
     await page.evaluate(() => { location.hash = '#/accueil'; });
     await expect(maison(page, 'Chantiers')).toBeVisible();
-    await page.waitForTimeout(500);
+    await lues(page);
     await expect(petites(page)).toHaveCount(0);
   });
 
@@ -341,7 +415,7 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
       },
     });
     await expect(page.locator('[data-role="petite-maison"][data-auto="non"]')).toHaveCount(1);
-    await page.waitForTimeout(500);
+    await lues(page);
     await expect(page.locator('[data-role="petite-maison"][data-auto="oui"]')).toHaveCount(0);
     await expect(page.locator('[data-role="village-bandeau"]')).toBeHidden();
     await capturer(page, info, 'pannes-lecture-en-panne');
@@ -361,7 +435,15 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
   test('module seul sans maison Chantiers : aucune lecture des chantiers, aucune petite maison', async ({ page }) => {
     await ouvrirApres(page, { besoins: [FACTURES] });
     await expect(maison(page, 'Factures')).toBeVisible();
-    await page.waitForTimeout(800);
+    await lues(page);
+    await expect(petites(page)).toHaveCount(0);
+    expect((await page.evaluate(() => window.__appels)).filter((a) => a.chemin === '/rest/v1/chantiers')).toEqual([]);
+  });
+
+  test('module seul : maison Chantiers dans les besoins mais module Chantiers éteint : aucune lecture, aucune petite maison', async ({ page }) => {
+    await ouvrirApres(page, { besoins: [FACTURES, CHANTIERS], modules: ACHATS.filter((m) => m !== 'achatschantiers') });
+    await expect(maison(page, 'Factures')).toBeVisible();
+    await lues(page);
     await expect(petites(page)).toHaveCount(0);
     expect((await page.evaluate(() => window.__appels)).filter((a) => a.chemin === '/rest/v1/chantiers')).toEqual([]);
   });
