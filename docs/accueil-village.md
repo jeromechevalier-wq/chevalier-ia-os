@@ -123,6 +123,8 @@ Une phrase chacun. Chaque critère aura un test dont le nom commence par son num
 - **4.5** Quand ce chantier est fini, sa petite maison automatique disparaît ; une petite maison créée à la main reste.
 - **4.6** Une petite maison dont l'élément a été supprimé disparaît sans message d'erreur.
 
+**3c-bis (27/11/2026, soir)** : un projet actif a lui aussi sa petite maison automatique, à côté de la maison « Projets » (un projet terminé ou archivé n'en a pas). Une petite maison automatique se cache : double clic (téléphone : appui long), puis « Cacher du village » ; le toast « Petite maison cachée » offre « Annuler » pendant 8 secondes. Pour la remontrer : roue dentée > « Petites maisons cachées » > « Remontrer ». Il n'y a plus de plafond de petites maisons par personne : la seule limite est la place, 12 au plus autour d'une grande maison (moins au bord du damier ou à côté d'une décoration). Garde-fou : 50 petites maisons cachées au plus.
+
 ### Étape 5 : remplacer tous les dessins par la bibliothèque
 
 - **5.1** Toutes les maisons du village ont le même angle et la même lumière (planche de capture de toutes les images).

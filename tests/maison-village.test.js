@@ -581,7 +581,7 @@ const ranger4 = ({ besoins = [FACTURES, CHANTIERS_B], batiments = new Map(), ele
 };
 const voisine = (grande, p) => P.casesVoisines(grande.c, grande.l).some(({ c, l }) => c === p.c && l === p.l);
 
-test('4.1 docPetite et rangerPetites : une petite manuelle se pose sur une case voisine libre (1 x 1), dans l’ordre fixe ; le document passe batimentValable ; 12 au plus', () => {
+test('4.1 docPetite et rangerPetites : une petite manuelle se pose sur une case voisine libre (1 x 1), dans l’ordre fixe ; le document passe batimentValable ; 12 au plus par grande maison', () => {
   const d = P.docPetite({ parent: 'b-achatschantiers-liste', nom: '  Atelier   B ', cible: '#/achatschantiers/liste/c2' });
   assert.deepEqual(d, { sorte: 'petite', parent: 'b-achatschantiers-liste', nom: 'Atelier B', cible: '#/achatschantiers/liste/c2' });
   assert.ok(batimentValable('p-abc-1234', d));
@@ -603,13 +603,17 @@ test('4.1 docPetite et rangerPetites : une petite manuelle se pose sur une case 
   assert.equal(p.parent, grande.id);
   const premiere = P.casesVoisines(grande.c, grande.l).find(({ c, l }) => dansDamier(c, l, 1));
   assert.deepEqual([p.c, p.l], [premiere.c, premiere.l]); // la première case voisine libre, dans l'ordre fixe
-  // 12 au plus : seules les manuelles réellement rangées comptent
-  const douze = new Map(Array.from({ length: 12 }, (_, i) => [`p-${String(i).padStart(2, '0')}`, docP('b-achatschantiers-liste', `#/achatschantiers/liste/c${i}`)]));
-  const r12 = ranger4({ batiments: douze, elements: lus(Array.from({ length: 12 }, (_, i) => chantier(`c${i}`, 'termine'))) });
-  assert.equal(P.nombreManuelles(r12), 12);
-  assert.equal(P.peutAjouterPetite(r12), false);
-  assert.equal(P.PETITES_MAX, 12);
-  assert.equal(P.peutAjouterPetite(ranger4({ batiments: douze, elements: lus([]) })), true); // éléments disparus : ils ne comptent pas, les documents restent
+  // 3c-bis : 12 au plus par grande maison (ses 12 cases voisines) ; Chantiers en 1-5 : ses 12 voisines sont toutes dans le damier, la 13e est sans place
+  const places = [['b-achatschantiers-liste', { sorte: 'besoin', c: 1, l: 5 }], ['b-achatsfactures-liste', { sorte: 'besoin', c: 5, l: 0 }]];
+  const treize = new Map([...places, ...Array.from({ length: 13 }, (_, i) => [`p-${String(i).padStart(2, '0')}`, docP('b-achatschantiers-liste', `#/achatschantiers/liste/c${i}`)])]);
+  for (const { c, l } of P.casesVoisines(1, 5)) assert.ok(dansDamier(c, l, 1));
+  const r13 = ranger4({ batiments: treize, elements: lus(Array.from({ length: 13 }, (_, i) => chantier(`c${i}`, 'termine'))) });
+  assert.equal(r13.petites.length, 12);
+  assert.deepEqual(r13.sansPlace.map((p) => p.id), ['p-12']);
+  // éléments disparus : ils ne sont pas rangés, les documents restent
+  const disparus = ranger4({ batiments: treize, elements: lus([]) });
+  assert.equal(disparus.petites.length + disparus.sansPlace.length, 0);
+  assert.equal([...treize.values()].filter((d) => d.sorte === 'petite').length, 13);
 });
 
 test('4.2 les adresses : chantier → #/achatschantiers/liste/<id>, projet → #/projets/projets/<id> ; un identifiant mal formé est ignoré ; toutes passent cibleValide', () => {
@@ -619,7 +623,7 @@ test('4.2 les adresses : chantier → #/achatschantiers/liste/<id>, projet → #
     { id: 'c9', nom: 'Sans code', sousTitre: 'Suspendu', cible: '#/achatschantiers/liste/c9', automatique: false, archive: true },
   ]);
   const pr = LP.elementsVillage([{ id: 'pr1', titre: 'Projet essai', statut: 'actif' }, { id: 'pr2', titre: 'Fini', statut: 'termine', archive: true }, { id: '../x', titre: 'X' }]);
-  assert.deepEqual(pr.map((e) => [e.cible, e.automatique, e.archive, e.sousTitre]), [['#/projets/projets/pr1', false, false, 'Actif'], ['#/projets/projets/pr2', false, true, 'Terminé']]);
+  assert.deepEqual(pr.map((e) => [e.cible, e.automatique, e.archive, e.sousTitre]), [['#/projets/projets/pr1', true, false, 'Actif'], ['#/projets/projets/pr2', false, true, 'Terminé']]);
   for (const e of [...ch, ...pr]) assert.ok(cibleValide(e.cible), e.cible);
   assert.deepEqual(LC.chantierSeul([chantier('c1', 'en_cours'), chantier('c2', 'termine', true)], 'c2').map((c) => c.id), ['c2']);
   assert.deepEqual(LC.chantierSeul([chantier('c1', 'en_cours')], 'zz'), []);
@@ -665,9 +669,9 @@ test('4.4 un chantier en cours a sa petite maison automatique à côté de la ma
   assert.deepEqual(cachee.petites, []);
   // module Chantiers éteint : aucune
   assert.deepEqual(ranger4({ elements: lus([chantier('c1', 'en_cours')]), modules: ['projets'] }).petites, []);
-  // projets : jamais d'automatique (P4)
+  // 3c-bis : projets automatiques (un projet actif a sa petite maison automatique)
   const projets = ranger4({ besoins: [{ nom: 'Projets', phrase: '', batiment: 'atelier', cible: '#/projets/projets' }], elements: new Map([['projets', { etat: 'ok', liste: LP.elementsVillage([{ id: 'pr1', titre: 'P', statut: 'actif' }]) }]]) });
-  assert.deepEqual(projets.petites, []);
+  assert.deepEqual(projets.petites.map((p) => [p.id, p.auto]), [['a-projets-pr1', true]]);
 });
 
 test('4.5 chantier terminé, suspendu ou archivé : plus d’automatique ; la manuelle reste (archivé compris) ; pas de doublon manuelle/automatique', () => {
@@ -691,7 +695,7 @@ test('4.6 élément absent d’une lecture réussie : la manuelle n’est pas mo
   assert.deepEqual(ranger4({ batiments: docs }).petites, []); // lecture en cours
   // une manuelle dont la grande est cachée n'est pas montrée et ne compte pas
   const cachee = ranger4({ batiments: new Map([...docs, ['b-achatschantiers-liste', { sorte: 'besoin', cache: true }]]), elements: new Map([['achatschantiers', { etat: 'erreur' }]]) });
-  assert.equal(P.nombreManuelles(cachee), 0);
+  assert.equal(cachee.petites.length + cachee.sansPlace.length, 0);
 });
 
 // ---- étape 6b : objets et damier (boutique, 27/11/2026 : js/os/village-damier.js, js/os/village-jeu-regles.js, js/os/village-petites.js)
@@ -786,4 +790,85 @@ test('6.6i une petite maison ne se pose jamais sur une décoration (rangerPetite
   const r = P.rangerPetites({ maisons: rv.maisons, batiments, elements: lus([chantier('c1', 'en_cours')]), modules: ['achatschantiers'], objets: rv.objets });
   assert.ok(r.petites.length >= 1);
   for (const p of r.petites) assert.notEqual(`${p.c}-${p.l}`, `${premiere.c}-${premiere.l}`);
+});
+
+// ---- 3c-bis (27/11/2026) : projets automatiques, petites maisons cachées, plus de plafond par personne (js/os/village-petites.js)
+// Parcours dans le navigateur : tests/e2e/maison-village-petites.spec.js (tests 3cb.*).
+const PROJETS_B = { nom: 'Projets', phrase: '', batiment: 'atelier', cible: '#/projets/projets' };
+const lusProjets = (projets) => new Map([['projets', { etat: 'ok', liste: LP.elementsVillage(projets) }]]);
+
+test('3cb.1 projets : un projet actif a sa petite maison automatique à côté de la première maison des projets ; terminé, archivé : aucune ; 6 au plus ; une manuelle du même projet la remplace', () => {
+  const besoins = [FACTURES, PROJETS_B];
+  const r = ranger4({ besoins, elements: lusProjets([{ id: 'pr1', titre: 'Projet essai', statut: 'actif' }]) });
+  assert.deepEqual(r.petites.map((p) => [p.id, p.auto, p.parent, p.cible, p.un]), [['a-projets-pr1', true, 'b-projets-projets', '#/projets/projets/pr1', 'ce projet']]);
+  assert.ok(voisine(r.maisons.find((m) => m.id === 'b-projets-projets'), r.petites[0]));
+  // en_pause (donnée ancienne) compte comme actif ; terminé ou archivé : aucune
+  assert.equal(ranger4({ besoins, elements: lusProjets([{ id: 'pr1', titre: 'P', statut: 'en_pause' }]) }).petites.length, 1);
+  for (const p of [{ id: 'pr1', titre: 'P', statut: 'termine' }, { id: 'pr1', titre: 'P', statut: 'actif', archive: true }, { id: 'pr1', titre: 'P', statut: 'termine', archive: true }]) {
+    assert.deepEqual(ranger4({ besoins, elements: lusProjets([p]) }).petites, [], JSON.stringify(p));
+  }
+  // 8 actifs : 6 au plus, dans l'ordre de la lecture (S2)
+  const huit = ranger4({ besoins, elements: lusProjets(Array.from({ length: 8 }, (_, i) => ({ id: `pr${i}`, titre: `P${i}`, statut: 'actif' }))) });
+  assert.deepEqual([...huit.petites, ...huit.sansPlace].map((p) => p.id), ['a-projets-pr0', 'a-projets-pr1', 'a-projets-pr2', 'a-projets-pr3', 'a-projets-pr4', 'a-projets-pr5']);
+  // module projets éteint : rien
+  assert.deepEqual(ranger4({ besoins, elements: lusProjets([{ id: 'pr1', titre: 'P', statut: 'actif' }]), modules: ['achatschantiers'] }).petites, []);
+  // une manuelle du même projet remplace l'automatique
+  const m = ranger4({ besoins, batiments: new Map([['p-a', docP('b-projets-projets', '#/projets/projets/pr1', 'Mon projet')]]), elements: lusProjets([{ id: 'pr1', titre: 'P', statut: 'actif' }]) });
+  assert.deepEqual(m.petites.map((p) => [p.id, p.auto]), [['p-a', false]]);
+});
+
+test('3cb.2 petite maison cachée : docCachee passe batimentValable (cachee: true seulement) ; non montrée, pas dans les 6 (la 7e apparaît), ni dans les manuelles ; petitesCachees la liste ; lireBatiments la garde sans avertissement', () => {
+  const d = P.docCachee({ parent: 'b-achatschantiers-liste', nom: 'Chantier c0', cible: '#/achatschantiers/liste/c0' });
+  assert.deepEqual(d, { sorte: 'petite', parent: 'b-achatschantiers-liste', nom: 'Chantier c0', cible: '#/achatschantiers/liste/c0', cachee: true });
+  assert.ok(batimentValable('p-essai', d));
+  for (const v of [false, 'oui', 1, null]) assert.equal(batimentValable('p-essai', { ...d, cachee: v }), false, String(v));
+  assert.equal(P.docCachee({ parent: 'b-x', nom: 'x', cible: 'javascript:alert(1)' }), null);
+  assert.equal(P.CACHEES_MAX, 50);
+  const huit = lus(Array.from({ length: 8 }, (_, i) => chantier(`c${i}`, 'en_cours')));
+  const sans = ranger4({ elements: huit });
+  assert.deepEqual([...sans.petites, ...sans.sansPlace].map((p) => p.id), ['a-achatschantiers-c0', 'a-achatschantiers-c1', 'a-achatschantiers-c2', 'a-achatschantiers-c3', 'a-achatschantiers-c4', 'a-achatschantiers-c5']);
+  const avec = ranger4({ batiments: new Map([['p-cache', d]]), elements: huit });
+  const ids = [...avec.petites, ...avec.sansPlace].map((p) => p.id);
+  assert.equal(ids.length, 6);
+  assert.ok(!ids.includes('a-achatschantiers-c0'));
+  assert.ok(!ids.includes('p-cache'));
+  assert.ok(ids.includes('a-achatschantiers-c6')); // la 7e apparaît
+  assert.ok([...avec.petites, ...avec.sansPlace].every((p) => p.auto)); // la cachée ne compte pas parmi les manuelles
+  // S4 : par cible, quel que soit le parent
+  const autreParent = ranger4({ batiments: new Map([['p-cache', { ...d, parent: 'b-autre' }]]), elements: huit });
+  assert.ok(![...autreParent.petites, ...autreParent.sansPlace].some((p) => p.cible === d.cible));
+  // S5 : une manuelle + une cachée de même cible : la manuelle est montrée
+  const deux = ranger4({ batiments: new Map([['p-cache', d], ['p-man', docP('b-achatschantiers-liste', d.cible, 'Mienne')]]), elements: huit });
+  assert.ok(deux.petites.some((p) => p.id === 'p-man' && !p.auto));
+  assert.ok(!deux.petites.some((p) => p.id === 'p-cache'));
+  // petitesCachees : triées par nom puis par identifiant
+  const bats = new Map([['p-z', { ...d, nom: 'Bravo' }], ['p-b', { ...d, nom: 'alpha' }], ['p-a', { ...d, nom: 'Bravo' }], ['p-m', docP('b-x', d.cible)]]);
+  assert.deepEqual(P.petitesCachees(bats), [
+    { id: 'p-b', nom: 'alpha', cible: d.cible, parent: d.parent }, { id: 'p-a', nom: 'Bravo', cible: d.cible, parent: d.parent }, { id: 'p-z', nom: 'Bravo', cible: d.cible, parent: d.parent },
+  ]);
+  assert.deepEqual(P.petitesCachees(new Map()), []);
+  // lireBatiments la garde, sans avertissement ; cachee: false est ignorée
+  const { parId, avertissements } = lireBatiments([{ id: 'p-cache', ...d, modifieLe: { toMillis: () => 1 } }]);
+  assert.deepEqual(parId.get('p-cache'), d);
+  assert.equal(avertissements.length, 0);
+  assert.equal(lireBatiments([{ id: 'p-faux', ...d, cachee: false }]).parId.has('p-faux'), false);
+});
+
+test('3cb.3 plus de plafond par personne : 13 manuelles sur deux grandes sont toutes posées ; sous une même grande, 12 au plus (la 13e est sans place) ; PETITES_MAX et peutAjouterPetite n’existent plus', () => {
+  const besoins = [CHANTIERS_B, PROJETS_B];
+  const places = [['b-achatschantiers-liste', { sorte: 'besoin', c: 1, l: 5 }], ['b-projets-projets', { sorte: 'besoin', c: 5, l: 1 }]];
+  const elements = new Map([...lus(Array.from({ length: 13 }, (_, i) => chantier(`c${i}`, 'termine'))), ...lusProjets([{ id: 'pr1', titre: 'P', statut: 'termine' }])]);
+  const docs = (n) => Array.from({ length: n }, (_, i) => [`p-${String(i).padStart(2, '0')}`, docP('b-achatschantiers-liste', `#/achatschantiers/liste/c${i}`)]);
+  const deuxGrandes = ranger4({ besoins, batiments: new Map([...places, ...docs(12), ['p-pr1', docP('b-projets-projets', '#/projets/projets/pr1')]]), elements });
+  assert.equal(deuxGrandes.petites.length, 13);
+  assert.equal(deuxGrandes.sansPlace.length, 0);
+  const uneGrande = ranger4({ besoins, batiments: new Map([...places, ...docs(13)]), elements });
+  assert.equal(uneGrande.petites.length, 12);
+  assert.equal(uneGrande.sansPlace.length, 1);
+  assert.equal(P.PETITES_MAX, undefined);
+  assert.equal(P.peutAjouterPetite, undefined);
+  assert.equal(P.nombreManuelles, undefined);
+  const ecran = lire('js/os/village-ecran.js').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!ecran.includes('petites maisons au plus : retire-en'));
+  assert.ok(ecran.includes('petites maisons cachées au plus : remontre-en une avec la roue dentée.'));
 });

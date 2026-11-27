@@ -373,8 +373,8 @@ service cloud.firestore {
             &amp;&amp; d.keys().hasAll(['nom', 'url', 'batiment']) &amp;&amp; villageNom(d) &amp;&amp; villagePlace(d, true)
             &amp;&amp; d.url is string &amp;&amp; d.url.size() &lt;= 300 &amp;&amp; d.url.matches('^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?([/?#][-!#$%&amp;()*+,./0-9:;=?@A-Z^_a-z{|}~]*)?$')
             &amp;&amp; d.batiment is string &amp;&amp; d.batiment.matches('^[a-z][a-z-]{0,29}$'))
-          || (s == 'petite' &amp;&amp; id.matches('^p-[a-z0-9-]{1,60}$') &amp;&amp; d.keys().hasOnly(['sorte', 'parent', 'nom', 'cible', 'modifieLe'])
-            &amp;&amp; d.keys().hasAll(['parent', 'nom', 'cible']) &amp;&amp; villageNom(d)
+          || (s == 'petite' &amp;&amp; id.matches('^p-[a-z0-9-]{1,60}$') &amp;&amp; d.keys().hasOnly(['sorte', 'parent', 'nom', 'cible', 'cachee', 'modifieLe'])
+            &amp;&amp; d.keys().hasAll(['parent', 'nom', 'cible']) &amp;&amp; villageNom(d) &amp;&amp; (!d.keys().hasAny(['cachee']) || d.cachee == true)
             &amp;&amp; d.parent is string &amp;&amp; d.parent.matches('^b-[a-z0-9-]{1,60}$')
             &amp;&amp; d.cible is string &amp;&amp; d.cible.size() &lt;= 200 &amp;&amp; d.cible.matches('^#/[A-Za-z0-9][A-Za-z0-9_-]*(/[A-Za-z0-9_-]+)*$'))
         );

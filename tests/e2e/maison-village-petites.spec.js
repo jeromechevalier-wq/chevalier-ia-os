@@ -4,6 +4,7 @@
 // La base des chantiers est un faux réseau posé par le crochet de test `window.__accesBase` (émulateurs seulement), comme tests/e2e/achatschantiers.spec.js.
 // La connexion à la base est réservée au titulaire (JEROME) : ces parcours se font avec son compte. Données neutres, adresses en exemple.test.
 // Logique sans navigateur : fin de tests/maison-village.test.js.
+// 3c-bis (27/11/2026) : tests 3cb.* (projets automatiques, cacher et remontrer une automatique, plus de plafond par personne, corrections de la relecture Fable).
 import { fileURLToPath } from 'node:url';
 import { test, expect, connecter, ecrireDocument, listerDocuments, estTelephone, creerProjet, JEROME, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
@@ -28,8 +29,8 @@ const CHANTIERS_ESSAI = [
 
 /** Faux réseau réduit (tests/e2e/achatschantiers.spec.js) posé AVANT le chargement : chantiers, chiffres, favoris. Les appels sont gardés dans window.__appels. */
 async function poserFauxReseau(page, options = {}) {
-  await page.addInitScript(({ chantiers, lectureEnPanne }) => {
-    const faux = { chantiers: structuredClone(chantiers), lectureEnPanne };
+  await page.addInitScript(({ chantiers, lectureEnPanne, retenir }) => {
+    const faux = { chantiers: structuredClone(chantiers), lectureEnPanne, retenir };
     window.__faux = faux;
     window.__appels = [];
     const rep = (corps, statut = 200, entetes = {}) => new Response(JSON.stringify(corps), { status: statut, headers: { 'Content-Type': 'application/json', ...entetes } });
@@ -37,6 +38,8 @@ async function poserFauxReseau(page, options = {}) {
       const u = new URL(url);
       window.__appels.push({ methode: init.method, chemin: u.pathname });
       if (u.pathname === '/rest/v1/chantiers') {
+        // 3c-bis : `retenir` garde la réponse jusqu'à window.__faux.ouvrir() (le test compte les attentes)
+        if (faux.retenir) { faux.attentes = (faux.attentes ?? 0) + 1; await (faux.porte ??= new Promise((r) => { faux.ouvrir = r; })); }
         if (faux.lectureEnPanne) return rep({ message: 'panne' }, 500);
         return rep(faux.chantiers, 200, { 'Content-Range': `0-${Math.max(0, faux.chantiers.length - 1)}/${faux.chantiers.length}` });
       }
@@ -45,7 +48,7 @@ async function poserFauxReseau(page, options = {}) {
       return rep({ message: 'inconnu' }, 404);
     };
     window.__accesBase = { fetchImpl, jeton: 'jeton-fictif', claims: { role: 'authenticated', espace_base: 'espace-essai' } };
-  }, { chantiers: CHANTIERS_ESSAI, lectureEnPanne: false, ...options });
+  }, { chantiers: CHANTIERS_ESSAI, lectureEnPanne: false, retenir: false, ...options });
 }
 
 /** Prépare la maison (besoins, modules), la connexion à la base et le faux réseau ; connexion sur Réglages, `avant(uid)`, puis le village. */
@@ -142,6 +145,65 @@ async function ouvrirPetite(page, loc) {
     await page.mouse.click(p.x, p.y);
   }
 }
+/** Fenêtre d'une petite maison : double clic (ordinateur) ou appui long (téléphone). */
+async function ouvrirFenetrePetite(page, loc) {
+  if (estTelephone(page)) { await centrer(loc); await appuiLong(page, await pointPetite(loc)); } else { const p = await pointPetite(loc); await page.mouse.dblclick(p.x, p.y); }
+  await expect(fenetrePetite(page)).toBeVisible();
+}
+/** Un point de l'herbe (3c-bis) : le centre d'une case du damier, visible, sous lequel il n'y a ni maison, ni îlot, ni bouton. */
+async function pointHerbe(page) {
+  return page.evaluate(async () => {
+    const { centreBloc } = await import(new URL('js/os/village-damier.js', document.baseURI).href);
+    const { iso } = await import(new URL('js/os/village-batiments.js', document.baseURI).href);
+    const svg = document.querySelector('[data-role="village"]');
+    for (let c = 0; c < 8; c++) {
+      for (let l = 0; l < 8; l++) {
+        const [x, y] = iso(...centreBloc(c, l, 1));
+        const p = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
+        if (p.x < 20 || p.y < 20 || p.x > innerWidth - 20 || p.y > innerHeight - 20) continue;
+        const sous = document.elementFromPoint(p.x, p.y);
+        if (sous && svg.contains(sous) && !sous.closest('[data-maison], a, button')) return { x: p.x, y: p.y };
+      }
+    }
+    return null;
+  });
+}
+/** Le point à `part` (0 à 1) entre le centre de la case d'une petite maison et le coin gauche de sa case (au sol). */
+async function pointVersCoinGauche(loc, part) {
+  const [c, l] = await caseDe(loc);
+  return loc.page().evaluate(async ([c0, l0, k]) => {
+    const { losangeBloc } = await import(new URL('js/os/village-damier.js', document.baseURI).href);
+    const svg = document.querySelector('[data-role="village"]');
+    const coins = losangeBloc(c0, l0, 1);
+    const cx = coins.reduce((s, [x]) => s + x, 0) / 4;
+    const cy = coins.reduce((s, [, y]) => s + y, 0) / 4;
+    const [gx, gy] = coins.reduce((a, b) => (b[0] < a[0] ? b : a));
+    const p = new DOMPoint(cx + (gx - cx) * k, cy + (gy - cy) * k).matrixTransform(svg.getScreenCTM());
+    return { x: p.x, y: p.y };
+  }, [c, l, part]);
+}
+/** La maison (data-maison) sous un point de l'écran, lueurs sautées (comme groupeSous de js/os/village-glisser.js). */
+const maisonAuPoint = (page, p) => page.evaluate(({ x, y }) => {
+  for (const e of document.elementsFromPoint(x, y)) {
+    if (e.closest('.village-halo')) continue;
+    return e.closest('[data-maison]')?.dataset.maison ?? null;
+  }
+  return null;
+}, p);
+/** Touchers bruts (CDP) : appui, déplacements, relâché. */
+async function doigt(page, points, { attente = 0 } = {}) {
+  const cdp = await page.context().newCDPSession(page);
+  const pt = (p) => [{ x: Math.round(p.x), y: Math.round(p.y), id: 1 }];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(points[0]) });
+  for (const p of points.slice(1)) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(p) }); await page.waitForTimeout(16); }
+  if (attente) await page.waitForTimeout(attente);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+/** Attend que la lecture des chantiers soit retenue par le faux réseau (option `retenir`), puis la lâche avec `lacher`. */
+const attendreRetenue = (page) => expect.poll(() => page.evaluate(() => window.__faux.attentes ?? 0)).toBe(1);
+const lacher = (page) => page.evaluate(() => window.__faux.ouvrir());
+
 /** Ajoute une petite maison par la fenêtre de la grande « Chantiers ». */
 async function ajouterPetite(page, nom) {
   await ouvrirFenetreMaison(page, 'Chantiers');
@@ -213,7 +275,7 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
     await creerProjet('pr1', { titre: 'Projet essai' });
     await ouvrirApres(page, { besoins: [FACTURES, PROJETS], modules, avant: (uid) => semerPetite(uid, 'p-essai-2', '#/projets/projets/pr1', 'Projet essai', 'b-projets-projets') });
     await expect(petite(page, 'Projet essai')).toBeVisible();
-    await expect(page.locator('[data-role="petite-maison"][data-auto="oui"]')).toHaveCount(0); // pas d'automatique pour les projets
+    await expect(page.locator('[data-role="petite-maison"][data-auto="oui"]')).toHaveCount(0); // la manuelle du même projet remplace son automatique (3c-bis)
     await capturer(page, info, '4.2-projets-petite-maison');
     await ouvrirPetite(page, petite(page, 'Projet essai'));
     await expect(page).toHaveURL(/#\/projets\/projets\/pr1$/);
@@ -259,7 +321,7 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
     expect(JSON.stringify(docs[0].modifieLe)).toBe(JSON.stringify(avant)); // la petite n'est jamais réécrite : sa place se recalcule
   });
 
-  test('4.4 un chantier en cours a sa petite maison automatique à côté de « Chantiers », sans rien écrire ; sa bulle le dit', async ({ page }, info) => {
+  test('4.4 un chantier en cours a sa petite maison automatique à côté de « Chantiers », sans rien écrire ; sa bulle le dit ; sa fenêtre n’a que « Cacher du village »', async ({ page }, info) => {
     const uid = await ouvrirApres(page);
     const auto = page.locator('[data-role="petite-maison"][data-auto="oui"]');
     await expect(auto).toHaveCount(1);
@@ -279,14 +341,15 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
       await expect(bulle(page)).toContainText('Clique pour voir ce chantier seulement');
     }
     await expect(bulle(page)).toContainText('Maison A');
+    await expect(bulle(page)).toContainText(estTelephone(page) ? 'Appui long pour la cacher' : 'Double clic pour la cacher'); // 3c-bis (S8)
     await capturer(page, info, '4.4-petite-automatique');
-    // une petite automatique n'a pas de fenêtre de réglages
-    if (!estTelephone(page)) {
-      const p = await pointPetite(auto);
-      await page.mouse.dblclick(p.x, p.y);
-      await page.waitForTimeout(400);
-      await expect(fenetrePetite(page)).toHaveCount(0);
-    }
+    // 3c-bis : la fenêtre d'une automatique n'a que « Cacher du village » (aucun champ Nom)
+    await ouvrirFenetrePetite(page, auto);
+    await expect(fenetrePetite(page).getByRole('button', { name: 'Cacher du village' })).toBeVisible();
+    await expect(fenetrePetite(page).getByRole('textbox', { name: 'Nom' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(fenetrePetite(page)).toHaveCount(0);
+    expect(await docsPetites(uid)).toEqual([]);
   });
 
   test('4.4 six petites maisons autour d’une grande : rien ne se recouvre, ni l’étiquette ni la roue', async ({ page }, info) => {
@@ -355,9 +418,11 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
     await capturer(page, info, '4.4-grande-glissee-pres-des-petites');
   });
 
-  test('4.4 12 petites maisons manuelles au plus : la 13e est refusée avec sa phrase, rien n’est écrit', async ({ page }, info) => {
+  test('3cb.3 plus de plafond par personne : 12 au plus autour d’une grande (la 13e est refusée faute de place) ; une 13e sous une autre grande est acceptée', async ({ page }, info) => {
     const treize = Array.from({ length: 13 }, (_, i) => ({ ...CHANTIERS_ESSAI[1], id: `j${i}`, nom: `Lot ${i + 1}`, code: `CH-2${String(i).padStart(2, '0')}` }));
+    await creerProjet('pr1', { titre: 'Projet essai' });
     const uid = await ouvrirApres(page, {
+      besoins: [FACTURES, CHANTIERS, PROJETS], modules: [...ACHATS, 'affaires', 'projets'],
       reseau: { chantiers: treize },
       avant: async (u) => { for (let i = 0; i < 12; i++) await semerPetite(u, `p-lot-${String(i).padStart(2, '0')}`, `#/achatschantiers/liste/j${i}`, `Lot ${i + 1}`); },
     });
@@ -365,9 +430,18 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
     await ouvrirFenetreMaison(page, 'Chantiers');
     await fenetreMaison(page).getByRole('button', { name: 'Ajouter une petite maison' }).click();
     await fenetreChoix(page).getByRole('button', { name: /Lot 13/ }).click();
-    await expect(fenetreChoix(page).locator('[data-role="erreur-petite"]')).toHaveText('12 petites maisons au plus : retire-en une pour en ajouter une.');
-    await capturer(page, info, '4.4-douze-atteint');
+    await expect(fenetreChoix(page).locator('[data-role="erreur-petite"]')).toHaveText('Plus de place autour de cette maison : déplace-la ou retire une petite maison.');
     expect(await docsPetites(uid)).toHaveLength(12);
+    await page.keyboard.press('Escape');
+    await expect(fenetreChoix(page)).toHaveCount(0);
+    // sous « Projets » : acceptée (plus de plafond de 12 par personne)
+    await ouvrirFenetreMaison(page, 'Projets');
+    await fenetreMaison(page).getByRole('button', { name: 'Ajouter une petite maison' }).click();
+    await fenetreChoix(page).getByRole('button', { name: /Projet essai/ }).click();
+    await expect(fenetreChoix(page)).toHaveCount(0);
+    await expect.poll(async () => (await docsPetites(uid)).length).toBe(13);
+    await expect(page.locator('[data-role="petite-maison"][data-auto="non"][data-parent="b-projets-projets"]')).toHaveCount(1);
+    await capturer(page, info, '3cb.3-treizieme');
   });
 
   test('4.5 un chantier terminé perd sa petite maison automatique ; la manuelle reste', async ({ page }, info) => {
@@ -497,5 +571,234 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
       await capturer(page, info, '2.12-liste-avec-petites');
       await page.locator('[data-role="vue-liste"]').click(); // l'appareil garde le choix : on revient au village
     }
+  });
+
+  // ---------------------------------------------------------------- 3c-bis (27/11/2026)
+  const HUIT = Array.from({ length: 8 }, (_, i) => ({ ...CHANTIERS_ESSAI[0], id: `e${i}`, nom: `Essai ${i + 1}`, code: `CH-10${i}` }));
+
+  test('3cb.1 un projet actif a sa petite maison automatique à côté de « Projets », sans rien écrire ; elle part quand le projet est terminé', async ({ page }, info) => {
+    await creerProjet('pr1', { titre: 'Projet essai' });
+    await creerProjet('pr2', { titre: 'Projet fini', statut: 'termine', archive: true });
+    const uid = await ouvrirApres(page, { besoins: [FACTURES, PROJETS], modules: [...ACHATS, 'affaires', 'projets'] });
+    const auto = page.locator('[data-role="petite-maison"][data-auto="oui"]');
+    await expect(auto).toHaveCount(1);
+    await expect(auto).toHaveAttribute('aria-label', 'Projet essai : Actif');
+    await expect(auto).toHaveAttribute('data-parent', 'b-projets-projets');
+    const [c, l] = await caseDe(maison(page, 'Projets'));
+    expect(voisines(c, l)).toContain(await auto.getAttribute('data-case'));
+    await lues(page);
+    expect(await docsPetites(uid)).toEqual([]);
+    await capturer(page, info, '3cb.1-projet-automatique');
+    await ouvrirPetite(page, auto);
+    await expect(page).toHaveURL(/#\/projets\/projets\/pr1$/);
+    await creerProjet('pr1', { titre: 'Projet essai', statut: 'termine', archive: true });
+    await expect(async () => { // l'état des projets en mémoire peut être encore l'ancien : on refait l'aller-retour (relecture Fable R6)
+      await page.evaluate(() => { location.hash = '#/reglages'; });
+      await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
+      await page.evaluate(() => { location.hash = '#/accueil'; });
+      await expect(maison(page, 'Projets')).toBeVisible();
+      await lues(page);
+      await expect(petites(page)).toHaveCount(0, { timeout: 1000 });
+    }).toPass({ timeout: 15000 });
+  });
+
+  test('3cb.2 cacher une petite maison automatique (fenêtre, confirmation, « Annuler ») ; la 7e apparaît ; la roue la liste et « Remontrer » la remet', async ({ page }, info) => {
+    const uid = await ouvrirApres(page, { reseau: { chantiers: HUIT } });
+    await expect(petites(page)).toHaveCount(6);
+    await lues(page);
+    await ouvrirFenetrePetite(page, petite(page, 'Essai 1'));
+    await expect(fenetrePetite(page).getByRole('button', { name: 'Cacher du village' })).toBeVisible();
+    await expect(fenetrePetite(page).getByRole('textbox', { name: 'Nom' })).toHaveCount(0);
+    await expect(fenetrePetite(page)).toContainText('Elle vient toute seule : ce chantier est en cours.');
+    await capturer(page, info, '3cb.2-fenetre');
+    await fenetrePetite(page).getByRole('button', { name: 'Cacher du village' }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Cacher cette petite maison ?' });
+    await expect(confirmation).toContainText('La petite maison « Essai 1 » quitte ton village. Tu peux la remontrer avec la roue dentée.');
+    await confirmation.getByRole('button', { name: 'Cacher' }).click();
+    await expect(page.locator('.toast').filter({ hasText: 'Petite maison cachée' })).toBeVisible();
+    await expect(petite(page, 'Essai 1')).toHaveCount(0);
+    await expect(petite(page, 'Essai 7')).toHaveCount(1);
+    await expect(petites(page)).toHaveCount(6);
+    await expect.poll(async () => (await docsPetites(uid)).map((d) => ({ cachee: d.cachee, cible: d.cible }))).toEqual([{ cachee: true, cible: '#/achatschantiers/liste/e0' }]);
+    await page.reload();
+    await expect(maison(page, 'Chantiers')).toBeVisible();
+    await lues(page);
+    await expect(petites(page)).toHaveCount(6);
+    await expect(petite(page, 'Essai 1')).toHaveCount(0);
+    // la roue : « Petites maisons cachées »
+    await page.locator('[data-role="reglages-accueil"]').click();
+    const roue = page.getByRole('dialog', { name: 'Réglages de l’accueil' });
+    const bloc = roue.locator('[data-role="petites-cachees"]');
+    await expect(bloc).toContainText('Petites maisons cachées');
+    await expect(bloc).toContainText('Essai 1');
+    await bloc.scrollIntoViewIfNeeded();
+    await capturer(page, info, '3cb.2-roue');
+    const remontrer = bloc.getByRole('button', { name: 'Remontrer Essai 1' });
+    const boite = await remontrer.boundingBox();
+    if (estTelephone(page)) expect(boite.height).toBeGreaterThanOrEqual(44);
+    await remontrer.click();
+    await expect(roue.locator('[data-role="petites-cachees"]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(roue).toHaveCount(0);
+    await expect(petite(page, 'Essai 1')).toHaveCount(1);
+    await expect.poll(async () => (await docsPetites(uid)).length).toBe(0);
+    // seconde passe : cacher, puis « Annuler » du toast
+    await lues(page);
+    await ouvrirFenetrePetite(page, petite(page, 'Essai 1'));
+    await fenetrePetite(page).getByRole('button', { name: 'Cacher du village' }).click();
+    await page.getByRole('dialog', { name: 'Cacher cette petite maison ?' }).getByRole('button', { name: 'Cacher' }).click();
+    await expect(petite(page, 'Essai 1')).toHaveCount(0);
+    await expect.poll(async () => (await docsPetites(uid)).length).toBe(1);
+    await page.locator('.toast').filter({ hasText: 'Petite maison cachée' }).last().locator('[data-action="toast-action"]').click();
+    await expect(petite(page, 'Essai 1')).toHaveCount(1);
+    await expect.poll(async () => (await docsPetites(uid)).length).toBe(0);
+  });
+
+  test('3cb.4a le bord de la case d’une petite maison la prend (prise transparente, pas une lueur)', async ({ page }, info) => {
+    await ouvrirApres(page);
+    const auto = page.locator('[data-role="petite-maison"][data-auto="oui"]');
+    await expect(auto).toHaveCount(1);
+    await lues(page);
+    if (estTelephone(page)) await centrer(auto);
+    const id = await auto.getAttribute('data-maison');
+    const p = await pointVersCoinGauche(auto, 0.9);
+    expect(await maisonAuPoint(page, p)).toBe(id);
+    await expect(auto.locator('[data-role="prise-petite"]')).toHaveAttribute('fill', 'transparent');
+    await capturer(page, info, '3cb.4a-bord-de-case');
+    await page.mouse.click(p.x, p.y);
+    if (estTelephone(page)) {
+      await expect(bulle(page)).toHaveAttribute('data-maison', id);
+      await page.mouse.click(p.x, p.y);
+    }
+    await expect(page).toHaveURL(/#\/achatschantiers\/liste\/c1$/);
+  });
+
+  test('3cb.4b une petite maison bougée puis ramenée et relâchée n’ouvre rien et ne bouge pas', async ({ page }) => {
+    await ouvrirApres(page);
+    const auto = page.locator('[data-role="petite-maison"][data-auto="oui"]');
+    await expect(auto).toHaveCount(1);
+    await lues(page);
+    if (estTelephone(page)) await centrer(auto);
+    const avant = await auto.getAttribute('data-case');
+    const p = await pointPetite(auto);
+    if (estTelephone(page)) {
+      await doigt(page, [p, { x: p.x + 5, y: p.y }, { x: p.x + 10, y: p.y }, { x: p.x + 15, y: p.y }, p], { attente: 800 });
+    } else {
+      await page.mouse.move(p.x, p.y);
+      await page.mouse.down();
+      await page.mouse.move(p.x + 15, p.y, { steps: 3 });
+      await page.mouse.move(p.x, p.y);
+      await page.waitForTimeout(800);
+      await page.mouse.up();
+    }
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => location.hash)).toBe('#/accueil');
+    await expect(auto).toHaveAttribute('data-case', avant);
+    await expect(page.locator('[data-role="cible-rangement"]')).toHaveCount(0);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('3cb.4c téléphone : des petites maisons arrivées sous une bulle ouverte apparaissent quand la bulle se ferme ; ordinateur : tout de suite', async ({ page }, info) => {
+    await ouvrirApres(page, { reseau: { retenir: true } });
+    await expect(maison(page, 'Factures')).toBeVisible();
+    await attendreRetenue(page);
+    if (estTelephone(page)) {
+      await centrer(maison(page, 'Factures'));
+      const p = await pointMaison(page, 'Factures');
+      await page.mouse.click(p.x, p.y);
+      await expect(bulle(page)).toBeVisible();
+      await lacher(page);
+      await page.waitForTimeout(1000);
+      await expect(petites(page)).toHaveCount(0);
+      await expect(bulle(page)).toBeVisible();
+      await expect(page.locator('[data-role="page-village"]')).toHaveAttribute('data-petites-lues', 'non');
+      const herbe = await pointHerbe(page);
+      expect(herbe).not.toBeNull();
+      await page.mouse.click(herbe.x, herbe.y);
+      await expect(bulle(page)).toBeHidden();
+    } else {
+      const p = await pointMaison(page, 'Factures');
+      await page.mouse.move(p.x, p.y);
+      await expect(bulle(page)).toBeVisible();
+      await lacher(page);
+    }
+    await expect(page.locator('[data-role="petite-maison"][data-auto="oui"]')).toHaveCount(1, { timeout: 2000 });
+    await lues(page);
+    await capturer(page, info, '3cb.4c-apres-bulle');
+  });
+
+  test('3cb.4d une petite maison relâchée hors du dessin termine son geste : la grande se glisse ensuite', async ({ page }) => {
+    await ouvrirApres(page);
+    const auto = page.locator('[data-role="petite-maison"][data-auto="oui"]');
+    await expect(auto).toHaveCount(1);
+    await lues(page);
+    const roue = await page.locator('[data-role="reglages-accueil"]').boundingBox();
+    const versRoue = { x: roue.x + roue.width / 2, y: roue.y + roue.height / 2 };
+    if (estTelephone(page)) {
+      await centrer(auto);
+      await glisserAuDoigt(page, await pointPetite(auto), versRoue);
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await centrer(maison(page, 'Chantiers'));
+      await glisserAuDoigt(page, await pointMaison(page, 'Chantiers'), await pointBloc(page, 4, 4, 2, 24));
+    } else {
+      const p = await pointPetite(auto);
+      await page.mouse.move(p.x, p.y);
+      await page.mouse.down();
+      await page.mouse.move(versRoue.x, versRoue.y, { steps: 8 });
+      await page.mouse.up();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await glisser(page, 'Chantiers', { c: 4, l: 4 });
+    }
+    await expect(maison(page, 'Chantiers')).toHaveAttribute('data-case', '4-4');
+  });
+
+  test('3cb.4e C1 un clic sur une grande pendant que les petites maisons arrivent ouvre bien sa page, sans erreur', async ({ page }) => {
+    const erreurs = relever(page);
+    await ouvrirApres(page, { reseau: { retenir: true } });
+    await expect(maison(page, 'Chantiers')).toBeVisible();
+    await attendreRetenue(page);
+    if (estTelephone(page)) await centrer(maison(page, 'Chantiers'));
+    const p = await pointMaison(page, 'Chantiers');
+    await page.mouse.click(p.x, p.y);
+    await lacher(page);
+    if (estTelephone(page)) {
+      await expect(bulle(page)).toContainText('Chantiers');
+      await page.mouse.click(p.x, p.y);
+    }
+    await expect(page).toHaveURL(/#\/achatschantiers\/liste$/);
+    expect(erreurs).toEqual([]);
+  });
+
+  test('3cb.4e C2 glisser une petite maison ne l’ouvre pas et ne la déplace pas', async ({ page }) => {
+    await ouvrirApres(page);
+    const auto = page.locator('[data-role="petite-maison"][data-auto="oui"]');
+    await expect(auto).toHaveCount(1);
+    await lues(page);
+    if (estTelephone(page)) await centrer(auto);
+    const avant = await auto.getAttribute('data-case');
+    const p = await pointPetite(auto);
+    if (estTelephone(page)) await glisserAuDoigt(page, p, { x: p.x + 60, y: p.y }, { pas: 8 });
+    else {
+      await page.mouse.move(p.x, p.y);
+      await page.mouse.down();
+      await page.mouse.move(p.x + 60, p.y, { steps: 8 });
+      await page.mouse.up();
+    }
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => location.hash)).toBe('#/accueil');
+    await expect(auto).toHaveAttribute('data-case', avant);
+    await expect(page.locator('[data-role="page-village"]')).toHaveAttribute('data-rangement', 'non');
+  });
+
+  test('3cb.4e C3 la fenêtre de choix réutilise la lecture en cours : une seule lecture des chantiers', async ({ page }) => {
+    await ouvrirApres(page, { reseau: { retenir: true } });
+    await expect(maison(page, 'Chantiers')).toBeVisible();
+    await attendreRetenue(page);
+    await ouvrirFenetreMaison(page, 'Chantiers');
+    await fenetreMaison(page).getByRole('button', { name: 'Ajouter une petite maison' }).click();
+    await expect(fenetreChoix(page)).toContainText('Lecture en cours…');
+    await lacher(page);
+    await expect(fenetreChoix(page).getByRole('button', { name: /Atelier B/ })).toBeVisible();
+    expect((await page.evaluate(() => window.__appels)).filter((a) => a.chemin === '/rest/v1/chantiers')).toHaveLength(1);
   });
 });

@@ -11,6 +11,8 @@
 // dans le catalogue des dessins, aucun envoi de fichier ; « Retirer du village »). L'adresse passe par adresseExterne (js/os/village-damier.js).
 // Étape 3c (27/11/2026, petites maisons « vue filtrée ») : la fenêtre d'une grande maison d'un module qui sait filtrer gagne « Ajouter une petite maison »
 // (fenêtre de choix : un élément de la liste lue, grisé s'il est déjà dans le village) ; une petite maison manuelle a sa fenêtre (nom, « Retirer du village »).
+// 3c-bis (27/11/2026) : une petite maison automatique a sa fenêtre (son nom, « Cacher du village », puis « Petite maison cachée » avec « Annuler » pendant 8 s) ;
+// la roue gagne « Petites maisons cachées » (seulement s'il y en a), une ligne par cachée avec « Remontrer ».
 import { h, icone, dialogue, confirmer, toast, lirePreference, ecrirePreference } from './ui.js';
 import { BATIMENTS, CATALOGUE, BATIMENT_PAR_DEFAUT } from './village-batiments.js';
 import { adresseExterne, nomCourt, LIENS_MAX } from './village-damier.js';
@@ -58,12 +60,38 @@ function partieMaisons(maisons, fermerRoue) {
           bouton);
       })));
     }
+    if (e.cacheesPetites?.length) enfants.push(partiePetitesCachees(e, remplirZone));
     enfants.push(partieLiens(e, fermerRoue));
     enfants.push(h('p', { class: 'aide', dataset: { role: 'aide-gestes' } }, e.telephone ? 'Appui long sur une maison : ses réglages.' : 'Glisse une maison pour la déplacer. Double clic sur une maison : ses réglages.'));
     zone.replaceChildren(...enfants);
   };
   remplirZone();
   return zone;
+}
+
+/**
+ * Bloc « Petites maisons cachées » de la roue (3c-bis) : une ligne par cachée (vignette du bâtiment de sa grande, nom, « Remontrer »). « Remontrer » retire le
+ * document caché (`e.surRemontrer(id)` → Promise<bool>) ; la partie se redessine ensuite (`remplirZone`). Échec : la phrase d'échec, le bouton revient.
+ */
+function partiePetitesCachees(e, remplirZone) {
+  return h('div', { class: 'village-petites-cachees', dataset: { role: 'petites-cachees' } },
+    h('strong', {}, 'Petites maisons cachées'),
+    h('ul', { class: 'village-a-ajouter-liste' }, e.cacheesPetites.map((p) => {
+      const bouton = h('button', {
+        type: 'button', class: 'bouton bouton-secondaire', dataset: { role: 'remontrer-petite' }, 'aria-label': `Remontrer ${p.nom}`,
+        onclick: async () => {
+          bouton.disabled = true;
+          const r = await e.surRemontrer(p.id);
+          if (r === true) { remplirZone(); return; }
+          bouton.disabled = false;
+          toast(ECHEC, { type: 'erreur' });
+        },
+      }, 'Remontrer');
+      return h('li', { dataset: { petite: p.id } },
+        h('span', { class: 'village-liste-vignette', 'aria-hidden': 'true' }, e.dessin(p.batiment)),
+        h('span', { class: 'village-liste-textes' }, h('strong', {}, p.nom)),
+        bouton);
+    })));
 }
 
 /** Bouton « Ajouter un lien externe » de la roue : grisé avec « 6 liens au plus. » à la limite, et avec la phrase du village plein. */
@@ -370,5 +398,45 @@ export function fenetrePetite(petite, { surRenommer, surRetirer, surRemettre }) 
         },
       },
     ],
+  });
+}
+
+/**
+ * Fenêtre d'une petite maison automatique (3c-bis : double clic, appui long) : son nom, « Cacher du village » (confirmation, puis « Petite maison cachée »
+ * avec « Annuler » pendant 8 secondes, qui la remontre), « Fermer ». Pas de champ Nom : rien n'est enregistré pour une automatique.
+ * `surCacher()` → Promise<true | phrase de refus | false> ; `surRemontrer()` → Promise<bool>.
+ */
+export function fenetrePetiteAuto(petite, { surCacher, surRemontrer }) {
+  const erreur = h('p', { class: 'village-erreur', role: 'alert', dataset: { role: 'erreur-petite-maison' }, hidden: true }, ECHEC);
+  let fermerFenetre = null;
+  const cacher = h('button', {
+    type: 'button', class: 'bouton bouton-secondaire', dataset: { role: 'cacher-petite' },
+    onclick: async () => {
+      if (!(await confirmer('Cacher cette petite maison ?', `La petite maison « ${petite.nom} » quitte ton village. Tu peux la remontrer avec la roue dentée.`, { libelleOk: 'Cacher' }))) return;
+      cacher.disabled = true;
+      erreur.hidden = true;
+      const r = await surCacher();
+      cacher.disabled = false;
+      if (r !== true) { erreur.textContent = typeof r === 'string' ? r : ECHEC; erreur.hidden = false; return; }
+      fermerFenetre?.(false, true);
+      toast('Petite maison cachée', {
+        duree: 8000,
+        action: {
+          libelle: 'Annuler',
+          surClic: async () => { if ((await surRemontrer()) !== true) toast(ECHEC, { type: 'erreur' }); },
+        },
+      });
+    },
+  }, icone('eye'), 'Cacher du village');
+  const contenu = h('div', { class: 'reglages-petite-village' },
+    h('strong', { dataset: { role: 'nom-petite-auto' } }, petite.nom),
+    h('p', { class: 'aide' }, `Elle vient toute seule : ${petite.un} est en cours.`),
+    h('div', { class: 'village-maison-actions' }, cacher),
+    erreur);
+  return dialogue({
+    titre: 'Réglages de la petite maison',
+    contenu,
+    auMontage: ({ fermer }) => { fermerFenetre = fermer; },
+    boutons: [{ libelle: 'Fermer', valeur: null }],
   });
 }

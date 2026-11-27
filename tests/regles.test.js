@@ -575,6 +575,26 @@ describe('Village par utilisateur (27/11/2026)', () => {
     await assertSucceeds(ecrire(m1, docCacher(deplacee, false)));
     assert.equal(m2.id, 'b-achats');
   });
+
+  test('3cb.2 petite maison cachée : cachee: true accepté (créer avec l’heure du serveur, relire, supprimer) ; cachee false, « oui », 1, null refusés ; une place refusée ; un besoin avec cachee refusé ; docCachee passe ; un autre compte : rien', async () => {
+    const { docCachee } = await import('../js/os/village-petites.js');
+    const db = contexte(J);
+    const CACHEE = { ...PETITE, cachee: true };
+    await assertSucceeds(setDoc(chemin(db, J, 'p-cache-1'), { ...CACHEE, modifieLe: serverTimestamp() }));
+    const lu = await assertSucceeds(getDoc(chemin(db, J, 'p-cache-1')));
+    assert.equal(lu.data().cachee, true);
+    for (const cachee of [false, 'oui', 1, null]) await assertFails(setDoc(chemin(db, J, 'p-cache-2'), { ...PETITE, cachee }));
+    await assertFails(setDoc(chemin(db, J, 'p-cache-2'), { ...CACHEE, c: 1, l: 1 }));
+    await assertFails(setDoc(chemin(db, J, 'b-achatsfactures-liste'), { ...BESOIN, cachee: true }));
+    const d = docCachee({ parent: 'b-achatschantiers-liste', nom: 'Chantier essai', cible: '#/achatschantiers/liste/ch2' });
+    await assertSucceeds(setDoc(chemin(db, J, 'p-cache-3'), { ...d, modifieLe: serverTimestamp() }));
+    const charles = contexte(C);
+    await assertFails(getDoc(chemin(charles, J, 'p-cache-1')));
+    await assertFails(setDoc(chemin(charles, J, 'p-cache-4'), CACHEE));
+    await assertFails(deleteDoc(chemin(charles, J, 'p-cache-1')));
+    await assertSucceeds(deleteDoc(chemin(db, J, 'p-cache-1')));
+    await assertSucceeds(deleteDoc(chemin(db, J, 'p-cache-3')));
+  });
 });
 
 describe('Or du village (27/11/2026)', () => {
