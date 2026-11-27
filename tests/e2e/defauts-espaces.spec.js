@@ -71,7 +71,7 @@ test('D3 la zone du dossier parent disparaît quand on décoche la case, et revi
   await expect(zone(page)).toBeVisible();
   await page.locator('[data-option="boutonsDepot"]').uncheck();
   await expect(zone(page)).toHaveCount(0);
-  await expect.poll(async () => (await lireDocument('clients/neuf/crm_parametres/reglages')).boutonsDepot).toBe(false);
+  await expect.poll(async () => (await lireDocument('clients/neuf/crm_parametres/reglages'))?.boutonsDepot).toBe(false);
   await capturer(page, 'D3-case-decochee');
   await page.locator('[data-option="boutonsDepot"]').check();
   await expect(zone(page)).toBeVisible();
@@ -82,7 +82,7 @@ test('D4 l’espace d’Ingrid (boutonsDepot=false écrit) reste inchangé : cas
   await expect(page.locator('[data-option="boutonsDepot"]')).not.toBeChecked();
   await expect(zone(page)).toHaveCount(0);
   await expect(page.locator('[data-option="celebrations"]')).toBeChecked(); // absent chez elle : valeur par défaut
-  await expect.poll(async () => (await lireDocument('clients/ingrid/crm_parametres/reglages')).celebrations).toBe(true);
+  await expect.poll(async () => (await lireDocument('clients/ingrid/crm_parametres/reglages'))?.celebrations).toBe(true);
   const r = await lireDocument('clients/ingrid/crm_parametres/reglages');
   expect([r.boutonsDepot, r.suiviPaiements, r.clotureBloquee]).toEqual([false, false, true]);
   await capturer(page, 'D4-espace-ingrid');
