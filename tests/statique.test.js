@@ -82,11 +82,27 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (2.57.0)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.58.0)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.57.0');
+    assert.equal(v, '2.58.0');
     assert.equal(m[1], v);
+  });
+  test('A1 le schéma d\'architecture de la Console n\'écrit que des mots permis (liste blanche, dépôt public, 27/11/2026)', async () => {
+    // Tous les textes affichés sont dans schema-textes.js ; schema.js n'écrit aucun texte lui-même (aucune chaîne avec majuscule ou accent).
+    const { TEXTES_SCHEMA } = await import(new URL('../js/modules/console/schema-textes.js', import.meta.url));
+    const PERMIS = new Set(('architecture schéma d chevalier ia os app est une un maison immeuble avec appartement par client en construction et autre à '
+      + 'venir chaque bâtiment a son nuage de données le mcp va droit au n8n tourne sur serveur part firestore tes tiroir espace cloud sql les factures '
+      + 'ta tu testes tout ici premier l automatisations téléphone grue pointillés figé détails projets serveurs sont dans second cerveau '
+      + 'chantier avenir 1 2 3').split(' '));
+    const textes = [];
+    const parcourir = (v) => { if (typeof v === 'string') textes.push(v); else if (v && typeof v === 'object') Object.values(v).forEach(parcourir); };
+    parcourir(TEXTES_SCHEMA);
+    const horsListe = [...new Set(textes.flatMap((t) => t.toLowerCase().split(/[^\p{L}\p{N}]+/u)).filter((m) => m && !PERMIS.has(m)))];
+    assert.deepEqual(horsListe, [], 'mots hors de la liste blanche du schéma');
+    const code = lire('js/modules/console/schema.js').replace(/\/\*[\s\S]*?\*\/|(^|\s)\/\/.*$/gm, '$1'); // commentaires (pas le « // » d'une adresse)
+    const chaines = [...code.matchAll(/'((?:[^'\\]|\\.)*)'/g)].map((m) => m[1]).filter((c) => c !== 'xMidYMin meet' && /[A-ZÀ-ÿ]/.test(c)); // seule valeur SVG à majuscules
+    assert.deepEqual(chaines, [], 'texte écrit dans schema.js au lieu de schema-textes.js');
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
     for (const p of ['assets/charles-portrait.png', 'assets/jerome-portrait.png']) {
