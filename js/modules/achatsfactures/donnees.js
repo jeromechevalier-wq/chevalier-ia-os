@@ -128,7 +128,7 @@ export function creerDonnees({ client, actions }) {
    * Renvoie { ids, complete } ; `complete` = false si le plafond de lecture est atteint (le compteur dit alors « au moins »).
    */
   async function listerAValider() {
-    const r = await valeur(client).lire(TABLE_FACTURES, { colonnes: COLONNES_PILE, filtres: [['statut', 'eq', 'a_valider']], tri: [{ col: 'created_at', asc: true }, 'id'] });
+    const r = await valeur(client).lire(TABLE_FACTURES, { colonnes: COLONNES_PILE, filtres: [['statut', 'eq', 'a_valider'], ['archivee_le', 'is', null]], tri: [{ col: 'created_at', asc: true }, 'id'] });
     return { ids: r.lignes.filter((f) => f.statut === 'a_valider' && !f.archivee_le).map((f) => f.id), complete: !r.tronque };
   }
 

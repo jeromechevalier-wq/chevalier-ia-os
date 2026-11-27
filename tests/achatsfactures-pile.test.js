@@ -41,7 +41,7 @@ describe('lecture des factures à valider', () => {
     expect(appels).toHaveLength(1);
     expect(appels[0].table).toBe(TABLE_FACTURES);
     expect(appels[0].colonnes).toEqual(COLONNES_PILE);
-    expect(appels[0].filtres).toEqual([['statut', 'eq', 'a_valider']]);
+    expect(appels[0].filtres).toEqual([['statut', 'eq', 'a_valider'], ['archivee_le', 'is', null]]); // P5 les archivées sont écartées par la requête elle-même (comme compterFacturesAValider)
     expect(appels[0].tri).toEqual([{ col: 'created_at', asc: true }, 'id']);
   });
 

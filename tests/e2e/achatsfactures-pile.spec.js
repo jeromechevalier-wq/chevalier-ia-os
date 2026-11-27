@@ -3,6 +3,8 @@
 //  P1 une facture à la fois, la plus ancienne d'abord, avec la page Examiner complète ; « Passer » la remet en fin de pile sans rien écrire ;
 //  P2 après une acceptation réussie, la suivante s'affiche toute seule (même adresse, compteur à jour) ; P3 refus du serveur : on reste sur la même facture avec le message ;
 //  P4 plus rien à valider : « Toutes les factures sont traitées » et le bouton vers la liste ; P5 cas vide à l'ouverture ; P6 accès depuis la liste, menu inchangé ; P7 téléphone.
+//  Corrections de la relecture (27/11/2026) : P8 « Passer » désactivé pendant une décision ; P9 facture déjà traitée ailleurs ou archivée : toast puis liste relue ;
+//  P10 focus clavier sur le titre de la facture suivante, puis sur « Voir la liste des factures ».
 // Captures dans tests/e2e/captures/achatsfactures-pile/ (non commitées), nommées avec le projet : ordinateur ou telephone.
 import { fileURLToPath } from 'node:url';
 import { test, expect, connecter, ecrireDocument, estTelephone } from './outils.js';
@@ -39,23 +41,30 @@ const LIGNES_A1 = [1, 2, 3].map((p) => ({ position: p, reference_fournisseur: `R
 
 /** Trois factures à valider (a1 la plus ancienne, puis a14, puis a12), plus des factures déjà décidées (dont h9, dont a14 est le doublon). */
 const ARRIVEES = { a1: '2026-11-18T08:00:00Z', a14: '2026-11-19T08:00:00Z', a12: '2026-11-20T08:00:00Z' };
-const lignesTable = ({ sansAValider = false } = {}) => listeComplete()
+const lignesTable = ({ sansAValider = false, fantome = null } = {}) => listeComplete()
   .filter((f) => (f.statut === 'a_valider' ? !sansAValider && f.id in ARRIVEES : true))
   .map((f) => { const { chantiers, etablissements_fournisseur, ...r } = f;
-    return { ...r, created_at: ARRIVEES[f.id] ?? r.created_at, chantier_id: null, etablissement_id: null, fichier_path: `espace-essai/${f.id}.pdf`, courriel_id: null, alertes_a_la_decision: null, motif_acceptation: null, archivee_par: null }; });
+    return { ...r, created_at: f.id === fantome ? '2026-11-01T08:00:00Z' : ARRIVEES[f.id] ?? r.created_at, chantier_id: null, etablissement_id: null, fichier_path: `espace-essai/${f.id}.pdf`, courriel_id: null, alertes_a_la_decision: null, motif_acceptation: null, archivee_par: null }; });
 
-/** Faux réseau posé AVANT le chargement : lectures filtrées comme le ferait la base, stockage, tickets et webhooks. `options` : { sansAValider, refusValidation, lectureEnPanne }. */
+/**
+ * Faux réseau posé AVANT le chargement : lectures filtrées comme le ferait la base, stockage, tickets et webhooks.
+ * `options` : { sansAValider, refusValidation, lectureEnPanne, dejaTraitee (le serveur répond « déjà traitée » et la facture devient acceptée),
+ *   fantome (id d'une facture déjà décidée que la liste donne encore « à valider » tant qu'elle n'est pas archivée) }. `window.__faux.retarder = true` : la décision attend `window.__faux.liberer()`.
+ */
 async function poserFauxReseau(page, options = {}) {
-  await page.addInitScript(({ factures, chantiers, agences, fournisseurs, lignesA1, refusValidation, lectureEnPanne }) => {
-    const faux = { factures: structuredClone(factures), chantiers, agences, fournisseurs, refusValidation, lectureEnPanne };
+  await page.addInitScript(({ factures, chantiers, agences, fournisseurs, lignesA1, refusValidation, lectureEnPanne, dejaTraitee, fantome }) => {
+    const faux = { factures: structuredClone(factures), chantiers, agences, fournisseurs, refusValidation, lectureEnPanne, dejaTraitee, fantome, retarder: false, liberer: null };
     window.__faux = faux;
     window.__appels = [];
     const rep = (corps, statut = 200, entetes = {}) => new Response(JSON.stringify(corps), { status: statut, headers: { 'Content-Type': 'application/json', ...entetes } });
     const liste = (lignes) => rep(lignes, 200, { 'Content-Range': `0-${Math.max(0, lignes.length - 1)}/${lignes.length}` });
+    // Une facture « fantôme » est donnée « à valider » par la lecture de la pile (celle qui filtre archivee_le) tant qu'elle n'est pas archivée.
+    const valeurDe = (l, k, u) => (k === 'statut' && l.id === faux.fantome && !l.archivee_le && u.searchParams.has('archivee_le') ? 'a_valider' : l[k]);
     const filtre = (lignes, u, cles) => lignes.filter((l) => cles.every((k) => {
       const v = u.searchParams.get(k);
       if (!v) return true;
-      if (v.startsWith('eq.')) return String(l[k]) === v.slice(3);
+      if (v === 'is.null') return l[k] == null;
+      if (v.startsWith('eq.')) return String(valeurDe(l, k, u)) === v.slice(3);
       if (v.startsWith('neq.')) return String(l[k]) !== v.slice(4);
       return true;
     }));
@@ -68,7 +77,7 @@ async function poserFauxReseau(page, options = {}) {
         if (faux.lectureEnPanne) return rep({ message: 'panne' }, 500);
         const select = u.searchParams.get('select') ?? '';
         if (select === 'id,extraction') return liste(faux.factures.filter((f) => f.statut === 'a_valider').map((f) => ({ id: f.id, extraction: f.extraction })));
-        return liste(trier(filtre(faux.factures, u, ['id', 'statut', 'fournisseur_siren', 'iban_normalise']), u).map(({ extraction, ...r }) => (select.includes('extraction') ? { extraction, ...r } : r)));
+        return liste(trier(filtre(faux.factures, u, ['id', 'statut', 'fournisseur_siren', 'iban_normalise', 'archivee_le']), u).map(({ extraction, ...r }) => ({ ...(select.includes('extraction') ? { extraction } : {}), ...r, statut: valeurDe(r, 'statut', u) })));
       }
       if (u.pathname === '/rest/v1/chantiers') return liste(filtre(faux.chantiers, u, ['id']));
       if (u.pathname === '/rest/v1/etablissements_fournisseur') return liste(faux.agences);
@@ -81,15 +90,18 @@ async function poserFauxReseau(page, options = {}) {
       if (u.pathname.startsWith('/storage/v1/object/sign/')) return rep({ signedURL: '/object/sign/factures/fichier.pdf?token=essai' });
       const f = corps ? faux.factures.find((x) => x.id === corps.facture_id) : null;
       if (u.pathname === '/validation') {
+        if (faux.retarder) await new Promise((r) => { faux.liberer = r; });
         if (faux.refusValidation) return rep({ ok: false, erreur: faux.refusValidation }, 400);
+        if (faux.dejaTraitee) { Object.assign(f, { statut: 'acceptee', date_decision: '2026-11-25T09:00:00Z', decide_par: 'autre@exemple.example' }); return rep({ ok: false, code: 'deja_traitee' }, 409); }
         if (corps.decision === 'accepter') Object.assign(f, { statut: 'acceptee', etablissement_id: corps.etablissement_id, date_decision: '2026-11-25T10:00:00Z', decide_par: 'test@exemple.example' });
         else Object.assign(f, { statut: 'refusee', motif_refus: corps.motif, date_decision: '2026-11-25T10:00:00Z', decide_par: 'test@exemple.example' });
         return rep({ ok: true });
       }
+      if (u.pathname === '/actions' && corps?.action === 'archiver' && f) { f.archivee_le = '2026-11-25T11:00:00Z'; return rep({ ok: true }); }
       return rep({ message: 'inconnu' }, 404);
     };
     window.__accesBase = { fetchImpl, jeton: 'jeton-fictif', claims: { role: 'authenticated', espace_base: 'espace-essai' } };
-  }, { factures: lignesTable(options), chantiers: CHANTIERS, agences: AGENCES, fournisseurs: FOURNISSEURS, lignesA1: LIGNES_A1, refusValidation: '', lectureEnPanne: false, ...options });
+  }, { factures: lignesTable(options), chantiers: CHANTIERS, agences: AGENCES, fournisseurs: FOURNISSEURS, lignesA1: LIGNES_A1, refusValidation: '', lectureEnPanne: false, dejaTraitee: false, fantome: null, ...options });
   await page.route('**/storage/v1/object/sign/**', (route) => route.fulfill({ status: 200, contentType: 'application/pdf', headers: { 'access-control-allow-origin': '*' }, body: pdfFictif() }));
 }
 const appelsVers = (page, chemin) => page.evaluate((c) => window.__appels.filter((a) => a.chemin === c).map((a) => a.corps), chemin);
@@ -244,4 +256,77 @@ test('P7 au téléphone : une facture à la fois, onglets Facture / Vérificatio
   await expect(restantes(page)).toHaveText('2 restantes');
   expect(await sansDefilementHorizontal(page)).toBe(true);
   await capturer(page, info, 'P7-telephone-suivante');
+});
+
+test('P8 « Passer » est désactivé pendant qu\'une acceptation s\'écrit, puis le message arrive et la suivante s\'affiche', async ({ page }, info) => {
+  await ouvrirPile(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await page.evaluate(() => { window.__faux.retarder = true; });
+  await expect(page.locator('[data-action="passer"]')).toBeEnabled();
+  await versVerifications(page);
+  await bloc(page, 'decision').locator('[data-action="accepter"]').click();
+  await expect.poll(() => page.evaluate(() => typeof window.__faux.liberer === 'function')).toBe(true);
+  await expect(page.locator('[data-action="passer"]')).toBeDisabled();
+  await expect(bloc(page, 'decision').locator('[data-action="accepter"]')).toBeDisabled();
+  await capturer(page, info, 'P8-passer-desactive');
+  await page.evaluate(() => { window.__faux.retarder = false; window.__faux.liberer(); });
+  await expect(page.locator('.toast')).toContainText('Facture acceptée');
+  await attendreFacture(page, 'FA-2026-0300');
+  await expect(restantes(page)).toHaveText('2 restantes');
+  await expect(page.locator('[data-action="passer"]')).toBeEnabled();
+  expect((await appelsVers(page, '/validation')).map((c) => c.facture_id)).toEqual(['a1']);
+});
+
+test('P9 facture déjà traitée par quelqu\'un d\'autre (acceptation ou refus) : message en toast, la pile relit la liste et le compteur reste juste', async ({ page }, info) => {
+  await ouvrirPile(page, { dejaTraitee: true });
+  await attendreFacture(page, 'FA-2026-0412');
+  await versVerifications(page);
+  await bloc(page, 'decision').locator('[data-action="accepter"]').click();
+  await expect(page.locator('.toast-erreur')).toContainText('déjà été traitée');
+  await attendreFacture(page, 'FA-2026-0300'); // a1 n'est plus à valider : la suivante, sans clic
+  await expect(restantes(page)).toHaveText('2 restantes');
+  await capturer(page, info, 'P9-deja-traitee-acceptation');
+  await versVerifications(page);
+  await bloc(page, 'decision').locator('[data-action="refuser"]').click();
+  const fenetre = page.getByRole('dialog');
+  await fenetre.locator('[data-champ="motif"]').fill('Essai de refus');
+  await fenetre.getByRole('button', { name: 'Refuser' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await attendreFacture(page, 'FQ-100');
+  await expect(restantes(page)).toHaveText('1 restante');
+  await capturer(page, info, 'P9-deja-traitee-refus');
+});
+
+test('P9 facture décidée entre-temps puis archivée depuis la pile : message en toast, elle quitte la pile, compteur à jour', async ({ page }, info) => {
+  await ouvrirPile(page, { fantome: 'h1' });
+  // h1 (déjà décidée) est donnée « à valider » par la liste : elle passe en tête (date d'arrivée la plus ancienne)
+  await attendreFacture(page, 'BD-55102');
+  await expect(page.locator('[data-role="statut"]')).not.toHaveText('À valider');
+  await expect(restantes(page)).toHaveText('4 restantes');
+  await versVerifications(page);
+  await bloc(page, 'decision').locator('[data-action="archiver"]').click();
+  await page.getByRole('dialog').getByRole('button', { name: /Archiver/ }).click();
+  await attendreFacture(page, 'FA-2026-0412');
+  await expect(restantes(page)).toHaveText('3 restantes');
+  await expect(page.locator('.toast')).toBeVisible();
+  expect((await appelsVers(page, '/actions')).map((c) => [c.facture_id, c.action])).toEqual([['h1', 'archiver']]);
+  await capturer(page, info, 'P9-archivee-quitte-la-pile');
+});
+
+test('P10 focus clavier : sur le titre de la facture suivante après chaque décision, puis sur « Voir la liste des factures »', async ({ page }, info) => {
+  await ouvrirPile(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await versVerifications(page);
+  await bloc(page, 'decision').locator('[data-action="accepter"]').click();
+  await attendreFacture(page, 'FA-2026-0300');
+  await expect(page.locator('[data-role="titre-facture"]')).toBeFocused();
+  await expect(page.locator('[data-role="titre-facture"]')).toHaveAttribute('tabindex', '-1');
+  await capturer(page, info, 'P10-focus-titre');
+  await refuser(page);
+  await attendreFacture(page, 'FQ-100');
+  await expect(page.locator('[data-role="titre-facture"]')).toBeFocused();
+  await refuser(page);
+  await expect(page.locator('[data-role="pile-finie"]')).toBeVisible();
+  await expect(page.locator('[data-role="pile-finie"] [data-action="vers-liste"]')).toBeFocused();
+  await capturer(page, info, 'P10-focus-fin');
 });

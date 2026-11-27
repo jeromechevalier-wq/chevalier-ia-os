@@ -35,9 +35,13 @@ const nombre = (n) => (typeof n === 'number' && Number.isFinite(n) ? n.toLocaleS
  * `options` (vue « Valider à la suite », pile.js) : `actionsTete` = éléments ajoutés à droite de l'en-tête (compteur, « Passer ») ;
  * `surDecision()` = appelée après une acceptation ou un refus RÉUSSI, à la place de la relecture de la page (la pile montre alors la facture suivante).
  * Un échec garde la page telle quelle, avec son message, comme sans `options`.
+ * `surOccupation(vrai/faux)` = prévenue quand une écriture commence ou finit (la pile désactive alors « Passer » : quitter la page en pleine décision perdrait le résultat).
+ * `surPerimee()` = la facture n'est plus à valider ici (déjà traitée par quelqu'un d'autre, ou archivée) : le message est montré en toast, puis la pile relit sa liste.
+ * `focusTitre` = poser le focus clavier sur le titre (h1) dès que la facture est affichée (la pile, après une décision ou « Passer »).
  */
 export function rendreExaminer(conteneur, factureId, options = {}) {
-  const { actionsTete = [], surDecision = null } = options;
+  const { actionsTete = [], surDecision = null, surOccupation = null, surPerimee = null } = options;
+  let focusAPoser = !!options.focusTitre;
   let vivant = true;
   let etatAcces = 'chargement'; // chargement | connecte | non-regle | reconnexion | illisible
   let lecture = 'chargement'; // chargement | ok | introuvable | erreur
@@ -54,6 +58,19 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
   let erreurDecision = '';
   let zonePdf = null;
   let cheminPdf = undefined;
+  /** Une écriture commence ou finit : la pile (option `surOccupation`) en est prévenue. */
+  function poserOccupe(v) {
+    if (occupe === v) return;
+    occupe = v;
+    try { surOccupation?.(v); } catch (e) { console.warn('Pile : occupation non transmise', e?.message); }
+  }
+  /** La facture n'est plus à valider ici : message en toast, puis la pile relit sa liste (option `surPerimee`). */
+  function quitterPerimee(message) {
+    poserOccupe(false); erreurDecision = '';
+    if (!vivant) return;
+    if (message) toast(message, { type: 'erreur', duree: DUREE_MESSAGE });
+    surPerimee();
+  }
   const donnees = () => creerDonneesExaminer({ client: clientBase(), actions: actionsBase() });
 
   const racine = h('div', { class: 'page page-examiner page-achats-factures', dataset: { module: 'achats', role: 'examiner' } });
@@ -279,27 +296,28 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
   /** Acceptation ou refus réussi : dans la pile, on passe à la facture suivante (aucune relecture) ; sinon la page est relue. */
   async function decisionFaite(message) {
     if (!surDecision) { await apresEcriture(message); return; }
-    occupe = false; erreurDecision = '';
+    poserOccupe(false); erreurDecision = '';
     if (!vivant) return;
     toast(message, { duree: DUREE_MESSAGE });
     surDecision();
   }
 
   async function apresEcriture(message) {
-    occupe = false; erreurDecision = '';
+    poserOccupe(false); erreurDecision = '';
     await charger(true);
     if (vivant && message) toast(message, { duree: DUREE_MESSAGE });
   }
 
   /** Fin d'une écriture faite dans une fenêtre : si le serveur dit que la facture a changé (`perime`), le message reste affiché hors de la fenêtre et la page est relue. */
   async function finEcriture(r, message) {
-    if (r.resultat?.perime) { occupe = false; await charger(true); return; }
+    if (r.resultat?.perime) { poserOccupe(false); await charger(true); return; }
     await apresEcriture(message);
   }
 
   /** Refus du serveur : son message est dit tel quel ; selon le code, on relit la page (la facture a changé) ou les listes (un chantier ou une agence a changé). */
   async function refusServeur(e) {
-    occupe = false;
+    if (e?.code === 'deja_traitee' && surPerimee) { quitterPerimee(messageDe(e)); return; }
+    poserOccupe(false);
     erreurDecision = messageDe(e);
     if (e?.code === 'deja_traitee' || CODES_A_RECHARGER.has(e?.code) || CODES_LIAISON_PERIMEE.has(e?.code)) await charger(true); else majDecision();
   }
@@ -309,7 +327,7 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
     const alertes = alertesDeDecision(controles);
     let corps;
     try { corps = construireCorps(d.f.id, 'accepter', motifAccept, alertes, { etablissement_id: choixAgence.id, chantier_id: choixChantier?.id ?? null }); } catch (e) { erreurDecision = messageDe(e); majDecision(); return; }
-    occupe = true; erreurDecision = ''; majDecision();
+    poserOccupe(true); erreurDecision = ''; majDecision();
     try { await actionsBase().validerFacture(corps); } catch (e) { await refusServeur(e); return; }
     motifAccept = ''; choixChantier = null; choixAgence = null; agenceDevinee = false;
     await decisionFaite('Facture acceptée');
@@ -320,11 +338,13 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
     const r = await fenetreMotif({
       titre: 'Refuser la facture', consigne: 'Explique pourquoi tu refuses cette facture.', libelle: 'Refuser', style: 'danger', texteInitial: motifInitial,
       executer: async (motif) => {
-        try { await donnees().decider(d.f.id, 'refuser', motif, [], null); } catch (e) { if (e?.code === 'deja_traitee') { erreurDecision = messageDe(e); return { perime: true }; } throw e; }
+        poserOccupe(true); // la pile désactive « Passer » pendant l'écriture
+        try { await donnees().decider(d.f.id, 'refuser', motif, [], null); } catch (e) { if (e?.code === 'deja_traitee') { erreurDecision = messageDe(e); return { perime: true }; } throw e; } finally { poserOccupe(false); }
         return { perime: false };
       },
     });
     if (!vivant || !r?.ok) return;
+    if (r.resultat?.perime && surPerimee) { quitterPerimee(erreurDecision); return; }
     if (r.resultat?.perime) { await finEcriture(r, ''); return; }
     await decisionFaite('Facture refusée');
   }
@@ -359,8 +379,9 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
     if (occupe) return;
     const t = textesArchivage(d.f.fournisseur?.trim() ?? '');
     if (action === 'archiver' && !(await confirmer(t.titre, t.message, { libelleOk: t.libelleOk }))) return;
-    occupe = true; erreurDecision = ''; majDecision();
+    poserOccupe(true); erreurDecision = ''; majDecision();
     try { await (action === 'archiver' ? donnees().archiver(d.f.id) : donnees().desarchiver(d.f.id)); } catch (e) { await refusServeur(e); return; }
+    if (action === 'archiver' && surPerimee) { poserOccupe(false); if (vivant) { toast(t.fait, { duree: DUREE_MESSAGE }); surPerimee(); } return; }
     await apresEcriture(action === 'archiver' ? t.fait : t.desarchive);
   }
 
@@ -410,7 +431,7 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
   function rendre() {
     if (!vivant) return;
     const titre = d ? nomFournisseur(d.f) : 'Facture';
-    const tete = enteteListe({ titre: h('h1', {}, titre), retour, actions: actionsTete,
+    const tete = enteteListe({ titre: h('h1', options.focusTitre ? { tabIndex: -1, dataset: { role: 'titre-facture' } } : {}, titre), retour, actions: actionsTete,
       compteur: d ? h('span', { class: 'compteur-liste' }, h('span', { class: `badge ${CLASSE_STATUT[d.f.statut] ?? ''}`, dataset: { role: 'statut' } }, LIBELLE_STATUT[d.f.statut] ?? d.f.statut), d.f.numero ? ` N° ${d.f.numero}` : '') : null });
     if (etatAcces === 'chargement' || (etatAcces === 'connecte' && lecture === 'chargement')) { remplir(racine, tete, chargementListe()); return; }
     if (etatAcces !== 'connecte') { const z = h('div', {}); dessinerEtatAcces(z, etatAcces, (forcer) => verifier(forcer)); remplir(racine, tete, z); return; }
@@ -422,6 +443,7 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
       onclick: () => { onglet = id; grille.dataset.onglet = id; onglets.querySelectorAll('[role="tab"]').forEach((b) => { const a = b.dataset.onglet === id; b.classList.toggle('actif', a); b.setAttribute('aria-selected', String(a)); }); },
     }, lib)));
     grille.append(h('div', { class: 'examiner-pdf', dataset: { role: 'colonne-pdf' } }, barrePdf(d.f)), dessinerPoignee(grille), panneau(d.f));
+    if (focusAPoser) { focusAPoser = false; queueMicrotask(() => { if (vivant) tete.querySelector('h1')?.focus(); }); }
     remplir(racine, tete, peutEtreAncienne ? h('p', { class: 'aide', role: 'status' }, 'La page n’a pas pu être relue : elle n’est peut-être pas à jour. Recharge-la pour la rafraîchir.') : null, onglets, grille);
   }
 
