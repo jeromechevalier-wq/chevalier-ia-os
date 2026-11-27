@@ -294,6 +294,7 @@ test('E8 export : le bouton « Exporter » de l\'écran et la section « Sauvega
   expect(contenu).toContain('Bois du Sud;PL27;Planche sapin 27 mm;u;10;01/03/2026;1;Validé;Planche sapin 27;u;1');
   await page.evaluate(() => { location.hash = '#/reglages'; });
   await ouvrirSectionReglages(page, 'Achats');
+  await page.locator('[data-role="sauvegardes-separees"]').click(); // depuis le 26/11/2026, la sauvegarde de chaque module est repliée sous « Sauvegardes séparées »
   await expect(page.locator('#reglages-export-achatsarticles')).toBeVisible();
   await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
   expect(await sansDefilementHorizontal(page)).toBe(true);

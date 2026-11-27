@@ -21,13 +21,20 @@ export function exporterLignes(lignes) {
   return true;
 }
 
+/** Lit tous les fournisseurs et fabrique le fichier de sauvegarde, sans le télécharger : { nom, contenu, message, nombre }. Lève l'erreur de lecture.
+ *  Sert au bouton ci-dessous ET à la sauvegarde complète des achats (.zip) : même contenu, mêmes colonnes, jamais de coordonnées bancaires. */
+export async function fichierFournisseurs({ lire = lireFournisseurs } = {}) {
+  const { file, confirmations, message } = await lire();
+  const lignes = fusionner(file, confirmations);
+  return { nom: nomFichierFournisseurs(dateJourFichier()), contenu: fournisseursCsv(lignes), message: message || '', nombre: lignes.length };
+}
+
 /** Réglages > Achats > Sauvegarde : lit tous les fournisseurs dans la base de l'espace puis télécharge le fichier. `lire` se remplace dans les tests. Renvoie true si le fichier est parti. */
 export async function exporterFournisseurs({ lire = lireFournisseurs } = {}) {
   try {
-    const { file, confirmations, message } = await lire();
-    const lignes = fusionner(file, confirmations);
-    if (!lignes.length) { toast(TEXTE_RIEN_A_EXPORTER); return false; }
-    exporterLignes(lignes);
+    const { nom, contenu, message, nombre } = await fichierFournisseurs({ lire });
+    if (!nombre) { toast(TEXTE_RIEN_A_EXPORTER); return false; }
+    telechargerCsv(nom, contenu);
     toast(message ? `Sauvegarde téléchargée. ${message}` : 'Sauvegarde téléchargée');
     return true;
   } catch (e) {

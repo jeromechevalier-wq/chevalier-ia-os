@@ -314,6 +314,7 @@ test('T11 Réglages > Achats > Sauvegarde : « Exporter mes données » téléch
   await connecter(page, undefined, { route: 'reglages' });
   await attendreCalme(page);
   await ouvrirSectionReglages(page, 'Achats');
+  await page.locator('[data-role="sauvegardes-separees"]').click(); // depuis le 26/11/2026, la sauvegarde de chaque module est repliée sous « Sauvegardes séparées »
   await expect(page.locator('#reglages-export-tableauachats')).toBeVisible();
   await capturer(page, info, 'T11-reglages');
   const [telechargement] = await Promise.all([page.waitForEvent('download'), page.locator('[data-action="exporter-tableauachats"]').click()]);
