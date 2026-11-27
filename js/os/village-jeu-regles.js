@@ -13,6 +13,10 @@ export const COTE_DEPART = 8;
 export const CASES_PAR_PARCELLE = 2;
 /** Côté d'un objet acheté, en cases du damier. */
 export const TAILLES = Object.freeze({ decoration: 1, champ: 2, enclos: 2 });
+/** Côté d'une maison du village (besoin ou lien), en cases : la même valeur que TAILLE_GRANDE de village-damier.js (un test le vérifie). */
+export const TAILLE_MAISON = 2;
+/** Ce que la boutique vend aujourd'hui (étape 6b) ; l'étape 7 ajoutera le champ et l'enclos. */
+export const ARTICLES_EN_VENTE = Object.freeze(['decoration', 'parcelle']);
 /** Mêmes noms que DECORATIONS du fichier des dessins du jeu (étape 6a-bis ; un test le vérifie). */
 export const MODELES_DECORATION = Object.freeze(['arbre', 'fleurs', 'banc', 'cloture', 'brouette']);
 const HEURE = 3600 * 1000;
@@ -41,6 +45,22 @@ export function parcellesValables(parcelles) {
 export function damierDe(parcelles) {
   const cote = COTE_DEPART + CASES_PAR_PARCELLE * parcellesValables(parcelles);
   return { colonnes: cote, lignes: cote };
+}
+
+/**
+ * Cases prises par les documents ENREGISTRÉS du village (`[{ sorte, c, l }]`), sous la forme « c-l » : maisons (besoin, même cachée, et lien) en 2 x 2,
+ * objets achetés selon TAILLES. Une petite maison n'a pas de place ; un document sans `c`/`l` entiers ou d'une sorte inconnue est ignoré.
+ * La même règle sert au serveur (achat d'une décoration) et à l'écran (case proposée).
+ */
+export function casesEnregistrees(docs) {
+  const prises = new Set();
+  for (const d of Array.isArray(docs) ? docs : []) {
+    if (!d || typeof d !== 'object') continue;
+    const taille = d.sorte === 'besoin' || d.sorte === 'lien' ? TAILLE_MAISON : Object.hasOwn(TAILLES, d.sorte) ? TAILLES[d.sorte] : 0;
+    if (!taille || !Number.isInteger(d.c) || !Number.isInteger(d.l)) continue;
+    for (let i = 0; i < taille; i++) for (let j = 0; j < taille; j++) prises.add(`${d.c + i}-${d.l + j}`);
+  }
+  return prises;
 }
 
 /** Pièces qui manquent pour acheter (0 si l'utilisateur a assez). */

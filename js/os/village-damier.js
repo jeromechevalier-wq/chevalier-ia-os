@@ -6,8 +6,11 @@
 //  - Un document par maison rangée : village_utilisateurs/{uid}/batiments/{id} ; trois sortes (`besoin`, `lien`, `petite`), chacune avec ses champs.
 //    `lireBatiments` rejoue EXACTEMENT les contrôles de firestore.rules (mêmes expressions, mêmes bornes) : un document mal formé est ignoré.
 //  - Rangement d'office (D10) : jusqu'à 4 maisons, les 4 places d'avant (haut, gauche, droite, bas) ; au-delà, des blocs serrés dans un ordre fixe.
+//  - Objets achetés (étape 6b : décorations ; champ et enclos à l'étape 7) : documents `o-…` créés par le serveur, qui se déplacent seulement. Ils ont leur liste
+//    à part (`objets` de rangerVillage) : `maisons` reste « les bâtiments avec un besoin » (compteurs, bulle, liste, roue n'ont pas à les connaître).
 // N'importe rien d'un module métier (js/modules/…).
 import { iso, T, BATIMENTS, BATIMENT_PAR_DEFAUT } from './village-batiments.js';
+import { MODELES_DECORATION, TAILLES, TAILLE_MAISON } from './village-jeu-regles.js';
 import { formesArbre, BOITE_BATIMENT, ETIQUETTE_Y, ETIQUETTE_HAUTEUR_MAX, EPAISSEUR_TERRAIN } from './maison-village.js';
 
 export const CASE = 2.5;
@@ -141,6 +144,40 @@ export function adresseExterne(saisie) {
   return { ok: true, url: href };
 }
 
+// ---------------------------------------------------------------- objets achetés (étape 6b, 27/11/2026 ; mêmes contrôles que villageObjetDeplace des règles)
+
+const RE_OBJET = /^o-[a-z0-9-]{1,60}$/;
+const CHAMPS_OBJET = Object.freeze(['sorte', 'modele', 'c', 'l', 'acheteLe', 'depuis']);
+/** Vrai pour une sorte d'objet du jeu (décoration, champ, enclos). */
+export const estSorteJeu = (sorte) => typeof sorte === 'string' && Object.hasOwn(TAILLES, sorte);
+const dateValable = (d, k) => !a(d, k) || (d[k] instanceof Date) || (d[k] !== null && typeof d[k] === 'object' && typeof d[k].toMillis === 'function');
+
+/** Vrai si le document `donnees` d'identifiant `id` est un objet acheté bien formé (sans `modifieLe`) : place obligatoire, modèle connu pour une décoration. */
+export function objetValable(id, donnees) {
+  const d = donnees;
+  if (!d || typeof d !== 'object' || Array.isArray(d) || typeof id !== 'string' || !RE_OBJET.test(id)) return false;
+  if (!estSorteJeu(d.sorte) || !Object.keys(d).every((k) => CHAMPS_OBJET.includes(k))) return false;
+  if (!placeValable(d, true)) return false;
+  if (d.sorte === 'decoration' ? !MODELES_DECORATION.includes(d.modele) : a(d, 'modele')) return false;
+  return dateValable(d, 'acheteLe') && dateValable(d, 'depuis');
+}
+
+/**
+ * Le plus petit damier (côté pair, de 8 à 24) qui contient toutes les places enregistrées (`batiments` : Map(id → données) ou liste de données) : maisons 2 x 2,
+ * objets selon leur taille. Sert quand les parcelles ne sont pas connues (portefeuille illisible) : aucune maison rangée plus loin n'est reclassée d'office.
+ */
+export function damierPourPlaces(batiments) {
+  const docs = batiments instanceof Map ? [...batiments.values()] : Array.isArray(batiments) ? batiments : [];
+  let besoin = DAMIER_DEPART.colonnes;
+  for (const d of docs) {
+    if (!d || !Number.isInteger(d.c) || !Number.isInteger(d.l)) continue;
+    const taille = d.sorte === 'besoin' || d.sorte === 'lien' ? TAILLE_MAISON : estSorteJeu(d.sorte) ? TAILLES[d.sorte] : 0;
+    if (taille) besoin = Math.max(besoin, d.c + taille, d.l + taille);
+  }
+  const cote = Math.min(COORD_MAX + 1, besoin + (besoin % 2));
+  return { colonnes: cote, lignes: cote };
+}
+
 /**
  * Range les documents lus (`[{ id, ...donnees }]`) : { parId: Map(id → données sans `modifieLe`), avertissements, ignores: Set(id) } ; un document mal formé est
  * ignoré, et son identifiant noté : l'écran ne le réécrit jamais d'office.
@@ -152,7 +189,7 @@ export function lireBatiments(docs) {
   for (const brut of Array.isArray(docs) ? docs : []) {
     if (!brut || typeof brut !== 'object') continue;
     const { id, modifieLe, ...donnees } = brut;
-    if (!batimentValable(id, donnees)) { avertissements.push(`village : la maison « ${String(id).slice(0, 70)} » est mal rangée, elle est ignorée.`); if (typeof id === 'string') ignores.add(id); continue; }
+    if (!batimentValable(id, donnees) && !objetValable(id, donnees)) { avertissements.push(`village : la maison « ${String(id).slice(0, 70)} » est mal rangée, elle est ignorée.`); if (typeof id === 'string') ignores.add(id); continue; }
     parId.set(id, donnees);
   }
   return { parId, avertissements, ignores };
@@ -207,7 +244,21 @@ export function premierBlocLibre(occupees, taille, damier = DAMIER_DEPART, saufI
 }
 
 /**
- * Range le village : { maisons, cachees, sansPlace }.
+ * 6b : la case proposée pour une décoration achetée : la case libre la plus « devant » (plus grand c + l, puis la plus proche du milieu, puis la plus à gauche).
+ * Le premier bloc libre du haut tombait souvent derrière une maison, où l'objet acheté était caché et impossible à saisir (Décision prise seul, 27/11/2026).
+ */
+export function caseLibreDevant(occupees, damier = DAMIER_DEPART) {
+  let meilleure = null;
+  for (let l = 0; l < damier.lignes; l++) for (let c = 0; c < damier.colonnes; c++) {
+    if (!blocLibre(occupees, c, l, 1, damier)) continue;
+    const rang = [c + l, -Math.abs(c - l), -c];
+    if (!meilleure || rang[0] > meilleure.rang[0] || (rang[0] === meilleure.rang[0] && (rang[1] > meilleure.rang[1] || (rang[1] === meilleure.rang[1] && rang[2] > meilleure.rang[2])))) meilleure = { c, l, rang };
+  }
+  return meilleure ? { c: meilleure.c, l: meilleure.l } : null;
+}
+
+/**
+ * Range le village : { maisons, cachees, sansPlace, objets, objetsSansPlace } (6b : les objets achetés, à part).
  *  - `besoins` : les besoins de la maison (déjà filtrés) ; `batiments` : Map(id → données) lue par `lireBatiments` ;
  *  - une maison = { id, sorte: 'besoin', cle, besoin, nom, c, l, taille: 2, enregistree, donnees } (`donnees` : le document enregistré, ou {}) ;
  *  - `cachees` = besoins non visibles { id, cle, besoin, donnees, raison: 'cache' | 'depart' } ; `sansPlace` = visibles mais sans bloc libre.
@@ -215,6 +266,14 @@ export function premierBlocLibre(occupees, taille, damier = DAMIER_DEPART, saufI
  *    après les besoins, dans l'ordre de leurs identifiants (l'heure de création) ; `invalide` : l'adresse ne passe plus `adresseExterne` (jamais ouverte).
  */
 export function rangerVillage({ besoins, batiments = new Map(), damier = DAMIER_DEPART }) {
+  // 6b : les objets achetés. `objets` = { id, sorte, modele, c, l, taille, enregistree, deplaceAffiche, donnees } ; un objet en conflit ou hors du damier est
+  // montré au premier bloc libre de sa taille, À L'AFFICHAGE SEULEMENT (deplaceAffiche : jamais écrit d'office) ; sans place du tout : objetsSansPlace.
+  const objets = [];
+  const objetsSansPlace = [];
+  const docsObjets = [...batiments].filter(([, d]) => estSorteJeu(d?.sorte)).sort(([u], [v]) => (u < v ? -1 : 1));
+  const poserObjet = (id, d, c, l, enregistree) => {
+    objets.push({ id, sorte: d.sorte, modele: d.modele, c, l, taille: TAILLES[d.sorte], enregistree, deplaceAffiche: !enregistree, donnees: d });
+  };
   const cles = clesBesoins(besoins);
   const visibles = [];
   const cachees = [];
@@ -231,7 +290,7 @@ export function rangerVillage({ besoins, batiments = new Map(), damier = DAMIER_
   let prises = new Map();
   const poser = (e, c, l, enregistree) => {
     maisons.push({ id: e.id, sorte: 'besoin', cle: e.cle, besoin: e.besoin, nom: e.donnees.nom || e.besoin.nom, c, l, taille: TAILLE_GRANDE, enregistree, donnees: e.donnees });
-    prises = occupation(maisons);
+    prises = occupation([...maisons, ...objets]);
     placees.add(e.id);
   };
   // 1. les places enregistrées (dans le damier, sans chevauchement ; en cas de conflit, la suivante est rangée d'office)
@@ -246,10 +305,15 @@ export function rangerVillage({ besoins, batiments = new Map(), damier = DAMIER_
       id: e.id, sorte: 'lien', besoin: { nom: e.donnees.nom, batiment: batimentConnu(e.donnees.batiment) }, nom: e.donnees.nom, url: e.donnees.url,
       invalide: !adresseExterne(e.donnees.url).ok, c, l, taille: TAILLE_GRANDE, enregistree, donnees: e.donnees,
     });
-    prises = occupation(maisons);
+    prises = occupation([...maisons, ...objets]);
     placees.add(e.id);
   };
   for (const e of liens) if (blocLibre(prises, e.donnees.c, e.donnees.l, TAILLE_GRANDE, damier)) poserLien(e, e.donnees.c, e.donnees.l, true);
+  // 1 ter. les objets à leur place enregistrée (avant les maisons rangées d'office)
+  const objetsEnAttente = [];
+  for (const [id, d] of docsObjets) {
+    if (blocLibre(prises, d.c, d.l, TAILLES[d.sorte], damier)) { poserObjet(id, d, d.c, d.l, true); prises = occupation([...maisons, ...objets]); } else objetsEnAttente.push([id, d]);
+  }
   // 2. les autres, dans l'ordre des besoins : la place d'office de leur rang si elle est libre, sinon le premier bloc libre
   const sansPlace = [];
   const n = visibles.length;
@@ -268,9 +332,14 @@ export function rangerVillage({ besoins, batiments = new Map(), damier = DAMIER_
     if (libre) poserLien(e, libre.c, libre.l, false);
     else sansPlace.push(e);
   }
+  // 3. les objets en conflit ou hors du damier : au premier bloc libre de leur taille, à l'affichage seulement
+  for (const [id, d] of objetsEnAttente) {
+    const libre = premierBlocLibre(prises, TAILLES[d.sorte], damier);
+    if (libre) { poserObjet(id, d, libre.c, libre.l, false); prises = occupation([...maisons, ...objets]); } else objetsSansPlace.push({ id, sorte: d.sorte, modele: d.modele, donnees: d });
+  }
   const rang = new Map([...visibles, ...liens].map((e, i) => [e.id, i]));
   maisons.sort((u, v) => rang.get(u.id) - rang.get(v.id));
-  return { maisons, cachees, sansPlace };
+  return { maisons, cachees, sansPlace, objets, objetsSansPlace };
 }
 
 // ---------------------------------------------------------------- vue, terrain et décor (listes de formes, sans DOM, même dessin à chaque affichage)

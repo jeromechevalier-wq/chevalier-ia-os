@@ -846,6 +846,25 @@ body.page-espace { background: #241b2e; color: #fff; }
 .page-village[data-or="oui"]:not([data-vue="liste"]) .village-phrase, .page-village[data-or="oui"]:not([data-vue="liste"]) .village-bandeau { top: calc(var(--esp-6) + 52px); }
 .village-or-attente { visibility: hidden; }
 .page-village[data-vue="liste"] .village-or { display: none; }
+/* Boutique (étape 6b, 27/11/2026, js/os/village-boutique.js) : la barre d'or porte la position ; le compteur y garde son texte seul ; le bouton « Boutique » à sa droite.
+   Fenêtre : une ligne par article (44 px au moins), vignette de 48 px, bouton à droite. Un objet acheté se glisse (main), sans halo ni levée au survol. */
+.village-or-barre { position: absolute; z-index: 4; top: var(--esp-6); left: var(--esp-6); display: inline-flex; align-items: center; gap: var(--esp-3); }
+.village-or-barre .village-or { position: static; }
+.village-or-barre .village-boutique-bouton { min-height: 44px; padding: var(--esp-2) var(--esp-6); background: #FFFDF6; color: #2A1A2C; border: 1px solid rgba(59, 36, 18, .18); border-radius: 999px; box-shadow: 0 6px 16px -8px rgba(60, 25, 5, .45); font-weight: var(--poids-moyen); } /* couleurs fixes, comme le compteur : le pré reste clair quel que soit le thème */
+.village-or-barre .village-boutique-bouton:hover:not(:disabled) { border-color: rgba(59, 36, 18, .45); background: #FFF8E6; }
+.page-village[data-vue="liste"] .village-or-barre { display: none; }
+.village-boutique-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-3); }
+.village-boutique-ligne { display: flex; align-items: center; gap: var(--esp-4); min-height: 44px; }
+.village-boutique-vignette { flex: 0 0 48px; width: 48px; height: 48px; }
+.village-boutique-vignette svg { display: block; width: 100%; height: 100%; }
+.village-boutique-textes { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.village-boutique-phrase, .village-boutique-prix, .village-boutique-manque { color: var(--texte2); font-size: var(--fs-petit); }
+.village-boutique-manque[hidden], .village-boutique-message[hidden] { display: none; }
+.village-boutique-ligne .bouton { flex: 0 0 auto; margin-left: auto; min-height: 44px; }
+.village-boutique-grise .village-boutique-vignette, .village-boutique-grise .village-boutique-nom { opacity: .6; }
+.village-boutique-message { margin: var(--esp-4) 0 0; color: var(--retard); font-size: var(--fs-menu); }
+.village-objet { cursor: grab; }
+.page-village[data-rangement="oui"] .village-objet { cursor: grabbing; }
 .fete-or { position: fixed; z-index: 1000; top: 76px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); pointer-events: none; display: flex; flex-direction: column; align-items: center; }
 .fete-or-etiquette { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: var(--esp-3); padding: var(--esp-3) var(--esp-8) var(--esp-3) var(--esp-4); background: #FFFDF6; color: #2A1A2C; border: 1px solid rgba(59, 36, 18, .18); border-radius: 999px; box-shadow: 0 10px 24px -10px rgba(60, 25, 5, .55); font-size: var(--fs-section); font-weight: var(--poids-moyen); white-space: nowrap; max-width: calc(100vw - 32px); box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; animation: fete-or-arrivee .3s cubic-bezier(.3, 1.4, .5, 1) both; }
 .fete-or-pluie { position: absolute; top: 0; left: 50%; width: 0; height: 0; }
@@ -856,6 +875,7 @@ body.page-espace { background: #241b2e; color: #fff; }
 @media (prefers-reduced-motion: reduce) { .fete-or-etiquette, .fete-or-piece { animation: none; } .fete-or-piece { display: none; } }
 @media (max-width: 767px) {
   .village-or { top: calc(var(--esp-4) + 54px); left: var(--esp-4); }
+  .village-or-barre { top: calc(var(--esp-4) + 54px); left: var(--esp-4); }
   .page-village[data-or="oui"]:not([data-vue="liste"]) .village-phrase, .page-village[data-or="oui"]:not([data-vue="liste"]) .village-bandeau { top: calc(var(--esp-4) + 108px); }
   .fete-or { top: 64px; }
   .fete-or-etiquette { padding: var(--esp-2) var(--esp-6) var(--esp-2) var(--esp-3); font-size: var(--fs-texte); }

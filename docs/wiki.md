@@ -10,13 +10,16 @@ Dans le dossier du dépôt, ouvre le dossier `wiki/` et **double-clique sur `wik
 
 - **`docs/` reste la source.** C'est là que Claude lit et écrit la documentation.
 - **`wiki/` est généré.** Un script le fabrique à partir de `docs/*.md`. Personne ne l'écrit à la main : une modification faite directement dans `wiki/` serait écrasée à la prochaine construction.
-- **`wiki/` est commité** dans le dépôt, pour que tu n'aies aucune commande à lancer.
+- **`wiki/` est commité** dans le dépôt, pour que tu n'aies aucune commande à lancer. Il se régénère **quand on peut** : il peut avoir un peu de retard sur `docs/`. Pour l'avoir à jour tout de suite : `node scripts/wiki/construire.js`.
 
-## Comment le régénérer (Claude le fait à chaque changement de `docs/`)
+## Comment le régénérer (quand on peut)
+
+**Décision de Jérôme du 27/11/2026 : un wiki en retard ne bloque jamais une PR.** Avant, le test `W6` faisait échouer la coche « Tests » dès que `wiki/` n'était pas régénéré : ce n'est plus le cas.
 
 - Construire : `node scripts/wiki/construire.js`. Le script écrit `wiki/` et efface les pages dont le document a été supprimé.
-- Vérifier sans rien écrire : `node scripts/wiki/construire.js --verifier`. Il répond « à jour » ou liste ce qui diffère (code 1). Le test `W6` fait la même vérification : un `wiki/` oublié fait échouer les tests.
-- Puis commiter le résultat avec le changement de `docs/`.
+- Vérifier sans rien écrire : `node scripts/wiki/construire.js --verifier`. Il répond « à jour » ou liste ce qui diffère (code 1).
+- Le test `W6` vérifie que la construction tourne sans erreur. Si `wiki/` est en retard, il affiche un **avertissement** (dans le journal du test et en annotation jaune sur GitHub), sans échouer.
+- Quand on régénère, on commite le résultat avec le changement de `docs/`, de préférence au dernier commit de la PR.
 
 Le résultat est toujours le même pour les mêmes documents : ni date ni chemin de l'ordinateur dans les pages.
 

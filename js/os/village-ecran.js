@@ -27,20 +27,29 @@
 //  - les éléments sont lus UNE fois par affichage et par module (js/os/village-petites-lecture.js, 20 s au plus) ; pendant la lecture, aucune petite maison ;
 //    en panne : aucune automatique, toutes les manuelles ; un élément disparu d'une lecture réussie : sa manuelle n'est pas montrée (document gardé) ;
 //  - une petite maison ne se glisse pas : elle suit sa grande ; sa place n'est jamais enregistrée (recalculée autour de la grande à chaque dessin).
+// Étape 6b (boutique, 27/11/2026) : à droite du compteur d'or, un bouton « Boutique » (js/os/village-boutique.js) ; l'achat passe par js/os/village-or.js.
+//  - le damier montré grandit avec les parcelles achetées : le plus grand entre damierDe(parcelles connues) et le damier qui contient toutes les places enregistrées ;
+//  - un objet acheté (décoration) est dessiné sur sa case (data-role="objet", sans lien, sans bulle, sans halo) ; il se glisse comme une maison et rien d'autre
+//    (clic, double clic, appui long : rien) ; il n'est ni dans la liste, ni dans la roue, ni compté parmi les maisons ;
+//  - la case proposée à l'achat est la case libre la plus « devant » du damier payé (caseLibreDevant, celui que le serveur vérifie), hors des maisons,
+//    petites maisons, objets, places enregistrées et cases déjà refusées par le serveur pendant l'affichage ;
+//  - un objet se saisit partout sur sa case : un losange transparent sous son dessin prend le pointeur (pas sous une maison dessinée devant lui).
 import { dessinBatiment, pastilleBulle, ETIQUETTE_Y } from './maison-village.js';
 import { lireCompteur } from './village-compteurs.js';
 import { BATIMENTS_FIXES, dessinBatimentFixe, iso } from './village-batiments.js';
 import { boutonReglagesAccueil, animationsCoupees, fenetreMaison, fenetreLien, fenetreChoixPetite, fenetrePetite } from './village-reglages.js';
 import {
   DAMIER_DEPART, TAILLE_GRANDE, centreBloc, vueVillage, formesDamier, lignesDamier, losangeBloc, decorLibre, occupation, blocLibre, premierBlocLibre,
-  lireBatiments, rangerVillage, docDeplacement, docCacher, docRenommer, docLien, nomCourt, LIENS_MAX,
+  lireBatiments, rangerVillage, docDeplacement, docCacher, docRenommer, docLien, nomCourt, LIENS_MAX, damierPourPlaces, estSorteJeu, caseLibreDevant,
 } from './village-damier.js';
 import { rangerPetites, sourcePour, docPetite, peutAjouterPetite, moduleDeCible, PETITES_MAX } from './village-petites.js';
+import { dessinJeu, DESSINS_JEU } from './village-jeu-dessins.js';
+import { ouvrirBoutique } from './village-boutique.js';
 import { brancherGestes, groupeSous } from './village-glisser.js';
 import { listeMaisons, boutonVue, vueChoisie } from './village-liste.js';
 import { lien } from './router.js';
 import { toast, icone } from './ui.js';
-import { texteOr } from './village-jeu-regles.js';
+import { texteOr, damierDe, casesEnregistrees, OBJETS_MAX } from './village-jeu-regles.js';
 import { dessinPiece } from './village-fete.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -177,6 +186,25 @@ function petiteMaison(petite, place, ctx) {
   return g;
 }
 
+/** Dessin d'un objet acheté : la décoration choisie ; champ et enclos (étape 7) : leur premier état. */
+const dessinDeLObjet = (o) => (o.sorte === 'decoration' ? o.modele : o.sorte === 'champ' ? 'champ-seme' : 'enclos-cochons');
+
+/**
+ * Objet acheté (6b) : ses formes posées au centre de sa case, sans mise à l'échelle. Une image (role="img", nom du catalogue), sans lien, sans tabindex, sans bulle,
+ * sans halo : il se glisse seulement (js/os/village-glisser.js le trouve par data-maison).
+ */
+function objetJeu(o, place, damier) {
+  const id = dessinDeLObjet(o);
+  const g = el('g', {
+    class: 'village-objet', 'data-role': 'objet', 'data-maison': o.id, 'data-sorte': o.sorte, 'data-modele': o.modele, 'data-case': `${o.c}-${o.l}`, role: 'img',
+  });
+  g.setAttribute('aria-label', DESSINS_JEU[id]?.nom ?? 'Décoration');
+  // la prise : toute la case, transparente (un objet fin, comme la clôture, se saisit sans viser son dessin)
+  g.append(el('polygon', { points: points(losangeBloc(o.c, o.l, o.taille || 1, damier), 0, 0), fill: 'transparent', 'pointer-events': 'all', 'data-role': 'prise-objet' }));
+  for (const f of dessinJeu(id)) g.append(forme(f, place.x, place.y));
+  return g;
+}
+
 /** Clic ou toucher : sur téléphone, la bulle d'abord ; sinon (ou si la bulle de ce bâtiment est déjà ouverte) la cible. */
 function toucher(maison, ctx) {
   if (ctx.telephone && !ctx.bulle.ouverte(maison.id)) { ctx.bulle.montrer(maison); return; }
@@ -194,8 +222,8 @@ function lienEtiquette(maison, place, b, ctx) {
   return g;
 }
 
-function dessiner(maisons, ctxRendu, petites = []) {
-  const damier = DAMIER_DEPART;
+function dessiner(maisons, ctxRendu, petites = [], objets = []) {
+  const damier = ctxRendu.damier || DAMIER_DEPART;
   const parId = new Map([...maisons, ...petites].map((m) => [m.id, m]));
   /** La maison (grande ou petite) sous le pointeur, lueurs des voisines écartées (village-glisser.js, groupeSous). */
   const maisonSous = (e) => { const r = groupeSous(e); return r ? parId.get(r.groupe.getAttribute('data-maison')) ?? null : null; };
@@ -230,7 +258,7 @@ function dessiner(maisons, ctxRendu, petites = []) {
   }
   // 2. Ce qui est debout (décor des cases libres et bâtiments), du fond vers l'avant (ordre du peintre).
   const debout = [];
-  for (const o of decorLibre(occupation([...maisons, ...petites]), damier)) {
+  for (const o of decorLibre(occupation([...maisons, ...petites, ...objets]), damier)) {
     debout.push({ profondeur: o.profondeur, noeud: () => { const g = el('g', { class: 'village-decor', 'data-role': 'decor', 'data-case': o.case, 'aria-hidden': 'true' }); for (const f of o.formes) g.append(forme(f)); return g; } });
   }
   const places = new Map(maisons.map((m) => { const [x, y] = iso(...centreBloc(m.c, m.l, m.taille, damier)); return [m.id, { x, y }]; }));
@@ -245,6 +273,11 @@ function dessiner(maisons, ctxRendu, petites = []) {
     noeuds.set(p.id, petiteMaison(p, { x, y }, ctx));
     // une petite sur un côté (même profondeur que sa grande) est dessinée après elle : la lueur de la grande ne la recouvre pas
     debout.push({ profondeur: gx + gy + 0.015, noeud: () => noeuds.get(p.id) });
+  }
+  for (const o of objets) { // 6b : pas de sol pavé sous un objet
+    const [gx, gy] = centreBloc(o.c, o.l, o.taille, damier);
+    const [x, y] = iso(gx, gy);
+    debout.push({ profondeur: gx + gy + 0.005, noeud: () => objetJeu(o, { x, y }, damier) });
   }
   debout.sort((u, v) => u.profondeur - v.profondeur);
   for (const o of debout) svg.append(o.noeud());
@@ -439,7 +472,8 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   const compteurs = new Map();
   const bulle = creerBulle(cadre, compteurs);
   const media = typeof window.matchMedia === 'function' ? window.matchMedia(TELEPHONE) : null;
-  const damier = DAMIER_DEPART;
+  let damier = DAMIER_DEPART; // 6b : grandit avec les parcelles (ranger)
+  let parcellesVues = null; // les parcelles connues au dernier rangement
 
   // État : `lecture` = 'attente' | 'ok' | 'refus' | 'erreur' | 'sans' (pas de données) ; `batiments` : Map(id → document) ; `rangement` : résultat de rangerVillage.
   let lecture = donnees ? 'attente' : 'sans';
@@ -448,7 +482,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   let enRoute = []; // écritures optimistes pas encore confirmées, dans l'ordre : [{ liste }]
   let ignores = new Set(); // documents mal formés, ignorés à la lecture : jamais réécrits d'office (seul un geste sur la maison les remplace)
   let file = Promise.resolve(); // les écritures partent une à une, dans l'ordre des gestes
-  let rangement = { maisons: [], cachees: [], sansPlace: [] };
+  let rangement = { maisons: [], cachees: [], sansPlace: [], objets: [], objetsSansPlace: [] };
   let monte = true;
   let debrancher = null;
   let premierRendu = true;
@@ -460,10 +494,18 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   let rangementPetites = { petites: [], sansPlace: [] };
   let redessinAttendu = false; // des éléments sont arrivés pendant un glisser : le redessin attend la fin du glisser
   const ranger = () => {
+    // 6b (B14) : le plus grand entre le damier payé et celui qui contient toutes les places enregistrées (portefeuille illisible : rien n'est reclassé d'office)
+    parcellesVues = or?.parcelles?.() ?? null;
+    const paye = damierDe(parcellesVues);
+    const places = damierPourPlaces(batiments);
+    damier = places.colonnes > paye.colonnes ? places : paye;
     rangement = rangerVillage({ besoins, batiments, damier });
-    rangementPetites = petites ? rangerPetites({ maisons: rangement.maisons, batiments, elements, modules: petites.sources, damier }) : { petites: [], sansPlace: [] };
+    rangementPetites = petites ? rangerPetites({ maisons: rangement.maisons, batiments, elements, modules: petites.sources, damier, objets: rangement.objets }) : { petites: [], sansPlace: [] };
   };
   const maisonsVisibles = () => (lecture === 'attente' ? [] : rangement.maisons);
+  const objetsVisibles = () => (lecture === 'attente' ? [] : rangement.objets);
+  /** Cases prises pour une grande maison : les maisons et les objets montrés (F2 : jamais une maison ni un lien sur une décoration). */
+  const prisesGrandes = () => occupation([...rangement.maisons, ...rangement.objets]);
   const signaturePetites = () => JSON.stringify([...rangementPetites.petites, ...rangementPetites.sansPlace].map((p) => [p.id, p.nom, p.sousTitre, p.c, p.l, p.cible]));
   const petitesVisibles = () => (lecture === 'attente' ? { petites: [], sansPlace: [] } : rangementPetites);
 
@@ -573,7 +615,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
 
   /** Remet une maison cachée (ou hors du départ) dans le village : à sa place enregistrée si elle est libre, sinon au premier bloc libre. */
   async function montrer(entree) {
-    const prises = occupation(rangement.maisons);
+    const prises = prisesGrandes();
     const { c, l } = entree.donnees;
     const place = Number.isInteger(c) && Number.isInteger(l) && blocLibre(prises, c, l, TAILLE_GRANDE, damier) ? { c, l } : premierBlocLibre(prises, TAILLE_GRANDE, damier);
     if (!place) return false;
@@ -584,7 +626,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     if (!rangementPossible()) return null;
     return {
       cachees: rangement.cachees,
-      plein: !premierBlocLibre(occupation(rangement.maisons), TAILLE_GRANDE, damier),
+      plein: !premierBlocLibre(prisesGrandes(), TAILLE_GRANDE, damier),
       telephone: Boolean(media?.matches),
       dessin: (nom) => vignette(dessinBatiment(nom)),
       surAfficher: (entree) => montrer(entree),
@@ -598,7 +640,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   /** Nouveau lien externe (roue) au premier bloc libre ; l'identifiant suit l'heure de création (ordre des liens). */
   function ajouterLien({ nom, url, batiment }) {
     if (nombreLiens() >= LIENS_MAX) return Promise.resolve(TROP_DE_LIENS);
-    const place = premierBlocLibre(occupation(rangement.maisons), TAILLE_GRANDE, damier);
+    const place = premierBlocLibre(prisesGrandes(), TAILLE_GRANDE, damier);
     if (!place) return Promise.resolve(VILLAGE_PLEIN);
     const d = docLien({ nom, url, batiment, c: place.c, l: place.l });
     if (!d) return Promise.resolve(false);
@@ -633,7 +675,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
       // « Annuler » : le lien est recréé tel quel, à sa place si elle est libre, sinon au premier bloc libre (village plein : échec et message).
       surRemettre: () => {
         if (nombreLiens() >= LIENS_MAX) return Promise.resolve(TROP_DE_LIENS);
-        const prises = occupation(rangement.maisons);
+        const prises = prisesGrandes();
         const place = blocLibre(prises, actuel.c, actuel.l, TAILLE_GRANDE, damier) ? { c: actuel.c, l: actuel.l } : premierBlocLibre(prises, TAILLE_GRANDE, damier);
         return place ? appliquer([{ id: maison.id, donnees: { ...actuel, c: place.c, l: place.l } }]) : Promise.resolve(VILLAGE_PLEIN);
       },
@@ -650,7 +692,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     if (!d) return Promise.resolve(false);
     const id = `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const essai = new Map(batiments).set(id, d);
-    const r = rangerPetites({ maisons: rangement.maisons, batiments: essai, elements, modules: petites.sources, damier });
+    const r = rangerPetites({ maisons: rangement.maisons, batiments: essai, elements, modules: petites.sources, damier, objets: rangement.objets });
     if (!r.petites.some((p) => p.id === id)) return Promise.resolve(PLUS_DE_PLACE);
     return appliquer([{ id, donnees: d }]);
   }
@@ -685,6 +727,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   }
 
   function reglagesMaison(maison) {
+    if (estSorteJeu(maison.sorte)) return; // un objet acheté n'a pas de réglages
     bulle.cacher();
     if (estPetite(maison)) { if (!maison.auto) reglagesPetite(maison); return; } // une petite maison automatique n'a pas de fenêtre
     if (estLien(maison)) { reglagesLien(maison); return; }
@@ -719,12 +762,15 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     debrancher = null;
     const maisons = maisonsVisibles();
     const { petites: posees, sansPlace: petitesSansPlace } = petitesVisibles();
-    const ctx = { ...ctxCommun, telephone };
-    const { svg, noeuds } = dessiner(maisons, ctx, posees);
+    const objets = objetsVisibles();
+    const ctx = { ...ctxCommun, telephone, damier };
+    const { svg, noeuds } = dessiner(maisons, ctx, posees, objets);
     bulle.brancher(noeuds, telephone);
     defile.replaceChildren(svg);
     // phrase d'aide (cas vides) et bandeau (panne de lecture)
-    const texte = lecture === 'attente' ? '' : !maisons.length ? 'Affiche tes maisons avec la roue dentée.' : (lecture === 'ok' && !batiments.size ? 'Glisse les maisons pour ranger ton village.' : '');
+    // (6b : un objet acheté ne compte pas, la phrase reste tant qu'aucune maison n'est rangée)
+    const rangees = [...batiments.values()].some((d) => !estSorteJeu(d?.sorte));
+    const texte = lecture === 'attente' ? '' : !maisons.length ? 'Affiche tes maisons avec la roue dentée.' : (lecture === 'ok' && !rangees ? 'Glisse les maisons pour ranger ton village.' : '');
     phrase.textContent = texte;
     phrase.hidden = !texte;
     if (lecture === 'erreur') {
@@ -745,7 +791,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     // vue « Liste » (téléphone seulement)
     const vue = telephone ? vueChoisie() : 'village';
     page.dataset.vue = vue;
-    const enfants = [defile, bulle.element, ...fixes, ...(compteurOr ? [compteurOr] : []), phrase, bandeau];
+    const enfants = [defile, bulle.element, ...fixes, ...(barreOr ? [barreOr] : []), phrase, bandeau];
     if (telephone) {
       enfants.push(boutonVue(vue, () => rendre()));
       zoneListe.replaceChildren(listeMaisons({ maisons, petites: [...posees, ...petitesSansPlace], fixes: routesFixes, compteurs, dessin: (nom) => vignette(dessinBatiment(nom)), dessinFixe: (id) => vignette(dessinBatimentFixe(id)) }));
@@ -760,8 +806,8 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     if (lecture !== 'attente') premierRendu = false;
     if (rangementPossible()) {
       debrancher = brancherGestes(svg, {
-        maisons, petites: posees, damier, telephone,
-        surOuvrir: (m) => toucher(m, ctx),
+        maisons: [...maisons, ...objets], petites: posees, damier, telephone,
+        surOuvrir: (m) => { if (!estSorteJeu(m.sorte)) toucher(m, ctx); else bulle.cacher(); }, // un objet : rien (au téléphone, la bulle ouverte se referme)
         surReglages: reglagesMaison,
         surDepose: deposer,
         surDebut: () => { page.dataset.rangement = 'oui'; bulle.cacher(); },
@@ -771,6 +817,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
         },
       });
     }
+    majBoutique();
     majSignal();
   };
 
@@ -797,18 +844,26 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   }
 
   // Compteur de pièces d'or (étape 6a) : hors du dessin, en haut à gauche (jamais sur la roue ni sur les îlots).
+  // 6b : il vit dans une barre (div.village-or-barre) qui porte la position ; le bouton « Boutique » est à sa droite, dans la même barre.
+  let barreOr = null;
   let compteurOr = null;
   let texteCompteur = null;
+  let boutonBoutique = null;
+  let soldeVu = null;
   const poserCompteur = () => {
     if (compteurOr) return;
+    barreOr = document.createElement('div');
+    barreOr.className = 'village-or-barre';
+    barreOr.dataset.role = 'or-barre';
     compteurOr = document.createElement('div');
     compteurOr.className = 'village-or';
     compteurOr.dataset.role = 'or';
     compteurOr.setAttribute('aria-live', 'polite');
     texteCompteur = document.createElement('span');
     compteurOr.append(dessinPiece(22), texteCompteur);
+    barreOr.append(compteurOr);
     page.dataset.or = 'oui';
-    if (phrase.parentNode === cadre) cadre.insertBefore(compteurOr, phrase); else cadre.append(compteurOr);
+    if (phrase.parentNode === cadre) cadre.insertBefore(barreOr, phrase); else cadre.append(barreOr);
   };
   const montrerOr = (n) => {
     if (!monte || !Number.isInteger(n)) return;
@@ -816,14 +871,115 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     compteurOr.classList.remove('village-or-attente');
     compteurOr.removeAttribute('aria-hidden');
     texteCompteur.textContent = texteOr(n);
+    soldeVu = n;
+    majBoutique();
+    // de nouvelles parcelles : le damier grandit (pendant un glisser, le redessin attend sa fin)
+    // seulement si la taille du damier change : pas de redessin de trop à l'ouverture
+    if (lecture !== 'attente' && (or?.parcelles?.() ?? null) !== parcellesVues) {
+      const avant = damier.colonnes;
+      ranger();
+      if (damier.colonnes !== avant) redessinerQuandLibre();
+    }
   };
   /** Lecture illisible : la place gardée s'en va (rien de connu, donc rien à montrer). */
   const oublierPlace = () => {
     if (!compteurOr || !compteurOr.classList.contains('village-or-attente')) return;
-    compteurOr.remove();
+    barreOr.remove();
+    barreOr = null;
     compteurOr = null;
+    boutonBoutique = null;
     delete page.dataset.or;
   };
+
+  // ---- boutique (6b)
+  /** Première case libre pour une décoration, dans le damier PAYÉ (celui que le serveur vérifie) : hors des maisons, petites maisons, objets et places enregistrées. */
+  const caseAchat = () => {
+    const prises = occupation([...rangement.maisons, ...rangement.objets, ...rangementPetites.petites]);
+    for (const k of casesEnregistrees([...batiments.values()])) if (!prises.has(k)) prises.set(k, k);
+    for (const k of casesRefusees) if (!prises.has(k)) prises.set(k, k);
+    return caseLibreDevant(prises, damierDe(or?.parcelles?.()));
+  };
+  const casesRefusees = new Set(); // cases refusées par le serveur (case, case_prise) pendant cet affichage : jamais reproposées
+  const nombreObjets = () => [...batiments.values()].filter((d) => estSorteJeu(d?.sorte)).length;
+  /** Vignette d'un article : une décoration du catalogue, ou un carré d'herbe pour la parcelle. */
+  const vignetteArticle = (id) => {
+    const svg = el('svg', { viewBox: '-32 -46 64 56', 'aria-hidden': 'true', focusable: 'false', class: 'village-vignette' });
+    const formes = id === 'parcelle'
+      ? [{ poly: [[-28, 0], [0, 14], [0, 19], [-28, 5]], fill: '#8A6A45' }, { poly: [[0, 14], [28, 0], [28, 5], [0, 19]], fill: '#6F5436' }, { poly: [[0, -14], [28, 0], [0, 14], [-28, 0]], fill: '#A9C46E' }]
+      : dessinJeu(id);
+    for (const f of formes) svg.append(forme(f));
+    return svg;
+  };
+
+  /** Achat demandé par la boutique : { ok: true } | { ok: false, or?, parcelles?, manque?, message? } (sans message, la boutique écrit « L’achat n’a pas abouti. Réessaie. »). */
+  async function acheterDansVillage(article, modele) {
+    let place = null;
+    if (article === 'decoration') { place = caseAchat(); if (!place) return { ok: false }; }
+    const r = await or.acheter(place ? { article, modele, c: place.c, l: place.l } : { article });
+    if (!monte) return { ok: r?.etat === 'ok' };
+    if (r?.etat === 'ok') {
+      const o = r.objet;
+      const valable = Boolean(o && estSorteJeu(o.sorte));
+      if (valable) { confirmes.set(o.id, { sorte: o.sorte, modele: o.modele, c: o.c, l: o.l }); ignores.delete(o.id); recalculer(); }
+      ranger();
+      rendre();
+      if (article === 'decoration' && !valable) relireApresAchat(); // réponse sans objet valable : la base fait foi
+      toast(article === 'parcelle' ? 'Ton terrain s’agrandit' : 'Décoration achetée');
+      return { ok: true };
+    }
+    const solde = Number.isInteger(r?.or) ? r.or : undefined;
+    const parcellesSues = or?.parcelles?.() ?? undefined;
+    if (r?.etat !== 'refus') return { ok: false, or: solde, parcelles: parcellesSues };
+    if (r.raison === 'pas_assez' && Number.isInteger(r.manque) && r.manque > 0) return { ok: false, or: solde, parcelles: parcellesSues, manque: r.manque };
+    if (r.raison === 'maximum') return { ok: false, or: solde, parcelles: parcellesSues, message: 'Ton terrain est au plus grand.' };
+    if (r.raison === 'trop_objets') return { ok: false, or: solde, parcelles: parcellesSues, message: `${OBJETS_MAX} objets au plus.` };
+    if (r.raison === 'lecture_seule') return { ok: false, or: solde, parcelles: parcellesSues, message: 'Ton accès est en lecture seule : tu ne peux pas acheter.' };
+    if (r.raison === 'case' || r.raison === 'case_prise') {
+      if (place) casesRefusees.add(`${place.c}-${place.l}`);
+      relireApresAchat(); // la base a une place que l'écran ne connaissait pas : on relit
+    }
+    return { ok: false, or: solde, parcelles: parcellesSues };
+  }
+
+  /** Relecture après un achat : les déplacements encore en route sont gardés (recalculer) et le redessin attend la fin d'un geste. */
+  async function relireApresAchat() {
+    if (!donnees) return;
+    const r = await donnees.lire();
+    if (!monte || r?.etat !== 'ok') return;
+    const { parId, ignores: malFormes } = lireBatiments(r.docs);
+    confirmes = parId;
+    ignores = malFormes;
+    recalculer();
+    ranger();
+    redessinerQuandLibre();
+  }
+
+  function ouvrirBoutiqueVillage() {
+    bulle.cacher();
+    ouvrirBoutique({
+      or: soldeVu, parcelles: or?.parcelles?.() ?? 0, objets: nombreObjets(), caseLibre: caseAchat, dessin: vignetteArticle,
+      surAcheter: acheterDansVillage,
+    });
+  }
+
+  /** Le bouton « Boutique » : seulement si l'achat est branché, le solde connu et affiché, et le rangement lu (on ne vend pas ce qu'on ne peut pas poser). */
+  function majBoutique() {
+    if (!barreOr) return;
+    const voir = typeof or?.acheter === 'function' && Number.isInteger(soldeVu) && !compteurOr.classList.contains('village-or-attente') && lecture === 'ok'
+      && (typeof or.parcelles !== 'function' || or.parcelles() !== null);
+    if (voir && !boutonBoutique) {
+      boutonBoutique = document.createElement('button');
+      boutonBoutique.type = 'button';
+      boutonBoutique.className = 'bouton bouton-secondaire village-boutique-bouton';
+      boutonBoutique.dataset.role = 'boutique';
+      boutonBoutique.textContent = 'Boutique';
+      boutonBoutique.addEventListener('click', ouvrirBoutiqueVillage);
+      barreOr.append(boutonBoutique);
+    } else if (!voir && boutonBoutique) {
+      boutonBoutique.remove();
+      boutonBoutique = null;
+    }
+  }
   const arretOr = or?.suivre ? or.suivre(montrerOr) : null;
   const connu = or?.connu ? or.connu() : null;
   if (Number.isInteger(connu)) montrerOr(connu); // le dernier solde connu, tout de suite

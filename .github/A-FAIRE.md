@@ -518,3 +518,4 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 ## Fait (fusionné, en ligne, testé par Jérôme)
 - PR 306 : testée par Jérôme (26/10/2026) ; PR 278 (pastille Devis), 284 (barre du haut), 304 (Retour au devis), 298 (visualisation du devis, « Passer à Envoyé », points 1 à 5 OK), 285 (e-mails en copie, points 1 à 5 OK), 287 (pastille cliquable, points 1 à 5 OK) : testées par Jérôme.
 - PR 275, 277, 279, 280, 282 (voir l'historique Git). PR 115 : fermée (chemin d'un Mac dans CLAUDE.md).
+- Publier les maisons (ex. SCAB 04) depuis GitHub par un workflow manuel, comme « Déploiement plateforme clients » : aujourd'hui elles ne se publient que depuis le Mac (règle du 27/11/2026 : tout doit pouvoir se publier sans le Mac).
