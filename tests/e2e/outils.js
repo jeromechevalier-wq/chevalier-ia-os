@@ -311,6 +311,10 @@ export const test = base.extend({
     await context.route('**/devisPreparerEmailEtat', (route) => (route.request().method() === 'OPTIONS'
       ? route.fulfill({ status: 204, headers: corsDefaut })
       : route.fulfill({ status: 200, headers: corsDefaut, body: JSON.stringify({ result: { branche: false } }) })));
+    // Photos de la page de connexion d'une maison (js/os/connexion-photos.js) : le dépôt n'en a jamais (maison/ est ignoré par git), et le serveur de test
+    // répondrait 404, que le navigateur note dans sa console. Réponse par défaut « pas une image » (traitée comme une absence, tests/connexion-photos.test.js) ;
+    // un parcours qui veut des photos pose sa propre route sur la page (elle passe avant celle-ci).
+    await context.route(/\/maison\/connexion-\d+\.jpg(\?.*)?$/, (route) => route.fulfill({ status: 200, contentType: 'text/plain', body: 'absente' }));
     // La page de connexion de l'émulateur Auth charge des styles externes facultatifs.
     await context.route(/https:\/\/(unpkg\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\/.*/, (route) =>
       route.fulfill({ status: 200, body: '', headers: { 'Content-Type': route.request().url().endsWith('.js') ? 'text/javascript' : 'text/css' } }));

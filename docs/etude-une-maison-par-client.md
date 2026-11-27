@@ -197,6 +197,7 @@ Ajouté après la mise en service du premier client en maison (Achats sur Cloud 
 | Mentions d'accès aux données | Donner l'accès d'un compte **par l'écran**, puis cliquer sur « Revérifier » | Pas besoin de se déconnecter : « Revérifier » suffit pour que l'accès soit pris en compte |
 | Compte de calcul par défaut | Il garde le rôle « éditeur » à la création du projet | Le retirer peut casser la construction des fonctions : décision de Jérôme en attente |
 | IA (lecture des factures) | Vérifier le crédit du compte OpenRouter avant l'essai | Sans crédit, la lecture échoue (erreur 402) et la facture reste vide |
+| Photos de la page de connexion (27/11/2026) | Ranger 1 à 3 photos JPEG du métier du client (1600 px de large au plus) **hors du dépôt**, sur le Mac, dans un dossier `photos-maisons/<id du projet Firebase>/connexion/` ; **juste avant chaque déploiement d'une maison**, lancer `node scripts/copier-photos-maison.js <ce dossier>` (ou `--retirer` pour une maison sans photo) : il les copie dans `maison/connexion-1.jpg` à `-3.jpg` du dossier publié (dossier ignoré par git), retire leurs métadonnées et remplace celles de la maison d'avant | Le dépôt est public : les photos d'un client n'y vont jamais. Sans photo, la page de connexion reste sobre ; chez Jérôme, aucune photo n'est demandée (`js/os/connexion-photos.js`) |
 
 ---
 
