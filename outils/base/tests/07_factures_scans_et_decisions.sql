@@ -53,6 +53,11 @@ begin
   perform pg_temp.egal((select count(*)::int from public.factures_corrections where facture_id = v_f and champ = 'montant_ht'), 1, 'la correction reste gardée');
   update public.factures set montant_ht = 105, montant_tva = 22, montant_ttc = 132 where id = v_f;
   perform pg_temp.egal((select montant_ht from public.factures where id = v_f), 105.00::numeric(12,2), 'nouvelle correction après le scan : elle gagne');
+  -- Un scan plus récent qui n'a PAS lu un champ n'efface pas la valeur corrigée de ce champ.
+  insert into public.factures (fournisseur, numero, email_message_id, fichier_path, extraction)
+  values ('Matériaux Exemple', 'FA-0042', '<c4@exemple.test>', 'f/c4.pdf',
+          jsonb_build_object('numero', 'FA-0042', 'fournisseur', jsonb_build_object('siren', v_siren)));
+  perform pg_temp.egal((select montant_ht from public.factures where id = v_f), 105.00::numeric(12,2), 'scan sans montant : la correction reste');
   perform pg_temp.egal((select bool_and(corrige_le is not null and corrige_le > now()) from public.factures_corrections where facture_id = v_f), true,
     'heure exacte de chaque correction posée par la base');
   -- Les colonnes calculées par la base ne s'écrivent pas.
@@ -95,7 +100,7 @@ begin
   insert into public.factures (numero, montant_ht, email_message_id, extraction)
   values ('FA-0042', 999, '<c3@exemple.test>', jsonb_build_object('fournisseur', jsonb_build_object('siren', v_siren)));
   perform pg_temp.egal((select montant_ht from public.factures where id = v_f), 105.00::numeric(12,2), 'un scan après la décision ne change rien');
-  perform pg_temp.egal((select count(*)::int from public.factures_scans where facture_id = v_f), 4, 'scan tardif gardé (3 scans avant la décision, dont celui de la règle « dernière information »)');
+  perform pg_temp.egal((select count(*)::int from public.factures_scans where facture_id = v_f), 5, 'scan tardif gardé (4 scans avant la décision, dont ceux de la règle « dernière information »)');
 
   -- Archiver puis sortir des archives (avec trace au journal).
   perform public.archiver_facture(v_f, 'alice@exemple.test');

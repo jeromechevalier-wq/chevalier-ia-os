@@ -72,15 +72,17 @@ begin
     select id, siren, %L, %L, %L, %L, %L from public.fournisseurs where id = %L', 'FR1420041010050500013M02606', (select facture_id from ids_a),
     'Appel', 'alice@exemple.test', 'pigeon voyageur', v_four),
     'MESSAGE:ibans_confirmes_moyen_type_liste');
-  perform pg_temp.doit_echouer('update public.ibans_confirmes set confirme_par = ''n8n''', null);
+  perform pg_temp.doit_echouer(format('insert into public.ibans_confirmes (fournisseur_id, siren, iban, facture_id, moyen_verification, confirme_par)
+    select id, siren, %L, %L, %L, %L from public.fournisseurs where id = %L', 'FR1420041010050500013M02606', (select facture_id from ids_a),
+    'Appel', 'n8n', v_four), 'MESSAGE:ibans_confirmes_confirme_par_liste');
 
   -- Unité saisie d'un article de référence.
   perform pg_temp.doit_echouer('select public.creer_article_reference(''Brique'', ''zorglub'', ''alice@exemple.test'')', 'MESSAGE:articles_reference_unite_liste');
   perform public.creer_article_reference('Brique', 'palette', 'alice@exemple.test');
 
   -- La personne des favoris vient de app.utilisateur : un prénom seul est refusé.
-  perform pg_temp.entrer('espace-a', 'alice');
-  perform pg_temp.doit_echouer(format('select public.basculer_favori_os(''chantier'', %L)', (select chantier_id from ids_a)), 'MESSAGE:_liste');
+  perform pg_temp.doit_echouer('insert into public.favoris_os (utilisateur, genre, cle) values (''alice'', ''chantier'', ''x'')',
+    'MESSAGE:favoris_os_utilisateur_liste');
 end $$;
 
 -- Un reflet : source hors liste refusée (n8n écrit les reflets).

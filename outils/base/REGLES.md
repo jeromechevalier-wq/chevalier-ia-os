@@ -65,12 +65,12 @@ Liste finale du 27/11/2026 (relecture Fable, corrigée par les décisions de Jé
 | 17 | Un reflet qui évolue : une ligne par état observé (unicité élargie à la date d'observation) | — | à faire | — |
 | 18 | Revenir à un ancien scan : décision en table source, puis copie ajoutée (scan et lignes), marquée « reprise du n° X, par qui, quand » | `reprise` est déjà dans la liste des sources (009). | à faire | — |
 | 19 | Tout jugement sur un reflet est une décision en table source, en ajout seul ; annuler = nouvelle décision | Décisions et corrections des factures : tables sources en ajout seul ; rouvrir = nouvelle décision. | tenue (factures) | `04`, `07` |
-| 20 | Valeur affichée : la dernière information en date (correction ou lecture) ; facture décidée : figée ; un scan arrivé après la décision attend la réouverture | Vue `factures` (011) : une correction plus ancienne que le scan affiché ne compte plus ; l'heure exacte de chaque correction (`corrige_le`) est posée par la base. Facture décidée figée (004). | tenue | `07` |
+| 20 | Valeur affichée : la dernière information en date (correction ou lecture) ; facture décidée : figée ; un scan arrivé après la décision attend la réouverture | Vue `factures` (011) : pour chaque champ, une correction plus ancienne que le scan affiché ne compte plus, sauf si ce scan n'a rien lu pour ce champ ; l'heure exacte de chaque correction (`corrige_le`) est posée par la base. Facture décidée figée (004). | tenue | `07` |
 | 21 | Changer de scan : facture à valider seulement ; liens vers les articles refaits, anciens gardés | — | à faire | — |
 | 22 | IBAN, SIREN, SIRET jamais modifiés en place ; même fiche, ancienne ligne tamponnée « remplacée », nouvelle ligne ajoutée ; SIREN changé = IBAN à reconfirmer | IBAN : un IBAN confirmé ne se modifie pas, on le révoque (005). SIREN, SIRET : **pas encore**. | en partie | `07` |
 | 23 | Mode d'emploi dans la base (droit de créer par table ; catégorie, modifiable, phrase par champ), vérifié par test contre les verrous réels | — | à faire | — |
 | 24 | Toute fiche se modifie sauf les champs cadenassés (avec leur phrase) ; « + » seulement si l'utilisateur est la source ; la base fait foi | — | à faire | — |
-| 25 | Pas de texte libre pour qui / par où / source / statut / type / action / motif / unité | Contraintes de liste (009) ; un motif = un type en liste fermée + un commentaire libre à côté ; le surveillant échoue sur toute nouvelle colonne de ce genre en texte libre. | tenue | `10`, `11` |
+| 25 | Pas de texte libre pour qui / par où / source / statut / type / action / motif / unité | Contraintes de liste (009) ; un motif = un type en liste fermée + un commentaire libre à côté ; le surveillant échoue sur toute nouvelle colonne de ce genre en texte libre. **Pas encore** : personne n'écrit `par_ou`, `motif_type`, `moyen_type` ni `motif_revocation_type` (ils restent vides ou `non_precise` tant que la porte, l'écran et n8n ne les envoient pas). | en partie | `10`, `11` |
 
 ### Les listes fermées (règle 25, migration 009)
 
@@ -89,6 +89,8 @@ Liste finale du 27/11/2026 (relecture Fable, corrigée par les décisions de Jé
 | `articles_reference.unite_reference` (saisie) | `liste_unites()` : u, m, ml, m2, m3, cm, mm, km, kg, g, t, l, cl, sac, rouleau, boite, palette, lot, forfait, h, jour, ens, paquet, carton, plaque, barre, botte, seau, bidon, cartouche, pot, tube, paire, kit (après `normaliser_unite`) |
 
 Restent libres, exprès : ce qui est **lu** sur une facture (dont l'unité lue et sa forme normalisée, recopiées dans le catalogue), les notes et les commentaires. Les listes déjà fermées avant 009 (statuts, décisions, genres, types de document…) ne changent pas. `non_precise` est la valeur des lignes d'avant et des écritures qui n'envoient pas encore de type (n8n, écrans) : à remplacer quand l'écran et n8n enverront le type.
+
+**Avant d'appliquer 009 et 010 à une vraie base** : (1) relever les valeurs réelles (`select distinct` sur `decide_par`, `valide_par`, `refuse_par`, `confirme_par`, `journal_modifications.qui`, `cree_par`, `source_nom`, `unite_reference`) et ce que les workflows n8n envoient dans `p_qui` et `source_nom` : une valeur hors liste serait refusée dès 009 ; (2) jouer 009, 010 (avec `psql -v email_jerome=…`) et 011 dans la même séance, n8n arrêté (toutes les tables sont verrouillées le temps de la transaction ; et une ancienne ligne hors liste ne peut plus être modifiée tant que 010 ne l'a pas remise au format) ; (3) lire les avis « à regarder à la main » de 010.
 
 **Une nouvelle table** (migration future) : rappeler `poser_listes_fermees()` et `poser_liste_tables_journal()` à la fin de sa migration. Le test `11_surveillant.sql` échoue sinon.
 

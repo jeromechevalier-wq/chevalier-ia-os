@@ -9,10 +9,13 @@
 --   (d) ou elle est dans la liste des exceptions ci-dessous, avec sa raison (ce qui est LU sur une facture, ou calculé à partir de la lecture).
 
 create or replace function pg_temp.colonne_fermee(p_table oid, p_attnum smallint) returns boolean language sql stable as $$
+  -- La contrainte doit porter sur la colonne ELLE-MÊME : « colonne = ANY (…) » ou « est_…(colonne) » (une longueur ou un calcul ne compte pas).
   select exists (
-    select 1 from pg_constraint k
+    select 1 from pg_constraint k, pg_attribute a
      where k.conrelid = p_table and k.contype = 'c' and p_attnum = any (k.conkey)
-       and pg_get_constraintdef(k.oid) ~ '(ANY \(ARRAY\[|ANY \(''\{|ANY \((public\.)?liste_[a-z_]+\(\)\)|est_(qui|personne|par_ou|source_nom|unite)[a-z_]*\()')
+       and a.attrelid = p_table and a.attnum = p_attnum
+       and pg_get_constraintdef(k.oid) ~ ('(\(|\s)' || a.attname || ' = ANY \((ARRAY\[|''\{|(public\.)?liste_[a-z_]+\(\)\))'
+                                          || '|est_(qui|personne|par_ou|source_nom|unite)[a-z_]*\(' || a.attname || '\)'))
   or exists (select 1 from pg_constraint k where k.conrelid = p_table and k.contype = 'f' and p_attnum = any (k.conkey))
 $$;
 
@@ -22,7 +25,7 @@ create or replace function pg_temp.colonnes_libres() returns table(colonne text)
       from pg_class c join pg_attribute a on a.attrelid = c.oid
      where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p') and a.attnum > 0 and not a.attisdropped
        and a.atttypid in ('text'::regtype, 'varchar'::regtype, 'bpchar'::regtype)
-       and a.attname ~ '(^qui$|_par$|^par_ou|^utilisateur$|^source_nom$|statut|^type_|_type$|^genre$|^nature$|^action$|^table_nom$|^decision$|^resultat$|^declencheur$|^usage$|^champ$|motif|unite|^moyen)'
+       and a.attname ~ '(^qui$|_par$|^par_ou|^utilisateur$|^source_nom$|statut|^type_|_type$|^genre$|^nature$|^action$|^table_nom$|^decision$|^resultat$|^declencheur$|^usage$|^champ$|motif|unite|^moyen|^etat$|_etat$|^role$|^source$|^origine$|^decideur)'
   ),
   -- (c) commentaire libre -> sa colonne de type fermée.
   compagnons(table_nom, col, type_col) as (values
@@ -59,10 +62,12 @@ end $$;
 begin;
 alter table public.chantiers add column type_essai text;
 alter table public.chantiers add column statut_essai text check (char_length(statut_essai) < 20);   -- une longueur n'est pas une liste
+alter table public.chantiers add column essai_etat text check (char_length(essai_etat) = any (array[1, 2, 3]));   -- ni un calcul sur la colonne
 do $$
 begin
   if not exists (select 1 from pg_temp.colonnes_libres() c where c.colonne = 'chantiers.type_essai')
-     or not exists (select 1 from pg_temp.colonnes_libres() c where c.colonne = 'chantiers.statut_essai') then
+     or not exists (select 1 from pg_temp.colonnes_libres() c where c.colonne = 'chantiers.statut_essai')
+     or not exists (select 1 from pg_temp.colonnes_libres() c where c.colonne = 'chantiers.essai_etat') then
     raise exception 'Le surveillant ne voit pas une colonne en texte libre';
   end if;
 end $$;

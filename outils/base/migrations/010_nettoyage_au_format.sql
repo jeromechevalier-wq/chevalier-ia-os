@@ -6,6 +6,11 @@
 -- Sans cette variable, la migration ne réécrit rien (elle tente seulement de valider les contraintes de 009). Rejouable : une valeur
 -- déjà au format n'est plus touchée.
 --
+-- À jouer avec psql (il lit la variable), dans la MÊME séance que 009, n8n arrêté : 009 et 010 verrouillent toutes les tables le temps
+-- de la transaction, et tant que 010 n'a pas été jouée avec l'e-mail, une ancienne ligne hors liste ne peut plus être modifiée
+-- (une contrainte « not valid » vaut pour toute écriture). Avant : relever les valeurs réelles (select distinct sur decide_par,
+-- valide_par, refuse_par, confirme_par, journal.qui, cree_par, source_nom, unite_reference) pour vérifier qu'elles entrent dans les listes.
+--
 -- Règles générales (aucune valeur réelle ici) pour une colonne « qui » hors liste :
 --   - un texte qui parle de Claude, de ChatGPT ou d'un assistant (ex. « validé par Claude sur son ordre ») -> l'e-mail de Jérôme,
 --     par où = assistant (avec son nom) : c'est Jérôme qui a décidé, par son assistant ;
@@ -82,7 +87,12 @@ begin
     v_cibles := v_cibles || array[array[v_t, 'cree_par', 'non'], array[v_t, 'modifie_par', 'non'], array[v_t, 'archive_par', 'non']];
   end loop;
 
-  -- Lever les verrous le temps de la réécriture (même transaction : rien ne reste levé).
+  -- Lever les verrous le temps de la réécriture (même transaction : rien ne reste levé). Les contraintes de liste de 009 sont retirées
+  -- aussi : une ligne peut avoir plusieurs colonnes hors liste, réécrites une par une ; poser_listes_fermees() les repose à la fin.
+  for r in select k.conrelid::regclass::text as t, k.conname from pg_constraint k
+            where k.connamespace = 'public'::regnamespace and k.contype = 'c' and k.conname like '%\_liste' loop
+    execute format('alter table %s drop constraint %I', r.t, r.conname);
+  end loop;
   foreach v_t in array v_tables loop
     execute format('alter table public.%I disable trigger user', v_t);
     execute format('alter table public.%I no force row level security', v_t);
@@ -110,10 +120,10 @@ begin
   -- Type de motif des décisions, déduit du commentaire libre (qui reste tel quel).
   for r in select d.id, d.espace_id, d.motif_type as ancien,
                   case
-                    when coalesce(d.motif_refus, d.motif, d.motif_acceptation, '') ~* 'doublon' then 'doublon'
-                    when coalesce(d.motif_refus, d.motif, d.motif_acceptation, '') ~* 'illisible' then 'illisible'
-                    when coalesce(d.motif_refus, d.motif, d.motif_acceptation, '') ~* 'd[ée]j[àa] pay' then 'deja_payee'
-                    when coalesce(d.motif_refus, d.motif, d.motif_acceptation, '') ~* 'montant|prix|total' then 'montant_errone'
+                    when d.decision = 'refuser' and d.motif_refus ~* 'doublon' then 'doublon'
+                    when d.decision = 'refuser' and d.motif_refus ~* 'illisible' then 'illisible'
+                    when d.decision = 'refuser' and d.motif_refus ~* 'd[ée]j[àa] pay' then 'deja_payee'
+                    when d.decision = 'refuser' and d.motif_refus ~* 'montant|prix|total' then 'montant_errone'
                     when char_length(btrim(coalesce(d.motif_refus, d.motif, d.motif_acceptation, ''))) > 0 then 'autre'
                     else 'non_precise'
                   end as nouveau
@@ -143,7 +153,13 @@ begin
             jsonb_build_object('moyen_type', r.ancien), jsonb_build_object('moyen_type', r.nouveau));
     v_total := v_total + 1;
   end loop;
-  update public.ibans_confirmes set motif_revocation_type = 'non_precise' where revoque_le is not null and motif_revocation_type is null;
+  for r in select c.id, c.espace_id from public.ibans_confirmes c where c.revoque_le is not null and c.motif_revocation_type is null loop
+    update public.ibans_confirmes set motif_revocation_type = 'non_precise' where id = r.id;
+    insert into public.journal_modifications (espace_id, table_nom, enregistrement_id, action, qui, par_ou, avant, apres)
+    values (r.espace_id, 'ibans_confirmes', r.id, 'mise_au_format', 'migration', 'migration',
+            jsonb_build_object('motif_revocation_type', null), jsonb_build_object('motif_revocation_type', 'non_precise'));
+    v_total := v_total + 1;
+  end loop;
 
   -- Remettre les verrous.
   foreach v_t in array v_tables loop
@@ -157,6 +173,18 @@ begin
   select count(*) into v_n from public.journal_modifications j
    where not (j.action = any (public.liste_actions_journal()));
   if v_n > 0 then raise notice '010 : % ligne(s) du journal avec une action hors liste (à regarder à la main).', v_n; end if;
+  select count(*) into v_n from public.journal_modifications j where not (j.table_nom = any (public.liste_tables_journal_fixes()))
+     and not exists (select 1 from public.registre_tables t where t.nom_table = j.table_nom);
+  if v_n > 0 then raise notice '010 : % ligne(s) du journal avec une table inconnue (à regarder à la main).', v_n; end if;
+  select count(*) into v_n from public.articles_reference a where not public.est_unite_connue(a.unite_reference);
+  if v_n > 0 then raise notice '010 : % article(s) de référence avec une unité hors liste (à regarder à la main).', v_n; end if;
+  select (select count(*) from public.factures_scans x where not public.est_source_nom_valide(x.source_nom))
+       + (select count(*) from public.lignes_facture_lues x where not public.est_source_nom_valide(x.source_nom))
+       + (select count(*) from public.courriels_recus x where not public.est_source_nom_valide(x.source_nom))
+       + (select count(*) from public.couts_ia x where not public.est_source_nom_valide(x.source_nom))
+       + (select count(*) from public.n8n_executions x where not public.est_source_nom_valide(x.source_nom))
+       + (select count(*) from public.openrouter_cles_releves x where not public.est_source_nom_valide(x.source_nom)) into v_n;
+  if v_n > 0 then raise notice '010 : % reflet(s) avec une source hors liste (à regarder à la main).', v_n; end if;
   raise notice '010 : % valeur(s) mise(s) au format.', v_total;
 end $$;
 

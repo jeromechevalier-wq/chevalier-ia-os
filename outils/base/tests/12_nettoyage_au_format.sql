@@ -11,6 +11,7 @@ select pg_temp.entrer('espace-a', 'alice-marqa@exemple.test');
 alter table public.journal_modifications drop constraint journal_modifications_qui_liste;
 alter table public.factures_decisions drop constraint factures_decisions_decide_par_liste;
 alter table public.chantiers drop constraint chantiers_cree_par_liste;
+alter table public.chantiers drop constraint chantiers_modifie_par_liste;
 insert into public.journal_modifications (table_nom, action, qui) values ('factures', 'modification', 'validé par Claude sur son ordre');
 insert into public.journal_modifications (table_nom, action, qui) values ('factures', 'modification', 'script de reprise du 24/11');
 insert into public.journal_modifications (table_nom, action, qui) values ('factures', 'modification', 'n8n (robot)');
@@ -18,7 +19,7 @@ alter table public.factures_decisions disable trigger user;
 update public.factures_decisions set decide_par = 'Jérôme' where facture_id = (select facture_refusee_id from ids_a);
 alter table public.factures_decisions enable trigger user;
 alter table public.chantiers disable trigger user;
-update public.chantiers set cree_par = 'Jérôme' where id = (select chantier_id from ids_a);
+update public.chantiers set cree_par = 'Jérôme', modifie_par = 'script d''import' where id = (select chantier_id from ids_a);   -- deux colonnes hors liste
 alter table public.chantiers enable trigger user;
 
 -- 1. Sans e-mail donné : rien n'est réécrit, les contraintes restent posées (pour les nouvelles lignes) sans être validées.
@@ -53,11 +54,12 @@ begin
   perform pg_temp.egal((select motif_type from public.factures_decisions where facture_id = (select facture_refusee_id from ids_a) order by rang desc limit 1),
     'doublon', 'type de motif déduit du commentaire');
   perform pg_temp.egal((select cree_par from public.chantiers where id = (select chantier_id from ids_a)), 'jerome@exemple.test', 'cree_par -> e-mail');
+  perform pg_temp.egal((select modifie_par from public.chantiers where id = (select chantier_id from ids_a)), 'migration', 'modifie_par (même ligne) -> migration');
   perform pg_temp.egal((select moyen_type from public.ibans_confirmes limit 1), 'appel_fournisseur', 'moyen de vérification déduit du commentaire');
   perform pg_temp.egal((select moyen_verification from public.ibans_confirmes limit 1), 'Appel au MARQA', 'le commentaire libre reste');
   -- Chaque réécriture laisse une ligne au journal, avec l'avant et l'après.
   select count(*) into v_n from public.journal_modifications where action = 'mise_au_format' and qui = 'migration';
-  if v_n < 7 then raise exception 'Journal de la mise au format : % lignes seulement', v_n; end if;
+  if v_n < 8 then raise exception 'Journal de la mise au format : % lignes seulement', v_n; end if;
   perform pg_temp.egal((select count(*)::int from public.journal_modifications where action = 'mise_au_format'
                          and avant ->> 'qui' = 'validé par Claude sur son ordre' and apres ->> 'qui' = 'jerome@exemple.test'), 1, 'avant / après au journal');
   -- Toutes les contraintes de liste sont maintenant validées.

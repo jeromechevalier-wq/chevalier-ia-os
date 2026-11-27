@@ -32,13 +32,14 @@ begin
   select * into v_s from public.factures_scans s where s.facture_id = p_facture_id order by s.rang desc limit 1;
   select true, c.valeur into v_a_num, v_num from public.factures_corrections c
     where c.facture_id = p_facture_id and c.champ = 'numero' and c.archive_le is null
-      and (v_s.copie_le is null or coalesce(c.corrige_le, c.cree_le) >= v_s.copie_le)
+      and (v_s.copie_le is null or v_s.numero is null or coalesce(c.corrige_le, c.cree_le) >= v_s.copie_le)
     order by c.rang desc limit 1;
   select k.siren, k.numero_normalise into siren, numero_normalise
     from public.cles_facture(v_s.extraction, case when v_a_num then v_num else v_s.numero end) k;
 end $$;
 
--- La facture recollée (copie de 004, seul le filtre des corrections change).
+-- La facture recollée (copie de 004, seul le filtre des corrections change) : pour CHAQUE champ, une correction compte si elle est plus
+-- récente que le scan affiché, ou si ce scan n'a rien lu pour ce champ (un nouveau scan vide n'efface pas une valeur saisie à la main).
 create or replace view public.factures with (security_invoker = true) as
 select v.id, v.chantier_id, v.fournisseur, v.numero, v.date_facture, v.montant_ht, v.montant_tva, v.montant_ttc,
        v.statut, v.motif_refus, v.date_decision, v.decide_par, v.fichier_path, v.email_expediteur, v.email_message_id, v.created_at,
@@ -82,16 +83,14 @@ from (
     limit 1
   ) s on true
   left join lateral (
-    select bool_or(c0.champ = 'fournisseur') as a_fournisseur, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'fournisseur'))[1] as fournisseur,
-           bool_or(c0.champ = 'numero') as a_numero, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'numero'))[1] as numero,
-           bool_or(c0.champ = 'date_facture') as a_date, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'date_facture'))[1] as date_facture,
-           bool_or(c0.champ = 'montant_ht') as a_ht, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'montant_ht'))[1] as montant_ht,
-           bool_or(c0.champ = 'montant_tva') as a_tva, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'montant_tva'))[1] as montant_tva,
-           bool_or(c0.champ = 'montant_ttc') as a_ttc, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'montant_ttc'))[1] as montant_ttc,
-           bool_or(c0.champ = 'type_document') as a_type, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'type_document'))[1] as type_document
+    select coalesce(bool_or(c0.champ = 'fournisseur' and (s.copie_le is null or s.fournisseur is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)), false) as a_fournisseur, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'fournisseur' and (s.copie_le is null or s.fournisseur is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)))[1] as fournisseur,
+           coalesce(bool_or(c0.champ = 'numero' and (s.copie_le is null or s.numero is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)), false) as a_numero, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'numero' and (s.copie_le is null or s.numero is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)))[1] as numero,
+           coalesce(bool_or(c0.champ = 'date_facture' and (s.copie_le is null or s.date_facture is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)), false) as a_date, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'date_facture' and (s.copie_le is null or s.date_facture is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)))[1] as date_facture,
+           coalesce(bool_or(c0.champ = 'montant_ht' and (s.copie_le is null or s.montant_ht is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)), false) as a_ht, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'montant_ht' and (s.copie_le is null or s.montant_ht is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)))[1] as montant_ht,
+           coalesce(bool_or(c0.champ = 'montant_tva' and (s.copie_le is null or s.montant_tva is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)), false) as a_tva, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'montant_tva' and (s.copie_le is null or s.montant_tva is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)))[1] as montant_tva,
+           coalesce(bool_or(c0.champ = 'montant_ttc' and (s.copie_le is null or s.montant_ttc is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)), false) as a_ttc, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'montant_ttc' and (s.copie_le is null or s.montant_ttc is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)))[1] as montant_ttc,
+           coalesce(bool_or(c0.champ = 'type_document' and (s.copie_le is null or s.type_document is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)), false) as a_type, (array_agg(c0.valeur order by c0.rang desc) filter (where c0.champ = 'type_document' and (s.copie_le is null or s.type_document is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)))[1] as type_document
     from public.factures_corrections c0 where c0.facture_id = i.id and c0.archive_le is null
-      -- La dernière information en date gagne : une correction plus ancienne que le scan affiché ne compte plus.
-      and (s.copie_le is null or coalesce(c0.corrige_le, c0.cree_le) >= s.copie_le)
   ) c on true
 ) v
 left join lateral (
