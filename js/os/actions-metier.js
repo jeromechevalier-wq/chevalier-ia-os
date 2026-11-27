@@ -8,6 +8,15 @@ export class ErreurAction extends Error {
   constructor(message, code = null) { super(message); this.name = 'ErreurAction'; this.code = code; }
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Facture déjà connue d'un refus « doublon » (409) : son identifiant et sa date d'ajout, seulement s'ils ont la bonne forme, et `dejaConnue` (doublon reconnu par fournisseur et numéro, pas par empreinte). Jamais un autre champ du corps. */
+export function factureDejaConnue(corps) {
+  const c = corps && typeof corps === 'object' ? corps : {};
+  const factureId = typeof c.facture_id === 'string' && UUID.test(c.facture_id) ? c.facture_id : null;
+  const creeLe = typeof c.cree_le === 'string' && !Number.isNaN(Date.parse(c.cree_le)) ? c.cree_le : null;
+  return { factureId, creeLe, dejaConnue: c.deja_connue === true };
+}
+
 export const USAGES = ['validation', 'actions', 'suggestions', 'ajoutFacture'];
 
 export const MESSAGE_REFUS_SERVEUR = 'Le serveur a refusé l’opération. Réessaie, ou préviens le support.';
@@ -68,7 +77,12 @@ export function creerActions({ lireConnexion, demanderTicket, fetchImpl, modeEmu
     if (rep.status === 401) rep = await envoyer(url, await ticketNeuf(usage), corpsEnvoye);
     const corps = await rep.json().catch(() => ({}));
     if (rep.status === 401) throw new ErreurAction(MESSAGE_REFUS_SERVEUR, 'refus_serveur');
-    if (!rep.ok) throw new ErreurAction(messageServeur(rep.status, corps), (corps && corps.code) ?? null);
+    if (!rep.ok) {
+      const err = new ErreurAction(messageServeur(rep.status, corps), (corps && corps.code) ?? null);
+      // Doublon (409) : l'erreur porte la facture déjà connue (identifiant et date d'ajout), pour que l'écran propose de l'ouvrir.
+      if (err.code === 'doublon') Object.assign(err, factureDejaConnue(corps));
+      throw err;
+    }
     // Un 200 sans « ok: true » n'est pas un succès (mauvaise adresse de webhook, workflow arrêté ou ancien) : on ne le prend jamais pour tel.
     if (!corps || corps.ok !== true) throw new ErreurAction(MESSAGE_REPONSE_INATTENDUE, 'reponse_inattendue');
     return corps;

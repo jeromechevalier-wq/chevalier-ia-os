@@ -25,6 +25,8 @@
 <p>Toujours par la couche <code>js/os/supabase.js</code> : elle demande un badge Firebase, puis lit la base. Aucun module ne fait son propre <code>fetch</code> vers la base (un test le verrouille).</p>
 <h2 id="comment-ils-ecrivent">Comment ils écrivent</h2>
 <p>Par les workflows n8n, avec un ticket à usage unique, via <code>js/os/actions-metier.js</code>. Ce fichier est le seul à parler à n8n ; on ne le recopie pas dans un module. Pour « + Facture », le fichier PDF part en pièce jointe (multipart).</p>
+<p><strong>Facture déjà ajoutée (« + Facture » et outil <code>ajouter_facture_achat</code>, 27/11/2026)</strong> : aucune comparaison avec l'horloge de l'ordinateur.</p>
+<ul><li>Même fichier (refus 409 par empreinte) : « Cette facture a déjà été ajoutée le … Rien n'a été créé en double. », avec un lien vers la fiche existante.</li><li>La base rend une fiche <strong>déjà décidée (acceptée, refusée) ou archivée</strong> (même fournisseur et même numéro) : c'est un refus (409 côté assistant), « Une facture de ce fournisseur avec ce numéro existe déjà (ajoutée le …). Ouvre-la pour vérifier. », avec le lien.</li><li>La base rend une fiche <strong>« à valider » déjà existante</strong> et le workflow le signale (<code>deja_connue</code> ou <code>fiche_relue</code>) : c'est un succès, « Facture déjà connue : sa lecture a été mise à jour avec ce nouveau document. », et la liste est rechargée. Sans ce signal, la fiche est traitée comme ajoutée.</li></ul>
 <h2 id="reglages-de-connexion">Réglages de connexion</h2>
 <p>Réglages &gt; « Connexion à la base » (visible du propriétaire seul). Le code n'écrit aucune adresse ni clé : tout vient de ces réglages.</p>
 <h2 id="export-des-donnees">Export des données</h2>
@@ -40,7 +42,7 @@
 <p>Code : <code>functions/src/mcp/outils/achats.js</code> (les outils), <code>functions/src/mcp/outils-maison.js</code> (le tri par module), <code>functions/src/base/assistant-achats.js</code> (le service).</p>
 <h2 id="ce-qui-n-est-pas-fait">Ce qui n'est PAS fait</h2>
 <p>Liste vivante : <code>.github/A-FAIRE.md</code> (parties « modules Achats »). En bref :</p>
-<ul><li>ouverture aux clients (réglage de la base par client, règle de la plateforme pour <code>base_parametres</code>, fonction du badge côté plateforme) ;</li><li>essai de bout en bout avec un vrai badge (tout est testé avec un faux réseau) ;</li><li>droit d'accès du compte de service dédié à la fonction du badge ;</li><li>pastille « Destinataire » des factures (reste « indisponible ») ;</li><li>lien « Ouvrir la fiche » quand une facture est en doublon ;</li><li>favoris : la nouvelle table remplace les anciennes étoiles, qui sont à refaire.</li></ul>
+<ul><li>ouverture aux clients (réglage de la base par client, règle de la plateforme pour <code>base_parametres</code>, fonction du badge côté plateforme) ;</li><li>essai de bout en bout avec un vrai badge (tout est testé avec un faux réseau) ;</li><li>droit d'accès du compte de service dédié à la fonction du badge ;</li><li>pastille « Destinataire » des factures (reste « indisponible ») ;</li><li>favoris : la nouvelle table remplace les anciennes étoiles, qui sont à refaire.</li></ul>
 <p>Le rapport de fin de chantier est dans <code>docs/reprise-prochaine-session.md</code>.</p>
 </article>
 <p class="source">Page générée depuis <code>docs/modules-achats.md</code> : on ne la modifie pas ici.</p>
