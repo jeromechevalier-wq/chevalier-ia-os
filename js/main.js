@@ -6,6 +6,8 @@ import { MESSAGE_PUBLIC_ABSENT, MESSAGE_PANNE_REGLAGES, configurationNeutre, mod
 import { modulesDeLaMaison } from './os/maison-modules.js';
 import { lireBesoinsMaison, ROUTE_VILLAGE, routeDuBesoin } from './os/maison-village.js';
 import { monterVillage } from './os/village-ecran.js';
+import { besoinsServis } from './os/village-damier.js';
+import { creerDonneesVillage } from './os/village-donnees.js';
 import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, lien, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace } from './os/marque.js';
 import { blocIntrouvablePortail } from './os/portail-introuvable.js';
@@ -105,6 +107,7 @@ async function ouvrirSession(compte) {
   const village = portail ? { besoins: [], avertissements: [] } : lireBesoinsMaison(besoinsEcranBrut());
   for (const a of village.avertissements) console.warn(a);
   besoinsVillage = village.besoins;
+  besoinsVillage = besoinsServis(village.besoins, [...MODULES.map((m) => m.prefixe), 'reglages']); // étape 2 (27/11/2026) : un besoin dont le module n'est pas allumé pour ce compte n'a jamais de maison
   accueilMaison = besoinsVillage.length ? ROUTE_VILLAGE : choix.accueil; // logo, « Retour à l'accueil » et adresse vide : le village
   afficherChargement();
   const apis = new Map();
@@ -231,7 +234,7 @@ function afficherRoute(route) {
   let afficher;
   if (besoinsVillage.length && segs.length === 1 && segs[0] === ROUTE_VILLAGE) { // accueil village : le dessin seul (ni journal, ni carrés)
     cle = 'village';
-    afficher = () => { session.vue.quitter?.(); vider(coquille.contenu); return monterVillage(coquille.contenu, besoinsVillage, { aller: (cible) => naviguer(routeDuBesoin(cible)), console: MODULES.some((m) => m.id === 'console') }); };
+    afficher = () => { session.vue.quitter?.(); vider(coquille.contenu); return monterVillage(coquille.contenu, besoinsVillage, { aller: (cible) => naviguer(routeDuBesoin(cible)), console: MODULES.some((m) => m.id === 'console'), donnees: creerDonneesVillage({ base: '', uid: session.compte.uid }) }); };
   } else if (segs[0] === 'reglages') {
     cle = 'reglages';
     afficher = () => monterReglages(coquille.contenu, segs, {

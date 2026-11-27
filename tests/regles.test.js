@@ -8,7 +8,7 @@ import {
   assertSucceeds,
   assertFails,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, getDocs, setLogLevel } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, getDocs, setLogLevel, serverTimestamp } from 'firebase/firestore';
 import { FICHE_ESSAI } from './_reglages-maison-essai.js'; // chantier 0 : les règles lisent les comptes dans reglages_maison/maison
 
 setLogLevel('error');
@@ -445,5 +445,133 @@ describe('Chantier 0 : les comptes viennent de la fiche reglages_maison/maison',
       await assertSucceeds(getDoc(doc(contexte(JEROME), c, id)), `${c} : Jérôme lit`);
       await assertSucceeds(setDoc(doc(contexte(JEROME), c, id), { note: 'z' }), `${c} : Jérôme écrit`);
     }
+  });
+});
+
+// Village de l'accueil rangé par chaque utilisateur (étape 2 de docs/accueil-village.md, 27/11/2026) : village_utilisateurs/{uid}/batiments/{id}.
+// Le propriétaire seul lit et écrit ses documents ; chaque champ est contrôlé par les règles (mêmes contrôles que lireBatiments de js/os/village-damier.js).
+describe('Village par utilisateur (27/11/2026)', () => {
+  const [J, C] = COMPTES;
+  const AUTRE = 'quelquun.dautre@gmail.com';
+  const chemin = (db, email, id) => doc(db, 'village_utilisateurs', `uid-${email}`, 'batiments', id);
+  const BESOIN = { sorte: 'besoin', c: 2, l: 4, cache: false, nom: 'Mes factures' };
+  const hote = ['exemple', 'test'].join('.');
+  const LIEN = { sorte: 'lien', nom: 'Mon site', url: `https://${hote}/chemin?x=1#y`, batiment: 'phare', c: 0, l: 6 };
+  const PETITE = { sorte: 'petite', parent: 'b-achatschantiers-liste', nom: 'Chantier Dupont', cible: '#/achatschantiers/liste/ch1' };
+  const VALABLES = [['b-achatsfactures-liste', BESOIN], ['l-abc123', LIEN], ['p-xyz-9', PETITE]];
+
+  test('2.R1 le propriétaire crée, lit, liste, modifie et supprime ses trois sortes de documents valables', async () => {
+    const db = contexte(J);
+    for (const [id, d] of VALABLES) await assertSucceeds(setDoc(chemin(db, J, id), { ...d, modifieLe: serverTimestamp() }));
+    await assertSucceeds(setDoc(chemin(db, J, 'b-sans-place'), { sorte: 'besoin' }));
+    for (const [id] of VALABLES) await assertSucceeds(getDoc(chemin(db, J, id)));
+    const tous = await assertSucceeds(getDocs(collection(db, 'village_utilisateurs', `uid-${J}`, 'batiments')));
+    assert.equal(tous.size, 4);
+    await assertSucceeds(setDoc(chemin(db, J, 'b-achatsfactures-liste'), { ...BESOIN, c: 6, l: 6 }));
+    await assertFails(updateDoc(chemin(db, J, 'l-abc123'), { nom: 'Autre nom' })); // l'ancienne heure `modifieLe` resterait : refusé (l'écran écrit le document entier)
+    await assertSucceeds(updateDoc(chemin(db, J, 'l-abc123'), { nom: 'Autre nom', modifieLe: serverTimestamp() }));
+    for (const [id] of VALABLES) await assertSucceeds(deleteDoc(chemin(db, J, id)));
+    // Charles, autre compte autorisé de la maison, a lui aussi SON village
+    await assertSucceeds(setDoc(chemin(contexte(C), C, 'b-achatsfactures-liste'), BESOIN));
+  });
+
+  test('2.R2 aucun autre compte ne lit, ne liste, n’écrit ni ne supprime le village d’un compte ; non autorisé, non vérifié et non connecté refusés', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(chemin(ctx.firestore(), J, 'b-x'), BESOIN); });
+    const charles = contexte(C);
+    await assertFails(getDoc(chemin(charles, J, 'b-x')));
+    await assertFails(getDocs(collection(charles, 'village_utilisateurs', `uid-${J}`, 'batiments')));
+    await assertFails(setDoc(chemin(charles, J, 'b-y'), BESOIN));
+    await assertFails(setDoc(chemin(charles, J, 'b-x'), BESOIN));
+    await assertFails(deleteDoc(chemin(charles, J, 'b-x')));
+    const autre = contexte(AUTRE);
+    await assertFails(setDoc(chemin(autre, AUTRE, 'b-x'), BESOIN)); // compte non autorisé, même sous son propre identifiant
+    await assertFails(getDocs(collection(autre, 'village_utilisateurs', `uid-${AUTRE}`, 'batiments')));
+    const nonVerifie = contexte(J, false);
+    await assertFails(getDoc(chemin(nonVerifie, J, 'b-x')));
+    await assertFails(setDoc(chemin(nonVerifie, J, 'b-z'), BESOIN));
+    const visiteur = env.unauthenticatedContext().firestore();
+    await assertFails(getDoc(chemin(visiteur, J, 'b-x')));
+    await assertFails(setDoc(chemin(visiteur, J, 'b-z'), BESOIN));
+  });
+
+  test('2.R3 champs invalides refusés un par un (sorte, champ en trop, place, nom, cache, identifiant, heure)', async () => {
+    const db = contexte(J);
+    const refus = [
+      ['b-a', { ...BESOIN, sorte: 'chateau' }],
+      ['b-a', { ...BESOIN, couleur: 'rouge' }],
+      ['b-a', { sorte: 'besoin', c: 3 }],
+      ['b-a', { sorte: 'besoin', l: 3 }],
+      ['b-a', { ...BESOIN, c: -1 }],
+      ['b-a', { ...BESOIN, c: 24 }],
+      ['b-a', { ...BESOIN, l: 1.5 }],
+      ['b-a', { ...BESOIN, c: '3' }],
+      ['b-a', { ...BESOIN, nom: '' }],
+      ['b-a', { ...BESOIN, nom: 'N'.repeat(41) }],
+      ['b-a', { ...BESOIN, nom: 12 }],
+      ['b-a', { ...BESOIN, cache: 'oui' }],
+      ['l-a', BESOIN],
+      ['p-a', BESOIN],
+      ['b-a', LIEN],
+      ['b-Majuscule', BESOIN],
+      ['b-', BESOIN],
+      ['b-a', { ...BESOIN, modifieLe: new Date('2026-01-01T00:00:00Z') }],
+      ['b-a', {}],
+    ];
+    for (const [id, d] of refus) await assertFails(setDoc(chemin(db, J, id), d));
+    await assertSucceeds(setDoc(chemin(db, J, 'b-a'), { ...BESOIN, c: 23, l: 0, nom: 'N'.repeat(40) }));
+  });
+
+  test('2.R4 lien : https seulement, sans identifiants, 300 caractères au plus, image bien formée, place obligatoire', async () => {
+    const db = contexte(J);
+    const p = (s) => s.join(':'); // les adresses refusées sont écrites en morceaux : aucune vraie adresse dans ce fichier
+    const refusees = [
+      `${p(['http', ''])}//${hote}/`, p(['javascript', 'alert(1)']), `//${hote}`, `${p(['ftp', ''])}//${hote}/`, `https://${hote}/a b`,
+      `https://moi${'@'}${hote}/`, 'https://', `https://${hote}/${'a'.repeat(301 - 9 - hote.length)}`,
+      `https://${hote}/a"onmouseover=x`, `https://${hote}/<b>`, `https://${hote}/a'b`, `https://${hote}/a\`b`, `https://${hote}/a\\b`, `https://${hote}/a[0]`, // Fable 2 : caractères qui cassent un attribut
+    ];
+    for (const url of refusees) await assertFails(setDoc(chemin(db, J, 'l-a'), { ...LIEN, url }));
+    assert.equal(`https://${hote}/${'a'.repeat(301 - 9 - hote.length)}`.length, 301);
+    await assertSucceeds(setDoc(chemin(db, J, 'l-a'), LIEN));
+    await assertSucceeds(setDoc(chemin(db, J, 'l-b'), { ...LIEN, url: `https://${hote}:8443` }));
+    await assertSucceeds(setDoc(chemin(db, J, 'l-c'), { ...LIEN, url: `https://${hote}/a-b_c.d?e=1&f=(2)*+,;:@$!#x~%20^|{}` })); // le reste de l'ASCII visible passe
+    for (const batiment of ['Phare', '1phare', 'phare_2', 'p'.repeat(31), '']) await assertFails(setDoc(chemin(db, J, 'l-a'), { ...LIEN, batiment }));
+    const { c, l, ...sansPlace } = LIEN;
+    await assertFails(setDoc(chemin(db, J, 'l-a'), sansPlace));
+    await assertFails(setDoc(chemin(db, J, 'l-a'), { ...sansPlace, c }));
+    await assertFails(setDoc(chemin(db, J, 'l-a'), { ...sansPlace, l }));
+    await assertFails(setDoc(chemin(db, J, 'l-a'), { ...LIEN, url: 42 }));
+  });
+
+  test('2.R5 petite maison : cible interne seulement, parent bien formé', async () => {
+    const db = contexte(J);
+    for (const cible of [`https://${hote}`, ['javascript', 'alert(1)'].join(':'), '#/crm/../reglages', '#/crm?x=1']) await assertFails(setDoc(chemin(db, J, 'p-a'), { ...PETITE, cible }));
+    for (const parent of ['l-abc', 'b-', 'B-abc', 12]) await assertFails(setDoc(chemin(db, J, 'p-a'), { ...PETITE, parent }));
+    await assertFails(setDoc(chemin(db, J, 'p-a'), { ...PETITE, c: 1, l: 1 }));
+    await assertSucceeds(setDoc(chemin(db, J, 'p-a'), PETITE));
+  });
+
+  test('2.R6 le document parent et toute autre sous-collection restent fermés, même au propriétaire', async () => {
+    const db = contexte(J);
+    await assertFails(setDoc(doc(db, 'village_utilisateurs', `uid-${J}`), { x: 1 }));
+    await assertFails(getDoc(doc(db, 'village_utilisateurs', `uid-${J}`)));
+    await assertFails(setDoc(doc(db, 'village_utilisateurs', `uid-${J}`, 'autre', 'x'), { x: 1 }));
+    await assertFails(getDoc(doc(db, 'village_utilisateurs', `uid-${J}`, 'autre', 'x')));
+    await assertFails(getDocs(collection(db, 'village_utilisateurs')));
+  });
+
+  test('2.R7 ce que l’écran écrit passe les règles (fabriques de js/os/village-damier.js, avec l’heure du serveur)', async () => {
+    const { docDeplacement, docCacher, docRenommer, rangerVillage } = await import('../js/os/village-damier.js');
+    const besoins = [{ nom: 'Factures', phrase: '', batiment: 'banque', cible: '#/achatsfactures/liste' }, { nom: 'Achats', phrase: '', batiment: 'marche', cible: '#/tableauachats/tableau', id: 'achats' }];
+    const [m1, m2] = rangerVillage({ besoins }).maisons;
+    const db = contexte(J);
+    const ecrire = (m, d) => setDoc(chemin(db, J, m.id), { ...d, modifieLe: serverTimestamp() });
+    await assertSucceeds(ecrire(m1, docDeplacement(m1, 3, 3)));
+    await assertSucceeds(ecrire(m2, docDeplacement(m2, m2.c, m2.l)));
+    const deplacee = { ...m1, donnees: docDeplacement(m1, 3, 3) };
+    await assertSucceeds(ecrire(m1, docRenommer(deplacee, 'Mes factures')));
+    await assertSucceeds(ecrire(m1, docRenommer({ ...deplacee, donnees: docRenommer(deplacee, 'Mes factures') }, '')));
+    await assertSucceeds(ecrire(m1, docCacher(deplacee, true)));
+    await assertSucceeds(ecrire(m1, docCacher(deplacee, false)));
+    assert.equal(m2.id, 'b-achats');
   });
 });

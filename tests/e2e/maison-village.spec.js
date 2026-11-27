@@ -1,5 +1,6 @@
 // Accueil « village » d'une maison (26/11/2026) : champ facultatif `besoins` de reglages_maison/ecran (js/os/maison-village.js, js/os/village-ecran.js, js/os/village-compteurs.js, js/main.js).
-// Le village est toujours un terrain de 4 parcelles (losange 2 x 2) : les besoins (1 à 4) occupent les parcelles haut, gauche, droite, bas ; les autres sont décorées, non cliquables.
+// Étape 2 (27/11/2026) : le terrain est un damier 8 x 8 rangé par chaque utilisateur ; rangement d'office jusqu'à 4 besoins : cases 1-1 (haut), 1-5 (gauche), 5-1 (droite),
+// 5-5 (bas), les places d'avant. Le décor (arbres, fleurs) n'est posé que sur des cases libres, ni cliquable ni atteignable au clavier. Parcours du rangement : maison-village-damier.spec.js.
 // Un test par critère (le nom commence par son numéro), une capture par critère dans tests/e2e/captures/maison-village/ (nommée avec le projet : ordinateur ou téléphone).
 // Même méthode que tests/e2e/maison-modules.spec.js : la fiche `ecran` est réécrite dans l'émulateur avant la connexion. Données d'exemple neutres.
 // Le compteur de la bulle lit la base de l'espace par le faux réseau du crochet de test `window.__accesBase` (émulateurs seulement, voir js/os/acces-base.js).
@@ -26,7 +27,9 @@ async function ouvrir(page, email = CHARLES) {
   await expect(page.locator('[data-role="village"]')).toBeVisible();
 }
 const batiments = (page) => page.locator('[data-role="village"] [data-role="batiment"]');
-const batiment = (page, nom) => page.locator(`[data-role="village"] [data-role="batiment"][data-parcelle="${nom}"]`);
+// Les 4 places d'office d'avant le damier (haut, gauche, droite, bas) sont les cases 1-1, 1-5, 5-1, 5-5 (étape 2, 27/11/2026).
+const CASES = Object.freeze({ haut: '1-1', gauche: '1-5', droite: '5-1', bas: '5-5' });
+const batiment = (page, nom) => page.locator(`[data-role="village"] [data-role="batiment"][data-case="${CASES[nom]}"]`);
 const noms = (page) => page.locator('[data-role="village"] [data-role="batiment-nom"]');
 const bulle = (page) => page.locator('[data-role="bulle"]');
 /** Taille réelle à l'écran (px) d'un texte du dessin : sa taille dans le dessin multipliée par l'agrandissement du dessin. */
@@ -70,16 +73,18 @@ async function poserBase(page, mode = 'ok') {
 const AVEC_COMPTEUR = [{ ...FACTURES, compteur: 'factures_a_valider' }, ACHATS_B];
 
 test.describe('accueil village d’une maison', () => {
-  test('V11 un seul besoin : l’adresse vide ouvre le village (#/accueil), le terrain a 4 parcelles et le bâtiment n’en occupe qu’une (celle du haut), avec son nom', async ({ page }, info) => {
+  test('V11 un seul besoin : l’adresse vide ouvre le village (#/accueil), le damier 8 x 8 est là et la maison est à la place du haut (case 1-1), avec son nom', async ({ page }, info) => {
     await semer({ besoins: [FACTURES] });
     await ouvrir(page);
     await expect(page).toHaveURL(/#\/accueil$/);
     await expect(batiments(page)).toHaveCount(1);
     const b = batiments(page).first();
     await expect(b).toHaveAttribute('aria-label', 'Factures : Valider mes factures fournisseurs');
-    await expect(b).toHaveAttribute('data-parcelle', 'haut');
+    await expect(b).toHaveAttribute('data-case', '1-1');
     await expect(noms(page)).toHaveText(['Factures']); // étiquette permanente : le nom seul (la phrase est dans la bulle)
-    await expect(page.locator('[data-role="village"] [data-role="parcelle"]')).toHaveCount(4);
+    const damier = page.locator('[data-role="village"] [data-role="damier"]');
+    await expect(damier).toHaveAttribute('data-colonnes', '8');
+    await expect(damier).toHaveAttribute('data-lignes', '8');
     const enfants = await page.locator('#contenu > *').evaluateAll((els) => els.map((e) => e.dataset.role));
     expect(enfants).toEqual(['page-village']);
     await expect(page.locator('.grille-objectifs, .journal, [data-role="page-introuvable"]')).toHaveCount(0);
@@ -94,6 +99,7 @@ test.describe('accueil village d’une maison', () => {
     else { expect(taille).toBeGreaterThanOrEqual(20); expect(taille).toBeLessThanOrEqual(28); }
     await capturer(page, info, 'V11-un-besoin');
   });
+
 
   test('V12 un clic sur le bâtiment ouvre sa cible (sur téléphone : le premier toucher montre la bulle, le second ouvre) ; le logo ramène au village', async ({ page }, info) => {
     await semer({ besoins: [FACTURES] });
@@ -125,20 +131,22 @@ test.describe('accueil village d’une maison', () => {
     await expect(page).toHaveURL(/#\/tableauachats\/tableau$/);
   });
 
-  test('V14 deux besoins : les parcelles du haut et de gauche sont occupées, les deux autres décorées ; même taille de bâtiment qu’avec un seul besoin', async ({ page }, info) => {
+  test('V14 deux besoins : les cases 1-1 (haut) et 1-5 (gauche) sont occupées ; du décor sur des cases libres seulement ; même taille de bâtiment qu’avec un seul besoin', async ({ page }, info) => {
     await semer({ besoins: [FACTURES, ACHATS_B] });
     await ouvrir(page);
     await expect(batiments(page)).toHaveCount(2);
     await expect(batiment(page, 'haut')).toHaveAttribute('data-cible', '#/achatsfactures/liste');
     await expect(batiment(page, 'gauche')).toHaveAttribute('data-cible', '#/tableauachats/tableau');
-    await expect(page.locator('[data-role="parcelle"][data-occupee="non"]')).toHaveCount(2);
-    await expect(page.locator('[data-role="parcelle"][data-parcelle="droite"]')).toHaveAttribute('data-decor', 'lavande');
-    await expect(page.locator('[data-role="parcelle"][data-parcelle="bas"]')).toHaveAttribute('data-decor', 'bosquet');
+    const decor = await page.locator('[data-role="decor"]').evaluateAll((els) => els.map((e) => e.dataset.case));
+    expect(decor.length).toBeGreaterThan(0);
+    const occupees = new Set(['1-1', '1-2', '2-1', '2-2', '1-5', '1-6', '2-5', '2-6']);
+    for (const c of decor) expect(occupees.has(c), `décor sur ${c}`).toBe(false);
     const part = await page.evaluate(() => document.querySelector('[data-role="batiment"] .village-lever').getBoundingClientRect().width / document.querySelector('.village-terrain').getBoundingClientRect().width);
     expect(part).toBeLessThan(0.35);
     expect((await defilements(page)).horizontal).toBe(false);
     await capturer(page, info, 'V14-deux-besoins');
   });
+
 
   test('V15a sans `besoins` (maison des parcours, comme chez Jérôme) : l’accueil d’avant ne change pas', async ({ page }, info) => {
     await connecter(page, undefined, { attendreAccueil: false, route: '' }); // ECRAN_PARCOURS : sans besoins
@@ -158,17 +166,14 @@ test.describe('accueil village d’une maison', () => {
     await capturer(page, info, 'V15b-besoins-refuses-accueil-davant');
   });
 
-  test('V16 téléphone : le même terrain 2 x 2 réduit à la largeur de l’écran, noms lisibles (13 px au moins), sans défilement horizontal ; deux touchers ouvrent la cible', async ({ page }, info) => {
+  test('V16 téléphone : le village est plus grand que l’écran et glisse au doigt (la page, elle, ne défile pas) ; noms lisibles (13 px au moins) ; deux touchers ouvrent la cible', async ({ page }, info) => {
     test.skip(!estTelephone(page), 'parcours propre au format téléphone');
     await semer({ besoins: QUATRE });
     await ouvrir(page);
     await expect(page.locator('[data-role="village"]')).toHaveAttribute('data-disposition', 'terrain-telephone');
-    await expect(page.locator('[data-role="parcelle"]')).toHaveCount(4);
-    const larg = await page.evaluate(() => window.innerWidth);
-    const terrain = await page.locator('.village-terrain').boundingBox();
-    expect(terrain.x).toBeGreaterThanOrEqual(-1);
-    expect(terrain.x + terrain.width).toBeLessThanOrEqual(larg + 1);
-    expect(terrain.width).toBeGreaterThan(larg * 0.8); // réduit à la largeur de l'écran, pas plus petit
+    await expect(batiments(page)).toHaveCount(4);
+    const large = await page.locator('.village-defile').evaluate((d) => d.scrollWidth > d.clientWidth + 1);
+    expect(large).toBe(true);
     for (const t of await noms(page).all()) expect(await tailleEcran(t)).toBeGreaterThanOrEqual(13);
     expect((await defilements(page)).horizontal).toBe(false);
     await capturer(page, info, 'V16-telephone-terrain');
@@ -179,16 +184,13 @@ test.describe('accueil village d’une maison', () => {
     await expect(page).toHaveURL(/#\/achatschantiers\/liste$/);
   });
 
-  test('V17 quatre besoins (plus un cinquième et des entrées mal formées, ignorés) : les 4 parcelles sont occupées dans l’ordre haut, gauche, droite, bas', async ({ page }, info) => {
-    await semer({ besoins: [{ nom: 'Piège', cible: 'javascript:alert(1)' }, 'texte seul', ...QUATRE, { nom: 'Cinquième', phrase: 'En trop', cible: '#/achatsarticles/liste' }] });
+
+  test('V17 cinq besoins (et des entrées mal formées, ignorées) : les 5 sont montrés ; les étiquettes ne se recouvrent pas', async ({ page }, info) => {
+    await semer({ besoins: [{ nom: 'Piège', cible: 'javascript:alert(1)' }, 'texte seul', ...QUATRE, { nom: 'Cinquième', phrase: 'En plus', cible: '#/achatsarticles/liste' }] });
     await ouvrir(page);
-    await expect(batiments(page)).toHaveCount(4);
-    await expect(noms(page)).toHaveText(['Factures', 'Achats', 'Chantiers', 'Fournisseurs']);
-    const parcelles = await page.locator('[data-role="etiquette"]').evaluateAll((els) => els.map((e) => e.dataset.parcelle));
-    expect(parcelles).toEqual(['haut', 'gauche', 'droite', 'bas']);
-    await expect(page.locator('[data-role="parcelle"][data-occupee="non"]')).toHaveCount(0);
+    await expect(batiments(page)).toHaveCount(5);
+    await expect(noms(page)).toHaveText(['Factures', 'Achats', 'Chantiers', 'Fournisseurs', 'Cinquième']);
     await expect(page.getByText('Piège')).toHaveCount(0);
-    await expect(page.getByText('Cinquième')).toHaveCount(0);
     // les étiquettes ne se chevauchent pas
     const boites = await page.locator('[data-role="etiquette"] rect').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
     for (let i = 0; i < boites.length; i++) {
@@ -197,39 +199,51 @@ test.describe('accueil village d’une maison', () => {
         expect(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top, `étiquettes ${i} et ${j}`).toBe(true);
       }
     }
-    await capturer(page, info, 'V17-quatre-besoins');
+    await capturer(page, info, 'V17-cinq-besoins');
   });
 
-  test('V20 les parcelles libres sont décorées mais ni cliquables ni atteignables au clavier (aria-hidden, aucun focus)', async ({ page }) => {
+
+  test('V20 le décor et le quadrillage ne sont ni cliquables ni atteignables au clavier (aria-hidden, aucun focus) ; un clic sur une case libre ne change pas d’écran', async ({ page }) => {
     await semer({ besoins: [FACTURES] });
     await ouvrir(page);
-    const libres = page.locator('[data-role="parcelle"][data-occupee="non"]');
-    await expect(libres).toHaveCount(3);
-    for (const l of await libres.all()) {
+    const caches = page.locator('[data-role="decor"], [data-role="damier"]');
+    expect(await caches.count()).toBeGreaterThan(1);
+    for (const l of await caches.all()) {
       await expect(l).toHaveAttribute('aria-hidden', 'true');
       expect(await l.getAttribute('tabindex')).toBeNull();
     }
-    await expect(page.locator('[data-role="parcelle"][data-decor]')).toHaveCount(3);
-    expect(await page.locator('[data-role="village"] [tabindex]').count()).toBe(1); // seul le bâtiment est atteignable au clavier
-    // un clic au milieu d'une parcelle libre ne change pas d'écran
-    const bas = await page.locator('[data-role="parcelle"][data-parcelle="bas"]').boundingBox();
-    await page.mouse.click(bas.x + bas.width / 2, bas.y + bas.height / 2);
+    expect(await page.locator('[data-role="village"] [tabindex]').count()).toBe(1); // seule la maison est atteignable au clavier
+    // un clic au milieu d'une case libre (bloc 5-5, devant) ne change pas d'écran
+    const point = await page.evaluate(async () => {
+      const { centreBloc } = await import(new URL('js/os/village-damier.js', document.baseURI).href);
+      const { iso } = await import(new URL('js/os/village-batiments.js', document.baseURI).href);
+      const svg = document.querySelector('[data-role="village"]');
+      const [x, y] = iso(...centreBloc(5, 5, 2));
+      const p = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
+      return { x: p.x, y: p.y };
+    });
+    await page.mouse.click(point.x, point.y);
+    await page.waitForTimeout(400);
     await expect(page).toHaveURL(/#\/accueil$/);
     await expect(bulle(page)).toBeHidden();
   });
 
+
   for (const [nombre, besoins] of [[1, [FACTURES]], [4, QUATRE]]) {
-    test(`V21 le terrain entier tient dans l’écran sans défilement (ordinateur 1440 x 900 et téléphone), avec ${nombre} besoin${nombre > 1 ? 's' : ''}`, async ({ page }) => {
+    test(`V21 sans défilement de la page (ordinateur 1440 x 900 et téléphone) ; sur ordinateur le terrain entier tient dans l’écran, avec ${nombre} besoin${nombre > 1 ? 's' : ''}`, async ({ page }) => {
       await semer({ besoins });
       await ouvrir(page);
       const d = await defilements(page);
       expect(d.horizontal).toBe(false);
       expect(d.vertical).toBe(false);
       const h = await page.evaluate(() => window.innerHeight);
+      const cadre = await page.locator('.village-cadre').boundingBox();
+      expect(cadre.y + cadre.height).toBeLessThanOrEqual(h + 1); // le cadre tient dans l'écran
+      if (estTelephone(page)) return; // téléphone : le dessin est plus large que l'écran et glisse au doigt (étape 2, D9) ; seul le cadre compte
       const terrain = await page.locator('.village-terrain').boundingBox();
       expect(terrain.y).toBeGreaterThanOrEqual(0);
       expect(terrain.y + terrain.height).toBeLessThanOrEqual(h);
-      if (!estTelephone(page)) expect(terrain.height).toBeGreaterThan(h * 0.5); // coins rognés : le losange occupe l'écran, pas de grand vide
+      expect(terrain.height).toBeGreaterThan(h * 0.5); // coins rognés : le losange occupe l'écran, pas de grand vide
     });
   }
 

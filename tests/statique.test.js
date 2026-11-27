@@ -295,8 +295,15 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.equal((donneesWorkflows.match(/\borderBy\s*\(/g) || []).length, 1);
     assert.ok(debut > 0 && /orderBy\('date', 'desc'\)/.test(journal), 'lireJournal trie sur le seul champ date');
     assert.doesNotMatch(journal, /\bwhere\s*\(/, 'lireJournal : aucune condition en plus du tri');
+    // Troisième exception (village rangé par chaque utilisateur, 27/11/2026) : la lecture des maisons est bornée (limit seul, sans tri ni condition : aucun index).
+    const FICHIER_VILLAGE = 'js/os/village-donnees.js';
+    const requeteVillage = 'query(dossier(), limit(LECTURE_MAX))';
+    const donneesVillage = lire(FICHIER_VILLAGE);
+    assert.ok(donneesVillage.includes(requeteVillage), 'village : lecture bornée, sans tri ni condition');
+    assert.match(donneesVillage, /LECTURE_MAX = 200\b/);
     for (const f of sources()) {
-      const t = f === FICHIER_JOURNAL ? donnees.replace(journal, '') : f === FICHIER_AUTOMATISATIONS ? donneesWorkflows.replace(requeteWorkflows, '') : lire(f);
+      const t = f === FICHIER_JOURNAL ? donnees.replace(journal, '') : f === FICHIER_AUTOMATISATIONS ? donneesWorkflows.replace(requeteWorkflows, '')
+        : f === FICHIER_VILLAGE ? donneesVillage.replace(requeteVillage, '') : lire(f);
       assert.doesNotMatch(t, /\borderBy\s*\(/, `${f} : orderBy`);
       assert.doesNotMatch(t, /\blimit\s*\(/, `${f} : limit`);
       for (const [requete] of t.matchAll(/query\s*\([^;]*?\)\s*,/gs)) {
@@ -332,7 +339,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.match(r, /request\.auth\.token\.email in reglagesMaison\(\)\.get\('comptes_autorises', \[\]\)/);
     assert.match(r, /request\.auth\.token\.email in reglagesMaison\(\)\.get\('comptes_jerome_seul', \[\]\)/);
     assert.doesNotMatch(r.replace(/\/\/.*$/gm, ''), /@/, 'aucune adresse e-mail dans les règles');
-    assert.match(r, /!\(collection in \['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres', 'reglages_maison'\]\)/); // + la fiche des réglages de la maison (chantier 0, 25/11/2026 : jamais lue ni écrite par le joker) // + le réglage du module Pilotage (serveur seulement, placé juste après console_filet), les SMS et les réglages du module Rendez-vous (15/11/2026, match dédiés : tests de règles C3), les relevés des posts (12/11/2026), les fiches des fichiers de l'onglet « Documents » (28/10/2026), les devis, leur compteur et le bordereau (24/10/2026), le journal des demandes d'e-mail (25/10/2026) : règles propres, voir devis-regles.test.js
+    assert.match(r, /!\(collection in \['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres', 'reglages_maison', 'village_utilisateurs'\]\)/); // + la fiche des réglages de la maison (chantier 0, 25/11/2026 : jamais lue ni écrite par le joker) // + le réglage du module Pilotage (serveur seulement, placé juste après console_filet), les SMS et les réglages du module Rendez-vous (15/11/2026, match dédiés : tests de règles C3), les relevés des posts (12/11/2026), les fiches des fichiers de l'onglet « Documents » (28/10/2026), les devis, leur compteur et le bordereau (24/10/2026), le journal des demandes d'e-mail (25/10/2026) : règles propres, voir devis-regles.test.js
     for (const t of ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions']) {
       assert.match(r, new RegExp(`match /${t}/\\{id\\} \\{\\s+allow read: if compteAutorise\\(\\);\\s+allow write: if false;`), `${t} : lecture seule pour l'écran`);
     }

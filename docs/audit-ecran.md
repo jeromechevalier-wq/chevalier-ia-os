@@ -265,10 +265,39 @@ service cloud.firestore {
       allow write: if compteJeromeSeul();
     }
 
+    // Village de l'accueil, rangé par chaque utilisateur (27/11/2026) : un document par maison du village, sous l'identifiant du compte.
+    // Seul le compte lui-même lit et écrit les siens (aucun autre compte, même autorisé). Chaque champ est contrôlé ici : types, tailles, adresse en https seulement (sans " ' < > ` [ ] ni antislash). Exclue du joker ci-dessous.
+    function villageCase(d, k) { return d[k] is int && d[k] >= 0 && d[k] <= 23; }
+    function villagePlace(d, obligatoire) {
+      return d.keys().hasAll(['c', 'l']) ? (villageCase(d, 'c') && villageCase(d, 'l')) : (!obligatoire && !d.keys().hasAny(['c', 'l']));
+    }
+    function villageNom(d) { return d.nom is string && d.nom.size() >= 1 && d.nom.size() <= 40; }
+    function villageBatimentValide(id) {
+      let d = request.resource.data;
+      let s = d.get('sorte', '');
+      return (!d.keys().hasAny(['modifieLe']) || d.modifieLe == request.time)
+        && (
+          (s == 'besoin' && id.matches('^b-[a-z0-9-]{1,60}$') && d.keys().hasOnly(['sorte', 'c', 'l', 'cache', 'nom', 'modifieLe'])
+            && villagePlace(d, false) && (!d.keys().hasAny(['cache']) || d.cache is bool) && (!d.keys().hasAny(['nom']) || villageNom(d)))
+          || (s == 'lien' && id.matches('^l-[a-z0-9-]{1,60}$') && d.keys().hasOnly(['sorte', 'nom', 'url', 'batiment', 'c', 'l', 'modifieLe'])
+            && d.keys().hasAll(['nom', 'url', 'batiment']) && villageNom(d) && villagePlace(d, true)
+            && d.url is string && d.url.size() <= 300 && d.url.matches('^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?([/?#][-!#$%&()*+,./0-9:;=?@A-Z^_a-z{|}~]*)?$')
+            && d.batiment is string && d.batiment.matches('^[a-z][a-z-]{0,29}$'))
+          || (s == 'petite' && id.matches('^p-[a-z0-9-]{1,60}$') && d.keys().hasOnly(['sorte', 'parent', 'nom', 'cible', 'modifieLe'])
+            && d.keys().hasAll(['parent', 'nom', 'cible']) && villageNom(d)
+            && d.parent is string && d.parent.matches('^b-[a-z0-9-]{1,60}$')
+            && d.cible is string && d.cible.size() <= 200 && d.cible.matches('^#/[A-Za-z0-9][A-Za-z0-9_-]*(/[A-Za-z0-9_-]+)*$'))
+        );
+    }
+    match /village_utilisateurs/{uid}/batiments/{id} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid && compteAutorise();
+      allow create, update: if request.auth != null && request.auth.uid == uid && compteAutorise() && villageBatimentValide(id);
+    }
+
     // Tout le reste : comme avant (les comptes autorisés de la fiche de la maison), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres', 'reglages_maison']);
+        && !(collection in ['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres', 'reglages_maison', 'village_utilisateurs']);
     }
   }
 }
