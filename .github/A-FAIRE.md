@@ -510,6 +510,7 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 
 - 🟠 **Profil `assistant-devis` (09/11/2026)** : après la fusion, Jérôme lance « Déploiement plateforme clients » > mcp, puis crée le jeton avec `creer-jeton.js` (hors dépôt) et le contrôle avec `qui_suis_je`. Déplacer une ligne, ligne libre, sous-section par un bot : refusé le 09/11/2026, restent à l'écran.
 - 🟠 **Devis « moderne » et logo de l'espace (09/11/2026)** : après la fusion, Jérôme lance « Déploiement plateforme clients » > fonctions ; AVANT, il étend la condition IAM de `devis-pdf` à `marques/` (`docs/pdf-clients.md`, étape 2 bis) : sans cela le PDF se fait sans logo. Chez Jérôme : pas de logo d'espace (décision prise seul), à reprendre si Jérôme le veut.
+- 🟠 **Village par utilisateur absent chez les clients (27/11/2026, étape 3a)** : tant que l'étape 3a-bis n'est pas faite (`firestore.plateforme.rules` : bloc `clients/{client}/village_utilisateurs/{uid}/batiments/{id}` et exclusion du joker `clients/{client}/…`) et que `js/main.js` passe `base: ''` à `creerDonneesVillage` (au lieu du chemin de l'espace), le village rangé n'existe que chez Jérôme ; un client voit le village d'office.
 
 ## Fait (fusionné, en ligne, testé par Jérôme)
 - PR 306 : testée par Jérôme (26/10/2026) ; PR 278 (pastille Devis), 284 (barre du haut), 304 (Retour au devis), 298 (visualisation du devis, « Passer à Envoyé », points 1 à 5 OK), 285 (e-mails en copie, points 1 à 5 OK), 287 (pastille cliquable, points 1 à 5 OK) : testées par Jérôme.

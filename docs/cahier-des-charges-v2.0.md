@@ -592,7 +592,7 @@ service cloud.firestore {
     }
 
     // Village de l'accueil, rangé par chaque utilisateur (27/11/2026) : un document par maison du village, sous l'identifiant du compte.
-    // Seul le compte lui-même lit et écrit les siens (aucun autre compte, même autorisé). Chaque champ est contrôlé ici : types, tailles, adresse en https seulement. Exclue du joker ci-dessous.
+    // Seul le compte lui-même lit et écrit les siens (aucun autre compte, même autorisé). Chaque champ est contrôlé ici : types, tailles, adresse en https seulement (sans " ' < > ` [ ] ni antislash). Exclue du joker ci-dessous.
     function villageCase(d, k) { return d[k] is int && d[k] >= 0 && d[k] <= 23; }
     function villagePlace(d, obligatoire) {
       return d.keys().hasAll(['c', 'l']) ? (villageCase(d, 'c') && villageCase(d, 'l')) : (!obligatoire && !d.keys().hasAny(['c', 'l']));
@@ -607,7 +607,7 @@ service cloud.firestore {
             && villagePlace(d, false) && (!d.keys().hasAny(['cache']) || d.cache is bool) && (!d.keys().hasAny(['nom']) || villageNom(d)))
           || (s == 'lien' && id.matches('^l-[a-z0-9-]{1,60}$') && d.keys().hasOnly(['sorte', 'nom', 'url', 'batiment', 'c', 'l', 'modifieLe'])
             && d.keys().hasAll(['nom', 'url', 'batiment']) && villageNom(d) && villagePlace(d, true)
-            && d.url is string && d.url.size() <= 300 && d.url.matches('^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?([/?#][!-~]*)?$')
+            && d.url is string && d.url.size() <= 300 && d.url.matches('^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?([/?#][-!#$%&()*+,./0-9:;=?@A-Z^_a-z{|}~]*)?$')
             && d.batiment is string && d.batiment.matches('^[a-z][a-z-]{0,29}$'))
           || (s == 'petite' && id.matches('^p-[a-z0-9-]{1,60}$') && d.keys().hasOnly(['sorte', 'parent', 'nom', 'cible', 'modifieLe'])
             && d.keys().hasAll(['parent', 'nom', 'cible']) && villageNom(d)

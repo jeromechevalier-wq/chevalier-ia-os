@@ -338,7 +338,7 @@ service cloud.firestore {
     }
 
     // Village de l'accueil, rangé par chaque utilisateur (27/11/2026) : un document par maison du village, sous l'identifiant du compte.
-    // Seul le compte lui-même lit et écrit les siens (aucun autre compte, même autorisé). Chaque champ est contrôlé ici : types, tailles, adresse en https seulement. Exclue du joker ci-dessous.
+    // Seul le compte lui-même lit et écrit les siens (aucun autre compte, même autorisé). Chaque champ est contrôlé ici : types, tailles, adresse en https seulement (sans &quot; ' &lt; &gt; ` [ ] ni antislash). Exclue du joker ci-dessous.
     function villageCase(d, k) { return d[k] is int &amp;&amp; d[k] &gt;= 0 &amp;&amp; d[k] &lt;= 23; }
     function villagePlace(d, obligatoire) {
       return d.keys().hasAll(['c', 'l']) ? (villageCase(d, 'c') &amp;&amp; villageCase(d, 'l')) : (!obligatoire &amp;&amp; !d.keys().hasAny(['c', 'l']));
@@ -353,7 +353,7 @@ service cloud.firestore {
             &amp;&amp; villagePlace(d, false) &amp;&amp; (!d.keys().hasAny(['cache']) || d.cache is bool) &amp;&amp; (!d.keys().hasAny(['nom']) || villageNom(d)))
           || (s == 'lien' &amp;&amp; id.matches('^l-[a-z0-9-]{1,60}$') &amp;&amp; d.keys().hasOnly(['sorte', 'nom', 'url', 'batiment', 'c', 'l', 'modifieLe'])
             &amp;&amp; d.keys().hasAll(['nom', 'url', 'batiment']) &amp;&amp; villageNom(d) &amp;&amp; villagePlace(d, true)
-            &amp;&amp; d.url is string &amp;&amp; d.url.size() &lt;= 300 &amp;&amp; d.url.matches('^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?([/?#][!-~]*)?$')
+            &amp;&amp; d.url is string &amp;&amp; d.url.size() &lt;= 300 &amp;&amp; d.url.matches('^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?([/?#][-!#$%&amp;()*+,./0-9:;=?@A-Z^_a-z{|}~]*)?$')
             &amp;&amp; d.batiment is string &amp;&amp; d.batiment.matches('^[a-z][a-z-]{0,29}$'))
           || (s == 'petite' &amp;&amp; id.matches('^p-[a-z0-9-]{1,60}$') &amp;&amp; d.keys().hasOnly(['sorte', 'parent', 'nom', 'cible', 'modifieLe'])
             &amp;&amp; d.keys().hasAll(['parent', 'nom', 'cible']) &amp;&amp; villageNom(d)

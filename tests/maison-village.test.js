@@ -188,7 +188,8 @@ test('V19 décor des cases libres : même dessin à chaque appel, chaque pied su
     const prises = occupation(rangerVillage({ besoins }).maisons);
     const decor = decorLibre(prises);
     for (const o of decor) assert.ok(!prises.has(o.case), `décor sur la case occupée ${o.case}`);
-    assert.ok(decor.length <= avant, `${n} maisons`);
+    // de 5 à 9 maisons, places espacées ; à partir de 10, blocs serrés : le décor n'est comparé qu'au terrain vide
+    assert.ok(decor.length <= vide.length, `${n} maisons`);
     avant = decor.length;
   }
   assert.ok(avant < vide.length);
@@ -449,4 +450,31 @@ test('sûreté aucun innerHTML ni son dans les fichiers du village ; village-dam
   assert.match(gestes, /DELAI_CLIC = 280/);
   assert.match(gestes, /DELAI_APPUI_LONG = 600/);
   assert.ok(!/ArrowLeft|ArrowRight|ArrowUp|ArrowDown/.test(gestes));
+});
+
+test('I rangement d’office de 5 à 9 maisons : toujours une case libre entre deux maisons ; 10 à 12 : toutes placées', () => {
+  for (let n = 5; n <= 12; n++) {
+    const besoins = Array.from({ length: n }, (_, i) => ({ nom: `B${i}`, cible: `#/m${i}/v` }));
+    const { maisons, sansPlace } = rangerVillage({ besoins });
+    assert.equal(maisons.length, n, `${n} maisons`);
+    assert.equal(sansPlace.length, 0);
+    if (n > 9) continue;
+    for (const a of maisons) for (const b of maisons) {
+      if (a === b) continue;
+      const ecart = Math.max(Math.max(a.c, b.c) - Math.min(a.c, b.c) - TAILLE_GRANDE, Math.max(a.l, b.l) - Math.min(a.l, b.l) - TAILLE_GRANDE);
+      assert.ok(ecart >= 1, `${n} maisons : ${a.c}-${a.l} et ${b.c}-${b.l} se touchent`);
+    }
+  }
+});
+
+test('F G D un document mal formé est noté comme ignoré ; un nom se coupe à 40 caractères sans couper un emoji ; une adresse avec " \' < > ` \\ [ ] est refusée', () => {
+  const { parId, ignores } = lireBatiments([{ id: 'b-bon', sorte: 'besoin', c: 1, l: 1 }, { id: 'b-mal', sorte: 'besoin', c: 'x' }]);
+  assert.deepEqual([...parId.keys()], ['b-bon']);
+  assert.deepEqual([...ignores], ['b-mal']);
+  const maison = { id: 'b-a', c: 1, l: 1, besoin: { nom: 'A' }, donnees: {} };
+  const nom = docRenommer(maison, `${'a'.repeat(39)}😀😀`).nom;
+  assert.equal(Array.from(nom).length, 40);
+  assert.ok(nom.endsWith('😀'));
+  for (const fin of ['a"b', "a'b", '<b>', 'a`b', 'a\\b', 'a[0]']) assert.equal(RE_URL_LIEN.test(`https://exemple.test/${fin}`), false, fin);
+  assert.equal(RE_URL_LIEN.test('https://exemple.test/a-b_c.d?e=1&f=(2)*+,;:@$!#x~%20^|{}'), true);
 });

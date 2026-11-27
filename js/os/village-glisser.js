@@ -87,6 +87,8 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
     if (e.button !== 0 || geste) return;
     const maison = maisonSous(e.target);
     if (!maison) return;
+    // Au doigt, la lueur (halo) qui déborde sur l'herbe voisine ne prend pas la maison : le doigt y fait glisser le village (le toucher, lui, ouvre toujours).
+    if (e.pointerType === 'touch' && e.target.closest?.('.village-halo')) return;
     const p0 = versDessin(e);
     if (!p0) return;
     geste = { maison, id: maison.id, pointeur: e.pointerId, type: e.pointerType || 'mouse', x0: e.clientX, y0: e.clientY, p0, glisse: false, bloc: null, minuteurLong: null };
@@ -166,7 +168,8 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
   svg.addEventListener('touchmove', surToucheBouge, { passive: false });
   document.addEventListener('keydown', surTouche);
   return () => {
-    if (geste) { remettre(); arreterAppuiLong(); geste = null; }
+    // Un redessin pendant un glisser : la maison revient et l'écran sort du rangement (data-rangement ne reste jamais à « oui »).
+    if (geste) { const glissait = geste.glisse; remettre(); arreterAppuiLong(); geste = null; if (glissait) surFin?.(); }
     clearTimeout(minuteurClic);
     clearTimeout(minuteurAvaler);
     svg.removeEventListener('pointerdown', surAppui);

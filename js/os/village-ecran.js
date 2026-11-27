@@ -312,7 +312,11 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
 
   // État : `lecture` = 'attente' | 'ok' | 'refus' | 'erreur' | 'sans' (pas de données) ; `batiments` : Map(id → document) ; `rangement` : résultat de rangerVillage.
   let lecture = donnees ? 'attente' : 'sans';
-  let batiments = new Map();
+  let batiments = new Map(); // ce que l'écran montre : la base confirmée + les écritures optimistes encore en route
+  let confirmes = new Map(); // ce que la base a confirmé (lecture, puis chaque écriture réussie)
+  let enRoute = []; // écritures optimistes pas encore confirmées, dans l'ordre : [{ liste }]
+  let ignores = new Set(); // documents mal formés, ignorés à la lecture : jamais réécrits d'office (seul un geste sur la maison les remplace)
+  let file = Promise.resolve(); // les écritures partent une à une, dans l'ordre des gestes
   let rangement = { maisons: [], cachees: [], sansPlace: [] };
   let monte = true;
   let debrancher = null;
@@ -337,24 +341,37 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     }
   }
 
+  /** Ce que l'écran montre : la base confirmée, puis les écritures optimistes encore en route, dans l'ordre. */
+  const recalculer = () => {
+    const vue = new Map(confirmes);
+    for (const { liste } of enRoute) for (const { id, donnees: d } of liste) vue.set(id, d);
+    batiments = vue;
+  };
+
   /**
    * Écrit des maisons (une seule écriture groupée) : `modifs` = [{ id, donnees }]. Les maisons visibles dont la place n'est pas encore enregistrée sont écrites
-   * en même temps à leur place (D10 : plus rien ne bouge tout seul ensuite). `optimiste` : l'écran change d'abord, et revient en arrière si l'écriture échoue.
+   * en même temps à leur place (D10 : plus rien ne bouge tout seul ensuite), sauf celles dont le document a été ignoré (mal formé). `optimiste` : l'écran change
+   * d'abord, et revient en arrière si l'écriture échoue. Les écritures partent une à une (file) : deux gestes rapprochés ne désaccordent jamais l'écran et la base.
    */
-  async function appliquer(modifs, { optimiste = false } = {}) {
-    if (!rangementPossible()) return false;
+  function appliquer(modifs, { optimiste = false } = {}) {
+    if (!rangementPossible()) return Promise.resolve(false);
     const touchees = new Set(modifs.map((m) => m.id));
     const liste = [...modifs];
-    for (const m of rangement.maisons) if (!m.enregistree && !touchees.has(m.id)) liste.push({ id: m.id, donnees: docDeplacement(m, m.c, m.l) });
-    const avant = batiments;
-    const apres = new Map(batiments);
-    for (const { id, donnees: d } of liste) apres.set(id, d);
-    if (optimiste) { batiments = apres; ranger(); rendre(); }
-    const ok = await donnees.enregistrer(liste);
-    if (!monte) return ok;
-    if (ok) { batiments = apres; ranger(); rendre(); lancerCompteurs(); return true; }
-    if (optimiste) { batiments = avant; ranger(); rendre(); }
-    return false;
+    for (const m of rangement.maisons) if (!m.enregistree && !touchees.has(m.id) && !ignores.has(m.id)) liste.push({ id: m.id, donnees: docDeplacement(m, m.c, m.l) });
+    const envoi = { liste };
+    if (optimiste) { enRoute.push(envoi); recalculer(); ranger(); rendre(); }
+    const resultat = file.then(() => donnees.enregistrer(liste)).catch(() => false);
+    file = resultat;
+    return resultat.then((ok) => {
+      if (optimiste) enRoute = enRoute.filter((e) => e !== envoi);
+      if (ok) for (const { id, donnees: d } of liste) { confirmes.set(id, d); ignores.delete(id); }
+      if (!monte) return ok;
+      recalculer();
+      ranger();
+      // succès d'une écriture optimiste : l'écran la montre déjà, pas de redessin (il couperait un glisser en cours)
+      if (!(ok && optimiste)) { rendre(); lancerCompteurs(); }
+      return ok;
+    });
   }
 
   /** Remet une maison cachée (ou hors du départ) dans le village : à sa place enregistrée si elle est libre, sinon au premier bloc libre. */
@@ -411,7 +428,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     bulle.brancher(noeuds, telephone);
     defile.replaceChildren(svg);
     // phrase d'aide (cas vides) et bandeau (panne de lecture)
-    const texte = lecture === 'attente' ? '' : !maisons.length ? 'Affiche tes maisons avec la roue dentée.' : (lecture === 'ok' && !batiments.size ? 'Range ton village avec la roue dentée.' : '');
+    const texte = lecture === 'attente' ? '' : !maisons.length ? 'Affiche tes maisons avec la roue dentée.' : (lecture === 'ok' && !batiments.size ? 'Glisse les maisons pour ranger ton village.' : '');
     phrase.textContent = texte;
     phrase.hidden = !texte;
     if (lecture === 'erreur') {
@@ -459,14 +476,18 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     const r = await donnees.lire();
     if (!monte) return;
     if (r.etat === 'ok') {
-      const { parId, avertissements } = lireBatiments(r.docs);
+      const { parId, avertissements, ignores: malFormes } = lireBatiments(r.docs);
       for (const a of avertissements) console.warn(a);
-      batiments = parId;
+      confirmes = parId;
+      ignores = malFormes;
       lecture = 'ok';
     } else {
-      batiments = new Map();
+      confirmes = new Map();
+      ignores = new Set();
       lecture = r.etat === 'refus' ? 'refus' : 'erreur';
     }
+    enRoute = [];
+    recalculer();
     ranger();
     rendre();
     lancerCompteurs();

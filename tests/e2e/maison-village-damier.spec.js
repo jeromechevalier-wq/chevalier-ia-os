@@ -130,7 +130,7 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     test.skip(estTelephone(page), 'souris : parcours de l’ordinateur (le doigt : test suivant)');
     await semer({ besoins: [FACTURES, ACHATS_B] });
     await ouvrir(page);
-    await expect(page.locator('[data-role="village-phrase"]')).toHaveText('Range ton village avec la roue dentée.');
+    await expect(page.locator('[data-role="village-phrase"]')).toHaveText('Glisse les maisons pour ranger ton village.');
     await glisser(page, 'Factures', { c: 3, l: 3 });
     await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
     await expect(page).toHaveURL(/#\/accueil$/); // le clic qui suit un glisser est avalé
@@ -161,6 +161,36 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     await capturer(page, info, '2.3-maison-deplacee-au-doigt');
     await glisserAuDoigt(page, await pointMaison(page, 'Factures'), await pointBloc(page, 1, 5, 2, 24));
     await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
+  });
+
+  test('2.3 deux glisser rapprochés pendant une écriture lente : l’écran et la base restent d’accord ; un redessin pendant un glisser sort du rangement', async ({ page }, info) => {
+    test.skip(estTelephone(page), 'souris : parcours de l’ordinateur');
+    await semer({ besoins: [FACTURES, ACHATS_B] });
+    const uid = await ouvrirApres(page, async () => { await page.evaluate(() => { window.__chevalierTest.pannesVillage = { lenteur: 1500 }; }); });
+    const village = page.locator('[data-role="page-village"]');
+    await glisser(page, 'Factures', { c: 3, l: 3 });
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3'); // tout de suite (optimiste)
+    await glisser(page, 'Achats', { c: 6, l: 6 }); // la première écriture est encore en route
+    await expect(maison(page, 'Achats')).toHaveAttribute('data-case', '6-6');
+    await expect(village).toHaveAttribute('data-rangement', 'non');
+    // les deux écritures arrivent, dans l'ordre : la base a les deux places, l'écran n'a pas bougé
+    await expect.poll(async () => Object.fromEntries((await listerDocuments(`village_utilisateurs/${uid}/batiments`)).map((d) => [d.id, `${d.c}-${d.l}`])), { timeout: 10000 })
+      .toEqual({ 'b-achatsfactures-liste': '3-3', 'b-tableauachats-tableau': '6-6' });
+    expect(await cases(page)).toEqual({ 'b-achatsfactures-liste': '3-3', 'b-tableauachats-tableau': '6-6' });
+    await capturer(page, info, '2.3-deux-glisser-rapproches');
+    // une écriture qui échoue pendant qu'on glisse une autre maison : l'écran revient en arrière et sort du rangement
+    await page.evaluate(() => { window.__chevalierTest.pannesVillage = { lenteur: 800, ecriture: 1 }; });
+    await glisser(page, 'Factures', { c: 0, l: 0 });
+    await glisser(page, 'Achats', { c: 3, l: 6 }, { relacher: false });
+    await expect(village).toHaveAttribute('data-rangement', 'oui');
+    await expect(page.locator('#toasts .toast-erreur')).toContainText('Le déplacement n’a pas été enregistré. Réessaie.');
+    await expect(village).toHaveAttribute('data-rangement', 'non');
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
+    await page.mouse.up();
+    await expect(maison(page, 'Achats')).toHaveAttribute('data-case', '6-6');
+    await page.reload();
+    await expect(batiments(page)).toHaveCount(2);
+    expect(await cases(page)).toEqual({ 'b-achatsfactures-liste': '3-3', 'b-tableauachats-tableau': '6-6' });
   });
 
   test('2.4 un double clic (téléphone : un appui long) ouvre la fenêtre de la maison, sans quitter l’accueil ; Échap la ferme', async ({ page }, info) => {
@@ -338,6 +368,27 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     expect(herbe).not.toBeNull();
     await glisserAuDoigt(page, herbe, { x: herbe.x + 120, y: herbe.y });
     await expect.poll(() => defile.evaluate((d) => d.scrollLeft)).not.toBe(avant);
+    // la lueur (halo) d'une maison, qui déborde sur l'herbe : le doigt y fait aussi glisser le village (Fable 5)
+    const halo = await page.evaluate(() => {
+      const cadre = document.querySelector('.village-defile').getBoundingClientRect();
+      for (const e of document.querySelectorAll('[data-role="village"] .village-halo')) {
+        const r = e.getBoundingClientRect();
+        for (let fy = 0.15; fy < 0.9; fy += 0.05) {
+          for (let fx = 0.1; fx < 0.9; fx += 0.05) {
+            const x = r.left + r.width * fx;
+            const y = r.top + r.height * fy;
+            if (x < cadre.left + 20 || x > cadre.right - 140 || y < cadre.top + 20 || y > cadre.bottom - 20) continue;
+            if (document.elementFromPoint(x, y) === e) return { x, y };
+          }
+        }
+      }
+      return null;
+    });
+    expect(halo).not.toBeNull();
+    const avantHalo = await defile.evaluate((d) => d.scrollLeft);
+    await glisserAuDoigt(page, halo, { x: halo.x + 120, y: halo.y });
+    await expect.poll(() => defile.evaluate((d) => d.scrollLeft)).not.toBe(avantHalo);
+    expect(Object.values(await cases(page)).sort()).toEqual(['1-1', '1-5', '5-1', '5-5']); // aucune maison n'a bougé
     const pageDefile = await page.evaluate(() => ({ x: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1, y: window.scrollY }));
     expect(pageDefile).toEqual({ x: false, y: 0 });
     await capturer(page, info, '2.10-village-glisse');

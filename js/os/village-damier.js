@@ -81,7 +81,9 @@ const CHAMPS = Object.freeze({
   lien: ['sorte', 'nom', 'url', 'batiment', 'c', 'l', 'modifieLe'],
   petite: ['sorte', 'parent', 'nom', 'cible', 'modifieLe'],
 });
-export const RE_URL_LIEN = /^https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?([/?#][!-~]*)?$/;
+// Après l'hôte : les caractères visibles de l'ASCII, sauf " ' < > ` \ (ils servent à casser un attribut ou un texte) et [ ] (le validateur des règles
+// les refuse dans une classe, même échappés) ; liste écrite caractère par caractère, la même que dans firestore.rules.
+export const RE_URL_LIEN = /^https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?([/?#][-!#$%&()*+,./0-9:;=?@A-Z^_a-z{|}~]*)?$/;
 const RE_BATIMENT = /^[a-z][a-z-]{0,29}$/;
 const RE_PARENT = /^b-[a-z0-9-]{1,60}$/;
 const RE_CIBLE = /^#\/[A-Za-z0-9][A-Za-z0-9_-]*(\/[A-Za-z0-9_-]+)*$/;
@@ -109,28 +111,48 @@ export function batimentValable(id, donnees) {
   return nomValable(d) && typeof d.parent === 'string' && RE_PARENT.test(d.parent) && typeof d.cible === 'string' && d.cible.length <= 200 && RE_CIBLE.test(d.cible);
 }
 
-/** Range les documents lus (`[{ id, ...donnees }]`) : { parId: Map(id → données sans `modifieLe`), avertissements } ; un document mal formé est ignoré. */
+/**
+ * Range les documents lus (`[{ id, ...donnees }]`) : { parId: Map(id → données sans `modifieLe`), avertissements, ignores: Set(id) } ; un document mal formé est
+ * ignoré, et son identifiant noté : l'écran ne le réécrit jamais d'office.
+ */
 export function lireBatiments(docs) {
   const parId = new Map();
   const avertissements = [];
+  const ignores = new Set();
   for (const brut of Array.isArray(docs) ? docs : []) {
     if (!brut || typeof brut !== 'object') continue;
     const { id, modifieLe, ...donnees } = brut;
-    if (!batimentValable(id, donnees)) { avertissements.push(`village : la maison « ${String(id).slice(0, 70)} » est mal rangée, elle est ignorée.`); continue; }
+    if (!batimentValable(id, donnees)) { avertissements.push(`village : la maison « ${String(id).slice(0, 70)} » est mal rangée, elle est ignorée.`); if (typeof id === 'string') ignores.add(id); continue; }
     parId.set(id, donnees);
   }
-  return { parId, avertissements };
+  return { parId, avertissements, ignores };
 }
 
 // ---------------------------------------------------------------- rangement
 
 /** Places d'office jusqu'à 4 maisons : haut (au fond), gauche, droite, bas (devant) ; ce sont les 4 places d'avant le damier. */
 const PLACES_QUATRE = Object.freeze([[1, 1], [1, 5], [5, 1], [5, 5]]);
-/** Places d'office à partir de 5 maisons : les 16 blocs pairs, d'abord les 4 du centre, puis la couronne (milieux des bords, puis les coins). */
+/**
+ * Places d'office de 5 à 9 maisons : parmi les 9 blocs espacés (0, 3, 6), toujours une case libre entre deux maisons. Une maison en cache une autre à
+ * l'écran quand elles sont dans la même colonne d'écran (même c - l) à un bloc d'écart : on l'évite tant que c'est possible.
+ *  - 5 maisons : un zigzag au milieu (5 colonnes différentes) ;
+ *  - 6 à 9 : les 4 coins, une maison par colonne (fond gauche, avant droite), puis les deux autres, le centre en dernier.
+ */
+const PLACES_CINQ = Object.freeze([[0, 6], [6, 0], [3, 3], [0, 3], [3, 0]]);
+const PLACES_NEUF = Object.freeze([
+  [0, 6], [6, 0], [0, 0], [6, 6], [0, 3], [6, 3],
+  [3, 0], [3, 6], [3, 3],
+]);
+/**
+ * Places d'office de 10 à 12 maisons (au-delà de 9, le damier 8 x 8 ne laisse plus de case libre entre elles) : les 16 blocs pairs. La couronne d'abord,
+ * le centre en dernier : avec 12 maisons, le centre reste vide et presque aucune maison n'en cache une autre de sa colonne d'écran (coins, milieux des
+ * bords, puis les quatre qui partagent une colonne, puis le centre).
+ */
 const PLACES_SEIZE = Object.freeze([
-  [2, 2], [2, 4], [4, 2], [4, 4],
-  [0, 2], [2, 0], [4, 6], [6, 4], [0, 4], [4, 0], [2, 6], [6, 2],
   [0, 0], [6, 0], [0, 6], [6, 6],
+  [0, 2], [2, 0], [4, 6], [6, 4],
+  [4, 0], [0, 4], [6, 2], [2, 6],
+  [2, 2], [2, 4], [4, 2], [4, 4],
 ]);
 
 /** Ensemble des cases prises (« c-l ») par une liste de maisons `{ id, c, l, taille }`. */
@@ -146,9 +168,9 @@ export function blocLibre(occupees, c, l, taille, damier = DAMIER_DEPART, saufId
   return casesDuBloc(c, l, taille).every((k) => !occupees.has(k) || occupees.get(k) === saufId);
 }
 
-/** Premier bloc libre : d'abord les places d'office (ordre fixe), puis toutes les cases, rang par rang. null si le damier est plein. */
+/** Premier bloc libre : d'abord les places espacées, puis les blocs pairs (ordre fixe), puis toutes les cases, rang par rang. null si le damier est plein. */
 export function premierBlocLibre(occupees, taille, damier = DAMIER_DEPART, saufId = null) {
-  const essais = taille === TAILLE_GRANDE ? [...PLACES_SEIZE] : [];
+  const essais = taille === TAILLE_GRANDE ? [...PLACES_NEUF, ...PLACES_SEIZE] : [];
   for (let l = 0; l < damier.lignes; l++) for (let c = 0; c < damier.colonnes; c++) essais.push([c, l]);
   for (const [c, l] of essais) if (blocLibre(occupees, c, l, taille, damier, saufId)) return { c, l };
   return null;
@@ -187,7 +209,8 @@ export function rangerVillage({ besoins, batiments = new Map(), damier = DAMIER_
   }
   // 2. les autres, dans l'ordre des besoins : la place d'office de leur rang si elle est libre, sinon le premier bloc libre
   const sansPlace = [];
-  const ordre = visibles.length <= 4 ? PLACES_QUATRE : PLACES_SEIZE;
+  const n = visibles.length;
+  const ordre = n <= 4 ? PLACES_QUATRE : n === 5 ? PLACES_CINQ : n <= PLACES_NEUF.length ? PLACES_NEUF : PLACES_SEIZE;
   visibles.forEach((e, rang) => {
     if (placees.has(e.id)) return;
     const office = ordre[rang];
@@ -297,9 +320,10 @@ export function docCacher(maison, cache) {
 /** Document d'une maison renommée ; nom vide ou égal au nom du besoin : le champ `nom` disparaît (le nom d'origine revient). */
 export function docRenommer(maison, nom) {
   const d = garder(maison);
-  const propre = typeof nom === 'string' ? nom.replace(/\s+/g, ' ').trim().slice(0, 40) : '';
-  if (!propre || propre === maison.besoin?.nom) delete d.nom;
-  else d.nom = propre;
+  const propre = typeof nom === 'string' ? nom.replace(/\s+/g, ' ').trim() : '';
+  const court = Array.from(propre).slice(0, 40).join(''); // 40 caractères, sans couper un emoji en deux
+  if (!court || court === maison.besoin?.nom) delete d.nom;
+  else d.nom = court;
   return d;
 }
 

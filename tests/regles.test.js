@@ -482,11 +482,13 @@ describe('Village par utilisateur (27/11/2026)', () => {
     const refusees = [
       `${p(['http', ''])}//${hote}/`, p(['javascript', 'alert(1)']), `//${hote}`, `${p(['ftp', ''])}//${hote}/`, `https://${hote}/a b`,
       `https://moi${'@'}${hote}/`, 'https://', `https://${hote}/${'a'.repeat(301 - 9 - hote.length)}`,
+      `https://${hote}/a"onmouseover=x`, `https://${hote}/<b>`, `https://${hote}/a'b`, `https://${hote}/a\`b`, `https://${hote}/a\\b`, `https://${hote}/a[0]`, // Fable 2 : caractères qui cassent un attribut
     ];
     for (const url of refusees) await assertFails(setDoc(chemin(db, J, 'l-a'), { ...LIEN, url }));
     assert.equal(`https://${hote}/${'a'.repeat(301 - 9 - hote.length)}`.length, 301);
     await assertSucceeds(setDoc(chemin(db, J, 'l-a'), LIEN));
     await assertSucceeds(setDoc(chemin(db, J, 'l-b'), { ...LIEN, url: `https://${hote}:8443` }));
+    await assertSucceeds(setDoc(chemin(db, J, 'l-c'), { ...LIEN, url: `https://${hote}/a-b_c.d?e=1&f=(2)*+,;:@$!#x~%20^|{}` })); // le reste de l'ASCII visible passe
     for (const batiment of ['Phare', '1phare', 'phare_2', 'p'.repeat(31), '']) await assertFails(setDoc(chemin(db, J, 'l-a'), { ...LIEN, batiment }));
     const { c, l, ...sansPlace } = LIEN;
     await assertFails(setDoc(chemin(db, J, 'l-a'), sansPlace));
