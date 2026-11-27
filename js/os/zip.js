@@ -68,14 +68,14 @@ export function creerZip(fichiers, { date = new Date() } = {}) {
     octets(e.nomOctets); octets(e.donnees);
   }
   const debutCentral = p;
-  entrees.forEach((e, i) => { // répertoire central
+  entrees.forEach((e, i) => { // index central (« central directory » du format zip)
     u32(0x02014b50); u16(20); u16(20); u16(DRAPEAUX); u16(0); u16(heure); u16(jour);
     u32(e.crc); u32(e.donnees.length); u32(e.donnees.length); u16(e.nomOctets.length); u16(0); u16(0);
     u16(0); u16(0); u32(0); u32(decalages[i]);
     octets(e.nomOctets);
   });
   const tailleRepertoire = p - debutCentral; // calculée AVANT d'écrire la fin (p avance à chaque écriture)
-  // fin du répertoire central
+  // fin du index central (« central directory » du format zip)
   u32(0x06054b50); u16(0); u16(0); u16(entrees.length); u16(entrees.length); u32(tailleRepertoire); u32(debutCentral); u16(0);
   return sortie;
 }
