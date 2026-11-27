@@ -124,12 +124,13 @@ try {
     assert.ok(t.json !== null && t.json !== '', 'un ticket est rendu');
     assert.equal((await appel('POST', '/rest/v1/rpc/consommer_ticket', NAV('lea'), { p_ticket: 'x', p_usage: 'actions' })).statut, 403);
   });
-  await verifier('8 n8n : fonction d\'installation refusée ; PATCH puis lecture en objet unique', async () => {
+  await verifier('8 n8n : fonction d\'installation refusée ; PATCH puis lecture en objet unique ; par où = n8n posé par la base', async () => {
     assert.equal((await appel('POST', '/rest/v1/rpc/poser_socle', N, {})).statut, 403);
-    const p = await appel('PATCH', `/rest/v1/chantiers?id=eq.${idA}&select=nom`, { ...N, Prefer: 'return=representation' }, { nom: 'Chantier A bis' });
+    // « par_ou » envoyé par la requête : ignoré ; la base écrit la voie posée par la porte (app.par_ou = n8n, migration 012).
+    const p = await appel('PATCH', `/rest/v1/chantiers?id=eq.${idA}&select=nom`, { ...N, Prefer: 'return=representation' }, { nom: 'Chantier A bis', par_ou: 'ecran' });
     assert.equal(p.statut, 200, JSON.stringify(p.json));
-    const o = await appel('GET', `/rest/v1/chantiers?select=nom&id=eq.${idA}`, { ...N, Accept: 'application/vnd.pgrst.object+json' });
-    assert.deepEqual(o.json, { nom: 'Chantier A bis' });
+    const o = await appel('GET', `/rest/v1/chantiers?select=nom,par_ou&id=eq.${idA}`, { ...N, Accept: 'application/vnd.pgrst.object+json' });
+    assert.deepEqual(o.json, { nom: 'Chantier A bis', par_ou: 'n8n' });
   });
   await verifier('9 navigateur : POST d\'une table refusé', async () => {
     assert.equal((await appel('POST', '/rest/v1/chantiers', NAV('lea'), { nom: 'x', code: 'Z' })).statut, 403);

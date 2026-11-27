@@ -38,8 +38,10 @@ declare v_four uuid := (select fournisseur_id from ids_a); v_f uuid; v_siren tex
 begin
   perform pg_temp.entrer('espace-a', 'alice@exemple.test');
   -- Une décision par un robot ou par un nom (pas un e-mail) est refusée.
+  perform pg_temp.robot('n8n');   -- le scan est un reflet : le robot l'écrit (012)
   insert into public.factures (numero, montant_ht, extraction) values ('L-1', 100, jsonb_build_object('fournisseur', jsonb_build_object('siren', v_siren)))
     returning id into v_f;
+  perform pg_temp.redevenir('porte', 'alice@exemple.test');
   perform pg_temp.doit_echouer(format('update public.factures set statut = %L, motif_refus = %L, decide_par = %L, decide_par_id = gen_random_uuid() where id = %L',
     'refusee', 'Doublon', 'n8n', v_f), 'MESSAGE:factures_decisions_decide_par_liste');
   perform pg_temp.doit_echouer(format('update public.factures set statut = %L, motif_refus = %L, decide_par = %L, decide_par_id = gen_random_uuid() where id = %L',
@@ -48,8 +50,10 @@ begin
   perform pg_temp.egal((select motif_type from public.factures_decisions where facture_id = v_f order by rang desc limit 1), 'non_precise',
     'type de motif par défaut');
   -- Un type de motif hors liste est refusé.
+  perform pg_temp.robot('n8n');   -- le scan est un reflet : le robot l'écrit (012)
   insert into public.factures (numero, montant_ht, extraction) values ('L-2', 100, jsonb_build_object('fournisseur', jsonb_build_object('siren', v_siren)))
     returning id into v_f;
+  perform pg_temp.redevenir('porte', 'alice@exemple.test');
   perform pg_temp.doit_echouer(format('insert into public.factures_corrections (facture_id, champ, valeur, motif_type) values (%L, ''numero'', ''L-3'', ''parce que'')', v_f),
     'MESSAGE:factures_corrections_motif_type_liste');
   insert into public.factures_corrections (facture_id, champ, valeur, motif_type) values (v_f, 'numero', 'L-3', 'erreur_de_lecture');
@@ -62,9 +66,14 @@ begin
   perform pg_temp.doit_echouer('select public.journaliser_modification(''table_inconnue'', null, ''modification'', ''alice@exemple.test'', null, null, null)',
     'MESSAGE:journal_modifications_table_nom_liste');
   perform public.journaliser_modification('factures', null, 'modification', 'alice@exemple.test', null, null, null);   -- nom gardé pour l'OS
-  perform pg_temp.doit_echouer('insert into public.journal_modifications (table_nom, action, qui, par_ou) values (''chantiers'', ''modification'', ''alice@exemple.test'', ''telephone'')',
-    'MESSAGE:journal_modifications_par_ou_liste');
-  insert into public.journal_modifications (table_nom, action, qui, par_ou) values ('chantiers', 'modification', 'alice@exemple.test', 'assistant:claude');
+  -- par_ou vient de la base (app.par_ou posé par la porte, 012), jamais de la requête ; une valeur hors liste dans le réglage est refusée.
+  perform set_config('app.par_ou', 'telephone', false);
+  perform pg_temp.doit_echouer('insert into public.journal_modifications (table_nom, action, qui) values (''chantiers'', ''modification'', ''alice@exemple.test'')',
+    'par_ou_invalide');
+  perform set_config('app.par_ou', 'assistant:claude', false);
+  insert into public.journal_modifications (table_nom, action, qui, par_ou) values ('chantiers', 'modification', 'alice@exemple.test', 'ecran');
+  perform pg_temp.egal((select par_ou from public.journal_modifications order by id desc limit 1), 'assistant:claude', 'par_ou posé par la base');
+  perform set_config('app.par_ou', '', false);
 
   -- IBAN : moyen de vérification en liste fermée à côté du commentaire libre ; confirmé par une personne seulement.
   perform pg_temp.egal((select moyen_type from public.ibans_confirmes where fournisseur_id = v_four limit 1), 'non_precise', 'moyen par défaut');
@@ -88,11 +97,12 @@ end $$;
 -- Un reflet : source hors liste refusée (n8n écrit les reflets).
 do $$
 begin
-  perform pg_temp.entrer('espace-a', 'n8n');
+  perform pg_temp.robot('n8n');
   perform pg_temp.doit_echouer('insert into public.n8n_executions (workflow_id, workflow_nom, execution_id, resultat, source_nom, source_ref) values (''wf'', ''Lecture'', ''ex-9'', ''ok'', ''fax'', ''9'')',
     'MESSAGE:n8n_executions_source_nom_liste');
   insert into public.n8n_executions (workflow_id, workflow_nom, execution_id, resultat) values ('wf', 'Lecture', 'ex-9', 'ok');
   perform pg_temp.egal((select source_nom from public.n8n_executions where execution_id = 'ex-9'), 'n8n:wf', 'source par défaut au format');
+  perform pg_temp.redevenir('porte', 'alice@exemple.test');
 end $$;
 reset role;
 

@@ -1,6 +1,6 @@
--- Test du fichier a-activer/001_bloquer_reflets.sql (joué seulement avec « node tester.js --avec-a-activer »).
--- Quand il est appliqué : la porte ne peut plus écrire un reflet ; le robot, oui ; la porte décide toujours.
-\ir ../aides.inc
+-- 13 : migration 012 (branchée le 27/11/2026, était a-activer/001). Un reflet ne s'écrit que par le robot ; la porte décide toujours ;
+-- et « par où » est posé par la base à partir du réglage de la porte (app.par_ou), jamais à partir de la requête.
+\ir aides.inc
 set role robot_reflets;
 select pg_temp.entrer('espace-a', 'robot-lecture@exemple.test');
 do $$
@@ -48,4 +48,32 @@ grant insert on public.courriels_recus to porte;
 set role porte;
 select pg_temp.entrer('espace-a', 'alice@exemple.test');
 select pg_temp.doit_echouer('insert into public.courriels_recus (client, boite, workflow, email_message_id, resultat) values (''c'', ''b'', ''w'', ''<p2@exemple.test>'', ''accepte'')', 'reflet_robot_seulement');
+reset role;
+
+-- Par où (règle 4) : chaque table a le déclencheur, et la valeur vient du réglage, pas de la requête.
+do $$
+declare v text;
+begin
+  select string_agg(c.relname, ', ') into v from pg_class c
+   where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+     and not exists (select 1 from pg_trigger g where g.tgrelid = c.oid and g.tgname = 'az_socle_par_ou');
+  if v is not null then raise exception 'Règle 4 : tables sans « par où » posé par la base : %', v; end if;
+end $$;
+set role porte;
+select pg_temp.entrer('espace-a', 'alice@exemple.test');
+do $$
+declare v_id uuid;
+begin
+  perform set_config('app.par_ou', 'ecran', false);
+  insert into public.chantiers (nom, code, par_ou) values ('Chantier par où', 'CH-PO', 'n8n:menteur') returning id into v_id;
+  perform pg_temp.egal((select par_ou from public.chantiers where id = v_id), 'ecran', 'par où = la voie de la porte, pas la requête');
+  perform pg_temp.egal((select par_ou from public.journal_modifications where enregistrement_id = v_id order by id desc limit 1), 'ecran', 'par où au journal');
+  perform set_config('app.par_ou', 'assistant', false);
+  update public.chantiers set nom = 'Chantier par où (renommé)' where id = v_id;
+  perform pg_temp.egal((select par_ou from public.chantiers where id = v_id), 'assistant', 'par où de la dernière écriture');
+  -- Sans réglage (ancienne porte) : vide, rien n'est refusé.
+  perform set_config('app.par_ou', '', false);
+  update public.chantiers set nom = 'Chantier par où (2)' where id = v_id;
+  perform pg_temp.egal((select par_ou from public.chantiers where id = v_id), null::text, 'sans réglage : vide');
+end $$;
 reset role;

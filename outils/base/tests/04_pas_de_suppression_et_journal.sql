@@ -62,8 +62,17 @@ begin
 
   -- Les décisions, corrections et scans des factures sont aussi en ajout seul.
   perform pg_temp.doit_echouer('update public.factures_decisions set motif_refus = ''x''', 'ajout_seul');
-  perform pg_temp.doit_echouer('update public.factures_scans set montant_ht = 1', 'ajout_seul');
-  perform pg_temp.doit_echouer('update public.courriels_recus set sujet = ''x''', 'ajout_seul');
+  -- Les reflets : la porte n'a même plus le droit de les modifier (012) ; le robot non plus (droit retiré, et déclencheur « ajout seul »).
+  perform pg_temp.doit_echouer('update public.factures_scans set montant_ht = 1', 'MESSAGE:permission denied');
+  perform pg_temp.doit_echouer('update public.courriels_recus set sujet = ''x''', 'MESSAGE:permission denied');
+end $$;
+do $$
+begin
+  perform pg_temp.robot('n8n');
+  perform pg_temp.doit_echouer('update public.factures_scans set montant_ht = 1', 'MESSAGE:permission denied');
+  perform pg_temp.doit_echouer('update public.courriels_recus set sujet = ''x''', 'MESSAGE:permission denied');
+  perform pg_temp.doit_echouer('update public.lignes_facture_lues set designation = ''x''', 'MESSAGE:permission denied');
+  perform pg_temp.redevenir('porte', 'alice@exemple.test');
 end $$;
 
 -- Les fonctions qui « enlevaient » des lignes archivent maintenant : dissocier un rapprochement le garde, archivé.
