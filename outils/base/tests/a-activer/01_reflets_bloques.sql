@@ -11,7 +11,7 @@ begin
   values ('client', 'factures@exemple.test', 'lecture', '<r1@exemple.test>', 'accepte') returning id into v_c;
   insert into public.factures (numero, montant_ht, email_message_id, courriel_id, extraction)
   values ('R-1', 100, '<r1@exemple.test>', v_c, jsonb_build_object('fournisseur', jsonb_build_object('siren', v_siren))) returning id into v_f;
-  perform public.remplacer_lignes_facture(v_f, '[{"designation":"Gravier","montant_ht":100}]', 'robot-lecture');
+  perform public.remplacer_lignes_facture(v_f, '[{"designation":"Gravier","montant_ht":100}]', 'n8n');
   insert into public.n8n_executions (workflow_id, workflow_nom, resultat) values ('wf', 'Lecture', 'ok');
   create temp table la_facture as select v_f as id;
 end $$;
@@ -35,10 +35,10 @@ begin
   end loop;
   perform pg_temp.doit_echouer('insert into public.courriels_recus (client, boite, workflow, email_message_id, resultat) values (''c'', ''b'', ''w'', ''<p@exemple.test>'', ''accepte'')', null);
   perform pg_temp.doit_echouer('insert into public.factures (numero, montant_ht) values (''P-1'', 1)', null);
-  perform pg_temp.doit_echouer(format('select public.remplacer_lignes_facture(%L, %L, %L)', v_f, '[]', 'alice'), null);
+  perform pg_temp.doit_echouer(format('select public.remplacer_lignes_facture(%L, %L, %L)', v_f, '[]', 'alice@exemple.test'), null);
   perform pg_temp.doit_echouer('insert into public.n8n_executions (workflow_id, workflow_nom, resultat) values (''wf'', ''x'', ''ok'')', null);
   -- La porte corrige et décide toujours (ce sont des sources).
-  update public.factures set montant_ht = 90, statut = 'refusee', motif_refus = 'Erreur de montant', decide_par = 'alice', decide_par_id = gen_random_uuid() where id = v_f;
+  update public.factures set montant_ht = 90, statut = 'refusee', motif_refus = 'Erreur de montant', decide_par = 'alice@exemple.test', decide_par_id = gen_random_uuid() where id = v_f;
   perform pg_temp.egal((select statut from public.factures where id = v_f), 'refusee'::public.statut_facture, 'la porte décide');
 end $$;
 reset role;

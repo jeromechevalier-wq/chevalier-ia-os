@@ -57,7 +57,7 @@ begin
   perform pg_temp.doit_echouer(format('update public.journal_modifications set qui = %L where id = %s', 'pirate', j.id), 'ajout_seul');
   perform pg_temp.doit_echouer(format('delete from public.journal_modifications where id = %s', j.id), null);
   -- L'heure d'une ligne du journal vient toujours de la base.
-  insert into public.journal_modifications (table_nom, action, qui, quand) values ('essai', 'essai', 'carole', timestamptz '2000-01-01') returning * into j;
+  insert into public.journal_modifications (table_nom, action, qui, quand) values ('chantiers', 'modification', 'carole@exemple.test', timestamptz '2000-01-01') returning * into j;
   if j.quand < now() - interval '1 minute' then raise exception 'journal.quand ne vient pas de la base'; end if;
 
   -- Les décisions, corrections et scans des factures sont aussi en ajout seul.
