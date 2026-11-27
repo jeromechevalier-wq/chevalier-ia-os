@@ -72,14 +72,25 @@ describe('Wiki local', () => {
     assert.ok(!listerFichiers(paquet).some((f) => /^wiki\//.test(f)));
   });
 
-  test('W6 verifier passe sur le dépôt réel, puis échoue après modification d\'un doc sans régénération (copie temporaire)', () => {
+  // Décision de Jérôme du 27/11/2026 : « Je veux pas bloquer des PR pour une histoire de wiki qui n'est pas à jour. Hors de question. »
+  // Un wiki/ commité en retard sur docs/ ne fait donc plus échouer la coche « Tests » : W6 affiche un AVERTISSEMENT (journal du test
+  // et annotation GitHub ::warning::). Ce test n'est pas désactivé : il vérifie toujours que la construction tourne sans erreur sur les
+  // vrais docs/ et que verifier() repère bien un retard (copie temporaire). W5 (wiki jamais publiable) reste bloquant : c'est de la sécurité.
+  test('W6 la construction tourne sans erreur sur le dépôt réel ; un wiki/ en retard donne un avertissement (pas un échec) ; verifier repère un doc modifié (copie temporaire)', () => {
+    const r = construireWiki({ docs: DOCS, sortie: join(temp, 'w6-reel'), sommaire: SOMMAIRE });
+    assert.ok(r.pages > 1);
     const reel = verifier({ docs: DOCS, sortie: WIKI, sommaire: SOMMAIRE });
-    assert.deepEqual(reel, { ok: true, differences: [] }, 'wiki/ n\'est pas à jour : node scripts/wiki/construire.js');
+    if (!reel.ok) {
+      const message = `wiki/ n'est pas à jour avec docs/ (${reel.differences.length} différence(s)) : lancer node scripts/wiki/construire.js quand on peut. Ne bloque pas la PR (décision de Jérôme du 27/11/2026).`;
+      console.log(`AVERTISSEMENT : ${message}`);
+      console.log(`::warning title=Wiki en retard::${message}`);
+    }
     const docs = join(temp, 'w6-docs');
     const sortie = join(temp, 'w6-wiki');
     mkdirSync(docs);
     for (const n of mdDeDocs()) cpSync(join(DOCS, `${n}.md`), join(docs, `${n}.md`));
-    cpSync(WIKI, sortie, { recursive: true });
+    // part du wiki fraîchement construit (w6-reel), pas de wiki/ commité qui peut être en retard
+    cpSync(join(temp, 'w6-reel'), sortie, { recursive: true });
     assert.equal(verifier({ docs, sortie, sommaire: SOMMAIRE }).ok, true);
     writeFileSync(join(docs, 'roadmap.md'), `${readFileSync(join(docs, 'roadmap.md'), 'utf8')}\nUne ligne ajoutée.\n`);
     const apres = verifier({ docs, sortie, sommaire: SOMMAIRE });
