@@ -353,6 +353,12 @@ html[data-mode-test] .zone { box-shadow: inset 0 0 0 3px var(--attention); }
 .reglages-raccourci { display: inline-flex; align-items: center; gap: var(--esp-2); }
 .reglages-raccourci-alerte { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--retard); }
 @media (max-width: 767px) { .reglages-raccourci { min-height: 44px; } .carte-section, [data-raccourci] { scroll-margin-top: 64px; } } /* au doigt : zone de clic de 44 px ; la barre du haut (56 px) ne cache pas le titre d'une section atteinte par une pastille */
+/* Réglages > Achats (26/11/2026) : sauvegarde complète en .zip, puis les sauvegardes de chaque module repliées sous « Sauvegardes séparées » */
+.sauvegardes-separees > summary { cursor: pointer; font-weight: var(--poids-moyen); color: var(--texte2); padding: var(--esp-2) 0; }
+.sauvegardes-separees > summary:hover { color: var(--texte); }
+.sauvegardes-separees-contenu { display: flex; flex-direction: column; gap: var(--esp-7); margin-top: var(--esp-5); }
+.sauvegarde-achats-erreur { color: var(--retard); margin: var(--esp-3) 0 0; }
+@media (max-width: 767px) { .sauvegardes-separees > summary { padding: 12px 0; } } /* au doigt : environ 44 px de haut, sans perdre le triangle du bloc replié */
 .reglages-infos { display: flex; flex-direction: column; gap: var(--esp-4); }
 .reglages-info { display: flex; align-items: center; gap: var(--esp-5); flex-wrap: wrap; }
 .reglages-info-etiquette { flex: 0 0 90px; color: var(--texte2); font-size: var(--fs-menu); }
@@ -714,6 +720,8 @@ body.page-espace { background: #241b2e; color: #fff; }
 .village-bulle em { display: block; font-style: normal; color: #6E5A63; font-size: var(--fs-texte); line-height: 1.3; }
 .village-bulle span { display: inline-block; margin-top: 6px; background: #E4572E; color: #FFFDF6; font-weight: var(--poids-moyen); font-size: var(--fs-petit); border-radius: 99px; padding: 2px 10px; }
 .village-bulle span.village-pastille-zero { background: #6FA24A; }
+.village-bulle span.village-pastille-attente { background: #E6DED6; color: #6E5A63; font-weight: normal; animation: village-attente 1.4s ease-in-out infinite; }
+@keyframes village-attente { 50% { opacity: .45; } }
 .village-bulle small { display: block; color: #8A7680; font-size: var(--fs-petit); margin-top: 5px; }
 @media (max-width: 767px) { .village-scene { height: calc(100vh - 56px); height: calc(100dvh - 56px); min-height: 0; } }
-@media (prefers-reduced-motion: reduce) { .village-batiment .village-lever, .village-batiment .village-halo { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .village-batiment .village-lever, .village-batiment .village-halo { transition: none; } .village-bulle span.village-pastille-attente { animation: none; } }

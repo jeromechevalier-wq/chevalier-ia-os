@@ -1,9 +1,9 @@
 // Accueil « village » d'une maison (26/11/2026) : champ facultatif `besoins` de reglages_maison/ecran (js/os/maison-village.js). Sans réseau ni navigateur.
 // Parcours dans le navigateur : tests/e2e/maison-village.spec.js (captures dans tests/e2e/captures/maison-village/).
-import { test, beforeEach } from 'node:test';
+import { test, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { lireBesoinsMaison, cibleValide, planVillage, dessinBatiment, decorParcelle, formesTerrain, terrainCoins, couperEnLignes, BATIMENTS, BOITE_BATIMENT, BESOINS_MAX, DECORS, COMPTEURS, textePastille, CATALOGUE, DEMI_PARCELLE, T, ETIQUETTE_Y, ETIQUETTE_HAUTEUR_MAX, NOM_MAX, PHRASE_MAX } from '../js/os/maison-village.js';
+import { lireBesoinsMaison, cibleValide, planVillage, dessinBatiment, decorParcelle, formesTerrain, terrainCoins, couperEnLignes, BATIMENTS, BOITE_BATIMENT, BESOINS_MAX, DECORS, COMPTEURS, textePastille, pastilleBulle, avecDelai, CATALOGUE, DEMI_PARCELLE, T, ETIQUETTE_Y, ETIQUETTE_HAUTEUR_MAX, NOM_MAX, PHRASE_MAX } from '../js/os/maison-village.js';
 import { teintes } from '../js/os/village-batiments.js';
 import { remplirComptesMaison, viderComptesMaison, besoinsEcranBrut } from '../js/os/comptes-maison.js';
 
@@ -197,9 +197,53 @@ test('V26 compteur : champ facultatif d’une liste fermée (factures_a_valider)
   assert.equal(textePastille('factures_a_valider', 12), '12 à valider');
   assert.equal(textePastille('factures_a_valider', 0), 'Rien à valider');
   for (const n of [null, undefined, -1, 1.5, NaN, '12']) assert.equal(textePastille('factures_a_valider', n), null); // lecture illisible : pas de pastille, jamais « 0 »
-  // la lecture réutilise le module Factures (aucune route nouvelle) et s'arrête au bout de 3 s
+  // la lecture réutilise le module Factures (aucune route nouvelle) et s'arrête au bout de 20 s (base lente à se réveiller, 26/11/2026)
   const compteurs = lire('js/os/village-compteurs.js');
   assert.match(compteurs, /compterFacturesAValider\(\)/);
-  assert.match(compteurs, /DELAI_COMPTEUR = 3000/);
+  assert.match(compteurs, /DELAI_COMPTEUR = 20000/);
   assert.ok(!/fetch\(/.test(compteurs));
+});
+
+test('V28 un compteur qui répond après 5 s (base lente) est gardé ; au-delà de 20 s, ou en erreur : null (pas de pastille, jamais « 0 »)', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const lent = (ms, valeur) => () => new Promise((r) => { setTimeout(() => r(valeur), ms); });
+    const cinq = avecDelai(lent(5000, 12), 20000);
+    mock.timers.tick(5000);
+    assert.equal(await cinq, 12);
+    const trop = avecDelai(lent(25000, 12), 20000);
+    mock.timers.tick(20000);
+    assert.equal(await trop, null);
+    mock.timers.tick(5000); // la réponse tardive n'y change rien
+    await assert.rejects(avecDelai(() => Promise.reject(new Error('panne')), 20000), /panne/); // l'erreur remonte : lireCompteur la change en null
+  } finally {
+    mock.timers.reset();
+  }
+  const compteurs = lire('js/os/village-compteurs.js');
+  assert.match(compteurs, /avecDelai\(lire, delai\)/);
+  assert.match(compteurs, /catch \(e\)[\s\S]*return null;/);
+});
+
+test('V29 pendant la lecture, la bulle montre l’indicateur gris « Compte en cours » ; puis la pastille ; illisible : rien', () => {
+  assert.deepEqual(pastilleBulle('factures_a_valider', undefined), { attente: true, texte: 'Compte en cours' });
+  assert.deepEqual(pastilleBulle('factures_a_valider', 12), { attente: false, texte: '12 à valider', zero: false });
+  assert.deepEqual(pastilleBulle('factures_a_valider', 0), { attente: false, texte: 'Rien à valider', zero: true });
+  for (const n of [null, -1, 1.5, NaN, '12']) assert.equal(pastilleBulle('factures_a_valider', n), null);
+  const ecran = lire('js/os/village-ecran.js');
+  assert.match(ecran, /'bulle-attente'/);
+  assert.match(lire('css/os.css'), /\.village-pastille-attente \{[^}]*animation/);
+});
+
+test('V30 une seule lecture par affichage du village, lancée au montage (jamais au survol ni au focus)', () => {
+  const ecran = lire('js/os/village-ecran.js').replace(/^\s*\/\/.*$/gm, '');
+  assert.equal((ecran.match(/lireCompteur\(/g) || []).length, 1);
+  const montage = ecran.slice(ecran.indexOf('export function monterVillage'));
+  assert.match(montage, /lireCompteur\(b\.compteur\)/);
+  assert.ok(!/const rendre = \(\) => \{[^}]*lireCompteur/.test(montage)); // le passage téléphone / ordinateur ne relit pas
+});
+
+test('V31 aucun title ni <title> SVG sur les bâtiments (pas d’infobulle grise en double) ; l’aria-label reste', () => {
+  const ecran = lire('js/os/village-ecran.js').replace(/^\s*\/\/.*$/gm, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!/el\('title'|createElement(NS)?\([^)]*'title'|setAttribute\('title'|\.title\s*=/.test(ecran));
+  assert.match(ecran, /g\.setAttribute\('aria-label', besoin\.phrase \? `\$\{besoin\.nom\} : \$\{besoin\.phrase\}` : besoin\.nom\)/);
 });

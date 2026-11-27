@@ -5,7 +5,8 @@ import { naviguer } from '../../os/router.js';
 import { rendreEcran } from './ecran.js';
 import { rendreExaminer } from './examiner.js';
 import { rendrePile } from './pile.js';
-import { reglagesExportFactures } from './export.js';
+import { reglagesExportFactures, fichierFactures } from './export.js';
+import { zoneSauvegardesAchats } from '../achatscommun/sauvegarde.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
 function ajouterFeuille() {
@@ -19,9 +20,9 @@ function ajouterFeuille() {
 
 export const actionsRapides = []; // rien à créer depuis la coque (« + Facture » est dans la barre de la liste)
 
-/** Réglages du module : une seule section, « Sauvegarde » (export des données). */
-export function reglages(page) {
-  reglagesExportFactures(page);
+/** Réglages du module : sa table dans la « Sauvegarde complète des achats » (.zip) et sa propre section d'export, repliée sous « Sauvegardes séparées ». */
+export function reglages(page, ctx) {
+  reglagesExportFactures(zoneSauvegardesAchats(page, { module: 'achatsfactures', table: 'Factures', fabriquer: () => fichierFactures() }, ctx));
 }
 
 let montee = null;

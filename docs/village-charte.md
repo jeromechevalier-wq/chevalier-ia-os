@@ -15,7 +15,7 @@ Ce document sert à dessiner un nouveau bâtiment **sans deviner**. Il décrit l
 - Chaque bâtiment a **la même taille** quel que soit le nombre de besoins : avec un seul besoin, il occupe un quart du terrain.
 - **Les parcelles libres sont décorées** et ne sont **ni cliquables ni atteignables au clavier** (`aria-hidden`). Dans l'ordre : la 1re parcelle libre reçoit un **champ de lavande**, la 2e un **bosquet**, la 3e un **potager**. Le dessin est le même à chaque affichage.
 - Des **sentiers beige** forment une croix au milieu et relient les 4 parcelles ; un petit sentier va de chaque bâtiment au centre.
-- Sous chaque bâtiment, une **étiquette permanente** : le nom seul. Au survol (ou au focus clavier ; sur téléphone : premier toucher), une **bulle** : le nom, la phrase, la pastille du compteur (s'il y en a un) et « Cliquez pour entrer ».
+- Sous chaque bâtiment, une **étiquette permanente** : le nom seul. Au survol (ou au focus clavier ; sur téléphone : premier toucher), une **bulle** : le nom, la phrase, la pastille du compteur (s'il y en a un) et « Cliquez pour entrer ». Aucun `title` ni `<title>` SVG (l'infobulle grise du navigateur ferait doublon avec la bulle) : le nom accessible est l'`aria-label` du bâtiment.
 - Sans besoins valables, rien ne change : l'accueil d'avant reste (c'est le cas chez Jérôme).
 
 ## 2. Le réglage : le champ `besoins` de `reglages_maison/ecran`
@@ -43,7 +43,7 @@ Exemple (données neutres) :
 }
 ```
 
-Le compteur `factures_a_valider` compte les factures au statut « a_valider » non archivées, par la même lecture que le module Factures d'achat (`compterFacturesAValider` dans `js/modules/achatsfactures/donnees.js`), sans route nouvelle. Lecture en panne, incomplète ou plus lente que 3 secondes : **pas de pastille** (jamais de chiffre inventé, jamais « 0 » en cas d'erreur). Un vrai zéro s'écrit « Rien à valider » (pastille verte).
+Le compteur `factures_a_valider` compte les factures au statut « a_valider » non archivées, par la même lecture que le module Factures d'achat (`compterFacturesAValider` dans `js/modules/achatsfactures/donnees.js`), sans route nouvelle. La lecture démarre **dès l'affichage du village** (une seule par affichage, jamais au survol) ; la base peut mettre plusieurs secondes à se réveiller au premier appel : tant que le nombre n'est pas arrivé, la bulle montre une pastille grise animée « Compte en cours », puis la pastille dès qu'il arrive (le nombre reste connu pour les survols suivants). Lecture en panne, incomplète ou plus lente que 20 secondes : l'indicateur disparaît, **pas de pastille** (jamais de chiffre inventé, jamais « 0 » en cas d'erreur). Un vrai zéro s'écrit « Rien à valider » (pastille verte).
 
 ## 3. La géométrie
 

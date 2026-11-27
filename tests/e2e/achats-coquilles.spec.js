@@ -85,6 +85,7 @@ test('A8 Réglages : l\'élément « Achats » réunit les sections des modules 
   await connecter(page, undefined, { route: 'reglages' });
   await attendreCalme(page);
   await ouvrirSectionReglages(page, 'Achats');
+  await page.locator('[data-role="sauvegardes-separees"]').click(); // depuis le 26/11/2026, la sauvegarde de chaque module est repliée sous « Sauvegardes séparées »
   await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
   await expect(page.locator('#reglages-export-achatsfournisseurs')).toBeVisible();
   await expect(page.locator('#reglages-export-achatsfactures')).toBeVisible(); // PR 8a

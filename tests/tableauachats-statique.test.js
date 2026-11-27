@@ -147,7 +147,7 @@ describe('S4 déclaration, Réglages > Sauvegarde et textes de l\'écran', () =>
     const [item] = reglagesDesModules(['tableauachats']);
     assert.ok(item.sections.some((s) => s.id === 'reglages-export-tableauachats'));
     assert.match(lire(`${DOSSIER}/export.js`), /id: 'reglages-export-tableauachats'/);
-    assert.match(lire(`${DOSSIER}/index.js`), /export function reglages\(page\)/);
+    assert.match(lire(`${DOSSIER}/index.js`), /export function reglages\(page, ctx\)/); // depuis le 26/11/2026 : ctx sert à la sauvegarde complète des achats
   });
   test('S4 la ligne du tableau de bord 2 n\'est plus dans « Bouton Exporter à faire » du fichier A-FAIRE', () => {
     const a = lire('.github/A-FAIRE.md').split('\n').find((l) => l.includes('Exporter mes données') && l.includes('Fournisseurs fait'));

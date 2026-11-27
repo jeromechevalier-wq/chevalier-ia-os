@@ -4,7 +4,8 @@
 import { naviguer } from '../../os/router.js';
 import { rendreEcran } from './ecran.js';
 import { lireDonnees } from './donnees.js';
-import { reglagesExportArticles } from './export.js';
+import { reglagesExportArticles, fichierArticles } from './export.js';
+import { zoneSauvegardesAchats } from '../achatscommun/sauvegarde.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
 function ajouterFeuille() {
@@ -18,9 +19,9 @@ function ajouterFeuille() {
 
 export const actionsRapides = []; // rien à créer depuis l'écran : les articles viennent des factures
 
-/** Réglages du module : une seule section, « Sauvegarde » (export des données). */
-export function reglages(page) {
-  reglagesExportArticles(page, { lire: () => lireDonnees() });
+/** Réglages du module : sa table dans la « Sauvegarde complète des achats » (.zip) et sa propre section d'export, repliée sous « Sauvegardes séparées ». */
+export function reglages(page, ctx) {
+  reglagesExportArticles(zoneSauvegardesAchats(page, { module: 'achatsarticles', table: 'Articles', fabriquer: () => fichierArticles({ lire: () => lireDonnees() }) }, ctx), { lire: () => lireDonnees() });
 }
 
 let montee = null;
