@@ -8,7 +8,7 @@ import {
   assertSucceeds,
   assertFails,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, getDocs, setLogLevel, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, getDocs, setLogLevel, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { FICHE_ESSAI } from './_reglages-maison-essai.js'; // chantier 0 : les règles lisent les comptes dans reglages_maison/maison
 
 setLogLevel('error');
@@ -582,7 +582,7 @@ describe('Or du village (27/11/2026)', () => {
   const AUTRE = 'quelquun.dautre@gmail.com';
   const porte = (db, email) => doc(db, 'village_utilisateurs', `uid-${email}`);
   const objet = (db, email, id) => doc(db, 'village_utilisateurs', `uid-${email}`, 'batiments', id);
-  const CHAMP = { sorte: 'champ', c: 4, l: 4, depuis: new Date('2026-11-26T10:00:00Z'), acheteLe: new Date('2026-11-26T10:00:00Z') };
+  const CHAMP = { sorte: 'champ', c: 4, l: 4, depuis: new Date('2026-11-26T10:00:00Z'), acheteLe: new Date('2026-11-26T10:00:00Z'), modifieLe: new Date('2026-11-26T10:00:00Z') };
   const semer = (chemin, donnees) => env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), ...chemin), donnees); });
 
   test('6.R1 le propriétaire lit son portefeuille ; un autre compte autorisé, un compte non autorisé, un non connecté : refusés', async () => {
@@ -620,7 +620,9 @@ describe('Or du village (27/11/2026)', () => {
     await semer(['village_utilisateurs', `uid-${J}`, 'batiments', 'o-abc'], CHAMP);
     const db = contexte(J);
     await assertSucceeds(getDoc(objet(db, J, 'o-abc')));
-    await assertSucceeds(updateDoc(objet(db, J, 'o-abc'), { c: 6, l: 2 }));
+    // l'objet porte déjà modifieLe (écrit par le serveur) : un déplacement le renouvelle toujours, sinon il est refusé
+    await assertFails(updateDoc(objet(db, J, 'o-abc'), { c: 6, l: 2 }));
+    await assertSucceeds(updateDoc(objet(db, J, 'o-abc'), { c: 6, l: 2, modifieLe: serverTimestamp() }));
     await assertSucceeds(updateDoc(objet(db, J, 'o-abc'), { c: 7, modifieLe: serverTimestamp() }));
     const relu = (await getDoc(objet(db, J, 'o-abc'))).data();
     await assertSucceeds(setDoc(objet(db, J, 'o-abc'), { ...relu, c: 1, l: 1, modifieLe: serverTimestamp() })); // l'écran écrit le document entier
@@ -636,6 +638,21 @@ describe('Or du village (27/11/2026)', () => {
     await assertFails(getDoc(objet(charles, J, 'o-abc')));
     await assertFails(updateDoc(objet(charles, J, 'o-abc'), { c: 3 }));
     await assertFails(deleteDoc(objet(charles, J, 'o-abc')));
+  });
+
+  test('6.R6 (6b) le déplacement écrit par l’écran (un lot avec update de c, l et modifieLe) passe ; un document entier sans modèle ni dates est refusé', async () => {
+    const quand = new Date('2026-11-26T10:00:00Z');
+    await semer(['village_utilisateurs', `uid-${J}`, 'batiments', 'o-deco'], { sorte: 'decoration', modele: 'arbre', c: 1, l: 1, acheteLe: quand, depuis: quand, modifieLe: quand });
+    const db = contexte(J);
+    const lot = writeBatch(db);
+    lot.update(objet(db, J, 'o-deco'), { c: 5, l: 6, modifieLe: serverTimestamp() });
+    await assertSucceeds(lot.commit());
+    const relu = (await getDoc(objet(db, J, 'o-deco'))).data();
+    assert.deepEqual([relu.c, relu.l, relu.modele], [5, 6, 'arbre']);
+    assert.equal(relu.depuis.toMillis(), quand.getTime());
+    // l'objet tel que l'écran le connaît juste après l'achat (réponse du serveur, sans dates) : un document entier les effacerait
+    await assertFails(setDoc(objet(db, J, 'o-deco'), { sorte: 'decoration', modele: 'arbre', c: 2, l: 2, modifieLe: serverTimestamp() }));
+    await assertFails(setDoc(objet(db, J, 'o-deco'), { sorte: 'decoration', c: 2, l: 2, acheteLe: quand, depuis: quand, modifieLe: serverTimestamp() }));
   });
 
   test('6.R5 les maisons de l’étape 3a n’ont pas bougé : une maison se crée, se modifie et se supprime ; elle ne devient jamais un objet acheté', async () => {

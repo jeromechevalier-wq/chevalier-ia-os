@@ -434,7 +434,7 @@ test('pannes lireBatiments : un document mal formé est ignoré (mêmes contrôl
 });
 
 test('sûreté aucun innerHTML ni son dans les fichiers du village ; village-damier.js n’importe aucun module métier ; seul village-donnees.js parle à Firestore', () => {
-  const fichiers = ['js/os/village-damier.js', 'js/os/village-donnees.js', 'js/os/village-glisser.js', 'js/os/village-liste.js', 'js/os/village-reglages.js', 'js/os/village-ecran.js', 'js/os/village-petites.js', 'js/os/village-petites-lecture.js']; // 3c : + les petites maisons
+  const fichiers = ['js/os/village-damier.js', 'js/os/village-donnees.js', 'js/os/village-glisser.js', 'js/os/village-liste.js', 'js/os/village-reglages.js', 'js/os/village-ecran.js', 'js/os/village-petites.js', 'js/os/village-petites-lecture.js', 'js/os/village-boutique.js']; // 3c : + les petites maisons ; 6b : + la boutique
   for (const f of fichiers) {
     const code = lire(f).replace(/^\s*\/\/.*$/gm, '');
     assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(code), `${f} : HTML injecté`);
@@ -558,12 +558,12 @@ test('3.3 3.4 3.5 3.6 sûreté des liens : nouvel onglet sans lien avec l’appl
 
 test('3a-bis les fonctions du village sont identiques dans firestore.rules et firestore.plateforme.rules', () => {
   const bloc = (f) => {
-    const m = lire(f).match(/ {4}function villageCase[\s\S]*?\n {4}function villageBatimentValide\(id\) \{[\s\S]*?\n {4}\}\n/);
+    const m = lire(f).match(/ {4}function villageCase[\s\S]*?\n {4}function villageBatimentValide\(id\) \{[\s\S]*?\n {4}\}\n {4}function villageSorteJeu[\s\S]*?\n {4}function villageObjetDeplace\(id\) \{[\s\S]*?\n {4}\}\n/);
     assert.ok(m, f);
     return m[0];
   };
   assert.equal(bloc('firestore.plateforme.rules'), bloc('firestore.rules'));
-  assert.match(lire('firestore.plateforme.rules'), /match \/clients\/\{client\}\/village_utilisateurs\/\{uid\}\/batiments\/\{id\} \{\n\s+allow read, delete: if connecte\(\) && request\.auth\.uid == uid && roleDe\(client\) in \['editeur', 'lecteur'\];\n\s+allow create, update: if connecte\(\) && request\.auth\.uid == uid && roleDe\(client\) in \['editeur', 'lecteur'\] && villageBatimentValide\(id\);\n\s+\}/);
+  assert.match(lire('firestore.plateforme.rules'), /match \/clients\/\{client\}\/village_utilisateurs\/\{uid\}\/batiments\/\{id\} \{\n\s+allow read: if connecte\(\) && request\.auth\.uid == uid && roleDe\(client\) in \['editeur', 'lecteur'\];\n\s+allow create: if connecte\(\) && request\.auth\.uid == uid && roleDe\(client\) in \['editeur', 'lecteur'\] && villageBatimentValide\(id\);\n\s+allow update: if connecte\(\) && request\.auth\.uid == uid && roleDe\(client\) in \['editeur', 'lecteur'\]\n\s+&& \(villageSorteJeu\(resource\.data\) \? villageObjetDeplace\(id\) : villageBatimentValide\(id\)\);\n\s+allow delete: if connecte\(\) && request\.auth\.uid == uid && roleDe\(client\) in \['editeur', 'lecteur'\] && !villageSorteJeu\(resource\.data\);\n\s+\}/);
 });
 
 // ---------------------------------------------------------------- étape 4 : petites maisons « vue filtrée » (étape 3c, 27/11/2026, js/os/village-petites.js)
@@ -692,4 +692,98 @@ test('4.6 élément absent d’une lecture réussie : la manuelle n’est pas mo
   // une manuelle dont la grande est cachée n'est pas montrée et ne compte pas
   const cachee = ranger4({ batiments: new Map([...docs, ['b-achatschantiers-liste', { sorte: 'besoin', cache: true }]]), elements: new Map([['achatschantiers', { etat: 'erreur' }]]) });
   assert.equal(P.nombreManuelles(cachee), 0);
+});
+
+// ---- étape 6b : objets et damier (boutique, 27/11/2026 : js/os/village-damier.js, js/os/village-jeu-regles.js, js/os/village-petites.js)
+// Parcours dans le navigateur : tests/e2e/village-or-boutique.spec.js (captures dans tests/e2e/captures/village-or-boutique/).
+const D6 = await import('../js/os/village-damier.js');
+const RJ = await import('../js/os/village-jeu-regles.js');
+const date = { toMillis: () => 1 };
+
+test('6.6f lireBatiments garde un objet acheté bien formé (avec ou sans dates) ; ignore un identifiant x-1, un modèle inconnu, un champ en trop, une place absente, c 24', () => {
+  const bons = [
+    { id: 'o-abc123', sorte: 'decoration', modele: 'arbre', c: 2, l: 3, acheteLe: date, depuis: date, modifieLe: date },
+    { id: 'o-def456', sorte: 'decoration', modele: 'banc', c: 0, l: 0 },
+    { id: 'o-ghi789', sorte: 'champ', c: 4, l: 4, depuis: new Date(0) },
+  ];
+  const mauvais = [
+    { id: 'x-1', sorte: 'decoration', modele: 'arbre', c: 1, l: 1 },
+    { id: 'o-m1', sorte: 'decoration', modele: 'statue', c: 1, l: 1 },
+    { id: 'o-m2', sorte: 'decoration', modele: 'arbre', c: 1, l: 1, prix: 20 },
+    { id: 'o-m3', sorte: 'decoration', modele: 'arbre' },
+    { id: 'o-m4', sorte: 'decoration', modele: 'arbre', c: 24, l: 0 },
+    { id: 'o-m5', sorte: 'champ', modele: 'arbre', c: 1, l: 1 },
+    { id: 'o-m6', sorte: 'decoration', modele: 'arbre', c: 1, l: 1, depuis: 'hier' },
+  ];
+  const { parId, ignores } = lireBatiments([...bons, ...mauvais]);
+  assert.deepEqual([...parId.keys()], ['o-abc123', 'o-def456', 'o-ghi789']);
+  assert.equal(parId.get('o-abc123').modifieLe, undefined);
+  assert.deepEqual([...ignores].sort(), mauvais.map((d) => d.id).sort());
+});
+
+test('6.6g rangerVillage : objets à leur place ; un objet sur une maison enregistrée est montré au premier bloc libre (deplaceAffiche) ; maisons sans objet ; un objet enregistré passe avant une maison d’office', () => {
+  const batiments = new Map([
+    ['b-achatsfactures-liste', { sorte: 'besoin', c: 3, l: 3 }],
+    ['o-a', { sorte: 'decoration', modele: 'arbre', c: 7, l: 7 }],
+    ['o-b', { sorte: 'decoration', modele: 'banc', c: 4, l: 4 }], // sur la maison
+  ]);
+  const r = rangerVillage({ besoins: [FACTURES], batiments });
+  assert.deepEqual(r.maisons.map((m) => m.id), ['b-achatsfactures-liste']);
+  assert.deepEqual(r.objets.map((o) => [o.id, o.c, o.l, o.enregistree, o.deplaceAffiche, o.taille]), [['o-a', 7, 7, true, false, 1], ['o-b', 0, 0, false, true, 1]]);
+  assert.deepEqual(r.objetsSansPlace, []);
+  // un objet enregistré sur la place d'office de la première maison (1, 1) : la maison va ailleurs, l'objet reste
+  const office = rangerVillage({ besoins: [FACTURES], batiments: new Map([['o-a', { sorte: 'decoration', modele: 'arbre', c: 1, l: 1 }]]) });
+  assert.deepEqual(office.objets.map((o) => [o.c, o.l, o.enregistree]), [[1, 1, true]]);
+  assert.ok(!casesDuBloc(office.maisons[0].c, office.maisons[0].l, 2).includes('1-1'));
+  // hors du damier montré : au premier bloc libre, jamais écrit
+  const hors = rangerVillage({ besoins: [], batiments: new Map([['o-z', { sorte: 'decoration', modele: 'arbre', c: 20, l: 20 }]]) });
+  assert.equal(hors.objets[0].deplaceAffiche, true);
+  assert.ok(dansDamier(hors.objets[0].c, hors.objets[0].l, 1, DAMIER_DEPART));
+});
+
+test('6.4g damierPourPlaces : vide 8 x 8 ; maison à c 9 : 12 x 12 ; objet 1 x 1 à c 9 : 10 x 10 ; 24 au plus', () => {
+  assert.deepEqual(D6.damierPourPlaces(new Map()), { colonnes: 8, lignes: 8 });
+  assert.deepEqual(D6.damierPourPlaces(new Map([['b-x', { sorte: 'besoin', c: 9, l: 0 }]])), { colonnes: 12, lignes: 12 });
+  assert.deepEqual(D6.damierPourPlaces([{ sorte: 'decoration', c: 9, l: 0 }]), { colonnes: 10, lignes: 10 });
+  assert.deepEqual(D6.damierPourPlaces([{ sorte: 'lien', c: 23, l: 23 }]), { colonnes: 24, lignes: 24 });
+  assert.deepEqual(D6.damierPourPlaces([{ sorte: 'petite', parent: 'b-x' }, { sorte: 'besoin' }]), { colonnes: 8, lignes: 8 });
+});
+
+test('6.6h cases prises : la même règle que le serveur (casesEnregistrees) ; TAILLE_MAISON === TAILLE_GRANDE', () => {
+  assert.equal(RJ.TAILLE_MAISON, TAILLE_GRANDE);
+  const batiments = new Map([
+    ['b-achatsfactures-liste', { sorte: 'besoin', c: 0, l: 0 }],
+    ['l-site', { sorte: 'lien', nom: 'Site', url: 'https://exemple.test', batiment: 'bureau', c: 4, l: 0 }],
+    ['o-a', { sorte: 'decoration', modele: 'arbre', c: 7, l: 7 }],
+    ['p-x', { sorte: 'petite', parent: 'b-achatsfactures-liste', nom: 'x', cible: '#/achatschantiers/liste/c1' }],
+  ]);
+  const r = rangerVillage({ besoins: [FACTURES], batiments });
+  const ecran = [...occupation([...r.maisons, ...r.objets]).keys()].sort();
+  assert.deepEqual([...RJ.casesEnregistrees([...batiments.values()])].sort(), ecran);
+});
+
+test('6.6j caseLibreDevant : la case libre la plus devant (c + l), puis la plus proche du milieu ; null si tout est pris', () => {
+  const vide = new Map();
+  assert.deepEqual(D6.caseLibreDevant(vide), { c: 7, l: 7 });
+  assert.deepEqual(D6.caseLibreDevant(vide, { colonnes: 10, lignes: 10 }), { c: 9, l: 9 });
+  const prises = new Map([['7-7', 'x']]);
+  assert.deepEqual(D6.caseLibreDevant(prises), { c: 6, l: 7 });
+  const pleines = new Map();
+  for (let c = 0; c < 8; c++) for (let l = 0; l < 8; l++) pleines.set(`${c}-${l}`, 'x');
+  assert.equal(D6.caseLibreDevant(pleines), null);
+  pleines.delete('0-0');
+  assert.deepEqual(D6.caseLibreDevant(pleines), { c: 0, l: 0 });
+});
+
+test('6.6i une petite maison ne se pose jamais sur une décoration (rangerPetites reçoit les objets)', () => {
+  const besoins = [FACTURES, CHANTIERS_B];
+  const sans = ranger4({ besoins, batiments: new Map([['p-a', docP('b-achatschantiers-liste', '#/achatschantiers/liste/c1')]]), elements: lus([chantier('c1', 'en_cours')]) });
+  const premiere = sans.petites[0];
+  assert.ok(premiere);
+  const batiments = new Map([['p-a', docP('b-achatschantiers-liste', '#/achatschantiers/liste/c1')], ['o-a', { sorte: 'decoration', modele: 'arbre', c: premiere.c, l: premiere.l }]]);
+  const rv = rangerVillage({ besoins, batiments });
+  assert.deepEqual(rv.objets.map((o) => `${o.c}-${o.l}`), [`${premiere.c}-${premiere.l}`]);
+  const r = P.rangerPetites({ maisons: rv.maisons, batiments, elements: lus([chantier('c1', 'en_cours')]), modules: ['achatschantiers'], objets: rv.objets });
+  assert.ok(r.petites.length >= 1);
+  for (const p of r.petites) assert.notEqual(`${p.c}-${p.l}`, `${premiere.c}-${premiere.l}`);
 });

@@ -4,8 +4,8 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { exigerCompteAutorise } from './devis-appel.js';
 
-/** Actions connues (6a : le gain seulement ; 6b et 7 ajouteront acheter et ramasser). */
-export const ACTIONS_VILLAGE = Object.freeze(['gain']);
+/** Actions connues (6a : le gain ; 6b : l'achat ; l'étape 7 ajoutera ramasser). */
+export const ACTIONS_VILLAGE = Object.freeze(['gain', 'acheter']);
 const CHAMPS_JOURNAL = ['action', 'statut', 'code', 'dureeMs'];
 
 /** Une ligne de journal : liste blanche de champs, valeurs courtes. */
@@ -19,7 +19,7 @@ export function ligneDeJournalVillage(entree) {
   return JSON.stringify(ligne);
 }
 
-/** `service(email)` rend { gain } (coeur/village-or.js) ; `comptes` : liste des comptes autorisés (par défaut, ceux de la fiche de la maison). */
+/** `service(email)` rend { gain, acheter } (coeur/village-or.js) ; `comptes` : liste des comptes autorisés (par défaut, ceux de la fiche de la maison). */
 export function creerAppelVillage({ service, comptes, journal = () => {}, maintenant = Date.now }) {
   return async function appel(requete) {
     const debut = maintenant();
@@ -31,7 +31,10 @@ export function creerAppelVillage({ service, comptes, journal = () => {}, mainte
     if (!ACTIONS_VILLAGE.includes(action)) throw new HttpsError('invalid-argument', 'Demande invalide.');
     try {
       const acteur = jeton.email.toLowerCase();
-      const r = await service(acteur).gain({ uid, acteur, source: demande.source, id: demande.id, projetId: demande.projetId });
+      // L'uid est celui de la connexion : un `uid` reçu dans la demande est ignoré.
+      const r = action === 'acheter'
+        ? await service(acteur).acheter({ uid, article: demande.article, modele: demande.modele, c: demande.c, l: demande.l })
+        : await service(acteur).gain({ uid, acteur, source: demande.source, id: demande.id, projetId: demande.projetId });
       journal({ action, statut: r.ok ? 'ok' : 'refus', code: r.raison, dureeMs: maintenant() - debut });
       return r;
     } catch (e) {

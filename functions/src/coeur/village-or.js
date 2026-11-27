@@ -1,10 +1,14 @@
-// Or du village (27/11/2026, étape 6a de docs/accueil-village.md) : le cœur commun à la maison (functions/src/index.js, villageOr) et à la plateforme des clients
+// Or du village (27/11/2026, étapes 6a et 6b de docs/accueil-village.md) : le cœur commun à la maison (functions/src/index.js, villageOr) et à la plateforme des clients
 // (functions-plateforme/src/village.js ; ce dossier coeur/ y est copié tel quel par scripts/preparer-fonctions.js).
 // L'écran ne dit jamais « donne-moi 10 pièces » : il dit « regarde telle facture » (ou tel devis). Le serveur va lire LUI-MÊME la donnée (statut, date, pas un test),
 // puis crédite le portefeuille de l'utilisateur dans une transaction, une seule fois par élément pour toute la maison (registre village_gains/{clé}).
 // Ce fichier n'importe ni firebase-functions, ni firebase-admin, ni rien de ../base/ (absent chez les clients) : la base Firestore, l'horloge et la fabrique de dates sont reçues.
 // Jamais d'exception pour un refus métier : toujours un objet simple { ok, gagne, or?, raison? }.
-import { GAINS, cleDeGain, fraisPourGain, paiementRecent, parcellesValables } from '../../partage/village-jeu-regles.js';
+// 6b, achats : `acheter` retire l'or ET crée l'objet acheté (ou ajoute une parcelle) dans la MÊME transaction : pas d'or sans objet, pas d'objet sans or, jamais de solde négatif.
+import {
+  GAINS, PRIX, PARCELLES_MAX, OBJETS_MAX, MODELES_DECORATION, ARTICLES_EN_VENTE,
+  cleDeGain, fraisPourGain, paiementRecent, parcellesValables, damierDe, manque, casesEnregistrees,
+} from '../../partage/village-jeu-regles.js';
 import { COLLECTIONS } from './donnees.js';
 
 export const C_VILLAGE = 'village_utilisateurs';
@@ -12,6 +16,15 @@ export const C_GAINS = 'village_gains';
 const UID = /^[A-Za-z0-9_-]{1,128}$/;
 const EMAIL = /^[^\s@]{1,128}@[^\s@]{1,125}$/;
 const entierPositif = (v) => (Number.isInteger(v) && v >= 0 ? v : 0);
+const SORTES_JEU = ['decoration', 'champ', 'enclos'];
+/** Lecture des bâtiments d'un utilisateur à l'achat : au-delà, l'achat est refusé (`trop_objets`), jamais à moitié compté. */
+const LECTURE_BATIMENTS = 250;
+const caseValable = (v) => Number.isInteger(v) && v >= 0 && v <= 23;
+
+/** Identifiant d'un objet acheté : « o- » + 20 caractères en minuscules et chiffres (sans import : le cœur est copié chez les clients). */
+export function idObjet() {
+  return `o-${globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`;
+}
 
 /** Date Firestore (Timestamp), Date ou nombre -> millisecondes ; null sinon. */
 function enMs(v) {
@@ -36,9 +49,10 @@ export async function lirePortefeuille({ db, racine = '', uid, tx = null }) {
 
 /**
  * `db` : Firestore d'administration ; `racine` : '' (maison) ou 'clients/<client>/' ; `verifierAchat` : async (id) => 'acceptee' | 'autre' | 'trop_ancien' | 'indisponible'
- * (absent chez les clients : pas de base des achats) ; `maintenant` : () => ms ; `horodatage(ms)` : la valeur de date à écrire (Timestamp.fromMillis chez l'appelant).
+ * (absent chez les clients : pas de base des achats) ; `maintenant` : () => ms ; `horodatage(ms)` : la valeur de date à écrire (Timestamp.fromMillis chez l'appelant) ;
+ * `fabriquerId` : () => identifiant d'un objet acheté (remplacé dans les tests).
  */
-export function creerVillageOr({ db, racine = '', verifierAchat = null, maintenant = Date.now, horodatage }) {
+export function creerVillageOr({ db, racine = '', verifierAchat = null, maintenant = Date.now, horodatage, fabriquerId = idObjet }) {
   if (typeof horodatage !== 'function') throw new Error('creerVillageOr : horodatage manquant');
   if (racine !== '' && !/^clients\/[A-Za-z0-9][A-Za-z0-9_-]*\/$/.test(racine)) throw new Error('creerVillageOr : racine invalide');
 
@@ -127,5 +141,49 @@ export function creerVillageOr({ db, racine = '', verifierAchat = null, maintena
     });
   }
 
-  return { gain };
+  /**
+   * Achat (6b). `article` : 'parcelle' ou 'decoration' (avec `modele` et la case `c`, `l` proposée par l'écran, revérifiée ici) ; 'champ' et 'enclos' : étape 7.
+   * Réponse : { ok: false, raison: 'demande' } si la demande est mal formée ; sinon { ok: true, achete, raison?, manque?, or?, parcelles?, version?, objet? }.
+   * Ordre : toutes les lectures (portefeuille, puis bâtiments pour une décoration), puis les contrôles (maximum / trop_objets, pas_assez, case, case_prise),
+   * puis les écritures. Le portefeuille est lu ET écrit à chaque achat : Firestore met deux achats simultanés en série (aucun solde négatif).
+   */
+  async function acheter({ uid, article, modele, c, l, lectureSeule = false } = {}) {
+    if (typeof uid !== 'string' || !UID.test(uid)) return { ok: false, raison: 'demande' };
+    if (article === 'champ' || article === 'enclos') return { ok: true, achete: false, raison: 'pas_encore' };
+    if (typeof article !== 'string' || !ARTICLES_EN_VENTE.includes(article)) return { ok: false, raison: 'demande' };
+    if (article === 'decoration' && (!MODELES_DECORATION.includes(modele) || !caseValable(c) || !caseValable(l))) return { ok: false, raison: 'demande' };
+    if (lectureSeule) return { ok: true, achete: false, raison: 'lecture_seule' };
+    const refPorte = db.doc(`${racine}${C_VILLAGE}/${uid}`);
+    return db.runTransaction(async (tx) => {
+      const p = await lirePortefeuille({ db, racine, uid, tx });
+      const refus = (raison, plus = {}) => ({ ok: true, achete: false, raison, ...plus, or: p.or, parcelles: p.parcelles, version: p.version });
+      const quand = horodatage(maintenant());
+      if (article === 'parcelle') {
+        if (p.parcelles >= PARCELLES_MAX) return refus('maximum');
+        if (p.or < PRIX.parcelle) return refus('pas_assez', { manque: manque(PRIX.parcelle, p.or) });
+        const or = p.or - PRIX.parcelle;
+        const parcelles = p.parcelles + 1;
+        const version = p.version + 1;
+        tx.set(refPorte, { or, gagne: p.gagne, parcelles, version, modifieLe: quand }, { merge: true });
+        return { ok: true, achete: true, or, parcelles, version };
+      }
+      // décoration
+      const lus = (await tx.get(db.collection(`${racine}${C_VILLAGE}/${uid}/batiments`).limit(LECTURE_BATIMENTS))).docs.map((d) => d.data() || {});
+      const objets = lus.filter((d) => SORTES_JEU.includes(d.sorte)).length;
+      if (lus.length >= LECTURE_BATIMENTS || objets >= OBJETS_MAX) return refus('trop_objets');
+      if (p.or < PRIX.decoration) return refus('pas_assez', { manque: manque(PRIX.decoration, p.or) });
+      const damier = damierDe(p.parcelles);
+      if (c + 1 > damier.colonnes || l + 1 > damier.lignes) return refus('case');
+      if (casesEnregistrees(lus).has(`${c}-${l}`)) return refus('case_prise');
+      const id = fabriquerId();
+      const or = p.or - PRIX.decoration;
+      const version = p.version + 1;
+      tx.set(refPorte, { or, gagne: p.gagne, parcelles: p.parcelles, version, modifieLe: quand }, { merge: true });
+      // `create` : un identifiant déjà pris fait échouer la transaction, sans rien écraser.
+      tx.create(db.doc(`${racine}${C_VILLAGE}/${uid}/batiments/${id}`), { sorte: 'decoration', modele, c, l, acheteLe: quand, depuis: quand, modifieLe: quand });
+      return { ok: true, achete: true, or, parcelles: p.parcelles, version, objet: { id, sorte: 'decoration', modele, c, l } };
+    });
+  }
+
+  return { gain, acheter };
 }

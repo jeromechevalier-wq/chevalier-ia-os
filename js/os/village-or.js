@@ -6,7 +6,11 @@
 //  - lireOr() : le portefeuille village_utilisateurs/{uid} (lu par son propriétaire, jamais écrit par le navigateur) ; document absent = 0 (une vraie valeur), panne = « illisible ».
 //  - le solde connu porte la `version` du portefeuille (+1 à chaque gain, écrite par le serveur) : une lecture partie AVANT un gain (version plus basse) n'écrase jamais
 //    le solde plus récent rendu par le gain ; orConnu() le rend tout de suite (l'accueil l'affiche au montage, sans attendre la lecture).
-// Pannes simulées (émulateurs seulement) : window.__chevalierTest.pannesOr = { lecture: n } fait échouer les n prochaines lectures ; { lenteur: ms } retarde chaque lecture de ms millisecondes.
+//  - 6b, boutique : acheterOr({ article, modele, c, l }) demande l'achat au serveur (qui revérifie tout) ; le solde et les parcelles rendus deviennent les valeurs connues.
+//    Les parcelles ne baissent jamais : on garde la plus grande valeur vue (lecture, gain ou achat), parcellesConnues() la rend (null si rien de connu).
+//  - appelerVillageOr(demande) : la SEULE ligne qui appelle la fonction du serveur (verrou dans tests/statique.test.js).
+// Pannes simulées (émulateurs seulement) : window.__chevalierTest.pannesOr = { lecture: n } fait échouer les n prochaines lectures ; { lenteur: ms } retarde chaque lecture de ms millisecondes ;
+// { achat: n } fait échouer les n prochains achats.
 import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { db, app, MODE_EMULATEURS } from './firebase.js';
@@ -18,6 +22,7 @@ const SOURCES = ['facture-validee', 'facture-payee', 'devis-signe'];
 let actif = null; // { base, uid, arret }
 let solde = null; // dernier solde connu (nombre) ou null
 let version = -1; // version du portefeuille de ce solde (-1 : rien de connu)
+let parcelles = null; // parcelles achetées (la plus grande valeur vue), ou null
 const abonnes = new Set();
 
 function pannePosee(sorte) {
@@ -29,7 +34,7 @@ function pannePosee(sorte) {
 }
 
 function prevenir() {
-  for (const fn of abonnes) { try { fn(solde); } catch { /* rien */ } }
+  for (const fn of abonnes) { try { fn(solde, parcelles); } catch { /* rien */ } }
 }
 
 const texteSimple = (v) => (typeof v === 'string' && v ? v : undefined);
@@ -43,6 +48,18 @@ function retenir(or, v) {
   return true;
 }
 
+/** Garde le plus grand nombre de parcelles vu (elles ne baissent jamais, quelle que soit la version). */
+function retenirParcelles(p) {
+  const n = entier(p);
+  if (n !== null && (parcelles === null || n > parcelles)) parcelles = n;
+}
+
+/** L'appel à la fonction du serveur `villageOr` (gain ou achat), avec l'espace du client sur la plateforme. */
+function appelerVillageOr(demande, moi) {
+  const client = moi.base ? moi.base.split('/')[1] : undefined;
+  return httpsCallable(getFunctions(app, 'europe-west9'), 'villageOr')(client ? { client, ...demande } : demande);
+}
+
 async function recevoir(detail, moi) {
   const source = detail?.source;
   if (!SOURCES.includes(source)) return;
@@ -51,9 +68,8 @@ async function recevoir(detail, moi) {
   const projetId = texteSimple(detail.projetId);
   if (id) demande.id = id;
   if (projetId) demande.projetId = projetId;
-  const client = moi.base ? moi.base.split('/')[1] : undefined;
   try {
-    const r = await httpsCallable(getFunctions(app, 'europe-west9'), 'villageOr')(client ? { client, ...demande } : demande);
+    const r = await appelerVillageOr(demande, moi);
     if (actif !== moi) return; // session fermée ou changée pendant l'appel
     const d = r?.data ?? {};
     if (Number.isInteger(d.gagne) && d.gagne > 0) {
@@ -76,11 +92,12 @@ export function activerOr({ base = '', uid }) {
   const arreterEcoute = ecouter((detail) => { void recevoir(detail, moi); });
   moi.arret = () => {
     arreterEcoute();
-    if (actif === moi) { actif = null; solde = null; version = -1; }
+    if (actif === moi) { actif = null; solde = null; version = -1; parcelles = null; }
   };
   actif = moi;
   solde = null;
   version = -1;
+  parcelles = null;
   return moi.arret;
 }
 
@@ -95,9 +112,10 @@ export async function lireOr() {
     const instantane = await getDoc(doc(db, ...cheminCollection(moi.base, 'village_utilisateurs').split('/'), String(moi.uid)));
     const d = instantane.exists() ? instantane.data() : {};
     const or = entier(d.or) ?? 0;
-    const parcelles = entier(d.parcelles) ?? 0;
-    if (actif !== moi) return { etat: 'ok', or, parcelles };
+    const lues = entier(d.parcelles) ?? 0;
+    if (actif !== moi) return { etat: 'ok', or, parcelles: lues };
     retenir(or, entier(d.version) ?? 0);
+    retenirParcelles(lues);
     return { etat: 'ok', or: solde, parcelles };
   } catch {
     return { etat: 'illisible' };
@@ -109,8 +127,46 @@ export function orConnu() {
   return actif ? solde : null;
 }
 
-/** Abonnement au solde connu (après un gain) : `fn(or)` ; rend la fonction qui désabonne. */
+/** Abonnement au solde connu (après un gain ou un achat) : `fn(or, parcelles)` ; rend la fonction qui désabonne. */
 export function surOr(fn) {
   abonnes.add(fn);
   return () => abonnes.delete(fn);
+}
+
+/** Les parcelles achetées connues (la plus grande valeur vue), ou null si rien n'est encore connu. */
+export function parcellesConnues() {
+  return actif ? parcelles : null;
+}
+
+/**
+ * Achat dans la boutique (6b) : { etat: 'ok', or, parcelles, objet? } | { etat: 'refus', raison, manque?, or, parcelles } (le solde connu) | { etat: 'erreur' }. Jamais d'exception.
+ * Le serveur décide (solde, case, limites) ; quand il rend le portefeuille (même sur un refus), le solde connu suit et les abonnés sont prévenus.
+ */
+export async function acheterOr({ article, modele, c, l } = {}) {
+  const moi = actif;
+  if (!moi?.uid) return { etat: 'erreur' };
+  const demande = { action: 'acheter', article };
+  if (article === 'decoration') Object.assign(demande, { modele, c, l });
+  try {
+    if (pannePosee('achat')) throw Object.assign(new Error('panne simulée'), { code: 'panne' });
+    const r = await appelerVillageOr(demande, moi);
+    if (actif !== moi) return { etat: 'erreur' };
+    const d = r?.data ?? {};
+    if (entier(d.or) !== null && entier(d.version) !== null) {
+      retenir(d.or, d.version);
+      retenirParcelles(d.parcelles);
+      prevenir();
+    }
+    if (d.ok === true && d.achete === true) {
+      const o = d.objet;
+      const objet = o && typeof o.id === 'string' && Number.isInteger(o.c) && Number.isInteger(o.l) ? { id: o.id, sorte: o.sorte, modele: o.modele, c: o.c, l: o.l } : null;
+      return { etat: 'ok', or: solde, parcelles, objet };
+    }
+    const raison = typeof d.raison === 'string' ? d.raison : 'demande';
+    console.warn('Village : achat refusé', raison);
+    return { etat: 'refus', raison, manque: entier(d.manque) ?? undefined, or: solde, parcelles };
+  } catch (e) {
+    console.warn('Village : achat non abouti', String(e?.code ?? 'inconnu'));
+    return { etat: 'erreur' };
+  }
 }

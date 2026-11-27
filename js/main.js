@@ -9,7 +9,7 @@ import { monterVillage } from './os/village-ecran.js';
 import { besoinsServis } from './os/village-damier.js';
 import { creerDonneesVillage } from './os/village-donnees.js';
 import { creerPetitesVillage } from './os/village-petites-lecture.js';
-import { activerOr, lireOr, surOr, orConnu } from './os/village-or.js';
+import { activerOr, lireOr, surOr, orConnu, acheterOr, parcellesConnues } from './os/village-or.js';
 import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, lien, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace } from './os/marque.js';
 import { blocIntrouvablePortail } from './os/portail-introuvable.js';
@@ -241,7 +241,7 @@ function afficherRoute(route) {
   let afficher;
   if (besoinsVillage.length && segs.length === 1 && segs[0] === ROUTE_VILLAGE) { // accueil village : le dessin seul (ni journal, ni carrés)
     cle = 'village';
-    afficher = () => { session.vue.quitter?.(); vider(coquille.contenu); return monterVillage(coquille.contenu, besoinsVillage, { aller: (cible) => naviguer(routeDuBesoin(cible)), console: MODULES.some((m) => m.id === 'console'), donnees: creerDonneesVillage({ base: '', uid: session.compte.uid }), or: { lire: lireOr, suivre: surOr, connu: orConnu }, petites: creerPetitesVillage({ modules: MODULES.map((m) => m.prefixe) }) }); };
+    afficher = () => { session.vue.quitter?.(); vider(coquille.contenu); return monterVillage(coquille.contenu, besoinsVillage, { aller: (cible) => naviguer(routeDuBesoin(cible)), console: MODULES.some((m) => m.id === 'console'), donnees: creerDonneesVillage({ base: '', uid: session.compte.uid }), or: { lire: lireOr, suivre: surOr, connu: orConnu, acheter: acheterOr, parcelles: parcellesConnues }, petites: creerPetitesVillage({ modules: MODULES.map((m) => m.prefixe) }) }); };
   } else if (segs[0] === 'reglages') {
     cle = 'reglages';
     afficher = () => monterReglages(coquille.contenu, segs, {
