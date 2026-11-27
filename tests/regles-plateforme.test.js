@@ -5,7 +5,7 @@ import { test, describe, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, setLogLevel } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, setLogLevel, serverTimestamp, collectionGroup } from 'firebase/firestore';
 
 setLogLevel('error');
 
@@ -462,5 +462,88 @@ describe('Chantier 0 : reglages_maison fermée au navigateur sur la plateforme',
       }
       await assertFails(getDocs(collection(db, 'reglages_maison')));
     }
+  });
+});
+
+// Village par utilisateur sur la plateforme (27/11/2026) : mêmes contrôles que chez Jérôme, sous clients/<client>/village_utilisateurs/<uid>/batiments.
+// Seul le compte lui-même, membre (éditeur ou lecteur) de ce client, lit et écrit ; exclu du joker des données du client.
+describe('Village par utilisateur sur la plateforme (27/11/2026)', () => {
+  const chemin = (db, client, email, id) => doc(db, 'clients', client, 'village_utilisateurs', `uid-${email}`, 'batiments', id);
+  const liste = (db, client, email) => collection(db, 'clients', client, 'village_utilisateurs', `uid-${email}`, 'batiments');
+  const hote = ['exemple', 'test'].join('.');
+  const BESOIN = { sorte: 'besoin', c: 2, l: 4, cache: false, nom: 'Mes factures' };
+  const LIEN = { sorte: 'lien', nom: 'Mon site', url: `https://${hote}/chemin?x=1#y`, batiment: 'phare', c: 0, l: 6 };
+  const PETITE = { sorte: 'petite', parent: 'b-achatschantiers-liste', nom: 'Chantier Dupont', cible: '#/achatschantiers/liste/ch1' };
+
+  test('P-V1 une éditrice et une lectrice écrivent, lisent, listent et suppriment chacune LEUR village', async () => {
+    for (const email of [ALICE, LEA]) {
+      const db = ctx(email);
+      await assertSucceeds(setDoc(chemin(db, 'a', email, 'b-achatsfactures-liste'), { ...BESOIN, modifieLe: serverTimestamp() }));
+      await assertSucceeds(setDoc(chemin(db, 'a', email, 'l-abc123'), LIEN));
+      await assertSucceeds(setDoc(chemin(db, 'a', email, 'p-xyz-9'), PETITE));
+      await assertSucceeds(getDoc(chemin(db, 'a', email, 'l-abc123')));
+      const tous = await assertSucceeds(getDocs(liste(db, 'a', email)));
+      assert.equal(tous.size, 3);
+      await assertSucceeds(updateDoc(chemin(db, 'a', email, 'b-achatsfactures-liste'), { c: 5, modifieLe: serverTimestamp() }));
+      await assertSucceeds(deleteDoc(chemin(db, 'a', email, 'p-xyz-9')));
+    }
+  });
+
+  test('P-V2 aucun autre membre, ni membre d’un autre client, ni non-membre ; rien sous un client dont on n’est pas membre', async () => {
+    await env.withSecurityRulesDisabled(async (c) => { await setDoc(chemin(c.firestore(), 'a', ALICE, 'b-x'), BESOIN); });
+    for (const email of [CLARA, LEA, BOB, ZOE]) {
+      const db = ctx(email);
+      await assertFails(getDoc(chemin(db, 'a', ALICE, 'b-x')));
+      await assertFails(getDocs(liste(db, 'a', ALICE)));
+      await assertFails(setDoc(chemin(db, 'a', ALICE, 'b-y'), BESOIN));
+      await assertFails(setDoc(chemin(db, 'a', ALICE, 'b-x'), BESOIN));
+      await assertFails(deleteDoc(chemin(db, 'a', ALICE, 'b-x')));
+    }
+    await assertFails(setDoc(chemin(ctx(ZOE), 'a', ZOE, 'b-x'), BESOIN)); // membre de rien, même sous son propre identifiant
+    await assertFails(getDocs(liste(ctx(ZOE), 'a', ZOE)));
+    await env.withSecurityRulesDisabled(async (c) => { await setDoc(doc(c.firestore(), 'clients', 'a', 'membres', 'max@exemple.test'), { role: 'invite' }); });
+    await assertFails(setDoc(chemin(ctx('max@exemple.test'), 'a', 'max@exemple.test', 'b-x'), BESOIN)); // rôle inconnu, même sous son propre identifiant
+    await assertFails(updateDoc(chemin(ctx(CLARA), 'a', ALICE, 'b-x'), { c: 7 })); // un autre membre éditeur ne modifie pas le village d'alice
+    await assertFails(getDocs(collectionGroup(ctx(ALICE), 'batiments'))); // aucune lecture de tous les villages d'un coup
+    await assertFails(setDoc(chemin(ctx(ALICE), 'b', ALICE, 'b-x'), BESOIN)); // alice n'est pas membre du client b
+    await assertFails(getDocs(liste(ctx(ALICE), 'b', ALICE)));
+    await assertSucceeds(setDoc(chemin(ctx(CLARA), 'b', CLARA, 'b-x'), BESOIN)); // clara, lectrice chez b, y a son village
+    await assertFails(getDoc(chemin(ctx(ALICE, false), 'a', ALICE, 'b-x'))); // e-mail non vérifié
+    const visiteur = env.unauthenticatedContext().firestore();
+    await assertFails(getDoc(chemin(visiteur, 'a', ALICE, 'b-x')));
+    await assertFails(setDoc(chemin(visiteur, 'a', ALICE, 'b-z'), BESOIN));
+  });
+
+  test('P-V3 champs invalides refusés un par un (sorte, champ en trop, place, nom, cache, identifiant, heure, petite maison)', async () => {
+    const db = ctx(ALICE);
+    const refus = [
+      ['b-a', { ...BESOIN, sorte: 'chateau' }], ['b-a', { ...BESOIN, couleur: 'rouge' }], ['b-a', { sorte: 'besoin', c: 3 }],
+      ['b-a', { ...BESOIN, c: -1 }], ['b-a', { ...BESOIN, c: 24 }], ['b-a', { ...BESOIN, l: 1.5 }], ['b-a', { ...BESOIN, c: '3' }],
+      ['b-a', { ...BESOIN, nom: '' }], ['b-a', { ...BESOIN, nom: 'N'.repeat(41) }], ['b-a', { ...BESOIN, nom: 12 }],
+      ['b-a', { ...BESOIN, cache: 'oui' }], ['l-a', BESOIN], ['p-a', BESOIN], ['b-a', LIEN], ['b-Majuscule', BESOIN],
+      ['b-a', { ...BESOIN, modifieLe: new Date('2026-01-01T00:00:00Z') }], ['b-a', {}],
+      ['p-a', { ...PETITE, cible: `https://${hote}` }], ['p-a', { ...PETITE, parent: 'l-abc' }],
+    ];
+    for (const [id, d] of refus) await assertFails(setDoc(chemin(db, 'a', ALICE, id), d));
+    await assertSucceeds(setDoc(chemin(db, 'a', ALICE, 'b-a'), { ...BESOIN, c: 23, l: 0, nom: 'N'.repeat(40) }));
+  });
+
+  test('P-V4 lien : https seulement (adresses refusées écrites en morceaux)', async () => {
+    const db = ctx(ALICE);
+    const p = (s) => s.join(':');
+    for (const url of [`${p(['http', ''])}//${hote}/`, p(['javascript', 'alert(1)']), `//${hote}`, `${p(['ftp', ''])}//${hote}/`, `https://moi${'@'}${hote}/`, 'https://', `https://${hote}/a b`]) {
+      await assertFails(setDoc(chemin(db, 'a', ALICE, 'l-a'), { ...LIEN, url }));
+    }
+    await assertSucceeds(setDoc(chemin(db, 'a', ALICE, 'l-a'), LIEN));
+  });
+
+  test('P-V5 le parent et toute autre sous-collection restent fermés : le joker ne couvre plus le village', async () => {
+    const db = ctx(ALICE);
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'village_utilisateurs', `uid-${ALICE}`), { x: 1 }));
+    await assertFails(getDoc(doc(db, 'clients', 'a', 'village_utilisateurs', `uid-${ALICE}`)));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'village_utilisateurs', `uid-${ALICE}`, 'autre', 'x'), { x: 1 }));
+    await assertFails(getDoc(doc(db, 'clients', 'a', 'village_utilisateurs', `uid-${ALICE}`, 'autre', 'x')));
+    await assertFails(getDocs(collection(db, 'clients', 'a', 'village_utilisateurs')));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'village_utilisateurs', 'nimporte'), { x: 1 })); // l'éditrice n'y écrit plus par le joker
   });
 });
