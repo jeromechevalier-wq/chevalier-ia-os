@@ -2,7 +2,7 @@
 // (chargées le temps de ce fichier, puis les règles du CRM sont remises pour les parcours suivants).
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, listerDocuments, estTelephone, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, listerDocuments, estTelephone, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 const ALICE = 'alice@exemple.test';
 const ZOE = 'zoe@exemple.test';
@@ -68,7 +68,7 @@ test('E2 la page prend le nom, le texte, le logo et les images de la fiche ; la 
 test('E3 un membre du client se connecte et arrive sur son accueil ; il peut se déconnecter', async ({ page }) => {
   await aller(page, 'atelier');
   await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+  await connecterCompte(page, ALICE);
   await expect(page.getByText('Bonjour', { exact: false })).toBeVisible();
   await expect(page.getByText(`${ALICE} · éditeur`)).toBeVisible();
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
@@ -78,7 +78,7 @@ test('E3 un membre du client se connecte et arrive sur son accueil ; il peut se 
 test("KPI4 chez un client (base 2) : pas de section « Indicateurs », aucune table d'objectifs lue ni créée", async ({ page }) => {
   await aller(page, 'atelier');
   await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+  await connecterCompte(page, ALICE);
   await expect(page.getByText(`${ALICE} · éditeur`)).toBeVisible();
   await expect(page.locator('.grille-objectifs, #reglages-objectifs')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText('Indicateurs');
@@ -91,7 +91,7 @@ test("E4 refus IDENTIQUE pour un compte inconnu et pour un membre d'un autre cli
     await page.goto('about:blank');
     await aller(page, 'atelier');
     await page.waitForFunction(() => !!window.__chevalierTest);
-    await page.evaluate((e) => window.__chevalierTest.connecter(e, true), email);
+    await connecterCompte(page, email);
     const alerte = page.getByRole('alert');
     await expect(alerte).toBeVisible();
     messages.push((await alerte.innerText()).trim());

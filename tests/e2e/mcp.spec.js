@@ -2,7 +2,7 @@
 // (lien de connexion, mode d'emploi, membres et rôles, lien vers le Journal des modifications). Un module éteint n'est pas accessible.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 const ALICE = 'alice@exemple.test'; // éditrice chez « cabinet »
 const LEA = 'lea@exemple.test'; // lectrice chez « cabinet »
@@ -37,7 +37,7 @@ async function ouvrir(page, client, route, email = ALICE) {
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/${client}${route ? `/${route}` : ''}`);
   await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), email);
+  await connecterCompte(page, email);
   await expect(page.locator('.coquille')).toBeVisible();
 }
 

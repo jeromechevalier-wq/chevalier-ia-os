@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
   test, expect, ecrireDocument, lireDocument, listerDocuments, estTelephone, ouvrirSectionReglages, choisirDansMenuUtilisateur, attendreCalme, PROJET, FIRESTORE, URL_APP,
+  connecterCompte,
 } from './outils.js';
 
 const ALICE = 'alice@exemple.test';
@@ -44,7 +45,7 @@ async function ouvrir(page, client, email = ALICE, reste = '') {
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/${client}${reste ? `/${reste}` : ''}`);
   await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), email);
+  await connecterCompte(page, email);
 }
 const dialogue = (page) => page.getByRole('dialog');
 async function article(chemin, valeurs = {}) {

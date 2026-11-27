@@ -198,6 +198,25 @@ export function estTelephone(page) {
 }
 
 /**
+ * Connecte un compte Google fictif (émulateur Auth) sur la page déjà ouverte, sans attendre la promesse de connexion DANS page.evaluate.
+ * Pourquoi : Chrome rend parfois « Promise was collected » pour une promesse attendue par page.evaluate, même quand elle s'est bien
+ * résolue ; Playwright traduit ce refus par « Execution context was destroyed, most likely because of a navigation » alors qu'aucune
+ * navigation n'a eu lieu (tests instables de la nuit du 27/11/2026 : R6, 4c, M14, M20…). On lance donc la connexion sans l'attendre,
+ * puis on lit son état par de petites lectures synchrones. Une connexion refusée échoue toujours, avec son message.
+ */
+export async function connecterCompte(page, email, emailVerifie = true, reglages = null) {
+  await page.evaluate(([e, v, r]) => {
+    const T = window.__chevalierTest;
+    if (r) Object.assign(T, r);
+    T.etatConnexion = 'en cours';
+    T.connecter(e, v).then(() => { T.etatConnexion = 'ok'; }, (x) => { T.etatConnexion = `refusée : ${x?.message ?? x}`; });
+  }, [email, emailVerifie, reglages]);
+  await expect.poll(() => page.evaluate(() => window.__chevalierTest?.etatConnexion), { message: `connexion de test de ${email}` }).not.toBe('en cours');
+  const etat = await page.evaluate(() => window.__chevalierTest?.etatConnexion);
+  if (etat !== 'ok') throw new Error(`Connexion de test de ${email} : ${etat ?? 'page rechargée pendant la connexion'}`);
+}
+
+/**
  * Ouvre l'appli et connecte un compte Google fictif sur l'émulateur Auth.
  * (La fenêtre Google elle même a besoin d'apis.google.com : le bouton est testé à part.)
  */
@@ -205,7 +224,7 @@ export async function connecter(page, email = JEROME, { attendreAccueil = true, 
   await page.goto(`${URL_APP}#/${route}`);
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
   await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate(([e, v]) => window.__chevalierTest.connecter(e, v), [email, emailVerifie]);
+  await connecterCompte(page, email, emailVerifie);
   if (attendreAccueil) {
     await expect(page.locator('.coquille')).toBeVisible();
     if (route === 'crm/accueil') await expect(page.locator('.grille-objectifs .objectif')).toHaveCount(5);

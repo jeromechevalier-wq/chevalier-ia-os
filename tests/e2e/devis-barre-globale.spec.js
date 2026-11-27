@@ -6,7 +6,7 @@
 // 5 module Devis éteint chez un client : ni « Devis » dans le « + », ni résultat de devis.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, ecrireDocument, listerDocuments, creerOrganisation, creerAffaire, estTelephone, PROJET, FIRESTORE, URL_APP, JEROME } from './outils.js';
+import { test, expect, connecter, attendreCalme, ecrireDocument, listerDocuments, creerOrganisation, creerAffaire, estTelephone, PROJET, FIRESTORE, URL_APP, JEROME, connecterCompte } from './outils.js';
 
 async function devis(id, valeurs = {}) {
   const maintenant = new Date();
@@ -122,7 +122,7 @@ test.describe('5 module Devis éteint chez un client', () => {
       await page.goto('about:blank');
       await page.goto(`${URL_APP}#/espace/${id}`);
       await page.waitForFunction(() => !!window.__chevalierTest);
-      await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+      await connecterCompte(page, ALICE);
       await expect(page.locator('.coquille')).toBeVisible();
     };
     await ouvrir('sans');
