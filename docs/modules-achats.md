@@ -31,7 +31,9 @@ Réglages > « Connexion à la base » (visible du propriétaire seul). Le code 
 
 ## Export des données
 
-Chaque module a sa section « Sauvegarde » dans ses réglages (règle du 27/10/2026) : `reglages-export-achatsfournisseurs`, `-achatschantiers`, `-achatsarticles`, `-achatsfactures`, `-tableauachats`.
+**Sauvegarde complète en .zip (27/11/2026, PR 717)** : en haut de Réglages > Achats, une carte « Sauvegarde complète des achats » avec un seul bouton, « Télécharger la sauvegarde (.zip) ». Il télécharge `sauvegarde-achats-AAAA-MM-JJ.zip` (date de Paris) : un fichier par table, exactement le fichier du bouton de chaque module (sans coordonnées bancaires). Seuls les modules Achats allumés y mettent leur table. Si une table ne se lit pas, aucun zip n'est fabriqué et le message nomme la ou les tables. La carte vit dans `js/modules/achatscommun/` (code commun, pas un module) ; le zip est fabriqué par `js/os/zip.js`, sans dépendance.
+
+**Sauvegardes séparées** : chaque module garde sa section « Sauvegarde » (règle du 27/10/2026) : `reglages-export-achatsfournisseurs`, `-achatschantiers`, `-achatsarticles`, `-achatsfactures`, `-tableauachats`. Elles sont rangées dans un bloc replié « Sauvegardes séparées », sans raccourci en haut de page ; une adresse qui mène à l'une d'elles ouvre le bloc avant d'y descendre.
 
 ## L'assistant IA (serveur MCP d'une maison, 26/11/2026, PR 713)
 
