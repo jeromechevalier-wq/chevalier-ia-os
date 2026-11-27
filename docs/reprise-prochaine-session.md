@@ -1,5 +1,62 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 28/11/2026 (« go nuit » du 27/11, deuxième partie) : la base de SCAB 04 et l'appli Factures
+
+| Sujet | PR | État |
+|---|---|---|
+| Base 1a : listes fermées, nettoyage des données de test, surveillant | 754 | fusionnée seule |
+| Base 1b : cadenas des reflets, « par où » posé par la base et la porte | 755 | fusionnée seule |
+| Base 1c : mode d'emploi rangé dans la base | 757 | fusionnée seule |
+| Factures 2a : texte long sur 2 lignes puis « … », texte entier dans la fiche, règle dans `docs/consignes-ui.md` | 758 | fusionnée seule |
+| Factures 2b : « + » et cadenas lus dans le mode d'emploi, l'assistant MCP lit le même | 759 | fusionnée seule (coche « Tests » verte) |
+| Rapport du matin, version 2.59.0, wiki régénéré | cette PR | docs et version (relecture Fable non requise) |
+
+**Les règles de la base du 27/11** : la liste finale des 25 règles, et comment la base tient chacune (tenue, préparée ou à faire), est dans `outils/base/REGLES.md` (mise à jour par la PR 754, puis 755 et 757). Elle n'est pas recopiée ici : c'est ce fichier qui fait foi.
+
+**Ce qui reste à faire avec Jérôme** :
+1. Appliquer à la vraie base de SCAB 04 les migrations 009 à 013, dans la même séance, n8n arrêté : d'abord des vérifications en lecture (les valeurs que n8n envoie vraiment), puis les migrations, puis republier la porte et la maison.
+2. Brancher `outils/base/a-activer/002` (le robot ne décide pas) et `003` (« qui » pris dans l'identité vérifiée), après avoir adapté les workflows n8n.
+3. Cadenasser `valide_le` et `valide_par` des rapprochements, et `refuse_le` et `refuse_par` des suggestions refusées.
+4. Le « par où » ne dit encore que « assistant » ou « n8n », sans le nom exact de l'assistant ou du workflow.
+5. Pas encore de « + Chantier » dans le volet : l'écran n'ouvre jamais un champ qu'il ne sait pas écrire, et le formulaire « Nouveau chantier » n'existe pas encore.
+6. Le mode d'emploi des factures n'est pas encore donné à l'assistant (seulement chantiers, agences, fournisseurs).
+7. La maison de Jérôme reste sur son ancienne base Supabase : son déménagement vers le nouveau modèle se fera dans un second temps (décision de Jérôme).
+8. Le test `achatsfactures-pile` P1 a échoué une fois puis est passé : instable, à surveiller.
+9. La PR 757 n'a pas eu de deuxième relecture Fable après ses dernières corrections.
+
+**Décisions prises seul** (reprises des descriptions des PR) :
+- PR 754 :
+  - Numérotation : la liste 1 à 25 fait foi ; les 12 anciennes règles gardent leur numéro (sauf la 3 et la 6, qui changent de sens).
+  - « Dernière information gagne » est codée dans cette PR ; les autres comportements nouveaux (règles 16, 17, 18, 21, 22 SIREN/SIRET, tampon unique avec motif) sont écrits « à faire » dans `REGLES.md`.
+  - Journal réécrit une fois, sur la base de test seulement (accord de Jérôme), tout est tracé.
+  - Listes fermées tenues par des fonctions fixes dans les contrôles, pas par une table de référence.
+  - Colonne `par_ou` ajoutée à toutes les tables (remplie par la base dans la PR 755).
+  - Une suggestion de l'IA est un geste du robot : `qui = n8n`.
+- PR 755 :
+  - `a-activer/001` branché dans la migration 012 (le fichier reste, vide).
+  - Tests 06 et 07 joués sous le rôle du robot (comme SCAB 04 aujourd'hui).
+  - Nom de l'assistant inconnu de façon sûre côté serveur : `par_ou` vaut `assistant` tout court ; pour n8n, ni workflow ni numéro d'exécution.
+  - « n8n au nom de la personne du ticket » : seulement décrit dans `REGLES.md`, pas fait dans la porte.
+  - Source `relecture` ajoutée à la liste fermée (elle manquait depuis la PR 754).
+- PR 757 :
+  - Catégorie `recopie` ajoutée (les relevés n8n ne sont pas « lus sur la facture »).
+  - Deux valeurs de « modifiable » en plus : `apres_decision` (archiver une facture) et `tant_que_vide` (le SIREN d'une entreprise).
+  - Verrou ajouté : l'identifiant d'une ligne ne change plus.
+- PR 758 :
+  - Wiki non régénéré dans la PR (fait dans cette PR, la dernière de la nuit).
+  - Champ sur plusieurs lignes en modification, de hauteur fixe (il défile à l'intérieur).
+  - Infobulle sur toute la ligne, même quand le texte n'est pas coupé.
+- PR 759 :
+  - L'écran n'ouvre jamais un champ qu'il ne sait pas écrire : le mode d'emploi peut fermer un champ ou retirer un « + », pas en ajouter.
+  - `avant_decision` et `apres_decision` traités comme fermés dans le volet ; `tant_que_vide` ouvert tant que la valeur est vide.
+  - Le mode d'emploi des factures n'est pas encore rendu à l'assistant.
+  - Le mode d'emploi est lu une fois, à la création du volet, sans redessin pendant une saisie.
+
+**Non vérifié avec le vrai système** :
+- La vraie base de SCAB 04 : aucune migration n'y est appliquée, tout a été essayé sur une base de test.
+- Les vrais workflows n8n (les valeurs qu'ils envoient n'ont pas été relues).
+- La maison de Jérôme (toujours sur Supabase).
+
 ## Rapport du matin du 28/11/2026 (nuit 5, « go nuit » du 27/11) : l'accueil en village
 
 Accords écrits de Jérôme avant la nuit : fusionner seul les PR du village qui touchent les règles de la plateforme clients (y compris l'or et 3c-bis), coder l'or cette nuit, allumer le village dans l'espace de Jérôme.
