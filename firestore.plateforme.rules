@@ -217,11 +217,20 @@ service cloud.firestore {
       allow read, delete: if connecte() && request.auth.uid == uid && roleDe(client) in ['editeur', 'lecteur'];
       allow create, update: if connecte() && request.auth.uid == uid && roleDe(client) in ['editeur', 'lecteur'] && villageBatimentValide(id);
     }
+    // Or du village (27/11/2026, étape 6a) : le portefeuille (or, gagne, parcelles, version) est lu par son propriétaire seul (même rôle que ses bâtiments) et écrit
+    // par la fonction villageOr seulement (elle revérifie chaque bonne nouvelle) ; le registre des gains (un gain par élément) : personne, ni en lecture ni en écriture.
+    match /clients/{client}/village_utilisateurs/{uid} {
+      allow read: if connecte() && request.auth.uid == uid && roleDe(client) in ['editeur', 'lecteur'];
+      allow write: if false;
+    }
+    match /clients/{client}/village_gains/{cle} {
+      allow read, write: if false;
+    }
 
     // Les données du client (tout sauf les fiches d'appartenance, traitées ci-dessus).
     match /clients/{client}/{collection}/{reste=**} {
-      allow read: if collection != 'village_utilisateurs' && collection != 'membres' && collection != 'devis_compteurs' && collection != 'crm_actions_lancements' && roleDe(client) in ['editeur', 'lecteur'];
-      allow write: if collection != 'village_utilisateurs' && collection != 'membres' && !collectionDesDocuments(collection) && !collectionDuRdv(collection) && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && !collectionSansSuppression(collection) && !collectionDesDevis(collection) && roleDe(client) == 'editeur';
+      allow read: if collection != 'village_utilisateurs' && collection != 'village_gains' && collection != 'membres' && collection != 'devis_compteurs' && collection != 'crm_actions_lancements' && roleDe(client) in ['editeur', 'lecteur'];
+      allow write: if collection != 'village_utilisateurs' && collection != 'village_gains' && collection != 'membres' && !collectionDesDocuments(collection) && !collectionDuRdv(collection) && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && !collectionSansSuppression(collection) && !collectionDesDevis(collection) && roleDe(client) == 'editeur';
     }
 
     // Tout le reste (racine, autres collections) : refusé.

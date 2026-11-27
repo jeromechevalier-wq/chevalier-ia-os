@@ -13,6 +13,7 @@ import { estErreurEntreprise, ROUTE_MON_ENTREPRISE, decisionTestFinalisation } f
 import { lancerPreparationEmail } from './email-preparer-ecran.js';
 import { MESSAGE_NON_BRANCHE } from './email-preparer.js';
 import { adressesDuDevis } from './email-brouillon.js';
+import { annoncer } from '../../os/bonnes-nouvelles.js';
 
 export const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant.';
 const nouvelId = () => CRM.ctx().nouvelId('devis_devis');
@@ -79,10 +80,12 @@ export async function changerStatut(d, action, libelle) {
       await D.changerStatut(d.id, 'marquer_envoye');
       await noterEnvoi(d);
       try { await D.changerStatut(d.id, action); } catch (e) { console.warn(e); toast(`${e?.message || D.MESSAGE_RESEAU_DEVIS} Le devis est resté à « Envoyé » : recommence depuis son menu.`, { type: 'erreur', duree: 8000 }); return; }
+      if (action === 'accepter') annoncer('devis-signe', { id: d.id }); // or du village (27/11/2026) : APRÈS la réussite ; le serveur revérifie le devis
       toast(`Devis passé à « ${libelle} »`);
       return;
     }
     await D.changerStatut(d.id, action);
+    if (action === 'accepter') annoncer('devis-signe', { id: d.id }); // or du village (27/11/2026) : APRÈS la réussite ; le serveur revérifie le devis
     if (action === 'marquer_envoye') await noterEnvoi(d); // l'historique des envois garde À QUI (et en copie) : l'e-mail lui-même est parti de Gmail, la personne vient de le dire
     toast(`Devis passé à « ${libelle} »`);
   } catch (e) { dire(e); }

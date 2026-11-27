@@ -3,7 +3,7 @@
 // Module Automatisations (workflows n8n, chantier 14). NON déployées par le workflow du CRM ; voir docs/automatisations-n8n.md.
 // La clé d'API de n8n est dans Secret Manager (nom : N8N_API_KEY), déposée par Jérôme ; elle n'est lue qu'au moment d'un appel.
 import { initializeApp, getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
@@ -16,6 +16,7 @@ import { creerMcpClients } from './mcp-clients.js';
 import { reglerEspace } from './espace.js';
 import { deciderClient } from './propositions.js';
 import { transitionDevis, preparerEmailDevis, etatPreparerEmail } from './devis.js';
+import { villageOrClient } from './village.js';
 import { envoyerRdv, etatRdv, tirerPourTous, connexionRdv } from './rdv.js';
 import { creerSmsDirect, creerGestionnaireReponses, verifierConnexion } from '../serveur/src/coeur/sms-direct.js';
 import { creerConnexionSms } from '../serveur/src/coeur/connexion-sms.js';
@@ -106,6 +107,12 @@ export const devisModifierDestinataires = appelDevis('modifierDestinataires'); /
 export const devisChoisirAffaire = appelDevis('choisirAffaire'); // choisir l'affaire d'un devis finalisé qui n'en a pas (toutes les versions, montant recalculé, restaurable)
 export const modeTestSupprimer = appelDevis('supprimerTests'); // Réglages > Mes tests (mode test, PR 4) : éditeur seul, module Devis non exigé
 export const devisMarquerTest = appelDevis('marquerTest'); // marquer ou démarquer comme test un devis finalisé (mode test, PR 3)
+
+// Or du village (27/11/2026) : même cœur que chez Jérôme (serveur/src/coeur/village-or.js), sous clients/<client>/ ; éditeur ou lecteur du client (le lecteur ne gagne rien).
+// Pas de base des achats ici : la source « facture validée » répond « indisponible » (.github/A-FAIRE.md). Déployée seulement par le workflow MANUEL de la plateforme, avec Jérôme.
+export const villageOr = onCall(OPTIONS_DEVIS, async (requete) => {
+  try { return await villageOrClient({ db: db(), auth: requete.auth, donnees: requete.data, horodatage: (ms) => Timestamp.fromMillis(ms) }); } catch (e) { throw enHttps(e); }
+});
 
 // `automatisationsDecider` chez les clients (28/10/2026) : écran « À valider » du module Automatisations (valider, refuser, relancer une proposition), même code métier que chez Jérôme
 // (serveur/src/coeur/propositions.js). Le client est une cible vérifiée (éditeur du client, module « automatisations » actif), jamais une confiance ; tout s'écrit sous clients/<client>/.

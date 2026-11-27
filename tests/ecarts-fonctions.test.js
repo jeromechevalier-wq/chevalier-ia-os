@@ -20,6 +20,7 @@ const PARTAGEES = [
   'devisModifierDestinataires', 'devisChoisirAffaire', 'modeTestSupprimer', 'devisMarquerTest',
   'devisPreparerEmail', 'devisPreparerEmailEtat', 'devisPdf', 'devisPdfLien', 'devisPdfAuto',
   'documentDeposer', 'documentLien', 'documentRenommer', 'documentSupprimer',
+  'villageOr', // or du village (27/11/2026) : même cœur des deux côtés (coeur/village-or.js) ; la source « facture validée » n'existe que dans une maison qui a la base des achats
   'rdvEtat', 'rdvEnvoyer', 'rdvEnvoiPlanifie', 'rdvReponseSms', 'rdvConnexionSms', // module Rendez-vous (14/11/2026) : l'envoi des SMS par ClickSend (demandé par l'écran, filet toutes les 15 minutes, réponses reçues), même code des deux côtés
 ];
 

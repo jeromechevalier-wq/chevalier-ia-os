@@ -379,15 +379,35 @@ service cloud.firestore {
             &amp;&amp; d.cible is string &amp;&amp; d.cible.size() &lt;= 200 &amp;&amp; d.cible.matches('^#/[A-Za-z0-9][A-Za-z0-9_-]*(/[A-Za-z0-9_-]+)*$'))
         );
     }
+    function villageSorteJeu(d) { return d.get('sorte', '') in ['decoration', 'champ', 'enclos']; }
+    // Un objet acheté (créé par le serveur) : le navigateur ne peut que le déplacer (c et l), jamais le créer, changer ses dates ni le supprimer.
+    function villageObjetDeplace(id) {
+      let d = request.resource.data;
+      return id.matches('^o-[a-z0-9-]{1,60}$') &amp;&amp; villageSorteJeu(resource.data)
+        &amp;&amp; d.diff(resource.data).affectedKeys().hasOnly(['c', 'l', 'modifieLe'])
+        &amp;&amp; villagePlace(d, true) &amp;&amp; (!d.keys().hasAny(['modifieLe']) || d.modifieLe == request.time);
+    }
     match /village_utilisateurs/{uid}/batiments/{id} {
-      allow read, delete: if request.auth != null &amp;&amp; request.auth.uid == uid &amp;&amp; compteAutorise();
-      allow create, update: if request.auth != null &amp;&amp; request.auth.uid == uid &amp;&amp; compteAutorise() &amp;&amp; villageBatimentValide(id);
+      allow read: if request.auth != null &amp;&amp; request.auth.uid == uid &amp;&amp; compteAutorise();
+      allow create: if request.auth != null &amp;&amp; request.auth.uid == uid &amp;&amp; compteAutorise() &amp;&amp; villageBatimentValide(id);
+      allow update: if request.auth != null &amp;&amp; request.auth.uid == uid &amp;&amp; compteAutorise()
+        &amp;&amp; (villageSorteJeu(resource.data) ? villageObjetDeplace(id) : villageBatimentValide(id));
+      allow delete: if request.auth != null &amp;&amp; request.auth.uid == uid &amp;&amp; compteAutorise() &amp;&amp; !villageSorteJeu(resource.data);
+    }
+    // Pièces d'or du village (27/11/2026) : le solde et les achats de terrain sont dans le document de l'utilisateur. Lu par lui seul ; écrit par le SERVEUR seulement (fonction villageOr) : aucun navigateur ne peut s'ajouter de l'or.
+    match /village_utilisateurs/{uid} {
+      allow read: if request.auth != null &amp;&amp; request.auth.uid == uid &amp;&amp; compteAutorise();
+      allow write: if false;
+    }
+    // Registre des gains déjà comptés (un par facture ou par devis) : serveur seulement. Exclue du joker ci-dessous.
+    match /village_gains/{id} {
+      allow read, write: if false;
     }
 
     // Tout le reste : comme avant (les comptes autorisés de la fiche de la maison), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        &amp;&amp; !(collection in ['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres', 'reglages_maison', 'village_utilisateurs']);
+        &amp;&amp; !(collection in ['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres', 'reglages_maison', 'village_utilisateurs', 'village_gains']);
     }
   }
 }</code></pre></li><li><strong>Contrôle dans l'interface</strong> : après connexion, si l'email n'est pas dans <code>COMPTES_AUTORISES</code> ou n'est pas vérifié, déconnexion immédiate et message d'accès refusé ; aucune donnée n'est demandée avant ce contrôle.</li><li><strong>Pas de mode hors ligne en version 2.0</strong> : cache Firestore en mémoire (réglage par défaut, pas de cache persistant). Sans réseau, bandeau &quot;Hors ligne : reconnecte toi pour continuer&quot; ; aucune modification n'est promise hors ligne.</li><li><strong>Lectures économes</strong> : un écouteur <code>onSnapshot</code> par collection de listes pour toute la session, filtrage et calculs côté navigateur ; requêtes ciblées à l'ouverture d'une fiche pour notes, événements et activités faites (section 3.1.6) ; aucune requête composite, donc aucun index à publier.</li><li><strong>PWA sans service worker</strong> : <code>manifest.webmanifest</code> (nom &quot;Chevalier IA OS&quot;, nom court &quot;Chevalier OS&quot;, <code>display: standalone</code>, couleurs du thème sombre, icônes 192, 512, maskable, apple touch à partir de la baguette) et balises Apple pour l'installation sur iPhone. <strong>Aucun service worker, aucune mise en cache de fichiers par l'appli.</strong> Version : fichier <code>version.json</code> (<code>{&quot;version&quot;: &quot;2.0.0&quot;}</code>) ; la version chargée est inscrite dans <code>js/os/version.js</code> ; à l'ouverture et à chaque retour sur l'onglet, l'appli lit <code>version.json</code> (sans cache) et, si elle diffère, affiche le bandeau &quot;Nouvelle version disponible&quot; avec &quot;Recharger&quot;. Chaque livraison augmente la version dans les deux fichiers.</li><li><strong>En têtes</strong> (<code>firebase.json</code>) : <code>X-Robots-Tag: noindex, nofollow</code>, <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code>, <code>Permissions-Policy</code> restrictive ; <code>Cache-Control: no-cache</code> pour tous les fichiers <code>.html</code>, <code>.js</code>, <code>.css</code>, <code>.json</code> et le manifeste (revalidation à chaque chargement, rien de périmé) ; cache long uniquement pour les polices et les images. <code>robots.txt</code> interdit tout. <code>&lt;meta name=&quot;robots&quot; content=&quot;noindex&quot;&gt;</code>.</li><li><strong>Routage</strong> par ancre : voir la section 7.2 (<code>#/crm/accueil</code> par défaut).</li><li><strong>Organisation modulaire</strong> : la coquille (<code>js/os/</code>) ne connaît les modules que par la liste <code>js/os/modules.js</code> (id, libellé, icône, routes, fonction de montage). Ajouter un module = un dossier <code>js/modules/&lt;nom&gt;/</code> + une entrée dans cette liste.</li><li><strong>Mode test</strong> : si l'appli est servie sur <code>localhost</code> avec <code>?emulateurs=1</code>, elle se connecte aux émulateurs Firebase (Auth 9099, Firestore 8080) au lieu de la production.</li></ol>

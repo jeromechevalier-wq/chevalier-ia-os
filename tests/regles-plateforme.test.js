@@ -537,13 +537,56 @@ describe('Village par utilisateur sur la plateforme (27/11/2026)', () => {
     await assertSucceeds(setDoc(chemin(db, 'a', ALICE, 'l-a'), LIEN));
   });
 
-  test('P-V5 le parent et toute autre sous-collection restent fermés : le joker ne couvre plus le village', async () => {
+  test('P-V5 le parent (portefeuille d’or, étape 6a) se lit par son propriétaire seulement et ne s’écrit jamais ; toute autre sous-collection reste fermée : le joker ne couvre plus le village', async () => {
     const db = ctx(ALICE);
     await assertFails(setDoc(doc(db, 'clients', 'a', 'village_utilisateurs', `uid-${ALICE}`), { x: 1 }));
-    await assertFails(getDoc(doc(db, 'clients', 'a', 'village_utilisateurs', `uid-${ALICE}`)));
+    await assertSucceeds(getDoc(doc(db, 'clients', 'a', 'village_utilisateurs', `uid-${ALICE}`))); // 6a : son portefeuille (détail en P-V6)
     await assertFails(setDoc(doc(db, 'clients', 'a', 'village_utilisateurs', `uid-${ALICE}`, 'autre', 'x'), { x: 1 }));
     await assertFails(getDoc(doc(db, 'clients', 'a', 'village_utilisateurs', `uid-${ALICE}`, 'autre', 'x')));
     await assertFails(getDocs(collection(db, 'clients', 'a', 'village_utilisateurs')));
     await assertFails(setDoc(doc(db, 'clients', 'a', 'village_utilisateurs', 'nimporte'), { x: 1 })); // l'éditrice n'y écrit plus par le joker
+  });
+
+  test('P-V6 or du village : le propriétaire lit son portefeuille, un autre non ; personne ne l’écrit ; le registre des gains est fermé à tous, même à l’éditrice', async () => {
+    const porte = (db, client, email) => doc(db, 'clients', client, 'village_utilisateurs', `uid-${email}`);
+    const gain = (db, client, cle) => doc(db, 'clients', client, 'village_gains', cle);
+    await env.withSecurityRulesDisabled(async (c) => {
+      for (const email of [ALICE, LEA]) await setDoc(porte(c.firestore(), 'a', email), { or: 120, gagne: 120, parcelles: 0, version: 3 });
+      await setDoc(gain(c.firestore(), 'a', 'ds.d1'), { uid: `uid-${ALICE}`, source: 'devis-signe', pieces: 50 });
+    });
+    // Le propriétaire (éditrice ou lectrice) lit le sien.
+    for (const email of [ALICE, LEA]) {
+      const lu = await assertSucceeds(getDoc(porte(ctx(email), 'a', email)));
+      assert.equal(lu.get('or'), 120);
+    }
+    // Un autre membre (éditeur ou lecteur), un membre d'un autre client, un non-membre, un visiteur : non. Aucune liste de tous les portefeuilles.
+    for (const email of [CLARA, LEA, BOB, ZOE]) await assertFails(getDoc(porte(ctx(email), 'a', ALICE)));
+    await assertFails(getDoc(porte(ctx(ALICE, false), 'a', ALICE))); // e-mail non vérifié
+    await assertFails(getDoc(porte(env.unauthenticatedContext().firestore(), 'a', ALICE)));
+    await assertFails(getDocs(collection(ctx(ALICE), 'clients', 'a', 'village_utilisateurs')));
+    await assertFails(getDoc(porte(ctx(ALICE), 'b', ALICE))); // pas membre du client b
+    // Personne n'écrit un portefeuille, pas même le sien (or, version, parcelles) : seule la fonction villageOr le fait.
+    for (const email of [ALICE, LEA]) {
+      const db = ctx(email);
+      await assertFails(setDoc(porte(db, 'a', email), { or: 99999, gagne: 99999, parcelles: 0, version: 99 }));
+      await assertFails(updateDoc(porte(db, 'a', email), { or: 99999 }));
+      await assertFails(setDoc(porte(db, 'a', email), { version: 99 }, { merge: true }));
+      await assertFails(deleteDoc(porte(db, 'a', email)));
+    }
+    await assertFails(setDoc(porte(ctx(ZOE), 'a', ZOE), { or: 1 }));
+    // Registre des gains : ni lu, ni listé, ni créé, ni modifié, ni supprimé, même par l'éditrice qui a gagné.
+    for (const email of [ALICE, LEA, CLARA, ZOE]) {
+      const db = ctx(email);
+      await assertFails(getDoc(gain(db, 'a', 'ds.d1')));
+      await assertFails(getDocs(collection(db, 'clients', 'a', 'village_gains')));
+      await assertFails(setDoc(gain(db, 'a', 'ds.d2'), { uid: `uid-${email}`, source: 'devis-signe', pieces: 50 }));
+      await assertFails(updateDoc(gain(db, 'a', 'ds.d1'), { pieces: 500 }));
+      await assertFails(deleteDoc(gain(db, 'a', 'ds.d1')));
+    }
+    // Les valeurs n'ont pas bougé.
+    await env.withSecurityRulesDisabled(async (c) => {
+      assert.equal((await getDoc(porte(c.firestore(), 'a', ALICE))).get('or'), 120);
+      assert.equal((await getDoc(gain(c.firestore(), 'a', 'ds.d1'))).get('pieces'), 50);
+    });
   });
 });

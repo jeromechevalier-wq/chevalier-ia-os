@@ -6,6 +6,7 @@ import { h, icone, remplir, confirmer, toast, lirePreference, ecrirePreference, 
 import { lien } from '../../os/router.js';
 import { clientBase, actionsBase, verifierAcces } from '../../os/acces-base.js';
 import { CODES_A_RECHARGER } from '../../os/actions-metier.js';
+import { annoncer } from '../../os/bonnes-nouvelles.js';
 import { enteteListe } from '../crm/barre-liste.js';
 import { creerDonneesExaminer } from './donnees-examiner.js';
 import { creerZonePdf } from './pdf-lecteur.js';
@@ -333,6 +334,7 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
     try { corps = construireCorps(d.f.id, 'accepter', motifAccept, alertes, { etablissement_id: choixAgence.id, chantier_id: choixChantier?.id ?? null }); } catch (e) { erreurDecision = messageDe(e); majDecision(); return; }
     poserOccupe(true); erreurDecision = ''; majDecision();
     try { await actionsBase().validerFacture(corps); } catch (e) { await refusServeur(e); return; }
+    annoncer('facture-validee', { id: d.f.id }); // or du village (27/11/2026) : APRÈS la réussite, jamais attendu ; le serveur revérifie dans la base
     motifAccept = ''; choixChantier = null; choixAgence = null; agenceDevinee = false;
     await decisionFaite('Facture acceptée', 'acceptee');
   }

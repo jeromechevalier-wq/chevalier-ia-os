@@ -106,8 +106,10 @@ console.log('functions/partage/fichiers-regles.js mis à jour (copie exacte de j
 // Le MCP des clients (functions/src/clients/) lit le registre des modules (modules actifs d'un client, outils de chaque module), les règles de la fiche de marque
 // (couleurs de l'écran d'autorisation) et les rôles des membres : mêmes fichiers que l'appli, copiés à plat dans functions/partage/ (aucun n'importe autre chose que ses voisins).
 // maison-modules.js (26/11/2026) : le champ `modules` de reglages_maison/ecran, lu par le serveur MCP d'une maison (mcp/outils-maison.js) avec la MÊME règle que l'écran. Il n'importe que registre.js, son voisin.
-for (const f of ['registre.js', 'marque.js', 'chemins.js', 'membres.js', 'maison-modules.js']) copyFileSync(join(racine, 'js', 'os', f), join(destination, f));
-console.log('functions/partage/ : registre.js, marque.js, chemins.js, membres.js, maison-modules.js copiés de js/os/');
+// village-jeu-regles.js (27/11/2026, or du village) : règles du jeu, fichier pur sans import, le même pour l'écran (dessin) et pour le serveur (villageOr, qui seul décide).
+for (const f of ['registre.js', 'marque.js', 'chemins.js', 'membres.js', 'maison-modules.js', 'village-jeu-regles.js']) copyFileSync(join(racine, 'js', 'os', f), join(destination, f));
+if (/^import /m.test(readFileSync(join(racine, 'js', 'os', 'village-jeu-regles.js'), 'utf8'))) throw new Error('js/os/village-jeu-regles.js : ce fichier doit rester sans import (il est copié tel quel au serveur)');
+console.log('functions/partage/ : registre.js, marque.js, chemins.js, membres.js, maison-modules.js, village-jeu-regles.js copiés de js/os/');
 // États et transitions de la file « À valider » (module Automatisations) : fichier pur, le même pour l'écran et pour le serveur.
 copyFileSync(join(racine, 'js', 'modules', 'automatisations', 'propositions.js'), join(destination, 'propositions.js'));
 console.log('functions/partage/propositions.js mis à jour (copie exacte de js/modules/automatisations/propositions.js)');
@@ -142,14 +144,14 @@ mkdirSync(join(destinationServeur, 'src', 'devis'), { recursive: true });
 for (const f of ['pdf-service.js', 'pdf-declencheur.js', 'chromium.js', 'stockage.js']) copyFileSync(join(racine, 'functions', 'src', 'devis', f), join(destinationServeur, 'src', 'devis', f));
 copyFileSync(join(racine, 'functions', 'src', 'version.js'), join(destinationServeur, 'src', 'version.js'));
 copyFileSync(join(racine, 'functions', 'package.json'), join(destinationServeur, 'package.json')); // version.js lit la version du serveur ici
-for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'devis-document.js', 'devis-numeros.js', 'devis-vocabulaire.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'maison-modules.js', 'fichiers-regles.js', 'rs-logique.js', 'rs-idees.js', 'rs-inspirations.js', 'rs-pistes.js', 'rdv.js', 'propositions.js']) {
+for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'devis-document.js', 'devis-numeros.js', 'devis-vocabulaire.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'maison-modules.js', 'fichiers-regles.js', 'rs-logique.js', 'rs-idees.js', 'rs-inspirations.js', 'rs-pistes.js', 'rdv.js', 'village-jeu-regles.js', 'propositions.js']) {
   mkdirSync(join(destinationServeur, 'partage'), { recursive: true });
   copyFileSync(join(destination, f), join(destinationServeur, 'partage', f));
 }
 // La porte des workflows n8n chez les clients (functions-plateforme/src/porte.js) : la même logique que chez Jérôme (clés, contrôles, actions), copiée telle quelle à côté du serveur.
 cpSync(join(destination, 'porte'), join(destinationServeur, 'partage', 'porte'), { recursive: true });
 console.log('functions-plateforme/serveur/partage/porte/ mis à jour (copie de functions/partage/porte/)');
-console.log('functions-plateforme/serveur/ mis à jour (copie du serveur MCP pour la plateforme clients)');
+console.log('functions-plateforme/serveur/ mis à jour (copie du serveur MCP pour la plateforme clients, village-jeu-regles.js compris)');
 
 // Module Automatisations vu par le projet du CRM (chevalier-ia-os) : la copie des workflows de Jérôme et la vue administrateur réutilisent le MÊME code que la plateforme clients
 // (lecture de n8n, reconnaissance des propriétaires, copie vers Firestore). Copies générées dans functions/partage/, ignorées par git.

@@ -289,15 +289,35 @@ service cloud.firestore {
             && d.cible is string && d.cible.size() <= 200 && d.cible.matches('^#/[A-Za-z0-9][A-Za-z0-9_-]*(/[A-Za-z0-9_-]+)*$'))
         );
     }
+    function villageSorteJeu(d) { return d.get('sorte', '') in ['decoration', 'champ', 'enclos']; }
+    // Un objet acheté (créé par le serveur) : le navigateur ne peut que le déplacer (c et l), jamais le créer, changer ses dates ni le supprimer.
+    function villageObjetDeplace(id) {
+      let d = request.resource.data;
+      return id.matches('^o-[a-z0-9-]{1,60}$') && villageSorteJeu(resource.data)
+        && d.diff(resource.data).affectedKeys().hasOnly(['c', 'l', 'modifieLe'])
+        && villagePlace(d, true) && (!d.keys().hasAny(['modifieLe']) || d.modifieLe == request.time);
+    }
     match /village_utilisateurs/{uid}/batiments/{id} {
-      allow read, delete: if request.auth != null && request.auth.uid == uid && compteAutorise();
-      allow create, update: if request.auth != null && request.auth.uid == uid && compteAutorise() && villageBatimentValide(id);
+      allow read: if request.auth != null && request.auth.uid == uid && compteAutorise();
+      allow create: if request.auth != null && request.auth.uid == uid && compteAutorise() && villageBatimentValide(id);
+      allow update: if request.auth != null && request.auth.uid == uid && compteAutorise()
+        && (villageSorteJeu(resource.data) ? villageObjetDeplace(id) : villageBatimentValide(id));
+      allow delete: if request.auth != null && request.auth.uid == uid && compteAutorise() && !villageSorteJeu(resource.data);
+    }
+    // Pièces d'or du village (27/11/2026) : le solde et les achats de terrain sont dans le document de l'utilisateur. Lu par lui seul ; écrit par le SERVEUR seulement (fonction villageOr) : aucun navigateur ne peut s'ajouter de l'or.
+    match /village_utilisateurs/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid && compteAutorise();
+      allow write: if false;
+    }
+    // Registre des gains déjà comptés (un par facture ou par devis) : serveur seulement. Exclue du joker ci-dessous.
+    match /village_gains/{id} {
+      allow read, write: if false;
     }
 
     // Tout le reste : comme avant (les comptes autorisés de la fiche de la maison), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres', 'reglages_maison', 'village_utilisateurs']);
+        && !(collection in ['console_filet', 'pilotage_parametres', 'crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'rdv_messages', 'rdv_parametres', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles', 'reseauxsociaux_mesures', 'base_parametres', 'reglages_maison', 'village_utilisateurs', 'village_gains']);
     }
   }
 }
