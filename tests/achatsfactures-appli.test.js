@@ -274,7 +274,8 @@ describe('verrous écrits', () => {
   });
   test('C1 double clic sur « Annuler » : le message fermé ne rejoue pas son action, et la pile garde les annulations en cours ; le bilan de la séance ne descend jamais sous zéro', () => {
     const pile = lire('js/modules/achatsfactures/pile.js');
-    assert.match(lire('js/os/ui.js'), /onclick: \(\) => \{ if \(ferme\) return; fermer\(\); action\.surClic\(\); \}/);
+    assert.match(lire('js/os/ui.js'), /let joue = false;[^\n]*\n  let ferme = false;/);
+    assert.match(lire('js/os/ui.js'), /onclick: \(\) => \{ if \(joue\) return; joue = true; fermer\(\); action\.surClic\(\); \}/);
     assert.match(pile, /if \(annulations\.includes\(id\) \|\| !traitees\.has\(id\)\) return;\n    annulations\.push\(id\);/);
     assert.match(pile, /seance\.acceptees = Math\.max\(0, seance\.acceptees - 1\)/);
     assert.match(pile, /seance\.refusees = Math\.max\(0, seance\.refusees - 1\)/);

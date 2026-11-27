@@ -899,6 +899,10 @@ test('C5 volet : focus sur le premier bouton à l\'ouverture, sur le titre aprè
     await expect(volet(page)).toHaveAttribute('role', 'dialog');
     await expect(volet(page)).toHaveAttribute('aria-modal', 'true');
     expect(await defilement()).toBe('hidden'); // la page ne défile pas derrière
+    // Fenêtre sur téléphone : Tab (et Maj+Tab) tourne dans le volet, sans jamais partir dans la page derrière.
+    for (let i = 0; i < 12; i += 1) { await page.keyboard.press('Tab'); expect((await focusDans(page)).volet, `Tab ${i + 1}`).toBe(true); }
+    for (let i = 0; i < 12; i += 1) { await page.keyboard.press('Shift+Tab'); expect((await focusDans(page)).volet, `Maj+Tab ${i + 1}`).toBe(true); }
+    await volet(page).locator('[data-role="volet-onglets"] button').first().focus();
   } else {
     expect(await volet(page).getAttribute('role')).toBeNull(); // sur ordinateur la facture reste utilisable à côté : ce n'est pas une fenêtre
   }
@@ -999,6 +1003,14 @@ test('C9 relecture en échec après un enregistrement réussi : jamais « fiche 
   await expect(page.locator('.toast').filter({ hasText: 'Chantier enregistré' })).toBeVisible();
   const perimee = volet(page).locator('[data-role="liste-perimee"]');
   await expect(perimee).toContainText('La liste n’a pas pu être relue');
+  // « Réessayer » de cette note ne jette jamais une saisie en cours : pendant une modification, il ne fait rien.
+  await fiche(page).locator('[data-action="modifier-fiche"]').click();
+  await fiche(page).locator('[data-champ="adresse"]').fill('Saisie en cours');
+  await perimee.locator('[data-action="reessayer"]').click();
+  await page.waitForTimeout(300);
+  await expect(fiche(page)).toHaveAttribute('data-mode', 'modification');
+  await expect(fiche(page).locator('[data-champ="adresse"]')).toHaveValue('Saisie en cours');
+  await fiche(page).locator('[data-action="annuler-fiche"]').click();
   await expect(fiche(page)).toHaveAttribute('data-mode', 'lecture');
   await expect(fiche(page).locator('[data-ligne="client"] dd')).toHaveText('Nouveau client fictif');
   await expect(volet(page)).not.toContainText('introuvable');
@@ -1013,8 +1025,11 @@ test('C9 relecture en échec après un enregistrement réussi : jamais « fiche 
   await volet(page).locator('[data-role="volet-liste"] button', { hasText: 'Point Q Matériaux' }).click();
   await fiche(page).locator('[data-action="signaler-iban"]').click();
   await page.evaluate(() => { window.__faux.fournisseursEnPanne = true; });
+  await retenir(page, 'fournisseurs', { chemin: '/rest/v1/fournisseurs' });
   await fenetre(page).getByRole('button', { name: 'Retirer l’ancien IBAN' }).click();
   await expect(page.locator('.toast').filter({ hasText: 'Ancien IBAN retiré' })).toBeVisible();
+  await expect(fiche(page).locator('[data-action="signaler-iban"]')).toBeDisabled(); // pendant la relecture : pas de second signalement
+  await lacher(page, 'fournisseurs');
   const erreur = volet(page).locator('[data-etat="erreur"]');
   await expect(erreur).toContainText('Impossible de lire les fournisseurs');
   await expect(volet(page)).not.toContainText('introuvable');
@@ -1074,4 +1089,21 @@ test('C11 touche V pendant qu\'une décision s\'écrit ou que la facture charge 
   await page.keyboard.press('v'); // facture lue, mais il manque le motif (doublon) : là, le message est juste
   await expect(rouge.filter({ hasText: 'ne peut pas être validée tout de suite' })).toBeVisible();
   expect(await appelsVers(page, '/validation')).toHaveLength(1);
+});
+
+test('C1 bis message avec « Annuler » : un clic pendant le fondu de sortie (250 ms) compte encore, et l\'action ne part qu\'une fois', async ({ page }) => {
+  await ouvrirAppli(page);
+  const r = await page.evaluate(async () => {
+    const { toast } = await import(new URL('js/os/ui.js', document.baseURI).href);
+    let n = 0;
+    toast('Message d’essai', { duree: 30, action: { libelle: 'Annuler', surClic: () => { n += 1; } } });
+    const message = [...document.querySelectorAll('.toast')].find((t) => t.textContent.includes('Message d’essai'));
+    const debut = Date.now();
+    while (!message.classList.contains('sortie') && Date.now() - debut < 2000) await new Promise((ok) => setTimeout(ok, 5));
+    const enSortie = message.classList.contains('sortie') && message.isConnected; // le message s'efface, il est encore à l'écran
+    const bouton = message.querySelector('[data-action="toast-action"]');
+    bouton.click(); bouton.click(); bouton.click();
+    return { enSortie, n };
+  });
+  expect(r).toEqual({ enSortie: true, n: 1 });
 });

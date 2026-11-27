@@ -161,7 +161,7 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
 
   /** Une liste gardée après une relecture en échec : un mot, et « Réessayer ». */
   const notePerimee = (quoi) => (quoi !== 'fournisseurs' && cache[quoi].perime ? h('p', { class: 'aide af-perime', role: 'status', dataset: { role: 'liste-perimee' } }, NOTE_PERIMEE, ' ',
-    h('button', { type: 'button', class: 'af-lien-mini', dataset: { action: 'reessayer' }, onclick: () => { void charger(quoi, true); } }, 'Réessayer')) : null);
+    h('button', { type: 'button', class: 'af-lien-mini', dataset: { action: 'reessayer' }, onclick: () => { if (!saisieEnCours()) void charger(quoi, true); } }, 'Réessayer')) : null); // jamais par-dessus une saisie en cours (elle serait jetée)
   const titreFiche = (nom, sous, marque) => h('div', { class: 'af-fiche-nom' }, pastille(marque), h('div', {}, h('h2', { tabIndex: -1, dataset: { role: 'fiche-titre' } }, nom), h('p', { class: 'aide' }, sous)));
   const roue = () => h('div', { class: 'chargement-bloc', role: 'status', dataset: { etat: 'chargement' } }, h('span', { class: 'rond-chargement' }), h('span', { class: 'aide' }, 'Chargement…'));
   const introuvable = (type) => { teteFiche(type); remplir(corps, etatBloc('status', { etat: 'vide' }, h('p', {}, 'Cette fiche est introuvable : elle a peut-être été retirée.'))); };
@@ -256,6 +256,7 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
     });
     if (!r?.ok || !vivant) return;
     toast(MESSAGE_IBAN_RETIRE, { duree: DUREE_MESSAGE });
+    for (const b of corps.querySelectorAll('[data-action="signaler-iban"]')) b.disabled = true; // c'est fait : pas de second signalement pendant la relecture
     await rechargerFournisseurs(); // en échec : la fiche dit « impossible de lire » avec « Réessayer », jamais « introuvable » ni l'ancien IBAN « confirmé »
     if (vivant) { dessiner(); surEcriture(); }
   }
@@ -299,10 +300,21 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
   // ------------------------------------------------------------ ouverture, fermeture
   /** Échap ferme le volet. Écouteur posé à l'ouverture, retiré à la fermeture ; en phase de capture, pour voir une fenêtre AVANT qu'elle se ferme (son Échap ne ferme qu'elle). */
   function surTouche(e) {
-    if (e.key !== 'Escape' || !ouvert || e.defaultPrevented) return;
+    if (!ouvert || e.defaultPrevented) return;
+    if (e.key === 'Tab') { garderTab(e); return; }
+    if (e.key !== 'Escape') return;
     if (document.querySelector('.voile-dialogue, .menu-pop, .suggestions:not([hidden])')) return;
     e.preventDefault();
     fermer();
+  }
+  /** Sur téléphone le volet est une fenêtre (aria-modal) : Tab tourne dans le volet, il ne part jamais dans la page cachée derrière. Une fenêtre ouverte par-dessus garde son propre Tab. */
+  function garderTab(e) {
+    if (element.getAttribute('aria-modal') !== 'true' || document.querySelector('.voile-dialogue')) return;
+    const cibles = [...element.querySelectorAll('button, a[href], input, select, textarea, [tabindex="0"]')].filter((x) => !x.disabled && visible(x));
+    if (cibles.length === 0) { e.preventDefault(); poserFocus(element); return; }
+    const premier = cibles[0]; const dernier = cibles.at(-1); const actif = document.activeElement;
+    const rang = cibles.indexOf(actif);
+    if (e.shiftKey ? (rang <= 0) : (rang === -1 || actif === dernier)) { e.preventDefault(); poserFocus(e.shiftKey ? dernier : premier); }
   }
   function montrer() {
     const avant = ouvert;
