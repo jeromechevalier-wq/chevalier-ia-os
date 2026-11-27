@@ -49,25 +49,57 @@ service cloud.firestore {
     // La fiche elle-même : `maison` n'est lisible ni modifiable par AUCUN navigateur (Jérôme compris) ; `ecran` (noms et portraits des personnes, pour l'écran) est lisible
     // par les comptes autorisés ; `public` (aucun e-mail : { mode_crm } et l'identité d'une maison de client) est lisible avant la connexion. Aucune écriture depuis un navigateur,
     // sauf l'exception ci-dessous (nom et logo de `public`). Exclue du joker plus bas.
-    // Exception (27/11/2026, « Mon espace » d'une maison de client) : le TITULAIRE seul (compteJeromeSeul) peut MODIFIER dans `public` les deux seuls champs nom_espace (texte de 1 à 80
+    // Exception (27/11/2026, « Mon espace » d'une maison de client) : un compte de la maison (compteAutorise : e-mail Google vérifié, listé dans comptes_autorises de la fiche ;
+    // élargi au-delà du seul titulaire le 27/11/2026, accord de Jérôme) peut MODIFIER dans `public` les deux seuls champs nom_espace (texte de 1 à 80
     // caractères, jamais des espaces seuls) et logo (petite image en adresse « data: » PNG, JPEG ou SVG, 140 000 caractères au plus, soit environ 100 Ko), et seulement dans la maison d'un client
     // (`public` porte déjà un nom_espace ou connexion_neutre : jamais chez Jérôme, dont la fiche n'a ni l'un ni l'autre). mode_crm, connexion_neutre et tout autre champ
     // restent intouchables ; le nom ne se retire pas (le logo, si). Ni création, ni suppression. `public` est lu par tous : rien de confidentiel n'y entre.
+    // Journal obligatoire (27/11/2026) : chaque modification porte ligne_journal, l'identifiant d'une NOUVELLE ligne crm_audit écrite dans le MÊME lot, au nom du compte,
+    // sur reglages_maison/public (identiteMaisonJournalisee). Sans cette ligne, la modification est refusée : aucun changement de nom ou de logo sans trace.
+    // La ligne est datée de l'heure de la requête (visible dans le Journal, trié par date), au nom de l'outil mon_espace_maison, action « modifier », statut « succes ».
+    // Sa copie crm_audit_avant (même identifiant, même lot) est exigée aussi : ancien nom (celui du document avant) et nouveau nom (celui du document après) ;
+    // pour le logo seulement « ancien logo » / « pas de logo » et « logo changé » / « logo retiré » : jamais l'image (js/os/identite-maison.js, planIdentiteMaison).
+    function identiteLigneValide(l, id) {
+      return l.acteur == request.auth.token.email && l.via == 'ecran' && l.operationId == id
+        && l.outil == 'mon_espace_maison' && l.action == 'modifier' && l.statut == 'succes'
+        && l.collection == 'reglages_maison' && l.docId == 'public'
+        && l.date == request.time;
+    }
+    function identiteCopieValide(c, id, apres) {
+      let logoTouche = apres.diff(resource.data).affectedKeys().hasAny(['logo']);
+      return c.operationId == id && c.collection == 'reglages_maison' && c.docId == 'public'
+        && c.avant is map && c.apres is map
+        && c.avant.keys().hasOnly(['nom_espace', 'logo']) && c.apres.keys().hasOnly(['nom_espace', 'logo'])
+        && c.avant.get('nom_espace', null) == resource.data.get('nom_espace', '')
+        && c.apres.get('nom_espace', null) == apres.get('nom_espace', '')
+        && c.avant.get('logo', '') == (logoTouche ? (('logo' in resource.data) ? 'ancien logo' : 'pas de logo') : '')
+        && c.apres.get('logo', '') == (logoTouche ? (('logo' in apres) ? 'logo changé' : 'logo retiré') : '');
+    }
+    function identiteMaisonJournalisee(apres) {
+      let id = apres.get('ligne_journal', '');
+      let ligne = /databases/$(database)/documents/crm_audit/$(id);
+      let copie = /databases/$(database)/documents/crm_audit_avant/$(id);
+      return id is string && id.matches('^[A-Za-z0-9]{10,40}$')
+        && !exists(ligne)
+        && identiteLigneValide(getAfter(ligne).data, id)
+        && identiteCopieValide(getAfter(copie).data, id, apres);
+    }
     function identiteMaisonValide() {
       let avant = resource.data;
       let apres = request.resource.data;
-      return apres.diff(avant).affectedKeys().hasOnly(['nom_espace', 'logo'])
+      return apres.diff(avant).affectedKeys().hasOnly(['nom_espace', 'logo', 'ligne_journal'])
         && (avant.get('nom_espace', '') != '' || avant.get('connexion_neutre', false) == true)
         && (('nom_espace' in apres)
           ? (apres.nom_espace is string && apres.nom_espace.trim().size() >= 1 && apres.nom_espace.size() <= 80)
           : !('nom_espace' in avant))
         && (!('logo' in apres)
           || (apres.logo is string && apres.logo.size() <= 140000
-            && apres.logo.matches('^data:image/(png|jpeg|svg[+]xml);base64,[A-Za-z0-9+/]+=*$')));
+            && apres.logo.matches('^data:image/(png|jpeg|svg[+]xml);base64,[A-Za-z0-9+/]+=*$')))
+        && identiteMaisonJournalisee(apres);
     }
     match /reglages_maison/{id} {
       allow get: if id == 'public' || (id == 'ecran' && compteAutorise());
-      allow update: if id == 'public' && compteJeromeSeul() && identiteMaisonValide();
+      allow update: if id == 'public' && compteAutorise() && identiteMaisonValide();
       allow list, create, delete: if false;
     }
 

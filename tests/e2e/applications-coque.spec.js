@@ -3,7 +3,7 @@
 //  2 dans l'appli, la roue dentée n'ouvre que les réglages de CETTE appli (aucun autre module, aucun réglage de l'espace) ;
 //  3 Réglages > Modules actifs dans une maison : le compte client voit ses seuls modules allumés ; le titulaire voit tout le catalogue avec le vrai état ; chez Jérôme : inchangé ;
 //  4 Réglages > Mon espace dans une maison : le titulaire enregistre le nom et le logo, qui s'affichent en haut à gauche et sur la page de connexion ;
-//    un compte du client les voit en lecture seule (ouvrir ce réglage aux comptes du client : à décider par Jérôme).
+//    depuis le 27/11/2026 (accord de Jérôme), les autres comptes du client aussi : tests/e2e/maison-nom-logo-comptes.spec.js.
 // Captures dans tests/e2e/captures/applications-coque/, nommées avec le projet (ordinateur ou telephone). Données d'exemple neutres, aucun réseau réel.
 // Comptes des parcours (outils.js) : JEROME est le titulaire ; CHARLES est un autre compte autorisé (ici : le compte du client). Logique : tests/applications-coque.test.js.
 // Le bâtiment est ouvert au clavier (Entrée) et l'arrivée est attendue par son adresse : le test ne dépend ni du nombre de parcelles ni du délai d'un clic.
@@ -229,27 +229,7 @@ test('4 Mon espace d’une maison, titulaire : fichier refusé (trop lourd, mauv
   await expect(marque.locator('img[src^="data:"]')).toHaveCount(0);
 });
 
-test('4 Mon espace d’une maison, compte du client : le nom et le logo en lecture seule, sans formulaire ; une écriture directe est refusée par les règles', async ({ page }, info) => {
-  const logo = `data:image/png;base64,${(await (async () => { await page.goto('about:blank'); return pngFictif(page); })()).toString('base64')}`;
-  await semerMaison({ publicPlus: { logo } });
-  await ouvrir(page, CHARLES, 'reglages');
-  await expect(page.locator('#reglages-identite')).toBeVisible();
-  await expect(page.locator('[data-role="mon-espace-maison"]')).toHaveCount(0);
-  await expect(page.locator('#reglages-identite [data-info="nom"] .reglages-info-valeur')).toHaveText(NOM);
-  await expect(page.locator('#reglages-identite [data-info="logo"] img')).toHaveAttribute('src', logo);
-  await expect(page.locator('#reglages-identite input, #reglages-identite button')).toHaveCount(0);
-  expect(await sansDefilementHorizontal(page)).toBe(true);
-  await capturer(page, info, '4-client-lecture-seule');
-  // Les règles refusent ce compte, même en appelant la base à la main (le formulaire caché n'est pas la barrière).
-  const code = await page.evaluate(async () => {
-    const { enregistrerIdentiteMaison } = await import('/js/os/mon-espace-maison-donnees.js');
-    try { await enregistrerIdentiteMaison({ nom: 'Nom pirate' }); return 'accepté'; } catch (e) { return e.code; }
-  });
-  expect(code).toBe('permission-denied');
-  await page.reload();
-  await expect(page.locator('#reglages-identite [data-info="nom"] .reglages-info-valeur')).toHaveText(NOM);
-});
-
+// Nom et logo changés par les AUTRES comptes de la maison (27/11/2026, accord de Jérôme) et journal : tests/e2e/maison-nom-logo-comptes.spec.js.
 test('4 chez Jérôme (pas une maison de client) : Mon espace reste en lecture seule, sans formulaire', async ({ page }) => {
   await ouvrir(page, JEROME, 'reglages');
   await expect(page.locator('#reglages-identite')).toBeVisible();

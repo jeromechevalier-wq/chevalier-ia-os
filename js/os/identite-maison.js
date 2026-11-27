@@ -67,3 +67,52 @@ export const nomAfficheMaison = () => nom || NOM_ESPACE_DEFAUT;
 
 /** Nom de l'espace racine à afficher : `defaut` (« Chevalier IA OS » chez Jérôme) sauf dans une maison neutre. */
 export const nomEspaceRacine = (defaut) => (maisonNeutre() ? nomAfficheMaison() : defaut);
+
+// ---------------------------------------------------------------- qui peut changer le nom et le logo, et la trace dans le journal (27/11/2026)
+
+/**
+ * Réglages > Mon espace d'une maison de client : le formulaire est-il proposé à ce compte ? Tout compte connecté de la maison qui peut écrire (`editeur` vrai),
+ * plus seulement le titulaire (accord de Jérôme du 27/11/2026). Un compte en lecture seule (`editeur` faux) voit le nom et le logo sans pouvoir les changer.
+ * Jamais sur la plateforme des clients (`chezClient`), jamais chez Jérôme (ni nom_espace ni connexion_neutre). Ce n'est qu'un affichage : les règles Firestore décident.
+ */
+export function identiteMaisonModifiable({ chezClient, editeur, compte } = {}) {
+  return !chezClient && connexionNeutre() && editeur === true && typeof compte?.email === 'string' && compte.email.trim() !== '';
+}
+
+export const OUTIL_JOURNAL_IDENTITE = 'mon_espace_maison';
+export const JOURS_COPIE_JOURNAL = 90; // date exigée par les règles des copies du journal, inerte (aucune règle d'effacement : décision de Jérôme du 04/10/2026)
+
+/**
+ * Ce qu'écrit « Enregistrer » dans le MÊME lot (les règles refusent la modification de `public` sans sa ligne de journal) :
+ *  - `patch` : les champs de reglages_maison/public (nom_espace, logo si demandé, ligne_journal = identifiant de la ligne) ;
+ *  - `ligne` : la ligne du journal (qui, quel outil, quels champs) ; `copie` : sa copie « avant / après » (ancien et nouveau nom).
+ * Le logo n'entre JAMAIS dans le journal : seulement « logo changé » ou « logo retiré ». Rend null si rien ne change (aucune écriture, aucune ligne).
+ * `avant` : le document `public` lu juste avant ; `nom` : nom rangé ; `logo` : texte (nouveau logo), null (retrait) ou undefined (inchangé) ;
+ * `acteur` : e-mail du compte ; `idLigne` : identifiant de la nouvelle ligne ; `maintenant` : Date.
+ */
+export function planIdentiteMaison({ avant, nom, logo, acteur, idLigne, maintenant }) {
+  const ancienNom = typeof avant?.nom_espace === 'string' ? avant.nom_espace : '';
+  const ancienLogo = typeof avant?.logo === 'string' ? avant.logo : '';
+  const logoChange = logo === null ? ancienLogo !== '' : typeof logo === 'string' && logo !== ancienLogo;
+  if (nom === ancienNom && !logoChange) return null;
+  const patch = { nom_espace: nom, ligne_journal: idLigne };
+  if (logoChange) patch.logo = logo; // null = retrait (l'appelant le traduit en suppression du champ)
+  const champsModifies = [...(nom !== ancienNom ? ['nom_espace'] : []), ...(logoChange ? ['logo'] : [])];
+  const copieAvant = { nom_espace: ancienNom }; // '' si l'espace n'avait pas de nom (maison neutre) : les règles comparent à l'ancien nom exact
+  const copieApres = { nom_espace: nom };
+  if (logoChange) {
+    copieAvant.logo = ancienLogo ? 'ancien logo' : 'pas de logo';
+    copieApres.logo = logo ? 'logo changé' : 'logo retiré';
+  }
+  return {
+    patch,
+    ligne: {
+      operationId: idLigne, ordre: 1, acteur, jeton: 'ecran', via: 'ecran', outil: OUTIL_JOURNAL_IDENTITE, collection: 'reglages_maison', docId: 'public',
+      action: 'modifier', statut: 'succes', champsModifies, parametresRecus: [],
+    },
+    copie: {
+      operationId: idLigne, collection: 'reglages_maison', docId: 'public', avant: copieAvant, apres: copieApres,
+      expireAt: new Date(maintenant.getTime() + JOURS_COPIE_JOURNAL * 86_400_000),
+    },
+  };
+}

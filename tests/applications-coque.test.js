@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { APPLIS_MODULES, routeDuBesoin, cibleValide } from '../js/os/maison-village.js';
 import { interrupteursDeLaMaison, interrupteursDuClient, moduleDeclare, MODULES_DECLARES, SECTIONS_ESPACE } from '../js/os/registre.js';
-import { retenirPublic, oublierPublic, logoMaison, logoValide, nomEspaceMaison, nomRange, connexionNeutre, LOGO_OCTETS_MAX, LOGO_LONGUEUR_MAX } from '../js/os/identite-maison.js';
+import { retenirPublic, oublierPublic, logoMaison, logoValide, nomEspaceMaison, nomRange, connexionNeutre, LOGO_OCTETS_MAX, LOGO_LONGUEUR_MAX, identiteMaisonModifiable, planIdentiteMaison } from '../js/os/identite-maison.js';
 import { preparerLogoMaison, typeLogo } from '../js/os/logo-maison.js';
 
 const lire = (chemin) => readFileSync(new URL(`../${chemin}`, import.meta.url), 'utf8');
@@ -125,11 +125,58 @@ test('4 le nom : espaces simplifiés, 80 caractères au plus, jamais autre chose
 
 test('4 les règles et l’écran portent les mêmes bornes ; le logo n’est posé que dans la source d’une image', () => {
   const regles = lire('firestore.rules');
-  assert.match(regles, /allow update: if id == 'public' && compteJeromeSeul\(\) && identiteMaisonValide\(\);/);
-  assert.match(lire('js/os/reglages.js'), /if \(!ctx\.chezClient && connexionNeutre\(\) && compteReserve\(ctx\.compte\)\) return \[sectionMonEspaceMaison\(ctx, etat\), apparence\];/, 'le formulaire : le titulaire seul');
+  assert.match(regles, /allow update: if id == 'public' && compteAutorise\(\) && identiteMaisonValide\(\);/, 'tout compte de la maison (27/11/2026), plus seulement le titulaire');
+  assert.match(lire('js/os/reglages.js'), /if \(identiteMaisonModifiable\(ctx\)\) return \[sectionMonEspaceMaison\(ctx, etat\), apparence\];/, 'le formulaire : tout compte qui peut écrire');
   assert.match(regles, /allow list, create, delete: if false;/);
-  assert.match(regles, /affectedKeys\(\)\.hasOnly\(\['nom_espace', 'logo'\]\)/);
+  assert.match(regles, /affectedKeys\(\)\.hasOnly\(\['nom_espace', 'logo', 'ligne_journal'\]\)/);
+  assert.match(regles, /&& identiteMaisonJournalisee\(apres\);/, 'journal obligatoire');
   assert.match(regles, new RegExp(`apres\\.logo\\.size\\(\\) <= ${LOGO_LONGUEUR_MAX}`));
   for (const f of ['js/os/mon-espace-maison.js', 'js/os/shell.js']) assert.ok(!/innerHTML/.test(lire(f)), `${f} : jamais innerHTML`);
   assert.match(lire('js/os/shell.js'), /h\('img', \{ class: 'connexion-logo-maison', src: logoMaison\(\)/);
+});
+
+test('3 qui voit le formulaire du nom et du logo : tout compte qui écrit dans une maison de client ; jamais un lecteur, jamais sans compte, jamais chez Jérôme ni sur la plateforme', () => {
+  const compte = { email: 'compte2@exemple.test' };
+  assert.equal(identiteMaisonModifiable({ chezClient: false, editeur: true, compte }), false, 'chez Jérôme (public sans nom ni connexion_neutre) : non');
+  retenirPublic({ mode_crm: true, nom_espace: 'Espace exemple' });
+  assert.equal(identiteMaisonModifiable({ chezClient: false, editeur: true, compte }), true, 'compte de la maison qui écrit : oui (plus seulement le titulaire)');
+  assert.equal(identiteMaisonModifiable({ chezClient: false, editeur: false, compte }), false, 'lecteur : lecture seule');
+  assert.equal(identiteMaisonModifiable({ chezClient: false, editeur: true, compte: null }), false, 'sans compte : non');
+  assert.equal(identiteMaisonModifiable({ chezClient: false, editeur: true, compte: { email: '  ' } }), false);
+  assert.equal(identiteMaisonModifiable({ chezClient: true, editeur: true, compte }), false, 'plateforme des clients : son propre écran Mon espace');
+  oublierPublic();
+  retenirPublic({ mode_crm: true, connexion_neutre: true });
+  assert.equal(identiteMaisonModifiable({ chezClient: false, editeur: true, compte }), true, 'maison neutre sans nom : le nom peut être posé');
+});
+
+test('2 le journal d’un changement : qui, quel outil, ancien et nouveau nom ; pour le logo « logo changé » ou « logo retiré », jamais l’image ; rien ne change = aucune écriture', () => {
+  const LOGO_A = `data:image/png;base64,${'A'.repeat(500)}`;
+  const LOGO_B = `data:image/png;base64,${'B'.repeat(500)}`;
+  const base = { acteur: 'compte2@exemple.test', idLigne: 'ligneEssai000001', maintenant: new Date('2026-11-27T10:00:00Z') };
+  const p = planIdentiteMaison({ ...base, avant: { mode_crm: true, nom_espace: 'Ancien nom', logo: LOGO_A }, nom: 'Nouveau nom', logo: LOGO_B });
+  assert.deepEqual(p.patch, { nom_espace: 'Nouveau nom', ligne_journal: 'ligneEssai000001', logo: LOGO_B });
+  assert.equal(p.ligne.acteur, 'compte2@exemple.test');
+  assert.equal(p.ligne.via, 'ecran');
+  assert.equal(p.ligne.collection, 'reglages_maison');
+  assert.equal(p.ligne.docId, 'public');
+  assert.equal(p.ligne.action, 'modifier');
+  assert.deepEqual(p.ligne.champsModifies, ['nom_espace', 'logo']);
+  assert.deepEqual(p.copie.avant, { nom_espace: 'Ancien nom', logo: 'ancien logo' });
+  assert.deepEqual(p.copie.apres, { nom_espace: 'Nouveau nom', logo: 'logo changé' });
+  assert.ok(p.copie.expireAt instanceof Date);
+  const texte = JSON.stringify([p.ligne, p.copie]);
+  assert.ok(!texte.includes('data:image') && !texte.includes('AAAA') && !texte.includes('BBBB'), 'jamais l’image dans le journal');
+  // Retrait du logo seul : le nom ne change pas, la ligne dit « logo retiré ».
+  const r = planIdentiteMaison({ ...base, avant: { nom_espace: 'Même nom', logo: LOGO_A }, nom: 'Même nom', logo: null });
+  assert.equal(r.patch.logo, null);
+  assert.deepEqual(r.ligne.champsModifies, ['logo']);
+  assert.deepEqual(r.copie.apres, { nom_espace: 'Même nom', logo: 'logo retiré' });
+  // Nom seul : pas de logo dans la copie.
+  const n = planIdentiteMaison({ ...base, avant: { nom_espace: 'A', logo: LOGO_A }, nom: 'B', logo: undefined });
+  assert.equal('logo' in n.patch, false);
+  assert.deepEqual(n.copie, { ...n.copie, avant: { nom_espace: 'A' }, apres: { nom_espace: 'B' } });
+  // Rien ne change (même nom, logo inchangé ou identique, retrait d'un logo absent) : aucune écriture.
+  assert.equal(planIdentiteMaison({ ...base, avant: { nom_espace: 'A' }, nom: 'A', logo: undefined }), null);
+  assert.equal(planIdentiteMaison({ ...base, avant: { nom_espace: 'A', logo: LOGO_A }, nom: 'A', logo: LOGO_A }), null);
+  assert.equal(planIdentiteMaison({ ...base, avant: { nom_espace: 'A' }, nom: 'A', logo: null }), null);
 });

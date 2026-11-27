@@ -1,15 +1,16 @@
 // Réglages > « Mon espace » dans une MAISON de client (27/11/2026, chantier « applications dans la coque ») : le nom de l'espace et son logo.
 // Le nom est affiché en haut à gauche (menu, barre du haut), dans l'onglet et sur la page de connexion ; le logo à gauche du nom et sur la page de connexion.
 // Les deux vivent dans reglages_maison/public (lu avant la connexion, par tout le monde) : rien de confidentiel. UN bouton « Enregistrer » pour les deux.
-// Qui peut enregistrer : le TITULAIRE seul (comptes_jerome_seul ; règles Firestore : compteJeromeSeul et identiteMaisonValide). Les autres comptes ne voient pas ce
-// formulaire (Mon espace en lecture seule, js/os/reglages.js) ; un refus du serveur est dit clairement, rien n'est perdu.
+// Qui peut enregistrer (27/11/2026, accord de Jérôme) : tout compte de la maison qui peut écrire, plus seulement le titulaire (règles Firestore : compteAutorise et
+// identiteMaisonValide ; js/os/identite-maison.js : identiteMaisonModifiable). Chaque changement est noté dans le journal (qui, quand, ancien et nouveau nom ; « logo changé »,
+// jamais l'image). Un compte en lecture seule ne voit pas ce formulaire (Mon espace en lecture seule, js/os/reglages.js) ; un refus du serveur est dit clairement, rien n'est perdu.
 // Chez Jérôme (maison sans nom_espace ni connexion_neutre) cet écran n'existe pas : l'identité de la coque y reste en lecture seule (js/os/reglages.js).
 import { h, icone, remplir, toast } from './ui.js';
 import { LONGUEUR_NOM_MAX, nomRange, nomEspaceMaison, logoMaison, connexionNeutreDemandee, retenirPublic, nomAfficheMaison } from './identite-maison.js';
 import { preparerLogoMaison, TYPES_LOGO_MAISON, AIDE_LOGO_MAISON } from './logo-maison.js';
 import { enregistrerIdentiteMaison } from './mon-espace-maison-donnees.js';
 
-const AIDE_PUBLIC = 'Le nom et le logo sont visibles par tout le monde sur la page de connexion, même sans compte. N’y mets rien de confidentiel.';
+const AIDE_PUBLIC = 'Le nom et le logo sont visibles par tout le monde sur la page de connexion, même sans compte. N’y mets rien de confidentiel. Chaque changement est noté dans le journal.';
 
 /** Section « Mon espace » d'une maison. `ctx` : { editeur, surMarque({ nom, logo }) } ; `etat` : { vivant } (plus rien ne s'affiche après avoir quitté la page). */
 export function sectionMonEspaceMaison(ctx, etat) {

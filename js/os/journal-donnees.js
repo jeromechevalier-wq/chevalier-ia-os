@@ -81,6 +81,23 @@ export async function executer(ecritures, outil = 'ecran') {
   });
 }
 
+/** Identifiant d'une nouvelle ligne du journal (pour une écriture qui doit citer sa ligne : nom et logo d'une maison, js/os/mon-espace-maison-donnees.js). */
+export const nouvelIdLigneJournal = () => doc(collection(db, chemin('crm_audit'))).id;
+
+/**
+ * Modifie UN document et écrit sa ligne de journal et sa copie « avant / après » dans le MÊME lot (tout ou rien), quand la ligne et la copie sont préparées
+ * par l'appelant (Réglages > Mon espace d'une maison : la copie ne doit jamais contenir l'image du logo, js/os/identite-maison.js planIdentiteMaison).
+ * `ref` : document modifié ; `patch` : champs (valeurs Firestore acceptées) ; `idLigne` : identifiant de la ligne (nouvelIdLigneJournal) ; `ligne`, `copie` : données.
+ * Création seulement dans le journal (jamais de modification ni de suppression) ; la date de la ligne est l'heure du serveur.
+ */
+export async function modifierAvecLigneJournal({ ref, patch, idLigne, ligne, copie }) {
+  const lot = writeBatch(db);
+  lot.update(ref, patch);
+  lot.set(doc(db, chemin('crm_audit'), idLigne), { ...ligne, date: serverTimestamp() });
+  lot.set(doc(db, chemin('crm_audit_avant'), idLigne), copie);
+  await lot.commit();
+}
+
 // ---------------------------------------------------------------- journal (lecture seule)
 
 /** Les `taille` lignes du journal les plus récentes (après le curseur `apres` pour la page suivante) : { lignes, curseur, fini }. */
