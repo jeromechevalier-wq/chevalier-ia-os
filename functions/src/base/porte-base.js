@@ -56,7 +56,7 @@ export const RPC_NAVIGATEUR = Object.freeze(['lister_favoris_os', 'basculer_favo
  */
 export const LECTURES_NAVIGATEUR = Object.freeze([
   'articles_fournisseur', 'articles_reference', 'chantiers', 'courriels_recus', 'etablissements_fournisseur', 'factures', 'fournisseurs',
-  'fournisseurs_a_verifier', 'ibans_confirmes', 'lignes_facture', 'rapprochements_articles', 'suggestions_refusees',
+  'fournisseurs_a_verifier', 'ibans_confirmes', 'lignes_facture', 'mode_emploi_champs', 'mode_emploi_objets', 'rapprochements_articles', 'suggestions_refusees',
   'v_td_chantiers', 'v_td_factures', 'v_td_fournisseurs_agences', 'v_td_fournisseurs_factures', 'v_td_fournisseurs_fiches',
   'v_td_prix_evolution', 'v_td_prix_lignes', 'v_td_prix_ponts',
 ]);
@@ -64,7 +64,8 @@ export const LECTURES_NAVIGATEUR = Object.freeze([
  * Tables que l'ASSISTANT (serveur MCP d'une maison) peut lire : sous-ensemble strict de LECTURES_NAVIGATEUR (verrouillé par un test). Jamais : tickets, favoris, journal.
  * Colonnes nommées et tri obligatoire (base/assistant-achats.js) ; aucun outil « requête libre ».
  */
-export const LECTURES_ASSISTANT = Object.freeze(['factures', 'chantiers', 'etablissements_fournisseur', 'fournisseurs', 'lignes_facture', 'ibans_confirmes']);
+// Mode d'emploi de la base (migration 013, PR 2b du 27/11/2026) : structure commune sans espace, lecture seule pour `porte` ; l'écran ET l'assistant le lisent (la base fait foi).
+export const LECTURES_ASSISTANT = Object.freeze(['factures', 'chantiers', 'etablissements_fournisseur', 'fournisseurs', 'lignes_facture', 'ibans_confirmes', 'mode_emploi_objets', 'mode_emploi_champs']);
 /** La seule fonction de la base que l'assistant appelle : un ticket neuf à usage unique pour UN appel à n8n (toute écriture passe par n8n). */
 export const RPC_ASSISTANT = Object.freeze(['demander_ticket_n8n']);
 /** Fonctions d'installation de la base : jamais par la porte, même pour n8n. */

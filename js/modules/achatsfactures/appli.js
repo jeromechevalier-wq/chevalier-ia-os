@@ -165,6 +165,7 @@ export function rendreAppli(conteneur, vue = 'pile') {
       surEcriture: () => { pile?.relire(); }, // relecture SILENCIEUSE de la facture affichée : ses contrôles se recalculent, ses choix (chantier, agence, motif) restent, le focus reste dans le volet
       boutonRepli: () => [boutonVolet, grosTel].find((b) => b.getClientRects().length > 0) ?? null,
       surEtat: (ouvert) => { racine.classList.toggle('af-avec-volet', ouvert); boutonVolet.setAttribute('aria-expanded', String(ouvert)); boutonVolet.classList.toggle('actif', ouvert); },
+      surModeEmploi: () => majBandeaux(),
     });
 
     /**
@@ -179,8 +180,9 @@ export function rendreAppli(conteneur, vue = 'pile') {
       const nom = nomFournisseur(f);
       remplir(fente,
         etat === 'nouveau' ? h('div', { class: 'af-bandeau-nouveau', role: 'status', dataset: { role: 'nouveau-fournisseur' } }, icone('building-2', { taille: 18 }),
-          h('span', {}, h('b', {}, nom === SANS_FOURNISSEUR ? 'Nouveau fournisseur détecté.' : `Nouveau fournisseur détecté : ${nom}.`), ' L’ajouter ?'),
-          h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'ajouter-fournisseur' }, onclick: () => { sortirFocus(); volet.ouvrirNouveau(f); } }, 'Ajouter')) : null,
+          h('span', {}, h('b', {}, nom === SANS_FOURNISSEUR ? 'Nouveau fournisseur détecté.' : `Nouveau fournisseur détecté : ${nom}.`), volet.peutCreer('fournisseurs') ? ' L’ajouter ?' : null),
+          // Mode d'emploi de la base (PR 2b) : pas de bouton « Ajouter » si la base ne permet pas d'en créer ici (sans mode d'emploi : comme avant).
+          volet.peutCreer('fournisseurs') ? h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'ajouter-fournisseur' }, onclick: () => { sortirFocus(); volet.ouvrirNouveau(f); } }, 'Ajouter') : null) : null,
         etat === 'non-reconnu' ? h('div', { class: 'af-bandeau-nouveau', role: 'status', dataset: { role: 'fournisseur-non-reconnu' } }, icone('building-2', { taille: 18 }),
           h('span', {}, h('b', {}, 'Fournisseur non reconnu.'), ' Son SIREN n’a pas été lu sur la facture : il est peut-être déjà dans ta liste.'),
           h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'voir-fournisseurs' }, onclick: () => { sortirFocus(); volet.ouvrir('fournisseurs'); } }, 'Voir les fournisseurs')) : null,
@@ -197,7 +199,7 @@ export function rendreAppli(conteneur, vue = 'pile') {
         if (fournisseurs.etat !== 'ok') { toast('Impossible de lire les fournisseurs. Vérifie ta connexion, puis réessaie.', { type: 'erreur' }); return; }
         const { etat, fournisseur: fo } = etatFournisseurFacture(f, fournisseurs.lignes);
         sortirFocus();
-        if (fo) volet.ouvrirFiche('fournisseurs', fo.id); else if (etat === 'nouveau') volet.ouvrirNouveau(f); else volet.ouvrir('fournisseurs');
+        if (fo) volet.ouvrirFiche('fournisseurs', fo.id); else if (etat === 'nouveau' && volet.peutCreer('fournisseurs')) volet.ouvrirNouveau(f); else volet.ouvrir('fournisseurs');
       } }, nomFournisseur(f));
 
     const majPastille = (texte, { pulse = false } = {}) => {

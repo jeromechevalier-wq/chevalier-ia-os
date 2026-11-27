@@ -11,11 +11,12 @@ import { annotationsDe } from '../functions/src/mcp/outils/index.js';
 import { erreurLisible } from '../functions/src/mcp/gestionnaire.js';
 import { LECTURES_ASSISTANT, LECTURES_NAVIGATEUR, RPC_ASSISTANT, jetonLienValide, ConfigurationAbsente } from '../functions/src/base/porte-base.js';
 import { ErreurConnexionBase } from '../functions/src/base/cloudsql.js';
+import { SQL_CATALOGUE_RELATIONS } from '../functions/src/base/porte-requetes.js';
 import {
   lecteurAssistant, MESSAGE_ACCES_REFUSE, MESSAGE_PAS_BRANCHEE, MESSAGE_SOUCI, MESSAGE_INTROUVABLE, AVERTISSEMENT, COLONNES_JAMAIS_RENDUES, LIMITE_LISTE_MAX,
 } from '../functions/src/base/assistant-achats.js';
 import {
-  service, fausseBase, donneesDeBase, EMAIL, INTRUS, CONFIG, CONNEXION, F1, F2, F3, CH_OUVERT, CH_TERMINE, AG_ACTIVE, AG_INACTIVE, id,
+  service, fausseBase, donneesDeBase, RELATIONS, EMAIL, INTRUS, CONFIG, CONNEXION, F1, F2, F3, CH_OUVERT, CH_TERMINE, AG_ACTIVE, AG_INACTIVE, id,
 } from './_achats-essai.js';
 
 const OUTILS_LECTURE = [lister_factures_achat, lire_facture_achat, lister_chantiers_achat, lister_agences_achat];
@@ -88,7 +89,8 @@ describe('Achats par l’assistant : lectures', () => {
   });
 
   test('B5 liste blanche des lectures de l’assistant', async () => {
-    assert.deepEqual([...LECTURES_ASSISTANT].sort(), ['chantiers', 'etablissements_fournisseur', 'factures', 'fournisseurs', 'ibans_confirmes', 'lignes_facture']);
+    // PR 2b (27/11/2026) : + le mode d'emploi de la base (mode_emploi_champs, mode_emploi_objets), lu aussi par l'écran.
+    assert.deepEqual([...LECTURES_ASSISTANT].sort(), ['chantiers', 'etablissements_fournisseur', 'factures', 'fournisseurs', 'ibans_confirmes', 'lignes_facture', 'mode_emploi_champs', 'mode_emploi_objets']);
     for (const t of LECTURES_ASSISTANT) assert.ok(LECTURES_NAVIGATEUR.includes(t), `${t} est aussi lisible à l'écran`);
     for (const t of ['tickets_n8n', 'favoris', 'favoris_os', 'journal_modifications', 'courriels_recus']) assert.ok(!LECTURES_ASSISTANT.includes(t), t);
     assert.deepEqual([...RPC_ASSISTANT], ['demander_ticket_n8n']);
@@ -290,5 +292,61 @@ describe('Achats par l’assistant : lectures', () => {
     assert.deepEqual((await e.s.listerAgences({ email: EMAIL })).agences.map((a) => a.id), [AG_ACTIVE], 'proposables seulement par défaut');
     assert.deepEqual((await e.s.listerAgences({ email: EMAIL, toutes: true })).agences.map((a) => a.id).sort(), [AG_ACTIVE, AG_INACTIVE].sort());
     assert.deepEqual((await e.s.listerAgences({ email: EMAIL, siren: '999999999' })).agences, []);
+  });
+});
+
+// PR 2b (27/11/2026) : l'assistant lit le MÊME mode d'emploi que l'écran (migration 013), par les mêmes tables (LECTURES_ASSISTANT). La base fait foi.
+describe('Achats par l’assistant : mode d’emploi de la base (PR 2b)', () => {
+  const COLS_MODE = { mode_emploi_objets: ['objet', 'creer', 'phrase_sans_creer'], mode_emploi_champs: ['objet', 'champ', 'categorie', 'modifiable', 'phrase_cadenas', 'archive_le'] };
+  const catalogueAvecMode = [...RELATIONS, ...Object.entries(COLS_MODE).flatMap(([t, cols]) => cols.map((c) => ({ relation: t, colonne: c, type: 'text' })))];
+  const PHRASE = 'Phrase fictive du cadenas, écrite par la base.';
+  const avecMode = (donnees = donneesDeBase()) => fausseBase({
+    donnees: {
+      ...donnees,
+      mode_emploi_objets: [{ objet: 'chantiers', creer: true, phrase_sans_creer: null }, { objet: 'fournisseurs', creer: false, phrase_sans_creer: 'Phrase fictive : on ne crée pas ici.' }, { objet: 'factures', creer: false, phrase_sans_creer: 'Hors sujet.' }],
+      mode_emploi_champs: [
+        { objet: 'chantiers', champ: 'nom', categorie: 'saisi', modifiable: 'oui', phrase_cadenas: null, archive_le: null },
+        { objet: 'chantiers', champ: 'statut', categorie: 'saisi', modifiable: 'non', phrase_cadenas: PHRASE, archive_le: null },
+        { objet: 'chantiers', champ: 'ancienne', categorie: 'saisi', modifiable: 'non', phrase_cadenas: PHRASE, archive_le: '2026-11-27T00:00:00Z' },
+        { objet: 'chantiers', champ: 'cree_par', categorie: 'securite', modifiable: 'non', phrase_cadenas: PHRASE, archive_le: null }, // colonne technique : jamais rendue
+        { objet: 'factures', champ: 'numero', categorie: 'lu_sur_facture', modifiable: 'non', phrase_cadenas: PHRASE, archive_le: null },
+      ],
+    },
+    panne: (sql) => (sql === SQL_CATALOGUE_RELATIONS ? { rows: catalogueAvecMode } : null),
+  });
+
+  test('MD2 la base a un mode d’emploi : lister_chantiers_achat et lister_agences_achat le rendent (tables demandées seulement, lignes archivées et colonnes techniques ignorées), en lecture seule', async () => {
+    const e = service({ base: avecMode() });
+    const ch = await e.s.listerChantiers({ email: EMAIL });
+    assert.deepEqual(ch.modeEmploi, { chantiers: { creer: true, phraseSansCreer: null, champs: [
+      { champ: 'nom', categorie: 'saisi', modifiable: 'oui', phraseCadenas: null },
+      { champ: 'statut', categorie: 'saisi', modifiable: 'non', phraseCadenas: PHRASE },
+    ] } });
+    const ag = await e.s.listerAgences({ email: EMAIL });
+    assert.deepEqual(Object.keys(ag.modeEmploi), ['fournisseurs'], 'seulement les tables demandées qui ont une ligne');
+    assert.equal(ag.modeEmploi.fournisseurs.creer, false);
+    assert.equal(ag.modeEmploi.fournisseurs.phraseSansCreer, 'Phrase fictive : on ne crée pas ici.');
+    for (const t of e.base.tablesLues()) assert.ok(LECTURES_ASSISTANT.includes(t), t);
+    assert.ok(e.base.tablesLues().includes('mode_emploi_champs'));
+    assert.ok(e.base.transactions.every((t) => t.lectureSeule), 'lectures seules');
+    assert.ok(LECTURES_ASSISTANT.includes('mode_emploi_objets') && LECTURES_NAVIGATEUR.includes('mode_emploi_objets'), 'même lecture que l’écran');
+    // l'outil MCP rend la même chose
+    const r = await lister_chantiers_achat.executer(contexte(e.s, { args: {} }));
+    assert.deepEqual(r.modeEmploi, ch.modeEmploi);
+  });
+
+  test('MD3 sans mode d’emploi (ancienne base : tables absentes du catalogue ; tables vides ; lecture en panne) : réponse EXACTEMENT comme avant, aucune erreur', async () => {
+    const reference = service();
+    const avantCh = await reference.s.listerChantiers({ email: EMAIL });
+    const avantAg = await reference.s.listerAgences({ email: EMAIL });
+    assert.ok(!('modeEmploi' in avantCh) && !('modeEmploi' in avantAg), 'ancienne base : pas de clé modeEmploi');
+    assert.ok(!reference.base.tablesLues().some((t) => t.startsWith('mode_emploi')), 'ancienne base : rien n’est lu');
+    const vide = service({ base: fausseBase({ panne: (sql) => (sql === SQL_CATALOGUE_RELATIONS ? { rows: catalogueAvecMode } : null) }) });
+    assert.deepEqual(await vide.s.listerChantiers({ email: EMAIL }), avantCh, 'tables vides : comme avant');
+    const journal = [];
+    const panne = service({ journal, base: fausseBase({ panne: (sql) => { if (sql === SQL_CATALOGUE_RELATIONS) return { rows: catalogueAvecMode }; if (sql.includes('"mode_emploi_objets"')) throw Object.assign(new Error(`secret ${EMAIL}`), { code: 'XX000' }); return null; } }) });
+    assert.deepEqual(await panne.s.listerChantiers({ email: EMAIL }), avantCh, 'lecture en panne : comme avant');
+    assert.deepEqual(await panne.s.listerAgences({ email: EMAIL }), avantAg);
+    assert.ok(!JSON.stringify(journal).includes(EMAIL), 'journal propre');
   });
 });

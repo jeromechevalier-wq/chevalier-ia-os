@@ -7,17 +7,18 @@
 // confirmation explicite ; le nouvel IBAN sera lu sur la prochaine facture puis confirmé après vérification. Un IBAN annoncé n'est gardé que sous sa forme masquée, dans le motif.
 // CLAVIER : à l'ouverture le focus va sur le premier bouton du volet ; après chaque redessin d'une fiche, sur son titre ; à la fermeture, il revient au bouton d'où l'on a ouvert.
 // Échap ferme le volet (sauf si une fenêtre est ouverte : Échap ferme alors la fenêtre). Sur téléphone le volet est une fenêtre (role="dialog", aria-modal) et la page ne défile pas derrière.
-import { h, icone, remplir, toast } from '../../os/ui.js';
+import { h, icone, iconeInfo, remplir, toast } from '../../os/ui.js';
 import { champRecherche } from '../crm/barre-liste.js';
 import { creerFiche } from './fiche.js';
 import { fenetreAction } from './fenetres.js';
 import { ibanValide, normaliserIban } from './controles.js';
 import { champsAgenceDepuis, verifierChampsAgence } from './agences.js';
 import { dateFr, nomFournisseur, SANS_FOURNISSEUR, DUREE_MESSAGE } from './logique.js';
-import { initiales, masquerIban, correspond, verifierChantierFiche, champsChantierModifies, motifChangementIban, MESSAGE_IBAN_RETIRE, LIBELLE_STATUT_CHANTIER } from './logique-appli.js';
+import { initiales, masquerIban, correspond, verifierChantierFiche, champsChantierModifies, motifChangementIban, MESSAGE_IBAN_RETIRE, LIBELLE_STATUT_CHANTIER, OBJET_DU_VOLET, plusSelonModeEmploi, lignesSelonModeEmploi, saisieSelonModeEmploi } from './logique-appli.js';
 
 export const ONGLETS = Object.freeze([['fournisseurs', 'Fournisseurs', 'building-2'], ['chantiers', 'Chantiers', 'folder-kanban'], ['articles', 'Articles', 'tag']]);
 const TITRE = Object.fromEntries(ONGLETS.map(([id, libelle]) => [id, libelle]));
+const VIDE_SANS_PLUS = 'Aucun fournisseur pour l’instant. Ils naissent des factures lues.';
 const VIDE = { fournisseurs: 'Aucun fournisseur pour l’instant. Ils naissent des factures lues, ou du bouton « + Fournisseur ».', chantiers: 'Aucun chantier pour l’instant.', articles: 'Aucun article pour l’instant. Ils naissent des lignes des factures.' };
 const ERREUR = { fournisseurs: 'Impossible de lire les fournisseurs. Vérifie ta connexion, puis réessaie.', chantiers: 'Impossible de lire les chantiers. Vérifie ta connexion, puis réessaie.', articles: 'Impossible de lire les articles. Vérifie ta connexion, puis réessaie.' };
 const NOTE_FOURNISSEUR = 'Le nom, le SIREN, les agences et l’e-mail viennent des factures lues : ils ne se modifient pas ici pour l’instant. L’IBAN ne se saisit pas ici : il est lu sur les factures, puis confirmé après vérification.';
@@ -34,7 +35,7 @@ const CLASSE_PAGE_FIGEE = 'af-volet-ouvert'; // posée sur <html> : sur téléph
  * `boutonRepli()` : le bouton qui reçoit le focus à la fermeture quand celui d'où l'on a ouvert n'existe plus (le grand bouton « Fournisseurs, Chantiers, Articles »).
  * Renvoie { element, voile, ouvrir(onglet), ouvrirFiche(type, id), ouvrirNouveau(facture), fermer(), estOuvert(), rafraichir(), arreter() }.
  */
-export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, surEcriture = () => {}, surEtat = () => {}, boutonRepli = () => null }) {
+export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, surEcriture = () => {}, surEtat = () => {}, boutonRepli = () => null, surModeEmploi = () => {} }) {
   let vivant = true;
   let ouvert = false;
   let onglet = 'fournisseurs';
@@ -46,6 +47,12 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
   const cache = { chantiers: { etat: 'vide', lignes: [], perime: false }, articles: { etat: 'vide', lignes: [], perime: false } }; // etat : vide | chargement | ok | erreur ; perime : la dernière relecture a échoué, les anciennes lignes sont gardées
   let origine = null; // l'élément qui avait le focus à l'ouverture : il le retrouve à la fermeture
   let origineAction = null; // son `data-action`, pour le retrouver s'il a été redessiné entre-temps
+  // Mode d'emploi de la base (PR 2b) : lu dès la création du volet (avant qu'on l'ouvre, en général) ; null tant qu'il n'est pas lu ou s'il n'existe pas (l'écran reste alors comme avant).
+  // Une panne passagère est réessayée à l'ouverture suivante (3 essais au plus) ; une absence (ancienne base, 403, 404, vide) ne l'est pas.
+  let modeEmploi = null;
+  let modeEmploiEnCours = false;
+  let modeEmploiFini = false;
+  let modeEmploiEssais = 0;
 
   const tete = h('div', { class: 'af-volet-tete' });
   const corps = h('div', { class: 'af-volet-corps' });
@@ -74,6 +81,31 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
     }
     if (onglet === quoi && !saisieEnCours()) dessiner();
   }
+  /**
+   * Lit le mode d'emploi une seule fois. Il n'arrive qu'APRÈS le premier dessin (le volet ne l'attend jamais) ; à son arrivée, le volet est redessiné, sauf pendant une saisie
+   * (il s'appliquera au prochain dessin). Aucun message en cas d'échec : `lireModeEmploi` rend null et l'écran reste comme avant.
+   */
+  async function chargerModeEmploi() {
+    if (!vivant || modeEmploiFini || modeEmploiEnCours || modeEmploiEssais >= 3) return;
+    let d = null;
+    try { d = donnees(); } catch { d = null; }
+    if (typeof d?.lireModeEmploi !== 'function') return;
+    modeEmploiEnCours = true; modeEmploiEssais += 1;
+    let r;
+    try { r = await d.lireModeEmploi({ essai: true }); } catch { r = { mode: null, definitif: false }; }
+    modeEmploiEnCours = false;
+    if (!vivant) return;
+    modeEmploiFini = r.definitif || !!r.mode;
+    if (!r.mode) return;
+    modeEmploi = r.mode;
+    surModeEmploi(); // l'application redessine ses bandeaux (bouton « Ajouter » d'un nouveau fournisseur)
+    if (ouvert && !saisieEnCours() && vue !== 'nouveau') dessiner();
+  }
+  const plus = (quoi) => plusSelonModeEmploi(modeEmploi, OBJET_DU_VOLET[quoi], quoi === 'fournisseurs'); // seul « + Fournisseur » existe à l'écran
+  /** Pas de « + » parce que la base ne le permet pas : à sa place, la phrase de la base (gris et « i », règle « limite » de docs/consignes-ui.md). */
+  const sansPlus = (quoi) => { if (quoi !== 'fournisseurs') return null; const p = plus(quoi); return !p.montrer && p.phrase ? h('span', { class: 'af-sans-plus aide', dataset: { role: 'sans-plus' } }, 'Pas d’ajout ici', iconeInfo(p.phrase, 'Pas d’ajout ici')) : null; };
+  const selonBase = (quoi, lignes) => lignesSelonModeEmploi(modeEmploi, OBJET_DU_VOLET[quoi], lignes);
+
   /** Une fiche est en cours de modification : une lecture qui finit ne la redessine pas (la saisie serait perdue). */
   const saisieEnCours = () => vue !== 'liste' && !!corps.querySelector('[data-role="fiche"][data-mode="modification"]');
   const etatDe = (quoi) => (quoi === 'fournisseurs' ? etatFournisseurs() : cache[quoi]);
@@ -130,12 +162,12 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
     const boite = champRecherche({ placeholder: 'Rechercher…', libelleAria: `Rechercher dans ${TITRE[onglet]}`, valeur: recherche, surSaisie: (v) => { recherche = v; remplir(zone, lignes()); } });
     const zone = h('div', { class: 'af-liste-zone' });
     const outils = h('div', { class: 'af-volet-outils' }, boite.element,
-      onglet === 'fournisseurs' ? h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'nouveau-fournisseur' }, onclick: () => ouvrirNouveau(null) }, icone('plus', { taille: 16 }), 'Fournisseur') : null);
+      plus(onglet).montrer ? h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'nouveau-fournisseur' }, onclick: () => ouvrirNouveau(null) }, icone('plus', { taille: 16 }), 'Fournisseur') : sansPlus(onglet));
     function lignes() {
       if (e.etat === 'chargement' || e.etat === 'vide') return h('div', { class: 'chargement-bloc', role: 'status', dataset: { etat: 'chargement' } }, h('span', { class: 'rond-chargement' }), h('span', { class: 'aide' }, 'Chargement…'));
       if (e.etat === 'erreur') return etatBloc('alert', { etat: 'erreur' }, h('p', { class: 'mon-espace-erreur' }, ERREUR[onglet]),
         h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'reessayer' }, onclick: () => { void charger(onglet, true); } }, icone('refresh-cw', { taille: 16 }), 'Réessayer'));
-      if (e.lignes.length === 0) return etatBloc('status', { etat: 'vide' }, h('p', {}, VIDE[onglet]));
+      if (e.lignes.length === 0) return etatBloc('status', { etat: 'vide' }, h('p', {}, onglet === 'fournisseurs' && !plus('fournisseurs').montrer ? VIDE_SANS_PLUS : VIDE[onglet]));
       const visibles = e.lignes.filter((x) => correspond(texteDe(x), recherche));
       if (visibles.length === 0) return etatBloc('status', { etat: 'sans-resultat' }, h('p', {}, 'Rien ne correspond à ta recherche.'));
       return h('ul', { class: 'af-liste', dataset: { role: 'volet-liste' } }, visibles.map(ligne));
@@ -188,21 +220,26 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
     if (!x) { const etat = cache[onglet].etat; if (etat === 'chargement' || etat === 'vide') remplir(corps, roue()); else if (etat === 'erreur') ficheIllisible(onglet); else introuvable(onglet); return; }
     if (onglet === 'articles') {
       remplir(corps, titreFiche(x.designation?.trim() || x.reference || 'Article sans nom', 'Fiche article', icone('tag', { taille: 18 })),
-        creerFiche({ lignes: [
-          { cle: 'fournisseur', libelle: 'Fournisseur', valeur: x.fournisseur ?? '—' }, { cle: 'reference', libelle: 'Référence', valeur: x.reference ?? '—' },
-          { cle: 'designation', libelle: 'Désignation', valeur: x.designation ?? '—' }, { cle: 'unite', libelle: 'Unité', valeur: x.unite ?? '—' },
-        ], note: 'Un article se lit sur les factures : il ne se modifie pas ici.' }).element);
+        creerFiche({ lignes: selonBase('articles', [
+          { cle: 'fournisseur', libelle: 'Fournisseur', valeur: x.fournisseur ?? '—' }, { cle: 'reference', champBase: 'reference', libelle: 'Référence', valeur: x.reference ?? '—' },
+          { cle: 'designation', champBase: 'designation', libelle: 'Désignation', valeur: x.designation ?? '—' }, { cle: 'unite', champBase: 'unite', libelle: 'Unité', valeur: x.unite ?? '—' },
+        ]), note: 'Un article se lit sur les factures : il ne se modifie pas ici.' }).element);
       return;
     }
+    const lignesChantier = [
+        { cle: 'nom', champBase: 'nom', libelle: 'Nom', valeur: x.nom ?? '—', modifiable: true }, { cle: 'code', champBase: 'code', libelle: 'Code', valeur: x.code ?? '—', modifiable: true },
+        { cle: 'client', champBase: 'client', libelle: 'Client', valeur: x.client ?? '—', modifiable: true }, { cle: 'adresse', champBase: 'adresse', libelle: 'Adresse', valeur: x.adresse ?? '—', modifiable: true },
+        { cle: 'statut', champBase: 'statut', libelle: 'Statut', valeur: LIBELLE_STATUT_CHANTIER[x.statut] ?? x.statut ?? '—' },
+    ];
     const fiche = creerFiche({
-      lignes: [
-        { cle: 'nom', libelle: 'Nom', valeur: x.nom ?? '—', modifiable: true }, { cle: 'code', libelle: 'Code', valeur: x.code ?? '—', modifiable: true },
-        { cle: 'client', libelle: 'Client', valeur: x.client ?? '—', modifiable: true }, { cle: 'adresse', libelle: 'Adresse', valeur: x.adresse ?? '—', modifiable: true },
-        { cle: 'statut', libelle: 'Statut', valeur: LIBELLE_STATUT_CHANTIER[x.statut] ?? x.statut ?? '—' },
-      ],
+      lignes: selonBase('chantiers', lignesChantier),
       note: 'Le statut, le budget et les dates se règlent dans l’écran Chantiers.',
-      surEnregistrer: async (v) => {
-        const probleme = verifierChantierFiche(v);
+      surEnregistrer: async (brute) => {
+        // Un champ cadenassé par le mode d'emploi n'est jamais envoyé : il est retiré de la saisie (même si la fiche était ouverte avant l'arrivée du mode d'emploi) et garde sa valeur.
+        const saisis = saisieSelonModeEmploi(modeEmploi, 'chantiers', lignesChantier, brute);
+        const v = { nom: x.nom ?? '', code: x.code ?? '', client: x.client ?? '', adresse: x.adresse ?? '', ...saisis };
+        // Seuls les champs saisis sont vérifiés : un champ cadenassé (que la personne ne peut pas corriger) ne bloque jamais l'enregistrement des autres.
+        const probleme = verifierChantierFiche({ nom: 'x', code: 'x', client: '', adresse: '', ...saisis });
         if (probleme) throw new Error(probleme);
         const modifies = champsChantierModifies(x, v);
         const change = await donnees().enregistrerChantier(x, v);
@@ -229,12 +266,12 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
     const confirmeTexte = !fo.ibansLus ? 'Non lu' : fo.confirmation ? `Oui, le ${dateFr(fo.confirmation.confirme_le)}` : fo.iban ? 'Non, jamais' : '—';
     const signaler = fo.confirmation ? h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'signaler-iban' }, onclick: () => { void signalerChangementIban(fo); } }, icone('triangle-alert', { taille: 16 }), LIBELLE_SIGNALER) : null;
     const fiche = creerFiche({
-      lignes: [
-        { cle: 'nom', libelle: 'Nom', valeur: fo.nom }, { cle: 'siren', libelle: 'SIREN', valeur: fo.siren ?? '—' },
+      lignes: selonBase('fournisseurs', [
+        { cle: 'nom', champBase: 'nom', libelle: 'Nom', valeur: fo.nom }, { cle: 'siren', champBase: 'siren', libelle: 'SIREN', valeur: fo.siren ?? '—' },
         { cle: 'agences', libelle: 'Agence(s)', valeur: agences }, { cle: 'adresse', libelle: 'Adresse', valeur: villes }, { cle: 'email', libelle: 'E-mail', valeur: fo.email ?? '—' },
         { cle: 'iban', libelle: 'IBAN', valeur: ibanTexte, classe: 'af-iban' }, { cle: 'iban-confirme', libelle: 'IBAN confirmé', valeur: confirmeTexte },
         { cle: 'nb', libelle: 'Nombre de factures', valeur: fo.nbFactures === null ? '—' : String(fo.nbFactures) }, { cle: 'derniere', libelle: 'Dernière facture', valeur: fo.derniere ? dateFr(fo.derniere) : '—' },
-      ],
+      ]),
       note: `${NOTE_FOURNISSEUR} ${fo.confirmation ? NOTE_CONFIRME : fo.iban && fo.ibansLus ? NOTE_SANS_CONFIRMATION : ''}`.trim(),
       actionsLecture: signaler ? [signaler] : [],
     });
@@ -347,6 +384,7 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
     }
     dessiner({ focus: avant ? 'garder' : 'ouverture' });
     if (!avant) surEtat(true);
+    void chargerModeEmploi(); // nouvel essai seulement après une panne passagère
   }
   function ouvrir(quoi = 'fournisseurs') { onglet = quoi; vue = 'liste'; cle = null; depuisFacture = null; recherche = ''; montrer(); void charger(quoi); }
   function ouvrirFiche(type, id) { onglet = type; vue = 'fiche'; cle = id; depuisFacture = null; montrer(); void charger(type); }
@@ -368,5 +406,7 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
   /** Les fournisseurs viennent d'être relus par l'application : la liste (ou une fiche encore en chargement) se redessine ; une saisie en cours n'est jamais écrasée. */
   function rafraichir() { if (ouvert && onglet === 'fournisseurs' && (vue === 'liste' || corps.querySelector('[data-etat="chargement"], [data-etat="erreur"]'))) dessiner(); }
 
-  return { element, voile, ouvrir, ouvrirFiche, ouvrirNouveau, fermer, estOuvert: () => ouvert, rafraichir, arreter: () => { vivant = false; liberer(); } };
+  setTimeout(() => { void chargerModeEmploi(); }, 0); // dès la création : en général, le mode d'emploi est là avant la première ouverture (pas de « + » qui apparaît puis disparaît)
+  /** `peutCreer('fournisseurs')` : le « + » selon le mode d'emploi de la base (vrai sans mode d'emploi, comme avant). Pour les autres portes de création (bandeau de la facture). */
+  return { element, voile, ouvrir, ouvrirFiche, ouvrirNouveau, fermer, estOuvert: () => ouvert, rafraichir, peutCreer: (quoi) => plus(quoi).montrer, arreter: () => { vivant = false; liberer(); } };
 }

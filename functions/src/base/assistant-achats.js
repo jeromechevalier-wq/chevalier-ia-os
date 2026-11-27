@@ -54,6 +54,9 @@ export const COLONNES_CHANTIERS = ['id', 'nom', 'client', 'adresse', 'statut', '
 export const COLONNES_AGENCES = ['id', 'fournisseur_id', 'siret', 'nom_agence', 'ville', 'actif', 'fusionne_dans'];
 export const COLONNES_FOURNISSEURS = ['id', 'siren', 'nom', 'statut'];
 export const COLONNES_LIGNE = ['position', 'reference_fournisseur', 'designation', 'quantite', 'unite', 'prix_unitaire_ht', 'remise_pct', 'montant_ht', 'taux_tva'];
+/** Mode d'emploi de la base (migration 013, PR 2b du 27/11/2026) : le même que celui de l'écran ; la base fait foi. */
+export const COLONNES_MODE_OBJETS = ['objet', 'creer', 'phrase_sans_creer'];
+export const COLONNES_MODE_CHAMPS = ['objet', 'champ', 'categorie', 'modifiable', 'phrase_cadenas', 'archive_le'];
 export const COLONNES_IBANS = ['id', 'fournisseur_id', 'siren', 'iban', 'facture_id', 'moyen_verification', 'confirme_par', 'confirme_le', 'revoque_le', 'motif_revocation'];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -284,11 +287,39 @@ export function creerAssistantAchats({
     };
   }
 
+  /**
+   * Mode d'emploi de la base pour ces tables : { <table>: { creer, phraseSansCreer, champs: [{ champ, categorie, modifiable, phraseCadenas }] } }, ou null quand la base n'en a pas
+   * (ancienne base, migration 013 pas appliquée : les tables ne sont pas dans le catalogue, rien n'est lu) ou quand la lecture échoue : la réponse de l'outil reste alors comme avant.
+   */
+  async function lireModeEmploi(email, objets) {
+    try {
+      return await transaction(email, true, 'mode_emploi', async (lire, _cx, cat) => {
+        if (!cat?.relations?.has('mode_emploi_objets') || !cat.relations.has('mode_emploi_champs')) return null;
+        const filtre = [['objet', `in.(${objets.join(',')})`]];
+        const o = await lire('mode_emploi_objets', { colonnes: COLONNES_MODE_OBJETS, filtres: filtre, tri: ['objet'] });
+        const c = await lire('mode_emploi_champs', { colonnes: COLONNES_MODE_CHAMPS, filtres: filtre, tri: ['objet', 'champ'] });
+        if (!o.lignes.length || o.lignes.length >= LIMITE_MAX || c.lignes.length >= LIMITE_MAX) return null;
+        const r = {};
+        for (const x of o.lignes) r[x.objet] = { creer: x.creer === true, phraseSansCreer: x.creer === true ? null : x.phrase_sans_creer ?? null, champs: [] };
+        for (const x of c.lignes) {
+          if (x.archive_le || !r[x.objet] || x.categorie === 'securite') continue; // colonnes techniques (id, qui, quand…) : jamais montrées à l'assistant, inutiles ici
+          r[x.objet].champs.push({ champ: x.champ, categorie: x.categorie, modifiable: x.modifiable, phraseCadenas: x.modifiable === 'oui' ? null : x.phrase_cadenas ?? null });
+        }
+        return r;
+      });
+    } catch {
+      return null;
+    }
+  }
+  /** Ajoute `modeEmploi` à une réponse seulement s'il existe : sans mode d'emploi, la réponse est exactement celle d'avant. */
+  const avecModeEmploi = (reponse, mode) => (mode ? { ...reponse, modeEmploi: mode } : reponse);
+
   async function listerChantiers({ email, ouvertsSeulement = true, recherche }) {
     const e = await controler(email, 'lire');
     const lignes = await transaction(e, true, 'lister_chantiers', async (lire) => (await lire('chantiers', { colonnes: COLONNES_CHANTIERS, tri: ['nom.asc.nullslast', 'id'] })).lignes);
     const gardes = lignes.filter((c) => (!ouvertsSeulement || chantierAcceptable(c)) && contient([c.nom, c.client, c.code, c.adresse], recherche ?? ''));
-    return { chantiers: gardes.slice(0, LIMITE_REFERENTIEL).map(chantierRendu), incomplet: lignes.length >= LIMITE_MAX || gardes.length > LIMITE_REFERENTIEL, avertissement: AVERTISSEMENT };
+    return avecModeEmploi({ chantiers: gardes.slice(0, LIMITE_REFERENTIEL).map(chantierRendu), incomplet: lignes.length >= LIMITE_MAX || gardes.length > LIMITE_REFERENTIEL, avertissement: AVERTISSEMENT },
+      await lireModeEmploi(e, ['chantiers']));
   }
 
   async function lireToutesLesAgences(lire) {
@@ -302,7 +333,8 @@ export function creerAssistantAchats({
     const { agences, tronque } = await transaction(e, true, 'lister_agences', (lire) => lireToutesLesAgences(lire));
     const gardes = (toutes ? agences : agencesProposables(agences))
       .filter((a) => (!siren || sirenDeAgence(a) === siren) && contient([a.fournisseur?.nom, a.nom_agence, a.ville, a.siret], recherche ?? ''));
-    return { agences: gardes.slice(0, LIMITE_REFERENTIEL).map(agenceRendue), incomplet: tronque || gardes.length > LIMITE_REFERENTIEL, avertissement: AVERTISSEMENT };
+    return avecModeEmploi({ agences: gardes.slice(0, LIMITE_REFERENTIEL).map(agenceRendue), incomplet: tronque || gardes.length > LIMITE_REFERENTIEL, avertissement: AVERTISSEMENT },
+      await lireModeEmploi(e, ['etablissements_fournisseur', 'fournisseurs']));
   }
 
   // ———————————————————— écritures (toujours par n8n, avec un ticket neuf)

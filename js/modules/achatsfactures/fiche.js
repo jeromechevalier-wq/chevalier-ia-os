@@ -2,12 +2,23 @@
 // RÈGLE : en mode « Modifier », LA MISE EN PAGE NE BOUGE PAS. La colonne des libellés reste exactement à sa place ; chaque valeur modifiable devient un champ SUR PLACE,
 // dans la même case (même largeur, même hauteur de ligne : la valeur lue et le champ ont la même boîte, voir css/achatsfactures-appli.css, `.af-valeur` et `.af-champ-fiche`).
 // D'abord en lecture ; « Modifier » ; puis « Enregistrer » / « Annuler ». « Annuler » jette la saisie et rend les valeurs d'origine. Aucun appel réseau ici : `surEnregistrer` est donné.
-import { h, icone, remplir } from '../../os/ui.js';
+import { h, icone, iconeInfo, remplir } from '../../os/ui.js';
+
+/** La bulle d'explication commune (iconeInfo), avec un cadenas à la place du « i ». */
+function cadenasDe(l) {
+  const b = iconeInfo(l.cadenas, l.libelle);
+  if (!b) return null;
+  b.querySelector('svg')?.replaceWith(icone('lock', { taille: 14 }));
+  b.classList.add('af-cadenas');
+  b.dataset.role = 'cadenas';
+  b.dataset.cadenas = l.cle;
+  return b;
+}
 
 const MESSAGE_PAR_DEFAUT = 'Une erreur est survenue, réessaie dans un instant.';
 
 /**
- * `lignes` : [{ cle, libelle, valeur (texte montré), saisie? (texte du champ ; défaut : valeur), modifiable?, placeholder?, classe? }].
+ * `lignes` : [{ cle, libelle, valeur (texte montré), saisie? (texte du champ ; défaut : valeur), modifiable?, placeholder?, classe?, cadenas? (phrase du mode d'emploi de la base) }].
  * `surEnregistrer(valeurs)` : reçoit { cle: texte } des lignes modifiables ; renvoie false pour rester en modification sans message (l'utilisateur a renoncé),
  * lève une erreur (message français) pour l'afficher sous la fiche. Après un succès, l'appelant redessine la fiche avec les nouvelles données.
  * `mode` : 'lecture' (défaut) ou 'creation' (tout de suite en saisie : « Annuler » appelle `surAnnuler`).
@@ -53,7 +64,9 @@ export function creerFiche({ lignes, surEnregistrer = null, surAnnuler = null, m
       } else {
         case_ = h('span', { class: `af-valeur${l.classe ? ` ${l.classe}` : ''}`, dataset: { valeur: l.cle } }, l.valeur); // texte entier, jamais coupé : pas d'infobulle
       }
-      return h('div', { class: 'af-fiche-ligne', dataset: { ligne: l.cle } }, h('dt', {}, l.libelle), h('dd', {}, case_));
+      // Champ cadenassé par le mode d'emploi de la base (PR 2b) : un cadenas après la valeur ; sa phrase s'affiche comme toute explication (iconeInfo : survol, focus, toucher).
+      const cadenas = l.cadenas ? cadenasDe(l) : null;
+      return h('div', { class: 'af-fiche-ligne', dataset: { ligne: l.cle } }, h('dt', {}, l.libelle), h('dd', { class: cadenas ? 'af-avec-cadenas' : null }, case_, cadenas));
     }));
     if (modification) {
       remplir(bas,

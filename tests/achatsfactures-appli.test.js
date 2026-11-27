@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import {
   DUREES, COURBE_ENTREE, VUES_APPLI, JOURS_ALERTE_IBAN, initiales, masquerIban, ibanLisible, sirenFacture, jourParis, changementIbanRecent, changementDansConfirmations, fournisseursDuVolet, fournisseurDeFacture, etatFournisseurFacture, motifChangementIban, MESSAGE_IBAN_RETIRE,
   verifierChantierFiche, champsChantierModifies, semaineIso, chiffresTableau, libelleMois, delaiLisible, bilanDuJour, texteBilan, correspond,
+  preparerModeEmploi, plusSelonModeEmploi, lignesSelonModeEmploi, saisieSelonModeEmploi, OBJET_DU_VOLET,
 } from '../js/modules/achatsfactures/logique-appli.js';
 import { creerDonneesAppli } from '../js/modules/achatsfactures/donnees-appli.js';
 
@@ -305,5 +306,74 @@ describe('verrous écrits', () => {
     assert.ok(/en haut à gauche[^\n]*🏠 › nom de l’appli/i.test(regle), 'maison › nom de l’appli, en haut à gauche');
     assert.ok(/en haut à droite[^\n]*icône statistiques[^\n]*roue dentée/i.test(regle), 'statistiques puis roue dentée, en haut à droite');
     assert.ok(regle.includes('ne montrent QUE cette appli'), 'menu et réglages : seulement cette appli');
+  });
+});
+
+// PR 2b (27/11/2026) : le « + » et les champs cadenassés (avec leur phrase) sont lus dans le MODE D'EMPLOI de la base (migration 013) ; la base fait foi.
+// Sans mode d'emploi (ancienne base, migrations pas appliquées, porte pas republiée : 403), l'écran reste exactement comme avant.
+describe('Mode d’emploi de la base (PR 2b)', () => {
+  const PHRASE = 'Phrase fictive du cadenas, écrite par la base.';
+  const OBJETS = [{ objet: 'chantiers', creer: true, phrase_sans_creer: null }, { objet: 'fournisseurs', creer: false, phrase_sans_creer: 'Phrase fictive : on ne crée pas ici.' }];
+  const CHAMPS = [
+    { objet: 'chantiers', champ: 'nom', modifiable: 'non', phrase_cadenas: PHRASE, archive_le: null },
+    { objet: 'chantiers', champ: 'code', modifiable: 'oui', phrase_cadenas: null, archive_le: null },
+    { objet: 'chantiers', champ: 'client', modifiable: 'non', phrase_cadenas: PHRASE, archive_le: '2026-11-27T00:00:00Z' }, // archivée : ignorée
+    { objet: 'chantiers', champ: 'statut', modifiable: 'oui', phrase_cadenas: null, archive_le: null },
+  ];
+  const LIGNES = [
+    { cle: 'nom', champBase: 'nom', libelle: 'Nom', valeur: 'A', modifiable: true }, { cle: 'code', champBase: 'code', libelle: 'Code', valeur: 'B', modifiable: true },
+    { cle: 'client', champBase: 'client', libelle: 'Client', valeur: 'C', modifiable: true }, { cle: 'statut', champBase: 'statut', libelle: 'Statut', valeur: 'D' },
+    { cle: 'resume', libelle: 'Résumé', valeur: 'E' },
+  ];
+
+  test('MD2 la base fait foi : un champ « non » est fermé avec sa phrase ; « oui » ne rouvre jamais un champ que l’écran ne sait pas écrire ; le « + » suit la base', () => {
+    const mode = preparerModeEmploi(OBJETS, CHAMPS);
+    const l = lignesSelonModeEmploi(mode, 'chantiers', LIGNES);
+    assert.deepEqual(l.map((x) => [x.cle, !!x.modifiable, x.cadenas ?? null]), [['nom', false, PHRASE], ['code', true, null], ['client', true, null], ['statut', false, null], ['resume', false, null]]);
+    assert.deepEqual(plusSelonModeEmploi(mode, 'fournisseurs', true), { montrer: false, phrase: 'Phrase fictive : on ne crée pas ici.' });
+    assert.deepEqual(plusSelonModeEmploi(mode, 'chantiers', false), { montrer: false, phrase: null }, 'la base autorise, mais l’écran n’a pas de « + » : rien n’apparaît');
+    assert.deepEqual(plusSelonModeEmploi(mode, 'articles_fournisseur', true), { montrer: true, phrase: null }, 'pas de ligne pour cette table : comme avant');
+    assert.equal(OBJET_DU_VOLET.articles, 'articles_fournisseur');
+  });
+
+  test('MD3 sans mode d’emploi : les lignes et le « + » restent exactement comme avant', () => {
+    for (const mode of [null, preparerModeEmploi([], []), preparerModeEmploi(null, null)]) {
+      assert.equal(lignesSelonModeEmploi(mode, 'chantiers', LIGNES), LIGNES, 'même objet, rien de changé');
+      assert.deepEqual(plusSelonModeEmploi(mode, 'fournisseurs', true), { montrer: true, phrase: null });
+    }
+  });
+
+  test('MD3 lecture : tables nommées, colonnes nommées, tables du volet seulement ; table absente, 403 « lecture refusée », tables vides ou lecture coupée = null, sans erreur', async () => {
+    const lectures = [];
+    const client = (comportement) => ({ lire: async (table, options) => { lectures.push({ table, options }); return comportement(table); } });
+    const avec = creerDonneesAppli({ client: client((t) => ({ lignes: t === 'mode_emploi_objets' ? OBJETS : CHAMPS, tronque: false })), actions: {} });
+    const mode = await avec.lireModeEmploi();
+    assert.equal(mode.get('fournisseurs').creer, false);
+    assert.deepEqual(lectures.map((x) => x.table).sort(), ['mode_emploi_champs', 'mode_emploi_objets']);
+    for (const x of lectures) {
+      assert.ok(x.options.colonnes.length && x.options.tri.length, 'colonnes et tri nommés');
+      assert.deepEqual(x.options.filtres, [['objet', 'in', ['fournisseurs', 'chantiers', 'articles_fournisseur']]]);
+    }
+    const erreur = (statut) => Object.assign(new Error('refus'), { statut });
+    for (const comportement of [() => { throw erreur(404); }, () => { throw erreur(403); }, () => ({ lignes: [], tronque: false }), () => ({ lignes: OBJETS, tronque: true })]) {
+      assert.equal(await creerDonneesAppli({ client: client(comportement), actions: {} }).lireModeEmploi(), null);
+    }
+    // définitif (absent : 403, 404, vide) ou passager (réseau, lecture coupée : l'écran réessaiera à l'ouverture suivante)
+    const essai = async (comportement) => creerDonneesAppli({ client: client(comportement), actions: {} }).lireModeEmploi({ essai: true });
+    assert.deepEqual(await essai(() => { throw erreur(403); }), { mode: null, definitif: true });
+    assert.deepEqual(await essai(() => { throw erreur(404); }), { mode: null, definitif: true });
+    assert.deepEqual(await essai(() => ({ lignes: [], tronque: false })), { mode: null, definitif: true });
+    assert.deepEqual(await essai(() => { throw new Error('réseau'); }), { mode: null, definitif: false });
+    assert.deepEqual(await essai(() => { throw erreur(401); }), { mode: null, definitif: false }, 'badge périmé : passager');
+    assert.deepEqual(await essai(() => ({ lignes: OBJETS, tronque: true })), { mode: null, definitif: false });
+  });
+
+  test('MD2 « tant_que_vide » ouvert tant que la valeur est vide ; une saisie ne garde que les champs que la base laisse modifier (fiche ouverte avant l’arrivée du mode d’emploi)', () => {
+    const mode = preparerModeEmploi(OBJETS, [...CHAMPS, { objet: 'chantiers', champ: 'adresse', modifiable: 'tant_que_vide', phrase_cadenas: PHRASE, archive_le: null }]);
+    const lignes = [{ cle: 'adresse', champBase: 'adresse', libelle: 'Adresse', valeur: '—', modifiable: true }];
+    assert.equal(lignesSelonModeEmploi(mode, 'chantiers', lignes)[0].modifiable, true, 'vide : se remplit');
+    assert.deepEqual(lignesSelonModeEmploi(mode, 'chantiers', [{ ...lignes[0], valeur: '1 rue fictive' }]).map((l) => [l.modifiable, l.cadenas]), [[false, PHRASE]], 'rempli : cadenassé');
+    assert.deepEqual(saisieSelonModeEmploi(mode, 'chantiers', LIGNES, { nom: 'Saisi', code: 'X', client: 'Y' }), { code: 'X', client: 'Y' }, 'le nom cadenassé n’est jamais envoyé');
+    assert.deepEqual(saisieSelonModeEmploi(null, 'chantiers', LIGNES, { nom: 'Saisi', code: 'X' }), { nom: 'Saisi', code: 'X' }, 'sans mode d’emploi : comme avant');
   });
 });
