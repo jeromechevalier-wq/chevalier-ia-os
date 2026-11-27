@@ -234,27 +234,29 @@ function piecePrete(place) {
 
 /**
  * Objet acheté (6b) : ses formes posées au centre de sa case, sans mise à l'échelle. Sans lien, sans bulle, sans halo, sans `title` : il se glisse
- * (js/os/village-glisser.js le trouve par data-maison). Une décoration, un champ ou un enclos pas prêt : une image (role="img"). Étape 7 : un champ ou un enclos
- * PRÊT est un bouton (tabindex, Entrée et Espace récoltent), avec la pièce prête ; `data-dessin` dit le dessin montré et `data-etat` « pret » ou « attente ».
+ * (js/os/village-glisser.js le trouve par data-maison). Une décoration : une image (role="img"). Étape 7 : un champ ou un enclos est TOUJOURS un bouton
+ * (tabindex 0 : le focus reste sur lui après une récolte) ; Entrée et Espace demandent la récolte (pas prêt : le message neutre, sans appel) ; prêt : la pièce
+ * prête ; `data-dessin` dit le dessin montré et `data-etat` « pret » ou « attente ».
  */
 function objetJeu(o, place, damier, ctx) {
   const maintenant = ctx?.maintenant ?? Date.now();
   const id = dessinDeLObjet(o, maintenant);
   const e = etatDeLObjet(o, maintenant);
   const g = el('g', {
-    class: 'village-objet', 'data-role': 'objet', 'data-maison': o.id, 'data-sorte': o.sorte, 'data-modele': o.modele, 'data-case': `${o.c}-${o.l}`, role: e?.pret ? 'button' : 'img',
-    'data-dessin': id, 'data-etat': e ? (e.pret ? 'pret' : 'attente') : undefined, tabindex: e?.pret ? 0 : undefined,
+    class: 'village-objet', 'data-role': 'objet', 'data-maison': o.id, 'data-sorte': o.sorte, 'data-modele': o.modele, 'data-case': `${o.c}-${o.l}`, role: e ? 'button' : 'img',
+    'data-dessin': id, 'data-etat': e ? (e.pret ? 'pret' : 'attente') : undefined, tabindex: e ? 0 : undefined,
   });
   g.setAttribute('aria-label', nomDeLObjet(o, maintenant));
   // la prise : toute la case, transparente (un objet fin, comme la clôture, se saisit sans viser son dessin)
   g.append(el('polygon', { points: points(losangeBloc(o.c, o.l, o.taille || 1, damier), 0, 0), fill: 'transparent', 'pointer-events': 'all', 'data-role': 'prise-objet' }));
   for (const f of dessinJeu(id)) g.append(forme(f, place.x, place.y));
-  if (e?.pret) {
-    g.append(piecePrete(place)); // un enfant du groupe, après les formes, qui ne prend pas le pointeur
+  if (e?.pret) g.append(piecePrete(place)); // un enfant du groupe, après les formes, qui ne prend pas le pointeur
+  if (e) {
     g.addEventListener('keydown', (ev) => {
       if (ev.key !== 'Enter' && ev.key !== ' ') return;
       ev.preventDefault();
-      ctx?.recolter?.(o);
+      if (ev.repeat) return; // une touche tenue enfoncée ne redemande rien
+      ctx?.recolter?.(o); // pas prêt : recolter() montre le message neutre, sans appel
     });
   }
   return g;
@@ -827,7 +829,9 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   }
 
   function reglagesMaison(maison) {
-    if (estSorteJeu(maison.sorte)) return; // un objet acheté n'a pas de réglages
+    // un double clic (ordinateur) annule le clic : sur un champ ou un enclos, il récolte (recoltesEnCours : une seule demande) ; une décoration n'a pas de réglages
+    if (SORTES_RECOLTE.includes(maison.sorte)) { bulle.cacher(); recolter(maison); return; }
+    if (estSorteJeu(maison.sorte)) return;
     bulle.cacher();
     if (estPetite(maison)) { if (maison.auto) reglagesAutomatique(maison); else reglagesPetite(maison); return; } // une automatique : « Cacher du village » (3c-bis)
     if (estLien(maison)) { reglagesLien(maison); return; }
@@ -845,7 +849,9 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   }
 
   async function deposer(maison, c, l) {
-    const ok = await appliquer([{ id: maison.id, donnees: docDeplacement(maison, c, l) }], { optimiste: true });
+    // un objet du jeu : ses données À JOUR (une récolte finie pendant le glisser a changé `depuis`), jamais celles gardées au début du geste
+    const source = estSorteJeu(maison.sorte) && batiments.has(maison.id) ? { ...maison, donnees: batiments.get(maison.id) } : maison;
+    const ok = await appliquer([{ id: maison.id, donnees: docDeplacement(source, c, l) }], { optimiste: true });
     if (!ok && monte) toast('Le déplacement n’a pas été enregistré. Réessaie.', { type: 'erreur' });
   }
 
@@ -908,6 +914,9 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     const { petites: posees, sansPlace: petitesSansPlace } = petitesVisibles();
     const objets = objetsVisibles();
     const ctx = { ...ctxCommun, telephone, damier, maintenant: Date.now() };
+    // 7 : le focus clavier sur un élément du dessin (un enclos qu'on vient de récolter) revient sur le même après le redessin
+    const actif = document.activeElement;
+    const focusMaison = actif && defile.contains(actif) ? actif.closest?.('[data-maison]')?.getAttribute('data-maison') : null;
     const { svg, noeuds } = dessiner(maisons, ctx, posees, objets);
     bulle.brancher(noeuds, telephone);
     defile.replaceChildren(svg);
@@ -947,6 +956,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
       defile.scrollLeft = Math.max(0, (defile.scrollWidth - defile.clientWidth) / 2);
       centreAuto = defile.scrollLeft;
     } else defile.scrollLeft = defileAvant;
+    if (focusMaison) [...defile.querySelectorAll('[data-maison]')].find((n) => n.getAttribute('data-maison') === focusMaison)?.focus?.({ preventScroll: true });
     if (lecture !== 'attente') premierRendu = false;
     if (rangementPossible()) {
       debrancher = brancherGestes(svg, {
@@ -1145,8 +1155,10 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   cadre.addEventListener('click', fermer);
   media?.addEventListener?.('change', rendre);
   // 7 (C14) : retour sur l'onglet : les champs et les enclos sont redessinés seulement si leur état (dessin, nom) a changé ; aucune minuterie
-  const signatureEtats = (maintenant) => JSON.stringify(objetsVisibles().filter((o) => SORTES_RECOLTE.includes(o.sorte)).map((o) => [o.id, dessinDeLObjet(o, maintenant), nomDeLObjet(o, maintenant)]));
-  const signatureDessinee = () => JSON.stringify([...defile.querySelectorAll('.village-objet[data-etat]')].map((g) => [g.getAttribute('data-maison'), g.getAttribute('data-dessin'), g.getAttribute('aria-label')]));
+  // les deux signatures sont triées par identifiant : l'ordre du dessin (profondeur) n'est pas celui du rangement
+  const parId = (a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  const signatureEtats = (maintenant) => JSON.stringify(objetsVisibles().filter((o) => SORTES_RECOLTE.includes(o.sorte)).map((o) => [o.id, dessinDeLObjet(o, maintenant), nomDeLObjet(o, maintenant)]).sort(parId));
+  const signatureDessinee = () => JSON.stringify([...defile.querySelectorAll('.village-objet[data-etat]')].map((g) => [g.getAttribute('data-maison'), g.getAttribute('data-dessin'), g.getAttribute('aria-label')]).sort(parId));
   const surVisible = () => {
     if (!monte || document.visibilityState !== 'visible') return;
     if (signatureEtats(Date.now()) !== signatureDessinee()) redessinerQuandLibre();

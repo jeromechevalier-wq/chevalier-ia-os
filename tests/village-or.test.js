@@ -708,6 +708,22 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
     for (const objet of ['o-absent', 'o-deco', 'o-x', 'o-sans']) {
       assert.deepEqual(await s.ramasser({ uid: 'u1', objet }), { ok: true, ramasse: 0, raison: 'objet', or: 0, parcelles: 0, version: 3 }, objet);
     }
+    // `depuis` douteux : dans le futur (Timestamp), 0, une chaîne : 0 pièce, portefeuille inchangé, `depuis` jamais réécrit
+    const futur = Timestamp.fromMillis(MAINTENANT + HEURE);
+    await poserDoc('u1', 'o-futur', { sorte: 'enclos', c: 0, l: 0, depuis: futur });
+    await poserDoc('u1', 'o-zero', { sorte: 'enclos', c: 2, l: 0, depuis: 0 });
+    await poserDoc('u1', 'o-chaine', { sorte: 'champ', c: 4, l: 0, depuis: '2020-01-01' });
+    for (const objet of ['o-futur', 'o-zero', 'o-chaine']) {
+      const r = await s.ramasser({ uid: 'u1', objet });
+      assert.equal(r.ok, true, objet);
+      assert.equal(r.ramasse, 0, objet);
+      assert.ok(['objet', 'pas_pret'].includes(r.raison), `${objet} : ${r.raison}`);
+    }
+    assert.deepEqual(sansDate(await portefeuille('u1')), { or: 0, gagne: 0, parcelles: 0, version: 3 });
+    assert.equal(await depuisDe('u1', 'o-futur'), MAINTENANT + HEURE);
+    const brut = async (id) => (await db.doc(`${C_VILLAGE}/u1/batiments/${id}`).get()).data().depuis;
+    assert.equal(await brut('o-zero'), 0);
+    assert.equal(await brut('o-chaine'), '2020-01-01');
     // l'enclos de u1 demandé par u2 : introuvable sous u2, rien d'écrit chez u1
     await semer('u1', 'o-enclos1', 'enclos', 50 * HEURE, { c: 2, l: 2 });
     assert.equal((await s.ramasser({ uid: 'u2', objet: 'o-enclos1' })).raison, 'objet');

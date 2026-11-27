@@ -414,20 +414,31 @@ test.describe('accueil village : champs et enclos à cochons (étape 7)', () => 
     await capturer(page, info, '7.6-jeu-a-part');
   });
 
-  test('7.7 double clic ou deux touchers rapides sur un enclos prêt : une seule demande au plus, aucune fenêtre', async ({ page }, info) => {
+  test('7.7 double clic ou deux touchers rapides sur un enclos prêt : exactement une demande, aucune fenêtre ; un 2e clic 400 ms plus tard pendant l’appel lent : toujours une', async ({ page }, info) => {
     await semer({ besoins: [FACTURES] });
     const etat = nouvelEtat(0);
     etat.lent = 600;
     const demandes = await simulerOr(page, serveurFerme(etat));
-    etat.uid = await ouvrirVillage(page, async (u) => { await porteMonnaie(u, 0); await semerObjet(etat, u, 'o-enclos1', 'enclos', 50 * HEURE, 4, 4); });
+    etat.uid = await ouvrirVillage(page, async (u) => { await porteMonnaie(u, 0); await semerObjet(etat, u, 'o-enclos1', 'enclos', 50 * HEURE, 4, 4); await semerObjet(etat, u, 'o-enclos2', 'enclos', 50 * HEURE, 6, 1); });
     const enclos = objet(page, 'o-enclos1');
     const p = await pointSurObjet(enclos);
     if (estTelephone(page)) { await page.touchscreen.tap(p.x, p.y); await page.waitForTimeout(80); await page.touchscreen.tap(p.x, p.y); } else await page.mouse.dblclick(p.x, p.y);
     await page.waitForTimeout(1500);
-    expect(ramassages(demandes).length).toBeLessThanOrEqual(1);
+    expect(ramassages(demandes)).toEqual([{ action: 'ramasser', objet: 'o-enclos1' }]);
+    await expect(or(page)).toHaveText('10 pièces d’or');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     expect(await page.evaluate(() => location.hash)).toBe('#/accueil');
     await capturer(page, info, '7.7-double-clic');
+    // un second clic 400 ms après le premier, pendant un appel lent : le verrou garde une seule demande
+    etat.lent = 1500;
+    const enclos2 = objet(page, 'o-enclos2');
+    await toucherObjet(page, enclos2);
+    await page.waitForTimeout(400);
+    await toucherObjet(page, enclos2);
+    await expect(or(page)).toHaveText('20 pièces d’or', { timeout: 5000 });
+    await page.waitForTimeout(800);
+    expect(ramassages(demandes).filter((d) => d.objet === 'o-enclos2')).toHaveLength(1);
+    await expect(enclos2).toHaveAttribute('data-etat', 'attente');
   });
 
   test('7.8 pannes et refus : réponse 500 ou panne simulée : « La récolte n’a pas abouti. Réessaie. », rien ne change ; refus pas_pret : message neutre, champ semé', async ({ page }, info) => {
@@ -467,9 +478,16 @@ test.describe('accueil village : champs et enclos à cochons (étape 7)', () => 
     await semer({ besoins: [FACTURES] });
     const etat = nouvelEtat(0);
     await simulerOr(page, serveurFerme(etat));
-    etat.uid = await ouvrirVillage(page, async (u) => { await porteMonnaie(u, 0); await semerObjet(etat, u, 'o-champ1', 'champ', 48 * HEURE - 10 * 60 * 1000, 4, 4); });
+    // deux objets : l'ordre des identifiants (o-a… puis o-champ1) n'est pas celui du dessin (le plus au fond d'abord)
+    etat.uid = await ouvrirVillage(page, async (u) => { await porteMonnaie(u, 0); await semerObjet(etat, u, 'o-champ1', 'champ', 48 * HEURE - 10 * 60 * 1000, 4, 4); await semerObjet(etat, u, 'o-aenclos', 'enclos', HEURE, 6, 6); });
     const champ = objet(page, 'o-champ1');
     await expect(champ).toHaveAttribute('data-dessin', 'champ-mur');
+    const ordre = await page.locator('[data-role="village"] [data-role="objet"][data-etat]').evaluateAll((els) => els.map((e) => e.dataset.maison));
+    expect(ordre).toEqual(['o-champ1', 'o-aenclos']); // le dessin ne suit pas l'ordre des identifiants
+    // retour sur l'onglet sans aucun changement : aucun redessin (le même dessin reste en place)
+    await page.evaluate(() => { document.querySelector('[data-role="village"]').dataset.marque = 'avant'; document.dispatchEvent(new Event('visibilitychange')); });
+    await page.waitForTimeout(800);
+    await expect(page.locator('[data-role="village"]')).toHaveAttribute('data-marque', 'avant');
     await page.evaluate(() => { const d = Date.now; Date.now = () => d() + 20 * 60 * 1000; });
     await page.waitForTimeout(1000);
     await expect(champ).toHaveAttribute('data-dessin', 'champ-mur'); // aucune minuterie : rien ne bouge tout seul
@@ -479,7 +497,7 @@ test.describe('accueil village : champs et enclos à cochons (étape 7)', () => 
     await capturer(page, info, '7.9-retour-onglet');
   });
 
-  test('7.10 clavier : un enclos prêt est un bouton (Tab, Entrée : une demande) ; pas prêt et décoration : pas de tabindex ; aucune touche ne déplace', async ({ page }, info) => {
+  test('7.10 clavier : un champ ou un enclos est un bouton (Entrée ou Espace : une demande s’il est prêt ; pas prêt : message neutre, aucune demande) ; décoration : pas de tabindex ; le focus reste sur l’objet ; aucune touche ne déplace', async ({ page }, info) => {
     await semer({ besoins: [FACTURES] });
     const etat = nouvelEtat(0);
     const demandes = await simulerOr(page, serveurFerme(etat));
@@ -487,15 +505,21 @@ test.describe('accueil village : champs et enclos à cochons (étape 7)', () => 
       await porteMonnaie(u, 0);
       await semerObjet(etat, u, 'o-enclos1', 'enclos', 50 * HEURE, 4, 4);
       await semerObjet(etat, u, 'o-enclos2', 'enclos', HEURE, 6, 2);
+      await semerObjet(etat, u, 'o-champ1', 'champ', 49 * HEURE, 1, 6);
       await decoration(u, 'o-arbre', 'arbre', 7, 7);
     });
     const pret = objet(page, 'o-enclos1');
-    await expect(pret).toHaveAttribute('tabindex', '0');
-    await expect(pret).toHaveAttribute('role', 'button');
-    for (const id of ['o-enclos2', 'o-arbre']) {
-      expect(await objet(page, id).getAttribute('tabindex')).toBeNull();
-      await expect(objet(page, id)).toHaveAttribute('role', 'img');
+    for (const id of ['o-enclos1', 'o-enclos2', 'o-champ1']) {
+      await expect(objet(page, id)).toHaveAttribute('tabindex', '0');
+      await expect(objet(page, id)).toHaveAttribute('role', 'button');
     }
+    expect(await objet(page, 'o-arbre').getAttribute('tabindex')).toBeNull();
+    await expect(objet(page, 'o-arbre')).toHaveAttribute('role', 'img');
+    // pas prêt : Entrée donne le message neutre, sans aucune demande
+    await objet(page, 'o-enclos2').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#toasts')).toContainText('Rien à ramasser pour l’instant.');
+    expect(ramassages(demandes)).toEqual([]);
     await pret.focus();
     await capturer(page, info, '7.10-focus');
     for (const touche of ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp']) await page.keyboard.press(touche);
@@ -505,7 +529,38 @@ test.describe('accueil village : champs et enclos à cochons (étape 7)', () => 
     await expect(or(page)).toHaveText('10 pièces d’or');
     expect(ramassages(demandes)).toEqual([{ action: 'ramasser', objet: 'o-enclos1' }]);
     await expect(pret).toHaveAttribute('data-etat', 'attente');
-    await expect.poll(() => pret.getAttribute('tabindex')).toBeNull();
+    await expect(pret).toHaveAttribute('tabindex', '0');
+    // le focus est toujours sur l'enclos après le redessin
+    await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute?.('data-maison'))).toBe('o-enclos1');
+    // Espace récolte aussi (le champ prêt) ; le focus reste sur le champ
+    await objet(page, 'o-champ1').focus();
+    await page.keyboard.press(' ');
+    await expect(or(page)).toHaveText('30 pièces d’or');
+    expect(ramassages(demandes)).toEqual([{ action: 'ramasser', objet: 'o-enclos1' }, { action: 'ramasser', objet: 'o-champ1' }]);
+    await expect(objet(page, 'o-champ1')).toHaveAttribute('data-etat', 'attente');
+    await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute?.('data-maison'))).toBe('o-champ1');
+  });
+
+  test('7.11 récolte finie pendant un glisser : l’objet déposé garde le nouveau `depuis` (pas prêt), jamais l’ancien', async ({ page }, info) => {
+    await semer({ besoins: [FACTURES] });
+    const etat = nouvelEtat(0);
+    etat.lent = 1500;
+    const demandes = await simulerOr(page, serveurFerme(etat));
+    etat.uid = await ouvrirVillage(page, async (u) => { await porteMonnaie(u, 0); await maisonRangee(u, 'achatsfactures-liste', 1, 1); await semerObjet(etat, u, 'o-enclos1', 'enclos', 50 * HEURE, 5, 5); });
+    const enclos = objet(page, 'o-enclos1');
+    await expect(enclos).toHaveAttribute('data-etat', 'pret');
+    await enclos.focus();
+    await page.keyboard.press('Enter'); // la demande part tout de suite ; le serveur répond dans 1,5 s
+    await glisserObjet(page, enclos, [5, 5], [5, 2], { relacher: false });
+    await expect(or(page)).toHaveText('10 pièces d’or', { timeout: 5000 }); // la récolte finit pendant le glisser
+    await lacher(page);
+    await expect(enclos).toHaveAttribute('data-case', '5-2');
+    await expect(enclos).toHaveAttribute('data-etat', 'attente');
+    await page.waitForTimeout(600);
+    await expect(enclos).toHaveAttribute('data-etat', 'attente');
+    await expect(enclos.locator('[data-role="pret"]')).toHaveCount(0);
+    expect(ramassages(demandes)).toHaveLength(1);
+    await capturer(page, info, '7.11-recolte-pendant-glisser');
   });
 
   test('6.8 ferme : boutique et accueil sans « CRM », classement, série ni notification ; aucun son', async ({ page }, info) => {

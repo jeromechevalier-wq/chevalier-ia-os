@@ -746,7 +746,7 @@ describe('Or du village (27/11/2026)', () => {
     }
     await assertFails(updateDoc(objet(db, J, 'o-abc'), { c: 2, modifieLe: new Date('2020-01-01T00:00:00Z') }));
     await assertFails(deleteDoc(objet(db, J, 'o-abc')));
-    for (const [id, d] of [['o-neuf', { sorte: 'decoration', modele: 'arbre', c: 1, l: 1 }], ['o-champ', { sorte: 'champ', c: 2, l: 2 }], ['o-enclos', { sorte: 'enclos', c: 3, l: 3 }], ['b-x', { sorte: 'champ', c: 1, l: 1 }]]) {
+    for (const [id, d] of [['o-neuf', { sorte: 'decoration', modele: 'arbre', c: 1, l: 1 }], ['o-champ', { sorte: 'champ', c: 2, l: 2, depuis: new Date('2020-01-01T00:00:00Z') }], ['o-enclos', { sorte: 'enclos', c: 3, l: 3, depuis: new Date('2020-01-01T00:00:00Z') }], ['b-x', { sorte: 'champ', c: 1, l: 1, depuis: new Date('2020-01-01T00:00:00Z') }]]) {
       await assertFails(setDoc(objet(db, J, id), d));
     }
     const charles = contexte(C);
