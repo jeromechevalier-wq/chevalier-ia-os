@@ -15,8 +15,10 @@ import { sectionDeploiement } from './deploiement-ecran.js';
 import { sectionMesTests } from './mes-tests-ecran.js';
 import { sectionConnexionBase } from './base-reglages-ecran.js';
 import { compteReserve, pagesTechniquesCachees } from './acces-reserve.js';
-import { nomEspaceRacine } from './identite-maison.js';
-import { reglagesDesModules, sectionsEspaceVisibles, interrupteursDuClient, cibleReglages, moduleDeclare } from './registre.js';
+import { nomEspaceRacine, maisonNeutre } from './identite-maison.js';
+import { modulesEcranBrut } from './comptes-maison.js';
+import { lireModulesMaison } from './maison-modules.js';
+import { reglagesDesModules, sectionsEspaceVisibles, interrupteursDuClient, interrupteursDeLaMaison, cibleReglages, moduleDeclare } from './registre.js';
 
 const LIBELLES_ROLE = Object.freeze({ editeur: 'Éditeur : consulte et modifie', lecteur: 'Lecteur : consulte seulement' });
 
@@ -82,13 +84,28 @@ function sectionMembres(ctx, etat) {
       : h('li', { class: 'aide' }, 'Aucun membre trouvé.')))];
 }
 
+/** Sommes-nous dans la MAISON d'un client (déploiement à part, CRM racine) ? Maison neutre, ou réglage `modules` présent dans reglages_maison/ecran. Jamais sur la plateforme, jamais chez Jérôme. */
+function dansUneMaison(ctx) {
+  return !ctx.chezClient && (maisonNeutre() || lireModulesMaison(modulesEcranBrut()).reglage);
+}
+
 function sectionModules(ctx) {
-  const lignes = interrupteursDuClient(ctx.actifs);
-  return [section('reglages-modules', 'Modules actifs', 'layout-dashboard',
-    h('p', { class: 'aide' }, ctx.chezClient
+  // Maison d'un client (27/11/2026) : l'état vrai (reglages_maison/ecran.modules, déjà appliqué à `actifs`) ; le catalogue entier pour le seul titulaire
+  // (compteReserve : comptes_jerome_seul, la même liste que pour la Console), les seuls modules allumés pour les autres comptes. Chez Jérôme et sur la plateforme : inchangé.
+  const maison = dansUneMaison(ctx);
+  const catalogue = maison && compteReserve(ctx.compte);
+  const lignes = maison ? interrupteursDeLaMaison(ctx.actifs, { catalogue }) : interrupteursDuClient(ctx.actifs);
+  const aide = maison
+    ? (catalogue
+      ? 'Tous les modules du catalogue, avec leur état dans cet espace. Toi seul vois cette liste complète : les autres comptes ne voient que les modules allumés.'
+      : 'Les modules allumés dans cet espace.')
+    : (ctx.chezClient
       ? 'Les modules allumés dans cet espace. Éteindre un module ne supprime aucune donnée.'
-      : 'Ici tous les modules sont allumés : cet espace n’a pas d’interrupteur par module.'),
-    ctx.chezClient ? h('p', { class: 'aide', dataset: { role: 'modules-administrateur' } }, 'Pour changer de module, contacte ton administrateur') : null,
+      : 'Ici tous les modules sont allumés : cet espace n’a pas d’interrupteur par module.');
+  return [section('reglages-modules', 'Modules actifs', 'layout-dashboard',
+    h('p', { class: 'aide', dataset: maison ? { role: catalogue ? 'modules-catalogue' : 'modules-allumes' } : {} }, aide),
+    ctx.chezClient || (maison && !catalogue) ? h('p', { class: 'aide', dataset: { role: 'modules-administrateur' } }, 'Pour changer de module, contacte ton administrateur') : null,
+    maison && !lignes.length ? h('p', { class: 'aide', dataset: { role: 'modules-aucun' } }, 'Aucun module n’est allumé dans cet espace pour l’instant.') : null,
     h('ul', { class: 'reglages-modules' }, lignes.map((l) => {
       const noms = l.modules.map((id) => moduleDeclare(id).nom).join(', ');
       const etat = l.actif ? 'Allumé' : 'Éteint';
