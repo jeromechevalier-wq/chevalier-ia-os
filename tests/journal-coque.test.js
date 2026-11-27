@@ -26,8 +26,11 @@ describe('journal commun : écriture (A1, A2)', () => {
     assert.match(code, /export async function executer\(ecritures, outil = 'ecran'\)/);
     assert.ok(code.includes('L.construireAudit(ecritures, avants,'), 'les lignes d’audit viennent de construireAudit (partagé avec le serveur MCP)');
     assert.ok(code.includes('L.ecrireParLots(ecritures.length, ACTIONS_PAR_LOT,'), 'écriture par lots, comme avant');
-    assert.equal(occurrences(code, 'writeBatch(db)'), 1, 'un lot atomique par tranche');
-    assert.equal(occurrences(code, 'lot.commit()'), 1);
+    // Deux lots dans le fichier (27/11/2026) : celui d'executer (un par tranche) et celui de modifierAvecLigneJournal (nom et logo d'une maison : la donnée, sa ligne
+    // et sa copie dans le MÊME lot ; les règles refusent la modification sans sa ligne). Aucun autre.
+    assert.equal(occurrences(code, 'writeBatch(db)'), 2, 'un lot atomique par tranche (executer) + un lot pour modifierAvecLigneJournal');
+    assert.equal(occurrences(code, 'lot.commit()'), 2);
+    assert.match(code, /export async function modifierAvecLigneJournal\(\{ ref, patch, idLigne, ligne, copie \}\) \{\s+const lot = writeBatch\(db\);\s+lot\.update\(ref, patch\);\s+lot\.set\(doc\(db, chemin\('crm_audit'\), idLigne\), \{ \.\.\.ligne, date: serverTimestamp\(\) \}\);\s+lot\.set\(doc\(db, chemin\('crm_audit_avant'\), idLigne\), copie\);\s+await lot\.commit\(\);\s+\}/, 'la donnée, sa ligne et sa copie dans le même lot, création seulement dans le journal');
     assert.ok(/ecrireDansLot\(lot, ecritures\[k\]\);\s*audit\[k\]\.forEach\(\(a\) => ecrireDansLot\(lot, a\)\);/.test(code), 'la donnée et ses lignes d’audit entrent dans le MÊME lot');
     assert.ok(code.includes("chemin('crm_audit')") && code.includes("chemin('crm_audit_avant')"), 'collections inchangées');
     assert.doesNotMatch(code, /['"]journal_audit|['"]audit['"]/, 'aucun nouveau nom de collection');

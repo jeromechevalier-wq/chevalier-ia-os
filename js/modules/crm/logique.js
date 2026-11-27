@@ -2871,6 +2871,7 @@ const NOMS_DOCUMENTS = {
   devis_devis: ['devis', 'devis'],
   devis_vocabulaire: ['mot appris', 'mots appris'],
   devis_parametres: ['réglages des devis', 'réglages des devis'],
+  reglages_maison: ['nom ou logo de l’espace', 'noms ou logos de l’espace'], // Réglages > Mon espace d'une maison (27/11/2026)
 };
 const ACTIONS_JOURNAL = { creer: 'Création', modifier: 'Modification', supprimer: 'Suppression', restaurer: 'Restauration', echec: 'Échec' };
 

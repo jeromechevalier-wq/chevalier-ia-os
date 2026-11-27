@@ -15,7 +15,7 @@ import { sectionDeploiement } from './deploiement-ecran.js';
 import { sectionMesTests } from './mes-tests-ecran.js';
 import { sectionConnexionBase } from './base-reglages-ecran.js';
 import { compteReserve, pagesTechniquesCachees } from './acces-reserve.js';
-import { nomEspaceRacine, maisonNeutre, connexionNeutre, logoMaison } from './identite-maison.js';
+import { nomEspaceRacine, maisonNeutre, logoMaison, identiteMaisonModifiable } from './identite-maison.js';
 import { sectionMonEspaceMaison } from './mon-espace-maison.js';
 import { modulesEcranBrut } from './comptes-maison.js';
 import { lireModulesMaison } from './maison-modules.js';
@@ -52,9 +52,9 @@ function sectionEspace(ctx, etat) {
     h('p', { class: 'aide' }, 'Le thème choisi est mémorisé sur cet appareil.'),
     boutonTheme('bouton bouton-secondaire'));
   if (ctx.chezClient && ctx.client) return [sectionMonEspace(ctx, etat), apparence]; // éditeur : formulaire ; lecteur : mêmes valeurs désactivées
-  // Maison d'un client (reglages_maison/public porte un nom ou connexion_neutre) : le TITULAIRE (comptes_jerome_seul, le même contrôle que la Console) règle ici le nom et le logo
-  // (js/os/mon-espace-maison.js ; les règles Firestore refusent tout autre compte). Les autres comptes, et Jérôme chez lui : lecture seule, comme avant.
-  if (!ctx.chezClient && connexionNeutre() && compteReserve(ctx.compte)) return [sectionMonEspaceMaison(ctx, etat), apparence];
+  // Maison d'un client (reglages_maison/public porte un nom ou connexion_neutre) : tout compte de la maison qui peut écrire règle ici le nom et le logo (27/11/2026, accord de Jérôme :
+  // plus seulement le titulaire ; js/os/mon-espace-maison.js ; règles Firestore : compteAutorise, chaque changement noté dans le journal). Un compte en lecture seule, et Jérôme chez lui : lecture seule.
+  if (identiteMaisonModifiable(ctx)) return [sectionMonEspaceMaison(ctx, etat), apparence];
   const m = ctx.marque;
   const lignes = [ligneInfo('Nom', ctx.nomEspace, 'nom')];
   if (ctx.chezClient) {
@@ -65,7 +65,7 @@ function sectionEspace(ctx, etat) {
       h('span', { class: 'reglages-info-etiquette' }, 'Couleur'),
       m?.couleur ? h('span', { class: 'reglages-info-valeur' }, h('span', { class: 'reglages-pastille', style: { background: m.couleur }, 'aria-hidden': 'true' }), m.couleur) : h('span', { class: 'reglages-info-valeur' }, 'Couleur par défaut')));
   }
-  if (!ctx.chezClient && logoMaison()) lignes.push(h('div', { class: 'reglages-info', dataset: { info: 'logo' } }, // maison d'un client : le logo réglé par le titulaire, en lecture seule
+  if (!ctx.chezClient && logoMaison()) lignes.push(h('div', { class: 'reglages-info', dataset: { info: 'logo' } }, // maison d'un client : le logo de l'espace, en lecture seule
     h('span', { class: 'reglages-info-etiquette' }, 'Logo'), h('img', { class: 'reglages-logo', src: logoMaison(), alt: '', width: '48', height: '48' })));
   const identite = section('reglages-identite', 'Identité de l’espace', 'house',
     h('p', { class: 'aide' }, 'L’identité de cet espace est celle de la coque de l’application : elle ne se règle pas ici.'),

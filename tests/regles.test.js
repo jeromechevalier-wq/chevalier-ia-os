@@ -8,7 +8,7 @@ import {
   assertSucceeds,
   assertFails,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, getDocs, setLogLevel, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, getDocs, setLogLevel, serverTimestamp, writeBatch, Timestamp } from 'firebase/firestore';
 import { FICHE_ESSAI } from './_reglages-maison-essai.js'; // chantier 0 : les règles lisent les comptes dans reglages_maison/maison
 
 setLogLevel('error');
@@ -354,44 +354,100 @@ describe('Chantier 0 : les comptes viennent de la fiche reglages_maison/maison',
     await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'reglages_maison', 'maison')));
   });
   // Mon espace d'une maison de client (27/11/2026) : seule écriture permise dans reglages_maison, le nom et le logo de `public`.
+  // Élargi le 27/11/2026 (accord de Jérôme) : tout compte de la maison (comptes_autorises), plus seulement le titulaire ; chaque changement porte sa ligne de journal (même lot).
   const LOGO_OK = 'data:image/png;base64,iVBORw0KGgo=';
+  const AUTRE = 'compte2@exemple.test'; // un autre compte de la maison (adresse inventée), pas titulaire
+  const LECTEUR = 'lecteur@exemple.test'; // a seulement le droit de LIRE `public` (comme tout visiteur) : absent de comptes_autorises
   const poserPublic = (fiche) => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'reglages_maison', 'public'), fiche));
-  test('RM-R5 maison d\'un client : le titulaire seul change le nom et le logo de « public » (PNG, JPEG, SVG), retire le logo ; rien d\'autre', async () => {
-    await poserPublic({ mode_crm: true, nom_espace: 'Espace exemple' });
-    const pub = (email) => doc(contexte(email), 'reglages_maison', 'public');
-    await assertSucceeds(updateDoc(pub(JEROME), { nom_espace: 'Nouveau nom' }));
-    await assertFails(updateDoc(pub(BOT), { nom_espace: 'Autre compte' }), 'un compte autorisé qui n\'est pas titulaire : refusé');
-    await assertFails(updateDoc(pub(BOT), { logo: LOGO_OK }));
-    await assertSucceeds(updateDoc(pub(JEROME), { nom_espace: 'Avec logo', logo: LOGO_OK }));
-    await assertSucceeds(updateDoc(pub(JEROME), { logo: 'data:image/jpeg;base64,/9j/4AAQ' }));
-    await assertSucceeds(updateDoc(pub(JEROME), { logo: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' }));
-    await assertSucceeds(updateDoc(pub(JEROME), { logo: `data:image/png;base64,${'A'.repeat(139000)}` }), 'environ 100 Ko : accepté');
-    await assertSucceeds(updateDoc(pub(JEROME), { logo: deleteField() }), 'le logo se retire');
-    // refus : champs interdits, mauvaises valeurs, comptes hors fiche
-    await assertFails(updateDoc(pub(JEROME), { mode_crm: false }));
-    await assertFails(updateDoc(pub(JEROME), { connexion_neutre: true }));
-    await assertFails(updateDoc(pub(JEROME), { nom_espace: 'Nom', autre: 1 }));
-    await assertFails(updateDoc(pub(JEROME), { nom_espace: '' }));
-    await assertFails(updateDoc(pub(JEROME), { nom_espace: '   ' }), 'des espaces seuls : refusé');
-    await assertFails(updateDoc(pub(JEROME), { nom_espace: ' \t\n ' }));
-    await assertFails(updateDoc(pub(JEROME), { nom_espace: 'x'.repeat(81) }));
-    await assertFails(updateDoc(pub(JEROME), { nom_espace: 42 }));
-    await assertFails(updateDoc(pub(JEROME), { nom_espace: deleteField() }), 'le nom ne se retire pas');
-    for (const logo of ['https://exemple.test/logo.png', 'data:text/html;base64,AAAA', 'data:image/gif;base64,AAAA', 'data:image/png;base64,', 'data:image/png;base64,AA<script>', 42, `data:image/png;base64,${'A'.repeat(140000)}`]) {
-      await assertFails(updateDoc(pub(JEROME), { logo }));
+  const ficheMaison = () => ecrireFiche({ ...FICHE_ESSAI, comptes_autorises: [JEROME, BOT, AUTRE] });
+  let numeroLigne = 0;
+  /** Modification de `public` comme l'écran la fait : la modification, sa ligne crm_audit et sa copie dans le MÊME lot. `ligne` remplace des champs de la ligne ;
+   *  `sansLigne` : la modification seule ; `id` : identifiant imposé de la ligne. */
+  const changer = (db, email, champs, { ligne = {}, sansLigne = false, id } = {}) => {
+    const idLigne = id ?? `ligneEssai${String(++numeroLigne).padStart(6, '0')}`;
+    const lot = writeBatch(db);
+    lot.update(doc(db, 'reglages_maison', 'public'), { ...champs, ligne_journal: idLigne });
+    if (!sansLigne) {
+      lot.set(doc(db, 'crm_audit', idLigne), {
+        operationId: idLigne, ordre: 1, acteur: email, jeton: 'ecran', via: 'ecran', outil: 'mon_espace_maison', collection: 'reglages_maison', docId: 'public',
+        action: 'modifier', statut: 'succes', champsModifies: Object.keys(champs), parametresRecus: [], date: serverTimestamp(), ...ligne,
+      });
+      lot.set(doc(db, 'crm_audit_avant', idLigne), { operationId: idLigne, collection: 'reglages_maison', docId: 'public', avant: {}, apres: {}, expireAt: Timestamp.now() });
     }
-    await assertFails(updateDoc(pub('intrus@exemple.test'), { nom_espace: 'Pirate' }));
-    await assertFails(updateDoc(doc(contexte(JEROME, false), 'reglages_maison', 'public'), { nom_espace: 'Non vérifié' }));
-    await assertFails(updateDoc(doc(env.unauthenticatedContext().firestore(), 'reglages_maison', 'public'), { nom_espace: 'Anonyme' }));
-    await assertFails(setDoc(pub(JEROME), { nom_espace: 'Remplacé' }), 'un remplacement qui efface mode_crm est refusé');
+    return lot.commit();
+  };
+  const pub = (email, champs, options) => changer(contexte(email), email, champs, options);
+  test('1 RM-R5 maison d\'un client : tout compte de la maison (titulaire ou non) change le nom et le logo de « public » (PNG, JPEG, SVG), retire le logo ; rien d\'autre', async () => {
+    await ficheMaison();
+    await poserPublic({ mode_crm: true, nom_espace: 'Espace exemple' });
+    await assertSucceeds(pub(JEROME, { nom_espace: 'Nouveau nom' }), 'le titulaire garde ses droits');
+    await assertSucceeds(pub(AUTRE, { nom_espace: 'Nom choisi par un autre compte' }), 'un autre compte de la maison : accepté');
+    await assertSucceeds(pub(BOT, { logo: LOGO_OK }), 'tout compte de comptes_autorises : accepté');
+    await assertSucceeds(pub(AUTRE, { nom_espace: 'Avec logo', logo: LOGO_OK }));
+    await assertSucceeds(pub(AUTRE, { logo: 'data:image/jpeg;base64,/9j/4AAQ' }));
+    await assertSucceeds(pub(AUTRE, { logo: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' }));
+    await assertSucceeds(pub(AUTRE, { logo: `data:image/png;base64,${'A'.repeat(139000)}` }), 'environ 100 Ko : accepté');
+    await assertSucceeds(pub(AUTRE, { logo: deleteField() }), 'le logo se retire');
+    // refus : champs interdits, mauvaises valeurs
+    for (const email of [JEROME, AUTRE]) {
+      await assertFails(pub(email, { mode_crm: false }));
+      await assertFails(pub(email, { connexion_neutre: true }));
+      await assertFails(pub(email, { nom_espace: 'Nom', autre: 1 }), 'champ en trop : refusé');
+      await assertFails(pub(email, { nom_espace: '' }), 'nom vide : refusé');
+      await assertFails(pub(email, { nom_espace: '   ' }), 'des espaces seuls : refusé');
+      await assertFails(pub(email, { nom_espace: ' \t\n ' }));
+      await assertFails(pub(email, { nom_espace: 'x'.repeat(81) }));
+      await assertFails(pub(email, { nom_espace: 42 }));
+      await assertFails(pub(email, { nom_espace: deleteField() }), 'le nom ne se retire pas');
+      for (const logo of ['https://exemple.test/logo.png', 'data:text/html;base64,AAAA', 'data:image/gif;base64,AAAA', 'data:image/png;base64,', 'data:image/png;base64,AA<script>', 42, `data:image/png;base64,${'A'.repeat(140000)}`]) {
+        await assertFails(pub(email, { logo }), `logo refusé : ${String(logo).slice(0, 30)}`);
+      }
+    }
+    await assertFails(setDoc(doc(contexte(AUTRE), 'reglages_maison', 'public'), { nom_espace: 'Remplacé' }), 'un remplacement qui efface mode_crm est refusé');
+    await assertFails(deleteDoc(doc(contexte(AUTRE), 'reglages_maison', 'public')));
   });
-  test('RM-R6 chez Jérôme (« public » sans nom_espace ni connexion_neutre) : aucune écriture, même le nom ; maison neutre sans nom : le nom peut être posé ; « ecran » et « maison » restent fermés', async () => {
+  test('1 RM-R5 lecteur, compte extérieur, e-mail non vérifié, visiteur : jamais ; un compte retiré de la fiche perd le droit', async () => {
+    await ficheMaison();
+    await poserPublic({ mode_crm: true, nom_espace: 'Espace exemple' });
+    await assertFails(pub(LECTEUR, { nom_espace: 'Lecteur' }), 'un compte qui ne fait que lire : refusé');
+    await assertFails(pub('intrus@exemple.test', { nom_espace: 'Pirate' }), 'compte extérieur : refusé');
+    await assertFails(changer(contexte(AUTRE, false), AUTRE, { nom_espace: 'Non vérifié' }), 'e-mail non vérifié : refusé');
+    await assertFails(changer(env.unauthenticatedContext().firestore(), '', { nom_espace: 'Anonyme' }), 'sans connexion : refusé');
+    await assertFails(updateDoc(doc(env.unauthenticatedContext().firestore(), 'reglages_maison', 'public'), { nom_espace: 'Anonyme' }));
+    await ecrireFiche({ ...FICHE_ESSAI, comptes_autorises: [JEROME] });
+    await assertFails(pub(AUTRE, { nom_espace: 'Retiré' }), 'compte retiré de comptes_autorises : refusé');
+    await assertFails(pub(BOT, { nom_espace: 'Retiré' }));
+    await assertSucceeds(pub(JEROME, { nom_espace: 'Le titulaire, toujours' }));
+  });
+  test('2 RM-R7 journal obligatoire : sans sa ligne crm_audit (même lot), avec une ligne au nom d\'un autre, sur une autre fiche ou déjà écrite : refusé', async () => {
+    await ficheMaison();
+    await poserPublic({ mode_crm: true, nom_espace: 'Espace exemple' });
+    await assertFails(pub(AUTRE, { nom_espace: 'Sans trace' }, { sansLigne: true }), 'sans ligne de journal : refusé');
+    await assertFails(updateDoc(doc(contexte(AUTRE), 'reglages_maison', 'public'), { nom_espace: 'Sans trace' }), 'sans ligne_journal : refusé');
+    await assertFails(pub(JEROME, { nom_espace: 'Sans trace' }, { sansLigne: true }), 'même le titulaire : refusé sans trace');
+    await assertFails(pub(AUTRE, { nom_espace: 'Au nom d\'un autre' }, { ligne: { acteur: JEROME } }), 'ligne au nom d\'un autre compte : refusé (la règle de crm_audit et celle de public)');
+    await assertFails(pub(AUTRE, { nom_espace: 'Autre fiche' }, { ligne: { docId: 'ecran' } }), 'ligne sur une autre fiche : refusé');
+    await assertFails(pub(AUTRE, { nom_espace: 'Autre collection' }, { ligne: { collection: 'crm_personnes' } }));
+    await assertFails(pub(AUTRE, { nom_espace: 'Identifiant court' }, { id: 'court' }), 'identifiant de ligne mal formé : refusé');
+    await assertSucceeds(pub(AUTRE, { nom_espace: 'Avec trace' }, { id: 'ligneReutilisee01' }));
+    // Réutiliser une ligne déjà écrite (sans en ajouter une nouvelle) : refusé.
+    const db = contexte(AUTRE);
+    await assertFails(updateDoc(doc(db, 'reglages_maison', 'public'), { nom_espace: 'Deuxième fois', ligne_journal: 'ligneReutilisee01' }));
+    // La ligne est bien là, au nom du compte, sur reglages_maison/public.
+    const lue = await assertSucceeds(getDoc(doc(contexte(JEROME), 'crm_audit', 'ligneReutilisee01')));
+    assert.equal(lue.data().acteur, AUTRE);
+    assert.equal(lue.data().docId, 'public');
+  });
+  test('4 RM-R6 chez Jérôme (« public » sans nom_espace ni connexion_neutre) : aucune écriture, même le nom, même avec sa ligne de journal ; maison neutre sans nom : le nom peut être posé ; « ecran » et « maison » restent fermés', async () => {
+    await ficheMaison();
     await poserPublic({ mode_crm: true });
-    await assertFails(updateDoc(doc(contexte(JEROME), 'reglages_maison', 'public'), { nom_espace: 'Chez Jérôme' }));
-    await assertFails(updateDoc(doc(contexte(JEROME), 'reglages_maison', 'public'), { logo: LOGO_OK }));
+    for (const email of [JEROME, AUTRE]) {
+      await assertFails(pub(email, { nom_espace: 'Chez Jérôme' }));
+      await assertFails(pub(email, { logo: LOGO_OK }));
+    }
     await poserPublic({ mode_crm: true, connexion_neutre: true });
-    await assertFails(updateDoc(doc(contexte(JEROME), 'reglages_maison', 'public'), { logo: LOGO_OK, nom_espace: '' }));
-    await assertSucceeds(updateDoc(doc(contexte(JEROME), 'reglages_maison', 'public'), { nom_espace: 'Premier nom', logo: LOGO_OK }));
+    await assertFails(pub(AUTRE, { logo: LOGO_OK, nom_espace: '' }));
+    await assertSucceeds(pub(AUTRE, { nom_espace: 'Premier nom', logo: LOGO_OK }));
     await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'reglages_maison', 'ecran'), { personnes: [] }));
     await assertFails(updateDoc(doc(contexte(JEROME), 'reglages_maison', 'ecran'), { nom_espace: 'Nom', logo: LOGO_OK }));
     await assertFails(updateDoc(doc(contexte(JEROME), 'reglages_maison', 'maison'), { nom_espace: 'Nom' }));

@@ -69,7 +69,8 @@ test('4 après la connexion dans la maison : onglet, menu, barre du haut et Rég
   await expect(page.locator('.barre-haut-marque')).toHaveText(NOM);
   await sansTraceDeJerome(page);
   await page.goto(`${URL_APP}#/reglages/espace`);
-  await expect(page.locator('[data-info="nom"] .reglages-info-valeur')).toHaveText(NOM);
+  // Depuis le 27/11/2026 (accord de Jérôme), tout compte de la maison peut changer le nom : le champ du formulaire porte le nom de la maison.
+  await expect(page.locator('[data-role="mon-espace-maison"] [data-champ="nom"]')).toHaveValue(NOM);
   await expect(page.locator('.page-tete-reglages .etiquette')).toHaveText(NOM);
   await sansTraceDeJerome(page);
   await capturer(page, info, '4-reglages-mon-espace-maison');
