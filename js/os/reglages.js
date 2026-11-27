@@ -15,7 +15,7 @@ import { sectionDeploiement } from './deploiement-ecran.js';
 import { sectionMesTests } from './mes-tests-ecran.js';
 import { sectionConnexionBase } from './base-reglages-ecran.js';
 import { compteReserve, pagesTechniquesCachees } from './acces-reserve.js';
-import { nomEspaceRacine, maisonNeutre, connexionNeutre } from './identite-maison.js';
+import { nomEspaceRacine, maisonNeutre, connexionNeutre, logoMaison } from './identite-maison.js';
 import { sectionMonEspaceMaison } from './mon-espace-maison.js';
 import { modulesEcranBrut } from './comptes-maison.js';
 import { lireModulesMaison } from './maison-modules.js';
@@ -52,8 +52,9 @@ function sectionEspace(ctx, etat) {
     h('p', { class: 'aide' }, 'Le thème choisi est mémorisé sur cet appareil.'),
     boutonTheme('bouton bouton-secondaire'));
   if (ctx.chezClient && ctx.client) return [sectionMonEspace(ctx, etat), apparence]; // éditeur : formulaire ; lecteur : mêmes valeurs désactivées
-  // Maison d'un client (reglages_maison/public porte un nom ou connexion_neutre) : le nom et le logo se règlent ici (js/os/mon-espace-maison.js). Chez Jérôme : lecture seule, comme avant.
-  if (!ctx.chezClient && connexionNeutre()) return [sectionMonEspaceMaison(ctx, etat), apparence];
+  // Maison d'un client (reglages_maison/public porte un nom ou connexion_neutre) : le TITULAIRE (comptes_jerome_seul, le même contrôle que la Console) règle ici le nom et le logo
+  // (js/os/mon-espace-maison.js ; les règles Firestore refusent tout autre compte). Les autres comptes, et Jérôme chez lui : lecture seule, comme avant.
+  if (!ctx.chezClient && connexionNeutre() && compteReserve(ctx.compte)) return [sectionMonEspaceMaison(ctx, etat), apparence];
   const m = ctx.marque;
   const lignes = [ligneInfo('Nom', ctx.nomEspace, 'nom')];
   if (ctx.chezClient) {
@@ -64,6 +65,8 @@ function sectionEspace(ctx, etat) {
       h('span', { class: 'reglages-info-etiquette' }, 'Couleur'),
       m?.couleur ? h('span', { class: 'reglages-info-valeur' }, h('span', { class: 'reglages-pastille', style: { background: m.couleur }, 'aria-hidden': 'true' }), m.couleur) : h('span', { class: 'reglages-info-valeur' }, 'Couleur par défaut')));
   }
+  if (!ctx.chezClient && logoMaison()) lignes.push(h('div', { class: 'reglages-info', dataset: { info: 'logo' } }, // maison d'un client : le logo réglé par le titulaire, en lecture seule
+    h('span', { class: 'reglages-info-etiquette' }, 'Logo'), h('img', { class: 'reglages-logo', src: logoMaison(), alt: '', width: '48', height: '48' })));
   const identite = section('reglages-identite', 'Identité de l’espace', 'house',
     h('p', { class: 'aide' }, 'L’identité de cet espace est celle de la coque de l’application : elle ne se règle pas ici.'),
     h('div', { class: 'reglages-infos' }, ...lignes));
@@ -111,12 +114,13 @@ function sectionModules(ctx) {
     maison && !lignes.length ? h('p', { class: 'aide', dataset: { role: 'modules-aucun' } }, 'Aucun module n’est allumé dans cet espace pour l’instant.') : null,
     h('ul', { class: 'reglages-modules' }, lignes.map((l) => {
       const noms = l.modules.map((id) => moduleDeclare(id).nom).join(', ');
+      const groupe = l.modules.length > 1 || moduleDeclare(l.modules[0]).nom !== l.libelle; // un bloc de plusieurs modules (Achats) : on dit lesquels, même s'il n'en reste qu'un d'allumé
       const etat = l.actif ? 'Allumé' : 'Éteint';
       return h('li', { class: 'reglages-module-ligne', dataset: { module: l.id } },
         h('label', { class: 'case' },
           h('input', { type: 'checkbox', role: 'switch', checked: l.actif, disabled: true, dataset: { interrupteur: l.id }, 'aria-label': `${l.libelle} : ${etat.toLowerCase()}` }),
           h('strong', {}, l.libelle)),
-        h('span', { class: 'aide' }, l.modules.length > 1 ? `${noms}${l.actif && !l.complet ? ' (une partie seulement est allumée)' : ''}` : ''),
+        h('span', { class: 'aide', dataset: { role: 'modules-du-bloc' } }, groupe ? `${noms}${l.actif && !l.complet ? ' (une partie seulement est allumée)' : ''}` : ''),
         h('span', { class: `badge${l.actif ? ' badge-actif' : ''}` }, etat));
     })))];
 }
@@ -189,7 +193,7 @@ export function monterReglages(conteneur, segs, ctx) {
   const editeur = ctx.editeur !== false && compteEcrit(ctx.compte);
   const c = { ...ctx, editeur, nomEspace: ctx.chezClient ? ctx.nomEspace : nomEspaceRacine(ctx.nomEspace) }; // maison d'un client : son nom, jamais « Chevalier IA OS »
   const items = reglagesDesModules(c.actifs);
-  // « Connexion à la base » : Jérôme seul, à la racine. Maison d'un client, compte non titulaire : ni Modules actifs, ni Déploiement, ni Mes tests, ni Connexion à la base
+  // « Connexion à la base » : Jérôme seul, à la racine. Maison d'un client, compte non titulaire : ni Déploiement, ni Mes tests, ni Connexion à la base (« Modules actifs » reste visible : ses seuls modules allumés)
   // (une adresse cachée tapée à la main ramène à « Mon espace », comme toute section inconnue). Plateforme des clients (chezClient) : inchangé.
   const espaces = sectionsEspaceVisibles({ chezClient: !!c.chezClient, editeur, jerome: compteReserve(c.compte), techniques: !!c.chezClient || !pagesTechniquesCachees(c.compte) });
   const cible = cibleReglages(segs, { espaces, modules: items });

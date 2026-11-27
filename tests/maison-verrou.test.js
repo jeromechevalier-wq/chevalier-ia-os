@@ -143,9 +143,9 @@ describe('Chantier 0 : rien de propre à une maison dans le code du serveur et d
 
   test('MV5 la fiche reglages_maison est fermée au navigateur dans les deux jeux de règles (maison : seuls le nom et le logo de « public » ; plateforme : tout refusé par défaut)', () => {
     const r = readFileSync(join(RACINE, 'firestore.rules'), 'utf8');
-    // Une seule écriture permise depuis un navigateur (27/11/2026, Mon espace d'une maison de client) : MODIFIER le nom et le logo de `public`, par un compte de la fiche,
+    // Une seule écriture permise depuis un navigateur (27/11/2026, Mon espace d'une maison de client) : MODIFIER le nom et le logo de `public`, par le titulaire seul (compteJeromeSeul),
     // contrôlée par identiteMaisonValide (deux champs seulement, jamais chez Jérôme). `maison` et `ecran` ne s'écrivent jamais ; ni création, ni suppression, ni liste.
-    assert.match(r, /match \/reglages_maison\/\{id\} \{\s+allow get: if id == 'public' \|\| \(id == 'ecran' && compteAutorise\(\)\);\s+allow update: if id == 'public' && compteAutorise\(\) && identiteMaisonValide\(\);\s+allow list, create, delete: if false;\s+\}/);
+    assert.match(r, /match \/reglages_maison\/\{id\} \{\s+allow get: if id == 'public' \|\| \(id == 'ecran' && compteAutorise\(\)\);\s+allow update: if id == 'public' && compteJeromeSeul\(\) && identiteMaisonValide\(\);\s+allow list, create, delete: if false;\s+\}/);
     assert.match(r, /return apres\.diff\(avant\)\.affectedKeys\(\)\.hasOnly\(\['nom_espace', 'logo'\]\)\s+&& \(avant\.get\('nom_espace', ''\) != '' \|\| avant\.get\('connexion_neutre', false\) == true\)/);
     assert.equal((r.match(/reglages_maison\/\{id\}/g) || []).length, 1, 'un seul bloc pour reglages_maison');
     const p = sansCommentaires(readFileSync(join(RACINE, 'firestore.plateforme.rules'), 'utf8'));

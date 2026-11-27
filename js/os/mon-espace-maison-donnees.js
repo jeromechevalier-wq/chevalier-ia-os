@@ -1,6 +1,6 @@
 // Écriture de « Mon espace » dans une MAISON (27/11/2026) : le nom et le logo vivent dans reglages_maison/public (lu avant la connexion).
 // Seule écriture qu'un navigateur peut faire dans reglages_maison : les règles (firestore.rules, identiteMaisonValide) n'acceptent que ces deux champs,
-// d'un compte autorisé de la maison, et seulement dans la maison d'un client. Tout autre champ, toute autre fiche : refusé.
+// du titulaire (comptes_jerome_seul), et seulement dans la maison d'un client. Tout autre champ, toute autre fiche : refusé.
 import { doc, updateDoc, deleteField } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from './firebase.js';
 

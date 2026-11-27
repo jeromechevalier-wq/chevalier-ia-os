@@ -726,7 +726,8 @@ export function interrupteursDuClient(actifs) {
  * « Modules actifs » dans une MAISON (déploiement à part d'un client, CRM racine), 27/11/2026. Mêmes lignes que interrupteursDuClient (une par bloc du menu), avec :
  *  - les modules `seulJerome` activables dans une maison (les modules Achats) ; la Console n'y figure jamais (elle ne s'allume pas par le réglage) ;
  *  - l'état VRAI : un bloc est allumé dès qu'un de ses modules l'est (`complet` = tous) ;
- *  - `catalogue` vrai (le titulaire seul, js/os/acces-reserve.js) : tout le catalogue, allumé ou éteint ; faux (les autres comptes) : seulement les lignes allumées.
+ *  - `catalogue` vrai (le titulaire seul, js/os/acces-reserve.js) : tout le catalogue, allumé ou éteint ; faux (les autres comptes) : seulement les lignes allumées,
+ *    et dans un bloc seulement ses modules ALLUMÉS (`modules`), sans la mention « une partie seulement » (`complet` vrai) : un client ne lit jamais le nom d'un module qu'il n'a pas.
  */
 export function interrupteursDeLaMaison(actifs, { catalogue = false } = {}) {
   const vus = new Set();
@@ -740,7 +741,10 @@ export function interrupteursDeLaMaison(actifs, { catalogue = false } = {}) {
     const ids = groupe ? groupe.modules : [m.id];
     const actif = ids.some((x) => actifs.includes(x));
     if (!actif && catalogue !== true) continue;
-    lignes.push({ id, libelle: groupe ? groupe.nom : m.nom, modules: ids, actif, complet: ids.every((x) => actifs.includes(x)) });
+    const allumes = ids.filter((x) => actifs.includes(x));
+    lignes.push(catalogue === true
+      ? { id, libelle: groupe ? groupe.nom : m.nom, modules: ids, actif, complet: allumes.length === ids.length }
+      : { id, libelle: groupe ? groupe.nom : m.nom, modules: allumes, actif: true, complet: true });
   }
   return lignes;
 }

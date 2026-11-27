@@ -12,10 +12,10 @@ export const NOM_ESPACE_DEFAUT = 'Votre espace';
 export const LONGUEUR_NOM_MAX = 80;
 
 // Logo de la maison (27/11/2026, Réglages > Mon espace) : champ FACULTATIF `logo` de `public`, une petite image écrite en adresse « data: » (PNG, JPEG ou SVG,
-// 200 Ko au plus). Toute autre valeur (adresse http, autre type, trop longue) est ignorée : le logo Chevalier IA reste. Le logo n'est JAMAIS posé autrement que
+// 100 Ko au plus). Toute autre valeur (adresse http, autre type, trop longue) est ignorée : le logo Chevalier IA reste. Le logo n'est JAMAIS posé autrement que
 // dans la source d'une balise <img> (un SVG n'y exécute aucun script). Les mêmes bornes sont dans firestore.rules (identiteMaisonValide).
-export const LOGO_OCTETS_MAX = 200 * 1024;
-export const LOGO_LONGUEUR_MAX = 280000;
+export const LOGO_OCTETS_MAX = 100000; // `public` est lu à chaque ouverture de la page, avant la connexion : le logo doit rester léger
+export const LOGO_LONGUEUR_MAX = 140000;
 const LOGO = /^data:image\/(png|jpeg|svg\+xml);base64,[A-Za-z0-9+/]+=*$/;
 
 /** Vrai si `v` est un logo acceptable (adresse « data: » d'une image PNG, JPEG ou SVG, assez courte). */

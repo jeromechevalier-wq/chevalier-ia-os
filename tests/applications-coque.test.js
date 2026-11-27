@@ -52,7 +52,10 @@ test('3 maison, compte client : seulement les lignes allumées, avec leur vrai �
   assert.deepEqual(interrupteursDeLaMaison([...ACHATS, 'console']).map((l) => l.id), ['achats'], 'la Console n’est jamais une ligne');
   assert.deepEqual(interrupteursDeLaMaison([]), [], 'rien d’allumé : aucune ligne (l’écran dit « Aucun module »)');
   const partiel = interrupteursDeLaMaison(['achatsfactures', 'devis']);
-  assert.deepEqual(partiel.map((l) => [l.id, l.actif, l.complet]), [['devis', true, true], ['achats', true, false]], 'un bloc en partie allumé est dit allumé, pas complet');
+  // Bloc en partie allumé (Factures seule) : le client ne lit que « Factures », sans « une partie seulement » ; le titulaire voit tout le bloc, dit incomplet.
+  assert.deepEqual(partiel.map((l) => [l.id, l.actif, l.complet, l.modules]), [['devis', true, true, ['devis']], ['achats', true, true, ['achatsfactures']]]);
+  const partielTitulaire = interrupteursDeLaMaison(['achatsfactures'], { catalogue: true }).find((l) => l.id === 'achats');
+  assert.deepEqual([partielTitulaire.actif, partielTitulaire.complet, partielTitulaire.modules.length], [true, false, 5]);
 });
 function moduleLigne(id) { return interrupteursDeLaMaison(MODULES_DECLARES.map((m) => m.id), { catalogue: true }).find((l) => l.id === id).modules; }
 
@@ -105,9 +108,10 @@ test('4 fichier du logo : le type est lu dans les octets (PNG, JPEG, SVG) ; trop
     assert.deepEqual(new Uint8Array(Buffer.from(r.logo.split(',')[1], 'base64')), octets, 'le contenu est gardé tel quel');
   }
   const lourd = new Uint8Array(LOGO_OCTETS_MAX + 1); lourd.set(PNG);
-  assert.match(preparerLogoMaison(lourd).message, /201 Ko : 200 Ko au plus/);
+  assert.match(preparerLogoMaison(lourd).message, /101 Ko : 100 Ko au plus/);
+  assert.equal(LOGO_OCTETS_MAX, 100000);
   const limite = new Uint8Array(LOGO_OCTETS_MAX); limite.set(PNG);
-  assert.equal(preparerLogoMaison(limite).ok, true, '200 Ko pile : accepté, et l’adresse tient dans la borne des règles');
+  assert.equal(preparerLogoMaison(limite).ok, true, '100 Ko pile : accepté, et l’adresse tient dans la borne des règles');
   assert.ok(preparerLogoMaison(limite).logo.length <= LOGO_LONGUEUR_MAX);
   assert.match(preparerLogoMaison(new Uint8Array(0)).message, /vide/);
   assert.match(preparerLogoMaison(new TextEncoder().encode('bonjour')).message, /ni un PNG, ni un JPG, ni un SVG/);
@@ -121,7 +125,8 @@ test('4 le nom : espaces simplifiés, 80 caractères au plus, jamais autre chose
 
 test('4 les règles et l’écran portent les mêmes bornes ; le logo n’est posé que dans la source d’une image', () => {
   const regles = lire('firestore.rules');
-  assert.match(regles, /allow update: if id == 'public' && compteAutorise\(\) && identiteMaisonValide\(\);/);
+  assert.match(regles, /allow update: if id == 'public' && compteJeromeSeul\(\) && identiteMaisonValide\(\);/);
+  assert.match(lire('js/os/reglages.js'), /if \(!ctx\.chezClient && connexionNeutre\(\) && compteReserve\(ctx\.compte\)\) return \[sectionMonEspaceMaison\(ctx, etat\), apparence\];/, 'le formulaire : le titulaire seul');
   assert.match(regles, /allow list, create, delete: if false;/);
   assert.match(regles, /affectedKeys\(\)\.hasOnly\(\['nom_espace', 'logo'\]\)/);
   assert.match(regles, new RegExp(`apres\\.logo\\.size\\(\\) <= ${LOGO_LONGUEUR_MAX}`));

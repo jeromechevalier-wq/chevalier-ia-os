@@ -1,7 +1,8 @@
 // Réglages > « Mon espace » dans une MAISON de client (27/11/2026, chantier « applications dans la coque ») : le nom de l'espace et son logo.
 // Le nom est affiché en haut à gauche (menu, barre du haut), dans l'onglet et sur la page de connexion ; le logo à gauche du nom et sur la page de connexion.
 // Les deux vivent dans reglages_maison/public (lu avant la connexion, par tout le monde) : rien de confidentiel. UN bouton « Enregistrer » pour les deux.
-// Qui peut enregistrer : un compte autorisé de la maison (règles Firestore : identiteMaisonValide) ; un refus du serveur est dit clairement, rien n'est perdu.
+// Qui peut enregistrer : le TITULAIRE seul (comptes_jerome_seul ; règles Firestore : compteJeromeSeul et identiteMaisonValide). Les autres comptes ne voient pas ce
+// formulaire (Mon espace en lecture seule, js/os/reglages.js) ; un refus du serveur est dit clairement, rien n'est perdu.
 // Chez Jérôme (maison sans nom_espace ni connexion_neutre) cet écran n'existe pas : l'identité de la coque y reste en lecture seule (js/os/reglages.js).
 import { h, icone, remplir, toast } from './ui.js';
 import { LONGUEUR_NOM_MAX, nomRange, nomEspaceMaison, logoMaison, connexionNeutreDemandee, retenirPublic, nomAfficheMaison } from './identite-maison.js';

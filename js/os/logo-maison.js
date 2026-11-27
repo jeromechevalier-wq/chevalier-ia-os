@@ -1,11 +1,11 @@
 // Logo d'une maison (27/11/2026, Réglages > Mon espace) : contrôle du fichier choisi et fabrication de l'adresse « data: » rangée dans reglages_maison/public.logo.
-// PNG, JPEG ou SVG, 200 Ko au plus (pas de Storage : l'image vit dans le document, lu avant la connexion ; elle doit rester petite).
+// PNG, JPEG ou SVG, 100 Ko au plus (pas de Storage : l'image vit dans le document, lu avant la connexion ; elle doit rester petite).
 // Le type est lu dans les PREMIERS OCTETS du fichier, jamais dans son nom ni dans le type annoncé par le navigateur.
-// Ce fichier n'importe ni Firebase ni le DOM : il se teste seul (tests/mon-espace-maison.test.js). Les règles Firestore refont le contrôle (identiteMaisonValide).
+// Ce fichier n'importe ni Firebase ni le DOM : il se teste seul (tests/applications-coque.test.js). Les règles Firestore refont le contrôle (identiteMaisonValide).
 import { LOGO_OCTETS_MAX, logoValide } from './identite-maison.js';
 
 export const TYPES_LOGO_MAISON = 'image/png,image/jpeg,image/svg+xml';
-export const AIDE_LOGO_MAISON = 'PNG, JPG ou SVG, 200 Ko au plus. Une image carrée, sans marge, rend le mieux.';
+export const AIDE_LOGO_MAISON = 'PNG, JPG ou SVG, 100 Ko au plus. Une image carrée, sans marge, rend le mieux.';
 
 /** Type d'après le contenu : 'image/png', 'image/jpeg', 'image/svg+xml' ou null. */
 export function typeLogo(octets) {
@@ -25,12 +25,12 @@ function enBase64(octets) {
   return btoa(binaire);
 }
 
-const formatKo = (n) => `${Math.ceil(n / 1024).toLocaleString('fr-FR')} Ko`;
+const formatKo = (n) => `${Math.ceil(n / 1000).toLocaleString('fr-FR')} Ko`;
 
 /** Octets d'un fichier choisi -> { ok: true, logo: 'data:image/…;base64,…', type } ou { ok: false, message } (le message dit lequel des cas et quoi faire). */
 export function preparerLogoMaison(octets) {
   if (!(octets instanceof Uint8Array) || !octets.length) return { ok: false, message: 'Ce fichier est vide. Choisis un logo au format PNG, JPG ou SVG.' };
-  if (octets.length > LOGO_OCTETS_MAX) return { ok: false, message: `Ce fichier pèse ${formatKo(octets.length)} : 200 Ko au plus pour le logo. Choisis une image plus légère (ou réduis-la).` };
+  if (octets.length > LOGO_OCTETS_MAX) return { ok: false, message: `Ce fichier pèse ${formatKo(octets.length)} : 100 Ko au plus pour le logo. Choisis une image plus légère (ou réduis-la).` };
   const type = typeLogo(octets);
   if (!type) return { ok: false, message: 'Ce fichier n’est ni un PNG, ni un JPG, ni un SVG. Choisis un autre fichier.' };
   const logo = `data:${type};base64,${enBase64(octets)}`;

@@ -2,7 +2,8 @@
 //  1 le besoin du village ouvre l'application du module (Factures : la pile), et la maison de l'appli ramène au village ;
 //  2 dans l'appli, la roue dentée n'ouvre que les réglages de CETTE appli (aucun autre module, aucun réglage de l'espace) ;
 //  3 Réglages > Modules actifs dans une maison : le compte client voit ses seuls modules allumés ; le titulaire voit tout le catalogue avec le vrai état ; chez Jérôme : inchangé ;
-//  4 Réglages > Mon espace dans une maison : le nom et le logo s'enregistrent, s'affichent en haut à gauche et sur la page de connexion.
+//  4 Réglages > Mon espace dans une maison : le titulaire enregistre le nom et le logo, qui s'affichent en haut à gauche et sur la page de connexion ;
+//    un compte du client les voit en lecture seule (ouvrir ce réglage aux comptes du client : à décider par Jérôme).
 // Captures dans tests/e2e/captures/applications-coque/, nommées avec le projet (ordinateur ou telephone). Données d'exemple neutres, aucun réseau réel.
 // Comptes des parcours (outils.js) : JEROME est le titulaire ; CHARLES est un autre compte autorisé (ici : le compte du client). Logique : tests/applications-coque.test.js.
 // Le bâtiment est ouvert au clavier (Entrée) et l'arrivée est attendue par son adresse : le test ne dépend ni du nombre de parcelles ni du délai d'un clic.
@@ -115,6 +116,16 @@ test('3 maison d’un client, compte client : « Modules actifs » ne montre que
   await capturer(page, info, '3-client-modules-allumes');
 });
 
+test('3 maison où Factures seule est allumée (bloc Achats en partie) : le compte client lit « Achats : Factures », sans les modules éteints ni « une partie seulement »', async ({ page }, info) => {
+  await semerMaison({ modules: ['achatsfactures'] });
+  await ouvrir(page, CHARLES, 'reglages/modules');
+  expect(await lignesModules(page)).toEqual([['achats', 'Allumé']]);
+  const ligne = page.locator('.reglages-module-ligne[data-module="achats"]');
+  await expect(ligne.locator('[data-role="modules-du-bloc"]')).toHaveText('Factures');
+  for (const absent of ['Fournisseurs', 'Chantiers', 'Articles', 'Tableau de bord 2', 'une partie seulement']) await expect(ligne).not.toContainText(absent);
+  await capturer(page, info, '3-client-bloc-partiel');
+});
+
 test('3 maison d’un client, titulaire : tout le catalogue, « Allumé » pour les modules de la maison et « Éteint » pour les autres', async ({ page }, info) => {
   await semerMaison();
   await ouvrir(page, JEROME, 'reglages/modules');
@@ -146,9 +157,9 @@ test('3 chez Jérôme (pas une maison de client) : « Modules actifs » inchang�
   await expect(page.locator('[data-role="modules-catalogue"], [data-role="modules-allumes"]')).toHaveCount(0);
 });
 
-test('4 Mon espace d’une maison : le nom et le logo s’enregistrent, s’affichent tout de suite en haut à gauche, puis sur la page de connexion', async ({ page }, info) => {
+test('4 Mon espace d’une maison, titulaire : le nom et le logo s’enregistrent, s’affichent tout de suite en haut à gauche, puis sur la page de connexion', async ({ page }, info) => {
   await semerMaison();
-  await ouvrir(page, CHARLES, 'reglages');
+  await ouvrir(page, JEROME, 'reglages');
   const section = page.locator('[data-role="mon-espace-maison"]');
   await expect(section).toBeVisible();
   await expect(section.locator('[data-champ="nom"]')).toHaveValue(NOM);
@@ -190,14 +201,14 @@ test('4 Mon espace d’une maison : le nom et le logo s’enregistrent, s’affi
   await capturer(page, info, '4-connexion-avec-logo');
 });
 
-test('4 Mon espace d’une maison : fichier refusé (trop lourd, mauvais type) et nom vide = message clair, rien n’est enregistré ; « Retirer » enlève le logo', async ({ page }, info) => {
+test('4 Mon espace d’une maison, titulaire : fichier refusé (trop lourd, mauvais type) et nom vide = message clair, rien n’est enregistré ; « Retirer » enlève le logo', async ({ page }, info) => {
   await semerMaison();
-  await ouvrir(page, CHARLES, 'reglages');
+  await ouvrir(page, JEROME, 'reglages');
   const section = page.locator('[data-role="mon-espace-maison"]');
   const fichier = section.locator('[data-role="fichier-logo"]');
-  const lourd = Buffer.concat([await pngFictif(page), Buffer.alloc(201 * 1024)]);
+  const lourd = Buffer.concat([await pngFictif(page), Buffer.alloc(101 * 1000)]);
   await fichier.setInputFiles({ name: 'gros.png', mimeType: 'image/png', buffer: lourd });
-  await expect(section.locator('[data-role="message-logo"]')).toContainText('200 Ko au plus');
+  await expect(section.locator('[data-role="message-logo"]')).toContainText('100 Ko au plus');
   await fichier.setInputFiles({ name: 'faux.png', mimeType: 'image/png', buffer: Buffer.from('GIF89a pas une image acceptée') });
   await expect(section.locator('[data-role="message-logo"]')).toContainText('ni un PNG, ni un JPG, ni un SVG');
   await expect(section.locator('[data-role="logo-image"]')).toHaveCount(0);
@@ -216,6 +227,27 @@ test('4 Mon espace d’une maison : fichier refusé (trop lourd, mauvais type) e
   await section.locator('[data-action="enregistrer"]').click();
   await expect(section.locator('[data-role="pas-de-logo"]')).toBeVisible();
   await expect(marque.locator('img[src^="data:"]')).toHaveCount(0);
+});
+
+test('4 Mon espace d’une maison, compte du client : le nom et le logo en lecture seule, sans formulaire ; une écriture directe est refusée par les règles', async ({ page }, info) => {
+  const logo = `data:image/png;base64,${(await (async () => { await page.goto('about:blank'); return pngFictif(page); })()).toString('base64')}`;
+  await semerMaison({ publicPlus: { logo } });
+  await ouvrir(page, CHARLES, 'reglages');
+  await expect(page.locator('#reglages-identite')).toBeVisible();
+  await expect(page.locator('[data-role="mon-espace-maison"]')).toHaveCount(0);
+  await expect(page.locator('#reglages-identite [data-info="nom"] .reglages-info-valeur')).toHaveText(NOM);
+  await expect(page.locator('#reglages-identite [data-info="logo"] img')).toHaveAttribute('src', logo);
+  await expect(page.locator('#reglages-identite input, #reglages-identite button')).toHaveCount(0);
+  expect(await sansDefilementHorizontal(page)).toBe(true);
+  await capturer(page, info, '4-client-lecture-seule');
+  // Les règles refusent ce compte, même en appelant la base à la main (le formulaire caché n'est pas la barrière).
+  const code = await page.evaluate(async () => {
+    const { enregistrerIdentiteMaison } = await import('/js/os/mon-espace-maison-donnees.js');
+    try { await enregistrerIdentiteMaison({ nom: 'Nom pirate' }); return 'accepté'; } catch (e) { return e.code; }
+  });
+  expect(code).toBe('permission-denied');
+  await page.reload();
+  await expect(page.locator('#reglages-identite [data-info="nom"] .reglages-info-valeur')).toHaveText(NOM);
 });
 
 test('4 chez Jérôme (pas une maison de client) : Mon espace reste en lecture seule, sans formulaire', async ({ page }) => {
