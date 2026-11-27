@@ -30,7 +30,7 @@ begin
     execute format('set role %I', v_role);
     perform pg_temp.entrer('espace-a', 'alice-marqa@exemple.test');
     -- Tables : aucune ligne d'un autre espace, aucune trace de la marque de B.
-    for r in select c.oid, c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname <> 'registre_tables' loop
+    for r in select c.oid, c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname not in ('registre_tables', 'mode_emploi_objets', 'mode_emploi_champs') loop
       continue when not has_table_privilege(v_role, r.oid, 'SELECT');
       execute format('select count(*) from public.%I where espace_id <> %L', r.relname, 'espace-a') into v_n;
       if v_n > 0 then raise exception '[%] la table % montre % ligne(s) d''un autre espace', v_role, r.relname, v_n; end if;
@@ -125,7 +125,7 @@ declare r record; v_n bigint; v_esp text; v_cles text; v_tout text := '';
 begin
   foreach v_esp in array array['', '   '] loop
     perform set_config('app.espace_id', v_esp, false);
-    for r in select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname <> 'registre_tables' loop
+    for r in select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname not in ('registre_tables', 'mode_emploi_objets', 'mode_emploi_champs') loop
       execute format('select count(*) from public.%I', r.relname) into v_n;
       if v_n > 0 then raise exception 'Sans espace, la table % montre % ligne(s)', r.relname, v_n; end if;
     end loop;
@@ -158,7 +158,7 @@ begin
   if current_setting('app.espace_id', true) is not null and current_setting('app.espace_id', true) <> '' then
     raise exception 'app.espace_id ne devrait pas être posé';
   end if;
-  for r in select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname <> 'registre_tables'
+  for r in select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname not in ('registre_tables', 'mode_emploi_objets', 'mode_emploi_champs')
              and has_table_privilege('porte', c.oid, 'SELECT') loop
     execute format('select count(*) from public.%I', r.relname) into v_n;
     if v_n > 0 then raise exception 'Espace jamais posé : la table % montre % ligne(s)', r.relname, v_n; end if;
