@@ -25,6 +25,7 @@ begin
   perform pg_temp.egal(public.est_source_nom_valide('courriel:factures@exemple.test'), true, 'source : courriel et sa boîte');
   perform pg_temp.egal(public.est_source_nom_valide('depot'), true, 'source : dépôt');
   perform pg_temp.egal(public.est_source_nom_valide('n8n:lecture'), true, 'source : n8n et son workflow');
+  perform pg_temp.egal(public.est_source_nom_valide('relecture'), true, 'source : relecture (004, nouvelle lecture par n8n)');
   perform pg_temp.egal(public.est_source_nom_valide('fax'), false, 'source hors liste');
   perform pg_temp.egal(public.est_unite_connue('Sacs'), true, 'unité : sacs = sac');
   perform pg_temp.egal(public.est_unite_connue('m²'), true, 'unité : m² = m2');

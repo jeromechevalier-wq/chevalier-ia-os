@@ -8,6 +8,8 @@
 -- de la personne dans p_qui. Brancher ce verrou casserait la validation des factures. Il faut d'abord : (1) la porte qui laisse une personne
 -- décider par son rôle (ou n8n qui agit au nom de la personne du ticket, avec son identité vérifiée) ; (2) les workflows n8n adaptés ;
 -- (3) un essai en vrai.
+-- Limites connues (écrites, pas couvertes) : factures_identite (archiver, relier un chantier, désarchiver) et lignes_facture_articles, car le
+-- robot recale encore l'identité d'une facture quand un scan arrive (004) ; à revoir avec les règles 16 et 21.
 -- Le test se fait sur le NOM du rôle courant (« set local role robot_reflets » de la porte) : un compte d'administration qui peut devenir ce
 -- rôle n'est pas arrêté tant qu'il ne le devient pas.
 
@@ -16,12 +18,18 @@ language plpgsql as $$
 begin
   if current_user = 'robot_reflets' then
     if tg_table_name = 'rapprochements_articles_tous' then
-      if new.valide_le is null then
+      if tg_op = 'INSERT' and new.valide_le is null then
         return new;   -- une suggestion de l'IA n'est pas une décision
       end if;
       if tg_op = 'UPDATE' then
-        if old.valide_le is not null and new.valide_le is not distinct from old.valide_le then
-          return new;   -- archiver un lien déjà validé (sans le valider à nouveau) suit la décision d'une personne
+        if old.valide_le is null and new.valide_le is null then
+          return new;   -- reprendre ou archiver une suggestion
+        end if;
+        -- Un lien validé : le robot peut seulement l'archiver (suivre la décision d'une personne), rien d'autre.
+        if old.valide_le is not null and old.archive_le is null and new.archive_le is not null
+           and (to_jsonb(new) - '{archive_le,archive_par,modifie_le,modifie_par,par_ou,created_at}'::text[])
+             = (to_jsonb(old) - '{archive_le,archive_par,modifie_le,modifie_par,par_ou,created_at}'::text[]) then
+          return new;
         end if;
       end if;
     end if;

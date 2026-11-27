@@ -44,7 +44,7 @@ begin
   raise exception 'pas de SIREN';
 end $$;
 
--- robot() : devenir le robot qui recopie (rôle robot_reflets, personne « n8n »), dans le même espace ; redevenir() : revenir au rôle et à la
+-- robot(_) : devenir le robot qui recopie (rôle robot_reflets, personne « n8n », le paramètre est ignoré), dans le même espace ; redevenir() : revenir au rôle et à la
 -- personne d'avant. Le droit de « devenir » un rôle est celui du compte de la séance (l'administrateur des tests).
 create or replace function pg_temp.robot(p_qui text) returns void language plpgsql as $$
 begin

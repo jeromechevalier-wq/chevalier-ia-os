@@ -33,10 +33,10 @@ begin
       raise exception 'La porte peut encore écrire le reflet %', r.nom_table;
     end if;
   end loop;
-  perform pg_temp.doit_echouer('insert into public.courriels_recus (client, boite, workflow, email_message_id, resultat) values (''c'', ''b'', ''w'', ''<p@exemple.test>'', ''accepte'')', null);
-  perform pg_temp.doit_echouer('insert into public.factures (numero, montant_ht) values (''P-1'', 1)', null);
-  perform pg_temp.doit_echouer(format('select public.remplacer_lignes_facture(%L, %L, %L)', v_f, '[]', 'alice@exemple.test'), null);
-  perform pg_temp.doit_echouer('insert into public.n8n_executions (workflow_id, workflow_nom, resultat) values (''wf'', ''x'', ''ok'')', null);
+  perform pg_temp.doit_echouer('insert into public.courriels_recus (client, boite, workflow, email_message_id, resultat) values (''c'', ''b'', ''w'', ''<p@exemple.test>'', ''accepte'')', 'MESSAGE:permission denied');
+  perform pg_temp.doit_echouer('insert into public.factures (numero, montant_ht) values (''P-1'', 1)', 'MESSAGE:permission denied');
+  perform pg_temp.doit_echouer(format('select public.remplacer_lignes_facture(%L, %L, %L)', v_f, '[]', 'alice@exemple.test'), 'MESSAGE:permission denied');
+  perform pg_temp.doit_echouer('insert into public.n8n_executions (workflow_id, workflow_nom, resultat) values (''wf'', ''x'', ''ok'')', 'MESSAGE:permission denied');
   -- La porte corrige et décide toujours (ce sont des sources).
   update public.factures set montant_ht = 90, statut = 'refusee', motif_refus = 'Erreur de montant', decide_par = 'alice@exemple.test', decide_par_id = gen_random_uuid() where id = v_f;
   perform pg_temp.egal((select statut from public.factures where id = v_f), 'refusee'::public.statut_facture, 'la porte décide');
@@ -49,6 +49,27 @@ set role porte;
 select pg_temp.entrer('espace-a', 'alice@exemple.test');
 select pg_temp.doit_echouer('insert into public.courriels_recus (client, boite, workflow, email_message_id, resultat) values (''c'', ''b'', ''w'', ''<p2@exemple.test>'', ''accepte'')', 'reflet_robot_seulement');
 reset role;
+
+-- Chaque reflet du registre a son cadenas (déclencheur) ; le robot n'a le droit de modifier aucun reflet (sauf la case archive_le des lignes lues).
+do $$
+declare r record;
+begin
+  for r in select t.nom_table from public.registre_tables t where t.nature = 'reflet' loop
+    if not exists (select 1 from pg_trigger g where g.tgrelid = ('public.' || r.nom_table)::regclass and g.tgname = 'ab_reflet_robot_seulement') then
+      raise exception 'Reflet sans cadenas : %', r.nom_table;
+    end if;
+    if has_table_privilege('robot_reflets', ('public.' || r.nom_table)::regclass, 'UPDATE') then
+      raise exception 'Le robot peut encore modifier le reflet %', r.nom_table;
+    end if;
+  end loop;
+  if not has_column_privilege('robot_reflets', 'public.lignes_facture_lues', 'archive_le', 'UPDATE') then
+    raise exception 'Le robot ne peut plus archiver les lignes lues';
+  end if;
+end $$;
+-- Même l'administrateur (qui peut tout) ne modifie pas un reflet : le déclencheur « ajout seul » tient toujours.
+select pg_temp.entrer('espace-a', 'migration');
+select pg_temp.doit_echouer('update public.courriels_recus set sujet = ''changé''', 'ajout_seul');
+select pg_temp.doit_echouer('update public.n8n_executions set resultat = ''ok''', 'ajout_seul');
 
 -- Par où (règle 4) : chaque table a le déclencheur, et la valeur vient du réglage, pas de la requête.
 do $$

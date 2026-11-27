@@ -86,14 +86,23 @@ begin
   return new;
 end $$;
 
+-- Pose le cadenas sur un reflet (à rappeler pour tout futur reflet inscrit au registre ; le test 13 le vérifie pour chacun).
+create or replace function public.poser_cadenas_reflet(p_table text) returns void
+language plpgsql as $$
+declare t regclass := format('public.%I', p_table)::regclass;
+begin
+  execute format('revoke insert, update on %s from porte', t);
+  execute format('revoke update on %s from robot_reflets', t);
+  execute format('drop trigger if exists ab_reflet_robot_seulement on %s', t);
+  execute format('create trigger ab_reflet_robot_seulement before insert or update on %s for each row execute function public.reflet_robot_seulement()', t);
+end $$;
+revoke all on function public.poser_cadenas_reflet(text) from public, porte, robot_reflets, indicateurs;
+
 do $$
 declare r record;
 begin
   for r in select t.nom_table from public.registre_tables t where t.nature = 'reflet' order by 1 loop
-    execute format('revoke insert, update on public.%I from porte', r.nom_table);
-    execute format('revoke update on public.%I from robot_reflets', r.nom_table);
-    execute format('drop trigger if exists ab_reflet_robot_seulement on public.%I', r.nom_table);
-    execute format('create trigger ab_reflet_robot_seulement before insert or update on public.%I for each row execute function public.reflet_robot_seulement()', r.nom_table);
+    perform public.poser_cadenas_reflet(r.nom_table);
   end loop;
 end $$;
 -- La seule case qui se modifie dans un reflet : le tampon de fin des lignes lues.

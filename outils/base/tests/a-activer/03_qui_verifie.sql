@@ -21,6 +21,15 @@ begin
   perform public.valider_rapprochement((select article_id from ids_a), (select reference_id from ids_a), 1, 'pirate@exemple.test');
   perform pg_temp.egal((select valide_par from public.rapprochements_articles where article_fournisseur_id = (select article_id from ids_a)), 'alice@exemple.test',
     'valide_par = la personne de la requête');
+  -- Une ligne ajoutée en direct au journal : même chose.
+  insert into public.journal_modifications (table_nom, action, qui) values ('factures', 'modification', 'pirate@exemple.test');
+  perform pg_temp.egal((select qui from public.journal_modifications order by id desc limit 1), 'alice@exemple.test', 'journal direct : qui = la personne de la requête');
+  -- Une validation déjà faite garde sa personne (une autre personne qui touche la ligne ne la reprend pas).
+  perform pg_temp.entrer('espace-a', 'bob@exemple.test');
+  update public.rapprochements_articles_tous set valide_par = 'pirate@exemple.test' where article_fournisseur_id = (select article_id from ids_a) and archive_le is null;
+  perform pg_temp.egal((select valide_par from public.rapprochements_articles where article_fournisseur_id = (select article_id from ids_a)), 'alice@exemple.test',
+    'valide_par gardé');
+  perform pg_temp.entrer('espace-a', 'alice@exemple.test');
   perform pg_temp.egal((select count(*)::int from public.journal_modifications where qui = 'pirate@exemple.test'), 0, 'aucun nom envoyé n''entre au journal');
 end $$;
 reset role;
