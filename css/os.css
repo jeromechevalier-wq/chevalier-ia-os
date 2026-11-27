@@ -144,20 +144,26 @@ body.page-connexion {
 .connexion-lead { margin-top: 12px; color: #ded8e1; font-size: 16px; }
 .connexion-pied { margin-top: 26px; color: #a79cae; font-size: 12px; letter-spacing: .03em; }
 /* Photos du métier du client (maison d'un client, js/os/connexion-photos.js) : à droite sur grand écran, derrière un voile sombre sur téléphone,
-   absentes sur très petit écran. Sans photo (chez Jérôme, dans le dépôt, dans les tests), .connexion-ecran n'a pas la classe avec-photos : rien ne change. */
+   absentes sur très petit écran. Sans photo (chez Jérôme, dans le dépôt, dans les tests), .connexion-ecran n'a pas la classe avec-photos : rien ne change.
+   Ouverture douce (grand écran) : avec-photos pose une colonne de photos de largeur nulle (le formulaire reste centré), photos-ouvertes l'élargit. */
 .connexion-ecran { position: relative; }
 .connexion-ecran.avec-photos { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-columns: 1fr; }
 .connexion-ecran.avec-photos > .connexion { position: relative; z-index: 1; grid-row: 1; grid-column: 1; }
-.connexion-photos { position: absolute; inset: 0; z-index: 0; overflow: hidden; background: #221a2b; }
+.connexion-photos { position: absolute; inset: 0; z-index: 0; overflow: hidden; background: #221a2b; animation: connexion-photos-apparition .7s ease both; }
+@keyframes connexion-photos-apparition { from { opacity: 0; } to { opacity: 1; } }
 .connexion-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity 1.2s ease; }
 .connexion-photo.visible { opacity: 1; }
 .connexion-photos-voile { position: absolute; inset: 0; background: rgb(34 26 43 / .84); }
-@media (prefers-reduced-motion: reduce) { .connexion-photo { transition: none; } }
 @media (max-width: 359px) { .connexion-photos { display: none; } }
 @media (min-width: 768px) {
-  .connexion-ecran.avec-photos { grid-template-columns: minmax(380px, 5fr) 6fr; }
-  .connexion-photos { position: relative; inset: auto; grid-row: 1; grid-column: 2; min-height: 100vh; min-height: 100dvh; }
+  .connexion-ecran.avec-photos { grid-template-columns: minmax(380px, 5fr) 0fr; transition: grid-template-columns .7s ease; }
+  .connexion-ecran.avec-photos.photos-ouvertes { grid-template-columns: minmax(380px, 5fr) 6fr; }
+  .connexion-photos { position: relative; inset: auto; grid-row: 1; grid-column: 2; min-width: 0; min-height: 100vh; min-height: 100dvh; }
   .connexion-photos-voile { background: linear-gradient(90deg, rgb(34 26 43 / .55) 0%, rgb(34 26 43 / .12) 40%, rgb(34 26 43 / .2) 100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .connexion-photo, .connexion-ecran.avec-photos { transition: none; }
+  .connexion-photos { animation: none; }
 }
 .bouton-google {
   margin-top: 27px; min-height: 52px; padding: var(--esp-6) 22px; font-size: var(--fs-texte);

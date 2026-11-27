@@ -311,10 +311,10 @@ export const test = base.extend({
     await context.route('**/devisPreparerEmailEtat', (route) => (route.request().method() === 'OPTIONS'
       ? route.fulfill({ status: 204, headers: corsDefaut })
       : route.fulfill({ status: 200, headers: corsDefaut, body: JSON.stringify({ result: { branche: false } }) })));
-    // Photos de la page de connexion d'une maison (js/os/connexion-photos.js) : le dépôt n'en a jamais (maison/ est ignoré par git), et le serveur de test
-    // répondrait 404, que le navigateur note dans sa console. Réponse par défaut « pas une image » (traitée comme une absence, tests/connexion-photos.test.js) ;
-    // un parcours qui veut des photos pose sa propre route sur la page (elle passe avant celle-ci).
-    await context.route(/\/maison\/connexion-\d+\.jpg(\?.*)?$/, (route) => route.fulfill({ status: 200, contentType: 'text/plain', body: 'absente' }));
+    // Photos de la page de connexion d'une maison (js/os/connexion-photos.js) : le dépôt n'en a jamais (maison/ est ignoré par git). Réponse par défaut :
+    // le vrai 404 d'une maison sans photo (le navigateur le note dans sa console : seule exception admise par le contrôle C20 ci-dessous, ERREUR_PHOTO_ABSENTE).
+    // Un parcours qui veut des photos pose sa propre route sur la page (elle passe avant celle-ci).
+    await context.route(/\/maison\/connexion-\d+\.jpg(\?.*)?$/, (route) => route.fulfill({ status: 404, contentType: 'text/plain', body: 'Not Found' }));
     // La page de connexion de l'émulateur Auth charge des styles externes facultatifs.
     await context.route(/https:\/\/(unpkg\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\/.*/, (route) =>
       route.fulfill({ status: 200, body: '', headers: { 'Content-Type': route.request().url().endsWith('.js') ? 'text/javascript' : 'text/css' } }));
@@ -326,12 +326,16 @@ export const test = base.extend({
   }, { auto: true }],
 });
 
+/** 404 d'une photo de connexion absente : « Failed to load resource … 404 … (http://hôte/maison/connexion-N.jpg) », rien d'autre. */
+export const ERREUR_PHOTO_ABSENTE = /status of 404 \(Not Found\) \(https?:\/\/[^/\s]+\/maison\/connexion-\d+\.jpg(\?[^)\s]*)?\)$/;
+
 /** C20 : aucune erreur dans la console du navigateur pendant le parcours. */
 test.afterEach(async ({ erreursConsole }, info) => {
   if (info.annotations.some((a) => a.type === 'erreurs-reseau-attendues')) return;
   // Une transaction Firestore refusée (409) pendant une écriture directe du test est rejouée par le SDK : le navigateur la note dans sa console,
   // mais ce n'est pas une erreur de l'appli (cause des échecs au hasard « 409 Conflict », voir docs/acceleration-tests-mesures.md). Toute autre erreur reste signalée.
-  const reelles = erreursConsole.filter((m) => !/status of 409 \(Conflict\).*documents:commit/.test(String(m)));
+  // Le 404 d'une photo de connexion absente (/maison/connexion-N.jpg, maison sans photo) est le fonctionnement normal : seule cette adresse est exceptée.
+  const reelles = erreursConsole.filter((m) => !/status of 409 \(Conflict\).*documents:commit/.test(String(m)) && !ERREUR_PHOTO_ABSENTE.test(String(m)));
   expect(reelles, 'Erreurs dans la console du navigateur').toEqual([]);
 });
 
