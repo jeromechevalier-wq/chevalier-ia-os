@@ -547,3 +547,13 @@ test('3.3 3.4 3.5 3.6 sûreté des liens : nouvel onglet sans lien avec l’appl
   assert.match(reglages, /BATIMENTS\.map\(\(id\)/); // les vignettes viennent du catalogue, rien d'autre
   assert.match(lire('js/os/village-glisser.js'), /e\.preventDefault\(\); \/\/ la maison d'un lien externe/);
 });
+
+test('3a-bis les fonctions du village sont identiques dans firestore.rules et firestore.plateforme.rules', () => {
+  const bloc = (f) => {
+    const m = lire(f).match(/ {4}function villageCase[\s\S]*?\n {4}function villageBatimentValide\(id\) \{[\s\S]*?\n {4}\}\n/);
+    assert.ok(m, f);
+    return m[0];
+  };
+  assert.equal(bloc('firestore.plateforme.rules'), bloc('firestore.rules'));
+  assert.match(lire('firestore.plateforme.rules'), /match \/clients\/\{client\}\/village_utilisateurs\/\{uid\}\/batiments\/\{id\} \{\n\s+allow read, delete: if connecte\(\) && request\.auth\.uid == uid && roleDe\(client\) in \['editeur', 'lecteur'\];\n\s+allow create, update: if connecte\(\) && request\.auth\.uid == uid && roleDe\(client\) in \['editeur', 'lecteur'\] && villageBatimentValide\(id\);\n\s+\}/);
+});
