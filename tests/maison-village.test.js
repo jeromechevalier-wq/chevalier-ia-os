@@ -113,9 +113,12 @@ test('V8 vue serrée : elle entoure le losange du terrain, le toit d’une maiso
   const devant = iso(...centreBloc(10, 10, 2, DAMIER_DEPART)); // damier 12 x 12 (27/11/2026) : la maison de devant est en (10, 10)
   assert.ok(fond[1] + BOITE_BATIMENT.haut >= vue.y);
   assert.ok(devant[1] + ETIQUETTE_Y + ETIQUETTE_HAUTEUR_MAX <= vue.y + vue.hauteur);
-  // aucun grand vide : à gauche et à droite, le losange touche presque le bord de la vue ; en haut, le toit du fond touche presque la vue
+  // aucun grand vide : à gauche et à droite, la vue s'arrête à l'étiquette la plus large d'une maison du coin (damier 12 x 12, 27/11/2026 : un nom long
+  // en (0, 10) ou (10, 0) n'est jamais rogné ; avant, le losange touchait le bord) ; en haut, le toit du fond touche presque la vue
   const xs = coins.map((c) => c[0]);
-  assert.ok(vue.largeur - (Math.max(...xs) - Math.min(...xs)) <= 20);
+  const gauche = iso(...centreBloc(0, 10, 2, DAMIER_DEPART));
+  assert.ok(gauche[0] - D6.DEMI_ETIQUETTE_MAX >= vue.x); // le nom le plus large d'une maison du coin gauche est dans la vue
+  assert.ok(vue.largeur - (Math.max(...xs) - Math.min(...xs)) <= 2 * (D6.DEMI_ETIQUETTE_MAX - (gauche[0] - Math.min(...xs))) + 20);
   assert.ok(Math.min(coins[0][1], fond[1] + BOITE_BATIMENT.haut) - vue.y <= 10);
   assert.ok(vue.y + vue.hauteur - Math.max(coins[2][1], devant[1] + ETIQUETTE_Y + ETIQUETTE_HAUTEUR_MAX) <= 30);
   // même taille de bâtiment : sa boîte fait moins d'un tiers de la largeur du losange

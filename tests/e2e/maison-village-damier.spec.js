@@ -512,4 +512,37 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
       for (const f of fixes) for (const e of etiquettes) expect(seChevauchent(f, e)).toBe(false);
     });
   }
+
+  test('D12 téléphone, 12 besoins, en 360 x 560 et 767 x 1024 : le haut du dessin s’atteint en défilant (rien de rogné) ; le village s’ouvre centré quand il tient', async ({ page }, info) => {
+    test.skip(!estTelephone(page), 'disposition du téléphone (dessin à 240 % de la largeur)');
+    const modeles = ['banque', 'marche', 'grue', 'entrepot', 'atelier', 'bureau', 'poste', 'phare', 'radio', 'beffroi', 'clients', 'garage'];
+    await semer({ besoins: modeles.map((batiment, i) => ({ nom: `Besoin ${i + 1}`, phrase: 'Un besoin', batiment, cible: `#/achatsfactures/vue${i + 1}` })) });
+    for (const [i, [largeur, hauteur]] of [[360, 560], [767, 1024]].entries()) {
+      await page.setViewportSize({ width: largeur, height: hauteur });
+      if (i === 0) await ouvrir(page, JEROME);
+      else { await page.reload(); await expect(page.locator('[data-role="village"]')).toBeVisible(); }
+      await expect(batiments(page)).toHaveCount(12);
+      const defile = page.locator('.village-defile');
+      // ouverture : centré à l'horizontale (le dessin est plus large que l'écran)
+      expect(await defile.evaluate((d) => d.scrollWidth > d.clientWidth + 1)).toBe(true);
+      expect(await defile.evaluate((d) => Math.abs(d.scrollLeft - (d.scrollWidth - d.clientWidth) / 2))).toBeLessThanOrEqual(2);
+      const mesure = () => defile.evaluate((d) => {
+        const s = d.querySelector('.village-scene').getBoundingClientRect();
+        const c = d.getBoundingClientRect();
+        return { haut: s.top - c.top, bas: c.bottom - s.bottom, deborde: d.scrollHeight > d.clientHeight + 1 };
+      });
+      const m = await mesure();
+      if (m.deborde) {
+        // plus haut que le cadre : en remontant tout en haut, le haut du dessin est visible (rien n'est hors d'atteinte au-dessus)
+        await defile.evaluate((d) => { d.scrollTop = 0; });
+        expect((await mesure()).haut).toBeGreaterThanOrEqual(-1);
+        await defile.evaluate((d) => { d.scrollTop = d.scrollHeight; });
+        expect((await mesure()).bas).toBeGreaterThanOrEqual(-1);
+      } else {
+        expect(Math.abs(m.haut - m.bas)).toBeLessThanOrEqual(2); // il tient : centré à la verticale
+      }
+      await defile.evaluate((d) => { d.scrollTop = 0; });
+      await capturer(page, info, `D12-douze-besoins-${largeur}x${hauteur}`);
+    }
+  });
 });

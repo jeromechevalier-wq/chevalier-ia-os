@@ -240,7 +240,7 @@ export function blocLibre(occupees, c, l, taille, damier = DAMIER_DEPART, saufId
   return casesDuBloc(c, l, taille).every((k) => !occupees.has(k) || occupees.get(k) === saufId);
 }
 
-/** Premier bloc libre : d'abord les places espacées, puis les blocs pairs (ordre fixe), puis toutes les cases, rang par rang. null si le damier est plein. */
+/** Premier bloc libre : d'abord les places de 5 à 9 maisons, puis les 16 blocs espacés (0, 3, 6, 9) (ordre fixe), puis toutes les cases, rang par rang. null si le damier est plein. */
 export function premierBlocLibre(occupees, taille, damier = DAMIER_DEPART, saufId = null) {
   const essais = taille === TAILLE_GRANDE ? [...PLACES_NEUF, ...PLACES_SEIZE] : [];
   for (let l = 0; l < damier.lignes; l++) for (let c = 0; c < damier.colonnes; c++) essais.push([c, l]);
@@ -350,6 +350,11 @@ export function rangerVillage({ besoins, batiments = new Map(), damier = DAMIER_
 // ---------------------------------------------------------------- vue, terrain et décor (listes de formes, sans DOM, même dessin à chaque affichage)
 
 const MARGE = 8;
+/**
+ * Demi-largeur la plus grande d'une étiquette (unités du dessin) : sur ordinateur, nom de 205 au plus + marge 20 + marque « lien externe » 16 + écart 3,
+ * soit 244 / 2 (ORDI de js/os/village-ecran.js). Le cadre s'élargit d'autant autour des maisons des coins gauche et droit : un nom long n'est jamais rogné.
+ */
+export const DEMI_ETIQUETTE_MAX = 122;
 const HERBE = '#A9C46E';
 
 /** Coins du terrain du damier à l'écran : haut, droite, bas, gauche. */
@@ -360,15 +365,17 @@ export function coinsDamier(damier = DAMIER_DEPART) {
 }
 
 /**
- * Cadre du dessin : le losange du terrain, la hauteur d'un toit posé au fond, les étiquettes de devant, la tranche de terre, 8 px de marge.
- * Ne dépend PAS du nombre de maisons : le village ne saute pas quand on en ajoute une.
+ * Cadre du dessin : le losange du terrain, la hauteur d'un toit posé au fond, les étiquettes de devant et des coins gauche et droit (les plus larges
+ * possibles), la tranche de terre, 8 px de marge. Ne dépend PAS du nombre de maisons : le village ne saute pas quand on en ajoute une.
  */
 export function vueVillage(damier = DAMIER_DEPART) {
   const coins = coinsDamier(damier);
   const fond = iso(...centreBloc(0, 0, TAILLE_GRANDE, damier));
   const devant = iso(...centreBloc(damier.colonnes - TAILLE_GRANDE, damier.lignes - TAILLE_GRANDE, TAILLE_GRANDE, damier));
-  const x0 = Math.min(...coins.map((c) => c[0])) - MARGE;
-  const x1 = Math.max(...coins.map((c) => c[0])) + MARGE;
+  const gauche = iso(...centreBloc(0, damier.lignes - TAILLE_GRANDE, TAILLE_GRANDE, damier));
+  const droite = iso(...centreBloc(damier.colonnes - TAILLE_GRANDE, 0, TAILLE_GRANDE, damier));
+  const x0 = Math.min(...coins.map((c) => c[0]), gauche[0] - DEMI_ETIQUETTE_MAX) - MARGE;
+  const x1 = Math.max(...coins.map((c) => c[0]), droite[0] + DEMI_ETIQUETTE_MAX) + MARGE;
   const y0 = Math.min(coins[0][1], fond[1] + BOITE_BATIMENT.haut) - MARGE;
   const y1 = Math.max(coins[2][1] + EPAISSEUR_TERRAIN, devant[1] + ETIQUETTE_Y + ETIQUETTE_HAUTEUR_MAX) + MARGE;
   return { x: x0, y: y0, largeur: x1 - x0, hauteur: y1 - y0 };

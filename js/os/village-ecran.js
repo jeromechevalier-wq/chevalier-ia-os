@@ -66,7 +66,7 @@ const VILLAGE_PLEIN = 'Ton village est plein : cache une maison pour faire de la
 const TROP_DE_CACHEES = `${CACHEES_MAX} petites maisons cachées au plus : remontre-en une avec la roue dentée.`;
 const PLUS_DE_PLACE = 'Plus de place autour de cette maison : déplace-la ou retire une petite maison.';
 const TELEPHONE = '(max-width: 767px)';
-// Tailles des étiquettes en unités du dessin (le dessin est agrandi d'environ 1,2 fois sur un écran d'ordinateur 1440 x 900 depuis le damier 12 x 12 (1,8 fois
+// Tailles des étiquettes en unités du dessin (le dessin est agrandi d'environ 1,3 fois sur un écran d'ordinateur 1440 x 900 depuis le damier 12 x 12, mesuré le 27/11/2026 : nom de 22 px (1,8 fois
 // avec l'ancien 8 x 8 : ORDI a grandi d'environ 1,5 fois pour garder un nom de 20 à 28 px) ; sur un téléphone de 390 px,
 // il fait 240 % de la largeur de l'écran depuis le damier 12 x 12 (160 % avec l'ancien 8 x 8), soit environ 0,95 fois : maisons et noms gardent leur taille).
 const ORDI = Object.freeze({ nom: 17, hauteur: 28, rx: 10, largeurMax: 205, carNom: 0.62, marge: 20 });
