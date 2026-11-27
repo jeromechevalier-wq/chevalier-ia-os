@@ -17,7 +17,7 @@ function enMs(v) {
   return null;
 }
 
-/** Rend `async (id, email) => 'acceptee' | 'autre' | 'indisponible'`. `lireConfiguration` lève (ConfigurationAbsente ou autre) quand la maison n'a pas de base. */
+/** Rend `async (id, email) => 'acceptee' | 'autre' | 'trop_ancien' | 'indisponible'` (trop_ancien : acceptée, mais il y a plus de 48 h). `lireConfiguration` lève (ConfigurationAbsente ou autre) quand la maison n'a pas de base. */
 export function creerVerificateurAchat({ lireConfiguration, ouvrirConnexion, maintenant = Date.now }) {
   const acces = creerAccesBase({ ouvrirConnexion, maintenant });
   return async function verifierAchat(id, email) {
@@ -29,7 +29,7 @@ export function creerVerificateurAchat({ lireConfiguration, ouvrirConnexion, mai
         (cx, catalogue) => lecteurAssistant(cx, catalogue)('factures', { colonnes: COLONNES, filtres: [['id', `eq.${id}`]], tri: ['id'], limite: 1 }));
       const f = lignes[0];
       if (!f || f.statut !== 'acceptee' || (f.archivee_le !== null && f.archivee_le !== undefined && f.archivee_le !== '')) return 'autre';
-      return fraisPourGain('facture-validee', enMs(f.date_decision), maintenant()) ? 'acceptee' : 'autre';
+      return fraisPourGain('facture-validee', enMs(f.date_decision), maintenant()) ? 'acceptee' : 'trop_ancien';
     } catch {
       return 'indisponible';
     }

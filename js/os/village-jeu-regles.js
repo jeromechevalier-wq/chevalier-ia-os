@@ -110,10 +110,14 @@ export function paiementRecent(jourTexte, maintenantMs) {
   return ecart >= -PAIEMENT_JOURS_AVANT && ecart <= PAIEMENT_JOURS_APRES;
 }
 
-/** Clé du registre des gains (un gain par élément, pour toute la maison) ; null si un identifiant n'est pas valable. */
+/**
+ * Clé du registre des gains (un gain par élément, pour toute la maison) ; null si un identifiant n'est pas valable.
+ * Séparateur « . » : il n'est PAS dans l'alphabet des identifiants (lettres, chiffres, « _ », « - »), donc deux couples (projet, facture) différents
+ * ne donnent jamais la même clé (avec « - », « a-b »+« c » et « a »+« b-c » se confondaient).
+ */
 export function cleDeGain(source, { id, projetId } = {}) {
-  if (source === 'facture-validee') return typeof id === 'string' && UUID.test(id) ? `fv-${id.toLowerCase()}` : null;
-  if (source === 'facture-payee') return typeof id === 'string' && ID.test(id) && typeof projetId === 'string' && ID.test(projetId) ? `fp-${projetId}-${id}` : null;
-  if (source === 'devis-signe') return typeof id === 'string' && ID.test(id) ? `ds-${id}` : null;
+  if (source === 'facture-validee') return typeof id === 'string' && UUID.test(id) ? `fv.${id.toLowerCase()}` : null;
+  if (source === 'facture-payee') return typeof id === 'string' && ID.test(id) && typeof projetId === 'string' && ID.test(projetId) ? `fp.${projetId}.${id}` : null;
+  if (source === 'devis-signe') return typeof id === 'string' && ID.test(id) ? `ds.${id}` : null;
   return null;
 }

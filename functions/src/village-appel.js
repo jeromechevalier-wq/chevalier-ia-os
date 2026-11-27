@@ -30,7 +30,8 @@ export function creerAppelVillage({ service, comptes, journal = () => {}, mainte
     const action = typeof demande.action === 'string' ? demande.action : '';
     if (!ACTIONS_VILLAGE.includes(action)) throw new HttpsError('invalid-argument', 'Demande invalide.');
     try {
-      const r = await service(jeton.email.toLowerCase()).gain({ uid, source: demande.source, id: demande.id, projetId: demande.projetId });
+      const acteur = jeton.email.toLowerCase();
+      const r = await service(acteur).gain({ uid, acteur, source: demande.source, id: demande.id, projetId: demande.projetId });
       journal({ action, statut: r.ok ? 'ok' : 'refus', code: r.raison, dureeMs: maintenant() - debut });
       return r;
     } catch (e) {

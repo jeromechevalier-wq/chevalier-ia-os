@@ -4,7 +4,7 @@
 // `window.__accesBase`, émulateurs seulement), copié en plus court de achatsfactures-examiner.spec.js. Un test par critère (le nom commence par son numéro) ;
 // captures dans tests/e2e/captures/village-or/ (non commitées), nommées avec le projet. Données d'exemple neutres.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, estTelephone, JEROME, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
+import { test, expect, connecter, ecrireDocument, estTelephone, creerOrganisation, creerAffaire, JEROME, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
 import { listeComplete } from '../_donnees-achatsfactures.js';
 
@@ -116,13 +116,22 @@ async function accepterFacture(page, id = 'a1') {
 /** Annonce une bonne nouvelle comme le ferait un module (même fichier js/os/bonnes-nouvelles.js). */
 const annoncer = (page, source, detail) => page.evaluate(async ([s, d]) => { (await import(new URL('js/os/bonnes-nouvelles.js', document.baseURI).href)).annoncer(s, d); }, [source, detail]);
 const credite = (uid, total) => async (demande) => { await ecrireDocument(`village_utilisateurs/${uid}`, { or: total, gagne: total, parcelles: 0 }); return { result: { ok: true, gagne: 10, or: total } }; };
+/** Hauteur de la phrase d'aide (ordinateur : celle qui est visible). */
+const hautPhrase = async (page) => (await page.locator('[data-role="village-phrase"]:visible').first().boundingBox())?.y;
 const seChevauchent = (a, b) => !(a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y);
 
 test.describe('accueil village : pièces d’or', () => {
-  test('6.1a le compteur montre le solde lu ; « 0 pièce d’or » sans portefeuille ; rien si la lecture échoue', async ({ page }, info) => {
+  test('6.1a le compteur montre le solde lu ; « 0 pièce d’or » sans portefeuille ; rien si la lecture échoue et que rien n’est connu', async ({ page }, info) => {
     await semer({ besoins: [FACTURES, ACHATS_B] });
+    // lecture en panne au premier accueil de la session (rien de connu) : aucun compteur (jamais un « 0 » inventé), la place gardée s'en va
+    const uid = await ouvrirVillage(page, () => page.evaluate(() => { window.__chevalierTest.pannesOr = { lecture: 1 }; }));
+    await expect(page.locator('[data-role="batiment"]').first()).toBeVisible();
+    await expect(or(page)).toHaveCount(0);
+    await expect(page.locator('.page-village')).not.toHaveAttribute('data-or', 'oui');
+    await capturer(page, info, '6.1a-solde-illisible');
     // jamais d'or : pas de portefeuille, c'est une vraie valeur (0)
-    const uid = await ouvrirVillage(page);
+    await page.evaluate(() => { location.hash = '#/reglages'; });
+    await page.evaluate(() => { location.hash = '#/accueil'; });
     await expect(or(page)).toHaveText('0 pièce d’or');
     await capturer(page, info, '6.1a-compteur-0');
     await page.evaluate(() => { location.hash = '#/reglages'; });
@@ -136,13 +145,38 @@ test.describe('accueil village : pièces d’or', () => {
       if (await autre.count()) expect(seChevauchent(boite, await autre.first().boundingBox())).toBe(false);
     }
     await capturer(page, info, '6.1a-compteur-120');
-    // lecture en panne : aucun compteur (jamais un « 0 » inventé)
+    // N4 : une lecture en panne quand un solde est déjà connu : le dernier solde connu reste affiché
     await page.evaluate(() => { location.hash = '#/reglages'; window.__chevalierTest.pannesOr = { lecture: 1 }; });
     await page.evaluate(() => { location.hash = '#/accueil'; });
-    await expect(page.locator('[data-role="village"]')).toBeVisible();
     await expect(page.locator('[data-role="batiment"]').first()).toBeVisible();
-    await expect(or(page)).toHaveCount(0);
-    await capturer(page, info, '6.1a-solde-illisible');
+    await expect(or(page)).toHaveText('120 pièces d’or');
+  });
+
+  test('6.1d N3 une lecture partie AVANT un gain (version plus basse) n’écrase pas le solde du gain ; N4 au montage, le dernier solde connu s’affiche tout de suite et la phrase d’aide ne saute pas', async ({ page }, info) => {
+    await semer({ besoins: [FACTURES, ACHATS_B] });
+    // Le serveur simulé rend la version 4 (130) SANS toucher au portefeuille de l'émulateur, qui reste à la version 3 (120) : c'est ce que rendrait une lecture partie trop tôt.
+    const demandes = await simulerOr(page, () => ({ result: { ok: true, gagne: 10, or: 130, version: 4 } }));
+    // Premier accueil, lecture lente : la place du compteur est gardée (invisible) ; la phrase d'aide est déjà à sa place et n'en bouge pas.
+    await ouvrirVillage(page, async (u) => {
+      await ecrireDocument(`village_utilisateurs/${u}`, { or: 120, gagne: 120, parcelles: 0, version: 3 });
+      await page.evaluate(() => { window.__chevalierTest.pannesOr = { lenteur: 1500 }; });
+    });
+    await expect(page.locator('.page-village')).toHaveAttribute('data-or', 'oui');
+    await expect(page.locator('.village-or-attente')).toHaveCount(1);
+    const avant = await hautPhrase(page);
+    await expect(or(page)).toHaveText('120 pièces d’or');
+    await expect(page.locator('.village-or-attente')).toHaveCount(0);
+    expect(await hautPhrase(page)).toBe(avant);
+    // Remontage avec une lecture lente, et un gain qui arrive PENDANT cette lecture : le compteur montre 120 tout de suite (connu), puis 130 (gain), et la lecture (120, version 3) n'y touche pas.
+    await page.evaluate(() => { location.hash = '#/reglages'; });
+    await page.evaluate(() => { location.hash = '#/accueil'; });
+    await expect(or(page)).toHaveText('120 pièces d’or', { timeout: 500 }); // sans attendre la lecture (1,5 s)
+    await annoncer(page, 'devis-signe', { id: 'd1' });
+    await expect(or(page)).toHaveText('130 pièces d’or');
+    await page.waitForTimeout(1800); // la lecture lente revient avec 120 (version 3)
+    await expect(or(page)).toHaveText('130 pièces d’or');
+    expect(demandes).toHaveLength(1);
+    await capturer(page, info, '6.1d-solde-garde');
   });
 
   test('6.1b accepter une facture d’achat annonce le gain et fait la fête ; le compteur suit ; refuser n’annonce rien', async ({ page }, info) => {
@@ -195,13 +229,47 @@ test.describe('accueil village : pièces d’or', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await semer({ besoins: [FACTURES] });
     let uid = '';
-    await simulerOr(page, (d) => credite(uid, 130)(d));
+    const demandes = await simulerOr(page, (d) => credite(uid, 130)(d));
     uid = await ouvrirVillage(page, (u) => ecrireDocument(`village_utilisateurs/${u}`, { or: 120, gagne: 120, parcelles: 0 }));
     await expect(or(page)).toHaveText('120 pièces d’or');
     await annoncer(page, 'facture-payee', { projetId: 'p1', id: 'f1' });
     await expect(page.locator('#toasts')).toContainText('+ 10 pièces d’or');
     await expect(or(page)).toHaveText('130 pièces d’or');
     await expect(fete(page)).toHaveCount(0);
+    expect(demandes).toEqual([{ action: 'gain', source: 'facture-payee', projetId: 'p1', id: 'f1' }]);
+  });
+
+  test('6.1e parcours réel : « Marquer signé » sur un devis envoyé appelle villageOr (devis-signe) après la réponse du serveur, sans annonce à la main', async ({ page }, info) => {
+    await semer({ besoins: [FACTURES], modules: [...ACHATS, 'devis'] });
+    await creerOrganisation('o1', { nom: 'Organisation exemple' });
+    await creerAffaire('a1', { titre: 'Rénovation exemple', organisationId: 'o1' });
+    const maintenant = new Date();
+    await ecrireDocument('devis_devis/dEnvoye', {
+      racineId: 'dEnvoye', version: 1, numero: 'DEV-2026-11-27-001', statut: 'envoye', finaliseLe: new Date(Date.now() - 86400000), envoyeLe: new Date(Date.now() - 3600000),
+      affaireId: 'a1', personneId: null, organisationId: 'o1', modeMarge: 'majoration', marge: 25, tauxTvaDefaut: 20, regimeTva: 'assujetti', autoliquidation: false, archive: false,
+      dureeValiditeJours: 90, expireLe: '2099-12-31', objet: 'Rénovation exemple', destinataires: ['contact@exemple.fr'],
+      sections: [{ id: 's1', titre: 'Cuisine', lignes: [{ id: 'l1', libelle: 'Carrelage', type: 'fourniture', quantite: 1, unite: 'm²', prixAchat: 80, prixVente: 100, tauxTva: 20 }] }],
+      creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant,
+    });
+    const statuts = [];
+    await page.route('**/devisChangerStatut', async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+      statuts.push(JSON.parse(route.request().postData()).data);
+      return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { ok: true } }) });
+    });
+    let uid = '';
+    const demandes = await simulerOr(page, async () => { await ecrireDocument(`village_utilisateurs/${uid}`, { or: 170, gagne: 170, parcelles: 0 }); return { result: { ok: true, gagne: 50, or: 170, version: 1 } }; });
+    uid = await ouvrirVillage(page, (u) => ecrireDocument(`village_utilisateurs/${u}`, { or: 120, gagne: 120, parcelles: 0 }));
+    await page.evaluate(() => { location.hash = '#/devis/voir/dEnvoye'; });
+    await expect(page.locator('.page-editeur-devis[data-devis="dEnvoye"]')).toBeVisible();
+    await page.locator('[data-action="marquer-signe"]').click(); // le bouton jaune « Devis signé » de l'en-tête d'un devis envoyé
+    await page.getByRole('dialog').getByRole('button', { name: 'Marquer signé' }).click();
+    await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Devis signé »' })).toBeVisible();
+    expect(statuts).toEqual([{ devisId: 'dEnvoye', action: 'accepter' }]);
+    await expect.poll(() => demandes.length).toBe(1);
+    expect(demandes).toEqual([{ action: 'gain', source: 'devis-signe', id: 'dEnvoye' }]);
+    await expect(fete(page)).toContainText('+ 50 pièces d’or');
+    await capturer(page, info, '6.1e-devis-signe-fete');
   });
 
   test('6.3 « déjà compté » : ni fête, ni message ; fonction en panne : pareil, et la facture est acceptée quand même', async ({ page, erreursConsole }, info) => {
@@ -210,7 +278,8 @@ test.describe('accueil village : pièces d’or', () => {
     await ecrireDocument('base_parametres/connexion', FICHE());
     await poserFauxReseau(page);
     let panne = false;
-    const demandes = await simulerOr(page, () => (panne ? { status: 500 } : { result: { ok: true, gagne: 0, raison: 'deja' } }));
+    // N1 : la panne répond au bout de 3 s ; l'écran n'attend jamais l'or.
+    const demandes = await simulerOr(page, async () => (panne ? new Promise((fin) => { setTimeout(() => fin({ status: 500 }), 3000); }) : { result: { ok: true, gagne: 0, raison: 'deja' } }));
     await ouvrirVillage(page, (u) => ecrireDocument(`village_utilisateurs/${u}`, { or: 120, gagne: 120, parcelles: 0 }));
     await expect(or(page)).toHaveText('120 pièces d’or');
     await annoncer(page, 'devis-signe', { id: 'd1' });
@@ -220,9 +289,18 @@ test.describe('accueil village : pièces d’or', () => {
     await expect(page.locator('.toast')).toHaveCount(0);
     await expect(or(page)).toHaveText('120 pièces d’or');
     panne = true;
-    await accepterFacture(page, 'a1'); // le module n'attend pas l'or : la facture est acceptée
+    // le module n'attend pas l'or : la facture est acceptée en moins d'une seconde, alors que villageOr ne répondra qu'au bout de 3 s
+    await page.evaluate(() => { location.hash = '#/achatsfactures/examiner/a1'; });
+    await expect(page.locator('[data-role="examiner"] [data-etat="chargement"]')).toHaveCount(0);
+    if (estTelephone(page)) await page.locator('[data-onglet="verifications"]').click();
+    const decision = page.locator('[data-bloc="decision"]');
+    await expect(decision.getByRole('combobox', { name: 'Agence du fournisseur' })).toHaveValue(/Point Q Matériaux/);
+    const debut = Date.now();
+    await decision.locator('[data-action="accepter"]').click();
+    await expect(page.locator('[data-role="statut"]')).toHaveText('Acceptée', { timeout: 1000 });
+    expect(Date.now() - debut).toBeLessThan(1000);
     await expect.poll(() => demandes.length).toBe(2);
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(3500); // la panne finit par répondre (500) : toujours rien à l'écran
     await expect(fete(page)).toHaveCount(0);
     await expect(page.locator('.toast-erreur')).toHaveCount(0);
     await capturer(page, info, '6.3-panne-facture-acceptee');
@@ -271,5 +349,42 @@ test.describe('accueil village : pièces d’or', () => {
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
     await capturer(page, info, 'telephone-compteur');
+  });
+
+  test('téléphone : la fête tient dans la largeur de l’écran (N5)', async ({ page }, info) => {
+    test.skip(!estTelephone(page), 'parcours propre au téléphone');
+    await semer({ besoins: [FACTURES, ACHATS_B] });
+    let uid = '';
+    await simulerOr(page, async () => { await ecrireDocument(`village_utilisateurs/${uid}`, { or: 1170, gagne: 1170, parcelles: 0 }); return { result: { ok: true, gagne: 1050, or: 1170, version: 1 } }; });
+    uid = await ouvrirVillage(page, (u) => ecrireDocument(`village_utilisateurs/${u}`, { or: 120, gagne: 120, parcelles: 0 }));
+    await annoncer(page, 'devis-signe', { id: 'd1' });
+    await expect(fete(page)).toContainText('+ 1050 pièces d’or');
+    const largeur = page.viewportSize().width;
+    const boite = await page.locator('.fete-or-etiquette').boundingBox();
+    expect(boite.x).toBeGreaterThanOrEqual(16 - 1);
+    expect(boite.x + boite.width).toBeLessThanOrEqual(largeur - 16 + 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+    await capturer(page, info, 'telephone-fete');
+  });
+
+  test('6.1f N6 en vue « Liste », la phrase d’aide et le bandeau ne sont pas décalés par le compteur (caché)', async ({ page }) => {
+    await semer({ besoins: [FACTURES, ACHATS_B] });
+    await ouvrirVillage(page, (u) => ecrireDocument(`village_utilisateurs/${u}`, { or: 120, gagne: 120, parcelles: 0 }));
+    await expect(or(page)).toHaveText('120 pièces d’or');
+    // La règle de décalage ne s'applique qu'hors de la vue Liste : on pose data-vue="liste" et on compare au calcul sans compteur.
+    const hauts = await page.evaluate(() => {
+      const pageV = document.querySelector('.page-village');
+      const el = document.querySelector('.village-phrase') ?? document.querySelector('.village-bandeau');
+      const top = () => getComputedStyle(el).top;
+      const vue = pageV.dataset.vue;
+      pageV.dataset.vue = 'liste';
+      const avecOr = top();
+      delete pageV.dataset.or;
+      const sansOr = top();
+      pageV.dataset.or = 'oui';
+      if (vue === undefined) delete pageV.dataset.vue; else pageV.dataset.vue = vue;
+      return { avecOr, sansOr };
+    });
+    expect(hauts.avecOr).toBe(hauts.sansOr);
   });
 });

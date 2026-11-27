@@ -22,5 +22,5 @@ export async function villageOrClient({ db, auth, donnees, horodatage, maintenan
   if (!ROLES.includes(role)) throw REFUS_NEUTRE();
   if (d.action !== 'gain') throw new Refus('invalid-argument', 'Demande invalide.');
   return creerVillageOr({ db, racine: `clients/${client}/`, horodatage, maintenant })
-    .gain({ uid: auth.uid, source: d.source, id: d.id, projetId: d.projetId, lectureSeule: role === 'lecteur' });
+    .gain({ uid: auth.uid, acteur: email, source: d.source, id: d.id, projetId: d.projetId, lectureSeule: role === 'lecteur' });
 }

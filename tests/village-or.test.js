@@ -82,9 +82,9 @@ describe('6.0 règles du jeu (fichier pur)', () => {
 
   test('6.0c clés du registre des gains : formes attendues, identifiants douteux refusés', () => {
     const uuid = '00000000-0000-4000-8000-00000000000A';
-    assert.equal(R.cleDeGain('facture-validee', { id: uuid }), `fv-${uuid.toLowerCase()}`);
-    assert.equal(R.cleDeGain('facture-payee', { id: 'f1', projetId: 'p1' }), 'fp-p1-f1');
-    assert.equal(R.cleDeGain('devis-signe', { id: 'd1' }), 'ds-d1');
+    assert.equal(R.cleDeGain('facture-validee', { id: uuid }), `fv.${uuid.toLowerCase()}`);
+    assert.equal(R.cleDeGain('facture-payee', { id: 'f1', projetId: 'p1' }), 'fp.p1.f1');
+    assert.equal(R.cleDeGain('devis-signe', { id: 'd1' }), 'ds.d1');
     assert.equal(R.cleDeGain('facture-validee', { id: 'a1' }), null); // facture d'achat : UUID exigé
     assert.equal(R.cleDeGain('devis-signe', { id: 'a/b' }), null);
     assert.equal(R.cleDeGain('devis-signe', { id: '' }), null);
@@ -104,6 +104,26 @@ describe('6.0 règles du jeu (fichier pur)', () => {
     }
   });
 
+  test('6.0f clés sans collision : séparateur « . » hors de l’alphabet des identifiants ; (« a-b », « c ») et (« a », « b-c ») donnent deux clés', () => {
+    assert.notEqual(R.cleDeGain('facture-payee', { projetId: 'a-b', id: 'c' }), R.cleDeGain('facture-payee', { projetId: 'a', id: 'b-c' }));
+    assert.notEqual(R.cleDeGain('facture-payee', { projetId: 'a_b', id: 'c' }), R.cleDeGain('facture-payee', { projetId: 'a', id: 'b_c' }));
+    const ids = ['a', 'b', 'a-b', 'b-c', 'c', 'a_b', 'b_c', 'ds', 'fp', 'fv', 'd1', 'p1-f1', 'p1', 'f1'];
+    const vues = new Map();
+    for (const projetId of ids) for (const id of ids) {
+      const cle = R.cleDeGain('facture-payee', { projetId, id });
+      assert.ok(!vues.has(cle), `${cle} : ${vues.get(cle)} et ${projetId}/${id}`);
+      vues.set(cle, `${projetId}/${id}`);
+    }
+    for (const id of ids) {
+      const cle = R.cleDeGain('devis-signe', { id });
+      assert.ok(!vues.has(cle), cle);
+      vues.set(cle, id);
+    }
+    for (const cle of vues.keys()) assert.equal(cle.split('.').length - 1, cle.startsWith('fp.') ? 2 : 1, cle); // jamais de « . » dans un identifiant
+    assert.equal(R.cleDeGain('devis-signe', { id: 'a.b' }), null);
+    assert.equal(R.cleDeGain('facture-payee', { projetId: 'a.b', id: 'c' }), null);
+  });
+
   test('6.0e modèles de décoration = DECORATIONS des dessins', () => {
     assert.deepEqual([...R.MODELES_DECORATION], [...DECORATIONS]);
   });
@@ -114,10 +134,29 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
   const PROJET = 'demo-chevalier-village-or';
   let app;
   let db;
-  const COLLECTIONS = ['village_utilisateurs', 'village_gains', 'devis_devis', 'projets_projets'];
-  const service = (extra = {}) => creerVillageOr({ db, horodatage, maintenant: () => MAINTENANT, ...extra });
-  const devis = (id, extra = {}, base = '') => db.doc(`${base}devis_devis/${id}`).set({ statut: 'accepte', racineId: id, accepteLe: Timestamp.fromMillis(MAINTENANT - HEURE), test: false, ...extra });
-  const projet = (id, factures, extra = {}, base = '') => db.doc(`${base}projets_projets/${id}`).set({ nom: 'Projet essai', factures, ...extra });
+  const COLLECTIONS = ['village_utilisateurs', 'village_gains', 'devis_devis', 'projets_projets', 'crm_audit'];
+  const LEA = 'lea@exemple.test';
+  const ALICE = 'alice@exemple.test';
+  /** Le service, avec l'e-mail de l'appelant (Léa par défaut). */
+  const service = (extra = {}, acteur = LEA) => {
+    const s = creerVillageOr({ db, horodatage, maintenant: () => MAINTENANT, ...extra });
+    return { gain: (d) => s.gain({ acteur, ...d }) };
+  };
+  /** Une ligne du journal (crm_audit), comme l'écrivent le serveur (devis) et l'écran (projets). */
+  let rang = 0;
+  const trace = (docId, ligne, base = '') => db.collection(`${base}crm_audit`).add({
+    docId, acteur: LEA, via: 'ecran', statut: 'succes', date: Timestamp.fromMillis(MAINTENANT - HEURE + (rang += 1) * 1000), ...ligne,
+  });
+  /** Devis signé ; `auteur` : la ligne de journal du passage à « Signé » (Léa, à l'écran, par défaut ; null : aucune ligne). */
+  const devis = async (id, extra = {}, base = '', auteur = {}) => {
+    await db.doc(`${base}devis_devis/${id}`).set({ statut: 'accepte', racineId: id, accepteLe: Timestamp.fromMillis(MAINTENANT - HEURE), test: false, ...extra });
+    if (auteur) await trace(id, { outil: 'devisChangerStatut', collection: 'devis_devis', champsModifies: ['statut', 'accepteLe'], ...auteur }, base);
+  };
+  /** Projet et ses factures ; `auteur` : la ligne de journal du dernier « marquer payée » (Léa, à l'écran, par défaut ; null : aucune ligne). */
+  const projet = async (id, factures, extra = {}, base = '', auteur = {}) => {
+    await db.doc(`${base}projets_projets/${id}`).set({ nom: 'Projet essai', factures, ...extra });
+    if (auteur) await trace(id, { outil: 'marquerFacturePayee', collection: 'projets_projets', champsModifies: ['factures'], ...auteur }, base);
+  };
   const portefeuille = async (uid, base = '') => { const s = await db.doc(`${base}${C_VILLAGE}/${uid}`).get(); return s.exists ? s.data() : null; };
   const gains = async (base = '') => (await db.collection(`${base}${C_GAINS}`).get()).docs.map((d) => d.id).sort();
 
@@ -134,19 +173,20 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
     for (const d of (await db.collection('clients/a/membres').get()).docs) await d.ref.delete();
   });
 
-  test('6.1 devis signé frais : 50 pièces, portefeuille à 50, registre ds-<racine>', async () => {
+  test('6.1 devis signé frais : 50 pièces, portefeuille à 50, registre ds.<racine>', async () => {
     await devis('d1', { racineId: 'r1' });
     const r = await service().gain({ uid: 'u1', source: 'devis-signe', id: 'd1' });
-    assert.deepEqual(r, { ok: true, gagne: 50, or: 50 });
+    assert.deepEqual(r, { ok: true, gagne: 50, or: 50, version: 1 });
     const p = await portefeuille('u1');
     assert.equal(p.or, 50);
     assert.equal(p.gagne, 50);
     assert.equal(p.parcelles, 0);
     assert.ok(p.modifieLe instanceof Timestamp);
-    assert.deepEqual(await gains(), ['ds-r1']);
-    const g = (await db.doc(`${C_GAINS}/ds-r1`).get()).data();
+    assert.deepEqual(await gains(), ['ds.r1']);
+    const g = (await db.doc(`${C_GAINS}/ds.r1`).get()).data();
     assert.deepEqual({ uid: g.uid, source: g.source, pieces: g.pieces }, { uid: 'u1', source: 'devis-signe', pieces: 50 });
-    assert.deepEqual(await lirePortefeuille({ db, uid: 'u1' }), { or: 50, gagne: 50, parcelles: 0 });
+    assert.deepEqual(await lirePortefeuille({ db, uid: 'u1' }), { or: 50, gagne: 50, parcelles: 0, version: 1 });
+    assert.equal(p.version, 1);
   });
 
   test('6.2a facture de projet payée aujourd’hui : 20 ; à payer, abandonnée, inconnue, projet inconnu : 0 ; trop ancienne : trop_ancien', async () => {
@@ -155,28 +195,29 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
       { id: 'f3', statut: 'abandonnee' }, { id: 'f4', statut: 'payee', datePaiement: jourDecale(-40) },
     ]);
     const s = service();
-    assert.deepEqual(await s.gain({ uid: 'u1', source: 'facture-payee', projetId: 'p1', id: 'f1' }), { ok: true, gagne: 20, or: 20 });
+    assert.deepEqual(await s.gain({ uid: 'u1', source: 'facture-payee', projetId: 'p1', id: 'f1' }), { ok: true, gagne: 20, or: 20, version: 1 });
     for (const [projetId, id] of [['p1', 'f2'], ['p1', 'f3'], ['p1', 'f9'], ['p9', 'f1']]) {
       assert.deepEqual(await s.gain({ uid: 'u1', source: 'facture-payee', projetId, id }), { ok: true, gagne: 0, raison: 'pas_valide' }, `${projetId}/${id}`);
     }
     assert.deepEqual(await s.gain({ uid: 'u1', source: 'facture-payee', projetId: 'p1', id: 'f4' }), { ok: true, gagne: 0, raison: 'trop_ancien' });
     assert.equal((await portefeuille('u1')).or, 20);
-    assert.deepEqual(await gains(), ['fp-p1-f1']);
+    assert.deepEqual(await gains(), ['fp.p1.f1']);
   });
 
   test('6.2b facture d’achat : le vérificateur décide (acceptee 10, autre 0, indisponible ou absent : 0 et rien d’écrit)', async () => {
     const uuid = '00000000-0000-4000-8000-000000000001';
     const demandes = [];
     const avec = (etat) => service({ verifierAchat: async (id) => { demandes.push(id); return etat; } });
-    assert.deepEqual(await avec('acceptee').gain({ uid: 'u1', source: 'facture-validee', id: uuid }), { ok: true, gagne: 10, or: 10 });
+    assert.deepEqual(await avec('acceptee').gain({ uid: 'u1', source: 'facture-validee', id: uuid }), { ok: true, gagne: 10, or: 10, version: 1 });
     assert.deepEqual(demandes, [uuid]);
     const autre = '00000000-0000-4000-8000-000000000002';
     assert.deepEqual(await avec('autre').gain({ uid: 'u1', source: 'facture-validee', id: autre }), { ok: true, gagne: 0, raison: 'pas_valide' });
     assert.deepEqual(await avec('indisponible').gain({ uid: 'u1', source: 'facture-validee', id: autre }), { ok: true, gagne: 0, raison: 'indisponible' });
+    assert.deepEqual(await avec('trop_ancien').gain({ uid: 'u1', source: 'facture-validee', id: autre }), { ok: true, gagne: 0, raison: 'trop_ancien' });
     assert.deepEqual(await service().gain({ uid: 'u1', source: 'facture-validee', id: autre }), { ok: true, gagne: 0, raison: 'indisponible' });
     assert.deepEqual(await service({ verifierAchat: async () => { throw new Error('panne'); } }).gain({ uid: 'u1', source: 'facture-validee', id: autre }), { ok: true, gagne: 0, raison: 'indisponible' });
     assert.equal((await portefeuille('u1')).or, 10);
-    assert.deepEqual(await gains(), [`fv-${uuid}`]);
+    assert.deepEqual(await gains(), [`fv.${uuid}`]);
   });
 
   test('6.3a le même devis deux fois : 50 puis 0 (deja) ; un autre compte : 0 ; une autre version du même devis : 0', async () => {
@@ -198,7 +239,7 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
     assert.equal(r.filter((x) => x.gagne === 50).length, 1);
     assert.equal(r.filter((x) => x.raison === 'deja').length, 9);
     assert.equal((await portefeuille('u1')).or, 50);
-    assert.deepEqual(await gains(), ['ds-d1']);
+    assert.deepEqual(await gains(), ['ds.d1']);
   });
 
   test('6.3c devis de test, devis envoyé, signé il y a 3 jours : 0 ; la clé vient du document, jamais de la demande', async () => {
@@ -212,7 +253,7 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
     assert.deepEqual(await s.gain({ uid: 'u1', source: 'devis-signe', id: 'absent' }), { ok: true, gagne: 0, raison: 'pas_valide' });
     await devis('d1', { racineId: 'r1' });
     assert.equal((await s.gain({ uid: 'u1', source: 'devis-signe', id: 'd1', racineId: 'invente' })).gagne, 50);
-    assert.deepEqual(await gains(), ['ds-r1']);
+    assert.deepEqual(await gains(), ['ds.r1']);
     // projet de test : rien non plus
     await projet('pt', [{ id: 'f1', statut: 'payee', datePaiement: AUJOURDHUI }], { test: true });
     assert.deepEqual(await s.gain({ uid: 'u1', source: 'facture-payee', projetId: 'pt', id: 'f1' }), { ok: true, gagne: 0, raison: 'test' });
@@ -239,19 +280,80 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
     assert.equal((await portefeuille('u1', 'clients/a/')).or, 50);
     assert.equal(await portefeuille('u1'), null);
     assert.deepEqual(await gains(), []);
-    assert.deepEqual(await gains('clients/a/'), ['ds-d1']);
+    assert.deepEqual(await gains('clients/a/'), ['ds.d1']);
     assert.throws(() => creerVillageOr({ db, racine: 'clients/../', horodatage }), /racine invalide/);
   });
 
+  test('6.4a pas d’or pour l’assistant ni pour un collègue : la dernière ligne du journal doit être celle de l’appelant, à l’écran', async () => {
+    const s = service();
+    // Devis signé par l'assistant (via « mcp ») : 0.
+    await devis('m1', {}, '', { via: 'mcp', jeton: 'jeton-mcp' });
+    assert.deepEqual(await s.gain({ uid: 'u1', source: 'devis-signe', id: 'm1' }), { ok: true, gagne: 0, raison: 'pas_valide' });
+    // Signé à l'écran par Alice : Léa n'a rien, Alice a 50.
+    await devis('a1', {}, '', { acteur: ALICE });
+    assert.deepEqual(await s.gain({ uid: 'u1', source: 'devis-signe', id: 'a1' }), { ok: true, gagne: 0, raison: 'pas_valide' });
+    assert.equal((await service({}, ALICE).gain({ uid: 'u2', source: 'devis-signe', id: 'a1' })).gagne, 50);
+    // Aucune ligne de journal : 0. Une ligne qui n'a pas posé accepteLe (envoyé) ne compte pas.
+    await devis('n1', {}, '', null);
+    await trace('n1', { outil: 'devisChangerStatut', champsModifies: ['statut', 'envoyeLe'] });
+    assert.deepEqual(await s.gain({ uid: 'u1', source: 'devis-signe', id: 'n1' }), { ok: true, gagne: 0, raison: 'pas_valide' });
+    // La plus RÉCENTE compte : Léa à l'écran, puis l'assistant : 0 ; l'assistant, puis Léa à l'écran : 50.
+    await devis('r1', {}, '');
+    await trace('r1', { outil: 'devisChangerStatut', champsModifies: ['statut', 'accepteLe'], via: 'mcp' });
+    assert.deepEqual(await s.gain({ uid: 'u1', source: 'devis-signe', id: 'r1' }), { ok: true, gagne: 0, raison: 'pas_valide' });
+    await devis('r2', {}, '', { via: 'mcp' });
+    await trace('r2', { outil: 'devisChangerStatut', champsModifies: ['statut', 'accepteLe'] });
+    assert.equal((await s.gain({ uid: 'u1', source: 'devis-signe', id: 'r2' })).gagne, 50);
+    // Facture de projet payée par l'assistant (outil MCP, via « mcp ») ou par Alice : 0 pour Léa ; sans ligne : 0.
+    await projet('p1', [{ id: 'f1', statut: 'payee', datePaiement: AUJOURDHUI }], {}, '', { outil: 'marquer_facture_payee', via: 'mcp' });
+    assert.deepEqual(await s.gain({ uid: 'u1', source: 'facture-payee', projetId: 'p1', id: 'f1' }), { ok: true, gagne: 0, raison: 'pas_valide' });
+    await projet('p2', [{ id: 'f1', statut: 'payee', datePaiement: AUJOURDHUI }], {}, '', { acteur: ALICE });
+    assert.deepEqual(await s.gain({ uid: 'u1', source: 'facture-payee', projetId: 'p2', id: 'f1' }), { ok: true, gagne: 0, raison: 'pas_valide' });
+    await projet('p3', [{ id: 'f1', statut: 'payee', datePaiement: AUJOURDHUI }], {}, '', null);
+    assert.deepEqual(await s.gain({ uid: 'u1', source: 'facture-payee', projetId: 'p3', id: 'f1' }), { ok: true, gagne: 0, raison: 'pas_valide' });
+    // Une ligne d'un AUTRE espace (clients/a/) ne compte pas à la racine.
+    await devis('x1', {}, '', null);
+    await trace('x1', { outil: 'devisChangerStatut', champsModifies: ['statut', 'accepteLe'] }, 'clients/a/');
+    assert.deepEqual(await s.gain({ uid: 'u1', source: 'devis-signe', id: 'x1' }), { ok: true, gagne: 0, raison: 'pas_valide' });
+    // E-mail de l'appelant absent ou mal formé : demande refusée.
+    const brut = creerVillageOr({ db, horodatage, maintenant: () => MAINTENANT });
+    for (const acteur of [undefined, '', 'pas-un-email', 'a b@c']) assert.deepEqual(await brut.gain({ uid: 'u1', acteur, source: 'devis-signe', id: 'r2' }), { ok: false, raison: 'demande' }, String(acteur));
+    assert.equal((await portefeuille('u1'))?.or, 50);
+    assert.equal((await portefeuille('u2'))?.or, 50);
+  });
+
+  test('6.4b deux comptes différents en même temps sur le même devis : un seul gain, somme des soldes 50 ; même chose pour une facture d’achat (10)', async () => {
+    await devis('d1');
+    const [r1, r2] = await Promise.all([service({}, LEA).gain({ uid: 'u1', source: 'devis-signe', id: 'd1' }), service({}, ALICE).gain({ uid: 'u2', source: 'devis-signe', id: 'd1' })]);
+    assert.equal([r1, r2].filter((r) => r.gagne === 50).length, 1);
+    const solde = async (uid) => (await portefeuille(uid))?.or ?? 0;
+    assert.equal((await solde('u1')) + (await solde('u2')), 50);
+    // Sans contrôle d'auteur (facture d'achat, D14), la course passe par le registre seul : un des deux gagne, jamais les deux.
+    const uuid = '00000000-0000-4000-8000-000000000003';
+    const achat = { verifierAchat: async () => 'acceptee' };
+    const course = await Promise.all([service(achat, LEA).gain({ uid: 'u3', source: 'facture-validee', id: uuid }), service(achat, ALICE).gain({ uid: 'u4', source: 'facture-validee', id: uuid })]);
+    assert.equal(course.filter((r) => r.gagne === 10).length, 1);
+    assert.equal(course.filter((r) => r.raison === 'deja').length, 1);
+    assert.equal((await solde('u3')) + (await solde('u4')), 10);
+    assert.deepEqual(await gains(), ['ds.d1', `fv.${uuid}`]);
+  });
+
+  test('6.4c version du portefeuille : +1 à chaque gain (l’écran garde la plus haute)', async () => {
+    await devis('d1');
+    await devis('d2');
+    const s = service();
+    assert.equal((await s.gain({ uid: 'u1', source: 'devis-signe', id: 'd1' })).version, 1);
+    assert.deepEqual(await s.gain({ uid: 'u1', source: 'devis-signe', id: 'd2' }), { ok: true, gagne: 50, or: 100, version: 2 });
+    assert.equal((await portefeuille('u1')).version, 2);
+  });
+
   test('6.A2 plateforme : éditrice gagne ; lectrice 0 lecture_seule ; non-membre, autre client, interne, client mal formé : refus neutre ; facture validée : indisponible', async () => {
-    const ALICE = 'alice@exemple.test';
-    const LEA = 'lea@exemple.test';
     await db.doc(`clients/a/membres/${ALICE}`).set({ role: 'editeur' });
     await db.doc(`clients/a/membres/${LEA}`).set({ role: 'lecteur' });
-    await devis('d1', {}, 'clients/a/');
+    await devis('d1', {}, 'clients/a/', { acteur: ALICE });
     const auth = (email, verifie = true) => ({ uid: `u-${email.split('@')[0]}`, token: { email, email_verified: verifie } });
     const appel = (email, donnees, verifie) => villageOrClient({ db, auth: auth(email, verifie), donnees, horodatage, maintenant: () => MAINTENANT });
-    assert.deepEqual(await appel(ALICE, { client: 'a', action: 'gain', source: 'devis-signe', id: 'd1' }), { ok: true, gagne: 50, or: 50 });
+    assert.deepEqual(await appel(ALICE, { client: 'a', action: 'gain', source: 'devis-signe', id: 'd1' }), { ok: true, gagne: 50, or: 50, version: 1 });
     assert.equal((await portefeuille('u-alice', 'clients/a/')).or, 50);
     assert.deepEqual(await appel(LEA, { client: 'a', action: 'gain', source: 'devis-signe', id: 'd1' }), { ok: true, gagne: 0, raison: 'lecture_seule' });
     assert.deepEqual(await appel(ALICE, { client: 'a', action: 'gain', source: 'facture-validee', id: '00000000-0000-4000-8000-000000000001' }), { ok: true, gagne: 0, raison: 'indisponible' });
@@ -271,7 +373,7 @@ describe('6.A appels et vérificateur (sans émulateur)', () => {
   test('6.A1 appel de la maison : connexion, compte autorisé, action connue ; journal sans uid, e-mail ni identifiant', async () => {
     const journal = [];
     const appels = [];
-    const service = (email) => ({ gain: async (d) => { appels.push({ email, ...d }); return { ok: true, gagne: 50, or: 50 }; } });
+    const service = (email) => ({ gain: async (d) => { appels.push({ email, ...d }); return { ok: true, gagne: 50, or: 50, version: 1 }; } });
     const appel = creerAppelVillage({ service, comptes: ['lea@exemple.test'], journal: (e) => journal.push(e) });
     await assert.rejects(appel(requete({ email: null })), (e) => e.code === 'unauthenticated');
     await assert.rejects(appel(requete({ email: 'intrus@exemple.test' })), (e) => e.code === 'permission-denied');
@@ -279,8 +381,8 @@ describe('6.A appels et vérificateur (sans émulateur)', () => {
     await assert.rejects(appel(requete({ data: { action: 'acheter' } })), (e) => e.code === 'invalid-argument');
     await assert.rejects(appel(requete({ data: null })), (e) => e.code === 'invalid-argument');
     assert.equal(appels.length, 0);
-    assert.deepEqual(await appel(requete({ data: { action: 'gain', source: 'devis-signe', id: 'd1', uid: 'quelquun-dautre' } })), { ok: true, gagne: 50, or: 50 });
-    assert.deepEqual(appels, [{ email: 'lea@exemple.test', uid: 'u1', source: 'devis-signe', id: 'd1', projetId: undefined }]); // l'uid vient de la connexion, jamais de la demande
+    assert.deepEqual(await appel(requete({ data: { action: 'gain', source: 'devis-signe', id: 'd1', uid: 'quelquun-dautre' } })), { ok: true, gagne: 50, or: 50, version: 1 });
+    assert.deepEqual(appels, [{ email: 'lea@exemple.test', uid: 'u1', acteur: 'lea@exemple.test', source: 'devis-signe', id: 'd1', projetId: undefined }]); // l'uid vient de la connexion, jamais de la demande
     const enPanne = creerAppelVillage({ service: () => ({ gain: async () => { throw new TypeError('boum'); } }), comptes: ['lea@exemple.test'], journal: (e) => journal.push(e) });
     await assert.rejects(enPanne(requete()), (e) => e.code === 'internal' && e.message === 'Une erreur est survenue. Réessaie.');
     assert.ok(journal.length >= 2);
@@ -291,7 +393,7 @@ describe('6.A appels et vérificateur (sans émulateur)', () => {
     }
   });
 
-  test('6.A3 vérificateur des achats : acceptée fraîche oui ; à valider, refusée, archivée, ancienne : autre ; sans base ou en panne : indisponible ; lecture seule', async () => {
+  test('6.A3 vérificateur des achats : acceptée fraîche oui ; à valider, refusée, archivée, ancienne : trop_ancien ; sans base ou en panne : indisponible ; lecture seule', async () => {
     const MAINT = Date.parse('2026-11-27T10:00:00Z');
     const donnees = donneesDeBase();
     const f1 = donnees.factures.find((f) => f.id === F1);
@@ -307,7 +409,7 @@ describe('6.A appels et vérificateur (sans émulateur)', () => {
     assert.equal(await verifier(texte.id, EMAIL), 'acceptee');
     assert.equal(await verifier(F1, EMAIL), 'autre'); // à valider
     assert.equal(await verifier(F3, EMAIL), 'autre'); // refusée et archivée
-    assert.equal(await verifier(vieille.id, EMAIL), 'autre');
+    assert.equal(await verifier(vieille.id, EMAIL), 'trop_ancien'); // acceptée il y a 3 jours (S5)
     assert.equal(await verifier(archivee.id, EMAIL), 'autre');
     assert.equal(await verifier('00000000-0000-4000-8000-0000000000ff', EMAIL), 'autre'); // inconnue
     assert.equal(await verifier('a1', EMAIL), 'autre'); // pas un UUID : la base n'est pas ouverte

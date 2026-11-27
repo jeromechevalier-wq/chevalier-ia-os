@@ -59,8 +59,7 @@ export function feterOr(pieces) {
   element.setAttribute('role', 'status');
   const etiquette = document.createElement('div');
   etiquette.className = 'fete-or-etiquette';
-  const texte = document.createElement('span');
-  texte.textContent = texteGain(n);
+  const texte = document.createElement('span'); // vide à l'insertion : rempli juste après, pour que le lecteur d'écran annonce le texte (zone role="status" déjà présente)
   etiquette.append(dessinPiece(28), texte);
   const pluie = document.createElement('div');
   pluie.className = 'fete-or-pluie';
@@ -75,4 +74,6 @@ export function feterOr(pieces) {
   element.append(pluie, etiquette);
   document.body.append(element);
   fete = { element, texte, total: n, minuterie: setTimeout(retirer, DUREE_MS) };
+  const moi = fete;
+  setTimeout(() => { if (fete === moi) texte.textContent = texteGain(moi.total); }, 30);
 }

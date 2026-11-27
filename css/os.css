@@ -828,10 +828,11 @@ body.page-espace { background: #241b2e; color: #fff; }
    Fête : étiquette en haut de l'écran et pièces qui tombent (1,5 s), sans son, sans bloquer aucun clic. */
 .village-or { position: absolute; z-index: 4; top: var(--esp-6); left: var(--esp-6); display: inline-flex; align-items: center; gap: var(--esp-3); min-height: 40px; padding: var(--esp-2) var(--esp-6) var(--esp-2) var(--esp-3); background: #FFFDF6; color: #2A1A2C; border: 1px solid rgba(59, 36, 18, .18); border-radius: 999px; box-shadow: 0 6px 16px -8px rgba(60, 25, 5, .45); font-size: var(--fs-texte); font-weight: var(--poids-moyen); white-space: nowrap; }
 .village-or svg { flex: 0 0 auto; display: block; }
-.page-village[data-or="oui"] .village-phrase, .page-village[data-or="oui"] .village-bandeau { top: calc(var(--esp-6) + 52px); }
+.page-village[data-or="oui"]:not([data-vue="liste"]) .village-phrase, .page-village[data-or="oui"]:not([data-vue="liste"]) .village-bandeau { top: calc(var(--esp-6) + 52px); }
+.village-or-attente { visibility: hidden; }
 .page-village[data-vue="liste"] .village-or { display: none; }
-.fete-or { position: fixed; z-index: 1000; top: 76px; left: 50%; transform: translateX(-50%); pointer-events: none; display: flex; flex-direction: column; align-items: center; }
-.fete-or-etiquette { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: var(--esp-3); padding: var(--esp-3) var(--esp-8) var(--esp-3) var(--esp-4); background: #FFFDF6; color: #2A1A2C; border: 1px solid rgba(59, 36, 18, .18); border-radius: 999px; box-shadow: 0 10px 24px -10px rgba(60, 25, 5, .55); font-size: var(--fs-section); font-weight: var(--poids-moyen); white-space: nowrap; animation: fete-or-arrivee .3s cubic-bezier(.3, 1.4, .5, 1) both; }
+.fete-or { position: fixed; z-index: 1000; top: 76px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); pointer-events: none; display: flex; flex-direction: column; align-items: center; }
+.fete-or-etiquette { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: var(--esp-3); padding: var(--esp-3) var(--esp-8) var(--esp-3) var(--esp-4); background: #FFFDF6; color: #2A1A2C; border: 1px solid rgba(59, 36, 18, .18); border-radius: 999px; box-shadow: 0 10px 24px -10px rgba(60, 25, 5, .55); font-size: var(--fs-section); font-weight: var(--poids-moyen); white-space: nowrap; max-width: calc(100vw - 32px); box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; animation: fete-or-arrivee .3s cubic-bezier(.3, 1.4, .5, 1) both; }
 .fete-or-pluie { position: absolute; top: 0; left: 50%; width: 0; height: 0; }
 .fete-or-piece { position: absolute; top: 0; left: calc((var(--i) - 3.5) * 24px); opacity: 0; animation: fete-or-chute 1.5s ease-in calc(var(--i) * 70ms) both; }
 .fete-or-piece svg { display: block; }
@@ -840,8 +841,9 @@ body.page-espace { background: #241b2e; color: #fff; }
 @media (prefers-reduced-motion: reduce) { .fete-or-etiquette, .fete-or-piece { animation: none; } .fete-or-piece { display: none; } }
 @media (max-width: 767px) {
   .village-or { top: calc(var(--esp-4) + 54px); left: var(--esp-4); }
-  .page-village[data-or="oui"] .village-phrase, .page-village[data-or="oui"] .village-bandeau { top: calc(var(--esp-4) + 108px); }
+  .page-village[data-or="oui"]:not([data-vue="liste"]) .village-phrase, .page-village[data-or="oui"]:not([data-vue="liste"]) .village-bandeau { top: calc(var(--esp-4) + 108px); }
   .fete-or { top: 64px; }
+  .fete-or-etiquette { padding: var(--esp-2) var(--esp-6) var(--esp-2) var(--esp-3); font-size: var(--fs-texte); }
 }
 @media (max-width: 767px) {
   .village-roue { top: var(--esp-4); right: var(--esp-4); width: 44px; height: 44px; }

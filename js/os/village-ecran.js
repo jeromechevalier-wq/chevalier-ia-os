@@ -279,8 +279,9 @@ function ilot(id, route) {
  * Monte le village dans `conteneur`. `besoins` : 1 à 12 besoins vérifiés et servis ; `aller(cible)` : ouvre une route (« #/… ») ;
  * `console` : vrai si la Console est dans les modules de la session (titulaire seul) : l'îlot Console est alors posé en bas à droite ;
  * `donnees` : la couche de données du rangement (js/os/village-donnees.js : { lire, enregistrer, retirer }), ou null (village d'office, sans rangement).
- * `or` : { lire, suivre } (js/os/village-or.js : lireOr, surOr), ou null : le compteur de pièces d'or en haut à gauche, posé seulement quand le solde est lu (illisible : rien,
- *   jamais un « 0 » inventé), puis mis à jour après chaque gain.
+ * `or` : { lire, suivre, connu } (js/os/village-or.js : lireOr, surOr, orConnu), ou null : le compteur de pièces d'or en haut à gauche. Le dernier solde connu de la session
+ *   s'affiche dès le montage ; sinon sa place est gardée (invisible) pendant la lecture, pour que la phrase d'aide ne saute pas. Illisible et rien de connu : pas de compteur
+ *   (jamais un « 0 » inventé). Mis à jour après chaque gain.
  * Rend la fonction qui démonte l'écran (arrête l'écoute du format téléphone / ordinateur et les gestes).
  */
 export function monterVillage(conteneur, besoins, { aller, console: avecConsole = false, donnees = null, or = null }) {
@@ -499,28 +500,42 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     lancerCompteurs();
   }
 
-  // Compteur de pièces d'or (étape 6a) : hors du dessin, en haut à gauche (jamais sur la roue ni sur les îlots). Posé seulement quand le solde est connu.
+  // Compteur de pièces d'or (étape 6a) : hors du dessin, en haut à gauche (jamais sur la roue ni sur les îlots).
   let compteurOr = null;
   let texteCompteur = null;
+  const poserCompteur = () => {
+    if (compteurOr) return;
+    compteurOr = document.createElement('div');
+    compteurOr.className = 'village-or';
+    compteurOr.dataset.role = 'or';
+    compteurOr.setAttribute('aria-live', 'polite');
+    texteCompteur = document.createElement('span');
+    compteurOr.append(dessinPiece(22), texteCompteur);
+    page.dataset.or = 'oui';
+    if (phrase.parentNode === cadre) cadre.insertBefore(compteurOr, phrase); else cadre.append(compteurOr);
+  };
   const montrerOr = (n) => {
     if (!monte || !Number.isInteger(n)) return;
-    if (!compteurOr) {
-      compteurOr = document.createElement('div');
-      compteurOr.className = 'village-or';
-      compteurOr.dataset.role = 'or';
-      compteurOr.setAttribute('aria-live', 'polite');
-      texteCompteur = document.createElement('span');
-      compteurOr.append(dessinPiece(22), texteCompteur);
-      page.dataset.or = 'oui';
-      if (phrase.parentNode === cadre) cadre.insertBefore(compteurOr, phrase); else cadre.append(compteurOr);
-    }
+    poserCompteur();
+    compteurOr.classList.remove('village-or-attente');
+    compteurOr.removeAttribute('aria-hidden');
     texteCompteur.textContent = texteOr(n);
   };
+  /** Lecture illisible : la place gardée s'en va (rien de connu, donc rien à montrer). */
+  const oublierPlace = () => {
+    if (!compteurOr || !compteurOr.classList.contains('village-or-attente')) return;
+    compteurOr.remove();
+    compteurOr = null;
+    delete page.dataset.or;
+  };
   const arretOr = or?.suivre ? or.suivre(montrerOr) : null;
+  const connu = or?.connu ? or.connu() : null;
+  if (Number.isInteger(connu)) montrerOr(connu); // le dernier solde connu, tout de suite
+  else if (or?.lire) { poserCompteur(); compteurOr.classList.add('village-or-attente'); compteurOr.setAttribute('aria-hidden', 'true'); } // la place, gardée pendant la lecture
 
   rendre(); // 1. le terrain tout de suite (vide pendant la lecture)
   lire(); // 2. le rangement, puis les maisons et leurs compteurs
-  if (or?.lire) or.lire().then((r) => { if (r?.etat === 'ok') montrerOr(r.or); }).catch(() => {}); // 3. le solde (illisible : pas de compteur)
+  if (or?.lire) or.lire().then((r) => { if (r?.etat === 'ok') montrerOr(r.or); else oublierPlace(); }).catch(oublierPlace); // 3. le solde (illisible : le dernier connu reste, sinon rien)
   // Téléphone : un toucher hors des bâtiments referme la bulle.
   const fermer = (e) => { if (!e.target.closest?.('.village-batiment, .village-lien-etiquette')) bulle.cacher(); };
   cadre.addEventListener('click', fermer);
