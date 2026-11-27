@@ -316,3 +316,27 @@ describe('Restauration d’une opération', () => {
     assert.equal(collections.crm_notes.filter((n) => n.id.startsWith('m')).length, 0);
   });
 });
+
+describe('Nom et logo d’une maison (Réglages > Mon espace, 27/11/2026) : jamais restaurés d’après le journal', () => {
+  test('restaurer_depuis_audit refuse une opération sur reglages_maison/public (copie partielle : mode_crm, connexion_neutre et logo seraient effacés), même avec forcer et en super admin ; le document ne bouge pas', async () => {
+    const { collections, donnees } = nouveau();
+    const publicAvant = { id: 'public', mode_crm: true, connexion_neutre: true, nom_espace: 'Nouveau nom', logo: 'data:image/png;base64,iVBORw0KGgo=', ligne_journal: 'ligneEssai000001' };
+    collections.reglages_maison = [structuredClone(publicAvant)];
+    collections.crm_audit = [...(collections.crm_audit || []), {
+      id: 'ligneEssai000001', operationId: 'ligneEssai000001', ordre: 1, acteur: 'compte2@exemple.test', jeton: 'ecran', via: 'ecran', outil: 'mon_espace_maison',
+      collection: 'reglages_maison', docId: 'public', action: 'modifier', statut: 'succes', champsModifies: ['nom_espace', 'logo'], parametresRecus: [], date: MAINTENANT,
+    }];
+    collections.crm_audit_avant = [...(collections.crm_audit_avant || []), {
+      id: 'ligneEssai000001', operationId: 'ligneEssai000001', collection: 'reglages_maison', docId: 'public',
+      avant: { nom_espace: 'Ancien nom', logo: 'ancien logo' }, apres: { nom_espace: 'Nouveau nom', logo: 'logo changé' }, expireAt: MAINTENANT,
+    }];
+    for (const options of [{ apercu: true }, { apercu: false }, { apercu: false, forcer: true }, { apercu: false, forcer: true, superAdmin: true }]) {
+      await assert.rejects(() => restaurerOperation({ donnees, ctx: ctx(), operationId: 'ligneEssai000001', ...options }),
+        (e) => e.code === 'restauration_refusee' && /À refaire depuis Réglages > Mon espace/.test(e.message), JSON.stringify(options));
+    }
+    assert.deepEqual(collections.reglages_maison, [publicAvant], 'reglages_maison/public inchangé');
+    // Même refus si seul l'outil le dit (ligne d'une autre collection écrite par cet outil).
+    collections.crm_audit.find((l) => l.id === 'ligneEssai000001').collection = 'autre';
+    await assert.rejects(() => restaurerOperation({ donnees, ctx: ctx(), operationId: 'ligneEssai000001', apercu: false, forcer: true }), (e) => e.code === 'restauration_refusee');
+  });
+});

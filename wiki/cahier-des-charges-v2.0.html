@@ -146,16 +146,33 @@ service cloud.firestore {
     // restent intouchables ; le nom ne se retire pas (le logo, si). Ni création, ni suppression. `public` est lu par tous : rien de confidentiel n'y entre.
     // Journal obligatoire (27/11/2026) : chaque modification porte ligne_journal, l'identifiant d'une NOUVELLE ligne crm_audit écrite dans le MÊME lot, au nom du compte,
     // sur reglages_maison/public (identiteMaisonJournalisee). Sans cette ligne, la modification est refusée : aucun changement de nom ou de logo sans trace.
-    // La ligne et sa copie ne contiennent jamais l'image du logo (seulement « logo changé » ou « logo retiré » : js/os/identite-maison.js).
+    // La ligne est datée de l'heure de la requête (visible dans le Journal, trié par date), au nom de l'outil mon_espace_maison, action « modifier », statut « succes ».
+    // Sa copie crm_audit_avant (même identifiant, même lot) est exigée aussi : ancien nom (celui du document avant) et nouveau nom (celui du document après) ;
+    // pour le logo seulement « ancien logo » / « pas de logo » et « logo changé » / « logo retiré » : jamais l'image (js/os/identite-maison.js, planIdentiteMaison).
+    function identiteLigneValide(l, id) {
+      return l.acteur == request.auth.token.email &amp;&amp; l.via == 'ecran' &amp;&amp; l.operationId == id
+        &amp;&amp; l.outil == 'mon_espace_maison' &amp;&amp; l.action == 'modifier' &amp;&amp; l.statut == 'succes'
+        &amp;&amp; l.collection == 'reglages_maison' &amp;&amp; l.docId == 'public'
+        &amp;&amp; l.date == request.time;
+    }
+    function identiteCopieValide(c, id, apres) {
+      let logoTouche = apres.diff(resource.data).affectedKeys().hasAny(['logo']);
+      return c.operationId == id &amp;&amp; c.collection == 'reglages_maison' &amp;&amp; c.docId == 'public'
+        &amp;&amp; c.avant is map &amp;&amp; c.apres is map
+        &amp;&amp; c.avant.keys().hasOnly(['nom_espace', 'logo']) &amp;&amp; c.apres.keys().hasOnly(['nom_espace', 'logo'])
+        &amp;&amp; c.avant.get('nom_espace', null) == resource.data.get('nom_espace', '')
+        &amp;&amp; c.apres.get('nom_espace', null) == apres.get('nom_espace', '')
+        &amp;&amp; c.avant.get('logo', '') == (logoTouche ? (('logo' in resource.data) ? 'ancien logo' : 'pas de logo') : '')
+        &amp;&amp; c.apres.get('logo', '') == (logoTouche ? (('logo' in apres) ? 'logo changé' : 'logo retiré') : '');
+    }
     function identiteMaisonJournalisee(apres) {
       let id = apres.get('ligne_journal', '');
       let ligne = /databases/$(database)/documents/crm_audit/$(id);
+      let copie = /databases/$(database)/documents/crm_audit_avant/$(id);
       return id is string &amp;&amp; id.matches('^[A-Za-z0-9]{10,40}$')
         &amp;&amp; !exists(ligne)
-        &amp;&amp; getAfter(ligne).data.acteur == request.auth.token.email
-        &amp;&amp; getAfter(ligne).data.via == 'ecran'
-        &amp;&amp; getAfter(ligne).data.collection == 'reglages_maison'
-        &amp;&amp; getAfter(ligne).data.docId == 'public';
+        &amp;&amp; identiteLigneValide(getAfter(ligne).data, id)
+        &amp;&amp; identiteCopieValide(getAfter(copie).data, id, apres);
     }
     function identiteMaisonValide() {
       let avant = resource.data;

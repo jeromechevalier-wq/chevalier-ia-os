@@ -98,7 +98,7 @@ export function planIdentiteMaison({ avant, nom, logo, acteur, idLigne, maintena
   const patch = { nom_espace: nom, ligne_journal: idLigne };
   if (logoChange) patch.logo = logo; // null = retrait (l'appelant le traduit en suppression du champ)
   const champsModifies = [...(nom !== ancienNom ? ['nom_espace'] : []), ...(logoChange ? ['logo'] : [])];
-  const copieAvant = { nom_espace: ancienNom || '(pas de nom)' };
+  const copieAvant = { nom_espace: ancienNom }; // '' si l'espace n'avait pas de nom (maison neutre) : les règles comparent à l'ancien nom exact
   const copieApres = { nom_espace: nom };
   if (logoChange) {
     copieAvant.logo = ancienLogo ? 'ancien logo' : 'pas de logo';

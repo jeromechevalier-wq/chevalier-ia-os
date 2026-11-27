@@ -19,7 +19,10 @@ const OUTILS_DEVIS_FIGES = ['devisFinaliser', 'devisChangerStatut'];
 const OUTILS_DEVIS_SUR_FINALISE = ['devisArchiver', 'devisEnregistrerEnvoi', 'devisSupprimer', 'devisChoisirAffaire'];
 /** Opérations qui recalculent le montant de l'affaire : leurs lignes « affaire » ne sont jamais remises d'après une copie, le montant se recalcule APRÈS l'écriture (suppression d'un devis ; choix d'une affaire, qui se défait en revenant « sans affaire »). */
 const OUTILS_DEVIS_RECALCUL_APRES = ['devisSupprimer', 'devisChoisirAffaire'];
-const VOIE_DE_SECOURS = 'Pour corriger un devis finalisé, créer la version suivante (nouvelle_version_devis, ou depuis l’écran).';
+/** Nom et logo d'une maison (reglages_maison/public) : collection et outil écrits par l'écran (js/os/identite-maison.js, OUTIL_JOURNAL_IDENTITE). Jamais restaurés d'après le journal. */
+export const COLLECTION_IDENTITE_MAISON = 'reglages_maison';
+export const OUTIL_IDENTITE_MAISON = 'mon_espace_maison';
+const VOIE_DE_SECOURS ='Pour corriger un devis finalisé, créer la version suivante (nouvelle_version_devis, ou depuis l’écran).';
 
 /** Ce qu'il faudrait faire pour défaire une ligne : 'supprimer' | 'remplacer' | 'recreer' | 'rien' | 'conflit'. */
 function decider(courant, ligne) {
@@ -52,6 +55,11 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
     .sort((a, b) => (b.ordre ?? 0) - (a.ordre ?? 0));
   if (!lignesAudit.length) {
     throw new ErreurEcriture('introuvable', 'Aucune écriture réussie pour cette opération (identifiant inconnu, ou toutes ont échoué).');
+  }
+  // Nom et logo d'une maison (Réglages > Mon espace, 27/11/2026) : la copie du journal est PARTIELLE (ancien nom, « ancien logo » en texte, jamais l'image).
+  // La remettre remplacerait tout le document (mode_crm et connexion_neutre effacés, logo remplacé par un texte) : refusé, même avec forcer, même pour un super admin.
+  if (lignesAudit.some((l) => l.collection === COLLECTION_IDENTITE_MAISON || l.outil === OUTIL_IDENTITE_MAISON)) {
+    throw new ErreurEcriture('restauration_refusee', 'Cette opération a changé le nom ou le logo de l’espace : elle ne se défait pas avec le journal (la copie ne garde pas l’image). À refaire depuis Réglages > Mon espace. Rien n\'a été restauré.');
   }
   // Par outil ET par collection : une restauration écrit ses lignes sous son propre nom (restaurer_depuis_audit) sur la même collection ; « restaurer la restauration » contournerait sinon la réservation.
   if (!superAdmin && lignesAudit.some((l) => OUTILS_RESERVES_SUPER_ADMINS.includes(l.outil) || COLLECTIONS_RESERVEES_SUPER_ADMINS.includes(l.collection))) {

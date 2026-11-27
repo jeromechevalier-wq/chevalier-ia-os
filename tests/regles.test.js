@@ -357,22 +357,39 @@ describe('Chantier 0 : les comptes viennent de la fiche reglages_maison/maison',
   // Élargi le 27/11/2026 (accord de Jérôme) : tout compte de la maison (comptes_autorises), plus seulement le titulaire ; chaque changement porte sa ligne de journal (même lot).
   const LOGO_OK = 'data:image/png;base64,iVBORw0KGgo=';
   const AUTRE = 'compte2@exemple.test'; // un autre compte de la maison (adresse inventée), pas titulaire
-  const LECTEUR = 'lecteur@exemple.test'; // a seulement le droit de LIRE `public` (comme tout visiteur) : absent de comptes_autorises
   const poserPublic = (fiche) => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'reglages_maison', 'public'), fiche));
   const ficheMaison = () => ecrireFiche({ ...FICHE_ESSAI, comptes_autorises: [JEROME, BOT, AUTRE] });
+  const lirePublic = async () => { let d = {}; await env.withSecurityRulesDisabled(async (ctx) => { d = (await getDoc(doc(ctx.firestore(), 'reglages_maison', 'public'))).data() ?? {}; }); return d; };
+  const estSuppression = (v) => typeof v?.isEqual === 'function' && v.isEqual(deleteField());
+  /** Copie « avant / après » telle que l'écran l'écrit (js/os/identite-maison.js, planIdentiteMaison) : ancien et nouveau nom ; logo en mots seulement. */
+  const copieAttendue = (avantDoc, champs) => {
+    const logoTouche = 'logo' in champs && (estSuppression(champs.logo) ? 'logo' in avantDoc : champs.logo !== avantDoc.logo);
+    const nomApres = 'nom_espace' in champs ? (estSuppression(champs.nom_espace) ? '' : champs.nom_espace) : (avantDoc.nom_espace ?? '');
+    return {
+      avant: { nom_espace: avantDoc.nom_espace ?? '', ...(logoTouche ? { logo: 'logo' in avantDoc ? 'ancien logo' : 'pas de logo' } : {}) },
+      apres: { nom_espace: nomApres, ...(logoTouche ? { logo: estSuppression(champs.logo) ? 'logo retiré' : 'logo changé' } : {}) },
+    };
+  };
+  const sansIndefinis = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
   let numeroLigne = 0;
-  /** Modification de `public` comme l'écran la fait : la modification, sa ligne crm_audit et sa copie dans le MÊME lot. `ligne` remplace des champs de la ligne ;
-   *  `sansLigne` : la modification seule ; `id` : identifiant imposé de la ligne. */
-  const changer = (db, email, champs, { ligne = {}, sansLigne = false, id } = {}) => {
+  /** Modification de `public` comme l'écran la fait : la modification, sa ligne crm_audit et sa copie crm_audit_avant dans le MÊME lot.
+   *  `ligne` / `copie` remplacent des champs de la ligne / de la copie (undefined = champ retiré) ; `sansLigne` : la modification seule ; `sansCopie` : sans la copie ;
+   *  `id` : identifiant imposé de la ligne. */
+  const changer = async (db, email, champs, { ligne = {}, copie = {}, sansLigne = false, sansCopie = false, id } = {}) => {
     const idLigne = id ?? `ligneEssai${String(++numeroLigne).padStart(6, '0')}`;
+    const avantDoc = await lirePublic();
     const lot = writeBatch(db);
     lot.update(doc(db, 'reglages_maison', 'public'), { ...champs, ligne_journal: idLigne });
     if (!sansLigne) {
-      lot.set(doc(db, 'crm_audit', idLigne), {
+      lot.set(doc(db, 'crm_audit', idLigne), sansIndefinis({
         operationId: idLigne, ordre: 1, acteur: email, jeton: 'ecran', via: 'ecran', outil: 'mon_espace_maison', collection: 'reglages_maison', docId: 'public',
         action: 'modifier', statut: 'succes', champsModifies: Object.keys(champs), parametresRecus: [], date: serverTimestamp(), ...ligne,
-      });
-      lot.set(doc(db, 'crm_audit_avant', idLigne), { operationId: idLigne, collection: 'reglages_maison', docId: 'public', avant: {}, apres: {}, expireAt: Timestamp.now() });
+      }));
+    }
+    if (!sansCopie) {
+      lot.set(doc(db, 'crm_audit_avant', idLigne), sansIndefinis({
+        operationId: idLigne, collection: 'reglages_maison', docId: 'public', ...copieAttendue(avantDoc, champs), expireAt: Timestamp.now(), ...copie,
+      }));
     }
     return lot.commit();
   };
@@ -406,11 +423,11 @@ describe('Chantier 0 : les comptes viennent de la fiche reglages_maison/maison',
     await assertFails(setDoc(doc(contexte(AUTRE), 'reglages_maison', 'public'), { nom_espace: 'Remplacé' }), 'un remplacement qui efface mode_crm est refusé');
     await assertFails(deleteDoc(doc(contexte(AUTRE), 'reglages_maison', 'public')));
   });
-  test('1 RM-R5 lecteur, compte extérieur, e-mail non vérifié, visiteur : jamais ; un compte retiré de la fiche perd le droit', async () => {
+  test('1 RM-R5 compte hors de la liste (extérieur), e-mail non vérifié, visiteur : jamais ; un compte retiré de la fiche perd le droit', async () => {
     await ficheMaison();
     await poserPublic({ mode_crm: true, nom_espace: 'Espace exemple' });
-    await assertFails(pub(LECTEUR, { nom_espace: 'Lecteur' }), 'un compte qui ne fait que lire : refusé');
-    await assertFails(pub('intrus@exemple.test', { nom_espace: 'Pirate' }), 'compte extérieur : refusé');
+    // Pas de rôle « lecteur » dans une maison (firestore.rules) : un compte connecté hors comptes_autorises ne peut que lire `public`, comme tout visiteur.
+    await assertFails(pub('intrus@exemple.test', { nom_espace: 'Pirate' }), 'compte connecté hors de la liste (extérieur) : refusé');
     await assertFails(changer(contexte(AUTRE, false), AUTRE, { nom_espace: 'Non vérifié' }), 'e-mail non vérifié : refusé');
     await assertFails(changer(env.unauthenticatedContext().firestore(), '', { nom_espace: 'Anonyme' }), 'sans connexion : refusé');
     await assertFails(updateDoc(doc(env.unauthenticatedContext().firestore(), 'reglages_maison', 'public'), { nom_espace: 'Anonyme' }));
@@ -419,7 +436,7 @@ describe('Chantier 0 : les comptes viennent de la fiche reglages_maison/maison',
     await assertFails(pub(BOT, { nom_espace: 'Retiré' }));
     await assertSucceeds(pub(JEROME, { nom_espace: 'Le titulaire, toujours' }));
   });
-  test('2 RM-R7 journal obligatoire : sans sa ligne crm_audit (même lot), avec une ligne au nom d\'un autre, sur une autre fiche ou déjà écrite : refusé', async () => {
+  test('2 RM-R7 journal obligatoire : sans sa ligne crm_audit ou sa copie (même lot), ligne au nom d\'un autre, sans date ou antidatée, autre outil, action ou statut, copie fausse ou avec l\'image, ligne déjà écrite : refusé', async () => {
     await ficheMaison();
     await poserPublic({ mode_crm: true, nom_espace: 'Espace exemple' });
     await assertFails(pub(AUTRE, { nom_espace: 'Sans trace' }, { sansLigne: true }), 'sans ligne de journal : refusé');
@@ -429,6 +446,23 @@ describe('Chantier 0 : les comptes viennent de la fiche reglages_maison/maison',
     await assertFails(pub(AUTRE, { nom_espace: 'Autre fiche' }, { ligne: { docId: 'ecran' } }), 'ligne sur une autre fiche : refusé');
     await assertFails(pub(AUTRE, { nom_espace: 'Autre collection' }, { ligne: { collection: 'crm_personnes' } }));
     await assertFails(pub(AUTRE, { nom_espace: 'Identifiant court' }, { id: 'court' }), 'identifiant de ligne mal formé : refusé');
+    // Ligne complète exigée (relecture Fable) : datée de l'heure de la requête, outil mon_espace_maison, action « modifier », statut « succes ».
+    await assertFails(pub(AUTRE, { nom_espace: 'Sans date' }, { ligne: { date: undefined } }), 'ligne sans date (invisible dans le Journal) : refusé');
+    await assertFails(pub(AUTRE, { nom_espace: 'Antidatée' }, { ligne: { date: Timestamp.fromMillis(Date.UTC(2020, 0, 1)) } }), 'date fausse : refusé');
+    await assertFails(pub(AUTRE, { nom_espace: 'Autre outil' }, { ligne: { outil: 'creer_personne' } }), 'autre outil : refusé');
+    await assertFails(pub(AUTRE, { nom_espace: 'Autre action' }, { ligne: { action: 'creer' } }), 'autre action : refusé');
+    await assertFails(pub(AUTRE, { nom_espace: 'Échec' }, { ligne: { statut: 'echec' } }), 'autre statut : refusé');
+    // Copie « avant / après » exigée, juste (relecture Fable) : ancien nom = celui d'avant, nouveau nom = celui d'après, logo en mots seulement.
+    await assertFails(pub(AUTRE, { nom_espace: 'Sans copie' }, { sansCopie: true }), 'sans copie : refusé');
+    await assertFails(pub(AUTRE, { nom_espace: 'Copie fausse' }, { copie: { avant: { nom_espace: 'Inventé' }, apres: { nom_espace: 'Copie fausse' } } }), 'ancien nom faux : refusé');
+    await assertFails(pub(AUTRE, { nom_espace: 'Copie fausse' }, { copie: { avant: { nom_espace: 'Espace exemple' }, apres: { nom_espace: 'Autre chose' } } }), 'nouveau nom faux : refusé');
+    await assertFails(pub(AUTRE, { nom_espace: 'Copie vide' }, { copie: { avant: {}, apres: {} } }), 'copie vide : refusé');
+    await assertFails(pub(AUTRE, { logo: LOGO_OK }, { copie: { avant: { nom_espace: 'Espace exemple', logo: 'pas de logo' }, apres: { nom_espace: 'Espace exemple', logo: LOGO_OK } } }), 'image du logo dans la copie : refusé');
+    await assertFails(pub(AUTRE, { logo: LOGO_OK }, { copie: { avant: { nom_espace: 'Espace exemple' }, apres: { nom_espace: 'Espace exemple' } } }), 'logo changé sans le dire : refusé');
+    await assertFails(pub(AUTRE, { nom_espace: 'Champ en trop' }, { copie: { apres: { nom_espace: 'Champ en trop', mode_crm: true } } }), 'champ en trop dans la copie : refusé');
+    await assertFails(pub(AUTRE, { nom_espace: 'Autre opération' }, { copie: { operationId: 'autreOperation01' } }), 'copie d\'une autre opération : refusé');
+    await assertSucceeds(pub(AUTRE, { logo: LOGO_OK }), 'copie juste avec logo : accepté');
+    await assertSucceeds(pub(AUTRE, { logo: deleteField() }), 'retrait du logo, copie juste : accepté');
     await assertSucceeds(pub(AUTRE, { nom_espace: 'Avec trace' }, { id: 'ligneReutilisee01' }));
     // Réutiliser une ligne déjà écrite (sans en ajouter une nouvelle) : refusé.
     const db = contexte(AUTRE);
