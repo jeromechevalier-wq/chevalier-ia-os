@@ -8,9 +8,10 @@
 //    le solde plus récent rendu par le gain ; orConnu() le rend tout de suite (l'accueil l'affiche au montage, sans attendre la lecture).
 //  - 6b, boutique : acheterOr({ article, modele, c, l }) demande l'achat au serveur (qui revérifie tout) ; le solde et les parcelles rendus deviennent les valeurs connues.
 //    Les parcelles ne baissent jamais : on garde la plus grande valeur vue (lecture, gain ou achat), parcellesConnues() la rend (null si rien de connu).
+//  - 7, récolte : ramasserOr({ objet }) demande au serveur de ramasser l'or d'un champ ou d'un enclos (il décide à SON heure) ; un gain fait la même fête qu'une bonne nouvelle.
 //  - appelerVillageOr(demande) : la SEULE ligne qui appelle la fonction du serveur (verrou dans tests/statique.test.js).
 // Pannes simulées (émulateurs seulement) : window.__chevalierTest.pannesOr = { lecture: n } fait échouer les n prochaines lectures ; { lenteur: ms } retarde chaque lecture de ms millisecondes ;
-// { achat: n } fait échouer les n prochains achats.
+// { achat: n } fait échouer les n prochains achats ; { ramassage: n } fait échouer les n prochaines récoltes.
 import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { db, app, MODE_EMULATEURS } from './firebase.js';
@@ -54,7 +55,7 @@ function retenirParcelles(p) {
   if (n !== null && (parcelles === null || n > parcelles)) parcelles = n;
 }
 
-/** L'appel à la fonction du serveur `villageOr` (gain ou achat), avec l'espace du client sur la plateforme. */
+/** L'appel à la fonction du serveur `villageOr` (gain, achat ou récolte), avec l'espace du client sur la plateforme. */
 function appelerVillageOr(demande, moi) {
   const client = moi.base ? moi.base.split('/')[1] : undefined;
   return httpsCallable(getFunctions(app, 'europe-west9'), 'villageOr')(client ? { client, ...demande } : demande);
@@ -147,6 +148,7 @@ export async function acheterOr({ article, modele, c, l } = {}) {
   if (!moi?.uid) return { etat: 'erreur' };
   const demande = { action: 'acheter', article };
   if (article === 'decoration') Object.assign(demande, { modele, c, l });
+  else if (article === 'champ' || article === 'enclos') Object.assign(demande, { c, l });
   try {
     if (pannePosee('achat')) throw Object.assign(new Error('panne simulée'), { code: 'panne' });
     const r = await appelerVillageOr(demande, moi);
@@ -160,6 +162,7 @@ export async function acheterOr({ article, modele, c, l } = {}) {
     if (d.ok === true && d.achete === true) {
       const o = d.objet;
       const objet = o && typeof o.id === 'string' && Number.isInteger(o.c) && Number.isInteger(o.l) ? { id: o.id, sorte: o.sorte, modele: o.modele, c: o.c, l: o.l } : null;
+      if (objet && entier(o.depuisMs) !== null) objet.depuisMs = o.depuisMs;
       return { etat: 'ok', or: solde, parcelles, objet };
     }
     const raison = typeof d.raison === 'string' ? d.raison : 'demande';
@@ -167,6 +170,37 @@ export async function acheterOr({ article, modele, c, l } = {}) {
     return { etat: 'refus', raison, manque: entier(d.manque) ?? undefined, or: solde, parcelles };
   } catch (e) {
     console.warn('Village : achat non abouti', String(e?.code ?? 'inconnu'));
+    return { etat: 'erreur' };
+  }
+}
+
+/**
+ * Récolte d'un champ ou d'un enclos (7) : { etat: 'ok', ramasse, depuisMs } | { etat: 'refus', raison, depuisMs? } | { etat: 'erreur' }. Jamais d'exception, jamais de nouvel essai.
+ * Le serveur décide à son heure ; quand il rend le portefeuille (même sur un refus), le solde connu suit. Un gain fait la fête (feterOr tient compte d'« Animations »).
+ */
+export async function ramasserOr({ objet } = {}) {
+  const moi = actif;
+  if (!moi?.uid) return { etat: 'erreur' };
+  try {
+    if (pannePosee('ramassage')) throw Object.assign(new Error('panne simulée'), { code: 'panne' });
+    const r = await appelerVillageOr({ action: 'ramasser', objet }, moi);
+    if (actif !== moi) return { etat: 'erreur' };
+    const d = r?.data ?? {};
+    if (entier(d.or) !== null && entier(d.version) !== null) {
+      retenir(d.or, d.version);
+      retenirParcelles(d.parcelles);
+      prevenir();
+    }
+    const depuisMs = entier(d.depuisMs) ?? undefined;
+    if (d.ok === true && Number.isInteger(d.ramasse) && d.ramasse > 0) {
+      feterOr(d.ramasse);
+      return { etat: 'ok', ramasse: d.ramasse, depuisMs };
+    }
+    const raison = typeof d.raison === 'string' ? d.raison : 'demande';
+    console.warn('Village : rien ramassé', raison);
+    return { etat: 'refus', raison, depuisMs };
+  } catch (e) {
+    console.warn('Village : récolte non aboutie', String(e?.code ?? 'inconnu'));
     return { etat: 'erreur' };
   }
 }

@@ -137,7 +137,31 @@ describe('6.0 règles du jeu (fichier pur)', () => {
     assert.deepEqual([...cases].sort(), ['0-0', '0-1', '1-0', '1-1', '4-4', '4-5', '5-4', '5-5', '6-0', '6-1', '7-0', '7-1', '3-0', '0-6', '0-7', '1-6', '1-7'].sort());
     assert.equal(R.casesEnregistrees(undefined).size, 0);
     assert.equal(R.TAILLE_MAISON, 2);
-    assert.deepEqual([...R.ARTICLES_EN_VENTE], ['decoration', 'parcelle']);
+    assert.deepEqual([...R.ARTICLES_EN_VENTE], ['decoration', 'champ', 'enclos', 'parcelle']);
+  });
+});
+
+describe('7.0 récolte : règles pures (étape 7)', () => {
+  test('7.0a articles en vente ; etatRecolte du champ et de l’enclos ; dates futures ou invalides, décoration : pas prêt ; departApresRecolte', () => {
+    assert.deepEqual([...R.ARTICLES_EN_VENTE], ['decoration', 'champ', 'enclos', 'parcelle']);
+    assert.deepEqual([...R.SORTES_RECOLTE], ['champ', 'enclos']);
+    const champ = (h) => R.etatRecolte('champ', MAINTENANT - h * HEURE, MAINTENANT);
+    for (const [h, etape] of [[0, 0], [16, 1], [32, 2], [47, 2]]) assert.deepEqual(champ(h), { pret: false, pieces: 0, etape }, `${h} h`);
+    assert.deepEqual(champ(48), { pret: true, pieces: 20, etape: 3 });
+    const enclos = (h) => R.etatRecolte('enclos', MAINTENANT - h * HEURE, MAINTENANT);
+    assert.deepEqual(enclos(23), { pret: false, pieces: 0, etape: 0 });
+    assert.deepEqual(enclos(24), { pret: true, pieces: 5, etape: 1 });
+    assert.deepEqual(enclos(50), { pret: true, pieces: 10, etape: 1 });
+    assert.deepEqual(enclos(30 * 24), { pret: true, pieces: 20, etape: 1 });
+    for (const sorte of ['champ', 'enclos']) {
+      assert.equal(R.etatRecolte(sorte, MAINTENANT + HEURE, MAINTENANT).pret, false, `${sorte} futur`);
+      assert.equal(R.etatRecolte(sorte, Number.NaN, MAINTENANT).pret, false, `${sorte} NaN`);
+      assert.equal(R.etatRecolte(sorte, null, MAINTENANT).pret, false, `${sorte} null`);
+    }
+    assert.deepEqual(R.etatRecolte('decoration', MAINTENANT - 100 * JOUR, MAINTENANT), { pret: false, pieces: 0, etape: 0 });
+    assert.equal(R.departApresRecolte('champ', MAINTENANT - 49 * HEURE, MAINTENANT), MAINTENANT);
+    assert.equal(R.departApresRecolte('enclos', MAINTENANT - 50 * HEURE, MAINTENANT), MAINTENANT - 50 * HEURE + 48 * HEURE);
+    assert.equal(R.departApresRecolte('enclos', MAINTENANT - 30 * JOUR, MAINTENANT), MAINTENANT);
   });
 });
 
@@ -466,7 +490,7 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
     assert.equal((await portefeuille('u2')).or, 1000);
   });
 
-  test('6.6d demandes : modèle inconnu, c 1,5, article inconnu, uid douteux : demande ; champ et enclos : pas_encore, rien d’écrit', async () => {
+  test('6.6d demandes : modèle inconnu, c 1,5, article inconnu, uid douteux : demande ; champ et enclos : en vente depuis l’étape 7 (avec un modèle : demande), rien d’écrit', async () => {
     await porte('u1', { or: 1000 });
     const s = acheteur();
     for (const d of [{ article: 'decoration', modele: 'statue', c: 0, l: 0 }, { article: 'decoration', modele: 'arbre', c: 1.5, l: 0 }, { article: 'decoration', modele: 'arbre', c: 0, l: 24 },
@@ -474,7 +498,11 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
       assert.deepEqual(await s.acheter({ uid: 'u1', ...d }), { ok: false, raison: 'demande' }, JSON.stringify(d));
     }
     assert.deepEqual(await s.acheter({ uid: 'a/b', article: 'parcelle' }), { ok: false, raison: 'demande' });
-    for (const article of ['champ', 'enclos']) assert.deepEqual(await s.acheter({ uid: 'u1', article }), { ok: true, achete: false, raison: 'pas_encore' });
+    for (const article of ['champ', 'enclos']) {
+      assert.deepEqual(await s.acheter({ uid: 'u1', article, modele: 'arbre', c: 0, l: 0 }), { ok: false, raison: 'demande' }, article);
+      assert.deepEqual(await s.acheter({ uid: 'u1', article, modele: null, c: 0, l: 0 }), { ok: false, raison: 'demande' }, article);
+      assert.deepEqual(await s.acheter({ uid: 'u1', article }), { ok: false, raison: 'demande' }, `${article} sans case`);
+    }
     assert.deepEqual(sansDate(await portefeuille('u1')), { or: 1000, gagne: 0, parcelles: 0, version: 3 });
     assert.deepEqual(await batiments('u1'), []);
   });
@@ -517,12 +545,218 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
       await assert.rejects(appel(email, { action: 'gain', source: 'devis-signe', id: 'd1', ...donnees }), (e) => e instanceof Refus && e.code === 'permission-denied' && e.message === 'Action non autorisée.', JSON.stringify(donnees));
     }
     for (const client of ['../a', '', undefined, 'A B']) await assert.rejects(appel(ALICE, { client, action: 'gain', source: 'devis-signe', id: 'd1' }), (e) => e instanceof Refus && e.code === 'invalid-argument');
-    await assert.rejects(appel(ALICE, { client: 'a', action: 'ramasser' }), (e) => e instanceof Refus && e.code === 'invalid-argument');
+    await assert.rejects(appel(ALICE, { client: 'a', action: 'voler' }), (e) => e instanceof Refus && e.code === 'invalid-argument');
     // 6b : Alice n'est pas membre du client b : elle n'y achète rien (refus neutre, rien n'est écrit)
     await assert.rejects(appel(ALICE, { client: 'b', action: 'acheter', article: 'parcelle' }), (e) => e instanceof Refus && e.code === 'permission-denied' && e.message === 'Action non autorisée.');
     assert.equal(await portefeuille('u-alice', 'clients/b/'), null);
     await assert.rejects(appel(ALICE, { client: 'a', action: 'gain' }, false), (e) => e instanceof Refus && e.code === 'unauthenticated');
     assert.equal(await portefeuille('u-lea', 'clients/a/'), null);
+  });
+
+  // ---------------------------------------------------------------- 7 : champs et enclos (achat, récolte)
+  /** Un champ ou un enclos semé il y a `ilYa` millisecondes (document comme l'écrit le serveur). */
+  const semer = (uid, id, sorte, ilYa, { c = 0, l = 0, base = '' } = {}) => poserDoc(uid, id, {
+    sorte, c, l, acheteLe: Timestamp.fromMillis(MAINTENANT - ilYa), depuis: Timestamp.fromMillis(MAINTENANT - ilYa), modifieLe: Timestamp.fromMillis(MAINTENANT - ilYa),
+  }, base);
+  const depuisDe = async (uid, id, base = '') => (await db.doc(`${base}${C_VILLAGE}/${uid}/batiments/${id}`).get()).data()?.depuis?.toMillis();
+  const docObjet = async (uid, id, base = '') => { const d = (await db.doc(`${base}${C_VILLAGE}/${uid}/batiments/${id}`).get()).data(); return d ? { ...d, depuis: d.depuis?.toMillis?.(), modifieLe: d.modifieLe?.toMillis?.(), acheteLe: d.acheteLe?.toMillis?.() } : null; };
+
+  test('7.1a enclos : −23 h pas prêt (rien d’écrit) ; −24 h : 5 ; −50 h : 10 et la fraction gardée ; −30 jours : 20 (plafond) ; juste après : pas prêt', async () => {
+    const s = acheteur();
+    await porte('u1', { or: 100, gagne: 300 });
+    await semer('u1', 'o-enclos1', 'enclos', 23 * HEURE);
+    const avant = await docObjet('u1', 'o-enclos1');
+    assert.deepEqual(await s.ramasser({ uid: 'u1', objet: 'o-enclos1' }), { ok: true, ramasse: 0, raison: 'pas_pret', depuisMs: MAINTENANT - 23 * HEURE, or: 100, parcelles: 0, version: 3 });
+    assert.deepEqual(sansDate(await portefeuille('u1')), { or: 100, gagne: 300, parcelles: 0, version: 3 });
+    assert.deepEqual(await docObjet('u1', 'o-enclos1'), avant);
+    await semer('u1', 'o-enclos1', 'enclos', 24 * HEURE);
+    assert.deepEqual(await s.ramasser({ uid: 'u1', objet: 'o-enclos1' }), { ok: true, ramasse: 5, or: 105, parcelles: 0, version: 4, depuisMs: MAINTENANT });
+    assert.deepEqual(sansDate(await portefeuille('u1')), { or: 105, gagne: 305, parcelles: 0, version: 4 });
+    assert.equal(await depuisDe('u1', 'o-enclos1'), MAINTENANT);
+    assert.equal((await docObjet('u1', 'o-enclos1')).modifieLe, MAINTENANT);
+    await semer('u1', 'o-enclos1', 'enclos', 50 * HEURE);
+    assert.equal((await s.ramasser({ uid: 'u1', objet: 'o-enclos1' })).ramasse, 10);
+    assert.equal(await depuisDe('u1', 'o-enclos1'), MAINTENANT - 2 * HEURE); // la fraction de jour entamée est gardée
+    await semer('u1', 'o-enclos1', 'enclos', 30 * JOUR);
+    const r = await s.ramasser({ uid: 'u1', objet: 'o-enclos1' });
+    assert.equal(r.ramasse, 20);
+    assert.equal(r.or, 135);
+    assert.equal(await depuisDe('u1', 'o-enclos1'), MAINTENANT); // au plafond, le compte repart de maintenant
+    assert.equal((await s.ramasser({ uid: 'u1', objet: 'o-enclos1' })).raison, 'pas_pret');
+    assert.deepEqual(sansDate(await portefeuille('u1')), { or: 135, gagne: 335, parcelles: 0, version: 6 });
+  });
+
+  test('7.1b achat d’un enclos : 200 retirés, document sans modèle, depuis = maintenant ; hors damier : case ; bloc 2 x 2 sur une maison, une décoration ou un enclos : case_prise ; pas assez : manque', async () => {
+    await porte('u1', { or: 250 });
+    const r = await acheteur({ fabriquerId: () => 'o-enclos1' }).acheter({ uid: 'u1', article: 'enclos', c: 2, l: 3 });
+    assert.deepEqual(r, { ok: true, achete: true, or: 50, parcelles: 0, version: 4, objet: { id: 'o-enclos1', sorte: 'enclos', c: 2, l: 3, depuisMs: MAINTENANT } });
+    const [b] = await batiments('u1');
+    assert.deepEqual(Object.keys(b).sort(), ['acheteLe', 'c', 'depuis', 'id', 'l', 'modifieLe', 'sorte']);
+    assert.deepEqual({ sorte: b.sorte, c: b.c, l: b.l }, { sorte: 'enclos', c: 2, l: 3 });
+    for (const k of ['acheteLe', 'depuis', 'modifieLe']) assert.equal(b[k].toMillis(), MAINTENANT, k);
+    await porte('u2', { or: 1000 });
+    await poserDoc('u2', 'b-devis', { sorte: 'besoin', c: 0, l: 0 });
+    await poserDoc('u2', 'o-deco', { sorte: 'decoration', modele: 'banc', c: 4, l: 0 });
+    await semer('u2', 'o-autre', 'enclos', HEURE, { c: 4, l: 4 });
+    const s = acheteur();
+    const achat = (c, l) => s.acheter({ uid: 'u2', article: 'enclos', c, l });
+    assert.equal((await achat(7, 0)).raison, 'case'); // 7 + 2 > 8
+    assert.equal((await achat(0, 7)).raison, 'case');
+    for (const [c, l] of [[1, 1], [3, 0], [5, 5], [3, 3]]) assert.equal((await achat(c, l)).raison, 'case_prise', `${c}-${l}`);
+    assert.deepEqual(sansDate(await portefeuille('u2')), { or: 1000, gagne: 0, parcelles: 0, version: 3 });
+    assert.equal((await batiments('u2')).length, 3);
+    await porte('u3', { or: 150 });
+    const pauvre = await s.acheter({ uid: 'u3', article: 'enclos', c: 0, l: 0 });
+    assert.equal(pauvre.raison, 'pas_assez');
+    assert.equal(pauvre.manque, 50);
+    assert.deepEqual(await batiments('u3'), []);
+  });
+
+  test('7.2a champ : −0, −16, −32 h pas prêt ; −48 h : 20 et resemé ; tout de suite après : pas prêt', async () => {
+    const s = acheteur();
+    await porte('u1', { or: 0 });
+    for (const h of [0, 16, 32]) {
+      await semer('u1', 'o-champ1', 'champ', h * HEURE);
+      const r = await s.ramasser({ uid: 'u1', objet: 'o-champ1' });
+      assert.equal(r.raison, 'pas_pret', `${h} h`);
+      assert.equal(r.ramasse, 0);
+      assert.equal(r.depuisMs, MAINTENANT - h * HEURE);
+    }
+    await semer('u1', 'o-champ1', 'champ', 48 * HEURE);
+    assert.deepEqual(await s.ramasser({ uid: 'u1', objet: 'o-champ1' }), { ok: true, ramasse: 20, or: 20, parcelles: 0, version: 4, depuisMs: MAINTENANT });
+    assert.equal(await depuisDe('u1', 'o-champ1'), MAINTENANT);
+    assert.equal((await s.ramasser({ uid: 'u1', objet: 'o-champ1' })).raison, 'pas_pret');
+    assert.equal((await portefeuille('u1')).or, 20);
+  });
+
+  test('7.2b achat d’un champ : 100 retirés, document sans modèle ; un champ avec un modèle : demande', async () => {
+    await porte('u1', { or: 100 });
+    const r = await acheteur({ fabriquerId: () => 'o-champ1' }).acheter({ uid: 'u1', article: 'champ', c: 0, l: 0 });
+    assert.equal(r.achete, true);
+    assert.equal(r.or, 0);
+    assert.deepEqual(r.objet, { id: 'o-champ1', sorte: 'champ', c: 0, l: 0, depuisMs: MAINTENANT });
+    const [b] = await batiments('u1');
+    assert.equal(Object.hasOwn(b, 'modele'), false);
+    assert.equal(b.sorte, 'champ');
+    await porte('u2', { or: 1000 });
+    assert.deepEqual(await acheteur().acheter({ uid: 'u2', article: 'champ', modele: 'arbre', c: 0, l: 0 }), { ok: false, raison: 'demande' });
+    assert.deepEqual(await batiments('u2'), []);
+  });
+
+  test('7.3a cases 2 x 2 : un enclos en 2-2 prend 2-2, 2-3, 3-2, 3-3 (une décoration y est refusée) ; une petite maison ne gêne pas', async () => {
+    await porte('u1', { or: 1000 });
+    await poserDoc('u1', 'p-x', { sorte: 'petite', parent: 'b-devis', nom: 'Chantier', cible: '#/projets/x' });
+    const s = acheteur();
+    assert.equal((await s.acheter({ uid: 'u1', article: 'enclos', c: 2, l: 2 })).achete, true);
+    for (const [c, l] of [[2, 2], [2, 3], [3, 2], [3, 3]]) {
+      assert.equal((await s.acheter({ uid: 'u1', article: 'decoration', modele: 'arbre', c, l })).raison, 'case_prise', `${c}-${l}`);
+    }
+    assert.equal((await s.acheter({ uid: 'u1', article: 'decoration', modele: 'arbre', c: 4, l: 4 })).achete, true);
+    assert.equal((await s.acheter({ uid: 'u1', article: 'champ', c: 0, l: 0 })).achete, true);
+    assert.equal((await portefeuille('u1')).or, 1000 - 200 - 20 - 100);
+  });
+
+  test('7.4a attente sans perte : champ semé il y a 365 jours : 20 ; enclos jamais visité depuis 365 jours : 20 (plafond) ; rien d’effacé', async () => {
+    const s = acheteur();
+    await porte('u1', { or: 0 });
+    await semer('u1', 'o-champ1', 'champ', 365 * JOUR);
+    await semer('u1', 'o-enclos1', 'enclos', 365 * JOUR, { c: 4, l: 4 });
+    assert.equal((await s.ramasser({ uid: 'u1', objet: 'o-champ1' })).ramasse, 20);
+    assert.equal((await s.ramasser({ uid: 'u1', objet: 'o-enclos1' })).ramasse, 20);
+    assert.equal((await batiments('u1')).length, 2);
+    assert.equal((await portefeuille('u1')).or, 40);
+  });
+
+  test('7.6a jeu à part : un gain ne touche ni champ ni enclos ; une récolte n’écrit rien dans village_gains', async () => {
+    await semer('u1', 'o-champ1', 'champ', 49 * HEURE);
+    await semer('u1', 'o-enclos1', 'enclos', 50 * HEURE, { c: 4, l: 4 });
+    const avant = [await docObjet('u1', 'o-champ1'), await docObjet('u1', 'o-enclos1')];
+    await devis('d1');
+    assert.equal((await service().gain({ uid: 'u1', source: 'devis-signe', id: 'd1' })).gagne, 50);
+    assert.deepEqual([await docObjet('u1', 'o-champ1'), await docObjet('u1', 'o-enclos1')], avant);
+    const gainsAvant = await gains();
+    assert.equal((await acheteur().ramasser({ uid: 'u1', objet: 'o-enclos1' })).ramasse, 10);
+    assert.deepEqual(await gains(), gainsAvant);
+    assert.equal((await portefeuille('u1')).or, 60);
+  });
+
+  test('7.7a course : dix récoltes du même enclos en même temps = une seule (10) ; même chose pour un champ prêt (20)', async () => {
+    const s = acheteur();
+    await porte('u1', { or: 7 });
+    await semer('u1', 'o-enclos1', 'enclos', 50 * HEURE);
+    const r = await Promise.all(Array.from({ length: 10 }, () => s.ramasser({ uid: 'u1', objet: 'o-enclos1' })));
+    assert.equal(r.filter((x) => x.ramasse === 10).length, 1);
+    assert.equal(r.filter((x) => x.raison === 'pas_pret').length, 9);
+    assert.deepEqual(sansDate(await portefeuille('u1')), { or: 17, gagne: 10, parcelles: 0, version: 4 });
+    await semer('u1', 'o-champ1', 'champ', 48 * HEURE, { c: 4, l: 4 });
+    const c = await Promise.all(Array.from({ length: 10 }, () => s.ramasser({ uid: 'u1', objet: 'o-champ1' })));
+    assert.equal(c.filter((x) => x.ramasse === 20).length, 1);
+    assert.equal(c.filter((x) => x.raison === 'pas_pret').length, 9);
+    assert.deepEqual(sansDate(await portefeuille('u1')), { or: 37, gagne: 30, parcelles: 0, version: 5 });
+  });
+
+  test('7.8a objets douteux : identifiants hors motif : demande ; absent, décoration, maison, autre compte, sans depuis : objet ; une date dans la demande est ignorée', async () => {
+    const s = acheteur();
+    await porte('u1', { or: 0 });
+    for (const objet of ['x-1', 'o-A', '../a', '', 'b-achatsfactures-liste', undefined, 42, 'o-a/b', `o-${'a'.repeat(61)}`]) {
+      assert.deepEqual(await s.ramasser({ uid: 'u1', objet }), { ok: false, raison: 'demande' }, String(objet));
+    }
+    assert.deepEqual(await s.ramasser({ uid: 'a/b', objet: 'o-enclos1' }), { ok: false, raison: 'demande' });
+    await poserDoc('u1', 'o-deco', { sorte: 'decoration', modele: 'banc', c: 6, l: 0, depuis: Timestamp.fromMillis(MAINTENANT - 100 * JOUR) });
+    await poserDoc('u1', 'o-x', { sorte: 'besoin', c: 0, l: 0 });
+    await poserDoc('u1', 'o-sans', { sorte: 'enclos', c: 4, l: 4 });
+    for (const objet of ['o-absent', 'o-deco', 'o-x', 'o-sans']) {
+      assert.deepEqual(await s.ramasser({ uid: 'u1', objet }), { ok: true, ramasse: 0, raison: 'objet', or: 0, parcelles: 0, version: 3 }, objet);
+    }
+    // `depuis` douteux : dans le futur (Timestamp), 0, une chaîne : 0 pièce, portefeuille inchangé, `depuis` jamais réécrit
+    const futur = Timestamp.fromMillis(MAINTENANT + HEURE);
+    await poserDoc('u1', 'o-futur', { sorte: 'enclos', c: 0, l: 0, depuis: futur });
+    await poserDoc('u1', 'o-zero', { sorte: 'enclos', c: 2, l: 0, depuis: 0 });
+    await poserDoc('u1', 'o-chaine', { sorte: 'champ', c: 4, l: 0, depuis: '2020-01-01' });
+    for (const objet of ['o-futur', 'o-zero', 'o-chaine']) {
+      const r = await s.ramasser({ uid: 'u1', objet });
+      assert.equal(r.ok, true, objet);
+      assert.equal(r.ramasse, 0, objet);
+      assert.ok(['objet', 'pas_pret'].includes(r.raison), `${objet} : ${r.raison}`);
+    }
+    assert.deepEqual(sansDate(await portefeuille('u1')), { or: 0, gagne: 0, parcelles: 0, version: 3 });
+    assert.equal(await depuisDe('u1', 'o-futur'), MAINTENANT + HEURE);
+    const brut = async (id) => (await db.doc(`${C_VILLAGE}/u1/batiments/${id}`).get()).data().depuis;
+    assert.equal(await brut('o-zero'), 0);
+    assert.equal(await brut('o-chaine'), '2020-01-01');
+    // l'enclos de u1 demandé par u2 : introuvable sous u2, rien d'écrit chez u1
+    await semer('u1', 'o-enclos1', 'enclos', 50 * HEURE, { c: 2, l: 2 });
+    assert.equal((await s.ramasser({ uid: 'u2', objet: 'o-enclos1' })).raison, 'objet');
+    assert.equal(await depuisDe('u1', 'o-enclos1'), MAINTENANT - 50 * HEURE);
+    assert.equal(await portefeuille('u2'), null);
+    // une date dans la demande ne compte pas : l'heure est celle du serveur
+    await semer('u1', 'o-champ1', 'champ', HEURE, { c: 0, l: 6 });
+    const r = await s.ramasser({ uid: 'u1', objet: 'o-champ1', maintenant: MAINTENANT + 100 * JOUR, depuis: 0, depuisMs: 0 });
+    assert.equal(r.raison, 'pas_pret');
+    assert.deepEqual(sansDate(await portefeuille('u1')), { or: 0, gagne: 0, parcelles: 0, version: 3 });
+  });
+
+  test('7.8b clients : tout sous clients/a/ ; lectrice : lecture_seule, rien lu ; éditrice ramasse ; non-membre : refus neutre', async () => {
+    let lus = 0;
+    const espion = { doc: () => { lus += 1; throw new Error('aucune lecture attendue'); }, collection: () => { lus += 1; throw new Error('aucune lecture attendue'); }, runTransaction: () => { throw new Error('aucune écriture attendue'); } };
+    assert.deepEqual(await creerVillageOr({ db: espion, horodatage }).ramasser({ uid: 'u1', objet: 'o-enclos1', lectureSeule: true }), { ok: true, ramasse: 0, raison: 'lecture_seule' });
+    assert.equal(lus, 0);
+    const s = acheteur({ racine: 'clients/a/' });
+    await semer('u1', 'o-enclos1', 'enclos', 50 * HEURE, { base: 'clients/a/' });
+    assert.equal((await s.ramasser({ uid: 'u1', objet: 'o-enclos1' })).ramasse, 10);
+    assert.equal((await portefeuille('u1', 'clients/a/')).or, 10);
+    assert.equal(await portefeuille('u1'), null);
+    await db.doc(`clients/a/membres/${ALICE}`).set({ role: 'editeur' });
+    await db.doc(`clients/a/membres/${LEA}`).set({ role: 'lecteur' });
+    const auth = (email) => ({ uid: `u-${email.split('@')[0]}`, token: { email, email_verified: true } });
+    const appel = (email, donnees) => villageOrClient({ db, auth: auth(email), donnees: { client: 'a', ...donnees }, horodatage, maintenant: () => MAINTENANT });
+    await semer('u-alice', 'o-champ1', 'champ', 48 * HEURE, { base: 'clients/a/' });
+    await semer('u-lea', 'o-champ1', 'champ', 48 * HEURE, { base: 'clients/a/' });
+    assert.deepEqual(await appel(ALICE, { action: 'ramasser', objet: 'o-champ1', uid: 'u-lea' }), { ok: true, ramasse: 20, or: 20, parcelles: 0, version: 1, depuisMs: MAINTENANT });
+    assert.deepEqual(await appel(LEA, { action: 'ramasser', objet: 'o-champ1' }), { ok: true, ramasse: 0, raison: 'lecture_seule' });
+    assert.equal(await depuisDe('u-lea', 'o-champ1', 'clients/a/'), MAINTENANT - 48 * HEURE);
+    assert.equal(await portefeuille('u-lea', 'clients/a/'), null);
+    await assert.rejects(appel('inconnu@exemple.test', { action: 'ramasser', objet: 'o-champ1' }), (e) => e instanceof Refus && e.code === 'permission-denied' && e.message === 'Action non autorisée.');
   });
 });
 
@@ -540,7 +774,7 @@ describe('6.A appels et vérificateur (sans émulateur)', () => {
     await assert.rejects(appel(requete({ email: null })), (e) => e.code === 'unauthenticated');
     await assert.rejects(appel(requete({ email: 'intrus@exemple.test' })), (e) => e.code === 'permission-denied');
     await assert.rejects(appel(requete({ verifie: false })), (e) => e.code === 'permission-denied');
-    await assert.rejects(appel(requete({ data: { action: 'ramasser' } })), (e) => e.code === 'invalid-argument');
+    await assert.rejects(appel(requete({ data: { action: 'voler' } })), (e) => e.code === 'invalid-argument');
     await assert.rejects(appel(requete({ data: null })), (e) => e.code === 'invalid-argument');
     assert.equal(appels.length, 0);
     assert.deepEqual(await appel(requete({ data: { action: 'gain', source: 'devis-signe', id: 'd1', uid: 'quelquun-dautre' } })), { ok: true, gagne: 50, or: 50, version: 1 });
@@ -557,6 +791,29 @@ describe('6.A appels et vérificateur (sans émulateur)', () => {
       const ligne = JSON.parse(ligneDeJournalVillage({ ...e, uid: 'u1', email: 'lea@exemple.test', id: 'd1', projetId: 'p1' }));
       assert.deepEqual(Object.keys(ligne).filter((k) => !['severity', 'message', 'action', 'statut', 'code', 'dureeMs'].includes(k)), []);
       assert.doesNotMatch(JSON.stringify(ligne), /lea@|u1|d1|p1/);
+    }
+  });
+
+  test('7.A1 appel de la maison : « ramasser » passe au service avec l’uid de la connexion et l’objet de la demande ; panne : internal ; journal sans uid, e-mail ni objet', async () => {
+    const journal = [];
+    const appels = [];
+    const service = (email) => ({
+      gain: async () => { throw new Error('pas attendu'); },
+      acheter: async () => { throw new Error('pas attendu'); },
+      ramasser: async (d) => { appels.push({ email, ...d }); return { ok: true, ramasse: 10, or: 10, parcelles: 0, version: 1, depuisMs: 0 }; },
+    });
+    const appel = creerAppelVillage({ service, comptes: ['lea@exemple.test'], journal: (e) => journal.push(e) });
+    const r = await appel(requete({ data: { action: 'ramasser', objet: 'o-enclos1', uid: 'quelquun-dautre', maintenant: 1, depuis: 0 } }));
+    assert.equal(r.ramasse, 10);
+    assert.deepEqual(appels, [{ email: 'lea@exemple.test', uid: 'u1', objet: 'o-enclos1' }]);
+    const enPanne = creerAppelVillage({ service: () => ({ ramasser: async () => { throw new TypeError('boum'); } }), comptes: ['lea@exemple.test'], journal: (e) => journal.push(e) });
+    await assert.rejects(enPanne(requete({ data: { action: 'ramasser', objet: 'o-enclos1' } })), (e) => e.code === 'internal' && e.message === 'Une erreur est survenue. Réessaie.');
+    assert.equal(journal.length, 2);
+    for (const e of journal) {
+      const ligne = ligneDeJournalVillage({ ...e, uid: 'u1', email: 'lea@exemple.test', objet: 'o-enclos1' });
+      assert.deepEqual(Object.keys(JSON.parse(ligne)).filter((k) => !['severity', 'message', 'action', 'statut', 'code', 'dureeMs'].includes(k)), []);
+      assert.doesNotMatch(ligne, /lea@|u1|o-enclos1|o-/);
+      assert.equal(JSON.parse(ligne).action, 'ramasser');
     }
   });
 

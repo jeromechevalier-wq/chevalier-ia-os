@@ -248,10 +248,10 @@ export function premierBlocLibre(occupees, taille, damier = DAMIER_DEPART, saufI
  * 6b : la case proposée pour une décoration achetée : la case libre la plus « devant » (plus grand c + l, puis la plus proche du milieu, puis la plus à gauche).
  * Le premier bloc libre du haut tombait souvent derrière une maison, où l'objet acheté était caché et impossible à saisir (Décision prise seul, 27/11/2026).
  */
-export function caseLibreDevant(occupees, damier = DAMIER_DEPART) {
+export function caseLibreDevant(occupees, damier = DAMIER_DEPART, taille = 1) {
   let meilleure = null;
-  for (let l = 0; l < damier.lignes; l++) for (let c = 0; c < damier.colonnes; c++) {
-    if (!blocLibre(occupees, c, l, 1, damier)) continue;
+  for (let l = 0; l <= damier.lignes - taille; l++) for (let c = 0; c <= damier.colonnes - taille; c++) {
+    if (!blocLibre(occupees, c, l, taille, damier)) continue;
     const rang = [c + l, -Math.abs(c - l), -c];
     if (!meilleure || rang[0] > meilleure.rang[0] || (rang[0] === meilleure.rang[0] && (rang[1] > meilleure.rang[1] || (rang[1] === meilleure.rang[1] && rang[2] > meilleure.rang[2])))) meilleure = { c, l, rang };
   }
