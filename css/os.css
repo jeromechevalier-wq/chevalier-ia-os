@@ -24,6 +24,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 img { max-width: 100%; }
 [hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Règle commune (27/11/2026, docs/consignes-ui.md « Texte long : liste et fiche ») : dans une LISTE, un texte va à la ligne, 2 lignes au plus, puis « … » ; le texte entier est dans l'infobulle (title) et dans la fiche. */
+.texte-2-lignes { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; white-space: normal; overflow-wrap: anywhere; }
 :focus-visible { outline: 2px solid var(--accent-trait); outline-offset: 2px; }
 
 .etiquette {
