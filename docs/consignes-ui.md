@@ -13,6 +13,12 @@ Ces règles viennent de Jérôme (non-développeur). **Portée (décision de Jé
 - **Fenêtre ouverte et bouton plein (22/11/2026)** : le bouton plein (couleur d'accent) compte **un par écran, PLUS un par fenêtre visible** : la fenêtre ouverte a son propre bouton plein, celui de l'écran dessous reste.
 - **Exceptions assumées, écrites sans rediscuter (22/11/2026)** : la croix de retrait d'une adresse e-mail (sans confirmation) ; le bouton de la fenêtre « Préparer l'e-mail » à gauche ; les crayons de modification et « Renommer » (une valeur se corrige plus vite qu'on ne la retire puis la recrée).
 
+## Texte long : liste et fiche (règle commune à toutes les applis, 27/11/2026)
+Règle validée par Jérôme le 27/11/2026. Elle vaut pour toutes les applis, présentes et futures (Factures, etc.), chez Jérôme et chez les clients.
+- **Dans une LISTE** (panneau latéral, volet, liste d'un écran) : chaque texte (titre et détail) va à la ligne, **2 lignes au plus, puis « … »**. Le texte entier s'affiche **au survol** (infobulle) et **au clic** (la fiche s'ouvre). Jamais de texte coupé sur une seule ligne quand une deuxième ligne le rendrait lisible.
+- **Dans une FICHE** : le texte entier, **jamais coupé** ; il va à la ligne autant que nécessaire (libellé comme valeur).
+- Comment faire : la classe commune `texte-2-lignes` (`css/os.css`) coupe à 2 lignes avec « … » ; l'infobulle est l'attribut `title` de la ligne cliquable (titre, puis détail à la ligne). Première application : volet Fournisseurs, Chantiers, Articles de l'appli Factures (`js/modules/achatsfactures/volet.js`, fiche : `fiche.js`), tests « T1 » et « T2 » de `tests/e2e/achatsfactures-appli.spec.js`.
+
 ## Même comportement partout
 - Affaire et projet fonctionnent pareil (même ordre des blocs, mêmes boutons, mêmes listes déroulantes). Livrable et activité (bloc « À faire ») aussi : clic sur le texte = modifier sur place ; clic sur la date = changer la date ; rond = terminer ; menu « … » = actions rares seulement. Peu de clics. *(2026-10-17)*
 - Une liste déroulante change l'étape ou la phase ; la bande en haut est un simple indicateur. *(2026-10-17)*

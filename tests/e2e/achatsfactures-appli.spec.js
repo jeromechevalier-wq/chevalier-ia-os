@@ -420,7 +420,8 @@ test('6 fiche chantier : lecture, « Modifier », « Enregistrer » / « Annuler
   await expect(fiche(page).locator('[data-action="modifier-fiche"]')).toHaveCount(0);
   await expect(fiche(page).locator('[data-action="enregistrer-fiche"]')).toHaveText('Enregistrer');
   await expect(fiche(page).locator('[data-action="annuler-fiche"]')).toHaveText('Annuler');
-  await expect(fiche(page).locator('input')).toHaveCount(4);
+  // Texte long (règle commune du 27/11/2026) : une valeur lue sur plusieurs lignes (l'adresse, sur ordinateur) devient un champ sur plusieurs lignes (textarea) de la même hauteur.
+  await expect(fiche(page).locator('input, textarea')).toHaveCount(4);
   await expect(fiche(page).locator('[data-champ="client"]')).toHaveValue('Client fictif'); // modifiable sur place, avec sa valeur
   // LA MISE EN PAGE NE BOUGE PAS : mêmes positions et mêmes tailles, au demi-pixel, pour les libellés, les cases de valeur et les lignes.
   expect(await boites(fiche(page).locator('dt'))).toEqual(libellesAvant);
@@ -1191,3 +1192,90 @@ for (const [nom, modeEmploi, quand] of [['MD3a', null, 'ancienne base (maison de
     await capturer(page, info, `${nom}-sans-mode-d-emploi`);
   });
 }
+// Texte long (règle commune du 27/11/2026, docs/consignes-ui.md « Texte long : liste et fiche ») : T1 dans les listes du volet, 2 lignes au plus puis « … », texte entier au survol ;
+// T2 au clic, la fiche montre le texte entier, jamais coupé. Données fictives aux noms très longs.
+const LONG_FO = 'Société fictive des matériaux de construction et de la quincaillerie générale du plateau de Valmoran et des communes voisines';
+const LONG_CH = 'Rénovation complète fictive de la grande maison de maître avec extension, piscine, pool house et aménagement paysager du parc';
+const LONG_CLIENT = 'Client fictif au nom particulièrement long pour vérifier le retour à la ligne du détail, puis sa coupe après deux lignes, même sur un grand écran d’ordinateur';
+const LONG_AR = 'Ciment fictif gris haute résistance pour fondations, dalles, chapes et maçonnerie courante, sac de trente-cinq kilogrammes';
+const optionsLongues = () => ({
+  fournisseurs: [{ ...FOURNISSEURS[0], nom: LONG_FO }],
+  chantiers: [{ ...CHANTIERS[0], nom: LONG_CH, client: LONG_CLIENT, adresse: `${'12 chemin fictif des essais, lieu-dit très long, '.repeat(2)}75000 Valmoran` }],
+  articles: [{ ...ARTICLES[0], designation: LONG_AR, reference: 'REF-FICTIVE-TRES-LONGUE-0123456789-ABCDEFGHIJ' }],
+});
+/** Pour chaque élément : nombre de lignes affichées (hauteur / hauteur d'une ligne), coupé ou non, et texte. */
+const lignesDe = (loc) => loc.evaluateAll((els) => els.map((e) => { const s = getComputedStyle(e); const lh = parseFloat(s.lineHeight) || parseFloat(s.fontSize) * 1.2;
+  return { lignes: Math.round(e.getBoundingClientRect().height / lh), coupe: e.scrollHeight > e.clientHeight + 1, texte: e.textContent }; }));
+
+test('T1 texte long (règle commune) : dans les listes Fournisseurs, Chantiers et Articles, le titre et le détail vont à la ligne, 2 lignes au plus puis « … », le texte entier au survol', async ({ page }, info) => {
+  await ouvrirAppli(page, optionsLongues());
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  const onglets = volet(page).locator('[data-role="volet-onglets"] button');
+  const cas = [[0, LONG_FO, null], [1, LONG_CH, `En cours · ${LONG_CLIENT}`], [2, LONG_AR, null]];
+  for (const [rang, titre, detail] of cas) {
+    await onglets.nth(rang).click();
+    const bouton = volet(page).locator('[data-role="volet-liste"] button.af-ligne').first();
+    await expect(bouton.locator('[data-role="ligne-titre"]')).toHaveText(titre);
+    const [t] = await lignesDe(bouton.locator('[data-role="ligne-titre"]'));
+    expect(t.lignes).toBe(2); // deux lignes, pas une seule
+    expect(t.coupe).toBe(true); // la suite est cachée derrière « … »
+    expect(await bouton.locator('[data-role="ligne-titre"]').evaluate((e) => getComputedStyle(e).webkitLineClamp)).toBe('2');
+    const [d] = await lignesDe(bouton.locator('[data-role="ligne-detail"]'));
+    expect(d.lignes).toBeLessThanOrEqual(2);
+    expect(await bouton.locator('[data-role="ligne-detail"]').evaluate((e) => getComputedStyle(e).webkitLineClamp)).toBe('2');
+    if (detail) expect(d).toMatchObject({ lignes: 2, coupe: true }); // le détail long (chantier) est coupé après 2 lignes, puis « … »
+    const infobulle = await bouton.getAttribute('title');
+    expect(infobulle.split('\n')[0]).toBe(titre); // le texte entier au survol
+    if (detail) expect(infobulle).toContain(detail);
+    if (rang === 0) await capturer(page, info, 'T1-liste-fournisseurs-texte-long');
+    if (rang === 1) await capturer(page, info, 'T1-liste-chantiers-texte-long');
+    if (rang === 2) await capturer(page, info, 'T1-liste-articles-texte-long');
+  }
+  expect(await sansDefilementHorizontal(page)).toBe(true);
+});
+
+test('T2 texte long (règle commune) : au clic la fiche s\'ouvre et montre le texte entier, jamais coupé (fournisseur, chantier, article) ; en modification la mise en page ne bouge pas, même avec des textes longs', async ({ page }, info) => {
+  await ouvrirAppli(page, optionsLongues());
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  const onglets = volet(page).locator('[data-role="volet-onglets"] button');
+  const ouvrir = async (rang) => { await onglets.nth(rang).click(); await volet(page).locator('[data-role="volet-liste"] button.af-ligne').first().click(); };
+  const entiers = async (loc) => (await lignesDe(loc)).filter((x) => x.coupe || false);
+  // Fournisseur : le titre et la valeur « Nom » entiers.
+  await ouvrir(0);
+  await expect(volet(page).locator('[data-role="fiche-titre"]')).toHaveText(LONG_FO);
+  await expect(fiche(page).locator('[data-ligne="nom"] .af-valeur')).toHaveText(LONG_FO);
+  expect((await lignesDe(fiche(page).locator('[data-ligne="nom"] .af-valeur')))[0].lignes).toBeGreaterThan(1); // il va à la ligne
+  expect(await entiers(fiche(page).locator('.af-valeur, dt'))).toEqual([]);
+  expect(await coupes(fiche(page).locator('.af-valeur, dt'))).toEqual([]);
+  await capturer(page, info, 'T2-fiche-fournisseur-texte-entier');
+  // Chantier : nom, client et adresse entiers ; en modification, la ligne « Code » (courte) ne bouge pas de hauteur.
+  await volet(page).locator('[data-action="retour-liste-volet"]').click();
+  await ouvrir(1);
+  await expect(fiche(page).locator('[data-ligne="nom"] .af-valeur')).toHaveText(LONG_CH);
+  await expect(fiche(page).locator('[data-ligne="client"] .af-valeur')).toHaveText(LONG_CLIENT);
+  expect(await entiers(fiche(page).locator('.af-valeur, dt'))).toEqual([]);
+  expect(await coupes(fiche(page).locator('.af-valeur, dt'))).toEqual([]);
+  await capturer(page, info, 'T2-fiche-chantier-texte-entier');
+  // Positions relatives à la première ligne : sur téléphone, le volet défile quand le focus entre dans le premier champ (ce n'est pas la mise en page qui bouge).
+  const relatives = async () => { const b = await boites(fiche(page).locator('.af-fiche-ligne')); return b.map((x) => ({ ...x, y: x.y - b[0].y })); };
+  const lignesAvant = await relatives();
+  await fiche(page).locator('[data-action="modifier-fiche"]').click();
+  await expect(fiche(page).locator('textarea[data-champ="nom"]')).toHaveValue(LONG_CH); // valeur longue : champ sur plusieurs lignes, texte entier
+  await expect(fiche(page).locator('input[data-champ="code"]')).toHaveValue('CH-1'); // valeur courte : champ d'une ligne, comme avant
+  expect(await relatives()).toEqual(lignesAvant); // la mise en page ne bouge pas, même avec des textes longs
+  await capturer(page, info, 'T2-fiche-chantier-modification-texte-long');
+  // Un texte collé sur plusieurs lignes est enregistré sur UNE ligne (aucun retour à la ligne n'arrive dans la base).
+  await fiche(page).locator('textarea[data-champ="nom"]').fill('Nom fictif\nsur deux lignes');
+  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
+  await expect.poll(async () => (await appelsVers(page, '/actions')).find((c) => c.action === 'modifier_chantier')?.champs?.nom).toBe('Nom fictif sur deux lignes');
+  await expect(fiche(page)).toHaveAttribute('data-mode', 'lecture');
+  // Article : la désignation entière.
+  await volet(page).locator('[data-action="retour-liste-volet"]').click();
+  await ouvrir(2);
+  await expect(fiche(page).locator('[data-ligne="designation"] .af-valeur')).toHaveText(LONG_AR);
+  expect(await entiers(fiche(page).locator('.af-valeur, dt'))).toEqual([]);
+  await capturer(page, info, 'T2-fiche-article-texte-entier');
+  expect(await sansDefilementHorizontal(page)).toBe(true);
+});
