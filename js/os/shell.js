@@ -8,6 +8,7 @@ import { modulesDuPortail } from './portail.js';
 import { modeTestAllume, definirModeTest, surModeTest } from './mode-test.js';
 import { connexionNeutre, maisonNeutre, nomAfficheMaison } from './identite-maison.js';
 import { pagesTechniquesCachees } from './acces-reserve.js';
+import { ajouterPhotosConnexion } from './connexion-photos.js';
 
 // Routes sans entrée de menu -> entrée allumée à leur place (l'écran principal de leur module).
 /** Écrans qui gardent la barre de recherche et le bouton « + » du haut (les autres : Veille, Automatisations, Maintenance, réglages, journal, assistant…). */
@@ -70,12 +71,16 @@ export function afficherConnexion(racine, { message = '', surConnexion, enCours 
   if (connexionNeutre()) {
     // Maison d'un client (reglages_maison/public : nom_espace ou connexion_neutre) : ni Charles, ni Jérôme, ni « Chevalier IA OS ».
     nommerOnglet(nomAfficheMaison());
-    racine.append(h('div', { class: 'connexion', dataset: { connexion: 'neutre' } },
-      marque,
-      h('h1', {}, nomAfficheMaison()),
-      h('p', { class: 'connexion-lead' }, 'Accès réservé aux comptes autorisés.'),
-      refus,
-      bouton));
+    // Photos du métier du client (maison/connexion-*.jpg, copiées avant le déploiement, jamais dans le dépôt) : ajoutées à droite si elles existent.
+    const ecran = h('div', { class: 'connexion-ecran' },
+      h('div', { class: 'connexion', dataset: { connexion: 'neutre' } },
+        marque,
+        h('h1', {}, nomAfficheMaison()),
+        h('p', { class: 'connexion-lead' }, 'Accès réservé aux comptes autorisés.'),
+        refus,
+        bouton));
+    racine.append(ecran);
+    ajouterPhotosConnexion(ecran).catch(() => {});
     return;
   }
   racine.append(h('div', { class: 'connexion' },

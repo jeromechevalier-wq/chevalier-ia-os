@@ -25,3 +25,6 @@ tests/.config-ports/
 
 # Fichiers de paramètres locaux des fonctions (aucune étape du workflow de déploiement n'en écrit plus)
 functions/.env*
+
+# Photos de la page de connexion d'une maison, copiées avant son déploiement (scripts/copier-photos-maison.js) : jamais commitées (dépôt public)
+/maison/
