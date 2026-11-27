@@ -13,7 +13,7 @@ const ACHATS = ['achatsfactures', 'tableauachats', 'achatschantiers', 'achatsfou
 const FACTURES = { nom: 'Factures', phrase: 'Valider mes factures fournisseurs', batiment: 'banque', cible: '#/achatsfactures/liste' };
 const semer = (champs) => semerFicheEmulateur({ projet: PROJET, hote: HOTE, document: 'ecran', fiche: { ...ECRAN_PARCOURS, configuration_crm: 'neutre', modules: ACHATS, ...champs } });
 const SITE = 'https://exemple.test/site';
-const LIEN = { sorte: 'lien', nom: 'Mon site', url: SITE, batiment: 'phare', c: 5, l: 5 };
+const LIEN = { sorte: 'lien', nom: 'Mon site', url: SITE, batiment: 'phare', c: 7, l: 7 };
 
 /** Connexion sur Réglages, `avant(uid)` (semer des maisons), puis le village : il lit son rangement une seule fois, à l'ouverture. */
 async function ouvrirApres(page, avant = async () => {}, email = CHARLES) {
@@ -280,13 +280,13 @@ test.describe('accueil village : maison « lien externe »', () => {
     const docs = () => listerDocuments(`village_utilisateurs/${uid}/batiments`);
     if (!estTelephone(page)) {
       const depart = await pointMaison(page, 'Mon site');
-      const arrivee = await pointBloc(page, 3, 5, 2, 24);
+      const arrivee = await pointBloc(page, 5, 7, 2, 24);
       await page.mouse.move(depart.x, depart.y);
       await page.mouse.down();
       for (let i = 1; i <= 8; i++) await page.mouse.move(depart.x + ((arrivee.x - depart.x) * i) / 8, depart.y + ((arrivee.y - depart.y) * i) / 8);
       await page.mouse.up();
-      await expect(maison(page, 'Mon site')).toHaveAttribute('data-case', '3-5');
-      await expect.poll(async () => { const d = (await docs()).find((x) => x.id === 'l-a'); return d && `${d.c}-${d.l}`; }).toBe('3-5');
+      await expect(maison(page, 'Mon site')).toHaveAttribute('data-case', '5-7');
+      await expect.poll(async () => { const d = (await docs()).find((x) => x.id === 'l-a'); return d && `${d.c}-${d.l}`; }).toBe('5-7');
       expect(page.context().pages()).toHaveLength(1); // un glisser n'ouvre jamais le site
     }
     await ouvrirFenetreLien(page, 'Mon site');

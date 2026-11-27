@@ -52,7 +52,7 @@ Le compteur `factures_a_valider` compte les factures au statut « a_valider » n
 Toutes les mesures sont en **unités du dessin SVG** (« px du dessin »), avant l'agrandissement à l'écran (environ x 2 sur un ordinateur 1440 x 900, x 0,6 sur un téléphone de 390 px).
 
 - **Angle isométrique 2:1** (environ 26,57°). Un point de la grille `(gx, gy)` à la hauteur `z` (en px) se place à l'écran en `x = (gx − gy) × 16`, `y = (gx + gy) × 8 − z` (fonction `iso`, `T = 16`). `gx` va vers la droite-bas, `gy` vers la gauche-bas, `z` vers le haut.
-- **Une parcelle** : un carré de 9 x 9 unités de la grille (`DEMI_PARCELLE = 4.5`), soit un losange de 288 x 144 px du dessin. Sentier entre deux parcelles : 1 unité (`DEMI_SENTIER = 0.5`). **Le terrain** : 20 x 20 unités (`DEMI_TERRAIN = 10`), un losange de 640 x 320 px, posé sur une tranche de terre de 12 px (`EPAISSEUR_TERRAIN`).
+- **Une parcelle** : un carré de 9 x 9 unités de la grille (`DEMI_PARCELLE = 4.5`), soit un losange de 288 x 144 px du dessin. Sentier entre deux parcelles : 1 unité (`DEMI_SENTIER = 0.5`). **Le terrain** : 30 x 30 unités au départ (`DEMI_TERRAIN = 15`, damier de 12 x 12 cases depuis le 27/11/2026 ; 20 x 20 avec l'ancien 8 x 8), un losange de 960 x 480 px, posé sur une tranche de terre de 12 px (`EPAISSEUR_TERRAIN`).
 - Centres des parcelles (grille) : haut `(−5, −5)`, gauche `(−5, 5)`, droite `(5, −5)`, bas `(5, 5)`.
 - **Un bâtiment** est dessiné autour de son centre `(0, 0)` :
   - **empreinte au sol** : environ 4 x 4 unités, de `−2` à `+2` sur `gx` et `gy` ; l'ombre portée va jusqu'à `gx = 2.9`, `gy = 2.6` (fonction `ombre`) ;

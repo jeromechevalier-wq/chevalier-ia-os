@@ -40,7 +40,7 @@ test.describe('accueil village : roue dentée, Mairie et Console', () => {
     expect(r.y - c.y).toBeLessThan(c.height / 4);
     expect(await page.locator('[data-role="page-village"] [title]').count()).toBe(0);
     // la roue ne cache pas le toit du bâtiment du haut
-    expect(seChevauchent(r, await page.locator('[data-role="batiment"][data-case="1-1"] .village-lever').boundingBox())).toBe(false);
+    expect(seChevauchent(r, await page.locator('[data-role="batiment"][data-case="3-3"] .village-lever').boundingBox())).toBe(false);
     await capturer(page, info, '1.1-roue-dentee');
   });
 

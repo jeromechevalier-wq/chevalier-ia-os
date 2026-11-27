@@ -602,7 +602,7 @@ test.describe('accueil village : champs et enclos à cochons (étape 7)', () => 
     expect(ramassages(demandes)).toEqual([{ action: 'ramasser', objet: 'o-enclos1' }]);
   });
 
-  test('recette : 2 champs (semé, prêt), 2 enclos (vide, prêt), 3 décorations sur un damier 10 x 10 (capture pour Jérôme)', async ({ page }, info) => {
+  test('recette : 2 champs (semé, prêt), 2 enclos (vide, prêt), 3 décorations sur un damier 14 x 14 (une parcelle sur le départ 12 x 12) (capture pour Jérôme)', async ({ page }, info) => {
     await semer({ besoins: [FACTURES, ACHATS_B] });
     const etat = nouvelEtat(80);
     etat.parcelles = 1;
@@ -615,7 +615,7 @@ test.describe('accueil village : champs et enclos à cochons (étape 7)', () => 
       await semerObjet(etat, u, 'o-enclos2', 'enclos', 3 * JOUR, 6, 6);
       for (const [i, modele] of ['arbre', 'fleurs', 'brouette'].entries()) await decoration(u, `o-recette${i}`, modele, 4 + i, 9);
     });
-    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '10');
+    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '14');
     await expect(page.locator('[data-role="village"] [data-role="objet"]')).toHaveCount(7);
     await expect(page.locator('[data-role="village"] [data-role="objet"][data-etat="pret"]')).toHaveCount(2);
     await capturer(page, info, 'recette-ferme');

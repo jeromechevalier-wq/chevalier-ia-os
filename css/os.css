@@ -828,8 +828,9 @@ body.page-espace { background: #241b2e; color: #fff; }
 .village-erreur[hidden] { display: none; }
 @media (max-width: 767px) {
   .village-cadre { height: calc(100vh - 56px); height: calc(100dvh - 56px); flex: none; }
-  .village-defile { overflow: auto; -webkit-overflow-scrolling: touch; display: flex; align-items: center; }
-  .village-scene { flex: 0 0 auto; width: 160%; height: auto; min-height: 0; }
+  /* pas d'align-items: center : une scène plus haute que le cadre aurait son haut hors d'atteinte ; margin-block: auto centre seulement quand elle tient */
+  .village-defile { overflow: auto; -webkit-overflow-scrolling: touch; display: flex; }
+  .village-scene { flex: 0 0 auto; width: 240%; height: auto; min-height: 0; margin-block: auto; }
   .village-phrase, .village-bandeau { top: calc(var(--esp-4) + 54px); left: var(--esp-4); max-width: calc(100% - 2 * var(--esp-4)); }
   .village-bouton-vue, .village-liste-lien, .village-a-ajouter-liste .bouton { min-height: 44px; }
 }

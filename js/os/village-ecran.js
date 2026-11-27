@@ -1,5 +1,5 @@
 // Écran d'accueil « village » d'une maison (26/11/2026) : un terrain isométrique, un bâtiment par besoin, rien d'autre (ni journal, ni carrés).
-// Étape 2 de docs/accueil-village.md (27/11/2026) : le terrain est un DAMIER de 8 x 8 cases (js/os/village-damier.js) que CHAQUE utilisateur range :
+// Étape 2 de docs/accueil-village.md (27/11/2026) : le terrain est un DAMIER de 12 x 12 cases au départ (js/os/village-damier.js) que CHAQUE utilisateur range :
 //  - les besoins arrivent déjà vérifiés (js/os/maison-village.js, 12 au plus) et filtrés sur les modules allumés pour ce compte (js/main.js) ;
 //  - le rangement de l'utilisateur (une place, un nom à lui, caché ou non, par maison) est lu UNE fois à l'ouverture (js/os/village-donnees.js) ;
 //    sans rangement lu (pas de données, lecture refusée ou en panne) : le village d'office, sans glisser ni double clic ;
@@ -66,9 +66,10 @@ const VILLAGE_PLEIN = 'Ton village est plein : cache une maison pour faire de la
 const TROP_DE_CACHEES = `${CACHEES_MAX} petites maisons cachées au plus : remontre-en une avec la roue dentée.`;
 const PLUS_DE_PLACE = 'Plus de place autour de cette maison : déplace-la ou retire une petite maison.';
 const TELEPHONE = '(max-width: 767px)';
-// Tailles des étiquettes en unités du dessin (le dessin est agrandi d'environ 1,8 fois sur un écran d'ordinateur 1440 x 900 ; sur un téléphone de 390 px,
-// il fait 160 % de la largeur de l'écran, soit environ 0,95 fois).
-const ORDI = Object.freeze({ nom: 11.5, hauteur: 19, rx: 7, largeurMax: 140, carNom: 0.62, marge: 14 });
+// Tailles des étiquettes en unités du dessin (le dessin est agrandi d'environ 1,3 fois sur un écran d'ordinateur 1440 x 900 depuis le damier 12 x 12, mesuré le 27/11/2026 : nom de 22 px (1,8 fois
+// avec l'ancien 8 x 8 : ORDI a grandi d'environ 1,5 fois pour garder un nom de 20 à 28 px) ; sur un téléphone de 390 px,
+// il fait 240 % de la largeur de l'écran depuis le damier 12 x 12 (160 % avec l'ancien 8 x 8), soit environ 0,95 fois : maisons et noms gardent leur taille).
+const ORDI = Object.freeze({ nom: 17, hauteur: 28, rx: 10, largeurMax: 205, carNom: 0.62, marge: 20 });
 const TEL = Object.freeze({ nom: 15, hauteur: 24, rx: 9, largeurMax: 140, carNom: 0.62, marge: 14 });
 
 function el(nom, attrs = {}) {

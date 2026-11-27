@@ -7,9 +7,10 @@
 export const GAINS = Object.freeze({ 'facture-validee': 10, 'facture-payee': 20, 'devis-signe': 50 });
 /** Prix de la boutique (étapes 6b et 7). */
 export const PRIX = Object.freeze({ decoration: 20, champ: 100, enclos: 200, parcelle: 500 });
-export const PARCELLES_MAX = 8;
+/** 12 + 2 x 6 = 24 : le damier grandit jusqu'à 24 x 24 (demande de Jérôme du 27/11/2026 : départ en 12 x 12 au lieu de 8 x 8). */
+export const PARCELLES_MAX = 6;
 export const OBJETS_MAX = 40;
-export const COTE_DEPART = 8;
+export const COTE_DEPART = 12;
 export const CASES_PAR_PARCELLE = 2;
 /** Côté d'un objet acheté, en cases du damier. */
 export const TAILLES = Object.freeze({ decoration: 1, champ: 2, enclos: 2 });
@@ -43,7 +44,7 @@ export function parcellesValables(parcelles) {
   return Number.isInteger(parcelles) && parcelles > 0 ? Math.min(parcelles, PARCELLES_MAX) : 0;
 }
 
-/** Taille du damier d'un utilisateur : 8 x 8, puis 2 colonnes et 2 lignes de plus par parcelle (24 x 24 au plus). */
+/** Taille du damier d'un utilisateur : 12 x 12, puis 2 colonnes et 2 lignes de plus par parcelle (24 x 24 au plus). */
 export function damierDe(parcelles) {
   const cote = COTE_DEPART + CASES_PAR_PARCELLE * parcellesValables(parcelles);
   return { colonnes: cote, lignes: cote };

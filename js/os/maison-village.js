@@ -120,9 +120,9 @@ export function couperEnLignes(phrase, largeur = 24, lignes = 2) {
 }
 
 
-// Le village est un DAMIER de 8 x 8 cases rangé par chaque utilisateur (27/11/2026, js/os/village-damier.js) ; ce fichier garde la taille du terrain,
-// la boîte d'un bâtiment et le dessin d'un arbre. Le terrain fait 20 x 20 unités de la grille (comme les 4 parcelles d'avant).
-export const DEMI_TERRAIN = 10; // demi-côté du terrain entier, en unités de la grille (8 cases de 2,5 unités)
+// Le village est un DAMIER de 12 x 12 cases au départ rangé par chaque utilisateur (27/11/2026, js/os/village-damier.js) ; ce fichier garde la taille du terrain,
+// la boîte d'un bâtiment et le dessin d'un arbre. Le terrain de départ fait 30 x 30 unités de la grille (20 x 20 avec l'ancien damier 8 x 8).
+export const DEMI_TERRAIN = 15; // demi-côté du terrain de départ, en unités de la grille (12 cases de 2,5 unités : terrain de 30 x 30)
 export const EPAISSEUR_TERRAIN = 12; // tranche de terre visible sous le terrain (pixels du dessin)
 // Boîte d'un bâtiment autour de son centre à l'écran (pixels du dessin) : le toit monte jusqu'à -150 ; l'étiquette (le nom) est posée à +ETIQUETTE_Y sous le centre.
 export const BOITE_BATIMENT = Object.freeze({ gauche: -100, droite: 100, haut: -150, bas: 50 });

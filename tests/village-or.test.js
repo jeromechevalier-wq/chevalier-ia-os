@@ -39,13 +39,15 @@ describe('6.0 règles du jeu (fichier pur)', () => {
   });
 
   test('6.0b damier selon les parcelles, textes du manque et du solde', () => {
-    assert.deepEqual(R.damierDe(0), { colonnes: 8, lignes: 8 });
-    assert.deepEqual(R.damierDe(1), { colonnes: 10, lignes: 10 });
+    // damier de départ 12 x 12 depuis le 27/11/2026 (8 x 8 avant) : 24 x 24 atteint après 6 parcelles (8 avant)
+    assert.deepEqual(R.damierDe(0), { colonnes: 12, lignes: 12 });
+    assert.deepEqual(R.damierDe(1), { colonnes: 14, lignes: 14 });
+    assert.deepEqual(R.damierDe(6), { colonnes: 24, lignes: 24 });
     assert.deepEqual(R.damierDe(8), { colonnes: 24, lignes: 24 });
     assert.deepEqual(R.damierDe(9), { colonnes: 24, lignes: 24 });
-    assert.deepEqual(R.damierDe(-1), { colonnes: 8, lignes: 8 });
-    assert.deepEqual(R.damierDe('2'), { colonnes: 8, lignes: 8 });
-    assert.deepEqual(R.damierDe(undefined), { colonnes: 8, lignes: 8 });
+    assert.deepEqual(R.damierDe(-1), { colonnes: 12, lignes: 12 });
+    assert.deepEqual(R.damierDe('2'), { colonnes: 12, lignes: 12 });
+    assert.deepEqual(R.damierDe(undefined), { colonnes: 12, lignes: 12 });
     assert.equal(R.manque(100, 70), 30);
     assert.equal(R.manque(100, 120), 0);
     assert.equal(R.texteManque(30), 'Encore 30 pièces.');
@@ -393,17 +395,22 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
   const sansDate = (p) => (p ? { or: p.or, gagne: p.gagne, parcelles: p.parcelles, version: p.version } : null);
   const ecrireLot = async (n, fabrique) => { const lot = db.batch(); for (let i = 0; i < n; i++) { const [ref, d] = fabrique(i); lot.set(ref, d); } await lot.commit(); };
 
-  test('6.4d parcelle : 500 retirés, une parcelle de plus, version + 1, gagné inchangé, damier 10 x 10 ; à 8 parcelles : maximum, rien d’écrit', async () => {
+  test('6.4d parcelle : 500 retirés, une parcelle de plus, version + 1, gagné inchangé, damier 14 x 14 ; à 6 parcelles : maximum, rien d’écrit', async () => {
+    // damier de départ 12 x 12 depuis le 27/11/2026 : une parcelle donne 14 x 14 (10 x 10 avant) et le maximum passe de 8 à 6 parcelles
     await porte('u1', { or: 600, gagne: 900 });
     const r = await acheteur().acheter({ uid: 'u1', article: 'parcelle' });
     assert.deepEqual(r, { ok: true, achete: true, or: 100, parcelles: 1, version: 4 });
     const p = await portefeuille('u1');
     assert.deepEqual(sansDate(p), { or: 100, gagne: 900, parcelles: 1, version: 4 });
     assert.ok(p.modifieLe instanceof Timestamp);
-    assert.deepEqual(R.damierDe(p.parcelles), { colonnes: 10, lignes: 10 });
+    assert.deepEqual(R.damierDe(p.parcelles), { colonnes: 14, lignes: 14 });
+    // un portefeuille semé à 8 parcelles (acheté avant le 27/11/2026) se lit comme 6 (le maximum) : le refus annonce 6, et rien n'est écrit
     await porte('u2', { or: 5000, parcelles: 8 });
-    assert.deepEqual(await acheteur().acheter({ uid: 'u2', article: 'parcelle' }), { ok: true, achete: false, raison: 'maximum', or: 5000, parcelles: 8, version: 3 });
+    assert.deepEqual(await acheteur().acheter({ uid: 'u2', article: 'parcelle' }), { ok: true, achete: false, raison: 'maximum', or: 5000, parcelles: 6, version: 3 });
     assert.deepEqual(sansDate(await portefeuille('u2')), { or: 5000, gagne: 0, parcelles: 8, version: 3 });
+    await porte('u3', { or: 5000, parcelles: 6 });
+    assert.deepEqual(await acheteur().acheter({ uid: 'u3', article: 'parcelle' }), { ok: true, achete: false, raison: 'maximum', or: 5000, parcelles: 6, version: 3 });
+    assert.deepEqual(sansDate(await portefeuille('u3')), { or: 5000, gagne: 0, parcelles: 6, version: 3 });
   });
 
   test('6.4e pas assez d’or : pas_assez, manque 30, portefeuille identique', async () => {
@@ -468,15 +475,32 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
     await poserDoc('u1', 'p-x', { sorte: 'petite', parent: 'b-devis', nom: 'Chantier', cible: '#/projets/x' });
     const s = acheteur();
     const achat = (c, l) => s.acheter({ uid: 'u1', article: 'decoration', modele: 'arbre', c, l });
-    assert.equal((await achat(8, 0)).raison, 'case');
-    assert.equal((await achat(0, 8)).raison, 'case');
+    // damier de départ 12 x 12 (27/11/2026) : la première case hors du damier est la 12 (la 8 avant)
+    assert.equal((await achat(12, 0)).raison, 'case');
+    assert.equal((await achat(0, 12)).raison, 'case');
     for (const [c, l] of [[1, 1], [0, 5], [6, 0], [5, 5]]) assert.equal((await achat(c, l)).raison, 'case_prise', `${c}-${l}`);
     assert.equal((await portefeuille('u1')).or, 1000);
     assert.equal((await batiments('u1')).length, 5);
     assert.equal((await achat(2, 2)).achete, true); // la petite maison (sans place) ne prend aucune case
-    // une parcelle de plus : la case 9 entre dans le damier (10 x 10)
+    // une parcelle de plus : la case 13 entre dans le damier (14 x 14 ; la case 9 et 10 x 10 avec l'ancien 8 x 8)
     await porte('u2', { or: 100, parcelles: 1 });
-    assert.equal((await s.acheter({ uid: 'u2', article: 'decoration', modele: 'arbre', c: 9, l: 9 })).achete, true);
+    assert.equal((await s.acheter({ uid: 'u2', article: 'decoration', modele: 'arbre', c: 13, l: 13 })).achete, true);
+  });
+
+  test('D12.5 Le serveur refuse une 7e parcelle (« maximum ») ; damier de départ 12 x 12 : décoration acceptée en (11, 11), refusée en (12, 0) et (0, 12), enclos refusé en (11, 0)', async () => {
+    const s = acheteur();
+    await porte('u1', { or: 5000, parcelles: 6 });
+    const r = await s.acheter({ uid: 'u1', article: 'parcelle' });
+    assert.equal(r.raison, 'maximum');
+    assert.equal(r.parcelles, 6);
+    assert.equal((await portefeuille('u1')).parcelles, 6);
+    await porte('u2', { or: 1000 });
+    const deco = (c, l) => s.acheter({ uid: 'u2', article: 'decoration', modele: 'arbre', c, l });
+    assert.equal((await deco(12, 0)).raison, 'case');
+    assert.equal((await deco(0, 12)).raison, 'case');
+    assert.equal((await s.acheter({ uid: 'u2', article: 'enclos', c: 11, l: 0 })).raison, 'case');
+    assert.equal((await deco(11, 11)).achete, true);
+    assert.deepEqual((await batiments('u2')).map((b) => [b.sorte, b.c, b.l]), [['decoration', 11, 11]]);
   });
 
   test('6.6c limite d’objets : 40 objets, la 41e décoration est refusée (trop_objets) ; 250 documents lus : refusé aussi', async () => {
@@ -600,8 +624,8 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
     await semer('u2', 'o-autre', 'enclos', HEURE, { c: 4, l: 4 });
     const s = acheteur();
     const achat = (c, l) => s.acheter({ uid: 'u2', article: 'enclos', c, l });
-    assert.equal((await achat(7, 0)).raison, 'case'); // 7 + 2 > 8
-    assert.equal((await achat(0, 7)).raison, 'case');
+    assert.equal((await achat(11, 0)).raison, 'case'); // 11 + 2 > 12 (damier de départ 12 x 12 depuis le 27/11/2026 ; 7 + 2 > 8 avant)
+    assert.equal((await achat(0, 11)).raison, 'case');
     for (const [c, l] of [[1, 1], [3, 0], [5, 5], [3, 3]]) assert.equal((await achat(c, l)).raison, 'case_prise', `${c}-${l}`);
     assert.deepEqual(sansDate(await portefeuille('u2')), { or: 1000, gagne: 0, parcelles: 0, version: 3 });
     assert.equal((await batiments('u2')).length, 3);

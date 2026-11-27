@@ -104,17 +104,17 @@ async function positionDans(page, nom) {
 }
 
 test.describe('accueil village : damier rangé par chaque utilisateur', () => {
-  test('2.1 une maison par besoin visible ; le damier 8 x 8 n’apparaît que pendant le rangement', async ({ page }, info) => {
+  test('2.1 une maison par besoin visible ; le damier 12 x 12 n’apparaît que pendant le rangement', async ({ page }, info) => {
     test.skip(estTelephone(page), 'glisser à la souris : parcours de l’ordinateur (le doigt : 2.3 téléphone)');
     await semer({ besoins: QUATRE });
     await ouvrir(page);
     await expect(batiments(page)).toHaveCount(4);
-    expect(await cases(page)).toEqual({ 'b-achatsfactures-liste': '1-1', 'b-tableauachats-tableau': '1-5', 'b-achatschantiers-liste': '5-1', 'b-achatsfournisseurs-liste': '5-5' });
+    expect(await cases(page)).toEqual({ 'b-achatsfactures-liste': '3-3', 'b-tableauachats-tableau': '3-7', 'b-achatschantiers-liste': '7-3', 'b-achatsfournisseurs-liste': '7-7' });
     const damier = page.locator('[data-role="damier"]');
-    await expect(damier).toHaveAttribute('data-colonnes', '8');
-    await expect(damier).toHaveAttribute('data-lignes', '8');
+    await expect(damier).toHaveAttribute('data-colonnes', '12');
+    await expect(damier).toHaveAttribute('data-lignes', '12');
     expect(await damier.evaluate((e) => getComputedStyle(e).opacity)).toBe('0');
-    await glisser(page, 'Factures', { c: 3, l: 3 }, { relacher: false });
+    await glisser(page, 'Factures', { c: 5, l: 5 }, { relacher: false });
     await expect(page.locator('[data-role="page-village"]')).toHaveAttribute('data-rangement', 'oui');
     await expect.poll(() => damier.evaluate((e) => getComputedStyle(e).opacity)).toBe('1');
     await expect(page.locator('[data-role="cible-rangement"]')).toHaveAttribute('data-libre', 'oui');
@@ -122,7 +122,7 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     await page.keyboard.press('Escape'); // la maison revient, sans message
     await expect(page.locator('[data-role="page-village"]')).toHaveAttribute('data-rangement', 'non');
     await page.mouse.up();
-    expect((await cases(page))['b-achatsfactures-liste']).toBe('1-1');
+    expect((await cases(page))['b-achatsfactures-liste']).toBe('3-3');
     await expect(page).toHaveURL(/#\/accueil$/);
   });
 
@@ -131,18 +131,18 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     await semer({ besoins: [FACTURES, ACHATS_B] });
     await ouvrir(page);
     await expect(page.locator('[data-role="village-phrase"]')).toHaveText('Glisse les maisons pour ranger ton village.');
-    await glisser(page, 'Factures', { c: 3, l: 3 });
-    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
+    await glisser(page, 'Factures', { c: 5, l: 5 });
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '5-5');
     await expect(page).toHaveURL(/#\/accueil$/); // le clic qui suit un glisser est avalé
     await expect(page.locator('[data-role="village-phrase"]')).toBeHidden(); // un document existe : la phrase d'aide part
     await capturer(page, info, '2.3-maison-deplacee');
-    // sur la maison « Achats » (bloc 1-5) : refusé, elle revient
-    await glisser(page, 'Factures', { c: 1, l: 5 });
-    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
+    // sur la maison « Achats » (bloc 3-7) : refusé, elle revient
+    await glisser(page, 'Factures', { c: 3, l: 7 });
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '5-5');
     // hors du terrain (coin haut gauche de l'écran) : elle revient
     const vide = await page.locator('.village-defile').boundingBox();
     await glisser(page, 'Factures', { x: vide.x + 30, y: vide.y + 30 });
-    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '5-5');
     await page.waitForTimeout(400);
     await expect(page).toHaveURL(/#\/accueil$/);
     // un simple clic ouvre le besoin (après 280 ms)
@@ -154,13 +154,13 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     test.skip(!estTelephone(page), 'parcours propre au téléphone');
     await semer({ besoins: [FACTURES, ACHATS_B] });
     await ouvrir(page);
-    await glisserAuDoigt(page, await pointMaison(page, 'Factures'), await pointBloc(page, 3, 3, 2, 24));
-    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
+    await glisserAuDoigt(page, await pointMaison(page, 'Factures'), await pointBloc(page, 5, 5, 2, 24));
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '5-5');
     await page.waitForTimeout(400);
     await expect(page).toHaveURL(/#\/accueil$/);
     await capturer(page, info, '2.3-maison-deplacee-au-doigt');
-    await glisserAuDoigt(page, await pointMaison(page, 'Factures'), await pointBloc(page, 1, 5, 2, 24));
-    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
+    await glisserAuDoigt(page, await pointMaison(page, 'Factures'), await pointBloc(page, 3, 7, 2, 24));
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '5-5');
   });
 
   test('2.3 deux glisser rapprochés pendant une écriture lente : l’écran et la base restent d’accord ; un redessin pendant un glisser sort du rangement', async ({ page }, info) => {
@@ -168,29 +168,29 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     await semer({ besoins: [FACTURES, ACHATS_B] });
     const uid = await ouvrirApres(page, async () => { await page.evaluate(() => { window.__chevalierTest.pannesVillage = { lenteur: 1500 }; }); });
     const village = page.locator('[data-role="page-village"]');
-    await glisser(page, 'Factures', { c: 3, l: 3 });
-    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3'); // tout de suite (optimiste)
-    await glisser(page, 'Achats', { c: 6, l: 6 }); // la première écriture est encore en route
-    await expect(maison(page, 'Achats')).toHaveAttribute('data-case', '6-6');
+    await glisser(page, 'Factures', { c: 5, l: 5 });
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '5-5'); // tout de suite (optimiste)
+    await glisser(page, 'Achats', { c: 8, l: 8 }); // la première écriture est encore en route
+    await expect(maison(page, 'Achats')).toHaveAttribute('data-case', '8-8');
     await expect(village).toHaveAttribute('data-rangement', 'non');
     // les deux écritures arrivent, dans l'ordre : la base a les deux places, l'écran n'a pas bougé
     await expect.poll(async () => Object.fromEntries((await listerDocuments(`village_utilisateurs/${uid}/batiments`)).map((d) => [d.id, `${d.c}-${d.l}`])), { timeout: 10000 })
-      .toEqual({ 'b-achatsfactures-liste': '3-3', 'b-tableauachats-tableau': '6-6' });
-    expect(await cases(page)).toEqual({ 'b-achatsfactures-liste': '3-3', 'b-tableauachats-tableau': '6-6' });
+      .toEqual({ 'b-achatsfactures-liste': '5-5', 'b-tableauachats-tableau': '8-8' });
+    expect(await cases(page)).toEqual({ 'b-achatsfactures-liste': '5-5', 'b-tableauachats-tableau': '8-8' });
     await capturer(page, info, '2.3-deux-glisser-rapproches');
     // une écriture qui échoue pendant qu'on glisse une autre maison : l'écran revient en arrière et sort du rangement
     await page.evaluate(() => { window.__chevalierTest.pannesVillage = { lenteur: 800, ecriture: 1 }; });
-    await glisser(page, 'Factures', { c: 0, l: 0 });
-    await glisser(page, 'Achats', { c: 3, l: 6 }, { relacher: false });
+    await glisser(page, 'Factures', { c: 2, l: 2 });
+    await glisser(page, 'Achats', { c: 5, l: 8 }, { relacher: false });
     await expect(village).toHaveAttribute('data-rangement', 'oui');
     await expect(page.locator('#toasts .toast-erreur')).toContainText('Le déplacement n’a pas été enregistré. Réessaie.');
     await expect(village).toHaveAttribute('data-rangement', 'non');
-    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '5-5');
     await page.mouse.up();
-    await expect(maison(page, 'Achats')).toHaveAttribute('data-case', '6-6');
+    await expect(maison(page, 'Achats')).toHaveAttribute('data-case', '8-8');
     await page.reload();
     await expect(batiments(page)).toHaveCount(2);
-    expect(await cases(page)).toEqual({ 'b-achatsfactures-liste': '3-3', 'b-tableauachats-tableau': '6-6' });
+    expect(await cases(page)).toEqual({ 'b-achatsfactures-liste': '5-5', 'b-tableauachats-tableau': '8-8' });
   });
 
   test('2.4 un double clic (téléphone : un appui long) ouvre la fenêtre de la maison, sans quitter l’accueil ; Échap la ferme', async ({ page }, info) => {
@@ -215,15 +215,15 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     test.skip(estTelephone(page), 'souris : parcours de l’ordinateur');
     await semer({ besoins: QUATRE });
     await ouvrir(page);
-    await glisser(page, 'Factures', { c: 3, l: 3 });
-    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
+    await glisser(page, 'Factures', { c: 5, l: 5 });
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '5-5');
     const avant = await cases(page);
     const uid = await uidDe(page);
     // l'écran se met à jour tout de suite (optimiste) : attendre que le lot soit écrit avant de recharger
     await expect.poll(async () => (await listerDocuments(`village_utilisateurs/${uid}/batiments`)).length).toBe(4);
     await page.reload();
     await expect(batiments(page)).toHaveCount(4);
-    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '5-5');
     expect(await cases(page)).toEqual(avant);
     const docs = await listerDocuments(`village_utilisateurs/${uid}/batiments`);
     expect(docs.map((d) => d.id).sort()).toEqual(Object.keys(avant).sort());
@@ -235,8 +235,8 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     test.skip(estTelephone(page), 'souris : parcours de l’ordinateur');
     await semer({ besoins: [FACTURES, ACHATS_B] });
     await ouvrir(page, JEROME);
-    await glisser(page, 'Factures', { c: 3, l: 3 });
-    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
+    await glisser(page, 'Factures', { c: 5, l: 5 });
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '5-5');
     await ouvrirFenetreMaison(page, 'Factures');
     await fenetreMaison(page).getByRole('textbox', { name: 'Nom' }).fill('Ma banque');
     await fenetreMaison(page).getByRole('button', { name: 'Enregistrer' }).click();
@@ -248,7 +248,7 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     await page.evaluate(() => { location.hash = ''; });
     await connecterCompte(page, CHARLES);
     await expect(batiments(page)).toHaveCount(2);
-    expect(await cases(page)).toEqual({ 'b-achatsfactures-liste': '1-1', 'b-tableauachats-tableau': '1-5' });
+    expect(await cases(page)).toEqual({ 'b-achatsfactures-liste': '3-3', 'b-tableauachats-tableau': '3-7' });
     await expect(noms(page)).toHaveText(['Factures', 'Achats']);
     await capturer(page, info, '2.6-village-autre-compte');
   });
@@ -328,8 +328,8 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
   test('2.9 un besoin retiré, ou dont le module n’est pas allumé, n’a jamais de maison, même rangé avant', async ({ page }, info) => {
     await semer({ besoins: [FACTURES, { nom: 'Devis', phrase: 'Faire un devis', batiment: 'atelier', cible: '#/devis/liste' }] });
     await ouvrirApres(page, async (uid) => {
-      await ecrireDocument(`village_utilisateurs/${uid}/batiments/b-inconnu`, { sorte: 'besoin', c: 3, l: 3 });
-      await ecrireDocument(`village_utilisateurs/${uid}/batiments/b-devis-liste`, { sorte: 'besoin', c: 5, l: 5 });
+      await ecrireDocument(`village_utilisateurs/${uid}/batiments/b-inconnu`, { sorte: 'besoin', c: 5, l: 5 });
+      await ecrireDocument(`village_utilisateurs/${uid}/batiments/b-devis-liste`, { sorte: 'besoin', c: 7, l: 7 });
     });
     await expect(batiments(page)).toHaveCount(1);
     await expect(noms(page)).toHaveText(['Factures']);
@@ -356,8 +356,8 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
       const { iso } = await import(new URL('js/os/village-batiments.js', document.baseURI).href);
       const svg = document.querySelector('[data-role="village"]');
       const cadre = document.querySelector('.village-defile').getBoundingClientRect();
-      for (let c = 0; c < 8; c++) {
-        for (let l = 0; l < 8; l++) {
+      for (let c = 0; c < 12; c++) {
+        for (let l = 0; l < 12; l++) {
           const p = new DOMPoint(...iso(...centreBloc(c, l, 1))).matrixTransform(svg.getScreenCTM());
           if (p.x < cadre.left + 20 || p.x > cadre.right - 140 || p.y < cadre.top + 20 || p.y > cadre.bottom - 20) continue;
           const cible = document.elementFromPoint(p.x, p.y);
@@ -390,7 +390,7 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     const avantHalo = await defile.evaluate((d) => d.scrollLeft);
     await glisserAuDoigt(page, halo, { x: halo.x + 120, y: halo.y });
     await expect.poll(() => defile.evaluate((d) => d.scrollLeft)).not.toBe(avantHalo);
-    expect(Object.values(await cases(page)).sort()).toEqual(['1-1', '1-5', '5-1', '5-5']); // aucune maison n'a bougé
+    expect(Object.values(await cases(page)).sort()).toEqual(['3-3', '3-7', '7-3', '7-7']); // aucune maison n'a bougé
     const pageDefile = await page.evaluate(() => ({ x: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1, y: window.scrollY }));
     expect(pageDefile).toEqual({ x: false, y: 0 });
     await capturer(page, info, '2.10-village-glisse');
@@ -453,30 +453,30 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     test.skip(estTelephone(page), 'souris : parcours de l’ordinateur');
     await semer({ besoins: [FACTURES, ACHATS_B] });
     const uid = await ouvrirApres(page, async (id) => {
-      await ecrireDocument(`village_utilisateurs/${id}/batiments/b-achatsfactures-liste`, { sorte: 'besoin', c: 3, l: 3 });
+      await ecrireDocument(`village_utilisateurs/${id}/batiments/b-achatsfactures-liste`, { sorte: 'besoin', c: 5, l: 5 });
       await page.evaluate(() => { window.__chevalierTest.pannesVillage = { lecture: 1 }; });
     });
     const bandeau = page.locator('[data-role="village-bandeau"]');
     await expect(bandeau).toContainText('Ton rangement n’a pas pu être lu. Réessaie.');
     await expect(bandeau.getByRole('button', { name: 'Réessayer' })).toBeVisible();
-    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '1-1'); // village d'office
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3'); // village d'office
     await capturer(page, info, 'pannes-lecture');
-    await glisser(page, 'Factures', { c: 5, l: 5 });
+    await glisser(page, 'Factures', { c: 7, l: 7 });
     await expect(page.locator('[data-role="page-village"]')).toHaveAttribute('data-rangement', 'non');
-    expect((await cases(page))['b-achatsfactures-liste']).toBe('1-1');
+    expect((await cases(page))['b-achatsfactures-liste']).toBe('3-3');
     expect((await listerDocuments(`village_utilisateurs/${uid}/batiments`)).length).toBe(1);
     await bandeau.getByRole('button', { name: 'Réessayer' }).click();
     await expect(bandeau).toBeHidden();
-    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '5-5');
   });
 
   test('pannes écriture en panne : la maison revient et un message le dit ; lecture refusée : pas de bandeau, ni glisser ni double clic', async ({ page }, info) => {
     test.skip(estTelephone(page), 'souris : parcours de l’ordinateur');
     await semer({ besoins: [FACTURES, ACHATS_B] });
     await ouvrirApres(page, async () => { await page.evaluate(() => { window.__chevalierTest.pannesVillage = { ecriture: 1 }; }); });
-    await glisser(page, 'Factures', { c: 3, l: 3 });
+    await glisser(page, 'Factures', { c: 5, l: 5 });
     await expect(page.locator('#toasts .toast-erreur')).toContainText('Le déplacement n’a pas été enregistré. Réessaie.');
-    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '1-1');
+    await expect(maison(page, 'Factures')).toHaveAttribute('data-case', '3-3');
     await capturer(page, info, 'pannes-ecriture');
     // lecture refusée (règles pas encore publiées) : village d'office, sans bandeau ni rangement
     await page.evaluate(() => { window.__chevalierTest.pannesVillage = { refus: 1 }; location.hash = '#/reglages'; });
@@ -512,4 +512,37 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
       for (const f of fixes) for (const e of etiquettes) expect(seChevauchent(f, e)).toBe(false);
     });
   }
+
+  test('D12 téléphone, 12 besoins, en 360 x 560 et 767 x 1024 : le haut du dessin s’atteint en défilant (rien de rogné) ; le village s’ouvre centré quand il tient', async ({ page }, info) => {
+    test.skip(!estTelephone(page), 'disposition du téléphone (dessin à 240 % de la largeur)');
+    const modeles = ['banque', 'marche', 'grue', 'entrepot', 'atelier', 'bureau', 'poste', 'phare', 'radio', 'beffroi', 'clients', 'garage'];
+    await semer({ besoins: modeles.map((batiment, i) => ({ nom: `Besoin ${i + 1}`, phrase: 'Un besoin', batiment, cible: `#/achatsfactures/vue${i + 1}` })) });
+    for (const [i, [largeur, hauteur]] of [[360, 560], [767, 1024]].entries()) {
+      await page.setViewportSize({ width: largeur, height: hauteur });
+      if (i === 0) await ouvrir(page, JEROME);
+      else { await page.reload(); await expect(page.locator('[data-role="village"]')).toBeVisible(); }
+      await expect(batiments(page)).toHaveCount(12);
+      const defile = page.locator('.village-defile');
+      // ouverture : centré à l'horizontale (le dessin est plus large que l'écran)
+      expect(await defile.evaluate((d) => d.scrollWidth > d.clientWidth + 1)).toBe(true);
+      expect(await defile.evaluate((d) => Math.abs(d.scrollLeft - (d.scrollWidth - d.clientWidth) / 2))).toBeLessThanOrEqual(2);
+      const mesure = () => defile.evaluate((d) => {
+        const s = d.querySelector('.village-scene').getBoundingClientRect();
+        const c = d.getBoundingClientRect();
+        return { haut: s.top - c.top, bas: c.bottom - s.bottom, deborde: d.scrollHeight > d.clientHeight + 1 };
+      });
+      const m = await mesure();
+      if (m.deborde) {
+        // plus haut que le cadre : en remontant tout en haut, le haut du dessin est visible (rien n'est hors d'atteinte au-dessus)
+        await defile.evaluate((d) => { d.scrollTop = 0; });
+        expect((await mesure()).haut).toBeGreaterThanOrEqual(-1);
+        await defile.evaluate((d) => { d.scrollTop = d.scrollHeight; });
+        expect((await mesure()).bas).toBeGreaterThanOrEqual(-1);
+      } else {
+        expect(Math.abs(m.haut - m.bas)).toBeLessThanOrEqual(2); // il tient : centré à la verticale
+      }
+      await defile.evaluate((d) => { d.scrollTop = 0; });
+      await capturer(page, info, `D12-douze-besoins-${largeur}x${hauteur}`);
+    }
+  });
 });

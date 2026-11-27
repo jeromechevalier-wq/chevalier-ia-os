@@ -27,8 +27,8 @@ async function ouvrir(page, email = CHARLES) {
   await expect(page.locator('[data-role="village"]')).toBeVisible();
 }
 const batiments = (page) => page.locator('[data-role="village"] [data-role="batiment"]');
-// Les 4 places d'office d'avant le damier (haut, gauche, droite, bas) sont les cases 1-1, 1-5, 5-1, 5-5 (étape 2, 27/11/2026).
-const CASES = Object.freeze({ haut: '1-1', gauche: '1-5', droite: '5-1', bas: '5-5' });
+// Les 4 places d'office (haut, gauche, droite, bas) sont les cases 3-3, 3-7, 7-3, 7-7 : celles d'avant le damier 12 x 12 (1-1, 1-5, 5-1, 5-5) décalées de 2 (27/11/2026).
+const CASES = Object.freeze({ haut: '3-3', gauche: '3-7', droite: '7-3', bas: '7-7' });
 const batiment = (page, nom) => page.locator(`[data-role="village"] [data-role="batiment"][data-case="${CASES[nom]}"]`);
 const noms = (page) => page.locator('[data-role="village"] [data-role="batiment-nom"]');
 const bulle = (page) => page.locator('[data-role="bulle"]');
@@ -80,11 +80,11 @@ test.describe('accueil village d’une maison', () => {
     await expect(batiments(page)).toHaveCount(1);
     const b = batiments(page).first();
     await expect(b).toHaveAttribute('aria-label', 'Factures : Valider mes factures fournisseurs');
-    await expect(b).toHaveAttribute('data-case', '1-1');
+    await expect(b).toHaveAttribute('data-case', '3-3');
     await expect(noms(page)).toHaveText(['Factures']); // étiquette permanente : le nom seul (la phrase est dans la bulle)
     const damier = page.locator('[data-role="village"] [data-role="damier"]');
-    await expect(damier).toHaveAttribute('data-colonnes', '8');
-    await expect(damier).toHaveAttribute('data-lignes', '8');
+    await expect(damier).toHaveAttribute('data-colonnes', '12');
+    await expect(damier).toHaveAttribute('data-lignes', '12');
     const enfants = await page.locator('#contenu > *').evaluateAll((els) => els.map((e) => e.dataset.role));
     expect(enfants).toEqual(['page-village']);
     await expect(page.locator('.grille-objectifs, .journal, [data-role="page-introuvable"]')).toHaveCount(0);
@@ -139,7 +139,7 @@ test.describe('accueil village d’une maison', () => {
     await expect(batiment(page, 'gauche')).toHaveAttribute('data-cible', '#/tableauachats/tableau');
     const decor = await page.locator('[data-role="decor"]').evaluateAll((els) => els.map((e) => e.dataset.case));
     expect(decor.length).toBeGreaterThan(0);
-    const occupees = new Set(['1-1', '1-2', '2-1', '2-2', '1-5', '1-6', '2-5', '2-6']);
+    const occupees = new Set(['3-3', '3-4', '4-3', '4-4', '3-7', '3-8', '4-7', '4-8']);
     for (const c of decor) expect(occupees.has(c), `décor sur ${c}`).toBe(false);
     const part = await page.evaluate(() => document.querySelector('[data-role="batiment"] .village-lever').getBoundingClientRect().width / document.querySelector('.village-terrain').getBoundingClientRect().width);
     expect(part).toBeLessThan(0.35);
@@ -213,12 +213,12 @@ test.describe('accueil village d’une maison', () => {
       expect(await l.getAttribute('tabindex')).toBeNull();
     }
     expect(await page.locator('[data-role="village"] [tabindex]').count()).toBe(1); // seule la maison est atteignable au clavier
-    // un clic au milieu d'une case libre (bloc 5-5, devant) ne change pas d'écran
+    // un clic au milieu d'une case libre (bloc 9-9, devant ; 5-5 avec l'ancien damier 8 x 8) ne change pas d'écran
     const point = await page.evaluate(async () => {
       const { centreBloc } = await import(new URL('js/os/village-damier.js', document.baseURI).href);
       const { iso } = await import(new URL('js/os/village-batiments.js', document.baseURI).href);
       const svg = document.querySelector('[data-role="village"]');
-      const [x, y] = iso(...centreBloc(5, 5, 2));
+      const [x, y] = iso(...centreBloc(9, 9, 2));
       const p = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
       return { x: p.x, y: p.y };
     });
@@ -402,5 +402,38 @@ test.describe('accueil village d’une maison', () => {
     const etiquettes = await batiments(page).evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
     expect(etiquettes).toEqual(QUATRE.map((b) => `${b.nom} : ${b.phrase}`));
     await expect(page.getByRole('link', { name: 'Factures : Valider mes factures fournisseurs' })).toHaveCount(1);
+  });
+
+  test('D12 damier de départ 12 x 12 avec 4 maisons : ordinateur, tout le terrain visible sans défiler, noms de 20 à 28 px ; téléphone, le dessin glisse et s’ouvre centré ; les îlots ne couvrent ni maison ni nom', async ({ page }, info) => {
+    await semer({ besoins: QUATRE });
+    await ouvrir(page);
+    await expect(batiments(page)).toHaveCount(4);
+    await expect(page.locator('[data-role="village"] [data-role="damier"]')).toHaveAttribute('data-colonnes', '12');
+    const h = await page.evaluate(() => window.innerHeight);
+    const w = await page.evaluate(() => window.innerWidth);
+    const defile = page.locator('.village-defile');
+    if (estTelephone(page)) {
+      expect(await defile.evaluate((d) => d.scrollWidth > d.clientWidth + 1)).toBe(true);
+      const centre = await defile.evaluate((d) => Math.abs(d.scrollLeft - (d.scrollWidth - d.clientWidth) / 2));
+      expect(centre).toBeLessThanOrEqual(2); // le village s'ouvre centré
+      for (const t of await noms(page).all()) expect(await tailleEcran(t)).toBeGreaterThanOrEqual(13);
+    } else {
+      const terrain = await page.locator('.village-terrain').boundingBox();
+      expect(terrain.x).toBeGreaterThanOrEqual(0);
+      expect(terrain.y).toBeGreaterThanOrEqual(0);
+      expect(terrain.x + terrain.width).toBeLessThanOrEqual(w);
+      expect(terrain.y + terrain.height).toBeLessThanOrEqual(h);
+      for (const t of await noms(page).all()) { const taille = await tailleEcran(t); expect(taille).toBeGreaterThanOrEqual(20); expect(taille).toBeLessThanOrEqual(28); }
+      // Mairie et Console (coins bas) ne couvrent ni une maison ni un nom
+      const fixes = await Promise.all((await page.locator('[data-role="batiment-fixe"]').all()).map((e) => e.boundingBox()));
+      const zones = [
+        ...(await Promise.all((await page.locator('[data-role="village"] [data-role="batiment"] .village-lever').all()).map((e) => e.boundingBox()))),
+        ...(await Promise.all((await page.locator('[data-role="village"] [data-role="etiquette"] rect').all()).map((e) => e.boundingBox()))),
+      ];
+      const chevauche = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+      for (const f of fixes) for (const z of zones) expect(chevauche(f, z)).toBe(false);
+    }
+    expect((await defilements(page)).horizontal).toBe(false);
+    await capturer(page, info, 'D12-damier-12');
   });
 });

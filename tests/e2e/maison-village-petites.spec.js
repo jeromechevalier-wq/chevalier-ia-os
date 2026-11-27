@@ -156,8 +156,8 @@ async function pointHerbe(page) {
     const { centreBloc } = await import(new URL('js/os/village-damier.js', document.baseURI).href);
     const { iso } = await import(new URL('js/os/village-batiments.js', document.baseURI).href);
     const svg = document.querySelector('[data-role="village"]');
-    for (let c = 0; c < 8; c++) {
-      for (let l = 0; l < 8; l++) {
+    for (let c = 0; c < 12; c++) {
+      for (let l = 0; l < 12; l++) {
         const [x, y] = iso(...centreBloc(c, l, 1));
         const p = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
         if (p.x < 20 || p.y < 20 || p.x > innerWidth - 20 || p.y > innerHeight - 20) continue;
@@ -301,18 +301,18 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
     const avant = (await docsPetites(uid))[0].modifieLe;
     if (estTelephone(page)) {
       await centrer(maison(page, 'Chantiers'));
-      await glisserAuDoigt(page, await pointMaison(page, 'Chantiers'), await pointBloc(page, 4, 4, 2, 24));
+      await glisserAuDoigt(page, await pointMaison(page, 'Chantiers'), await pointBloc(page, 6, 6, 2, 24));
     } else {
-      await glisser(page, 'Chantiers', { c: 4, l: 4 }, { relacher: false });
+      await glisser(page, 'Chantiers', { c: 6, l: 6 }, { relacher: false });
       for (const p of await petites(page).all()) expect(await p.getAttribute('transform')).toMatch(/^translate\(/);
       await capturer(page, info, '4.3-petites-pendant-le-glisser');
       await page.mouse.up();
     }
-    await expect(maison(page, 'Chantiers')).toHaveAttribute('data-case', '4-4');
-    const autour = voisines(4, 4);
+    await expect(maison(page, 'Chantiers')).toHaveAttribute('data-case', '6-6'); // damier 12 x 12 (27/11/2026) : places d'office décalées de 2, la case libre visée passe de 4-4 à 6-6
+    const autour = voisines(6, 6);
     await expect.poll(async () => (await petites(page).evaluateAll((els) => els.map((e) => e.dataset.case))).every((k) => autour.includes(k))).toBe(true);
     await capturer(page, info, '4.3-petites-apres-le-depot');
-    await expect.poll(async () => (await listerDocuments(`village_utilisateurs/${uid}/batiments`)).find((d) => d.id === PARENT)?.c).toBe(4);
+    await expect.poll(async () => (await listerDocuments(`village_utilisateurs/${uid}/batiments`)).find((d) => d.id === PARENT)?.c).toBe(6);
     await page.reload();
     await expect(petites(page)).toHaveCount(2);
     for (const k of await petites(page).evaluateAll((els) => els.map((e) => e.dataset.case))) expect(autour).toContain(k);
@@ -406,7 +406,7 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
     await lues(page);
     if (estTelephone(page)) await centrer(maison(page, 'Chantiers'));
     const depart = await pointBloc(page, c, l, 2, 8);
-    const arrivee = await pointBloc(page, 4, 4, 2, 8);
+    const arrivee = await pointBloc(page, 6, 6, 2, 8);
     if (estTelephone(page)) await glisserAuDoigt(page, depart, arrivee);
     else {
       await page.mouse.move(depart.x, depart.y);
@@ -414,7 +414,7 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
       for (let i = 1; i <= 8; i++) await page.mouse.move(depart.x + ((arrivee.x - depart.x) * i) / 8, depart.y + ((arrivee.y - depart.y) * i) / 8);
       await page.mouse.up();
     }
-    await expect(maison(page, 'Chantiers')).toHaveAttribute('data-case', '4-4');
+    await expect(maison(page, 'Chantiers')).toHaveAttribute('data-case', '6-6');
     await capturer(page, info, '4.4-grande-glissee-pres-des-petites');
   });
 
@@ -761,7 +761,7 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
       await glisserAuDoigt(page, await pointPetite(auto), versRoue); // preuve par l'ordinateur ; vrai doigt non vérifié
       await expect(page.getByRole('dialog')).toHaveCount(0);
       await centrer(maison(page, 'Chantiers'));
-      await glisserAuDoigt(page, await pointMaison(page, 'Chantiers'), await pointBloc(page, 4, 4, 2, 24));
+      await glisserAuDoigt(page, await pointMaison(page, 'Chantiers'), await pointBloc(page, 6, 6, 2, 24));
     } else {
       const p = await pointPetite(auto);
       await page.mouse.move(p.x, p.y);
@@ -769,9 +769,9 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
       await page.mouse.move(versRoue.x, versRoue.y, { steps: 8 });
       await page.mouse.up();
       await expect(page.getByRole('dialog')).toHaveCount(0);
-      await glisser(page, 'Chantiers', { c: 4, l: 4 });
+      await glisser(page, 'Chantiers', { c: 6, l: 6 });
     }
-    await expect(maison(page, 'Chantiers')).toHaveAttribute('data-case', '4-4');
+    await expect(maison(page, 'Chantiers')).toHaveAttribute('data-case', '6-6');
   });
 
   test('3cb.4e C1 un clic sur une grande pendant que les petites maisons arrivent ouvre bien sa page, sans erreur', async ({ page }) => {

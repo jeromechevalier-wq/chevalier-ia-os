@@ -139,6 +139,12 @@ Une phrase chacun. Chaque critère aura un test dont le nom commence par son num
 - **6.2** Une facture payée et un devis signé rapportent aussi de l'or (montants du §7).
 - **6.3** Une même facture ou un même devis ne rapporte de l'or qu'une fois, même après « Annuler » puis une nouvelle validation.
 - **6.4** Avec assez d'or, l'utilisateur achète une parcelle de terrain ; le damier s'agrandit.
+
+**Damier de 12 x 12 au départ (demande de Jérôme du 27/11/2026, « 2 fois plus de cases »)** : le damier part de 12 x 12 cases (144 au lieu de 64). Une parcelle ajoute toujours 2 colonnes et 2 lignes, jusqu'à 24 x 24 : il y a donc **6 parcelles au plus** (au lieu de 8). Ce qui en découle :
+- **Les maisons déjà rangées ne bougent pas** (on ne touche pas aux données) : elles restent à leur case ; la place nouvelle apparaît sur les bords de devant (c ou l de 8 à 11).
+- **Places d'office** : le même dessin qu'avant, décalé de 2 cases vers le centre (par exemple 4 maisons en (3, 3), (3, 7), (7, 3), (7, 7)), le même quel que soit le nombre de parcelles. De 10 à 12 maisons, elles prennent les 16 blocs espacés d'une case (0, 3, 6, 9), jusqu'au bord du terrain : serrées au centre, leurs noms (agrandis sur ordinateur) se chevauchaient. **Cas mixte accepté** : des maisons enregistrées vers le fond et des maisons d'office décalées de 2 ; une place d'office qui tombe sur une maison enregistrée part au premier bloc libre.
+- **Un portefeuille à 7 ou 8 parcelles** (acheté avant le changement) est ramené à 6 à la prochaine écriture du serveur, sans remboursement ; le terrain ne rétrécit jamais (24 x 24, le plus grand).
+- Ordinateur : tout le terrain reste visible sans défiler, les maisons sont donc environ un tiers plus petites (voulu) et les noms ont été agrandis. Téléphone : le dessin fait 240 % de la largeur de l'écran (160 % avant) et glisse au doigt, maisons et noms gardent leur taille.
 - **6.5** Avec pas assez d'or, le bouton « Acheter » est grisé et dit combien il manque, sans reproche.
 - **6.6** Une décoration achetée se pose sur une case libre et se déplace comme une maison (glisser-déposer).
 - **6.7** Roue dentée > « Décor » change la saison ou le jour et la nuit, sans rien changer d'autre.
@@ -207,7 +213,7 @@ Validés par Jérôme le 27/11/2026. Aucun lien avec le montant en euros de la f
 2. **Qui choisit les besoins** : TRANCHÉ le 27/11 (décision 3) : Jérôme règle les besoins de l'entreprise ; chaque utilisateur cache ou ajoute parmi eux.
 3. **Facture payée et devis signé** : aujourd'hui, quel événement exact compte (statut « payée », devis « accepté ») ? À vérifier module par module à l'étape 6.
 4. **Lecteur d'un espace** : un compte en lecture seule a-t-il un village et gagne-t-il de l'or ? Proposition : village oui, or non (il ne valide rien).
-5. **Taille de départ du damier**, taille d'une maison, d'un champ et d'un enclos en cases (1 x 1, 2 x 2…), et nombre de besoins au-delà des 4 actuels : à fixer à l'étape 2.
+5. **Taille de départ du damier**, taille d'une maison, d'un champ et d'un enclos en cases (1 x 1, 2 x 2…), et nombre de besoins au-delà des 4 actuels : à fixer à l'étape 2. Damier de départ : 12 x 12 (TRANCHÉ le 27/11/2026, voir étape 6).
 6. **Portail devis seul** : pas de village dans le portail (comme aujourd'hui) ?
 7. **Logo envoyé pour une maison lien externe** : plus tard, si nécessaire (ou image faite à la main).
 
