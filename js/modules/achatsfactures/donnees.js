@@ -15,6 +15,8 @@ export const COLONNES_FACTURES = ['id', 'fournisseur', 'numero', 'date_facture',
   'extraction_erreur', 'acceptee_malgre_alerte', 'type_document', 'fournisseur_siren', 'numero_normalise', 'iban_normalise', 'email_expediteur', 'lignes_etat', 'lignes_somme_ht', 'archivee_le',
   'chantier_id', 'etablissement_id'];
 export const COLONNES_ANALYSES = ['id', 'extraction'];
+/** Colonnes de la pile « Valider à la suite » (pile.js) : juste de quoi ordonner les factures à valider. */
+export const COLONNES_PILE = ['id', 'statut', 'archivee_le', 'created_at'];
 export const TABLE_CHANTIERS = 'chantiers';
 export const COLONNES_CHANTIERS = ['id', 'nom'];
 export const TABLE_AGENCES = 'etablissements_fournisseur';
@@ -127,5 +129,14 @@ export function creerDonnees({ client, actions }) {
   const archiver = (id) => valeur(actions).appelerActionMetier('archiver', { facture_id: id });
   const desarchiver = (id) => valeur(actions).appelerActionMetier('desarchiver', { facture_id: id });
 
-  return { chargerFactures, chargerNombreLignes, chargerIbansConfirmes, chargerFavoris, basculerFavori, compterFacturesAValider, lireFicheAjoutee, archiver, desarchiver };
+  /**
+   * Pile « Valider à la suite » : les factures « à valider » non archivées, de la plus ancienne à la plus récente (date d'arrivée).
+   * Renvoie { ids, complete } ; `complete` = false si le plafond de lecture est atteint (le compteur dit alors « au moins »).
+   */
+  async function listerAValider() {
+    const r = await valeur(client).lire(TABLE_FACTURES, { colonnes: COLONNES_PILE, filtres: [['statut', 'eq', 'a_valider'], ['archivee_le', 'is', null]], tri: [{ col: 'created_at', asc: true }, 'id'] });
+    return { ids: r.lignes.filter((f) => f.statut === 'a_valider' && !f.archivee_le).map((f) => f.id), complete: !r.tronque };
+  }
+
+  return { listerAValider, chargerFactures, chargerNombreLignes, chargerIbansConfirmes, chargerFavoris, basculerFavori, compterFacturesAValider, lireFicheAjoutee, archiver, desarchiver };
 }

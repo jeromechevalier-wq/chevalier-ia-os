@@ -120,6 +120,7 @@ export function rendreEcran(conteneur) {
   const filtres = boutonFiltres({ auClic: ouvrirFiltres });
   const choixTri = selecteurTri({ options: CRITERES_TRI, valeur: tri.critere, sens: tri.sens, surChangement: (t) => changerTri({ critere: t.critere, sens: t.sens }) });
   const boutonExport = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'exporter-factures' }, onclick: () => exporter() }, icone('download', { taille: 16 }), 'Exporter');
+  const boutonPile = h('a', { class: 'bouton bouton-secondaire', href: lien('achatsfactures/pile'), dataset: { action: 'valider-a-la-suite' } }, icone('check-check', { taille: 16 }), 'Valider à la suite');
   const boutonAjout = h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'ajouter-facture' }, onclick: () => ajouterFacture() }, icone('plus', { taille: 16 }), 'Facture');
   const barre = barreListe({
     recherche: { placeholder: 'Rechercher une facture', libelleAria: 'Rechercher une facture', valeur: criteres.recherche, surSaisie: (v) => { criteres = { ...criteres, recherche: v }; rendre(); } },
@@ -129,7 +130,7 @@ export function rendreEcran(conteneur) {
   boutonExport.disabled = true;
 
   conteneur.replaceChildren(h('div', { class: 'page page-liste page-affaires page-achats-factures', dataset: { module: 'achats' } },
-    enteteListe({ titre: TITRE, compteur, actions: [boutonExport, boutonAjout] }),
+    enteteListe({ titre: TITRE, compteur, actions: [boutonExport, boutonPile, boutonAjout] }),
     barre.element, alerteListe, avis, erreurAction, zone));
 
   const montrerErreurAction = (message) => { erreurAction.textContent = message ?? ''; erreurAction.hidden = !message; };

@@ -21,12 +21,20 @@ export function exporterFichier(fichier) {
   return true;
 }
 
+/** Lit toutes les factures du tableau de bord et fabrique le fichier de sauvegarde, sans le télécharger : { nom, contenu, message, nombre }. Lève l'erreur de lecture.
+ *  Sert au bouton ci-dessous ET à la sauvegarde complète des achats (.zip) : même contenu, mêmes colonnes, jamais de coordonnées bancaires. */
+export async function fichierSauvegarde({ lire = lireDonnees } = {}) {
+  const { factures, message } = await lire();
+  const fichier = fichierFactures(factures);
+  return { nom: nomFichier(fichier.nom, dateJourFichier()), contenu: csvDe(fichier), message: message || '', nombre: factures.length };
+}
+
 /** Réglages > Tableau de bord 2 > Sauvegarde : lit toutes les factures dans la base de l'espace puis télécharge le fichier. `lire` se remplace dans les tests. */
 export async function exporterFactures({ lire = lireDonnees } = {}) {
   try {
-    const { factures, message } = await lire();
-    if (!factures.length) { toast(TEXTE_RIEN_A_EXPORTER); return false; }
-    exporterFichier(fichierFactures(factures));
+    const { nom, contenu, message, nombre } = await fichierSauvegarde({ lire });
+    if (!nombre) { toast(TEXTE_RIEN_A_EXPORTER); return false; }
+    telechargerCsv(nom, contenu);
     toast(message ? `Sauvegarde téléchargée. ${message}` : 'Sauvegarde téléchargée');
     return true;
   } catch (e) {

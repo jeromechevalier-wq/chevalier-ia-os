@@ -3,7 +3,8 @@
 // Route : achatschantiers/liste. Les données vivent dans la base de l'espace (pas dans Firebase) : `demarrer` n'écoute rien.
 import { naviguer } from '../../os/router.js';
 import { rendreEcran } from './ecran.js';
-import { reglagesExportChantiers } from './export.js';
+import { reglagesExportChantiers, fichierChantiers } from './export.js';
+import { zoneSauvegardesAchats } from '../achatscommun/sauvegarde.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
 function ajouterFeuille() {
@@ -17,9 +18,9 @@ function ajouterFeuille() {
 
 export const actionsRapides = []; // rien à créer depuis la coque : « + Chantier » est sur l'écran
 
-/** Réglages du module : une seule section, « Sauvegarde » (export des données). */
-export function reglages(page) {
-  reglagesExportChantiers(page);
+/** Réglages du module : sa table dans la « Sauvegarde complète des achats » (.zip) et sa propre section d'export, repliée sous « Sauvegardes séparées ». */
+export function reglages(page, ctx) {
+  reglagesExportChantiers(zoneSauvegardesAchats(page, { module: 'achatschantiers', table: 'Chantiers', fabriquer: () => fichierChantiers() }, ctx));
 }
 
 let montee = null;

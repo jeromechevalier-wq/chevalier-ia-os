@@ -277,3 +277,26 @@ export const MESSAGE_LISTE_INCOMPLETE = 'Liste incomplète : les totaux et la re
 export const MESSAGE_PEUT_ETRE_ANCIENNE = 'La liste n’a pas pu être relue : elle n’est peut-être pas à jour. Recharge la page pour la rafraîchir.';
 export const MESSAGE_ANALYSES_NON_LUES = 'Les contrôles automatiques n’ont pas pu être lus : ouvre chaque facture pour les voir.';
 export const MESSAGE_EXAMINER_BIENTOT = 'Examiner : bientôt disponible';
+
+// ------------------------------------------------------------ pile « Valider à la suite » (pile.js, 26/11/2026)
+/**
+ * Ordre de la pile : les factures à valider dans l'ordre lu (la plus ancienne d'abord), sauf celles « passées » pendant la séance, remises à la fin dans l'ordre où elles ont été passées.
+ * Une facture passée qui n'est plus à valider disparaît. `ids` et `passees` : listes d'identifiants. Renvoie une nouvelle liste.
+ */
+export function ordonnerPile(ids, passees) {
+  const presentes = new Set(ids);
+  const mises = passees.filter((id) => presentes.has(id));
+  const misesSet = new Set(mises);
+  return [...ids.filter((id) => !misesSet.has(id)), ...mises];
+}
+
+/** « Passer » : la facture va à la fin de la pile de la séance (rien n'est écrit dans la base). Renvoie la nouvelle liste des factures passées. */
+export const passerFacture = (passees, id) => [...passees.filter((x) => x !== id), id];
+
+/** Compteur discret de la pile : « 1 restante », « 3 restantes » (la facture affichée comprise) ; « au moins » si la lecture est incomplète. */
+export function texteRestantes(n, complete = true) {
+  return `${complete ? '' : 'Au moins '}${n} restante${n > 1 ? 's' : ''}`;
+}
+
+export const TEXTE_PILE_FINIE = 'Toutes les factures sont traitées';
+export const AIDE_PILE_FINIE = 'Il n’y a plus de facture à valider pour l’instant.';
