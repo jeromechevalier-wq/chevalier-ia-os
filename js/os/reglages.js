@@ -141,6 +141,13 @@ function sectionsDuModule(item, ctx, arrets) {
   return [...tampon.children].map((el, i) => ({ el, i })).sort((a, b) => rang(a.el) - rang(b.el) || a.i - b.i).map((x) => x.el);
 }
 
+/** Amène une section à l'écran ; si elle est rangée dans un bloc replié (ex. « Sauvegardes séparées » des Achats), on l'ouvre d'abord. */
+function amenerSection(cible, options) {
+  if (!cible) return;
+  cible.closest('details')?.setAttribute('open', '');
+  cible.scrollIntoView(options);
+}
+
 /** Raccourcis vers les sections d'une longue page (le CRM en a une douzaine) ; une section masquée (option éteinte) n'a pas de raccourci.
  *  Un bloc qui n'est pas une section peut aussi avoir son raccourci (attribut `data-raccourci`, déclaré dans le registre comme une section) ;
  *  l'attribut `data-alerte` ajoute un petit point rouge au raccourci (« il manque quelque chose » dans ce bloc). */
@@ -155,7 +162,7 @@ function raccourcis(item, zone) {
     if (nouvelle === signature) return; // rien n'a changé pour la barre (ex. une frappe dans un champ) : on ne recrée pas les boutons, le focus reste
     signature = nouvelle;
     remplir(barre, ...lignes.map((l) => h('button', { type: 'button', class: 'reglages-raccourci', dataset: { vers: l.id },
-      onclick: () => zone.querySelector(`[id="${CSS.escape(l.id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, l.titre, // la section est relue à chaque clic : elle peut avoir été redessinée
+      onclick: () => amenerSection(zone.querySelector(`[id="${CSS.escape(l.id)}"]`), { behavior: 'smooth', block: 'start' }) }, l.titre, // la section est relue à chaque clic : elle peut avoir été redessinée
     l.alerte ? h('span', { class: 'reglages-raccourci-alerte', dataset: { role: 'alerte-raccourci' } }, h('span', { class: 'sr-only' }, ' (à compléter)')) : null)));
   };
   maj();
@@ -240,7 +247,7 @@ export function monterReglages(conteneur, segs, ctx) {
 
   // Adresse #/reglages/<module>/<id d'une section> : on amène cette section à l'écran (même défilement que les raccourcis).
   const versSection = cible.type === 'module' ? segs[2] : null;
-  if (versSection) setTimeout(() => contenu.querySelector(`[id="${CSS.escape(versSection)}"]`)?.scrollIntoView({ block: 'start' }), 0);
+  if (versSection) setTimeout(() => amenerSection(contenu.querySelector(`[id="${CSS.escape(versSection)}"]`), { block: 'start' }), 0);
 
   courant = { arreter: () => { arrets.forEach((f) => f()); } };
   return arreterCourant;
