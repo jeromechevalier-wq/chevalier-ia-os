@@ -2,7 +2,7 @@
 // Chaque test porte le numéro d'un point du brief ; captures dans tests/e2e/captures/projets-sans-module/ (ordinateur et téléphone).
 import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, ecrireDocument, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, connecter, attendreCalme, ecrireDocument, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/projets-sans-module/', import.meta.url));
 const ALICE = 'alice@exemple.test';
@@ -24,8 +24,7 @@ async function preparer(page, modules, avecProjet = false) {
   if (avecProjet) await ecrireDocument('clients/studio/projets_projets/x', { titre: 'Chantier fantôme', phase: 'lancement', statut: 'actif', affaireId: 'a1', personneId: null, organisationId: null, documents: [], archive: false, ...b });
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/studio/crm/affaires/a1`);
-  await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+  await connecterDansEspace(page, ALICE);
   await expect(page.locator('.fiche-tete')).toBeVisible();
   await attendreCalme(page);
   await expect(page.locator('[data-section="affaire-details"]')).toBeVisible();

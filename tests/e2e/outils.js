@@ -198,6 +198,28 @@ export function estTelephone(page) {
 }
 
 /**
+ * Espace d'un client (#/espace/…) déjà ouvert par `page.goto` : connecte un compte Google fictif sur l'émulateur Auth,
+ * une fois le démarrage de la page fini (plus de rond « Chargement » de départ : page de connexion, « Espace indisponible » ou coque d'un compte déjà connecté).
+ * Pourquoi (nuit du 27/11/2026, run 46024432727) : en format téléphone, appeler `connecter` pendant le démarrage faisait parfois échouer `page.evaluate`
+ * (« Execution context was destroyed ») alors que la page n'avait PAS changé de document (même performance.timeOrigin, coque affichée, compte connecté).
+ * Garde-fou : si ce message revient quand même, on reprend (connecter le même compte deux fois est sans effet) SEULEMENT si le document est le même ;
+ * une vraie navigation ou un vrai rechargement de la page reste une erreur du test.
+ */
+export async function connecterDansEspace(page, email, emailVerifie = true) {
+  const demarree = async () => (await page.waitForFunction(() => window.__chevalierTest && !document.querySelector('#app > .chargement') && performance.timeOrigin)).jsonValue();
+  const origine = await demarree();
+  for (let essai = 0; ; essai++) {
+    try {
+      await page.evaluate(([e, v]) => window.__chevalierTest.connecter(e, v), [email, emailVerifie]);
+      return;
+    } catch (err) {
+      if (essai >= 2 || !/Execution context was destroyed/.test(String(err?.message))) throw err;
+      if ((await demarree()) !== origine) throw new Error(`La page a été rechargée pendant la connexion (vraie navigation) : ${err.message}`);
+    }
+  }
+}
+
+/**
  * Ouvre l'appli et connecte un compte Google fictif sur l'émulateur Auth.
  * (La fenêtre Google elle même a besoin d'apis.google.com : le bouton est testé à part.)
  */

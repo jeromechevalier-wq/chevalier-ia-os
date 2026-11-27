@@ -3,7 +3,7 @@
 // Le nom d'un test commence par le numéro du critère (19 à 28). Captures dans tests/e2e/captures/portail-devis/ (ordinateur ET téléphone).
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, estTelephone, attendreCalme, JEROME, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, connecter, ecrireDocument, estTelephone, attendreCalme, JEROME, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/portail-devis/', import.meta.url));
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
@@ -239,8 +239,7 @@ test.describe('chez un client (règles de la plateforme)', () => {
     await ecrireDocument('clients/devisseul/devis_parametres/reglages', { regimeTva: 'assujetti', entreprise: { nom: 'Atelier Exemple', siret: '123 456 789 00012', adresse: { ligne1: '3 rue de l’Atelier', codePostal: '75001', ville: 'Paris' } } });
     await jeu('clients/devisseul/');
     await page.goto(`${URL_APP}#/espace/devisseul/portail-devis/devis/relances`);
-    await page.waitForFunction(() => !!window.__chevalierTest);
-    await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+    await connecterDansEspace(page, ALICE);
     await expect(page.locator('.page-relances')).toBeVisible();
     await attendreCalme(page);
     await ouvrirMenu(page);

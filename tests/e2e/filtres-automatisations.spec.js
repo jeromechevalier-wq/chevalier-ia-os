@@ -2,7 +2,7 @@
 // Tests AF1 à AF5 (une capture chacun dans tests/e2e/captures/filtres-automatisations/). Les fonctions du serveur sont simulées, comme dans automatisations.spec.js.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, estTelephone, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, estTelephone, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
 
 const ALICE = 'alice@exemple.test';
 const CAPTURES = 'e2e/captures/filtres-automatisations';
@@ -53,8 +53,7 @@ test.beforeEach(async ({ page, context }) => {
 async function ouvrir(page, client) {
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/${client}`);
-  await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+  await connecterDansEspace(page, ALICE);
   await expect(page.locator('.coquille')).toBeVisible();
   if (client === 'cabinet') await expect(page.locator('.autom-ligne')).toHaveCount(5);
 }

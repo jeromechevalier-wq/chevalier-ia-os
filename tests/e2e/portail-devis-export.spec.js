@@ -4,7 +4,7 @@
 import { readFile } from 'node:fs/promises';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, allerA, ecrireDocument, estTelephone, ouvrirMenuUtilisateur, attendreCalme, ouvrirSectionReglages, JEROME, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, connecter, allerA, ecrireDocument, estTelephone, ouvrirMenuUtilisateur, attendreCalme, ouvrirSectionReglages, JEROME, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/raccourci-export/', import.meta.url));
 const capturer = async (page, info, nom) => { mkdirSync(DOSSIER, { recursive: true }); await page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: false, animations: 'disabled' }); };
@@ -125,8 +125,7 @@ test.describe('chez un client (règles de la plateforme)', () => {
   async function ouvrirClient(page, client, reste, compte = ALICE) {
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/${client}${reste ? `/${reste}` : ''}`);
-    await page.waitForFunction(() => !!window.__chevalierTest);
-    await page.evaluate((e) => window.__chevalierTest.connecter(e, true), compte);
+    await connecterDansEspace(page, compte);
     await expect(page.locator('.coquille')).toBeVisible();
     await attendreCalme(page);
   }

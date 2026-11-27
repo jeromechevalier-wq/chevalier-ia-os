@@ -2,7 +2,7 @@
 // Le nom d'un test commence par le numéro du critère (E1 à E6). Exemples chiffrés : 100 €.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, lireDocument, estTelephone, attendreCalme, JEROME, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, connecter, ecrireDocument, lireDocument, estTelephone, attendreCalme, JEROME, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/portail-menu/', import.meta.url));
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
@@ -125,8 +125,7 @@ test.describe('chez un client Devis seul (sans Affaires)', () => {
   async function ouvrir(page, reste) {
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/devisseul/${reste}`);
-    await page.waitForFunction(() => !!window.__chevalierTest);
-    await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+    await connecterDansEspace(page, ALICE);
     await expect(page.locator('.coquille')).toBeVisible();
   }
 

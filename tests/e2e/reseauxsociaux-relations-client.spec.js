@@ -3,7 +3,7 @@
 // F1 et F5 chez un client : un test chacun, UNE capture dans tests/e2e/captures/reseauxsociaux-relations/ (« -client », « -telephone »). Données fictives uniquement.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, estTelephone, listerDocuments, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, estTelephone, listerDocuments, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
 
 const ALICE = 'alice@exemple.test';
 const CAPTURES = 'e2e/captures/reseauxsociaux-relations';
@@ -41,8 +41,7 @@ test.beforeEach(async ({ context }) => {
 async function ouvrir(page) {
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/reseaux/reseauxsociaux/relations`);
-  await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+  await connecterDansEspace(page, ALICE);
   await expect(page.locator('.coquille')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Relations', level: 1 })).toBeVisible();
 }

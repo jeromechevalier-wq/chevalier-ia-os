@@ -4,7 +4,7 @@
 // Un test par critère, UNE capture chacun dans tests/e2e/captures/reseauxsociaux-socle/ (« -client », « -telephone »). Données fictives uniquement.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, estTelephone, listerDocuments, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, estTelephone, listerDocuments, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
 
 const ALICE = 'alice@exemple.test';
 const CAPTURES = 'e2e/captures/reseauxsociaux-socle';
@@ -46,8 +46,7 @@ test.beforeEach(async ({ context }) => {
 async function ouvrir(page, client, reste = '') {
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/${client}${reste ? `/${reste}` : ''}`);
-  await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+  await connecterDansEspace(page, ALICE);
   await expect(page.locator('.coquille')).toBeVisible();
 }
 const ouvrirMenu = async (page) => { if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click(); };
