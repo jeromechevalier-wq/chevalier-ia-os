@@ -364,3 +364,67 @@ export const BATIMENTS = Object.freeze(Object.keys(CATALOGUE));
 export function dessinBatiment(nom) {
   return (Object.hasOwn(CATALOGUE, nom) ? CATALOGUE[nom] : CATALOGUE[BATIMENT_PAR_DEFAUT]).dessin();
 }
+
+// ---------------------------------------------------------------- bâtiments fixes du village (27/11/2026, docs/accueil-village.md étape 1)
+// La Mairie des réglages (ouvre la page Réglages de l'application) et la Console (titulaire seul) sont HORS du CATALOGUE, exprès :
+// BATIMENTS (les clés du catalogue) est la liste des valeurs permises du champ `batiment` d'un besoin ; un besoin ne doit jamais pouvoir dessiner
+// la Mairie des réglages ou la Console (on la croirait ouverte à tous). Ils ne sont posés que par js/os/village-ecran.js, en îlots hors du terrain.
+
+function mairieReglages() {
+  const murs = teintes('#D6E2EF');
+  const toit = toitTeintes('#CE5B38');
+  // aile du fond (à gauche), corps central plus haut, aile de devant (à droite) : du fond vers l'avant
+  const f = [ombre(), ...boite(-2, -1.2, 1, 2.4, 0, 24, murs)];
+  f.push(fenetreG(1.2, -1.8, -1.4, 8, 18, '#FFFDF6'));
+  f.push(...toit2(-2, -1.2, 1, 2.4, 24, 12, toit));
+  f.push(...boite(-1, -1.6, 2, 3.2, 0, 48, murs));
+  f.push(fenetreG(1.6, -0.85, -0.5, 8, 20, '#FFFDF6'), fenetreG(1.6, 0.5, 0.85, 8, 20, '#FFFDF6'));
+  f.push(fenetreG(1.6, -0.3, 0.3, 6, 24, '#8A4B2F')); // porte
+  f.push(fenetreD(1, -1.2, -0.6, 26, 40, '#FFFDF6'));
+  f.push(...toit2(-1, -1.6, 2, 3.2, 48, 22, toit));
+  f.push(...boite(1, -1.2, 1, 2.4, 0, 24, murs));
+  f.push(fenetreG(1.2, 1.3, 1.7, 8, 18, '#FFFDF6'), fenetreD(2, -0.6, 0.4, 8, 18, '#FFFDF6'));
+  f.push(...toit2(1, -1.2, 1, 2.4, 24, 12, toit));
+  // perron de deux marches devant la porte
+  f.push(...boite(-0.6, 1.6, 1.2, 0.6, 0, 3, teintes('#EFD9AE')));
+  f.push(...boite(-0.6, 1.6, 1.2, 0.3, 3, 3, teintes('#EFD9AE')));
+  // médaillon « roue dentée » jaune au-dessus de la porte : huit dents, la roue, le moyeu
+  const [mx, my] = ecran(0, 1.6, 36);
+  for (let k = 0; k < 8; k++) {
+    const a = (k * Math.PI) / 4;
+    f.push({ cercle: [Math.round((mx + Math.cos(a) * 7.5) * 10) / 10, Math.round((my + Math.sin(a) * 7.5) * 10) / 10, 2.2], fill: '#F7C548' });
+  }
+  f.push({ cercle: [mx, my, 7], fill: '#F7C548' }, { cercle: [mx, my, 2.8], fill: murs.gauche });
+  return f;
+}
+
+function consoleBatiment() {
+  const murs = teintes('#A9B4C4');
+  const f = [ombre(), ...boite(-1.5, -1.5, 3, 3, 0, 30, murs)];
+  // trois petits écrans verts sur la façade, porte sur le côté
+  for (const a of [-1.2, -0.35, 0.5]) f.push(fenetreG(1.5, a, a + 0.6, 12, 22, '#6FA24A'));
+  f.push(fenetreD(1.5, -0.3, 0.4, 0, 20, '#3E4A57'));
+  // salle vitrée large en haut (plus large que la tour), montants et toit plat
+  f.push(...boite(-2, -2, 4, 4, 30, 22, { gauche: '#8FC1DD', droite: '#6E9FBE', dessus: '#B5D7EA' }));
+  for (const a of [-1, 0, 1]) {
+    f.push({ ligne: [ecran(a, 2, 30), ecran(a, 2, 52)], trait: '#5C6B7A', epaisseur: 1.4 });
+    f.push({ ligne: [ecran(2, a, 30), ecran(2, a, 52)], trait: '#5C6B7A', epaisseur: 1.4 });
+  }
+  f.push(...boite(-2.1, -2.1, 4.2, 4.2, 52, 4, teintes('#6E7C8C')));
+  // voyant rouge sur le toit
+  f.push(...boite(-0.15, -0.15, 0.3, 0.3, 56, 8, teintes('#6E7C8C')));
+  const [vx, vy] = ecran(0, 0, 68);
+  f.push({ cercle: [vx, vy, 4.5], fill: '#E4572E' });
+  return f;
+}
+
+/** Bâtiments fixes du village (hors catalogue, voir plus haut) : `nom` (l'étiquette), `phrase` (le nom accessible), `accessoires`, `dessin`. */
+export const BATIMENTS_FIXES = Object.freeze({
+  'mairie-reglages': Object.freeze({ nom: 'Mairie', phrase: 'Réglages de l’application', accessoires: 'deux ailes, perron, toit rouge, roue dentée jaune', dessin: mairieReglages }),
+  console: Object.freeze({ nom: 'Console', phrase: 'Piloter les espaces', accessoires: 'salle vitrée, trois écrans verts, voyant rouge', dessin: consoleBatiment }),
+});
+
+/** Formes d'un bâtiment fixe (centre en 0, 0). Identifiant inconnu : liste vide. */
+export function dessinBatimentFixe(id) {
+  return Object.hasOwn(BATIMENTS_FIXES, id) ? BATIMENTS_FIXES[id].dessin() : [];
+}

@@ -247,3 +247,55 @@ test('V31 aucun title ni <title> SVG sur les bâtiments (pas d’infobulle grise
   assert.ok(!/el\('title'|createElement(NS)?\([^)]*'title'|setAttribute\('title'|\.title\s*=/.test(ecran));
   assert.match(ecran, /g\.setAttribute\('aria-label', besoin\.phrase \? `\$\{besoin\.nom\} : \$\{besoin\.phrase\}` : besoin\.nom\)/);
 });
+
+// ---------------------------------------------------------------- étape 1 de docs/accueil-village.md (27/11/2026) : roue dentée de l'accueil, Mairie, Console
+// Parcours dans le navigateur : tests/e2e/maison-village-mairie.spec.js (captures dans tests/e2e/captures/maison-village-mairie/).
+
+test('1.3 aucun son dans l’accueil village (ni Audio, ni AudioContext, ni <audio>) ; le choix « Animations » reste local (pas de Firestore)', () => {
+  for (const f of ['js/os/village-reglages.js', 'js/os/village-ecran.js']) {
+    const texte = lire(f);
+    assert.ok(!/Audio|<audio/.test(texte), f);
+    assert.ok(!/innerHTML/.test(texte.replace(/^\s*\/\/.*$/gm, '')), f);
+  }
+  const reglages = lire('js/os/village-reglages.js');
+  assert.match(reglages, /export const CLE_ANIMATIONS = 'accueil-animations';/);
+  assert.match(reglages, /\(choixAnimations \?\? lirePreference\(CLE_ANIMATIONS, 'oui'\)\) === 'non'/); // sans stockage (navigation privée), le choix de la visite est respecté
+  const code = reglages.replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/firestore|setDoc|updateDoc/i.test(code));
+  assert.ok(!/title/.test(code.replace(/titre/g, '')), 'pas d’attribut title sur la roue');
+});
+
+test('1.4 la Mairie des réglages et la Console : dessins hors catalogue, dans la boîte d’un bâtiment, différents de la Maison commune', async () => {
+  const { BATIMENTS_FIXES, dessinBatimentFixe } = await import('../js/os/village-batiments.js');
+  assert.deepEqual(Object.keys(BATIMENTS_FIXES), ['mairie-reglages', 'console']);
+  for (const id of Object.keys(BATIMENTS_FIXES)) {
+    assert.ok(!BATIMENTS.includes(id), `${id} ne doit pas être un bâtiment de besoin`);
+    assert.ok(BATIMENTS_FIXES[id].nom && BATIMENTS_FIXES[id].phrase && BATIMENTS_FIXES[id].accessoires, id);
+    const f = dessinBatimentFixe(id);
+    assert.ok(f.length > 5, id);
+    for (const x of f) {
+      const pts = x.poly || x.ligne || (x.cercle ? [[x.cercle[0] - x.cercle[2], x.cercle[1]], [x.cercle[0] + x.cercle[2], x.cercle[1]]] : [[x.ellipse[0] - x.ellipse[2], x.ellipse[1]], [x.ellipse[0] + x.ellipse[2], x.ellipse[1]]]);
+      for (const [px, py] of pts) {
+        assert.ok(Number.isFinite(px) && Number.isFinite(py), id);
+        assert.ok(px > BOITE_BATIMENT.gauche && px < BOITE_BATIMENT.droite && py > BOITE_BATIMENT.haut && py < BOITE_BATIMENT.bas, `${id} : ${px}, ${py}`);
+      }
+    }
+  }
+  assert.notEqual(JSON.stringify(dessinBatimentFixe('mairie-reglages')), JSON.stringify(dessinBatiment('mairie')));
+  assert.notEqual(JSON.stringify(dessinBatimentFixe('console')), JSON.stringify(dessinBatiment('radio')));
+  assert.deepEqual(dessinBatimentFixe('inconnu'), []);
+  assert.deepEqual(dessinBatimentFixe('toString'), []); // jamais une propriété héritée
+  assert.deepEqual(dessinBatimentFixe('mairie'), []); // la Maison commune n'est pas un bâtiment fixe
+});
+
+test('1.4 2.13 les îlots Mairie et Console ne sont pas des bâtiments de besoin ; la Console suit le même contrôle que le menu', () => {
+  const ecran = lire('js/os/village-ecran.js');
+  assert.match(ecran, /export function monterVillage\(conteneur, besoins, \{ aller, console: avecConsole = false \}\)/);
+  assert.match(ecran, /cadre\.replaceChildren\(svg, bulle\.element, \.\.\.fixes\)/);
+  const ilot = ecran.slice(ecran.indexOf('function ilot('), ecran.indexOf('export function monterVillage'));
+  assert.ok(!/'batiment'|'etiquette'|'batiment-nom'|data-parcelle|dataset\.parcelle/.test(ilot));
+  const main = lire('js/main.js');
+  assert.match(main, /console: MODULES\.some\(\(m\) => m\.id === 'console'\)/);
+  assert.match(main, /retourVillage: besoinsVillage\.length \? ROUTE_VILLAGE : null/);
+  assert.match(lire('js/os/reglages.js'), /c\.retourVillage \? h\('a', \{[^}]*dataset: \{ action: 'retour-village' \}/);
+});

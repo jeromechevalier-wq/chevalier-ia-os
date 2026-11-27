@@ -749,4 +749,30 @@ body.page-espace { background: #241b2e; color: #fff; }
 @keyframes village-attente { 50% { opacity: .45; } }
 .village-bulle small { display: block; color: #8A7680; font-size: var(--fs-petit); margin-top: 5px; }
 @media (max-width: 767px) { .village-scene { height: calc(100vh - 56px); height: calc(100dvh - 56px); min-height: 0; } }
-@media (prefers-reduced-motion: reduce) { .village-batiment .village-lever, .village-batiment .village-halo { transition: none; } .village-bulle span.village-pastille-attente { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .village-batiment .village-lever, .village-batiment .village-halo, .village-ilot, .village-ilot .village-lever { transition: none; } .village-bulle span.village-pastille-attente { animation: none; } }
+/* Étape 1 de docs/accueil-village.md (27/11/2026) : roue dentée des réglages de l'accueil (haut droite) et îlots fixes Mairie (bas gauche) et Console (bas droite),
+   en HTML hors du dessin, dans les coins vides autour du terrain. Couleurs claires de la charte pour rester lisibles sur le fond vert, dans les deux thèmes. */
+.village-roue { position: absolute; z-index: 4; top: var(--esp-6); right: var(--esp-6); background: #FFFDF6; color: #2A1A2C; border: 1px solid rgba(59, 36, 18, .18); border-radius: 999px; box-shadow: 0 6px 16px -8px rgba(60, 25, 5, .45); }
+.village-roue:hover:not(:disabled) { background: #FFF3B0; color: #2A1A2C; }
+.village-ilot { position: absolute; z-index: 3; bottom: var(--esp-6); left: var(--esp-6); width: 150px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: var(--esp-2) var(--esp-2) var(--esp-4); border-radius: 16px; color: #2A1A2C; text-decoration: none; transition: transform .2s ease, background-color .2s; }
+.village-ilot[data-batiment-fixe="console"] { left: auto; right: var(--esp-6); }
+.village-ilot svg { display: block; width: 100%; height: auto; overflow: visible; }
+.village-ilot .village-lever { transition: transform .28s cubic-bezier(.3, 1.4, .5, 1); transform-box: fill-box; transform-origin: 50% 100%; }
+.village-ilot:hover, .village-ilot:focus-visible { background: rgba(255, 253, 246, .45); }
+.village-ilot:hover .village-lever, .village-ilot:focus-visible .village-lever { transform: translateY(-6px) scale(1.04); }
+.village-ilot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.village-ilot-nom { background: #FFFDF6; color: #2A1A2C; border: 1px solid rgba(59, 36, 18, .18); border-radius: 8px; padding: 1px 10px; font-size: var(--fs-texte); font-weight: var(--poids-moyen); }
+.village-ilot small { color: #4A3A42; font-size: var(--fs-petit); }
+.page-village[data-animations="non"] .village-batiment .village-lever, .page-village[data-animations="non"] .village-batiment .village-halo, .page-village[data-animations="non"] .village-ilot, .page-village[data-animations="non"] .village-ilot .village-lever { transition: none; }
+.page-village[data-animations="non"] .village-bulle span.village-pastille-attente { animation: none; }
+.reglages-retour-village { align-self: flex-start; }
+/* Téléphone couché (844 x 390) : îlots plus petits, sans sous-titre, pour ne pas couvrir le terrain. */
+@media (max-height: 500px) {
+  .village-ilot { width: 84px; padding: 2px; }
+  .village-ilot small { display: none; }
+}
+@media (max-width: 767px) {
+  .village-roue { top: var(--esp-4); right: var(--esp-4); width: 44px; height: 44px; }
+  .village-ilot { width: 110px; bottom: var(--esp-4); left: var(--esp-4); }
+  .village-ilot[data-batiment-fixe="console"] { left: auto; right: var(--esp-4); }
+}

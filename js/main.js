@@ -231,11 +231,12 @@ function afficherRoute(route) {
   let afficher;
   if (besoinsVillage.length && segs.length === 1 && segs[0] === ROUTE_VILLAGE) { // accueil village : le dessin seul (ni journal, ni carrés)
     cle = 'village';
-    afficher = () => { session.vue.quitter?.(); vider(coquille.contenu); return monterVillage(coquille.contenu, besoinsVillage, { aller: (cible) => naviguer(cible) }); };
+    afficher = () => { session.vue.quitter?.(); vider(coquille.contenu); return monterVillage(coquille.contenu, besoinsVillage, { aller: (cible) => naviguer(cible), console: MODULES.some((m) => m.id === 'console') }); };
   } else if (segs[0] === 'reglages') {
     cle = 'reglages';
     afficher = () => monterReglages(coquille.contenu, segs, {
       apis, actifs: MODULES.map((m) => m.id), chezClient: false, nomEspace: 'Chevalier IA OS', marque: null, fiche: null, compte: session.compte,
+      retourVillage: besoinsVillage.length ? ROUTE_VILLAGE : null, // maison avec village : « Retour au village » en haut des Réglages (la Mairie y mène)
     });
   } else if (segs[0] === 'journal' && segs.length === 1) { // Journal des modifications : écran de la coque, servi même sans le module Affaires
     cle = 'journal';

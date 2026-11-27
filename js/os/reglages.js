@@ -161,7 +161,8 @@ function contenuModule(item, ctx, arrets) {
 
 /**
  * Monte la page Réglages dans `conteneur` (appelée à chaque changement d'adresse sous `reglages`). Renvoie `quitter()`.
- * `ctx` : { apis: Map(id -> api), actifs: [ids], chezClient, client (identifiant), nomEspace, marque, fiche, compte, editeur, surMarque(marque) (nouvelle marque enregistrée), surDeconnexion }.
+ * `ctx` : { apis: Map(id -> api), actifs: [ids], chezClient, client (identifiant), nomEspace, marque, fiche, compte, editeur, surMarque(marque) (nouvelle marque enregistrée), surDeconnexion,
+ *   retourVillage (route de l'accueil village, ou null : lien « Retour au village » en haut de la page, sur toutes les sections ; jamais sur la plateforme des clients) }.
  */
 export function monterReglages(conteneur, segs, ctx) {
   arreterCourant();
@@ -209,6 +210,7 @@ export function monterReglages(conteneur, segs, ctx) {
 
   vider(conteneur);
   conteneur.append(h('div', { class: 'page page-reglages page-reglages-menu' },
+    c.retourVillage ? h('a', { class: 'bouton bouton-discret reglages-retour-village', href: lien(c.retourVillage), dataset: { action: 'retour-village' } }, icone('chevron-left', { taille: 16 }), 'Retour au village') : null,
     h('header', { class: 'page-tete page-tete-reglages' }, h('div', {}, h('p', { class: 'etiquette', dataset: { nomEspace: '' } }, c.nomEspace), h('h1', {}, 'Réglages'))),
     h('div', { class: 'reglages-corps' }, menu, contenu)));
 

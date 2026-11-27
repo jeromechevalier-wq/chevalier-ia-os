@@ -6,8 +6,16 @@
 // Aucun `title` ni <title> SVG (infobulle grise du navigateur en double avec la bulle) : le nom accessible est l'aria-label du bâtiment.
 // Ordinateur : un clic, Entrée ou Espace sur un bâtiment ouvre sa cible (une route interne « #/… »).
 // Téléphone (moins de 768 px) : le même terrain réduit à la largeur de l'écran ; un premier toucher montre la bulle, un second toucher ouvre la cible.
+// Étape 1 de docs/accueil-village.md (27/11/2026) : hors du terrain (HTML, pas dans le SVG), une roue dentée en haut à droite (js/os/village-reglages.js :
+// réglages de l'ACCUEIL seulement, « Animations »), et deux îlots fixes dans les coins bas : la Mairie (bas gauche, toujours ; ouvre la page Réglages) et la
+// Console (bas droite, seulement si `console` est vrai, c'est-à-dire si la Console est dans les modules de la session : titulaire seul). Un îlot est un vrai lien
+// (Tab, Entrée) ; sur téléphone, un seul toucher l'ouvre (nom et sous-titre déjà écrits dessous, pas de bulle). Les îlots n'ont ni data-role="batiment", ni
+// data-parcelle : ils ne comptent pas parmi les besoins.
 import { planVillage, dessinBatiment, decorParcelle, formesTerrain, pastilleBulle, ETIQUETTE_Y } from './maison-village.js';
 import { lireCompteur } from './village-compteurs.js';
+import { BATIMENTS_FIXES, dessinBatimentFixe } from './village-batiments.js';
+import { boutonReglagesAccueil, animationsCoupees } from './village-reglages.js';
+import { lien } from './router.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const TELEPHONE = '(max-width: 767px)';
@@ -202,14 +210,49 @@ function creerBulle(cadre, besoins, compteurs) {
   };
 }
 
+/** Sous-titre court écrit sous le nom d'un îlot. */
+const SOUS_TITRE_ILOT = Object.freeze({ 'mairie-reglages': 'Réglages', console: 'Espaces' });
+
+/** Îlot d'un bâtiment fixe (Mairie, Console) : un lien HTML avec un petit dessin (herbe, place pavée, bâtiment), le nom et un sous-titre. */
+function ilot(id, route) {
+  const fixe = BATIMENTS_FIXES[id];
+  const a = document.createElement('a');
+  a.className = 'village-ilot';
+  a.dataset.role = 'batiment-fixe';
+  a.dataset.batimentFixe = id;
+  a.href = lien(route);
+  a.setAttribute('aria-label', `${fixe.nom} : ${fixe.phrase}`);
+  const svg = el('svg', { viewBox: '-90 -100 180 152', 'aria-hidden': 'true', focusable: 'false' });
+  svg.append(
+    el('polygon', { points: '-80,0 0,40 0,48 -80,8', fill: '#8A6A45' }),
+    el('polygon', { points: '0,40 80,0 80,8 0,48', fill: '#6F5436' }),
+    el('polygon', { points: '0,-40 80,0 0,40 -80,0', fill: '#A9C46E' }),
+    el('polygon', { points: '0,-26 52,0 0,26 -52,0', fill: '#EFD9AE' }),
+  );
+  const lever = el('g', { class: 'village-lever' });
+  for (const f of dessinBatimentFixe(id)) lever.append(forme(f));
+  svg.append(lever);
+  const nom = document.createElement('span');
+  nom.className = 'village-ilot-nom';
+  nom.dataset.role = 'batiment-fixe-nom';
+  nom.textContent = fixe.nom;
+  const sous = document.createElement('small');
+  sous.textContent = SOUS_TITRE_ILOT[id];
+  a.append(svg, nom, sous);
+  return a;
+}
+
 /**
- * Monte le village dans `conteneur`. `besoins` : 1 à 4 besoins vérifiés ; `aller(cible)` : ouvre une route (« #/… »).
+ * Monte le village dans `conteneur`. `besoins` : 1 à 4 besoins vérifiés ; `aller(cible)` : ouvre une route (« #/… ») ;
+ * `console` : vrai si la Console est dans les modules de la session (titulaire seul) : l'îlot Console est alors posé en bas à droite.
  * Rend la fonction qui démonte l'écran (arrête l'écoute du format téléphone / ordinateur).
  */
-export function monterVillage(conteneur, besoins, { aller }) {
+export function monterVillage(conteneur, besoins, { aller, console: avecConsole = false }) {
   const page = document.createElement('section');
   page.className = 'page-village';
   page.dataset.role = 'page-village';
+  const majAnimations = () => { page.dataset.animations = animationsCoupees() ? 'non' : 'oui'; };
+  majAnimations();
   const titre = document.createElement('h1');
   titre.className = 'sr-only';
   titre.textContent = 'Accueil';
@@ -220,11 +263,14 @@ export function monterVillage(conteneur, besoins, { aller }) {
   const compteurs = besoins.map(() => undefined);
   const bulle = creerBulle(cadre, besoins, compteurs);
   const media = typeof window.matchMedia === 'function' ? window.matchMedia(TELEPHONE) : null;
+  // Hors du dessin et gardés à chaque redessin (passage téléphone / ordinateur) : la roue dentée, la Mairie, la Console (titulaire seul).
+  const fixes = [boutonReglagesAccueil({ surChangement: majAnimations }), ilot('mairie-reglages', 'reglages')];
+  if (avecConsole) fixes.push(ilot('console', 'console/vue'));
   const rendre = () => {
     const telephone = Boolean(media?.matches);
     const { svg, noeuds } = dessiner(besoins, { telephone, aller, bulle });
     bulle.brancher(noeuds, telephone);
-    cadre.replaceChildren(svg, bulle.element);
+    cadre.replaceChildren(svg, bulle.element, ...fixes);
   };
   rendre();
   // Téléphone : un toucher hors des bâtiments referme la bulle.
