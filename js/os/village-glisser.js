@@ -121,7 +121,7 @@ export function brancherGestes(svg, { maisons, petites = [], damier, telephone, 
     const g = geste;
     arreterAppuiLong();
     try { if (svg.hasPointerCapture?.(g.pointeur)) svg.releasePointerCapture(g.pointeur); } catch { /* pointeur déjà parti */ }
-    if (g.annule) { avalerProchainClic(); geste = null; return; } // 3c-bis : une petite maison bougée puis relâchée : rien ne s'ouvre
+    if (g.annule) { if (depose) avalerProchainClic(); geste = null; return; } // 3c-bis : une petite maison bougée puis relâchée : rien ne s'ouvre (pointercancel : aucun clic à avaler)
     if (g.glisse) {
       avalerProchainClic();
       const bloc = g.bloc;
@@ -217,7 +217,7 @@ export function brancherGestes(svg, { maisons, petites = [], damier, telephone, 
   const surMenu = (e) => { if (maisonSous(e)) e.preventDefault(); };
   // Chrome ignore `touch-action` sur les éléments à l'intérieur d'un SVG : sans cela, le cadre qui défile part en glisser et annule le geste
   // (pointercancel). Pendant un geste sur une maison, le défilement natif est bloqué ; toucher l'herbe fait toujours glisser le village.
-  // 3c-bis : le doigt qui a quitté une petite maison (geste annulé) peut faire défiler le village.
+  // 3c-bis : le doigt qui a quitté une petite maison (geste annulé) peut faire défiler le village (selon le navigateur).
   const surToucheBouge = (e) => { if (geste && !geste.annule && e.cancelable) e.preventDefault(); };
 
   svg.addEventListener('pointerdown', surAppui);
@@ -232,6 +232,12 @@ export function brancherGestes(svg, { maisons, petites = [], damier, telephone, 
   document.addEventListener('keydown', surTouche);
   const debrancherTout = () => {
     // Un redessin pendant un glisser : la maison revient et l'écran sort du rangement (data-rangement ne reste jamais à « oui »).
+    // 3c-bis : un redessin pendant le geste annulé d'une petite maison : le clic de son relâché (à venir) est avalé une fois, 1 s au plus.
+    if (geste?.annule) {
+      const avaleur = (e) => { e.stopPropagation(); e.preventDefault(); document.removeEventListener('click', avaleur, true); };
+      document.addEventListener('click', avaleur, true);
+      setTimeout(() => document.removeEventListener('click', avaleur, true), 1000);
+    }
     if (geste) { const glissait = geste.glisse; remettre(); arreterAppuiLong(); geste = null; if (glissait) surFin?.(); }
     clearTimeout(minuteurClic);
     clearTimeout(minuteurAvaler);

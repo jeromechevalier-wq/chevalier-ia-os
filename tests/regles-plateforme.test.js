@@ -635,13 +635,15 @@ describe('Village par utilisateur sur la plateforme (27/11/2026)', () => {
     await assertSucceeds(deleteDoc(chemin(db, 'a', ALICE, 'b-achatsfactures-liste')));
   });
 
-  test('P-V9 (3cb.2) petite maison cachée chez le client a : éditrice et lectrice la créent et la suppriment ; cachee false refusé ; un autre membre : rien', async () => {
+  test('P-V9 (3cb.2) petite maison cachée chez le client a : éditrice et lectrice la créent et la suppriment ; cachee false, « oui », 1, null, une place et un besoin avec cachee refusés ; un autre membre : rien', async () => {
     const CACHEE = { ...PETITE, cachee: true };
     for (const email of [ALICE, LEA]) {
       const db = ctx(email);
       await assertSucceeds(setDoc(chemin(db, 'a', email, 'p-cache-1'), { ...CACHEE, modifieLe: serverTimestamp() }));
       await assertSucceeds(getDoc(chemin(db, 'a', email, 'p-cache-1')));
-      await assertFails(setDoc(chemin(db, 'a', email, 'p-cache-2'), { ...PETITE, cachee: false }));
+      for (const cachee of [false, 'oui', 1, null]) await assertFails(setDoc(chemin(db, 'a', email, 'p-cache-2'), { ...PETITE, cachee }));
+      await assertFails(setDoc(chemin(db, 'a', email, 'p-cache-2'), { ...CACHEE, c: 1, l: 1 }));
+      await assertFails(setDoc(chemin(db, 'a', email, 'b-achatsfactures-liste'), { ...BESOIN, cachee: true }));
       await assertSucceeds(deleteDoc(chemin(db, 'a', email, 'p-cache-1')));
     }
     await env.withSecurityRulesDisabled(async (c) => { await setDoc(chemin(c.firestore(), 'a', ALICE, 'p-cache-3'), CACHEE); });

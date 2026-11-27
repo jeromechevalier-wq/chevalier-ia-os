@@ -654,6 +654,25 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
     await expect.poll(async () => (await docsPetites(uid)).length).toBe(0);
   });
 
+  test('3cb.2 erreurs 50 petites maisons cachées au plus : la 51e est refusée avec sa phrase, rien n’est écrit', async ({ page }) => {
+    const uid = await ouvrirApres(page, {
+      avant: async (u) => {
+        for (let i = 0; i < 50; i++) {
+          await ecrireDocument(`village_utilisateurs/${u}/batiments/p-cache-${String(i).padStart(2, '0')}`, { sorte: 'petite', parent: PARENT, nom: `Ancien ${i + 1}`, cible: `#/achatschantiers/liste/x${i}`, cachee: true });
+        }
+      },
+    });
+    const auto = page.locator('[data-role="petite-maison"][data-auto="oui"]');
+    await expect(auto).toHaveCount(1);
+    await lues(page);
+    await ouvrirFenetrePetite(page, auto);
+    await fenetrePetite(page).getByRole('button', { name: 'Cacher du village' }).click();
+    await page.getByRole('dialog', { name: 'Cacher cette petite maison ?' }).getByRole('button', { name: 'Cacher' }).click();
+    await expect(fenetrePetite(page).locator('[data-role="erreur-petite-maison"]')).toHaveText('50 petites maisons cachées au plus : remontre-en une avec la roue dentée.');
+    expect(await docsPetites(uid)).toHaveLength(50);
+    await expect(auto).toHaveCount(1);
+  });
+
   test('3cb.4a le bord de la case d’une petite maison la prend (prise transparente, pas une lueur)', async ({ page }, info) => {
     await ouvrirApres(page);
     const auto = page.locator('[data-role="petite-maison"][data-auto="oui"]');
@@ -682,6 +701,7 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
     const avant = await auto.getAttribute('data-case');
     const p = await pointPetite(auto);
     if (estTelephone(page)) {
+      // preuve par l'ordinateur pour le geste tenu ; ici : ni navigation, ni fenêtre, ni déplacement (vrai doigt non vérifié)
       await doigt(page, [p, { x: p.x + 5, y: p.y }, { x: p.x + 10, y: p.y }, { x: p.x + 15, y: p.y }, p], { attente: 800 });
     } else {
       await page.mouse.move(p.x, p.y);
@@ -689,6 +709,8 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
       await page.mouse.move(p.x + 15, p.y, { steps: 3 });
       await page.mouse.move(p.x, p.y);
       await page.waitForTimeout(800);
+      // appui tenu après le seuil : rien ne s'est ouvert ; la preuve discriminante vient au relâché (avant 3c-bis, son clic ouvrait le chantier)
+      expect(await page.evaluate(() => location.hash)).toBe('#/accueil');
       await page.mouse.up();
     }
     await page.waitForTimeout(500);
@@ -736,7 +758,7 @@ test.describe('accueil village : petites maisons « vue filtrée »', () => {
     const versRoue = { x: roue.x + roue.width / 2, y: roue.y + roue.height / 2 };
     if (estTelephone(page)) {
       await centrer(auto);
-      await glisserAuDoigt(page, await pointPetite(auto), versRoue);
+      await glisserAuDoigt(page, await pointPetite(auto), versRoue); // preuve par l'ordinateur ; vrai doigt non vérifié
       await expect(page.getByRole('dialog')).toHaveCount(0);
       await centrer(maison(page, 'Chantiers'));
       await glisserAuDoigt(page, await pointMaison(page, 'Chantiers'), await pointBloc(page, 4, 4, 2, 24));

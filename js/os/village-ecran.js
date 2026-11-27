@@ -802,6 +802,8 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   const ctxCommun = { aller, bulle, rangementEnCours: () => page.dataset.rangement === 'oui' };
   const rendre = () => {
     redessinApresBulle = false; // 3c-bis (R2) : ce dessin montre déjà les éléments arrivés
+    clearTimeout(minuteurRedessin); // et aucun redessin en attente ne reste programmé
+    minuteurRedessin = null;
     const telephone = Boolean(media?.matches);
     const defileAvant = defile.scrollLeft; // remplacer le dessin remet le défilement à zéro : on le garde (3c : les petites maisons arrivent après le rangement)
     debrancher?.();

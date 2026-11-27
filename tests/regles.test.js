@@ -576,13 +576,18 @@ describe('Village par utilisateur (27/11/2026)', () => {
     assert.equal(m2.id, 'b-achats');
   });
 
-  test('3cb.2 petite maison cachée : cachee: true accepté (créer avec l’heure du serveur, relire, supprimer) ; cachee false, « oui », 1, null refusés ; une place refusée ; un besoin avec cachee refusé ; docCachee passe ; un autre compte : rien', async () => {
+  test('3cb.2 petite maison cachée : cachee: true accepté (créer avec l’heure du serveur, relire, supprimer) ; cachee false, « oui », 1, null refusés ; une place refusée ; un besoin avec cachee refusé ; manuelle ↔ cachée permis ; docCachee passe ; un autre compte : rien', async () => {
     const { docCachee } = await import('../js/os/village-petites.js');
     const db = contexte(J);
     const CACHEE = { ...PETITE, cachee: true };
     await assertSucceeds(setDoc(chemin(db, J, 'p-cache-1'), { ...CACHEE, modifieLe: serverTimestamp() }));
     const lu = await assertSucceeds(getDoc(chemin(db, J, 'p-cache-1')));
     assert.equal(lu.data().cachee, true);
+    await assertFails(setDoc(chemin(db, J, 'p-cache-1'), { ...PETITE, cachee: false }));
+    await assertFails(updateDoc(chemin(db, J, 'p-cache-1'), { cachee: 'oui' }));
+    // manuelle ↔ cachée : le même document peut passer de l'une à l'autre (permis)
+    await assertSucceeds(setDoc(chemin(db, J, 'p-cache-1'), PETITE));
+    await assertSucceeds(setDoc(chemin(db, J, 'p-cache-1'), CACHEE));
     for (const cachee of [false, 'oui', 1, null]) await assertFails(setDoc(chemin(db, J, 'p-cache-2'), { ...PETITE, cachee }));
     await assertFails(setDoc(chemin(db, J, 'p-cache-2'), { ...CACHEE, c: 1, l: 1 }));
     await assertFails(setDoc(chemin(db, J, 'b-achatsfactures-liste'), { ...BESOIN, cachee: true }));
