@@ -1,6 +1,7 @@
 -- 06 : les unicités sont PAR espace (règle 1) : la même valeur est permise dans deux espaces, refusée deux fois dans le même.
 \ir aides.inc
-set role porte;
+-- Le robot écrit aussi les reflets (courriels, exécutions, scans) : depuis 012, la porte ne le peut plus.
+set role robot_reflets;
 do $$
 declare v_siren text := pg_temp.siren('7200001'); v_esp text; v_id uuid;
 begin
@@ -10,7 +11,7 @@ begin
     insert into public.fournisseurs (siren, nom) values (v_siren, 'Fournisseur');
     insert into public.courriels_recus (client, boite, workflow, email_message_id, resultat)
       values ('client', 'factures@exemple.test', 'lecture', '<meme@exemple.test>', 'accepte');
-    perform public.creer_article_reference('Ciment', 'sac', 'alice');
+    perform public.creer_article_reference('Ciment', 'sac', 'alice@exemple.test');
     insert into public.n8n_executions (workflow_id, workflow_nom, execution_id, resultat) values ('wf', 'Lecture', 'ex-1', 'ok');
     insert into public.factures (numero, montant_ht, extraction) values ('F-1', 100, jsonb_build_object('fournisseur', jsonb_build_object('siren', v_siren)));
   end loop;
@@ -24,7 +25,7 @@ begin
   perform pg_temp.doit_echouer('insert into public.articles_reference (nom, unite_reference) values (''ciment'', ''sac'')', null);
   perform pg_temp.doit_echouer('insert into public.n8n_executions (workflow_id, workflow_nom, execution_id, resultat) values (''wf'', ''Lecture'', ''ex-1'', ''ok'')', null);
   -- Le code automatique des chantiers est compté par espace.
-  v_id := public.creer_chantier('Suivant', null, null, null, 0, null, null, null, 'alice');
+  v_id := public.creer_chantier('Suivant', null, null, null, 0, null, null, null, 'alice@exemple.test');
   perform pg_temp.egal((select c.code from public.chantiers c where c.id = v_id), 'CH-0002', 'code suivant dans A');
 end $$;
 reset role;

@@ -15,7 +15,7 @@ node outils/base/tester.js --comme-cloudsql
 ```
 
 - La 1re commande joue les migrations deux fois (pour prouver qu'on peut les rejouer), puis chaque fichier de `tests/` sur une copie neuve.
-- La 2e fait la même chose, puis essaie en plus le fichier « à activer » (le blocage des reflets).
+- La 2e fait la même chose, puis essaie en plus les fichiers « à activer » (`a-activer/002` : le robot ne décide pas ; `003` : « qui » pris dans l'identité vérifiée).
 - La 3e joue tout **comme dans Cloud SQL** : le compte qui installe la base n'y est **pas** superutilisateur (le compte `postgres` de Cloud SQL, membre de `cloudsqlsuperuser`, peut créer des rôles et des bases ; il peut aussi créer les extensions permises par Google et des déclencheurs d'événements, ce que `admin_cloudsql` ne peut pas : ce mode est donc **plus strict** que Cloud SQL). Ici, un compte `admin_cloudsql` (sans superutilisateur ni `BYPASSRLS`) crée la base et les rôles, joue les migrations, puis les tests ; la sécurité par ligne forcée s'applique donc aussi à lui. Pour les tests seulement, il se donne le droit de « devenir » `porte`, `robot_reflets` et `indicateurs` (`set role`), sans hériter de leurs droits. Se combine avec `--avec-a-activer`.
 - Il faut Postgres.app (PostgreSQL 17) sur le Mac, ou le dossier des programmes dans `PG_BIN`. Le programme refuse une version plus ancienne que 17.
 - Le programme **refuse de démarrer** si `PGHOST` ou `DATABASE_URL` existe (signe qu'une vraie base est réglée dans le terminal). Il ne parle qu'à la base qu'il vient de créer, par une prise locale, jamais par le réseau, et l'arrête avec `pg_ctl stop`.
@@ -33,26 +33,70 @@ node outils/base/tester.js --comme-cloudsql
 | `migrations/006_vues.sql` | Les 67 vues des tableaux de bord et du Pilotage, recopiées à l'identique. |
 | `migrations/007_droits_et_registre.sql` | Qui a le droit de faire quoi, et la liste des tables (source ou reflet). |
 | `migrations/008_porte.sql` | `consommer_ticket_porte` : comme `consommer_ticket` (mêmes paramètres, mêmes colonnes), mais l'identifiant de la personne est un uuid stable tiré de `app.utilisateur` (l'e-mail posé par la porte) : `md5('chevalier-ia-os:personne:' \|\| lower(e-mail))::uuid` (le préfixe évite l'empreinte Gravatar, retrouvable par dictionnaire), car les workflows n8n exigent un uuid. La fonction tourne avec les droits de l'appelant : **la porte doit poser `app.espace_id` et une personne (`app.utilisateur`) avant l'appel**, dans la transaction. L'espace vient de la configuration de la porte (secret propre à l'espace, côté serveur), jamais de la requête reçue. Droits : `porte` et `robot_reflets` ; `indicateurs` ne peut plus ni demander ni consommer de ticket. |
-| `a-activer/001_bloquer_reflets.sql` | **Pas appliqué.** Réserve l'écriture des reflets aux robots. |
+| `migrations/009_listes_fermees.sql` | Règle 25 : plus de texte libre pour qui / par où / source / action / table du journal / type de motif / moyen de vérification / unité saisie. Contraintes `check` (jamais un changement de type), posées « not valid » puis validées si les lignes déjà là les respectent. Ajoute les colonnes `par_ou` (toutes les tables), `motif_type` (décisions, corrections), `moyen_type` et `motif_revocation_type` (IBAN). |
+| `migrations/010_nettoyage_au_format.sql` | Met au format les valeurs déjà écrites dans une base de **test** (SCAB 04). Ne fait rien sans l'e-mail de Jérôme donné au moment de la jouer (`psql -v email_jerome=…`) : il n'est jamais écrit dans le dépôt. Chaque réécriture laisse une ligne « mise_au_format » au journal. |
+| `migrations/011_derniere_information.sql` | Règle 20 : la dernière information en date gagne (correction ou nouveau scan). Change seulement le filtre des corrections dans la vue `factures` (mêmes colonnes). |
+| `migrations/012_cadenas_et_tracage.sql` | Règles 3, 4, 15 : « par où » posé par la base sur chaque ligne à partir de `app.par_ou` (réglage écrit par la porte d'après la voie : `ecran`, `assistant`, `n8n`), jamais à partir de la requête ; reflets en ajout seul pour tout le monde, robot compris (seul le tampon `archive_le` des lignes lues se modifie) ; un reflet ne s'écrit que par le robot (ancien `a-activer/001`, branché). |
+| `migrations/013_mode_d_emploi.sql` | Règles 23 et 24 : le mode d'emploi rangé dans la base. `mode_emploi_objets` (la personne peut-elle créer, « + », sinon pourquoi) et `mode_emploi_champs` (catégorie, modifiable, phrase du cadenas), sans espace, lecture seule pour les trois rôles. Et l'identifiant d'une ligne ne change plus jamais (`ab_socle_id_fige` sur toutes les tables). |
+| `a-activer/001_bloquer_reflets.sql` | Vide : branché dans 012 le 27/11/2026. |
+| `a-activer/002_robot_ne_decide_pas.sql` | **Pas appliqué.** Le rôle du robot ne peut plus écrire une décision ni une correction (règle 14). |
+| `a-activer/003_qui_verifie.sql` | **Pas appliqué.** « qui » des décisions et du journal pris dans `app.utilisateur` (identité vérifiée), plus dans `p_qui` (règle 4). |
 | `tests/*.sql` | Les vérifications (voir plus bas). |
 | `tester.js` | Le programme qui essaie tout sur une base jetable. |
 
-## Les 12 règles de Jérôme, et comment la base les tient
+## Les 25 règles de la base, et comment la base les tient
 
-| N° | Règle | Comment c'est tenu | Vérifié par |
-|---|---|---|---|
-| 1 | `espace_id` partout, et dans toutes les unicités | Colonne obligatoire posée par la base sur chaque table ; chaque unicité commence par `espace_id` ; les liens entre tables passent par `(espace_id, id)`, donc un lien ne peut pas viser un autre espace. | `01`, `02`, `06` |
-| 2 | Chaque table est **source** ou **reflet**, jamais les deux | Table `registre_tables`. Les tables mixtes sont coupées en deux, une vue les recolle. | `01` |
-| 3 | Le blocage des reflets est préparé, pas branché | `a-activer/001_bloquer_reflets.sql`, essayé seulement avec `--avec-a-activer`. | `tests/a-activer/01` |
-| 4 | Qui et quand remplis par la base | `cree_le`, `cree_par`, `modifie_le`, `modifie_par` écrits par un déclencheur, à partir de `app.utilisateur`. Ce que la requête envoie dans ces colonnes est ignoré. Sans personne connue, rien ne s'écrit. | `03` |
-| 5 | Dates-heures avec fuseau | Toutes en `timestamptz`. | `01` |
-| 6 | Jamais de vraie suppression | On archive (`archive_le`, `archive_par`). Personne n'a le droit DELETE ; même le propriétaire est arrêté par un déclencheur. | `01`, `04` |
-| 7 | Journal avant / après, en ajout seul | `journal_modifications` : une ligne par ajout ou modification de chaque table ; elle ne se modifie ni ne s'efface. | `04` |
-| 8 | Reflets : `source_nom`, `source_ref`, `copie_le` | Sur chaque reflet, avec l'unicité `(espace_id, source_nom, source_ref)` : la même chose n'est jamais recopiée deux fois. | `01`, `06`, `07` |
-| 9 | `not null`, `check`, clés étrangères partout | Repris d'aujourd'hui et complétés. | `01` |
-| 10 | Montants en `numeric` | Aucun nombre à virgule flottante. | `01` |
-| 11 | Identifiants `uuid` | Partout, sauf le compteur du journal (voir « à valider »). | `01` |
-| 12 | Garde-fou de simultanéité | **Plus tard** (voir plus bas). | — |
+Liste finale du 27/11/2026 (relecture Fable, corrigée par les décisions de Jérôme). Elle remplace les 12 règles d'avant (mêmes numéros de 1 à 12, sauf la 3 et la 6 qui changent de sens). Colonne « État » : **tenue** = la base la fait respecter et un test le vérifie ; **préparée** = écrite et essayée dans `a-activer/`, pas appliquée ; **à faire** = pas encore dans la base.
+
+| N° | Règle | Comment c'est tenu | État | Vérifié par |
+|---|---|---|---|---|
+| 1 | `espace_id` partout, et dans toutes les unicités | Colonne obligatoire posée par la base ; chaque unicité commence par `espace_id` ; les liens passent par `(espace_id, id)`. | tenue | `01`, `02`, `06` |
+| 2 | Chaque table est **source** ou **reflet**, jamais les deux | Table `registre_tables`. Les tables mixtes sont coupées en deux, une vue les recolle. | tenue | `01` |
+| 3 | Un reflet n'est écrit que par un robot, ou par la base sur une décision tracée (reprise, règle 18) | La porte n'a plus le droit d'écrire un reflet, et un déclencheur refuse tout rôle qui n'est pas le robot (012). | tenue | `13` |
+| 4 | Qui et quand remplis par la base ; « qui » = e-mail vérifié ; « par où » = liste fermée | `cree_le`, `cree_par`, `modifie_le`, `modifie_par` écrits par un déclencheur à partir de `app.utilisateur`. Forme de « qui » (e-mail, ou `n8n` / `migration` / `base`) et de « par où » contrôlée (009). `par_ou` posé par la base à partir du réglage de la porte (012). « qui » des décisions et du journal pris dans l'identité vérifiée : préparé dans `a-activer/003` (point 15 plus bas). | en partie | `03`, `10`, `13`, `tests/a-activer/03` |
+| 5 | Dates-heures avec fuseau | Toutes en `timestamptz`. | tenue | `01` |
+| 6 | Jamais de suppression : un seul tampon de fin, à écriture unique, avec un motif (remplacée / archivée / supprimée) | Personne n'a le droit DELETE ; un déclencheur arrête même le propriétaire. On archive (`archive_le`, `archive_par`). **Pas encore** : le motif du tampon, et l'écriture unique (aujourd'hui on peut désarchiver). | en partie | `01`, `04` |
+| 7 | Journal avant / après, en ajout seul | `journal_modifications` : une ligne par ajout ou modification ; elle ne se modifie ni ne s'efface. Seule exception, une fois : la mise au format de 010 sur une base de test (accord de Jérôme), elle-même tracée au journal. | tenue | `04`, `12` |
+| 8 | Reflet : `source_nom` (liste fermée), `source_ref`, `copie_le` ; une même observation jamais copiée deux fois | Unicité `(espace_id, source_nom, source_ref)` ; forme de `source_nom` contrôlée (009). | tenue | `01`, `06`, `07`, `10` |
+| 9 | Contraintes partout (`not null`, `check`, clés étrangères) | Repris d'aujourd'hui et complétés. | tenue | `01` |
+| 10 | Montants en `numeric` | Aucun nombre à virgule flottante. | tenue | `01` |
+| 11 | Identifiants `uuid` | Partout, sauf le compteur du journal. | tenue | `01` |
+| 12 | Simultanéité | **Plus tard.** | à faire | — |
+| 13 | On doit toujours pouvoir rejouer l'historique | Scans, décisions, corrections et journal en ajout seul ; rien n'est effacé. | tenue | `04`, `07` |
+| 14 | Une personne (écran ou son assistant) décide et corrige ; un robot qui travaille seul ne décide jamais. Pas de hiérarchie entre valeurs | Une décision porte un e-mail (`decide_par`, `valide_par`, `refuse_par`, `confirme_par`, `revoque_par` : jamais `n8n`). Le rôle du robot ne peut plus écrire une décision : préparé dans `a-activer/002` (aujourd'hui, chez SCAB 04, c'est n8n qui écrit les décisions au nom de la personne). | en partie | `10`, `tests/a-activer/02` |
+| 15 | Reflet en ajout seul ; seule exception : le tampon de fin à écriture unique | Droit UPDATE retiré à tous sur les reflets, robot compris (012) ; seule la case `archive_le` des lignes lues reste modifiable par le robot ; les autres reflets ont en plus un déclencheur « ajout seul ». **Pas encore** : l'écriture unique du tampon (règle 6). | en partie | `04`, `07` |
+| 16 | Nouveau scan d'une facture à valider : l'ancien est tamponné « remplacée » tout seul | — | à faire | — |
+| 17 | Un reflet qui évolue : une ligne par état observé (unicité élargie à la date d'observation) | — | à faire | — |
+| 18 | Revenir à un ancien scan : décision en table source, puis copie ajoutée (scan et lignes), marquée « reprise du n° X, par qui, quand » | `reprise` est déjà dans la liste des sources (009). | à faire | — |
+| 19 | Tout jugement sur un reflet est une décision en table source, en ajout seul ; annuler = nouvelle décision | Décisions et corrections des factures : tables sources en ajout seul ; rouvrir = nouvelle décision. | tenue (factures) | `04`, `07` |
+| 20 | Valeur affichée : la dernière information en date (correction ou lecture) ; facture décidée : figée ; un scan arrivé après la décision attend la réouverture | Vue `factures` (011) : pour chaque champ, une correction plus ancienne que le scan affiché ne compte plus, sauf si ce scan n'a rien lu pour ce champ ; l'heure exacte de chaque correction (`corrige_le`) est posée par la base. Facture décidée figée (004). | tenue | `07` |
+| 21 | Changer de scan : facture à valider seulement ; liens vers les articles refaits, anciens gardés | — | à faire | — |
+| 22 | IBAN, SIREN, SIRET jamais modifiés en place ; même fiche, ancienne ligne tamponnée « remplacée », nouvelle ligne ajoutée ; SIREN changé = IBAN à reconfirmer | IBAN : un IBAN confirmé ne se modifie pas, on le révoque (005). SIREN, SIRET : **pas encore**. | en partie | `07` |
+| 23 | Mode d'emploi dans la base (droit de créer par table ; catégorie, modifiable, phrase par champ), vérifié par test contre les verrous réels | 013 : deux tables de structure (comme le registre). Catégories : `lu_sur_facture`, `recopie` (relevés n8n qui ne sont pas des factures), `saisi`, `calcule`, `securite`, `comptable`. Modifiable : `oui`, `non`, `avant_decision`, `apres_decision`, `tant_que_vide`. Le test `14` essaie pour de vrai chaque champ sous le rôle de la porte (annulé ensuite). **Pas encore** : l'écran et l'assistant ne le lisent pas (PR de l'écran : ajouter les deux tables à `LECTURES_NAVIGATEUR` et `LECTURES_ASSISTANT`). | en partie | `14` |
+| 24 | Toute fiche se modifie sauf les champs cadenassés (avec leur phrase) ; « + » seulement si l'utilisateur est la source ; la base fait foi | 013 : « + » sur chantiers, entreprises, agences et articles de référence seulement. **Écarts connus** (le mode d'emploi dit « non », la porte peut encore les écrire en direct, signalés par le test `14`) : `rapprochements_articles_tous.valide_le` et `valide_par`, `suggestions_refusees_tous.refuse_le` et `refuse_par` (`a-activer/003` ferme les deux « par ») ; à cadenasser. | en partie | `14` |
+| 25 | Pas de texte libre pour qui / par où / source / statut / type / action / motif / unité | Contraintes de liste (009) ; un motif = un type en liste fermée + un commentaire libre à côté ; le surveillant échoue sur toute nouvelle colonne de ce genre en texte libre. **Pas encore** : personne n'écrit `motif_type`, `moyen_type` ni `motif_revocation_type` ; `par_ou` est posé par la base (012) mais seulement en `ecran`, `assistant` ou `n8n` (le nom de l'assistant, le workflow et le n° d'exécution ne sont pas connus du serveur de façon sûre ; les migrations ne posent pas `app.par_ou`) (ils restent vides ou `non_precise` tant que la porte, l'écran et n8n ne les envoient pas). | en partie | `10`, `11` |
+
+### Les listes fermées (règle 25, migration 009)
+
+| Colonne | Valeurs permises |
+|---|---|
+| « qui » : `cree_par`, `modifie_par`, `archive_par` (toutes les tables), `journal_modifications.qui`, `utilisateur` (favoris, tickets) | un e-mail, ou `n8n` (robot seul), `migration`, `base` (un déclencheur de la base) |
+| Décisions : `decide_par`, `valide_par`, `refuse_par`, `confirme_par`, `revoque_par` | un e-mail seulement (une personne) |
+| `par_ou` (toutes les tables, et le journal) | `ecran`, `assistant`, `assistant:claude`, `assistant:chatgpt`, `n8n`, `n8n:<workflow>`, `n8n:<workflow>#<n° d'exécution>`, `migration`, `base` |
+| `source_nom` (reflets) | `courriel`, `courriel:<boîte>`, `depot`, `lecture`, `relecture`, `openrouter`, `n8n:<workflow>`, `reprise` |
+| `journal_modifications.action` | les actions de la base et des fonctions métier (`liste_actions_journal()`), et `mise_au_format` |
+| `journal_modifications.table_nom` | les tables du registre et les noms gardés pour l'OS (`factures`, `lignes_facture`, `journal_decisions`, `rapprochements_articles`, `suggestions_refusees`) ; refaite par `poser_liste_tables_journal()` |
+| `factures_decisions.motif_type` | `non_precise`, `doublon`, `montant_errone`, `pas_pour_nous`, `illisible`, `deja_payee`, `verifie_aupres_du_fournisseur`, `erreur_de_decision`, `nouveau_scan`, `autre` (le commentaire reste dans `motif`, `motif_refus`, `motif_acceptation`) |
+| `factures_corrections.motif_type` | `non_precise`, `erreur_de_lecture`, `information_du_fournisseur`, `autre` |
+| `ibans_confirmes.moyen_type` | `non_precise`, `appel_fournisseur`, `courriel_fournisseur`, `courrier_fournisseur`, `rib_signe`, `en_personne`, `autre` (le commentaire reste dans `moyen_verification`) |
+| `ibans_confirmes.motif_revocation_type` | `non_precise`, `iban_change`, `erreur_de_saisie`, `fraude_suspectee`, `autre` |
+| `articles_reference.unite_reference` (saisie) | `liste_unites()` : u, m, ml, m2, m3, cm, mm, km, kg, g, t, l, cl, sac, rouleau, boite, palette, lot, forfait, h, jour, ens, paquet, carton, plaque, barre, botte, seau, bidon, cartouche, pot, tube, paire, kit (après `normaliser_unite`) |
+
+Restent libres, exprès : ce qui est **lu** sur une facture (dont l'unité lue et sa forme normalisée, recopiées dans le catalogue), les notes et les commentaires. Les listes déjà fermées avant 009 (statuts, décisions, genres, types de document…) ne changent pas. `non_precise` est la valeur des lignes d'avant et des écritures qui n'envoient pas encore de type (n8n, écrans) : à remplacer quand l'écran et n8n enverront le type.
+
+**Avant d'appliquer 009 et 010 à une vraie base** : (1) relever les valeurs réelles (`select distinct` sur `decide_par`, `valide_par`, `refuse_par`, `confirme_par`, `journal_modifications.qui`, `cree_par`, `source_nom`, `unite_reference`) et ce que les workflows n8n envoient dans `p_qui` et `source_nom` : une valeur hors liste serait refusée dès 009 ; (2) jouer 009, 010 (avec `psql -v email_jerome=…`) et 011 dans la même séance, n8n arrêté (toutes les tables sont verrouillées le temps de la transaction ; et une ancienne ligne hors liste ne peut plus être modifiée tant que 010 ne l'a pas remise au format) ; (3) lire les avis « à regarder à la main » de 010.
+
+**Une nouvelle table** (migration future) : rappeler `poser_listes_fermees()`, `poser_liste_tables_journal()` `poser_par_ou('<table>')`, `poser_id_fige('<table>')` et `remplir_mode_emploi()` à la fin de sa migration (avec, si besoin, les cas particuliers du mode d'emploi) ; pour un reflet, aussi `poser_cadenas_reflet('<table>')` (le test `13` vérifie « par où » et le cadenas de chaque reflet). Les tests `11_surveillant.sql` et `14_mode_d_emploi.sql` échouent sinon.
 
 ### Sécurité par espace
 
@@ -131,7 +175,7 @@ Les nouvelles colonnes s'appellent `cree_le`, `modifie_le`, `archive_le`, etc. C
 | `factures.date_decision` | `factures_decisions.decide_le` |
 | `factures.statut`, `motif_refus`, `motif_acceptation`, `alertes_a_la_decision`, `acceptee_malgre_alerte` | `factures_decisions` (dernière décision) |
 | `factures.archivee_le`, `archivee_par` | `factures_identite.archive_le`, `archive_par`. La personne qui archive est **toujours** celle de la requête (`app.utilisateur`) : le nom envoyé dans `archivee_par` ne sert plus qu'au libellé du journal. |
-| `factures.montant_ht`, `numero`, `date_facture`… | Dernière correction si elle existe, sinon dernier scan reçu avant la décision |
+| `factures.montant_ht`, `numero`, `date_facture`… | La plus récente entre la dernière correction et le dernier scan reçu avant la décision (règle 20, migration 011) |
 | `lignes_facture.created_at` | `lignes_facture_lues.cree_le` |
 | `lignes_facture.article_fournisseur_id` | `lignes_facture_articles` (lien en cours) |
 | `chantiers.archive` (vrai / faux) | Gardé, et suit `archive_le` dans les deux sens |
@@ -147,7 +191,7 @@ Le test `05` vérifie, sur le schéma d'aujourd'hui relevé automatiquement : le
 3. **La règle « doublon refusé avec motif »** : aujourd'hui, une 2e facture au même fournisseur + numéro est refusée par la personne avec un motif. Demain, un 2e scan **rejoint** la même facture (pas de doublon du tout). Le seul cas qui reste : une correction de numéro qui tomberait sur une autre facture ; elle est **refusée** (pas de fusion automatique) et la vue `v_factures_doublons_possibles` montre les deux factures. Comment fusionner deux factures à la main : à décider.
 4. **La clé de la facture** : le plan dit « une facture = SIREN lu + numéro dans l'espace » (le robot lit un SIREN, pas notre fiche) **et** « une facture = fiche fournisseur + numéro » dès que la fiche est connue (correction C3). Les deux règles existent ensemble. À savoir : tant qu'une facture est à valider, l'arrivée d'un nouveau scan peut **réécrire** `factures_identite.fournisseur_siren` et `numero_normalise` (la base les recale sur la dernière lecture, sauf si une autre facture les porte déjà). Une fois décidée, l'identité est figée (garde-fou posé sur la table elle-même, pas seulement sur la vue).
 5. **Un scan qui arrive sans facture** (`factures_scans.facture_id` vide) : la base le range tout de suite dans la facture qui a le même SIREN + numéro, ou en crée une nouvelle (à identifier). D'accord ?
-6. **Une facture décidée est entièrement figée**, y compris ce qui a été lu (aujourd'hui, une nouvelle lecture pouvait encore changer certaines valeurs). Un scan arrivé après la décision est gardé mais ne change pas ce qui s'affiche.
+6. ~~Une facture décidée est entièrement figée~~ **Tranché par Jérôme le 27/11 (règle 20)** : une facture décidée est figée ; on la rouvre pour la changer. Un scan arrivé après la décision est gardé et attend la réouverture.
 7. **`rapprochements_articles_tous` classée source** alors qu'elle contient aussi des suggestions de l'IA (une suggestion est une proposition, la vérité est la validation par une personne).
 8. **Le registre n'a pas d'espace** (il décrit la structure, commune à tous).
 9. **Le journal garde un compteur** (`bigint`) au lieu d'un uuid, pour garder l'ordre exact des écritures.
@@ -156,18 +200,18 @@ Le test `05` vérifie, sur le schéma d'aujourd'hui relevé automatiquement : le
 12. **`decide_par_id` reste obligatoire** pour décider (comme aujourd'hui).
 13. **Coûts de l'IA sans identifiant d'appel** : la base fabrique une référence unique ; il vaudrait mieux que n8n envoie l'identifiant de l'appel chez OpenRouter. Même chose pour une exécution n8n sans numéro.
 14. **L'heure `cree_le` des reflets** (`couts_ia`, `n8n_executions`, `openrouter_cles_releves`) est l'heure de la base : si un robot envoyait l'heure de l'événement dans `cree_le`, elle est ignorée. Faut-il une colonne « heure de l'événement » à part ?
-15. **Des noms viennent encore de la requête, pas de `app.utilisateur`** : `journal_modifications.qui` (écrit par les fonctions métier avec `p_qui`), `factures_decisions.decide_par`, `rapprochements.valide_par`, `suggestions_refusees.refuse_par`, `ibans_confirmes.confirme_par` (tous venant de `p_qui`). Et la porte peut ajouter une ligne au journal (elle ne peut ni la modifier ni l'effacer, l'heure vient de la base). Plus tard : prendre ces noms dans `app.utilisateur`, et réserver l'écriture du journal (fonction filtrée par espace). En revanche `cree_par`, `modifie_par` et `archive_par` viennent toujours de `app.utilisateur`.
+15. **Des noms viennent encore de la requête, pas de l'identité vérifiée** : `journal_modifications.qui`, `factures_decisions.decide_par`, `rapprochements.valide_par`, `suggestions_refusees.refuse_par`, `ibans_confirmes.confirme_par` / `revoque_par` et `factures.archivee_par` (libellé du journal à l'archivage) viennent de `p_qui`. **Tranché par Jérôme le 27/11 (règle 4)** : « qui » = e-mail vérifié, posé par la base ou la porte, jamais envoyé par l'appelant. Fait le 27/11 (009) : leur **forme** est contrôlée (un e-mail, ou `n8n` / `migration` / `base` hors décisions). Reste : les prendre dans l'identité vérifiée ; chez SCAB 04, n8n écrit les décisions au nom de la personne, donc ce verrou attend que la porte et les workflows n8n suivent (il sera rangé dans `a-activer/`). En revanche `cree_par`, `modifie_par` et `archive_par` viennent toujours de `app.utilisateur`.
 16. **Les favoris de l'appli BTP** (`favoris`, `basculer_favori`, `lister_favoris`) : gardés tant que l'appli BTP existe.
-17. **Une facture déjà décidée qui revient** (ex. refusée, puis renvoyée par le fournisseur avec le même numéro) : le nouveau scan rejoint la facture, qui **garde** sa décision (elle reste refusée et visible ; le robot reçoit le vrai statut). Le scan est montré dans la vue `v_factures_scans_apres_decision` pour qu'une personne regarde. Faut-il plutôt rouvrir la facture toute seule ?
+17. ~~Une facture déjà décidée qui revient~~ **Tranché par Jérôme le 27/11 (règle 20)** : le nouveau scan rejoint la facture, qui garde sa décision ; il attend la réouverture (vue `v_factures_scans_apres_decision`). Pas de réouverture toute seule.
 18. **Compteurs communs à tous les espaces** : le numéro du journal (`journal_modifications.id`) et les rangs (`rang`) des scans, décisions et corrections sont des compteurs de toute la base, pas un par espace. Ils ne servent qu'à ranger dans l'ordre ; un client pourrait seulement deviner, aux trous dans les numéros, que d'autres écritures existent. D'accord ?
 19. **Heure réelle pour les scans et les décisions** : `copie_le` et `decide_le` prennent l'heure exacte (`clock_timestamp()`), pas l'heure du début de la transaction, pour savoir sans erreur si un scan est arrivé avant ou après une décision.
-20. **Deux uuid pour la même personne, avant et après la bascule** : les données reprises de Supabase gardent l'uuid Supabase de la personne (`factures_decisions.decide_par_id`, `journal_modifications.qui_id`, `ibans_confirmes.confirme_par_id` et `revoque_par_id`), alors que les nouvelles décisions portent l'uuid de `consommer_ticket_porte` (tiré de l'e-mail). Choix : accepter la coupure (l'e-mail, lui, reste le même dans `decide_par` / `qui`), ou une table de correspondance ancien uuid → nouvel uuid appliquée à la reprise.
+20. **Deux uuid pour la même personne, avant et après la bascule** : les données reprises de Supabase gardent l'uuid Supabase de la personne (`decide_par_id`, `qui_id`, `confirme_par_id`, `revoque_par_id`), les nouvelles décisions portent l'uuid de `consommer_ticket_porte`. **En partie tranché le 27/11 (règle 4)** : l'identifiant unique de la personne est son **e-mail vérifié** (`decide_par`, `qui`…), qui ne change pas à la bascule ; les uuid restent un renseignement en plus. Reste à décider : une table de correspondance ancien uuid → nouvel uuid à la reprise, ou rien.
 
 ## Plus tard
 
 - **Garde-fou de simultanéité (règle 12)** : refuser une écriture faite sur une version périmée d'une ligne (deux personnes qui modifient la même fiche en même temps). Pas fait dans ce plan. Les verrous d'aujourd'hui (`for update`, verrous par fournisseur, par IBAN, par code de chantier, par facture) sont gardés.
 - Brancher `tester.js` sur la coche « Tests » de GitHub.
-- Activer `a-activer/001_bloquer_reflets.sql` quand les robots auront leur propre compte.
+- Activer `a-activer/002` et `003` quand la porte saura faire agir n8n au nom de la personne du ticket (identité vérifiée), que les workflows n8n de SCAB 04 auront suivi, et après un essai en vrai.
 - Créer les vrais comptes de connexion (la porte, les robots, le Pilotage) et leur donner ces rôles.
 
 ## Ce qui n'est pas fait (correction C8)

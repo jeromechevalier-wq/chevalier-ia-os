@@ -30,7 +30,7 @@ begin
     execute format('set role %I', v_role);
     perform pg_temp.entrer('espace-a', 'alice-marqa@exemple.test');
     -- Tables : aucune ligne d'un autre espace, aucune trace de la marque de B.
-    for r in select c.oid, c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname <> 'registre_tables' loop
+    for r in select c.oid, c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname not in ('registre_tables', 'mode_emploi_objets', 'mode_emploi_champs') loop
       continue when not has_table_privilege(v_role, r.oid, 'SELECT');
       execute format('select count(*) from public.%I where espace_id <> %L', r.relname, 'espace-a') into v_n;
       if v_n > 0 then raise exception '[%] la table % montre % ligne(s) d''un autre espace', v_role, r.relname, v_n; end if;
@@ -92,17 +92,17 @@ begin
 end $$;
 
 -- Fonctions d'écriture : depuis A, une ligne de B est introuvable (même erreur que si elle n'existait pas).
-select pg_temp.doit_echouer(format('select public.rouvrir_facture(%L, %L, %L)', (select facture_id from ids_b), 'motif de test', 'alice'), 'facture_introuvable');
-select pg_temp.doit_echouer(format('select public.archiver_facture(%L, %L)', (select facture_id from ids_b), 'alice'), 'facture_introuvable');
-select pg_temp.doit_echouer(format('select public.relier_facture_chantier(%L, %L, %L)', (select facture_id from ids_b), (select chantier_id from ids_a), 'alice'), 'facture_introuvable');
-select pg_temp.doit_echouer(format('select public.modifier_chantier(%L, %L, %L)', (select chantier_id from ids_b), '{"nom":"vol"}', 'alice'), 'chantier_introuvable');
-select pg_temp.doit_echouer(format('select public.confirmer_iban(%L, %L, %L, %L, %L)', (select fournisseur_id from ids_b), 'FR7630006000011234567890189', (select facture_id from ids_a), 'appel', 'alice'), 'fournisseur_introuvable');
-select pg_temp.doit_echouer(format('select public.valider_rapprochement(%L, %L, 1, %L)', (select article_id from ids_a), (select reference_id from ids_b), 'alice'), 'MESSAGE:violates foreign key constraint');
+select pg_temp.doit_echouer(format('select public.rouvrir_facture(%L, %L, %L)', (select facture_id from ids_b), 'motif de test', 'alice@exemple.test'), 'facture_introuvable');
+select pg_temp.doit_echouer(format('select public.archiver_facture(%L, %L)', (select facture_id from ids_b), 'alice@exemple.test'), 'facture_introuvable');
+select pg_temp.doit_echouer(format('select public.relier_facture_chantier(%L, %L, %L)', (select facture_id from ids_b), (select chantier_id from ids_a), 'alice@exemple.test'), 'facture_introuvable');
+select pg_temp.doit_echouer(format('select public.modifier_chantier(%L, %L, %L)', (select chantier_id from ids_b), '{"nom":"vol"}', 'alice@exemple.test'), 'chantier_introuvable');
+select pg_temp.doit_echouer(format('select public.confirmer_iban(%L, %L, %L, %L, %L)', (select fournisseur_id from ids_b), 'FR7630006000011234567890189', (select facture_id from ids_a), 'appel', 'alice@exemple.test'), 'fournisseur_introuvable');
+select pg_temp.doit_echouer(format('select public.valider_rapprochement(%L, %L, 1, %L)', (select article_id from ids_a), (select reference_id from ids_b), 'alice@exemple.test'), 'MESSAGE:violates foreign key constraint');
 select pg_temp.doit_echouer(format('select public.basculer_favori_os(%L, %L)', 'chantier', (select chantier_id from ids_b)), 'favori_cle_inconnue');
-select pg_temp.doit_echouer(format('select public.dissocier_rapprochement(%L, %L)', (select article_id from ids_b), 'alice'), 'rapprochement_introuvable');
-select pg_temp.doit_echouer(format('select public.refuser_suggestion(%L, %L)', (select article_id from ids_b), 'alice'), 'suggestion_introuvable');
-select pg_temp.doit_echouer(format('select public.reprendre_suggestion(%L, %L)', (select article_id from ids_b), 'alice'), 'refus_introuvable');
-select pg_temp.doit_echouer(format('select public.renommer_reference(%L, %L, %L)', (select reference_id from ids_b), 'vol', 'alice'), 'reference_introuvable');
+select pg_temp.doit_echouer(format('select public.dissocier_rapprochement(%L, %L)', (select article_id from ids_b), 'alice@exemple.test'), 'rapprochement_introuvable');
+select pg_temp.doit_echouer(format('select public.refuser_suggestion(%L, %L)', (select article_id from ids_b), 'alice@exemple.test'), 'suggestion_introuvable');
+select pg_temp.doit_echouer(format('select public.reprendre_suggestion(%L, %L)', (select article_id from ids_b), 'alice@exemple.test'), 'refus_introuvable');
+select pg_temp.doit_echouer(format('select public.renommer_reference(%L, %L, %L)', (select reference_id from ids_b), 'vol', 'alice@exemple.test'), 'reference_introuvable');
 -- Écrire avec l'espace de B dans la requête : la base remet l'espace de la requête (A) ; modifier une ligne de B ne touche rien.
 do $$
 declare v_n int; v_esp text;
@@ -125,7 +125,7 @@ declare r record; v_n bigint; v_esp text; v_cles text; v_tout text := '';
 begin
   foreach v_esp in array array['', '   '] loop
     perform set_config('app.espace_id', v_esp, false);
-    for r in select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname <> 'registre_tables' loop
+    for r in select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname not in ('registre_tables', 'mode_emploi_objets', 'mode_emploi_champs') loop
       execute format('select count(*) from public.%I', r.relname) into v_n;
       if v_n > 0 then raise exception 'Sans espace, la table % montre % ligne(s)', r.relname, v_n; end if;
     end loop;
@@ -137,7 +137,7 @@ begin
                      ',', r.relname, 'number', 'ordre', 'periode_jours') into v_cles;   -- constantes écrites dans les vues (ordre des tranches, période)
       if v_cles is not null then v_tout := v_tout || r.relname || ':' || v_cles || ' '; end if;
     end loop;
-    perform pg_temp.doit_echouer('select public.creer_chantier(''X'', null, null, null, 0, null, null, null, ''alice'')', 'espace_manquant');
+    perform pg_temp.doit_echouer('select public.creer_chantier(''X'', null, null, null, 0, null, null, null, ''alice@exemple.test'')', 'espace_manquant');
     perform pg_temp.doit_echouer('select * from public.lister_favoris_os()', 'acces_base_refuse');
   end loop;
   if v_tout <> '' then raise exception 'Sans espace, nombres non nuls : %', v_tout; end if;
@@ -158,7 +158,7 @@ begin
   if current_setting('app.espace_id', true) is not null and current_setting('app.espace_id', true) <> '' then
     raise exception 'app.espace_id ne devrait pas être posé';
   end if;
-  for r in select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname <> 'registre_tables'
+  for r in select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname not in ('registre_tables', 'mode_emploi_objets', 'mode_emploi_champs')
              and has_table_privilege('porte', c.oid, 'SELECT') loop
     execute format('select count(*) from public.%I', r.relname) into v_n;
     if v_n > 0 then raise exception 'Espace jamais posé : la table % montre % ligne(s)', r.relname, v_n; end if;

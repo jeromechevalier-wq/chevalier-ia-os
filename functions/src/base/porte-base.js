@@ -40,6 +40,12 @@ export const DELAI_TRANSACTION_INACTIVE_MS = 60_000;
  */
 export const ROLES = Object.freeze({ navigateur: 'porte', n8n: 'robot_reflets', assistant: 'porte' });
 export const UTILISATEUR_N8N = 'n8n';
+/**
+ * « Par où » de chaque voie (règle 4 de outils/base/REGLES.md, 27/11/2026) : posé dans app.par_ou, la base le recopie dans la colonne par_ou de
+ * chaque ligne écrite (migration 012). Valeur écrite ici d'après la voie reconnue, jamais lue dans la requête. Le nom de l'assistant (Claude,
+ * ChatGPT) n'est pas connu du serveur de façon sûre : « assistant » sans nom. n8n : ni workflow ni n° d'exécution (ils viendraient de la requête).
+ */
+export const PAR_OU = Object.freeze({ navigateur: 'ecran', n8n: 'n8n', assistant: 'assistant' });
 /** Les seules fonctions de la base que le navigateur peut appeler (relevé des écrans Achats, plan du 26/11/2026). */
 export const RPC_NAVIGATEUR = Object.freeze(['lister_favoris_os', 'basculer_favori_os', 'demander_ticket_n8n']);
 /**
@@ -261,8 +267,8 @@ export function creerAccesBase({ ouvrirConnexion, maintenant = Date.now }) {
       await cx.interroger(lectureSeule ? 'begin read only' : 'begin');
       await cx.interroger(`set local role ${ROLES[appelant.voie]}`); // nom constant (ROLES), jamais lu dans la requête
       await cx.interroger(
-        "select set_config('app.espace_id', $1, true), set_config('app.utilisateur', $2, true), set_config('statement_timeout', $3, true), set_config('idle_in_transaction_session_timeout', $4, true)",
-        [config.espace, appelant.utilisateur, String(DELAI_REQUETE_MS), String(DELAI_TRANSACTION_INACTIVE_MS)],
+        "select set_config('app.espace_id', $1, true), set_config('app.utilisateur', $2, true), set_config('statement_timeout', $3, true), set_config('idle_in_transaction_session_timeout', $4, true), set_config('app.par_ou', $5, true)",
+        [config.espace, appelant.utilisateur, String(DELAI_REQUETE_MS), String(DELAI_TRANSACTION_INACTIVE_MS), PAR_OU[appelant.voie]],
       );
       const resultat = await travail(cx, await catalogue(cx, ROLES[appelant.voie]));
       await cx.interroger('commit');
