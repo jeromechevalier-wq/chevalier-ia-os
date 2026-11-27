@@ -17,6 +17,7 @@ Le code de la Console est dans le dépôt commun, mais **seul Jérôme y a accè
 3. **Lecture seule d'abord.** Les écritures (activer un module, déployer, créer un secret) arrivent en phases 3 et 4, chacune dans une PR séparée relue par Fable.
 4. **Aucune valeur de secret n'est jamais lue ni affichée**, ni par le serveur, ni par l'écran, ni par un assistant.
 5. **Aucune description de l'infrastructure dans le code** (le dépôt est public) : noms de secrets, comptes, projets clients sont lus en direct par le serveur, jamais écrits dans un fichier du dépôt.
+   Précision du 27/11/2026 (demande de Jérôme) : un schéma générique qui ne nomme que des familles d'outils (Firestore, Cloud SQL, n8n, MCP), sans nom d'hébergeur de serveur, de projet, de compte, de secret ni de client, ne contrevient pas à ce garde-fou. Ses textes sont dans `js/modules/console/schema-textes.js`, vérifiés mot à mot par une liste blanche (`tests/statique.test.js`).
 6. **Les fonctions de la Console existent seulement chez Jérôme** : chacune est déclarée dans `RESERVEES_JEROME` (`tests/ecarts-fonctions.test.js`) avec la raison « normal : outil d'exploitation de Jérôme, réservé par décision du 16/11/2026 », et une ligne dans `.github/A-FAIRE.md`. Le module n'a pas d'interrupteur chez un client : `modules.console` est refusé par le registre pour tout espace client.
 
 ## 3. Les droits Google
@@ -27,7 +28,7 @@ Le serveur de la Console lira les autres projets avec des **comptes dédiés en 
 
 | Onglet | Contenu | Phase |
 |---|---|---|
-| Vue d'ensemble | Sélecteur de plateforme (première entrée « Toutes les plateformes », la plateforme est dans l'adresse), résumé du filet, réponse du serveur ; plus tard nombre d'espaces, version déployée, alertes | 0, 1 |
+| Vue d'ensemble | Sélecteur de plateforme (première entrée « Toutes les plateformes », la plateforme est dans l'adresse), résumé du filet, schéma d'architecture figé (27/11), réponse du serveur ; plus tard nombre d'espaces, version déployée, alertes | 0, 1 |
 | Espaces et modules | Tableau espaces × modules (champ `modules` de chaque espace), dépendances manquantes en alerte | 1 |
 | Activité | Écritures du journal par jour, par module et par espace ; espaces silencieux depuis 7 jours | 1 |
 | Secrets | Carte : nom, rôle, projet, dernière version, comptes ayant accès ; alertes manquant, orphelin, droit absent | 2 |
@@ -66,3 +67,12 @@ Rien pour la phase 0. Pour tester la phase 1 sur de vrais espaces : un jeton d'u
 ## 9. Non vérifié
 
 Le nom exact des collections lues en phase 1 (`clients/<id>` et son champ `modules`) vient de `js/os/registre.js` et n'a pas été relu sur la vraie base ; la lecture d'une base depuis un autre projet Google par un compte dédié n’a pas encore été essayée.
+
+## 10. Le village de la Console (décisions du 26-27/11/2026)
+
+- Jérôme veut voir dans la Console ses plateformes comme des bâtiments, avec les beaux dessins 3D du village d'accueil : Chevalier IA OS = une maison, Chevalier IA App = un immeuble (un appartement par espace client, cliquable plus tard), chaque client qui a sa propre plateforme = une maison (avec une grue si elle est en construction), les plateformes à venir en grisé.
+- Au-dessus de chaque bâtiment : son nuage de données. Le MCP = un téléphone relié directement au nuage. n8n tourne sur un serveur à part.
+- Informations à afficher pour chaque bâtiment (plus tard, lues en direct par le serveur, jamais écrites dans le dépôt) : projet Google, Supabase, Cloud SQL, n8n, MCP, modules actifs, état (en service, en construction, à venir).
+- **Étape A (27/11/2026)** : un schéma figé et générique, sans nom de client ni montant, dans Vue d'ensemble (`js/modules/console/schema.js`, sous le résumé du filet, affiché même si les données de la Console ne se chargent pas ; deux rangées quand la section est étroite). Tests A1 et A2 de `tests/e2e/console.spec.js`, et un test de `tests/statique.test.js` qui n'accepte que les mots d'une liste blanche dans ses textes.
+- **Étape B (plus tard)** : les vrais noms et les vraies informations lus depuis la base par le serveur, visibles par Jérôme seul, dessins 3D, relecture Fable obligatoire.
+- Les maquettes d'origine (avec les vrais noms) sont gardées en privé sur le Mac de Jérôme, hors du dépôt.
