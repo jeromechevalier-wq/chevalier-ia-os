@@ -902,3 +902,24 @@ body.page-espace { background: #241b2e; color: #fff; }
 .village-choix-ligne:disabled { cursor: default; opacity: .6; }
 .village-choix-ligne .village-liste-textes small { color: var(--texte2); font-size: var(--fs-menu); }
 .village-choix-deja { flex: 0 0 auto; color: var(--texte2); font-size: var(--fs-petit); }
+
+/* ---------------------------------------------------------------- Console > Vue d'ensemble : schéma d'architecture figé (27/11/2026) */
+/* Deux dessins : large (une rangée) et étroit (deux rangées, sous 760 px) ; un seul est montré. Couleurs des thèmes (tokens.css). */
+.console-schema { display: block; width: 100%; height: auto; margin: var(--esp-4) auto; }
+.console-schema-etroit { display: none; max-width: 480px; }
+@media (max-width: 759px) {
+  .console-schema-large { display: none; }
+  .console-schema-etroit { display: block; }
+}
+.console-schema-texte { fill: var(--texte); font-family: var(--police-texte); }
+.console-schema-texte2 { fill: var(--texte2); font-family: var(--police-texte); }
+.console-schema-fort { font-weight: var(--poids-moyen); }
+.console-schema-nuage { fill: var(--panneau2); stroke: var(--bordure-forte); stroke-width: 1.5; }
+.console-schema-mur, .console-schema-case, .console-schema-telephone { fill: var(--panneau2); stroke: var(--texte2); stroke-width: 1.5; }
+.console-schema-toit { fill: var(--bordure-forte); stroke: var(--texte2); stroke-width: 1.5; }
+.console-schema-fenetre, .console-schema-porte { fill: var(--fond); stroke: var(--bordure-forte); stroke-width: 1; }
+.console-schema-lien, .console-schema-sol { stroke: var(--texte2); stroke-width: 1.5; fill: none; }
+.console-schema-tirets { stroke-dasharray: 6 5; }
+.console-schema-grue line { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+.console-schema-avenir { opacity: .5; }
+.console-schema-pointilles polygon, .console-schema-pointilles rect { stroke-dasharray: 5 4; fill: none; }

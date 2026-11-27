@@ -110,3 +110,30 @@ test('C9 le bouton « Exporter mes données » (Réglages > Console) télécharg
   expect(Object.keys(json.collections)).toEqual(['console_filet']);
   expect(json.collections.console_filet.map((f) => f.id)).toEqual(['budget']);
 });
+
+test('A1 Vue d\'ensemble : le schéma d\'architecture s\'affiche', async ({ page }, info) => {
+  await simulerServeur(page);
+  await connecter(page, undefined, { route: 'console/vue' });
+  await attendreCalme(page);
+  const bloc = page.locator('[data-bloc="architecture"]');
+  await expect(bloc).toBeVisible();
+  const dessin = bloc.locator('svg[role="img"]:visible');
+  await expect(dessin).toHaveCount(1); // un seul des deux dessins (large ou étroit) est montré
+  expect((await dessin.getAttribute('aria-label')).trim().length).toBeGreaterThan(20);
+  for (const t of ['Chevalier IA OS', 'Chevalier IA App', 'Appartement 1', 'Maison client 1', 'n8n']) await expect(bloc).toContainText(t);
+  // Textes du dessin visible lisibles : 12 px rendus au moins (téléphone 390 px compris).
+  const plusPetit = await dessin.evaluate((svg) => Math.min(...[...svg.querySelectorAll('text')].map((t) => parseFloat(t.getAttribute('font-size')) * svg.getScreenCTM().a)));
+  expect(plusPetit).toBeGreaterThanOrEqual(12);
+  expect(await sansDefilementHorizontal(page)).toBe(true);
+  await bloc.scrollIntoViewIfNeeded();
+  await capturer(page, info, 'A1-schema');
+});
+
+test('A2 Le schéma ne dépend pas des données', async ({ page }) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur de la Console refuse exprès (erreur 403)' });
+  await simulerServeur(page, { refuser: true });
+  await connecter(page, undefined, { route: 'console/vue' });
+  await attendreCalme(page);
+  await expect(page.locator('.page > [data-bloc="architecture"]')).toBeVisible();
+  await expect(page.locator('.console-zone [data-bloc="architecture"]')).toHaveCount(0);
+});

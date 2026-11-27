@@ -1,4 +1,4 @@
-// Écrans de la Console (phase 0) : Vue d'ensemble (sélecteur de plateforme, résumé du filet, état du serveur) et Filet de sécurité
+// Écrans de la Console (phase 0) : Vue d'ensemble (sélecteur de plateforme, résumé du filet, schéma d'architecture figé, état du serveur) et Filet de sécurité
 // (la liste des vérifications, que Jérôme date à la main). Trois états partout : chargement, vide, erreur (avec « Réessayer »).
 import { h, icone, remplir, toast } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
@@ -6,6 +6,7 @@ import { barreOnglets } from '../../os/onglets.js';
 import { ongletsDuModule } from '../../os/registre.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
+import { schemaArchitecture } from './schema.js';
 
 const onglets = (actif) => barreOnglets({ onglets: ongletsDuModule('console'), actif, etiquette: 'Écrans de la Console' });
 
@@ -20,7 +21,7 @@ export function rendreVue(conteneur, segs = []) {
   ...L.PLATEFORMES.map((p) => h('option', { value: p.id, selected: p.id === plateforme }, p.libelle)));
   const zone = h('div', { class: 'console-zone' });
   const serveur = h('p', { class: 'aide', 'aria-live': 'polite' }, 'Vérification du serveur…');
-  conteneur.append(onglets('console/vue'), h('div', { class: 'page' }, h('header', { class: 'page-tete' }, h('h1', {}, 'Console')), selecteur, zone, serveur));
+  conteneur.append(onglets('console/vue'), h('div', { class: 'page' }, h('header', { class: 'page-tete' }, h('h1', {}, 'Console')), selecteur, zone, schemaArchitecture(), serveur));
 
   function dessiner() {
     if (!D.etat.pret) { remplir(zone, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement'))); return; }
