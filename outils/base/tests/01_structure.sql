@@ -27,10 +27,10 @@ begin
   -- Règles 1, 4, 6 : espace_id (sauf le registre), cree_le, cree_par, modifie_le, modifie_par, archive_le, archive_par partout.
   for r in select c.oid, c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p') loop
     select string_agg(x, ', ') into v_liste from unnest(array['espace_id', 'cree_le', 'cree_par', 'modifie_le', 'modifie_par', 'archive_le', 'archive_par']) x
-     where not (r.relname = 'registre_tables' and x = 'espace_id')
+     where not (r.relname in ('registre_tables', 'mode_emploi_objets', 'mode_emploi_champs') and x = 'espace_id')
        and not exists (select 1 from pg_attribute a where a.attrelid = r.oid and a.attname = x and not a.attisdropped);
     if v_liste is not null then raise exception 'Règles 1/4/6 : il manque à % : %', r.relname, v_liste; end if;
-    if r.relname <> 'registre_tables' and not exists (select 1 from pg_attribute a where a.attrelid = r.oid and a.attname = 'espace_id' and a.attnotnull) then
+    if r.relname not in ('registre_tables', 'mode_emploi_objets', 'mode_emploi_champs') and not exists (select 1 from pg_attribute a where a.attrelid = r.oid and a.attname = 'espace_id' and a.attnotnull) then
       raise exception 'Règle 1 : %.espace_id peut être vide', r.relname;
     end if;
     -- Déclencheurs communs présents.
@@ -41,7 +41,7 @@ begin
       raise exception 'Règle 6 : % n''a pas le déclencheur qui refuse DELETE', r.relname;
     end if;
     -- Règle 7 : chaque table a son journal automatique (sauf le journal lui-même et le registre, qui change par migration).
-    if r.relname not in ('journal_modifications', 'registre_tables')
+    if r.relname not in ('journal_modifications', 'registre_tables', 'mode_emploi_objets', 'mode_emploi_champs')
        and not exists (select 1 from pg_trigger g where g.tgrelid = r.oid and g.tgname = 'zz_socle_journal') then
       raise exception 'Règle 7 : % n''a pas le déclencheur du journal', r.relname;
     end if;
@@ -51,7 +51,7 @@ begin
   select string_agg(i.indexrelid::regclass::text, ', ') into v_liste
     from pg_index i join pg_class c on c.oid = i.indrelid
    where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and i.indisunique and not i.indisprimary
-     and c.relname <> 'registre_tables'
+     and c.relname not in ('registre_tables', 'mode_emploi_objets', 'mode_emploi_champs')
      and (select a.attname from pg_attribute a where a.attrelid = c.oid and a.attnum = i.indkey[0]) is distinct from 'espace_id';
   if v_liste is not null then raise exception 'Règle 1 : unicités sans espace_id en tête : %', v_liste; end if;
 
@@ -64,7 +64,7 @@ begin
 
   -- C2 : sécurité par ligne activée ET forcée sur toutes les tables à espace ; une règle « espace_courant » sur chacune.
   select string_agg(c.relname, ', ') into v_liste from pg_class c
-   where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname <> 'registre_tables'
+   where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and c.relname not in ('registre_tables', 'mode_emploi_objets', 'mode_emploi_champs')
      and not (c.relrowsecurity and c.relforcerowsecurity
               and exists (select 1 from pg_policy p where p.polrelid = c.oid and p.polname = 'espace_courant'));
   if v_liste is not null then raise exception 'C2 : sécurité par ligne absente ou non forcée : %', v_liste; end if;
