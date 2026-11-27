@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   creerGestionnaireBasePorte, validerConfiguration, creerLecteurConfiguration, creerLecteurCleN8n, ConfigurationAbsente, jetonLien, jetonLienValide,
-  egalTempsConstant, ligneDeJournalPorte, RPC_NAVIGATEUR, NOM_SECRET_PORTE, NOM_SECRET_N8N, LECTURES_NAVIGATEUR, DELAI_TRANSACTION_INACTIVE_MS,
+  egalTempsConstant, ligneDeJournalPorte, RPC_NAVIGATEUR, NOM_SECRET_PORTE, NOM_SECRET_N8N, LECTURES_NAVIGATEUR, DELAI_TRANSACTION_INACTIVE_MS, PAR_OU, creerAccesBase,
 } from '../functions/src/base/porte-base.js';
 import { creerOuvreurCloudSql, ErreurConnexionBase } from '../functions/src/base/cloudsql.js';
 import { SQL_CATALOGUE_RELATIONS, SQL_CATALOGUE_FONCTIONS } from '../functions/src/base/porte-requetes.js';
@@ -241,7 +241,10 @@ describe('2 transaction', () => {
     assert.equal(s[0], 'begin read only');
     assert.equal(s[1], 'set local role porte');
     assert.match(s[2], /set_config\('app\.espace_id', \$1, true\), set_config\('app\.utilisateur', \$2, true\), set_config\('statement_timeout', \$3, true\), set_config\('idle_in_transaction_session_timeout', \$4, true\)/);
-    assert.deepEqual(base.journal[2].valeurs.slice(2), ['10000', String(DELAI_TRANSACTION_INACTIVE_MS)]);
+    assert.deepEqual(base.journal[2].valeurs.slice(2, 4), ['10000', String(DELAI_TRANSACTION_INACTIVE_MS)]);
+    // « Par où » (27/11/2026) : posé par le serveur d'après la voie, dans la même requête, local à la transaction.
+    assert.match(s[2], /set_config\('app\.par_ou', \$5, true\)/);
+    assert.deepEqual(base.journal[2].valeurs.slice(4), ['ecran']);
     assert.equal(s.at(-1), 'commit');
     assert.deepEqual(base.liberes, [false]);
   });
@@ -250,6 +253,19 @@ describe('2 transaction', () => {
     await appeler(porte({ base }), 'GET', '/rest/v1/chantiers?select=id,nom', { entetes: N8N });
     assert.equal(base.sqls()[1], 'set local role robot_reflets');
     assert.deepEqual(base.journal[2].valeurs.slice(0, 2), [ESPACE, 'n8n']);
+    assert.equal(base.journal[2].valeurs[4], 'n8n', 'par où = n8n');
+  });
+  test('2.2b par où : écran, n8n, assistant ; jamais lu dans la requête (en-tête ou paramètre)', async () => {
+    assert.deepEqual({ ...PAR_OU }, { navigateur: 'ecran', n8n: 'n8n', assistant: 'assistant' });
+    assert.ok(Object.isFrozen(PAR_OU));
+    const base = fausseBase();
+    await appeler(porte({ base }), 'GET', '/rest/v1/chantiers?select=id&par_ou=eq.assistant', { entetes: { ...NAV, 'x-par-ou': 'n8n' } });
+    const pose = base.journal.find((j) => j.sql.startsWith("select set_config('app.espace_id'"));
+    assert.equal(pose.valeurs[4], 'ecran');
+    const base2 = fausseBase();
+    const acces = creerAccesBase({ ouvrirConnexion: base2.ouvrir });
+    await acces.dansTransaction(CONFIG, { voie: 'assistant', utilisateur: 'lea@exemple.fr' }, true, async () => null);
+    assert.equal(base2.journal.find((j) => j.sql.startsWith("select set_config('app.espace_id'")).valeurs[4], 'assistant');
   });
   test('2.3 erreur pendant le travail → rollback, jamais commit', async () => {
     const base = fausseBase(() => { throw Object.assign(new Error('boom sur 10.0.0.1'), { code: 'XX000' }); });

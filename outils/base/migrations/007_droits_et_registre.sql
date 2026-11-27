@@ -1,7 +1,7 @@
 -- 007 : les droits des trois rôles et le registre des tables.
 --   porte          : lit tout, ajoute et modifie (jamais DELETE ni TRUNCATE : on archive). Le registre : lecture seule.
 --   robot_reflets  : mêmes droits que porte pour l'instant (les robots créent la facture en recopiant le scan).
---                    Le fichier a-activer/001_bloquer_reflets.sql réservera les écritures des reflets à ce rôle (PAS appliqué ici).
+--                    (Depuis 012, les écritures des reflets sont réservées à ce rôle, en ajout seul ; l'ancien a-activer/001 y est branché.)
 --   indicateurs    : lecture seule (remplace indicateurs_ro ; metabase_ro est supprimé, C6).
 -- Personne n'a BYPASSRLS : chacun ne voit que l'espace posé dans app.espace_id.
 -- Les migrations tournent avec un compte d'administration : « app.utilisateur » est posé à « migration » pour que les colonnes

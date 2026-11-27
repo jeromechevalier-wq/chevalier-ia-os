@@ -4,7 +4,9 @@
 --   - une correction ne touche pas le scan ; une correction qui ferait un doublon est refusée (pas de fusion automatique) ;
 --   - décider fige la facture ; rouvrir ajoute une décision (rien n'est effacé).
 \ir aides.inc
-set role porte;
+-- Joué sous le rôle du robot (n8n) : il recopie les scans (reflets, 012) et, chez SCAB 04 aujourd'hui, écrit aussi les décisions au nom
+-- de la personne. Le verrou « le robot ne décide pas » est préparé dans a-activer/002 (testé par tests/a-activer/02).
+set role robot_reflets;
 select pg_temp.entrer('espace-a', 'alice@exemple.test');
 do $$
 declare
@@ -82,8 +84,9 @@ begin
   perform pg_temp.egal((select string_agg(designation, ',') from public.lignes_facture where facture_id = v_f), 'Sable', 'la vue montre la nouvelle ligne');
   perform pg_temp.egal((select count(*)::int from public.lignes_facture_lues where facture_id = v_f and designation = 'Gravier' and archive_le is not null), 1, 'ancienne ligne archivée');
   -- Une ligne lue ne se modifie pas, même en la glissant dans un archivage.
-  perform pg_temp.doit_echouer(format('update public.lignes_facture_lues set designation = %L, archive_le = now() where facture_id = %L', 'Autre', v_f), 'ajout_seul');
-  perform pg_temp.doit_echouer(format('update public.lignes_facture_lues set designation = %L where facture_id = %L', 'Autre', v_f), 'ajout_seul');
+  -- Depuis 012, le robot n'a plus que le droit de poser le tampon (archive_le) : la base refuse avant même le déclencheur.
+  perform pg_temp.doit_echouer(format('update public.lignes_facture_lues set designation = %L, archive_le = now() where facture_id = %L', 'Autre', v_f), 'MESSAGE:permission denied');
+  perform pg_temp.doit_echouer(format('update public.lignes_facture_lues set designation = %L where facture_id = %L', 'Autre', v_f), 'MESSAGE:permission denied');
   -- Un chantier ne naît pas archivé.
   perform pg_temp.doit_echouer('insert into public.chantiers (nom, code, archive) values (''Né archivé'', ''CH-NA'', true)', 'archivage_a_la_creation');
   update public.factures set statut = 'acceptee', etablissement_id = v_ag, chantier_id = v_ch, decide_par = 'alice@exemple.test', decide_par_id = v_qui_id where id = v_f;

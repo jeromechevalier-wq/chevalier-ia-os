@@ -15,7 +15,7 @@ node outils/base/tester.js --comme-cloudsql
 ```
 
 - La 1re commande joue les migrations deux fois (pour prouver qu'on peut les rejouer), puis chaque fichier de `tests/` sur une copie neuve.
-- La 2e fait la même chose, puis essaie en plus le fichier « à activer » (le blocage des reflets).
+- La 2e fait la même chose, puis essaie en plus les fichiers « à activer » (`a-activer/002` : le robot ne décide pas ; `003` : « qui » pris dans l'identité vérifiée).
 - La 3e joue tout **comme dans Cloud SQL** : le compte qui installe la base n'y est **pas** superutilisateur (le compte `postgres` de Cloud SQL, membre de `cloudsqlsuperuser`, peut créer des rôles et des bases ; il peut aussi créer les extensions permises par Google et des déclencheurs d'événements, ce que `admin_cloudsql` ne peut pas : ce mode est donc **plus strict** que Cloud SQL). Ici, un compte `admin_cloudsql` (sans superutilisateur ni `BYPASSRLS`) crée la base et les rôles, joue les migrations, puis les tests ; la sécurité par ligne forcée s'applique donc aussi à lui. Pour les tests seulement, il se donne le droit de « devenir » `porte`, `robot_reflets` et `indicateurs` (`set role`), sans hériter de leurs droits. Se combine avec `--avec-a-activer`.
 - Il faut Postgres.app (PostgreSQL 17) sur le Mac, ou le dossier des programmes dans `PG_BIN`. Le programme refuse une version plus ancienne que 17.
 - Le programme **refuse de démarrer** si `PGHOST` ou `DATABASE_URL` existe (signe qu'une vraie base est réglée dans le terminal). Il ne parle qu'à la base qu'il vient de créer, par une prise locale, jamais par le réseau, et l'arrête avec `pg_ctl stop`.
@@ -36,7 +36,10 @@ node outils/base/tester.js --comme-cloudsql
 | `migrations/009_listes_fermees.sql` | Règle 25 : plus de texte libre pour qui / par où / source / action / table du journal / type de motif / moyen de vérification / unité saisie. Contraintes `check` (jamais un changement de type), posées « not valid » puis validées si les lignes déjà là les respectent. Ajoute les colonnes `par_ou` (toutes les tables), `motif_type` (décisions, corrections), `moyen_type` et `motif_revocation_type` (IBAN). |
 | `migrations/010_nettoyage_au_format.sql` | Met au format les valeurs déjà écrites dans une base de **test** (SCAB 04). Ne fait rien sans l'e-mail de Jérôme donné au moment de la jouer (`psql -v email_jerome=…`) : il n'est jamais écrit dans le dépôt. Chaque réécriture laisse une ligne « mise_au_format » au journal. |
 | `migrations/011_derniere_information.sql` | Règle 20 : la dernière information en date gagne (correction ou nouveau scan). Change seulement le filtre des corrections dans la vue `factures` (mêmes colonnes). |
-| `a-activer/001_bloquer_reflets.sql` | **Pas appliqué.** Réserve l'écriture des reflets aux robots. |
+| `migrations/012_cadenas_et_tracage.sql` | Règles 3, 4, 15 : « par où » posé par la base sur chaque ligne à partir de `app.par_ou` (réglage écrit par la porte d'après la voie : `ecran`, `assistant`, `n8n`), jamais à partir de la requête ; reflets en ajout seul pour tout le monde, robot compris (seul le tampon `archive_le` des lignes lues se modifie) ; un reflet ne s'écrit que par le robot (ancien `a-activer/001`, branché). |
+| `a-activer/001_bloquer_reflets.sql` | Vide : branché dans 012 le 27/11/2026. |
+| `a-activer/002_robot_ne_decide_pas.sql` | **Pas appliqué.** Le rôle du robot ne peut plus écrire une décision ni une correction (règle 14). |
+| `a-activer/003_qui_verifie.sql` | **Pas appliqué.** « qui » des décisions et du journal pris dans `app.utilisateur` (identité vérifiée), plus dans `p_qui` (règle 4). |
 | `tests/*.sql` | Les vérifications (voir plus bas). |
 | `tester.js` | Le programme qui essaie tout sur une base jetable. |
 
@@ -48,8 +51,8 @@ Liste finale du 27/11/2026 (relecture Fable, corrigée par les décisions de Jé
 |---|---|---|---|---|
 | 1 | `espace_id` partout, et dans toutes les unicités | Colonne obligatoire posée par la base ; chaque unicité commence par `espace_id` ; les liens passent par `(espace_id, id)`. | tenue | `01`, `02`, `06` |
 | 2 | Chaque table est **source** ou **reflet**, jamais les deux | Table `registre_tables`. Les tables mixtes sont coupées en deux, une vue les recolle. | tenue | `01` |
-| 3 | Un reflet n'est écrit que par un robot, ou par la base sur une décision tracée (reprise, règle 18) | `a-activer/001_bloquer_reflets.sql`. | préparée | `tests/a-activer/01` |
-| 4 | Qui et quand remplis par la base ; « qui » = e-mail vérifié ; « par où » = liste fermée | `cree_le`, `cree_par`, `modifie_le`, `modifie_par` écrits par un déclencheur à partir de `app.utilisateur`. Forme de « qui » (e-mail, ou `n8n` / `migration` / `base`) et de « par où » contrôlée (009). **Pas encore** : `par_ou` rempli par la base, et les noms qui viennent encore de `p_qui` (point 15 plus bas). | en partie | `03`, `10` |
+| 3 | Un reflet n'est écrit que par un robot, ou par la base sur une décision tracée (reprise, règle 18) | La porte n'a plus le droit d'écrire un reflet, et un déclencheur refuse tout rôle qui n'est pas le robot (012). | tenue | `13` |
+| 4 | Qui et quand remplis par la base ; « qui » = e-mail vérifié ; « par où » = liste fermée | `cree_le`, `cree_par`, `modifie_le`, `modifie_par` écrits par un déclencheur à partir de `app.utilisateur`. Forme de « qui » (e-mail, ou `n8n` / `migration` / `base`) et de « par où » contrôlée (009). `par_ou` posé par la base à partir du réglage de la porte (012). « qui » des décisions et du journal pris dans l'identité vérifiée : préparé dans `a-activer/003` (point 15 plus bas). | en partie | `03`, `10`, `13`, `tests/a-activer/03` |
 | 5 | Dates-heures avec fuseau | Toutes en `timestamptz`. | tenue | `01` |
 | 6 | Jamais de suppression : un seul tampon de fin, à écriture unique, avec un motif (remplacée / archivée / supprimée) | Personne n'a le droit DELETE ; un déclencheur arrête même le propriétaire. On archive (`archive_le`, `archive_par`). **Pas encore** : le motif du tampon, et l'écriture unique (aujourd'hui on peut désarchiver). | en partie | `01`, `04` |
 | 7 | Journal avant / après, en ajout seul | `journal_modifications` : une ligne par ajout ou modification ; elle ne se modifie ni ne s'efface. Seule exception, une fois : la mise au format de 010 sur une base de test (accord de Jérôme), elle-même tracée au journal. | tenue | `04`, `12` |
@@ -59,8 +62,8 @@ Liste finale du 27/11/2026 (relecture Fable, corrigée par les décisions de Jé
 | 11 | Identifiants `uuid` | Partout, sauf le compteur du journal. | tenue | `01` |
 | 12 | Simultanéité | **Plus tard.** | à faire | — |
 | 13 | On doit toujours pouvoir rejouer l'historique | Scans, décisions, corrections et journal en ajout seul ; rien n'est effacé. | tenue | `04`, `07` |
-| 14 | Une personne (écran ou son assistant) décide et corrige ; un robot qui travaille seul ne décide jamais. Pas de hiérarchie entre valeurs | Une décision porte un e-mail (`decide_par`, `valide_par`, `refuse_par`, `confirme_par`, `revoque_par` : jamais `n8n`). **Pas encore** : interdire au rôle du robot d'écrire une décision (aujourd'hui, chez SCAB 04, c'est n8n qui écrit les décisions au nom de la personne). | en partie | `10` |
-| 15 | Reflet en ajout seul ; seule exception : le tampon de fin à écriture unique | Les reflets ont un déclencheur « ajout seul » ; **pas encore** : retirer le droit UPDATE du robot (007). | en partie | `04` |
+| 14 | Une personne (écran ou son assistant) décide et corrige ; un robot qui travaille seul ne décide jamais. Pas de hiérarchie entre valeurs | Une décision porte un e-mail (`decide_par`, `valide_par`, `refuse_par`, `confirme_par`, `revoque_par` : jamais `n8n`). Le rôle du robot ne peut plus écrire une décision : préparé dans `a-activer/002` (aujourd'hui, chez SCAB 04, c'est n8n qui écrit les décisions au nom de la personne). | en partie | `10`, `tests/a-activer/02` |
+| 15 | Reflet en ajout seul ; seule exception : le tampon de fin à écriture unique | Droit UPDATE retiré à tous sur les reflets, robot compris (012) ; seule la case `archive_le` des lignes lues reste modifiable par le robot ; les autres reflets ont en plus un déclencheur « ajout seul ». **Pas encore** : l'écriture unique du tampon (règle 6). | en partie | `04`, `07` |
 | 16 | Nouveau scan d'une facture à valider : l'ancien est tamponné « remplacée » tout seul | — | à faire | — |
 | 17 | Un reflet qui évolue : une ligne par état observé (unicité élargie à la date d'observation) | — | à faire | — |
 | 18 | Revenir à un ancien scan : décision en table source, puis copie ajoutée (scan et lignes), marquée « reprise du n° X, par qui, quand » | `reprise` est déjà dans la liste des sources (009). | à faire | — |
@@ -70,7 +73,7 @@ Liste finale du 27/11/2026 (relecture Fable, corrigée par les décisions de Jé
 | 22 | IBAN, SIREN, SIRET jamais modifiés en place ; même fiche, ancienne ligne tamponnée « remplacée », nouvelle ligne ajoutée ; SIREN changé = IBAN à reconfirmer | IBAN : un IBAN confirmé ne se modifie pas, on le révoque (005). SIREN, SIRET : **pas encore**. | en partie | `07` |
 | 23 | Mode d'emploi dans la base (droit de créer par table ; catégorie, modifiable, phrase par champ), vérifié par test contre les verrous réels | — | à faire | — |
 | 24 | Toute fiche se modifie sauf les champs cadenassés (avec leur phrase) ; « + » seulement si l'utilisateur est la source ; la base fait foi | — | à faire | — |
-| 25 | Pas de texte libre pour qui / par où / source / statut / type / action / motif / unité | Contraintes de liste (009) ; un motif = un type en liste fermée + un commentaire libre à côté ; le surveillant échoue sur toute nouvelle colonne de ce genre en texte libre. **Pas encore** : personne n'écrit `par_ou`, `motif_type`, `moyen_type` ni `motif_revocation_type` (ils restent vides ou `non_precise` tant que la porte, l'écran et n8n ne les envoient pas). | en partie | `10`, `11` |
+| 25 | Pas de texte libre pour qui / par où / source / statut / type / action / motif / unité | Contraintes de liste (009) ; un motif = un type en liste fermée + un commentaire libre à côté ; le surveillant échoue sur toute nouvelle colonne de ce genre en texte libre. **Pas encore** : personne n'écrit `motif_type`, `moyen_type` ni `motif_revocation_type` ; `par_ou` est posé par la base (012) mais seulement en `ecran`, `assistant` ou `n8n` (le nom de l'assistant, le workflow et le n° d'exécution ne sont pas connus du serveur de façon sûre ; les migrations ne posent pas `app.par_ou`) (ils restent vides ou `non_precise` tant que la porte, l'écran et n8n ne les envoient pas). | en partie | `10`, `11` |
 
 ### Les listes fermées (règle 25, migration 009)
 
@@ -79,7 +82,7 @@ Liste finale du 27/11/2026 (relecture Fable, corrigée par les décisions de Jé
 | « qui » : `cree_par`, `modifie_par`, `archive_par` (toutes les tables), `journal_modifications.qui`, `utilisateur` (favoris, tickets) | un e-mail, ou `n8n` (robot seul), `migration`, `base` (un déclencheur de la base) |
 | Décisions : `decide_par`, `valide_par`, `refuse_par`, `confirme_par`, `revoque_par` | un e-mail seulement (une personne) |
 | `par_ou` (toutes les tables, et le journal) | `ecran`, `assistant`, `assistant:claude`, `assistant:chatgpt`, `n8n`, `n8n:<workflow>`, `n8n:<workflow>#<n° d'exécution>`, `migration`, `base` |
-| `source_nom` (reflets) | `courriel`, `courriel:<boîte>`, `depot`, `lecture`, `openrouter`, `n8n:<workflow>`, `reprise` |
+| `source_nom` (reflets) | `courriel`, `courriel:<boîte>`, `depot`, `lecture`, `relecture`, `openrouter`, `n8n:<workflow>`, `reprise` |
 | `journal_modifications.action` | les actions de la base et des fonctions métier (`liste_actions_journal()`), et `mise_au_format` |
 | `journal_modifications.table_nom` | les tables du registre et les noms gardés pour l'OS (`factures`, `lignes_facture`, `journal_decisions`, `rapprochements_articles`, `suggestions_refusees`) ; refaite par `poser_liste_tables_journal()` |
 | `factures_decisions.motif_type` | `non_precise`, `doublon`, `montant_errone`, `pas_pour_nous`, `illisible`, `deja_payee`, `verifie_aupres_du_fournisseur`, `erreur_de_decision`, `nouveau_scan`, `autre` (le commentaire reste dans `motif`, `motif_refus`, `motif_acceptation`) |
@@ -92,7 +95,7 @@ Restent libres, exprès : ce qui est **lu** sur une facture (dont l'unité lue e
 
 **Avant d'appliquer 009 et 010 à une vraie base** : (1) relever les valeurs réelles (`select distinct` sur `decide_par`, `valide_par`, `refuse_par`, `confirme_par`, `journal_modifications.qui`, `cree_par`, `source_nom`, `unite_reference`) et ce que les workflows n8n envoient dans `p_qui` et `source_nom` : une valeur hors liste serait refusée dès 009 ; (2) jouer 009, 010 (avec `psql -v email_jerome=…`) et 011 dans la même séance, n8n arrêté (toutes les tables sont verrouillées le temps de la transaction ; et une ancienne ligne hors liste ne peut plus être modifiée tant que 010 ne l'a pas remise au format) ; (3) lire les avis « à regarder à la main » de 010.
 
-**Une nouvelle table** (migration future) : rappeler `poser_listes_fermees()` et `poser_liste_tables_journal()` à la fin de sa migration. Le test `11_surveillant.sql` échoue sinon.
+**Une nouvelle table** (migration future) : rappeler `poser_listes_fermees()`, `poser_liste_tables_journal()` et `poser_par_ou('<table>')` à la fin de sa migration ; pour un reflet, aussi `poser_cadenas_reflet('<table>')` (le test `13` vérifie « par où » et le cadenas de chaque reflet). Le test `11_surveillant.sql` échoue sinon.
 
 ### Sécurité par espace
 
@@ -207,7 +210,7 @@ Le test `05` vérifie, sur le schéma d'aujourd'hui relevé automatiquement : le
 
 - **Garde-fou de simultanéité (règle 12)** : refuser une écriture faite sur une version périmée d'une ligne (deux personnes qui modifient la même fiche en même temps). Pas fait dans ce plan. Les verrous d'aujourd'hui (`for update`, verrous par fournisseur, par IBAN, par code de chantier, par facture) sont gardés.
 - Brancher `tester.js` sur la coche « Tests » de GitHub.
-- Activer `a-activer/001_bloquer_reflets.sql` quand les robots auront leur propre compte.
+- Activer `a-activer/002` et `003` quand la porte saura faire agir n8n au nom de la personne du ticket (identité vérifiée), que les workflows n8n de SCAB 04 auront suivi, et après un essai en vrai.
 - Créer les vrais comptes de connexion (la porte, les robots, le Pilotage) et leur donner ces rôles.
 
 ## Ce qui n'est pas fait (correction C8)

@@ -1,6 +1,7 @@
 -- 06 : les unicités sont PAR espace (règle 1) : la même valeur est permise dans deux espaces, refusée deux fois dans le même.
 \ir aides.inc
-set role porte;
+-- Le robot écrit aussi les reflets (courriels, exécutions, scans) : depuis 012, la porte ne le peut plus.
+set role robot_reflets;
 do $$
 declare v_siren text := pg_temp.siren('7200001'); v_esp text; v_id uuid;
 begin

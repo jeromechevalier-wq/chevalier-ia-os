@@ -40,10 +40,11 @@ language sql immutable parallel safe as
 $$ select p is not null and p ~ '^(ecran|migration|base|assistant(:(claude|chatgpt))?|n8n(:[A-Za-z0-9_-]{1,80}(#[0-9]{1,20})?)?)$' $$;
 
 -- source_nom d'un reflet (règle 8) : un genre de source en liste fermée, suivi si besoin d'un détail (la boîte, le workflow).
---   courriel | courriel:<boîte> | depot | lecture | openrouter | n8n:<workflow> | reprise (copie d'un ancien scan, règle 18)
+--   courriel | courriel:<boîte> | depot | lecture | relecture:… (nouvelle lecture d'une facture par n8n, 004) | openrouter | n8n:<workflow>
+--   | reprise (copie d'un ancien scan, règle 18)
 create or replace function public.est_source_nom_valide(p text) returns boolean
 language sql immutable parallel safe as
-$$ select p is not null and char_length(p) <= 200 and p ~ '^(courriel|depot|lecture|openrouter|reprise|n8n)(:[^[:cntrl:][:space:]][^[:cntrl:]]*)?$' $$;
+$$ select p is not null and char_length(p) <= 200 and p ~ '^(courriel|depot|lecture|relecture|openrouter|reprise|n8n)(:[^[:cntrl:][:space:]][^[:cntrl:]]*)?$' $$;
 
 -- Les unités SAISIES (article de référence). L'unité LUE sur une facture reste libre (elle est lue, pas saisie) ; sa forme
 -- normalisée (normaliser_unite) sert aux rapprochements.
