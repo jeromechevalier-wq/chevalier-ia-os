@@ -15,7 +15,7 @@ Accords écrits de Jérôme avant la nuit : fusionner seul les PR du village qui
 | Petites maisons « vue filtrée » + adresse d'un chantier | 743 | fusionnée, relue par Fable |
 | Boutique : décorations (20) et parcelles (500), achat par le serveur | 748 | fusionnée seule (accord), relue par Fable |
 | Petites maisons automatiques des projets, cacher une petite maison, 12 au plus par grande maison | 751 | fusionnée seule (accord), relue par Fable (brief et code) |
-| Champs (100) et enclos à cochons (200), récolte d'or (action `ramasser` du serveur) | 752 | auto-merge armé ; relue deux fois par Fable (3 points importants corrigés) ; règles inchangées |
+| Champs (100) et enclos à cochons (200), récolte d'or (action `ramasser` du serveur) | 752 | fusionnée, relue deux fois par Fable (3 points importants corrigés) ; règles inchangées |
 | Console : schéma d'architecture figé dans Vue d'ensemble, décisions dans `docs/console.md` (§10), version 2.58.0, wiki, ce rapport | cette PR | relue par Fable |
 
 **État GitHub** : « Tests de nuit » verts sur `main` après la PR 751 (run 46059723660). Le passage après la PR 752 est à relire.
