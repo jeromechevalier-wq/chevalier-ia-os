@@ -5,6 +5,7 @@
 //  - Après un glisser ou un appui long, le clic qui suit est avalé (écoute en phase de capture) : un glisser n'ouvre jamais la maison.
 //  - Ordinateur : un simple clic ouvre après 280 ms (le temps de voir s'il y a un second clic) ; un double clic ouvre les réglages de la maison.
 //  - Téléphone : un toucher passe tout de suite à surOuvrir (l'écran montre la bulle puis entre, comme avant) ; un appui long (600 ms sans bouger) : les réglages.
+//  - Un lien externe (<a> SVG, étape 3b) : son clic natif est toujours empêché ; l'écran l'ouvre lui-même (window.open, nouvel onglet).
 //  - Entrée ou Espace : gérés par l'écran (ouverture immédiate). Pas de déplacement au clavier (décision du 27/11/2026).
 import { iso } from './village-batiments.js';
 import { ecranVersGrille, blocSousPoint, centreBloc, blocLibre, occupation, losangeBloc } from './village-damier.js';
@@ -139,6 +140,9 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
     if (avaler) { avaler = false; e.stopPropagation(); e.preventDefault(); return; }
     if (!maison) return;
     e.stopPropagation();
+    // Cmd, Ctrl ou Maj + clic sur le <a> d'un lien valable : le navigateur l'ouvre lui-même (onglet en arrière-plan, nouvelle fenêtre), rien d'autre.
+    if (maison.sorte === 'lien' && !maison.invalide && (e.metaKey || e.ctrlKey || e.shiftKey) && e.target.closest?.('a[href]')) { clearTimeout(minuteurClic); minuteurClic = null; return; }
+    e.preventDefault(); // la maison d'un lien externe est un <a> : jamais sa navigation native (l'écran l'ouvre lui-même, dans un nouvel onglet)
     if (telephone) { surOuvrir(maison); return; }
     clearTimeout(minuteurClic);
     minuteurClic = setTimeout(() => { minuteurClic = null; surOuvrir(maison); }, DELAI_CLIC);
@@ -152,6 +156,8 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
     minuteurClic = null;
     surReglages(maison);
   }
+  // Safari et Firefox démarrent un glisser natif sur le <a> SVG d'un lien externe : il couperait notre glisser.
+  const surGlisserNatif = (e) => { if (maisonSous(e.target)) e.preventDefault(); };
   // Appui long au doigt : pas de menu du navigateur sur une maison.
   const surMenu = (e) => { if (maisonSous(e.target)) e.preventDefault(); };
   // Chrome ignore `touch-action` sur les éléments à l'intérieur d'un SVG : sans cela, le cadre qui défile part en glisser et annule le geste
@@ -165,6 +171,7 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
   svg.addEventListener('click', surClic, true);
   svg.addEventListener('dblclick', surDoubleClic, true);
   svg.addEventListener('contextmenu', surMenu);
+  svg.addEventListener('dragstart', surGlisserNatif);
   svg.addEventListener('touchmove', surToucheBouge, { passive: false });
   document.addEventListener('keydown', surTouche);
   return () => {
@@ -179,6 +186,7 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
     svg.removeEventListener('click', surClic, true);
     svg.removeEventListener('dblclick', surDoubleClic, true);
     svg.removeEventListener('contextmenu', surMenu);
+    svg.removeEventListener('dragstart', surGlisserNatif);
     svg.removeEventListener('touchmove', surToucheBouge);
     document.removeEventListener('keydown', surTouche);
   };
