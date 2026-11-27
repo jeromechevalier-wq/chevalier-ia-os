@@ -84,9 +84,12 @@ test('1 maison avec 3 photos : photos à côté du formulaire (fondu), formulair
   if (grandEcran(info)) {
     // Grand écran : formulaire à gauche, photos à droite, sans se chevaucher (après l'ouverture douce).
     await expect.poll(async () => (await panneau.boundingBox()).width).toBeGreaterThan(600);
-    const form = await page.locator('.connexion').boundingBox();
-    const photos = await panneau.boundingBox();
-    expect(photos.x).toBeGreaterThanOrEqual(form.x + form.width - 1);
+    // Le formulaire glisse vers la gauche : attendre la fin du glissement avant de comparer.
+    await expect.poll(async () => {
+      const form = await page.locator('.connexion').boundingBox();
+      const photos = await panneau.boundingBox();
+      return photos.x - (form.x + form.width);
+    }).toBeGreaterThanOrEqual(-1);
   }
   await page.waitForTimeout(1400); // fin du fondu d'apparition
   await capturer(page, info, '1-maison-avec-photos');
