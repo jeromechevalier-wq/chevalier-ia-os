@@ -295,8 +295,14 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.equal((donneesWorkflows.match(/\borderBy\s*\(/g) || []).length, 1);
     assert.ok(debut > 0 && /orderBy\('date', 'desc'\)/.test(journal), 'lireJournal trie sur le seul champ date');
     assert.doesNotMatch(journal, /\bwhere\s*\(/, 'lireJournal : aucune condition en plus du tri');
+    // Troisième exception (village rangé par chaque utilisateur, 27/11/2026) : la lecture des maisons est bornée (limit seul, sans tri ni condition : aucun index).
+    const FICHIER_VILLAGE = 'js/os/village-donnees.js';
+    const requeteVillage = 'query(dossier(), limit(LECTURE_MAX))';
+    const donneesVillage = lire(FICHIER_VILLAGE);
+    assert.ok(donneesVillage.includes(requeteVillage), 'village : lecture bornée, sans tri ni condition');
     for (const f of sources()) {
-      const t = f === FICHIER_JOURNAL ? donnees.replace(journal, '') : f === FICHIER_AUTOMATISATIONS ? donneesWorkflows.replace(requeteWorkflows, '') : lire(f);
+      const t = f === FICHIER_JOURNAL ? donnees.replace(journal, '') : f === FICHIER_AUTOMATISATIONS ? donneesWorkflows.replace(requeteWorkflows, '')
+        : f === FICHIER_VILLAGE ? donneesVillage.replace(requeteVillage, '') : lire(f);
       assert.doesNotMatch(t, /\borderBy\s*\(/, `${f} : orderBy`);
       assert.doesNotMatch(t, /\blimit\s*\(/, `${f} : limit`);
       for (const [requete] of t.matchAll(/query\s*\([^;]*?\)\s*,/gs)) {
