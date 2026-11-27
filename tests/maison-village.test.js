@@ -479,3 +479,13 @@ test('F G D un document mal formé est noté comme ignoré ; un nom se coupe à 
   for (const fin of ['a"b', "a'b", '<b>', 'a`b', 'a\\b', 'a[0]']) assert.equal(RE_URL_LIEN.test(`https://exemple.test/${fin}`), false, fin);
   assert.equal(RE_URL_LIEN.test('https://exemple.test/a-b_c.d?e=1&f=(2)*+,;:@$!#x~%20^|{}'), true);
 });
+
+test('3a-bis les fonctions du village sont identiques dans firestore.rules et firestore.plateforme.rules', () => {
+  const bloc = (f) => {
+    const m = lire(f).match(/ {4}function villageCase[\s\S]*?\n {4}function villageBatimentValide\(id\) \{[\s\S]*?\n {4}\}\n/);
+    assert.ok(m, f);
+    return m[0];
+  };
+  assert.equal(bloc('firestore.plateforme.rules'), bloc('firestore.rules'));
+  assert.match(lire('firestore.plateforme.rules'), /match \/clients\/\{client\}\/village_utilisateurs\/\{uid\}\/batiments\/\{id\} \{\n\s+allow read, delete: if connecte\(\) && request\.auth\.uid == uid && roleDe\(client\) in \['editeur', 'lecteur'\];\n\s+allow create, update: if connecte\(\) && request\.auth\.uid == uid && roleDe\(client\) in \['editeur', 'lecteur'\] && villageBatimentValide\(id\);\n\s+\}/);
+});
