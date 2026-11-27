@@ -205,6 +205,8 @@ export function estTelephone(page) {
  * puis on lit son état par de petites lectures synchrones. Une connexion refusée échoue toujours, avec son message.
  */
 export async function connecterCompte(page, email, emailVerifie = true, reglages = null) {
+  // Attendre la fin du démarrage de la page : une connexion lancée pendant le chargement (surtout en téléphone) peut être perdue.
+  await page.waitForFunction(() => window.__chevalierTest && !document.querySelector('#app > .chargement'));
   await page.evaluate(([e, v, r]) => {
     const T = window.__chevalierTest;
     if (r) Object.assign(T, r);
