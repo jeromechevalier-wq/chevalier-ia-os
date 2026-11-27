@@ -174,7 +174,7 @@ export function toast(message, { type = 'info', duree = 3200, lien = null, actio
   const t = h('div', { class: `toast toast-${type}${lien ? ' avec-lien' : ''}` }, icone(type === 'erreur' ? 'triangle-alert' : 'circle-check', { taille: 16 }), h('span', {}, message),
     lien ? h('a', { class: 'toast-lien', href: lien.href }, lien.libelle) : null,
     // Action (ex. « Annuler » après un retrait) : un bouton dans le message, qui le ferme.
-    action ? h('button', { type: 'button', class: 'toast-action', dataset: { action: 'toast-action' }, onclick: () => { fermer(); action.surClic(); } }, action.libelle) : null);
+    action ? h('button', { type: 'button', class: 'toast-action', dataset: { action: 'toast-action' }, onclick: () => { if (ferme) return; fermer(); action.surClic(); } }, action.libelle) : null); // un message déjà fermé (double clic pendant sa sortie) ne rejoue jamais son action
   zone.append(t);
   let ferme = false;
   function fermer() {

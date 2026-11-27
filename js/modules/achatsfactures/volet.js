@@ -3,27 +3,38 @@
 // Quand une FICHE est ouverte, les trois boutons disparaissent : il ne reste que « ← » (retour à la liste) et la croix.
 // Fiche d'un fournisseur ou d'un chantier : d'abord en lecture, puis « Modifier », « Enregistrer » / « Annuler » (fiche.js : la mise en page ne bouge pas). Fiche d'un article : lecture seule.
 // LECTURES et ÉCRITURES : seulement par donnees-appli.js (client de la base ; actions métier existantes). Trois cas partout : chargement, cas vide, cas d'erreur avec « Réessayer ».
-import { h, icone, remplir, toast, confirmer } from '../../os/ui.js';
+// IBAN (correction du 27/11/2026) : il ne se saisit plus dans la fiche. Le bouton « Signaler un changement d'IBAN » retire l'ancienne confirmation (action existante `revoquer_iban`), après une
+// confirmation explicite ; le nouvel IBAN sera lu sur la prochaine facture puis confirmé après vérification. Un IBAN annoncé n'est gardé que sous sa forme masquée, dans le motif.
+// CLAVIER : à l'ouverture le focus va sur le premier bouton du volet ; après chaque redessin d'une fiche, sur son titre ; à la fermeture, il revient au bouton d'où l'on a ouvert.
+// Échap ferme le volet (sauf si une fenêtre est ouverte : Échap ferme alors la fenêtre). Sur téléphone le volet est une fenêtre (role="dialog", aria-modal) et la page ne défile pas derrière.
+import { h, icone, remplir, toast } from '../../os/ui.js';
 import { champRecherche } from '../crm/barre-liste.js';
 import { creerFiche } from './fiche.js';
+import { fenetreAction } from './fenetres.js';
 import { ibanValide, normaliserIban } from './controles.js';
 import { champsAgenceDepuis, verifierChampsAgence } from './agences.js';
 import { dateFr, nomFournisseur, SANS_FOURNISSEUR, DUREE_MESSAGE } from './logique.js';
-import { initiales, masquerIban, ibanLisible, correspond, verifierChantierFiche, LIBELLE_STATUT_CHANTIER } from './logique-appli.js';
+import { initiales, masquerIban, correspond, verifierChantierFiche, champsChantierModifies, motifChangementIban, MESSAGE_IBAN_RETIRE, LIBELLE_STATUT_CHANTIER } from './logique-appli.js';
 
 export const ONGLETS = Object.freeze([['fournisseurs', 'Fournisseurs', 'building-2'], ['chantiers', 'Chantiers', 'folder-kanban'], ['articles', 'Articles', 'tag']]);
 const TITRE = Object.fromEntries(ONGLETS.map(([id, libelle]) => [id, libelle]));
 const VIDE = { fournisseurs: 'Aucun fournisseur pour l’instant. Ils naissent des factures lues, ou du bouton « + Fournisseur ».', chantiers: 'Aucun chantier pour l’instant.', articles: 'Aucun article pour l’instant. Ils naissent des lignes des factures.' };
 const ERREUR = { fournisseurs: 'Impossible de lire les fournisseurs. Vérifie ta connexion, puis réessaie.', chantiers: 'Impossible de lire les chantiers. Vérifie ta connexion, puis réessaie.', articles: 'Impossible de lire les articles. Vérifie ta connexion, puis réessaie.' };
-const NOTE_FOURNISSEUR = 'Le nom, le SIREN, les agences et l’e-mail viennent des factures lues : ils ne se modifient pas ici pour l’instant. L’IBAN se remplace seulement s’il a été confirmé.';
-const NOTE_SANS_CONFIRMATION = 'Cet IBAN n’a jamais été confirmé : il n’y a rien à remplacer ici. Chaque facture reste contrôlée (IBAN nouveau ou changé = alerte).';
+const NOTE_FOURNISSEUR = 'Le nom, le SIREN, les agences et l’e-mail viennent des factures lues : ils ne se modifient pas ici pour l’instant. L’IBAN ne se saisit pas ici : il est lu sur les factures, puis confirmé après vérification.';
+const NOTE_CONFIRME = 'Si le fournisseur t’annonce un nouvel IBAN, signale-le : l’ancien ne sera plus reconnu.';
+const NOTE_SANS_CONFIRMATION = 'Cet IBAN n’a jamais été confirmé : il n’y a rien à signaler ici. Chaque facture reste contrôlée (IBAN nouveau ou changé = alerte).';
+const NOTE_PERIMEE = 'La liste n’a pas pu être relue : elle n’est peut-être pas à jour.';
+const LIBELLE_SIGNALER = 'Signaler un changement d’IBAN';
+const TELEPHONE = '(max-width: 767px)';
+const CLASSE_PAGE_FIGEE = 'af-volet-ouvert'; // posée sur <html> : sur téléphone, la page ne défile pas derrière le volet (css/achatsfactures-appli.css)
 
 /**
  * `donnees()` : creerDonneesAppli ; `lireFournisseurs()` : renvoie la liste DÉJÀ préparée par l'application (partagée avec les bandeaux de la pile), ou null si elle n'est pas lue ;
- * `rechargerFournisseurs()` : la relit (après une écriture) ; `surEcriture()` : prévient l'application qu'une donnée a changé (la facture affichée est relue) ; `surEtat(ouvert)`.
- * Renvoie { element, voile, ouvrir(onglet), ouvrirFiche(type, id), ouvrirNouveau(facture), fermer(), estOuvert(), arreter() }.
+ * `rechargerFournisseurs()` : la relit (après une écriture) ; `surEcriture()` : prévient l'application qu'une donnée a changé (la facture affichée est relue en silence) ; `surEtat(ouvert)` ;
+ * `boutonRepli()` : le bouton qui reçoit le focus à la fermeture quand celui d'où l'on a ouvert n'existe plus (le grand bouton « Fournisseurs, Chantiers, Articles »).
+ * Renvoie { element, voile, ouvrir(onglet), ouvrirFiche(type, id), ouvrirNouveau(facture), fermer(), estOuvert(), rafraichir(), arreter() }.
  */
-export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, surEcriture = () => {}, surEtat = () => {} }) {
+export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, surEcriture = () => {}, surEtat = () => {}, boutonRepli = () => null }) {
   let vivant = true;
   let ouvert = false;
   let onglet = 'fournisseurs';
@@ -31,12 +42,14 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
   let cle = null; // identifiant de la fiche ouverte
   let depuisFacture = null; // facture qui pré-remplit « Nouveau fournisseur »
   let recherche = '';
-  let numero = 0;
-  const cache = { chantiers: { etat: 'vide', lignes: [] }, articles: { etat: 'vide', lignes: [] } }; // etat : vide | chargement | ok | erreur
+  const numeros = { chantiers: 0, articles: 0 }; // un compteur PAR liste : la lecture d'une liste ne rend jamais caduque celle de l'autre (sinon sa roue tourne sans fin)
+  const cache = { chantiers: { etat: 'vide', lignes: [], perime: false }, articles: { etat: 'vide', lignes: [], perime: false } }; // etat : vide | chargement | ok | erreur ; perime : la dernière relecture a échoué, les anciennes lignes sont gardées
+  let origine = null; // l'élément qui avait le focus à l'ouverture : il le retrouve à la fermeture
+  let origineAction = null; // son `data-action`, pour le retrouver s'il a été redessiné entre-temps
 
   const tete = h('div', { class: 'af-volet-tete' });
   const corps = h('div', { class: 'af-volet-corps' });
-  const element = h('aside', { class: 'af-volet', hidden: true, 'aria-label': 'Fournisseurs, Chantiers, Articles', dataset: { role: 'volet' } }, tete, corps);
+  const element = h('aside', { class: 'af-volet', hidden: true, tabIndex: -1, 'aria-label': 'Fournisseurs, Chantiers, Articles', dataset: { role: 'volet' } }, tete, corps);
   const voile = h('div', { class: 'af-voile', hidden: true, dataset: { role: 'voile-volet' }, onclick: () => fermer() });
   const croix = () => h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Fermer le volet', title: 'Fermer', dataset: { action: 'fermer-volet' }, onclick: () => fermer() }, icone('x', { taille: 18 }));
   const pastille = (texte, couleur) => h('span', { class: 'af-av', 'aria-hidden': 'true', style: couleur ? { '--af-av': couleur } : null }, texte);
@@ -46,29 +59,50 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
     if (quoi === 'fournisseurs') { if (forcer || etatFournisseurs().etat === 'erreur') { const p = rechargerFournisseurs(); dessiner(); await p; } return; } // à la fin de la lecture, l'application appelle `rafraichir` (jamais par-dessus une saisie)
     const c = cache[quoi];
     if (!forcer && (c.etat === 'ok' || c.etat === 'chargement')) return;
-    const n = ++numero;
-    c.etat = 'chargement'; dessiner();
+    const n = ++numeros[quoi];
+    const avant = c.lignes;
+    cache[quoi] = { etat: 'chargement', lignes: avant, perime: false }; dessiner();
     try {
       const lignes = await (quoi === 'chantiers' ? donnees().lireChantiers() : donnees().lireArticles());
-      if (!vivant) return;
-      cache[quoi] = { etat: 'ok', lignes };
+      if (!vivant || n !== numeros[quoi]) return;
+      cache[quoi] = { etat: 'ok', lignes, perime: false };
     } catch (e) {
-      if (!vivant) return;
+      if (!vivant || n !== numeros[quoi]) return;
       console.warn(`Volet : lecture des ${quoi} impossible`, e?.code ?? e?.message);
-      cache[quoi] = { etat: 'erreur', lignes: [] };
+      // Relecture en échec alors qu'une liste était déjà là (après un enregistrement réussi, par exemple) : on garde les anciennes lignes, avec un mot et « Réessayer » ; jamais « fiche introuvable ».
+      cache[quoi] = avant.length ? { etat: 'ok', lignes: avant, perime: true } : { etat: 'erreur', lignes: [], perime: false };
     }
-    if (n === numero && onglet === quoi) dessiner();
+    if (onglet === quoi && !saisieEnCours()) dessiner();
   }
+  /** Une fiche est en cours de modification : une lecture qui finit ne la redessine pas (la saisie serait perdue). */
+  const saisieEnCours = () => vue !== 'liste' && !!corps.querySelector('[data-role="fiche"][data-mode="modification"]');
   const etatDe = (quoi) => (quoi === 'fournisseurs' ? etatFournisseurs() : cache[quoi]);
 
   // ------------------------------------------------------------ dessin
-  function dessiner() {
+  const visible = (el) => !!el && el.isConnected && el.getClientRects().length > 0;
+  const poserFocus = (el) => { try { el?.focus({ preventScroll: false }); } catch { /* élément retiré entre-temps */ } };
+
+  /**
+   * Redessine le volet. Le focus clavier ne se perd jamais derrière le volet : `focus: 'ouverture'` le pose sur le premier bouton ; sinon, s'il était dans le volet (ou nulle part :
+   * l'élément qui le portait vient d'être redessiné), il va sur le titre de la fiche, ou sur le bouton de la liste active (ou reste dans la recherche). S'il est ailleurs dans la page, on n'y touche pas.
+   */
+  function dessiner({ focus = 'garder' } = {}) {
     if (!vivant || !ouvert) return;
+    const actif = document.activeElement;
+    const dedans = !actif || actif === document.body || element.contains(actif);
+    const recherchait = !!actif && element.contains(actif) && actif.matches?.('input[type="search"]');
+    const curseur = recherchait ? actif.selectionStart : null;
     element.dataset.vue = vue;
     element.dataset.onglet = onglet;
     if (vue === 'liste') dessinerListe();
     else if (vue === 'nouveau') dessinerNouveau();
     else dessinerFiche();
+    if (focus === 'ouverture') { poserFocus(tete.querySelector('button') ?? element); return; }
+    if (!dedans || document.querySelector('.voile-dialogue')) return; // une fenêtre ouverte garde son focus
+    if (vue !== 'liste') { poserFocus(corps.querySelector('[data-role="fiche-titre"]') ?? tete.querySelector('button')); return; }
+    const champ = recherchait ? corps.querySelector('input[type="search"]') : null;
+    if (champ) { poserFocus(champ); try { champ.setSelectionRange(curseur, curseur); } catch { /* type de champ sans sélection */ } return; }
+    poserFocus(tete.querySelector('button.actif') ?? tete.querySelector('button'));
   }
 
   function teteListe() {
@@ -106,7 +140,7 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
       if (visibles.length === 0) return etatBloc('status', { etat: 'sans-resultat' }, h('p', {}, 'Rien ne correspond à ta recherche.'));
       return h('ul', { class: 'af-liste', dataset: { role: 'volet-liste' } }, visibles.map(ligne));
     }
-    remplir(corps, outils, zone);
+    remplir(corps, outils, notePerimee(onglet), zone);
     remplir(zone, lignes());
   }
 
@@ -125,14 +159,21 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
     return h('li', {}, h('button', { type: 'button', class: 'af-ligne', dataset: { fiche: x.id }, onclick: () => { vue = 'fiche'; cle = x.id; dessiner(); } }, contenu));
   }
 
-  const titreFiche = (nom, sous, marque) => h('div', { class: 'af-fiche-nom' }, pastille(marque), h('div', {}, h('h2', { dataset: { role: 'fiche-titre' } }, nom), h('p', { class: 'aide' }, sous)));
+  /** Une liste gardée après une relecture en échec : un mot, et « Réessayer ». */
+  const notePerimee = (quoi) => (quoi !== 'fournisseurs' && cache[quoi].perime ? h('p', { class: 'aide af-perime', role: 'status', dataset: { role: 'liste-perimee' } }, NOTE_PERIMEE, ' ',
+    h('button', { type: 'button', class: 'af-lien-mini', dataset: { action: 'reessayer' }, onclick: () => { void charger(quoi, true); } }, 'Réessayer')) : null);
+  const titreFiche = (nom, sous, marque) => h('div', { class: 'af-fiche-nom' }, pastille(marque), h('div', {}, h('h2', { tabIndex: -1, dataset: { role: 'fiche-titre' } }, nom), h('p', { class: 'aide' }, sous)));
+  const roue = () => h('div', { class: 'chargement-bloc', role: 'status', dataset: { etat: 'chargement' } }, h('span', { class: 'rond-chargement' }), h('span', { class: 'aide' }, 'Chargement…'));
   const introuvable = (type) => { teteFiche(type); remplir(corps, etatBloc('status', { etat: 'vide' }, h('p', {}, 'Cette fiche est introuvable : elle a peut-être été retirée.'))); };
+  /** La fiche ne peut pas être montrée parce que la lecture a échoué (ce n'est PAS « introuvable ») : le message, et « Réessayer ». */
+  const ficheIllisible = (type) => { teteFiche(type); remplir(corps, etatBloc('alert', { etat: 'erreur' }, h('p', { class: 'mon-espace-erreur' }, ERREUR[type]),
+    h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'reessayer' }, onclick: () => { void charger(type, true); } }, icone('refresh-cw', { taille: 16 }), 'Réessayer'))); };
 
   function dessinerFiche() {
     if (onglet === 'fournisseurs') { dessinerFournisseur(); return; }
     teteFiche(onglet);
     const x = cache[onglet].lignes.find((l) => l.id === cle);
-    if (!x) { introuvable(onglet); return; }
+    if (!x) { const etat = cache[onglet].etat; if (etat === 'chargement' || etat === 'vide') remplir(corps, roue()); else if (etat === 'erreur') ficheIllisible(onglet); else introuvable(onglet); return; }
     if (onglet === 'articles') {
       remplir(corps, titreFiche(x.designation?.trim() || x.reference || 'Article sans nom', 'Fiche article', icone('tag', { taille: 18 })),
         creerFiche({ lignes: [
@@ -151,31 +192,39 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
       surEnregistrer: async (v) => {
         const probleme = verifierChantierFiche(v);
         if (probleme) throw new Error(probleme);
+        const modifies = champsChantierModifies(x, v);
         const change = await donnees().enregistrerChantier(x, v);
         if (!vivant) return;
-        if (change) { toast('Chantier enregistré', { duree: DUREE_MESSAGE }); await charger('chantiers', true); surEcriture(); } else dessiner();
+        if (!change) { dessiner(); return; }
+        Object.assign(x, modifies); // l'enregistrement a réussi : la fiche montre tout de suite les nouvelles valeurs, même si la relecture qui suit échoue
+        toast('Chantier enregistré', { duree: DUREE_MESSAGE });
+        await charger('chantiers', true);
+        surEcriture();
       },
     });
-    remplir(corps, titreFiche(x.nom, 'Fiche chantier', icone('folder-kanban', { taille: 18 })), fiche.element);
+    remplir(corps, titreFiche(x.nom, 'Fiche chantier', icone('folder-kanban', { taille: 18 })), notePerimee('chantiers'), fiche.element);
   }
 
   function dessinerFournisseur() {
     teteFiche('fournisseurs');
     const e = etatFournisseurs();
     const fo = e.lignes.find((l) => l.id === cle);
-    if (!fo) { if (e.etat === 'chargement' || e.etat === 'vide') remplir(corps, h('div', { class: 'chargement-bloc', role: 'status', dataset: { etat: 'chargement' } }, h('span', { class: 'rond-chargement' }))); else introuvable('fournisseurs'); return; }
+    if (!fo) { if (e.etat === 'chargement' || e.etat === 'vide') remplir(corps, roue()); else if (e.etat === 'erreur') ficheIllisible('fournisseurs'); else introuvable('fournisseurs'); return; }
     const agences = fo.agences.map((a) => [a.nom_agence, a.ville].filter(Boolean).join(' · ') || (a.siret ? `SIRET ${a.siret}` : 'Agence')).join(' ; ') || '—';
     const villes = [...new Set(fo.agences.map((a) => a.ville?.trim()).filter(Boolean))].join(', ') || '—';
-    const ibanTexte = !fo.ibansLus ? 'Non lu' : fo.iban ? `${masquerIban(fo.iban)}${fo.confirmation ? ' · confirmé' : ' · jamais confirmé'}` : '—';
+    // L'IBAN (masqué) a sa case à lui ; « confirmé ou non » est dit sur la ligne suivante : rien n'est coupé, même sur téléphone.
+    const ibanTexte = !fo.ibansLus ? 'Non lu' : fo.iban ? masquerIban(fo.iban) : '—';
+    const confirmeTexte = !fo.ibansLus ? 'Non lu' : fo.confirmation ? `Oui, le ${dateFr(fo.confirmation.confirme_le)}` : fo.iban ? 'Non, jamais' : '—';
+    const signaler = fo.confirmation ? h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'signaler-iban' }, onclick: () => { void signalerChangementIban(fo); } }, icone('triangle-alert', { taille: 16 }), LIBELLE_SIGNALER) : null;
     const fiche = creerFiche({
       lignes: [
         { cle: 'nom', libelle: 'Nom', valeur: fo.nom }, { cle: 'siren', libelle: 'SIREN', valeur: fo.siren ?? '—' },
         { cle: 'agences', libelle: 'Agence(s)', valeur: agences }, { cle: 'adresse', libelle: 'Adresse', valeur: villes }, { cle: 'email', libelle: 'E-mail', valeur: fo.email ?? '—' },
-        { cle: 'iban', libelle: 'IBAN', valeur: ibanTexte, saisie: fo.confirmation ? ibanLisible(fo.iban) : '', modifiable: !!fo.confirmation, placeholder: 'FR76 …', classe: 'af-iban' },
+        { cle: 'iban', libelle: 'IBAN', valeur: ibanTexte, classe: 'af-iban' }, { cle: 'iban-confirme', libelle: 'IBAN confirmé', valeur: confirmeTexte },
         { cle: 'nb', libelle: 'Nombre de factures', valeur: fo.nbFactures === null ? '—' : String(fo.nbFactures) }, { cle: 'derniere', libelle: 'Dernière facture', valeur: fo.derniere ? dateFr(fo.derniere) : '—' },
       ],
-      note: fo.confirmation ? NOTE_FOURNISSEUR : `${NOTE_FOURNISSEUR} ${NOTE_SANS_CONFIRMATION}`,
-      surEnregistrer: (v) => enregistrerFournisseur(fo, v),
+      note: `${NOTE_FOURNISSEUR} ${fo.confirmation ? NOTE_CONFIRME : fo.iban && fo.ibansLus ? NOTE_SANS_CONFIRMATION : ''}`.trim(),
+      actionsLecture: signaler ? [signaler] : [],
     });
     const alerte = fo.changement ? h('div', { class: 'af-alerte', role: 'status', dataset: { role: 'alerte-iban-fiche' } }, icone('triangle-alert', { taille: 16 }),
       h('div', {}, h('b', {}, `L’IBAN a été changé le ${dateFr(fo.changement.date)}`), h('span', {}, 'Ses prochaines factures portent une alerte orange : appelle le fournisseur sur un numéro que tu connais déjà avant de payer.'))) : null;
@@ -185,20 +234,30 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
     remplir(corps, titreFiche(fo.nom, 'Fiche fournisseur', initiales(fo.nom)), alerte, fiche.element, historique);
   }
 
-  /** IBAN remplacé : l'ancienne confirmation est révoquée (action existante), avec le nouvel IBAN dans le motif. Le nouvel IBAN n'est PAS confirmé d'office : il se confirme après vérification. */
-  async function enregistrerFournisseur(fo, v) {
-    const nouveau = normaliserIban(v.iban);
-    if (!fo.confirmation || nouveau === normaliserIban(fo.iban)) { dessiner(); return undefined; } // rien n'a changé : retour à la lecture
-    if (!nouveau) throw new Error('Écris le nouvel IBAN, ou clique sur « Annuler ».');
-    if (!ibanValide(nouveau)) throw new Error('Cet IBAN n’est pas valide (format ou clé de contrôle) : vérifie les caractères.');
-    const ok = await confirmer('Remplacer l’IBAN ?', `L’IBAN confirmé de ${fo.nom} ne sera plus reconnu : ses prochaines factures porteront une alerte orange, le temps de vérifier le nouvel IBAN.`, { libelleOk: 'Remplacer l’IBAN' });
-    if (!ok) return false;
-    await donnees().revoquerIban(fo.confirmation.id, `IBAN remplacé depuis la fiche du fournisseur. Nouvel IBAN annoncé : ${ibanLisible(nouveau)}`);
-    if (!vivant) return undefined;
-    toast('Fiche enregistrée · IBAN changé : alerte sur ses prochaines factures', { duree: DUREE_MESSAGE });
-    await rechargerFournisseurs();
+  /**
+   * « Signaler un changement d'IBAN » : après une confirmation explicite, l'ancienne confirmation est révoquée (action existante). Rien d'autre n'est écrit : le nouvel IBAN sera lu sur la
+   * prochaine facture, puis confirmé après vérification. Si la personne écrit l'IBAN qu'on lui annonce, seule sa forme masquée va dans le motif (jamais l'IBAN entier).
+   * La fenêtre reste ouverte si le serveur refuse (son message y est dit).
+   */
+  async function signalerChangementIban(fo) {
+    const champ = h('input', { type: 'text', class: 'champ af-iban', placeholder: 'FR76 …', 'aria-label': 'Nouvel IBAN annoncé (facultatif)', autocomplete: 'off', spellcheck: false, dataset: { champ: 'nouvel-iban' } });
+    const r = await fenetreAction({
+      titre: 'Signaler un changement d’IBAN ?', libelle: 'Retirer l’ancien IBAN',
+      contenu: () => [
+        h('p', {}, `L’IBAN confirmé de ${fo.nom} (${masquerIban(fo.iban)}) ne sera plus reconnu : ses prochaines factures porteront une alerte orange. Le nouvel IBAN sera lu sur sa prochaine facture, puis confirmé après vérification.`),
+        h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Nouvel IBAN annoncé (facultatif)'), champ),
+        h('p', { class: 'aide' }, 'Il sert seulement de trace : il n’est gardé que masqué (4 premiers et 4 derniers caractères), et il n’est pas confirmé.')],
+      executer: async () => {
+        const nouveau = normaliserIban(champ.value);
+        if (nouveau && !ibanValide(nouveau)) throw new Error('Cet IBAN n’est pas valide (format ou clé de contrôle) : vérifie les caractères, ou laisse le champ vide.');
+        if (nouveau && nouveau === normaliserIban(fo.iban)) throw new Error('C’est l’IBAN déjà confirmé : il n’y a pas de changement à signaler.');
+        await donnees().revoquerIban(fo.confirmation.id, motifChangementIban(nouveau));
+      },
+    });
+    if (!r?.ok || !vivant) return;
+    toast(MESSAGE_IBAN_RETIRE, { duree: DUREE_MESSAGE });
+    await rechargerFournisseurs(); // en échec : la fiche dit « impossible de lire » avec « Réessayer », jamais « introuvable » ni l'ancien IBAN « confirmé »
     if (vivant) { dessiner(); surEcriture(); }
-    return undefined;
   }
 
   function dessinerNouveau() {
@@ -232,33 +291,58 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
         surEcriture();
       },
     });
-    remplir(corps, h('h2', { class: 'af-titre-nouveau', dataset: { role: 'fiche-titre' } }, 'Nouveau fournisseur'),
+    remplir(corps, h('h2', { class: 'af-titre-nouveau', tabIndex: -1, dataset: { role: 'fiche-titre' } }, 'Nouveau fournisseur'),
       f ? h('p', { class: 'af-info', dataset: { role: 'prerempli' } }, icone('check', { taille: 16 }), `Pré-rempli depuis la facture${f.numero ? ` ${f.numero}` : ''}${f.date_facture ? ` du ${dateFr(f.date_facture)}` : ''}. Vérifie avant d’enregistrer.`) : null,
       fiche.element);
   }
 
   // ------------------------------------------------------------ ouverture, fermeture
+  /** Échap ferme le volet. Écouteur posé à l'ouverture, retiré à la fermeture ; en phase de capture, pour voir une fenêtre AVANT qu'elle se ferme (son Échap ne ferme qu'elle). */
+  function surTouche(e) {
+    if (e.key !== 'Escape' || !ouvert || e.defaultPrevented) return;
+    if (document.querySelector('.voile-dialogue, .menu-pop, .suggestions:not([hidden])')) return;
+    e.preventDefault();
+    fermer();
+  }
   function montrer() {
     const avant = ouvert;
+    if (!avant) {
+      const a = document.activeElement;
+      origine = a && a !== document.body && !element.contains(a) ? a : null;
+      origineAction = origine?.dataset?.action ?? null;
+    }
     ouvert = true;
     element.hidden = false; voile.hidden = false;
     element.classList.toggle('af-volet-entre', !avant); // l'animation d'arrivée ne joue qu'à l'ouverture, pas à chaque changement de liste
-    dessiner();
+    if (!avant) {
+      // Sur téléphone, le volet couvre la page : c'est une fenêtre (annoncée comme telle), et la page ne défile pas derrière.
+      const tel = typeof window.matchMedia === 'function' && window.matchMedia(TELEPHONE).matches;
+      if (tel) { element.setAttribute('role', 'dialog'); element.setAttribute('aria-modal', 'true'); } else { element.removeAttribute('role'); element.removeAttribute('aria-modal'); }
+      document.documentElement.classList.add(CLASSE_PAGE_FIGEE);
+      document.addEventListener('keydown', surTouche, true);
+    }
+    dessiner({ focus: avant ? 'garder' : 'ouverture' });
     if (!avant) surEtat(true);
   }
   function ouvrir(quoi = 'fournisseurs') { onglet = quoi; vue = 'liste'; cle = null; depuisFacture = null; recherche = ''; montrer(); void charger(quoi); }
   function ouvrirFiche(type, id) { onglet = type; vue = 'fiche'; cle = id; depuisFacture = null; montrer(); void charger(type); }
   function ouvrirNouveau(facture) { onglet = 'fournisseurs'; vue = 'nouveau'; cle = null; depuisFacture = facture ?? null; montrer(); }
+  const liberer = () => { document.removeEventListener('keydown', surTouche, true); document.documentElement.classList.remove(CLASSE_PAGE_FIGEE); };
   function fermer() {
     if (!ouvert) return;
+    const avaitFocus = !document.activeElement || document.activeElement === document.body || element.contains(document.activeElement);
     ouvert = false; vue = 'liste'; cle = null; depuisFacture = null; // une saisie en cours est jetée : la croix vaut « Annuler »
     element.hidden = true; voile.hidden = true;
     remplir(corps);
+    liberer();
     surEtat(false);
+    // Le focus revient au bouton d'où l'on a ouvert ; s'il a été redessiné, à celui qui le remplace ; sinon au grand bouton.
+    if (avaitFocus) poserFocus([origine, origineAction ? [...document.querySelectorAll(`[data-action="${origineAction}"]`)].find(visible) : null, boutonRepli()].find(visible));
+    origine = null; origineAction = null;
   }
 
   /** Les fournisseurs viennent d'être relus par l'application : la liste (ou une fiche encore en chargement) se redessine ; une saisie en cours n'est jamais écrasée. */
-  function rafraichir() { if (ouvert && onglet === 'fournisseurs' && (vue === 'liste' || corps.querySelector('[data-etat="chargement"]'))) dessiner(); }
+  function rafraichir() { if (ouvert && onglet === 'fournisseurs' && (vue === 'liste' || corps.querySelector('[data-etat="chargement"], [data-etat="erreur"]'))) dessiner(); }
 
-  return { element, voile, ouvrir, ouvrirFiche, ouvrirNouveau, fermer, estOuvert: () => ouvert, rafraichir, arreter: () => { vivant = false; } };
+  return { element, voile, ouvrir, ouvrirFiche, ouvrirNouveau, fermer, estOuvert: () => ouvert, rafraichir, arreter: () => { vivant = false; liberer(); } };
 }

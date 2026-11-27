@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
-  DUREES, COURBE_ENTREE, VUES_APPLI, JOURS_ALERTE_IBAN, initiales, masquerIban, ibanLisible, sirenFacture, jourParis, changementIbanRecent, fournisseursDuVolet, fournisseurDeFacture,
+  DUREES, COURBE_ENTREE, VUES_APPLI, JOURS_ALERTE_IBAN, initiales, masquerIban, ibanLisible, sirenFacture, jourParis, changementIbanRecent, changementDansConfirmations, fournisseursDuVolet, fournisseurDeFacture, etatFournisseurFacture, motifChangementIban, MESSAGE_IBAN_RETIRE,
   verifierChantierFiche, champsChantierModifies, semaineIso, chiffresTableau, libelleMois, delaiLisible, bilanDuJour, texteBilan, correspond,
 } from '../js/modules/achatsfactures/logique-appli.js';
 import { creerDonneesAppli } from '../js/modules/achatsfactures/donnees-appli.js';
@@ -33,6 +33,32 @@ describe('7 IBAN changé récemment (confirmations d\'IBAN existantes, aucune ta
     const second = conf({ id: 'c2', iban: IBAN_B, confirme_le: '2026-11-25T09:00:00Z' });
     assert.deepEqual(changementIbanRecent([conf(), second], '500000005', MAINTENANT), { date: '2026-11-25T09:00:00Z', motif: '' });
     assert.equal(changementIbanRecent([conf({ confirme_le: '2026-11-25T09:00:00Z' })], '500000005', MAINTENANT), null);
+  });
+  test('C8 une révocation ne compte pas si le MÊME IBAN a une confirmation active plus récente (il a été reconfirmé) ; un autre IBAN reconfirmé ne l\'efface pas', () => {
+    const rev = conf({ revoque_le: '2026-11-20T09:00:00Z', motif_revocation: 'Erreur de saisie' });
+    const reconfirme = conf({ id: 'c2', confirme_le: '2026-11-21T09:00:00Z' });
+    assert.equal(changementIbanRecent([rev, reconfirme], '500000005', MAINTENANT), null);
+    assert.equal(changementDansConfirmations([rev, reconfirme], MAINTENANT), null);
+    // Une confirmation active du même IBAN mais PLUS ANCIENNE que la confirmation révoquée ne l'efface pas ; ni celle d'un autre IBAN (qui est, elle, un changement).
+    assert.deepEqual(changementDansConfirmations([conf({ confirme_le: '2026-07-01T08:00:00Z', revoque_le: '2026-11-20T09:00:00Z', motif_revocation: 'm' }), conf({ id: 'c0', confirme_le: '2026-01-01T08:00:00Z' })], MAINTENANT), { date: '2026-11-20T09:00:00Z', motif: 'm' });
+    assert.deepEqual(changementDansConfirmations([rev, conf({ id: 'c3', iban: IBAN_B, confirme_le: '2026-11-22T09:00:00Z' })], MAINTENANT), { date: '2026-11-22T09:00:00Z', motif: '' });
+  });
+  test('C8 les confirmations d\'un fournisseur ne sont pas retriées par SIREN : un fournisseur sans SIREN (ou une confirmation rattachée par sa fiche seulement) garde son alerte', () => {
+    const rev = conf({ siren: null, fournisseur_id: 'fo7', revoque_le: '2026-11-20T09:00:00Z', motif_revocation: 'm' });
+    const [sansSiren] = fournisseursDuVolet({ fournisseurs: [{ id: 'fo7', siren: null, nom: 'Sans Siren' }], agences: [], ibans: [rev], factures: [] }, MAINTENANT);
+    assert.deepEqual(sansSiren.changement, { date: '2026-11-20T09:00:00Z', motif: 'm' });
+    const [autreSiren] = fournisseursDuVolet({ fournisseurs: [{ id: 'fo7', siren: '500000021', nom: 'Siren corrigé' }], agences: [], ibans: [conf({ fournisseur_id: 'fo7', revoque_le: '2026-11-20T09:00:00Z' })], factures: [] }, MAINTENANT);
+    assert.equal(autreSiren.changement?.date, '2026-11-20T09:00:00Z');
+    assert.equal(changementDansConfirmations(null, MAINTENANT), null);
+  });
+  test('C3 changement d\'IBAN signalé : le motif ne contient jamais l\'IBAN entier, seulement sa forme masquée ; sans IBAN annoncé, rien de plus', () => {
+    const motif = motifChangementIban('FR48 1027 8000 0100 0200 0000 001');
+    assert.equal(motif, 'Changement d’IBAN signalé depuis la fiche du fournisseur. Nouvel IBAN annoncé : FR48 •••• 0001.');
+    assert.doesNotMatch(motif.replace(/\s/g, ''), /FR4810278000010002000000001/);
+    assert.doesNotMatch(motif, /1027|8000|0200/);
+    assert.equal(motifChangementIban(''), 'Changement d’IBAN signalé depuis la fiche du fournisseur.');
+    assert.equal(motifChangementIban(null), 'Changement d’IBAN signalé depuis la fiche du fournisseur.');
+    assert.equal(MESSAGE_IBAN_RETIRE, 'Ancien IBAN retiré : le nouveau sera confirmé à la prochaine facture');
   });
 });
 
@@ -72,7 +98,22 @@ describe('5, 6 et 8 fournisseurs du volet et fournisseur d\'une facture', () => 
     assert.equal(pq.confirmation, null);
     assert.equal(pq.iban, IBAN_A);
   });
-  test('5 et 8 le fournisseur d\'une facture se trouve par son SIREN (colonne, sinon lecture automatique) ; inconnu ou sans SIREN : null (bandeau « Nouveau fournisseur »)', () => {
+  test('C6 SIREN non lu : repli sur l\'agence reliée (agence → fournisseur), puis sur le nom exact ; sinon « non reconnu », jamais « nouveau » ; un SIREN lu mais inconnu ne se rattrape pas par le nom', () => {
+    const liste = fournisseursDuVolet(lu, MAINTENANT);
+    assert.equal(fournisseurDeFacture({ fournisseur_siren: null, extraction: null, etablissement_id: 'ag1', fournisseur: 'Nom mal lu' }, liste).id, 'fo1');
+    assert.equal(fournisseurDeFacture({ fournisseur_siren: null, extraction: null, fournisseur: ' point q MATERIAUX ' }, liste).id, 'fo1');
+    assert.equal(fournisseurDeFacture({ fournisseur_siren: null, extraction: { fournisseur: { nom: 'Zinc et Fer', siret: null, siren: null } } }, liste).id, 'fo2');
+    assert.equal(fournisseurDeFacture({ fournisseur_siren: null, extraction: null, fournisseur: 'Point Q' }, liste), null); // nom EXACT seulement
+    assert.equal(fournisseurDeFacture({ fournisseur_siren: '999999999', fournisseur: 'Point Q Matériaux' }, liste), null); // même nom, autre SIREN : pas la même entreprise
+    assert.equal(fournisseurDeFacture({ fournisseur_siren: '999999999', etablissement_id: 'ag1' }, liste).id, 'fo1'); // l'agence reliée fait foi
+    const homonymes = [...liste, { ...liste[0], id: 'fo3', siren: '500000039' }];
+    assert.equal(fournisseurDeFacture({ fournisseur_siren: null, fournisseur: liste[0].nom }, homonymes), null); // deux fournisseurs du même nom : on ne devine pas
+    assert.deepEqual(etatFournisseurFacture({ fournisseur_siren: '500000005' }, liste).etat, 'connu');
+    assert.deepEqual(etatFournisseurFacture({ fournisseur_siren: '999999999' }, liste), { etat: 'nouveau', fournisseur: null });
+    assert.deepEqual(etatFournisseurFacture({ fournisseur_siren: null, extraction: null, fournisseur: 'Inconnu au bataillon' }, liste), { etat: 'non-reconnu', fournisseur: null });
+    assert.equal(etatFournisseurFacture({ fournisseur_siren: null, extraction: null, fournisseur: 'Zinc et Fer' }, liste).fournisseur.id, 'fo2');
+  });
+  test('5 et 8 le fournisseur d\'une facture se trouve par son SIREN (colonne, sinon lecture automatique) ; SIREN inconnu, ou ni SIREN ni nom : null', () => {
     const liste = fournisseursDuVolet(lu, MAINTENANT);
     assert.equal(fournisseurDeFacture({ fournisseur_siren: '500000005' }, liste).id, 'fo1');
     assert.equal(fournisseurDeFacture({ fournisseur_siren: null, extraction: { fournisseur: { siret: '50000002100005' } } }, liste).id, 'fo2');
@@ -230,6 +271,23 @@ describe('verrous écrits', () => {
     }
     assert.match(appli, /arrets\.push\(\(\) => \{ sortirFocus\(\{ sansFocus: true \}\); pile\.arreter\(\); volet\.arreter\(\); \}\);/);
     assert.doesNotMatch(appli, /window\.addEventListener/);
+  });
+  test('C1 double clic sur « Annuler » : le message fermé ne rejoue pas son action, et la pile garde les annulations en cours ; le bilan de la séance ne descend jamais sous zéro', () => {
+    const pile = lire('js/modules/achatsfactures/pile.js');
+    assert.match(lire('js/os/ui.js'), /onclick: \(\) => \{ if \(ferme\) return; fermer\(\); action\.surClic\(\); \}/);
+    assert.match(pile, /if \(annulations\.includes\(id\) \|\| !traitees\.has\(id\)\) return;\n    annulations\.push\(id\);/);
+    assert.match(pile, /seance\.acceptees = Math\.max\(0, seance\.acceptees - 1\)/);
+    assert.match(pile, /seance\.refusees = Math\.max\(0, seance\.refusees - 1\)/);
+  });
+  test('C5 volet : l\'écouteur de la touche Échap et le blocage du défilement posés à l\'ouverture sont retirés à la fermeture et à l\'arrêt de l\'écran', () => {
+    const volet = lire('js/modules/achatsfactures/volet.js');
+    assert.equal([...volet.matchAll(/document\.addEventListener\('keydown', surTouche, true\)/g)].length, 1);
+    assert.match(volet, /const liberer = \(\) => \{ document\.removeEventListener\('keydown', surTouche, true\); document\.documentElement\.classList\.remove\(CLASSE_PAGE_FIGEE\); \};/);
+    assert.match(volet, /remplir\(corps\);\n    liberer\(\);/);
+    assert.match(volet, /arreter: \(\) => \{ vivant = false; liberer\(\); \}/);
+    assert.match(css, /html\.af-volet-ouvert \{ overflow: hidden; \}/);
+    assert.match(css, /\.af-haut \{[^}]*padding-top: var\(--af-encoche\)/);
+    assert.match(css, /--af-encoche: env\(safe-area-inset-top, 0px\)/);
   });
   test('1 routes de l\'appli et coque : pile, tableau, réglages ; la coque cache son menu sur ces trois écrans seulement', () => {
     assert.deepEqual([...VUES_APPLI], ['pile', 'tableau', 'reglages']);

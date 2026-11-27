@@ -3,6 +3,9 @@
 //  1 en-tête (maison › Factures ; statistiques puis roue dentée ; ni menu ni tuiles) ; 2 tableau de bord des factures ; 3 volet (à droite ; du bas sur téléphone) ; 4 fiche : plus de boutons de choix ;
 //  5 clic sur le fournisseur d'une facture ; 6 fiche : la mise en page ne bouge pas en modification ; 7 IBAN modifié : alerte orange ; 8 « Nouveau fournisseur détecté » et « + Fournisseur » ;
 //  9 plein écran et touches V, R, P, Échap ; 10 bilan de fin de pile ; 11 animations ; 12 la règle générale tient sur les trois écrans de l'appli.
+// Corrections de la relecture (27/11/2026), un test par défaut, nommé « C<numéro> » : C1 double clic sur « Annuler » ; C2 relecture silencieuse après une écriture du volet ;
+//  C3 changement d'IBAN signalé (tests 6 et 7) ; C4 « Annuler » pendant qu'une décision s'écrit ; C5 focus, Échap et fenêtre du volet ; C6 fournisseur non reconnu ; C7 roue du volet ;
+//  C8 alerte IBAN (tests unitaires) ; C9 relecture en échec après un enregistrement réussi ; C10 bandeaux de la facture précédente ; C11 touche V pendant un chargement ou une écriture.
 // Captures dans tests/e2e/captures/achatsfactures-appli/ (non commitées), nommées avec le projet : ordinateur ou telephone.
 import { fileURLToPath } from 'node:url';
 import { test, expect, connecter, ecrireDocument, estTelephone, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
@@ -46,19 +49,20 @@ const IBANS = [{ id: 'ib1', fournisseur_id: 'fo1', siren: SIREN_PP, iban: IBAN_C
 
 /** Trois factures à valider : a1 (Point Q Matériaux, fournisseur connu), a14 (Point Q Matériaux, doublon), a12 (Ferronnerie du Verdon, fournisseur INCONNU de la table). Les factures décidées sont anciennes. */
 const ARRIVEES = { a1: '2026-11-18T08:00:00Z', a14: '2026-11-19T08:00:00Z', a12: '2026-11-20T08:00:00Z' };
-const lignesTable = ({ sansAValider = false } = {}) => listeComplete()
+const lignesTable = ({ sansAValider = false, retouches = {} } = {}) => listeComplete()
   .filter((f) => (f.statut === 'a_valider' ? !sansAValider && f.id in ARRIVEES : true))
-  .map((f) => { const { chantiers, etablissements_fournisseur, ...r } = f;
+  .map((f) => { const { chantiers, etablissements_fournisseur, ...r } = { ...f, ...(retouches[f.id] ?? {}) };
     return { ...r, created_at: ARRIVEES[f.id] ?? '2025-03-01T08:00:00Z', date_decision: r.date_decision ? '2025-03-03T08:00:00Z' : null, chantier_id: null, etablissement_id: null, fichier_path: `espace-essai/${f.id}.pdf`, courriel_id: null, alertes_a_la_decision: null, motif_acceptation: null, archivee_par: null }; });
 
 /**
  * Faux réseau posé AVANT le chargement : lectures filtrées comme le ferait la base, stockage, tickets, webhook de validation et actions métier (rouvrir, revoquer_iban, creer_agence, modifier_chantier).
- * `options` : { sansAValider, decideesCeMois (h1 acceptée et h2 refusée « maintenant »), fournisseursEnPanne }. Les décisions sont datées de l'instant du test (bilan du jour).
+ * `options` : { sansAValider, decideesCeMois (h1 acceptée et h2 refusée « maintenant »), fournisseursEnPanne, retouches ({ idFacture: champs remplacés }), ibans }. Les décisions sont datées de l'instant du test (bilan du jour).
+ * Pendant le test : `window.__faux.fournisseursEnPanne` / `chantiersEnPanne` (pannes), et `retenir` / `lacher` (une réponse retenue le temps de regarder l'écran qui attend).
  */
 async function poserFauxReseau(page, options = {}) {
   await page.addInitScript(({ factures, chantiers, agences, fournisseurs, articles, ibans, lignesA1, decideesCeMois, fournisseursEnPanne }) => {
     const maintenant = () => new Date().toISOString();
-    const faux = { factures: structuredClone(factures), chantiers: structuredClone(chantiers), agences: structuredClone(agences), fournisseurs: structuredClone(fournisseurs), articles, ibans: structuredClone(ibans), fournisseursEnPanne };
+    const faux = { factures: structuredClone(factures), chantiers: structuredClone(chantiers), agences: structuredClone(agences), fournisseurs: structuredClone(fournisseurs), articles, ibans: structuredClone(ibans), fournisseursEnPanne, chantiersEnPanne: false, attentes: [] };
     if (decideesCeMois) for (const f of faux.factures) {
       if (f.id === 'h1') Object.assign(f, { date_decision: maintenant(), created_at: new Date(Date.now() - 24 * 3600 * 1000).toISOString() });
       if (f.id === 'h2') Object.assign(f, { date_decision: maintenant(), archivee_le: null });
@@ -78,13 +82,14 @@ async function poserFauxReseau(page, options = {}) {
     const fetchImpl = async (url, init = {}) => {
       const u = new URL(url);
       const corps = init.body && typeof init.body === 'string' ? JSON.parse(init.body) : null;
-      window.__appels.push({ methode: init.method, chemin: u.pathname, corps });
+      window.__appels.push({ methode: init.method, chemin: u.pathname, corps, id: u.searchParams.get('id') });
+      for (const a of [...faux.attentes]) if (a.chemin === u.pathname && (!a.id || u.searchParams.get('id') === `eq.${a.id}`) && (!a.factureId || corps?.facture_id === a.factureId)) await a.promesse; // réponse retenue par le test
       if (u.pathname === '/rest/v1/factures') {
         const select = u.searchParams.get('select') ?? '';
         if (select === 'id,extraction') return liste(faux.factures.filter((f) => f.statut === 'a_valider').map((f) => ({ id: f.id, extraction: f.extraction })));
         return liste(trier(filtre(faux.factures, u, ['id', 'statut', 'fournisseur_siren', 'iban_normalise']), u).map(({ extraction, ...r }) => (select.includes('extraction') ? { extraction, ...r } : r)));
       }
-      if (u.pathname === '/rest/v1/chantiers') return liste(filtre(faux.chantiers, u, ['id']));
+      if (u.pathname === '/rest/v1/chantiers') return faux.chantiersEnPanne ? rep({ message: 'panne' }, 500) : liste(filtre(faux.chantiers, u, ['id']));
       if (u.pathname === '/rest/v1/etablissements_fournisseur') return liste(faux.agences);
       if (u.pathname === '/rest/v1/fournisseurs') return faux.fournisseursEnPanne ? rep({ message: 'panne' }, 500) : liste(faux.fournisseurs);
       if (u.pathname === '/rest/v1/articles_fournisseur') return liste(faux.articles);
@@ -118,6 +123,16 @@ async function poserFauxReseau(page, options = {}) {
   await page.route('**/storage/v1/object/sign/**', (route) => route.fulfill({ status: 200, contentType: 'application/pdf', headers: { 'access-control-allow-origin': '*' }, body: pdfFictif() }));
 }
 const appelsVers = (page, chemin) => page.evaluate((c) => window.__appels.filter((a) => a.chemin === c).map((a) => a.corps), chemin);
+/** Retient les réponses du faux réseau pour ce chemin (et cette facture) jusqu'à `lacher(page, cle)` : le test regarde l'écran pendant qu'il attend. */
+const retenir = (page, cle, filtre) => page.evaluate(({ cle, filtre }) => {
+  let ouvrir; const promesse = new Promise((r) => { ouvrir = r; });
+  window.__faux.attentes.push({ cle, ...filtre, promesse, ouvrir });
+}, { cle, filtre });
+const lacher = (page, cle) => page.evaluate((c) => { const f = window.__faux; for (const a of f.attentes.filter((x) => x.cle === c)) a.ouvrir(); f.attentes = f.attentes.filter((x) => x.cle !== c); }, cle);
+const lecturesFacture = (page, id) => page.evaluate((i) => window.__appels.filter((a) => a.chemin === '/rest/v1/factures' && a.id === `eq.${i}`).length, id);
+const fenetre = (page) => page.locator('.voile-dialogue .dialogue'); // les fenêtres (le volet est lui aussi une fenêtre sur téléphone : `getByRole('dialog')` ne suffit plus)
+const focusDans = (page) => page.evaluate(() => { const a = document.activeElement; return { volet: !!a?.closest?.('[data-role="volet"]'), role: a?.dataset?.role ?? null, action: a?.dataset?.action ?? null, onglet: a?.dataset?.onglet ?? null, balise: a?.tagName ?? null }; });
+const coupes = (loc) => loc.evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent));
 
 async function ouvrirAppli(page, options = {}, route = 'achatsfactures/pile') {
   await ecrireDocument('base_parametres/connexion', FICHE());
@@ -344,60 +359,81 @@ test('5 cliquer sur le nom du fournisseur d\'une facture ouvre directement sa fi
   await capturer(page, info, '5-fiche-depuis-la-facture');
 });
 
-test('6 fiche fournisseur : lecture, « Modifier », « Enregistrer » / « Annuler » ; en modification la mise en page ne bouge pas (libellés et valeurs aux mêmes positions)', async ({ page }, info) => {
+test('6 fiche fournisseur (C3) : en lecture seule, l\'IBAN masqué tient en entier dans sa case, « Signaler un changement d\'IBAN » demande une confirmation ; y renoncer ne change rien et la mise en page ne bouge pas', async ({ page }, info) => {
   await ouvrirAppli(page);
   await attendreFacture(page, 'FA-2026-0412');
   await ouvrirFicheFournisseur(page);
   await expect(fiche(page)).toHaveAttribute('data-mode', 'lecture');
-  await expect(fiche(page).locator('dt')).toHaveText(['Nom', 'SIREN', 'Agence(s)', 'Adresse', 'E-mail', 'IBAN', 'Nombre de factures', 'Dernière facture']);
-  await expect(fiche(page).locator('[data-ligne="iban"] dd')).toHaveText('FR78 •••• 5678 · confirmé'); // jamais l'IBAN entier en lecture
+  await expect(fiche(page).locator('dt')).toHaveText(['Nom', 'SIREN', 'Agence(s)', 'Adresse', 'E-mail', 'IBAN', 'IBAN confirmé', 'Nombre de factures', 'Dernière facture']);
+  await expect(fiche(page).locator('[data-ligne="iban"] dd')).toHaveText('FR78 •••• 5678'); // jamais l'IBAN entier
+  await expect(fiche(page).locator('[data-ligne="iban-confirme"] dd')).toHaveText('Oui, le 01/06/2026');
+  expect(await coupes(fiche(page).locator('[data-ligne="iban"] .af-valeur, [data-ligne="iban-confirme"] .af-valeur'))).toEqual([]); // rien n'est coupé dans sa case (ordinateur et téléphone)
+  expect(await coupes(volet(page).locator('[data-role="historique-iban"] .af-iban'))).toEqual([]);
+  // L'IBAN ne se saisit plus dans la fiche : aucun champ, pas de « Modifier » (rien n'est modifiable ici), un seul bouton.
   await expect(fiche(page).locator('input')).toHaveCount(0);
-  await expect(fiche(page).locator('[data-action="enregistrer-fiche"], [data-action="annuler-fiche"]')).toHaveCount(0);
+  await expect(fiche(page).locator('[data-action="modifier-fiche"], [data-action="enregistrer-fiche"], [data-action="annuler-fiche"]')).toHaveCount(0);
+  const signaler = fiche(page).locator('[data-action="signaler-iban"]');
+  await expect(signaler).toHaveText('Signaler un changement d’IBAN');
+  await capturer(page, info, '6-fiche-lecture');
+  await signaler.scrollIntoViewIfNeeded(); // sur téléphone le bouton est plus bas dans le volet : on mesure une fois le volet défilé jusqu'à lui
   const libellesAvant = await boites(fiche(page).locator('dt'));
   const valeursAvant = await boites(fiche(page).locator('dd > *'));
   const lignesAvant = await boites(fiche(page).locator('.af-fiche-ligne'));
-  await capturer(page, info, '6-fiche-lecture');
-  await fiche(page).locator('[data-action="modifier-fiche"]').click();
-  await expect(fiche(page)).toHaveAttribute('data-mode', 'modification');
-  await expect(fiche(page).locator('[data-action="modifier-fiche"]')).toHaveCount(0);
-  await expect(fiche(page).locator('[data-action="enregistrer-fiche"]')).toHaveText('Enregistrer');
-  await expect(fiche(page).locator('[data-action="annuler-fiche"]')).toHaveText('Annuler');
-  const champ = fiche(page).locator('[data-champ="iban"]');
-  await expect(champ).toBeEditable();
-  await expect(champ).toHaveValue('FR78 3000 4000 0100 0001 2345 678'); // modifiable sur place, avec sa vraie valeur
-  // LA MISE EN PAGE NE BOUGE PAS : mêmes positions et mêmes tailles, au demi-pixel, pour les libellés, les cases de valeur et les lignes.
+  // Confirmation explicite : la fenêtre dit ce qui va se passer ; « Annuler » n'envoie rien.
+  await signaler.click();
+  await expect(fenetre(page)).toContainText('Signaler un changement d’IBAN ?');
+  await expect(fenetre(page)).toContainText('L’IBAN confirmé de Point Q Matériaux (FR78 •••• 5678) ne sera plus reconnu');
+  await expect(fenetre(page).locator('[data-champ="nouvel-iban"]')).toHaveValue('');
+  await capturer(page, info, '6-fenetre-signaler-iban');
+  await fenetre(page).getByRole('button', { name: 'Annuler' }).click();
+  await expect(fenetre(page)).toHaveCount(0);
+  expect(await appelsVers(page, '/actions')).toHaveLength(0);
+  await expect(fiche(page).locator('[data-ligne="iban-confirme"] dd')).toHaveText('Oui, le 01/06/2026');
   expect(await boites(fiche(page).locator('dt'))).toEqual(libellesAvant);
   expect(await boites(fiche(page).locator('dd > *'))).toEqual(valeursAvant);
   expect(await boites(fiche(page).locator('.af-fiche-ligne'))).toEqual(lignesAvant);
-  await capturer(page, info, '6-fiche-modification');
-  // « Annuler » jette la saisie : la valeur d'origine revient, en lecture comme au prochain « Modifier ».
-  await champ.fill('FR00 0000');
-  await fiche(page).locator('[data-action="annuler-fiche"]').click();
-  await expect(fiche(page)).toHaveAttribute('data-mode', 'lecture');
-  await expect(fiche(page).locator('[data-ligne="iban"] dd')).toHaveText('FR78 •••• 5678 · confirmé');
-  expect(await boites(fiche(page).locator('dt'))).toEqual(libellesAvant);
-  await fiche(page).locator('[data-action="modifier-fiche"]').click();
-  await expect(fiche(page).locator('[data-champ="iban"]')).toHaveValue('FR78 3000 4000 0100 0001 2345 678');
-  // « Enregistrer » sans rien changer : retour à la lecture, rien n'est envoyé.
-  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
-  await expect(fiche(page)).toHaveAttribute('data-mode', 'lecture');
-  expect(await appelsVers(page, '/actions')).toHaveLength(0);
   expect(await sansDefilementHorizontal(page)).toBe(true);
 });
 
-test('6 fiche chantier : même règle (quatre valeurs modifiables sur place), seul ce qui a changé est enregistré ; double clic : un seul envoi', async ({ page }, info) => {
+test('6 fiche chantier : lecture, « Modifier », « Enregistrer » / « Annuler » ; en modification la mise en page ne bouge pas (libellés, valeurs et lignes aux mêmes positions) ; seul ce qui a changé est enregistré ; double clic : un seul envoi', async ({ page }, info) => {
   await ouvrirAppli(page);
   await attendreFacture(page, 'FA-2026-0412');
   await ouvrirVolet(page);
   await volet(page).locator('[data-role="volet-onglets"] button').nth(1).click();
   await volet(page).locator('[data-role="volet-liste"] button', { hasText: 'Villa Orvaline' }).click();
   await expect(fiche(page).locator('dt')).toHaveText(['Nom', 'Code', 'Client', 'Adresse', 'Statut']);
+  await expect(fiche(page)).toHaveAttribute('data-mode', 'lecture');
+  await expect(fiche(page).locator('input')).toHaveCount(0);
+  await expect(fiche(page).locator('[data-action="enregistrer-fiche"], [data-action="annuler-fiche"]')).toHaveCount(0);
   const libellesAvant = await boites(fiche(page).locator('dt'));
   const valeursAvant = await boites(fiche(page).locator('dd > *'));
+  const lignesAvant = await boites(fiche(page).locator('.af-fiche-ligne'));
+  await capturer(page, info, '6-fiche-chantier-lecture');
   await fiche(page).locator('[data-action="modifier-fiche"]').click();
+  await expect(fiche(page)).toHaveAttribute('data-mode', 'modification');
+  await expect(fiche(page).locator('[data-action="modifier-fiche"]')).toHaveCount(0);
+  await expect(fiche(page).locator('[data-action="enregistrer-fiche"]')).toHaveText('Enregistrer');
+  await expect(fiche(page).locator('[data-action="annuler-fiche"]')).toHaveText('Annuler');
   await expect(fiche(page).locator('input')).toHaveCount(4);
+  await expect(fiche(page).locator('[data-champ="client"]')).toHaveValue('Client fictif'); // modifiable sur place, avec sa valeur
+  // LA MISE EN PAGE NE BOUGE PAS : mêmes positions et mêmes tailles, au demi-pixel, pour les libellés, les cases de valeur et les lignes.
   expect(await boites(fiche(page).locator('dt'))).toEqual(libellesAvant);
   expect(await boites(fiche(page).locator('dd > *'))).toEqual(valeursAvant);
+  expect(await boites(fiche(page).locator('.af-fiche-ligne'))).toEqual(lignesAvant);
+  // « Annuler » jette la saisie : la valeur d'origine revient, en lecture comme au prochain « Modifier » ; le focus revient sur « Modifier ».
+  await fiche(page).locator('[data-champ="client"]').fill('Saisie jetée');
+  await fiche(page).locator('[data-action="annuler-fiche"]').click();
+  await expect(fiche(page)).toHaveAttribute('data-mode', 'lecture');
+  await expect(fiche(page).locator('[data-ligne="client"] dd')).toHaveText('Client fictif');
+  expect(await boites(fiche(page).locator('dt'))).toEqual(libellesAvant);
+  expect((await focusDans(page)).action).toBe('modifier-fiche');
+  // « Enregistrer » sans rien changer : retour à la lecture, rien n'est envoyé.
+  await fiche(page).locator('[data-action="modifier-fiche"]').click();
+  await expect(fiche(page).locator('[data-champ="client"]')).toHaveValue('Client fictif');
+  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
+  await expect(fiche(page)).toHaveAttribute('data-mode', 'lecture');
+  expect(await appelsVers(page, '/actions')).toHaveLength(0);
+  await fiche(page).locator('[data-action="modifier-fiche"]').click();
   // Cas d'erreur : un nom vide est refusé avec une phrase, on reste en modification avec la saisie.
   await fiche(page).locator('[data-champ="nom"]').fill('');
   await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
@@ -412,27 +448,36 @@ test('6 fiche chantier : même règle (quatre valeurs modifiables sur place), se
   expect(await appelsVers(page, '/actions')).toEqual([{ id: 'c1', champs: { client: 'Nouveau client fictif' }, action: 'modifier_chantier' }]);
 });
 
-test('7 IBAN modifié dans la fiche : alerte orange sur les factures suivantes de ce fournisseur dans la pile, et sur celles-là seulement', async ({ page }, info) => {
+test('7 changement d\'IBAN signalé dans la fiche (C3) : l\'ancien IBAN est retiré, le nouveau n\'est écrit nulle part en entier ; alerte orange sur les factures suivantes de ce fournisseur dans la pile, et sur celles-là seulement', async ({ page }, info) => {
   await ouvrirAppli(page);
   await attendreFacture(page, 'FA-2026-0412');
   await expect(page.locator('[data-role="alerte-iban"]')).toHaveCount(0); // avant : aucune alerte
   await ouvrirFicheFournisseur(page);
-  await fiche(page).locator('[data-action="modifier-fiche"]').click();
-  // Cas d'erreur : un IBAN impossible est refusé, rien n'est envoyé.
-  await fiche(page).locator('[data-champ="iban"]').fill('FR76 0000 0000 0000');
-  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
-  await expect(fiche(page).locator('[data-erreur="fiche"]')).toContainText('Cet IBAN n’est pas valide');
+  await fiche(page).locator('[data-action="signaler-iban"]').click();
+  const champ = fenetre(page).locator('[data-champ="nouvel-iban"]');
+  const valider = fenetre(page).getByRole('button', { name: 'Retirer l’ancien IBAN' });
+  // Cas d'erreur : un IBAN impossible, ou l'IBAN déjà confirmé, sont refusés dans la fenêtre (qui reste ouverte) ; rien n'est envoyé.
+  await champ.fill('FR76 0000 0000 0000');
+  await valider.click();
+  await expect(fenetre(page).locator('[data-erreur="fenetre"]')).toContainText('Cet IBAN n’est pas valide');
+  await champ.fill('FR78 3000 4000 0100 0001 2345 678');
+  await valider.click();
+  await expect(fenetre(page).locator('[data-erreur="fenetre"]')).toContainText('C’est l’IBAN déjà confirmé');
   expect(await appelsVers(page, '/actions')).toHaveLength(0);
-  await fiche(page).locator('[data-champ="iban"]').fill('FR48 1027 8000 0100 0200 0000 001');
-  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
-  const fenetre = page.getByRole('dialog');
-  await expect(fenetre).toContainText('Remplacer l’IBAN ?');
-  await fenetre.getByRole('button', { name: 'Remplacer l’IBAN' }).click();
+  await champ.fill('FR48 1027 8000 0100 0200 0000 001');
+  await valider.click();
+  await expect(fenetre(page)).toHaveCount(0);
   await expect(volet(page).locator('[data-role="alerte-iban-fiche"]')).toContainText('L’IBAN a été changé le');
-  // L'écriture réutilise l'action existante (révocation de la confirmation), avec le nouvel IBAN dans le motif ; l'historique le montre.
-  expect(await appelsVers(page, '/actions')).toEqual([{ id: 'ib1', motif: 'IBAN remplacé depuis la fiche du fournisseur. Nouvel IBAN annoncé : FR48 1027 8000 0100 0200 0000 001', action: 'revoquer_iban' }]);
+  // L'écriture réutilise l'action existante (révocation de la confirmation). Le nouvel IBAN n'y figure que MASQUÉ ; il n'est écrit en entier dans aucun appel.
+  expect(await appelsVers(page, '/actions')).toEqual([{ id: 'ib1', motif: 'Changement d’IBAN signalé depuis la fiche du fournisseur. Nouvel IBAN annoncé : FR48 •••• 0001.', action: 'revoquer_iban' }]);
+  expect(await page.evaluate(() => JSON.stringify(window.__appels).replace(/\s/g, ''))).not.toContain('FR4810278000010002000000001');
+  await expect(page.locator('.toast').filter({ hasText: 'Ancien IBAN retiré : le nouveau sera confirmé à la prochaine facture' })).toBeVisible();
+  // La fiche ne montre plus l'ancien IBAN comme confirmé, ne prétend pas connaître le nouveau, et n'offre plus rien à signaler ; l'historique garde la trace.
+  await expect(fiche(page).locator('[data-ligne="iban-confirme"] dd')).not.toContainText('Oui');
+  await expect(volet(page)).not.toContainText('FR48');
+  await expect(fiche(page).locator('[data-action="signaler-iban"]')).toHaveCount(0);
   await expect(volet(page).locator('[data-role="historique-iban"]')).toContainText('révoqué le');
-  await expect(page.locator('.toast').filter({ hasText: 'IBAN changé' })).toBeVisible();
+  expect((await focusDans(page)).role).toBe('fiche-titre'); // après le redessin, le focus est sur le titre de la fiche (jamais derrière le volet)
   await capturer(page, info, '7-fiche-iban-change');
   await volet(page).locator('[data-action="retour-liste-volet"]').click();
   await expect(volet(page).locator('[data-role="puce-iban"]')).toHaveText('IBAN changé');
@@ -755,4 +800,278 @@ test('12 la règle générale tient sur les trois écrans de l\'appli : même ha
   await page.evaluate(() => { location.hash = '#/achatsfactures/liste'; });
   await expect(page.getByRole('heading', { name: 'Factures', level: 1 })).toBeVisible();
   await expect(page.locator(estTelephone(page) ? '.coquille .barre-haut' : '.coquille .menu')).toBeVisible();
+});
+
+// ================================================================ corrections de la relecture (27/11/2026) : un test par défaut, « C<numéro> »
+const pageExaminer = (page) => page.locator('[data-role="pile"] .page-examiner');
+/** Marque la page Examiner affichée : si elle est remontée (au lieu d'être relue en silence), la marque disparaît. */
+const marquer = (page) => pageExaminer(page).evaluate((e) => { e.dataset.temoin = 'oui'; });
+
+test('C1 double clic sur « Annuler » du message : un seul « rouvrir » part, la facture revient une seule fois', async ({ page }, info) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await accepter(page);
+  await page.locator('.toast').filter({ hasText: 'Facture acceptée' }).getByRole('button', { name: 'Annuler' }).dblclick();
+  await expect(page.locator('.toast').filter({ hasText: 'Décision annulée : la facture est de nouveau à valider' })).toBeVisible();
+  await attendreFacture(page, 'FA-2026-0412');
+  await expect(restantes(page)).toHaveText('3 restantes');
+  await page.waitForTimeout(500); // plus long que la sortie du message (250 ms) : un second envoi serait déjà parti
+  expect(await appelsVers(page, '/actions')).toEqual([{ facture_id: 'a1', motif: 'Décision annulée tout de suite depuis la pile (bouton « Annuler »).', action: 'rouvrir' }]);
+  await expect(page.locator('.toast').filter({ hasText: 'Décision annulée' })).toHaveCount(1);
+  await expect(page.locator('.toast-erreur')).toHaveCount(0);
+  await capturer(page, info, 'C1-annuler-double-clic');
+});
+
+test('C2 une écriture dans le volet relit la facture EN SILENCE : le chantier et le motif déjà choisis restent, la page n\'est pas remontée, le focus reste dans le volet', async ({ page }, info) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await passer(page);
+  await attendreFacture(page, 'FA-2026-0300'); // un doublon : il demande un motif
+  await versVerifications(page);
+  const decision = bloc(page, 'decision');
+  await decision.locator('[data-champ="motif-acceptation"]').fill('Vérifié avec le fournisseur : ce n’est pas un doublon.');
+  await decision.getByRole('combobox').first().click();
+  await page.getByRole('option', { name: /Villa Orvaline/ }).click();
+  await expect(decision.getByRole('combobox').first()).toHaveValue(/Villa Orvaline/);
+  await marquer(page);
+  const lecturesAvant = await lecturesFacture(page, 'a14');
+  // Dans le volet : on modifie le chantier (son client).
+  await ouvrirVolet(page);
+  await volet(page).locator('[data-role="volet-onglets"] button').nth(1).click();
+  await volet(page).locator('[data-role="volet-liste"] button', { hasText: 'Villa Orvaline' }).click();
+  await fiche(page).locator('[data-action="modifier-fiche"]').click();
+  await fiche(page).locator('[data-champ="client"]').fill('Nouveau client fictif');
+  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
+  await expect(fiche(page).locator('[data-ligne="client"] dd')).toHaveText('Nouveau client fictif');
+  await expect.poll(() => lecturesFacture(page, 'a14')).toBeGreaterThan(lecturesAvant); // la facture affichée a bien été relue
+  await expect(page.locator('[data-role="pile"] [data-etat="chargement"]')).toHaveCount(0);
+  // Le focus est sur le titre de la fiche, dans le volet : il n'est pas parti derrière.
+  expect(await focusDans(page)).toMatchObject({ volet: true, role: 'fiche-titre' });
+  await capturer(page, info, 'C2-volet-apres-ecriture');
+  await volet(page).locator('[data-action="fermer-volet"]').click();
+  // La page Examiner est la même (pas remontée) et rien de ce qui était choisi n'a été effacé.
+  await expect(pageExaminer(page)).toHaveAttribute('data-temoin', 'oui');
+  await expect(numero(page)).toContainText('FA-2026-0300');
+  await expect(decision.getByRole('combobox').first()).toHaveValue(/Villa Orvaline/);
+  await expect(decision.locator('[data-champ="motif-acceptation"]')).toHaveValue('Vérifié avec le fournisseur : ce n’est pas un doublon.');
+  await expect(decision.locator('[data-action="accepter"]')).toBeEnabled();
+  await capturer(page, info, 'C2-choix-gardes');
+});
+
+test('C4 « Annuler » pendant qu\'une décision s\'écrit sur la facture suivante : cette écriture va au bout (son résultat n\'est pas perdu), puis la facture rouverte revient', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' }); // sans animation : le message « Annuler » (3,2 s) est encore là quand la décision suivante s'écrit
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await passer(page); await attendreFacture(page, 'FA-2026-0300');
+  await passer(page); await attendreFacture(page, 'FQ-100'); // ordre de la séance : FQ-100, puis FA-2026-0412, puis FA-2026-0300
+  await retenir(page, 'validation-a1', { chemin: '/validation', factureId: 'a1' });
+  await refuser(page);
+  const annuler = page.locator('.toast').filter({ hasText: 'Facture refusée' }).getByRole('button', { name: 'Annuler' });
+  await attendreFacture(page, 'FA-2026-0412');
+  await marquer(page);
+  await accepter(page); // l'écriture part, et reste en attente
+  await expect(bloc(page, 'decision').locator('[data-action="accepter"]')).toBeDisabled();
+  await annuler.click();
+  await expect(page.locator('.toast').filter({ hasText: 'Décision annulée : la facture est de nouveau à valider' })).toBeVisible();
+  // La page qui écrit n'est ni arrêtée ni remplacée.
+  await expect(pageExaminer(page)).toHaveAttribute('data-temoin', 'oui');
+  await expect(numero(page)).toContainText('FA-2026-0412');
+  await lacher(page, 'validation-a1');
+  // Sa décision aboutit, avec son message ; puis la facture rouverte est de retour dans la pile.
+  await expect(page.locator('.toast').filter({ hasText: 'Facture acceptée' })).toBeVisible();
+  await attendreFacture(page, 'FQ-100');
+  await expect(page.locator('[data-role="statut"]')).toHaveText('À valider');
+  await expect(restantes(page)).toHaveText('2 restantes');
+  expect((await appelsVers(page, '/validation')).map((c) => [c.facture_id, c.decision])).toEqual([['a12', 'refuser'], ['a1', 'accepter']]);
+  expect((await appelsVers(page, '/actions')).map((c) => [c.facture_id, c.action])).toEqual([['a12', 'rouvrir']]);
+});
+
+test('C5 volet : focus sur le premier bouton à l\'ouverture, sur le titre après chaque redessin d\'une fiche, retour au bouton d\'origine à la fermeture ; Échap ferme le volet (sauf fenêtre ouverte) ; sur téléphone c\'est une fenêtre et la page ne défile pas derrière', async ({ page }, info) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  const origine = estTelephone(page) ? 'ouvrir-volet-telephone' : 'ouvrir-volet';
+  const defilement = () => page.evaluate(() => getComputedStyle(document.documentElement).overflowY);
+  expect(await defilement()).toBe('visible');
+  await ouvrirVolet(page);
+  // Ouverture : le premier bouton du volet (la liste « Fournisseurs »).
+  expect(await focusDans(page)).toMatchObject({ volet: true, onglet: 'fournisseurs', balise: 'BUTTON' });
+  if (estTelephone(page)) {
+    await expect(volet(page)).toHaveAttribute('role', 'dialog');
+    await expect(volet(page)).toHaveAttribute('aria-modal', 'true');
+    expect(await defilement()).toBe('hidden'); // la page ne défile pas derrière
+  } else {
+    expect(await volet(page).getAttribute('role')).toBeNull(); // sur ordinateur la facture reste utilisable à côté : ce n'est pas une fenêtre
+  }
+  await capturer(page, info, 'C5-volet-focus-ouverture');
+  // Changer de liste : le focus suit le bouton de la liste active ; ouvrir une fiche : son titre ; retour : le bouton de la liste.
+  await volet(page).locator('[data-role="volet-onglets"] button').nth(1).click();
+  await expect(volet(page).locator('[data-role="volet-liste"]')).toContainText('Villa Orvaline');
+  expect(await focusDans(page)).toMatchObject({ volet: true, onglet: 'chantiers' });
+  await volet(page).locator('[data-role="volet-onglets"] button').nth(0).click();
+  await volet(page).locator('[data-role="volet-liste"] button', { hasText: 'Point Q Matériaux' }).click();
+  await expect(volet(page).locator('[data-role="fiche-titre"]')).toHaveText('Point Q Matériaux');
+  expect(await focusDans(page)).toMatchObject({ volet: true, role: 'fiche-titre' });
+  await capturer(page, info, 'C5-volet-focus-fiche');
+  // Une fenêtre ouverte par-dessus : Échap ferme la fenêtre, PAS le volet.
+  await fiche(page).locator('[data-action="signaler-iban"]').click();
+  await expect(fenetre(page)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(fenetre(page)).toHaveCount(0);
+  await expect(volet(page)).toBeVisible();
+  await expect(volet(page)).toHaveAttribute('data-vue', 'fiche');
+  // Échap ferme le volet ; le focus revient au bouton d'où il a été ouvert ; la page défile de nouveau.
+  await page.keyboard.press('Escape');
+  await expect(volet(page)).toBeHidden();
+  expect((await focusDans(page)).action).toBe(origine);
+  expect(await defilement()).toBe('visible');
+  // Ouvert depuis le nom du fournisseur de la facture : la croix rend le focus à ce nom.
+  await page.locator('.page-examiner h1 [data-action="fiche-fournisseur"]').click();
+  await expect(volet(page).locator('[data-role="fiche-titre"]')).toHaveText('Point Q Matériaux');
+  await volet(page).locator('[data-action="fermer-volet"]').click();
+  expect((await focusDans(page)).action).toBe('fiche-fournisseur');
+  // Après la fermeture, Échap ne fait plus rien (l'écouteur est retiré) et quitter l'écran volet ouvert ne laisse pas la page figée.
+  await page.keyboard.press('Escape');
+  await expect(numero(page)).toContainText('FA-2026-0412');
+  await ouvrirVolet(page);
+  await page.evaluate(() => { location.hash = '#/achatsfactures/tableau'; });
+  await expect(page.locator('[data-role="tableau-factures"]')).toBeVisible();
+  expect(await defilement()).toBe('visible');
+});
+
+test('C6 SIREN non lu : pas de « Nouveau fournisseur détecté » à tort ; le fournisseur est retrouvé par son nom exact (fiche et alerte IBAN), sinon « Fournisseur non reconnu »', async ({ page }, info) => {
+  const sansSiren = { fournisseur_siren: null, extraction: null };
+  await ouvrirAppli(page, { retouches: { a14: sansSiren, a12: sansSiren }, ibans: [{ ...IBANS[0], revoque_le: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(), motif_revocation: 'Changement signalé' }] });
+  await attendreFacture(page, 'FA-2026-0412');
+  const nouveau = page.locator('[data-role="nouveau-fournisseur"]');
+  const nonReconnu = page.locator('[data-role="fournisseur-non-reconnu"]');
+  const alerte = page.locator('[data-role="alerte-iban"]');
+  await expect(alerte).toBeVisible(); // SIREN lu : alerte IBAN, comme avant
+  // Même fournisseur, SIREN non lu sur cette facture : retrouvé par son nom exact. Ni « nouveau », ni « non reconnu » ; l'alerte IBAN le suit.
+  await passer(page); await attendreFacture(page, 'FA-2026-0300');
+  await expect(alerte).toBeVisible();
+  await expect(nouveau).toHaveCount(0);
+  await expect(nonReconnu).toHaveCount(0);
+  await page.locator('.page-examiner h1 [data-action="fiche-fournisseur"]').click();
+  await expect(volet(page)).toHaveAttribute('data-vue', 'fiche'); // sa fiche, pas le formulaire « Nouveau fournisseur »
+  await expect(volet(page).locator('[data-role="fiche-titre"]')).toHaveText('Point Q Matériaux');
+  await volet(page).locator('[data-action="fermer-volet"]').click();
+  // SIREN non lu et nom inconnu : « Fournisseur non reconnu », jamais « nouveau » ; le bouton montre la liste (pas de création en double).
+  await passer(page); await attendreFacture(page, 'FQ-100');
+  await expect(nonReconnu).toContainText('Fournisseur non reconnu. Son SIREN n’a pas été lu sur la facture');
+  await expect(nouveau).toHaveCount(0);
+  await expect(alerte).toHaveCount(0);
+  await capturer(page, info, 'C6-fournisseur-non-reconnu');
+  await nonReconnu.locator('[data-action="voir-fournisseurs"]').click();
+  await expect(volet(page)).toHaveAttribute('data-vue', 'liste');
+  await expect(volet(page).locator('[data-role="volet-liste"]')).toContainText('Point Q Matériaux');
+  expect(await sansDefilementHorizontal(page)).toBe(true);
+});
+
+test('C7 volet : la roue d\'une liste ne reste jamais bloquée quand on passe à une autre liste pendant sa lecture', async ({ page }, info) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  const onglets = volet(page).locator('[data-role="volet-onglets"] button');
+  await retenir(page, 'chantiers', { chemin: '/rest/v1/chantiers' });
+  await onglets.nth(1).click(); // Chantiers : la lecture part et attend
+  await expect(volet(page).locator('[data-etat="chargement"]')).toBeVisible();
+  await onglets.nth(2).click(); // Articles : lus pendant ce temps
+  await expect(volet(page).locator('[data-role="volet-liste"]')).toContainText('Ciment fictif 35 kg');
+  await onglets.nth(1).click(); // retour à Chantiers : toujours en lecture
+  await expect(volet(page).locator('[data-etat="chargement"]')).toBeVisible();
+  await lacher(page, 'chantiers');
+  await expect(volet(page).locator('[data-role="volet-liste"]')).toContainText('Villa Orvaline'); // la liste arrive : la roue s'arrête
+  await expect(volet(page).locator('[data-etat="chargement"]')).toHaveCount(0);
+  await capturer(page, info, 'C7-liste-chantiers-arrivee');
+});
+
+test('C9 relecture en échec après un enregistrement réussi : jamais « fiche introuvable » ; le fournisseur dit « impossible de lire » avec « Réessayer », le chantier garde ses lignes', async ({ page }, info) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  // Chantier : l'enregistrement réussit, la relecture échoue. La fiche montre la nouvelle valeur, avec un mot et « Réessayer ».
+  await ouvrirVolet(page);
+  await volet(page).locator('[data-role="volet-onglets"] button').nth(1).click();
+  await volet(page).locator('[data-role="volet-liste"] button', { hasText: 'Villa Orvaline' }).click();
+  await fiche(page).locator('[data-action="modifier-fiche"]').click();
+  await fiche(page).locator('[data-champ="client"]').fill('Nouveau client fictif');
+  await page.evaluate(() => { window.__faux.chantiersEnPanne = true; });
+  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
+  await expect(page.locator('.toast').filter({ hasText: 'Chantier enregistré' })).toBeVisible();
+  const perimee = volet(page).locator('[data-role="liste-perimee"]');
+  await expect(perimee).toContainText('La liste n’a pas pu être relue');
+  await expect(fiche(page)).toHaveAttribute('data-mode', 'lecture');
+  await expect(fiche(page).locator('[data-ligne="client"] dd')).toHaveText('Nouveau client fictif');
+  await expect(volet(page)).not.toContainText('introuvable');
+  await capturer(page, info, 'C9-chantier-relecture-en-echec');
+  await page.evaluate(() => { window.__faux.chantiersEnPanne = false; });
+  await perimee.locator('[data-action="reessayer"]').click();
+  await expect(perimee).toHaveCount(0);
+  await expect(fiche(page).locator('[data-ligne="client"] dd')).toHaveText('Nouveau client fictif');
+  // Fournisseur : l'ancien IBAN est retiré, puis la relecture échoue. Ni « introuvable », ni l'ancien IBAN encore « confirmé » : un état d'erreur, et « Réessayer ».
+  await volet(page).locator('[data-action="retour-liste-volet"]').click();
+  await volet(page).locator('[data-role="volet-onglets"] button').nth(0).click();
+  await volet(page).locator('[data-role="volet-liste"] button', { hasText: 'Point Q Matériaux' }).click();
+  await fiche(page).locator('[data-action="signaler-iban"]').click();
+  await page.evaluate(() => { window.__faux.fournisseursEnPanne = true; });
+  await fenetre(page).getByRole('button', { name: 'Retirer l’ancien IBAN' }).click();
+  await expect(page.locator('.toast').filter({ hasText: 'Ancien IBAN retiré' })).toBeVisible();
+  const erreur = volet(page).locator('[data-etat="erreur"]');
+  await expect(erreur).toContainText('Impossible de lire les fournisseurs');
+  await expect(volet(page)).not.toContainText('introuvable');
+  await expect(volet(page)).not.toContainText('Oui, le');
+  await expect(volet(page)).toHaveAttribute('data-vue', 'fiche');
+  await capturer(page, info, 'C9-fournisseur-relecture-en-echec');
+  await page.evaluate(() => { window.__faux.fournisseursEnPanne = false; });
+  await erreur.locator('[data-action="reessayer"]').click();
+  await expect(volet(page).locator('[data-role="fiche-titre"]')).toHaveText('Point Q Matériaux');
+  await expect(volet(page).locator('[data-role="alerte-iban-fiche"]')).toBeVisible();
+  expect((await appelsVers(page, '/actions')).map((c) => c.action)).toEqual(['modifier_chantier', 'revoquer_iban']);
+});
+
+test('C10 les bandeaux de la facture précédente ne restent pas au-dessus de la suivante pendant qu\'elle charge', async ({ page }, info) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await passer(page); await attendreFacture(page, 'FA-2026-0300');
+  await passer(page); await attendreFacture(page, 'FQ-100');
+  const bandeau = page.locator('[data-role="nouveau-fournisseur"]');
+  await expect(bandeau).toContainText('Ferronnerie du Verdon');
+  await retenir(page, 'facture-a1', { chemin: '/rest/v1/factures', id: 'a1' });
+  await passer(page);
+  // La facture suivante se montre alors qu'elle charge encore (au bout de 1,5 s) : plus aucun bandeau de la précédente au-dessus.
+  await expect(page.locator('[data-role="pile-facture"][data-facture="a1"]:not(.af-attend)')).toBeVisible();
+  await expect(page.locator('[data-role="pile-facture"][data-facture="a1"] [data-etat="chargement"]')).toBeVisible();
+  await expect(bandeau).toHaveCount(0);
+  await expect(page.locator('[data-role="pile-bandeaux"] > *')).toHaveCount(0);
+  await capturer(page, info, 'C10-suivante-en-chargement-sans-bandeau');
+  await lacher(page, 'facture-a1');
+  await attendreFacture(page, 'FA-2026-0412');
+  await expect(bandeau).toHaveCount(0); // fournisseur connu : toujours rien
+});
+
+test('C11 touche V pendant qu\'une décision s\'écrit ou que la facture charge : aucun message rouge trompeur ; il reste dit quand il manque vraiment quelque chose', async ({ page }) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await page.locator('[data-action="plein-ecran"]').click();
+  await expect(page.locator('[data-role="appli-factures"]')).toHaveClass(/af-focus/);
+  const rouge = page.locator('.toast-erreur');
+  await retenir(page, 'validation-a1', { chemin: '/validation', factureId: 'a1' });
+  await retenir(page, 'facture-a14', { chemin: '/rest/v1/factures', id: 'a14' });
+  // Pendant l'écriture : V une première fois lance la décision ; V de nouveau ne dit rien.
+  await page.keyboard.press('v');
+  await expect.poll(async () => (await appelsVers(page, '/validation')).length).toBe(1);
+  await page.keyboard.press('v');
+  await page.waitForTimeout(300);
+  await expect(rouge).toHaveCount(0);
+  expect(await appelsVers(page, '/validation')).toHaveLength(1);
+  await lacher(page, 'validation-a1');
+  // Pendant le chargement de la facture suivante : V ne dit rien non plus.
+  await expect(page.locator('[data-role="pile-facture"][data-facture="a14"]')).toHaveCount(1);
+  await page.keyboard.press('v');
+  await page.waitForTimeout(300);
+  await expect(rouge).toHaveCount(0);
+  await lacher(page, 'facture-a14');
+  await attendreFacture(page, 'FA-2026-0300');
+  await page.keyboard.press('v'); // facture lue, mais il manque le motif (doublon) : là, le message est juste
+  await expect(rouge.filter({ hasText: 'ne peut pas être validée tout de suite' })).toBeVisible();
+  expect(await appelsVers(page, '/validation')).toHaveLength(1);
 });

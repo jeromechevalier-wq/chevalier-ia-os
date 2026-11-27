@@ -11,9 +11,11 @@ const MESSAGE_PAR_DEFAUT = 'Une erreur est survenue, réessaie dans un instant.'
  * `surEnregistrer(valeurs)` : reçoit { cle: texte } des lignes modifiables ; renvoie false pour rester en modification sans message (l'utilisateur a renoncé),
  * lève une erreur (message français) pour l'afficher sous la fiche. Après un succès, l'appelant redessine la fiche avec les nouvelles données.
  * `mode` : 'lecture' (défaut) ou 'creation' (tout de suite en saisie : « Annuler » appelle `surAnnuler`).
+ * `actionsLecture` : boutons montrés en bas de la fiche en lecture, avant « Modifier » (par exemple « Signaler un changement d'IBAN »).
+ * Clavier : « Modifier » pose le focus dans le premier champ ; « Annuler » le rend au bouton « Modifier ».
  * Renvoie { element, modifier(), enModification() }.
  */
-export function creerFiche({ lignes, surEnregistrer = null, surAnnuler = null, mode = 'lecture', note = null, libelleEnregistrer = 'Enregistrer' }) {
+export function creerFiche({ lignes, surEnregistrer = null, surAnnuler = null, mode = 'lecture', note = null, libelleEnregistrer = 'Enregistrer', actionsLecture = [] }) {
   const creation = mode === 'creation';
   let modification = creation;
   let occupe = false;
@@ -46,7 +48,7 @@ export function creerFiche({ lignes, surEnregistrer = null, surAnnuler = null, m
         h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: occupe, dataset: { action: 'annuler-fiche' }, onclick: annuler }, 'Annuler'),
         h('button', { type: 'button', class: 'bouton bouton-principal', disabled: occupe, dataset: { action: 'enregistrer-fiche' }, onclick: () => { void enregistrer(); } }, occupe ? 'Envoi…' : libelleEnregistrer));
     } else {
-      remplir(bas, modifiables.length && surEnregistrer
+      remplir(bas, actionsLecture, modifiables.length && surEnregistrer
         ? h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'modifier-fiche' }, onclick: modifier }, icone('pencil', { taille: 16 }), 'Modifier')
         : null);
     }
@@ -63,6 +65,7 @@ export function creerFiche({ lignes, surEnregistrer = null, surAnnuler = null, m
     montrerErreur(null);
     if (creation) { surAnnuler?.(); return; }
     modification = false; dessiner(); // la saisie est jetée : les champs repartent des valeurs d'origine au prochain « Modifier »
+    bas.querySelector('[data-action="modifier-fiche"]')?.focus();
     surAnnuler?.();
   }
 

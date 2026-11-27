@@ -52,24 +52,32 @@ export function jourParis(valeur) {
 
 // ------------------------------------------------------------------ IBAN changé récemment
 /**
- * Changement récent de l'IBAN d'un fournisseur (son SIREN), lu dans les confirmations d'IBAN (table déjà lue par l'écran : `chargerIbansConfirmes`).
+ * Changement récent d'IBAN dans les confirmations d'UN fournisseur (`miennes` : déjà les siennes, aucun autre tri n'est refait ici).
  * Deux événements comptent, dans les 60 derniers jours : une confirmation RÉVOQUÉE (l'IBAN a été remplacé ou retiré), ou la confirmation d'un IBAN DIFFÉRENT d'un IBAN déjà confirmé avant.
- * Renvoie { date, motif } (le plus récent) ou null. `ibans` null (lecture impossible) = null : jamais d'alerte inventée ; les contrôles de la facture disent déjà « non vérifié ».
+ * Une révocation ne compte pas si le MÊME IBAN a une confirmation active plus récente (il a été reconfirmé : rien n'a changé pour qui paie).
+ * Renvoie { date, motif } (le plus récent) ou null. `miennes` null (lecture impossible) = null : jamais d'alerte inventée ; les contrôles de la facture disent déjà « non vérifié ».
  */
-export function changementIbanRecent(ibans, siren, maintenant = new Date()) {
-  if (!Array.isArray(ibans) || !siren) return null;
+export function changementDansConfirmations(miennes, maintenant = new Date()) {
+  if (!Array.isArray(miennes)) return null;
   const limite = maintenant.getTime() - JOURS_ALERTE_IBAN * JOUR_MS;
-  const miens = ibans.filter((c) => c.siren === siren);
+  const quand = (v) => (v ? Date.parse(v) : NaN);
   const evenements = [];
-  for (const c of miens) {
-    const rev = c.revoque_le ? Date.parse(c.revoque_le) : NaN;
-    if (Number.isFinite(rev) && rev >= limite) evenements.push({ quand: rev, date: c.revoque_le, motif: c.motif_revocation ?? '' });
-    const conf = c.confirme_le ? Date.parse(c.confirme_le) : NaN;
-    const autreAvant = miens.some((x) => x !== c && normaliserIban(x.iban) !== normaliserIban(c.iban) && x.confirme_le && Date.parse(x.confirme_le) < conf);
+  for (const c of miennes) {
+    const rev = quand(c.revoque_le);
+    const conf = quand(c.confirme_le);
+    const reconfirme = miennes.some((x) => x !== c && !x.revoque_le && normaliserIban(x.iban) === normaliserIban(c.iban) && quand(x.confirme_le) > (Number.isFinite(conf) ? conf : -Infinity));
+    if (Number.isFinite(rev) && rev >= limite && !reconfirme) evenements.push({ quand: rev, date: c.revoque_le, motif: c.motif_revocation ?? '' });
+    const autreAvant = miennes.some((x) => x !== c && normaliserIban(x.iban) !== normaliserIban(c.iban) && x.confirme_le && Date.parse(x.confirme_le) < conf);
     if (Number.isFinite(conf) && conf >= limite && autreAvant) evenements.push({ quand: conf, date: c.confirme_le, motif: '' });
   }
   evenements.sort((a, b) => b.quand - a.quand);
   return evenements[0] ? { date: evenements[0].date, motif: evenements[0].motif } : null;
+}
+
+/** Le même calcul pour un SIREN, dans TOUTES les confirmations lues (table `chargerIbansConfirmes`) : celles du SIREN sont d'abord retenues. Sans SIREN : null. */
+export function changementIbanRecent(ibans, siren, maintenant = new Date()) {
+  if (!Array.isArray(ibans) || !siren) return null;
+  return changementDansConfirmations(ibans.filter((c) => c.siren === siren), maintenant);
 }
 
 // ------------------------------------------------------------------ fournisseurs du volet
@@ -96,21 +104,50 @@ export function fournisseursDuVolet({ fournisseurs = [], agences = [], ibans = n
       nbFactures: mesFactures ? mesFactures.length : null,
       derniere: parDate[0] ? (parDate[0].date_facture ?? jourParis(parDate[0].created_at)) : null,
       email: parDate.find((f) => f.email_expediteur)?.email_expediteur ?? null,
-      changement: changementIbanRecent(mesIbans, fo.siren, maintenant),
+      changement: changementDansConfirmations(mesIbans, maintenant), // `mesIbans` sont déjà les siennes (par sa fiche ou par son SIREN) : un fournisseur sans SIREN garde son alerte
     };
   }).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
 }
 
-/** Le fournisseur enregistré d'une facture (par son SIREN), ou null : fournisseur inconnu (SIREN non lu, ou absent de la table). */
+/** Texte comparé sans accents ni majuscules (recherche du volet, nom exact d'un fournisseur). */
+export const sansAccents = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+export const correspond = (texte, recherche) => sansAccents(texte).includes(sansAccents(recherche));
+
+/**
+ * Le fournisseur enregistré d'une facture, ou null. Dans l'ordre : son SIREN ; sinon l'agence déjà reliée à la facture (`etablissement_id` : agence → fournisseur) ;
+ * sinon, SEULEMENT quand le SIREN n'a pas été lu, le nom exact (sans accents ni majuscules) s'il désigne un seul fournisseur. Un SIREN lu mais inconnu ne se rattrape jamais par le nom
+ * (même nom, autre SIREN : ce n'est peut-être pas la même entreprise).
+ */
 export function fournisseurDeFacture(f, liste) {
+  if (!f || !Array.isArray(liste)) return null;
   const siren = sirenFacture(f);
-  if (!siren || !Array.isArray(liste)) return null;
-  return liste.find((x) => x.siren === siren) ?? null;
+  const parSiren = siren ? liste.find((x) => x.siren === siren) : null;
+  if (parSiren) return parSiren;
+  const parAgence = f.etablissement_id ? liste.find((x) => (x.agences ?? []).some((a) => a.id === f.etablissement_id)) : null;
+  if (parAgence) return parAgence;
+  if (siren) return null;
+  const nom = sansAccents(f.fournisseur ?? f.extraction?.fournisseur?.nom);
+  const memes = nom ? liste.filter((x) => sansAccents(x.nom) === nom) : [];
+  return memes.length === 1 ? memes[0] : null;
 }
 
-/** Texte de recherche d'une ligne du volet (sans accents, en minuscules). */
-export const sansAccents = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-export const correspond = (texte, recherche) => sansAccents(texte).includes(sansAccents(recherche));
+/**
+ * Ce que l'application sait du fournisseur d'une facture : { etat, fournisseur }.
+ * 'connu' (il est enregistré) ; 'nouveau' (son SIREN est lu et n'est pas dans la table : on propose de l'ajouter) ;
+ * 'non-reconnu' (SIREN non lu et rien ne le rattache à un fournisseur : on ne dit PAS « nouveau », il est peut-être déjà enregistré).
+ */
+export function etatFournisseurFacture(f, liste) {
+  const fournisseur = fournisseurDeFacture(f, liste);
+  if (fournisseur) return { etat: 'connu', fournisseur };
+  return { etat: sirenFacture(f) ? 'nouveau' : 'non-reconnu', fournisseur: null };
+}
+
+/** Motif écrit avec la révocation quand un changement d'IBAN est signalé depuis la fiche : le nouvel IBAN n'y figure JAMAIS en entier (forme masquée seulement). */
+export function motifChangementIban(nouvelIban) {
+  const n = normaliserIban(nouvelIban);
+  return `Changement d’IBAN signalé depuis la fiche du fournisseur.${n ? ` Nouvel IBAN annoncé : ${masquerIban(n)}.` : ''}`;
+}
+export const MESSAGE_IBAN_RETIRE = 'Ancien IBAN retiré : le nouveau sera confirmé à la prochaine facture';
 
 // ------------------------------------------------------------------ chantier (fiche du volet)
 /** Contrôle de forme des champs de texte d'un chantier modifiés depuis sa fiche (le serveur refait les mêmes). Phrase française, ou null. */

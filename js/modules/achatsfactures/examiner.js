@@ -41,6 +41,7 @@ const nombre = (n) => (typeof n === 'number' && Number.isFinite(n) ? n.toLocaleS
  * Application Factures (27/11/2026) : `surDecision({ decision, facture, message })` reçoit la décision prise ('acceptee' | 'refusee') et la facture ; c'est la pile qui dit le message (avec « Annuler ») ;
  * `sansRetour` = pas de flèche vers la liste ; `titreTete(f)` = contenu du titre (le nom du fournisseur devient un bouton qui ouvre sa fiche) ;
  * `surRendu({ etat, f })` = appelée après chaque dessin (etat : 'chargement' | 'acces' | 'erreur' | 'introuvable' | 'ok').
+ * La fonction d'arrêt renvoyée porte aussi `relire()` : une relecture silencieuse de la facture (voir en bas du fichier).
  */
 export function rendreExaminer(conteneur, factureId, options = {}) {
   const { actionsTete = [], surDecision = null, surOccupation = null, surPerimee = null, sansRetour = false, titreTete = null, surRendu = null } = options;
@@ -457,5 +458,9 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
 
   rendre();
   void verifier(false);
-  return () => { vivant = false; zonePdf?.arreter(); };
+  const arreter = () => { vivant = false; zonePdf?.arreter(); };
+  /** Relecture SILENCIEUSE (un fournisseur, un chantier ou un IBAN vient de changer ailleurs) : les contrôles se recalculent, le chantier, l'agence et le motif déjà choisis sont gardés
+   *  s'ils existent encore, et le focus clavier n'est pas déplacé. Rien pendant qu'une décision s'écrit. Renvoie false si rien n'a été relu. */
+  arreter.relire = () => { if (!vivant || occupe || etatAcces !== 'connecte') return false; void charger(true); return true; };
+  return arreter;
 }

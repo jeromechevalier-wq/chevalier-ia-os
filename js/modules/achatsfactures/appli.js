@@ -14,7 +14,7 @@ import { chargement, etatErreur } from './composants.js';
 import { dessinerEtatAcces } from './ecran.js';
 import { reglagesExportFactures } from './export.js';
 import { dateFr, nomFournisseur, SANS_FOURNISSEUR } from './logique.js';
-import { fournisseursDuVolet, fournisseurDeFacture, chiffresTableau, libelleMois, eurosCentimes, delaiLisible, DUREES } from './logique-appli.js';
+import { fournisseursDuVolet, etatFournisseurFacture, chiffresTableau, libelleMois, eurosCentimes, delaiLisible, DUREES } from './logique-appli.js';
 
 export const NOM_APPLI = 'Factures';
 export const TITRE_TABLEAU = 'Tableau de bord des factures';
@@ -162,34 +162,42 @@ export function rendreAppli(conteneur, vue = 'pile') {
       donnees,
       etatFournisseurs: () => fournisseurs,
       rechargerFournisseurs: async () => { if (lectureFournisseurs) await lectureFournisseurs; return chargerFournisseurs(); }, // après une écriture : toujours une lecture NEUVE (jamais celle qui était déjà partie)
-      surEcriture: () => { pile?.relire(); },
+      surEcriture: () => { pile?.relire(); }, // relecture SILENCIEUSE de la facture affichée : ses contrôles se recalculent, ses choix (chantier, agence, motif) restent, le focus reste dans le volet
+      boutonRepli: () => [boutonVolet, grosTel].find((b) => b.getClientRects().length > 0) ?? null,
       surEtat: (ouvert) => { racine.classList.toggle('af-avec-volet', ouvert); boutonVolet.setAttribute('aria-expanded', String(ouvert)); boutonVolet.classList.toggle('actif', ouvert); },
     });
 
-    /** Bandeaux au-dessus de la facture : « Nouveau fournisseur détecté » (fournisseur inconnu) et l'alerte orange « IBAN changé récemment ». Rien tant que les fournisseurs ne sont pas lus. */
+    /**
+     * Bandeaux au-dessus de la facture. Rien tant que les fournisseurs ne sont pas lus, ni pendant que la facture charge (jamais les bandeaux de la facture précédente).
+     * « Nouveau fournisseur détecté » : seulement si son SIREN est lu et absent de la table. SIREN non lu et rien qui le rattache à un fournisseur : « Fournisseur non reconnu »
+     * (il est peut-être déjà enregistré : on ne propose pas de le créer en double). L'alerte orange « IBAN changé récemment » suit le fournisseur retrouvé (SIREN, agence reliée, ou nom exact).
+     */
     majBandeaux = () => {
       const f = factureAffichee;
       if (!f || f.statut !== 'a_valider' || fournisseurs.etat !== 'ok') { remplir(fente); return; }
-      const fo = fournisseurDeFacture(f, fournisseurs.lignes);
+      const { etat, fournisseur: fo } = etatFournisseurFacture(f, fournisseurs.lignes);
       const nom = nomFournisseur(f);
       remplir(fente,
-        !fo ? h('div', { class: 'af-bandeau-nouveau', role: 'status', dataset: { role: 'nouveau-fournisseur' } }, icone('building-2', { taille: 18 }),
+        etat === 'nouveau' ? h('div', { class: 'af-bandeau-nouveau', role: 'status', dataset: { role: 'nouveau-fournisseur' } }, icone('building-2', { taille: 18 }),
           h('span', {}, h('b', {}, nom === SANS_FOURNISSEUR ? 'Nouveau fournisseur détecté.' : `Nouveau fournisseur détecté : ${nom}.`), ' L’ajouter ?'),
           h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'ajouter-fournisseur' }, onclick: () => { sortirFocus(); volet.ouvrirNouveau(f); } }, 'Ajouter')) : null,
+        etat === 'non-reconnu' ? h('div', { class: 'af-bandeau-nouveau', role: 'status', dataset: { role: 'fournisseur-non-reconnu' } }, icone('building-2', { taille: 18 }),
+          h('span', {}, h('b', {}, 'Fournisseur non reconnu.'), ' Son SIREN n’a pas été lu sur la facture : il est peut-être déjà dans ta liste.'),
+          h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'voir-fournisseurs' }, onclick: () => { sortirFocus(); volet.ouvrir('fournisseurs'); } }, 'Voir les fournisseurs')) : null,
         fo?.changement ? h('div', { class: 'af-alerte', role: 'status', dataset: { role: 'alerte-iban' } }, icone('triangle-alert', { taille: 16 }),
           h('div', {}, h('b', {}, 'IBAN changé récemment : vérifie avant de payer'),
             h('span', {}, `Changé le ${dateFr(fo.changement.date)}. `, h('button', { type: 'button', class: 'af-lien-mini', dataset: { action: 'voir-fiche-fournisseur' }, onclick: () => { sortirFocus(); volet.ouvrirFiche('fournisseurs', fo.id); } }, 'Voir la fiche')))) : null);
     };
 
-    /** Titre de la facture : le nom du fournisseur est un bouton qui ouvre sa fiche dans le volet (ou le formulaire pré-rempli s'il est inconnu). */
+    /** Titre de la facture : le nom du fournisseur est un bouton qui ouvre sa fiche dans le volet (le formulaire pré-rempli s'il est nouveau ; la liste des fournisseurs s'il n'est pas reconnu). */
     const titreTete = (f) => h('button', { type: 'button', class: 'af-lien-four', title: 'Ouvrir la fiche du fournisseur', dataset: { action: 'fiche-fournisseur' },
       onclick: async () => {
         if (fournisseurs.etat !== 'ok') await chargerFournisseurs(); // encore en lecture (ou en échec) : on attend la lecture plutôt que de refuser le clic
         if (!vivant || factureAffichee?.id !== f.id) return;
         if (fournisseurs.etat !== 'ok') { toast('Impossible de lire les fournisseurs. Vérifie ta connexion, puis réessaie.', { type: 'erreur' }); return; }
-        const fo = fournisseurDeFacture(f, fournisseurs.lignes);
+        const { etat, fournisseur: fo } = etatFournisseurFacture(f, fournisseurs.lignes);
         sortirFocus();
-        if (fo) volet.ouvrirFiche('fournisseurs', fo.id); else volet.ouvrirNouveau(f);
+        if (fo) volet.ouvrirFiche('fournisseurs', fo.id); else if (etat === 'nouveau') volet.ouvrirNouveau(f); else volet.ouvrir('fournisseurs');
       } }, nomFournisseur(f));
 
     const majPastille = (texte, { pulse = false } = {}) => {
@@ -216,7 +224,7 @@ export function rendreAppli(conteneur, vue = 'pile') {
     if (e.key === 'Escape') { e.preventDefault(); sortirFocus(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
     const k = String(e.key).toLowerCase();
-    if (k === 'v') { e.preventDefault(); if (!pile.decider('accepter')) toast(MESSAGE_PAS_VALIDABLE, { type: 'erreur' }); }
+    if (k === 'v') { e.preventDefault(); if (pile.decider('accepter') === 'impossible') toast(MESSAGE_PAS_VALIDABLE, { type: 'erreur' }); } // facture qui charge ou décision qui s'écrit : aucun message (rien ne manque à la facture)
     else if (k === 'r') { e.preventDefault(); pile.decider('refuser'); }
     else if (k === 'p') { e.preventDefault(); pile.passer(); }
   }
