@@ -1,7 +1,7 @@
 // Damier du village de l'accueil (étape 2 de docs/accueil-village.md, 27/11/2026) : chaque utilisateur range SON village sur un damier de cases.
 // Sans DOM ni Firebase : se teste seul (tests/maison-village.test.js). Les données sont lues et écrites par js/os/village-donnees.js, le dessin est posé par
 // js/os/village-ecran.js, les gestes (glisser, double clic, appui long) par js/os/village-glisser.js.
-//  - Damier de départ : 8 x 8 cases ; une case = 2,5 unités de la grille (le terrain garde sa taille : 20 x 20 unités). Une grande maison = 2 x 2 cases.
+//  - Damier de départ : 12 x 12 cases (8 x 8 jusqu'au 27/11/2026) ; une case = 2,5 unités de la grille (terrain de départ : 30 x 30 unités). Une grande maison = 2 x 2 cases.
 //  - Une case (c, l) : `c` le long de gx, `l` le long de gy ; la case (0, 0) est le coin du fond du terrain.
 //  - Un document par maison rangée : village_utilisateurs/{uid}/batiments/{id} ; trois sortes (`besoin`, `lien`, `petite`), chacune avec ses champs.
 //    `lireBatiments` rejoue EXACTEMENT les contrôles de firestore.rules (mêmes expressions, mêmes bornes) : un document mal formé est ignoré.
@@ -10,11 +10,12 @@
 //    à part (`objets` de rangerVillage) : `maisons` reste « les bâtiments avec un besoin » (compteurs, bulle, liste, roue n'ont pas à les connaître).
 // N'importe rien d'un module métier (js/modules/…).
 import { iso, T, BATIMENTS, BATIMENT_PAR_DEFAUT } from './village-batiments.js';
-import { MODELES_DECORATION, TAILLES, TAILLE_MAISON } from './village-jeu-regles.js';
+import { MODELES_DECORATION, TAILLES, TAILLE_MAISON, COTE_DEPART } from './village-jeu-regles.js';
 import { formesArbre, BOITE_BATIMENT, ETIQUETTE_Y, ETIQUETTE_HAUTEUR_MAX, EPAISSEUR_TERRAIN } from './maison-village.js';
 
 export const CASE = 2.5;
-export const DAMIER_DEPART = Object.freeze({ colonnes: 8, lignes: 8 });
+/** Damier de départ : une seule source, COTE_DEPART de la règle partagée (12 x 12). */
+export const DAMIER_DEPART = Object.freeze({ colonnes: COTE_DEPART, lignes: COTE_DEPART });
 export const TAILLE_GRANDE = 2;
 export const TAILLE_PETITE = 1;
 export const COORD_MAX = 23;
@@ -164,7 +165,7 @@ export function objetValable(id, donnees) {
 }
 
 /**
- * Le plus petit damier (côté pair, de 8 à 24) qui contient toutes les places enregistrées (`batiments` : Map(id → données) ou liste de données) : maisons 2 x 2,
+ * Le plus petit damier (côté pair, de 12 à 24) qui contient toutes les places enregistrées (`batiments` : Map(id → données) ou liste de données) : maisons 2 x 2,
  * objets selon leur taille. Sert quand les parcelles ne sont pas connues (portefeuille illisible) : aucune maison rangée plus loin n'est reclassée d'office.
  */
 export function damierPourPlaces(batiments) {
@@ -198,29 +199,32 @@ export function lireBatiments(docs) {
 
 // ---------------------------------------------------------------- rangement
 
-/** Places d'office jusqu'à 4 maisons : haut (au fond), gauche, droite, bas (devant) ; ce sont les 4 places d'avant le damier. */
-const PLACES_QUATRE = Object.freeze([[1, 1], [1, 5], [5, 1], [5, 5]]);
+// Places d'office jusqu'à 9 maisons : dessinées pour l'ancien damier 8 x 8 (cases 0 à 7), décalées de +2 en c et en l (27/11/2026) pour rester au centre du
+// damier 12 x 12, entourées d'une marge de 2 cases (de 10 à 12 maisons : PLACES_SEIZE, plus bas). Le décalage est FIXE (le même quel que soit le damier) : une maison non enregistrée ne change pas de case à chaque parcelle.
+/** Places d'office jusqu'à 4 maisons : haut (au fond), gauche, droite, bas (devant). */
+const PLACES_QUATRE = Object.freeze([[3, 3], [3, 7], [7, 3], [7, 7]]);
 /**
- * Places d'office de 5 à 9 maisons : parmi les 9 blocs espacés (0, 3, 6), toujours une case libre entre deux maisons. Une maison en cache une autre à
+ * Places d'office de 5 à 9 maisons : parmi les 9 blocs espacés (2, 5, 8), toujours une case libre entre deux maisons. Une maison en cache une autre à
  * l'écran quand elles sont dans la même colonne d'écran (même c - l) à un bloc d'écart : on l'évite tant que c'est possible.
  *  - 5 maisons : un zigzag au milieu (5 colonnes différentes) ;
  *  - 6 à 9 : les 4 coins, une maison par colonne (fond gauche, avant droite), puis les deux autres, le centre en dernier.
  */
-const PLACES_CINQ = Object.freeze([[0, 6], [6, 0], [3, 3], [0, 3], [3, 0]]);
+const PLACES_CINQ = Object.freeze([[2, 8], [8, 2], [5, 5], [2, 5], [5, 2]]);
 const PLACES_NEUF = Object.freeze([
-  [0, 6], [6, 0], [0, 0], [6, 6], [0, 3], [6, 3],
-  [3, 0], [3, 6], [3, 3],
+  [2, 8], [8, 2], [2, 2], [8, 8], [2, 5], [8, 5],
+  [5, 2], [5, 8], [5, 5],
 ]);
 /**
- * Places d'office de 10 à 12 maisons (au-delà de 9, le damier 8 x 8 ne laisse plus de case libre entre elles) : les 16 blocs pairs. La couronne d'abord,
- * le centre en dernier : avec 12 maisons, le centre reste vide et presque aucune maison n'en cache une autre de sa colonne d'écran (coins, milieux des
- * bords, puis les quatre qui partagent une colonne, puis le centre).
+ * Places d'office de 10 à 12 maisons : les 16 blocs espacés (0, 3, 6, 9) du damier 12 x 12, toujours une case libre entre deux maisons (27/11/2026 : les
+ * 16 blocs pairs serrés d'avant faisaient se chevaucher les noms, agrandis pour l'ordinateur ; ces places-là vont jusqu'au bord du damier).
+ * La couronne d'abord, le centre en dernier : avec 12 maisons, le centre reste vide et presque aucune maison n'en cache une autre de sa colonne d'écran
+ * (coins, milieux des bords, puis les quatre qui partagent une colonne, puis le centre).
  */
 const PLACES_SEIZE = Object.freeze([
-  [0, 0], [6, 0], [0, 6], [6, 6],
-  [0, 2], [2, 0], [4, 6], [6, 4],
-  [4, 0], [0, 4], [6, 2], [2, 6],
-  [2, 2], [2, 4], [4, 2], [4, 4],
+  [0, 0], [9, 0], [0, 9], [9, 9],
+  [0, 3], [3, 0], [6, 9], [9, 6],
+  [6, 0], [0, 6], [9, 3], [3, 9],
+  [3, 3], [3, 6], [6, 3], [6, 6],
 ]);
 
 /** Ensemble des cases prises (« c-l ») par une liste de maisons `{ id, c, l, taille }`. */
@@ -399,9 +403,11 @@ export function losangeBloc(c, l, taille, damier = DAMIER_DEPART, retrait = 0) {
 }
 
 // Décor des cases libres : une liste FIXE d'emplacements d'une case (arbres ronds, cyprès, fleurs du pré), chacun dessiné seulement si sa case est libre.
+// Damier 12 x 12 (27/11/2026) : sur les bords et dans les coins (cases 0, 1, 10, 11), hors des places d'office (cases 2 à 9), sauf les fleurs en (9, 3) :
+// prises par la 2e maison d'office à partir de 6 maisons, elles montrent qu'un village plus rempli a moins de décor (test V19).
 const DECOR = Object.freeze([
-  [0, 0, 'cypres'], [3, 0, 'rond'], [7, 1, 'fleurs'], [0, 3, 'rond'], [7, 4, 'cypres'], [4, 3, 'fleurs'],
-  [2, 7, 'cypres'], [7, 7, 'rond'], [5, 6, 'fleurs'], [1, 5, 'fleurs'], [6, 0, 'rond'], [0, 7, 'rond'],
+  [0, 0, 'cypres'], [4, 0, 'rond'], [11, 1, 'fleurs'], [0, 4, 'rond'], [11, 5, 'cypres'], [9, 3, 'fleurs'],
+  [3, 11, 'cypres'], [11, 11, 'rond'], [8, 10, 'fleurs'], [1, 7, 'fleurs'], [10, 0, 'rond'], [0, 11, 'rond'],
 ]);
 
 /** Objets du décor `{ profondeur, formes }` posés sur les cases libres (même dessin à chaque appel). */

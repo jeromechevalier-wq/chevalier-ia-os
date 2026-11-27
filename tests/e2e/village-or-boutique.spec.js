@@ -45,7 +45,7 @@ function serveurBoutique(etat) {
   return async (d) => {
     const porte = () => ({ or: etat.or, parcelles: etat.parcelles, version: etat.version });
     if (d.action !== 'acheter') return { result: { ok: true, gagne: 0, raison: 'deja' } };
-    if (d.article === 'parcelle' && etat.parcelles >= 8) return { result: { ok: true, achete: false, raison: 'maximum', ...porte() } };
+    if (d.article === 'parcelle' && etat.parcelles >= 6) return { result: { ok: true, achete: false, raison: 'maximum', ...porte() } };
     const prix = PRIX[d.article];
     if (etat.or < prix) return { result: { ok: true, achete: false, raison: 'pas_assez', manque: prix - etat.or, ...porte() } };
     etat.or -= prix;
@@ -165,15 +165,17 @@ const seChevauchent = (a, b) => !(a.x + a.width <= b.x || b.x + b.width <= a.x |
 /** Une maison rangée (document `besoin` avec sa place) : la clé suit la cible du besoin (« #/achatsfactures/liste » → b-achatsfactures-liste). */
 const maisonRangee = (uid, cle, c, l) => ecrireDocument(`village_utilisateurs/${uid}/batiments/b-${cle}`, { sorte: 'besoin', c, l });
 const decoration = (uid, id, modele, c, l) => { const quand = new Date(); return ecrireDocument(`village_utilisateurs/${uid}/batiments/${id}`, { sorte: 'decoration', modele, c, l, acheteLe: quand, depuis: quand, modifieLe: quand }); };
+/** Un champ ou un enclos (2 x 2 cases) déjà acheté, avec sa date `depuis`. */
+const objetFerme = (uid, id, sorte, c, l) => { const quand = new Date(); return ecrireDocument(`village_utilisateurs/${uid}/batiments/${id}`, { sorte, c, l, acheteLe: quand, depuis: quand, modifieLe: quand }); };
 
 test.describe('accueil village : la boutique (étape 6b)', () => {
-  test('6.4 parcelle : 500 pièces, le damier passe à 10 x 10, une maison rangée garde sa case', async ({ page }, info) => {
+  test('6.4 parcelle : 500 pièces, le damier passe à 14 x 14 (12 x 12 au départ depuis le 27/11/2026), une maison rangée garde sa case', async ({ page }, info) => {
     await semer({ besoins: [FACTURES, ACHATS_B] });
     const etat = { or: 600, parcelles: 0, version: 1 };
     const demandes = await simulerOr(page, serveurBoutique(etat));
     etat.uid = await ouvrirVillage(page, async (u) => { await porteMonnaie(u, 600); await maisonRangee(u, 'achatsfactures-liste', 2, 2); await maisonRangee(u, 'tableauachats-tableau', 4, 4); });
     await expect(or(page)).toHaveText('600 pièces d’or');
-    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '8');
+    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '12');
     const factures = page.locator('[data-role="batiment"][data-maison="b-achatsfactures-liste"]');
     await expect(factures).toHaveAttribute('data-case', '2-2');
     await capturer(page, info, '6.4-avant');
@@ -187,19 +189,19 @@ test.describe('accueil village : la boutique (étape 6b)', () => {
     await expect(fenetre(page)).toHaveCount(0);
     expect(demandes).toEqual([{ action: 'acheter', article: 'parcelle' }]);
     await expect(page.locator('.toast')).toContainText('Ton terrain s’agrandit');
-    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '10');
+    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '14');
     await expect(or(page)).toHaveText('100 pièces d’or');
     await expect(factures).toHaveAttribute('data-case', '2-2');
     await capturer(page, info, '6.4-apres');
-    // rechargement : le damier reste à 10 x 10
+    // rechargement : le damier reste à 14 x 14
     await rouvrir(page);
-    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '10');
+    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '14');
   });
 
   test('6.4b terrain au plus grand : la ligne de la parcelle est grisée, « Ton terrain est au plus grand. », aucune demande', async ({ page }, info) => {
     await semer({ besoins: [FACTURES] });
     const demandes = await simulerOr(page, async () => ({ result: { ok: true, gagne: 0, raison: 'deja' } }));
-    await ouvrirVillage(page, (u) => porteMonnaie(u, 5000, 8));
+    await ouvrirVillage(page, (u) => porteMonnaie(u, 5000, 6));
     await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '24');
     await boutonBoutique(page).click();
     const parcelle = ligne(page, 'parcelle');
@@ -256,7 +258,7 @@ test.describe('accueil village : la boutique (étape 6b)', () => {
     expect(demandes.length).toBe(1);
     const [d] = demandes;
     expect(d).toMatchObject({ action: 'acheter', article: 'decoration', modele: 'arbre' });
-    expect([d.c, d.l]).toEqual([7, 7]); // la case libre la plus devant : l'objet n'est jamais caché derrière une maison
+    expect([d.c, d.l]).toEqual([11, 11]); // damier 12 x 12 (27/11/2026, (7, 7) avant) : la case libre la plus devant : l'objet n'est jamais caché derrière une maison
     const arbre = page.locator('[data-role="objet"][data-modele="arbre"]');
     await expect(arbre).toHaveAttribute('data-case', `${d.c}-${d.l}`);
     await expect(arbre).toHaveAttribute('aria-label', 'Arbre');
@@ -289,28 +291,28 @@ test.describe('accueil village : la boutique (étape 6b)', () => {
     await capturer(page, info, '6.6-sur-une-maison');
     await lacher(page);
     await expect(arbre).toHaveAttribute('data-case', `${d.c}-${d.l}`);
-    // glisser sur une case libre (le coin du devant)
+    // glisser sur une case libre (le bord du devant ; (4, 7) avant le damier 12 x 12, prise aujourd'hui par Achats en 3-7)
     await page.waitForTimeout(600); // le retour de l'objet (animation) se termine
-    const cible = { c: 4, l: 7 };
+    const cible = { c: 6, l: 11 };
     await glisserObjet(page, arbre, [d.c, d.l], [cible.c, cible.l]);
-    await expect(arbre).toHaveAttribute('data-case', '4-7');
-    await expect.poll(async () => { const o = await lireDocument(`village_utilisateurs/${etat.uid}/batiments/o-essai1`); return o && `${o.c}-${o.l}-${o.modele}-${o.acheteLe instanceof Date}`; }).toBe('4-7-arbre-true');
+    await expect(arbre).toHaveAttribute('data-case', '6-11');
+    await expect.poll(async () => { const o = await lireDocument(`village_utilisateurs/${etat.uid}/batiments/o-essai1`); return o && `${o.c}-${o.l}-${o.modele}-${o.acheteLe instanceof Date}`; }).toBe('6-11-arbre-true');
     await capturer(page, info, '6.6-glisse');
     await rouvrir(page);
-    await expect(page.locator('[data-role="objet"][data-modele="arbre"]')).toHaveAttribute('data-case', '4-7');
+    await expect(page.locator('[data-role="objet"][data-modele="arbre"]')).toHaveAttribute('data-case', '6-11');
   });
 
   test('6.6e refus définitifs du serveur : « Ton terrain est au plus grand. » ; lecture seule : « Ton accès est en lecture seule : tu ne peux pas acheter. » (sans « Réessaie »)', async ({ page }, info) => {
     await semer({ besoins: [FACTURES] });
-    let reponse = { result: { ok: true, achete: false, raison: 'maximum', or: 900, parcelles: 8, version: 5 } };
+    let reponse = { result: { ok: true, achete: false, raison: 'maximum', or: 900, parcelles: 6, version: 5 } };
     const demandes = await simulerOr(page, async (d) => (d.action === 'acheter' ? reponse : { result: { ok: true, gagne: 0, raison: 'deja' } }));
-    await ouvrirVillage(page, (u) => porteMonnaie(u, 900, 7));
+    await ouvrirVillage(page, (u) => porteMonnaie(u, 900, 5));
     await boutonBoutique(page).click();
     await ligne(page, 'parcelle').locator('[data-role="acheter"]').click();
     const message = fenetre(page).locator('[data-role="boutique-message"]');
     await expect(message).toHaveText('Ton terrain est au plus grand.');
     await expect(fenetre(page)).toBeVisible();
-    await expect(ligne(page, 'parcelle').locator('[data-role="manque"]')).toHaveText('Ton terrain est au plus grand.'); // les 8 parcelles du serveur grisent la ligne
+    await expect(ligne(page, 'parcelle').locator('[data-role="manque"]')).toHaveText('Ton terrain est au plus grand.'); // les 6 parcelles du serveur (le maximum depuis le 27/11/2026) grisent la ligne
     reponse = { result: { ok: true, achete: false, raison: 'lecture_seule' } };
     await ligne(page, 'decoration', 'banc').locator('[data-role="acheter"]').click();
     await expect(message).toHaveText('Ton accès est en lecture seule : tu ne peux pas acheter.');
@@ -329,9 +331,9 @@ test.describe('accueil village : la boutique (étape 6b)', () => {
       await page.evaluate(() => { window.__chevalierTest.pannesOr = { lenteur: 2500 }; });
     });
     const avant = await listerDocuments(`village_utilisateurs/${uid}/batiments`);
-    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '8'); // le rangement est fait avant le portefeuille
+    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '12'); // damier 12 x 12 au départ (27/11/2026) ; le rangement est fait avant le portefeuille
     await expect(or(page)).toHaveText('50 pièces d’or', { timeout: 10000 });
-    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '12');
+    await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '16');
     await expect(page.locator('[data-role="batiment"][data-maison="b-achatsfactures-liste"]')).toHaveAttribute('data-case', '2-2');
     await expect(page.locator('[data-role="objet"][data-maison="o-tot"]')).toHaveAttribute('data-case', '7-7');
     await page.waitForTimeout(800);
@@ -387,18 +389,19 @@ test.describe('accueil village : la boutique (étape 6b)', () => {
   });
 
   test('6.6d village plein : décorations grisées, « Ton village est plein : achète une parcelle. »', async ({ page }, info) => {
-    // 7 maisons (28 cases) + 36 décorations = les 64 cases du damier 8 x 8 (moins de 40 objets : c'est bien le manque de place qui bloque)
+    // Damier 12 x 12 depuis le 27/11/2026 : 7 maisons (28 cases) + 29 champs ou enclos 2 x 2 (116 cases) = les 144 cases (36 blocs 2 x 2).
+    // 29 objets, moins que les 40 permis : c'est bien le manque de place qui bloque (avant : 7 maisons + 36 décorations sur le 8 x 8).
     const besoins = Array.from({ length: 7 }, (_, i) => ({ ...FACTURES, nom: `Factures ${i + 1}` }));
     await semer({ besoins });
     const demandes = await simulerOr(page, async () => ({ result: { ok: true, gagne: 0, raison: 'deja' } }));
-    const blocs = [[0, 0], [2, 0], [4, 0], [6, 0], [0, 2], [2, 2], [4, 2]];
+    const blocs = [];
+    for (let l = 0; l < 12; l += 2) for (let c = 0; c < 12; c += 2) blocs.push([c, l]);
     await ouvrirVillage(page, async (u) => {
       await porteMonnaie(u, 300);
       for (let i = 0; i < 7; i++) await maisonRangee(u, i ? `achatsfactures-liste-${i + 1}` : 'achatsfactures-liste', ...blocs[i]);
-      let n = 0;
-      for (let l = 2; l < 8; l++) for (let c = 0; c < 8; c++) { if (l < 4 && c < 6) continue; n += 1; await decoration(u, `o-plein${n}`, 'fleurs', c, l); }
+      for (let i = 7; i < blocs.length; i++) await objetFerme(u, `o-plein${i}`, i % 2 ? 'champ' : 'enclos', ...blocs[i]);
     });
-    await expect(objets(page)).toHaveCount(36);
+    await expect(objets(page)).toHaveCount(29);
     await boutonBoutique(page).click();
     for (const modele of ['arbre', 'fleurs', 'banc', 'cloture', 'brouette']) {
       await expect(ligne(page, 'decoration', modele).locator('[data-role="acheter"]')).toBeDisabled();
@@ -445,10 +448,10 @@ test.describe('accueil village : la boutique (étape 6b)', () => {
     await expect.poll(async () => (await lireDocument(`village_utilisateurs/${uid}/batiments/o-doigt`))?.c).toBe(6);
   });
 
-  test('recette 24 x 24 : 8 parcelles et 5 décorations (capture pour Jérôme)', async ({ page }, info) => {
+  test('recette 24 x 24 : 6 parcelles (le maximum depuis le 27/11/2026) et 5 décorations (capture pour Jérôme)', async ({ page }, info) => {
     await semer({ besoins: [FACTURES, ACHATS_B] });
     await ouvrirVillage(page, async (u) => {
-      await porteMonnaie(u, 240, 8);
+      await porteMonnaie(u, 240, 6);
       for (const [i, modele] of ['arbre', 'fleurs', 'banc', 'cloture', 'brouette'].entries()) await decoration(u, `o-recette${i}`, modele, 10 + 2 * i, 12);
     });
     await expect(page.locator('[data-role="damier"]')).toHaveAttribute('data-colonnes', '24');

@@ -110,7 +110,7 @@ test('V8 vue serrée : elle entoure le losange du terrain, le toit d’une maiso
   const vue = vueVillage(DAMIER_DEPART);
   for (const [x, y] of coins) assert.ok(x >= vue.x && x <= vue.x + vue.largeur && y >= vue.y && y <= vue.y + vue.hauteur);
   const fond = iso(...centreBloc(0, 0, 2, DAMIER_DEPART));
-  const devant = iso(...centreBloc(6, 6, 2, DAMIER_DEPART));
+  const devant = iso(...centreBloc(10, 10, 2, DAMIER_DEPART)); // damier 12 x 12 (27/11/2026) : la maison de devant est en (10, 10)
   assert.ok(fond[1] + BOITE_BATIMENT.haut >= vue.y);
   assert.ok(devant[1] + ETIQUETTE_Y + ETIQUETTE_HAUTEUR_MAX <= vue.y + vue.hauteur);
   // aucun grand vide : à gauche et à droite, le losange touche presque le bord de la vue ; en haut, le toit du fond touche presque la vue
@@ -149,11 +149,12 @@ test('V10 sûreté : l’écran du village pose les textes par textContent, jama
   assert.match(main, /besoinsVillage\.length && segs\.length === 1 && segs\[0\] === ROUTE_VILLAGE/);
 });
 
-test('V17 rangement d’office : jusqu’à 4 besoins, cases 1-1, 1-5, 5-1, 5-5 dans cet ordre (le haut au fond, le bas devant) ; BESOINS_MAX = 12 ; 13 besoins : 12 maisons', () => {
+test('V17 rangement d’office : jusqu’à 4 besoins, cases 3-3, 3-7, 7-3, 7-7 dans cet ordre (le haut au fond, le bas devant) ; BESOINS_MAX = 12 ; 13 besoins : 12 maisons', () => {
   const besoins = (n) => Array.from({ length: n }, (_, i) => ({ nom: `B${i + 1}`, phrase: '', batiment: 'bureau', cible: `#/m${i + 1}/vue` }));
   for (const n of [1, 2, 3, 4]) {
     const { maisons } = rangerVillage({ besoins: besoins(n) });
-    assert.deepEqual(maisons.map((m) => `${m.c}-${m.l}`), ['1-1', '1-5', '5-1', '5-5'].slice(0, n));
+    // damier 12 x 12 (27/11/2026) : les places d'avant (1-1, 1-5, 5-1, 5-5) décalées de 2 cases pour rester au centre
+    assert.deepEqual(maisons.map((m) => `${m.c}-${m.l}`), ['3-3', '3-7', '7-3', '7-7'].slice(0, n));
   }
   const [h, g, d, b] = rangerVillage({ besoins: besoins(4) }).maisons.map((m) => iso(...centreBloc(m.c, m.l, 2)));
   assert.ok(h[1] < g[1] && g[1] === d[1] && d[1] < b[1] && g[0] < h[0] && h[0] < d[0]);
@@ -324,8 +325,9 @@ test('2.1 rangement d’office avec 1, 4, 5, 8 et 12 besoins : autant de maisons
     for (const m of maisons) assert.ok(dansDamier(m.c, m.l, m.taille, DAMIER_DEPART), `${n} : ${m.c}-${m.l}`);
     assert.ok(maisons.every((m) => m.enregistree === false && m.taille === TAILLE_GRANDE));
   }
-  assert.deepEqual(rangerVillage({ besoins: besoinsN(4) }).maisons.map((m) => `${m.c}-${m.l}`), ['1-1', '1-5', '5-1', '5-5']);
-  assert.deepEqual(DAMIER_DEPART, { colonnes: 8, lignes: 8 });
+  // damier 12 x 12 depuis le 27/11/2026 (8 x 8 avant) : les places d'office sont décalées de 2 cases vers le centre
+  assert.deepEqual(rangerVillage({ besoins: besoinsN(4) }).maisons.map((m) => `${m.c}-${m.l}`), ['3-3', '3-7', '7-3', '7-7']);
+  assert.deepEqual(DAMIER_DEPART, { colonnes: 12, lignes: 12 });
   assert.equal(COORD_MAX, 23);
 });
 
@@ -333,22 +335,23 @@ test('2.2 une grande maison occupe 2 x 2 cases ; géométrie du damier (centre d
   assert.deepEqual(casesDuBloc(1, 1, 2), ['1-1', '1-2', '2-1', '2-2']);
   const prises = occupation(rangerVillage({ besoins: besoinsN(3) }).maisons);
   assert.equal(prises.size, 12);
-  assert.deepEqual(centreBloc(1, 1, 2, DAMIER_DEPART), [-5, -5]);
-  assert.deepEqual(centreBloc(5, 5, 2, DAMIER_DEPART), [5, 5]);
-  assert.equal(CASE * DAMIER_DEPART.colonnes, 20); // le terrain garde sa taille (20 x 20 unités)
+  // damier 12 x 12 (27/11/2026) : terrain de 30 x 30 unités (20 x 20 avec l'ancien 8 x 8), d'où les nouveaux centres
+  assert.deepEqual(centreBloc(1, 1, 2, DAMIER_DEPART), [-10, -10]);
+  assert.deepEqual(centreBloc(9, 9, 2, DAMIER_DEPART), [10, 10]);
+  assert.equal(CASE * DAMIER_DEPART.colonnes, 30); // terrain de départ : 30 x 30 unités
   for (const [gx, gy] of [[-5, -5], [3.75, -1.25], [0, 0], [7.5, 2.5]]) {
     const [x, y] = ecranVersGrille(...iso(gx, gy));
     assert.ok(Math.abs(x - gx) < 1e-9 && Math.abs(y - gy) < 1e-9);
   }
-  assert.deepEqual(blocSousPoint(-5, -5, 2, DAMIER_DEPART), { c: 1, l: 1 });
-  assert.deepEqual(blocSousPoint(-4.2, -5.8, 2, DAMIER_DEPART), { c: 1, l: 1 });
-  assert.deepEqual(blocSousPoint(20, 0, 2, DAMIER_DEPART), { c: 11, l: 3 }); // hors du damier : rendu tel quel
-  assert.equal(dansDamier(7, 0, 2, DAMIER_DEPART), false);
-  assert.equal(dansDamier(6, 6, 2, DAMIER_DEPART), true);
-  assert.equal(blocLibre(prises, 1, 1, 2, DAMIER_DEPART), false);
-  assert.equal(blocLibre(prises, 3, 3, 2, DAMIER_DEPART), true);
-  // vue, terrain et quadrillage : 18 lignes (9 + 9), terrain sans sentiers
-  assert.equal(lignesDamier().length, 18);
+  assert.deepEqual(blocSousPoint(-10, -10, 2, DAMIER_DEPART), { c: 1, l: 1 });
+  assert.deepEqual(blocSousPoint(-9.2, -10.8, 2, DAMIER_DEPART), { c: 1, l: 1 });
+  assert.deepEqual(blocSousPoint(20, 0, 2, DAMIER_DEPART), { c: 13, l: 5 }); // hors du damier : rendu tel quel (damier 12 x 12 : (13, 5) au lieu de (11, 3))
+  assert.equal(dansDamier(11, 0, 2, DAMIER_DEPART), false);
+  assert.equal(dansDamier(10, 10, 2, DAMIER_DEPART), true);
+  assert.equal(blocLibre(prises, 3, 3, 2, DAMIER_DEPART), false); // places d'office décalées de 2 (damier 12 x 12)
+  assert.equal(blocLibre(prises, 5, 5, 2, DAMIER_DEPART), true);
+  // vue, terrain et quadrillage : 26 lignes (13 + 13) sur le damier 12 x 12, terrain sans sentiers
+  assert.equal(lignesDamier().length, 26);
   const [haut, droite, bas, gauche] = terrainCoins();
   assert.deepEqual(formesDamier()[2].poly, [haut, droite, bas, gauche]);
 });
@@ -356,10 +359,12 @@ test('2.2 une grande maison occupe 2 x 2 cases ; géométrie du damier (centre d
 test('2.3 2.5 une place enregistrée est reprise ; un conflit ou une place hors du damier est rangé d’office ; plus de place : sansPlace', () => {
   const besoins = besoinsN(3);
   const cles = clesBesoins(besoins);
-  const batiments = new Map([[`b-${cles[0]}`, { sorte: 'besoin', c: 3, l: 3 }], [`b-${cles[1]}`, { sorte: 'besoin', c: 4, l: 4 }], [`b-${cles[2]}`, { sorte: 'besoin', c: 7, l: 7 }]]);
+  // damier 12 x 12 (27/11/2026) : la place « hors du damier » passe de (7, 7) à (11, 11) ; les places d'office sont décalées de 2
+  const batiments = new Map([[`b-${cles[0]}`, { sorte: 'besoin', c: 3, l: 3 }], [`b-${cles[1]}`, { sorte: 'besoin', c: 4, l: 4 }], [`b-${cles[2]}`, { sorte: 'besoin', c: 11, l: 11 }]]);
   const { maisons } = rangerVillage({ besoins, batiments });
-  assert.deepEqual(maisons.map((m) => [`${m.c}-${m.l}`, m.enregistree]), [['3-3', true], ['1-5', false], ['5-1', false]]);
-  // 16 grandes maisons au plus sur le damier de départ : la 17e (au-delà de BESOINS_MAX, cas théorique) n'a pas de place
+  assert.deepEqual(maisons.map((m) => [`${m.c}-${m.l}`, m.enregistree]), [['3-3', true], ['3-7', false], ['7-3', false]]);
+  // 16 grandes maisons rangées d'office au plus : sur le damier 12 x 12, les 16 blocs espacés (0, 3, 6, 9) ne laissent entre eux que des rangs d'une case
+  // (27/11/2026 ; sur l'ancien 8 x 8, c'étaient les 16 blocs pairs) : la 17e (au-delà de BESOINS_MAX, cas théorique) n'a pas de place
   const dixSept = rangerVillage({ besoins: besoinsN(17) });
   assert.equal(dixSept.maisons.length, 16);
   assert.equal(dixSept.sansPlace.length, 1);
@@ -400,7 +405,7 @@ test('2.9 un besoin dont le module n’est pas allumé n’a pas de maison ; un 
   assert.deepEqual(besoinsServis(besoins, ['achatsfactures', 'reglages']).map((b) => b.nom), ['Factures', 'Réglages']);
   assert.deepEqual(besoinsServis(besoins, []), []);
   const r = rangerVillage({ besoins: [{ ...FACTURES }], batiments: new Map([['b-inconnu', { sorte: 'besoin', c: 1, l: 1 }]]) });
-  assert.deepEqual(r.maisons.map((m) => `${m.id} ${m.c}-${m.l}`), ['b-achatsfactures-liste 1-1']);
+  assert.deepEqual(r.maisons.map((m) => `${m.id} ${m.c}-${m.l}`), ['b-achatsfactures-liste 3-3']);
   const main = lire('js/main.js');
   assert.match(main, /besoinsVillage = besoinsServis\(village\.besoins, \[\.\.\.MODULES\.map\(\(m\) => m\.prefixe\), 'reglages'\]\);/);
   assert.match(main, /donnees: creerDonneesVillage\(\{ base: '', uid: session\.compte\.uid \}\)/);
@@ -745,12 +750,13 @@ test('6.6g rangerVillage : objets à leur place ; un objet sur une maison enregi
   assert.ok(dansDamier(hors.objets[0].c, hors.objets[0].l, 1, DAMIER_DEPART));
 });
 
-test('6.4g damierPourPlaces : vide 8 x 8 ; maison à c 9 : 12 x 12 ; objet 1 x 1 à c 9 : 10 x 10 ; 24 au plus', () => {
-  assert.deepEqual(D6.damierPourPlaces(new Map()), { colonnes: 8, lignes: 8 });
-  assert.deepEqual(D6.damierPourPlaces(new Map([['b-x', { sorte: 'besoin', c: 9, l: 0 }]])), { colonnes: 12, lignes: 12 });
-  assert.deepEqual(D6.damierPourPlaces([{ sorte: 'decoration', c: 9, l: 0 }]), { colonnes: 10, lignes: 10 });
+test('6.4g damierPourPlaces : vide 12 x 12 ; maison à c 13 : 16 x 16 ; objet 1 x 1 à c 13 : 14 x 14 ; 24 au plus', () => {
+  // damier de départ 12 x 12 depuis le 27/11/2026 (8 x 8 avant) : le plus petit damier passe à 12, les exemples de c 9 à c 13
+  assert.deepEqual(D6.damierPourPlaces(new Map()), { colonnes: 12, lignes: 12 });
+  assert.deepEqual(D6.damierPourPlaces(new Map([['b-x', { sorte: 'besoin', c: 13, l: 0 }]])), { colonnes: 16, lignes: 16 });
+  assert.deepEqual(D6.damierPourPlaces([{ sorte: 'decoration', c: 13, l: 0 }]), { colonnes: 14, lignes: 14 });
   assert.deepEqual(D6.damierPourPlaces([{ sorte: 'lien', c: 23, l: 23 }]), { colonnes: 24, lignes: 24 });
-  assert.deepEqual(D6.damierPourPlaces([{ sorte: 'petite', parent: 'b-x' }, { sorte: 'besoin' }]), { colonnes: 8, lignes: 8 });
+  assert.deepEqual(D6.damierPourPlaces([{ sorte: 'petite', parent: 'b-x' }, { sorte: 'besoin' }]), { colonnes: 12, lignes: 12 });
 });
 
 test('6.6h cases prises : la même règle que le serveur (casesEnregistrees) ; TAILLE_MAISON === TAILLE_GRANDE', () => {
@@ -767,36 +773,38 @@ test('6.6h cases prises : la même règle que le serveur (casesEnregistrees) ; T
 });
 
 test('6.6j caseLibreDevant : la case libre la plus devant (c + l), puis la plus proche du milieu ; null si tout est pris', () => {
+  // damier de départ 12 x 12 (27/11/2026) : la case de devant passe de (7, 7) à (11, 11)
   const vide = new Map();
-  assert.deepEqual(D6.caseLibreDevant(vide), { c: 7, l: 7 });
+  assert.deepEqual(D6.caseLibreDevant(vide), { c: 11, l: 11 });
   assert.deepEqual(D6.caseLibreDevant(vide, { colonnes: 10, lignes: 10 }), { c: 9, l: 9 });
-  const prises = new Map([['7-7', 'x']]);
-  assert.deepEqual(D6.caseLibreDevant(prises), { c: 6, l: 7 });
+  const prises = new Map([['11-11', 'x']]);
+  assert.deepEqual(D6.caseLibreDevant(prises), { c: 10, l: 11 });
   const pleines = new Map();
-  for (let c = 0; c < 8; c++) for (let l = 0; l < 8; l++) pleines.set(`${c}-${l}`, 'x');
+  for (let c = 0; c < 12; c++) for (let l = 0; l < 12; l++) pleines.set(`${c}-${l}`, 'x');
   assert.equal(D6.caseLibreDevant(pleines), null);
   pleines.delete('0-0');
   assert.deepEqual(D6.caseLibreDevant(pleines), { c: 0, l: 0 });
 });
 
 test('7.3b caseLibreDevant(occ, damier, 2) : un bloc 2 x 2 libre, le plus devant ; plein : null ; sans 3e argument : comme en 6b', () => {
+  // damier de départ 12 x 12 (27/11/2026) : le bloc de devant passe de (6, 6) à (10, 10), la case de devant de (7, 7) à (11, 11)
   const vide = new Map();
-  assert.deepEqual(D6.caseLibreDevant(vide, DAMIER_DEPART, 2), { c: 6, l: 6 });
+  assert.deepEqual(D6.caseLibreDevant(vide, DAMIER_DEPART, 2), { c: 10, l: 10 });
   assert.deepEqual(D6.caseLibreDevant(vide, { colonnes: 10, lignes: 10 }, 2), { c: 8, l: 8 });
   assert.deepEqual(D6.caseLibreDevant(vide), D6.caseLibreDevant(vide, DAMIER_DEPART, 1));
-  assert.deepEqual(D6.caseLibreDevant(vide), { c: 7, l: 7 });
+  assert.deepEqual(D6.caseLibreDevant(vide), { c: 11, l: 11 });
   // une case prise dans le bloc de devant : le bloc suivant le plus devant, entièrement libre
-  const prises = new Map([['7-7', 'x']]);
+  const prises = new Map([['11-11', 'x']]);
   const bloc = D6.caseLibreDevant(prises, DAMIER_DEPART, 2);
   assert.ok(casesDuBloc(bloc.c, bloc.l, 2).every((k) => !prises.has(k)), JSON.stringify(bloc));
-  assert.equal(bloc.c + bloc.l, 11);
+  assert.equal(bloc.c + bloc.l, 19);
   // seules des cases isolées libres (un damier en échiquier) : aucun bloc 2 x 2, mais une case 1 x 1
   const echiquier = new Map();
-  for (let c = 0; c < 8; c++) for (let l = 0; l < 8; l++) if ((c + l) % 2) echiquier.set(`${c}-${l}`, 'x');
+  for (let c = 0; c < 12; c++) for (let l = 0; l < 12; l++) if ((c + l) % 2) echiquier.set(`${c}-${l}`, 'x');
   assert.equal(D6.caseLibreDevant(echiquier, DAMIER_DEPART, 2), null);
   assert.notEqual(D6.caseLibreDevant(echiquier), null);
   const pleines = new Map();
-  for (let c = 0; c < 8; c++) for (let l = 0; l < 8; l++) pleines.set(`${c}-${l}`, 'x');
+  for (let c = 0; c < 12; c++) for (let l = 0; l < 12; l++) pleines.set(`${c}-${l}`, 'x');
   for (const k of ['0-0', '0-1', '1-0', '1-1']) pleines.delete(k);
   assert.deepEqual(D6.caseLibreDevant(pleines, DAMIER_DEPART, 2), { c: 0, l: 0 });
 });
@@ -917,4 +925,62 @@ test('3cb.3 plus de plafond par personne : 13 manuelles sur deux grandes sont to
   const ecran = lire('js/os/village-ecran.js').replace(/^\s*\/\/.*$/gm, '');
   assert.ok(!ecran.includes('petites maisons au plus : retire-en'));
   assert.ok(ecran.includes('petites maisons cachées au plus : remontre-en une avec la roue dentée.'));
+});
+
+// ---------------------------------------------------------------- damier de départ 12 x 12 (demande de Jérôme du 27/11/2026 : « 2 fois plus de cases »)
+const MV = await import('../js/os/maison-village.js');
+
+test('D12.1 Le damier de départ fait 12 x 12', () => {
+  assert.equal(RJ.COTE_DEPART, 12);
+  assert.deepEqual(RJ.damierDe(0), { colonnes: 12, lignes: 12 });
+  assert.deepEqual(DAMIER_DEPART, { colonnes: 12, lignes: 12 });
+  assert.deepEqual(D6.damierPourPlaces([]), DAMIER_DEPART);
+  assert.equal(CASE * DAMIER_DEPART.colonnes, 2 * MV.DEMI_TERRAIN); // terrain de départ : 30 x 30 unités
+  assert.equal(COORD_MAX, 23);
+});
+
+test('D12.2 Six parcelles donnent 24 x 24, une septième ne change rien', () => {
+  assert.equal(RJ.PARCELLES_MAX, 6);
+  assert.deepEqual(RJ.damierDe(6), { colonnes: 24, lignes: 24 });
+  assert.deepEqual(RJ.damierDe(7), { colonnes: 24, lignes: 24 });
+  assert.equal(RJ.parcellesValables(8), 6);
+  assert.equal(RJ.damierDe(6).colonnes, COORD_MAX + 1);
+});
+
+test('D12.3 Les places d’office restent au centre', () => {
+  for (const n of [1, 4, 9, 12]) {
+    const { maisons, sansPlace } = rangerVillage({ besoins: besoinsN(n) });
+    assert.equal(maisons.length, n, `${n}`);
+    assert.equal(sansPlace.length, 0);
+    const cases = maisons.flatMap((m) => casesDuBloc(m.c, m.l, m.taille));
+    assert.equal(new Set(cases).size, cases.length, `${n} : case partagée`);
+    for (const m of maisons) {
+      assert.ok(dansDamier(m.c, m.l, m.taille, DAMIER_DEPART), `${n} : ${m.c}-${m.l}`);
+      // jusqu'à 9 maisons, au moins 2 cases libres de chaque bord (c et l >= 2, le bloc finit au plus à la case 9). De 10 à 12, les blocs espacés
+      // (0, 3, 6, 9) vont jusqu'au bord : des places serrées au centre faisaient se chevaucher les noms (Décision prise seul, 27/11/2026).
+      if (n <= 9) assert.ok(m.c >= 2 && m.l >= 2 && m.c + m.taille <= DAMIER_DEPART.colonnes - 2 && m.l + m.taille <= DAMIER_DEPART.lignes - 2, `${n} : ${m.c}-${m.l}`);
+    }
+  }
+  // les mêmes places quel que soit le damier (décalage fixe) : une maison non enregistrée ne change pas de case quand on achète une parcelle
+  for (const n of [4, 9, 12]) {
+    const depart = rangerVillage({ besoins: besoinsN(n) }).maisons.map((m) => `${m.c}-${m.l}`);
+    const grand = rangerVillage({ besoins: besoinsN(n), damier: RJ.damierDe(3) }).maisons.map((m) => `${m.c}-${m.l}`);
+    assert.deepEqual(grand, depart, `${n}`);
+  }
+});
+
+test('D12.4 Une maison déjà rangée en (0, 0) reste en (0, 0)', () => {
+  const besoins = besoinsN(4);
+  const cles = clesBesoins(besoins);
+  const r = rangerVillage({ besoins, batiments: new Map([[`b-${cles[0]}`, { sorte: 'besoin', c: 0, l: 0 }]]) });
+  assert.deepEqual([r.maisons[0].c, r.maisons[0].l, r.maisons[0].enregistree], [0, 0, true]);
+  // cas mixte : une maison enregistrée en (6, 6) et 3 d'office : 4 maisons, aucune case partagée, toutes dans le damier, la (6, 6) marquée enregistrée
+  const mixte = rangerVillage({ besoins, batiments: new Map([[`b-${cles[1]}`, { sorte: 'besoin', c: 6, l: 6 }]]) });
+  assert.equal(mixte.maisons.length, 4);
+  const cases = mixte.maisons.flatMap((m) => casesDuBloc(m.c, m.l, m.taille));
+  assert.equal(new Set(cases).size, cases.length);
+  for (const m of mixte.maisons) assert.ok(dansDamier(m.c, m.l, m.taille, DAMIER_DEPART), `${m.c}-${m.l}`);
+  const enregistree = mixte.maisons.find((m) => m.id === `b-${cles[1]}`);
+  assert.deepEqual([enregistree.c, enregistree.l, enregistree.enregistree], [6, 6, true]);
+  assert.ok(mixte.maisons.filter((m) => m !== enregistree).every((m) => m.enregistree === false));
 });
