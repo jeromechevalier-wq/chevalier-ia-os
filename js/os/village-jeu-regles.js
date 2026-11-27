@@ -1,4 +1,4 @@
-// Règles du jeu du village (pièces d'or, 27/11/2026, étapes 6 et 7 de docs/accueil-village.md) : fichier PUR, sans aucun import, sans DOM et sans horloge cachée
+// Règles du jeu du village (pièces d'or, 27/11/2026, étapes 6 et 7 de docs/accueil-village.md ; étape 7 : achat et récolte des champs et des enclos) : fichier PUR, sans aucun import, sans DOM et sans horloge cachée
 // (l'heure est toujours reçue en argument). Le même fichier sert à l'écran (pour dessiner) et au serveur (pour décider) : scripts/preparer-fonctions.js le copie tel quel
 // dans functions/partage/ et dans functions-plateforme/serveur/partage/. Le serveur seul décide de l'or : une horloge fausse à l'écran ne rapporte rien.
 // Montants validés par Jérôme (27/11/2026) : facture validée 10, facture payée 20, devis signé 50. Uniquement des récompenses : rien ne se perd, aucun son.
@@ -15,8 +15,10 @@ export const CASES_PAR_PARCELLE = 2;
 export const TAILLES = Object.freeze({ decoration: 1, champ: 2, enclos: 2 });
 /** Côté d'une maison du village (besoin ou lien), en cases : la même valeur que TAILLE_GRANDE de village-damier.js (un test le vérifie). */
 export const TAILLE_MAISON = 2;
-/** Ce que la boutique vend aujourd'hui (étape 6b) ; l'étape 7 ajoutera le champ et l'enclos. */
-export const ARTICLES_EN_VENTE = Object.freeze(['decoration', 'parcelle']);
+/** Ce que la boutique vend : décorations et parcelles (étape 6b), champs et enclos (étape 7). */
+export const ARTICLES_EN_VENTE = Object.freeze(['decoration', 'champ', 'enclos', 'parcelle']);
+/** Objets qui se récoltent d'un clic (étape 7) : le serveur seul ramasse l'or et remet `depuis` à jour. */
+export const SORTES_RECOLTE = Object.freeze(['champ', 'enclos']);
 /** Mêmes noms que DECORATIONS du fichier des dessins du jeu (étape 6a-bis ; un test le vérifie). */
 export const MODELES_DECORATION = Object.freeze(['arbre', 'fleurs', 'banc', 'cloture', 'brouette']);
 const HEURE = 3600 * 1000;
@@ -107,6 +109,28 @@ export function etatChamp(depuisMs, maintenantMs) {
   const ecoule = maintenantMs - depuisMs;
   const etape = Math.min(CHAMP.etapes - 1, Math.floor(ecoule / (CHAMP.dureeMs / (CHAMP.etapes - 1))));
   return { etape, pret: ecoule >= CHAMP.dureeMs };
+}
+
+/**
+ * État de récolte d'un objet (étape 7), la même règle à l'écran (dessin) et au serveur (décision) :
+ * champ : étape de pousse, 20 pièces quand il est prêt ; enclos : pièces prêtes (étape 1 s'il y en a) ; autre sorte : rien.
+ */
+export function etatRecolte(sorte, depuisMs, maintenantMs) {
+  if (sorte === 'champ') {
+    const e = etatChamp(depuisMs, maintenantMs);
+    return { pret: e.pret, pieces: e.pret ? CHAMP.pieces : 0, etape: e.etape };
+  }
+  if (sorte === 'enclos') {
+    const e = etatEnclos(depuisMs, maintenantMs);
+    return { pret: e.pretes > 0, pieces: e.pretes, etape: e.pretes > 0 ? 1 : 0 };
+  }
+  return { pret: false, pieces: 0, etape: 0 };
+}
+
+/** Nouvelle valeur de `depuis` après une récolte : un champ se resème (maintenant), un enclos garde la fraction de jour entamée (apresRamassage). */
+export function departApresRecolte(sorte, depuisMs, maintenantMs) {
+  if (sorte === 'enclos') return apresRamassage(depuisMs, maintenantMs);
+  return maintenantMs;
 }
 
 /** Vrai si une bonne nouvelle datée par un serveur (facture d'achat acceptée, devis signé) a moins de 48 h. */

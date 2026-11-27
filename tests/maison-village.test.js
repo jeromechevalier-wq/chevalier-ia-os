@@ -779,6 +779,52 @@ test('6.6j caseLibreDevant : la case libre la plus devant (c + l), puis la plus 
   assert.deepEqual(D6.caseLibreDevant(pleines), { c: 0, l: 0 });
 });
 
+test('7.3b caseLibreDevant(occ, damier, 2) : un bloc 2 x 2 libre, le plus devant ; plein : null ; sans 3e argument : comme en 6b', () => {
+  const vide = new Map();
+  assert.deepEqual(D6.caseLibreDevant(vide, DAMIER_DEPART, 2), { c: 6, l: 6 });
+  assert.deepEqual(D6.caseLibreDevant(vide, { colonnes: 10, lignes: 10 }, 2), { c: 8, l: 8 });
+  assert.deepEqual(D6.caseLibreDevant(vide), D6.caseLibreDevant(vide, DAMIER_DEPART, 1));
+  assert.deepEqual(D6.caseLibreDevant(vide), { c: 7, l: 7 });
+  // une case prise dans le bloc de devant : le bloc suivant le plus devant, entièrement libre
+  const prises = new Map([['7-7', 'x']]);
+  const bloc = D6.caseLibreDevant(prises, DAMIER_DEPART, 2);
+  assert.ok(casesDuBloc(bloc.c, bloc.l, 2).every((k) => !prises.has(k)), JSON.stringify(bloc));
+  assert.equal(bloc.c + bloc.l, 11);
+  // seules des cases isolées libres (un damier en échiquier) : aucun bloc 2 x 2, mais une case 1 x 1
+  const echiquier = new Map();
+  for (let c = 0; c < 8; c++) for (let l = 0; l < 8; l++) if ((c + l) % 2) echiquier.set(`${c}-${l}`, 'x');
+  assert.equal(D6.caseLibreDevant(echiquier, DAMIER_DEPART, 2), null);
+  assert.notEqual(D6.caseLibreDevant(echiquier), null);
+  const pleines = new Map();
+  for (let c = 0; c < 8; c++) for (let l = 0; l < 8; l++) pleines.set(`${c}-${l}`, 'x');
+  for (const k of ['0-0', '0-1', '1-0', '1-1']) pleines.delete(k);
+  assert.deepEqual(D6.caseLibreDevant(pleines, DAMIER_DEPART, 2), { c: 0, l: 0 });
+});
+
+test('7.3c rangerVillage avec un champ et un enclos (2 x 2) : 4 cases prises chacun ; un enclos sur une maison enregistrée est montré au premier bloc 2 x 2 libre ; maisons sans objet', () => {
+  const t = new Date(Date.parse('2026-11-27T10:00:00Z'));
+  const batiments = new Map([
+    ['b-achatsfactures-liste', { sorte: 'besoin', c: 3, l: 3 }],
+    ['o-champ', { sorte: 'champ', c: 0, l: 6, depuis: t }],
+    ['o-enclos', { sorte: 'enclos', c: 6, l: 0, depuis: t }],
+    ['o-sur', { sorte: 'enclos', c: 4, l: 4, depuis: t }], // sur la maison
+  ]);
+  const r = rangerVillage({ besoins: [FACTURES], batiments });
+  assert.deepEqual(r.maisons.map((m) => m.id), ['b-achatsfactures-liste']);
+  const parId = new Map(r.objets.map((o) => [o.id, o]));
+  assert.deepEqual([parId.get('o-champ').taille, parId.get('o-enclos').taille], [2, 2]);
+  assert.deepEqual([...occupation([parId.get('o-champ')]).keys()].sort(), ['0-6', '0-7', '1-6', '1-7']);
+  assert.deepEqual([...occupation([parId.get('o-enclos')]).keys()].sort(), ['6-0', '6-1', '7-0', '7-1']);
+  const sur = parId.get('o-sur');
+  assert.equal(sur.deplaceAffiche, true);
+  assert.equal(sur.enregistree, false);
+  const autres = occupation([...r.maisons, parId.get('o-champ'), parId.get('o-enclos')]);
+  assert.ok(casesDuBloc(sur.c, sur.l, 2).every((k) => !autres.has(k)), `${sur.c}-${sur.l}`);
+  assert.ok(dansDamier(sur.c, sur.l, 2, DAMIER_DEPART));
+  assert.equal(sur.donnees.depuis, t); // la date est gardée pour le dessin
+  assert.deepEqual(r.objetsSansPlace, []);
+});
+
 test('6.6i une petite maison ne se pose jamais sur une décoration (rangerPetites reçoit les objets)', () => {
   const besoins = [FACTURES, CHANTIERS_B];
   const sans = ranger4({ besoins, batiments: new Map([['p-a', docP('b-achatschantiers-liste', '#/achatschantiers/liste/c1')]]), elements: lus([chantier('c1', 'en_cours')]) });

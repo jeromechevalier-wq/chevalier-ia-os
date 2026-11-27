@@ -1,14 +1,14 @@
 // Boutique du village (étape 6b de docs/accueil-village.md, 27/11/2026) : la fenêtre où l'on dépense ses pièces d'or. Ouverte par le bouton « Boutique », à droite
 // du compteur d'or (js/os/village-ecran.js). Ce fichier ne parle ni à la base ni au serveur : l'écran lui donne le solde, les parcelles, le nombre d'objets,
 // la case libre, les vignettes et la fonction d'achat (`surAcheter`), qui passe par js/os/village-or.js.
-//  - une ligne par article : les 5 décorations (20 pièces) puis la parcelle de terrain (500 pièces) ; champ et enclos viendront à l'étape 7 ;
+//  - une ligne par article : les 5 décorations (20 pièces), le champ cultivé (100 pièces) et l'enclos à cochons (200 pièces, étape 7), puis la parcelle de terrain (500 pièces) ;
 //  - un article qu'on ne peut pas acheter a son bouton grisé et une phrase neutre dessous (pas assez d'or, terrain au plus grand, 40 objets, village plein),
 //    sans aucune demande au serveur ;
 //  - pendant un achat, tous les boutons sont grisés (un double clic ne fait qu'une demande) ; réussite : la fenêtre se ferme ; refus « pas assez » :
 //    la ligne passe grisée avec ce qui manque ; autre refus ou panne : la fenêtre reste, avec « L’achat n’a pas abouti. Réessaie. ».
 // Textes par h() (textContent), tutoiement, apostrophes typographiques. Aucun son.
 import { h, dialogue } from './ui.js';
-import { PRIX, PARCELLES_MAX, OBJETS_MAX, MODELES_DECORATION, manque, texteManque, texteOr } from './village-jeu-regles.js';
+import { PRIX, PARCELLES_MAX, OBJETS_MAX, MODELES_DECORATION, TAILLES, manque, texteManque, texteOr } from './village-jeu-regles.js';
 import { DESSINS_JEU } from './village-jeu-dessins.js';
 
 export const ECHEC_ACHAT = 'L’achat n’a pas abouti. Réessaie.';
@@ -23,13 +23,14 @@ function refusAvant(article, { or, parcelles, objets, caseLibre }) {
     if (parcelles >= PARCELLES_MAX) return TERRAIN_MAX;
     return or < PRIX.parcelle ? texteManque(manque(PRIX.parcelle, or)) : null;
   }
+  // objet du jeu : décoration (1 x 1), champ ou enclos (2 x 2)
   if (objets >= OBJETS_MAX) return OBJETS_PLEIN;
-  if (!caseLibre()) return parcelles >= PARCELLES_MAX ? PLEIN : PLEIN_PARCELLE;
-  return or < PRIX.decoration ? texteManque(manque(PRIX.decoration, or)) : null;
+  if (!caseLibre(TAILLES[article])) return parcelles >= PARCELLES_MAX ? PLEIN : PLEIN_PARCELLE;
+  return or < PRIX[article] ? texteManque(manque(PRIX[article], or)) : null;
 }
 
 /**
- * Ouvre la boutique. `or`, `parcelles`, `objets` : nombres connus ; `caseLibre()` : une case { c, l } libre pour une décoration, ou null ;
+ * Ouvre la boutique. `or`, `parcelles`, `objets` : nombres connus ; `caseLibre(taille)` : un bloc { c, l } libre de `taille` x `taille` cases, ou null ;
  * `dessin(id)` : la vignette SVG d'un article ; `surAcheter(article, modele)` : Promise { ok: true } | { ok: false, or?, parcelles?, message?, manque? } (`or`, `parcelles` : ce qui est connu après le refus).
  */
 export function ouvrirBoutique({ or, parcelles, objets, caseLibre, dessin, surAcheter }) {
@@ -41,6 +42,8 @@ export function ouvrirBoutique({ or, parcelles, objets, caseLibre, dessin, surAc
 
   const articles = [
     ...MODELES_DECORATION.map((modele) => ({ article: 'decoration', modele, nom: DESSINS_JEU[modele]?.nom ?? modele, phrase: '', prix: PRIX.decoration })),
+    { article: 'champ', modele: '', nom: 'Champ cultivé', phrase: 'Pousse en 2 jours, puis se récolte contre 20 pièces d’or.', prix: PRIX.champ },
+    { article: 'enclos', modele: '', nom: 'Enclos à cochons', phrase: 'Tes cochons donnent 5 pièces d’or par jour, jusqu’à 20 en réserve.', prix: PRIX.enclos },
     { article: 'parcelle', modele: '', nom: 'Parcelle de terrain', phrase: 'Ton terrain gagne 2 cases en largeur et en profondeur.', prix: PRIX.parcelle },
   ];
 
@@ -84,7 +87,7 @@ export function ouvrirBoutique({ or, parcelles, objets, caseLibre, dessin, surAc
       h('span', { class: 'village-boutique-prix', dataset: { role: 'prix' } }, texteOr(a.prix)),
       manqueEl);
     const vignette = h('span', { class: 'village-boutique-vignette', 'aria-hidden': 'true' });
-    const image = dessin(a.article === 'parcelle' ? 'parcelle' : a.modele);
+    const image = dessin(a.article === 'parcelle' ? 'parcelle' : a.article === 'decoration' ? a.modele : a.article);
     if (image) vignette.append(image);
     const li = h('li', { class: 'village-boutique-ligne', dataset: { article: a.article, modele: a.modele } }, vignette, textes, bouton);
     const ligne = { ...a, li, bouton, manque: manqueEl, refus: null };

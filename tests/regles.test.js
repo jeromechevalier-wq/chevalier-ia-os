@@ -746,7 +746,7 @@ describe('Or du village (27/11/2026)', () => {
     }
     await assertFails(updateDoc(objet(db, J, 'o-abc'), { c: 2, modifieLe: new Date('2020-01-01T00:00:00Z') }));
     await assertFails(deleteDoc(objet(db, J, 'o-abc')));
-    for (const [id, d] of [['o-neuf', { sorte: 'decoration', modele: 'arbre', c: 1, l: 1 }], ['o-champ', { sorte: 'champ', c: 2, l: 2 }], ['o-enclos', { sorte: 'enclos', c: 3, l: 3 }], ['b-x', { sorte: 'champ', c: 1, l: 1 }]]) {
+    for (const [id, d] of [['o-neuf', { sorte: 'decoration', modele: 'arbre', c: 1, l: 1 }], ['o-champ', { sorte: 'champ', c: 2, l: 2, depuis: new Date('2020-01-01T00:00:00Z') }], ['o-enclos', { sorte: 'enclos', c: 3, l: 3, depuis: new Date('2020-01-01T00:00:00Z') }], ['b-x', { sorte: 'champ', c: 1, l: 1, depuis: new Date('2020-01-01T00:00:00Z') }]]) {
       await assertFails(setDoc(objet(db, J, id), d));
     }
     const charles = contexte(C);
@@ -768,6 +768,20 @@ describe('Or du village (27/11/2026)', () => {
     // l'objet tel que l'écran le connaît juste après l'achat (réponse du serveur, sans dates) : un document entier les effacerait
     await assertFails(setDoc(objet(db, J, 'o-deco'), { sorte: 'decoration', modele: 'arbre', c: 2, l: 2, modifieLe: serverTimestamp() }));
     await assertFails(setDoc(objet(db, J, 'o-deco'), { sorte: 'decoration', c: 2, l: 2, acheteLe: quand, depuis: quand, modifieLe: serverTimestamp() }));
+  });
+
+  test('7.R1 (étape 7) enclos semé : le propriétaire le déplace (c, l, modifieLe) ; il ne touche jamais `depuis` (ni l’heure du serveur, ni une date ancienne) : les règles n’ont pas changé', async () => {
+    const quand = new Date('2026-11-26T10:00:00Z');
+    await semer(['village_utilisateurs', `uid-${J}`, 'batiments', 'o-enclos1'], { sorte: 'enclos', c: 1, l: 1, acheteLe: quand, depuis: quand, modifieLe: quand });
+    const db = contexte(J);
+    const lot = writeBatch(db);
+    lot.update(objet(db, J, 'o-enclos1'), { c: 4, l: 4, modifieLe: serverTimestamp() });
+    await assertSucceeds(lot.commit());
+    await assertFails(updateDoc(objet(db, J, 'o-enclos1'), { c: 5, l: 5, depuis: serverTimestamp(), modifieLe: serverTimestamp() }));
+    await assertFails(updateDoc(objet(db, J, 'o-enclos1'), { c: 5, l: 5, depuis: new Date('2020-01-01T00:00:00Z'), modifieLe: serverTimestamp() }));
+    const relu = (await getDoc(objet(db, J, 'o-enclos1'))).data();
+    assert.deepEqual([relu.c, relu.l, relu.sorte], [4, 4, 'enclos']);
+    assert.equal(relu.depuis.toMillis(), quand.getTime());
   });
 
   test('6.R5 les maisons de l’étape 3a n’ont pas bougé : une maison se crée, se modifie et se supprime ; elle ne devient jamais un objet acheté', async () => {
