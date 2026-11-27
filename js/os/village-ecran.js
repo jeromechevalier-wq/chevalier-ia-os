@@ -360,6 +360,8 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     for (const m of rangement.maisons) if (!m.enregistree && !touchees.has(m.id) && !ignores.has(m.id)) liste.push({ id: m.id, donnees: docDeplacement(m, m.c, m.l) });
     const envoi = { liste };
     if (optimiste) { enRoute.push(envoi); recalculer(); ranger(); rendre(); }
+    // Limite connue : si une écriture échoue alors qu'une autre attend derrière, la base peut garder deux maisons sur la même case (la seconde a été
+    // calculée avec la place de la première). Sans danger : rangerVillage replace la seconde d'office à la lecture, et le prochain geste la réécrit.
     const resultat = file.then(() => donnees.enregistrer(liste)).catch(() => false);
     file = resultat;
     return resultat.then((ok) => {

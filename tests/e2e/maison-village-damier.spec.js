@@ -147,7 +147,7 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     await expect(page).toHaveURL(/#\/accueil$/);
     // un simple clic ouvre le besoin (après 280 ms)
     await maison(page, 'Factures').click({ position: await positionDans(page, 'Factures') });
-    await expect(page).toHaveURL(/#\/achatsfactures\/liste$/);
+    await expect(page).toHaveURL(/#\/achatsfactures\/pile$/); // PR 730 : la cible « liste » de Factures ouvre son application
   });
 
   test('2.3 téléphone : le même glisser au doigt', async ({ page }, info) => {
@@ -488,7 +488,7 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     await page.keyboard.press('Escape');
     // sans rangement, un clic ouvre tout de suite (comme à l'étape 1) : le double clic entre dans le module, jamais la fenêtre de la maison
     await maison(page, 'Factures').dblclick({ position: await positionDans(page, 'Factures') });
-    await expect(page).toHaveURL(/#\/achatsfactures\/liste$/);
+    await expect(page).toHaveURL(/#\/achatsfactures\/pile$/); // PR 730 : la cible « liste » de Factures ouvre son application
     await expect(fenetreMaison(page)).toHaveCount(0);
   });
 

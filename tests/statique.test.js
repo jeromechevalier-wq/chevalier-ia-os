@@ -300,6 +300,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     const requeteVillage = 'query(dossier(), limit(LECTURE_MAX))';
     const donneesVillage = lire(FICHIER_VILLAGE);
     assert.ok(donneesVillage.includes(requeteVillage), 'village : lecture bornée, sans tri ni condition');
+    assert.match(donneesVillage, /LECTURE_MAX = 200\b/);
     for (const f of sources()) {
       const t = f === FICHIER_JOURNAL ? donnees.replace(journal, '') : f === FICHIER_AUTOMATISATIONS ? donneesWorkflows.replace(requeteWorkflows, '')
         : f === FICHIER_VILLAGE ? donneesVillage.replace(requeteVillage, '') : lire(f);

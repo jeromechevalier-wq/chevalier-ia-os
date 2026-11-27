@@ -472,9 +472,10 @@ test('F G D un document mal formé est noté comme ignoré ; un nom se coupe à 
   assert.deepEqual([...parId.keys()], ['b-bon']);
   assert.deepEqual([...ignores], ['b-mal']);
   const maison = { id: 'b-a', c: 1, l: 1, besoin: { nom: 'A' }, donnees: {} };
-  const nom = docRenommer(maison, `${'a'.repeat(39)}😀😀`).nom;
-  assert.equal(Array.from(nom).length, 40);
-  assert.ok(nom.endsWith('😀'));
+  const nom = docRenommer(maison, `${'a'.repeat(37)}😀😀`).nom; // 37 + 2 + 2 unités : le second emoji ne tient plus
+  assert.equal(nom, `${'a'.repeat(37)}😀`);
+  assert.ok(nom.length <= 40);
+  assert.ok(batimentValable('b-a', { sorte: 'besoin', c: 1, l: 1, nom: docRenommer(maison, '😀'.repeat(30)).nom })); // 20 emojis = 40 unités : accepté
   for (const fin of ['a"b', "a'b", '<b>', 'a`b', 'a\\b', 'a[0]']) assert.equal(RE_URL_LIEN.test(`https://exemple.test/${fin}`), false, fin);
   assert.equal(RE_URL_LIEN.test('https://exemple.test/a-b_c.d?e=1&f=(2)*+,;:@$!#x~%20^|{}'), true);
 });

@@ -321,7 +321,9 @@ export function docCacher(maison, cache) {
 export function docRenommer(maison, nom) {
   const d = garder(maison);
   const propre = typeof nom === 'string' ? nom.replace(/\s+/g, ' ').trim() : '';
-  const court = Array.from(propre).slice(0, 40).join(''); // 40 caractères, sans couper un emoji en deux
+  // Même contrat que nomValable et les règles (.length <= 40, en unités UTF-16) : on ajoute les caractères entiers tant que ça tient (jamais un emoji coupé).
+  let court = '';
+  for (const car of propre) { if ((court + car).length > 40) break; court += car; }
   if (!court || court === maison.besoin?.nom) delete d.nom;
   else d.nom = court;
   return d;
