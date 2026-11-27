@@ -511,9 +511,11 @@ function ilot(id, route) {
  *   s'affiche dès le montage ; sinon sa place est gardée (invisible) pendant la lecture, pour que la phrase d'aide ne saute pas. Illisible et rien de connu : pas de compteur
  *   (jamais un « 0 » inventé). Mis à jour après chaque gain.
  * `petites` : { sources, lire(module) } (js/os/village-petites-lecture.js : creerPetitesVillage), ou null : aucune petite maison (étape 3c).
+ * `jeu` (interrupteur « Pièces d'or et boutique » de la personne, 27/11/2026) : faux = ni compteur ni boutique (js/main.js passe alors `or: null`), et les objets achetés
+ *   (décorations, champs, enclos) ne sont pas dessinés ; ils restent en base et leurs cases restent prises (une maison ne s'y pose pas), pour que rien ne casse au rallumage.
  * Rend la fonction qui démonte l'écran (arrête l'écoute du format téléphone / ordinateur et les gestes).
  */
-export function monterVillage(conteneur, besoins, { aller, console: avecConsole = false, donnees = null, or = null, petites = null }) {
+export function monterVillage(conteneur, besoins, { aller, console: avecConsole = false, donnees = null, or = null, jeu = true, petites = null }) {
   const page = document.createElement('section');
   page.className = 'page-village';
   page.dataset.role = 'page-village';
@@ -576,7 +578,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     rangementPetites = petites ? rangerPetites({ maisons: rangement.maisons, batiments, elements, modules: petites.sources, damier, objets: rangement.objets }) : { petites: [], sansPlace: [] };
   };
   const maisonsVisibles = () => (lecture === 'attente' ? [] : rangement.maisons);
-  const objetsVisibles = () => (lecture === 'attente' ? [] : rangement.objets);
+  const objetsVisibles = () => (lecture === 'attente' || !jeu ? [] : rangement.objets); // jeu éteint : objets non dessinés (cases toujours prises, voir prisesGrandes et `obstacles`)
   /** Cases prises pour une grande maison : les maisons et les objets montrés (F2 : jamais une maison ni un lien sur une décoration). */
   const prisesGrandes = () => occupation([...rangement.maisons, ...rangement.objets]);
   const signaturePetites = () => JSON.stringify([...rangementPetites.petites, ...rangementPetites.sansPlace].map((p) => [p.id, p.nom, p.sousTitre, p.c, p.l, p.cible]));
@@ -961,7 +963,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     if (lecture !== 'attente') premierRendu = false;
     if (rangementPossible()) {
       debrancher = brancherGestes(svg, {
-        maisons: [...maisons, ...objets], petites: posees, damier, telephone,
+        maisons: [...maisons, ...objets], petites: posees, obstacles: jeu ? [] : rangement.objets, damier, telephone,
         // un objet : la bulle ouverte se referme ; un champ ou un enclos : la récolte (étape 7) ; une décoration : rien
         surOuvrir: (m) => { if (!estSorteJeu(m.sorte)) { toucher(m, ctx); return; } bulle.cacher(); if (SORTES_RECOLTE.includes(m.sorte)) recolter(m); },
         surReglages: reglagesMaison,

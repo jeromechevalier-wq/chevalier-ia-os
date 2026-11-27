@@ -1,5 +1,5 @@
 // Bonnes nouvelles des modules (27/11/2026, or du village) : un module annonce « facture validée », « facture payée » ou « devis signé » APRÈS la réussite, et c'est tout.
-// Il ne connaît ni le village ni l'or (le jeu est à part : js/os/village-or.js écoute, seulement quand le village est allumé). Aucun import ; n'échoue jamais.
+// Il ne connaît ni le village ni l'or (le jeu est à part : js/os/village-or.js écoute à chaque session, hors portail devis, même jeu éteint ou accueil classique : l'or se compte alors en silence). Aucun import ; n'échoue jamais.
 
 /** Annonce une bonne nouvelle : `source` ('facture-validee' | 'facture-payee' | 'devis-signe') et ce qui la désigne ({ id, projetId }). Ne lève jamais. */
 export function annoncer(source, detail = {}) {

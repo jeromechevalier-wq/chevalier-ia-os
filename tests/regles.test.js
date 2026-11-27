@@ -794,3 +794,48 @@ describe('Or du village (27/11/2026)', () => {
     await assertSucceeds(deleteDoc(objet(db, J, 'b-achatsfactures-liste')));
   });
 });
+
+// Interrupteurs « Mon accueil » par personne (27/11/2026, js/os/village-preferences.js) : village_utilisateurs/{uid}/preferences/accueil = { jeu, accueil, modifieLe }.
+// La personne elle-même lit et écrit les siennes ; personne d'autre. Champs exacts, heure du serveur obligatoire, jamais de suppression.
+describe('Interrupteurs Mon accueil (27/11/2026)', () => {
+  const [J, C] = COMPTES;
+  const AUTRE = 'quelquun.dautre@gmail.com';
+  const prefs = (db, email) => doc(db, 'village_utilisateurs', `uid-${email}`, 'preferences', 'accueil');
+  const VALABLE = () => ({ jeu: false, accueil: 'classique', modifieLe: serverTimestamp() });
+
+  test('I.R1 la personne lit et écrit ses préférences (création puis modification), jamais ne les supprime', async () => {
+    const db = contexte(J);
+    await assertSucceeds(getDoc(prefs(db, J))); // absent : lisible (les défauts s'appliquent)
+    await assertSucceeds(setDoc(prefs(db, J), VALABLE()));
+    await assertSucceeds(setDoc(prefs(db, J), { jeu: true, accueil: 'village', modifieLe: serverTimestamp() }));
+    const relu = (await assertSucceeds(getDoc(prefs(db, J)))).data();
+    assert.deepEqual([relu.jeu, relu.accueil], [true, 'village']);
+    await assertFails(deleteDoc(prefs(db, J)));
+    // l'autre compte de la maison a SES préférences
+    await assertSucceeds(setDoc(prefs(contexte(C), C), VALABLE()));
+  });
+
+  test('I.R2 une autre personne ne lit ni n’écrit les préférences d’un compte ; non autorisé, non vérifié et non connecté refusés', async () => {
+    await assertSucceeds(setDoc(prefs(contexte(J), J), VALABLE()));
+    const charles = contexte(C);
+    await assertFails(getDoc(prefs(charles, J)));
+    await assertFails(setDoc(prefs(charles, J), VALABLE()));
+    await assertFails(setDoc(prefs(contexte(AUTRE), AUTRE), VALABLE())); // hors de la maison, même chez soi
+    await assertFails(getDoc(prefs(contexte(J, false), J)));
+    await assertFails(setDoc(prefs(contexte(J, false), J), VALABLE()));
+    await assertFails(getDoc(prefs(env.unauthenticatedContext().firestore(), J)));
+    // un autre document sous preferences reste fermé
+    await assertFails(setDoc(doc(contexte(J), 'village_utilisateurs', `uid-${J}`, 'preferences', 'autre'), VALABLE()));
+  });
+
+  test('I.R3 champ en trop, champ manquant, accueil inconnu, jeu non booléen ou heure du navigateur : refusés', async () => {
+    const db = contexte(J);
+    await assertFails(setDoc(prefs(db, J), { ...VALABLE(), x: 1 }));
+    await assertFails(setDoc(prefs(db, J), { jeu: true, modifieLe: serverTimestamp() }));
+    await assertFails(setDoc(prefs(db, J), { ...VALABLE(), accueil: 'autre' }));
+    await assertFails(setDoc(prefs(db, J), { ...VALABLE(), jeu: 'oui' }));
+    await assertFails(setDoc(prefs(db, J), { ...VALABLE(), modifieLe: new Date('2026-11-27T10:00:00Z') }));
+    await assertSucceeds(setDoc(prefs(db, J), VALABLE()));
+    await assertFails(updateDoc(prefs(db, J), { accueil: 'autre', modifieLe: serverTimestamp() }));
+  });
+});

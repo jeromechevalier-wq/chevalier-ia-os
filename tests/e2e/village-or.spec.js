@@ -4,7 +4,7 @@
 // `window.__accesBase`, émulateurs seulement), copié en plus court de achatsfactures-examiner.spec.js. Un test par critère (le nom commence par son numéro) ;
 // captures dans tests/e2e/captures/village-or/ (non commitées), nommées avec le projet. Données d'exemple neutres.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, estTelephone, creerOrganisation, creerAffaire, JEROME, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
+import { test, expect, connecter, ecrireDocument, estTelephone, creerOrganisation, creerAffaire, imposerPreferencesAccueil, JEROME, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
 import { listeComplete } from '../_donnees-achatsfactures.js';
 
@@ -121,6 +121,9 @@ const hautPhrase = async (page) => (await page.locator('[data-role="village-phra
 const seChevauchent = (a, b) => !(a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y);
 
 test.describe('accueil village : pièces d’or', () => {
+  // Maison neutre (configuration_crm: 'neutre') = jeu éteint par défaut depuis le 27/11/2026 (interrupteurs « Mon accueil ») : ces parcours de l'or allument le jeu
+  // par le crochet de test (la lecture du document est remplacée ; les parcours des interrupteurs, eux, lisent le vrai document : village-interrupteurs.spec.js).
+  test.beforeEach(async ({ page }) => { await imposerPreferencesAccueil(page, { jeu: true, accueil: 'village' }); });
   test('6.1a le compteur montre le solde lu ; « 0 pièce d’or » sans portefeuille ; rien si la lecture échoue et que rien n’est connu', async ({ page }, info) => {
     await semer({ besoins: [FACTURES, ACHATS_B] });
     // lecture en panne au premier accueil de la session (rien de connu) : aucun compteur (jamais un « 0 » inventé), la place gardée s'en va
@@ -310,7 +313,8 @@ test.describe('accueil village : pièces d’or', () => {
     expect(erreursConsole.filter((m) => !/status of 500 .*\/villageOr\)$/.test(String(m)) && !/status of 409 \(Conflict\).*documents:commit/.test(String(m)))).toEqual([]);
   });
 
-  test('6.7x sans village (aucun besoin réglé), accepter une facture n’envoie aucune demande d’or', async ({ page }) => {
+  // Réécrit le 27/11/2026 (interrupteurs « Mon accueil ») : l'or se compte TOUJOURS, même sans village, mais en silence (aucune fête, aucun compteur).
+  test('6.7x sans village (aucun besoin réglé), accepter une facture envoie UNE demande d’or, et aucune fête n’apparaît', async ({ page }) => {
     await semer({});
     await ecrireDocument('base_parametres/connexion', FICHE());
     await poserFauxReseau(page);
@@ -318,9 +322,11 @@ test.describe('accueil village : pièces d’or', () => {
     await connecter(page, JEROME, { attendreAccueil: false, route: 'achatsfactures/liste' });
     await expect(page.getByRole('heading', { name: 'Factures', level: 1 })).toBeVisible();
     await accepterFacture(page, 'a1');
+    await expect.poll(() => demandes.length).toBe(1);
+    expect(demandes).toEqual([{ action: 'gain', source: 'facture-validee', id: 'a1' }]);
     await page.waitForTimeout(400);
-    expect(demandes).toHaveLength(0);
     await expect(fete(page)).toHaveCount(0);
+    expect(demandes).toHaveLength(1);
   });
 
   test('6.8 ni classement, ni série, ni notification, ni son, ni « CRM » (accueil et fête)', async ({ page }, info) => {

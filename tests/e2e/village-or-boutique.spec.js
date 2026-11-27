@@ -4,7 +4,7 @@
 // (portefeuille, objet acheté). Un test par critère (le nom commence par son numéro) ; captures dans tests/e2e/captures/village-or-boutique/ (non commitées),
 // nommées avec le projet. Données d'exemple neutres.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, lireDocument, listerDocuments, estTelephone, JEROME, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
+import { test, expect, connecter, ecrireDocument, lireDocument, listerDocuments, estTelephone, imposerPreferencesAccueil, JEROME, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/village-or-boutique/', import.meta.url));
@@ -169,6 +169,8 @@ const decoration = (uid, id, modele, c, l) => { const quand = new Date(); return
 const objetFerme = (uid, id, sorte, c, l) => { const quand = new Date(); return ecrireDocument(`village_utilisateurs/${uid}/batiments/${id}`, { sorte, c, l, acheteLe: quand, depuis: quand, modifieLe: quand }); };
 
 test.describe('accueil village : la boutique (étape 6b)', () => {
+  // Maison neutre (configuration_crm: 'neutre') = jeu éteint par défaut depuis le 27/11/2026 (interrupteurs « Mon accueil ») : on allume le jeu par le crochet de test.
+  test.beforeEach(async ({ page }) => { await imposerPreferencesAccueil(page, { jeu: true, accueil: 'village' }); });
   test('6.4 parcelle : 500 pièces, le damier passe à 14 x 14 (12 x 12 au départ depuis le 27/11/2026), une maison rangée garde sa case', async ({ page }, info) => {
     await semer({ besoins: [FACTURES, ACHATS_B] });
     const etat = { or: 600, parcelles: 0, version: 1 };

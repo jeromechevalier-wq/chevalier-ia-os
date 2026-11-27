@@ -49,7 +49,7 @@ const r1 = (v) => Math.round(v * 10) / 10;
  * Branche les gestes sur le dessin `svg` (déjà dans la page). `maisons` : les maisons dessinées ; chaque groupe d'une maison porte `data-maison="<id>"`.
  * Rend une fonction qui débranche tout (timers compris).
  */
-export function brancherGestes(svg, { maisons, petites = [], damier, telephone, surOuvrir, surReglages, surDepose, surDebut, surFin }) {
+export function brancherGestes(svg, { maisons, petites = [], obstacles = [], damier, telephone, surOuvrir, surReglages, surDepose, surDebut, surFin }) {
   const parId = new Map([...maisons, ...petites].map((m) => [m.id, m]));
   let geste = null; // { maison, id, pointeur, type, x0, y0, p0, glisse, bloc, minuteurLong }
   let avaler = false;
@@ -180,7 +180,7 @@ export function brancherGestes(svg, { maisons, petites = [], damier, telephone, 
     const [cx, cy] = iso(gx, gy);
     const [vx, vy] = ecranVersGrille(cx + dx, cy + dy);
     const { c, l } = blocSousPoint(vx, vy, m.taille, damier);
-    const libre = blocLibre(occupation(maisons), c, l, m.taille, damier, m.id);
+    const libre = blocLibre(occupation([...maisons, ...obstacles]), c, l, m.taille, damier, m.id); // `obstacles` : objets du jeu non dessinés (jeu éteint), leurs cases restent prises
     geste.bloc = { c, l, taille: m.taille, libre };
     poserRepere(geste.bloc, libre);
   }
