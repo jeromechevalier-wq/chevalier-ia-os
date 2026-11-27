@@ -25,6 +25,8 @@ export function sectionMonEspaceMaison(ctx, etat) {
   const montrer = (el, texte) => { el.textContent = texte ?? ''; el.hidden = !texte; };
   const logoAffiche = () => (logoChoisi === undefined ? logoCourant : logoChoisi);
 
+  // « Retirer » : un logo choisi mais pas encore enregistré est simplement abandonné (le logo enregistré revient) ; sinon le retrait du logo enregistré est demandé
+  // et ne part qu'avec « Enregistrer » (rien n'est perdu avant).
   function majLogo() {
     const url = logoAffiche();
     remplir(zoneLogo,
@@ -36,7 +38,7 @@ export function sectionMonEspaceMaison(ctx, etat) {
         logoChoisi !== undefined ? h('span', { class: 'aide', dataset: { role: 'logo-apercu' } }, logoChoisi ? 'Aperçu : il sera enregistré avec le bouton « Enregistrer ».' : 'Le logo sera retiré avec le bouton « Enregistrer ».') : null,
         h('div', { class: 'mon-espace-boutons' },
           modifiable ? h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'choisir-logo' }, onclick: () => fichierLogo.click() }, icone('upload', { taille: 16 }), 'Choisir un logo') : null,
-          modifiable && url ? h('button', { type: 'button', class: 'bouton bouton-discret', dataset: { action: 'retirer-logo' }, onclick: () => { logoChoisi = logoCourant ? null : undefined; montrer(messageLogo, ''); majLogo(); } }, icone('trash-2', { taille: 16 }), 'Retirer') : null),
+          modifiable && url ? h('button', { type: 'button', class: 'bouton bouton-discret', dataset: { action: 'retirer-logo' }, onclick: () => { logoChoisi = typeof logoChoisi === 'string' ? undefined : (logoCourant ? null : undefined); montrer(messageLogo, ''); majLogo(); } }, icone('trash-2', { taille: 16 }), 'Retirer') : null),
         h('span', { class: 'aide' }, AIDE_LOGO_MAISON)));
   }
 

@@ -15,7 +15,8 @@ import { sectionDeploiement } from './deploiement-ecran.js';
 import { sectionMesTests } from './mes-tests-ecran.js';
 import { sectionConnexionBase } from './base-reglages-ecran.js';
 import { compteReserve, pagesTechniquesCachees } from './acces-reserve.js';
-import { nomEspaceRacine, maisonNeutre } from './identite-maison.js';
+import { nomEspaceRacine, maisonNeutre, connexionNeutre } from './identite-maison.js';
+import { sectionMonEspaceMaison } from './mon-espace-maison.js';
 import { modulesEcranBrut } from './comptes-maison.js';
 import { lireModulesMaison } from './maison-modules.js';
 import { reglagesDesModules, sectionsEspaceVisibles, interrupteursDuClient, interrupteursDeLaMaison, cibleReglages, moduleDeclare } from './registre.js';
@@ -51,6 +52,8 @@ function sectionEspace(ctx, etat) {
     h('p', { class: 'aide' }, 'Le thème choisi est mémorisé sur cet appareil.'),
     boutonTheme('bouton bouton-secondaire'));
   if (ctx.chezClient && ctx.client) return [sectionMonEspace(ctx, etat), apparence]; // éditeur : formulaire ; lecteur : mêmes valeurs désactivées
+  // Maison d'un client (reglages_maison/public porte un nom ou connexion_neutre) : le nom et le logo se règlent ici (js/os/mon-espace-maison.js). Chez Jérôme : lecture seule, comme avant.
+  if (!ctx.chezClient && connexionNeutre()) return [sectionMonEspaceMaison(ctx, etat), apparence];
   const m = ctx.marque;
   const lignes = [ligneInfo('Nom', ctx.nomEspace, 'nom')];
   if (ctx.chezClient) {

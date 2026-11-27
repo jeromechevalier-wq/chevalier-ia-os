@@ -1,4 +1,5 @@
-// Maison d'un client (27/11/2026) : les pages techniques (Réglages > Modules actifs, Déploiement, Mes tests, Connexion à la base, et le Journal des modifications)
+// Maison d'un client (27/11/2026) : les pages techniques (Réglages > Déploiement, Mes tests, Connexion à la base, et le Journal des modifications ;
+// « Modules actifs » n'en fait plus partie : un compte client y voit ses seuls modules allumés, tests/e2e/applications-coque.spec.js)
 // sont réservées au titulaire (comptes_jerome_seul de reglages_maison/ecran). Chez Jérôme (maison sans champ neutre) et sur la plateforme des clients : rien ne change.
 // Un test par critère (le nom commence par son numéro), une capture par critère dans tests/e2e/captures/maison-pages-techniques/ (nommée avec le projet).
 // Comptes des parcours (outils.js) : JEROME est le titulaire ; CHARLES est un autre compte autorisé (ici : le compte du client). Logique : tests/maison-pages-techniques.test.js.
@@ -11,7 +12,7 @@ const DOSSIER = fileURLToPath(new URL('./captures/maison-pages-techniques/', imp
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: false, animations: 'disabled' });
 const HOTE = new URL(FIRESTORE).host;
 const semerMaisonClient = () => semerFicheEmulateur({ projet: PROJET, hote: HOTE, document: 'ecran', fiche: { ...ECRAN_PARCOURS, configuration_crm: 'neutre' } });
-const TECHNIQUES = ['modules', 'deploiement', 'tests', 'base'];
+const TECHNIQUES = ['deploiement', 'tests', 'base'];
 
 const sectionsEspace = (page) => page.locator('.reglages-menu-lien[data-type="espace"]').evaluateAll((els) => els.map((e) => e.dataset.reglage));
 const sectionsModules = (page) => page.locator('.reglages-menu-lien[data-type="module"]').evaluateAll((els) => els.map((e) => e.dataset.reglage));
@@ -31,11 +32,11 @@ async function entreesMenuCompte(page) {
 }
 
 test.describe('maison et racine (règles de Jérôme)', () => {
-  test('1 maison d’un client, compte client : Réglages limités à « Mon espace » (et aux réglages des modules), pas de Journal dans le menu du compte', async ({ page }, info) => {
+  test('1 maison d’un client, compte client : Réglages limités à « Mon espace » et « Modules actifs » (et aux réglages des modules), pas de Journal dans le menu du compte', async ({ page }, info) => {
     await semerMaisonClient();
     await ouvrirReglages(page, CHARLES);
     await expect(page.locator('[data-reglages="espace:espace"]')).toBeVisible();
-    expect(await sectionsEspace(page)).toEqual(['espace']);
+    expect(await sectionsEspace(page)).toEqual(['espace', 'modules']);
     expect((await sectionsModules(page)).length).toBeGreaterThan(0); // réglages des modules (sauvegardes, etc.) : inchangés
     await ouvrirMenuReglagesTelephone(page);
     await capturer(page, info, '1-client-reglages-mon-espace');
@@ -68,7 +69,7 @@ test.describe('maison et racine (règles de Jérôme)', () => {
   test('3 maison d’un client, compte titulaire : tout reste visible (sections techniques et Journal)', async ({ page }, info) => {
     await semerMaisonClient();
     await ouvrirReglages(page, JEROME);
-    expect(await sectionsEspace(page)).toEqual(['espace', ...TECHNIQUES]);
+    expect(await sectionsEspace(page)).toEqual(['espace', 'modules', ...TECHNIQUES]);
     await taper(page, 'reglages/modules'); // « Modules actifs » (Déploiement et Mes tests appellent des fonctions du serveur, absentes des émulateurs)
     await expect(page.locator('[data-reglages="espace:modules"]')).toBeVisible();
     await ouvrirMenuReglagesTelephone(page);
@@ -99,16 +100,15 @@ test.describe('maison et racine (règles de Jérôme)', () => {
 
   test('4b chez Jérôme, titulaire : inchangé — les cinq sections, Connexion à la base comprise', async ({ page }) => {
     await ouvrirReglages(page, JEROME);
-    expect(await sectionsEspace(page)).toEqual(['espace', ...TECHNIQUES]);
+    expect(await sectionsEspace(page)).toEqual(['espace', 'modules', ...TECHNIQUES]);
   });
 
-  test('5 téléphone : compte client d’une maison, le menu des Réglages ne propose que « Mon espace », le Journal est introuvable', async ({ page }, info) => {
+  test('5 téléphone : compte client d’une maison, le menu des Réglages ne propose que « Mon espace » et « Modules actifs », le Journal est introuvable', async ({ page }, info) => {
     test.skip(!estTelephone(page), 'parcours propre au format téléphone');
     await semerMaisonClient();
     await ouvrirReglages(page, CHARLES);
     await page.locator('.reglages-menu-bouton').click();
-    await expect(page.locator('.reglages-menu-lien[data-type="espace"]')).toHaveCount(1);
-    await expect(page.locator('.reglages-menu-lien[data-type="espace"]')).toHaveText('Mon espace');
+    await expect(page.locator('.reglages-menu-lien[data-type="espace"]')).toHaveText(['Mon espace', 'Modules actifs']);
     await capturer(page, info, '5-telephone-menu-reglages');
     await taper(page, 'reglages/tests');
     await expect(page).toHaveURL(/#\/reglages$/);

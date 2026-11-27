@@ -1,5 +1,6 @@
 // Maison d'un client (27/11/2026) : pages techniques réservées au titulaire (comptes_jerome_seul de reglages_maison/ecran).
-// Réglages > Modules actifs, Déploiement, Mes tests, Connexion à la base, et le Journal des modifications : cachés à un compte non titulaire
+// « Modules actifs » n'en fait plus partie (27/11/2026, chantier « applications dans la coque ») : un compte client y voit ses seuls modules allumés (tests/applications-coque.test.js).
+// Réglages > Déploiement, Mes tests, Connexion à la base, et le Journal des modifications : cachés à un compte non titulaire
 // d'une maison NEUTRE (maison d'un client) ; chez Jérôme (maison sans champ neutre) et sur la plateforme des clients : rien ne change.
 // Sans réseau ni émulateur, adresses inventées. Parcours dans le navigateur : tests/e2e/maison-pages-techniques.spec.js.
 import { test, beforeEach } from 'node:test';
@@ -17,12 +18,12 @@ const ids = (o) => sectionsEspaceVisibles(o).map((s) => s.id);
 
 beforeEach(() => { viderComptesMaison(); oublierPublic(); });
 
-test('1 maison d’un client, compte non titulaire : pages techniques cachées ; Réglages limités à « Mon espace »', () => {
+test('1 maison d’un client, compte non titulaire : pages techniques cachées ; Réglages limités à « Mon espace » et « Modules actifs »', () => {
   remplirComptesMaison({ personnes, comptes_jerome_seul: [TITULAIRE], configuration_crm: 'neutre' });
   assert.equal(pagesTechniquesCachees({ email: CLIENT }), true);
   assert.equal(pagesTechniquesCachees({ email: ' Client@Exemple.test ' }), true);
   assert.equal(pagesTechniquesCachees(null), true, 'sans compte : caché (prudence)');
-  assert.deepEqual(ids({ chezClient: false, editeur: true, jerome: false, techniques: false }), ['espace']);
+  assert.deepEqual(ids({ chezClient: false, editeur: true, jerome: false, techniques: false }), ['espace', 'modules']);
   // Les autres signes d'une maison neutre (public : nom_espace ou connexion_neutre) suffisent aussi.
   viderComptesMaison();
   remplirComptesMaison({ personnes, comptes_jerome_seul: [TITULAIRE] });
@@ -33,15 +34,15 @@ test('1 maison d’un client, compte non titulaire : pages techniques cachées ;
   assert.equal(pagesTechniquesCachees({ email: CLIENT }), true);
 });
 
-test('1 les sections techniques sont exactement Modules actifs, Déploiement, Mes tests et Connexion à la base', () => {
-  assert.deepEqual(SECTIONS_ESPACE.filter((s) => s.technique).map((s) => s.id), ['modules', 'deploiement', 'tests', 'base']);
+test('1 les sections techniques sont exactement Déploiement, Mes tests et Connexion à la base', () => {
+  assert.deepEqual(SECTIONS_ESPACE.filter((s) => s.technique).map((s) => s.id), ['deploiement', 'tests', 'base']);
   assert.ok(!SECTIONS_ESPACE.find((s) => s.id === 'espace').technique, '« Mon espace » reste visible');
 });
 
 test('2 maison d’un client, compte non titulaire : une adresse de section cachée tapée à la main ne trouve rien (retour à « Mon espace »)', () => {
   const espaces = sectionsEspaceVisibles({ chezClient: false, editeur: true, jerome: false, techniques: false });
   const modules = reglagesDesModules(['achatsfactures']);
-  for (const id of ['deploiement', 'tests', 'modules', 'base']) assert.equal(cibleReglages(['reglages', id], { espaces, modules }), null, id);
+  for (const id of ['deploiement', 'tests', 'base']) assert.equal(cibleReglages(['reglages', id], { espaces, modules }), null, id);
   assert.deepEqual(cibleReglages(['reglages'], { espaces, modules }), { type: 'espace', id: 'espace' });
 });
 

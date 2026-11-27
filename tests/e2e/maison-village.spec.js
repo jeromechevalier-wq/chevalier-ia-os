@@ -104,10 +104,10 @@ test.describe('accueil village d’une maison', () => {
       await expect(page).toHaveURL(/#\/accueil$/);
     }
     await batiments(page).first().click();
-    await expect(page).toHaveURL(/#\/achatsfactures\/liste$/);
-    await expect(page.getByRole('heading', { name: 'Factures', level: 1 })).toBeVisible();
+    await expect(page).toHaveURL(/#\/achatsfactures\/pile$/); // un bâtiment = une application (27/11/2026) : la cible « liste » du module Factures ouvre son application
+    await expect(page.locator('[data-role="appli-factures"]')).toBeVisible();
     await capturer(page, info, 'V12-clic-factures');
-    if (estTelephone(page)) await page.locator('.barre-haut-marque').click();
+    if (estTelephone(page)) await page.locator('[data-role="appli-entete"] [data-action="accueil"]').click(); // dans l'appli, la barre de la coque est cachée : la maison de l'appli ramène au village
     else await page.evaluate(() => { location.hash = '#/accueil'; });
     await expect(page).toHaveURL(/#\/accueil$/);
     await expect(batiments(page)).toHaveCount(1);
