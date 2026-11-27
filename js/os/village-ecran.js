@@ -38,6 +38,10 @@
 // un document `petite` avec `cachee: true`) et se remontre par la roue dentée (« Petites maisons cachées », « Remontrer »). Plus de plafond de petites maisons
 // par personne : seule limite, une case voisine libre (12 au plus par grande). Une petite maison se saisit sur toute sa case (losange transparent « prise-petite »).
 // Téléphone : une bulle ouverte ne relance plus le redessin toutes les 300 ms ; il part quand la bulle se ferme.
+// Étape 7 (champs et enclos à cochons, 27/11/2026) : un champ ou un enclos (2 x 2 cases) est dessiné selon son état, recalculé à chaque dessin avec la même règle
+// que le serveur (etatRecolte) : champ semé, qui pousse, mûr, prêt ; enclos vide ou bien gras. Prêt : une petite pièce d'or immobile au-dessus. Un clic (ou un toucher,
+// ou Entrée et Espace sur un objet prêt) demande la récolte au serveur (js/os/village-or.js, ramasserOr) ; pas prêt : un message neutre, aucune demande.
+// Aucune minuterie : l'état est recalculé au dessin, au retour sur l'onglet (visibilitychange) et au moment du clic. `depuis` n'est jamais écrit par l'écran.
 import { dessinBatiment, pastilleBulle, ETIQUETTE_Y } from './maison-village.js';
 import { lireCompteur } from './village-compteurs.js';
 import { BATIMENTS_FIXES, dessinBatimentFixe, iso } from './village-batiments.js';
@@ -47,13 +51,13 @@ import {
   lireBatiments, rangerVillage, docDeplacement, docCacher, docRenommer, docLien, nomCourt, LIENS_MAX, damierPourPlaces, estSorteJeu, caseLibreDevant,
 } from './village-damier.js';
 import { rangerPetites, sourcePour, docPetite, docCachee, petitesCachees, moduleDeCible, CACHEES_MAX } from './village-petites.js';
-import { dessinJeu, DESSINS_JEU } from './village-jeu-dessins.js';
+import { dessinJeu, DESSINS_JEU, ETAPES_CHAMP, ETATS_ENCLOS } from './village-jeu-dessins.js';
 import { ouvrirBoutique } from './village-boutique.js';
 import { brancherGestes, groupeSous } from './village-glisser.js';
 import { listeMaisons, boutonVue, vueChoisie } from './village-liste.js';
 import { lien } from './router.js';
 import { toast, icone } from './ui.js';
-import { texteOr, damierDe, casesEnregistrees, OBJETS_MAX } from './village-jeu-regles.js';
+import { texteOr, damierDe, casesEnregistrees, OBJETS_MAX, SORTES_RECOLTE, etatRecolte, TAILLES } from './village-jeu-regles.js';
 import { dessinPiece } from './village-fete.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -192,22 +196,67 @@ function petiteMaison(petite, place, ctx) {
   return g;
 }
 
-/** Dessin d'un objet acheté : la décoration choisie ; champ et enclos (étape 7) : leur premier état. */
-const dessinDeLObjet = (o) => (o.sorte === 'decoration' ? o.modele : o.sorte === 'champ' ? 'champ-seme' : 'enclos-cochons');
+/** Date d'un document (Date à l'écran après un achat ou une récolte, Timestamp à la lecture) en millisecondes ; null sinon. */
+function enMs(v) {
+  if (v instanceof Date) return Number.isFinite(v.getTime()) ? v.getTime() : null;
+  if (v && typeof v.toMillis === 'function') return v.toMillis();
+  return null;
+}
+
+/** État de récolte d'un champ ou d'un enclos à l'heure `maintenant` (la même règle que le serveur) ; null pour une décoration. */
+const etatDeLObjet = (o, maintenant) => (SORTES_RECOLTE.includes(o.sorte) ? etatRecolte(o.sorte, enMs(o.donnees?.depuis), maintenant) : null);
+
+/** Dessin d'un objet acheté : la décoration choisie ; champ : son étape de pousse ; enclos : vide ou bien gras (étape 7). */
+function dessinDeLObjet(o, maintenant) {
+  if (o.sorte === 'decoration') return o.modele;
+  const e = etatDeLObjet(o, maintenant);
+  return o.sorte === 'champ' ? ETAPES_CHAMP[e?.etape ?? 0] : ETATS_ENCLOS[e?.pieces > 0 ? 1 : 0];
+}
+
+/** Nom accessible d'un objet : le nom de son dessin ; un enclos qui a des pièces dit combien (sans compte à rebours). */
+function nomDeLObjet(o, maintenant) {
+  const e = etatDeLObjet(o, maintenant);
+  if (o.sorte === 'enclos' && e?.pieces > 0) return `Enclos à cochons : ${texteOr(e.pieces)} à ramasser`;
+  return DESSINS_JEU[dessinDeLObjet(o, maintenant)]?.nom ?? 'Décoration';
+}
+
+/** Message d'un clic sur un champ ou un enclos pas encore prêt. */
+const pasPret = (sorte) => (sorte === 'champ' ? 'Ça pousse encore.' : 'Rien à ramasser pour l’instant.');
+
+/** La petite pièce d'or IMMOBILE posée au-dessus d'un objet prêt (couleurs de dessinPiece, sans contour noir ; aucune animation). */
+function piecePrete(place) {
+  const g = el('g', { 'data-role': 'pret', 'aria-hidden': 'true', 'pointer-events': 'none' });
+  const x = r1(place.x);
+  const y = r1(place.y - 34); // au milieu de l'objet : au-dessus, l'étiquette d'une maison voisine la cachait (capture 7.1 téléphone)
+  g.append(el('circle', { cx: x, cy: y, r: 10, fill: '#D9A21B' }), el('circle', { cx: x, cy: y, r: 8, fill: '#F7C548' }), el('ellipse', { cx: r1(x - 2.6), cy: r1(y - 3), rx: 3, ry: 1.9, fill: '#E8C98A' }));
+  return g;
+}
 
 /**
- * Objet acheté (6b) : ses formes posées au centre de sa case, sans mise à l'échelle. Une image (role="img", nom du catalogue), sans lien, sans tabindex, sans bulle,
- * sans halo : il se glisse seulement (js/os/village-glisser.js le trouve par data-maison).
+ * Objet acheté (6b) : ses formes posées au centre de sa case, sans mise à l'échelle. Sans lien, sans bulle, sans halo, sans `title` : il se glisse
+ * (js/os/village-glisser.js le trouve par data-maison). Une décoration, un champ ou un enclos pas prêt : une image (role="img"). Étape 7 : un champ ou un enclos
+ * PRÊT est un bouton (tabindex, Entrée et Espace récoltent), avec la pièce prête ; `data-dessin` dit le dessin montré et `data-etat` « pret » ou « attente ».
  */
-function objetJeu(o, place, damier) {
-  const id = dessinDeLObjet(o);
+function objetJeu(o, place, damier, ctx) {
+  const maintenant = ctx?.maintenant ?? Date.now();
+  const id = dessinDeLObjet(o, maintenant);
+  const e = etatDeLObjet(o, maintenant);
   const g = el('g', {
-    class: 'village-objet', 'data-role': 'objet', 'data-maison': o.id, 'data-sorte': o.sorte, 'data-modele': o.modele, 'data-case': `${o.c}-${o.l}`, role: 'img',
+    class: 'village-objet', 'data-role': 'objet', 'data-maison': o.id, 'data-sorte': o.sorte, 'data-modele': o.modele, 'data-case': `${o.c}-${o.l}`, role: e?.pret ? 'button' : 'img',
+    'data-dessin': id, 'data-etat': e ? (e.pret ? 'pret' : 'attente') : undefined, tabindex: e?.pret ? 0 : undefined,
   });
-  g.setAttribute('aria-label', DESSINS_JEU[id]?.nom ?? 'Décoration');
+  g.setAttribute('aria-label', nomDeLObjet(o, maintenant));
   // la prise : toute la case, transparente (un objet fin, comme la clôture, se saisit sans viser son dessin)
   g.append(el('polygon', { points: points(losangeBloc(o.c, o.l, o.taille || 1, damier), 0, 0), fill: 'transparent', 'pointer-events': 'all', 'data-role': 'prise-objet' }));
   for (const f of dessinJeu(id)) g.append(forme(f, place.x, place.y));
+  if (e?.pret) {
+    g.append(piecePrete(place)); // un enfant du groupe, après les formes, qui ne prend pas le pointeur
+    g.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      ev.preventDefault();
+      ctx?.recolter?.(o);
+    });
+  }
   return g;
 }
 
@@ -283,7 +332,7 @@ function dessiner(maisons, ctxRendu, petites = [], objets = []) {
   for (const o of objets) { // 6b : pas de sol pavé sous un objet
     const [gx, gy] = centreBloc(o.c, o.l, o.taille, damier);
     const [x, y] = iso(gx, gy);
-    debout.push({ profondeur: gx + gy + 0.005, noeud: () => objetJeu(o, { x, y }, damier) });
+    debout.push({ profondeur: gx + gy + 0.005, noeud: () => objetJeu(o, { x, y }, damier, ctx) });
   }
   debout.sort((u, v) => u.profondeur - v.profondeur);
   for (const o of debout) svg.append(o.noeud());
@@ -626,7 +675,13 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     file = resultat;
     return resultat.then((ok) => {
       if (optimiste) enRoute = enRoute.filter((e) => e !== envoi);
-      if (ok) for (const { id, donnees: d } of liste) { confirmes.set(id, d); ignores.delete(id); }
+      // 7 (C11) : pour un objet du jeu, seuls `c` et `l` sont écrits : un vieux `depuis` (gardé dans le geste) ne remplace jamais celui d'une récolte
+      if (ok) {
+        for (const { id, donnees: d } of liste) {
+          confirmes.set(id, estSorteJeu(d?.sorte) && confirmes.has(id) ? { ...confirmes.get(id), c: d.c, l: d.l } : d);
+          ignores.delete(id);
+        }
+      }
       if (!monte) return ok;
       recalculer();
       ranger();
@@ -799,7 +854,48 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   if (avecConsole) fixes.push(ilot('console', 'console/vue'));
   const routesFixes = [{ id: 'mairie-reglages', route: 'reglages' }, ...(avecConsole ? [{ id: 'console', route: 'console/vue' }] : [])];
 
-  const ctxCommun = { aller, bulle, rangementEnCours: () => page.dataset.rangement === 'oui' };
+  // ---- récolte (étape 7)
+  const recoltesEnCours = new Set(); // objets dont la récolte est demandée : un second clic pendant l'appel ne fait rien
+
+  /** Nouveau `depuis` rendu par le serveur : dans la base confirmée ET dans les déplacements encore en route du même objet (C11), puis redessin. */
+  function majDepuis(id, depuisMs) {
+    const depuis = new Date(depuisMs);
+    if (confirmes.has(id)) confirmes.set(id, { ...confirmes.get(id), depuis });
+    for (const envoi of enRoute) for (const x of envoi.liste) if (x.id === id) x.donnees = { ...x.donnees, depuis };
+    recalculer();
+    ranger();
+    redessinerQuandLibre();
+  }
+
+  /** Clic, toucher ou Entrée sur un champ ou un enclos : l'état est recalculé MAINTENANT ; prêt : une demande au serveur, sans jamais de nouvel essai. */
+  async function recolter(o) {
+    if (!or?.ramasser || !o || !SORTES_RECOLTE.includes(o.sorte) || recoltesEnCours.has(o.id)) return;
+    const d = batiments.get(o.id);
+    if (!d) return;
+    const e = etatRecolte(d.sorte, enMs(d.depuis), Date.now());
+    if (!e.pret) { toast(pasPret(d.sorte)); return; }
+    recoltesEnCours.add(o.id);
+    try {
+      const r = await or.ramasser({ objet: o.id });
+      if (!monte) return;
+      if (r?.etat === 'ok') {
+        if (Number.isInteger(r.depuisMs)) majDepuis(o.id, r.depuisMs); else relireApresAchat();
+      } else if (r?.etat === 'refus' && r.raison === 'pas_pret') {
+        toast(pasPret(d.sorte));
+        if (Number.isInteger(r.depuisMs)) majDepuis(o.id, r.depuisMs);
+      } else if (r?.etat === 'refus' && r.raison === 'objet') {
+        relireApresAchat();
+      } else if (r?.etat === 'refus' && r.raison === 'lecture_seule') {
+        toast('Ton accès est en lecture seule : tu ne peux pas récolter.');
+      } else {
+        toast('La récolte n’a pas abouti. Réessaie.', { type: 'erreur' });
+      }
+    } finally {
+      recoltesEnCours.delete(o.id);
+    }
+  }
+
+  const ctxCommun = { aller, bulle, rangementEnCours: () => page.dataset.rangement === 'oui', recolter: (o) => recolter(o) };
   const rendre = () => {
     redessinApresBulle = false; // 3c-bis (R2) : ce dessin montre déjà les éléments arrivés
     clearTimeout(minuteurRedessin); // et aucun redessin en attente ne reste programmé
@@ -811,7 +907,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     const maisons = maisonsVisibles();
     const { petites: posees, sansPlace: petitesSansPlace } = petitesVisibles();
     const objets = objetsVisibles();
-    const ctx = { ...ctxCommun, telephone, damier };
+    const ctx = { ...ctxCommun, telephone, damier, maintenant: Date.now() };
     const { svg, noeuds } = dessiner(maisons, ctx, posees, objets);
     bulle.brancher(noeuds, telephone);
     defile.replaceChildren(svg);
@@ -855,7 +951,8 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     if (rangementPossible()) {
       debrancher = brancherGestes(svg, {
         maisons: [...maisons, ...objets], petites: posees, damier, telephone,
-        surOuvrir: (m) => { if (!estSorteJeu(m.sorte)) toucher(m, ctx); else bulle.cacher(); }, // un objet : rien (au téléphone, la bulle ouverte se referme)
+        // un objet : la bulle ouverte se referme ; un champ ou un enclos : la récolte (étape 7) ; une décoration : rien
+        surOuvrir: (m) => { if (!estSorteJeu(m.sorte)) { toucher(m, ctx); return; } bulle.cacher(); if (SORTES_RECOLTE.includes(m.sorte)) recolter(m); },
         surReglages: reglagesMaison,
         surDepose: deposer,
         surDebut: () => { page.dataset.rangement = 'oui'; bulle.cacher(); },
@@ -940,21 +1037,23 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   };
 
   // ---- boutique (6b)
-  /** Première case libre pour une décoration, dans le damier PAYÉ (celui que le serveur vérifie) : hors des maisons, petites maisons, objets et places enregistrées. */
-  const caseAchat = () => {
+  /** Premier bloc libre de `taille` x `taille` cases pour un objet (7 : 2 x 2 pour un champ ou un enclos), dans le damier PAYÉ (celui que le serveur vérifie) :
+   *  hors des maisons, petites maisons, objets et places enregistrées. */
+  const caseAchat = (taille = 1) => {
     const prises = occupation([...rangement.maisons, ...rangement.objets, ...rangementPetites.petites]);
     for (const k of casesEnregistrees([...batiments.values()])) if (!prises.has(k)) prises.set(k, k);
     for (const k of casesRefusees) if (!prises.has(k)) prises.set(k, k);
-    return caseLibreDevant(prises, damierDe(or?.parcelles?.()));
+    return caseLibreDevant(prises, damierDe(or?.parcelles?.()), taille);
   };
   const casesRefusees = new Set(); // cases refusées par le serveur (case, case_prise) pendant cet affichage : jamais reproposées
   const nombreObjets = () => [...batiments.values()].filter((d) => estSorteJeu(d?.sorte)).length;
-  /** Vignette d'un article : une décoration du catalogue, ou un carré d'herbe pour la parcelle. */
+  /** Vignette d'un article : une décoration du catalogue, un carré d'herbe pour la parcelle ; champ (prêt) et enclos (7) : 2 x 2 cases, cadre deux fois plus grand. */
   const vignetteArticle = (id) => {
-    const svg = el('svg', { viewBox: '-32 -46 64 56', 'aria-hidden': 'true', focusable: 'false', class: 'village-vignette' });
+    const grand = id === 'champ' || id === 'enclos';
+    const svg = el('svg', { viewBox: grand ? '-74 -66 148 112' : '-32 -46 64 56', 'aria-hidden': 'true', focusable: 'false', class: 'village-vignette' });
     const formes = id === 'parcelle'
       ? [{ poly: [[-28, 0], [0, 14], [0, 19], [-28, 5]], fill: '#8A6A45' }, { poly: [[0, 14], [28, 0], [28, 5], [0, 19]], fill: '#6F5436' }, { poly: [[0, -14], [28, 0], [0, 14], [-28, 0]], fill: '#A9C46E' }]
-      : dessinJeu(id);
+      : dessinJeu(id === 'champ' ? 'champ-pret' : id === 'enclos' ? 'enclos-cochons' : id);
     for (const f of formes) svg.append(forme(f));
     return svg;
   };
@@ -962,17 +1061,22 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   /** Achat demandé par la boutique : { ok: true } | { ok: false, or?, parcelles?, manque?, message? } (sans message, la boutique écrit « L’achat n’a pas abouti. Réessaie. »). */
   async function acheterDansVillage(article, modele) {
     let place = null;
-    if (article === 'decoration') { place = caseAchat(); if (!place) return { ok: false }; }
+    const objet = article !== 'parcelle'; // décoration (1 x 1), champ ou enclos (2 x 2, étape 7)
+    if (objet) { place = caseAchat(TAILLES[article] ?? 1); if (!place) return { ok: false }; }
     const r = await or.acheter(place ? { article, modele, c: place.c, l: place.l } : { article });
     if (!monte) return { ok: r?.etat === 'ok' };
     if (r?.etat === 'ok') {
       const o = r.objet;
       const valable = Boolean(o && estSorteJeu(o.sorte));
-      if (valable) { confirmes.set(o.id, { sorte: o.sorte, modele: o.modele, c: o.c, l: o.l }); ignores.delete(o.id); recalculer(); }
+      if (valable) {
+        confirmes.set(o.id, { sorte: o.sorte, c: o.c, l: o.l, ...(o.modele ? { modele: o.modele } : {}), ...(Number.isInteger(o.depuisMs) ? { depuis: new Date(o.depuisMs) } : {}) });
+        ignores.delete(o.id);
+        recalculer();
+      }
       ranger();
       rendre();
-      if (article === 'decoration' && !valable) relireApresAchat(); // réponse sans objet valable : la base fait foi
-      toast(article === 'parcelle' ? 'Ton terrain s’agrandit' : 'Décoration achetée');
+      if (objet && !valable) relireApresAchat(); // réponse sans objet valable : la base fait foi
+      toast(article === 'parcelle' ? 'Ton terrain s’agrandit' : article === 'champ' ? 'Champ acheté' : article === 'enclos' ? 'Enclos acheté' : 'Décoration achetée');
       return { ok: true };
     }
     const solde = Number.isInteger(r?.or) ? r.or : undefined;
@@ -1005,7 +1109,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   function ouvrirBoutiqueVillage() {
     bulle.cacher();
     ouvrirBoutique({
-      or: soldeVu, parcelles: or?.parcelles?.() ?? 0, objets: nombreObjets(), caseLibre: caseAchat, dessin: vignetteArticle,
+      or: soldeVu, parcelles: or?.parcelles?.() ?? 0, objets: nombreObjets(), caseLibre: (t) => caseAchat(t), dessin: vignetteArticle,
       surAcheter: acheterDansVillage,
     });
   }
@@ -1040,5 +1144,13 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   const fermer = (e) => { if (!e.target.closest?.('.village-batiment, .village-lien-etiquette')) bulle.cacher(); };
   cadre.addEventListener('click', fermer);
   media?.addEventListener?.('change', rendre);
-  return () => { monte = false; debrancher?.(); arretOr?.(); media?.removeEventListener?.('change', rendre); };
+  // 7 (C14) : retour sur l'onglet : les champs et les enclos sont redessinés seulement si leur état (dessin, nom) a changé ; aucune minuterie
+  const signatureEtats = (maintenant) => JSON.stringify(objetsVisibles().filter((o) => SORTES_RECOLTE.includes(o.sorte)).map((o) => [o.id, dessinDeLObjet(o, maintenant), nomDeLObjet(o, maintenant)]));
+  const signatureDessinee = () => JSON.stringify([...defile.querySelectorAll('.village-objet[data-etat]')].map((g) => [g.getAttribute('data-maison'), g.getAttribute('data-dessin'), g.getAttribute('aria-label')]));
+  const surVisible = () => {
+    if (!monte || document.visibilityState !== 'visible') return;
+    if (signatureEtats(Date.now()) !== signatureDessinee()) redessinerQuandLibre();
+  };
+  document.addEventListener('visibilitychange', surVisible);
+  return () => { monte = false; debrancher?.(); arretOr?.(); media?.removeEventListener?.('change', rendre); document.removeEventListener('visibilitychange', surVisible); };
 }

@@ -865,6 +865,10 @@ body.page-espace { background: #241b2e; color: #fff; }
 .village-boutique-message { margin: var(--esp-4) 0 0; color: var(--retard); font-size: var(--fs-menu); }
 .village-objet { cursor: grab; }
 .page-village[data-rangement="oui"] .village-objet { cursor: grabbing; }
+/* étape 7 : un champ ou un enclos prêt se récolte d'un clic (le glisser garde grabbing pendant le geste) ; contour visible au clavier ; la pièce prête est immobile */
+.village-objet[data-etat="pret"] { cursor: pointer; }
+.page-village[data-rangement="oui"] .village-objet[data-etat="pret"] { cursor: grabbing; }
+.village-objet:focus-visible { outline: 2px solid var(--accent-trait); outline-offset: 2px; filter: drop-shadow(0 0 3px var(--accent-trait)); }
 .fete-or { position: fixed; z-index: 1000; top: 76px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); pointer-events: none; display: flex; flex-direction: column; align-items: center; }
 .fete-or-etiquette { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: var(--esp-3); padding: var(--esp-3) var(--esp-8) var(--esp-3) var(--esp-4); background: #FFFDF6; color: #2A1A2C; border: 1px solid rgba(59, 36, 18, .18); border-radius: 999px; box-shadow: 0 10px 24px -10px rgba(60, 25, 5, .55); font-size: var(--fs-section); font-weight: var(--poids-moyen); white-space: nowrap; max-width: calc(100vw - 32px); box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; animation: fete-or-arrivee .3s cubic-bezier(.3, 1.4, .5, 1) both; }
 .fete-or-pluie { position: absolute; top: 0; left: 50%; width: 0; height: 0; }

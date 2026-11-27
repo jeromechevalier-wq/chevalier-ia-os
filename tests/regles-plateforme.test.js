@@ -5,7 +5,7 @@ import { test, describe, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, setLogLevel, serverTimestamp, collectionGroup } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, setLogLevel, serverTimestamp, collectionGroup, writeBatch } from 'firebase/firestore';
 
 setLogLevel('error');
 
@@ -623,6 +623,28 @@ describe('Village par utilisateur sur la plateforme (27/11/2026)', () => {
     await env.withSecurityRulesDisabled(async (c) => {
       const lu = (await getDoc(chemin(c.firestore(), 'a', ALICE, 'o-abc'))).data();
       assert.deepEqual([lu.c, lu.l, lu.modele, lu.sorte], [7, 2, 'arbre', 'decoration']);
+    });
+  });
+
+  test('7.R1 (étape 7) enclos semé chez le client a : l’éditrice et la lectrice le déplacent (c, l, modifieLe) ; `depuis` ne s’écrit jamais depuis le navigateur', async () => {
+    const quand = new Date('2026-11-26T10:00:00Z');
+    const ENCLOS = { sorte: 'enclos', c: 1, l: 1, acheteLe: quand, depuis: quand, modifieLe: quand };
+    await env.withSecurityRulesDisabled(async (c) => {
+      for (const email of [ALICE, LEA]) await setDoc(chemin(c.firestore(), 'a', email, 'o-enclos1'), ENCLOS);
+    });
+    for (const email of [ALICE, LEA]) {
+      const db = ctx(email);
+      const lot = writeBatch(db);
+      lot.update(chemin(db, 'a', email, 'o-enclos1'), { c: 4, l: 4, modifieLe: serverTimestamp() });
+      await assertSucceeds(lot.commit());
+      await assertFails(updateDoc(chemin(db, 'a', email, 'o-enclos1'), { c: 5, l: 5, depuis: serverTimestamp(), modifieLe: serverTimestamp() }));
+      await assertFails(updateDoc(chemin(db, 'a', email, 'o-enclos1'), { c: 5, l: 5, depuis: new Date('2020-01-01T00:00:00Z'), modifieLe: serverTimestamp() }));
+    }
+    await env.withSecurityRulesDisabled(async (c) => {
+      for (const email of [ALICE, LEA]) {
+        const lu = (await getDoc(chemin(c.firestore(), 'a', email, 'o-enclos1'))).data();
+        assert.deepEqual([lu.c, lu.l, lu.depuis.toMillis()], [4, 4, quand.getTime()], email);
+      }
     });
   });
 
