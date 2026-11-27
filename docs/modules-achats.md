@@ -65,6 +65,20 @@ Dans la maison d'un client, l'assistant (Claude, ChatGPT) peut travailler sur le
 
 Code : `functions/src/mcp/outils/achats.js` (les outils), `functions/src/mcp/outils-maison.js` (le tri par module), `functions/src/base/assistant-achats.js` (le service).
 
+## L'application Factures (27/11/2026)
+
+Une petite appli pour valider les factures à la suite, d'après la maquette « Application Factures, version 3 » validée par Jérôme. Adresse : `#/achatsfactures/pile`. La liste des factures (`#/achatsfactures/liste`) existe toujours ; son bouton « Valider à la suite » ouvre l'appli.
+
+- **Haut de page** (règle générale, `docs/consignes-ui.md`) : à gauche « maison › Factures » (la maison ramène à l'accueil de l'espace, « Factures » à la pile) ; à droite l'icône statistiques (page « Tableau de bord des factures », `#/achatsfactures/tableau`) puis la roue dentée (page « Réglages des factures », `#/achatsfactures/reglages`). Pas de menu à gauche sur ces trois écrans.
+- **La pile** : une facture « à valider » à la fois, la plus ancienne d'abord, avec la page Examiner complète (PDF, contrôles, décision). Après « Accepter » ou « Refuser » : tampon, la facture glisse, la suivante arrive, et un message propose « Annuler » pendant 3,2 secondes. « Annuler » rouvre la facture avec l'action métier `rouvrir` (l'ancienne décision reste dans le journal). « Passer » la remet en fin de pile pour cette séance, sans rien écrire.
+- **Fin de pile** : le bilan du jour (traitées, validées avec le montant, refusées), lu dans les factures, et un lien vers le tableau de bord.
+- **Grand bouton « Fournisseurs, Chantiers, Articles »** : il ouvre un volet à droite (du bas sur téléphone). Une fiche s'ouvre en lecture ; « Modifier », puis « Enregistrer » / « Annuler » ; la mise en page ne bouge pas. Fiche chantier : nom, code, client et adresse se modifient (action `modifier_chantier`). Fiche article : lecture seule. Fiche fournisseur : voir ci-dessous.
+- **Clic sur le nom du fournisseur d'une facture** : sa fiche s'ouvre dans le volet, la facture reste derrière.
+- **IBAN d'un fournisseur** : dans sa fiche, l'IBAN confirmé peut être remplacé. L'appli révoque alors l'ancienne confirmation (action `revoquer_iban`, le nouvel IBAN est écrit dans le motif) ; elle ne confirme PAS le nouvel IBAN à ta place (il se confirme après vérification, dans l'écran Fournisseurs). Pendant 60 jours, une alerte orange « IBAN changé récemment » s'affiche sur les factures suivantes de ce fournisseur dans la pile. La même alerte s'affiche quand un IBAN différent vient d'être confirmé. Elle est calculée avec les confirmations d'IBAN déjà lues par l'écran (`changementIbanRecent`, `js/modules/achatsfactures/logique-appli.js`) : aucune table nouvelle.
+- **Nouveau fournisseur** : quand le SIREN d'une facture n'est dans aucune fiche de fournisseur, un bandeau « Nouveau fournisseur détecté » propose de l'ajouter ; le formulaire est pré-rempli avec ce qui a été lu sur la facture (action `creer_agence`, la même que la page Examiner). Le volet a aussi un bouton « + Fournisseur ».
+- **Plein écran « concentration »** : un bouton ; touches V = valider, R = refuser, P = passer, Échap = sortir. Les touches n'agissent pas pendant qu'on écrit ni quand une fenêtre est ouverte.
+- **Tableau de bord des factures** : à valider, validées et refusées ce mois, montant validé ce mois, délai moyen de validation, les 3 fournisseurs du mois, le montant validé des 4 dernières semaines. Tout est calculé sur la liste des factures déjà lue ; une donnée absente s'affiche « — », jamais un nombre inventé.
+
 ## Ce qui n'est PAS fait
 
 Liste vivante : `.github/A-FAIRE.md` (parties « modules Achats »). En bref :
@@ -74,5 +88,6 @@ Liste vivante : `.github/A-FAIRE.md` (parties « modules Achats »). En bref :
 - droit d'accès du compte de service dédié à la fonction du badge ;
 - pastille « Destinataire » des factures (reste « indisponible ») ;
 - favoris : la nouvelle table remplace les anciennes étoiles, qui sont à refaire.
+- application Factures : modifier le nom, le SIREN, l'adresse et l'e-mail d'un fournisseur depuis sa fiche (aucune action serveur n'existe pour cela), historique d'IBAN avec « changé par qui », modification d'un article ; le bâtiment du village et le menu ouvrent encore la liste, pas l'appli.
 
 Le rapport de fin de chantier est dans `docs/reprise-prochaine-session.md`.

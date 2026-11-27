@@ -45,8 +45,9 @@ describe('lecture des factures à valider', () => {
     expect(appels[0].tri).toEqual([{ col: 'created_at', asc: true }, 'id']);
   });
 
-  test('P3 la pile n’écrit rien elle-même : pas d’appel aux actions métier ni de fetch dans pile.js', () => {
+  test('P3 la pile ne décide rien elle-même : pas d’appel aux actions métier ni de fetch dans pile.js ; sa seule écriture est « Annuler » (27/11/2026 : action `rouvrir`, par donnees-examiner.js)', () => {
     const code = readFileSync(new URL('../js/modules/achatsfactures/pile.js', import.meta.url), 'utf8');
     expect(/appelerActionMetier|fetch\(|validerFacture|\.decider\(/.test(code)).toBe(false);
+    expect([...code.matchAll(/\.(rouvrir|archiver|desarchiver|relier|creerAgence)\(/g)].map((m) => m[1])).toEqual(['rouvrir']);
   });
 });

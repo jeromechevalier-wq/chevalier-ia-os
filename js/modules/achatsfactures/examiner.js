@@ -38,9 +38,12 @@ const nombre = (n) => (typeof n === 'number' && Number.isFinite(n) ? n.toLocaleS
  * `surOccupation(vrai/faux)` = prévenue quand une écriture commence ou finit (la pile désactive alors « Passer » : quitter la page en pleine décision perdrait le résultat).
  * `surPerimee()` = la facture n'est plus à valider ici (déjà traitée par quelqu'un d'autre, ou archivée) : le message est montré en toast, puis la pile relit sa liste.
  * `focusTitre` = poser le focus clavier sur le titre (h1) dès que la facture est affichée (la pile, après une décision ou « Passer »).
+ * Application Factures (27/11/2026) : `surDecision({ decision, facture, message })` reçoit la décision prise ('acceptee' | 'refusee') et la facture ; c'est la pile qui dit le message (avec « Annuler ») ;
+ * `sansRetour` = pas de flèche vers la liste ; `titreTete(f)` = contenu du titre (le nom du fournisseur devient un bouton qui ouvre sa fiche) ;
+ * `surRendu({ etat, f })` = appelée après chaque dessin (etat : 'chargement' | 'acces' | 'erreur' | 'introuvable' | 'ok').
  */
 export function rendreExaminer(conteneur, factureId, options = {}) {
-  const { actionsTete = [], surDecision = null, surOccupation = null, surPerimee = null } = options;
+  const { actionsTete = [], surDecision = null, surOccupation = null, surPerimee = null, sansRetour = false, titreTete = null, surRendu = null } = options;
   let focusAPoser = !!options.focusTitre;
   let vivant = true;
   let etatAcces = 'chargement'; // chargement | connecte | non-regle | reconnexion | illisible
@@ -75,7 +78,7 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
 
   const racine = h('div', { class: 'page page-examiner page-achats-factures', dataset: { module: 'achats', role: 'examiner' } });
   conteneur.replaceChildren(racine);
-  const retour = h('a', { class: 'bouton-icone retour-liste', href: lien('achatsfactures/liste'), 'aria-label': 'Retour aux factures', dataset: { action: 'retour-liste' } }, icone('chevron-left', { taille: 18 }));
+  const retour = sansRetour ? null : h('a', { class: 'bouton-icone retour-liste', href: lien('achatsfactures/liste'), 'aria-label': 'Retour aux factures', dataset: { action: 'retour-liste' } }, icone('chevron-left', { taille: 18 }));
 
   // ------------------------------------------------------------ lecture
   async function verifier(forcer = false) {
@@ -294,12 +297,12 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
 
   // ------------------------------------------------------------ actions (écritures par la couche des actions ; la page est relue après)
   /** Acceptation ou refus réussi : dans la pile, on passe à la facture suivante (aucune relecture) ; sinon la page est relue. */
-  async function decisionFaite(message) {
+  async function decisionFaite(message, decision) {
     if (!surDecision) { await apresEcriture(message); return; }
-    poserOccupe(false); erreurDecision = '';
-    if (!vivant) return;
-    toast(message, { duree: DUREE_MESSAGE });
-    surDecision();
+    erreurDecision = '';
+    if (!vivant) { poserOccupe(false); return; }
+    poserOccupe(true); majDecision(); // la pile remplace cette page par la facture suivante : les boutons restent éteints d'ici là (jamais deux décisions sur la même facture)
+    surDecision({ decision, facture: d.f, message });
   }
 
   async function apresEcriture(message) {
@@ -330,7 +333,7 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
     poserOccupe(true); erreurDecision = ''; majDecision();
     try { await actionsBase().validerFacture(corps); } catch (e) { await refusServeur(e); return; }
     motifAccept = ''; choixChantier = null; choixAgence = null; agenceDevinee = false;
-    await decisionFaite('Facture acceptée');
+    await decisionFaite('Facture acceptée', 'acceptee');
   }
 
   async function refuser(motifInitial) {
@@ -346,7 +349,7 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
     if (!vivant || !r?.ok) return;
     if (r.resultat?.perime && surPerimee) { quitterPerimee(erreurDecision); return; }
     if (r.resultat?.perime) { await finEcriture(r, ''); return; }
-    await decisionFaite('Facture refusée');
+    await decisionFaite('Facture refusée', 'refusee');
   }
 
   async function rouvrir() {
@@ -430,8 +433,13 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
 
   function rendre() {
     if (!vivant) return;
+    dessiner();
+    surRendu?.({ etat: etatAcces === 'chargement' || (etatAcces === 'connecte' && lecture === 'chargement') ? 'chargement' : etatAcces !== 'connecte' ? 'acces' : lecture === 'ok' && d ? 'ok' : lecture === 'erreur' ? 'erreur' : 'introuvable', f: lecture === 'ok' && d ? d.f : null });
+  }
+
+  function dessiner() {
     const titre = d ? nomFournisseur(d.f) : 'Facture';
-    const tete = enteteListe({ titre: h('h1', options.focusTitre ? { tabIndex: -1, dataset: { role: 'titre-facture' } } : {}, titre), retour, actions: actionsTete,
+    const tete = enteteListe({ titre: h('h1', options.focusTitre ? { tabIndex: -1, dataset: { role: 'titre-facture' } } : {}, d && titreTete ? titreTete(d.f) : titre), retour, actions: actionsTete,
       compteur: d ? h('span', { class: 'compteur-liste' }, h('span', { class: `badge ${CLASSE_STATUT[d.f.statut] ?? ''}`, dataset: { role: 'statut' } }, LIBELLE_STATUT[d.f.statut] ?? d.f.statut), d.f.numero ? ` N° ${d.f.numero}` : '') : null });
     if (etatAcces === 'chargement' || (etatAcces === 'connecte' && lecture === 'chargement')) { remplir(racine, tete, chargementListe()); return; }
     if (etatAcces !== 'connecte') { const z = h('div', {}); dessinerEtatAcces(z, etatAcces, (forcer) => verifier(forcer)); remplir(racine, tete, z); return; }
