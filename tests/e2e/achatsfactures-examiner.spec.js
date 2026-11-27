@@ -2,7 +2,7 @@
 // posé par le crochet de test `window.__accesBase` (émulateurs seulement), plus une route qui sert un PDF fictif fabriqué ici. Fausses données : tests/_donnees-achatsfactures.js (aucune vraie identité).
 //  E1 ouverture depuis la liste : PDF, champs, lignes, message, score, contrôles ; E2 courriel complet et « Nos contrôles anti-arnaque » ; E3 accepter (agence proposée par le SIRET) ; E4 refuser un doublon, le refus du
 //  serveur garde la fenêtre ouverte ; E5 accepter malgré une alerte exige un motif ; E6 relier et rouvrir une facture décidée ; E7 cas vides et cas d'erreur (introuvable, lecture en panne, PDF illisible, sans courriel) ;
-//  E8 « + Facture » ; E9 téléphone (une page à la fois) et thème sombre, sans défilement horizontal ; E10 séparateur au clavier.
+//  E8 « + Facture » ; 2a/2b facture déjà ajoutée (message daté, lien vers la fiche existante, rien en double) ; E9 téléphone (une page à la fois) et thème sombre, sans défilement horizontal ; E10 séparateur au clavier.
 // Captures dans tests/e2e/captures/achatsfactures/ (non commitées), une par état, nommée avec le projet : ordinateur ou telephone.
 import { fileURLToPath } from 'node:url';
 import { test, expect, connecter, ecrireDocument, estTelephone } from './outils.js';
@@ -45,7 +45,7 @@ const lignesTable = () => listeComplete().map((f) => { const { chantiers, etabli
 
 /** Faux réseau posé AVANT le chargement : lectures filtrées comme le ferait la base, stockage, tickets et webhooks. `options` : { lectureEnPanne, refusValidation, pdfIllisible, listesEnPanne }. */
 async function poserFauxReseau(page, options = {}) {
-  await page.addInitScript(({ factures, chantiers, agences, fournisseurs, courriel, lignesA1, lectureEnPanne, refusValidation, listesEnPanne }) => {
+  await page.addInitScript(({ factures, chantiers, agences, fournisseurs, courriel, lignesA1, lectureEnPanne, refusValidation, listesEnPanne, reponseAjout }) => {
     const faux = { factures: structuredClone(factures), chantiers, agences, fournisseurs, refusValidation, lectureEnPanne, listesEnPanne };
     window.__faux = faux;
     window.__appels = [];
@@ -92,11 +92,11 @@ async function poserFauxReseau(page, options = {}) {
         if (corps.action === 'archiver') { f.archivee_le = '2026-11-25T09:00:00Z'; return rep({ ok: true }); }
         if (corps.action === 'creer_agence') { faux.agences.push({ id: 'ag-neuve', fournisseur_id: 'fo1', siret: corps.siret ?? null, nom_agence: corps.nom_agence ?? null, ville: corps.ville ?? null, actif: true, fusionne_dans: null }); return rep({ ok: true, agence_id: 'ag-neuve', fournisseur_id: 'fo1', existait: false }); }
       }
-      if (u.pathname === '/ajout') return rep({ ok: true, facture_id: 'nouvelle', lecture: 'reussie', lignes_ecrites: true });
+      if (u.pathname === '/ajout') return reponseAjout ? rep(reponseAjout.corps, reponseAjout.statut) : rep({ ok: true, facture_id: 'nouvelle', lecture: 'reussie', lignes_ecrites: true });
       return rep({ message: 'inconnu' }, 404);
     };
     window.__accesBase = { fetchImpl, jeton: 'jeton-fictif', claims: { role: 'authenticated', espace_base: 'espace-essai' } };
-  }, { factures: lignesTable(), chantiers: CHANTIERS, agences: AGENCES, fournisseurs: FOURNISSEURS, courriel: COURRIEL, lignesA1: LIGNES_A1, lectureEnPanne: false, refusValidation: '', listesEnPanne: false, ...options });
+  }, { factures: lignesTable(), chantiers: CHANTIERS, agences: AGENCES, fournisseurs: FOURNISSEURS, courriel: COURRIEL, lignesA1: LIGNES_A1, lectureEnPanne: false, refusValidation: '', listesEnPanne: false, reponseAjout: null, ...options });
   // Le PDF fictif (ou un contenu illisible) est servi comme le ferait le stockage signé ; l'en-tête CORS laisse le lecteur le lire.
   await page.route('**/storage/v1/object/sign/**', (route) => route.fulfill({ status: 200, contentType: 'application/pdf',
     headers: { 'access-control-allow-origin': '*' }, body: options.pdfIllisible ? Buffer.from('ceci n’est pas un PDF') : pdfFictif() }));
@@ -303,6 +303,48 @@ test('E8 « + Facture » : un fichier qui n\'est pas un PDF est refusé avant l\
   expect(corps[0].contentType).toEqual([]);
   expect(corps[0].fichier).toMatchObject({ nom: 'facture.pdf', type: 'application/pdf' });
   expect(corps[0].fichier.taille).toBeGreaterThan(100);
+});
+
+// Point 2 (27/11/2026) : un PDF déjà ajouté ne donne plus d'erreur obscure. Une fiche déjà décidée, à identifiant de base (uuid), sert de « facture existante ».
+const ID_EXISTANTE = '0b6f3c1e-2a4d-4c8e-9f10-1234567890ab';
+const avecExistante = () => { const t = lignesTable(); const modele = t.find((f) => f.statut === 'acceptee') ?? t[0];
+  return [...t, { ...modele, id: ID_EXISTANTE, statut: 'acceptee', created_at: '2026-11-26T13:32:00Z', archivee_le: null }]; };
+async function envoyerPdf(page) {
+  await page.locator('[data-action="ajouter-facture"]').click();
+  const fenetre = page.getByRole('dialog');
+  await fenetre.locator('[data-champ="fichier-facture"]').setInputFiles({ name: 'facture.pdf', mimeType: 'application/pdf', buffer: pdfFictif() });
+  await fenetre.getByRole('button', { name: 'Envoyer' }).click();
+  return fenetre;
+}
+
+test('2a même PDF envoyé deux fois (refus 409) : « déjà ajoutée le … », lien vers la fiche existante, la fenêtre reste ouverte', async ({ page }, info) => {
+  await ouvrirListe(page, { factures: avecExistante(), reponseAjout: { statut: 409, corps: { ok: false, code: 'doublon', facture_id: ID_EXISTANTE, erreur: 'Cette facture a déjà été ajoutée.' } } });
+  const avant = await page.evaluate(() => window.__faux.factures.length);
+  const fenetre = await envoyerPdf(page);
+  const message = fenetre.locator('[data-erreur="fenetre"]');
+  await expect(message).toContainText('Cette facture a déjà été ajoutée le 26/11/2026 à 14:32. Rien n’a été créé en double.');
+  const lien = message.locator('[data-role="facture-existante"]');
+  await expect(lien).toHaveText('Ouvrir la facture existante');
+  await expect(lien).toHaveAttribute('href', `#/achatsfactures/examiner/${ID_EXISTANTE}`);
+  await expect(page.locator('.toast')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__faux.factures.length)).toBe(avant);
+  expect(await sansDefilementHorizontal(page)).toBe(true);
+  await capturer(page, info, '2a-deja-ajoutee');
+  await lien.click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(`achatsfactures/examiner/${ID_EXISTANTE}$`));
+});
+
+test('2b réponse « ajoutée » qui désigne une fiche déjà décidée (PDF rangé par la base dans la facture existante) : même message, pas de « Facture ajoutée »', async ({ page }, info) => {
+  await ouvrirListe(page, { factures: avecExistante(), reponseAjout: { statut: 200, corps: { ok: true, facture_id: ID_EXISTANTE, lecture: 'ok', lignes_ecrites: false } } });
+  const fenetre = await envoyerPdf(page);
+  await expect(fenetre.locator('[data-erreur="fenetre"]')).toContainText('Cette facture a déjà été ajoutée le 26/11/2026 à 14:32.');
+  await expect(fenetre.locator('[data-role="facture-existante"]')).toBeVisible();
+  await expect(page.locator('.toast')).toHaveCount(0);
+  await capturer(page, info, '2b-deja-ajoutee-fiche-decidee');
+  // Cas d'erreur : « Annuler » ferme la fenêtre sans rien créer.
+  await fenetre.getByRole('button', { name: 'Annuler' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
 test('E9 une page à la fois sur téléphone, thème sombre, jamais de défilement horizontal', async ({ page }, info) => {

@@ -345,7 +345,7 @@ export function rendreEcran(conteneur) {
   /** « + Facture » : fenêtre d'envoi d'un PDF ; la facture arrive « À valider » après lecture. Le message du serveur reste dans la fenêtre si l'envoi échoue. */
   async function ajouterFacture() {
     if (occupe) return;
-    const r = await fenetreAjout({ actions: actionsBase() });
+    const r = await fenetreAjout({ actions: actionsBase(), lireFiche: (id) => donnees().lireFicheAjoutee(id) });
     if (!vivant || !r?.ok) return;
     toast(r.resultat.lectureReussie ? 'Facture ajoutée : elle est dans « À valider »' : 'Facture ajoutée : la lecture automatique est à compléter', { duree: DUREE_MESSAGE });
     await charger(true);

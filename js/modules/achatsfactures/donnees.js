@@ -118,8 +118,14 @@ export function creerDonnees({ client, actions }) {
     return lue.tronque ? null : lue.lignes.length;
   }
 
+  /** Fiche rendue par « + Facture » (statut, date d'ajout, archivage) : sert à reconnaître une facture déjà ajoutée. null si elle est introuvable. */
+  async function lireFicheAjoutee(id) {
+    const r = await valeur(client).lire(TABLE_FACTURES, { colonnes: ['id', 'statut', 'created_at', 'archivee_le'], filtres: [['id', 'eq', id]], tri: ['id'] });
+    return r.lignes[0] ?? null;
+  }
+
   const archiver = (id) => valeur(actions).appelerActionMetier('archiver', { facture_id: id });
   const desarchiver = (id) => valeur(actions).appelerActionMetier('desarchiver', { facture_id: id });
 
-  return { chargerFactures, chargerNombreLignes, chargerIbansConfirmes, chargerFavoris, basculerFavori, compterFacturesAValider, archiver, desarchiver };
+  return { chargerFactures, chargerNombreLignes, chargerIbansConfirmes, chargerFavoris, basculerFavori, compterFacturesAValider, lireFicheAjoutee, archiver, desarchiver };
 }

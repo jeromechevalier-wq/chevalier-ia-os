@@ -13,7 +13,7 @@ import { MESSAGE_ACCES_REFUSE, MESSAGE_ADRESSE, MESSAGE_PAS_BRANCHEE, MESSAGE_AJ
 import { ConfigurationAbsente } from '../functions/src/base/porte-base.js';
 import { MESSAGE_INCERTAIN } from '../js/modules/achatsfactures/upload.js';
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
-import { service, fauxReseau, reponse, pdfEssai, EMAIL, CONNEXION, WEBHOOKS, N8N, id } from './_achats-essai.js';
+import { service, fauxReseau, reponse, pdfEssai, EMAIL, CONNEXION, WEBHOOKS, N8N, id, F1, F2 } from './_achats-essai.js';
 
 const arrets = [];
 afterEach(async () => { while (arrets.length) await arrets.pop()(); });
@@ -147,8 +147,25 @@ describe('Achats par l’assistant : ajouter une facture en PDF (lien d’envoi)
     const r = await s.demanderLien();
     const rep = await s.envoyer(s.jetonDe(r), pdfEssai());
     assert.equal(rep.statut, 409);
-    assert.equal(rep.corps.erreur, 'Cette facture a déjà été ajoutée.');
+    assert.equal(rep.corps.erreur, 'Cette facture a déjà été ajoutée. Rien n’a été créé en double.');
+    assert.equal(rep.corps.factureId, undefined, 'pas d’identifiant valable : aucun');
     assert.equal(liens(s).length, 0, 'consommé');
+  });
+
+  test('D4b même fichier (409) avec l’identifiant de la fiche : date relue dans la base, identifiant rendu', async () => {
+    const s = await demarrer({ achats: { reseau: fauxReseau(() => reponse(409, { ok: false, code: 'doublon', facture_id: F1 })) } });
+    const rep = await s.envoyer(s.jetonDe(await s.demanderLien()), pdfEssai());
+    assert.equal(rep.statut, 409);
+    assert.equal(rep.corps.erreur, 'Cette facture a déjà été ajoutée le 20/11/2026 à 11:00. Rien n’a été créé en double.');
+    assert.equal(rep.corps.factureId, F1);
+  });
+
+  test('D4c réponse « ajoutée » qui désigne une fiche déjà décidée (PDF rangé dans la facture existante) : doublon, pas « Facture ajoutée »', async () => {
+    const s = await demarrer({ achats: { reseau: fauxReseau(() => reponse(200, { ok: true, facture_id: F2, lecture: 'ok', lignes_ecrites: false })) } });
+    const rep = await s.envoyer(s.jetonDe(await s.demanderLien()), pdfEssai());
+    assert.equal(rep.statut, 409);
+    assert.equal(rep.corps.erreur, 'Cette facture a déjà été ajoutée le 18/11/2026 à 11:00. Rien n’a été créé en double.');
+    assert.equal(rep.corps.factureId, F2);
   });
 
   test('D5 pas un vrai PDF', async () => {

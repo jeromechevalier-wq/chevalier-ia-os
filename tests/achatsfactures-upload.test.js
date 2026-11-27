@@ -2,7 +2,7 @@
 // L'envoi passe ici par la vraie couche des actions de l'OS (js/os/actions-metier.js) avec un faux réseau : il n'y a plus de `fetcher`, d'`url` ni de `jwt` à fournir (adresse réglée dans la connexion, ticket neuf demandé à la base).
 import { describe, test } from 'node:test'
 import { expect, espion } from './_expect-achatsfactures.js'
-import { envoyerFacture, ErreurUpload, MESSAGE_INCERTAIN, TAILLE_MAX_OCTETS, verifierContenu, verifierFichierPdf, verifierMetadonnees } from '../js/modules/achatsfactures/upload.js'
+import { envoyerFacture, ErreurUpload, MESSAGE_INCERTAIN, TAILLE_MAX_OCTETS, verifierContenu, verifierFichierPdf, verifierMetadonnees, messageDoublon, ficheDejaConnue, MARGE_FICHE_ANCIENNE_MS } from '../js/modules/achatsfactures/upload.js'
 import { creerActions, ErreurAction } from '../js/os/actions-metier.js'
 
 const octets = (s) => new TextEncoder().encode(s)
@@ -59,11 +59,12 @@ describe('envoyerFacture (couche des actions de l’OS, faux réseau)', () => {
     const r = await envoyerFacture(pdf(), { actions: monter(() => reponse(200, { ok: true, facture_id: 'abc', lecture: 'a_completer' })) })
     expect(r.lectureReussie).toBe(false)
   })
-  test('doublon : erreur « doublon » avec son message (l’identifiant de la fiche existante n’est pas porté par ErreurAction : voir .github/A-FAIRE.md)', async () => {
+  test('doublon : erreur « doublon » avec son message (sans identifiant valable : pas de lien)', async () => {
     const e = await envoyerFacture(pdf(), { actions: monter(() => reponse(409, { ok: false, code: 'doublon', facture_id: 'vieille' })) }).catch((x) => x)
     expect(e instanceof ErreurUpload).toBe(true)
     expect(e.code).toBe('doublon')
-    expect(e.message).toBe('Cette facture a déjà été ajoutée.')
+    expect(e.message).toBe('Cette facture a déjà été ajoutée. Rien n’a été créé en double.')
+    expect(e.factureId).toBeNull()
   })
   test('401 : message de session expirée', async () => {
     const e = await envoyerFacture(pdf(), { actions: monter(() => reponse(401, { ok: false, code: 'non_autorise' })) }).catch((x) => x)
@@ -129,5 +130,69 @@ describe('envoyerFacture (couche des actions de l’OS, faux réseau)', () => {
   test('200 sans ok:true n’est pas un succès', async () => {
     const e = await envoyerFacture(pdf(), { actions: monter(() => reponse(200, { hello: 1 })) }).catch((x) => x)
     expect(e.code).toBe('reponse_inattendue')
+  })
+})
+
+// Facture déjà ajoutée (27/11/2026) : message « déjà ajoutée le … », lien vers la fiche existante, rien en double.
+describe('D. facture déjà ajoutée', () => {
+  const ID = '0b6f3c1e-2a4d-4c8e-9f10-1234567890ab'
+  const reponse = (status, corps) => Promise.resolve({ ok: status >= 200 && status < 300, status, json: async () => corps })
+  const monter = (fetchImpl) => creerActions({ lireConnexion: () => ({ webhooks: { ajoutFacture: ['https', '://n8n-essai.invalid/a'].join('') } }), demanderTicket: async () => 't', fetchImpl })
+  const T0 = Date.parse('2026-11-27T10:00:00Z')
+
+  test('2-D1 message avec la date et l’heure de Paris, sans date si elle est inconnue ou fausse', () => {
+    expect(messageDoublon('2026-11-26T13:32:00Z')).toBe('Cette facture a déjà été ajoutée le 26/11/2026 à 14:32. Rien n’a été créé en double.')
+    expect(messageDoublon(null)).toBe('Cette facture a déjà été ajoutée. Rien n’a été créé en double.')
+    expect(messageDoublon('pas une date')).toBe('Cette facture a déjà été ajoutée. Rien n’a été créé en double.')
+  })
+  test('2-D2 refus 409 du même fichier : identifiant et date portés par l’erreur (lien possible)', async () => {
+    const e = await envoyerFacture(pdf(), { actions: monter(() => reponse(409, { ok: false, code: 'doublon', facture_id: ID, cree_le: '2026-11-26T13:32:00Z', erreur: 'x' })) }).catch((x) => x)
+    expect(e.code).toBe('doublon')
+    expect(e.factureId).toBe(ID)
+    expect(e.message).toBe('Cette facture a déjà été ajoutée le 26/11/2026 à 14:32. Rien n’a été créé en double.')
+  })
+  test('2-D3 refus 409 sans date : la date est relue dans la fiche existante ; relecture en échec = message sans date', async () => {
+    const lireFiche = espion(async () => ({ id: ID, statut: 'acceptee', created_at: '2026-11-20T08:05:00Z' }))
+    const e = await envoyerFacture(pdf(), { actions: monter(() => reponse(409, { ok: false, code: 'doublon', facture_id: ID })), lireFiche }).catch((x) => x)
+    expect(e.message).toBe('Cette facture a déjà été ajoutée le 20/11/2026 à 09:05. Rien n’a été créé en double.')
+    expect(lireFiche.appels[0]).toEqual([ID])
+    const e2 = await envoyerFacture(pdf(), { actions: monter(() => reponse(409, { ok: false, code: 'doublon', facture_id: ID })), lireFiche: async () => { throw new Error('base') } }).catch((x) => x)
+    expect(e2.message).toBe('Cette facture a déjà été ajoutée. Rien n’a été créé en double.')
+    expect(e2.factureId).toBe(ID)
+  })
+  test('2-D4 réponse « ajoutée » qui désigne une fiche déjà décidée (cas SCAB 04 du 26/11) : erreur doublon, pas de « Facture ajoutée »', async () => {
+    const actions = monter(() => reponse(200, { ok: true, facture_id: ID, lecture: 'ok', lignes_ecrites: false }))
+    const e = await envoyerFacture(pdf(), { actions, lireFiche: async () => ({ id: ID, statut: 'refusee', created_at: '2026-11-26T13:32:00Z', archivee_le: null }), maintenant: () => T0 }).catch((x) => x)
+    expect(e instanceof ErreurUpload).toBe(true)
+    expect(e.code).toBe('doublon')
+    expect(e.factureId).toBe(ID)
+    expect(e.message).toMatch(/déjà été ajoutée le 26\/11\/2026/)
+  })
+  test('2-D5 fiche « à valider » créée bien avant l’envoi : doublon ; fiche toute neuve : ajoutée', async () => {
+    const actions = monter(() => reponse(200, { ok: true, facture_id: ID, lecture: 'ok' }))
+    const vieille = new Date(T0 - MARGE_FICHE_ANCIENNE_MS - 60_000).toISOString()
+    const e = await envoyerFacture(pdf(), { actions, lireFiche: async () => ({ id: ID, statut: 'a_valider', created_at: vieille }), maintenant: () => T0 }).catch((x) => x)
+    expect(e.code).toBe('doublon')
+    const r = await envoyerFacture(pdf(), { actions, lireFiche: async () => ({ id: ID, statut: 'a_valider', created_at: new Date(T0 + 30_000).toISOString() }), maintenant: () => T0 })
+    expect(r).toEqual({ factureId: ID, lectureReussie: true, lignesEcrites: true })
+  })
+  test('2-D6 fiche relue exprès par le workflow (fiche_relue) : jamais un doublon ; relecture impossible : ajoutée', async () => {
+    const lireFiche = async () => ({ id: ID, statut: 'a_valider', created_at: '2026-11-01T08:00:00Z' })
+    const r = await envoyerFacture(pdf(), { actions: monter(() => reponse(200, { ok: true, facture_id: ID, fiche_relue: true })), lireFiche, maintenant: () => T0 })
+    expect(r.factureId).toBe(ID)
+    const r2 = await envoyerFacture(pdf(), { actions: monter(() => reponse(200, { ok: true, facture_id: ID })), lireFiche: async () => { throw new Error('base') }, maintenant: () => T0 })
+    expect(r2.factureId).toBe(ID)
+  })
+  test('2-D7 le workflow dit lui-même « deja_connue » : doublon avec sa date', async () => {
+    const e = await envoyerFacture(pdf(), { actions: monter(() => reponse(200, { ok: true, facture_id: ID, deja_connue: true, cree_le: '2026-11-26T13:32:00Z' })) }).catch((x) => x)
+    expect(e.code).toBe('doublon')
+    expect(e.message).toMatch(/le 26\/11\/2026 à 14:32/)
+  })
+  test('2-D8 ficheDejaConnue : décidée, archivée ou ancienne = oui ; neuve, inconnue ou relue = non', () => {
+    expect(ficheDejaConnue({ statut: 'acceptee' }, T0)).toBe(true)
+    expect(ficheDejaConnue({ statut: 'a_valider', archivee_le: '2026-11-20T00:00:00Z' }, T0)).toBe(true)
+    expect(ficheDejaConnue({ statut: 'a_valider', created_at: new Date(T0).toISOString() }, T0)).toBe(false)
+    expect(ficheDejaConnue(null, T0)).toBe(false)
+    expect(ficheDejaConnue({ statut: 'refusee' }, T0, { ficheRelue: true })).toBe(false)
   })
 })
