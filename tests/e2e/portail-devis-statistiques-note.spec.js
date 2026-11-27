@@ -3,7 +3,7 @@
 // Captures dans tests/e2e/captures/statistiques-note-tests/.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, attendreCalme, JEROME, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
+import { test, expect, connecter, ecrireDocument, attendreCalme, JEROME, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/statistiques-note-tests/', import.meta.url));
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
@@ -47,7 +47,8 @@ test.describe('chez un client Devis seul', () => {
     await ecrireDocument(`clients/devisseul/membres/${ALICE}`, { role: 'editeur' });
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/devisseul/portail-devis/devis/statistiques`);
-    await connecterDansEspace(page, ALICE);
+    await page.waitForFunction(() => !!window.__chevalierTest);
+    await connecterCompte(page, ALICE);
     await expect(page.locator('.page-statistiques')).toBeVisible();
     await expect(note(page)).toHaveText(PHRASE);
     await capturer(page, info, 'N2-client');

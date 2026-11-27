@@ -1,6 +1,6 @@
 // Veille : même bouton « Filtres » et même fenêtre à cases à cocher que les autres listes (nuit du 22 au 23/10/2026, sujet filtres-veille).
 // Un test par critère (nom commençant par le numéro), UNE capture par critère dans tests/e2e/captures/veille-filtres/ (suffixe -telephone sur téléphone).
-import { test, expect, attendreCalme, connecter, choisirDansMenuUtilisateur, ecrireDocument, estTelephone, JEROME } from './outils.js';
+import { test, expect, attendreCalme, connecter, choisirDansMenuUtilisateur, ecrireDocument, estTelephone, JEROME, connecterCompte } from './outils.js';
 
 const CAPTURES = 'e2e/captures/veille-filtres';
 const capture = (page, nom) => page.screenshot({ path: `${CAPTURES}/${nom}${estTelephone(page) ? '-telephone' : ''}.png`, animations: 'disabled' });
@@ -133,7 +133,7 @@ test('I4 les filtres restent quand on change d\'écran et revient, disparaissent
   await expect(lignes(page)).toHaveCount(2);
   await choisirDansMenuUtilisateur(page, 'Se déconnecter');
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), JEROME);
+  await connecterCompte(page, JEROME);
   await expect(page.locator('.coquille')).toBeVisible();
   await aller(page, '#/veille/contenus');
   await expect(lignes(page)).toHaveCount(5);

@@ -4,7 +4,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { test, expect, ecrireDocument, estTelephone, ouvrirMenuUtilisateur, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
+import { test, expect, ecrireDocument, estTelephone, ouvrirMenuUtilisateur, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 const ALICE = 'alice@exemple.test';
 const DOSSIER = join(homedir(), 'chantiers-crm', 'captures-menu-B');
@@ -39,7 +39,8 @@ test.beforeEach(async () => {
 async function ouvrir(page, client, reste = '') {
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/${client}${reste ? `/${reste}` : ''}`);
-  await connecterDansEspace(page, ALICE);
+  await page.waitForFunction(() => !!window.__chevalierTest);
+  await connecterCompte(page, ALICE);
   await expect(page.locator('.coquille')).toBeVisible();
 }
 async function deplier(page) {

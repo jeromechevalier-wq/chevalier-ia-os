@@ -4,7 +4,8 @@
 import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
-  test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, listerDocuments, creerAffaire, creerProjet, allerAuxReglagesCrm, JEROME, PROJET, FIRESTORE, URL_APP, connecterDansEspace
+  test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, listerDocuments, creerAffaire, creerProjet, allerAuxReglagesCrm, JEROME, PROJET, FIRESTORE, URL_APP,
+  connecterCompte,
 } from './outils.js';
 import { brancherGoogle } from './google-simule.js';
 
@@ -357,7 +358,8 @@ test.describe('9 lecteur d’un espace client', () => {
     await ecrireDocument('clients/studio/documents_stockes/f1', { cibleType: 'affaire', cibleId: 'a1', nom: 'Cahier des charges.pdf', typeMime: 'application/pdf', taille: 4096, chemin: 'clients/studio/documents/affaire/a1/0-x.pdf', creeLe: maintenant, creePar: ALICE, supprimeLe: null });
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/studio/crm/affaires/a1`);
-    await connecterDansEspace(page, email);
+    await page.waitForFunction(() => !!window.__chevalierTest);
+    await connecterCompte(page, email);
     await expect(page.locator('.compositeur')).toBeVisible();
     await attendreCalme(page);
   }

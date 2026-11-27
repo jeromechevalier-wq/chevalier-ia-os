@@ -8,7 +8,7 @@
 // Cas vide : aucune proposition = pas de pastille (2a). Cas d'erreur : lecture refusée = pas de pastille, pas de message, menu intact (3d).
 import { mkdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, estTelephone, JEROME, CHARLES, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
+import { test, expect, connecter, ecrireDocument, estTelephone, JEROME, CHARLES, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 const ALICE = 'alice@exemple.test';
 const LEA = 'lea@exemple.test';
@@ -62,7 +62,8 @@ const ouvrirMenu = async (page) => {
 async function ouvrirChezClient(page, client, email) {
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/${client}`);
-  await connecterDansEspace(page, email);
+  await page.waitForFunction(() => !!window.__chevalierTest);
+  await connecterCompte(page, email);
   await expect(page.locator('.coquille')).toBeVisible();
 }
 

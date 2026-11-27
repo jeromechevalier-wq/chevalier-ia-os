@@ -3,7 +3,7 @@
 // (tests/deploiement-fonction.test.js). Un test par critère d'acceptation (le nom commence par son numéro) ; captures dans tests/e2e/captures/deploiement/.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, estTelephone, PROJET, FIRESTORE, URL_APP, JEROME, connecterDansEspace } from './outils.js';
+import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, estTelephone, PROJET, FIRESTORE, URL_APP, JEROME, connecterCompte } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/deploiement/', import.meta.url));
 const DOSSIER_RETRAIT = fileURLToPath(new URL('./captures/devis-retrait-drive/', import.meta.url));
@@ -204,7 +204,8 @@ test.describe('chez un client', () => {
     await ecrireDocument(`clients/veilleur/membres/${LEA}`, { role: 'lecteur' });
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/veilleur/reglages/deploiement`);
-    await connecterDansEspace(page, email);
+    await page.waitForFunction(() => !!window.__chevalierTest);
+    await connecterCompte(page, email);
     await expect(page.locator('.coquille')).toBeVisible();
   }
 

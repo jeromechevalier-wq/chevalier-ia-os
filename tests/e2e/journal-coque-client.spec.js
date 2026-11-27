@@ -3,7 +3,7 @@
 // Un test par critère, UNE capture chacun dans tests/e2e/captures/journal-coque/ (« -client », « -telephone »).
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, estTelephone, ouvrirMenuUtilisateur, listerDocuments, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
+import { test, expect, ecrireDocument, estTelephone, ouvrirMenuUtilisateur, listerDocuments, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 const ALICE = 'alice@exemple.test';
 const CAPTURES = 'e2e/captures/journal-coque';
@@ -34,7 +34,8 @@ test.beforeEach(async ({ context }) => {
 async function ouvrir(page, client, reste = '') {
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/${client}${reste ? `/${reste}` : ''}`);
-  await connecterDansEspace(page, ALICE);
+  await page.waitForFunction(() => !!window.__chevalierTest);
+  await connecterCompte(page, ALICE);
   await expect(page.locator('.coquille')).toBeVisible();
 }
 const lignes = (page) => page.locator('.tableau-journal tbody tr');

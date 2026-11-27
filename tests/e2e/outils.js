@@ -198,25 +198,24 @@ export function estTelephone(page) {
 }
 
 /**
- * Espace d'un client (#/espace/…) déjà ouvert par `page.goto` : connecte un compte Google fictif sur l'émulateur Auth,
- * une fois le démarrage de la page fini (plus de rond « Chargement » de départ : page de connexion, « Espace indisponible » ou coque d'un compte déjà connecté).
- * Pourquoi (nuit du 27/11/2026, run 46024432727) : en format téléphone, appeler `connecter` pendant le démarrage faisait parfois échouer `page.evaluate`
- * (« Execution context was destroyed ») alors que la page n'avait PAS changé de document (même performance.timeOrigin, coque affichée, compte connecté).
- * Garde-fou : si ce message revient quand même, on reprend (connecter le même compte deux fois est sans effet) SEULEMENT si le document est le même ;
- * une vraie navigation ou un vrai rechargement de la page reste une erreur du test.
+ * Connecte un compte Google fictif (émulateur Auth) sur la page déjà ouverte, sans attendre la promesse de connexion DANS page.evaluate.
+ * Pourquoi : Chrome rend parfois « Promise was collected » pour une promesse attendue par page.evaluate, même quand elle s'est bien
+ * résolue ; Playwright traduit ce refus par « Execution context was destroyed, most likely because of a navigation » alors qu'aucune
+ * navigation n'a eu lieu (tests instables de la nuit du 27/11/2026 : R6, 4c, M14, M20…). On lance donc la connexion sans l'attendre,
+ * puis on lit son état par de petites lectures synchrones. Une connexion refusée échoue toujours, avec son message.
  */
-export async function connecterDansEspace(page, email, emailVerifie = true) {
-  const demarree = async () => (await page.waitForFunction(() => window.__chevalierTest && !document.querySelector('#app > .chargement') && performance.timeOrigin)).jsonValue();
-  const origine = await demarree();
-  for (let essai = 0; ; essai++) {
-    try {
-      await page.evaluate(([e, v]) => window.__chevalierTest.connecter(e, v), [email, emailVerifie]);
-      return;
-    } catch (err) {
-      if (essai >= 2 || !/Execution context was destroyed/.test(String(err?.message))) throw err;
-      if ((await demarree()) !== origine) throw new Error(`La page a été rechargée pendant la connexion (vraie navigation) : ${err.message}`);
-    }
-  }
+export async function connecterCompte(page, email, emailVerifie = true, reglages = null) {
+  // Attendre la fin du démarrage de la page : une connexion lancée pendant le chargement (surtout en téléphone) peut être perdue.
+  await page.waitForFunction(() => window.__chevalierTest && !document.querySelector('#app > .chargement'));
+  await page.evaluate(([e, v, r]) => {
+    const T = window.__chevalierTest;
+    if (r) Object.assign(T, r);
+    T.etatConnexion = 'en cours';
+    T.connecter(e, v).then(() => { T.etatConnexion = 'ok'; }, (x) => { T.etatConnexion = `refusée : ${x?.message ?? x}`; });
+  }, [email, emailVerifie, reglages]);
+  await expect.poll(() => page.evaluate(() => window.__chevalierTest?.etatConnexion), { message: `connexion de test de ${email}` }).not.toBe('en cours');
+  const etat = await page.evaluate(() => window.__chevalierTest?.etatConnexion);
+  if (etat !== 'ok') throw new Error(`Connexion de test de ${email} : ${etat ?? 'page rechargée pendant la connexion'}`);
 }
 
 /**
@@ -227,7 +226,7 @@ export async function connecter(page, email = JEROME, { attendreAccueil = true, 
   await page.goto(`${URL_APP}#/${route}`);
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
   await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate(([e, v]) => window.__chevalierTest.connecter(e, v), [email, emailVerifie]);
+  await connecterCompte(page, email, emailVerifie);
   if (attendreAccueil) {
     await expect(page.locator('.coquille')).toBeVisible();
     if (route === 'crm/accueil') await expect(page.locator('.grille-objectifs .objectif')).toHaveCount(5);

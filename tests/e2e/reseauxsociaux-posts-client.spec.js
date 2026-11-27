@@ -3,7 +3,7 @@
 // Un test par critère, UNE capture chacun dans tests/e2e/captures/reseauxsociaux-posts/ (« -client », « -telephone »). Données fictives uniquement.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, estTelephone, listerDocuments, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
+import { test, expect, ecrireDocument, estTelephone, listerDocuments, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 const ALICE = 'alice@exemple.test';
 const CAPTURES = 'e2e/captures/reseauxsociaux-posts';
@@ -29,7 +29,8 @@ test.beforeEach(async ({ context }) => {
 async function ouvrir(page, reste) {
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/reseaux/${reste}`);
-  await connecterDansEspace(page, ALICE);
+  await page.waitForFunction(() => !!window.__chevalierTest);
+  await connecterCompte(page, ALICE);
   await expect(page.locator('.coquille')).toBeVisible();
 }
 /** Fonction `reseauxsociauxBuffer` absente (comme chez un client) : le navigateur reçoit une erreur technique, pas un refus écrit par le serveur. */

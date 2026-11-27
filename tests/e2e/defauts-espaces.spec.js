@@ -6,7 +6,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, lireDocument, estTelephone, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
+import { test, expect, ecrireDocument, lireDocument, estTelephone, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 import { brancherGoogle, debrancherGoogle, choisirDansGoogle, PARENT } from './google-simule.js';
 
 const ALICE = 'alice@exemple.test';
@@ -35,7 +35,8 @@ test.beforeEach(async () => {
 async function ouvrirReglages(page, client) {
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/${client}/reglages/crm`);
-  await connecterDansEspace(page, ALICE);
+  await page.waitForFunction(() => !!window.__chevalierTest);
+  await connecterCompte(page, ALICE);
   await expect(page.locator('.coquille')).toBeVisible();
   await expect(page.locator('#reglages-options')).toBeVisible();
 }

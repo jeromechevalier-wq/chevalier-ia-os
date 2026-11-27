@@ -1,6 +1,6 @@
 // Fenêtre « Filtres » commune (nuit du 22 au 23/10/2026) : J5a (un seul composant pour Personnes, Organisations, Affaires, Projets) et J1 (historique à cases à cocher, « OU », mémorisé jusqu'au rechargement).
 // Un test par critère (nom commençant par le numéro) et UNE capture par critère dans tests/e2e/captures/filtres-commun/.
-import { test, expect, attendreCalme, connecter, allerA, jour, choisirDansMenuUtilisateur, creerPersonne, creerOrganisation, creerAffaire, creerProjet, creerActivite, ecrireDocument, estTelephone, JEROME } from './outils.js';
+import { test, expect, attendreCalme, connecter, allerA, jour, choisirDansMenuUtilisateur, creerPersonne, creerOrganisation, creerAffaire, creerProjet, creerActivite, ecrireDocument, estTelephone, JEROME, connecterCompte } from './outils.js';
 
 const CAPTURES = 'e2e/captures/filtres-commun';
 const capture = (page, nom) => page.screenshot({ path: `${CAPTURES}/${nom}${estTelephone(page) ? '-telephone' : ''}.png`, animations: 'disabled' });
@@ -157,7 +157,7 @@ test('J1 changement de compte : après déconnexion puis connexion dans le même
   await expect(lignes(page)).toHaveCount(1);
   await choisirDansMenuUtilisateur(page, 'Se déconnecter');
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), JEROME);
+  await connecterCompte(page, JEROME);
   await expect(page.locator('.coquille')).toBeVisible();
   await aller(page, '#/crm/personnes/p1');
   await expect(lignes(page)).toHaveCount(3);

@@ -4,7 +4,8 @@
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import {
-  test, expect, attendreCalme, connecter, allerA, ouvrirSectionReglages, creerOrganisation, creerAffaire, ecrireDocument, lireDocument, JEROME, PROJET, FIRESTORE, URL_APP, connecterDansEspace
+  test, expect, attendreCalme, connecter, allerA, ouvrirSectionReglages, creerOrganisation, creerAffaire, ecrireDocument, lireDocument, JEROME, PROJET, FIRESTORE, URL_APP,
+  connecterCompte,
 } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/organisation-siret/', import.meta.url));
@@ -142,7 +143,8 @@ test.describe('8 chez un client Devis seul', () => {
     await ecrireDocument('clients/devisseul/crm_organisations/o1', { nom: 'Atelier Martin', telephones: [], emails: [], emailsNormalises: [], etiquettes: [], archive: false, proprietaire: ALICE, creeLe: new Date(), modifieLe: new Date(), creePar: ALICE, modifiePar: ALICE });
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/devisseul/portail-devis/crm/organisations/o1`);
-    await connecterDansEspace(page, ALICE);
+    await page.waitForFunction(() => !!window.__chevalierTest);
+    await connecterCompte(page, ALICE);
     await expect(page.locator('.coquille')).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Nom' })).toHaveValue('Atelier Martin');
     await attendreCalme(page);

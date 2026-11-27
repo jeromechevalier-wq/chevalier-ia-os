@@ -3,7 +3,7 @@
 // Le serveur est remplacé par un faux (page.route) : le vrai chemin (transaction, montant, journal) est couvert par tests/devis-serveur.test.js (CA) et devis-montant-affaire.test.js (N15).
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, listerDocuments, creerOrganisation, creerAffaire, JEROME, FIRESTORE, PROJET, URL_APP, connecterDansEspace } from './outils.js';
+import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, listerDocuments, creerOrganisation, creerAffaire, JEROME, FIRESTORE, PROJET, URL_APP, connecterCompte } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-choisir-affaire/', import.meta.url));
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
@@ -207,7 +207,8 @@ test('6 Devis seul (client sans Affaires) : aucun critère « Affaire » dans Fi
     await devis('cSans', { ...FINALISE(6), creePar: ALICE, organisationId: null }, 'clients/devisseul/');
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/devisseul/portail-devis`);
-    await connecterDansEspace(page, ALICE);
+    await page.waitForFunction(() => !!window.__chevalierTest);
+    await connecterCompte(page, ALICE);
     await expect(page.locator('.page-liste-devis')).toBeVisible();
     await expect(lignes(page)).toHaveCount(1);
     await expect(page.locator('[data-valeur="sans-affaire"]')).toHaveCount(0);
@@ -276,7 +277,8 @@ test('9 un compte lecteur (client avec Affaires) ne voit aucun « Choisir l’af
     await devis('lSans', { ...FINALISE(9), organisationId: null }, 'clients/cabinet/');
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/cabinet/devis/voir/lSans`);
-    await connecterDansEspace(page, 'lea@exemple.test');
+    await page.waitForFunction(() => !!window.__chevalierTest);
+    await connecterCompte(page, 'lea@exemple.test');
     await expect(page.locator('.page-editeur-devis[data-devis="lSans"]')).toBeVisible();
     await attendreCalme(page);
     await page.locator('.page-editeur-devis .barre-devis [data-onglet="edition"]').click();

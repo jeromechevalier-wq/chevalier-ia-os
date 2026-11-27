@@ -5,7 +5,7 @@
 // puis écrit le résultat dans l'émulateur Firestore, exactement comme le ferait la fonction : l'écran le voit arriver par l'écoute en direct.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, lireDocument, estTelephone, JEROME, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
+import { test, expect, connecter, ecrireDocument, lireDocument, estTelephone, JEROME, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 // La logique pure (aucun import) est chargée depuis son texte : le dossier js/ n'a pas de package.json « module », Playwright ne peut pas l'importer par son chemin.
 const P = await import(`data:text/javascript;base64,${(await readFile(fileURLToPath(new URL('../../js/modules/automatisations/propositions.js', import.meta.url)))).toString('base64')}`);
@@ -202,7 +202,8 @@ test('8 le même écran existe dans un espace client (menu, route, données du c
   await ecrireDocument('automatisations_propositions/r1', proposition({ titre: 'Proposition de la racine' }));
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/cabinet/automatisations/a-valider`);
-  await connecterDansEspace(page, ALICE);
+  await page.waitForFunction(() => !!window.__chevalierTest);
+  await connecterCompte(page, ALICE);
   await expect(page.locator('.coquille')).toBeVisible();
   await expect(page).toHaveURL(/#\/espace\/cabinet\/automatisations\/a-valider$/);
   await expect(page.getByRole('heading', { name: 'À valider', level: 1 })).toBeVisible();

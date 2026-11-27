@@ -2,7 +2,7 @@
 // ne montre rien qui soit propre à Jérôme. Émulateurs, règles de la plateforme (chargées le temps de ce fichier).
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, lireDocument, listerDocuments, estTelephone, basculerThemeParMenu, allerA, PROJET, FIRESTORE, URL_APP, jour, ouvrirDocuments, connecterDansEspace } from './outils.js';
+import { test, expect, ecrireDocument, lireDocument, listerDocuments, estTelephone, basculerThemeParMenu, allerA, PROJET, FIRESTORE, URL_APP, jour, ouvrirDocuments, connecterCompte } from './outils.js';
 import { brancherGoogle, lireGoogle, choisirDansGoogle, ID_CLIENT } from './google-simule.js';
 
 const ALICE = 'alice@exemple.test';
@@ -61,7 +61,8 @@ async function ouvrir(page, client, reste = '') {
   await page.route('https://images.exemple.test/**', (route) => route.fulfill({ status: 200, body: PNG_1X1, headers: { 'Content-Type': 'image/png' } }));
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/${client}${reste ? `/${reste}` : ''}`);
-  await connecterDansEspace(page, ALICE);
+  await page.waitForFunction(() => !!window.__chevalierTest);
+  await connecterCompte(page, ALICE);
   await expect(page.locator('.coquille')).toBeVisible();
 }
 const couleurDe = (page, selecteur, propriete = 'backgroundColor', pseudo = null) =>
@@ -325,7 +326,7 @@ async function ouvrirAvecEchecs(page, echecs) {
   await page.goto(`${URL_APP}#/espace/studio`);
   await page.waitForFunction(() => !!window.__chevalierTest);
   await page.evaluate((n) => { window.__chevalierTest.attentesMembre = [50, 50, 50]; window.__chevalierTest.echecsMembre = n; }, echecs);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+  await connecterCompte(page, ALICE);
 }
 
 test('AUTH1 une lecture de la fiche d\'appartenance qui échoue une fois ne déconnecte pas', async ({ page }) => {

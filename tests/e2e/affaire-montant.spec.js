@@ -2,7 +2,7 @@
 // Chaque test porte le numéro d'un point du brief ; captures dans tests/e2e/captures/affaire-montant/ (ordinateur et téléphone).
 import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, creerAffaire, PROJET, FIRESTORE, URL_APP, connecterDansEspace } from './outils.js';
+import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, creerAffaire, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/affaire-montant/', import.meta.url));
 async function capturer(page, info, nom, zone = page.locator('.fiche-tete')) {
@@ -147,7 +147,8 @@ test.describe('7 module Devis éteint', () => {
     await ecrireDocument('clients/studio/crm_affaires/a1', { titre: 'Audit du lac', personneId: null, organisationId: null, etape: 'etape_3', statut: 'ouverte', priorite: 'tiede', montant: 1200, offreId: null, dureeJours: null, source: '', besoin: '', dateEntreeEtape: maintenant, datesEtapes: {}, raisonPerdue: '', raisonPerdueDetail: '', dateReveil: null, encaissements: [], documents: [], projetId: null, archive: false, ...b });
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/studio/crm/affaires/a1`);
-    await connecterDansEspace(page, ALICE);
+    await page.waitForFunction(() => !!window.__chevalierTest);
+    await connecterCompte(page, ALICE);
     await expect(page.locator('.fiche-tete')).toBeVisible();
     await attendreCalme(page);
     await expect(libelle(page)).toHaveText('Montant estimé');
