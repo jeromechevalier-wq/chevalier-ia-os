@@ -98,7 +98,7 @@ test('D5 les états se distinguent : le champ pousse de semé à mûr (4 étapes
   assert.ok(surfaceRose('enclos-cochons-gras') >= 1.5 * surfaceRose('enclos-cochons'), `${surfaceRose('enclos-cochons-gras')} / ${surfaceRose('enclos-cochons')}`);
 });
 
-test('D6 rien n’est branché : le fichier n’utilise pas le DOM, et aucun autre fichier de js/ ne l’importe', () => {
+test('D6 le fichier n’utilise pas le DOM ; seuls l’accueil et la boutique l’importent (étape 6b : les décorations achetées sont dessinées)', () => {
   const code = lire('js/os/village-jeu-dessins.js').replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, ''); // sans les commentaires
   assert.ok(!/\bdocument\b|\bwindow\b|innerHTML/.test(code));
   const racine = fileURLToPath(new URL('../js/', import.meta.url));
@@ -108,6 +108,7 @@ test('D6 rien n’est branché : le fichier n’utilise pas le DOM, et aucun aut
   assert.ok(fichiers.some((p) => p.endsWith('village-jeu-dessins.js')));
   for (const p of fichiers) {
     if (p.endsWith(join('os', 'village-jeu-dessins.js'))) continue;
+    if (p.endsWith(join('os', 'village-ecran.js')) || p.endsWith(join('os', 'village-boutique.js'))) continue; // 6b : branché dans l'accueil et la boutique
     assert.ok(!readFileSync(p, 'utf8').includes('village-jeu-dessins'), p);
   }
 });

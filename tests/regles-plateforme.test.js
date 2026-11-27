@@ -589,4 +589,46 @@ describe('Village par utilisateur sur la plateforme (27/11/2026)', () => {
       assert.equal((await getDoc(gain(c.firestore(), 'a', 'ds.d1'))).get('pieces'), 50);
     });
   });
+
+  test('P-V7 (6b) objet acheté chez le client a : l’éditrice et la lectrice déplacent le leur (c, l) ; tout le reste est refusé ; un autre membre, un autre client : rien', async () => {
+    const quand = new Date('2026-11-26T10:00:00Z');
+    const OBJET = { sorte: 'decoration', modele: 'arbre', c: 4, l: 4, depuis: quand, acheteLe: quand };
+    await env.withSecurityRulesDisabled(async (c) => {
+      for (const email of [ALICE, LEA]) await setDoc(chemin(c.firestore(), 'a', email, 'o-abc'), OBJET);
+    });
+    for (const email of [ALICE, LEA]) {
+      const db = ctx(email);
+      await assertSucceeds(getDoc(chemin(db, 'a', email, 'o-abc')));
+      await assertSucceeds(updateDoc(chemin(db, 'a', email, 'o-abc'), { c: 6, l: 2 }));
+      await assertSucceeds(updateDoc(chemin(db, 'a', email, 'o-abc'), { c: 7, modifieLe: serverTimestamp() }));
+      for (const modif of [{ depuis: new Date('2026-11-20T10:00:00Z') }, { acheteLe: new Date() }, { sorte: 'enclos' }, { modele: 'banc' }, { prix: 0 }, { c: 24 }, { c: 'deux' }]) {
+        await assertFails(updateDoc(chemin(db, 'a', email, 'o-abc'), modif));
+      }
+      await assertFails(updateDoc(chemin(db, 'a', email, 'o-abc'), { c: 2, modifieLe: new Date('2020-01-01T00:00:00Z') }));
+      await assertFails(deleteDoc(chemin(db, 'a', email, 'o-abc')));
+      for (const [id, d] of [['o-neuf', { sorte: 'decoration', modele: 'arbre', c: 1, l: 1 }], ['o-champ', { sorte: 'champ', c: 2, l: 2 }], ['o-enclos', { sorte: 'enclos', c: 3, l: 3 }], ['b-x', { sorte: 'champ', c: 1, l: 1 }]]) {
+        await assertFails(setDoc(chemin(db, 'a', email, id), d));
+      }
+    }
+    for (const email of [CLARA, BOB, ZOE]) {
+      const db = ctx(email);
+      await assertFails(getDoc(chemin(db, 'a', ALICE, 'o-abc')));
+      await assertFails(updateDoc(chemin(db, 'a', ALICE, 'o-abc'), { c: 3 }));
+      await assertFails(deleteDoc(chemin(db, 'a', ALICE, 'o-abc')));
+    }
+    await assertFails(updateDoc(chemin(ctx(ALICE), 'b', ALICE, 'o-abc'), { c: 3 })); // pas membre du client b
+    await env.withSecurityRulesDisabled(async (c) => {
+      const lu = (await getDoc(chemin(c.firestore(), 'a', ALICE, 'o-abc'))).data();
+      assert.deepEqual([lu.c, lu.l, lu.modele, lu.sorte], [7, 2, 'arbre', 'decoration']);
+    });
+  });
+
+  test('P-V8 (6b) une maison b-… se supprime toujours ; elle ne devient jamais un objet acheté', async () => {
+    const db = ctx(ALICE);
+    await assertSucceeds(setDoc(chemin(db, 'a', ALICE, 'b-achatsfactures-liste'), BESOIN));
+    await assertFails(setDoc(chemin(db, 'a', ALICE, 'b-achatsfactures-liste'), { ...BESOIN, sorte: 'decoration' }));
+    await assertFails(updateDoc(chemin(db, 'a', ALICE, 'b-achatsfactures-liste'), { sorte: 'champ' }));
+    await assertSucceeds(setDoc(chemin(db, 'a', ALICE, 'b-achatsfactures-liste'), { ...BESOIN, c: 6 }));
+    await assertSucceeds(deleteDoc(chemin(db, 'a', ALICE, 'b-achatsfactures-liste')));
+  });
 });

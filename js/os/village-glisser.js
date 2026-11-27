@@ -12,7 +12,7 @@
 import { iso } from './village-batiments.js';
 import { ecranVersGrille, blocSousPoint, centreBloc, blocLibre, occupation, losangeBloc } from './village-damier.js';
 
-const SELECTEUR_MAISON = '.village-batiment[data-maison], .village-lien-etiquette[data-maison]';
+const SELECTEUR_MAISON = '.village-batiment[data-maison], .village-lien-etiquette[data-maison], .village-objet[data-maison]'; // 6b : + les objets achetés
 /**
  * Le groupe d'une maison sous le pointeur de l'événement `e` (3c, relecture Fable B1). Les lueurs (.village-halo, invisibles mais cliquables) débordent sur
  * les voisines : sous une lueur, on prend le premier CORPS de bâtiment sous le pointeur (le plus haut dessiné) ; sans corps dessous, la lueur elle-même.

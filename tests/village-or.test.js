@@ -127,6 +127,18 @@ describe('6.0 règles du jeu (fichier pur)', () => {
   test('6.0e modèles de décoration = DECORATIONS des dessins', () => {
     assert.deepEqual([...R.MODELES_DECORATION], [...DECORATIONS]);
   });
+
+  test('6.0g casesEnregistrees : maisons 2 x 2 (même cachées), liens, objets selon leur taille ; petites maisons et valeurs douteuses ignorées', () => {
+    const cases = R.casesEnregistrees([
+      { sorte: 'besoin', c: 0, l: 0 }, { sorte: 'besoin', c: 4, l: 4, cache: true }, { sorte: 'lien', c: 6, l: 0 },
+      { sorte: 'decoration', c: 3, l: 0 }, { sorte: 'champ', c: 0, l: 6 }, { sorte: 'petite', parent: 'b-x' },
+      { sorte: 'besoin' }, { sorte: 'decoration', c: 1.5, l: 0 }, { sorte: 'inconnue', c: 7, l: 7 }, null, 'x',
+    ]);
+    assert.deepEqual([...cases].sort(), ['0-0', '0-1', '1-0', '1-1', '4-4', '4-5', '5-4', '5-5', '6-0', '6-1', '7-0', '7-1', '3-0', '0-6', '0-7', '1-6', '1-7'].sort());
+    assert.equal(R.casesEnregistrees(undefined).size, 0);
+    assert.equal(R.TAILLE_MAISON, 2);
+    assert.deepEqual([...R.ARTICLES_EN_VENTE], ['decoration', 'parcelle']);
+  });
 });
 
 const emulateur = process.env.FIRESTORE_EMULATOR_HOST;
@@ -171,6 +183,8 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
       for (const c of COLLECTIONS) for (const d of (await db.collection(`${base}${c}`).get()).docs) await d.ref.delete();
     }
     for (const d of (await db.collection('clients/a/membres').get()).docs) await d.ref.delete();
+    // 6b : les objets achetés vivent dans les sous-collections batiments (un document parent absent ne les efface pas)
+    for (const base of ['', 'clients/a/', 'clients/b/']) await db.recursiveDelete(db.collection(`${base}${C_VILLAGE}`));
   });
 
   test('6.1 devis signé frais : 50 pièces, portefeuille à 50, registre ds.<racine>', async () => {
@@ -347,6 +361,148 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
     assert.equal((await portefeuille('u1')).version, 2);
   });
 
+  // ---------------------------------------------------------------- 6b : la boutique (achats)
+  const acheteur = (extra = {}) => creerVillageOr({ db, horodatage, maintenant: () => MAINTENANT, ...extra });
+  const porte = (uid, donnees, base = '') => db.doc(`${base}${C_VILLAGE}/${uid}`).set({ or: 0, gagne: 0, parcelles: 0, version: 3, ...donnees });
+  const batiments = async (uid, base = '') => (await db.collection(`${base}${C_VILLAGE}/${uid}/batiments`).get()).docs.map((d) => ({ id: d.id, ...d.data() }));
+  const poserDoc = (uid, id, donnees, base = '') => db.doc(`${base}${C_VILLAGE}/${uid}/batiments/${id}`).set(donnees);
+  const sansDate = (p) => (p ? { or: p.or, gagne: p.gagne, parcelles: p.parcelles, version: p.version } : null);
+  const ecrireLot = async (n, fabrique) => { const lot = db.batch(); for (let i = 0; i < n; i++) { const [ref, d] = fabrique(i); lot.set(ref, d); } await lot.commit(); };
+
+  test('6.4d parcelle : 500 retirés, une parcelle de plus, version + 1, gagné inchangé, damier 10 x 10 ; à 8 parcelles : maximum, rien d’écrit', async () => {
+    await porte('u1', { or: 600, gagne: 900 });
+    const r = await acheteur().acheter({ uid: 'u1', article: 'parcelle' });
+    assert.deepEqual(r, { ok: true, achete: true, or: 100, parcelles: 1, version: 4 });
+    const p = await portefeuille('u1');
+    assert.deepEqual(sansDate(p), { or: 100, gagne: 900, parcelles: 1, version: 4 });
+    assert.ok(p.modifieLe instanceof Timestamp);
+    assert.deepEqual(R.damierDe(p.parcelles), { colonnes: 10, lignes: 10 });
+    await porte('u2', { or: 5000, parcelles: 8 });
+    assert.deepEqual(await acheteur().acheter({ uid: 'u2', article: 'parcelle' }), { ok: true, achete: false, raison: 'maximum', or: 5000, parcelles: 8, version: 3 });
+    assert.deepEqual(sansDate(await portefeuille('u2')), { or: 5000, gagne: 0, parcelles: 8, version: 3 });
+  });
+
+  test('6.4e pas assez d’or : pas_assez, manque 30, portefeuille identique', async () => {
+    await porte('u1', { or: 470 });
+    assert.deepEqual(await acheteur().acheter({ uid: 'u1', article: 'parcelle' }), { ok: true, achete: false, raison: 'pas_assez', manque: 30, or: 470, parcelles: 0, version: 3 });
+    assert.deepEqual(sansDate(await portefeuille('u1')), { or: 470, gagne: 0, parcelles: 0, version: 3 });
+    await porte('u2', { or: 5 });
+    const r = await acheteur().acheter({ uid: 'u2', article: 'decoration', modele: 'arbre', c: 0, l: 0 });
+    assert.equal(r.raison, 'pas_assez');
+    assert.equal(r.manque, 15);
+    assert.deepEqual(await batiments('u2'), []);
+    // sans portefeuille du tout : 0 pièce, rien d'écrit
+    assert.equal((await acheteur().acheter({ uid: 'u3', article: 'parcelle' })).manque, 500);
+    assert.equal(await portefeuille('u3'), null);
+  });
+
+  test('6.4f course : deux parcelles pour 500 = une seule ; deux décorations pour 30 = une seule ; dix décorations pour 500 : jamais de solde négatif', async () => {
+    await porte('u1', { or: 500 });
+    const s = acheteur();
+    const deux = await Promise.all([s.acheter({ uid: 'u1', article: 'parcelle' }), s.acheter({ uid: 'u1', article: 'parcelle' })]);
+    assert.equal(deux.filter((r) => r.achete).length, 1);
+    assert.deepEqual(sansDate(await portefeuille('u1')), { or: 0, gagne: 0, parcelles: 1, version: 4 });
+    await porte('u2', { or: 30 });
+    const deco = await Promise.all([s.acheter({ uid: 'u2', article: 'decoration', modele: 'arbre', c: 0, l: 0 }), s.acheter({ uid: 'u2', article: 'decoration', modele: 'banc', c: 3, l: 3 })]);
+    assert.equal(deco.filter((r) => r.achete).length, 1);
+    assert.equal((await portefeuille('u2')).or, 10);
+    assert.equal((await batiments('u2')).length, 1);
+    await porte('u3', { or: 500 });
+    const dix = await Promise.all(Array.from({ length: 10 }, (_, i) => s.acheter({ uid: 'u3', article: 'decoration', modele: 'fleurs', c: i % 8, l: Math.floor(i / 8) })));
+    const solde = (await portefeuille('u3')).or;
+    assert.ok(solde >= 0);
+    const crees = (await batiments('u3')).length;
+    assert.equal(crees, (500 - solde) / 20);
+    assert.equal(dix.filter((r) => r.achete).length, crees);
+  });
+
+  test('6.6a décoration : document créé avec ses champs EXACTS, identifiant o-…, or − 20, réponse avec l’objet', async () => {
+    await porte('u1', { or: 120 });
+    const r = await acheteur({ fabriquerId: () => 'o-essai1' }).acheter({ uid: 'u1', article: 'decoration', modele: 'arbre', c: 2, l: 5 });
+    assert.deepEqual(r, { ok: true, achete: true, or: 100, parcelles: 0, version: 4, objet: { id: 'o-essai1', sorte: 'decoration', modele: 'arbre', c: 2, l: 5 } });
+    const [b] = await batiments('u1');
+    assert.deepEqual(Object.keys(b).sort(), ['acheteLe', 'c', 'depuis', 'id', 'l', 'modele', 'modifieLe', 'sorte']);
+    assert.deepEqual({ id: b.id, sorte: b.sorte, modele: b.modele, c: b.c, l: b.l }, { id: 'o-essai1', sorte: 'decoration', modele: 'arbre', c: 2, l: 5 });
+    for (const k of ['acheteLe', 'depuis', 'modifieLe']) assert.equal(b[k].toMillis(), MAINTENANT, k);
+    // identifiant par défaut : o- + 20 caractères
+    const r2 = await acheteur().acheter({ uid: 'u1', article: 'decoration', modele: 'banc', c: 0, l: 0 });
+    assert.match(r2.objet.id, /^o-[a-z0-9-]{1,60}$/);
+    assert.equal(r2.objet.id.length, 22);
+    assert.equal((await portefeuille('u1')).or, 80);
+    // un identifiant déjà pris fait échouer la transaction, sans rien écraser ni retirer d'or
+    await assert.rejects(acheteur({ fabriquerId: () => 'o-essai1' }).acheter({ uid: 'u1', article: 'decoration', modele: 'fleurs', c: 7, l: 7 }));
+    assert.equal((await portefeuille('u1')).or, 80);
+    assert.equal((await db.doc(`${C_VILLAGE}/u1/batiments/o-essai1`).get()).data().modele, 'arbre');
+  });
+
+  test('6.6b cases : hors damier : case ; sur une maison 2 x 2, un lien, un objet, une maison cachée : case_prise ; une petite maison ne gêne pas ; rien d’écrit', async () => {
+    await porte('u1', { or: 1000 });
+    await poserDoc('u1', 'b-devis', { sorte: 'besoin', c: 0, l: 0 });
+    await poserDoc('u1', 'b-cache', { sorte: 'besoin', c: 4, l: 4, cache: true });
+    await poserDoc('u1', 'l-site', { sorte: 'lien', nom: 'Site', url: 'https://exemple.test', batiment: 'bureau', c: 0, l: 4 });
+    await poserDoc('u1', 'o-deja', { sorte: 'decoration', modele: 'banc', c: 6, l: 0 });
+    await poserDoc('u1', 'p-x', { sorte: 'petite', parent: 'b-devis', nom: 'Chantier', cible: '#/projets/x' });
+    const s = acheteur();
+    const achat = (c, l) => s.acheter({ uid: 'u1', article: 'decoration', modele: 'arbre', c, l });
+    assert.equal((await achat(8, 0)).raison, 'case');
+    assert.equal((await achat(0, 8)).raison, 'case');
+    for (const [c, l] of [[1, 1], [0, 5], [6, 0], [5, 5]]) assert.equal((await achat(c, l)).raison, 'case_prise', `${c}-${l}`);
+    assert.equal((await portefeuille('u1')).or, 1000);
+    assert.equal((await batiments('u1')).length, 5);
+    assert.equal((await achat(2, 2)).achete, true); // la petite maison (sans place) ne prend aucune case
+    // une parcelle de plus : la case 9 entre dans le damier (10 x 10)
+    await porte('u2', { or: 100, parcelles: 1 });
+    assert.equal((await s.acheter({ uid: 'u2', article: 'decoration', modele: 'arbre', c: 9, l: 9 })).achete, true);
+  });
+
+  test('6.6c limite d’objets : 40 objets, la 41e décoration est refusée (trop_objets) ; 250 documents lus : refusé aussi', async () => {
+    await porte('u1', { or: 1000 });
+    await ecrireLot(40, (i) => [db.doc(`${C_VILLAGE}/u1/batiments/o-x${i}`), { sorte: 'decoration', modele: 'arbre', c: i % 24, l: 20 + Math.floor(i / 24) }]);
+    assert.equal((await acheteur().acheter({ uid: 'u1', article: 'decoration', modele: 'arbre', c: 0, l: 0 })).raison, 'trop_objets');
+    assert.equal((await portefeuille('u1')).or, 1000);
+    await porte('u2', { or: 1000 });
+    await ecrireLot(250, (i) => [db.doc(`${C_VILLAGE}/u2/batiments/p-x${i}`), { sorte: 'petite', parent: 'b-x', nom: 'x', cible: '#/projets/x' }]);
+    assert.equal((await acheteur().acheter({ uid: 'u2', article: 'decoration', modele: 'arbre', c: 0, l: 0 })).raison, 'trop_objets');
+    assert.equal((await portefeuille('u2')).or, 1000);
+  });
+
+  test('6.6d demandes : modèle inconnu, c 1,5, article inconnu, uid douteux : demande ; champ et enclos : pas_encore, rien d’écrit', async () => {
+    await porte('u1', { or: 1000 });
+    const s = acheteur();
+    for (const d of [{ article: 'decoration', modele: 'statue', c: 0, l: 0 }, { article: 'decoration', modele: 'arbre', c: 1.5, l: 0 }, { article: 'decoration', modele: 'arbre', c: 0, l: 24 },
+      { article: 'decoration', modele: 'arbre' }, { article: 'chateau' }, {}]) {
+      assert.deepEqual(await s.acheter({ uid: 'u1', ...d }), { ok: false, raison: 'demande' }, JSON.stringify(d));
+    }
+    assert.deepEqual(await s.acheter({ uid: 'a/b', article: 'parcelle' }), { ok: false, raison: 'demande' });
+    for (const article of ['champ', 'enclos']) assert.deepEqual(await s.acheter({ uid: 'u1', article }), { ok: true, achete: false, raison: 'pas_encore' });
+    assert.deepEqual(sansDate(await portefeuille('u1')), { or: 1000, gagne: 0, parcelles: 0, version: 3 });
+    assert.deepEqual(await batiments('u1'), []);
+  });
+
+  test('6.6e clients : tout sous clients/a/ ; lectrice : lecture_seule, rien d’écrit ; villageOrClient « acheter » marche pour l’éditrice', async () => {
+    await porte('u1', { or: 600 }, 'clients/a/');
+    const s = acheteur({ racine: 'clients/a/' });
+    assert.equal((await s.acheter({ uid: 'u1', article: 'decoration', modele: 'banc', c: 1, l: 1 })).achete, true);
+    assert.equal((await batiments('u1', 'clients/a/')).length, 1);
+    assert.deepEqual(await batiments('u1'), []);
+    assert.equal(await portefeuille('u1'), null);
+    let lus = 0;
+    const espion = { doc: () => { lus += 1; throw new Error('aucune lecture attendue'); }, collection: () => { lus += 1; throw new Error('aucune lecture attendue'); }, runTransaction: () => { throw new Error('aucune écriture attendue'); } };
+    assert.deepEqual(await creerVillageOr({ db: espion, horodatage }).acheter({ uid: 'u1', article: 'parcelle', lectureSeule: true }), { ok: true, achete: false, raison: 'lecture_seule' });
+    assert.equal(lus, 0);
+    await db.doc(`clients/a/membres/${ALICE}`).set({ role: 'editeur' });
+    await db.doc(`clients/a/membres/${LEA}`).set({ role: 'lecteur' });
+    const auth = (email) => ({ uid: `u-${email.split('@')[0]}`, token: { email, email_verified: true } });
+    await porte('u-alice', { or: 600 }, 'clients/a/');
+    await porte('u-lea', { or: 600 }, 'clients/a/');
+    const appel = (email, donnees) => villageOrClient({ db, auth: auth(email), donnees: { client: 'a', ...donnees }, horodatage, maintenant: () => MAINTENANT });
+    assert.deepEqual(await appel(ALICE, { action: 'acheter', article: 'parcelle', uid: 'u-lea' }), { ok: true, achete: true, or: 100, parcelles: 1, version: 4 });
+    assert.deepEqual(await appel(LEA, { action: 'acheter', article: 'decoration', modele: 'arbre', c: 0, l: 0 }), { ok: true, achete: false, raison: 'lecture_seule' });
+    assert.deepEqual(sansDate(await portefeuille('u-lea', 'clients/a/')), { or: 600, gagne: 0, parcelles: 0, version: 3 });
+    assert.deepEqual(await batiments('u-lea', 'clients/a/'), []);
+    await assert.rejects(appel('inconnu@exemple.test', { action: 'acheter', article: 'parcelle' }), (e) => e instanceof Refus && e.code === 'permission-denied');
+  });
+
   test('6.A2 plateforme : éditrice gagne ; lectrice 0 lecture_seule ; non-membre, autre client, interne, client mal formé : refus neutre ; facture validée : indisponible', async () => {
     await db.doc(`clients/a/membres/${ALICE}`).set({ role: 'editeur' });
     await db.doc(`clients/a/membres/${LEA}`).set({ role: 'lecteur' });
@@ -361,7 +517,7 @@ describe('6.1 à 6.3 cœur de l’or sur Firestore (émulateur)', { skip: emulat
       await assert.rejects(appel(email, { action: 'gain', source: 'devis-signe', id: 'd1', ...donnees }), (e) => e instanceof Refus && e.code === 'permission-denied' && e.message === 'Action non autorisée.', JSON.stringify(donnees));
     }
     for (const client of ['../a', '', undefined, 'A B']) await assert.rejects(appel(ALICE, { client, action: 'gain', source: 'devis-signe', id: 'd1' }), (e) => e instanceof Refus && e.code === 'invalid-argument');
-    await assert.rejects(appel(ALICE, { client: 'a', action: 'acheter' }), (e) => e instanceof Refus && e.code === 'invalid-argument');
+    await assert.rejects(appel(ALICE, { client: 'a', action: 'ramasser' }), (e) => e instanceof Refus && e.code === 'invalid-argument');
     await assert.rejects(appel(ALICE, { client: 'a', action: 'gain' }, false), (e) => e instanceof Refus && e.code === 'unauthenticated');
     assert.equal(await portefeuille('u-lea', 'clients/a/'), null);
   });
@@ -373,16 +529,23 @@ describe('6.A appels et vérificateur (sans émulateur)', () => {
   test('6.A1 appel de la maison : connexion, compte autorisé, action connue ; journal sans uid, e-mail ni identifiant', async () => {
     const journal = [];
     const appels = [];
-    const service = (email) => ({ gain: async (d) => { appels.push({ email, ...d }); return { ok: true, gagne: 50, or: 50, version: 1 }; } });
+    const service = (email) => ({
+      gain: async (d) => { appels.push({ email, ...d }); return { ok: true, gagne: 50, or: 50, version: 1 }; },
+      acheter: async (d) => { appels.push({ email, achat: true, ...d }); return { ok: true, achete: true, or: 0, parcelles: 1, version: 2 }; },
+    });
     const appel = creerAppelVillage({ service, comptes: ['lea@exemple.test'], journal: (e) => journal.push(e) });
     await assert.rejects(appel(requete({ email: null })), (e) => e.code === 'unauthenticated');
     await assert.rejects(appel(requete({ email: 'intrus@exemple.test' })), (e) => e.code === 'permission-denied');
     await assert.rejects(appel(requete({ verifie: false })), (e) => e.code === 'permission-denied');
-    await assert.rejects(appel(requete({ data: { action: 'acheter' } })), (e) => e.code === 'invalid-argument');
+    await assert.rejects(appel(requete({ data: { action: 'ramasser' } })), (e) => e.code === 'invalid-argument');
     await assert.rejects(appel(requete({ data: null })), (e) => e.code === 'invalid-argument');
     assert.equal(appels.length, 0);
     assert.deepEqual(await appel(requete({ data: { action: 'gain', source: 'devis-signe', id: 'd1', uid: 'quelquun-dautre' } })), { ok: true, gagne: 50, or: 50, version: 1 });
     assert.deepEqual(appels, [{ email: 'lea@exemple.test', uid: 'u1', acteur: 'lea@exemple.test', source: 'devis-signe', id: 'd1', projetId: undefined }]); // l'uid vient de la connexion, jamais de la demande
+    // 6b : « acheter » passe au service avec l'uid de la connexion, jamais celui de la demande
+    appels.length = 0;
+    assert.deepEqual(await appel(requete({ data: { action: 'acheter', article: 'parcelle', uid: 'quelquun-dautre' } })), { ok: true, achete: true, or: 0, parcelles: 1, version: 2 });
+    assert.deepEqual(appels, [{ email: 'lea@exemple.test', achat: true, uid: 'u1', article: 'parcelle', modele: undefined, c: undefined, l: undefined }]);
     const enPanne = creerAppelVillage({ service: () => ({ gain: async () => { throw new TypeError('boum'); } }), comptes: ['lea@exemple.test'], journal: (e) => journal.push(e) });
     await assert.rejects(enPanne(requete()), (e) => e.code === 'internal' && e.message === 'Une erreur est survenue. Réessaie.');
     assert.ok(journal.length >= 2);
@@ -434,7 +597,7 @@ describe('6.S textes du serveur et de l’écran', () => {
     assert.doesNotMatch(coeur, /from 'firebase-admin/);
     // Le code seulement : les commentaires de tête disent justement ce qui est interdit (« jamais par innerHTML », « aucun classement »).
     const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/ \/\/ .*$/gm, '');
-    for (const f of ['js/os/village-or.js', 'js/os/village-fete.js', 'js/os/bonnes-nouvelles.js']) {
+    for (const f of ['js/os/village-or.js', 'js/os/village-fete.js', 'js/os/bonnes-nouvelles.js', 'js/os/village-boutique.js']) {
       const t = code(lire(f));
       assert.doesNotMatch(t, /innerHTML|\bAudio\b|<audio|\bCRM\b/, f);
       assert.doesNotMatch(t, /classement|série|notification/i, f);

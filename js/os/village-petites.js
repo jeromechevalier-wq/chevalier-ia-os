@@ -59,10 +59,11 @@ export function docPetite({ parent, nom, cible }) {
  * Range les petites maisons autour des grandes : { petites, sansPlace }.
  *  - `maisons` : les grandes maisons rangées (rangerVillage) ; `batiments` : Map(id → document) lue par lireBatiments ;
  *  - `elements` : Map(module → { etat: 'ok', liste } | { etat: 'erreur' } | undefined (lecture en cours)) ; un élément = { id, nom, sousTitre, cible, automatique, archive } ;
- *  - `modules` : les modules sources allumés pour la session.
+ *  - `modules` : les modules sources allumés pour la session ;
+ *  - `objets` (6b) : les objets achetés montrés (rangerVillage) : une petite maison ne se pose jamais sur une décoration.
  * Une petite = { id, sorte: 'petite', parent, nom, cible, auto, c, l, taille: 1, sousTitre, un, batiment, donnees } (`c`, `l` absents si sans place).
  */
-export function rangerPetites({ maisons = [], batiments = new Map(), elements = new Map(), modules = [], damier = DAMIER_DEPART }) {
+export function rangerPetites({ maisons = [], batiments = new Map(), elements = new Map(), modules = [], damier = DAMIER_DEPART, objets = [] }) {
   const allumes = new Set(modules);
   const grandes = maisons.filter((m) => m.sorte === 'besoin' || m.sorte === 'lien');
   const parId = new Map(grandes.map((m) => [m.id, m]));
@@ -102,7 +103,7 @@ export function rangerPetites({ maisons = [], batiments = new Map(), elements = 
     automatiques.set(grande.id, liste);
   }
   // 3. la pose : grandes dans leur ordre, d'abord les manuelles, puis les automatiques ; une petite ne prend jamais une case d'une grande
-  const prises = occupation(grandes);
+  const prises = occupation([...grandes, ...objets]);
   const petites = [];
   const sansPlace = [];
   for (const grande of grandes) {

@@ -8,7 +8,7 @@ import {
   assertSucceeds,
   assertFails,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, getDocs, setLogLevel, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, getDocs, setLogLevel, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { FICHE_ESSAI } from './_reglages-maison-essai.js'; // chantier 0 : les règles lisent les comptes dans reglages_maison/maison
 
 setLogLevel('error');
@@ -636,6 +636,21 @@ describe('Or du village (27/11/2026)', () => {
     await assertFails(getDoc(objet(charles, J, 'o-abc')));
     await assertFails(updateDoc(objet(charles, J, 'o-abc'), { c: 3 }));
     await assertFails(deleteDoc(objet(charles, J, 'o-abc')));
+  });
+
+  test('6.R6 (6b) le déplacement écrit par l’écran (un lot avec update de c, l et modifieLe) passe ; un document entier sans modèle ni dates est refusé', async () => {
+    const quand = new Date('2026-11-26T10:00:00Z');
+    await semer(['village_utilisateurs', `uid-${J}`, 'batiments', 'o-deco'], { sorte: 'decoration', modele: 'arbre', c: 1, l: 1, acheteLe: quand, depuis: quand, modifieLe: quand });
+    const db = contexte(J);
+    const lot = writeBatch(db);
+    lot.update(objet(db, J, 'o-deco'), { c: 5, l: 6, modifieLe: serverTimestamp() });
+    await assertSucceeds(lot.commit());
+    const relu = (await getDoc(objet(db, J, 'o-deco'))).data();
+    assert.deepEqual([relu.c, relu.l, relu.modele], [5, 6, 'arbre']);
+    assert.equal(relu.depuis.toMillis(), quand.getTime());
+    // l'objet tel que l'écran le connaît juste après l'achat (réponse du serveur, sans dates) : un document entier les effacerait
+    await assertFails(setDoc(objet(db, J, 'o-deco'), { sorte: 'decoration', modele: 'arbre', c: 2, l: 2, modifieLe: serverTimestamp() }));
+    await assertFails(setDoc(objet(db, J, 'o-deco'), { sorte: 'decoration', c: 2, l: 2, acheteLe: quand, depuis: quand, modifieLe: serverTimestamp() }));
   });
 
   test('6.R5 les maisons de l’étape 3a n’ont pas bougé : une maison se crée, se modifie et se supprime ; elle ne devient jamais un objet acheté', async () => {
