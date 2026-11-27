@@ -146,17 +146,29 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
 
   const texteDe = (x) => (onglet === 'fournisseurs' ? `${x.nom} ${x.siren ?? ''}` : onglet === 'chantiers' ? `${x.nom} ${x.code ?? ''} ${x.client ?? ''}` : `${x.designation ?? ''} ${x.reference ?? ''} ${x.fournisseur ?? ''}`);
 
+  /**
+   * Texte long (règle commune du 27/11/2026, docs/consignes-ui.md) : le titre et le détail vont à la ligne, 2 lignes au plus, puis « … » (classe `texte-2-lignes`) ;
+   * le texte entier est dans l'infobulle de la ligne (au survol) et dans la fiche (au clic).
+   */
+  const textes = (titre, detail) => h('span', { class: 'af-grandit' }, h('b', { class: 'texte-2-lignes', dataset: { role: 'ligne-titre' } }, titre), h('span', { class: 'aide texte-2-lignes', dataset: { role: 'ligne-detail' } }, detail));
+
   function ligne(x) {
-    let contenu;
+    let contenu; let titre; let detail;
     if (onglet === 'fournisseurs') {
-      const sous = x.nbFactures === null ? 'Factures non lues' : `${x.nbFactures} facture${x.nbFactures > 1 ? 's' : ''}${x.derniere ? ` · dernière le ${dateFr(x.derniere)}` : ''}`;
-      contenu = [pastille(initiales(x.nom)), h('span', { class: 'af-grandit' }, h('b', {}, x.nom), h('span', { class: 'aide' }, sous)), x.changement ? h('span', { class: 'af-puce-iban', dataset: { role: 'puce-iban' } }, 'IBAN changé') : null];
+      titre = x.nom;
+      detail = x.nbFactures === null ? 'Factures non lues' : `${x.nbFactures} facture${x.nbFactures > 1 ? 's' : ''}${x.derniere ? ` · dernière le ${dateFr(x.derniere)}` : ''}`;
+      contenu = [pastille(initiales(x.nom)), textes(titre, detail), x.changement ? h('span', { class: 'af-puce-iban', dataset: { role: 'puce-iban' } }, 'IBAN changé') : null];
     } else if (onglet === 'chantiers') {
-      contenu = [pastille(icone('folder-kanban', { taille: 16 })), h('span', { class: 'af-grandit' }, h('b', {}, x.nom), h('span', { class: 'aide' }, [LIBELLE_STATUT_CHANTIER[x.statut] ?? x.statut, x.client].filter(Boolean).join(' · ') || '—')), x.code ? h('span', { class: 'aide' }, x.code) : null];
+      titre = x.nom;
+      detail = [LIBELLE_STATUT_CHANTIER[x.statut] ?? x.statut, x.client].filter(Boolean).join(' · ') || '—';
+      contenu = [pastille(icone('folder-kanban', { taille: 16 })), textes(titre, detail), x.code ? h('span', { class: 'aide' }, x.code) : null];
     } else {
-      contenu = [pastille(icone('tag', { taille: 16 })), h('span', { class: 'af-grandit' }, h('b', {}, x.designation?.trim() || x.reference || 'Article sans nom'), h('span', { class: 'aide' }, [x.fournisseur, x.reference ? `Réf. ${x.reference}` : null].filter(Boolean).join(' · ') || '—')), x.unite ? h('span', { class: 'aide' }, x.unite) : null];
+      titre = x.designation?.trim() || x.reference || 'Article sans nom';
+      detail = [x.fournisseur, x.reference ? `Réf. ${x.reference}` : null].filter(Boolean).join(' · ') || '—';
+      contenu = [pastille(icone('tag', { taille: 16 })), textes(titre, detail), x.unite ? h('span', { class: 'aide' }, x.unite) : null];
     }
-    return h('li', {}, h('button', { type: 'button', class: 'af-ligne', dataset: { fiche: x.id }, onclick: () => { vue = 'fiche'; cle = x.id; dessiner(); } }, contenu));
+    const infobulle = [titre, detail === '—' ? null : detail].filter(Boolean).join('\n');
+    return h('li', {}, h('button', { type: 'button', class: 'af-ligne', title: infobulle, dataset: { fiche: x.id }, onclick: () => { vue = 'fiche'; cle = x.id; dessiner(); } }, contenu));
   }
 
   /** Une liste gardée après une relecture en échec : un mot, et « Réessayer ». */

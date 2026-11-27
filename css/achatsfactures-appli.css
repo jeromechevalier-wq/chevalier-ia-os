@@ -117,8 +117,7 @@
 .af-ligne { width: 100%; display: flex; align-items: center; gap: var(--esp-5); min-height: 52px; padding: var(--esp-4) var(--esp-6); border: 0; background: none; color: var(--texte); font: inherit; text-align: left; cursor: pointer; }
 .af-ligne:hover, .af-ligne:focus-visible { background: var(--survol); }
 .af-grandit { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.af-grandit b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.af-grandit .aide { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Texte long (règle commune du 27/11/2026) : titre et détail d'une ligne de liste vont à la ligne, 2 lignes au plus, puis « … » (classe commune .texte-2-lignes, css/os.css). */
 .af-av { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--rayon-carte); background: var(--af-av, color-mix(in srgb, var(--violet-clair) 30%, var(--panneau2))); color: var(--texte); font-family: var(--police-titre); font-size: var(--fs-menu); font-weight: var(--poids-moyen); }
 .af-puce-iban { flex: none; padding: 2px var(--esp-4); border-radius: 999px; background: color-mix(in srgb, var(--attention) 14%, transparent); color: var(--attention); font-size: var(--fs-micro); font-weight: var(--poids-moyen); white-space: nowrap; }
 .af-fiche-nom { display: flex; align-items: center; gap: var(--esp-6); }
@@ -134,14 +133,19 @@
    (même largeur, même hauteur, même bordure, même marge intérieure) : seuls le trait et le fond du champ apparaissent. La colonne des libellés a une largeur fixe. */
 .af-fiche { display: flex; flex-direction: column; gap: var(--esp-6); }
 .af-fiche-dl { margin: 0; border: 1px solid var(--bordure); border-radius: var(--rayon-carte); overflow: hidden; }
-.af-fiche-ligne { display: grid; grid-template-columns: 132px minmax(0, 1fr); align-items: center; column-gap: var(--esp-4); height: calc(var(--h-ctrl) + 12px); padding: 0 var(--esp-5); box-sizing: border-box; }
+.af-fiche-ligne { display: grid; grid-template-columns: 132px minmax(0, 1fr); align-items: center; column-gap: var(--esp-4); min-height: calc(var(--h-ctrl) + 12px); padding: 6px var(--esp-5); box-sizing: border-box; }
 .af-fiche-ligne + .af-fiche-ligne { border-top: 1px solid var(--bordure); }
-.af-fiche-ligne dt { color: var(--texte2); font-size: var(--fs-menu); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.af-fiche-ligne dt { color: var(--texte2); font-size: var(--fs-menu); overflow-wrap: anywhere; }
 .af-fiche-ligne dd { margin: 0; min-width: 0; }
 .af-valeur, .af-champ-fiche { display: block; box-sizing: border-box; width: 100%; height: var(--h-ctrl); margin: 0; padding: 0 var(--esp-4); border: 1px solid transparent; border-radius: var(--rayon); background: transparent; color: var(--texte);
   font: inherit; font-size: var(--fs-texte); font-weight: var(--poids-moyen); line-height: calc(var(--h-ctrl) - 2px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Texte long (règle commune du 27/11/2026) : dans une FICHE, la valeur lue est entière, jamais coupée ; elle va à la ligne autant que nécessaire. Sur une ligne, sa boîte reste
+   exactement celle du champ (même hauteur) : la mise en page ne bouge pas en modification ; seule une valeur plus longue qu'une ligne agrandit sa ligne de fiche. */
+.af-valeur { display: flex; align-items: center; height: auto; min-height: var(--h-ctrl); padding-block: 0; line-height: 1.35; white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip; }
 .af-valeur.af-iban, .af-champ-fiche.af-iban { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: var(--fs-petit); letter-spacing: 0; }
 .af-champ-fiche { border-color: var(--bordure-champ); background: var(--panneau2); }
+/* Champ d'une valeur sur plusieurs lignes : même boîte que la valeur lue (même interligne, même hauteur, mesurée par fiche.js). */
+.af-champ-fiche.af-champ-long { display: block; padding-block: 0; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; overflow-y: auto; resize: none; text-overflow: clip; }
 .af-champ-fiche:focus { outline: 2px solid var(--accent-trait); outline-offset: 1px; }
 .af-champ-fiche::placeholder { color: var(--placeholder); font-weight: var(--poids-normal); }
 .af-fiche-note { margin: 0; }
