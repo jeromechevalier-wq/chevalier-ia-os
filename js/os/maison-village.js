@@ -57,6 +57,22 @@ export function cibleValide(cible) {
   return typeof cible === 'string' && cible.length <= 200 && CIBLE.test(cible);
 }
 
+// « Un bâtiment = une application » (27/11/2026, docs/village-charte.md) : module -> route de l'accueil de SON application.
+// Un module absent de cette table n'a pas (encore) d'application : son bâtiment ouvre l'écran demandé, comme avant.
+export const APPLIS_MODULES = Object.freeze({ achatsfactures: 'achatsfactures/pile' });
+
+/**
+ * Route où mène la cible d'un besoin au moment de l'ouvrir : si la cible est le module seul (« #/achatsfactures ») ou sa liste (« #/achatsfactures/liste ») et que
+ * ce module a une application, la route de l'application ; sinon la cible telle quelle, sans le « #/ ». Une vue précise (autre écran, fiche) n'est jamais détournée.
+ * Les données (reglages_maison/ecran.besoins) ne changent pas : seul l'endroit où l'on arrive change.
+ */
+export function routeDuBesoin(cible) {
+  const route = String(cible ?? '').replace(/^#\/?/, '').replace(/\/+$/, '');
+  const [module, vue, ...reste] = route.split('/');
+  const appli = Object.prototype.hasOwnProperty.call(APPLIS_MODULES, module) ? APPLIS_MODULES[module] : null;
+  return appli && !reste.length && (vue === undefined || vue === 'liste') ? appli : route;
+}
+
 const couper = (texte, max) => (texte.length > max ? `${texte.slice(0, max - 1).trimEnd()}…` : texte);
 const texteSimple = (v) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
 

@@ -689,7 +689,8 @@ export function reglagesDesModules(actifs) {
 export const SECTIONS_ESPACE = geler([
   { id: 'espace', libelle: 'Mon espace', icone: 'house', editeursSeulement: false, clientSeulement: false },
   { id: 'membres', libelle: 'Membres et rôles', icone: 'users', editeursSeulement: true, clientSeulement: true },
-  { id: 'modules', libelle: 'Modules actifs', icone: 'layout-dashboard', editeursSeulement: true, clientSeulement: false, technique: true },
+  // Modules actifs (27/11/2026, « applications dans la coque ») : n'est plus une page technique ; dans la maison d'un client, un compte non titulaire y voit ses seuls modules allumés (interrupteursDeLaMaison).
+  { id: 'modules', libelle: 'Modules actifs', icone: 'layout-dashboard', editeursSeulement: true, clientSeulement: false },
   // Déploiement (25/10/2026) : la liste des étapes d'un déploiement et leur état dans CET espace (js/os/deploiement.js) ; chez Jérôme comme chez chaque client.
   { id: 'deploiement', libelle: 'Déploiement', icone: 'shield-check', editeursSeulement: true, clientSeulement: false, technique: true },
   // Mes tests (mode test, PR 4) : aperçu et suppression de tous les éléments marqués test ; éditeurs seulement, chez Jérôme comme chez les clients.
@@ -717,6 +718,33 @@ export function interrupteursDuClient(actifs) {
     vus.add(id);
     const ids = groupe ? groupe.modules : [m.id];
     lignes.push({ id, libelle: groupe ? groupe.nom : m.nom, modules: ids, actif: actifs.includes(ids[0]), complet: ids.every((x) => actifs.includes(x)) });
+  }
+  return lignes;
+}
+
+/**
+ * « Modules actifs » dans une MAISON (déploiement à part d'un client, CRM racine), 27/11/2026. Mêmes lignes que interrupteursDuClient (une par bloc du menu), avec :
+ *  - les modules `seulJerome` activables dans une maison (les modules Achats) ; la Console n'y figure jamais (elle ne s'allume pas par le réglage) ;
+ *  - l'état VRAI : un bloc est allumé dès qu'un de ses modules l'est (`complet` = tous) ;
+ *  - `catalogue` vrai (le titulaire seul, js/os/acces-reserve.js) : tout le catalogue, allumé ou éteint ; faux (les autres comptes) : seulement les lignes allumées,
+ *    et dans un bloc seulement ses modules ALLUMÉS (`modules`), sans la mention « une partie seulement » (`complet` vrai) : un client ne lit jamais le nom d'un module qu'il n'a pas.
+ */
+export function interrupteursDeLaMaison(actifs, { catalogue = false } = {}) {
+  const vus = new Set();
+  const lignes = [];
+  for (const m of MODULES_DECLARES) {
+    if (m.id === 'console') continue;
+    const groupe = groupeDuModule(m.id);
+    const id = groupe ? groupe.id : m.id;
+    if (vus.has(id)) continue;
+    vus.add(id);
+    const ids = groupe ? groupe.modules : [m.id];
+    const actif = ids.some((x) => actifs.includes(x));
+    if (!actif && catalogue !== true) continue;
+    const allumes = ids.filter((x) => actifs.includes(x));
+    lignes.push(catalogue === true
+      ? { id, libelle: groupe ? groupe.nom : m.nom, modules: ids, actif, complet: allumes.length === ids.length }
+      : { id, libelle: groupe ? groupe.nom : m.nom, modules: allumes, actif: true, complet: true });
   }
   return lignes;
 }

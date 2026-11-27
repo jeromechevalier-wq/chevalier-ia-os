@@ -11,7 +11,8 @@ export function compteReserve(compte) {
 }
 
 /**
- * Pages techniques cachées (27/11/2026) : Réglages > Modules actifs, Déploiement, Mes tests, Connexion à la base, et le Journal des modifications.
+ * Pages techniques cachées (27/11/2026) : Réglages > Déploiement, Mes tests, Connexion à la base, et le Journal des modifications.
+ * « Modules actifs » n'en fait plus partie (chantier « applications dans la coque ») : un compte client y voit ses seuls modules allumés ; le catalogue entier reste au titulaire (js/os/reglages.js).
  * Vrai seulement dans la MAISON D'UN CLIENT (maison neutre : nom_espace, connexion_neutre ou configuration_crm 'neutre', js/os/identite-maison.js)
  * pour un compte qui n'est PAS titulaire (comptes_jerome_seul), la même liste que pour la Console. Chez Jérôme (maison sans ces champs) : faux, rien ne change.
  * Sur la plateforme des clients, l'appelant ne pose pas la question (ces pages y suivent leurs propres règles). Ce n'est qu'un affichage : les règles et le serveur restent les barrières.
