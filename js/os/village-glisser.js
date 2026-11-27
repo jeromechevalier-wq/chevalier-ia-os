@@ -8,7 +8,10 @@
 //  - Un lien externe (<a> SVG, étape 3b) : son clic natif est toujours empêché ; l'écran l'ouvre lui-même (window.open, nouvel onglet).
 //  - Entrée ou Espace : gérés par l'écran (ouverture immédiate). Pas de déplacement au clavier (décision du 27/11/2026).
 //  - Petites maisons (étape 3c) : elles ne se glissent pas (un mouvement annule l'appui long, rien ne bouge) ; elles suivent leur grande pendant son glisser
-//    (tout ce qui porte `data-parent="<id de la grande>"` bouge avec elle). Clic, double clic et appui long passent à l'écran, qui décide.
+//    (tout ce qui porte `data-parent="<id de la grande>"` bouge avec elle). Clic, double clic et appui long passent à l'écran, qui décide (une automatique :
+//    la fenêtre « Cacher du village », 3c-bis).
+//  - 3c-bis (27/11/2026) : sur une petite maison, un mouvement au-delà du seuil ANNULE le geste, qui attend le relâché ; le clic qui suit est avalé (rien ne
+//    s'ouvre). Le relâché (pointerup, pointercancel) est écouté sur `document` en phase de capture : relâché hors du dessin, le geste se termine toujours.
 import { iso } from './village-batiments.js';
 import { ecranVersGrille, blocSousPoint, centreBloc, blocLibre, occupation, losangeBloc } from './village-damier.js';
 
@@ -73,7 +76,12 @@ export function brancherGestes(svg, { maisons, petites = [], damier, telephone, 
   // Après un appui long, la fenêtre s'ouvre SOUS le doigt : le clic que le navigateur envoie au lever du doigt ne doit pas toucher un de ses boutons
   // (3c : une maison au milieu de l'écran, « Retirer du village » juste dessous). Seul ce clic-là (même endroit, dans la seconde) est avalé.
   let avaleurDoigt = null;
-  const oublierAvaleur = () => { if (avaleurDoigt) { document.removeEventListener('click', avaleurDoigt, true); avaleurDoigt = null; } };
+  let minuteurDoigt = null; // 3c-bis : l'avaleur s'oublie seul après 1 s (occupe() reste borné)
+  const oublierAvaleur = () => {
+    clearTimeout(minuteurDoigt);
+    minuteurDoigt = null;
+    if (avaleurDoigt) { document.removeEventListener('click', avaleurDoigt, true); avaleurDoigt = null; }
+  };
   function avalerClicSousLeDoigt(x, y) {
     oublierAvaleur();
     const fin = Date.now() + 1000;
@@ -85,6 +93,7 @@ export function brancherGestes(svg, { maisons, petites = [], damier, telephone, 
       e.preventDefault();
     };
     document.addEventListener('click', avaleurDoigt, true);
+    minuteurDoigt = setTimeout(oublierAvaleur, 1000);
   }
 
   // Le bloc visé, coloré sur le sol (au-dessus du terrain, sous les maisons).
@@ -112,6 +121,7 @@ export function brancherGestes(svg, { maisons, petites = [], damier, telephone, 
     const g = geste;
     arreterAppuiLong();
     try { if (svg.hasPointerCapture?.(g.pointeur)) svg.releasePointerCapture(g.pointeur); } catch { /* pointeur déjà parti */ }
+    if (g.annule) { if (depose) avalerProchainClic(); geste = null; return; } // 3c-bis : une petite maison bougée puis relâchée : rien ne s'ouvre (pointercancel : aucun clic à avaler)
     if (g.glisse) {
       avalerProchainClic();
       const bloc = g.bloc;
@@ -149,11 +159,12 @@ export function brancherGestes(svg, { maisons, petites = [], damier, telephone, 
 
   function surMouvement(e) {
     if (!geste || e.pointerId !== geste.pointeur) return;
+    if (geste.annule) return; // 3c-bis : le geste annulé d'une petite maison attend son relâché
     if (!geste.glisse) {
       const seuil = SEUIL[geste.type] ?? 6;
       if (Math.hypot(e.clientX - geste.x0, e.clientY - geste.y0) <= seuil) return;
       arreterAppuiLong();
-      if (geste.fixe) { avalerProchainClic(); geste = null; return; } // une petite maison ne se glisse pas : le geste s'arrête, rien ne bouge
+      if (geste.fixe) { geste.annule = true; return; } // une petite maison ne se glisse pas : rien ne bouge, le geste attend le relâché (3c-bis)
       geste.glisse = true;
       try { svg.setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
       surDebut?.();
@@ -206,12 +217,13 @@ export function brancherGestes(svg, { maisons, petites = [], damier, telephone, 
   const surMenu = (e) => { if (maisonSous(e)) e.preventDefault(); };
   // Chrome ignore `touch-action` sur les éléments à l'intérieur d'un SVG : sans cela, le cadre qui défile part en glisser et annule le geste
   // (pointercancel). Pendant un geste sur une maison, le défilement natif est bloqué ; toucher l'herbe fait toujours glisser le village.
-  const surToucheBouge = (e) => { if (geste && e.cancelable) e.preventDefault(); };
+  // 3c-bis : le doigt qui a quitté une petite maison (geste annulé) peut faire défiler le village (selon le navigateur).
+  const surToucheBouge = (e) => { if (geste && !geste.annule && e.cancelable) e.preventDefault(); };
 
   svg.addEventListener('pointerdown', surAppui);
   svg.addEventListener('pointermove', surMouvement);
-  svg.addEventListener('pointerup', surRelache);
-  svg.addEventListener('pointercancel', surAnnule);
+  document.addEventListener('pointerup', surRelache, true); // 3c-bis : un relâché hors du dessin termine toujours le geste
+  document.addEventListener('pointercancel', surAnnule, true);
   svg.addEventListener('click', surClic, true);
   svg.addEventListener('dblclick', surDoubleClic, true);
   svg.addEventListener('contextmenu', surMenu);
@@ -220,14 +232,20 @@ export function brancherGestes(svg, { maisons, petites = [], damier, telephone, 
   document.addEventListener('keydown', surTouche);
   const debrancherTout = () => {
     // Un redessin pendant un glisser : la maison revient et l'écran sort du rangement (data-rangement ne reste jamais à « oui »).
+    // 3c-bis : un redessin pendant le geste annulé d'une petite maison : le clic de son relâché (à venir) est avalé une fois, 1 s au plus.
+    if (geste?.annule) {
+      const avaleur = (e) => { e.stopPropagation(); e.preventDefault(); document.removeEventListener('click', avaleur, true); };
+      document.addEventListener('click', avaleur, true);
+      setTimeout(() => document.removeEventListener('click', avaleur, true), 1000);
+    }
     if (geste) { const glissait = geste.glisse; remettre(); arreterAppuiLong(); geste = null; if (glissait) surFin?.(); }
     clearTimeout(minuteurClic);
     clearTimeout(minuteurAvaler);
     oublierAvaleur();
     svg.removeEventListener('pointerdown', surAppui);
     svg.removeEventListener('pointermove', surMouvement);
-    svg.removeEventListener('pointerup', surRelache);
-    svg.removeEventListener('pointercancel', surAnnule);
+    document.removeEventListener('pointerup', surRelache, true);
+    document.removeEventListener('pointercancel', surAnnule, true);
     svg.removeEventListener('click', surClic, true);
     svg.removeEventListener('dblclick', surDoubleClic, true);
     svg.removeEventListener('contextmenu', surMenu);
@@ -235,7 +253,10 @@ export function brancherGestes(svg, { maisons, petites = [], damier, telephone, 
     svg.removeEventListener('touchmove', surToucheBouge);
     document.removeEventListener('keydown', surTouche);
   };
-  /** Vrai si un geste est en cours ou si un clic attend son délai (double clic) : l'écran attend avant de redessiner (3c, Fable C1). */
-  debrancherTout.occupe = () => Boolean(geste || minuteurClic);
+  /**
+   * Vrai si un geste est en cours, si un clic attend son délai (double clic) ou si le clic sous le doigt attend d'être avalé (1 s au plus) : l'écran attend avant
+   * de redessiner (3c, Fable C1 ; 3c-bis : un redessin débrancherait l'avaleur).
+   */
+  debrancherTout.occupe = () => Boolean(geste || minuteurClic || avaleurDoigt);
   return debrancherTout;
 }

@@ -23,7 +23,7 @@
 // Étape 4 (petites maisons « vue filtrée », étape 3c du 27/11/2026, js/os/village-petites.js) : une petite maison (1 x 1 case, le dessin de sa grande à
 // demi-taille, sans étiquette) est collée à une grande maison d'un module qui sait montrer un seul élément ; son clic ouvre « ce chantier seulement ».
 //  - manuelles : documents `petite`, ajoutées par « Ajouter une petite maison » (fenêtre de la grande), réglées par double clic ou appui long ;
-//  - automatiques (un chantier en cours) : jamais écrites, calculées à chaque affichage ; elles n'ont pas de fenêtre ;
+//  - automatiques (un chantier en cours, un projet actif) : jamais écrites, calculées à chaque affichage ; leur fenêtre n'a que « Cacher du village » (3c-bis) ;
 //  - les éléments sont lus UNE fois par affichage et par module (js/os/village-petites-lecture.js, 20 s au plus) ; pendant la lecture, aucune petite maison ;
 //    en panne : aucune automatique, toutes les manuelles ; un élément disparu d'une lecture réussie : sa manuelle n'est pas montrée (document gardé) ;
 //  - une petite maison ne se glisse pas : elle suit sa grande ; sa place n'est jamais enregistrée (recalculée autour de la grande à chaque dessin).
@@ -34,15 +34,19 @@
 //  - la case proposée à l'achat est la case libre la plus « devant » du damier payé (caseLibreDevant, celui que le serveur vérifie), hors des maisons,
 //    petites maisons, objets, places enregistrées et cases déjà refusées par le serveur pendant l'affichage ;
 //  - un objet se saisit partout sur sa case : un losange transparent sous son dessin prend le pointeur (pas sous une maison dessinée devant lui).
+// 3c-bis (27/11/2026) : les projets actifs ont aussi leur petite maison automatique ; une automatique se cache (double clic ou appui long, « Cacher du village » :
+// un document `petite` avec `cachee: true`) et se remontre par la roue dentée (« Petites maisons cachées », « Remontrer »). Plus de plafond de petites maisons
+// par personne : seule limite, une case voisine libre (12 au plus par grande). Une petite maison se saisit sur toute sa case (losange transparent « prise-petite »).
+// Téléphone : une bulle ouverte ne relance plus le redessin toutes les 300 ms ; il part quand la bulle se ferme.
 import { dessinBatiment, pastilleBulle, ETIQUETTE_Y } from './maison-village.js';
 import { lireCompteur } from './village-compteurs.js';
 import { BATIMENTS_FIXES, dessinBatimentFixe, iso } from './village-batiments.js';
-import { boutonReglagesAccueil, animationsCoupees, fenetreMaison, fenetreLien, fenetreChoixPetite, fenetrePetite } from './village-reglages.js';
+import { boutonReglagesAccueil, animationsCoupees, fenetreMaison, fenetreLien, fenetreChoixPetite, fenetrePetite, fenetrePetiteAuto } from './village-reglages.js';
 import {
   DAMIER_DEPART, TAILLE_GRANDE, centreBloc, vueVillage, formesDamier, lignesDamier, losangeBloc, decorLibre, occupation, blocLibre, premierBlocLibre,
   lireBatiments, rangerVillage, docDeplacement, docCacher, docRenommer, docLien, nomCourt, LIENS_MAX, damierPourPlaces, estSorteJeu, caseLibreDevant,
 } from './village-damier.js';
-import { rangerPetites, sourcePour, docPetite, peutAjouterPetite, moduleDeCible, PETITES_MAX } from './village-petites.js';
+import { rangerPetites, sourcePour, docPetite, docCachee, petitesCachees, moduleDeCible, CACHEES_MAX } from './village-petites.js';
 import { dessinJeu, DESSINS_JEU } from './village-jeu-dessins.js';
 import { ouvrirBoutique } from './village-boutique.js';
 import { brancherGestes, groupeSous } from './village-glisser.js';
@@ -55,7 +59,7 @@ import { dessinPiece } from './village-fete.js';
 const NS = 'http://www.w3.org/2000/svg';
 const TROP_DE_LIENS = `${LIENS_MAX} liens au plus : retire un lien pour en ajouter un.`;
 const VILLAGE_PLEIN = 'Ton village est plein : cache une maison pour faire de la place.';
-const TROP_DE_PETITES = `${PETITES_MAX} petites maisons au plus : retire-en une pour en ajouter une.`;
+const TROP_DE_CACHEES = `${CACHEES_MAX} petites maisons cachées au plus : remontre-en une avec la roue dentée.`;
 const PLUS_DE_PLACE = 'Plus de place autour de cette maison : déplace-la ou retire une petite maison.';
 const TELEPHONE = '(max-width: 767px)';
 // Tailles des étiquettes en unités du dessin (le dessin est agrandi d'environ 1,8 fois sur un écran d'ordinateur 1440 x 900 ; sur un téléphone de 390 px,
@@ -170,6 +174,8 @@ function petiteMaison(petite, place, ctx) {
   });
   g.setAttribute('aria-label', petite.sousTitre ? `${petite.nom} : ${petite.sousTitre}` : petite.nom);
   g.append(el('ellipse', { class: 'village-halo', cx: r1(place.x), cy: r1(place.y - 20), rx: 46, ry: 40, fill: 'url(#village-halo)' }));
+  // 3c-bis (4a) : la prise, toute la case, transparente (comme prise-objet ; ce n'est pas une lueur : groupeSous la prend pour un corps)
+  g.append(el('polygon', { points: points(losangeBloc(petite.c, petite.l, 1, ctx.damier), 0, 0), fill: 'transparent', 'pointer-events': 'all', 'data-role': 'prise-petite' }));
   const lever = el('g', { class: 'village-lever' });
   const reduit = el('g', { transform: `translate(${r1(place.x)} ${r1(place.y)}) scale(0.5)` });
   for (const f of dessinBatiment(petite.batiment)) reduit.append(forme(f));
@@ -305,7 +311,7 @@ function dessiner(maisons, ctxRendu, petites = [], objets = []) {
  * La bulle (HTML, au-dessus du dessin) : nom, phrase, pastille du compteur (si lu), « Cliquez pour entrer » (« Touchez encore pour entrer » sur téléphone).
  * `compteurs` : Map(id de maison → nombre lu) ; absent = lecture en cours, ou pas de compteur ; null = illisible ou trop lent. Le nombre reste connu pour les survols suivants.
  */
-function creerBulle(cadre, compteurs) {
+function creerBulle(cadre, compteurs, { surFermee } = {}) {
   const bulle = document.createElement('div');
   bulle.className = 'village-bulle';
   bulle.dataset.role = 'bulle';
@@ -331,6 +337,12 @@ function creerBulle(cadre, compteurs) {
       aide.dataset.role = 'bulle-aide';
       aide.textContent = telephone ? `Touche encore pour voir ${maison.un} seulement` : `Clique pour voir ${maison.un} seulement`;
       enfants.push(aide);
+      if (maison.auto) { // 3c-bis (S8) : la bulle ne prend pas le pointeur, le geste pour cacher est écrit
+        const cacher = document.createElement('small');
+        cacher.dataset.role = 'bulle-cacher';
+        cacher.textContent = telephone ? 'Appui long pour la cacher' : 'Double clic pour la cacher';
+        enfants.push(cacher);
+      }
       bulle.replaceChildren(...enfants);
       bulle.dataset.maison = maison.id;
       return;
@@ -387,7 +399,13 @@ function creerBulle(cadre, compteurs) {
     element: bulle,
     brancher(n, tel) { noeuds = n; telephone = tel; maison = null; bulle.hidden = true; },
     montrer(m) { maison = m; remplir(); bulle.hidden = false; placer(); },
-    cacher(id) { if (id === undefined || id === maison?.id) { maison = null; bulle.hidden = true; } },
+    cacher(id) {
+      if (id !== undefined && id !== maison?.id) return;
+      const etaitOuverte = !bulle.hidden;
+      maison = null;
+      bulle.hidden = true;
+      if (etaitOuverte) surFermee?.(); // 3c-bis : le redessin qui attendait la fermeture de la bulle (téléphone)
+    },
     ouverte,
     /** Un compteur vient d'être lu : la bulle ouverte sur cette maison se met à jour. */
     rafraichir(id) { if (ouverte(id)) { remplir(); placer(); } },
@@ -470,7 +488,9 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   page.append(titre, cadre);
   conteneur.append(page);
   const compteurs = new Map();
-  const bulle = creerBulle(cadre, compteurs);
+  const bulle = creerBulle(cadre, compteurs, {
+    surFermee: () => { if (redessinApresBulle) { redessinApresBulle = false; minuteurRedessin = setTimeout(redessinerQuandLibre, 0); } },
+  });
   const media = typeof window.matchMedia === 'function' ? window.matchMedia(TELEPHONE) : null;
   let damier = DAMIER_DEPART; // 6b : grandit avec les parcelles (ranger)
   let parcellesVues = null; // les parcelles connues au dernier rangement
@@ -493,6 +513,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   const lancesPetites = new Set();
   let rangementPetites = { petites: [], sansPlace: [] };
   let redessinAttendu = false; // des éléments sont arrivés pendant un glisser : le redessin attend la fin du glisser
+  let redessinApresBulle = false; // 3c-bis : téléphone, des éléments sont arrivés sous une bulle ouverte : le redessin part quand elle se ferme
   const ranger = () => {
     // 6b (B14) : le plus grand entre le damier payé et celui qui contient toutes les places enregistrées (portefeuille illisible : rien n'est reclassé d'office)
     parcellesVues = or?.parcelles?.() ?? null;
@@ -550,14 +571,16 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     minuteurRedessin = null;
     if (!monte) return;
     if (page.dataset.rangement === 'oui') { redessinAttendu = true; majSignal(); return; }
-    // téléphone : la bulle ouverte (premier toucher) attend le second toucher ; ordinateur : la bulle du survol se rouvre au mouvement suivant
-    if (debrancher?.occupe?.() || (Boolean(media?.matches) && !bulle.element.hidden)) { minuteurRedessin = setTimeout(redessinerQuandLibre, 300); majSignal(); return; }
+    // téléphone : la bulle ouverte (premier toucher) attend le second toucher ; le redessin part quand elle se ferme (3c-bis, surFermee), sans essai répété
+    if (Boolean(media?.matches) && !bulle.element.hidden) { redessinApresBulle = true; majSignal(); return; }
+    // ordinateur : la bulle du survol se rouvre au mouvement suivant ; un geste ou un clic en attente : essai toutes les 300 ms (occupe() est borné)
+    if (debrancher?.occupe?.()) { minuteurRedessin = setTimeout(redessinerQuandLibre, 300); majSignal(); return; }
     rendre();
   }
 
   /** Signal pour les tests et l'accessibilité : data-petites-lues="oui" quand plus aucune lecture ni redessin des petites maisons n'attend. */
   function majSignal() {
-    const fini = lecture !== 'attente' && enCours.size === 0 && !minuteurRedessin && !redessinAttendu;
+    const fini = lecture !== 'attente' && enCours.size === 0 && !minuteurRedessin && !redessinAttendu && !redessinApresBulle;
     page.dataset.petitesLues = fini ? 'oui' : 'non';
   }
 
@@ -632,6 +655,9 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
       surAfficher: (entree) => montrer(entree),
       liens: nombreLiens(),
       surAjouterLien: (valeurs) => ajouterLien(valeurs),
+      // 3c-bis (S9) : les petites maisons cachées, avec le bâtiment de leur grande (vignette)
+      cacheesPetites: petitesCachees(batiments).map((p) => ({ ...p, batiment: rangement.maisons.find((m) => m.id === p.parent)?.besoin?.batiment })),
+      surRemontrer: (id) => retirer(id),
     };
   };
 
@@ -685,20 +711,24 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   /** Les éléments d'un module pour la fenêtre de choix : la lecture de l'affichage si elle a réussi, sinon une nouvelle lecture (bouton « Réessayer »). */
   const elementsPour = (module) => lireElements(module);
 
-  /** Nouvelle petite maison manuelle sous `grande` (non optimiste) ; refus expliqué : 12 atteint, aucune case voisine libre. */
+  /** Identifiant d'un nouveau document `petite` (manuelle ou cachée). */
+  const idPetite = () => `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+  /** Vrai si le document `d` d'identifiant `id` serait posé sur une case (3c-bis : seule limite, une case voisine libre). */
+  const placePour = (id, d) => rangerPetites({ maisons: rangement.maisons, batiments: new Map(batiments).set(id, d), elements, modules: petites.sources, damier, objets: rangement.objets })
+    .petites.some((p) => p.id === id);
+
+  /** Nouvelle petite maison manuelle sous `grande` (non optimiste) ; refus expliqué : aucune case voisine libre (plus de plafond par personne, 3c-bis). */
   function ajouterPetite(grande, element) {
-    if (!peutAjouterPetite(rangementPetites)) return Promise.resolve(TROP_DE_PETITES);
     const d = docPetite({ parent: grande.id, nom: element.nom, cible: element.cible });
     if (!d) return Promise.resolve(false);
-    const id = `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-    const essai = new Map(batiments).set(id, d);
-    const r = rangerPetites({ maisons: rangement.maisons, batiments: essai, elements, modules: petites.sources, damier, objets: rangement.objets });
-    if (!r.petites.some((p) => p.id === id)) return Promise.resolve(PLUS_DE_PLACE);
+    const id = idPetite();
+    if (!placePour(id, d)) return Promise.resolve(PLUS_DE_PLACE);
     return appliquer([{ id, donnees: d }]);
   }
 
   function choisirPetite(grande, source) {
-    const deja = (cible) => [...batiments.values()].some((d) => d.sorte === 'petite' && d.parent === grande.id && d.cible === cible);
+    const deja = (cible) => [...batiments.values()].some((d) => d.sorte === 'petite' && d.parent === grande.id && d.cible === cible && d.cachee !== true);
     fenetreChoixPetite({
       un: source.module === 'projets' ? 'projet' : 'chantier',
       pluriel: source.module === 'projets' ? 'projets' : 'chantiers',
@@ -722,14 +752,29 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
         return appliquer([{ id: petite.id, donnees: { ...actuel, nom: court } }]);
       },
       surRetirer: () => retirer(petite.id),
-      surRemettre: () => (peutAjouterPetite(rangementPetites) ? appliquer([{ id: petite.id, donnees: actuel }]) : Promise.resolve(TROP_DE_PETITES)),
+      surRemettre: () => (placePour(petite.id, actuel) ? appliquer([{ id: petite.id, donnees: actuel }]) : Promise.resolve(PLUS_DE_PLACE)), // S13
+    });
+  }
+
+  /** Fenêtre d'une petite maison automatique (3c-bis) : « Cacher du village » écrit un document `cachee` ; « Annuler » le retire. */
+  function reglagesAutomatique(petite) {
+    let idCachee = null;
+    fenetrePetiteAuto(petite, {
+      surCacher: () => {
+        if (petitesCachees(batiments).length >= CACHEES_MAX) return Promise.resolve(TROP_DE_CACHEES);
+        const d = docCachee({ parent: petite.parent, nom: petite.nom, cible: petite.cible });
+        if (!d) return Promise.resolve(false);
+        const id = idPetite();
+        return appliquer([{ id, donnees: d }]).then((ok) => { if (ok) idCachee = id; return ok; });
+      },
+      surRemontrer: () => (idCachee ? retirer(idCachee) : Promise.resolve(false)),
     });
   }
 
   function reglagesMaison(maison) {
     if (estSorteJeu(maison.sorte)) return; // un objet acheté n'a pas de réglages
     bulle.cacher();
-    if (estPetite(maison)) { if (!maison.auto) reglagesPetite(maison); return; } // une petite maison automatique n'a pas de fenêtre
+    if (estPetite(maison)) { if (maison.auto) reglagesAutomatique(maison); else reglagesPetite(maison); return; } // une automatique : « Cacher du village » (3c-bis)
     if (estLien(maison)) { reglagesLien(maison); return; }
     const placee = { ...maison, donnees: docDeplacement(maison, maison.c, maison.l) };
     const source = petites ? sourcePour(maison) : null;
@@ -756,6 +801,9 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
 
   const ctxCommun = { aller, bulle, rangementEnCours: () => page.dataset.rangement === 'oui' };
   const rendre = () => {
+    redessinApresBulle = false; // 3c-bis (R2) : ce dessin montre déjà les éléments arrivés
+    clearTimeout(minuteurRedessin); // et aucun redessin en attente ne reste programmé
+    minuteurRedessin = null;
     const telephone = Boolean(media?.matches);
     const defileAvant = defile.scrollLeft; // remplacer le dessin remet le défilement à zéro : on le garde (3c : les petites maisons arrivent après le rangement)
     debrancher?.();

@@ -2,22 +2,25 @@
 // grande maison d'un module qui sait filtrer, ouvre l'écran de ce module sur UN élément (un chantier, un projet).
 // Sans DOM, sans Firebase, sans aucun module métier : se teste seul (tests/maison-village.test.js). La lecture des éléments est dans village-petites-lecture.js.
 //  - Manuelle : un document `petite` (p-…) choisi par l'utilisateur ; elle reste tant que son élément est dans la liste lue (archivé compris).
-//  - Automatique : JAMAIS écrite ; calculée à chaque affichage depuis la liste lue (Chantiers : statut « en cours » et non archivé), à côté de la première
-//    grande maison visible de ce module. Identifiant `a-<module>-<id de l'élément>` (jamais un identifiant de document).
+//  - Automatique : JAMAIS écrite ; calculée à chaque affichage depuis la liste lue (Chantiers : statut « en cours » ; Projets : projet actif ; jamais archivé),
+//    à côté de la première grande maison visible de ce module. Identifiant `a-<module>-<id de l'élément>` (jamais un identifiant de document).
+//  - Cachée (3c-bis, 27/11/2026) : un document `petite` ordinaire avec `cachee: true` ; il cache l'automatique de la même cible (quel que soit son parent),
+//    n'est jamais montré et ne compte ni parmi les 6 automatiques, ni parmi les manuelles. Le retirer remontre l'automatique.
+//  - Plus de plafond par personne (3c-bis) : seule limite, une case voisine libre (12 au plus par grande maison).
 //  - Sa place n'est jamais enregistrée : elle se recalcule depuis la place de sa grande, sur une des 12 cases qui l'entourent (ordre fixe : les côtés
 //    d'abord, l'avant et le fond en dernier). Une petite ne bloque jamais une grande. Sans case voisine libre : seulement dans la vue Liste (téléphone).
 import { batimentValable, nomCourt, occupation, dansDamier, DAMIER_DEPART, TAILLE_PETITE } from './village-damier.js';
 import { cibleValide } from './maison-village.js';
 
-/** Petites maisons manuelles au plus par utilisateur (P7). */
-export const PETITES_MAX = 12;
 /** Petites maisons automatiques au plus par grande maison (P7). */
 export const AUTO_MAX = 6;
+/** Petites maisons cachées au plus par utilisateur (3c-bis, S11 : garde-fou technique, le navigateur lit 200 documents au plus). */
+export const CACHEES_MAX = 50;
 
 /** Modules qui savent montrer un seul élément : `un` (texte de la bulle), `auto` (petites maisons automatiques). */
 export const SOURCES_PETITES = Object.freeze({
   achatschantiers: Object.freeze({ un: 'ce chantier', auto: true }),
-  projets: Object.freeze({ un: 'ce projet', auto: false }),
+  projets: Object.freeze({ un: 'ce projet', auto: true }),
 });
 
 const RE_PARENT = /^b-[a-z0-9-]{1,60}$/;
@@ -55,6 +58,21 @@ export function docPetite({ parent, nom, cible }) {
   return batimentValable('p-essai', d) ? d : null;
 }
 
+/** Document d'une petite maison automatique cachée (3c-bis) : celui d'une manuelle, avec `cachee: true` ; ou null. */
+export function docCachee({ parent, nom, cible }) {
+  const d = docPetite({ parent, nom, cible });
+  if (!d) return null;
+  const c = { ...d, cachee: true };
+  return batimentValable('p-essai', c) ? c : null;
+}
+
+/** Les petites maisons cachées (3c-bis) : [{ id, nom, cible, parent }], triées par nom puis par identifiant. */
+export function petitesCachees(batiments) {
+  return [...(batiments ?? new Map())].filter(([, d]) => d?.sorte === 'petite' && d.cachee === true)
+    .map(([id, d]) => ({ id, nom: d.nom, cible: d.cible, parent: d.parent }))
+    .sort((u, v) => u.nom.localeCompare(v.nom, 'fr') || (u.id < v.id ? -1 : u.id > v.id ? 1 : 0));
+}
+
 /**
  * Range les petites maisons autour des grandes : { petites, sansPlace }.
  *  - `maisons` : les grandes maisons rangées (rangerVillage) ; `batiments` : Map(id → document) lue par lireBatiments ;
@@ -75,7 +93,9 @@ export function rangerPetites({ maisons = [], batiments = new Map(), elements = 
   const manuelles = new Map(); // id de la grande → [petites]
   const ciblesManuelles = new Set();
   const docs = [...batiments].filter(([, d]) => d?.sorte === 'petite').sort(([u], [v]) => (u < v ? -1 : u > v ? 1 : 0));
+  const cachees = new Set(docs.filter(([, d]) => d.cachee === true).map(([, d]) => d.cible)); // 3c-bis : par cible, quel que soit le parent
   for (const [id, d] of docs) {
+    if (d.cachee === true) continue; // une cachée n'est jamais montrée
     const grande = parId.get(d.parent);
     const source = sourcePour(grande);
     const module = moduleDeCible(d.cible);
@@ -98,7 +118,7 @@ export function rangerPetites({ maisons = [], batiments = new Map(), elements = 
     servis.add(source.module);
     const lu = elements.get(source.module);
     if (lu?.etat !== 'ok') continue;
-    const liste = lu.liste.filter((e) => e.automatique && !e.archive && !ciblesManuelles.has(e.cible)).slice(0, AUTO_MAX)
+    const liste = lu.liste.filter((e) => e.automatique && !e.archive && !ciblesManuelles.has(e.cible) && !cachees.has(e.cible)).slice(0, AUTO_MAX)
       .map((e) => ({ id: `a-${source.module}-${e.id}`, sorte: 'petite', parent: grande.id, nom: nomCourt(e.nom) || 'Petite maison', cible: e.cible, auto: true, taille: TAILLE_PETITE, sousTitre: e.sousTitre ?? '', un: source.un, batiment: grande.besoin?.batiment, donnees: null }));
     automatiques.set(grande.id, liste);
   }
@@ -115,14 +135,4 @@ export function rangerPetites({ maisons = [], batiments = new Map(), elements = 
     }
   }
   return { petites, sansPlace };
-}
-
-/** Nombre de petites maisons manuelles réellement rangées (posées ou sans place) : seules elles comptent pour la limite de 12 (une manuelle non montrée ne compte pas). */
-export function nombreManuelles(rangement) {
-  return [...(rangement?.petites ?? []), ...(rangement?.sansPlace ?? [])].filter((p) => !p.auto).length;
-}
-
-/** Vrai si une petite maison manuelle de plus est permise (moins de PETITES_MAX rangées). */
-export function peutAjouterPetite(rangement) {
-  return nombreManuelles(rangement) < PETITES_MAX;
 }

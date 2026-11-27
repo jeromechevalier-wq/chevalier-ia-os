@@ -84,7 +84,7 @@ const RE_ID = Object.freeze({ besoin: /^b-[a-z0-9-]{1,60}$/, lien: /^l-[a-z0-9-]
 const CHAMPS = Object.freeze({
   besoin: ['sorte', 'c', 'l', 'cache', 'nom', 'modifieLe'],
   lien: ['sorte', 'nom', 'url', 'batiment', 'c', 'l', 'modifieLe'],
-  petite: ['sorte', 'parent', 'nom', 'cible', 'modifieLe'],
+  petite: ['sorte', 'parent', 'nom', 'cible', 'cachee', 'modifieLe'], // 3c-bis : cachee (true seulement)
 });
 // Après l'hôte : les caractères visibles de l'ASCII, sauf " ' < > ` \ (ils servent à casser un attribut ou un texte) et [ ] (le validateur des règles
 // les refuse dans une classe, même échappés) ; liste écrite caractère par caractère, la même que dans firestore.rules.
@@ -113,7 +113,8 @@ export function batimentValable(id, donnees) {
     return nomValable(d) && placeValable(d, true) && typeof d.url === 'string' && d.url.length <= 300 && RE_URL_LIEN.test(d.url)
       && typeof d.batiment === 'string' && RE_BATIMENT.test(d.batiment);
   }
-  return nomValable(d) && typeof d.parent === 'string' && RE_PARENT.test(d.parent) && typeof d.cible === 'string' && d.cible.length <= 200 && RE_CIBLE.test(d.cible);
+  return nomValable(d) && typeof d.parent === 'string' && RE_PARENT.test(d.parent) && typeof d.cible === 'string' && d.cible.length <= 200 && RE_CIBLE.test(d.cible)
+    && (!a(d, 'cachee') || d.cachee === true);
 }
 
 // ---------------------------------------------------------------- liens externes (étape 3b, 27/11/2026)

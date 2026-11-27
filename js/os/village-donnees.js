@@ -13,7 +13,7 @@ import { collection, doc, getDocs, writeBatch, deleteDoc, serverTimestamp, query
 import { db, MODE_EMULATEURS } from './firebase.js';
 import { cheminCollection } from './chemins.js';
 
-/** Nombre de documents lus au plus (16 grandes maisons, 6 liens, des petites maisons : bien en dessous). */
+/** Nombre de documents lus au plus (12 grandes, 6 liens, 40 objets, petites maisons et 50 cachées au plus : environ 130 dans le cas courant). */
 const LECTURE_MAX = 200;
 const SORTES_JEU = ['decoration', 'champ', 'enclos'];
 

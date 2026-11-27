@@ -969,14 +969,17 @@ export function planSupprimerProjet({ projet, taches = [], liens = [], affaire =
 
 const ID_ELEMENT = /^[A-Za-z0-9_-]{1,100}$/;
 
-/** Les projets vus par le village de l'accueil : { id, nom, sousTitre, cible, automatique: false, archive } ; la cible ouvre la fiche du projet. */
+/**
+ * Les projets vus par le village de l'accueil : { id, nom, sousTitre, cible, automatique, archive } ; la cible ouvre la fiche du projet.
+ * `automatique` (3c-bis, 27/11/2026) : projet actif (estProjetActif : non archivé, statut affiché « actif », un ancien « en_pause » compris).
+ */
 export function elementsVillage(projets) {
   return (Array.isArray(projets) ? projets : []).filter((p) => p && ID_ELEMENT.test(String(p.id ?? ''))).map((p) => ({
     id: String(p.id),
     nom: String(p.titre ?? '').trim() || String(p.id),
     sousTitre: libelleStatutProjet(statutProjetAffiche(p)),
     cible: `#/projets/projets/${p.id}`,
-    automatique: false,
+    automatique: estProjetActif(p),
     archive: p.archive === true,
   }));
 }
