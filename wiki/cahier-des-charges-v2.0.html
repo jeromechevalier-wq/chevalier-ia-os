@@ -419,12 +419,24 @@ service cloud.firestore {
         &amp;&amp; d.diff(resource.data).affectedKeys().hasOnly(['c', 'l', 'modifieLe'])
         &amp;&amp; villagePlace(d, true) &amp;&amp; (!d.keys().hasAny(['modifieLe']) || d.modifieLe == request.time);
     }
+    // Interrupteurs « Mon accueil » de chaque personne (27/11/2026, js/os/village-preferences.js) : jeu (pièces d'or, boutique, champs, enclos) et accueil (village ou menu classique).
+    // Hors du bloc commun avec la plateforme (elle n'a pas de village : .github/A-FAIRE.md A12).
+    function villagePreferencesValides(d) {
+      return d.keys().hasOnly(['jeu', 'accueil', 'modifieLe']) &amp;&amp; d.keys().hasAll(['jeu', 'accueil', 'modifieLe'])
+        &amp;&amp; d.jeu is bool &amp;&amp; d.accueil in ['village', 'classique'] &amp;&amp; d.modifieLe == request.time;
+    }
     match /village_utilisateurs/{uid}/batiments/{id} {
       allow read: if request.auth != null &amp;&amp; request.auth.uid == uid &amp;&amp; compteAutorise();
       allow create: if request.auth != null &amp;&amp; request.auth.uid == uid &amp;&amp; compteAutorise() &amp;&amp; villageBatimentValide(id);
       allow update: if request.auth != null &amp;&amp; request.auth.uid == uid &amp;&amp; compteAutorise()
         &amp;&amp; (villageSorteJeu(resource.data) ? villageObjetDeplace(id) : villageBatimentValide(id));
       allow delete: if request.auth != null &amp;&amp; request.auth.uid == uid &amp;&amp; compteAutorise() &amp;&amp; !villageSorteJeu(resource.data);
+    }
+    // Préférences d'accueil : lues et écrites par la personne elle-même seulement (un compte en lecture seule règle aussi les siennes : c'est son confort, pas les données de la maison).
+    match /village_utilisateurs/{uid}/preferences/accueil {
+      allow read: if request.auth != null &amp;&amp; request.auth.uid == uid &amp;&amp; compteAutorise();
+      allow create, update: if request.auth != null &amp;&amp; request.auth.uid == uid &amp;&amp; compteAutorise() &amp;&amp; villagePreferencesValides(request.resource.data);
+      allow delete: if false;
     }
     // Pièces d'or du village (27/11/2026) : le solde et les achats de terrain sont dans le document de l'utilisateur. Lu par lui seul ; écrit par le SERVEUR seulement (fonction villageOr) : aucun navigateur ne peut s'ajouter de l'or.
     match /village_utilisateurs/{uid} {
