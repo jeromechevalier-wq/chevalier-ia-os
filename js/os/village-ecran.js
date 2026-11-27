@@ -17,22 +17,27 @@
 // Console (bas droite, seulement si `console` est vrai, c'est-à-dire si la Console est dans les modules de la session : titulaire seul). Un îlot est un vrai lien
 // (Tab, Entrée) ; sur téléphone, un seul toucher l'ouvre (nom et sous-titre déjà écrits dessous, pas de bulle). Les îlots n'ont ni data-role="batiment", ni
 // data-maison : ils ne comptent pas parmi les besoins, ne se déplacent pas et ne se cachent pas.
+// Étape 3b (27/11/2026) : un LIEN EXTERNE est une maison (document `lien`) dessinée comme un <a> SVG (href, target="_blank", rel="noopener noreferrer") ; son clic
+// passe par les gestes puis window.open(url, '_blank', 'noopener,noreferrer') : jamais location.href ni aller(). L'adresse est posée par setAttribute et
+// textContent, jamais injectée en HTML. Une adresse qui ne passe plus le contrôle (adresseExterne) : maison grisée, sans href, jamais ouverte.
 import { dessinBatiment, pastilleBulle, ETIQUETTE_Y } from './maison-village.js';
 import { lireCompteur } from './village-compteurs.js';
 import { BATIMENTS_FIXES, dessinBatimentFixe, iso } from './village-batiments.js';
-import { boutonReglagesAccueil, animationsCoupees, fenetreMaison } from './village-reglages.js';
+import { boutonReglagesAccueil, animationsCoupees, fenetreMaison, fenetreLien } from './village-reglages.js';
 import {
   DAMIER_DEPART, TAILLE_GRANDE, centreBloc, vueVillage, formesDamier, lignesDamier, losangeBloc, decorLibre, occupation, blocLibre, premierBlocLibre,
-  lireBatiments, rangerVillage, docDeplacement, docCacher, docRenommer,
+  lireBatiments, rangerVillage, docDeplacement, docCacher, docRenommer, docLien, LIENS_MAX,
 } from './village-damier.js';
 import { brancherGestes } from './village-glisser.js';
 import { listeMaisons, boutonVue, vueChoisie } from './village-liste.js';
 import { lien } from './router.js';
-import { toast } from './ui.js';
+import { toast, icone } from './ui.js';
 import { texteOr } from './village-jeu-regles.js';
 import { dessinPiece } from './village-fete.js';
 
 const NS = 'http://www.w3.org/2000/svg';
+const TROP_DE_LIENS = `${LIENS_MAX} liens au plus : retire un lien pour en ajouter un.`;
+const VILLAGE_PLEIN = 'Ton village est plein : cache une maison pour faire de la place.';
 const TELEPHONE = '(max-width: 767px)';
 // Tailles des étiquettes en unités du dessin (le dessin est agrandi d'environ 1,8 fois sur un écran d'ordinateur 1440 x 900 ; sur un téléphone de 390 px,
 // il fait 160 % de la largeur de l'écran, soit environ 0,95 fois).
@@ -72,18 +77,34 @@ function texte(contenu, attrs, largeurEstimee, largeurMax) {
 }
 
 /** Étiquette permanente sous le bâtiment : le nom seul (la phrase et le compteur sont dans la bulle). */
-function etiquette(besoin, x, y, telephone) {
+function etiquette(besoin, x, y, telephone, externe = false) {
   const t = telephone ? TEL : ORDI;
   const g = el('g', { class: 'village-etiquette' });
   const largeurNom = besoin.nom.length * t.nom * t.carNom;
-  const largeur = Math.min(largeurNom, t.largeurMax) + t.marge;
+  const icon = externe ? t.nom * 0.95 : 0; // petite marque « lien externe » à droite du nom
+  const ecart = externe ? 3 : 0;
+  const largeur = Math.min(largeurNom, t.largeurMax) + t.marge + icon + ecart;
   g.append(el('rect', { x: r1(x - largeur / 2), y: r1(y), width: r1(largeur), height: t.hauteur, rx: t.rx, fill: '#FFFDF6', stroke: '#3b2412', 'stroke-opacity': 0.18, 'stroke-width': telephone ? 1 : 0.6 }));
-  g.append(texte(besoin.nom, { x: r1(x), y: r1(y + t.hauteur * 0.69), 'font-size': t.nom, 'font-weight': 800, fill: '#2A1A2C', 'data-role': 'batiment-nom' }, largeurNom, t.largeurMax));
+  const xNom = x - (icon + ecart) / 2;
+  g.append(texte(besoin.nom, { x: r1(xNom), y: r1(y + t.hauteur * 0.69), 'font-size': t.nom, 'font-weight': 800, fill: '#2A1A2C', 'data-role': 'batiment-nom' }, largeurNom, t.largeurMax));
+  if (externe) {
+    const marque = icone('external-link');
+    for (const [k, v] of Object.entries({ x: r1(xNom + Math.min(largeurNom, t.largeurMax) / 2 + ecart), y: r1(y + (t.hauteur - icon) / 2), width: r1(icon), height: r1(icon), color: '#2A1A2C', 'data-role': 'marque-externe' })) marque.setAttribute(k, String(v));
+    g.append(marque);
+  }
   return g;
 }
 
 /** Le besoin tel que l'utilisateur le voit : son nom choisi à la place du nom d'origine. */
 const besoinVu = (maison) => ({ ...maison.besoin, nom: maison.nom });
+const estLien = (maison) => maison.sorte === 'lien';
+
+/** Ouvre une maison : un besoin va sur sa route ; un lien externe valable s'ouvre dans un NOUVEL onglet, sans lien avec l'appli (noopener, noreferrer). */
+function ouvrir(maison, ctx) {
+  if (!estLien(maison)) { ctx.aller(maison.besoin.cible); return; }
+  if (maison.invalide) return;
+  window.open(maison.url, '_blank', 'noopener,noreferrer');
+}
 
 /**
  * Bâtiment (le lien accessible). `ctx` : { telephone, aller, bulle, gestes } ; `place` : { x, y } à l'écran.
@@ -92,17 +113,23 @@ const besoinVu = (maison) => ({ ...maison.besoin, nom: maison.nom });
  */
 function batiment(maison, place, ctx) {
   const besoin = besoinVu(maison);
-  const g = el('g', { class: 'village-batiment', tabindex: 0, role: 'link', 'data-role': 'batiment', 'data-batiment': besoin.batiment, 'data-cible': besoin.cible, 'data-maison': maison.id, 'data-case': `${maison.c}-${maison.l}` });
-  g.setAttribute('aria-label', besoin.phrase ? `${besoin.nom} : ${besoin.phrase}` : besoin.nom); // pas de <title> : il ferait une infobulle grise en plus de la bulle
+  const lienExterne = estLien(maison);
+  const g = el(lienExterne ? 'a' : 'g', {
+    class: `village-batiment${maison.invalide ? ' village-batiment-invalide' : ''}`, tabindex: 0, role: 'link', 'data-role': 'batiment', 'data-batiment': besoin.batiment,
+    'data-cible': besoin.cible, 'data-maison': maison.id, 'data-case': `${maison.c}-${maison.l}`, 'data-sorte': lienExterne ? 'lien' : undefined,
+  });
+  if (lienExterne && !maison.invalide) { g.setAttribute('href', maison.url); g.setAttribute('target', '_blank'); g.setAttribute('rel', 'noopener noreferrer'); }
+  if (lienExterne) g.setAttribute('aria-label', maison.invalide ? `${besoin.nom} : adresse refusée` : `${besoin.nom} : ouvre ${maison.url} dans un nouvel onglet`);
+  else g.setAttribute('aria-label', besoin.phrase ? `${besoin.nom} : ${besoin.phrase}` : besoin.nom); // pas de <title> : il ferait une infobulle grise en plus de la bulle
   g.append(el('ellipse', { class: 'village-halo', cx: r1(place.x), cy: r1(place.y - 40), rx: 96, ry: 84, fill: 'url(#village-halo)' }));
   const lever = el('g', { class: 'village-lever' });
   for (const f of dessinBatiment(besoin.batiment)) lever.append(forme(f, place.x, place.y));
   g.append(lever);
-  g.addEventListener('click', () => toucher(maison, ctx));
+  g.addEventListener('click', (e) => { e.preventDefault(); toucher(maison, ctx); });
   g.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     e.preventDefault();
-    ctx.aller(besoin.cible);
+    ouvrir(maison, ctx);
   });
   // Survol et focus : seulement sur ordinateur (sur téléphone, un toucher déclenche aussi le survol et le focus : la bulle y suit les touchers).
   g.addEventListener('mouseenter', () => { if (!ctx.telephone && !ctx.rangementEnCours()) ctx.bulle.montrer(maison); });
@@ -114,13 +141,13 @@ function batiment(maison, place, ctx) {
 /** Clic ou toucher : sur téléphone, la bulle d'abord ; sinon (ou si la bulle de ce bâtiment est déjà ouverte) la cible. */
 function toucher(maison, ctx) {
   if (ctx.telephone && !ctx.bulle.ouverte(maison.id)) { ctx.bulle.montrer(maison); return; }
-  ctx.aller(maison.besoin.cible);
+  ouvrir(maison, ctx);
 }
 
 /** L'étiquette d'un bâtiment, dessinée après tout le reste (un toit voisin ne la cache jamais). Même effet que le bâtiment ; le lien accessible reste le bâtiment. */
 function lienEtiquette(maison, place, b, ctx) {
   const g = el('g', { class: 'village-lien-etiquette', 'aria-hidden': 'true', 'data-role': 'etiquette', 'data-maison': maison.id, 'data-case': `${maison.c}-${maison.l}`, 'data-cible': maison.besoin.cible });
-  g.append(etiquette(besoinVu(maison), place.x, place.y + ETIQUETTE_Y, ctx.telephone));
+  g.append(etiquette(besoinVu(maison), place.x, place.y + ETIQUETTE_Y, ctx.telephone, estLien(maison)));
   g.addEventListener('click', () => toucher(maison, ctx));
   g.addEventListener('mouseenter', () => { b.classList.add('survol'); if (!ctx.telephone && !ctx.rangementEnCours()) ctx.bulle.montrer(maison); });
   g.addEventListener('mouseleave', () => { b.classList.remove('survol'); if (!ctx.telephone) ctx.bulle.cacher(maison.id); });
@@ -192,6 +219,21 @@ function creerBulle(cadre, compteurs) {
     nom.dataset.role = 'bulle-nom';
     nom.textContent = b.nom;
     const enfants = [nom];
+    if (estLien(maison)) {
+      const adresse = document.createElement('em');
+      adresse.dataset.role = 'bulle-adresse';
+      adresse.className = 'village-bulle-adresse';
+      adresse.textContent = maison.invalide ? 'Adresse refusée : modifie ou retire cette maison.' : maison.url;
+      enfants.push(adresse);
+      if (!maison.invalide) {
+        const aide = document.createElement('small');
+        aide.textContent = telephone ? 'Touche encore pour ouvrir le site dans un nouvel onglet' : 'Clique pour ouvrir le site dans un nouvel onglet';
+        enfants.push(aide);
+      }
+      bulle.replaceChildren(...enfants);
+      bulle.dataset.maison = maison.id;
+      return;
+    }
     if (b.phrase) {
       const phrase = document.createElement('em');
       phrase.dataset.role = 'bulle-phrase';
@@ -398,11 +440,61 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
       telephone: Boolean(media?.matches),
       dessin: (nom) => vignette(dessinBatiment(nom)),
       surAfficher: (entree) => montrer(entree),
+      liens: nombreLiens(),
+      surAjouterLien: (valeurs) => ajouterLien(valeurs),
     };
   };
 
+  const nombreLiens = () => [...batiments.values()].filter((d) => d.sorte === 'lien').length;
+
+  /** Nouveau lien externe (roue) au premier bloc libre ; l'identifiant suit l'heure de création (ordre des liens). */
+  function ajouterLien({ nom, url, batiment }) {
+    if (nombreLiens() >= LIENS_MAX) return Promise.resolve(TROP_DE_LIENS);
+    const place = premierBlocLibre(occupation(rangement.maisons), TAILLE_GRANDE, damier);
+    if (!place) return Promise.resolve(VILLAGE_PLEIN);
+    const d = docLien({ nom, url, batiment, c: place.c, l: place.l });
+    if (!d) return Promise.resolve(false);
+    const id = `l-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    return appliquer([{ id, donnees: d }]);
+  }
+
+  /** Retire le document d'une maison (lien externe), dans la file des écritures. */
+  function retirer(id) {
+    if (!rangementPossible()) return Promise.resolve(false);
+    const resultat = file.then(() => donnees.retirer(id)).catch(() => false);
+    file = resultat;
+    return resultat.then((ok) => {
+      if (ok) confirmes.delete(id);
+      if (!monte) return ok;
+      recalculer();
+      ranger();
+      rendre();
+      return ok;
+    });
+  }
+
+  function reglagesLien(maison) {
+    const actuel = { ...maison.donnees };
+    fenetreLien(maison, {
+      dessin: (nom) => vignette(dessinBatiment(nom)),
+      surEnregistrer: ({ nom, url, batiment }) => {
+        const d = docLien({ nom, url, batiment, c: maison.c, l: maison.l });
+        return d ? appliquer([{ id: maison.id, donnees: d }]) : Promise.resolve(false);
+      },
+      surRetirer: () => retirer(maison.id),
+      // « Annuler » : le lien est recréé tel quel, à sa place si elle est libre, sinon au premier bloc libre (village plein : échec et message).
+      surRemettre: () => {
+        if (nombreLiens() >= LIENS_MAX) return Promise.resolve(TROP_DE_LIENS);
+        const prises = occupation(rangement.maisons);
+        const place = blocLibre(prises, actuel.c, actuel.l, TAILLE_GRANDE, damier) ? { c: actuel.c, l: actuel.l } : premierBlocLibre(prises, TAILLE_GRANDE, damier);
+        return place ? appliquer([{ id: maison.id, donnees: { ...actuel, c: place.c, l: place.l } }]) : Promise.resolve(VILLAGE_PLEIN);
+      },
+    });
+  }
+
   function reglagesMaison(maison) {
     bulle.cacher();
+    if (estLien(maison)) { reglagesLien(maison); return; }
     const placee = { ...maison, donnees: docDeplacement(maison, maison.c, maison.l) };
     fenetreMaison(maison, {
       surRenommer: (nom) => appliquer([{ id: maison.id, donnees: docRenommer(placee, nom) }]),
