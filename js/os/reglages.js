@@ -124,7 +124,7 @@ function raccourcis(item, zone) {
   const barre = h('nav', { class: 'reglages-raccourcis', 'aria-label': 'Dans cette page' });
   let signature = null;
   const maj = () => {
-    const visibles = [...zone.querySelectorAll('section.carte-section[id], [data-raccourci][id]')].filter((el) => !el.hidden);
+    const visibles = [...zone.querySelectorAll('section.carte-section[id], [data-raccourci][id]')].filter((el) => !el.hidden && !el.parentElement?.closest('details')); // une section rangée dans un bloc replié (ex. « Sauvegardes séparées » des Achats) n'a pas de raccourci
     const lignes = visibles.map((el) => ({ id: el.id, titre: item.sections.find((s) => s.id === el.id)?.libelle ?? el.querySelector('h2')?.textContent ?? el.id, alerte: el.hasAttribute('data-alerte') }));
     barre.hidden = visibles.length < 3;
     const nouvelle = JSON.stringify(lignes);

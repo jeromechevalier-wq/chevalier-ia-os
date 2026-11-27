@@ -369,6 +369,12 @@ html[data-mode-test] .zone { box-shadow: inset 0 0 0 3px var(--attention); }
 .reglages-raccourci { display: inline-flex; align-items: center; gap: var(--esp-2); }
 .reglages-raccourci-alerte { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--retard); }
 @media (max-width: 767px) { .reglages-raccourci { min-height: 44px; } .carte-section, [data-raccourci] { scroll-margin-top: 64px; } } /* au doigt : zone de clic de 44 px ; la barre du haut (56 px) ne cache pas le titre d'une section atteinte par une pastille */
+/* Réglages > Achats (26/11/2026) : sauvegarde complète en .zip, puis les sauvegardes de chaque module repliées sous « Sauvegardes séparées » */
+.sauvegardes-separees > summary { cursor: pointer; font-weight: var(--poids-moyen); color: var(--texte2); padding: var(--esp-2) 0; }
+.sauvegardes-separees > summary:hover { color: var(--texte); }
+.sauvegardes-separees-contenu { display: flex; flex-direction: column; gap: var(--esp-7); margin-top: var(--esp-5); }
+.sauvegarde-achats-erreur { color: var(--retard); margin: var(--esp-3) 0 0; }
+@media (max-width: 767px) { .sauvegardes-separees > summary { padding: 12px 0; } } /* au doigt : environ 44 px de haut, sans perdre le triangle du bloc replié */
 .reglages-infos { display: flex; flex-direction: column; gap: var(--esp-4); }
 .reglages-info { display: flex; align-items: center; gap: var(--esp-5); flex-wrap: wrap; }
 .reglages-info-etiquette { flex: 0 0 90px; color: var(--texte2); font-size: var(--fs-menu); }
