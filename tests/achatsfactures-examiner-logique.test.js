@@ -105,7 +105,7 @@ describe('« + Facture » : contrôles et envoi', () => {
   test('envoi : un seul appel multipart, le fichier dans le champ « fichier », résultat lu dans la réponse', async () => {
     const ajouterFacture = espion(async () => ({ facture_id: 'nouvelle', lecture: 'reussie', lignes_ecrites: true }));
     const r = await envoyerFacture(vrai(), { actions: { ajouterFacture } });
-    expect(r).toEqual({ factureId: 'nouvelle', lectureReussie: true, lignesEcrites: true });
+    expect(r).toEqual({ factureId: 'nouvelle', lectureReussie: true, lignesEcrites: true, dejaConnue: false });
     expect(ajouterFacture).toHaveBeenCalledTimes(1);
     const corps = ajouterFacture.appels[0][0];
     expect(corps instanceof FormData).toBe(true);
@@ -114,7 +114,7 @@ describe('« + Facture » : contrôles et envoi', () => {
   });
   test('lecture à compléter et lignes non écrites sont dites', async () => {
     const r = await envoyerFacture(vrai(), { actions: { ajouterFacture: async () => ({ facture_id: 'n', lecture: 'a_completer', lignes_ecrites: false }) } });
-    expect(r).toEqual({ factureId: 'n', lectureReussie: false, lignesEcrites: false });
+    expect(r).toEqual({ factureId: 'n', lectureReussie: false, lignesEcrites: false, dejaConnue: false });
   });
   test('sélection : la vérification d\'un fichier plus ancien est ignorée', () => {
     const s = suivreSelection();

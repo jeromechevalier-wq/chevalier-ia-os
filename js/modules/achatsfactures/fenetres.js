@@ -2,6 +2,7 @@
 // Règle commune : une fenêtre qui écrit reste OUVERTE si le serveur refuse (le message du serveur est dit dans la fenêtre, la saisie est gardée) ; elle ne se ferme que si l'écriture a réussi.
 // Aucune écriture n'est faite ici : chaque fenêtre reçoit une fonction `executer` fournie par la page (qui passe par la couche des actions métier).
 import { h, dialogue, champIntelligent } from '../../os/ui.js';
+import { naviguer, lien as lienRoute } from '../../os/router.js';
 import { preparerMessage, tailleLisible, typeLisible, lirePiecesJointes, champOuTiret } from './courriel.js';
 import { dateHeureFr } from './logique.js';
 import { EXPLICATIONS, BIENTOT, ACTIFS, AVERTISSEMENT_LONG, INFO_COMPTE } from './explications.js';
@@ -16,23 +17,25 @@ const messageDe = (e) => (e instanceof Error && e.message ? e.message : MESSAGE_
  * Fenêtre dont le bouton principal écrit. `executer()` renvoie une promesse : si elle lève, la fenêtre RESTE ouverte avec le message ; sinon elle se ferme et la promesse de `fenetreAction` rend { ok: true, resultat }.
  * Fermer sans valider rend null. `pret()` (facultatif) dit si le bouton peut être cliqué ; `majBouton()` est à rappeler quand ce que `pret` lit change.
  */
-export function fenetreAction({ titre, classe = 'dialogue-formulaire', contenu, libelle, style = 'principal', executer, pret = null, apres = null }) {
+export function fenetreAction({ titre, classe = 'dialogue-formulaire', contenu, libelle, style = 'principal', executer, pret = null, apres = null, messageErreur = null }) {
   const erreur = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { erreur: 'fenetre' } });
   let bouton = null;
   let resultat = null;
   let occupe = false;
+  let fermerFenetre = () => {};
   const majBouton = () => { if (bouton) bouton.disabled = occupe || (pret ? !pret() : false); };
-  const dire = (m) => { erreur.textContent = m ?? ''; erreur.hidden = !m; };
+  // `m` : un texte, ou des éléments (message avec un lien) fabriqués par `messageErreur(e, fermer)`.
+  const dire = (m) => { erreur.replaceChildren(...(m == null || m === '' ? [] : [m].flat())); erreur.hidden = !m; };
   const p = dialogue({
     titre, classe, contenu: h('div', { class: 'pile' }, contenu(majBouton, dire), erreur),
     peutFermer: () => !occupe,
     boutons: [{ libelle: 'Annuler', valeur: null }, { libelle, valeur: 'ok', style, avantFermeture: async () => {
       if (occupe) return false;
       occupe = true; dire(null); majBouton();
-      try { resultat = await executer(); } catch (e) { occupe = false; dire(messageDe(e)); majBouton(); return false; }
+      try { resultat = await executer(); } catch (e) { occupe = false; dire(messageErreur?.(e, () => fermerFenetre()) ?? messageDe(e)); majBouton(); return false; }
       return true;
     } }],
-    auMontage: ({ boutons }) => { bouton = boutons[1]; majBouton(); apres?.({ majBouton, dire }); },
+    auMontage: ({ boutons, fermer }) => { bouton = boutons[1]; fermerFenetre = () => fermer(null); majBouton(); apres?.({ majBouton, dire }); },
   });
   return p.then((v) => (v === 'ok' ? { ok: true, resultat } : null));
 }
@@ -132,8 +135,25 @@ export function fenetreLiaison({ fournir, executer, phraseFerme }) {
 }
 
 // ------------------------------------------------------------------ « + Facture »
-/** Ajouter une facture reçue par courrier : un PDF de 10 Mo au plus. Le contrôle du fichier se fait avant l'envoi ; `actions` est la couche des actions métier (ajouterFacture) ; le résultat est { factureId, lectureReussie, lignesEcrites }. */
-export function fenetreAjout({ actions }) {
+/**
+ * Message d'une facture déjà ajoutée : « Cette facture a déjà été ajoutée le … » puis un lien « Ouvrir la facture existante » (si son identifiant est connu),
+ * qui ferme la fenêtre et ouvre la page Examiner de cette fiche. Toute autre erreur : null (message texte habituel).
+ */
+export function messageAjoutDoublon(e, fermer) {
+  if (!e || e.code !== 'doublon') return null;
+  const texte = h('span', { dataset: { role: 'doublon-message' } }, e.message);
+  if (!e.factureId) return texte;
+  const route = `achatsfactures/examiner/${encodeURIComponent(e.factureId)}`;
+  const lien = h('a', { href: lienRoute(route), dataset: { role: 'facture-existante', facture: e.factureId },
+    onclick: (ev) => { ev.preventDefault(); fermer(); naviguer(route); } }, 'Ouvrir la facture existante');
+  return [texte, ' ', lien];
+}
+
+/**
+ * Ajouter une facture reçue par courrier : un PDF de 10 Mo au plus. Le contrôle du fichier se fait avant l'envoi ; `actions` est la couche des actions métier (ajouterFacture) ;
+ * `lireFiche(id)` (facultatif) relit la fiche rendue pour reconnaître une facture déjà ajoutée ; le résultat est { factureId, lectureReussie, lignesEcrites }.
+ */
+export function fenetreAjout({ actions, lireFiche = null }) {
   let fichier = null;
   const probleme = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { erreur: 'fichier' } });
   const nom = h('p', { class: 'aide', dataset: { role: 'fichier-choisi' } }, 'Aucun fichier choisi.');
@@ -155,6 +175,7 @@ export function fenetreAjout({ actions }) {
     titre: 'Ajouter une facture', libelle: 'Envoyer',
     contenu: (majBouton) => { majBoutonRef = majBouton; return [h('p', {}, `Choisis le PDF de la facture (${tailleLisibleMo(TAILLE_MAX_OCTETS)} au plus). Elle arrivera dans « À valider » après lecture.`), entree, nom, probleme]; },
     pret: () => !!fichier,
-    executer: () => envoyerFacture(fichier, { actions }),
+    executer: () => envoyerFacture(fichier, { actions, lireFiche }),
+    messageErreur: messageAjoutDoublon,
   });
 }

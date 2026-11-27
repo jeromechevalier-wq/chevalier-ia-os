@@ -141,7 +141,7 @@ export const ajouter_facture_achat = {
     return {
       lien, valableMinutes: DUREE_DEPOT_MS / 60_000, tailleMaxMo: TAILLE_DEPOT_MAX_OCTETS / 1024 / 1024, usageUnique: true,
       commandeAvecTerminal: `curl -sS -X PUT -H "Content-Type: application/pdf" --data-binary @"CHEMIN_DU_PDF" "${lien}?nom=${encodeURIComponent(nom)}"`,
-      etapeSuivante: 'Avec un terminal : remplace CHEMIN_DU_PDF par le chemin réel du PDF et lance la commande ; la réponse est {"ok":true,…} ou une erreur à lire à la personne. Sans terminal : donne l\'adresse (lien) à la personne, qui l\'ouvre et choisit le PDF. Puis vérifie avec lister_factures_achat (statut a_valider). Le lien est un secret qui ne sert qu\'une fois.',
+      etapeSuivante: 'Avec un terminal : remplace CHEMIN_DU_PDF par le chemin réel du PDF et lance la commande ; la réponse est {"ok":true,…} ou une erreur à lire à la personne. Sans terminal : donne l\'adresse (lien) à la personne, qui l\'ouvre et choisit le PDF. Puis vérifie avec lister_factures_achat (statut a_valider). Si la réponse est un refus 409 « doublon », la facture existe déjà (même fichier, ou même fournisseur et même numéro sur une facture déjà acceptée, refusée ou archivée) : rien n\'a été créé, ouvre la fiche indiquée (factureId) avec lire_facture_achat. Si la réponse dit « Facture déjà connue » (dejaConnue), le nouveau document a mis à jour la lecture d\'une facture encore à valider. Le lien est un secret qui ne sert qu\'une fois.',
     };
   },
 };
