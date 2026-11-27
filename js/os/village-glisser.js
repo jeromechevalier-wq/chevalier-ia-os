@@ -7,8 +7,31 @@
 //  - Téléphone : un toucher passe tout de suite à surOuvrir (l'écran montre la bulle puis entre, comme avant) ; un appui long (600 ms sans bouger) : les réglages.
 //  - Un lien externe (<a> SVG, étape 3b) : son clic natif est toujours empêché ; l'écran l'ouvre lui-même (window.open, nouvel onglet).
 //  - Entrée ou Espace : gérés par l'écran (ouverture immédiate). Pas de déplacement au clavier (décision du 27/11/2026).
+//  - Petites maisons (étape 3c) : elles ne se glissent pas (un mouvement annule l'appui long, rien ne bouge) ; elles suivent leur grande pendant son glisser
+//    (tout ce qui porte `data-parent="<id de la grande>"` bouge avec elle). Clic, double clic et appui long passent à l'écran, qui décide.
 import { iso } from './village-batiments.js';
 import { ecranVersGrille, blocSousPoint, centreBloc, blocLibre, occupation, losangeBloc } from './village-damier.js';
+
+const SELECTEUR_MAISON = '.village-batiment[data-maison], .village-lien-etiquette[data-maison]';
+/**
+ * Le groupe d'une maison sous le pointeur de l'événement `e` (3c, relecture Fable B1). Les lueurs (.village-halo, invisibles mais cliquables) débordent sur
+ * les voisines : sous une lueur, on prend le premier CORPS de bâtiment sous le pointeur (le plus haut dessiné) ; sans corps dessous, la lueur elle-même.
+ * Rend { groupe, lueur } (lueur = vrai si rien d'autre que la lueur n'est sous le pointeur) ou null.
+ */
+export function groupeSous(e) {
+  const t = e?.target;
+  const g = t?.closest?.(SELECTEUR_MAISON);
+  if (!g) return null;
+  if (!t.closest('.village-halo')) return { groupe: g, lueur: false };
+  if (Number.isFinite(e.clientX) && Number.isFinite(e.clientY) && typeof document.elementsFromPoint === 'function') {
+    for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
+      if (el.closest?.('.village-halo')) continue;
+      const h = el.closest?.(SELECTEUR_MAISON);
+      if (h) return { groupe: h, lueur: false };
+    }
+  }
+  return { groupe: g, lueur: true };
+}
 
 const NS = 'http://www.w3.org/2000/svg';
 export const DELAI_CLIC = 280;
@@ -23,18 +46,18 @@ const r1 = (v) => Math.round(v * 10) / 10;
  * Branche les gestes sur le dessin `svg` (déjà dans la page). `maisons` : les maisons dessinées ; chaque groupe d'une maison porte `data-maison="<id>"`.
  * Rend une fonction qui débranche tout (timers compris).
  */
-export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, surReglages, surDepose, surDebut, surFin }) {
-  const parId = new Map(maisons.map((m) => [m.id, m]));
+export function brancherGestes(svg, { maisons, petites = [], damier, telephone, surOuvrir, surReglages, surDepose, surDebut, surFin }) {
+  const parId = new Map([...maisons, ...petites].map((m) => [m.id, m]));
   let geste = null; // { maison, id, pointeur, type, x0, y0, p0, glisse, bloc, minuteurLong }
   let avaler = false;
   let minuteurAvaler = null;
   let minuteurClic = null;
 
-  const maisonSous = (cible) => {
-    const g = cible?.closest?.('.village-batiment[data-maison], .village-lien-etiquette[data-maison]');
-    return g ? parId.get(g.getAttribute('data-maison')) : null;
+  const maisonSous = (e) => {
+    const r = groupeSous(e);
+    return r ? parId.get(r.groupe.getAttribute('data-maison')) : null;
   };
-  const groupes = (id) => [...svg.querySelectorAll(`[data-maison="${CSS.escape(id)}"]`)];
+  const groupes = (id) => [...svg.querySelectorAll(`[data-maison="${CSS.escape(id)}"], [data-parent="${CSS.escape(id)}"]`)];
   const versDessin = (e) => {
     const m = svg.getScreenCTM();
     if (!m) return null;
@@ -46,6 +69,23 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
     clearTimeout(minuteurAvaler);
     minuteurAvaler = setTimeout(() => { avaler = false; }, 600);
   };
+
+  // Après un appui long, la fenêtre s'ouvre SOUS le doigt : le clic que le navigateur envoie au lever du doigt ne doit pas toucher un de ses boutons
+  // (3c : une maison au milieu de l'écran, « Retirer du village » juste dessous). Seul ce clic-là (même endroit, dans la seconde) est avalé.
+  let avaleurDoigt = null;
+  const oublierAvaleur = () => { if (avaleurDoigt) { document.removeEventListener('click', avaleurDoigt, true); avaleurDoigt = null; } };
+  function avalerClicSousLeDoigt(x, y) {
+    oublierAvaleur();
+    const fin = Date.now() + 1000;
+    avaleurDoigt = (e) => {
+      const ici = Math.hypot(e.clientX - x, e.clientY - y) <= 12;
+      if (Date.now() > fin || !ici) { if (Date.now() > fin) oublierAvaleur(); return; }
+      oublierAvaleur();
+      e.stopPropagation();
+      e.preventDefault();
+    };
+    document.addEventListener('click', avaleurDoigt, true);
+  }
 
   // Le bloc visé, coloré sur le sol (au-dessus du terrain, sous les maisons).
   const repere = document.createElementNS(NS, 'polygon');
@@ -86,19 +126,22 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
 
   function surAppui(e) {
     if (e.button !== 0 || geste) return;
-    const maison = maisonSous(e.target);
+    const sous = groupeSous(e);
+    const maison = sous ? parId.get(sous.groupe.getAttribute('data-maison')) : null;
     if (!maison) return;
     // Au doigt, la lueur (halo) qui déborde sur l'herbe voisine ne prend pas la maison : le doigt y fait glisser le village (le toucher, lui, ouvre toujours).
-    if (e.pointerType === 'touch' && e.target.closest?.('.village-halo')) return;
+    if (e.pointerType === 'touch' && sous.lueur) return;
     const p0 = versDessin(e);
     if (!p0) return;
-    geste = { maison, id: maison.id, pointeur: e.pointerId, type: e.pointerType || 'mouse', x0: e.clientX, y0: e.clientY, p0, glisse: false, bloc: null, minuteurLong: null };
+    geste = { maison, id: maison.id, pointeur: e.pointerId, type: e.pointerType || 'mouse', x0: e.clientX, y0: e.clientY, p0, glisse: false, bloc: null, minuteurLong: null, fixe: maison.sorte === 'petite' };
     if (geste.type === 'touch') {
       geste.minuteurLong = setTimeout(() => {
         if (!geste || geste.glisse) return;
         const m = geste.maison;
+        const { x0, y0 } = geste;
         geste = null;
         avalerProchainClic();
+        avalerClicSousLeDoigt(x0, y0);
         surReglages(m);
       }, DELAI_APPUI_LONG);
     }
@@ -110,6 +153,7 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
       const seuil = SEUIL[geste.type] ?? 6;
       if (Math.hypot(e.clientX - geste.x0, e.clientY - geste.y0) <= seuil) return;
       arreterAppuiLong();
+      if (geste.fixe) { avalerProchainClic(); geste = null; return; } // une petite maison ne se glisse pas : le geste s'arrête, rien ne bouge
       geste.glisse = true;
       try { svg.setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ }
       surDebut?.();
@@ -136,7 +180,7 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
 
   // Clic en phase de capture : avalé après un glisser ; sinon, sur une maison, l'écran ne voit plus le clic directement (délai et double clic ici).
   function surClic(e) {
-    const maison = maisonSous(e.target);
+    const maison = maisonSous(e);
     if (avaler) { avaler = false; e.stopPropagation(); e.preventDefault(); return; }
     if (!maison) return;
     e.stopPropagation();
@@ -148,7 +192,7 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
     minuteurClic = setTimeout(() => { minuteurClic = null; surOuvrir(maison); }, DELAI_CLIC);
   }
   function surDoubleClic(e) {
-    const maison = maisonSous(e.target);
+    const maison = maisonSous(e);
     if (!maison || telephone) return;
     e.stopPropagation();
     e.preventDefault();
@@ -157,9 +201,9 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
     surReglages(maison);
   }
   // Safari et Firefox démarrent un glisser natif sur le <a> SVG d'un lien externe : il couperait notre glisser.
-  const surGlisserNatif = (e) => { if (maisonSous(e.target)) e.preventDefault(); };
+  const surGlisserNatif = (e) => { if (maisonSous(e)) e.preventDefault(); };
   // Appui long au doigt : pas de menu du navigateur sur une maison.
-  const surMenu = (e) => { if (maisonSous(e.target)) e.preventDefault(); };
+  const surMenu = (e) => { if (maisonSous(e)) e.preventDefault(); };
   // Chrome ignore `touch-action` sur les éléments à l'intérieur d'un SVG : sans cela, le cadre qui défile part en glisser et annule le geste
   // (pointercancel). Pendant un geste sur une maison, le défilement natif est bloqué ; toucher l'herbe fait toujours glisser le village.
   const surToucheBouge = (e) => { if (geste && e.cancelable) e.preventDefault(); };
@@ -174,11 +218,12 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
   svg.addEventListener('dragstart', surGlisserNatif);
   svg.addEventListener('touchmove', surToucheBouge, { passive: false });
   document.addEventListener('keydown', surTouche);
-  return () => {
+  const debrancherTout = () => {
     // Un redessin pendant un glisser : la maison revient et l'écran sort du rangement (data-rangement ne reste jamais à « oui »).
     if (geste) { const glissait = geste.glisse; remettre(); arreterAppuiLong(); geste = null; if (glissait) surFin?.(); }
     clearTimeout(minuteurClic);
     clearTimeout(minuteurAvaler);
+    oublierAvaleur();
     svg.removeEventListener('pointerdown', surAppui);
     svg.removeEventListener('pointermove', surMouvement);
     svg.removeEventListener('pointerup', surRelache);
@@ -190,4 +235,7 @@ export function brancherGestes(svg, { maisons, damier, telephone, surOuvrir, sur
     svg.removeEventListener('touchmove', surToucheBouge);
     document.removeEventListener('keydown', surTouche);
   };
+  /** Vrai si un geste est en cours ou si un clic attend son délai (double clic) : l'écran attend avant de redessiner (3c, Fable C1). */
+  debrancherTout.occupe = () => Boolean(geste || minuteurClic);
+  return debrancherTout;
 }

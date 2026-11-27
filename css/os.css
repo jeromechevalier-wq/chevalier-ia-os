@@ -865,3 +865,20 @@ body.page-espace { background: #241b2e; color: #fff; }
   .village-ilot { width: 110px; bottom: var(--esp-4); left: var(--esp-4); }
   .village-ilot[data-batiment-fixe="console"] { left: auto; right: var(--esp-4); }
 }
+/* Petites maisons « vue filtrée » (étape 3c, 27/11/2026, js/os/village-petites.js) : une case, sans étiquette ; elles ne se glissent pas (curseur de lien, jamais de main
+   de rangement) ; dans la vue Liste, en retrait sous leur grande ; fenêtre de choix : une ligne-bouton par élément, zone tactile de 44 px. */
+.village-petite, .page-village[data-rangement="oui"] .village-petite { cursor: pointer; }
+.village-petite .village-halo { pointer-events: none; } /* sa lueur ne prend jamais le pointeur à une voisine (relecture Fable B1) */
+.village-liste-petite { margin-left: var(--esp-9); }
+.village-liste-petite .village-liste-lien { min-height: 44px; }
+.village-liste-petite .village-liste-vignette { width: 32px; height: 32px; }
+.reglages-petite-village { display: flex; flex-direction: column; gap: var(--esp-4); }
+.reglages-petite-village .aide { margin: 0; }
+.village-choix-petite { display: flex; flex-direction: column; align-items: flex-start; gap: var(--esp-4); }
+.village-choix-liste { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: var(--esp-3); }
+.village-choix-ligne { display: flex; align-items: center; gap: var(--esp-4); width: 100%; min-height: 44px; padding: var(--esp-3) var(--esp-6); background: var(--panneau); color: var(--texte); border: 1px solid var(--bordure); border-radius: 10px; text-align: left; font: inherit; cursor: pointer; }
+.village-choix-ligne:hover:not(:disabled) { border-color: var(--accent); }
+.village-choix-ligne:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.village-choix-ligne:disabled { cursor: default; opacity: .6; }
+.village-choix-ligne .village-liste-textes small { color: var(--texte2); font-size: var(--fs-menu); }
+.village-choix-deja { flex: 0 0 auto; color: var(--texte2); font-size: var(--fs-petit); }

@@ -346,6 +346,7 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
     }
     await semer({ besoins: QUATRE });
     await ouvrir(page);
+    await expect(batiments(page)).toHaveCount(4); // 3c : le rangement est lu (les maisons sont posées) avant de mesurer le défilement
     const defile = page.locator('.village-defile');
     expect(await defile.evaluate((d) => d.scrollWidth > d.clientWidth)).toBe(true);
     const avant = await defile.evaluate((d) => d.scrollLeft);
@@ -385,6 +386,7 @@ test.describe('accueil village : damier rangé par chaque utilisateur', () => {
       return null;
     });
     expect(halo).not.toBeNull();
+    await defile.evaluate((d) => { d.scrollLeft = (d.scrollWidth - d.clientWidth) / 2; }); // 3c : le village n'est plus recentré après un glisser (le rangement lu ne le ramène plus au milieu) ; on le recentre pour pouvoir glisser encore vers la droite
     const avantHalo = await defile.evaluate((d) => d.scrollLeft);
     await glisserAuDoigt(page, halo, { x: halo.x + 120, y: halo.y });
     await expect.poll(() => defile.evaluate((d) => d.scrollLeft)).not.toBe(avantHalo);

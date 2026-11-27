@@ -4,7 +4,7 @@
 // LECTURES : seulement par le client de la base ; ÉCRITURES (créer, modifier, archiver) : seulement par les actions métier (n8n garde les règles) ; la liste est relue après chaque écriture.
 // Les trois cas de chaque écran : chargement, cas vide (aucun chantier), cas d'erreur (lecture impossible, accès à renouveler, connexion non réglée), tous avec leur bouton.
 import { h, icone, remplir, dialogue, confirmer, toast, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
-import { lien } from '../../os/router.js';
+import { lien, naviguer } from '../../os/router.js';
 import { clientBase, actionsBase, verifierAcces } from '../../os/acces-base.js';
 import { CODES_A_RECHARGER } from '../../os/actions-metier.js';
 import { enteteListe, barreListe, basculeVues } from '../crm/barre-liste.js';
@@ -18,7 +18,7 @@ import {
   CRITERES_CHANTIERS_VIDES, CRITERES_TRI_CHANTIERS, STATUTS_CHANTIER, LIBELLE_ACTION_CHANTIER, COULEUR_STATUT_CHANTIER,
   actionArchivageChantier, actionsChantier, annulerArchivage, archiverPuisRelire, chantiersDeVue, criteresChantiersActifs, dateFr, dateJourFichier, euros, filtrerChantiers,
   libelleChantier, libelleStatutChantier, lireTriChantiers, lireVueChantiers, nombreFiltresChantiers, pastillesChantiers, regrouperParStatut, retirerCritereChantier,
-  textePourcentage, texteCompteurChantiers, texteTeteColonne, textesArchivage, totalBudget, trierChantiers, DUREE_ANNULATION, DUREE_MESSAGE, MESSAGE_REMIS,
+  textePourcentage, texteCompteurChantiers, texteTeteColonne, textesArchivage, totalBudget, trierChantiers, chantierSeul, DUREE_ANNULATION, DUREE_MESSAGE, MESSAGE_REMIS,
 } from './logique.js';
 
 export const TITRE = 'Chantiers';
@@ -60,8 +60,12 @@ async function fenetreFiltres(criteres) {
   return null;
 }
 
-/** Monte l'écran dans `conteneur`. Renvoie la fonction d'arrêt (la réponse tardive d'un écran quitté est ignorée). */
-export function rendreEcran(conteneur) {
+/**
+ * Monte l'écran dans `conteneur`. Renvoie la fonction d'arrêt (la réponse tardive d'un écran quitté est ignorée).
+ * `seul` : identifiant d'un chantier (adresse « achatschantiers/liste/<id> », ouverte par une petite maison du village de l'accueil) : l'écran ne montre que lui,
+ * archivé ou non, quelle que soit la vue, avec une pastille « Chantier : … » dont la croix ramène à la liste complète. Absent de la liste : un état vide calme.
+ */
+export function rendreEcran(conteneur, { seul = null } = {}) {
   let vivant = true;
   let etatAcces = 'chargement'; // chargement | connecte | non-regle | reconnexion | illisible
   let chantiers = [];
@@ -187,7 +191,10 @@ export function rendreEcran(conteneur) {
   let dernier = { archives: false, affiches: [] };
   function rendre() {
     if (!vivant) return;
-    remplir(bascule, basculeVues({ vues: [['kanban', 'Kanban', 'square-kanban'], ['liste', 'Liste', 'list'], ['archives', 'Archives', 'archive']], courante: vue, surChangement: changerVue }));
+    // un seul chantier (adresse « liste/<id> ») : pas de bouton « Archives » (il montrerait d'autres chantiers) ; archivé, il est montré en tableau, donc « Liste » est cochée
+    const seulArchive = seul !== null && chantierSeul(chantiers, seul).some((c) => c.archive === true);
+    const vuesPossibles = [['kanban', 'Kanban', 'square-kanban'], ['liste', 'Liste', 'list'], ...(seul !== null ? [] : [['archives', 'Archives', 'archive']])];
+    remplir(bascule, basculeVues({ vues: vuesPossibles, courante: seulArchive && vue === 'kanban' ? 'liste' : vue, surChangement: changerVue }));
     const pret = etatAcces === 'connecte' && lecture === 'ok';
     boutonNouveau.disabled = !pret;
     barre.element.hidden = !(pret && chantiers.length > 0);
@@ -199,18 +206,27 @@ export function rendreEcran(conteneur) {
     if (lecture === 'erreur') { remplir(zone, etatErreur(MESSAGE_LECTURE, () => charger(false))); boutonExport.disabled = true; return; }
     if (chantiers.length === 0) { remplir(zone, etatVide(MESSAGE_VIDE)); boutonExport.disabled = true; return; }
     const archives = vue === 'archives';
-    const dansLaVue = chantiersDeVue(chantiers, vue);
+    const unSeul = seul !== null ? chantierSeul(chantiers, seul) : null;
+    const dansLaVue = unSeul ?? chantiersDeVue(chantiers, vue);
     const affiches = trierChantiers(filtrerChantiers(dansLaVue, criteres), tri);
     dernier = { archives, affiches };
     filtres.majCompte(nombreFiltresChantiers(criteres));
     choixTri.maj(tri.critere, tri.sens);
     remplir(zonePastilles,
+      unSeul?.length ? h('span', { class: 'pastille-filtre', dataset: { role: 'pastille-chantier-seul' } }, `Chantier : ${libelleChantier(unSeul[0])}`,
+        h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': 'Voir tous les chantiers', onclick: () => naviguer(ROUTE) }, icone('x', { taille: 12 }))) : null,
       pastillesChantiers(criteres).map((p) => h('span', { class: 'pastille-filtre' }, p.libelle,
         h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer le filtre : ${p.libelle}`, onclick: () => { criteres = retirerCritereChantier(criteres, p); rendre(); } }, icone('x', { taille: 12 })))),
       nombreFiltresChantiers(criteres) > 1 || (nombreFiltresChantiers(criteres) && criteres.recherche) ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', onclick: () => { criteres = { ...CRITERES_CHANTIERS_VIDES }; majChampRecherche(); rendre(); } }, 'Tout effacer') : null);
     remplir(compteur, texteCompteurChantiers(dansLaVue.length, affiches.length, archives));
     boutonExport.disabled = affiches.length === 0;
     boutonExport.title = affiches.length === 0 ? TEXTE_RIEN_A_EXPORTER : 'Télécharger ce qui est affiché (fichier pour tableur)';
+    if (unSeul && unSeul.length === 0) { // le chantier de l'adresse n'est plus dans la liste (supprimé dans la base) : un état vide calme, pas une erreur
+      remplir(zone, h('div', { class: 'etat-vide carte-section', role: 'status', dataset: { etat: 'vide', role: 'chantier-absent' } },
+        h('p', {}, 'Ce chantier n’est plus dans la liste.'),
+        h('a', { class: 'bouton bouton-secondaire', href: lien(ROUTE), dataset: { action: 'voir-tous-chantiers' } }, 'Voir tous les chantiers')));
+      return;
+    }
     if (affiches.length === 0) {
       const filtre = criteresChantiersActifs(criteres);
       remplir(zone, h('div', { class: 'etat-vide carte-section', role: 'status', dataset: { etat: 'vide' } },
@@ -218,7 +234,8 @@ export function rendreEcran(conteneur) {
         filtre ? h('button', { type: 'button', class: 'bouton bouton-secondaire', onclick: () => { criteres = { ...CRITERES_CHANTIERS_VIDES }; majChampRecherche(); rendre(); } }, 'Tout effacer') : null));
       return;
     }
-    remplir(zone, vue === 'kanban' ? rendreKanban(affiches) : rendreTableau(affiches));
+    // un seul chantier archivé : le Kanban ne montre jamais les archivés, il est donc montré en tableau
+    remplir(zone, vue === 'kanban' && !unSeul?.some((c) => c.archive === true) ? rendreKanban(affiches) : rendreTableau(affiches));
   }
   const majChampRecherche = () => { if (barre.champ.value !== criteres.recherche) barre.champ.value = criteres.recherche; };
 
@@ -253,6 +270,7 @@ export function rendreEcran(conteneur) {
     });
     if (!ok || !vivant) return;
     toast(message, { duree: DUREE_MESSAGE });
+    if (!c && seul !== null) { naviguer(ROUTE); return; } // créé depuis la vue d'un seul chantier : la liste complète, pour le voir
     await charger(true);
     if (c) refocaliser(c.id, 'menu-chantier');
   }

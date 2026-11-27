@@ -23,6 +23,8 @@ async function ouvrirApres(page, avant = async () => {}, email = CHARLES) {
   await avant(uid);
   await page.evaluate(() => { location.hash = '#/accueil'; });
   await expect(page.locator('[data-role="village"]')).toBeVisible();
+  // 3c (relecture Fable) : le rangement lu (la roue n'a « Ajouter un lien externe » qu'après), petites maisons comprises
+  await expect(page.locator('[data-role="page-village"]')).toHaveAttribute('data-petites-lues', 'oui');
   return uid;
 }
 const semerLien = (uid, id, champs = {}) => ecrireDocument(`village_utilisateurs/${uid}/batiments/${id}`, { ...LIEN, ...champs });

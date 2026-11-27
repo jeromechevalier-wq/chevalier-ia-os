@@ -9,6 +9,8 @@
 // son nom (pour soi seul) et « Cacher cette maison ». Les écritures passent par l'écran (js/os/village-ecran.js), qui seul parle à js/os/village-donnees.js.
 // Étape 3b (27/11/2026, liens externes) : la roue gagne « Ajouter un lien externe » (6 au plus) et la fenêtre d'un lien (nom, adresse, image prise SEULEMENT
 // dans le catalogue des dessins, aucun envoi de fichier ; « Retirer du village »). L'adresse passe par adresseExterne (js/os/village-damier.js).
+// Étape 3c (27/11/2026, petites maisons « vue filtrée ») : la fenêtre d'une grande maison d'un module qui sait filtrer gagne « Ajouter une petite maison »
+// (fenêtre de choix : un élément de la liste lue, grisé s'il est déjà dans le village) ; une petite maison manuelle a sa fenêtre (nom, « Retirer du village »).
 import { h, icone, dialogue, confirmer, toast, lirePreference, ecrirePreference } from './ui.js';
 import { BATIMENTS, CATALOGUE, BATIMENT_PAR_DEFAUT } from './village-batiments.js';
 import { adresseExterne, nomCourt, LIENS_MAX } from './village-damier.js';
@@ -117,7 +119,7 @@ export function boutonReglagesAccueil({ surChangement, maisons } = {}) {
  * (effet immédiat, puis « Maison cachée » avec « Annuler » pendant 8 secondes), « Enregistrer ». `surRenommer(nom)`, `surCacher()`, `surMontrer()` : Promise<bool>.
  * Échec d'écriture : la fenêtre reste ouverte avec « L’enregistrement a échoué. Réessaie. ».
  */
-export function fenetreMaison(maison, { surRenommer, surCacher, surMontrer }) {
+export function fenetreMaison(maison, { surRenommer, surCacher, surMontrer, surAjouterPetite = null }) {
   const champ = h('input', { type: 'text', class: 'champ', value: maison.nom, maxlength: 40, dataset: { role: 'nom-maison' }, 'aria-describedby': 'aide-nom-maison' });
   const erreur = h('p', { class: 'village-erreur', role: 'alert', dataset: { role: 'erreur-maison' }, hidden: true }, ECHEC);
   let fermerFenetre = null;
@@ -135,10 +137,25 @@ export function fenetreMaison(maison, { surRenommer, surCacher, surMontrer }) {
       });
     },
   }, icone('eye'), 'Cacher cette maison');
+  // étape 3c : seulement pour une grande maison d'un module qui sait montrer un seul élément, et quand le rangement est possible
+  const ajouter = surAjouterPetite ? h('button', {
+    type: 'button', class: 'bouton bouton-secondaire', dataset: { role: 'ajouter-petite' },
+    onclick: async () => {
+      // un nom en cours de saisie est d'abord enregistré (sinon il serait perdu en fermant la fenêtre) ; refusé : la fenêtre reste, avec son message
+      if (champ.value !== maison.nom) {
+        ajouter.disabled = true;
+        const ok = await surRenommer(champ.value);
+        ajouter.disabled = false;
+        if (!ok) { erreur.hidden = false; return; }
+      }
+      fermerFenetre?.(null, true);
+      surAjouterPetite();
+    },
+  }, icone('plus'), 'Ajouter une petite maison') : null;
   const contenu = h('div', { class: 'reglages-maison-village' },
     h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Nom'), champ),
     h('p', { class: 'aide', id: 'aide-nom-maison' }, 'Ce nom n’est que pour toi. Vide : le nom d’origine revient.'),
-    h('div', { class: 'village-maison-actions' }, cacher),
+    h('div', { class: 'village-maison-actions' }, cacher, ajouter),
     erreur);
   return dialogue({
     titre: 'Réglages de la maison',
@@ -235,6 +252,118 @@ export function fenetreLien(maison, { dessin, surEnregistrer, surRetirer, surRem
           const batiment = images.querySelector('input:checked')?.value || BATIMENT_PAR_DEFAUT;
           const r = await surEnregistrer({ nom: propre, url: controle.url, batiment });
           // vrai : enregistré ; une phrase : refus expliqué (6 liens au plus, village plein) ; sinon l'échec habituel
+          erreur.textContent = typeof r === 'string' ? r : ECHEC;
+          erreur.hidden = r === true;
+          return r === true;
+        },
+      },
+    ],
+  });
+}
+
+/**
+ * Fenêtre « Ajouter une petite maison » (étape 3c). `lire()` → Promise<{ etat: 'ok', liste } | { etat: 'erreur' }> (les éléments du module) ; `deja(cible)` : vrai si
+ * cet élément a déjà sa petite maison manuelle sous cette grande ; `surChoisir(element)` → Promise<true | phrase de refus | false>. `un` : « chantier » ou « projet ».
+ * Pendant la lecture : « Lecture en cours… » ; panne : une phrase et « Réessayer » ; liste vide : « Aucun … à montrer. ». Un élément archivé n'est pas proposé.
+ * Échec d'écriture ou refus : la phrase sous la liste, la fenêtre reste ouverte.
+ */
+export function fenetreChoixPetite({ titre = 'Ajouter une petite maison', un = 'chantier', pluriel = 'chantiers', lire, deja, surChoisir }) {
+  const article = un === 'projet' ? 'le projet' : 'le chantier';
+  const zone = h('div', { class: 'village-choix-petite', dataset: { role: 'choix-petite' }, 'aria-live': 'polite' });
+  const erreur = h('p', { class: 'village-erreur', role: 'alert', dataset: { role: 'erreur-petite' }, hidden: true }, ECHEC);
+  let fermerFenetre = null;
+  let occupe = false;
+  async function charger() {
+    erreur.hidden = true;
+    zone.replaceChildren(h('p', { class: 'aide', dataset: { role: 'petite-lecture' } }, 'Lecture en cours…'));
+    const r = await lire();
+    if (r?.etat !== 'ok') {
+      const reessayer = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { role: 'reessayer-petite' }, onclick: () => { charger(); } }, 'Réessayer');
+      zone.replaceChildren(h('p', { class: 'aide', dataset: { role: 'petite-panne' } }, `Les ${pluriel} n’ont pas pu être lus. Réessaie.`), reessayer);
+      return;
+    }
+    const liste = r.liste.filter((e) => !e.archive);
+    if (!liste.length) { zone.replaceChildren(h('p', { class: 'aide', dataset: { role: 'petite-vide' } }, `Aucun ${un} à montrer.`)); return; }
+    zone.replaceChildren(h('ul', { class: 'village-choix-liste' }, liste.map((e) => {
+      const present = deja(e.cible);
+      const bouton = h('button', {
+        type: 'button', class: 'village-choix-ligne', disabled: present, dataset: { role: 'choisir-petite', cible: e.cible },
+        onclick: async () => {
+          if (occupe) return;
+          occupe = true;
+          bouton.disabled = true;
+          erreur.hidden = true;
+          const res = await surChoisir(e);
+          occupe = false;
+          if (res === true) { fermerFenetre?.(true, true); return; }
+          bouton.disabled = false;
+          erreur.textContent = typeof res === 'string' ? res : ECHEC;
+          erreur.hidden = false;
+        },
+      },
+      h('span', { class: 'village-liste-textes' }, h('strong', {}, e.nom), e.sousTitre ? h('small', {}, e.sousTitre) : null),
+      present ? h('small', { class: 'village-choix-deja', dataset: { role: 'deja-village' } }, 'Déjà dans ton village') : null);
+      return h('li', {}, bouton);
+    })));
+  }
+  const contenu = h('div', { class: 'reglages-petite-village' },
+    h('p', { class: 'aide' }, `Choisis ${article} à suivre d’un clic dans ton village.`),
+    zone,
+    erreur);
+  const promesse = dialogue({
+    titre, contenu, classe: 'dialogue-choix-petite',
+    auMontage: ({ fermer }) => { fermerFenetre = fermer; },
+    boutons: [{ libelle: 'Fermer', valeur: false }],
+  });
+  charger();
+  return promesse;
+}
+
+/**
+ * Fenêtre d'une petite maison manuelle (double clic, appui long) : « Nom » (vide = le nom de l'élément), « Retirer du village » (confirmation, puis
+ * « Petite maison retirée » avec « Annuler » pendant 8 secondes, qui recrée le document tel quel), « Enregistrer ».
+ * `surRenommer(nom)`, `surRetirer()`, `surRemettre()` → Promise<true | phrase de refus | false>.
+ */
+export function fenetrePetite(petite, { surRenommer, surRetirer, surRemettre }) {
+  const champ = h('input', { type: 'text', class: 'champ', value: petite.nom, maxlength: 40, dataset: { role: 'nom-petite' }, 'aria-describedby': 'aide-nom-petite' });
+  const erreur = h('p', { class: 'village-erreur', role: 'alert', dataset: { role: 'erreur-petite-maison' }, hidden: true }, ECHEC);
+  let fermerFenetre = null;
+  const retirer = h('button', {
+    type: 'button', class: 'bouton bouton-secondaire', dataset: { role: 'retirer-petite' },
+    onclick: async () => {
+      if (!(await confirmer('Retirer cette petite maison ?', `La petite maison « ${petite.nom} » quitte ton village.`, { libelleOk: 'Retirer', danger: true }))) return;
+      retirer.disabled = true;
+      const ok = await surRetirer();
+      retirer.disabled = false;
+      if (ok !== true) { erreur.hidden = false; return; }
+      fermerFenetre?.(false, true);
+      toast('Petite maison retirée', {
+        duree: 8000,
+        action: {
+          libelle: 'Annuler',
+          surClic: async () => { const r = await surRemettre?.(); if (r !== true) toast(typeof r === 'string' ? r : ECHEC, { type: 'erreur' }); },
+        },
+      });
+    },
+  }, icone('trash-2'), 'Retirer du village');
+  const contenu = h('div', { class: 'reglages-petite-village' },
+    h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Nom'), champ),
+    h('p', { class: 'aide', id: 'aide-nom-petite' }, 'Ce nom n’est que pour toi. Vide : le nom d’origine revient.'),
+    h('div', { class: 'village-maison-actions' }, retirer),
+    erreur);
+  return dialogue({
+    titre: 'Réglages de la petite maison',
+    contenu,
+    auMontage: ({ fermer, boutons }) => {
+      fermerFenetre = fermer;
+      champ.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); boutons.at(-1).click(); } });
+    },
+    boutons: [
+      { libelle: 'Annuler', valeur: null },
+      {
+        libelle: 'Enregistrer', valeur: true, style: 'principal',
+        avantFermeture: async () => {
+          const r = await surRenommer(champ.value);
           erreur.textContent = typeof r === 'string' ? r : ECHEC;
           erreur.hidden = r === true;
           return r === true;
