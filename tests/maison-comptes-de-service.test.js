@@ -57,6 +57,7 @@ const AVANT_OS = Object.freeze({
   tableaudebord: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
   tableaudebordSaisir: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
   veille: "<ResetValue>",
+  villageOr: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com", // ajoutée le 27/11/2026 (or du village), compte déjà existant
 });
 const AVANT_APP = Object.freeze({
   automatisationsCopieHoraire: "<ResetValue>",
@@ -91,6 +92,7 @@ const AVANT_APP = Object.freeze({
   rdvEnvoyer: "<ResetValue>",
   rdvEtat: "<ResetValue>",
   rdvReponseSms: "<ResetValue>",
+  villageOr: "<ResetValue>", // ajoutée le 27/11/2026 (or du village), même réglage que les fonctions de devis
 });
 
 describe('B1 comptes de service du manifeste : identiques à ceux d\'avant le chantier 0', () => {

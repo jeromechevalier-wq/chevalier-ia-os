@@ -550,10 +550,11 @@ describe('Village par utilisateur (27/11/2026)', () => {
     await assertSucceeds(setDoc(chemin(db, J, 'p-a'), PETITE));
   });
 
-  test('2.R6 le document parent et toute autre sous-collection restent fermés, même au propriétaire', async () => {
+  test('2.R6 le document parent reste fermé en écriture (lisible par son propriétaire seul depuis l’or du village, 6.R1) ; toute autre sous-collection reste fermée', async () => {
     const db = contexte(J);
     await assertFails(setDoc(doc(db, 'village_utilisateurs', `uid-${J}`), { x: 1 }));
-    await assertFails(getDoc(doc(db, 'village_utilisateurs', `uid-${J}`)));
+    await assertSucceeds(getDoc(doc(db, 'village_utilisateurs', `uid-${J}`))); // or du village (27/11/2026) : le portefeuille, lu par son propriétaire (jamais écrit par le navigateur)
+    await assertFails(getDoc(doc(contexte(C), 'village_utilisateurs', `uid-${J}`)));
     await assertFails(setDoc(doc(db, 'village_utilisateurs', `uid-${J}`, 'autre', 'x'), { x: 1 }));
     await assertFails(getDoc(doc(db, 'village_utilisateurs', `uid-${J}`, 'autre', 'x')));
     await assertFails(getDocs(collection(db, 'village_utilisateurs')));
@@ -573,5 +574,77 @@ describe('Village par utilisateur (27/11/2026)', () => {
     await assertSucceeds(ecrire(m1, docCacher(deplacee, true)));
     await assertSucceeds(ecrire(m1, docCacher(deplacee, false)));
     assert.equal(m2.id, 'b-achats');
+  });
+});
+
+describe('Or du village (27/11/2026)', () => {
+  const [J, C] = COMPTES;
+  const AUTRE = 'quelquun.dautre@gmail.com';
+  const porte = (db, email) => doc(db, 'village_utilisateurs', `uid-${email}`);
+  const objet = (db, email, id) => doc(db, 'village_utilisateurs', `uid-${email}`, 'batiments', id);
+  const CHAMP = { sorte: 'champ', c: 4, l: 4, depuis: new Date('2026-11-26T10:00:00Z'), acheteLe: new Date('2026-11-26T10:00:00Z') };
+  const semer = (chemin, donnees) => env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), ...chemin), donnees); });
+
+  test('6.R1 le propriétaire lit son portefeuille ; un autre compte autorisé, un compte non autorisé, un non connecté : refusés', async () => {
+    await semer(['village_utilisateurs', `uid-${J}`], { or: 120, gagne: 120, parcelles: 0 });
+    const lu = await assertSucceeds(getDoc(porte(contexte(J), J)));
+    assert.equal(lu.data().or, 120);
+    await assertSucceeds(getDoc(porte(contexte(C), C))); // absent : lecture permise (vaut 0 à l'écran)
+    await assertFails(getDoc(porte(contexte(C), J)));
+    await assertFails(getDoc(porte(contexte(AUTRE), AUTRE)));
+    await assertFails(getDoc(porte(contexte(J, false), J)));
+    await assertFails(getDoc(porte(env.unauthenticatedContext().firestore(), J)));
+  });
+
+  test('6.R2 le propriétaire ne peut ni créer, ni modifier, ni fusionner, ni supprimer son portefeuille', async () => {
+    const db = contexte(J);
+    await assertFails(setDoc(porte(db, J), { or: 999999, gagne: 0, parcelles: 0 }));
+    await semer(['village_utilisateurs', `uid-${J}`], { or: 10, gagne: 10, parcelles: 0 });
+    await assertFails(setDoc(porte(db, J), { or: 999999, gagne: 10, parcelles: 0 }));
+    await assertFails(updateDoc(porte(db, J), { or: 999999 }));
+    await assertFails(setDoc(porte(db, J), { parcelles: 8 }, { merge: true }));
+    await assertFails(deleteDoc(porte(db, J)));
+  });
+
+  test('6.R3 village_gains : ni lecture, ni liste, ni écriture, pour personne', async () => {
+    await semer(['village_gains', 'ds-x'], { uid: `uid-${J}`, source: 'devis-signe', pieces: 50 });
+    for (const db of [contexte(J), contexte(C), contexte(AUTRE), env.unauthenticatedContext().firestore()]) {
+      await assertFails(getDoc(doc(db, 'village_gains', 'ds-x')));
+      await assertFails(getDocs(collection(db, 'village_gains')));
+      await assertFails(setDoc(doc(db, 'village_gains', 'ds-y'), { uid: `uid-${J}` }));
+      await assertFails(deleteDoc(doc(db, 'village_gains', 'ds-x')));
+    }
+  });
+
+  test('6.R4 objet acheté : le propriétaire le lit et le déplace (c, l) ; rien d’autre ; ni création ni suppression par le navigateur ; un autre compte : rien', async () => {
+    await semer(['village_utilisateurs', `uid-${J}`, 'batiments', 'o-abc'], CHAMP);
+    const db = contexte(J);
+    await assertSucceeds(getDoc(objet(db, J, 'o-abc')));
+    await assertSucceeds(updateDoc(objet(db, J, 'o-abc'), { c: 6, l: 2 }));
+    await assertSucceeds(updateDoc(objet(db, J, 'o-abc'), { c: 7, modifieLe: serverTimestamp() }));
+    const relu = (await getDoc(objet(db, J, 'o-abc'))).data();
+    await assertSucceeds(setDoc(objet(db, J, 'o-abc'), { ...relu, c: 1, l: 1, modifieLe: serverTimestamp() })); // l'écran écrit le document entier
+    for (const modif of [{ depuis: new Date('2026-11-20T10:00:00Z') }, { acheteLe: new Date() }, { sorte: 'enclos' }, { modele: 'arbre' }, { prix: 0 }, { c: 24 }, { l: deleteField() }, { c: 'deux' }]) {
+      await assertFails(updateDoc(objet(db, J, 'o-abc'), modif));
+    }
+    await assertFails(updateDoc(objet(db, J, 'o-abc'), { c: 2, modifieLe: new Date('2020-01-01T00:00:00Z') }));
+    await assertFails(deleteDoc(objet(db, J, 'o-abc')));
+    for (const [id, d] of [['o-neuf', { sorte: 'decoration', modele: 'arbre', c: 1, l: 1 }], ['o-champ', { sorte: 'champ', c: 2, l: 2 }], ['o-enclos', { sorte: 'enclos', c: 3, l: 3 }], ['b-x', { sorte: 'champ', c: 1, l: 1 }]]) {
+      await assertFails(setDoc(objet(db, J, id), d));
+    }
+    const charles = contexte(C);
+    await assertFails(getDoc(objet(charles, J, 'o-abc')));
+    await assertFails(updateDoc(objet(charles, J, 'o-abc'), { c: 3 }));
+    await assertFails(deleteDoc(objet(charles, J, 'o-abc')));
+  });
+
+  test('6.R5 les maisons de l’étape 3a n’ont pas bougé : une maison se crée, se modifie et se supprime ; elle ne devient jamais un objet acheté', async () => {
+    const db = contexte(J);
+    const BESOIN = { sorte: 'besoin', c: 2, l: 4, cache: false, nom: 'Mes factures' };
+    await assertSucceeds(setDoc(objet(db, J, 'b-achatsfactures-liste'), BESOIN));
+    await assertSucceeds(setDoc(objet(db, J, 'b-achatsfactures-liste'), { ...BESOIN, c: 6 }));
+    await assertFails(setDoc(objet(db, J, 'b-achatsfactures-liste'), { ...BESOIN, sorte: 'champ' }));
+    await assertFails(updateDoc(objet(db, J, 'b-achatsfactures-liste'), { sorte: 'champ' }));
+    await assertSucceeds(deleteDoc(objet(db, J, 'b-achatsfactures-liste')));
   });
 });

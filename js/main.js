@@ -8,6 +8,7 @@ import { lireBesoinsMaison, ROUTE_VILLAGE, routeDuBesoin } from './os/maison-vil
 import { monterVillage } from './os/village-ecran.js';
 import { besoinsServis } from './os/village-damier.js';
 import { creerDonneesVillage } from './os/village-donnees.js';
+import { activerOr, lireOr, surOr } from './os/village-or.js';
 import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, lien, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace } from './os/marque.js';
 import { blocIntrouvablePortail } from './os/portail-introuvable.js';
@@ -98,6 +99,8 @@ let MODULES = MODULES_TOUS;
 let accueilMaison = null;
 // Accueil « village » (26/11/2026, js/os/maison-village.js) : champ facultatif `besoins` de reglages_maison/ecran ; liste vide = accueil d'avant (jamais dans le portail devis).
 let besoinsVillage = [];
+// Or du village (27/11/2026, js/os/village-or.js) : branché seulement quand le village est allumé ; sans lui, une bonne nouvelle annoncée par un module ne fait rien.
+let arretOr = null;
 
 async function ouvrirSession(compte) {
   fermerSession();
@@ -143,6 +146,7 @@ async function ouvrirSession(compte) {
     },
   });
   session = { compte, coquille, apis, vue: null };
+  if (besoinsVillage.length) arretOr = activerOr({ base: '', uid: compte.uid });
   arretRoute = surChangementRoute(afficherRoute);
   afficherRoute(routeCourante());
 }
@@ -169,6 +173,8 @@ function fermerSession() {
   import('./modules/automatisations/ecran.js').then((m) => m.oublierFiltresAutomatisations()).catch(() => {});
   session = null;
   besoinsVillage = [];
+  arretOr?.();
+  arretOr = null;
 }
 
 /** « Page introuvable » (maison : module éteint, ou page technique cachée à un compte non titulaire), avec « Retour à l'accueil » vers `accueil`. */
@@ -234,7 +240,7 @@ function afficherRoute(route) {
   let afficher;
   if (besoinsVillage.length && segs.length === 1 && segs[0] === ROUTE_VILLAGE) { // accueil village : le dessin seul (ni journal, ni carrés)
     cle = 'village';
-    afficher = () => { session.vue.quitter?.(); vider(coquille.contenu); return monterVillage(coquille.contenu, besoinsVillage, { aller: (cible) => naviguer(routeDuBesoin(cible)), console: MODULES.some((m) => m.id === 'console'), donnees: creerDonneesVillage({ base: '', uid: session.compte.uid }) }); };
+    afficher = () => { session.vue.quitter?.(); vider(coquille.contenu); return monterVillage(coquille.contenu, besoinsVillage, { aller: (cible) => naviguer(routeDuBesoin(cible)), console: MODULES.some((m) => m.id === 'console'), donnees: creerDonneesVillage({ base: '', uid: session.compte.uid }), or: { lire: lireOr, suivre: surOr } }); };
   } else if (segs[0] === 'reglages') {
     cle = 'reglages';
     afficher = () => monterReglages(coquille.contenu, segs, {

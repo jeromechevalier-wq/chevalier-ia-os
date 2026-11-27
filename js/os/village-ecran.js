@@ -29,6 +29,8 @@ import { brancherGestes } from './village-glisser.js';
 import { listeMaisons, boutonVue, vueChoisie } from './village-liste.js';
 import { lien } from './router.js';
 import { toast } from './ui.js';
+import { texteOr } from './village-jeu-regles.js';
+import { dessinPiece } from './village-fete.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const TELEPHONE = '(max-width: 767px)';
@@ -277,9 +279,11 @@ function ilot(id, route) {
  * Monte le village dans `conteneur`. `besoins` : 1 à 12 besoins vérifiés et servis ; `aller(cible)` : ouvre une route (« #/… ») ;
  * `console` : vrai si la Console est dans les modules de la session (titulaire seul) : l'îlot Console est alors posé en bas à droite ;
  * `donnees` : la couche de données du rangement (js/os/village-donnees.js : { lire, enregistrer, retirer }), ou null (village d'office, sans rangement).
+ * `or` : { lire, suivre } (js/os/village-or.js : lireOr, surOr), ou null : le compteur de pièces d'or en haut à gauche, posé seulement quand le solde est lu (illisible : rien,
+ *   jamais un « 0 » inventé), puis mis à jour après chaque gain.
  * Rend la fonction qui démonte l'écran (arrête l'écoute du format téléphone / ordinateur et les gestes).
  */
-export function monterVillage(conteneur, besoins, { aller, console: avecConsole = false, donnees = null }) {
+export function monterVillage(conteneur, besoins, { aller, console: avecConsole = false, donnees = null, or = null }) {
   const page = document.createElement('section');
   page.className = 'page-village';
   page.dataset.role = 'page-village';
@@ -451,7 +455,7 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     // vue « Liste » (téléphone seulement)
     const vue = telephone ? vueChoisie() : 'village';
     page.dataset.vue = vue;
-    const enfants = [defile, bulle.element, ...fixes, phrase, bandeau];
+    const enfants = [defile, bulle.element, ...fixes, ...(compteurOr ? [compteurOr] : []), phrase, bandeau];
     if (telephone) {
       enfants.push(boutonVue(vue, () => rendre()));
       zoneListe.replaceChildren(listeMaisons({ maisons, fixes: routesFixes, compteurs, dessin: (nom) => vignette(dessinBatiment(nom)), dessinFixe: (id) => vignette(dessinBatimentFixe(id)) }));
@@ -495,11 +499,31 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
     lancerCompteurs();
   }
 
+  // Compteur de pièces d'or (étape 6a) : hors du dessin, en haut à gauche (jamais sur la roue ni sur les îlots). Posé seulement quand le solde est connu.
+  let compteurOr = null;
+  let texteCompteur = null;
+  const montrerOr = (n) => {
+    if (!monte || !Number.isInteger(n)) return;
+    if (!compteurOr) {
+      compteurOr = document.createElement('div');
+      compteurOr.className = 'village-or';
+      compteurOr.dataset.role = 'or';
+      compteurOr.setAttribute('aria-live', 'polite');
+      texteCompteur = document.createElement('span');
+      compteurOr.append(dessinPiece(22), texteCompteur);
+      page.dataset.or = 'oui';
+      if (phrase.parentNode === cadre) cadre.insertBefore(compteurOr, phrase); else cadre.append(compteurOr);
+    }
+    texteCompteur.textContent = texteOr(n);
+  };
+  const arretOr = or?.suivre ? or.suivre(montrerOr) : null;
+
   rendre(); // 1. le terrain tout de suite (vide pendant la lecture)
   lire(); // 2. le rangement, puis les maisons et leurs compteurs
+  if (or?.lire) or.lire().then((r) => { if (r?.etat === 'ok') montrerOr(r.or); }).catch(() => {}); // 3. le solde (illisible : pas de compteur)
   // Téléphone : un toucher hors des bâtiments referme la bulle.
   const fermer = (e) => { if (!e.target.closest?.('.village-batiment, .village-lien-etiquette')) bulle.cacher(); };
   cadre.addEventListener('click', fermer);
   media?.addEventListener?.('change', rendre);
-  return () => { monte = false; debrancher?.(); media?.removeEventListener?.('change', rendre); };
+  return () => { monte = false; debrancher?.(); arretOr?.(); media?.removeEventListener?.('change', rendre); };
 }

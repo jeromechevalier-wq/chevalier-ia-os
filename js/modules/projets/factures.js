@@ -4,6 +4,7 @@ import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast } from '../..
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { sectionRepliable, ligneAjouter } from '../crm/composants.js';
 import { celebrerPaiement } from '../../os/celebrations.js';
+import { annoncer } from '../../os/bonnes-nouvelles.js';
 import * as L from '../crm/logique.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
@@ -45,6 +46,7 @@ export async function marquerPayee(p, f) {
     auMontage: ({ boutons }) => [date].forEach((c) => c.addEventListener('keydown', (e) => { if (e.key === 'Enter') boutons.at(-1).click(); })),
   });
   if (!r || !reussi) return false;
+  annoncer('facture-payee', { projetId: p.id, id: f.id }); // or du village (27/11/2026) : APRÈS la réussite, jamais attendu ; le serveur revérifie dans le projet
   toast('Paiement enregistré');
   const apres = encaisseDuMois();
   if (apres > avant) celebrerPaiement(avant, apres, (n) => L.formatEuros(Math.round(n)));

@@ -6,7 +6,7 @@ import { onRequest, onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { getApps, initializeApp } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { creerGestionnaire, baseLienMaison } from './mcp/gestionnaire.js';
 import { OUTILS_ACHATS } from './mcp/outils/achats.js';
 import { adresseFonction, adresseSite, compteDeService } from './securite/maison.js';
@@ -34,6 +34,9 @@ import { creerServiceBuffer } from './reseauxsociaux/service.js';
 import { creerAppelBuffer, creerAppelReleve } from './reseauxsociaux/appel.js';
 import { releverMesures } from './reseauxsociaux/mesures.js';
 import { creerAppelDevis, ligneDeJournalDevis } from './devis-appel.js';
+import { creerAppelVillage, ligneDeJournalVillage } from './village-appel.js';
+import { creerVillageOr } from './coeur/village-or.js';
+import { creerVerificateurAchat } from './base/village-achats.js';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { creerAppelDevisPdf, creerAppelDevisPdfLien, ligneDeJournalDevisPdf } from './devis/pdf-appel.js';
 import { creerDeclencheurPdf } from './devis/pdf-declencheur.js';
@@ -225,6 +228,18 @@ export const devisModifierDestinataires = appelDevis('modifierDestinataires'); /
 export const devisChoisirAffaire = appelDevis('choisirAffaire'); // choisir l'affaire d'un devis finalisé qui n'en a pas (toutes les versions, montant recalculé, restaurable)
 export const modeTestSupprimer = appelDevis('supprimerTests'); // Réglages > Mes tests : aperçu puis suppression de tous les éléments de test (mode test, PR 4)
 export const devisMarquerTest = appelDevis('marquerTest'); // marquer ou démarquer comme test un devis finalisé (mode test, PR 3) ; un TEST- finalisé reste un test
+
+// Or du village (27/11/2026) : gains vérifiés par le serveur (facture d'achat acceptée, facture de projet payée, devis signé), jamais écrits par le navigateur.
+// Même compte de service que les devis (`porte-serveur`) ; la base des achats est lue en LECTURE SEULE quand la maison en a une (secret de la porte lu à l'exécution, jamais defineSecret) :
+// sans base, la fonction se déploie et marche pour les deux autres sources. Dans une maison qui a la base, `porte-serveur` a déjà « Client Cloud SQL » et l'accès au secret de la porte (voir basePorte).
+const verifierAchatVillage = creerVerificateurAchat({ lireConfiguration: creerLecteurConfiguration({ lireSecret: lecteurSecretsPorte }), ouvrirConnexion: creerOuvreurCloudSql() });
+export const villageOr = onCall(OPTIONS_DEVIS, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelVillage({
+    service: (email) => creerVillageOr({ db: getFirestore(), verifierAchat: (id) => verifierAchatVillage(id, email), horodatage: (ms) => Timestamp.fromMillis(ms) }),
+    journal: (e) => process.stdout.write(`${ligneDeJournalVillage(e)}\n`),
+  })(requete);
+});
 
 // « Préparer l'e-mail » (25/10/2026) : la fonction demande à un workflow n8n de créer un BROUILLON dans le Gmail du compte (PDF joint) ; ni l'appli ni n8n n'envoient jamais l'e-mail.
 // L'adresse du webhook et son secret sont lus dans Secret Manager au moment de l'appel (N8N_DEVIS_EMAIL_URL, N8N_DEVIS_EMAIL_SECRET), jamais liés au déploiement : s'ils manquent,
