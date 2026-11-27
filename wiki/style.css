@@ -28,6 +28,8 @@ pre{background:var(--bloc);border:1px solid var(--bord);border-radius:8px;paddin
 pre code{background:none;padding:0;white-space:pre;overflow-wrap:normal}
 blockquote{border-left:4px solid var(--accent);background:var(--bloc);padding:.6rem 1rem;border-radius:0 8px 8px 0;color:var(--doux)}
 blockquote>:last-child{margin-bottom:0}
+figure{margin:0 0 1rem}
+figure img{display:block;max-width:100%;height:auto;border:1px solid var(--bord);border-radius:8px;background:#ffffff}
 hr{border:0;border-top:1px solid var(--bord);margin:1.5rem 0}
 .tableau{overflow-x:auto;margin:0 0 1rem;border:1px solid var(--bord);border-radius:8px}
 table{border-collapse:collapse;width:100%;font-size:.93rem}

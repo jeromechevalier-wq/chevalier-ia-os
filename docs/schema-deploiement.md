@@ -2,6 +2,10 @@
 
 Écrit le 27/11/2026 à la demande de Jérôme. Vue d'ensemble en une page ; le détail est dans `deploiement-plateforme.md`, `deploiement-client.md` et `page-deploiement.md`.
 
+![Les trois déploiements côte à côte](images/schema-trois-deploiements.svg)
+
+Dessin mis à jour le 27/11/2026.
+
 ```
                          GitHub (branche main)
                                  │
