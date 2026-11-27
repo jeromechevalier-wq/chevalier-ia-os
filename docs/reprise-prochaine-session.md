@@ -1,5 +1,45 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin du 27/11/2026 (nuit 4) : appli Factures, sauvegarde .zip, photos de connexion, applications dans la coque
+
+| Sujet | PR | État |
+|---|---|---|
+| Factures d'achat : valider à la suite (vue pile) | 716 | fusionnée, relue par Fable (5 corrections appliquées) |
+| Achats : une sauvegarde complète en .zip | 717 | fusionnée, relue par Fable (petits restes faits dans cette PR) |
+| Page de connexion d'une maison : photos du métier du client, rangées hors dépôt, script de copie avant déploiement | 720 | fusionnée, relue par Fable (8 corrections appliquées) |
+| Factures : un PDF déjà ajouté donne un message clair (date et lien) | 721 | fusionnée, relue par Fable (corrections appliquées) ; changement n8n **non appliqué** (voir plus bas) |
+| Zip : retirer le mot « répertoire » d'un commentaire (coche rouge du test des consignes) | 722 | fusionnée |
+| Application Factures (maquette v3) : en-tête maison › Factures, volet, fiches, plein écran, animations | 724 | fusionnée, relue deux fois par Fable (11 défauts puis 1 bloquant et 3 mineurs corrigés) |
+| Test defauts-espaces D3/D4 : attendre que le réglage soit écrit | 729 | fusionnée |
+| Applications dans la coque : un bâtiment = une application, Modules actifs et Mon espace (nom et logo) d'une maison | 730 | fusionnée, relue par Fable (corrections mineures, aucune faille) |
+| Restes de la PR 717 (bloc replié ouvert avant d'y descendre, test d'un nom accentué dans le zip), version 2.57.0, wiki, ce rapport | cette PR | docs et version |
+
+**État GitHub** : « Tests de nuit » ont été rouges deux fois pour de vraies raisons (le mot « répertoire », réparé par la PR 722 ; un test D3 trop pressé, réparé par la PR 729) et une fois à cause de la machine de GitHub (installation du navigateur refusée, relancée). Le dernier passage terminé est **vert**. Un nouveau passage, lancé après les fusions des PR 729 et 730, tournait encore à l'écriture de ce rapport : à relire.
+
+**Mise en ligne** :
+- SCAB 04 republié au dernier commit de `main` (après la PR 730) : règles, fonctions et site ; les 3 photos de connexion sont en ligne, puis retirées de la copie de déploiement.
+- Règles Firestore du CRM de Jérôme publiées (workflow « Publier les règles (CRM de Jérôme) », réussi).
+
+**Décisions prises seul** :
+- PR 730 : le nom et le logo de la maison (« Mon espace ») sont réservés au titulaire ; les comptes du client ne peuvent pas les changer (question 3 plus bas).
+- PR 724 : la fiche fournisseur n'a plus de bouton « Modifier » (rien n'y est modifiable) ; il est remplacé par « Signaler un changement d'IBAN ».
+- PR 721 : plus de règle d'horloge (15 minutes) pour repérer un doublon ; une facture est un doublon seulement si la fiche est déjà décidée ou archivée ; une fiche « à valider » relue est un succès (« déjà connue, lecture mise à jour »).
+- PR 720 : le garde-fou contre les photos d'une autre maison est un script lancé avant le déploiement, pas un `predeploy` dans `firebase.json` (fichier de la liste d'arrêt ; question 2 plus bas).
+
+**Ce qui reste à Jérôme** :
+1. Appliquer le changement n8n du workflow d'ajout de facture décrit dans la PR 721 : la condition devient « statut différent de `a_valider` » seulement, avec les 4 vérifications prévues avant. Les exécutions de ce workflow ne sont pas lisibles par l'outil n8n de Claude : à faire ensemble, ou en ouvrant l'accès MCP de ce workflow.
+2. Donner (ou non) ton accord pour un `predeploy` dans `firebase.json` qui bloque le déploiement si des photos d'une autre maison sont présentes.
+3. Ouvrir le changement du nom et du logo aux comptes du client, avec une ligne au journal, ou les garder au titulaire seul.
+4. Essayer en vrai dans SCAB 04 : l'appli Factures, Mon espace (nom et logo), Modules actifs, les photos de la page de connexion, le message d'un PDF ajouté en double.
+5. La PR 731 (village en damier, autre session) touche aussi `firestore.rules` : après sa fusion, republier les règles de SCAB 04.
+
+**Non vérifié** :
+- Tout a été testé avec les émulateurs et un faux réseau, pas avec la vraie base.
+- Les exécutions n8n ne sont pas lisibles par l'outil.
+- Tests instables vus pendant la nuit (passés au 2e essai) : E1/F1 des factures d'achat au démarrage de l'émulateur, defauts-espaces D4/D5, erreurs 400 de l'émulateur quand la machine est chargée.
+- PR 716 : le contour de focus est invisible sur le bouton de fin quand le focus est posé par le code.
+- PR 720 : l'en-tête de cache réel de l'hébergement et une vraie photo de téléphone avec vidéo.
+
 ## Rapport du matin du 27/11/2026 (nuit 3, « GO NUIT » du 26/11 vers 21 h) : les achats d'une maison par l'assistant IA
 
 Accords écrits de Jérôme avant la nuit : outils Achats pour l'assistant, republier la maison d'essai sans redemander, continuer sans Fable si le budget manque, supprimer la règle « même code chez Jérôme et chez les clients », cacher les pages techniques aux clients, jeton d'essai du serveur MCP.

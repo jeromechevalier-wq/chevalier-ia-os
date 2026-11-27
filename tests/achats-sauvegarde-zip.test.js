@@ -74,6 +74,15 @@ describe('Z5 créateur de zip (js/os/zip.js)', () => {
     for (const [i, e] of archive.entrees.entries()) assert.equal(texte(await lireEntree(blob, e)), fichiers[i].contenu);
   });
 
+  test('Z5 nom de fichier accentué (« réglages-été.csv ») : bit 11 (UTF-8) posé dans l’en-tête local et le répertoire central, nom relu à l’identique', () => {
+    const fichiers = [{ nom: 'réglages-été.csv', contenu: 'a;b\r\n' }];
+    const zip = creerZip(fichiers);
+    const v = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+    assert.equal(v.getUint16(6, true) & 0x0800, 0x0800, 'bit 11 dans l’en-tête local');
+    assert.equal(v.getUint16(26, true), octets('réglages-été.csv').length, 'longueur du nom en octets UTF-8');
+    assert.deepEqual(relireMinimal(zip), fichiers); // vérifie aussi le bit 11 du répertoire central
+  });
+
   test('Z5 archive vide valide ; nom vide ou en double refusé ; date au format MS-DOS', () => {
     const vide = creerZip([]);
     assert.equal(vide.length, 22);
