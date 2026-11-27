@@ -24,6 +24,9 @@ function service(contexte) {
 /** Réserve une écriture dans les plafonds du jeton, juste avant l'envoi (après les contrôles : un refus ne consomme rien). */
 const reserver = (contexte) => async () => { await contexte.reserverEcriture?.(); };
 
+/** Mode d'emploi de la base (PR 2b, 27/11/2026) : la base dit ce qui se crée et ce qui se modifie ; l'assistant le suit au lieu de décider lui-même. */
+const MODE_EMPLOI = 'Si la base a un mode d\'emploi, la réponse contient modeEmploi : pour chaque table, creer (la personne peut-elle en créer ?) et, pour chaque champ, modifiable (oui, non, avant_decision, apres_decision, tant_que_vide) avec phraseCadenas, la phrase à dire quand il est cadenassé. La base fait foi : suis-le.';
+
 export const lister_factures_achat = {
   nom: 'lister_factures_achat',
   profils: [...PROFILS_LECTURE_ACHATS],
@@ -53,7 +56,7 @@ export const lister_chantiers_achat = {
   nom: 'lister_chantiers_achat',
   profils: [...PROFILS_LECTURE_ACHATS],
   stricte: true,
-  description: `Liste les chantiers de la maison (pour relier une facture d'achat). ouvertsSeulement (vrai par défaut) : seulement ceux qui acceptent des factures (en préparation ou en cours, non archivés) ; recherche : texte cherché dans le nom, le client, le code ou l'adresse. Chaque chantier dit accepteLesFactures. Lecture seule. ${CONSIGNE}`,
+  description: `Liste les chantiers de la maison (pour relier une facture d'achat). ouvertsSeulement (vrai par défaut) : seulement ceux qui acceptent des factures (en préparation ou en cours, non archivés) ; recherche : texte cherché dans le nom, le client, le code ou l'adresse. Chaque chantier dit accepteLesFactures. ${MODE_EMPLOI} Lecture seule. ${CONSIGNE}`,
   schema: {
     ouvertsSeulement: z.boolean().optional().describe('Vrai (défaut) : seulement les chantiers qui acceptent des factures.'),
     recherche: z.string().min(1).max(80).optional().describe('Texte cherché dans le nom, le client, le code ou l\'adresse.'),
@@ -65,7 +68,7 @@ export const lister_agences_achat = {
   nom: 'lister_agences_achat',
   profils: [...PROFILS_LECTURE_ACHATS],
   stricte: true,
-  description: `Liste les agences des fournisseurs (établissements, avec leur entreprise) : il en faut une pour accepter une facture (valider_facture_achat). Par défaut, seulement celles qu'on peut choisir (actives et non fusionnées) ; toutes : vrai pour les voir toutes. siren : 9 chiffres ; recherche : texte cherché dans le nom de l'entreprise, de l'agence, la ville ou le SIRET. Si le fournisseur n'a pas d'agence, elle se crée à l'écran (fiche de la facture). Lecture seule. ${CONSIGNE}`,
+  description: `Liste les agences des fournisseurs (établissements, avec leur entreprise) : il en faut une pour accepter une facture (valider_facture_achat). Par défaut, seulement celles qu'on peut choisir (actives et non fusionnées) ; toutes : vrai pour les voir toutes. siren : 9 chiffres ; recherche : texte cherché dans le nom de l'entreprise, de l'agence, la ville ou le SIRET. Si le fournisseur n'a pas d'agence, elle se crée à l'écran (fiche de la facture). ${MODE_EMPLOI} Lecture seule. ${CONSIGNE}`,
   schema: {
     recherche: z.string().min(1).max(80).optional().describe('Texte cherché dans le nom de l\'entreprise, de l\'agence, la ville ou le SIRET.'),
     siren: z.string().regex(/^\d{9}$/, 'SIREN : 9 chiffres.').optional().describe('SIREN de l\'entreprise (9 chiffres).'),

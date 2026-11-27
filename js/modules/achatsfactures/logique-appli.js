@@ -247,3 +247,61 @@ export function texteBilan({ acceptees, refusees, centimes }, quand = 'aujourd�
   if (refusees) morceaux.push(`${refusees} refusée${refusees > 1 ? 's' : ''}`);
   return morceaux.join(' · ');
 }
+
+// ------------------------------------------------------------------ Mode d'emploi de la base (PR 2b, 27/11/2026 ; migration 013, outils/base/REGLES.md règles 23 et 24)
+// La base dit, pour chaque table, si la personne peut créer (« + ») et, pour chaque champ, s'il se modifie et la phrase du cadenas. LA BASE FAIT FOI : l'écran ne décide plus.
+// Sans mode d'emploi (null : ancienne base, migrations pas appliquées, porte pas republiée), l'écran reste EXACTEMENT comme avant.
+// Limite assumée : l'écran n'ouvre jamais un champ qu'il ne sait pas écrire (aucune action métier pour lui) ; le mode d'emploi peut fermer un champ, poser son cadenas, retirer un « + ».
+
+/** Table de la base derrière chaque liste du volet. */
+export const OBJET_DU_VOLET = Object.freeze({ fournisseurs: 'fournisseurs', chantiers: 'chantiers', articles: 'articles_fournisseur' });
+
+/**
+ * Prépare le mode d'emploi lu dans la base : `objets` (lignes de mode_emploi_objets) et `champs` (lignes de mode_emploi_champs). Les lignes archivées sont ignorées.
+ * Renvoie null si rien d'utilisable n'est lu (aucun objet) : l'écran reste alors comme avant.
+ */
+export function preparerModeEmploi(objets, champs) {
+  if (!Array.isArray(objets) || !Array.isArray(champs)) return null;
+  const parObjet = new Map();
+  for (const o of objets) if (o && typeof o.objet === 'string' && typeof o.creer === 'boolean') parObjet.set(o.objet, { creer: o.creer, phrase: texteOuNull(o.phrase_sans_creer), champs: new Map() });
+  if (!parObjet.size) return null;
+  for (const c of champs) {
+    if (!c || c.archive_le || typeof c.objet !== 'string' || typeof c.champ !== 'string' || typeof c.modifiable !== 'string') continue;
+    parObjet.get(c.objet)?.champs.set(c.champ, { etat: c.modifiable, modifiable: c.modifiable === 'oui', phrase: c.modifiable === 'oui' ? null : texteOuNull(c.phrase_cadenas) });
+  }
+  return parObjet;
+}
+const texteOuNull = (t) => (typeof t === 'string' && t.trim() ? t.trim() : null);
+
+/**
+ * Le « + » d'une liste : `defaut` (ce que fait l'écran aujourd'hui) sans mode d'emploi ou sans ligne pour cette table ; sinon la base : « + » seulement si elle l'autorise ET si l'écran le
+ * sait faire (`defaut` vrai). Renvoie { montrer, phrase }.
+ */
+export function plusSelonModeEmploi(mode, objet, defaut) {
+  const o = mode?.get(objet);
+  if (!o) return { montrer: defaut, phrase: null };
+  return { montrer: defaut && o.creer, phrase: o.creer ? null : o.phrase };
+}
+
+/**
+ * Lignes d'une fiche (format de fiche.js) corrigées par le mode d'emploi. `lignes[i].champBase` : le nom de la colonne dans la base (absent : la ligne est un résumé de l'écran, non touché).
+ * Un champ que la base dit non modifiable est fermé et reçoit sa phrase (`cadenas`) ; un champ modifiable selon la base mais que l'écran ne sait pas écrire reste fermé, sans phrase.
+ * « tant_que_vide » : ouvert (sans cadenas) tant que la valeur est vide, fermé ensuite. « avant_decision » / « apres_decision » : fermés (aucune table du volet n'a de décision).
+ * Sans mode d'emploi, ou sans ligne pour cette table : les lignes reviennent inchangées (même objet).
+ */
+export function lignesSelonModeEmploi(mode, objet, lignes) {
+  const o = mode?.get(objet);
+  if (!o) return lignes;
+  return lignes.map((l) => {
+    const regle = l.champBase ? o.champs.get(l.champBase) : null;
+    if (!regle || regle.modifiable) return l;
+    if (regle.etat === 'tant_que_vide' && (l.valeur === '—' || !String(l.valeur ?? '').trim())) return l;
+    return { ...l, modifiable: false, cadenas: regle.phrase };
+  });
+}
+
+/** Les clés d'une saisie que la base laisse modifier (une fiche ouverte avant l'arrivée du mode d'emploi ne doit jamais envoyer un champ cadenassé). */
+export function saisieSelonModeEmploi(mode, objet, lignes, saisie) {
+  const ouvertes = new Set(lignesSelonModeEmploi(mode, objet, lignes).filter((l) => l.modifiable).map((l) => l.cle));
+  return Object.fromEntries(Object.entries(saisie).filter(([k]) => ouvertes.has(k)));
+}

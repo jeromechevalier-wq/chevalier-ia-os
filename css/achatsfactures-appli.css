@@ -138,6 +138,11 @@
 .af-fiche-ligne + .af-fiche-ligne { border-top: 1px solid var(--bordure); }
 .af-fiche-ligne dt { color: var(--texte2); font-size: var(--fs-menu); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .af-fiche-ligne dd { margin: 0; min-width: 0; }
+/* Champ cadenassé par le mode d'emploi de la base (PR 2b) : la valeur, puis un petit cadenas qui dit sa phrase (survol, focus, clic). */
+.af-fiche-ligne dd.af-avec-cadenas { display: flex; align-items: center; gap: var(--esp-2); }
+.af-avec-cadenas > .af-valeur { flex: 1 1 auto; min-width: 0; }
+.af-cadenas { flex: none; }
+.af-sans-plus { flex: none; display: inline-flex; align-items: center; gap: var(--esp-2); white-space: nowrap; }
 .af-valeur, .af-champ-fiche { display: block; box-sizing: border-box; width: 100%; height: var(--h-ctrl); margin: 0; padding: 0 var(--esp-4); border: 1px solid transparent; border-radius: var(--rayon); background: transparent; color: var(--texte);
   font: inherit; font-size: var(--fs-texte); font-weight: var(--poids-moyen); line-height: calc(var(--h-ctrl) - 2px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .af-valeur.af-iban, .af-champ-fiche.af-iban { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: var(--fs-petit); letter-spacing: 0; }

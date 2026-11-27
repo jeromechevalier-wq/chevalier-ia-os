@@ -60,7 +60,7 @@ const lignesTable = ({ sansAValider = false, retouches = {} } = {}) => listeComp
  * Pendant le test : `window.__faux.fournisseursEnPanne` / `chantiersEnPanne` (pannes), et `retenir` / `lacher` (une réponse retenue le temps de regarder l'écran qui attend).
  */
 async function poserFauxReseau(page, options = {}) {
-  await page.addInitScript(({ factures, chantiers, agences, fournisseurs, articles, ibans, lignesA1, decideesCeMois, fournisseursEnPanne }) => {
+  await page.addInitScript(({ factures, chantiers, agences, fournisseurs, articles, ibans, lignesA1, decideesCeMois, fournisseursEnPanne, modeEmploi }) => {
     const maintenant = () => new Date().toISOString();
     const faux = { factures: structuredClone(factures), chantiers: structuredClone(chantiers), agences: structuredClone(agences), fournisseurs: structuredClone(fournisseurs), articles, ibans: structuredClone(ibans), fournisseursEnPanne, chantiersEnPanne: false, attentes: [] };
     if (decideesCeMois) for (const f of faux.factures) {
@@ -97,6 +97,12 @@ async function poserFauxReseau(page, options = {}) {
       if (u.pathname === '/rest/v1/lignes_facture') return liste(u.searchParams.get('facture_id') === 'eq.a1' ? lignesA1 : []);
       if (u.pathname === '/rest/v1/ibans_confirmes') return liste(faux.ibans);
       if (u.pathname === '/rest/v1/rpc/lister_favoris_os') return rep([]);
+      // Mode d'emploi de la base (PR 2b) : absent par défaut (ancienne base : relation inconnue), 'refusee' (porte pas republiée : 403), ou { objets, champs }.
+      if (u.pathname === '/rest/v1/mode_emploi_objets' || u.pathname === '/rest/v1/mode_emploi_champs') {
+        if (modeEmploi === 'refusee') return rep({ message: 'Lecture refusée pour cette table.' }, 403);
+        if (!modeEmploi || typeof modeEmploi !== 'object') return rep({ code: '42P01', message: 'relation inconnue' }, 404);
+        return liste(u.pathname.endsWith('objets') ? modeEmploi.objets : modeEmploi.champs);
+      }
       if (u.pathname === '/rest/v1/rpc/demander_ticket_n8n') return rep('ticket-essai');
       if (u.pathname.startsWith('/storage/v1/object/sign/')) return rep({ signedURL: '/object/sign/factures/fichier.pdf?token=essai' });
       const f = corps ? faux.factures.find((x) => x.id === corps.facture_id) : null;
@@ -119,7 +125,7 @@ async function poserFauxReseau(page, options = {}) {
       return rep({ message: 'inconnu' }, 404);
     };
     window.__accesBase = { fetchImpl, jeton: 'jeton-fictif', claims: { role: 'authenticated', espace_base: 'espace-essai' } };
-  }, { factures: lignesTable(options), chantiers: CHANTIERS, agences: AGENCES, fournisseurs: FOURNISSEURS, articles: ARTICLES, ibans: IBANS, lignesA1: LIGNES_A1, decideesCeMois: false, fournisseursEnPanne: false, ...options });
+  }, { factures: lignesTable(options), chantiers: CHANTIERS, agences: AGENCES, fournisseurs: FOURNISSEURS, articles: ARTICLES, ibans: IBANS, lignesA1: LIGNES_A1, decideesCeMois: false, fournisseursEnPanne: false, modeEmploi: null, ...options });
   await page.route('**/storage/v1/object/sign/**', (route) => route.fulfill({ status: 200, contentType: 'application/pdf', headers: { 'access-control-allow-origin': '*' }, body: pdfFictif() }));
 }
 const appelsVers = (page, chemin) => page.evaluate((c) => window.__appels.filter((a) => a.chemin === c).map((a) => a.corps), chemin);
@@ -1107,3 +1113,81 @@ test('C1 bis message avec « Annuler » : un clic pendant le fondu de sortie (25
   });
   expect(r).toEqual({ enSortie: true, n: 1 });
 });
+
+
+// PR 2b (27/11/2026) : le « + » et les champs cadenassés (avec leur phrase) viennent du MODE D'EMPLOI de la base (migration 013), lu par la porte ; la base fait foi.
+// MD2 : mode d'emploi présent ; MD3 : sans mode d'emploi (ancienne base de la maison de Jérôme, migrations pas appliquées, porte pas republiée qui répond 403), l'écran reste comme avant.
+const PHRASE_NOM = 'Phrase fictive : le nom du chantier vient du logiciel de chantier.';
+const MODE_ESSAI = {
+  objets: [{ objet: 'fournisseurs', creer: false, phrase_sans_creer: 'Phrase fictive : les fournisseurs naissent des factures.' }, { objet: 'chantiers', creer: true, phrase_sans_creer: null }],
+  champs: [
+    { objet: 'chantiers', champ: 'nom', modifiable: 'non', phrase_cadenas: PHRASE_NOM, archive_le: null },
+    { objet: 'chantiers', champ: 'code', modifiable: 'oui', phrase_cadenas: null, archive_le: null },
+    { objet: 'chantiers', champ: 'client', modifiable: 'oui', phrase_cadenas: null, archive_le: null },
+    { objet: 'chantiers', champ: 'adresse', modifiable: 'oui', phrase_cadenas: null, archive_le: null },
+    { objet: 'fournisseurs', champ: 'siren', modifiable: 'tant_que_vide', phrase_cadenas: 'Phrase fictive : le SIREN se remplit une fois.', archive_le: null },
+  ],
+};
+async function ficheChantier(page) {
+  await volet(page).locator('[data-role="volet-onglets"] button').nth(1).click();
+  await volet(page).locator('[data-role="volet-liste"] button', { hasText: 'Villa Orvaline' }).click();
+  await expect(fiche(page).locator('dt')).toHaveText(['Nom', 'Code', 'Client', 'Adresse', 'Statut']);
+}
+
+test('MD2 mode d\'emploi de la base : « + Fournisseur » retiré si la base ne le permet pas ; champ cadenassé avec sa phrase (survol, clic) ; il n\'est pas modifiable ni envoyé', async ({ page }, info) => {
+  await ouvrirAppli(page, { modeEmploi: MODE_ESSAI });
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  await expect(volet(page).locator('[data-action="nouveau-fournisseur"]')).toHaveCount(0); // la base dit : on ne crée pas de fournisseur ici
+  await expect(volet(page).locator('[data-role="sans-plus"] [data-role="info"]')).toHaveAttribute('aria-label', /les fournisseurs naissent des factures/); // à la place, la phrase de la base
+  await capturer(page, info, 'MD2-liste-sans-plus');
+  const lectures = () => page.evaluate(() => window.__appels.filter((a) => a.chemin.startsWith('/rest/v1/mode_emploi_')).length);
+  expect(await lectures()).toBe(2); // lu une fois, par la porte
+  await volet(page).locator('[data-action="fermer-volet"]').click();
+  await ouvrirVolet(page);
+  expect(await lectures()).toBe(2); // pas relu à chaque ouverture
+  await volet(page).locator('[data-role="volet-liste"] button', { hasText: 'Point Q Matériaux' }).click();
+  await expect(fiche(page).locator('[data-ligne="siren"] [data-role="cadenas"]')).toHaveAttribute('aria-label', /le SIREN se remplit une fois/);
+  await volet(page).locator('[data-action="retour-liste-volet"]').click();
+  await ficheChantier(page);
+  const cadenas = fiche(page).locator('[data-ligne="nom"] [data-role="cadenas"]');
+  await expect(cadenas).toBeVisible();
+  await expect(cadenas).toHaveAttribute('aria-label', new RegExp(PHRASE_NOM.slice(0, 30)));
+  await cadenas.click();
+  await expect(cadenas.locator('[role="tooltip"]')).toBeVisible();
+  await expect(cadenas.locator('[role="tooltip"]')).toHaveText(PHRASE_NOM);
+  await capturer(page, info, 'MD2-fiche-cadenas-phrase');
+  await fiche(page).locator('[data-action="modifier-fiche"]').click();
+  await expect(fiche(page).locator('[data-champ="nom"]')).toHaveCount(0); // cadenassé : pas de champ
+  await expect(fiche(page).locator('input, textarea')).toHaveCount(3);
+  await expect(fiche(page).locator('[data-ligne="nom"] [data-role="cadenas"]')).toBeVisible();
+  await capturer(page, info, 'MD2-fiche-modification-cadenas');
+  await fiche(page).locator('[data-champ="code"]').fill('CH-2');
+  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
+  await expect.poll(async () => (await appelsVers(page, '/actions')).find((c) => c.action === 'modifier_chantier')?.champs).toEqual({ code: 'CH-2' }); // le nom cadenassé n'est jamais envoyé
+  expect(await sansDefilementHorizontal(page)).toBe(true);
+  // L'autre porte de création, le bandeau « Nouveau fournisseur détecté » de la facture, suit aussi la base : pas de bouton « Ajouter ».
+  await volet(page).locator('[data-action="fermer-volet"]').click();
+  await passer(page); await attendreFacture(page, 'FA-2026-0300');
+  await passer(page); await attendreFacture(page, 'FQ-100');
+  await expect(page.locator('[data-role="nouveau-fournisseur"]')).toContainText('Nouveau fournisseur détecté : Ferronnerie du Verdon.');
+  await expect(page.locator('[data-action="ajouter-fournisseur"]')).toHaveCount(0);
+  await capturer(page, info, 'MD2-bandeau-sans-ajouter');
+});
+
+for (const [nom, modeEmploi, quand] of [['MD3a', null, 'ancienne base (maison de Jérôme) : la table n\'existe pas'], ['MD3b', 'refusee', 'porte pas encore republiée : 403 « lecture refusée »'], ['MD3c', { objets: [], champs: [] }, 'migrations pas appliquées : mode d\'emploi vide']]) {
+  test(`${nom} sans mode d'emploi (${quand}) : l'écran reste exactement comme avant, sans message d'erreur`, async ({ page }, info) => {
+    await ouvrirAppli(page, { modeEmploi });
+    await attendreFacture(page, 'FA-2026-0412');
+    await ouvrirVolet(page);
+    await expect.poll(() => page.evaluate(() => window.__appels.filter((a) => a.chemin.startsWith('/rest/v1/mode_emploi_')).length)).toBe(2); // la lecture a bien été faite (les deux tables)
+    await page.waitForTimeout(300); // le temps que la réponse soit traitée : rien ne doit changer
+    await expect(volet(page).locator('[data-action="nouveau-fournisseur"]')).toBeVisible(); // « + Fournisseur » comme aujourd'hui
+    await ficheChantier(page);
+    await expect(fiche(page).locator('[data-role="cadenas"]')).toHaveCount(0);
+    await expect(page.locator('[role="alert"]:visible, .erreur:visible, [data-etat="erreur"], .toast')).toHaveCount(0); // aucun message d'erreur, ni dans le volet ni sur l'écran (pas de « Reconnecte-toi »)
+    await fiche(page).locator('[data-action="modifier-fiche"]').click();
+    await expect(fiche(page).locator('input, textarea')).toHaveCount(4); // nom, code, client, adresse : comme aujourd'hui
+    await capturer(page, info, `${nom}-sans-mode-d-emploi`);
+  });
+}

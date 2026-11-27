@@ -5,11 +5,16 @@
 import { creerDonnees, TABLE_AGENCES, TABLE_CHANTIERS } from './donnees.js';
 import { corpsCreationAgence } from './agences.js';
 import { COLONNES_AGENCES_EXAMINER, COLONNES_FOURNISSEURS, TABLE_FOURNISSEURS } from './donnees-examiner.js';
-import { champsChantierModifies } from './logique-appli.js';
+import { champsChantierModifies, preparerModeEmploi, OBJET_DU_VOLET } from './logique-appli.js';
 
 export const COLONNES_CHANTIERS_VOLET = ['id', 'nom', 'code', 'client', 'statut', 'archive', 'adresse'];
 export const TABLE_ARTICLES = 'articles_fournisseur';
 export const COLONNES_ARTICLES = ['id', 'fournisseur_id', 'reference', 'designation', 'unite'];
+/** Mode d'emploi de la base (migration 013) : lu par la porte comme les autres tables (liste LECTURES_NAVIGATEUR). */
+export const TABLE_MODE_OBJETS = 'mode_emploi_objets';
+export const TABLE_MODE_CHAMPS = 'mode_emploi_champs';
+export const COLONNES_MODE_OBJETS = ['objet', 'creer', 'phrase_sans_creer'];
+export const COLONNES_MODE_CHAMPS = ['objet', 'champ', 'modifiable', 'phrase_cadenas', 'archive_le'];
 export const MOTIF_MIN = 3;
 export const MOTIF_MAX = 500;
 
@@ -38,6 +43,30 @@ export function creerDonneesAppli({ client, actions }) {
       ibans: ib.status === 'fulfilled' ? ib.value : null,
       factures: fa.status === 'fulfilled' && fa.value.complete ? fa.value.liste : null,
     };
+  }
+
+  /**
+   * Le mode d'emploi de la base, pour les tables du volet seulement. TOUT échec (table absente dans l'ancienne base, migrations pas appliquées, porte pas republiée qui répond 403
+   * « lecture refusée », réseau) donne null, sans message : l'écran reste alors exactement comme avant. Une lecture coupée par le plafond aussi (jamais un mode d'emploi partiel).
+   * `{ essai: true }` : rend { mode, definitif } ; `definitif` est faux après une panne passagère (réseau, lecture coupée) : l'écran pourra réessayer.
+   */
+  async function lireModeEmploi({ essai = false } = {}) {
+    const rendre = (mode, definitif) => (essai ? { mode, definitif } : mode);
+    try {
+      const c = valeur(client);
+      const objets = Object.values(OBJET_DU_VOLET);
+      const filtre = [['objet', 'in', objets]];
+      const [o, ch] = await Promise.all([
+        c.lire(TABLE_MODE_OBJETS, { colonnes: COLONNES_MODE_OBJETS, filtres: filtre, tri: ['objet'] }),
+        c.lire(TABLE_MODE_CHAMPS, { colonnes: COLONNES_MODE_CHAMPS, filtres: filtre, tri: ['objet', 'champ'] }),
+      ]);
+      if (o.tronque || ch.tronque) return rendre(null, false);
+      return rendre(preparerModeEmploi(o.lignes, ch.lignes), true);
+    } catch (e) {
+      // 403 (porte pas republiée), 404 / 400 (table ou colonne inconnue : ancienne base, migrations pas appliquées) : définitif ; le reste (réseau…) : passager.
+      const statut = e?.statut ?? e?.status ?? null;
+      return rendre(null, statut !== null && statut >= 400 && statut < 500);
+    }
   }
 
   /** Chantiers non archivés, par nom. Lecture coupée par le plafond : erreur (jamais une liste tronquée présentée comme complète). */
@@ -78,5 +107,5 @@ export function creerDonneesAppli({ client, actions }) {
     return true;
   }
 
-  return { lireFournisseurs, lireChantiers, lireArticles, creerFournisseur, revoquerIban, enregistrerChantier, chargerFactures: factures.chargerFactures };
+  return { lireFournisseurs, lireChantiers, lireArticles, lireModeEmploi, creerFournisseur, revoquerIban, enregistrerChantier, chargerFactures: factures.chargerFactures };
 }

@@ -39,7 +39,7 @@ const TABLES_COLONNES = {
   ibans_confirmes: COLONNES_IBANS,
   favoris_os: ['utilisateur', 'cle'], // hors liste de l'assistant : jamais lue
 };
-const RELATIONS = Object.entries(TABLES_COLONNES).flatMap(([t, cols]) => [...new Set(cols)].map((c) => ({ relation: t, colonne: c, type: c === 'id' || c.endsWith('_id') ? 'uuid' : 'text' })));
+export const RELATIONS = Object.entries(TABLES_COLONNES).flatMap(([t, cols]) => [...new Set(cols)].map((c) => ({ relation: t, colonne: c, type: c === 'id' || c.endsWith('_id') ? 'uuid' : 'text' })));
 const FONCTIONS = [
   { nom: 'demander_ticket_n8n', ensemble: false, composite: false, vide: false, noms: ['p_usage'], modes: [], types: ['text'] },
   { nom: 'rouvrir_facture', ensemble: false, composite: false, vide: false, noms: ['p_id'], modes: [], types: ['uuid'] },

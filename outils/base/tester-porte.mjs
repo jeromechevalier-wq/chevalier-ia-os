@@ -143,6 +143,15 @@ try {
     const p = await appel('PATCH', `/rest/v1/chantiers?id=eq.${idA}&select=nom`, { ...N, Prefer: 'return=representation' }, { nom: 'vol' });
     assert.deepEqual(p.json, []);
   });
+  await verifier('10b navigateur : le mode d\'emploi de la base (013) se lit par la porte, comme l\'écran Factures le lit (PR 2b) : « + » et cadenas des tables du volet', async () => {
+    const o = await appel('GET', '/rest/v1/mode_emploi_objets?select=objet,creer,phrase_sans_creer&objet=in.(fournisseurs,chantiers,articles_fournisseur)&order=objet.asc', NAV('lea'));
+    assert.equal(o.statut, 200, JSON.stringify(o.json));
+    assert.ok(o.json.length >= 2 && o.json.every((x) => typeof x.creer === 'boolean'), JSON.stringify(o.json));
+    const c = await appel('GET', '/rest/v1/mode_emploi_champs?select=objet,champ,modifiable,phrase_cadenas,archive_le&objet=in.(fournisseurs,chantiers,articles_fournisseur)&order=objet.asc,champ.asc', NAV('lea'));
+    assert.equal(c.statut, 200, JSON.stringify(c.json));
+    assert.ok(c.json.length > 0 && c.json.every((x) => x.modifiable === 'oui' || (x.phrase_cadenas ?? '').length >= 10), 'chaque champ cadenassé a sa phrase');
+    assert.equal((await appel('POST', '/rest/v1/mode_emploi_objets', NAV('lea'), { objet: 'pirate', creer: true })).statut >= 400, true, 'écriture refusée');
+  });
   await verifier('11 fin : connexion toujours propre', propre);
   await pool.end();
 } catch (e) {
