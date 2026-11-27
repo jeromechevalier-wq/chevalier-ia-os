@@ -1,10 +1,10 @@
 // Démarrage de Chevalier IA OS.
 import { demarrerPwa } from './os/pwa.js';
-import { appliquerTheme, afficherConnexion, monterCoquille, ESPACE_RACINE } from './os/shell.js';
+import { appliquerTheme, afficherConnexion, monterCoquille, ESPACE_RACINE, espaceRacineAffiche, nommerOngletMaison } from './os/shell.js';
 import { surveillerCompte, connecter, deconnecter, preparerCrm, MESSAGE_REFUS } from './os/auth.js';
 import { MESSAGE_PUBLIC_ABSENT, MESSAGE_PANNE_REGLAGES, configurationNeutre, modulesEcranBrut, besoinsEcranBrut } from './os/comptes-maison.js';
 import { modulesDeLaMaison } from './os/maison-modules.js';
-import { lireBesoinsMaison, ROUTE_VILLAGE } from './os/maison-village.js';
+import { lireBesoinsMaison, ROUTE_VILLAGE, routeDuBesoin } from './os/maison-village.js';
 import { monterVillage } from './os/village-ecran.js';
 import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, definirPrefixe, suivreLiensDuPrefixe, lien, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace } from './os/marque.js';
@@ -231,12 +231,13 @@ function afficherRoute(route) {
   let afficher;
   if (besoinsVillage.length && segs.length === 1 && segs[0] === ROUTE_VILLAGE) { // accueil village : le dessin seul (ni journal, ni carrés)
     cle = 'village';
-    afficher = () => { session.vue.quitter?.(); vider(coquille.contenu); return monterVillage(coquille.contenu, besoinsVillage, { aller: (cible) => naviguer(cible), console: MODULES.some((m) => m.id === 'console') }); };
+    afficher = () => { session.vue.quitter?.(); vider(coquille.contenu); return monterVillage(coquille.contenu, besoinsVillage, { aller: (cible) => naviguer(routeDuBesoin(cible)), console: MODULES.some((m) => m.id === 'console') }); };
   } else if (segs[0] === 'reglages') {
     cle = 'reglages';
     afficher = () => monterReglages(coquille.contenu, segs, {
       apis, actifs: MODULES.map((m) => m.id), chezClient: false, nomEspace: 'Chevalier IA OS', marque: null, fiche: null, compte: session.compte,
       retourVillage: besoinsVillage.length ? ROUTE_VILLAGE : null, // maison avec village : « Retour au village » en haut des Réglages (la Mairie y mène)
+      surMarque: () => { coquille.majClient(espaceRacineAffiche()); nommerOngletMaison(); }, // Mon espace d'une maison : le nom et le logo enregistrés s'affichent tout de suite (menu, barre du haut, onglet)
     });
   } else if (segs[0] === 'journal' && segs.length === 1) { // Journal des modifications : écran de la coque, servi même sans le module Affaires
     cle = 'journal';

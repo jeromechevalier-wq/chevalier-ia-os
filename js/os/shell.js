@@ -6,7 +6,7 @@ import { badgeDe, definirBadge, surBadge, texteBadge, phraseBadge } from './badg
 import { naviguer, lien } from './router.js';
 import { modulesDuPortail } from './portail.js';
 import { modeTestAllume, definirModeTest, surModeTest } from './mode-test.js';
-import { connexionNeutre, maisonNeutre, nomAfficheMaison } from './identite-maison.js';
+import { connexionNeutre, maisonNeutre, nomAfficheMaison, logoMaison } from './identite-maison.js';
 import { pagesTechniquesCachees } from './acces-reserve.js';
 import { ajouterPhotosConnexion } from './connexion-photos.js';
 
@@ -78,7 +78,10 @@ export function afficherConnexion(racine, { message = '', surConnexion, enCours 
     const ecran = h('div', { class: 'connexion-ecran' },
       h('div', { class: 'connexion', dataset: { connexion: 'neutre' } },
         marque,
-        h('h1', {}, nomAfficheMaison()),
+        // Logo de la maison (reglages_maison/public.logo, réglé dans Mon espace) : à gauche du nom ; absent = le nom seul, comme avant.
+        h('div', { class: 'connexion-identite' },
+          logoMaison() ? h('img', { class: 'connexion-logo-maison', src: logoMaison(), alt: '', dataset: { role: 'logo-maison' } }) : null,
+          h('h1', {}, nomAfficheMaison())),
         h('p', { class: 'connexion-lead' }, 'Accès réservé aux comptes autorisés.'),
         refus,
         bouton));
@@ -110,9 +113,12 @@ function nommerOnglet(nom) {
   document.head.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', [...nom].slice(0, 12).join(''));
 }
 
+/** Mon espace d'une maison vient d'enregistrer le nom ou le logo : l'onglet suit (le menu et la barre du haut : coquille.majClient). */
+export function nommerOngletMaison() { if (maisonNeutre()) nommerOnglet(nomAfficheMaison()); }
+
 /** Identité affichée de l'espace racine : celle de Jérôme (ESPACE_RACINE), sauf dans une maison neutre (nom de la maison, logo Chevalier IA, sans le « OS »). */
 export function espaceRacineAffiche() {
-  return maisonNeutre() ? { nom: nomAfficheMaison(), logo: baguette } : ESPACE_RACINE;
+  return maisonNeutre() ? { nom: nomAfficheMaison(), logo: logoMaison() || baguette } : ESPACE_RACINE; // logo de la maison (Mon espace) s'il y en a un, sinon la baguette
 }
 
 /** Nom d'un espace ; `accent` (facultatif) = dernier mot mis en valeur (le « OS » jaune de la marque de Jérôme). */
