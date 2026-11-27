@@ -13,6 +13,9 @@ import { ajouterPhotosConnexion } from './connexion-photos.js';
 // Routes sans entrée de menu -> entrée allumée à leur place (l'écran principal de leur module).
 /** Écrans qui gardent la barre de recherche et le bouton « + » du haut (les autres : Veille, Automatisations, Maintenance, réglages, journal, assistant…). */
 const PAGES_AVEC_OUTILS = ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/', 'devis/editeur', 'devis/voir', 'devis/liste', 'devis/relances', 'devis/statistiques', 'devis/bordereau', 'devis/vocabulaire'];
+/** Écrans d'une « application de module » (règle générale du 27/11/2026, docs/consignes-ui.md) : pas de menu à gauche ni de barre du haut de la coque ; l'écran porte son propre en-tête
+ *  (maison › nom de l'appli à gauche, statistiques puis roue dentée à droite). La maison de l'en-tête ramène à l'accueil de l'espace, où le menu revient. */
+export const PAGES_APPLICATION = ['achatsfactures/pile', 'achatsfactures/tableau', 'achatsfactures/reglages'];
 const ROUTES_SOUS_ENTREE = [['projets/archives', 'projets/projets'], ['projets/modeles', 'projets/projets'], ['crm/organisations', 'crm/personnes']]; // dernière : dans le portail devis seul, les organisations n'ont pas d'entrée, « Clients » s'allume ; le menu complet a sa propre entrée Organisations (entrée exacte gagnante)
 
 // ---------------------------------------------------------------- thème
@@ -420,6 +423,9 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     // La recherche du haut et le gros bouton « + » ne servent que sur l'Accueil, Personnes, Organisations, Affaires, Projets, l'éditeur, la liste des devis et le Catalogue (25/10/2026).
     const avecOutils = PAGES_AVEC_OUTILS.some((p) => route === p || route.startsWith(p.endsWith('/') ? p : `${p}/`));
     coquille.classList.toggle('sans-outils', !avecOutils);
+    const modeAppli = PAGES_APPLICATION.includes(route);
+    coquille.classList.toggle('mode-appli', modeAppli);
+    if (modeAppli) ouvrirMobile(false);
     coquille.classList.toggle('outils-defilent', route === 'devis/editeur' || route.startsWith('devis/editeur/') || route.startsWith('devis/voir/'));
     if (!avecOutils) coquille.classList.remove('recherche-ouverte');
     // Une entrée dont le chemin est exactement la route l'emporte : le préfixe d'un module (« devis ») n'allume pas « Devis » sur devis/relances quand « Relances » est au menu.
