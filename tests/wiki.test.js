@@ -32,6 +32,50 @@ describe('Wiki local', () => {
     assert.ok(existsSync(join(sortie, 'wiki.html')), 'docs/wiki.md est converti lui aussi');
   });
 
+  test('W1 images : une ligne ![texte](images/nom.svg) devient une <figure>, docs/images/ est copié dans wiki/images/, verifier compare aussi les images, tout autre chemin est refusé', () => {
+    // le convertisseur : seul un fichier rangé directement dans images/ donne une image
+    const h = markdownVersHtml('Avant.\n\n![Un "dessin" <b>](images/dessin.svg)\n\nAprès.');
+    assert.match(h, /<p>Avant\.<\/p>\n<figure><img src="images\/dessin\.svg" alt="Un &quot;dessin&quot; &lt;b&gt;"><\/figure>\n<p>Après\.<\/p>/);
+    for (const refuse of ['https://exemple.fr/a.svg', '//exemple.fr/a.svg', 'images/../secret.svg', '../images/a.svg', 'images/sous/a.svg', 'images/a.html', 'images/.cache.svg', 'autre/a.svg', '/images/a.svg', 'data:image/svg+xml,x', 'images/a.svg?x=1']) {
+      const r = markdownVersHtml(`![texte](${refuse})`);
+      assert.ok(!r.includes('<img') && !r.includes('src='), `${refuse} doit être refusé`);
+      assert.equal(r, '<p>texte</p>');
+    }
+    assert.equal(markdownVersHtml('![absente](images/absente.svg)', new Set(), new Set(['autre.svg'])), '<p>absente</p>', 'une image absente de docs/images/ donne son texte seul');
+    // la construction : copie, comparaison, orphelin
+    const docs = join(temp, 'w1i-docs');
+    const sortie = join(temp, 'w1i-wiki');
+    const sommaire = join(temp, 'w1i-sommaire.json');
+    mkdirSync(join(docs, 'images'), { recursive: true });
+    writeFileSync(sommaire, JSON.stringify({ titre: 'T', rubriques: [{ titre: 'R', pages: ['page'] }] }));
+    writeFileSync(join(docs, 'page.md'), '# Page\n\n![Le dessin](images/dessin.svg)\n');
+    writeFileSync(join(docs, 'images', 'dessin.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+    writeFileSync(join(docs, 'images', 'notes.txt'), 'pas une image : jamais copié');
+    construireWiki({ docs, sortie, sommaire });
+    assert.match(readFileSync(join(sortie, 'page.html'), 'utf8'), /<figure><img src="images\/dessin\.svg" alt="Le dessin"><\/figure>/);
+    assert.deepEqual(readdirSync(join(sortie, 'images')), ['dessin.svg']);
+    assert.ok(readFileSync(join(sortie, 'images', 'dessin.svg')).equals(readFileSync(join(docs, 'images', 'dessin.svg'))));
+    assert.equal(verifier({ docs, sortie, sommaire }).ok, true);
+    writeFileSync(join(docs, 'images', 'dessin.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><title>changé</title></svg>');
+    assert.deepEqual(verifier({ docs, sortie, sommaire }).differences, ['différent : images/dessin.svg']);
+    rmSync(join(sortie, 'images', 'dessin.svg'));
+    assert.deepEqual(verifier({ docs, sortie, sommaire }).differences, ['manquant : images/dessin.svg']);
+    construireWiki({ docs, sortie, sommaire });
+    rmSync(join(docs, 'images', 'dessin.svg'));
+    assert.deepEqual(verifier({ docs, sortie, sommaire }).differences, ['différent : page.html', "orphelin (l'image n'existe plus) : images/dessin.svg"]);
+    assert.deepEqual(construireWiki({ docs, sortie, sommaire }).supprimes, ['images/dessin.svg']);
+    assert.ok(!readFileSync(join(sortie, 'page.html'), 'utf8').includes('<img'));
+    assert.equal(verifier({ docs, sortie, sommaire }).ok, true);
+    // le dépôt réel : la page du schéma de déploiement montre son dessin, et le dessin ne nomme aucun client
+    const reel = generer({ docs: DOCS, sommaire: SOMMAIRE });
+    assert.match(reel.get('schema-deploiement.html'), /<figure><img src="images\/schema-trois-deploiements\.svg" alt="Les trois déploiements côte à côte"><\/figure>/);
+    const svg = reel.get('images/schema-trois-deploiements.svg').toString('utf8');
+    assert.match(svg, /role="img"/);
+    assert.match(svg, /<title[ >]/);
+    assert.match(svg, /<desc[ >]/);
+    assert.ok(!/scab/i.test(svg), 'aucun nom de client dans le dessin (dépôt public)');
+  });
+
   test('W2 le premier lien après <main de index.html mène à portes-et-droits-mcp.html', () => {
     const h = generer({ docs: DOCS, sommaire: SOMMAIRE }).get('index.html');
     const apres = h.slice(h.indexOf('<main'));
@@ -47,17 +91,25 @@ describe('Wiki local', () => {
     assert.match(h, /mcp\/&lt;client&gt;/, 'le HTML du texte est échappé (/mcp/<client> reste visible)');
   });
 
-  test('W4 aucun script, aucune ressource externe ni iframe dans wiki/ ; style.css sans url() ni @import', () => {
+  test('W4 aucun script, aucune ressource externe ni iframe dans wiki/ (seules images : celles de wiki/images/) ; style.css sans url() ni @import', () => {
     const fichiers = readdirSync(WIKI);
     assert.ok(fichiers.includes('style.css'));
     for (const f of fichiers.filter((x) => x.endsWith('.html'))) {
       const h = readFileSync(join(WIKI, f), 'utf8');
       assert.ok(!/<script/i.test(h), `${f} : <script`);
-      assert.ok(!/\ssrc=/i.test(h), `${f} : src=`);
+      // seul src= admis : une image locale de wiki/images/, écrite par le générateur
+      const sansImages = h.replace(/<figure><img src="images\/([^"/]+)" alt="[^"<>]*"><\/figure>/g, (_, nom) => { assert.ok(existsSync(join(WIKI, 'images', nom)), `${f} : image ${nom} absente de wiki/images/`); return ''; });
+      assert.ok(!/\ssrc=/i.test(sansImages), `${f} : src=`);
       assert.ok(!/<iframe/i.test(h), `${f} : <iframe`);
       assert.ok(!/<meta[^>]+http-equiv/i.test(h), `${f} : <meta http-equiv`);
       const links = h.match(/<link\b[^>]*>/gi) || [];
       assert.deepEqual(links, ['<link rel="stylesheet" href="style.css">'], `${f} : <link`);
+    }
+    // les images SVG copiées : ni script, ni gestionnaire d'événement, ni ressource externe
+    for (const f of existsSync(join(WIKI, 'images')) ? readdirSync(join(WIKI, 'images')).filter((x) => x.endsWith('.svg')) : []) {
+      const s = readFileSync(join(WIKI, 'images', f), 'utf8');
+      assert.ok(!/<script|<foreignObject|\son\w+=|javascript:/i.test(s), `images/${f} : script`);
+      assert.ok(!/(href|src)="(?!#)|url\((?!#)|@import/i.test(s), `images/${f} : ressource externe`);
     }
     const css = readFileSync(join(WIKI, 'style.css'), 'utf8');
     assert.ok(!/url\(/i.test(css) && !/@import/i.test(css));
@@ -89,6 +141,7 @@ describe('Wiki local', () => {
     const sortie = join(temp, 'w6-wiki');
     mkdirSync(docs);
     for (const n of mdDeDocs()) cpSync(join(DOCS, `${n}.md`), join(docs, `${n}.md`));
+    cpSync(join(DOCS, 'images'), join(docs, 'images'), { recursive: true }); // les images font partie de la construction
     // part du wiki fraîchement construit (w6-reel), pas de wiki/ commité qui peut être en retard
     cpSync(join(temp, 'w6-reel'), sortie, { recursive: true });
     assert.equal(verifier({ docs, sortie, sommaire: SOMMAIRE }).ok, true);

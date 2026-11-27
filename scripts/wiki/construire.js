@@ -4,6 +4,7 @@
 //   node scripts/wiki/construire.js             écrit wiki/
 //   node scripts/wiki/construire.js --verifier  compare wiki/ avec ce que donnerait la construction, sans rien écrire (code 1 si différent)
 //
+// Images : une ligne seule ![texte](images/nom.svg) devient une <figure> ; les fichiers de docs/images/ sont copiés dans wiki/images/.
 // Le wiki est LOCAL : il n'est jamais publié (firebase.json l'ignore, un test le garde). Mode d'emploi : docs/wiki.md.
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -20,6 +21,9 @@ const vide = (l) => l.trim() === '';
 const RE_LISTE = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
 const RE_SEPARATEUR = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 const RE_HR = /^\s*([-*_])(\s*\1){2,}\s*$/;
+// Image : une ligne seule ![texte](chemin). Seul un fichier rangé directement dans images/ est accepté (ni adresse externe, ni « .. », ni sous-dossier).
+const RE_IMAGE = /^\s*!\[([^\]]*)\]\(([^)\s]+)\)\s*$/;
+export const RE_FICHIER_IMAGE = /^[A-Za-z0-9][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*\.(svg|png|jpe?g|webp|gif)$/;
 
 /** Texte brut d'une ligne Markdown (pour les titres et les ancres). */
 const brut = (md) => md.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[`*~]/g, '').replace(/<(https?:[^>]*)>/g, '$1').trim();
@@ -135,7 +139,7 @@ function liste(lignes, i, ctx) {
 /** Débute-t-on un autre bloc à cette ligne (donc le paragraphe s'arrête) ? */
 function debutBloc(lignes, i) {
   const l = lignes[i];
-  return vide(l) || /^\s*```/.test(l) || /^\s{0,3}#{1,6}\s/.test(l) || /^\s*>/.test(l) || RE_HR.test(l) || RE_LISTE.test(l)
+  return vide(l) || /^\s*```/.test(l) || /^\s{0,3}#{1,6}\s/.test(l) || /^\s*>/.test(l) || RE_HR.test(l) || RE_LISTE.test(l) || RE_IMAGE.test(l)
     || (l.includes('|') && i + 1 < lignes.length && RE_SEPARATEUR.test(lignes[i + 1]) && lignes[i + 1].includes('-') && lignes[i + 1].includes('|'));
 }
 
@@ -163,6 +167,15 @@ export function blocs(lignes, ctx) {
       continue;
     }
     if (RE_HR.test(l)) { out.push('<hr>'); i++; continue; }
+    const img = l.match(RE_IMAGE);
+    if (img) {
+      // image refusée (ailleurs que dans images/) ou absente de docs/images/ : son texte seul, sans plantage
+      const fichier = img[2].startsWith('images/') ? img[2].slice(7) : '';
+      const acceptee = RE_FICHIER_IMAGE.test(fichier) && (!ctx.images || ctx.images.has(fichier));
+      out.push(acceptee ? `<figure><img src="images/${fichier}" alt="${echapper(img[1])}"></figure>` : `<p>${echapper(img[1])}</p>`);
+      i++;
+      continue;
+    }
     if (/^\s*>/.test(l)) {
       const q = [];
       while (i < lignes.length && /^\s*>/.test(lignes[i])) q.push(lignes[i++].replace(/^\s*>\s?/, ''));
@@ -194,8 +207,9 @@ export function blocs(lignes, ctx) {
   return out.join('\n');
 }
 
-export function markdownVersHtml(md, noms = new Set()) {
-  const ctx = { noms, ids: new Set() };
+/** `images` : noms des fichiers présents dans docs/images/ (sans ce paramètre, tout nom de fichier valide sous images/ est accepté). */
+export function markdownVersHtml(md, noms = new Set(), images = null) {
+  const ctx = { noms, ids: new Set(), images };
   return blocs(md.replace(/\r\n?/g, '\n').replace(/\t/g, '    ').split('\n'), ctx);
 }
 
@@ -242,6 +256,8 @@ pre{background:var(--bloc);border:1px solid var(--bord);border-radius:8px;paddin
 pre code{background:none;padding:0;white-space:pre;overflow-wrap:normal}
 blockquote{border-left:4px solid var(--accent);background:var(--bloc);padding:.6rem 1rem;border-radius:0 8px 8px 0;color:var(--doux)}
 blockquote>:last-child{margin-bottom:0}
+figure{margin:0 0 1rem}
+figure img{display:block;max-width:100%;height:auto;border:1px solid var(--bord);border-radius:8px;background:#ffffff}
 hr{border:0;border-top:1px solid var(--bord);margin:1.5rem 0}
 .tableau{overflow-x:auto;margin:0 0 1rem;border:1px solid var(--bord);border-radius:8px}
 table{border-collapse:collapse;width:100%;font-size:.93rem}
@@ -305,7 +321,15 @@ function lireSommaire(chemin) {
   return s;
 }
 
-/** Tout ce que donne la construction, en mémoire : Map nom de fichier -> contenu. N'écrit rien. */
+/** Les images de docs/images/ (premier niveau, noms et types acceptés seulement) : Map nom -> contenu (octets), dans l'ordre des noms. */
+function lireImages(docs) {
+  const dossier = join(docs, 'images');
+  if (!existsSync(dossier)) return new Map();
+  const noms = readdirSync(dossier, { withFileTypes: true }).filter((e) => e.isFile() && RE_FICHIER_IMAGE.test(e.name)).map((e) => e.name).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  return new Map(noms.map((n) => [n, readFileSync(join(dossier, n))]));
+}
+
+/** Tout ce que donne la construction, en mémoire : Map nom de fichier -> contenu (texte, ou octets pour images/…). N'écrit rien. */
 export function generer({ docs = PAR_DEFAUT.docs, sommaire = PAR_DEFAUT.sommaire } = {}) {
   if (!existsSync(docs)) throw new Error(`Dossier de documents introuvable : ${docs}`);
   const noms = readdirSync(docs, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith('.md')).map((e) => e.name.slice(0, -3)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
@@ -325,11 +349,13 @@ export function generer({ docs = PAR_DEFAUT.docs, sommaire = PAR_DEFAUT.sommaire
   const groupes = [...s.rubriques.map((r) => ({ titre: r.titre, noms: r.pages })), ...(reste.length ? [{ titre: 'Autres', noms: reste }] : [])].filter((g) => g.noms.length);
   const rubriques = groupes.map((g) => ({ titre: g.titre, pages: g.noms.map((n) => ({ nom: n, titre: titres.get(n) })) }));
 
+  const images = lireImages(docs);
   const fichiers = new Map();
   fichiers.set('style.css', CSS);
+  for (const [nom, octets] of images) fichiers.set(`images/${nom}`, octets);
   const gabarit = (courant, titrePage, contenu) => page({ titreSite: s.titre, titrePage, rubriques, courant, contenu });
   for (const n of noms) {
-    const corps = markdownVersHtml(sources.get(n), connus);
+    const corps = markdownVersHtml(sources.get(n), connus, new Set(images.keys()));
     const contenu = `<article>\n${corps}\n</article>\n<p class="source">Page générée depuis <code>docs/${n}.md</code> : on ne la modifie pas ici.</p>`;
     fichiers.set(`${n}.html`, gabarit(n, titres.get(n), contenu));
   }
@@ -343,12 +369,20 @@ function fichiersExistants(sortie) {
   return existsSync(sortie) ? readdirSync(sortie, { withFileTypes: true }).filter((e) => e.isFile()).map((e) => e.name) : [];
 }
 
-/** Écrit le wiki dans `sortie` et efface les .html orphelins (document supprimé). Retourne { pages, ecrits, supprimes }. */
+/** Fichiers générés qui n'ont plus de source : pages .html (document supprimé) et images de wiki/images/ (image retirée de docs/images/). */
+function orphelins(sortie, fichiers) {
+  const pages = fichiersExistants(sortie).filter((f) => f.endsWith('.html'));
+  const images = fichiersExistants(join(sortie, 'images')).map((f) => `images/${f}`);
+  return [...pages, ...images].filter((f) => !fichiers.has(f));
+}
+
+/** Écrit le wiki dans `sortie` (images comprises) et efface les orphelins (document ou image supprimés). Retourne { pages, ecrits, supprimes }. */
 export function construire({ docs = PAR_DEFAUT.docs, sortie = PAR_DEFAUT.sortie, sommaire = PAR_DEFAUT.sommaire } = {}) {
   const fichiers = generer({ docs, sommaire }); // tout est vérifié avant de toucher au disque
   mkdirSync(sortie, { recursive: true });
-  const supprimes = fichiersExistants(sortie).filter((f) => f.endsWith('.html') && !fichiers.has(f));
+  const supprimes = orphelins(sortie, fichiers);
   for (const f of supprimes) rmSync(join(sortie, f));
+  if ([...fichiers.keys()].some((f) => f.startsWith('images/'))) mkdirSync(join(sortie, 'images'), { recursive: true });
   for (const [nom, contenu] of fichiers) writeFileSync(join(sortie, nom), contenu);
   return { pages: [...fichiers.keys()].filter((f) => f.endsWith('.html')).length, ecrits: fichiers.size, supprimes };
 }
@@ -362,7 +396,7 @@ export function verifier({ docs = PAR_DEFAUT.docs, sortie = PAR_DEFAUT.sortie, s
     if (!existsSync(chemin)) differences.push(`manquant : ${nom}`);
     else if (!readFileSync(chemin).equals(Buffer.from(contenu))) differences.push(`différent : ${nom}`);
   }
-  for (const f of fichiersExistants(sortie)) if (f.endsWith('.html') && !fichiers.has(f)) differences.push(`orphelin (le document n'existe plus) : ${f}`);
+  for (const f of orphelins(sortie, fichiers)) differences.push(`orphelin (${f.startsWith('images/') ? "l'image" : 'le document'} n'existe plus) : ${f}`);
   return { ok: differences.length === 0, differences };
 }
 

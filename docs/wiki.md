@@ -37,6 +37,7 @@ La documentation contient des détails de sécurité (portes d'entrée, jetons, 
 - Sans autre geste, elle apparaît dans la rubrique « Autres ».
 - Pour la ranger : ouvre `scripts/wiki/sommaire.json`, ajoute son nom (sans `.md`) dans la liste `pages` de la bonne rubrique. Pour une nouvelle rubrique, ajoute un bloc `{ "titre": "…", "pages": ["…"] }`. L'ordre du fichier est l'ordre du menu.
 - Si le sommaire cite un nom qui n'existe pas dans `docs/`, le script s'arrête avec une erreur claire.
+- **Une image** : range le fichier dans `docs/images/` (SVG de préférence, autonome : ses styles à l'intérieur, pas de script) et écris, seule sur sa ligne, `![texte de remplacement](images/nom.svg)`. Le script copie `docs/images/` dans `wiki/images/` et `--verifier` compare aussi ces fichiers. Seul un fichier rangé directement dans `images/` est accepté : une adresse externe, un `..` ou un sous-dossier donnent le texte de remplacement seul, sans image.
 - Les liens `[texte](autre.md)` deviennent des liens entre pages du wiki. Les liens vers un fichier qui n'est pas converti restent du texte simple ; les liens `https://` restent cliquables.
 
 ## Cas vide et cas d'erreur du script
