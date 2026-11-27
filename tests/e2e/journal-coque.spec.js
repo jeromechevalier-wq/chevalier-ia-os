@@ -1,7 +1,7 @@
 // Journal commun dans la coque (11/11/2026) : `executer` et l'écran Journal ont quitté le module Affaires. Chez Jérôme (racine).
 // Un test par critère (A1 à A5, nom commençant par le numéro), UNE capture par critère dans tests/e2e/captures/journal-coque/ (« -telephone » sur téléphone).
 // Le même écran chez un client sans Affaires : tests/e2e/journal-coque-client.spec.js (règles de la plateforme chargées le temps du fichier).
-import { test, expect, attendreCalme, connecter, allerA, choisirDansMenuUtilisateur, listerDocuments, estTelephone, JEROME } from './outils.js';
+import { test, expect, attendreCalme, connecter, allerA, choisirDansMenuUtilisateur, listerDocuments, estTelephone, JEROME, connecterCompte } from './outils.js';
 
 const CAPTURES = 'e2e/captures/journal-coque';
 const capture = (page, nom) => page.screenshot({ path: `${CAPTURES}/${nom}${estTelephone(page) ? '-telephone' : ''}.png`, animations: 'disabled' });
@@ -106,7 +106,7 @@ test('A5 js/modules/crm/journal.js n’existe plus ; à la déconnexion les filt
   await expect(page.locator('[data-action="filtres"] .compteur-filtres')).toHaveText('1');
   await choisirDansMenuUtilisateur(page, 'Se déconnecter');
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), JEROME);
+  await connecterCompte(page, JEROME);
   await expect(page.locator('.coquille')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Journal des modifications', level: 1 })).toBeVisible();
   await attendreCalme(page);

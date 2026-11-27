@@ -4,7 +4,7 @@
 // Même méthode que tests/e2e/maison-village.spec.js : la fiche `ecran` est réécrite dans l'émulateur avant la connexion. Données d'exemple neutres.
 // Comptes des parcours (outils.js) : JEROME est le titulaire ; CHARLES est un autre compte autorisé de la maison. Logique sans navigateur : tests/maison-village.test.js.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, estTelephone, ouvrirMenuUtilisateur, choisirDansMenuUtilisateur, JEROME, CHARLES, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
+import { test, expect, connecter, estTelephone, ouvrirMenuUtilisateur, choisirDansMenuUtilisateur, JEROME, CHARLES, PROJET, FIRESTORE, ECRAN_PARCOURS, connecterCompte } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/maison-village-mairie/', import.meta.url));
@@ -194,7 +194,7 @@ test.describe('accueil village : roue dentée, Mairie et Console', () => {
     await choisirDansMenuUtilisateur(page, 'Se déconnecter');
     await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
     await page.evaluate(() => { location.hash = ''; });
-    await page.evaluate((e) => window.__chevalierTest.connecter(e, true), CHARLES);
+    await connecterCompte(page, CHARLES);
     await expect(page.locator('[data-role="village"]')).toBeVisible();
     await relever();
     await expect(consoleIlot(page)).toHaveCount(0);

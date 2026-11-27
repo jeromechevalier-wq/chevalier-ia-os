@@ -2,7 +2,7 @@
 // Les deux fonctions du serveur (rafraîchir, renommer) sont SIMULÉES par le navigateur de test : aucun appel réel, aucun n8n.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, estTelephone, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, estTelephone, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 const ALICE = 'alice@exemple.test'; // éditrice
 const LEA = 'lea@exemple.test'; // lectrice
@@ -68,7 +68,7 @@ async function ouvrir(page, client, email = ALICE) {
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/${client}`);
   await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), email);
+  await connecterCompte(page, email);
   await expect(page.locator('.coquille')).toBeVisible();
 }
 const lignes = (page) => page.locator('.autom-ligne');
@@ -216,7 +216,7 @@ test('J12 compatibilité : un client activé avec l\'ancien identifiant « journ
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/ancien/journal/historique`); // ancien signet
   await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+  await connecterCompte(page, ALICE);
   await expect(page).toHaveURL(/#\/espace\/ancien\/automatisations\/historique$/);
   await expect(page.locator('.autom-liste')).toContainText('Ancienne automatisation');
 });

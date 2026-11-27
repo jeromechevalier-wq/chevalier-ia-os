@@ -3,7 +3,7 @@
 // Captures dans tests/e2e/captures/maison-navigateur/ (une par état, nommée avec le projet : ordinateur ou téléphone). Adresses des comptes : celles des parcours (outils.js).
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, URL_APP, PROJET, FIRESTORE, JEROME, CHARLES, ouvrirMenuUtilisateur, allerA } from './outils.js';
+import { test, expect, connecter, URL_APP, PROJET, FIRESTORE, JEROME, CHARLES, ouvrirMenuUtilisateur, allerA, connecterCompte } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/maison-navigateur/', import.meta.url));
@@ -80,7 +80,7 @@ test('MN7 panne de lecture de « ecran » : « Connexion impossible » et « Rec
   await page.goto(`${URL_APP}#/crm/accueil`);
   await expect(bouton(page)).toBeVisible();
   await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate(([e]) => { window.__chevalierTest.echecsEcran = 99; window.__chevalierTest.attentesMembre = [10, 10, 10]; return window.__chevalierTest.connecter(e); }, [JEROME]);
+  await connecterCompte(page, JEROME, true, { echecsEcran: 99, attentesMembre: [10, 10, 10] });
   const panne = page.locator('[data-role="panne-demarrage"]');
   await expect(panne).toContainText('Connexion impossible pour le moment');
   await expect(panne.getByRole('button', { name: 'Recharger' })).toBeVisible();

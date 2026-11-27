@@ -2,7 +2,7 @@
 // ses cases dépendantes du serveur sont grises « indisponible », les autres se lisent normalement, et il n'a aucun bouton d'écriture (pas d'« Actualiser », seuils grisés). Captures : tests/e2e/captures/rdv-bilan/.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, estTelephone, ouvrirSectionReglages, choisirDansMenuUtilisateur, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, estTelephone, ouvrirSectionReglages, choisirDansMenuUtilisateur, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 const LEA = 'lea@exemple.test';
 const ALICE = 'alice@exemple.test';
@@ -33,7 +33,7 @@ test('E3-7 un lecteur voit le bilan : cases du serveur grises « indisponible »
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/atelier`);
   await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), LEA);
+  await connecterCompte(page, LEA);
   await expect(page.locator('.coquille')).toBeVisible();
   await choisirDansMenuUtilisateur(page, 'Réglages');
   await ouvrirSectionReglages(page, 'Rendez-vous');
@@ -57,7 +57,7 @@ test('D2-1 un lecteur voit la liste des numéros désinscrits (masqués) mais au
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/atelier`);
   await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), LEA);
+  await connecterCompte(page, LEA);
   await expect(page.locator('.coquille')).toBeVisible();
   await choisirDansMenuUtilisateur(page, 'Réglages');
   await ouvrirSectionReglages(page, 'Rendez-vous');

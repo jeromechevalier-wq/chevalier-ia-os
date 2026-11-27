@@ -5,6 +5,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
   test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, listerDocuments, creerAffaire, creerProjet, allerAuxReglagesCrm, JEROME, PROJET, FIRESTORE, URL_APP,
+  connecterCompte,
 } from './outils.js';
 import { brancherGoogle } from './google-simule.js';
 
@@ -358,7 +359,7 @@ test.describe('9 lecteur d’un espace client', () => {
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/studio/crm/affaires/a1`);
     await page.waitForFunction(() => !!window.__chevalierTest);
-    await page.evaluate((e) => window.__chevalierTest.connecter(e, true), email);
+    await connecterCompte(page, email);
     await expect(page.locator('.compositeur')).toBeVisible();
     await attendreCalme(page);
   }
