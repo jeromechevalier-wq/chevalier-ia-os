@@ -3,7 +3,7 @@
 // Le vrai stockage (lien signé « attachment » de Firebase Storage) est impossible ici : l'adresse https est simulée avec l'en-tête content-disposition: attachment.
 import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, listerDocuments, creerOrganisation, creerAffaire, estTelephone, PROJET, FIRESTORE, URL_APP, JEROME } from './outils.js';
+import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, listerDocuments, creerOrganisation, creerAffaire, estTelephone, PROJET, FIRESTORE, URL_APP, JEROME, connecterCompte } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-onglet-affaire/', import.meta.url));
 async function capturer(page, info, nom) {
@@ -97,7 +97,7 @@ test.describe('1 module éteint', () => {
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/studio/crm/affaires/a1`);
     await page.waitForFunction(() => !!window.__chevalierTest);
-    await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+    await connecterCompte(page, ALICE);
     await expect(page.locator('.compositeur')).toBeVisible();
     await attendreCalme(page);
     await expect(page.locator('.compositeur [role="tab"]')).toHaveText([/Activité/, /Notes/, /G-Drive/, /Documents/]);

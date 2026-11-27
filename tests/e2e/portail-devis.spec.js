@@ -2,7 +2,7 @@
 // Le nom d'un test commence par le numéro du critère (5 à 10 et 13 à 18 ici ; 1 à 4, 11 et 12 : tests/portail-devis.test.js). Captures dans tests/e2e/captures/portail-devis/.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, listerDocuments, connecter, ecrireDocument, estTelephone, attendreCalme, ouvrirMenuUtilisateur, choisirDansMenuUtilisateur, CHANTIER_ESSAI, JEROME, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, listerDocuments, connecter, ecrireDocument, estTelephone, attendreCalme, ouvrirMenuUtilisateur, choisirDansMenuUtilisateur, CHANTIER_ESSAI, JEROME, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/portail-devis/', import.meta.url));
 const DOSSIER_RETOUCHES = fileURLToPath(new URL('./captures/a-traiter-retouches/', import.meta.url));
@@ -322,7 +322,7 @@ test.describe('chez un client (règles de la plateforme)', () => {
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/${client}${reste ? `/${reste}` : ''}`);
     await page.waitForFunction(() => !!window.__chevalierTest);
-    await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+    await connecterCompte(page, ALICE);
     await expect(page.locator('.coquille')).toBeVisible();
   }
 

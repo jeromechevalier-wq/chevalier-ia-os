@@ -2,7 +2,7 @@
 // Chaque test porte le numéro d'un point du brief ; captures dans tests/e2e/captures/affaire-montant/ (ordinateur et téléphone).
 import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, creerAffaire, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, creerAffaire, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/affaire-montant/', import.meta.url));
 async function capturer(page, info, nom, zone = page.locator('.fiche-tete')) {
@@ -148,7 +148,7 @@ test.describe('7 module Devis éteint', () => {
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/studio/crm/affaires/a1`);
     await page.waitForFunction(() => !!window.__chevalierTest);
-    await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+    await connecterCompte(page, ALICE);
     await expect(page.locator('.fiche-tete')).toBeVisible();
     await attendreCalme(page);
     await expect(libelle(page)).toHaveText('Montant estimé');

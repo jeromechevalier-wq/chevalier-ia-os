@@ -6,7 +6,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, lireDocument, listerDocuments, estTelephone, allerA, choisirDansMenuUtilisateur, PROJET, FIRESTORE, AUTH, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, lireDocument, listerDocuments, estTelephone, allerA, choisirDansMenuUtilisateur, PROJET, FIRESTORE, AUTH, URL_APP, connecterCompte } from './outils.js';
 import { brancherServeurEspace, fabriquerImage, dimensionsPng, dimensionsDansNavigateur, urlFichier } from './espace-faux-serveur.js';
 
 const ALICE = 'alice@exemple.test'; // éditrice, seule éditrice de « studio »
@@ -51,7 +51,7 @@ async function ouvrir(page, reste = 'reglages', { client = 'studio', email = ALI
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/${client}/${reste}`);
   await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), email);
+  await connecterCompte(page, email);
   await expect(page.locator('.coquille')).toBeVisible();
 }
 const champ = (page, nom) => page.locator(`[data-champ="${nom}"]`);

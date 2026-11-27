@@ -2,7 +2,7 @@
 // puis les règles du CRM remises). Un client voit le menu et les écrans de ses seuls modules actifs, sous clients/<client>/…
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, estTelephone, ouvrirSectionReglages, choisirDansMenuUtilisateur, ouvrirMenuUtilisateur, attendreCalme, listerDocuments, CHANTIER_ESSAI, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, estTelephone, ouvrirSectionReglages, choisirDansMenuUtilisateur, ouvrirMenuUtilisateur, attendreCalme, listerDocuments, CHANTIER_ESSAI, PROJET, FIRESTORE, URL_APP, connecterCompte } from './outils.js';
 
 const CRM = '/js/modules/crm/donnees.js';
 const CAPTURES = fileURLToPath(new URL('./captures/modules-client/', import.meta.url));
@@ -78,7 +78,7 @@ async function ouvrir(page, client, email = ALICE, reste = '') {
   await page.goto('about:blank');
   await page.goto(`${URL_APP}#/espace/${client}${reste ? `/${reste}` : ''}`);
   await page.waitForFunction(() => !!window.__chevalierTest);
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), email);
+  await connecterCompte(page, email);
 }
 const menu = (page) => page.locator('.menu');
 async function ouvrirMenu(page) {

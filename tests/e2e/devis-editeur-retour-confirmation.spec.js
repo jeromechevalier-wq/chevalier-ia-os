@@ -4,7 +4,7 @@
 // La fonction du serveur devisChangerStatut n'existe pas dans l'émulateur du navigateur : elle est SIMULÉE par page.route.
 import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, ecrireDocument, creerOrganisation, creerAffaire, FIRESTORE, PROJET, URL_APP, JEROME } from './outils.js';
+import { test, expect, connecter, attendreCalme, ecrireDocument, creerOrganisation, creerAffaire, FIRESTORE, PROJET, URL_APP, JEROME, connecterCompte } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-editeur-retour-confirmation/', import.meta.url));
 async function capturer(page, info, nom) {
@@ -194,7 +194,7 @@ test.describe('4e chez un client', () => {
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/studio/crm/affaires/a1`);
     await page.waitForFunction(() => !!window.__chevalierTest);
-    await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+    await connecterCompte(page, ALICE);
     await expect(page.locator('.compositeur')).toBeVisible();
     await attendreCalme(page);
     await ouvrirOngletDevis(page);

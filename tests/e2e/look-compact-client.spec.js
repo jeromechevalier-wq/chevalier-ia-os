@@ -4,7 +4,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, estTelephone, PROJET, FIRESTORE, URL_APP, jour } from './outils.js';
+import { test, expect, ecrireDocument, estTelephone, PROJET, FIRESTORE, URL_APP, jour, connecterCompte } from './outils.js';
 
 const LOOK = process.env.LOOK === 'avant' ? 'avant' : 'apres';
 const DOSSIER = join(homedir(), 'chantiers-crm', 'captures-look-compact', LOOK);
@@ -48,7 +48,7 @@ test('8 écran de connexion de Jérôme et de l’espace client : lisibles, sans
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
   expect(await sansDebordement(page)).toBe(true);
   await capture(page, '8-connexion-client');
-  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+  await connecterCompte(page, ALICE);
   await expect(page.locator('.coquille')).toBeVisible();
   await expect(page.locator('.carte-affaire').first()).toBeVisible();
   expect(await sansDebordement(page)).toBe(true);

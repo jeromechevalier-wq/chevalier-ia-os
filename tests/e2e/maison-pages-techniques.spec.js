@@ -5,7 +5,7 @@
 // Comptes des parcours (outils.js) : JEROME est le titulaire ; CHARLES est un autre compte autorisé (ici : le compte du client). Logique : tests/maison-pages-techniques.test.js.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, estTelephone, ouvrirMenuUtilisateur, ecrireDocument, JEROME, CHARLES, PROJET, FIRESTORE, URL_APP, ECRAN_PARCOURS } from './outils.js';
+import { test, expect, connecter, estTelephone, ouvrirMenuUtilisateur, ecrireDocument, JEROME, CHARLES, PROJET, FIRESTORE, URL_APP, ECRAN_PARCOURS, connecterCompte } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/maison-pages-techniques/', import.meta.url));
@@ -141,7 +141,7 @@ test.describe('plateforme des clients', () => {
     await page.goto('about:blank');
     await page.goto(`${URL_APP}#/espace/cabinet/reglages`);
     await page.waitForFunction(() => !!window.__chevalierTest);
-    await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+    await connecterCompte(page, ALICE);
     await expect(page.locator('.page-reglages-menu')).toBeVisible();
     expect(await sectionsEspace(page)).toEqual(['espace', 'membres', 'modules', 'deploiement', 'tests']);
     await capturer(page, info, '4c-plateforme-inchangee');
