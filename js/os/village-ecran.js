@@ -1,27 +1,41 @@
-// Écran d'accueil « village » d'une maison (26/11/2026) : un terrain isométrique de 4 parcelles (losange 2 x 2), un bâtiment par besoin, rien d'autre (ni journal, ni carrés).
-// Les besoins (1 à 4) arrivent déjà vérifiés par js/os/maison-village.js (lireBesoinsMaison) et occupent les parcelles dans l'ordre fixe haut, gauche, droite, bas ;
-// les parcelles libres sont décorées (lavande, bosquet, potager) et ne sont ni cliquables ni atteignables au clavier (aria-hidden). Textes posés par textContent, jamais innerHTML.
+// Écran d'accueil « village » d'une maison (26/11/2026) : un terrain isométrique, un bâtiment par besoin, rien d'autre (ni journal, ni carrés).
+// Étape 2 de docs/accueil-village.md (27/11/2026) : le terrain est un DAMIER de 8 x 8 cases (js/os/village-damier.js) que CHAQUE utilisateur range :
+//  - les besoins arrivent déjà vérifiés (js/os/maison-village.js, 12 au plus) et filtrés sur les modules allumés pour ce compte (js/main.js) ;
+//  - le rangement de l'utilisateur (une place, un nom à lui, caché ou non, par maison) est lu UNE fois à l'ouverture (js/os/village-donnees.js) ;
+//    sans rangement lu (pas de données, lecture refusée ou en panne) : le village d'office, sans glisser ni double clic ;
+//  - une grande maison occupe 2 x 2 cases ; au premier rangement, les maisons prennent les places d'office (D10) ;
+//  - gestes (js/os/village-glisser.js) : glisser une maison sur des cases libres (souris ou doigt) ; double clic (ordinateur) ou appui long (téléphone) : ses réglages ;
+//  - le décor (arbres, fleurs) n'est posé que sur des cases libres ; il n'est ni cliquable ni atteignable au clavier (aria-hidden).
 // Sous chaque bâtiment, une étiquette permanente : le nom seul. Au survol ou au focus clavier, une BULLE (carte blanche avec une petite flèche) : le nom, la phrase,
 // la pastille du compteur s'il y en a un (js/os/village-compteurs.js ; « Compte en cours » pendant la lecture, illisible = pas de pastille) et « Cliquez pour entrer ».
-// Aucun `title` ni <title> SVG (infobulle grise du navigateur en double avec la bulle) : le nom accessible est l'aria-label du bâtiment.
-// Ordinateur : un clic, Entrée ou Espace sur un bâtiment ouvre sa cible (une route interne « #/… »).
-// Téléphone (moins de 768 px) : le même terrain réduit à la largeur de l'écran ; un premier toucher montre la bulle, un second toucher ouvre la cible.
+// Aucun `title` ni <title> SVG (infobulle grise du navigateur en double avec la bulle) : le nom accessible est l'aria-label du bâtiment. Textes par textContent, jamais innerHTML.
+// Ordinateur : un clic (après 280 ms quand le rangement est possible), Entrée ou Espace sur un bâtiment ouvre sa cible (une route interne « #/… »).
+// Téléphone (moins de 768 px) : le dessin fait 160 % de la largeur de l'écran et glisse au doigt ; un premier toucher montre la bulle, un second ouvre la cible ;
+// un bouton « Liste » montre les mêmes maisons en liste de liens (js/os/village-liste.js).
 // Étape 1 de docs/accueil-village.md (27/11/2026) : hors du terrain (HTML, pas dans le SVG), une roue dentée en haut à droite (js/os/village-reglages.js :
-// réglages de l'ACCUEIL seulement, « Animations »), et deux îlots fixes dans les coins bas : la Mairie (bas gauche, toujours ; ouvre la page Réglages) et la
+// réglages de l'ACCUEIL seulement), et deux îlots fixes dans les coins bas : la Mairie (bas gauche, toujours ; ouvre la page Réglages) et la
 // Console (bas droite, seulement si `console` est vrai, c'est-à-dire si la Console est dans les modules de la session : titulaire seul). Un îlot est un vrai lien
 // (Tab, Entrée) ; sur téléphone, un seul toucher l'ouvre (nom et sous-titre déjà écrits dessous, pas de bulle). Les îlots n'ont ni data-role="batiment", ni
-// data-parcelle : ils ne comptent pas parmi les besoins.
-import { planVillage, dessinBatiment, decorParcelle, formesTerrain, pastilleBulle, ETIQUETTE_Y } from './maison-village.js';
+// data-maison : ils ne comptent pas parmi les besoins, ne se déplacent pas et ne se cachent pas.
+import { dessinBatiment, pastilleBulle, ETIQUETTE_Y } from './maison-village.js';
 import { lireCompteur } from './village-compteurs.js';
-import { BATIMENTS_FIXES, dessinBatimentFixe } from './village-batiments.js';
-import { boutonReglagesAccueil, animationsCoupees } from './village-reglages.js';
+import { BATIMENTS_FIXES, dessinBatimentFixe, iso } from './village-batiments.js';
+import { boutonReglagesAccueil, animationsCoupees, fenetreMaison } from './village-reglages.js';
+import {
+  DAMIER_DEPART, TAILLE_GRANDE, centreBloc, vueVillage, formesDamier, lignesDamier, losangeBloc, decorLibre, occupation, blocLibre, premierBlocLibre,
+  lireBatiments, rangerVillage, docDeplacement, docCacher, docRenommer,
+} from './village-damier.js';
+import { brancherGestes } from './village-glisser.js';
+import { listeMaisons, boutonVue, vueChoisie } from './village-liste.js';
 import { lien } from './router.js';
+import { toast } from './ui.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const TELEPHONE = '(max-width: 767px)';
-// Tailles des étiquettes en unités du dessin (le dessin est agrandi d'environ 2 fois sur un écran d'ordinateur 1440 x 900, réduit à 0,6 fois sur un téléphone de 390 px).
-const ORDI = Object.freeze({ nom: 11.5, hauteur: 19, rx: 7, largeurMax: 150, carNom: 0.62, marge: 14 });
-const TEL = Object.freeze({ nom: 24, hauteur: 36, rx: 12, largeurMax: 200, carNom: 0.62, marge: 22 });
+// Tailles des étiquettes en unités du dessin (le dessin est agrandi d'environ 1,8 fois sur un écran d'ordinateur 1440 x 900 ; sur un téléphone de 390 px,
+// il fait 160 % de la largeur de l'écran, soit environ 0,95 fois).
+const ORDI = Object.freeze({ nom: 11.5, hauteur: 19, rx: 7, largeurMax: 140, carNom: 0.62, marge: 14 });
+const TEL = Object.freeze({ nom: 15, hauteur: 24, rx: 9, largeurMax: 140, carNom: 0.62, marge: 14 });
 
 function el(nom, attrs = {}) {
   const n = document.createElementNS(NS, nom);
@@ -66,49 +80,55 @@ function etiquette(besoin, x, y, telephone) {
   return g;
 }
 
+/** Le besoin tel que l'utilisateur le voit : son nom choisi à la place du nom d'origine. */
+const besoinVu = (maison) => ({ ...maison.besoin, nom: maison.nom });
+
 /**
- * Bâtiment (le lien accessible). `ctx` : { telephone, aller, bulle } ; `i` : rang du besoin.
+ * Bâtiment (le lien accessible). `ctx` : { telephone, aller, bulle, gestes } ; `place` : { x, y } à l'écran.
  * Ordinateur : clic, Entrée, Espace ouvrent la cible. Téléphone : le premier toucher montre la bulle, le second ouvre la cible (Entrée et Espace ouvrent toujours).
+ * Avec le rangement (ctx.gestes), le clic passe par js/os/village-glisser.js (délai, double clic, glisser) : l'écoute du clic ci-dessous ne le reçoit plus.
  */
-function batiment(besoin, place, i, ctx) {
-  const g = el('g', { class: 'village-batiment', tabindex: 0, role: 'link', 'data-role': 'batiment', 'data-batiment': besoin.batiment, 'data-cible': besoin.cible, 'data-parcelle': place.nom });
+function batiment(maison, place, ctx) {
+  const besoin = besoinVu(maison);
+  const g = el('g', { class: 'village-batiment', tabindex: 0, role: 'link', 'data-role': 'batiment', 'data-batiment': besoin.batiment, 'data-cible': besoin.cible, 'data-maison': maison.id, 'data-case': `${maison.c}-${maison.l}` });
   g.setAttribute('aria-label', besoin.phrase ? `${besoin.nom} : ${besoin.phrase}` : besoin.nom); // pas de <title> : il ferait une infobulle grise en plus de la bulle
   g.append(el('ellipse', { class: 'village-halo', cx: r1(place.x), cy: r1(place.y - 40), rx: 96, ry: 84, fill: 'url(#village-halo)' }));
   const lever = el('g', { class: 'village-lever' });
   for (const f of dessinBatiment(besoin.batiment)) lever.append(forme(f, place.x, place.y));
   g.append(lever);
-  g.addEventListener('click', () => toucher(i, besoin, ctx));
+  g.addEventListener('click', () => toucher(maison, ctx));
   g.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     e.preventDefault();
     ctx.aller(besoin.cible);
   });
   // Survol et focus : seulement sur ordinateur (sur téléphone, un toucher déclenche aussi le survol et le focus : la bulle y suit les touchers).
-  g.addEventListener('mouseenter', () => { if (!ctx.telephone) ctx.bulle.montrer(i); });
-  g.addEventListener('mouseleave', () => { if (!ctx.telephone) ctx.bulle.cacher(i); });
-  g.addEventListener('focus', () => { if (!ctx.telephone) ctx.bulle.montrer(i); });
-  g.addEventListener('blur', () => { if (!ctx.telephone) ctx.bulle.cacher(i); });
+  g.addEventListener('mouseenter', () => { if (!ctx.telephone && !ctx.rangementEnCours()) ctx.bulle.montrer(maison); });
+  g.addEventListener('mouseleave', () => { if (!ctx.telephone) ctx.bulle.cacher(maison.id); });
+  g.addEventListener('focus', () => { if (!ctx.telephone) ctx.bulle.montrer(maison); });
+  g.addEventListener('blur', () => { if (!ctx.telephone) ctx.bulle.cacher(maison.id); });
   return g;
 }
 /** Clic ou toucher : sur téléphone, la bulle d'abord ; sinon (ou si la bulle de ce bâtiment est déjà ouverte) la cible. */
-function toucher(i, besoin, ctx) {
-  if (ctx.telephone && !ctx.bulle.ouverte(i)) { ctx.bulle.montrer(i); return; }
-  ctx.aller(besoin.cible);
+function toucher(maison, ctx) {
+  if (ctx.telephone && !ctx.bulle.ouverte(maison.id)) { ctx.bulle.montrer(maison); return; }
+  ctx.aller(maison.besoin.cible);
 }
 
 /** L'étiquette d'un bâtiment, dessinée après tout le reste (un toit voisin ne la cache jamais). Même effet que le bâtiment ; le lien accessible reste le bâtiment. */
-function lienEtiquette(besoin, place, i, b, ctx) {
-  const g = el('g', { class: 'village-lien-etiquette', 'aria-hidden': 'true', 'data-role': 'etiquette', 'data-parcelle': place.nom, 'data-cible': besoin.cible });
-  g.append(etiquette(besoin, place.x, place.y + ETIQUETTE_Y, ctx.telephone));
-  g.addEventListener('click', () => toucher(i, besoin, ctx));
-  g.addEventListener('mouseenter', () => { b.classList.add('survol'); if (!ctx.telephone) ctx.bulle.montrer(i); });
-  g.addEventListener('mouseleave', () => { b.classList.remove('survol'); if (!ctx.telephone) ctx.bulle.cacher(i); });
+function lienEtiquette(maison, place, b, ctx) {
+  const g = el('g', { class: 'village-lien-etiquette', 'aria-hidden': 'true', 'data-role': 'etiquette', 'data-maison': maison.id, 'data-case': `${maison.c}-${maison.l}`, 'data-cible': maison.besoin.cible });
+  g.append(etiquette(besoinVu(maison), place.x, place.y + ETIQUETTE_Y, ctx.telephone));
+  g.addEventListener('click', () => toucher(maison, ctx));
+  g.addEventListener('mouseenter', () => { b.classList.add('survol'); if (!ctx.telephone && !ctx.rangementEnCours()) ctx.bulle.montrer(maison); });
+  g.addEventListener('mouseleave', () => { b.classList.remove('survol'); if (!ctx.telephone) ctx.bulle.cacher(maison.id); });
   for (const [ev, oui] of [['mouseenter', true], ['mouseleave', false], ['focus', true], ['blur', false]]) b.addEventListener(ev, () => g.classList.toggle('actif', oui));
   return g;
 }
 
-function dessiner(besoins, ctx) {
-  const { parcelles, vue } = planVillage(besoins.length);
+function dessiner(maisons, ctx) {
+  const damier = DAMIER_DEPART;
+  const vue = vueVillage(damier);
   const svg = el('svg', {
     class: 'village-scene', viewBox: `${r1(vue.x)} ${r1(vue.y)} ${r1(vue.largeur)} ${r1(vue.hauteur)}`, preserveAspectRatio: 'xMidYMid meet',
     role: 'group', 'aria-label': 'Accueil : choisis ce que tu veux faire', 'data-role': 'village', 'data-disposition': ctx.telephone ? 'terrain-telephone' : 'terrain',
@@ -119,51 +139,53 @@ function dessiner(besoins, ctx) {
   defs.append(halo);
   svg.append(defs);
 
-  // 1. Le terrain et ses sentiers en croix, puis le sol de chaque parcelle (à plat).
+  // 1. Le terrain (tranche et herbe), le quadrillage (visible seulement pendant le rangement), puis la place pavée de chaque maison (à plat).
   const terrain = el('g', { class: 'village-terrain', 'aria-hidden': 'true' });
-  for (const f of formesTerrain()) terrain.append(forme(f));
+  for (const f of formesDamier(damier)) terrain.append(forme(f));
   svg.append(terrain);
-  const decors = parcelles.map((p) => ({ p, d: decorParcelle(p) }));
-  for (const { p, d } of decors) {
-    const g = el('g', { class: 'village-parcelle', 'data-role': 'parcelle', 'data-parcelle': p.nom, 'data-occupee': p.occupee ? 'oui' : 'non', 'aria-hidden': 'true' });
-    if (!p.occupee) g.setAttribute('data-decor', p.decor);
-    for (const f of d.sol) g.append(forme(f));
-    svg.append(g);
+  const quadrillage = el('g', { class: 'village-damier', 'data-role': 'damier', 'data-colonnes': damier.colonnes, 'data-lignes': damier.lignes, 'aria-hidden': 'true' });
+  for (const f of lignesDamier(damier)) quadrillage.append(forme(f));
+  svg.append(quadrillage);
+  for (const m of maisons) {
+    const sol = el('g', { class: 'village-sol', 'aria-hidden': 'true', 'data-maison': m.id });
+    sol.append(el('polygon', { points: points(losangeBloc(m.c, m.l, m.taille, damier, 0.35), 0, 0), fill: '#EFD9AE' }));
+    svg.append(sol);
   }
-  // 2. Ce qui est debout (arbres et bâtiments), du fond vers l'avant (ordre du peintre).
+  // 2. Ce qui est debout (décor des cases libres et bâtiments), du fond vers l'avant (ordre du peintre).
   const debout = [];
-  for (const { p, d } of decors) {
-    for (const o of d.objets) {
-      debout.push({ profondeur: o.profondeur, noeud: () => { const g = el('g', { class: 'village-decor', 'aria-hidden': 'true', 'data-parcelle': p.nom }); for (const f of o.formes) g.append(forme(f)); return g; } });
-    }
+  for (const o of decorLibre(occupation(maisons), damier)) {
+    debout.push({ profondeur: o.profondeur, noeud: () => { const g = el('g', { class: 'village-decor', 'data-role': 'decor', 'data-case': o.case, 'aria-hidden': 'true' }); for (const f of o.formes) g.append(forme(f)); return g; } });
   }
-  const occupees = parcelles.filter((p) => p.occupee);
-  const noeuds = occupees.map((p, i) => batiment(besoins[i], p, i, ctx));
-  occupees.forEach((p, i) => debout.push({ profondeur: p.gx + p.gy + 0.01, noeud: () => noeuds[i] }));
+  const places = new Map(maisons.map((m) => { const [x, y] = iso(...centreBloc(m.c, m.l, m.taille, damier)); return [m.id, { x, y }]; }));
+  const noeuds = new Map(maisons.map((m) => [m.id, batiment(m, places.get(m.id), ctx)]));
+  for (const m of maisons) {
+    const [gx, gy] = centreBloc(m.c, m.l, m.taille, damier);
+    debout.push({ profondeur: gx + gy + 0.01, noeud: () => noeuds.get(m.id) });
+  }
   debout.sort((u, v) => u.profondeur - v.profondeur);
   for (const o of debout) svg.append(o.noeud());
-  // 3. Les étiquettes, devant tout, dans l'ordre des parcelles.
+  // 3. Les étiquettes, devant tout, dans l'ordre des besoins.
   const calque = el('g', { class: 'village-etiquettes' });
-  occupees.forEach((p, i) => calque.append(lienEtiquette(besoins[i], p, i, noeuds[i], ctx)));
+  for (const m of maisons) calque.append(lienEtiquette(m, places.get(m.id), noeuds.get(m.id), ctx));
   svg.append(calque);
   return { svg, noeuds };
 }
 
 /**
  * La bulle (HTML, au-dessus du dessin) : nom, phrase, pastille du compteur (si lu), « Cliquez pour entrer » (« Touchez encore pour entrer » sur téléphone).
- * `compteurs[i]` : nombre lu pour le besoin i (undefined = lecture en cours, ou pas de compteur ; null = illisible ou trop lent). Le nombre reste connu pour les survols suivants.
+ * `compteurs` : Map(id de maison → nombre lu) ; absent = lecture en cours, ou pas de compteur ; null = illisible ou trop lent. Le nombre reste connu pour les survols suivants.
  */
-function creerBulle(cadre, besoins, compteurs) {
+function creerBulle(cadre, compteurs) {
   const bulle = document.createElement('div');
   bulle.className = 'village-bulle';
   bulle.dataset.role = 'bulle';
   bulle.setAttribute('aria-hidden', 'true'); // le lien accessible (aria-label) porte déjà le nom et la phrase
   bulle.hidden = true;
-  let rang = null;
-  let noeuds = [];
+  let maison = null;
+  let noeuds = new Map();
   let telephone = false;
   function remplir() {
-    const b = besoins[rang];
+    const b = besoinVu(maison);
     const nom = document.createElement('b');
     nom.dataset.role = 'bulle-nom';
     nom.textContent = b.nom;
@@ -174,7 +196,7 @@ function creerBulle(cadre, besoins, compteurs) {
       phrase.textContent = b.phrase;
       enfants.push(phrase);
     }
-    const etat = b.compteur ? pastilleBulle(b.compteur, compteurs[rang]) : null;
+    const etat = b.compteur ? pastilleBulle(b.compteur, compteurs.get(maison.id)) : null;
     if (etat) {
       const pastille = document.createElement('span');
       pastille.dataset.role = etat.attente ? 'bulle-attente' : 'bulle-pastille';
@@ -186,10 +208,11 @@ function creerBulle(cadre, besoins, compteurs) {
     aide.textContent = telephone ? 'Touchez encore pour entrer' : 'Cliquez pour entrer';
     enfants.push(aide);
     bulle.replaceChildren(...enfants);
-    bulle.dataset.parcelle = noeuds[rang].getAttribute('data-parcelle');
+    bulle.dataset.maison = maison.id;
   }
   function placer() {
-    const cible = noeuds[rang].querySelector('.village-lever').getBoundingClientRect();
+    const cible = noeuds.get(maison.id)?.querySelector('.village-lever')?.getBoundingClientRect();
+    if (!cible) return;
     const boite = cadre.getBoundingClientRect();
     const demi = bulle.offsetWidth / 2;
     let x = cible.left + cible.width / 2 - boite.left;
@@ -199,15 +222,23 @@ function creerBulle(cadre, besoins, compteurs) {
     bulle.style.left = `${Math.round(x)}px`;
     bulle.style.top = `${Math.round(y)}px`;
   }
+  const ouverte = (id) => maison?.id === id && !bulle.hidden;
   return {
     element: bulle,
-    brancher(n, tel) { noeuds = n; telephone = tel; rang = null; bulle.hidden = true; },
-    montrer(i) { rang = i; remplir(); bulle.hidden = false; placer(); },
-    cacher(i) { if (i === undefined || i === rang) { rang = null; bulle.hidden = true; } },
-    ouverte: (i) => rang === i && !bulle.hidden,
-    /** Un compteur vient d'être lu : la bulle ouverte sur ce besoin se met à jour. */
-    rafraichir(i) { if (rang === i && !bulle.hidden) { remplir(); placer(); } },
+    brancher(n, tel) { noeuds = n; telephone = tel; maison = null; bulle.hidden = true; },
+    montrer(m) { maison = m; remplir(); bulle.hidden = false; placer(); },
+    cacher(id) { if (id === undefined || id === maison?.id) { maison = null; bulle.hidden = true; } },
+    ouverte,
+    /** Un compteur vient d'être lu : la bulle ouverte sur cette maison se met à jour. */
+    rafraichir(id) { if (ouverte(id)) { remplir(); placer(); } },
   };
+}
+
+/** Petite vignette d'un bâtiment (roue dentée, vue Liste) : décorative (aria-hidden). */
+function vignette(formes) {
+  const svg = el('svg', { viewBox: '-100 -150 200 200', 'aria-hidden': 'true', focusable: 'false', class: 'village-vignette' });
+  for (const f of formes) svg.append(forme(f));
+  return svg;
 }
 
 /** Sous-titre court écrit sous le nom d'un îlot. */
@@ -243,14 +274,17 @@ function ilot(id, route) {
 }
 
 /**
- * Monte le village dans `conteneur`. `besoins` : 1 à 4 besoins vérifiés ; `aller(cible)` : ouvre une route (« #/… ») ;
- * `console` : vrai si la Console est dans les modules de la session (titulaire seul) : l'îlot Console est alors posé en bas à droite.
- * Rend la fonction qui démonte l'écran (arrête l'écoute du format téléphone / ordinateur).
+ * Monte le village dans `conteneur`. `besoins` : 1 à 12 besoins vérifiés et servis ; `aller(cible)` : ouvre une route (« #/… ») ;
+ * `console` : vrai si la Console est dans les modules de la session (titulaire seul) : l'îlot Console est alors posé en bas à droite ;
+ * `donnees` : la couche de données du rangement (js/os/village-donnees.js : { lire, enregistrer, retirer }), ou null (village d'office, sans rangement).
+ * Rend la fonction qui démonte l'écran (arrête l'écoute du format téléphone / ordinateur et les gestes).
  */
-export function monterVillage(conteneur, besoins, { aller, console: avecConsole = false }) {
+export function monterVillage(conteneur, besoins, { aller, console: avecConsole = false, donnees = null }) {
   const page = document.createElement('section');
   page.className = 'page-village';
   page.dataset.role = 'page-village';
+  page.dataset.rangement = 'non';
+  page.dataset.vue = 'village';
   const majAnimations = () => { page.dataset.animations = animationsCoupees() ? 'non' : 'oui'; };
   majAnimations();
   const titre = document.createElement('h1');
@@ -258,34 +292,191 @@ export function monterVillage(conteneur, besoins, { aller, console: avecConsole 
   titre.textContent = 'Accueil';
   const cadre = document.createElement('div');
   cadre.className = 'village-cadre';
+  const defile = document.createElement('div');
+  defile.className = 'village-defile';
+  const phrase = document.createElement('p');
+  phrase.className = 'village-phrase';
+  phrase.dataset.role = 'village-phrase';
+  const bandeau = document.createElement('div');
+  bandeau.className = 'village-bandeau';
+  bandeau.dataset.role = 'village-bandeau';
+  bandeau.setAttribute('role', 'alert');
+  const zoneListe = document.createElement('div');
+  zoneListe.className = 'village-zone-liste';
   page.append(titre, cadre);
   conteneur.append(page);
-  const compteurs = besoins.map(() => undefined);
-  const bulle = creerBulle(cadre, besoins, compteurs);
+  const compteurs = new Map();
+  const bulle = creerBulle(cadre, compteurs);
   const media = typeof window.matchMedia === 'function' ? window.matchMedia(TELEPHONE) : null;
+  const damier = DAMIER_DEPART;
+
+  // État : `lecture` = 'attente' | 'ok' | 'refus' | 'erreur' | 'sans' (pas de données) ; `batiments` : Map(id → document) ; `rangement` : résultat de rangerVillage.
+  let lecture = donnees ? 'attente' : 'sans';
+  let batiments = new Map();
+  let rangement = { maisons: [], cachees: [], sansPlace: [] };
+  let monte = true;
+  let debrancher = null;
+  let premierRendu = true;
+  const rangementPossible = () => lecture === 'ok';
+  const ranger = () => { rangement = rangerVillage({ besoins, batiments, damier }); };
+  const maisonsVisibles = () => (lecture === 'attente' ? [] : rangement.maisons);
+
+  // Une seule lecture par compteur et par affichage du village, lancée dès que la maison est montrée (jamais au survol) ; la bulle ouverte se met à jour quand le nombre arrive.
+  const lances = new Set();
+  function lancerCompteurs() {
+    for (const m of maisonsVisibles()) {
+      const b = m.besoin;
+      if (!b.compteur || lances.has(m.id)) continue;
+      lances.add(m.id);
+      lireCompteur(b.compteur).catch(() => null).then((n) => {
+        if (!monte) return;
+        compteurs.set(m.id, n);
+        bulle.rafraichir(m.id);
+        if (page.dataset.vue === 'liste') rendre();
+      });
+    }
+  }
+
+  /**
+   * Écrit des maisons (une seule écriture groupée) : `modifs` = [{ id, donnees }]. Les maisons visibles dont la place n'est pas encore enregistrée sont écrites
+   * en même temps à leur place (D10 : plus rien ne bouge tout seul ensuite). `optimiste` : l'écran change d'abord, et revient en arrière si l'écriture échoue.
+   */
+  async function appliquer(modifs, { optimiste = false } = {}) {
+    if (!rangementPossible()) return false;
+    const touchees = new Set(modifs.map((m) => m.id));
+    const liste = [...modifs];
+    for (const m of rangement.maisons) if (!m.enregistree && !touchees.has(m.id)) liste.push({ id: m.id, donnees: docDeplacement(m, m.c, m.l) });
+    const avant = batiments;
+    const apres = new Map(batiments);
+    for (const { id, donnees: d } of liste) apres.set(id, d);
+    if (optimiste) { batiments = apres; ranger(); rendre(); }
+    const ok = await donnees.enregistrer(liste);
+    if (!monte) return ok;
+    if (ok) { batiments = apres; ranger(); rendre(); lancerCompteurs(); return true; }
+    if (optimiste) { batiments = avant; ranger(); rendre(); }
+    return false;
+  }
+
+  /** Remet une maison cachée (ou hors du départ) dans le village : à sa place enregistrée si elle est libre, sinon au premier bloc libre. */
+  async function montrer(entree) {
+    const prises = occupation(rangement.maisons);
+    const { c, l } = entree.donnees;
+    const place = Number.isInteger(c) && Number.isInteger(l) && blocLibre(prises, c, l, TAILLE_GRANDE, damier) ? { c, l } : premierBlocLibre(prises, TAILLE_GRANDE, damier);
+    if (!place) return false;
+    return appliquer([{ id: entree.id, donnees: { ...entree.donnees, sorte: 'besoin', cache: false, c: place.c, l: place.l } }]);
+  }
+
+  const etatRoue = () => {
+    if (!rangementPossible()) return null;
+    return {
+      cachees: rangement.cachees,
+      plein: !premierBlocLibre(occupation(rangement.maisons), TAILLE_GRANDE, damier),
+      telephone: Boolean(media?.matches),
+      dessin: (nom) => vignette(dessinBatiment(nom)),
+      surAfficher: (entree) => montrer(entree),
+    };
+  };
+
+  function reglagesMaison(maison) {
+    bulle.cacher();
+    const placee = { ...maison, donnees: docDeplacement(maison, maison.c, maison.l) };
+    fenetreMaison(maison, {
+      surRenommer: (nom) => appliquer([{ id: maison.id, donnees: docRenommer(placee, nom) }]),
+      surCacher: () => appliquer([{ id: maison.id, donnees: docCacher(placee, true) }]),
+      surMontrer: () => {
+        const entree = rangement.cachees.find((e) => e.id === maison.id);
+        return entree ? montrer(entree) : Promise.resolve(true);
+      },
+    });
+  }
+
+  async function deposer(maison, c, l) {
+    const ok = await appliquer([{ id: maison.id, donnees: docDeplacement(maison, c, l) }], { optimiste: true });
+    if (!ok && monte) toast('Le déplacement n’a pas été enregistré. Réessaie.', { type: 'erreur' });
+  }
+
   // Hors du dessin et gardés à chaque redessin (passage téléphone / ordinateur) : la roue dentée, la Mairie, la Console (titulaire seul).
-  const fixes = [boutonReglagesAccueil({ surChangement: majAnimations }), ilot('mairie-reglages', 'reglages')];
+  const fixes = [boutonReglagesAccueil({ surChangement: majAnimations, maisons: etatRoue }), ilot('mairie-reglages', 'reglages')];
   if (avecConsole) fixes.push(ilot('console', 'console/vue'));
+  const routesFixes = [{ id: 'mairie-reglages', route: 'reglages' }, ...(avecConsole ? [{ id: 'console', route: 'console/vue' }] : [])];
+
+  const ctxCommun = { aller, bulle, rangementEnCours: () => page.dataset.rangement === 'oui' };
   const rendre = () => {
     const telephone = Boolean(media?.matches);
-    const { svg, noeuds } = dessiner(besoins, { telephone, aller, bulle });
+    debrancher?.();
+    debrancher = null;
+    const maisons = maisonsVisibles();
+    const ctx = { ...ctxCommun, telephone };
+    const { svg, noeuds } = dessiner(maisons, ctx);
     bulle.brancher(noeuds, telephone);
-    cadre.replaceChildren(svg, bulle.element, ...fixes);
+    defile.replaceChildren(svg);
+    // phrase d'aide (cas vides) et bandeau (panne de lecture)
+    const texte = lecture === 'attente' ? '' : !maisons.length ? 'Affiche tes maisons avec la roue dentée.' : (lecture === 'ok' && !batiments.size ? 'Range ton village avec la roue dentée.' : '');
+    phrase.textContent = texte;
+    phrase.hidden = !texte;
+    if (lecture === 'erreur') {
+      const message = document.createElement('span');
+      message.textContent = 'Ton rangement n’a pas pu être lu. Réessaie.';
+      const reessayer = document.createElement('button');
+      reessayer.type = 'button';
+      reessayer.className = 'bouton bouton-secondaire';
+      reessayer.dataset.role = 'reessayer-village';
+      reessayer.textContent = 'Réessayer';
+      reessayer.addEventListener('click', () => { lire(); });
+      bandeau.replaceChildren(message, reessayer);
+      bandeau.hidden = false;
+    } else {
+      bandeau.replaceChildren();
+      bandeau.hidden = true;
+    }
+    // vue « Liste » (téléphone seulement)
+    const vue = telephone ? vueChoisie() : 'village';
+    page.dataset.vue = vue;
+    const enfants = [defile, bulle.element, ...fixes, phrase, bandeau];
+    if (telephone) {
+      enfants.push(boutonVue(vue, () => rendre()));
+      zoneListe.replaceChildren(listeMaisons({ maisons, fixes: routesFixes, compteurs, dessin: (nom) => vignette(dessinBatiment(nom)), dessinFixe: (id) => vignette(dessinBatimentFixe(id)) }));
+      zoneListe.hidden = vue !== 'liste';
+      enfants.push(zoneListe);
+    }
+    cadre.replaceChildren(...enfants);
+    if (telephone && premierRendu && vue === 'village') defile.scrollLeft = Math.max(0, (defile.scrollWidth - defile.clientWidth) / 2);
+    if (lecture !== 'attente') premierRendu = false;
+    if (rangementPossible()) {
+      debrancher = brancherGestes(svg, {
+        maisons, damier, telephone,
+        surOuvrir: (m) => toucher(m, ctx),
+        surReglages: reglagesMaison,
+        surDepose: deposer,
+        surDebut: () => { page.dataset.rangement = 'oui'; bulle.cacher(); },
+        surFin: () => { page.dataset.rangement = 'non'; },
+      });
+    }
   };
-  rendre();
+
+  async function lire() {
+    if (!donnees) { ranger(); rendre(); lancerCompteurs(); return; }
+    const r = await donnees.lire();
+    if (!monte) return;
+    if (r.etat === 'ok') {
+      const { parId, avertissements } = lireBatiments(r.docs);
+      for (const a of avertissements) console.warn(a);
+      batiments = parId;
+      lecture = 'ok';
+    } else {
+      batiments = new Map();
+      lecture = r.etat === 'refus' ? 'refus' : 'erreur';
+    }
+    ranger();
+    rendre();
+    lancerCompteurs();
+  }
+
+  rendre(); // 1. le terrain tout de suite (vide pendant la lecture)
+  lire(); // 2. le rangement, puis les maisons et leurs compteurs
   // Téléphone : un toucher hors des bâtiments referme la bulle.
   const fermer = (e) => { if (!e.target.closest?.('.village-batiment, .village-lien-etiquette')) bulle.cacher(); };
   cadre.addEventListener('click', fermer);
-  let monte = true;
-  // Une seule lecture par compteur et par affichage du village, lancée tout de suite (pas au survol) ; la bulle ouverte se met à jour quand le nombre arrive.
-  besoins.forEach((b, i) => {
-    if (!b.compteur) return;
-    lireCompteur(b.compteur).catch(() => null).then((n) => {
-      if (!monte) return;
-      compteurs[i] = n;
-      bulle.rafraichir(i);
-    });
-  });
   media?.addEventListener?.('change', rendre);
-  return () => { monte = false; media?.removeEventListener?.('change', rendre); };
+  return () => { monte = false; debrancher?.(); media?.removeEventListener?.('change', rendre); };
 }

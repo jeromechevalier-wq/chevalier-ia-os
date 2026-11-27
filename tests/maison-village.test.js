@@ -3,7 +3,11 @@
 import { test, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { lireBesoinsMaison, cibleValide, planVillage, dessinBatiment, decorParcelle, formesTerrain, terrainCoins, couperEnLignes, BATIMENTS, BOITE_BATIMENT, BESOINS_MAX, DECORS, COMPTEURS, textePastille, pastilleBulle, avecDelai, CATALOGUE, DEMI_PARCELLE, T, ETIQUETTE_Y, ETIQUETTE_HAUTEUR_MAX, NOM_MAX, PHRASE_MAX } from '../js/os/maison-village.js';
+import { lireBesoinsMaison, cibleValide, dessinBatiment, terrainCoins, couperEnLignes, BATIMENTS, BOITE_BATIMENT, BESOINS_MAX, COMPTEURS, textePastille, pastilleBulle, avecDelai, CATALOGUE, T, iso, ETIQUETTE_Y, ETIQUETTE_HAUTEUR_MAX, NOM_MAX, PHRASE_MAX } from '../js/os/maison-village.js';
+import {
+  CASE, DAMIER_DEPART, TAILLE_GRANDE, COORD_MAX, centreBloc, ecranVersGrille, blocSousPoint, dansDamier, casesDuBloc, clesBesoins, besoinsServis, lireBatiments, batimentValable,
+  rangerVillage, occupation, blocLibre, premierBlocLibre, vueVillage, formesDamier, lignesDamier, decorLibre, docDeplacement, docCacher, docRenommer, RE_URL_LIEN,
+} from '../js/os/village-damier.js';
 import { teintes } from '../js/os/village-batiments.js';
 import { remplirComptesMaison, viderComptesMaison, besoinsEcranBrut } from '../js/os/comptes-maison.js';
 
@@ -18,7 +22,7 @@ test('V1 un besoin bien formé est gardé tel quel (nom, phrase, bâtiment, cibl
   assert.deepEqual(r.avertissements, []);
 });
 
-test('V2 deux besoins peuvent mener au même module (vues différentes) ; au-delà de 4 besoins valables, seuls les 4 premiers sont gardés', () => {
+test('V2 deux besoins peuvent mener au même module (vues différentes) ; 5 besoins valables sont tous gardés ; au-delà de 12, les 12 premiers (un avertissement par besoin en trop)', () => {
   const liste = [
     FACTURES,
     { nom: 'À payer', phrase: 'Voir ce qui reste à payer', batiment: 'bureau', cible: '#/achatsfactures/liste' },
@@ -27,9 +31,13 @@ test('V2 deux besoins peuvent mener au même module (vues différentes) ; au-del
     { nom: 'Fournisseurs', phrase: 'Mes fournisseurs', batiment: 'maison', cible: '#/achatsfournisseurs/liste' },
   ];
   const r = lireBesoinsMaison(liste);
-  assert.deepEqual(r.besoins.map((b) => b.nom), ['Factures', 'À payer', 'Achats', 'Chantiers']);
+  assert.deepEqual(r.besoins.map((b) => b.nom), ['Factures', 'À payer', 'Achats', 'Chantiers', 'Fournisseurs']);
   assert.equal(r.besoins[0].cible, r.besoins[1].cible);
-  assert.equal(r.avertissements.length, 1);
+  assert.deepEqual(r.avertissements, []);
+  const quinze = Array.from({ length: 15 }, (_, i) => ({ nom: `B${i + 1}`, cible: '#/crm/accueil' }));
+  const q = lireBesoinsMaison(quinze);
+  assert.deepEqual(q.besoins.map((b) => b.nom), quinze.slice(0, 12).map((b) => b.nom));
+  assert.equal(q.avertissements.length, 3);
 });
 
 test('V3 sans réglage (absent, null), liste vide ou valeur qui n’est pas une liste : aucun besoin (accueil d’avant)', () => {
@@ -56,12 +64,13 @@ test('V5 cible : seulement une route interne « #/… » ; javascript:, http, //
   assert.deepEqual(r.besoins, []);
 });
 
-test('V6 bâtiment absent ou inconnu : le bureau ; chaque bâtiment du catalogue se dessine sans erreur et tient dans sa parcelle (même empreinte, toit sous la hauteur maximale)', () => {
+test('V6 bâtiment absent ou inconnu : le bureau ; chaque bâtiment du catalogue se dessine sans erreur et tient dans son bloc de 2 x 2 cases (même empreinte, toit sous la hauteur maximale)', () => {
   assert.equal(lireBesoinsMaison([{ ...FACTURES, batiment: undefined }]).besoins[0].batiment, 'bureau');
   assert.equal(lireBesoinsMaison([{ ...FACTURES, batiment: 'chateau' }]).besoins[0].batiment, 'bureau');
   for (const ancien of ['bureau', 'banque', 'entrepot', 'atelier', 'maison']) assert.ok(BATIMENTS.includes(ancien), ancien); // les identifiants de la PR 715 restent valables
   for (const nouveau of ['marche', 'poste', 'phare', 'grue', 'radio', 'beffroi', 'clients', 'garage']) assert.ok(BATIMENTS.includes(nouveau), nouveau);
-  const demiParcelle = DEMI_PARCELLE * T * 2; // demi-largeur d'une parcelle à l'écran
+  const demiParcelle = CASE * TAILLE_GRANDE * T * 1.8; // demi-largeur d'un bloc 2 x 2 à l'écran (80), étendue à l'ombre et aux accessoires : la borne d'avant (144)
+  assert.equal(demiParcelle, 144);
   for (const b of BATIMENTS) {
     assert.match(b, /^[a-z][a-z-]*$/);
     assert.ok(CATALOGUE[b].nom && CATALOGUE[b].besoin && CATALOGUE[b].accessoires, b);
@@ -95,26 +104,23 @@ test('V7 textes : espaces resserrés, nom et phrase coupés à une longueur rais
   assert.ok(longue[1].endsWith('…'));
 });
 
-test('V8 plan serré : la vue entoure le losange du terrain, les toits et les étiquettes, sans grand vide ; chaque bâtiment garde la même taille quel que soit le nombre de besoins', () => {
+test('V8 vue serrée : elle entoure le losange du terrain, le toit d’une maison au fond et l’étiquette de celle de devant, sans grand vide ; une seule vue quel que soit le nombre de maisons', () => {
   const coins = terrainCoins();
-  for (const n of [1, 2, 3, 4]) {
-    const { places, vue } = planVillage(n);
-    assert.equal(places.length, n);
-    for (const [x, y] of coins) assert.ok(x >= vue.x && x <= vue.x + vue.largeur && y >= vue.y && y <= vue.y + vue.hauteur);
-    for (const p of places) {
-      assert.ok(p.y + BOITE_BATIMENT.haut >= vue.y && p.y + ETIQUETTE_Y + ETIQUETTE_HAUTEUR_MAX <= vue.y + vue.hauteur);
-    }
-    // aucun grand vide : à gauche et à droite, le losange touche presque le bord de la vue
-    const xs = coins.map((c) => c[0]);
-    assert.ok(vue.largeur - (Math.max(...xs) - Math.min(...xs)) <= 20, `largeur ${n}`);
-    // en hauteur : le toit le plus haut et le bas du terrain (ou de l'étiquette la plus basse) touchent presque la vue
-    const haut = Math.min(coins[0][1], ...places.map((p) => p.y + BOITE_BATIMENT.haut));
-    assert.ok(haut - vue.y <= 10, `haut ${n}`);
-  }
-  // même taille : un bâtiment est un quart du terrain (sa boîte fait moins d'un tiers de la largeur du losange), quel que soit n
+  const vue = vueVillage(DAMIER_DEPART);
+  for (const [x, y] of coins) assert.ok(x >= vue.x && x <= vue.x + vue.largeur && y >= vue.y && y <= vue.y + vue.hauteur);
+  const fond = iso(...centreBloc(0, 0, 2, DAMIER_DEPART));
+  const devant = iso(...centreBloc(6, 6, 2, DAMIER_DEPART));
+  assert.ok(fond[1] + BOITE_BATIMENT.haut >= vue.y);
+  assert.ok(devant[1] + ETIQUETTE_Y + ETIQUETTE_HAUTEUR_MAX <= vue.y + vue.hauteur);
+  // aucun grand vide : à gauche et à droite, le losange touche presque le bord de la vue ; en haut, le toit du fond touche presque la vue
+  const xs = coins.map((c) => c[0]);
+  assert.ok(vue.largeur - (Math.max(...xs) - Math.min(...xs)) <= 20);
+  assert.ok(Math.min(coins[0][1], fond[1] + BOITE_BATIMENT.haut) - vue.y <= 10);
+  assert.ok(vue.y + vue.hauteur - Math.max(coins[2][1], devant[1] + ETIQUETTE_Y + ETIQUETTE_HAUTEUR_MAX) <= 30);
+  // même taille de bâtiment : sa boîte fait moins d'un tiers de la largeur du losange
   const largeurTerrain = coins[1][0] - coins[3][0];
   assert.ok((BOITE_BATIMENT.droite - BOITE_BATIMENT.gauche) / largeurTerrain < 0.34);
-  assert.deepEqual(planVillage(1).vue, planVillage(4).vue);
+  assert.deepEqual(vueVillage(), vueVillage(DAMIER_DEPART)); // la vue ne dépend que du damier, pas du nombre de maisons
 });
 
 test('V9 le champ `besoins` de la fiche `ecran` est rangé à la connexion (copie) et oublié à la déconnexion', () => {
@@ -142,50 +148,51 @@ test('V10 sûreté : l’écran du village pose les textes par textContent, jama
   assert.match(main, /besoinsVillage\.length && segs\.length === 1 && segs\[0\] === ROUTE_VILLAGE/);
 });
 
-test('V17 le terrain a toujours 4 parcelles (haut, gauche, droite, bas) ; les besoins les occupent dans cet ordre fixe, les autres reçoivent un décor', () => {
+test('V17 rangement d’office : jusqu’à 4 besoins, cases 1-1, 1-5, 5-1, 5-5 dans cet ordre (le haut au fond, le bas devant) ; BESOINS_MAX = 12 ; 13 besoins : 12 maisons', () => {
+  const besoins = (n) => Array.from({ length: n }, (_, i) => ({ nom: `B${i + 1}`, phrase: '', batiment: 'bureau', cible: `#/m${i + 1}/vue` }));
   for (const n of [1, 2, 3, 4]) {
-    const { parcelles, places } = planVillage(n);
-    assert.equal(parcelles.length, 4);
-    assert.deepEqual(parcelles.map((p) => p.nom), ['haut', 'gauche', 'droite', 'bas']);
-    assert.deepEqual(parcelles.map((p) => p.occupee), [0, 1, 2, 3].map((i) => i < n));
-    assert.deepEqual(places.map((p) => p.nom), ['haut', 'gauche', 'droite', 'bas'].slice(0, n));
-    assert.deepEqual(parcelles.filter((p) => !p.occupee).map((p) => p.decor), DECORS.slice(0, 4 - n));
+    const { maisons } = rangerVillage({ besoins: besoins(n) });
+    assert.deepEqual(maisons.map((m) => `${m.c}-${m.l}`), ['1-1', '1-5', '5-1', '5-5'].slice(0, n));
   }
-  // le haut est au fond, le bas devant ; gauche et droite de part et d'autre
-  const [h, g, d, b] = planVillage(4).parcelles;
-  assert.ok(h.y < g.y && g.y === d.y && d.y < b.y && g.x < h.x && h.x < d.x);
-  // hors bornes : ramené entre 1 et 4
-  assert.equal(planVillage(0).places.length, 1);
-  assert.equal(planVillage(9).places.length, BESOINS_MAX);
-  assert.equal(BESOINS_MAX, 4);
+  const [h, g, d, b] = rangerVillage({ besoins: besoins(4) }).maisons.map((m) => iso(...centreBloc(m.c, m.l, 2)));
+  assert.ok(h[1] < g[1] && g[1] === d[1] && d[1] < b[1] && g[0] < h[0] && h[0] < d[0]);
+  assert.equal(BESOINS_MAX, 12);
+  const treize = lireBesoinsMaison(besoins(13)).besoins;
+  assert.equal(rangerVillage({ besoins: treize }).maisons.length, 12);
 });
 
-test('V18 quatre besoins valables sont tous gardés ; le cinquième est ignoré avec un avertissement', () => {
-  const cinq = ['A', 'B', 'C', 'D', 'E'].map((nom) => ({ nom, phrase: `Besoin ${nom}`, cible: '#/crm/accueil' }));
-  assert.equal(lireBesoinsMaison(cinq.slice(0, 4)).besoins.length, 4);
-  assert.deepEqual(lireBesoinsMaison(cinq.slice(0, 4)).avertissements, []);
-  const r = lireBesoinsMaison(cinq);
-  assert.deepEqual(r.besoins.map((b) => b.nom), ['A', 'B', 'C', 'D']);
+test('V18 douze besoins valables sont tous gardés ; le treizième est ignoré avec un avertissement', () => {
+  const treize = Array.from({ length: 13 }, (_, i) => ({ nom: `N${i + 1}`, phrase: `Besoin ${i + 1}`, cible: '#/crm/accueil' }));
+  assert.equal(lireBesoinsMaison(treize.slice(0, 12)).besoins.length, 12);
+  assert.deepEqual(lireBesoinsMaison(treize.slice(0, 12)).avertissements, []);
+  const r = lireBesoinsMaison(treize);
+  assert.deepEqual(r.besoins.map((b) => b.nom), treize.slice(0, 12).map((b) => b.nom));
   assert.equal(r.avertissements.length, 1);
-  assert.match(r.avertissements[0], /n° 5 ignoré \(4 au plus\)/);
+  assert.match(r.avertissements[0], /n° 13 ignoré \(12 au plus\)/);
 });
 
-test('V19 décor : même dessin à chaque affichage, chaque forme reste dans le terrain ; lavande, bosquet et potager ont chacun leur dessin', () => {
+test('V19 décor des cases libres : même dessin à chaque appel, chaque pied sur le terrain, jamais sur une case occupée, moins de décor quand il y a plus de maisons', () => {
   const coins = terrainCoins();
-  const [haut, droite, bas, gauche] = coins;
+  const [haut, droite, bas] = coins;
   const dansTerrain = ([x, y]) => Math.abs(x) / (droite[0] - haut[0]) + Math.abs(y) / (bas[1] - haut[1]) * 2 <= 1.02;
-  const pieds = (f) => (f.poly ? f.poly : f.ligne ? f.ligne : f.cercle ? [[f.cercle[0], f.cercle[1]]] : [[f.ellipse[0], f.ellipse[1]]]);
-  for (const n of [1, 2, 3, 4]) {
-    for (const p of planVillage(n).parcelles) {
-      const d1 = decorParcelle(p);
-      assert.deepEqual(d1, decorParcelle(p), `${n} ${p.nom}`); // déterministe
-      for (const f of d1.sol) for (const pt of pieds(f)) assert.ok(dansTerrain(pt), `${p.nom} ${p.decor} sol ${pt}`);
-      for (const o of d1.objets) assert.ok(dansTerrain(o.formes[0].ellipse), `${p.nom} ${p.decor} pied d'arbre`); // le pied (ombre) de chaque arbre est sur le terrain
-    }
+  const vide = decorLibre(new Map());
+  assert.deepEqual(vide, decorLibre(new Map())); // déterministe
+  assert.ok(vide.length >= 8);
+  for (const o of vide) {
+    const pied = o.formes[0].ellipse ? [o.formes[0].ellipse[0], o.formes[0].ellipse[1]] : [o.formes[0].cercle[0], o.formes[0].cercle[1]];
+    assert.ok(dansTerrain(pied), `pied ${o.case}`);
   }
-  const libres = planVillage(1).parcelles.filter((p) => !p.occupee).map((p) => JSON.stringify(decorParcelle(p)));
-  assert.equal(new Set(libres).size, 3);
-  assert.ok(formesTerrain().length >= 5); // tranche, herbe, deux sentiers en croix
+  let avant = vide.length;
+  for (const n of [1, 4, 8, 12]) {
+    const besoins = Array.from({ length: n }, (_, i) => ({ nom: `B${i}`, cible: `#/m${i}/v` }));
+    const prises = occupation(rangerVillage({ besoins }).maisons);
+    const decor = decorLibre(prises);
+    for (const o of decor) assert.ok(!prises.has(o.case), `décor sur la case occupée ${o.case}`);
+    assert.ok(decor.length <= avant, `${n} maisons`);
+    avant = decor.length;
+  }
+  assert.ok(avant < vide.length);
+  assert.equal(formesDamier().length, 3); // tranche, herbe ; plus de sentiers en croix
 });
 
 test('V26 compteur : champ facultatif d’une liste fermée (factures_a_valider) ; inconnu = ignoré avec un avertissement ; pastille jamais inventée', () => {
@@ -290,12 +297,156 @@ test('1.4 la Mairie des réglages et la Console : dessins hors catalogue, dans l
 
 test('1.4 2.13 les îlots Mairie et Console ne sont pas des bâtiments de besoin ; la Console suit le même contrôle que le menu', () => {
   const ecran = lire('js/os/village-ecran.js');
-  assert.match(ecran, /export function monterVillage\(conteneur, besoins, \{ aller, console: avecConsole = false \}\)/);
-  assert.match(ecran, /cadre\.replaceChildren\(svg, bulle\.element, \.\.\.fixes\)/);
+  assert.match(ecran, /export function monterVillage\(conteneur, besoins, \{ aller, console: avecConsole = false, donnees = null \}\)/); // étape 2 : + `donnees` (rangement)
+  assert.match(ecran, /const enfants = \[defile, bulle\.element, \.\.\.fixes, /); // étape 2 : le dessin est dans `defile` (seul à défiler sur téléphone)
   const ilot = ecran.slice(ecran.indexOf('function ilot('), ecran.indexOf('export function monterVillage'));
-  assert.ok(!/'batiment'|'etiquette'|'batiment-nom'|data-parcelle|dataset\.parcelle/.test(ilot));
+  assert.ok(!/'batiment'|'etiquette'|'batiment-nom'|data-parcelle|dataset\.parcelle|data-maison|dataset\.maison/.test(ilot));
   const main = lire('js/main.js');
   assert.match(main, /console: MODULES\.some\(\(m\) => m\.id === 'console'\)/);
   assert.match(main, /retourVillage: besoinsVillage\.length \? ROUTE_VILLAGE : null/);
   assert.match(lire('js/os/reglages.js'), /c\.retourVillage \? h\('a', \{[^}]*dataset: \{ action: 'retour-village' \}/);
+});
+
+// ---------------------------------------------------------------- étape 2 de docs/accueil-village.md (27/11/2026) : village rangé par chaque utilisateur (damier 8 x 8)
+// Parcours dans le navigateur : tests/e2e/maison-village-damier.spec.js (captures dans tests/e2e/captures/maison-village-damier/).
+const besoinsN = (n) => Array.from({ length: n }, (_, i) => ({ nom: `Besoin ${i + 1}`, phrase: '', batiment: 'bureau', cible: `#/module${i + 1}/vue` }));
+const HOTE_ESSAI = ['exemple', 'test'].join('.');
+
+test('2.1 rangement d’office avec 1, 4, 5, 8 et 12 besoins : autant de maisons, aucune case partagée, toutes dans le damier', () => {
+  for (const n of [1, 4, 5, 8, 12]) {
+    const { maisons, cachees, sansPlace } = rangerVillage({ besoins: besoinsN(n) });
+    assert.equal(maisons.length, n, `${n}`);
+    assert.deepEqual([cachees.length, sansPlace.length], [0, 0]);
+    const cases = maisons.flatMap((m) => casesDuBloc(m.c, m.l, m.taille));
+    assert.equal(new Set(cases).size, cases.length, `${n} : case partagée`);
+    for (const m of maisons) assert.ok(dansDamier(m.c, m.l, m.taille, DAMIER_DEPART), `${n} : ${m.c}-${m.l}`);
+    assert.ok(maisons.every((m) => m.enregistree === false && m.taille === TAILLE_GRANDE));
+  }
+  assert.deepEqual(rangerVillage({ besoins: besoinsN(4) }).maisons.map((m) => `${m.c}-${m.l}`), ['1-1', '1-5', '5-1', '5-5']);
+  assert.deepEqual(DAMIER_DEPART, { colonnes: 8, lignes: 8 });
+  assert.equal(COORD_MAX, 23);
+});
+
+test('2.2 une grande maison occupe 2 x 2 cases ; géométrie du damier (centre d’un bloc, passage écran → grille)', () => {
+  assert.deepEqual(casesDuBloc(1, 1, 2), ['1-1', '1-2', '2-1', '2-2']);
+  const prises = occupation(rangerVillage({ besoins: besoinsN(3) }).maisons);
+  assert.equal(prises.size, 12);
+  assert.deepEqual(centreBloc(1, 1, 2, DAMIER_DEPART), [-5, -5]);
+  assert.deepEqual(centreBloc(5, 5, 2, DAMIER_DEPART), [5, 5]);
+  assert.equal(CASE * DAMIER_DEPART.colonnes, 20); // le terrain garde sa taille (20 x 20 unités)
+  for (const [gx, gy] of [[-5, -5], [3.75, -1.25], [0, 0], [7.5, 2.5]]) {
+    const [x, y] = ecranVersGrille(...iso(gx, gy));
+    assert.ok(Math.abs(x - gx) < 1e-9 && Math.abs(y - gy) < 1e-9);
+  }
+  assert.deepEqual(blocSousPoint(-5, -5, 2, DAMIER_DEPART), { c: 1, l: 1 });
+  assert.deepEqual(blocSousPoint(-4.2, -5.8, 2, DAMIER_DEPART), { c: 1, l: 1 });
+  assert.deepEqual(blocSousPoint(20, 0, 2, DAMIER_DEPART), { c: 11, l: 3 }); // hors du damier : rendu tel quel
+  assert.equal(dansDamier(7, 0, 2, DAMIER_DEPART), false);
+  assert.equal(dansDamier(6, 6, 2, DAMIER_DEPART), true);
+  assert.equal(blocLibre(prises, 1, 1, 2, DAMIER_DEPART), false);
+  assert.equal(blocLibre(prises, 3, 3, 2, DAMIER_DEPART), true);
+  // vue, terrain et quadrillage : 18 lignes (9 + 9), terrain sans sentiers
+  assert.equal(lignesDamier().length, 18);
+  const [haut, droite, bas, gauche] = terrainCoins();
+  assert.deepEqual(formesDamier()[2].poly, [haut, droite, bas, gauche]);
+});
+
+test('2.3 2.5 une place enregistrée est reprise ; un conflit ou une place hors du damier est rangé d’office ; plus de place : sansPlace', () => {
+  const besoins = besoinsN(3);
+  const cles = clesBesoins(besoins);
+  const batiments = new Map([[`b-${cles[0]}`, { sorte: 'besoin', c: 3, l: 3 }], [`b-${cles[1]}`, { sorte: 'besoin', c: 4, l: 4 }], [`b-${cles[2]}`, { sorte: 'besoin', c: 7, l: 7 }]]);
+  const { maisons } = rangerVillage({ besoins, batiments });
+  assert.deepEqual(maisons.map((m) => [`${m.c}-${m.l}`, m.enregistree]), [['3-3', true], ['1-5', false], ['5-1', false]]);
+  // 16 grandes maisons au plus sur le damier de départ : la 17e (au-delà de BESOINS_MAX, cas théorique) n'a pas de place
+  const dixSept = rangerVillage({ besoins: besoinsN(17) });
+  assert.equal(dixSept.maisons.length, 16);
+  assert.equal(dixSept.sansPlace.length, 1);
+  assert.equal(premierBlocLibre(occupation(dixSept.maisons), 2, DAMIER_DEPART), null);
+});
+
+test('2.7 visible ou non : `cache` de l’utilisateur, sinon `depart: false` du besoin ; les cachées sont rendues pour la roue', () => {
+  const besoins = [{ ...FACTURES }, { nom: 'Achats', phrase: '', batiment: 'marche', cible: '#/tableauachats/tableau' }, { nom: 'Chantiers', phrase: '', batiment: 'grue', cible: '#/achatschantiers/liste', depart: false }];
+  let r = rangerVillage({ besoins });
+  assert.deepEqual(r.maisons.map((m) => m.besoin.nom), ['Factures', 'Achats']);
+  assert.deepEqual(r.cachees.map((c) => [c.besoin.nom, c.raison]), [['Chantiers', 'depart']]);
+  const batiments = new Map([['b-achatsfactures-liste', { sorte: 'besoin', c: 1, l: 1, cache: true }], ['b-achatschantiers-liste', { sorte: 'besoin', cache: false }]]);
+  r = rangerVillage({ besoins, batiments });
+  assert.deepEqual(r.maisons.map((m) => m.besoin.nom), ['Achats', 'Chantiers']);
+  assert.deepEqual(r.cachees.map((c) => [c.besoin.nom, c.raison]), [['Factures', 'cache']]);
+  // lireBesoinsMaison garde `depart: false` et un `id` valable, rien d'autre ; un besoin sans ces champs reste comme avant (V1)
+  const lu = lireBesoinsMaison([{ ...FACTURES, depart: false, id: 'factures' }, { ...FACTURES, nom: 'B', depart: 'non', id: 'Mauvais id' }, { ...FACTURES, nom: 'C', id: 'factures' }]);
+  assert.deepEqual(lu.besoins[0], { ...FACTURES, depart: false, id: 'factures' });
+  assert.deepEqual(lu.besoins[1], { ...FACTURES, nom: 'B' });
+  assert.deepEqual(lu.besoins[2], { ...FACTURES, nom: 'C' }); // identifiant en double : ignoré
+  assert.equal(lu.avertissements.length, 2);
+});
+
+test('2.4 2.8 fabriques d’écriture : déplacer, cacher, renommer gardent les autres champs ; nom vide ou d’origine = champ retiré', () => {
+  const [m] = rangerVillage({ besoins: [{ ...FACTURES }], batiments: new Map([['b-achatsfactures-liste', { sorte: 'besoin', c: 3, l: 3, nom: 'Mes factures' }]]) }).maisons;
+  assert.equal(m.nom, 'Mes factures');
+  assert.deepEqual(docDeplacement(m, 5, 1), { sorte: 'besoin', c: 5, l: 1, nom: 'Mes factures' });
+  assert.deepEqual(docCacher(m, true), { sorte: 'besoin', c: 3, l: 3, nom: 'Mes factures', cache: true });
+  assert.deepEqual(docRenommer(m, '  Banque   du  mois '), { sorte: 'besoin', c: 3, l: 3, nom: 'Banque du mois' });
+  assert.deepEqual(docRenommer(m, ''), { sorte: 'besoin', c: 3, l: 3 });
+  assert.deepEqual(docRenommer(m, 'Factures'), { sorte: 'besoin', c: 3, l: 3 });
+  assert.equal(docRenommer(m, 'N'.repeat(60)).nom.length, 40);
+  for (const d of [docDeplacement(m, 5, 1), docCacher(m, false), docRenommer(m, 'X'), docRenommer(m, '')]) assert.ok(batimentValable(m.id, d), JSON.stringify(d));
+});
+
+test('2.9 un besoin dont le module n’est pas allumé n’a pas de maison ; un document orphelin (besoin disparu) est ignoré', () => {
+  const besoins = [{ ...FACTURES }, { nom: 'Devis', phrase: '', batiment: 'atelier', cible: '#/devis/liste' }, { nom: 'Réglages', phrase: '', batiment: 'mairie', cible: '#/reglages' }];
+  assert.deepEqual(besoinsServis(besoins, ['achatsfactures', 'reglages']).map((b) => b.nom), ['Factures', 'Réglages']);
+  assert.deepEqual(besoinsServis(besoins, []), []);
+  const r = rangerVillage({ besoins: [{ ...FACTURES }], batiments: new Map([['b-inconnu', { sorte: 'besoin', c: 1, l: 1 }]]) });
+  assert.deepEqual(r.maisons.map((m) => `${m.id} ${m.c}-${m.l}`), ['b-achatsfactures-liste 1-1']);
+  const main = lire('js/main.js');
+  assert.match(main, /besoinsVillage = besoinsServis\(village\.besoins, \[\.\.\.MODULES\.map\(\(m\) => m\.prefixe\), 'reglages'\]\);/);
+  assert.match(main, /donnees: creerDonneesVillage\(\{ base: '', uid: session\.compte\.uid \}\)/);
+});
+
+test('2.9 clés des besoins : `id` s’il est valable, sinon la cible simplifiée ; « -2 », « -3 » pour les doublons ; toujours un identifiant permis par les règles', () => {
+  const cles = clesBesoins([{ cible: '#/achatsfactures/liste' }, { cible: '#/achatsfactures/liste' }, { cible: '#/achatsfactures/liste' }, { id: 'factures', cible: '#/x' }, { id: 'Mauvais', cible: '#/Crm_Vue/a' }, { cible: `#/${'a'.repeat(190)}` }]);
+  assert.deepEqual(cles.slice(0, 5), ['achatsfactures-liste', 'achatsfactures-liste-2', 'achatsfactures-liste-3', 'factures', 'crm-vue-a']);
+  for (const c of cles) assert.match(`b-${c}`, /^b-[a-z0-9-]{1,60}$/);
+});
+
+test('pannes lireBatiments : un document mal formé est ignoré (mêmes contrôles que les règles), les autres restent', () => {
+  const docs = [
+    { id: 'b-ok', sorte: 'besoin', c: 1, l: 1, modifieLe: { seconds: 1 } },
+    { id: 'b-trop', sorte: 'besoin', c: 1, l: 1, couleur: 'rouge' },
+    { id: 'b-place', sorte: 'besoin', c: 1 },
+    { id: 'b-loin', sorte: 'besoin', c: 24, l: 0 },
+    { id: 'l-ok', sorte: 'lien', nom: 'Site', url: `https://${HOTE_ESSAI}/a`, batiment: 'phare', c: 0, l: 0 },
+    { id: 'l-http', sorte: 'lien', nom: 'Site', url: `${['http', ''].join(':')}//${HOTE_ESSAI}/a`, batiment: 'phare', c: 0, l: 0 },
+    { id: 'p-ok', sorte: 'petite', parent: 'b-ok', nom: 'Petite', cible: '#/achatschantiers/liste/x' },
+    { id: 'p-ext', sorte: 'petite', parent: 'b-ok', nom: 'Petite', cible: `https://${HOTE_ESSAI}` },
+    { id: 'B-maj', sorte: 'besoin' },
+    null,
+  ];
+  const { parId, avertissements } = lireBatiments(docs);
+  assert.deepEqual([...parId.keys()], ['b-ok', 'l-ok', 'p-ok']);
+  assert.deepEqual(parId.get('b-ok'), { sorte: 'besoin', c: 1, l: 1 }); // `modifieLe` n'est pas gardé
+  assert.equal(avertissements.length, 6);
+  // même expression d'adresse que les règles (les « \/ » du code JavaScript sont des « / » dans les règles)
+  assert.ok(lire('firestore.rules').includes(`d.url.matches('${RE_URL_LIEN.source.replaceAll('\\/', '/')}')`), 'expression d’adresse identique dans les règles');
+});
+
+test('sûreté aucun innerHTML ni son dans les fichiers du village ; village-damier.js n’importe aucun module métier ; seul village-donnees.js parle à Firestore', () => {
+  const fichiers = ['js/os/village-damier.js', 'js/os/village-donnees.js', 'js/os/village-glisser.js', 'js/os/village-liste.js', 'js/os/village-reglages.js', 'js/os/village-ecran.js'];
+  for (const f of fichiers) {
+    const code = lire(f).replace(/^\s*\/\/.*$/gm, '');
+    assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(code), `${f} : HTML injecté`);
+    assert.ok(!/Audio|<audio/.test(code), `${f} : son`);
+    if (f !== 'js/os/village-donnees.js') assert.ok(!/firebase-firestore|setDoc|writeBatch|getDocs/.test(code), `${f} : Firestore`);
+  }
+  assert.ok(!/modules\//.test(lire('js/os/village-damier.js').replace(/^\s*\/\/.*$/gm, '')));
+  const donnees = lire('js/os/village-donnees.js');
+  assert.match(donnees, /if \(!MODE_EMULATEURS\) return false;/); // pannes simulées : émulateurs seulement
+  assert.match(donnees, /modifieLe: serverTimestamp\(\)/);
+  assert.match(donnees, /cheminCollection\(base, 'village_utilisateurs'\)/);
+  // pas de déplacement au clavier (décision du 27/11/2026) ; le clic attend 280 ms, l'appui long 600 ms
+  const gestes = lire('js/os/village-glisser.js');
+  assert.match(gestes, /DELAI_CLIC = 280/);
+  assert.match(gestes, /DELAI_APPUI_LONG = 600/);
+  assert.ok(!/ArrowLeft|ArrowRight|ArrowUp|ArrowDown/.test(gestes));
 });

@@ -4,7 +4,7 @@
 //  - reglages_maison/ecran : lu APRÈS la connexion, par les seuls comptes de la fiche serveur (règle firestore.rules) :
 //    { personnes: [{ email, nom, portrait }], comptes_jerome_seul: [e-mails], configuration_crm?: 'neutre' }.
 //    modules (27/11/2026, facultatif) : liste d'identifiants de modules allumés dans cette maison (js/os/maison-modules.js) ; ABSENT = comportement d'avant.
-//    besoins (26/11/2026, facultatif) : 1 à 4 besoins du client, dessinés en village à l'accueil (js/os/maison-village.js) ; ABSENT = accueil d'avant.
+//    besoins (26/11/2026, facultatif) : 1 à 12 besoins du client (27/11/2026 : champs facultatifs `id` et `depart`), dessinés en village à l'accueil (js/os/maison-village.js) ; ABSENT = accueil d'avant.
 //    configuration_crm (26/11/2026) : 'neutre' = la maison d'un client (étapes, phases, réglages et membres neutres, comme un espace de la plateforme) ;
 //    champ ABSENT ou toute autre valeur = la configuration de Jérôme (sa maison n'a pas ce champ : rien ne change chez lui).
 // Ce fichier n'importe rien (pas de Firebase) : il se teste seul. Il ne fait que montrer ou cacher : les vraies barrières sont les règles et le serveur.
