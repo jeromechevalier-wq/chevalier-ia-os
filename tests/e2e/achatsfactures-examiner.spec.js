@@ -2,7 +2,7 @@
 // posé par le crochet de test `window.__accesBase` (émulateurs seulement), plus une route qui sert un PDF fictif fabriqué ici. Fausses données : tests/_donnees-achatsfactures.js (aucune vraie identité).
 //  E1 ouverture depuis la liste : PDF, champs, lignes, message, score, contrôles ; E2 courriel complet et « Nos contrôles anti-arnaque » ; E3 accepter (agence proposée par le SIRET) ; E4 refuser un doublon, le refus du
 //  serveur garde la fenêtre ouverte ; E5 accepter malgré une alerte exige un motif ; E6 relier et rouvrir une facture décidée ; E7 cas vides et cas d'erreur (introuvable, lecture en panne, PDF illisible, sans courriel) ;
-//  E8 « + Facture » ; 2a/2b facture déjà ajoutée (message daté, lien vers la fiche existante, rien en double) ; E9 téléphone (une page à la fois) et thème sombre, sans défilement horizontal ; E10 séparateur au clavier.
+//  E8 « + Facture » ; 2a/2b facture déjà ajoutée (message daté, lien vers la fiche existante, rien en double) ; 2c nouveau scan d'une facture « à valider » (succès « déjà connue », liste rechargée) ; E9 téléphone (une page à la fois) et thème sombre, sans défilement horizontal ; E10 séparateur au clavier.
 // Captures dans tests/e2e/captures/achatsfactures/ (non commitées), une par état, nommée avec le projet : ordinateur ou telephone.
 import { fileURLToPath } from 'node:url';
 import { test, expect, connecter, ecrireDocument, estTelephone } from './outils.js';
@@ -335,16 +335,36 @@ test('2a même PDF envoyé deux fois (refus 409) : « déjà ajoutée le … »,
   await expect(page).toHaveURL(new RegExp(`achatsfactures/examiner/${ID_EXISTANTE}$`));
 });
 
-test('2b réponse « ajoutée » qui désigne une fiche déjà décidée (PDF rangé par la base dans la facture existante) : même message, pas de « Facture ajoutée »', async ({ page }, info) => {
+test('2b / 5 réponse « ajoutée » qui désigne une fiche déjà décidée (même fournisseur et même numéro) : « existe déjà, ouvre-la », pas de « Facture ajoutée »', async ({ page }, info) => {
   await ouvrirListe(page, { factures: avecExistante(), reponseAjout: { statut: 200, corps: { ok: true, facture_id: ID_EXISTANTE, lecture: 'ok', lignes_ecrites: false } } });
   const fenetre = await envoyerPdf(page);
-  await expect(fenetre.locator('[data-erreur="fenetre"]')).toContainText('Cette facture a déjà été ajoutée le 26/11/2026 à 14:32.');
+  // Point 5 : la base a reconnu le fournisseur et le numéro (pas le même fichier) : message distinct de 2a, qui invite à ouvrir la fiche.
+  const message = fenetre.locator('[data-erreur="fenetre"]');
+  await expect(message).toContainText('Une facture de ce fournisseur avec ce numéro existe déjà (ajoutée le 26/11/2026 à 14:32). Ouvre-la pour vérifier.');
+  await expect(message).not.toContainText('Rien n’a été créé en double');
   await expect(fenetre.locator('[data-role="facture-existante"]')).toBeVisible();
   await expect(page.locator('.toast')).toHaveCount(0);
   await capturer(page, info, '2b-deja-ajoutee-fiche-decidee');
   // Cas d'erreur : « Annuler » ferme la fenêtre sans rien créer.
   await fenetre.getByRole('button', { name: 'Annuler' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+// Points 1+2 : une fiche « à valider » déjà existante, signalée par le workflow (nouveau scan voulu), est un succès distinct et la liste est rechargée ; aucune horloge.
+const ID_A_VALIDER = '1c7e4d2f-3b5e-4d9f-8a21-2345678901bc';
+const avecAValider = () => { const t = lignesTable(); const modele = t.find((f) => f.statut === 'a_valider') ?? t[0];
+  return [...t, { ...modele, id: ID_A_VALIDER, statut: 'a_valider', created_at: '2026-11-01T08:00:00Z', archivee_le: null }]; };
+
+test('2c / 1+2 nouveau scan d\'une facture « à valider » déjà connue : succès « déjà connue », fenêtre fermée, liste rechargée', async ({ page }, info) => {
+  await ouvrirListe(page, { factures: avecAValider(), reponseAjout: { statut: 200, corps: { ok: true, facture_id: ID_A_VALIDER, lecture: 'ok', lignes_ecrites: true, deja_connue: true } } });
+  const avant = await page.evaluate(() => window.__appels.length);
+  await envoyerPdf(page);
+  await expect(page.locator('.toast').filter({ hasText: 'Facture déjà connue : sa lecture a été mise à jour avec ce nouveau document.' })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  // Rechargement : après l'envoi, la liste relit les factures (en plus de la relecture de la fiche rendue).
+  await expect.poll(() => page.evaluate((n) => window.__appels.slice(n).filter((a) => a.chemin === '/rest/v1/factures').length, avant)).toBeGreaterThanOrEqual(2);
+  await expect(page.locator('[data-etat="chargement"]')).toHaveCount(0);
+  await capturer(page, info, '2c-deja-connue');
 });
 
 test('E9 une page à la fois sur téléphone, thème sombre, jamais de défilement horizontal', async ({ page }, info) => {

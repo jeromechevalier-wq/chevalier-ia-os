@@ -21,7 +21,7 @@ import { construireCorps, corpsLiaison, motifValide, alerteNomFournisseur, offre
 import { chantierAcceptable, phraseChantierFerme, agencesProposables, sirenDeAgence } from '../../partage/achats-agences.js';
 import { normaliser, actionArchivage } from '../../partage/achats-logique.js';
 import { LIMITE_HISTORIQUE, LIMITE_IBAN_AILLEURS } from '../../partage/achats-pastilles.js';
-import { verifierContenu, TAILLE_MAX_OCTETS, TAILLE_MIN_OCTETS, DELAI_MS, MESSAGE_INCERTAIN, MESSAGES as MESSAGES_UPLOAD, erreurDoublon, ficheDejaConnue } from '../../partage/achats-upload.js';
+import { verifierContenu, TAILLE_MAX_OCTETS, TAILLE_MIN_OCTETS, DELAI_MS, MESSAGE_INCERTAIN, MESSAGES as MESSAGES_UPLOAD, erreurDoublon, issueAjout, MESSAGE_DEJA_CONNUE } from '../../partage/achats-upload.js';
 
 export const MESSAGE_ACCES_REFUSE = 'Accès à la base refusé.';
 export const MESSAGE_PAS_BRANCHEE = 'La base n\'est pas encore branchée.';
@@ -490,7 +490,6 @@ export function creerAssistantAchats({
     };
     let rep;
     let corps;
-    const debut = maintenant();
     try {
       ({ rep, corps } = await envoyerAvecTicket(e, url, 'ajoutFacture', fabriquer, { delaiMs: delaiAjoutMs, multipart: true }));
     } catch (err) {
@@ -499,12 +498,13 @@ export function creerAssistantAchats({
     }
     if (rep.status === 401) return fin(502, { ok: false, erreur: 'Le serveur a refusé l\'opération. Demande un nouveau lien.' }, false, 'refus_serveur');
     const code = typeof corps.code === 'string' && CODE_SIMPLE.test(corps.code) ? corps.code : null;
-    // Facture déjà ajoutée : même message que l'écran (« … le <date> », rien en double) et l'identifiant de la fiche existante, à ouvrir avec lire_facture_achat.
-    const doublon = (id, creeLe) => { const d = erreurDoublon(id, creeLe); return fin(409, { ok: false, erreur: d.message, ...(d.factureId ? { factureId: d.factureId } : {}) }, false, 'doublon'); };
+    // Facture déjà ajoutée : même message que l'écran et l'identifiant de la fiche existante, à ouvrir avec lire_facture_achat.
+    // `parNumero` : même fournisseur et même numéro (fiche décidée rendue par la base) ; sinon refus 409 par empreinte (fichier identique).
+    const doublon = (id, creeLe, parNumero = false) => { const d = erreurDoublon(id, creeLe, { parNumero }); return fin(409, { ok: false, erreur: d.message, ...(d.factureId ? { factureId: d.factureId } : {}) }, false, 'doublon'); };
     if (code === 'doublon') {
       const id = typeof corps.facture_id === 'string' ? corps.facture_id : null;
       const valide = erreurDoublon(id, null).factureId;
-      return doublon(valide, typeof corps.cree_le === 'string' ? corps.cree_le : (valide ? (await relireFicheAjoutee(e, valide))?.created_at ?? null : null));
+      return doublon(valide, typeof corps.cree_le === 'string' ? corps.cree_le : (valide ? (await relireFicheAjoutee(e, valide))?.created_at ?? null : null), corps.deja_connue === true);
     }
     if (!rep.ok) {
       if (code === 'trop_gros') return fin(413, { ok: false, erreur: MESSAGES_UPLOAD.trop_gros }, false, code);
@@ -512,13 +512,15 @@ export function creerAssistantAchats({
       return fin(502, { ok: false, erreur: (code && MESSAGES_UPLOAD[code]) || messageServeur(rep.status, corps).message }, false, code ?? `http_${rep.status}`);
     }
     if (corps.ok !== true || typeof corps.facture_id !== 'string') return fin(502, { ok: false, erreur: 'Réponse inattendue du serveur : la facture n\'est peut-être pas ajoutée. Vérifie la liste « À valider », sinon réessaie.' }, false, 'reponse_inattendue');
-    // Réponse « ajoutée » qui désigne une fiche déjà connue (PDF rangé par la base dans la facture de même fournisseur et numéro) : c'est un doublon pour la personne.
+    // Réponse « ajoutée » : sans horloge. Fiche décidée ou archivée = doublon (409) ; fiche « à valider » signalée par le workflow (deja_connue, fiche_relue) = succès,
+    // lecture mise à jour ; sinon facture ajoutée. Même règle que l'écran (issueAjout, js/modules/achatsfactures/upload.js).
     const valideId = erreurDoublon(corps.facture_id, null).factureId;
-    if (valideId) {
-      const fiche = await relireFicheAjoutee(e, valideId);
-      if (corps.deja_connue === true || ficheDejaConnue(fiche, debut, { ficheRelue: corps.fiche_relue === true })) return doublon(valideId, (typeof corps.cree_le === 'string' ? corps.cree_le : null) ?? fiche?.created_at ?? null);
-    }
-    return fin(200, { ok: true, factureId: corps.facture_id, lecture: corps.lecture === 'a_completer' ? 'a_completer' : 'ok', message: MESSAGE_AJOUTEE }, false, 'ok');
+    const fiche = valideId ? await relireFicheAjoutee(e, valideId) : null;
+    const issue = issueAjout(corps, fiche);
+    if (issue === 'doublon') return doublon(valideId, (typeof corps.cree_le === 'string' ? corps.cree_le : null) ?? fiche?.created_at ?? null, true);
+    const lecture = corps.lecture === 'a_completer' ? 'a_completer' : 'ok';
+    if (issue === 'deja_connue') return fin(200, { ok: true, factureId: corps.facture_id, lecture, dejaConnue: true, message: MESSAGE_DEJA_CONNUE }, false, 'deja_connue');
+    return fin(200, { ok: true, factureId: corps.facture_id, lecture, message: MESSAGE_AJOUTEE }, false, 'ok');
   }
 
   return { droitsDe, controler, listerFactures, lireFacture, listerChantiers, listerAgences, validerFacture, refuserFacture, archiverFacture, relierChantier, verifierAjout, deposerFacture };

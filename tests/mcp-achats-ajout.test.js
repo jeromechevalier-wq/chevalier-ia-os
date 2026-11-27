@@ -164,8 +164,34 @@ describe('Achats par l’assistant : ajouter une facture en PDF (lien d’envoi)
     const s = await demarrer({ achats: { reseau: fauxReseau(() => reponse(200, { ok: true, facture_id: F2, lecture: 'ok', lignes_ecrites: false })) } });
     const rep = await s.envoyer(s.jetonDe(await s.demanderLien()), pdfEssai());
     assert.equal(rep.statut, 409);
-    assert.equal(rep.corps.erreur, 'Cette facture a déjà été ajoutée le 18/11/2026 à 11:00. Rien n’a été créé en double.');
+    assert.equal(rep.corps.erreur, 'Une facture de ce fournisseur avec ce numéro existe déjà (ajoutée le 18/11/2026 à 11:00). Ouvre-la pour vérifier.');
     assert.equal(rep.corps.factureId, F2);
+  });
+
+  test('5 refus 409 avec deja_connue (fournisseur et numéro) : message « existe déjà, ouvre-la »', async () => {
+    const s = await demarrer({ achats: { reseau: fauxReseau(() => reponse(409, { ok: false, code: 'doublon', deja_connue: true, facture_id: F2 })) } });
+    const rep = await s.envoyer(s.jetonDe(await s.demanderLien()), pdfEssai());
+    assert.equal(rep.statut, 409);
+    assert.equal(rep.corps.erreur, 'Une facture de ce fournisseur avec ce numéro existe déjà (ajoutée le 18/11/2026 à 11:00). Ouvre-la pour vérifier.');
+    assert.equal(rep.corps.factureId, F2);
+  });
+
+  test('1+2 réponse « ajoutée » qui désigne une fiche « à valider » ancienne, sans signal du workflow : succès normal (aucune comparaison d’horloge, pas de 409)', async () => {
+    const s = await demarrer({ achats: { reseau: fauxReseau(() => reponse(200, { ok: true, facture_id: F1, lecture: 'ok' })) } });
+    const rep = await s.envoyer(s.jetonDe(await s.demanderLien()), pdfEssai());
+    assert.equal(rep.statut, 200);
+    assert.equal(rep.corps.ok, true);
+    assert.equal(rep.corps.factureId, F1);
+    assert.equal(rep.corps.dejaConnue, undefined);
+    assert.equal(rep.corps.message, MESSAGE_AJOUTEE);
+  });
+
+  test('1+2 fiche « à valider » existante signalée par le workflow (deja_connue) : succès « déjà connue », pas de 409', async () => {
+    const s = await demarrer({ achats: { reseau: fauxReseau(() => reponse(200, { ok: true, facture_id: F1, lecture: 'ok', deja_connue: true })) } });
+    const rep = await s.envoyer(s.jetonDe(await s.demanderLien()), pdfEssai());
+    assert.equal(rep.statut, 200);
+    assert.equal(rep.corps.dejaConnue, true);
+    assert.equal(rep.corps.message, 'Facture déjà connue : sa lecture a été mise à jour avec ce nouveau document.');
   });
 
   test('D5 pas un vrai PDF', async () => {

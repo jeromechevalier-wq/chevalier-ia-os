@@ -11,6 +11,7 @@ import { enteteListe, barreListe, basculeVues } from '../crm/barre-liste.js';
 import { texteAcces } from '../achatscommun/etat.js';
 import { creerDonnees } from './donnees.js';
 import { fenetreAjout } from './fenetres.js';
+import { MESSAGE_DEJA_CONNUE } from './upload.js';
 import { creerMagasinFavoris, favorisDeListe, clesParNom, cleEntreprise, ordonnerAvecFavoris, GENRE_CHANTIER, GENRE_ENTREPRISE } from './favoris.js';
 import { facturesCsv, nomFichierExport, TEXTE_RIEN_A_EXPORTER } from './export-csv.js';
 import { calculerPastilles, PASTILLE_INCONNUE } from './pastilles.js';
@@ -348,7 +349,10 @@ export function rendreEcran(conteneur) {
     if (occupe) return;
     const r = await fenetreAjout({ actions: actionsBase(), lireFiche: (id) => donnees().lireFicheAjoutee(id) });
     if (!vivant || !r?.ok) return;
-    toast(r.resultat.lectureReussie ? 'Facture ajoutée : elle est dans « À valider »' : 'Facture ajoutée : la lecture automatique est à compléter', { duree: DUREE_MESSAGE });
+    // Nouveau scan d'une facture « à valider » déjà connue : succès distinct (lecture mise à jour) ; la liste est rechargée dans les deux cas.
+    const message = r.resultat.dejaConnue ? MESSAGE_DEJA_CONNUE
+      : r.resultat.lectureReussie ? 'Facture ajoutée : elle est dans « À valider »' : 'Facture ajoutée : la lecture automatique est à compléter';
+    toast(message, { duree: DUREE_MESSAGE });
     await charger(true);
   }
 

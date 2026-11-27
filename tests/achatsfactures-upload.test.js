@@ -2,7 +2,7 @@
 // L'envoi passe ici par la vraie couche des actions de l'OS (js/os/actions-metier.js) avec un faux réseau : il n'y a plus de `fetcher`, d'`url` ni de `jwt` à fournir (adresse réglée dans la connexion, ticket neuf demandé à la base).
 import { describe, test } from 'node:test'
 import { expect, espion } from './_expect-achatsfactures.js'
-import { envoyerFacture, ErreurUpload, MESSAGE_INCERTAIN, TAILLE_MAX_OCTETS, verifierContenu, verifierFichierPdf, verifierMetadonnees, messageDoublon, ficheDejaConnue, MARGE_FICHE_ANCIENNE_MS } from '../js/modules/achatsfactures/upload.js'
+import { envoyerFacture, ErreurUpload, MESSAGE_INCERTAIN, TAILLE_MAX_OCTETS, verifierContenu, verifierFichierPdf, verifierMetadonnees, messageDoublon, ficheDecidee, issueAjout, MESSAGE_DEJA_CONNUE } from '../js/modules/achatsfactures/upload.js'
 import { creerActions, ErreurAction } from '../js/os/actions-metier.js'
 
 const octets = (s) => new TextEncoder().encode(s)
@@ -49,7 +49,7 @@ describe('envoyerFacture (couche des actions de l’OS, faux réseau)', () => {
   test('envoie le fichier avec le ticket et rend l’identifiant', async () => {
     const f = espion(() => reponse(200, { ok: true, facture_id: 'abc', lecture: 'ok' }))
     const r = await envoyerFacture(pdf(), { actions: monter(f) })
-    expect(r).toEqual({ factureId: 'abc', lectureReussie: true, lignesEcrites: true })
+    expect(r).toEqual({ factureId: 'abc', lectureReussie: true, lignesEcrites: true, dejaConnue: false })
     const [url, init] = f.appels[0]
     expect(url).toBe(URL_FAUSSE)
     expect(init.headers.Authorization).toBe('Bearer ticket-1')
@@ -160,39 +160,70 @@ describe('D. facture déjà ajoutée', () => {
     expect(e2.message).toBe('Cette facture a déjà été ajoutée. Rien n’a été créé en double.')
     expect(e2.factureId).toBe(ID)
   })
-  test('2-D4 réponse « ajoutée » qui désigne une fiche déjà décidée (cas SCAB 04 du 26/11) : erreur doublon, pas de « Facture ajoutée »', async () => {
+  test('2-D4 / 5 réponse « ajoutée » qui désigne une fiche déjà décidée (cas SCAB 04 du 26/11) : doublon « même fournisseur et même numéro », pas de « Facture ajoutée »', async () => {
     const actions = monter(() => reponse(200, { ok: true, facture_id: ID, lecture: 'ok', lignes_ecrites: false }))
-    const e = await envoyerFacture(pdf(), { actions, lireFiche: async () => ({ id: ID, statut: 'refusee', created_at: '2026-11-26T13:32:00Z', archivee_le: null }), maintenant: () => T0 }).catch((x) => x)
+    const e = await envoyerFacture(pdf(), { actions, lireFiche: async () => ({ id: ID, statut: 'refusee', created_at: '2026-11-26T13:32:00Z', archivee_le: null }) }).catch((x) => x)
     expect(e instanceof ErreurUpload).toBe(true)
     expect(e.code).toBe('doublon')
     expect(e.factureId).toBe(ID)
-    expect(e.message).toMatch(/déjà été ajoutée le 26\/11\/2026/)
+    expect(e.message).toBe('Une facture de ce fournisseur avec ce numéro existe déjà (ajoutée le 26/11/2026 à 14:32). Ouvre-la pour vérifier.')
   })
-  test('2-D5 fiche « à valider » créée bien avant l’envoi : doublon ; fiche toute neuve : ajoutée', async () => {
-    const actions = monter(() => reponse(200, { ok: true, facture_id: ID, lecture: 'ok' }))
-    const vieille = new Date(T0 - MARGE_FICHE_ANCIENNE_MS - 60_000).toISOString()
-    const e = await envoyerFacture(pdf(), { actions, lireFiche: async () => ({ id: ID, statut: 'a_valider', created_at: vieille }), maintenant: () => T0 }).catch((x) => x)
-    expect(e.code).toBe('doublon')
-    const r = await envoyerFacture(pdf(), { actions, lireFiche: async () => ({ id: ID, statut: 'a_valider', created_at: new Date(T0 + 30_000).toISOString() }), maintenant: () => T0 })
-    expect(r).toEqual({ factureId: ID, lectureReussie: true, lignesEcrites: true })
+  test('1+2 fiche « à valider » ancienne, ordinateur en avance de 20 minutes : succès normal (plus aucune comparaison d’horloge)', async () => {
+    const vraiNow = Date.now
+    Date.now = () => vraiNow() + 20 * 60_000
+    try {
+      const actions = monter(() => reponse(200, { ok: true, facture_id: ID, lecture: 'ok' }))
+      const r = await envoyerFacture(pdf(), { actions, lireFiche: async () => ({ id: ID, statut: 'a_valider', created_at: new Date(vraiNow()).toISOString(), archivee_le: null }) })
+      expect(r).toEqual({ factureId: ID, lectureReussie: true, lignesEcrites: true, dejaConnue: false })
+      const r2 = await envoyerFacture(pdf(), { actions, lireFiche: async () => ({ id: ID, statut: 'a_valider', created_at: '2026-01-01T08:00:00Z', archivee_le: null }) })
+      expect(r2.dejaConnue).toBe(false)
+    } finally { Date.now = vraiNow }
   })
-  test('2-D6 fiche relue exprès par le workflow (fiche_relue) : jamais un doublon ; relecture impossible : ajoutée', async () => {
-    const lireFiche = async () => ({ id: ID, statut: 'a_valider', created_at: '2026-11-01T08:00:00Z' })
-    const r = await envoyerFacture(pdf(), { actions: monter(() => reponse(200, { ok: true, facture_id: ID, fiche_relue: true })), lireFiche, maintenant: () => T0 })
+  test('1+2 fiche « à valider » existante signalée par le workflow (deja_connue ou fiche_relue) : succès « déjà connue »', async () => {
+    const lireFiche = async () => ({ id: ID, statut: 'a_valider', created_at: '2026-11-01T08:00:00Z', archivee_le: null })
+    const r = await envoyerFacture(pdf(), { actions: monter(() => reponse(200, { ok: true, facture_id: ID, deja_connue: true, lecture: 'ok' })), lireFiche })
+    expect(r).toEqual({ factureId: ID, lectureReussie: true, lignesEcrites: true, dejaConnue: true })
+    const r2 = await envoyerFacture(pdf(), { actions: monter(() => reponse(200, { ok: true, facture_id: ID, fiche_relue: true, lecture: 'a_completer' })), lireFiche })
+    expect(r2.dejaConnue).toBe(true)
+    expect(r2.lectureReussie).toBe(false)
+    expect(MESSAGE_DEJA_CONNUE).toBe('Facture déjà connue : sa lecture a été mise à jour avec ce nouveau document.')
+  })
+  test('2-D6 relecture impossible : facture ajoutée ; « deja_connue » sans relecture possible : doublon prudent (à ouvrir)', async () => {
+    const r = await envoyerFacture(pdf(), { actions: monter(() => reponse(200, { ok: true, facture_id: ID })), lireFiche: async () => { throw new Error('base') } })
     expect(r.factureId).toBe(ID)
-    const r2 = await envoyerFacture(pdf(), { actions: monter(() => reponse(200, { ok: true, facture_id: ID })), lireFiche: async () => { throw new Error('base') }, maintenant: () => T0 })
-    expect(r2.factureId).toBe(ID)
-  })
-  test('2-D7 le workflow dit lui-même « deja_connue » : doublon avec sa date', async () => {
+    expect(r.dejaConnue).toBe(false)
     const e = await envoyerFacture(pdf(), { actions: monter(() => reponse(200, { ok: true, facture_id: ID, deja_connue: true, cree_le: '2026-11-26T13:32:00Z' })) }).catch((x) => x)
     expect(e.code).toBe('doublon')
-    expect(e.message).toMatch(/le 26\/11\/2026 à 14:32/)
+    expect(e.message).toBe('Une facture de ce fournisseur avec ce numéro existe déjà (ajoutée le 26/11/2026 à 14:32). Ouvre-la pour vérifier.')
   })
-  test('2-D8 ficheDejaConnue : décidée, archivée ou ancienne = oui ; neuve, inconnue ou relue = non', () => {
-    expect(ficheDejaConnue({ statut: 'acceptee' }, T0)).toBe(true)
-    expect(ficheDejaConnue({ statut: 'a_valider', archivee_le: '2026-11-20T00:00:00Z' }, T0)).toBe(true)
-    expect(ficheDejaConnue({ statut: 'a_valider', created_at: new Date(T0).toISOString() }, T0)).toBe(false)
-    expect(ficheDejaConnue(null, T0)).toBe(false)
-    expect(ficheDejaConnue({ statut: 'refusee' }, T0, { ficheRelue: true })).toBe(false)
+  test('5 messageDoublon : « déjà ajoutée » pour le même fichier, « ce fournisseur avec ce numéro » sinon, sans date si elle est inconnue', () => {
+    expect(messageDoublon('2026-11-26T13:32:00Z', { parNumero: true })).toBe('Une facture de ce fournisseur avec ce numéro existe déjà (ajoutée le 26/11/2026 à 14:32). Ouvre-la pour vérifier.')
+    expect(messageDoublon(null, { parNumero: true })).toBe('Une facture de ce fournisseur avec ce numéro existe déjà. Ouvre-la pour vérifier.')
+  })
+  test('5 refus 409 avec deja_connue (reconnu par fournisseur et numéro, workflow complété) : message « existe déjà, ouvre-la », pas « même fichier »', async () => {
+    const e = await envoyerFacture(pdf(), { actions: monter(() => reponse(409, { ok: false, code: 'doublon', deja_connue: true, facture_id: ID, cree_le: '2026-11-26T13:32:00Z' })) }).catch((x) => x)
+    expect(e.code).toBe('doublon')
+    expect(e.factureId).toBe(ID)
+    expect(e.message).toBe('Une facture de ce fournisseur avec ce numéro existe déjà (ajoutée le 26/11/2026 à 14:32). Ouvre-la pour vérifier.')
+  })
+  test('7 relecture de la fiche qui ne répond jamais : abandonnée après le délai (null), la fenêtre n’est pas bloquée', async () => {
+    const jamais = () => new Promise(() => {})
+    const debut = Date.now()
+    const r = await envoyerFacture(pdf(), { actions: monter(() => reponse(200, { ok: true, facture_id: ID })), lireFiche: jamais, delaiRelectureMs: 30 })
+    expect(r.factureId).toBe(ID)
+    expect(Date.now() - debut < 2000).toBe(true)
+    const e = await envoyerFacture(pdf(), { actions: monter(() => reponse(409, { ok: false, code: 'doublon', facture_id: ID })), lireFiche: jamais, delaiRelectureMs: 30 }).catch((x) => x)
+    expect(e.message).toBe('Cette facture a déjà été ajoutée. Rien n’a été créé en double.')
+  })
+  test('2-D8 ficheDecidee et issueAjout : décidée ou archivée = doublon ; à valider signalée = déjà connue ; sinon ajoutée', () => {
+    expect(ficheDecidee({ statut: 'acceptee' })).toBe(true)
+    expect(ficheDecidee({ statut: 'a_valider', archivee_le: '2026-11-20T00:00:00Z' })).toBe(true)
+    expect(ficheDecidee({ statut: 'a_valider', archivee_le: null })).toBe(false)
+    expect(ficheDecidee(null)).toBe(false)
+    expect(issueAjout({ fiche_relue: true }, { statut: 'refusee' })).toBe('doublon')
+    expect(issueAjout({ deja_connue: true }, { statut: 'a_valider' })).toBe('deja_connue')
+    expect(issueAjout({}, { statut: 'a_valider' })).toBe('ajoutee')
+    expect(issueAjout({}, null)).toBe('ajoutee')
+    expect(issueAjout({ fiche_relue: true }, null)).toBe('deja_connue')
   })
 })

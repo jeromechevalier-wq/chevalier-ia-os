@@ -20,6 +20,11 @@ Toujours par la couche `js/os/supabase.js` : elle demande un badge Firebase, pui
 
 Par les workflows n8n, avec un ticket à usage unique, via `js/os/actions-metier.js`. Ce fichier est le seul à parler à n8n ; on ne le recopie pas dans un module. Pour « + Facture », le fichier PDF part en pièce jointe (multipart).
 
+**Facture déjà ajoutée (« + Facture » et outil `ajouter_facture_achat`, 27/11/2026)** : aucune comparaison avec l'horloge de l'ordinateur.
+- Même fichier (refus 409 par empreinte) : « Cette facture a déjà été ajoutée le … Rien n'a été créé en double. », avec un lien vers la fiche existante.
+- La base rend une fiche **déjà décidée (acceptée, refusée) ou archivée** (même fournisseur et même numéro) : c'est un refus (409 côté assistant), « Une facture de ce fournisseur avec ce numéro existe déjà (ajoutée le …). Ouvre-la pour vérifier. », avec le lien.
+- La base rend une fiche **« à valider » déjà existante** et le workflow le signale (`deja_connue` ou `fiche_relue`) : c'est un succès, « Facture déjà connue : sa lecture a été mise à jour avec ce nouveau document. », et la liste est rechargée. Sans ce signal, la fiche est traitée comme ajoutée.
+
 ## Réglages de connexion
 
 Réglages > « Connexion à la base » (visible du propriétaire seul). Le code n'écrit aucune adresse ni clé : tout vient de ces réglages.
@@ -68,7 +73,6 @@ Liste vivante : `.github/A-FAIRE.md` (parties « modules Achats »). En bref :
 - essai de bout en bout avec un vrai badge (tout est testé avec un faux réseau) ;
 - droit d'accès du compte de service dédié à la fonction du badge ;
 - pastille « Destinataire » des factures (reste « indisponible ») ;
-- lien « Ouvrir la fiche » quand une facture est en doublon ;
 - favoris : la nouvelle table remplace les anciennes étoiles, qui sont à refaire.
 
 Le rapport de fin de chantier est dans `docs/reprise-prochaine-session.md`.

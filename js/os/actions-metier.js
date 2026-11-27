@@ -9,12 +9,12 @@ export class ErreurAction extends Error {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** Facture déjà connue d'un refus « doublon » (409) : son identifiant et sa date d'ajout, seulement s'ils ont la bonne forme (jamais un autre champ du corps). */
+/** Facture déjà connue d'un refus « doublon » (409) : son identifiant et sa date d'ajout, seulement s'ils ont la bonne forme, et `dejaConnue` (doublon reconnu par fournisseur et numéro, pas par empreinte). Jamais un autre champ du corps. */
 export function factureDejaConnue(corps) {
   const c = corps && typeof corps === 'object' ? corps : {};
   const factureId = typeof c.facture_id === 'string' && UUID.test(c.facture_id) ? c.facture_id : null;
   const creeLe = typeof c.cree_le === 'string' && !Number.isNaN(Date.parse(c.cree_le)) ? c.cree_le : null;
-  return { factureId, creeLe };
+  return { factureId, creeLe, dejaConnue: c.deja_connue === true };
 }
 
 export const USAGES = ['validation', 'actions', 'suggestions', 'ajoutFacture'];

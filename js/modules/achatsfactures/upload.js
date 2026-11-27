@@ -2,8 +2,9 @@
 // (ticket neuf à usage unique), n8n revérifie tout (type, taille, « %PDF- », ticket) et crée la fiche « À valider ».
 // Le fichier part en multipart (FormData, champ `fichier`) comme dans l'appli d'origine ; la couche des actions de l'OS le transmet tel quel, sans Content-Type (le navigateur pose la frontière), avec le ticket en Bearer.
 // Le délai de 120 s ne COUPE PAS l'envoi (la couche des actions n'a pas de signal d'annulation) : il dit seulement « peut-être en cours de lecture » ; l'envoi continue et le doublon par empreinte protège d'un second envoi. Aucun appel réseau n'est écrit ici.
-// Facture déjà ajoutée (27/11/2026) : refus « doublon » (409, même fichier) OU réponse « ajoutée » qui désigne une fiche ANCIENNE (la base range un PDF déjà connu,
-// mais pas forcément identique au premier, dans la facture qui a le même fournisseur et le même numéro) : l'écran dit « déjà ajoutée le … » avec un lien vers la fiche.
+// Facture déjà ajoutée (27/11/2026, corrigé après relecture) : refus « doublon » (409, même fichier : empreinte identique) OU réponse « ajoutée » qui désigne une fiche
+// déjà DÉCIDÉE ou ARCHIVÉE (la base range un PDF de même fournisseur et même numéro dans la facture existante) : l'écran le dit avec un lien vers la fiche.
+// Une fiche « à valider » déjà existante (rescan voulu, signalé par le workflow) est un SUCCÈS : sa lecture a été mise à jour. Aucune comparaison avec l'horloge de l'ordinateur.
 import { dateHeureFr } from './logique.js';
 
 /** Taille maximale d'un PDF : 10 Mo (même valeur côté serveur). */
@@ -18,32 +19,48 @@ export class ErreurUpload extends Error {
   constructor(message, code, { factureId = null, creeLe = null } = {}) { super(message); this.name = 'ErreurUpload'; this.code = code; this.factureId = factureId; this.creeLe = creeLe; }
 }
 
-/** Écart d'horloge toléré entre l'ordinateur et la base : une fiche créée plus de 15 minutes avant l'envoi n'est pas celle de cet envoi. */
-export const MARGE_FICHE_ANCIENNE_MS = 15 * 60 * 1000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const dateValide = (v) => typeof v === 'string' && !Number.isNaN(Date.parse(v));
 
-/** « Cette facture a déjà été ajoutée le 26/11/2026 à 14:32. » (sans la date si elle est inconnue), puis « rien n'a été créé en double ». */
-export function messageDoublon(creeLe) {
-  return `Cette facture a déjà été ajoutée${dateValide(creeLe) ? ` le ${dateHeureFr(creeLe)}` : ''}. Rien n’a été créé en double.`;
+/** Succès d'un nouveau scan d'une facture « à valider » déjà connue : la base y a rangé le document et la lecture a été refaite. */
+export const MESSAGE_DEJA_CONNUE = 'Facture déjà connue : sa lecture a été mise à jour avec ce nouveau document.';
+/** Relecture de la fiche rendue : au-delà de 5 secondes, on fait comme si elle avait échoué (la fenêtre ne reste jamais bloquée). */
+export const DELAI_RELECTURE_MS = 5000;
+
+/**
+ * Message d'une facture déjà ajoutée. `parNumero` faux (refus 409 par empreinte, fichier identique) : « Cette facture a déjà été ajoutée le … Rien n'a été créé en double. ».
+ * `parNumero` vrai (même fournisseur et même numéro, fichier pas forcément identique) : « Une facture de ce fournisseur avec ce numéro existe déjà (ajoutée le …). Ouvre-la pour vérifier. »
+ */
+export function messageDoublon(creeLe, { parNumero = false } = {}) {
+  const quand = dateValide(creeLe) ? dateHeureFr(creeLe) : null;
+  if (parNumero) return `Une facture de ce fournisseur avec ce numéro existe déjà${quand ? ` (ajoutée le ${quand})` : ''}. Ouvre-la pour vérifier.`;
+  return `Cette facture a déjà été ajoutée${quand ? ` le ${quand}` : ''}. Rien n’a été créé en double.`;
 }
 
-/** Erreur « doublon » prête à afficher : message clair, identifiant de la fiche existante (si sa forme est bonne) et sa date d'ajout. */
-export function erreurDoublon(factureId, creeLe) {
+/** Erreur « doublon » prête à afficher : message clair, identifiant de la fiche existante (si sa forme est bonne) et sa date d'ajout. `parNumero` : voir messageDoublon. */
+export function erreurDoublon(factureId, creeLe, { parNumero = false } = {}) {
   const id = typeof factureId === 'string' && UUID.test(factureId) ? factureId : null;
   const quand = dateValide(creeLe) ? creeLe : null;
-  return new ErreurUpload(messageDoublon(quand), 'doublon', { factureId: id, creeLe: quand });
+  return new ErreurUpload(messageDoublon(quand, { parNumero }), 'doublon', { factureId: id, creeLe: quand });
+}
+
+/** La fiche rendue est-elle déjà décidée (acceptée, refusée…) ou archivée ? Alors un nouveau document ne peut plus la changer : c'est un doublon. Fiche inconnue = non. */
+export function ficheDecidee(fiche) {
+  if (!fiche || typeof fiche !== 'object') return false;
+  return (typeof fiche.statut === 'string' && fiche.statut !== 'a_valider') || !!fiche.archivee_le;
 }
 
 /**
- * La fiche rendue par une réponse « ajoutée » existait-elle déjà ? Oui si elle est déjà décidée (acceptée ou refusée), archivée, ou créée bien avant l'envoi.
- * Jamais pour une fiche RELUE exprès (`ficheRelue` : renvoi d'un PDF dont la première lecture n'avait rien donné, voulu par le workflow) ; fiche inconnue = non.
+ * Que dire d'une réponse « ajoutée » (`rep` : corps du workflow ; `fiche` : fiche relue ou null) ? Aucune horloge.
+ *  - 'doublon' : fiche décidée ou archivée, OU le workflow dit `deja_connue` sans que la fiche ait pu être relue (prudence : on invite à l'ouvrir) ;
+ *  - 'deja_connue' : fiche « à valider » existante que le workflow signale (`deja_connue` ou `fiche_relue`) : succès, lecture mise à jour ;
+ *  - 'ajoutee' : tout le reste (fiche neuve, ou impossible à distinguer d'une neuve).
  */
-export function ficheDejaConnue(fiche, debutMs, { ficheRelue = false } = {}) {
-  if (ficheRelue || !fiche || typeof fiche !== 'object') return false;
-  if (typeof fiche.statut === 'string' && fiche.statut !== 'a_valider') return true;
-  if (fiche.archivee_le) return true;
-  return dateValide(fiche.created_at) && Number.isFinite(debutMs) && Date.parse(fiche.created_at) < debutMs - MARGE_FICHE_ANCIENNE_MS;
+export function issueAjout(rep, fiche) {
+  if (ficheDecidee(fiche)) return 'doublon';
+  const signalee = rep?.deja_connue === true || rep?.fiche_relue === true;
+  if (rep?.deja_connue === true && !fiche) return 'doublon';
+  return signalee ? 'deja_connue' : 'ajoutee';
 }
 
 /** « 2,4 Mo » (virgule française, sans passer par le formatage du navigateur). */
@@ -111,17 +128,21 @@ export function corpsAjout(f) {
 
 /**
  * Envoie le PDF par `actions.ajouterFacture(corps)`. Lève ErreurUpload (message français) si le serveur refuse.
- * Rend { factureId, lectureReussie, lignesEcrites }. `delaiMs` : au-delà, message « peut-être en cours de lecture » (on ne sait pas si le serveur a fini : le doublon par empreinte protège d'un second envoi).
- * `lireFiche(id)` (facultatif) relit la fiche rendue ({ statut, created_at, archivee_le }) : une fiche qui existait déjà lève l'erreur « doublon » (message et lien), comme le refus 409.
- * Une relecture en échec ne change rien (la réponse du serveur reste vraie). `maintenant` : horloge (essais).
+ * Rend { factureId, lectureReussie, lignesEcrites, dejaConnue }. `delaiMs` : au-delà, message « peut-être en cours de lecture » (on ne sait pas si le serveur a fini : le doublon par empreinte protège d'un second envoi).
+ * `lireFiche(id)` (facultatif) relit la fiche rendue ({ statut, created_at, archivee_le }) : une fiche décidée ou archivée lève l'erreur « doublon » (message et lien) ;
+ * une fiche « à valider » signalée par le workflow rend `dejaConnue: true` (succès). Une relecture en échec ou plus longue que `delaiRelectureMs` (5 s) vaut null.
  */
-export async function envoyerFacture(f, { actions, delaiMs = DELAI_MS, signal, lireFiche = null, maintenant = () => Date.now() } = {}) {
+export async function envoyerFacture(f, { actions, delaiMs = DELAI_MS, signal, lireFiche = null, delaiRelectureMs = DELAI_RELECTURE_MS } = {}) {
   if (!actions || typeof actions.ajouterFacture !== 'function') throw new ErreurUpload('L’ajout de facture n’est pas encore branché : préviens le support.', 'non_configure');
   if (signal?.aborted) throw new ErreurUpload('Envoi annulé.', 'annule');
   const corps = corpsAjout(f);
   if (signal?.aborted) throw new ErreurUpload('Envoi annulé.', 'annule');
-  const debut = maintenant();
-  const relire = async (id) => { if (typeof lireFiche !== 'function' || !id) return null; try { return await lireFiche(id); } catch { return null; } };
+  const relire = async (id) => {
+    if (typeof lireFiche !== 'function' || !id) return null;
+    let borne;
+    const course = new Promise((resoudre) => { borne = setTimeout(() => resoudre(null), delaiRelectureMs); });
+    try { return (await Promise.race([Promise.resolve().then(() => lireFiche(id)), course])) ?? null; } catch { return null; } finally { clearTimeout(borne); }
+  };
   let minuteur;
   const coupure = new Promise((_, rejeter) => {
     minuteur = setTimeout(() => rejeter(new ErreurUpload(MESSAGE_INCERTAIN, 'delai')), delaiMs);
@@ -138,7 +159,8 @@ export async function envoyerFacture(f, { actions, delaiMs = DELAI_MS, signal, l
       clearTimeout(minuteur);
       const id = e?.factureId ?? null;
       const creeLe = e?.creeLe ?? (await relire(id))?.created_at ?? null;
-      throw erreurDoublon(id, creeLe);
+      // `deja_connue` dans le 409 : reconnu par fournisseur et numéro (workflow complété), pas par empreinte : message « existe déjà, ouvre-la ».
+      throw erreurDoublon(id, creeLe, { parNumero: e?.dejaConnue === true });
     }
     if (code === 'non_autorise' || code === 'refus_serveur' || code === 'reconnexion' || code === 'ticket') throw new ErreurUpload(MESSAGES.non_autorise, 'session');
     if (code === 'reponse_inattendue') throw new ErreurUpload('Réponse inattendue du serveur : la facture n’est peut-être pas ajoutée. Vérifie la liste, sinon réessaie.', 'reponse_inattendue');
@@ -147,9 +169,8 @@ export async function envoyerFacture(f, { actions, delaiMs = DELAI_MS, signal, l
     clearTimeout(minuteur);
   }
   if (!rep || typeof rep.facture_id !== 'string') throw new ErreurUpload('Réponse inattendue du serveur : la facture n’est peut-être pas ajoutée. Vérifie la liste, sinon réessaie.', 'reponse_inattendue');
-  // Réponse « ajoutée » qui désigne une fiche déjà connue : le workflow le dit (deja_connue), ou la relecture le montre (fiche décidée, archivée ou ancienne).
-  if (rep.deja_connue === true) throw erreurDoublon(rep.facture_id, rep.cree_le ?? (await relire(rep.facture_id))?.created_at ?? null);
   const fiche = await relire(rep.facture_id);
-  if (ficheDejaConnue(fiche, debut, { ficheRelue: rep.fiche_relue === true })) throw erreurDoublon(rep.facture_id, fiche.created_at ?? null);
-  return { factureId: rep.facture_id, lectureReussie: rep.lecture !== 'a_completer', lignesEcrites: rep.lignes_ecrites !== false };
+  const issue = issueAjout(rep, fiche);
+  if (issue === 'doublon') throw erreurDoublon(rep.facture_id, (dateValide(rep.cree_le) ? rep.cree_le : null) ?? fiche?.created_at ?? null, { parNumero: true });
+  return { factureId: rep.facture_id, lectureReussie: rep.lecture !== 'a_completer', lignesEcrites: rep.lignes_ecrites !== false, dejaConnue: issue === 'deja_connue' };
 }
