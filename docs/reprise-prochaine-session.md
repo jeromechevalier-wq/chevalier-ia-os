@@ -73,9 +73,16 @@ Accords écrits de Jérôme avant la nuit : fusionner seul les PR du village qui
 | Boutique : décorations (20) et parcelles (500), achat par le serveur | 748 | fusionnée seule (accord), relue par Fable |
 | Petites maisons automatiques des projets, cacher une petite maison, 12 au plus par grande maison | 751 | fusionnée seule (accord), relue par Fable (brief et code) |
 | Champs (100) et enclos à cochons (200), récolte d'or (action `ramasser` du serveur) | 752 | fusionnée, relue deux fois par Fable (3 points importants corrigés) ; règles inchangées |
-| Console : schéma d'architecture figé dans Vue d'ensemble, décisions dans `docs/console.md` (§10), version 2.58.0, wiki, ce rapport | cette PR | relue par Fable |
+| Console : schéma d'architecture figé dans Vue d'ensemble, décisions dans `docs/console.md` (§10), version 2.58.0, wiki | 753 | fusionnée, relue par Fable (brief et code) |
+| Damier de départ 12 × 12 (demande de Jérôme dans la soirée), 6 parcelles au plus, places d'office au centre, maisons rangées non déplacées | 756 | fusionnée, relue par Fable (brief et code) |
+| Mon accueil : interrupteurs par personne « Accueil en village » et « Pièces d'or et boutique », or compté en silence (demande de Jérôme dans la soirée) | 760 | fusionnée, relue deux fois par Fable ; règles du CRM publiées |
+| Suite du rapport du matin | cette PR | docs |
 
-**État GitHub** : « Tests de nuit » verts sur `main` après la PR 751 (run 46059723660). Le passage après la PR 752 est à relire.
+**État GitHub** : « Tests de nuit » verts sur `main` après les PR 751, 752, 753 et 756. Un passage a été lancé après la PR 760 : à relire.
+
+**Demandes de la soirée (Jérôme réveillé)** :
+- Audrey : un chef d'entreprise peut trouver le jeu enfantin. D'où les interrupteurs de la PR 760 : jeu éteint d'office chez les clients, allumé chez Jérôme. L'or se compte quand même, en silence.
+- Damier « 2 fois plus de cases » : choix 12 × 12 (PR 756). Sur ordinateur, les maisons sont environ 1/3 plus petites et les noms agrandis ; au téléphone, tout garde sa taille et le village glisse au doigt.
 
 **Mise en ligne** :
 - Chez Jérôme : automatique à chaque fusion (site et fonctions) ; règles du CRM publiées après chaque PR qui les changeait.
@@ -87,6 +94,9 @@ Accords écrits de Jérôme avant la nuit : fusionner seul les PR du village qui
 - Récolte possible au clavier (Tab puis Entrée ou Espace).
 - Bulle d'une petite maison au téléphone : une ligne d'aide au lieu d'un bouton.
 - Au plus 50 petites maisons cachées par personne ; les petites maisons automatiques des projets suivent l'ordre des projets actifs ; une petite maison cachée dont le projet a disparu reste listée dans « Petites maisons cachées ».
+- Damier 12 × 12 : un portefeuille à 7 ou 8 parcelles est ramené à 6, sans remboursement (le terrain ne rétrécit pas) ; de 10 à 12 maisons, les places d'office vont jusqu'au bord.
+- Interrupteurs : réglage propre à chaque personne ; un compte en lecture seule peut régler les siens ; jeu éteint = les objets achetés restent en base et leurs cases restent prises (message si on y lâche une maison) ; changer un interrupteur recharge la page ; dernier réglage gardé sur l'appareil si la base répond lentement.
+- Plateforme `#/espace/<client>` (CRM d'Ingrid) : ni village, ni or, ni interrupteurs (ligne A13 de `.github/A-FAIRE.md`).
 - Schéma de la Console générique : ni hébergeur, ni identifiant de projet, ni nom de client (le dépôt est public, garde-fou 5 de `docs/console.md`). « Maison client 1 » et « Appartement 1, 2, 3 » remplacent les vrais noms. Les maquettes d'origine avec les vrais noms sont gardées en privé sur ton Mac, hors du dépôt.
 
 **Ce qui reste à Jérôme** :
@@ -98,6 +108,8 @@ Accords écrits de Jérôme avant la nuit : fusionner seul les PR du village qui
 - Tout a été testé avec les émulateurs, pas avec la vraie base ; pas sur un vrai téléphone.
 - La pousse sur plusieurs jours (le temps a été simulé dans les tests).
 - Limites connues de la PR 752 : Échap pendant un glisser puis bouton relâché tard peut récolter ; une horloge d'ordinateur décalée peut afficher « prêt » à tort.
+- Tablette de 600 à 767 px : le village y paraît très gros (environ 4 maisons visibles à la fois).
+- `devis-mcp.test.js` échouait en local (avant la PR 760) ; vert sur GitHub.
 - Test instable à surveiller : `mairie 1.7` (403 parfois en local, vert sur GitHub) ; `village-or 7.7a` (10 récoltes en même temps).
 
 ## Rapport du matin du 27/11/2026 (nuit 4) : appli Factures, sauvegarde .zip, photos de connexion, applications dans la coque
