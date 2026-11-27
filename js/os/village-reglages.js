@@ -124,6 +124,8 @@ function ouvrirReglagesAccueil(surChangement, maisons) {
   const contenu = h('div', { class: 'reglages-accueil' },
     h('label', { class: 'case' }, interrupteur, h('strong', {}, 'Animations')),
     h('p', { class: 'aide' }, 'Décoche pour couper les animations du village. Ton choix est gardé sur cet appareil.'),
+    // interrupteurs « Mon accueil » (27/11/2026) : une carte de Réglages > Mon espace ; la fenêtre se ferme, l'adresse change
+    h('p', { class: 'aide' }, h('a', { href: '#/reglages/espace', dataset: { role: 'lien-mon-accueil' }, onclick: () => fermerRoue?.(true, true) }, 'Mon accueil'), ' : accueil en village ou menu habituel, pièces d’or.'),
     partieMaisons(maisons, () => fermerRoue?.(true, true)));
   return dialogue({
     titre: 'Réglages de l’accueil', contenu, auMontage: ({ fermer }) => { fermerRoue = fermer; },

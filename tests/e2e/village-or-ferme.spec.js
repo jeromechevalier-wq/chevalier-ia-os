@@ -4,7 +4,7 @@
 // (portefeuille, objet acheté, nouveau `depuis`). Le cœur lui-même est testé sur l'émulateur dans tests/village-or.test.js (7.1a à 7.8b).
 // Un test par critère (le nom commence par son numéro) ; captures dans tests/e2e/captures/village-or-ferme/ (non commitées), nommées avec le projet. Données d'exemple neutres.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, lireDocument, estTelephone, JEROME, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
+import { test, expect, connecter, ecrireDocument, lireDocument, estTelephone, imposerPreferencesAccueil, JEROME, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
 import { readFileSync } from 'node:fs';
 
@@ -197,6 +197,8 @@ async function semerObjet(etat, uid, id, sorte, ilYa, c, l) {
 }
 
 test.describe('accueil village : champs et enclos à cochons (étape 7)', () => {
+  // Maison neutre (configuration_crm: 'neutre') = jeu éteint par défaut depuis le 27/11/2026 (interrupteurs « Mon accueil ») : on allume le jeu par le crochet de test.
+  test.beforeEach(async ({ page }) => { await imposerPreferencesAccueil(page, { jeu: true, accueil: 'village' }); });
   test('7.1 enclos prêt : dessin bien gras, pièce, nom ; un clic : une demande, la fête, le compteur, l’enclos vide', async ({ page }, info) => {
     await semer({ besoins: [FACTURES] });
     const etat = nouvelEtat(100);

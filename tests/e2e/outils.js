@@ -204,6 +204,25 @@ export function estTelephone(page) {
  * navigation n'a eu lieu (tests instables de la nuit du 27/11/2026 : R6, 4c, M14, M20…). On lance donc la connexion sans l'attendre,
  * puis on lit son état par de petites lectures synchrones. Une connexion refusée échoue toujours, avec son message.
  */
+/**
+ * Crochets de test ajoutés à window.__chevalierTest (émulateurs seulement), à poser AVANT d'ouvrir la page (valables à chaque chargement). `window.__chevalierTest` est créé
+ * par js/os/auth.js au chargement : on attend cette affectation pour y ajouter `champs` (jamais un objet posé plus tôt, que la connexion de test prendrait pour le sien).
+ */
+export async function poserCrochetsDeTest(page, champs) {
+  await page.addInitScript((c) => {
+    Object.defineProperty(window, '__chevalierTest', {
+      configurable: true,
+      get: () => undefined,
+      set: (v) => { Object.defineProperty(window, '__chevalierTest', { value: Object.assign(v, structuredClone(c)), writable: true, configurable: true }); },
+    });
+  }, champs);
+}
+
+/** Interrupteurs « Mon accueil » imposés pour un parcours (crochet preferencesAccueil, js/os/village-preferences.js) : remplace la lecture du document. */
+export async function imposerPreferencesAccueil(page, preferences) {
+  await poserCrochetsDeTest(page, { preferencesAccueil: preferences });
+}
+
 export async function connecterCompte(page, email, emailVerifie = true, reglages = null) {
   // Attendre la fin du démarrage de la page : une connexion lancée pendant le chargement (surtout en téléphone) peut être perdue.
   await page.waitForFunction(() => window.__chevalierTest && !document.querySelector('#app > .chargement'));
@@ -332,6 +351,12 @@ export const test = base.extend({
     await context.route('**/devisPreparerEmailEtat', (route) => (route.request().method() === 'OPTIONS'
       ? route.fulfill({ status: 204, headers: corsDefaut })
       : route.fulfill({ status: 200, headers: corsDefaut, body: JSON.stringify({ result: { branche: false } }) })));
+    // Or du village (interrupteurs « Mon accueil », 27/11/2026) : l'or est branché à CHAQUE session (hors portail devis), même sans village ; toute bonne nouvelle annoncée
+    // par un module appelle donc la fonction `villageOr`, qui n'existe pas dans le navigateur de test. Réponse par défaut « déjà compté » (avec CORS) ; les parcours de l'or
+    // posent leur propre route sur la page (elle passe avant celle-ci).
+    await context.route(/cloudfunctions\.net\/villageOr$/, (route) => (route.request().method() === 'OPTIONS'
+      ? route.fulfill({ status: 204, headers: corsDefaut })
+      : route.fulfill({ status: 200, headers: corsDefaut, contentType: 'application/json', body: JSON.stringify({ result: { ok: true, gagne: 0, raison: 'deja' } }) })));
     // Photos de la page de connexion d'une maison (js/os/connexion-photos.js) : le dépôt n'en a jamais (maison/ est ignoré par git). Réponse par défaut :
     // le vrai 404 d'une maison sans photo (le navigateur le note dans sa console : seule exception admise par le contrôle C20 ci-dessous, ERREUR_PHOTO_ABSENTE).
     // Un parcours qui veut des photos pose sa propre route sur la page (elle passe avant celle-ci).

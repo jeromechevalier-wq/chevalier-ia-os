@@ -20,6 +20,7 @@ Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08
 | A10 | À trancher par Jérôme : les sections Rendez-vous (connexion SMS ClickSend, solde) restent-elles visibles des clients d'une maison ? (laissées visibles par la PR 712) | à trancher |
 | A11 | Les 3 remarques mineures de Fable sur la PR 713 : réponse 503 du serveur MCP si la fiche `ecran` est illisible au démarrage, y compris chez Jérôme ; test B4 mal nommé (l'étanchéité entre espaces n'est pas testée sur une vraie base) ; deux délais de 60 s qui dépassent le délai de 120 s du serveur MCP | à faire |
 | A12 | Accueil village, étape 1 (27/11/2026) : la roue dentée, la Mairie et la Console sont **absentes de la plateforme des clients** (`js/os/espace-modules.js` n'a pas de village) et **absentes chez Jérôme tant que sa maison n'a pas de `besoins`**. Écart à la règle « même code chez Jérôme et chez les clients » à résorber | à faire |
+| A13 | Interrupteurs « Mon accueil » (27/11/2026) : interrupteurs Mon accueil et or en silence absents de la plateforme (pas de village, A12). La carte s'y affiche désactivée avec « Le village n'est pas activé pour cet espace. » | à faire |
 
 ## Mise à jour du 26/11/2026 (les achats d'une maison par l'assistant IA, serveur MCP)
 

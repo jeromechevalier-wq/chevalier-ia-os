@@ -51,7 +51,9 @@ test.describe('accueil village : roue dentée, Mairie et Console', () => {
     await expect(fenetre(page)).toBeVisible();
     await expect(fenetre(page).getByRole('switch')).toHaveCount(1);
     await expect(fenetre(page).getByRole('switch', { name: 'Animations' })).toBeChecked();
-    await expect(fenetre(page).locator('a[href*="#/reglages"]')).toHaveCount(0);
+    // un seul lien vers les Réglages : « Mon accueil » (interrupteurs par personne, 27/11/2026), vers Réglages > Mon espace ; aucun autre
+    await expect(fenetre(page).locator('a[href*="#/reglages"]')).toHaveCount(1);
+    await expect(fenetre(page).getByRole('link', { name: 'Mon accueil' })).toHaveAttribute('href', '#/reglages/espace');
     await expect(fenetre(page)).toContainText('Décoche pour couper les animations du village. Ton choix est gardé sur cet appareil.');
     expect(await fenetre(page).innerText()).not.toContain('CRM');
     expect(await page.locator('#contenu').innerText()).not.toContain('CRM');

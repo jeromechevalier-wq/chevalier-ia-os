@@ -217,6 +217,26 @@ Validés par Jérôme le 27/11/2026. Aucun lien avec le montant en euros de la f
 6. **Portail devis seul** : pas de village dans le portail (comme aujourd'hui) ?
 7. **Logo envoyé pour une maison lien externe** : plus tard, si nécessaire (ou image faite à la main).
 
+## Interrupteurs par personne (27/11/2026)
+
+Demande de Jérôme : un interrupteur qui enlève toute la partie jeu (pièces d'or, boutique, champs, cochons, récolte), un autre pour revenir au menu habituel de l'application ; et l'or se gagne même quand on ne le voit pas.
+
+- **D1** Les deux interrupteurs sont **propres à chaque personne** (chaque compte) : `village_utilisateurs/{uid}/preferences/accueil` = `{ jeu, accueil: 'village' | 'classique', modifieLe }` (heure du serveur). Écrit et lu par la personne elle-même seulement (`firestore.rules`, fonction `villagePreferencesValides`). Jamais supprimé.
+- **D2** Défauts (document absent, mal formé, illisible ou lecture de plus de 2 s) : maison de Jérôme = **jeu allumé** ; maison d'un client (maison neutre, `maisonNeutre()`) = **jeu éteint** ; **accueil village** dans les deux cas. Même code partout, seul le défaut change.
+- **D3** L'or se compte **toujours** (bonne nouvelle → `villageOr` action `gain`), interrupteurs éteints ou non, même sans village, sauf dans le portail devis. Jeu éteint ou accueil classique : aucune fête, aucun compteur ; le serveur enregistre le gain, qu'on retrouve en rallumant.
+- Réglage : Réglages > Mon espace, carte **« Mon accueil »** (deux interrupteurs) ; lien « Mon accueil » dans la roue dentée du village. Espace sans village : carte affichée, interrupteurs désactivés, « Le village n'est pas activé pour cet espace. ». Plateforme des clients (`#/espace/<client>`) : hors périmètre (pas de village, `.github/A-FAIRE.md` A12 et A13) ; la carte y est désactivée.
+- Accueil classique : l'accueil d'avant le village (logo, « Retour à l'accueil », adresse vide) ; l'adresse du village (`#/accueil`) ramène au premier écran classique ; pas de « Retour au village » dans les Réglages.
+- Jeu éteint (accueil village) : ni compteur, ni « Boutique », ni objets achetés dessinés, ni fête ; glisser, double clic, Mairie et Console restent.
+
+Décisions prises seul (27/11/2026) :
+1. Un compte en lecture seule règle aussi ses propres interrupteurs (son confort, pas les données de la maison).
+2. Jeu éteint : les objets achetés restent en base et leurs cases restent prises (rien ne casse au rallumage) ; une maison glissée sur une case qui paraît vide mais porte un objet caché est donc refusée.
+3. Changer un interrupteur écrit le document puis recharge la page (réglage rare) ; écriture refusée : message « Le réglage n'a pas été enregistré. Réessaie. », l'interrupteur revient, pas de rechargement.
+4. Le test 6.7x (or sans village) est réécrit : sans village, accepter une facture envoie UNE demande de gain et aucune fête n'apparaît.
+5. La partie sans réseau est dans `js/os/village-preferences-logique.js` (testée seule) ; la lecture et l'écriture dans `js/os/village-preferences.js`.
+6. La nouvelle règle est recopiée dans `docs/cahier-des-charges-v2.0.md` et `docs/audit-ecran.md` : les tests D3 et D6 exigent un texte identique à `firestore.rules`.
+7. La roue dentée a un lien de plus (« Mon accueil ») : le test 1.2 de la Mairie attend maintenant ce seul lien vers les Réglages.
+
 ## 10. Sources
 
 | Source | Ce qu'on en tire |

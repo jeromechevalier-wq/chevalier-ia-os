@@ -303,7 +303,7 @@ test('1.4 la Mairie des réglages et la Console : dessins hors catalogue, dans l
 
 test('1.4 2.13 les îlots Mairie et Console ne sont pas des bâtiments de besoin ; la Console suit le même contrôle que le menu', () => {
   const ecran = lire('js/os/village-ecran.js');
-  assert.match(ecran, /export function monterVillage\(conteneur, besoins, \{ aller, console: avecConsole = false, donnees = null, or = null, petites = null \}\)/); // étape 2 : + `donnees` (rangement) ; 6a : + `or` (compteur d'or) ; 3c : + `petites`
+  assert.match(ecran, /export function monterVillage\(conteneur, besoins, \{ aller, console: avecConsole = false, donnees = null, or = null, jeu = true, petites = null \}\)/); // étape 2 : + `donnees` (rangement) ; 6a : + `or` (compteur d'or) ; 3c : + `petites` ; 27/11 : + `jeu` (interrupteur Mon accueil)
   assert.match(ecran, /const enfants = \[defile, bulle\.element, \.\.\.fixes, /); // étape 2 : le dessin est dans `defile` (seul à défiler sur téléphone)
   const ilot = ecran.slice(ecran.indexOf('function ilot('), ecran.indexOf('export function monterVillage'));
   assert.ok(!/'batiment'|'etiquette'|'batiment-nom'|data-parcelle|dataset\.parcelle|data-maison|dataset\.maison/.test(ilot));

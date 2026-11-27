@@ -7,7 +7,7 @@
 // Chez un client (2.10.0) : un ÉDITEUR règle lui-même le nom, la couleur, le logo, les images, le texte d'accueil (Mon espace) et les membres (Membres et rôles),
 // par la fonction serveur « espaceReglages » (mon-espace.js) : les règles Firestore interdisent toujours d'écrire ces fiches depuis le navigateur. Les modules actifs restent
 // à l'administrateur (lecture seule). Un lecteur voit Mon espace en lecture seule et ne modifie rien nulle part (réglages des modules grisés).
-import { h, icone, vider, remplir } from './ui.js';
+import { h, icone, vider, remplir, toast } from './ui.js';
 import { lien, naviguer } from './router.js';
 import { boutonTheme } from './shell.js';
 import { sectionMonEspace, sectionMembresEditable } from './mon-espace.js';
@@ -19,6 +19,7 @@ import { nomEspaceRacine, maisonNeutre, logoMaison, identiteMaisonModifiable } f
 import { sectionMonEspaceMaison } from './mon-espace-maison.js';
 import { modulesEcranBrut } from './comptes-maison.js';
 import { lireModulesMaison } from './maison-modules.js';
+import { defauts as defautsAccueil, apresClic } from './village-preferences-logique.js';
 import { reglagesDesModules, sectionsEspaceVisibles, interrupteursDuClient, interrupteursDeLaMaison, cibleReglages, moduleDeclare } from './registre.js';
 
 const LIBELLES_ROLE = Object.freeze({ editeur: 'Éditeur : consulte et modifie', lecteur: 'Lecteur : consulte seulement' });
@@ -46,6 +47,61 @@ function ligneInfo(etiquette, valeur, donnee) {
 }
 
 // ---------------------------------------------------------------- réglages de l'espace (coque)
+
+/** Interrupteur (bouton role="switch", même motif que celui du module Rendez-vous, sans l'importer). Rend { element, definir(v), valeur() }. */
+function interrupteur({ valeur, libelle, role, desactive, surChangement }) {
+  const bouton = h('button', { type: 'button', class: 'interrupteur', role: 'switch', 'aria-label': libelle, 'aria-checked': String(!!valeur), disabled: desactive, dataset: { role },
+    onclick: () => { definir(!valeurDe()); surChangement?.(valeurDe()); } }, h('span', { class: 'interrupteur-bouton' }));
+  const valeurDe = () => bouton.getAttribute('aria-checked') === 'true';
+  function definir(v) { bouton.setAttribute('aria-checked', String(!!v)); }
+  return { element: bouton, definir, valeur: valeurDe };
+}
+
+export const ECHEC_MON_ACCUEIL = 'Le réglage n’a pas été enregistré. Réessaie.';
+
+/**
+ * Carte « Mon accueil » (27/11/2026, interrupteurs par personne, docs/accueil-village.md) : « Accueil en village » et « Pièces d'or et boutique ».
+ * `ctx.accueil` (CRM racine, jamais dans le portail devis) : { village: l'espace a-t-il un village ?, preferences: { jeu, accueil, sur }, ecrire({ jeu, accueil }) → Promise<bool>,
+ *   relire() → Promise<{ jeu, accueil, sur }> }.
+ * Sans village (ou sur la plateforme des clients, qui n'en a pas : aucune lecture ni écriture), les interrupteurs sont désactivés. Changer un interrupteur : écriture,
+ * puis la page se recharge dans le bon mode ; échec : un message, l'interrupteur revient à sa place. Rend null quand la carte n'a pas lieu d'être (portail devis).
+ */
+function carteMonAccueil(ctx) {
+  if (!ctx.chezClient && !ctx.accueil) return null;
+  const actif = !ctx.chezClient && ctx.accueil.village === true;
+  const prefs = ctx.chezClient ? defautsAccueil({ neutre: true }) : ctx.accueil.preferences;
+  let enCours = false;
+  /** Un clic : seul l'interrupteur touché change. Réglage pas sûr (lecture lente ou en panne à l'ouverture) : le document est relu juste avant d'écrire. */
+  const changer = async (touche, inter) => {
+    if (enCours) return;
+    enCours = true;
+    village.element.disabled = true;
+    jeu.element.disabled = true;
+    let base = prefs;
+    if (prefs.sur === false) {
+      const relu = await ctx.accueil.relire();
+      base = relu?.sur ? relu : null; // toujours illisible : on n'écrit rien (jamais une valeur devinée sur l'autre interrupteur)
+    }
+    const ok = base ? await ctx.accueil.ecrire(apresClic(base, touche, inter.valeur())) : false;
+    if (ok) { location.reload(); return; } // réglage rare : la session repart proprement dans le bon mode
+    village.definir(prefs.accueil === 'village');
+    jeu.definir(prefs.jeu);
+    village.element.disabled = false;
+    jeu.element.disabled = false;
+    enCours = false;
+    inter.element.focus();
+    toast(ECHEC_MON_ACCUEIL, { type: 'erreur' });
+  };
+  const village = interrupteur({ valeur: prefs.accueil === 'village', libelle: 'Accueil en village', role: 'interrupteur-village', desactive: !actif, surChangement: () => changer('accueil', village) });
+  const jeu = interrupteur({ valeur: prefs.jeu, libelle: 'Pièces d’or et boutique', role: 'interrupteur-jeu', desactive: !actif, surChangement: () => changer('jeu', jeu) });
+  const ligne = (inter, titre, ...aides) => h('div', { class: 'mon-accueil-ligne' },
+    inter.element, h('div', {}, h('strong', {}, titre), ...aides));
+  return section('reglages-accueil', 'Mon accueil', 'house',
+    actif ? null : h('p', { class: 'aide', dataset: { role: 'village-absent' } }, 'Le village n’est pas activé pour cet espace.'),
+    ligne(village, 'Accueil en village', h('p', { class: 'aide' }, 'Éteint : l’application s’ouvre sur le menu habituel.')),
+    ligne(jeu, 'Pièces d’or et boutique', h('p', { class: 'aide' }, 'Éteint : ni pièces, ni boutique, ni champs, ni cochons. Tes pièces continuent de se gagner en silence : tu les retrouveras en le rallumant.'),
+      actif && prefs.accueil === 'classique' ? h('p', { class: 'aide', dataset: { role: 'jeu-sans-effet' } }, 'Sans effet tant que l’accueil est le menu classique.') : null));
+}
 
 function sectionEspace(ctx, etat) {
   const apparence = section('reglages-theme', 'Apparence de cet appareil', 'sun',
@@ -125,7 +181,8 @@ function sectionModules(ctx) {
     })))];
 }
 
-const SECTIONS_ESPACE_RENDU = { espace: sectionEspace, membres: sectionMembres, modules: sectionModules, deploiement: (ctx, etat) => [sectionDeploiement(ctx, etat)], tests: (ctx, etat) => [sectionMesTests(ctx, etat)], base: (ctx, etat) => [sectionConnexionBase(ctx, etat)] };
+// « Mon accueil » (27/11/2026) : une carte de plus, après l'apparence, dans les trois cas de « Mon espace » (null dans le portail devis).
+const SECTIONS_ESPACE_RENDU = { espace: (ctx, etat) => [...sectionEspace(ctx, etat), carteMonAccueil(ctx)].filter(Boolean), membres: sectionMembres, modules: sectionModules, deploiement: (ctx, etat) => [sectionDeploiement(ctx, etat)], tests: (ctx, etat) => [sectionMesTests(ctx, etat)], base: (ctx, etat) => [sectionConnexionBase(ctx, etat)] };
 
 // ---------------------------------------------------------------- réglages d'un module (ou d'un groupe de modules)
 
@@ -193,7 +250,8 @@ function contenuModule(item, ctx, arrets) {
 /**
  * Monte la page Réglages dans `conteneur` (appelée à chaque changement d'adresse sous `reglages`). Renvoie `quitter()`.
  * `ctx` : { apis: Map(id -> api), actifs: [ids], chezClient, client (identifiant), nomEspace, marque, fiche, compte, editeur, surMarque(marque) (nouvelle marque enregistrée), surDeconnexion,
- *   retourVillage (route de l'accueil village, ou null : lien « Retour au village » en haut de la page, sur toutes les sections ; jamais sur la plateforme des clients) }.
+ *   retourVillage (route de l'accueil village, ou null : lien « Retour au village » en haut de la page, sur toutes les sections ; jamais sur la plateforme des clients,
+ *   ni en accueil classique, interrupteur « Mon accueil » du 27/11/2026), accueil (carte « Mon accueil », voir carteMonAccueil ; null dans le portail devis) }.
  */
 export function monterReglages(conteneur, segs, ctx) {
   arreterCourant();

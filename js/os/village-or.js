@@ -1,5 +1,6 @@
 // Or du village côté écran (27/11/2026, étape 6a de docs/accueil-village.md) : le SEUL fichier de l'écran qui parle de l'or au réseau.
-//  - activerOr({ base, uid }) : appelé par js/main.js seulement quand le village est allumé (besoins réglés). Sans lui, une bonne nouvelle annoncée par un module ne fait rien.
+//  - activerOr({ base, uid, visible }) : appelé par js/main.js à CHAQUE session (hors portail devis), village allumé ou non (interrupteurs « Mon accueil », 27/11/2026) :
+//    l'or se compte toujours. `visible` faux (jeu éteint, accueil classique ou maison sans village) : aucune fête, rien à l'écran ; le serveur enregistre quand même le gain.
 //  - à chaque bonne nouvelle (js/os/bonnes-nouvelles.js), la fonction du serveur `villageOr` est appelée avec « regarde telle facture » : le serveur vérifie lui-même et crédite.
 //    Réponse « gagné » : le solde connu change, les abonnés sont prévenus, la fête (js/os/village-fete.js). Toute erreur ou « rien gagné » : SILENCE pour l'utilisateur
 //    (un console.warn avec le code seulement), jamais de nouvel essai : le module, lui, a déjà réussi.
@@ -76,7 +77,7 @@ async function recevoir(detail, moi) {
     if (Number.isInteger(d.gagne) && d.gagne > 0) {
       // Un serveur qui ne rend pas encore de version : le gain est de toute façon plus récent que ce qui est connu.
       if (entier(d.or) !== null && retenir(d.or, entier(d.version) ?? version + 1)) prevenir();
-      feterOr(d.gagne);
+      if (moi.visible) feterOr(d.gagne); // or en silence (jeu éteint ou accueil classique) : le gain est compté, rien ne s'affiche
     } else {
       console.warn('Village : pas d’or pour cette bonne nouvelle', d.raison ?? '');
     }
@@ -86,10 +87,10 @@ async function recevoir(detail, moi) {
 }
 
 /** Branche l'écoute des bonnes nouvelles (une seule fois par session). Rend la fonction qui l'arrête. */
-export function activerOr({ base = '', uid }) {
-  if (actif && actif.base === base && actif.uid === uid) return actif.arret;
+export function activerOr({ base = '', uid, visible = true }) {
+  if (actif && actif.base === base && actif.uid === uid) { actif.visible = visible; return actif.arret; }
   actif?.arret();
-  const moi = { base, uid, arret: null };
+  const moi = { base, uid, visible, arret: null };
   const arreterEcoute = ecouter((detail) => { void recevoir(detail, moi); });
   moi.arret = () => {
     arreterEcoute();
@@ -193,7 +194,7 @@ export async function ramasserOr({ objet } = {}) {
     }
     const depuisMs = entier(d.depuisMs) ?? undefined;
     if (d.ok === true && Number.isInteger(d.ramasse) && d.ramasse > 0) {
-      feterOr(d.ramasse);
+      if (moi.visible) feterOr(d.ramasse);
       return { etat: 'ok', ramasse: d.ramasse, depuisMs };
     }
     const raison = typeof d.raison === 'string' ? d.raison : 'demande';
