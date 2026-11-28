@@ -4,6 +4,7 @@ Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08
 
 ## Versions 2 en cours (règle « Versions de modules » du 28/11/2026)
 - **Versions 2 en cours** : Devis 2 (catalogue d'articles dans Cloud SQL) : en étude (28/11/2026), d'abord allumé chez la maison d'essai ; à rapatrier chez Jérôme quand il est satisfait (il faudra une base Cloud SQL chez lui, projet `chevalier-ia-donnees` déjà créé, instance pas encore).
+- **Devis 0.2.0 : PR 1 (migration 014) faite, non appliquée à la maison.**
 - **Console : afficher la version de chaque module** (demande de Jérôme du 28/11/2026).
 
 ## Module Achats et accueil des maisons (décisions de Jérôme du 26/11/2026)

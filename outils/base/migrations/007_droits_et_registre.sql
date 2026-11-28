@@ -1,6 +1,7 @@
 -- 007 : les droits des trois rôles et le registre des tables.
 --   porte          : lit tout, ajoute et modifie (jamais DELETE ni TRUNCATE : on archive). Le registre : lecture seule.
---   robot_reflets  : mêmes droits que porte pour l'instant (les robots créent la facture en recopiant le scan).
+--   robot_reflets  : mêmes droits que porte pour l'instant (les robots créent la facture en recopiant le scan),
+--                    sauf le catalogue de vente de 014 (familles_articles, articles_vente) : lecture seule.
 --                    (Depuis 012, les écritures des reflets sont réservées à ce rôle, en ajout seul ; l'ancien a-activer/001 y est branché.)
 --   indicateurs    : lecture seule (remplace indicateurs_ro ; metabase_ro est supprimé, C6).
 -- Personne n'a BYPASSRLS : chacun ne voit que l'espace posé dans app.espace_id.
@@ -18,6 +19,9 @@ begin
     execute format('revoke all on public.%I from porte, robot_reflets, indicateurs', t.relname);
     if t.relname in ('registre_tables', 'mode_emploi_objets', 'mode_emploi_champs') then   -- structure : lecture seule (013)
       execute format('grant select on public.%I to porte, robot_reflets, indicateurs', t.relname);
+    elsif t.relname in ('familles_articles', 'articles_vente') then   -- catalogue de vente (014) : n8n et le Pilotage lisent seulement
+      execute format('grant select, insert, update on public.%I to porte', t.relname);
+      execute format('grant select on public.%I to robot_reflets, indicateurs', t.relname);
     else
       execute format('grant select, insert, update on public.%I to porte, robot_reflets', t.relname);
       -- Décision prise seul (à valider par Jérôme) : indicateurs lit les TABLES entières de son espace et non plus colonne par colonne

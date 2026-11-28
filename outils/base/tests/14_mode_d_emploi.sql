@@ -140,6 +140,10 @@ begin
   insert into public.suggestions_tentees (article_fournisseur_id) values ((select article_id from ids_a));
   insert into public.favoris (utilisateur, genre, cle) values ('alice-marqa@exemple.test', 'chantier', 'x');
   perform public.demander_ticket_n8n('validation');
+  -- Le catalogue de vente (014) : une famille et un article, créés par la personne (« + »).
+  insert into public.familles_articles (nom, type) values ('Famille MARQA', 'fourniture');
+  insert into public.articles_vente (libelle, unite, prix_achat, code, famille_id)
+  values ('Article MARQA', 'u', 10, 'ART-1', (select id from public.familles_articles where nom = 'Famille MARQA'));
 end $$;
 grant select on a_valider to public;
 
