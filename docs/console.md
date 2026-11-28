@@ -71,7 +71,7 @@ Le nom exact des collections lues en phase 1 (`clients/<id>` et son champ `modul
 ## 10. Le village de la Console (décisions du 26-27/11/2026)
 
 - Jérôme veut voir dans la Console ses plateformes comme des bâtiments, avec les beaux dessins 3D du village d'accueil : Chevalier IA OS = une maison, Chevalier IA App = un immeuble (un appartement par espace client, cliquable plus tard), chaque client qui a sa propre plateforme = une maison (avec une grue si elle est en construction), les plateformes à venir en grisé.
-- Au-dessus de chaque bâtiment : son nuage de données. Le MCP = un téléphone relié directement au nuage. n8n tourne sur un serveur à part.
+- Au-dessus de chaque bâtiment : son nuage de données. Le MCP = un téléphone relié directement au nuage. n8n tourne sur un VPS Hostinger (écrit dans le schéma : décision explicite de Jérôme du 28/11/2026, exception au garde-fou 5).
 - Informations à afficher pour chaque bâtiment (plus tard, lues en direct par le serveur, jamais écrites dans le dépôt) : projet Google, Supabase, Cloud SQL, n8n, MCP, modules actifs, état (en service, en construction, à venir).
 - **Étape A (27/11/2026)** : un schéma figé et générique, sans nom de client ni montant, dans Vue d'ensemble (`js/modules/console/schema.js`, sous le résumé du filet, affiché même si les données de la Console ne se chargent pas ; deux rangées quand la section est étroite). Tests A1 et A2 de `tests/e2e/console.spec.js`, et un test de `tests/statique.test.js` qui n'accepte que les mots d'une liste blanche dans ses textes.
 - **Étape B (plus tard)** : les vrais noms et les vraies informations lus depuis la base par le serveur, visibles par Jérôme seul, dessins 3D, relecture Fable obligatoire.

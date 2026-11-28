@@ -130,7 +130,7 @@ export function lignesVersions(reponse) {
 export const MAX_NOM_ETAGE = 14; // fenêtre d'un étage : 124 unités
 export const MAX_NOM_MAISON = 16; // nom sous une maison : colonne de 200 unités, textes agrandis dans le dessin étroit
 export const MAX_ROLE_NUAGE = 14;
-export const NB_ETAGES_NOMMES = 3;
+export const MAX_NOM_PROJET = 22; // nom du projet Google sous un bâtiment
 export const TEXTE_REGISTRE_VIDE = 'Registre vide : les maisons s\'afficheront quand la fiche privée sera remplie.';
 export const ETATS_MAISON = Object.freeze({ en_service: 'en service', en_construction: 'en construction', a_venir: 'à venir' });
 const GENRE_PAR_ETAT = Object.freeze({ en_service: 'maison', en_construction: 'chantier', a_venir: 'avenir' });
@@ -162,13 +162,19 @@ export function reponseBatiments(r) {
   };
 }
 
-/** Étages de l'immeuble : « À venir », « et N autres » s'il y a plus de 3 appartements, puis les 3 premiers noms (le premier en bas). Aucun appartement : null. */
-export function etagesImmeuble(appartements, total = appartements.length) {
+/**
+ * Étages de l'immeuble : « À venir » en haut, puis TOUS les appartements (le premier en bas), chacun sous son identifiant d'espace (ex. « geolucie »),
+ * pas son nom d'affichage (demande de Jérôme du 28/11/2026, points AR6 et AR7). L'immeuble se rehausse autant qu'il faut (schema.js). Aucun appartement : null.
+ */
+export function etagesImmeuble(appartements) {
   if (!appartements.length) return null;
-  const noms = appartements.slice(0, NB_ETAGES_NOMMES).map((a) => tronquer(a.nom, MAX_NOM_ETAGE));
-  const autres = Math.max(total, appartements.length) - noms.length;
-  const [et, mot] = TEXTES_SCHEMA.autres;
-  return [TEXTES_SCHEMA.etages[0], ...(autres > 0 ? [`${et} ${autres} ${mot}`] : []), ...noms.reverse()];
+  return [TEXTES_SCHEMA.etages[0], ...appartements.map((a) => tronquer(a.id, MAX_NOM_ETAGE)).reverse()];
+}
+
+/** Nom du projet Google d'un bâtiment : le libellé du premier projet noté dans le registre privé (jamais écrit dans le code), coupé ; aucun : null. */
+export function projetGoogle(projets) {
+  const p = Array.isArray(projets) ? projets[0]?.libelle : null;
+  return typeof p === 'string' && p.trim() ? tronquer(p, MAX_NOM_PROJET) : null;
 }
 
 /**
@@ -177,25 +183,31 @@ export function etagesImmeuble(appartements, total = appartements.length) {
  */
 export function modeleSchema(reponse) {
   const r = reponseBatiments(reponse);
-  if (!r.immeuble.appartements.length && !r.maisons.length) return null;
+  if (!r.immeuble.appartements.length && !r.maisons.length && !r.os.projets.length && !r.immeuble.projets.length) return null;
   const [crm, immeuble, chantier, avenir] = TEXTES_SCHEMA.batiments;
   const maisons = r.maisons.length ? r.maisons.map((m) => ({
     nom: tronquer(m.nom, MAX_NOM_MAISON),
     genre: GENRE_PAR_ETAT[m.etat],
-    nuage: [tronquer(m.projets[0]?.role ?? TEXTES_SCHEMA.nuageMaison[0], MAX_ROLE_NUAGE), tronquer(m.projets[1]?.role ?? TEXTES_SCHEMA.nuageMaison[1], MAX_ROLE_NUAGE)],
+    // Nuage : le rôle du dernier projet noté (la base, ex. « Cloud SQL »), puis « les données » ; sans projet : « Données à part ».
+    nuage: m.projets.length ? [tronquer(m.projets.at(-1).role, MAX_ROLE_NUAGE), TEXTES_SCHEMA.lesDonnees] : [...TEXTES_SCHEMA.nuageMaison],
     legende: [TEXTES_SCHEMA.etats[m.etat]],
+    projet: projetGoogle(m.projets),
   })) : [chantier];
-  return { batiments: [crm, immeuble, ...maisons, avenir], etages: etagesImmeuble(r.immeuble.appartements, r.immeuble.total) ?? TEXTES_SCHEMA.etages };
+  return {
+    batiments: [{ ...crm, projet: projetGoogle(r.os.projets) }, { ...immeuble, projet: projetGoogle(r.immeuble.projets) }, ...maisons, avenir],
+    etages: etagesImmeuble(r.immeuble.appartements) ?? TEXTES_SCHEMA.etages,
+  };
 }
 
-/** Les boutons sous le schéma : Chevalier IA OS, Chevalier IA App, chaque appartement, chaque maison. { type, cle, libelle }. */
+/** Les boutons sous le schéma : Chevalier IA OS, Chevalier IA App, chaque appartement, chaque maison. { type, cle, libelle, infobulle }. */
 export function boutonsBatiments(reponse) {
   const r = reponseBatiments(reponse);
   return [
-    { type: 'os', cle: 'os', libelle: LIBELLES_BATIMENTS.os },
-    { type: 'immeuble', cle: 'immeuble', libelle: LIBELLES_BATIMENTS.immeuble },
-    ...r.immeuble.appartements.map((a) => ({ type: 'appartement', cle: a.id, libelle: a.nom })),
-    ...r.maisons.map((m) => ({ type: 'maison', cle: m.cle, libelle: m.nom })),
+    { type: 'os', cle: 'os', libelle: LIBELLES_BATIMENTS.os, infobulle: LIBELLES_BATIMENTS.os },
+    { type: 'immeuble', cle: 'immeuble', libelle: LIBELLES_BATIMENTS.immeuble, infobulle: LIBELLES_BATIMENTS.immeuble },
+    // Un appartement montre l'identifiant de son espace ; son nom d'affichage reste en infobulle (28/11/2026, AR7).
+    ...r.immeuble.appartements.map((a) => ({ type: 'appartement', cle: a.id, libelle: a.id, infobulle: a.nom })),
+    ...r.maisons.map((m) => ({ type: 'maison', cle: m.cle, libelle: m.nom, infobulle: m.nom })),
   ];
 }
 

@@ -326,18 +326,18 @@ async function schemaLisible(page) {
   expect(await sansDefilementHorizontal(page)).toBe(true);
 }
 
-test('R11 registre plein : l\'immeuble montre 3 appartements, « et 2 autres », « À venir » ; les maisons du registre remplacent « Maison client 1 »', async ({ page }, info) => {
+test('R11 registre plein : l\'immeuble montre tous les appartements (identifiants) et « À venir » ; les maisons du registre remplacent « Maison client 1 »', async ({ page }, info) => {
   await simulerServeur(page);
   await simulerBatiments(page, { reponse: BATIMENTS_PLEINS });
   await connecter(page, undefined, { route: 'console/vue' });
   await attendreCalme(page);
   const bloc = page.locator('.page > [data-bloc="architecture"]');
   const dessin = bloc.locator('svg[role="img"]:visible');
-  await expect(dessin).toContainText('Espace essai A');
-  for (const t of ['Espace essai C', 'et 2 autres', 'À venir', 'Maison essai A', 'Maison essai B', 'Maison à venir', 'Chevalier IA OS', 'Chevalier IA App']) await expect(dessin).toContainText(t);
+  await expect(dessin).toContainText('essai-a');
+  for (const t of ['essai-b', 'essai-c', 'essai-d', 'essai-e', 'À venir', 'Maison essai A', 'Maison essai B', 'Maison à venir', 'Chevalier IA OS', 'Chevalier IA App']) await expect(dessin).toContainText(t);
   await expect(dessin).not.toContainText('Maison client 1');
-  await expect(dessin).not.toContainText('Espace essai D');
-  await expect(dessin).toContainText('Espace essai…'); // nom trop long : coupé proprement
+  await expect(dessin).not.toContainText('autres');
+  await expect(dessin).not.toContainText('Espace essai'); // les noms d'affichage ne sont plus dans le dessin (AR7)
   expect((await dessin.getAttribute('aria-label')).trim().length).toBeGreaterThan(20); // le dessin garde role="img" et son libellé
   expect(await page.evaluate(() => document.querySelector('.page > [data-bloc="architecture"]')?.nextElementSibling?.dataset.bloc)).toBe('versions');
   await schemaLisible(page);
@@ -356,7 +356,7 @@ test('F8 deux appartements : les étages partent du bas (le premier touche le so
   await attendreCalme(page);
   const bloc = page.locator('.page > [data-bloc="architecture"]');
   const dessin = bloc.locator('svg[role="img"]:visible');
-  await expect(dessin).toContainText('Espace essai C');
+  await expect(dessin).toContainText('essai-c');
   // Places des étages de l'immeuble : le mur (140 de large) et ses fenêtres d'étage (124 de large), avec le texte de chacune.
   const places = await dessin.evaluate((svg) => {
     const mur = [...svg.querySelectorAll('rect.console-schema-mur')].find((r) => r.getAttribute('width') === '140');
@@ -366,7 +366,7 @@ test('F8 deux appartements : les étages partent du bas (le premier touche le so
       .sort((a, b) => a.haut - b.haut);
     return { sol, haut: Number(mur.getAttribute('y')), etages };
   });
-  expect(places.etages.map((e) => e.texte)).toEqual(['À venir', 'Espace essai C', 'Espace essai A']);
+  expect(places.etages.map((e) => e.texte)).toEqual(['À venir', 'essai-c', 'essai-a']);
   expect(places.etages[0].haut).toBe(places.haut + 8); // « À venir » en haut, comme le schéma figé
   expect(places.etages[2].bas).toBe(places.sol - 7); // le premier appartement touche le sol (même marge que le schéma figé)
   expect(places.etages[2].haut - places.etages[1].haut).toBe(33); // les deux appartements se suivent, sans trou
@@ -401,7 +401,8 @@ test('R12 un vrai bouton par bâtiment et par appartement ouvre le détail (clic
   await expect(detail).toBeHidden();
   await expect(bloc.getByRole('button', { name: 'Maison essai A' })).toBeFocused();
   // Un appartement, au clavier : la version et l'historique de l'immeuble, et ses modules actifs.
-  await bloc.getByRole('button', { name: 'Espace essai A', exact: true }).focus();
+  await expect(bloc.getByRole('button', { name: 'essai-a', exact: true })).toHaveAttribute('title', 'Espace essai A'); // identifiant affiché, nom en infobulle (AR7)
+  await bloc.getByRole('button', { name: 'essai-a', exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(detail.locator('h3')).toHaveText('Espace essai A');
   await expect(detail.locator('[data-champ="modules"] li')).toHaveText(['Veille', 'Devis']);
@@ -448,4 +449,42 @@ test('R14 cas d\'erreur : message lisible et « Réessayer » ; le schéma figé
   await bloc.locator('[data-action="reessayer-batiments"]').click();
   await expect(bloc.locator('button[data-action="ouvrir-batiment"]')).toHaveCount(9);
   await expect(page.locator('.page > [data-bloc="architecture"] svg[role="img"]:visible')).toContainText('Maison essai A');
+});
+
+// Retouche du schéma « Architecture » (28/11/2026) : textes AR1, AR3, AR4 ; projet Google sous chaque bâtiment (AR5) ; immeuble rehaussé avec 12 appartements (AR6) ;
+// identifiants d'espace dans le dessin et sur les boutons, nom d'affichage en infobulle (AR7). Noms inventés génériques (dépôt public).
+test('AR1 AR3 AR4 AR5 AR6 AR7 schéma : textes revus, projet Google sous chaque bâtiment, tous les appartements par identifiant', async ({ page }, info) => {
+  const douze = structuredClone(BATIMENTS_PLEINS);
+  douze.immeuble.appartements = Array.from({ length: 12 }, (_, i) => ({ id: `essai-${String.fromCharCode(97 + i)}`, nom: `Espace essai ${i + 1}`, modules: [] }));
+  douze.immeuble.total_appartements = 12;
+  await simulerServeur(page);
+  await simulerBatiments(page, { reponse: douze });
+  await connecter(page, undefined, { route: 'console/vue' });
+  await attendreCalme(page);
+  const bloc = page.locator('.page > [data-bloc="architecture"]');
+  const dessin = bloc.locator('svg[role="img"]:visible');
+  await expect(dessin).toContainText('essai-l');
+  for (const t of ['Firestore', 'tes données', 'et tes réglages', 'Cloud SQL', 'les données', 'n8n : automatisations', 'sur VPS Hostinger', 'projet-essai-os', 'projet-essai-app', 'projet-essai-1']) {
+    await expect(dessin).toContainText(t);
+  }
+  await expect(dessin).not.toContainText('serveur à part');
+  await expect(dessin).not.toContainText('factures');
+  // Les 12 appartements + « À venir » tiennent dans l'immeuble, sans chevauchement, et le dessin ne se recouvre pas (sol sous le dernier étage).
+  const g = await dessin.evaluate((svg) => {
+    const mur = [...svg.querySelectorAll('rect.console-schema-mur')].find((r) => r.getAttribute('width') === '140');
+    const etages = [...svg.querySelectorAll('rect.console-schema-fenetre')].filter((r) => r.getAttribute('width') === '124')
+      .map((r) => ({ haut: Number(r.getAttribute('y')), bas: Number(r.getAttribute('y')) + Number(r.getAttribute('height')) })).sort((a, b) => a.haut - b.haut);
+    return { haut: Number(mur.getAttribute('y')), bas: Number(mur.getAttribute('y')) + Number(mur.getAttribute('height')), etages };
+  });
+  expect(g.etages).toHaveLength(13);
+  expect(g.etages[0].haut).toBeGreaterThanOrEqual(g.haut);
+  expect(g.etages.at(-1).bas).toBeLessThanOrEqual(g.bas);
+  for (let i = 1; i < g.etages.length; i++) expect(g.etages[i].haut).toBeGreaterThanOrEqual(g.etages[i - 1].bas);
+  const boutons = bloc.locator('button[data-action="ouvrir-batiment"]');
+  await expect(boutons).toHaveCount(2 + 12 + 2);
+  await expect(bloc.getByRole('button', { name: 'essai-a', exact: true })).toHaveAttribute('title', 'Espace essai 1');
+  await expect(bloc.locator('[data-bloc="batiments"]')).not.toContainText('Espace essai');
+  await schemaLisible(page);
+  await bloc.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${DOSSIER}AR-schema-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
 });
