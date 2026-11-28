@@ -192,6 +192,23 @@ Validés par Jérôme le 27/11/2026. Aucun lien avec le montant en euros de la f
 | Enclos à cochons | 200 |
 | Parcelle de terrain | 500 |
 
+### Donner de l'or à quelqu'un pour essayer (28/11/2026)
+
+Jérôme le demande simplement à Claude Code sur le Mac, par exemple : « donne 1000 pièces d'or à mon compte dans <maison> ». Claude lance :
+
+```
+node scripts/donner-or-village.js --projet <id du projet Firebase> --compte <adresse e-mail du compte> --pieces 1000
+```
+
+- Sans `--oui`, c'est un essai à blanc : le script montre le solde avant et après, et n'écrit rien. Avec `--oui`, il écrit.
+- L'or va à **une personne** (chaque compte a son portefeuille), pas à tout l'espace : vérifier avec quel compte Jérôme est connecté (ou donner à chaque compte d'essai).
+- Seuls `or`, `version` (pour que l'écran prenne le nouveau solde) et `modifieLe` changent ; « gagné » reste l'or gagné par le travail.
+- Plateforme des clients : ajouter `--client <id>`. Le script utilise le compte gcloud de Jérôme, aucune clé.
+- Recharger la page pour voir le nouveau solde.
+- Avec `--client`, le script refuse un compte qui n'est pas membre de l'espace. Il affiche toujours le chemin du portefeuille, et dit s'il va le créer : un portefeuille créé alors que la personne en avait déjà un ailleurs signale une erreur de projet ou de client.
+- Plateforme : un compte « lecteur » ne peut rien acheter, lui donner de l'or ne sert à rien.
+- Limite connue : le cadeau ne laisse aucune trace dans le journal (`crm_audit`) ni dans `village_gains`.
+
 ## 8. Cas vide et cas d'erreur
 
 | Situation | Ce que voit l'utilisateur |
