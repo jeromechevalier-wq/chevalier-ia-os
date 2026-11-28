@@ -216,6 +216,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   const remplirMarque = () => {
     remplir(marqueNom, logoEspace(client.logo, 26, 'menu-logo-client'), h('span', { class: 'menu-texte' }, ...nomEspace(client)));
     marqueNom.setAttribute('aria-label', libelleAccueil());
+    marqueNom.toggleAttribute('data-sans-logo', !client.logo); // sans logo, menu replié : rien à montrer, le lien sort du parcours au clavier (CSS)
   };
   remplirMarque();
 

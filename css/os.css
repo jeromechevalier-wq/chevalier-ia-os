@@ -303,6 +303,7 @@ html[data-mode-test] .zone { box-shadow: inset 0 0 0 3px var(--attention); }
 .coquille[data-menu='replie'] .menu-marque { flex-direction: column; justify-content: center; height: 64px; padding: 0; gap: 2px; }
 .coquille[data-menu='replie'] .menu-repli { width: 28px; height: 28px; }
 .coquille[data-menu='replie'] .menu-marque-nom .menu-texte { display: none; }
+.coquille[data-menu='replie'] .menu-marque-nom[data-sans-logo] { display: none; } /* espace sans logo, menu replié : pas de lien vide (invisible mais atteignable au clavier) */
 .coquille[data-menu='replie'] .compte-nom, .coquille[data-menu='replie'] .compte-chevron { display: none; }
 
 .barre-haut, .voile-menu { display: none; }
@@ -330,6 +331,7 @@ html[data-mode-test] .zone { box-shadow: inset 0 0 0 3px var(--attention); }
   .coquille.menu-ouvert .menu { transform: none; }
   .coquille .menu .menu-texte { opacity: 1 !important; pointer-events: auto !important; }
   .coquille .menu .compte-nom, .coquille .menu .compte-chevron { display: inline-flex !important; }
+  .coquille .menu .menu-marque-nom { display: flex !important; } /* tiroir du téléphone : le nom est toujours montré, avec ou sans logo */
   .coquille .menu .menu-marque-nom .menu-texte { display: inline !important; }
   .coquille .menu [data-infobulle]:hover::after { display: none; }
   .menu-repli, .menu-poignee { display: none; }

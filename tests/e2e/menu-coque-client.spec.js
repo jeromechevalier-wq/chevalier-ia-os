@@ -110,7 +110,11 @@ test('6 chez un client, l’en-tête a la même forme que chez Jérôme : nom, b
 test('1 marque-accueil chez un client : le nom de l’espace en haut à gauche ramène à l’accueil de l’espace (bug du 28/11/2026)', async ({ page }) => {
   await ouvrir(page, 'seul', 'crm/personnes');
   await expect(page).toHaveURL(/#\/espace\/seul\/crm\/personnes$/);
-  if (!estTelephone(page)) await deplier(page); // ce client n'a pas de logo : menu replié, la marque n'a rien à montrer (nom caché), on l'élargit
+  if (!estTelephone(page)) {
+    // ce client n'a pas de logo : menu replié, la marque n'a rien à montrer (nom caché), elle est retirée (pas de lien vide au clavier) ; on élargit le menu
+    await expect(page.locator('.menu-marque-nom')).toBeHidden();
+    await deplier(page);
+  }
   const marque = page.locator(estTelephone(page) ? '.barre-haut-marque' : '.menu-marque-nom');
   await expect(marque).toHaveAttribute('href', '#/espace/seul/crm/accueil');
   await expect(marque).toHaveAccessibleName("Cabinet Seul : aller à l'accueil");
