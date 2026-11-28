@@ -310,6 +310,49 @@ describe('Connexion : comptes lus dans les membres, un seul refus pour tout', ()
   });
 });
 
+describe('Claude Code sur le Mac (28/11/2026) : boucle locale acceptée, mêmes droits que Claude', () => {
+  const LOCAL = 'http://localhost:33418/callback';
+  test('CC7 enregistrement et autorisation : boucle locale acceptée sur la plateforme ; https, autre hôte, requête ou autre chemin refusés', async () => {
+    for (const ok of [LOCAL, 'http://127.0.0.1:5000/callback']) {
+      const e = await fetch(`${base}/oauth/a/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redirect_uris: [ok], client_name: 'Claude Code', token_endpoint_auth_method: 'none' }) });
+      assert.equal(e.status, 201, ok);
+      assert.equal((await approuver('a', { ...demande('a', pkce(), { redirect_uri: ok }), decision: 'deny' })).status, 200, ok);
+    }
+    for (const mauvaise of ['https://localhost:33418/callback', 'http://localhost.evil.com:33418/callback', 'http://localhost:33418/callback?x=1', 'http://user@localhost:33418/callback', 'http://localhost:33418/callbackX']) {
+      assert.equal((await approuver('a', { ...demande('a', pkce(), { redirect_uri: mauvaise }), decision: 'allow', id_token: 'ID-ALICE' })).status, 400, mauvaise);
+    }
+    for (const mauvaise of ['https://localhost:33418/callback', 'http://localhost.evil.com:33418/callback']) {
+      const e = await fetch(`${base}/oauth/a/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redirect_uris: [mauvaise] }) });
+      assert.equal(e.status, 400, mauvaise);
+    }
+  });
+  test('CC8 écran : « Autoriser Claude Code à accéder à <espace> ? » et l\'avertissement « cet ordinateur »', async () => {
+    const t = await (await fetch(`${base}/oauth/a/authorize?${new URLSearchParams(demande('a', pkce(), { redirect_uri: LOCAL }))}`)).text();
+    assert.match(t, /Autoriser Claude Code à accéder à Cabinet Alpha \?/);
+    assert.match(t, /id="avertissement-local">Le code sera renvoyé à un programme de <strong>cet ordinateur<\/strong> \(localhost:33418\)/);
+    assert.match(t, /retire le connecteur dans Claude Code/);
+    assert.ok(!t.includes('Chevalier IA OS'));
+  });
+  test('CC9 parcours complet : acteur claude-ai-<compte> et profil du rôle, exactement comme une connexion claude.ai (éditeur et lecteur)', async () => {
+    for (const [identite, acteur, profil] of [['ID-ALICE', 'claude-ai-alice', 'complet'], ['ID-LEA', null, 'lecture']]) {
+      const parCode = await assistant('/mcp/a', (await connecter('a', identite, { redirect: LOCAL })).access_token);
+      const parClaude = await assistant('/mcp/a', (await connecter('a', identite)).access_token);
+      const moi = resultat(await parCode.callTool({ name: 'qui_suis_je', arguments: {} }));
+      const moiClaude = resultat(await parClaude.callTool({ name: 'qui_suis_je', arguments: {} }));
+      if (acteur) assert.equal(moi.acteur, acteur);
+      assert.equal(moi.acteur, moiClaude.acteur);
+      assert.equal(moi.profil, profil);
+      assert.deepEqual(noms(await parCode.listTools()), noms(await parClaude.listTools()), identite);
+      await parCode.close();
+      await parClaude.close();
+    }
+  });
+  test('CC10 un compte qui n\'est pas membre de l\'espace reste refusé, même depuis Claude Code', async () => {
+    const r = await approuver('a', { ...demande('a', pkce(), { redirect_uri: LOCAL }), decision: 'allow', id_token: 'ID-BOB' });
+    assert.equal(r.status, 403);
+  });
+});
+
 describe('Rôles : le profil vient du rôle du membre', () => {
   test('M6 lecteur : outils de lecture seulement ; un outil d\'écriture appelé quand même est refusé', async () => {
     const t = await connecter('a', 'ID-LEA');

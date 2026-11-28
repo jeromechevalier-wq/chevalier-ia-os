@@ -3,6 +3,7 @@
 // puis écrit dans la connexion OAuth ; chaque appel est revérifié contre sa fiche (membre, module « mcp » allumé, client actif).
 // Le serveur MCP de Jérôme (functions/src/oauth/config.js) n'est pas concerné.
 import { adresseSite, originesSite } from '../securite/maison.js';
+import { redirectionBoucleLocale } from '../oauth/boucle-locale.js';
 
 /** Adresse publique de la plateforme (émetteur OAuth des clients) et ses origines de navigateur : calculées à partir du projet, à la demande. */
 export const emetteurPlateforme = () => adresseSite();
@@ -17,7 +18,7 @@ export const MODULE_MCP = 'mcp';
 /**
  * Profil du serveur déduit du rôle du membre (décision de Jérôme, 17/10/2026) : lecteur = consultation seule ; éditeur = consultation, modification,
  * suppression et restauration (profil 'complet' = écriture + supprimer_* + restaurer_depuis_audit, rien d'autre). La liste blanche des outils reste
- * js/os/registre.js (outilsMcp). Suppressions journalisées et restaurables (restaurer_depuis_audit) ; plafond de 20 suppressions par jour.
+ * js/os/registre.js (outilsMcp). Suppressions journalisées et restaurables (restaurer_depuis_audit) ; plafond de suppressions par jour (securite/limites.js : 50 par défaut).
  */
 export const PROFIL_PAR_ROLE = Object.freeze({ lecteur: 'lecture', editeur: 'complet' });
 
@@ -25,18 +26,23 @@ export const PROFIL_PAR_ROLE = Object.freeze({ lecteur: 'lecture', editeur: 'com
  * Adresses de retour acceptées (comparaison exacte, sauf ChatGPT dont l'adresse porte un identifiant propre à chaque connecteur) :
  *  - Claude (web, bureau, téléphone) : les deux adresses du serveur de Jérôme ;
  *  - ChatGPT : https://chatgpt.com/connector/oauth/<identifiant> (adresse actuelle d'après la documentation d'OpenAI, relevée le 16/10/2026) et l'ancienne
- *    adresse fixe, encore valable pour les connecteurs déjà publiés. NON essayé avec un vrai ChatGPT.
+ *    adresse fixe, encore valable pour les connecteurs déjà publiés. NON essayé avec un vrai ChatGPT ;
+ *  - Claude Code sur l'ordinateur (28/11/2026) : http://localhost:<port>/callback ou http://127.0.0.1:<port>/callback (oauth/boucle-locale.js, même règle que chez Jérôme).
  */
 export const REDIRECTIONS_CLAUDE = Object.freeze(['https://claude.ai/api/mcp/auth_callback', 'https://claude.com/api/mcp/auth_callback']);
 export const REDIRECTIONS_CHATGPT_FIXES = Object.freeze(['https://chatgpt.com/connector_platform_oauth_redirect']);
 const REDIRECTION_CHATGPT = /^https:\/\/chatgpt\.com\/connector\/oauth\/[A-Za-z0-9_-]{1,100}$/;
 
 export const redirectionAutorisee = (uri) => typeof uri === 'string'
-  && (REDIRECTIONS_CLAUDE.includes(uri) || REDIRECTIONS_CHATGPT_FIXES.includes(uri) || REDIRECTION_CHATGPT.test(uri));
+  && (REDIRECTIONS_CLAUDE.includes(uri) || REDIRECTIONS_CHATGPT_FIXES.includes(uri) || REDIRECTION_CHATGPT.test(uri) || redirectionBoucleLocale(uri));
 
-/** Quel assistant revient à cette adresse : sert au nom d'acteur (claude-ai-<compte>, chatgpt-<compte>) et au texte de l'écran. */
+/**
+ * Quel assistant revient à cette adresse : sert au texte de l'écran et est noté dans la connexion. Le nom d'acteur (acteurClient) reste
+ * claude-ai-<compte> pour Claude Code : mêmes droits (rôle du membre) et mêmes plafonds qu'une connexion claude.ai du même compte.
+ */
 export function assistantDeRedirection(uri) {
   if (typeof uri === 'string' && uri.startsWith('https://chatgpt.com/')) return { code: 'chatgpt', nom: 'ChatGPT' };
+  if (redirectionBoucleLocale(uri)) return { code: 'claude-local', nom: 'Claude Code', local: true };
   return { code: 'claude-ai', nom: 'Claude' };
 }
 

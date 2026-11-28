@@ -4,6 +4,7 @@
 // réservée de Firebase Hosting, /__/firebase/init.json, sur le site même qui la sert (le CRM de Jérôme ou la plateforme), et force authDomain = <projet>.web.app
 // (comme l'appli : init.json donne <projet>.firebaseapp.com).
 
+import { redirectionBoucleLocale } from './boucle-locale.js';
 const FIREBASE = 'https://www.gstatic.com/firebasejs/12.19.0';
 /** Adresse réservée de Firebase Hosting qui donne la configuration web du projet du site. */
 export const ADRESSE_CONFIG_HEBERGEMENT = '/__/firebase/init.json';
@@ -52,14 +53,21 @@ export function pageAutorisation(demande, options = {}) {
     titre = 'Autoriser Claude à accéder à Chevalier IA OS ?',
     titreOnglet = 'Autoriser Claude',
     droits = `<p><strong>Cette application va pouvoir :</strong></p>
-    <p>lire, créer, modifier et <strong>supprimer</strong> des fiches, des notes et des projets dans ta base, comme Claude Code sur ton Mac.</p>`,
+    <p>lire, créer, modifier et <strong>supprimer</strong> des fiches, des notes et des projets dans ta base.</p>`,
     pied = 'Tu peux couper cet accès à tout moment (voir docs/securite-et-pannes.md).',
     urlApprouver = '/oauth/approve',
     styleEnPlus = '',
     entete = '',
   } = options;
+  // Boucle locale (Claude Code sur l'ordinateur) : le code part vers un programme de CET ordinateur. Cet avertissement est la protection principale
+  // (n'importe quel programme de l'ordinateur peut lancer la demande) : il est toujours affiché, quelle que soit la page appelante, et en texte échappé.
+  const local = redirectionBoucleLocale(demande?.redirect_uri);
+  const avertissementLocal = local
+    ? `<p class="alerte" id="avertissement-local">Le code sera renvoyé à un programme de <strong>cet ordinateur</strong> (${echapper(new URL(demande.redirect_uri).host)}). N'autorise que si tu viens toi-même de lancer la connexion depuis Claude Code.</p>`
+    : '';
   const corps = `${entete}
 <h1>${echapper(titre)}</h1>
+${avertissementLocal}
 <div id="etat-connexion" hidden>
   <p>Pour continuer, connecte-toi avec ton compte Google.</p>
   <button type="button" class="principal" id="se-connecter">Se connecter avec Google</button>
