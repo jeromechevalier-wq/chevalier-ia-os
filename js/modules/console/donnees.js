@@ -1,4 +1,4 @@
-// Données du module Console (phase 0) : le Filet de sécurité (`console_filet/<id>` : { verifieLe, note }) et l'état du serveur (fonction `consoleEtat`).
+// Données du module Console : le Filet de sécurité (`console_filet/<id>` : { verifieLe, note }), l'état du serveur (fonction `consoleEtat`) et les versions des bâtiments (fonction `consoleVersions`, phase 2).
 // Les écritures passent par `executer` (journal commun) : une vérification datée laisse sa trace comme toute autre écriture.
 import { collection, getDocs, onSnapshot, Timestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
@@ -83,5 +83,20 @@ export async function lireEtatServeur() {
     const code = String(e?.code ?? '');
     if (code.endsWith('permission-denied') || code.endsWith('unauthenticated')) throw new Error('Ce compte n\'a pas accès à la Console. Se reconnecter si besoin.');
     throw new Error('Le serveur ne répond pas pour l\'instant.');
+  }
+}
+
+/**
+ * Appelle `consoleVersions` (phase 2, 28/11/2026) : { version_reference, batiments: [{ cle, version, depuis, vu_le, structure_code, structure_base, etat_version, etat_structure, motif, historique }] }.
+ * Lève une erreur au message lisible (jamais de détail technique).
+ */
+export async function lireVersions() {
+  try {
+    const r = await httpsCallable(fonctions(), 'consoleVersions')({});
+    return r.data;
+  } catch (e) {
+    const code = String(e?.code ?? '');
+    if (code.endsWith('permission-denied') || code.endsWith('unauthenticated')) throw new Error('Ce compte n\'a pas accès à la Console. Se reconnecter si besoin.');
+    throw new Error('Les versions ne se lisent pas pour l\'instant.');
   }
 }

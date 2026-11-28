@@ -3,7 +3,7 @@
 // Module Automatisations (workflows n8n, chantier 14). NON déployées par le workflow du CRM ; voir docs/automatisations-n8n.md.
 // La clé d'API de n8n est dans Secret Manager (nom : N8N_API_KEY), déposée par Jérôme ; elle n'est lue qu'au moment d'un appel.
 import { initializeApp, getApps } from 'firebase-admin/app';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
@@ -20,6 +20,7 @@ import { villageOrClient } from './village.js';
 import { envoyerRdv, etatRdv, tirerPourTous, connexionRdv } from './rdv.js';
 import { creerSmsDirect, creerGestionnaireReponses, verifierConnexion } from '../serveur/src/coeur/sms-direct.js';
 import { creerConnexionSms } from '../serveur/src/coeur/connexion-sms.js';
+import { tamponnerVersion } from '../serveur/src/coeur/tampon-version.js';
 import { creerEcrivainSecrets } from '../serveur/src/securite/ecrire-secret.js';
 import { creerAdaptateur } from '../serveur/partage/porte/adaptateur.js';
 import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient, baseLienPlateforme } from './devis-pdf.js';
@@ -183,6 +184,12 @@ export const rdvEnvoiPlanifie = onSchedule(
     const bilan = await tirerPourTous({ db: db(), sortie: smsDirect, modulesActifs: creerModulesActifs({ db: db() }) });
     if (bilan.branches || bilan.interrompu) logger.info('Rendez-vous : tir planifié', bilan);
   },
+);
+// Tampon de version (28/11/2026, Console phase 2) : toutes les heures, l'immeuble note sa version (version.json) et le numéro de structure de ses données
+// dans reglages_maison/version (même code que chez Jérôme : serveur/src/coeur/tampon-version.js). UNE fiche pour tout l'immeuble (tous les appartements ont la même version).
+export const tamponVersion = onSchedule(
+  { region: REGION, schedule: '0 * * * *', timeZone: 'Europe/Paris', timeoutSeconds: 60, memory: '256MiB', maxInstances: 1 },
+  async () => { await tamponnerVersion({ db: db(), horodatage: () => FieldValue.serverTimestamp() }); },
 );
 // Réponses par SMS : ClickSend appelle cette adresse (POST) avec « <client>/<jeton> » en chemin. Invocation publique côté Google ; la vraie porte est le jeton (sinon 404, sans rien dire).
 export const rdvReponseSms = onRequest(

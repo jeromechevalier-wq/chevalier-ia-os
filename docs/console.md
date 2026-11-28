@@ -52,7 +52,7 @@ Le serveur de la Console lira les autres projets avec des **comptes dédiés en 
 
 0. **Cadre (fait le 16/11/2026)** : exception écrite, accès verrouillé et testé (fonction `consoleEtat`, menu et montage cachés aux autres comptes), deux écrans (Vue d'ensemble avec sélecteur de plateforme, Filet de sécurité de 7 vérifications que Jérôme date à la main dans la table `console_filet`), export des données. `consoleEtat` tourne avec le compte de service de la porte tant qu'elle ne lit rien : elle passera à un compte dédié en lecture seule en phase 1, avec l'autorisation de déploiement à lui donner en même temps (un compte sans cette autorisation ferait échouer le déploiement des fonctions).
 1. **Lecture** : espaces, modules actifs, activité (lecture seule des deux projets, par un compte dédié en lecture seule).
-2. **Secrets, versions, cercles** : carte des secrets avec ses trois alertes, version par espace.
+2. **Secrets, versions, cercles** : carte des secrets avec ses trois alertes, version par espace. **Versions, PR 1 (28/11/2026)** : voir la section 11.
 3. **Écritures** : activer ou désactiver un module chez un espace, lancer un déploiement par bouton (workflow GitHub). PR séparée, Fable obligatoire.
 4. **Création d'un espace client en une commande, sauvegardes et restauration pilotées, export planifié.**
 
@@ -76,3 +76,14 @@ Le nom exact des collections lues en phase 1 (`clients/<id>` et son champ `modul
 - **Étape A (27/11/2026)** : un schéma figé et générique, sans nom de client ni montant, dans Vue d'ensemble (`js/modules/console/schema.js`, sous le résumé du filet, affiché même si les données de la Console ne se chargent pas ; deux rangées quand la section est étroite). Tests A1 et A2 de `tests/e2e/console.spec.js`, et un test de `tests/statique.test.js` qui n'accepte que les mots d'une liste blanche dans ses textes.
 - **Étape B (plus tard)** : les vrais noms et les vraies informations lus depuis la base par le serveur, visibles par Jérôme seul, dessins 3D, relecture Fable obligatoire.
 - Les maquettes d'origine (avec les vrais noms) sont gardées en privé sur le Mac de Jérôme, hors du dépôt.
+
+## 11. Versions des bâtiments (phase 2, PR 1 du 28/11/2026)
+
+Un « bâtiment » est un projet Google qui fait tourner le code : le CRM de Jérôme, l'immeuble (la plateforme des clients : tous ses appartements ont la même version, donc UNE fiche pour tout l'immeuble), et plus tard chaque maison d'un client.
+
+- **Le tampon** : toutes les heures, la fonction planifiée `tamponVersion` (des deux côtés, même code : `functions/src/coeur/tampon-version.js`) note dans la fiche `reglages_maison/version` du bâtiment : `version` (la vraie version de l'appli, `version.json`, copié dans `functions/partage/` par `scripts/preparer-fonctions.js`), `version_depuis`, `structure_code` (le numéro `STRUCTURE_DONNEES` de `functions/src/coeur/structure-donnees.js`) et `vu_le`. Quand la version ou la structure change, une ligne `{ version, de_version, le }` s'ajoute dans `reglages_maison/version/historique`. Rien d'autre n'est touché ; une erreur est seulement notée dans le journal du serveur. Le tampon n'écrit jamais `structure_base` : ce sera le travail du futur script de migration d'un bâtiment. Après un déploiement, le tampon apparaît dans l'heure.
+- **La lecture** : la fonction `consoleVersions` (Jérôme seul, même contrôle d'identité que `consoleEtat`, absente de l'immeuble) lit la fiche et les 10 derniers changements du CRM et de l'immeuble. Elle tourne avec le compte des automatisations, le seul qui lit l'immeuble aujourd'hui ; un compte dédié en lecture seule le remplacera. Une lecture qui échoue donne « inconnue » avec un motif, jamais une erreur pour tout l'écran.
+- **L'écran** : Vue d'ensemble, bloc « Versions » sous le schéma : une ligne par bâtiment, sa version et depuis quand, « Version : à jour / en retard / inconnue » (comparée à la version du serveur qui répond), « Structure : à jour / en retard / inconnue » (`structure_base` comparé à `structure_code` : « inconnue » partout tant que le script de migration n'existe pas), et « Historique » qui déplie les 10 derniers changements. L'export du module (Réglages > Console) ajoute ces versions.
+- **Sécurité** : aucune règle Firestore n'a changé ; la fiche et son historique ne se lisent ni ne s'écrivent depuis un navigateur (tests RM-R3 et RM-P1).
+- **Tests** : V1 à V8 dans `tests/console-versions.test.js`, V10 à V14 dans `tests/console.test.js` et `tests/e2e/console.spec.js`.
+- **Plus tard (PR 2)** : les maisons des clients, et le verrou `console_active`.

@@ -11,6 +11,9 @@ const destination = join(racine, 'functions', 'partage');
 mkdirSync(destination, { recursive: true });
 copyFileSync(join(racine, 'js', 'modules', 'crm', 'logique.js'), join(destination, 'logique.js'));
 console.log('functions/partage/logique.js mis à jour (copie exacte de js/modules/crm/logique.js)');
+// Version de l'appli (28/11/2026, Console phase 2) : le tampon horaire (functions/src/coeur/tampon-version.js) lit CETTE copie de version.json, chez Jérôme et dans l'immeuble.
+copyFileSync(join(racine, 'version.json'), join(destination, 'version.json'));
+console.log('functions/partage/version.json mis à jour (copie exacte de version.json)');
 
 // Les règles des projets importent celles du CRM par `../crm/logique.js` ; dans functions/partage/, elles sont côte à côte.
 const IMPORT_CRM = "from '../crm/logique.js'";
@@ -144,7 +147,7 @@ mkdirSync(join(destinationServeur, 'src', 'devis'), { recursive: true });
 for (const f of ['pdf-service.js', 'pdf-declencheur.js', 'chromium.js', 'stockage.js']) copyFileSync(join(racine, 'functions', 'src', 'devis', f), join(destinationServeur, 'src', 'devis', f));
 copyFileSync(join(racine, 'functions', 'src', 'version.js'), join(destinationServeur, 'src', 'version.js'));
 copyFileSync(join(racine, 'functions', 'package.json'), join(destinationServeur, 'package.json')); // version.js lit la version du serveur ici
-for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'devis-document.js', 'devis-numeros.js', 'devis-vocabulaire.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'maison-modules.js', 'fichiers-regles.js', 'rs-logique.js', 'rs-idees.js', 'rs-inspirations.js', 'rs-pistes.js', 'rdv.js', 'village-jeu-regles.js', 'propositions.js']) {
+for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'devis-document.js', 'devis-numeros.js', 'devis-vocabulaire.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'maison-modules.js', 'fichiers-regles.js', 'rs-logique.js', 'rs-idees.js', 'rs-inspirations.js', 'rs-pistes.js', 'rdv.js', 'village-jeu-regles.js', 'version.json', 'propositions.js']) {
   mkdirSync(join(destinationServeur, 'partage'), { recursive: true });
   copyFileSync(join(destination, f), join(destinationServeur, 'partage', f));
 }
