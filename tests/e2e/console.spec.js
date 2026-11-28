@@ -488,3 +488,37 @@ test('AR1 AR3 AR4 AR5 AR6 AR7 schéma : textes revus, projet Google sous chaque 
   await bloc.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${DOSSIER}AR-schema-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
 });
+
+// Deuxième retouche (28/11/2026) : nuage Cloud SQL commun grisé au-dessus des deux premiers bâtiments (AR8), Firestore de l'immeuble (AR9),
+// 2e nuage Firestore de la maison client (AR10), sans chevauchement en ordinateur comme en téléphone (les deux dessins sont vérifiés).
+test('AR8 AR9 AR10 nuages : Cloud SQL commun à venir, Firestore de l\'immeuble, Firestore de la maison client, sans chevauchement', async ({ page }, info) => {
+  await simulerServeur(page);
+  await connecter(page, undefined, { route: 'console/vue' });
+  await attendreCalme(page);
+  const bloc = page.locator('.page > [data-bloc="architecture"]');
+  const dessin = bloc.locator('svg[role="img"]:visible');
+  for (const t of ['Cloud SQL — à venir', 'les données à venir', 'les données', 'et les réglages', 'les réglages']) await expect(dessin).toContainText(t);
+  await expect(dessin).not.toContainText('tiroir');
+  // Le dessin visible : le large en ordinateur, puis l'étroit (800 px avec le menu latéral, comme A1 ; le format téléphone passe par la suite de nuit) (getBBox ne mesure qu'un dessin affiché).
+  for (const [largeur, classe] of [[null, 'console-schema-large'], [800, 'console-schema-etroit']]) {
+    if (largeur) await page.setViewportSize({ width: largeur, height: 900 });
+    await expect(page.locator(`[data-bloc="architecture"] svg.${classe}`)).toBeVisible();
+    const g = await page.locator(`[data-bloc="architecture"] svg.${classe}`).evaluate((svg) => {
+      const boite = (n) => { const b = n.getBBox(); return { x: b.x, y: b.y, d: b.x + b.width, b: b.y + b.height }; };
+      const nuages = [...svg.querySelectorAll('path.console-schema-nuage')].map((n) => ({ commun: n.classList.contains('console-schema-nuage-commun'), ...boite(n) }));
+      const commun = nuages.find((n) => n.commun);
+      const autres = nuages.filter((n) => !n.commun);
+      const croise = (a, b) => a.x < b.d - 1 && b.x < a.d - 1 && a.y < b.b - 1 && b.y < a.b - 1;
+      const chevauchements = autres.flatMap((a, i) => autres.slice(i + 1).filter((b) => croise(a, b)).map(() => 1)).length + autres.filter((a) => croise(a, commun)).length;
+      const grise = commun && svg.querySelector('path.console-schema-nuage-commun').parentNode.classList.contains('console-schema-avenir');
+      return { nb: nuages.length, chevauchements, grise, largeurCommun: commun.d - commun.x };
+    });
+    expect(g.nb).toBe(6); // commun + 4 bâtiments + 2e nuage de la maison client
+    expect(g.chevauchements).toBe(0);
+    expect(g.grise).toBe(true);
+    expect(g.largeurCommun).toBeGreaterThan(300); // couvre les deux premiers bâtiments
+    await schemaLisible(page);
+    await bloc.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${DOSSIER}AR8-nuages-${largeur ? 'etroit' : 'large'}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
+  }
+});
