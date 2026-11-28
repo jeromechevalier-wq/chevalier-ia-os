@@ -6,7 +6,7 @@
 //   POST /oauth/approve                                appelé par cette page, avec le jeton d'identité Google
 //   POST /oauth/token                                  échange du code, renouvellement
 // Sécurité du client : le `client_id` n'est pas un secret et n'est PAS stocké. La protection repose sur : adresse de retour exactement dans
-// la liste (claude.ai / claude.com) ou de la forme de ChatGPT (voir config.js), PKCE S256 obligatoire, compte Google autorisé revérifié côté serveur, consentement explicite.
+// la liste (claude.ai / claude.com), de la forme de ChatGPT ou de la boucle locale de Claude Code (voir config.js et boucle-locale.js), PKCE S256 obligatoire, compte Google autorisé revérifié côté serveur, consentement explicite.
 import { randomBytes } from 'node:crypto';
 import { emetteur, originesAutorisees, ressource, assistantDeRedirection, redirectionAutorisee as redirectionDeJerome } from './config.js';
 import { ErreurOauth, compteAutorise, creerMagasinOauth } from './magasin.js';
@@ -34,6 +34,12 @@ export const metadonneesServeur = () => Object.freeze({
   scopes_supported: ['offline_access'],
 });
 
+/** Titre de l'écran de consentement selon l'assistant (claude-ai : le titre par défaut de page.js). */
+const OPTIONS_PAGE = Object.freeze({
+  chatgpt: { titre: 'Autoriser ChatGPT à accéder à Chevalier IA OS ?', titreOnglet: 'Autoriser ChatGPT' },
+  'claude-local': { titre: 'Autoriser Claude Code à accéder à Chevalier IA OS ?', titreOnglet: 'Autoriser Claude Code' },
+});
+
 const FORMAT_CLIENT = /^[A-Za-z0-9._:/-]{1,200}$/;
 const FORMAT_CHALLENGE = /^[A-Za-z0-9_-]{43,128}$/;
 const sameOrigin = (u, origine = emetteur()) => { try { return new URL(u).origin === origine; } catch { return false; } };
@@ -41,7 +47,7 @@ export const objet = (x) => (x && typeof x === 'object' && !Array.isArray(x) ? x
 export const texte = (x) => (typeof x === 'string' ? x : undefined);
 
 /** Valide une demande d'autorisation. Renvoie { demande } ou { erreur } (message pour la page, jamais de détail interne). */
-export function validerDemande(p, { redirectionAutorisee = redirectionDeJerome, origine = emetteur(), messageRedirection = 'Adresse de retour non autorisée : seuls Claude et ChatGPT peuvent se connecter.' } = {}) {
+export function validerDemande(p, { redirectionAutorisee = redirectionDeJerome, origine = emetteur(), messageRedirection = 'Adresse de retour non autorisée : seuls Claude, Claude Code et ChatGPT peuvent se connecter.' } = {}) {
   const q = objet(p);
   if (q.response_type !== 'code') return { erreur: 'Type de réponse non pris en charge.' };
   if (!texte(q.client_id) || !FORMAT_CLIENT.test(q.client_id)) return { erreur: 'Client inconnu.' };
@@ -197,7 +203,7 @@ export function creerRouteurOauth({ donnees, verifierIdToken, maintenant = () =>
         const { demande, erreur } = validerDemande(Object.fromEntries(searchParams));
         infos.code = demande ? 'oauth_page' : 'oauth_demande';
         res.writeHead(demande ? 200 : 400, ENTETES_PAGE);
-        res.end(demande ? pageAutorisation(demande, assistantDeRedirection(demande.redirect_uri) === 'chatgpt' ? { titre: 'Autoriser ChatGPT à accéder à Chevalier IA OS ?', titreOnglet: 'Autoriser ChatGPT' } : {}) : pageErreur(erreur));
+        res.end(demande ? pageAutorisation(demande, OPTIONS_PAGE[assistantDeRedirection(demande.redirect_uri)] ?? {}) : pageErreur(erreur));
         return true;
       }
       const cibles = { '/oauth/register': enregistrer, '/oauth/approve': approuver, '/oauth/token': jetons };

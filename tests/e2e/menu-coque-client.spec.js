@@ -107,6 +107,22 @@ test('6 chez un client, l’en-tête a la même forme que chez Jérôme : nom, b
   await capture(page, '6-en-tete-client', estTelephone(page) ? {} : { clip: { x: 0, y: 0, width: 260, height: 900 } });
 });
 
+test('1 marque-accueil chez un client : le nom de l’espace en haut à gauche ramène à l’accueil de l’espace (bug du 28/11/2026)', async ({ page }) => {
+  await ouvrir(page, 'seul', 'crm/personnes');
+  await expect(page).toHaveURL(/#\/espace\/seul\/crm\/personnes$/);
+  if (!estTelephone(page)) {
+    // ce client n'a pas de logo : menu replié, la marque n'a rien à montrer (nom caché), elle est retirée (pas de lien vide au clavier) ; on élargit le menu
+    await expect(page.locator('.menu-marque-nom')).toBeHidden();
+    await deplier(page);
+  }
+  const marque = page.locator(estTelephone(page) ? '.barre-haut-marque' : '.menu-marque-nom');
+  await expect(marque).toHaveAttribute('href', '#/espace/seul/crm/accueil');
+  await expect(marque).toHaveAccessibleName("Cabinet Seul : aller à l'accueil");
+  await (estTelephone(page) ? marque.tap() : marque.click());
+  await expect(page).toHaveURL(/#\/espace\/seul\/crm\/accueil$/);
+  await capture(page, '1-marque-accueil-client');
+});
+
 test('C5 chez un client : la même poignée de largeur du menu, la largeur choisie est mémorisée et le repli la respecte @sans-telephone', async ({ page }) => {
   await ouvrir(page, 'assistant');
   await deplier(page);

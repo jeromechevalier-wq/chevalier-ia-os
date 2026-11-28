@@ -17,6 +17,9 @@ import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { empreinte, creerMagasin, trouverJeton } from '../functions/src/securite/jetons.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { creerRouteurOauth, validerDemande } from '../functions/src/oauth/routeur.js';
+import { redirectionBoucleLocale } from '../functions/src/oauth/boucle-locale.js';
+import { redirectionAutorisee as redirectionClients, assistantDeRedirection as assistantClients } from '../functions/src/clients/config.js';
+import { redirectionAutorisee as redirectionJerome, assistantDeRedirection as assistantJerome } from '../functions/src/oauth/config.js';
 import { acteurDuCompte } from '../functions/src/oauth/magasin.js';
 import { COMPTES_AUTORISES, DUREES, emetteur, ressource } from '../functions/src/oauth/config.js';
 import { ADRESSE_CONFIG_HEBERGEMENT, pageAutorisation } from '../functions/src/oauth/page.js';
@@ -173,7 +176,8 @@ describe('Enregistrement du client (DCR)', () => {
     for (const corps of [
       { redirect_uris: ['https://attaquant.example/rappel'] },
       { redirect_uris: [CALLBACK, 'https://attaquant.example/rappel'] },
-      { redirect_uris: ['http://localhost:3118/callback'] },
+      { redirect_uris: ['https://localhost:3118/callback'] }, // Claude Code (boucle locale) : http seulement, voir le bloc « Claude Code » plus bas
+      { redirect_uris: ['http://localhost.evil.com:3118/callback'] },
       { redirect_uris: [] },
       {},
       { redirect_uris: [CALLBACK], token_endpoint_auth_method: 'client_secret_basic' },
@@ -222,6 +226,112 @@ describe('ChatGPT (20/10/2026) : adresse de retour acceptée, nommée chatgpt-<c
   });
   test('un autre compte Google que ceux de Jérôme reste refusé, même depuis ChatGPT', async () => {
     const r = await approuver({ ...demandeValide(pkce(), { redirect_uri: CHATGPT }), decision: 'allow', id_token: 'ID-INCONNU' });
+    assert.equal(r.status, 403);
+    assert.equal((await documents('code_')).length, 0);
+  });
+});
+
+describe('Claude Code sur le Mac (28/11/2026) : adresse de retour de boucle locale', () => {
+  const LOCAL = 'http://localhost:33418/callback';
+  const ACCEPTEES = ['http://localhost:33418/callback', 'http://127.0.0.1:5000/callback', 'http://localhost:1024/callback', 'http://localhost:65535/callback'];
+  const REFUSEES = [
+    'https://localhost:33418/callback', // http seulement (RFC 8252 §7.3) : Claude Code n'utilise pas https en boucle locale
+    'http://localhost.evil.com:33418/callback', 'http://localhost.evil.com/callback', 'http://evil.com/callback', 'http://evil.com:33418/callback',
+    'http://localhost:1/callback?x=1', 'http://localhost:33418/callback?x=1', 'http://localhost:33418/callback#x', 'http://localhost:33418/callback/',
+    'http://user@localhost:33418/callback', 'http://localhost:33418@evil.com/callback', 'http://localhost/callback', 'http://localhost:33418/callbackX',
+    'http://localhost:33418/autre', 'http://localhost:33418/', 'http://localhost:33418', 'http://LOCALHOST:33418/callback', 'http://localhost:33418/Callback',
+    'http://localhost:033418/callback', 'http://localhost:65536/callback', 'http://localhost:0/callback', 'http://localhost:80/callback', 'http://localhost:1023/callback',
+    'http://[::1]:33418/callback', 'http://127.0.0.2:33418/callback', 'http://0.0.0.0:33418/callback', 'http://localhost:33418/callback\n', ' http://localhost:33418/callback',
+    'http://localhost:33418/../callback', 'http://127.0.0.1.evil.com:33418/callback',
+  ];
+  // Routeur propre à ce bloc, appelé directement, avec une horloge des freins qui avance d'une minute à chaque appel : les nombreux essais
+  // d'enregistrement ne consomment pas le plafond de /oauth/register (20 par minute) du serveur partagé par les autres blocs.
+  let minute = 0;
+  const routeurPropre = creerRouteurOauth({ donnees, verifierIdToken: async () => { throw new Error('non'); }, horlogeLimite: () => (minute += 61_000) });
+  const enregistrer = async (corps) => {
+    const rep = { status: 0, texte: '' };
+    const res = { headersSent: false, writeHead(st) { rep.status = st; this.headersSent = true; }, end(t) { rep.texte = t; } };
+    await routeurPropre.traiter({ method: 'POST', url: '/oauth/register', headers: {}, socket: {}, body: corps }, res);
+    return { status: rep.status, json: async () => JSON.parse(rep.texte) };
+  };
+
+  test('CC1 validateur : localhost et 127.0.0.1 en http, port 1024-65535, chemin /callback exact ; tout le reste refusé', () => {
+    for (const uri of ACCEPTEES) assert.equal(redirectionBoucleLocale(uri), true, uri);
+    for (const uri of REFUSEES) assert.equal(redirectionBoucleLocale(uri), false, JSON.stringify(uri));
+    for (const x of [undefined, null, 33418, {}, ['http://localhost:33418/callback']]) assert.equal(redirectionBoucleLocale(x), false);
+  });
+  test('CC1 même règle chez Jérôme (et les maisons) et sur la plateforme clients ; les adresses de Claude et ChatGPT restent acceptées', () => {
+    for (const uri of ACCEPTEES) { assert.equal(redirectionJerome(uri), true, uri); assert.equal(redirectionClients(uri), true, uri); }
+    for (const uri of REFUSEES) { assert.equal(redirectionJerome(uri), false, uri); assert.equal(redirectionClients(uri), false, uri); }
+    for (const uri of [CALLBACK, 'https://claude.com/api/mcp/auth_callback', 'https://chatgpt.com/connector/oauth/abc']) { assert.equal(redirectionJerome(uri), true); assert.equal(redirectionClients(uri), true); }
+    assert.equal(assistantJerome(LOCAL), 'claude-local');
+    assert.equal(assistantJerome(CALLBACK), 'claude-ai');
+    assert.equal(assistantJerome('https://chatgpt.com/connector/oauth/abc'), 'chatgpt');
+    assert.deepEqual(assistantClients(LOCAL), { code: 'claude-local', nom: 'Claude Code', local: true });
+    assert.equal(assistantClients(CALLBACK).code, 'claude-ai');
+  });
+  test('CC2 enregistrement (DCR) : la boucle locale est acceptée (client public), les formes voisines refusées', async () => {
+    for (const uri of ['http://localhost:33418/callback', 'http://127.0.0.1:5000/callback']) {
+      const r = await enregistrer({ client_name: 'Claude Code', redirect_uris: [uri], grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none' });
+      assert.equal(r.status, 201, uri);
+      assert.deepEqual((await r.json()).redirect_uris, [uri]);
+    }
+    for (const uri of REFUSEES) assert.equal((await enregistrer({ redirect_uris: [uri] })).status, 400, JSON.stringify(uri));
+    assert.equal((await enregistrer({ redirect_uris: [LOCAL], token_endpoint_auth_method: 'client_secret_basic' })).status, 400);
+  });
+  test('CC3 page : « Autoriser Claude Code à accéder à Chevalier IA OS ? » et l’avertissement « cet ordinateur » avec le port ; absent pour claude.ai', async () => {
+    const html = await (await fetch(`${base}/oauth/authorize?${new URLSearchParams(demandeValide(pkce(), { redirect_uri: LOCAL }))}`)).text();
+    assert.match(html, /<h1>Autoriser Claude Code à accéder à Chevalier IA OS \?<\/h1>/);
+    assert.match(html, /<title>Autoriser Claude Code<\/title>/);
+    assert.match(html, /id="avertissement-local">Le code sera renvoyé à un programme de <strong>cet ordinateur<\/strong> \(localhost:33418\)/);
+    const claude = await (await fetch(`${base}/oauth/authorize?${new URLSearchParams(demandeValide())}`)).text();
+    assert.match(claude, /Autoriser Claude à accéder à Chevalier IA OS/);
+    assert.doesNotMatch(claude, /avertissement-local/);
+  });
+  test('CC4 PKCE S256 obligatoire aussi pour la boucle locale (page et consentement)', async () => {
+    const sansPkce = { ...demandeValide(pkce(), { redirect_uri: LOCAL }) };
+    delete sansPkce.code_challenge;
+    assert.equal((await fetch(`${base}/oauth/authorize?${new URLSearchParams(sansPkce)}`)).status, 400);
+    assert.equal((await fetch(`${base}/oauth/authorize?${new URLSearchParams(demandeValide(pkce(), { redirect_uri: LOCAL, code_challenge_method: 'plain' }))}`)).status, 400);
+    assert.equal((await approuver({ ...sansPkce, decision: 'allow', id_token: 'ID-JEROME' })).status, 400);
+    assert.equal((await documents('code_')).length, 0);
+  });
+  test('CC5 parcours complet : même acteur (claude-ai-<compte>) et même profil qu’une connexion claude.ai ; mauvais port ou mauvais vérificateur refusés', async () => {
+    const p = pkce();
+    const demande = demandeValide(p, { redirect_uri: LOCAL });
+    const { code, adresse } = await obtenirCode({ demande, p });
+    assert.equal(adresse.origin + adresse.pathname, 'http://localhost:33418/callback');
+    assert.equal(adresse.searchParams.get('state'), 'etat-1');
+    const [doc] = await documents('code_');
+    assert.equal(doc.assistant, 'claude-local');
+    // Le port est comparé exactement entre le consentement et l'échange du code : un autre port (autre programme) est refusé… et le code est brûlé.
+    const autrePort = await jeton({ grant_type: 'authorization_code', code, redirect_uri: 'http://localhost:33419/callback', client_id: 'cli_essai', code_verifier: p.verifier });
+    assert.equal(autrePort.status, 400);
+    assert.equal((await autrePort.json()).error, 'invalid_grant');
+    const rejoue = await jeton({ grant_type: 'authorization_code', code, redirect_uri: LOCAL, client_id: 'cli_essai', code_verifier: p.verifier });
+    assert.equal(rejoue.status, 400, 'le code essayé avec un autre port est brûlé : même le bon port est ensuite refusé');
+    const p2 = pkce();
+    const { code: code2 } = await obtenirCode({ demande: demandeValide(p2, { redirect_uri: LOCAL }), p: p2 });
+    assert.equal((await jeton({ grant_type: 'authorization_code', code: code2, redirect_uri: LOCAL, client_id: 'cli_essai', code_verifier: pkce().verifier })).status, 400, 'PKCE : un autre vérificateur est refusé');
+    const p3 = pkce();
+    const { code: code3 } = await obtenirCode({ demande: demandeValide(p3, { redirect_uri: LOCAL }), p: p3 });
+    const r = await jeton({ grant_type: 'authorization_code', code: code3, redirect_uri: LOCAL, client_id: 'cli_essai', code_verifier: p3.verifier });
+    assert.equal(r.status, 200, await r.clone().text());
+    const t = await r.json();
+    const c = await client(t.access_token);
+    const qui = JSON.parse((await c.callTool({ name: 'qui_suis_je', arguments: {} })).content[0].text);
+    assert.equal(qui.acteur, 'claude-ai-jerome-chevalier', 'pas de nouvel acteur : mêmes plafonds et même journal qu’une connexion claude.ai');
+    assert.equal(qui.profil, 'complet');
+    await c.close();
+    const claudeAi = await client((await ouvrirSession()).access_token);
+    const quiAi = JSON.parse((await claudeAi.callTool({ name: 'qui_suis_je', arguments: {} })).content[0].text);
+    assert.equal(quiAi.acteur, qui.acteur);
+    assert.equal(quiAi.profil, qui.profil);
+    assert.deepEqual([...quiAi.outils].sort(), [...qui.outils].sort(), 'exactement les mêmes outils qu’une connexion claude.ai du même compte');
+    await claudeAi.close();
+  });
+  test('CC6 un compte Google non autorisé reste refusé, même depuis Claude Code', async () => {
+    const r = await approuver({ ...demandeValide(pkce(), { redirect_uri: LOCAL }), decision: 'allow', id_token: 'ID-INCONNU' });
     assert.equal(r.status, 403);
     assert.equal((await documents('code_')).length, 0);
   });

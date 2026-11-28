@@ -1,8 +1,10 @@
 // Réglages de la connexion OAuth du serveur MCP (téléphone, claude.ai). Importé par les tests et les contrôles statiques : rien n'est calculé à l'import.
 // Principe : le client (Claude) obtient un jeton d'accès en prouvant qu'un compte Google AUTORISÉ a dit « oui » sur l'écran de consentement.
-// Les jetons « cia_… » en en-tête (Hermes, Claude Code) ne changent pas : c'est l'autre porte, qui reste en place.
+// Les jetons « cia_… » en en-tête (Hermes, ancien branchement de Claude Code) ne changent pas : c'est l'autre porte, qui reste en place.
+// Depuis le 28/11/2026, Claude Code sur le Mac peut aussi passer par cette connexion Google (adresse de retour de boucle locale, voir boucle-locale.js).
 
 import { adresseSite, originesSite } from '../securite/maison.js';
+import { redirectionBoucleLocale } from './boucle-locale.js';
 import { comptesOauthAutorises } from '../securite/reglages-maison.js';
 
 /**
@@ -22,7 +24,7 @@ export const COMPTES_AUTORISES = comptesOauthAutorises;
 /** Décision de Jérôme (09/10/2026) : le téléphone reçoit tous les droits, comme le profil complet (suppression et restauration comprises). */
 export const PROFIL_OAUTH = 'complet';
 
-/** Seules adresses de retour acceptées (comparaison exacte) : les applications hébergées de Claude (web, bureau, téléphone). */
+/** Adresses de retour fixes (comparaison exacte) : les applications hébergées de Claude (web, bureau, téléphone). ChatGPT et Claude Code : voir plus bas. */
 export const REDIRECTIONS_AUTORISEES = ['https://claude.ai/api/mcp/auth_callback', 'https://claude.com/api/mcp/auth_callback'];
 
 /**
@@ -35,10 +37,18 @@ export const REDIRECTIONS_CHATGPT_FIXES = ['https://chatgpt.com/connector_platfo
 const REDIRECTION_CHATGPT = /^https:\/\/chatgpt\.com\/connector\/oauth\/[A-Za-z0-9_-]{1,100}$/;
 
 export const redirectionAutorisee = (uri) => typeof uri === 'string'
-  && (REDIRECTIONS_AUTORISEES.includes(uri) || REDIRECTIONS_CHATGPT_FIXES.includes(uri) || REDIRECTION_CHATGPT.test(uri));
+  && (REDIRECTIONS_AUTORISEES.includes(uri) || REDIRECTIONS_CHATGPT_FIXES.includes(uri) || REDIRECTION_CHATGPT.test(uri) || redirectionBoucleLocale(uri));
 
-/** Quel assistant revient à cette adresse : sert au nom d'acteur du journal (claude-ai-<compte> ou chatgpt-<compte>). */
-export const assistantDeRedirection = (uri) => (typeof uri === 'string' && uri.startsWith('https://chatgpt.com/') ? 'chatgpt' : 'claude-ai');
+/**
+ * Quel assistant revient à cette adresse : 'chatgpt', 'claude-local' (boucle locale, Claude Code sur l'ordinateur) ou 'claude-ai'.
+ * Sert au titre de l'écran de consentement et est noté dans la connexion. Le nom d'acteur, lui, reste claude-ai-<compte> pour Claude Code
+ * (acteurDuCompte) : mêmes droits et mêmes plafonds qu'une connexion claude.ai du même compte (décision du 28/11/2026).
+ */
+export const assistantDeRedirection = (uri) => {
+  if (typeof uri === 'string' && uri.startsWith('https://chatgpt.com/')) return 'chatgpt';
+  if (redirectionBoucleLocale(uri)) return 'claude-local'; // pas « claude-code » : ancien nom du profil complet (profils-alias.test.js)
+  return 'claude-ai';
+};
 
 export const DUREES = Object.freeze({
   codeS: 60, // code d'autorisation : une minute, usage unique

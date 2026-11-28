@@ -100,3 +100,20 @@ Notes de fonctionnement, sans conséquence : le journal du serveur montre parfoi
 Si ça échoue : « Couldn't reach the MCP server » → regarder `https://chevalier-ia-os.web.app/.well-known/oauth-protected-resource/mcp` dans un navigateur (doit afficher du JSON) ; « Authorization failed » → regarder les journaux Cloud Run du service `mcp` (champ `code` : `oauth_…`, qui dit à quelle étape ça casse ; jamais de secret dans les journaux). Pour **couper** l'accès : `securite-et-pannes.md`, section 4, point 5.
 
 Note : la documentation de Claude annonce aussi une saisie d'un jeton fixe dans un en-tête pour les connecteurs (bêta, organisations choisies, pas sur tous les forfaits). Non utilisée ici : la connexion Google est plus sûre (jeton d'une heure, révocable, lié à ton compte).
+
+## 4. Claude Code sur le Mac par la connexion Google (tous les espaces, 28/11/2026)
+
+**Plus besoin de jeton `cia_…`** : Claude Code se connecte comme claude.ai, avec ton compte Google, et garde la connexion 30 jours glissants. Ça marche pour **tous les espaces** : ton CRM, chaque espace client de la plateforme et chaque maison. Fonctionnement et sécurité : `mcp-oauth.md`, « Claude Code sur le Mac par la connexion Google ». **Disponible après la remise en ligne** de chaque serveur (CRM de Jérôme : à la fusion ; plateforme clients et maisons : déploiement lancé avec l'accord de Jérôme).
+
+1. Dans le Terminal, une fois par espace (le nom à gauche est libre, l'adresse est celle de l'espace) :
+
+```sh
+claude mcp add --scope user --transport http chevalier-ia-os https://chevalier-ia-os.web.app/mcp
+```
+
+   Pour un espace client : `claude mcp add --scope user --transport http <nom> <adresse de la plateforme>/mcp/<client>` (la même adresse que celle du connecteur claude.ai de cet espace). Pour une maison : `https://<projet de la maison>.web.app/mcp`. Pas de `--header` : c'est ce qui fait passer par la connexion Google.
+2. Lance `claude`, tape `/mcp`, choisis le serveur puis **Authenticate** : le navigateur s'ouvre.
+3. Connecte-toi avec ton compte Google. La page dit « **Autoriser Claude Code à accéder à …** » et « Le code sera renvoyé à un programme de cet ordinateur (localhost:…) ». Clique **Autoriser** (seulement si tu viens toi-même de lancer la connexion). Le navigateur affiche que c'est fini ; reviens dans le Terminal.
+4. Essai : demande « appelle qui_suis_je ». Réponse attendue : acteur `claude-ai-<ton compte>` (le même nom qu'avec claude.ai : mêmes droits, mêmes plafonds).
+
+Si un ancien branchement par jeton porte déjà le même nom (section 1), choisis un autre nom ou retire l'ancien avec `claude mcp remove chevalier-ia-os --scope user` avant. `--scope user` rend le serveur visible depuis n'importe quel dossier (piège du 03/10/2026). Pour couper : `/mcp` → le serveur → l'option qui efface la connexion côté Mac, et côté serveur comme pour claude.ai (`mcp-oauth.md`, « Couper l'accès »).
