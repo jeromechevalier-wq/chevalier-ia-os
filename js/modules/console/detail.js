@@ -57,7 +57,7 @@ export function blocBatiments() {
     const propre = L.reponseBatiments(r);
     remplir(boutons,
       ...liste.map((b) => h('button', {
-        type: 'button', class: 'bouton bouton-secondaire console-batiment', title: b.libelle,
+        type: 'button', class: 'bouton bouton-secondaire console-batiment', title: b.infobulle ?? b.libelle,
         'aria-expanded': 'false', dataset: { action: 'ouvrir-batiment', type: b.type, cle: b.cle }, onclick: () => ouvrir(b.type, b.cle),
       }, h('span', { class: 'console-batiment-nom' }, b.libelle))));
     const infos = [

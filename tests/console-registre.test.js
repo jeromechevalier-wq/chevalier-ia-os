@@ -15,7 +15,7 @@ import { lireBatimentsConsole, MOTIFS_BATIMENTS, MAX_APPARTEMENTS } from '../fun
 import { creerAppelConsoleBatiments, COMPTES_CONSOLE as LIRE_COMPTES } from '../functions/src/console/appel.js';
 import { MOTIF_PROJET as MOTIF_PROJET_SCRIPT } from '../scripts/donner-or-village.js';
 import { lireArguments, versValeurFirestore, ficheAEcrire, resume } from '../scripts/console-registre.js';
-import { modeleSchema, etagesImmeuble, boutonsBatiments, detailBatiment, tronquer, reponseBatiments, lignesReleve, TEXTE_REGISTRE_VIDE, MAX_NOM_ETAGE } from '../js/modules/console/logique.js';
+import { modeleSchema, etagesImmeuble, boutonsBatiments, detailBatiment, tronquer, reponseBatiments, lignesReleve, projetGoogle, TEXTE_REGISTRE_VIDE, MAX_NOM_ETAGE } from '../js/modules/console/logique.js';
 import { TEXTES_SCHEMA } from '../js/modules/console/schema-textes.js';
 import { COMPTE_BOT } from './_reglages-maison-essai.js';
 
@@ -182,26 +182,23 @@ describe('R9 écran : schéma, boutons et détail calculés depuis la réponse (
     assert.equal(modeleSchema({ os: { projets: [] }, immeuble: { projets: [], appartements: [], total_appartements: 0 }, maisons: [], releves: {}, motifs: [] }), null);
     assert.equal(modeleSchema(null), null);
   });
-  test('R9 immeuble : au plus 3 noms + « et N autres » + « À venir » (5 lignes), le premier appartement en bas ; noms coupés proprement', () => {
-    assert.deepEqual(etagesImmeuble(apparts(5)), ['À venir', 'et 2 autres', 'Espace essai 3', 'Espace essai 2', 'Espace essai 1']);
-    assert.deepEqual(etagesImmeuble(apparts(2)), ['À venir', 'Espace essai 2', 'Espace essai 1']);
-    assert.deepEqual(etagesImmeuble(apparts(3), 31), ['À venir', 'et 28 autres', 'Espace essai 3', 'Espace essai 2', 'Espace essai 1']);
+  test('R9 immeuble : « À venir » puis tous les appartements (identifiants), le premier en bas ; noms coupés proprement', () => {
+    assert.deepEqual(etagesImmeuble(apparts(2)), ['À venir', 'essai-2', 'essai-1']);
     assert.equal(etagesImmeuble([]), null);
     assert.equal(tronquer('Un nom vraiment beaucoup trop long', MAX_NOM_ETAGE), 'Un nom vraime…');
     assert.equal(tronquer('Un nom vraiment beaucoup trop long', MAX_NOM_ETAGE).length, MAX_NOM_ETAGE);
-    assert.deepEqual(TEXTES_SCHEMA.autres, ['et', 'autres']);
   });
   test('R9 maisons du registre à la place de « Maison client 1 » (grue si en construction, pointillés si à venir), « Maison à venir » en dernier', () => {
     const m = modeleSchema(reponse());
     assert.deepEqual(m.batiments.map((b) => [b.nom, b.genre]), [['Chevalier IA OS', 'maison'], ['Chevalier IA App', 'immeuble'], ['Espace essai A', 'chantier'], ['Espace essai B', 'avenir'], ['Maison à venir', 'avenir']]);
-    assert.deepEqual(m.batiments[2].nuage, ['Firebase', 'Cloud SQL']);
+    assert.deepEqual(m.batiments[2].nuage, ['Cloud SQL', 'les données']);
     assert.deepEqual(m.batiments[3].legende, ['À venir']);
     const sansMaison = modeleSchema(reponse({ maisons: [] }));
     assert.deepEqual(sansMaison.batiments.map((b) => b.nom), ['Chevalier IA OS', 'Chevalier IA App', 'Maison client 1', 'Maison à venir']);
   });
   test('R9 boutons : Chevalier IA OS, Chevalier IA App, chaque appartement, chaque maison', () => {
     assert.deepEqual(boutonsBatiments(reponse()).map((b) => `${b.type}:${b.libelle}`), ['os:Chevalier IA OS', 'immeuble:Chevalier IA App',
-      ...apparts(5).map((a) => `appartement:${a.nom}`), 'maison:Espace essai A', 'maison:Espace essai B']);
+      ...apparts(5).map((a) => `appartement:${a.id}`), 'maison:Espace essai A', 'maison:Espace essai B']);
     assert.deepEqual(boutonsBatiments(null).map((b) => b.type), ['os', 'immeuble']);
     assert.equal(reponseBatiments({ immeuble: { appartements: apparts(40) } }).immeuble.appartements.length, 30);
   });
@@ -350,5 +347,62 @@ describe('R5 et R7 relevé et lecture sur Firestore (émulateur)', { skip: emula
     const enPanne = await lireBatimentsConsole({ dbOs: () => { throw new Error('x'); }, dbApp: async () => { throw new Error('y'); } });
     assert.deepEqual(enPanne.motifs, [MOTIFS_BATIMENTS.registre, MOTIFS_BATIMENTS.appartements]);
     assert.deepEqual([enPanne.maisons, enPanne.releves], [[], {}]);
+  });
+});
+
+// Retouche du schéma « Architecture » (28/11/2026, demandes de Jérôme AR1 à AR7) : textes, projets Google, tous les appartements, identifiants d'espace.
+describe('AR retouche du schéma « Architecture » (sans navigateur)', () => {
+  const apparts = (n) => Array.from({ length: n }, (_, i) => ({ id: `essai-${i + 1}`, nom: `Espace essai ${i + 1}`, modules: [] }));
+  const pleine = () => ({
+    os: { projets: [{ role: 'Firebase', libelle: 'projet-essai-os' }] },
+    immeuble: { projets: [{ role: 'Firebase', libelle: 'projet-essai-app' }], appartements: apparts(7), total_appartements: 7 },
+    maisons: [{ cle: 'maison-a', nom: 'Maison essai A', etat: 'en_construction', projets: [{ role: 'Firebase', libelle: 'projet-essai-1' }, { role: 'Cloud SQL', libelle: 'Base essai' }] }],
+    releves: {}, motifs: [],
+  });
+  test('AR1 nuage de Chevalier IA OS : « Firestore », « tes données », « et tes réglages »', () => {
+    assert.deepEqual(TEXTES_SCHEMA.batiments[0].nuage, ['Firestore', 'tes données', 'et tes réglages']);
+  });
+  test('AR2 le schéma ne change pas pour la question du Firestore partagé : deux projets distincts dans .firebaserc', () => {
+    const rc = JSON.parse(lire('.firebaserc'));
+    assert.notEqual(rc.projects.default, rc.projects.plateforme);
+    assert.equal(TEXTES_SCHEMA.batiments[1].nuage[0], 'Firestore');
+  });
+  test('AR3 nuage de la maison client : « Cloud SQL », « les données » (figé et registre)', () => {
+    assert.deepEqual(TEXTES_SCHEMA.batiments[2].nuage, ['Cloud SQL', 'les données']);
+    assert.deepEqual(modeleSchema(pleine()).batiments[2].nuage, ['Cloud SQL', 'les données']);
+    assert.doesNotMatch(JSON.stringify(TEXTES_SCHEMA), /factures/);
+  });
+  test('AR4 boîte n8n : « n8n : automatisations », « sur VPS Hostinger » (décision de Jérôme du 28/11/2026)', () => {
+    assert.deepEqual(TEXTES_SCHEMA.n8n, ['n8n : automatisations', 'sur VPS Hostinger']);
+    assert.doesNotMatch(JSON.stringify(TEXTES_SCHEMA), /serveur à part/);
+  });
+  test('AR5 nom du projet Google sous chaque bâtiment : lu dans le registre (premier projet), jamais écrit dans le code ; absent : rien', () => {
+    const m = modeleSchema(pleine());
+    assert.deepEqual(m.batiments.map((b) => b.projet ?? null), ['projet-essai-os', 'projet-essai-app', 'projet-essai-1', null]);
+    assert.equal(projetGoogle([]), null);
+    assert.equal(projetGoogle(undefined), null);
+    // Seuls les projets du CRM et de l'immeuble notés (aucun appartement, aucune maison) : le schéma les montre quand même.
+    const seuls = modeleSchema({ os: { projets: [{ role: 'Firebase', libelle: 'projet-essai-os' }] }, immeuble: { projets: [], appartements: [] }, maisons: [] });
+    assert.equal(seuls.batiments[0].projet, 'projet-essai-os');
+    assert.equal(TEXTES_SCHEMA.batiments.some((b) => 'projet' in b), false);
+    assert.doesNotMatch(lire('js/modules/console/schema.js'), /chevalier-ia-(os|app)/);
+  });
+  test('AR6 l\'immeuble montre TOUS les appartements (sans « et N autres ») et se rehausse autant qu\'il faut', async () => {
+    const m = modeleSchema(pleine());
+    assert.deepEqual(m.etages, ['À venir', ...apparts(7).map((a) => a.id).reverse()]);
+    assert.equal(m.etages.some((e) => /autres/.test(e)), false);
+    const { hauteurImmeuble } = await import('../js/modules/console/schema.js').catch(() => ({}));
+    if (hauteurImmeuble) {
+      assert.equal(hauteurImmeuble(TEXTES_SCHEMA.etages), 140);
+      assert.ok(hauteurImmeuble(m.etages) >= 8 + m.etages.length * 26.5);
+    }
+    assert.equal(modeleSchema({ ...pleine(), immeuble: { projets: [], appartements: apparts(30), total_appartements: 30 } }).etages.length, 31);
+  });
+  test('AR7 appartements et boutons : l\'identifiant de l\'espace, le nom d\'affichage en infobulle', () => {
+    const b = boutonsBatiments(pleine()).filter((x) => x.type === 'appartement');
+    assert.deepEqual(b.map((x) => [x.libelle, x.infobulle]), apparts(7).map((a) => [a.id, a.nom]));
+    assert.ok(modeleSchema(pleine()).etages.includes('essai-1'));
+    assert.equal(modeleSchema(pleine()).etages.includes('Espace essai 1'), false);
+    assert.match(lire('js/modules/console/detail.js'), /title: b\.infobulle \?\? b\.libelle/);
   });
 });
