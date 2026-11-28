@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import {
   DUREES, COURBE_ENTREE, VUES_APPLI, JOURS_ALERTE_IBAN, initiales, masquerIban, ibanLisible, sirenFacture, jourParis, changementIbanRecent, changementDansConfirmations, fournisseursDuVolet, fournisseurDeFacture, etatFournisseurFacture, motifChangementIban, MESSAGE_IBAN_RETIRE,
   verifierChantierFiche, verifierChantierCreation, corpsCreationChantier, STATUT_NOUVEAU_CHANTIER, champsChantierModifies, semaineIso, chiffresTableau, libelleMois, delaiLisible, bilanDuJour, texteBilan, correspond,
-  preparerModeEmploi, plusSelonModeEmploi, lignesSelonModeEmploi, saisieSelonModeEmploi, OBJET_DU_VOLET,
+  preparerModeEmploi, plusSelonModeEmploi, lignesSelonModeEmploi, saisieSelonModeEmploi, OBJET_DU_VOLET, titreAlerteIban, TITRE_ALERTE_IBAN,
 } from '../js/modules/achatsfactures/logique-appli.js';
 import { creerDonneesAppli } from '../js/modules/achatsfactures/donnees-appli.js';
 // Le TEST (pas l'écran) lit le module Chantiers : il vérifie que la copie de logique-appli.js reste identique à l'original.
@@ -435,5 +435,29 @@ describe('« + Chantier » dans le volet (PC1 à PC5)', () => {
 
   test('PC5 cas vide : la phrase de la liste des chantiers parle du bouton « + Chantier »', () => {
     assert.match(volet, /chantiers: 'Aucun chantier pour l’instant\. Ajoute le premier avec le bouton « \+ Chantier »\.'/);
+  });
+});
+
+describe('T1 alerte « IBAN changé récemment » cohérente avec le contrôle de la facture (essai réel du 28/11/2026)', () => {
+  const fo = { confirmation: { iban: IBAN_B, confirme_le: '2026-11-25T09:00:00Z', revoque_le: null }, changement: { date: '2026-11-25T09:00:00Z', motif: '' } };
+  test('T1 la facture porte l’IBAN confirmé à la main : le titre le dit et garde « Vérifie avant de payer »', () => {
+    const attendu = 'IBAN changé récemment : cette facture porte l’IBAN confirmé à la main le 25/11/2026. Vérifie avant de payer.';
+    assert.equal(titreAlerteIban({ iban_normalise: IBAN_B }, fo), attendu);
+    assert.equal(titreAlerteIban({ iban_normalise: null, extraction: { iban: 'fr14 2004 1010 0505 0001 3m02 606' } }, fo), attendu);
+  });
+  test('T1 A confirmé depuis longtemps, B confirmé puis retiré, facture en A : alerte (révocation récente), jamais « nouvel » IBAN, rappel gardé', () => {
+    const confs = [{ id: 'a', fournisseur_id: 'fo1', siren: '500000005', iban: IBAN_A, confirme_le: '2026-01-10T08:00:00Z', revoque_le: null, motif_revocation: null },
+      { id: 'b', fournisseur_id: 'fo1', siren: '500000005', iban: IBAN_B, confirme_le: '2026-11-20T08:00:00Z', revoque_le: '2026-11-22T08:00:00Z', motif_revocation: 'Erreur' }];
+    const [volet] = fournisseursDuVolet({ fournisseurs: [{ id: 'fo1', siren: '500000005', nom: 'Fictif' }], ibans: confs, factures: [] }, MAINTENANT);
+    assert.ok(volet.changement, 'la révocation récente de B donne bien l’alerte');
+    const titre = titreAlerteIban({ iban_normalise: IBAN_A }, volet);
+    assert.doesNotMatch(titre, /nouvel/i);
+    assert.equal(titre, 'IBAN changé récemment : cette facture porte l’IBAN confirmé à la main le 10/01/2026. Vérifie avant de payer.');
+  });
+  test('T1 autre IBAN, aucun IBAN lu ou aucune confirmation active : le titre d’alerte habituel', () => {
+    assert.equal(titreAlerteIban({ iban_normalise: IBAN_A }, fo), TITRE_ALERTE_IBAN);
+    assert.equal(titreAlerteIban({ iban_normalise: null }, fo), TITRE_ALERTE_IBAN);
+    assert.equal(titreAlerteIban({ iban_normalise: IBAN_B }, { ...fo, confirmation: null }), TITRE_ALERTE_IBAN);
+    assert.equal(TITRE_ALERTE_IBAN, 'IBAN changé récemment : vérifie avant de payer');
   });
 });

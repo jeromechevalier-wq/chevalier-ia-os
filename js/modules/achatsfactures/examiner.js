@@ -11,7 +11,7 @@ import { enteteListe } from '../crm/barre-liste.js';
 import { creerDonneesExaminer } from './donnees-examiner.js';
 import { creerZonePdf } from './pdf-lecteur.js';
 import { chargement as chargementListe, etatErreur, etatVide, barreScore } from './composants.js';
-import { controlerFacture, alertesAffichees, problemeLecture, synthese, normaliserIban, sirenDe } from './controles.js';
+import { controlerFacture, alertesAffichees, problemeLecture, synthese, normaliserIban, sirenDe, controlesApresDecision } from './controles.js';
 import { scoreConfiance } from './score.js';
 import { preparerMessage, courrielAffichable, champOuTiret } from './courriel.js';
 import { alerteNomFournisseur, offreRouverture, offreLiaison, construireCorps, motifValide, MOTIF_MIN, MESSAGE_ROUVERTE, MESSAGE_RELIEE, CODES_LIAISON_PERIMEE,
@@ -169,12 +169,15 @@ export function rendreExaminer(conteneur, factureId, options = {}) {
       courrielAffichable(c) ? h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'voir-courriel' }, onclick: () => fenetreCourriel(c) }, icone('eye', { taille: 16 }), 'Voir le courriel complet') : null);
   }
 
-  function blocControles(controles) {
+  function blocControles(tous) {
+    // Facture déjà acceptée ou refusée : les mêmes contrôles, sans les conseils « avant d’accepter » (correction du 28/11/2026).
+    const decidee = d.f.statut !== 'a_valider';
+    const controles = decidee ? controlesApresDecision(tous) : tous;
     const ligne = (c) => h('li', { class: `controle controle-${c.etat}`, dataset: { controle: c.id, etat: c.etat } },
       h('span', { class: 'controle-icone', 'aria-hidden': 'true' }, icone(ICONE_ETAT[c.etat] ?? 'info', { taille: 18 })),
       h('span', { class: 'controle-texte' }, h('b', {}, c.titre), h('span', { class: 'controle-etat' }, ` · ${TEXTE_ETAT[c.etat] ?? c.etat}`), h('span', { class: 'controle-phrase' }, c.phrase)));
     return h('section', { class: 'carte-section examiner-bloc', dataset: { bloc: 'controles' }, id: 'nos-controles' },
-      h('h2', {}, 'Nos contrôles'), h('p', { class: 'aide', dataset: { role: 'synthese' } }, synthese(controles)),
+      h('h2', {}, 'Nos contrôles'), h('p', { class: 'aide', dataset: { role: 'synthese' } }, synthese(controles, decidee)),
       h('ul', { class: 'liste-controles' }, controles.filter((c) => !c.bientot).map(ligne)),
       h('ul', { class: 'liste-controles bientot' }, BIENTOT.map((b) => h('li', { class: 'controle controle-bientot', dataset: { controle: b.id } }, h('span', { class: 'controle-icone', 'aria-hidden': 'true' }, icone('info', { taille: 18 })), h('span', { class: 'controle-texte' }, h('b', {}, b.titre), h('span', { class: 'controle-etat' }, ' · Bientôt'))))),
       d.memeEnEchec ? h('p', { class: 'erreur', role: 'alert' }, 'L’historique du fournisseur n’a pas pu être lu : les contrôles qui en dépendent ne sont pas faits.') : null,

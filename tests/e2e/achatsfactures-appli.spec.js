@@ -1490,3 +1490,19 @@ test('T2 texte long (règle commune) : au clic la fiche s\'ouvre et montre le te
   await capturer(page, info, 'T2-fiche-article-texte-entier');
   expect(await sansDefilementHorizontal(page)).toBe(true);
 });
+
+test('T1 IBAN (essai réel du 28/11/2026) : la facture porte le nouvel IBAN déjà confirmé ; l\'alerte orange le dit (sans « nouvel ») et garde « Vérifie avant de payer »', async ({ page }, info) => {
+  const ilYa = (jours) => new Date(Date.now() - jours * 24 * 3600 * 1000).toISOString();
+  const ibans = [{ ...IBANS[0], revoque_le: ilYa(5), motif_revocation: 'Changement signalé' },
+    { ...IBANS[0], id: 'ib2', iban: IBAN_NOUVEAU, facture_id: 'a1', confirme_le: ilYa(4), revoque_le: null, motif_revocation: null }];
+  await ouvrirAppli(page, { ibans, retouches: { a1: { iban_normalise: IBAN_NOUVEAU } } });
+  await attendreFacture(page, 'FA-2026-0412');
+  const alerte = page.locator('[data-role="alerte-iban"]');
+  await expect(alerte).toContainText('IBAN changé récemment : cette facture porte l’IBAN confirmé à la main le');
+  await expect(alerte).toContainText('Vérifie avant de payer.');
+  await expect(alerte).not.toContainText('nouvel');
+  await versVerifications(page);
+  await expect(page.locator('[data-controle="iban-historique"]')).toContainText('IBAN confirmé à la main pour ce fournisseur');
+  await expect(page.locator('[data-controle="iban-historique"]')).not.toContainText('Premier IBAN vu');
+  await capturer(page, info, 'T1-iban-coherent');
+});
