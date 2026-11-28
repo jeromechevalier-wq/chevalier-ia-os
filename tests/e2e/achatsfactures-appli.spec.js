@@ -122,7 +122,7 @@ async function poserFauxReseau(page, options = {}) {
           if (faux.refusChantier) return rep({ ok: false, code: 'refus_essai', erreur: faux.refusChantier }, 400);
           const n = faux.chantiers.length + 1;
           faux.chantiers.push({ id: `c${n}`, code: corps.code ?? `CH-000${n}`, client: null, adresse: null, archive: false, ...corps });
-          return rep({ ok: true, chantier_id: `c${n}` });
+          return rep(faux.sansIdChantier ? { ok: true } : { ok: true, chantier_id: `c${n}` }); // `faux.sansIdChantier` : une réponse sans identifiant
         }
         if (corps.action === 'creer_agence') {
           const siren = corps.siren ?? (corps.siret ? corps.siret.slice(0, 9) : null);
@@ -1324,6 +1324,83 @@ test('PC5 cas vide : aucun chantier, la liste invite à utiliser « + Chantier �
   await expect(volet(page).locator('[data-etat="vide"]')).toHaveText('Aucun chantier pour l’instant. Ajoute le premier avec le bouton « + Chantier ».');
   await expect(volet(page).locator('[data-action="nouveau-chantier"]')).toBeVisible();
   await capturer(page, info, 'PC5-cas-vide-chantiers');
+});
+
+// Corrections de la relecture Fable de la PR 778 : PC6 pas de second envoi pendant la relecture ; PC3 bis réponse sans `chantier_id` ; PC7 volet fermé puis rouvert pendant l'envoi ;
+// PC8 relecture en échec après la création.
+test('PC6 pendant la relecture qui suit la création, le formulaire reste grisé et rempli : aucun second chantier possible', async ({ page }, info) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  await nouveauChantier(page);
+  await fiche(page).locator('[data-champ="nom"]').fill('Maison fictive unique');
+  await retenir(page, 'chantiers', { chemin: '/rest/v1/chantiers' });
+  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
+  await expect.poll(async () => (await appelsVers(page, '/actions')).length).toBe(1);
+  await page.waitForTimeout(300); // la relecture est partie et attend
+  const enregistrer = fiche(page).locator('[data-action="enregistrer-fiche"]');
+  await expect(enregistrer).toBeDisabled(); // fiche.js grise les boutons pendant l'envoi (le libellé reste « Enregistrer » : la fiche n'est pas redessinée)
+  await expect(fiche(page).locator('[data-action="annuler-fiche"]')).toBeDisabled();
+  await expect(fiche(page).locator('[data-champ="nom"]')).toHaveValue('Maison fictive unique'); // le formulaire n'est pas refait vide
+  await expect(fiche(page).locator('[data-champ="nom"]')).toBeDisabled();
+  await capturer(page, info, 'PC6-envoi-pendant-relecture');
+  await enregistrer.click({ force: true }); // un clic de plus ne fait rien
+  await lacher(page, 'chantiers');
+  await expect(volet(page).locator('[data-role="fiche-titre"]')).toHaveText('Maison fictive unique');
+  expect((await appelsVers(page, '/actions')).filter((c) => c.action === 'creer_chantier')).toHaveLength(1);
+});
+
+test('PC3 bis réponse sans `chantier_id` : la fiche est retrouvée par le nom exact dans la liste relue', async ({ page }) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  await page.evaluate(() => { window.__faux.sansIdChantier = true; });
+  await nouveauChantier(page);
+  await fiche(page).locator('[data-champ="nom"]').fill('Maison fictive sans identifiant');
+  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
+  await expect(volet(page)).toHaveAttribute('data-vue', 'fiche');
+  await expect(volet(page).locator('[data-role="fiche-titre"]')).toHaveText('Maison fictive sans identifiant');
+});
+
+test('PC7 volet fermé puis rouvert pendant l\'envoi : la fin de l\'envoi n\'écrase pas la nouvelle saisie', async ({ page }) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  await nouveauChantier(page);
+  await fiche(page).locator('[data-champ="nom"]').fill('Maison fictive première');
+  await retenir(page, 'creation', { chemin: '/actions' });
+  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
+  await expect.poll(async () => (await appelsVers(page, '/actions')).length).toBe(1);
+  await volet(page).locator('[data-action="fermer-volet"]').click();
+  await ouvrirVolet(page);
+  await nouveauChantier(page);
+  await fiche(page).locator('[data-champ="nom"]').fill('Maison fictive seconde');
+  await lacher(page, 'creation');
+  await expect(page.locator('.toast').filter({ hasText: 'Maison fictive première' })).toBeVisible(); // l'envoi est allé au bout
+  await page.waitForTimeout(300);
+  await expect(volet(page)).toHaveAttribute('data-vue', 'nouveau'); // la nouvelle saisie est toujours là
+  await expect(fiche(page).locator('[data-champ="nom"]')).toHaveValue('Maison fictive seconde');
+  await expect(fiche(page).locator('[data-action="enregistrer-fiche"]')).toBeEnabled();
+});
+
+test('PC8 relecture en échec après la création : retour à la liste gardée, avec « Chantier créé » et « Réessayer » (jamais « fiche introuvable »)', async ({ page }, info) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  await nouveauChantier(page);
+  await page.evaluate(() => { window.__faux.chantiersEnPanne = true; });
+  await fiche(page).locator('[data-champ="nom"]').fill('Maison fictive en panne');
+  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
+  await expect(volet(page)).toHaveAttribute('data-vue', 'liste');
+  await expect(page.locator('.toast').filter({ hasText: 'Chantier créé' })).toBeVisible();
+  await expect(volet(page).locator('[data-role="liste-perimee"]')).toContainText('La liste n’a pas pu être relue');
+  await expect(volet(page).locator('[data-role="volet-liste"]')).toContainText('Villa Orvaline'); // les anciennes lignes sont gardées
+  await expect(volet(page).getByText('Cette fiche est introuvable')).toHaveCount(0);
+  await capturer(page, info, 'PC8-relecture-en-echec');
+  await page.evaluate(() => { window.__faux.chantiersEnPanne = false; });
+  await volet(page).locator('[data-role="liste-perimee"] [data-action="reessayer"]').click();
+  await expect(volet(page).locator('[data-role="volet-liste"]')).toContainText('Maison fictive en panne');
+  await expect(volet(page).locator('[data-role="liste-perimee"]')).toHaveCount(0);
 });
 
 // Texte long (règle commune du 27/11/2026, docs/consignes-ui.md « Texte long : liste et fiche ») : T1 dans les listes du volet, 2 lignes au plus puis « … », texte entier au survol ;

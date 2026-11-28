@@ -428,6 +428,9 @@ describe('« + Chantier » dans le volet (PC1 à PC5)', () => {
     assert.match(bloc, /String\(x\.id\) === String\(id\)/);
     assert.match(bloc, /surEcriture\(\);/);
     assert.ok(bloc.indexOf("charger('chantiers', true)") < bloc.indexOf('surEcriture()'));
+    assert.match(volet, /cache\[quoi\] = \{ etat: 'chargement', lignes: avant, perime: false \};\n    if \(vue !== 'nouveau'\) dessiner\(\);/, 'PC6 : la relecture ne refait jamais le formulaire de création');
+    assert.match(bloc, /jeton === jetonNouveau/, 'PC7 : la fin d’un envoi n’agit que sur son formulaire');
+    assert.match(bloc, /lignes\.find\(\(x\) => x\.nom === v\.nom\)/, 'PC3 bis : sans chantier_id, par le nom exact');
   });
 
   test('PC5 cas vide : la phrase de la liste des chantiers parle du bouton « + Chantier »', () => {

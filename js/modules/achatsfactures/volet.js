@@ -45,6 +45,7 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
   let vue = 'liste'; // liste | fiche | nouveau
   let cle = null; // identifiant de la fiche ouverte
   let depuisFacture = null; // facture qui pré-remplit « Nouveau fournisseur »
+  let jetonNouveau = 0; // un numéro par formulaire « Nouveau chantier » dessiné : la fin d'un envoi n'agit que sur SON formulaire (jamais sur une nouvelle saisie après fermeture et réouverture)
   let recherche = '';
   const numeros = { chantiers: 0, articles: 0 }; // un compteur PAR liste : la lecture d'une liste ne rend jamais caduque celle de l'autre (sinon sa roue tourne sans fin)
   const cache = { chantiers: { etat: 'vide', lignes: [], perime: false }, articles: { etat: 'vide', lignes: [], perime: false } }; // etat : vide | chargement | ok | erreur ; perime : la dernière relecture a échoué, les anciennes lignes sont gardées
@@ -71,7 +72,8 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
     if (!forcer && (c.etat === 'ok' || c.etat === 'chargement')) return;
     const n = ++numeros[quoi];
     const avant = c.lignes;
-    cache[quoi] = { etat: 'chargement', lignes: avant, perime: false }; dessiner();
+    cache[quoi] = { etat: 'chargement', lignes: avant, perime: false };
+    if (vue !== 'nouveau') dessiner(); // jamais pendant un formulaire de création : il serait refait vide et « Enregistrer » redeviendrait actif (second chantier possible) ; la fiche en modification, elle, a besoin de ce redessin
     try {
       const lignes = await (quoi === 'chantiers' ? donnees().lireChantiers() : donnees().lireArticles());
       if (!vivant || n !== numeros[quoi]) return;
@@ -353,10 +355,14 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
   /**
    * « Nouveau chantier » (bouton « + Chantier », 28/11/2026) : nom (obligatoire), code (facultatif : vide = attribué par la base), client, adresse ; statut « en préparation ».
    * Le mode d'emploi des champs ne s'applique pas ici (comme « Nouveau fournisseur »). Après la création : la liste est relue, puis la fiche du nouveau chantier s'ouvre
-   * (retrouvé par `chantier_id`) ; s'il n'est pas dans la liste relue (relecture en échec), on revient à la liste. Refus de la base ou de n8n : le message sous le formulaire, la saisie est gardée.
+   * (retrouvé par `chantier_id` ; sans `chantier_id` dans la réponse, par son nom exact, comme « + Fournisseur ») ; s'il n'est pas dans la liste relue (relecture en échec), on revient
+   * à la liste avec le message « Chantier créé ». Refus de la base ou de n8n : le message sous le formulaire, la saisie est gardée.
+   * Si le volet a été fermé ou rouvert pendant l'envoi, la fin de l'envoi ne touche pas l'écran (jeton du formulaire) : elle prévient seulement l'application.
    */
   function dessinerNouveauChantier() {
     teteFiche('chantiers');
+    const jeton = ++jetonNouveau;
+    const toujoursLa = () => ouvert && vue === 'nouveau' && onglet === 'chantiers' && jeton === jetonNouveau;
     const fiche = creerFiche({
       mode: 'creation', libelleEnregistrer: 'Enregistrer',
       lignes: [
@@ -372,12 +378,13 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
         if (probleme) throw new Error(probleme);
         const r = await donnees().creerChantier(v);
         if (!vivant) return;
-        toast(`Chantier ajouté : ${v.nom}`, { duree: DUREE_MESSAGE });
         await charger('chantiers', true);
         if (!vivant) return;
         const id = r?.chantier_id;
-        const cree = id === undefined || id === null ? null : cache.chantiers.lignes.find((x) => String(x.id) === String(id));
-        if (ouvert && onglet === 'chantiers' && vue === 'nouveau') { if (cree) { vue = 'fiche'; cle = cree.id; } else vue = 'liste'; dessiner(); }
+        const lignes = cache.chantiers.lignes;
+        const cree = id === undefined || id === null ? lignes.find((x) => x.nom === v.nom) : lignes.find((x) => String(x.id) === String(id));
+        toast(cree ? `Chantier ajouté : ${v.nom}` : 'Chantier créé', { duree: DUREE_MESSAGE });
+        if (toujoursLa()) { if (cree) { vue = 'fiche'; cle = cree.id; } else vue = 'liste'; dessiner(); }
         surEcriture();
       },
     });
