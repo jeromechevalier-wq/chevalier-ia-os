@@ -191,6 +191,7 @@ export function modeleSchema(reponse) {
     // Nuage : le rôle du dernier projet noté (la base, ex. « Cloud SQL »), puis « les données » ; sans projet : « Données à part ».
     nuage: m.projets.length ? [tronquer(m.projets.at(-1).role, MAX_ROLE_NUAGE), TEXTES_SCHEMA.lesDonnees] : [...TEXTES_SCHEMA.nuageMaison],
     ...(m.etat === 'a_venir' ? {} : { nuage2: [...TEXTES_SCHEMA.nuageReglages] }), // la maison a son Firestore (réglages, logo, journal), AR10
+    telephone: true, // son MCP, relié à son nuage Cloud SQL (AR13) ; grisé en pointillés si la maison est à venir
     legende: [TEXTES_SCHEMA.etats[m.etat]],
     projet: projetGoogle(m.projets),
   })) : [chantier];

@@ -8,8 +8,9 @@ export const TEXTES_SCHEMA = Object.freeze({
   batiments: [
     { nom: 'Chevalier IA OS', genre: 'maison', nuage: ['Firestore', 'tes données', 'et tes réglages'], telephone: true, legende: ['Ta maison : tu testes', 'tout ici en premier'] },
     { nom: 'Chevalier IA App', genre: 'immeuble', nuage: ['Firestore', 'les données', 'et les réglages'], telephone: true, legende: ['L\'immeuble : un', 'appartement par client'] },
-    { nom: 'Maison client 1', genre: 'chantier', nuage: ['Cloud SQL', 'les données'], nuage2: ['Firestore', 'les réglages'], legende: ['En construction'] },
-    { nom: 'Maison à venir', genre: 'avenir', nuage: ['Données', 'à venir'], legende: ['À venir'] },
+    { nom: 'Maison client 1', genre: 'chantier', nuage: ['Cloud SQL', 'les données'], nuage2: ['Firestore', 'les réglages'], telephone: true, legende: ['En construction'] },
+    // Maison à venir (AR14) : un Cloud SQL et un Firestore à venir, et un téléphone MCP à venir, en pointillés grisés comme la maison.
+    { nom: 'Maison à venir', genre: 'avenir', nuage: ['Cloud SQL', 'à venir'], nuage2: ['Firestore', 'à venir'], telephone: true, legende: ['À venir'] },
   ],
   etages: ['À venir', 'Appartement 3', 'Appartement 2', 'Appartement 1'],
   telephone: 'MCP',

@@ -513,7 +513,7 @@ test('AR8 AR9 AR10 nuages : Cloud SQL commun à venir, Firestore de l\'immeuble,
       const grise = commun && svg.querySelector('path.console-schema-nuage-commun').parentNode.classList.contains('console-schema-avenir');
       return { nb: nuages.length, chevauchements, grise, largeurCommun: commun.d - commun.x };
     });
-    expect(g.nb).toBe(6); // commun + 4 bâtiments + 2e nuage de la maison client
+    expect(g.nb).toBe(7); // commun + 4 bâtiments + 2e nuage de la maison client + 2e nuage de la maison à venir (AR14)
     expect(g.chevauchements).toBe(0);
     expect(g.grise).toBe(true);
     expect(g.largeurCommun).toBeGreaterThan(300); // couvre les deux premiers bâtiments
@@ -522,3 +522,73 @@ test('AR8 AR9 AR10 nuages : Cloud SQL commun à venir, Firestore de l\'immeuble,
     await page.screenshot({ path: `${DOSSIER}AR8-nuages-${largeur ? 'etroit' : 'large'}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
   }
 });
+
+// Troisième retouche (28/11/2026) : une rangée pour tous les Cloud SQL (AR11), une juste en dessous pour tous les Firestore (AR12), le téléphone MCP de chaque maison
+// relié à son Cloud SQL (AR13), la maison à venir avec ses deux nuages et son téléphone en pointillés (AR14), rien ne se chevauche (AR15).
+// Schéma figé puis registre plein (deux maisons + la maison à venir), dessin large puis étroit (800 px, comme AR8).
+for (const [cas, reponse] of [['fige', null], ['registre', BATIMENTS_PLEINS]]) {
+  test(`AR11 AR12 AR13 AR14 AR15 rangées de nuages (${cas}) : Cloud SQL alignés, Firestore alignés dessous, MCP des maisons, maison à venir, sans chevauchement`, async ({ page }, info) => {
+    await simulerServeur(page);
+    if (reponse) await simulerBatiments(page, { reponse });
+    await connecter(page, undefined, { route: 'console/vue' });
+    await attendreCalme(page);
+    const bloc = page.locator('.page > [data-bloc="architecture"]');
+    if (reponse) await expect(bloc.locator('svg[role="img"]:visible')).toContainText('Maison essai B');
+    for (const [largeur, classe] of [[null, 'console-schema-large'], [800, 'console-schema-etroit']]) {
+      if (largeur) await page.setViewportSize({ width: largeur, height: 900 });
+      const svg = page.locator(`[data-bloc="architecture"] svg.${classe}`);
+      await expect(svg).toBeVisible();
+      const g = await svg.evaluate((s) => {
+        const boite = (n) => { const b = n.getBBox(); return { x: b.x, y: b.y, d: b.x + b.width, b: b.y + b.height }; };
+        // Nuages : rangée d'après le 1er mot (« Firestore » : rangée des Firestore ; sinon : rangée des Cloud SQL), hauteur = bas de la bulle.
+        const nuages = [...s.querySelectorAll('path.console-schema-nuage')].map((n) => {
+          const t = n.parentNode.querySelector('text');
+          const bas = Math.round(boite(n).b); // bas plat de la bulle = centre + 22, quelle que soit sa forme (nuage commun compris)
+          return { firestore: t.textContent === 'Firestore', ligne: bas, avenir: n.parentNode.classList.contains('console-schema-avenir'), tirets: n.classList.contains('console-schema-tirets'), texte: [...n.parentNode.querySelectorAll('text')].map((x) => x.textContent).join(' / '), ...boite(n) };
+        });
+        const telephones = [...s.querySelectorAll('rect.console-schema-telephone')].map((r) => {
+          const gr = r.parentNode;
+          const pts = gr.querySelector('polyline').getAttribute('points').split(' ').map((p) => p.split(',').map(Number));
+          return { rect: boite(r), mot: boite(gr.querySelector('text')), bout: pts.at(-1), pointilles: gr.classList.contains('console-schema-pointilles') };
+        });
+        const sols = [...new Set([...s.querySelectorAll('line.console-schema-sol')].map((l) => Number(l.getAttribute('y1'))))];
+        const pieces = [
+          ...nuages.map((n) => ({ quoi: `nuage ${n.texte}`, ...n })),
+          ...telephones.flatMap((t, i) => [{ quoi: `téléphone ${i}`, ...t.rect }, { quoi: `mot MCP ${i}`, ...t.mot }]),
+          ...[...s.querySelectorAll('rect.console-schema-case, rect.console-schema-mur[width="140"], rect.console-schema-mur[width="96"], polygon.console-schema-toit')].map((n, i) => ({ quoi: `${n.getAttribute('class')} ${i}`, ...boite(n) })),
+        ];
+        const croise = (a, b) => a.x < b.d - 1 && b.x < a.d - 1 && a.y < b.b - 1 && b.y < a.b - 1;
+        const chevauchements = pieces.flatMap((a, i) => pieces.slice(i + 1).filter((b) => croise(a, b)).map((b) => `${a.quoi} × ${b.quoi}`));
+        // Le bout du fil d'un téléphone touche le bas d'un nuage : lequel ?
+        const nuageDuFil = (bout) => nuages.find((n) => bout[0] >= n.x && bout[0] <= n.d && Math.abs(bout[1] - n.b) <= 3);
+        return {
+          rangees: sols.length,
+          ySql: [...new Set(nuages.filter((n) => !n.firestore).map((n) => n.ligne))].sort((a, b) => a - b),
+          yFirestore: [...new Set(nuages.filter((n) => n.firestore).map((n) => n.ligne))].sort((a, b) => a - b),
+          nuages: nuages.map((n) => ({ texte: n.texte, avenir: n.avenir, tirets: n.tirets })),
+          telephones: telephones.map((t) => ({ pointilles: t.pointilles, nuage: nuageDuFil(t.bout)?.texte ?? null })),
+          chevauchements,
+        };
+      });
+      // AR11 / AR12 : une hauteur par rangée de bâtiments pour les Cloud SQL, une pour les Firestore, celle-ci juste en dessous (86 plus bas).
+      expect(g.ySql).toHaveLength(g.rangees);
+      expect(g.yFirestore).toHaveLength(g.rangees);
+      g.yFirestore.forEach((y, i) => expect(y - g.ySql[i]).toBe(86));
+      // AR14 : la maison à venir a ses deux nuages à venir, grisés et en tirets.
+      expect(g.nuages).toContainEqual({ texte: 'Cloud SQL / à venir', avenir: true, tirets: true });
+      expect(g.nuages).toContainEqual({ texte: 'Firestore / à venir', avenir: true, tirets: true });
+      expect(g.nuages.map((n) => n.texte)).not.toContain('Données / à venir');
+      // AR13 / AR14 : un téléphone par bâtiment ; le CRM et l'immeuble vont à leur Firestore, chaque maison à son Cloud SQL ; ceux des maisons à venir en pointillés.
+      expect(g.telephones).toEqual(reponse
+        ? [{ pointilles: false, nuage: 'Firestore / tes données / et tes réglages' }, { pointilles: false, nuage: 'Firestore / les données / et les réglages' },
+          { pointilles: false, nuage: 'Cloud SQL / les données' }, { pointilles: true, nuage: 'Données / à part' }, { pointilles: true, nuage: 'Cloud SQL / à venir' }]
+        : [{ pointilles: false, nuage: 'Firestore / tes données / et tes réglages' }, { pointilles: false, nuage: 'Firestore / les données / et les réglages' },
+          { pointilles: false, nuage: 'Cloud SQL / les données' }, { pointilles: true, nuage: 'Cloud SQL / à venir' }]);
+      // AR15 : aucun nuage, téléphone, mot « MCP », bâtiment ni case n8n ne se chevauchent.
+      expect(g.chevauchements).toEqual([]);
+      await schemaLisible(page);
+      await bloc.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${DOSSIER}AR11-rangees-${cas}-${largeur ? 'etroit' : 'large'}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
+    }
+  });
+}

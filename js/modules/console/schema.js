@@ -21,10 +21,11 @@ function el(nom, attrs = {}, ...enfants) {
 function pieces(a) {
   const texte = (x, y, contenu, classe, taille) => el('text', { x, y, 'text-anchor': 'middle', 'font-size': Math.round(taille * a * 10) / 10, class: classe }, contenu);
   // Nuage : 2 lignes, ou 3 (« Firestore / tes données / et tes réglages ») resserrées dans la même bulle.
+  // Nuage à venir : grisé et en tirets, comme sa maison (AR14).
   const nuage = (cx, cy, lignes, avenir) => {
     const ys = lignes.length > 2 ? [-15, 1, 16] : [-2, 15];
     return el('g', { class: avenir ? 'console-schema-avenir' : null },
-      el('path', { class: 'console-schema-nuage', d: `M${cx - 78} ${cy + 22} a22 22 0 0 1 8 -40 a30 30 0 0 1 52 -14 a32 32 0 0 1 56 6 a22 22 0 0 1 20 48 z` }),
+      el('path', { class: avenir ? 'console-schema-nuage console-schema-tirets' : 'console-schema-nuage', d: `M${cx - 78} ${cy + 22} a22 22 0 0 1 8 -40 a30 30 0 0 1 52 -14 a32 32 0 0 1 56 6 a22 22 0 0 1 20 48 z` }),
       ...lignes.slice(0, 3).map((l, i) => texte(cx, cy + ys[i], l, i === 0 ? 'console-schema-texte console-schema-fort' : 'console-schema-texte', i === 0 ? 13 : 12)));
   };
   // Grand nuage grisé (« à venir ») au-dessus des deux premiers bâtiments : un seul Cloud SQL servira au CRM et à l'immeuble (28/11/2026, AR8).
@@ -40,9 +41,10 @@ function pieces(a) {
       el('path', { class: 'console-schema-nuage console-schema-nuage-commun', d }),
       texte(cx, cy - 2, l1, 'console-schema-texte console-schema-fort', 13), texte(cx, cy + 15, l2, 'console-schema-texte', 12));
   };
-  // Téléphone MCP entre le nuage et le toit, relié au bas du nuage ; son mot est au-dessus du toit, il ne touche aucun mur.
-  const telephone = (x, y, versX, versY) => el('g', {},
-    el('line', { class: 'console-schema-lien', x1: x, y1: y, x2: versX, y2: versY }),
+  // Téléphone MCP entre le nuage et le toit, relié au bas de son nuage par `vers` (les coudes du fil) ; son mot est au-dessus du toit, il ne touche aucun mur.
+  // À venir (AR14) : grisé, en pointillés, fil en tirets.
+  const telephone = (x, y, vers, avenir) => el('g', { class: avenir ? 'console-schema-avenir console-schema-pointilles' : null },
+    el('polyline', { class: avenir ? 'console-schema-lien console-schema-tirets' : 'console-schema-lien', points: [[x, y], ...vers].map((pt) => pt.join(',')).join(' ') }),
     el('rect', { class: 'console-schema-telephone', x: x - 10, y, width: 20, height: 32, rx: 4 }),
     el('line', { class: 'console-schema-lien', x1: x - 4, y1: y + 27, x2: x + 4, y2: y + 27 }),
     texte(x, y + 50, T.telephone, 'console-schema-texte console-schema-fort', 12));
@@ -75,15 +77,23 @@ function pieces(a) {
       el('line', { x1: x, y1: sol - 132, x2: x - 40, y2: sol - 116 }),
       el('line', { x1: x - 38, y1: sol - 116, x2: x - 38, y2: sol - 92 }));
   };
-  /** Une colonne : nuage, bâtiment, sol, nom et légende. `cx` = centre, `haut` = haut de la colonne. */
+  /** Une colonne : nuages, bâtiment, sol, nom et légende. `cx` = centre, `haut` = haut de la colonne. */
   // `sol` : haut + SOL + rehaussement de la rangée ; `p` : place de la ligne du projet Google (0 si aucun bâtiment n'en a).
+  // Nuages rangés par type (28/11/2026, AR11 et AR12) : la rangée des Cloud SQL dans la bande au-dessus de la colonne (même hauteur que le nuage commun),
+  // la rangée des Firestore à haut + 44. Une maison (avec 2e nuage, ou à venir) a son 1er nuage sur la rangée Cloud SQL ; le CRM et l'immeuble, sur la rangée Firestore.
   const colonne = (cx, haut, sol, p, b, etages) => {
+    const avenir = b.genre === 'avenir';
+    const surSql = Boolean(b.nuage2) || avenir;
+    const ySql = haut - HAUT_COMMUN + Y_SQL;
+    const yFirestore = haut + 44;
+    // Fil du téléphone : vers le bas droit du Firestore (CRM, immeuble) ; pour une maison, monte à droite du Firestore jusqu'au Cloud SQL, où son MCP lit les données (AR13).
+    const fil = surSql ? [[cx + 82, ySql + 38], [cx + 56, ySql + 22]] : [[cx + 62, haut + 64]];
     return el('g', {},
-      nuage(cx, haut + 44, b.nuage, b.genre === 'avenir'),
-      b.nuage2 ? nuage(cx, haut + 116, b.nuage2, false) : null, // 2e nuage d'une maison client (Firestore : les réglages, AR10), sous le premier, au-dessus du toit
-      b.genre === 'immeuble' ? immeuble(cx, sol, etages) : maison(cx, sol, b.genre === 'avenir'),
+      nuage(cx, surSql ? ySql : yFirestore, b.nuage, avenir),
+      b.nuage2 ? nuage(cx, yFirestore, b.nuage2, avenir) : null, // 2e nuage d'une maison (Firestore : les réglages, AR10), sur la rangée des Firestore
+      b.genre === 'immeuble' ? immeuble(cx, sol, etages) : maison(cx, sol, avenir),
       b.genre === 'chantier' ? grue(cx, sol) : null,
-      b.telephone ? telephone(cx + 82, haut + 74, cx + 62, haut + 64) : null,
+      b.telephone ? telephone(cx + 82, haut + 74, fil, avenir) : null,
       el('line', { class: 'console-schema-sol', x1: cx - 90, y1: sol, x2: cx + 90, y2: sol }),
       texte(cx, sol + 24, b.nom, 'console-schema-texte console-schema-fort', 15),
       b.projet ? texte(cx, sol + 42, b.projet, 'console-schema-texte2 console-schema-projet', 12) : null, // nom du projet Google (registre privé, AR5)
@@ -100,7 +110,8 @@ function pieces(a) {
 
 const RANGEE = 456; // hauteur d'une rangée de bâtiments (nuage, bâtiment, nom, légende)
 const HAUT_IMMEUBLE = 140; // hauteur de l'immeuble jusqu'à 4 lignes
-const HAUT_COMMUN = 80; // place du nuage commun (Cloud SQL à venir) au-dessus de la 1re rangée
+const HAUT_COMMUN = 80; // bande des Cloud SQL au-dessus de chaque rangée (le nuage commun au-dessus de la 1re, les Cloud SQL des maisons), AR11
+const Y_SQL = 38; // centre des nuages Cloud SQL dans leur bande : le nuage commun et ceux des maisons sont à la même hauteur (AR11)
 const LIGNE_PROJET = 18; // place de la ligne du projet Google sous le nom
 const pasEtages = (etages) => (etages.length > 4 ? 26.5 : 33);
 /** Hauteur de l'immeuble : 140 jusqu'à 4 lignes, puis autant qu'il faut pour tous les appartements. */
@@ -118,7 +129,8 @@ function dessin(classe, { parRangee, pasX, x0, largeur, caseN8n, agrandissement 
   const p = batiments.some((b) => b.projet) ? LIGNE_PROJET : 0;
   // Rehaussement d'une rangée : ce qui dépasse 140 pour l'immeuble, s'il est dans cette rangée ; tout ce qui est dessous descend d'autant.
   const hausse = Array.from({ length: rangees }, (_, r) => (batiments.slice(r * parRangee, (r + 1) * parRangee).some((b) => b.genre === 'immeuble') ? hauteurImmeuble(etages) - HAUT_IMMEUBLE : 0));
-  const hauts = hausse.map((_, r) => hausse.slice(0, r).reduce((t, x) => t + RANGEE + x + p, HAUT_COMMUN)); // la 1re rangée descend sous le nuage commun
+  // Chaque rangée descend sous sa bande des Cloud SQL (la 1re : sous le nuage commun, comme avant ; les suivantes : sous les Cloud SQL de leurs maisons).
+  const hauts = hausse.map((_, r) => hausse.slice(0, r).reduce((t, x) => t + RANGEE + x + p + HAUT_COMMUN, HAUT_COMMUN));
   const places = batiments.map((_, i) => {
     const r = Math.floor(i / parRangee);
     return { x: x0 + (i % parRangee) * pasX, haut: hauts[r], sol: hauts[r] + SOL + hausse[r] };
@@ -126,7 +138,7 @@ function dessin(classe, { parRangee, pasX, x0, largeur, caseN8n, agrandissement 
   const yN8n = caseN8n.y + HAUT_COMMUN + hausse[0] + p;
   const hauteur = rangees === 1 ? yN8n + 60 : hauts[rangees - 1] + 354 + hausse[rangees - 1] + p;
   return el('svg', { class: `console-schema ${classe}`, viewBox: `0 -14 ${largeur} ${hauteur + 14}`, role: 'img', 'aria-label': T.resume, preserveAspectRatio: 'xMidYMin meet' },
-    nuageCommun(places[0].x, places[1].x, 34, T.nuageCommun),
+    nuageCommun(places[0].x, places[1].x, Y_SQL, T.nuageCommun),
     ...batiments.map((b, i) => colonne(places[i].x, places[i].haut, places[i].sol, p, b, etages)),
     n8n(caseN8n.x, yN8n, caseN8n.largeur, [[places[0].x, places[0].sol + BAS + p], [places[1].x, places[1].sol + BAS + p]]));
 }
