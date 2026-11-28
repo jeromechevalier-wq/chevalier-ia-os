@@ -534,6 +534,8 @@ describe('T2 facture décidée : plus de « avant d’accepter »', () => {
     expect(phraseApresDecision('Cet IBAN a été révoqué le 01/11/2026 (RIB piraté) : appelle avant d’accepter.')).toBe('Cet IBAN a été révoqué le 01/11/2026 (RIB piraté).')
     expect(phraseApresDecision('Vérification indisponible : les lignes de cette facture n’ont pas pu être lues. Réessaie avant d’accepter.')).toBe('Vérification indisponible : les lignes de cette facture n’ont pas pu être lues.')
     expect(phraseApresDecision('Vérification indisponible : l’état de lecture des lignes est inconnu. Compare avec le PDF avant d’accepter.')).toBe('Vérification indisponible : l’état de lecture des lignes est inconnu. Compare avec le PDF.')
+    expect(phraseApresDecision('Nouvel IBAN pour ce fournisseur : son ancien IBAN confirmé a été retiré et celui-ci n’est pas encore confirmé. Appelle-le sur un numéro que tu connais déjà avant d’accepter.')).toBe('Nouvel IBAN pour ce fournisseur : son ancien IBAN confirmé a été retiré et celui-ci n’est pas encore confirmé.')
+    expect(phraseApresDecision('Cet IBAN n’est pas celui confirmé pour ce fournisseur : appelle-le sur un numéro que tu connais déjà avant d’accepter.')).toBe('Cet IBAN n’est pas celui confirmé pour ce fournisseur.')
     expect(phraseApresDecision('Format de l’IBAN correct. Cela ne prouve pas à qui appartient le compte.')).toBe('Format de l’IBAN correct. Cela ne prouve pas à qui appartient le compte.')
   })
   test('T2 aucune phrase des neuf contrôles d’une facture décidée ne dit « avant d’accepter », et les états ne changent pas', () => {
@@ -543,5 +545,17 @@ describe('T2 facture décidée : plus de « avant d’accepter »', () => {
     const apres = controlesApresDecision(avant)
     expect(apres.some((c) => c.phrase.includes('avant d’accepter'))).toBe(false)
     expect(apres.map((c) => c.etat)).toEqual(avant.map((c) => c.etat))
+  })
+  test('T2 facture REFUSÉE : même retrait du conseil (phrase « Nouvel IBAN » comprise), états inchangés', () => {
+    const conf = { id: 'k', fournisseur_id: 'fo', siren: '123456782', iban: IBAN_FR2, confirme_le: '2026-06-01T08:00:00Z', revoque_le: '2026-11-20T08:00:00Z', motif_revocation: 'Changement' }
+    const f = { id: 'me', statut: 'refusee', fournisseur_siren: '123456782', iban_normalise: IBAN_FR, extraction: extr({ iban: IBAN_FR }), extraction_erreur: null, lignes_etat: 'lues' }
+    const avant = controler(f, [], [], [], [conf])
+    const hist = avant.find((c) => c.id === 'iban-historique')
+    expect(hist.phrase).toMatch(/^Nouvel IBAN pour ce fournisseur/)
+    const apres = controlesApresDecision(avant)
+    expect(apres.find((c) => c.id === 'iban-historique').phrase).toBe('Nouvel IBAN pour ce fournisseur : son ancien IBAN confirmé a été retiré et celui-ci n’est pas encore confirmé.')
+    expect(apres.some((c) => c.phrase.includes('avant d’accepter'))).toBe(false)
+    expect(apres.map((c) => c.etat)).toEqual(avant.map((c) => c.etat))
+    expect(synthese(apres, true)).not.toMatch(/avant d’accepter/)
   })
 })

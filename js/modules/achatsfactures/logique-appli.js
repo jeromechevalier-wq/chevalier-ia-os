@@ -74,13 +74,14 @@ export function changementDansConfirmations(miennes, maintenant = new Date()) {
   return evenements[0] ? { date: evenements[0].date, motif: evenements[0].motif } : null;
 }
 
-/** Titre de l'alerte orange « IBAN changé récemment » au-dessus d'une facture (correction du 28/11/2026). Si la facture porte justement le NOUVEL IBAN, déjà confirmé,
- *  le titre le dit : sinon « vérifie avant de payer » contredirait le contrôle « IBAN confirmé à la main » de la même facture. `fo` : la fiche du volet (`fournisseursDuVolet`). */
+/** Titre de l'alerte orange « IBAN changé récemment » au-dessus d'une facture (correction du 28/11/2026). Si la facture porte l'IBAN confirmé à la main (actif), le titre le dit,
+ *  sans le dire « nouveau » (ce peut être l'ancien, resté confirmé) et en gardant le rappel « Vérifie avant de payer » (dernier rappel contre la fraude pendant 60 jours).
+ *  `fo` : la fiche du volet (`fournisseursDuVolet`). */
 export const TITRE_ALERTE_IBAN = 'IBAN changé récemment : vérifie avant de payer';
 export function titreAlerteIban(f, fo) {
   const iban = f?.iban_normalise ?? normaliserIban(f?.extraction?.iban);
   const conf = fo?.confirmation;
-  if (iban && conf && !conf.revoque_le && normaliserIban(conf.iban) === iban) return `IBAN changé récemment : cette facture porte le nouvel IBAN, confirmé le ${dateFr(conf.confirme_le)}`;
+  if (iban && conf && !conf.revoque_le && normaliserIban(conf.iban) === iban) return `IBAN changé récemment : cette facture porte l’IBAN confirmé à la main le ${dateFr(conf.confirme_le)}. Vérifie avant de payer.`;
   return TITRE_ALERTE_IBAN;
 }
 

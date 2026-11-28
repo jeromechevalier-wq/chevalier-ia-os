@@ -440,9 +440,19 @@ describe('« + Chantier » dans le volet (PC1 à PC5)', () => {
 
 describe('T1 alerte « IBAN changé récemment » cohérente avec le contrôle de la facture (essai réel du 28/11/2026)', () => {
   const fo = { confirmation: { iban: IBAN_B, confirme_le: '2026-11-25T09:00:00Z', revoque_le: null }, changement: { date: '2026-11-25T09:00:00Z', motif: '' } };
-  test('T1 la facture porte le nouvel IBAN déjà confirmé : le titre le dit (plus de « vérifie avant de payer » face à « IBAN confirmé à la main »)', () => {
-    assert.equal(titreAlerteIban({ iban_normalise: IBAN_B }, fo), 'IBAN changé récemment : cette facture porte le nouvel IBAN, confirmé le 25/11/2026');
-    assert.equal(titreAlerteIban({ iban_normalise: null, extraction: { iban: 'fr14 2004 1010 0505 0001 3m02 606' } }, fo), 'IBAN changé récemment : cette facture porte le nouvel IBAN, confirmé le 25/11/2026');
+  test('T1 la facture porte l’IBAN confirmé à la main : le titre le dit et garde « Vérifie avant de payer »', () => {
+    const attendu = 'IBAN changé récemment : cette facture porte l’IBAN confirmé à la main le 25/11/2026. Vérifie avant de payer.';
+    assert.equal(titreAlerteIban({ iban_normalise: IBAN_B }, fo), attendu);
+    assert.equal(titreAlerteIban({ iban_normalise: null, extraction: { iban: 'fr14 2004 1010 0505 0001 3m02 606' } }, fo), attendu);
+  });
+  test('T1 A confirmé depuis longtemps, B confirmé puis retiré, facture en A : alerte (révocation récente), jamais « nouvel » IBAN, rappel gardé', () => {
+    const confs = [{ id: 'a', fournisseur_id: 'fo1', siren: '500000005', iban: IBAN_A, confirme_le: '2026-01-10T08:00:00Z', revoque_le: null, motif_revocation: null },
+      { id: 'b', fournisseur_id: 'fo1', siren: '500000005', iban: IBAN_B, confirme_le: '2026-11-20T08:00:00Z', revoque_le: '2026-11-22T08:00:00Z', motif_revocation: 'Erreur' }];
+    const [volet] = fournisseursDuVolet({ fournisseurs: [{ id: 'fo1', siren: '500000005', nom: 'Fictif' }], ibans: confs, factures: [] }, MAINTENANT);
+    assert.ok(volet.changement, 'la révocation récente de B donne bien l’alerte');
+    const titre = titreAlerteIban({ iban_normalise: IBAN_A }, volet);
+    assert.doesNotMatch(titre, /nouvel/i);
+    assert.equal(titre, 'IBAN changé récemment : cette facture porte l’IBAN confirmé à la main le 10/01/2026. Vérifie avant de payer.');
   });
   test('T1 autre IBAN, aucun IBAN lu ou aucune confirmation active : le titre d’alerte habituel', () => {
     assert.equal(titreAlerteIban({ iban_normalise: IBAN_A }, fo), TITRE_ALERTE_IBAN);
