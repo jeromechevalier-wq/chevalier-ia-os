@@ -38,6 +38,7 @@ node outils/base/tester.js --comme-cloudsql
 | `migrations/011_derniere_information.sql` | Règle 20 : la dernière information en date gagne (correction ou nouveau scan). Change seulement le filtre des corrections dans la vue `factures` (mêmes colonnes). |
 | `migrations/012_cadenas_et_tracage.sql` | Règles 3, 4, 15 : « par où » posé par la base sur chaque ligne à partir de `app.par_ou` (réglage écrit par la porte d'après la voie : `ecran`, `assistant`, `n8n`), jamais à partir de la requête ; reflets en ajout seul pour tout le monde, robot compris (seul le tampon `archive_le` des lignes lues se modifie) ; un reflet ne s'écrit que par le robot (ancien `a-activer/001`, branché). |
 | `migrations/013_mode_d_emploi.sql` | Règles 23 et 24 : le mode d'emploi rangé dans la base. `mode_emploi_objets` (la personne peut-elle créer, « + », sinon pourquoi) et `mode_emploi_champs` (catégorie, modifiable, phrase du cadenas), sans espace, lecture seule pour les trois rôles. Et l'identifiant d'une ligne ne change plus jamais (`ab_socle_id_fige` sur toutes les tables). |
+| `migrations/014_catalogue_vente.sql` | Le catalogue de vente du futur **Devis 0.2.0** (`devisbase`) : `familles_articles` (deux niveaux, type d'article au premier niveau) et `articles_vente` (champs de `CHAMPS_MODIFIABLES` sans `composants`, plus `type`, `actif`, `famille_id`, `url_source`), unités de vente en liste fermée, extension `pg_trgm` et index trigramme sur `libelle_normalise` (si la base la refuse, la migration continue sans l'index). **Pas encore appliquée à la base de la maison d'essai** (geste à faire avec Jérôme). |
 | `a-activer/001_bloquer_reflets.sql` | Vide : branché dans 012 le 27/11/2026. |
 | `a-activer/002_robot_ne_decide_pas.sql` | **Pas appliqué, abandonné (décision de Jérôme du 28/11/2026, règle 14).** Le rôle du robot ne pourrait plus écrire une décision ni une correction. Gardé pour mémoire, à ne pas brancher. |
 | `a-activer/003_qui_verifie.sql` | **Pas appliqué.** « qui » des décisions et du journal pris dans `app.utilisateur` (identité vérifiée), plus dans `p_qui` (règle 4). |
@@ -90,6 +91,8 @@ Liste finale du 27/11/2026 (relecture Fable, corrigée par les décisions de Jé
 | `factures_corrections.motif_type` | `non_precise`, `erreur_de_lecture`, `information_du_fournisseur`, `autre` |
 | `ibans_confirmes.moyen_type` | `non_precise`, `appel_fournisseur`, `courriel_fournisseur`, `courrier_fournisseur`, `rib_signe`, `en_personne`, `autre` (le commentaire reste dans `moyen_verification`) |
 | `ibans_confirmes.motif_revocation_type` | `non_precise`, `iban_change`, `erreur_de_saisie`, `fraude_suspectee`, `autre` |
+| `articles_vente.unite` (catalogue de vente, 014) | `liste_unites_vente()` = `liste_unites()` + `semaine`, `mois` ; rangée sous sa forme normalisée (`normaliser_unite_vente` : celle de `normaliser_unite`, puis `ensemble` → `ens`). Vide permis seulement pour une ligne de texte. |
+| `articles_vente.type`, `familles_articles.type` (014) | `liste_types_article()` : `fourniture`, `main_oeuvre`, `ouvrage`, `sous_traitance`, `materiel`, `divers`, `texte` (ou vide) ; le type d'une famille seulement au premier niveau |
 | `articles_reference.unite_reference` (saisie) | `liste_unites()` : u, m, ml, m2, m3, cm, mm, km, kg, g, t, l, cl, sac, rouleau, boite, palette, lot, forfait, h, jour, ens, paquet, carton, plaque, barre, botte, seau, bidon, cartouche, pot, tube, paire, kit (après `normaliser_unite`) |
 
 Restent libres, exprès : ce qui est **lu** sur une facture (dont l'unité lue et sa forme normalisée, recopiées dans le catalogue), les notes et les commentaires. Les listes déjà fermées avant 009 (statuts, décisions, genres, types de document…) ne changent pas. `non_precise` est la valeur des lignes d'avant et des écritures qui n'envoient pas encore de type (n8n, écrans) : à remplacer quand l'écran et n8n enverront le type.
@@ -104,6 +107,7 @@ Restent libres, exprès : ce qui est **lu** sur une facture (dont l'unité lue e
 - À chaque requête, la porte dira « je suis dans l'espace X, pour la personne Y » (`app.espace_id` et `app.utilisateur`). La base ne montre et n'écrit **que** les lignes de l'espace X.
 - **Important pour la porte** : elle pose ces deux réglages avec `set_config(…, true)` **à l'intérieur d'une transaction** (`begin` … `commit`). Ainsi ils disparaissent à la fin de la transaction. Sinon, avec un pool de connexions (des connexions réutilisées d'un client à l'autre), l'espace du client précédent pourrait rester posé sur la connexion.
 - **Sans espace (absent, vide ou blanc), rien n'est visible et rien ne s'écrit.**
+- `robot_reflets` (n8n) et `indicateurs` **lisent seulement** le catalogue de vente (`familles_articles`, `articles_vente`, 014) : seule la porte y écrit. Ces droits sont posés par 014 et par la boucle de 007 (rejouée).
 - Sécurité par ligne **forcée** sur toutes les tables (même pour leur propriétaire), toutes les vues lisent avec les droits de celui qui demande (`security_invoker`), **aucune** fonction ne passe outre (`security definer` : zéro).
 - Le test `02` remplit deux espaces A et B, puis vérifie depuis A, avec chacun des 3 rôles : chaque table, **chaque vue** (les 74) et chaque fonction de lecture ; et que les fonctions d'écriture ne trouvent pas les lignes de B.
 
@@ -122,6 +126,8 @@ Restent libres, exprès : ce qui est **lu** sur une facture (dont l'unité lue e
 | `favoris`, `favoris_os` | source | Les étoiles (appli BTP, OS). |
 | `tickets_n8n`, `tickets_n8n_demandes` | source (à valider) | Les tickets d'une minute pour n8n. |
 | `ibans_confirmes` | source | Les IBAN vérifiés par une personne. |
+| `familles_articles` | source | Les familles d'articles du devis (Devis 0.2.0), sur deux niveaux. |
+| `articles_vente` | source | Les articles du bordereau de vente (Devis 0.2.0) : le prix d'achat d'une ligne de devis viendra d'ici. |
 | `journal_modifications` | source | Le journal avant / après. |
 | `registre_tables` | source | La liste des tables (sans espace). |
 | `factures_identite` | source | Qui est la facture (fournisseur + numéro, agence, chantier, archivage). |
