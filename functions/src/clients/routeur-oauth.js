@@ -19,7 +19,7 @@ import { pageAutorisationClient } from './page.js';
 import { MESSAGE_REFUS_ESPACE } from '../../partage/marque.js';
 import { emailNormalise } from '../../partage/membres.js';
 
-const optionsDemande = () => Object.freeze({ redirectionAutorisee, origine: emetteurPlateforme(), messageRedirection: "Adresse de retour non autorisée : seuls Claude et ChatGPT peuvent se connecter." });
+const optionsDemande = () => Object.freeze({ redirectionAutorisee, origine: emetteurPlateforme(), messageRedirection: "Adresse de retour non autorisée : seuls Claude, Claude Code et ChatGPT peuvent se connecter." });
 const MESSAGE_INDISPONIBLE = "Ce lien de connexion n'est pas disponible.";
 const motifs = [
   [/^\/\.well-known\/oauth-protected-resource\/mcp\/([^/]+)$/, 'ressource'],
@@ -41,7 +41,7 @@ export function creerRouteurOauthClients({ donnees, verifierIdToken, espaces, ma
     if (!espace) return null;
     const membre = await espaces.membre(client, email);
     if (!membre) return null;
-    const assistant = connexion?.assistant === 'chatgpt' ? 'chatgpt' : 'claude-ai';
+    const assistant = connexion?.assistant === 'chatgpt' ? 'chatgpt' : 'claude-ai'; // Claude Code (assistant 'claude-local') : même acteur claude-ai-<compte>
     const acteur = acteurClient(assistant, email);
     return { jeton: `${client}__${acteur}`, acteur, email: emailNormalise(email), profil: PROFIL_PAR_ROLE[membre.role], client, role: membre.role, actifs: espace.actifs };
   };

@@ -26,7 +26,7 @@ Le serveur MCP avait une seule porte : un jeton secret `cia_…` dans l'en-tête
 | Risque | Protection | Testé |
 |---|---|---|
 | Un inconnu se connecte | Il faut un compte Google de la liste, adresse vérifiée, connexion « google.com ». Vérifié **côté serveur** : la page peut être falsifiée, le serveur ne la croit pas | oui |
-| Un site pirate reçoit le code | L'adresse de retour doit être **exactement** celle de Claude. Une adresse inconnue donne une page d'erreur, jamais une redirection | oui |
+| Un site pirate reçoit le code | L'adresse de retour doit être **exactement** celle de Claude (ou de la forme de ChatGPT, ou la boucle locale de Claude Code, voir plus bas). Une adresse inconnue donne une page d'erreur, jamais une redirection | oui |
 | Code volé en chemin | PKCE (S256) obligatoire ; code de 60 s, usage unique ; un code rejoué **coupe la connexion qu'il a ouverte** | oui |
 | Jeton de renouvellement volé | Chaque renouvellement consomme l'ancien. Un ancien jeton rejoué **coupe toute la connexion** | oui |
 | Clic piégé (page cachée sous un autre site) | La page refuse d'être encadrée (`X-Frame-Options`, `frame-ancestors 'none'`) ; l'approbation exige l'origine de l'appli | oui |
@@ -88,7 +88,28 @@ Après la fusion (PR 49) et la publication des règles Firestore, Jérôme a ajo
 
 - La **vraie** connexion Google : le test navigateur remplace Google par une doublure (`tests/e2e/oauth.spec.js`). La page utilise le même SDK, la même version (12.19.0) et la même configuration que l'appli ; si la fenêtre Google ne s'ouvre pas sur le téléphone, le bouton passe en « redirection » comme l'appli.
 - Le comportement exact de claude.ai et de l'appli du téléphone : la documentation de Claude décrit ce flux (enregistrement dynamique, PKCE, adresse de retour `https://claude.ai/api/mcp/auth_callback`), et le serveur la suit à la lettre, mais seul un essai réel le confirme.
-- **Non fait volontairement** : adresses de retour locales (`http://localhost:…`) de Claude Code. Claude Code continue avec son jeton `cia_…`, qui marche déjà.
+- Adresses de retour locales (`http://localhost:…`) de Claude Code : longtemps laissées de côté (Claude Code passait par son jeton `cia_…`), **faites le 28/11/2026**, voir la section suivante. Le jeton `cia_…` marche toujours.
+
+## Claude Code sur le Mac par la connexion Google (28/11/2026)
+
+**But** : brancher Claude Code (l'outil en ligne de commande et l'appli de bureau sur le Mac) sur **tous** les espaces, sans jeton `cia_…` à copier : le CRM de Jérôme (`https://chevalier-ia-os.web.app/mcp`), chaque espace de la plateforme clients (`<adresse de la plateforme>/mcp/<client>`) et chaque maison (`https://<projet de la maison>.web.app/mcp`). Mode d'emploi pas à pas : [branchement-mcp.md](branchement-mcp.md), « Claude Code sur le Mac par la connexion Google ».
+
+**Ce qui change** : Claude Code s'enregistre avec une adresse de retour **de boucle locale** (un petit serveur qu'il ouvre lui-même sur le Mac, le temps de la connexion), par exemple `http://localhost:33418/callback`. Le serveur la refusait (« Adresse de retour non autorisée »). Elle est maintenant acceptée, avec une règle très étroite (RFC 8252 §7.3), la même chez Jérôme, dans les maisons et sur la plateforme clients (`functions/src/oauth/boucle-locale.js`) :
+
+| Partie de l'adresse | Accepté | Refusé (exemples) |
+|---|---|---|
+| Protocole | `http` | `https://localhost…` (la boucle locale n'a pas de certificat ; Claude Code utilise `http`) |
+| Hôte | `localhost` ou `127.0.0.1`, écrits exactement | `localhost.exemple.com`, `LOCALHOST`, `[::1]`, `0.0.0.0`, `identifiant@localhost` |
+| Port | obligatoire, de 1024 à 65535 (Claude Code en tire un au hasard) | sans port, `:80`, `:0`, `:65536`, `:033418` |
+| Chemin | exactement `/callback` | `/callback/`, `/callbackX`, `/autre`, toute requête `?…` ou fragment `#…` |
+
+**Droits : rien de nouveau.** Une connexion Claude Code reçoit exactement ce que reçoit une connexion claude.ai du **même compte Google** : même nom d'acteur `claude-ai-<compte>` (donc mêmes plafonds, dont les 50 suppressions par jour, et même ligne dans le journal), même profil (`complet` chez Jérôme et dans les maisons ; le rôle du membre, lecteur ou éditeur, sur la plateforme clients), même e-mail Google vérifié pour les outils de la base. Le serveur note seulement `assistant: 'claude-local'` dans la connexion. Décision prise seul (conforme à la demande du 28/11/2026 : « aucun droit nouveau ») : pas de préfixe `claude-code-` (il entrerait en collision avec les noms de jetons fixes déjà en service) ; si Jérôme veut un jour distinguer Claude Code dans le journal, prendre un préfixe neuf (par exemple `claude-cli-`).
+
+**L'écran** dit « Autoriser Claude Code à accéder à Chevalier IA OS ? » (ou au nom de l'espace chez un client) et affiche toujours un avertissement : « Le code sera renvoyé à un programme de **cet ordinateur** (localhost:<port>). N'autorise que si tu viens toi-même de lancer la connexion depuis Claude Code. »
+
+**Ce qui protège** (et le risque accepté) : PKCE S256 obligatoire, code de 60 s à usage unique, port comparé exactement entre le consentement et l'échange du code, compte Google autorisé (ou membre de l'espace) revérifié par le serveur, clic « Autoriser ». Le vrai changement : avant, le code ne pouvait partir que vers claude.ai ou chatgpt.com ; maintenant, **n'importe quel programme qui tourne sur l'ordinateur** peut lancer la connexion et recevoir le code si la personne clique « Autoriser ». C'est le modèle normal des applications installées (RFC 8252 §8.3) ; un programme malveillant installé sur le Mac pourrait de toute façon lire les jetons qui y sont rangés. D'où l'avertissement, qui est la protection principale : ne jamais cliquer « Autoriser » sur un écran « Claude Code » qu'on n'a pas soi-même déclenché. Sur un ordinateur **partagé** (plusieurs sessions ouvertes), un autre utilisateur pourrait écouter le port : risque accepté, noté dans `securite-et-pannes.md`.
+
+**Non essayé avec le vrai Claude Code avant la fusion** (seulement des essais automatiques avec un faux client) : la forme exacte de l'adresse envoyée par Claude Code vient du message d'erreur constaté par Jérôme le 28/11/2026 (`http://localhost:<port>/callback`). Premier essai réel après la remise en ligne.
 
 ## Retour arrière
 
@@ -96,4 +117,4 @@ Après la fusion (PR 49) et la publication des règles Firestore, Jérôme a ajo
 
 ## Où est le code
 
-`functions/src/oauth/` : `config.js` (réglages et décisions), `magasin.js` (codes, jetons, révocation), `routeur.js` (routes), `page.js` (page de consentement), `identite-google.js` (vérification de la connexion Google). Branché dans `functions/src/mcp/gestionnaire.js` et `functions/src/index.js`. Tests : `tests/oauth.test.js` (40 tests) et `tests/e2e/oauth.spec.js` (navigateur, ordinateur et téléphone).
+`functions/src/oauth/` : `config.js` (réglages et décisions), `magasin.js` (codes, jetons, révocation), `routeur.js` (routes), `page.js` (page de consentement), `identite-google.js` (vérification de la connexion Google). Branché dans `functions/src/mcp/gestionnaire.js` et `functions/src/index.js`. `boucle-locale.js` (adresse de retour de Claude Code, 28/11/2026). Tests : `tests/oauth.test.js` (bloc « Claude Code sur le Mac » compris) et `tests/e2e/oauth.spec.js` (navigateur, ordinateur et téléphone).
