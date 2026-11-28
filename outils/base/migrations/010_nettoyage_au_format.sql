@@ -26,6 +26,12 @@
 -- d'administration doit voir toutes les lignes), puis tout est remis, dans la même transaction. Chaque ligne réécrite laisse une ligne
 -- au journal (action « mise_au_format », avant / après) : l'historique se rejoue toujours.
 
+-- Les contraintes « …_liste » retirées le temps de la réécriture sont notées ici (table, nom, expression) : celles que
+-- poser_listes_fermees() ne repose pas (posées par une migration suivante, ex. mode_emploi_champs_categorie_liste de 013) sont
+-- reposées telles quelles à la fin. Rejouer 010 après 013 ne fait donc disparaître aucune contrainte.
+create temp table if not exists nettoyage_listes_retirees (t text not null, nom text not null, expression text not null);
+truncate pg_temp.nettoyage_listes_retirees;
+
 \if :{?email_jerome}
 select set_config('nettoyage.email_jerome', :'email_jerome', false);
 \else
@@ -89,9 +95,11 @@ begin
 
   -- Lever les verrous le temps de la réécriture (même transaction : rien ne reste levé). Les contraintes de liste de 009 sont retirées
   -- aussi : une ligne peut avoir plusieurs colonnes hors liste, réécrites une par une ; poser_listes_fermees() les repose à la fin.
-  for r in select k.conrelid::regclass::text as t, k.conname from pg_constraint k
+  for r in select c.relname::text as t, k.conname, pg_get_expr(k.conbin, k.conrelid) as expression
+             from pg_constraint k join pg_class c on c.oid = k.conrelid
             where k.connamespace = 'public'::regnamespace and k.contype = 'c' and k.conname like '%\_liste' loop
-    execute format('alter table %s drop constraint %I', r.t, r.conname);
+    insert into pg_temp.nettoyage_listes_retirees (t, nom, expression) values (r.t, r.conname, r.expression);
+    execute format('alter table public.%I drop constraint %I', r.t, r.conname);
   end loop;
   foreach v_t in array v_tables loop
     execute format('alter table public.%I disable trigger user', v_t);
@@ -191,4 +199,17 @@ end $$;
 -- Valider les contraintes de 009 maintenant que les anciennes lignes sont au format (celles qui ne le sont pas restent « not valid »).
 do $$ begin perform set_config('app.utilisateur', 'migration', false); end $$;
 select public.poser_listes_fermees();
+-- Reposer les contraintes retirées que poser_listes_fermees() ne connaît pas (même nom, même expression ; validées si les lignes
+-- la respectent, sinon elles valent pour les nouvelles lignes, comme dans 009).
+do $$
+declare r record;
+begin
+  for r in select x.t, x.nom, x.expression from pg_temp.nettoyage_listes_retirees x
+            where not exists (select 1 from pg_constraint k join pg_class c on c.oid = k.conrelid
+                               where c.relnamespace = 'public'::regnamespace and c.relname = x.t and k.conname = x.nom)
+            order by x.t, x.nom loop
+    perform public.poser_contrainte_liste(r.t, r.nom, r.expression);
+  end loop;
+end $$;
+drop table if exists pg_temp.nettoyage_listes_retirees;
 do $$ begin perform set_config('app.utilisateur', '', false); end $$;
