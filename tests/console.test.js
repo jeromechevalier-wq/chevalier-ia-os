@@ -9,7 +9,7 @@ import { creerAppelConsole, COMPTES_CONSOLE as LIRE_COMPTES_CONSOLE } from '../f
 const COMPTES_CONSOLE = await LIRE_COMPTES_CONSOLE(); // chantier 0 : liste lue dans la fiche reglages_maison/maison (celle des essais : _fiche-essai.js)
 import { peutVoirConsole } from '../js/modules/console/acces.js';
 import { remplirComptesMaison, viderComptesMaison } from '../js/os/comptes-maison.js';
-import { LIGNES_FILET, etatLigne, lignesAvecEtat, resumeFilet, texteEtat, PLATEFORMES, plateformeValide } from '../js/modules/console/logique.js';
+import { LIGNES_FILET, etatLigne, lignesAvecEtat, resumeFilet, texteEtat, PLATEFORMES, plateformeValide, lignesVersions, ligneVersion, texteEtatVersion, texteHistorique, LIBELLES_BATIMENTS, TEXTE_VERSION_VIDE } from '../js/modules/console/logique.js';
 import { IDS_MODULES, MODULES_DECLARES, modulesActifsDuClient, verifierActivation, interrupteursDuClient, moduleDeRoute } from '../js/os/registre.js';
 import { MODULES, MODULES_CLIENT } from '../js/os/modules.js';
 
@@ -85,10 +85,11 @@ describe('Console : accès côté écran et registre (C4)', () => {
     assert.deepEqual(v.actifs, []);
   });
 
-  test('C4 la fonction n\'existe que chez Jérôme (déclarée réservée) et le navigateur n\'appelle que consoleEtat', () => {
+  test('C4 les fonctions n\'existent que chez Jérôme (déclarées réservées) et le navigateur n\'appelle que consoleEtat et consoleVersions', () => {
     assert.match(readFileSync(new URL('./ecarts-fonctions.test.js', import.meta.url), 'utf8'), /consoleEtat: 'normal/);
+    assert.match(readFileSync(new URL('./ecarts-fonctions.test.js', import.meta.url), 'utf8'), /consoleVersions: 'normal/);
     const donnees = readFileSync(new URL('../js/modules/console/donnees.js', import.meta.url), 'utf8');
-    assert.deepEqual([...donnees.matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['consoleEtat']);
+    assert.deepEqual([...donnees.matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['consoleEtat', 'consoleVersions']);
   });
 
   test('C4 la coque ne monte la Console que pour le compte de Jérôme', () => {
@@ -162,5 +163,64 @@ describe('Console : Filet de sécurité (C5, C6, C8)', () => {
       const t = readFileSync(new URL(f, import.meta.url), 'utf8');
       assert.doesNotMatch(t, /iam\.gserviceaccount\.com|projects\/[a-z0-9-]+\/secrets|AIza[0-9A-Za-z_-]{20,}/, f);
     }
+  });
+});
+
+describe('Console : versions des bâtiments à l\'écran (phase 2, 28/11/2026)', () => {
+  const plein = {
+    cle: 'os', version: '2.59.0', depuis: '2026-11-28T09:00:00.000Z', vu_le: '2026-11-28T10:00:00.000Z', structure_code: 1, structure_base: null,
+    etat_version: 'a_jour', etat_structure: 'inconnu', motif: null,
+    historique: [{ version: '2.59.0', de_version: '2.58.0', le: '2026-11-28T09:00:00.000Z' }, { version: '2.58.0', de_version: null, le: '2026-11-27T09:00:00.000Z' }],
+  };
+
+  test('V10 une ligne par bâtiment : libellé du schéma, version, « depuis le … », « Version : … », « Structure : … », historique en phrases', () => {
+    assert.deepEqual({ ...LIBELLES_BATIMENTS }, { os: 'Chevalier IA OS', immeuble: 'Chevalier IA App' });
+    const l = ligneVersion(plein);
+    assert.equal(l.libelle, 'Chevalier IA OS');
+    assert.equal(l.version, '2.59.0');
+    assert.equal(l.depuis, 'depuis le 28/11/2026');
+    assert.equal(l.vuLe, 'vu le 28/11/2026 à 11:00');
+    assert.deepEqual(l.textes, { version: 'Version : à jour', structure: 'Structure : inconnue' });
+    assert.deepEqual(l.historique, ['2.59.0 (avant : 2.58.0), le 28/11/2026 à 10:00', '2.58.0 (premier tampon), le 27/11/2026 à 10:00']);
+    assert.equal(l.vide, false);
+    assert.equal(texteEtatVersion('en_retard'), 'en retard');
+    assert.equal(texteEtatVersion('nimporte'), 'inconnue');
+    assert.equal(texteEtatVersion('en_attente'), 'en attente du prochain tampon (moins d\'une heure)');
+    assert.equal(ligneVersion({ ...plein, etat_version: 'en_attente' }).textes.version, 'Version : en attente du prochain tampon (moins d\'une heure)');
+    // V4 à l'écran : quand seule la structure change, « structure 1 → 2 » au lieu de « 2.59.0 (avant : 2.59.0) »
+    assert.equal(texteHistorique({ version: '2.59.0', de_version: '2.59.0', structure_code: 2, de_structure: 1, le: '2026-11-28T09:00:00.000Z' }), 'structure 1 → 2, le 28/11/2026 à 10:00');
+    assert.equal(texteHistorique({ version: '2.59.0', de_version: '2.58.0', structure_code: 2, de_structure: 1, le: '2026-11-28T09:00:00.000Z' }), '2.59.0 (avant : 2.58.0), le 28/11/2026 à 10:00');
+    assert.equal(ligneVersion({ ...plein, historique: Array.from({ length: 15 }, () => plein.historique[0]) }).historique.length, 10);
+  });
+
+  test('V11 cas vide : un bâtiment sans tampon dit « Version inconnue… » ; un immeuble non relié garde son motif', () => {
+    const [os, immeuble] = lignesVersions({ batiments: [
+      { cle: 'os', version: null, etat_version: 'inconnu', etat_structure: 'inconnu', motif: 'pas encore de tampon', historique: [] },
+      { cle: 'immeuble', version: null, etat_version: 'inconnu', etat_structure: 'inconnu', motif: 'immeuble non relié', historique: [] },
+    ] });
+    assert.equal(os.vide, true);
+    assert.equal(os.sansTampon, true);
+    assert.equal(os.motif, null);
+    assert.equal(immeuble.sansTampon, false, 'immeuble non relié : seulement le motif, pas « pas encore remis en ligne »');
+    const illisible = ligneVersion({ cle: 'os', version: null, etat_version: 'inconnu', etat_structure: 'inconnu', motif: 'lecture impossible pour l\'instant', historique: [] });
+    assert.deepEqual([illisible.sansTampon, illisible.motif], [false, 'lecture impossible pour l\'instant']);
+    assert.equal(immeuble.libelle, 'Chevalier IA App');
+    assert.equal(immeuble.motif, 'immeuble non relié');
+    assert.equal(TEXTE_VERSION_VIDE, 'Version inconnue : ce bâtiment n\'a pas encore été remis en ligne avec le tampon.');
+    assert.deepEqual(lignesVersions(null), []);
+    assert.deepEqual(lignesVersions({ batiments: 'x' }), []);
+  });
+
+  test('V12 cas d\'erreur : message lisible et bouton « Réessayer » qui relit les versions', () => {
+    const ecran = readFileSync(new URL('../js/modules/console/ecran.js', import.meta.url), 'utf8');
+    assert.match(ecran, /dataset: \{ action: 'reessayer-versions' \}, onclick: charger \}, 'Réessayer'/);
+    const donnees = readFileSync(new URL('../js/modules/console/donnees.js', import.meta.url), 'utf8');
+    assert.match(donnees, /Les versions ne se lisent pas pour l\\'instant\./);
+  });
+
+  test('V14 l\'export du module ajoute les versions des bâtiments (une lecture en échec n\'empêche pas l\'export)', () => {
+    const exp = readFileSync(new URL('../js/modules/console/export.js', import.meta.url), 'utf8');
+    assert.match(exp, /lireVersions = D\.lireVersions/);
+    assert.match(exp, /collections\.console_versions = /);
   });
 });

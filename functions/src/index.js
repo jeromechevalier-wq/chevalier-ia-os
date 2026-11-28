@@ -56,7 +56,9 @@ import { copieInterne, administrateur, Refus } from './automatisations/appels.js
 import { creerLecteurN8n } from '../partage/automatisations/n8n.js';
 import { creerAppelDeploiement, ligneDeJournalDeploiement } from './deploiement-appel.js';
 import { VERSION_SERVEUR } from './version.js';
-import { creerAppelConsole, ligneDeJournalConsole } from './console/appel.js';
+import { creerAppelConsole, creerAppelConsoleVersions, ligneDeJournalConsole } from './console/appel.js';
+import { lireVersionsBatiments } from './console/versions.js';
+import { tamponnerVersion, versionApplication } from './coeur/tampon-version.js';
 import { creerAppelPilotageLire, creerAppelPilotageEnregistrer, ligneDeJournalPilotage } from './pilotage/appel.js';
 import { creerServicePilotage } from './pilotage/service.js';
 import { creerAssistantPilotage } from './pilotage/assistant.js';
@@ -131,6 +133,16 @@ export const tableaudebordSaisir = onCall(
 export const consoleEtat = onCall(
   { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: compteDeService('porte-serveur') },
   (requete) => creerAppelConsole({ version: VERSION_SERVEUR, journal: (e) => process.stdout.write(`${ligneDeJournalConsole(e)}\n`) })(requete),
+);
+
+// `tamponVersion` (28/11/2026, Console phase 2) : toutes les heures, le bâtiment note sa version (version.json) et le numéro de structure de ses données dans reglages_maison/version
+// (coeur/tampon-version.js, même code dans l'immeuble). Seul déclenchement : cette fonction planifiée, jamais au chargement. Compte de service de la porte, comme `consoleEtat`.
+export const tamponVersion = onSchedule(
+  { region: 'europe-west9', schedule: '0 * * * *', timeZone: 'Europe/Paris', timeoutSeconds: 60, memory: '256MiB', maxInstances: 1, serviceAccount: compteDeService('porte-serveur') },
+  async () => {
+    if (!getApps().length) initializeApp();
+    await tamponnerVersion({ db: getFirestore(), horodatage: () => FieldValue.serverTimestamp() });
+  },
 );
 
 // `baseAccorderAcces` : appelée par Réglages > Connexion à la base (Jérôme seul). Pose ou retire, pour UN compte, les deux mentions Firebase (`role`, `espace_base`) qui ouvrent la base d'un espace.
@@ -476,6 +488,17 @@ const dbApp = async () => {
   const existante = getApps().find((a) => a.name === `plateforme-${projet}`);
   return getFirestore(existante ?? initializeApp({ projectId: projet }, `plateforme-${projet}`));
 };
+
+// `consoleVersions` (28/11/2026, Console phase 2) : lit la version tamponnée du CRM et de l'immeuble (console/versions.js). Jérôme seul, même contrôle d'identité que `consoleEtat`.
+// Absente de la plateforme (RESERVEES_JEROME). Tourne avec le compte des automatisations, seul compte qui lit l'immeuble aujourd'hui ; à remplacer par un compte dédié en lecture seule plus tard.
+const DEMARRAGE_INSTANCE = Date.now(); // heure de démarrage de cette instance : un CRM « en retard » tamponné avant elle attend son prochain tampon (moins d'une heure)
+export const consoleVersions = onCall(
+  { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: COMPTE_AUTOMATISATIONS },
+  (requete) => creerAppelConsoleVersions({
+    lireVersions: () => lireVersionsBatiments({ dbOs, dbApp, reference: versionApplication(), demarrage: DEMARRAGE_INSTANCE }),
+    journal: (e) => process.stdout.write(`${ligneDeJournalConsole(e)}\n`),
+  })(requete),
+);
 
 const CLE_N8N = AUTOMATISATIONS_EN_SERVICE ? defineSecret('N8N_API_KEY') : null;
 const lecteurN8n = () => creerLecteurN8n({ cle: CLE_N8N.value(), url: () => texteDe('n8n_url') }); // adresse du n8n : fiche de la maison

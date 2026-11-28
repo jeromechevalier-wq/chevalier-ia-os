@@ -1,13 +1,17 @@
-// Réglages > Console > « Sauvegarde » : un fichier JSON avec les vérifications du filet de sécurité. Lecture seule (règle du 27/10/2026).
+// Réglages > Console > « Sauvegarde » : un fichier JSON avec les vérifications du filet de sécurité et les versions des bâtiments (phase 2, 28/11/2026). Lecture seule (règle du 27/10/2026).
 import { h, icone, toast } from '../../os/ui.js';
 import { telecharger } from '../crm/composants.js';
 import * as L from '../crm/logique.js';
 import * as D from './donnees.js';
 
 /** Télécharge les données de la Console. `lire` se remplace dans les tests. Renvoie true si le fichier est parti. */
-export async function exporterConsole({ lire = D.lireToutPourExport } = {}) {
+export async function exporterConsole({ lire = D.lireToutPourExport, lireVersions = D.lireVersions } = {}) {
   try {
     const collections = await lire();
+    // Versions des bâtiments (lues par `consoleVersions`) : une lecture qui échoue n'empêche pas l'export du filet (liste vide).
+    let versions = [];
+    try { versions = (await lireVersions())?.batiments ?? []; } catch (e) { console.warn(e); }
+    collections.console_versions = Array.isArray(versions) ? versions : [];
     const maintenant = new Date();
     telecharger(L.nomFichierExport(maintenant, 'console'), L.exportJson(collections, maintenant), 'application/json;charset=utf-8');
     toast('Sauvegarde téléchargée');
@@ -22,7 +26,7 @@ export async function exporterConsole({ lire = D.lireToutPourExport } = {}) {
 export function reglagesExportConsole(page) {
   page.append(h('section', { class: 'carte-section', id: 'reglages-export-console' },
     h('h2', {}, icone('download', { taille: 18 }), 'Sauvegarde'),
-    h('p', { class: 'aide' }, 'Télécharge les vérifications du filet de sécurité dans un fichier.'),
+    h('p', { class: 'aide' }, 'Télécharge les vérifications du filet de sécurité et les versions des bâtiments dans un fichier.'),
     h('div', { class: 'ligne-boutons' },
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'exporter-console' }, onclick: () => exporterConsole() }, icone('download', { taille: 16 }), 'Exporter mes données'))));
 }

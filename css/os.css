@@ -929,6 +929,11 @@ body.page-espace { background: #241b2e; color: #fff; }
   .console-schema-etroit { display: block; }
 }
 .console-schema-texte { fill: var(--texte); font-family: var(--police-texte); }
+/* Console > Vue d'ensemble, bloc « Versions » (28/11/2026) : une ligne par bâtiment, séparées d'un trait ; les longs textes passent à la ligne (téléphone). */
+.console-version { overflow-wrap: anywhere; }
+.console-version + .console-version { border-top: 1px solid var(--bordure); margin-top: var(--esp-6); padding-top: var(--esp-6); }
+.console-version-etats { display: flex; flex-wrap: wrap; gap: var(--esp-3); }
+.console-version-historique summary { cursor: pointer; color: var(--lien); }
 .console-schema-texte2 { fill: var(--texte2); font-family: var(--police-texte); }
 .console-schema-fort { font-weight: var(--poids-moyen); }
 .console-schema-nuage { fill: var(--panneau2); stroke: var(--bordure-forte); stroke-width: 1.5; }

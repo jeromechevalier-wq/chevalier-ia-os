@@ -4,6 +4,9 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Console : versions des bâtiments (28/11/2026) : **PR 1 écrite**
+Chaque bâtiment (CRM de Jérôme, immeuble des clients) note sa version toutes les heures dans `reglages_maison/version` (fonction planifiée `tamponVersion`), et la Console l'affiche (bloc « Versions » de la Vue d'ensemble, fonction `consoleVersions`, Jérôme seul). Reste : les maisons des clients (PR 2), le verrou `console_active`, le script de migration qui écrira `structure_base`. Détail : `docs/console.md` (phase 2).
+
 ## Architecture des données (26/11/2026) : **décidé**
 Décisions de Jérôme après l'étude `docs/etude-cloud-sql-dossiers.md` (avec l'étude du 25/11 `docs/etude-une-maison-par-client.md`) :
 - **Firestore est gardé pour les réglages** (modules, vocabulaire, modèles d'affaires et de projets, réglages de la maison) ; **les données métier vont dans Cloud SQL** (PostgreSQL), toujours par nos fonctions serveur (la « porte »), jamais directement depuis le navigateur ; n8n écrit aussi par la porte.

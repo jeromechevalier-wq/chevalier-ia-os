@@ -1,4 +1,4 @@
-// Écrans de la Console (phase 0) : Vue d'ensemble (sélecteur de plateforme, résumé du filet, schéma d'architecture figé, état du serveur) et Filet de sécurité
+// Écrans de la Console : Vue d'ensemble (sélecteur de plateforme, résumé du filet, schéma d'architecture figé, versions des bâtiments, état du serveur) et Filet de sécurité
 // (la liste des vérifications, que Jérôme date à la main). Trois états partout : chargement, vide, erreur (avec « Réessayer »).
 import { h, icone, remplir, toast } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
@@ -21,7 +21,8 @@ export function rendreVue(conteneur, segs = []) {
   ...L.PLATEFORMES.map((p) => h('option', { value: p.id, selected: p.id === plateforme }, p.libelle)));
   const zone = h('div', { class: 'console-zone' });
   const serveur = h('p', { class: 'aide', 'aria-live': 'polite' }, 'Vérification du serveur…');
-  conteneur.append(onglets('console/vue'), h('div', { class: 'page' }, h('header', { class: 'page-tete' }, h('h1', {}, 'Console')), selecteur, zone, schemaArchitecture(), serveur));
+  const versions = blocVersions();
+  conteneur.append(onglets('console/vue'), h('div', { class: 'page' }, h('header', { class: 'page-tete' }, h('h1', {}, 'Console')), selecteur, zone, schemaArchitecture(), versions.element, serveur));
 
   function dessiner() {
     if (!D.etat.pret) { remplir(zone, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement'))); return; }
@@ -39,7 +40,43 @@ export function rendreVue(conteneur, segs = []) {
   let annule = false;
   D.lireEtatServeur().then((e) => { if (!annule) serveur.textContent = `Serveur : réponse reçue (version ${e.version}).`; })
     .catch((e) => { if (!annule) serveur.textContent = e.message; });
-  return () => { annule = true; arretDonnees(); };
+  return () => { annule = true; arretDonnees(); versions.arret(); };
+}
+
+/**
+ * Bloc « Versions » (phase 2, 28/11/2026), sous le schéma : une ligne par bâtiment (version, depuis quand, version et structure à jour ou non, historique dépliable).
+ * Lu par `consoleVersions` (Jérôme seul). Trois états : chargement, erreur (message + « Réessayer »), et pour un bâtiment sans tampon le texte « Version inconnue… » (une lecture impossible : seulement son motif).
+ */
+function blocVersions() {
+  const corps = h('div', { class: 'console-versions', 'aria-live': 'polite' });
+  const element = h('section', { class: 'carte-section', dataset: { bloc: 'versions' } }, h('h2', {}, icone('tag', { taille: 18 }), 'Versions'), corps);
+  let annule = false;
+  const pastilleVersion = (etat, texte) => h('span', { class: 'pastille-statut', dataset: { etat }, style: { '--couleur': etat === 'a_jour' ? 'var(--succes)' : etat === 'en_retard' ? 'var(--retard)' : etat === 'en_attente' ? 'var(--accent-trait)' : 'var(--texte2)' } }, texte);
+  function ligne(l) {
+    return h('div', { class: 'console-version', dataset: { batiment: l.cle, etatVersion: l.etatVersion } },
+      h('h3', {}, l.libelle),
+      l.sansTampon ? h('p', { class: 'aide', dataset: { vide: '1' } }, L.TEXTE_VERSION_VIDE) : null,
+      l.vide ? null : h('p', {}, h('strong', {}, l.version), l.depuis ? ` ${l.depuis}` : ''),
+      l.vuLe ? h('p', { class: 'aide', dataset: { vuLe: '1' } }, l.vuLe) : null,
+      l.motif ? h('p', { class: 'aide', dataset: { motif: '1' } }, `Motif : ${l.motif}.`) : null,
+      h('p', { class: 'console-version-etats' }, pastilleVersion(l.etatVersion, l.textes.version), ' ', pastilleVersion(l.etatStructure, l.textes.structure)),
+      h('details', { class: 'console-version-historique' }, h('summary', {}, 'Historique'),
+        l.historique.length ? h('ol', {}, ...l.historique.map((t) => h('li', {}, t))) : h('p', { class: 'aide' }, 'Aucun changement enregistré.')));
+  }
+  function charger() {
+    remplir(corps, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement des versions')));
+    D.lireVersions().then((r) => {
+      if (annule) return;
+      const lignes = L.lignesVersions(r);
+      remplir(corps, ...(lignes.length ? lignes.map(ligne) : [h('p', { class: 'aide', dataset: { vide: '1' } }, L.TEXTE_VERSION_VIDE)]));
+    }).catch((e) => {
+      if (annule) return;
+      remplir(corps, h('div', { class: 'etat-vide', role: 'alert', dataset: { erreur: 'versions' } }, h('p', {}, e.message),
+        h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'reessayer-versions' }, onclick: charger }, 'Réessayer')));
+    });
+  }
+  charger();
+  return { element, arret: () => { annule = true; } };
 }
 
 function erreur(reessayer) {

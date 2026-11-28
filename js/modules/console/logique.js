@@ -2,6 +2,7 @@
 // Phase 0 : le Filet de sécurité, une liste de vérifications que Jérôme fait à la main et date ici. Chaque ligne a un délai ; passé ce délai
 // (ou si elle n'a jamais été faite), elle est rouge. Rien dans ce fichier ne décrit l'infrastructure (le dépôt est public) : ce sont des
 // vérifications génériques, les détails vivent dans le second cerveau.
+import { TEXTES_SCHEMA } from './schema-textes.js';
 
 /** Vérifications du filet : id (clé du document `console_filet/<id>`), titre, aide, délai en jours avant qu'elle soit trop ancienne. */
 export const LIGNES_FILET = Object.freeze([
@@ -63,4 +64,62 @@ export const PLATEFORMES = Object.freeze([
 /** Plateforme demandée dans l'adresse (« console/vue?plateforme=clients » ou segment) : inconnue -> « toutes ». */
 export function plateformeValide(id) {
   return PLATEFORMES.some((p) => p.id === id) ? id : 'toutes';
+}
+
+// Versions des bâtiments (phase 2, 28/11/2026) : la réponse de `consoleVersions` mise en phrases pour l'écran. Libellés repris du schéma (schema-textes.js).
+export const LIBELLES_BATIMENTS = Object.freeze({ os: TEXTES_SCHEMA.batiments[0].nom, immeuble: TEXTES_SCHEMA.batiments[1].nom });
+export const TEXTE_VERSION_VIDE = 'Version inconnue : ce bâtiment n\'a pas encore été remis en ligne avec le tampon.';
+export const MOTIF_SANS_TAMPON = 'pas encore de tampon';
+const ETATS = Object.freeze({ a_jour: 'à jour', en_retard: 'en retard', en_attente: 'en attente du prochain tampon (moins d\'une heure)' });
+
+/** « à jour », « en retard », « en attente du prochain tampon (moins d'une heure) » ou « inconnue » (tout autre état). */
+export function texteEtatVersion(etat) {
+  return ETATS[etat] ?? 'inconnue';
+}
+
+/** Date et heure d'un texte ISO, à l'heure de Paris : { jour: '28/11/2026', heure: '10:00' }, ou null. */
+export function jourEtHeure(iso) {
+  const d = dateDe(iso);
+  if (!d) return null;
+  const jour = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d);
+  const heure = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' }).format(d);
+  return { jour, heure };
+}
+
+/** Une ligne d'historique en phrase : « 2.59.0 (avant : 2.58.0) », « 2.58.0 (premier tampon) » ou, si seule la structure change, « structure 1 → 2 » ; puis « , le … à … ». */
+export function texteHistorique(l) {
+  const q = jourEtHeure(l?.le);
+  const quand = q ? `, le ${q.jour} à ${q.heure}` : '';
+  const structureSeule = l?.de_version && l.de_version === l?.version && Number.isInteger(l?.de_structure) && Number.isInteger(l?.structure_code) && l.de_structure !== l.structure_code;
+  if (structureSeule) return `structure ${l.de_structure} → ${l.structure_code}${quand}`;
+  return `${l?.version ?? '?'}${l?.de_version ? ` (avant : ${l.de_version})` : ' (premier tampon)'}${quand}`;
+}
+
+/**
+ * Une ligne de l'écran pour un bâtiment de la réponse :
+ * { cle, libelle, version, depuis, vuLe, etatVersion, etatStructure, textes: { version, structure }, vide, sansTampon, motif, historique: [texte] }.
+ * `vide` : aucune version lue ; `sansTampon` : la fiche n'existe pas encore (l'écran dit TEXTE_VERSION_VIDE) ; sinon l'écran montre seulement le motif.
+ */
+export function ligneVersion(b) {
+  const depuis = jourEtHeure(b?.depuis);
+  const vu = jourEtHeure(b?.vu_le);
+  const vide = typeof b?.version !== 'string';
+  return {
+    cle: b?.cle,
+    libelle: LIBELLES_BATIMENTS[b?.cle] ?? 'Bâtiment',
+    version: vide ? null : b.version,
+    depuis: depuis ? `depuis le ${depuis.jour}` : null,
+    vuLe: vu ? `vu le ${vu.jour} à ${vu.heure}` : null,
+    etatVersion: ETATS[b?.etat_version] ? b.etat_version : 'inconnu',
+    etatStructure: ETATS[b?.etat_structure] ? b.etat_structure : 'inconnu',
+    textes: { version: `Version : ${texteEtatVersion(b?.etat_version)}`, structure: `Structure : ${texteEtatVersion(b?.etat_structure)}` },
+    vide,
+    sansTampon: vide && b?.motif === MOTIF_SANS_TAMPON,
+    motif: typeof b?.motif === 'string' && b.motif !== MOTIF_SANS_TAMPON ? b.motif : null,
+    historique: (Array.isArray(b?.historique) ? b.historique : []).slice(0, 10).map(texteHistorique),
+  };
+}
+/** Les lignes de l'écran, dans l'ordre de la réponse ; une réponse illisible donne une liste vide. */
+export function lignesVersions(reponse) {
+  return (Array.isArray(reponse?.batiments) ? reponse.batiments : []).map(ligneVersion);
 }

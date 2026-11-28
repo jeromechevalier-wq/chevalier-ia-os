@@ -1,4 +1,4 @@
-// Module Console (phase 0, 16/11/2026) : accès réservé à Jérôme, Filet de sécurité, sélecteur de plateforme. Un test par critère (le nom commence par son numéro).
+// Module Console (phase 0, 16/11/2026 ; versions des bâtiments, phase 2, 28/11/2026) : accès réservé à Jérôme, Filet de sécurité, sélecteur de plateforme, versions. Un test par critère (le nom commence par son numéro).
 // Captures dans tests/e2e/captures/console/ (une par état, nommée avec le projet : bureau ou téléphone).
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
@@ -17,6 +17,33 @@ async function simulerServeur(page, { refuser = false } = {}) {
     return route.fulfill({ status: 200, headers: entetes, contentType: 'application/json', body: JSON.stringify({ result: { version: '9.9.9', serveur: 'ok', plateforme: 'chevalier-ia-os' } }) });
   });
 }
+// Versions des bâtiments (phase 2, 28/11/2026) : réponse simulée de `consoleVersions`. Par défaut (beforeEach) le cas plein ; un test peut la remplacer (la dernière route posée gagne).
+const VERSIONS_PLEINES = {
+  version_reference: '2.59.0',
+  batiments: [
+    { cle: 'os', version: '2.59.0', depuis: '2026-11-28T09:00:00.000Z', vu_le: '2026-11-28T10:00:00.000Z', structure_code: 1, structure_base: null, etat_version: 'a_jour', etat_structure: 'inconnu', motif: null,
+      historique: [{ version: '2.59.0', de_version: '2.58.0', le: '2026-11-28T09:00:00.000Z' }, { version: '2.58.0', de_version: null, le: '2026-11-20T09:00:00.000Z' }] },
+    { cle: 'immeuble', version: '2.58.0', depuis: '2026-11-20T09:00:00.000Z', vu_le: '2026-11-28T10:00:00.000Z', structure_code: 1, structure_base: null, etat_version: 'en_retard', etat_structure: 'inconnu', motif: null,
+      historique: [{ version: '2.58.0', de_version: null, le: '2026-11-20T09:00:00.000Z' }] },
+  ],
+};
+const VERSIONS_VIDES = {
+  version_reference: '2.59.0',
+  batiments: [
+    { cle: 'os', version: null, depuis: null, vu_le: null, structure_code: null, structure_base: null, etat_version: 'inconnu', etat_structure: 'inconnu', motif: 'pas encore de tampon', historique: [] },
+    { cle: 'immeuble', version: null, depuis: null, vu_le: null, structure_code: null, structure_base: null, etat_version: 'inconnu', etat_structure: 'inconnu', motif: 'immeuble non relié', historique: [] },
+  ],
+};
+async function simulerVersions(page, { reponse = VERSIONS_PLEINES, enPanne = false } = {}) {
+  await page.route('**/consoleVersions', (route) => {
+    const entetes = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: entetes });
+    if (enPanne) return route.fulfill({ status: 500, headers: entetes, contentType: 'application/json', body: JSON.stringify({ error: { status: 'INTERNAL', message: 'x' } }) });
+    return route.fulfill({ status: 200, headers: entetes, contentType: 'application/json', body: JSON.stringify({ result: reponse }) });
+  });
+}
+test.beforeEach(async ({ page }) => { await simulerVersions(page); });
+
 const sansDefilementHorizontal = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 
 test('C4 le menu « Console » est visible pour Jérôme et mène au filet', async ({ page }) => {
@@ -107,7 +134,8 @@ test('C9 le bouton « Exporter mes données » (Réglages > Console) télécharg
   const [dl] = await Promise.all([page.waitForEvent('download'), bouton.click()]);
   expect(dl.suggestedFilename()).toMatch(/^chevalier-ia-console-\d{4}-\d{2}-\d{2}\.json$/);
   const json = JSON.parse(await readFile(await dl.path(), 'utf8'));
-  expect(Object.keys(json.collections)).toEqual(['console_filet']);
+  expect(Object.keys(json.collections)).toEqual(['console_filet', 'console_versions']);
+  expect(json.collections.console_versions.map((b) => [b.cle, b.version])).toEqual([['os', '2.59.0'], ['immeuble', '2.58.0']]); // V14 : les versions des bâtiments
   expect(json.collections.console_filet.map((f) => f.id)).toEqual(['budget']);
 });
 
@@ -150,4 +178,63 @@ test('A2 Le schéma ne dépend pas des données', async ({ page }) => {
   await expect(page.locator('.page > [data-bloc="architecture"]')).toBeVisible();
   await expect(page.locator('.page > [data-bloc="architecture"] svg[role="img"]:visible')).toHaveCount(1);
   await expect(page.locator('.console-zone [data-bloc="architecture"]')).toHaveCount(0);
+});
+
+test('V10 Vue d\'ensemble : le bloc « Versions » sous le schéma montre une ligne par bâtiment et déplie l\'historique', async ({ page }, info) => {
+  await simulerServeur(page);
+  await connecter(page, undefined, { route: 'console/vue' });
+  await attendreCalme(page);
+  const bloc = page.locator('.page > [data-bloc="versions"]');
+  await expect(bloc).toBeVisible();
+  expect(await page.evaluate(() => { const s = document.querySelector('.page > [data-bloc="architecture"]'); return s?.nextElementSibling?.dataset.bloc; })).toBe('versions'); // juste sous le schéma
+  await expect(bloc.locator('[data-batiment]')).toHaveCount(2);
+  const os = bloc.locator('[data-batiment="os"]');
+  await expect(os.locator('h3')).toHaveText('Chevalier IA OS');
+  await expect(os).toContainText('2.59.0 depuis le 28/11/2026');
+  await expect(os).toContainText('Version : à jour');
+  await expect(os).toContainText('Structure : inconnue');
+  await expect(os.locator('[data-vu-le]')).toHaveText('vu le 28/11/2026 à 11:00');
+  const immeuble = bloc.locator('[data-batiment="immeuble"]');
+  await expect(immeuble.locator('h3')).toHaveText('Chevalier IA App');
+  await expect(immeuble).toContainText('Version : en retard');
+  await expect(os.locator('li').first()).toBeHidden();
+  await os.getByText('Historique', { exact: true }).click();
+  await expect(os.locator('li')).toHaveCount(2);
+  await expect(os.locator('li').first()).toHaveText('2.59.0 (avant : 2.58.0), le 28/11/2026 à 10:00');
+  expect(await sansDefilementHorizontal(page)).toBe(true);
+  await bloc.scrollIntoViewIfNeeded();
+  await capturer(page, info, 'V10-versions');
+});
+
+test('V11 cas vide : un bâtiment sans tampon dit « Version inconnue… », l\'immeuble non relié montre seulement son motif', async ({ page }, info) => {
+  await simulerServeur(page);
+  await simulerVersions(page, { reponse: VERSIONS_VIDES });
+  await connecter(page, undefined, { route: 'console/vue' });
+  await attendreCalme(page);
+  const bloc = page.locator('[data-bloc="versions"]');
+  await expect(bloc.locator('[data-batiment] [data-vide]')).toHaveCount(1);
+  await expect(bloc.locator('[data-batiment="os"] [data-vide]')).toHaveText('Version inconnue : ce bâtiment n\'a pas encore été remis en ligne avec le tampon.');
+  await expect(bloc.locator('[data-batiment="os"] [data-motif]')).toHaveCount(0);
+  await expect(bloc.locator('[data-batiment="immeuble"] [data-motif]')).toHaveText('Motif : immeuble non relié.');
+  await expect(bloc.locator('[data-batiment="immeuble"] [data-vide]')).toHaveCount(0);
+  await expect(bloc.locator('[data-batiment="os"]')).toContainText('Version : inconnue');
+  await bloc.scrollIntoViewIfNeeded();
+  await capturer(page, info, 'V11-versions-vide');
+});
+
+test('V12 cas d\'erreur : message lisible, « Réessayer » relit les versions ; le reste de l\'écran reste là', async ({ page }, info) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur des versions répond en erreur (500) exprès' });
+  await simulerServeur(page);
+  await simulerVersions(page, { enPanne: true });
+  await connecter(page, undefined, { route: 'console/vue' });
+  await attendreCalme(page);
+  const bloc = page.locator('[data-bloc="versions"]');
+  await expect(bloc.locator('[data-erreur="versions"]')).toContainText('Les versions ne se lisent pas pour l\'instant.');
+  await expect(page.locator('.page > [data-bloc="architecture"]')).toBeVisible();
+  await bloc.scrollIntoViewIfNeeded();
+  await capturer(page, info, 'V12-versions-erreur');
+  await simulerVersions(page); // le serveur répond de nouveau
+  await bloc.locator('[data-action="reessayer-versions"]').click();
+  await expect(bloc.locator('[data-batiment]')).toHaveCount(2);
+  await expect(bloc.locator('[data-erreur="versions"]')).toHaveCount(0);
 });

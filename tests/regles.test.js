@@ -352,6 +352,17 @@ describe('Chantier 0 : les comptes viennent de la fiche reglages_maison/maison',
     await assertFails(updateDoc(doc(jerome, 'reglages_maison', 'maison'), { comptes_autorises: [JEROME, 'intrus@exemple.test'] }));
     await assertFails(getDocs(collection(jerome, 'reglages_maison')));
     await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'reglages_maison', 'maison')));
+    // Tampon de version (28/11/2026, Console phase 2) : la fiche reglages_maison/version et son historique sont écrits par le serveur seul ; aucun navigateur ne les lit ni ne les écrit.
+    for (const db of [jerome, contexte(COMPTES[1]), env.unauthenticatedContext().firestore()]) { // les deux comptes autorisés du CRM, puis un visiteur
+      await assertFails(getDoc(doc(db, 'reglages_maison', 'version')));
+      await assertFails(setDoc(doc(db, 'reglages_maison', 'version'), { version: '9.9.9' }));
+      await assertFails(updateDoc(doc(db, 'reglages_maison', 'version'), { version: '9.9.9' }));
+      await assertFails(deleteDoc(doc(db, 'reglages_maison', 'version')));
+      await assertFails(getDoc(doc(db, 'reglages_maison', 'version', 'historique', 'x')));
+      await assertFails(setDoc(doc(db, 'reglages_maison', 'version', 'historique', 'x'), { version: '9.9.9' }));
+      await assertFails(deleteDoc(doc(db, 'reglages_maison', 'version', 'historique', 'x')));
+      await assertFails(getDocs(collection(db, 'reglages_maison', 'version', 'historique')));
+    }
   });
   // Mon espace d'une maison de client (27/11/2026) : seule écriture permise dans reglages_maison, le nom et le logo de `public`.
   // Élargi le 27/11/2026 (accord de Jérôme) : tout compte de la maison (comptes_autorises), plus seulement le titulaire ; chaque changement porte sa ligne de journal (même lot).

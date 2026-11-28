@@ -461,6 +461,13 @@ describe('Chantier 0 : reglages_maison fermée au navigateur sur la plateforme',
         await assertFails(deleteDoc(doc(db, 'reglages_maison', id)));
       }
       await assertFails(getDocs(collection(db, 'reglages_maison')));
+      // Tampon de version de l'immeuble (28/11/2026, Console phase 2) : fiche et historique écrits par le serveur seul.
+      await assertFails(getDoc(doc(db, 'reglages_maison', 'version')));
+      await assertFails(setDoc(doc(db, 'reglages_maison', 'version'), { version: '9.9.9' }));
+      await assertFails(deleteDoc(doc(db, 'reglages_maison', 'version')));
+      await assertFails(getDoc(doc(db, 'reglages_maison', 'version', 'historique', 'x')));
+      await assertFails(setDoc(doc(db, 'reglages_maison', 'version', 'historique', 'x'), { version: '9.9.9' }));
+      await assertFails(getDocs(collection(db, 'reglages_maison', 'version', 'historique')));
     }
   });
 });

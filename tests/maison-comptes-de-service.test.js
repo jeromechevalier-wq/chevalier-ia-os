@@ -21,6 +21,7 @@ const AVANT_OS = Object.freeze({
   baseAccorderAcces: "base-acces@chevalier-ia-os.iam.gserviceaccount.com",
   basePorte: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com", // ajoutée le 26/11/2026 (porte de la base), compte déjà existant
   consoleEtat: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
+  consoleVersions: "automatisations-serveur@chevalier-ia-os.iam.gserviceaccount.com", // ajoutée le 28/11/2026 (versions des bâtiments), compte déjà existant (seul lecteur de l'immeuble)
   deploiementVerifier: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
   depotdocument: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
   devisArchiver: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
@@ -55,6 +56,7 @@ const AVANT_OS = Object.freeze({
   reseauxsociauxMesuresHebdo: "<ResetValue>",
   reseauxsociauxReleverMesures: "<ResetValue>",
   tableaudebord: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
+  tamponVersion: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com", // ajoutée le 28/11/2026 (tampon de version horaire), compte déjà existant
   tableaudebordSaisir: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
   veille: "<ResetValue>",
   villageOr: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com", // ajoutée le 27/11/2026 (or du village), compte déjà existant
@@ -92,6 +94,7 @@ const AVANT_APP = Object.freeze({
   rdvEnvoyer: "<ResetValue>",
   rdvEtat: "<ResetValue>",
   rdvReponseSms: "<ResetValue>",
+  tamponVersion: "<ResetValue>", // ajoutée le 28/11/2026 (tampon de version horaire), même réglage que rdvEnvoiPlanifie
   villageOr: "<ResetValue>", // ajoutée le 27/11/2026 (or du village), même réglage que les fonctions de devis
 });
 

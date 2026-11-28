@@ -22,6 +22,7 @@ const PARTAGEES = [
   'documentDeposer', 'documentLien', 'documentRenommer', 'documentSupprimer',
   'villageOr', // or du village (27/11/2026) : même cœur des deux côtés (coeur/village-or.js) ; la source « facture validée » n'existe que dans une maison qui a la base des achats
   'rdvEtat', 'rdvEnvoyer', 'rdvEnvoiPlanifie', 'rdvReponseSms', 'rdvConnexionSms', // module Rendez-vous (14/11/2026) : l'envoi des SMS par ClickSend (demandé par l'écran, filet toutes les 15 minutes, réponses reçues), même code des deux côtés
+  'tamponVersion', // tampon de version horaire (28/11/2026, Console phase 2) : chaque bâtiment note sa version dans reglages_maison/version, même code des deux côtés (coeur/tampon-version.js)
 ];
 
 /** Seulement chez Jérôme : raison par ligne. « normal » = voulu ; « ÉCART » = à brancher chez les clients (voir docs/audit-ecarts-fonctions.md). */
@@ -36,6 +37,7 @@ const RESERVEES_JEROME = {
   reseauxsociauxMesuresHebdo: 'ÉCART connu : relevé hebdomadaire (lundi 06:00) des chiffres des posts LinkedIn de Jérôme dans `reseauxsociaux_mesures`, même raison que `reseauxsociauxBuffer` (clé Buffer personnelle)',
   depotdocument: 'ÉCART connu (17/11/2026) : lien d\'envoi temporaire d\'un fichier par l\'assistant (outil `demander_lien_depot`), d\'abord chez Jérôme ; chez les clients il faudrait le brancher dans functions-plateforme/ avec une adresse par client (voir .github/A-FAIRE.md)',
   consoleEtat: 'normal : outil d\'exploitation de Jérôme, réservé par décision du 16/11/2026 (module Console, docs/console.md)',
+  consoleVersions: 'normal : outil d\'exploitation de Jérôme (versions des bâtiments, Console phase 2 du 28/11/2026), réservé par décision du 16/11/2026 (module Console, docs/console.md)',
   pilotageLire: 'ÉCART connu (23/11/2026) : tableaux du module Pilotage lus dans le Postgres du client ; le module est d\'abord essayé chez Jérôme. Avant de l\'ouvrir aux clients : version plateforme, secret par client `SUPABASE_INDICATEURS_<client>` (modèle `nomDuSecret` de coeur/sms-direct.js), contrôle d\'appartenance à l\'espace côté serveur sans jamais croire un `cheminBase` envoyé par le navigateur, et règle de `firestore.plateforme.rules` interdisant l\'écriture directe de `pilotage_parametres`',
   pilotageEnregistrerReglages: 'ÉCART connu (23/11/2026) : enregistrement du réglage des tableaux (Jérôme seul), même raison et mêmes conditions que `pilotageLire`',
   basePorte: 'ÉCART connu (26/11/2026) : porte des écrans Achats et de n8n vers la base Cloud SQL d\'une maison ; la plateforme des clients n\'a pas de Cloud SQL (voir .github/A-FAIRE.md)',

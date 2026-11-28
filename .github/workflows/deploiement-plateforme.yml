@@ -5,6 +5,7 @@
 # Les fonctions de la plateforme (module Automatisations : historique des workflows n8n, dossier functions-plateforme/) ne sont publiées que par le choix « fonctions »,
 # jamais avec les autres : c'est un déploiement à part, qui exige la clé de n8n déjà déposée dans Secret Manager (docs/automatisations-n8n.md).
 # Le choix « porte » ne publie QUE la porte des workflows n8n des clients (fonction porte) ; elle lit le secret N8N_API_KEY (docs/porte-cles.md). La réécriture /porte part ensuite avec le choix « hosting ».
+# Tampon de version (28/11/2026, Console phase 2) : « hosting » et « tout » publient AUSSI la fonction planifiée tamponVersion (aucun secret), pour que la version tamponnée suive toujours le site.
 # Le choix « mcp » ne publie QUE la fonction du MCP des clients (mcpclients) : aucune liaison de secret, mais elle lit MCP_JETONS_CLIENTS à l'exécution (droit « Accesseur de secrets » sur ce secret, docs/mcp-clients.md).
 # Étapes : 1) contrôles sans réseau, 2) construction du paquet dist/plateforme (même code et même version que le CRM, mais avec la
 # configuration Firebase de chevalier-ia-app), 3) publication de ce qui est choisi. Secret requis : FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_APP.
@@ -39,9 +40,11 @@ jobs:
           node-version: 22
       - name: Contrôles sans réseau (le CRM garde sa configuration, la plateforme prend la sienne, aucun secret)
         run: node --test tests/plateforme-deploiement.test.js
-      - name: Installer les composants des fonctions (choix « fonctions », « mcp », « espace » ou « porte »)
-        if: ${{ inputs.elements == 'fonctions' || inputs.elements == 'mcp' || inputs.elements == 'espace' || inputs.elements == 'porte' }}
-        run: npm ci --prefix functions-plateforme
+      - name: Installer les composants des fonctions (choix « fonctions », « mcp », « espace », « porte », et « hosting » ou « tout » pour le tampon de version)
+        if: ${{ inputs.elements == 'fonctions' || inputs.elements == 'mcp' || inputs.elements == 'espace' || inputs.elements == 'porte' || inputs.elements == 'hosting' || inputs.elements == 'tout' }}
+        # Jamais bloquant pour « hosting » et « tout » (règle du 27/11/2026 : rien ne bloque une publication d'urgence) : en cas d'échec ici,
+        # la publication des fonctions échoue plus bas, et « hosting » / « tout » repartent alors sans le tampon de version.
+        run: npm ci --prefix functions-plateforme || echo "::warning::Composants des fonctions non installés : le tampon de version risque de ne pas partir."
       - name: Construire le paquet de la plateforme
         run: node scripts/preparer-hebergement.js plateforme
       - name: Vérifier que le secret existe (sans jamais l'afficher)
@@ -60,9 +63,9 @@ jobs:
           ELEMENTS: ${{ inputs.elements }}
         run: |
           case "$ELEMENTS" in
-            hosting) cible="hosting" ;;
+            hosting) cible="hosting,functions:plateforme:tamponVersion" ;;
             regles)  cible="firestore:rules,storage" ;;
-            tout)    cible="hosting,firestore:rules,storage" ;;
+            tout)    cible="hosting,firestore:rules,storage,functions:plateforme:tamponVersion" ;;
             fonctions) cible="functions:plateforme" ;;
             mcp)     cible="functions:plateforme:mcpclients" ;;
             espace)  cible="functions:plateforme:espaceReglages" ;;
@@ -72,4 +75,11 @@ jobs:
           fichier="$RUNNER_TEMP/compte-de-service.json"
           (umask 077; printf '%s' "$COMPTE_DE_SERVICE" > "$fichier")
           trap 'rm -f "$fichier"' EXIT
-          GOOGLE_APPLICATION_CREDENTIALS="$fichier" npx --yes firebase-tools@15.32.0 deploy --only "$cible" --config firebase.plateforme.json --project chevalier-ia-app --non-interactive
+          # « hosting » et « tout » : le tampon de version ne bloque jamais le site (règle du 27/11/2026). S'il échoue, on republie sans lui, avec un avertissement.
+          for essai in 1 2; do
+            GOOGLE_APPLICATION_CREDENTIALS="$fichier" npx --yes firebase-tools@15.32.0 deploy --only "$cible" --config firebase.plateforme.json --project chevalier-ia-app --non-interactive && break
+            case "$ELEMENTS:$essai" in
+              hosting:1|tout:1) echo "::warning::Le tampon de version n'a pas pu partir : nouvelle publication sans lui." ; cible="${cible%,functions:plateforme:tamponVersion}" ;;
+              *) exit 1 ;;
+            esac
+          done
