@@ -37,11 +37,11 @@ Aussi le 28/11 : la règle « un robot ne valide jamais une facture » est **aba
 **Les règles de la base du 27/11** : la liste finale des 25 règles, et comment la base tient chacune (tenue, préparée ou à faire), est dans `outils/base/REGLES.md` (mise à jour par la PR 754, puis 755 et 757). Elle n'est pas recopiée ici : c'est ce fichier qui fait foi.
 
 **Ce qui reste à faire avec Jérôme** :
-1. Appliquer à la vraie base de SCAB 04 les migrations 009 à 013, dans la même séance, n8n arrêté : d'abord des vérifications en lecture (les valeurs que n8n envoie vraiment), puis les migrations, puis republier la porte et la maison.
+1. Migrations 009 à 013 sur la vraie base de SCAB 04 : installées le 28/11/2026 au matin.
 2. Brancher `outils/base/a-activer/003` (« qui » pris dans l'identité vérifiée), après avoir adapté les workflows n8n. (`002`, « le robot ne décide pas », est abandonné : décision de Jérôme du 28/11/2026, voir la règle 14 de `outils/base/REGLES.md`.)
 3. Cadenasser `valide_le` et `valide_par` des rapprochements, et `refuse_le` et `refuse_par` des suggestions refusées.
 4. Le « par où » ne dit encore que « assistant » ou « n8n », sans le nom exact de l'assistant ou du workflow.
-5. « + Chantier » dans le volet : fait (PR 778, 28/11/2026 ; formulaire « Nouveau chantier », action `creer_chantier` ; pas encore essayé sur la vraie base de SCAB 04).
+5. « + Chantier » dans le volet : fait (PR 778, 28/11/2026 ; formulaire « Nouveau chantier », action `creer_chantier`), en ligne chez SCAB 04 le 28/11/2026.
 6. Le mode d'emploi des factures n'est pas encore donné à l'assistant (seulement chantiers, agences, fournisseurs).
 7. La maison de Jérôme reste sur son ancienne base Supabase : son déménagement vers le nouveau modèle se fera dans un second temps (décision de Jérôme).
 8. Le test `achatsfactures-pile` P1 a échoué une fois puis est passé : instable, à surveiller.
@@ -76,7 +76,7 @@ Aussi le 28/11 : la règle « un robot ne valide jamais une facture » est **aba
   - Le mode d'emploi est lu une fois, à la création du volet, sans redessin pendant une saisie.
 
 **Non vérifié avec le vrai système** :
-- La vraie base de SCAB 04 : aucune migration n'y est appliquée, tout a été essayé sur une base de test.
+- La vraie base de SCAB 04 : pendant la nuit, aucune migration n'y était appliquée, tout a été essayé sur une base de test (migrations 009 à 013 installées depuis, le 28/11/2026 au matin).
 - Les vrais workflows n8n (les valeurs qu'ils envoient n'ont pas été relues).
 - La maison de Jérôme (toujours sur Supabase).
 

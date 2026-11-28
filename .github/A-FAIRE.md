@@ -2,6 +2,10 @@
 
 Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08/11/2026, fin de nuit** (PR 546 à 553, docs de fin de session) ; avant : 08/11/2026 (PR 549, 552, 553) ; avant : 07/11/2026 (PR 549, 552) ; avant : 06/11/2026 (PR 530 à 536) ; avant : 05/11/2026 (PR 500 à 528) ; avant : 01/11/2026 (PR 490 à 498) ; avant : 31/10/2026 soir (PR 449 à 479) ; avant : 31/10/2026 matin (PR 440 à 459 fusionnées, nuit du 30 au 31/10) ; avant : 30/10/2026 soir (PR 418 à 438) et 29/10/2026 (3e nuit, PR 379 à 394). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Versions 2 en cours (règle « Versions de modules » du 28/11/2026)
+- **Versions 2 en cours** : Devis 2 (catalogue d'articles dans Cloud SQL) : en étude (28/11/2026), d'abord allumé chez la maison d'essai ; à rapatrier chez Jérôme quand il est satisfait (il faudra une base Cloud SQL chez lui, projet `chevalier-ia-donnees` déjà créé, instance pas encore).
+- **Console : afficher la version de chaque module** (demande de Jérôme du 28/11/2026).
+
 ## Module Achats et accueil des maisons (décisions de Jérôme du 26/11/2026)
 - **Mon espace d'une maison (PR 730, 27/11/2026)** : nom et logo ouverts aux comptes du client, avec une ligne de journal : FAIT (accord de Jérôme du 27/11/2026, PR « nom et logo par les comptes du client »).
 - **Écart Jérôme/clients (règle du 18/10)** : formulaire nom + logo seulement dans une maison (chez Jérôme, Mon espace reste en lecture seule) : à traiter à l'audit des écarts.
