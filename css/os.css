@@ -941,6 +941,12 @@ body.page-espace { background: #241b2e; color: #fff; }
 .console-version + .console-version { border-top: 1px solid var(--bordure); margin-top: var(--esp-6); padding-top: var(--esp-6); }
 .console-version-etats { display: flex; flex-wrap: wrap; gap: var(--esp-3); }
 .console-version-historique summary { cursor: pointer; color: var(--lien); }
+/* Console > Vue d'ensemble, bâtiments du registre (28/11/2026, PR 2) : une rangée de boutons sous le schéma (noms longs coupés proprement), puis le détail. */
+.console-batiments { display: flex; flex-wrap: wrap; gap: var(--esp-3); margin-top: var(--esp-4); }
+.console-batiment { max-width: 100%; min-width: 0; }
+.console-batiment-nom { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.console-detail { border-top: 1px solid var(--bordure); margin-top: var(--esp-6); padding-top: var(--esp-6); overflow-wrap: anywhere; }
+.console-detail h3:focus { outline: none; }
 .console-schema-texte2 { fill: var(--texte2); font-family: var(--police-texte); }
 .console-schema-fort { font-weight: var(--poids-moyen); }
 .console-schema-nuage { fill: var(--panneau2); stroke: var(--bordure-forte); stroke-width: 1.5; }

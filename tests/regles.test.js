@@ -362,6 +362,18 @@ describe('Chantier 0 : les comptes viennent de la fiche reglages_maison/maison',
       await assertFails(setDoc(doc(db, 'reglages_maison', 'version', 'historique', 'x'), { version: '9.9.9' }));
       await assertFails(deleteDoc(doc(db, 'reglages_maison', 'version', 'historique', 'x')));
       await assertFails(getDocs(collection(db, 'reglages_maison', 'version', 'historique')));
+      // Registre privé de la Console et ses relevés (28/11/2026, phase 2, PR 2) : serveur seul, aucune règle ajoutée (la règle de reglages_maison les ferme déjà).
+      await assertFails(getDoc(doc(db, 'reglages_maison', 'registre_console')));
+      await assertFails(setDoc(doc(db, 'reglages_maison', 'registre_console'), { batiments: [] }));
+      await assertFails(updateDoc(doc(db, 'reglages_maison', 'registre_console'), { batiments: [] }));
+      await assertFails(deleteDoc(doc(db, 'reglages_maison', 'registre_console')));
+      for (const chemin of [['releves', 'os'], ['releves', 'os', 'historique', 'x']]) {
+        await assertFails(getDoc(doc(db, 'reglages_maison', 'registre_console', ...chemin)));
+        await assertFails(setDoc(doc(db, 'reglages_maison', 'registre_console', ...chemin), { version: '9.9.9' }));
+        await assertFails(deleteDoc(doc(db, 'reglages_maison', 'registre_console', ...chemin)));
+      }
+      await assertFails(getDocs(collection(db, 'reglages_maison', 'registre_console', 'releves')));
+      await assertFails(getDocs(collection(db, 'reglages_maison', 'registre_console', 'releves', 'os', 'historique')));
     }
   });
   // Mon espace d'une maison de client (27/11/2026) : seule écriture permise dans reglages_maison, le nom et le logo de `public`.

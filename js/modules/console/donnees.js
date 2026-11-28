@@ -1,4 +1,5 @@
-// Données du module Console : le Filet de sécurité (`console_filet/<id>` : { verifieLe, note }), l'état du serveur (fonction `consoleEtat`) et les versions des bâtiments (fonction `consoleVersions`, phase 2).
+// Données du module Console : le Filet de sécurité (`console_filet/<id>` : { verifieLe, note }), l'état du serveur (fonction `consoleEtat`), les versions des bâtiments (fonction `consoleVersions`, phase 2)
+// et le registre privé des bâtiments avec leurs relevés (fonction `consoleBatiments`, phase 2, PR 2).
 // Les écritures passent par `executer` (journal commun) : une vérification datée laisse sa trace comme toute autre écriture.
 import { collection, getDocs, onSnapshot, Timestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
@@ -98,5 +99,20 @@ export async function lireVersions() {
     const code = String(e?.code ?? '');
     if (code.endsWith('permission-denied') || code.endsWith('unauthenticated')) throw new Error('Ce compte n\'a pas accès à la Console. Se reconnecter si besoin.');
     throw new Error('Les versions ne se lisent pas pour l\'instant.');
+  }
+}
+
+/**
+ * Appelle `consoleBatiments` (phase 2, PR 2, 28/11/2026) : { os, immeuble: { projets, appartements, total_appartements }, maisons, releves, motifs }.
+ * Lève une erreur au message lisible (jamais de détail technique).
+ */
+export async function lireBatiments() {
+  try {
+    const r = await httpsCallable(fonctions(), 'consoleBatiments')({});
+    return r.data;
+  } catch (e) {
+    const code = String(e?.code ?? '');
+    if (code.endsWith('permission-denied') || code.endsWith('unauthenticated')) throw new Error('Ce compte n\'a pas accès à la Console. Se reconnecter si besoin.');
+    throw new Error('Les bâtiments ne se lisent pas pour l\'instant.');
   }
 }
