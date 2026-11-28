@@ -209,9 +209,13 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     class: 'avatar avatar-initiale', style: { width: `${taille}px`, height: `${taille}px` },
     ...(nomAccessible ? { role: 'img', 'aria-label': compte.nom } : { 'aria-hidden': 'true' }),
   }, [...String(compte.nom || '?')][0].toUpperCase());
-  const marqueNom = h('span', { class: 'menu-marque-nom' });
+  // Nom et logo de l'espace, en haut à gauche : un lien vers l'accueil de l'espace (28/11/2026 : ils ne faisaient rien au clic), même menu replié (logo seul).
+  // Le nom accessible commence par le nom visible (commande vocale), puis dit où va le lien.
+  const libelleAccueil = () => `${client.nom || 'Espace'} : aller à l'accueil`;
+  const marqueNom = h('a', { class: 'menu-marque-nom', href: lien(accueil), dataset: { role: 'marque-accueil' } });
   const remplirMarque = () => {
     remplir(marqueNom, logoEspace(client.logo, 26, 'menu-logo-client'), h('span', { class: 'menu-texte' }, ...nomEspace(client)));
+    marqueNom.setAttribute('aria-label', libelleAccueil());
   };
   remplirMarque();
 
@@ -360,7 +364,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   const barreOutils = h('div', { class: 'barre-outils' }, recherche.element, boutonPlus);
 
   const marqueHaut = h('a', { class: 'barre-haut-marque', href: lien(accueil) });
-  const remplirMarqueHaut = () => remplir(marqueHaut, logoEspace(client.logo, 22, 'barre-haut-logo'), h('span', {}, ...nomEspace(client)));
+  const remplirMarqueHaut = () => { remplir(marqueHaut, logoEspace(client.logo, 22, 'barre-haut-logo'), h('span', {}, ...nomEspace(client))); marqueHaut.setAttribute('aria-label', libelleAccueil()); };
   remplirMarqueHaut();
   const barreHaut = h('header', { class: 'barre-haut' }, boutonMobile, marqueHaut, boutonRecherche, boutonPlusMobile, initiale(30, true));
   const voile = h('div', { class: 'voile-menu', onclick: () => ouvrirMobile(false) });
@@ -392,6 +396,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   const surBascule = window.matchMedia('(max-width: 767px)');
   surBascule.addEventListener?.('change', majRepli);
   nav.addEventListener('click', (e) => { if (e.target.closest('a') && estTelephone()) ouvrirMobile(false); });
+  marqueNom.addEventListener('click', () => { if (estTelephone()) ouvrirMobile(false); }); // tiroir du téléphone : il se referme sur l'accueil
 
   const ignorerTouche = (e) => {
     const cible = e.target;
