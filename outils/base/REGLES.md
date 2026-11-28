@@ -15,7 +15,7 @@ node outils/base/tester.js --comme-cloudsql
 ```
 
 - La 1re commande joue les migrations deux fois (pour prouver qu'on peut les rejouer), puis chaque fichier de `tests/` sur une copie neuve.
-- La 2e fait la même chose, puis essaie en plus les fichiers « à activer » (`a-activer/002` : le robot ne décide pas ; `003` : « qui » pris dans l'identité vérifiée).
+- La 2e fait la même chose, puis essaie en plus les fichiers « à activer » (`a-activer/002` : le robot ne décide pas, **abandonné le 28/11/2026**, voir règle 14 ; `003` : « qui » pris dans l'identité vérifiée).
 - La 3e joue tout **comme dans Cloud SQL** : le compte qui installe la base n'y est **pas** superutilisateur (le compte `postgres` de Cloud SQL, membre de `cloudsqlsuperuser`, peut créer des rôles et des bases ; il peut aussi créer les extensions permises par Google et des déclencheurs d'événements, ce que `admin_cloudsql` ne peut pas : ce mode est donc **plus strict** que Cloud SQL). Ici, un compte `admin_cloudsql` (sans superutilisateur ni `BYPASSRLS`) crée la base et les rôles, joue les migrations, puis les tests ; la sécurité par ligne forcée s'applique donc aussi à lui. Pour les tests seulement, il se donne le droit de « devenir » `porte`, `robot_reflets` et `indicateurs` (`set role`), sans hériter de leurs droits. Se combine avec `--avec-a-activer`.
 - Il faut Postgres.app (PostgreSQL 17) sur le Mac, ou le dossier des programmes dans `PG_BIN`. Le programme refuse une version plus ancienne que 17.
 - Le programme **refuse de démarrer** si `PGHOST` ou `DATABASE_URL` existe (signe qu'une vraie base est réglée dans le terminal). Il ne parle qu'à la base qu'il vient de créer, par une prise locale, jamais par le réseau, et l'arrête avec `pg_ctl stop`.
@@ -39,7 +39,7 @@ node outils/base/tester.js --comme-cloudsql
 | `migrations/012_cadenas_et_tracage.sql` | Règles 3, 4, 15 : « par où » posé par la base sur chaque ligne à partir de `app.par_ou` (réglage écrit par la porte d'après la voie : `ecran`, `assistant`, `n8n`), jamais à partir de la requête ; reflets en ajout seul pour tout le monde, robot compris (seul le tampon `archive_le` des lignes lues se modifie) ; un reflet ne s'écrit que par le robot (ancien `a-activer/001`, branché). |
 | `migrations/013_mode_d_emploi.sql` | Règles 23 et 24 : le mode d'emploi rangé dans la base. `mode_emploi_objets` (la personne peut-elle créer, « + », sinon pourquoi) et `mode_emploi_champs` (catégorie, modifiable, phrase du cadenas), sans espace, lecture seule pour les trois rôles. Et l'identifiant d'une ligne ne change plus jamais (`ab_socle_id_fige` sur toutes les tables). |
 | `a-activer/001_bloquer_reflets.sql` | Vide : branché dans 012 le 27/11/2026. |
-| `a-activer/002_robot_ne_decide_pas.sql` | **Pas appliqué.** Le rôle du robot ne peut plus écrire une décision ni une correction (règle 14). |
+| `a-activer/002_robot_ne_decide_pas.sql` | **Pas appliqué, abandonné (décision de Jérôme du 28/11/2026, règle 14).** Le rôle du robot ne pourrait plus écrire une décision ni une correction. Gardé pour mémoire, à ne pas brancher. |
 | `a-activer/003_qui_verifie.sql` | **Pas appliqué.** « qui » des décisions et du journal pris dans `app.utilisateur` (identité vérifiée), plus dans `p_qui` (règle 4). |
 | `tests/*.sql` | Les vérifications (voir plus bas). |
 | `tester.js` | Le programme qui essaie tout sur une base jetable. |
@@ -63,7 +63,7 @@ Liste finale du 27/11/2026 (relecture Fable, corrigée par les décisions de Jé
 | 11 | Identifiants `uuid` | Partout, sauf le compteur du journal. | tenue | `01` |
 | 12 | Simultanéité | **Plus tard.** | à faire | — |
 | 13 | On doit toujours pouvoir rejouer l'historique | Scans, décisions, corrections et journal en ajout seul ; rien n'est effacé. | tenue | `04`, `07` |
-| 14 | Une personne (écran ou son assistant) décide et corrige ; un robot qui travaille seul ne décide jamais. Pas de hiérarchie entre valeurs | Une décision porte un e-mail (`decide_par`, `valide_par`, `refuse_par`, `confirme_par`, `revoque_par` : jamais `n8n`). Le rôle du robot ne peut plus écrire une décision : préparé dans `a-activer/002` (aujourd'hui, chez SCAB 04, c'est n8n qui écrit les décisions au nom de la personne). | en partie | `10`, `tests/a-activer/02` |
+| 14 | Une décision dit toujours **qui** l'a prise. Une personne (écran ou son assistant) décide et corrige ; **n8n pourra plus tard valider seul des factures de confiance**, mais tout ce qui vient de n8n est signé `n8n`. Pas de hiérarchie entre valeurs | **Changée le 28/11/2026 (décision de Jérôme)** : l'ancienne règle « un robot ne valide jamais une facture » est **abandonnée**. Ce qui est exigé : une écriture faite par n8n porte `n8n` dans « qui » (`qui` du journal, `decide_par`) et `par_ou = 'n8n'`. Le workflow n8n « 08 ajouter une facture » passe maintenant `p_qui = 'n8n'`. Une décision prise par une personne porte son e-mail. `a-activer/002` (le robot ne décide pas) n'est donc plus à brancher. | en partie | `10` |
 | 15 | Reflet en ajout seul ; seule exception : le tampon de fin à écriture unique | Droit UPDATE retiré à tous sur les reflets, robot compris (012) ; seule la case `archive_le` des lignes lues reste modifiable par le robot ; les autres reflets ont en plus un déclencheur « ajout seul ». **Pas encore** : l'écriture unique du tampon (règle 6). | en partie | `04`, `07` |
 | 16 | Nouveau scan d'une facture à valider : l'ancien est tamponné « remplacée » tout seul | — | à faire | — |
 | 17 | Un reflet qui évolue : une ligne par état observé (unicité élargie à la date d'observation) | — | à faire | — |
@@ -211,7 +211,7 @@ Le test `05` vérifie, sur le schéma d'aujourd'hui relevé automatiquement : le
 
 - **Garde-fou de simultanéité (règle 12)** : refuser une écriture faite sur une version périmée d'une ligne (deux personnes qui modifient la même fiche en même temps). Pas fait dans ce plan. Les verrous d'aujourd'hui (`for update`, verrous par fournisseur, par IBAN, par code de chantier, par facture) sont gardés.
 - Brancher `tester.js` sur la coche « Tests » de GitHub.
-- Activer `a-activer/002` et `003` quand la porte saura faire agir n8n au nom de la personne du ticket (identité vérifiée), que les workflows n8n de SCAB 04 auront suivi, et après un essai en vrai.
+- Activer `a-activer/003` (pas `002`, abandonné le 28/11/2026, règle 14) quand la porte saura faire agir n8n au nom de la personne du ticket (identité vérifiée), que les workflows n8n de SCAB 04 auront suivi, et après un essai en vrai.
 - Créer les vrais comptes de connexion (la porte, les robots, le Pilotage) et leur donner ces rôles.
 
 ## Ce qui n'est pas fait (correction C8)

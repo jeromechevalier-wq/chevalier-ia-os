@@ -82,6 +82,12 @@ Une petite appli pour valider les factures à la suite, d'après la maquette « 
 - **Plein écran « concentration »** : un bouton ; touches V = valider, R = refuser, P = passer, Échap = sortir. Les touches n'agissent pas pendant qu'on écrit ni quand une fenêtre est ouverte.
 - **Tableau de bord des factures** : à valider, validées et refusées ce mois, montant validé ce mois, délai moyen de validation, les 3 fournisseurs du mois, le montant validé des 4 dernières semaines. Tout est calculé sur la liste des factures déjà lue ; une donnée absente s'affiche « — », jamais un nombre inventé.
 
+## Fabriquer une facture d'essai (28/11/2026, PR 764)
+
+Pour essayer le dépôt de factures (« + Facture », n8n, lecture par l'IA) sans vraie facture : `node scripts/facture-essai.js --sortie <dossier>` (sans `--sortie`, le PDF est rangé hors du dépôt, dans `~/Code-Chevalier-IA/factures-essai`). Chaque passage donne une facture du jour, avec un numéro, des lignes et un total nouveaux ; le fournisseur est toujours le même (fictif, avec un SIRET, un n° de TVA et un IBAN valides), pour qu'il soit « connu » dès la 2e facture.
+
+À savoir : l'IBAN d'exemple est fixe. Si une facture de démonstration porte le même IBAN, le contrôle « IBAN partagé » s'allume (vu le 28/11/2026 avec un fournisseur de démonstration) : c'est normal, ce n'est pas une panne.
+
 ## Ce qui n'est PAS fait
 
 Liste vivante : `.github/A-FAIRE.md` (parties « modules Achats »). En bref :

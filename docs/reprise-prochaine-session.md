@@ -1,5 +1,28 @@
 # À faire au début de la prochaine session
 
+## Nuit du 28/11/2026
+
+| Sujet | PR | État |
+|---|---|---|
+| Facture d'essai en PDF (`scripts/facture-essai.js`) | 764 | fusionnée |
+| Console : versions des bâtiments (tampon horaire et bloc « Versions »), PR 1 | 765 | fusionnée |
+| Base SCAB 04 : rejouer 010 après 013 garde les listes fermées (migrations 010 et 013) | 766 | fusionnée |
+| Claude Code sur le Mac par la connexion Google, pour tous les espaces | 767 | fusionnée (relue par Fable, remarques mineures plus bas) |
+| Le nom et le logo de l'espace, en haut à gauche, ramènent à l'accueil | 768 | fusionnée |
+| Mon accueil : « Pièces d'or et boutique » grisé tant que l'accueil est classique, règle « option sans effet » | 769 | fusionnée |
+| Déploiement plateforme clients : réparer le fichier du workflow (GitHub ne le lisait plus, un deux-points dans une ligne `run`) | 770 | fusionnée (test de lecture des workflows à ajouter : `.github/A-FAIRE.md`, A15) |
+| Console phase 2, PR 2 : registre privé des bâtiments, relevé horaire, vrais noms et détail au clic | 771 | fusionnée |
+| Accueil : menu classique par défaut (village éteint tant que la personne ne l'allume pas) | 772 | fusionnée |
+| Console : finitions après la relecture Fable de la PR 771 | 773 | fusionnée |
+| Docs du 28/11 (alerte e-mail de la base, règle 14 changée, facture d'essai, note MCP), version 2.60.0, wiki | cette PR | docs et version (relecture Fable non requise) |
+
+Aussi le 28/11 : la règle « un robot ne valide jamais une facture » est **abandonnée** (décision de Jérôme) ; ce qui vient de n8n est signé `n8n` (règle 14 de `outils/base/REGLES.md`). Une alerte e-mail prévient quand la base refuse une écriture (procédure : `docs/etude-une-maison-par-client.md`, 4.4).
+
+**À faire le matin** :
+1. Essai complet de SCAB 04 par le serveur MCP, après la connexion Google de Jérôme dans Claude Code (`docs/branchement-mcp.md`, section 4).
+2. Verrou `console_active` : c'est une donnée de Jérôme, à poser avec son accord.
+3. Remarques mineures de Fable sur la PR 767 : champ `local` inutilisé dans `functions/src/clients/config.js` ; test du port différent côté clients ; test de l'enregistrement automatique (DCR) avec une liste mixte d'adresses ; textes « Reviens dans Claude » ; frein par appelant absent du routeur des clients.
+
 ## Rapport du matin du 28/11/2026 (« go nuit » du 27/11, deuxième partie) : la base de SCAB 04 et l'appli Factures
 
 | Sujet | PR | État |
@@ -15,7 +38,7 @@
 
 **Ce qui reste à faire avec Jérôme** :
 1. Appliquer à la vraie base de SCAB 04 les migrations 009 à 013, dans la même séance, n8n arrêté : d'abord des vérifications en lecture (les valeurs que n8n envoie vraiment), puis les migrations, puis republier la porte et la maison.
-2. Brancher `outils/base/a-activer/002` (le robot ne décide pas) et `003` (« qui » pris dans l'identité vérifiée), après avoir adapté les workflows n8n.
+2. Brancher `outils/base/a-activer/003` (« qui » pris dans l'identité vérifiée), après avoir adapté les workflows n8n. (`002`, « le robot ne décide pas », est abandonné : décision de Jérôme du 28/11/2026, voir la règle 14 de `outils/base/REGLES.md`.)
 3. Cadenasser `valide_le` et `valide_par` des rapprochements, et `refuse_le` et `refuse_par` des suggestions refusées.
 4. Le « par où » ne dit encore que « assistant » ou « n8n », sans le nom exact de l'assistant ou du workflow.
 5. Pas encore de « + Chantier » dans le volet : l'écran n'ouvre jamais un champ qu'il ne sait pas écrire, et le formulaire « Nouveau chantier » n'existe pas encore.
