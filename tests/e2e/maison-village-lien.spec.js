@@ -3,8 +3,11 @@
 // Même méthode que tests/e2e/maison-village-damier.spec.js. Le site ouvert est factice (context.route sur https://exemple.test/**) : aucun accès à Internet.
 // Logique sans navigateur (adresseExterne, docLien, rangerVillage avec des liens) : fin de tests/maison-village.test.js.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, listerDocuments, estTelephone, CHARLES, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
+import { test, expect, connecter, ecrireDocument, listerDocuments, estTelephone, CHARLES, PROJET, FIRESTORE, ECRAN_PARCOURS, villageParDefaut } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
+
+// Depuis le 28/11/2026 l'accueil par défaut est le menu classique : ces parcours du village remettent le village par défaut (crochet de test, docs/accueil-village.md).
+test.beforeEach(async ({ page }) => { await villageParDefaut(page); });
 
 const DOSSIER = fileURLToPath(new URL('./captures/maison-village-lien/', import.meta.url));
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: false, animations: 'disabled' });

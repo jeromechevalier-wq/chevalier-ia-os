@@ -239,7 +239,7 @@ node scripts/donner-or-village.js --projet <id du projet Firebase> --compte <adr
 Demande de Jérôme : un interrupteur qui enlève toute la partie jeu (pièces d'or, boutique, champs, cochons, récolte), un autre pour revenir au menu habituel de l'application ; et l'or se gagne même quand on ne le voit pas.
 
 - **D1** Les deux interrupteurs sont **propres à chaque personne** (chaque compte) : `village_utilisateurs/{uid}/preferences/accueil` = `{ jeu, accueil: 'village' | 'classique', modifieLe }` (heure du serveur). Écrit et lu par la personne elle-même seulement (`firestore.rules`, fonction `villagePreferencesValides`). Jamais supprimé.
-- **D2** Défauts (document absent, mal formé, illisible ou lecture de plus de 2 s) : maison de Jérôme = **jeu allumé** ; maison d'un client (maison neutre, `maisonNeutre()`) = **jeu éteint** ; **accueil village** dans les deux cas. Même code partout, seul le défaut change.
+- **D2** Défauts (document absent, mal formé, illisible ou lecture de plus de 2 s) : maison de Jérôme = **jeu allumé** ; maison d'un client (maison neutre, `maisonNeutre()`) = **jeu éteint** ; **accueil classique** (le menu habituel) dans les deux cas depuis le 28/11/2026 (voir ci-dessous). Même code partout, seul le défaut change.
 - **D3** L'or se compte **toujours** (bonne nouvelle → `villageOr` action `gain`), interrupteurs éteints ou non, même sans village, sauf dans le portail devis. Jeu éteint ou accueil classique : aucune fête, aucun compteur ; le serveur enregistre le gain, qu'on retrouve en rallumant.
 - Réglage : Réglages > Mon espace, carte **« Mon accueil »** (deux interrupteurs) ; lien « Mon accueil » dans la roue dentée du village. Espace sans village : carte affichée, interrupteurs désactivés, « Le village n'est pas activé pour cet espace. ». Plateforme des clients (`#/espace/<client>`) : hors périmètre (pas de village, `.github/A-FAIRE.md` A12 et A13) ; la carte y est désactivée.
 - Accueil classique : l'accueil d'avant le village (logo, « Retour à l'accueil », adresse vide) ; l'adresse du village (`#/accueil`) ramène au premier écran classique ; pas de « Retour au village » dans les Réglages.
@@ -253,6 +253,15 @@ Décisions prises seul (27/11/2026) :
 5. La partie sans réseau est dans `js/os/village-preferences-logique.js` (testée seule) ; la lecture et l'écriture dans `js/os/village-preferences.js`.
 6. La nouvelle règle est recopiée dans `docs/cahier-des-charges-v2.0.md` et `docs/audit-ecran.md` : les tests D3 et D6 exigent un texte identique à `firestore.rules`.
 7. La roue dentée a un lien de plus (« Mon accueil ») : le test 1.2 de la Mairie attend maintenant ce seul lien vers les Réglages.
+
+### Village éteint par défaut (28/11/2026)
+
+Décision de Jérôme : « par défaut pour les espaces existants on n'active pas le village ». Une personne qui n'a jamais réglé « Mon accueil » ouvre l'application sur le **menu classique** (CRM de Jérôme, maisons des clients comme SCAB 04 ; la plateforme des clients n'a pas de village). Elle allume « Accueil en village » dans Réglages > Mon espace. Une personne qui a déjà enregistré un réglage le garde. Le jeu par défaut ne change pas (allumé chez Jérôme, éteint chez un client) ; il est grisé tant que le village est éteint.
+
+- Code : `defauts()` de `js/os/village-preferences-logique.js` rend `accueil: 'classique'` ; le logo, « Retour à l'accueil » et l'adresse vide suivent (`accueilMaison` de `js/main.js`). Rien côté serveur (aucune fonction ne lit ces défauts).
+- Le réglage mémorisé sur l'appareil (repli si la lecture tombe en panne) peut encore dire « village » s'il a été mémorisé avant le changement ; la première lecture réussie le remplace.
+- Tests : `tests/village-preferences.test.js` (I1, I2) et `tests/e2e/village-interrupteurs.spec.js` (V1, V2, I6, I7). Les parcours du village (`maison-village*.spec.js`, `applications-coque.spec.js`, `achatsfactures-appli.spec.js`) remettent le village par défaut avec le crochet de test `accueilParDefaut` (émulateurs seulement, `villageParDefaut()` de `tests/e2e/outils.js`).
+- Décision prise seul : le défaut est le menu classique pour tout le monde, **y compris les futurs espaces**, tant que Jérôme ne demande pas le village par défaut pour les nouveaux espaces.
 
 ## 10. Sources
 

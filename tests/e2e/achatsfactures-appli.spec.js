@@ -8,9 +8,12 @@
 //  C8 alerte IBAN (tests unitaires) ; C9 relecture en échec après un enregistrement réussi ; C10 bandeaux de la facture précédente ; C11 touche V pendant un chargement ou une écriture.
 // Captures dans tests/e2e/captures/achatsfactures-appli/ (non commitées), nommées avec le projet : ordinateur ou telephone.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, estTelephone, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
+import { test, expect, connecter, ecrireDocument, estTelephone, PROJET, FIRESTORE, ECRAN_PARCOURS, villageParDefaut } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
 import { listeComplete } from '../_donnees-achatsfactures.js';
+
+// Depuis le 28/11/2026 l'accueil par défaut est le menu classique : ces parcours du village remettent le village par défaut (crochet de test, docs/accueil-village.md).
+test.beforeEach(async ({ page }) => { await villageParDefaut(page); });
 
 const DOSSIER = fileURLToPath(new URL('./captures/achatsfactures-appli/', import.meta.url));
 async function capturer(page, info, nom, options = {}) {

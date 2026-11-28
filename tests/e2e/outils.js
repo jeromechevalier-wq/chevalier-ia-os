@@ -209,13 +209,26 @@ export function estTelephone(page) {
  * par js/os/auth.js au chargement : on attend cette affectation pour y ajouter `champs` (jamais un objet posé plus tôt, que la connexion de test prendrait pour le sien).
  */
 export async function poserCrochetsDeTest(page, champs) {
+  // Plusieurs appels se cumulent (ex. accueilParDefaut posé par un beforeEach, puis une panne posée par le test) : le dernier posé gagne champ par champ.
   await page.addInitScript((c) => {
+    const enAttente = window.__crochetsEnAttente || (window.__crochetsEnAttente = {});
+    Object.assign(enAttente, structuredClone(c));
+    if (window.__crochetsPoses) return;
+    window.__crochetsPoses = true;
     Object.defineProperty(window, '__chevalierTest', {
       configurable: true,
       get: () => undefined,
-      set: (v) => { Object.defineProperty(window, '__chevalierTest', { value: Object.assign(v, structuredClone(c)), writable: true, configurable: true }); },
+      set: (v) => { Object.defineProperty(window, '__chevalierTest', { value: Object.assign(v, window.__crochetsEnAttente), writable: true, configurable: true }); },
     });
   }, champs);
+}
+
+/**
+ * Parcours du village : l'accueil par défaut (document « Mon accueil » absent) redevient le village, comme avant le 28/11/2026 (crochet accueilParDefaut de
+ * js/os/village-preferences.js). La lecture du vrai document et le jeu par défaut (allumé chez Jérôme, éteint chez un client) ne changent pas.
+ */
+export async function villageParDefaut(page) {
+  await poserCrochetsDeTest(page, { accueilParDefaut: 'village' });
 }
 
 /** Interrupteurs « Mon accueil » imposés pour un parcours (crochet preferencesAccueil, js/os/village-preferences.js) : remplace la lecture du document. */

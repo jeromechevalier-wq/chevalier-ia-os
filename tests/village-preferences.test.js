@@ -9,13 +9,15 @@ import { defauts, preferencesAppliquees, preferencesValables, preferencesMemoris
 
 const lire = (f) => readFileSync(fileURLToPath(new URL(`../${f}`, import.meta.url)), 'utf8');
 
-test('I1 défauts : maison de Jérôme = jeu allumé ; maison d’un client (neutre) = jeu éteint ; accueil village dans les deux cas', () => {
-  assert.deepEqual(defauts({ neutre: false }), { jeu: true, accueil: 'village' });
-  assert.deepEqual(defauts({ neutre: true }), { jeu: false, accueil: 'village' });
-  assert.deepEqual(defauts(), { jeu: true, accueil: 'village' });
+test('I1 défauts : maison de Jérôme = jeu allumé ; maison d’un client (neutre) = jeu éteint ; accueil classique dans les deux cas (décision de Jérôme du 28/11/2026)', () => {
+  // le crochet de test qui remet le village par défaut n'existe qu'avec les émulateurs
+  assert.match(lire('js/os/village-preferences.js'), /const essai = MODE_EMULATEURS \? window\.__chevalierTest\?\.accueilParDefaut : null;/);
+  assert.deepEqual(defauts({ neutre: false }), { jeu: true, accueil: 'classique' });
+  assert.deepEqual(defauts({ neutre: true }), { jeu: false, accueil: 'classique' });
+  assert.deepEqual(defauts(), { jeu: true, accueil: 'classique' });
   assert.deepEqual(ACCUEILS, ['village', 'classique']);
   // document absent : les défauts
-  assert.deepEqual(preferencesAppliquees(null, { neutre: true }), { jeu: false, accueil: 'village' });
+  assert.deepEqual(preferencesAppliquees(null, { neutre: true }), { jeu: false, accueil: 'classique' });
   // document bien formé : ses valeurs, sans rien d'autre
   assert.deepEqual(preferencesAppliquees({ jeu: false, accueil: 'classique', modifieLe: new Date() }, { neutre: false }), { jeu: false, accueil: 'classique' });
   assert.deepEqual(preferencesAppliquees({ jeu: true, accueil: 'village' }, { neutre: true }), { jeu: true, accueil: 'village' });
@@ -24,8 +26,8 @@ test('I1 défauts : maison de Jérôme = jeu allumé ; maison d’un client (neu
 test('I2 un document mal formé donne les défauts', () => {
   for (const d of [{}, { jeu: 'oui', accueil: 'village' }, { jeu: true, accueil: 'autre' }, { jeu: true }, { accueil: 'classique' }, 'texte', 42, [], { jeu: 1, accueil: 'classique' }]) {
     assert.equal(preferencesValables(d), false, JSON.stringify(d));
-    assert.deepEqual(preferencesAppliquees(d, { neutre: false }), { jeu: true, accueil: 'village' }, JSON.stringify(d));
-    assert.deepEqual(preferencesAppliquees(d, { neutre: true }), { jeu: false, accueil: 'village' }, JSON.stringify(d));
+    assert.deepEqual(preferencesAppliquees(d, { neutre: false }), { jeu: true, accueil: 'classique' }, JSON.stringify(d));
+    assert.deepEqual(preferencesAppliquees(d, { neutre: true }), { jeu: false, accueil: 'classique' }, JSON.stringify(d));
   }
 });
 

@@ -2,13 +2,14 @@
 // (tests/village-preferences.test.js). La lecture et l'écriture du document sont dans js/os/village-preferences.js.
 //  - jeu : pièces d'or, boutique, champs, enclos et décorations achetées (éteint : rien de tout cela à l'écran ; l'or se gagne quand même, en silence) ;
 //  - accueil : 'village' (le dessin) ou 'classique' (le menu habituel de l'application).
-// Défauts (document absent ou mal formé) : maison de Jérôme = jeu allumé ; maison d'un client (maison neutre) = jeu éteint ; accueil village dans les deux cas.
+// Défauts (document absent ou mal formé) : maison de Jérôme = jeu allumé ; maison d'un client (maison neutre) = jeu éteint ; accueil CLASSIQUE partout
+// (décision de Jérôme du 28/11/2026 : « par défaut pour les espaces existants on n'active pas le village » ; la personne l'allume dans Réglages > Mon espace).
 
 export const ACCUEILS = Object.freeze(['village', 'classique']);
 
 /** Les réglages par défaut : `neutre` = maison d'un client (maisonNeutre() de js/os/identite-maison.js). */
 export function defauts({ neutre = false } = {}) {
-  return { jeu: !neutre, accueil: 'village' };
+  return { jeu: !neutre, accueil: 'classique' };
 }
 
 /** Vrai si `d` a la forme écrite par l'écran (jeu booléen, accueil connu). Les autres champs (modifieLe) ne comptent pas ici. */
