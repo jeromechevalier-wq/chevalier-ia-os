@@ -9,7 +9,7 @@ import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { creerGestionnaire, baseLienMaison } from './mcp/gestionnaire.js';
 import { OUTILS_ACHATS } from './mcp/outils/achats.js';
-import { adresseFonction, adresseSite, compteDeService } from './securite/maison.js';
+import { adresseFonction, adresseSite, compteDeService, projetCourant } from './securite/maison.js';
 import { texteDe, comptesAutorises, emailDans } from './securite/reglages-maison.js';
 import { creerAccesFirestore } from './coeur/donnees.js';
 import { creerMagasin } from './securite/jetons.js';
@@ -56,8 +56,10 @@ import { copieInterne, administrateur, Refus } from './automatisations/appels.js
 import { creerLecteurN8n } from '../partage/automatisations/n8n.js';
 import { creerAppelDeploiement, ligneDeJournalDeploiement } from './deploiement-appel.js';
 import { VERSION_SERVEUR } from './version.js';
-import { creerAppelConsole, creerAppelConsoleVersions, ligneDeJournalConsole } from './console/appel.js';
+import { creerAppelConsole, creerAppelConsoleVersions, creerAppelConsoleBatiments, ligneDeJournalConsole } from './console/appel.js';
 import { lireVersionsBatiments } from './console/versions.js';
+import { lireBatimentsConsole } from './console/batiments.js';
+import { releverBatiments, ligneDeJournalReleve } from './console/releve.js';
 import { tamponnerVersion, versionApplication } from './coeur/tampon-version.js';
 import { creerAppelPilotageLire, creerAppelPilotageEnregistrer, ligneDeJournalPilotage } from './pilotage/appel.js';
 import { creerServicePilotage } from './pilotage/service.js';
@@ -498,6 +500,38 @@ export const consoleVersions = onCall(
     lireVersions: () => lireVersionsBatiments({ dbOs, dbApp, reference: versionApplication(), demarrage: DEMARRAGE_INSTANCE }),
     journal: (e) => process.stdout.write(`${ligneDeJournalConsole(e)}\n`),
   })(requete),
+);
+
+// Base d'une maison du registre (projet Google à lire, `lecture_projet`) : une application nommée, mêmes identifiants du compte de service, réutilisée si elle existe déjà.
+// La lecture n'aboutit que si Jérôme a donné au compte le droit de lecture sur ce projet ; sinon le relevé note « injoignable », sans erreur.
+const ouvrirBaseMaison = (projet) => {
+  if (!getApps().length) initializeApp();
+  const nom = `plateforme-${projet}`;
+  return getFirestore(getApps().find((a) => a.name === nom) ?? initializeApp({ projectId: projet }, nom));
+};
+const projetOuNull = () => { try { return projetCourant(); } catch { return null; } };
+
+// `consoleBatiments` (28/11/2026, Console phase 2, PR 2) : le registre privé (maisons), les appartements de l'immeuble et les relevés copiés chez Jérôme (console/batiments.js).
+// Jérôme seul, même contrôle d'identité que `consoleEtat`. Absente de l'immeuble (RESERVEES_JEROME). Compte des automatisations, seul lecteur de l'immeuble aujourd'hui.
+export const consoleBatiments = onCall(
+  { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: COMPTE_AUTOMATISATIONS },
+  (requete) => creerAppelConsoleBatiments({
+    lireBatiments: () => lireBatimentsConsole({ dbOs, dbApp, projetCourant: projetOuNull() }),
+    journal: (e) => process.stdout.write(`${ligneDeJournalConsole(e)}\n`),
+  })(requete),
+);
+
+// `consoleReleve` (28/11/2026, Console phase 2, PR 2) : toutes les heures (au quart, après les tampons de l'heure pile), copie dans la base de Jérôme la version tamponnée
+// du CRM, de l'immeuble et de chaque maison du registre (console/releve.js). N'écrit QUE dans la base de Jérôme ; jamais au chargement du module.
+// Déployée aussi dans les maisons (même dossier) : sans immeuble relié, elle sort sans rien écrire. Absente de l'immeuble (RESERVEES_JEROME).
+export const consoleReleve = onSchedule(
+  { region: 'europe-west9', schedule: '15 * * * *', timeZone: 'Europe/Paris', timeoutSeconds: 120, memory: '256MiB', maxInstances: 1, serviceAccount: COMPTE_AUTOMATISATIONS },
+  async () => {
+    await releverBatiments({
+      dbOs, dbApp, ouvrirBase: ouvrirBaseMaison, projetCourant: projetOuNull(), horodatage: () => FieldValue.serverTimestamp(),
+      journal: (e) => process.stdout.write(`${ligneDeJournalReleve(e)}\n`),
+    });
+  },
 );
 
 const CLE_N8N = AUTOMATISATIONS_EN_SERVICE ? defineSecret('N8N_API_KEY') : null;

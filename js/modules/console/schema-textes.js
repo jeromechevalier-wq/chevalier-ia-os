@@ -13,6 +13,10 @@ export const TEXTES_SCHEMA = Object.freeze({
   ],
   etages: ['À venir', 'Appartement 3', 'Appartement 2', 'Appartement 1'],
   telephone: 'MCP',
+  // Textes fixes du schéma quand le registre privé répond (phase 2, PR 2) : jamais un nom (les noms arrivent du serveur, pour Jérôme seul).
+  autres: ['et', 'autres'], // « et 4 autres » : le nombre est ajouté entre les deux mots
+  etats: { en_service: 'En service', en_construction: 'En construction', a_venir: 'À venir' },
+  nuageMaison: ['Données', 'à part'],
   n8n: ['n8n : automatisations', 'sur un serveur à part'],
   legende: 'Nuage = données · téléphone = MCP, va droit au nuage · grue = en construction · pointillés = à venir. '
     + 'Schéma figé : les détails (projets, serveurs) sont dans le second cerveau.',

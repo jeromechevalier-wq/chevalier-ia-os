@@ -1,7 +1,9 @@
 // Console > Vue d'ensemble : schéma d'architecture FIGÉ et générique (27/11/2026, demande de Jérôme, docs/console.md §10).
 // Dépôt public : ne nomme que des familles d'outils et les deux produits de Jérôme (garde-fou 5). Tous les textes affichés sont dans
 // schema-textes.js, vérifiés mot à mot par une liste blanche (tests/statique.test.js). Les détails vivent dans le second cerveau.
-// Deux dessins : un large (une rangée) et un étroit (deux rangées) ; le CSS en montre un selon la largeur de la section (@container).
+// Deux dessins : un large (quatre bâtiments par rangée) et un étroit (deux par rangée) ; le CSS en montre un selon la largeur de la section (@container).
+// Registre privé (phase 2, PR 2, 28/11/2026) : quand `consoleBatiments` répond, le modèle calculé par logique.js (modeleSchema) remplace les bâtiments et les étages
+// figés ; les noms y arrivent déjà tronqués. Sans réponse ou registre vide : le schéma figé, inchangé. Ce fichier n'écrit toujours aucun texte lui-même.
 import { h } from '../../os/ui.js';
 import { TEXTES_SCHEMA as T } from './schema-textes.js';
 
@@ -32,14 +34,18 @@ function pieces(a) {
     el('rect', { class: 'console-schema-mur', x: cx - 48, y: sol - 62, width: 96, height: 62 }),
     el('rect', { class: 'console-schema-fenetre', x: cx - 36, y: sol - 50, width: 22, height: 20 }),
     el('rect', { class: 'console-schema-porte', x: cx + 6, y: sol - 38, width: 22, height: 38 }));
-  const immeuble = (cx, sol) => el('g', {},
-    el('rect', { class: 'console-schema-mur', x: cx - 70, y: sol - 140, width: 140, height: 140 }),
-    ...T.etages.map((t, i) => {
-      const y = sol - 132 + i * 33;
-      return el('g', { class: i === 0 ? 'console-schema-avenir' : null },
-        el('rect', { class: 'console-schema-fenetre', x: cx - 62, y, width: 124, height: 26, rx: 3 }),
-        texte(cx, y + 18, t, 'console-schema-texte', 13));
-    }));
+  // Étages : 4 lignes (figé) ou 5 au plus (registre : « À venir », « et N autres », trois noms), toujours dans la même hauteur de 140.
+  const immeuble = (cx, sol, etages) => {
+    const pas = etages.length > 4 ? 26.5 : 33;
+    return el('g', {},
+      el('rect', { class: 'console-schema-mur', x: cx - 70, y: sol - 140, width: 140, height: 140 }),
+      ...etages.map((t, i) => {
+        const y = sol - 132 + i * pas;
+        return el('g', { class: i === 0 ? 'console-schema-avenir' : null },
+          el('rect', { class: 'console-schema-fenetre', x: cx - 62, y, width: 124, height: pas - 7, rx: 3 }),
+          texte(cx, y + (pas - 7) / 2 + 5, t, 'console-schema-texte', pas > 30 ? 13 : 12));
+      }));
+  };
   const grue = (cx, sol) => {
     const x = cx + 66;
     return el('g', { class: 'console-schema-grue' },
@@ -49,11 +55,11 @@ function pieces(a) {
       el('line', { x1: x - 38, y1: sol - 116, x2: x - 38, y2: sol - 92 }));
   };
   /** Une colonne : nuage, bâtiment, sol, nom et légende. `cx` = centre, `haut` = haut de la colonne. */
-  const colonne = (cx, haut, b) => {
+  const colonne = (cx, haut, b, etages) => {
     const sol = haut + SOL;
     return el('g', {},
       nuage(cx, haut + 44, b.nuage, b.genre === 'avenir'),
-      b.genre === 'immeuble' ? immeuble(cx, sol) : maison(cx, sol, b.genre === 'avenir'),
+      b.genre === 'immeuble' ? immeuble(cx, sol, etages) : maison(cx, sol, b.genre === 'avenir'),
       b.genre === 'chantier' ? grue(cx, sol) : null,
       b.telephone ? telephone(cx + 82, haut + 74, cx + 62, haut + 64) : null,
       el('line', { class: 'console-schema-sol', x1: cx - 90, y1: sol, x2: cx + 90, y2: sol }),
@@ -69,19 +75,46 @@ function pieces(a) {
   return { colonne, n8n };
 }
 
-/** Les colonnes posées : [cx, haut] pour chaque bâtiment, puis la case n8n. */
-function dessin(classe, largeur, hauteur, places, caseN8n, agrandissement) {
+const RANGEE = 456; // hauteur d'une rangée de bâtiments (nuage, bâtiment, nom, légende)
+
+/**
+ * Un dessin : `parRangee` bâtiments par rangée, `pasX` entre deux centres, `x0` centre du premier ; la case n8n reste sous les deux premiers bâtiments.
+ * Avec les 4 bâtiments figés, les places et les tailles sont exactement celles d'avant (880 × 450 large, 400 × 810 étroit).
+ */
+function dessin(classe, { parRangee, pasX, x0, largeur, caseN8n, agrandissement }, modele) {
   const { colonne, n8n } = pieces(agrandissement);
+  const batiments = modele?.batiments ?? T.batiments;
+  const etages = modele?.etages ?? T.etages;
+  const places = batiments.map((_, i) => [x0 + (i % parRangee) * pasX, Math.floor(i / parRangee) * RANGEE]);
+  const rangees = Math.ceil(batiments.length / parRangee);
+  const hauteur = rangees === 1 ? caseN8n.y + 60 : (rangees - 1) * RANGEE + 354;
   return el('svg', { class: `console-schema ${classe}`, viewBox: `0 -14 ${largeur} ${hauteur + 14}`, role: 'img', 'aria-label': T.resume, preserveAspectRatio: 'xMidYMin meet' },
-    ...T.batiments.map((b, i) => colonne(places[i][0], places[i][1], b)),
+    ...batiments.map((b, i) => colonne(places[i][0], places[i][1], b, etages)),
     n8n(caseN8n.x, caseN8n.y, caseN8n.largeur, [[places[0][0], places[0][1] + BAS], [places[1][0], places[1][1] + BAS]]));
 }
 
-/** La section complète : titre, deux dessins (un seul visible selon la largeur de la section), légende. Aucune donnée lue. */
-export function schemaArchitecture() {
+const LARGE = { parRangee: 4, pasX: 220, x0: 110, largeur: 880, caseN8n: { x: 60, y: 390, largeur: 330 }, agrandissement: 1 };
+const ETROIT = { parRangee: 2, pasX: 200, x0: 100, largeur: 400, caseN8n: { x: 35, y: 382, largeur: 330 }, agrandissement: 1.25 };
+
+/** Les deux dessins (large puis étroit) ; `modele` = null pour le schéma figé. */
+export function dessinsArchitecture(modele = null) {
+  return [dessin('console-schema-large', LARGE, modele), dessin('console-schema-etroit', ETROIT, modele)];
+}
+
+/** Remplace les deux dessins d'une section déjà affichée (réponse du registre arrivée). */
+export function remplacerDessins(section, modele) {
+  const anciens = [...section.querySelectorAll(':scope > svg.console-schema')];
+  const nouveaux = dessinsArchitecture(modele);
+  if (anciens.length !== 2) return;
+  anciens[0].replaceWith(nouveaux[0]);
+  anciens[1].replaceWith(nouveaux[1]);
+}
+
+/** La section complète : titre, deux dessins (un seul visible selon la largeur de la section), légende, puis `enfants` (boutons des bâtiments et détail, ecran.js). */
+export function schemaArchitecture(modele = null, ...enfants) {
   return h('section', { class: 'carte-section console-schema-cadre', dataset: { bloc: 'architecture' } },
     h('h2', {}, T.titre),
-    dessin('console-schema-large', 880, 450, [[110, 0], [330, 0], [550, 0], [770, 0]], { x: 60, y: 390, largeur: 330 }, 1),
-    dessin('console-schema-etroit', 400, 810, [[100, 0], [300, 0], [100, 456], [300, 456]], { x: 35, y: 382, largeur: 330 }, 1.25),
-    h('p', { class: 'aide' }, T.legende));
+    ...dessinsArchitecture(modele),
+    h('p', { class: 'aide' }, T.legende),
+    ...enfants);
 }

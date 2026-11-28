@@ -1,4 +1,4 @@
-// Écrans de la Console : Vue d'ensemble (sélecteur de plateforme, résumé du filet, schéma d'architecture figé, versions des bâtiments, état du serveur) et Filet de sécurité
+// Écrans de la Console : Vue d'ensemble (sélecteur de plateforme, résumé du filet, schéma d'architecture avec les bâtiments du registre privé et leur détail, versions des bâtiments, état du serveur) et Filet de sécurité
 // (la liste des vérifications, que Jérôme date à la main). Trois états partout : chargement, vide, erreur (avec « Réessayer »).
 import { h, icone, remplir, toast } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
@@ -6,7 +6,8 @@ import { barreOnglets } from '../../os/onglets.js';
 import { ongletsDuModule } from '../../os/registre.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
-import { schemaArchitecture } from './schema.js';
+import { schemaArchitecture, remplacerDessins } from './schema.js';
+import { blocBatiments } from './detail.js';
 
 const onglets = (actif) => barreOnglets({ onglets: ongletsDuModule('console'), actif, etiquette: 'Écrans de la Console' });
 
@@ -22,7 +23,9 @@ export function rendreVue(conteneur, segs = []) {
   const zone = h('div', { class: 'console-zone' });
   const serveur = h('p', { class: 'aide', 'aria-live': 'polite' }, 'Vérification du serveur…');
   const versions = blocVersions();
-  conteneur.append(onglets('console/vue'), h('div', { class: 'page' }, h('header', { class: 'page-tete' }, h('h1', {}, 'Console')), selecteur, zone, schemaArchitecture(), versions.element, serveur));
+  const batiments = blocBatiments();
+  const schema = schemaArchitecture(null, batiments.element);
+  conteneur.append(onglets('console/vue'), h('div', { class: 'page' }, h('header', { class: 'page-tete' }, h('h1', {}, 'Console')), selecteur, zone, schema, versions.element, serveur));
 
   function dessiner() {
     if (!D.etat.pret) { remplir(zone, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement'))); return; }
@@ -40,6 +43,17 @@ export function rendreVue(conteneur, segs = []) {
   let annule = false;
   D.lireEtatServeur().then((e) => { if (!annule) serveur.textContent = `Serveur : réponse reçue (version ${e.version}).`; })
     .catch((e) => { if (!annule) serveur.textContent = e.message; });
+  // Registre privé (phase 2, PR 2) : vrais noms dans le schéma et boutons de détail. Sans réponse ou registre vide : le schéma figé reste tel quel.
+  function chargerBatiments() {
+    batiments.chargement();
+    D.lireBatiments().then((r) => {
+      if (annule) return;
+      const modele = L.modeleSchema(r);
+      if (modele) remplacerDessins(schema, modele);
+      batiments.afficher(r);
+    }).catch((e) => { if (!annule) batiments.erreur(e.message, chargerBatiments); });
+  }
+  chargerBatiments();
   return () => { annule = true; arretDonnees(); versions.arret(); };
 }
 

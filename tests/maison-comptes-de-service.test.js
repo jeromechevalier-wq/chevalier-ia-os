@@ -20,7 +20,9 @@ const AVANT_OS = Object.freeze({
   automatisationsRenommer: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
   baseAccorderAcces: "base-acces@chevalier-ia-os.iam.gserviceaccount.com",
   basePorte: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com", // ajoutée le 26/11/2026 (porte de la base), compte déjà existant
+  consoleBatiments: "automatisations-serveur@chevalier-ia-os.iam.gserviceaccount.com", // ajoutée le 28/11/2026 (registre des bâtiments), compte déjà existant (seul lecteur de l'immeuble)
   consoleEtat: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
+  consoleReleve: "automatisations-serveur@chevalier-ia-os.iam.gserviceaccount.com", // ajoutée le 28/11/2026 (relevé horaire des versions), compte déjà existant (seul lecteur de l'immeuble)
   consoleVersions: "automatisations-serveur@chevalier-ia-os.iam.gserviceaccount.com", // ajoutée le 28/11/2026 (versions des bâtiments), compte déjà existant (seul lecteur de l'immeuble)
   deploiementVerifier: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",
   depotdocument: "porte-serveur@chevalier-ia-os.iam.gserviceaccount.com",

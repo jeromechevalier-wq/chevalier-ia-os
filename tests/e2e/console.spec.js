@@ -42,7 +42,45 @@ async function simulerVersions(page, { reponse = VERSIONS_PLEINES, enPanne = fal
     return route.fulfill({ status: 200, headers: entetes, contentType: 'application/json', body: JSON.stringify({ result: reponse }) });
   });
 }
-test.beforeEach(async ({ page }) => { await simulerVersions(page); });
+// Registre des bâtiments (phase 2, PR 2, 28/11/2026) : réponse simulée de `consoleBatiments`. Par défaut (beforeEach) la réponse VIDE : 0 appartement, registre vide,
+// donc le schéma figé reste tel quel (A1 exige « Appartement 1 » et « Maison client 1 »). Le cas plein, le clic et le détail : seulement dans les tests R11 à R14.
+// Noms inventés génériques (dépôt public).
+const BATIMENTS_VIDES = { os: { projets: [] }, immeuble: { projets: [], appartements: [], total_appartements: 0 }, maisons: [], releves: {}, motifs: [] };
+const BATIMENTS_PLEINS = {
+  os: { projets: [{ role: 'Firebase', libelle: 'projet-essai-os' }] },
+  immeuble: {
+    projets: [{ role: 'Firebase', libelle: 'projet-essai-app' }],
+    appartements: [
+      { id: 'essai-a', nom: 'Espace essai A', modules: ['veille', 'devis'] },
+      { id: 'essai-b', nom: 'Espace essai B avec un nom vraiment très long pour voir la coupe', modules: [] },
+      { id: 'essai-c', nom: 'Espace essai C', modules: ['veille'] },
+      { id: 'essai-d', nom: 'Espace essai D', modules: [] },
+      { id: 'essai-e', nom: 'Espace essai E', modules: [] },
+    ],
+    total_appartements: 5,
+  },
+  maisons: [
+    { cle: 'maison-a', nom: 'Maison essai A', etat: 'en_construction', projets: [{ role: 'Firebase', libelle: 'projet-essai-1' }, { role: 'Cloud SQL', libelle: 'Base essai' }] },
+    { cle: 'maison-b', nom: 'Maison essai B', etat: 'a_venir', projets: [] },
+  ],
+  releves: {
+    os: { version: '2.59.0', structure_code: 1, structure_base: null, version_depuis: '2026-11-28T09:00:00.000Z', dernier_contact_ok: '2026-11-28T10:15:00.000Z', dernier_essai: '2026-11-28T10:15:00.000Z', motif: null,
+      historique: [{ version: '2.59.0', de_version: '2.58.0', structure_code: 1, de_structure: 1, le: '2026-11-28T09:15:00.000Z' }, { version: '2.58.0', de_version: null, structure_code: 1, de_structure: null, le: '2026-11-20T09:15:00.000Z' }] },
+    immeuble: { version: '2.58.0', structure_code: 1, structure_base: null, version_depuis: '2026-11-20T09:00:00.000Z', dernier_contact_ok: '2026-11-28T10:15:00.000Z', dernier_essai: '2026-11-28T10:15:00.000Z', motif: null,
+      historique: [{ version: '2.58.0', de_version: null, structure_code: 1, de_structure: null, le: '2026-11-20T09:15:00.000Z' }] },
+    'maison-a': { version: null, structure_code: null, structure_base: null, version_depuis: null, dernier_contact_ok: null, dernier_essai: '2026-11-28T10:15:00.000Z', motif: 'injoignable', historique: [] },
+  },
+  motifs: [],
+};
+async function simulerBatiments(page, { reponse = BATIMENTS_VIDES, enPanne = false } = {}) {
+  await page.route('**/consoleBatiments', (route) => {
+    const entetes = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: entetes });
+    if (enPanne) return route.fulfill({ status: 500, headers: entetes, contentType: 'application/json', body: JSON.stringify({ error: { status: 'INTERNAL', message: 'x' } }) });
+    return route.fulfill({ status: 200, headers: entetes, contentType: 'application/json', body: JSON.stringify({ result: reponse }) });
+  });
+}
+test.beforeEach(async ({ page }) => { await simulerVersions(page); await simulerBatiments(page); });
 
 const sansDefilementHorizontal = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 
@@ -134,7 +172,8 @@ test('C9 le bouton « Exporter mes données » (Réglages > Console) télécharg
   const [dl] = await Promise.all([page.waitForEvent('download'), bouton.click()]);
   expect(dl.suggestedFilename()).toMatch(/^chevalier-ia-console-\d{4}-\d{2}-\d{2}\.json$/);
   const json = JSON.parse(await readFile(await dl.path(), 'utf8'));
-  expect(Object.keys(json.collections)).toEqual(['console_filet', 'console_versions']);
+  expect(Object.keys(json.collections)).toEqual(['console_filet', 'console_versions', 'console_registre', 'console_releves']); // R10 : registre et relevés (ici vides)
+  expect(json.collections.console_registre.map((b) => b.cle)).toEqual(['os', 'immeuble']);
   expect(json.collections.console_versions.map((b) => [b.cle, b.version])).toEqual([['os', '2.59.0'], ['immeuble', '2.58.0']]); // V14 : les versions des bâtiments
   expect(json.collections.console_filet.map((f) => f.id)).toEqual(['budget']);
 });
@@ -237,4 +276,108 @@ test('V12 cas d\'erreur : message lisible, « Réessayer » relit les versions ;
   await bloc.locator('[data-action="reessayer-versions"]').click();
   await expect(bloc.locator('[data-batiment]')).toHaveCount(2);
   await expect(bloc.locator('[data-erreur="versions"]')).toHaveCount(0);
+});
+
+// Textes du dessin visible lisibles (12 px rendus au moins) et page sans défilement horizontal.
+async function schemaLisible(page) {
+  const d = page.locator('[data-bloc="architecture"] svg[role="img"]:visible');
+  await expect(d).toHaveCount(1);
+  const plusPetit = await d.evaluate((svg) => Math.min(...[...svg.querySelectorAll('text')].map((t) => parseFloat(t.getAttribute('font-size')) * svg.getScreenCTM().a)));
+  expect(plusPetit).toBeGreaterThanOrEqual(12);
+  expect(await sansDefilementHorizontal(page)).toBe(true);
+}
+
+test('R11 registre plein : l\'immeuble montre 3 appartements, « et 2 autres », « À venir » ; les maisons du registre remplacent « Maison client 1 »', async ({ page }, info) => {
+  await simulerServeur(page);
+  await simulerBatiments(page, { reponse: BATIMENTS_PLEINS });
+  await connecter(page, undefined, { route: 'console/vue' });
+  await attendreCalme(page);
+  const bloc = page.locator('.page > [data-bloc="architecture"]');
+  const dessin = bloc.locator('svg[role="img"]:visible');
+  await expect(dessin).toContainText('Espace essai A');
+  for (const t of ['Espace essai C', 'et 2 autres', 'À venir', 'Maison essai A', 'Maison essai B', 'Maison à venir', 'Chevalier IA OS', 'Chevalier IA App']) await expect(dessin).toContainText(t);
+  await expect(dessin).not.toContainText('Maison client 1');
+  await expect(dessin).not.toContainText('Espace essai D');
+  await expect(dessin).toContainText('Espace essai…'); // nom trop long : coupé proprement
+  expect((await dessin.getAttribute('aria-label')).trim().length).toBeGreaterThan(20); // le dessin garde role="img" et son libellé
+  expect(await page.evaluate(() => document.querySelector('.page > [data-bloc="architecture"]')?.nextElementSibling?.dataset.bloc)).toBe('versions');
+  await schemaLisible(page);
+  await expect(bloc.locator('[data-registre-vide]')).toHaveCount(0);
+  await bloc.scrollIntoViewIfNeeded();
+  await capturer(page, info, 'R11-registre-plein');
+});
+
+test('R12 un vrai bouton par bâtiment et par appartement ouvre le détail (clic et touche Entrée) ; « Fermer » le referme', async ({ page }, info) => {
+  await simulerServeur(page);
+  await simulerBatiments(page, { reponse: BATIMENTS_PLEINS });
+  await connecter(page, undefined, { route: 'console/vue' });
+  await attendreCalme(page);
+  const bloc = page.locator('[data-bloc="batiments"]');
+  const boutons = bloc.locator('button[data-action="ouvrir-batiment"]');
+  await expect(boutons).toHaveCount(2 + 5 + 2);
+  await expect(boutons.first()).toHaveAccessibleName('Chevalier IA OS');
+  const detail = bloc.locator('.console-detail');
+  await expect(detail).toBeHidden();
+  // Une maison : nom, état, projets, motif « injoignable », historique vide.
+  await bloc.getByRole('button', { name: 'Maison essai A' }).click();
+  await expect(detail).toBeVisible();
+  await expect(detail.locator('h3')).toHaveText('Maison essai A');
+  await expect(detail).toContainText('État : en construction');
+  await expect(detail.locator('[data-champ="projets"] li')).toHaveText(['Firebase : projet-essai-1', 'Cloud SQL : Base essai']);
+  await expect(detail.locator('[data-champ="releve"] [data-motif]')).toHaveText('Motif : injoignable (droit de lecture absent ou bâtiment hors ligne).');
+  await expect(detail).toContainText('Dernier essai le 28/11/2026 à 11:15');
+  await expect(bloc.getByRole('button', { name: 'Maison essai A' })).toHaveAttribute('aria-expanded', 'true');
+  await detail.scrollIntoViewIfNeeded();
+  await capturer(page, info, 'R12-detail-maison');
+  await detail.locator('[data-action="fermer-detail"]').click();
+  await expect(detail).toBeHidden();
+  await expect(bloc.getByRole('button', { name: 'Maison essai A' })).toBeFocused();
+  // Un appartement, au clavier : la version et l'historique de l'immeuble, et ses modules actifs.
+  await bloc.getByRole('button', { name: 'Espace essai A', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(detail.locator('h3')).toHaveText('Espace essai A');
+  await expect(detail.locator('[data-champ="modules"] li')).toHaveText(['Veille', 'Devis']);
+  await expect(detail).toContainText('Version : 2.58.0, depuis le 20/11/2026');
+  await expect(detail).toContainText('Vu le 28/11/2026 à 11:15 (dernier contact)');
+  await expect(detail.locator('[data-champ="historique"] li')).toHaveText(['2.58.0 (premier tampon), le 20/11/2026 à 10:15']);
+  // Le CRM : deux lignes d'historique.
+  await bloc.getByRole('button', { name: 'Chevalier IA OS' }).click();
+  await expect(detail.locator('h3')).toHaveText('Chevalier IA OS');
+  await expect(detail.locator('[data-champ="historique"] li')).toHaveCount(2);
+  expect(await sansDefilementHorizontal(page)).toBe(true);
+  await detail.scrollIntoViewIfNeeded();
+  await capturer(page, info, 'R12-detail-crm');
+});
+
+test('R13 cas vide : le schéma figé reste tel quel et l\'écran dit « Registre vide… » ; les boutons du CRM et de l\'immeuble restent', async ({ page }, info) => {
+  await simulerServeur(page);
+  await connecter(page, undefined, { route: 'console/vue' });
+  await attendreCalme(page);
+  const bloc = page.locator('.page > [data-bloc="architecture"]');
+  for (const t of ['Appartement 1', 'Maison client 1']) await expect(bloc.locator('svg[role="img"]:visible')).toContainText(t);
+  await expect(bloc.locator('[data-registre-vide]')).toHaveText('Registre vide : les maisons s\'afficheront quand la fiche privée sera remplie.');
+  await expect(bloc.locator('button[data-action="ouvrir-batiment"]')).toHaveCount(2);
+  await bloc.getByRole('button', { name: 'Chevalier IA App' }).click();
+  await expect(bloc.locator('.console-detail [data-champ="releve"] [data-vide]')).toHaveText('Aucun relevé pour l\'instant : la copie se fait toutes les heures.');
+  await expect(bloc.locator('.console-detail [data-champ="projets"]')).toContainText('Aucun projet noté dans le registre.');
+  await bloc.locator('[data-bloc="batiments"]').scrollIntoViewIfNeeded();
+  await capturer(page, info, 'R13-registre-vide');
+});
+
+test('R14 cas d\'erreur : message lisible et « Réessayer » ; le schéma figé et les versions restent là', async ({ page }, info) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur des bâtiments répond en erreur (500) exprès' });
+  await simulerServeur(page);
+  await simulerBatiments(page, { enPanne: true });
+  await connecter(page, undefined, { route: 'console/vue' });
+  await attendreCalme(page);
+  const bloc = page.locator('[data-bloc="batiments"]');
+  await expect(bloc.locator('[data-erreur="batiments"]')).toContainText('Les bâtiments ne se lisent pas pour l\'instant.');
+  await expect(page.locator('.page > [data-bloc="architecture"] svg[role="img"]:visible')).toContainText('Maison client 1');
+  await expect(page.locator('.page > [data-bloc="versions"]')).toBeVisible();
+  await bloc.scrollIntoViewIfNeeded();
+  await capturer(page, info, 'R14-batiments-erreur');
+  await simulerBatiments(page, { reponse: BATIMENTS_PLEINS }); // le serveur répond de nouveau
+  await bloc.locator('[data-action="reessayer-batiments"]').click();
+  await expect(bloc.locator('button[data-action="ouvrir-batiment"]')).toHaveCount(9);
+  await expect(page.locator('.page > [data-bloc="architecture"] svg[role="img"]:visible')).toContainText('Maison essai A');
 });
