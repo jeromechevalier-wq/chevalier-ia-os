@@ -193,6 +193,7 @@ test('V10 Vue d\'ensemble : le bloc « Versions » sous le schéma montre une li
   await expect(os).toContainText('2.59.0 depuis le 28/11/2026');
   await expect(os).toContainText('Version : à jour');
   await expect(os).toContainText('Structure : inconnue');
+  await expect(os.locator('[data-vu-le]')).toHaveText('vu le 28/11/2026 à 11:00');
   const immeuble = bloc.locator('[data-batiment="immeuble"]');
   await expect(immeuble.locator('h3')).toHaveText('Chevalier IA App');
   await expect(immeuble).toContainText('Version : en retard');
@@ -205,16 +206,17 @@ test('V10 Vue d\'ensemble : le bloc « Versions » sous le schéma montre une li
   await capturer(page, info, 'V10-versions');
 });
 
-test('V11 cas vide : un bâtiment sans tampon dit « Version inconnue… », l\'immeuble non relié montre son motif', async ({ page }, info) => {
+test('V11 cas vide : un bâtiment sans tampon dit « Version inconnue… », l\'immeuble non relié montre seulement son motif', async ({ page }, info) => {
   await simulerServeur(page);
   await simulerVersions(page, { reponse: VERSIONS_VIDES });
   await connecter(page, undefined, { route: 'console/vue' });
   await attendreCalme(page);
   const bloc = page.locator('[data-bloc="versions"]');
-  await expect(bloc.locator('[data-batiment] [data-vide]')).toHaveCount(2);
+  await expect(bloc.locator('[data-batiment] [data-vide]')).toHaveCount(1);
   await expect(bloc.locator('[data-batiment="os"] [data-vide]')).toHaveText('Version inconnue : ce bâtiment n\'a pas encore été remis en ligne avec le tampon.');
   await expect(bloc.locator('[data-batiment="os"] [data-motif]')).toHaveCount(0);
   await expect(bloc.locator('[data-batiment="immeuble"] [data-motif]')).toHaveText('Motif : immeuble non relié.');
+  await expect(bloc.locator('[data-batiment="immeuble"] [data-vide]')).toHaveCount(0);
   await expect(bloc.locator('[data-batiment="os"]')).toContainText('Version : inconnue');
   await bloc.scrollIntoViewIfNeeded();
   await capturer(page, info, 'V11-versions-vide');

@@ -9,7 +9,7 @@ import { creerAppelConsole, COMPTES_CONSOLE as LIRE_COMPTES_CONSOLE } from '../f
 const COMPTES_CONSOLE = await LIRE_COMPTES_CONSOLE(); // chantier 0 : liste lue dans la fiche reglages_maison/maison (celle des essais : _fiche-essai.js)
 import { peutVoirConsole } from '../js/modules/console/acces.js';
 import { remplirComptesMaison, viderComptesMaison } from '../js/os/comptes-maison.js';
-import { LIGNES_FILET, etatLigne, lignesAvecEtat, resumeFilet, texteEtat, PLATEFORMES, plateformeValide, lignesVersions, ligneVersion, texteEtatVersion, LIBELLES_BATIMENTS, TEXTE_VERSION_VIDE } from '../js/modules/console/logique.js';
+import { LIGNES_FILET, etatLigne, lignesAvecEtat, resumeFilet, texteEtat, PLATEFORMES, plateformeValide, lignesVersions, ligneVersion, texteEtatVersion, texteHistorique, LIBELLES_BATIMENTS, TEXTE_VERSION_VIDE } from '../js/modules/console/logique.js';
 import { IDS_MODULES, MODULES_DECLARES, modulesActifsDuClient, verifierActivation, interrupteursDuClient, moduleDeRoute } from '../js/os/registre.js';
 import { MODULES, MODULES_CLIENT } from '../js/os/modules.js';
 
@@ -179,11 +179,17 @@ describe('Console : versions des bâtiments à l\'écran (phase 2, 28/11/2026)',
     assert.equal(l.libelle, 'Chevalier IA OS');
     assert.equal(l.version, '2.59.0');
     assert.equal(l.depuis, 'depuis le 28/11/2026');
+    assert.equal(l.vuLe, 'vu le 28/11/2026 à 11:00');
     assert.deepEqual(l.textes, { version: 'Version : à jour', structure: 'Structure : inconnue' });
     assert.deepEqual(l.historique, ['2.59.0 (avant : 2.58.0), le 28/11/2026 à 10:00', '2.58.0 (premier tampon), le 27/11/2026 à 10:00']);
     assert.equal(l.vide, false);
     assert.equal(texteEtatVersion('en_retard'), 'en retard');
     assert.equal(texteEtatVersion('nimporte'), 'inconnue');
+    assert.equal(texteEtatVersion('en_attente'), 'en attente du prochain tampon (moins d\'une heure)');
+    assert.equal(ligneVersion({ ...plein, etat_version: 'en_attente' }).textes.version, 'Version : en attente du prochain tampon (moins d\'une heure)');
+    // V4 à l'écran : quand seule la structure change, « structure 1 → 2 » au lieu de « 2.59.0 (avant : 2.59.0) »
+    assert.equal(texteHistorique({ version: '2.59.0', de_version: '2.59.0', structure_code: 2, de_structure: 1, le: '2026-11-28T09:00:00.000Z' }), 'structure 1 → 2, le 28/11/2026 à 10:00');
+    assert.equal(texteHistorique({ version: '2.59.0', de_version: '2.58.0', structure_code: 2, de_structure: 1, le: '2026-11-28T09:00:00.000Z' }), '2.59.0 (avant : 2.58.0), le 28/11/2026 à 10:00');
     assert.equal(ligneVersion({ ...plein, historique: Array.from({ length: 15 }, () => plein.historique[0]) }).historique.length, 10);
   });
 
@@ -193,7 +199,11 @@ describe('Console : versions des bâtiments à l\'écran (phase 2, 28/11/2026)',
       { cle: 'immeuble', version: null, etat_version: 'inconnu', etat_structure: 'inconnu', motif: 'immeuble non relié', historique: [] },
     ] });
     assert.equal(os.vide, true);
+    assert.equal(os.sansTampon, true);
     assert.equal(os.motif, null);
+    assert.equal(immeuble.sansTampon, false, 'immeuble non relié : seulement le motif, pas « pas encore remis en ligne »');
+    const illisible = ligneVersion({ cle: 'os', version: null, etat_version: 'inconnu', etat_structure: 'inconnu', motif: 'lecture impossible pour l\'instant', historique: [] });
+    assert.deepEqual([illisible.sansTampon, illisible.motif], [false, 'lecture impossible pour l\'instant']);
     assert.equal(immeuble.libelle, 'Chevalier IA App');
     assert.equal(immeuble.motif, 'immeuble non relié');
     assert.equal(TEXTE_VERSION_VIDE, 'Version inconnue : ce bâtiment n\'a pas encore été remis en ligne avec le tampon.');

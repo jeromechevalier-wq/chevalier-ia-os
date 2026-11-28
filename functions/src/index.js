@@ -491,10 +491,11 @@ const dbApp = async () => {
 
 // `consoleVersions` (28/11/2026, Console phase 2) : lit la version tamponnée du CRM et de l'immeuble (console/versions.js). Jérôme seul, même contrôle d'identité que `consoleEtat`.
 // Absente de la plateforme (RESERVEES_JEROME). Tourne avec le compte des automatisations, seul compte qui lit l'immeuble aujourd'hui ; à remplacer par un compte dédié en lecture seule plus tard.
+const DEMARRAGE_INSTANCE = Date.now(); // heure de démarrage de cette instance : un CRM « en retard » tamponné avant elle attend son prochain tampon (moins d'une heure)
 export const consoleVersions = onCall(
   { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: COMPTE_AUTOMATISATIONS },
   (requete) => creerAppelConsoleVersions({
-    lireVersions: () => lireVersionsBatiments({ dbOs, dbApp, reference: versionApplication() }),
+    lireVersions: () => lireVersionsBatiments({ dbOs, dbApp, reference: versionApplication(), demarrage: DEMARRAGE_INSTANCE }),
     journal: (e) => process.stdout.write(`${ligneDeJournalConsole(e)}\n`),
   })(requete),
 );

@@ -1,7 +1,7 @@
 // Tampon de version d'un bâtiment (28/11/2026, Console phase 2). Code commun : tourne chez Jérôme (functions/) ET dans l'immeuble des clients (copie functions-plateforme/serveur/).
 // Appelé UNIQUEMENT par la fonction planifiée `tamponVersion` (toutes les heures) ; jamais au chargement du module (les tests et le déploiement chargent index.js).
 // Fiche reglages_maison/version : { version, version_depuis, structure_code, vu_le } (+ structure_base, écrit plus tard par le script de migration, JAMAIS par ce tampon).
-// Changement de version ou de structure : une transaction met la fiche à jour ET ajoute une ligne { version, de_version, le } dans reglages_maison/version/historique.
+// Changement de version ou de structure : une transaction met la fiche à jour ET ajoute une ligne { version, de_version, structure_code, de_structure, le } dans reglages_maison/version/historique.
 // Sinon : seulement vu_le. Aucune autre fiche touchée. Une erreur est avalée et notée en une ligne de journal (jamais d'e-mail ni de valeur).
 // Ce fichier n'importe ni firebase-functions ni firebase-admin : la base et l'horodatage sont reçus.
 import { readFileSync } from 'node:fs';
@@ -49,7 +49,11 @@ export async function tamponnerVersion({ db, horodatage, version = versionApplic
       const nouvelleVersion = avant?.version !== version;
       // merge : structure_base (écrit par le script de migration) est gardé tel quel. version_depuis ne bouge que si la version change.
       tx.set(fiche, { version, structure_code: structure, vu_le: horodatage(), ...(nouvelleVersion || !avant?.version_depuis ? { version_depuis: horodatage() } : {}) }, { merge: true });
-      tx.set(fiche.collection(SOUS_COLLECTION_HISTORIQUE).doc(), { version, de_version: typeof avant?.version === 'string' ? avant.version : null, le: horodatage() });
+      tx.set(fiche.collection(SOUS_COLLECTION_HISTORIQUE).doc(), {
+        version, de_version: typeof avant?.version === 'string' ? avant.version : null,
+        structure_code: structure, de_structure: Number.isInteger(avant?.structure_code) ? avant.structure_code : null,
+        le: horodatage(),
+      });
       return 'change';
     });
     if (resultat === 'change') journal({ statut: 'change' });

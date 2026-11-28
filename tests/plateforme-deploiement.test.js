@@ -232,23 +232,23 @@ describe('Workflow « Déploiement plateforme clients »', () => {
     assert.ok(!/chevalier-ia-os/.test(actif), 'jamais le projet du CRM');
   });
   test('publie Hosting et les règles Firestore et Storage, jamais les fonctions du CRM', () => {
-    assert.match(actif, /hosting\) cible="hosting"/);
+    assert.match(actif, /hosting\) cible="hosting,functions:plateforme:tamponVersion"/); // + le tampon de version (28/11/2026) : la version tamponnée suit toujours le site
     assert.match(actif, /regles\)\s+cible="firestore:rules,storage"/);
-    assert.match(actif, /tout\)\s+cible="hosting,firestore:rules,storage"/);
+    assert.match(actif, /tout\)\s+cible="hosting,firestore:rules,storage,functions:plateforme:tamponVersion"/);
     // Les fonctions de la plateforme ne partent que par le choix « fonctions » et seulement vers le codebase « plateforme » ; « tout » ne les contient pas.
     assert.match(actif, /fonctions\) cible="functions:plateforme"/);
     assert.match(actif, /espace\)\s+cible="functions:plateforme:espaceReglages"/); // « Mon espace modifiable » seul : ni secret n8n ni Cloud Scheduler
     assert.match(actif, /mcp\)\s+cible="functions:plateforme:mcpclients"/); // le MCP des clients seul : aucun secret n'est nécessaire
     assert.match(actif, /porte\)\s+cible="functions:plateforme:porte"/); // P7 : la porte des workflows seule
-    assert.ok(!/functions(?!:plateforme|-plateforme)/.test(actif.replace(/inputs\.elements == '(fonctions|mcp|espace|porte)'/g, '')), 'aucune autre mention de functions');
-    assert.ok(!/tout\)[^\n]*functions/.test(actif));
+    assert.ok(!/functions(?!:plateforme|-plateforme)/.test(actif.replace(/inputs\.elements == '(fonctions|mcp|espace|porte|hosting|tout)'/g, '')), 'aucune autre mention de functions');
+    assert.ok(!/tout\)[^\n]*functions(?!:plateforme:tamponVersion")/.test(actif)); // « tout » : seulement le tampon de version (28/11/2026), aucune autre fonction
   });
   test('construit le paquet avant de publier ; choix « hosting » par défaut ; droits minimaux ; pas d\'injection', () => {
     assert.ok(actif.indexOf('preparer-hebergement.js plateforme') < actif.indexOf('firebase-tools'));
     assert.ok(actif.indexOf('plateforme-deploiement.test.js') < actif.indexOf('firebase-tools'));
     assert.match(actif, /default: hosting/);
     assert.match(actif, /permissions:\s*\n\s+contents: read/);
-    assert.ok(!/\$\{\{\s*inputs\./.test(actif.replace(/ELEMENTS: \$\{\{ inputs\.elements \}\}/, '').replace(/if: \$\{\{ inputs\.elements == 'fonctions' \|\| inputs\.elements == 'mcp' \|\| inputs\.elements == 'espace' \|\| inputs\.elements == 'porte' \}\}/, '')), 'le choix passe par une variable d\'environnement (seul un « if » de comparaison fait exception)');
+    assert.ok(!/\$\{\{\s*inputs\./.test(actif.replace(/ELEMENTS: \$\{\{ inputs\.elements \}\}/, '').replace(/if: \$\{\{ inputs\.elements == 'fonctions' \|\| inputs\.elements == 'mcp' \|\| inputs\.elements == 'espace' \|\| inputs\.elements == 'porte' \|\| inputs\.elements == 'hosting' \|\| inputs\.elements == 'tout' \}\}/, '')), 'le choix passe par une variable d\'environnement (seul un « if » de comparaison fait exception)');
   });
   test('le secret n\'est écrit que dans un fichier temporaire protégé, supprimé à la fin, et jamais affiché', () => {
     assert.match(actif, /umask 077/);

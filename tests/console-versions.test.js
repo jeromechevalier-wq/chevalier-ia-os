@@ -13,6 +13,7 @@ import { tamponnerVersion, versionApplication, ligneDeJournalTampon } from '../f
 import { STRUCTURE_DONNEES } from '../functions/src/coeur/structure-donnees.js';
 import { lireVersionsBatiments, lireBatiment, etatsBatiment, MOTIFS, NB_HISTORIQUE } from '../functions/src/console/versions.js';
 import { creerAppelConsoleVersions, COMPTES_CONSOLE as LIRE_COMPTES } from '../functions/src/console/appel.js';
+import { COMPTE_BOT } from './_reglages-maison-essai.js';
 
 const racine = fileURLToPath(new URL('../', import.meta.url));
 const lire = (chemin) => readFileSync(`${racine}${chemin}`, 'utf8');
@@ -90,7 +91,7 @@ describe('V7 consoleVersions : Jérôme seul (même contrôle que consoleEtat)',
     await refus(demande(undefined), 'unauthenticated');
     await refus(demande({ email: JEROME, email_verified: false }), 'permission-denied');
     await refus(demande({ email: JEROME }), 'permission-denied');
-    for (const email of ['jeromebot.chevalierbot@gmail.com', 'editeur@client-fictif.example', 'intrus@exemple.test']) await refus(demande({ email, email_verified: true }), 'permission-denied');
+    for (const email of [COMPTE_BOT, 'editeur@client-fictif.example', 'intrus@exemple.test']) await refus(demande({ email, email_verified: true }), 'permission-denied');
     await refus(demande({ sub: 'bot', role: 'complet', email_verified: true }), 'permission-denied');
     assert.equal(lu, 0, 'aucune lecture avant le contrôle d\'identité');
   });
@@ -113,9 +114,28 @@ describe('V7 consoleVersions : Jérôme seul (même contrôle que consoleEtat)',
 
 describe('V8 états d\'un bâtiment (sans base)', () => {
   test('V8 version : à jour, en retard, inconnue ; structure : inconnue tant que structure_base manque', () => {
-    assert.deepEqual(etatsBatiment({ version: '2.0.0', structure_code: 1, structure_base: null }, '2.0.0'), { etat_version: 'a_jour', etat_structure: 'inconnu' });
-    assert.deepEqual(etatsBatiment({ version: '1.9.0', structure_code: 1, structure_base: 1 }, '2.0.0'), { etat_version: 'en_retard', etat_structure: 'a_jour' });
-    assert.deepEqual(etatsBatiment({ version: null, structure_code: 2, structure_base: 1 }, '2.0.0'), { etat_version: 'inconnu', etat_structure: 'en_retard' });
+    const frais = { vu_le: new Date(T0 - HEURE).toISOString() };
+    const o = { maintenant: T0 };
+    assert.deepEqual(etatsBatiment({ version: '2.0.0', structure_code: 1, structure_base: null, ...frais }, '2.0.0', o), { etat_version: 'a_jour', etat_structure: 'inconnu', motif: null });
+    assert.deepEqual(etatsBatiment({ version: '1.9.0', structure_code: 1, structure_base: 1, ...frais }, '2.0.0', o), { etat_version: 'en_retard', etat_structure: 'a_jour', motif: null });
+    assert.deepEqual(etatsBatiment({ version: null, structure_code: 2, structure_base: 1, ...frais }, '2.0.0', o), { etat_version: 'inconnu', etat_structure: 'en_retard', motif: null });
+  });
+  test('V8 version de référence absente (version.json illisible sur le serveur qui répond) : « inconnu », jamais « en retard »', () => {
+    assert.equal(etatsBatiment({ version: '2.0.0', structure_code: 1, structure_base: null, vu_le: new Date(T0).toISOString() }, null, { maintenant: T0 }).etat_version, 'inconnu');
+    assert.equal(etatsBatiment({ version: '2.0.0', structure_code: 1, structure_base: null, vu_le: new Date(T0).toISOString() }, undefined, { maintenant: T0 }).etat_version, 'inconnu');
+  });
+  test('V8b tampon muet : vu_le vieux de plus de 3 heures donne « inconnu » avec « le tampon ne répond plus depuis le … » ; 3 heures pile : encore à jour', () => {
+    const vu = new Date(T0).toISOString(); // 28/11/2026 à 10:00 (Paris)
+    const muet = etatsBatiment({ version: '2.0.0', structure_code: 1, structure_base: null, vu_le: vu }, '2.0.0', { maintenant: T0 + 3 * HEURE + 1 });
+    assert.deepEqual(muet, { etat_version: 'inconnu', etat_structure: 'inconnu', motif: 'le tampon ne répond plus depuis le 28/11/2026 à 10:00' });
+    assert.equal(etatsBatiment({ version: '2.0.0', structure_code: 1, structure_base: null, vu_le: vu }, '2.0.0', { maintenant: T0 + 3 * HEURE }).etat_version, 'a_jour');
+  });
+  test('V8c juste après une fusion : le CRM (bâtiment courant) tamponné avant le démarrage de l\'instance est « en attente », pas « en retard » ; l\'immeuble reste « en retard »', () => {
+    const b = { version: '1.9.0', structure_code: 1, structure_base: null, vu_le: new Date(T0 - 10 * 60_000).toISOString() };
+    assert.equal(etatsBatiment(b, '2.0.0', { maintenant: T0, demarrage: T0 - 60_000, courant: true }).etat_version, 'en_attente');
+    assert.equal(etatsBatiment(b, '2.0.0', { maintenant: T0, demarrage: T0 - 60_000, courant: false }).etat_version, 'en_retard');
+    assert.equal(etatsBatiment(b, '2.0.0', { maintenant: T0, demarrage: T0 - 20 * 60_000, courant: true }).etat_version, 'en_retard', 'tamponné APRÈS le démarrage : vraiment en retard');
+    assert.equal(etatsBatiment(b, '2.0.0', { maintenant: T0, courant: true }).etat_version, 'en_retard', 'démarrage inconnu : en retard');
   });
   test('V8 immeuble non relié (null) et lecture qui échoue : « inconnu » avec un motif lisible, jamais une erreur pour tout l\'écran', async () => {
     const enPanne = { collection: () => { throw new Error('refusé'); } };
@@ -186,24 +206,24 @@ describe('V2 à V4, V8 tampon et lecture sur Firestore (émulateur)', { skip: em
     f = await fiche(dbOs);
     assert.equal(f.structure_code, 2);
     assert.equal(f.version_depuis.toMillis(), T0 + HEURE, 'même version : « depuis » ne bouge pas');
-    assert.deepEqual((await historique(dbOs)).map((h) => [h.version, h.de_version]), [['2.58.0', null], ['2.59.0', '2.58.0'], ['2.59.0', '2.59.0']]);
+    assert.deepEqual((await historique(dbOs)).map((h) => [h.version, h.de_version, h.structure_code, h.de_structure]), [['2.58.0', null, 1, null], ['2.59.0', '2.58.0', 1, 1], ['2.59.0', '2.59.0', 2, 1]], 'structure seule : la ligne porte structure_code et de_structure');
   });
 
   test('V8 consoleVersions lit le CRM et l\'immeuble : états, 10 derniers changements, aucun nom de projet', async () => {
     for (let i = 0; i < 12; i += 1) { t = T0 + i * HEURE; await tampon(dbOs, `2.${40 + i}.0`); }
-    t = T0; await tampon(dbApp, '2.50.0');
-    const r = await lireVersionsBatiments({ dbOs: () => dbOs, dbApp: async () => dbApp, reference: '2.51.0' });
+    t = T0 + 10 * HEURE; await tampon(dbApp, '2.50.0'); // tamponné il y a 1 h : pas muet
+    const r = await lireVersionsBatiments({ dbOs: () => dbOs, dbApp: async () => dbApp, reference: '2.51.0', maintenant: T0 + 11 * HEURE });
     assert.equal(r.version_reference, '2.51.0');
     const [os, immeuble] = r.batiments;
     assert.deepEqual(Object.keys(os).sort(), ['cle', 'depuis', 'etat_structure', 'etat_version', 'historique', 'motif', 'structure_base', 'structure_code', 'version', 'vu_le']);
     assert.deepEqual([os.cle, os.version, os.etat_version, os.etat_structure, os.motif], ['os', '2.51.0', 'a_jour', 'inconnu', null]);
     assert.equal(os.depuis, new Date(T0 + 11 * HEURE).toISOString());
     assert.equal(os.historique.length, NB_HISTORIQUE);
-    assert.deepEqual(os.historique[0], { version: '2.51.0', de_version: '2.50.0', le: new Date(T0 + 11 * HEURE).toISOString() }, 'le plus récent en premier');
+    assert.deepEqual(os.historique[0], { version: '2.51.0', de_version: '2.50.0', structure_code: 1, de_structure: 1, le: new Date(T0 + 11 * HEURE).toISOString() }, 'le plus récent en premier');
     assert.deepEqual([immeuble.cle, immeuble.version, immeuble.etat_version], ['immeuble', '2.50.0', 'en_retard']);
     assert.ok(!/demo-console|chevalier-ia-/.test(JSON.stringify(r)), 'jamais de nom de projet');
     await dbApp.recursiveDelete(dbApp.collection('reglages_maison'));
-    const vide = (await lireVersionsBatiments({ dbOs: () => dbOs, dbApp: async () => dbApp, reference: '2.51.0' })).batiments[1];
+    const vide = (await lireVersionsBatiments({ dbOs: () => dbOs, dbApp: async () => dbApp, reference: '2.51.0', maintenant: T0 + 11 * HEURE })).batiments[1];
     assert.deepEqual([vide.version, vide.etat_version, vide.motif, vide.historique], [null, 'inconnu', MOTIFS.sans_tampon, []]);
   });
 

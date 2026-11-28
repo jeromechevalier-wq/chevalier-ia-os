@@ -45,18 +45,19 @@ export function rendreVue(conteneur, segs = []) {
 
 /**
  * Bloc « Versions » (phase 2, 28/11/2026), sous le schéma : une ligne par bâtiment (version, depuis quand, version et structure à jour ou non, historique dépliable).
- * Lu par `consoleVersions` (Jérôme seul). Trois états : chargement, erreur (message + « Réessayer »), et pour un bâtiment sans tampon le texte « Version inconnue… ».
+ * Lu par `consoleVersions` (Jérôme seul). Trois états : chargement, erreur (message + « Réessayer »), et pour un bâtiment sans tampon le texte « Version inconnue… » (une lecture impossible : seulement son motif).
  */
 function blocVersions() {
   const corps = h('div', { class: 'console-versions', 'aria-live': 'polite' });
   const element = h('section', { class: 'carte-section', dataset: { bloc: 'versions' } }, h('h2', {}, icone('tag', { taille: 18 }), 'Versions'), corps);
   let annule = false;
-  const pastilleVersion = (etat, texte) => h('span', { class: 'pastille-statut', dataset: { etat }, style: { '--couleur': etat === 'a_jour' ? 'var(--succes)' : etat === 'en_retard' ? 'var(--retard)' : 'var(--texte2)' } }, texte);
+  const pastilleVersion = (etat, texte) => h('span', { class: 'pastille-statut', dataset: { etat }, style: { '--couleur': etat === 'a_jour' ? 'var(--succes)' : etat === 'en_retard' ? 'var(--retard)' : etat === 'en_attente' ? 'var(--accent-trait)' : 'var(--texte2)' } }, texte);
   function ligne(l) {
     return h('div', { class: 'console-version', dataset: { batiment: l.cle, etatVersion: l.etatVersion } },
       h('h3', {}, l.libelle),
-      l.vide ? h('p', { class: 'aide', dataset: { vide: '1' } }, L.TEXTE_VERSION_VIDE)
-        : h('p', {}, h('strong', {}, l.version), l.depuis ? ` ${l.depuis}` : ''),
+      l.sansTampon ? h('p', { class: 'aide', dataset: { vide: '1' } }, L.TEXTE_VERSION_VIDE) : null,
+      l.vide ? null : h('p', {}, h('strong', {}, l.version), l.depuis ? ` ${l.depuis}` : ''),
+      l.vuLe ? h('p', { class: 'aide', dataset: { vuLe: '1' } }, l.vuLe) : null,
       l.motif ? h('p', { class: 'aide', dataset: { motif: '1' } }, `Motif : ${l.motif}.`) : null,
       h('p', { class: 'console-version-etats' }, pastilleVersion(l.etatVersion, l.textes.version), ' ', pastilleVersion(l.etatStructure, l.textes.structure)),
       h('details', { class: 'console-version-historique' }, h('summary', {}, 'Historique'),
