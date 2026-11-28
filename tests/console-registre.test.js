@@ -188,9 +188,9 @@ describe('R9 écran : schéma, boutons et détail calculés depuis la réponse (
     assert.equal(tronquer('Un nom vraiment beaucoup trop long', MAX_NOM_ETAGE), 'Un nom vraime…');
     assert.equal(tronquer('Un nom vraiment beaucoup trop long', MAX_NOM_ETAGE).length, MAX_NOM_ETAGE);
   });
-  test('R9 maisons du registre à la place de « Maison client 1 » (grue si en construction, pointillés si à venir), « Maison à venir » en dernier', () => {
+  test('R9 maisons du registre à la place de « Maison client 1 » (grue si en construction, pointillés si à venir), « Maison à venir » en dernier sauf si le registre en a une (AR14)', () => {
     const m = modeleSchema(reponse());
-    assert.deepEqual(m.batiments.map((b) => [b.nom, b.genre]), [['Chevalier IA OS', 'maison'], ['Chevalier IA App', 'immeuble'], ['Espace essai A', 'chantier'], ['Espace essai B', 'avenir'], ['Maison à venir', 'avenir']]);
+    assert.deepEqual(m.batiments.map((b) => [b.nom, b.genre]), [['Chevalier IA OS', 'maison'], ['Chevalier IA App', 'immeuble'], ['Espace essai A', 'chantier'], ['Espace essai B', 'avenir']]); // maison B à venir : pas de « Maison à venir » générique en plus
     assert.deepEqual(m.batiments[2].nuage, ['Cloud SQL', 'les données']);
     assert.deepEqual(m.batiments[3].legende, ['À venir']);
     const sansMaison = modeleSchema(reponse({ maisons: [] }));
@@ -412,7 +412,7 @@ describe('AR nuages du schéma « Architecture » (sans navigateur)', () => {
   test('AR8 nuage commun grisé au-dessus du CRM et de l\'immeuble : « Cloud SQL — à venir », « les données à venir »', () => {
     assert.deepEqual(TEXTES_SCHEMA.nuageCommun, ['Cloud SQL — à venir', 'les données à venir']);
     const s = lire('js/modules/console/schema.js');
-    assert.match(s, /nuageCommun\(places\[0\]\.x, places\[1\]\.x, \d+, T\.nuageCommun\)/);
+    assert.match(s, /nuageCommun\(places\[0\]\.x, places\[1\]\.x, (\d+|Y_SQL), T\.nuageCommun\)/); // Y_SQL : rangée des Cloud SQL (AR11)
     assert.match(s, /const nuageCommun = [\s\S]*?el\('g', \{ class: 'console-schema-avenir' \}/);
   });
   test('AR9 nuage de Chevalier IA App : « Firestore », « les données », « et les réglages »', () => {
@@ -421,13 +421,71 @@ describe('AR nuages du schéma « Architecture » (sans navigateur)', () => {
   });
   test('AR10 maison client : un 2e nuage « Firestore », « les réglages » (figé et registre, sauf maison à venir)', () => {
     assert.deepEqual(TEXTES_SCHEMA.batiments[2].nuage2, ['Firestore', 'les réglages']);
-    assert.equal(TEXTES_SCHEMA.batiments[3].nuage2, undefined);
+    assert.deepEqual(TEXTES_SCHEMA.batiments[3].nuage2, ['Firestore', 'à venir']); // la maison à venir figée a désormais son Firestore à venir (AR14)
     const m = modeleSchema({ os: { projets: [] }, immeuble: { projets: [], appartements: [] }, maisons: [
       { cle: 'maison-a', nom: 'Maison essai A', etat: 'en_construction', projets: [{ role: 'Cloud SQL', libelle: 'Base essai' }] },
       { cle: 'maison-b', nom: 'Maison essai B', etat: 'a_venir', projets: [] },
     ] });
     assert.deepEqual(m.batiments[2].nuage2, ['Firestore', 'les réglages']);
     assert.deepEqual(m.batiments[2].nuage, ['Cloud SQL', 'les données']);
-    assert.equal(m.batiments[3].nuage2, undefined);
+    assert.deepEqual([m.batiments[3].nuage, m.batiments[3].nuage2], [['Cloud SQL', 'à venir'], ['Firestore', 'à venir']]); // maison à venir du registre : dessin de la maison à venir (AR14)
+  });
+});
+
+// Troisième retouche du schéma (28/11/2026, AR11 à AR15) : une rangée pour les Cloud SQL, une pour les Firestore, le téléphone MCP des maisons,
+// la maison à venir (Cloud SQL, Firestore et téléphone à venir). L'alignement et l'absence de chevauchement se mesurent à l'écran (tests/e2e/console.spec.js).
+describe('AR rangées de nuages du schéma « Architecture » (sans navigateur)', () => {
+  const schema = () => lire('js/modules/console/schema.js');
+  const registre = () => modeleSchema({ os: { projets: [] }, immeuble: { projets: [], appartements: [] }, maisons: [
+    { cle: 'maison-a', nom: 'Maison essai A', etat: 'en_construction', projets: [{ role: 'Cloud SQL', libelle: 'Base essai' }] },
+    { cle: 'maison-b', nom: 'Maison essai B', etat: 'a_venir', projets: [] },
+  ] });
+  test('AR11 rangée des Cloud SQL : le nuage commun et le 1er nuage de chaque maison (avec 2e nuage ou à venir) au même centre Y_SQL de la bande', () => {
+    const s = schema();
+    assert.match(s, /const Y_SQL = \d+;/);
+    assert.match(s, /const surSql = Boolean\(b\.nuage2\) \|\| avenir;/);
+    assert.match(s, /const ySql = haut - HAUT_COMMUN \+ Y_SQL;/);
+    assert.match(s, /nuage\(cx, surSql \? ySql : yFirestore, b\.nuage, avenir\)/);
+    // Chaque rangée a sa bande des Cloud SQL au-dessus d'elle (la 2e rangée du dessin étroit aussi).
+    assert.match(s, /t \+ RANGEE \+ x \+ p \+ HAUT_COMMUN, HAUT_COMMUN/);
+    assert.deepEqual(TEXTES_SCHEMA.batiments[2].nuage, ['Cloud SQL', 'les données']);
+    assert.deepEqual(registre().batiments[2].nuage, ['Cloud SQL', 'les données']);
+  });
+  test('AR12 rangée des Firestore : CRM, immeuble (1er nuage) et 2e nuage de chaque maison à la même hauteur (haut + 44)', () => {
+    const s = schema();
+    assert.match(s, /const yFirestore = haut \+ 44;/);
+    assert.match(s, /b\.nuage2 \? nuage\(cx, yFirestore, b\.nuage2, avenir\)/);
+    assert.doesNotMatch(s, /haut \+ 116/); // l'ancienne 3e rangée a disparu
+    assert.deepEqual(TEXTES_SCHEMA.batiments.map((b) => b.nuage2?.[0] ?? b.nuage[0]), ['Firestore', 'Firestore', 'Firestore', 'Firestore']);
+    assert.equal(TEXTES_SCHEMA.batiments[0].nuage2, undefined);
+    assert.equal(TEXTES_SCHEMA.batiments[1].nuage2, undefined);
+  });
+  test('AR13 téléphone MCP de chaque maison client (figé et registre), relié à son nuage Cloud SQL', () => {
+    assert.equal(TEXTES_SCHEMA.batiments[2].telephone, true);
+    const m = registre();
+    assert.equal(m.batiments[2].telephone, true);
+    assert.equal(m.batiments[3].telephone, true);
+    assert.match(schema(), /const fil = surSql \? \[\[cx \+ 82, ySql \+ 38\], \[cx \+ 56, ySql \+ 22\]\] : \[\[cx \+ 62, haut \+ 64\]\];/);
+  });
+  test('AR14 maison à venir : « Cloud SQL / à venir » et « Firestore / à venir », un téléphone à venir, en pointillés grisés', () => {
+    const avenir = TEXTES_SCHEMA.batiments[3];
+    assert.deepEqual([avenir.genre, avenir.nuage, avenir.nuage2, avenir.telephone], ['avenir', ['Cloud SQL', 'à venir'], ['Firestore', 'à venir'], true]);
+    assert.doesNotMatch(JSON.stringify(avenir), /Données/);
+    // Maison à venir du registre : même dessin que la maison à venir figée, sans « Données à part », et pas de maison générique en plus.
+    const b = registre().batiments;
+    assert.deepEqual(b.map((x) => x.nom), ['Chevalier IA OS', 'Chevalier IA App', 'Maison essai A', 'Maison essai B']);
+    assert.deepEqual([b[3].genre, b[3].nuage, b[3].nuage2, b[3].telephone, b[3].legende], ['avenir', ['Cloud SQL', 'à venir'], ['Firestore', 'à venir'], true, ['À venir']]);
+    assert.doesNotMatch(JSON.stringify(b), /à part/);
+    // Sans maison à venir dans le registre : la maison générique reste en dernier.
+    const sansAvenir = modeleSchema({ os: { projets: [] }, immeuble: { projets: [], appartements: [] }, maisons: [{ cle: 'maison-a', nom: 'Maison essai A', etat: 'en_construction', projets: [] }] });
+    assert.deepEqual(sansAvenir.batiments.at(-1), avenir);
+    const s = schema();
+    assert.match(s, /class: avenir \? 'console-schema-nuage console-schema-tirets' : 'console-schema-nuage'/);
+    assert.match(s, /const telephone = \(x, y, vers, avenir\) => el\('g', \{ class: avenir \? 'console-schema-avenir console-schema-pointilles' : null \}/);
+  });
+  test('AR15 rien ne se chevauche : la bande des Cloud SQL passe sous la case n8n (vérifié à l\'écran aux deux largeurs) ; la légende et n8n ne changent pas', () => {
+    assert.deepEqual(TEXTES_SCHEMA.n8n, ['n8n : automatisations', 'sur VPS Hostinger']);
+    assert.match(TEXTES_SCHEMA.legende, /^Nuage = données · téléphone = MCP, va droit au nuage/);
+    assert.match(lire('tests/e2e/console.spec.js'), /test\(`AR11 AR12 AR13 AR14 AR15 rangées de nuages \(\$\{cas\}\)/);
   });
 });
