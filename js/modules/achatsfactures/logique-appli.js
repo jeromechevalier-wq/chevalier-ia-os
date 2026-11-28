@@ -2,7 +2,7 @@
 // Ce fichier calcule : les durées des animations, l'alerte « IBAN changé récemment », la liste des fournisseurs du volet, le fournisseur d'une facture (connu ou nouveau),
 // les chiffres du tableau de bord des factures et le bilan de fin de pile. Rien n'est inventé : une donnée absente donne « — » ou null, jamais un nombre deviné.
 import { normaliserIban, sirenDe } from './controles.js';
-import { centimesSignes } from './logique.js';
+import { centimesSignes, dateFr } from './logique.js';
 
 /** Vues de l'application (routes achatsfactures/<vue>) : la pile est l'accueil de l'appli. */
 export const VUES_APPLI = Object.freeze(['pile', 'tableau', 'reglages']);
@@ -72,6 +72,16 @@ export function changementDansConfirmations(miennes, maintenant = new Date()) {
   }
   evenements.sort((a, b) => b.quand - a.quand);
   return evenements[0] ? { date: evenements[0].date, motif: evenements[0].motif } : null;
+}
+
+/** Titre de l'alerte orange « IBAN changé récemment » au-dessus d'une facture (correction du 28/11/2026). Si la facture porte justement le NOUVEL IBAN, déjà confirmé,
+ *  le titre le dit : sinon « vérifie avant de payer » contredirait le contrôle « IBAN confirmé à la main » de la même facture. `fo` : la fiche du volet (`fournisseursDuVolet`). */
+export const TITRE_ALERTE_IBAN = 'IBAN changé récemment : vérifie avant de payer';
+export function titreAlerteIban(f, fo) {
+  const iban = f?.iban_normalise ?? normaliserIban(f?.extraction?.iban);
+  const conf = fo?.confirmation;
+  if (iban && conf && !conf.revoque_le && normaliserIban(conf.iban) === iban) return `IBAN changé récemment : cette facture porte le nouvel IBAN, confirmé le ${dateFr(conf.confirme_le)}`;
+  return TITRE_ALERTE_IBAN;
 }
 
 /** Le même calcul pour un SIREN, dans TOUTES les confirmations lues (table `chargerIbansConfirmes`) : celles du SIREN sont d'abord retenues. Sans SIREN : null. */

@@ -399,3 +399,20 @@ test('E10 le séparateur se déplace au clavier et reste borné (ordinateur) @sa
   for (let i = 0; i < 40; i++) await page.keyboard.press('ArrowLeft');
   expect(Number(await sep.getAttribute('aria-valuenow'))).toBe(30);
 });
+
+test('T2 facture acceptée (essai réel du 28/11/2026) : « Nos contrôles » ne dit plus « avant d\'accepter », les états restent', async ({ page }, info) => {
+  await ouvrirExaminer(page, 'a2'); // alerte orange : il faut un motif pour accepter
+  await versVerifications(page);
+  const controles = bloc(page, 'controles');
+  await expect(controles.locator('[data-role="synthese"]')).toContainText('avant d’accepter');
+  const etatsAvant = await controles.locator('[data-controle]').evaluateAll((l) => l.map((e) => e.dataset.etat ?? ''));
+  const decision = bloc(page, 'decision');
+  await decision.locator('[data-champ="motif-acceptation"]').fill('Vérifié avec le fournisseur par téléphone');
+  await decision.locator('[data-action="accepter"]').click();
+  await expect(page.locator('[data-role="statut"]')).toHaveText('Acceptée');
+  await expect(controles.locator('[data-role="synthese"]')).toContainText('relevé');
+  await expect(controles).not.toContainText('avant d’accepter');
+  expect(await controles.locator('[data-controle]').evaluateAll((l) => l.map((e) => e.dataset.etat ?? ''))).toEqual(etatsAvant);
+  await controles.scrollIntoViewIfNeeded();
+  await capturer(page, info, 'T2-acceptee-sans-avant-accepter');
+});

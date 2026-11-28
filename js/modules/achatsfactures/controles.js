@@ -240,9 +240,18 @@ function historique(f, memeFournisseur, ibansConfirmes) {
   if (derniere) return { ...base, etat: 'anomalie', phrase: `Cet IBAN a été révoqué le ${dateFr(derniere.revoque_le ?? null)}${derniere.motif_revocation ? ` (${derniere.motif_revocation})` : ''} : appelle avant d’accepter.` };
   if (memeFournisseur === null) return { ...base, etat: 'indisponible', aConfirmer: true, phrase: 'Vérification indisponible : les factures précédentes de ce fournisseur n’ont pas pu être lues. Réessaie avant d’accepter.' };
   const connus = new Set(memeFournisseur.filter((a) => a.id !== f.id && a.statut === 'acceptee').map((a) => normaliserIban(a.iban_normalise)).filter((x) => !!x));
-  if (connus.size === 0) return { ...base, etat: 'alerte', phrase: 'Premier IBAN vu pour ce fournisseur : aucune facture acceptée ne permet de le comparer.' };
+  if (connus.size === 0) return { ...base, etat: 'alerte', phrase: phrasePremierIban(ibansConfirmes, siren) };
   if (connus.has(iban)) return { ...base, etat: 'ok', phrase: 'Même IBAN que sur les factures déjà acceptées de ce fournisseur.' };
   return { ...base, etat: 'anomalie', phrase: 'L’IBAN a changé depuis les factures précédentes de ce fournisseur : appelle-le sur un numéro que tu connais déjà avant d’accepter.' };
+}
+
+/** Aucune facture acceptée pour comparer (correction du 28/11/2026, même état orange) : « Premier IBAN vu » seulement si ce fournisseur n'a AUCUN IBAN confirmé.
+ *  Sinon la phrase dit que cet IBAN n'est pas celui qu'on connaît (sans quoi la fiche « IBAN confirmé : Oui » ou l'alerte « IBAN changé récemment » la contrediraient). */
+function phrasePremierIban(ibansConfirmes, siren) {
+  const autres = (ibansConfirmes ?? []).filter((c) => c.siren === siren);
+  if (autres.some((c) => !c.revoque_le)) return 'Cet IBAN n’est pas celui confirmé pour ce fournisseur : appelle-le sur un numéro que tu connais déjà avant d’accepter.';
+  if (autres.length) return 'Nouvel IBAN pour ce fournisseur : son ancien IBAN confirmé a été retiré et celui-ci n’est pas encore confirmé. Appelle-le sur un numéro que tu connais déjà avant d’accepter.';
+  return 'Premier IBAN vu pour ce fournisseur : aucune facture acceptée ne permet de le comparer.';
 }
 
 // ---------- 7. IBAN partagé ----------
@@ -342,17 +351,28 @@ export function controlerFacture(f, memeFournisseur, ailleursIban, lignes, ibans
   return [...lues, doublon, ...ibans.map((c) => (probleme ? { ...c, phrase: probleme } : c)), controleAdresseEnvoi(e, memeFournisseur), controleLignes(f, lignes)];
 }
 
-/** Phrase de synthèse en haut des vérifications. Ne dit jamais « facture sûre ». */
-export function synthese(controles) {
+/** Phrase de synthèse en haut des vérifications. Ne dit jamais « facture sûre ». `decidee` : facture déjà acceptée ou refusée (plus de « avant d’accepter »). */
+export function synthese(controles, decidee = false) {
   const actifs = controles.filter((c) => !c.bientot);
   const anomalies = actifs.filter((c) => c.etat === 'anomalie').length;
   const points = anomalies + actifs.filter((c) => c.etat === 'alerte' || (c.aConfirmer && c.etat === 'indisponible')).length;
   const grises = actifs.filter((c) => c.etat === 'indisponible' && !c.aConfirmer).length;
-  if (points > 0) return `${points} point${points > 1 ? 's' : ''} à vérifier avant d’accepter${anomalies > 0 ? ` (dont ${anomalies} anomalie${anomalies > 1 ? 's' : ''})` : ''}.`;
+  if (points > 0) return `${points} point${points > 1 ? 's' : ''} ${decidee ? `d’attention relevé${points > 1 ? 's' : ''} par l’outil` : 'à vérifier avant d’accepter'}${anomalies > 0 ? ` (dont ${anomalies} anomalie${anomalies > 1 ? 's' : ''})` : ''}.`;
   if (grises === actifs.length && points === 0) return 'Aucune vérification n’a pu être faite : regarde la facture à la main.';
   if (grises > 0) return `Aucun point d’attention détecté par l’outil, mais ${grises} vérification${grises > 1 ? 's n’ont' : ' n’a'} pas pu être faite${grises > 1 ? 's' : ''}.`;
   return 'Aucun point d’attention détecté par l’outil.';
 }
+
+/** Une fois la facture décidée (acceptée ou refusée), les conseils « … avant d’accepter » n'ont plus de sens : ils sont retirés de la phrase, le constat reste (correction du 28/11/2026).
+ *  Seul le texte change : l'état (vert, orange, rouge, gris) de chaque contrôle est gardé. */
+export function phraseApresDecision(phrase) {
+  return phrase
+    .replace(/ : appelle(?:-le)?(?: sur un numéro que tu connais déjà)? avant d’accepter\./, '.')
+    .replace(/\.? Appelle-le sur un numéro que tu connais déjà avant d’accepter\./, '.')
+    .replace(/ Réessaie avant d’accepter\./, '')
+    .replace(/ avant d’accepter\./, '.');
+}
+export const controlesApresDecision = (controles) => controles.map((c) => ({ ...c, phrase: phraseApresDecision(c.phrase) }));
 
 export const nombreAnomalies = (c) => c.filter((x) => x.etat === 'anomalie').length;
 

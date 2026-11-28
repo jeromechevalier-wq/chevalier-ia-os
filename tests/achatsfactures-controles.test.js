@@ -6,7 +6,7 @@ import { expect } from './_expect-achatsfactures.js';
 import {
   PREFIXE_SIRET_EXCEPTION,
   controleAdresseEnvoi, controleIban, controleIbanHistorique, controleIbanPartage, ibanValide, normaliserIban, synthese, CONTROLES_BIENTOT, controleDestinataire as controleDestinataireBrut,
-  controleDoublon, numeroNormalise, sirenDe, controleSiret, controleTotaux, controleLignes, controlerFacture as controlerFactureBrut, luhnValide, siretValide, nomsCoherents, alertesAffichees,
+  controleDoublon, numeroNormalise, sirenDe, controleSiret, controleTotaux, controleLignes, controlerFacture as controlerFactureBrut, luhnValide, siretValide, nomsCoherents, alertesAffichees, phraseApresDecision, controlesApresDecision,
 } from '../js/modules/achatsfactures/controles.js';
 
 const IDENT = { nom: 'ENTREPRISE TEST', noms: ['ENTREPRISE TEST', 'Entreprise Test Construction'], siren: '987654324', siret: '98765432400019', adresseMots: ['rue des tests'] };
@@ -499,5 +499,49 @@ describe('5 : IBAN confirmé à la main', () => {
     const f = { id: 'me', statut: 'a_valider', numero: 'A', numero_normalise: 'A', montant_ttc: 1, date_facture: null, fournisseur_siren: '123456782', iban_normalise: IBAN_FR, extraction: extr({ iban: IBAN_FR }), extraction_erreur: null }
     expect(controler(f, [], [], [], [conf()]).find((c) => c.id === 'iban-historique')?.etat).toBe('ok')
     expect(controler(f, [], [], [], [conf({ revoque_le: REV })]).find((c) => c.id === 'iban-historique')?.etat).toBe('anomalie')
+  })
+})
+
+// Corrections de l'essai réel du 28/11/2026 : textes seulement, les états (couleurs) des contrôles ne changent pas.
+describe('T1 IBAN : un seul message cohérent quand le fournisseur a déjà un IBAN confirmé', () => {
+  const moi = moiIban(IBAN_FR)
+  const confAutre = (o = {}) => ({ id: 'k', fournisseur_id: 'fo', siren: '123456782', iban: IBAN_FR2, confirme_le: '2026-06-01T08:00:00Z', revoque_le: null, motif_revocation: null, ...o })
+  test('T1 un AUTRE IBAN est confirmé pour ce fournisseur : plus de « Premier IBAN vu », la phrase dit que ce n’est pas l’IBAN confirmé (toujours orange)', () => {
+    const c = controleIbanHistorique(moi, [], [confAutre()])
+    expect(c.etat).toBe('alerte')
+    expect(c.phrase).toBe('Cet IBAN n’est pas celui confirmé pour ce fournisseur : appelle-le sur un numéro que tu connais déjà avant d’accepter.')
+  })
+  test('T1 l’ancien IBAN confirmé a été retiré : « Nouvel IBAN », jamais « Premier IBAN vu » (toujours orange)', () => {
+    const c = controleIbanHistorique(moi, [], [confAutre({ revoque_le: '2026-11-20T08:00:00Z', motif_revocation: 'Changement' })])
+    expect(c.etat).toBe('alerte')
+    expect(c.phrase).toMatch(/^Nouvel IBAN pour ce fournisseur : son ancien IBAN confirmé a été retiré/)
+  })
+  test('T1 aucun IBAN confirmé pour ce fournisseur (celui d’un autre SIREN ne compte pas) : « Premier IBAN vu » reste juste', () => {
+    expect(controleIbanHistorique(moi, [], []).phrase).toContain('Premier IBAN vu pour ce fournisseur')
+    expect(controleIbanHistorique(moi, [], [confAutre({ siren: '222222226' })]).phrase).toContain('Premier IBAN vu pour ce fournisseur')
+  })
+})
+
+describe('T2 facture décidée : plus de « avant d’accepter »', () => {
+  test('T2 la synthèse d’une facture décidée parle des points relevés, sans « avant d’accepter »', () => {
+    const c = [{ id: 'a', titre: 'a', etat: 'alerte', phrase: '' }, { id: 'b', titre: 'b', etat: 'anomalie', phrase: '' }]
+    expect(synthese(c, true)).toBe('2 points d’attention relevés par l’outil (dont 1 anomalie).')
+    expect(synthese([c[0]], true)).toBe('1 point d’attention relevé par l’outil.')
+    expect(synthese(c)).toBe('2 points à vérifier avant d’accepter (dont 1 anomalie).')
+  })
+  test('T2 les phrases gardent le constat et perdent le conseil « avant d’accepter »', () => {
+    expect(phraseApresDecision('L’IBAN a changé depuis les factures précédentes de ce fournisseur : appelle-le sur un numéro que tu connais déjà avant d’accepter.')).toBe('L’IBAN a changé depuis les factures précédentes de ce fournisseur.')
+    expect(phraseApresDecision('Cet IBAN a été révoqué le 01/11/2026 (RIB piraté) : appelle avant d’accepter.')).toBe('Cet IBAN a été révoqué le 01/11/2026 (RIB piraté).')
+    expect(phraseApresDecision('Vérification indisponible : les lignes de cette facture n’ont pas pu être lues. Réessaie avant d’accepter.')).toBe('Vérification indisponible : les lignes de cette facture n’ont pas pu être lues.')
+    expect(phraseApresDecision('Vérification indisponible : l’état de lecture des lignes est inconnu. Compare avec le PDF avant d’accepter.')).toBe('Vérification indisponible : l’état de lecture des lignes est inconnu. Compare avec le PDF.')
+    expect(phraseApresDecision('Format de l’IBAN correct. Cela ne prouve pas à qui appartient le compte.')).toBe('Format de l’IBAN correct. Cela ne prouve pas à qui appartient le compte.')
+  })
+  test('T2 aucune phrase des neuf contrôles d’une facture décidée ne dit « avant d’accepter », et les états ne changent pas', () => {
+    const f = { id: 'me', statut: 'acceptee', fournisseur_siren: '123456782', iban_normalise: IBAN_FR, extraction: extr({ iban: IBAN_FR }), extraction_erreur: null, lignes_etat: 'inconnu' }
+    const avant = controler(f, null, null, null, null)
+    expect(avant.some((c) => c.phrase.includes('avant d’accepter'))).toBe(true)
+    const apres = controlesApresDecision(avant)
+    expect(apres.some((c) => c.phrase.includes('avant d’accepter'))).toBe(false)
+    expect(apres.map((c) => c.etat)).toEqual(avant.map((c) => c.etat))
   })
 })

@@ -14,7 +14,7 @@ import { chargement, etatErreur } from './composants.js';
 import { dessinerEtatAcces } from './ecran.js';
 import { reglagesExportFactures } from './export.js';
 import { dateFr, nomFournisseur, SANS_FOURNISSEUR } from './logique.js';
-import { fournisseursDuVolet, etatFournisseurFacture, chiffresTableau, libelleMois, eurosCentimes, delaiLisible, DUREES } from './logique-appli.js';
+import { fournisseursDuVolet, etatFournisseurFacture, titreAlerteIban, chiffresTableau, libelleMois, eurosCentimes, delaiLisible, DUREES } from './logique-appli.js';
 
 export const NOM_APPLI = 'Factures';
 export const TITRE_TABLEAU = 'Tableau de bord des factures';
@@ -187,7 +187,7 @@ export function rendreAppli(conteneur, vue = 'pile') {
           h('span', {}, h('b', {}, 'Fournisseur non reconnu.'), ' Son SIREN n’a pas été lu sur la facture : il est peut-être déjà dans ta liste.'),
           h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'voir-fournisseurs' }, onclick: () => { sortirFocus(); volet.ouvrir('fournisseurs'); } }, 'Voir les fournisseurs')) : null,
         fo?.changement ? h('div', { class: 'af-alerte', role: 'status', dataset: { role: 'alerte-iban' } }, icone('triangle-alert', { taille: 16 }),
-          h('div', {}, h('b', {}, 'IBAN changé récemment : vérifie avant de payer'),
+          h('div', {}, h('b', {}, titreAlerteIban(f, fo)),
             h('span', {}, `Changé le ${dateFr(fo.changement.date)}. `, h('button', { type: 'button', class: 'af-lien-mini', dataset: { action: 'voir-fiche-fournisseur' }, onclick: () => { sortirFocus(); volet.ouvrirFiche('fournisseurs', fo.id); } }, 'Voir la fiche')))) : null);
     };
 
