@@ -196,28 +196,31 @@ test.describe('Mon accueil : interrupteurs par personne', () => {
     await carte(page).scrollIntoViewIfNeeded();
     await capturer(page, info, 'I6-carte-mon-accueil');
     await expect(page.locator('[data-action="retour-village"]')).toHaveCount(1);
+    // « Pièces d'or et boutique » éteint (village allumé : il a un effet, donc il est actif) : écriture, rechargement
+    await expect(interJeu(page)).toBeEnabled();
+    await expect(page.locator('[data-role="jeu-sans-effet"]')).toBeHidden();
+    await Promise.all([page.waitForEvent('load'), interJeu(page).click()]);
+    await expect(carte(page)).toBeVisible();
+    await expect(interJeu(page)).toHaveAttribute('aria-checked', 'false');
+    const lu = await lireDocument(prefsDe(uid));
+    expect([lu.jeu, lu.accueil]).toEqual([false, 'village']);
     // « Accueil en village » éteint : écriture, rechargement, accueil classique
     await Promise.all([page.waitForEvent('load'), interVillage(page).click()]);
     await expect(page.locator('.coquille')).toBeVisible();
     await expect(carte(page)).toBeVisible();
     await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false');
     await expect(page.locator('[data-action="retour-village"]')).toHaveCount(0);
-    await expect(page.locator('[data-role="jeu-sans-effet"]')).toHaveText('Sans effet tant que l’accueil est le menu classique.');
-    const lu = await lireDocument(prefsDe(uid));
-    expect([lu.jeu, lu.accueil]).toEqual([true, 'classique']);
-    // « Pièces d'or et boutique » éteint : écriture, rechargement
-    await Promise.all([page.waitForEvent('load'), interJeu(page).click()]);
-    await expect(carte(page)).toBeVisible();
-    await expect(interJeu(page)).toHaveAttribute('aria-checked', 'false');
     const lu2 = await lireDocument(prefsDe(uid));
     expect([lu2.jeu, lu2.accueil]).toEqual([false, 'classique']);
     // écriture refusée (panne simulée) : message, l'interrupteur revient, pas de rechargement
     await page.evaluate(() => { window.__chevalierTest.pannesPreferences = { ecriture: 1 }; window.__pasRecharge = true; });
-    await interJeu(page).click();
+    await interVillage(page).click();
     await expect(page.getByText('Le réglage n’a pas été enregistré. Réessaie.')).toBeVisible();
-    await expect(interJeu(page)).toHaveAttribute('aria-checked', 'false');
-    await expect(interJeu(page)).toBeEnabled();
-    await expect(interJeu(page)).toBeFocused(); // le focus revient sur l'interrupteur touché
+    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(interVillage(page)).toBeEnabled();
+    await expect(interVillage(page)).toBeFocused(); // le focus revient sur l'interrupteur touché
+    await expect(interJeu(page)).toBeDisabled(); // l'accueil est revenu au menu classique : « Pièces d'or » regrisé
+    await expect(page.locator('[data-role="jeu-sans-effet"]')).toBeVisible();
     expect(await page.evaluate(() => window.__pasRecharge)).toBe(true);
     await capturer(page, info, 'I6-erreur-ecriture');
   });
@@ -251,6 +254,94 @@ test.describe('Mon accueil : interrupteurs par personne', () => {
     // 3. on rallume le village : le document est relu (jeu allumé) et seul l'accueil change
     await Promise.all([page.waitForEvent('load'), interVillage(page).click()]);
     await expect.poll(async () => { const d = await lireDocument(prefsDe(uid)); return d && [d.jeu, d.accueil]; }).toEqual([true, 'village']);
+  });
+
+  // Option sans effet grisée avec sa raison (règle de Jérôme du 28/11/2026, docs/consignes-ui.md « Option sans effet ») : « Pièces d'or et boutique » ne sert à rien en accueil classique.
+  const raison = (page) => page.locator('[data-role="jeu-sans-effet"]');
+  const RAISON = 'Sans effet tant que l’accueil est le menu classique : allume « Accueil en village » pour le régler.';
+  /** L'interrupteur « Pièces d'or » est grisé : désactivé, aria-disabled, pâle, raison écrite dessous ; sa valeur n'a pas bougé (`valeur`). */
+  async function attendreGrise(page, valeur) {
+    await expect(interJeu(page)).toBeDisabled();
+    await expect(interJeu(page)).toHaveAttribute('aria-disabled', 'true');
+    await expect(interJeu(page)).toHaveAttribute('aria-checked', String(valeur));
+    await expect(raison(page)).toBeVisible();
+    await expect(raison(page)).toHaveText(RAISON);
+    expect(Number(await interJeu(page).evaluate((el) => getComputedStyle(el).opacity))).toBeLessThan(1);
+    await expect(interJeu(page)).toHaveAttribute('aria-describedby', 'mon-accueil-jeu-sans-effet');
+    const opacite = (loc) => loc.evaluate((el) => Number(getComputedStyle(el).opacity));
+    const ligneJeu = page.locator('.mon-accueil-ligne').filter({ has: interJeu(page) });
+    expect(await opacite(ligneJeu.locator('strong'))).toBeLessThan(1); // le titre pâlit aussi
+    expect(await opacite(raison(page))).toBe(1); // la raison reste bien lisible
+    await interJeu(page).click({ force: true }); // un clic forcé ne change rien : aucune écriture, aucune bascule
+    await expect(interJeu(page)).toHaveAttribute('aria-checked', String(valeur));
+  }
+  async function attendreActif(page) {
+    await expect(interJeu(page)).toBeEnabled();
+    await expect(interJeu(page)).toHaveAttribute('aria-disabled', 'false');
+    await expect(raison(page)).toBeHidden();
+    await expect(interJeu(page)).not.toHaveAttribute('aria-describedby', /./);
+  }
+
+  test('I9 village éteint : « Pièces d’or et boutique » grisé (désactivé, pâle), avec la raison écrite dessous', async ({ page }, info) => {
+    await semer({ besoins: [FACTURES] });
+    const uid = await ouvrir(page, 'reglages/espace', (u) => ecrireDocument(prefsDe(u), { jeu: true, accueil: 'classique', modifieLe: new Date() }));
+    await expect(carte(page)).toBeVisible();
+    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(interVillage(page)).toBeEnabled();
+    await attendreGrise(page, true);
+    const lu = await lireDocument(prefsDe(uid));
+    expect([lu.jeu, lu.accueil]).toEqual([true, 'classique']); // le clic forcé n'a rien écrit
+    await carte(page).scrollIntoViewIfNeeded();
+    await capturer(page, info, 'I9-jeu-grise');
+  });
+
+  test('I10 allumer « Accueil en village » : « Pièces d’or » redevient actif aussitôt (écriture puis rechargement automatique), valeur gardée ; écriture refusée : il reste grisé', async ({ page }, info) => {
+    await semer({ besoins: [FACTURES] });
+    const uid = await ouvrir(page, 'reglages/espace', (u) => ecrireDocument(prefsDe(u), { jeu: false, accueil: 'classique', modifieLe: new Date() }));
+    await attendreGrise(page, false);
+    // écriture refusée (panne simulée) : l'accueil revient au classique
+    await page.evaluate(() => { window.__chevalierTest.pannesPreferences = { ecriture: 1 }; });
+    await interVillage(page).click();
+    await expect(page.getByText('Le réglage n’a pas été enregistré. Réessaie.')).toBeVisible();
+    await attendreGrise(page, false); // panne : l'accueil revient au classique, donc toujours grisé
+    // écriture acceptée : rechargement dans le nouveau mode, « Pièces d'or » actif, valeur gardée (éteint)
+    await Promise.all([page.waitForEvent('load'), interVillage(page).click()]);
+    await expect(carte(page)).toBeVisible();
+    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'true');
+    await attendreActif(page);
+    await expect(interJeu(page)).toHaveAttribute('aria-checked', 'false');
+    const lu = await lireDocument(prefsDe(uid));
+    expect([lu.jeu, lu.accueil]).toEqual([false, 'village']);
+    await carte(page).scrollIntoViewIfNeeded();
+    await capturer(page, info, 'I10-jeu-actif');
+  });
+
+  test('I11 éteindre de nouveau le village : « Pièces d’or » regrisé, sa valeur gardée (allumé reste allumé)', async ({ page }, info) => {
+    await semer({ besoins: [FACTURES] });
+    const uid = await ouvrir(page, 'reglages/espace', (u) => ecrireDocument(prefsDe(u), { jeu: true, accueil: 'village', modifieLe: new Date() }));
+    await attendreActif(page);
+    await expect(interJeu(page)).toHaveAttribute('aria-checked', 'true');
+    await Promise.all([page.waitForEvent('load'), interVillage(page).click()]);
+    await expect(carte(page)).toBeVisible();
+    await attendreGrise(page, true);
+    const lu = await lireDocument(prefsDe(uid));
+    expect([lu.jeu, lu.accueil]).toEqual([true, 'classique']);
+    await carte(page).scrollIntoViewIfNeeded();
+    await capturer(page, info, 'I11-jeu-regrise');
+  });
+
+  test('I12 téléphone : la carte grisée tient dans l’écran, la raison se lit, rien ne déborde', async ({ page }, info) => {
+    await semer({ besoins: [FACTURES] });
+    await ouvrir(page, 'reglages/espace', (u) => ecrireDocument(prefsDe(u), { jeu: true, accueil: 'classique', modifieLe: new Date() }));
+    await expect(carte(page)).toBeVisible();
+    await attendreGrise(page, true);
+    await raison(page).scrollIntoViewIfNeeded();
+    const largeur = page.viewportSize().width;
+    const boite = await raison(page).boundingBox();
+    expect(boite.x).toBeGreaterThanOrEqual(0);
+    expect(boite.x + boite.width).toBeLessThanOrEqual(largeur);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await capturer(page, info, 'I12-carte-grisee');
   });
 
   test('I-bis maison sans village : la carte « Mon accueil » s’affiche, interrupteurs désactivés, avec « Le village n’est pas activé pour cet espace. »', async ({ page }) => {

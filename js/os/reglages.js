@@ -50,11 +50,13 @@ function ligneInfo(etiquette, valeur, donnee) {
 
 /** Interrupteur (bouton role="switch", même motif que celui du module Rendez-vous, sans l'importer). Rend { element, definir(v), valeur() }. */
 function interrupteur({ valeur, libelle, role, desactive, surChangement }) {
-  const bouton = h('button', { type: 'button', class: 'interrupteur', role: 'switch', 'aria-label': libelle, 'aria-checked': String(!!valeur), disabled: desactive, dataset: { role },
+  const bouton = h('button', { type: 'button', class: 'interrupteur', role: 'switch', 'aria-label': libelle, 'aria-checked': String(!!valeur), disabled: desactive, 'aria-disabled': String(!!desactive), dataset: { role },
     onclick: () => { definir(!valeurDe()); surChangement?.(valeurDe()); } }, h('span', { class: 'interrupteur-bouton' }));
   const valeurDe = () => bouton.getAttribute('aria-checked') === 'true';
   function definir(v) { bouton.setAttribute('aria-checked', String(!!v)); }
-  return { element: bouton, definir, valeur: valeurDe };
+  /** Grise (ou rend actif) l'interrupteur : non cliquable, `aria-disabled`, sa valeur ne change pas (docs/consignes-ui.md, « Option sans effet », 28/11/2026). */
+  function griser(oui) { bouton.disabled = !!oui; bouton.setAttribute('aria-disabled', String(!!oui)); }
+  return { element: bouton, definir, valeur: valeurDe, griser };
 }
 
 export const ECHEC_MON_ACCUEIL = 'Le réglage n’a pas été enregistré. Réessaie.';
@@ -71,12 +73,22 @@ function carteMonAccueil(ctx) {
   const actif = !ctx.chezClient && ctx.accueil.village === true;
   const prefs = ctx.chezClient ? defautsAccueil({ neutre: true }) : ctx.accueil.preferences;
   let enCours = false;
+  // « Pièces d'or et boutique » n'a aucun effet en accueil classique : grisé (valeur gardée) avec la raison, tant que « Accueil en village » est éteint (règle du 28/11/2026,
+  // docs/consignes-ui.md « Option sans effet »). Suit l'interrupteur du village dès le clic, sans attendre l'écriture.
+  const raisonJeu = h('p', { class: 'aide', id: 'mon-accueil-jeu-sans-effet', dataset: { role: 'jeu-sans-effet' } }, 'Sans effet tant que l’accueil est le menu classique : allume « Accueil en village » pour le régler.');
+  const majJeu = () => {
+    const sansEffet = actif && !village.valeur();
+    raisonJeu.hidden = !sansEffet;
+    jeu.griser(!actif || sansEffet || enCours);
+    if (sansEffet) jeu.element.setAttribute('aria-describedby', raisonJeu.id); else jeu.element.removeAttribute('aria-describedby');
+  };
   /** Un clic : seul l'interrupteur touché change. Réglage pas sûr (lecture lente ou en panne à l'ouverture) : le document est relu juste avant d'écrire. */
   const changer = async (touche, inter) => {
     if (enCours) return;
     enCours = true;
-    village.element.disabled = true;
-    jeu.element.disabled = true;
+    majJeu(); // la raison suit tout de suite l'interrupteur du village
+    village.griser(true);
+    jeu.griser(true);
     let base = prefs;
     if (prefs.sur === false) {
       const relu = await ctx.accueil.relire();
@@ -86,21 +98,22 @@ function carteMonAccueil(ctx) {
     if (ok) { location.reload(); return; } // réglage rare : la session repart proprement dans le bon mode
     village.definir(prefs.accueil === 'village');
     jeu.definir(prefs.jeu);
-    village.element.disabled = false;
-    jeu.element.disabled = false;
     enCours = false;
+    village.griser(false);
+    majJeu(); // l'accueil revient à sa place : « Pièces d'or » regrisé s'il est de nouveau sans effet
     inter.element.focus();
     toast(ECHEC_MON_ACCUEIL, { type: 'erreur' });
   };
   const village = interrupteur({ valeur: prefs.accueil === 'village', libelle: 'Accueil en village', role: 'interrupteur-village', desactive: !actif, surChangement: () => changer('accueil', village) });
   const jeu = interrupteur({ valeur: prefs.jeu, libelle: 'Pièces d’or et boutique', role: 'interrupteur-jeu', desactive: !actif, surChangement: () => changer('jeu', jeu) });
+  majJeu();
   const ligne = (inter, titre, ...aides) => h('div', { class: 'mon-accueil-ligne' },
-    inter.element, h('div', {}, h('strong', {}, titre), ...aides));
+    inter.element, h('div', { class: 'mon-accueil-texte' }, h('strong', {}, titre), ...aides));
   return section('reglages-accueil', 'Mon accueil', 'house',
     actif ? null : h('p', { class: 'aide', dataset: { role: 'village-absent' } }, 'Le village n’est pas activé pour cet espace.'),
     ligne(village, 'Accueil en village', h('p', { class: 'aide' }, 'Éteint : l’application s’ouvre sur le menu habituel.')),
     ligne(jeu, 'Pièces d’or et boutique', h('p', { class: 'aide' }, 'Éteint : ni pièces, ni boutique, ni champs, ni cochons. Tes pièces continuent de se gagner en silence : tu les retrouveras en le rallumant.'),
-      actif && prefs.accueil === 'classique' ? h('p', { class: 'aide', dataset: { role: 'jeu-sans-effet' } }, 'Sans effet tant que l’accueil est le menu classique.') : null));
+      raisonJeu));
 }
 
 function sectionEspace(ctx, etat) {
