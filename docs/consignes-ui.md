@@ -19,6 +19,13 @@ Règle validée par Jérôme le 27/11/2026. Elle vaut pour toutes les applis, pr
 - **Dans une FICHE** : le texte entier, **jamais coupé** ; il va à la ligne autant que nécessaire (libellé comme valeur).
 - Comment faire : la classe commune `texte-2-lignes` (`css/os.css`) coupe à 2 lignes avec « … » ; l'infobulle est l'attribut `title` de la ligne cliquable (titre, puis détail à la ligne). Première application : volet Fournisseurs, Chantiers, Articles de l'appli Factures (`js/modules/achatsfactures/volet.js`, fiche : `fiche.js`), tests « T1 » et « T2 » de `tests/e2e/achatsfactures-appli.spec.js`.
 
+## Option sans effet : grisée avec sa raison (règle commune à toutes les applis, 28/11/2026)
+Règle décidée par Jérôme le 28/11/2026. Elle vaut partout (case, interrupteur, liste, bouton d'option), dans toutes les applis présentes et futures, chez Jérôme et chez les clients.
+- Une option qui n'a aucun effet à cause d'un autre réglage est **grisée** (désactivée, non cliquable, `aria-disabled`) tant que cet autre réglage la rend inutile ; la raison est écrite sous l'option (« Sans effet tant que … »).
+- Elle **garde sa valeur** (rien n'est effacé ni remis à zéro) et **redevient active dès que l'autre réglage le permet** (sans geste de plus : si l'écran se recharge après l'enregistrement, c'est automatique).
+- **Jamais une option active qui ne fait rien.**
+- Première application : carte « Mon accueil » de Réglages > Mon espace, « Pièces d'or et boutique » grisé tant que « Accueil en village » est éteint (`js/os/reglages.js`, tests « I9 » à « I12 » de `tests/e2e/village-interrupteurs.spec.js`). Déjà conforme avant la règle : « Clôture bloquée tant qu'une facture est à payer », grisée quand le suivi des paiements est éteint (Réglages > Options).
+
 ## Même comportement partout
 - Affaire et projet fonctionnent pareil (même ordre des blocs, mêmes boutons, mêmes listes déroulantes). Livrable et activité (bloc « À faire ») aussi : clic sur le texte = modifier sur place ; clic sur la date = changer la date ; rond = terminer ; menu « … » = actions rares seulement. Peu de clics. *(2026-10-17)*
 - Une liste déroulante change l'étape ou la phase ; la bande en haut est un simple indicateur. *(2026-10-17)*

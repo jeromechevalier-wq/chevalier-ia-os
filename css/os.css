@@ -400,6 +400,8 @@ html[data-mode-test] .zone { box-shadow: inset 0 0 0 3px var(--attention); }
 .interrupteur[aria-checked='true'] .interrupteur-bouton { transform: translateX(1.1rem); }
 .mon-accueil-ligne { display: flex; align-items: flex-start; gap: var(--esp-3); margin-top: var(--esp-3); }
 .mon-accueil-ligne .aide { margin: 2px 0 0; }
+/* Option sans effet (28/11/2026, docs/consignes-ui.md) : interrupteur grisé = son titre et son aide pâlissent aussi ; la raison (« Sans effet tant que… ») reste lisible */
+.mon-accueil-ligne:has(.interrupteur:disabled) .mon-accueil-texte > :not([data-role='jeu-sans-effet']) { opacity: .55; }
 .reglages-info-etiquette { flex: 0 0 90px; color: var(--texte2); font-size: var(--fs-menu); }
 .reglages-info-valeur { display: inline-flex; align-items: center; gap: var(--esp-3); font-weight: var(--poids-moyen); }
 .reglages-logo { width: 48px; height: 48px; object-fit: contain; border-radius: var(--rayon-petit); background: var(--survol); }
