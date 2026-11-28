@@ -151,13 +151,13 @@ describe('R6 journal : des nombres seulement, jamais une clé ni un nom', () => 
 
 describe('R8 script du registre (méthode de donner-or-village : REST, gcloud, essai à blanc par défaut)', () => {
   test('R8 arguments : --projet et --fichier obligatoires, --oui facultatif (sans lui : rien n\'est écrit)', () => {
-    assert.deepEqual(lireArguments(['--projet', 'projet-essai-os', '--fichier', '/tmp/registre.json']), { oui: false, projet: 'projet-essai-os', fichier: '/tmp/registre.json' });
+    assert.deepEqual(lireArguments(['--projet', 'projet-essai-os', '--fichier', '/tmp/registre.json']), { oui: false, forcer: false, projet: 'projet-essai-os', fichier: '/tmp/registre.json' });
     assert.equal(lireArguments(['--projet', 'projet-essai-os', '--fichier', 'x', '--oui']).oui, true);
     assert.throws(() => lireArguments(['--fichier', 'x']), /--projet/);
     assert.throws(() => lireArguments(['--projet', 'projet-essai-os']), /--fichier/);
     assert.throws(() => lireArguments(['--projet', 'projet-essai-os', '--fichier', 'x', '--ecraser']), /argument inconnu/);
     const s = lire('scripts/console-registre.js');
-    assert.match(s, /if \(!a\.oui\) \{ console\.log\('Essai à blanc/);
+    assert.match(s, /if \(!a\.oui\) \{ afficher\('Essai à blanc/);
     assert.match(s, /gcloud', \['auth', 'print-access-token'\]/);
     assert.doesNotMatch(s, /firebase-admin|iam\.gserviceaccount/);
   });

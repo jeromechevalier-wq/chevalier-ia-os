@@ -86,17 +86,18 @@ export async function ecrireReleve({ dbOs, cle, lecture, horodatage }) {
 
 /**
  * Le relevé complet. `dbOs` : () => base du CRM ; `dbApp` : async () => base de l'immeuble ou null ; `ouvrirBase` : (projet) => base d'une maison (application nommée) ;
- * `projetCourant` : identifiant du projet courant (une maison ne peut pas pointer vers lui) ; `horodatage` : () => horodatage serveur.
- * Rend { statut: 'sans_immeuble' | 'ok' | 'erreur', resultats: { [cle]: résultat } } ; ne lève jamais.
+ * `projetCourant` : identifiant du projet courant (une maison ne peut pas pointer vers lui) ; `projetImmeuble` : projet de l'immeuble lié s'il est connu (idem) ;
+ * `horodatage` : () => horodatage serveur.
+ * Rend { statut: 'sans_immeuble' | 'ok' | 'erreur', resultats: { [cle]: résultat } } ('erreur' aussi quand une écriture a échoué, comme le journal) ; ne lève jamais.
  */
-export async function releverBatiments({ dbOs, dbApp, ouvrirBase, projetCourant = null, horodatage, delaiMs = DELAI_LECTURE_MS, journal = () => {} }) {
+export async function releverBatiments({ dbOs, dbApp, ouvrirBase, projetCourant = null, projetImmeuble = null, horodatage, delaiMs = DELAI_LECTURE_MS, journal = () => {} }) {
   const noter = (e) => { try { journal(e); } catch { /* le journal ne fait jamais échouer le relevé */ } };
   try {
     const app = await dbApp();
     if (!app) { noter({ statut: 'sans_immeuble' }); return { statut: 'sans_immeuble', resultats: {} }; }
     const os = dbOs();
     let registre = validerRegistre(null);
-    try { registre = validerRegistre(await lireRegistreBrut(os), { projetCourant }); } catch { /* registre illisible : seulement le CRM et l'immeuble */ }
+    try { registre = validerRegistre(await lireRegistreBrut(os), { projetCourant, projetImmeuble }); } catch { /* registre illisible : seulement le CRM et l'immeuble */ }
     const cibles = [['os', () => os], ['immeuble', () => app],
       ...registre.batiments.filter((b) => b.lecture_projet).map((b) => [b.cle, () => ouvrirBase(b.lecture_projet)])];
     const lectures = await Promise.all(cibles.map(async ([cle, ouvrir]) => [cle, await lireFicheVersion(ouvrir, delaiMs)]));
@@ -105,8 +106,10 @@ export async function releverBatiments({ dbOs, dbApp, ouvrirBase, projetCourant 
       try { resultats[cle] = await ecrireReleve({ dbOs: os, cle, lecture, horodatage }); } catch { resultats[cle] = 'erreur'; }
     }
     const valeurs = Object.values(resultats);
-    noter({ statut: valeurs.includes('erreur') ? 'erreur' : 'ok', batiments: valeurs.length, injoignables: valeurs.filter((v) => v === 'injoignable').length });
-    return { statut: 'ok', resultats };
+    // Même statut dans le journal et dans la valeur rendue : « erreur » dès qu'une écriture a échoué (relecture Fable de la PR 771).
+    const statut = valeurs.includes('erreur') ? 'erreur' : 'ok';
+    noter({ statut, batiments: valeurs.length, injoignables: valeurs.filter((v) => v === 'injoignable').length });
+    return { statut, resultats };
   } catch (e) {
     noter({ statut: 'erreur', nom: String(e?.name ?? 'Error').slice(0, 40) });
     return { statut: 'erreur', resultats: {} };

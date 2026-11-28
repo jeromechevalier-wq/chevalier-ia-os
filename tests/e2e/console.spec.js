@@ -178,6 +178,45 @@ test('C9 le bouton « Exporter mes données » (Réglages > Console) télécharg
   expect(json.collections.console_filet.map((f) => f.id)).toEqual(['budget']);
 });
 
+test('F7 export plein (réponse pleine simulée) : seulement ce que l\'écran montre, jamais le projet à lire ni l\'identifiant d\'un appartement', async ({ page }) => {
+  // Réponse pleine « trop bavarde » : un projet à lire et des champs en plus dans un relevé ; l'export doit les laisser de côté (relecture Fable de la PR 771).
+  const bavard = structuredClone(BATIMENTS_PLEINS);
+  bavard.maisons[0].lecture_projet = 'projet-essai-1';
+  bavard.releves.os.lecture_projet = 'projet-essai-os';
+  bavard.releves.os.champ_inconnu = 'x';
+  bavard.releves.os.historique[0].lecture_projet = 'projet-essai-os';
+  await simulerServeur(page);
+  await simulerBatiments(page, { reponse: bavard });
+  await connecter(page);
+  await allerA(page, 'Réglages');
+  await ouvrirSectionReglages(page, 'Console');
+  const bouton = page.locator('#reglages-export-console [data-action="exporter-console"]');
+  const [dl] = await Promise.all([page.waitForEvent('download'), bouton.click()]);
+  const texte = await readFile(await dl.path(), 'utf8');
+  const json = JSON.parse(texte);
+  const registre = json.collections.console_registre;
+  expect(registre.map((b) => b.cle)).toEqual(['os', 'immeuble', 'maison-a', 'maison-b']);
+  const immeuble = registre[1];
+  expect(Object.keys(immeuble)).toEqual(['cle', 'projets', 'appartements', 'total_appartements']);
+  expect(immeuble.appartements).toHaveLength(5);
+  for (const a of immeuble.appartements) expect(Object.keys(a)).toEqual(['nom', 'modules']);
+  expect(immeuble.appartements[0]).toEqual({ nom: 'Espace essai A', modules: ['veille', 'devis'] });
+  for (const m of registre.slice(2)) expect(Object.keys(m)).toEqual(['cle', 'nom', 'etat', 'projets']);
+  const releves = json.collections.console_releves;
+  expect(releves.map((r) => r.cle)).toEqual(['os', 'immeuble', 'maison-a']);
+  for (const r of releves) {
+    expect(Object.keys(r)).toEqual(['cle', 'version', 'version_depuis', 'structure_code', 'dernier_contact_ok', 'dernier_essai', 'motif', 'historique']);
+    for (const l of r.historique) expect(Object.keys(l)).toEqual(['version', 'de_version', 'structure_code', 'de_structure', 'le']);
+  }
+  expect(releves[0].version).toBe('2.59.0');
+  expect(releves[2].motif).toBe('injoignable');
+  expect(texte).not.toContain('lecture_projet');
+  expect(texte).not.toContain('champ_inconnu');
+  const batiments = JSON.stringify([registre, releves]); // le filet (autre partie du fichier) garde ses propres identifiants
+  expect(batiments).not.toContain('"id"');
+  expect(batiments).not.toContain('"essai-a"'); // l'identifiant d'un appartement n'est pas exporté
+});
+
 test('A1 Vue d\'ensemble : le schéma d\'architecture s\'affiche', async ({ page }, info) => {
   await simulerServeur(page);
   await connecter(page, undefined, { route: 'console/vue' });
@@ -305,6 +344,35 @@ test('R11 registre plein : l\'immeuble montre 3 appartements, « et 2 autres »,
   await expect(bloc.locator('[data-registre-vide]')).toHaveCount(0);
   await bloc.scrollIntoViewIfNeeded();
   await capturer(page, info, 'R11-registre-plein');
+});
+
+test('F8 deux appartements : les étages partent du bas (le premier touche le sol), « À venir » reste en haut', async ({ page }, info) => {
+  const deux = structuredClone(BATIMENTS_PLEINS);
+  deux.immeuble.appartements = [deux.immeuble.appartements[0], { id: 'essai-c', nom: 'Espace essai C', modules: [] }];
+  deux.immeuble.total_appartements = 2;
+  await simulerServeur(page);
+  await simulerBatiments(page, { reponse: deux });
+  await connecter(page, undefined, { route: 'console/vue' });
+  await attendreCalme(page);
+  const bloc = page.locator('.page > [data-bloc="architecture"]');
+  const dessin = bloc.locator('svg[role="img"]:visible');
+  await expect(dessin).toContainText('Espace essai C');
+  // Places des étages de l'immeuble : le mur (140 de large) et ses fenêtres d'étage (124 de large), avec le texte de chacune.
+  const places = await dessin.evaluate((svg) => {
+    const mur = [...svg.querySelectorAll('rect.console-schema-mur')].find((r) => r.getAttribute('width') === '140');
+    const sol = Number(mur.getAttribute('y')) + Number(mur.getAttribute('height'));
+    const etages = [...svg.querySelectorAll('rect.console-schema-fenetre')].filter((r) => r.getAttribute('width') === '124')
+      .map((r) => ({ haut: Number(r.getAttribute('y')), bas: Number(r.getAttribute('y')) + Number(r.getAttribute('height')), texte: r.parentNode.querySelector('text')?.textContent }))
+      .sort((a, b) => a.haut - b.haut);
+    return { sol, haut: Number(mur.getAttribute('y')), etages };
+  });
+  expect(places.etages.map((e) => e.texte)).toEqual(['À venir', 'Espace essai C', 'Espace essai A']);
+  expect(places.etages[0].haut).toBe(places.haut + 8); // « À venir » en haut, comme le schéma figé
+  expect(places.etages[2].bas).toBe(places.sol - 7); // le premier appartement touche le sol (même marge que le schéma figé)
+  expect(places.etages[2].haut - places.etages[1].haut).toBe(33); // les deux appartements se suivent, sans trou
+  await schemaLisible(page);
+  await bloc.scrollIntoViewIfNeeded();
+  await capturer(page, info, 'F8-deux-appartements');
 });
 
 test('R12 un vrai bouton par bâtiment et par appartement ouvre le détail (clic et touche Entrée) ; « Fermer » le referme', async ({ page }, info) => {

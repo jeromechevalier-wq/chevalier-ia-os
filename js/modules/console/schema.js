@@ -35,12 +35,14 @@ function pieces(a) {
     el('rect', { class: 'console-schema-fenetre', x: cx - 36, y: sol - 50, width: 22, height: 20 }),
     el('rect', { class: 'console-schema-porte', x: cx + 6, y: sol - 38, width: 22, height: 38 }));
   // Étages : 4 lignes (figé) ou 5 au plus (registre : « À venir », « et N autres », trois noms), toujours dans la même hauteur de 140.
+  // Moins de 4 lignes (1 ou 2 appartements) : « À venir » reste en haut et les autres étages partent du bas (le premier touche le sol), sans trou au rez-de-chaussée.
   const immeuble = (cx, sol, etages) => {
     const pas = etages.length > 4 ? 26.5 : 33;
+    const decalage = Math.max(0, 4 - etages.length); // places vides entre « À venir » et les étages du bas
     return el('g', {},
       el('rect', { class: 'console-schema-mur', x: cx - 70, y: sol - 140, width: 140, height: 140 }),
       ...etages.map((t, i) => {
-        const y = sol - 132 + i * pas;
+        const y = sol - 132 + (i === 0 ? 0 : i + decalage) * pas;
         return el('g', { class: i === 0 ? 'console-schema-avenir' : null },
           el('rect', { class: 'console-schema-fenetre', x: cx - 62, y, width: 124, height: pas - 7, rx: 3 }),
           texte(cx, y + (pas - 7) / 2 + 5, t, 'console-schema-texte', pas > 30 ? 13 : 12));

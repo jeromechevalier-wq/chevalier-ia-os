@@ -510,13 +510,15 @@ const ouvrirBaseMaison = (projet) => {
   return getFirestore(getApps().find((a) => a.name === nom) ?? initializeApp({ projectId: projet }, nom));
 };
 const projetOuNull = () => { try { return projetCourant(); } catch { return null; } };
+// Projet de l'immeuble lié (même champ que dbApp) : une maison du registre ne peut pas pointer vers lui (console/registre.js). Illisible : null.
+const projetImmeubleOuNull = async () => { try { return (await texteDe('projet_plateforme_lie')) || null; } catch { return null; } };
 
 // `consoleBatiments` (28/11/2026, Console phase 2, PR 2) : le registre privé (maisons), les appartements de l'immeuble et les relevés copiés chez Jérôme (console/batiments.js).
 // Jérôme seul, même contrôle d'identité que `consoleEtat`. Absente de l'immeuble (RESERVEES_JEROME). Compte des automatisations, seul lecteur de l'immeuble aujourd'hui.
 export const consoleBatiments = onCall(
   { region: 'europe-west9', maxInstances: 2, memory: '256MiB', timeoutSeconds: 30, serviceAccount: COMPTE_AUTOMATISATIONS },
   (requete) => creerAppelConsoleBatiments({
-    lireBatiments: () => lireBatimentsConsole({ dbOs, dbApp, projetCourant: projetOuNull() }),
+    lireBatiments: async () => lireBatimentsConsole({ dbOs, dbApp, projetCourant: projetOuNull(), projetImmeuble: await projetImmeubleOuNull() }),
     journal: (e) => process.stdout.write(`${ligneDeJournalConsole(e)}\n`),
   })(requete),
 );
@@ -528,7 +530,7 @@ export const consoleReleve = onSchedule(
   { region: 'europe-west9', schedule: '15 * * * *', timeZone: 'Europe/Paris', timeoutSeconds: 120, memory: '256MiB', maxInstances: 1, serviceAccount: COMPTE_AUTOMATISATIONS },
   async () => {
     await releverBatiments({
-      dbOs, dbApp, ouvrirBase: ouvrirBaseMaison, projetCourant: projetOuNull(), horodatage: () => FieldValue.serverTimestamp(),
+      dbOs, dbApp, ouvrirBase: ouvrirBaseMaison, projetCourant: projetOuNull(), projetImmeuble: await projetImmeubleOuNull(), horodatage: () => FieldValue.serverTimestamp(),
       journal: (e) => process.stdout.write(`${ligneDeJournalReleve(e)}\n`),
     });
   },

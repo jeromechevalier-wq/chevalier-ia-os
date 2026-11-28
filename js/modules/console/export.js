@@ -18,12 +18,17 @@ export async function exporterConsole({ lire = D.lireToutPourExport, lireVersion
     let batiments = null;
     try { batiments = await lireBatiments(); } catch (e) { console.warn(e); }
     const r = LC.reponseBatiments(batiments);
+    // Seulement ce que l'écran montre (relecture Fable de la PR 771) : appartements = nom et modules (le nom vaut l'identifiant seulement quand il manque,
+    // comme à l'écran) ; maisons = clé, nom, état, projets ; relevés passés par le même filtre que l'écran. Jamais le projet à lire d'une maison.
     collections.console_registre = [
       { cle: 'os', projets: r.os.projets },
-      { cle: 'immeuble', projets: r.immeuble.projets, appartements: r.immeuble.appartements, total_appartements: r.immeuble.total },
-      ...r.maisons,
+      { cle: 'immeuble', projets: r.immeuble.projets, appartements: r.immeuble.appartements.map((a) => ({ nom: a.nom, modules: a.modules })), total_appartements: r.immeuble.total },
+      ...r.maisons.map((m) => ({ cle: m.cle, nom: m.nom, etat: m.etat, projets: m.projets })),
     ];
-    collections.console_releves = Object.entries(r.releves).map(([cle, rel]) => ({ cle, ...rel }));
+    collections.console_releves = Object.entries(r.releves)
+      .map(([cle, rel]) => [cle, LC.releveAffiche(rel)])
+      .filter(([, rel]) => rel)
+      .map(([cle, rel]) => ({ cle, ...rel }));
     const maintenant = new Date();
     telecharger(L.nomFichierExport(maintenant, 'console'), L.exportJson(collections, maintenant), 'application/json;charset=utf-8');
     toast('Sauvegarde téléchargée');
