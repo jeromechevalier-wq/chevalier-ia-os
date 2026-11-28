@@ -22,6 +22,7 @@ Mise à jour : **09/11/2026, nuit « GO NUIT »** (PR 562 à 567) ; avant : **08
 | A12 | Accueil village, étape 1 (27/11/2026) : la roue dentée, la Mairie et la Console sont **absentes de la plateforme des clients** (`js/os/espace-modules.js` n'a pas de village) et **absentes chez Jérôme tant que sa maison n'a pas de `besoins`**. Écart à la règle « même code chez Jérôme et chez les clients » à résorber | à faire |
 | A13 | Interrupteurs « Mon accueil » (27/11/2026) : interrupteurs Mon accueil et or en silence absents de la plateforme (pas de village, A12). La carte s'y affiche désactivée avec « Le village n'est pas activé pour cet espace. » | à faire |
 | A14 | Village : parfois un bâtiment déplacé ne reste pas à sa place (rare, mineur). À ressortir quand il n'y a rien d'autre à faire ; ne pas le proposer (décision de Jérôme du 28/11/2026) | en attente |
+| A15 | Workflows : ajouter un test qui relit tous les fichiers `.github/workflows/*.yml` avec un lecteur YAML (le 28/11/2026, un deux-points dans une ligne `run` a rendu « Déploiement plateforme clients » illisible par GitHub sans qu'aucun test ne le voie ; PR 770) | à faire |
 
 ## Mise à jour du 26/11/2026 (les achats d'une maison par l'assistant IA, serveur MCP)
 

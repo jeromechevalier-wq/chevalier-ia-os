@@ -116,4 +116,6 @@ claude mcp add --scope user --transport http chevalier-ia-os https://chevalier-i
 3. Connecte-toi avec ton compte Google. La page dit « **Autoriser Claude Code à accéder à …** » et « Le code sera renvoyé à un programme de cet ordinateur (localhost:…) ». Clique **Autoriser** (seulement si tu viens toi-même de lancer la connexion). Le navigateur affiche que c'est fini ; reviens dans le Terminal.
 4. Essai : demande « appelle qui_suis_je ». Réponse attendue : acteur `claude-ai-<ton compte>` (le même nom qu'avec claude.ai : mêmes droits, mêmes plafonds).
 
+**Pourquoi pas un jeton fixe (28/11/2026)** : un jeton fixe (badge) ne suffit pas pour les outils de la base des factures : ils exigent une identité Google (adresse e-mail). C'est pourquoi Claude Code se branche par la connexion Google.
+
 Si un ancien branchement par jeton porte déjà le même nom (section 1), choisis un autre nom ou retire l'ancien avec `claude mcp remove chevalier-ia-os --scope user` avant. `--scope user` rend le serveur visible depuis n'importe quel dossier (piège du 03/10/2026). Pour couper : `/mcp` → le serveur → l'option qui efface la connexion côté Mac, et côté serveur comme pour claude.ai (`mcp-oauth.md`, « Couper l'accès »).
