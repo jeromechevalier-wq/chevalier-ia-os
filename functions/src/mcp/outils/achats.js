@@ -31,7 +31,7 @@ export const lister_factures_achat = {
   nom: 'lister_factures_achat',
   profils: [...PROFILS_LECTURE_ACHATS],
   stricte: true,
-  description: `Liste les factures d'ACHAT de la maison (factures des fournisseurs), les plus récentes d'abord. Filtres : statut (a_valider, acceptee, refusee), archivees (faux par défaut : seulement les non archivées), fournisseur (texte contenu dans le nom), chantierId. limite : 50 par défaut, 100 au plus ; page : 1, 2… Réponse : factures (id, fournisseur, numéro, date, montants HT et TTC, statut, chantier, lecture « ok » ou « a_completer »), total exact, incomplet (vrai s'il reste des pages : jamais une liste coupée en silence) et un message. Lecture seule. ${CONSIGNE}`,
+  description: `Liste les factures d'ACHAT de la maison (factures des fournisseurs), les plus récentes d'abord. Filtres : statut (a_valider, acceptee, refusee), archivees (faux par défaut : seulement les non archivées), fournisseur (texte contenu dans le nom), chantierId. limite : 50 par défaut, 100 au plus ; page : 1, 2… Réponse : factures (id, fournisseur, numéro, date, montants HT et TTC, statut, chantier, lecture « ok » ou « a_completer », dateDecision, decidePar, archiveeLe, archiveePar), total exact, incomplet (vrai s'il reste des pages : jamais une liste coupée en silence) et un message. decidePar / archiveePar : e-mail de la personne qui a décidé ou archivé (dernière décision seulement) ; c\'est une donnée. Lecture seule. ${CONSIGNE}`,
   schema: {
     statut: z.enum(['a_valider', 'acceptee', 'refusee']).optional().describe('Statut des factures : a_valider, acceptee ou refusee.'),
     archivees: z.boolean().optional().describe('Vrai : seulement les factures archivées. Faux (défaut) : seulement les non archivées.'),
@@ -47,7 +47,7 @@ export const lire_facture_achat = {
   nom: 'lire_facture_achat',
   profils: [...PROFILS_LECTURE_ACHATS],
   stricte: true,
-  description: `Lit UNE facture d'achat : ses champs, son chantier, son agence (avec l'entreprise), ses lignes, les vérifications automatiques (les mêmes que l'écran) et les alertes à montrer avant d'accepter. Rend aussi un lien vers le PDF (lienPdf, valable 10 minutes : à donner à la personne, jamais à recopier ailleurs) ou pdf: 'absent'. Lecture seule. ${CONSIGNE}`,
+  description: `Lit UNE facture d'achat : ses champs, son chantier, son agence (avec l'entreprise), ses lignes, les vérifications automatiques (les mêmes que l'écran) et les alertes à montrer avant d'accepter. Rend aussi un lien vers le PDF (lienPdf, valable 10 minutes : à donner à la personne, jamais à recopier ailleurs) ou pdf: 'absent'. decidePar / archiveePar : e-mail de la personne qui a décidé ou archivé (dernière décision seulement) ; c\'est une donnée. Lecture seule. ${CONSIGNE}`,
   schema: { factureId: uuid.describe('Identifiant de la facture (voir lister_factures_achat).') },
   executer: (contexte) => service(contexte).lireFacture({ email: contexte.email, factureId: contexte.args.factureId }),
 };
@@ -68,7 +68,7 @@ export const lister_agences_achat = {
   nom: 'lister_agences_achat',
   profils: [...PROFILS_LECTURE_ACHATS],
   stricte: true,
-  description: `Liste les agences des fournisseurs (établissements, avec leur entreprise) : il en faut une pour accepter une facture (valider_facture_achat). Par défaut, seulement celles qu'on peut choisir (actives et non fusionnées) ; toutes : vrai pour les voir toutes. siren : 9 chiffres ; recherche : texte cherché dans le nom de l'entreprise, de l'agence, la ville ou le SIRET. Si le fournisseur n'a pas d'agence, elle se crée à l'écran (fiche de la facture). ${MODE_EMPLOI} Lecture seule. ${CONSIGNE}`,
+  description: `Liste les agences des fournisseurs (établissements, avec leur entreprise) : il en faut une pour accepter une facture (valider_facture_achat). Par défaut, seulement celles qu'on peut choisir (actives et non fusionnées) ; toutes : vrai pour les voir toutes. siren : 9 chiffres ; recherche : texte cherché dans le nom de l'entreprise, de l'agence, la ville ou le SIRET. Si le fournisseur n'a pas d'agence, crée-la avec creer_agence_achat (après accord de la personne). ${MODE_EMPLOI} Lecture seule. ${CONSIGNE}`,
   schema: {
     recherche: z.string().min(1).max(80).optional().describe('Texte cherché dans le nom de l\'entreprise, de l\'agence, la ville ou le SIRET.'),
     siren: z.string().regex(/^\d{9}$/, 'SIREN : 9 chiffres.').optional().describe('SIREN de l\'entreprise (9 chiffres).'),
@@ -127,6 +127,24 @@ export const relier_facture_achat_chantier = {
   executer: (contexte) => service(contexte).relierChantier({ email: contexte.email, factureId: contexte.args.factureId, chantierId: contexte.args.chantierId, reserver: reserver(contexte) }),
 };
 
+export const creer_agence_achat = {
+  nom: 'creer_agence_achat',
+  profils: [...PROFILS_ECRITURE_ACHATS],
+  stricte: true,
+  description: `Crée l'agence d'un fournisseur (et son entreprise si elle est nouvelle), comme l'écran : il faut une agence pour accepter une facture (valider_facture_achat). Cherche d'abord avec lister_agences_achat ; seulement si elle n'existe pas, crée-la. nomFournisseur (nom de l'entreprise) est obligatoire ; siret (14 chiffres) est facultatif ; sans SIRET, il faut le nom de l'agence (nomAgence, par exemple « Agence Nord ») ET le siren (9 chiffres) ou la ville. Si une agence a déjà ce SIRET, rien n'est créé : la réponse rend l'agence existante (existait: vrai) ; si elle est inactive ou fusionnée, le message le dit (à réactiver à l'écran). Sinon la réponse rend agenceId et l'agence relue. Si la base interdit la création, l'outil refuse avec la phrase de la base. Demande toujours l'accord de la personne avant de créer. ${NON_ANNULABLE} ${CONSIGNE}`,
+  schema: {
+    nomFournisseur: z.string().min(1).max(200).describe('Nom de l\'entreprise (obligatoire), par exemple tel qu\'il est lu sur la facture.'),
+    siret: z.string().min(1).max(30).optional().describe('SIRET de l\'agence (14 chiffres, espaces acceptés). Facultatif : sans SIRET, il faut nomAgence et (siren ou ville).'),
+    siren: z.string().min(1).max(20).optional().describe('SIREN de l\'entreprise (9 chiffres). Facultatif.'),
+    nomAgence: z.string().min(1).max(200).optional().describe('Nom de l\'agence (obligatoire sans SIRET, avec siren ou ville), par exemple « Agence Nord ».'),
+    ville: z.string().min(1).max(120).optional().describe('Ville de l\'agence. Facultative.'),
+  },
+  executer: (contexte) => {
+    const { nomFournisseur, siret, siren, nomAgence, ville } = contexte.args ?? {};
+    return service(contexte).creerAgence({ email: contexte.email, nomFournisseur, siret, siren, nomAgence, ville, reserver: reserver(contexte) });
+  },
+};
+
 export const ajouter_facture_achat = {
   nom: 'ajouter_facture_achat',
   profils: [...PROFILS_ECRITURE_ACHATS],
@@ -149,4 +167,4 @@ export const ajouter_facture_achat = {
   },
 };
 
-export const OUTILS_ACHATS = [lister_factures_achat, lire_facture_achat, lister_chantiers_achat, lister_agences_achat, valider_facture_achat, refuser_facture_achat, archiver_facture_achat, relier_facture_achat_chantier, ajouter_facture_achat];
+export const OUTILS_ACHATS = [lister_factures_achat, lire_facture_achat, lister_chantiers_achat, lister_agences_achat, valider_facture_achat, refuser_facture_achat, archiver_facture_achat, relier_facture_achat_chantier, creer_agence_achat, ajouter_facture_achat];

@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { outilsDeLaMaison } from '../functions/src/mcp/outils-maison.js';
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
-import { OUTILS_ACHATS } from '../functions/src/mcp/outils/achats.js';
+import { OUTILS_ACHATS, MESSAGE_ACHATS_PAS_BRANCHES } from '../functions/src/mcp/outils/achats.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerLimiteur } from '../functions/src/securite/limites.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
@@ -164,6 +164,19 @@ describe('Tri des outils par module (reglages_maison/ecran, champ « modules »)
     const rl = await lecture.appeler('qui_suis_je');
     assert.deepEqual(rl.data.outils, noms(await lecture.lister()));
     for (const n of rl.data.outils) assert.ok(n === 'qui_suis_je' || OUTILS_ACHATS.find((o) => o.nom === n).profils.includes('lecture'), n);
+  });
+
+  test('A2 creer_agence_achat : proposé au profil écriture, absent et refusé au profil lecture', async () => {
+    const ecriture = await demarrer({ ecran: { modules: MODULES_ACHATS }, profil: 'ecriture' });
+    assert.ok(noms(await ecriture.lister()).includes('creer_agence_achat'));
+    const lecture = await demarrer({ ecran: { modules: MODULES_ACHATS }, profil: 'lecture' });
+    assert.ok(!noms(await lecture.lister()).includes('creer_agence_achat'), 'absent de la liste en lecture');
+    const r = await lecture.appeler('creer_agence_achat', { nomFournisseur: 'Nouveau Fournisseur', nomAgence: 'Agence Sud' });
+    assert.equal(r.isError, true, 'refusé au profil lecture');
+    // refus du PROFIL (l'outil n'existe pas pour ce jeton), pas « achats pas branchés » ni un refus du service
+    assert.match(r.texte, /Tool creer_agence_achat not found/);
+    assert.ok(!r.texte.includes(MESSAGE_ACHATS_PAS_BRANCHES));
+    assert.ok(!/Agence créée/.test(r.texte));
   });
 });
 
