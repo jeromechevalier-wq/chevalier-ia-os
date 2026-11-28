@@ -107,6 +107,7 @@ test.describe('Mon accueil : interrupteurs par personne', () => {
     await page.evaluate(() => { location.hash = '#/accueil'; });
     await expect.poll(() => new URL(page.url()).hash).toBe(classique);
     await expect(village(page)).toHaveCount(0);
+    await expect(page.locator('[data-role="page-introuvable"]')).toHaveCount(0);
     await page.evaluate(() => { location.hash = '#/reglages/espace'; });
     await expect(carte(page)).toBeVisible();
     await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false');
@@ -272,8 +273,9 @@ test.describe('Mon accueil : interrupteurs par personne', () => {
     await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false');
     await expect(interJeu(page)).toHaveAttribute('aria-checked', 'false');
     await page.evaluate(() => { location.hash = '#/accueil'; });
-    await expect.poll(() => new URL(page.url()).hash).not.toBe('#/accueil'); // accueil classique : l'adresse du village ramène au menu
+    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/(?!reglages\/)[a-z]+\/[a-z]/); // accueil classique : l'adresse du village ramène au menu (écran d'un module)
     await expect(village(page)).toHaveCount(0);
+    await expect(page.locator('[data-role="page-introuvable"]')).toHaveCount(0);
     // la personne allume le village : jeu toujours éteint (défaut d'une maison de client), pas de compteur
     await ecrireDocument(prefsDe(uid), { jeu: false, accueil: 'village', modifieLe: new Date() });
     await page.evaluate(() => { history.replaceState(history.state, '', '#/accueil'); });
@@ -287,19 +289,19 @@ test.describe('Mon accueil : interrupteurs par personne', () => {
 
   test('I8 lecture en panne à l’ouverture : le dernier réglage mémorisé sur l’appareil s’applique ; un clic relit le document et ne change que l’interrupteur touché', async ({ page }) => {
     await semer({ besoins: [FACTURES] });
-    // 1. une ouverture normale mémorise « classique, jeu éteint » sur l'appareil
-    const uid = await ouvrir(page, 'reglages/espace', (u) => ecrireDocument(prefsDe(u), { jeu: false, accueil: 'classique', modifieLe: new Date() }));
-    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false');
+    // 1. une ouverture normale mémorise « village, jeu éteint » sur l'appareil (village : différent du défaut, le menu classique depuis le 28/11/2026)
+    const uid = await ouvrir(page, 'reglages/espace', (u) => ecrireDocument(prefsDe(u), { jeu: false, accueil: 'village', modifieLe: new Date() }));
+    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'true');
     // 2. ailleurs, le jeu a été rallumé ; ici, la prochaine lecture à l'ouverture tombe en panne
-    await ecrireDocument(prefsDe(uid), { jeu: true, accueil: 'classique', modifieLe: new Date() });
+    await ecrireDocument(prefsDe(uid), { jeu: true, accueil: 'village', modifieLe: new Date() });
     await poserCrochetsDeTest(page, { pannesPreferences: { lecture: 1 } });
     await page.reload();
     await expect(carte(page)).toBeVisible();
-    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false'); // le mémorisé (classique), jamais le village par défaut
+    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'true'); // le mémorisé (village), jamais le défaut (menu classique)
     await expect(interJeu(page)).toHaveAttribute('aria-checked', 'false'); // le mémorisé
-    // 3. on rallume le village : le document est relu (jeu allumé) et seul l'accueil change
+    // 3. on éteint le village : le document est relu (jeu allumé) et seul l'accueil change
     await Promise.all([page.waitForEvent('load'), interVillage(page).click()]);
-    await expect.poll(async () => { const d = await lireDocument(prefsDe(uid)); return d && [d.jeu, d.accueil]; }).toEqual([true, 'village']);
+    await expect.poll(async () => { const d = await lireDocument(prefsDe(uid)); return d && [d.jeu, d.accueil]; }).toEqual([true, 'classique']);
   });
 
   // Option sans effet grisée avec sa raison (règle de Jérôme du 28/11/2026, docs/consignes-ui.md « Option sans effet ») : « Pièces d'or et boutique » ne sert à rien en accueil classique.

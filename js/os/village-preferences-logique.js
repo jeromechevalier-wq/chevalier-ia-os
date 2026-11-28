@@ -7,9 +7,9 @@
 
 export const ACCUEILS = Object.freeze(['village', 'classique']);
 
-/** Les réglages par défaut : `neutre` = maison d'un client (maisonNeutre() de js/os/identite-maison.js). */
-export function defauts({ neutre = false } = {}) {
-  return { jeu: !neutre, accueil: 'classique' };
+/** Les réglages par défaut : `neutre` = maison d'un client (maisonNeutre() de js/os/identite-maison.js) ; `accueilDefaut` : crochet de test (village-preferences.js). */
+export function defauts({ neutre = false, accueilDefaut = 'classique' } = {}) {
+  return { jeu: !neutre, accueil: ACCUEILS.includes(accueilDefaut) ? accueilDefaut : 'classique' };
 }
 
 /** Vrai si `d` a la forme écrite par l'écran (jeu booléen, accueil connu). Les autres champs (modifieLe) ne comptent pas ici. */
@@ -18,8 +18,8 @@ export function preferencesValables(d) {
 }
 
 /** Les réglages à appliquer : ceux du document s'il est bien formé, sinon les défauts. */
-export function preferencesAppliquees(d, { neutre = false } = {}) {
-  return preferencesValables(d) ? { jeu: d.jeu, accueil: d.accueil } : defauts({ neutre });
+export function preferencesAppliquees(d, { neutre = false, accueilDefaut } = {}) {
+  return preferencesValables(d) ? { jeu: d.jeu, accueil: d.accueil } : defauts({ neutre, accueilDefaut });
 }
 
 /** Le réglage mémorisé sur l'appareil (texte JSON) : { jeu, accueil } s'il est bien formé, sinon null. */

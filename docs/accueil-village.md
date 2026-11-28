@@ -261,6 +261,8 @@ Décision de Jérôme : « par défaut pour les espaces existants on n'active pa
 - Code : `defauts()` de `js/os/village-preferences-logique.js` rend `accueil: 'classique'` ; le logo, « Retour à l'accueil » et l'adresse vide suivent (`accueilMaison` de `js/main.js`). Rien côté serveur (aucune fonction ne lit ces défauts).
 - Le réglage mémorisé sur l'appareil (repli si la lecture tombe en panne) peut encore dire « village » s'il a été mémorisé avant le changement ; la première lecture réussie le remplace.
 - Tests : `tests/village-preferences.test.js` (I1, I2) et `tests/e2e/village-interrupteurs.spec.js` (V1, V2, I6, I7). Les parcours du village (`maison-village*.spec.js`, `applications-coque.spec.js`, `achatsfactures-appli.spec.js`) remettent le village par défaut avec le crochet de test `accueilParDefaut` (émulateurs seulement, `villageParDefaut()` de `tests/e2e/outils.js`).
+- Maison sans village : l'adresse du village (`#/accueil`) mène aussi à l'accueil classique (jamais « Page introuvable »).
+- Une personne qui a déjà touché un interrupteur a un réglage enregistré (souvent « village » si elle n'a éteint que le jeu) : elle garde le village ; elle l'éteint dans Mon accueil.
 - Décision prise seul : le défaut est le menu classique pour tout le monde, **y compris les futurs espaces**, tant que Jérôme ne demande pas le village par défaut pour les nouveaux espaces.
 
 ## 10. Sources

@@ -12,6 +12,11 @@ const lire = (f) => readFileSync(fileURLToPath(new URL(`../${f}`, import.meta.ur
 test('I1 défauts : maison de Jérôme = jeu allumé ; maison d’un client (neutre) = jeu éteint ; accueil classique dans les deux cas (décision de Jérôme du 28/11/2026)', () => {
   // le crochet de test qui remet le village par défaut n'existe qu'avec les émulateurs
   assert.match(lire('js/os/village-preferences.js'), /const essai = MODE_EMULATEURS \? window\.__chevalierTest\?\.accueilParDefaut : null;/);
+  // le crochet ne choisit que l'accueil, jamais le jeu ; une valeur inconnue donne le menu classique
+  assert.deepEqual(defauts({ neutre: true, accueilDefaut: 'village' }), { jeu: false, accueil: 'village' });
+  assert.deepEqual(defauts({ accueilDefaut: 'nimporte' }), { jeu: true, accueil: 'classique' });
+  assert.deepEqual(preferencesAppliquees(null, { neutre: false, accueilDefaut: 'village' }), { jeu: true, accueil: 'village' });
+  assert.deepEqual(preferencesAppliquees({ jeu: false, accueil: 'classique' }, { accueilDefaut: 'village' }), { jeu: false, accueil: 'classique' });
   assert.deepEqual(defauts({ neutre: false }), { jeu: true, accueil: 'classique' });
   assert.deepEqual(defauts({ neutre: true }), { jeu: false, accueil: 'classique' });
   assert.deepEqual(defauts(), { jeu: true, accueil: 'classique' });
