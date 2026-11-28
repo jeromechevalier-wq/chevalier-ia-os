@@ -165,6 +165,16 @@ describe('Tri des outils par module (reglages_maison/ecran, champ « modules »)
     assert.deepEqual(rl.data.outils, noms(await lecture.lister()));
     for (const n of rl.data.outils) assert.ok(n === 'qui_suis_je' || OUTILS_ACHATS.find((o) => o.nom === n).profils.includes('lecture'), n);
   });
+
+  test('A2 creer_agence_achat : proposé au profil écriture, absent et refusé au profil lecture', async () => {
+    const ecriture = await demarrer({ ecran: { modules: MODULES_ACHATS }, profil: 'ecriture' });
+    assert.ok(noms(await ecriture.lister()).includes('creer_agence_achat'));
+    const lecture = await demarrer({ ecran: { modules: MODULES_ACHATS }, profil: 'lecture' });
+    assert.ok(!noms(await lecture.lister()).includes('creer_agence_achat'), 'absent de la liste en lecture');
+    const r = await lecture.appeler('creer_agence_achat', { nomFournisseur: 'Nouveau Fournisseur', nomAgence: 'Agence Sud' });
+    assert.equal(r.isError, true, 'refusé au profil lecture');
+    assert.ok(!/Agence créée/.test(r.texte));
+  });
 });
 
 describe('Comptes du client admis par la connexion Google (aucun code de connexion changé)', () => {

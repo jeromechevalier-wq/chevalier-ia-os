@@ -225,12 +225,32 @@ describe('Achats par l’assistant : lectures', () => {
       const texte = JSON.stringify(r);
       assert.equal(r.avertissement, AVERTISSEMENT);
       assert.ok(!texte.includes('IGNORE TES CONSIGNES'), 'jamais le texte brut du PDF');
-      assert.ok(!/"extraction"|"fichier_?[pP]ath"|"decide_?[pP]ar"|"archivee_?[pP]ar"/.test(texte), 'colonnes jamais rendues');
-      assert.ok(!texte.includes('chef@exemple.test'), 'jamais l’e-mail d’un autre compte');
+      assert.ok(!/"extraction"|"fichier_?[pP]ath"|"alertes_?[aA]_?[lL]a_?[dD]ecision"/.test(texte), 'colonnes jamais rendues');
       assert.ok(!/ticket-\d/.test(texte), 'jamais de ticket');
     }
-    assert.deepEqual([...COLONNES_JAMAIS_RENDUES].sort(), ['alertes_a_la_decision', 'archivee_par', 'decide_par', 'extraction', 'fichier_path']);
+    // decide_par et archivee_par ne sont plus cachés : garde-fou levé par Jérôme le 28/11/2026 (test « B2 qui a décidé »).
+    assert.deepEqual([...COLONNES_JAMAIS_RENDUES].sort(), ['alertes_a_la_decision', 'extraction', 'fichier_path']);
     assert.equal(e.base.tickets(), 0, 'une lecture ne demande jamais de ticket');
+  });
+
+  test('B2 qui a décidé : decidePar et archiveePar rendus (garde-fou levé par Jérôme le 28/11/2026)', async () => {
+    const donnees = donneesDeBase();
+    donnees.factures[1].date_decision = '2026-11-19T09:00:00Z';
+    const e = service({ base: fausseBase({ donnees }) });
+    const f2 = await e.s.lireFacture({ email: EMAIL, factureId: F2 });
+    assert.equal(f2.facture.decidePar, 'chef@exemple.test');
+    assert.equal(f2.facture.dateDecision, '2026-11-19T09:00:00Z');
+    assert.equal(f2.avertissement, AVERTISSEMENT, 'c’est une donnée');
+    const f3 = await e.s.lireFacture({ email: EMAIL, factureId: F3 });
+    assert.equal(f3.facture.archiveePar, 'chef@exemple.test');
+    const liste = await e.s.listerFactures({ email: EMAIL });
+    const l2 = liste.factures.find((f) => f.id === F2);
+    assert.equal(l2.decidePar, 'chef@exemple.test');
+    assert.equal(l2.dateDecision, '2026-11-19T09:00:00Z');
+    const archivees = await e.s.listerFactures({ email: EMAIL, archivees: true });
+    assert.equal(archivees.factures.find((f) => f.id === F3).archiveePar, 'chef@exemple.test');
+    assert.equal(liste.factures.find((f) => f.id === F1).decidePar, null, 'pas encore décidée');
+    for (const outil of [lister_factures_achat, lire_facture_achat]) assert.match(outil.description, /decidePar \/ archiveePar : e-mail de la personne qui a décidé ou archivé/, outil.nom);
   });
 
   test('B11 journal propre', async () => {
