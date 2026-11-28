@@ -131,12 +131,12 @@ export const creer_agence_achat = {
   nom: 'creer_agence_achat',
   profils: [...PROFILS_ECRITURE_ACHATS],
   stricte: true,
-  description: `Crée l'agence d'un fournisseur (et son entreprise si elle est nouvelle), comme l'écran : il faut une agence pour accepter une facture (valider_facture_achat). Cherche d'abord avec lister_agences_achat ; seulement si elle n'existe pas, crée-la. nomFournisseur (nom de l'entreprise) est obligatoire ; siret (14 chiffres) est facultatif, mais sans SIRET le nom de l'agence (nomAgence, par exemple « Agence Nord ») est obligatoire ; siren (9 chiffres) et ville sont facultatifs. Si une agence a déjà ce SIRET, rien n'est créé : la réponse rend l'agence existante (existait: vrai). Sinon la réponse rend agenceId et l'agence relue. Demande toujours l'accord de la personne avant de créer. ${NON_ANNULABLE} ${MODE_EMPLOI} ${CONSIGNE}`,
+  description: `Crée l'agence d'un fournisseur (et son entreprise si elle est nouvelle), comme l'écran : il faut une agence pour accepter une facture (valider_facture_achat). Cherche d'abord avec lister_agences_achat ; seulement si elle n'existe pas, crée-la. nomFournisseur (nom de l'entreprise) est obligatoire ; siret (14 chiffres) est facultatif ; sans SIRET, il faut le nom de l'agence (nomAgence, par exemple « Agence Nord ») ET le siren (9 chiffres) ou la ville. Si une agence a déjà ce SIRET, rien n'est créé : la réponse rend l'agence existante (existait: vrai) ; si elle est inactive ou fusionnée, le message le dit (à réactiver à l'écran). Sinon la réponse rend agenceId et l'agence relue. Si la base interdit la création, l'outil refuse avec la phrase de la base. Demande toujours l'accord de la personne avant de créer. ${NON_ANNULABLE} ${CONSIGNE}`,
   schema: {
     nomFournisseur: z.string().min(1).max(200).describe('Nom de l\'entreprise (obligatoire), par exemple tel qu\'il est lu sur la facture.'),
-    siret: z.string().min(1).max(30).optional().describe('SIRET de l\'agence (14 chiffres, espaces acceptés). Facultatif : sans SIRET, nomAgence est obligatoire.'),
+    siret: z.string().min(1).max(30).optional().describe('SIRET de l\'agence (14 chiffres, espaces acceptés). Facultatif : sans SIRET, il faut nomAgence et (siren ou ville).'),
     siren: z.string().min(1).max(20).optional().describe('SIREN de l\'entreprise (9 chiffres). Facultatif.'),
-    nomAgence: z.string().min(1).max(200).optional().describe('Nom de l\'agence (obligatoire sans SIRET), par exemple « Agence Nord ».'),
+    nomAgence: z.string().min(1).max(200).optional().describe('Nom de l\'agence (obligatoire sans SIRET, avec siren ou ville), par exemple « Agence Nord ».'),
     ville: z.string().min(1).max(120).optional().describe('Ville de l\'agence. Facultative.'),
   },
   executer: (contexte) => {
