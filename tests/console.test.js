@@ -46,7 +46,7 @@ describe('Console : accès côté serveur (C1 à C3, C7)', () => {
   test('C7 la réponse et le journal ne contiennent aucune valeur de secret ni d\'e-mail', async () => {
     const lignes = [];
     const a = creerAppelConsole({ version: '1.0.0', journal: (e) => lignes.push(JSON.stringify(e)) });
-    const r = await a(demande({ email: JEROME, email_verified: true, secret: 'FAUSSE-VALEUR-DE-SECRET' }));
+    const r = await avecProjet('projet-essai-1', () => a(demande({ email: JEROME, email_verified: true, secret: 'FAUSSE-VALEUR-DE-SECRET' }))); // projet fixé : le test passe aussi hors des émulateurs
     await assert.rejects(() => a(demande({ email: 'intrus@client-fictif.example', email_verified: true })));
     assert.deepEqual(Object.keys(r).sort(), ['plateforme', 'serveur', 'version']);
     assert.ok(![JSON.stringify(r), ...lignes].some((t) => /FAUSSE-VALEUR|@/.test(t)));
@@ -85,11 +85,11 @@ describe('Console : accès côté écran et registre (C4)', () => {
     assert.deepEqual(v.actifs, []);
   });
 
-  test('C4 les fonctions n\'existent que chez Jérôme (déclarées réservées) et le navigateur n\'appelle que consoleEtat et consoleVersions', () => {
-    assert.match(readFileSync(new URL('./ecarts-fonctions.test.js', import.meta.url), 'utf8'), /consoleEtat: 'normal/);
-    assert.match(readFileSync(new URL('./ecarts-fonctions.test.js', import.meta.url), 'utf8'), /consoleVersions: 'normal/);
+  test('C4 les fonctions n\'existent que chez Jérôme (déclarées réservées) et le navigateur n\'appelle que consoleEtat, consoleVersions et consoleBatiments', () => {
+    const ecarts = readFileSync(new URL('./ecarts-fonctions.test.js', import.meta.url), 'utf8');
+    for (const f of ['consoleEtat', 'consoleVersions', 'consoleBatiments', 'consoleReleve']) assert.match(ecarts, new RegExp(`${f}: 'normal`), f);
     const donnees = readFileSync(new URL('../js/modules/console/donnees.js', import.meta.url), 'utf8');
-    assert.deepEqual([...donnees.matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['consoleEtat', 'consoleVersions']);
+    assert.deepEqual([...donnees.matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['consoleEtat', 'consoleVersions', 'consoleBatiments']);
   });
 
   test('C4 la coque ne monte la Console que pour le compte de Jérôme', () => {
@@ -159,7 +159,7 @@ describe('Console : Filet de sécurité (C5, C6, C8)', () => {
     for (const f of ['../docs/console.md', '../functions/src/index.js', '../.github/A-FAIRE.md']) {
       assert.doesNotMatch(readFileSync(new URL(f, import.meta.url), 'utf8'), /console-serveur|claude-lecture/, f);
     }
-    for (const f of ['../js/modules/console/logique.js', '../js/modules/console/ecran.js', '../js/modules/console/donnees.js', '../js/modules/console/schema.js', '../js/modules/console/schema-textes.js', '../functions/src/console/appel.js']) {
+    for (const f of ['../js/modules/console/logique.js', '../js/modules/console/ecran.js', '../js/modules/console/donnees.js', '../js/modules/console/schema.js', '../js/modules/console/schema-textes.js', '../js/modules/console/detail.js', '../js/modules/console/export.js', '../functions/src/console/appel.js', '../functions/src/console/registre.js', '../functions/src/console/releve.js', '../functions/src/console/batiments.js', '../scripts/console-registre.js']) {
       const t = readFileSync(new URL(f, import.meta.url), 'utf8');
       assert.doesNotMatch(t, /iam\.gserviceaccount\.com|projects\/[a-z0-9-]+\/secrets|AIza[0-9A-Za-z_-]{20,}/, f);
     }

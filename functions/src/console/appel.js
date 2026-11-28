@@ -3,6 +3,7 @@
 // Jamais le compte du bot, jamais un client, un éditeur, un lecteur ou un assistant : ils reçoivent tous « permission-denied ».
 // `consoleEtat` ne lit aucune base ni aucun secret : elle répond seulement { version, serveur, plateforme }.
 // `consoleVersions` (28/11/2026, phase 2) lit la fiche reglages_maison/version de chaque bâtiment (console/versions.js), le même contrôle d'identité d'abord.
+// `consoleBatiments` (28/11/2026, phase 2, PR 2) lit le registre privé, les appartements de l'immeuble et les relevés (console/batiments.js), le même contrôle d'abord.
 // Les messages d'erreur sont écrits pour être affichés tels quels ; jamais de détail technique ni de valeur de secret dans une réponse.
 import { HttpsError } from 'firebase-functions/v2/https';
 import { comptesJeromeSeul, emailDans } from '../securite/reglages-maison.js';
@@ -43,6 +44,24 @@ export function creerAppelConsoleVersions({ lireVersions, comptes = COMPTES_CONS
     } catch {
       journal({ action: 'versions', statut: 'erreur' });
       throw new HttpsError('internal', 'Les versions ne se lisent pas pour l\'instant.');
+    }
+  };
+}
+
+/**
+ * `consoleBatiments` : `lireBatiments` = async () => { os, immeuble, maisons, releves, motifs } (console/batiments.js).
+ * Une partie illisible est rendue vide avec un motif par lireBatiments ; une erreur inattendue ici devient un message lisible.
+ */
+export function creerAppelConsoleBatiments({ lireBatiments, comptes = COMPTES_CONSOLE, journal = () => {} }) {
+  return async function appel(requete) {
+    await verifierAccesConsole(requete, { comptes, journal, action: 'batiments' });
+    try {
+      const r = await lireBatiments();
+      journal({ action: 'batiments', statut: 'ok' });
+      return r;
+    } catch {
+      journal({ action: 'batiments', statut: 'erreur' });
+      throw new HttpsError('internal', 'Les bâtiments ne se lisent pas pour l\'instant.');
     }
   };
 }

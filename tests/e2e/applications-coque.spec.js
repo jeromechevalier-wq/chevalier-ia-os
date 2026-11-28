@@ -8,8 +8,11 @@
 // Comptes des parcours (outils.js) : JEROME est le titulaire ; CHARLES est un autre compte autorisé (ici : le compte du client). Logique : tests/applications-coque.test.js.
 // Le bâtiment est ouvert au clavier (Entrée) et l'arrivée est attendue par son adresse : le test ne dépend ni du nombre de parcelles ni du délai d'un clic.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, estTelephone, JEROME, CHARLES, PROJET, FIRESTORE, URL_APP, ECRAN_PARCOURS } from './outils.js';
+import { test, expect, connecter, ecrireDocument, estTelephone, JEROME, CHARLES, PROJET, FIRESTORE, URL_APP, ECRAN_PARCOURS, villageParDefaut } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
+
+// Depuis le 28/11/2026 l'accueil par défaut est le menu classique : ces parcours du village remettent le village par défaut (crochet de test, docs/accueil-village.md).
+test.beforeEach(async ({ page }) => { await villageParDefaut(page); });
 
 const DOSSIER = fileURLToPath(new URL('./captures/applications-coque/', import.meta.url));
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: false, animations: 'disabled' });

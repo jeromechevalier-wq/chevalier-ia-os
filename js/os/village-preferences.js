@@ -6,13 +6,14 @@
 //    le document avant d'écrire, pour ne jamais écraser l'autre interrupteur avec une valeur devinée.
 //  - ecrirePreferences({ uid, jeu, accueil }) : le document entier, avec l'heure du serveur, 8 s au plus (hors ligne : false) ; réussie, le réglage est mémorisé.
 // Crochets de test (émulateurs seulement) : window.__chevalierTest.preferencesAccueil = { jeu, accueil } remplace la lecture du document (parcours de l'or) ;
-// window.__chevalierTest.pannesPreferences = { lecture: n, ecriture: n } fait échouer les n prochaines lectures ou écritures.
+// window.__chevalierTest.pannesPreferences = { lecture: n, ecriture: n } fait échouer les n prochaines lectures ou écritures ;
+// window.__chevalierTest.accueilParDefaut = 'village' remplace l'accueil par défaut (classique depuis le 28/11/2026) pour les parcours du village, sans toucher à la lecture du document.
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db, MODE_EMULATEURS } from './firebase.js';
 import { cheminCollection } from './chemins.js';
 import { maisonNeutre } from './identite-maison.js';
 import { lirePreference, ecrirePreference } from './ui.js';
-import { defauts, preferencesAppliquees, preferencesValables, preferencesMemorisees } from './village-preferences-logique.js';
+import { ACCUEILS, defauts as defautsLogique, preferencesAppliquees, preferencesValables, preferencesMemorisees } from './village-preferences-logique.js';
 
 export const DELAI_LECTURE_MS = 2000;
 export const DELAI_ECRITURE_MS = 8000;
@@ -35,6 +36,13 @@ async function auPlus(promesse, ms) {
   try { return await Promise.race([promesse, trop]); } finally { clearTimeout(minuteur); }
 }
 
+/** Les défauts (accueil classique) ; crochet de test accueilParDefaut (émulateurs seulement). */
+function accueilDefaut() {
+  const essai = MODE_EMULATEURS ? window.__chevalierTest?.accueilParDefaut : null;
+  return ACCUEILS.includes(essai) ? essai : 'classique';
+}
+const defauts = ({ neutre = false } = {}) => defautsLogique({ neutre, accueilDefaut: accueilDefaut() });
+
 /** Les défauts de la maison (sans lecture : maison sans village). */
 export const preferencesParDefaut = () => ({ ...defauts({ neutre: maisonNeutre() }), sur: true });
 
@@ -50,7 +58,7 @@ export async function lirePreferences({ uid, neutre = maisonNeutre() } = {}) {
     if (pannePosee('lecture')) throw Object.assign(new Error('panne simulée'), { code: 'panne' });
     const r = await auPlus(getDoc(document_(uid)), DELAI_LECTURE_MS);
     if (r === 'lent') { console.warn('Mon accueil : lecture trop lente, dernier réglage connu', 'delai'); return repli(); }
-    const p = preferencesAppliquees(r.exists() ? r.data() : null, { neutre });
+    const p = preferencesAppliquees(r.exists() ? r.data() : null, { neutre, accueilDefaut: accueilDefaut() });
     memoriser(uid, p);
     return { ...p, sur: true };
   } catch (e) {

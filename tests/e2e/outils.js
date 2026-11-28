@@ -209,13 +209,26 @@ export function estTelephone(page) {
  * par js/os/auth.js au chargement : on attend cette affectation pour y ajouter `champs` (jamais un objet posé plus tôt, que la connexion de test prendrait pour le sien).
  */
 export async function poserCrochetsDeTest(page, champs) {
+  // Plusieurs appels se cumulent (ex. accueilParDefaut posé par un beforeEach, puis une panne posée par le test) : le dernier posé gagne champ par champ.
   await page.addInitScript((c) => {
+    const enAttente = window.__crochetsEnAttente || (window.__crochetsEnAttente = {});
+    Object.assign(enAttente, structuredClone(c));
+    if (window.__crochetsPoses) return;
+    window.__crochetsPoses = true;
     Object.defineProperty(window, '__chevalierTest', {
       configurable: true,
       get: () => undefined,
-      set: (v) => { Object.defineProperty(window, '__chevalierTest', { value: Object.assign(v, structuredClone(c)), writable: true, configurable: true }); },
+      set: (v) => { Object.defineProperty(window, '__chevalierTest', { value: Object.assign(v, window.__crochetsEnAttente), writable: true, configurable: true }); },
     });
   }, champs);
+}
+
+/**
+ * Parcours du village : l'accueil par défaut (document « Mon accueil » absent) redevient le village, comme avant le 28/11/2026 (crochet accueilParDefaut de
+ * js/os/village-preferences.js). La lecture du vrai document et le jeu par défaut (allumé chez Jérôme, éteint chez un client) ne changent pas.
+ */
+export async function villageParDefaut(page) {
+  await poserCrochetsDeTest(page, { accueilParDefaut: 'village' });
 }
 
 /** Interrupteurs « Mon accueil » imposés pour un parcours (crochet preferencesAccueil, js/os/village-preferences.js) : remplace la lecture du document. */
@@ -357,6 +370,11 @@ export const test = base.extend({
     await context.route(/cloudfunctions\.net\/villageOr$/, (route) => (route.request().method() === 'OPTIONS'
       ? route.fulfill({ status: 204, headers: corsDefaut })
       : route.fulfill({ status: 200, headers: corsDefaut, contentType: 'application/json', body: JSON.stringify({ result: { ok: true, gagne: 0, raison: 'deja' } }) })));
+    // Console (registre des bâtiments, 28/11/2026) : la Vue d'ensemble appelle `consoleBatiments`, qui n'existe pas dans le navigateur de test. Réponse par défaut « vide »
+    // (0 appartement, registre vide : le schéma figé reste tel quel), avec CORS ; tests/e2e/console.spec.js pose sa propre route sur la page (elle passe avant celle-ci).
+    await context.route(/\/consoleBatiments$/, (route) => (route.request().method() === 'OPTIONS'
+      ? route.fulfill({ status: 204, headers: corsDefaut })
+      : route.fulfill({ status: 200, headers: corsDefaut, contentType: 'application/json', body: JSON.stringify({ result: { os: { projets: [] }, immeuble: { projets: [], appartements: [], total_appartements: 0 }, maisons: [], releves: {}, motifs: [] } }) })));
     // Photos de la page de connexion d'une maison (js/os/connexion-photos.js) : le dépôt n'en a jamais (maison/ est ignoré par git). Réponse par défaut :
     // le vrai 404 d'une maison sans photo (le navigateur le note dans sa console : seule exception admise par le contrôle C20 ci-dessous, ERREUR_PHOTO_ABSENTE).
     // Un parcours qui veut des photos pose sa propre route sur la page (elle passe avant celle-ci).
