@@ -46,9 +46,11 @@ function validerProjets(liste, ou, motifs) {
 /**
  * Valide la fiche du registre. `brut` : contenu de la fiche (ou null si elle n'existe pas : registre vide, cas normal).
  * `projetCourant` : identifiant du projet qui fait tourner le serveur (une maison ne peut pas pointer vers lui).
+ * `projetImmeuble` : identifiant du projet de l'immeuble lié, quand l'appelant le connaît (une maison ne peut pas pointer vers lui non plus).
+ * Deux maisons ne peuvent pas avoir le même projet à lire : la seconde est ignorée avec un motif.
  * Rend { batiments: [{ cle, nom, genre, etat, projets, lecture_projet }], projets_os, projets_immeuble, motifs } ; ne lève jamais.
  */
-export function validerRegistre(brut, { projetCourant = null } = {}) {
+export function validerRegistre(brut, { projetCourant = null, projetImmeuble = null } = {}) {
   const motifs = [];
   const vide = { batiments: [], projets_os: [], projets_immeuble: [], motifs };
   if (brut === undefined || brut === null) return vide;
@@ -57,6 +59,7 @@ export function validerRegistre(brut, { projetCourant = null } = {}) {
   const projets_immeuble = validerProjets(brut.projets_immeuble, 'immeuble', motifs);
   const batiments = [];
   const vues = new Set();
+  const projetsLus = new Set(); // deux maisons ne lisent jamais le même projet (relecture Fable de la PR 771)
   const liste = brut.batiments === undefined ? [] : brut.batiments;
   if (!Array.isArray(liste)) motifs.push('bâtiments ignorés (ce n\'est pas une liste)');
   (Array.isArray(liste) ? liste : []).forEach((b, i) => {
@@ -74,9 +77,12 @@ export function validerRegistre(brut, { projetCourant = null } = {}) {
     if (b.lecture_projet !== undefined && b.lecture_projet !== null && b.lecture_projet !== '') {
       if (typeof b.lecture_projet !== 'string' || !MOTIF_PROJET.test(b.lecture_projet)) { motifs.push(`${ou} ignoré (projet à lire invalide)`); return; }
       if (projetCourant && b.lecture_projet === projetCourant) { motifs.push(`${ou} ignoré (le projet à lire est celui de Chevalier IA OS)`); return; }
+      if (projetImmeuble && b.lecture_projet === projetImmeuble) { motifs.push(`${ou} ignoré (le projet à lire est celui de l'immeuble)`); return; }
+      if (projetsLus.has(b.lecture_projet)) { motifs.push(`${ou} ignoré (projet à lire déjà pris par une autre maison)`); return; }
       lecture_projet = b.lecture_projet;
     }
     vues.add(b.cle);
+    if (lecture_projet) projetsLus.add(lecture_projet);
     batiments.push({ cle: b.cle, nom, genre: 'maison', etat: b.etat, projets: validerProjets(b.projets, ou, motifs), lecture_projet });
   });
   return { batiments, projets_os, projets_immeuble, motifs };

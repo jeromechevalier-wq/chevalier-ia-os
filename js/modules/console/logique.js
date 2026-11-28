@@ -204,6 +204,26 @@ const MOTIFS_RELEVE_TEXTES = Object.freeze({
   sans_tampon: 'pas encore de tampon',
 });
 
+const texteOuNull = (v, max = 40) => (typeof v === 'string' && v ? v.slice(0, max) : null);
+const entierOuNull = (v) => (Number.isInteger(v) ? v : null);
+
+/**
+ * Un relevé réduit aux champs que l'écran montre (lignesReleve), pour l'export : version, depuis, structure, dernier contact, dernier essai, motif connu,
+ * et l'historique (version, version d'avant, structure, structure d'avant, date). Jamais un autre champ. Relevé absent ou illisible : null.
+ */
+export function releveAffiche(rel) {
+  if (!rel || typeof rel !== 'object' || Array.isArray(rel)) return null;
+  return {
+    version: texteOuNull(rel.version), version_depuis: texteOuNull(rel.version_depuis), structure_code: entierOuNull(rel.structure_code),
+    dernier_contact_ok: texteOuNull(rel.dernier_contact_ok), dernier_essai: texteOuNull(rel.dernier_essai),
+    motif: Object.hasOwn(MOTIFS_RELEVE_TEXTES, rel.motif) ? rel.motif : null,
+    historique: (Array.isArray(rel.historique) ? rel.historique : []).slice(0, 10).map((l) => ({
+      version: texteOuNull(l?.version), de_version: texteOuNull(l?.de_version), structure_code: entierOuNull(l?.structure_code),
+      de_structure: entierOuNull(l?.de_structure), le: texteOuNull(l?.le),
+    })),
+  };
+}
+
 /** Lignes d'un relevé (copie chez Jérôme) : { lignes: [texte], motif, historique: [texte], vide }. */
 export function lignesReleve(rel) {
   if (!rel || typeof rel !== 'object') return { vide: true, lignes: [], motif: null, historique: [] };

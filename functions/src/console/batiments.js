@@ -5,7 +5,7 @@
 import { MOTIF_IDENTIFIANT_CLIENT } from '../../partage/automatisations/etiquettes.js';
 import { modulesActifsDuClient } from '../../partage/registre.js';
 import { validerRegistre, lireRegistreBrut, texteBorne, SOUS_COLLECTION_HISTORIQUE_RELEVES } from './registre.js';
-import { refReleve } from './releve.js';
+import { refReleve, DELAI_LECTURE_MS } from './releve.js';
 
 export const MAX_APPARTEMENTS = 30;
 export const NB_HISTORIQUE_RELEVES = 10;
@@ -29,6 +29,20 @@ function iso(valeur) {
 const texte40 = (v) => (typeof v === 'string' && v.length <= 40 ? v : null);
 const entier = (v) => (Number.isInteger(v) ? v : null);
 const MOTIFS_RELEVE_CONNUS = ['injoignable', 'sans_tampon'];
+
+/**
+ * `promesse`, ou une erreur « délai dépassé » après `delaiMs` (même règle que lireFicheVersion de releve.js : 10 s au plus, minuterie toujours nettoyée).
+ * L'appelant transforme l'erreur en partie vide et motif ; rien n'est jamais levé pour tout l'écran.
+ */
+export async function avecDelai(promesse, delaiMs = DELAI_LECTURE_MS) {
+  let minuterie;
+  const delai = new Promise((_, rejeter) => { minuterie = setTimeout(() => rejeter(new Error('délai dépassé')), delaiMs); });
+  try {
+    return await Promise.race([Promise.resolve(promesse), delai]);
+  } finally {
+    clearTimeout(minuterie);
+  }
+}
 
 /** Appartements de l'immeuble : { appartements: [{ id, nom, modules }], total } (identifiants triés, ceux qui ne passent pas le motif ignorés). */
 export async function lireAppartements(dbApp, max = MAX_APPARTEMENTS) {
@@ -64,27 +78,28 @@ export async function lireReleve(dbOs, cle) {
 }
 
 /**
- * Tout ce que l'écran montre. `dbOs` : () => base du CRM ; `dbApp` : async () => base de l'immeuble ou null ; `projetCourant` : identifiant du projet courant.
+ * Tout ce que l'écran montre. `dbOs` : () => base du CRM ; `dbApp` : async () => base de l'immeuble ou null ; `projetCourant` : identifiant du projet courant ;
+ * `projetImmeuble` : projet de l'immeuble lié s'il est connu (une maison ne peut pas pointer vers lui) ; `delaiMs` : délai des lectures des appartements et des relevés (10 s).
  * Rend { os: { projets }, immeuble: { projets, appartements, total_appartements }, maisons: [{ cle, nom, etat, projets }], releves: { [cle]: relevé }, motifs }.
  * Jamais le projet à lire d'une maison dans la réponse.
  */
-export async function lireBatimentsConsole({ dbOs, dbApp, projetCourant = null }) {
+export async function lireBatimentsConsole({ dbOs, dbApp, projetCourant = null, projetImmeuble = null, delaiMs = DELAI_LECTURE_MS }) {
   const motifs = [];
   let os = null;
   try { os = dbOs(); } catch { os = null; }
   let registre = validerRegistre(null);
   try {
     if (!os) throw new Error('base absente');
-    registre = validerRegistre(await lireRegistreBrut(os), { projetCourant });
+    registre = validerRegistre(await lireRegistreBrut(os), { projetCourant, projetImmeuble });
   } catch { motifs.push(MOTIFS_BATIMENTS.registre); }
   motifs.push(...registre.motifs.slice(0, 20));
 
   let appartements = [];
   let total = 0;
   try {
-    const app = await dbApp();
+    const app = await avecDelai(dbApp(), delaiMs);
     if (!app) motifs.push(MOTIFS_BATIMENTS.immeuble_non_relie);
-    else ({ appartements, total } = await lireAppartements(app));
+    else ({ appartements, total } = await avecDelai(lireAppartements(app), delaiMs));
   } catch { motifs.push(MOTIFS_BATIMENTS.appartements); appartements = []; total = 0; }
 
   const maisons = registre.batiments.map((b) => ({ cle: b.cle, nom: b.nom, etat: b.etat, projets: b.projets }));
@@ -92,7 +107,7 @@ export async function lireBatimentsConsole({ dbOs, dbApp, projetCourant = null }
   if (os) {
     try {
       const cles = ['os', 'immeuble', ...maisons.map((m) => m.cle)];
-      const lus = await Promise.all(cles.map((cle) => lireReleve(os, cle)));
+      const lus = await avecDelai(Promise.all(cles.map((cle) => lireReleve(os, cle))), delaiMs);
       cles.forEach((cle, i) => { if (lus[i]) releves[cle] = lus[i]; });
     } catch { motifs.push(MOTIFS_BATIMENTS.releves); }
   }
