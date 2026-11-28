@@ -15,7 +15,7 @@
 
 **Ce qui reste à faire avec Jérôme** :
 1. Appliquer à la vraie base de SCAB 04 les migrations 009 à 013, dans la même séance, n8n arrêté : d'abord des vérifications en lecture (les valeurs que n8n envoie vraiment), puis les migrations, puis republier la porte et la maison.
-2. Brancher `outils/base/a-activer/002` (le robot ne décide pas) et `003` (« qui » pris dans l'identité vérifiée), après avoir adapté les workflows n8n.
+2. Brancher `outils/base/a-activer/003` (« qui » pris dans l'identité vérifiée), après avoir adapté les workflows n8n. (`002`, « le robot ne décide pas », est abandonné : décision de Jérôme du 28/11/2026, voir la règle 14 de `outils/base/REGLES.md`.)
 3. Cadenasser `valide_le` et `valide_par` des rapprochements, et `refuse_le` et `refuse_par` des suggestions refusées.
 4. Le « par où » ne dit encore que « assistant » ou « n8n », sans le nom exact de l'assistant ou du workflow.
 5. Pas encore de « + Chantier » dans le volet : l'écran n'ouvre jamais un champ qu'il ne sait pas écrire, et le formulaire « Nouveau chantier » n'existe pas encore.
