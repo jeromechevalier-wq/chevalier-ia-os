@@ -188,9 +188,9 @@ describe('R9 écran : schéma, boutons et détail calculés depuis la réponse (
     assert.equal(tronquer('Un nom vraiment beaucoup trop long', MAX_NOM_ETAGE), 'Un nom vraime…');
     assert.equal(tronquer('Un nom vraiment beaucoup trop long', MAX_NOM_ETAGE).length, MAX_NOM_ETAGE);
   });
-  test('R9 maisons du registre à la place de « Maison client 1 » (grue si en construction, pointillés si à venir), « Maison à venir » en dernier', () => {
+  test('R9 maisons du registre à la place de « Maison client 1 » (grue si en construction, pointillés si à venir), « Maison à venir » en dernier sauf si le registre en a une (AR14)', () => {
     const m = modeleSchema(reponse());
-    assert.deepEqual(m.batiments.map((b) => [b.nom, b.genre]), [['Chevalier IA OS', 'maison'], ['Chevalier IA App', 'immeuble'], ['Espace essai A', 'chantier'], ['Espace essai B', 'avenir'], ['Maison à venir', 'avenir']]);
+    assert.deepEqual(m.batiments.map((b) => [b.nom, b.genre]), [['Chevalier IA OS', 'maison'], ['Chevalier IA App', 'immeuble'], ['Espace essai A', 'chantier'], ['Espace essai B', 'avenir']]); // maison B à venir : pas de « Maison à venir » générique en plus
     assert.deepEqual(m.batiments[2].nuage, ['Cloud SQL', 'les données']);
     assert.deepEqual(m.batiments[3].legende, ['À venir']);
     const sansMaison = modeleSchema(reponse({ maisons: [] }));
@@ -428,7 +428,7 @@ describe('AR nuages du schéma « Architecture » (sans navigateur)', () => {
     ] });
     assert.deepEqual(m.batiments[2].nuage2, ['Firestore', 'les réglages']);
     assert.deepEqual(m.batiments[2].nuage, ['Cloud SQL', 'les données']);
-    assert.equal(m.batiments[3].nuage2, undefined);
+    assert.deepEqual([m.batiments[3].nuage, m.batiments[3].nuage2], [['Cloud SQL', 'à venir'], ['Firestore', 'à venir']]); // maison à venir du registre : dessin de la maison à venir (AR14)
   });
 });
 
@@ -471,7 +471,14 @@ describe('AR rangées de nuages du schéma « Architecture » (sans navigateur)'
     const avenir = TEXTES_SCHEMA.batiments[3];
     assert.deepEqual([avenir.genre, avenir.nuage, avenir.nuage2, avenir.telephone], ['avenir', ['Cloud SQL', 'à venir'], ['Firestore', 'à venir'], true]);
     assert.doesNotMatch(JSON.stringify(avenir), /Données/);
-    assert.deepEqual(registre().batiments.at(-1), avenir); // la maison à venir reste en dernier avec le registre
+    // Maison à venir du registre : même dessin que la maison à venir figée, sans « Données à part », et pas de maison générique en plus.
+    const b = registre().batiments;
+    assert.deepEqual(b.map((x) => x.nom), ['Chevalier IA OS', 'Chevalier IA App', 'Maison essai A', 'Maison essai B']);
+    assert.deepEqual([b[3].genre, b[3].nuage, b[3].nuage2, b[3].telephone, b[3].legende], ['avenir', ['Cloud SQL', 'à venir'], ['Firestore', 'à venir'], true, ['À venir']]);
+    assert.doesNotMatch(JSON.stringify(b), /à part/);
+    // Sans maison à venir dans le registre : la maison générique reste en dernier.
+    const sansAvenir = modeleSchema({ os: { projets: [] }, immeuble: { projets: [], appartements: [] }, maisons: [{ cle: 'maison-a', nom: 'Maison essai A', etat: 'en_construction', projets: [] }] });
+    assert.deepEqual(sansAvenir.batiments.at(-1), avenir);
     const s = schema();
     assert.match(s, /class: avenir \? 'console-schema-nuage console-schema-tirets' : 'console-schema-nuage'/);
     assert.match(s, /const telephone = \(x, y, vers, avenir\) => el\('g', \{ class: avenir \? 'console-schema-avenir console-schema-pointilles' : null \}/);

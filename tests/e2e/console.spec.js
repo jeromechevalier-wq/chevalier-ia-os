@@ -334,7 +334,8 @@ test('R11 registre plein : l\'immeuble montre tous les appartements (identifiant
   const bloc = page.locator('.page > [data-bloc="architecture"]');
   const dessin = bloc.locator('svg[role="img"]:visible');
   await expect(dessin).toContainText('essai-a');
-  for (const t of ['essai-b', 'essai-c', 'essai-d', 'essai-e', 'À venir', 'Maison essai A', 'Maison essai B', 'Maison à venir', 'Chevalier IA OS', 'Chevalier IA App']) await expect(dessin).toContainText(t);
+  for (const t of ['essai-b', 'essai-c', 'essai-d', 'essai-e', 'À venir', 'Maison essai A', 'Maison essai B', 'Chevalier IA OS', 'Chevalier IA App']) await expect(dessin).toContainText(t);
+  await expect(dessin).not.toContainText('Maison à venir'); // le registre a déjà une maison à venir (Maison essai B) : pas de maison générique en plus (AR14)
   await expect(dessin).not.toContainText('Maison client 1');
   await expect(dessin).not.toContainText('autres');
   await expect(dessin).not.toContainText('Espace essai'); // les noms d'affichage ne sont plus dans le dessin (AR7)
@@ -571,6 +572,7 @@ for (const [cas, reponse] of [['fige', null], ['registre', BATIMENTS_PLEINS]]) {
         };
       });
       // AR11 / AR12 : une hauteur par rangée de bâtiments pour les Cloud SQL, une pour les Firestore, celle-ci juste en dessous (86 plus bas).
+      if (!largeur) expect(g.rangees).toBe(1); // en large, figé comme registre (OS, App, A, B) : une seule ligne de 4 colonnes, tous les Cloud SQL à une hauteur, tous les Firestore à une autre
       expect(g.ySql).toHaveLength(g.rangees);
       expect(g.yFirestore).toHaveLength(g.rangees);
       g.yFirestore.forEach((y, i) => expect(y - g.ySql[i]).toBe(86));
@@ -578,10 +580,12 @@ for (const [cas, reponse] of [['fige', null], ['registre', BATIMENTS_PLEINS]]) {
       expect(g.nuages).toContainEqual({ texte: 'Cloud SQL / à venir', avenir: true, tirets: true });
       expect(g.nuages).toContainEqual({ texte: 'Firestore / à venir', avenir: true, tirets: true });
       expect(g.nuages.map((n) => n.texte)).not.toContain('Données / à venir');
+      expect(g.nuages.map((n) => n.texte)).not.toContain('Données / à part');
+      expect(g.nuages).toHaveLength(7); // commun + CRM + immeuble + 2 pour la maison client + 2 pour la maison à venir
       // AR13 / AR14 : un téléphone par bâtiment ; le CRM et l'immeuble vont à leur Firestore, chaque maison à son Cloud SQL ; ceux des maisons à venir en pointillés.
       expect(g.telephones).toEqual(reponse
         ? [{ pointilles: false, nuage: 'Firestore / tes données / et tes réglages' }, { pointilles: false, nuage: 'Firestore / les données / et les réglages' },
-          { pointilles: false, nuage: 'Cloud SQL / les données' }, { pointilles: true, nuage: 'Données / à part' }, { pointilles: true, nuage: 'Cloud SQL / à venir' }]
+          { pointilles: false, nuage: 'Cloud SQL / les données' }, { pointilles: true, nuage: 'Cloud SQL / à venir' }]
         : [{ pointilles: false, nuage: 'Firestore / tes données / et tes réglages' }, { pointilles: false, nuage: 'Firestore / les données / et les réglages' },
           { pointilles: false, nuage: 'Cloud SQL / les données' }, { pointilles: true, nuage: 'Cloud SQL / à venir' }]);
       // AR15 : aucun nuage, téléphone, mot « MCP », bâtiment ni case n8n ne se chevauchent.

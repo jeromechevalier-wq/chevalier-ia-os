@@ -179,24 +179,29 @@ export function projetGoogle(projets) {
 
 /**
  * Modèle du schéma pour schema.js : { batiments, etages }, ou null (aucun appartement et registre vide : le schéma figé, inchangé).
- * Les maisons du registre remplacent « Maison client 1 » (grue si en construction, pointillés si à venir) ; « Maison à venir » reste en dernier.
+ * Les maisons du registre remplacent « Maison client 1 » (grue si en construction, pointillés si à venir) ; la « Maison à venir » générique reste en dernier,
+ * sauf si le registre a déjà une maison à venir (elle en tient lieu, AR14). Une maison à venir du registre a le dessin de la maison à venir figée :
+ * « Cloud SQL / à venir », « Firestore / à venir », téléphone MCP en pointillés.
  */
 export function modeleSchema(reponse) {
   const r = reponseBatiments(reponse);
   if (!r.immeuble.appartements.length && !r.maisons.length && !r.os.projets.length && !r.immeuble.projets.length) return null;
   const [crm, immeuble, chantier, avenir] = TEXTES_SCHEMA.batiments;
-  const maisons = r.maisons.length ? r.maisons.map((m) => ({
+  const maisons = r.maisons.length ? r.maisons.map((m) => (m.etat === 'a_venir' ? {
+    ...avenir, nom: tronquer(m.nom, MAX_NOM_MAISON), nuage: [...avenir.nuage], nuage2: [...avenir.nuage2], legende: [TEXTES_SCHEMA.etats.a_venir], projet: projetGoogle(m.projets),
+  } : {
     nom: tronquer(m.nom, MAX_NOM_MAISON),
     genre: GENRE_PAR_ETAT[m.etat],
     // Nuage : le rôle du dernier projet noté (la base, ex. « Cloud SQL »), puis « les données » ; sans projet : « Données à part ».
     nuage: m.projets.length ? [tronquer(m.projets.at(-1).role, MAX_ROLE_NUAGE), TEXTES_SCHEMA.lesDonnees] : [...TEXTES_SCHEMA.nuageMaison],
-    ...(m.etat === 'a_venir' ? {} : { nuage2: [...TEXTES_SCHEMA.nuageReglages] }), // la maison a son Firestore (réglages, logo, journal), AR10
+    nuage2: [...TEXTES_SCHEMA.nuageReglages], // la maison a son Firestore (réglages, logo, journal), AR10
     telephone: true, // son MCP, relié à son nuage Cloud SQL (AR13) ; grisé en pointillés si la maison est à venir
     legende: [TEXTES_SCHEMA.etats[m.etat]],
     projet: projetGoogle(m.projets),
   })) : [chantier];
+  const avenirDuRegistre = r.maisons.some((m) => m.etat === 'a_venir');
   return {
-    batiments: [{ ...crm, projet: projetGoogle(r.os.projets) }, { ...immeuble, projet: projetGoogle(r.immeuble.projets) }, ...maisons, avenir],
+    batiments: [{ ...crm, projet: projetGoogle(r.os.projets) }, { ...immeuble, projet: projetGoogle(r.immeuble.projets) }, ...maisons, ...(avenirDuRegistre ? [] : [avenir])],
     etages: etagesImmeuble(r.immeuble.appartements) ?? TEXTES_SCHEMA.etages,
   };
 }
