@@ -6,10 +6,12 @@ import { test, describe } from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
   DUREES, COURBE_ENTREE, VUES_APPLI, JOURS_ALERTE_IBAN, initiales, masquerIban, ibanLisible, sirenFacture, jourParis, changementIbanRecent, changementDansConfirmations, fournisseursDuVolet, fournisseurDeFacture, etatFournisseurFacture, motifChangementIban, MESSAGE_IBAN_RETIRE,
-  verifierChantierFiche, champsChantierModifies, semaineIso, chiffresTableau, libelleMois, delaiLisible, bilanDuJour, texteBilan, correspond,
+  verifierChantierFiche, verifierChantierCreation, corpsCreationChantier, STATUT_NOUVEAU_CHANTIER, champsChantierModifies, semaineIso, chiffresTableau, libelleMois, delaiLisible, bilanDuJour, texteBilan, correspond,
   preparerModeEmploi, plusSelonModeEmploi, lignesSelonModeEmploi, saisieSelonModeEmploi, OBJET_DU_VOLET,
 } from '../js/modules/achatsfactures/logique-appli.js';
 import { creerDonneesAppli } from '../js/modules/achatsfactures/donnees-appli.js';
+// Le TEST (pas l'écran) lit le module Chantiers : il vérifie que la copie de logique-appli.js reste identique à l'original.
+import { verifierChantier as verifierChantierOrigine, corpsCreationChantier as corpsCreationOrigine } from '../js/modules/achatschantiers/logique.js';
 
 const lire = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
 const MAINTENANT = new Date('2026-11-27T10:00:00Z');
@@ -220,9 +222,10 @@ describe('lectures et actions du volet (faux client : aucune table nouvelle, seu
     assert.deepEqual((await d.lireChantiers()).map((c) => c.id), ['c2']);
     assert.deepEqual(await d.lireArticles(), [{ id: 'ar1', fournisseur_id: 'fo1', reference: 'R-1', designation: 'Ciment', unite: 'sac', fournisseur: 'Point Q Matériaux' }]);
   });
-  test('6, 7 et 8 écritures : `creer_agence`, `revoquer_iban` (motif obligatoire), `modifier_chantier` (rien d\'envoyé si rien n\'a changé) ; jamais d\'identité dans le corps', async () => {
+  test('6, 7, 8 et PC2 écritures : `creer_agence`, `creer_chantier` (statut « en préparation », code vide non envoyé), `revoquer_iban` (motif obligatoire), `modifier_chantier` (rien d\'envoyé si rien n\'a changé) ; jamais d\'identité dans le corps', async () => {
     const { d, appels } = faux();
     await d.creerFournisseur({ nom_fournisseur: ' Zinc et Fer ', siret: '500 000 021 00005', siren: '', nom_agence: 'Agence Sud', ville: 'Valmoran' });
+    await d.creerChantier({ nom: ' Villa Fictive ', code: '', client: ' Client Fictif ', adresse: '' });
     await d.revoquerIban('c1', ' IBAN remplacé depuis la fiche ');
     await assert.rejects(() => d.revoquerIban('c1', 'x'), /3 à 500/);
     await assert.rejects(() => d.revoquerIban('', 'motif correct'), /introuvable/);
@@ -231,6 +234,7 @@ describe('lectures et actions du volet (faux client : aucune table nouvelle, seu
     assert.equal(await d.enregistrerChantier(origine, { nom: 'Villa 2', code: 'CH-1', client: '', adresse: '' }), true);
     assert.deepEqual(appels, [
       { action: 'creer_agence', champs: { nom_fournisseur: 'Zinc et Fer', siret: '50000002100005', nom_agence: 'Agence Sud', ville: 'Valmoran' } },
+      { action: 'creer_chantier', champs: { nom: 'Villa Fictive', statut: 'en_preparation', client: 'Client Fictif' } },
       { action: 'revoquer_iban', champs: { id: 'c1', motif: 'IBAN remplacé depuis la fiche' } },
       { action: 'modifier_chantier', champs: { id: 'c1', champs: { nom: 'Villa 2' } } },
     ]);
@@ -331,7 +335,8 @@ describe('Mode d’emploi de la base (PR 2b)', () => {
     const l = lignesSelonModeEmploi(mode, 'chantiers', LIGNES);
     assert.deepEqual(l.map((x) => [x.cle, !!x.modifiable, x.cadenas ?? null]), [['nom', false, PHRASE], ['code', true, null], ['client', true, null], ['statut', false, null], ['resume', false, null]]);
     assert.deepEqual(plusSelonModeEmploi(mode, 'fournisseurs', true), { montrer: false, phrase: 'Phrase fictive : on ne crée pas ici.' });
-    assert.deepEqual(plusSelonModeEmploi(mode, 'chantiers', false), { montrer: false, phrase: null }, 'la base autorise, mais l’écran n’a pas de « + » : rien n’apparaît');
+    assert.deepEqual(plusSelonModeEmploi(mode, 'chantiers', true), { montrer: true, phrase: null }, 'la base autorise, et l’écran a « + Chantier » (28/11/2026) : il apparaît');
+    assert.deepEqual(plusSelonModeEmploi(mode, 'chantiers', false), { montrer: false, phrase: null }, 'une liste sans « + » à l’écran (Articles) : rien n’apparaît, même si la base autorise');
     assert.deepEqual(plusSelonModeEmploi(mode, 'articles_fournisseur', true), { montrer: true, phrase: null }, 'pas de ligne pour cette table : comme avant');
     assert.equal(OBJET_DU_VOLET.articles, 'articles_fournisseur');
   });
@@ -375,5 +380,60 @@ describe('Mode d’emploi de la base (PR 2b)', () => {
     assert.deepEqual(lignesSelonModeEmploi(mode, 'chantiers', [{ ...lignes[0], valeur: '1 rue fictive' }]).map((l) => [l.modifiable, l.cadenas]), [[false, PHRASE]], 'rempli : cadenassé');
     assert.deepEqual(saisieSelonModeEmploi(mode, 'chantiers', LIGNES, { nom: 'Saisi', code: 'X', client: 'Y' }), { code: 'X', client: 'Y' }, 'le nom cadenassé n’est jamais envoyé');
     assert.deepEqual(saisieSelonModeEmploi(null, 'chantiers', LIGNES, { nom: 'Saisi', code: 'X' }), { nom: 'Saisi', code: 'X' }, 'sans mode d’emploi : comme avant');
+  });
+});
+
+// Bouton « + Chantier » du volet (28/11/2026) : la logique copiée du module Chantiers, et les verrous écrits du volet. L'écran est vu dans tests/e2e/achatsfactures-appli.spec.js (PC1 à PC5).
+describe('« + Chantier » dans le volet (PC1 à PC5)', () => {
+  const volet = lire('js/modules/achatsfactures/volet.js');
+  const SAISIES = [
+    { nom: ' Villa Fictive ', code: '', client: '', adresse: '' },
+    { nom: 'Villa', code: ' CH-9 ', client: ' Client ', adresse: ' 1 rue Fictive ' },
+    { nom: '   ', code: '', client: '', adresse: '' },
+    { nom: 'x'.repeat(201), code: '', client: '', adresse: '' },
+    { nom: 'Villa', code: 'c'.repeat(41), client: '', adresse: '' },
+    { nom: 'Villa', code: '', client: 'k'.repeat(201), adresse: '' },
+    { nom: 'Villa', code: '', client: '', adresse: 'a'.repeat(301) },
+  ];
+  const complet = (c) => ({ ...c, statut: 'en_preparation', budget_ht: '', date_debut: '', date_fin_prevue: '' });
+
+  test('PC2 contrôle de création : le code peut rester vide (la base l’attribue), le nom est obligatoire ; identique au module Chantiers (verifierChantier(c, true))', () => {
+    assert.equal(verifierChantierCreation({ nom: 'Villa', code: '', client: '', adresse: '' }), null);
+    assert.match(verifierChantierCreation({ nom: ' ', code: '', client: '', adresse: '' }), /obligatoire/);
+    assert.notEqual(verifierChantierFiche({ nom: 'Villa', code: '', client: '', adresse: '' }), null, 'la fiche, elle, refuse un code vide : ce n’est pas le contrôle du formulaire de création');
+    for (const c of SAISIES) assert.equal(verifierChantierCreation(c), verifierChantierOrigine(complet(c), true), JSON.stringify(c).slice(0, 60));
+  });
+
+  test('PC2 corps de `creer_chantier` : statut « en préparation », seulement les champs remplis ; identique au module Chantiers', () => {
+    assert.equal(STATUT_NOUVEAU_CHANTIER, 'en_preparation');
+    assert.deepEqual(corpsCreationChantier({ nom: ' Villa ', code: '', client: '', adresse: '' }), { nom: 'Villa', statut: 'en_preparation' });
+    for (const c of SAISIES.slice(0, 2)) assert.deepEqual(corpsCreationChantier(c), corpsCreationOrigine(complet(c)));
+  });
+
+  test('PC1 le « + » suit la liste active : « + Fournisseur », « + Chantier », jamais « + Article » ; vrai sans mode d’emploi ; la phrase de la base quand elle dit non', () => {
+    assert.match(volet, /const PLUS = \{ fournisseurs: \['nouveau-fournisseur', 'Fournisseur'\], chantiers: \['nouveau-chantier', 'Chantier'\] \};/);
+    assert.match(volet, /plusSelonModeEmploi\(modeEmploi, OBJET_DU_VOLET\[quoi\], !!PLUS\[quoi\]\)/);
+    assert.match(volet, /const sansPlus = \(quoi\) => \{ if \(!PLUS\[quoi\]\) return null;/);
+    assert.match(volet, /onclick: \(\) => ouvrirNouveau\(null, onglet\)/);
+    assert.doesNotMatch(volet, /appelerActionMetier/, 'aucune écriture directe dans le volet : tout passe par donnees-appli.js');
+    const mode = preparerModeEmploi([{ objet: 'chantiers', creer: false, phrase_sans_creer: 'Phrase fictive.' }], []);
+    assert.deepEqual(plusSelonModeEmploi(mode, 'chantiers', true), { montrer: false, phrase: 'Phrase fictive.' });
+    assert.deepEqual(plusSelonModeEmploi(null, 'chantiers', true), { montrer: true, phrase: null });
+  });
+
+  test('PC3 après la création : la liste est relue, la fiche s’ouvre par `chantier_id`, l’application est prévenue', () => {
+    const bloc = volet.slice(volet.indexOf('function dessinerNouveauChantier'), volet.indexOf('// ------------------------------------------------------------ ouverture, fermeture'));
+    assert.match(bloc, /await donnees\(\)\.creerChantier\(v\)/);
+    assert.match(bloc, /await charger\('chantiers', true\)/);
+    assert.match(bloc, /String\(x\.id\) === String\(id\)/);
+    assert.match(bloc, /surEcriture\(\);/);
+    assert.ok(bloc.indexOf("charger('chantiers', true)") < bloc.indexOf('surEcriture()'));
+    assert.match(volet, /cache\[quoi\] = \{ etat: 'chargement', lignes: avant, perime: false \};\n    if \(vue !== 'nouveau'\) dessiner\(\);/, 'PC6 : la relecture ne refait jamais le formulaire de création');
+    assert.match(bloc, /jeton === jetonNouveau/, 'PC7 : la fin d’un envoi n’agit que sur son formulaire');
+    assert.match(bloc, /lignes\.find\(\(x\) => x\.nom === v\.nom\)/, 'PC3 bis : sans chantier_id, par le nom exact');
+  });
+
+  test('PC5 cas vide : la phrase de la liste des chantiers parle du bouton « + Chantier »', () => {
+    assert.match(volet, /chantiers: 'Aucun chantier pour l’instant\. Ajoute le premier avec le bouton « \+ Chantier »\.'/);
   });
 });

@@ -173,6 +173,32 @@ export function champsChantierModifies(origine, c) {
   return r;
 }
 
+// ------------------------------------------------------------------ nouveau chantier (bouton « + Chantier » du volet, 28/11/2026)
+// Copie de achatschantiers/logique.js (`verifierChantier(c, true)` et `corpsCreationChantier`), à garder identique : un module Achats n'importe pas un autre module.
+// Le formulaire du volet n'a que nom, code, client et adresse : le statut est toujours « en préparation » (comme le module Chantiers) ; le budget et les dates se règlent dans l'écran Chantiers.
+// Verrou : tests/achatsfactures-appli.test.js compare ces deux fonctions à celles du module Chantiers sur les mêmes saisies.
+export const STATUT_NOUVEAU_CHANTIER = 'en_preparation';
+
+/** Contrôle de forme d'un nouveau chantier (le serveur refait les mêmes) : le code peut rester vide (la base l'attribue). Phrase française, ou null. */
+export function verifierChantierCreation(c) {
+  const nom = (c.nom ?? '').trim();
+  if (!nom) return 'Le nom du chantier est obligatoire.';
+  if (nom.length > LIMITES_CHANTIER.nom) return `Le nom est trop long (${LIMITES_CHANTIER.nom} caractères au maximum).`;
+  if ((c.code ?? '').trim().length > LIMITES_CHANTIER.code) return `Le code est trop long (${LIMITES_CHANTIER.code} caractères au maximum).`;
+  if ((c.client ?? '').trim().length > LIMITES_CHANTIER.client) return `Le client est trop long (${LIMITES_CHANTIER.client} caractères au maximum).`;
+  if ((c.adresse ?? '').trim().length > LIMITES_CHANTIER.adresse) return `L’adresse est trop longue (${LIMITES_CHANTIER.adresse} caractères au maximum).`;
+  return null;
+}
+
+/** Corps de `creer_chantier` : clés à plat (liste blanche du serveur), seulement les champs remplis, statut « en préparation ». Jamais d'identité. */
+export function corpsCreationChantier(c) {
+  const corps = { nom: (c.nom ?? '').trim(), statut: STATUT_NOUVEAU_CHANTIER };
+  if ((c.code ?? '').trim()) corps.code = c.code.trim();
+  if ((c.client ?? '').trim()) corps.client = c.client.trim();
+  if ((c.adresse ?? '').trim()) corps.adresse = c.adresse.trim();
+  return corps;
+}
+
 export const LIBELLE_STATUT_CHANTIER = Object.freeze({ en_preparation: 'En préparation', en_cours: 'En cours', suspendu: 'Suspendu', termine: 'Terminé' });
 
 // ------------------------------------------------------------------ tableau de bord des factures

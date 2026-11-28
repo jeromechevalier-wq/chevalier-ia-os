@@ -1,11 +1,11 @@
 // Données de « l'application Factures » (27/11/2026) : ce que lisent le volet « Fournisseurs, Chantiers, Articles » et le tableau de bord des factures.
 // LECTURES : seulement par le client de la base (tables nommées, colonnes nommées, tri obligatoire) ; aucune table nouvelle : ce sont celles que lisent déjà les écrans Achats.
-// ÉCRITURES : seulement par la couche des actions métier, avec des actions qui EXISTENT déjà (`creer_agence`, `revoquer_iban`, `modifier_chantier`) : n8n garde les règles.
+// ÉCRITURES : seulement par la couche des actions métier, avec des actions qui EXISTENT déjà (`creer_agence`, `creer_chantier`, `revoquer_iban`, `modifier_chantier`) : n8n garde les règles.
 // Le fichier ne connaît pas la coque : `client` et `actions` lui sont donnés. Aucun appel réseau n'est écrit ici. Un module Achats n'importe pas un autre module : les lectures sont refaites ici.
 import { creerDonnees, TABLE_AGENCES, TABLE_CHANTIERS } from './donnees.js';
 import { corpsCreationAgence } from './agences.js';
 import { COLONNES_AGENCES_EXAMINER, COLONNES_FOURNISSEURS, TABLE_FOURNISSEURS } from './donnees-examiner.js';
-import { champsChantierModifies, preparerModeEmploi, OBJET_DU_VOLET } from './logique-appli.js';
+import { champsChantierModifies, corpsCreationChantier, preparerModeEmploi, OBJET_DU_VOLET } from './logique-appli.js';
 
 export const COLONNES_CHANTIERS_VOLET = ['id', 'nom', 'code', 'client', 'statut', 'archive', 'adresse'];
 export const TABLE_ARTICLES = 'articles_fournisseur';
@@ -91,6 +91,9 @@ export function creerDonneesAppli({ client, actions }) {
   /** Crée un fournisseur et sa première agence (action `creer_agence`, la même que la page Examiner). Réponse `{ ok, agence_id }`. */
   const creerFournisseur = (champs) => valeur(actions).appelerActionMetier('creer_agence', corpsCreationAgence(champs));
 
+  /** Crée un chantier (action `creer_chantier`, la même que le module Chantiers) ; le code vide est attribué par la base. Réponse `{ ok, chantier_id }`. */
+  const creerChantier = (champs) => valeur(actions).appelerActionMetier('creer_chantier', corpsCreationChantier(champs));
+
   /** Révoque la confirmation d'un IBAN (action `revoquer_iban`) : c'est ainsi qu'un IBAN « changé » est noté, avec son motif ; l'ancienne confirmation reste dans l'historique. */
   async function revoquerIban(id, motif) {
     const m = String(motif ?? '').trim();
@@ -107,5 +110,5 @@ export function creerDonneesAppli({ client, actions }) {
     return true;
   }
 
-  return { lireFournisseurs, lireChantiers, lireArticles, lireModeEmploi, creerFournisseur, revoquerIban, enregistrerChantier, chargerFactures: factures.chargerFactures };
+  return { lireFournisseurs, lireChantiers, lireArticles, lireModeEmploi, creerFournisseur, creerChantier, revoquerIban, enregistrerChantier, chargerFactures: factures.chargerFactures };
 }

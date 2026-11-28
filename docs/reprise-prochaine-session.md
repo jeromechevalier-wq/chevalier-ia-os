@@ -41,7 +41,7 @@ Aussi le 28/11 : la règle « un robot ne valide jamais une facture » est **aba
 2. Brancher `outils/base/a-activer/003` (« qui » pris dans l'identité vérifiée), après avoir adapté les workflows n8n. (`002`, « le robot ne décide pas », est abandonné : décision de Jérôme du 28/11/2026, voir la règle 14 de `outils/base/REGLES.md`.)
 3. Cadenasser `valide_le` et `valide_par` des rapprochements, et `refuse_le` et `refuse_par` des suggestions refusées.
 4. Le « par où » ne dit encore que « assistant » ou « n8n », sans le nom exact de l'assistant ou du workflow.
-5. Pas encore de « + Chantier » dans le volet : l'écran n'ouvre jamais un champ qu'il ne sait pas écrire, et le formulaire « Nouveau chantier » n'existe pas encore.
+5. « + Chantier » dans le volet : fait (PR 778, 28/11/2026 ; formulaire « Nouveau chantier », action `creer_chantier` ; pas encore essayé sur la vraie base de SCAB 04).
 6. Le mode d'emploi des factures n'est pas encore donné à l'assistant (seulement chantiers, agences, fournisseurs).
 7. La maison de Jérôme reste sur son ancienne base Supabase : son déménagement vers le nouveau modèle se fera dans un second temps (décision de Jérôme).
 8. Le test `achatsfactures-pile` P1 a échoué une fois puis est passé : instable, à surveiller.
