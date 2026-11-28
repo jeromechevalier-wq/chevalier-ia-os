@@ -58,7 +58,7 @@ const lignesTable = ({ sansAValider = false, retouches = {} } = {}) => listeComp
     return { ...r, created_at: ARRIVEES[f.id] ?? '2025-03-01T08:00:00Z', date_decision: r.date_decision ? '2025-03-03T08:00:00Z' : null, chantier_id: null, etablissement_id: null, fichier_path: `espace-essai/${f.id}.pdf`, courriel_id: null, alertes_a_la_decision: null, motif_acceptation: null, archivee_par: null }; });
 
 /**
- * Faux réseau posé AVANT le chargement : lectures filtrées comme le ferait la base, stockage, tickets, webhook de validation et actions métier (rouvrir, revoquer_iban, creer_agence, modifier_chantier).
+ * Faux réseau posé AVANT le chargement : lectures filtrées comme le ferait la base, stockage, tickets, webhook de validation et actions métier (rouvrir, revoquer_iban, creer_agence, modifier_chantier, creer_chantier).
  * `options` : { sansAValider, decideesCeMois (h1 acceptée et h2 refusée « maintenant »), fournisseursEnPanne, retouches ({ idFacture: champs remplacés }), ibans }. Les décisions sont datées de l'instant du test (bilan du jour).
  * Pendant le test : `window.__faux.fournisseursEnPanne` / `chantiersEnPanne` (pannes), et `retenir` / `lacher` (une réponse retenue le temps de regarder l'écran qui attend).
  */
@@ -118,6 +118,12 @@ async function poserFauxReseau(page, options = {}) {
         if (corps.action === 'rouvrir') { Object.assign(f, { statut: 'a_valider', date_decision: null, decide_par: null, motif_refus: null }); return rep({ ok: true }); }
         if (corps.action === 'revoquer_iban') { Object.assign(faux.ibans.find((x) => x.id === corps.id), { revoque_le: maintenant(), motif_revocation: corps.motif }); return rep({ ok: true }); }
         if (corps.action === 'modifier_chantier') { Object.assign(faux.chantiers.find((x) => x.id === corps.id), corps.champs); return rep({ ok: true }); }
+        if (corps.action === 'creer_chantier') { // modèle : tests/e2e/achatschantiers.spec.js ; `faux.refusChantier` : la base refuse (message du serveur)
+          if (faux.refusChantier) return rep({ ok: false, code: 'refus_essai', erreur: faux.refusChantier }, 400);
+          const n = faux.chantiers.length + 1;
+          faux.chantiers.push({ id: `c${n}`, code: corps.code ?? `CH-000${n}`, client: null, adresse: null, archive: false, ...corps });
+          return rep({ ok: true, chantier_id: `c${n}` });
+        }
         if (corps.action === 'creer_agence') {
           const siren = corps.siren ?? (corps.siret ? corps.siret.slice(0, 9) : null);
           faux.fournisseurs.push({ id: 'fo-nouveau', siren, nom: corps.nom_fournisseur, statut: 'actif' });
@@ -1147,6 +1153,10 @@ test('MD2 mode d\'emploi de la base : « + Fournisseur » retiré si la base ne 
   await capturer(page, info, 'MD2-liste-sans-plus');
   await volet(page).locator('[data-role="volet-onglets"] button').nth(2).click();
   await expect(volet(page).locator('[data-role="sans-plus"]')).toHaveCount(0); // une liste qui n'a jamais eu de « + » ne change pas
+  await expect(volet(page).locator('[data-action^="nouveau-"]')).toHaveCount(0); // jamais de « + Article », même si un jour la base l'autorisait
+  await volet(page).locator('[data-role="volet-onglets"] button').nth(1).click();
+  await expect(volet(page).locator('[data-action="nouveau-chantier"]')).toHaveText('Chantier'); // la base autorise la création des chantiers : « + Chantier » (PC1)
+  await expect(volet(page).locator('[data-role="sans-plus"]')).toHaveCount(0);
   await volet(page).locator('[data-role="volet-onglets"] button').nth(0).click();
   const lectures = () => page.evaluate(() => window.__appels.filter((a) => a.chemin.startsWith('/rest/v1/mode_emploi_')).length);
   expect(await lectures()).toBe(2); // lu une fois, par la porte
@@ -1198,6 +1208,124 @@ for (const [nom, modeEmploi, quand] of [['MD3a', null, 'ancienne base (maison de
     await capturer(page, info, `${nom}-sans-mode-d-emploi`);
   });
 }
+// « + Chantier » dans le volet (28/11/2026, décision de Jérôme) : PC1 le bouton suit la liste active ; PC2 le formulaire « Nouveau chantier » ; PC3 après la création ;
+// PC4 refus de la base ou de n8n ; PC5 cas vide. Le chemin d'écriture est l'action existante `creer_chantier` (la même que le module Chantiers).
+const ongletVolet = (page, n) => volet(page).locator('[data-role="volet-onglets"] button').nth(n);
+async function nouveauChantier(page) {
+  await ongletVolet(page, 1).click();
+  await expect(volet(page).locator('[data-role="volet-liste"]')).toContainText('Villa Orvaline');
+  await volet(page).locator('[data-action="nouveau-chantier"]').click();
+  await expect(volet(page)).toHaveAttribute('data-vue', 'nouveau');
+  await expect(volet(page).locator('[data-role="fiche-titre"]')).toHaveText('Nouveau chantier');
+}
+
+test('PC1 le bouton « + » suit la liste active : « + Fournisseur », « + Chantier », jamais « + Article » (sans mode d\'emploi : affiché)', async ({ page }, info) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  const plus = volet(page).locator('[data-action^="nouveau-"]');
+  await expect(plus).toHaveCount(1);
+  await expect(plus).toHaveAttribute('data-action', 'nouveau-fournisseur');
+  await expect(plus).toHaveText('Fournisseur');
+  await ongletVolet(page, 1).click();
+  await expect(volet(page).locator('[data-role="volet-liste"]')).toContainText('Villa Orvaline');
+  await expect(plus).toHaveCount(1);
+  await expect(plus).toHaveAttribute('data-action', 'nouveau-chantier');
+  await expect(plus).toHaveText('Chantier');
+  await capturer(page, info, 'PC1-liste-chantiers-plus-chantier');
+  await ongletVolet(page, 2).click();
+  await expect(volet(page).locator('[data-role="volet-liste"]')).toContainText('Ciment fictif 35 kg');
+  await expect(plus).toHaveCount(0); // pas de « + Article »
+  await expect(volet(page).locator('[data-role="sans-plus"]')).toHaveCount(0);
+  expect(await sansDefilementHorizontal(page)).toBe(true);
+});
+
+test('PC1 bis la base dit « chantiers.creer = false » : « + Chantier » est caché et la phrase de la base est à sa place', async ({ page }, info) => {
+  const mode = { objets: [{ objet: 'chantiers', creer: false, phrase_sans_creer: 'Phrase fictive : les chantiers viennent du logiciel de chantier.' }], champs: [] };
+  await ouvrirAppli(page, { modeEmploi: mode });
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  await expect(volet(page).locator('[data-action="nouveau-fournisseur"]')).toBeVisible(); // pas de ligne pour les fournisseurs : comme avant
+  await ongletVolet(page, 1).click();
+  await expect(volet(page).locator('[data-role="volet-liste"]')).toContainText('Villa Orvaline');
+  await expect(volet(page).locator('[data-action="nouveau-chantier"]')).toHaveCount(0);
+  await expect(volet(page).locator('[data-role="sans-plus"] [data-role="info"]')).toHaveAttribute('aria-label', /les chantiers viennent du logiciel de chantier/);
+  await capturer(page, info, 'PC1-bis-sans-plus-chantier');
+});
+
+test('PC2 formulaire « Nouveau chantier » : nom, code, client, adresse ; le nom est obligatoire ; « Annuler » ramène à la liste sans rien écrire', async ({ page }, info) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  await nouveauChantier(page);
+  await expect(volet(page).locator('[data-role="volet-onglets"]')).toHaveCount(0); // « ← » et la croix seulement
+  await expect(fiche(page).locator('dt')).toHaveText(['Nom', 'Code', 'Client', 'Adresse']);
+  await expect(fiche(page).locator('input, textarea')).toHaveCount(4);
+  await expect(fiche(page).locator('[data-champ="code"]')).toHaveAttribute('placeholder', 'Facultatif');
+  await expect(fiche(page).locator('[data-role="cadenas"]')).toHaveCount(0);
+  await capturer(page, info, 'PC2-formulaire-nouveau-chantier');
+  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
+  await expect(fiche(page).locator('[data-erreur="fiche"]')).toHaveText('Le nom du chantier est obligatoire.');
+  await capturer(page, info, 'PC2-nom-obligatoire');
+  expect(await sansDefilementHorizontal(page)).toBe(true);
+  await fiche(page).locator('[data-action="annuler-fiche"]').click();
+  await expect(volet(page)).toHaveAttribute('data-vue', 'liste');
+  await expect(volet(page)).toHaveAttribute('data-onglet', 'chantiers');
+  expect(await appelsVers(page, '/actions')).toHaveLength(0);
+});
+
+test('PC3 après la création : la liste est relue, la fiche du nouveau chantier s\'ouvre (code attribué par la base) et la facture est relue en silence', async ({ page }, info) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  await nouveauChantier(page);
+  const avant = await lecturesFacture(page, 'a1');
+  await fiche(page).locator('[data-champ="nom"]').fill('Maison fictive des essais');
+  await fiche(page).locator('[data-champ="client"]').fill('Client fictif bis');
+  await fiche(page).locator('[data-champ="adresse"]').fill('2 rue des essais 75000 Valmoran');
+  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
+  await expect(volet(page)).toHaveAttribute('data-vue', 'fiche');
+  await expect(volet(page).locator('[data-role="fiche-titre"]')).toHaveText('Maison fictive des essais');
+  await expect(fiche(page).locator('[data-valeur="code"]')).toHaveText('CH-0002'); // code vide : attribué par la base
+  await expect(fiche(page).locator('[data-valeur="statut"]')).toHaveText('En préparation');
+  expect(await appelsVers(page, '/actions')).toEqual([{ nom: 'Maison fictive des essais', statut: 'en_preparation', client: 'Client fictif bis', adresse: '2 rue des essais 75000 Valmoran', action: 'creer_chantier' }]);
+  await expect.poll(() => lecturesFacture(page, 'a1')).toBeGreaterThan(avant); // surEcriture : la facture affichée est relue
+  await capturer(page, info, 'PC3-fiche-nouveau-chantier');
+  await volet(page).locator('[data-action="retour-liste-volet"]').click();
+  await expect(volet(page).locator('[data-role="volet-liste"]')).toContainText('Maison fictive des essais');
+});
+
+test('PC4 refus de la base ou de n8n : le message clair sous le formulaire, la saisie reste remplie ; un nouvel essai réussit', async ({ page }, info) => {
+  await ouvrirAppli(page);
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  await page.evaluate(() => { window.__faux.refusChantier = 'Ce code de chantier existe déjà : choisis-en un autre ou laisse le champ vide.'; });
+  await nouveauChantier(page);
+  await fiche(page).locator('[data-champ="nom"]').fill('Maison fictive refusée');
+  await fiche(page).locator('[data-champ="code"]').fill('CH-1');
+  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
+  await expect(fiche(page).locator('[data-erreur="fiche"]')).toHaveText('Ce code de chantier existe déjà : choisis-en un autre ou laisse le champ vide.');
+  await expect(volet(page)).toHaveAttribute('data-vue', 'nouveau');
+  await expect(fiche(page).locator('[data-champ="nom"]')).toHaveValue('Maison fictive refusée');
+  await expect(fiche(page).locator('[data-champ="code"]')).toHaveValue('CH-1');
+  await expect(fiche(page).locator('[data-action="enregistrer-fiche"]')).toBeEnabled();
+  await capturer(page, info, 'PC4-refus-formulaire-garde');
+  await page.evaluate(() => { window.__faux.refusChantier = null; });
+  await fiche(page).locator('[data-champ="code"]').fill('');
+  await fiche(page).locator('[data-action="enregistrer-fiche"]').click();
+  await expect(volet(page).locator('[data-role="fiche-titre"]')).toHaveText('Maison fictive refusée');
+});
+
+test('PC5 cas vide : aucun chantier, la liste invite à utiliser « + Chantier »', async ({ page }, info) => {
+  await ouvrirAppli(page, { chantiers: [] });
+  await attendreFacture(page, 'FA-2026-0412');
+  await ouvrirVolet(page);
+  await ongletVolet(page, 1).click();
+  await expect(volet(page).locator('[data-etat="vide"]')).toHaveText('Aucun chantier pour l’instant. Ajoute le premier avec le bouton « + Chantier ».');
+  await expect(volet(page).locator('[data-action="nouveau-chantier"]')).toBeVisible();
+  await capturer(page, info, 'PC5-cas-vide-chantiers');
+});
+
 // Texte long (règle commune du 27/11/2026, docs/consignes-ui.md « Texte long : liste et fiche ») : T1 dans les listes du volet, 2 lignes au plus puis « … », texte entier au survol ;
 // T2 au clic, la fiche montre le texte entier, jamais coupé. Données fictives aux noms très longs.
 const LONG_FO = 'Société fictive des matériaux de construction et de la quincaillerie générale du plateau de Valmoran et des communes voisines';

@@ -1,6 +1,7 @@
 // Volet « Fournisseurs, Chantiers, Articles » de « l'application Factures » (27/11/2026, maquette v3) : il s'ouvre à droite sur ordinateur (la facture reste visible derrière),
 // et monte du bas sur téléphone. En haut : trois boutons pour passer d'une liste à l'autre, et la croix. Pas d'onglets à mémoriser : on ferme avec la croix, on rouvre par le grand bouton.
 // Quand une FICHE est ouverte, les trois boutons disparaissent : il ne reste que « ← » (retour à la liste) et la croix.
+// « + Fournisseur » et « + Chantier » (28/11/2026) : le bouton suit la liste active ; la liste des articles n'a pas de « + » (les articles naissent des factures).
 // Fiche d'un fournisseur ou d'un chantier : d'abord en lecture, puis « Modifier », « Enregistrer » / « Annuler » (fiche.js : la mise en page ne bouge pas). Fiche d'un article : lecture seule.
 // LECTURES et ÉCRITURES : seulement par donnees-appli.js (client de la base ; actions métier existantes). Trois cas partout : chargement, cas vide, cas d'erreur avec « Réessayer ».
 // IBAN (correction du 27/11/2026) : il ne se saisit plus dans la fiche. Le bouton « Signaler un changement d'IBAN » retire l'ancienne confirmation (action existante `revoquer_iban`), après une
@@ -14,12 +15,14 @@ import { fenetreAction } from './fenetres.js';
 import { ibanValide, normaliserIban } from './controles.js';
 import { champsAgenceDepuis, verifierChampsAgence } from './agences.js';
 import { dateFr, nomFournisseur, SANS_FOURNISSEUR, DUREE_MESSAGE } from './logique.js';
-import { initiales, masquerIban, correspond, verifierChantierFiche, champsChantierModifies, motifChangementIban, MESSAGE_IBAN_RETIRE, LIBELLE_STATUT_CHANTIER, OBJET_DU_VOLET, plusSelonModeEmploi, lignesSelonModeEmploi, saisieSelonModeEmploi } from './logique-appli.js';
+import { initiales, masquerIban, correspond, verifierChantierFiche, verifierChantierCreation, champsChantierModifies, motifChangementIban, MESSAGE_IBAN_RETIRE, LIBELLE_STATUT_CHANTIER, OBJET_DU_VOLET, plusSelonModeEmploi, lignesSelonModeEmploi, saisieSelonModeEmploi } from './logique-appli.js';
 
 export const ONGLETS = Object.freeze([['fournisseurs', 'Fournisseurs', 'building-2'], ['chantiers', 'Chantiers', 'folder-kanban'], ['articles', 'Articles', 'tag']]);
 const TITRE = Object.fromEntries(ONGLETS.map(([id, libelle]) => [id, libelle]));
-const VIDE_SANS_PLUS = 'Aucun fournisseur pour l’instant. Ils naissent des factures lues.';
-const VIDE = { fournisseurs: 'Aucun fournisseur pour l’instant. Ils naissent des factures lues, ou du bouton « + Fournisseur ».', chantiers: 'Aucun chantier pour l’instant.', articles: 'Aucun article pour l’instant. Ils naissent des lignes des factures.' };
+const VIDE_SANS_PLUS = { fournisseurs: 'Aucun fournisseur pour l’instant. Ils naissent des factures lues.', chantiers: 'Aucun chantier pour l’instant.' };
+/** Le bouton « + » de chaque liste qui en a un : [data-action, libellé]. Les articles n'en ont pas. */
+const PLUS = { fournisseurs: ['nouveau-fournisseur', 'Fournisseur'], chantiers: ['nouveau-chantier', 'Chantier'] };
+const VIDE = { fournisseurs: 'Aucun fournisseur pour l’instant. Ils naissent des factures lues, ou du bouton « + Fournisseur ».', chantiers: 'Aucun chantier pour l’instant. Ajoute le premier avec le bouton « + Chantier ».', articles: 'Aucun article pour l’instant. Ils naissent des lignes des factures.' };
 const ERREUR = { fournisseurs: 'Impossible de lire les fournisseurs. Vérifie ta connexion, puis réessaie.', chantiers: 'Impossible de lire les chantiers. Vérifie ta connexion, puis réessaie.', articles: 'Impossible de lire les articles. Vérifie ta connexion, puis réessaie.' };
 const NOTE_FOURNISSEUR = 'Le nom, le SIREN, les agences et l’e-mail viennent des factures lues : ils ne se modifient pas ici pour l’instant. L’IBAN ne se saisit pas ici : il est lu sur les factures, puis confirmé après vérification.';
 const NOTE_CONFIRME = 'Si le fournisseur t’annonce un nouvel IBAN, signale-le : l’ancien ne sera plus reconnu.';
@@ -101,9 +104,9 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
     surModeEmploi(); // l'application redessine ses bandeaux (bouton « Ajouter » d'un nouveau fournisseur)
     if (ouvert && !saisieEnCours() && vue !== 'nouveau') dessiner();
   }
-  const plus = (quoi) => plusSelonModeEmploi(modeEmploi, OBJET_DU_VOLET[quoi], quoi === 'fournisseurs'); // seul « + Fournisseur » existe à l'écran
+  const plus = (quoi) => plusSelonModeEmploi(modeEmploi, OBJET_DU_VOLET[quoi], !!PLUS[quoi]); // « + Fournisseur » et « + Chantier » existent à l'écran (vrais sans mode d'emploi) ; jamais de « + Article »
   /** Pas de « + » parce que la base ne le permet pas : à sa place, la phrase de la base (gris et « i », règle « limite » de docs/consignes-ui.md). */
-  const sansPlus = (quoi) => { if (quoi !== 'fournisseurs') return null; const p = plus(quoi); return !p.montrer && p.phrase ? h('span', { class: 'af-sans-plus aide', dataset: { role: 'sans-plus' } }, 'Pas d’ajout ici', iconeInfo(p.phrase, 'Pas d’ajout ici')) : null; };
+  const sansPlus = (quoi) => { if (!PLUS[quoi]) return null; const p = plus(quoi); return !p.montrer && p.phrase ? h('span', { class: 'af-sans-plus aide', dataset: { role: 'sans-plus' } }, 'Pas d’ajout ici', iconeInfo(p.phrase, 'Pas d’ajout ici')) : null; };
   const selonBase = (quoi, lignes) => lignesSelonModeEmploi(modeEmploi, OBJET_DU_VOLET[quoi], lignes);
 
   /** Une fiche est en cours de modification : une lecture qui finit ne la redessine pas (la saisie serait perdue). */
@@ -162,12 +165,12 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
     const boite = champRecherche({ placeholder: 'Rechercher…', libelleAria: `Rechercher dans ${TITRE[onglet]}`, valeur: recherche, surSaisie: (v) => { recherche = v; remplir(zone, lignes()); } });
     const zone = h('div', { class: 'af-liste-zone' });
     const outils = h('div', { class: 'af-volet-outils' }, boite.element,
-      plus(onglet).montrer ? h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'nouveau-fournisseur' }, onclick: () => ouvrirNouveau(null) }, icone('plus', { taille: 16 }), 'Fournisseur') : sansPlus(onglet));
+      PLUS[onglet] && plus(onglet).montrer ? h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: PLUS[onglet][0] }, onclick: () => ouvrirNouveau(null, onglet) }, icone('plus', { taille: 16 }), PLUS[onglet][1]) : sansPlus(onglet));
     function lignes() {
       if (e.etat === 'chargement' || e.etat === 'vide') return h('div', { class: 'chargement-bloc', role: 'status', dataset: { etat: 'chargement' } }, h('span', { class: 'rond-chargement' }), h('span', { class: 'aide' }, 'Chargement…'));
       if (e.etat === 'erreur') return etatBloc('alert', { etat: 'erreur' }, h('p', { class: 'mon-espace-erreur' }, ERREUR[onglet]),
         h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'reessayer' }, onclick: () => { void charger(onglet, true); } }, icone('refresh-cw', { taille: 16 }), 'Réessayer'));
-      if (e.lignes.length === 0) return etatBloc('status', { etat: 'vide' }, h('p', {}, onglet === 'fournisseurs' && !plus('fournisseurs').montrer ? VIDE_SANS_PLUS : VIDE[onglet]));
+      if (e.lignes.length === 0) return etatBloc('status', { etat: 'vide' }, h('p', {}, VIDE_SANS_PLUS[onglet] && !plus(onglet).montrer ? VIDE_SANS_PLUS[onglet] : VIDE[onglet]));
       const visibles = e.lignes.filter((x) => correspond(texteDe(x), recherche));
       if (visibles.length === 0) return etatBloc('status', { etat: 'sans-resultat' }, h('p', {}, 'Rien ne correspond à ta recherche.'));
       return h('ul', { class: 'af-liste', dataset: { role: 'volet-liste' } }, visibles.map(ligne));
@@ -311,6 +314,7 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
   }
 
   function dessinerNouveau() {
+    if (onglet === 'chantiers') { dessinerNouveauChantier(); return; }
     teteFiche('fournisseurs');
     const f = depuisFacture;
     const lus = f ? champsAgenceDepuis(f.extraction) : { nom_fournisseur: '', siret: '', siren: '', nom_agence: '', ville: '' };
@@ -344,6 +348,40 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
     remplir(corps, h('h2', { class: 'af-titre-nouveau', tabIndex: -1, dataset: { role: 'fiche-titre' } }, 'Nouveau fournisseur'),
       f ? h('p', { class: 'af-info', dataset: { role: 'prerempli' } }, icone('check', { taille: 16 }), `Pré-rempli depuis la facture${f.numero ? ` ${f.numero}` : ''}${f.date_facture ? ` du ${dateFr(f.date_facture)}` : ''}. Vérifie avant d’enregistrer.`) : null,
       fiche.element);
+  }
+
+  /**
+   * « Nouveau chantier » (bouton « + Chantier », 28/11/2026) : nom (obligatoire), code (facultatif : vide = attribué par la base), client, adresse ; statut « en préparation ».
+   * Le mode d'emploi des champs ne s'applique pas ici (comme « Nouveau fournisseur »). Après la création : la liste est relue, puis la fiche du nouveau chantier s'ouvre
+   * (retrouvé par `chantier_id`) ; s'il n'est pas dans la liste relue (relecture en échec), on revient à la liste. Refus de la base ou de n8n : le message sous le formulaire, la saisie est gardée.
+   */
+  function dessinerNouveauChantier() {
+    teteFiche('chantiers');
+    const fiche = creerFiche({
+      mode: 'creation', libelleEnregistrer: 'Enregistrer',
+      lignes: [
+        { cle: 'nom', libelle: 'Nom', valeur: '', modifiable: true, placeholder: 'Nom du chantier' },
+        { cle: 'code', libelle: 'Code', valeur: '', modifiable: true, placeholder: 'Facultatif' },
+        { cle: 'client', libelle: 'Client', valeur: '', modifiable: true, placeholder: 'Nom du client' },
+        { cle: 'adresse', libelle: 'Adresse', valeur: '', modifiable: true, placeholder: 'Adresse du chantier' },
+      ],
+      note: 'Code laissé vide : il est attribué automatiquement. Le chantier est créé « En préparation » ; le statut, le budget et les dates se règlent dans l’écran Chantiers.',
+      surAnnuler: () => { vue = 'liste'; dessiner(); },
+      surEnregistrer: async (v) => {
+        const probleme = verifierChantierCreation(v);
+        if (probleme) throw new Error(probleme);
+        const r = await donnees().creerChantier(v);
+        if (!vivant) return;
+        toast(`Chantier ajouté : ${v.nom}`, { duree: DUREE_MESSAGE });
+        await charger('chantiers', true);
+        if (!vivant) return;
+        const id = r?.chantier_id;
+        const cree = id === undefined || id === null ? null : cache.chantiers.lignes.find((x) => String(x.id) === String(id));
+        if (ouvert && onglet === 'chantiers' && vue === 'nouveau') { if (cree) { vue = 'fiche'; cle = cree.id; } else vue = 'liste'; dessiner(); }
+        surEcriture();
+      },
+    });
+    remplir(corps, h('h2', { class: 'af-titre-nouveau', tabIndex: -1, dataset: { role: 'fiche-titre' } }, 'Nouveau chantier'), fiche.element);
   }
 
   // ------------------------------------------------------------ ouverture, fermeture
@@ -388,7 +426,8 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
   }
   function ouvrir(quoi = 'fournisseurs') { onglet = quoi; vue = 'liste'; cle = null; depuisFacture = null; recherche = ''; montrer(); void charger(quoi); }
   function ouvrirFiche(type, id) { onglet = type; vue = 'fiche'; cle = id; depuisFacture = null; montrer(); void charger(type); }
-  function ouvrirNouveau(facture) { onglet = 'fournisseurs'; vue = 'nouveau'; cle = null; depuisFacture = facture ?? null; montrer(); }
+  /** `quoi` : 'fournisseurs' (défaut ; la facture pré-remplit le formulaire) ou 'chantiers' (formulaire vide). */
+  function ouvrirNouveau(facture, quoi = 'fournisseurs') { onglet = quoi === 'chantiers' ? 'chantiers' : 'fournisseurs'; vue = 'nouveau'; cle = null; depuisFacture = onglet === 'fournisseurs' ? facture ?? null : null; montrer(); }
   const liberer = () => { document.removeEventListener('keydown', surTouche, true); document.documentElement.classList.remove(CLASSE_PAGE_FIGEE); };
   function fermer() {
     if (!ouvert) return;
@@ -407,6 +446,6 @@ export function creerVolet({ donnees, etatFournisseurs, rechargerFournisseurs, s
   function rafraichir() { if (ouvert && onglet === 'fournisseurs' && (vue === 'liste' || corps.querySelector('[data-etat="chargement"], [data-etat="erreur"]'))) dessiner(); }
 
   setTimeout(() => { void chargerModeEmploi(); }, 0); // dès la création : en général, le mode d'emploi est là avant la première ouverture (pas de « + » qui apparaît puis disparaît)
-  /** `peutCreer('fournisseurs')` : le « + » selon le mode d'emploi de la base (vrai sans mode d'emploi, comme avant). Pour les autres portes de création (bandeau de la facture). */
+  /** `peutCreer('fournisseurs')` : le « + » selon le mode d'emploi de la base (vrai sans mode d'emploi, comme avant ; de même pour 'chantiers'). Pour les autres portes de création (bandeau de la facture). */
   return { element, voile, ouvrir, ouvrirFiche, ouvrirNouveau, fermer, estOuvert: () => ouvert, rafraichir, peutCreer: (quoi) => plus(quoi).montrer, arreter: () => { vivant = false; liberer(); } };
 }
