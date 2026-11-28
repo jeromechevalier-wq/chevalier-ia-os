@@ -7,6 +7,13 @@
 create temp table contraintes_avant as
   select k.conrelid::regclass::text as t, k.conname as nom, pg_get_constraintdef(k.oid) as def, k.convalidated as valide
     from pg_constraint k where k.connamespace = 'public'::regnamespace and k.contype = 'c';
+-- Et l'état des verrous que 010 lève puis remet : sécurité par ligne (active, forcée) et déclencheurs (actifs ou non).
+create temp table verrous_avant as
+  select 'table ' || c.relname || ' rls=' || c.relrowsecurity || ' force=' || c.relforcerowsecurity as etat
+    from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+  union all
+  select 'declencheur ' || g.tgrelid::regclass || '.' || g.tgname || ' ' || g.tgenabled::text
+    from pg_trigger g join pg_class c on c.oid = g.tgrelid where c.relnamespace = 'public'::regnamespace and not g.tgisinternal;
 
 -- Rejouer 010 avec l'e-mail (inventé), une première puis une seconde fois.
 \set email_jerome 'jerome@exemple.test'
@@ -27,6 +34,16 @@ begin
                        and k.conrelid::regclass::text = a.t and k.conname = a.nom and pg_get_constraintdef(k.oid) = a.def
                        and (k.convalidated or not a.valide));
   if v is not null then raise exception '010/013 : contraintes perdues ou changées après 010 : %', v; end if;
+  -- 010/013 : sécurité par ligne et déclencheurs remis exactement comme avant (ex. mode_emploi_* jamais forcées).
+  select string_agg(x.etat, ', ') into v from (
+    (select etat from verrous_avant
+     except
+     select 'table ' || c.relname || ' rls=' || c.relrowsecurity || ' force=' || c.relforcerowsecurity
+       from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+     except
+     select 'declencheur ' || g.tgrelid::regclass || '.' || g.tgname || ' ' || g.tgenabled::text
+       from pg_trigger g join pg_class c on c.oid = g.tgrelid where c.relnamespace = 'public'::regnamespace and not g.tgisinternal)) x;
+  if v is not null then raise exception '010/013 : verrous changés après 010 : %', v; end if;
 end $$;
 
 -- 010/013 : elles refusent toujours une valeur hors liste.
