@@ -406,3 +406,28 @@ describe('AR retouche du schéma « Architecture » (sans navigateur)', () => {
     assert.match(lire('js/modules/console/detail.js'), /title: b\.infobulle \?\? b\.libelle/);
   });
 });
+
+// Deuxième retouche du schéma (28/11/2026, AR8 à AR10) : nuage Cloud SQL commun à venir, Firestore de l'immeuble, Firestore de la maison client.
+describe('AR nuages du schéma « Architecture » (sans navigateur)', () => {
+  test('AR8 nuage commun grisé au-dessus du CRM et de l\'immeuble : « Cloud SQL — à venir », « les données à venir »', () => {
+    assert.deepEqual(TEXTES_SCHEMA.nuageCommun, ['Cloud SQL — à venir', 'les données à venir']);
+    const s = lire('js/modules/console/schema.js');
+    assert.match(s, /nuageCommun\(places\[0\]\.x, places\[1\]\.x, \d+, T\.nuageCommun\)/);
+    assert.match(s, /const nuageCommun = [\s\S]*?el\('g', \{ class: 'console-schema-avenir' \}/);
+  });
+  test('AR9 nuage de Chevalier IA App : « Firestore », « les données », « et les réglages »', () => {
+    assert.deepEqual(TEXTES_SCHEMA.batiments[1].nuage, ['Firestore', 'les données', 'et les réglages']);
+    assert.doesNotMatch(JSON.stringify(TEXTES_SCHEMA), /tiroir/);
+  });
+  test('AR10 maison client : un 2e nuage « Firestore », « les réglages » (figé et registre, sauf maison à venir)', () => {
+    assert.deepEqual(TEXTES_SCHEMA.batiments[2].nuage2, ['Firestore', 'les réglages']);
+    assert.equal(TEXTES_SCHEMA.batiments[3].nuage2, undefined);
+    const m = modeleSchema({ os: { projets: [] }, immeuble: { projets: [], appartements: [] }, maisons: [
+      { cle: 'maison-a', nom: 'Maison essai A', etat: 'en_construction', projets: [{ role: 'Cloud SQL', libelle: 'Base essai' }] },
+      { cle: 'maison-b', nom: 'Maison essai B', etat: 'a_venir', projets: [] },
+    ] });
+    assert.deepEqual(m.batiments[2].nuage2, ['Firestore', 'les réglages']);
+    assert.deepEqual(m.batiments[2].nuage, ['Cloud SQL', 'les données']);
+    assert.equal(m.batiments[3].nuage2, undefined);
+  });
+});

@@ -94,7 +94,7 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     const PERMIS = new Set(('architecture schéma d chevalier ia os app est une un maison immeuble avec appartement par client en construction et autre à '
       + 'venir chaque bâtiment a son nuage de données le mcp va droit au n8n tourne sur serveur part firestore tes tiroir espace cloud sql les factures '
       + 'ta tu testes tout ici premier l automatisations téléphone grue pointillés figé détails projets serveurs sont dans second cerveau '
-      + 'chantier avenir 1 2 3 autres service réglages vps hostinger').split(' ')); // « autres » et « service » : textes fixes du registre de la Console (28/11/2026) ; « réglages », « vps », « hostinger » : retouche AR du 28/11/2026 (VPS Hostinger : décision de Jérôme, exception au garde-fou 5)
+      + 'chantier avenir 1 2 3 autres service réglages vps hostinger commun').split(' ')); // « autres » et « service » : textes fixes du registre de la Console (28/11/2026) ; « réglages », « vps », « hostinger » : retouche AR du 28/11/2026 (VPS Hostinger : décision de Jérôme, exception au garde-fou 5)
     const textes = [];
     const parcourir = (v) => { if (typeof v === 'string') textes.push(v); else if (v && typeof v === 'object') Object.values(v).forEach(parcourir); };
     parcourir(TEXTES_SCHEMA);
