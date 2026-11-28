@@ -44,7 +44,8 @@ jobs:
         if: ${{ inputs.elements == 'fonctions' || inputs.elements == 'mcp' || inputs.elements == 'espace' || inputs.elements == 'porte' || inputs.elements == 'hosting' || inputs.elements == 'tout' }}
         # Jamais bloquant pour « hosting » et « tout » (règle du 27/11/2026 : rien ne bloque une publication d'urgence) : en cas d'échec ici,
         # la publication des fonctions échoue plus bas, et « hosting » / « tout » repartent alors sans le tampon de version.
-        run: npm ci --prefix functions-plateforme || echo "::warning::Composants des fonctions non installés : le tampon de version risque de ne pas partir."
+        run: |
+          npm ci --prefix functions-plateforme || echo "::warning::Composants des fonctions non installés : le tampon de version risque de ne pas partir."
       - name: Construire le paquet de la plateforme
         run: node scripts/preparer-hebergement.js plateforme
       - name: Vérifier que le secret existe (sans jamais l'afficher)
