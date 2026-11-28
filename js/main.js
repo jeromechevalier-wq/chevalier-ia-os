@@ -126,7 +126,7 @@ async function ouvrirSession(compte) {
   besoinsVillage = besoinsServis(village.besoins, [...MODULES.map((m) => m.prefixe), 'reglages']); // étape 2 (27/11/2026) : un besoin dont le module n'est pas allumé pour ce compte n'a jamais de maison
   besoinsMaison = besoinsVillage;
   afficherChargement();
-  // Interrupteurs « Mon accueil » : lus seulement si la maison a un village (2 s au plus ; défauts : jeu allumé chez Jérôme, éteint dans la maison d'un client ; accueil village).
+  // Interrupteurs « Mon accueil » : lus seulement si la maison a un village (2 s au plus ; défauts : jeu allumé chez Jérôme, éteint dans la maison d'un client ; accueil classique depuis le 28/11/2026).
   // La lecture part AVANT le montage des modules et n'est attendue qu'après : elle ne rallonge pas l'ouverture.
   const lecturePreferences = !portail && besoinsMaison.length ? lirePreferences({ uid: compte.uid }) : null;
   const apis = new Map();

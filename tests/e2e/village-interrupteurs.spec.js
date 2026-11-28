@@ -47,7 +47,8 @@ async function ouvrir(page, route, avant = async () => {}) {
   await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
   const uid = await uidDe(page);
   await avant(uid);
-  await page.evaluate((r) => { location.hash = `#/${r}`; }, route);
+  // replaceState : l'adresse change sans prévenir l'application (en accueil classique, par défaut depuis le 28/11/2026, `#/accueil` serait aussitôt redirigé)
+  await page.evaluate((r) => { history.replaceState(history.state, '', `#/${r}`); }, route);
   await page.reload();
   await expect(page.locator('.coquille')).toBeVisible();
   return uid;
@@ -93,6 +94,39 @@ async function glisser(page, nom, c, l) {
 }
 
 test.describe('Mon accueil : interrupteurs par personne', () => {
+  // Décision de Jérôme du 28/11/2026 : « par défaut pour les espaces existants on n'active pas le village ». Sans réglage enregistré : le menu classique.
+  test('V1 personne sans réglage enregistré : l’adresse vide ouvre le menu classique (jamais le village) ; la carte « Mon accueil » montre le village éteint', async ({ page }, info) => {
+    await semer({ besoins: [FACTURES, ACHATS_B] });
+    const uid = await ouvrir(page, '');
+    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/[a-z]+\/[a-z]/);
+    await expect(village(page)).toHaveCount(0);
+    await expect(page.locator('[data-role="page-introuvable"]')).toHaveCount(0);
+    await capturer(page, info, 'V1-menu-classique-par-defaut');
+    // l'adresse du village ramène au menu classique
+    const classique = new URL(page.url()).hash;
+    await page.evaluate(() => { location.hash = '#/accueil'; });
+    await expect.poll(() => new URL(page.url()).hash).toBe(classique);
+    await expect(village(page)).toHaveCount(0);
+    await expect(page.locator('[data-role="page-introuvable"]')).toHaveCount(0);
+    await page.evaluate(() => { location.hash = '#/reglages/espace'; });
+    await expect(carte(page)).toBeVisible();
+    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(interVillage(page)).toBeEnabled(); // la maison a un village : la personne peut l'allumer
+    await expect(page.locator('[data-action="retour-village"]')).toHaveCount(0);
+    expect(await lireDocument(prefsDe(uid))).toBeFalsy(); // rien n'est écrit tant que la personne ne touche à rien
+    await carte(page).scrollIntoViewIfNeeded();
+    await capturer(page, info, 'V1-carte-village-eteint');
+  });
+
+  test('V2 réglage enregistré « village » : l’adresse vide ouvre toujours le village', async ({ page }, info) => {
+    await semer({ besoins: [FACTURES, ACHATS_B] });
+    await ouvrir(page, '', (uid) => ecrireDocument(prefsDe(uid), { jeu: true, accueil: 'village', modifieLe: new Date() }));
+    await expect(village(page)).toBeVisible();
+    await expect(maison(page, 'Factures')).toBeVisible();
+    expect(new URL(page.url()).hash).toBe('#/accueil');
+    await capturer(page, info, 'V2-village-enregistre');
+  });
+
   test('I3 jeu éteint : le village s’affiche sans compteur d’or, sans « Boutique », sans objet acheté ; une maison se glisse toujours', async ({ page }, info) => {
     await semer({ besoins: [FACTURES, ACHATS_B] });
     await ouvrir(page, 'accueil', async (uid) => {
@@ -190,9 +224,16 @@ test.describe('Mon accueil : interrupteurs par personne', () => {
     await expect(carte(page)).toBeVisible();
     await expect(carte(page).getByRole('heading', { name: 'Mon accueil' })).toBeVisible();
     await expect(page.locator('[data-role="village-absent"]')).toHaveCount(0);
-    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'true');
-    await expect(interJeu(page)).toHaveAttribute('aria-checked', 'true'); // maison comme celle de Jérôme : jeu allumé par défaut
+    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false'); // accueil classique par défaut (28/11/2026)
+    await expect(interJeu(page)).toHaveAttribute('aria-checked', 'true'); // maison comme celle de Jérôme : jeu allumé par défaut (grisé tant que le village est éteint)
     await expect(interVillage(page)).toBeEnabled();
+    await expect(page.locator('[data-action="retour-village"]')).toHaveCount(0);
+    // « Accueil en village » allumé : écriture, rechargement, le village devient l'accueil
+    await Promise.all([page.waitForEvent('load'), interVillage(page).click()]);
+    await expect(carte(page)).toBeVisible();
+    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'true');
+    const lu0 = await lireDocument(prefsDe(uid));
+    expect([lu0.jeu, lu0.accueil]).toEqual([true, 'village']);
     await carte(page).scrollIntoViewIfNeeded();
     await capturer(page, info, 'I6-carte-mon-accueil');
     await expect(page.locator('[data-action="retour-village"]')).toHaveCount(1);
@@ -225,35 +266,42 @@ test.describe('Mon accueil : interrupteurs par personne', () => {
     await capturer(page, info, 'I6-erreur-ecriture');
   });
 
-  test('I7 maison d’un client (configuration neutre) : jeu éteint par défaut, pas de compteur ; la carte le montre', async ({ page }, info) => {
+  test('I7 maison d’un client (configuration neutre) : menu classique et jeu éteint par défaut ; allumé, le village s’affiche sans compteur', async ({ page }, info) => {
     await semer({ neutre: true, besoins: [FACTURES] });
-    await ouvrir(page, 'accueil', (uid) => ecrireDocument(`village_utilisateurs/${uid}`, { or: 300, gagne: 300, parcelles: 0, version: 1 }));
+    const uid = await ouvrir(page, 'reglages/espace', (u) => ecrireDocument(`village_utilisateurs/${u}`, { or: 300, gagne: 300, parcelles: 0, version: 1 }));
+    await expect(carte(page)).toBeVisible();
+    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false');
+    await expect(interJeu(page)).toHaveAttribute('aria-checked', 'false');
+    await page.evaluate(() => { location.hash = '#/accueil'; });
+    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/(?!reglages\/)[a-z]+\/[a-z]/); // accueil classique : l'adresse du village ramène au menu (écran d'un module)
+    await expect(village(page)).toHaveCount(0);
+    await expect(page.locator('[data-role="page-introuvable"]')).toHaveCount(0);
+    // la personne allume le village : jeu toujours éteint (défaut d'une maison de client), pas de compteur
+    await ecrireDocument(prefsDe(uid), { jeu: false, accueil: 'village', modifieLe: new Date() });
+    await page.evaluate(() => { history.replaceState(history.state, '', '#/accueil'); });
+    await page.reload();
     await expect(village(page)).toBeVisible();
     await expect(maison(page, 'Factures')).toBeVisible();
     await expect(or(page)).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Boutique' })).toHaveCount(0);
     await capturer(page, info, 'I7-maison-client-sans-jeu');
-    await page.evaluate(() => { location.hash = '#/reglages/espace'; });
-    await expect(carte(page)).toBeVisible();
-    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'true');
-    await expect(interJeu(page)).toHaveAttribute('aria-checked', 'false');
   });
 
   test('I8 lecture en panne à l’ouverture : le dernier réglage mémorisé sur l’appareil s’applique ; un clic relit le document et ne change que l’interrupteur touché', async ({ page }) => {
     await semer({ besoins: [FACTURES] });
-    // 1. une ouverture normale mémorise « classique, jeu éteint » sur l'appareil
-    const uid = await ouvrir(page, 'reglages/espace', (u) => ecrireDocument(prefsDe(u), { jeu: false, accueil: 'classique', modifieLe: new Date() }));
-    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false');
+    // 1. une ouverture normale mémorise « village, jeu éteint » sur l'appareil (village : différent du défaut, le menu classique depuis le 28/11/2026)
+    const uid = await ouvrir(page, 'reglages/espace', (u) => ecrireDocument(prefsDe(u), { jeu: false, accueil: 'village', modifieLe: new Date() }));
+    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'true');
     // 2. ailleurs, le jeu a été rallumé ; ici, la prochaine lecture à l'ouverture tombe en panne
-    await ecrireDocument(prefsDe(uid), { jeu: true, accueil: 'classique', modifieLe: new Date() });
+    await ecrireDocument(prefsDe(uid), { jeu: true, accueil: 'village', modifieLe: new Date() });
     await poserCrochetsDeTest(page, { pannesPreferences: { lecture: 1 } });
     await page.reload();
     await expect(carte(page)).toBeVisible();
-    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'false'); // le mémorisé (classique), jamais le village par défaut
+    await expect(interVillage(page)).toHaveAttribute('aria-checked', 'true'); // le mémorisé (village), jamais le défaut (menu classique)
     await expect(interJeu(page)).toHaveAttribute('aria-checked', 'false'); // le mémorisé
-    // 3. on rallume le village : le document est relu (jeu allumé) et seul l'accueil change
+    // 3. on éteint le village : le document est relu (jeu allumé) et seul l'accueil change
     await Promise.all([page.waitForEvent('load'), interVillage(page).click()]);
-    await expect.poll(async () => { const d = await lireDocument(prefsDe(uid)); return d && [d.jeu, d.accueil]; }).toEqual([true, 'village']);
+    await expect.poll(async () => { const d = await lireDocument(prefsDe(uid)); return d && [d.jeu, d.accueil]; }).toEqual([true, 'classique']);
   });
 
   // Option sans effet grisée avec sa raison (règle de Jérôme du 28/11/2026, docs/consignes-ui.md « Option sans effet ») : « Pièces d'or et boutique » ne sert à rien en accueil classique.

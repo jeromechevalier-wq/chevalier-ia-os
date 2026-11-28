@@ -6,8 +6,11 @@
 // Le compteur de la bulle lit la base de l'espace par le faux réseau du crochet de test `window.__accesBase` (émulateurs seulement, voir js/os/acces-base.js).
 // Comptes des parcours (outils.js) : JEROME est le titulaire ; CHARLES est un autre compte autorisé de la maison. Logique sans navigateur : tests/maison-village.test.js.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, ecrireDocument, estTelephone, CHARLES, PROJET, FIRESTORE, ECRAN_PARCOURS } from './outils.js';
+import { test, expect, connecter, ecrireDocument, estTelephone, CHARLES, PROJET, FIRESTORE, ECRAN_PARCOURS, villageParDefaut } from './outils.js';
 import { semerFicheEmulateur } from '../_fiche-emulateur.js';
+
+// Depuis le 28/11/2026 l'accueil par défaut est le menu classique : ces parcours du village remettent le village par défaut (crochet de test, docs/accueil-village.md).
+test.beforeEach(async ({ page }) => { await villageParDefaut(page); });
 
 const DOSSIER = fileURLToPath(new URL('./captures/maison-village/', import.meta.url));
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: false, animations: 'disabled' });
